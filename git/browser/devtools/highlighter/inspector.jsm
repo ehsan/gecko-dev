@@ -893,9 +893,7 @@ InspectorUI.prototype = {
   clearPseudoClassLocks: function IUI_clearPseudoClassLocks()
   {
     this.breadcrumbs.nodeHierarchy.forEach(function(crumb) {
-      if (LayoutHelpers.isNodeConnected(crumb.node)) {
-        DOMUtils.clearPseudoClassLocks(crumb.node);
-      }
+      DOMUtils.clearPseudoClassLocks(crumb.node);
     });
   },
 
