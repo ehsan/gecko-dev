@@ -3614,6 +3614,7 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
  * @param aFrame [in] Frame whose bounds should be unioned
  * @param aVPercent [in] same as for ScrollContentIntoView
  * @param aRect [inout] rect into which its bounds should be unioned
+ * @param aHaveRect [inout] whether aRect contains data yet
  * @param aClosestScrolledView [inout] the view to which aRect is relative.
  *   If null, should be filled in appropriately.  If non-null, the function
  *   will no-op if the closest scrolling view doesn't match.
@@ -3622,6 +3623,7 @@ static void
 UnionRectForClosestScrolledView(nsIFrame* aFrame,
                                 PRIntn aVPercent,
                                 nsRect& aRect,
+                                PRBool& aHaveRect,
                                 nsIView*& aClosestScrolledView)
 {
   nsRect  frameBounds = aFrame->GetRect();
@@ -3697,7 +3699,19 @@ UnionRectForClosestScrolledView(nsIFrame* aFrame,
     aClosestScrolledView = closestView;
 
   if (aClosestScrolledView == closestView) {
-    aRect.UnionRect(aRect, frameBounds);
+    if (aHaveRect) {
+      // We can't use nsRect::UnionRect since it drops empty rects on
+      // the floor, and we need to include them.  (Thus we need
+      // aHaveRect to know when to drop the initial value on the floor.)
+      nscoord x = PR_MIN(aRect.x, frameBounds.x),
+              y = PR_MIN(aRect.y, frameBounds.y),
+          xmost = PR_MAX(aRect.XMost(), frameBounds.XMost()),
+          ymost = PR_MAX(aRect.YMost(), frameBounds.YMost());
+      aRect.SetRect(x, y, xmost - x, ymost - y);
+    } else {
+      aHaveRect = PR_TRUE;
+      aRect = frameBounds;
+    }
   }
 }
 
@@ -3849,8 +3863,10 @@ PresShell::ScrollContentIntoView(nsIContent* aContent,
   
   nsIView *closestView = nsnull;
   nsRect frameBounds;
+  PRBool haveRect = PR_FALSE;
   do {
-    UnionRectForClosestScrolledView(frame, aVPercent, frameBounds, closestView);
+    UnionRectForClosestScrolledView(frame, aVPercent, frameBounds, haveRect,
+                                    closestView);
   } while ((frame = frame->GetNextContinuation()));
 
   // Walk up the view hierarchy.  Make sure to add the view's position
@@ -5358,23 +5374,27 @@ PresShell::HandleEvent(nsIView         *aView,
 
     nsPresContext* framePresContext = frame->PresContext();
     nsPresContext* rootPresContext = framePresContext->RootPresContext();
-    NS_ASSERTION(rootPresContext == mPresContext->RootPresContext(),
+    NS_ASSERTION(rootPresContext = mPresContext->RootPresContext(),
                  "How did we end up outside the connected prescontext/viewmanager hierarchy?"); 
     // If we aren't starting our event dispatch from the root frame of the root prescontext,
     // then someone must be capturing the mouse. In that case we don't want to search the popup
     // list.
     if (framePresContext == rootPresContext &&
         frame == FrameManager()->GetRootFrame()) {
-      const nsTArray<nsIFrame*>& popups = rootPresContext->GetActivePopups();
-      PRInt32 i;
-      // Search from top to bottom
-      for (i = popups.Length() - 1; i >= 0; i--) {
-        nsIFrame* popup = popups[i];
-        if (popup->GetOverflowRect().Contains(
-                nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, popup))) {
-          // The event should target the popup
-          frame = popup;
-          break;
+
+      nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+      if (pm) {
+        nsTArray<nsIFrame*> popups = pm->GetOpenPopups();
+        PRInt32 i;
+        // Search from top to bottom
+        for (i = 0; i < popups.Length(); i++) {
+          nsIFrame* popup = popups[i];
+          if (popup->GetOverflowRect().Contains(
+              nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, popup))) {
+            // The event should target the popup
+            frame = popup;
+            break;
+          }
         }
       }
     }

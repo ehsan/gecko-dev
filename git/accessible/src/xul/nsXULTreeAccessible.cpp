@@ -132,7 +132,7 @@ mAccessNodeCache(nsnull)
   if (mTree)
     mTree->GetView(getter_AddRefs(mTreeView));
   NS_ASSERTION(mTree && mTreeView, "Can't get mTree or mTreeView!\n");
-  mAccessNodeCache = new nsInterfaceHashtable<nsVoidHashKey, nsIAccessNode>;
+  mAccessNodeCache = new nsAccessNodeHashtable;
   mAccessNodeCache->Init(kDefaultTreeCacheSize);
 }
 
@@ -603,6 +603,9 @@ nsXULTreeitemAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   if (isContainer) {
     mTreeView->IsContainerEmpty(mRow, &isContainerEmpty);
     if (!isContainerEmpty) {
+      if (aExtraState)
+        *aExtraState |= nsIAccessibleStates::EXT_STATE_EXPANDABLE;
+
       mTreeView->IsContainerOpen(mRow, &isContainerOpen);
       *aState |= isContainerOpen? PRUint32(nsIAccessibleStates::STATE_EXPANDED):
                                   PRUint32(nsIAccessibleStates::STATE_COLLAPSED);

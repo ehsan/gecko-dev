@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -15,12 +15,12 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2001
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Conrad Carlen <ccarlen@netscape.com>
+ *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -38,13 +38,22 @@
 
 #include "nsISupports.idl"
 
-[scriptable, uuid(2f977d49-5485-11d4-87e2-0010a4e75ef2)]
-interface nsICloseAllWindows : nsISupports
+[scriptable, uuid(11e0176a-4a2d-4a90-8dcc-1590eeb1769d)]
+interface nsINotificationsList : nsISupports
 {
-	/**
-     * Closes all open windows, optionally asking to confirm changes if any.
-     * @return TRUE if the user does not cancel from any confirmation dialog.
+    /**
+     * Adds a notification to the registration dictionary.
+     *
+     * @param aName The name of the notification we might be sending.
+     * @param aEnabled Indicates if the notification is enabled by default.
      */
-	boolean closeAll(in boolean askSave);
+    void addNotification(in AString aName, in boolean aEnabled);
+
+    /**
+     * Checks to see if a paticular notification has already been registered.
+     *
+     * @param aName The name of the notification we are checking against.
+     */
+    boolean isNotification(in AString aName);
 };
 

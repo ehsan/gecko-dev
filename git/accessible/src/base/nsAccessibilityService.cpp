@@ -42,7 +42,6 @@
 #include "nsAccessibilityUtils.h"
 #include "nsCURILoader.h"
 #include "nsDocAccessible.h"
-#include "nsHTMLAreaAccessible.h"
 #include "nsHTMLImageAccessibleWrap.h"
 #include "nsHTMLLinkAccessible.h"
 #include "nsHTMLSelectAccessible.h"
@@ -405,19 +404,6 @@ nsAccessibilityService::CreateHTML4ButtonAccessible(nsISupports *aFrame, nsIAcce
     return rv;
 
   *_retval = new nsHTML4ButtonAccessible(node, weakShell);
-  if (! *_retval) 
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  NS_ADDREF(*_retval);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAccessibilityService::CreateHTMLAreaAccessible(nsIWeakReference *aShell, nsIDOMNode *aDOMNode, nsIAccessible *aParent, 
-                                                               nsIAccessible **_retval)
-{
-  *_retval = new nsHTMLAreaAccessible(aDOMNode, aParent, aShell);
-
   if (! *_retval) 
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1009,26 +995,38 @@ nsAccessibilityService::GetStringStates(PRUint32 aStates, PRUint32 aExtraStates,
     stringStates->Add(NS_LITERAL_STRING("checkable"));
 
   //extraStates
+  if (aExtraStates & nsIAccessibleStates::EXT_STATE_SUPPORTS_AUTOCOMPLETION)
+    stringStates->Add(NS_LITERAL_STRING("autocompletion"));
+  if (aExtraStates & nsIAccessibleStates::EXT_STATE_DEFUNCT)
+    stringStates->Add(NS_LITERAL_STRING("defunct"));
   if (aExtraStates & nsIAccessibleStates::EXT_STATE_SELECTABLE_TEXT)
     stringStates->Add(NS_LITERAL_STRING("selectable text"));
   if (aExtraStates & nsIAccessibleStates::EXT_STATE_EDITABLE)
     stringStates->Add(NS_LITERAL_STRING("editable"));
   if (aExtraStates & nsIAccessibleStates::EXT_STATE_ACTIVE)
     stringStates->Add(NS_LITERAL_STRING("active"));
-  if (aExtraStates & nsIAccessibleStates::EXT_STATE_EXPANDABLE)
-    stringStates->Add(NS_LITERAL_STRING("expandable"));
   if (aExtraStates & nsIAccessibleStates::EXT_STATE_MODAL)
     stringStates->Add(NS_LITERAL_STRING("modal"));
   if (aExtraStates & nsIAccessibleStates::EXT_STATE_MULTI_LINE)
     stringStates->Add(NS_LITERAL_STRING("multi line"));
-  if (aExtraStates & nsIAccessibleStates::EXT_STATE_SENSITIVE)
-    stringStates->Add(NS_LITERAL_STRING("sensitive"));
+  if (aExtraStates & nsIAccessibleStates::EXT_STATE_HORIZONTAL)
+    stringStates->Add(NS_LITERAL_STRING("horizontal"));
+  if (aExtraStates & nsIAccessibleStates::EXT_STATE_OPAQUE)
+    stringStates->Add(NS_LITERAL_STRING("opaque"));
   if (aExtraStates & nsIAccessibleStates::EXT_STATE_SINGLE_LINE)
     stringStates->Add(NS_LITERAL_STRING("single line"));
   if (aExtraStates & nsIAccessibleStates::EXT_STATE_TRANSIENT)
     stringStates->Add(NS_LITERAL_STRING("transient"));
   if (aExtraStates & nsIAccessibleStates::EXT_STATE_VERTICAL)
     stringStates->Add(NS_LITERAL_STRING("vertical"));
+  if (aExtraStates & nsIAccessibleStates::EXT_STATE_STALE)
+    stringStates->Add(NS_LITERAL_STRING("stale"));
+  if (aExtraStates & nsIAccessibleStates::EXT_STATE_ENABLED)
+    stringStates->Add(NS_LITERAL_STRING("enabled"));
+  if (aExtraStates & nsIAccessibleStates::EXT_STATE_SENSITIVE)
+    stringStates->Add(NS_LITERAL_STRING("sensitive"));
+  if (aExtraStates & nsIAccessibleStates::EXT_STATE_EXPANDABLE)
+    stringStates->Add(NS_LITERAL_STRING("expandable"));
 
   //unknown states
   PRUint32 stringStatesLength = 0;
@@ -1386,7 +1384,8 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
     }
 
     if (tryFrame) {
-      if (frame->GetRect().IsEmpty()) {
+      if (frame->GetType() != nsAccessibilityAtoms::placeholderFrame &&
+          frame->GetRect().IsEmpty()) {
         *aIsHidden = PR_TRUE;
         return NS_OK;
       }

@@ -3762,24 +3762,24 @@ nsHTMLDocument::ChangeContentEditableCount(nsIContent *aElement,
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsCOMPtr<nsIEditor> editor;
-      rv = editorDocShell->GetEditor(getter_AddRefs(editor));
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      nsCOMPtr<nsIDOMRange> range;
-      rv = NS_NewRange(getter_AddRefs(range));
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = range->SelectNode(node);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      nsCOMPtr<nsIInlineSpellChecker> spellChecker;
-      rv = editor->GetInlineSpellChecker(PR_FALSE,
-                                         getter_AddRefs(spellChecker));
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      if (spellChecker) {
-        rv = spellChecker->SpellCheckRange(range);
+      editorDocShell->GetEditor(getter_AddRefs(editor));
+      if (editor) {
+        nsCOMPtr<nsIDOMRange> range;
+        rv = NS_NewRange(getter_AddRefs(range));
         NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = range->SelectNode(node);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsCOMPtr<nsIInlineSpellChecker> spellChecker;
+        rv = editor->GetInlineSpellChecker(PR_FALSE,
+                                           getter_AddRefs(spellChecker));
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        if (spellChecker) {
+          rv = spellChecker->SpellCheckRange(range);
+          NS_ENSURE_SUCCESS(rv, rv);
+        }
       }
     }
   }
@@ -3821,10 +3821,6 @@ nsHTMLDocument::TurnEditingOff()
     do_QueryInterface(docshell, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIEditor> editor;
-  rv = editorDocShell->GetEditor(getter_AddRefs(editor));
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIEditingSession> editSession = do_GetInterface(docshell, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3832,13 +3828,16 @@ nsHTMLDocument::TurnEditingOff()
   rv = editSession->TearDownEditorOnWindow(window, PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIEditorStyleSheets> editorss = do_QueryInterface(editor, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIEditor> editor;
+  editorDocShell->GetEditor(getter_AddRefs(editor));
+  nsCOMPtr<nsIEditorStyleSheets> editorss = do_QueryInterface(editor);
+  if (editorss) {
+    editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource:/res/contenteditable.css"));
+    if (mEditingState == eDesignMode)
+      editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource:/res/designmode.css"));
+  }
 
-  editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource:/res/contenteditable.css"));
   if (mEditingState == eDesignMode) {
-    editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource:/res/designmode.css"));
-
     rv = docshell->SetAllowJavascript(mScriptsEnabled);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3907,8 +3906,9 @@ nsHTMLDocument::EditingStateChanged()
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIEditor> editor;
-  rv = editorDocShell->GetEditor(getter_AddRefs(editor));
-  NS_ENSURE_SUCCESS(rv, rv);
+  editorDocShell->GetEditor(getter_AddRefs(editor));
+  if (!editor)
+    return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIEditorStyleSheets> editorss = do_QueryInterface(editor, &rv);
   NS_ENSURE_SUCCESS(rv, rv);

@@ -814,7 +814,7 @@ gfxPangoFontGroup::MakeTextRun(const PRUint8 *aString, PRUint32 aLength,
         // We don't need to send an override character here, the characters must be all
         // LTR
         const gchar *utf8Chars = reinterpret_cast<const gchar*>(aString);
-        InitTextRun(run, utf8Chars, aLength, 0);
+        InitTextRun(run, utf8Chars, aLength, 0, PR_TRUE);
     } else {
         const char *chars = reinterpret_cast<const char*>(aString);
         // XXX this could be more efficient.
@@ -825,7 +825,7 @@ gfxPangoFontGroup::MakeTextRun(const PRUint8 *aString, PRUint32 aLength,
         nsCAutoString utf8;
         PRInt32 headerLen = AppendDirectionalIndicatorUTF8(isRTL, utf8);
         AppendUTF16toUTF8(unicodeString, utf8);
-        InitTextRun(run, utf8.get(), utf8.Length(), headerLen);
+        InitTextRun(run, utf8.get(), utf8.Length(), headerLen, PR_TRUE);
     }
     return run;
 }
@@ -843,19 +843,29 @@ gfxPangoFontGroup::MakeTextRun(const PRUnichar *aString, PRUint32 aLength,
     nsCAutoString utf8;
     PRInt32 headerLen = AppendDirectionalIndicatorUTF8(run->IsRightToLeft(), utf8);
     AppendUTF16toUTF8(Substring(aString, aString + aLength), utf8);
-    InitTextRun(run, utf8.get(), utf8.Length(), headerLen);
+    PRUint32 allBits = 0;
+#if defined(ENABLE_XFT_FAST_PATH_8BIT)
+    PRUint32 i;
+    for (i = 0; i < aLength; ++i) {
+        allBits |= aString[i];
+    }
+#endif
+    PRBool is8Bit = (allBits & 0xFF00) == 0;
+    InitTextRun(run, utf8.get(), utf8.Length(), headerLen, is8Bit);
     return run;
 }
 
 void
 gfxPangoFontGroup::InitTextRun(gfxTextRun *aTextRun, const gchar *aUTF8Text,
-                               PRUint32 aUTF8Length, PRUint32 aUTF8HeaderLength)
+                               PRUint32 aUTF8Length, PRUint32 aUTF8HeaderLength,
+                               PRBool aTake8BitPath)
 {
 #if defined(ENABLE_XFT_FAST_PATH_ALWAYS)
     CreateGlyphRunsXft(aTextRun, aUTF8Text + aUTF8HeaderLength, aUTF8Length - aUTF8HeaderLength);
 #else
 #if defined(ENABLE_XFT_FAST_PATH_8BIT)
-    if (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_IS_8BIT) {
+    // We need to always use Pango for RTL text, in case glyph mirroring is required
+    if (aTake8BitPath && !aTextRun->IsRightToLeft()) {
         CreateGlyphRunsXft(aTextRun, aUTF8Text + aUTF8HeaderLength, aUTF8Length - aUTF8HeaderLength);
         return;
     }
@@ -1034,7 +1044,8 @@ SetGlyphsForCharacterGroup(const PangoGlyphInfo *aGlyphs, PRUint32 aGlyphCount,
         PRUint32 i;
         for (i = 0; i < aGlyphCount; ++i) {
             gfxTextRun::DetailedGlyph *details = &detailedGlyphs[i];
-            const PangoGlyphInfo &glyph = aGlyphs[i];
+            PRUint32 j = (aTextRun->IsRightToLeft()) ? aGlyphCount - 1 - i : i; 
+            const PangoGlyphInfo &glyph = aGlyphs[j];
             details->mIsLastGlyph = i == aGlyphCount - 1;
             details->mGlyphID = glyph.glyph;
             NS_ASSERTION(details->mGlyphID == glyph.glyph,
