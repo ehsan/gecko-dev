@@ -50,8 +50,6 @@ import org.mozilla.gecko.sync.setup.activities.SetupSyncActivity;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 
 class SyncPreference extends Preference {
-    private static final String SYNC_SETTINGS = "android.settings.SYNC_SETTINGS";
-
     private Context mContext;
 
     public SyncPreference(Context context, AttributeSet attrs) {
@@ -61,12 +59,15 @@ class SyncPreference extends Preference {
 
     @Override
     protected void onClick() {
+        // Make sure we use the same account type as our bundled version of Sync!
+        final String accountType = org.mozilla.gecko.sync.setup.Constants.ACCOUNTTYPE_SYNC;
+
         // Show Sync setup if no accounts exist; otherwise, show account settings.
-        Intent intent;
-        if (SyncAccounts.syncAccountsExist(mContext))
-            intent = new Intent(SYNC_SETTINGS);
-        else
-            intent = new Intent(mContext, SetupSyncActivity.class);
-        mContext.startActivity(intent);
+        if (SyncAccounts.syncAccountsExist(mContext)) {
+            SyncAccounts.openSyncSettings(mContext);
+        } else {
+            Intent intent = new Intent(mContext, SetupSyncActivity.class);
+            mContext.startActivity(intent);
+        }
     }
 }
