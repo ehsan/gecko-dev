@@ -65,10 +65,10 @@ class MarionetteTestResult(unittest._TextTestResult):
     def printLogs(self, test):
         for testcase in test._tests:
             if hasattr(testcase, 'loglines') and testcase.loglines:
-                self.stream.writeln('START LOG:')
+                print 'START LOG:'
                 for line in testcase.loglines:
-                    self.stream.writeln(' '.join(line))
-                self.stream.writeln('END LOG:')
+                    print ' '.join(line)
+                print 'END LOG:'
 
     def getPerfData(self, test):
         for testcase in test._tests:
