@@ -432,7 +432,8 @@ nsHTMLEditor::HideResizers(void)
   NS_ENSURE_TRUE(mResizedObject, NS_OK);
 
   // get the presshell's document observer interface.
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps;
+  GetPresShell(getter_AddRefs(ps));
   // We allow the pres shell to be null; when it is, we presume there
   // are no document observers to notify, but we still want to
   // UnbindFromTree.
@@ -927,8 +928,8 @@ nsHTMLEditor::MouseMove(nsIDOMEvent* aMouseEvent)
     look->GetMetric(nsILookAndFeel::eMetric_DragThresholdX, xThreshold);
     look->GetMetric(nsILookAndFeel::eMetric_DragThresholdY, yThreshold);
 
-    if (NS_ABS(clientX - mOriginalX ) * 2 >= xThreshold ||
-        NS_ABS(clientY - mOriginalY ) * 2 >= yThreshold) {
+    if (PR_ABS(clientX - mOriginalX ) * 2 >= xThreshold ||
+        PR_ABS(clientY - mOriginalY ) * 2 >= yThreshold) {
       mGrabberClicked = PR_FALSE;
       StartMoving(nsnull);
     }

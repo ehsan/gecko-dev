@@ -54,7 +54,8 @@
 #include "nsIXPConnect.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
-#include "mozilla/Preferences.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 
 #include "sqlite3.h"
 #include "test_quota.c"
@@ -132,17 +133,34 @@ namespace storage {
 //// Memory Reporting
 
 static PRInt64
-GetStorageSQLiteMemoryUsed(void *)
+GetStorageSQLitePageCacheMemoryUsed(void *)
 {
-  return ::sqlite3_memory_used();
+  int current, high;
+  int rc = ::sqlite3_status(SQLITE_STATUS_PAGECACHE_OVERFLOW, &current, &high,
+                            0);
+  return rc == SQLITE_OK ? current : 0;
 }
 
-NS_MEMORY_REPORTER_IMPLEMENT(StorageSQLiteMemoryUsed,
-    "explicit/storage/sqlite",
-    MR_HEAP,
-    "Memory used by SQLite.",
-    GetStorageSQLiteMemoryUsed,
-    nsnull)
+static PRInt64
+GetStorageSQLiteOtherMemoryUsed(void *)
+{
+  int pageCacheCurrent, pageCacheHigh;
+  int rc = ::sqlite3_status(SQLITE_STATUS_PAGECACHE_OVERFLOW, &pageCacheCurrent,
+                            &pageCacheHigh, 0);
+  return rc == SQLITE_OK ? ::sqlite3_memory_used() - pageCacheCurrent : 0;
+}
+
+NS_MEMORY_REPORTER_IMPLEMENT(StorageSQLitePageCacheMemoryUsed,
+                             "storage/sqlite/pagecache",
+                             "Memory in use by SQLite for the page cache",
+                             GetStorageSQLitePageCacheMemoryUsed,
+                             nsnull)
+
+NS_MEMORY_REPORTER_IMPLEMENT(StorageSQLiteOtherMemoryUsed,
+                             "storage/sqlite/other",
+                             "Memory in use by SQLite for other various reasons",
+                             GetStorageSQLiteOtherMemoryUsed,
+                             nsnull)
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Helpers
@@ -184,13 +202,16 @@ public:
     // We need to obtain the toolkit.storage.synchronous preferences on the main
     // thread because the preference service can only be accessed there.  This
     // is cached in the service for all future Open[Unshared]Database calls.
-    PRInt32 synchronous =
-      Preferences::GetInt(PREF_TS_SYNCHRONOUS, PREF_TS_SYNCHRONOUS_DEFAULT);
+    nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    PRInt32 synchronous = PREF_TS_SYNCHRONOUS_DEFAULT;
+    if (pref)
+      (void)pref->GetIntPref(PREF_TS_SYNCHRONOUS, &synchronous);
     ::PR_ATOMIC_SET(mSynchronousPrefValPtr, synchronous);
 
-    // Register our SQLite memory reporter.  Registration can only happen on
+    // Register our SQLite memory reporters.  Registration can only happen on
     // the main thread (otherwise you'll get cryptic crashes).
-    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(StorageSQLiteMemoryUsed));
+    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(StorageSQLitePageCacheMemoryUsed));
+    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(StorageSQLiteOtherMemoryUsed));
 
     return NS_OK;
   }

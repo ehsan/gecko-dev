@@ -69,15 +69,10 @@ struct SurfaceDescriptorX11 {
   gfxIntSize size;
 };
 
-struct IOSurfaceDescriptor {
-  uint32_t surfaceId;
-};
-
 union SurfaceDescriptor {
   Shmem;
   SurfaceDescriptorX11;
   PPluginSurface; // used on Windows
-  IOSurfaceDescriptor; // used on OSX 10.5+
   // Descriptor can be null here in case
   // 1) of first Show call (prevSurface is null)
   // 2) when child is going to destroy
@@ -102,13 +97,9 @@ child:
 
   rpc NPP_SetWindow(NPRemoteWindow window);
 
-  rpc NPP_GetValue_NPPVpluginWantsAllNetworkStreams()
-    returns (bool value, NPError result);
-
   // this message is not used on non-X platforms
   rpc NPP_GetValue_NPPVpluginNeedsXEmbed()
     returns (bool value, NPError result);
-
   rpc NPP_GetValue_NPPVpluginScriptableNPObject()
     returns (nullable PPluginScriptableObject value, NPError result);
 

@@ -649,7 +649,7 @@ StackDepth(JSScript *script)
         if ((pc_) < (script_)->code ||                                        \
             (script_)->code + (script_)->length <= (pc_)) {                   \
             JS_ASSERT((size_t)(index) < js_common_atom_count);                \
-            (atom) = cx->runtime->atomState.commonAtomsStart()[index];        \
+            (atom) = COMMON_ATOMS_START(&cx->runtime->atomState)[index];      \
         } else {                                                              \
             (atom) = script_->getAtom(index);                                 \
         }                                                                     \
@@ -738,7 +738,7 @@ js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc);
  * fp->imacpc may be non-null, indicating an active imacro.
  */
 extern uintN
-js_FramePCToLineNumber(JSContext *cx, js::StackFrame *fp, jsbytecode *pc);
+js_FramePCToLineNumber(JSContext *cx, JSStackFrame *fp);
 
 extern uintN
 js_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc);
@@ -750,9 +750,6 @@ extern JS_FRIEND_API(uintN)
 js_GetScriptLineExtent(JSScript *script);
 
 namespace js {
-
-extern uintN
-CurrentLine(JSContext *cx);
 
 /*
  * This function returns the file and line number of the script currently

@@ -286,7 +286,7 @@ nsDOMWorkerXHRUpload::AddEventListener(const nsAString& aType,
                                        nsIDOMEventListener* aListener,
                                        PRBool aUseCapture)
 {
-  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 1);
+  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 0);
 }
 
 NS_IMETHODIMP
@@ -430,6 +430,8 @@ nsDOMWorkerXHR::Trace(nsIXPConnectWrappedNative* /* aWrapper */,
                       JSTracer* aTracer,
                       JSObject* /*aObj */)
 {
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
   if (!mCanceled) {
     nsDOMWorkerMessageHandler::Trace(aTracer);
     if (mUpload) {
@@ -718,7 +720,7 @@ nsDOMWorkerXHR::SetRequestHeader(const nsACString& aHeader,
 }
 
 NS_IMETHODIMP
-nsDOMWorkerXHR::GetReadyState(PRUint16* aReadyState)
+nsDOMWorkerXHR::GetReadyState(PRInt32* aReadyState)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
 
@@ -900,21 +902,9 @@ nsDOMWorkerXHR::SetWithCredentials(PRBool aWithCredentials)
   return NS_OK;
 }
 
+/* readonly attribute jsval (ArrayBuffer) mozResponseArrayBuffer; */
 NS_IMETHODIMP
-nsDOMWorkerXHR::GetResponseType(nsAString& aResponseText)
-{
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsDOMWorkerXHR::SetResponseType(const nsAString& aResponseText)
-{
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-/* readonly attribute jsval response; */
-NS_IMETHODIMP
-nsDOMWorkerXHR::GetResponse(JSContext *aCx, jsval *aResult)
+nsDOMWorkerXHR::GetMozResponseArrayBuffer(jsval *aResult)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }

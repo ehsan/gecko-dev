@@ -46,6 +46,7 @@
 #include "nsIContent.h"
 #include "nsIDOMCharacterData.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIDOM3Text.h"
 #include "nsTextFragment.h"
 #include "nsDOMError.h"
 #include "nsIEventListenerManager.h"
@@ -154,7 +155,7 @@ public:
   virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
   virtual nsresult DispatchDOMEvent(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
@@ -327,15 +328,7 @@ protected:
 
   nsresult SplitText(PRUint32 aOffset, nsIDOMText** aReturn);
 
-  nsresult GetWholeText(nsAString& aWholeText);
-
-  nsresult ReplaceWholeText(const nsAString& aContent, nsIDOMText **aReturn);
-
-  nsresult GetIsElementContentWhitespace(PRBool *aReturn)
-  {
-    *aReturn = TextIsOnlyWhitespace();
-    return NS_OK;
-  }
+  friend class nsText3Tearoff;
 
   static PRInt32 FirstLogicallyAdjacentTextNode(nsIContent* aParent,
                                                 PRInt32 aIndex);
@@ -365,6 +358,45 @@ private:
   void UpdateBidiStatus(const PRUnichar* aBuffer, PRUint32 aLength);
 
   already_AddRefed<nsIAtom> GetCurrentValueAtom();
+};
+
+class nsGenericTextNode : public nsGenericDOMDataNode
+{
+public:
+  nsGenericTextNode(already_AddRefed<nsINodeInfo> aNodeInfo)
+  : nsGenericDOMDataNode(aNodeInfo)
+  {
+  }
+
+  PRBool IsElementContentWhitespace()
+  {
+    return TextIsOnlyWhitespace();
+  }
+  nsresult GetWholeText(nsAString& aWholeText);
+
+  nsIContent* ReplaceWholeText(const nsAFlatString& aContent,
+                               nsresult *aResult);
+};
+
+/** Tearoff class for the nsIDOM3Text portion of nsGenericDOMDataNode. */
+class nsText3Tearoff : public nsIDOM3Text
+{
+public:
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+
+  NS_DECL_NSIDOM3TEXT
+
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsText3Tearoff)
+
+  nsText3Tearoff(nsGenericTextNode *aNode) : mNode(aNode)
+  {
+  }
+
+protected:
+  virtual ~nsText3Tearoff() {}
+
+private:
+  nsRefPtr<nsGenericTextNode> mNode;
 };
 
 //----------------------------------------------------------------------

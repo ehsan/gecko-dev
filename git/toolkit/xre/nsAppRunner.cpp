@@ -1134,6 +1134,16 @@ ScopedXPCOMStartup::Initialize()
 
   nsresult rv;
 
+#ifndef MOZ_ENABLE_LIBXUL
+#ifndef _BUILD_STATIC_BIN
+  XRE_AddStaticComponent(&kXREModule);
+#else
+  for (const mozilla::Module *const *const *staticModules = kPStaticModules;
+       *staticModules; ++staticModules)
+      XRE_AddStaticComponent(**staticModules);
+#endif
+#endif
+
   rv = NS_InitXPCOM2(&mServiceManager, gDirServiceProvider->GetAppDir(),
                      gDirServiceProvider);
   if (NS_FAILED(rv)) {
@@ -1697,7 +1707,9 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 #if defined(XP_MACOSX)
   CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
   PRUint32 restartMode = 0;
+#if defined(MOZ_ENABLE_LIBXUL)
   restartMode = gRestartMode;
+#endif
   LaunchChildMac(gRestartArgc, gRestartArgv, restartMode);
 #else
   nsCOMPtr<nsILocalFile> lf;
@@ -1809,9 +1821,7 @@ ProfileLockedDialog(nsILocalFile* aProfileDir, nsILocalFile* aProfileLocalDir,
     }
 
     PRInt32 button;
-    // The actual value is irrelevant but we shouldn't be handing out
-    // malformed JSBools to XPConnect.
-    PRBool checkState = PR_FALSE;
+    PRBool checkState;
     rv = ps->ConfirmEx(nsnull, killTitle, killMessage, flags,
                        killTitle, nsnull, nsnull, nsnull, &checkState, &button);
     NS_ENSURE_SUCCESS_LOG(rv, rv);
@@ -2717,12 +2727,6 @@ static DWORD InitDwriteBG(LPVOID lpdwThreadParam)
 
 PRTime gXRE_mainTimestamp = 0;
 
-#ifdef MOZ_X11
-#ifndef MOZ_PLATFORM_MAEMO
-bool fire_glxtest_process();
-#endif
-#endif
-
 int
 XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
@@ -2741,28 +2745,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #ifdef DEBUG
   if (PR_GetEnv("XRE_MAIN_BREAK"))
     NS_BREAK();
-#endif
-
-  // see bug 639842
-  // it's very important to fire this process BEFORE we set up error handling.
-  // indeed, this process is expected to be crashy, and we don't want the user to see its crashes.
-  // That's the whole reason for doing this in a separate process.
-#ifdef MOZ_X11
-#ifndef MOZ_PLATFORM_MAEMO
-  if (fire_glxtest_process())
-    return 0;
-#endif
-#endif
-
-#ifdef XP_WIN
-  // Vista API.  Mozilla is DPI Aware.
-  typedef BOOL (*SetProcessDPIAwareFunc)(VOID);
-
-  SetProcessDPIAwareFunc setDPIAware = (SetProcessDPIAwareFunc)
-    GetProcAddress(LoadLibraryW(L"user32.dll"), "SetProcessDPIAware");
-
-  if (setDPIAware)
-    setDPIAware();
 #endif
 
   SetupErrorHandling(argv[0]);
@@ -3828,39 +3810,24 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
   delete[] canonArgs;
 #endif
 
-  const char *path = nsnull;
-  ArgResult ar = CheckArg("greomni", PR_FALSE, &path);
+#ifdef MOZ_OMNIJAR
+  const char *omnijarPath = nsnull;
+  ArgResult ar = CheckArg("omnijar", PR_FALSE, &omnijarPath);
   if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -greomni requires a path argument\n");
+    PR_fprintf(PR_STDERR, "Error: argument -omnijar requires an omnijar path\n");
     return NS_ERROR_FAILURE;
   }
 
-  if (!path)
+  if (!omnijarPath)
     return rv;
 
-  nsCOMPtr<nsILocalFile> greOmni;
-  rv = XRE_GetFileFromPath(path, getter_AddRefs(greOmni));
-  if (NS_FAILED(rv)) {
-    PR_fprintf(PR_STDERR, "Error: argument -greomni requires a valid path\n");
-    return rv;
-  }
+  nsCOMPtr<nsILocalFile> omnijar;
+  rv = NS_NewNativeLocalFile(nsDependentCString(omnijarPath), PR_TRUE,
+                             getter_AddRefs(omnijar));
+  if (NS_SUCCEEDED(rv))
+    mozilla::SetOmnijar(omnijar);
+#endif
 
-  ar = CheckArg("appomni", PR_FALSE, &path);
-  if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -appomni requires a path argument\n");
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsILocalFile> appOmni;
-  if (path) {
-      rv = XRE_GetFileFromPath(path, getter_AddRefs(appOmni));
-      if (NS_FAILED(rv)) {
-        PR_fprintf(PR_STDERR, "Error: argument -appomni requires a valid path\n");
-        return rv;
-      }
-  }
-
-  mozilla::Omnijar::Init(greOmni, appOmni);
   return rv;
 }
 

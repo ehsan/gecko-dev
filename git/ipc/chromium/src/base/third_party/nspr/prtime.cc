@@ -73,9 +73,6 @@
 #endif
 #include <errno.h>  /* for EINVAL */
 #include <time.h>
-#ifdef ANDROID
-#include <ctype.h>  /* for isalpha() */
-#endif
 
 namespace nspr {
 
@@ -481,6 +478,10 @@ PR_NormalizeTime(PRExplodedTime *time, PRTimeParamFn params)
 PRTimeParameters
 PR_GMTParameters(const PRExplodedTime *gmt)
 {
+#if defined(XP_MAC)
+#pragma unused (gmt)
+#endif
+
     PRTimeParameters retVal = { 0, 0 };
     return retVal;
 }

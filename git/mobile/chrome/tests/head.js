@@ -34,32 +34,6 @@ function waitForAndContinue(callback, test, timeout) {
   setTimeout(waitForAndContinue, 50, callback, test, timeout);
 };
 
-// Listen for the specified message once, then remove the listener.
-function onMessageOnce(aMessageManager, aName, aCallback) {
-  aMessageManager.addMessageListener(aName, function onMessage(aMessage) {
-    aMessageManager.removeMessageListener(aName, onMessage);
-    setTimeout(function() { 
-      aCallback(aMessage);
-    }, 0);
-  });
-};
-
-// This function is useful for debugging one test where you need to wait for
-// application to be ready
-function waitForFirstPaint(aCallback) {
-  function hasFirstPaint() {
-    let startupInfo = Cc["@mozilla.org/toolkit/app-startup;1"].getService(Ci.nsIAppStartup).getStartupInfo();
-    return ("firstPaint" in startupInfo);
-  }
-
-  if (!hasFirstPaint()) {
-    waitFor(aCallback, hasFirstPaint, Date.now() + 3000);
-    return;
-  }
-  
-  aCallback();
-};
-
 function makeURI(spec) {
   return Services.io.newURI(spec, null, null);
 };
@@ -98,25 +72,9 @@ let AsyncTests = {
   }
 };
 
-let gCurrentTest = null;
-let gTests = [];
-
-// Iterating tests by shifting test out one by one as runNextTest is called.
-function runNextTest() {
-  // Run the next test until all tests completed
-  if (gTests.length > 0) {
-    gCurrentTest = gTests.shift();
-    info(gCurrentTest.desc);
-    gCurrentTest.run();
-  }
-  else {
-    finish();
-  }
-}
-
-let serverRoot = "http://example.com/browser/mobile/chrome/tests/";
-let baseURI = "http://mochi.test:8888/browser/mobile/chrome/tests/";
-
 let chromeRoot = getRootDirectory(gTestPath);
-messageManager.loadFrameScript(chromeRoot + "remote_head.js", true);
+// For some security reasons (which?), loading remote_head using chromeRoot
+// instead of baseURI make the browser_formsZoom.js test fails.
+let baseURI = "http://mochi.test:8888/browser/mobile/chrome/";
+messageManager.loadFrameScript(baseURI + "remote_head.js", true);
 messageManager.loadFrameScript("chrome://mochikit/content/tests/SimpleTest/EventUtils.js", true);

@@ -279,8 +279,7 @@ public:
             init(aInit),
             cond(aCond),
             expr(aExpr),
-            body(aBody),
-            unrollFlag(false) { }
+            body(aBody) { }
 
     virtual TIntermLoop* getAsLoopNode() { return this; }
     virtual void traverse(TIntermTraverser*);
@@ -291,17 +290,12 @@ public:
     TIntermTyped* getExpression() { return expr; }
     TIntermNode* getBody() { return body; }
 
-    void setUnrollFlag(bool flag) { unrollFlag = flag; }
-    bool getUnrollFlag() { return unrollFlag; }
-
 protected:
     TLoopType type;
     TIntermNode* init;  // for-loop initialization
     TIntermTyped* cond; // loop exit condition
     TIntermTyped* expr; // for-loop expression
     TIntermNode* body;  // loop body
-
-    bool unrollFlag; // Whether the loop should be unrolled or not.
 };
 
 //
@@ -332,15 +326,10 @@ public:
     // per process globalpoolallocator, then it causes increased memory usage per compile
     // it is essential to use "symbol = sym" to assign to symbol
     TIntermSymbol(int i, const TString& sym, const TType& t) : 
-            TIntermTyped(t), id(i)  { symbol = sym; originalSymbol = sym; } 
+            TIntermTyped(t), id(i)  { symbol = sym;} 
 
     int getId() const { return id; }
     const TString& getSymbol() const { return symbol; }
-
-    void setId(int newId) { id = newId; }
-    void setSymbol(const TString& sym) { symbol = sym; }
-
-    const TString& getOriginalSymbol() const { return originalSymbol; }
 
     virtual void traverse(TIntermTraverser*);
     virtual TIntermSymbol* getAsSymbolNode() { return this; }
@@ -348,7 +337,6 @@ public:
 protected:
     int id;
     TString symbol;
-    TString originalSymbol;
 };
 
 class TIntermConstantUnion : public TIntermTyped {

@@ -18,27 +18,12 @@ function test() {
   waitForExplicitFinish();
 
   ok(gFindBar.hidden, "Find bar should not be visible");
-  nextTest();
+
+  run_test_1();
 }
 
-let urls = [
-  "about:config",
-  "about:addons",
-  "about:permissions"
-];
-
-function nextTest() {
-  let url = urls.shift();
-  if (url) {
-    testFindDisabled(url, nextTest);
-  } else {
-    // Make sure the find bar is re-enabled after disabled page is closed.
-    testFindEnabled("about:blank", finish);
-  }
-}
-
-function testFindDisabled(url, cb) {
-  load(url, function() {
+function run_test_1() {
+  load("about:config", function() {
     ok(gFindBar.hidden, "Find bar should not be visible");
     EventUtils.synthesizeKey("/", {}, gTab.linkedBrowser.contentWindow);
     ok(gFindBar.hidden, "Find bar should not be visible");
@@ -48,16 +33,31 @@ function testFindDisabled(url, cb) {
        "Find command should be disabled");
 
     gBrowser.removeTab(gTab);
-    cb();
+    run_test_2();
   });
 }
 
-function testFindEnabled(url, cb) {
-  load(url, function() {
+function run_test_2() {
+  load("about:addons", function() {
+    ok(gFindBar.hidden, "Find bar should not be visible");
+    EventUtils.synthesizeKey("/", {}, gTab.linkedBrowser.contentWindow);
+    ok(gFindBar.hidden, "Find bar should not be visible");
+    EventUtils.synthesizeKey("f", { accelKey: true });
+    ok(gFindBar.hidden, "Find bar should not be visible");
+    ok(document.getElementById("cmd_find").getAttribute("disabled"),
+       "Find command should be disabled");
+
+    gBrowser.removeTab(gTab);
+    run_test_3();
+  });
+}
+
+function run_test_3() {
+  load("about:blank", function() {
     ok(!document.getElementById("cmd_find").getAttribute("disabled"),
        "Find command should not be disabled");
 
     gBrowser.removeTab(gTab);
-    cb();
+    finish();
   });
 }

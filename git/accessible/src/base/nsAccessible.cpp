@@ -57,6 +57,7 @@
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentXBL.h"
+#include "nsIDOMDocumentTraversal.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMNodeFilter.h"
@@ -75,7 +76,6 @@
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 
-#include "nsLayoutUtils.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIFrame.h"
@@ -89,6 +89,8 @@
 #include "nsReadableUtils.h"
 #include "prdtoa.h"
 #include "nsIAtom.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "nsIURI.h"
 #include "nsArrayUtils.h"
 #include "nsIMutableArray.h"
@@ -104,9 +106,6 @@
 #endif
 
 #include "mozilla/unused.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,10 +197,10 @@ nsAccessible::nsAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
             (void*)shell.get());
     nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
     if (content) {
-      printf(" Con: %s@%p",
-             NS_ConvertUTF16toUTF8(content->NodeInfo()->QualifiedName()).get(),
-             (void *)content.get());
       nsAutoString buf;
+      if (content->NodeInfo())
+        content->NodeInfo()->GetQualifiedName(buf);
+      printf(" Con: %s@%p", NS_ConvertUTF16toUTF8(buf).get(), (void *)content.get());
       if (NS_SUCCEEDED(GetName(buf))) {
         printf(" Name:[%s]", NS_ConvertUTF16toUTF8(buf).get());
        }
@@ -273,60 +272,54 @@ nsAccessible::GetName(nsAString& aName)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsAccessible::GetDescription(nsAString& aDescription)
+NS_IMETHODIMP nsAccessible::GetDescription(nsAString& aDescription)
 {
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAutoString desc;
-  Description(desc);
-  aDescription.Assign(desc);
-
-  return NS_OK;
-}
-
-void
-nsAccessible::Description(nsString& aDescription)
-{
   // There are 4 conditions that make an accessible have no accDescription:
   // 1. it's a text node; or
   // 2. It has no DHTML describedby property
   // 3. it doesn't have an accName; or
   // 4. its title attribute already equals to its accName nsAutoString name; 
 
-  if (mContent->IsNodeOfType(nsINode::eTEXT))
-    return;
+  if (!mContent->IsNodeOfType(nsINode::eTEXT)) {
+    nsAutoString description;
+    nsresult rv = nsTextEquivUtils::
+      GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
+                             description);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-  nsTextEquivUtils::
-    GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
-                           aDescription);
-
-  if (aDescription.IsEmpty()) {
-    PRBool isXUL = mContent->IsXUL();
-    if (isXUL) {
-      // Try XUL <description control="[id]">description text</description>
-      XULDescriptionIterator iter(GetDocAccessible(), mContent);
-      nsAccessible* descr = nsnull;
-      while ((descr = iter.Next()))
-        nsTextEquivUtils::AppendTextEquivFromContent(this, descr->GetContent(),
-                                                     &aDescription);
+    if (description.IsEmpty()) {
+      PRBool isXUL = mContent->IsXUL();
+      if (isXUL) {
+        // Try XUL <description control="[id]">description text</description>
+        XULDescriptionIterator iter(GetDocAccessible(), mContent);
+        nsAccessible* descr = nsnull;
+        while ((descr = iter.Next())) {
+          nsTextEquivUtils::
+            AppendTextEquivFromContent(this, descr->GetContent(), &description);
+        }
       }
-
-      if (aDescription.IsEmpty()) {
+      if (description.IsEmpty()) {
         nsIAtom *descAtom = isXUL ? nsAccessibilityAtoms::tooltiptext :
                                     nsAccessibilityAtoms::title;
-        if (mContent->GetAttr(kNameSpaceID_None, descAtom, aDescription)) {
+        if (mContent->GetAttr(kNameSpaceID_None, descAtom, description)) {
           nsAutoString name;
           GetName(name);
-          if (name.IsEmpty() || aDescription == name)
+          if (name.IsEmpty() || description == name) {
             // Don't use tooltip for a description if this object
             // has no name or the tooltip is the same as the name
-            aDescription.Truncate();
+            description.Truncate();
+          }
         }
       }
     }
-    aDescription.CompressWhitespace();
+    description.CompressWhitespace();
+    aDescription = description;
+  }
+
+  return NS_OK;
 }
 
 // mask values for ui.key.chromeAccess and ui.key.contentAccess
@@ -340,14 +333,22 @@ nsAccessible::Description(nsString& aDescription)
 static PRInt32
 GetAccessModifierMask(nsIContent* aContent)
 {
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (!prefBranch)
+    return 0;
+
   // use ui.key.generalAccessKey (unless it is -1)
-  switch (Preferences::GetInt("ui.key.generalAccessKey", -1)) {
-    case -1:                             break;
-    case nsIDOMKeyEvent::DOM_VK_SHIFT:   return NS_MODIFIER_SHIFT;
-    case nsIDOMKeyEvent::DOM_VK_CONTROL: return NS_MODIFIER_CONTROL;
-    case nsIDOMKeyEvent::DOM_VK_ALT:     return NS_MODIFIER_ALT;
-    case nsIDOMKeyEvent::DOM_VK_META:    return NS_MODIFIER_META;
-    default:                             return 0;
+  PRInt32 accessKey;
+  nsresult rv = prefBranch->GetIntPref("ui.key.generalAccessKey", &accessKey);
+  if (NS_SUCCEEDED(rv) && accessKey != -1) {
+    switch (accessKey) {
+      case nsIDOMKeyEvent::DOM_VK_SHIFT:   return NS_MODIFIER_SHIFT;
+      case nsIDOMKeyEvent::DOM_VK_CONTROL: return NS_MODIFIER_CONTROL;
+      case nsIDOMKeyEvent::DOM_VK_ALT:     return NS_MODIFIER_ALT;
+      case nsIDOMKeyEvent::DOM_VK_META:    return NS_MODIFIER_META;
+      default:                             return 0;
+    }
   }
 
   // get the docShell to this DOMNode, return 0 on failure
@@ -362,17 +363,17 @@ GetAccessModifierMask(nsIContent* aContent)
     return 0;
 
   // determine the access modifier used in this context
-  nsresult rv = NS_ERROR_FAILURE;
   PRInt32 itemType, accessModifierMask = 0;
   treeItem->GetItemType(&itemType);
   switch (itemType) {
-    case nsIDocShellTreeItem::typeChrome:
-      rv = Preferences::GetInt("ui.key.chromeAccess", &accessModifierMask);
-      break;
 
-    case nsIDocShellTreeItem::typeContent:
-      rv = Preferences::GetInt("ui.key.contentAccess", &accessModifierMask);
-      break;
+  case nsIDocShellTreeItem::typeChrome:
+    rv = prefBranch->GetIntPref("ui.key.chromeAccess", &accessModifierMask);
+    break;
+
+  case nsIDocShellTreeItem::typeContent:
+    rv = prefBranch->GetIntPref("ui.key.contentAccess", &accessModifierMask);
+    break;
   }
 
   return NS_SUCCEEDED(rv) ? accessModifierMask : 0;
@@ -450,10 +451,6 @@ NS_IMETHODIMP
 nsAccessible::GetNextSibling(nsIAccessible **aNextSibling) 
 {
   NS_ENSURE_ARG_POINTER(aNextSibling);
-  *aNextSibling = nsnull;
-
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
 
   nsresult rv = NS_OK;
   NS_IF_ADDREF(*aNextSibling = GetSiblingAtOffset(1, &rv));
@@ -465,10 +462,6 @@ NS_IMETHODIMP
 nsAccessible::GetPreviousSibling(nsIAccessible * *aPreviousSibling) 
 {
   NS_ENSURE_ARG_POINTER(aPreviousSibling);
-  *aPreviousSibling = nsnull;
-
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
 
   nsresult rv = NS_OK;
   NS_IF_ADDREF(*aPreviousSibling = GetSiblingAtOffset(-1, &rv));
@@ -611,7 +604,7 @@ nsresult nsAccessible::GetFullKeyName(const nsAString& aModifierName, const nsAS
   if (!gKeyStringBundle ||
       NS_FAILED(gKeyStringBundle->GetStringFromName(PromiseFlatString(aModifierName).get(), 
                                                     getter_Copies(modifierName))) ||
-      NS_FAILED(gKeyStringBundle->GetStringFromName(NS_LITERAL_STRING("MODIFIER_SEPARATOR").get(), 
+      NS_FAILED(gKeyStringBundle->GetStringFromName(PromiseFlatString(NS_LITERAL_STRING("MODIFIER_SEPARATOR")).get(), 
                                                     getter_Copies(separator)))) {
     return NS_ERROR_FAILURE;
   }
@@ -684,7 +677,15 @@ nsAccessible::IsVisible(PRBool* aIsOffscreen)
   }
 
   // The frame intersects the viewport, but we need to check the parent view chain :(
-  bool isVisible = nsCoreUtils::CheckVisibilityInParentChain(frame);
+  nsIDocument* doc = mContent->GetOwnerDoc();
+  if (!doc)  {
+    return PR_FALSE;
+  }
+
+  nsIFrame* frameWithView =
+    frame->HasView() ? frame : frame->GetAncestorWithViewExternal();
+  nsIView* view = frameWithView->GetViewExternal();
+  PRBool isVisible = CheckVisibilityInParentChain(doc, view);
   if (isVisible && rectVisibility == nsRectVisibility_kVisible) {
     *aIsOffscreen = PR_FALSE;
   }
@@ -695,23 +696,20 @@ PRUint64
 nsAccessible::NativeState()
 {
   PRUint64 state = 0;
-  PRBool disabled = PR_FALSE;
-  if (mContent->IsElement()) {
-    nsEventStates elementState = mContent->AsElement()->State();
+  nsEventStates intrinsicState = mContent->IntrinsicState();
 
-    if (elementState.HasState(NS_EVENT_STATE_INVALID))
-      state |= states::INVALID;
+  if (intrinsicState.HasState(NS_EVENT_STATE_INVALID))
+    state |= states::INVALID;
 
-    if (elementState.HasState(NS_EVENT_STATE_REQUIRED))
-      state |= states::REQUIRED;
+  if (intrinsicState.HasState(NS_EVENT_STATE_REQUIRED))
+    state |= states::REQUIRED;
 
-    disabled = mContent->IsHTML() ? 
-      (elementState.HasState(NS_EVENT_STATE_DISABLED)) :
-      (mContent->AttrValueIs(kNameSpaceID_None,
-                             nsAccessibilityAtoms::disabled,
-                             nsAccessibilityAtoms::_true,
-                             eCaseMatters));
-  }
+  PRBool disabled = mContent->IsHTML() ? 
+    (intrinsicState.HasState(NS_EVENT_STATE_DISABLED)) :
+    (mContent->AttrValueIs(kNameSpaceID_None,
+                           nsAccessibilityAtoms::disabled,
+                           nsAccessibilityAtoms::_true,
+                           eCaseMatters));
 
   // Set unavailable state based on disabled state, otherwise set focus states
   if (disabled) {
@@ -1530,20 +1528,15 @@ nsAccessible::State()
     return states::DEFUNCT;
 
   PRUint64 state = NativeState();
-  // Apply ARIA states to be sure accessible states will be overridden.
+  // Apply ARIA states to be sure accessible states will be overriden.
   ApplyARIAState(&state);
 
-  if (mRoleMapEntry && mRoleMapEntry->role == nsIAccessibleRole::ROLE_PAGETAB &&
-      !(state & states::SELECTED) &&
-      !mContent->AttrValueIs(kNameSpaceID_None,
-                             nsAccessibilityAtoms::aria_selected,
-                             nsAccessibilityAtoms::_false, eCaseMatters)) {
-    // Special case: for tabs, focused implies selected, unless explicitly
-    // false, i.e. aria-selected="false".
+  if (mRoleMapEntry && mRoleMapEntry->role == nsIAccessibleRole::ROLE_PAGETAB) {
     if (state & states::FOCUSED) {
       state |= states::SELECTED;
     } else {
-      // If focus is in a child of the tab panel surely the tab is selected!
+      // Expose 'selected' state on ARIA tab if the focus is on internal element
+      // of related tabpanel.
       nsCOMPtr<nsIAccessible> tabPanel = nsRelUtils::
         GetRelatedAccessible(this, nsIAccessibleRelation::RELATION_LABEL_FOR);
 
@@ -3174,21 +3167,39 @@ nsAccessible::EnsureChildren()
 }
 
 nsAccessible*
-nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError) const
+nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 {
-  if (!mParent || mIndexInParent == -1) {
+  if (IsDefunct()) {
+    if (aError)
+      *aError = NS_ERROR_FAILURE;
+
+    return nsnull;
+  }
+
+  nsAccessible *parent = GetParent();
+  if (!parent) {
     if (aError)
       *aError = NS_ERROR_UNEXPECTED;
 
     return nsnull;
   }
 
-  if (aError && mIndexInParent + aOffset >= mParent->GetChildCount()) {
-    *aError = NS_OK; // fail peacefully
+  if (mIndexInParent == -1) {
+    if (aError)
+      *aError = NS_ERROR_UNEXPECTED;
+
     return nsnull;
   }
 
-  nsAccessible* child = mParent->GetChildAt(mIndexInParent + aOffset);
+  if (aError) {
+    PRInt32 childCount = parent->GetChildCount();
+    if (mIndexInParent + aOffset >= childCount) {
+      *aError = NS_OK; // fail peacefully
+      return nsnull;
+    }
+  }
+
+  nsAccessible* child = parent->GetChildAt(mIndexInParent + aOffset);
   if (aError && !child)
     *aError = NS_ERROR_UNEXPECTED;
 
@@ -3203,15 +3214,16 @@ nsAccessible::GetFirstAvailableAccessible(nsINode *aStartNode) const
   if (accessible)
     return accessible;
 
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(aStartNode->GetOwnerDoc());
-  NS_ENSURE_TRUE(domDoc, nsnull);
+  nsCOMPtr<nsIDOMDocumentTraversal> trav =
+    do_QueryInterface(aStartNode->GetOwnerDoc());
+  NS_ENSURE_TRUE(trav, nsnull);
 
   nsCOMPtr<nsIDOMNode> currentNode = do_QueryInterface(aStartNode);
-  nsCOMPtr<nsIDOMNode> rootNode = do_QueryInterface(GetNode());
+  nsCOMPtr<nsIDOMNode> rootNode(do_QueryInterface(GetNode()));
   nsCOMPtr<nsIDOMTreeWalker> walker;
-  domDoc->CreateTreeWalker(rootNode,
-                           nsIDOMNodeFilter::SHOW_ELEMENT | nsIDOMNodeFilter::SHOW_TEXT,
-                           nsnull, PR_FALSE, getter_AddRefs(walker));
+  trav->CreateTreeWalker(rootNode,
+                         nsIDOMNodeFilter::SHOW_ELEMENT | nsIDOMNodeFilter::SHOW_TEXT,
+                         nsnull, PR_FALSE, getter_AddRefs(walker));
   NS_ENSURE_TRUE(walker, nsnull);
 
   walker->SetCurrentNode(currentNode);
@@ -3228,6 +3240,44 @@ nsAccessible::GetFirstAvailableAccessible(nsINode *aStartNode) const
   }
 
   return nsnull;
+}
+
+PRBool nsAccessible::CheckVisibilityInParentChain(nsIDocument* aDocument, nsIView* aView)
+{
+  nsIDocument* document = aDocument;
+  nsIView* view = aView;
+  // both view chain and widget chain are broken between chrome and content
+  while (document != nsnull) {
+    while (view != nsnull) {
+      if (view->GetVisibility() == nsViewVisibility_kHide) {
+        return PR_FALSE;
+      }
+      view = view->GetParent();
+    }
+
+    nsIDocument* parentDoc = document->GetParentDocument();
+    if (parentDoc != nsnull) {
+      nsIContent* content = parentDoc->FindContentForSubDocument(document);
+      if (content != nsnull) {
+        nsIPresShell* shell = parentDoc->GetShell();
+        if (!shell) {
+          return PR_FALSE;
+        }
+        nsIFrame* frame = content->GetPrimaryFrame();
+        while (frame != nsnull && !frame->HasView()) {
+          frame = frame->GetParent();
+        }
+
+        if (frame != nsnull) {
+          view = frame->GetViewExternal();
+        }
+      }
+    }
+
+    document = parentDoc;
+  }
+
+  return PR_TRUE;
 }
 
 nsresult

@@ -161,7 +161,7 @@ public:
   virtual PRBool RestoreState(nsPresState* aState);
   virtual PRBool AllowDrop();
 
-  virtual void FieldSetDisabledChanged(PRBool aNotify);
+  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
 
   // nsIContent
   virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
@@ -218,7 +218,6 @@ public:
   void GetDisplayFileName(nsAString& aFileName) const;
   const nsCOMArray<nsIDOMFile>& GetFiles() const;
   void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles, bool aSetValueChanged);
-  void SetFiles(nsIDOMFileList* aFiles, bool aSetValueChanged);
 
   void SetCheckedChangedInternal(PRBool aCheckedChanged);
   PRBool GetCheckedChanged() const {
@@ -226,6 +225,11 @@ public:
   }
   void AddedToRadioGroup();
   void WillRemoveFromRadioGroup();
+  /**
+   * Get the radio group container for this button (form or document)
+   * @return the radio group container (or null if no form or document)
+   */
+  virtual already_AddRefed<nsIRadioGroupContainer> GetRadioGroupContainer();
 
  /**
    * Helper function returning the currently selected button in the radio group.
@@ -240,9 +244,9 @@ public:
 
   NS_IMETHOD FireAsyncClickHandler();
 
-  virtual void UpdateEditableState(PRBool aNotify)
+  virtual void UpdateEditableState()
   {
-    return UpdateEditableFormControlState(aNotify);
+    return UpdateEditableFormControlState();
   }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLInputElement,
@@ -389,6 +393,16 @@ protected:
   nsresult GetSelectionRange(PRInt32* aSelectionStart, PRInt32* aSelectionEnd);
 
   /**
+   * Get the name if it exists and return whether it did exist
+   * @param aName the name returned [OUT]
+   * @param true if the name is empty, false otherwise
+   */
+  PRBool GetNameIfExists(nsAString& aName) {
+    GetAttr(kNameSpaceID_None, nsGkAtoms::name, aName);
+    return !aName.IsEmpty();
+  }
+
+  /**
    * Called when an attribute is about to be changed
    */
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
@@ -457,11 +471,6 @@ protected:
    * Update mFileList with the currently selected file.
    */
   nsresult UpdateFileList();
-
-  /**
-   * Called after calling one of the SetFiles() functions.
-   */
-  void AfterSetFiles(bool aSetValueChanged);
 
   /**
    * Determine whether the editor needs to be initialized explicitly for
@@ -567,14 +576,6 @@ protected:
         return false;
     }
   }
-
-  /**
-   * Returns the radio group container if the element has one, null otherwise.
-   * The radio group container will be the form owner if there is one.
-   * The current document otherwise.
-   * @return the radio group container if the element has one, null otherwise.
-   */
-  nsIRadioGroupContainer* GetRadioGroupContainer() const;
 
   nsCOMPtr<nsIControllers> mControllers;
 

@@ -61,6 +61,7 @@ EXPORTS		= \
 		nsIAnonymousContentCreator.h \
 		nsIFrame.h \
 		nsIFrameUtil.h \
+		nsIImageFrame.h \
 		nsILineIterator.h \
 		nsIObjectFrame.h \
 		nsIPageSequenceFrame.h \
@@ -68,8 +69,14 @@ EXPORTS		= \
 		nsIStatefulFrame.h \
 		nsFrameSelection.h \
 		nsSubDocumentFrame.h \
-		nsObjectFrame.h \
 		$(NULL)
+
+ifdef IBMBIDI
+EXPORTS		+= \
+		nsBidiFrames.h      \
+		$(NULL)
+endif
+
 
 CPPSRCS		= \
 		nsAbsoluteContainingBlock.cpp \
@@ -116,6 +123,12 @@ CPPSRCS		= \
 ifdef MOZ_MEDIA
 CPPSRCS		+= \
 		nsVideoFrame.cpp \
+		$(NULL)
+endif
+
+ifdef IBMBIDI
+CPPSRCS		+= \
+		nsBidiFrames.cpp \
 		$(NULL)
 endif
 

@@ -52,12 +52,9 @@
 #include "nsEventDispatcher.h"
 #include "jsapi.h"
 #include "nsContentUtils.h"
-#include "mozilla/Preferences.h"
 
 using mozilla::TimeStamp;
 using mozilla::TimeDuration;
-
-using namespace mozilla;
 
 #define DEFAULT_FRAME_RATE 60
 #define DEFAULT_THROTTLED_FRAME_RATE 1
@@ -67,9 +64,9 @@ static PRBool sPrecisePref;
 /* static */ void
 nsRefreshDriver::InitializeStatics()
 {
-  Preferences::AddBoolVarCache(&sPrecisePref,
-                               "layout.frame_rate.precise",
-                               PR_FALSE);
+  nsContentUtils::AddBoolPrefVarCache("layout.frame_rate.precise",
+                                      &sPrecisePref,
+                                      PR_FALSE);
 }
 // Compute the interval to use for the refresh driver timer, in
 // milliseconds
@@ -78,7 +75,7 @@ nsRefreshDriver::GetRefreshTimerInterval() const
 {
   const char* prefName =
     mThrottled ? "layout.throttled_frame_rate" : "layout.frame_rate";
-  PRInt32 rate = Preferences::GetInt(prefName, -1);
+  PRInt32 rate = nsContentUtils::GetIntPref(prefName, -1);
   if (rate <= 0) {
     // TODO: get the rate from the platform
     rate = mThrottled ? DEFAULT_THROTTLED_FRAME_RATE : DEFAULT_FRAME_RATE;
@@ -129,22 +126,14 @@ nsRefreshDriver::AdvanceTimeAndRefresh(PRInt64 aMilliseconds)
   mTestControllingRefreshes = true;
   mMostRecentRefreshEpochTime += aMilliseconds * 1000;
   mMostRecentRefresh += TimeDuration::FromMilliseconds(aMilliseconds);
-  nsCxPusher pusher;
-  if (pusher.PushNull()) {
-    Notify(nsnull);
-    pusher.Pop();
-  }
+  Notify(nsnull);
 }
 
 void
 nsRefreshDriver::RestoreNormalRefresh()
 {
   mTestControllingRefreshes = false;
-  nsCxPusher pusher;
-  if (pusher.PushNull()) {
-    Notify(nsnull); // will call UpdateMostRecentRefresh()
-    pusher.Pop();
-  }
+  Notify(nsnull); // will call UpdateMostRecentRefresh()
 }
 
 TimeStamp
@@ -290,8 +279,6 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
 {
   NS_PRECONDITION(!mFrozen, "Why are we notified while frozen?");
   NS_PRECONDITION(mPresContext, "Why are we notified after disconnection?");
-  NS_PRECONDITION(!nsContentUtils::GetCurrentJSContext(),
-                  "Shouldn't have a JSContext on the stack");
 
   if (mTestControllingRefreshes && aTimer) {
     // Ignore real refreshes from our timer (but honor the others).

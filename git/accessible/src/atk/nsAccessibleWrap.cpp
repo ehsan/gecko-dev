@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* vim:expandtab:shiftwidth=2:tabstop=2: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -341,7 +341,9 @@ void nsAccessibleWrap::SetMaiHyperlink(MaiHyperlink* aMaiHyperlink)
         if (!maiHyperlink && !aMaiHyperlink) {
             return; // Never set and we're shutting down
         }
-        delete maiHyperlink;
+        if (maiHyperlink) {
+            delete maiHyperlink;
+        }
         g_object_set_qdata(G_OBJECT(mAtkObject), quark_mai_hyperlink,
                            aMaiHyperlink);
     }
@@ -716,18 +718,20 @@ const gchar *
 getDescriptionCB(AtkObject *aAtkObj)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(aAtkObj);
-    if (!accWrap || accWrap->IsDefunct())
+    if (!accWrap) {
         return nsnull;
+    }
 
     /* nsIAccessible is responsible for the non-NULL description */
     nsAutoString uniDesc;
-    accWrap->Description(uniDesc);
+    nsresult rv = accWrap->GetDescription(uniDesc);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     NS_ConvertUTF8toUTF16 objDesc(aAtkObj->description);
-    if (!uniDesc.Equals(objDesc))
+    if (!uniDesc.Equals(objDesc)) {
         atk_object_set_description(aAtkObj,
                                    NS_ConvertUTF16toUTF8(uniDesc).get());
-
+    }
     return aAtkObj->description;
 }
 

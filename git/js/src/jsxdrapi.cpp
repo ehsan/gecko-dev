@@ -424,11 +424,11 @@ JS_XDRString(JSXDRState *xdr, JSString **strp)
     size_t len;
 
     if (xdr->mode == JSXDR_ENCODE) {
-        len = GetDeflatedUTF8StringLength(xdr->cx,
-                                          (*strp)->getChars(xdr->cx),
-                                          (*strp)->length(),
-                                          CESU8Encoding);
-        /* GetDeflatedUTF8StringLength never fails in CESU8 mode */
+        len = js_GetDeflatedUTF8StringLength(xdr->cx,
+                                             (*strp)->getChars(xdr->cx),
+                                             (*strp)->length(),
+                                             true);
+        /* js_GetDeflatedUTF8StringLength never fails in CESU8 mode */
         JS_ASSERT(len != (size_t) -1);
         JS_ASSERT(size_t(uint32(len)) == len);
         /* ensure MAX_LENGTH strings can always fit when CESU8 encoded */
@@ -446,12 +446,12 @@ JS_XDRString(JSXDRState *xdr, JSString **strp)
 
     len = (uint32)nchars;
     if (xdr->mode == JSXDR_ENCODE) {
-        JS_ALWAYS_TRUE(DeflateStringToUTF8Buffer(xdr->cx,
-                                                 (*strp)->getChars(xdr->cx),
-                                                 (*strp)->length(), buf,
-                                                 &len, CESU8Encoding));
+        JS_ALWAYS_TRUE(js_DeflateStringToUTF8Buffer(xdr->cx,
+                                                    (*strp)->getChars(xdr->cx),
+                                                    (*strp)->length(), buf,
+                                                    &len, true));
     } else {
-        jschar *chars = InflateString(xdr->cx, buf, &len, CESU8Encoding);
+        jschar *chars = js_InflateString(xdr->cx, buf, &len, true);
         if (!chars)
             return false;
 
@@ -658,7 +658,7 @@ js_XDRAtom(JSXDRState *xdr, JSAtom **atomp)
             if (!buf)
                 return false;
 
-            JSAtom *atom = js_Atomize(xdr->cx, buf, len, DoNotInternAtom, CESU8Encoding);
+            JSAtom *atom = js_Atomize(xdr->cx, buf, len, 0, true);
             if (!atom)
                 return false;
 

@@ -54,7 +54,6 @@
         id="wizard"
         title="&addDevice.title.label;"
         windowtype="Sync:AddDevice"
-        persist="screenX screenY"
         onwizardnext="return gSyncAddDevice.onWizardAdvance();"
         onwizardback="return gSyncAddDevice.onWizardBack();"
         onwizardcancel="gSyncAddDevice.onWizardCancel();"
@@ -78,11 +77,11 @@
              value="&addDevice.showMeHow.label;"
              href="https://services.mozilla.com/sync/help/add-device"/>
     </description>
-    <separator class="groove-thin"/>
+    <spacer flex="1"/>
     <description>
       &addDevice.dialog.enterCode.label;
     </description>
-    <separator class="groove-thin"/>
+    <spacer flex="1"/>
     <vbox align="center">
       <textbox id="pin1"
                class="pin"
@@ -100,7 +99,7 @@
                onfocus="this.select();" 
               />
     </vbox>
-    <separator class="groove-thin"/>
+    <spacer flex="1"/>
     <vbox id="add-device-throbber" align="center" hidden="true">
       <image/>
     </vbox>

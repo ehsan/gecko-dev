@@ -319,7 +319,6 @@ private:
   nsIDOMCSSValue* DoGetWordSpacing();
   nsIDOMCSSValue* DoGetWhiteSpace();
   nsIDOMCSSValue* DoGetWordWrap();
-  nsIDOMCSSValue* DoGetHyphens();
   nsIDOMCSSValue* DoGetMozTabSize();
 
   /* Visibility properties */
@@ -346,7 +345,6 @@ private:
   nsIDOMCSSValue* DoGetPageBreakBefore();
   nsIDOMCSSValue* DoGetMozTransform();
   nsIDOMCSSValue* DoGetMozTransformOrigin();
-  nsIDOMCSSValue* DoGetOrient();
 
   /* User interface properties */
   nsIDOMCSSValue* DoGetCursor();

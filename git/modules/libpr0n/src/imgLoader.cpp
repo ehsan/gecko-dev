@@ -55,6 +55,8 @@
 #include "nsIHttpChannel.h"
 #include "nsICachingChannel.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIPrefBranch2.h"
+#include "nsIPrefService.h"
 #include "nsIProgressEventSink.h"
 #include "nsIChannelEventSink.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
@@ -88,9 +90,7 @@
 #include "nsIChannelPolicy.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
 using namespace mozilla::imagelib;
 
 #if defined(DEBUG_pavlov) || defined(DEBUG_timeless)
@@ -157,58 +157,46 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD GetProcess(char **process)
-  {
-    *process = strdup("");
-    return NS_OK;
-  }
-
   NS_IMETHOD GetPath(char **memoryPath)
   {
     if (mType == ChromeUsedRaw) {
-      *memoryPath = strdup("explicit/images/chrome/used/raw");
+      *memoryPath = strdup("images/chrome/used/raw");
     } else if (mType == ChromeUsedUncompressed) {
-      *memoryPath = strdup("explicit/images/chrome/used/uncompressed");
+      *memoryPath = strdup("images/chrome/used/uncompressed");
     } else if (mType == ChromeUnusedRaw) {
-      *memoryPath = strdup("explicit/images/chrome/unused/raw");
+      *memoryPath = strdup("images/chrome/unused/raw");
     } else if (mType == ChromeUnusedUncompressed) {
-      *memoryPath = strdup("explicit/images/chrome/unused/uncompressed");
+      *memoryPath = strdup("images/chrome/unused/uncompressed");
     } else if (mType == ContentUsedRaw) {
-      *memoryPath = strdup("explicit/images/content/used/raw");
+      *memoryPath = strdup("images/content/used/raw");
     } else if (mType == ContentUsedUncompressed) {
-      *memoryPath = strdup("explicit/images/content/used/uncompressed");
+      *memoryPath = strdup("images/content/used/uncompressed");
     } else if (mType == ContentUnusedRaw) {
-      *memoryPath = strdup("explicit/images/content/unused/raw");
+      *memoryPath = strdup("images/content/unused/raw");
     } else if (mType == ContentUnusedUncompressed) {
-      *memoryPath = strdup("explicit/images/content/unused/uncompressed");
+      *memoryPath = strdup("images/content/unused/uncompressed");
     }
-    return NS_OK;
-  }
-
-  NS_IMETHOD GetKind(PRInt32 *kind)
-  {
-    *kind = MR_HEAP;
     return NS_OK;
   }
 
   NS_IMETHOD GetDescription(char **desc)
   {
     if (mType == ChromeUsedRaw) {
-      *desc = strdup("Memory used by in-use chrome images (compressed data).");
+      *desc = strdup("Memory used by in-use chrome images, compressed data");
     } else if (mType == ChromeUsedUncompressed) {
-      *desc = strdup("Memory used by in-use chrome images (uncompressed data).");
+      *desc = strdup("Memory used by in-use chrome images, uncompressed data");
     } else if (mType == ChromeUnusedRaw) {
-      *desc = strdup("Memory used by not in-use chrome images (compressed data).");
+      *desc = strdup("Memory used by not in-use chrome images, compressed data");
     } else if (mType == ChromeUnusedUncompressed) {
-      *desc = strdup("Memory used by not in-use chrome images (uncompressed data).");
+      *desc = strdup("Memory used by not in-use chrome images, uncompressed data");
     } else if (mType == ContentUsedRaw) {
-      *desc = strdup("Memory used by in-use content images (compressed data).");
+      *desc = strdup("Memory used by in-use content images, compressed data");
     } else if (mType == ContentUsedUncompressed) {
-      *desc = strdup("Memory used by in-use content images (uncompressed data).");
+      *desc = strdup("Memory used by in-use content images, uncompressed data");
     } else if (mType == ContentUnusedRaw) {
-      *desc = strdup("Memory used by not in-use content images (compressed data).");
+      *desc = strdup("Memory used by not in-use content images, compressed data");
     } else if (mType == ContentUnusedUncompressed) {
-      *desc = strdup("Memory used by not in-use content images (uncompressed data).");
+      *desc = strdup("Memory used by not in-use content images, uncompressed data");
     }
     return NS_OK;
   }
@@ -851,15 +839,19 @@ nsresult imgLoader::InitCache()
   if (!sChromeCache.Init())
       return NS_ERROR_OUT_OF_MEMORY;
 
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv); 
+  if (NS_FAILED(rv))
+    return rv;
+
   PRInt32 timeweight;
-  rv = Preferences::GetInt("image.cache.timeweight", &timeweight);
+  rv = prefs->GetIntPref("image.cache.timeweight", &timeweight);
   if (NS_SUCCEEDED(rv))
     sCacheTimeWeight = timeweight / 1000.0;
   else
     sCacheTimeWeight = 0.5;
 
   PRInt32 cachesize;
-  rv = Preferences::GetInt("image.cache.size", &cachesize);
+  rv = prefs->GetIntPref("image.cache.size", &cachesize);
   if (NS_SUCCEEDED(rv))
     sCacheMaxSize = cachesize;
   else
@@ -880,9 +872,13 @@ nsresult imgLoader::InitCache()
 nsresult imgLoader::Init()
 {
   nsresult rv;
-  ReadAcceptHeaderPref();
+  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv); 
+  if (NS_FAILED(rv))
+    return rv;
 
-  Preferences::AddWeakObserver(this, "image.http.accept");
+  ReadAcceptHeaderPref(prefs);
+
+  prefs->AddObserver("image.http.accept", this, PR_TRUE);
 
   // Listen for when we leave private browsing mode
   nsCOMPtr<nsIObserverService> obService = mozilla::services::GetObserverService();
@@ -898,7 +894,8 @@ imgLoader::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* a
   // We listen for pref change notifications...
   if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
     if (!strcmp(NS_ConvertUTF16toUTF8(aData).get(), "image.http.accept")) {
-      ReadAcceptHeaderPref();
+      nsCOMPtr<nsIPrefBranch> prefs = do_QueryInterface(aSubject);
+      ReadAcceptHeaderPref(prefs);
     }
   }
 
@@ -916,10 +913,13 @@ imgLoader::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* a
   return NS_OK;
 }
 
-void imgLoader::ReadAcceptHeaderPref()
+void imgLoader::ReadAcceptHeaderPref(nsIPrefBranch *aBranch)
 {
-  nsAdoptingCString accept = Preferences::GetCString("image.http.accept");
-  if (accept)
+  NS_ASSERTION(aBranch, "Pref branch is null");
+
+  nsXPIDLCString accept;
+  nsresult rv = aBranch->GetCharPref("image.http.accept", getter_Copies(accept));
+  if (NS_SUCCEEDED(rv))
     mAcceptHeader = accept;
   else
     mAcceptHeader = "image/png,image/*;q=0.8,*/*;q=0.5";
@@ -1803,8 +1803,8 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
   nsCOMPtr<nsILoadGroup> loadGroup;
   channel->GetLoadGroup(getter_AddRefs(loadGroup));
 
-  // Filter out any load flags not from nsIRequest
-  requestFlags &= nsIRequest::LOAD_REQUESTMASK;
+  // XXX: It looks like the wrong load flags are being passed in...
+  requestFlags &= 0xFFFF;
 
   nsresult rv = NS_OK;
   if (request) {

@@ -25,7 +25,7 @@ function createGroupItemWithTabs(win, width, height, padding, urls, animate) {
   is(contentWindow.GroupItems.groupItems.length, ++groupItemCount,
      "The number of groups is increased by 1");
   // add blank items
-  contentWindow.UI.setActive(groupItem);
+  contentWindow.GroupItems.setActiveGroupItem(groupItem);
   let t = 0;
   urls.forEach( function(url) {
     let newItem = win.gBrowser.loadOneTab(url)._tabViewTabItem;
@@ -93,30 +93,20 @@ function newWindowWithTabView(shownCallback, loadCallback, width, height) {
 
 // ----------
 function afterAllTabsLoaded(callback, win) {
-  const TAB_STATE_NEEDS_RESTORE = 1;
-
   win = win || window;
 
   let stillToLoad = 0;
-  let restoreHiddenTabs = Services.prefs.getBoolPref(
-                          "browser.sessionstore.restore_hidden_tabs");
 
   function onLoad() {
     this.removeEventListener("load", onLoad, true);
     stillToLoad--;
     if (!stillToLoad)
-      executeSoon(callback);
+      callback();
   }
 
   for (let a = 0; a < win.gBrowser.tabs.length; a++) {
-    let tab = win.gBrowser.tabs[a];
-    let browser = tab.linkedBrowser;
-
-    let isRestorable = !(tab.hidden && !restoreHiddenTabs &&
-                         browser.__SS_restoreState &&
-                         browser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE);
-
-    if (isRestorable && browser.contentDocument.readyState != "complete" ||
+    let browser = win.gBrowser.tabs[a].linkedBrowser;
+    if (browser.contentDocument.readyState != "complete" ||
         browser.webProgress.isLoadingDocument) {
       stillToLoad++;
       browser.addEventListener("load", onLoad, true);
@@ -124,7 +114,7 @@ function afterAllTabsLoaded(callback, win) {
   }
 
   if (!stillToLoad)
-    executeSoon(callback);
+    callback();
 }
 
 // ----------
@@ -270,52 +260,4 @@ function unhideGroupItem(groupItem, callback) {
     callback();
   });
   groupItem._unhide();
-}
-
-// ----------
-function whenWindowLoaded(win, callback) {
-  win.addEventListener("load", function onLoad() {
-    win.removeEventListener("load", onLoad, false);
-    executeSoon(callback);
-  }, false);
-}
-
-// ----------
-function whenWindowStateReady(win, callback) {
-  win.addEventListener("SSWindowStateReady", function onReady() {
-    win.removeEventListener("SSWindowStateReady", onReady, false);
-    executeSoon(callback);
-  }, false);
-}
-
-// ----------
-function newWindowWithState(state, callback) {
-  let opts = "chrome,all,dialog=no,height=800,width=800";
-  let win = window.openDialog(getBrowserURL(), "_blank", opts);
-
-  whenWindowLoaded(win, function () {
-    ss.setWindowState(win, JSON.stringify(state), true);
-  });
-
-  whenWindowStateReady(win, function () {
-    afterAllTabsLoaded(function () callback(win), win);
-  });
-}
-
-// ----------
-function restoreTab(callback, index, win) {
-  win = win || window;
-
-  let tab = win.undoCloseTab(index || 0);
-  let tabItem = tab._tabViewTabItem;
-
-  if (tabItem._reconnected) {
-    afterAllTabsLoaded(callback, win);
-    return;
-  }
-
-  tab._tabViewTabItem.addSubscriber(tab, "reconnected", function onReconnected() {
-    tab._tabViewTabItem.removeSubscriber(tab, "reconnected");
-    afterAllTabsLoaded(callback, win);
-  });
 }

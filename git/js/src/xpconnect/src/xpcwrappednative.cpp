@@ -1751,12 +1751,6 @@ XPCWrappedNative::GetWrappedNativeOfJSObject(JSContext* cx,
 {
     NS_PRECONDITION(obj, "bad param");
 
-    // fubobj must be null if called without cx.
-    NS_PRECONDITION(cx || !funobj, "bad param");
-
-    // *pTeaorOff must be null if pTearOff is given
-    NS_PRECONDITION(!pTearOff || !*pTearOff, "bad param");
-
     JSObject* cur;
 
     XPCWrappedNativeProto* proto = nsnull;
@@ -1776,7 +1770,7 @@ XPCWrappedNative::GetWrappedNativeOfJSObject(JSContext* cx,
         if(IS_PROTO_CLASS(funObjParentClass))
         {
             NS_ASSERTION(funObjParent->getParent(), "funobj's parent (proto) is global");
-            proto = (XPCWrappedNativeProto*) funObjParent->getPrivate();
+            proto = (XPCWrappedNativeProto*) xpc_GetJSPrivate(funObjParent);
             if(proto)
                 protoClassInfo = proto->GetClassInfo();
         }
@@ -1798,7 +1792,6 @@ XPCWrappedNative::GetWrappedNativeOfJSObject(JSContext* cx,
         }
     }
 
-  restart:
     for(cur = obj; cur; cur = cur->getProto())
     {
         // this is on two lines to make the compiler happy given the goto.
@@ -1810,7 +1803,7 @@ XPCWrappedNative::GetWrappedNativeOfJSObject(JSContext* cx,
 return_wrapper:
             JSBool isWN = IS_WN_WRAPPER_OBJECT(cur);
             XPCWrappedNative* wrapper =
-                isWN ? (XPCWrappedNative*) cur->getPrivate() : nsnull;
+                isWN ? (XPCWrappedNative*) xpc_GetJSPrivate(cur) : nsnull;
             if(proto)
             {
                 XPCWrappedNativeProto* wrapper_proto =
@@ -1829,7 +1822,7 @@ return_wrapper:
         {
 return_tearoff:
             XPCWrappedNative* wrapper =
-                (XPCWrappedNative*) cur->getParent()->getPrivate();
+                (XPCWrappedNative*) xpc_GetJSPrivate(cur->getParent());
             if(proto && proto != wrapper->GetProto() &&
                (proto->GetScope() != wrapper->GetScope() ||
                 !protoClassInfo || !wrapper->GetProto() ||
@@ -1837,7 +1830,8 @@ return_tearoff:
                 continue;
             if(pobj2)
                 *pobj2 = nsnull;
-            XPCWrappedNativeTearOff* to = (XPCWrappedNativeTearOff*) cur->getPrivate();
+            XPCWrappedNativeTearOff* to =
+                (XPCWrappedNativeTearOff*) xpc_GetJSPrivate(cur);
             if(!to)
                 return nsnull;
             if(pTearOff)
@@ -1846,14 +1840,10 @@ return_tearoff:
         }
 
         // Unwrap any wrapper wrappers.
-        JSObject *unsafeObj = cx
-                              ? XPCWrapper::Unwrap(cx, cur)
-                              : XPCWrapper::UnsafeUnwrapSecurityWrapper(cur);
-        if(unsafeObj)
-        {
-            obj = unsafeObj;
-            goto restart;
-        }
+        JSObject *unsafeObj;
+        if((unsafeObj = XPCWrapper::Unwrap(cx, cur)))
+            return GetWrappedNativeOfJSObject(cx, unsafeObj, funobj, pobj2,
+                                              pTearOff);
     }
 
     if(pobj2)
@@ -2232,7 +2222,7 @@ class CallMethodHelper
     // to be declared as that would make the ctor and dtors run for each
     // CallMethodHelper instantiation, and they're only needed in a
     // fraction of all the calls that come through here.
-    js::Maybe<nsAutoString> mAutoString;
+    js::LazilyConstructed<nsAutoString> mAutoString;
 
     jsval* const mArgv;
     const PRUint32 mArgc;

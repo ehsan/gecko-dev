@@ -306,7 +306,7 @@ nsPNGDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
       return;
 
     // Read data into our header buffer
-    PRUint32 bytesToRead = NS_MIN(aCount, BYTES_NEEDED_FOR_DIMENSIONS -
+    PRUint32 bytesToRead = PR_MIN(aCount, BYTES_NEEDED_FOR_DIMENSIONS -
                                   mHeaderBytesRead);
     memcpy(mHeaderBuf + mHeaderBytesRead, aBuffer, bytesToRead);
     mHeaderBytesRead += bytesToRead;
@@ -512,11 +512,6 @@ nsPNGDecoder::info_callback(png_structp png_ptr, png_infop info_ptr)
 
   // Post our size to the superclass
   decoder->PostSize(width, height);
-  if (decoder->HasError()) {
-    // Setting the size lead to an error; this can happen when for example
-    // a multipart channel sends an image of a different size.
-    longjmp(png_jmpbuf(decoder->mPNG), 1);
-  }
 
   if (color_type == PNG_COLOR_TYPE_PALETTE)
     png_set_expand(png_ptr);

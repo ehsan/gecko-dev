@@ -421,7 +421,8 @@ static void
 xpc_ThreadDataDtorCB(void* ptr)
 {
     XPCPerThreadData* data = (XPCPerThreadData*) ptr;
-    delete data;
+    if(data)
+        delete data;
 }
 
 void XPCPerThreadData::TraceJS(JSTracer *trc)
@@ -483,7 +484,8 @@ XPCPerThreadData::GetDataImpl(JSContext *cx)
         if(!data || !data->IsValid())
         {
             NS_ERROR("new XPCPerThreadData() failed!");
-            delete data;
+            if(data)
+                delete data;
             return nsnull;
         }
         if(PR_FAILURE == PR_SetThreadPrivate(gTLSIndex, data))
@@ -496,7 +498,7 @@ XPCPerThreadData::GetDataImpl(JSContext *cx)
 
     if(cx && !sMainJSThread && NS_IsMainThread())
     {
-        sMainJSThread = cx->thread();
+        sMainJSThread = cx->thread;
 
         sMainThreadData = data;
 

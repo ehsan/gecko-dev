@@ -68,6 +68,10 @@ extern const PRUnichar* kOOPPPluginFocusEventId;
 UINT gOOPPPluginFocusEvent =
     RegisterWindowMessage(kOOPPPluginFocusEventId);
 extern const PRUnichar* kFlashFullscreenClass;
+UINT gOOPPSpinNativeLoopEvent =
+    RegisterWindowMessage(L"SyncChannel Spin Inner Loop Message");
+UINT gOOPPStopNativeLoopEvent =
+    RegisterWindowMessage(L"SyncChannel Stop Inner Loop Message");
 #elif defined(MOZ_WIDGET_GTK2)
 #include <gdk/gdk.h>
 #elif defined(XP_MACOSX)
@@ -103,6 +107,7 @@ PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
     , mShHeight(0)
     , mShColorSpace(nsnull)
     , mDrawingModel(NPDrawingModelCoreGraphics)
+    , mIOSurface(nsnull)
 #endif
 {
     InitQuirksModes(aMimeType);
@@ -136,6 +141,8 @@ PluginInstanceParent::~PluginInstanceParent()
     }
     if (mShColorSpace)
         ::CGColorSpaceRelease(mShColorSpace);
+    if (mIOSurface)
+        delete mIOSurface;
     if (mDrawingModel == NPDrawingModelCoreAnimation) {
         mParent->RemoveFromRefreshTimer(this);
     }
@@ -515,29 +522,6 @@ PluginInstanceParent::RecvShow(const NPRect& updatedRect,
         }
         surface = gfxSharedImageSurface::Open(newSurface.get_Shmem());
     }
-#ifdef XP_MACOSX
-    else if (newSurface.type() == SurfaceDescriptor::TIOSurfaceDescriptor) {
-        IOSurfaceDescriptor iodesc = newSurface.get_IOSurfaceDescriptor();
-    
-        nsIOSurface *newIOSurface = nsIOSurface::LookupSurface(iodesc.surfaceId());
-
-        if (!newIOSurface) {
-            NS_WARNING("Got bad IOSurfaceDescriptor in RecvShow");
-            return false;
-        }
-      
-        mIOSurface = newIOSurface;
-
-        RecvNPN_InvalidateRect(updatedRect);
-
-        *prevSurface = null_t();
-
-        PLUGIN_LOG_DEBUG(("   (RecvShow invalidated for surface %p)",
-                          mFrontSurface.get()));
-
-        return true;
-    }
-#endif
 #ifdef MOZ_X11
     else if (newSurface.type() == SurfaceDescriptor::TSurfaceDescriptorX11) {
         SurfaceDescriptorX11 xdesc = newSurface.get_SurfaceDescriptorX11();
@@ -598,7 +582,7 @@ PluginInstanceParent::AsyncSetWindow(NPWindow* aWindow)
 {
     NPRemoteWindow window;
     mWindowType = aWindow->type;
-    window.window = reinterpret_cast<uintptr_t>(aWindow->window);
+    window.window = reinterpret_cast<unsigned long>(aWindow->window);
     window.x = aWindow->x;
     window.y = aWindow->y;
     window.width = aWindow->width;
@@ -624,12 +608,8 @@ PluginInstanceParent::GetImage(ImageContainer* aContainer, Image** aImage)
 
     Image::Format format = Image::CAIRO_SURFACE;
 #ifdef XP_MACOSX
-    if (mIOSurface) {
+    if (mIOSurface)
         format = Image::MAC_IO_SURFACE;
-        if (!aContainer->Manager()) {
-            return NS_ERROR_FAILURE;
-        }
-    }
 #endif
 
     nsRefPtr<Image> image;
@@ -679,6 +659,16 @@ PluginInstanceParent::GetImageSize(nsIntSize* aSize)
 
     return NS_ERROR_NOT_AVAILABLE;
 }
+
+#ifdef XP_MACOSX
+nsresult
+PluginInstanceParent::IsRemoteDrawingCoreAnimation(PRBool *aDrawing)
+{
+    *aDrawing = (NPDrawingModelCoreAnimation == (NPDrawingModel)mDrawingModel ||
+                 NPDrawingModelInvalidatingCoreAnimation == (NPDrawingModel)mDrawingModel);
+    return NS_OK;
+}
+#endif
 
 nsresult
 PluginInstanceParent::SetBackgroundUnknown()
@@ -859,7 +849,7 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
     else {
         SubclassPluginWindow(reinterpret_cast<HWND>(aWindow->window));
 
-        window.window = reinterpret_cast<uintptr_t>(aWindow->window);
+        window.window = reinterpret_cast<unsigned long>(aWindow->window);
         window.x = aWindow->x;
         window.y = aWindow->y;
         window.width = aWindow->width;
@@ -880,6 +870,9 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
     if (mShWidth != window.width || mShHeight != window.height) {
         if (mDrawingModel == NPDrawingModelCoreAnimation || 
             mDrawingModel == NPDrawingModelInvalidatingCoreAnimation) {
+            if (mIOSurface) {
+                delete mIOSurface;
+            }
             mIOSurface = nsIOSurface::CreateIOSurface(window.width, window.height);
         } else if (mShWidth * mShHeight != window.width * window.height) {
             if (mShWidth != 0 && mShHeight != 0) {
@@ -919,22 +912,6 @@ PluginInstanceParent::NPP_GetValue(NPPVariable aVariable,
                                    void* _retval)
 {
     switch (aVariable) {
-
-    case NPPVpluginWantsAllNetworkStreams: {
-        bool wantsAllStreams;
-        NPError rv;
-
-        if (!CallNPP_GetValue_NPPVpluginWantsAllNetworkStreams(&wantsAllStreams, &rv)) {
-            return NPERR_GENERIC_ERROR;
-        }
-
-        if (NPERR_NO_ERROR != rv) {
-            return rv;
-        }
-
-        (*(NPBool*)_retval) = wantsAllStreams;
-        return NPERR_NO_ERROR;
-    }
 
 #ifdef MOZ_X11
     case NPPVpluginNeedsXEmbed: {

@@ -51,7 +51,6 @@
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
 #include "nsPIDOMWindow.h"
-#include "nsProgressFrame.h"
 
 nsNativeTheme::nsNativeTheme()
 : mAnimatedContentTimeout(PR_UINT32_MAX)
@@ -92,11 +91,8 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
   if (!shell)
     return nsEventStates();
 
-  nsIContent* frameContent = aFrame->GetContent();
-  nsEventStates flags;
-  if (frameContent->IsElement()) {
-    flags = frameContent->AsElement()->State();
-  }
+  nsEventStateManager* esm = shell->GetPresContext()->EventStateManager();
+  nsEventStates flags = esm->GetContentState(aFrame->GetContent(), PR_TRUE);
   
   if (isXULCheckboxRadio && aWidgetType == NS_THEME_RADIO) {
     if (IsFocused(aFrame))
@@ -252,19 +248,6 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
         return IsWidgetStyled(aPresContext, parentFrame,
                               parentFrame->GetStyleDisplay()->mAppearance);
       }
-    }
-  }
-
-  /**
-   * Progress bar appearance should be the same for the bar and the container
-   * frame. nsProgressFrame owns the logic and will tell us what we should do.
-   */
-  if (aWidgetType == NS_THEME_PROGRESSBAR_CHUNK ||
-      aWidgetType == NS_THEME_PROGRESSBAR) {
-    nsProgressFrame* progressFrame = do_QueryFrame(aWidgetType == NS_THEME_PROGRESSBAR_CHUNK
-                                       ? aFrame->GetParent() : aFrame);
-    if (progressFrame) {
-      return !progressFrame->ShouldUseNativeStyle();
     }
   }
 
@@ -460,26 +443,14 @@ nsNativeTheme::IsNextToSelectedTab(nsIFrame* aFrame, PRInt32 aOffset)
 
 // progressbar:
 PRBool
-nsNativeTheme::IsIndeterminateProgress(nsIFrame* aFrame,
-                                       nsEventStates aEventStates)
+nsNativeTheme::IsIndeterminateProgress(nsIFrame* aFrame)
 {
   if (!aFrame)
     return PR_FALSE;
 
-  if (aFrame->GetContent()->IsHTML(nsWidgetAtoms::progress)) {
-    return aEventStates.HasState(NS_EVENT_STATE_INDETERMINATE);
-  }
-
   return aFrame->GetContent()->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::mode,
                                            NS_LITERAL_STRING("undetermined"),
                                            eCaseMatters);
-}
-
-PRBool
-nsNativeTheme::IsVerticalProgress(nsIFrame* aFrame)
-{
-  return aFrame &&
-         aFrame->GetStyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL;
 }
 
 // menupopup:
@@ -519,7 +490,7 @@ nsNativeTheme::QueueAnimatedContentForRefresh(nsIContent* aContent,
                "aMinimumFrameRate must be less than 1000!");
 
   PRUint32 timeout = PRUint32(NS_floor(1000 / aMinimumFrameRate));
-  timeout = NS_MIN(mAnimatedContentTimeout, timeout);
+  timeout = PR_MIN(mAnimatedContentTimeout, timeout);
 
   if (!mAnimatedContentTimer) {
     mAnimatedContentTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
@@ -560,7 +531,11 @@ nsNativeTheme::Notify(nsITimer* aTimer)
   for (PRUint32 index = 0; index < count; index++) {
     nsIFrame* frame = mAnimatedContentList[index]->GetPrimaryFrame();
     if (frame) {
+#ifdef MOZ_ENABLE_LIBXUL
       frame->InvalidateOverflowRect();
+#else
+      frame->InvalidateOverflowRectExternal();
+#endif
     }
   }
 

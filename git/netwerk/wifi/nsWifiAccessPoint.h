@@ -70,11 +70,6 @@ public:
     // mac_as_int is big-endian. Write in byte chunks.
     // Format is XX-XX-XX-XX-XX-XX.
 
-    const unsigned char holder[6] = {0};
-    if (!mac_as_int) {
-      mac_as_int = holder;
-    }
-
     static const char *kMacFormatString = ("%02x-%02x-%02x-%02x-%02x-%02x");
 
     sprintf(mMac, kMacFormatString,
@@ -85,7 +80,7 @@ public:
   };
 
   void setSSID(const char* aSSID, unsigned long len) {
-    if (aSSID && (len < sizeof(mSsid))) {
+    if (len < sizeof(mSsid)) {
         strncpy(mSsid, aSSID, len);
         mSsid[len] = 0;
         mSsidLen = len;

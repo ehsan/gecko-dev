@@ -352,6 +352,11 @@ let Content = {
           } else if (ot == errorDoc.getElementById("getMeOutOfHereButton")) {
             sendAsyncMessage("Browser:CertException", { url: errorDoc.location.href, action: "leave" });
           }
+        } else if (/^about:neterror\?e=netOffline/.test(errorDoc.documentURI)) {
+          if (ot == errorDoc.getElementById("errorTryAgain")) {
+            // Make sure we're online before attempting to load
+            Util.forceOnline();
+          }
         } else if (/^about:blocked/.test(errorDoc.documentURI)) {
           // The event came from a button on a malware/phishing block page
           // First check whether it's malware or phishing, so that we can
@@ -591,9 +596,13 @@ let Content = {
       }
 
       case "Browser:CanCaptureMouse": {
-        sendAsyncMessage("Browser:CanCaptureMouse:Return", {
-          contentMightCaptureMouse: content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).mayHaveTouchEventListeners
-        });
+        let json = {
+          contentCanCaptureMouse: content.QueryInterface(Ci.nsIInterfaceRequestor)
+                                      .getInterface(Ci.nsIDOMWindowUtils)
+                                      .mayHaveTouchEventListeners,
+          messageId: aMessage.json.messageId
+        };
+        sendAsyncMessage("Browser:CanCaptureMouse:Return", json);
         break;
       }
     }
@@ -631,11 +640,8 @@ let Content = {
       }
 
       if (isTouchClick) {
-        let rect = new Rect(rects[0]);
-        if (rect.isEmpty())
-          return;
-
-        let point = rect.center();
+        let rect = rects[0];
+        let point = (new Rect(rect.left, rect.top, rect.width, rect.height)).center();
         aX = point.x;
         aY = point.y;
       }
@@ -648,7 +654,7 @@ let Content = {
   },
 
   _setMinFontSize: function _setMinFontSize(aSize) {
-    let viewer = docShell.contentViewer.QueryInterface(Ci.nsIMarkupDocumentViewer);
+    let viewer = docShell.contentViewer.QueryInterface(Ci.nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH);
     if (viewer)
       viewer.minFontSize = aSize;
   }
@@ -990,7 +996,7 @@ ContextHandler.registerType("link-shareable", function(aState, aElement) {
 });
 
 ContextHandler.registerType("input-text", function(aState, aElement) {
-    return (aElement instanceof Ci.nsIDOMHTMLInputElement && aElement.mozIsTextField(false)) || aElement instanceof Ci.nsIDOMHTMLTextAreaElement;
+    return aElement instanceof Ci.nsIDOMHTMLInputElement;
 });
 
 ["image", "video"].forEach(function(aType) {
@@ -1151,20 +1157,6 @@ var ConsoleAPIObserver = {
       let consoleMsg = Cc["@mozilla.org/scripterror;1"].createInstance(Ci.nsIScriptError);
       consoleMsg.init(joinedArguments, null, null, 0, 0, flag, "content javascript");
       Services.console.logMessage(consoleMsg);
-    } else if (aMessage.level == "trace") {
-      let bundle = Services.strings.createBundle("chrome://global/locale/headsUpDisplay.properties");
-      let args = aMessage.arguments;
-      let filename = this.abbreviateSourceURL(args[0].filename);
-      let functionName = args[0].functionName || bundle.GetStringFromName("stacktrace.anonymousFunction");
-      let lineNumber = args[0].lineNumber;
-
-      let body = bundle.formatStringFromName("stacktrace.outputMessage", [filename, functionName, lineNumber], 3);
-      body += "\n";
-      args.forEach(function(aFrame) {
-        body += aFrame.filename + " :: " + aFrame.functionName + " :: " + aFrame.lineNumber + "\n";
-      });
-
-      Services.console.logStringMessage(body);
     } else {
       Services.console.logStringMessage(joinedArguments);
     }
@@ -1206,24 +1198,6 @@ var ConsoleAPIObserver = {
     }
 
     return output;
-  },
-
-  abbreviateSourceURL: function abbreviateSourceURL(aSourceURL) {
-    // Remove any query parameters.
-    let hookIndex = aSourceURL.indexOf("?");
-    if (hookIndex > -1)
-      aSourceURL = aSourceURL.substring(0, hookIndex);
-
-    // Remove a trailing "/".
-    if (aSourceURL[aSourceURL.length - 1] == "/")
-      aSourceURL = aSourceURL.substring(0, aSourceURL.length - 1);
-
-    // Remove all but the last path component.
-    let slashIndex = aSourceURL.lastIndexOf("/");
-    if (slashIndex > -1)
-      aSourceURL = aSourceURL.substring(slashIndex + 1);
-
-    return aSourceURL;
   }
 };
 
@@ -1240,7 +1214,6 @@ var TouchEventHandler = {
   },
 
   receiveMessage: function(aMessage) {
-    let json = aMessage.json;
     if (Util.isParentProcess())
       return;
 
@@ -1253,33 +1226,31 @@ var TouchEventHandler = {
       return;
     }
 
-    let type;
+    let json = aMessage.json;
+    let cancelled = false;
+
     switch (aMessage.name) {
       case "Browser:MouseDown":
         this.isCancellable = true;
         this.element = elementFromPoint(json.x, json.y);
-        type = "touchstart";
+        cancelled = !this.sendEvent("touchstart", json, this.element);
         break;
 
       case "Browser:MouseUp":
         this.isCancellable = false;
-        type = "touchend";
+        if (this.element)
+          this.sendEvent("touchend", json, this.element);
+        this.element = null;
         break;
 
       case "Browser:MouseMove":
-        type = "touchmove";
+        if (this.element)
+          cancelled = !this.sendEvent("touchmove", json, this.element);
         break;
     }
 
-    if (!this.element)
-      return;
-    let cancelled = !this.sendEvent(type, json, this.element);
-    if (type == "touchend")
-      this.element = null;
-
     if (this.isCancellable) {
       sendAsyncMessage("Browser:CaptureEvents", { messageId: json.messageId,
-                                                  type: type,
                                                   contentMightCaptureMouse: true,
                                                   click: cancelled && aMessage.name == "Browser:MouseDown",
                                                   panning: cancelled });

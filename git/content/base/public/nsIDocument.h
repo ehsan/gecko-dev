@@ -67,7 +67,6 @@
 #include "nsIDocumentEncoder.h"
 #include "nsIAnimationFrameListener.h"
 #include "nsEventStates.h"
-#include "nsIStructuredCloneContainer.h"
 
 class nsIContent;
 class nsPresContext;
@@ -124,8 +123,8 @@ class Element;
 
 
 #define NS_IDOCUMENT_IID      \
-{ 0x2ec7872f, 0x97c3, 0x43de, \
-  { 0x81, 0x0a, 0x8f, 0x18, 0xa0, 0xa0, 0xdf, 0x30 } }
+{ 0x2c6ad63f, 0xb7b9, 0x42f8, \
+ { 0xbd, 0xde, 0x76, 0x0a, 0x83, 0xe3, 0xb0, 0x49 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -361,7 +360,7 @@ public:
   /**
    * Get the Content-Type of this document.
    * (This will always return NS_OK, but has this signature to be compatible
-   *  with nsIDOMDocument::GetContentType())
+   *  with nsIDOMNSDocument::GetContentType())
    */
   NS_IMETHOD GetContentType(nsAString& aContentType) = 0;
 
@@ -479,6 +478,8 @@ public:
 
   void SetBFCacheEntry(nsISHEntry* aSHEntry) {
     mSHEntry = aSHEntry;
+    // Doing this just to keep binary compat for the gecko 2.0 release
+    mShellIsHidden = !!aSHEntry;
   }
 
   nsISHEntry* GetBFCacheEntry() const { return mSHEntry; }
@@ -756,8 +757,7 @@ public:
   virtual void SetReadyStateInternal(ReadyState rs) = 0;
   virtual ReadyState GetReadyStateEnum() = 0;
 
-  // notify that a content node changed state.  This must happen under
-  // a scriptblocker but NOT within a begin/end update.
+  // notify that a content node changed state
   virtual void ContentStateChanged(nsIContent* aContent,
                                    nsEventStates aStateMask) = 0;
 
@@ -1078,7 +1078,7 @@ public:
                                      nsIDOMNodeList** aResult) = 0;
 
   /**
-   * Helper for nsIDOMDocument::elementFromPoint implementation that allows
+   * Helper for nsIDOMNSDocument::elementFromPoint implementation that allows
    * ignoring the scroll frame and/or avoiding layout flushes.
    *
    * @see nsIDOMWindowUtils::elementFromPoint
@@ -1422,13 +1422,12 @@ public:
   };
 
   /**
-   * Set the document's pending state object (as serialized using structured
-   * clone).
+   * Set the document's pending state object (as serialized to JSON).
    */
-  void SetStateObject(nsIStructuredCloneContainer *scContainer)
+  void SetCurrentStateObject(nsAString &obj)
   {
-    mStateObjectContainer = scContainer;
-    mStateObjectCached = nsnull;
+    mCurrentStateObject.Assign(obj);
+    mCurrentStateObjectCached = nsnull;
   }
 
   /**
@@ -1516,9 +1515,7 @@ public:
   // state is unlocked/false.
   virtual nsresult SetImageLockingState(PRBool aLocked) = 0;
 
-  virtual nsresult GetStateObject(nsIVariant** aResult) = 0;
-
-  virtual Element* FindImageMap(const nsAString& aNormalizedMapName) = 0;
+  virtual nsresult GetMozCurrentStateObject(nsIVariant** aResult) = 0;
 
 protected:
   ~nsIDocument()
@@ -1622,6 +1619,10 @@ protected:
   // document in it.
   PRPackedBool mIsInitialDocumentInWindow;
 
+  // True if we're currently bfcached. This is only here for binary compat.
+  // Remove once the gecko 2.0 has branched and just use mSHEntry instead.
+  PRPackedBool mShellIsHidden;
+
   PRPackedBool mIsRegularHTML;
   PRPackedBool mIsXUL;
 
@@ -1723,6 +1724,8 @@ protected:
    */
   PRUint32 mExternalScriptsBeingEvaluated;
 
+  nsString mCurrentStateObject;
+
   // Weak reference to mScriptGlobalObject QI:d to nsPIDOMWindow,
   // updated on every set of mSecriptGlobalObject.
   nsPIDOMWindow *mWindow;
@@ -1738,8 +1741,7 @@ protected:
   // Our base target.
   nsString mBaseTarget;
 
-  nsCOMPtr<nsIStructuredCloneContainer> mStateObjectContainer;
-  nsCOMPtr<nsIVariant> mStateObjectCached;
+  nsCOMPtr<nsIVariant> mCurrentStateObjectCached;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)
@@ -1793,8 +1795,10 @@ NS_NewHTMLDocument(nsIDocument** aInstancePtrResult);
 nsresult
 NS_NewXMLDocument(nsIDocument** aInstancePtrResult);
 
+#ifdef MOZ_SVG
 nsresult
 NS_NewSVGDocument(nsIDocument** aInstancePtrResult);
+#endif
 
 nsresult
 NS_NewImageDocument(nsIDocument** aInstancePtrResult);

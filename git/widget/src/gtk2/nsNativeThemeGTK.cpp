@@ -186,8 +186,8 @@ nsNativeThemeGTK::GetTabMarginPixels(nsIFrame* aFrame)
     IsBottomTab(aFrame) ? aFrame->GetUsedMargin().top
     : aFrame->GetUsedMargin().bottom;
 
-  return NS_MIN<gint>(MOZ_GTK_TAB_MARGIN_MASK,
-                NS_MAX(0,
+  return PR_MIN(MOZ_GTK_TAB_MARGIN_MASK,
+                PR_MAX(0,
                        aFrame->PresContext()->AppUnitsToDevPixels(-margin)));
 }
 
@@ -566,16 +566,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
     break;
   case NS_THEME_PROGRESSBAR_CHUNK:
   case NS_THEME_PROGRESSBAR_CHUNK_VERTICAL:
-    {
-      nsIFrame* stateFrame = aFrame->GetParent();
-      nsEventStates eventStates = GetContentState(stateFrame, aWidgetType);
-
-      aGtkWidgetType = IsIndeterminateProgress(stateFrame, eventStates)
-                         ? (stateFrame->GetStyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL)
-                           ? MOZ_GTK_PROGRESS_CHUNK_VERTICAL_INDETERMINATE
-                           : MOZ_GTK_PROGRESS_CHUNK_INDETERMINATE
-                         : MOZ_GTK_PROGRESS_CHUNK;
-    }
+    aGtkWidgetType = MOZ_GTK_PROGRESS_CHUNK;
     break;
   case NS_THEME_TAB_SCROLLARROW_BACK:
   case NS_THEME_TAB_SCROLLARROW_FORWARD:
@@ -882,14 +873,6 @@ nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
     }
   }
 
-  // Indeterminate progress bar are animated.
-  if (gtkWidgetType == MOZ_GTK_PROGRESS_CHUNK_INDETERMINATE ||
-      gtkWidgetType == MOZ_GTK_PROGRESS_CHUNK_VERTICAL_INDETERMINATE) {
-    if (!QueueAnimatedContentForRefresh(aFrame->GetContent(), 30)) {
-      NS_WARNING("unable to animate widget!");
-    }
-  }
-
   return NS_OK;
 }
 
@@ -1040,25 +1023,6 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsRenderingContext* aContext,
       *aIsOverridable = PR_FALSE;
     }
     break;
-    case NS_THEME_SCROLLBAR_TRACK_HORIZONTAL:
-    case NS_THEME_SCROLLBAR_TRACK_VERTICAL:
-    {
-      /* While we enforce a minimum size for the thumb, this is ignored
-       * for the some scrollbars if buttons are hidden (bug 513006) because
-       * the thumb isn't a direct child of the scrollbar, unlike the buttons
-       * or track. So add a minimum size to the track as well to prevent a
-       * 0-width scrollbar. */
-      MozGtkScrollbarMetrics metrics;
-      moz_gtk_get_scrollbar_metrics(&metrics);
-
-      if (aWidgetType == NS_THEME_SCROLLBAR_TRACK_VERTICAL)
-        aResult->width = metrics.slider_width;
-      else
-        aResult->height = metrics.slider_width;
-
-      *aIsOverridable = PR_FALSE;
-    }
-    break;
     case NS_THEME_SCROLLBAR_THUMB_VERTICAL:
     case NS_THEME_SCROLLBAR_THUMB_HORIZONTAL:
       {
@@ -1080,11 +1044,11 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsRenderingContext* aContext,
 
         if (aWidgetType == NS_THEME_SCROLLBAR_THUMB_VERTICAL) {
           aResult->width = metrics.slider_width;
-          aResult->height = NS_MIN(NSAppUnitsToIntPixels(rect.height, p2a),
+          aResult->height = PR_MIN(NSAppUnitsToIntPixels(rect.height, p2a),
                                    metrics.min_slider_size);
         } else {
           aResult->height = metrics.slider_width;
-          aResult->width = NS_MIN(NSAppUnitsToIntPixels(rect.width, p2a),
+          aResult->width = PR_MIN(NSAppUnitsToIntPixels(rect.width, p2a),
                                   metrics.min_slider_size);
         }
 

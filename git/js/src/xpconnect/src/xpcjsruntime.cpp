@@ -246,14 +246,17 @@ ContextCallback(JSContext *cx, uintN operation)
 
 xpc::CompartmentPrivate::~CompartmentPrivate()
 {
-    delete waiverWrapperMap;
-    delete expandoMap;
+    if (waiverWrapperMap)
+        delete waiverWrapperMap;
+    if (expandoMap)
+        delete expandoMap;
 }
 
 static JSBool
 CompartmentCallback(JSContext *cx, JSCompartment *compartment, uintN op)
 {
-    JS_ASSERT(op == JSCOMPARTMENT_DESTROY);
+    if(op == JSCOMPARTMENT_NEW)
+        return JS_TRUE;
 
     XPCJSRuntime* self = nsXPConnect::GetRuntimeInstance();
     if(!self)
@@ -589,6 +592,21 @@ XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
 
     // Suspect wrapped natives with expando objects.
     GetCompartmentMap().EnumerateRead(SuspectCompartment, &closure);
+}
+
+void
+XPCJSRuntime::ClearWeakRoots()
+{
+    JSContext *iter = nsnull, *acx;
+
+    while((acx = JS_ContextIterator(GetJSRuntime(), &iter)))
+    {
+        if(XPCPerThreadData::IsMainThread(acx) &&
+           !nsXPConnect::GetXPConnect()->GetOutstandingRequests(acx))
+        {
+            JS_ClearNewbornRoots(acx);
+        }
+    }
 }
 
 template<class T> static void
@@ -1260,154 +1278,44 @@ protected:
 
 static XPConnectGCChunkAllocator gXPCJSChunkAllocator;
 
-#ifdef MOZ_MEMORY
-#define JS_GC_HEAP_KIND  MR_HEAP
-#else
-#define JS_GC_HEAP_KIND  MR_MAPPED
-#endif
+NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSRuntimeGCChunks,
+                             "js/gc-heap",
+                             "Main JS GC heap",
+                             XPConnectGCChunkAllocator::GetGCChunkBytesInUse,
+                             &gXPCJSChunkAllocator)
 
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSGCHeap,
-    "explicit/js/gc-heap",
-    JS_GC_HEAP_KIND,
-    "Memory used by the garbage-collected JavaScript heap.",
-    XPConnectGCChunkAllocator::GetGCChunkBytesInUse,
-    &gXPCJSChunkAllocator)
+/* FIXME: use API provided by bug 623271 */
+#include "jscntxt.h"
 
 static PRInt64
-GetPerCompartmentSize(PRInt64 (*f)(JSCompartment *c))
+GetJSMethodJitCodeMemoryInUse(void *data)
 {
     JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
-    js::AutoLockGC lock(rt);
-    PRInt64 n = 0;
-    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
-        n += f(*c);
-    return n;
-}
-
-static PRInt64
-GetJSStack(void *data)
-{
-    JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
-    PRInt64 n = 0;
-    for (js::ThreadDataIter i(rt); !i.empty(); i.popFront())
-        n += i.threadData()->stackSpace.committedSize();
-    return n;
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSStack,
-    "explicit/js/stack",
-    MR_MAPPED,
-    "Memory used for the JavaScript stack.  This is the committed portion "
-    "of the stack;  any uncommitted portion is not measured because it "
-    "hardly costs anything.",
-    GetJSStack,
-    NULL)
-
 #ifdef JS_METHODJIT
-
-static PRInt64
-GetCompartmentMjitCodeSize(JSCompartment *c)
-{
-    return c->getMjitCodeSize();
+    return rt->mjitMemoryUsed;
+#else
+    return 0;
+#endif
 }
 
-static PRInt64
-GetJSMjitCode(void *data)
-{
-    return GetPerCompartmentSize(GetCompartmentMjitCodeSize);
-}
+NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSMethodJitCode,
+                             "js/mjit-code",
+                             "Memory in use by method-JIT for compiled code",
+                             GetJSMethodJitCodeMemoryInUse,
+                             NULL)
 
 static PRInt64
-GetJSMJitData(void *data)
+GetJSStringMemoryInUse(void *data)
 {
     JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
-    return rt->mjitDataSize;
+    return rt->stringMemoryUsed;
 }
 
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSMjitCode,
-    "explicit/js/mjit-code",
-    MR_MAPPED,
-    "Memory used by the method JIT to hold generated code.",
-    GetJSMjitCode,
-    NULL)
-
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSMjitData,
-    "explicit/js/mjit-data",
-    MR_HEAP,
-    "Memory used by the method JIT for the following data: "
-    "JITScripts, native maps, and inline cache structs.",
-    GetJSMJitData,
-    NULL)
-#endif  // JS_METHODJIT
-
-#ifdef JS_TRACER
-
-static PRInt64
-GetCompartmentTjitCode(JSCompartment *c)
-{
-    js::TraceMonitor &tm = c->traceMonitor;
-    if (tm.codeAlloc) {
-        size_t total, frag_size, free_size;
-        tm.getCodeAllocStats(total, frag_size, free_size);
-        return total;
-    }
-    return 0;
-}
-
-static PRInt64
-GetCompartmentTjitDataAllocatorsMain(JSCompartment *c)
-{
-    js::TraceMonitor &tm = c->traceMonitor;
-    return tm.dataAlloc ? tm.getVMAllocatorsMainSize() : 0;
-}
-
-static PRInt64
-GetCompartmentTjitDataAllocatorsReserve(JSCompartment *c)
-{
-    js::TraceMonitor &tm = c->traceMonitor;
-    return tm.dataAlloc ? tm.getVMAllocatorsReserveSize() : 0;
-}
-
-static PRInt64
-GetJSTjitCode(void *data)
-{
-    return GetPerCompartmentSize(GetCompartmentTjitCode);
-}
-
-static PRInt64
-GetJSTjitDataAllocatorsMain(void *data)
-{
-    return GetPerCompartmentSize(GetCompartmentTjitDataAllocatorsMain);
-}
-
-static PRInt64
-GetJSTjitDataAllocatorsReserve(void *data)
-{
-    return GetPerCompartmentSize(GetCompartmentTjitDataAllocatorsReserve);
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSTjitCode,
-    "explicit/js/tjit-code",
-    MR_MAPPED,
-    "Memory used by the trace JIT to hold generated code.",
-    GetJSTjitCode,
-    NULL)
-
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSTjitDataAllocatorsMain,
-    "explicit/js/tjit-data/allocators-main",
-    MR_HEAP,
-    "Memory used by the trace JIT's VMAllocators.",
-    GetJSTjitDataAllocatorsMain,
-    NULL)
-
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSTjitDataAllocatorsReserve,
-    "explicit/js/tjit-data/allocators-reserve",
-    MR_HEAP,
-    "Memory used by the trace JIT and held in reserve for VMAllocators "
-    "in case of OOM.",
-    GetJSTjitDataAllocatorsReserve,
-    NULL)
-#endif  // JS_TRACER
+NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSStringMemory,
+                             "js/string-data",
+                             "Memory in use for string data",
+                             GetJSStringMemoryInUse,
+                             NULL)
 
 XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
  : mXPConnect(aXPConnect),
@@ -1474,17 +1382,9 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
 
         mJSRuntime->setCustomGCChunkAllocator(&gXPCJSChunkAllocator);
 
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSGCHeap));
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSStack));
-#ifdef JS_METHODJIT
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSMjitCode));
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSMjitData));
-#endif
-#ifdef JS_TRACER
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSTjitCode));
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSTjitDataAllocatorsMain));
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSTjitDataAllocatorsReserve));
-#endif
+        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSRuntimeGCChunks));
+        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSStringMemory));
+        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSMethodJitCode));
     }
 
     if(!JS_DHashTableInit(&mJSHolders, JS_DHashGetStubOps(), nsnull,
@@ -1577,6 +1477,10 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
         return JS_FALSE;
 
     JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
+    PRUint64 totalMemory = PR_GetPhysicalMemorySize();
+    size_t quota = PR_MIN(PR_UINT32_MAX, PR_MAX(25 * sizeof(size_t) * 1024 * 1024,
+                                                totalMemory / 4));
+    JS_SetScriptStackQuota(cx, quota);
 
     // we want to mark the global object ourselves since we use a different color
     JS_ToggleOptions(cx, JSOPTION_UNROOTED_GLOBAL);

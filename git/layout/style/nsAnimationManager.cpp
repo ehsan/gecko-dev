@@ -670,9 +670,9 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
     keyframes.Init(16); // FIXME: make infallible!
     for (PRUint32 ruleIdx = 0, ruleEnd = rule->StyleRuleCount();
          ruleIdx != ruleEnd; ++ruleIdx) {
-      css::Rule* cssRule = rule->GetStyleRuleAt(ruleIdx);
+      nsICSSRule* cssRule = rule->GetStyleRuleAt(ruleIdx);
       NS_ABORT_IF_FALSE(cssRule, "must have rule");
-      NS_ABORT_IF_FALSE(cssRule->GetType() == css::Rule::KEYFRAME_RULE,
+      NS_ABORT_IF_FALSE(cssRule->GetType() == nsICSSRule::KEYFRAME_RULE,
                         "must be keyframe rule");
       nsCSSKeyframeRule *kfRule = static_cast<nsCSSKeyframeRule*>(cssRule);
 

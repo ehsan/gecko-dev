@@ -52,9 +52,7 @@
 #include "nsIDOMDocumentFragment.h"
 #include "nsBindingManager.h"
 #include "nsIScriptSecurityManager.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 NS_IMPL_ISUPPORTS2(nsXMLPrettyPrinter,
@@ -116,7 +114,7 @@ nsXMLPrettyPrinter::PrettyPrint(nsIDocument* aDocument,
     }
 
     // check the pref
-    if (!Preferences::GetBool("layout.xml.prettyprint", PR_TRUE)) {
+    if (!nsContentUtils::GetBoolPref("layout.xml.prettyprint", PR_TRUE)) {
         return NS_OK;
     }
 
@@ -198,33 +196,44 @@ nsXMLPrettyPrinter::MaybeUnhook(nsIContent* aContent)
 {
     // If there either aContent is null (the document-node was modified) or
     // there isn't a binding parent we know it's non-anonymous content.
-    if (!aContent || !aContent->GetBindingParent() && !mUnhookPending) {
-        // Can't blindly to mUnhookPending after AddScriptRunner,
-        // since AddScriptRunner _could_ in theory run us
-        // synchronously
+    if (!aContent || !aContent->GetBindingParent()) {
         mUnhookPending = PR_TRUE;
-        nsContentUtils::AddScriptRunner(
-          NS_NewRunnableMethod(this, &nsXMLPrettyPrinter::Unhook));
     }
 }
 
+// nsIDocumentObserver implementation
+
 void
-nsXMLPrettyPrinter::Unhook()
+nsXMLPrettyPrinter::BeginUpdate(nsIDocument* aDocument,
+                                nsUpdateType aUpdateType)
 {
-    mDocument->RemoveObserver(this);
-    nsCOMPtr<nsIDOMDocument> document = do_QueryInterface(mDocument);
-    nsCOMPtr<nsIDOMElement> rootElem;
-    document->GetDocumentElement(getter_AddRefs(rootElem));
+    mUpdateDepth++;
+}
 
-    if (rootElem) {
-        nsCOMPtr<nsIDOMDocumentXBL> xblDoc = do_QueryInterface(mDocument);
-        xblDoc->RemoveBinding(rootElem,
-                              NS_LITERAL_STRING("chrome://global/content/xml/XMLPrettyPrint.xml#prettyprint"));
+void
+nsXMLPrettyPrinter::EndUpdate(nsIDocument* aDocument, nsUpdateType aUpdateType)
+{
+    mUpdateDepth--;
+
+    // Only remove the binding once we're outside all updates. This protects us
+    // from nasty surprices of elements being removed from the document in the
+    // midst of setting attributes etc.
+    if (mUnhookPending && mUpdateDepth == 0) {
+        mDocument->RemoveObserver(this);
+        nsCOMPtr<nsIDOMDocument> document = do_QueryInterface(mDocument);
+        nsCOMPtr<nsIDOMElement> rootElem;
+        document->GetDocumentElement(getter_AddRefs(rootElem));
+
+        if (rootElem) {
+            nsCOMPtr<nsIDOMDocumentXBL> xblDoc = do_QueryInterface(mDocument);
+            xblDoc->RemoveBinding(rootElem,
+                                  NS_LITERAL_STRING("chrome://global/content/xml/XMLPrettyPrint.xml#prettyprint"));
+        }
+
+        mDocument = nsnull;
+
+        NS_RELEASE_THIS();
     }
-
-    mDocument = nsnull;
-
-    NS_RELEASE_THIS();
 }
 
 void

@@ -56,7 +56,7 @@
 #include "nsGlobalWindow.h"
 #include "nsFocusManager.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsIDOMHTMLTextAreaElement.h"
+#include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIControllers.h"
 
 #include "nsCycleCollectionParticipant.h"
@@ -97,7 +97,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsWindowRoot)
 NS_IMETHODIMP
 nsWindowRoot::AddEventListener(const nsAString& aType, nsIDOMEventListener* aListener, PRBool aUseCapture)
 {
-  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 1);
+  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 0);
 }
 
 NS_IMETHODIMP
@@ -167,7 +167,7 @@ nsWindowRoot::AddEventListener(const nsAString& aType,
                                PRBool aUseCapture, PRBool aWantsUntrusted,
                                PRUint8 optional_argc)
 {
-  NS_ASSERTION(!aWantsUntrusted || optional_argc > 1,
+  NS_ASSERTION(!aWantsUntrusted || optional_argc > 0,
                "Won't check if this is chrome, you want to set "
                "aWantsUntrusted to PR_FALSE or make the aWantsUntrusted "
                "explicit by making optional_argc non-zero.");
@@ -286,7 +286,7 @@ nsWindowRoot::GetControllers(nsIControllers** aResult)
       return xulElement->GetControllers(aResult);
 #endif
 
-    nsCOMPtr<nsIDOMHTMLTextAreaElement> htmlTextArea =
+    nsCOMPtr<nsIDOMNSHTMLTextAreaElement> htmlTextArea =
       do_QueryInterface(focusedContent);
     if (htmlTextArea)
       return htmlTextArea->GetControllers(aResult);

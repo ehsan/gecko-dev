@@ -11,20 +11,16 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMEMORYREPORTER
 
-  nsMemoryReporter(nsCString& process,
+  nsMemoryReporter(nsCString& prefix,
                    nsCString& path, 
-                   PRInt32 kind,
                    nsCString& desc,
                    PRInt64 memoryUsed);
 
   ~nsMemoryReporter();
 
 protected:
-  nsCString mProcess;
-  nsCString mPath;
-  PRInt32   mKind;
-  nsCString mDesc;
-  PRInt64   mMemoryUsed;
+  nsCString mPath, mDesc;
+  PRInt64 mMemoryUsed;
 };
 
 

@@ -38,6 +38,7 @@
 #ifndef nsNPAPIPlugin_h_
 #define nsNPAPIPlugin_h_
 
+#include "nsIPlugin.h"
 #include "prlink.h"
 #include "npfunctions.h"
 #include "nsPluginHost.h"
@@ -71,7 +72,7 @@ typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGININIT) (const NPNetscapeFuncs* 
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINUNIXINIT) (const NPNetscapeFuncs* pCallbacks, NPPluginFuncs* fCallbacks);
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) ();
 
-class nsNPAPIPlugin : public nsISupports
+class nsNPAPIPlugin : public nsIPlugin
 {
 private:
   typedef mozilla::PluginLibrary PluginLibrary;
@@ -81,6 +82,7 @@ public:
   virtual ~nsNPAPIPlugin();
 
   NS_DECL_ISUPPORTS
+  NS_DECL_NSIPLUGIN
 
   // Constructs and initializes an nsNPAPIPlugin object. A NULL file path
   // will prevent this from calling NP_Initialize.
@@ -102,9 +104,6 @@ public:
                      const nsAString& browserDumpID);
   
   static PRBool RunPluginOOP(const nsPluginTag *aPluginTag);
-
-  nsresult CreatePluginInstance(nsNPAPIPluginInstance **aResult);
-  nsresult Shutdown();
 
 protected:
   NPPluginFuncs mPluginFuncs;
@@ -144,9 +143,9 @@ NPIdentifierToString(NPIdentifier id)
 }
 
 static inline NPIdentifier
-StringToNPIdentifier(JSContext *cx, JSString *str)
+StringToNPIdentifier(JSString *str)
 {
-    return JSIdToNPIdentifier(INTERNED_STRING_TO_JSID(cx, str));
+    return JSIdToNPIdentifier(INTERNED_STRING_TO_JSID(str));
 }
 
 static inline bool

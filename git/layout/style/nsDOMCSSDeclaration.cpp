@@ -44,7 +44,7 @@
 #include "mozilla/css/Loader.h"
 #include "nsCSSStyleSheet.h"
 #include "nsIStyleRule.h"
-#include "mozilla/css/Rule.h"
+#include "nsICSSRule.h"
 #include "mozilla/css/Declaration.h"
 #include "nsCSSProps.h"
 #include "nsCOMPtr.h"
@@ -265,7 +265,7 @@ nsDOMCSSDeclaration::RemoveProperty(const nsAString& aPropertyName,
 }
 
 /* static */ void
-nsDOMCSSDeclaration::GetCSSParsingEnvironmentForRule(css::Rule* aRule,
+nsDOMCSSDeclaration::GetCSSParsingEnvironmentForRule(nsICSSRule* aRule,
                                                      CSSParsingEnvironment& aCSSParseEnv)
 {
   nsIStyleSheet* sheet = aRule ? aRule->GetStyleSheet() : nsnull;

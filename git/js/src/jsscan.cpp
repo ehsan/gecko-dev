@@ -179,11 +179,8 @@ TokenStream::init(const jschar *base, size_t length, const char *fn, uintN ln, J
     linebase = base;
     prevLinebase = NULL;
 
-    JSSourceHandler listener = cx->debugHooks->sourceHandler;
-    void *listenerData = cx->debugHooks->sourceHandlerData;
-
-    if (listener)
-        listener(fn, ln, base, length, &listenerTSData, listenerData);
+    listener = cx->debugHooks->sourceHandler;
+    listenerData = cx->debugHooks->sourceHandlerData;
 
     /*
      * This table holds all the token kinds that satisfy these properties:
@@ -485,7 +482,7 @@ TokenStream::reportCompileErrorNumberVA(JSParseNode *pn, uintN flags, uintN erro
         }
         memcpy(linechars, linebase, linelength * sizeof(jschar));
         linechars[linelength] = 0;
-        linebytes = DeflateString(cx, linechars, linelength);
+        linebytes = js_DeflateString(cx, linechars, linelength);
         if (!linebytes) {
             warning = false;
             goto out;
@@ -706,7 +703,7 @@ TokenStream::getXMLEntity()
   bad:
     /* No match: throw a TypeError per ECMA-357 10.3.2.1 step 8(a). */
     JS_ASSERT((tb.end() - bp) >= 1);
-    bytes = DeflateString(cx, bp + 1, (tb.end() - bp) - 1);
+    bytes = js_DeflateString(cx, bp + 1, (tb.end() - bp) - 1);
     if (bytes) {
         ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR, msg, bytes);
         cx->free_(bytes);
@@ -1023,7 +1020,7 @@ TokenStream::getXMLMarkup(TokenKind *ttp, Token **tpp)
             atom = cx->runtime->atomState.emptyAtom;
         } else {
             atom = js_AtomizeChars(cx, tokenbuf.begin() + contentIndex,
-                                   tokenbuf.length() - contentIndex);
+                                   tokenbuf.length() - contentIndex, 0);
             if (!atom)
                 goto error;
         }
@@ -1187,7 +1184,7 @@ TokenStream::newToken(ptrdiff_t adjust)
 JS_ALWAYS_INLINE JSAtom *
 TokenStream::atomize(JSContext *cx, CharBuffer &cb)
 {
-    return js_AtomizeChars(cx, cb.begin(), cb.length());
+    return js_AtomizeChars(cx, cb.begin(), cb.length(), 0);
 }
 
 #ifdef DEBUG
@@ -1366,7 +1363,7 @@ TokenStream::getTokenInternal()
          */
         JSAtom *atom;
         if (!hadUnicodeEscape)
-            atom = js_AtomizeChars(cx, identStart, userbuf.addressOfNextRawChar() - identStart);
+            atom = js_AtomizeChars(cx, identStart, userbuf.addressOfNextRawChar() - identStart, 0);
         else if (putIdentInTokenbuf(identStart))
             atom = atomize(cx, tokenbuf);
         else

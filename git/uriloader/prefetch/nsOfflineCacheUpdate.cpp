@@ -104,9 +104,13 @@ private:
 static nsresult
 DropReferenceFromURL(nsIURI * aURI)
 {
-    // XXXdholbert If this SetRef fails, callers of this method probably
-    // want to call aURI->CloneIgnoringRef() and use the result of that.
-    return aURI->SetRef(EmptyCString());
+    nsCOMPtr<nsIURL> url = do_QueryInterface(aURI);
+    if (url) {
+        nsresult rv = url->SetRef(EmptyCString());
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
+
+    return NS_OK;
 }
 
 //-----------------------------------------------------------------------------
@@ -508,6 +512,8 @@ nsOfflineCacheUpdateItem::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
     if (NS_FAILED(rv))
         return rv;
 
+    nsCOMPtr<nsICachingChannel> oldCachingChannel =
+        do_QueryInterface(aOldChannel);
     nsCOMPtr<nsICachingChannel> newCachingChannel =
         do_QueryInterface(aNewChannel);
     if (newCachingChannel) {
@@ -1157,8 +1163,14 @@ nsOfflineCacheUpdate::GetCacheKey(nsIURI *aURI, nsACString &aKey)
     aKey.Truncate();
 
     nsCOMPtr<nsIURI> newURI;
-    nsresult rv = aURI->CloneIgnoringRef(getter_AddRefs(newURI));
+    nsresult rv = aURI->Clone(getter_AddRefs(newURI));
     NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIURL> newURL;
+    newURL = do_QueryInterface(newURI);
+    if (newURL) {
+        newURL->SetRef(EmptyCString());
+    }
 
     rv = newURI->GetAsciiSpec(aKey);
     NS_ENSURE_SUCCESS(rv, rv);

@@ -45,8 +45,12 @@
 #define PL_ARENA_CONST_ALIGN_MASK 3
 #include "plarena.h"
 
-#ifdef XP_OS2
-  #include <sys/types.h>
+#if defined(XP_MAC)
+  #include <stat.h>
+#else
+  #ifdef XP_OS2
+    #include <sys/types.h>
+  #endif
 #endif
 #ifdef _WIN32
   #include "windows.h"
@@ -475,7 +479,7 @@ nsresult PREF_GetCharPref(const char *pref_name, char * return_buffer, int * len
                 *length = PL_strlen(stringVal) + 1;
             else
             {
-                PL_strncpy(return_buffer, stringVal, NS_MIN<size_t>(*length - 1, PL_strlen(stringVal) + 1));
+                PL_strncpy(return_buffer, stringVal, PR_MIN((size_t)*length - 1, PL_strlen(stringVal) + 1));
                 return_buffer[*length - 1] = '\0';
             }
             rv = NS_OK;

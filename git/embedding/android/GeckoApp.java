@@ -59,8 +59,6 @@ import android.hardware.*;
 
 import android.util.*;
 import android.net.*;
-import android.database.*;
-import android.provider.*;
 
 abstract public class GeckoApp
     extends Activity
@@ -72,11 +70,10 @@ abstract public class GeckoApp
     public static GeckoSurfaceView surfaceView;
     public static GeckoApp mAppContext;
     public static boolean mFullscreen = false;
+    public static boolean mStartedEarly = false;
     public static File sGREDir = null;
     static Thread mLibLoadThread = null;
     public Handler mMainHandler;
-    private IntentFilter mConnectivityFilter;
-    private BroadcastReceiver mConnectivityReceiver;
 
     enum LaunchState {PreLaunch, Launching, WaitButton,
                       Launched, GeckoRunning, GeckoExiting};
@@ -163,17 +160,13 @@ abstract public class GeckoApp
                 }
 
                 // and then fire us up
-                try {
-                    String env = i.getStringExtra("env0");
-                    GeckoAppShell.runGecko(getApplication().getPackageResourcePath(),
-                                           i.getStringExtra("args"),
-                                           i.getDataString());
-                } catch (Exception e) {
-                    Log.e("GeckoApp", "top level exception", e);
-                    StringWriter sw = new StringWriter();
-                    e.printStackTrace(new PrintWriter(sw));
-                    GeckoAppShell.reportJavaCrash(sw.toString());
+                String env = i.getStringExtra("env0");
+                if (GeckoApp.mStartedEarly) {
+                    GeckoAppShell.putenv("MOZ_APP_RESTART=" + startup_time);
                 }
+                GeckoAppShell.runGecko(getApplication().getPackageResourcePath(),
+                                       i.getStringExtra("args"),
+                                       i.getDataString());
             }
         }.start();
         return true;
@@ -185,19 +178,6 @@ abstract public class GeckoApp
     {
         mAppContext = this;
         mMainHandler = new Handler();
-
-        mMainHandler.post(new Runnable() {
-            public void run() {
-                try {
-                    Looper.loop();
-                } catch (Exception e) {
-                    Log.e("GeckoApp", "top level exception", e);
-                    StringWriter sw = new StringWriter();
-                    e.printStackTrace(new PrintWriter(sw));
-                    GeckoAppShell.reportJavaCrash(sw.toString());
-                }
-            }
-        });
 
         SharedPreferences settings = getPreferences(Activity.MODE_PRIVATE);
         String localeCode = settings.getString(getPackageName() + ".locale", "");
@@ -227,10 +207,6 @@ abstract public class GeckoApp
         setContentView(mainLayout,
                        new ViewGroup.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT,
                                                   ViewGroup.LayoutParams.FILL_PARENT));
-
-        mConnectivityFilter = new IntentFilter();
-        mConnectivityFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
-        mConnectivityReceiver = new GeckoConnectivityReceiver();
 
         if (!checkAndSetLaunchState(LaunchState.PreLaunch,
                                     LaunchState.Launching))
@@ -265,6 +241,55 @@ abstract public class GeckoApp
             surfaceView.mSplashStatusMsg =
                 getResources().getString(R.string.splash_screen_label);
         mLibLoadThread.start();
+        if (IsNewInstall() && IsUnsupportedDevice()) {
+            new AlertDialog.Builder(this)
+                .setMessage(R.string.incompatable_device)
+                .setCancelable(false)
+                .setPositiveButton(R.string.continue_label, null)
+                .setNegativeButton(R.string.exit_label,
+                                   new DialogInterface.OnClickListener() {
+                                       public void onClick(DialogInterface dialog,
+                                                           int id)
+                                       {
+                                           GeckoApp.this.finish();
+                                           System.exit(0);
+                                       }
+                                   })
+                .show();
+        }
+    }
+
+    boolean IsNewInstall() {
+        File appIni = new File(sGREDir, "application.ini");
+        return !appIni.exists();
+    }
+
+    boolean IsUnsupportedDevice() {
+        // We don't currently support devices with less than 512Mb of RAM, 
+        // and want to warn if run on such devices. Most 512Mb devices
+        // report about 350Mb available, so we check - somewhat arbitrarily - 
+        // for a minimum of 300Mb here.
+        File meminfo = new File("/proc/meminfo");
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(meminfo));
+            String totalMem = "";
+            while(!totalMem.contains("MemTotal:") && totalMem != null)
+                totalMem = br.readLine();
+            StringTokenizer st = new StringTokenizer(totalMem, " ");
+            st.nextToken(); // "MemInfo:"
+            totalMem = st.nextToken();
+
+            Log.i("GeckoMemory", "MemTotal: " + Integer.parseInt(totalMem));
+            return Integer.parseInt(totalMem) < 300000L;
+        } catch (Exception ex) {
+            // Will catch  NullPointerException if totalMem isn't found,
+            // a NumberFormatException if the token isn't parsible
+            // IOException from the file reading or NoSuchElementException
+            // if totalMem doesn't have 2 tokens. None of these are fatal,
+            // so log it and move on.
+            Log.w("GeckoMemTest", "Exception when finding total memory", ex);
+        }
+        return false;
     }
 
     @Override
@@ -324,8 +349,6 @@ abstract public class GeckoApp
 
         // onPause will be followed by either onResume or onStop.
         super.onPause();
-
-        unregisterReceiver(mConnectivityReceiver);
     }
 
     @Override
@@ -342,8 +365,6 @@ abstract public class GeckoApp
         if (checkLaunchState(LaunchState.PreLaunch) ||
             checkLaunchState(LaunchState.Launching))
             onNewIntent(getIntent());
-
-        registerReceiver(mConnectivityReceiver, mConnectivityFilter);
     }
 
     @Override
@@ -444,16 +465,6 @@ abstract public class GeckoApp
             unpackFile(zip, buf, entry, entry.getName());
           }
         }
-
-        // copy any hyphenation dictionaries file into a hyphenation/ directory
-        Enumeration<? extends ZipEntry> hyphenEntries = zip.entries();
-        while (hyphenEntries.hasMoreElements()) {
-          ZipEntry entry = hyphenEntries.nextElement();
-          if (entry.getName().startsWith("hyphenation/")) {
-            Log.i("GeckoAppJava", "installing hyphenation : " + entry.getName());
-            unpackFile(zip, buf, entry, entry.getName());
-          }
-        }
     }
 
     void removeFiles() throws IOException {
@@ -489,10 +500,6 @@ abstract public class GeckoApp
             outFile.lastModified() == fileEntry.getTime() &&
             outFile.length() == fileEntry.getSize())
             return false;
-
-        surfaceView.mSplashStatusMsg =
-                    getResources().getString(R.string.splash_firstrun);
-        surfaceView.drawSplashScreen();
 
         if (!haveKilledZombies) {
             haveKilledZombies = true;
@@ -581,7 +588,7 @@ abstract public class GeckoApp
         Log.i("GeckoAppJava", "Update is available!");
 
         // Launch APK
-        File updateFileToRun = new File(updateDir, getPackageName() + "-update.apk");
+        File updateFileToRun = new File(updateDir + getPackageName() + "-update.apk");
         try {
             if (updateFile.renameTo(updateFileToRun)) {
                 String amCmd = "/system/bin/am start -a android.intent.action.VIEW " +
@@ -656,33 +663,13 @@ abstract public class GeckoApp
             try {
                 ContentResolver cr = getContentResolver();
                 Uri uri = data.getData();
-                Cursor cursor = GeckoApp.mAppContext.getContentResolver().query(
-                    uri, 
-                    new String[] { OpenableColumns.DISPLAY_NAME },
-                    null, 
-                    null, 
-                    null);
-                String name = null;
-                if (cursor != null) {
-                    try {
-                        if (cursor.moveToNext()) {
-                            name = cursor.getString(0);
-                        }
-                    } finally {
-                        cursor.close();
-                    }
-                }
-                String fileName = "tmp_";
-                String fileExt = null;
-                int period;
-                if (name == null || (period = name.lastIndexOf('.')) == -1) {
-                    String mimeType = cr.getType(uri);
-                    fileExt = "." + GeckoAppShell.getExtensionFromMimeType(mimeType);
-                } else {
-                    fileExt = name.substring(period);
-                    fileName = name.substring(0, period);
-                }
-                File file = File.createTempFile(fileName, fileExt, sGREDir);
+                String mimeType = cr.getType(uri);
+                String fileExt = "." +
+                    GeckoAppShell.getExtensionFromMimeType(mimeType);
+                File file =
+                    File.createTempFile("tmp_" +
+                                        (int)Math.floor(1000 * Math.random()),
+                                        fileExt, sGREDir);
 
                 FileOutputStream fos = new FileOutputStream(file);
                 InputStream is = cr.openInputStream(uri);

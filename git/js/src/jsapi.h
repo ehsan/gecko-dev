@@ -333,22 +333,16 @@ JSID_IS_ZERO(jsid id)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_StringHasBeenInterned(JSContext *cx, JSString *str);
+JS_StringHasBeenInterned(JSString *str);
 
-/*
- * Only JSStrings that have been interned via the JSAPI can be turned into
- * jsids by API clients.
- *
- * N.B. if a jsid is backed by a string which has not been interned, that
- * string must be appropriately rooted to avoid being collected by the GC.
- */
+/* A jsid may only hold an interned JSString. */
 static JS_ALWAYS_INLINE jsid
-INTERNED_STRING_TO_JSID(JSContext *cx, JSString *str)
+INTERNED_STRING_TO_JSID(JSString *str)
 {
     jsid id;
     JS_ASSERT(str);
+    JS_ASSERT(JS_StringHasBeenInterned(str));
     JS_ASSERT(((size_t)str & JSID_TYPE_MASK) == 0);
-    JS_ASSERT(JS_StringHasBeenInterned(cx, str));
     JSID_BITS(id) = (size_t)str;
     return id;
 }
@@ -1505,6 +1499,7 @@ JS_AnchorPtr(void *p);
 #define JS_TYPED_ROOTING_API
 
 /* Obsolete rooting APIs. */
+#define JS_ClearNewbornRoots(cx) ((void) 0)
 #define JS_EnterLocalRootScope(cx) (JS_TRUE)
 #define JS_LeaveLocalRootScope(cx) ((void) 0)
 #define JS_LeaveLocalRootScopeWithResult(cx, rval) ((void) 0)
@@ -1767,9 +1762,6 @@ extern JS_PUBLIC_API(void)
 JS_GC(JSContext *cx);
 
 extern JS_PUBLIC_API(void)
-JS_CompartmentGC(JSContext *cx, JSCompartment *comp);
-
-extern JS_PUBLIC_API(void)
 JS_MaybeGC(JSContext *cx);
 
 extern JS_PUBLIC_API(JSGCCallback)
@@ -1794,20 +1786,30 @@ typedef enum JSGCParamKey {
     /* Hoard stackPools for this long, in ms, default is 30 seconds. */
     JSGC_STACKPOOL_LIFESPAN = 2,
 
+    /*
+     * The factor that defines when the GC is invoked. The factor is a
+     * percent of the memory allocated by the GC after the last run of
+     * the GC. When the current memory allocated by the GC is more than
+     * this percent then the GC is invoked. The factor cannot be less
+     * than 100 since the current memory allocated by the GC cannot be less
+     * than the memory allocated after the last run of the GC.
+     */
+    JSGC_TRIGGER_FACTOR = 3,
+
     /* Amount of bytes allocated by the GC. */
-    JSGC_BYTES = 3,
+    JSGC_BYTES = 4,
 
     /* Number of times when GC was invoked. */
-    JSGC_NUMBER = 4,
+    JSGC_NUMBER = 5,
 
     /* Max size of the code cache in bytes. */
-    JSGC_MAX_CODE_CACHE_BYTES = 5,
+    JSGC_MAX_CODE_CACHE_BYTES = 6,
 
     /* Select GC mode. */
-    JSGC_MODE = 6,
+    JSGC_MODE = 7,
 
     /* Number of GC chunks waiting to expire. */
-    JSGC_UNUSED_CHUNKS = 7
+    JSGC_UNUSED_CHUNKS = 8
 } JSGCParamKey;
 
 typedef enum JSGCMode {
@@ -1916,6 +1918,22 @@ JS_SetThreadStackLimit(JSContext *cx, jsuword limitAddr);
  */
 extern JS_PUBLIC_API(void)
 JS_SetNativeStackQuota(JSContext *cx, size_t stackSize);
+
+
+/*
+ * Set the quota on the number of bytes that stack-like data structures can
+ * use when the runtime compiles and executes scripts. These structures
+ * consume heap space, so JS_SetThreadStackLimit does not bound their size.
+ * The default quota is 128MB which is very generous.
+ *
+ * The function must be called before any script compilation or execution API
+ * calls, i.e. either immediately after JS_NewContext or from JSCONTEXT_NEW
+ * context callback.
+ */
+extern JS_PUBLIC_API(void)
+JS_SetScriptStackQuota(JSContext *cx, size_t quota);
+
+#define JS_DEFAULT_SCRIPT_STACK_QUOTA   ((size_t) 0x8000000)
 
 /************************************************************************/
 
@@ -3675,15 +3693,6 @@ extern JS_PUBLIC_API(JSBool)
 JS_ExecuteRegExpNoStatics(JSContext *cx, JSObject *reobj, jschar *chars, size_t length,
                           size_t *indexp, JSBool test, jsval *rval);
 
-extern JS_PUBLIC_API(JSBool)
-JS_ObjectIsRegExp(JSContext *cx, JSObject *obj);
-
-extern JS_PUBLIC_API(uintN)
-JS_GetRegExpFlags(JSContext *cx, JSObject *obj);
-
-extern JS_PUBLIC_API(JSString *)
-JS_GetRegExpSource(JSContext *cx, JSObject *obj);
-
 /************************************************************************/
 
 extern JS_PUBLIC_API(JSBool)
@@ -3851,13 +3860,8 @@ JS_NewObjectForConstructor(JSContext *cx, const jsval *vp);
 #endif
 
 #ifdef JS_GC_ZEAL
-#define JS_DEFAULT_ZEAL_FREQ 100
-
 extern JS_PUBLIC_API(void)
-JS_SetGCZeal(JSContext *cx, uint8 zeal, uint32 frequency, JSBool compartment);
-
-extern JS_PUBLIC_API(void)
-JS_ScheduleGC(JSContext *cx, uint32 count, JSBool compartment);
+JS_SetGCZeal(JSContext *cx, uint8 zeal);
 #endif
 
 JS_END_EXTERN_C

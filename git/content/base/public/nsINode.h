@@ -453,7 +453,24 @@ public:
   {
     return InsertBefore(aNewChild, nsnull, aReturn);
   }
-  nsresult RemoveChild(nsINode *aOldChild);
+  nsresult RemoveChild(nsINode *aOldChild)
+  {
+    if (!aOldChild) {
+      return NS_ERROR_NULL_POINTER;
+    }
+
+    if (IsNodeOfType(eDATA_NODE)) {
+      return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
+    }
+
+    PRInt32 index = IndexOf(aOldChild);
+    if (index == -1) {
+      // aOldChild isn't one of our children.
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    return RemoveChildAt(index, PR_TRUE);
+  }
 
   /**
    * Insert a content node at a particular index.  This method handles calling
@@ -514,7 +531,8 @@ public:
    * Note: If there is no child at aIndex, this method will simply do nothing.
    */
   virtual nsresult RemoveChildAt(PRUint32 aIndex, 
-                                 PRBool aNotify) = 0;
+                                 PRBool aNotify, 
+                                 PRBool aMutationEvent = PR_TRUE) = 0;
 
   /**
    * Get a property associated with this node.
@@ -1103,38 +1121,6 @@ public:
   }
 
   /**
-   * Get the previous nsIContent in the pre-order tree traversal of the DOM.  If
-   * aRoot is non-null, then it must be an ancestor of |this|
-   * (possibly equal to |this|) and only nsIContents that are descendants of
-   * aRoot, including aRoot itself, will be returned.  Returns
-   * null if there are no more nsIContents to traverse.
-   */
-  nsIContent* GetPreviousContent(const nsINode* aRoot = nsnull) const
-  {
-      // Can't use nsContentUtils::ContentIsDescendantOf here, since we
-      // can't include it here.
-#ifdef DEBUG
-      if (aRoot) {
-        const nsINode* cur = this;
-        for (; cur; cur = cur->GetNodeParent())
-          if (cur == aRoot) break;
-        NS_ASSERTION(cur, "aRoot not an ancestor of |this|?");
-      }
-#endif
-
-    if (this == aRoot) {
-      return nsnull;
-    }
-    nsIContent* cur = this->GetParent();
-    nsIContent* iter = this->GetPreviousSibling();
-    while (iter) {
-      cur = iter;
-      iter = reinterpret_cast<nsINode*>(iter)->GetLastChild();
-    }
-    return cur;
-  }
-
-  /**
    * Boolean flags
    */
 private:
@@ -1294,7 +1280,8 @@ protected:
    * @param aMutationEvent whether to fire a mutation event for this removal.
    */
   nsresult doRemoveChildAt(PRUint32 aIndex, PRBool aNotify, nsIContent* aKid,
-                           nsAttrAndChildArray& aChildArray);
+                           nsAttrAndChildArray& aChildArray,
+                           PRBool aMutationEvent);
 
   /**
    * Most of the implementation of the nsINode InsertChildAt method.

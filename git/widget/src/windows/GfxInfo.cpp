@@ -48,10 +48,11 @@
 #include "prprf.h"
 #include "GfxDriverInfo.h"
 
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
 #include "nsExceptionHandler.h"
 #include "nsICrashReporter.h"
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
+#include "nsIPrefService.h"
 #endif
 
 
@@ -103,80 +104,6 @@ GfxInfo::GetDWriteVersion(nsAString & aDwriteVersion)
 {
   gfxWindowsPlatform::GetDLLVersion(L"dwrite.dll", aDwriteVersion);
   return NS_OK;
-}
-
-#define PIXEL_STRUCT_RGB  1
-#define PIXEL_STRUCT_BGR  2
-
-/* readonly attribute DOMString cleartypeParameters; */
-NS_IMETHODIMP
-GfxInfo::GetCleartypeParameters(nsAString & aCleartypeParams)
-{
-  nsTArray<ClearTypeParameterInfo> clearTypeParams;
-
-  gfxWindowsPlatform::GetPlatform()->GetCleartypeParams(clearTypeParams);
-  PRUint32 d, numDisplays = clearTypeParams.Length();
-  bool displayNames = (numDisplays > 1);
-  bool foundData = false;
-  nsString outStr;
-  WCHAR valStr[256];
-
-  for (d = 0; d < numDisplays; d++) {
-    ClearTypeParameterInfo& params = clearTypeParams[d];
-
-    if (displayNames) {
-      swprintf_s(valStr, NS_ARRAY_LENGTH(valStr),
-                 L"%s [ ", params.displayName.get());
-      outStr.Append(valStr);
-    }
-
-    if (params.gamma >= 0) {
-      foundData = true;
-      swprintf_s(valStr, NS_ARRAY_LENGTH(valStr),
-                 L"Gamma: %d ", params.gamma);
-      outStr.Append(valStr);
-    }
-
-    if (params.pixelStructure >= 0) {
-      foundData = true;
-      if (params.pixelStructure == PIXEL_STRUCT_RGB ||
-          params.pixelStructure == PIXEL_STRUCT_BGR)
-      {
-        swprintf_s(valStr, NS_ARRAY_LENGTH(valStr),
-                   L"Pixel Structure: %s ",
-                   (params.pixelStructure == PIXEL_STRUCT_RGB ?
-                      L"RGB" : L"BGR"));
-      } else {
-        swprintf_s(valStr, NS_ARRAY_LENGTH(valStr),
-                   L"Pixel Structure: %d ", params.pixelStructure);
-      }
-      outStr.Append(valStr);
-    }
-
-    if (params.clearTypeLevel >= 0) {
-      foundData = true;
-      swprintf_s(valStr, NS_ARRAY_LENGTH(valStr),
-                 L"ClearType Level: %d ", params.clearTypeLevel);
-      outStr.Append(valStr);
-    }
-
-    if (params.enhancedContrast >= 0) {
-      foundData = true;
-      swprintf_s(valStr, NS_ARRAY_LENGTH(valStr),
-                 L"Enhanced Contrast: %d ", params.enhancedContrast);
-      outStr.Append(valStr);
-    }
-
-    if (displayNames) {
-      outStr.Append(L"] ");
-    }
-  }
-
-  if (foundData) {
-    aCleartypeParams.Assign(outStr);
-    return NS_OK;
-  }
-  return NS_ERROR_FAILURE;
 }
 
 /* XXX: GfxInfo doesn't handle multiple GPUs. We should try to do that. Bug #591057 */
@@ -532,7 +459,7 @@ GfxInfo::GetAdapterDeviceID(PRUint32 *aAdapterDeviceID)
   return NS_OK;
 }
 
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
 /* Cisco's VPN software can cause corruption of the floating point state.
  * Make a note of this in our crash reports so that some weird crashes
  * make more sense */
@@ -552,7 +479,7 @@ CheckForCiscoVPN() {
 void
 GfxInfo::AddCrashReportAnnotations()
 {
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
   CheckForCiscoVPN();
 
   nsCAutoString deviceIDString, vendorIDString;

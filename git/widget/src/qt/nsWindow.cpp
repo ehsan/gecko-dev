@@ -102,8 +102,9 @@ using namespace QtMobility;
 #include "nsWidgetsCID.h"
 #include "nsQtKeyUtils.h"
 #include "mozilla/Services.h"
-#include "mozilla/Preferences.h"
 
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "nsIStringBundle.h"
 #include "nsGfxCIID.h"
 
@@ -263,6 +264,17 @@ nsWindow::nsWindow()
         // QGestureRecognizer takes ownership
         MozSwipeGestureRecognizer* swipeRecognizer = new MozSwipeGestureRecognizer;
         gSwipeGestureId = QGestureRecognizer::registerRecognizer(swipeRecognizer);
+    }
+#endif
+#ifdef MOZ_ENABLE_QTMOBILITY
+    if (!gOrientation) {
+        gOrientation = new QOrientationSensor();
+        gOrientation->addFilter(&gOrientationFilter);
+        gOrientation->start();
+        if (!gOrientation->isActive()) {
+            qWarning("Orientationsensor didn't start!");
+        }
+        gOrientationFilter.filter(gOrientation->reading());
     }
 #endif
 }
@@ -464,8 +476,14 @@ nsWindow::SetParent(nsIWidget *aNewParent)
     if (parent) {
         parent->RemoveChild(this);
     }
-    ReparentNativeWidget(aNewParent);
-    aNewParent->AddChild(this);
+    if (aNewParent) {
+        ReparentNativeWidget(aNewParent);
+        aNewParent->AddChild(this);
+        return NS_OK;
+    }
+    if (mWidget) {
+        mWidget->setParentItem(0);
+    }
     return NS_OK;
 }
 
@@ -581,9 +599,6 @@ nsWindow::SetSizeMode(PRInt32 aMode)
     nsresult rv;
 
     LOG(("nsWindow::SetSizeMode [%p] %d\n", (void *)this, aMode));
-    if (aMode != nsSizeMode_Minimized) {
-        GetViewWidget()->activateWindow();
-    }
 
     // Save the requested state.
     rv = nsBaseWidget::SetSizeMode(aMode);
@@ -2496,9 +2511,15 @@ nsresult
 initialize_prefs(void)
 {
     // check to see if we should set our raise pref
-    gDisableNativeTheme =
-        Preferences::GetBool("mozilla.widget.disable-native-theme",
-                             gDisableNativeTheme);
+    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (!prefs)
+        return NS_OK;
+
+    PRBool val = PR_TRUE;
+    nsresult rv;
+    rv = prefs->GetBoolPref("mozilla.widget.disable-native-theme", &val);
+    if (NS_SUCCEEDED(rv))
+        gDisableNativeTheme = val;
 
     return NS_OK;
 }
@@ -2617,6 +2638,10 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
             newView->viewport()->setAttribute(Qt::WA_PaintOnScreen, true);
             newView->viewport()->setAttribute(Qt::WA_NoSystemBackground, true);
         }
+#ifdef MOZ_ENABLE_QTMOBILITY
+        QObject::connect((QObject*) &gOrientationFilter, SIGNAL(orientationChanged()),
+                         widget, SLOT(orientationChanged()));
+#endif
         // Enable gestures:
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
         newView->viewport()->grabGesture(Qt::PinchGesture);
@@ -2823,27 +2848,6 @@ nsWindow::Show(PRBool aState)
 
     mIsShown = aState;
 
-#ifdef MOZ_ENABLE_QTMOBILITY
-    if (mWidget &&
-        (mWindowType == eWindowType_toplevel ||
-         mWindowType == eWindowType_dialog ||
-         mWindowType == eWindowType_popup))
-    {
-        if (!gOrientation) {
-            gOrientation = new QOrientationSensor();
-            gOrientation->addFilter(&gOrientationFilter);
-            gOrientation->start();
-            if (!gOrientation->isActive()) {
-                qWarning("Orientationsensor didn't start!");
-            }
-            gOrientationFilter.filter(gOrientation->reading());
-
-            QObject::connect((QObject*) &gOrientationFilter, SIGNAL(orientationChanged()),
-                             mWidget, SLOT(orientationChanged()));
-        }
-    }
-#endif
-
     if ((aState && !AreBoundsSane()) || !mWidget) {
         LOG(("\tbounds are insane or window hasn't been created yet\n"));
         mNeedsShow = PR_TRUE;
@@ -3040,8 +3044,11 @@ nsWindow::SetInputMode(const IMEContext& aContext)
         case nsIWidget::IME_STATUS_ENABLED:
         case nsIWidget::IME_STATUS_PASSWORD:
             {
-                PRInt32 openDelay =
-                    Preferences::GetInt("ui.vkb.open.delay", 200);
+                PRInt32 openDelay = 200;
+                nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+                if (prefs)
+                  prefs->GetIntPref("ui.vkb.open.delay", &openDelay);
+
                 mWidget->requestVKB(openDelay);
             }
             break;

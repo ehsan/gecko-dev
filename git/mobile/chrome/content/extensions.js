@@ -59,6 +59,11 @@ XPCOMUtils.defineLazyGetter(this, "AddonRepository", function() {
   return AddonRepository;
 });
 
+XPCOMUtils.defineLazyGetter(this, "AddonLogger", function() {
+  Cu.import("resource://gre/modules/AddonLogging.jsm");
+  return LogManager.getLogger("FennecExtensions");
+});
+
 var ExtensionsView = {
   _strings: {},
   _list: null,
@@ -306,7 +311,7 @@ var ExtensionsView = {
     listitem.setAttribute("appDisabled", aAddon.appDisabled);
     listitem.setAttribute("appManaged", appManaged);
     listitem.setAttribute("description", aAddon.description);
-    listitem.setAttribute("optionsURL", aAddon.optionsURL || "");
+    listitem.setAttribute("optionsURL", aAddon.optionsURL);
     listitem.setAttribute("opType", opType);
     listitem.setAttribute("updateable", updateable);
     listitem.setAttribute("isReadonly", !uninstallable);
@@ -324,9 +329,7 @@ var ExtensionsView = {
       let strings = Strings.browser;
       let anyUpdateable = false;
       for (let i = 0; i < items.length; i++) {
-        let listitem = self.getElementForAddon(items[i].id)
-        if (!listitem)
-          listitem = self._createLocalAddon(items[i]);
+        let listitem = self._createLocalAddon(items[i]);
         if ((items[i].permissions & AddonManager.PERM_CAN_UPGRADE) > 0)
           anyUpdateable = true;
 
@@ -449,6 +452,7 @@ var ExtensionsView = {
   uninstall: function ev_uninstall(aItem) {
     let opType;
     if (aItem.getAttribute("type") == "search") {
+      AddonLogger.log("Removing search engine.");
       // Make sure the engine isn't hidden before removing it, to make sure it's
       // visible if the user later re-adds it (works around bug 341833)
       aItem._engine.hidden = false;
@@ -456,7 +460,10 @@ var ExtensionsView = {
       // the search-engine-modified observer in browser.js will take care of
       // updating the list
     } else {
+      AddonLogger.log("Removing extension.");
+
       if (!aItem.addon) {
+        AddonLogger.log("No addon object, early return.");
         this._list.removeChild(aItem);
         return;
       }
@@ -465,6 +472,7 @@ var ExtensionsView = {
       opType = this._getOpTypeForOperations(aItem.addon.pendingOperations);
 
       if (aItem.addon.pendingOperations & AddonManager.PENDING_UNINSTALL) {
+        AddonLogger.log("Add-on is not restartless. Keeping in list.");
         this.showRestart();
 
         // A disabled addon doesn't need a restart so it has no pending ops and
@@ -474,6 +482,7 @@ var ExtensionsView = {
 
         aItem.setAttribute("opType", opType);
       } else {
+        AddonLogger.log("Add-on is restartless. Removed from list.");
         this._list.removeChild(aItem);
       }
     }

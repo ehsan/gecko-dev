@@ -100,7 +100,7 @@ StringUnicharInputStream::ReadSegments(nsWriteUnicharSegmentFun aWriter,
   PRUint32 totalBytesWritten = 0;
 
   nsresult rv;
-  aCount = NS_MIN(mString.Length() - mPos, aCount);
+  aCount = PR_MIN(mString.Length() - mPos, aCount);
   
   nsAString::const_iterator iter;
   mString.BeginReading(iter);

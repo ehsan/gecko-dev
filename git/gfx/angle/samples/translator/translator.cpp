@@ -27,7 +27,7 @@ static void usage();
 static ShShaderType FindShaderType(const char* fileName);
 static bool CompileFile(char* fileName, ShHandle compiler, int compileOptions);
 static void LogMsg(char* msg, const char* name, const int num, const char* logName);
-static void PrintActiveVariables(ShHandle compiler, ShShaderInfo varType, bool mapLongVariableNames);
+static void PrintActiveVariables(ShHandle compiler, ShShaderInfo varType);
 
 // If NUM_SOURCE_STRINGS is set to a value > 1, the input file data is
 // broken into that many chunks.
@@ -75,10 +75,9 @@ int main(int argc, char* argv[])
     argc--;
     argv++;
     for (; (argc >= 1) && (failCode == ESuccess); argc--, argv++) {
-        if (argv[0][0] == '-') {
+        if (argv[0][0] == '-' || argv[0][0] == '/') {
             switch (argv[0][1]) {
             case 'i': compileOptions |= SH_INTERMEDIATE_TREE; break;
-            case 'm': compileOptions |= SH_MAP_LONG_VARIABLE_NAMES; break;
             case 'o': compileOptions |= SH_OBJECT_CODE; break;
             case 'u': compileOptions |= SH_ATTRIBUTES_UNIFORMS; break;
             default: failCode = EFailUsage;
@@ -120,12 +119,12 @@ int main(int argc, char* argv[])
               }
               if (compiled && (compileOptions & SH_ATTRIBUTES_UNIFORMS)) {
                   LogMsg("BEGIN", "COMPILER", numCompiles, "ACTIVE ATTRIBS");
-                  PrintActiveVariables(compiler, SH_ACTIVE_ATTRIBUTES, compileOptions & SH_MAP_LONG_VARIABLE_NAMES);
+                  PrintActiveVariables(compiler, SH_ACTIVE_ATTRIBUTES);
                   LogMsg("END", "COMPILER", numCompiles, "ACTIVE ATTRIBS");
                   printf("\n\n");
 
                   LogMsg("BEGIN", "COMPILER", numCompiles, "ACTIVE UNIFORMS");
-                  PrintActiveVariables(compiler, SH_ACTIVE_UNIFORMS, compileOptions & SH_MAP_LONG_VARIABLE_NAMES);
+                  PrintActiveVariables(compiler, SH_ACTIVE_UNIFORMS);
                   LogMsg("END", "COMPILER", numCompiles, "ACTIVE UNIFORMS");
                   printf("\n\n");
               }
@@ -159,10 +158,9 @@ int main(int argc, char* argv[])
 //
 void usage()
 {
-    printf("Usage: translate [-i -m -o -u] file1 file2 ...\n"
+    printf("Usage: translate [-i -o -u] file1 file2 ...\n"
         "Where: filename = filename ending in .frag or .vert\n"
         "       -i = print intermediate tree\n"
-        "       -m = map long variable names\n"
         "       -o = print translated code\n"
         "       -u = print active attribs and uniforms\n");
 }
@@ -211,7 +209,7 @@ void LogMsg(char* msg, const char* name, const int num, const char* logName)
     printf("#### %s %s %d %s ####\n", msg, name, num, logName);
 }
 
-void PrintActiveVariables(ShHandle compiler, ShShaderInfo varType, bool mapLongVariableNames)
+void PrintActiveVariables(ShHandle compiler, ShShaderInfo varType)
 {
     int nameSize = 0;
     switch (varType) {
@@ -226,13 +224,6 @@ void PrintActiveVariables(ShHandle compiler, ShShaderInfo varType, bool mapLongV
     if (nameSize <= 1) return;
     char* name = new char[nameSize];
 
-    char* mappedName = NULL;
-    if (mapLongVariableNames) {
-        int mappedNameSize = 0;
-        ShGetInfo(compiler, SH_MAPPED_NAME_MAX_LENGTH, &mappedNameSize);
-        mappedName = new char[mappedNameSize];
-    }
-
     int activeVars = 0, size = 0;
     ShDataType type = SH_NONE;
     char* typeName = NULL;
@@ -240,10 +231,10 @@ void PrintActiveVariables(ShHandle compiler, ShShaderInfo varType, bool mapLongV
     for (int i = 0; i < activeVars; ++i) {
         switch (varType) {
             case SH_ACTIVE_ATTRIBUTES:
-                ShGetActiveAttrib(compiler, i, NULL, &size, &type, name, mappedName);
+                ShGetActiveAttrib(compiler, i, NULL, &size, &type, name);
                 break;
             case SH_ACTIVE_UNIFORMS:
-                ShGetActiveUniform(compiler, i, NULL, &size, &type, name, mappedName);
+                ShGetActiveUniform(compiler, i, NULL, &size, &type, name);
                 break;
             default: assert(0);
         }
@@ -267,14 +258,9 @@ void PrintActiveVariables(ShHandle compiler, ShShaderInfo varType, bool mapLongV
             case SH_SAMPLER_CUBE: typeName = "GL_SAMPLER_CUBE"; break;
             default: assert(0);
         }
-        printf("%d: name:%s type:%s size:%d", i, name, typeName, size);
-        if (mapLongVariableNames)
-            printf(" mapped name:%s", mappedName);
-        printf("\n");
+        printf("%d: name:%s type:%s size:%d\n", i, name, typeName, size);
     }
     delete [] name;
-    if (mappedName)
-        delete [] mappedName;
 }
 
 static bool ReadShaderSource(const char* fileName, ShaderSource& source) {

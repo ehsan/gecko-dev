@@ -68,12 +68,6 @@ public:
 
     already_AddRefed<gfxImageSurface> GetAsImageSurface();
 
-    void MovePixels(const nsIntRect& aSourceRect,
-                    const nsIntPoint& aDestTopLeft)
-    {
-        FastMovePixels(aSourceRect, aDestTopLeft);
-    }
-
 protected:
     CGContextRef mCGContext;
     gfxSize      mSize;

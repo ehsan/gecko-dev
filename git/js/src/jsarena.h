@@ -88,6 +88,8 @@ struct JSArenaPool {
     JSArena     *current;       /* arena from which to allocate space */
     size_t      arenasize;      /* net exact size of a new arena */
     jsuword     mask;           /* alignment mask (power-of-2 - 1) */
+    size_t      *quotap;        /* pointer to the quota on pool allocation
+                                   size or null if pool is unlimited */
 #ifdef JS_ARENAMETER
     JSArenaStats stats;
 #endif
@@ -162,6 +164,7 @@ struct JSArenaPool {
     (JS_UPTRDIFF(mark, (a)->base) <= JS_UPTRDIFF((a)->avail, (a)->base))
 
 #ifdef DEBUG
+#define JS_FREE_PATTERN         0xDA
 #define JS_CLEAR_UNUSED(a)      (JS_ASSERT((a)->avail <= (a)->limit),         \
                                  memset((void*)(a)->avail, JS_FREE_PATTERN,   \
                                         (a)->limit - (a)->avail))
@@ -208,7 +211,7 @@ struct JSArenaPool {
  */
 extern JS_PUBLIC_API(void)
 JS_InitArenaPool(JSArenaPool *pool, const char *name, size_t size,
-                 size_t align);
+                 size_t align, size_t *quotap);
 
 /*
  * Free the arenas in pool.  The user may continue to allocate from pool

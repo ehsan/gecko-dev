@@ -55,7 +55,6 @@
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
 #include "nsIXPConnect.h"
-#include "mozilla/Util.h"
 
 // Initial size for the cache holding visited status observers.
 #define VISIT_OBSERVERS_INITIAL_CACHE_SIZE 128
@@ -464,14 +463,13 @@ public:
         mPlace.transitionType != nsINavHistoryService::TRANSITION_FRAMED_LINK) {
       navHistory->NotifyOnVisit(uri, mPlace.visitId, mPlace.visitTime,
                                 mPlace.sessionId, mReferrer.visitId,
-                                mPlace.transitionType, mPlace.guid);
+                                mPlace.transitionType);
     }
 
     nsCOMPtr<nsIObserverService> obsService =
       mozilla::services::GetObserverService();
     if (obsService) {
-      DebugOnly<nsresult> rv =
-        obsService->NotifyObservers(uri, URI_VISIT_SAVED, nsnull);
+      nsresult rv = obsService->NotifyObservers(uri, URI_VISIT_SAVED, nsnull);
       NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Could not notify observers");
     }
 
@@ -801,9 +799,8 @@ private:
       NS_ENSURE_SUCCESS(rv, rv);
 
       // We need the place id and guid of the page we just inserted when we
-      // have a callback or when the GUID isn't known.  No point in doing the
-      // disk I/O if we do not need it.
-      if (mCallback || aPlace.guid.IsEmpty()) {
+      // have a callback.  No point in doing the disk I/O if we do not need it.
+      if (mCallback) {
         bool exists = mHistory->FetchPageInfo(aPlace);
         if (!exists) {
           NS_NOTREACHED("should have an entry in moz_places");

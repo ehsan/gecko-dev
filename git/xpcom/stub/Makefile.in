@@ -61,7 +61,7 @@ CPPSRCS		= nsXPComStub.cpp
 
 # If we have an import library, then copy that to the SDK.  Otherwise,
 # copy the shared library.
-ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
+ifneq (,$(filter OS2 WINCE WINNT,$(OS_ARCH)))
 SDK_LIBRARY = $(IMPORT_LIBRARY)
 else
 SDK_LIBRARY = $(SHARED_LIBRARY)
@@ -81,13 +81,7 @@ DEPENDENT_LIBS_LIST += \
 	$(DLL_PREFIX)mozalloc$(DLL_SUFFIX) \
 	$(NULL)
 
-ifndef MOZ_NATIVE_SQLITE
-ifeq ($(OS_TARGET),OS2)
-DEPENDENT_LIBS_LIST += mozsqlt3.dll
-else
-DEPENDENT_LIBS_LIST += $(DLL_PREFIX)mozsqlite3$(DLL_SUFFIX)
-endif
-endif
+ifdef MOZ_ENABLE_LIBXUL
 
 DEPENDENT_LIBS_LIST += \
 	$(DLL_PREFIX)nssutil3$(DLL_SUFFIX) \
@@ -101,6 +95,14 @@ ifdef JS_SHARED_LIBRARY
 DEPENDENT_LIBS_LIST += $(DLL_PREFIX)mozjs$(DLL_SUFFIX)
 endif
 
+ifndef MOZ_NATIVE_SQLITE
+ifeq ($(OS_TARGET),OS2)
+DEPENDENT_LIBS_LIST += mozsqlt3.dll
+else
+DEPENDENT_LIBS_LIST += $(DLL_PREFIX)mozsqlite3$(DLL_SUFFIX)
+endif
+endif
+
 ifeq (bundle,$(MOZ_FS_LAYOUT))
 EXTRA_DSO_LDOPTS += $(DIST)/bin/XUL
 DEPENDENT_LIBS_LIST += XUL
@@ -108,6 +110,17 @@ else
 EXTRA_DSO_LIBS = xul
 DEPENDENT_LIBS_LIST += $(DLL_PREFIX)xul$(DLL_SUFFIX)
 endif
+
+else #!MOZ_ENABLE_LIBXUL
+
+EXTRA_DSO_LIBS = xpcom_core
+ifeq ($(OS_TARGET),OS2)
+DEPENDENT_LIBS_LIST += xpcomcor.dll
+else
+DEPENDENT_LIBS_LIST += $(DLL_PREFIX)xpcom_core$(DLL_SUFFIX)
+endif
+
+endif #ifdef MOZ_ENABLE_LIBXUL
 
 EXTRA_DSO_LDOPTS +=				\
 	$(EXTRA_DSO_LIBS)			\

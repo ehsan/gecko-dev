@@ -35,9 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#define CreateEvent CreateEventA
-#include "nsIDOMDocument.h"
-
 #include "States.h"
 #include "nsAccessibilityService.h"
 #include "nsApplicationAccessibleWrap.h"
@@ -51,6 +48,7 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeNode.h"
 #include "nsIDocShellTreeOwner.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEventListener.h"
 #include "nsIDOMEventTarget.h"
@@ -59,6 +57,7 @@
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsIDOMDataContainerEvent.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIDOMXULMenuListElement.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
@@ -77,8 +76,11 @@
 #include "nsReadableUtils.h"
 #include "nsRootAccessible.h"
 #include "nsIDOMNSEventTarget.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsFocusManager.h"
+#include "mozilla/dom/Element.h"
+
 
 #ifdef MOZ_XUL
 #include "nsXULTreeAccessible.h"
@@ -138,7 +140,7 @@ nsRootAccessible::GetName(nsAString& aName)
     }
   }
 
-  nsCOMPtr<nsIDOMDocument> document = do_QueryInterface(mDocument);
+  nsCOMPtr<nsIDOMNSDocument> document(do_QueryInterface(mDocument));
   return document->GetTitle(aName);
 }
 
@@ -262,7 +264,7 @@ nsresult nsRootAccessible::AddEventListeners()
                    * const* e_end = docEvents + NS_ARRAY_LENGTH(docEvents);
          e < e_end; ++e) {
       nsresult rv = nstarget->AddEventListener(NS_ConvertASCIItoUTF16(*e),
-                                               this, PR_TRUE, PR_TRUE, 2);
+                                               this, PR_TRUE, PR_TRUE, 1);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
@@ -413,11 +415,11 @@ nsRootAccessible::FireCurrentFocusEvent()
     return; // No current focus
   }
 
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(mDocument);
-  if (domDoc) {
+  nsCOMPtr<nsIDOMDocumentEvent> docEvent = do_QueryInterface(mDocument);
+  if (docEvent) {
     nsCOMPtr<nsIDOMEvent> event;
-    if (NS_SUCCEEDED(domDoc->CreateEvent(NS_LITERAL_STRING("Events"),
-                                         getter_AddRefs(event))) &&
+    if (NS_SUCCEEDED(docEvent->CreateEvent(NS_LITERAL_STRING("Events"),
+                                           getter_AddRefs(event))) &&
         NS_SUCCEEDED(event->InitEvent(NS_LITERAL_STRING("focus"), PR_TRUE, PR_TRUE))) {
 
       nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));

@@ -46,6 +46,8 @@
 #include "base/basictypes.h"
 
 #include "jsapi.h"
+#include "jscntxt.h"
+#include "jsdbgapi.h"
 #include "jsprf.h"
 
 #include "xpcpublic.h"
@@ -295,11 +297,7 @@ Dump(JSContext *cx,
     str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
     if (!str)
         return JS_FALSE;
-    JSAutoByteString bytes(cx, str);
-    if (!bytes)
-      return JS_FALSE;
-
-    fputs(bytes.ptr(), stdout);
+    JS_FileEscapedString(stdout, str, 0);
     fflush(stdout);
     return JS_TRUE;
 }
@@ -408,14 +406,13 @@ GC(JSContext *cx,
    jsval *vp)
 {
     JSRuntime *rt;
-    uint32 preBytes, postBytes;
+    uint32 preBytes;
 
-    rt = JS_GetRuntime(cx);
-    preBytes = JS_GetGCParameter(rt, JSGC_BYTES);
+    rt = cx->runtime;
+    preBytes = rt->gcBytes;
     JS_GC(cx);
-    postBytes = JS_GetGCParameter(rt, JSGC_BYTES);
     fprintf(stdout, "before %lu, after %lu, break %08lx\n",
-           (unsigned long)preBytes, (unsigned long)postBytes,
+           (unsigned long)preBytes, (unsigned long)rt->gcBytes,
 #ifdef XP_UNIX
            (unsigned long)sbrk(0)
 #else
@@ -441,7 +438,7 @@ GCZeal(JSContext *cx,
   if (!JS_ValueToECMAUint32(cx, argv[0], &zeal))
     return JS_FALSE;
 
-  JS_SetGCZeal(cx, PRUint8(zeal), JS_DEFAULT_ZEAL_FREQ, JS_FALSE);
+  JS_SetGCZeal(cx, PRUint8(zeal));
   return JS_TRUE;
 }
 #endif

@@ -138,18 +138,12 @@ class ExecuteArgsGuard;
 class InvokeFrameGuard;
 class InvokeArgsGuard;
 class InvokeSessionGuard;
-class StringBuffer;
 class TraceRecorder;
 struct TraceMonitor;
-
-class FrameRegs;
-class StackFrame;
-class StackSegment;
 class StackSpace;
-class ContextStack;
+class StackSegment;
 class FrameRegsIter;
-class CallReceiver;
-class CallArgs;
+class StringBuffer;
 
 struct Compiler;
 struct Parser;
@@ -242,7 +236,7 @@ typedef void
                         void      *callerdata);
 
 typedef void
-(* JSSourceHandler)(const char *filename, uintN lineno, const jschar *str,
+(* JSSourceHandler)(const char *filename, uintN lineno, jschar *str,
                     size_t length, void **listenerTSData, void *closure);
 
 /*

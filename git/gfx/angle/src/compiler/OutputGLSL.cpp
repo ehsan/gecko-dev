@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2011 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -195,10 +195,7 @@ const ConstantUnion* TOutputGLSL::writeConstantUnion(const TType& type,
 void TOutputGLSL::visitSymbol(TIntermSymbol* node)
 {
     TInfoSinkBase& out = objSink();
-    if (mLoopUnroll.NeedsToReplaceSymbolWithValue(node))
-        out << mLoopUnroll.GetLoopIndexValue(node);
-    else
-        out << node->getSymbol();
+    out << node->getSymbol();
 
     if (mDeclaringVariables && node->getType().isArray())
         out << arrayBrackets(node->getType());
@@ -618,20 +615,18 @@ bool TOutputGLSL::visitLoop(Visit visit, TIntermLoop* node)
     TLoopType loopType = node->getType();
     if (loopType == ELoopFor)  // for loop
     {
-        if (!node->getUnrollFlag()) {
-            out << "for (";
-            if (node->getInit())
-                node->getInit()->traverse(this);
-            out << "; ";
+        out << "for (";
+        if (node->getInit())
+            node->getInit()->traverse(this);
+        out << "; ";
 
-            if (node->getCondition())
-                node->getCondition()->traverse(this);
-            out << "; ";
+        if (node->getCondition())
+            node->getCondition()->traverse(this);
+        out << "; ";
 
-            if (node->getExpression())
-                node->getExpression()->traverse(this);
-            out << ")\n";
-        }
+        if (node->getExpression())
+            node->getExpression()->traverse(this);
+        out << ")\n";
     }
     else if (loopType == ELoopWhile)  // while loop
     {
@@ -647,22 +642,7 @@ bool TOutputGLSL::visitLoop(Visit visit, TIntermLoop* node)
     }
 
     // Loop body.
-    if (node->getUnrollFlag())
-    {
-        TLoopIndexInfo indexInfo;
-        mLoopUnroll.FillLoopIndexInfo(node, indexInfo);
-        mLoopUnroll.Push(indexInfo);
-        while (mLoopUnroll.SatisfiesLoopCondition())
-        {
-            visitCodeBlock(node->getBody());
-            mLoopUnroll.Step();
-        }
-        mLoopUnroll.Pop();
-    }
-    else
-    {
-        visitCodeBlock(node->getBody());
-    }
+    visitCodeBlock(node->getBody());
 
     // Loop footer.
     if (loopType == ELoopDoWhile)  // do-while loop

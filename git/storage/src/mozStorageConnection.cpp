@@ -335,6 +335,7 @@ public:
   NS_DECL_ISUPPORTS
 
   enum ReporterType {
+    LookAside_Used,
     Cache_Used,
     Schema_Used,
     Stmt_Used
@@ -348,50 +349,43 @@ public:
   }
 
 
-  NS_IMETHOD GetProcess(char **process)
-  {
-    *process = strdup("");
-    return NS_OK;
-  }
-
   NS_IMETHOD GetPath(char **memoryPath)
   {
     nsCString path;
 
-    path.AppendLiteral("explicit/storage/sqlite/");
+    path.AppendLiteral("storage/");
     path.Append(mDBConn.getFilename());
 
-    if (mType == Cache_Used) {
-      path.AppendLiteral("/cache-used");
+    if (mType == LookAside_Used) {
+      path.AppendLiteral("/LookAside_Used");
+    }
+    else if (mType == Cache_Used) {
+      path.AppendLiteral("/Cache_Used");
     }
     else if (mType == Schema_Used) {
-      path.AppendLiteral("/schema-used");
+      path.AppendLiteral("/Schema_Used");
     }
     else if (mType == Stmt_Used) {
-      path.AppendLiteral("/stmt-used");
+      path.AppendLiteral("/Stmt_Used");
     }
 
     *memoryPath = ::ToNewCString(path);
     return NS_OK;
   }
 
-  NS_IMETHOD GetKind(PRInt32 *kind)
-  {
-    *kind = MR_HEAP;
-    return NS_OK;
-  }
-
   NS_IMETHOD GetDescription(char **desc)
   {
-    if (mType == Cache_Used) {
-      *desc = ::strdup("Memory (approximate) used by all pager caches.");
+    if (mType == LookAside_Used) {
+      *desc = ::strdup("Number of lookaside memory slots currently checked out");
+    }
+    else if (mType == Cache_Used) {
+      *desc = ::strdup("Approximate number of bytes of heap memory used by all pager caches");
     }
     else if (mType == Schema_Used) {
-      *desc = ::strdup("Memory (approximate) used to store the schema "
-                       "for all databases associated with the connection");
+      *desc = ::strdup("Approximate number of bytes of heap memory used to store the schema for all databases associated with the connection");
     }
     else if (mType == Stmt_Used) {
-      *desc = ::strdup("Memory (approximate) used by all prepared statements");
+      *desc = ::strdup("Approximate number of bytes of heap and lookaside memory used by all prepared statements");
     }
     return NS_OK;
   }
@@ -399,7 +393,10 @@ public:
   NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed)
   {
     int type = 0;
-    if (mType == Cache_Used) {
+    if (mType == LookAside_Used) {
+      type = SQLITE_DBSTATUS_LOOKASIDE_USED;
+    }
+    else if (mType == Cache_Used) {
       type = SQLITE_DBSTATUS_CACHE_USED;
     }
     else if (mType == Schema_Used) {
@@ -579,6 +576,9 @@ Connection::initialize(nsIFile *aDatabaseFile,
   }
 
   nsRefPtr<nsIMemoryReporter> reporter;
+  reporter =
+    new StorageMemoryReporter(*this, StorageMemoryReporter::LookAside_Used);
+  mMemoryReporters.AppendElement(reporter);
 
   reporter =
     new StorageMemoryReporter(*this, StorageMemoryReporter::Cache_Used);
@@ -588,8 +588,7 @@ Connection::initialize(nsIFile *aDatabaseFile,
     new StorageMemoryReporter(*this, StorageMemoryReporter::Schema_Used);
   mMemoryReporters.AppendElement(reporter);
 
-  reporter =
-    new StorageMemoryReporter(*this, StorageMemoryReporter::Stmt_Used);
+  reporter = new StorageMemoryReporter(*this, StorageMemoryReporter::Stmt_Used);
   mMemoryReporters.AppendElement(reporter);
 
   for (PRUint32 i = 0; i < mMemoryReporters.Length(); i++) {

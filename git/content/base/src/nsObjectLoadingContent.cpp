@@ -50,13 +50,14 @@
 #include "nsIDocShell.h"
 #include "nsIDocument.h"
 #include "nsIDOMDataContainerEvent.h"
-#include "nsIDOMDocument.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIExternalProtocolHandler.h"
 #include "nsEventStates.h"
 #include "nsIObjectFrame.h"
 #include "nsIPluginDocument.h"
-#include "nsPluginHost.h"
+#include "nsIPluginHost.h"
+#include "nsIPluginInstance.h"
 #include "nsIPresShell.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIScriptGlobalObject.h"
@@ -257,16 +258,16 @@ nsPluginCrashedEvent::Run()
   LOG(("OBJLC []: Firing plugin crashed event for content %p\n",
        mContent.get()));
 
-  nsCOMPtr<nsIDOMDocument> domDoc =
+  nsCOMPtr<nsIDOMDocumentEvent> domEventDoc =
     do_QueryInterface(mContent->GetDocument());
-  if (!domDoc) {
+  if (!domEventDoc) {
     NS_WARNING("Couldn't get document for PluginCrashed event!");
     return NS_OK;
   }
 
   nsCOMPtr<nsIDOMEvent> event;
-  domDoc->CreateEvent(NS_LITERAL_STRING("datacontainerevents"),
-                      getter_AddRefs(event));
+  domEventDoc->CreateEvent(NS_LITERAL_STRING("datacontainerevents"),
+                           getter_AddRefs(event));
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
   nsCOMPtr<nsIDOMDataContainerEvent> containerEvent(do_QueryInterface(event));
   if (!privateEvent || !containerEvent) {
@@ -337,7 +338,9 @@ class AutoNotifier {
         mOldState = aContent->ObjectState();
     }
     ~AutoNotifier() {
-      mContent->NotifyStateChanged(mOldType, mOldState, PR_FALSE, mNotify);
+      if (mNotify) {
+        mContent->NotifyStateChanged(mOldType, mOldState, PR_FALSE);
+      }
     }
 
     /**
@@ -348,7 +351,7 @@ class AutoNotifier {
     void Notify() {
       NS_ASSERTION(mNotify, "Should not notify when notify=false");
 
-      mContent->NotifyStateChanged(mOldType, mOldState, PR_TRUE, PR_TRUE);
+      mContent->NotifyStateChanged(mOldType, mOldState, PR_TRUE);
       mOldType = mContent->Type();
       mOldState = mContent->ObjectState();
     }
@@ -421,12 +424,11 @@ IsSupportedImage(const nsCString& aMimeType)
 static PRBool
 IsSupportedPlugin(const nsCString& aMIMEType)
 {
-  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
-  if (!pluginHost) {
+  nsCOMPtr<nsIPluginHost> host(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  if (!host) {
     return PR_FALSE;
   }
-  nsresult rv = pluginHost->IsPluginEnabledForType(aMIMEType.get());
+  nsresult rv = host->IsPluginEnabledForType(aMIMEType.get());
   return NS_SUCCEEDED(rv);
 }
 
@@ -457,18 +459,13 @@ IsPluginEnabledByExtension(nsIURI* uri, nsCString& mimeType)
   nsCAutoString ext;
   GetExtensionFromURI(uri, ext);
 
-  if (ext.IsEmpty()) {
+  if (ext.IsEmpty())
     return PR_FALSE;
-  }
 
-  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
-  if (!pluginHost) {
-    return PR_FALSE;
-  }
-
+  nsCOMPtr<nsIPluginHost> host(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
   const char* typeFromExt;
-  if (NS_SUCCEEDED(pluginHost->IsPluginEnabledForExtension(ext.get(), typeFromExt))) {
+  if (host &&
+      NS_SUCCEEDED(host->IsPluginEnabledForExtension(ext.get(), typeFromExt))) {
     mimeType = typeFromExt;
     return PR_TRUE;
   }
@@ -847,7 +844,7 @@ nsObjectLoadingContent::GetDisplayedType(PRUint32* aType)
 
 
 NS_IMETHODIMP
-nsObjectLoadingContent::EnsureInstantiation(nsNPAPIPluginInstance** aInstance)
+nsObjectLoadingContent::EnsureInstantiation(nsIPluginInstance** aInstance)
 {
   // Must set our out parameter to null as we have various early returns with
   // an NS_OK result.
@@ -915,11 +912,11 @@ nsObjectLoadingContent::EnsureInstantiation(nsNPAPIPluginInstance** aInstance)
   nsWeakFrame weakFrame(nsiframe);
 
   // We may have a plugin instance already; if so, do nothing
-  nsresult rv = frame->GetPluginInstance(aInstance);
+  nsresult rv = frame->GetPluginInstance(*aInstance);
   if (!*aInstance && weakFrame.IsAlive()) {
     rv = Instantiate(frame, mContentType, mURI);
     if (NS_SUCCEEDED(rv) && weakFrame.IsAlive()) {
-      rv = frame->GetPluginInstance(aInstance);
+      rv = frame->GetPluginInstance(*aInstance);
     } else {
       Fallback(PR_TRUE);
     }
@@ -945,8 +942,8 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
   // date data (frame pointer etc).
   mPendingInstantiateEvent = nsnull;
 
-  nsRefPtr<nsNPAPIPluginInstance> instance;
-  aFrame->GetPluginInstance(getter_AddRefs(instance));
+  nsCOMPtr<nsIPluginInstance> instance;
+  aFrame->GetPluginInstance(*getter_AddRefs(instance));
 
   if (instance) {
     // The frame already has a plugin instance, that means the plugin
@@ -993,7 +990,7 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
 }
 
 NS_IMETHODIMP
-nsObjectLoadingContent::GetPluginInstance(nsNPAPIPluginInstance** aInstance)
+nsObjectLoadingContent::GetPluginInstance(nsIPluginInstance** aInstance)
 {
   *aInstance = nsnull;
 
@@ -1002,7 +999,7 @@ nsObjectLoadingContent::GetPluginInstance(nsNPAPIPluginInstance** aInstance)
     return NS_OK;
   }
 
-  return objFrame->GetPluginInstance(aInstance);
+  return objFrame->GetPluginInstance(*aInstance);
 }
 
 NS_IMETHODIMP
@@ -1495,8 +1492,11 @@ nsObjectLoadingContent::GetCapabilities() const
 {
   return eSupportImages |
          eSupportPlugins |
-         eSupportDocuments |
-         eSupportSVG;
+         eSupportDocuments
+#ifdef MOZ_SVG
+         | eSupportSVG
+#endif
+         ;
 }
 
 void
@@ -1637,9 +1637,7 @@ nsObjectLoadingContent::UnloadContent()
 
 void
 nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
-                                           nsEventStates aOldState,
-                                           PRBool aSync,
-                                           PRBool aNotify)
+                                          nsEventStates aOldState, PRBool aSync)
 {
   LOG(("OBJLC [%p]: Notifying about state change: (%u, %llx) -> (%u, %llx) (sync=%i)\n",
        this, aOldType, aOldState.GetInternalValue(), mType,
@@ -1648,18 +1646,6 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
   nsCOMPtr<nsIContent> thisContent = 
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
-
-  NS_ASSERTION(thisContent->IsElement(), "Not an element?");
-
-  // Unfortunately, we do some state changes without notifying
-  // (e.g. in Fallback when canceling image requests), so we have to
-  // manually notify object state changes.
-  thisContent->AsElement()->UpdateState(false);
-
-  if (!aNotify) {
-    // We're done here
-    return;
-  }
 
   nsIDocument* doc = thisContent->GetCurrentDoc();
   if (!doc) {
@@ -1674,11 +1660,12 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
     nsEventStates changedBits = aOldState ^ newState;
 
     {
-      nsAutoScriptBlocker scriptBlocker;
+      mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
       doc->ContentStateChanged(thisContent, changedBits);
     }
     if (aSync) {
-      // Make sure that frames are actually constructed immediately.
+      // Make sure that frames are actually constructed, and do it after
+      // EndUpdate was called.
       doc->FlushPendingNotifications(Flush_Frames);
     }
   } else if (aOldType != mType) {
@@ -1714,8 +1701,12 @@ nsObjectLoadingContent::GetTypeOfContent(const nsCString& aMIMEType)
     return eType_Image;
   }
 
+#ifdef MOZ_SVG
   PRBool isSVG = aMIMEType.LowerCaseEqualsLiteral("image/svg+xml");
   PRBool supportedSVG = isSVG && (caps & eSupportSVG);
+#else
+  PRBool supportedSVG = PR_FALSE;
+#endif
   if (((caps & eSupportDocuments) || supportedSVG) &&
       IsSupportedDocument(aMIMEType)) {
     return eType_Document;
@@ -1732,8 +1723,8 @@ nsresult
 nsObjectLoadingContent::TypeForClassID(const nsAString& aClassID,
                                        nsACString& aType)
 {
-  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
+  // Need a plugin host for any class id support
+  nsCOMPtr<nsIPluginHost> pluginHost(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
   if (!pluginHost) {
     return NS_ERROR_NOT_AVAILABLE;
   }
@@ -1843,8 +1834,8 @@ nsObjectLoadingContent::TryInstantiate(const nsACString& aMIMEType,
     return NS_OK; // Not a failure to have no frame
   }
 
-  nsRefPtr<nsNPAPIPluginInstance> instance;
-  frame->GetPluginInstance(getter_AddRefs(instance));
+  nsCOMPtr<nsIPluginInstance> instance;
+  frame->GetPluginInstance(*getter_AddRefs(instance));
 
   if (!instance) {
     // The frame has no plugin instance yet. If the frame hasn't been
@@ -1908,15 +1899,14 @@ nsObjectLoadingContent::Instantiate(nsIObjectFrame* aFrame,
 
   mInstantiating = oldInstantiatingValue;
 
-  nsRefPtr<nsNPAPIPluginInstance> pluginInstance;
+  nsCOMPtr<nsIPluginInstance> pluginInstance;
   if (weakFrame.IsAlive()) {
-    aFrame->GetPluginInstance(getter_AddRefs(pluginInstance));
+    aFrame->GetPluginInstance(*getter_AddRefs(pluginInstance));
   }
   if (pluginInstance) {
     nsCOMPtr<nsIPluginTag> pluginTag;
     nsCOMPtr<nsIPluginHost> host(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-    static_cast<nsPluginHost*>(host.get())->
-      GetPluginTagForInstance(pluginInstance, getter_AddRefs(pluginTag));
+    host->GetPluginTagForInstance(pluginInstance, getter_AddRefs(pluginTag));
 
     nsCOMPtr<nsIBlocklistService> blocklist =
       do_GetService("@mozilla.org/extensions/blocklist;1");
@@ -1972,13 +1962,11 @@ nsObjectLoadingContent::GetPluginSupportState(nsIContent* aContent,
 /* static */ PluginSupportState
 nsObjectLoadingContent::GetPluginDisabledState(const nsCString& aContentType)
 {
-  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
-  if (!pluginHost) {
+  nsCOMPtr<nsIPluginHost> host(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  if (!host) {
     return ePluginUnsupported;
   }
-
-  nsresult rv = pluginHost->IsPluginEnabledForType(aContentType.get());
+  nsresult rv = host->IsPluginEnabledForType(aContentType.get());
   if (rv == NS_ERROR_PLUGIN_DISABLED)
     return ePluginDisabled;
   if (rv == NS_ERROR_PLUGIN_BLOCKLISTED)
@@ -2018,6 +2006,18 @@ nsObjectLoadingContent::GetPrintFrame(nsIFrame** aFrame)
 {
   *aFrame = mPrintFrame.GetFrame();
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsObjectLoadingContent::SetAbsoluteScreenPosition(nsIDOMElement* element,
+                                                  nsIDOMClientRect* position,
+                                                  nsIDOMClientRect* clip)
+{
+  nsIObjectFrame* frame = GetExistingFrame(eFlushLayout);
+  if (!frame)
+    return NS_ERROR_NOT_AVAILABLE;
+
+  return frame->SetAbsoluteScreenPosition(element, position, clip);
 }
 
 NS_IMETHODIMP

@@ -66,7 +66,12 @@ void ResourceManager::release()
 // Returns an unused buffer name
 GLuint ResourceManager::createBuffer()
 {
-    GLuint handle = mBufferHandleAllocator.allocate();
+    unsigned int handle = 1;
+
+    while (mBufferMap.find(handle) != mBufferMap.end())
+    {
+        handle++;
+    }
 
     mBufferMap[handle] = NULL;
 
@@ -76,7 +81,12 @@ GLuint ResourceManager::createBuffer()
 // Returns an unused shader/program name
 GLuint ResourceManager::createShader(GLenum type)
 {
-    GLuint handle = mProgramShaderHandleAllocator.allocate();
+    unsigned int handle = 1;
+
+    while (mShaderMap.find(handle) != mShaderMap.end() || mProgramMap.find(handle) != mProgramMap.end())   // Shared name space
+    {
+        handle++;
+    }
 
     if (type == GL_VERTEX_SHADER)
     {
@@ -94,7 +104,12 @@ GLuint ResourceManager::createShader(GLenum type)
 // Returns an unused program/shader name
 GLuint ResourceManager::createProgram()
 {
-    GLuint handle = mProgramShaderHandleAllocator.allocate();
+    unsigned int handle = 1;
+
+    while (mProgramMap.find(handle) != mProgramMap.end() || mShaderMap.find(handle) != mShaderMap.end())   // Shared name space
+    {
+        handle++;
+    }
 
     mProgramMap[handle] = new Program(this, handle);
 
@@ -104,7 +119,12 @@ GLuint ResourceManager::createProgram()
 // Returns an unused texture name
 GLuint ResourceManager::createTexture()
 {
-    GLuint handle = mTextureHandleAllocator.allocate();
+    unsigned int handle = 1;
+
+    while (mTextureMap.find(handle) != mTextureMap.end())
+    {
+        handle++;
+    }
 
     mTextureMap[handle] = NULL;
 
@@ -114,7 +134,12 @@ GLuint ResourceManager::createTexture()
 // Returns an unused renderbuffer name
 GLuint ResourceManager::createRenderbuffer()
 {
-    GLuint handle = mRenderbufferHandleAllocator.allocate();
+    unsigned int handle = 1;
+
+    while (mRenderbufferMap.find(handle) != mRenderbufferMap.end())
+    {
+        handle++;
+    }
 
     mRenderbufferMap[handle] = NULL;
 
@@ -127,7 +152,6 @@ void ResourceManager::deleteBuffer(GLuint buffer)
 
     if (bufferObject != mBufferMap.end())
     {
-        mBufferHandleAllocator.release(bufferObject->first);
         if (bufferObject->second) bufferObject->second->release();
         mBufferMap.erase(bufferObject);
     }
@@ -141,7 +165,6 @@ void ResourceManager::deleteShader(GLuint shader)
     {
         if (shaderObject->second->getRefCount() == 0)
         {
-            mProgramShaderHandleAllocator.release(shaderObject->first);
             delete shaderObject->second;
             mShaderMap.erase(shaderObject);
         }
@@ -160,7 +183,6 @@ void ResourceManager::deleteProgram(GLuint program)
     {
         if (programObject->second->getRefCount() == 0)
         {
-            mProgramShaderHandleAllocator.release(programObject->first);
             delete programObject->second;
             mProgramMap.erase(programObject);
         }
@@ -177,7 +199,6 @@ void ResourceManager::deleteTexture(GLuint texture)
 
     if (textureObject != mTextureMap.end())
     {
-        mTextureHandleAllocator.release(textureObject->first);
         if (textureObject->second) textureObject->second->release();
         mTextureMap.erase(textureObject);
     }
@@ -189,7 +210,6 @@ void ResourceManager::deleteRenderbuffer(GLuint renderbuffer)
 
     if (renderbufferObject != mRenderbufferMap.end())
     {
-        mRenderbufferHandleAllocator.release(renderbufferObject->first);
         if (renderbufferObject->second) renderbufferObject->second->release();
         mRenderbufferMap.erase(renderbufferObject);
     }
@@ -282,17 +302,17 @@ void ResourceManager::checkBufferAllocation(unsigned int buffer)
     }
 }
 
-void ResourceManager::checkTextureAllocation(GLuint texture, TextureType type)
+void ResourceManager::checkTextureAllocation(GLuint texture, SamplerType type)
 {
     if (!getTexture(texture) && texture != 0)
     {
         Texture *textureObject;
 
-        if (type == TEXTURE_2D)
+        if (type == SAMPLER_2D)
         {
             textureObject = new Texture2D(texture);
         }
-        else if (type == TEXTURE_CUBE)
+        else if (type == SAMPLER_CUBE)
         {
             textureObject = new TextureCubeMap(texture);
         }

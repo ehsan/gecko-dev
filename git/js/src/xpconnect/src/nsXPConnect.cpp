@@ -101,7 +101,6 @@ nsXPConnect::nsXPConnect()
         mDefaultSecurityManager(nsnull),
         mDefaultSecurityManagerFlags(0),
         mShuttingDown(JS_FALSE),
-        mNeedGCBeforeCC(JS_TRUE),
         mCycleCollectionContext(nsnull)
 {
     mRuntime = XPCJSRuntime::newXPCJSRuntime(this);
@@ -340,12 +339,6 @@ nsXPConnect::GetInfoForName(const char * name, nsIInterfaceInfo** info)
     return FindInfo(NameTester, name, mInterfaceInfoManager, info);
 }
 
-bool
-nsXPConnect::NeedCollect()
-{
-    return !!mNeedGCBeforeCC;
-}
-
 void
 nsXPConnect::Collect()
 {
@@ -392,11 +385,11 @@ nsXPConnect::Collect()
     // To improve debugging, if DEBUG_CC is defined all JS objects are
     // traversed.
 
-    mNeedGCBeforeCC = JS_FALSE;
-
     XPCCallContext ccx(NATIVE_CALLER);
     if(!ccx.IsValid())
         return;
+
+    nsXPConnect::GetRuntimeInstance()->ClearWeakRoots();
 
     JSContext *cx = ccx.GetJSContext();
 
@@ -405,14 +398,13 @@ nsXPConnect::Collect()
     // cycle collection. So to compensate for JS_BeginRequest in
     // XPCCallContext::Init we disable the conservative scanner if that call
     // has started the request on this thread.
-    js::ThreadData &threadData = cx->thread()->data;
-    JS_ASSERT(threadData.requestDepth >= 1);
-    JS_ASSERT(!threadData.conservativeGC.requestThreshold);
-    if(threadData.requestDepth == 1)
-        threadData.conservativeGC.requestThreshold = 1;
+    JS_ASSERT(cx->thread->data.requestDepth >= 1);
+    JS_ASSERT(!cx->thread->data.conservativeGC.requestThreshold);
+    if(cx->thread->data.requestDepth == 1)
+        cx->thread->data.conservativeGC.requestThreshold = 1;
     JS_GC(cx);
-    if(threadData.requestDepth == 1)
-        threadData.conservativeGC.requestThreshold = 0;
+    if(cx->thread->data.requestDepth == 1)
+        cx->thread->data.conservativeGC.requestThreshold = 0;
 }
 
 NS_IMETHODIMP
@@ -576,42 +568,9 @@ nsXPConnect::Unroot(void *p)
     return NS_OK;
 }
 
-JSBool
-xpc_GCThingIsGrayCCThing(void *thing)
-{
-    uint32 kind = js_GetGCThingTraceKind(thing);
-    return ADD_TO_CC(kind) && xpc_IsGrayGCThing(thing);
-}
-
-/*
- * The GC and CC are run independently. Consequently, the following sequence of
- * events can occur:
- * 1. GC runs and marks an object gray.
- * 2. Some JS code runs that creates a pointer from a JS root to the gray
- *    object. If we re-ran a GC at this point, the object would now be black.
- * 3. Now we run the CC. It may think it can collect the gray object, even
- *    though it's reachable from the JS heap.
- *
- * To prevent this badness, we unmark the gray bit of an object when it is
- * accessed by callers outside XPConnect. This would cause the object to go
- * black in step 2 above. This must be done on everything reachable from the
- * object being returned. The following code takes care of the recursive
- * re-coloring.
- */
 static void
 UnmarkGrayChildren(JSTracer *trc, void *thing, uint32 kind)
 {
-    int stackDummy;
-    if (!JS_CHECK_STACK_SIZE(trc->context->stackLimit, &stackDummy)) {
-        /*
-         * If we run out of stack, we take a more drastic measure: require that
-         * we GC again before the next CC.
-         */
-        nsXPConnect* xpc = nsXPConnect::GetXPConnect();
-        xpc->EnsureGCBeforeCC();
-        return;
-    }
-
     // If this thing is not a CC-kind or already non-gray then we're done.
     if(!ADD_TO_CC(kind) || !xpc_IsGrayGCThing(thing))
         return;
@@ -768,7 +727,8 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
 #endif
     {
         // Normal codepath (matches non-DEBUG_CC codepath).
-        type = !markJSObject && xpc_IsGrayGCThing(p) ? GCUnmarked : GCMarked;
+        NS_ASSERTION(xpc_IsGrayGCThing(p), "Tried to traverse a non-gray object.");
+        type = markJSObject ? GCMarked : GCUnmarked;
     }
 
     if (cb.WantDebugInfo()) {
@@ -1072,12 +1032,17 @@ xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
     NS_ABORT_IF_FALSE(NS_IsMainThread(), "using a principal off the main thread?");
     NS_ABORT_IF_FALSE(principal, "bad key");
 
+    nsCOMPtr<nsIURI> uri;
+    nsresult rv = principal->GetURI(getter_AddRefs(uri));
+    if(NS_FAILED(rv))
+        return UnexpectedFailure(rv);
+
     XPCCompartmentMap& map = nsXPConnect::GetRuntimeInstance()->GetCompartmentMap();
-    xpc::PtrAndPrincipalHashKey key(ptr, principal);
+    xpc::PtrAndPrincipalHashKey key(ptr, uri);
     if(!map.Get(&key, compartment))
     {
         xpc::PtrAndPrincipalHashKey *priv_key =
-            new xpc::PtrAndPrincipalHashKey(ptr, principal);
+            new xpc::PtrAndPrincipalHashKey(ptr, uri);
         xpc::CompartmentPrivate *priv =
             new xpc::CompartmentPrivate(priv_key, wantXrays, NS_IsMainThread());
         if(!CreateNewCompartment(cx, clasp, principal, priv,
@@ -2192,6 +2157,7 @@ nsXPConnect::ReleaseJSContext(JSContext * aJSContext, PRBool noGC)
                    (void *)aJSContext);
 #endif
             ccx->SetDestroyJSContextInDestructor(JS_TRUE);
+            JS_ClearNewbornRoots(aJSContext);
             return NS_OK;
         }
         // else continue on and synchronously destroy the JSContext ...
@@ -2646,7 +2612,7 @@ nsXPConnect::Push(JSContext * cx)
              bool runningJS = false;
              for (PRUint32 i = 0; i < stack->Length(); ++i) {
                  JSContext *cx = (*stack)[i].cx;
-                 if (cx && !cx->stack.empty()) {
+                 if (cx && cx->getCurrentSegment()) {
                      runningJS = true;
                      break;
                  }

@@ -224,7 +224,7 @@ StringBuffer::appendInflated(const char *cstr, size_t cstrlen)
     size_t oldcstrlen = cstrlen;
     bool ok = 
 #endif
-    InflateStringToBuffer(context(), cstr, cstrlen, begin() + lengthBefore, &cstrlen);
+    js_InflateStringToBuffer(context(), cstr, cstrlen, begin() + lengthBefore, &cstrlen);
     JS_ASSERT(ok && oldcstrlen == cstrlen);
     return true;
 }
@@ -332,6 +332,7 @@ JSFixedString::new_(JSContext *cx, const jschar *chars, size_t length)
         return NULL;
     str->init(chars, length);
 
+    cx->runtime->stringMemoryUsed += length * 2;
 #ifdef DEBUG
     JSRuntime *rt = cx->runtime;
     JS_RUNTIME_METER(rt, liveStrings);
@@ -344,7 +345,7 @@ JSFixedString::new_(JSContext *cx, const jschar *chars, size_t length)
 }
 
 JS_ALWAYS_INLINE JSAtom *
-JSFixedString::morphAtomizedStringIntoAtom()
+JSFixedString::morphInternedStringIntoAtom()
 {
     JS_ASSERT((d.lengthAndFlags & FLAGS_MASK) == JS_BIT(2));
     JS_STATIC_ASSERT(NON_STATIC_ATOM == JS_BIT(3));
@@ -529,6 +530,7 @@ inline void
 JSFlatString::finalize(JSRuntime *rt)
 {
     JS_ASSERT(!isShort());
+    rt->stringMemoryUsed -= length() * 2;
 
     /*
      * This check depends on the fact that 'chars' is only initialized to the
@@ -549,10 +551,10 @@ inline void
 JSAtom::finalize(JSRuntime *rt)
 {
     JS_ASSERT(isAtom());
-    if (arenaHeader()->getThingKind() == js::gc::FINALIZE_STRING)
+    if (arena()->header()->thingKind == js::gc::FINALIZE_STRING)
         asFlat().finalize(rt);
     else
-        JS_ASSERT(arenaHeader()->getThingKind() == js::gc::FINALIZE_SHORT_STRING);
+        JS_ASSERT(arena()->header()->thingKind == js::gc::FINALIZE_SHORT_STRING);
 }
 
 inline void

@@ -49,11 +49,8 @@
 #include "jsscope.h"
 #include "jsgc.h"
 
-#include "vm/ArgumentsObject.h"
-#include "vm/StringObject.h"
-
-#include "jscntxtinlines.h"
 #include "jsgcinlines.h"
+#include "jscntxtinlines.h"
 #include "jsobjinlines.h"
 
 inline void
@@ -74,7 +71,7 @@ JSObject::getEmptyShape(JSContext *cx, js::Class *aclasp,
 
     if (!emptyShapes) {
         emptyShapes = (js::EmptyShape**)
-            cx->calloc_(sizeof(js::EmptyShape*) * js::gc::FINALIZE_FUNCTION_AND_OBJECT_LAST);
+            cx->calloc_(sizeof(js::EmptyShape*) * js::gc::JS_FINALIZE_OBJECT_LIMIT);
         if (!emptyShapes)
             return NULL;
 
@@ -115,14 +112,14 @@ JSObject::updateShape(JSContext *cx)
     if (hasOwnShape())
         setOwnShape(js_GenerateShape(cx));
     else
-        objShape = lastProp->shapeid;
+        objShape = lastProp->shape;
 }
 
 inline void
 JSObject::updateFlags(const js::Shape *shape, bool isDefinitelyAtom)
 {
     jsuint index;
-    if (!isDefinitelyAtom && js_IdIsIndex(shape->propid, &index))
+    if (!isDefinitelyAtom && js_IdIsIndex(shape->id, &index))
         setIndexed();
 
     if (shape->isMethod())
@@ -137,36 +134,41 @@ JSObject::extend(JSContext *cx, const js::Shape *shape, bool isDefinitelyAtom)
     updateShape(cx);
 }
 
-namespace js {
-
 inline bool
-StringObject::init(JSContext *cx, JSString *str)
+JSObject::initString(JSContext *cx, JSString *str)
 {
+    JS_ASSERT(isString());
     JS_ASSERT(nativeEmpty());
 
-    const Shape **shapep = &cx->compartment->initialStringShape;
+    const js::Shape **shapep = &cx->compartment->initialStringShape;
     if (*shapep) {
         setLastProperty(*shapep);
     } else {
-        *shapep = assignInitialShape(cx);
+        *shapep = assignInitialStringShape(cx);
         if (!*shapep)
             return false;
     }
     JS_ASSERT(*shapep == lastProperty());
     JS_ASSERT(!nativeEmpty());
-    JS_ASSERT(nativeLookup(ATOM_TO_JSID(cx->runtime->atomState.lengthAtom))->slot == LENGTH_SLOT);
 
-    setStringThis(str);
+    JS_ASSERT(nativeLookup(ATOM_TO_JSID(cx->runtime->atomState.lengthAtom))->slot ==
+              JSObject::JSSLOT_STRING_LENGTH);
+
+    setPrimitiveThis(js::StringValue(str));
+    JS_ASSERT(str->length() <= JSString::MAX_LENGTH);
+    setSlot(JSSLOT_STRING_LENGTH, js::Int32Value(int32(str->length())));
     return true;
 }
 
+namespace js {
+
 inline
-Shape::Shape(jsid propid, js::PropertyOp getter, js::StrictPropertyOp setter, uint32 slot,
-             uintN attrs, uintN flags, intN shortid, uint32 shapeid, uint32 slotSpan)
-  : shapeid(shapeid),
+Shape::Shape(jsid id, js::PropertyOp getter, js::StrictPropertyOp setter, uint32 slot, uintN attrs,
+             uintN flags, intN shortid, uint32 shape, uint32 slotSpan)
+  : shape(shape),
     slotSpan(slotSpan),
     numLinearSearches(0),
-    propid(propid),
+    id(id),
     rawGetter(getter),
     rawSetter(setter),
     slot(slot),
@@ -183,10 +185,10 @@ Shape::Shape(jsid propid, js::PropertyOp getter, js::StrictPropertyOp setter, ui
 
 inline
 Shape::Shape(JSCompartment *comp, Class *aclasp)
-  : shapeid(js_GenerateShape(comp->rt)),
+  : shape(js_GenerateShape(comp->rt)),
     slotSpan(JSSLOT_FREE(aclasp)),
     numLinearSearches(0),
-    propid(JSID_EMPTY),
+    id(JSID_EMPTY),
     clasp(aclasp),
     rawSetter(NULL),
     slot(SHAPE_INVALID_SLOT),
@@ -199,11 +201,11 @@ Shape::Shape(JSCompartment *comp, Class *aclasp)
 }
 
 inline
-Shape::Shape(uint32 shapeid)
-  : shapeid(shapeid),
+Shape::Shape(uint32 shape)
+  : shape(shape),
     slotSpan(0),
     numLinearSearches(0),
-    propid(JSID_EMPTY),
+    id(JSID_EMPTY),
     clasp(NULL),
     rawSetter(NULL),
     slot(SHAPE_INVALID_SLOT),
@@ -230,16 +232,16 @@ Shape::hash() const
     hash = JS_ROTATE_LEFT32(hash, 4) ^ attrs;
     hash = JS_ROTATE_LEFT32(hash, 4) ^ shortid;
     hash = JS_ROTATE_LEFT32(hash, 4) ^ slot;
-    hash = JS_ROTATE_LEFT32(hash, 4) ^ JSID_BITS(propid);
+    hash = JS_ROTATE_LEFT32(hash, 4) ^ JSID_BITS(id);
     return hash;
 }
 
 inline bool
 Shape::matches(const js::Shape *other) const
 {
-    JS_ASSERT(!JSID_IS_VOID(propid));
-    JS_ASSERT(!JSID_IS_VOID(other->propid));
-    return propid == other->propid &&
+    JS_ASSERT(!JSID_IS_VOID(id));
+    JS_ASSERT(!JSID_IS_VOID(other->id));
+    return id == other->id &&
            matchesParamsAfterId(other->rawGetter, other->rawSetter, other->slot, other->attrs,
                                 other->flags, other->shortid);
 }
@@ -248,7 +250,7 @@ inline bool
 Shape::matchesParamsAfterId(js::PropertyOp agetter, js::StrictPropertyOp asetter, uint32 aslot,
                             uintN aattrs, uintN aflags, intN ashortid) const
 {
-    JS_ASSERT(!JSID_IS_VOID(propid));
+    JS_ASSERT(!JSID_IS_VOID(id));
     return rawGetter == agetter &&
            rawSetter == asetter &&
            slot == aslot &&
@@ -260,13 +262,13 @@ Shape::matchesParamsAfterId(js::PropertyOp agetter, js::StrictPropertyOp asetter
 inline bool
 Shape::get(JSContext* cx, JSObject *receiver, JSObject* obj, JSObject *pobj, js::Value* vp) const
 {
-    JS_ASSERT(!JSID_IS_VOID(propid));
+    JS_ASSERT(!JSID_IS_VOID(this->id));
     JS_ASSERT(!hasDefaultGetter());
 
     if (hasGetterValue()) {
         JS_ASSERT(!isMethod());
         js::Value fval = getterValue();
-        return js::ExternalGetOrSet(cx, receiver, propid, fval, JSACC_READ, 0, 0, vp);
+        return js::ExternalGetOrSet(cx, receiver, id, fval, JSACC_READ, 0, 0, vp);
     }
 
     if (isMethod()) {
@@ -290,7 +292,7 @@ Shape::set(JSContext* cx, JSObject* obj, bool strict, js::Value* vp) const
 
     if (attrs & JSPROP_SETTER) {
         js::Value fval = setterValue();
-        return js::ExternalGetOrSet(cx, obj, propid, fval, JSACC_WRITE, 1, vp, vp);
+        return js::ExternalGetOrSet(cx, obj, id, fval, JSACC_WRITE, 1, vp, vp);
     }
 
     if (attrs & JSPROP_GETTER)
@@ -309,12 +311,12 @@ Shape::removeFromDictionary(JSObject *obj) const
     JS_ASSERT(inDictionary());
     JS_ASSERT(obj->inDictionaryMode());
     JS_ASSERT(listp);
-    JS_ASSERT(!JSID_IS_VOID(propid));
+    JS_ASSERT(!JSID_IS_VOID(id));
 
     JS_ASSERT(obj->lastProp->inDictionary());
     JS_ASSERT(obj->lastProp->listp == &obj->lastProp);
-    JS_ASSERT_IF(obj->lastProp != this, !JSID_IS_VOID(obj->lastProp->propid));
-    JS_ASSERT_IF(obj->lastProp->parent, !JSID_IS_VOID(obj->lastProp->parent->propid));
+    JS_ASSERT_IF(obj->lastProp != this, !JSID_IS_VOID(obj->lastProp->id));
+    JS_ASSERT_IF(obj->lastProp->parent, !JSID_IS_VOID(obj->lastProp->parent->id));
 
     if (parent)
         parent->listp = listp;
@@ -331,12 +333,12 @@ Shape::insertIntoDictionary(js::Shape **dictp)
      */
     JS_ASSERT(inDictionary());
     JS_ASSERT(!listp);
-    JS_ASSERT(!JSID_IS_VOID(propid));
+    JS_ASSERT(!JSID_IS_VOID(id));
 
     JS_ASSERT_IF(*dictp, !(*dictp)->frozen());
     JS_ASSERT_IF(*dictp, (*dictp)->inDictionary());
     JS_ASSERT_IF(*dictp, (*dictp)->listp == dictp);
-    JS_ASSERT_IF(*dictp, !JSID_IS_VOID((*dictp)->propid));
+    JS_ASSERT_IF(*dictp, !JSID_IS_VOID((*dictp)->id));
     JS_ASSERT_IF(*dictp, compartment() == (*dictp)->compartment());
 
     setParent(*dictp);
@@ -355,13 +357,6 @@ EmptyShape::EmptyShape(JSCompartment *comp, js::Class *aclasp)
         comp->emptyShapes.put(this);
 #endif
 }
-
-/* static */ inline EmptyShape *
-EmptyShape::getEmptyArgumentsShape(JSContext *cx)
-{
-    return ensure(cx, &NormalArgumentsObject::jsClass, &cx->compartment->emptyArgumentsShape);
-}
-
 
 } /* namespace js */
 

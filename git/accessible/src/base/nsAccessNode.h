@@ -121,6 +121,11 @@ public:
   already_AddRefed<nsINode> GetCurrentFocus();
 
   /**
+   * Returns true when the accessible is defunct.
+   */
+  virtual PRBool IsDefunct() { return !mContent; }
+
+  /**
    * Initialize the access node object, add it to the cache.
    */
   virtual PRBool Init();
@@ -129,11 +134,6 @@ public:
    * Shutdown the access node object.
    */
   virtual void Shutdown();
-
-  /**
-   * Returns true when the accessible is defunct.
-   */
-  virtual bool IsDefunct() const;
 
   /**
    * Return frame for the given access node object.
@@ -171,7 +171,7 @@ public:
     nsINode* node = GetNode();
     return node && node->IsElement();
   }
-  bool IsDocumentNode() const
+  PRBool IsDocument() const
   {
     return GetNode() && GetNode()->IsNodeOfType(nsINode::eDOCUMENT);
   }

@@ -7,7 +7,7 @@ Components.utils.import("resource://gre/modules/AddonUpdateChecker.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
-const RELATIVE_DIR = "browser/mobile/chrome/tests/";
+const RELATIVE_DIR = "browser/mobile/chrome/";
 const TESTROOT     = "http://example.com/" + RELATIVE_DIR;
 const TESTROOT2    = "http://example.org/" + RELATIVE_DIR;
 const PREF_LOGGING_ENABLED            = "extensions.logging.enabled";
@@ -104,13 +104,12 @@ function run_next_test() {
   if (gTestsRun > 0)
     info("Test " + gTestsRun + " took " + (Date.now() - gTestStart) + "ms");
 
-   if (!gPendingTests.length) {
+  if (gPendingTests.length == 0) {
     finish();
-    return;
   }
 
   gTestsRun++;
-  let test = gPendingTests.shift();
+  var test = gPendingTests.shift();
   if (test.name)
     info("Running test " + gTestsRun + " (" + test.name + ")");
   else
@@ -130,7 +129,7 @@ function installExtension(elt, aListener) {
   elt.parentNode.ensureElementIsVisible(elt);
   elt.install.addListener(aListener)
 
-  let button = document.getAnonymousElementByAttribute(elt, "class", "addon-install hide-on-install hide-on-restart");
+  var button = document.getAnonymousElementByAttribute(elt, "class", "addon-install hide-on-install hide-on-restart");
   ok(!!button, "Extension has install button");
   ExtensionsView.installFromRepo(elt);
 }
@@ -285,7 +284,7 @@ function open_manager(aView, aCallback) {
 }
 
 function close_manager(aCallback) {
-  let prefsButton = document.getElementById("tool-preferences");
+  var prefsButton = document.getElementById("tool-preferences");
   prefsButton.click();
 
   ExtensionsView.clearSection();
@@ -361,47 +360,53 @@ function testPrompt(aTitle, aMessage, aButtons, aCallback) {
 // Installs an addon via the urlbar.
 function installFromURLBar(aAddon) {
   return function() {
-    AddonManager.addInstallListener({
-      onInstallEnded: function (install) {
-        AddonManager.removeInstallListener(this);
-        checkInstallNotification(!aAddon.bootstrapped, function() {
-          open_manager(true, function() {
-            isRestartShown(!aAddon.bootstrapped, false, function() {
-              let elt = get_addon_element(aAddon.id);
-              if (aAddon.bootstrapped) {
-                checkAddonListing(aAddon, elt, "local");
-                let button = document.getAnonymousElementByAttribute(elt, "anonid", "uninstall-button");
-                ok(!!button, "Extension has uninstall button");
-
-                let updateButton = document.getElementById("addons-update-all");
-                is(updateButton.disabled, false, "Update button is enabled");
-
-                ExtensionsView.uninstall(elt);
-
-                elt = get_addon_element(aAddon.id);
-                ok(!elt, "Addon element removed during uninstall");
-                Browser.closeTab(gCurrentTab);
-                close_manager(run_next_test);
-              } else {
-                ok(!elt, "Extension not in list");
-                AddonManager.getAllInstalls(function(aInstalls) {
-                  for(let i = 0; i < aInstalls.length; i++) {
-                    aInstalls[i].cancel();
-                  }
-                  Browser.closeTab(gCurrentTab);
-                  close_manager(run_next_test);
-                });
-              }
-            });
-          });
-        });
-      }
-    });
     loadUrl(gTestURL, function() {
       loadUrl(aAddon.sourceURL, null, false);
+      let elt = get_addon_element(aAddon.id);
+      ok(!elt, "Addon element is not present before installation");
+      if (elt)
+        info("unexpectedly found element in: " + elt.parentNode.id);
       checkInstallAlert(true, function() {
         checkDownloadNotification(function() {
-          checkInstallPopup(aAddon.name, function() { });
+          checkInstallPopup(aAddon.name, function() {
+            checkInstallNotification(!aAddon.bootstrapped, function() {
+              open_manager(true, function() {
+                isRestartShown(!aAddon.bootstrapped, false, function() {
+                  let elt = get_addon_element(aAddon.id);
+                  info("elt.id is " + aAddon.id);
+                  if (aAddon.bootstrapped) {
+                    checkAddonListing(aAddon, elt, "local");
+                    var button = document.getAnonymousElementByAttribute(elt, "anonid", "uninstall-button");
+                    ok(!!button, "Extension has uninstall button");
+
+                    var updateButton = document.getElementById("addons-update-all");
+                    is(updateButton.disabled, false, "Update button is enabled");
+
+                    ExtensionsView.uninstall(elt);
+                    waitForAndContinue(function() {
+                      let elt = get_addon_element(aAddon.id);
+                      ok(!elt, "Addon element removed during uninstall");
+                      Browser.closeTab(gCurrentTab);
+                      close_manager(run_next_test);
+                    }, function() {
+                      let elt = get_addon_element(aAddon.id);
+                      info("Looking for element with id " + aAddon.id + ": " + elt);
+                      return !elt;
+                    });
+                  } else {
+                    ok(!elt, "Extension not in list");
+                    AddonManager.getAllInstalls(function(aInstalls) {
+                      for(var i = 0; i < aInstalls.length; i++) {
+                        aInstalls[i].cancel();
+                      }
+                      Browser.closeTab(gCurrentTab);
+                      close_manager(run_next_test);
+                    });
+                  }
+                });
+              });
+            });
+          });
         });
       });
     }, true);
@@ -414,7 +419,7 @@ function installFromURLBar(aAddon) {
 function installFromAddonsPage(aAddon, aDoUpdate) {
   return function() {
     open_manager(null, function() {
-      let elt = get_addon_element(aAddon.id);
+      var elt = get_addon_element(aAddon.id);
       checkAddonListing(aAddon, elt);
       installExtension(elt, new installListener({
         addon: aAddon,

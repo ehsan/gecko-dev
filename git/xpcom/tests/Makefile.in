@@ -45,7 +45,11 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= xpcom
 
-DIRS		= external component bug656331_component
+ifndef MOZ_ENABLE_LIBXUL
+MOZILLA_INTERNAL_API = 1
+endif
+
+DIRS		= external component
 
 ifeq ($(OS_ARCH),WINNT)
 DIRS		+= windows
@@ -72,10 +76,6 @@ CPPSRCS = \
   $(STDCPPFLAGS) \
   $(NULL)
 
-ifeq ($(OS_TARGET),WINNT)
-CPPSRCS += TestBase64.cpp
-endif
-
 ifdef WRAP_STL_INCLUDES
 CPPSRCS += TestSTLWrappers.cpp
 endif
@@ -100,34 +100,35 @@ CPP_UNIT_TESTS = \
                  TestCheckedInt.cpp \
                  $(NULL)
 
-# XXX Make this tests work in libxul builds.
-#CPP_UNIT_TESTS += \
-#                  TestArray.cpp \
-#                  TestCRT.cpp \
-#                  TestDeque.cpp \
-#                  TestEncoding.cpp \
-#                  TestExpirationTracker.cpp \
-#                  TestPipes.cpp \
-#                  TestPriorityQueue.cpp \
-#                  TestProxies.cpp \
-#                  TestStorageStream.cpp \
-#                  TestStrings.cpp \
-#                  TestSynchronization.cpp \
-#                  TestTArray.cpp \
-#                  TestThreadPool.cpp \
-#                  TestThreads.cpp \
-#                  TestTimeStamp.cpp \
-#                  TestXPIDLString.cpp \
-#                  TestUTF.cpp \
-#                  TestAtoms.cpp \
-#                  $(NULL)
-## FIXME: bug 577500 TestStaticAtoms fails when run in dist/bin
-## TestStaticAtoms.cpp
+ifndef MOZ_ENABLE_LIBXUL
+CPP_UNIT_TESTS += \
+                  TestArray.cpp \
+                  TestCRT.cpp \
+                  TestDeque.cpp \
+                  TestEncoding.cpp \
+                  TestExpirationTracker.cpp \
+                  TestPipes.cpp \
+                  TestPriorityQueue.cpp \
+                  TestProxies.cpp \
+                  TestStorageStream.cpp \
+                  TestStrings.cpp \
+                  TestSynchronization.cpp \
+                  TestTArray.cpp \
+                  TestThreadPool.cpp \
+                  TestThreads.cpp \
+                  TestTimeStamp.cpp \
+                  TestXPIDLString.cpp \
+                  TestUTF.cpp \
+                  TestAtoms.cpp \
+                  $(NULL)
+# FIXME: bug 577500 TestStaticAtoms fails when run in dist/bin
+# TestStaticAtoms.cpp
+endif
 
 ifdef MOZ_DEBUG
 # FIXME bug 523392: TestDeadlockDetector doesn't like Windows
 # FIXME bug 523378: also fails on OS X
-ifneq (,$(filter-out WINNT Darwin,$(OS_ARCH)))
+ifneq (,$(filter-out WINNT WINCE Darwin,$(OS_ARCH)))
 CPP_UNIT_TESTS += \
                   TestDeadlockDetector.cpp \
                   TestDeadlockDetectorScalability.cpp \
@@ -157,6 +158,10 @@ MOZ_DEBUG_SYMBOLS = 1
 
 include $(topsrcdir)/config/rules.mk
 
+ifeq ($(OS_ARCH),WINCE)
+EXTRA_LIBS += libcmt.lib
+endif
+
 LOCAL_INCLUDES	= \
                 -I$(srcdir)/../ds \
 		-I$(srcdir)/services \
@@ -177,7 +182,7 @@ export::
 install::
 	$(SYSINSTALL) $(IFLAGS1) $(srcdir)/test.properties $(DESTDIR)$(mozappdir)/res
 
-ifeq (,$(filter-out WINNT os2-emx, $(HOST_OS_ARCH)))
+ifeq (,$(filter-out WINNT WINCE os2-emx, $(HOST_OS_ARCH)))
 swapslashes = $(shell echo $(1) | sed -e 's|/|\\|g')
 getnativepath = $(call swapslashes,$(call normalizepath,$(1)))
 else
@@ -186,11 +191,19 @@ endif
 
 abs_srcdir = $(shell cd $(srcdir) && pwd)
 
+ifdef WINCE
+DM_RM = $(PYTHON) $(topsrcdir)/build/mobile/devicemanager-utils.py delete
+DM_CP = $(PYTHON) $(topsrcdir)/build/mobile/devicemanager-utils.py copy
+
+RM_DIST = $(DM_RM)
+regOrderDir=\\tests\\regorder; # This is WinCe specific, adjust for other platforms
+DOCOPY=$(DM_CP)  $(srcdir)/regorder $(regOrderDir)
+else
 DIST_PATH = $(DIST)/bin/
 RM_DIST = rm -f
 regOrderDir="$(call getnativepath,$(abs_srcdir)/regorder)";
 DOCOPY=
-
+endif
 check::
 	@echo "Running XPIDL tests"
 	$(XPIDL_COMPILE) -m header $(srcdir)/TestScriptable.idl

@@ -11,14 +11,6 @@ function test() {
   // This test is async
   waitForExplicitFinish();
 
-  // Ensure the form helper is initialized
-  try {
-    FormHelperUI.enabled;
-  }
-  catch(e) {
-    FormHelperUI.init();
-  }
-
   // Need to wait until the page is loaded
   messageManager.addMessageListener("pageshow", function(aMessage) {
     if (newTab && newTab.browser.currentURI.spec != "about:blank") {
@@ -30,7 +22,6 @@ function test() {
 
   newTab = Browser.addTab(testURL, true);
 }
-
 
 //------------------------------------------------------------------------------
 // Iterating tests by shifting test out one by one as runNextTest is called.
@@ -45,9 +36,6 @@ function runNextTest() {
     // Cleanup. All tests are completed at this point
     try {
       // Add any cleanup code here
-
-      // Close our tab when finished
-      Browser.closeTab(newTab);
     }
     finally {
       // We must finialize the tests
@@ -57,12 +45,12 @@ function runNextTest() {
 }
 
 function waitForAutocomplete(aCallback) {
-  window.addEventListener("contentpopupshown", function(aEvent) {
-    window.removeEventListener(aEvent.type, arguments.callee, false);
+  messageManager.addMessageListener("FormAssist:AutoComplete", function(aMessage) {
+    messageManager.removeMessageListener(aMessage.name, arguments.callee);
     setTimeout(function() {
-      aCallback(FormHelperUI._currentElement.list);
+      aCallback(aMessage.json.current.list);
     }, 0);
-  }, false);
+  });
 };
 
 let data = [
@@ -142,43 +130,11 @@ gTests.push({
     // Close the form assistant
     FormHelperUI.hide();
 
+    // Close our tab when finished
+    Browser.closeTab(newTab);
 
-    AsyncTests.waitFor("TestRemoteAutocomplete:Reset", { id: "input-datalist-1" }, function(json) {
-      runNextTest();
-    });
-  }
-});
-
-//------------------------------------------------------------------------------
-// Case: Check arrows visibility
-gTests.push({
-  desc: "Check arrows visibility",
-
-  run: function() {
-    let popup = document.getElementById("form-helper-suggestions-container");
-    popup.addEventListener("contentpopupshown", function(aEvent) {
-      aEvent.target.removeEventListener(aEvent.type, arguments.callee, false);
-      waitFor(gCurrentTest.checkNoArrows, function() {
-        return FormHelperUI._open;
-      });
-    }, false);
-
-    AsyncTests.waitFor("TestRemoteAutocomplete:Click",
-                        { id: "input-datalist-3" }, function(json) {});
-  },
-
-  checkNoArrows: function() {
-    let scrollbox = document.getElementById("form-helper-suggestions");
-    todo_is(scrollbox._scrollButtonUp.collapsed, true, "Left button should be collapsed");
-    todo_is(scrollbox._scrollButtonDown.collapsed, true, "Right button should be collapsed");
-    gCurrentTest.finish();
-  },
-
-  finish: function() {
-    // Close the form assistant
-    FormHelperUI.hide();
-
-    runNextTest();
+    // We must finalize the tests
+    finish();
   }
 });
 

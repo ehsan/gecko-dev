@@ -52,7 +52,9 @@
 #include "nsBoxLayoutState.h"
 #include "nsQueryFrame.h"
 #include "nsCOMArray.h"
+#ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
+#endif
 #include "nsExpirationTracker.h"
 
 class nsPresContext;
@@ -79,8 +81,7 @@ public:
   // We need this if a scrollbar frame is recreated.
   void ReloadChildFrames();
 
-  nsresult CreateAnonymousContent(
-    nsTArray<nsIAnonymousContentCreator::ContentInfo>& aElements);
+  nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
   void AppendAnonymousContentTo(nsBaseContentList& aElements, PRUint32 aFilter);
   nsresult FireScrollPortEvent();
   void PostOverflowEvent();
@@ -423,7 +424,7 @@ public:
   }
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
+  virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         PRUint32 aFilter);
 
@@ -623,7 +624,7 @@ public:
   }
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
+  virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         PRUint32 aFilter);
 

@@ -42,9 +42,8 @@
 #define _nsPluginNativeWindow_h_
 
 #include "nscore.h"
-#include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "nsNPAPIPluginInstance.h"
+#include "nsIPluginInstance.h"
 #include "npapi.h"
 #include "nsIWidget.h"
 #include "nsTraceRefcnt.h"
@@ -74,11 +73,11 @@ public:
    */
 
 public:
-  nsresult GetPluginInstance(nsRefPtr<nsNPAPIPluginInstance> &aPluginInstance) { 
+  nsresult GetPluginInstance(nsCOMPtr<nsIPluginInstance> &aPluginInstance) { 
     aPluginInstance = mPluginInstance;
     return NS_OK;
   }
-  nsresult SetPluginInstance(nsNPAPIPluginInstance *aPluginInstance) { 
+  nsresult SetPluginInstance(nsIPluginInstance *aPluginInstance) { 
     if (mPluginInstance != aPluginInstance)
       mPluginInstance = aPluginInstance;
     return NS_OK;
@@ -94,7 +93,7 @@ public:
   }
 
 public:
-  virtual nsresult CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> &aPluginInstance) {
+  virtual nsresult CallSetWindow(nsCOMPtr<nsIPluginInstance> &aPluginInstance) {
     // null aPluginInstance means that we want to call SetWindow(null)
     if (aPluginInstance)
       aPluginInstance->SetWindow(this);
@@ -104,10 +103,19 @@ public:
     SetPluginInstance(aPluginInstance);
     return NS_OK;
   }
+#if (MOZ_PLATFORM_MAEMO == 5) && defined(MOZ_WIDGET_GTK2)
+#define MOZ_COMPOSITED_PLUGINS
+#endif
+#ifdef MOZ_COMPOSITED_PLUGINS
+  /* XXX: we use this to leak the socket widget out from nsPlugNativeWindowGtk2
+     so that Renderer::NativeDraw() in nsObjectFrame.cpp can draw the widget.
+     I don't currently know a better way to do this... */
+  void *mPlugWindow;
+#endif
 
 protected:
-  nsRefPtr<nsNPAPIPluginInstance> mPluginInstance;
-  nsCOMPtr<nsIWidget> mWidget;
+  nsCOMPtr<nsIPluginInstance> mPluginInstance;
+  nsCOMPtr<nsIWidget>         mWidget;
 };
 
 nsresult PLUG_NewPluginNativeWindow(nsPluginNativeWindow ** aPluginNativeWindow);

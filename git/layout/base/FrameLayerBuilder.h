@@ -224,9 +224,7 @@ public:
   /**
    * Record aItem as a display item that is rendered by aLayer.
    */
-  void AddLayerDisplayItem(Layer* aLayer,
-                           nsDisplayItem* aItem,
-                           LayerState aLayerState);
+  void AddLayerDisplayItem(Layer* aLayer, nsDisplayItem* aItem);
 
   /**
    * Record aItem as a display item that is rendered by the ThebesLayer
@@ -297,18 +295,6 @@ public:
    * into a retained layer.
    */
   static PRBool HasRetainedLayerFor(nsIFrame* aFrame, PRUint32 aDisplayItemKey);
-
-  /**
-   * Save transform that was in aLayer when we last painted. It must be an integer
-   * translation.
-   */
-  void SaveLastPaintOffset(ThebesLayer* aLayer);
-  /**
-   * Get the translation transform that was in aLayer when we last painted. It's either
-   * the transform saved by SaveLastPaintTransform, or else the transform
-   * that's currently in the layer (which must be an integer translation).
-   */
-  nsIntPoint GetLastPaintOffset(ThebesLayer* aLayer);
 
   /**
    * Clip represents the intersection of an optional rectangle with a
@@ -384,12 +370,11 @@ protected:
    */
   class DisplayItemData {
   public:
-    DisplayItemData(Layer* aLayer, PRUint32 aKey, LayerState aLayerState)
-      : mLayer(aLayer), mDisplayItemKey(aKey), mLayerState(aLayerState) {}
+    DisplayItemData(Layer* aLayer, PRUint32 aKey)
+      : mLayer(aLayer), mDisplayItemKey(aKey) {}
 
     nsRefPtr<Layer> mLayer;
     PRUint32        mDisplayItemKey;
-    LayerState    mLayerState;
   };
 
   static void InternalDestroyDisplayItemData(nsIFrame* aFrame,
@@ -419,7 +404,7 @@ protected:
       NS_ERROR("Should never be called, since we ALLOW_MEMMOVE");
     }
 
-    PRBool HasNonEmptyContainerLayer();
+    PRBool HasContainerLayer();
 
     nsTArray<DisplayItemData> mData;
 
@@ -453,9 +438,7 @@ protected:
    */
   class ThebesLayerItemsEntry : public nsPtrHashKey<ThebesLayer> {
   public:
-    ThebesLayerItemsEntry(const ThebesLayer *key) :
-        nsPtrHashKey<ThebesLayer>(key), mContainerLayerFrame(nsnull),
-        mHasExplicitLastPaintOffset(PR_FALSE) {}
+    ThebesLayerItemsEntry(const ThebesLayer *key) : nsPtrHashKey<ThebesLayer>(key) {}
     ThebesLayerItemsEntry(const ThebesLayerItemsEntry &toCopy) :
       nsPtrHashKey<ThebesLayer>(toCopy.mKey), mItems(toCopy.mItems)
     {
@@ -464,10 +447,6 @@ protected:
 
     nsTArray<ClippedDisplayItem> mItems;
     nsIFrame* mContainerLayerFrame;
-    // The translation set on this ThebesLayer before we started updating the
-    // layer tree.
-    nsIntPoint mLastPaintOffset;
-    PRPackedBool mHasExplicitLastPaintOffset;
 
     enum { ALLOW_MEMMOVE = PR_TRUE };
   };

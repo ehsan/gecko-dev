@@ -185,37 +185,22 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
         return false;
 
     mPluginFilename = aPluginFilename.c_str();
-    nsCOMPtr<nsILocalFile> localFile;
+    nsCOMPtr<nsILocalFile> pluginFile;
     NS_NewLocalFile(NS_ConvertUTF8toUTF16(mPluginFilename),
                     PR_TRUE,
-                    getter_AddRefs(localFile));
+                    getter_AddRefs(pluginFile));
 
     PRBool exists;
-    localFile->Exists(&exists);
+    pluginFile->Exists(&exists);
     NS_ASSERTION(exists, "plugin file ain't there");
 
-    nsPluginFile pluginFile(localFile);
+    nsCOMPtr<nsIFile> pluginIfile;
+    pluginIfile = do_QueryInterface(pluginFile);
 
-    nsresult rv;
-    // Maemo flash can render with any provided rectangle and so does not
-    // require this quirk.
-#if defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)
-    nsPluginInfo info = nsPluginInfo();
-    rv = pluginFile.GetPluginInfo(info, &mLibrary);
-    if (NS_FAILED(rv))
-        return false;
+    nsPluginFile lib(pluginIfile);
 
-    NS_NAMED_LITERAL_CSTRING(flash10Head, "Shockwave Flash 10.");
-    if (StringBeginsWith(nsDependentCString(info.fDescription), flash10Head)) {
-        AddQuirk(QUIRK_FLASH_EXPOSE_COORD_TRANSLATION);
-    }
-
-    if (!mLibrary)
-#endif
-    {
-        rv = pluginFile.LoadPlugin(&mLibrary);
-        NS_ASSERTION(NS_OK == rv, "trouble with mPluginFile");
-    }
+    nsresult rv = lib.LoadPlugin(&mLibrary);
+    NS_ASSERTION(NS_OK == rv, "trouble with mPluginFile");
     NS_ASSERTION(mLibrary, "couldn't open shared object");
 
     if (!Open(aChannel, aParentProcessHandle, aIOLoop))
@@ -1853,7 +1838,7 @@ PluginModuleChild::AllocPPluginInstance(const nsCString& aMimeType,
 #ifdef XP_WIN
     if (mQuirks & QUIRK_FLASH_HOOK_GETWINDOWINFO) {
         sUser32Intercept.Init("user32.dll");
-        sUser32Intercept.AddHook("GetWindowInfo", reinterpret_cast<intptr_t>(PMCGetWindowInfoHook),
+        sUser32Intercept.AddHook("GetWindowInfo", PMCGetWindowInfoHook,
                                  (void**) &sGetWindowInfoPtrStub);
     }
 #endif
@@ -2294,20 +2279,6 @@ PluginModuleChild::ResetEventHooks()
     mGlobalCallWndProcHook = NULL;
 }
 #endif
-
-bool
-PluginModuleChild::RecvProcessNativeEventsInRPCCall()
-{
-    PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
-#if defined(OS_WIN)
-    ProcessNativeEventsInRPCCall();
-    return true;
-#else
-    NS_RUNTIMEABORT(
-        "PluginModuleChild::RecvProcessNativeEventsInRPCCall not implemented!");
-    return false;
-#endif
-}
 
 #ifdef OS_MACOSX
 void

@@ -87,7 +87,6 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 
 #include "nsContentUtils.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Preferences.h"
 
 //included for desired x position;
 #include "nsPresContext.h"
@@ -113,8 +112,6 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 #endif // IBMBIDI
 
 #include "nsDOMError.h"
-
-using namespace mozilla;
 
 //#define DEBUG_TABLE 1
 
@@ -506,6 +503,16 @@ private:
 
 NS_IMPL_ISUPPORTS1(nsAutoScrollTimer, nsITimerCallback)
 
+nsresult NS_NewSelection(nsFrameSelection **aFrameSelection)
+{
+  nsFrameSelection *rlist = new nsFrameSelection;
+  if (!rlist)
+    return NS_ERROR_OUT_OF_MEMORY;
+  *aFrameSelection = rlist;
+  NS_ADDREF(rlist);
+  return NS_OK;
+}
+
 nsresult NS_NewDomSelection(nsISelection **aDomSelection)
 {
   nsTypedSelection *rlist = new nsTypedSelection;
@@ -529,7 +536,6 @@ GetIndexFromSelectionType(SelectionType aType)
     case nsISelectionController::SELECTION_IME_SELECTEDCONVERTEDTEXT: return 5; break;
     case nsISelectionController::SELECTION_ACCESSIBILITY: return 6; break;
     case nsISelectionController::SELECTION_FIND: return 7; break;
-    case nsISelectionController::SELECTION_URLSECONDARY: return 8; break;
     default:
       return -1; break;
     }
@@ -550,7 +556,6 @@ GetSelectionTypeFromIndex(PRInt8 aIndex)
     case 5: return nsISelectionController::SELECTION_IME_SELECTEDCONVERTEDTEXT; break;
     case 6: return nsISelectionController::SELECTION_ACCESSIBILITY; break;
     case 7: return nsISelectionController::SELECTION_FIND; break;
-    case 8: return nsISelectionController::SELECTION_URLSECONDARY; break;
     default:
       return nsISelectionController::SELECTION_NORMAL; break;
   }
@@ -733,7 +738,7 @@ nsFrameSelection::nsFrameSelection()
 
   // Check to see if the autocopy pref is enabled
   //   and add the autocopy listener if it is
-  if (Preferences::GetBool("clipboard.autocopy")) {
+  if (nsContentUtils::GetBoolPref("clipboard.autocopy")) {
     nsAutoCopyListener *autoCopy = nsAutoCopyListener::GetInstance();
 
     if (autoCopy) {
@@ -786,6 +791,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsFrameSelection)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsFrameSelection)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFrameSelection)
+  NS_INTERFACE_MAP_ENTRY(nsFrameSelection)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -1084,8 +1090,7 @@ nsFrameSelection::Init(nsIPresShell *aShell, nsIContent *aLimiter)
   mMouseDownState = PR_FALSE;
   mDesiredXSet = PR_FALSE;
   mLimiter = aLimiter;
-  mCaretMovementStyle =
-    Preferences::GetInt("bidi.edit.caret_movement_style", 2);
+  mCaretMovementStyle = nsContentUtils::GetIntPref("bidi.edit.caret_movement_style", 2);
 }
 
 nsresult
@@ -1144,8 +1149,7 @@ nsFrameSelection::MoveCaret(PRUint32          aKeycode,
     SetDesiredX(desiredX);
   }
 
-  PRInt32 caretStyle =
-    Preferences::GetInt("layout.selection.caret_style", 0);
+  PRInt32 caretStyle = nsContentUtils::GetIntPref("layout.selection.caret_style", 0);
 #ifdef XP_MACOSX
   if (caretStyle == 0) {
     caretStyle = 2; // put caret at the selection edge in the |aKeycode| direction

@@ -51,9 +51,7 @@ class nsIXPConnectJSObjectHolder;
 class nsAutoPoolRelease;
 namespace js {
 class AutoArrayRooter;
-}
-namespace mozilla {
-template <class> class Maybe;
+template <class> class LazilyConstructed;
 }
 
 class nsJSContext : public nsIScriptContext,
@@ -207,8 +205,8 @@ protected:
                                    void *aScope,
                                    PRUint32 *aArgc,
                                    jsval **aArgv,
-                                   mozilla::Maybe<nsAutoPoolRelease> &aPoolRelease,
-                                   mozilla::Maybe<js::AutoArrayRooter> &aRooter);
+                                   js::LazilyConstructed<nsAutoPoolRelease> &aPoolRelease,
+                                   js::LazilyConstructed<js::AutoArrayRooter> &aRooter);
 
   nsresult AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv);
 
@@ -298,7 +296,7 @@ private:
 
   // mGlobalObjectRef ensures that the outer window stays alive as long as the
   // context does. It is eventually collected by the cycle collector.
-  nsCOMPtr<nsIScriptGlobalObject> mGlobalObjectRef;
+  nsCOMPtr<nsISupports> mGlobalObjectRef;
 
   static int JSOptionChangedCallback(const char *pref, void *data);
 

@@ -348,7 +348,7 @@ public:
     NS_ABORT_IF_FALSE(mUnit == eCSSUnit_URL || mUnit == eCSSUnit_Image,
                  "not a URL value");
     return mUnit == eCSSUnit_URL ?
-      mValue.mURL->GetURI() : mValue.mImage->GetURI();
+      mValue.mURL->mURI : mValue.mImage->mURI;
   }
 
   nsCSSValueGradient* GetGradientValue() const
@@ -450,13 +450,8 @@ public:
     // caps, which leads to REQUIRES hell, since this header is included all
     // over.
 
-    // For both constructors aString must not be null.
-    // For both constructors aOriginPrincipal must not be null.
-    // Construct with a base URI; this will create the actual URI lazily from
-    // aString and aBaseURI.
-    URL(nsStringBuffer* aString, nsIURI* aBaseURI, nsIURI* aReferrer,
-        nsIPrincipal* aOriginPrincipal);
-    // Construct with the actual URI.
+    // aString must not be null.
+    // aOriginPrincipal must not be null.
     URL(nsIURI* aURI, nsStringBuffer* aString, nsIURI* aReferrer,
         nsIPrincipal* aOriginPrincipal);
 
@@ -470,14 +465,7 @@ public:
     // unless you're sure this is the case.
     PRBool URIEquals(const URL& aOther) const;
 
-    nsIURI* GetURI() const;
-
-  private:
-    // If mURIResolved is false, mURI stores the base URI.
-    // If mURIResolved is true, mURI stores the URI we resolve to; this may be
-    // null if the URI is invalid.
-    mutable nsCOMPtr<nsIURI> mURI;
-  public:
+    nsCOMPtr<nsIURI> mURI; // null == invalid URL
     nsStringBuffer* mString; // Could use nsRefPtr, but it'd add useless
                              // null-checks; this is never null.
     nsCOMPtr<nsIURI> mReferrer;
@@ -485,8 +473,7 @@ public:
 
     NS_INLINE_DECL_REFCOUNTING(nsCSSValue::URL)
 
-  private:
-    mutable PRBool mURIResolved;
+  protected:
 
     // not to be implemented
     URL(const URL& aOther);

@@ -49,12 +49,7 @@
 class nsHttpHeaderArray
 {
 public:
-    enum nsHttpHeaderType {
-        HTTP_REQUEST_HEADERS,
-        HTTP_RESPONSE_HEADERS
-    };
-
-    nsHttpHeaderArray(nsHttpHeaderType headerType) : mType(headerType) {}
+    nsHttpHeaderArray() {}
    ~nsHttpHeaderArray() { Clear(); }
 
     const char *PeekHeader(nsHttpAtom header);
@@ -78,9 +73,9 @@ public:
 
     // parse a header line, return the header atom and a pointer to the 
     // header value (the substring of the header line -- do not free).
-    nsresult ParseHeaderLine(const char *line,
-                             nsHttpAtom *header=nsnull,
-                             char **value=nsnull);
+    void ParseHeaderLine(const char *line,
+                         nsHttpAtom *header=nsnull,
+                         char **value=nsnull);
 
     void Flatten(nsACString &, PRBool pruneProxyHeaders=PR_FALSE);
 
@@ -109,10 +104,8 @@ public:
 private:
     PRInt32 LookupEntry(nsHttpAtom header, nsEntry **);
     PRBool  CanAppendToHeader(nsHttpAtom header);
-    PRBool  CanOverwriteHeader(nsHttpAtom header);
 
     nsTArray<nsEntry> mHeaders;
-    nsHttpHeaderType  mType;
 };
 
 #endif

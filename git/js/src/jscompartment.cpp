@@ -48,7 +48,6 @@
 #include "jstracer.h"
 #include "jswrapper.h"
 #include "assembler/wtf/Platform.h"
-#include "yarr/BumpPointerAllocator.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/PolyIC.h"
 #include "methodjit/MonoIC.h"
@@ -75,9 +74,6 @@ JSCompartment::JSCompartment(JSRuntime *rt)
 #ifdef JS_METHODJIT
     jaegerCompartment(NULL),
 #endif
-#if ENABLE_YARR_JIT
-    regExpAllocator(NULL),
-#endif
     propertyTree(thisForCtor()),
     emptyArgumentsShape(NULL),
     emptyBlockShape(NULL),
@@ -88,9 +84,17 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     initialRegExpShape(NULL),
     initialStringShape(NULL),
     debugMode(rt->debugMode),
+#if ENABLE_YARR_JIT
+    regExpAllocator(NULL),
+#endif
     mathCache(NULL)
 {
     JS_INIT_CLIST(&scripts);
+
+#ifdef JS_TRACER
+    /* InitJIT expects this area to be zero'd. */
+    PodZero(&traceMonitor);
+#endif
 
     PodArrayZero(scriptsToGC);
 }
@@ -99,6 +103,10 @@ JSCompartment::~JSCompartment()
 {
 #if ENABLE_YARR_JIT
     Foreground::delete_(regExpAllocator);
+#endif
+
+#if defined JS_TRACER
+    FinishJIT(&traceMonitor);
 #endif
 
 #ifdef JS_METHODJIT
@@ -119,7 +127,11 @@ JSCompartment::init()
     chunk = NULL;
     for (unsigned i = 0; i < FINALIZE_LIMIT; i++)
         arenas[i].init();
-    freeLists.init();
+    for (unsigned i = 0; i < FINALIZE_LIMIT; i++)
+        freeLists.finalizables[i] = NULL;
+#ifdef JS_GCMETER
+    memset(&compartmentStats, 0, sizeof(JSGCArenaStats) * FINALIZE_LIMIT);
+#endif
     if (!crossCompartmentWrappers.init())
         return false;
 
@@ -131,39 +143,33 @@ JSCompartment::init()
 #endif
 
 #ifdef JS_TRACER
-    if (!traceMonitor.init(rt))
+    if (!InitJIT(&traceMonitor, rt))
         return false;
 #endif
 
-    regExpAllocator = rt->new_<WTF::BumpPointerAllocator>();
+#if ENABLE_YARR_JIT
+    regExpAllocator = rt->new_<JSC::ExecutableAllocator>();
     if (!regExpAllocator)
         return false;
+#endif
 
     if (!backEdgeTable.init())
         return false;
 
 #ifdef JS_METHODJIT
-    jaegerCompartment = rt->new_<mjit::JaegerCompartment>();
-    if (!jaegerCompartment || !jaegerCompartment->Initialize())
+    if (!(jaegerCompartment = rt->new_<mjit::JaegerCompartment>()))
         return false;
-#endif
-        
+    return jaegerCompartment->Initialize();
+#else
     return true;
-}
-
-#ifdef JS_METHODJIT
-size_t
-JSCompartment::getMjitCodeSize() const
-{
-    return jaegerCompartment->execAlloc()->getCodeSize();
-}
 #endif
+}
 
 bool
 JSCompartment::arenaListsAreEmpty()
 {
   for (unsigned i = 0; i < FINALIZE_LIMIT; i++) {
-       if (!arenas[i].isEmpty())
+       if (!arenas[i].isEmpty() || arenas[i].hasToBeFinalized)
            return false;
   }
   return true;
@@ -216,7 +222,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
      * This loses us some transparency, and is generally very cheesy.
      */
     JSObject *global;
-    if (cx->running()) {
+    if (cx->hasfp()) {
         global = cx->fp()->scopeChain().getGlobal();
     } else {
         global = cx->globalObject;

@@ -49,6 +49,7 @@
 #include "nsIComponentManager.h"
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginStreamListener.h"
+#include "nsIPlugin.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsIPluginStreamListener.h"
 #include "nsIHTTPHeaderListener.h"
@@ -625,13 +626,13 @@ nsresult nsPluginHost::GetPrompt(nsIPluginInstanceOwner *aOwner, nsIPrompt **aPr
   return rv;
 }
 
-nsresult nsPluginHost::GetURL(nsISupports* pluginInst,
-                              const char* url,
-                              const char* target,
-                              nsIPluginStreamListener* streamListener,
-                              const char* altHost,
-                              const char* referrer,
-                              PRBool forceJSEnabled)
+NS_IMETHODIMP nsPluginHost::GetURL(nsISupports* pluginInst,
+                                   const char* url,
+                                   const char* target,
+                                   nsIPluginStreamListener* streamListener,
+                                   const char* altHost,
+                                   const char* referrer,
+                                   PRBool forceJSEnabled)
 {
   return GetURLWithHeaders(static_cast<nsNPAPIPluginInstance*>(pluginInst),
                            url, target, streamListener, altHost, referrer,
@@ -681,7 +682,7 @@ nsresult nsPluginHost::GetURLWithHeaders(nsNPAPIPluginInstance* pluginInst,
   return rv;
 }
 
-nsresult nsPluginHost::PostURL(nsISupports* pluginInst,
+NS_IMETHODIMP nsPluginHost::PostURL(nsISupports* pluginInst,
                                     const char* url,
                                     PRUint32 postDataLen,
                                     const char* postData,
@@ -785,7 +786,7 @@ nsresult nsPluginHost::PostURL(nsISupports* pluginInst,
  * with the exception that multiple values are not implemented.
  */
 
-nsresult nsPluginHost::FindProxyForURL(const char* url, char* *result)
+NS_IMETHODIMP nsPluginHost::FindProxyForURL(const char* url, char* *result)
 {
   if (!url || !result) {
     return NS_ERROR_INVALID_ARG;
@@ -849,12 +850,12 @@ nsresult nsPluginHost::FindProxyForURL(const char* url, char* *result)
   return res;
 }
 
-nsresult nsPluginHost::Init()
+NS_IMETHODIMP nsPluginHost::Init()
 {
   return NS_OK;
 }
 
-nsresult nsPluginHost::Destroy()
+NS_IMETHODIMP nsPluginHost::Destroy()
 {
   PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsPluginHost::Destroy Called\n"));
 
@@ -933,9 +934,9 @@ nsPluginHost::GetPluginTempDir(nsIFile **aDir)
   return sPluginTempDir->Clone(aDir);
 }
 
-nsresult nsPluginHost::InstantiatePluginForChannel(nsIChannel* aChannel,
-                                                   nsIPluginInstanceOwner* aOwner,
-                                                   nsIStreamListener** aListener)
+NS_IMETHODIMP nsPluginHost::InstantiatePluginForChannel(nsIChannel* aChannel,
+                                                        nsIPluginInstanceOwner* aOwner,
+                                                        nsIStreamListener** aListener)
 {
   NS_PRECONDITION(aChannel && aOwner,
                   "Invalid arguments to InstantiatePluginForChannel");
@@ -966,7 +967,8 @@ nsresult nsPluginHost::InstantiatePluginForChannel(nsIChannel* aChannel,
 
 nsresult
 nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
-                                        nsIPluginInstanceOwner* aOwner)
+                                        nsIPluginInstanceOwner* aOwner,
+                                        PRBool aAllowOpeningStreams)
 {
   NS_ENSURE_ARG_POINTER(aOwner);
 
@@ -999,9 +1001,14 @@ nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
     return rv;
   }
 
-  // Security checks. Can't do security checks without a URI - hopefully the plugin
-  // will take care of that.
-  if (aURL) {
+  // Security checks
+  // Can't do security checks without a URI - hopefully the plugin will take
+  // care of that
+  // No need to do the security check if aAllowOpeningStreams is
+  // false; we don't plan to do any network access in that case.
+  // Furthermore, doing it could reenter plugin instantiation, which
+  // would be Bad.
+  if (aURL && aAllowOpeningStreams) {
     nsCOMPtr<nsIScriptSecurityManager> secMan =
                     do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
     if (NS_FAILED(rv))
@@ -1038,14 +1045,14 @@ nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
     isJava = pluginTag->mIsJavaPlugin;
   }
 
-  // Determine if the scheme of this URL is one we can handle internally because we should
+  // Determine if the scheme of this URL is one we can handle internaly because we should
   // only open the initial stream if it's one that we can handle internally. Otherwise
   // |NS_OpenURI| in |InstantiateEmbeddedPlugin| may open up a OS protocal registered helper app
   // Also set bCanHandleInternally to true if aAllowOpeningStreams is
   // false; we don't want to do any network traffic in that case.
   PRBool bCanHandleInternally = PR_FALSE;
   nsCAutoString scheme;
-  if (aURL && NS_SUCCEEDED(aURL->GetScheme(scheme))) {
+  if (aURL && aAllowOpeningStreams && NS_SUCCEEDED(aURL->GetScheme(scheme))) {
       nsCAutoString contractID(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX);
       contractID += scheme;
       ToLowerCase(contractID);
@@ -1058,12 +1065,11 @@ nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
     PLUGIN_LOG(PLUGIN_LOG_NOISY,
     ("nsPluginHost::InstantiateEmbeddedPlugin FoundStopped mime=%s\n", aMimeType));
 
-    if (!isJava && bCanHandleInternally) {
-      nsNPAPIPluginInstance* instance;
-      aOwner->GetInstance(&instance);
-      NewEmbeddedPluginStream(aURL, aOwner, instance);
-      NS_IF_RELEASE(instance);
-    }
+    nsCOMPtr<nsIPluginInstance> instanceCOMPtr;
+    aOwner->GetInstance(getter_AddRefs(instanceCOMPtr));
+    nsNPAPIPluginInstance *instance = static_cast<nsNPAPIPluginInstance*>(instanceCOMPtr.get());
+    if (!isJava && bCanHandleInternally)
+      rv = NewEmbeddedPluginStream(aURL, aOwner, instance);
 
     return NS_OK;
   }
@@ -1078,12 +1084,15 @@ nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
   if (NS_FAILED(rv))
     return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsNPAPIPluginInstance> instance;
-  rv = aOwner->GetInstance(getter_AddRefs(instance));
+  nsCOMPtr<nsIPluginInstance> instanceCOMPtr;
+  rv = aOwner->GetInstance(getter_AddRefs(instanceCOMPtr));
   // if we have a failure error, it means we found a plugin for the mimetype,
   // but we had a problem with the entry point
   if (rv == NS_ERROR_FAILURE)
     return rv;
+
+  // if we are here then we have loaded a plugin for this mimetype
+  nsNPAPIPluginInstance *instance = static_cast<nsNPAPIPluginInstance*>(instanceCOMPtr.get());
 
   if (instance) {
     instance->Start();
@@ -1105,7 +1114,7 @@ nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
     }
 
     if (havedata && !isJava && bCanHandleInternally)
-      rv = NewEmbeddedPluginStream(aURL, aOwner, instance.get());
+      rv = NewEmbeddedPluginStream(aURL, aOwner, instance);
   }
 
 #ifdef PLUGIN_LOGGING
@@ -1142,9 +1151,9 @@ nsresult nsPluginHost::InstantiateFullPagePlugin(const char *aMimeType,
 
     nsPluginTag* pluginTag = FindPluginForType(aMimeType, PR_TRUE);
     if (!pluginTag || !pluginTag->mIsJavaPlugin) {
-      nsRefPtr<nsNPAPIPluginInstance> instance;
-      aOwner->GetInstance(getter_AddRefs(instance));
-      NewFullPagePluginStream(aURI, instance.get(), aStreamListener);
+      nsCOMPtr<nsIPluginInstance> instanceCOMPtr;
+      aOwner->GetInstance(getter_AddRefs(instanceCOMPtr));
+      NewFullPagePluginStream(aURI, static_cast<nsNPAPIPluginInstance*>(instanceCOMPtr.get()), aStreamListener);
     }
     return NS_OK;
   }
@@ -1152,8 +1161,9 @@ nsresult nsPluginHost::InstantiateFullPagePlugin(const char *aMimeType,
   nsresult rv = SetUpPluginInstance(aMimeType, aURI, aOwner);
 
   if (NS_OK == rv) {
-    nsRefPtr<nsNPAPIPluginInstance> instance;
-    aOwner->GetInstance(getter_AddRefs(instance));
+    nsCOMPtr<nsIPluginInstance> instanceCOMPtr;
+    aOwner->GetInstance(getter_AddRefs(instanceCOMPtr));
+    nsNPAPIPluginInstance *instance = static_cast<nsNPAPIPluginInstance*>(instanceCOMPtr.get());
 
     NPWindow* win = nsnull;
     aOwner->GetWindow(win);
@@ -1165,7 +1175,7 @@ nsresult nsPluginHost::InstantiateFullPagePlugin(const char *aMimeType,
       // If we've got a native window, the let the plugin know about it.
       aOwner->SetWindow();
 
-      rv = NewFullPagePluginStream(aURI, instance.get(), aStreamListener);
+      rv = NewFullPagePluginStream(aURI, instance, aStreamListener);
 
       // If we've got a native window, the let the plugin know about it.
       aOwner->SetWindow();
@@ -1230,9 +1240,9 @@ nsresult nsPluginHost::FindStoppedPluginForURL(nsIURI* aURL,
   return NS_ERROR_FAILURE;
 }
 
-nsresult nsPluginHost::SetUpPluginInstance(const char *aMimeType,
-                                           nsIURI *aURL,
-                                           nsIPluginInstanceOwner *aOwner)
+NS_IMETHODIMP nsPluginHost::SetUpPluginInstance(const char *aMimeType,
+                                                nsIURI *aURL,
+                                                nsIPluginInstanceOwner *aOwner)
 {
   NS_ENSURE_ARG_POINTER(aOwner);
 
@@ -1313,13 +1323,12 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
 
   NS_ASSERTION(pluginTag, "Must have plugin tag here!");
 
-  nsRefPtr<nsNPAPIPlugin> plugin;
+  nsCOMPtr<nsIPlugin> plugin;
   GetPlugin(mimetype, getter_AddRefs(plugin));
 
-  nsRefPtr<nsNPAPIPluginInstance> instance;
-
+  nsCOMPtr<nsIPluginInstance> instance;
   if (plugin) {
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
     static BOOL firstJavaPlugin = FALSE;
     BOOL restoreOrigDir = FALSE;
     WCHAR origDir[_MAX_PATH];
@@ -1340,7 +1349,7 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
 
     rv = plugin->CreatePluginInstance(getter_AddRefs(instance));
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
     if (!firstJavaPlugin && restoreOrigDir) {
       BOOL bCheck = SetCurrentDirectoryW(origDir);
       NS_ASSERTION(bCheck, "Error restoring directory");
@@ -1353,7 +1362,7 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
     return rv;
 
   // it is adreffed here
-  aOwner->SetInstance(instance.get());
+  aOwner->SetInstance(instance);
 
   // this should not addref the instance or owner
   // except in some cases not Java, see bug 140931
@@ -1364,7 +1373,7 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
     return rv;
   }
 
-  mInstances.AppendElement(instance.get());
+  mInstances.AppendElement(static_cast<nsNPAPIPluginInstance*>(instance.get()));
 
 #ifdef PLUGIN_LOGGING
   nsCAutoString urlSpec2;
@@ -1381,7 +1390,7 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsPluginHost::IsPluginEnabledForType(const char* aMimeType)
 {
   nsPluginTag *plugin = FindPluginForType(aMimeType, PR_TRUE);
@@ -1429,7 +1438,7 @@ static int CompareExtensions(const char *aExtensionList, const char *aExtension)
   return PL_strcasecmp(pExt, aExtension);
 }
 
-nsresult
+NS_IMETHODIMP
 nsPluginHost::IsPluginEnabledForExtension(const char* aExtension,
                                           const char* &aMimeType)
 {
@@ -1445,9 +1454,11 @@ public:
   {
     if (!aTag)
       return;
-    CopyUTF8toUTF16(aTag->mMimeDescriptions[aMimeTypeIndex], mDescription);
-    CopyUTF8toUTF16(aTag->mExtensions[aMimeTypeIndex], mSuffixes);
-    CopyUTF8toUTF16(aTag->mMimeTypes[aMimeTypeIndex], mType);
+    CopyUTF8toUTF16(aTag->mMimeDescriptionArray[aMimeTypeIndex], mDescription);
+    if (aTag->mExtensionsArray)
+      CopyUTF8toUTF16(aTag->mExtensionsArray[aMimeTypeIndex], mSuffixes);
+    if (aTag->mMimeTypeArray)
+      CopyUTF8toUTF16(aTag->mMimeTypeArray[aMimeTypeIndex], mType);
   }
 
   virtual ~DOMMimeTypeImpl() {
@@ -1532,7 +1543,7 @@ public:
 
   NS_METHOD GetLength(PRUint32* aLength)
   {
-    *aLength = mPluginTag.mMimeTypes.Length();
+    *aLength = mPluginTag.mVariants;
     return NS_OK;
   }
 
@@ -1546,8 +1557,8 @@ public:
 
   NS_METHOD NamedItem(const nsAString& aName, nsIDOMMimeType** aReturn)
   {
-    for (int i = mPluginTag.mMimeTypes.Length() - 1; i >= 0; --i) {
-      if (aName.Equals(NS_ConvertUTF8toUTF16(mPluginTag.mMimeTypes[i])))
+    for (int i = mPluginTag.mVariants - 1; i >= 0; --i) {
+      if (aName.Equals(NS_ConvertUTF8toUTF16(mPluginTag.mMimeTypeArray[i])))
         return Item(i, aReturn);
     }
     return NS_OK;
@@ -1559,7 +1570,7 @@ private:
 
 NS_IMPL_ISUPPORTS1(DOMPluginImpl, nsIDOMPlugin)
 
-nsresult
+NS_IMETHODIMP
 nsPluginHost::GetPluginCount(PRUint32* aPluginCount)
 {
   LoadPlugins();
@@ -1579,7 +1590,7 @@ nsPluginHost::GetPluginCount(PRUint32* aPluginCount)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsPluginHost::GetPlugins(PRUint32 aPluginCount, nsIDOMPlugin** aPluginArray)
 {
   LoadPlugins();
@@ -1616,7 +1627,8 @@ nsPluginHost::GetPluginTags(PRUint32* aPluginCount, nsIPluginTag*** aResults)
   *aPluginCount = count;
 
   plugin = mPlugins;
-  for (PRUint32 i = 0; i < count; i++) {
+  PRUint32 i;
+  for (i = 0; i < count; i++) {
     (*aResults)[i] = plugin;
     NS_ADDREF((*aResults)[i]);
     plugin = plugin->mNext;
@@ -1638,9 +1650,10 @@ nsPluginHost::FindPluginForType(const char* aMimeType,
   nsPluginTag *plugin = mPlugins;
   while (plugin) {
     if (!aCheckEnabled || plugin->IsEnabled()) {
-      PRInt32 mimeCount = plugin->mMimeTypes.Length();
+      PRInt32 mimeCount = plugin->mVariants;
       for (PRInt32 i = 0; i < mimeCount; i++) {
-        if (0 == PL_strcasecmp(plugin->mMimeTypes[i].get(), aMimeType)) {
+        if (plugin->mMimeTypeArray[i] &&
+            (0 == PL_strcasecmp(plugin->mMimeTypeArray[i], aMimeType))) {
           return plugin;
         }
       }
@@ -1655,28 +1668,52 @@ nsPluginTag*
 nsPluginHost::FindPluginEnabledForExtension(const char* aExtension,
                                             const char*& aMimeType)
 {
-  if (!aExtension) {
-    return nsnull;
-  }
+  nsPluginTag *plugins = nsnull;
+  PRInt32     variants, cnt;
 
   LoadPlugins();
 
-  nsPluginTag *plugin = mPlugins;
-  while (plugin) {
-    if (plugin->IsEnabled()) {
-      PRInt32 variants = plugin->mExtensions.Length();
-      for (PRInt32 i = 0; i < variants; i++) {
-        // mExtensionsArray[cnt] is a list of extensions separated by commas
-        if (0 == CompareExtensions(plugin->mExtensions[i].get(), aExtension)) {
-          aMimeType = plugin->mMimeTypes[i].get();
-          return plugin;
+  // if we have a mimetype passed in, search the mPlugins linked
+  // list for a match
+  if (aExtension) {
+    plugins = mPlugins;
+    while (plugins) {
+      variants = plugins->mVariants;
+      if (plugins->mExtensionsArray) {
+        for (cnt = 0; cnt < variants; cnt++) {
+          // mExtensionsArray[cnt] is a list of extensions separated
+          // by commas
+          if (plugins->IsEnabled() &&
+              0 == CompareExtensions(plugins->mExtensionsArray[cnt], aExtension)) {
+            aMimeType = plugins->mMimeTypeArray[cnt];
+            return plugins;
+          }
         }
       }
+
+      plugins = plugins->mNext;
     }
-    plugin = plugin->mNext;
   }
 
   return nsnull;
+}
+
+static nsresult ConvertToNative(nsIUnicodeEncoder *aEncoder,
+                                const nsACString& aUTF8String,
+                                nsACString& aNativeString)
+{
+  NS_ConvertUTF8toUTF16 utf16(aUTF8String);
+  PRInt32 len = utf16.Length();
+  PRInt32 outLen;
+  nsresult rv = aEncoder->GetMaxLength(utf16.get(), len, &outLen);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!EnsureStringLength(aNativeString, outLen))
+    return NS_ERROR_OUT_OF_MEMORY;
+  rv = aEncoder->Convert(utf16.get(), &len,
+                         aNativeString.BeginWriting(), &outLen);
+  NS_ENSURE_SUCCESS(rv, rv);
+  aNativeString.SetLength(outLen);
+  return NS_OK;
 }
 
 static nsresult CreateNPAPIPlugin(nsPluginTag *aPluginTag,
@@ -1698,6 +1735,28 @@ static nsresult CreateNPAPIPlugin(nsPluginTag *aPluginTag,
   }
 
   nsresult rv;
+  nsCOMPtr <nsIPlatformCharset> pcs =
+    do_GetService(NS_PLATFORMCHARSET_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCAutoString charset;
+  rv = pcs->GetCharset(kPlatformCharsetSel_FileName, charset);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCAutoString fullPath;
+  if (!charset.LowerCaseEqualsLiteral("utf-8")) {
+    nsCOMPtr<nsIUnicodeEncoder> encoder;
+    nsCOMPtr<nsICharsetConverterManager> ccm =
+      do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = ccm->GetUnicodeEncoderRaw(charset.get(), getter_AddRefs(encoder));
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = ConvertToNative(encoder, aPluginTag->mFullPath, fullPath);
+    NS_ENSURE_SUCCESS(rv, rv);
+  } else {
+    fullPath = aPluginTag->mFullPath;
+  }
+
   rv = nsNPAPIPlugin::CreatePlugin(aPluginTag, aOutNPAPIPlugin);
 
   return rv;
@@ -1716,7 +1775,7 @@ nsresult nsPluginHost::EnsurePluginLoaded(nsPluginTag* plugin)
   return NS_OK;
 }
 
-nsresult nsPluginHost::GetPlugin(const char *aMimeType, nsNPAPIPlugin** aPlugin)
+NS_IMETHODIMP nsPluginHost::GetPlugin(const char *aMimeType, nsIPlugin** aPlugin)
 {
   nsresult rv = NS_ERROR_FAILURE;
   *aPlugin = NULL;
@@ -2013,6 +2072,46 @@ PRBool nsPluginHost::IsDuplicatePlugin(nsPluginTag * aPluginTag)
   return PR_FALSE;
 }
 
+// Structure for collecting plugin files found during directory scanning
+struct pluginFileinDirectory
+{
+  nsString mFilePath;
+  PRInt64  mModTime;
+
+  pluginFileinDirectory()
+  {
+    mModTime = LL_ZERO;
+  }
+};
+
+// QuickSort callback for comparing the modification time of two files
+// if the times are the same, compare the filenames
+
+NS_SPECIALIZE_TEMPLATE
+class nsDefaultComparator<pluginFileinDirectory, pluginFileinDirectory>
+{
+  public:
+  PRBool Equals(const pluginFileinDirectory& aA,
+                const pluginFileinDirectory& aB) const {
+    if (aA.mModTime == aB.mModTime &&
+        Compare(aA.mFilePath, aB.mFilePath,
+                nsCaseInsensitiveStringComparator()) == 0)
+      return PR_TRUE;
+    else
+      return PR_FALSE;
+  }
+  PRBool LessThan(const pluginFileinDirectory& aA,
+                  const pluginFileinDirectory& aB) const {
+    if (aA.mModTime < aB.mModTime)
+      return PR_TRUE;
+    else if(aA.mModTime == aB.mModTime)
+      return Compare(aA.mFilePath, aB.mFilePath,
+                     nsCaseInsensitiveStringComparator()) < 0;
+    else
+      return PR_FALSE;
+  }
+};
+
 typedef NS_NPAPIPLUGIN_CALLBACK(char *, NP_GETMIMEDESCRIPTION)(void);
 
 nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
@@ -2036,7 +2135,8 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
   if (NS_FAILED(rv))
     return rv;
 
-  nsAutoTArray<nsCOMPtr<nsILocalFile>, 6> pluginFiles;
+  // Collect all the files in this directory in an array we can sort later
+  nsAutoTArray<pluginFileinDirectory, 8> pluginFilesArray;
 
   PRBool hasMore;
   while (NS_SUCCEEDED(iter->HasMoreElements(&hasMore)) && hasMore) {
@@ -2052,26 +2152,41 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
     // See bug 197855.
     dirEntry->Normalize();
 
-    if (nsPluginsDir::IsPluginFile(dirEntry)) {
-      pluginFiles.AppendElement(dirEntry);
-    }
-  }
-
-  PRBool warnOutdated = PR_FALSE;
-
-  for (PRUint32 i = 0; i < pluginFiles.Length(); i++) {
-    nsCOMPtr<nsILocalFile>& localfile = pluginFiles[i];
-
-    nsString utf16FilePath;
-    rv = localfile->GetPath(utf16FilePath);
+    nsAutoString filePath;
+    rv = dirEntry->GetPath(filePath);
     if (NS_FAILED(rv))
       continue;
 
-    PRInt64 fileModTime = LL_ZERO;
-    localfile->GetLastModifiedTime(&fileModTime);
+    if (nsPluginsDir::IsPluginFile(dirEntry)) {
+      pluginFileinDirectory * item = pluginFilesArray.AppendElement();
+      if (!item)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+      // Get file mod time
+      PRInt64 fileModTime = LL_ZERO;
+      dirEntry->GetLastModifiedTime(&fileModTime);
+
+      item->mModTime = fileModTime;
+      item->mFilePath = filePath;
+    }
+  } // end round of up of plugin files
+
+  // now sort the array by file modification time or by filename, if equal
+  // put newer plugins first to weed out dups and catch upgrades, see bug 119966
+  pluginFilesArray.Sort();
+
+  PRBool warnOutdated = PR_FALSE;
+
+  // finally, go through the array, looking at each entry and continue processing it
+  for (PRUint32 i = 0; i < pluginFilesArray.Length(); i++) {
+    pluginFileinDirectory &pfd = pluginFilesArray[i];
+    nsCOMPtr <nsIFile> file = do_CreateInstance("@mozilla.org/file/local;1");
+    nsCOMPtr <nsILocalFile> localfile = do_QueryInterface(file);
+    localfile->InitWithPath(pfd.mFilePath);
+    PRInt64 fileModTime = pfd.mModTime;
 
     // Look for it in our cache
-    NS_ConvertUTF16toUTF8 filePath(utf16FilePath);
+    NS_ConvertUTF16toUTF8 filePath(pfd.mFilePath);
     nsRefPtr<nsPluginTag> pluginTag;
     RemoveCachedPluginsInfo(filePath.get(),
                             getter_AddRefs(pluginTag));
@@ -2136,7 +2251,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
 
     // if it is not found in cache info list or has been changed, create a new one
     if (!pluginTag) {
-      nsPluginFile pluginFile(localfile);
+      nsPluginFile pluginFile(file);
 
       // create a tag describing this plugin.
       PRLibrary *library = nsnull;
@@ -2236,42 +2351,16 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
       }
 
       pluginTag->SetHost(this);
+      pluginTag->mNext = mPlugins;
+      mPlugins = pluginTag;
 
-      // Add plugin tags such that the list is ordered by modification date,
-      // newest to oldest. This is ugly, it'd be easier with just about anything
-      // other than a single-directional linked list.
-      if (mPlugins) {
-        nsPluginTag *prev = nsnull;
-        nsPluginTag *next = mPlugins;
-        while (next) {
-          if (pluginTag->mLastModifiedTime >= next->mLastModifiedTime) {
-            pluginTag->mNext = next;
-            if (prev) {
-              prev->mNext = pluginTag;
-            } else {
-              mPlugins = pluginTag;
-            }
-            break;
-          }
-          prev = next;
-          next = prev->mNext;
-          if (!next) {
-            prev->mNext = pluginTag;
-          }
-        }
-      } else {
-        mPlugins = pluginTag;
-      }
-
-      if (pluginTag->IsEnabled()) {
+      if (pluginTag->IsEnabled())
         pluginTag->RegisterWithCategoryManager(mOverrideInternalTypes);
-      }
     }
   }
-
-  if (warnOutdated) {
+  
+  if (warnOutdated)
     mPrefService->SetBoolPref("plugins.update.notifyUser", PR_TRUE);
-  }
 
   return NS_OK;
 }
@@ -2304,7 +2393,7 @@ nsresult nsPluginHost::ScanPluginsDirectoryList(nsISimpleEnumerator *dirEnum,
     return NS_OK;
 }
 
-nsresult nsPluginHost::LoadPlugins()
+NS_IMETHODIMP nsPluginHost::LoadPlugins()
 {
   // do not do anything if it is already done
   // use ReloadPlugins() to enforce loading
@@ -2515,6 +2604,17 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
   NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsPluginTag>, mCachedPlugins, mNext);
   NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsInvalidPluginTag>, mInvalidPlugins, mNext);
 
+  // reverse our list of plugins
+  nsRefPtr<nsPluginTag> next;
+  nsRefPtr<nsPluginTag> prev;
+  for (nsRefPtr<nsPluginTag> cur = mPlugins; cur; cur = next) {
+    next = cur->mNext;
+    cur->mNext = prev;
+    prev = cur;
+  }
+
+  mPlugins = prev;
+
   NS_TIMELINE_STOP_TIMER("LoadPlugins");
   NS_TIMELINE_MARK_TIMER("LoadPlugins");
 
@@ -2619,13 +2719,13 @@ nsPluginHost::WritePluginInfo()
       // filename & fullpath are on separate line
       // because they can contain field delimiter char
       PR_fprintf(fd, "%s%c%c\n%s%c%c\n%s%c%c\n",
-        (tag->mFileName.get()),
+        (!tag->mFileName.IsEmpty() ? tag->mFileName.get() : ""),
         PLUGIN_REGISTRY_FIELD_DELIMITER,
         PLUGIN_REGISTRY_END_OF_LINE_MARKER,
-        (tag->mFullPath.get()),
+        (!tag->mFullPath.IsEmpty() ? tag->mFullPath.get() : ""),
         PLUGIN_REGISTRY_FIELD_DELIMITER,
         PLUGIN_REGISTRY_END_OF_LINE_MARKER,
-        (tag->mVersion.get()),
+        (!tag->mVersion.IsEmpty() ? tag->mVersion.get() : ""),
         PLUGIN_REGISTRY_FIELD_DELIMITER,
         PLUGIN_REGISTRY_END_OF_LINE_MARKER);
 
@@ -2641,30 +2741,30 @@ nsPluginHost::WritePluginInfo()
 
       //description, name & mtypecount are on separate line
       PR_fprintf(fd, "%s%c%c\n%s%c%c\n%d\n",
-        (tag->mDescription.get()),
+        (!tag->mDescription.IsEmpty() ? tag->mDescription.get() : ""),
         PLUGIN_REGISTRY_FIELD_DELIMITER,
         PLUGIN_REGISTRY_END_OF_LINE_MARKER,
-        (tag->mName.get()),
+        (!tag->mName.IsEmpty() ? tag->mName.get() : ""),
         PLUGIN_REGISTRY_FIELD_DELIMITER,
         PLUGIN_REGISTRY_END_OF_LINE_MARKER,
-        tag->mMimeTypes.Length() + (tag->mIsNPRuntimeEnabledJavaPlugin ? 1 : 0));
+        tag->mVariants + (tag->mIsNPRuntimeEnabledJavaPlugin ? 1 : 0));
 
       // Add in each mimetype this plugin supports
-      for (PRUint32 i = 0; i < tag->mMimeTypes.Length(); i++) {
+      for (int i=0; i<tag->mVariants; i++) {
         PR_fprintf(fd, "%d%c%s%c%s%c%s%c%c\n",
           i,PLUGIN_REGISTRY_FIELD_DELIMITER,
-          (tag->mMimeTypes[i].get()),
+          (tag->mMimeTypeArray && tag->mMimeTypeArray[i] ? tag->mMimeTypeArray[i] : ""),
           PLUGIN_REGISTRY_FIELD_DELIMITER,
-          (tag->mMimeDescriptions[i].get()),
+          (!tag->mMimeDescriptionArray[i].IsEmpty() ? tag->mMimeDescriptionArray[i].get() : ""),
           PLUGIN_REGISTRY_FIELD_DELIMITER,
-          (tag->mExtensions[i].get()),
+          (tag->mExtensionsArray && tag->mExtensionsArray[i] ? tag->mExtensionsArray[i] : ""),
           PLUGIN_REGISTRY_FIELD_DELIMITER,
           PLUGIN_REGISTRY_END_OF_LINE_MARKER);
       }
 
       if (tag->mIsNPRuntimeEnabledJavaPlugin) {
         PR_fprintf(fd, "%d%c%s%c%s%c%s%c%c\n",
-          tag->mMimeTypes.Length(), PLUGIN_REGISTRY_FIELD_DELIMITER,
+          tag->mVariants, PLUGIN_REGISTRY_FIELD_DELIMITER,
           "application/x-java-vm-npruntime",
           PLUGIN_REGISTRY_FIELD_DELIMITER,
           "",
@@ -3243,8 +3343,8 @@ nsPluginHost::AddHeadersToChannel(const char *aHeadersData,
   return rv;
 }
 
-nsresult
-nsPluginHost::StopPluginInstance(nsNPAPIPluginInstance* aInstance)
+NS_IMETHODIMP
+nsPluginHost::StopPluginInstance(nsIPluginInstance* aInstance)
 {
   if (PluginDestructionGuard::DelayDestroy(aInstance)) {
     return NS_OK;
@@ -3253,7 +3353,7 @@ nsPluginHost::StopPluginInstance(nsNPAPIPluginInstance* aInstance)
   PLUGIN_LOG(PLUGIN_LOG_NORMAL,
   ("nsPluginHost::StopPluginInstance called instance=%p\n",aInstance));
 
-  nsNPAPIPluginInstance* instance = aInstance;
+  nsNPAPIPluginInstance* instance = static_cast<nsNPAPIPluginInstance*>(aInstance);
   if (instance->HasStartedDestroying())
     return NS_OK;
 
@@ -3394,8 +3494,8 @@ NS_IMETHODIMP nsPluginHost::Observe(nsISupports *aSubject,
   return NS_OK;
 }
 
-nsresult
-nsPluginHost::HandleBadPlugin(PRLibrary* aLibrary, nsNPAPIPluginInstance *aInstance)
+NS_IMETHODIMP
+nsPluginHost::HandleBadPlugin(PRLibrary* aLibrary, nsIPluginInstance *aInstance)
 {
   // the |aLibrary| parameter is not needed anymore, after we added |aInstance| which
   // can also be used to look up the plugin name, but we cannot get rid of it because
@@ -3451,7 +3551,9 @@ nsPluginHost::HandleBadPlugin(PRLibrary* aLibrary, nsNPAPIPluginInstance *aInsta
   if (NS_FAILED(rv))
     return rv;
 
-  nsNPAPIPlugin *plugin = aInstance->GetPlugin();
+  nsNPAPIPluginInstance *instance = static_cast<nsNPAPIPluginInstance*>(aInstance);
+
+  nsNPAPIPlugin *plugin = instance->GetPlugin();
   if (!plugin)
     return NS_ERROR_FAILURE;
 
@@ -3487,7 +3589,7 @@ nsPluginHost::HandleBadPlugin(PRLibrary* aLibrary, nsNPAPIPluginInstance *aInsta
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsPluginHost::ParsePostBufferToFixHeaders(const char *inPostData, PRUint32 inPostDataLen,
                                           char **outPostData, PRUint32 *outPostDataLen)
 {
@@ -3639,7 +3741,7 @@ nsPluginHost::ParsePostBufferToFixHeaders(const char *inPostData, PRUint32 inPos
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsPluginHost::CreateTempFileToPost(const char *aPostDataURL, nsIFile **aTmpFile)
 {
   nsresult rv;
@@ -3740,19 +3842,19 @@ nsPluginHost::CreateTempFileToPost(const char *aPostDataURL, nsIFile **aTmpFile)
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsPluginHost::NewPluginNativeWindow(nsPluginNativeWindow ** aPluginNativeWindow)
 {
   return PLUG_NewPluginNativeWindow(aPluginNativeWindow);
 }
 
-nsresult
+NS_IMETHODIMP
 nsPluginHost::DeletePluginNativeWindow(nsPluginNativeWindow * aPluginNativeWindow)
 {
   return PLUG_DeletePluginNativeWindow(aPluginNativeWindow);
 }
 
-nsresult
+NS_IMETHODIMP
 nsPluginHost::InstantiateDummyJavaPlugin(nsIPluginInstanceOwner *aOwner)
 {
   // Pass PR_FALSE as the second arg, we want the answer to be the
@@ -3769,8 +3871,8 @@ nsPluginHost::InstantiateDummyJavaPlugin(nsIPluginInstanceOwner *aOwner)
   nsresult rv = SetUpPluginInstance("application/x-java-vm", nsnull, aOwner);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<nsNPAPIPluginInstance> instance;
-  aOwner->GetInstance(getter_AddRefs(instance));
+  nsCOMPtr<nsIPluginInstance> instance;
+  aOwner->GetInstance(*getter_AddRefs(instance));
   if (!instance)
     return NS_OK;
 
@@ -3779,8 +3881,8 @@ nsPluginHost::InstantiateDummyJavaPlugin(nsIPluginInstanceOwner *aOwner)
   return NS_OK;
 }
 
-nsresult
-nsPluginHost::GetPluginName(nsNPAPIPluginInstance *aPluginInstance,
+NS_IMETHODIMP
+nsPluginHost::GetPluginName(nsIPluginInstance *aPluginInstance,
                             const char** aPluginName)
 {
   nsNPAPIPluginInstance *instance = static_cast<nsNPAPIPluginInstance*>(aPluginInstance);
@@ -3796,14 +3898,15 @@ nsPluginHost::GetPluginName(nsNPAPIPluginInstance *aPluginInstance,
   return NS_OK;
 }
 
-nsresult
-nsPluginHost::GetPluginTagForInstance(nsNPAPIPluginInstance *aPluginInstance,
+NS_IMETHODIMP
+nsPluginHost::GetPluginTagForInstance(nsIPluginInstance *aPluginInstance,
                                       nsIPluginTag **aPluginTag)
 {
   NS_ENSURE_ARG_POINTER(aPluginInstance);
   NS_ENSURE_ARG_POINTER(aPluginTag);
 
-  nsNPAPIPlugin *plugin = aPluginInstance->GetPlugin();
+  nsNPAPIPluginInstance *instance = static_cast<nsNPAPIPluginInstance*>(aPluginInstance);
+  nsNPAPIPlugin *plugin = instance->GetPlugin();
   if (!plugin)
     return NS_ERROR_FAILURE;
 
@@ -4107,7 +4210,7 @@ class nsPluginDestroyRunnable : public nsRunnable,
                                 public PRCList
 {
 public:
-  nsPluginDestroyRunnable(nsNPAPIPluginInstance *aInstance)
+  nsPluginDestroyRunnable(nsIPluginInstance *aInstance)
     : mInstance(aInstance)
   {
     PR_INIT_CLIST(this);
@@ -4121,7 +4224,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    nsRefPtr<nsNPAPIPluginInstance> instance;
+    nsCOMPtr<nsIPluginInstance> instance;
 
     // Null out mInstance to make sure this code in another runnable
     // will do the right thing even if someone was holding on to this
@@ -4160,7 +4263,7 @@ public:
   }
 
 protected:
-  nsRefPtr<nsNPAPIPluginInstance> mInstance;
+  nsCOMPtr<nsIPluginInstance> mInstance;
 
   static PRCList sRunnableListHead;
 };
@@ -4190,7 +4293,7 @@ PluginDestructionGuard::~PluginDestructionGuard()
 
 // static
 PRBool
-PluginDestructionGuard::DelayDestroy(nsNPAPIPluginInstance *aInstance)
+PluginDestructionGuard::DelayDestroy(nsIPluginInstance *aInstance)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on the main thread");
   NS_ASSERTION(aInstance, "Uh, I need an instance!");

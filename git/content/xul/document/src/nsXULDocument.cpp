@@ -128,9 +128,7 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsURILoader.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
@@ -280,8 +278,9 @@ nsXULDocument::~nsXULDocument()
 
     delete mTemplateBuilderTable;
 
-    Preferences::UnregisterCallback(nsXULDocument::DirectionChanged,
-                                    "intl.uidirection.", this);
+    nsContentUtils::UnregisterPrefCallback("intl.uidirection.",
+                                           nsXULDocument::DirectionChanged,
+                                           this);
 
     if (--gRefCnt == 0) {
         NS_IF_RELEASE(gRDFService);
@@ -1985,8 +1984,9 @@ nsXULDocument::Init()
         }
     }
 
-    Preferences::RegisterCallback(nsXULDocument::DirectionChanged,
-                                  "intl.uidirection.", this);
+    nsContentUtils::RegisterPrefCallback("intl.uidirection.",
+                                         nsXULDocument::DirectionChanged,
+                                         this);
 
 #ifdef PR_LOGGING
     if (! gXULLog)
@@ -3682,9 +3682,14 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
 
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULLog, PR_LOG_NOTICE)) {
+        nsAutoString tagstr;
+        aPrototype->mNodeInfo->GetQualifiedName(tagstr);
+
+        nsCAutoString tagstrC;
+        tagstrC.AssignWithConversion(tagstr);
         PR_LOG(gXULLog, PR_LOG_NOTICE,
                ("xul: creating <%s> from prototype",
-                NS_ConvertUTF16toUTF8(aPrototype->mNodeInfo->QualifiedName()).get()));
+                tagstrC.get()));
     }
 #endif
 

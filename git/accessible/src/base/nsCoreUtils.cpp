@@ -63,7 +63,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsGUIEvent.h"
 #include "nsIView.h"
-#include "nsLayoutUtils.h"
 
 #include "nsContentCID.h"
 #include "nsComponentManagerUtils.h"
@@ -494,10 +493,12 @@ nsCoreUtils::IsErrorPage(nsIDocument *aDocument)
   nsCAutoString path;
   uri->GetPath(path);
 
-  NS_NAMED_LITERAL_CSTRING(neterror, "neterror");
-  NS_NAMED_LITERAL_CSTRING(certerror, "certerror");
+  nsCAutoString::const_iterator start, end;
+  path.BeginReading(start);
+  path.EndReading(end);
 
-  return StringBeginsWith(path, neterror) || StringBeginsWith(path, certerror);
+  NS_NAMED_LITERAL_CSTRING(neterror, "neterror");
+  return FindInReadable(neterror, start, end);
 }
 
 PRBool
@@ -754,30 +755,6 @@ nsCoreUtils::IsColumnHidden(nsITreeColumn *aColumn)
                               nsAccessibilityAtoms::_true, eCaseMatters);
 }
 
-bool
-nsCoreUtils::CheckVisibilityInParentChain(nsIFrame* aFrame)
-{
-  nsIView* view = aFrame->GetClosestView();
-  if (view && !view->IsEffectivelyVisible())
-    return false;
-
-  nsIPresShell* presShell = aFrame->PresContext()->GetPresShell();
-  while (presShell) {
-    if (!presShell->IsActive()) {
-      return false;
-    }
-
-    nsIFrame* rootFrame = presShell->GetRootFrame();
-    presShell = nsnull;
-    if (rootFrame) {
-      nsIFrame* frame = nsLayoutUtils::GetCrossDocParentFrame(rootFrame);
-      if (frame) {
-        presShell = frame->PresContext()->GetPresShell();
-      }
-    }
-  }
-  return true;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessibleDOMStringList

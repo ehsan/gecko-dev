@@ -45,7 +45,11 @@
 #include <stdio.h>
 #include <tchar.h>
 
+#ifdef WINCE
+#define MOZ_LOADLIBRARY_FLAGS 0
+#else
 #define MOZ_LOADLIBRARY_FLAGS LOAD_WITH_ALTERED_SEARCH_PATH
+#endif
 
 struct DependentLib
 {
@@ -121,7 +125,15 @@ ns_wcspbrk(wchar_t *string, const wchar_t *strCharSet)
 
 bool ns_isRelPath(wchar_t* path)
 {
-    return !(path[1] == ':');
+#ifdef WINCE
+    if (path[0] == '\\')
+        return false;
+#else
+    if (path[1] == ':')
+        return false;
+#endif
+    return true;
+    
 }
 
 nsresult

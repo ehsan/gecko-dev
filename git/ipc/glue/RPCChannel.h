@@ -111,7 +111,6 @@ public:
         {
             return RRPChildWins;
         }
-        virtual void ProcessRemoteNativeEventsInRPCCall() {};
     };
 
     RPCChannel(RPCListener* aListener);
@@ -179,7 +178,6 @@ public:
 
 #ifdef OS_WIN
     void ProcessNativeEventsInRPCCall();
-    static void NotifyGeckoEventDispatch();
 
 protected:
     bool WaitForNotify();
@@ -208,18 +206,6 @@ protected:
      * @return true if a message was processed
      */
     bool OnMaybeDequeueOne();
-
-    /**
-     * The "remote view of stack depth" can be different than the
-     * actual stack depth when there are out-of-turn replies.  When we
-     * receive one, our actual RPC stack depth doesn't decrease, but
-     * the other side (that sent the reply) thinks it has.  So, the
-     * "view" returned here is |stackDepth| minus the number of
-     * out-of-turn replies.
-     *
-     * Only called from the worker thread.
-     */
-    size_t RemoteViewOfStackDepth(size_t stackDepth) const;
 
     void Incall(const Message& call, size_t stackDepth);
     void DispatchIncall(const Message& call);

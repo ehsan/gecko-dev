@@ -42,6 +42,7 @@
 
 #include "nsHTMLContainerFrame.h"
 #include "nsIScrollPositionListener.h"
+#include "nsAbsoluteContainingBlock.h"
 #include "nsDisplayList.h"
 #include "nsGkAtoms.h"
 
@@ -63,7 +64,8 @@ public:
   nsCanvasFrame(nsStyleContext* aContext)
   : nsHTMLContainerFrame(aContext),
     mDoPaintFocus(PR_FALSE),
-    mAddedScrollPositionListener(PR_FALSE) {}
+    mAddedScrollPositionListener(PR_FALSE),
+    mAbsoluteContainer(nsGkAtoms::absoluteList) {}
 
   NS_DECL_QUERYFRAME_TARGET(nsCanvasFrame)
   NS_DECL_QUERYFRAME
@@ -81,6 +83,9 @@ public:
                           nsFrameList&    aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
+
+  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
 
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
@@ -147,6 +152,7 @@ protected:
   // Data members
   PRPackedBool              mDoPaintFocus;
   PRPackedBool              mAddedScrollPositionListener;
+  nsAbsoluteContainingBlock mAbsoluteContainer;
 };
 
 /**
@@ -165,11 +171,17 @@ public:
 
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
-                                   const nsRect& aAllowVisibleRegionExpansion)
+                                   const nsRect& aAllowVisibleRegionExpansion,
+                                   PRBool& aContainsRootContentDocBG)
   {
-    return NS_GET_A(mExtraBackgroundColor) > 0 ||
-      nsDisplayBackground::ComputeVisibility(aBuilder, aVisibleRegion,
-                                             aAllowVisibleRegionExpansion);
+    PRBool retval = NS_GET_A(mExtraBackgroundColor) > 0 ||
+           nsDisplayBackground::ComputeVisibility(aBuilder, aVisibleRegion,
+                                                  aAllowVisibleRegionExpansion,
+                                                  aContainsRootContentDocBG);
+    if (retval && mFrame->PresContext()->IsRootContentDocument()) {
+      aContainsRootContentDocBG = PR_TRUE;
+    }
+    return retval;
   }
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    PRBool* aForceTransparentSurface = nsnull)

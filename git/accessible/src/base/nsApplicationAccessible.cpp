@@ -127,10 +127,11 @@ nsApplicationAccessible::GetValue(nsAString &aValue)
   return NS_OK;
 }
 
-void
-nsApplicationAccessible::Description(nsString &aDescription)
+NS_IMETHODIMP
+nsApplicationAccessible::GetDescription(nsAString &aDescription)
 {
   aDescription.Truncate();
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -332,8 +333,8 @@ nsApplicationAccessible::GetPlatformVersion(nsAString& aVersion)
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public methods
 
-bool
-nsApplicationAccessible::IsDefunct() const
+PRBool
+nsApplicationAccessible::IsDefunct()
 {
   return nsAccessibilityService::IsShutdown();
 }
@@ -428,9 +429,15 @@ nsApplicationAccessible::CacheChildren()
 }
 
 nsAccessible*
-nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset,
-                                            nsresult* aError) const
+nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 {
+  if (IsDefunct()) {
+    if (aError)
+      *aError = NS_ERROR_FAILURE;
+
+    return nsnull;
+  }
+
   if (aError)
     *aError = NS_OK; // fail peacefully
 

@@ -166,7 +166,7 @@ CertReader::OnDataAvailable(nsIRequest *request,
 
   while (aLength)
   {
-    size = NS_MIN(aLength, sizeof(buf));
+    size = PR_MIN(aLength, sizeof(buf));
 
     rv = aIStream->Read(buf, size, &amt);
     if (NS_FAILED(rv))

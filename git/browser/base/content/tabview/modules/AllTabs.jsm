@@ -57,7 +57,7 @@ let AllTabs = {
   get tabs() {
     // Get tabs from each browser window and flatten them into one array
     return Array.concat.apply(null, browserWindows.map(function(browserWindow) {
-      return Array.filter(browserWindow.gBrowser.tabs, function (tab) !tab.closing);
+      return Array.slice(browserWindow.gBrowser.tabs);
     }));
   },
 

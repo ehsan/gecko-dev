@@ -90,9 +90,8 @@
 #include "nsThemeConstants.h"
 #include "nsPLDOMEvent.h"
 #include "nsRenderingContext.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
+namespace dom = mozilla::dom;
 
 NS_IMETHODIMP
 nsComboboxControlFrame::RedisplayTextEvent::Run()
@@ -749,7 +748,7 @@ nsComboboxControlFrame::GetFrameName(nsAString& aResult) const
 void
 nsComboboxControlFrame::ShowDropDown(PRBool aDoDropDown) 
 {
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return;
   }
@@ -949,7 +948,7 @@ nsComboboxControlFrame::HandleEvent(nsPresContext* aPresContext,
     return NS_OK;
   }
 
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return NS_OK;
   }
@@ -992,7 +991,7 @@ nsComboboxControlFrame::GetContentInsertionFrame() {
 }
 
 nsresult
-nsComboboxControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
+nsComboboxControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   // The frames used to display the combo box and the button used to popup the dropdown list
   // are created through anonymous content. The dropdown list is not created through anonymous
@@ -1405,7 +1404,7 @@ void nsComboboxControlFrame::PaintFocus(nsRenderingContext& aRenderingContext,
                                         nsPoint aPt)
 {
   /* Do we need to do anything? */
-  nsEventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->IntrinsicState();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED) || mFocused != this)
     return;
 
@@ -1519,6 +1518,6 @@ nsComboboxControlFrame::RestoreState(nsPresState* aState)
 PRBool
 nsComboboxControlFrame::ToolkitHasNativePopup()
 {
-  return Preferences::GetBool("ui.use_native_popup_windows");
+  return nsContentUtils::GetBoolPref("ui.use_native_popup_windows");
 }
 

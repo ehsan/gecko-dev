@@ -297,8 +297,8 @@ var BrowserUI = {
     if (this._activePanel)
       this._activePanel.close();
 
-    // If the keyboard will cover the full screen, we do not want to show it right away.
-    let isReadOnly = (aPanel != AllPagesList || this._isKeyboardFullscreen() || (!willShowPanel && this._edit.readOnly));
+    // The readOnly state of the field enabled/disabled the VKB
+    let isReadOnly = !(aPanel == AllPagesList && Util.isPortrait() && (willShowPanel || !this._edit.readOnly));
     this._edit.readOnly = isReadOnly;
     if (isReadOnly)
       this._edit.blur();
@@ -353,24 +353,6 @@ var BrowserUI = {
       return;
     this._popup = null;
     this._dispatchPopupChanged(false);
-  },
-
-  // Will the on-screen keyboard cover the whole screen when opened?
-  _isKeyboardFullscreen: function _isKeyboardFullscreen() {
-#ifdef ANDROID
-    if (!Util.isPortrait()) {
-      switch (Services.prefs.getIntPref("widget.ime.android.landscape_fullscreen")) {
-        case 1:
-          return true;
-        case -1: {
-          let threshold = Services.prefs.getIntPref("widget.ime.android.fullscreen_threshold");
-          let dpi = Util.getWindowUtils(window).displayDPI;
-          return (window.innerHeight * 100 < threshold * dpi);
-        }
-      }
-    }
-#endif
-    return false;
   },
 
   _dispatchPopupChanged: function _dispatchPopupChanged(aVisible) {
@@ -531,11 +513,9 @@ var BrowserUI = {
       DownloadsView.init();
       ConsoleView.init();
 
-      if (Services.prefs.getBoolPref("browser.tabs.remote")) {
-          // Pre-start the content process
-          Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime)
-                                           .ensureContentProcess();
-      }
+      // Pre-start the content process
+      Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime)
+          .ensureContentProcess();
 
 #ifdef MOZ_SERVICES_SYNC
       // Init the sync system
@@ -681,21 +661,15 @@ var BrowserUI = {
     // Make sure we're online before attempting to load
     Util.forceOnline();
 
-    // Close the autocomplete panel and quickly update the urlbar value
+    // Give the new page lots of room
+    Browser.hideSidebars();
     this.closeAutoComplete();
+
     this._edit.value = aURI;
 
     let postData = {};
     aURI = Browser.getShortcutOrURI(aURI, postData);
     Browser.loadURI(aURI, { flags: Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP, postData: postData });
-
-    // If a page goes from remote (about:blank) to local (about:home), fennec
-    // create a tab for the local page and then close the about:blank tab.
-    // If the newly created tab spawn a new column the sidebars position can
-    // be messed up. Hopefully, the viewable area should be maximized when a
-    // new page is opened, so a call to Browser.hideSidebars() fill this
-    // requirement and fix the sidebars position.
-    Browser.hideSidebars();
 
     // Delay doing the fixup so the raw URI is passed to loadURIWithFlags
     // and the proper third-party fixup can be done
@@ -948,14 +922,9 @@ var BrowserUI = {
           let { x: x1, y: y1 } = Browser.getScrollboxPosition(Browser.controlsScrollboxScroller);
           tabs.removeClosedTab();
 
-          // If the tabs sidebar lives on the left side of the window, width
-          // variation should be taken into account to reposition the sidebars
-          if (tabs.getBoundingClientRect().left < 0) {
-            let [,, leftWidth, rightWidth] = Browser.computeSidebarVisibility();
-            let delta = (oldLeftWidth - leftWidth) || (oldRightWidth - rightWidth);
-            x1 += (x1 == leftWidth) ? delta : -delta;
-          }
-
+          let [,, leftWidth, rightWidth] = Browser.computeSidebarVisibility();
+          let delta = (oldLeftWidth - leftWidth) || (oldRightWidth - rightWidth);
+          x1 += (x1 == leftWidth) ? delta : -delta;
           Browser.controlsScrollboxScroller.scrollTo(x1, 0);
           Browser.tryFloatToolbar(0, 0);
         }
@@ -1133,13 +1102,8 @@ var BrowserUI = {
   },
 
   isCommandEnabled : function(cmd) {
-    // disable all commands during the first-run sidebar discovery
-    let broadcaster = document.getElementById("bcast_uidiscovery");
-    if (broadcaster && broadcaster.getAttribute("mode") == "discovery")
-      return false;
-
     let elem = document.getElementById(cmd);
-    if (elem && elem.getAttribute("disabled") == "true")
+    if (elem && (elem.getAttribute("disabled") == "true"))
       return false;
     return true;
   },
@@ -1216,11 +1180,15 @@ var BrowserUI = {
         this.activePanel = HistoryList;
         break;
       case "cmd_remoteTabs":
+        // remove the checked state set by the click it will be reset by setting
+        // checked on the command element if we decide to show this panel (see AwesomePanel.js)
+        document.getElementById("remotetabs-button").removeAttribute("checked");
+
         if (Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED) {
+          this.activePanel = null;
+
           WeaveGlue.open();
-        } else if (!Weave.Service.isLoggedIn && !Services.prefs.getBoolPref("browser.sync.enabled")) {
-          // unchecked the relative command button
-          document.getElementById("remotetabs-button").removeAttribute("checked");
+        } else if (!Weave.Service.isLoggedIn) {
           this.activePanel = null;
 
           BrowserUI.showPanel("prefs-container");
@@ -1233,11 +1201,9 @@ var BrowserUI = {
               prefsBox.scrollBoxObject.scrollTo(0, syncAreaY - prefsBoxY);
             }, 0);
           }
-
-          return;
+        } else {
+          this.activePanel = RemoteTabsList;
         }
-
-        this.activePanel = RemoteTabsList;
         break;
       case "cmd_quit":
         GlobalOverlay.goQuitApplication();

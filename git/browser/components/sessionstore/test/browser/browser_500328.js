@@ -68,7 +68,8 @@ function checkState(tab) {
     }
     else if (popStateCount == 1) {
       popStateCount++;
-      is(aEvent.state.obj3.toString(), '/^a$/', "second popstate object.");
+      is(JSON.stringify(aEvent.state), JSON.stringify({obj3:3}),
+         "second popstate object.");
 
       // Make sure that the new-elem node is present in the document.  If it's
       // not, then this history entry has a different doc identifier than the
@@ -119,12 +120,12 @@ function test() {
       // history entries:
       //   testURL (state object: null)      <-- oldest
       //   testURL (state object: {obj1:1})
-      //   page2   (state object: {obj3:/^a$/})  <-- newest
+      //   page2   (state object: {obj3:3})  <-- newest
       let contentWindow = tab.linkedBrowser.contentWindow;
       let history = contentWindow.history;
       history.pushState({obj1:1}, "title-obj1");
       history.pushState({obj2:2}, "title-obj2", "page2");
-      history.replaceState({obj3:/^a$/}, "title-obj3");
+      history.replaceState({obj3:3}, "title-obj3");
 
       let state = ss.getTabState(tab);
       gBrowser.removeTab(tab);

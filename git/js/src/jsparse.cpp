@@ -91,6 +91,7 @@
 #endif
 
 #include "jsatominlines.h"
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsregexpinlines.h"
 #include "jsscriptinlines.h"
@@ -184,14 +185,14 @@ JSParseNode::clear()
     pn_parens = false;
 }
 
-Parser::Parser(JSContext *cx, JSPrincipals *prin, StackFrame *cfp)
+Parser::Parser(JSContext *cx, JSPrincipals *prin, JSStackFrame *cfp)
   : js::AutoGCRooter(cx, PARSER),
     context(cx),
     aleFreeList(NULL),
     tokenStream(cx),
     principals(NULL),
     callerFrame(cfp),
-    callerVarObj(cfp ? &cx->stack.space().varObjForFrame(cfp) : NULL),
+    callerVarObj(cfp ? &cfp->varobj(cx->stack().containingSegment(cfp)) : NULL),
     nodeList(NULL),
     functionCount(0),
     traceListHead(NULL),
@@ -252,7 +253,7 @@ Parser::newObjectBox(JSObject *obj)
     JSObjectBox *objbox;
     JS_ARENA_ALLOCATE_TYPE(objbox, JSObjectBox, &context->tempPool);
     if (!objbox) {
-        js_ReportOutOfMemory(context);
+        js_ReportOutOfScriptQuota(context);
         return NULL;
     }
     objbox->traceLink = traceListHead;
@@ -278,7 +279,7 @@ Parser::newFunctionBox(JSObject *obj, JSParseNode *fn, JSTreeContext *tc)
     JSFunctionBox *funbox;
     JS_ARENA_ALLOCATE_TYPE(funbox, JSFunctionBox, &context->tempPool);
     if (!funbox) {
-        js_ReportOutOfMemory(context);
+        js_ReportOutOfScriptQuota(context);
         return NULL;
     }
     funbox->traceLink = traceListHead;
@@ -682,7 +683,7 @@ NewOrRecycledNode(JSTreeContext *tc)
 
         JS_ARENA_ALLOCATE_TYPE(pn, JSParseNode, &cx->tempPool);
         if (!pn)
-            js_ReportOutOfMemory(cx);
+            js_ReportOutOfScriptQuota(cx);
     } else {
         tc->parser->nodeList = pn->pn_next;
     }
@@ -890,13 +891,13 @@ SetStaticLevel(JSTreeContext *tc, uintN staticLevel)
 /*
  * Compile a top-level script.
  */
-Compiler::Compiler(JSContext *cx, JSPrincipals *prin, StackFrame *cfp)
+Compiler::Compiler(JSContext *cx, JSPrincipals *prin, JSStackFrame *cfp)
   : parser(cx, prin, cfp)
 {
 }
 
 JSScript *
-Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerFrame,
+Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *callerFrame,
                         JSPrincipals *principals, uint32 tcflags,
                         const jschar *chars, size_t length,
                         const char *filename, uintN lineno, JSVersion version,
@@ -926,8 +927,10 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     if (!compiler.init(chars, length, filename, lineno, version))
         return NULL;
 
-    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode));
-    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote));
+    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode),
+                     &cx->scriptStackQuota);
+    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote),
+                     &cx->scriptStackQuota);
 
     Parser &parser = compiler.parser;
     TokenStream &tokenStream = parser.tokenStream;
@@ -979,7 +982,7 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
              * Save eval program source in script->atomMap.vector[0] for the
              * eval cache (see EvalCacheLookup in jsobj.cpp).
              */
-            JSAtom *atom = js_AtomizeString(cx, source);
+            JSAtom *atom = js_AtomizeString(cx, source, 0);
             if (!atom || !cg.atomList.add(&parser, atom))
                 goto out;
         }
@@ -1146,11 +1149,8 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     }
 #endif
 
-    {
-        AutoShapeRooter shapeRoot(cx, script->bindings.lastShape());
-        if (!defineGlobals(cx, globalScope, script))
-            goto late_error;
-    }
+    if (!defineGlobals(cx, globalScope, script))
+        goto late_error;
 
   out:
     JS_FinishArenaPool(&codePool);
@@ -1200,11 +1200,15 @@ Compiler::defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *scrip
             rval.setUndefined();
         }
 
-        const Shape *shape =
-            DefineNativeProperty(cx, globalObj, id, rval, PropertyStub, StrictPropertyStub,
-                                 JSPROP_ENUMERATE | JSPROP_PERMANENT, 0, 0);
-        if (!shape)
+        JSProperty *prop;
+
+        if (!js_DefineNativeProperty(cx, globalObj, id, rval, PropertyStub, StrictPropertyStub,
+                                     JSPROP_ENUMERATE | JSPROP_PERMANENT, 0, 0, &prop)) {
             return false;
+        }
+
+        JS_ASSERT(prop);
+        const Shape *shape = (const Shape *)prop;
         def.knownSlot = shape->slot;
     }
 
@@ -1230,7 +1234,7 @@ Compiler::defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *scrip
                     continue;
                 JSFunction *fun = obj->getFunctionPrivate();
                 JS_ASSERT(fun->isInterpreted());
-                JSScript *inner = fun->script();
+                JSScript *inner = fun->u.i.script;
                 if (!JSScript::isValidOffset(inner->globalsOffset) &&
                     !JSScript::isValidOffset(inner->objectsOffset)) {
                     continue;
@@ -1486,7 +1490,7 @@ CheckStrictParameters(JSContext *cx, JSTreeContext *tc)
 
     /* Start with lastVariable(), not lastArgument(), for destructuring. */
     for (Shape::Range r = tc->bindings.lastVariable(); !r.empty(); r.popFront()) {
-        jsid id = r.front().propid;
+        jsid id = r.front().id;
         if (!JSID_IS_ATOM(id))
             continue;
 
@@ -1821,8 +1825,10 @@ Compiler::compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *prin
 
     /* No early return from after here until the js_FinishArenaPool calls. */
     JSArenaPool codePool, notePool;
-    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode));
-    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote));
+    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode),
+                     &cx->scriptStackQuota);
+    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote),
+                     &cx->scriptStackQuota);
 
     Parser &parser = compiler.parser;
     TokenStream &tokenStream = parser.tokenStream;
@@ -3725,7 +3731,7 @@ PopStatement(JSTreeContext *tc)
         JS_ASSERT(!obj->isClonedBlock());
 
         for (Shape::Range r = obj->lastProperty()->all(); !r.empty(); r.popFront()) {
-            JSAtom *atom = JSID_TO_ATOM(r.front().propid);
+            JSAtom *atom = JSID_TO_ATOM(r.front().id);
 
             /* Beware the empty destructuring dummy. */
             if (atom == tc->parser->context->runtime->atomState.emptyAtom)
@@ -4376,11 +4382,11 @@ CheckDestructuring(JSContext *cx, BindData *data, JSParseNode *left, JSTreeConte
     if (data &&
         data->binder == BindLet &&
         OBJ_BLOCK_COUNT(cx, tc->blockChain()) == 0 &&
-        !DefineNativeProperty(cx, tc->blockChain(),
-                              ATOM_TO_JSID(cx->runtime->atomState.emptyAtom),
-                              UndefinedValue(), NULL, NULL,
-                              JSPROP_ENUMERATE | JSPROP_PERMANENT,
-                              Shape::HAS_SHORTID, 0)) {
+        !js_DefineNativeProperty(cx, tc->blockChain(),
+                                 ATOM_TO_JSID(cx->runtime->atomState.emptyAtom),
+                                 UndefinedValue(), NULL, NULL,
+                                 JSPROP_ENUMERATE | JSPROP_PERMANENT,
+                                 Shape::HAS_SHORTID, 0, NULL)) {
         return false;
     }
 
@@ -8756,7 +8762,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
             return NULL;
 
         JSObject *obj;
-        if (context->running()) {
+        if (context->hasfp()) {
             obj = RegExp::createObject(context, context->regExpStatics(),
                                        tokenStream.getTokenbuf().begin(),
                                        tokenStream.getTokenbuf().length(),
@@ -8879,7 +8885,7 @@ FoldType(JSContext *cx, JSParseNode *pn, TokenKind type)
                 JSString *str = js_NumberToString(cx, pn->pn_dval);
                 if (!str)
                     return JS_FALSE;
-                pn->pn_atom = js_AtomizeString(cx, str);
+                pn->pn_atom = js_AtomizeString(cx, str, 0);
                 if (!pn->pn_atom)
                     return JS_FALSE;
                 pn->pn_type = TOK_STRING;
@@ -9063,7 +9069,7 @@ FoldXMLConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
                 pn1->pn_type = TOK_XMLTEXT;
                 pn1->pn_op = JSOP_STRING;
                 pn1->pn_arity = PN_NULLARY;
-                pn1->pn_atom = js_AtomizeString(cx, accum);
+                pn1->pn_atom = js_AtomizeString(cx, accum, 0);
                 if (!pn1->pn_atom)
                     return JS_FALSE;
                 JS_ASSERT(pnp != &pn1->pn_next);
@@ -9116,7 +9122,7 @@ FoldXMLConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
         pn1->pn_type = TOK_XMLTEXT;
         pn1->pn_op = JSOP_STRING;
         pn1->pn_arity = PN_NULLARY;
-        pn1->pn_atom = js_AtomizeString(cx, accum);
+        pn1->pn_atom = js_AtomizeString(cx, accum, 0);
         if (!pn1->pn_atom)
             return JS_FALSE;
         JS_ASSERT(pnp != &pn1->pn_next);
@@ -9480,7 +9486,7 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
             JS_ASSERT(*chars == 0);
 
             /* Atomize the result string and mutate pn to refer to it. */
-            pn->pn_atom = js_AtomizeString(cx, str);
+            pn->pn_atom = js_AtomizeString(cx, str, 0);
             if (!pn->pn_atom)
                 return JS_FALSE;
             pn->pn_type = TOK_STRING;
@@ -9505,7 +9511,7 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
             str = js_ConcatStrings(cx, left, right);
             if (!str)
                 return JS_FALSE;
-            pn->pn_atom = js_AtomizeString(cx, str);
+            pn->pn_atom = js_AtomizeString(cx, str, 0);
             if (!pn->pn_atom)
                 return JS_FALSE;
             pn->pn_type = TOK_STRING;

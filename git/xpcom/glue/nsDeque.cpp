@@ -129,7 +129,9 @@ nsDeque::~nsDeque() {
  * @param   aDeallocator functor object for use by Erase()
  */
 void nsDeque::SetDeallocator(nsDequeFunctor* aDeallocator){
-  delete mDeallocator;
+  if (mDeallocator) {
+    delete mDeallocator;
+  }
   mDeallocator=aDeallocator;
 }
 

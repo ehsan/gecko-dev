@@ -94,7 +94,7 @@
 #include "nsISupportsArray.h"
 #include "nsIWebNavigation.h"
 #include "nsIWebPageDescriptor.h"
-#include "nsIWebProgressListener2.h"
+#include "nsIWebProgressListener.h"
 #include "nsISHContainer.h"
 #include "nsIDocShellLoadInfo.h"
 #include "nsIDocShellHistory.h"
@@ -268,13 +268,10 @@ public:
 
     friend class OnLinkClickEvent;
 
-    // We need dummy OnLocationChange in some cases to update the UI without
-    // updating security info.
+    // We need dummy OnLocationChange in some cases to update the UI.
     void FireDummyOnLocationChange()
     {
-        FireOnLocationChange
-            (this, nsnull, mCurrentURI, 
-             nsIWebProgressListener2::LOCATION_CHANGE_SAME_DOCUMENT);
+      FireOnLocationChange(this, nsnull, mCurrentURI);
     }
 
     nsresult HistoryTransactionRemoved(PRInt32 aIndex);
@@ -338,9 +335,9 @@ protected:
     nsresult ScrollToAnchor(nsACString & curHash, nsACString & newHash,
                             PRUint32 aLoadType);
 
-    // Tries to serialize a given variant using structured clone.  This only
+    // Tries to stringify a given variant by converting it to JSON.  This only
     // works if the variant is backed by a JSVal.
-    nsresult SerializeJSValVariant(JSContext *aCx, nsIVariant *aData,
+    nsresult StringifyJSValVariant(JSContext *aCx, nsIVariant *aData,
                                    nsAString &aResult);
 
     // Returns PR_TRUE if would have called FireOnLocationChange,
@@ -595,8 +592,7 @@ protected:
     // FireOnLocationChange is called.
     // In all other cases PR_FALSE is returned.
     PRBool SetCurrentURI(nsIURI *aURI, nsIRequest *aRequest,
-                         PRBool aFireOnLocationChange,
-                         PRUint32 aLocationFlags);
+                         PRBool aFireOnLocationChange);
 
     // The following methods deal with saving and restoring content viewers
     // in session history.

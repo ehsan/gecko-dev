@@ -78,6 +78,7 @@ function GroupItem(listOfEls, options) {
   this.id = options.id || GroupItems.getNextID();
   this._isStacked = false;
   this.expanded = null;
+  this.topChild = null;
   this.hidden = false;
   this.fadeAwayUndoButtonDelay = 15000;
   this.fadeAwayUndoButtonDuration = 300;
@@ -302,7 +303,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         "tab must be null (if no children) or a TabItem");
 
     this._activeTab = tab;
-    this.arrange({immediately: true});
   },
 
   // -----------
@@ -350,7 +350,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // determined by whether the tab is this group's topChild, or
   // if it doesn't have one, its first child.
   isTopOfStack: function GroupItem_isTopOfStack(item) {
-    return this.isStacked() && item == this.getTopChild();
+    return this.isStacked() && ((this.topChild == item) ||
+      (!this.topChild && this.getChild(0) == item));
   },
 
   // ----------
@@ -617,7 +618,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       var zIndex = topZIndex;
       var self = this;
       this._children.forEach(function(child) {
-        if (child == self.getTopChild())
+        if (child == self.topChild)
           child.setZ(topZIndex + 1);
         else {
           child.setZ(zIndex);
@@ -708,7 +709,12 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     let closeCenter = this.getBounds().center();
     // Find closest tab to make active
     let closestTabItem = UI.getClosestTab(closeCenter);
-    UI.setActive(closestTabItem);
+    UI.setActiveTab(closestTabItem);
+
+    if (closestTabItem && closestTabItem.parent)
+      GroupItems.setActiveGroupItem(closestTabItem.parent);
+    else
+      GroupItems.setActiveGroupItem(null);
   },
 
   // ----------
@@ -739,6 +745,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     this.droppable(true);
     this.setTrenches(this.bounds);
 
+    GroupItems.setActiveGroupItem(this);
+    if (this._activeTab)
+      UI.setActiveTab(this._activeTab);
+
     iQ(this.container).show().animate({
       "-moz-transform": "scale(1)",
       "opacity": 1
@@ -748,13 +758,11 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         self._children.forEach(function(child) {
           iQ(child.container).show();
         });
-
-        UI.setActive(self);
-        self._sendToSubscribers("groupShown", { groupItemId: self.id });
       }
     });
 
     GroupItems.updateGroupCloseButtons();
+    self._sendToSubscribers("groupShown", { groupItemId: self.id });
   },
 
   // ----------
@@ -1005,8 +1013,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
           if (dontArrange)
             self._freezeItemSize(count);
 
-          if (self._children.length > 0 && self._activeTab)
-            UI.setActive(self);
+          if (self._children.length > 0 && self._activeTab) {
+            GroupItems.setActiveGroupItem(self);
+            UI.setActiveTab(self._activeTab);
+          }
         });
 
         item.setParent(this);
@@ -1014,14 +1024,15 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         if (typeof item.setResizable == 'function')
           item.setResizable(false, options.immediately);
 
-        if (item == UI.getActiveTab() || !this._activeTab)
+        // if it is visually active, set it as the active tab.
+        if (iQ(item.container).hasClass("focus"))
           this.setActiveTab(item);
 
-        // if it matches the selected tab or no active tab and the browser
+        // if it matches the selected tab or no active tab and the browser 
         // tab is hidden, the active group item would be set.
-        if (item.tab == gBrowser.selectedTab ||
+        if (item.tab == gBrowser.selectedTab || 
             (!GroupItems.getActiveGroupItem() && !item.tab.hidden))
-          UI.setActive(this);
+          GroupItems.setActiveGroupItem(this);
       }
 
       if (!options.dontArrange)
@@ -1130,6 +1141,19 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       self.remove(child, newOptions);
     });
   },
+  
+  // ----------
+  // Handles error event for loading app tab's fav icon.
+  _onAppTabError : function(event) {
+    iQ(".appTabIcon", this.$appTabTray).each(function(icon) {
+      let $icon = iQ(icon);
+      if ($icon.data("xulTab") == event.target) {
+        $icon.attr("src", Utils.defaultFaviconURL);
+        return false;
+      }
+      return true;
+    });
+  },
 
   // ----------
   // Adds the given xul:tab as an app tab in this group's apptab tray
@@ -1144,7 +1168,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   addAppTab: function GroupItem_addAppTab(xulTab, options) {
     let self = this;
 
-    let iconUrl = GroupItems.getAppTabFavIconUrl(xulTab);
+    xulTab.addEventListener("error", this._onAppTabError, false);
+
+    // add the icon
+    let iconUrl = xulTab.image || Utils.defaultFaviconURL;
     let $appTab = iQ("<img>")
       .addClass("appTabIcon")
       .attr("src", iconUrl)
@@ -1154,7 +1181,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         if (!Utils.isLeftClick(event))
           return;
 
-        UI.setActive(self, { dontSetActiveTabInGroup: true });
+        GroupItems.setActiveGroupItem(self);
         UI.goToTab(iQ(this).data("xulTab"));
       });
 
@@ -1178,6 +1205,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     
     // adjust the tray
     this.adjustAppTabTray(true);
+
+    xulTab.removeEventListener("error", this._onAppTabError, false);
   },
 
   // ----------
@@ -1199,7 +1228,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (targetIndex < (length - 1))
         self.$appTabTray[0].insertBefore(
           icon,
-          iQ(".appTabIcon:nth-child(" + (targetIndex + 1) + ")", self.$appTabTray)[0]);
+        iQ(".appTabIcon:nth-child(" + (targetIndex + 1) + ")", self.$appTabTray)[0]);
       else
         $icon.appendTo(self.$appTabTray);
       return false;
@@ -1407,12 +1436,11 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     var self = this;
     var children = [];
 
-    // ensure topChild is the first item in childrenToArrange
-    let topChild = this.getTopChild();
-    let topChildPos = childrenToArrange.indexOf(topChild);
+    // ensure this.topChild is the first item in childrenToArrange
+    let topChildPos = childrenToArrange.indexOf(this.topChild);
     if (topChildPos > 0) {
       childrenToArrange.splice(topChildPos, 1);
-      childrenToArrange.unshift(topChild);
+      childrenToArrange.unshift(this.topChild);
     }
 
     childrenToArrange.forEach(function GroupItem__stackArrange_order(child) {
@@ -1467,6 +1495,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       box.inset(8, 8);
       arrangeOptions = Utils.extend({}, options, {z: 99999});
     } else {
+      this.topChild = null;
       this._isStacked = false;
       arrangeOptions = Utils.extend({}, options, {
         columns: this._columns
@@ -1511,7 +1540,9 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   expand: function GroupItem_expand() {
     var self = this;
     // ___ we're stacked, and command is held down so expand
-    UI.setActive(this.getTopChild());
+    GroupItems.setActiveGroupItem(self);
+    let activeTab = this.topChild || this.getChildren()[0];
+    UI.setActiveTab(activeTab);
     
     var startBounds = this.getChild(0).getBounds();
     var $tray = iQ("<div>").css({
@@ -1727,7 +1758,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (dropIndex !== false)
         options = {index: dropIndex};
       this.add(drag.info.$el, options);
-      UI.setActive(this);
+      GroupItems.setActiveGroupItem(this);
       dropIndex = false;
     };
     this.dropOptions.out = function GroupItem_dropOptions_out(event) {
@@ -1782,7 +1813,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Function: newTab
   // Creates a new tab within this groupItem.
   newTab: function GroupItem_newTab(url) {
-    UI.setActive(this, { dontSetActiveTabInGroup: true });
+    GroupItems.setActiveGroupItem(this);
     let newTab = gBrowser.loadOneTab(url || "about:blank", {inBackground: true});
 
     // TabItems will have handled the new tab and added the tabItem property.
@@ -1827,14 +1858,13 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   },
 
   // ----------
-  // Function: getTopChild
-  // Gets the <Item> that should be displayed on top when in stack mode.
-  getTopChild: function GroupItem_getTopChild() {
-    if (!this.getChildren().length) {
-      return null;
-    }
+  // Function: setTopChild
+  // Sets the <Item> that should be displayed on top when in stack mode.
+  setTopChild: function GroupItem_setTopChild(topChild) {
+    this.topChild = topChild;
 
-    return this.getActiveTab() || this.getChild(0);
+    this.arrange({animate: false});
+    // this.arrange calls this.save for us
   },
 
   // ----------
@@ -1912,7 +1942,7 @@ let GroupItems = {
 
   // ----------
   // Function: uninit
-  uninit: function GroupItems_uninit() {
+  uninit : function GroupItems_uninit () {
     // call our cleanup functions
     this._cleanupFunctions.forEach(function(func) {
       func();
@@ -1927,7 +1957,7 @@ let GroupItems = {
   // ----------
   // Function: newGroup
   // Creates a new empty group.
-  newGroup: function GroupItems_newGroup() {
+  newGroup: function () {
     let bounds = new Rect(20, 20, 250, 200);
     return new GroupItem([], {bounds: bounds, immediately: true});
   },
@@ -2008,7 +2038,7 @@ let GroupItems = {
     if (xulTab.ownerDocument.defaultView != gWindow || !xulTab.pinned)
       return;
 
-    let iconUrl = this.getAppTabFavIconUrl(xulTab);
+    let iconUrl = xulTab.image || Utils.defaultFaviconURL;
     this.groupItems.forEach(function(groupItem) {
       iQ(".appTabIcon", groupItem.$appTabTray).each(function(icon) {
         let $icon = iQ(icon);
@@ -2020,21 +2050,7 @@ let GroupItems = {
         return false;
       });
     });
-  },
-
-  // ----------
-  // Function: getAppTabFavIconUrl
-  // Gets the fav icon url for app tab.
-  getAppTabFavIconUrl: function GroupItems__getAppTabFavIconUrl(xulTab) {
-    let iconUrl;
-
-    if (UI.shouldLoadFavIcon(xulTab.linkedBrowser))
-      iconUrl = UI.getFavIconUrlForTab(xulTab);
-    else
-      iconUrl = gFavIconService.defaultFavicon.spec;
-
-    return iconUrl;
-  },
+  },  
 
   // ----------
   // Function: addAppTab
@@ -2106,9 +2122,7 @@ let GroupItems = {
 
     let activeGroupId = this._activeGroupItem ? this._activeGroupItem.id : null;
     Storage.saveGroupItemsData(
-      gWindow,
-      { nextID: this.nextID, activeGroupId: activeGroupId,
-        totalNumber: this.groupItems.length });
+      gWindow, { nextID: this.nextID, activeGroupId: activeGroupId });
   },
 
   // ----------
@@ -2164,16 +2178,7 @@ let GroupItems = {
         }
 
         toClose.forEach(function(groupItem) {
-          // All remaining children in to-be-closed groups are re-used by
-          // session restore. Reconnect them so that they're put into their
-          // right groups.
-          groupItem.getChildren().forEach(function (tabItem) {
-            if (tabItem.parent && tabItem.parent.hidden)
-              iQ(tabItem.container).show();
-            tabItem._reconnected = false;
-            tabItem._reconnect();
-          });
-          groupItem.close({immediately: true});
+          groupItem.destroy({immediately: true});
         });
       }
 
@@ -2181,7 +2186,7 @@ let GroupItems = {
       if (activeGroupId) {
         let activeGroupItem = this.groupItem(activeGroupId);
         if (activeGroupItem)
-          UI.setActive(activeGroupItem);
+          this.setActiveGroupItem(activeGroupItem);
       }
 
       this._inited = true;
@@ -2318,7 +2323,7 @@ let GroupItems = {
         if (targetGroupItem) {
           // add the new tabItem to the first group item
           targetGroupItem.add(tabItem);
-          UI.setActive(targetGroupItem);
+          this.setActiveGroupItem(targetGroupItem);
           return;
         } else {
           // find the first visible group item
@@ -2327,7 +2332,7 @@ let GroupItems = {
           });
           if (visibleGroupItems.length > 0) {
             visibleGroupItems[0].add(tabItem);
-            UI.setActive(visibleGroupItems[0]);
+            this.setActiveGroupItem(visibleGroupItems[0]);
             return;
           }
         }
@@ -2356,7 +2361,7 @@ let GroupItems = {
     newGroupItemBounds.inset(-40,-40);
     let newGroupItem = new GroupItem(tabItems, { bounds: newGroupItemBounds });
     newGroupItem.snap();
-    UI.setActive(newGroupItem);
+    this.setActiveGroupItem(newGroupItem);
   },
 
   // ----------
@@ -2416,7 +2421,11 @@ let GroupItems = {
   updateActiveGroupItemAndTabBar: function GroupItems_updateActiveGroupItemAndTabBar(tabItem) {
     Utils.assertThrow(tabItem && tabItem.isATabItem, "tabItem must be a TabItem");
 
-    UI.setActive(tabItem);
+    let groupItem = tabItem.parent;
+    this.setActiveGroupItem(groupItem);
+    if (groupItem)
+      groupItem.setActiveTab(tabItem);
+
     this._updateTabBar();
   },
 

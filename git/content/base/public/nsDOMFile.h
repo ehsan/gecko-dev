@@ -40,7 +40,6 @@
 #define nsDOMFile_h__
 
 #include "nsICharsetDetectionObserver.h"
-#include "nsIFile.h"
 #include "nsIDOMFile.h"
 #include "nsIDOMFileList.h"
 #include "nsIDOMFileError.h"
@@ -57,19 +56,18 @@
 class nsIFile;
 class nsIInputStream;
 class nsIClassInfo;
-class nsIBlobBuilder;
-
-nsresult NS_NewBlobBuilder(nsISupports* *aSupports);
-void ParseSize(PRInt64 aSize, PRInt64& aStart, PRInt64& aEnd);
 
 class nsDOMFile : public nsIDOMFile,
+                  public nsIDOMBlob_MOZILLA_2_0_BRANCH,
                   public nsIXHRSendable,
+                  public nsICharsetDetectionObserver,
                   public nsIJSNativeInitializer
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMBLOB
   NS_DECL_NSIDOMFILE
+  NS_DECL_NSIDOMBLOB_MOZILLA_2_0_BRANCH
   NS_DECL_NSIXHRSENDABLE
 
   nsDOMFile(nsIFile *aFile, const nsAString& aContentType)
@@ -99,6 +97,9 @@ public:
 
   virtual ~nsDOMFile() {}
 
+  // from nsICharsetDetectionObserver
+  NS_IMETHOD Notify(const char *aCharset, nsDetectionConfident aConf);
+
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner,
                         JSContext* aCx,
@@ -120,6 +121,13 @@ protected:
   nsString mContentType;
   
   bool mIsFullFile;
+
+  // Used during charset detection
+  nsCString mCharset;
+  nsresult GuessCharset(nsIInputStream *aStream,
+                        nsACString &aCharset);
+  nsresult ConvertStream(nsIInputStream *aStream, const char *aCharset,
+                         nsAString &aResult);
 };
 
 class nsDOMMemoryFile : public nsDOMFile

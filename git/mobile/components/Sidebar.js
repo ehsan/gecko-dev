@@ -48,9 +48,6 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-const SIDEBAR_CID = Components.ID("{22117140-9c6e-11d3-aaf1-00805f8a4905}");
-const SIDEBAR_CONTRACTID = "@mozilla.org/sidebar;1";
-
 function Sidebar() {
   // Depending on if we are in the parent or child, prepare to remote
   // certain calls
@@ -170,19 +167,24 @@ Sidebar.prototype = {
   },
 
   // =========================== nsIClassInfo ===========================
-  classInfo: XPCOMUtils.generateCI({classID: SIDEBAR_CID,
-                                    contractID: SIDEBAR_CONTRACTID,
-                                    interfaces: [Ci.nsISidebar,
-                                                 Ci.nsISidebarExternal],
-                                    flags: Ci.nsIClassInfo.DOM_OBJECT,
-                                    classDescription: "Sidebar"}),
+  flags: Ci.nsIClassInfo.DOM_OBJECT,
+  classDescription: "Sidebar",
+  getInterfaces: function getInterfaces(count) {
+    var interfaceList = [Ci.nsISidebar, Ci.nsISidebarExternal, Ci.nsIClassInfo];
+    count.value = interfaceList.length;
+    return interfaceList;
+  },
+  getHelperForLanguage: function getHelperForLanguage(count) {
+    return null;
+  },
 
   // =========================== nsISupports ===========================
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISidebar,
-                                         Ci.nsISidebarExternal]),
+                                         Ci.nsISidebarExternal,
+                                         Ci.nsIClassInfo]),
 
   // XPCOMUtils stuff
-  classID: SIDEBAR_CID,
+  classID: Components.ID("{22117140-9c6e-11d3-aaf1-00805f8a4905}"),
 };
 
 const NSGetFactory = XPCOMUtils.generateNSGetFactory([Sidebar]);

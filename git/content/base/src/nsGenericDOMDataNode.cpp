@@ -63,7 +63,6 @@
 #include "nsBindingManager.h"
 #include "nsCCUncollectableMarker.h"
 #include "mozAutoDocUpdate.h"
-#include "nsPLDOMEvent.h"
 
 #include "pldhash.h"
 #include "prprf.h"
@@ -392,6 +391,8 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
     nsNodeUtils::CharacterDataChanged(this, &info);
 
     if (haveMutationListeners) {
+      mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
+
       nsMutationEvent mutation(PR_TRUE, NS_MUTATION_CHARACTERDATAMODIFIED);
 
       mutation.mPrevAttrValue = oldValue;
@@ -402,7 +403,7 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
       }
 
       mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
-      (new nsPLDOMEvent(this, mutation))->RunDOMEventWhenSafe();
+      nsEventDispatcher::Dispatch(this, nsnull, &mutation);
     }
   }
 
@@ -535,7 +536,7 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   nsNodeUtils::ParentChainChanged(this);
 
-  UpdateEditableState(PR_FALSE);
+  UpdateEditableState();
 
   NS_POSTCONDITION(aDocument == GetCurrentDoc(), "Bound to wrong document");
   NS_POSTCONDITION(aParent == GetParent(), "Bound to wrong parent");
@@ -723,7 +724,7 @@ nsGenericDOMDataNode::InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
 }
 
 nsresult
-nsGenericDOMDataNode::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
+nsGenericDOMDataNode::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
 {
   return NS_OK;
 }
@@ -846,6 +847,52 @@ nsGenericDOMDataNode::SplitText(PRUint32 aOffset, nsIDOMText** aReturn)
   return rv;
 }
 
+//----------------------------------------------------------------------
+
+// Implementation of the nsGenericDOMDataNode nsIDOM3Text tearoff
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsText3Tearoff)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsText3Tearoff)
+  NS_INTERFACE_MAP_ENTRY(nsIDOM3Text)
+NS_INTERFACE_MAP_END_AGGREGATED(mNode)
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsText3Tearoff)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsText3Tearoff)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mNode, nsIContent)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsText3Tearoff)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsText3Tearoff)
+
+NS_IMETHODIMP
+nsText3Tearoff::GetIsElementContentWhitespace(PRBool *aReturn)
+{
+  *aReturn = mNode->IsElementContentWhitespace();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsText3Tearoff::GetWholeText(nsAString& aWholeText)
+{
+  return mNode->GetWholeText(aWholeText);
+}
+
+NS_IMETHODIMP
+nsText3Tearoff::ReplaceWholeText(const nsAString& aContent,
+                                 nsIDOMText **aReturn)
+{
+  nsresult rv;
+  nsIContent* result = mNode->ReplaceWholeText(PromiseFlatString(aContent),
+                                               &rv);
+  return result ? CallQueryInterface(result, aReturn) : rv;
+}
+
+// Implementation of the nsIDOM3Text interface
+
 /* static */ PRInt32
 nsGenericDOMDataNode::FirstLogicallyAdjacentTextNode(nsIContent* aParent,
                                                      PRInt32 aIndex)
@@ -872,7 +919,7 @@ nsGenericDOMDataNode::LastLogicallyAdjacentTextNode(nsIContent* aParent,
 }
 
 nsresult
-nsGenericDOMDataNode::GetWholeText(nsAString& aWholeText)
+nsGenericTextNode::GetWholeText(nsAString& aWholeText)
 {
   nsIContent* parent = GetParent();
 
@@ -903,34 +950,34 @@ nsGenericDOMDataNode::GetWholeText(nsAString& aWholeText)
   return NS_OK;
 }
 
-nsresult
-nsGenericDOMDataNode::ReplaceWholeText(const nsAString& aContent,
-                                       nsIDOMText **aResult)
+nsIContent*
+nsGenericTextNode::ReplaceWholeText(const nsAFlatString& aContent,
+                                    nsresult* aResult)
 {
-  *aResult = nsnull;
-
-  // Handle parent-less nodes
-  nsCOMPtr<nsIContent> parent = GetParent();
-  if (!parent) {
-    if (aContent.IsEmpty()) {
-      return NS_OK;
-    }
-
-    SetNodeValue(aContent);
-    return CallQueryInterface(this, aResult);
-  }
-
-  // We're relying on mozAutoSubtreeModified to keep the doc alive here.
-  nsIDocument* doc = GetOwnerDoc();
+  *aResult = NS_OK;
 
   // Batch possible DOMSubtreeModified events.
-  mozAutoSubtreeModified subtree(doc, nsnull);
+  mozAutoSubtreeModified subtree(GetOwnerDoc(), nsnull);
+  mozAutoDocUpdate updateBatch(GetCurrentDoc(), UPDATE_CONTENT_MODEL, PR_TRUE);
+
+  nsCOMPtr<nsIContent> parent = GetParent();
+
+  // Handle parent-less nodes
+  if (!parent) {
+    if (aContent.IsEmpty()) {
+      return nsnull;
+    }
+
+    SetText(aContent.get(), aContent.Length(), PR_TRUE);
+    return this;
+  }
 
   PRInt32 index = parent->IndexOf(this);
   if (index < 0) {
     NS_WARNING("Trying to use .replaceWholeText with an anonymous text node "
                "child of a binding parent?");
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    *aResult = NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    return nsnull;
   }
 
   // We don't support entity references or read-only nodes, so remove the
@@ -941,25 +988,6 @@ nsGenericDOMDataNode::ReplaceWholeText(const nsAString& aContent,
   PRInt32 last =
     LastLogicallyAdjacentTextNode(parent, index, parent->GetChildCount());
 
-  // Fire mutation events. Optimize the common case of there being no
-  // listeners
-  if (nsContentUtils::
-        HasMutationListeners(doc, NS_EVENT_BITS_MUTATION_NODEREMOVED)) {
-    for (PRInt32 i = first; i <= last; ++i) {
-      nsCOMPtr<nsIContent> child = parent->GetChildAt((PRUint32)i);
-      if (child &&
-          (i != index || aContent.IsEmpty())) {
-        nsContentUtils::MaybeFireNodeRemoved(child, parent, doc);
-      }
-    }
-  }
-
-  // Remove the needed nodes
-  // Don't want to use 'doc' here since it might no longer be the correct
-  // document.
-  mozAutoDocUpdate updateBatch(parent->GetCurrentDoc(), UPDATE_CONTENT_MODEL,
-                               PR_TRUE);
-
   do {
     if (last == index && !aContent.IsEmpty())
       continue;
@@ -969,11 +997,11 @@ nsGenericDOMDataNode::ReplaceWholeText(const nsAString& aContent,
 
   // Empty string means we removed this node too.
   if (aContent.IsEmpty()) {
-    return NS_OK;
+    return nsnull;
   }
 
-  SetText(aContent.BeginReading(), aContent.Length(), PR_TRUE);
-  return CallQueryInterface(this, aResult);
+  SetText(aContent.get(), aContent.Length(), PR_TRUE);
+  return this;
 }
 
 //----------------------------------------------------------------------

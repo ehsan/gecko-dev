@@ -92,7 +92,6 @@ CPPSRCS		= \
 		nsDOMHashChangeEvent.cpp \
 		nsDOMCloseEvent.cpp \
 		nsDOMTouchEvent.cpp \
-		nsDOMCustomEvent.cpp \
 		$(NULL)
 
 ifdef MOZ_CSS_ANIMATIONS

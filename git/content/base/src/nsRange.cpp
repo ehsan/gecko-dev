@@ -46,6 +46,7 @@
 #include "nsReadableUtils.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
@@ -1171,7 +1172,7 @@ RemoveNode(nsIDOMNode* aNode)
 {
   nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
   nsCOMPtr<nsINode> parent = node->GetNodeParent();
-  return parent ? parent->RemoveChild(node) : NS_OK;
+  return parent ? parent->RemoveChildAt(parent->IndexOf(node), PR_TRUE) : NS_OK;
 }
 
 /**

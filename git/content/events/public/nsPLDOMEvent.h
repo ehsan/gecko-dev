@@ -69,11 +69,9 @@ public:
     : mEventNode(aEventNode), mEvent(aEvent), mDispatchChromeOnly(PR_FALSE)
   { }
 
-  nsPLDOMEvent(nsINode *aEventNode, nsEvent &aEvent);
-
   NS_IMETHOD Run();
   nsresult PostDOMEvent();
-  void RunDOMEventWhenSafe();
+  nsresult RunDOMEventWhenSafe();
 
   nsCOMPtr<nsINode>     mEventNode;
   nsCOMPtr<nsIDOMEvent> mEvent;

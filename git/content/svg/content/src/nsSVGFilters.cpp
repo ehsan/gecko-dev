@@ -72,7 +72,9 @@
 
 #if defined(XP_WIN) 
 // Prevent Windows redefining LoadImage
+#ifndef WINCE
 #undef LoadImage
+#endif
 #endif
 
 #define NUM_ENTRIES_IN_4x5_MATRIX 20
@@ -5377,8 +5379,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGFEImageElementBase)
 nsSVGFEImageElement::nsSVGFEImageElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsSVGFEImageElementBase(aNodeInfo)
 {
-  // We start out broken
-  AddStatesSilently(NS_EVENT_STATE_BROKEN);
 }
 
 nsSVGFEImageElement::~nsSVGFEImageElement()
@@ -5468,10 +5468,7 @@ nsSVGFEImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (HasAttr(kNameSpaceID_XLink, nsGkAtoms::href)) {
-    // FIXME: Bug 660963 it would be nice if we could just have
-    // ClearBrokenState update our state and do it fast...
     ClearBrokenState();
-    RemoveStatesSilently(NS_EVENT_STATE_BROKEN);
     nsContentUtils::AddScriptRunner(
       NS_NewRunnableMethod(this, &nsSVGFEImageElement::MaybeLoadSVGImage));
   }

@@ -196,11 +196,6 @@ nsBMPDecoder::WriteInternal(const char* aBuffer, PRUint32 aCount)
 
         // Post our size to the superclass
         PostSize(mBIH.width, real_height);
-        if (HasError()) {
-          // Setting the size lead to an error; this can happen when for example
-          // a multipart channel sends an image of a different size.
-          return;
-        }
 
         // We have the size. If we're doing a size decode, we got what
         // we came for.
@@ -424,7 +419,7 @@ nsBMPDecoder::WriteInternal(const char* aBuffer, PRUint32 aCount)
                             // the second byte
                             // Work around bitmaps that specify too many pixels
                             mState = eRLEStateInitial;
-                            PRUint32 pixelsNeeded = NS_MIN<PRUint32>(mBIH.width - mCurPos, mStateData);
+                            PRUint32 pixelsNeeded = PR_MIN((PRUint32)(mBIH.width - mCurPos), mStateData);
                             if (pixelsNeeded) {
                                 PRUint32* d = mImageData + PIXEL_OFFSET(mCurLine, mCurPos);
                                 mCurPos += pixelsNeeded;
@@ -504,7 +499,7 @@ nsBMPDecoder::WriteInternal(const char* aBuffer, PRUint32 aCount)
                         byte = *aBuffer++;
                         aCount--;
                         mState = eRLEStateInitial;
-                        mCurLine -= NS_MIN<PRInt32>(byte, mCurLine);
+                        mCurLine -= PR_MIN(byte, mCurLine);
                         break;
 
                     case eRLEStateAbsoluteMode: // Absolute Mode

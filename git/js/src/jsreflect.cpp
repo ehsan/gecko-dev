@@ -203,7 +203,7 @@ class NodeBuilder
             Value funv;
 
             const char *name = callbackNames[i];
-            JSAtom *atom = js_Atomize(cx, name, strlen(name));
+            JSAtom *atom = js_Atomize(cx, name, strlen(name), 0);
             if (!atom || !GetPropertyDefault(cx, userobj, ATOM_TO_JSID(atom), NullValue(), &funv))
                 return false;
 
@@ -313,7 +313,7 @@ class NodeBuilder
         /*
          * Bug 575416: instead of js_Atomize, lookup constant atoms in tbl file
          */
-        JSAtom *atom = js_Atomize(cx, s, strlen(s));
+        JSAtom *atom = js_Atomize(cx, s, strlen(s), 0);
         if (!atom)
             return false;
 
@@ -425,7 +425,7 @@ class NodeBuilder
         /*
          * Bug 575416: instead of js_Atomize, lookup constant atoms in tbl file
          */
-        JSAtom *atom = js_Atomize(cx, name, strlen(name));
+        JSAtom *atom = js_Atomize(cx, name, strlen(name), 0);
         if (!atom)
             return false;
 
@@ -3234,7 +3234,7 @@ reflect_parse(JSContext *cx, uint32 argc, jsval *vp)
                 if (!chars)
                     return JS_FALSE;
 
-                filename = DeflateString(cx, chars, length);
+                filename = js_DeflateString(cx, chars, length);
                 if (!filename)
                     return JS_FALSE;
                 filenamep.reset(filename);
@@ -3313,8 +3313,6 @@ js_InitReflectClass(JSContext *cx, JSObject *obj)
 
     if (!JS_DefineFunctions(cx, Reflect, static_methods))
         return NULL;
-
-    MarkStandardClassInitializedNoProto(obj, &js_ReflectClass);
 
     return Reflect;
 }

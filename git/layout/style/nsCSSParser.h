@@ -46,9 +46,11 @@
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
 
+class nsICSSRule;
 class nsCSSStyleSheet;
 class nsIPrincipal;
 class nsIURI;
+class nsIUnicharInputStream;
 struct nsCSSSelectorList;
 class nsMediaList;
 #ifdef MOZ_CSS_ANIMATIONS
@@ -57,7 +59,6 @@ class nsCSSKeyframeRule;
 
 namespace mozilla {
 namespace css {
-class Rule;
 class Declaration;
 class Loader;
 class StyleRule;
@@ -88,8 +89,10 @@ public:
   // Set whether or not to emulate Nav quirks
   nsresult SetQuirkMode(PRBool aQuirkMode);
 
+#ifdef  MOZ_SVG
   // Set whether or not we are in an SVG element
   nsresult SetSVGMode(PRBool aSVGMode);
+#endif
 
   // Set loader to use for child sheets
   nsresult SetChildLoader(mozilla::css::Loader* aChildLoader);
@@ -110,12 +113,12 @@ public:
    * @param aAllowUnsafeRules see aEnableUnsafeRules in
    *                          mozilla::css::Loader::LoadSheetSync
    */
-  nsresult ParseSheet(const nsAString& aInput,
-                      nsIURI*          aSheetURL,
-                      nsIURI*          aBaseURI,
-                      nsIPrincipal*    aSheetPrincipal,
-                      PRUint32         aLineNumber,
-                      PRBool           aAllowUnsafeRules);
+  nsresult Parse(nsIUnicharInputStream* aInput,
+                 nsIURI*                aSheetURL,
+                 nsIURI*                aBaseURI,
+                 nsIPrincipal*          aSheetPrincipal,
+                 PRUint32               aLineNumber,
+                 PRBool                 aAllowUnsafeRules);
 
   // Parse HTML style attribute or its equivalent in other markup
   // languages.  aBaseURL is the base url to use for relative links in
@@ -142,7 +145,7 @@ public:
                      nsIURI*                 aSheetURL,
                      nsIURI*                 aBaseURL,
                      nsIPrincipal*           aSheetPrincipal,
-                     nsCOMArray<mozilla::css::Rule>& aResult);
+                     nsCOMArray<nsICSSRule>& aResult);
 
   nsresult ParseProperty(const nsCSSProperty aPropID,
                          const nsAString&    aPropValue,

@@ -57,6 +57,7 @@ SDK_XPIDLSRCS   = \
 		nsIURL.idl \
 		nsIFileURL.idl \
 		nsIUploadChannel.idl \
+		nsIUnicharStreamListener.idl \
 		nsITraceableChannel.idl \
 		$(NULL)
 
@@ -112,7 +113,6 @@ XPIDLSRCS	= \
 		nsIStreamLoader.idl \
 		nsISyncStreamListener.idl \
 		nsISystemProxySettings.idl \
-		nsITimedChannel.idl \
 		nsIUnicharStreamLoader.idl \
 		nsIUploadChannel2.idl \
 		nsIStandardURL.idl \

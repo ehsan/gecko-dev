@@ -763,30 +763,22 @@
       <method name="save">
         <body>
           <![CDATA[
-            BookmarkHelper.log("bindings.xml: saving");
             // Update the tags
             if (this.uri && this.type != "folder") {
               let currentTags = PlacesUtils.tagging.getTagsForURI(this.uri, {});
               let tags = this.tagsAsArray;
-              BookmarkHelper.log("bindings.xml: current tags length is " + currentTags.length);
               if (tags.length > 0 || currentTags.length > 0) {
                 let tagsToRemove = [];
                 let tagsToAdd = [];
                 for (let i = 0; i < currentTags.length; i++) {
-                  if (tags.indexOf(currentTags[i]) == -1) {
-                    BookmarkHelper.log("bindings.xml: removing tag " + currentTags[i]);
+                  if (tags.indexOf(currentTags[i]) == -1)
                     tagsToRemove.push(currentTags[i]);
-                  }
                 }
                 for (let i = 0; i < tags.length; i++) {
-                  if (currentTags.indexOf(tags[i]) == -1) {
-                    BookmarkHelper.log("bindings.xml: adding tag " + tags[i]);
+                  if (currentTags.indexOf(tags[i]) == -1)
                     tagsToAdd.push(tags[i]);
-                  }
                 }
 
-                BookmarkHelper.log("bindings.xml: tagsToAdd length " + tagsToAdd.length);
-                BookmarkHelper.log("bindings.xml: tagsToRemove length " + tagsToRemove.length);
                 if (tagsToAdd.length > 0)
                   PlacesUtils.tagging.tagURI(this.uri, tagsToAdd);
                 if (tagsToRemove.length > 0)
@@ -799,8 +791,6 @@
               let spec = this.spec;
               if (spec && this.uri.spec != spec) {
                 try {
-                  BookmarkHelper.log("bindings.xml: changing uri");
-
                   let oldURI = this._uri;
                   this._uri = Services.io.newURI(spec, null, null);
                   PlacesUtils.bookmarks.changeBookmarkURI(this.itemId, this.uri);
@@ -816,9 +806,7 @@
                     PlacesUtils.tagging.tagURI(this._uri, tags);
                   }
                 }
-                catch (e) {
-                  BookmarkHelper.log("bindings.xml: Error while tagging and moving bookmark: " + e);
-                }
+                catch (e) { }
               }
               if (spec != this.uri.spec)
                 this.spec = this.uri.spec;
@@ -1254,25 +1242,17 @@
       </handler>
     </handlers>
     <content orient="vertical" flex="1">
-      <xul:hbox class="history-throbber-box" flex="1" align="center" pack="center">
-        <xul:image src="chrome://browser/skin/images/throbber.png" />
-      </xul:hbox>
       <xul:richlistbox anonid="child-items" class="history-list-children" flex="1" batch="25"/>
     </content>
     <implementation>
       <method name="open">
         <body><![CDATA[
-          this.setAttribute("loading", "true");
+          let children = this._children;
+          while (children.lastChild)
+            children.removeChild(children.lastChild);
 
-          setTimeout(function(self) {
-            let children = self._children;
-            while (children.lastChild)
-              children.removeChild(children.lastChild);
-
-            let items = self._getHistory();
-            children.setItems(items.map(self.createItem));
-            self.removeAttribute("loading");
-          }, 0, this);
+          let items = this._getHistory();
+          children.setItems(items.map(this.createItem));
         ]]></body>
       </method>
 
@@ -1372,36 +1352,10 @@
       </handler>
     </handlers>
     <content orient="vertical" flex="1">
-      <xul:hbox class="remotetabs-throbber-box" flex="1" align="center" pack="center">
-        <xul:image src="chrome://browser/skin/images/throbber.png" />
-      </xul:hbox>
       <xul:richlistbox anonid="child-items" class="remotetabs-list-children" flex="1" batch="25"/>
     </content>
     <implementation>
       <method name="open">
-        <body><![CDATA[
-          let self = this;
-          this.setAttribute("loading", "true");
-
-          if (Weave.Service.isLoggedIn) {
-            setTimeout(function() self._loadChildren(), 0);
-          } else {
-            // Wait until login or setup finishes before loading items.
-            let topics = [
-              "browser:sync:setup:userabort",
-              "weave:service:login:finish",
-              "weave:service:login:error"
-            ];
-            function observe() {
-              topics.forEach(function(topic) Services.obs.removeObserver(observe, topic, false));
-              self._loadChildren();
-            }
-            topics.forEach(function(topic) Services.obs.addObserver(observe, topic, false));
-          }
-        ]]></body>
-      </method>
-
-      <method name="_loadChildren">
         <body><![CDATA[
           let children = this._children;
           while (children.lastChild)
@@ -1409,7 +1363,6 @@
 
           let items = this._getRemoteTabs();
           children.setItems(items.map(this.createItem));
-          this.removeAttribute("loading");
         ]]></body>
       </method>
 
@@ -1423,8 +1376,6 @@
         <body><![CDATA[
           // Don't do anything if the Weave isn't ready
           if (document.getElementById("cmd_remoteTabs").getAttribute("disabled") == "true")
-            return [];
-          if (Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED)
             return [];
 
           // Don't do anything if the tabs engine isn't ready

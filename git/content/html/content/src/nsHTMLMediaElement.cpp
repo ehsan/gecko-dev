@@ -68,6 +68,7 @@
 #include "nsITimer.h"
 
 #include "nsEventDispatcher.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsMediaError.h"
 #include "nsICategoryManager.h"
 #include "nsCharSeparatedTokenizer.h"
@@ -119,9 +120,6 @@ static PRLogModuleInfo* gMediaElementEventsLog;
 #include "nsIChannelPolicy.h"
 #include "nsChannelPolicy.h"
 
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
 
@@ -256,8 +254,7 @@ class nsHTMLMediaElement::MediaLoadListener : public nsIStreamListener,
 
 public:
   MediaLoadListener(nsHTMLMediaElement* aElement)
-    : mElement(aElement),
-      mLoadID(aElement->GetCurrentLoadID())
+    : mElement(aElement)
   {
     NS_ABORT_IF_FALSE(mElement, "Must pass an element to call back");
   }
@@ -265,7 +262,6 @@ public:
 private:
   nsRefPtr<nsHTMLMediaElement> mElement;
   nsCOMPtr<nsIStreamListener> mNextListener;
-  PRUint32 mLoadID;
 };
 
 NS_IMPL_ISUPPORTS5(nsHTMLMediaElement::MediaLoadListener, nsIRequestObserver,
@@ -291,13 +287,6 @@ NS_IMETHODIMP nsHTMLMediaElement::MediaLoadListener::OnStartRequest(nsIRequest* 
   // InitializeDecoderForChannel. So make sure mElement is cleared here.
   nsRefPtr<nsHTMLMediaElement> element;
   element.swap(mElement);
-
-  if (mLoadID != element->GetCurrentLoadID()) {
-    // The channel has been cancelled before we had a chance to create
-    // a decoder. Abort, don't dispatch an "error" event, as the new load
-    // may not be in an error state.
-    return NS_BINDING_ABORTED;
-  }
 
   // Don't continue to load if the request failed or has been canceled.
   nsresult rv;
@@ -841,7 +830,7 @@ void nsHTMLMediaElement::ResumeLoad(PreloadAction aAction)
 
 static PRBool IsAutoplayEnabled()
 {
-  return Preferences::GetBool("media.autoplay.enabled");
+  return nsContentUtils::GetBoolPref("media.autoplay.enabled");
 }
 
 void nsHTMLMediaElement::UpdatePreloadAction()
@@ -857,12 +846,10 @@ void nsHTMLMediaElement::UpdatePreloadAction()
     // Find the appropriate preload action by looking at the attribute.
     const nsAttrValue* val = mAttrsAndChildren.GetAttr(nsGkAtoms::preload,
                                                        kNameSpaceID_None);
-    PRUint32 preloadDefault =
-      Preferences::GetInt("media.preload.default",
-                          nsHTMLMediaElement::PRELOAD_ATTR_METADATA);
-    PRUint32 preloadAuto =
-      Preferences::GetInt("media.preload.auto",
-                          nsHTMLMediaElement::PRELOAD_ENOUGH);
+    PRUint32 preloadDefault = nsContentUtils::GetIntPref("media.preload.default",
+                            nsHTMLMediaElement::PRELOAD_ATTR_METADATA);
+    PRUint32 preloadAuto = nsContentUtils::GetIntPref("media.preload.auto",
+                            nsHTMLMediaElement::PRELOAD_ENOUGH);
     if (!val) {
       // Attribute is not set. Use the preload action specified by the 
       // media.preload.default pref, or just preload metadata if not present.
@@ -1541,7 +1528,7 @@ static const char* gRawCodecs[] = {
 
 static PRBool IsRawEnabled()
 {
-  return Preferences::GetBool("media.raw.enabled");
+  return nsContentUtils::GetBoolPref("media.raw.enabled");
 }
 
 static PRBool IsRawType(const nsACString& aType)
@@ -1573,7 +1560,7 @@ char const *const nsHTMLMediaElement::gOggCodecs[3] = {
 bool
 nsHTMLMediaElement::IsOggEnabled()
 {
-  return Preferences::GetBool("media.ogg.enabled");
+  return nsContentUtils::GetBoolPref("media.ogg.enabled");
 }
 
 bool
@@ -1608,7 +1595,7 @@ char const *const nsHTMLMediaElement::gWaveCodecs[2] = {
 bool
 nsHTMLMediaElement::IsWaveEnabled()
 {
-  return Preferences::GetBool("media.wave.enabled");
+  return nsContentUtils::GetBoolPref("media.wave.enabled");
 }
 
 bool
@@ -1640,7 +1627,7 @@ char const *const nsHTMLMediaElement::gWebMCodecs[4] = {
 bool
 nsHTMLMediaElement::IsWebMEnabled()
 {
-  return Preferences::GetBool("media.webm.enabled");
+  return nsContentUtils::GetBoolPref("media.webm.enabled");
 }
 
 bool
@@ -1959,9 +1946,7 @@ void nsHTMLMediaElement::MetadataLoaded(PRUint32 aChannels, PRUint32 aRate)
 
 void nsHTMLMediaElement::FirstFrameLoaded(PRBool aResourceFullyLoaded)
 {
-  ChangeReadyState(aResourceFullyLoaded ?
-    nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA :
-    nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
+  ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
   ChangeDelayLoadStatus(PR_FALSE);
 
   NS_ASSERTION(!mSuspendedAfterFirstFrame, "Should not have already suspended");
@@ -1980,9 +1965,7 @@ void nsHTMLMediaElement::ResourceLoaded()
   mBegun = PR_FALSE;
   mNetworkState = nsIDOMHTMLMediaElement::NETWORK_IDLE;
   AddRemoveSelfReference();
-  if (mReadyState >= nsIDOMHTMLMediaElement::HAVE_METADATA) {
-    ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
-  }
+  ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
   // Ensure a progress event is dispatched at the end of download.
   DispatchAsyncEvent(NS_LITERAL_STRING("progress"));
   // The download has stopped.
@@ -2088,7 +2071,8 @@ void nsHTMLMediaElement::DownloadStalled()
 
 PRBool nsHTMLMediaElement::ShouldCheckAllowOrigin()
 {
-  return Preferences::GetBool("media.enforce_same_site_origin", PR_TRUE);
+  return nsContentUtils::GetBoolPref("media.enforce_same_site_origin",
+                                     PR_TRUE);
 }
 
 void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
@@ -2237,9 +2221,6 @@ ImageContainer* nsHTMLMediaElement::GetImageContainer()
     return nsnull;
 
   mImageContainer = manager->CreateImageContainer();
-  if (manager->IsCompositingCheap()) {
-    mImageContainer->SetDelayedConversion(PR_TRUE);
-  }
   return mImageContainer;
 }
 
@@ -2253,13 +2234,13 @@ nsresult nsHTMLMediaElement::DispatchAudioAvailableEvent(float* aFrameBuffer,
   // which frees the memory when it's destroyed.
   nsAutoArrayPtr<float> frameBuffer(aFrameBuffer);
 
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(GetOwnerDoc());
+  nsCOMPtr<nsIDOMDocumentEvent> docEvent(do_QueryInterface(GetOwnerDoc()));
   nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(static_cast<nsIContent*>(this)));
-  NS_ENSURE_TRUE(domDoc && target, NS_ERROR_INVALID_ARG);
+  NS_ENSURE_TRUE(docEvent && target, NS_ERROR_INVALID_ARG);
 
   nsCOMPtr<nsIDOMEvent> event;
-  nsresult rv = domDoc->CreateEvent(NS_LITERAL_STRING("MozAudioAvailableEvent"),
-                                    getter_AddRefs(event));
+  nsresult rv = docEvent->CreateEvent(NS_LITERAL_STRING("MozAudioAvailableEvent"),
+                                      getter_AddRefs(event));
   nsCOMPtr<nsIDOMNotifyAudioAvailableEvent> audioavailableEvent(do_QueryInterface(event));
   NS_ENSURE_SUCCESS(rv, rv);
 

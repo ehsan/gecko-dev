@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Pierre Phaneuf <pp@ludusdesign.com>
  *   Daniel Glazman <glazman@netscape.com>
- *   Ms2ger <ms2ger@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -107,6 +106,10 @@ static char namedanchorText[] = "namedanchor";
 
 nsIRangeUtils* nsHTMLEditor::sRangeHelper;
 
+// some prototypes for rules creation shortcuts
+nsresult NS_NewTextEditRules(nsIEditRules** aInstancePtrResult);
+nsresult NS_NewHTMLEditRules(nsIEditRules** aInstancePtrResult);
+
 #define IsLinkTag(s) (s.EqualsIgnoreCase(hrefText))
 #define IsNamedAnchorTag(s) (s.EqualsIgnoreCase(anchorTxt) || s.EqualsIgnoreCase(namedanchorText))
 
@@ -175,7 +178,8 @@ nsHTMLEditor::~nsHTMLEditor()
 
   if (mLinkHandler && mDocWeak)
   {
-    nsCOMPtr<nsIPresShell> ps = GetPresShell();
+    nsCOMPtr<nsIPresShell> ps;
+    GetPresShell(getter_AddRefs(ps));
 
     if (ps && ps->GetPresContext())
     {
@@ -301,10 +305,13 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc,
     }
 
     // Init the HTML-CSS utils
-    mHTMLCSSUtils = new nsHTMLCSSUtils(this);
+    result = NS_NewHTMLCSSUtils(getter_Transfers(mHTMLCSSUtils));
+    if (NS_FAILED(result)) { return result; }
+    mHTMLCSSUtils->Init(this);
 
     // disable links
-    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    nsCOMPtr<nsIPresShell> presShell;
+    GetPresShell(getter_AddRefs(presShell));
     NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
     nsPresContext *context = presShell->GetPresContext();
     NS_ENSURE_TRUE(context, NS_ERROR_NULL_POINTER);
@@ -316,9 +323,11 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc,
 
     // init the type-in state
     mTypeInState = new TypeInState();
+    if (!mTypeInState) {return NS_ERROR_NULL_POINTER;}
 
     // init the selection listener for image resizing
     mSelectionListenerP = new ResizerSelectionListener(this);
+    if (!mSelectionListenerP) {return NS_ERROR_NULL_POINTER;}
 
     if (!IsInteractionAllowed()) {
       // ignore any errors from this in case the file is missing
@@ -527,8 +536,12 @@ NS_IMETHODIMP
 nsHTMLEditor::InitRules()
 {
   // instantiate the rules for the html editor
-  mRules = new nsHTMLEditRules();
-  return mRules->Init(static_cast<nsPlaintextEditor*>(this));
+  nsresult res = NS_NewHTMLEditRules(getter_AddRefs(mRules));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(mRules, NS_ERROR_UNEXPECTED);
+  res = mRules->Init(static_cast<nsPlaintextEditor*>(this));
+  
+  return res;
 }
 
 NS_IMETHODIMP
@@ -1379,6 +1392,12 @@ PRBool nsHTMLEditor::IsModifiable()
 {
   return !IsReadonly();
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsIHTMLEditor methods 
+#pragma mark -
+#endif
 
 NS_IMETHODIMP
 nsHTMLEditor::UpdateBaseURL()
@@ -2259,7 +2278,7 @@ nsHTMLEditor::GetParagraphState(PRBool *aMixed, nsAString &outFormat)
 {
   if (!mRules) { return NS_ERROR_NOT_INITIALIZED; }
   NS_ENSURE_TRUE(aMixed, NS_ERROR_NULL_POINTER);
-  nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  nsCOMPtr<nsIHTMLEditRules> htmlRules = do_QueryInterface(mRules);
   NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
   
   return htmlRules->GetParagraphState(aMixed, outFormat);
@@ -2461,7 +2480,7 @@ nsHTMLEditor::GetListState(PRBool *aMixed, PRBool *aOL, PRBool *aUL, PRBool *aDL
 {
   if (!mRules) { return NS_ERROR_NOT_INITIALIZED; }
   NS_ENSURE_TRUE(aMixed && aOL && aUL && aDL, NS_ERROR_NULL_POINTER);
-  nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  nsCOMPtr<nsIHTMLEditRules> htmlRules = do_QueryInterface(mRules);
   NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
   
   return htmlRules->GetListState(aMixed, aOL, aUL, aDL);
@@ -2473,7 +2492,7 @@ nsHTMLEditor::GetListItemState(PRBool *aMixed, PRBool *aLI, PRBool *aDT, PRBool 
   if (!mRules) { return NS_ERROR_NOT_INITIALIZED; }
   NS_ENSURE_TRUE(aMixed && aLI && aDT && aDD, NS_ERROR_NULL_POINTER);
 
-  nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  nsCOMPtr<nsIHTMLEditRules> htmlRules = do_QueryInterface(mRules);
   NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
   
   return htmlRules->GetListItemState(aMixed, aLI, aDT, aDD);
@@ -2484,7 +2503,7 @@ nsHTMLEditor::GetAlignment(PRBool *aMixed, nsIHTMLEditor::EAlignment *aAlign)
 {
   if (!mRules) { return NS_ERROR_NOT_INITIALIZED; }
   NS_ENSURE_TRUE(aMixed && aAlign, NS_ERROR_NULL_POINTER);
-  nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  nsCOMPtr<nsIHTMLEditRules> htmlRules = do_QueryInterface(mRules);
   NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
   
   return htmlRules->GetAlignment(aMixed, aAlign);
@@ -2497,7 +2516,7 @@ nsHTMLEditor::GetIndentState(PRBool *aCanIndent, PRBool *aCanOutdent)
   if (!mRules) { return NS_ERROR_NOT_INITIALIZED; }
   NS_ENSURE_TRUE(aCanIndent && aCanOutdent, NS_ERROR_NULL_POINTER);
 
-  nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  nsCOMPtr<nsIHTMLEditRules> htmlRules = do_QueryInterface(mRules);
   NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
   
   return htmlRules->GetIndentState(aCanIndent, aCanOutdent);
@@ -3465,6 +3484,11 @@ nsHTMLEditor::GetLinkedObjects(nsISupportsArray** aNodeList)
   return NS_OK;
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsIEditorStyleSheets methods 
+#pragma mark -
+#endif
 
 NS_IMETHODIMP
 nsHTMLEditor::AddStyleSheet(const nsAString &aURL)
@@ -3496,7 +3520,8 @@ nsHTMLEditor::ReplaceStyleSheet(const nsAString& aURL)
 
   // Make sure the pres shell doesn't disappear during the load.
   NS_ENSURE_TRUE(mDocWeak, NS_ERROR_NOT_INITIALIZED);
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps;
+  GetPresShell(getter_AddRefs(ps));
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   nsCOMPtr<nsIURI> uaURI;
@@ -3540,7 +3565,8 @@ nsHTMLEditor::AddOverrideStyleSheet(const nsAString& aURL)
     return NS_OK;
 
   // Make sure the pres shell doesn't disappear during the load.
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps;
+  GetPresShell(getter_AddRefs(ps));
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   nsCOMPtr<nsIURI> uaURI;
@@ -3604,7 +3630,8 @@ nsHTMLEditor::RemoveOverrideStyleSheet(const nsAString &aURL)
   NS_ENSURE_TRUE(sheet, NS_OK); /// Don't fail if sheet not found
 
   NS_ENSURE_TRUE(mDocWeak, NS_ERROR_NOT_INITIALIZED);
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps;
+  GetPresShell(getter_AddRefs(ps));
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   ps->RemoveOverrideStyleSheet(sheet);
@@ -3783,6 +3810,12 @@ nsHTMLEditor::GetEmbeddedObjects(nsISupportsArray** aNodeList)
 }
 
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsIEditor overrides 
+#pragma mark -
+#endif
+
 NS_IMETHODIMP nsHTMLEditor::DeleteNode(nsIDOMNode * aNode)
 {
   // do nothing if the node is read-only
@@ -3829,6 +3862,12 @@ NS_IMETHODIMP nsHTMLEditor::InsertTextImpl(const nsAString& aStringToInsert,
 
   return nsEditor::InsertTextImpl(aStringToInsert, aInOutNode, aInOutOffset, aDoc);
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsStubMutationObserver overrides 
+#pragma mark -
+#endif
 
 void
 nsHTMLEditor::ContentAppended(nsIDocument *aDocument, nsIContent* aContainer,
@@ -3883,6 +3922,11 @@ nsHTMLEditor::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
   }
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  support utils
+#pragma mark -
+#endif
 
 /* This routine examines aNode and it's ancestors looking for any node which has the
    -moz-user-select: all style lit.  Return the highest such ancestor.  */
@@ -4027,6 +4071,12 @@ nsHTMLEditor::DebugUnitTests(PRInt32 *outNumTests, PRInt32 *outNumTestsFailed)
 #endif
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  StyleSheet utils 
+#pragma mark -
+#endif
+
 
 NS_IMETHODIMP 
 nsHTMLEditor::StyleSheetLoaded(nsCSSStyleSheet* aSheet, PRBool aWasAlternate,
@@ -4063,6 +4113,12 @@ nsHTMLEditor::StyleSheetLoaded(nsCSSStyleSheet* aSheet, PRBool aWasAlternate,
 
   return NS_OK;
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsEditor overrides 
+#pragma mark -
+#endif
 
 
 /** All editor operations which alter the doc should be prefaced
@@ -4197,7 +4253,8 @@ nsHTMLEditor::SelectAll()
     return selection->SelectAllChildren(mRootElement);
   }
 
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps;
+  GetPresShell(getter_AddRefs(ps));
   nsIContent *rootContent = anchorContent->GetSelectionRootContent(ps);
   NS_ENSURE_TRUE(rootContent, NS_ERROR_UNEXPECTED);
 
@@ -4207,6 +4264,12 @@ nsHTMLEditor::SelectAll()
   return selection->SelectAllChildren(rootElement);
 }
 
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  Random methods 
+#pragma mark -
+#endif
 
 // this will NOT find aAttribute unless aAttribute has a non-null value
 // so singleton attributes like <Table border> will not be matched!
@@ -4277,6 +4340,9 @@ void nsHTMLEditor::IsTextPropertySetByContent(nsIDOMNode        *aNode,
   }
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 //================================================================
 // HTML Editor methods
@@ -4381,6 +4447,9 @@ nsHTMLEditor::GetEnclosingTable(nsIDOMNode *aNode)
   return tbl;
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 #ifdef PRE_NODE_IN_BODY
 nsCOMPtr<nsIDOMElement> nsHTMLEditor::FindPreElement()
@@ -4483,6 +4552,9 @@ nsHTMLEditor::SetSelectionAtDocumentStart(nsISelection *aSelection)
   return aSelection->Collapse(rootElement,0);
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 ///////////////////////////////////////////////////////////////////////////
 // RemoveBlockContainer: remove inNode, reparenting it's children into their
@@ -5590,7 +5662,8 @@ nsHTMLEditor::GetElementOrigin(nsIDOMElement * aElement, PRInt32 & aX, PRInt32 &
   aY = 0;
 
   NS_ENSURE_TRUE(mDocWeak, NS_ERROR_NOT_INITIALIZED);
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps;
+  GetPresShell(getter_AddRefs(ps));
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);

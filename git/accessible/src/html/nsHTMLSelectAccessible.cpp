@@ -727,19 +727,18 @@ nsHTMLComboboxAccessible::NativeState()
   return state;
 }
 
-void
-nsHTMLComboboxAccessible::Description(nsString& aDescription)
+NS_IMETHODIMP nsHTMLComboboxAccessible::GetDescription(nsAString& aDescription)
 {
   aDescription.Truncate();
   // First check to see if combo box itself has a description, perhaps through
   // tooltip (title attribute) or via aria-describedby
-  nsAccessible::Description(aDescription);
-  if (!aDescription.IsEmpty())
-    return;
+  nsAccessible::GetDescription(aDescription);
+  if (!aDescription.IsEmpty()) {
+    return NS_OK;
+  }
   // Use description of currently focused option
   nsAccessible *option = GetFocusedOptionAccessible();
-  if (option)
-    option->Description(aDescription);
+  return option ? option->GetDescription(aDescription) : NS_OK;
 }
 
 nsAccessible *

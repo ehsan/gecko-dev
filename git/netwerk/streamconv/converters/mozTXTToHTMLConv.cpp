@@ -1004,10 +1004,7 @@ mozTXTToHTMLConv::GlyphHit(const PRUnichar * aInString, PRInt32 aInLength, PRBoo
 
     outputHTML.Truncate();
     outputHTML += text0;
-    outputHTML.AppendLiteral(
-      "<sup class=\"moz-txt-sup\">"
-      "<span style=\"display:inline-block;width:0;height:0;overflow:hidden\">"
-      "^</span>");
+    outputHTML.AppendLiteral("<sup class=\"moz-txt-sup\">");
 
     aOutputString.Append(outputHTML);
     aOutputString.Append(&aInString[2], delimPos - 2);

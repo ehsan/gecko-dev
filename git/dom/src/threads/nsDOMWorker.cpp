@@ -914,6 +914,7 @@ nsDOMWorkerScope::Trace(nsIXPConnectWrappedNative* /* aWrapper */,
                         JSTracer* aTracer,
                         JSObject* /*aObj */)
 {
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   nsDOMWorkerMessageHandler::Trace(aTracer);
   return NS_OK;
 }
@@ -1163,7 +1164,7 @@ nsDOMWorkerScope::AddEventListener(const nsAString& aType,
                                    nsIDOMEventListener* aListener,
                                    PRBool aUseCapture)
 {
-  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 1);
+  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 0);
 }
 
 NS_IMETHODIMP
@@ -1508,6 +1509,8 @@ nsDOMWorker::Trace(nsIXPConnectWrappedNative* /* aWrapper */,
                    JSTracer* aTracer,
                    JSObject* /*aObj */)
 {
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
   PRBool canceled = PR_FALSE;
   {
     MutexAutoLock lock(mLock);
@@ -2566,7 +2569,7 @@ nsDOMWorker::AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
                               PRBool aUseCapture)
 {
-  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 1);
+  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 0);
 }
 
 NS_IMETHODIMP

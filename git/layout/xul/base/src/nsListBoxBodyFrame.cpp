@@ -62,6 +62,7 @@
 #include "nsITimer.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
+#include "nsIDOMNSDocument.h"
 #include "nsPIBoxObject.h"
 #include "nsINodeInfo.h"
 #include "nsLayoutUtils.h"
@@ -78,6 +79,10 @@
  * do this until the timer finally first because the user has stopped moving
  * the mouse. Then do all the queued requests in on shot.
  */
+
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 // the longest amount of time that can go by before the use
 // notices it as a delay.

@@ -65,10 +65,10 @@
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMXULElement.h"
 #include "nsIHTMLDocument.h"
-#include "nsImageFrame.h"
+#include "nsIImageFrame.h"
 #include "nsILink.h"
 #include "nsIObserverService.h"
-#include "nsNPAPIPluginInstance.h"
+#include "nsIPluginInstance.h"
 #include "nsISupportsUtils.h"
 #include "nsObjectFrame.h"
 #include "nsOuterDocAccessible.h"
@@ -107,6 +107,7 @@
 
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/dom/Element.h"
+#include "nsImageMapUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessibilityService
@@ -274,10 +275,8 @@ nsAccessibilityService::CreateHTMLImageAccessible(nsIContent* aContent,
   aContent->GetAttr(kNameSpaceID_None,
                     nsAccessibilityAtoms::usemap,
                     mapElmName);
-  nsCOMPtr<nsIDOMHTMLMapElement> mapElm;
-  if (nsIDocument* document = aContent->GetCurrentDoc()) {
-    mapElm = do_QueryInterface(document->FindImageMap(mapElmName));
-  }
+  nsCOMPtr<nsIDOMHTMLMapElement> mapElm =
+    nsImageMapUtils::FindImageMap(aContent->GetCurrentDoc(), mapElmName);
 
   nsCOMPtr<nsIWeakReference> weakShell(do_GetWeakReference(aPresShell));
   nsAccessible* accessible = mapElm ?
@@ -347,8 +346,8 @@ nsAccessibilityService::CreateHTMLObjectFrameAccessible(nsObjectFrame* aFrame,
 
 #if defined(XP_WIN) || defined(MOZ_ACCESSIBILITY_ATK)
   // 2) for plugins
-  nsRefPtr<nsNPAPIPluginInstance> pluginInstance;
-  if (NS_SUCCEEDED(aFrame->GetPluginInstance(getter_AddRefs(pluginInstance))) &&
+  nsCOMPtr<nsIPluginInstance> pluginInstance;
+  if (NS_SUCCEEDED(aFrame->GetPluginInstance(*getter_AddRefs(pluginInstance))) &&
       pluginInstance) {
 #ifdef XP_WIN
     // Note: pluginPort will be null if windowless.
@@ -843,8 +842,6 @@ nsAccessibilityService::GetAccessibleInShell(nsINode* aNode,
 nsAccessible*
 nsAccessibilityService::GetAccessible(nsINode* aNode)
 {
-  NS_PRECONDITION(aNode, "Getting an accessible for null node! Crash.");
-
   nsDocAccessible* document = GetDocAccessible(aNode->GetOwnerDoc());
   return document ? document->GetAccessible(aNode) : nsnull;
 }
@@ -1269,7 +1266,7 @@ nsAccessibilityService::GetAreaAccessible(nsIFrame* aImageFrame,
                                           nsAccessible** aImageAccessible)
 {
   // Check if frame is an image frame, and content is <area>.
-  nsImageFrame *imageFrame = do_QueryFrame(aImageFrame);
+  nsIImageFrame *imageFrame = do_QueryFrame(aImageFrame);
   if (!imageFrame)
     return nsnull;
 
@@ -1435,7 +1432,7 @@ nsAccessibilityService::CreateAccessibleByType(nsIContent* aContent,
       break;
 
     case nsIAccessibleProvider::XULProgressMeter:
-      accessible = new XULProgressMeterAccessible(aContent, aWeakShell);
+      accessible = new nsXULProgressMeterAccessible(aContent, aWeakShell);
       break;
 
     case nsIAccessibleProvider::XULStatusBar:
@@ -1690,13 +1687,6 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
 
   if (tag == nsAccessibilityAtoms::output) {
     nsAccessible* accessible = new nsHTMLOutputAccessible(aContent, aWeakShell);
-    NS_IF_ADDREF(accessible);
-    return accessible;
-  }
-
-  if (tag == nsAccessibilityAtoms::progress) {
-    nsAccessible* accessible =
-      new HTMLProgressMeterAccessible(aContent, aWeakShell);
     NS_IF_ADDREF(accessible);
     return accessible;
   }

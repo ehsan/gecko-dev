@@ -112,25 +112,32 @@ nsXULComboboxAccessible::GetValue(nsAString& aValue)
   return NS_ERROR_FAILURE;
 }
 
-void
-nsXULComboboxAccessible::Description(nsString& aDescription)
+NS_IMETHODIMP
+nsXULComboboxAccessible::GetDescription(nsAString& aDescription)
 {
   aDescription.Truncate();
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   // Use description of currently focused option
   nsCOMPtr<nsIDOMXULMenuListElement> menuListElm(do_QueryInterface(mContent));
   if (!menuListElm)
-    return;
+    return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMXULSelectControlItemElement> focusedOptionItem;
   menuListElm->GetSelectedItem(getter_AddRefs(focusedOptionItem));
   nsCOMPtr<nsIContent> focusedOptionContent =
     do_QueryInterface(focusedOptionItem);
   if (focusedOptionContent) {
-    nsAccessible* focusedOptionAcc = GetAccService()->
-      GetAccessibleInWeakShell(focusedOptionContent, mWeakShell);
-    if (focusedOptionAcc)
-      focusedOptionAcc->Description(aDescription);
+    nsAccessible *focusedOption =
+      GetAccService()->GetAccessibleInWeakShell(focusedOptionContent, mWeakShell);
+    NS_ENSURE_TRUE(focusedOption, NS_ERROR_FAILURE);
+
+    return focusedOption->GetDescription(aDescription);
   }
+
+  return NS_OK;
 }
 
 PRBool

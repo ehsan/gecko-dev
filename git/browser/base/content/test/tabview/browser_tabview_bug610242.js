@@ -21,7 +21,7 @@ function onTabViewWindowLoaded(win) {
   let box = new contentWindow.Rect(100, 100, 370, 370);
   let group = new contentWindow.GroupItem([], { bounds: box });
   ok(group.isEmpty(), "This group is empty");
-  contentWindow.UI.setActive(group);
+  contentWindow.GroupItems.setActiveGroupItem(group);
   is(contentWindow.GroupItems.getActiveGroupItem(), group, "new group is active");
   
   // Create a bunch of tabs in the group
@@ -41,7 +41,7 @@ function onTabViewWindowLoaded(win) {
 
     ok(group.isEmpty(), "The group is empty again");
 
-    contentWindow.UI.setActive(currentGroup);
+    contentWindow.GroupItems.setActiveGroupItem(currentGroup);
     isnot(contentWindow.GroupItems.getActiveGroupItem(), null, "There is an active group");
     is(win.gBrowser.tabs.length, 1, "There is only one tab left");
     is(win.gBrowser.visibleTabs.length, 1, "There is also only one visible tab");
@@ -71,7 +71,7 @@ function onTabViewWindowLoaded(win) {
     afterAllTabItemsUpdated(function() {
       check(datatext, "datatext", false);
       check(datahtml, "datahtml", false);
-      check(mozilla, "about:mozilla", true);
+      check(mozilla, "about:mozilla", false);
       check(html, "html", true);
       check(png, "png", false);
       check(svg, "svg", true);

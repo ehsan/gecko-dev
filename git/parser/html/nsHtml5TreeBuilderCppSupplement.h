@@ -148,8 +148,6 @@ nsHtml5TreeBuilder::createElement(PRInt32 aNamespace, nsIAtom* aName, nsHtml5Htm
           nsString* url = aAttributes->getValue(nsHtml5AttributeName::ATTR_MANIFEST);
           if (url) {
             mSpeculativeLoadQueue.AppendElement()->InitManifest(*url);
-          } else {
-            mSpeculativeLoadQueue.AppendElement()->InitManifest(EmptyString());
           }
         } else if (nsHtml5Atoms::base == aName) {
           nsString* url =
@@ -207,12 +205,10 @@ nsHtml5TreeBuilder::createElement(PRInt32 aNamespace, nsIAtom* aName, nsHtml5Htm
       }
     } else if (aNamespace == kNameSpaceID_XHTML && nsHtml5Atoms::html == aName) {
       nsString* url = aAttributes->getValue(nsHtml5AttributeName::ATTR_MANIFEST);
-      nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
-      NS_ASSERTION(treeOp, "Tree op allocation failed.");
       if (url) {
+        nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
+        NS_ASSERTION(treeOp, "Tree op allocation failed.");
         treeOp->Init(eTreeOpProcessOfflineManifest, *url);
-      } else {
-        treeOp->Init(eTreeOpProcessOfflineManifest, EmptyString());
       }
     }
   }
@@ -504,11 +500,13 @@ nsHtml5TreeBuilder::elementPopped(PRInt32 aNamespace, nsIAtom* aName, nsIContent
     return;
   }
   if (aNamespace == kNameSpaceID_SVG) {
+#ifdef MOZ_SVG
     if (aName == nsHtml5Atoms::svg) {
       nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
       NS_ASSERTION(treeOp, "Tree op allocation failed.");
       treeOp->Init(eTreeOpSvgLoad, aElement);
     }
+#endif
     return;
   }
   // we now have only HTML
@@ -600,18 +598,9 @@ nsHtml5TreeBuilder::HasScript()
 }
 
 PRBool
-nsHtml5TreeBuilder::Flush(PRBool aDiscretionary)
+nsHtml5TreeBuilder::Flush()
 {
-  if (!aDiscretionary ||
-      !(charBufferLen &&
-        currentPtr >= 0 &&
-        stack[currentPtr]->isFosterParenting())) {
-    // Don't flush text on discretionary flushes if the current element on
-    // the stack is a foster-parenting element and there's pending text,
-    // because flushing in that case would make the tree shape dependent on
-    // where the flush points fall.
-    flushCharacters();
-  }
+  flushCharacters();
   FlushLoads();
   if (mOpSink) {
     PRBool hasOps = !mOpQueue.IsEmpty();
@@ -672,6 +661,14 @@ nsHtml5TreeBuilder::AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, PRI
   NS_PRECONDITION(HasScript(), "No script to add a snapshot to!");
   NS_PRECONDITION(aSnapshot, "Got null snapshot.");
   mOpQueue.ElementAt(mOpQueue.Length() - 1).SetSnapshot(aSnapshot, aLine);
+}
+
+PRBool 
+nsHtml5TreeBuilder::IsDiscretionaryFlushSafe()
+{
+  return !(charBufferLen && 
+           currentPtr >= 0 && 
+           stack[currentPtr]->isFosterParenting());
 }
 
 void

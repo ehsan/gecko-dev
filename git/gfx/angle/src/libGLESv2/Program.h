@@ -11,7 +11,6 @@
 #define LIBGLESV2_PROGRAM_H_
 
 #include <d3dx9.h>
-#include <d3dcompiler.h>
 #include <string>
 #include <vector>
 #include <set>
@@ -72,8 +71,12 @@ class Program
     GLuint getAttributeLocation(const char *name);
     int getSemanticIndex(int attributeIndex);
 
-    GLint getSamplerMapping(SamplerType type, unsigned int samplerIndex);
-    TextureType getSamplerTextureType(SamplerType type, unsigned int samplerIndex);
+    void dirtyAllSamplers();
+
+    GLint getSamplerMapping(unsigned int samplerIndex);
+    SamplerType getSamplerType(unsigned int samplerIndex);
+    bool isSamplerDirty(unsigned int samplerIndex) const;
+    void setSamplerDirty(unsigned int samplerIndex, bool dirty);
 
     GLint getUniformLocation(const char *name, bool decorated);
     bool setUniform1fv(GLint location, GLsizei count, const GLfloat *v);
@@ -122,7 +125,7 @@ class Program
     bool isFlaggedForDeletion() const;
 
     void validate();
-    bool validateSamplers(bool logErrors);
+    bool validateSamplers() const;
     bool isValidated() const;
 
     unsigned int getSerial() const;
@@ -130,7 +133,7 @@ class Program
   private:
     DISALLOW_COPY_AND_ASSIGN(Program);
 
-    ID3D10Blob *compileToBinary(const char *hlsl, const char *profile, ID3DXConstantTable **constantTable);
+    ID3DXBuffer *compileToBinary(const char *hlsl, const char *profile, ID3DXConstantTable **constantTable);
     void unlink(bool destroy = false);
 
     int packVaryings(const Varying *packing[][4]);
@@ -161,7 +164,6 @@ class Program
 
     void getConstantHandles(Uniform *targetUniform, D3DXHANDLE *constantPS, D3DXHANDLE *constantVS);
 
-    void appendToInfoLogSanitized(const char *message);
     void appendToInfoLog(const char *info, ...);
     void resetInfoLog();
 
@@ -189,11 +191,11 @@ class Program
     {
         bool active;
         GLint logicalTextureUnit;
-        TextureType textureType;
+        SamplerType type;
+        bool dirty;
     };
 
-    Sampler mSamplersPS[MAX_TEXTURE_IMAGE_UNITS];
-    Sampler mSamplersVS[MAX_VERTEX_TEXTURE_IMAGE_UNITS_VTF];
+    Sampler mSamplers[MAX_TEXTURE_IMAGE_UNITS];
 
     typedef std::vector<Uniform*> UniformArray;
     UniformArray mUniforms;

@@ -357,13 +357,6 @@ nsChromeTreeOwner::GetPersistence(PRBool* aPersistPosition,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsChromeTreeOwner::GetTargetableShellCount(PRUint32* aResult)
-{
-  *aResult = 0;
-  return NS_OK;
-}
-
 //*****************************************************************************
 // nsChromeTreeOwner::nsIBaseWindow
 //*****************************************************************************   

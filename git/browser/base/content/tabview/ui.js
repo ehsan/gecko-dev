@@ -128,7 +128,8 @@ let UI = {
   _storageBusyCount: 0,
 
   // Variable: isDOMWindowClosing
-  // Tells wether the parent window is about to close
+  // Tells wether we already received the "domwindowclosed" event and the parent
+  // windows is about to close.
   isDOMWindowClosing: false,
 
   // Variable: _browserKeys
@@ -155,9 +156,6 @@ let UI = {
 
       // initialize the direction of the page
       this._initPageDirection();
-
-      // ___ thumbnail storage
-      ThumbnailStorage.init();
 
       // ___ storage
       Storage.init();
@@ -195,7 +193,7 @@ let UI = {
                 (self._lastClickPositions.x + self.DBLCLICK_OFFSET) >= e.clientX &&
                 (self._lastClickPositions.y - self.DBLCLICK_OFFSET) <= e.clientY &&
                 (self._lastClickPositions.y + self.DBLCLICK_OFFSET) >= e.clientY) {
-              self.setActive(null);
+              GroupItems.setActiveGroupItem(null);
               TabItems.creatingNewOrphanTab = true;
 
               let newTab =
@@ -207,7 +205,7 @@ let UI = {
                          TabItems.tabWidth, TabItems.tabHeight);
               newTab._tabViewTabItem.setBounds(box, true);
               newTab._tabViewTabItem.pushAway(true);
-              self.setActive(newTab._tabViewTabItem);
+              UI.setActiveTab(newTab._tabViewTabItem);
 
               TabItems.creatingNewOrphanTab = false;
               newTab._tabViewTabItem.zoomIn(true);
@@ -256,19 +254,21 @@ let UI = {
         self._resize();
       });
 
-      // ___ setup event listener to save canvas images
-      gWindow.addEventListener("SSWindowClosing", function onWindowClosing() {
-        gWindow.removeEventListener("SSWindowClosing", onWindowClosing, false);
-
-        self.isDOMWindowClosing = true;
-
-        if (self.isTabViewVisible())
-          GroupItems.removeHiddenGroups();
-
-        Storage.saveActiveGroupName(gWindow);
-        TabItems.saveAll(true);
-        self._save();
-      }, false);
+      // ___ setup observer to save canvas images
+      function domWinClosedObserver(subject, topic, data) {
+        if (topic == "domwindowclosed" && subject == gWindow) {
+          self.isDOMWindowClosing = true;
+          if (self.isTabViewVisible())
+            GroupItems.removeHiddenGroups();
+          TabItems.saveAll(true);
+          self._save();
+        }
+      }
+      Services.obs.addObserver(
+        domWinClosedObserver, "domwindowclosed", false);
+      this._cleanupFunctions.push(function() {
+        Services.obs.removeObserver(domWinClosedObserver, "domwindowclosed");
+      });
 
       // ___ Done
       this._frameInitialized = true;
@@ -278,7 +278,7 @@ let UI = {
       // initialized.
       let event = document.createEvent("Events");
       event.initEvent("tabviewframeinitialized", true, false);
-      dispatchEvent(event);
+      dispatchEvent(event);      
     } catch(e) {
       Utils.log(e);
     } finally {
@@ -286,8 +286,6 @@ let UI = {
     }
   },
 
-  // Function: uninit
-  // Should be called when window is unloaded.
   uninit: function UI_uninit() {
     // call our cleanup functions
     this._cleanupFunctions.forEach(function(func) {
@@ -299,7 +297,6 @@ let UI = {
     TabItems.uninit();
     GroupItems.uninit();
     Storage.uninit();
-    ThumbnailStorage.uninit();
 
     this._removeTabActionHandlers();
     this._currentTab = null;
@@ -352,7 +349,7 @@ let UI = {
         item.parent.remove(item);
       groupItem.add(item, {immediately: true});
     });
-    this.setActive(groupItem);
+    GroupItems.setActiveGroupItem(groupItem);
   },
 
   // ----------
@@ -384,7 +381,7 @@ let UI = {
   },
 
   // ----------
-  // Function: _setActiveTab
+  // Function: setActiveTab
   // Sets the currently active tab. The idea of a focused tab is useful
   // for keyboard navigation and returning to the last zoomed-in tab.
   // Hitting return/esc brings you to the focused tab, and using the
@@ -392,7 +389,7 @@ let UI = {
   //
   // Parameters:
   //  - Takes a <TabItem>
-  _setActiveTab: function UI__setActiveTab(tabItem) {
+  setActiveTab: function UI_setActiveTab(tabItem) {
     if (tabItem == this._activeTab)
       return;
 
@@ -406,7 +403,7 @@ let UI = {
       let self = this;
       this._activeTab.addSubscriber(this, "close", function(closedTabItem) {
         if (self._activeTab == closedTabItem)
-          self._setActiveTab(null);
+          self.setActiveTab(null);
       });
 
       this._activeTab.makeActive();
@@ -418,44 +415,6 @@ let UI = {
   // Returns the currently active orphan tab as a <TabItem>
   getActiveOrphanTab: function UI_getActiveOrphanTab() {
     return (this._activeTab && !this._activeTab.parent) ? this._activeTab : null;
-  },
-
-  // ----------
-  // Function: setActive
-  // Sets the active tab item or group item
-  // Parameters:
-  //
-  // options
-  //  dontSetActiveTabInGroup bool for not setting active tab in group
-  //  onlyRemoveActiveGroup bool for removing active group
-  //  onlyRemoveActiveTab bool for removing active tab
-  setActive: function UI_setActive(item, options) {
-    if (item) {
-      if (item.isATabItem) {
-        if (item.parent)
-          GroupItems.setActiveGroupItem(item.parent);
-        else
-          GroupItems.setActiveGroupItem(null);
-        this._setActiveTab(item);
-      } else {
-        GroupItems.setActiveGroupItem(item);
-        if (!options || !options.dontSetActiveTabInGroup) {
-          let activeTab = item.getActiveTab()
-          if (activeTab)
-            this._setActiveTab(activeTab);
-        }
-      }
-    } else {
-      if (options) {
-        if (options.onlyRemoveActiveGroup)
-          GroupItems.setActiveGroupItem(null);
-        else if (options.onlyRemoveActiveTab)
-          this._setActiveTab(null);
-      } else {
-        GroupItems.setActiveGroupItem(null);
-        this._setActiveTab(null);
-      }
-    }
   },
 
   // ----------
@@ -536,7 +495,10 @@ let UI = {
         if (!currentTab._tabViewTabItem) // if the tab's been destroyed
           item = null;
 
-        self.setActive(item);
+        self.setActiveTab(item);
+
+        if (activeGroupItem && item.parent)
+          activeGroupItem.setTopChild(item);
 
         self._resize(true);
         dispatchEvent(event);
@@ -547,7 +509,7 @@ let UI = {
         TabItems.resumePainting();
       });
     } else {
-      self.setActive(null, { onlyRemoveActiveTab: true });
+      self.setActiveTab(null);
       dispatchEvent(event);
 
       // Flush pending updates
@@ -555,9 +517,6 @@ let UI = {
 
       TabItems.resumePainting();
     }
-
-    if (gTabView.firstUseExperienced)
-      gTabView.enableSessionRestore();
   },
 
   // ----------
@@ -683,22 +642,22 @@ let UI = {
     // don't reenter Panorama due to all of the session restore tab
     // manipulation (which otherwise we might). When transitioning away from
     // PB, we reenter Panorama if we had been there directly before PB.
-    function pbObserver(subject, topic, data) {
-      if (topic == "private-browsing") {
+    function pbObserver(aSubject, aTopic, aData) {
+      if (aTopic == "private-browsing") {
         // We could probably do this in private-browsing-change-granted, but
         // this seems like a nicer spot, right in the middle of the process.
-        if (data == "enter") {
+        if (aData == "enter") {
           // If we are in Tab View, exit. 
           self._privateBrowsing.wasInTabView = self.isTabViewVisible();
           if (self.isTabViewVisible())
             self.goToTab(gBrowser.selectedTab);
         }
-      } else if (topic == "private-browsing-change-granted") {
-        if (data == "enter" || data == "exit") {
-          self._privateBrowsing.transitionMode = data;
+      } else if (aTopic == "private-browsing-change-granted") {
+        if (aData == "enter" || aData == "exit") {
+          self._privateBrowsing.transitionMode = aData;
           self.storageBusy();
         }
-      } else if (topic == "private-browsing-transition-complete") {
+      } else if (aTopic == "private-browsing-transition-complete") {
         // We use .transitionMode here, as aData is empty.
         if (self._privateBrowsing.transitionMode == "exit" &&
             self._privateBrowsing.wasInTabView)
@@ -745,14 +704,15 @@ let UI = {
       } else {
         // If we're currently in the process of entering private browsing,
         // we don't want to go to the Tab View UI. 
-        if (self._storageBusyCount)
-          return;
-
+        if (self._privateBrowsing.transitionMode)
+          return; 
+          
         // if not closing the last tab
         if (gBrowser.tabs.length > 1) {
           // Don't return to TabView if there are any app tabs
           for (let a = 0; a < gBrowser._numPinnedTabs; a++) {
-            if (!gBrowser.tabs[a].closing)
+            let theTab = gBrowser.tabs[a]; 
+            if (gBrowser._removingTabs.indexOf(theTab) == -1) 
               return;
           }
 
@@ -914,10 +874,10 @@ let UI = {
       // already in the tab bar.
       if (!GroupItems.getActiveGroupItem() && !UI.getActiveOrphanTab()) {
         for (let a = 0; a < gBrowser.tabs.length; a++) {
-          let theTab = gBrowser.tabs[a];
+          let theTab = gBrowser.tabs[a]; 
           if (!theTab.pinned) {
-            let tabItem = theTab._tabViewTabItem;
-            this.setActive(tabItem.parent);
+            let tabItem = theTab._tabViewTabItem; 
+            GroupItems.setActiveGroupItem(tabItem.parent);
             break;
           }
         }
@@ -958,11 +918,12 @@ let UI = {
   
   // ----------
   updateTabButton: function UI__updateTabButton() {
+    let groupsNumber = gWindow.document.getElementById("tabviewGroupsNumber");
     let exitButton = document.getElementById("exit-button");
     let numberOfGroups = GroupItems.groupItems.length;
 
+    groupsNumber.setAttribute("groups", numberOfGroups);
     exitButton.setAttribute("groups", numberOfGroups);
-    gTabView.updateGroupNumberBroadcaster(numberOfGroups);
   },
 
   // ----------
@@ -992,28 +953,20 @@ let UI = {
     [
 #ifdef XP_UNIX
       "quitApplication",
-#else
-      "redo",
 #endif
 #ifdef XP_MACOSX
-      "preferencesCmdMac", "minimizeWindow", "hideThisAppCmdMac",
+      "preferencesCmdMac", "minimizeWindow",
 #endif
-      "newNavigator", "newNavigatorTab", "undo", "cut", "copy", "paste", 
-      "selectAll", "find"
-    ].forEach(function(key) {
+      "newNavigator", "newNavigatorTab", "find"
+     ].forEach(function(key) {
       let element = gWindow.document.getElementById("key_" + key);
       keys[key] = element.getAttribute("key").toLocaleLowerCase().charCodeAt(0);
     });
 
     // for key combinations with shift key, the charCode of upper case letters 
     // are different to the lower case ones so need to handle them differently.
-    [
-#ifdef XP_UNIX
-      "redo",
-#endif
-      "closeWindow", "tabview", "undoCloseTab", "undoCloseWindow",
-      "privatebrowsing"
-    ].forEach(function(key) {
+    ["closeWindow", "tabview", "undoCloseTab", "undoCloseWindow",
+     "privatebrowsing"].forEach(function(key) {
       let element = gWindow.document.getElementById("key_" + key);
       keys[key] = element.getAttribute("key").toLocaleUpperCase().charCodeAt(0);
     });
@@ -1040,10 +993,6 @@ let UI = {
         Keys.meta = true;
 
       function processBrowserKeys(evt) {
-        // let any keys with alt to pass through
-        if (evt.altKey)
-          return;
-
 #ifdef XP_MACOSX
         if (evt.metaKey) {
 #else
@@ -1052,17 +1001,14 @@ let UI = {
           let preventDefault = true;
           if (evt.shiftKey) {
             switch (evt.charCode) {
-              case self._browserKeys.tabview:
-                self.exit();
-                break;
-#ifdef XP_UNIX
-              case self._browserKeys.redo:
-#endif
-              case self._browserKeys.closeWindow:
+              case self._browserKeys.privatebrowsing:
               case self._browserKeys.undoCloseTab:
               case self._browserKeys.undoCloseWindow:
-              case self._browserKeys.privatebrowsing:
+              case self._browserKeys.closeWindow:
                 preventDefault = false;
+                break;
+              case self._browserKeys.tabview:
+                self.exit();
                 break;
             }
           } else {
@@ -1070,25 +1016,21 @@ let UI = {
               case self._browserKeys.find:
                 self.enableSearch();
                 break;
+              case self._browserKeys.newNavigator:
+              case self._browserKeys.newNavigatorTab:
+                preventDefault = false;
+                break;
 #ifdef XP_UNIX
               case self._browserKeys.quitApplication:
-#else
-              case self._browserKeys.redo:
+                preventDefault = false;
+                break;
 #endif
 #ifdef XP_MACOSX
               case self._browserKeys.preferencesCmdMac:
               case self._browserKeys.minimizeWindow:
-              case self._browserKeys.hideThisAppCmdMac:
-#endif
-              case self._browserKeys.newNavigator:
-              case self._browserKeys.newNavigatorTab:
-              case self._browserKeys.undo:
-              case self._browserKeys.cut:
-              case self._browserKeys.copy:
-              case self._browserKeys.paste:
-              case self._browserKeys.selectAll:
                 preventDefault = false;
                 break;
+#endif
             }
           }
           if (preventDefault) {
@@ -1144,7 +1086,7 @@ let UI = {
         if (nextTab) {
           if (nextTab.isStacked && !nextTab.parent.expanded)
             nextTab = nextTab.parent.getChild(0);
-          self.setActive(nextTab);
+          self.setActiveTab(nextTab);
         }
       } else {
         switch(event.keyCode) {
@@ -1182,7 +1124,7 @@ let UI = {
                   else
                     newIndex = (currentIndex + 1);
                 }
-                self.setActive(tabItems[newIndex]);
+                self.setActiveTab(tabItems[newIndex]);
               }
             }
             break;
@@ -1217,7 +1159,7 @@ let UI = {
     const minMinSize = 15;
 
     let lastActiveGroupItem = GroupItems.getActiveGroupItem();
-    this.setActive(null, { onlyRemoveActiveGroup: true });
+    GroupItems.setActiveGroupItem(null);
 
     var startPos = { x: e.clientX, y: e.clientY };
     var phantom = iQ("<div>")
@@ -1286,7 +1228,6 @@ let UI = {
       e.preventDefault();
     }
 
-    let self = this;
     function collapse() {
       let center = phantom.bounds().center();
       phantom.animate({
@@ -1300,7 +1241,7 @@ let UI = {
           phantom.remove();
         }
       });
-      self.setActive(lastActiveGroupItem);
+      GroupItems.setActiveGroupItem(lastActiveGroupItem);
     }
 
     function finalize(e) {
@@ -1322,7 +1263,7 @@ let UI = {
         }
 
         var groupItem = new GroupItem(insideTabs,{bounds:bounds});
-        self.setActive(groupItem);
+        GroupItems.setActiveGroupItem(groupItem);
         phantom.remove();
         dragOutInfo = null;
         gTabView.firstUseExperienced = true;
@@ -1432,6 +1373,7 @@ let UI = {
   // These computations may be done using cached values. The cache can be
   // cleared with UI.clearShouldResizeItems().
   shouldResizeItems: function UI_shouldResizeItems() {
+
     let newPageBounds = Items.getPageBounds();
     
     // If we don't have cached cached values...
@@ -1584,30 +1526,6 @@ let UI = {
     this._save();
     GroupItems.saveAll();
     TabItems.saveAll();
-  },
-
-  // ----------
-  // Function: shouldLoadFavIcon
-  // Takes a xul:browser and checks whether we should display a favicon for it.
-  shouldLoadFavIcon: function UI_shouldLoadFavIcon(browser) {
-    return !(browser.contentDocument instanceof window.ImageDocument) &&
-            (browser.currentURI.schemeIs("about") ||
-             gBrowser.shouldLoadFavIcon(browser.contentDocument.documentURIObject));
-  },
-
-  // ----------
-  // Function: getFavIconUrlForTab
-  // Gets fav icon url for the given xul:tab.
-  getFavIconUrlForTab: function UI_getFavIconUrlForTab(tab) {
-    let url;
-
-    // use the tab image if it doesn't start with http e.g. data:image/png, chrome://
-    if (tab.image && !(/^https?:/.test(tab.image)))
-      url = tab.image;
-    else
-      url = gFavIconService.getFaviconImageForPage(tab.linkedBrowser.currentURI).spec;
-
-    return url;
   }
 };
 

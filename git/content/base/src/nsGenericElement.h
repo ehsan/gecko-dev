@@ -66,7 +66,6 @@
 #include "nsIDOMNodeSelector.h"
 #include "nsIDOMXPathNSResolver.h"
 #include "nsPresContext.h"
-#include "nsIDOMDOMStringMap.h"
 
 #ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
@@ -329,7 +328,7 @@ public:
   virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
   virtual nsresult DispatchDOMEvent(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
@@ -351,12 +350,12 @@ public:
   }
   virtual nsresult SetTextContent(const nsAString& aTextContent)
   {
+    // Batch possible DOMSubtreeModified events.
+    mozAutoSubtreeModified subtree(GetOwnerDoc(), nsnull);
     return nsContentUtils::SetNodeTextContent(this, aTextContent, PR_FALSE);
   }
 
   // nsIContent interface methods
-  virtual void UpdateEditableState(PRBool aNotify);
-
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
@@ -598,7 +597,7 @@ public:
    */
   static void FireNodeInserted(nsIDocument* aDoc,
                                nsINode* aParent,
-                               nsTArray<nsCOMPtr<nsIContent> >& aNodes);
+                               nsCOMArray<nsIContent>& aNodes);
 
   /**
    * Helper methods for implementing querySelector/querySelectorAll
@@ -770,11 +769,6 @@ public:
   {
   }
 
-  /**
-   * Fire a DOMNodeRemoved mutation event for all children of this node
-   */
-  void FireNodeRemovedForChildren();
-
 protected:
   /**
    * Set attribute and (if needed) notify documentobservers and fire off
@@ -865,7 +859,7 @@ protected:
    * Hook that is called by nsGenericElement::SetAttr to allow subclasses to
    * deal with attribute sets.  This will only be called after we have called
    * SetAndTakeAttr and AttributeChanged (that is, after we have actually set
-   * the attr).  It will always be called under a scriptblocker.
+   * the attr).
    *
    * @param aNamespaceID the namespace of the attr being set
    * @param aName the localname of the attribute being set
@@ -937,15 +931,8 @@ public:
     /**
      * The .style attribute (an interface that forwards to the actual
      * style rules)
-     * @see nsGenericHTMLElement::GetStyle
-     */
+     * @see nsGenericHTMLElement::GetStyle */
     nsCOMPtr<nsICSSDeclaration> mStyle;
-
-    /**
-     * The .dataset attribute.
-     * @see nsGenericHTMLElement::GetDataset
-     */
-    nsIDOMDOMStringMap* mDataset; // [Weak]
 
     /**
      * SMIL Overridde style rules (for SMIL animation of CSS properties)

@@ -37,7 +37,7 @@
 
 #include "nsHTMLCanvasElement.h"
 
-#include "mozilla/Base64.h"
+#include "plbase64.h"
 #include "nsNetUtil.h"
 #include "prmem.h"
 #include "nsDOMFile.h"
@@ -47,7 +47,6 @@
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 #include "nsJSUtils.h"
-#include "nsMathUtils.h"
 
 #include "nsFrameManager.h"
 #include "nsDisplayList.h"
@@ -104,7 +103,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLCanvasElement)
 nsIntSize
 nsHTMLCanvasElement::GetWidthHeight()
 {
-  nsIntSize size(DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT);
+  nsIntSize size(0,0);
   const nsAttrValue* value;
 
   if ((value = GetParsedAttr(nsGkAtoms::width)) &&
@@ -118,6 +117,11 @@ nsHTMLCanvasElement::GetWidthHeight()
   {
       size.height = value->GetIntegerValue();
   }
+
+  if (size.width <= 0)
+    size.width = DEFAULT_CANVAS_WIDTH;
+  if (size.height <= 0)
+    size.height = DEFAULT_CANVAS_HEIGHT;
 
   return size;
 }
@@ -197,21 +201,37 @@ nsHTMLCanvasElement::ParseAttribute(PRInt32 aNamespaceID,
 // nsHTMLCanvasElement::toDataURL
 
 NS_IMETHODIMP
-nsHTMLCanvasElement::ToDataURL(const nsAString& aType, nsIVariant* aParams,
+nsHTMLCanvasElement::ToDataURL(const nsAString& aType, const nsAString& aParams,
                                PRUint8 optional_argc, nsAString& aDataURL)
 {
   // do a trust check if this is a write-only canvas
-  if (mWriteOnly && !nsContentUtils::IsCallerTrustedForRead()) {
+  // or if we're trying to use the 2-arg form
+  if ((mWriteOnly || optional_argc >= 2) &&
+      !nsContentUtils::IsCallerTrustedForRead()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
   return ToDataURLImpl(aType, aParams, aDataURL);
 }
 
+
+// nsHTMLCanvasElement::toDataURLAs
+//
+// Native-callers only
+
+NS_IMETHODIMP
+nsHTMLCanvasElement::ToDataURLAs(const nsAString& aMimeType,
+                                 const nsAString& aEncoderOptions,
+                                 nsAString& aDataURL)
+{
+  return ToDataURLImpl(aMimeType, aEncoderOptions, aDataURL);
+}
+
 nsresult
 nsHTMLCanvasElement::ExtractData(const nsAString& aType,
                                  const nsAString& aOptions,
-                                 nsIInputStream** aStream,
+                                 char*& aResult,
+                                 PRUint32& aSize,
                                  bool& aFellBackToPNG)
 {
   // note that if we don't have a current context, the spec says we're
@@ -264,65 +284,82 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
     goto try_again;
   }
 
+  // at this point, we either need to succeed or bail.
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return CallQueryInterface(imgStream, aStream);
+  // Generally, there will be only one chunk of data, and it will be available
+  // for us to read right away, so optimize this case.
+  PRUint32 bufSize;
+  rv = imgStream->Available(&bufSize);
+  CheckedUint32 safeBufSize(bufSize);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // ...leave a little extra room so we can call read again and make sure we
+  // got everything. 16 bytes for better padding (maybe)
+  safeBufSize += 16;
+  NS_ENSURE_TRUE(safeBufSize.valid(), NS_ERROR_FAILURE);
+  aSize = 0;
+  aResult = (char*)PR_Malloc(safeBufSize.value());
+  if (!aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
+  PRUint32 numReadThisTime = 0;
+  while ((rv = imgStream->Read(&aResult[aSize], safeBufSize.value() - aSize,
+                               &numReadThisTime)) == NS_OK &&
+         numReadThisTime > 0) {
+    aSize += numReadThisTime;
+    if (aSize == safeBufSize.value()) {
+      // need a bigger buffer, just double
+      safeBufSize *= 2;
+      if (!safeBufSize.valid()) {
+        PR_Free(aResult);
+        return NS_ERROR_FAILURE;
+      }
+      char* newImgData = (char*)PR_Realloc(aResult, safeBufSize.value());
+      if (! newImgData) {
+        PR_Free(aResult);
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+      aResult = newImgData;
+    }
+  }
+
   return NS_OK;
 }
 
 nsresult
 nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
-                                   nsIVariant* aEncoderOptions,
+                                   const nsAString& aEncoderOptions,
                                    nsAString& aDataURL)
 {
   bool fallbackToPNG = false;
 
-  nsIntSize size = GetWidthHeight();
-  if (size.height == 0 || size.width == 0) {
-    aDataURL = NS_LITERAL_STRING("data:,");
-    return NS_OK;
-  }
-
   nsAutoString type;
   nsContentUtils::ASCIIToLower(aMimeType, type);
 
-  nsAutoString params;
+  PRUint32 imgSize = 0;
+  char* imgData;
 
-  // Quality parameter is only valid for the image/jpeg MIME type
-  if (type.EqualsLiteral("image/jpeg")) {
-    PRUint16 vartype;
-
-    if (aEncoderOptions &&
-        NS_SUCCEEDED(aEncoderOptions->GetDataType(&vartype)) &&
-        vartype <= nsIDataType::VTYPE_DOUBLE) {
-
-      double quality;
-      // Quality must be between 0.0 and 1.0, inclusive
-      if (NS_SUCCEEDED(aEncoderOptions->GetAsDouble(&quality)) &&
-          quality >= 0.0 && quality <= 1.0) {
-        params.AppendLiteral("quality=");
-        params.AppendInt(NS_lround(quality * 100.0));
-      }
-    }
-  }
-
-  nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = ExtractData(type, params, getter_AddRefs(stream),
-                            fallbackToPNG);
+  nsresult rv = ExtractData(type, aEncoderOptions, imgData,
+                            imgSize, fallbackToPNG);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // base 64, result will be NULL terminated
+  char* encodedImg = PL_Base64Encode(imgData, imgSize, nsnull);
+  PR_Free(imgData);
+  if (!encodedImg) // not sure why this would fail
+    return NS_ERROR_OUT_OF_MEMORY;
 
   // build data URL string
   if (fallbackToPNG)
-    aDataURL = NS_LITERAL_STRING("data:image/png;base64,");
+    aDataURL = NS_LITERAL_STRING("data:image/png;base64,") +
+      NS_ConvertUTF8toUTF16(encodedImg);
   else
     aDataURL = NS_LITERAL_STRING("data:") + type +
-      NS_LITERAL_STRING(";base64,");
+      NS_LITERAL_STRING(";base64,") + NS_ConvertUTF8toUTF16(encodedImg);
 
-  PRUint32 count;
-  rv = stream->Available(&count);
-  NS_ENSURE_SUCCESS(rv, rv);
+  PR_Free(encodedImg);
 
-  return Base64EncodeInputStream(stream, aDataURL, count, aDataURL.Length());
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -346,10 +383,11 @@ nsHTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
                                       nsIDOMFile** aResult)
 {
   bool fallbackToPNG = false;
+  PRUint32 imgSize = 0;
+  char* imgData;
 
-  nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = ExtractData(aType, EmptyString(), getter_AddRefs(stream),
-                            fallbackToPNG);
+  nsresult rv = ExtractData(aType, EmptyString(), imgData,
+                            imgSize, fallbackToPNG);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsAutoString type(aType);
@@ -357,17 +395,9 @@ nsHTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
     type.AssignLiteral("image/png");
   }
 
-  PRUint32 imgSize;
-  rv = stream->Available(&imgSize);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  void* imgData = nsnull;
-  rv = NS_ReadInputStreamToBuffer(stream, &imgData, imgSize);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   // The DOMFile takes ownership of the buffer
   nsRefPtr<nsDOMMemoryFile> file =
-    new nsDOMMemoryFile(imgData, imgSize, aName, type);
+    new nsDOMMemoryFile((void*)imgData, imgSize, aName, type);
 
   return CallQueryInterface(file, aResult);
 }
@@ -441,6 +471,12 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
     if (!cp) {
       mCurrentContext = nsnull;
       return NS_ERROR_FAILURE;
+    }
+
+    rv = mCurrentContext->SetCanvasElement(this);
+    if (NS_FAILED(rv)) {
+      mCurrentContext = nsnull;
+      return rv;
     }
 
     nsCOMPtr<nsIPropertyBag> contextProps;
@@ -560,25 +596,19 @@ nsHTMLCanvasElement::UpdateContext(nsIPropertyBag *aNewContextOptions)
     return NS_OK;
 
   nsresult rv = NS_OK;
-  nsIntSize sz = GetWidthHeight();
 
   rv = mCurrentContext->SetIsOpaque(GetIsOpaque());
-  if (NS_FAILED(rv)) {
-    mCurrentContext = nsnull;
+  if (NS_FAILED(rv))
     return rv;
-  }
 
   rv = mCurrentContext->SetContextOptions(aNewContextOptions);
-  if (NS_FAILED(rv)) {
-    mCurrentContext = nsnull;
+  if (NS_FAILED(rv))
     return rv;
-  }
 
+  nsIntSize sz = GetWidthHeight();
   rv = mCurrentContext->SetDimensions(sz.width, sz.height);
-  if (NS_FAILED(rv)) {
-    mCurrentContext = nsnull;
+  if (NS_FAILED(rv))
     return rv;
-  }
 
   return rv;
 }
@@ -622,20 +652,18 @@ nsHTMLCanvasElement::InvalidateCanvasContent(const gfxRect* damageRect)
   nsRect contentArea = frame->GetContentRect();
   if (damageRect) {
     nsIntSize size = GetWidthHeight();
-    if (size.width != 0 && size.height != 0) {
 
-      // damageRect and size are in CSS pixels; contentArea is in appunits
-      // We want a rect in appunits; so avoid doing pixels-to-appunits and
-      // vice versa conversion here.
-      gfxRect realRect(*damageRect);
-      realRect.Scale(contentArea.width / gfxFloat(size.width),
-                     contentArea.height / gfxFloat(size.height));
-      realRect.RoundOut();
+    // damageRect and size are in CSS pixels; contentArea is in appunits
+    // We want a rect in appunits; so avoid doing pixels-to-appunits and
+    // vice versa conversion here.
+    gfxRect realRect(*damageRect);
+    realRect.Scale(contentArea.width / gfxFloat(size.width),
+                   contentArea.height / gfxFloat(size.height));
+    realRect.RoundOut();
 
-      // then make it a nsRect
-      invalRect = nsRect(realRect.X(), realRect.Y(),
-                         realRect.Width(), realRect.Height());
-    }
+    // then make it a nsRect
+    invalRect = nsRect(realRect.X(), realRect.Y(),
+                       realRect.Width(), realRect.Height());
   } else {
     invalRect = nsRect(nsPoint(0, 0), contentArea.Size());
   }

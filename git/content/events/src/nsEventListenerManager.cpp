@@ -53,7 +53,9 @@
 #include "nsIDOMCompositionListener.h"
 #include "nsIDOMUIListener.h"
 #include "nsITextControlFrame.h"
+#ifdef MOZ_SVG
 #include "nsGkAtoms.h"
+#endif // MOZ_SVG
 #include "nsPIDOMWindow.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIJSEventListener.h"
@@ -80,6 +82,7 @@
 #include "nsIScriptObjectOwner.h" // for nsIScriptEventHandlerOwner
 #include "nsFocusManager.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMNSDocument.h"
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "nsIDOMEventGroup.h"
@@ -905,7 +908,7 @@ nsEventListenerManager::RegisterScriptEventListener(nsIScriptContext *aContext,
     if (sAddListenerID == JSID_VOID) {
       JSAutoRequest ar(cx);
       sAddListenerID =
-        INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "addEventListener"));
+        INTERNED_STRING_TO_JSID(::JS_InternString(cx, "addEventListener"));
     }
 
     if (aContext->GetScriptTypeID() == nsIProgrammingLanguage::JAVASCRIPT) {
@@ -1003,6 +1006,7 @@ nsEventListenerManager::CompileEventHandlerInternal(nsIScriptContext *aContext,
     if (content) {
       nsAutoString handlerBody;
       nsIAtom* attrName = aName;
+#ifdef MOZ_SVG
       if (aName == nsGkAtoms::onSVGLoad)
         attrName = nsGkAtoms::onload;
       else if (aName == nsGkAtoms::onSVGUnload)
@@ -1017,6 +1021,7 @@ nsEventListenerManager::CompileEventHandlerInternal(nsIScriptContext *aContext,
         attrName = nsGkAtoms::onscroll;
       else if (aName == nsGkAtoms::onSVGZoom)
         attrName = nsGkAtoms::onzoom;
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
       else if (aName == nsGkAtoms::onbeginEvent)
         attrName = nsGkAtoms::onbegin;

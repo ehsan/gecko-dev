@@ -152,7 +152,7 @@ nsUsageArrayHelper::verifyFailed(PRUint32 *_verified, int err)
 
 nsresult
 nsUsageArrayHelper::GetUsagesArray(const char *suffix,
-                      PRBool localOnly,
+                      PRBool ignoreOcsp,
                       PRUint32 outArraySize,
                       PRUint32 *_verified,
                       PRUint32 *_count,
@@ -167,7 +167,7 @@ nsUsageArrayHelper::GetUsagesArray(const char *suffix,
 
   nsCOMPtr<nsINSSComponent> nssComponent;
 
-  if (!nsNSSComponent::globalConstFlagUsePKIXVerification && localOnly) {
+  if (ignoreOcsp) {
     nsresult rv;
     nssComponent = do_GetService(kNSSComponentCID, &rv);
     if (NS_FAILED(rv))
@@ -177,15 +177,12 @@ nsUsageArrayHelper::GetUsagesArray(const char *suffix,
       nssComponent->SkipOcsp();
     }
   }
-  
+
   PRUint32 &count = *_count;
   count = 0;
-  SECCertificateUsage usages = 0;
-  SECStatus verifyResult;
-
-if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
-  verifyResult =
-  CERT_VerifyCertificateNow(defaultcertdb, mCert, PR_TRUE,
+  SECCertificateUsage usages;
+  
+  CERT_VerifyCertificateNow(defaultcertdb, mCert, PR_TRUE, 
 			    certificateUsageSSLClient |
 			    certificateUsageSSLServer |
 			    certificateUsageSSLServerWithStepUp |
@@ -195,39 +192,7 @@ if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
 			    certificateUsageSSLCA |
 			    certificateUsageStatusResponder,
 			    NULL, &usages);
-}
-else {
-  nsresult nsrv;
-  nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
-  if (!inss)
-    return nsrv;
-  nsRefPtr<nsCERTValInParamWrapper> survivingParams;
-  if (localOnly)
-    nsrv = inss->GetDefaultCERTValInParamLocalOnly(survivingParams);
-  else
-    nsrv = inss->GetDefaultCERTValInParam(survivingParams);
-  
-  if (NS_FAILED(nsrv))
-    return nsrv;
-
-  CERTValOutParam cvout[2];
-  cvout[0].type = cert_po_usages;
-  cvout[0].value.scalar.usages = 0;
-  cvout[1].type = cert_po_end;
-  
-  verifyResult =
-  CERT_PKIXVerifyCert(mCert, certificateUsageCheckAllUsages,
-                      survivingParams->GetRawPointerForNSS(),
-                      cvout, NULL);
-
-  usages = cvout[0].value.scalar.usages;
-}
-
-  if (verifyResult != SECSuccess) {
-    int err = PR_GetError();
-    verifyFailed(_verified, err);
-    return NS_OK;
-  }
+  int err = PR_GetError();
 
   // The following list of checks must be < max_returned_out_array_size
   
@@ -250,10 +215,14 @@ else {
   check(suffix, usages & certificateUsageAnyCA, count, outUsages);
 #endif
 
-  if (!nsNSSComponent::globalConstFlagUsePKIXVerification && localOnly && nssComponent) {
+  if (ignoreOcsp && nssComponent) {
     nssComponent->SkipOcspOff();
   }
 
-  *_verified = nsNSSCertificate::VERIFIED_OK;
+  if (count == 0) {
+    verifyFailed(_verified, err);
+  } else {
+    *_verified = nsNSSCertificate::VERIFIED_OK;
+  }
   return NS_OK;
 }

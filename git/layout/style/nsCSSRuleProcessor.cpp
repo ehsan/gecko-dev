@@ -94,10 +94,9 @@
 #include "mozilla/dom/Element.h"
 #include "nsGenericElement.h"
 #include "nsNthIndexCache.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
+namespace css = mozilla::css;
 
 #define VISITED_PSEUDO_PREF "layout.css.visited_links_enabled"
 
@@ -962,8 +961,11 @@ NS_IMPL_ISUPPORTS1(nsCSSRuleProcessor, nsIStyleRuleProcessor)
 /* static */ nsresult
 nsCSSRuleProcessor::Startup()
 {
-  Preferences::AddBoolVarCache(&gSupportVisitedPseudo, VISITED_PSEUDO_PREF,
-                               PR_TRUE);
+  nsContentUtils::AddBoolPrefVarCache(VISITED_PSEUDO_PREF,
+                                      &gSupportVisitedPseudo);
+  // We want to default to true, not false as AddBoolPrefVarCache does.
+  gSupportVisitedPseudo =
+    nsContentUtils::GetBoolPref(VISITED_PSEUDO_PREF, PR_TRUE);
 
   gPrivateBrowsingObserver = new nsPrivateBrowsingObserver();
   NS_ENSURE_TRUE(gPrivateBrowsingObserver, NS_ERROR_OUT_OF_MEMORY);
@@ -1149,9 +1151,14 @@ static void GetLang(nsIContent* aContent, nsString& aLang)
 nsEventStates
 nsCSSRuleProcessor::GetContentState(Element* aElement)
 {
-  // FIXME: RequestLinkStateUpdate is a hack; see bug 660959.
-  aElement->RequestLinkStateUpdate();
-  nsEventStates state = aElement->State();
+  nsIPresShell* shell = aElement->GetOwnerDoc()->GetShell();
+  nsPresContext* presContext;
+  nsEventStates state;
+  if (shell && (presContext = shell->GetPresContext())) {
+    state = presContext->EventStateManager()->GetContentState(aElement);
+  } else {
+    state = aElement->IntrinsicState();
+  }
 
   // If we are not supposed to mark visited links as such, be sure to
   // flip the bits appropriately.  We want to do this here, rather
@@ -1170,9 +1177,7 @@ nsCSSRuleProcessor::GetContentState(Element* aElement)
 PRBool
 nsCSSRuleProcessor::IsLink(Element* aElement)
 {
-  // FIXME: RequestLinkStateUpdate is a hack; see bug 660959.
-  aElement->RequestLinkStateUpdate();
-  nsEventStates state = aElement->State();
+  nsEventStates state = aElement->IntrinsicState();
   return state.HasAtLeastOneOfStates(NS_EVENT_STATE_VISITED | NS_EVENT_STATE_UNVISITED);
 }
 
@@ -2167,7 +2172,7 @@ void ContentEnumFunc(css::StyleRule* aRule, nsCSSSelector* aSelector,
                                      data->mTreeMatchContext,
                                      !nodeContext.mIsRelevantLink)) {
       aRule->RuleMatched();
-      data->mRuleWalker->Forward(aRule);
+      data->mRuleWalker->Forward(static_cast<nsIStyleRule*>(aRule));
       // nsStyleSet will deal with the !important rule
     }
   }
@@ -2214,7 +2219,7 @@ nsCSSRuleProcessor::RulesMatching(AnonBoxRuleProcessorData* aData)
       for (RuleValue *value = rules.Elements(), *end = value + rules.Length();
            value != end; ++value) {
         value->mRule->RuleMatched();
-        aData->mRuleWalker->Forward(value->mRule);
+        aData->mRuleWalker->Forward(static_cast<nsIStyleRule*>(value->mRule));
       }
     }
   }
@@ -2817,12 +2822,12 @@ struct CascadeEnumData {
  *  (3) add any @keyframes rules, in order, into data->mKeyframesRules.
  */
 static PRBool
-CascadeRuleEnumFunc(css::Rule* aRule, void* aData)
+CascadeRuleEnumFunc(nsICSSRule* aRule, void* aData)
 {
   CascadeEnumData* data = (CascadeEnumData*)aData;
   PRInt32 type = aRule->GetType();
 
-  if (css::Rule::STYLE_RULE == type) {
+  if (nsICSSRule::STYLE_RULE == type) {
     css::StyleRule* styleRule = static_cast<css::StyleRule*>(aRule);
 
     for (nsCSSSelectorList *sel = styleRule->Selector();
@@ -2839,14 +2844,14 @@ CascadeRuleEnumFunc(css::Rule* aRule, void* aData)
                                                         sel->mSelectors));
     }
   }
-  else if (css::Rule::MEDIA_RULE == type ||
-           css::Rule::DOCUMENT_RULE == type) {
+  else if (nsICSSRule::MEDIA_RULE == type ||
+           nsICSSRule::DOCUMENT_RULE == type) {
     css::GroupRule* groupRule = static_cast<css::GroupRule*>(aRule);
     if (groupRule->UseForPresentation(data->mPresContext, data->mCacheKey))
       if (!groupRule->EnumerateRulesForwards(CascadeRuleEnumFunc, aData))
         return PR_FALSE;
   }
-  else if (css::Rule::FONT_FACE_RULE == type) {
+  else if (nsICSSRule::FONT_FACE_RULE == type) {
     nsCSSFontFaceRule *fontFaceRule = static_cast<nsCSSFontFaceRule*>(aRule);
     nsFontFaceRuleContainer *ptr = data->mFontFaceRules.AppendElement();
     if (!ptr)
@@ -2855,7 +2860,7 @@ CascadeRuleEnumFunc(css::Rule* aRule, void* aData)
     ptr->mSheetType = data->mSheetType;
   }
 #ifdef MOZ_CSS_ANIMATIONS
-  else if (css::Rule::KEYFRAMES_RULE == type) {
+  else if (nsICSSRule::KEYFRAMES_RULE == type) {
     nsCSSKeyframesRule *keyframesRule =
       static_cast<nsCSSKeyframesRule*>(aRule);
     if (!data->mKeyframesRules.AppendElement(keyframesRule)) {

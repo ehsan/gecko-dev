@@ -36,9 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+
 #include "nsCOMPtr.h"
 #include "nsTextControlFrame.h"
 #include "nsIDocument.h"
+#include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIFormControl.h"
 #include "nsIServiceManager.h"
 #include "nsFrameSelection.h"
@@ -198,12 +200,6 @@ void
 nsTextControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   mScrollEvent.Revoke();
-
-  EditorInitializer* initializer = (EditorInitializer*) Properties().Get(TextControlInitializer());
-  if (initializer) {
-    initializer->Revoke();
-    Properties().Delete(TextControlInitializer());
-  }
 
   // Unbind the text editor state object from the frame.  The editor will live
   // on, but things like controllers will be released.
@@ -391,14 +387,11 @@ nsTextControlFrame::EnsureEditorInitialized()
   // editor.
   mUseEditor = PR_TRUE;
 
-  // Set the selection to the beginning of the text field.
-  SetSelectionEndPoints(0, 0);
-
   return NS_OK;
 }
 
 nsresult
-nsTextControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
+nsTextControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   NS_ASSERTION(mContent, "We should have a content!");
 
@@ -449,16 +442,8 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   if (initEagerly) {
     NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                  "Someone forgot a script blocker?");
-    EditorInitializer* initializer = (EditorInitializer*) Properties().Get(TextControlInitializer());
-    if (initializer) {
-      initializer->Revoke();
-    }
-    initializer = new EditorInitializer(this);
-    Properties().Set(TextControlInitializer(),initializer);
-    if (!nsContentUtils::AddScriptRunner(initializer)) {
-      initializer->Revoke(); // paranoia
-      Properties().Delete(TextControlInitializer());
-      delete initializer;
+
+    if (!nsContentUtils::AddScriptRunner(new EditorInitializer(this))) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }
@@ -1487,7 +1472,7 @@ nsTextControlFrame::UpdateValueDisplay(PRBool aNotify,
   }
 
   if (aBeforeEditorInit && value.IsEmpty()) {
-    rootNode->RemoveChildAt(0, PR_TRUE);
+    rootNode->RemoveChildAt(0, PR_TRUE, PR_FALSE);
     return NS_OK;
   }
 

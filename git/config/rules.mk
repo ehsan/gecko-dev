@@ -142,10 +142,9 @@ SOLO_FILE ?= $(error Specify a test filename in SOLO_FILE when using check-inter
 
 libs::
 	$(foreach dir,$(XPCSHELL_TESTS),$(_INSTALL_TESTS))
-	$(PYTHON) $(MOZILLA_DIR)/build/xpccheck.py \
-	  $(topsrcdir) \
-	  $(topsrcdir)/testing/xpcshell/xpcshell.ini \
-	  $(addprefix $(MOZILLA_DIR)/$(relativesrcdir)/,$(XPCSHELL_TESTS))
+	$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py \
+	  $(testxpcobjdir)/all-test-dirs.list \
+	  $(addprefix $(relativesrcdir)/,$(XPCSHELL_TESTS))
 
 testxpcsrcdir = $(topsrcdir)/testing/xpcshell
 
@@ -157,7 +156,7 @@ xpcshell-tests:
 	  $(testxpcsrcdir)/runxpcshelltests.py \
 	  --symbols-path=$(DIST)/crashreporter-symbols \
 	  $(EXTRA_TEST_ARGS) \
-	  $(LIBXUL_DIST)/bin/xpcshell \
+	  $(DIST)/bin/xpcshell \
 	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
 
 # Execute a single test, specified in $(SOLO_FILE), but don't automatically
@@ -171,7 +170,7 @@ check-interactive:
 	  --test-path=$(SOLO_FILE) \
 	  --profile-name=$(MOZ_APP_NAME) \
 	  --interactive \
-	  $(LIBXUL_DIST)/bin/xpcshell \
+	  $(DIST)/bin/xpcshell \
 	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
 
 # Execute a single test, specified in $(SOLO_FILE)
@@ -184,7 +183,7 @@ check-one:
 	  --profile-name=$(MOZ_APP_NAME) \
 	  --verbose \
 	  $(EXTRA_TEST_ARGS) \
-	  $(LIBXUL_DIST)/bin/xpcshell \
+	  $(DIST)/bin/xpcshell \
 	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
 
 endif # XPCSHELL_TESTS
@@ -216,7 +215,7 @@ endif # ENABLE_TESTS
 #
 # Library rules
 #
-# If FORCE_STATIC_LIB is set, build a static library.
+# If BUILD_STATIC_LIBS or FORCE_STATIC_LIB is set, build a static library.
 # Otherwise, build a shared library.
 #
 
@@ -239,7 +238,7 @@ endif
 endif
 
 ifdef LIBRARY
-ifdef FORCE_SHARED_LIB
+ifneq (_1,$(FORCE_SHARED_LIB)_$(BUILD_STATIC_LIBS))
 ifdef MKSHLIB
 
 ifdef LIB_IS_C_ONLY
@@ -266,11 +265,23 @@ ifeq ($(OS_ARCH),OS2)
 DEF_FILE		:= $(SHARED_LIBRARY:.dll=.def)
 endif
 
+ifdef MOZ_ENABLE_LIBXUL
 EMBED_MANIFEST_AT=2
+endif
 
 endif # MKSHLIB
-endif # FORCE_SHARED_LIB
+endif # FORCE_SHARED_LIB && !BUILD_STATIC_LIBS
 endif # LIBRARY
+
+ifeq (,$(BUILD_STATIC_LIBS)$(FORCE_STATIC_LIB))
+LIBRARY			:= $(NULL)
+endif
+
+ifeq (_1,$(FORCE_SHARED_LIB)_$(BUILD_STATIC_LIBS))
+SHARED_LIBRARY		:= $(NULL)
+DEF_FILE		:= $(NULL)
+IMPORT_LIBRARY		:= $(NULL)
+endif
 
 ifdef FORCE_STATIC_LIB
 ifndef FORCE_SHARED_LIB
@@ -282,7 +293,7 @@ endif
 
 ifdef FORCE_SHARED_LIB
 ifndef FORCE_STATIC_LIB
-LIBRARY := $(NULL)
+LIBRARY			:= $(NULL)
 endif
 endif
 
@@ -773,6 +784,12 @@ export::
 ifdef LIBRARY_NAME
 ifdef EXPORT_LIBRARY
 ifdef IS_COMPONENT
+ifdef BUILD_STATIC_LIBS
+	@$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py $(FINAL_LINK_COMPS) $(STATIC_LIBRARY_NAME)
+ifdef MODULE_NAME
+	@$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py $(FINAL_LINK_COMP_NAMES) $(MODULE_NAME)
+endif
+endif # BUILD_STATIC_LIBS
 else # !IS_COMPONENT
 	$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py $(FINAL_LINK_LIBS) $(STATIC_LIBRARY_NAME)
 endif # IS_COMPONENT
@@ -906,9 +923,6 @@ endif # MOZ_PROFILE_GENERATE || MOZ_PROFILE_USE
 endif # NO_PROFILE_GUIDED_OPTIMIZE
 
 ##############################################
-
-stdc++compat.$(OBJ_SUFFIX): CXXFLAGS+=-DMOZ_LIBSTDCXX_VERSION=$(MOZ_LIBSTDCXX_TARGET_VERSION)
-host_stdc++compat.$(OBJ_SUFFIX): CXXFLAGS+=-DMOZ_LIBSTDCXX_VERSION=$(MOZ_LIBSTDCXX_HOST_VERSION)
 
 checkout:
 	$(MAKE) -C $(topsrcdir) -f client.mk checkout

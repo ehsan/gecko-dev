@@ -54,9 +54,11 @@ EXPORTS_NAMESPACES = mozilla
 
 XPIDLSRCS = \
   nsIHTTPHeaderListener.idl \
+  nsIPlugin.idl \
   nsIPluginDocument.idl \
   nsIPluginHost.idl \
   nsIPluginInputStream.idl \
+  nsIPluginInstance.idl \
   nsIPluginInstanceOwner.idl \
   nsIPluginStreamInfo.idl \
   nsIPluginStreamListener.idl \
@@ -74,12 +76,6 @@ EXPORTS = \
   nsPluginError.h \
   nsPluginNativeWindow.h \
   nsPluginsCID.h \
-  nsNPAPIPluginInstance.h \
-  nsPluginsDir.h \
-  nsPluginTags.h \
-  nsPluginDirServiceProvider.h \
-  nsPluginHost.h \
-  nsPluginInstanceOwner.h \
   $(NULL)
 
 EXPORTS_mozilla = \
@@ -96,10 +92,9 @@ CPPSRCS		= \
 		nsJSNPRuntime.cpp \
 		nsPluginTags.cpp \
 		PluginPRLibrary.cpp \
-		nsPluginInstanceOwner.cpp \
 		$(NULL)
 
-ifeq ($(OS_ARCH),WINNT)
+ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 	CPPSRCS += nsPluginsDirWin.cpp
 	CPPSRCS += nsPluginNativeWindowWin.cpp
 	CPPSRCS += nsPluginDirServiceProvider.cpp
@@ -129,7 +124,6 @@ endif
 
 LOCAL_INCLUDES = \
   -I$(topsrcdir)/xpcom/base/ \
-  $(MOZ_CAIRO_CFLAGS) \
   $(NULL)
 
 ifneq (,$(filter WINNT Darwin,$(OS_ARCH)))
@@ -149,7 +143,6 @@ ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 EXTRA_DSO_LDOPTS += $(TK_LIBS)
 endif
 
-include $(topsrcdir)/dom/dom-config.mk
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
@@ -169,7 +162,3 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 EXTRA_DSO_LDOPTS += $(XEXT_LIBS) $(XCOMPOSITE_LIBS)
 endif
 
-$(DIST)/bin/plugins:
-	$(NSINSTALL) -D $@
-
-export:: $(DIST)/bin/plugins

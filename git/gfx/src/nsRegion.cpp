@@ -1363,30 +1363,16 @@ nsRegion nsRegion::ConvertAppUnitsRoundIn (PRInt32 aFromAPP, PRInt32 aToAPP) con
   return region;
 }
 
-nsIntRegion nsRegion::ToPixels (nscoord aAppUnitsPerPixel, bool aOutsidePixels) const
+nsIntRegion nsRegion::ToOutsidePixels (nscoord aAppUnitsPerPixel) const
 {
   nsIntRegion result;
   nsRegionRectIterator rgnIter(*this);
   const nsRect* currentRect;
   while ((currentRect = rgnIter.Next())) {
-    nsIntRect deviceRect;
-    if (aOutsidePixels)
-      deviceRect = currentRect->ToOutsidePixels(aAppUnitsPerPixel);
-    else
-      deviceRect = currentRect->ToNearestPixels(aAppUnitsPerPixel);
+    nsIntRect deviceRect = currentRect->ToOutsidePixels(aAppUnitsPerPixel);
     result.Or(result, deviceRect);
   }
   return result;
-}
-
-nsIntRegion nsRegion::ToOutsidePixels (nscoord aAppUnitsPerPixel) const
-{
-  return ToPixels(aAppUnitsPerPixel, true);
-}
-
-nsIntRegion nsRegion::ToNearestPixels (nscoord aAppUnitsPerPixel) const
-{
-  return ToPixels(aAppUnitsPerPixel, false);
 }
 
 // A cell's "value" is a pair consisting of

@@ -148,7 +148,7 @@ bool
 ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
                                InfallibleTArray<EditReply>* reply)
 {
-  MOZ_LAYERS_LOG(("[ParentSide] received txn with %d edits", cset.Length()));
+  MOZ_LAYERS_LOG(("[ParentSide] recieved txn with %d edits", cset.Length()));
 
   if (mDestroyed || layer_manager()->IsDestroyed()) {
     return true;
@@ -223,7 +223,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowCanvasLayer* canvas = static_cast<ShadowCanvasLayer*>(
         AsShadowLayer(ocb)->AsLayer());
 
-      canvas->Init(ocb.initialFront(), ocb.size(), ocb.needYFlip());
+      canvas->Init(ocb.initialFront(), ocb.size());
 
       break;
     }
@@ -290,10 +290,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       layer->SetClipRect(common.useClipRect() ? &common.clipRect() : NULL);
       layer->SetTransform(common.transform());
       layer->SetTileSourceRect(common.useTileSourceRect() ? &common.tileSourceRect() : NULL);
-      static bool fixedPositionLayersEnabled = getenv("MOZ_ENABLE_FIXED_POSITION_LAYERS") != 0;
-      if (fixedPositionLayersEnabled) {
-        layer->SetIsFixedPosition(common.isFixedPosition());
-      }
+      layer->SetIsFixedPosition(common.isFixedPosition());
 
       typedef SpecificLayerAttributes Specific;
       const SpecificLayerAttributes& specific = attrs.specific();
@@ -434,15 +431,15 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowImageLayer* image =
         static_cast<ShadowImageLayer*>(shadow->AsLayer());
 
-      SharedImage newFront = op.newFrontBuffer();
-      SharedImage newBack;
+      SurfaceDescriptor newFront = op.newFrontBuffer();
+      SurfaceDescriptor newBack;
       image->Swap(op.newFrontBuffer(), &newBack);
       if (newFront == newBack) {
-        newFront = SharedImage();
+        newFront = SurfaceDescriptor();
       }
 
-      replyv.push_back(OpImageSwap(shadow, NULL,
-                                   newBack));
+      replyv.push_back(OpBufferSwap(shadow, NULL,
+                                    newBack));
 
       break;
     }

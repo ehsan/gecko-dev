@@ -72,6 +72,7 @@
 #include "nsIFile.h"
 #include "nsIFileURL.h"
 #include "nsIZipReader.h"
+#include "nsIPluginInstance.h"
 #include "nsIXPConnect.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsPIDOMWindow.h"
@@ -2633,11 +2634,6 @@ nsScriptSecurityManager::IsCapabilityEnabled(const char *capability,
         if (NS_FAILED(rv)) return rv;
         if (*result)
             return NS_OK;
-
-        // Capabilities do not extend to calls into C/C++ and then back into
-        // the JS engine via JS_EvaluateScript or similar APIs.
-        if (JS_IsGlobalFrame(cx, fp))
-            break;
     } while ((fp = JS_FrameIterator(cx, &fp)) != nsnull);
 
     if (!previousPrincipal)
@@ -2799,9 +2795,7 @@ nsScriptSecurityManager::RequestCapability(nsIPrincipal* aPrincipal,
     {
         // Prompt user for permission to enable capability.
         JSContext* cx = GetCurrentJSContext();
-        // The actual value is irrelevant but we shouldn't be handing out
-        // malformed JSBools to XPConnect.
-        PRBool remember = PR_FALSE;
+        PRBool remember;
         if (CheckConfirmDialog(cx, aPrincipal, capability, &remember))
             *canEnable = nsIPrincipal::ENABLE_GRANTED;
         else
@@ -3290,6 +3284,27 @@ nsScriptSecurityManager::CheckXPCPermissions(JSContext* cx,
         }
     }
 
+    //-- If user allows scripting of plugins by untrusted scripts,
+    //   and the target object is a plugin, allow the access.
+    if(aObj)
+    {
+        nsresult rv;
+        nsCOMPtr<nsIPluginInstance> plugin(do_QueryInterface(aObj, &rv));
+        if (NS_SUCCEEDED(rv))
+        {
+            static PRBool prefSet = PR_FALSE;
+            static PRBool allowPluginAccess = PR_FALSE;
+            if (!prefSet)
+            {
+                rv = mPrefBranch->GetBoolPref("security.xpconnect.plugin.unrestricted",
+                                                       &allowPluginAccess);
+                prefSet = PR_TRUE;
+            }
+            if (allowPluginAccess)
+                return NS_OK;
+        }
+    }
+
     //-- Access tests failed
     return NS_ERROR_DOM_XPCONNECT_ACCESS_DENIED;
 }
@@ -3407,7 +3422,7 @@ nsresult nsScriptSecurityManager::Init()
     
     ::JS_BeginRequest(cx);
     if (sEnabledID == JSID_VOID)
-        sEnabledID = INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "enabled"));
+        sEnabledID = INTERNED_STRING_TO_JSID(::JS_InternString(cx, "enabled"));
     ::JS_EndRequest(cx);
 
     InitPrefs();

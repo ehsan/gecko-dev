@@ -42,12 +42,18 @@
 #define nsImageFrame_h___
 
 #include "nsSplittableFrame.h"
+#include "nsString.h"
+#include "nsAString.h"
+#include "nsIImageFrame.h"
 #include "nsIIOService.h"
 #include "nsIObserver.h"
 
+#include "imgIRequest.h"
 #include "nsStubImageDecoderObserver.h"
 #include "imgIDecoderObserver.h"
 
+#include "Layers.h"
+#include "ImageLayers.h"
 #include "nsDisplayList.h"
 #include "imgIContainer.h"
 
@@ -63,13 +69,8 @@ class nsPresContext;
 class nsImageFrame;
 class nsTransform2D;
 
-namespace mozilla {
-namespace layers {
-  class ImageContainer;
-  class ImageLayer;
-  class LayerManager;
-}
-}
+using namespace mozilla;
+using namespace mozilla::layers;
 
 class nsImageListener : public nsStubImageDecoderObserver
 {
@@ -99,17 +100,12 @@ private:
 
 #define ImageFrameSuper nsSplittableFrame
 
-class nsImageFrame : public ImageFrameSuper {
+class nsImageFrame : public ImageFrameSuper, public nsIImageFrame {
 public:
-  typedef mozilla::layers::ImageContainer ImageContainer;
-  typedef mozilla::layers::ImageLayer ImageLayer;
-  typedef mozilla::layers::LayerManager LayerManager;
-
   NS_DECL_FRAMEARENA_HELPERS
 
   nsImageFrame(nsStyleContext* aContext);
 
-  NS_DECL_QUERYFRAME_TARGET(nsImageFrame)
   NS_DECL_QUERYFRAME
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
@@ -158,7 +154,9 @@ public:
 
   virtual PRIntn GetSkipSides() const;
 
-  nsresult GetIntrinsicImageSize(nsSize& aSize);
+  NS_IMETHOD GetImageMap(nsPresContext *aPresContext, nsIImageMap **aImageMap);
+
+  NS_IMETHOD GetIntrinsicImageSize(nsSize& aSize);
 
   static void ReleaseGlobals() {
     if (gIconLoad) {
@@ -173,7 +171,7 @@ public:
    * should get an image frame.  Note that this method is only used by the
    * frame constructor; it's only here because it uses gIconLoad for now.
    */
-  static PRBool ShouldCreateImageFrameFor(mozilla::dom::Element* aElement,
+  static PRBool ShouldCreateImageFrameFor(nsIContent* aContent,
                                           nsStyleContext* aStyleContext);
   
   void DisplayAltFeedback(nsRenderingContext& aRenderingContext,
@@ -328,7 +326,18 @@ private:
   public:
     IconLoad();
 
-    void Shutdown();
+    void Shutdown()
+    {
+      // in case the pref service releases us later
+      if (mLoadingImage) {
+        mLoadingImage->CancelAndForgetObserver(NS_ERROR_FAILURE);
+        mLoadingImage = nsnull;
+      }
+      if (mBrokenImage) {
+        mBrokenImage->CancelAndForgetObserver(NS_ERROR_FAILURE);
+        mBrokenImage = nsnull;
+      }
+    }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
@@ -375,10 +384,6 @@ public:
  */
 class nsDisplayImage : public nsDisplayItem {
 public:
-  typedef mozilla::layers::ImageContainer ImageContainer;
-  typedef mozilla::layers::ImageLayer ImageLayer;
-  typedef mozilla::layers::LayerManager LayerManager;
-
   nsDisplayImage(nsDisplayListBuilder* aBuilder, nsImageFrame* aFrame,
                  imgIContainer* aImage)
     : nsDisplayItem(aBuilder, aFrame), mImage(aImage) {

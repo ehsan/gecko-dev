@@ -833,10 +833,6 @@ function synthFocus(aNodeOrID, aCheckerOrEventSeq, aEventType)
 
   this.invoke = function synthFocus_invoke()
   {
-    if (this.DOMNode instanceof Components.interfaces.nsIDOMNSEditableElement ||
-        this.DOMNode instanceof Components.interfaces.nsIDOMXULTextBoxElement) {
-      this.DOMNode.selectionStart = this.DOMNode.selectionEnd = this.DOMNode.value.length;
-    }
     this.DOMNode.focus();
   }
 

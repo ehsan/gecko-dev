@@ -123,9 +123,7 @@ WBORecord.prototype = {
 
 Utils.deferGetSet(WBORecord, "data", ["id", "modified", "sortindex", "payload"]);
 
-XPCOMUtils.defineLazyGetter(this, "Records", function () {
-  return new RecordManager();
-});
+Utils.lazy(this, 'Records', RecordManager);
 
 function RecordManager() {
   this._log = Log4Moz.repository.getLogger(this._logName);
@@ -281,9 +279,7 @@ CryptoWrapper.prototype = {
 Utils.deferGetSet(CryptoWrapper, "payload", ["ciphertext", "IV", "hmac"]);
 Utils.deferGetSet(CryptoWrapper, "cleartext", "deleted");
 
-XPCOMUtils.defineLazyGetter(this, "CollectionKeys", function () {
-  return new CollectionKeyManager();
-});
+Utils.lazy(this, "CollectionKeys", CollectionKeyManager);
 
 
 /**

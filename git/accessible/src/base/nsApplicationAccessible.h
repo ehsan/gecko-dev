@@ -92,6 +92,7 @@ public:
   NS_IMETHOD GetPreviousSibling(nsIAccessible **aPreviousSibling);
   NS_IMETHOD GetName(nsAString &aName);
   NS_IMETHOD GetValue(nsAString &aValue);
+  NS_IMETHOD GetDescription(nsAString &aDescription);
   NS_IMETHOD GetKeyboardShortcut(nsAString &aKeyboardShortcut);
   NS_IMETHOD GetAttributes(nsIPersistentProperties **aAttributes);
   NS_IMETHOD GroupPosition(PRInt32 *aGroupLevel, PRInt32 *aSimilarItemsInGroup,
@@ -115,14 +116,13 @@ public:
   NS_DECL_NSIACCESSIBLEAPPLICATION
 
   // nsAccessNode
-  virtual bool IsDefunct() const;
+  virtual PRBool IsDefunct();
   virtual PRBool Init();
   virtual void Shutdown();
   virtual bool IsPrimaryForNode() const;
 
   // nsAccessible
   virtual void ApplyARIAState(PRUint64* aState);
-  virtual void Description(nsString& aDescription);
   virtual PRUint32 NativeRole();
   virtual PRUint64 State();
   virtual PRUint64 NativeState();
@@ -136,7 +136,7 @@ protected:
   // nsAccessible
   virtual void CacheChildren();
   virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull) const;
+                                           nsresult *aError = nsnull);
 
 private:
   nsCOMPtr<nsIXULAppInfo> mAppInfo;

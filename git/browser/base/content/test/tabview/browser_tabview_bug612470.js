@@ -18,7 +18,7 @@ function test() {
     is(cw.GroupItems.groupItems.length, 1, "There's only one group");
 
     groupItem = createEmptyGroupItem(cw, 200, 200, 20);
-    cw.UI.setActive(groupItem);
+    cw.GroupItems.setActiveGroupItem(groupItem);
 
     executeSoon(function () hideTabView(onHide, win));
   };

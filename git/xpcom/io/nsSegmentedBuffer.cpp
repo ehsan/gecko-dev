@@ -167,7 +167,7 @@ nsSegmentedBuffer::Empty()
     mFirstSegmentIndex = mLastSegmentIndex = 0;
 }
 
-#if 0
+#if !defined(MOZ_ENABLE_LIBXUL) && defined(DEBUG)
 NS_COM void
 TestSegmentedBuffer()
 {

@@ -71,9 +71,6 @@ using mozilla::dom::StorageChild;
 #include "nsDOMString.h"
 #include "nsNetCID.h"
 #include "nsIProxyObjectManager.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 static const PRUint32 ASK_BEFORE_ACCEPT = 1;
 static const PRUint32 ACCEPT_SESSION = 2;
@@ -205,21 +202,22 @@ GetQuota(const nsACString &aDomain, PRInt32 *aQuota, PRInt32 *aWarnQuota,
   PRUint32 perm = GetOfflinePermission(aDomain);
   if (IS_PERMISSION_ALLOWED(perm) || aOverrideQuota) {
     // This is an offline app, give more space by default.
-    *aQuota = Preferences::GetInt(kOfflineAppQuota,
-                                  DEFAULT_OFFLINE_APP_QUOTA) * 1024;
+    *aQuota = ((PRInt32)nsContentUtils::GetIntPref(kOfflineAppQuota,
+                                                   DEFAULT_OFFLINE_APP_QUOTA) * 1024);
 
     if (perm == nsIOfflineCacheUpdateService::ALLOW_NO_WARN ||
         aOverrideQuota) {
       *aWarnQuota = -1;
     } else {
-      *aWarnQuota = Preferences::GetInt(kOfflineAppWarnQuota,
-                                        DEFAULT_OFFLINE_WARN_QUOTA) * 1024;
+      *aWarnQuota = ((PRInt32)nsContentUtils::GetIntPref(kOfflineAppWarnQuota,
+                                                         DEFAULT_OFFLINE_WARN_QUOTA) * 1024);
     }
     return perm;
   }
 
   // FIXME: per-domain quotas?
-  *aQuota = Preferences::GetInt(kDefaultQuota, DEFAULT_QUOTA) * 1024;
+  *aQuota = ((PRInt32)nsContentUtils::GetIntPref(kDefaultQuota,
+                                                 DEFAULT_QUOTA) * 1024);
   *aWarnQuota = -1;
 
   return perm;
@@ -1461,9 +1459,8 @@ nsDOMStorage::CanUseStorage(PRPackedBool* aSessionOnly)
   NS_ASSERTION(aSessionOnly, "null session flag");
   *aSessionOnly = PR_FALSE;
 
-  if (!Preferences::GetBool(kStorageEnabled)) {
+  if (!nsContentUtils::GetBoolPref(kStorageEnabled))
     return PR_FALSE;
-  }
 
   // chrome can always use storage regardless of permission preferences
   if (nsContentUtils::IsCallerChrome())
@@ -1503,8 +1500,8 @@ nsDOMStorage::CanUseStorage(PRPackedBool* aSessionOnly)
     *aSessionOnly = PR_TRUE;
   }
   else if (perm != nsIPermissionManager::ALLOW_ACTION) {
-    PRUint32 cookieBehavior = Preferences::GetUint(kCookiesBehavior);
-    PRUint32 lifetimePolicy = Preferences::GetUint(kCookiesLifetimePolicy);
+    PRUint32 cookieBehavior = nsContentUtils::GetIntPref(kCookiesBehavior);
+    PRUint32 lifetimePolicy = nsContentUtils::GetIntPref(kCookiesLifetimePolicy);
 
     // Treat "ask every time" as "reject always".
     // Chrome persistent pages can bypass this check.

@@ -41,16 +41,18 @@
 #ifndef jsonparser_h___
 #define jsonparser_h___
 
-#include "mozilla/RangedPtr.h"
-
 #include "jscntxt.h"
 #include "jsstr.h"
+#include "jstl.h"
 #include "jsvalue.h"
 
 /*
+ * This class should be JSONParser, but the old JSON parser uses that name, so
+ * until we remove the old parser the class name will be overlong.
+ *
  * NB: This class must only be used on the stack as it contains a js::Value.
  */
-class JSONParser
+class JSONSourceParser
 {
   public:
     enum ErrorHandling { RaiseError, NoError };
@@ -60,8 +62,8 @@ class JSONParser
     /* Data members */
 
     JSContext * const cx;
-    mozilla::RangedPtr<const jschar> current;
-    const mozilla::RangedPtr<const jschar> end;
+    js::RangeCheckedPointer<const jschar> current;
+    const js::RangeCheckedPointer<const jschar> end;
 
     js::Value v;
 
@@ -86,11 +88,11 @@ class JSONParser
      * Description of this syntax is deliberately omitted: new code should only
      * use strict JSON parsing.
      */
-    JSONParser(JSContext *cx, const jschar *data, size_t length,
-               ParsingMode parsingMode = StrictJSON,
-               ErrorHandling errorHandling = RaiseError)
+    JSONSourceParser(JSContext *cx, const jschar *data, size_t length,
+                     ParsingMode parsingMode = StrictJSON,
+                     ErrorHandling errorHandling = RaiseError)
       : cx(cx),
-        current(data, length),
+        current(data, data, length),
         end(data + length, data, length),
         parsingMode(parsingMode),
         errorHandling(errorHandling)

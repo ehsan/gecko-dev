@@ -56,6 +56,7 @@
 #include "nsIDOMDragEvent.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMDocumentRange.h"
 #include "nsIDOMRange.h"
 #include "nsIFormControl.h"
 #include "nsIDOMHTMLAreaElement.h"
@@ -398,9 +399,10 @@ DragDataProducer::GetNodeString(nsIContent* inNode,
   // use a range to get the text-equivalent of the node
   nsCOMPtr<nsIDOMDocument> doc;
   node->GetOwnerDocument(getter_AddRefs(doc));
-  if (doc) {
+  nsCOMPtr<nsIDOMDocumentRange> docRange(do_QueryInterface(doc));
+  if (docRange) {
     nsCOMPtr<nsIDOMRange> range;
-    doc->CreateRange(getter_AddRefs(range));
+    docRange->CreateRange(getter_AddRefs(range));
     if (range) {
       range->SelectNode(node);
       range->ToString(outNodeString);

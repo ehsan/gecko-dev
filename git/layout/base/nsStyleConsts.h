@@ -162,10 +162,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_BOX_ORIENT_HORIZONTAL 0
 #define NS_STYLE_BOX_ORIENT_VERTICAL   1
 
-// orient
-#define NS_STYLE_ORIENT_HORIZONTAL 0
-#define NS_STYLE_ORIENT_VERTICAL   1
-
 // stack-sizing
 #define NS_STYLE_STACK_SIZING_IGNORE         0
 #define NS_STYLE_STACK_SIZING_STRETCH_TO_FIT 1
@@ -233,10 +229,9 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_VOLUME_X_LOUD            5
 
 // See nsStyleColor
-#define NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR 1
-#define NS_STYLE_COLOR_INHERIT_FROM_BODY  2  /* Can't come from CSS directly */
+#define NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR      1
 #ifdef GFX_HAS_INVERT
-#define NS_STYLE_COLOR_INVERT             3
+#define NS_STYLE_COLOR_INVERT             2
 #endif
 
 // See nsStyleColor
@@ -709,11 +704,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 // See nsStyleText
 #define NS_STYLE_WORDWRAP_NORMAL                0
 #define NS_STYLE_WORDWRAP_BREAK_WORD            1
-
-// See nsStyleText
-#define NS_STYLE_HYPHENS_NONE                   0
-#define NS_STYLE_HYPHENS_MANUAL                 1
-#define NS_STYLE_HYPHENS_AUTO                   2
 
 // See nsStyleText
 #define NS_STYLE_LINE_HEIGHT_BLOCK_HEIGHT       0

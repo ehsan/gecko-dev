@@ -68,13 +68,6 @@ public:
   nsHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLCanvasElement();
 
-  static nsHTMLCanvasElement* FromContent(nsIContent* aPossibleCanvas)
-  {
-    if (!aPossibleCanvas || !aPossibleCanvas->IsHTML(nsGkAtoms::canvas)) {
-      return nsnull;
-    }
-    return static_cast<nsHTMLCanvasElement*>(aPossibleCanvas);
-  }
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -184,10 +177,11 @@ protected:
   nsresult UpdateContext(nsIPropertyBag *aNewContextOptions = nsnull);
   nsresult ExtractData(const nsAString& aType,
                        const nsAString& aOptions,
-                       nsIInputStream** aStream,
+                       char*& aData,
+                       PRUint32& aSize,
                        bool& aFellBackToPNG);
   nsresult ToDataURLImpl(const nsAString& aMimeType,
-                         nsIVariant* aEncoderOptions,
+                         const nsAString& aEncoderOptions,
                          nsAString& aDataURL);
   nsresult MozGetAsFileImpl(const nsAString& aName,
                             const nsAString& aType,

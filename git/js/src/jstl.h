@@ -221,6 +221,155 @@ RoundUpPow2(size_t x)
     return result;
 }
 
+/*
+ * Safely subtract two pointers when it is known that end > begin.  This avoids
+ * the common compiler bug that if (size_t(end) - size_t(begin)) has the MSB
+ * set, the unsigned subtraction followed by right shift will produce -1, or
+ * size_t(-1), instead of the real difference.
+ */
+template <class T>
+JS_ALWAYS_INLINE size_t
+PointerRangeSize(T *begin, T *end)
+{
+    return (size_t(end) - size_t(begin)) / sizeof(T);
+}
+
+/*
+ * This utility pales in comparison to Boost's aligned_storage. The utility
+ * simply assumes that JSUint64 is enough alignment for anyone. This may need
+ * to be extended one day...
+ *
+ * As an important side effect, pulling the storage into this template is
+ * enough obfuscation to confuse gcc's strict-aliasing analysis into not giving
+ * false negatives when we cast from the char buffer to whatever type we've
+ * constructed using the bytes.
+ */
+template <size_t nbytes>
+struct AlignedStorage
+{
+    union U {
+        char bytes[nbytes];
+        uint64 _;
+    } u;
+
+    const void *addr() const { return u.bytes; }
+    void *addr() { return u.bytes; }
+};
+
+template <class T>
+struct AlignedStorage2
+{
+    union U {
+        char bytes[sizeof(T)];
+        uint64 _;
+    } u;
+
+    const T *addr() const { return (const T *)u.bytes; }
+    T *addr() { return (T *)u.bytes; }
+};
+
+/*
+ * Small utility for lazily constructing objects without using dynamic storage.
+ * When a LazilyConstructed<T> is constructed, it is |empty()|, i.e., no value
+ * of T has been constructed and no T destructor will be called when the
+ * LazilyConstructed<T> is destroyed. Upon calling |construct|, a T object will
+ * be constructed with the given arguments and that object will be destroyed
+ * when the owning LazilyConstructed<T> is destroyed.
+ *
+ * N.B. GCC seems to miss some optimizations with LazilyConstructed and may
+ * generate extra branches/loads/stores. Use with caution on hot paths.
+ */
+template <class T>
+class LazilyConstructed
+{
+    AlignedStorage2<T> storage;
+    bool constructed;
+
+    T &asT() { return *storage.addr(); }
+
+    explicit LazilyConstructed(const LazilyConstructed &other);
+    const LazilyConstructed &operator=(const LazilyConstructed &other);
+
+  public:
+    LazilyConstructed() { constructed = false; }
+    ~LazilyConstructed() { if (constructed) asT().~T(); }
+
+    bool empty() const { return !constructed; }
+
+    void construct() {
+        JS_ASSERT(!constructed);
+        new(storage.addr()) T();
+        constructed = true;
+    }
+
+    template <class T1>
+    void construct(const T1 &t1) {
+        JS_ASSERT(!constructed);
+        new(storage.addr()) T(t1);
+        constructed = true;
+    }
+
+    template <class T1, class T2>
+    void construct(const T1 &t1, const T2 &t2) {
+        JS_ASSERT(!constructed);
+        new(storage.addr()) T(t1, t2);
+        constructed = true;
+    }
+
+    template <class T1, class T2, class T3>
+    void construct(const T1 &t1, const T2 &t2, const T3 &t3) {
+        JS_ASSERT(!constructed);
+        new(storage.addr()) T(t1, t2, t3);
+        constructed = true;
+    }
+
+    template <class T1, class T2, class T3, class T4>
+    void construct(const T1 &t1, const T2 &t2, const T3 &t3, const T4 &t4) {
+        JS_ASSERT(!constructed);
+        new(storage.addr()) T(t1, t2, t3, t4);
+        constructed = true;
+    }
+
+    T *addr() {
+        JS_ASSERT(constructed);
+        return &asT();
+    }
+
+    T &ref() {
+        JS_ASSERT(constructed);
+        return asT();
+    }
+
+    void destroy() {
+        ref().~T();
+        constructed = false;
+    }
+
+    void destroyIfConstructed() {
+        if (!empty())
+            destroy();
+    }
+};
+
+
+/*
+ * N.B. GCC seems to miss some optimizations with Conditionally and may
+ * generate extra branches/loads/stores. Use with caution on hot paths.
+ */
+template <class T>
+class Conditionally {
+    LazilyConstructed<T> t;
+
+  public:
+    Conditionally(bool b) { if (b) t.construct(); }
+
+    template <class T1>
+    Conditionally(bool b, const T1 &t1) { if (b) t.construct(t1); }
+
+    template <class T1, class T2>
+    Conditionally(bool b, const T1 &t1, const T2 &t2) { if (b) t.construct(t1, t2); }
+};
+
 template <class T>
 class AlignedPtrAndFlag
 {
@@ -321,6 +470,167 @@ InitConst(const T &t)
     return const_cast<T &>(t);
 }
 
+/* Smart pointer, restricted to a range defined at construction. */
+template <class T>
+class RangeCheckedPointer
+{
+    T *ptr;
+
+#ifdef DEBUG
+    T * const rangeStart;
+    T * const rangeEnd;
+#endif
+
+    void sanityChecks() {
+        JS_ASSERT(rangeStart <= ptr);
+        JS_ASSERT(ptr <= rangeEnd);
+    }
+
+    /* Creates a new pointer for |ptr|, restricted to this pointer's range. */
+    RangeCheckedPointer<T> create(T *ptr) const {
+#ifdef DEBUG
+        return RangeCheckedPointer<T>(ptr, rangeStart, rangeEnd);
+#else
+        return RangeCheckedPointer<T>(ptr, NULL, size_t(0));
+#endif
+    }
+
+  public:
+    RangeCheckedPointer(T *p, T *start, T *end)
+      : ptr(p)
+#ifdef DEBUG
+      , rangeStart(start), rangeEnd(end)
+#endif
+    {
+        JS_ASSERT(rangeStart <= rangeEnd);
+        sanityChecks();
+    }
+    RangeCheckedPointer(T *p, T *start, size_t length)
+      : ptr(p)
+#ifdef DEBUG
+      , rangeStart(start), rangeEnd(start + length)
+#endif
+    {
+        JS_ASSERT(length <= size_t(-1) / sizeof(T));
+        JS_ASSERT(uintptr_t(rangeStart) + length * sizeof(T) >= uintptr_t(rangeStart));
+        sanityChecks();
+    }
+
+    RangeCheckedPointer<T> &operator=(const RangeCheckedPointer<T> &other) {
+        JS_ASSERT(rangeStart == other.rangeStart);
+        JS_ASSERT(rangeEnd == other.rangeEnd);
+        ptr = other.ptr;
+        sanityChecks();
+        return *this;
+    }
+
+    RangeCheckedPointer<T> operator+(size_t inc) {
+        JS_ASSERT(inc <= size_t(-1) / sizeof(T));
+        JS_ASSERT(ptr + inc > ptr);
+        return create(ptr + inc);
+    }
+
+    RangeCheckedPointer<T> operator-(size_t dec) {
+        JS_ASSERT(dec <= size_t(-1) / sizeof(T));
+        JS_ASSERT(ptr - dec < ptr);
+        return create(ptr - dec);
+    }
+
+    template <class U>
+    RangeCheckedPointer<T> &operator=(U *p) {
+        *this = create(p);
+        return *this;
+    }
+
+    template <class U>
+    RangeCheckedPointer<T> &operator=(const RangeCheckedPointer<U> &p) {
+        JS_ASSERT(rangeStart <= p.ptr);
+        JS_ASSERT(p.ptr <= rangeEnd);
+        ptr = p.ptr;
+        sanityChecks();
+        return *this;
+    }
+
+    RangeCheckedPointer<T> &operator++() {
+        return (*this += 1);
+    }
+
+    RangeCheckedPointer<T> operator++(int) {
+        RangeCheckedPointer<T> rcp = *this;
+        ++*this;
+        return rcp;
+    }
+
+    RangeCheckedPointer<T> &operator--() {
+        return (*this -= 1);
+    }
+
+    RangeCheckedPointer<T> operator--(int) {
+        RangeCheckedPointer<T> rcp = *this;
+        --*this;
+        return rcp;
+    }
+
+    RangeCheckedPointer<T> &operator+=(size_t inc) {
+        this->operator=<T>(*this + inc);
+        return *this;
+    }
+
+    RangeCheckedPointer<T> &operator-=(size_t dec) {
+        this->operator=<T>(*this - dec);
+        return *this;
+    }
+
+    T &operator[](int index) const {
+        JS_ASSERT(size_t(index > 0 ? index : -index) <= size_t(-1) / sizeof(T));
+        return *create(ptr + index);
+    }
+
+    T &operator*() const {
+        return *ptr;
+    }
+
+    operator T*() const {
+        return ptr;
+    }
+
+    template <class U>
+    bool operator==(const RangeCheckedPointer<U> &other) const {
+        return ptr == other.ptr;
+    }
+    template <class U>
+    bool operator!=(const RangeCheckedPointer<U> &other) const {
+        return !(*this == other);
+    }
+
+    template <class U>
+    bool operator<(const RangeCheckedPointer<U> &other) const {
+        return ptr < other.ptr;
+    }
+    template <class U>
+    bool operator<=(const RangeCheckedPointer<U> &other) const {
+        return ptr <= other.ptr;
+    }
+
+    template <class U>
+    bool operator>(const RangeCheckedPointer<U> &other) const {
+        return ptr > other.ptr;
+    }
+    template <class U>
+    bool operator>=(const RangeCheckedPointer<U> &other) const {
+        return ptr >= other.ptr;
+    }
+
+    size_t operator-(const RangeCheckedPointer<T> &other) const {
+        JS_ASSERT(ptr >= other.ptr);
+        return PointerRangeSize(other.ptr, ptr);
+    }
+
+  private:
+    RangeCheckedPointer();
+    T *operator&();
+};
+
 template <class T, class U>
 JS_ALWAYS_INLINE T &
 ImplicitCast(U &u)
@@ -328,25 +638,6 @@ ImplicitCast(U &u)
     T &t = u;
     return t;
 }
-
-template<typename T>
-class AutoScopedAssign
-{
-  private:
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-    T *addr;
-    T old;
-
-  public:
-    AutoScopedAssign(T *addr, const T &value JS_GUARD_OBJECT_NOTIFIER_PARAM)
-        : addr(addr), old(*addr)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-        *addr = value;
-    }
-
-    ~AutoScopedAssign() { *addr = old; }
-};
 
 } /* namespace js */
 

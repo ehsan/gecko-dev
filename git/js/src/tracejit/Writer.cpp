@@ -39,12 +39,9 @@
 
 #include "jsprf.h"
 #include "jstl.h"
-
 #include "jscompartment.h"
 #include "Writer.h"
 #include "nanojit.h"
-
-#include "vm/ArgumentsObject.h"
 
 namespace js {
 namespace tjit {
@@ -373,17 +370,17 @@ void ValidateWriter::checkAccSet(LOpcode op, LIns *base, int32_t disp, AccSet ac
 
       case ACCSET_FRAMEREGS:
         // base = ldp.cx ...[offsetof(JSContext, regs)]
-        // ins  = ldp.regs base[<disp within FrameRegs>]
+        // ins  = ldp.regs base[<disp within JSFrameRegs>]
         ok = op == LIR_ldp &&
-             dispWithin(FrameRegs) && 
-             match(base, LIR_ldp, ACCSET_CX, offsetof(JSContext, stack) + ContextStack::offsetOfRegs());
+             dispWithin(JSFrameRegs) && 
+             match(base, LIR_ldp, ACCSET_CX, offsetof(JSContext, regs));
         break;
 
       case ACCSET_STACKFRAME:
-        // base = ldp.regs ...[offsetof(FrameRegs, fp)]
-        // ins  = {ld,st}X.sf base[<disp within StackFrame>]
-        ok = dispWithin(StackFrame) && 
-             match(base, LIR_ldp, ACCSET_FRAMEREGS, FrameRegs::offsetOfFp);
+        // base = ldp.regs ...[offsetof(JSFrameRegs, fp)]
+        // ins  = {ld,st}X.sf base[<disp within JSStackFrame>]
+        ok = dispWithin(JSStackFrame) && 
+             match(base, LIR_ldp, ACCSET_FRAMEREGS, offsetof(JSFrameRegs, fp));
         break;
 
       case ACCSET_RUNTIME:
@@ -547,9 +544,9 @@ void ValidateWriter::checkAccSet(LOpcode op, LIns *base, int32_t disp, AccSet ac
         // base_oprnd1 = <const private ptr slots[JSSLOT_ARGS_DATA]>
         // base        = addp base_oprnd1, ...
         // ins         = {ld,st}X.argsdata base[...]
-        ok = (isConstPrivatePtr(base, ArgumentsObject::DATA_SLOT) ||
+        ok = (isConstPrivatePtr(base, JSObject::JSSLOT_ARGS_DATA) ||
               (base->isop(LIR_addp) &&
-               isConstPrivatePtr(base->oprnd1(), ArgumentsObject::DATA_SLOT)));
+               isConstPrivatePtr(base->oprnd1(), JSObject::JSSLOT_ARGS_DATA)));
         break;
 
       default:
@@ -568,7 +565,7 @@ void ValidateWriter::checkAccSet(LOpcode op, LIns *base, int32_t disp, AccSet ac
     }
 }
 
-} // namespace nanojit
+}
 
 #endif
 

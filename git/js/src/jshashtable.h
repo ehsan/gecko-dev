@@ -796,8 +796,6 @@ struct PointerHasher
 template <class T>
 struct DefaultHasher<T *>: PointerHasher<T *, tl::FloorLog2<sizeof(void *)>::result> { };
 
-/* Looking for a hasher for jsid?  Try the DefaultHasher<jsid> in jsatom.h. */
-
 /*
  * JS-friendly, STL-like container providing a hash-based map from keys to
  * values. In particular, HashMap calls constructors and destructors of all
@@ -808,7 +806,7 @@ struct DefaultHasher<T *>: PointerHasher<T *, tl::FloorLog2<sizeof(void *)>::res
  * HashPolicy requirements:
  *  - see "Hash policy" above (default js::DefaultHasher<Key>)
  * AllocPolicy:
- *  - see "Allocation policies" in jsalloc.h (default js::ContextAllocPolicy)
+ *  - see "Allocation policies" in jstl.h (default js::ContextAllocPolicy)
  *
  * N.B: HashMap is not reentrant: Key/Value/HashPolicy/AllocPolicy members
  *      called by HashMap must not call back into the same HashMap object.
@@ -1041,7 +1039,7 @@ class HashMap
  * HashPolicy requirements:
  *  - see "Hash policy" above (default js::DefaultHasher<Key>)
  * AllocPolicy:
- *  - see "Allocation policies" in jsalloc.h (default js::ContextAllocPolicy)
+ *  - see "Allocation policies" in jstl.h (default js::ContextAllocPolicy)
  *
  * N.B: HashSet is not reentrant: T/HashPolicy/AllocPolicy members called by
  *      HashSet must not call back into the same HashSet object.

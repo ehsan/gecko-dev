@@ -1486,7 +1486,7 @@ var ctx = canvas.getContext('2d');
 
 ctx.globalCompositeOperation = 'xor';
 ctx.globalCompositeOperation = 'clear';
-ok(ctx.globalCompositeOperation == 'xor', "ctx.globalCompositeOperation == 'xor'");
+todo(ctx.globalCompositeOperation == 'xor', "ctx.globalCompositeOperation == 'xor'");
 
 
 }
@@ -1619,7 +1619,7 @@ var ctx = canvas.getContext('2d');
 
 ctx.globalCompositeOperation = 'xor';
 ctx.globalCompositeOperation = 'over';
-ok(ctx.globalCompositeOperation == 'xor', "ctx.globalCompositeOperation == 'xor'");
+todo(ctx.globalCompositeOperation == 'xor', "ctx.globalCompositeOperation == 'xor'");
 
 
 }
@@ -4787,69 +4787,6 @@ var ctx = canvas.getContext('2d');
 
 ctx.fillStyle = '#0f0';
 try { ctx.fillStyle = 'hsla(0, 0, 50%, 1)'; } catch (e) { } // this shouldn't throw, but it shouldn't matter here if it does
-ctx.fillRect(0, 0, 100, 50);
-isPixel(ctx, 50,25, 0,255,0,255, 0);
-
-
-}
-</script>
-
-<!-- [[[ test_2d.fillStyle.parse.invalid.name-1.html ]]] -->
-
-<p>Canvas test: 2d.fillStyle.parse.invalid.name-1</p>
-<canvas id="c174a" width="100" height="50"><p class="fallback">FAIL (fallback content)</p></canvas>
-<script>
-
-
-function test_2d_fillStyle_parse_invalid_name_1() {
-
-var canvas = document.getElementById('c174a');
-var ctx = canvas.getContext('2d');
-
-ctx.fillStyle = '#0f0';
-try { ctx.fillStyle = 'darkbrown'; } catch (e) { } // this shouldn't throw, but it shouldn't matter here if it does
-ctx.fillRect(0, 0, 100, 50);
-isPixel(ctx, 50,25, 0,255,0,255, 0);
-
-
-}
-</script>
-
-<!-- [[[ test_2d.fillStyle.parse.invalid.name-2.html ]]] -->
-
-<p>Canvas test: 2d.fillStyle.parse.invalid.name-2</p>
-<canvas id="c174b" width="100" height="50"><p class="fallback">FAIL (fallback content)</p></canvas>
-<script>
-
-
-function test_2d_fillStyle_parse_invalid_name_2() {
-
-var canvas = document.getElementById('c174b');
-var ctx = canvas.getContext('2d');
-
-ctx.fillStyle = '#0f0';
-try { ctx.fillStyle = 'firebrick1'; } catch (e) { } // this shouldn't throw, but it shouldn't matter here if it does
-ctx.fillRect(0, 0, 100, 50);
-isPixel(ctx, 50,25, 0,255,0,255, 0);
-
-
-}
-</script>
-
-<!-- [[[ test_2d.fillStyle.parse.invalid.name-3.html ]]] -->
-
-<p>Canvas test: 2d.fillStyle.parse.invalid.name-3</p>
-<canvas id="c174c" width="100" height="50"><p class="fallback">FAIL (fallback content)</p></canvas>
-<script>
-
-
-function test_2d_fillStyle_parse_invalid_name_3() {
-
-var canvas = document.getElementById('c174c');
-var ctx = canvas.getContext('2d');
-
-ctx.fillStyle = '#0f0';
-try { ctx.fillStyle = 'red blue'; } catch (e) { } // this shouldn't throw, but it shouldn't matter here if it does
 ctx.fillRect(0, 0, 100, 50);
 isPixel(ctx, 50,25, 0,255,0,255, 0);
 
@@ -11880,7 +11817,7 @@ isPixel(ctx, 90,45, 0,255,0,255, 0);
 } catch (e) {
     _thrown_outer = true;
 }
-ok(!_thrown_outer, 'should not throw exception');
+todo(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -12393,7 +12330,7 @@ isPixel(ctx, 90,45, 0,255,0,255, 0);
 } catch (e) {
     _thrown_outer = true;
 }
-ok(!_thrown_outer, 'should not throw exception');
+todo(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -13276,10 +13213,10 @@ var ctx = canvas.getContext('2d');
 ctx.translate(50, 0);
 ctx.rect(0, 0, 20, 20);
 ok(ctx.isPointInPath(-40, 10) === false, "ctx.isPointInPath(-40, 10) === false");
-ok(ctx.isPointInPath(10, 10) === false, "ctx.isPointInPath(10, 10) === false");
+todo(ctx.isPointInPath(10, 10) === false, "ctx.isPointInPath(10, 10) === false");
 ok(ctx.isPointInPath(49, 10) === false, "ctx.isPointInPath(49, 10) === false");
-ok(ctx.isPointInPath(51, 10) === true, "ctx.isPointInPath(51, 10) === true");
-ok(ctx.isPointInPath(69, 10) === true, "ctx.isPointInPath(69, 10) === true");
+todo(ctx.isPointInPath(51, 10) === true, "ctx.isPointInPath(51, 10) === true");
+todo(ctx.isPointInPath(69, 10) === true, "ctx.isPointInPath(69, 10) === true");
 ok(ctx.isPointInPath(71, 10) === false, "ctx.isPointInPath(71, 10) === false");
 
 
@@ -13301,10 +13238,10 @@ var ctx = canvas.getContext('2d');
 ctx.rect(50, 0, 20, 20);
 ctx.translate(50, 0);
 ok(ctx.isPointInPath(-40, 10) === false, "ctx.isPointInPath(-40, 10) === false");
-ok(ctx.isPointInPath(10, 10) === false, "ctx.isPointInPath(10, 10) === false");
+todo(ctx.isPointInPath(10, 10) === false, "ctx.isPointInPath(10, 10) === false");
 ok(ctx.isPointInPath(49, 10) === false, "ctx.isPointInPath(49, 10) === false");
-ok(ctx.isPointInPath(51, 10) === true, "ctx.isPointInPath(51, 10) === true");
-ok(ctx.isPointInPath(69, 10) === true, "ctx.isPointInPath(69, 10) === true");
+todo(ctx.isPointInPath(51, 10) === true, "ctx.isPointInPath(51, 10) === true");
+todo(ctx.isPointInPath(69, 10) === true, "ctx.isPointInPath(69, 10) === true");
 ok(ctx.isPointInPath(71, 10) === false, "ctx.isPointInPath(71, 10) === false");
 
 
@@ -13328,8 +13265,8 @@ ctx.rect(-70, 0, 20, 20);
 ok(ctx.isPointInPath(-40, 10) === false, "ctx.isPointInPath(-40, 10) === false");
 ok(ctx.isPointInPath(10, 10) === false, "ctx.isPointInPath(10, 10) === false");
 ok(ctx.isPointInPath(49, 10) === false, "ctx.isPointInPath(49, 10) === false");
-ok(ctx.isPointInPath(51, 10) === true, "ctx.isPointInPath(51, 10) === true");
-ok(ctx.isPointInPath(69, 10) === true, "ctx.isPointInPath(69, 10) === true");
+todo(ctx.isPointInPath(51, 10) === true, "ctx.isPointInPath(51, 10) === true");
+todo(ctx.isPointInPath(69, 10) === true, "ctx.isPointInPath(69, 10) === true");
 ok(ctx.isPointInPath(71, 10) === false, "ctx.isPointInPath(71, 10) === false");
 
 
@@ -14962,10 +14899,10 @@ ctx.fillStyle = '#f00';
 ctx.fillStyle = pattern;
 ctx.fillRect(0, 0, 100, 50);
 
-isPixel(ctx, 1,1, 0,255,0,255, 0);
-isPixel(ctx, 98,1, 0,255,0,255, 0);
-isPixel(ctx, 1,48, 0,255,0,255, 0);
-isPixel(ctx, 98,48, 0,255,0,255, 0);
+todo_isPixel(ctx, 1,1, 0,255,0,255, 0);
+todo_isPixel(ctx, 98,1, 0,255,0,255, 0);
+todo_isPixel(ctx, 1,48, 0,255,0,255, 0);
+todo_isPixel(ctx, 98,48, 0,255,0,255, 0);
 
 
 }
@@ -18395,7 +18332,7 @@ ctx.lineWidth = 250;
 ctx.lineCap = 'round';
 ctx.lineJoin = 'round';
 ctx.strokeRect(50, 25, 0, 0);
-isPixel(ctx, 50,25, 0,0,0,0, 0);
+todo_isPixel(ctx, 50,25, 0,0,0,0, 0);
 
 
 }
@@ -18995,7 +18932,7 @@ isPixel(ctx, 50,25, 0,255,0,255, 0);
 } catch (e) {
     _thrown_outer = true;
 }
-ok(!_thrown_outer, 'should not throw exception');
+todo(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -19537,23 +19474,21 @@ var canvas = document.getElementById('c614');
 var ctx = canvas.getContext('2d');
 netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
-var _threw = false;
 try {
   var data = canvas.toDataURL('image/png', 'quality=100');
+  ok(false, "Should have thrown an exception for invalid args to png encoder");
 }
 catch (e) {
-  _threw = true;
+  is(e.result, Components.results.NS_ERROR_INVALID_ARG, "Exception was wrong for png encoder");
 }
-ok(!_threw, "Should not throw an exception for invalid args to png encoder");
 
-_threw = false;
 try {
   var data = canvas.toDataURL('image/jpeg', 'foobar=true');
+  ok(false, "Should have thrown an exception for invalid args to jpeg encoder");
 }
 catch (e) {
-  _threw = true;
+  is(e.result, Components.results.NS_ERROR_INVALID_ARG, "Exception was wrong for jpeg encoder");
 }
-ok(!_threw, "Should not throw an exception for invalid args to jpeg encoder");
 
 }
 </script>
@@ -20763,7 +20698,7 @@ ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
 } catch (e) {
     _thrown_outer = true;
 }
-ok(!_thrown_outer, 'should not throw exception');
+todo(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -20790,7 +20725,7 @@ ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
 } catch (e) {
     _thrown_outer = true;
 }
-ok(!_thrown_outer, 'should not throw exception');
+todo(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -20818,7 +20753,7 @@ ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
 } catch (e) {
     _thrown_outer = true;
 }
-ok(!_thrown_outer, 'should not throw exception');
+todo(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -21031,7 +20966,7 @@ var canvas = document.getElementById('c674');
 var ctx = canvas.getContext('2d');
 
 var data = canvas.toDataURL();
-ok(data === 'data:,', "data === 'data:,'");
+todo(data === 'data:,', "data === 'data:,'");
 
 
 }
@@ -21296,33 +21231,6 @@ function test_2d_imageSmoothing() {
 
 </script>
 
-<p>Canvas test: zero_dimensions</p>
-<canvas id="c684" width="0" height="0"></canvas>
-<script type="text/javascript">
-function test_zero_dimensions() {
-  var c = document.getElementById("c684");
-  ok(c.width == 0, "c.width not 0");
-  ok(c.height == 0, "c.height not 0");
-}
-</script>
-
-<p>Canvas test: zero_dimensions_image_data</p>
-<canvas id="c685" width="0" height="0"></canvas>
-<script type="text/javascript">
-function test_zero_dimensions_imagedata() {
-  var c = document.getElementById("c685");
-  var ctx = c.getContext("2d");
-  ctx.fillStyle = "blue";
-  ctx.fillRect(0, 0, 100, 100);
-  var imgdata = ctx.getImageData(0, 0, 100, 100);
-  var isTransparentBlack = true;
-  for (var i = 0; i < imgdata.data.length; ++i)
-      if (imgdata.data[i] !== 0)
-          isTransparentBlack = false;
-  ok(isTransparentBlack, "isTransparentBlack");
-}
-</script>
-
 <script>
 
 function asyncTestsDone() {
@@ -21412,11 +21320,6 @@ function runTests() {
  // they are in these tests
  //test_2d_shadow_composite_3();
  //test_2d_shadow_composite_4();
- // Shadows should not be drawn if the operator is not source-over (the spec doesn't
- // say this yet, but it should be changed). These tests assume shadows will
- // be drawn with operators other than source-over:
- //test_2d_shadow_composite_1();
- //test_2d_shadow_composite_2();
  try {
   test_2d_canvas_readonly();
  } catch (e) {
@@ -22131,21 +22034,6 @@ function runTests() {
   test_2d_fillStyle_parse_invalid_hsla_2();
  } catch (e) {
   ok(false, "unexpected exception thrown in: test_2d_fillStyle_parse_invalid_hsla_2");
- }
- try {
-   test_2d_fillStyle_parse_invalid_name_1()
- } catch (e) {
-  ok(false, "unexpected exception thrown in: test_2d_fillStyle_parse_invalid_name_1");
- }
- try {
-   test_2d_fillStyle_parse_invalid_name_2()
- } catch (e) {
-  ok(false, "unexpected exception thrown in: test_2d_fillStyle_parse_invalid_name_2");
- }
- try {
-   test_2d_fillStyle_parse_invalid_name_3()
- } catch (e) {
-  ok(false, "unexpected exception thrown in: test_2d_fillStyle_parse_invalid_name_3");
  }
  try {
   test_2d_fillStyle_parse_invalid_rgb_1();
@@ -23803,6 +23691,16 @@ function runTests() {
   ok(false, "unexpected exception thrown in: test_2d_shadow_clip_3");
  }
  try {
+  test_2d_shadow_composite_1();
+ } catch (e) {
+  ok(false, "unexpected exception thrown in: test_2d_shadow_composite_1");
+ }
+ try {
+  test_2d_shadow_composite_2();
+ } catch (e) {
+  ok(false, "unexpected exception thrown in: test_2d_shadow_composite_2");
+ }
+ try {
   test_2d_shadow_gradient_alpha();
  } catch (e) {
   ok(false, "unexpected exception thrown in: test_2d_shadow_gradient_alpha");
@@ -24576,16 +24474,6 @@ function runTests() {
   test_2d_imageSmoothing();
  } catch (e) {
   ok(false, "unexpected exception thrown in: test_2d_imageSmoothing");
- }
- try {
-  test_zero_dimensions();
- } catch (e) {
-  ok(false, "unexpected exception thrown in: test_zero_dimensions");
- }
- try {
-  test_zero_dimensions_imagedata();
- } catch(e) {
-  ok(false, "unexpected exception thrown in: test_zero_dimensions_imagedata");
  }
  try {
   // run this test last since it replaces the getContext method

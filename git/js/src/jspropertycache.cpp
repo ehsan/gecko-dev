@@ -49,8 +49,8 @@ using namespace js;
 JS_STATIC_ASSERT(sizeof(PCVal) == sizeof(jsuword));
 
 JS_REQUIRES_STACK PropertyCacheEntry *
-PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *pobj,
-                    const Shape *shape, JSBool adding)
+PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, uintN protoIndex,
+                    JSObject *pobj, const Shape *shape, JSBool adding)
 {
     jsbytecode *pc;
     jsuword kshape, vshape;
@@ -88,34 +88,42 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
     /*
      * Check for overdeep scope and prototype chain. Because resolve, getter,
      * and setter hooks can change the prototype chain using JS_SetPrototype
-     * after LookupPropertyWithFlags has returned, we calculate the protoIndex
-     * here and not in LookupPropertyWithFlags.
+     * after js_LookupPropertyWithFlags has returned the nominal protoIndex,
+     * we have to validate protoIndex if it is non-zero. If it is zero, then
+     * we know thanks to the pobj->nativeContains test above, combined with the
+     * fact that obj == pobj, that protoIndex is invariant.
      *
      * The scopeIndex can't be wrong. We require JS_SetParent calls to happen
      * before any running script might consult a parent-linked scope chain. If
      * this requirement is not satisfied, the fill in progress will never hit,
      * but vcap vs. scope shape tests ensure nothing malfunctions.
      */
-    JS_ASSERT_IF(obj == pobj, scopeIndex == 0);
+    JS_ASSERT_IF(scopeIndex == 0 && protoIndex == 0, obj == pobj);
 
-    JSObject *tmp = obj;
-    for (uintN i = 0; i != scopeIndex; i++)
-        tmp = tmp->getParent();
+    if (protoIndex != 0) {
+        JSObject *tmp = obj;
 
-    uintN protoIndex = 0;
-    while (tmp != pobj) {
-        tmp = tmp->getProto();
+        for (uintN i = 0; i != scopeIndex; i++)
+            tmp = tmp->getParent();
+        JS_ASSERT(tmp != pobj);
 
-        /*
-         * We cannot cache properties coming from native objects behind
-         * non-native ones on the prototype chain. The non-natives can
-         * mutate in arbitrary way without changing any shapes.
-         */
-        if (!tmp || !tmp->isNative()) {
-            PCMETER(noprotos++);
-            return JS_NO_PROP_CACHE_FILL;
+        protoIndex = 1;
+        for (;;) {
+            tmp = tmp->getProto();
+
+            /*
+             * We cannot cache properties coming from native objects behind
+             * non-native ones on the prototype chain. The non-natives can
+             * mutate in arbitrary way without changing any shapes.
+             */
+            if (!tmp || !tmp->isNative()) {
+                PCMETER(noprotos++);
+                return JS_NO_PROP_CACHE_FILL;
+            }
+            if (tmp == pobj)
+                break;
+            ++protoIndex;
         }
-        ++protoIndex;
     }
 
     if (scopeIndex > PCVCAP_SCOPEMASK || protoIndex > PCVCAP_PROTOMASK) {
@@ -127,7 +135,7 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
      * Optimize the cached vword based on our parameters and the current pc's
      * opcode format flags.
      */
-    pc = cx->regs().pc;
+    pc = cx->regs->pc;
     op = js_GetOpcode(cx, cx->fp()->script(), pc);
     cs = &js_CodeSpec[op];
     kshape = 0;
@@ -203,7 +211,7 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
             /* Best we can do is to cache shape (still a nice speedup). */
             vword.setShape(shape);
             if (adding &&
-                pobj->shape() == shape->shapeid) {
+                pobj->shape() == shape->shape) {
                 /*
                  * Our caller added a new property. We also know that a setter
                  * that js_NativeSet might have run has not mutated pobj, so
@@ -234,7 +242,7 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
                 JS_ASSERT(shape == pobj->lastProperty());
                 JS_ASSERT(!pobj->nativeEmpty());
 
-                kshape = shape->previous()->shapeid;
+                kshape = shape->previous()->shape;
 
                 /*
                  * When adding we predict no prototype object will later gain a
@@ -316,7 +324,7 @@ PropertyCache::fullTest(JSContext *cx, jsbytecode *pc, JSObject **objp, JSObject
     JSObject *obj, *pobj, *tmp;
     uint32 vcap;
 
-    StackFrame *fp = cx->fp();
+    JSStackFrame *fp = cx->fp();
 
     JS_ASSERT(this == &JS_PROPERTY_CACHE(cx));
     JS_ASSERT(uintN((fp->hasImacropc() ? fp->imacropc() : pc) - fp->script()->code)

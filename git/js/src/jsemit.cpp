@@ -174,7 +174,7 @@ EmitCheck(JSContext *cx, JSCodeGenerator *cg, JSOp op, ptrdiff_t delta)
             JS_ARENA_GROW_CAST(base, jsbytecode *, cg->codePool, size, incr);
         }
         if (!base) {
-            js_ReportOutOfMemory(cx);
+            js_ReportOutOfScriptQuota(cx);
             return -1;
         }
         CG_BASE(cg) = base;
@@ -524,7 +524,7 @@ AddJumpTarget(AddJumpTargetArgs *args, JSJumpTarget **jtp)
             JS_ARENA_ALLOCATE_CAST(jt, JSJumpTarget *, &args->cx->tempPool,
                                    sizeof *jt);
             if (!jt) {
-                js_ReportOutOfMemory(args->cx);
+                js_ReportOutOfScriptQuota(args->cx);
                 return 0;
             }
         }
@@ -980,7 +980,7 @@ OptimizeSpanDeps(JSContext *cx, JSCodeGenerator *cg)
             incr = BYTECODE_SIZE(length) - size;
             JS_ARENA_GROW_CAST(base, jsbytecode *, cg->codePool, size, incr);
             if (!base) {
-                js_ReportOutOfMemory(cx);
+                js_ReportOutOfScriptQuota(cx);
                 return JS_FALSE;
             }
             CG_BASE(cg) = base;
@@ -1323,8 +1323,8 @@ JSTreeContext::ensureSharpSlots()
     JS_ASSERT(!(flags & TCF_HAS_SHARPS));
     if (inFunction()) {
         JSContext *cx = parser->context;
-        JSAtom *sharpArrayAtom = js_Atomize(cx, "#array", 6);
-        JSAtom *sharpDepthAtom = js_Atomize(cx, "#depth", 6);
+        JSAtom *sharpArrayAtom = js_Atomize(cx, "#array", 6, 0);
+        JSAtom *sharpDepthAtom = js_Atomize(cx, "#depth", 6, 0);
         if (!sharpArrayAtom || !sharpDepthAtom)
             return false;
 
@@ -2211,7 +2211,7 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
     }
 
     if (cookie.isFree()) {
-        StackFrame *caller = cg->parser->callerFrame;
+        JSStackFrame *caller = cg->parser->callerFrame;
         if (caller) {
             JS_ASSERT(cg->compileAndGo());
 
@@ -4487,10 +4487,10 @@ JSParseNode::getConstantValue(JSContext *cx, bool strictChecks, Value *vp)
                 JS_ASSERT(pnid->pn_type == TOK_NAME ||
                           pnid->pn_type == TOK_STRING);
                 jsid id = ATOM_TO_JSID(pnid->pn_atom);
-                if ((pnid->pn_atom == cx->runtime->atomState.protoAtom)
-                    ? !js_SetPropertyHelper(cx, obj, id, 0, &value, strictChecks)
-                    : !DefineNativeProperty(cx, obj, id, value, NULL, NULL,
-                                            JSPROP_ENUMERATE, 0, 0)) {
+                if (!((pnid->pn_atom == cx->runtime->atomState.protoAtom)
+                      ? js_SetPropertyHelper(cx, obj, id, 0, &value, strictChecks)
+                      : js_DefineNativeProperty(cx, obj, id, value, NULL, NULL,
+                                                JSPROP_ENUMERATE, 0, 0, NULL, 0))) {
                     return false;
                 }
             }
@@ -4581,7 +4581,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 
         fun = pn->pn_funbox->function();
         JS_ASSERT(FUN_INTERPRETED(fun));
-        if (fun->script()) {
+        if (fun->u.i.script) {
             /*
              * This second pass is needed to emit JSOP_NOP with a source note
              * for the already-emitted function definition prolog opcode. See
@@ -4602,7 +4602,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         void *cg2space;
         JS_ARENA_ALLOCATE_TYPE(cg2space, JSCodeGenerator, cg->codePool);
         if (!cg2space) {
-            js_ReportOutOfMemory(cx);
+            js_ReportOutOfScriptQuota(cx);
             return JS_FALSE;
         }
         JSCodeGenerator *cg2 =
@@ -6988,10 +6988,10 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 
                 if (obj) {
                     JS_ASSERT(!obj->inDictionaryMode());
-                    if (!DefineNativeProperty(cx, obj, ATOM_TO_JSID(pn3->pn_atom),
-                                              UndefinedValue(), NULL, NULL,
-                                              JSPROP_ENUMERATE, 0, 0)) {
-                        return false;
+                    if (!js_DefineNativeProperty(cx, obj, ATOM_TO_JSID(pn3->pn_atom),
+                                                 UndefinedValue(), NULL, NULL,
+                                                 JSPROP_ENUMERATE, 0, 0, NULL)) {
+                        return JS_FALSE;
                     }
                     if (obj->inDictionaryMode())
                         obj = NULL;
@@ -7301,7 +7301,7 @@ AllocSrcNote(JSContext *cx, JSCodeGenerator *cg)
                 CG_NOTE_MASK(cg) = (CG_NOTE_MASK(cg) << 1) | 1;
         }
         if (!CG_NOTES(cg)) {
-            js_ReportOutOfMemory(cx);
+            js_ReportOutOfScriptQuota(cx);
             return -1;
         }
     }
@@ -7399,7 +7399,7 @@ GrowSrcNotes(JSContext *cx, JSCodeGenerator *cg)
     size = SRCNOTE_SIZE(CG_NOTE_MASK(cg) + 1);
     JS_ARENA_GROW_CAST(CG_NOTES(cg), jssrcnote *, pool, size, size);
     if (!CG_NOTES(cg)) {
-        js_ReportOutOfMemory(cx);
+        js_ReportOutOfScriptQuota(cx);
         return JS_FALSE;
     }
     CG_NOTE_MASK(cg) = (CG_NOTE_MASK(cg) << 1) | 1;
@@ -7637,7 +7637,7 @@ NewTryNote(JSContext *cx, JSCodeGenerator *cg, JSTryNoteKind kind,
 
     JS_ARENA_ALLOCATE_TYPE(tryNode, JSTryNode, &cx->tempPool);
     if (!tryNode) {
-        js_ReportOutOfMemory(cx);
+        js_ReportOutOfScriptQuota(cx);
         return JS_FALSE;
     }
 

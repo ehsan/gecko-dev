@@ -55,6 +55,7 @@
 #include "mozilla/css/ImportRule.h"
 #include "nsCSSRules.h"
 #include "mozilla/css/NameSpaceRule.h"
+#include "nsIUnicharInputStream.h"
 #include "nsCSSStyleSheet.h"
 #include "mozilla/css/Declaration.h"
 #include "nsStyleConsts.h"
@@ -177,9 +178,9 @@ nsCSSProps::kParserVariantTable[eCSSProperty_COUNT_no_shorthands] = {
 namespace {
 
 // Rule processing function
-typedef void (* RuleAppendFunc) (css::Rule* aRule, void* aData);
-static void AppendRuleToArray(css::Rule* aRule, void* aArray);
-static void AppendRuleToSheet(css::Rule* aRule, void* aParser);
+typedef void (* RuleAppendFunc) (nsICSSRule* aRule, void* aData);
+static void AppendRuleToArray(nsICSSRule* aRule, void* aArray);
+static void AppendRuleToSheet(nsICSSRule* aRule, void* aParser);
 
 // Your basic top-down recursive descent style parser
 // The exposed methods and members of this class are precisely those
@@ -193,19 +194,21 @@ public:
 
   nsresult SetQuirkMode(PRBool aQuirkMode);
 
+#ifdef  MOZ_SVG
   nsresult SetSVGMode(PRBool aSVGMode);
+#endif
 
   nsresult SetChildLoader(mozilla::css::Loader* aChildLoader);
 
   // Clears everything set by the above Set*() functions.
   void Reset();
 
-  nsresult ParseSheet(const nsAString& aInput,
-                      nsIURI*          aSheetURI,
-                      nsIURI*          aBaseURI,
-                      nsIPrincipal*    aSheetPrincipal,
-                      PRUint32         aLineNumber,
-                      PRBool           aAllowUnsafeRules);
+  nsresult Parse(nsIUnicharInputStream* aInput,
+                 nsIURI*                aSheetURI,
+                 nsIURI*                aBaseURI,
+                 nsIPrincipal*          aSheetPrincipal,
+                 PRUint32               aLineNumber,
+                 PRBool                 aAllowUnsafeRules);
 
   nsresult ParseStyleAttribute(const nsAString&  aAttributeValue,
                                nsIURI*           aDocURL,
@@ -224,7 +227,7 @@ public:
                      nsIURI*                 aSheetURL,
                      nsIURI*                 aBaseURL,
                      nsIPrincipal*           aSheetPrincipal,
-                     nsCOMArray<css::Rule>&  aResult);
+                     nsCOMArray<nsICSSRule>& aResult);
 
   nsresult ParseProperty(const nsCSSProperty aPropID,
                          const nsAString& aPropValue,
@@ -267,8 +270,8 @@ protected:
   class nsAutoParseCompoundProperty;
   friend class nsAutoParseCompoundProperty;
 
-  void AppendRule(css::Rule* aRule);
-  friend void AppendRuleToSheet(css::Rule*, void*); // calls AppendRule
+  void AppendRule(nsICSSRule* aRule);
+  friend void AppendRuleToSheet(nsICSSRule*, void*); // calls AppendRule
 
   /**
    * This helper class automatically calls SetParsingCompoundProperty in its
@@ -292,14 +295,19 @@ protected:
       CSSParserImpl* mParser;
   };
 
-  // the caller must hold on to aString until parsing is done
+  void InitScanner(nsIUnicharInputStream* aInput, nsIURI* aSheetURI,
+                   PRUint32 aLineNumber, nsIURI* aBaseURI,
+                   nsIPrincipal* aSheetPrincipal);
+  // the caller must hold on to aBuffer until parsing is done
   void InitScanner(const nsSubstring& aString, nsIURI* aSheetURI,
                    PRUint32 aLineNumber, nsIURI* aBaseURI,
                    nsIPrincipal* aSheetPrincipal);
   void ReleaseScanner(void);
+#ifdef MOZ_SVG
   PRBool IsSVGMode() const {
     return mScanner.IsSVGMode();
   }
+#endif
 
   PRBool GetToken(PRBool aSkipWS);
   void UngetToken();
@@ -540,9 +548,11 @@ protected:
   PRBool ParseAnimation();
 #endif
 
+#ifdef MOZ_SVG
   PRBool ParsePaint(nsCSSProperty aPropID);
   PRBool ParseDasharray();
   PRBool ParseMarker();
+#endif
 
   // Reused utility parsing routines
   void AppendValue(nsCSSProperty aPropID, const nsCSSValue& aValue);
@@ -569,9 +579,9 @@ protected:
   PRBool ParseNonNegativeVariant(nsCSSValue& aValue,
                                  PRInt32 aVariantMask,
                                  const PRInt32 aKeywordTable[]);
-  PRBool ParseOneOrLargerVariant(nsCSSValue& aValue,
-                                 PRInt32 aVariantMask,
-                                 const PRInt32 aKeywordTable[]);
+  PRBool ParsePositiveNonZeroVariant(nsCSSValue& aValue,
+                                     PRInt32 aVariantMask,
+                                     const PRInt32 aKeywordTable[]);
   PRBool ParseCounter(nsCSSValue& aValue);
   PRBool ParseAttr(nsCSSValue& aValue);
   PRBool SetValueToURL(nsCSSValue& aValue, const nsString& aURL);
@@ -693,12 +703,12 @@ public:
   CSSParserImpl* mNextFree;
 };
 
-static void AppendRuleToArray(css::Rule* aRule, void* aArray)
+static void AppendRuleToArray(nsICSSRule* aRule, void* aArray)
 {
-  static_cast<nsCOMArray<css::Rule>*>(aArray)->AppendObject(aRule);
+  static_cast<nsCOMArray<nsICSSRule>*>(aArray)->AppendObject(aRule);
 }
 
-static void AppendRuleToSheet(css::Rule* aRule, void* aParser)
+static void AppendRuleToSheet(nsICSSRule* aRule, void* aParser)
 {
   CSSParserImpl* parser = (CSSParserImpl*) aParser;
   parser->AppendRule(aRule);
@@ -795,6 +805,7 @@ CSSParserImpl::SetQuirkMode(PRBool aQuirkMode)
   return NS_OK;
 }
 
+#ifdef MOZ_SVG
 nsresult
 CSSParserImpl::SetSVGMode(PRBool aSVGMode)
 {
@@ -803,6 +814,7 @@ CSSParserImpl::SetSVGMode(PRBool aSVGMode)
   mScanner.SetSVGMode(aSVGMode);
   return NS_OK;
 }
+#endif
 
 nsresult
 CSSParserImpl::SetChildLoader(mozilla::css::Loader* aChildLoader)
@@ -817,8 +829,29 @@ CSSParserImpl::Reset()
   NS_ASSERTION(! mScannerInited, "resetting with scanner active");
   SetStyleSheet(nsnull);
   SetQuirkMode(PR_FALSE);
+#ifdef MOZ_SVG
   SetSVGMode(PR_FALSE);
+#endif // MOZ_SVG
   SetChildLoader(nsnull);
+}
+
+void
+CSSParserImpl::InitScanner(nsIUnicharInputStream* aInput, nsIURI* aSheetURI,
+                           PRUint32 aLineNumber, nsIURI* aBaseURI,
+                           nsIPrincipal* aSheetPrincipal)
+{
+  NS_ASSERTION(! mScannerInited, "already have scanner");
+
+  mScanner.Init(aInput, nsnull, 0, aSheetURI, aLineNumber, mSheet,
+                mChildLoader);
+#ifdef DEBUG
+  mScannerInited = PR_TRUE;
+#endif
+  mBaseURI = aBaseURI;
+  mSheetURI = aSheetURI;
+  mSheetPrincipal = aSheetPrincipal;
+
+  mHavePushBack = PR_FALSE;
 }
 
 void
@@ -855,13 +888,14 @@ CSSParserImpl::ReleaseScanner(void)
   mSheetPrincipal = nsnull;
 }
 
+
 nsresult
-CSSParserImpl::ParseSheet(const nsAString& aInput,
-                          nsIURI*          aSheetURI,
-                          nsIURI*          aBaseURI,
-                          nsIPrincipal*    aSheetPrincipal,
-                          PRUint32         aLineNumber,
-                          PRBool           aAllowUnsafeRules)
+CSSParserImpl::Parse(nsIUnicharInputStream* aInput,
+                     nsIURI*                aSheetURI,
+                     nsIURI*                aBaseURI,
+                     nsIPrincipal*          aSheetPrincipal,
+                     PRUint32               aLineNumber,
+                     PRBool                 aAllowUnsafeRules)
 {
   NS_PRECONDITION(aSheetPrincipal, "Must have principal here!");
 
@@ -887,15 +921,15 @@ CSSParserImpl::ParseSheet(const nsAString& aInput,
 
   PRInt32 ruleCount = mSheet->StyleRuleCount();
   if (0 < ruleCount) {
-    css::Rule* lastRule = nsnull;
+    nsICSSRule* lastRule = nsnull;
     mSheet->GetStyleRuleAt(ruleCount - 1, lastRule);
     if (lastRule) {
       switch (lastRule->GetType()) {
-        case css::Rule::CHARSET_RULE:
-        case css::Rule::IMPORT_RULE:
+        case nsICSSRule::CHARSET_RULE:
+        case nsICSSRule::IMPORT_RULE:
           mSection = eCSSSection_Import;
           break;
-        case css::Rule::NAMESPACE_RULE:
+        case nsICSSRule::NAMESPACE_RULE:
           mSection = eCSSSection_NameSpace;
           break;
         default:
@@ -1042,7 +1076,7 @@ CSSParserImpl::ParseRule(const nsAString&        aRule,
                          nsIURI*                 aSheetURI,
                          nsIURI*                 aBaseURI,
                          nsIPrincipal*           aSheetPrincipal,
-                         nsCOMArray<css::Rule>&  aResult)
+                         nsCOMArray<nsICSSRule>& aResult)
 {
   NS_PRECONDITION(aSheetPrincipal, "Must have principal here!");
   AssertInitialState();
@@ -1204,8 +1238,7 @@ CSSParserImpl::ParseColorString(const nsSubstring& aBuffer,
   InitScanner(aBuffer, aURI, aLineNumber, aURI, nsnull);
 
   nsCSSValue value;
-  // Parse a color, and check that there's nothing else after it.
-  PRBool colorParsed = ParseColor(value) && !GetToken(PR_TRUE);
+  PRBool colorParsed = ParseColor(value);
   nsresult rv = mScanner.GetLowLevelError();
   OUTPUT_ERROR();
   ReleaseScanner();
@@ -1612,7 +1645,7 @@ CSSParserImpl::ParseCharsetRule(RuleAppendFunc aAppendFunc,
     return PR_FALSE;
   }
 
-  nsRefPtr<css::CharsetRule> rule = new css::CharsetRule(charset);
+  nsCOMPtr<nsICSSRule> rule = new css::CharsetRule(charset);
   (*aAppendFunc)(rule, aData);
 
   return PR_TRUE;
@@ -2548,7 +2581,7 @@ CSSParserImpl::PopGroup()
 }
 
 void
-CSSParserImpl::AppendRule(css::Rule* aRule)
+CSSParserImpl::AppendRule(nsICSSRule* aRule)
 {
   PRUint32 count = mGroupStack.Length();
   if (0 < count) {
@@ -4436,25 +4469,19 @@ CSSParserImpl::ParseNonNegativeVariant(nsCSSValue& aValue,
 // computes the calc will be required to clamp the resulting value to an
 // appropriate range.
 PRBool
-CSSParserImpl::ParseOneOrLargerVariant(nsCSSValue& aValue,
-                                       PRInt32 aVariantMask,
-                                       const PRInt32 aKeywordTable[])
+CSSParserImpl::ParsePositiveNonZeroVariant(nsCSSValue& aValue,
+                                           PRInt32 aVariantMask,
+                                           const PRInt32 aKeywordTable[])
 {
   // The variant mask must only contain non-numeric variants or the ones
   // that we specifically handle.
   NS_ABORT_IF_FALSE((aVariantMask & ~(VARIANT_ALL_NONNUMERIC |
-                                      VARIANT_NUMBER |
                                       VARIANT_INTEGER)) == 0,
                     "need to update code below to handle additional variants");
 
   if (ParseVariant(aValue, aVariantMask, aKeywordTable)) {
     if (aValue.GetUnit() == eCSSUnit_Integer) {
-      if (aValue.GetIntValue() < 1) {
-        UngetToken();
-        return PR_FALSE;
-      }
-    } else if (eCSSUnit_Number == aValue.GetUnit()) {
-      if (aValue.GetFloatValue() < 1.0f) {
+      if (aValue.GetIntValue() <= 0) {
         UngetToken();
         return PR_FALSE;
       }
@@ -4577,6 +4604,7 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
     }
   }
 
+#ifdef  MOZ_SVG
   if (IsSVGMode() && !IsParsingCompoundProperty()) {
     // STANDARD: SVG Spec states that lengths and coordinates can be unitless
     // in which case they default to user-units (1 px = 1 user unit)
@@ -4586,6 +4614,7 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
       return PR_TRUE;
     }
   }
+#endif
 
   if (((aVariantMask & VARIANT_URL) != 0) &&
       eCSSToken_URL == tk->mType) {
@@ -4838,6 +4867,11 @@ CSSParserImpl::SetValueToURL(nsCSSValue& aValue, const nsString& aURL)
     return PR_FALSE;
   }
 
+  // Translate url into an absolute url if the url is relative to the
+  // style sheet.
+  nsCOMPtr<nsIURI> uri;
+  NS_NewURI(getter_AddRefs(uri), aURL, nsnull, mBaseURI);
+
   nsRefPtr<nsStringBuffer> buffer(nsCSSValue::BufferFromString(aURL));
   if (NS_UNLIKELY(!buffer)) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
@@ -4846,7 +4880,7 @@ CSSParserImpl::SetValueToURL(nsCSSValue& aValue, const nsString& aURL)
 
   // Note: urlVal retains its own reference to |buffer|.
   nsCSSValue::URL *urlVal =
-    new nsCSSValue::URL(buffer, mBaseURI, mSheetURI, mSheetPrincipal);
+    new nsCSSValue::URL(uri, buffer, mSheetURI, mSheetPrincipal);
 
   if (NS_UNLIKELY(!urlVal)) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
@@ -5563,6 +5597,8 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
 #endif
   case eCSSProperty_transition_property:
     return ParseTransitionProperty();
+
+#ifdef MOZ_SVG
   case eCSSProperty_fill:
   case eCSSProperty_stroke:
     return ParsePaint(aPropID);
@@ -5570,6 +5606,8 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
     return ParseDasharray();
   case eCSSProperty_marker:
     return ParseMarker();
+#endif
+
   default:
     NS_ABORT_IF_FALSE(PR_FALSE, "should not be called");
     return PR_FALSE;
@@ -5620,11 +5658,13 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return PR_FALSE;
   }
 
+#ifdef MOZ_MATHML
   // We only allow 'script-level' when unsafe rules are enabled, because
   // otherwise it could interfere with rulenode optimizations if used in
   // a non-MathML-enabled document.
   if (aPropID == eCSSProperty_script_level && !mUnsafeRulesEnabled)
     return PR_FALSE;
+#endif
 
   const PRInt32 *kwtable = nsCSSProps::kKeywordTableTable[aPropID];
   switch (nsCSSProps::ValueRestrictions(aPropID)) {
@@ -5634,8 +5674,17 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
       return ParseVariant(aValue, variant, kwtable);
     case CSS_PROPERTY_VALUE_NONNEGATIVE:
       return ParseNonNegativeVariant(aValue, variant, kwtable);
+    case CSS_PROPERTY_VALUE_POSITIVE_NONZERO:
+      return ParsePositiveNonZeroVariant(aValue, variant, kwtable);
     case CSS_PROPERTY_VALUE_AT_LEAST_ONE:
-      return ParseOneOrLargerVariant(aValue, variant, kwtable);
+      NS_ABORT_IF_FALSE((variant &
+                         ~(VARIANT_ALL_NONNUMERIC | VARIANT_NUMBER)) == 0,
+                        "need to update code to handle additional variants");
+      if (!ParseVariant(aValue, variant, kwtable))
+        return PR_FALSE;
+      // Enforce the restriction that the value is greater than 1.
+      return aValue.GetUnit() != eCSSUnit_Number || 
+             aValue.GetFloatValue() >= 1.0f;
   }
 }
 
@@ -6819,20 +6868,14 @@ CSSParserImpl::ParseRect(nsCSSProperty aPropID)
   } else if (mToken.mType == eCSSToken_Function &&
              mToken.mIdent.LowerCaseEqualsLiteral("rect")) {
     nsCSSRect& rect = val.SetRectValue();
-    PRBool useCommas;
     NS_FOR_CSS_SIDES(side) {
       if (! ParseVariant(rect.*(nsCSSRect::sides[side]),
                          VARIANT_AL, nsnull)) {
         return PR_FALSE;
       }
-      if (side == 0) {
-        useCommas = ExpectSymbol(',', PR_TRUE);
-      } else if (useCommas && side < 3) {
-        // Skip optional commas between elements, but only if the first
-        // separator was a comma.
-        if (!ExpectSymbol(',', PR_TRUE)) {
-          return PR_FALSE;
-        }
+      if (side < 3) {
+        // skip optional commas between elements
+        (void)ExpectSymbol(',', PR_TRUE);
       }
     }
     if (!ExpectSymbol(')', PR_TRUE)) {
@@ -8148,7 +8191,7 @@ CSSParserImpl::ParseTransitionStepTimingFunctionValues(nsCSSValue& aValue)
 
   nsRefPtr<nsCSSValue::Array> val = nsCSSValue::Array::Create(2);
 
-  if (!ParseOneOrLargerVariant(val->Item(0), VARIANT_INTEGER, nsnull)) {
+  if (!ParsePositiveNonZeroVariant(val->Item(0), VARIANT_INTEGER, nsnull)) {
     return PR_FALSE;
   }
 
@@ -8217,7 +8260,7 @@ CSSParserImpl::ParseAnimationOrTransitionShorthand(
     return eParseAnimationOrTransitionShorthand_Inherit;
   }
 
-  static const size_t maxNumProperties = 7;
+  static const size_t maxNumProperties = 8;
   NS_ABORT_IF_FALSE(aNumProperties <= maxNumProperties,
                     "can't handle this many properties");
   nsCSSValueList *cur[maxNumProperties];
@@ -8378,10 +8421,11 @@ CSSParserImpl::ParseAnimation()
     eCSSProperty_animation_direction,
     eCSSProperty_animation_fill_mode,
     eCSSProperty_animation_iteration_count,
+    eCSSProperty_animation_play_state,
     // Must check 'animation-name' after 'animation-timing-function',
     // 'animation-direction', 'animation-fill-mode',
     // 'animation-iteration-count', and 'animation-play-state' since
-    // 'animation-name' accepts any keyword.
+    // 'animation-property' accepts any keyword.
     eCSSProperty_animation_name
   };
   static const PRUint32 numProps = NS_ARRAY_LENGTH(kAnimationProperties);
@@ -8397,7 +8441,8 @@ CSSParserImpl::ParseAnimation()
   initialValues[3].SetIntValue(NS_STYLE_ANIMATION_DIRECTION_NORMAL, eCSSUnit_Enumerated);
   initialValues[4].SetIntValue(NS_STYLE_ANIMATION_FILL_MODE_NONE, eCSSUnit_Enumerated);
   initialValues[5].SetFloatValue(1.0f, eCSSUnit_Number);
-  initialValues[6].SetNoneValue();
+  initialValues[6].SetIntValue(NS_STYLE_ANIMATION_PLAY_STATE_RUNNING, eCSSUnit_Enumerated);
+  initialValues[7].SetNoneValue();
 
   nsCSSValue values[numProps];
 
@@ -8564,6 +8609,7 @@ CSSParserImpl::SetDefaultNamespaceOnSelector(nsCSSSelector& aSelector)
   }
 }
 
+#ifdef MOZ_SVG
 PRBool
 CSSParserImpl::ParsePaint(nsCSSProperty aPropID)
 {
@@ -8630,6 +8676,7 @@ CSSParserImpl::ParseMarker()
   }
   return PR_FALSE;
 }
+#endif
 
 } // anonymous namespace
 
@@ -8697,12 +8744,14 @@ nsCSSParser::SetQuirkMode(PRBool aQuirkMode)
     SetQuirkMode(aQuirkMode);
 }
 
+#ifdef  MOZ_SVG
 nsresult
 nsCSSParser::SetSVGMode(PRBool aSVGMode)
 {
   return static_cast<CSSParserImpl*>(mImpl)->
     SetSVGMode(aSVGMode);
 }
+#endif
 
 nsresult
 nsCSSParser::SetChildLoader(mozilla::css::Loader* aChildLoader)
@@ -8712,16 +8761,16 @@ nsCSSParser::SetChildLoader(mozilla::css::Loader* aChildLoader)
 }
 
 nsresult
-nsCSSParser::ParseSheet(const nsAString& aInput,
-                        nsIURI*          aSheetURI,
-                        nsIURI*          aBaseURI,
-                        nsIPrincipal*    aSheetPrincipal,
-                        PRUint32         aLineNumber,
-                        PRBool           aAllowUnsafeRules)
+nsCSSParser::Parse(nsIUnicharInputStream* aInput,
+                   nsIURI*                aSheetURI,
+                   nsIURI*                aBaseURI,
+                   nsIPrincipal*          aSheetPrincipal,
+                   PRUint32               aLineNumber,
+                   PRBool                 aAllowUnsafeRules)
 {
   return static_cast<CSSParserImpl*>(mImpl)->
-    ParseSheet(aInput, aSheetURI, aBaseURI, aSheetPrincipal, aLineNumber,
-               aAllowUnsafeRules);
+    Parse(aInput, aSheetURI, aBaseURI, aSheetPrincipal, aLineNumber,
+          aAllowUnsafeRules);
 }
 
 nsresult
@@ -8754,7 +8803,7 @@ nsCSSParser::ParseRule(const nsAString&        aRule,
                        nsIURI*                 aSheetURI,
                        nsIURI*                 aBaseURI,
                        nsIPrincipal*           aSheetPrincipal,
-                       nsCOMArray<css::Rule>&  aResult)
+                       nsCOMArray<nsICSSRule>& aResult)
 {
   return static_cast<CSSParserImpl*>(mImpl)->
     ParseRule(aRule, aSheetURI, aBaseURI, aSheetPrincipal, aResult);

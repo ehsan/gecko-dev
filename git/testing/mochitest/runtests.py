@@ -159,11 +159,6 @@ class MochitestOptions(optparse.OptionParser):
                     help = "run chrome Mochitests")
     defaults["chrome"] = False
 
-    self.add_option("--ipcplugins",
-                    action = "store_true", dest = "ipcplugins",
-                    help = "run ipcplugins Mochitests")
-    defaults["ipcplugins"] = False
-
     self.add_option("--test-path",
                     action = "store", type = "string", dest = "testPath",
                     help = "start in the given directory's tests")
@@ -375,21 +370,15 @@ class WebSocketServer(object):
     self.debuggerInfo = debuggerInfo
 
   def start(self):
-    # Invoke pywebsocket through a wrapper which adds special SIGINT handling.
-    #
-    # If we're in an interactive debugger, the wrapper causes the server to
-    # ignore SIGINT so the server doesn't capture a ctrl+c meant for the
-    # debugger.
-    #
-    # If we're not in an interactive debugger, the wrapper causes the server to
-    # die silently upon receiving a SIGINT.
-    scriptPath = 'pywebsocket_wrapper.py'
-    script = os.path.join(self._scriptdir, scriptPath)
-
-    cmd = [sys.executable, script]
+    # If we're running tests under an interactive debugger, tell the server to
+    # ignore SIGINT so it doesn't capture a ctrl+c meant for the debugger.
     if self.debuggerInfo and self.debuggerInfo['interactive']:
-        cmd += ['--interactive']
-    cmd += ['-p', str(self.port), '-w', self._scriptdir, '-l', os.path.join(self._scriptdir, "websock.log"), '--log-level=debug']
+        scriptPath = 'pywebsocket_ignore_sigint.py'
+    else:
+        scriptPath = 'pywebsocket/standalone.py'
+
+    script = os.path.join(self._scriptdir, scriptPath)
+    cmd = [sys.executable, script, '-p', str(self.port), '-w', self._scriptdir, '-l', os.path.join(self._scriptdir, "websock.log"), '--log-level=debug']
 
     self._process = self._automation.Process(cmd)
     pid = self._process.pid
@@ -405,6 +394,7 @@ class Mochitest(object):
   # Path to the test script on the server
   TEST_PATH = "/tests/"
   CHROME_PATH = "/redirect.html";
+  A11Y_PATH = "/redirect-a11y.html"
   urlOpts = []
   runSSLTunnel = True
   vmwareHelper = None
@@ -433,12 +423,16 @@ class Mochitest(object):
     """ Build the url path to the specific test harness and test file or directory """
     testHost = "http://mochi.test:8888"
     testURL = testHost + self.TEST_PATH + options.testPath
-    if options.chrome or options.a11y:
-       testURL = testHost + self.CHROME_PATH
+    if options.chrome:
+      testURL = testHost + self.CHROME_PATH
+      if options.testPath:
+        self.urlOpts.append("testPath=" + encodeURIComponent(options.testPath))
+    elif options.a11y:
+      testURL = testHost + self.A11Y_PATH
+      if options.testPath:
+        self.urlOpts.append("testPath=" + encodeURIComponent(options.testPath))
     elif options.browserChrome:
       testURL = "about:blank"
-    elif options.ipcplugins:
-      testURL = testHost + self.TEST_PATH + "dom/plugins/test"
     return testURL
 
   def startWebSocketServer(self, options, debuggerInfo):
@@ -547,7 +541,7 @@ class Mochitest(object):
     # allow relative paths for logFile
     if options.logFile:
       options.logFile = self.getLogFilePath(options.logFile)
-    if options.browserChrome or options.chrome or options.a11y:
+    if options.browserChrome:
       self.makeTestConfig(options)
     else:
       if options.autorun:
@@ -644,19 +638,15 @@ class Mochitest(object):
       self.startVMwareRecording(options);
 
     self.automation.log.info("INFO | runtests.py | Running tests: start.\n")
-    try:
-      status = self.automation.runApp(testURL, browserEnv, options.app,
-                                  options.profilePath, options.browserArgs,
-                                  runSSLTunnel = self.runSSLTunnel,
-                                  utilityPath = options.utilityPath,
-                                  xrePath = options.xrePath,
-                                  certPath=options.certPath,
-                                  debuggerInfo=debuggerInfo,
-                                  symbolsPath=options.symbolsPath,
-                                  timeout = timeout)
-    except KeyboardInterrupt:
-      self.automation.log.info("INFO | runtests.py | Received keyboard interrupt.\n");
-      status = -1
+    status = self.automation.runApp(testURL, browserEnv, options.app,
+                                options.profilePath, options.browserArgs,
+                                runSSLTunnel = self.runSSLTunnel,
+                                utilityPath = options.utilityPath,
+                                xrePath = options.xrePath,
+                                certPath=options.certPath,
+                                debuggerInfo=debuggerInfo,
+                                symbolsPath=options.symbolsPath,
+                                timeout = timeout)
 
     if options.vmwareRecording:
       self.stopVMwareRecording();
@@ -672,54 +662,23 @@ class Mochitest(object):
 
   def makeTestConfig(self, options):
     "Creates a test configuration file for customizing test execution."
-    def jsonString(val):
-      if isinstance(val, bool):
-        if val:
-          return "true"
-        return "false"
-      elif val is None:
-        return '""'
-      elif isinstance(val, basestring):
-        return '"%s"' % (val.replace('\\', '\\\\'))
-      elif isinstance(val, int):
-        return '%s' % (val)
-      elif isinstance(val, list):
-        content = '['
-        first = True
-        for item in val:
-          if first:
-            first = False
-          else:
-            content += ", "
-          content += jsonString(item)
-        content += ']'
-        return content
-      else:
-        print "unknown type: %s: %s" % (opt, val)
-        sys.exit(1)
+    def boolString(b):
+      if b:
+        return "true"
+      return "false"
 
-    options.logFile = options.logFile.replace("\\", "\\\\")
-    options.testPath = options.testPath.replace("\\", "\\\\")
-    testRoot = 'chrome'
-    if (options.browserChrome):
-      testRoot = 'browser'
-    elif (options.a11y):
-      testRoot = 'a11y'
- 
-    #TODO: when we upgrade to python 2.6, just use json.dumps(options.__dict__)
-    content = "{"
-    content += '"testRoot": "%s", ' % (testRoot) 
-    first = True
-    for opt in options.__dict__.keys():
-      val = options.__dict__[opt]
-      if first:
-        first = False
-      else:
-        content += ", "
-
-      content += '"' + opt + '": '
-      content += jsonString(val)
-    content += "}"
+    logFile = options.logFile.replace("\\", "\\\\")
+    testPath = options.testPath.replace("\\", "\\\\")
+    content = """\
+({
+  autoRun: %(autorun)s,
+  closeWhenDone: %(closeWhenDone)s,
+  logPath: "%(logPath)s",
+  testPath: "%(testPath)s"
+})""" % {"autorun": boolString(options.autorun),
+         "closeWhenDone": boolString(options.closeWhenDone),
+         "logPath": logFile,
+         "testPath": testPath}
 
     with open(os.path.join(options.profilePath, "testConfig.js"), "w") as config:
       config.write(content)
@@ -766,12 +725,12 @@ toolbar#nav-bar {
 
     # Support Firefox (browser) and SeaMonkey (navigator).
     chrome = ""
-    if options.browserChrome or options.chrome or options.a11y:
+    if options.browserChrome:
       chrome += """
 overlay chrome://browser/content/browser.xul chrome://mochikit/content/browser-test-overlay.xul
 overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/browser-test-overlay.xul
 """
-    else:
+    elif (options.chrome == False) and (options.a11y == False):
       #only do the ipc-overlay.xul for mochitest-plain.  
       #Currently there are focus issues in chrome tests and issues with new windows and dialogs when using ipc
       chrome += """

@@ -37,14 +37,12 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/ModuleUtils.h"
-#include "mozilla/Preferences.h"
+#include "nsPrefService.h"
 #include "nsPrefBranch.h"
 #include "prefapi.h"
 
-using namespace mozilla;
 
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(Preferences,
-                                         Preferences::GetInstanceForService)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrefService, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrefLocalizedString, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsRelativeFilePref)
 
@@ -53,7 +51,7 @@ static NS_DEFINE_CID(kPrefLocalizedStringCID, NS_PREFLOCALIZEDSTRING_CID);
 static NS_DEFINE_CID(kRelativeFilePrefCID, NS_RELATIVEFILEPREF_CID);
  
 static mozilla::Module::CIDEntry kPrefCIDs[] = {
-  { &kPrefServiceCID, true, NULL, PreferencesConstructor },
+  { &kPrefServiceCID, true, NULL, nsPrefServiceConstructor },
   { &kPrefLocalizedStringCID, false, NULL, nsPrefLocalizedStringConstructor },
   { &kRelativeFilePrefCID, false, NULL, nsRelativeFilePrefConstructor },
   { NULL }
@@ -71,7 +69,7 @@ static mozilla::Module::ContractIDEntry kPrefContracts[] = {
 static void
 UnloadPrefsModule()
 {
-  Preferences::Shutdown();
+  PREF_Cleanup();
 }
 
 static const mozilla::Module kPrefModule = {

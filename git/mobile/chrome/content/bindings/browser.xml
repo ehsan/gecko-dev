@@ -115,29 +115,29 @@
                 break;
 
               case "DOMTitleChanged":
-                self._contentTitle = json.title;
+                self._contentTitle = aMessage.json.title;
                 break;
 
               case "DOMLinkAdded":
+                let link = aMessage.json;
                 // ignore results from subdocuments
-                if (json.windowId != self.contentWindowId)
+                if (link.windowId != self.contentWindowId)
                   return;
 
-                let linkType = self._getLinkType(json);
+                let linkType = self._getLinkType(link);
                 switch(linkType) {
                   case "icon":
-                    self.loadFavicon(json.href, json.charset);
+                    self.loadFavicon(link.href, link.charset);
                     break;
                   case "search":
-                    self._searchEngines.push({ title: json.title, href: json.href });
+                    self._searchEngines.push({ title: link.title, href: link.href });
                     break;
                 }
                 break;
 
               case "MozScrolledAreaChanged":
-                self._contentDocumentWidth = json.width;
-                self._contentDocumentHeight = json.height;
-                self._contentDocumentLeft = (json.left < 0) ? json.left : 0;
+                self._contentDocumentWidth = aMessage.json.width;
+                self._contentDocumentHeight = aMessage.json.height;
 
                 // Recalculate whether the visible area is actually in bounds
                 let view = self.getRootView();
@@ -386,11 +386,6 @@
                 onget="return this._contentDocumentHeight;"
                 readonly="true"/>
 
-      <!-- If this attribute is negative this indicate the document is rtl and
-           some operations like panning or calculating the cache area should
-           take it into account. This is useless for non-remote browser -->
-      <field name="_contentDocumentLeft">0</field>
-
       <!-- The ratio of device pixels to CSS pixels -->
       <property name="scale"
                 onget="return 1;"
@@ -497,6 +492,9 @@
 
           scrollBy: function(x, y) {
             let self = this.self;
+            let position = this.getPosition();
+            x = Math.floor(Math.max(0, Math.min(self.contentDocumentWidth,  position.x + x)) - position.x);
+            y = Math.floor(Math.max(0, Math.min(self.contentDocumentHeight, position.y + y)) - position.y);
             self.contentWindow.scrollBy(x, y);
           },
 
@@ -841,8 +839,9 @@
               this._timeout = null;
             }
 
-            if (this._contentView && Math.abs(this._pixelsPannedSinceRefresh) > 0)
+            if (this._contentView && this._pixelsPannedSinceRefresh > 0) {
               this._updateCacheViewport();
+            }
 
             // We expect contentViews to contain our ID. If not, something bad
             // happened.
@@ -926,14 +925,12 @@
             let contentSize = this._getContentSize();
 
             // Use our pixels efficiently and don't try to cache things outside of content
-            // boundaries (The left bound can be negative because of RTL).
-
-            let rootScale = self.scale;
-            let leftBound = self._contentDocumentLeft * rootScale;
-            let bounds = new Rect(leftBound, 0, contentSize.width, contentSize.height);
+            // boundaries.
+            let bounds = new Rect(0, 0, contentSize.width, contentSize.height);
             let displayport = new Rect(cacheX, cacheY, cacheSize.width, cacheSize.height);
             displayport.translateInside(bounds);
 
+            let rootScale = self.scale;
             self.messageManager.sendAsyncMessage("Content:SetCacheViewport", {
               scrollX: Math.round(scrollX) / rootScale,
               scrollY: Math.round(scrollY) / rootScale,
@@ -1016,8 +1013,6 @@
           },
 
           scrollBy: function(x, y) {
-            let self = this.self;
-
             // Bounding content rectangle is in device pixels
             let contentView = this._contentView;
             let viewportSize = this._getViewportSize();
@@ -1026,8 +1021,7 @@
             let scrollRangeX = contentSize.width - viewportSize.width;
             let scrollRangeY = contentSize.height - viewportSize.height;
 
-            let leftOffset = self._contentDocumentLeft * this._scale;
-            x = Math.floor(Math.max(leftOffset, Math.min(scrollRangeX + leftOffset, contentView.scrollX + x))) - contentView.scrollX;
+            x = Math.floor(Math.max(0, Math.min(scrollRangeX, contentView.scrollX + x))) - contentView.scrollX;
             y = Math.floor(Math.max(0, Math.min(scrollRangeY, contentView.scrollY + y))) - contentView.scrollY;
 
             if (x == 0 && y == 0)

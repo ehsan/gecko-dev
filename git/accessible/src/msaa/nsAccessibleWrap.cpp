@@ -58,6 +58,7 @@
 #include "nsIScrollableFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
+#include "nsIPrefService.h"
 #include "nsRootAccessible.h"
 #include "nsIServiceManager.h"
 #include "nsTextFormatter.h"
@@ -118,7 +119,7 @@ __try {
 
   if (IID_IUnknown == iid || IID_IDispatch == iid || IID_IAccessible == iid)
     *ppv = static_cast<IAccessible*>(this);
-  else if (IID_IEnumVARIANT == iid) {
+  else if (IID_IEnumVARIANT == iid && !gIsEnumVariantSupportDisabled) {
     long numChildren;
     get_accChildCount(&numChildren);
     if (numChildren > 0)  // Don't support this interface for leaf elements
@@ -332,11 +333,11 @@ __try {
   *pszDescription = NULL;
 
   nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible || xpAccessible->IsDefunct())
+  if (!xpAccessible)
     return E_FAIL;
 
   nsAutoString description;
-  xpAccessible->Description(description);
+  xpAccessible->GetDescription(description);
 
   *pszDescription = ::SysAllocStringLen(description.get(),
                                         description.Length());
@@ -1760,38 +1761,6 @@ nsAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
 
   if (nsAccUtils::MustPrune(this))
     return nsnull;
-
-  // If lVal negative then it is treated as child ID and we should look for
-  // accessible through whole accessible subtree including subdocuments.
-  // Otherwise we treat lVal as index in parent.
-
-  if (aVarChild.lVal < 0) {
-    // Convert child ID to unique ID.
-    void* uniqueID = reinterpret_cast<void*>(-aVarChild.lVal);
-
-    // Document.
-    if (IsDoc())
-      return AsDoc()->GetAccessibleByUniqueIDInSubtree(uniqueID);
-
-    // ARIA document.
-    if (ARIARole() == nsIAccessibleRole::ROLE_DOCUMENT) {
-      nsDocAccessible* document = GetDocAccessible();
-      nsAccessible* child =
-        document->GetAccessibleByUniqueIDInSubtree(uniqueID);
-
-      // Check whether the accessible for the given ID is a child of ARIA
-      // document.
-      nsAccessible* parent = child ? child->GetParent() : nsnull;
-      while (parent && parent != document) {
-        if (parent == this)
-          return child;
-
-        parent = parent->GetParent();
-      }
-    }
-
-    return nsnull;
-  }
 
   // Gecko child indices are 0-based in contrast to indices used in MSAA.
   return GetChildAt(aVarChild.lVal - 1);

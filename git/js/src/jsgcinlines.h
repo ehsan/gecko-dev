@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -114,7 +114,7 @@ GetGCThingTraceKind(const void *thing)
     if (JSAtom::isStatic(thing))
         return JSTRACE_STRING;
     const Cell *cell = reinterpret_cast<const Cell *>(thing);
-    return GetFinalizableTraceKind(cell->arenaHeader()->getThingKind());
+    return GetFinalizableTraceKind(cell->arena()->header()->thingKind);
 }
 
 /* Capacity for slotsToThingKind */
@@ -161,27 +161,6 @@ GetGCKindSlots(FinalizeKind thingKind)
     }
 }
 
-static inline void
-GCPoke(JSContext *cx, Value oldval)
-{
-    /*
-     * Since we're forcing a GC from JS_GC anyway, don't bother wasting cycles
-     * loading oldval.  XXX remove implied force, fix jsinterp.c's "second arg
-     * ignored", etc.
-     */
-#if 1
-    cx->runtime->gcPoke = JS_TRUE;
-#else
-    cx->runtime->gcPoke = oldval.isGCThing();
-#endif
-
-#ifdef JS_GC_ZEAL
-    /* Schedule a GC to happen "soon" after a GC poke. */
-    if (cx->runtime->gcZeal())
-        cx->runtime->gcNextScheduled = 1;
-#endif
-}
-
 } /* namespace gc */
 } /* namespace js */
 
@@ -202,16 +181,17 @@ NewFinalizableGCThing(JSContext *cx, unsigned thingKind)
                  (thingKind == js::gc::FINALIZE_STRING) ||
                  (thingKind == js::gc::FINALIZE_SHORT_STRING));
 #endif
-    JS_ASSERT(!cx->runtime->gcRunning);
 
-#ifdef JS_GC_ZEAL
-    if (cx->runtime->needZealousGC())
-        js::gc::RunDebugGC(cx);
-#endif
-
-    METER(cx->compartment->arenas[thingKind].stats.alloc++);
-    js::gc::Cell *cell = cx->compartment->freeLists.getNext(thingKind);
-    return static_cast<T *>(cell ? cell : js::gc::RefillFinalizableFreeList(cx, thingKind));
+    METER(cx->compartment->compartmentStats[thingKind].alloc++);
+    do {
+        js::gc::FreeCell *cell = cx->compartment->freeLists.getNext(thingKind);
+        if (cell) {
+            CheckGCFreeListLink(cell);
+            return (T *)cell;
+        }
+        if (!RefillFinalizableFreeList(cx, thingKind))
+            return NULL;
+    } while (true);
 }
 
 #undef METER

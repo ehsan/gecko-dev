@@ -90,9 +90,6 @@
 #endif
 #include "nsIDOMLoadListener.h"
 #include "nsIDOMEventGroup.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 #define NS_MAX_XBL_BINDING_RECURSION 20
 
@@ -165,10 +162,12 @@ PRBool CheckTagNameWhiteList(PRInt32 aNameSpaceID, nsIAtom *aTagName)
       }
     }
   }
+#ifdef MOZ_SVG
   else if (aNameSpaceID == kNameSpaceID_SVG &&
            aTagName == nsGkAtoms::generic) {
     return PR_TRUE;
   }
+#endif
 
   return PR_FALSE;
 }
@@ -512,8 +511,9 @@ nsXBLService::nsXBLService(void)
   if (gRefCnt == 1) {
     gClassTable = new nsHashtable();
   }
-
-  Preferences::AddBoolVarCache(&gAllowDataURIs, "layout.debug.enable_data_xbl");
+  
+  nsContentUtils::AddBoolPrefVarCache("layout.debug.enable_data_xbl",
+                                      &gAllowDataURIs);
 }
 
 nsXBLService::~nsXBLService(void)
@@ -862,7 +862,9 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
     return NS_ERROR_FAILURE;
 
   nsCAutoString ref;
-  aURI->GetRef(ref);
+  nsCOMPtr<nsIURL> url(do_QueryInterface(aURI));
+  if (url)
+    url->GetRef(ref);
 
   nsCOMPtr<nsIDocument> boundDocument = aBoundElement->GetOwnerDoc();
 
@@ -1127,8 +1129,12 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
   nsRefPtr<nsXBLDocumentInfo> info;
 
   nsCOMPtr<nsIURI> documentURI;
-  rv = aBindingURI->CloneIgnoringRef(getter_AddRefs(documentURI));
+  rv = aBindingURI->Clone(getter_AddRefs(documentURI));
   NS_ENSURE_SUCCESS(rv, rv);
+  
+  nsCOMPtr<nsIURL> documentURL(do_QueryInterface(documentURI));
+  if (documentURL)
+    documentURL->SetRef(EmptyCString());
 
 #ifdef MOZ_XUL
   // We've got a file.  Check our XBL document cache.

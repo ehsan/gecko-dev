@@ -48,8 +48,6 @@
 #include "nsTextControlFrame.h"
 typedef   nsTextControlFrame nsNewFrame;
 
-class nsIDOMDragEvent;
-
 class nsFileControlFrame : public nsBlockFrame,
                            public nsIFormControlFrame,
                            public nsIAnonymousContentCreator
@@ -95,7 +93,7 @@ public:
 
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
+  virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         PRUint32 aFilter);
 
@@ -171,9 +169,6 @@ protected:
   public:
     BrowseMouseListener(nsFileControlFrame* aFrame) : MouseListener(aFrame) {};
      NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
-     NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
-
-     static PRBool IsValidDropData(nsIDOMDragEvent* aEvent);
   };
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const

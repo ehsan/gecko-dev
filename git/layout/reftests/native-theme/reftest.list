@@ -19,8 +19,8 @@ fails-if(!nativeThemePref) != button-native.html button-nonnative.html
 == button-nonnative-when-styled.html button-nonnative-when-styled-ref.html
 fails-if(!nativeThemePref) != combobox-native.html combobox-nonnative.html
 == combobox-nonnative-when-styled.html combobox-nonnative-when-styled-ref.html
-fails-if(!nativeThemePref) needs-focus != listbox-native.html listbox-nonnative.html
-needs-focus == listbox-nonnative-when-styled.html listbox-nonnative-when-styled-ref.html
+fails-if(!nativeThemePref) != listbox-native.html listbox-nonnative.html
+== listbox-nonnative-when-styled.html listbox-nonnative-when-styled-ref.html
 fails-if(!nativeThemePref) != radio-native.html radio-nonnative.html
 == radio-still-native-when-styled.html radio-still-native-when-styled-ref.html
 fails-if(!nativeThemePref) != checkbox-native.html checkbox-nonnative.html
@@ -64,9 +64,3 @@ skip-if(!winWidget) == scroll-thumb-minimum-size-notheme.html scroll-thumb-minim
 == border-radius.html border-radius-ref.html
 
 == checkbox-dynamic-1.html checkbox-dynamic-1-ref.html
-
-# These tests have been written to test the overflow of the window widget
-# (bug 568825) but we can't test it on Windows and Cocoa because they have
-# animated progress bars.
-skip-if(cocoaWidget) skip-if(winWidget) == progress-overflow.html progress-overflow-ref.html
-skip-if(cocoaWidget) skip-if(winWidget) != progress-overflow-small.html progress-nobar.html

@@ -130,11 +130,10 @@ nsSimpleNestedURI::GetInnermostURI(nsIURI** uri)
     return NS_ImplGetInnermostURI(this, uri);
 }
 
-// nsSimpleURI overrides
-/* virtual */ nsresult
-nsSimpleNestedURI::EqualsInternal(nsIURI* other,
-                                  nsSimpleURI::RefHandlingEnum refHandlingMode,
-                                  PRBool* result)
+// nsIURI overrides
+
+NS_IMETHODIMP
+nsSimpleNestedURI::Equals(nsIURI* other, PRBool *result)
 {
     *result = PR_FALSE;
     NS_ENSURE_TRUE(mInnerURI, NS_ERROR_NOT_INITIALIZED);
@@ -151,9 +150,7 @@ nsSimpleNestedURI::EqualsInternal(nsIURI* other,
                 rv = nest->GetInnerURI(getter_AddRefs(otherInner));
                 NS_ENSURE_SUCCESS(rv, rv);
 
-                return (refHandlingMode == eHonorRef) ?
-                    otherInner->Equals(mInnerURI, result) :
-                    otherInner->EqualsExceptRef(mInnerURI, result);
+                return otherInner->Equals(mInnerURI, result);
             }
         }
     }
@@ -162,21 +159,20 @@ nsSimpleNestedURI::EqualsInternal(nsIURI* other,
 }
 
 /* virtual */ nsSimpleURI*
-nsSimpleNestedURI::StartClone(nsSimpleURI::RefHandlingEnum refHandlingMode)
+nsSimpleNestedURI::StartClone()
 {
     NS_ENSURE_TRUE(mInnerURI, nsnull);
     
     nsCOMPtr<nsIURI> innerClone;
-    nsresult rv = refHandlingMode == eHonorRef ?
-        mInnerURI->Clone(getter_AddRefs(innerClone)) :
-        mInnerURI->CloneIgnoringRef(getter_AddRefs(innerClone));
-
+    nsresult rv = mInnerURI->Clone(getter_AddRefs(innerClone));
     if (NS_FAILED(rv)) {
         return nsnull;
     }
 
     nsSimpleNestedURI* url = new nsSimpleNestedURI(innerClone);
-    url->SetMutable(PR_FALSE);
+    if (url) {
+        url->SetMutable(PR_FALSE);
+    }
 
     return url;
 }

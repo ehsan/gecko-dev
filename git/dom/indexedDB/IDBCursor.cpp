@@ -470,7 +470,9 @@ IDBCursor::GetValue(JSContext* aCx,
       mRooted = true;
     }
 
-    if (!IDBObjectStore::DeserializeValue(aCx, mCloneBuffer, &mCachedValue)) {
+    JSAutoRequest ar(aCx);
+
+    if (!mCloneBuffer.read(&mCachedValue, aCx)) {
       mCachedValue = JSVAL_VOID;
       return NS_ERROR_DOM_DATA_CLONE_ERR;
     }

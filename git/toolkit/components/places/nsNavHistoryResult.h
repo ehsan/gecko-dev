@@ -98,16 +98,14 @@ private:
   NS_DECL_NSINAVBOOKMARKOBSERVER                                        \
   NS_IMETHOD OnVisit(nsIURI* aURI, PRInt64 aVisitId, PRTime aTime,      \
                      PRInt64 aSessionId, PRInt64 aReferringId,          \
-                     PRUint32 aTransitionType, const nsACString& aGUID, \
-                     PRUint32* aAdded);                                 \
+                     PRUint32 aTransitionType, PRUint32* aAdded);       \
   NS_IMETHOD OnTitleChanged(nsIURI* aURI, const nsAString& aPageTitle); \
-  NS_IMETHOD OnBeforeDeleteURI(nsIURI *aURI, const nsACString& aGUID);  \
-  NS_IMETHOD OnDeleteURI(nsIURI *aURI, const nsACString& aGUID);        \
+  NS_IMETHOD OnBeforeDeleteURI(nsIURI *aURI);                           \
+  NS_IMETHOD OnDeleteURI(nsIURI *aURI);                                 \
   NS_IMETHOD OnClearHistory();                                          \
   NS_IMETHOD OnPageChanged(nsIURI *aURI, PRUint32 aWhat,                \
                            const nsAString &aValue);                    \
-  NS_IMETHOD OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime,            \
-                            const nsACString& aGUID);
+  NS_IMETHOD OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime);
 
 // nsNavHistoryResult
 //
@@ -292,10 +290,7 @@ public:
                            PRBool aIsAnnotationProperty,
                            const nsACString &aValue,
                            PRTime aNewLastModified,
-                           PRUint16 aItemType,
-                           PRInt64 aParentId,
-                           const nsACString& aGUID,
-                           const nsACString& aParentGUID);
+                           PRUint16 aItemType);
 
 public:
 
@@ -383,7 +378,6 @@ public:
   nsCString mURI; // not necessarily valid for containers, call GetUri
   nsCString mTitle;
   nsString mTags;
-  bool mAreTagsSorted;
   PRUint32 mAccessCount;
   PRInt64 mTime;
   nsCString mFaviconURI;
@@ -783,9 +777,6 @@ public:
   virtual void GetSortingAnnotation(nsACString& aSortingAnnotation);
   virtual void RecursiveSort(const char* aData,
                              SortComparator aComparator);
-
-  nsCOMPtr<nsIURI> mRemovingURI;
-  nsresult NotifyIfTagsChanged(nsIURI* aURI);
 };
 
 

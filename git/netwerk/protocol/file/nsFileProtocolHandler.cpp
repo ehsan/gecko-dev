@@ -51,8 +51,13 @@
 
 // URL file handling, copied and modified from xpfe/components/bookmarks/src/nsBookmarksService.cpp
 #ifdef XP_WIN
+#ifndef WINCE
+// Windows mobile does not support internet shortcuts including
+// CLSID_InternetShortcut and IUniformResourceLocator used in
+// this file
 #include <shlobj.h>
 #include <intshcut.h>
+#endif
 #include "nsIFileURL.h"
 #ifdef CompareString
 #undef CompareString
@@ -97,7 +102,7 @@ NS_IMETHODIMP
 nsFileProtocolHandler::ReadURLFile(nsIFile* aFile, nsIURI** aURI)
 {
 // IUniformResourceLocator isn't supported by VC5 (bless its little heart)
-#if _MSC_VER < 1200
+#if _MSC_VER < 1200 || defined (WINCE)
     return NS_ERROR_NOT_AVAILABLE;
 #else
     nsAutoString path;
@@ -140,7 +145,7 @@ nsFileProtocolHandler::ReadURLFile(nsIFile* aFile, nsIURI** aURI)
     }
     return rv;
 
-#endif //_MSC_VER < 1200
+#endif //_MSC_VER < 1200 || defined (WINCE)
 }
 
 #elif defined(XP_OS2)

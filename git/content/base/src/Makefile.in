@@ -70,8 +70,6 @@ EXPORTS_mozilla/dom = \
   Link.h \
   $(NULL)
 
-LOCAL_INCLUDES = -I$(srcdir)/js/src/xpconnect/src
-
 CPPSRCS		= \
 		mozSanitizingSerializer.cpp \
 		nsAtomListUtils.cpp \
@@ -92,7 +90,6 @@ CPPSRCS		= \
 		nsDataDocumentContentPolicy.cpp \
 		nsDOMAttribute.cpp \
 		nsDOMAttributeMap.cpp \
-		nsDOMBlobBuilder.cpp \
 		nsDOMDocumentType.cpp \
 		nsDOMEventTargetWrapperCache.cpp \
 		nsDOMFile.cpp \
@@ -152,7 +149,6 @@ CPPSRCS		= \
 		nsFrameMessageManager.cpp \
 		nsInProcessTabChildGlobal.cpp \
 		ThirdPartyUtil.cpp \
-		nsEventSource.cpp \
 		$(NULL)
 
 # Are we targeting x86-32 or x86-64?  If so, we want to include SSE2 code for
