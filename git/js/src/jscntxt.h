@@ -173,17 +173,24 @@ class ToSourceCache
     void purge();
 };
 
-class EvalCache
+struct EvalCacheLookup
 {
-    static const unsigned SHIFT = 6;
-    static const unsigned LENGTH = 1 << SHIFT;
-    JSScript *table_[LENGTH];
-
-  public:
-    EvalCache() { PodArrayZero(table_); }
-    JSScript **bucket(JSLinearString *str);
-    void purge();
+    JSLinearString *str;
+    JSFunction *caller;
+    unsigned staticLevel;
+    JSVersion version;
+    JSCompartment *compartment;
 };
+
+struct EvalCacheHashPolicy
+{
+    typedef EvalCacheLookup Lookup;
+
+    static HashNumber hash(const Lookup &l);
+    static bool match(JSScript *script, const EvalCacheLookup &l);
+};
+
+typedef HashSet<JSScript *, EvalCacheHashPolicy, SystemAllocPolicy> EvalCache;
 
 class NativeIterCache
 {
@@ -492,8 +499,18 @@ struct JSRuntime : js::RuntimeFriendFields
     void                *gcVerifyData;
     bool                gcChunkAllocationSinceLastGC;
     int64_t             gcNextFullGCTime;
+    int64_t             gcLastGCTime;
     int64_t             gcJitReleaseTime;
     JSGCMode            gcMode;
+    bool                gcHighFrequencyGC;
+    uint64_t            gcHighFrequencyTimeThreshold;
+    uint64_t            gcHighFrequencyLowLimitBytes;
+    uint64_t            gcHighFrequencyHighLimitBytes;
+    double              gcHighFrequencyHeapGrowthMax;
+    double              gcHighFrequencyHeapGrowthMin;
+    double              gcLowFrequencyHeapGrowth;
+    bool                gcDynamicHeapGrowth;
+    bool                gcDynamicMarkSlice;
 
     /* During shutdown, the GC needs to clean up every possible object. */
     bool                gcShouldCleanUpEverything;
