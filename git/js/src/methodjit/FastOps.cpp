@@ -332,24 +332,17 @@ mjit::Compiler::jsop_bitop(JSOp op)
       case JSOP_LSH:
         stub = stubs::Lsh;
         break;
-      case JSOP_URSH:
-        stub = stubs::Ursh;
-        break;
       default:
         JS_NOT_REACHED("wat");
         return;
     }
 
     /* We only want to handle integers here. */
-    if (rhs->isNotType(JSVAL_TYPE_INT32) || lhs->isNotType(JSVAL_TYPE_INT32) || 
-        (op == JSOP_URSH && rhs->isConstant() && rhs->getValue().toInt32() % 32 == 0)) {
+    if (rhs->isNotType(JSVAL_TYPE_INT32) || lhs->isNotType(JSVAL_TYPE_INT32)) {
         prepareStubCall(Uses(2));
         stubCall(stub);
         frame.popn(2);
-        if (op == JSOP_URSH)
-            frame.pushSynced();
-        else
-            frame.pushSyncedType(JSVAL_TYPE_INT32);
+        frame.pushSyncedType(JSVAL_TYPE_INT32);
         return;
     }
            
@@ -365,6 +358,11 @@ mjit::Compiler::jsop_bitop(JSOp op)
         Jump lhsFail = frame.testInt32(Assembler::NotEqual, lhs);
         stubcc.linkExit(lhsFail, Uses(2));
         stubNeeded = true;
+    }
+
+    if (stubNeeded) {
+        stubcc.leave();
+        stubcc.call(stub);
     }
 
     if (lhs->isConstant() && rhs->isConstant()) {
@@ -385,15 +383,6 @@ mjit::Compiler::jsop_bitop(JSOp op)
           case JSOP_LSH:
             frame.push(Int32Value(L << R));
             return;
-          case JSOP_URSH: 
-          {
-            uint32 unsignedL;
-            if (ValueToECMAUint32(cx, lhs->getValue(), (uint32_t*)&unsignedL)) {
-                frame.push(NumberValue(uint32(unsignedL >> (R & 31))));
-                return;
-            }
-            break;
-          }
           default:
             JS_NOT_REACHED("say wat");
         }
@@ -443,27 +432,16 @@ mjit::Compiler::jsop_bitop(JSOp op)
       }
 
       case JSOP_LSH:
-      case JSOP_URSH:
       {
         /* Not commutative. */
         if (rhs->isConstant()) {
             RegisterID reg = frame.ownRegForData(lhs);
             int shift = rhs->getValue().toInt32() & 0x1F;
 
-            if (shift) {
-                if (op == JSOP_LSH)
-                    masm.lshift32(Imm32(shift), reg);
-                else
-                    masm.urshift32(Imm32(shift), reg);
-            }
-            if (stubNeeded) {
-                stubcc.leave();
-                stubcc.call(stub);
-            }
+            if (shift)
+                masm.lshift32(Imm32(shift), reg);
+
             frame.popn(2);
-            
-            /* x >>> 0 may result in a double, handled above. */
-            JS_ASSERT_IF(op == JSOP_URSH, shift >= 1);
             frame.pushTypedPayload(JSVAL_TYPE_INT32, reg);
 
             if (stubNeeded)
@@ -484,19 +462,11 @@ mjit::Compiler::jsop_bitop(JSOp op)
             reg = frame.allocReg();
             masm.move(Imm32(lhs->getValue().toInt32()), reg);
         } else {
-            reg = frame.copyDataIntoReg(lhs);
+            reg = frame.ownRegForData(lhs);
         }
         frame.unpinReg(rr);
-        
-        if (op == JSOP_LSH) {
-            masm.lshift32(rr, reg);
-        } else {
-            masm.urshift32(rr, reg);
-            
-            Jump isNegative = masm.branch32(Assembler::LessThan, reg, Imm32(0));
-            stubcc.linkExit(isNegative, Uses(2));
-            stubNeeded = true;
-        }
+
+        masm.lshift32(rr, reg);
         break;
       }
 
@@ -505,18 +475,9 @@ mjit::Compiler::jsop_bitop(JSOp op)
         return;
     }
 
-    if (stubNeeded) {
-        stubcc.leave();
-        stubcc.call(stub);
-    }
-
     frame.pop();
     frame.pop();
-
-    if (op == JSOP_URSH)
-        frame.pushNumber(reg, true);
-    else
-        frame.pushTypedPayload(JSVAL_TYPE_INT32, reg);
+    frame.pushTypedPayload(JSVAL_TYPE_INT32, reg);
 
     if (stubNeeded)
         stubcc.rejoin(Changes(1));
@@ -617,7 +578,7 @@ mjit::Compiler::jsop_equality(JSOp op, BoolStub stub, jsbytecode *target, JSOp f
          */
 
         if (target) {
-            frame.syncAndForgetEverything();
+            frame.forgetEverything();
 
             if ((op == JSOP_EQ && fused == JSOP_IFNE) ||
                 (op == JSOP_NE && fused == JSOP_IFEQ)) {
@@ -856,7 +817,8 @@ mjit::Compiler::booleanJumpScript(JSOp op, jsbytecode *target)
         type.setReg(frame.copyTypeIntoReg(fe));
     data.setReg(frame.copyDataIntoReg(fe));
 
-    frame.syncAndForgetEverything();
+    /* :FIXME: Can something more lightweight be used? */
+    frame.forgetEverything();
 
     Assembler::Condition cond = (op == JSOP_IFNE || op == JSOP_OR)
                                 ? Assembler::NonZero
@@ -943,7 +905,7 @@ mjit::Compiler::jsop_ifneq(JSOp op, jsbytecode *target)
         if (op == JSOP_IFEQ)
             b = !b;
         if (b) {
-            frame.syncAndForgetEverything();
+            frame.forgetEverything();
             jumpAndTrace(masm.jump(), target);
         }
         return;
@@ -963,7 +925,7 @@ mjit::Compiler::jsop_andor(JSOp op, jsbytecode *target)
         /* Short-circuit. */
         if ((op == JSOP_OR && b == JS_TRUE) ||
             (op == JSOP_AND && b == JS_FALSE)) {
-            frame.syncAndForgetEverything();
+            frame.forgetEverything();
             jumpAndTrace(masm.jump(), target);
         }
 

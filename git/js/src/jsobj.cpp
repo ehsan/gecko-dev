@@ -94,7 +94,7 @@
 #include "jsxdrapi.h"
 #endif
 
-#include "jsprobes.h"
+#include "jsdtracef.h"
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
@@ -107,7 +107,8 @@ JS_FRIEND_DATA(const JSObjectMap) JSObjectMap::sharedNonNative(JSObjectMap::SHAP
 
 Class js_ObjectClass = {
     js_Object_str,
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Object) |
+    JSCLASS_FAST_CONSTRUCTOR,
     PropertyStub,   /* addProperty */
     PropertyStub,   /* delProperty */
     PropertyStub,   /* getProperty */
@@ -1090,7 +1091,7 @@ obj_eval(JSContext *cx, uintN argc, Value *vp)
         staticLevel = 0;
 
         if (!js_CheckPrincipalsAccess(cx, obj,
-                                      js_StackFramePrincipals(cx, caller),
+                                      JS_StackFramePrincipals(cx, caller),
                                       cx->runtime->atomState.evalAtom)) {
             return JS_FALSE;
         }
@@ -1129,7 +1130,7 @@ obj_eval(JSContext *cx, uintN argc, Value *vp)
 
     JSString *str = argv[0].toString();
     JSScript *script = NULL;
-
+    
     const jschar *chars;
     size_t length;
     str->getCharsAndLength(chars, length);
@@ -1289,7 +1290,7 @@ obj_watch_handler(JSContext *cx, JSObject *obj, jsid id, jsval old,
              * the currently executing script.
              */
             watcher = callbacks->findObjectPrincipals(cx, callable);
-            subject = js_StackFramePrincipals(cx, caller);
+            subject = JS_StackFramePrincipals(cx, caller);
 
             if (watcher && subject && !watcher->subsume(watcher, subject)) {
                 /* Silently don't call the watch handler. */
@@ -1310,7 +1311,7 @@ obj_watch_handler(JSContext *cx, JSObject *obj, jsid id, jsval old,
     argv[0] = IdToValue(id);
     argv[1] = Valueify(old);
     argv[2] = Valueify(*nvp);
-    ok = ExternalInvoke(cx, obj, ObjectOrNullValue(callable), 3, argv, Valueify(nvp));
+    ok = InternalCall(cx, obj, ObjectOrNullValue(callable), 3, argv, Valueify(nvp));
     js_StopResolving(cx, &key, JSRESFLAG_WATCH, entry, generation);
     return ok;
 }
@@ -2583,27 +2584,6 @@ js_Object(JSContext *cx, uintN argc, Value *vp)
     return JS_TRUE;
 }
 
-JSObject*
-js_NewInstance(JSContext *cx, JSObject *callee)
-{
-    Class *clasp = callee->getClass();
-
-    Class *newclasp = &js_ObjectClass;
-    if (clasp == &js_FunctionClass) {
-        JSFunction *fun = callee->getFunctionPrivate();
-        if (fun->isNative() && fun->u.n.clasp)
-            newclasp = fun->u.n.clasp;
-    }
-
-    Value protov;
-    if (!callee->getProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom), &protov))
-        return NULL;
-
-    JSObject *proto = protov.isObjectOrNull() ? protov.toObjectOrNull() : NULL;
-    JSObject *parent = callee->getParent();
-    return NewObject<WithProto::Class>(cx, newclasp, proto, parent);
-}
-
 #ifdef JS_TRACER
 
 JSObject*
@@ -2645,7 +2625,7 @@ JS_DEFINE_CALLINFO_2(extern, CONSTRUCTOR_RETRY, js_NonEmptyObject, CONTEXT, CALL
                      nanojit::ACCSET_STORE_ANY)
 
 JSObject* FASTCALL
-js_NewInstanceFromTrace(JSContext *cx, Class *clasp, JSObject *ctor)
+js_NewInstance(JSContext *cx, Class *clasp, JSObject *ctor)
 {
     JS_ASSERT(JS_ON_TRACE(cx));
     JS_ASSERT(ctor->isFunction());
@@ -2696,7 +2676,7 @@ js_NewInstanceFromTrace(JSContext *cx, Class *clasp, JSObject *ctor)
     return NewNonFunction<WithProto::Given>(cx, clasp, proto, parent);
 }
 
-JS_DEFINE_CALLINFO_3(extern, CONSTRUCTOR_RETRY, js_NewInstanceFromTrace, CONTEXT, CLASS, OBJECT, 0,
+JS_DEFINE_CALLINFO_3(extern, CONSTRUCTOR_RETRY, js_NewInstance, CONTEXT, CLASS, OBJECT, 0,
                      nanojit::ACCSET_STORE_ANY)
 
 #else  /* !JS_TRACER */
@@ -3264,14 +3244,15 @@ Class js_BlockClass = {
 JSObject *
 js_InitObjectClass(JSContext *cx, JSObject *obj)
 {
-    JSObject *proto = js_InitClass(cx, obj, NULL, &js_ObjectClass, js_Object, 1,
+    JSObject *proto = js_InitClass(cx, obj, NULL, &js_ObjectClass, (Native) js_Object, 1,
                                    object_props, object_methods, NULL, object_static_methods);
     if (!proto)
         return NULL;
 
     /* ECMA (15.1.2.1) says 'eval' is a property of the global object. */
-    if (!js_DefineFunction(cx, obj, cx->runtime->atomState.evalAtom, obj_eval, 1,
-                           JSFUN_STUB_GSOPS)) {
+    if (!js_DefineFunction(cx, obj, cx->runtime->atomState.evalAtom,
+                           (Native)obj_eval, 1,
+                           JSFUN_FAST_NATIVE | JSFUN_STUB_GSOPS)) {
         return NULL;
     }
 
@@ -3409,7 +3390,11 @@ js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
 
         ctor = proto;
     } else {
-        fun = js_NewFunction(cx, NULL, constructor, nargs, JSFUN_CONSTRUCTOR, obj, atom);
+        uint16 flags = 0;
+        if (clasp->flags & JSCLASS_FAST_CONSTRUCTOR)
+            flags |= JSFUN_FAST_NATIVE | JSFUN_FAST_NATIVE_CTOR;
+
+        fun = js_NewFunction(cx, NULL, constructor, nargs, flags, obj, atom);
         if (!fun)
             goto bad;
 
@@ -3433,10 +3418,8 @@ js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
         ctor = FUN_OBJECT(fun);
         if (clasp->flags & JSCLASS_CONSTRUCT_PROTOTYPE) {
             Value rval;
-            if (!InvokeConstructorWithGivenThis(cx, proto, ObjectOrNullValue(ctor),
-                                                0, NULL, &rval)) {
+            if (!InternalConstruct(cx, proto, ObjectOrNullValue(ctor), 0, NULL, &rval))
                 goto bad;
-            }
             if (rval.isObject() && &rval.toObject() != proto)
                 proto = &rval.toObject();
         }
@@ -3852,7 +3835,7 @@ js_ConstructObject(JSContext *cx, Class *clasp, JSObject *proto, JSObject *paren
         return NULL;
 
     Value rval;
-    if (!InvokeConstructorWithGivenThis(cx, obj, cval, argc, argv, &rval))
+    if (!InternalConstruct(cx, obj, cval, argc, argv, &rval))
         return NULL;
 
     if (rval.isPrimitive())
@@ -3877,23 +3860,14 @@ js_ConstructObject(JSContext *cx, Class *clasp, JSObject *proto, JSObject *paren
     return obj;
 }
 
+/*
+ * FIXME bug 535629: If one adds props, deletes earlier props, adds more, the
+ * last added won't recycle the deleted props' slots.
+ */
 bool
 JSObject::allocSlot(JSContext *cx, uint32 *slotp)
 {
     JS_ASSERT(freeslot >= JSSLOT_FREE(clasp));
-
-    if (inDictionaryMode() && lastProp->table) {
-        uint32 &last = lastProp->table->freeslot;
-        if (last != SHAPE_INVALID_SLOT) {
-            JS_ASSERT(last < freeslot);
-            *slotp = last;
-
-            Value &vref = getSlotRef(last);
-            last = vref.toPrivateUint32();
-            vref.setUndefined();
-            return true;
-        }
-    }
 
     if (freeslot >= numSlots() && !growSlots(cx, freeslot + 1))
         return false;
@@ -3910,20 +3884,9 @@ JSObject::freeSlot(JSContext *cx, uint32 slot)
 {
     JS_ASSERT(freeslot > JSSLOT_FREE(clasp));
 
-    Value &vref = getSlotRef(slot);
-    if (freeslot == slot + 1) {
+    lockedSetSlot(slot, UndefinedValue());
+    if (freeslot == slot + 1)
         freeslot = slot;
-    } else {
-        if (inDictionaryMode() && lastProp->table) {
-            uint32 &last = lastProp->table->freeslot;
-
-            JS_ASSERT_IF(last != SHAPE_INVALID_SLOT, last < freeslot);
-            vref.setPrivateUint32(last);
-            last = slot;
-            return;
-        }
-    }
-    vref.setUndefined();
 }
 
 /* JSBOXEDWORD_INT_MAX as a string */
@@ -5063,24 +5026,6 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
              */
             shape = NULL;
         }
-
-        if (shape) {
-            if (shape->isMethod()) {
-                JS_ASSERT(pobj->hasMethodBarrier());
-            } else if ((defineHow & JSDNP_SET_METHOD) && obj->canHaveMethodBarrier()) {
-                JS_ASSERT(IsFunctionObject(*vp));
-                JS_ASSERT(!(attrs & (JSPROP_GETTER | JSPROP_SETTER)));
-
-                JSObject *funobj = &vp->toObject();
-                JSFunction *fun = GET_FUNCTION_PRIVATE(cx, funobj);
-                if (fun == funobj) {
-                    funobj = CloneFunctionObject(cx, fun, fun->parent);
-                    if (!funobj)
-                        return JS_FALSE;
-                    vp->setObject(*funobj);
-                }
-            }
-        }
     }
 
     added = false;
@@ -5334,8 +5279,9 @@ DefaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp)
 
                 JSObject *funobj;
                 if (IsFunctionObject(fval, &funobj)) {
-                    JSFunction *fun = funobj->getFunctionPrivate();
-                    if (fun->maybeNative() == js_str_toString) {
+                    JSFunction *fun = GET_FUNCTION_PRIVATE(cx, funobj);
+
+                    if (FUN_FAST_NATIVE(fun) == js_str_toString) {
                         JS_UNLOCK_OBJ(cx, lockedobj);
                         *vp = obj->getPrimitiveThis();
                         return JS_TRUE;
@@ -5737,7 +5683,7 @@ js_TryMethod(JSContext *cx, JSObject *obj, JSAtom *atom,
 
     if (fval.isPrimitive())
         return JS_TRUE;
-    return ExternalInvoke(cx, obj, fval, argc, argv, rval);
+    return InternalCall(cx, obj, fval, argc, argv, rval);
 }
 
 #if JS_HAS_XDR
@@ -6076,17 +6022,15 @@ JSObject::getCompartment(JSContext *cx)
 
         // The magic function namespace object is runtime-wide.
         if (clasp == &js_NamespaceClass &&
-            obj->getNameURI() == ATOM_TO_JSVAL(cx->runtime->
-                                               atomState.lazy.functionNamespaceURIAtom)) {
+            obj->getNameURI() == ATOM_TO_JSVAL(cx->runtime->atomState.lazy.functionNamespaceURIAtom)) {
             return cx->runtime->defaultCompartment;
         }
 
-        /*
+        /* 
          * Script objects and compile-time Function, Block, RegExp objects
          * are not parented.
          */
-        if (clasp == &js_FunctionClass || clasp == &js_BlockClass || clasp == &js_RegExpClass ||
-            clasp == &js_ScriptClass) {
+        if (clasp == &js_FunctionClass || clasp == &js_BlockClass || clasp == &js_RegExpClass || clasp == &js_ScriptClass) {
             // This is a bogus answer, but it'll do for now.
             return cx->runtime->defaultCompartment;
         }
@@ -6278,15 +6222,13 @@ js_DumpObject(JSObject *obj)
     if (flags & JSObject::INDEXED) fprintf(stderr, " indexed");
     if (flags & JSObject::OWN_SHAPE) fprintf(stderr, " own_shape");
     bool anyFlags = flags != 0;
-    if (obj->isNative()) {
-        if (obj->inDictionaryMode()) {
-            fprintf(stderr, " inDictionaryMode");
-            anyFlags = true;
-        }
-        if (obj->hasPropertyTable()) {
-            fprintf(stderr, " hasPropertyTable");
-            anyFlags = true;
-        }
+    if (obj->inDictionaryMode()) {
+        fprintf(stderr, " inDictionaryMode");
+        anyFlags = true;
+    }
+    if (obj->hasPropertyTable()) {
+        fprintf(stderr, " hasPropertyTable");
+        anyFlags = true;
     }
     if (!anyFlags)
         fprintf(stderr, " none");

@@ -56,7 +56,7 @@ struct xpc_qsPropertySpec {
 
 struct xpc_qsFunctionSpec {
     const char *name;
-    JSNative native;
+    JSFastNative native;
     uintN arity;
 };
 
