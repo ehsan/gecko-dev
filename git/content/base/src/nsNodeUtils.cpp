@@ -66,7 +66,6 @@
 #include "jsgc.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsObjectLoadingContent.h"
-#include "nsDOMMutationObserver.h"
 
 using namespace mozilla::dom;
 
@@ -76,12 +75,8 @@ using namespace mozilla::dom;
 // If you change how this macro behave please update AttributeChildRemoved.
 #define IMPL_MUTATION_NOTIFICATION(func_, content_, params_)      \
   PR_BEGIN_MACRO                                                  \
-  bool needsEnterLeave = doc->MayHaveDOMMutationObservers();      \
-  if (needsEnterLeave) {                                          \
-    nsDOMMutationObserver::EnterMutationHandling();               \
-  }                                                               \
   nsINode* node = content_;                                       \
-  NS_ASSERTION(node->OwnerDoc() == doc, "Bogus document");        \
+  NS_ASSERTION(node->OwnerDoc() == doc, "Bogus document");     \
   if (doc) {                                                      \
     static_cast<nsIMutationObserver*>(doc->BindingManager())->    \
       func_ params_;                                              \
@@ -97,9 +92,6 @@ using namespace mozilla::dom;
     }                                                             \
     node = node->GetNodeParent();                                 \
   } while (node);                                                 \
-  if (needsEnterLeave) {                                          \
-    nsDOMMutationObserver::LeaveMutationHandling();               \
-  }                                                               \
   PR_END_MACRO
 
 void
@@ -577,12 +569,8 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     // nsImageLoadingContent needs to know when its document changes
     if (oldDoc != newDoc) {
       nsCOMPtr<nsIImageLoadingContent> imageContent(do_QueryInterface(aNode));
-      if (imageContent) {
+      if (imageContent)
         imageContent->NotifyOwnerDocumentChanged(oldDoc);
-      }
-      if (oldDoc->MayHaveDOMMutationObservers()) {
-        newDoc->SetMayHaveDOMMutationObservers();
-      }
     }
 
     if (elem) {

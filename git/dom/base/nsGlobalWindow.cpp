@@ -4819,9 +4819,6 @@ nsGlobalWindow::Alert(const nsAString& aString)
   if (promptBag)
     promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), allowTabModal);
 
-  nsAutoSyncOperation sync(GetCurrentInnerWindowInternal() ? 
-                             GetCurrentInnerWindowInternal()->mDoc :
-                             nsnull);
   if (shouldEnableDisableDialog) {
     bool disallowDialog = false;
     nsXPIDLString label;
@@ -4888,9 +4885,6 @@ nsGlobalWindow::Confirm(const nsAString& aString, bool* aReturn)
   if (promptBag)
     promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), allowTabModal);
 
-  nsAutoSyncOperation sync(GetCurrentInnerWindowInternal() ? 
-                             GetCurrentInnerWindowInternal()->mDoc :
-                             nsnull);
   if (shouldEnableDisableDialog) {
     bool disallowDialog = false;
     nsXPIDLString label;
@@ -4970,9 +4964,6 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
                                        "ScriptDialogLabel", label);
   }
 
-  nsAutoSyncOperation sync(GetCurrentInnerWindowInternal() ? 
-                             GetCurrentInnerWindowInternal()->mDoc :
-                             nsnull);
   bool ok;
   rv = prompt->Prompt(title.get(), fixedMessage.get(),
                       &inoutValue, label.get(), &disallowDialog, &ok);
@@ -5239,9 +5230,6 @@ nsGlobalWindow::Print()
   nsCOMPtr<nsIWebBrowserPrint> webBrowserPrint;
   if (NS_SUCCEEDED(GetInterface(NS_GET_IID(nsIWebBrowserPrint),
                                 getter_AddRefs(webBrowserPrint)))) {
-    nsAutoSyncOperation sync(GetCurrentInnerWindowInternal() ? 
-                               GetCurrentInnerWindowInternal()->mDoc :
-                               nsnull);
 
     nsCOMPtr<nsIPrintSettingsService> printSettingsService = 
       do_GetService("@mozilla.org/gfx/printsettings-service;1");

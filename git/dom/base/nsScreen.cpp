@@ -87,8 +87,6 @@ nsScreen::Initialize()
 /* static */ already_AddRefed<nsScreen>
 nsScreen::Create(nsPIDOMWindow* aWindow)
 {
-  MOZ_ASSERT(aWindow);
-
   if (!sInitialized) {
     Initialize();
   }
@@ -97,8 +95,7 @@ nsScreen::Create(nsPIDOMWindow* aWindow)
     return nsnull;
   }
 
-  nsCOMPtr<nsIScriptGlobalObject> sgo =
-    do_QueryInterface(static_cast<nsPIDOMWindow*>(aWindow));
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aWindow);
   NS_ENSURE_TRUE(sgo, nsnull);
 
   nsRefPtr<nsScreen> screen = new nsScreen();
@@ -112,7 +109,6 @@ nsScreen::Create(nsPIDOMWindow* aWindow)
 }
 
 nsScreen::nsScreen()
-  : mEventListener(nsnull)
 {
 }
 
@@ -384,7 +380,7 @@ nsScreen::Notify(const ScreenOrientationWrapper& aOrientation)
   ScreenOrientation previousOrientation = mOrientation;
   mOrientation = aOrientation.orientation;
 
-  NS_ASSERTION(mOrientation != eScreenOrientation_None &&
+  NS_ASSERTION(mOrientation != eScreenOrientation_Current &&
                mOrientation != eScreenOrientation_EndGuard &&
                mOrientation != eScreenOrientation_Portrait &&
                mOrientation != eScreenOrientation_Landscape,
@@ -415,7 +411,7 @@ NS_IMETHODIMP
 nsScreen::GetMozOrientation(nsAString& aOrientation)
 {
   switch (mOrientation) {
-    case eScreenOrientation_None:
+    case eScreenOrientation_Current:
     case eScreenOrientation_EndGuard:
     case eScreenOrientation_Portrait:
     case eScreenOrientation_Landscape:
@@ -434,89 +430,6 @@ nsScreen::GetMozOrientation(nsAString& aOrientation)
       aOrientation.AssignLiteral("landscape-secondary");
       break;
   }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsScreen::MozLockOrientation(const nsAString& aOrientation, bool* aReturn)
-{
-  ScreenOrientation orientation;
-
-  if (aOrientation.EqualsLiteral("portrait")) {
-    orientation = eScreenOrientation_Portrait;
-  } else if (aOrientation.EqualsLiteral("portrait-primary")) {
-    orientation = eScreenOrientation_PortraitPrimary;
-  } else if (aOrientation.EqualsLiteral("portrait-secondary")) {
-    orientation = eScreenOrientation_PortraitSecondary;
-  } else if (aOrientation.EqualsLiteral("landscape")) {
-    orientation = eScreenOrientation_Landscape;
-  } else if (aOrientation.EqualsLiteral("landscape-primary")) {
-    orientation = eScreenOrientation_LandscapePrimary;
-  } else if (aOrientation.EqualsLiteral("landscape-secondary")) {
-    orientation = eScreenOrientation_LandscapeSecondary;
-  } else {
-    *aReturn = false;
-    return NS_OK;
-  }
-
-  if (!GetOwner()) {
-    *aReturn = false;
-    return NS_OK;
-  }
-
-  if (!IsChromeType(GetOwner()->GetDocShell())) {
-    bool fullscreen;
-    GetOwner()->GetFullScreen(&fullscreen);
-    if (!fullscreen) {
-      *aReturn = false;
-      return NS_OK;
-    }
-
-    nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(GetOwner());
-    if (!target) {
-      *aReturn = false;
-      return NS_OK;
-    }
-
-    if (!mEventListener) {
-      mEventListener = new FullScreenEventListener();
-    }
-
-    target->AddSystemEventListener(NS_LITERAL_STRING("mozfullscreenchange"),
-                                   mEventListener, true);
-  }
-
-  *aReturn = hal::LockScreenOrientation(orientation);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsScreen::MozUnlockOrientation()
-{
-  hal::UnlockScreenOrientation();
-  return NS_OK;
-}
-
-NS_IMPL_ISUPPORTS1(nsScreen::FullScreenEventListener, nsIDOMEventListener)
-
-NS_IMETHODIMP
-nsScreen::FullScreenEventListener::HandleEvent(nsIDOMEvent* aEvent)
-{
-#ifdef DEBUG
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-
-  MOZ_ASSERT(eventType.EqualsLiteral("mozfullscreenchange"));
-#endif
-
-  nsCOMPtr<nsIDOMEventTarget> target;
-  aEvent->GetCurrentTarget(getter_AddRefs(target));
-
-  target->RemoveSystemEventListener(NS_LITERAL_STRING("mozfullscreenchange"),
-                                    this, true);
-
-  hal::UnlockScreenOrientation();
 
   return NS_OK;
 }

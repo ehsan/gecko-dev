@@ -79,15 +79,6 @@ protected:
   mozilla::dom::ScreenOrientation mOrientation;
 
 private:
-  class FullScreenEventListener : public nsIDOMEventListener
-  {
-  public:
-    FullScreenEventListener() {};
-
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIDOMEVENTLISTENER
-  };
-
   nsScreen();
   virtual ~nsScreen();
 
@@ -98,8 +89,6 @@ private:
   static void Initialize();
 
   bool IsWhiteListed();
-
-  nsRefPtr<FullScreenEventListener> mEventListener;
 
   NS_DECL_EVENT_HANDLER(mozorientationchange)
 };

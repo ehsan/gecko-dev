@@ -41,16 +41,5 @@ GetCurrentScreenOrientation(dom::ScreenOrientation* aScreenOrientation)
                           : dom::eScreenOrientation_PortraitPrimary;
 }
 
-bool
-LockScreenOrientation(const dom::ScreenOrientation& aOrientation)
-{
-  return false;
-}
-
-void
-UnlockScreenOrientation()
-{
-}
-
 } // hal_impl
 } // mozilla

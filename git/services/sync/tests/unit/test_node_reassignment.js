@@ -73,7 +73,9 @@ function installNodeHandler(server, next) {
 }
 
 function prepareServer() {
-  setBasicCredentials("johndoe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username   = "johndoe";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
+  Service.password   = "ilovejane";
   Service.serverURL  = TEST_SERVER_URL;
   Service.clusterURL = TEST_CLUSTER_URL;
 

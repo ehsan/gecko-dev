@@ -1193,7 +1193,6 @@ let UI = {
 
       let preventDefault = true;
       let activeTab;
-      let activeGroupItem;
       let norm = null;
       switch (event.keyCode) {
         case KeyEvent.DOM_VK_RIGHT:
@@ -1211,7 +1210,7 @@ let UI = {
       }
 
       if (norm != null) {
-        let nextTab = getClosestTabBy(norm);
+        var nextTab = getClosestTabBy(norm);
         if (nextTab) {
           if (nextTab.isStacked && !nextTab.parent.expanded)
             nextTab = nextTab.parent.getChild(0);
@@ -1220,7 +1219,7 @@ let UI = {
       } else {
         switch(event.keyCode) {
           case KeyEvent.DOM_VK_ESCAPE:
-            activeGroupItem = GroupItems.getActiveGroupItem();
+            let activeGroupItem = GroupItems.getActiveGroupItem();
             if (activeGroupItem && activeGroupItem.expanded)
               activeGroupItem.collapse();
             else
@@ -1228,18 +1227,9 @@ let UI = {
             break;
           case KeyEvent.DOM_VK_RETURN:
           case KeyEvent.DOM_VK_ENTER:
-            activeGroupItem = GroupItems.getActiveGroupItem();
-            if (activeGroupItem) {
-              activeTab = self.getActiveTab();
-
-              if (!activeTab || activeTab.parent != activeGroupItem)
-                activeTab = activeGroupItem.getActiveTab();
-
-              if (activeTab)
-                activeTab.zoomIn();
-              else
-                activeGroupItem.newTab();
-            }
+            activeTab = self.getActiveTab();
+            if (activeTab)
+              activeTab.zoomIn();
             break;
           case KeyEvent.DOM_VK_TAB:
             // tab/shift + tab to go to the next tab.

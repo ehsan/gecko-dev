@@ -784,17 +784,17 @@ let TPS =
       // a new sync account
       Weave.Svc.Prefs.set("admin-secret", account["admin-secret"]);
       let suffix = account["account-suffix"];
-      Weave.Identity.account = "tps" + suffix + "@mozilla.com";
-      Weave.Identity.basicPassword = "tps" + suffix + "tps" + suffix;
-      Weave.Identity.syncKey = Weave.Utils.generatePassphrase();
-      Service.createAccount(Weave.Identity.account,
-                            Weave.Identity.basicPassword,
+      Service.account = "tps" + suffix + "@mozilla.com";
+      Service.password = "tps" + suffix + "tps" + suffix;
+      Service.passphrase = Weave.Utils.generatePassphrase();
+      Service.createAccount(Service.account,
+                            Service.password,
                             "dummy1", "dummy2");
     } else if (account["username"] && account["password"] &&
                account["passphrase"]) {
-      Weave.Identity.account = account["username"];
-      Weave.Identity.basicPassword = account["password"];
-      Weave.Identity.syncKey = account["passphrase"];
+      Service.account = account["username"];
+      Service.password = account["password"];
+      Service.passphrase = account["passphrase"];
     } else {
       this.DumpError("Must specify admin-secret, or " +
                      "username/password/passphrase in the config file");

@@ -6,8 +6,10 @@ function run_test() {
   try {
     // Ensure we have a blank slate to start.
     Services.logins.removeAllLogins();
-
-    setBasicCredentials("johndoe", "ilovejane", "abbbbbcccccdddddeeeeefffff");
+    
+    Weave.Service.username = "johndoe";
+    Weave.Service.password = "ilovejane";
+    Weave.Service.passphrase = "abbbbbcccccdddddeeeeefffff";
 
     _("Confirm initial environment is empty.");
     let logins = Services.logins.findLogins({}, PWDMGR_HOST, null,

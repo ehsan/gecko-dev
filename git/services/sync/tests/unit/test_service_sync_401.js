@@ -32,7 +32,11 @@ function run_test() {
 
   try {
     _("Set up test fixtures.");
-    new SyncTestingInfrastructure("johndoe", "ilovejane", "foo");
+    Weave.Service.serverURL = TEST_SERVER_URL;
+    Weave.Service.clusterURL = TEST_CLUSTER_URL;
+    Weave.Service.username = "johndoe";
+    Weave.Service.password = "ilovejane";
+    Weave.Service.passphrase = "foo";
     SyncScheduler.globalScore = GLOBAL_SCORE;
     // Avoid daily ping
     Weave.Svc.Prefs.set("lastPing", Math.floor(Date.now() / 1000));
@@ -48,7 +52,7 @@ function run_test() {
     do_check_eq(Weave.Status.login, Weave.LOGIN_SUCCEEDED);
 
     _("Simulate having changed the password somewhere else.");
-    Identity.basicPassword = "ilovejosephine";
+    Weave.Service.password = "ilovejosephine";
 
     _("Let's try to sync.");
     Weave.Service.sync();

@@ -79,15 +79,15 @@ add_test(function test_login_logout() {
     do_check_false(Service.isLoggedIn);
 
     _("Try again with username and password set.");
-    Identity.account = "johndoe";
-    Identity.basicPassword = "ilovejane";
+    Service.username = "johndoe";
+    Service.password = "ilovejane";
     Service.login();
     do_check_eq(Status.service, CLIENT_NOT_CONFIGURED);
     do_check_eq(Status.login, LOGIN_FAILED_NO_PASSPHRASE);
     do_check_false(Service.isLoggedIn);
 
     _("Success if passphrase is set.");
-    Identity.syncKey = "foo";
+    Service.passphrase = "foo";
     Service.login();
     do_check_eq(Status.service, STATUS_OK);
     do_check_eq(Status.login, LOGIN_SUCCEEDED);
@@ -95,7 +95,9 @@ add_test(function test_login_logout() {
 
     _("We can also pass username, password and passphrase to login().");
     Service.login("janedoe", "incorrectpassword", "bar");
-    setBasicCredentials("janedoe", "incorrectpassword", "bar");
+    do_check_eq(Service.username, "janedoe");
+    do_check_eq(Service.password, "incorrectpassword");
+    do_check_eq(Service.passphrase, "bar");
     do_check_eq(Status.service, LOGIN_FAILED);
     do_check_eq(Status.login, LOGIN_FAILED_LOGIN_REJECTED);
     do_check_false(Service.isLoggedIn);
@@ -111,7 +113,9 @@ add_test(function test_login_logout() {
     Svc.Obs.add("weave:service:setup-complete", function() {
       notified = true;
     });
-    setBasicCredentials(null, null, null);
+    Service.username = "";
+    Service.password = "";
+    Service.passphrase = "";
     Service.login("janedoe", "ilovejohn", "bar");
     do_check_true(notified);
     do_check_eq(Status.service, STATUS_OK);
@@ -134,7 +138,9 @@ add_test(function test_login_logout() {
 
 add_test(function test_login_on_sync() {
   let server = setup();
-  setBasicCredentials("johndoe", "ilovejane", "bar");
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "bar";
 
   try {
     _("Sync calls login.");
@@ -196,11 +202,10 @@ add_test(function test_login_on_sync() {
     mpLocked = true;
 
     // Testing exception handling if master password dialog is canceled.
-    // Do this by monkeypatching.
-    let oldGetter = Identity.__lookupGetter__("syncKey");
-    let oldSetter = Identity.__lookupSetter__("syncKey");
-    _("Old passphrase function is " + oldGetter);
-    Identity.__defineGetter__("syncKey",
+    // Do this by stubbing out Service.passphrase.
+    let oldPP = Service.__lookupGetter__("passphrase");
+    _("Old passphrase function is " + oldPP);
+    Service.__defineGetter__("passphrase",
                            function() {
                              throw "User canceled Master Password entry";
                            });
@@ -227,9 +232,6 @@ add_test(function test_login_on_sync() {
 
     do_check_true(cSTCalled);
     do_check_false(lockedSyncCalled);
-
-    Identity.__defineGetter__("syncKey", oldGetter);
-    Identity.__defineSetter__("syncKey", oldSetter);
 
     // N.B., a bunch of methods are stubbed at this point. Be careful putting
     // new tests after this point!

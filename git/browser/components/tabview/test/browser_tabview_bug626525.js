@@ -146,3 +146,14 @@ function closeTabContextPopup(win) {
   win.document.getElementById("tabContextMenu").hidePopup();
 }
 
+function goToNextGroup(win) {
+  let utils =
+    win.QueryInterface(Ci.nsIInterfaceRequestor).
+      getInterface(Ci.nsIDOMWindowUtils);
+
+  const masks = Ci.nsIDOMNSEvent;
+  let mval = 0;
+  mval |= masks.CONTROL_MASK;
+
+  utils.sendKeyEvent("keypress", 0, 96, mval);
+}
