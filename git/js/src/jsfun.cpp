@@ -146,8 +146,10 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         return true;
     }
 
-    MOZ_CRASH("fun_getProperty");
+    MOZ_ASSUME_UNREACHABLE("fun_getProperty");
 }
+
+
 
 /* NB: no sentinels at ends -- use ArrayLength to bound loops.
  * Properties censored into [[ThrowTypeError]] in strict mode. */
@@ -859,7 +861,10 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
         return nullptr;
     }
     if (haveSource) {
-        Rooted<JSFlatString *> src(cx, script->sourceData(cx));
+        RootedString srcStr(cx, script->sourceData(cx));
+        if (!srcStr)
+            return nullptr;
+        Rooted<JSFlatString *> src(cx, srcStr->ensureFlat(cx));
         if (!src)
             return nullptr;
 
@@ -2014,6 +2019,8 @@ JSObject::hasIdempotentProtoChain() const
         if (!obj)
             return true;
     }
+
+    MOZ_ASSUME_UNREACHABLE("Should not get here");
 }
 
 namespace JS {

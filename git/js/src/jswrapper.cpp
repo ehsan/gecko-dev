@@ -693,10 +693,7 @@ SecurityWrapper<Base>::defineProperty(JSContext *cx, HandleObject wrapper,
 {
     if (desc.getter() || desc.setter()) {
         JSString *str = IdToString(cx, id);
-        AutoStableStringChars chars(cx);
-        const jschar *prop = nullptr;
-        if (str->ensureFlat(cx) && chars.initTwoByte(cx, str))
-            prop = chars.twoByteChars();
+        const jschar *prop = str ? str->getCharsZ(cx) : nullptr;
         JS_ReportErrorNumberUC(cx, js_GetErrorMessage, nullptr,
                                JSMSG_ACCESSOR_DEF_DENIED, prop);
         return false;

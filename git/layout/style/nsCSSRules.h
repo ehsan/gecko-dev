@@ -47,7 +47,7 @@ class MediaRule MOZ_FINAL : public GroupRule,
                             public nsIDOMCSSMediaRule
 {
 public:
-  MediaRule(uint32_t aLineNumber, uint32_t aColumnNumber);
+  MediaRule();
 private:
   MediaRule(const MediaRule& aCopy);
   ~MediaRule();
@@ -105,7 +105,7 @@ class DocumentRule MOZ_FINAL : public GroupRule,
                                public nsIDOMCSSMozDocumentRule
 {
 public:
-  DocumentRule(uint32_t aLineNumber, uint32_t aColumnNumber);
+  DocumentRule();
 private:
   DocumentRule(const DocumentRule& aCopy);
   ~DocumentRule();
@@ -231,8 +231,7 @@ class nsCSSFontFaceRule MOZ_FINAL : public mozilla::css::Rule,
                                     public nsIDOMCSSFontFaceRule
 {
 public:
-  nsCSSFontFaceRule(uint32_t aLineNumber, uint32_t aColumnNumber)
-    : mozilla::css::Rule(aLineNumber, aColumnNumber) {}
+  nsCSSFontFaceRule() {}
 
   nsCSSFontFaceRule(const nsCSSFontFaceRule& aCopy)
     // copy everything except our reference count
@@ -297,8 +296,7 @@ class nsCSSFontFeatureValuesRule MOZ_FINAL :
                                        public nsIDOMCSSFontFeatureValuesRule
 {
 public:
-  nsCSSFontFeatureValuesRule(uint32_t aLineNumber, uint32_t aColumnNumber)
-    : mozilla::css::Rule(aLineNumber, aColumnNumber) {}
+  nsCSSFontFeatureValuesRule() {}
 
   nsCSSFontFeatureValuesRule(const nsCSSFontFeatureValuesRule& aCopy)
     // copy everything except our reference count
@@ -361,8 +359,7 @@ class CharsetRule MOZ_FINAL : public Rule,
                               public nsIDOMCSSCharsetRule
 {
 public:
-  CharsetRule(const nsAString& aEncoding,
-              uint32_t aLineNumber, uint32_t aColumnNumber);
+  CharsetRule(const nsAString& aEncoding);
 private:
   // For |Clone|
   CharsetRule(const CharsetRule& aCopy);
@@ -432,10 +429,8 @@ class nsCSSKeyframeRule MOZ_FINAL : public mozilla::css::Rule,
 public:
   // WARNING: Steals the contents of aKeys *and* aDeclaration
   nsCSSKeyframeRule(InfallibleTArray<float>& aKeys,
-                    nsAutoPtr<mozilla::css::Declaration>&& aDeclaration,
-                    uint32_t aLineNumber, uint32_t aColumnNumber)
-    : mozilla::css::Rule(aLineNumber, aColumnNumber)
-    , mDeclaration(mozilla::Move(aDeclaration))
+                    nsAutoPtr<mozilla::css::Declaration>&& aDeclaration)
+    : mDeclaration(mozilla::Move(aDeclaration))
   {
     mKeys.SwapElements(aKeys);
   }
@@ -482,10 +477,8 @@ class nsCSSKeyframesRule MOZ_FINAL : public mozilla::css::GroupRule,
                                      public nsIDOMMozCSSKeyframesRule
 {
 public:
-  nsCSSKeyframesRule(const nsSubstring& aName,
-                     uint32_t aLineNumber, uint32_t aColumnNumber)
-    : mozilla::css::GroupRule(aLineNumber, aColumnNumber)
-    , mName(aName)
+  nsCSSKeyframesRule(const nsSubstring& aName)
+    : mName(aName)
   {
   }
 private:
@@ -564,11 +557,9 @@ class nsCSSPageRule MOZ_FINAL : public mozilla::css::Rule,
 {
 public:
   // WARNING: Steals the contents of aDeclaration
-  nsCSSPageRule(nsAutoPtr<mozilla::css::Declaration>&& aDeclaration,
-                uint32_t aLineNumber, uint32_t aColumnNumber)
-    : mozilla::css::Rule(aLineNumber, aColumnNumber)
-    , mDeclaration(mozilla::Move(aDeclaration))
-    , mImportantRule(nullptr)
+  nsCSSPageRule(nsAutoPtr<mozilla::css::Declaration>&& aDeclaration)
+    : mDeclaration(mozilla::Move(aDeclaration)),
+      mImportantRule(nullptr)
   {
   }
 private:
@@ -614,8 +605,7 @@ class CSSSupportsRule : public css::GroupRule,
                         public nsIDOMCSSSupportsRule
 {
 public:
-  CSSSupportsRule(bool aConditionMet, const nsString& aCondition,
-                  uint32_t aLineNumber, uint32_t aColumnNumber);
+  CSSSupportsRule(bool aConditionMet, const nsString& aCondition);
   CSSSupportsRule(const CSSSupportsRule& aCopy);
 
   // nsIStyleRule methods
@@ -666,11 +656,9 @@ class nsCSSCounterStyleRule MOZ_FINAL : public mozilla::css::Rule,
                                         public nsIDOMCSSCounterStyleRule
 {
 public:
-  explicit nsCSSCounterStyleRule(const nsAString& aName,
-                                 uint32_t aLineNumber, uint32_t aColumnNumber)
-    : mozilla::css::Rule(aLineNumber, aColumnNumber)
-    , mName(aName)
-    , mGeneration(0)
+  explicit nsCSSCounterStyleRule(const nsAString& aName)
+    : mName(aName),
+      mGeneration(0)
   {
   }
 

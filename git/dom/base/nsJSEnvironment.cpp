@@ -370,9 +370,10 @@ AsyncErrorReporter::AsyncErrorReporter(JSRuntime* aRuntime,
 
   const char16_t* m = static_cast<const char16_t*>(aErrorReport->ucmessage);
   if (m) {
-    JSFlatString* name = js::GetErrorTypeName(aRuntime, aErrorReport->exnType);
-    if (name) {
-      AssignJSFlatString(mErrorMsg, name);
+    const char16_t* n = static_cast<const char16_t*>
+      (js::GetErrorTypeName(aRuntime, aErrorReport->exnType));
+    if (n) {
+      mErrorMsg.Assign(n);
       mErrorMsg.AppendLiteral(": ");
     }
     mErrorMsg.Append(m);

@@ -117,7 +117,7 @@ private:
          bool mStreamInitialized;
          bool mStreamEnded;
      public:
-         NS_DECL_ISUPPORTS_INHERITED
+         NS_DECL_THREADSAFE_ISUPPORTS
 
          nsDecompressInputStreamWrapper(nsCacheEntryDescriptor * desc,
                                       uint32_t off)
@@ -197,7 +197,7 @@ private:
          bool mStreamEnded;
          uint32_t mUncompressedCount;
      public:
-         NS_DECL_ISUPPORTS_INHERITED
+         NS_DECL_THREADSAFE_ISUPPORTS
 
          nsCompressOutputStreamWrapper(nsCacheEntryDescriptor * desc, 
                                        uint32_t off)

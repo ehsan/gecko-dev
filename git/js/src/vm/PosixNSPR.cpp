@@ -210,13 +210,13 @@ PR_GetThreadPrivate(unsigned index)
 PRStatus
 PR_CallOnce(PRCallOnceType *once, PRCallOnceFN func)
 {
-    MOZ_CRASH("PR_CallOnce unimplemented");
+    MOZ_ASSUME_UNREACHABLE("PR_CallOnce unimplemented");
 }
 
 PRStatus
 PR_CallOnceWithArg(PRCallOnceType *once, PRCallOnceWithArgFN func, void *arg)
 {
-    MOZ_CRASH("PR_CallOnceWithArg unimplemented");
+    MOZ_ASSUME_UNREACHABLE("PR_CallOnceWithArg unimplemented");
 }
 
 class nspr::Lock

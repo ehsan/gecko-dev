@@ -500,7 +500,7 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
       }
 
       default:
-        MOZ_CRASH("invalid traceKind");
+        MOZ_ASSUME_UNREACHABLE("invalid traceKind");
     }
 
     // Yes, this is a subtraction:  see StatsArenaCallback() for details.

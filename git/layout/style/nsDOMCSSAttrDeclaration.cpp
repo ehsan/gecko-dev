@@ -128,7 +128,7 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(bool aAllocate)
   // cannot fail
   css::Declaration *decl = new css::Declaration();
   decl->InitializeEmpty();
-  nsRefPtr<css::StyleRule> newRule = new css::StyleRule(nullptr, decl, 0, 0);
+  nsRefPtr<css::StyleRule> newRule = new css::StyleRule(nullptr, decl);
 
   // this *can* fail (inside SetAttrAndNotify, at least).
   nsresult rv;

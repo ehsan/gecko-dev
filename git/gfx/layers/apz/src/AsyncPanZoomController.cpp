@@ -412,13 +412,34 @@ GetFrameTime() {
   return sFrameTime;
 }
 
-class FlingAnimation: public AsyncPanZoomAnimation {
+// This is a base class for animations that can deal with
+// overscroll states. In particular, it ensures that overscroll
+// states are cleared when the animation is cancelled.
+class OverscrollableAnimation: public AsyncPanZoomAnimation {
+public:
+  OverscrollableAnimation(AsyncPanZoomController& aApzc,
+                          const TimeDuration& aRepaintInterval = TimeDuration::Forever())
+    : AsyncPanZoomAnimation(aRepaintInterval)
+    , mApzc(aApzc)
+  {
+  }
+
+  virtual void Cancel() MOZ_OVERRIDE
+  {
+    mApzc.mX.ClearOverscroll();
+    mApzc.mY.ClearOverscroll();
+  }
+
+protected:
+  AsyncPanZoomController& mApzc;
+};
+
+class FlingAnimation: public OverscrollableAnimation {
 public:
   FlingAnimation(AsyncPanZoomController& aApzc,
                  bool aApplyAcceleration,
                  bool aAllowOverscroll)
-    : AsyncPanZoomAnimation(TimeDuration::FromMilliseconds(gfxPrefs::APZFlingRepaintInterval()))
-    , mApzc(aApzc)
+    : OverscrollableAnimation(aApzc, TimeDuration::FromMilliseconds(gfxPrefs::APZFlingRepaintInterval()))
     , mAllowOverscroll(aAllowOverscroll)
   {
     TimeStamp now = GetFrameTime();
@@ -573,7 +594,6 @@ private:
          + (aSupplemental * gfxPrefs::APZFlingAccelSupplementalMultiplier());
   }
 
-  AsyncPanZoomController& mApzc;
   bool mAllowOverscroll;
 };
 
@@ -636,10 +656,10 @@ private:
   CSSToScreenScale mEndZoom;
 };
 
-class OverscrollSnapBackAnimation: public AsyncPanZoomAnimation {
+class OverscrollSnapBackAnimation: public OverscrollableAnimation {
 public:
   OverscrollSnapBackAnimation(AsyncPanZoomController& aApzc)
-    : mApzc(aApzc)
+    : OverscrollableAnimation(aApzc)
   {
   }
 
@@ -651,8 +671,6 @@ public:
     bool continueY = mApzc.mY.SampleSnapBack(aDelta);
     return continueX || continueY;
   }
-private:
-  AsyncPanZoomController& mApzc;
 };
 
 void
@@ -1753,13 +1771,10 @@ void AsyncPanZoomController::CancelAnimation() {
   ReentrantMonitorAutoEnter lock(mMonitor);
   APZC_LOG("%p running CancelAnimation in state %d\n", this, mState);
   SetState(NOTHING);
-  mAnimation = nullptr;
-  // Setting the state to nothing and cancelling the animation can
-  // preempt normal mechanisms for relieving overscroll, so we need to clear
-  // overscroll here.
-  if (mX.IsOverscrolled() || mY.IsOverscrolled()) {
-    mX.ClearOverscroll();
-    mY.ClearOverscroll();
+  if (mAnimation) {
+    mAnimation->Cancel();
+    mAnimation = nullptr;
+    // mAnimation->Cancel() may have done something that requires a repaint.
     RequestContentRepaint();
     ScheduleComposite();
     UpdateSharedCompositorFrameMetrics();

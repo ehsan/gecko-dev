@@ -170,7 +170,7 @@ ExecutionModeString(ExecutionMode mode)
       case ArgumentsUsageAnalysis:
         return "ArgumentsUsageAnalysis";
       default:
-        MOZ_CRASH("Invalid ExecutionMode");
+        MOZ_ASSUME_UNREACHABLE("Invalid ExecutionMode");
     }
 }
 

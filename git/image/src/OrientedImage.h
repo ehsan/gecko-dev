@@ -26,7 +26,7 @@ class OrientedImage : public ImageWrapper
   typedef mozilla::gfx::SourceSurface SourceSurface;
 
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   virtual nsIntRect FrameRect(uint32_t aWhichFrame) MOZ_OVERRIDE;
 

@@ -33,21 +33,15 @@ virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 
 class Rule : public nsIStyleRule {
 protected:
-  Rule(uint32_t aLineNumber, uint32_t aColumnNumber)
+  Rule()
     : mSheet(0),
-      mParentRule(nullptr),
-      mLineNumber(aLineNumber),
-      mColumnNumber(aColumnNumber),
-      mWasMatched(false)
+      mParentRule(nullptr)
   {
   }
 
   Rule(const Rule& aCopy)
     : mSheet(aCopy.mSheet),
-      mParentRule(aCopy.mParentRule),
-      mLineNumber(aCopy.mLineNumber),
-      mColumnNumber(aCopy.mColumnNumber),
-      mWasMatched(false)
+      mParentRule(aCopy.mParentRule)
   {
   }
 
@@ -101,9 +95,6 @@ public:
     mParentRule = aRule;
   }
 
-  uint32_t GetLineNumber() const { return mLineNumber; }
-  uint32_t GetColumnNumber() const { return mColumnNumber; }
-
   /**
    * Clones |this|. Never returns nullptr.
    */
@@ -119,7 +110,6 @@ public:
   // to implement methods on nsIDOMCSSRule
   nsresult GetParentRule(nsIDOMCSSRule** aParentRule);
   nsresult GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet);
-  Rule* GetCSSRule();
 
   // This is pure virtual because all of Rule's data members are non-owning and
   // thus measured elsewhere.
@@ -136,11 +126,6 @@ protected:
   // if the low bit is 0, the latter if the low bit is 1.
   uintptr_t         mSheet;
   GroupRule*        mParentRule;
-
-  // Keep the same type so that MSVC packs them.
-  uint32_t          mLineNumber;
-  uint32_t          mColumnNumber : 31;
-  uint32_t          mWasMatched : 1;
 };
 
 } // namespace css

@@ -526,7 +526,7 @@ class RegExpNode
                               int budget,
                               BoyerMooreLookahead* bm,
                               bool not_at_start) {
-        MOZ_CRASH("Bad call");
+        MOZ_ASSUME_UNREACHABLE("Bad call");
     }
 
     // If we know that the input is ASCII then there are some nodes that can
@@ -904,14 +904,14 @@ class EndNode : public RegExpNode
                                       bool not_at_start)
     {
         // Returning 0 from EatsAtLeast should ensure we never get here.
-        MOZ_CRASH("Bad call");
+        MOZ_ASSUME_UNREACHABLE("Bad call");
     }
     virtual void FillInBMInfo(int offset,
                               int budget,
                               BoyerMooreLookahead* bm,
                               bool not_at_start) {
         // Returning 0 from EatsAtLeast should ensure we never get here.
-        MOZ_CRASH("Bad call");
+        MOZ_ASSUME_UNREACHABLE("Bad call");
     }
 
   private:

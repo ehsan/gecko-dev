@@ -193,7 +193,7 @@ ParseContext<FullParseHandler>::define(TokenStream &ts,
         break;
 
       default:
-        MOZ_CRASH("unexpected kind");
+        MOZ_ASSUME_UNREACHABLE("unexpected kind");
     }
 
     return true;
@@ -289,7 +289,7 @@ AppendPackedBindings(const ParseContext<ParseHandler> *pc, const DeclVector &vec
             kind = Binding::ARGUMENT;
             break;
           default:
-            MOZ_CRASH("unexpected dn->kind");
+            MOZ_ASSUME_UNREACHABLE("unexpected dn->kind");
         }
 
         /*
@@ -4389,7 +4389,7 @@ Parser<FullParseHandler>::forStatement()
             break;
 
           case PNK_ASSIGN:
-            MOZ_CRASH("forStatement TOK_ASSIGN");
+            MOZ_ASSUME_UNREACHABLE("forStatement TOK_ASSIGN");
 
           case PNK_ARRAY:
           case PNK_OBJECT:
@@ -4951,7 +4951,7 @@ Parser<ParseHandler>::yieldExpression()
       }
     }
 
-    MOZ_CRASH("yieldExpr");
+    MOZ_ASSUME_UNREACHABLE("yieldExpr");
 }
 
 template <>
@@ -5855,6 +5855,7 @@ Parser<ParseHandler>::unaryExpr()
         }
         return pn;
     }
+    MOZ_ASSUME_UNREACHABLE("unaryExpr");
 }
 
 /*
@@ -7349,7 +7350,7 @@ Parser<ParseHandler>::objectLiteral()
         else if (op == JSOP_INITPROP_SETTER)
             assignType = SET;
         else
-            MOZ_CRASH("bad opcode in object initializer");
+            MOZ_ASSUME_UNREACHABLE("bad opcode in object initializer");
 
         AtomIndexAddPtr p = seen.lookupForAdd(atom);
         if (p) {

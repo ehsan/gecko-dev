@@ -27,15 +27,10 @@ class nsIWidget;
 // state changes as follows:
 //   ePopupClosed - initial state
 //   ePopupShowing - during the period when the popupshowing event fires
-//   ePopupOpening - between the popupshowing event and being visible. Creation
-//                   of the child frames, layout and reflow occurs in this
-//                   state. The popup is stored in the popup manager's list of
-//                   open popups during this state.
-//   ePopupVisible - layout is done and the popup's view and widget are made
-//                   visible. The popup is visible on screen but may be
-//                   transitioning. The popupshown event has not yet fired.
-//   ePopupShown - the popup has been shown and is fully ready. This state is
-//                 assigned just before the popupshown event fires.
+//   ePopupOpen - between the popupshowing event and being visible. Creation
+//                of the child frames, layout and reflow occurs in this state.
+//   ePopupOpenAndVisible - layout is done and the popup's view and widget are
+//                          made visible. The popupshown event fires.
 // When closing a popup:
 //   ePopupHidden - during the period when the popuphiding event fires and
 //                  the popup is removed.
@@ -47,11 +42,9 @@ enum nsPopupState {
   // popupshowing event has been fired.
   ePopupShowing,
   // state while a popup is open but the widget is not yet visible
-  ePopupOpening,
-  // state while a popup is visible and waiting for the popupshown event
-  ePopupVisible,
+  ePopupOpen,
   // state while a popup is open and visible on screen
-  ePopupShown,
+  ePopupOpenAndVisible,
   // state from when a popup is requested to be hidden to when it is closed.
   ePopupHiding,
   // state which indicates that the popup was hidden without firing the
@@ -258,11 +251,7 @@ public:
 
   nsPopupType PopupType() const { return mPopupType; }
   bool IsMenu() MOZ_OVERRIDE { return mPopupType == ePopupTypeMenu; }
-  bool IsOpen() MOZ_OVERRIDE { return mPopupState == ePopupOpening ||
-                                      mPopupState == ePopupVisible ||
-                                      mPopupState == ePopupShown; }
-  bool IsVisible() { return mPopupState == ePopupVisible ||
-                            mPopupState == ePopupShown; }
+  bool IsOpen() MOZ_OVERRIDE { return mPopupState == ePopupOpen || mPopupState == ePopupOpenAndVisible; }
 
   bool IsMouseTransparent() { return mMouseTransparent; }
 

@@ -194,7 +194,8 @@ RegExpBuilder::AddQuantifierToAtom(int min, int max,
         }
     } else {
         // Only call immediately after adding an atom or character!
-        MOZ_CRASH("Bad call");
+        MOZ_ASSUME_UNREACHABLE("Bad call");
+        return;
     }
     terms_.Add(alloc, alloc->newInfallible<RegExpQuantifier>(min, max, quantifier_type, atom));
     last_added_ = ADD_TERM;

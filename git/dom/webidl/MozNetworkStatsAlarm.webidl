@@ -4,8 +4,8 @@
 
 [JSImplementation="@mozilla.org/networkstatsalarm;1",
  ChromeOnly,
- CheckPermissions="networkstats-manage",
- Pref="dom.mozNetworkStats.enabled"]
+ Pref="dom.mozNetworkStats.enabled",
+ Func="Navigator::HasNetworkStatsSupport"]
 interface MozNetworkStatsAlarm {
   readonly attribute unsigned long alarmId;
   readonly attribute MozNetworkStatsInterface network;

@@ -189,7 +189,7 @@ loop.webapp = (function($, _, OT) {
         // User has loaded this url directly, actually setup the call.
         return this.navigate("call/" + loopToken, {trigger: true});
       }
-      this.loadReactComponent(sharedViews.ConversationView({
+      this.loadView(new sharedViews.ConversationView({
         sdk: OT,
         model: this._conversation
       }));

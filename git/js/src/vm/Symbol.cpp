@@ -84,12 +84,15 @@ Symbol::dump(FILE *fp)
 {
     if (isWellKnownSymbol()) {
         // All the well-known symbol names are ASCII.
-        description_->dumpCharsNoNewline(fp);
+        const jschar *desc = description_->chars();
+        size_t len = description_->length();
+        for (size_t i = 0; i < len; i++)
+            fputc(char(desc[i]), fp);
     } else if (code_ == SymbolCode::InSymbolRegistry || code_ == SymbolCode::UniqueSymbol) {
         fputs(code_ == SymbolCode::InSymbolRegistry ? "Symbol.for(" : "Symbol(", fp);
 
         if (description_)
-            description_->dumpCharsNoNewline(fp);
+            JSString::dumpChars(description_->chars(), description_->length(), fp);
         else
             fputs("undefined", fp);
 

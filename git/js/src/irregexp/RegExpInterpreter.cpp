@@ -128,7 +128,8 @@ irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode, const CharT *cha
         int32_t insn = Load32Aligned(pc);
         switch (insn & BYTECODE_MASK) {
           BYTECODE(BREAK)
-            MOZ_CRASH("Bad bytecode: BREAK");
+            MOZ_ASSUME_UNREACHABLE("Bad bytecode");
+            return RegExpRunStatus_Error;
           BYTECODE(PUSH_CP)
             if (!stack.push(current))
                 return RegExpRunStatus_Error;
@@ -240,9 +241,10 @@ irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode, const CharT *cha
             break;
           }
           BYTECODE(LOAD_4_CURRENT_CHARS)
-            MOZ_CRASH("ASCII handling implemented");
+            MOZ_ASSUME_UNREACHABLE("Ascii handling implemented");
+            break;
           BYTECODE(LOAD_4_CURRENT_CHARS_UNCHECKED)
-            MOZ_CRASH("ASCII handling implemented");
+            MOZ_ASSUME_UNREACHABLE("Ascii handling implemented");
           BYTECODE(CHECK_4_CHARS) {
             uint32_t c = Load32Aligned(pc + 4);
             if (c == current_char)
@@ -450,7 +452,8 @@ irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode, const CharT *cha
             break;
           }
           default:
-            MOZ_CRASH("Bad bytecode");
+            MOZ_ASSUME_UNREACHABLE("Bad bytecode");
+            break;
         }
     }
 }

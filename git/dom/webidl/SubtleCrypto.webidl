@@ -95,10 +95,6 @@ dictionary RsaHashedKeyGenParams : RsaKeyGenParams {
   AlgorithmIdentifier hash;
 };
 
-dictionary RsaOaepParams : Algorithm {
-  CryptoOperationData? label;
-};
-
 dictionary DhKeyGenParams : Algorithm {
   BigInteger prime;
   BigInteger generator;

@@ -178,7 +178,7 @@ public:
   nsSVGFilterFrame *GetFilterFrame();
 
   // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   // nsISVGFilterReference
   virtual void Invalidate() MOZ_OVERRIDE { DoUpdate(); };

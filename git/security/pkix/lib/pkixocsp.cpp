@@ -24,6 +24,8 @@
 
 #include <limits>
 
+#include "hasht.h"
+#include "pk11pub.h"
 #include "pkix/bind.h"
 #include "pkix/pkix.h"
 #include "pkixcheck.h"
@@ -81,6 +83,25 @@ private:
   Context(const Context&); // delete
   void operator=(const Context&); // delete
 };
+
+static der::Result
+HashBuf(const SECItem& item, /*out*/ uint8_t *hashBuf, size_t hashBufLen)
+{
+  if (hashBufLen != SHA1_LENGTH) {
+    PR_NOT_REACHED("invalid hash length");
+    return der::Fail(SEC_ERROR_INVALID_ARGS);
+  }
+  if (item.len >
+      static_cast<decltype(item.len)>(std::numeric_limits<int32_t>::max())) {
+    PR_NOT_REACHED("large OCSP responses should have already been rejected");
+    return der::Fail(SEC_ERROR_INVALID_ARGS);
+  }
+  if (PK11_HashBuf(SEC_OID_SHA1, hashBuf, item.data,
+                   static_cast<int32_t>(item.len)) != SECSuccess) {
+    return der::Fail(PR_GetError());
+  }
+  return der::Success;
+}
 
 // Verify that potentialSigner is a valid delegated OCSP response signing cert
 // according to RFC 6960 section 4.2.2.2.
@@ -158,7 +179,7 @@ static inline der::Result ResponseBytes(der::Input&, Context&);
 static inline der::Result BasicResponse(der::Input&, Context&);
 static inline der::Result ResponseData(
                               der::Input& tbsResponseData, Context& context,
-                              const SignedDataWithSignature& signedResponseData,
+                              const CERTSignedData& signedResponseData,
                               /*const*/ SECItem* certs, size_t numCerts);
 static inline der::Result SingleResponse(der::Input& input,
                                           Context& context);
@@ -168,18 +189,15 @@ static der::Result ExtensionNotUnderstood(der::Input& extnID,
 static inline der::Result CertID(der::Input& input,
                                   const Context& context,
                                   /*out*/ bool& match);
-static Result MatchKeyHash(TrustDomain& trustDomain,
-                           const SECItem& issuerKeyHash,
+static Result MatchKeyHash(const SECItem& issuerKeyHash,
                            const SECItem& issuerSubjectPublicKeyInfo,
                            /*out*/ bool& match);
-static Result KeyHash(TrustDomain& trustDomain,
-                      const SECItem& subjectPublicKeyInfo,
+static Result KeyHash(const SECItem& subjectPublicKeyInfo,
                       /*out*/ uint8_t* hashBuf, size_t hashBufSize);
 
 
 static Result
-MatchResponderID(TrustDomain& trustDomain,
-                 ResponderIDType responderIDType,
+MatchResponderID(ResponderIDType responderIDType,
                  const SECItem& responderIDItem,
                  const SECItem& potentialSignerSubject,
                  const SECItem& potentialSignerSubjectPublicKeyInfo,
@@ -206,8 +224,7 @@ MatchResponderID(TrustDomain& trustDomain,
             != der::Success) {
         return RecoverableError;
       }
-      return MatchKeyHash(trustDomain, keyHash,
-                          potentialSignerSubjectPublicKeyInfo, match);
+      return MatchKeyHash(keyHash, potentialSignerSubjectPublicKeyInfo, match);
     }
 
     default:
@@ -217,7 +234,7 @@ MatchResponderID(TrustDomain& trustDomain,
 
 static Result
 VerifyOCSPSignedData(TrustDomain& trustDomain,
-                     const SignedDataWithSignature& signedResponseData,
+                     const CERTSignedData& signedResponseData,
                      const SECItem& spki)
 {
   SECStatus srv = trustDomain.VerifySignedData(signedResponseData, spki);
@@ -238,12 +255,11 @@ VerifyOCSPSignedData(TrustDomain& trustDomain,
 static Result
 VerifySignature(Context& context, ResponderIDType responderIDType,
                 const SECItem& responderID, const SECItem* certs,
-                size_t numCerts,
-                const SignedDataWithSignature& signedResponseData)
+                size_t numCerts, const CERTSignedData& signedResponseData)
 {
   bool match;
-  Result rv = MatchResponderID(context.trustDomain, responderIDType,
-                               responderID, context.certID.issuer,
+  Result rv = MatchResponderID(responderIDType, responderID,
+                               context.certID.issuer,
                                context.certID.issuerSubjectPublicKeyInfo,
                                match);
   if (rv != Success) {
@@ -260,7 +276,7 @@ VerifySignature(Context& context, ResponderIDType responderIDType,
     if (rv != Success) {
       return rv;
     }
-    rv = MatchResponderID(context.trustDomain, responderIDType, responderID,
+    rv = MatchResponderID(responderIDType, responderID,
                           cert.GetSubject(), cert.GetSubjectPublicKeyInfo(),
                           match);
     if (rv == FatalError) {
@@ -412,7 +428,7 @@ der::Result
 BasicResponse(der::Input& input, Context& context)
 {
   der::Input tbsResponseData;
-  SignedDataWithSignature signedData;
+  CERTSignedData signedData;
   if (der::SignedData(input, tbsResponseData, signedData) != der::Success) {
     if (PR_GetError() == SEC_ERROR_BAD_SIGNATURE) {
       PR_SetError(SEC_ERROR_OCSP_BAD_SIGNATURE, 0);
@@ -467,7 +483,7 @@ BasicResponse(der::Input& input, Context& context)
 //    responseExtensions  [1] EXPLICIT Extensions OPTIONAL }
 static inline der::Result
 ResponseData(der::Input& input, Context& context,
-             const SignedDataWithSignature& signedResponseData,
+             const CERTSignedData& signedResponseData,
              /*const*/ SECItem* certs, size_t numCerts)
 {
   der::Version version;
@@ -662,13 +678,8 @@ CertID(der::Input& input, const Context& context, /*out*/ bool& match)
 {
   match = false;
 
-  DigestAlgorithm hashAlgorithm;
-  if (der::DigestAlgorithmIdentifier(input, hashAlgorithm) != der::Success) {
-    if (PR_GetError() == SEC_ERROR_INVALID_ALGORITHM) {
-      // Skip entries that are hashed with algorithms we don't support.
-      input.SkipToEnd();
-      return der::Success;
-    }
+  SECAlgorithmID hashAlgorithm;
+  if (der::AlgorithmIdentifier(input, hashAlgorithm) != der::Success) {
     return der::Failure;
   }
 
@@ -699,22 +710,23 @@ CertID(der::Input& input, const Context& context, /*out*/ bool& match)
 
   // TODO: support SHA-2 hashes.
 
-  if (hashAlgorithm != DigestAlgorithm::sha1) {
+  SECOidTag hashAlg = SECOID_GetAlgorithmTag(&hashAlgorithm);
+  if (hashAlg != SEC_OID_SHA1) {
     // Again, not interested in this response. Consume input, return success.
     input.SkipToEnd();
     return der::Success;
   }
 
-  if (issuerNameHash.len != TrustDomain::DIGEST_LENGTH) {
+  if (issuerNameHash.len != SHA1_LENGTH) {
     return der::Fail(SEC_ERROR_OCSP_MALFORMED_RESPONSE);
   }
 
   // From http://tools.ietf.org/html/rfc6960#section-4.1.1:
   // "The hash shall be calculated over the DER encoding of the
   // issuer's name field in the certificate being checked."
-  uint8_t hashBuf[TrustDomain::DIGEST_LENGTH];
-  if (context.trustDomain.DigestBuf(context.certID.issuer, hashBuf,
-                                    sizeof(hashBuf)) != SECSuccess) {
+  uint8_t hashBuf[SHA1_LENGTH];
+  if (HashBuf(context.certID.issuer, hashBuf, sizeof(hashBuf))
+        != der::Success) {
     return der::Failure;
   }
   if (memcmp(hashBuf, issuerNameHash.data, issuerNameHash.len)) {
@@ -723,9 +735,8 @@ CertID(der::Input& input, const Context& context, /*out*/ bool& match)
     return der::Success;
   }
 
-  if (MatchKeyHash(context.trustDomain, issuerKeyHash,
-                   context.certID.issuerSubjectPublicKeyInfo, match)
-        != Success) {
+  if (MatchKeyHash(issuerKeyHash, context.certID.issuerSubjectPublicKeyInfo,
+                   match) != Success) {
     return der::Failure;
   }
 
@@ -743,15 +754,14 @@ CertID(der::Input& input, const Context& context, /*out*/ bool& match)
 //                          -- the tag, length, and number of unused
 //                          -- bits] in the responder's certificate)
 static Result
-MatchKeyHash(TrustDomain& trustDomain, const SECItem& keyHash,
-             const SECItem& subjectPublicKeyInfo, /*out*/ bool& match)
+MatchKeyHash(const SECItem& keyHash, const SECItem& subjectPublicKeyInfo,
+             /*out*/ bool& match)
 {
-  if (keyHash.len != TrustDomain::DIGEST_LENGTH)  {
+  if (keyHash.len != SHA1_LENGTH)  {
     return Fail(RecoverableError, SEC_ERROR_OCSP_MALFORMED_RESPONSE);
   }
-  static uint8_t hashBuf[TrustDomain::DIGEST_LENGTH];
-  Result rv = KeyHash(trustDomain, subjectPublicKeyInfo, hashBuf,
-                      sizeof hashBuf);
+  static uint8_t hashBuf[SHA1_LENGTH];
+  Result rv = KeyHash(subjectPublicKeyInfo, hashBuf, sizeof hashBuf);
   if (rv != Success) {
     return rv;
   }
@@ -761,10 +771,10 @@ MatchKeyHash(TrustDomain& trustDomain, const SECItem& keyHash,
 
 // TODO(bug 966856): support SHA-2 hashes
 Result
-KeyHash(TrustDomain& trustDomain, const SECItem& subjectPublicKeyInfo,
-        /*out*/ uint8_t* hashBuf, size_t hashBufSize)
+KeyHash(const SECItem& subjectPublicKeyInfo, /*out*/ uint8_t* hashBuf,
+        size_t hashBufSize)
 {
-  if (!hashBuf || hashBufSize != TrustDomain::DIGEST_LENGTH) {
+  if (!hashBuf || hashBufSize != SHA1_LENGTH) {
     return Fail(FatalError, SEC_ERROR_LIBRARY_FAILURE);
   }
 
@@ -815,8 +825,7 @@ KeyHash(TrustDomain& trustDomain, const SECItem& subjectPublicKeyInfo,
   ++subjectPublicKey.data;
   --subjectPublicKey.len;
 
-  if (trustDomain.DigestBuf(subjectPublicKey, hashBuf, hashBufSize)
-        != SECSuccess) {
+  if (HashBuf(subjectPublicKey, hashBuf, hashBufSize) != der::Success) {
     return MapSECStatus(SECFailure);
   }
   return Success;
@@ -854,8 +863,7 @@ ExtensionNotUnderstood(der::Input& /*extnID*/, const SECItem& /*extnValue*/,
 // http://tools.ietf.org/html/rfc5019#section-4
 
 SECItem*
-CreateEncodedOCSPRequest(TrustDomain& trustDomain, PLArenaPool* arena,
-                         const struct CertID& certID)
+CreateEncodedOCSPRequest(PLArenaPool* arena, const struct CertID& certID)
 {
   if (!arena) {
     PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
@@ -883,7 +891,7 @@ CreateEncodedOCSPRequest(TrustDomain& trustDomain, PLArenaPool* arena,
     0x06, 0x05, 0x2B, 0x0E, 0x03, 0x02, 0x1A, //   OBJECT IDENTIFIER id-sha1
     0x05, 0x00,                               //   NULL
   };
-  static const uint8_t hashLen = TrustDomain::DIGEST_LENGTH;
+  static const uint8_t hashLen = SHA1_LENGTH;
 
   static const unsigned int totalLenWithoutSerialNumberData
     = 2                             // OCSPRequest
@@ -930,7 +938,7 @@ CreateEncodedOCSPRequest(TrustDomain& trustDomain, PLArenaPool* arena,
   // reqCert.issuerNameHash (OCTET STRING)
   *d++ = 0x04;
   *d++ = hashLen;
-  if (trustDomain.DigestBuf(certID.issuer, d, hashLen) != SECSuccess) {
+  if (HashBuf(certID.issuer, d, hashLen) != der::Success) {
     return nullptr;
   }
   d += hashLen;
@@ -938,8 +946,7 @@ CreateEncodedOCSPRequest(TrustDomain& trustDomain, PLArenaPool* arena,
   // reqCert.issuerKeyHash (OCTET STRING)
   *d++ = 0x04;
   *d++ = hashLen;
-  if (KeyHash(trustDomain, certID.issuerSubjectPublicKeyInfo, d, hashLen)
-        != Success) {
+  if (KeyHash(certID.issuerSubjectPublicKeyInfo, d, hashLen) != Success) {
     return nullptr;
   }
   d += hashLen;

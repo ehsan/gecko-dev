@@ -429,11 +429,10 @@ CertVerifier::VerifySSLServerCert(CERTCertificate* peerCert,
     return SECFailure;
   }
 
-  ScopedCERTCertList builtChainTemp;
   // CreateCertErrorRunnable assumes that CERT_VerifyCertName is only called
   // if VerifyCert succeeded.
   SECStatus rv = VerifyCert(peerCert, certificateUsageSSLServer, time, pinarg,
-                            hostname, 0, stapledOCSPResponse, &builtChainTemp,
+                            hostname, 0, stapledOCSPResponse, builtChain,
                             evOidPolicy);
   if (rv != SECSuccess) {
     return rv;
@@ -444,12 +443,8 @@ CertVerifier::VerifySSLServerCert(CERTCertificate* peerCert,
     return rv;
   }
 
-  if (saveIntermediatesInPermanentDatabase) {
-    SaveIntermediateCerts(builtChainTemp);
-  }
-
-  if (builtChain) {
-    *builtChain = builtChainTemp.forget();
+  if (saveIntermediatesInPermanentDatabase && builtChain) {
+    SaveIntermediateCerts(*builtChain);
   }
 
   return SECSuccess;

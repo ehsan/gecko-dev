@@ -28,7 +28,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "cert.h"
 #include "keyhi.h"
 #include "pkix/enumclass.h"
 #include "pkix/pkixtypes.h"

@@ -5,16 +5,6 @@
 
 #include "domstubs.idl"
 
-%{C++
-namespace mozilla {
-namespace css {
-class Rule;
-}
-}
-%}
-
-[ptr] native Rule(mozilla::css::Rule);
-
 /**
  * The nsIDOMCSSRule interface is a datatype for a CSS style rule in
  * the Document Object Model.
@@ -23,7 +13,7 @@ class Rule;
  * http://www.w3.org/TR/DOM-Level-2-Style
  */
 
-[scriptable, uuid(4d6b3bad-f53c-4585-82f6-62982e27ede8)]
+[scriptable, uuid(2938307a-9d70-4b63-8afc-0197e82318ad)]
 interface nsIDOMCSSRule : nsISupports
 {
   // RuleType
@@ -51,6 +41,4 @@ interface nsIDOMCSSRule : nsISupports
 
   readonly attribute nsIDOMCSSStyleSheet parentStyleSheet;
   readonly attribute nsIDOMCSSRule       parentRule;
-
-  [noscript, nostdcall, notxpcom] Rule getCSSRule();
 };

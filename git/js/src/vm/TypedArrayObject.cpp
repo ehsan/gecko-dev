@@ -1042,7 +1042,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
             break;
           }
           default:
-            MOZ_CRASH("copyFrom with a TypedArrayObject of unknown type");
+            MOZ_ASSUME_UNREACHABLE("copyFrom with a TypedArrayObject of unknown type");
         }
 
         return true;
@@ -1123,7 +1123,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
             break;
           }
           default:
-            MOZ_CRASH("copyFromWithOverlap with a TypedArrayObject of unknown type");
+            MOZ_ASSUME_UNREACHABLE("copyFromWithOverlap with a TypedArrayObject of unknown type");
         }
 
         js_free(srcbuf);
@@ -1985,7 +1985,8 @@ TypedArrayObject::getElement(uint32_t index)
         return TypedArrayObjectTemplate<double>::getIndexValue(this, index);
         break;
       default:
-        MOZ_CRASH("Unknown TypedArray type");
+        MOZ_ASSUME_UNREACHABLE("Unknown TypedArray type");
+        break;
     }
 }
 
@@ -2023,7 +2024,8 @@ TypedArrayObject::setElement(TypedArrayObject &obj, uint32_t index, double d)
         TypedArrayObjectTemplate<double>::setIndexValue(obj, index, d);
         break;
       default:
-        MOZ_CRASH("Unknown TypedArray type");
+        MOZ_ASSUME_UNREACHABLE("Unknown TypedArray type");
+        break;
     }
 }
 
@@ -2339,7 +2341,8 @@ TypedArrayObject::isOriginalLengthGetter(Scalar::Type type, Native native)
       case Scalar::Float64:
         return native == Float64Array_lengthGetter;
       default:
-        MOZ_CRASH("Unknown TypedArray type");
+        MOZ_ASSUME_UNREACHABLE("Unknown TypedArray type");
+        return false;
     }
 }
 
@@ -2518,7 +2521,7 @@ js::IsTypedArrayConstructor(HandleValue v, uint32_t type)
       case Scalar::Uint8Clamped:
         return IsNativeFunction(v, Uint8ClampedArrayObject::class_constructor);
     }
-    MOZ_CRASH("unexpected typed array type");
+    MOZ_ASSUME_UNREACHABLE("unexpected typed array type");
 }
 
 bool
@@ -2639,7 +2642,7 @@ JS_GetArrayBufferViewType(JSObject *obj)
         return obj->as<TypedArrayObject>().type();
     else if (obj->is<DataViewObject>())
         return Scalar::TypeMax;
-    MOZ_CRASH("invalid ArrayBufferView type");
+    MOZ_ASSUME_UNREACHABLE("invalid ArrayBufferView type");
 }
 
 JS_FRIEND_API(int8_t *)
