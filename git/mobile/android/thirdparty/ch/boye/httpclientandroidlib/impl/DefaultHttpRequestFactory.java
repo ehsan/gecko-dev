@@ -31,20 +31,15 @@ import ch.boye.httpclientandroidlib.HttpRequest;
 import ch.boye.httpclientandroidlib.HttpRequestFactory;
 import ch.boye.httpclientandroidlib.MethodNotSupportedException;
 import ch.boye.httpclientandroidlib.RequestLine;
-import ch.boye.httpclientandroidlib.annotation.Immutable;
 import ch.boye.httpclientandroidlib.message.BasicHttpEntityEnclosingRequest;
 import ch.boye.httpclientandroidlib.message.BasicHttpRequest;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * Default factory for creating {@link HttpRequest} objects.
  *
  * @since 4.0
  */
-@Immutable
 public class DefaultHttpRequestFactory implements HttpRequestFactory {
-
-    public static final DefaultHttpRequestFactory INSTANCE = new DefaultHttpRequestFactory();
 
     private static final String[] RFC2616_COMMON_METHODS = {
         "GET"
@@ -69,8 +64,8 @@ public class DefaultHttpRequestFactory implements HttpRequestFactory {
     }
 
     private static boolean isOneOf(final String[] methods, final String method) {
-        for (final String method2 : methods) {
-            if (method2.equalsIgnoreCase(method)) {
+        for (int i = 0; i < methods.length; i++) {
+            if (methods[i].equalsIgnoreCase(method)) {
                 return true;
             }
         }
@@ -79,8 +74,10 @@ public class DefaultHttpRequestFactory implements HttpRequestFactory {
 
     public HttpRequest newHttpRequest(final RequestLine requestline)
             throws MethodNotSupportedException {
-        Args.notNull(requestline, "Request line");
-        final String method = requestline.getMethod();
+        if (requestline == null) {
+            throw new IllegalArgumentException("Request line may not be null");
+        }
+        String method = requestline.getMethod();
         if (isOneOf(RFC2616_COMMON_METHODS, method)) {
             return new BasicHttpRequest(requestline);
         } else if (isOneOf(RFC2616_ENTITY_ENC_METHODS, method)) {

@@ -285,8 +285,6 @@ public:
    *   handoff chain that should be scrolled.
    *
    * Returns true iff. some APZC accepted the scroll and scrolled.
-   * This is to allow the sending APZC to go into an overscrolled state if
-   * no APZC further up in the handoff chain accepted the overscroll.
    *
    * The way this method works is best illustrated with an example.
    * Consider three nested APZCs, A, B, and C, with C being the innermost one.
@@ -368,7 +366,7 @@ private:
   AsyncPanZoomController* FindTargetAPZC(AsyncPanZoomController* aApzc, FrameMetrics::ViewID aScrollId);
   AsyncPanZoomController* FindTargetAPZC(AsyncPanZoomController* aApzc, const ScrollableLayerGuid& aGuid);
   AsyncPanZoomController* GetAPZCAtPoint(AsyncPanZoomController* aApzc,
-                                         const gfx::Point& aHitTestPoint,
+                                         const gfxPoint& aHitTestPoint,
                                          bool* aOutInOverscrolledApzc);
   already_AddRefed<AsyncPanZoomController> CommonAncestor(AsyncPanZoomController* aApzc1, AsyncPanZoomController* aApzc2);
   already_AddRefed<AsyncPanZoomController> RootAPZCForLayersId(AsyncPanZoomController* aApzc);

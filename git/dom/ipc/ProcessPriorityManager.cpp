@@ -995,7 +995,7 @@ ParticularProcessPriorityManager::ComputePriority()
     return PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE;
   }
 
-  AudioChannelService* service = AudioChannelService::GetOrCreateAudioChannelService();
+  AudioChannelService* service = AudioChannelService::GetAudioChannelService();
   if (service->ProcessContentOrNormalChannelIsActive(ChildID())) {
     return PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE;
   }

@@ -83,7 +83,11 @@ public final class LangUtils {
      */
     public static boolean equals(final Object[] a1, final Object[] a2) {
         if (a1 == null) {
-            return a2 == null;
+            if (a2 == null) {
+                return true;
+            } else {
+                return false;
+            }
         } else {
             if (a2 != null && a1.length == a2.length) {
                 for (int i = 0; i < a1.length; i++) {

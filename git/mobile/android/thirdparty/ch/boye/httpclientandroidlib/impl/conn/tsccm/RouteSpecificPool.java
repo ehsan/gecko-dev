@@ -1,21 +1,20 @@
 /*
  * ====================================================================
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  * ====================================================================
  *
  * This software consists of voluntary contributions made by many
@@ -24,20 +23,21 @@
  * <http://www.apache.org/>.
  *
  */
+
 package ch.boye.httpclientandroidlib.impl.conn.tsccm;
 
 import java.io.IOException;
-import java.util.LinkedList;
 import java.util.ListIterator;
 import java.util.Queue;
+import java.util.LinkedList;
+
+import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
 
 import ch.boye.httpclientandroidlib.androidextra.HttpClientAndroidLog;
 /* LogFactory removed by HttpClient for Android script. */
 import ch.boye.httpclientandroidlib.conn.OperatedClientConnection;
 import ch.boye.httpclientandroidlib.conn.params.ConnPerRoute;
 import ch.boye.httpclientandroidlib.conn.routing.HttpRoute;
-import ch.boye.httpclientandroidlib.util.Args;
-import ch.boye.httpclientandroidlib.util.Asserts;
 import ch.boye.httpclientandroidlib.util.LangUtils;
 
 
@@ -47,10 +47,8 @@ import ch.boye.httpclientandroidlib.util.LangUtils;
  * containing pool takes care of synchronization.
  *
  * @since 4.0
- *
- * @deprecated (4.2)  use {@link ch.boye.httpclientandroidlib.pool.AbstractConnPool}
  */
-@Deprecated
+@NotThreadSafe // e.g. numEntries, freeEntries,
 public class RouteSpecificPool {
 
     public HttpClientAndroidLog log = new HttpClientAndroidLog(getClass());
@@ -58,6 +56,7 @@ public class RouteSpecificPool {
     /** The route this pool is for. */
     protected final HttpRoute route; //Immutable
 
+    @Deprecated
     protected final int maxEntries;
 
     /** Connections per route */
@@ -76,15 +75,16 @@ public class RouteSpecificPool {
     /** The number of created entries. */
     protected int numEntries;
 
+
     /**
-     * @deprecated (4.1)  use {@link RouteSpecificPool#RouteSpecificPool(HttpRoute, ConnPerRoute)}
+     * @deprecated use {@link RouteSpecificPool#RouteSpecificPool(HttpRoute, ConnPerRoute)}
      */
     @Deprecated
-    public RouteSpecificPool(final HttpRoute route, final int maxEntries) {
+    public RouteSpecificPool(HttpRoute route, int maxEntries) {
         this.route = route;
         this.maxEntries = maxEntries;
         this.connPerRoute = new ConnPerRoute() {
-            public int getMaxForRoute(final HttpRoute route) {
+            public int getMaxForRoute(HttpRoute route) {
                 return RouteSpecificPool.this.maxEntries;
             }
         };
@@ -100,7 +100,7 @@ public class RouteSpecificPool {
      * @param route the route for which to pool
      * @param connPerRoute the connections per route configuration
      */
-    public RouteSpecificPool(final HttpRoute route, final ConnPerRoute connPerRoute) {
+    public RouteSpecificPool(HttpRoute route, ConnPerRoute connPerRoute) {
         this.route = route;
         this.connPerRoute = connPerRoute;
         this.maxEntries = connPerRoute.getMaxForRoute(route);
@@ -172,9 +172,9 @@ public class RouteSpecificPool {
      */
     public BasicPoolEntry allocEntry(final Object state) {
         if (!freeEntries.isEmpty()) {
-            final ListIterator<BasicPoolEntry> it = freeEntries.listIterator(freeEntries.size());
+            ListIterator<BasicPoolEntry> it = freeEntries.listIterator(freeEntries.size());
             while (it.hasPrevious()) {
-                final BasicPoolEntry entry = it.previous();
+                BasicPoolEntry entry = it.previous();
                 if (entry.getState() == null || LangUtils.equals(state, entry.getState())) {
                     it.remove();
                     return entry;
@@ -182,12 +182,12 @@ public class RouteSpecificPool {
             }
         }
         if (getCapacity() == 0 && !freeEntries.isEmpty()) {
-            final BasicPoolEntry entry = freeEntries.remove();
+            BasicPoolEntry entry = freeEntries.remove();
             entry.shutdownEntry();
-            final OperatedClientConnection conn = entry.getConnection();
+            OperatedClientConnection conn = entry.getConnection();
             try {
                 conn.close();
-            } catch (final IOException ex) {
+            } catch (IOException ex) {
                 log.debug("I/O error closing connection", ex);
             }
             return entry;
@@ -202,7 +202,8 @@ public class RouteSpecificPool {
      * @param entry     the entry obtained from {@link #allocEntry allocEntry}
      *                  or presented to {@link #createdEntry createdEntry}
      */
-    public void freeEntry(final BasicPoolEntry entry) {
+    public void freeEntry(BasicPoolEntry entry) {
+
         if (numEntries < 1) {
             throw new IllegalStateException
                 ("No entry created for this pool. " + route);
@@ -223,8 +224,15 @@ public class RouteSpecificPool {
      *
      * @param entry     the entry that was created for this pool
      */
-    public void createdEntry(final BasicPoolEntry entry) {
-        Args.check(route.equals(entry.getPlannedRoute()), "Entry not planned for this pool");
+    public void createdEntry(BasicPoolEntry entry) {
+
+        if (!route.equals(entry.getPlannedRoute())) {
+            throw new IllegalArgumentException
+                ("Entry not planned for this pool." +
+                 "\npool: " + route +
+                 "\nplan: " + entry.getPlannedRoute());
+        }
+
         numEntries++;
     }
 
@@ -239,12 +247,11 @@ public class RouteSpecificPool {
      * @return  <code>true</code> if the entry was found and deleted, or
      *          <code>false</code> if the entry was not found
      */
-    public boolean deleteEntry(final BasicPoolEntry entry) {
+    public boolean deleteEntry(BasicPoolEntry entry) {
 
         final boolean found = freeEntries.remove(entry);
-        if (found) {
+        if (found)
             numEntries--;
-        }
         return found;
     }
 
@@ -256,7 +263,10 @@ public class RouteSpecificPool {
      * from this pool has been lost and will not be returned.
      */
     public void dropEntry() {
-        Asserts.check(numEntries > 0, "There is no entry that could be dropped");
+        if (numEntries < 1) {
+            throw new IllegalStateException
+                ("There is no entry that could be dropped.");
+        }
         numEntries--;
     }
 
@@ -269,8 +279,11 @@ public class RouteSpecificPool {
      *
      * @param wt        the waiting thread
      */
-    public void queueThread(final WaitingThread wt) {
-        Args.notNull(wt, "Waiting thread");
+    public void queueThread(WaitingThread wt) {
+        if (wt == null) {
+            throw new IllegalArgumentException
+                ("Waiting thread must not be null.");
+        }
         this.waitingThreads.add(wt);
     }
 
@@ -301,10 +314,9 @@ public class RouteSpecificPool {
      *
      * @param wt        the waiting thread
      */
-    public void removeThread(final WaitingThread wt) {
-        if (wt == null) {
+    public void removeThread(WaitingThread wt) {
+        if (wt == null)
             return;
-        }
 
         this.waitingThreads.remove(wt);
     }

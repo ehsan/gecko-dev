@@ -84,9 +84,6 @@ var ResourceContainer = Class({
       evt.stopPropagation();
     }, true);
 
-    if (!this.resource.isRoot) {
-      this.expanded = false;
-    }
     this.update();
   },
 

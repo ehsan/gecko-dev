@@ -11,6 +11,7 @@
 #include "LayerManagerComposite.h"      // for LayerManagerComposite, etc
 #include "Layers.h"                     // for Layer, ContainerLayer, etc
 #include "gfxPoint.h"                   // for gfxPoint, gfxSize
+#include "gfxPoint3D.h"                 // for gfxPoint3D
 #include "mozilla/StyleAnimationValue.h" // for StyleAnimationValue, etc
 #include "mozilla/WidgetUtils.h"        // for ComputeTransformForRotation
 #include "mozilla/dom/AnimationPlayer.h" // for AnimationPlayer
@@ -378,10 +379,10 @@ SampleValue(float aPortion, Animation& aAnimation, StyleAnimationValue& aStart,
   // adjust to dev pixels.
   double cssPerDev = double(nsDeviceContext::AppUnitsPerCSSPixel())
                      / double(data.appUnitsPerDevPixel());
-  Point3D transformOrigin = data.transformOrigin();
+  gfxPoint3D transformOrigin = data.transformOrigin();
   transformOrigin.x = transformOrigin.x * cssPerDev;
   transformOrigin.y = transformOrigin.y * cssPerDev;
-  Point3D perspectiveOrigin = data.perspectiveOrigin();
+  gfxPoint3D perspectiveOrigin = data.perspectiveOrigin();
   perspectiveOrigin.x = perspectiveOrigin.x * cssPerDev;
   perspectiveOrigin.y = perspectiveOrigin.y * cssPerDev;
   nsDisplayTransform::FrameTransformProperties props(interpolatedList,
@@ -392,10 +393,10 @@ SampleValue(float aPortion, Animation& aAnimation, StyleAnimationValue& aStart,
     nsDisplayTransform::GetResultingTransformMatrix(props, origin,
                                                     data.appUnitsPerDevPixel(),
                                                     &data.bounds());
-  Point3D scaledOrigin =
-    Point3D(NS_round(NSAppUnitsToFloatPixels(origin.x, data.appUnitsPerDevPixel())),
-            NS_round(NSAppUnitsToFloatPixels(origin.y, data.appUnitsPerDevPixel())),
-            0.0f);
+  gfxPoint3D scaledOrigin =
+    gfxPoint3D(NS_round(NSAppUnitsToFloatPixels(origin.x, data.appUnitsPerDevPixel())),
+               NS_round(NSAppUnitsToFloatPixels(origin.y, data.appUnitsPerDevPixel())),
+               0.0f);
 
   transform.Translate(scaledOrigin);
 
@@ -567,8 +568,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(Layer *aLayer)
 
     hasAsyncTransform = true;
 
-    ViewTransform asyncTransformWithoutOverscroll;
-    Matrix4x4 overscrollTransform;
+    ViewTransform asyncTransformWithoutOverscroll, overscrollTransform;
     ScreenPoint scrollOffset;
     controller->SampleContentTransformForFrame(&asyncTransformWithoutOverscroll,
                                                scrollOffset,
@@ -592,7 +592,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(Layer *aLayer)
     mLayerManager->GetCompositor()->SetScreenRenderOffset(offset);
 
     combinedAsyncTransformWithoutOverscroll *= asyncTransformWithoutOverscroll;
-    combinedAsyncTransform *= (Matrix4x4(asyncTransformWithoutOverscroll) * overscrollTransform);
+    combinedAsyncTransform *= (asyncTransformWithoutOverscroll * overscrollTransform);
   }
 
   if (hasAsyncTransform) {
@@ -882,7 +882,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
   // in screen space when the compensatory transform is performed in
   // AlignFixedAndStickyLayers.
   ScreenRect contentScreenRect = mContentRect * userZoom;
-  Point3D overscrollTranslation;
+  gfxPoint3D overscrollTranslation;
   if (userScroll.x < contentScreenRect.x) {
     overscrollTranslation.x = contentScreenRect.x - userScroll.x;
   } else if (userScroll.x + metrics.mCompositionBounds.width > contentScreenRect.XMost()) {

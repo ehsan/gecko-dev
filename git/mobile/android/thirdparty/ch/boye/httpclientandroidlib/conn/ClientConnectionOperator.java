@@ -29,17 +29,18 @@ package ch.boye.httpclientandroidlib.conn;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.Socket;
 
 import ch.boye.httpclientandroidlib.HttpHost;
+import ch.boye.httpclientandroidlib.conn.scheme.SchemeSocketFactory;
 import ch.boye.httpclientandroidlib.params.HttpParams;
 import ch.boye.httpclientandroidlib.protocol.HttpContext;
 
 /**
  * ClientConnectionOperator represents a strategy for creating
  * {@link OperatedClientConnection} instances and updating the underlying
- * {@link java.net.Socket} of those objects. Implementations will most
- * likely make use of {@link ch.boye.httpclientandroidlib.conn.scheme.SchemeSocketFactory}s
- * to create {@link java.net.Socket} instances.
+ * {@link Socket} of those objects. Implementations will most likely make use
+ * of {@link SchemeSocketFactory}s to create {@link Socket} instances.
  * <p>
  * The methods in this interface allow the creation of plain and layered
  * sockets. Creating a tunnelled connection through a proxy, however,
@@ -50,10 +51,7 @@ import ch.boye.httpclientandroidlib.protocol.HttpContext;
  * from multiple threads.
  *
  * @since 4.0
- *
- * @deprecated (4.3) replaced by {@link HttpClientConnectionManager}.
  */
-@Deprecated
 public interface ClientConnectionOperator {
 
     /**

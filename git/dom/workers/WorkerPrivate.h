@@ -243,7 +243,6 @@ private:
   bool mMainThreadObjectsForgotten;
   WorkerType mWorkerType;
   TimeStamp mCreationTimeStamp;
-  TimeStamp mNowBaseTimeStamp;
 
 protected:
   // The worker is owned by its thread, which is represented here.  This is set
@@ -514,11 +513,6 @@ public:
   TimeStamp CreationTimeStamp() const
   {
     return mCreationTimeStamp;
-  }
-
-  TimeStamp NowBaseTimeStamp() const
-  {
-    return mNowBaseTimeStamp;
   }
 
   nsIPrincipal*

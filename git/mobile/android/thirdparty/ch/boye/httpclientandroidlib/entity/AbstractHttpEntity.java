@@ -28,10 +28,10 @@
 package ch.boye.httpclientandroidlib.entity;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 import ch.boye.httpclientandroidlib.Header;
 import ch.boye.httpclientandroidlib.HttpEntity;
-import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
 import ch.boye.httpclientandroidlib.message.BasicHeader;
 import ch.boye.httpclientandroidlib.protocol.HTTP;
 
@@ -42,15 +42,7 @@ import ch.boye.httpclientandroidlib.protocol.HTTP;
  *
  * @since 4.0
  */
-@NotThreadSafe
 public abstract class AbstractHttpEntity implements HttpEntity {
-
-    /**
-     * Buffer size for output stream processing.
-     *
-     * @since 4.3
-     */
-    protected static final int OUTPUT_BUFFER_SIZE = 4096;
 
     protected Header contentType;
     protected Header contentEncoding;
@@ -173,7 +165,7 @@ public abstract class AbstractHttpEntity implements HttpEntity {
      *
      * @param b         the new 'chunked' flag
      */
-    public void setChunked(final boolean b) {
+    public void setChunked(boolean b) {
         this.chunked = b;
     }
 
@@ -181,10 +173,9 @@ public abstract class AbstractHttpEntity implements HttpEntity {
     /**
      * The default implementation does not consume anything.
      *
-     * @deprecated (4.1) Either use {@link #getContent()} and call {@link java.io.InputStream#close()} on that;
-     * otherwise call {@link #writeTo(java.io.OutputStream)} which is required to free the resources.
+     * @deprecated Either use {@link #getContent()} and call {@link java.io.InputStream#close()} on that;
+     * otherwise call {@link #writeTo(OutputStream)} which is required to free the resources.
      */
-    @Deprecated
     public void consumeContent() throws IOException {
     }
 

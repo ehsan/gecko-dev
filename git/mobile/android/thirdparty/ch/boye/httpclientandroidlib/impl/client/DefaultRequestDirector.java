@@ -31,33 +31,37 @@ import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
 
 import ch.boye.httpclientandroidlib.androidextra.HttpClientAndroidLog;
 /* LogFactory removed by HttpClient for Android script. */
 import ch.boye.httpclientandroidlib.ConnectionReuseStrategy;
+import ch.boye.httpclientandroidlib.Header;
 import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpEntityEnclosingRequest;
 import ch.boye.httpclientandroidlib.HttpException;
 import ch.boye.httpclientandroidlib.HttpHost;
 import ch.boye.httpclientandroidlib.HttpRequest;
 import ch.boye.httpclientandroidlib.HttpResponse;
-import ch.boye.httpclientandroidlib.NoHttpResponseException;
 import ch.boye.httpclientandroidlib.ProtocolException;
 import ch.boye.httpclientandroidlib.ProtocolVersion;
-import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
-import ch.boye.httpclientandroidlib.auth.AuthProtocolState;
 import ch.boye.httpclientandroidlib.auth.AuthScheme;
+import ch.boye.httpclientandroidlib.auth.AuthScope;
 import ch.boye.httpclientandroidlib.auth.AuthState;
-import ch.boye.httpclientandroidlib.auth.UsernamePasswordCredentials;
+import ch.boye.httpclientandroidlib.auth.AuthenticationException;
+import ch.boye.httpclientandroidlib.auth.Credentials;
+import ch.boye.httpclientandroidlib.auth.MalformedChallengeException;
 import ch.boye.httpclientandroidlib.client.AuthenticationHandler;
-import ch.boye.httpclientandroidlib.client.AuthenticationStrategy;
+import ch.boye.httpclientandroidlib.client.RedirectStrategy;
+import ch.boye.httpclientandroidlib.client.RequestDirector;
+import ch.boye.httpclientandroidlib.client.CredentialsProvider;
 import ch.boye.httpclientandroidlib.client.HttpRequestRetryHandler;
 import ch.boye.httpclientandroidlib.client.NonRepeatableRequestException;
 import ch.boye.httpclientandroidlib.client.RedirectException;
-import ch.boye.httpclientandroidlib.client.RedirectHandler;
-import ch.boye.httpclientandroidlib.client.RedirectStrategy;
-import ch.boye.httpclientandroidlib.client.RequestDirector;
 import ch.boye.httpclientandroidlib.client.UserTokenHandler;
 import ch.boye.httpclientandroidlib.client.methods.AbortableHttpRequest;
 import ch.boye.httpclientandroidlib.client.methods.HttpUriRequest;
@@ -70,13 +74,13 @@ import ch.boye.httpclientandroidlib.conn.ClientConnectionManager;
 import ch.boye.httpclientandroidlib.conn.ClientConnectionRequest;
 import ch.boye.httpclientandroidlib.conn.ConnectionKeepAliveStrategy;
 import ch.boye.httpclientandroidlib.conn.ManagedClientConnection;
+import ch.boye.httpclientandroidlib.conn.params.ConnManagerParams;
 import ch.boye.httpclientandroidlib.conn.routing.BasicRouteDirector;
 import ch.boye.httpclientandroidlib.conn.routing.HttpRoute;
 import ch.boye.httpclientandroidlib.conn.routing.HttpRouteDirector;
 import ch.boye.httpclientandroidlib.conn.routing.HttpRoutePlanner;
 import ch.boye.httpclientandroidlib.conn.scheme.Scheme;
 import ch.boye.httpclientandroidlib.entity.BufferedHttpEntity;
-import ch.boye.httpclientandroidlib.impl.auth.BasicScheme;
 import ch.boye.httpclientandroidlib.impl.conn.ConnectionShutdownException;
 import ch.boye.httpclientandroidlib.message.BasicHttpRequest;
 import ch.boye.httpclientandroidlib.params.HttpConnectionParams;
@@ -86,7 +90,6 @@ import ch.boye.httpclientandroidlib.protocol.ExecutionContext;
 import ch.boye.httpclientandroidlib.protocol.HttpContext;
 import ch.boye.httpclientandroidlib.protocol.HttpProcessor;
 import ch.boye.httpclientandroidlib.protocol.HttpRequestExecutor;
-import ch.boye.httpclientandroidlib.util.Args;
 import ch.boye.httpclientandroidlib.util.EntityUtils;
 
 /**
@@ -124,14 +127,11 @@ import ch.boye.httpclientandroidlib.util.EntityUtils;
  *  <li>{@link ch.boye.httpclientandroidlib.client.params.ClientPNames#VIRTUAL_HOST}</li>
  *  <li>{@link ch.boye.httpclientandroidlib.client.params.ClientPNames#DEFAULT_HOST}</li>
  *  <li>{@link ch.boye.httpclientandroidlib.client.params.ClientPNames#DEFAULT_HEADERS}</li>
- *  <li>{@link ch.boye.httpclientandroidlib.client.params.ClientPNames#CONN_MANAGER_TIMEOUT}</li>
  * </ul>
  *
  * @since 4.0
- *
- * @deprecated (4.3)
  */
-@Deprecated
+@SuppressWarnings("deprecation")
 @NotThreadSafe // e.g. managedConn
 public class DefaultRequestDirector implements RequestDirector {
 
@@ -160,24 +160,16 @@ public class DefaultRequestDirector implements RequestDirector {
 
     /** The redirect handler. */
     @Deprecated
-    protected final RedirectHandler redirectHandler;
+    protected final ch.boye.httpclientandroidlib.client.RedirectHandler redirectHandler = null;
 
     /** The redirect strategy. */
     protected final RedirectStrategy redirectStrategy;
 
     /** The target authentication handler. */
-    @Deprecated
     protected final AuthenticationHandler targetAuthHandler;
 
-    /** The target authentication handler. */
-    protected final AuthenticationStrategy targetAuthStrategy;
-
     /** The proxy authentication handler. */
-    @Deprecated
     protected final AuthenticationHandler proxyAuthHandler;
-
-    /** The proxy authentication handler. */
-    protected final AuthenticationStrategy proxyAuthStrategy;
 
     /** The user token handler. */
     protected final UserTokenHandler userTokenHandler;
@@ -192,13 +184,11 @@ public class DefaultRequestDirector implements RequestDirector {
 
     protected final AuthState proxyAuthState;
 
-    private final HttpAuthenticator authenticator;
-
     private int execCount;
 
     private int redirectCount;
 
-    private final int maxRedirects;
+    private int maxRedirects;
 
     private HttpHost virtualHost;
 
@@ -211,7 +201,7 @@ public class DefaultRequestDirector implements RequestDirector {
             final HttpRoutePlanner rouplan,
             final HttpProcessor httpProcessor,
             final HttpRequestRetryHandler retryHandler,
-            final RedirectHandler redirectHandler,
+            final ch.boye.httpclientandroidlib.client.RedirectHandler redirectHandler,
             final AuthenticationHandler targetAuthHandler,
             final AuthenticationHandler proxyAuthHandler,
             final UserTokenHandler userTokenHandler,
@@ -219,39 +209,12 @@ public class DefaultRequestDirector implements RequestDirector {
         this(new HttpClientAndroidLog(DefaultRequestDirector.class),
                 requestExec, conman, reustrat, kastrat, rouplan, httpProcessor, retryHandler,
                 new DefaultRedirectStrategyAdaptor(redirectHandler),
-                new AuthenticationStrategyAdaptor(targetAuthHandler),
-                new AuthenticationStrategyAdaptor(proxyAuthHandler),
-                userTokenHandler,
-                params);
+                targetAuthHandler, proxyAuthHandler, userTokenHandler, params);
     }
 
-
-    @Deprecated
-    public DefaultRequestDirector(
-            final HttpClientAndroidLog log,
-            final HttpRequestExecutor requestExec,
-            final ClientConnectionManager conman,
-            final ConnectionReuseStrategy reustrat,
-            final ConnectionKeepAliveStrategy kastrat,
-            final HttpRoutePlanner rouplan,
-            final HttpProcessor httpProcessor,
-            final HttpRequestRetryHandler retryHandler,
-            final RedirectStrategy redirectStrategy,
-            final AuthenticationHandler targetAuthHandler,
-            final AuthenticationHandler proxyAuthHandler,
-            final UserTokenHandler userTokenHandler,
-            final HttpParams params) {
-        this(new HttpClientAndroidLog(DefaultRequestDirector.class),
-                requestExec, conman, reustrat, kastrat, rouplan, httpProcessor, retryHandler,
-                redirectStrategy,
-                new AuthenticationStrategyAdaptor(targetAuthHandler),
-                new AuthenticationStrategyAdaptor(proxyAuthHandler),
-                userTokenHandler,
-                params);
-    }
 
     /**
-     * @since 4.2
+     * @since 4.1
      */
     public DefaultRequestDirector(
             final HttpClientAndroidLog log,
@@ -263,63 +226,85 @@ public class DefaultRequestDirector implements RequestDirector {
             final HttpProcessor httpProcessor,
             final HttpRequestRetryHandler retryHandler,
             final RedirectStrategy redirectStrategy,
-            final AuthenticationStrategy targetAuthStrategy,
-            final AuthenticationStrategy proxyAuthStrategy,
+            final AuthenticationHandler targetAuthHandler,
+            final AuthenticationHandler proxyAuthHandler,
             final UserTokenHandler userTokenHandler,
             final HttpParams params) {
 
-        Args.notNull(log, "Log");
-        Args.notNull(requestExec, "Request executor");
-        Args.notNull(conman, "Client connection manager");
-        Args.notNull(reustrat, "Connection reuse strategy");
-        Args.notNull(kastrat, "Connection keep alive strategy");
-        Args.notNull(rouplan, "Route planner");
-        Args.notNull(httpProcessor, "HTTP protocol processor");
-        Args.notNull(retryHandler, "HTTP request retry handler");
-        Args.notNull(redirectStrategy, "Redirect strategy");
-        Args.notNull(targetAuthStrategy, "Target authentication strategy");
-        Args.notNull(proxyAuthStrategy, "Proxy authentication strategy");
-        Args.notNull(userTokenHandler, "User token handler");
-        Args.notNull(params, "HTTP parameters");
+        if (log == null) {
+            throw new IllegalArgumentException
+                ("Log may not be null.");
+        }
+        if (requestExec == null) {
+            throw new IllegalArgumentException
+                ("Request executor may not be null.");
+        }
+        if (conman == null) {
+            throw new IllegalArgumentException
+                ("Client connection manager may not be null.");
+        }
+        if (reustrat == null) {
+            throw new IllegalArgumentException
+                ("Connection reuse strategy may not be null.");
+        }
+        if (kastrat == null) {
+            throw new IllegalArgumentException
+                ("Connection keep alive strategy may not be null.");
+        }
+        if (rouplan == null) {
+            throw new IllegalArgumentException
+                ("Route planner may not be null.");
+        }
+        if (httpProcessor == null) {
+            throw new IllegalArgumentException
+                ("HTTP protocol processor may not be null.");
+        }
+        if (retryHandler == null) {
+            throw new IllegalArgumentException
+                ("HTTP request retry handler may not be null.");
+        }
+        if (redirectStrategy == null) {
+            throw new IllegalArgumentException
+                ("Redirect strategy may not be null.");
+        }
+        if (targetAuthHandler == null) {
+            throw new IllegalArgumentException
+                ("Target authentication handler may not be null.");
+        }
+        if (proxyAuthHandler == null) {
+            throw new IllegalArgumentException
+                ("Proxy authentication handler may not be null.");
+        }
+        if (userTokenHandler == null) {
+            throw new IllegalArgumentException
+                ("User token handler may not be null.");
+        }
+        if (params == null) {
+            throw new IllegalArgumentException
+                ("HTTP parameters may not be null");
+        }
         this.log               = log;
-        this.authenticator     = new HttpAuthenticator(log);
-        this.requestExec        = requestExec;
-        this.connManager        = conman;
-        this.reuseStrategy      = reustrat;
-        this.keepAliveStrategy  = kastrat;
-        this.routePlanner       = rouplan;
-        this.httpProcessor      = httpProcessor;
-        this.retryHandler       = retryHandler;
-        this.redirectStrategy   = redirectStrategy;
-        this.targetAuthStrategy = targetAuthStrategy;
-        this.proxyAuthStrategy  = proxyAuthStrategy;
-        this.userTokenHandler   = userTokenHandler;
-        this.params             = params;
+        this.requestExec       = requestExec;
+        this.connManager       = conman;
+        this.reuseStrategy     = reustrat;
+        this.keepAliveStrategy = kastrat;
+        this.routePlanner      = rouplan;
+        this.httpProcessor     = httpProcessor;
+        this.retryHandler      = retryHandler;
+        this.redirectStrategy  = redirectStrategy;
+        this.targetAuthHandler = targetAuthHandler;
+        this.proxyAuthHandler  = proxyAuthHandler;
+        this.userTokenHandler  = userTokenHandler;
+        this.params            = params;
 
-        if (redirectStrategy instanceof DefaultRedirectStrategyAdaptor) {
-            this.redirectHandler = ((DefaultRedirectStrategyAdaptor) redirectStrategy).getHandler();
-        } else {
-            this.redirectHandler = null;
-        }
-        if (targetAuthStrategy instanceof AuthenticationStrategyAdaptor) {
-            this.targetAuthHandler = ((AuthenticationStrategyAdaptor) targetAuthStrategy).getHandler();
-        } else {
-            this.targetAuthHandler = null;
-        }
-        if (proxyAuthStrategy instanceof AuthenticationStrategyAdaptor) {
-            this.proxyAuthHandler = ((AuthenticationStrategyAdaptor) proxyAuthStrategy).getHandler();
-        } else {
-            this.proxyAuthHandler = null;
-        }
-
-        this.managedConn = null;
+        this.managedConn       = null;
 
         this.execCount = 0;
         this.redirectCount = 0;
+        this.maxRedirects = this.params.getIntParameter(ClientPNames.MAX_REDIRECTS, 100);
         this.targetAuthState = new AuthState();
         this.proxyAuthState = new AuthState();
-        this.maxRedirects = this.params.getIntParameter(ClientPNames.MAX_REDIRECTS, 100);
-    }
+    } // constructor
 
 
     private RequestWrapper wrapRequest(
@@ -343,22 +328,19 @@ public class DefaultRequestDirector implements RequestDirector {
             if (route.getProxyHost() != null && !route.isTunnelled()) {
                 // Make sure the request URI is absolute
                 if (!uri.isAbsolute()) {
-                    final HttpHost target = route.getTargetHost();
-                    uri = URIUtils.rewriteURI(uri, target, true);
-                } else {
-                    uri = URIUtils.rewriteURI(uri);
+                    HttpHost target = route.getTargetHost();
+                    uri = URIUtils.rewriteURI(uri, target);
+                    request.setURI(uri);
                 }
             } else {
                 // Make sure the request URI is relative
                 if (uri.isAbsolute()) {
-                    uri = URIUtils.rewriteURI(uri, null, true);
-                } else {
-                    uri = URIUtils.rewriteURI(uri);
+                    uri = URIUtils.rewriteURI(uri, null);
+                    request.setURI(uri);
                 }
             }
-            request.setURI(uri);
 
-        } catch (final URISyntaxException ex) {
+        } catch (URISyntaxException ex) {
             throw new ProtocolException("Invalid URI: " +
                     request.getRequestLine().getUri(), ex);
         }
@@ -366,26 +348,22 @@ public class DefaultRequestDirector implements RequestDirector {
 
 
     // non-javadoc, see interface ClientRequestDirector
-    public HttpResponse execute(final HttpHost targetHost, final HttpRequest request,
-                                final HttpContext context)
+    public HttpResponse execute(HttpHost target, HttpRequest request,
+                                HttpContext context)
         throws HttpException, IOException {
 
-        context.setAttribute(ClientContext.TARGET_AUTH_STATE, targetAuthState);
-        context.setAttribute(ClientContext.PROXY_AUTH_STATE, proxyAuthState);
-
-        HttpHost target = targetHost;
-
-        final HttpRequest orig = request;
-        final RequestWrapper origWrapper = wrapRequest(orig);
+        HttpRequest orig = request;
+        RequestWrapper origWrapper = wrapRequest(orig);
         origWrapper.setParams(params);
-        final HttpRoute origRoute = determineRoute(target, origWrapper, context);
+        HttpRoute origRoute = determineRoute(target, origWrapper, context);
 
-        virtualHost = (HttpHost) origWrapper.getParams().getParameter(ClientPNames.VIRTUAL_HOST);
-
+        virtualHost = (HttpHost) orig.getParams().getParameter(
+                ClientPNames.VIRTUAL_HOST);
+        
         // HTTPCLIENT-1092 - add the port if necessary
-        if (virtualHost != null && virtualHost.getPort() == -1) {
-            final HttpHost host = (target != null) ? target : origRoute.getTargetHost();
-            final int port = host.getPort();
+        if (virtualHost != null && virtualHost.getPort() == -1) 
+        {
+            int port = target.getPort();
             if (port != -1){
                 virtualHost = new HttpHost(virtualHost.getHostName(), port, virtualHost.getSchemeName());
             }
@@ -403,8 +381,8 @@ public class DefaultRequestDirector implements RequestDirector {
                 // in the method arguments will be replaced. The original
                 // request is still available in 'orig'.
 
-                final RequestWrapper wrapper = roureq.getRequest();
-                final HttpRoute route = roureq.getRoute();
+                RequestWrapper wrapper = roureq.getRequest();
+                HttpRoute route = roureq.getRoute();
                 response = null;
 
                 // See if we have a user token bound to the execution context
@@ -412,18 +390,19 @@ public class DefaultRequestDirector implements RequestDirector {
 
                 // Allocate connection if needed
                 if (managedConn == null) {
-                    final ClientConnectionRequest connRequest = connManager.requestConnection(
+                    ClientConnectionRequest connRequest = connManager.requestConnection(
                             route, userToken);
                     if (orig instanceof AbortableHttpRequest) {
                         ((AbortableHttpRequest) orig).setConnectionRequest(connRequest);
                     }
 
-                    final long timeout = HttpClientParams.getConnectionManagerTimeout(params);
+                    long timeout = ConnManagerParams.getTimeout(params);
                     try {
                         managedConn = connRequest.getConnection(timeout, TimeUnit.MILLISECONDS);
-                    } catch(final InterruptedException interrupted) {
-                        Thread.currentThread().interrupt();
-                        throw new InterruptedIOException();
+                    } catch(InterruptedException interrupted) {
+                        InterruptedIOException iox = new InterruptedIOException();
+                        iox.initCause(interrupted);
+                        throw iox;
                     }
 
                     if (HttpConnectionParams.isStaleCheckingEnabled(params)) {
@@ -444,7 +423,7 @@ public class DefaultRequestDirector implements RequestDirector {
 
                 try {
                     tryConnect(roureq, context);
-                } catch (final TunnelRefusedException ex) {
+                } catch (TunnelRefusedException ex) {
                     if (this.log.isDebugEnabled()) {
                         this.log.debug(ex.getMessage());
                     }
@@ -452,34 +431,32 @@ public class DefaultRequestDirector implements RequestDirector {
                     break;
                 }
 
-                final String userinfo = wrapper.getURI().getUserInfo();
-                if (userinfo != null) {
-                    targetAuthState.update(
-                            new BasicScheme(), new UsernamePasswordCredentials(userinfo));
-                }
+                // Reset headers on the request wrapper
+                wrapper.resetHeaders();
 
-                // Get target.  Even if there's virtual host, we may need the target to set the port.
-                if (virtualHost != null) {
-                    target = virtualHost;
-                } else {
-                    final URI requestURI = wrapper.getURI();
-                    if (requestURI.isAbsolute()) {
-                        target = URIUtils.extractHost(requestURI);
-                    }
-                }
+                // Re-write request URI if needed
+                rewriteRequestURI(wrapper, route);
+
+                // Use virtual host if set
+                target = virtualHost;
+
                 if (target == null) {
                     target = route.getTargetHost();
                 }
 
-                // Reset headers on the request wrapper
-                wrapper.resetHeaders();
-                // Re-write request URI if needed
-                rewriteRequestURI(wrapper, route);
+                HttpHost proxy = route.getProxyHost();
 
                 // Populate the execution context
-                context.setAttribute(ExecutionContext.HTTP_TARGET_HOST, target);
-                context.setAttribute(ClientContext.ROUTE, route);
-                context.setAttribute(ExecutionContext.HTTP_CONNECTION, managedConn);
+                context.setAttribute(ExecutionContext.HTTP_TARGET_HOST,
+                        target);
+                context.setAttribute(ExecutionContext.HTTP_PROXY_HOST,
+                        proxy);
+                context.setAttribute(ExecutionContext.HTTP_CONNECTION,
+                        managedConn);
+                context.setAttribute(ClientContext.TARGET_AUTH_STATE,
+                        targetAuthState);
+                context.setAttribute(ClientContext.PROXY_AUTH_STATE,
+                        proxyAuthState);
 
                 // Run request protocol interceptors
                 requestExec.preProcess(wrapper, httpProcessor, context);
@@ -499,9 +476,9 @@ public class DefaultRequestDirector implements RequestDirector {
                 reuse = reuseStrategy.keepAlive(response, context);
                 if (reuse) {
                     // Set the idle duration of this connection
-                    final long duration = keepAliveStrategy.getKeepAliveDuration(response, context);
+                    long duration = keepAliveStrategy.getKeepAliveDuration(response, context);
                     if (this.log.isDebugEnabled()) {
-                        final String s;
+                        String s;
                         if (duration > 0) {
                             s = "for " + duration + " " + TimeUnit.MILLISECONDS;
                         } else {
@@ -512,31 +489,21 @@ public class DefaultRequestDirector implements RequestDirector {
                     managedConn.setIdleDuration(duration, TimeUnit.MILLISECONDS);
                 }
 
-                final RoutedRequest followup = handleResponse(roureq, response, context);
+                RoutedRequest followup = handleResponse(roureq, response, context);
                 if (followup == null) {
                     done = true;
                 } else {
                     if (reuse) {
                         // Make sure the response body is fully consumed, if present
-                        final HttpEntity entity = response.getEntity();
+                        HttpEntity entity = response.getEntity();
                         EntityUtils.consume(entity);
                         // entity consumed above is not an auto-release entity,
                         // need to mark the connection re-usable explicitly
                         managedConn.markReusable();
                     } else {
                         managedConn.close();
-                        if (proxyAuthState.getState().compareTo(AuthProtocolState.CHALLENGED) > 0
-                                && proxyAuthState.getAuthScheme() != null
-                                && proxyAuthState.getAuthScheme().isConnectionBased()) {
-                            this.log.debug("Resetting proxy auth state");
-                            proxyAuthState.reset();
-                        }
-                        if (targetAuthState.getState().compareTo(AuthProtocolState.CHALLENGED) > 0
-                                && targetAuthState.getAuthScheme() != null
-                                && targetAuthState.getAuthScheme().isConnectionBased()) {
-                            this.log.debug("Resetting target auth state");
-                            targetAuthState.reset();
-                        }
+                        invalidateAuthIfSuccessful(this.proxyAuthState);                        
+                        invalidateAuthIfSuccessful(this.targetAuthState);                        
                     }
                     // check if we can use the same connection for the followup
                     if (!followup.getRoute().equals(roureq.getRoute())) {
@@ -545,11 +512,9 @@ public class DefaultRequestDirector implements RequestDirector {
                     roureq = followup;
                 }
 
-                if (managedConn != null) {
-                    if (userToken == null) {
-                        userToken = userTokenHandler.getUserToken(context);
-                        context.setAttribute(ClientContext.USER_TOKEN, userToken);
-                    }
+                if (managedConn != null && userToken == null) {
+                    userToken = userTokenHandler.getUserToken(context);
+                    context.setAttribute(ClientContext.USER_TOKEN, userToken);
                     if (userToken != null) {
                         managedConn.setState(userToken);
                     }
@@ -562,9 +527,8 @@ public class DefaultRequestDirector implements RequestDirector {
             if ((response == null) || (response.getEntity() == null) ||
                 !response.getEntity().isStreaming()) {
                 // connection not needed and (assumed to be) in re-usable state
-                if (reuse) {
+                if (reuse)
                     managedConn.markReusable();
-                }
                 releaseConnection();
             } else {
                 // install an auto-release entity
@@ -575,18 +539,18 @@ public class DefaultRequestDirector implements RequestDirector {
 
             return response;
 
-        } catch (final ConnectionShutdownException ex) {
-            final InterruptedIOException ioex = new InterruptedIOException(
+        } catch (ConnectionShutdownException ex) {
+            InterruptedIOException ioex = new InterruptedIOException(
                     "Connection has been shut down");
             ioex.initCause(ex);
             throw ioex;
-        } catch (final HttpException ex) {
+        } catch (HttpException ex) {
             abortConnection();
             throw ex;
-        } catch (final IOException ex) {
+        } catch (IOException ex) {
             abortConnection();
             throw ex;
-        } catch (final RuntimeException ex) {
+        } catch (RuntimeException ex) {
             abortConnection();
             throw ex;
         }
@@ -598,12 +562,10 @@ public class DefaultRequestDirector implements RequestDirector {
      */
     private void tryConnect(
             final RoutedRequest req, final HttpContext context) throws HttpException, IOException {
-        final HttpRoute route = req.getRoute();
-        final HttpRequest wrapper = req.getRequest();
+        HttpRoute route = req.getRoute();
 
         int connectCount = 0;
         for (;;) {
-            context.setAttribute(ExecutionContext.HTTP_REQUEST, wrapper);
             // Increment connect count
             connectCount++;
             try {
@@ -614,23 +576,21 @@ public class DefaultRequestDirector implements RequestDirector {
                 }
                 establishRoute(route, context);
                 break;
-            } catch (final IOException ex) {
+            } catch (IOException ex) {
                 try {
                     managedConn.close();
-                } catch (final IOException ignore) {
+                } catch (IOException ignore) {
                 }
                 if (retryHandler.retryRequest(ex, connectCount, context)) {
                     if (this.log.isInfoEnabled()) {
                         this.log.info("I/O exception ("+ ex.getClass().getName() +
-                                ") caught when connecting to "
-                                + route +
-                                ": "
+                                ") caught when connecting to the target host: "
                                 + ex.getMessage());
-                        if (this.log.isDebugEnabled()) {
-                            this.log.debug(ex.getMessage(), ex);
-                        }
-                        this.log.info("Retrying connect to " + route);
                     }
+                    if (this.log.isDebugEnabled()) {
+                        this.log.debug(ex.getMessage(), ex);
+                    }
+                    this.log.info("Retrying connect");
                 } else {
                     throw ex;
                 }
@@ -643,8 +603,8 @@ public class DefaultRequestDirector implements RequestDirector {
      */
     private HttpResponse tryExecute(
             final RoutedRequest req, final HttpContext context) throws HttpException, IOException {
-        final RequestWrapper wrapper = req.getRequest();
-        final HttpRoute route = req.getRoute();
+        RequestWrapper wrapper = req.getRequest();
+        HttpRoute route = req.getRoute();
         HttpResponse response = null;
 
         Exception retryReason = null;
@@ -685,36 +645,25 @@ public class DefaultRequestDirector implements RequestDirector {
                 response = requestExec.execute(wrapper, managedConn, context);
                 break;
 
-            } catch (final IOException ex) {
+            } catch (IOException ex) {
                 this.log.debug("Closing the connection.");
                 try {
                     managedConn.close();
-                } catch (final IOException ignore) {
+                } catch (IOException ignore) {
                 }
                 if (retryHandler.retryRequest(ex, wrapper.getExecCount(), context)) {
                     if (this.log.isInfoEnabled()) {
                         this.log.info("I/O exception ("+ ex.getClass().getName() +
-                                ") caught when processing request to "
-                                + route +
-                                ": "
+                                ") caught when processing request: "
                                 + ex.getMessage());
                     }
                     if (this.log.isDebugEnabled()) {
                         this.log.debug(ex.getMessage(), ex);
                     }
-                    if (this.log.isInfoEnabled()) {
-                        this.log.info("Retrying request to " + route);
-                    }
+                    this.log.info("Retrying request");
                     retryReason = ex;
                 } else {
-                    if (ex instanceof NoHttpResponseException) {
-                        final NoHttpResponseException updatedex = new NoHttpResponseException(
-                                route.getTargetHost().toHostString() + " failed to respond");
-                        updatedex.setStackTrace(ex.getStackTrace());
-                        throw updatedex;
-                    } else {
-                        throw ex;
-                    }
+                    throw ex;
                 }
             }
         }
@@ -732,7 +681,7 @@ public class DefaultRequestDirector implements RequestDirector {
         // it is released.
         try {
             managedConn.releaseConnection();
-        } catch(final IOException ignored) {
+        } catch(IOException ignored) {
             this.log.debug("IOException releasing connection", ignored);
         }
         managedConn = null;
@@ -743,7 +692,7 @@ public class DefaultRequestDirector implements RequestDirector {
      * Called by {@link #execute}
      * to determine the route for either the original or a followup request.
      *
-     * @param targetHost  the target host for the request.
+     * @param target    the target host for the request.
      *                  Implementations may accept <code>null</code>
      *                  if they can still determine a route, for example
      *                  to a default target or by inspecting the request.
@@ -755,14 +704,21 @@ public class DefaultRequestDirector implements RequestDirector {
      *
      * @throws HttpException    in case of a problem
      */
-    protected HttpRoute determineRoute(final HttpHost targetHost,
-                                           final HttpRequest request,
-                                           final HttpContext context)
+    protected HttpRoute determineRoute(HttpHost    target,
+                                           HttpRequest request,
+                                           HttpContext context)
         throws HttpException {
-        return this.routePlanner.determineRoute(
-                targetHost != null ? targetHost : (HttpHost) request.getParams()
-                        .getParameter(ClientPNames.DEFAULT_HOST),
-                request, context);
+
+        if (target == null) {
+            target = (HttpHost) request.getParams().getParameter(
+                ClientPNames.DEFAULT_HOST);
+        }
+        if (target == null) {
+            throw new IllegalStateException
+                ("Target host must not be null, or set in parameters.");
+        }
+
+        return this.routePlanner.determineRoute(target, request, context);
     }
 
 
@@ -775,13 +731,13 @@ public class DefaultRequestDirector implements RequestDirector {
      * @throws HttpException    in case of a problem
      * @throws IOException      in case of an IO problem
      */
-    protected void establishRoute(final HttpRoute route, final HttpContext context)
+    protected void establishRoute(HttpRoute route, HttpContext context)
         throws HttpException, IOException {
 
-        final HttpRouteDirector rowdy = new BasicRouteDirector();
+        HttpRouteDirector rowdy = new BasicRouteDirector();
         int step;
         do {
-            final HttpRoute fact = managedConn.getRoute();
+            HttpRoute fact = managedConn.getRoute();
             step = rowdy.nextStep(route, fact);
 
             switch (step) {
@@ -792,7 +748,7 @@ public class DefaultRequestDirector implements RequestDirector {
                 break;
 
             case HttpRouteDirector.TUNNEL_TARGET: {
-                final boolean secure = createTunnelToTarget(route, context);
+                boolean secure = createTunnelToTarget(route, context);
                 this.log.debug("Tunnel to target created.");
                 managedConn.tunnelTarget(secure, this.params);
             }   break;
@@ -803,7 +759,7 @@ public class DefaultRequestDirector implements RequestDirector {
                 // route: Source -> P1 -> P2 -> Target (3 hops)
                 // fact:  Source -> P1 -> Target       (2 hops)
                 final int hop = fact.getHopCount()-1; // the hop to establish
-                final boolean secure = createTunnelToProxy(route, hop, context);
+                boolean secure = createTunnelToProxy(route, hop, context);
                 this.log.debug("Tunnel to proxy created.");
                 managedConn.tunnelProxy(route.getHopTarget(hop),
                                         secure, this.params);
@@ -849,28 +805,39 @@ public class DefaultRequestDirector implements RequestDirector {
      * @throws HttpException    in case of a problem
      * @throws IOException      in case of an IO problem
      */
-    protected boolean createTunnelToTarget(final HttpRoute route,
-                                           final HttpContext context)
+    protected boolean createTunnelToTarget(HttpRoute route,
+                                           HttpContext context)
         throws HttpException, IOException {
 
-        final HttpHost proxy = route.getProxyHost();
-        final HttpHost target = route.getTargetHost();
+        HttpHost proxy = route.getProxyHost();
+        HttpHost target = route.getTargetHost();
         HttpResponse response = null;
 
-        for (;;) {
+        boolean done = false;
+        while (!done) {
+
+            done = true;
+
             if (!this.managedConn.isOpen()) {
                 this.managedConn.open(route, context, this.params);
             }
 
-            final HttpRequest connect = createConnectRequest(route, context);
+            HttpRequest connect = createConnectRequest(route, context);
             connect.setParams(this.params);
 
             // Populate the execution context
-            context.setAttribute(ExecutionContext.HTTP_TARGET_HOST, target);
-            context.setAttribute(ClientContext.ROUTE, route);
-            context.setAttribute(ExecutionContext.HTTP_PROXY_HOST, proxy);
-            context.setAttribute(ExecutionContext.HTTP_CONNECTION, managedConn);
-            context.setAttribute(ExecutionContext.HTTP_REQUEST, connect);
+            context.setAttribute(ExecutionContext.HTTP_TARGET_HOST,
+                    target);
+            context.setAttribute(ExecutionContext.HTTP_PROXY_HOST,
+                    proxy);
+            context.setAttribute(ExecutionContext.HTTP_CONNECTION,
+                    managedConn);
+            context.setAttribute(ClientContext.TARGET_AUTH_STATE,
+                    targetAuthState);
+            context.setAttribute(ClientContext.PROXY_AUTH_STATE,
+                    proxyAuthState);
+            context.setAttribute(ExecutionContext.HTTP_REQUEST,
+                    connect);
 
             this.requestExec.preProcess(connect, this.httpProcessor, context);
 
@@ -879,41 +846,61 @@ public class DefaultRequestDirector implements RequestDirector {
             response.setParams(this.params);
             this.requestExec.postProcess(response, this.httpProcessor, context);
 
-            final int status = response.getStatusLine().getStatusCode();
+            int status = response.getStatusLine().getStatusCode();
             if (status < 200) {
                 throw new HttpException("Unexpected response to CONNECT request: " +
                         response.getStatusLine());
             }
 
-            if (HttpClientParams.isAuthenticating(this.params)) {
-                if (this.authenticator.isAuthenticationRequested(proxy, response,
-                        this.proxyAuthStrategy, this.proxyAuthState, context)) {
-                    if (this.authenticator.authenticate(proxy, response,
-                            this.proxyAuthStrategy, this.proxyAuthState, context)) {
+            CredentialsProvider credsProvider = (CredentialsProvider)
+                context.getAttribute(ClientContext.CREDS_PROVIDER);
+
+            if (credsProvider != null && HttpClientParams.isAuthenticating(params)) {
+                if (this.proxyAuthHandler.isAuthenticationRequested(response, context)) {
+
+                    this.log.debug("Proxy requested authentication");
+                    Map<String, Header> challenges = this.proxyAuthHandler.getChallenges(
+                            response, context);
+                    try {
+                        processChallenges(
+                                challenges, this.proxyAuthState, this.proxyAuthHandler,
+                                response, context);
+                    } catch (AuthenticationException ex) {
+                        if (this.log.isWarnEnabled()) {
+                            this.log.warn("Authentication error: " +  ex.getMessage());
+                            break;
+                        }
+                    }
+                    updateAuthState(this.proxyAuthState, proxy, credsProvider);
+
+                    if (this.proxyAuthState.getCredentials() != null) {
+                        done = false;
+
                         // Retry request
                         if (this.reuseStrategy.keepAlive(response, context)) {
                             this.log.debug("Connection kept alive");
                             // Consume response content
-                            final HttpEntity entity = response.getEntity();
+                            HttpEntity entity = response.getEntity();
                             EntityUtils.consume(entity);
                         } else {
                             this.managedConn.close();
                         }
-                    } else {
-                        break;
+
                     }
+
                 } else {
-                    break;
+                    // Reset proxy auth scope
+                    this.proxyAuthState.setAuthScope(null);
                 }
             }
         }
 
-        final int status = response.getStatusLine().getStatusCode();
+        int status = response.getStatusLine().getStatusCode(); // can't be null
 
         if (status > 299) {
 
             // Buffer response content
-            final HttpEntity entity = response.getEntity();
+            HttpEntity entity = response.getEntity();
             if (entity != null) {
                 response.setEntity(new BufferedHttpEntity(entity));
             }
@@ -952,8 +939,8 @@ public class DefaultRequestDirector implements RequestDirector {
      * @throws HttpException    in case of a problem
      * @throws IOException      in case of an IO problem
      */
-    protected boolean createTunnelToProxy(final HttpRoute route, final int hop,
-                                          final HttpContext context)
+    protected boolean createTunnelToProxy(HttpRoute route, int hop,
+                                          HttpContext context)
         throws HttpException, IOException {
 
         // Have a look at createTunnelToTarget and replicate the parts
@@ -979,30 +966,30 @@ public class DefaultRequestDirector implements RequestDirector {
      *
      * @return  the CONNECT request for tunnelling
      */
-    protected HttpRequest createConnectRequest(final HttpRoute route,
-                                               final HttpContext context) {
+    protected HttpRequest createConnectRequest(HttpRoute route,
+                                               HttpContext context) {
         // see RFC 2817, section 5.2 and
         // INTERNET-DRAFT: Tunneling TCP based protocols through
         // Web proxy servers
 
-        final HttpHost target = route.getTargetHost();
+        HttpHost target = route.getTargetHost();
 
-        final String host = target.getHostName();
+        String host = target.getHostName();
         int port = target.getPort();
         if (port < 0) {
-            final Scheme scheme = connManager.getSchemeRegistry().
+            Scheme scheme = connManager.getSchemeRegistry().
                 getScheme(target.getSchemeName());
             port = scheme.getDefaultPort();
         }
 
-        final StringBuilder buffer = new StringBuilder(host.length() + 6);
+        StringBuilder buffer = new StringBuilder(host.length() + 6);
         buffer.append(host);
         buffer.append(':');
         buffer.append(Integer.toString(port));
 
-        final String authority = buffer.toString();
-        final ProtocolVersion ver = HttpProtocolParams.getVersion(params);
-        final HttpRequest req = new BasicHttpRequest
+        String authority = buffer.toString();
+        ProtocolVersion ver = HttpProtocolParams.getVersion(params);
+        HttpRequest req = new BasicHttpRequest
             ("CONNECT", authority, ver);
 
         return req;
@@ -1022,53 +1009,15 @@ public class DefaultRequestDirector implements RequestDirector {
      * @throws HttpException    in case of a problem
      * @throws IOException      in case of an IO problem
      */
-    protected RoutedRequest handleResponse(final RoutedRequest roureq,
-                                           final HttpResponse response,
-                                           final HttpContext context)
+    protected RoutedRequest handleResponse(RoutedRequest roureq,
+                                           HttpResponse response,
+                                           HttpContext context)
         throws HttpException, IOException {
 
-        final HttpRoute route = roureq.getRoute();
-        final RequestWrapper request = roureq.getRequest();
+        HttpRoute route = roureq.getRoute();
+        RequestWrapper request = roureq.getRequest();
 
-        final HttpParams params = request.getParams();
-
-        if (HttpClientParams.isAuthenticating(params)) {
-            HttpHost target = (HttpHost) context.getAttribute(ExecutionContext.HTTP_TARGET_HOST);
-            if (target == null) {
-                target = route.getTargetHost();
-            }
-            if (target.getPort() < 0) {
-                final Scheme scheme = connManager.getSchemeRegistry().getScheme(target);
-                target = new HttpHost(target.getHostName(), scheme.getDefaultPort(), target.getSchemeName());
-            }
-
-            final boolean targetAuthRequested = this.authenticator.isAuthenticationRequested(
-                    target, response, this.targetAuthStrategy, targetAuthState, context);
-
-            HttpHost proxy = route.getProxyHost();
-            // if proxy is not set use target host instead
-            if (proxy == null) {
-                proxy = route.getTargetHost();
-            }
-            final boolean proxyAuthRequested = this.authenticator.isAuthenticationRequested(
-                    proxy, response, this.proxyAuthStrategy, proxyAuthState, context);
-
-            if (targetAuthRequested) {
-                if (this.authenticator.authenticate(target, response,
-                        this.targetAuthStrategy, this.targetAuthState, context)) {
-                    // Re-try the same request via the same route
-                    return roureq;
-                }
-            }
-            if (proxyAuthRequested) {
-                if (this.authenticator.authenticate(proxy, response,
-                        this.proxyAuthStrategy, this.proxyAuthState, context)) {
-                    // Re-try the same request via the same route
-                    return roureq;
-                }
-            }
-        }
-
+        HttpParams params = request.getParams();
         if (HttpClientParams.isRedirecting(params) &&
                 this.redirectStrategy.isRedirected(request, response, context)) {
 
@@ -1081,32 +1030,38 @@ public class DefaultRequestDirector implements RequestDirector {
             // Virtual host cannot be used any longer
             virtualHost = null;
 
-            final HttpUriRequest redirect = redirectStrategy.getRedirect(request, response, context);
-            final HttpRequest orig = request.getOriginal();
+            HttpUriRequest redirect = redirectStrategy.getRedirect(request, response, context);
+            HttpRequest orig = request.getOriginal();
             redirect.setHeaders(orig.getAllHeaders());
 
-            final URI uri = redirect.getURI();
-            final HttpHost newTarget = URIUtils.extractHost(uri);
-            if (newTarget == null) {
+            URI uri = redirect.getURI();
+            if (uri.getHost() == null) {
                 throw new ProtocolException("Redirect URI does not specify a valid host name: " + uri);
             }
 
-            // Reset auth states if redirecting to another host
+            HttpHost newTarget = new HttpHost(
+                    uri.getHost(),
+                    uri.getPort(),
+                    uri.getScheme());
+
+            // Unset auth scope
+            targetAuthState.setAuthScope(null);
+            proxyAuthState.setAuthScope(null);
+
+            // Invalidate auth states if redirecting to another host
             if (!route.getTargetHost().equals(newTarget)) {
-                this.log.debug("Resetting target auth state");
-                targetAuthState.reset();
-                final AuthScheme authScheme = proxyAuthState.getAuthScheme();
+                targetAuthState.invalidate();
+                AuthScheme authScheme = proxyAuthState.getAuthScheme();
                 if (authScheme != null && authScheme.isConnectionBased()) {
-                    this.log.debug("Resetting proxy auth state");
-                    proxyAuthState.reset();
+                    proxyAuthState.invalidate();
                 }
             }
 
-            final RequestWrapper wrapper = wrapRequest(redirect);
+            RequestWrapper wrapper = wrapRequest(redirect);
             wrapper.setParams(params);
 
-            final HttpRoute newRoute = determineRoute(newTarget, wrapper, context);
-            final RoutedRequest newRequest = new RoutedRequest(wrapper, newRoute);
+            HttpRoute newRoute = determineRoute(newTarget, wrapper, context);
+            RoutedRequest newRequest = new RoutedRequest(wrapper, newRoute);
 
             if (this.log.isDebugEnabled()) {
                 this.log.debug("Redirecting to '" + uri + "' via " + newRoute);
@@ -1115,6 +1070,75 @@ public class DefaultRequestDirector implements RequestDirector {
             return newRequest;
         }
 
+        CredentialsProvider credsProvider = (CredentialsProvider)
+            context.getAttribute(ClientContext.CREDS_PROVIDER);
+
+        if (credsProvider != null && HttpClientParams.isAuthenticating(params)) {
+
+            if (this.targetAuthHandler.isAuthenticationRequested(response, context)) {
+
+                HttpHost target = (HttpHost)
+                    context.getAttribute(ExecutionContext.HTTP_TARGET_HOST);
+                if (target == null) {
+                    target = route.getTargetHost();
+                }
+
+                this.log.debug("Target requested authentication");
+                Map<String, Header> challenges = this.targetAuthHandler.getChallenges(
+                        response, context);
+                try {
+                    processChallenges(challenges,
+                            this.targetAuthState, this.targetAuthHandler,
+                            response, context);
+                } catch (AuthenticationException ex) {
+                    if (this.log.isWarnEnabled()) {
+                        this.log.warn("Authentication error: " +  ex.getMessage());
+                        return null;
+                    }
+                }
+                updateAuthState(this.targetAuthState, target, credsProvider);
+
+                if (this.targetAuthState.getCredentials() != null) {
+                    // Re-try the same request via the same route
+                    return roureq;
+                } else {
+                    return null;
+                }
+            } else {
+                // Reset target auth scope
+                this.targetAuthState.setAuthScope(null);
+            }
+
+            if (this.proxyAuthHandler.isAuthenticationRequested(response, context)) {
+
+                HttpHost proxy = route.getProxyHost();
+
+                this.log.debug("Proxy requested authentication");
+                Map<String, Header> challenges = this.proxyAuthHandler.getChallenges(
+                        response, context);
+                try {
+                    processChallenges(challenges,
+                            this.proxyAuthState, this.proxyAuthHandler,
+                            response, context);
+                } catch (AuthenticationException ex) {
+                    if (this.log.isWarnEnabled()) {
+                        this.log.warn("Authentication error: " +  ex.getMessage());
+                        return null;
+                    }
+                }
+                updateAuthState(this.proxyAuthState, proxy, credsProvider);
+
+                if (this.proxyAuthState.getCredentials() != null) {
+                    // Re-try the same request via the same route
+                    return roureq;
+                } else {
+                    return null;
+                }
+            } else {
+                // Reset proxy auth scope
+                this.proxyAuthState.setAuthScope(null);
+            }
+        }
         return null;
     } // handleResponse
 
@@ -1125,14 +1149,14 @@ public class DefaultRequestDirector implements RequestDirector {
      * {@link #execute execute} during exception handling.
      */
     private void abortConnection() {
-        final ManagedClientConnection mcc = managedConn;
+        ManagedClientConnection mcc = managedConn;
         if (mcc != null) {
             // we got here as the result of an exception
             // no response will be returned, release the connection
             managedConn = null;
             try {
                 mcc.abortConnection();
-            } catch (final IOException ex) {
+            } catch (IOException ex) {
                 if (this.log.isDebugEnabled()) {
                     this.log.debug(ex.getMessage(), ex);
                 }
@@ -1140,11 +1164,93 @@ public class DefaultRequestDirector implements RequestDirector {
             // ensure the connection manager properly releases this connection
             try {
                 mcc.releaseConnection();
-            } catch(final IOException ignored) {
+            } catch(IOException ignored) {
                 this.log.debug("Error releasing connection", ignored);
             }
         }
     } // abortConnection
 
+
+    private void processChallenges(
+            final Map<String, Header> challenges,
+            final AuthState authState,
+            final AuthenticationHandler authHandler,
+            final HttpResponse response,
+            final HttpContext context)
+                throws MalformedChallengeException, AuthenticationException {
+
+        AuthScheme authScheme = authState.getAuthScheme();
+        if (authScheme == null) {
+            // Authentication not attempted before
+            authScheme = authHandler.selectScheme(challenges, response, context);
+            authState.setAuthScheme(authScheme);
+        }
+        String id = authScheme.getSchemeName();
+
+        Header challenge = challenges.get(id.toLowerCase(Locale.ENGLISH));
+        if (challenge == null) {
+            throw new AuthenticationException(id +
+                " authorization challenge expected, but not found");
+        }
+        authScheme.processChallenge(challenge);
+        this.log.debug("Authorization challenge processed");
+    }
+
+
+    private void updateAuthState(
+            final AuthState authState,
+            final HttpHost host,
+            final CredentialsProvider credsProvider) {
+
+        if (!authState.isValid()) {
+            return;
+        }
+
+        String hostname = host.getHostName();
+        int port = host.getPort();
+        if (port < 0) {
+            Scheme scheme = connManager.getSchemeRegistry().getScheme(host);
+            port = scheme.getDefaultPort();
+        }
+
+        AuthScheme authScheme = authState.getAuthScheme();
+        AuthScope authScope = new AuthScope(
+                hostname,
+                port,
+                authScheme.getRealm(),
+                authScheme.getSchemeName());
+
+        if (this.log.isDebugEnabled()) {
+            this.log.debug("Authentication scope: " + authScope);
+        }
+        Credentials creds = authState.getCredentials();
+        if (creds == null) {
+            creds = credsProvider.getCredentials(authScope);
+            if (this.log.isDebugEnabled()) {
+                if (creds != null) {
+                    this.log.debug("Found credentials");
+                } else {
+                    this.log.debug("Credentials not found");
+                }
+            }
+        } else {
+            if (authScheme.isComplete()) {
+                this.log.debug("Authentication failed");
+                creds = null;
+            }
+        }
+        authState.setAuthScope(authScope);
+        authState.setCredentials(creds);
+    }
+
+    private void invalidateAuthIfSuccessful(final AuthState authState) {
+        AuthScheme authscheme = authState.getAuthScheme();
+        if (authscheme != null
+                && authscheme.isConnectionBased()
+                && authscheme.isComplete()
+                && authState.getCredentials() != null) {
+            authState.invalidate();
+        }
+    }
 
 } // class DefaultClientRequestDirector

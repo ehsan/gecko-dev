@@ -22,7 +22,7 @@ using namespace CrashReporter;
 
 static NSAutoreleasePool* gMainPool;
 static CrashReporterUI* gUI = 0;
-static StringTable gFiles;
+static string gDumpFile;
 static StringTable gQueryParameters;
 static string gURLParameter;
 static string gSendURL;
@@ -103,11 +103,11 @@ static bool RestartApplication()
                       objectForInfoDictionaryKey:@"CFBundleName"]];
 }
 
--(void)showCrashUI:(const StringTable&)files
+-(void)showCrashUI:(const string&)dumpfile
    queryParameters:(const StringTable&)queryParameters
            sendURL:(const string&)sendURL
 {
-  gFiles = files;
+  gDumpFile = dumpfile;
   gQueryParameters = queryParameters;
   gSendURL = sendURL;
 
@@ -573,12 +573,7 @@ static bool RestartApplication()
     [parameters setObject: value forKey: key];
   }
 
-  for (StringTable::const_iterator i = gFiles.begin();
-       i != gFiles.end();
-       i++) {
-    [mPost addFileAtPath: NSSTR(i->second) name: NSSTR(i->first)];
-  }
-
+  [mPost addFileAtPath: NSSTR(gDumpFile) name: @"upload_file_minidump"];
   [mPost setParameters: parameters];
   [parameters release];
 
@@ -778,14 +773,14 @@ void UIShowDefaultUI()
   [NSApp run];
 }
 
-bool UIShowCrashUI(const StringTable& files,
+bool UIShowCrashUI(const string& dumpfile,
                    const StringTable& queryParameters,
                    const string& sendURL,
                    const vector<string>& restartArgs)
 {
   gRestartArgs = restartArgs;
 
-  [gUI showCrashUI: files
+  [gUI showCrashUI: dumpfile
        queryParameters: queryParameters
        sendURL: sendURL];
   [NSApp run];

@@ -47,10 +47,7 @@ import ch.boye.httpclientandroidlib.protocol.HttpContext;
  * from multiple threads.
  *
  * @since 4.0
- *
- * @deprecated (4.2)  use {@link AuthenticationStrategy}
  */
-@Deprecated
 public interface AuthenticationHandler {
 
     /**

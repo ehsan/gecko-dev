@@ -73,7 +73,6 @@ add_task(function* test_desktop_paths() {
 
   compare_paths(OS.Constants.Path.macUserLibDir, "ULibDir");
   compare_paths(OS.Constants.Path.macLocalApplicationsDir, "LocApp");
-  compare_paths(OS.Constants.Path.macTrashDir, "Trsh");
 });
 
 // Open libxul

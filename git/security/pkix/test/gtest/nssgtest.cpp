@@ -25,6 +25,7 @@
 #include "nssgtest.h"
 #include "nss.h"
 #include "pkixtestutil.h"
+#include "prinit.h"
 
 using namespace std;
 using namespace testing;
@@ -37,6 +38,11 @@ NSSTest::SetUpTestCase()
   if (NSS_NoDB_Init(nullptr) != SECSuccess) {
     abort();
   }
+
+  now = Now();
+  pr_now = PR_Now();
+  pr_oneDayBeforeNow = pr_now - ONE_DAY;
+  pr_oneDayAfterNow = pr_now + ONE_DAY;
 }
 
 NSSTest::NSSTest()
@@ -47,10 +53,9 @@ NSSTest::NSSTest()
   }
 }
 
-// This assumes that time/time_t are POSIX-compliant in that time() returns
-// the number of seconds since the Unix epoch.
-const std::time_t now(time(nullptr));
-const std::time_t oneDayBeforeNow(time(nullptr) - Time::ONE_DAY_IN_SECONDS);
-const std::time_t oneDayAfterNow(time(nullptr) + Time::ONE_DAY_IN_SECONDS);
+/*static*/ mozilla::pkix::Time NSSTest::now(Now());
+/*static*/ PRTime NSSTest::pr_now;
+/*static*/ PRTime NSSTest::pr_oneDayBeforeNow;
+/*static*/ PRTime NSSTest::pr_oneDayAfterNow;
 
 } } } // namespace mozilla::pkix::test

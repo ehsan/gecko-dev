@@ -1344,8 +1344,7 @@ class JavaPanZoomController
 
     @Override
     public void onLongPress(MotionEvent motionEvent) {
-        GeckoEvent e = GeckoEvent.createLongPressEvent(motionEvent);
-        GeckoAppShell.sendEventToGecko(e);
+        sendPointToGecko("Gesture:LongPress", motionEvent);
     }
 
     @Override

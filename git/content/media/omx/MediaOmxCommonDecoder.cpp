@@ -40,8 +40,6 @@ MediaOmxCommonDecoder::MediaOmxCommonDecoder()
 #endif
 }
 
-MediaOmxCommonDecoder::~MediaOmxCommonDecoder() {}
-
 void
 MediaOmxCommonDecoder::SetPlatformCanOffloadAudio(bool aCanOffloadAudio)
 {

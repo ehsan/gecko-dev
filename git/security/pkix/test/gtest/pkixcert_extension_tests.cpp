@@ -50,7 +50,8 @@ CreateCert(PLArenaPool* arena, const char* subjectStr,
                                   arena, v3,
                                   SEC_OID_PKCS1_SHA256_WITH_RSA_ENCRYPTION,
                                   serialNumber, issuerDER,
-                                  oneDayBeforeNow, oneDayAfterNow,
+                                  PR_Now() - ONE_DAY,
+                                  PR_Now() + ONE_DAY,
                                   subjectDER, extensions,
                                   nullptr, SEC_OID_SHA256, subjectKey);
   EXPECT_TRUE(cert);
@@ -157,7 +158,7 @@ TEST_F(pkixcert_extension, UnknownCriticalExtension)
   Input cert(CreateCert(arena.get(), certCN,
                               &unknownCriticalExtension, key));
   ASSERT_EQ(Result::ERROR_UNKNOWN_CRITICAL_EXTENSION,
-            BuildCertChain(trustDomain, cert, Now(),
+            BuildCertChain(trustDomain, cert, now,
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,
@@ -188,7 +189,7 @@ TEST_F(pkixcert_extension, UnknownNonCriticalExtension)
   Input cert(CreateCert(arena.get(), certCN,
                               &unknownNonCriticalExtension, key));
   ASSERT_EQ(Success,
-            BuildCertChain(trustDomain, cert, Now(),
+            BuildCertChain(trustDomain, cert, now,
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,
@@ -220,7 +221,7 @@ TEST_F(pkixcert_extension, WrongOIDCriticalExtension)
   Input cert(CreateCert(arena.get(), certCN,
                               &wrongOIDCriticalExtension, key));
   ASSERT_EQ(Result::ERROR_UNKNOWN_CRITICAL_EXTENSION,
-            BuildCertChain(trustDomain, cert, Now(),
+            BuildCertChain(trustDomain, cert, now,
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,
@@ -253,7 +254,7 @@ TEST_F(pkixcert_extension, CriticalAIAExtension)
   // cert is owned by the arena
   Input cert(CreateCert(arena.get(), certCN, &criticalAIAExtension, key));
   ASSERT_EQ(Success,
-            BuildCertChain(trustDomain, cert, Now(),
+            BuildCertChain(trustDomain, cert, now,
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,
@@ -284,7 +285,7 @@ TEST_F(pkixcert_extension, UnknownCriticalCEExtension)
   Input cert(CreateCert(arena.get(), certCN,
                               &unknownCriticalCEExtension, key));
   ASSERT_EQ(Result::ERROR_UNKNOWN_CRITICAL_EXTENSION,
-            BuildCertChain(trustDomain, cert, Now(),
+            BuildCertChain(trustDomain, cert, now,
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,
@@ -314,7 +315,7 @@ TEST_F(pkixcert_extension, KnownCriticalCEExtension)
   // cert is owned by the arena
   Input cert(CreateCert(arena.get(), certCN, &criticalCEExtension, key));
   ASSERT_EQ(Success,
-            BuildCertChain(trustDomain, cert, Now(),
+            BuildCertChain(trustDomain, cert, now,
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,
@@ -345,7 +346,7 @@ TEST_F(pkixcert_extension, DuplicateSubjectAltName)
   // cert is owned by the arena
   Input cert(CreateCert(arena.get(), certCN, extensions, key));
   ASSERT_EQ(Result::ERROR_EXTENSION_VALUE_INVALID,
-            BuildCertChain(trustDomain, cert, Now(),
+            BuildCertChain(trustDomain, cert, now,
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,

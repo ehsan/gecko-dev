@@ -27,15 +27,13 @@
 
 package ch.boye.httpclientandroidlib.message;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.ArrayList;
 
 import ch.boye.httpclientandroidlib.HeaderElement;
 import ch.boye.httpclientandroidlib.NameValuePair;
 import ch.boye.httpclientandroidlib.ParseException;
-import ch.boye.httpclientandroidlib.annotation.Immutable;
 import ch.boye.httpclientandroidlib.protocol.HTTP;
-import ch.boye.httpclientandroidlib.util.Args;
 import ch.boye.httpclientandroidlib.util.CharArrayBuffer;
 
 /**
@@ -45,7 +43,6 @@ import ch.boye.httpclientandroidlib.util.CharArrayBuffer;
  *
  * @since 4.0
  */
-@Immutable
 public class BasicHeaderValueParser implements HeaderValueParser {
 
     /**
@@ -53,14 +50,9 @@ public class BasicHeaderValueParser implements HeaderValueParser {
      * Note that {@link BasicHeaderValueParser} is not a singleton, there
      * can be many instances of the class itself and of derived classes.
      * The instance here provides non-customized, default behavior.
-     *
-     * @deprecated (4.3) use {@link #INSTANCE}
      */
-    @Deprecated
     public final static
         BasicHeaderValueParser DEFAULT = new BasicHeaderValueParser();
-
-    public final static BasicHeaderValueParser INSTANCE = new BasicHeaderValueParser();
 
     private final static char PARAM_DELIMITER                = ';';
     private final static char ELEM_DELIMITER                 = ',';
@@ -69,9 +61,8 @@ public class BasicHeaderValueParser implements HeaderValueParser {
                                                                 ELEM_DELIMITER
                                                                 };
 
-    public BasicHeaderValueParser() {
-        super();
-    }
+    // public default constructor
+
 
     /**
      * Parses elements with the given parser.
@@ -81,32 +72,46 @@ public class BasicHeaderValueParser implements HeaderValueParser {
      *
      * @return  array holding the header elements, never <code>null</code>
      */
-    public static
+    public final static
         HeaderElement[] parseElements(final String value,
-                                      final HeaderValueParser parser) throws ParseException {
-        Args.notNull(value, "Value");
+                                      HeaderValueParser parser)
+        throws ParseException {
 
-        final CharArrayBuffer buffer = new CharArrayBuffer(value.length());
+        if (value == null) {
+            throw new IllegalArgumentException
+                ("Value to parse may not be null");
+        }
+
+        if (parser == null)
+            parser = BasicHeaderValueParser.DEFAULT;
+
+        CharArrayBuffer buffer = new CharArrayBuffer(value.length());
         buffer.append(value);
-        final ParserCursor cursor = new ParserCursor(0, value.length());
-        return (parser != null ? parser : BasicHeaderValueParser.INSTANCE)
-            .parseElements(buffer, cursor);
+        ParserCursor cursor = new ParserCursor(0, value.length());
+        return parser.parseElements(buffer, cursor);
     }
 
 
     // non-javadoc, see interface HeaderValueParser
     public HeaderElement[] parseElements(final CharArrayBuffer buffer,
                                          final ParserCursor cursor) {
-        Args.notNull(buffer, "Char array buffer");
-        Args.notNull(cursor, "Parser cursor");
-        final List<HeaderElement> elements = new ArrayList<HeaderElement>();
+
+        if (buffer == null) {
+            throw new IllegalArgumentException("Char array buffer may not be null");
+        }
+        if (cursor == null) {
+            throw new IllegalArgumentException("Parser cursor may not be null");
+        }
+
+        List elements = new ArrayList();
         while (!cursor.atEnd()) {
-            final HeaderElement element = parseHeaderElement(buffer, cursor);
+            HeaderElement element = parseHeaderElement(buffer, cursor);
             if (!(element.getName().length() == 0 && element.getValue() == null)) {
                 elements.add(element);
             }
         }
-        return elements.toArray(new HeaderElement[elements.size()]);
+        return (HeaderElement[])
+            elements.toArray(new HeaderElement[elements.size()]);
     }
 
 
@@ -118,28 +123,41 @@ public class BasicHeaderValueParser implements HeaderValueParser {
      *
      * @return  the parsed header element
      */
-    public static
+    public final static
         HeaderElement parseHeaderElement(final String value,
-                                         final HeaderValueParser parser) throws ParseException {
-        Args.notNull(value, "Value");
+                                         HeaderValueParser parser)
+        throws ParseException {
 
-        final CharArrayBuffer buffer = new CharArrayBuffer(value.length());
+        if (value == null) {
+            throw new IllegalArgumentException
+                ("Value to parse may not be null");
+        }
+
+        if (parser == null)
+            parser = BasicHeaderValueParser.DEFAULT;
+
+        CharArrayBuffer buffer = new CharArrayBuffer(value.length());
         buffer.append(value);
-        final ParserCursor cursor = new ParserCursor(0, value.length());
-        return (parser != null ? parser : BasicHeaderValueParser.INSTANCE)
-                .parseHeaderElement(buffer, cursor);
+        ParserCursor cursor = new ParserCursor(0, value.length());
+        return parser.parseHeaderElement(buffer, cursor);
     }
 
 
     // non-javadoc, see interface HeaderValueParser
     public HeaderElement parseHeaderElement(final CharArrayBuffer buffer,
                                             final ParserCursor cursor) {
-        Args.notNull(buffer, "Char array buffer");
-        Args.notNull(cursor, "Parser cursor");
-        final NameValuePair nvp = parseNameValuePair(buffer, cursor);
+
+        if (buffer == null) {
+            throw new IllegalArgumentException("Char array buffer may not be null");
+        }
+        if (cursor == null) {
+            throw new IllegalArgumentException("Parser cursor may not be null");
+        }
+
+        NameValuePair nvp = parseNameValuePair(buffer, cursor);
         NameValuePair[] params = null;
         if (!cursor.atEnd()) {
-            final char ch = buffer.charAt(cursor.getPos() - 1);
+            char ch = buffer.charAt(cursor.getPos() - 1);
             if (ch != ELEM_DELIMITER) {
                 params = parseParameters(buffer, cursor);
             }
@@ -170,16 +188,23 @@ public class BasicHeaderValueParser implements HeaderValueParser {
      *
      * @return  array holding the parameters, never <code>null</code>
      */
-    public static
+    public final static
         NameValuePair[] parseParameters(final String value,
-                                        final HeaderValueParser parser) throws ParseException {
-        Args.notNull(value, "Value");
+                                        HeaderValueParser parser)
+        throws ParseException {
 
-        final CharArrayBuffer buffer = new CharArrayBuffer(value.length());
+        if (value == null) {
+            throw new IllegalArgumentException
+                ("Value to parse may not be null");
+        }
+
+        if (parser == null)
+            parser = BasicHeaderValueParser.DEFAULT;
+
+        CharArrayBuffer buffer = new CharArrayBuffer(value.length());
         buffer.append(value);
-        final ParserCursor cursor = new ParserCursor(0, value.length());
-        return (parser != null ? parser : BasicHeaderValueParser.INSTANCE)
-                .parseParameters(buffer, cursor);
+        ParserCursor cursor = new ParserCursor(0, value.length());
+        return parser.parseParameters(buffer, cursor);
     }
 
 
@@ -187,13 +212,19 @@ public class BasicHeaderValueParser implements HeaderValueParser {
     // non-javadoc, see interface HeaderValueParser
     public NameValuePair[] parseParameters(final CharArrayBuffer buffer,
                                            final ParserCursor cursor) {
-        Args.notNull(buffer, "Char array buffer");
-        Args.notNull(cursor, "Parser cursor");
+
+        if (buffer == null) {
+            throw new IllegalArgumentException("Char array buffer may not be null");
+        }
+        if (cursor == null) {
+            throw new IllegalArgumentException("Parser cursor may not be null");
+        }
+
         int pos = cursor.getPos();
-        final int indexTo = cursor.getUpperBound();
+        int indexTo = cursor.getUpperBound();
 
         while (pos < indexTo) {
-            final char ch = buffer.charAt(pos);
+            char ch = buffer.charAt(pos);
             if (HTTP.isWhitespace(ch)) {
                 pos++;
             } else {
@@ -205,17 +236,18 @@ public class BasicHeaderValueParser implements HeaderValueParser {
             return new NameValuePair[] {};
         }
 
-        final List<NameValuePair> params = new ArrayList<NameValuePair>();
+        List params = new ArrayList();
         while (!cursor.atEnd()) {
-            final NameValuePair param = parseNameValuePair(buffer, cursor);
+            NameValuePair param = parseNameValuePair(buffer, cursor);
             params.add(param);
-            final char ch = buffer.charAt(cursor.getPos() - 1);
+            char ch = buffer.charAt(cursor.getPos() - 1);
             if (ch == ELEM_DELIMITER) {
                 break;
             }
         }
 
-        return params.toArray(new NameValuePair[params.size()]);
+        return (NameValuePair[])
+            params.toArray(new NameValuePair[params.size()]);
     }
 
     /**
@@ -226,16 +258,23 @@ public class BasicHeaderValueParser implements HeaderValueParser {
      *
      * @return  the parsed name-value pair
      */
-    public static
+    public final static
        NameValuePair parseNameValuePair(final String value,
-                                        final HeaderValueParser parser) throws ParseException {
-        Args.notNull(value, "Value");
+                                        HeaderValueParser parser)
+        throws ParseException {
 
-        final CharArrayBuffer buffer = new CharArrayBuffer(value.length());
+        if (value == null) {
+            throw new IllegalArgumentException
+                ("Value to parse may not be null");
+        }
+
+        if (parser == null)
+            parser = BasicHeaderValueParser.DEFAULT;
+
+        CharArrayBuffer buffer = new CharArrayBuffer(value.length());
         buffer.append(value);
-        final ParserCursor cursor = new ParserCursor(0, value.length());
-        return (parser != null ? parser : BasicHeaderValueParser.INSTANCE)
-                .parseNameValuePair(buffer, cursor);
+        ParserCursor cursor = new ParserCursor(0, value.length());
+        return parser.parseNameValuePair(buffer, cursor);
     }
 
 
@@ -247,8 +286,8 @@ public class BasicHeaderValueParser implements HeaderValueParser {
 
     private static boolean isOneOf(final char ch, final char[] chs) {
         if (chs != null) {
-            for (final char ch2 : chs) {
-                if (ch == ch2) {
+            for (int i = 0; i < chs.length; i++) {
+                if (ch == chs[i]) {
                     return true;
                 }
             }
@@ -259,19 +298,24 @@ public class BasicHeaderValueParser implements HeaderValueParser {
     public NameValuePair parseNameValuePair(final CharArrayBuffer buffer,
                                             final ParserCursor cursor,
                                             final char[] delimiters) {
-        Args.notNull(buffer, "Char array buffer");
-        Args.notNull(cursor, "Parser cursor");
+
+        if (buffer == null) {
+            throw new IllegalArgumentException("Char array buffer may not be null");
+        }
+        if (cursor == null) {
+            throw new IllegalArgumentException("Parser cursor may not be null");
+        }
 
         boolean terminated = false;
 
         int pos = cursor.getPos();
-        final int indexFrom = cursor.getPos();
-        final int indexTo = cursor.getUpperBound();
+        int indexFrom = cursor.getPos();
+        int indexTo = cursor.getUpperBound();
 
         // Find name
-        final String name;
+        String name = null;
         while (pos < indexTo) {
-            final char ch = buffer.charAt(pos);
+            char ch = buffer.charAt(pos);
             if (ch == '=') {
                 break;
             }
@@ -296,13 +340,13 @@ public class BasicHeaderValueParser implements HeaderValueParser {
         }
 
         // Find value
-        final String value;
+        String value = null;
         int i1 = pos;
 
         boolean qouted = false;
         boolean escaped = false;
         while (pos < indexTo) {
-            final char ch = buffer.charAt(pos);
+            char ch = buffer.charAt(pos);
             if (ch == '"' && !escaped) {
                 qouted = !qouted;
             }

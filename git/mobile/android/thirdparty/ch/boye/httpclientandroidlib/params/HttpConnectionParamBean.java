@@ -33,38 +33,34 @@ package ch.boye.httpclientandroidlib.params;
  * conventions.
  *
  * @since 4.0
- *
- * @deprecated (4.3) use configuration classes provided 'ch.boye.httpclientandroidlib.config'
- *  and 'ch.boye.httpclientandroidlib.client.config'
  */
-@Deprecated
 public class HttpConnectionParamBean extends HttpAbstractParamBean {
 
     public HttpConnectionParamBean (final HttpParams params) {
         super(params);
     }
 
-    public void setSoTimeout (final int soTimeout) {
+    public void setSoTimeout (int soTimeout) {
         HttpConnectionParams.setSoTimeout(params, soTimeout);
     }
 
-    public void setTcpNoDelay (final boolean tcpNoDelay) {
+    public void setTcpNoDelay (boolean tcpNoDelay) {
         HttpConnectionParams.setTcpNoDelay(params, tcpNoDelay);
     }
 
-    public void setSocketBufferSize (final int socketBufferSize) {
+    public void setSocketBufferSize (int socketBufferSize) {
         HttpConnectionParams.setSocketBufferSize(params, socketBufferSize);
     }
 
-    public void setLinger (final int linger) {
+    public void setLinger (int linger) {
         HttpConnectionParams.setLinger(params, linger);
     }
 
-    public void setConnectionTimeout (final int connectionTimeout) {
+    public void setConnectionTimeout (int connectionTimeout) {
         HttpConnectionParams.setConnectionTimeout(params, connectionTimeout);
     }
 
-    public void setStaleCheckingEnabled (final boolean staleCheckingEnabled) {
+    public void setStaleCheckingEnabled (boolean staleCheckingEnabled) {
         HttpConnectionParams.setStaleCheckingEnabled(params, staleCheckingEnabled);
     }
 

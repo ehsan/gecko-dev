@@ -27,8 +27,6 @@
 
 package ch.boye.httpclientandroidlib.protocol;
 
-import ch.boye.httpclientandroidlib.util.Args;
-
 /**
  * {@link HttpContext} implementation that delegates resolution of an attribute
  * to the given default {@link HttpContext} instance if the attribute is not
@@ -36,10 +34,7 @@ import ch.boye.httpclientandroidlib.util.Args;
  * whereas the default context is treated as read-only.
  *
  * @since 4.0
- *
- * @deprecated (4.3) no longer used.
  */
-@Deprecated
 public final class DefaultedHttpContext implements HttpContext {
 
     private final HttpContext local;
@@ -47,12 +42,15 @@ public final class DefaultedHttpContext implements HttpContext {
 
     public DefaultedHttpContext(final HttpContext local, final HttpContext defaults) {
         super();
-        this.local = Args.notNull(local, "HTTP context");
+        if (local == null) {
+            throw new IllegalArgumentException("HTTP context may not be null");
+        }
+        this.local = local;
         this.defaults = defaults;
     }
 
     public Object getAttribute(final String id) {
-        final Object obj = this.local.getAttribute(id);
+        Object obj = this.local.getAttribute(id);
         if (obj == null) {
             return this.defaults.getAttribute(id);
         } else {
@@ -70,15 +68,6 @@ public final class DefaultedHttpContext implements HttpContext {
 
     public HttpContext getDefaults() {
         return this.defaults;
-    }
-
-    @Override
-    public String toString() {
-        final StringBuilder buf = new StringBuilder();
-        buf.append("[local: ").append(this.local);
-        buf.append("defaults: ").append(this.defaults);
-        buf.append("]");
-        return buf.toString();
     }
 
 }

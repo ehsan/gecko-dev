@@ -22,6 +22,7 @@
 
 #include "nsEditRules.h"
 
+#include "nsEditProperty.h"
 #include "nsHTMLCSSUtils.h"
 
 #include "nsHTMLObjectResizer.h"

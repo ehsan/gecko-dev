@@ -33,11 +33,9 @@ import ch.boye.httpclientandroidlib.params.HttpParams;
 /**
  * A factory for creating new {@link ClientConnectionManager} instances.
  *
- * @since 4.0
  *
- * @deprecated (4.3) replaced by {@link HttpClientConnectionManager}.
+ * @since 4.0
  */
-@Deprecated
 public interface ClientConnectionManagerFactory {
 
     ClientConnectionManager newInstance(

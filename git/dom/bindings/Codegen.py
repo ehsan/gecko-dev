@@ -2155,8 +2155,7 @@ class MethodDefiner(PropertyDefiner):
         if not static:
             stringifier = descriptor.operations['Stringifier']
             if (stringifier and
-                unforgeable == MemberIsUnforgeable(stringifier, descriptor) and
-                isMaybeExposedIn(stringifier, descriptor)):
+                unforgeable == MemberIsUnforgeable(stringifier, descriptor)):
                 toStringDesc = {
                     "name": "toString",
                     "nativeName": stringifier.identifier.name,
@@ -2169,9 +2168,7 @@ class MethodDefiner(PropertyDefiner):
                 else:
                     self.regular.append(toStringDesc)
             jsonifier = descriptor.operations['Jsonifier']
-            if (jsonifier and
-                unforgeable == MemberIsUnforgeable(jsonifier, descriptor) and
-                isMaybeExposedIn(jsonifier, descriptor)):
+            if jsonifier:
                 toJSONDesc = {
                     "name": "toJSON",
                     "nativeName": jsonifier.identifier.name,

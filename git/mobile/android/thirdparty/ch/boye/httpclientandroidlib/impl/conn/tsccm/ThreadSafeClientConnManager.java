@@ -1,21 +1,20 @@
 /*
  * ====================================================================
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  * ====================================================================
  *
  * This software consists of voluntary contributions made by many
@@ -24,6 +23,7 @@
  * <http://www.apache.org/>.
  *
  */
+
 package ch.boye.httpclientandroidlib.impl.conn.tsccm;
 
 import java.io.IOException;
@@ -32,23 +32,22 @@ import java.util.concurrent.TimeUnit;
 import ch.boye.httpclientandroidlib.androidextra.HttpClientAndroidLog;
 /* LogFactory removed by HttpClient for Android script. */
 import ch.boye.httpclientandroidlib.annotation.ThreadSafe;
+import ch.boye.httpclientandroidlib.conn.params.ConnPerRouteBean;
+import ch.boye.httpclientandroidlib.conn.routing.HttpRoute;
+import ch.boye.httpclientandroidlib.conn.scheme.SchemeRegistry;
 import ch.boye.httpclientandroidlib.conn.ClientConnectionManager;
 import ch.boye.httpclientandroidlib.conn.ClientConnectionOperator;
 import ch.boye.httpclientandroidlib.conn.ClientConnectionRequest;
 import ch.boye.httpclientandroidlib.conn.ConnectionPoolTimeoutException;
 import ch.boye.httpclientandroidlib.conn.ManagedClientConnection;
-import ch.boye.httpclientandroidlib.conn.params.ConnPerRouteBean;
-import ch.boye.httpclientandroidlib.conn.routing.HttpRoute;
-import ch.boye.httpclientandroidlib.conn.scheme.SchemeRegistry;
+import ch.boye.httpclientandroidlib.conn.OperatedClientConnection;
+import ch.boye.httpclientandroidlib.params.HttpParams;
 import ch.boye.httpclientandroidlib.impl.conn.DefaultClientConnectionOperator;
 import ch.boye.httpclientandroidlib.impl.conn.SchemeRegistryFactory;
-import ch.boye.httpclientandroidlib.params.HttpParams;
-import ch.boye.httpclientandroidlib.util.Args;
-import ch.boye.httpclientandroidlib.util.Asserts;
 
 /**
- * Manages a pool of {@link ch.boye.httpclientandroidlib.conn.OperatedClientConnection }
- * and is able to service connection requests from multiple execution threads.
+ * Manages a pool of {@link OperatedClientConnection client connections} and
+ * is able to service connection requests from multiple execution threads.
  * Connections are pooled on a per route basis. A request for a route which
  * already the manager has persistent connections for available in the pool
  * will be services by leasing a connection from the pool rather than
@@ -63,11 +62,8 @@ import ch.boye.httpclientandroidlib.util.Asserts;
  * can be adjusted using HTTP parameters.
  *
  * @since 4.0
- *
- * @deprecated (4.2)  use {@link ch.boye.httpclientandroidlib.impl.conn.PoolingHttpClientConnectionManager}
  */
 @ThreadSafe
-@Deprecated
 public class ThreadSafeClientConnManager implements ClientConnectionManager {
 
     public HttpClientAndroidLog log;
@@ -75,6 +71,7 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
     /** The schemes supported by this connection manager. */
     protected final SchemeRegistry schemeRegistry; // @ThreadSafe
 
+    @Deprecated
     protected final AbstractConnPool connectionPool;
 
     /** The pool of connections being managed. */
@@ -111,29 +108,14 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
      * @since 4.1
      */
     public ThreadSafeClientConnManager(final SchemeRegistry schreg,
-            final long connTTL, final TimeUnit connTTLTimeUnit) {
-        this(schreg, connTTL, connTTLTimeUnit, new ConnPerRouteBean());
-    }
-
-    /**
-     * Creates a new thread safe connection manager.
-     *
-     * @param schreg    the scheme registry.
-     * @param connTTL   max connection lifetime, <=0 implies "infinity"
-     * @param connTTLTimeUnit   TimeUnit of connTTL
-     * @param connPerRoute    mapping of maximum connections per route,
-     *   provided as a dependency so it can be managed externally, e.g.
-     *   for dynamic connection pool size management.
-     *
-     * @since 4.2
-     */
-    public ThreadSafeClientConnManager(final SchemeRegistry schreg,
-            final long connTTL, final TimeUnit connTTLTimeUnit, final ConnPerRouteBean connPerRoute) {
+            long connTTL, TimeUnit connTTLTimeUnit) {
         super();
-        Args.notNull(schreg, "Scheme registry");
+        if (schreg == null) {
+            throw new IllegalArgumentException("Scheme registry may not be null");
+        }
         this.log = new HttpClientAndroidLog(getClass());
         this.schemeRegistry = schreg;
-        this.connPerRoute = connPerRoute;
+        this.connPerRoute = new ConnPerRouteBean();
         this.connOperator = createConnectionOperator(schreg);
         this.pool = createConnectionPool(connTTL, connTTLTimeUnit) ;
         this.connectionPool = this.pool;
@@ -145,12 +127,14 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
      * @param params    the parameters for this manager.
      * @param schreg    the scheme registry.
      *
-     * @deprecated (4.1)  use {@link ThreadSafeClientConnManager#ThreadSafeClientConnManager(SchemeRegistry)}
+     * @deprecated use {@link ThreadSafeClientConnManager#ThreadSafeClientConnManager(SchemeRegistry)}
      */
     @Deprecated
-    public ThreadSafeClientConnManager(final HttpParams params,
-                                       final SchemeRegistry schreg) {
-        Args.notNull(schreg, "Scheme registry");
+    public ThreadSafeClientConnManager(HttpParams params,
+                                       SchemeRegistry schreg) {
+        if (schreg == null) {
+            throw new IllegalArgumentException("Scheme registry may not be null");
+        }
         this.log = new HttpClientAndroidLog(getClass());
         this.schemeRegistry = schreg;
         this.connPerRoute = new ConnPerRouteBean();
@@ -173,7 +157,7 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
      *
      * @return  the connection pool to use
      *
-     * @deprecated (4.1)  use #createConnectionPool(long, TimeUnit))
+     * @deprecated use #createConnectionPool(long, TimeUnit))
      */
     @Deprecated
     protected AbstractConnPool createConnectionPool(final HttpParams params) {
@@ -187,7 +171,7 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
      *
      * @since 4.1
      */
-    protected ConnPoolByRoute createConnectionPool(final long connTTL, final TimeUnit connTTLTimeUnit) {
+    protected ConnPoolByRoute createConnectionPool(long connTTL, TimeUnit connTTLTimeUnit) {
         return new ConnPoolByRoute(connOperator, connPerRoute, 20, connTTL, connTTLTimeUnit);
     }
 
@@ -204,7 +188,7 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
      * @return  the connection operator to use
      */
     protected ClientConnectionOperator
-        createConnectionOperator(final SchemeRegistry schreg) {
+        createConnectionOperator(SchemeRegistry schreg) {
 
         return new DefaultClientConnectionOperator(schreg);// @ThreadSafe
     }
@@ -227,15 +211,17 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
             }
 
             public ManagedClientConnection getConnection(
-                    final long timeout, final TimeUnit tunit) throws InterruptedException,
+                    long timeout, TimeUnit tunit) throws InterruptedException,
                     ConnectionPoolTimeoutException {
-                Args.notNull(route, "Route");
+                if (route == null) {
+                    throw new IllegalArgumentException("Route may not be null.");
+                }
 
                 if (log.isDebugEnabled()) {
                     log.debug("Get connection: " + route + ", timeout = " + timeout);
                 }
 
-                final BasicPoolEntry entry = poolRequest.getPoolEntry(timeout, tunit);
+                BasicPoolEntry entry = poolRequest.getPoolEntry(timeout, tunit);
                 return new BasicPooledConnAdapter(ThreadSafeClientConnManager.this, entry);
             }
 
@@ -243,15 +229,20 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
 
     }
 
-    public void releaseConnection(final ManagedClientConnection conn, final long validDuration, final TimeUnit timeUnit) {
-        Args.check(conn instanceof BasicPooledConnAdapter, "Connection class mismatch, " +
-                "connection not obtained from this manager");
-        final BasicPooledConnAdapter hca = (BasicPooledConnAdapter) conn;
-        if (hca.getPoolEntry() != null) {
-            Asserts.check(hca.getManager() == this, "Connection not obtained from this manager");
+    public void releaseConnection(ManagedClientConnection conn, long validDuration, TimeUnit timeUnit) {
+
+        if (!(conn instanceof BasicPooledConnAdapter)) {
+            throw new IllegalArgumentException
+                ("Connection class mismatch, " +
+                 "connection not obtained from this manager.");
+        }
+        BasicPooledConnAdapter hca = (BasicPooledConnAdapter) conn;
+        if ((hca.getPoolEntry() != null) && (hca.getManager() != this)) {
+            throw new IllegalArgumentException
+                ("Connection not obtained from this manager.");
         }
         synchronized (hca) {
-            final BasicPoolEntry entry = (BasicPoolEntry) hca.getPoolEntry();
+            BasicPoolEntry entry = (BasicPoolEntry) hca.getPoolEntry();
             if (entry == null) {
                 return;
             }
@@ -268,13 +259,12 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
                     // Shutdown of the adapter also clears the tracked route.
                     hca.shutdown();
                 }
-            } catch (final IOException iox) {
-                if (log.isDebugEnabled()) {
+            } catch (IOException iox) {
+                if (log.isDebugEnabled())
                     log.debug("Exception shutting down released connection.",
                               iox);
-                }
             } finally {
-                final boolean reusable = hca.isMarkedReusable();
+                boolean reusable = hca.isMarkedReusable();
                 if (log.isDebugEnabled()) {
                     if (reusable) {
                         log.debug("Released connection is reusable.");
@@ -319,7 +309,7 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
         return pool.getConnectionsInPool();
     }
 
-    public void closeIdleConnections(final long idleTimeout, final TimeUnit tunit) {
+    public void closeIdleConnections(long idleTimeout, TimeUnit tunit) {
         if (log.isDebugEnabled()) {
             log.debug("Closing connections idle longer than " + idleTimeout + " " + tunit);
         }
@@ -341,7 +331,7 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
     /**
      * since 4.1
      */
-    public void setMaxTotal(final int max) {
+    public void setMaxTotal(int max) {
         pool.setMaxTotalConnections(max);
     }
 
@@ -355,7 +345,7 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
     /**
      * @since 4.1
      */
-    public void setDefaultMaxPerRoute(final int max) {
+    public void setDefaultMaxPerRoute(int max) {
         connPerRoute.setDefaultMaxPerRoute(max);
     }
 
@@ -369,7 +359,7 @@ public class ThreadSafeClientConnManager implements ClientConnectionManager {
     /**
      * @since 4.1
      */
-    public void setMaxForRoute(final HttpRoute route, final int max) {
+    public void setMaxForRoute(final HttpRoute route, int max) {
         connPerRoute.setMaxForRoute(route, max);
     }
 

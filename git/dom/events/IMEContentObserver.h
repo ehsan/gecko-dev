@@ -60,9 +60,6 @@ public:
   // nsIScrollObserver
   virtual void ScrollPositionChanged() MOZ_OVERRIDE;
 
-  bool OnMouseButtonEvent(nsPresContext* aPresContext,
-                          WidgetMouseEvent* aMouseEvent);
-
   void Init(nsIWidget* aWidget, nsPresContext* aPresContext,
             nsIContent* aContent);
   void Destroy();

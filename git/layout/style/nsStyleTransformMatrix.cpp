@@ -16,7 +16,6 @@
 #include "gfxMatrix.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 namespace nsStyleTransformMatrix {
 
@@ -197,7 +196,7 @@ ProcessTranslateX(gfx3DMatrix& aMatrix,
 {
   NS_PRECONDITION(aData->Count() == 2, "Invalid array!");
 
-  Point3D temp;
+  gfxPoint3D temp;
 
   temp.x = ProcessTranslatePart(aData->Item(1),
                                 aContext, aPresContext, aCanStoreInRuleTree,
@@ -216,7 +215,7 @@ ProcessTranslateY(gfx3DMatrix& aMatrix,
 {
   NS_PRECONDITION(aData->Count() == 2, "Invalid array!");
 
-  Point3D temp;
+  gfxPoint3D temp;
 
   temp.y = ProcessTranslatePart(aData->Item(1),
                                 aContext, aPresContext, aCanStoreInRuleTree,
@@ -233,7 +232,7 @@ ProcessTranslateZ(gfx3DMatrix& aMatrix,
 {
   NS_PRECONDITION(aData->Count() == 2, "Invalid array!");
 
-  Point3D temp;
+  gfxPoint3D temp;
 
   temp.z = ProcessTranslatePart(aData->Item(1), aContext,
                                 aPresContext, aCanStoreInRuleTree, 0);
@@ -251,7 +250,7 @@ ProcessTranslate(gfx3DMatrix& aMatrix,
 {
   NS_PRECONDITION(aData->Count() == 2 || aData->Count() == 3, "Invalid array!");
 
-  Point3D temp;
+  gfxPoint3D temp;
 
   temp.x = ProcessTranslatePart(aData->Item(1),
                                 aContext, aPresContext, aCanStoreInRuleTree,
@@ -276,7 +275,7 @@ ProcessTranslate3D(gfx3DMatrix& aMatrix,
 {
   NS_PRECONDITION(aData->Count() == 4, "Invalid array!");
 
-  Point3D temp;
+  gfxPoint3D temp;
 
   temp.x = ProcessTranslatePart(aData->Item(1),
                                 aContext, aPresContext, aCanStoreInRuleTree,
@@ -438,9 +437,9 @@ ProcessRotate3D(gfx3DMatrix& aMatrix, const nsCSSValue::Array* aData)
   float cosTheta = FlushToZero(cos(theta));
   float sinTheta = FlushToZero(sin(theta));
 
-  Point3D vector(aData->Item(1).GetFloatValue(),
-                 aData->Item(2).GetFloatValue(),
-                 aData->Item(3).GetFloatValue());
+  gfxPoint3D vector(aData->Item(1).GetFloatValue(),
+                    aData->Item(2).GetFloatValue(),
+                    aData->Item(3).GetFloatValue());
 
   if (!vector.Length()) {
     return;

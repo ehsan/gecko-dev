@@ -540,8 +540,9 @@ VectorImage::RequestRefresh(const TimeStamp& aTime)
     return;
   }
 
-  // TODO: Implement for b666446.
   EvaluateAnimation();
+
+  mSVGDocumentWrapper->TickRefreshDriver();
 
   if (mHasPendingInvalidation) {
     SendInvalidationNotifications();
@@ -778,7 +779,6 @@ struct SVGDrawingParameters
     , viewportSize(aSVGContext ? aSVGContext->GetViewportSize() : aSize)
     , animationTime(aAnimationTime)
     , flags(aFlags)
-    , opacity(aSVGContext ? aSVGContext->GetGlobalOpacity() : 1.0)
   { }
 
   gfxContext*                   context;
@@ -790,7 +790,6 @@ struct SVGDrawingParameters
   nsIntSize                     viewportSize;
   float                         animationTime;
   uint32_t                      flags;
-  gfxFloat                      opacity;
 };
 
 //******************************************************************************
@@ -930,7 +929,7 @@ VectorImage::Show(gfxDrawable* aDrawable, const SVGDrawingParameters& aParams)
                              ThebesIntSize(aParams.size),
                              aParams.region,
                              SurfaceFormat::B8G8R8A8,
-                             aParams.filter, aParams.flags, aParams.opacity);
+                             aParams.filter, aParams.flags);
 
   MOZ_ASSERT(mRenderingObserver, "Should have a rendering observer by now");
   mRenderingObserver->ResumeHonoringInvalidations();

@@ -25,10 +25,8 @@
 #include "gfxMatrix.h"
 #include "gfxQuaternion.h"
 #include "nsIDocument.h"
-#include "gfx2DGlue.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 // HELPER METHODS
 // --------------
@@ -1340,9 +1338,9 @@ StyleAnimationValue::AppendTransformFunction(nsCSSKeyword aTransformFunction,
 #define YZSHEAR 2
 
 static bool
-Decompose2DMatrix(const gfxMatrix &aMatrix, Point3D &aScale,
+Decompose2DMatrix(const gfxMatrix &aMatrix, gfxPoint3D &aScale,
                   float aShear[3], gfxQuaternion &aRotate,
-                  Point3D &aTranslate)
+                  gfxPoint3D &aTranslate)
 {
   float A = aMatrix._11,
         B = aMatrix._12,
@@ -1399,11 +1397,11 @@ Decompose2DMatrix(const gfxMatrix &aMatrix, Point3D &aScale,
  * in http://tog.acm.org/resources/GraphicsGems/AllGems.tar.gz
  */
 static bool
-Decompose3DMatrix(const gfx3DMatrix &aMatrix, Point3D &aScale,
+Decompose3DMatrix(const gfx3DMatrix &aMatrix, gfxPoint3D &aScale,
                   float aShear[3], gfxQuaternion &aRotate,
-                  Point3D &aTranslate, Point4D &aPerspective)
+                  gfxPoint3D &aTranslate, gfxPointH3D &aPerspective)
 {
-  Matrix4x4 local = ToMatrix4x4(aMatrix);
+  gfx3DMatrix local = aMatrix;
 
   if (local[3][3] == 0) {
     return false;
@@ -1415,8 +1413,8 @@ Decompose3DMatrix(const gfx3DMatrix &aMatrix, Point3D &aScale,
    * perspective is used to solve for perspective, but it also provides
    * an easy way to test for singularity of the upper 3x3 component.
    */
-  Matrix4x4 perspective = local;
-  Point4D empty(0, 0, 0, 1);
+  gfx3DMatrix perspective = local;
+  gfxPointH3D empty(0, 0, 0, 1);
   perspective.SetTransposedVector(3, empty);
 
   if (perspective.Determinant() == 0.0) {
@@ -1439,7 +1437,7 @@ Decompose3DMatrix(const gfx3DMatrix &aMatrix, Point3D &aScale,
     /* Clear the perspective partition */
     local.SetTransposedVector(3, empty);
   } else {
-    aPerspective = Point4D(0, 0, 0, 1);
+    aPerspective = gfxPointH3D(0, 0, 0, 1);
   }
 
   /* Next take care of translation */
@@ -1510,13 +1508,13 @@ StyleAnimationValue::InterpolateTransformMatrix(const gfx3DMatrix &aMatrix1,
 
   // TODO: What do we do if one of these returns false (singular matrix)
 
-  Point3D scale1(1, 1, 1), translate1;
-  Point4D perspective1(0, 0, 0, 1);
+  gfxPoint3D scale1(1, 1, 1), translate1;
+  gfxPointH3D perspective1(0, 0, 0, 1);
   gfxQuaternion rotate1;
   float shear1[3] = { 0.0f, 0.0f, 0.0f};
 
-  Point3D scale2(1, 1, 1), translate2;
-  Point4D perspective2(0, 0, 0, 1);
+  gfxPoint3D scale2(1, 1, 1), translate2;
+  gfxPointH3D perspective2(0, 0, 0, 1);
   gfxQuaternion rotate2;
   float shear2[3] = { 0.0f, 0.0f, 0.0f};
 
@@ -1532,18 +1530,18 @@ StyleAnimationValue::InterpolateTransformMatrix(const gfx3DMatrix &aMatrix1,
   }
 
   // Interpolate each of the pieces
-  Matrix4x4 result;
+  gfx3DMatrix result;
 
-  Point4D perspective =
+  gfxPointH3D perspective =
     InterpolateNumerically(perspective1, perspective2, aProgress);
   result.SetTransposedVector(3, perspective);
 
-  Point3D translate =
+  gfxPoint3D translate =
     InterpolateNumerically(translate1, translate2, aProgress);
-  result.Translate(translate.x, translate.y, translate.z);
+  result.Translate(translate);
 
   gfxQuaternion q3 = rotate1.Slerp(rotate2, aProgress);
-  Matrix4x4 rotate = q3.ToMatrix();
+  gfx3DMatrix rotate = q3.ToMatrix();
   if (!rotate.IsIdentity()) {
       result = rotate * result;
   }
@@ -1567,13 +1565,13 @@ StyleAnimationValue::InterpolateTransformMatrix(const gfx3DMatrix &aMatrix1,
     result.SkewXY(xyshear);
   }
 
-  Point3D scale =
+  gfxPoint3D scale =
     InterpolateNumerically(scale1, scale2, aProgress);
-  if (scale != Point3D(1.0, 1.0, 1.0)) {
+  if (scale != gfxPoint3D(1.0, 1.0, 1.0)) {
     result.Scale(scale.x, scale.y, scale.z);
   }
 
-  return To3DMatrix(result);
+  return result;
 }
 
 static nsCSSValueList*
@@ -1816,13 +1814,13 @@ AddTransformLists(double aCoeff1, const nsCSSValueList* aList1,
         break;
       }
       case eCSSKeyword_rotate3d: {
-        Point3D vector1(a1->Item(1).GetFloatValue(),
-                        a1->Item(2).GetFloatValue(),
-                        a1->Item(3).GetFloatValue());
+        gfxPoint3D vector1(a1->Item(1).GetFloatValue(),
+                           a1->Item(2).GetFloatValue(),
+                           a1->Item(3).GetFloatValue());
         vector1.Normalize();
-        Point3D vector2(a2->Item(1).GetFloatValue(),
-                        a2->Item(2).GetFloatValue(),
-                        a2->Item(3).GetFloatValue());
+        gfxPoint3D vector2(a2->Item(1).GetFloatValue(),
+                           a2->Item(2).GetFloatValue(),
+                           a2->Item(3).GetFloatValue());
         vector2.Normalize();
 
         // Handle rotate3d with matched (normalized) vectors,

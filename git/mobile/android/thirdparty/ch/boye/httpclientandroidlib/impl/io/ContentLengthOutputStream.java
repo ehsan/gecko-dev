@@ -30,9 +30,7 @@ package ch.boye.httpclientandroidlib.impl.io;
 import java.io.IOException;
 import java.io.OutputStream;
 
-import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
 import ch.boye.httpclientandroidlib.io.SessionOutputBuffer;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * Output stream that cuts off after a defined number of bytes. This class
@@ -47,7 +45,6 @@ import ch.boye.httpclientandroidlib.util.Args;
  *
  * @since 4.0
  */
-@NotThreadSafe
 public class ContentLengthOutputStream extends OutputStream {
 
     /**
@@ -77,10 +74,16 @@ public class ContentLengthOutputStream extends OutputStream {
      *
      * @since 4.0
      */
-    public ContentLengthOutputStream(final SessionOutputBuffer out, final long contentLength) {
+    public ContentLengthOutputStream(final SessionOutputBuffer out, long contentLength) {
         super();
-        this.out = Args.notNull(out, "Session output buffer");
-        this.contentLength = Args.notNegative(contentLength, "Content length");
+        if (out == null) {
+            throw new IllegalArgumentException("Session output buffer may not be null");
+        }
+        if (contentLength < 0) {
+            throw new IllegalArgumentException("Content length may not be negative");
+        }
+        this.out = out;
+        this.contentLength = contentLength;
     }
 
     /**
@@ -88,7 +91,6 @@ public class ContentLengthOutputStream extends OutputStream {
      *
      * @throws IOException If an I/O problem occurs.
      */
-    @Override
     public void close() throws IOException {
         if (!this.closed) {
             this.closed = true;
@@ -96,34 +98,29 @@ public class ContentLengthOutputStream extends OutputStream {
         }
     }
 
-    @Override
     public void flush() throws IOException {
         this.out.flush();
     }
 
-    @Override
-    public void write(final byte[] b, final int off, final int len) throws IOException {
+    public void write(byte[] b, int off, int len) throws IOException {
         if (this.closed) {
             throw new IOException("Attempted write to closed stream.");
         }
         if (this.total < this.contentLength) {
-            final long max = this.contentLength - this.total;
-            int chunk = len;
-            if (chunk > max) {
-                chunk = (int) max;
+            long max = this.contentLength - this.total;
+            if (len > max) {
+                len = (int) max;
             }
-            this.out.write(b, off, chunk);
-            this.total += chunk;
+            this.out.write(b, off, len);
+            this.total += len;
         }
     }
 
-    @Override
-    public void write(final byte[] b) throws IOException {
+    public void write(byte[] b) throws IOException {
         write(b, 0, b.length);
     }
 
-    @Override
-    public void write(final int b) throws IOException {
+    public void write(int b) throws IOException {
         if (this.closed) {
             throw new IOException("Attempted write to closed stream.");
         }

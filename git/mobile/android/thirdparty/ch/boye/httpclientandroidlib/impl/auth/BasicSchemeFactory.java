@@ -27,45 +27,23 @@
 
 package ch.boye.httpclientandroidlib.impl.auth;
 
-import java.nio.charset.Charset;
-
 import ch.boye.httpclientandroidlib.annotation.Immutable;
+
 import ch.boye.httpclientandroidlib.auth.AuthScheme;
 import ch.boye.httpclientandroidlib.auth.AuthSchemeFactory;
-import ch.boye.httpclientandroidlib.auth.AuthSchemeProvider;
 import ch.boye.httpclientandroidlib.params.HttpParams;
-import ch.boye.httpclientandroidlib.protocol.HttpContext;
 
 /**
- * {@link AuthSchemeProvider} implementation that creates and initializes
+ * {@link AuthSchemeFactory} implementation that creates and initializes
  * {@link BasicScheme} instances.
  *
  * @since 4.0
  */
 @Immutable
-@SuppressWarnings("deprecation")
-public class BasicSchemeFactory implements AuthSchemeFactory, AuthSchemeProvider {
-
-    private final Charset charset;
-
-    /**
-     * @since 4.3
-     */
-    public BasicSchemeFactory(final Charset charset) {
-        super();
-        this.charset = charset;
-    }
-
-    public BasicSchemeFactory() {
-        this(null);
-    }
+public class BasicSchemeFactory implements AuthSchemeFactory {
 
     public AuthScheme newInstance(final HttpParams params) {
         return new BasicScheme();
-    }
-
-    public AuthScheme create(final HttpContext context) {
-        return new BasicScheme(this.charset);
     }
 
 }

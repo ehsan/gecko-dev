@@ -27,6 +27,8 @@
 
 package ch.boye.httpclientandroidlib.conn.params;
 
+import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
+
 import ch.boye.httpclientandroidlib.params.HttpAbstractParamBean;
 import ch.boye.httpclientandroidlib.params.HttpParams;
 
@@ -36,11 +38,8 @@ import ch.boye.httpclientandroidlib.params.HttpParams;
  * using Java Beans conventions.
  *
  * @since 4.0
- *
- * @deprecated (4.1) use custom {@link
- *   ch.boye.httpclientandroidlib.impl.conn.DefaultHttpResponseParser} implementation.
  */
-@Deprecated
+@NotThreadSafe
 public class ConnConnectionParamBean extends HttpAbstractParamBean {
 
     public ConnConnectionParamBean (final HttpParams params) {
@@ -48,10 +47,8 @@ public class ConnConnectionParamBean extends HttpAbstractParamBean {
     }
 
     /**
-     * @deprecated (4.2)  Use custom {@link
-     *   ch.boye.httpclientandroidlib.impl.conn.DefaultHttpResponseParser} implementation
+     * @see ConnConnectionPNames#MAX_STATUS_LINE_GARBAGE
      */
-    @Deprecated
     public void setMaxStatusLineGarbage (final int maxStatusLineGarbage) {
         params.setIntParameter(ConnConnectionPNames.MAX_STATUS_LINE_GARBAGE, maxStatusLineGarbage);
     }

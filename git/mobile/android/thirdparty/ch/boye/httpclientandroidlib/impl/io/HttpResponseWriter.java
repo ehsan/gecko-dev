@@ -29,8 +29,8 @@ package ch.boye.httpclientandroidlib.impl.io;
 
 import java.io.IOException;
 
+import ch.boye.httpclientandroidlib.HttpMessage;
 import ch.boye.httpclientandroidlib.HttpResponse;
-import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
 import ch.boye.httpclientandroidlib.io.SessionOutputBuffer;
 import ch.boye.httpclientandroidlib.message.LineFormatter;
 import ch.boye.httpclientandroidlib.params.HttpParams;
@@ -40,12 +40,8 @@ import ch.boye.httpclientandroidlib.params.HttpParams;
  * of {@link SessionOutputBuffer}.
  *
  * @since 4.0
- *
- * @deprecated (4.3) use {@link DefaultHttpResponseWriter}
  */
-@NotThreadSafe
-@Deprecated
-public class HttpResponseWriter extends AbstractMessageWriter<HttpResponse> {
+public class HttpResponseWriter extends AbstractMessageWriter {
 
     public HttpResponseWriter(final SessionOutputBuffer buffer,
                               final LineFormatter formatter,
@@ -53,9 +49,11 @@ public class HttpResponseWriter extends AbstractMessageWriter<HttpResponse> {
         super(buffer, formatter, params);
     }
 
-    @Override
-    protected void writeHeadLine(final HttpResponse message) throws IOException {
-        lineFormatter.formatStatusLine(this.lineBuf, message.getStatusLine());
+    protected void writeHeadLine(final HttpMessage message)
+        throws IOException {
+
+        lineFormatter.formatStatusLine(this.lineBuf,
+                ((HttpResponse) message).getStatusLine());
         this.sessionBuffer.writeLine(this.lineBuf);
     }
 

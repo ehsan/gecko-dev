@@ -7,7 +7,7 @@
 #define GFX_QUATERNION_H
 
 #include "mozilla/gfx/BasePoint4D.h"
-#include "mozilla/gfx/Matrix.h"
+#include "gfx3DMatrix.h"
 #include "nsAlgorithm.h"
 #include <algorithm>
 
@@ -17,7 +17,7 @@ struct gfxQuaternion : public mozilla::gfx::BasePoint4D<gfxFloat, gfxQuaternion>
     gfxQuaternion() : Super() {}
     gfxQuaternion(gfxFloat aX, gfxFloat aY, gfxFloat aZ, gfxFloat aW) : Super(aX, aY, aZ, aW) {}
 
-    gfxQuaternion(const mozilla::gfx::Matrix4x4& aMatrix) {
+    gfxQuaternion(const gfx3DMatrix& aMatrix) {
         w = 0.5 * sqrt(std::max(1 + aMatrix[0][0] + aMatrix[1][1] + aMatrix[2][2], 0.0f));
         x = 0.5 * sqrt(std::max(1 + aMatrix[0][0] - aMatrix[1][1] - aMatrix[2][2], 0.0f));
         y = 0.5 * sqrt(std::max(1 - aMatrix[0][0] + aMatrix[1][1] - aMatrix[2][2], 0.0f));
@@ -50,8 +50,8 @@ struct gfxQuaternion : public mozilla::gfx::BasePoint4D<gfxFloat, gfxQuaternion>
         return left + right;
     }
 
-    mozilla::gfx::Matrix4x4 ToMatrix() {
-      mozilla::gfx::Matrix4x4 temp;
+    gfx3DMatrix ToMatrix() {
+        gfx3DMatrix temp;
 
         temp[0][0] = 1 - 2 * (y * y + z * z);
         temp[0][1] = 2 * (x * y + w * z);

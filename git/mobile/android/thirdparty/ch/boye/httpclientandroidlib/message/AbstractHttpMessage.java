@@ -27,32 +27,25 @@
 
 package ch.boye.httpclientandroidlib.message;
 
+import java.util.Iterator;
+
 import ch.boye.httpclientandroidlib.Header;
 import ch.boye.httpclientandroidlib.HeaderIterator;
 import ch.boye.httpclientandroidlib.HttpMessage;
-import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
-import ch.boye.httpclientandroidlib.params.BasicHttpParams;
 import ch.boye.httpclientandroidlib.params.HttpParams;
-import ch.boye.httpclientandroidlib.util.Args;
+import ch.boye.httpclientandroidlib.params.BasicHttpParams;
 
 /**
  * Basic implementation of {@link HttpMessage}.
  *
  * @since 4.0
  */
-@SuppressWarnings("deprecation")
-@NotThreadSafe
 public abstract class AbstractHttpMessage implements HttpMessage {
 
     protected HeaderGroup headergroup;
 
-    @Deprecated
     protected HttpParams params;
 
-    /**
-     * @deprecated (4.3) use {@link AbstractHttpMessage#AbstractHttpMessage()}
-     */
-    @Deprecated
     protected AbstractHttpMessage(final HttpParams params) {
         super();
         this.headergroup = new HeaderGroup();
@@ -64,7 +57,7 @@ public abstract class AbstractHttpMessage implements HttpMessage {
     }
 
     // non-javadoc, see interface HttpMessage
-    public boolean containsHeader(final String name) {
+    public boolean containsHeader(String name) {
         return this.headergroup.containsHeader(name);
     }
 
@@ -95,7 +88,9 @@ public abstract class AbstractHttpMessage implements HttpMessage {
 
     // non-javadoc, see interface HttpMessage
     public void addHeader(final String name, final String value) {
-        Args.notNull(name, "Header name");
+        if (name == null) {
+            throw new IllegalArgumentException("Header name may not be null");
+        }
         this.headergroup.addHeader(new BasicHeader(name, value));
     }
 
@@ -106,7 +101,9 @@ public abstract class AbstractHttpMessage implements HttpMessage {
 
     // non-javadoc, see interface HttpMessage
     public void setHeader(final String name, final String value) {
-        Args.notNull(name, "Header name");
+        if (name == null) {
+            throw new IllegalArgumentException("Header name may not be null");
+        }
         this.headergroup.updateHeader(new BasicHeader(name, value));
     }
 
@@ -125,8 +122,8 @@ public abstract class AbstractHttpMessage implements HttpMessage {
         if (name == null) {
             return;
         }
-        for (final HeaderIterator i = this.headergroup.iterator(); i.hasNext(); ) {
-            final Header header = i.nextHeader();
+        for (Iterator i = this.headergroup.iterator(); i.hasNext(); ) {
+            Header header = (Header) i.next();
             if (name.equalsIgnoreCase(header.getName())) {
                 i.remove();
             }
@@ -139,14 +136,11 @@ public abstract class AbstractHttpMessage implements HttpMessage {
     }
 
     // non-javadoc, see interface HttpMessage
-    public HeaderIterator headerIterator(final String name) {
+    public HeaderIterator headerIterator(String name) {
         return this.headergroup.iterator(name);
     }
 
-    /**
-     * @deprecated (4.3) use constructor parameters of configuration API provided by HttpClient
-     */
-    @Deprecated
+    // non-javadoc, see interface HttpMessage
     public HttpParams getParams() {
         if (this.params == null) {
             this.params = new BasicHttpParams();
@@ -154,11 +148,11 @@ public abstract class AbstractHttpMessage implements HttpMessage {
         return this.params;
     }
 
-    /**
-     * @deprecated (4.3) use constructor parameters of configuration API provided by HttpClient
-     */
-    @Deprecated
+    // non-javadoc, see interface HttpMessage
     public void setParams(final HttpParams params) {
-        this.params = Args.notNull(params, "HTTP parameters");
+        if (params == null) {
+            throw new IllegalArgumentException("HTTP parameters may not be null");
+        }
+        this.params = params;
     }
 }

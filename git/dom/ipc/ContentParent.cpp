@@ -2353,12 +2353,12 @@ ContentParent::RecvAudioChannelGetState(const AudioChannel& aChannel,
                                         AudioChannelState* aState)
 {
     nsRefPtr<AudioChannelService> service =
-        AudioChannelService::GetOrCreateAudioChannelService();
+        AudioChannelService::GetAudioChannelService();
     *aState = AUDIO_CHANNEL_STATE_NORMAL;
-    MOZ_ASSERT(service);
-    *aState = service->GetStateInternal(aChannel, mChildID,
-                                        aElementHidden, aElementWasHidden);
-
+    if (service) {
+        *aState = service->GetStateInternal(aChannel, mChildID,
+                                            aElementHidden, aElementWasHidden);
+    }
     return true;
 }
 
@@ -2367,10 +2367,10 @@ ContentParent::RecvAudioChannelRegisterType(const AudioChannel& aChannel,
                                             const bool& aWithVideo)
 {
     nsRefPtr<AudioChannelService> service =
-        AudioChannelService::GetOrCreateAudioChannelService();
-    MOZ_ASSERT(service);
-    service->RegisterType(aChannel, mChildID, aWithVideo);
-
+        AudioChannelService::GetAudioChannelService();
+    if (service) {
+        service->RegisterType(aChannel, mChildID, aWithVideo);
+    }
     return true;
 }
 
@@ -2380,10 +2380,10 @@ ContentParent::RecvAudioChannelUnregisterType(const AudioChannel& aChannel,
                                               const bool& aWithVideo)
 {
     nsRefPtr<AudioChannelService> service =
-        AudioChannelService::GetOrCreateAudioChannelService();
-    MOZ_ASSERT(service);
-    service->UnregisterType(aChannel, aElementHidden, mChildID, aWithVideo);
-
+        AudioChannelService::GetAudioChannelService();
+    if (service) {
+        service->UnregisterType(aChannel, aElementHidden, mChildID, aWithVideo);
+    }
     return true;
 }
 
@@ -2391,10 +2391,10 @@ bool
 ContentParent::RecvAudioChannelChangedNotification()
 {
     nsRefPtr<AudioChannelService> service =
-        AudioChannelService::GetOrCreateAudioChannelService();
-    MOZ_ASSERT(service);
-    service->SendAudioChannelChangedNotification(ChildID());
-
+        AudioChannelService::GetAudioChannelService();
+    if (service) {
+       service->SendAudioChannelChangedNotification(ChildID());
+    }
     return true;
 }
 
@@ -2403,10 +2403,11 @@ ContentParent::RecvAudioChannelChangeDefVolChannel(const int32_t& aChannel,
                                                    const bool& aHidden)
 {
     nsRefPtr<AudioChannelService> service =
-        AudioChannelService::GetOrCreateAudioChannelService();
-    MOZ_ASSERT(service);
-    service->SetDefaultVolumeControlChannelInternal(aChannel,
-                                                    aHidden, mChildID);
+        AudioChannelService::GetAudioChannelService();
+    if (service) {
+       service->SetDefaultVolumeControlChannelInternal(aChannel,
+                                                       aHidden, mChildID);
+    }
     return true;
 }
 

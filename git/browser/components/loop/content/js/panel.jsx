@@ -77,24 +77,26 @@ loop.panel = (function(_, mozL10n) {
                               __("display_name_available_status");
 
       return (
-        <div className="do-not-disturb">
-          <p className="dnd-status" onClick={this.showDropdownMenu}>
-            <span>{availabilityText}</span>
-            <i className={availabilityStatus}></i>
-          </p>
-          <ul className={availabilityDropdown}
-              onMouseLeave={this.hideDropdownMenu}>
-            <li onClick={this.changeAvailability("available")}
-                className="dnd-menu-item dnd-make-available">
-              <i className="status status-available"></i>
-              <span>{__("display_name_available_status")}</span>
-            </li>
-            <li onClick={this.changeAvailability("do-not-disturb")}
-                className="dnd-menu-item dnd-make-unavailable">
-              <i className="status status-dnd"></i>
-              <span>{__("display_name_dnd_status")}</span>
-            </li>
-          </ul>
+        <div className="footer">
+          <div className="do-not-disturb">
+            <div className="dnd-status" onClick={this.showDropdownMenu}>
+              <span>{availabilityText}</span>
+              <i className={availabilityStatus}></i>
+            </div>
+            <ul className={availabilityDropdown}
+                onMouseLeave={this.hideDropdownMenu}>
+              <li onClick={this.changeAvailability("available")}
+                  className="dnd-menu-item dnd-make-available">
+                <i className="status status-available"></i>
+                <span>{__("display_name_available_status")}</span>
+              </li>
+              <li onClick={this.changeAvailability("do-not-disturb")}
+                  className="dnd-menu-item dnd-make-unavailable">
+                <i className="status status-dnd"></i>
+                <span>{__("display_name_dnd_status")}</span>
+              </li>
+            </ul>
+          </div>
         </div>
       );
     }
@@ -270,10 +272,6 @@ loop.panel = (function(_, mozL10n) {
       callUrl: React.PropTypes.string
     },
 
-    handleSignUpLinkClick: function() {
-      navigator.mozLoop.logInToFxA();
-    },
-
     render: function() {
       return (
         <div>
@@ -281,12 +279,7 @@ loop.panel = (function(_, mozL10n) {
                          notifier={this.props.notifier}
                          callUrl={this.props.callUrl} />
           <ToSView />
-          <div className="footer">
-            <AvailabilityDropdown />
-            <a className="signin-link" href="#" onClick={this.handleSignUpLinkClick}>
-              {__("panel_footer_signin_or_signup_link")}
-            </a>
-          </div>
+          <AvailabilityDropdown />
         </div>
       );
     }

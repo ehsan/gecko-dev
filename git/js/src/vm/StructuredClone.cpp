@@ -1136,14 +1136,13 @@ JSStructuredCloneWriter::transferOwnership()
                 content = rawbuf;
                 extraData = 0;
             } else {
+                bool isMapped = arrayBuffer->isMappedArrayBuffer();
                 size_t nbytes = arrayBuffer->byteLength();
-                ArrayBufferObject::BufferContents bufContents =
-                    ArrayBufferObject::stealContents(context(), arrayBuffer);
-                if (!bufContents)
+                content = JS_StealArrayBufferContents(context(), arrayBuffer);
+                if (!content)
                     return false; // Destructor will clean up the already-transferred data
-                content = bufContents.data();
                 tag = SCTAG_TRANSFER_MAP_ARRAY_BUFFER;
-                if (bufContents.kind() & ArrayBufferObject::MAPPED_BUFFER)
+                if (isMapped)
                     ownership = JS::SCTAG_TMO_MAPPED_DATA;
                 else
                     ownership = JS::SCTAG_TMO_ALLOC_DATA;

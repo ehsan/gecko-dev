@@ -99,7 +99,7 @@ public interface HeaderElement {
     /**
      * Returns parameter with the given index.
      *
-     * @param index index
+     * @param index
      * @return name / value pair
      */
     NameValuePair getParameter(int index);

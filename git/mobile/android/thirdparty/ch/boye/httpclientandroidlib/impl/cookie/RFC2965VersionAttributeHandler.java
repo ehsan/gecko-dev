@@ -28,6 +28,7 @@
 package ch.boye.httpclientandroidlib.impl.cookie;
 
 import ch.boye.httpclientandroidlib.annotation.Immutable;
+
 import ch.boye.httpclientandroidlib.cookie.ClientCookie;
 import ch.boye.httpclientandroidlib.cookie.Cookie;
 import ch.boye.httpclientandroidlib.cookie.CookieAttributeHandler;
@@ -36,7 +37,6 @@ import ch.boye.httpclientandroidlib.cookie.CookieRestrictionViolationException;
 import ch.boye.httpclientandroidlib.cookie.MalformedCookieException;
 import ch.boye.httpclientandroidlib.cookie.SetCookie;
 import ch.boye.httpclientandroidlib.cookie.SetCookie2;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * <tt>"Version"</tt> cookie attribute handler for RFC 2965 cookie spec.
@@ -55,7 +55,9 @@ public class RFC2965VersionAttributeHandler implements CookieAttributeHandler {
      */
     public void parse(final SetCookie cookie, final String value)
             throws MalformedCookieException {
-        Args.notNull(cookie, "Cookie");
+        if (cookie == null) {
+            throw new IllegalArgumentException("Cookie may not be null");
+        }
         if (value == null) {
             throw new MalformedCookieException(
                     "Missing value for version attribute");
@@ -63,7 +65,7 @@ public class RFC2965VersionAttributeHandler implements CookieAttributeHandler {
         int version = -1;
         try {
             version = Integer.parseInt(value);
-        } catch (final NumberFormatException e) {
+        } catch (NumberFormatException e) {
             version = -1;
         }
         if (version < 0) {
@@ -77,7 +79,9 @@ public class RFC2965VersionAttributeHandler implements CookieAttributeHandler {
      */
     public void validate(final Cookie cookie, final CookieOrigin origin)
             throws MalformedCookieException {
-        Args.notNull(cookie, "Cookie");
+        if (cookie == null) {
+            throw new IllegalArgumentException("Cookie may not be null");
+        }
         if (cookie instanceof SetCookie2) {
             if (cookie instanceof ClientCookie
                     && !((ClientCookie) cookie).containsAttribute(ClientCookie.VERSION_ATTR)) {
