@@ -986,8 +986,6 @@ nsGlobalWindow::~nsGlobalWindow()
     sWindowsById->Remove(mWindowID);
   }
 
-  --gRefCnt;
-
 #ifdef DEBUG
   if (!PR_GetEnv("MOZ_QUIET")) {
     nsCAutoString url;
