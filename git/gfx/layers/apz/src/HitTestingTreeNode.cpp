@@ -21,7 +21,6 @@ HitTestingTreeNode::HitTestingTreeNode(AsyncPanZoomController* aApzc,
                                        bool aIsPrimaryHolder)
   : mApzc(aApzc)
   , mIsPrimaryApzcHolder(aIsPrimaryHolder)
-  , mForceDispatchToContent(false)
 {
   if (mIsPrimaryApzcHolder) {
     MOZ_ASSERT(mApzc);
@@ -156,13 +155,11 @@ HitTestingTreeNode::IsPrimaryHolder() const
 void
 HitTestingTreeNode::SetHitTestData(const EventRegions& aRegions,
                                    const gfx::Matrix4x4& aTransform,
-                                   const Maybe<nsIntRegion>& aClipRegion,
-                                   bool aForceDispatchToContent)
+                                   const Maybe<nsIntRegion>& aClipRegion)
 {
   mEventRegions = aRegions;
   mTransform = aTransform;
   mClipRegion = aClipRegion;
-  mForceDispatchToContent = aForceDispatchToContent;
 }
 
 bool
@@ -213,18 +210,10 @@ HitTestingTreeNode::HitTest(const ParentLayerPoint& aPoint) const
   if (!mEventRegions.mHitRegion.Contains(point.x, point.y)) {
     return HitTestResult::HitNothing;
   }
-  if (mForceDispatchToContent ||
-      mEventRegions.mDispatchToContentHitRegion.Contains(point.x, point.y))
-  {
+  if (mEventRegions.mDispatchToContentHitRegion.Contains(point.x, point.y)) {
     return HitTestResult::HitDispatchToContentRegion;
   }
   return HitTestResult::HitLayer;
-}
-
-bool
-HitTestingTreeNode::GetForceDispatchToContent() const
-{
-  return mForceDispatchToContent;
 }
 
 void
@@ -233,9 +222,8 @@ HitTestingTreeNode::Dump(const char* aPrefix) const
   if (mPrevSibling) {
     mPrevSibling->Dump(aPrefix);
   }
-  printf_stderr("%sHitTestingTreeNode (%p) APZC (%p) g=(%s) %sr=(%s) t=(%s) c=(%s)\n",
+  printf_stderr("%sHitTestingTreeNode (%p) APZC (%p) g=(%s) r=(%s) t=(%s) c=(%s)\n",
     aPrefix, this, mApzc.get(), mApzc ? Stringify(mApzc->GetGuid()).c_str() : "",
-    mForceDispatchToContent ? "fdtc " : "",
     Stringify(mEventRegions).c_str(), Stringify(mTransform).c_str(),
     mClipRegion ? Stringify(mClipRegion.ref()).c_str() : "none");
   if (mLastChild) {

@@ -320,20 +320,6 @@ APZCTreeManager::RecycleOrCreateNode(TreeBuildingState& aState,
   return node.forget();
 }
 
-static bool
-ShouldForceDispatchToContent(HitTestingTreeNode* aParent,
-                             const LayerMetricsWrapper& aLayer)
-{
-  // Make it so that if the flag is set on the layer tree, it automatically
-  // propagates to all the nodes in the corresponding subtree rooted at that
-  // layer in the hit-test tree. This saves having to walk up the tree every
-  // we want to see if a hit-test node is affected by this flag.
-  if (aParent && aParent->GetForceDispatchToContent()) {
-    return true;
-  }
-  return aLayer.GetForceDispatchToContentRegion();
-}
-
 HitTestingTreeNode*
 APZCTreeManager::PrepareNodeForLayer(const LayerMetricsWrapper& aLayer,
                                      const FrameMetrics& aMetrics,
@@ -358,8 +344,7 @@ APZCTreeManager::PrepareNodeForLayer(const LayerMetricsWrapper& aLayer,
     node = RecycleOrCreateNode(aState, nullptr);
     AttachNodeToTree(node, aParent, aNextSibling);
     node->SetHitTestData(GetEventRegions(aLayer), aLayer.GetTransform(),
-        aLayer.GetClipRect() ? Some(nsIntRegion(*aLayer.GetClipRect())) : Nothing(),
-        ShouldForceDispatchToContent(aParent, aLayer));
+        aLayer.GetClipRect() ? Some(nsIntRegion(*aLayer.GetClipRect())) : Nothing());
     return node;
   }
 
@@ -455,8 +440,7 @@ APZCTreeManager::PrepareNodeForLayer(const LayerMetricsWrapper& aLayer,
     MOZ_ASSERT(node->IsPrimaryHolder() && node->GetApzc() && node->GetApzc()->Matches(guid));
 
     nsIntRegion clipRegion = ComputeClipRegion(state->mController, aLayer);
-    node->SetHitTestData(GetEventRegions(aLayer), aLayer.GetTransform(), Some(clipRegion),
-        ShouldForceDispatchToContent(aParent, aLayer));
+    node->SetHitTestData(GetEventRegions(aLayer), aLayer.GetTransform(), Some(clipRegion));
     apzc->SetAncestorTransform(aAncestorTransform);
 
     PrintAPZCInfo(aLayer, apzc);
@@ -510,8 +494,7 @@ APZCTreeManager::PrepareNodeForLayer(const LayerMetricsWrapper& aLayer,
     MOZ_ASSERT(aAncestorTransform == apzc->GetAncestorTransform());
 
     nsIntRegion clipRegion = ComputeClipRegion(state->mController, aLayer);
-    node->SetHitTestData(GetEventRegions(aLayer), aLayer.GetTransform(), Some(clipRegion),
-        ShouldForceDispatchToContent(aParent, aLayer));
+    node->SetHitTestData(GetEventRegions(aLayer), aLayer.GetTransform(), Some(clipRegion));
   }
 
   return node;
