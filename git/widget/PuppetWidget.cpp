@@ -652,7 +652,6 @@ PuppetWidget::NotifyIMEOfSelectionChange(
       mIMELastReceivedSeqno,
       queryEvent.GetSelectionStart(),
       queryEvent.GetSelectionEnd(),
-      queryEvent.GetWritingMode(),
       aIMENotification.mSelectionChangeData.mCausedByComposition);
   }
   return NS_OK;

@@ -129,10 +129,6 @@ PrincipalToPrincipalInfo(nsIPrincipal* aPrincipal,
     return rv;
   }
 
-  if (NS_WARN_IF(!uri)) {
-    return NS_ERROR_FAILURE;
-  }
-
   nsCString spec;
   rv = uri->GetSpec(spec);
   if (NS_WARN_IF(NS_FAILED(rv))) {

@@ -1025,6 +1025,9 @@ JSContext::JSContext(JSRuntime *rt)
     data2(nullptr),
     outstandingRequests(0),
     jitIsBroken(false)
+#ifdef MOZ_TRACE_JSCALLS
+  , functionCallback(nullptr)
+#endif
 {
     MOZ_ASSERT(static_cast<ContextFriendFields*>(this) ==
                ContextFriendFields::get(this));

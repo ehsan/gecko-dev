@@ -152,8 +152,4 @@ public class ThemedImageView extends android.widget.ImageView
     public ColorDrawable getColorDrawable(int id) {
         return new ColorDrawable(getResources().getColor(id));
     }
-
-    protected LightweightTheme getTheme() {
-        return mTheme;
-    }
 }

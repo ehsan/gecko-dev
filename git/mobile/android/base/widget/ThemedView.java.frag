@@ -155,8 +155,4 @@ public class Themed@VIEW_NAME_SUFFIX@ extends @BASE_TYPE@
     public ColorDrawable getColorDrawable(int id) {
         return new ColorDrawable(getResources().getColor(id));
     }
-
-    protected LightweightTheme getTheme() {
-        return mTheme;
-    }
 }

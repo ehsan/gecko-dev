@@ -473,7 +473,6 @@ let SettingsRequestManager = {
     let store = lock.getObjectStore(aTask.principal);
     if (!store) {
       if (DEBUG) debug("Rejecting Set task on lock " + aTask.data.lockID);
-      this.removeLock(data.lockID);
       return Promise.reject({task: aTask, error: "Cannot get object store"});
     }
 

@@ -1416,11 +1416,7 @@ js_GetSCOffset(JSStructuredCloneWriter* writer);
 namespace js {
 namespace Scalar {
 
-/* Scalar types which can appear in typed arrays and typed objects.  The enum
- * values need to be kept in sync with the JS_SCALARTYPEREPR_ constants, as
- * well as the TypedArrayObject::classes and TypedArrayObject::protoClasses
- * definitions.
- */
+/* Scalar types which can appear in typed arrays and typed objects. */
 enum Type {
     Int8 = 0,
     Uint8,
@@ -1437,13 +1433,7 @@ enum Type {
      */
     Uint8Clamped,
 
-    /*
-     * SIMD types don't have their own TypedArray equivalent, for now.
-     */
-    MaxTypedArrayViewType,
-
-    Float32x4,
-    Int32x4
+    TypeMax
 };
 
 static inline size_t
@@ -1463,9 +1453,6 @@ byteSize(Type atype)
         return 4;
       case Float64:
         return 8;
-      case Int32x4:
-      case Float32x4:
-        return 16;
       default:
         MOZ_CRASH("invalid scalar type");
     }
@@ -1828,7 +1815,7 @@ extern JS_FRIEND_API(JSObject *)
 JS_GetObjectAsArrayBuffer(JSObject *obj, uint32_t *length, uint8_t **data);
 
 /*
- * Get the type of elements in a typed array, or MaxTypedArrayViewType if a DataView.
+ * Get the type of elements in a typed array, or TypeMax if a DataView.
  *
  * |obj| must have passed a JS_IsArrayBufferView/JS_Is*Array test, or somehow
  * be known that it would pass such a test: it is an ArrayBufferView or a

@@ -82,12 +82,8 @@ SpdyInformation::SpdyInformation()
   ALPNCallbacks[2] = Http2Session::ALPNCallback;
 
   Version[3] = NS_HTTP2_DRAFT_VERSION;
-  VersionString[3] = NS_LITERAL_CSTRING("h2-15");
+  VersionString[3] = NS_LITERAL_CSTRING(NS_HTTP2_DRAFT_TOKEN);
   ALPNCallbacks[3] = Http2Session::ALPNCallback;
-
-  Version[4] = NS_HTTP2_DRAFT_VERSION;
-  VersionString[4] = NS_LITERAL_CSTRING(NS_HTTP2_DRAFT_TOKEN);
-  ALPNCallbacks[4] = Http2Session::ALPNCallback;
 }
 
 bool
@@ -102,7 +98,6 @@ SpdyInformation::ProtocolEnabled(uint32_t index) const
     return gHttpHandler->IsHttp2Enabled();
   case 2:
   case 3:
-  case 4:
     return gHttpHandler->IsHttp2DraftEnabled();
   }
   return false;

@@ -1295,10 +1295,10 @@ Assembler::oom() const
            preBarriers_.oom();
 }
 
-void
+bool
 Assembler::addCodeLabel(CodeLabel label)
 {
-    propagateOOM(codeLabels_.append(label));
+    return codeLabels_.append(label);
 }
 
 // Size of the instruction stream, in bytes. Including pools. This function

@@ -12,10 +12,8 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
-import org.mozilla.gecko.BrowserLocaleManager;
 import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
@@ -237,9 +235,7 @@ public class TopSitesPanel extends HomeFragment {
                         // Record tile click events on non-private tabs.
                         final Tab tab = Tabs.getInstance().getSelectedTab();
                         if (!tab.isPrivate()) {
-                            final Locale locale = Locale.getDefault();
-                            final String localeTag = BrowserLocaleManager.getLanguageTag(locale);
-                            mTilesRecorder.recordAction(tab, TilesRecorder.ACTION_CLICK, position, getTilesSnapshot(), localeTag);
+                            mTilesRecorder.recordAction(tab, TilesRecorder.ACTION_CLICK, position, getTilesSnapshot());
                         }
 
                         mUrlOpenListener.onUrlOpen(url, EnumSet.noneOf(OnUrlOpenListener.Flags.class));

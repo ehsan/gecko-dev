@@ -162,7 +162,7 @@ ChannelEventQueue::MaybeFlushQueue()
 // Ensures that ShouldEnqueue() will be true during its lifetime (letting
 // caller know incoming IPDL msgs should be queued). Flushes the queue when it
 // goes out of scope.
-class MOZ_STACK_CLASS AutoEventEnqueuer
+class AutoEventEnqueuer
 {
  public:
   explicit AutoEventEnqueuer(ChannelEventQueue *queue) : mEventQueue(queue) {
@@ -172,7 +172,7 @@ class MOZ_STACK_CLASS AutoEventEnqueuer
     mEventQueue->EndForcedQueueing();
   }
  private:
-  nsRefPtr<ChannelEventQueue> mEventQueue;
+  ChannelEventQueue* mEventQueue;
 };
 
 }

@@ -346,8 +346,6 @@ private:
   friend class LogicalMargin;
   friend class LogicalRect;
 
-  friend struct IPC::ParamTraits<WritingMode>;
-
   /**
    * Return a WritingMode representing an unknown value.
    */

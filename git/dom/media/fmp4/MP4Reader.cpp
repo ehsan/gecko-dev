@@ -569,7 +569,7 @@ MP4Reader::NeedInput(DecoderData& aDecoder)
   // which overrides our "few more samples" threshold.
   return
     !aDecoder.mError &&
-    !aDecoder.mDemuxEOS &&
+    !aDecoder.mEOS &&
     aDecoder.mOutputRequested &&
     aDecoder.mOutput.IsEmpty() &&
     (aDecoder.mInputExhausted ||
@@ -583,7 +583,6 @@ MP4Reader::Update(TrackType aTrack)
 
   bool needInput = false;
   bool needOutput = false;
-  bool eos = false;
   auto& decoder = GetDecoderData(aTrack);
   nsRefPtr<MediaData> output;
   {
@@ -599,7 +598,6 @@ MP4Reader::Update(TrackType aTrack)
       output = decoder.mOutput[0];
       decoder.mOutput.RemoveElementAt(0);
     }
-    eos = decoder.mDrainComplete;
   }
   VLOG("Update(%s) ni=%d no=%d iex=%d or=%d fl=%d",
        TrackTypeToStr(aTrack),
@@ -616,8 +614,8 @@ MP4Reader::Update(TrackType aTrack)
     } else {
       {
         MonitorAutoLock lock(decoder.mMonitor);
-        MOZ_ASSERT(!decoder.mDemuxEOS);
-        decoder.mDemuxEOS = true;
+        MOZ_ASSERT(!decoder.mEOS);
+        decoder.mEOS = true;
       }
       // DrainComplete takes care of reporting EOS upwards
       decoder.mDecoder->Drain();
@@ -626,8 +624,6 @@ MP4Reader::Update(TrackType aTrack)
   if (needOutput) {
     if (output) {
       ReturnOutput(output, aTrack);
-    } else if (eos) {
-      ReturnEOS(aTrack);
     }
   }
 }
@@ -731,9 +727,14 @@ void
 MP4Reader::DrainComplete(TrackType aTrack)
 {
   DecoderData& data = GetDecoderData(aTrack);
-  MonitorAutoLock mon(data.mMonitor);
-  data.mDrainComplete = true;
-  ScheduleUpdate(aTrack);
+  bool eos;
+  {
+    MonitorAutoLock mon(data.mMonitor);
+    eos = data.mEOS;
+  }
+  if (eos) {
+    ReturnEOS(aTrack);
+  }
 }
 
 void
@@ -772,8 +773,7 @@ MP4Reader::Flush(TrackType aTrack)
   {
     MonitorAutoLock mon(data.mMonitor);
     data.mIsFlushing = true;
-    data.mDemuxEOS = false;
-    data.mDrainComplete = false;
+    data.mEOS = false;
   }
   data.mDecoder->Flush();
   {
@@ -814,7 +814,7 @@ MP4Reader::SkipVideoDemuxToNextKeyFrame(int64_t aTimeThreshold, uint32_t& parsed
                                   RequestSampleCallback::END_OF_STREAM);
       {
         MonitorAutoLock mon(mVideo.mMonitor);
-        mVideo.mDemuxEOS = true;
+        mVideo.mEOS = true;
       }
       return false;
     }

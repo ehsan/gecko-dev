@@ -54,7 +54,6 @@
 #include "nsICanvasRenderingContextInternal.h"
 #include "gfxPlatform.h"
 #include <algorithm>
-#include <limits>
 #include "mozilla/dom/HTMLVideoElement.h"
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/DOMRect.h"
@@ -553,20 +552,13 @@ GetMinAndMaxScaleForAnimationProperty(nsIContent* aContent,
 gfxSize
 nsLayoutUtils::ComputeSuitableScaleForAnimation(nsIContent* aContent)
 {
-  gfxSize maxScale(std::numeric_limits<gfxFloat>::min(),
-                   std::numeric_limits<gfxFloat>::min());
-  gfxSize minScale(std::numeric_limits<gfxFloat>::max(),
-                   std::numeric_limits<gfxFloat>::max());
+  gfxSize maxScale(1.0f, 1.0f);
+  gfxSize minScale(1.0f, 1.0f);
 
   GetMinAndMaxScaleForAnimationProperty(aContent,
     nsGkAtoms::animationsProperty, maxScale, minScale);
   GetMinAndMaxScaleForAnimationProperty(aContent,
     nsGkAtoms::transitionsProperty, maxScale, minScale);
-
-  if (maxScale.width == std::numeric_limits<gfxFloat>::min()) {
-    // We didn't encounter a transform
-    maxScale = minScale = gfxSize(1.0, 1.0);
-  }
 
   return gfxSize(GetSuitableScale(maxScale.width, minScale.width),
                  GetSuitableScale(maxScale.height, minScale.height));
@@ -3918,7 +3910,7 @@ static bool GetAbsoluteCoord(const nsStyleCoord& aStyle, nscoord& aResult)
 
 // Only call on style coords for which GetAbsoluteCoord returned false.
 static bool
-GetPercentBSize(const nsStyleCoord& aStyle,
+GetPercentHeight(const nsStyleCoord& aStyle,
                  nsIFrame* aFrame,
                  nscoord& aResult)
 {
@@ -3944,16 +3936,13 @@ GetPercentBSize(const nsStyleCoord& aStyle,
     f = f->GetParent();
   }
 
-  bool isVertical = f->GetWritingMode().IsVertical();
-
   const nsStylePosition *pos = f->StylePosition();
-  const nsStyleCoord bSizeCoord = isVertical ? pos->mWidth : pos->mHeight;
   nscoord h;
-  if (!GetAbsoluteCoord(bSizeCoord, h) &&
-      !GetPercentBSize(bSizeCoord, f, h)) {
-    NS_ASSERTION(bSizeCoord.GetUnit() == eStyleUnit_Auto ||
-                 bSizeCoord.HasPercent(),
-                 "unknown block-size unit");
+  if (!GetAbsoluteCoord(pos->mHeight, h) &&
+      !GetPercentHeight(pos->mHeight, f, h)) {
+    NS_ASSERTION(pos->mHeight.GetUnit() == eStyleUnit_Auto ||
+                 pos->mHeight.HasPercent(),
+                 "unknown height unit");
     nsIAtom* fType = f->GetType();
     if (fType != nsGkAtoms::viewportFrame && fType != nsGkAtoms::canvasFrame &&
         fType != nsGkAtoms::pageContentFrame) {
@@ -3965,43 +3954,37 @@ GetPercentBSize(const nsStyleCoord& aStyle,
       return false;
     }
 
-    NS_ASSERTION(bSizeCoord.GetUnit() == eStyleUnit_Auto,
-                 "Unexpected block-size unit for viewport or canvas or page-content");
+    NS_ASSERTION(pos->mHeight.GetUnit() == eStyleUnit_Auto,
+                 "Unexpected height unit for viewport or canvas or page-content");
     // For the viewport, canvas, and page-content kids, the percentage
     // basis is just the parent height.
-    h = isVertical ? f->GetSize().width : f->GetSize().height;
+    h = f->GetSize().height;
     if (h == NS_UNCONSTRAINEDSIZE) {
       // We don't have a percentage basis after all
       return false;
     }
   }
 
-  const nsStyleCoord& maxBSizeCoord =
-    isVertical ? pos->mMaxWidth : pos->mMaxHeight;
-
   nscoord maxh;
-  if (GetAbsoluteCoord(maxBSizeCoord, maxh) ||
-      GetPercentBSize(maxBSizeCoord, f, maxh)) {
+  if (GetAbsoluteCoord(pos->mMaxHeight, maxh) ||
+      GetPercentHeight(pos->mMaxHeight, f, maxh)) {
     if (maxh < h)
       h = maxh;
   } else {
-    NS_ASSERTION(maxBSizeCoord.GetUnit() == eStyleUnit_None ||
-                 maxBSizeCoord.HasPercent(),
-                 "unknown max block-size unit");
+    NS_ASSERTION(pos->mMaxHeight.GetUnit() == eStyleUnit_None ||
+                 pos->mMaxHeight.HasPercent(),
+                 "unknown max-height unit");
   }
 
-  const nsStyleCoord& minBSizeCoord =
-    isVertical ? pos->mMinWidth : pos->mMinHeight;
-
   nscoord minh;
-  if (GetAbsoluteCoord(minBSizeCoord, minh) ||
-      GetPercentBSize(minBSizeCoord, f, minh)) {
+  if (GetAbsoluteCoord(pos->mMinHeight, minh) ||
+      GetPercentHeight(pos->mMinHeight, f, minh)) {
     if (minh > h)
       h = minh;
   } else {
-    NS_ASSERTION(minBSizeCoord.HasPercent() ||
-                 minBSizeCoord.GetUnit() == eStyleUnit_Auto,
-                 "unknown min block-size unit");
+    NS_ASSERTION(pos->mMinHeight.HasPercent() ||
+                 pos->mMinHeight.GetUnit() == eStyleUnit_Auto,
+                 "unknown min-height unit");
   }
 
   if (aStyle.IsCalcUnit()) {
@@ -4076,14 +4059,12 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
                                      uint32_t aFlags)
 {
   NS_PRECONDITION(aFrame, "null frame");
-  NS_PRECONDITION(aFrame->GetParent(),
-                  "IntrinsicForContainer called on frame not in tree");
   NS_PRECONDITION(aType == MIN_ISIZE || aType == PREF_ISIZE, "bad type");
 
 #ifdef DEBUG_INTRINSIC_WIDTH
   nsFrame::IndentBy(stderr, gNoiseIndent);
   static_cast<nsFrame*>(aFrame)->ListTag(stderr);
-  printf_stderr(" %s intrinsic inline-size for container:\n",
+  printf_stderr(" %s intrinsic width for container:\n",
          aType == MIN_ISIZE ? "min" : "pref");
 #endif
 
@@ -4094,23 +4075,11 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
   nsIFrame::IntrinsicISizeOffsetData offsets =
     aFrame->IntrinsicISizeOffsets(aRenderingContext);
 
-  // We want the size this frame will contribute to the parent's inline-size,
-  // so we work in the parent's writing mode; but if aFrame is orthogonal to
-  // its parent, we'll need to look at its BSize instead of min/pref-ISize.
-  WritingMode wm = aFrame->GetParent()->GetWritingMode();
-  WritingMode ourWM = aFrame->GetWritingMode();
-  bool isOrthogonal = ourWM.IsOrthogonalTo(wm);
-  bool isVertical = wm.IsVertical();
-
   const nsStylePosition *stylePos = aFrame->StylePosition();
   uint8_t boxSizing = stylePos->mBoxSizing;
-
-  const nsStyleCoord &styleISize =
-    isVertical ? stylePos->mHeight : stylePos->mWidth;
-  const nsStyleCoord &styleMinISize =
-    isVertical ? stylePos->mMinHeight : stylePos->mMinWidth;
-  const nsStyleCoord &styleMaxISize =
-    isVertical ? stylePos->mMaxHeight : stylePos->mMaxWidth;
+  const nsStyleCoord &styleWidth = stylePos->mWidth;
+  const nsStyleCoord &styleMinWidth = stylePos->mMinWidth;
+  const nsStyleCoord &styleMaxWidth = stylePos->mMaxWidth;
 
   // We build up two values starting with the content box, and then
   // adding padding, border and margin.  The result is normally
@@ -4124,62 +4093,50 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
   //     intrinsic minimum width
   nscoord result = 0, min = 0;
 
-  nscoord maxISize;
-  bool haveFixedMaxISize = GetAbsoluteCoord(styleMaxISize, maxISize);
-  nscoord minISize;
+  nscoord maxw;
+  bool haveFixedMaxWidth = GetAbsoluteCoord(styleMaxWidth, maxw);
+  nscoord minw;
 
   // Treat "min-width: auto" as 0.
-  bool haveFixedMinISize;
-  if (eStyleUnit_Auto == styleMinISize.GetUnit()) {
+  bool haveFixedMinWidth;
+  if (eStyleUnit_Auto == styleMinWidth.GetUnit()) {
     // NOTE: Technically, "auto" is supposed to behave like "min-content" on
     // flex items. However, we don't need to worry about that here, because
     // flex items' min-sizes are intentionally ignored until the flex
     // container explicitly considers them during space distribution.
-    minISize = 0;
-    haveFixedMinISize = true;
+    minw = 0;
+    haveFixedMinWidth = true;
   } else {
-    haveFixedMinISize = GetAbsoluteCoord(styleMinISize, minISize);
+    haveFixedMinWidth = GetAbsoluteCoord(styleMinWidth, minw);
   }
 
   // If we have a specified width (or a specified 'min-width' greater
   // than the specified 'max-width', which works out to the same thing),
   // don't even bother getting the frame's intrinsic width, because in
-  // this case GetAbsoluteCoord(styleISize, w) will always succeed, so
+  // this case GetAbsoluteCoord(styleWidth, w) will always succeed, so
   // we'll never need the intrinsic dimensions.
-  if (styleISize.GetUnit() == eStyleUnit_Enumerated &&
-      (styleISize.GetIntValue() == NS_STYLE_WIDTH_MAX_CONTENT ||
-       styleISize.GetIntValue() == NS_STYLE_WIDTH_MIN_CONTENT)) {
+  if (styleWidth.GetUnit() == eStyleUnit_Enumerated &&
+      (styleWidth.GetIntValue() == NS_STYLE_WIDTH_MAX_CONTENT ||
+       styleWidth.GetIntValue() == NS_STYLE_WIDTH_MIN_CONTENT)) {
     // -moz-fit-content and -moz-available enumerated widths compute intrinsic
     // widths just like auto.
     // For -moz-max-content and -moz-min-content, we handle them like
     // specified widths, but ignore box-sizing.
     boxSizing = NS_STYLE_BOX_SIZING_CONTENT;
-  } else if (!styleISize.ConvertsToLength() &&
-             !(haveFixedMinISize && haveFixedMaxISize && maxISize <= minISize)) {
+  } else if (!styleWidth.ConvertsToLength() &&
+             !(haveFixedMinWidth && haveFixedMaxWidth && maxw <= minw)) {
 #ifdef DEBUG_INTRINSIC_WIDTH
     ++gNoiseIndent;
 #endif
-    if (isOrthogonal) {
-      // We need aFrame's block-dir size, which will become its inline-size
-      // contribution in the container.
-      // XXX Unfortunately, we probably don't know this yet, so this is wrong...
-      // but it's not clear what we should do. If aFrame's inline size hasn't
-      // been determined yet, we can't necessarily figure out its block size
-      // either. For now, authors who put orthogonal elements into things like
-      // buttons or table cells may have to explicitly provide sizes rather
-      // than expecting intrinsic sizing to work "perfectly" in underspecified
-      // cases.
-      result = aFrame->BSize();
-    } else {
-      result = aType == MIN_ISIZE
-               ? aFrame->GetMinISize(aRenderingContext)
-               : aFrame->GetPrefISize(aRenderingContext);
-    }
+    if (aType == MIN_ISIZE)
+      result = aFrame->GetMinISize(aRenderingContext);
+    else
+      result = aFrame->GetPrefISize(aRenderingContext);
 #ifdef DEBUG_INTRINSIC_WIDTH
     --gNoiseIndent;
     nsFrame::IndentBy(stderr, gNoiseIndent);
     static_cast<nsFrame*>(aFrame)->ListTag(stderr);
-    printf_stderr(" %s intrinsic inline-size from frame is %d.\n",
+    printf_stderr(" %s intrinsic width from frame is %d.\n",
            aType == MIN_ISIZE ? "min" : "pref", result);
 #endif
 
@@ -4189,52 +4146,38 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
     // since that's what it means in all cases except for on flex items -- and
     // even there, we're supposed to ignore it (i.e. treat it as 0) until the
     // flex container explicitly considers it.
-    const nsStyleCoord &styleBSize =
-      isVertical ? stylePos->mWidth : stylePos->mHeight;
-    const nsStyleCoord &styleMinBSize =
-      isVertical ? stylePos->mMinWidth : stylePos->mMinHeight;
-    const nsStyleCoord &styleMaxBSize =
-      isVertical ? stylePos->mMaxWidth : stylePos->mMaxHeight;
+    const nsStyleCoord &styleHeight = stylePos->mHeight;
+    const nsStyleCoord &styleMinHeight = stylePos->mMinHeight;
+    const nsStyleCoord &styleMaxHeight = stylePos->mMaxHeight;
 
-    if (styleBSize.GetUnit() != eStyleUnit_Auto ||
-        !(styleMinBSize.GetUnit() == eStyleUnit_Auto ||
-          (styleMinBSize.GetUnit() == eStyleUnit_Coord &&
-           styleMinBSize.GetCoordValue() == 0)) ||
-        styleMaxBSize.GetUnit() != eStyleUnit_None) {
+    if (styleHeight.GetUnit() != eStyleUnit_Auto ||
+        !(styleMinHeight.GetUnit() == eStyleUnit_Auto || 
+          (styleMinHeight.GetUnit() == eStyleUnit_Coord &&
+           styleMinHeight.GetCoordValue() == 0)) ||
+        styleMaxHeight.GetUnit() != eStyleUnit_None) {
 
-      LogicalSize ratio(wm, aFrame->GetIntrinsicRatio());
+      nsSize ratio = aFrame->GetIntrinsicRatio();
 
-      if (ratio.BSize(wm) != 0) {
-        nscoord bSizeTakenByBoxSizing = 0;
+      if (ratio.height != 0) {
+        nscoord heightTakenByBoxSizing = 0;
         switch (boxSizing) {
         case NS_STYLE_BOX_SIZING_BORDER: {
           const nsStyleBorder* styleBorder = aFrame->StyleBorder();
-          bSizeTakenByBoxSizing +=
-            isVertical ? styleBorder->GetComputedBorder().LeftRight()
-                       : styleBorder->GetComputedBorder().TopBottom();
+          heightTakenByBoxSizing +=
+            styleBorder->GetComputedBorder().TopBottom();
           // fall through
         }
         case NS_STYLE_BOX_SIZING_PADDING: {
           if (!(aFlags & IGNORE_PADDING)) {
             const nsStylePadding* stylePadding = aFrame->StylePadding();
-            const nsStyleCoord& paddingStart =
-              isVertical ? wm.IsVerticalRL()
-                           ? stylePadding->mPadding.GetRight()
-                           : stylePadding->mPadding.GetLeft()
-                         : stylePadding->mPadding.GetTop();
-            const nsStyleCoord& paddingEnd =
-              isVertical ? wm.IsVerticalRL()
-                           ? stylePadding->mPadding.GetLeft()
-                           : stylePadding->mPadding.GetRight()
-                         : stylePadding->mPadding.GetBottom();
             nscoord pad;
-            if (GetAbsoluteCoord(paddingStart, pad) ||
-                GetPercentBSize(paddingStart, aFrame, pad)) {
-              bSizeTakenByBoxSizing += pad;
+            if (GetAbsoluteCoord(stylePadding->mPadding.GetTop(), pad) ||
+                GetPercentHeight(stylePadding->mPadding.GetTop(), aFrame, pad)) {
+              heightTakenByBoxSizing += pad;
             }
-            if (GetAbsoluteCoord(paddingEnd, pad) ||
-                GetPercentBSize(paddingEnd, aFrame, pad)) {
-              bSizeTakenByBoxSizing += pad;
+            if (GetAbsoluteCoord(stylePadding->mPadding.GetBottom(), pad) ||
+                GetPercentHeight(stylePadding->mPadding.GetBottom(), aFrame, pad)) {
+              heightTakenByBoxSizing += pad;
             }
           }
           // fall through
@@ -4245,26 +4188,26 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
         }
 
         nscoord h;
-        if (GetAbsoluteCoord(styleBSize, h) ||
-            GetPercentBSize(styleBSize, aFrame, h)) {
-          h = std::max(0, h - bSizeTakenByBoxSizing);
-          result = NSCoordMulDiv(h, ratio.ISize(wm), ratio.BSize(wm));
+        if (GetAbsoluteCoord(styleHeight, h) ||
+            GetPercentHeight(styleHeight, aFrame, h)) {
+          h = std::max(0, h - heightTakenByBoxSizing);
+          result = NSCoordMulDiv(h, ratio.width, ratio.height);
         }
 
-        if (GetAbsoluteCoord(styleMaxBSize, h) ||
-            GetPercentBSize(styleMaxBSize, aFrame, h)) {
-          h = std::max(0, h - bSizeTakenByBoxSizing);
-          nscoord maxISize = NSCoordMulDiv(h, ratio.ISize(wm), ratio.BSize(wm));
-          if (maxISize < result)
-            result = maxISize;
+        if (GetAbsoluteCoord(styleMaxHeight, h) ||
+            GetPercentHeight(styleMaxHeight, aFrame, h)) {
+          h = std::max(0, h - heightTakenByBoxSizing);
+          nscoord maxWidth = NSCoordMulDiv(h, ratio.width, ratio.height);
+          if (maxWidth < result)
+            result = maxWidth;
         }
 
-        if (GetAbsoluteCoord(styleMinBSize, h) ||
-            GetPercentBSize(styleMinBSize, aFrame, h)) {
-          h = std::max(0, h - bSizeTakenByBoxSizing);
-          nscoord minISize = NSCoordMulDiv(h, ratio.ISize(wm), ratio.BSize(wm));
-          if (minISize > result)
-            result = minISize;
+        if (GetAbsoluteCoord(styleMinHeight, h) ||
+            GetPercentHeight(styleMinHeight, aFrame, h)) {
+          h = std::max(0, h - heightTakenByBoxSizing);
+          nscoord minWidth = NSCoordMulDiv(h, ratio.width, ratio.height);
+          if (minWidth > result)
+            result = minWidth;
         }
       }
     }
@@ -4283,53 +4226,53 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
   // percentages do not operate linearly.
   // Doing this is ok because although percentages aren't handled
   // linearly, they are handled monotonically.
-  nscoord coordOutsideISize = 0;
-  float pctOutsideISize = 0;
+  nscoord coordOutsideWidth = 0;
+  float pctOutsideWidth = 0;
   float pctTotal = 0.0f;
 
   if (!(aFlags & IGNORE_PADDING)) {
-    coordOutsideISize += offsets.hPadding;
-    pctOutsideISize += offsets.hPctPadding;
+    coordOutsideWidth += offsets.hPadding;
+    pctOutsideWidth += offsets.hPctPadding;
 
     if (boxSizing == NS_STYLE_BOX_SIZING_PADDING) {
-      min += coordOutsideISize;
-      result = NSCoordSaturatingAdd(result, coordOutsideISize);
-      pctTotal += pctOutsideISize;
+      min += coordOutsideWidth;
+      result = NSCoordSaturatingAdd(result, coordOutsideWidth);
+      pctTotal += pctOutsideWidth;
 
-      coordOutsideISize = 0;
-      pctOutsideISize = 0.0f;
+      coordOutsideWidth = 0;
+      pctOutsideWidth = 0.0f;
     }
   }
 
-  coordOutsideISize += offsets.hBorder;
+  coordOutsideWidth += offsets.hBorder;
 
   if (boxSizing == NS_STYLE_BOX_SIZING_BORDER) {
-    min += coordOutsideISize;
-    result = NSCoordSaturatingAdd(result, coordOutsideISize);
-    pctTotal += pctOutsideISize;
+    min += coordOutsideWidth;
+    result = NSCoordSaturatingAdd(result, coordOutsideWidth);
+    pctTotal += pctOutsideWidth;
 
-    coordOutsideISize = 0;
-    pctOutsideISize = 0.0f;
+    coordOutsideWidth = 0;
+    pctOutsideWidth = 0.0f;
   }
 
-  coordOutsideISize += offsets.hMargin;
-  pctOutsideISize += offsets.hPctMargin;
+  coordOutsideWidth += offsets.hMargin;
+  pctOutsideWidth += offsets.hPctMargin;
 
-  min += coordOutsideISize;
-  result = NSCoordSaturatingAdd(result, coordOutsideISize);
-  pctTotal += pctOutsideISize;
+  min += coordOutsideWidth;
+  result = NSCoordSaturatingAdd(result, coordOutsideWidth);
+  pctTotal += pctOutsideWidth;
 
   nscoord w;
-  if (GetAbsoluteCoord(styleISize, w) ||
-      GetIntrinsicCoord(styleISize, aRenderingContext, aFrame,
+  if (GetAbsoluteCoord(styleWidth, w) ||
+      GetIntrinsicCoord(styleWidth, aRenderingContext, aFrame,
                         PROP_WIDTH, w)) {
-    result = AddPercents(aType, w + coordOutsideISize, pctOutsideISize);
+    result = AddPercents(aType, w + coordOutsideWidth, pctOutsideWidth);
   }
   else if (aType == MIN_ISIZE &&
            // The only cases of coord-percent-calc() units that
            // GetAbsoluteCoord didn't handle are percent and calc()s
            // containing percent.
-           styleISize.IsCoordPercentCalcUnit() &&
+           styleWidth.IsCoordPercentCalcUnit() &&
            aFrame->IsFrameOfType(nsIFrame::eReplaced)) {
     // A percentage width on replaced elements means they can shrink to 0.
     result = 0; // let |min| handle padding/border/margin
@@ -4343,20 +4286,20 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
     result = AddPercents(aType, result, pctTotal);
   }
 
-  if (haveFixedMaxISize ||
-      GetIntrinsicCoord(styleMaxISize, aRenderingContext, aFrame,
-                        PROP_MAX_WIDTH, maxISize)) {
-    maxISize = AddPercents(aType, maxISize + coordOutsideISize, pctOutsideISize);
-    if (result > maxISize)
-      result = maxISize;
+  if (haveFixedMaxWidth ||
+      GetIntrinsicCoord(styleMaxWidth, aRenderingContext, aFrame,
+                        PROP_MAX_WIDTH, maxw)) {
+    maxw = AddPercents(aType, maxw + coordOutsideWidth, pctOutsideWidth);
+    if (result > maxw)
+      result = maxw;
   }
 
-  if (haveFixedMinISize ||
-      GetIntrinsicCoord(styleMinISize, aRenderingContext, aFrame,
-                        PROP_MIN_WIDTH, minISize)) {
-    minISize = AddPercents(aType, minISize + coordOutsideISize, pctOutsideISize);
-    if (result < minISize)
-      result = minISize;
+  if (haveFixedMinWidth ||
+      GetIntrinsicCoord(styleMinWidth, aRenderingContext, aFrame,
+                        PROP_MIN_WIDTH, minw)) {
+    minw = AddPercents(aType, minw + coordOutsideWidth, pctOutsideWidth);
+    if (result < minw)
+      result = minw;
   }
 
   min = AddPercents(aType, min, pctTotal);
@@ -4372,22 +4315,20 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
       GetMinimumWidgetSize(presContext, aFrame, disp->mAppearance,
                            &size, &canOverride);
 
-    nscoord themeISize =
-      presContext->DevPixelsToAppUnits(isVertical ? size.height : size.width);
+    nscoord themeWidth = presContext->DevPixelsToAppUnits(size.width);
 
     // GMWS() returns a border-box width
-    themeISize += offsets.hMargin;
-    themeISize = AddPercents(aType, themeISize, offsets.hPctMargin);
+    themeWidth += offsets.hMargin;
+    themeWidth = AddPercents(aType, themeWidth, offsets.hPctMargin);
 
-    if (themeISize > result || !canOverride) {
-      result = themeISize;
-    }
+    if (themeWidth > result || !canOverride)
+      result = themeWidth;
   }
 
 #ifdef DEBUG_INTRINSIC_WIDTH
   nsFrame::IndentBy(stderr, gNoiseIndent);
   static_cast<nsFrame*>(aFrame)->ListTag(stderr);
-  printf_stderr(" %s intrinsic inline-size for container is %d twips.\n",
+  printf_stderr(" %s intrinsic width for container is %d twips.\n",
          aType == MIN_ISIZE ? "min" : "pref", result);
 #endif
 
