@@ -114,21 +114,21 @@ interface nsIDOMWindowUtils : nsISupports {
    * privileges.
    *
    * @param aType event type
-   * @param aX x offset in CSS pixels
-   * @param aY y offset in CSS pixels
+   * @param aX x offset
+   * @param aY y offset
    * @param aButton button to synthesize
    * @param aClickCount number of clicks that have been performed
    * @param aModifiers modifiers pressed, using constants defined in nsIDOMNSEvent
-   * @param aIgnoreRootScrollFrame whether the event should ignore viewport bounds
+   * @param aIgnoreScrollFrame whether the event should ignore viewport bounds
    *                           during dispatch
    */
   void sendMouseEvent(in AString aType,
-                      in float aX,
-                      in float aY,
+                      in long aX,
+                      in long aY,
                       in long aButton,
                       in long aClickCount,
                       in long aModifiers,
-                      [optional] in boolean aIgnoreRootScrollFrame);
+                      [optional] in boolean aIgnoreScrollFrame);
 
   /** Synthesize a mouse scroll event for a window. The event types supported
    *  are: 
@@ -142,8 +142,8 @@ interface nsIDOMWindowUtils : nsISupports {
    * privileges.
    *
    * @param aType event type
-   * @param aX x offset in CSS pixels
-   * @param aY y offset in CSS pixels
+   * @param aX x offset
+   * @param aY y offset
    * @param aButton button to synthesize
    * @param aScrollFlags flag bits --- see nsMouseScrollFlags in nsGUIEvent.h
    * @param aDelta the direction and amount to scroll (in lines or pixels,
@@ -151,8 +151,8 @@ interface nsIDOMWindowUtils : nsISupports {
    * @param aModifiers modifiers pressed, using constants defined in nsIDOMNSEvent
    */
   void sendMouseScrollEvent(in AString aType,
-                            in float aX,
-                            in float aY,
+                            in long aX,
+                            in long aY,
                             in long aButton,
                             in long aScrollFlags,
                             in long aDelta,

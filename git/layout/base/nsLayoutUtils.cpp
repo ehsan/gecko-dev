@@ -907,7 +907,7 @@ static PRBool gDumpRepaintRegionForCopy = PR_FALSE;
 nsIFrame*
 nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
                                 PRBool aShouldIgnoreSuppression,
-                                PRBool aIgnoreRootScrollFrame)
+                                PRBool aIgnoreScrollFrame)
 {
   nsDisplayListBuilder builder(aFrame, PR_TRUE, PR_FALSE);
   nsDisplayList list;
@@ -916,7 +916,7 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
   if (aShouldIgnoreSuppression)
     builder.IgnorePaintSuppression();
 
-  if (aIgnoreRootScrollFrame) {
+  if (aIgnoreScrollFrame) {
     nsIFrame* rootScrollFrame =
       aFrame->PresContext()->PresShell()->GetRootScrollFrame();
     if (rootScrollFrame) {
@@ -2773,10 +2773,11 @@ nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
                        aAnchor.y/appUnitsPerDevPixel);
   gfxPoint imageSpaceAnchorPoint =
     MapToFloatImagePixels(imageSize, aDest, aAnchor);
-  gfxContextMatrixAutoSaveRestore saveMatrix(ctx);
+  gfxMatrix currentMatrix = ctx->CurrentMatrix();
 
+  gfxRect finalFillRect = fill;
   if (didSnap) {
-    NS_ASSERTION(!saveMatrix.Matrix().HasNonAxisAlignedTransform(),
+    NS_ASSERTION(!currentMatrix.HasNonAxisAlignedTransform(),
                  "How did we snap, then?");
     imageSpaceAnchorPoint.Round();
     anchorPoint = imageSpaceAnchorPoint;
@@ -2785,48 +2786,42 @@ nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
                          aDest.width/appUnitsPerDevPixel,
                          aDest.height/appUnitsPerDevPixel);
     anchorPoint = MapToFloatUserPixels(imageSize, devPixelDest, anchorPoint);
-    anchorPoint = saveMatrix.Matrix().Transform(anchorPoint);
+    anchorPoint = currentMatrix.Transform(anchorPoint);
     anchorPoint.Round();
 
     // This form of Transform is safe to call since non-axis-aligned
     // transforms wouldn't be snapped.
-    dirty = saveMatrix.Matrix().Transform(dirty);
+    dirty = currentMatrix.Transform(dirty);
+    dirty.RoundOut();
+    finalFillRect = fill.Intersect(dirty);
+    if (finalFillRect.IsEmpty())
+      return NS_OK;
 
     ctx->IdentityMatrix();
   }
+  // If we're not snapping, then we ignore the dirty rect. It's hard
+  // to correctly use it with arbitrary transforms --- it really *has*
+  // to be aligned perfectly with pixel boundaries or the choice of
+  // dirty rect will affect the values of rendered pixels.
 
   gfxFloat scaleX = imageSize.width*appUnitsPerDevPixel/aDest.width;
   gfxFloat scaleY = imageSize.height*appUnitsPerDevPixel/aDest.height;
   if (didSnap) {
     // ctx now has the identity matrix, so we need to adjust our
     // scales to match
-    scaleX /= saveMatrix.Matrix().xx;
-    scaleY /= saveMatrix.Matrix().yy;
+    scaleX /= currentMatrix.xx;
+    scaleY /= currentMatrix.yy;
   }
   gfxFloat translateX = imageSpaceAnchorPoint.x - anchorPoint.x*scaleX;
   gfxFloat translateY = imageSpaceAnchorPoint.y - anchorPoint.y*scaleY;
   gfxMatrix transform(scaleX, 0, 0, scaleY, translateX, translateY);
-
-  gfxRect finalFillRect = fill;
-  // If the user-space-to-image-space transform is not a straight
-  // translation by integers, then filtering will occur, and
-  // restricting the fill rect to the dirty rect would change the values
-  // computed for edge pixels, which we can't allow.
-  // Also, if didSnap is false then rounding out 'dirty' might not
-  // produce pixel-aligned coordinates, which would also break the values
-  // computed for edge pixels.
-  if (didSnap && !transform.HasNonIntegerTranslation()) {
-    dirty.RoundOut();
-    finalFillRect = fill.Intersect(dirty);
-  }
-  if (finalFillRect.IsEmpty())
-    return NS_OK;
 
   nsIntRect innerRect;
   imgFrame->GetRect(innerRect);
   nsIntMargin padding(innerRect.x, innerRect.y,
     imageSize.width - innerRect.XMost(), imageSize.height - innerRect.YMost());
   img->Draw(ctx, transform, finalFillRect, padding, intSubimage);
+  ctx->SetMatrix(currentMatrix);
   return NS_OK;
 }
 

@@ -95,7 +95,7 @@ struct nsStyleBackground;
 template <class T> class nsRunnableMethod;
 class nsIRunnable;
 class gfxUserFontSet;
-struct nsFontFaceRuleContainer;
+class nsCSSFontFaceRule;
 
 #ifdef MOZ_REFLOW_PERF
 class nsIRenderingContext;
@@ -417,7 +417,7 @@ public:
 
   /**
    * Get the visible area associated with this presentation context.
-   * This is the size of the visible area that is used for
+   * This is the size of the visiable area that is used for
    * presenting the document. The returned value is in the standard
    * nscoord units (as scaled by the device context).
    */
@@ -823,7 +823,7 @@ protected:
   // container for per-context fonts (downloadable, SVG, etc.)
   gfxUserFontSet* mUserFontSet;
   // The list of @font-face rules that we put into mUserFontSet
-  nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
+  nsTArray< nsRefPtr<nsCSSFontFaceRule> > mFontFaceRules;
   
   PRInt32               mFontScaler;
   nscoord               mMinimumFontSize;

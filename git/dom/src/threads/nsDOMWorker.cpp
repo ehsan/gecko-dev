@@ -51,12 +51,10 @@
 #include "nsDOMClassInfoID.h"
 #include "nsGlobalWindow.h"
 #include "nsJSUtils.h"
-#include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
 
 #include "nsDOMThreadService.h"
 #include "nsDOMWorkerEvents.h"
-#include "nsDOMWorkerNavigator.h"
 #include "nsDOMWorkerPool.h"
 #include "nsDOMWorkerScriptLoader.h"
 #include "nsDOMWorkerTimeout.h"
@@ -253,7 +251,7 @@ nsDOMWorkerFunctions::LoadScripts(JSContext* aCx,
     return JS_FALSE;
   }
 
-  rv = loader->LoadScripts(aCx, urls, PR_FALSE);
+  rv = loader->LoadScripts(aCx, urls);
   if (NS_FAILED(rv)) {
     if (!JS_IsExceptionPending(aCx)) {
       JS_ReportError(aCx, "Failed to load scripts");
@@ -433,8 +431,6 @@ public:
 
 private:
   nsDOMWorker* mWorker;
-
-  nsRefPtr<nsDOMWorkerNavigator> mNavigator;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS5(nsDOMWorkerScope, nsIWorkerScope,
@@ -493,18 +489,6 @@ nsDOMWorkerScope::GetSelf(nsIWorkerGlobalScope** aSelf)
   }
 
   NS_ADDREF(*aSelf = this);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWorkerScope::GetNavigator(nsIWorkerNavigator** _retval)
-{
-  if (!mNavigator) {
-    mNavigator = new nsDOMWorkerNavigator();
-    NS_ENSURE_TRUE(mNavigator, NS_ERROR_OUT_OF_MEMORY);
-  }
-
-  NS_ADDREF(*_retval = mNavigator);
   return NS_OK;
 }
 
@@ -671,24 +655,6 @@ protected:
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsDOMFireEventRunnable, nsWorkerHoldingRunnable)
 
-class nsCancelDOMWorkerRunnable : public nsWorkerHoldingRunnable
-{
-  NS_DECL_ISUPPORTS_INHERITED
-
-  nsCancelDOMWorkerRunnable(nsDOMWorker* aWorker)
-  : nsWorkerHoldingRunnable(aWorker) { }
-
-  NS_IMETHOD Run() {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    if (!mWorker->IsCanceled()) {
-      mWorker->Cancel();
-    }
-    return NS_OK;
-  }
-};
-
-NS_IMPL_ISUPPORTS_INHERITED0(nsCancelDOMWorkerRunnable, nsWorkerHoldingRunnable)
-
 // Standard NS_IMPL_THREADSAFE_ADDREF without the logging stuff (since this
 // class is made to be inherited anyway).
 NS_IMETHODIMP_(nsrefcnt)
@@ -761,8 +727,7 @@ nsDOMWorker::nsDOMWorker(nsDOMWorker* aParent,
   mWrappedNative(nsnull),
   mCanceled(PR_FALSE),
   mSuspended(PR_FALSE),
-  mCompileAttempted(PR_FALSE),
-  mTerminated(PR_FALSE)
+  mCompileAttempted(PR_FALSE)
 {
 #ifdef DEBUG
   PRBool mainThread = NS_IsMainThread();
@@ -781,21 +746,6 @@ nsDOMWorker::~nsDOMWorker()
   }
 
   NS_ASSERTION(!mFeatures.Length(), "Live features!");
-
-  nsCOMPtr<nsIThread> mainThread;
-  NS_GetMainThread(getter_AddRefs(mainThread));
-
-  nsIPrincipal* principal;
-  mPrincipal.forget(&principal);
-  if (principal) {
-    NS_ProxyRelease(mainThread, principal, PR_FALSE);
-  }
-
-  nsIURI* uri;
-  mURI.forget(&uri);
-  if (uri) {
-    NS_ProxyRelease(mainThread, uri, PR_FALSE);
-  }
 }
 
 /* static */ nsresult
@@ -836,9 +786,6 @@ NS_INTERFACE_MAP_END
 #define XPC_MAP_WANT_FINALIZE
 
 #define XPC_MAP_FLAGS                                      \
-  nsIXPCScriptable::USE_JSSTUB_FOR_ADDPROPERTY           | \
-  nsIXPCScriptable::USE_JSSTUB_FOR_DELPROPERTY           | \
-  nsIXPCScriptable::USE_JSSTUB_FOR_SETPROPERTY           | \
   nsIXPCScriptable::DONT_ENUM_QUERY_INTERFACE            | \
   nsIXPCScriptable::CLASSINFO_INTERFACES_ONLY            | \
   nsIXPCScriptable::DONT_REFLECT_INTERFACE_NAMES
@@ -924,11 +871,12 @@ nsDOMWorker::InitializeInternal(nsIScriptGlobalObject* aOwner,
                                 PRUint32 aArgc,
                                 jsval* aArgv)
 {
-  NS_ENSURE_TRUE(aArgc, NS_ERROR_XPC_NOT_ENOUGH_ARGS);
+  NS_ENSURE_TRUE(aArgc, NS_ERROR_INVALID_ARG);
   NS_ENSURE_ARG_POINTER(aArgv);
+  NS_ENSURE_TRUE(JSVAL_IS_STRING(aArgv[0]), NS_ERROR_INVALID_ARG);
 
   JSString* str = JS_ValueToString(aCx, aArgv[0]);
-  NS_ENSURE_TRUE(str, NS_ERROR_XPC_BAD_CONVERT_JS);
+  NS_ENSURE_STATE(str);
 
   mScriptURL.Assign(nsDependentJSString(str));
   NS_ENSURE_FALSE(mScriptURL.IsEmpty(), NS_ERROR_INVALID_ARG);
@@ -1126,7 +1074,7 @@ nsDOMWorker::CompileGlobalObject(JSContext* aCx)
     return PR_FALSE;
   }
 
-  rv = loader->LoadScript(aCx, mScriptURL, PR_TRUE);
+  rv = loader->LoadScript(aCx, mScriptURL);
 
   JS_ReportPendingException(aCx);
 
@@ -1135,8 +1083,6 @@ nsDOMWorker::CompileGlobalObject(JSContext* aCx)
     mInnerScope = nsnull;
     return PR_FALSE;
   }
-
-  NS_ASSERTION(mPrincipal && mURI, "Script loader didn't set our principal!");
 
   return PR_TRUE;
 }
@@ -1163,6 +1109,7 @@ nsDOMWorker::AddFeature(nsDOMWorkerFeature* aFeature,
   NS_ASSERTION(aFeature, "Null pointer!");
 
   PRBool shouldSuspend;
+
   {
     // aCx may be null.
     JSAutoSuspendRequest asr(aCx);
@@ -1327,10 +1274,6 @@ NS_IMETHODIMP
 nsDOMWorker::PostMessage(const nsAString& aMessage,
                          nsIWorkerMessagePort* aMessagePort)
 {
-  if (mTerminated) {
-    return NS_OK;
-  }
-
   if (aMessagePort) {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
@@ -1385,19 +1328,4 @@ nsDOMWorker::SetOnmessage(nsIDOMEventListener* aOnmessage)
 {
   return mOuterHandler->SetOnXListener(NS_LITERAL_STRING("message"),
                                        aOnmessage);
-}
-
-NS_IMETHODIMP
-nsDOMWorker::Terminate()
-{
-  if (mCanceled || mTerminated) {
-    return NS_OK;
-  }
-
-  mTerminated = PR_TRUE;
-
-  nsCOMPtr<nsIRunnable> runnable = new nsCancelDOMWorkerRunnable(this);
-  NS_ENSURE_TRUE(runnable, NS_ERROR_OUT_OF_MEMORY);
-
-  return NS_DispatchToMainThread(runnable, NS_DISPATCH_NORMAL);
 }

@@ -222,8 +222,10 @@ Sanitizer.prototype = {
         var windows = windowManager.getEnumerator("navigator:browser");
         while (windows.hasMoreElements()) {
           var searchBar = windows.getNext().document.getElementById("searchbar");
-          if (searchBar)
-            searchBar.textbox.reset();
+          if (searchBar) {
+            searchBar.value = "";
+            searchBar.textbox.editor.transactionManager.clear();
+          }
         }
 
         var formHistory = Components.classes["@mozilla.org/satchel/form-history;1"]

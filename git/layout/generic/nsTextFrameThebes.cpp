@@ -714,6 +714,14 @@ public:
                                             aCapitalize, mContext);
     }
 
+    void Finish() {
+      if (mTextRun->GetFlags() & nsTextFrameUtils::TEXT_IS_TRANSFORMED) {
+        nsTransformedTextRun* transformedTextRun =
+          static_cast<nsTransformedTextRun*>(mTextRun);
+        transformedTextRun->FinishSettingProperties(mContext);
+      }
+    }
+
     gfxTextRun*  mTextRun;
     gfxContext*  mContext;
     PRUint32     mOffsetIntoTextRun;
@@ -1154,6 +1162,7 @@ void BuildTextRunsScanner::FlushFrames(PRBool aFlushLineBreaks, PRBool aSuppress
         // TODO cause frames associated with the textrun to be reflowed, if they
         // aren't being reflowed already!
       }
+      mBreakSinks[i]->Finish();
     }
     mBreakSinks.Clear();
   }
@@ -3383,16 +3392,10 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
 void
 nsContinuingTextFrame::Destroy()
 {
-  // The text associated with this frame will become associated with our
-  // prev-continuation. If that means the text has changed style, then
-  // we need to wipe out the text run for the text.
-  // Note that mPrevContinuation can be null if we're destroying the whole
-  // frame chain from the start to the end.
-  if (!mPrevContinuation ||
-      mPrevContinuation->GetStyleContext() != GetStyleContext()) {
-    ClearTextRun();
+  ClearTextRun();
+  if (mPrevContinuation || mNextContinuation) {
+    nsSplittableFrame::RemoveFromFlow(this);
   }
-  nsSplittableFrame::RemoveFromFlow(this);
   // Let the base class destroy the frame
   nsFrame::Destroy();
 }
@@ -4150,7 +4153,7 @@ nsTextFrame::PaintOneShadow(PRUint32 aOffset, PRUint32 aLength,
   nsContextBoxBlur contextBoxBlur;
   gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, blurRadius,
                                                   PresContext()->AppUnitsPerDevPixel(),
-                                                  aCtx, aDirtyRect);
+                                                  aCtx);
   if (!shadowContext)
     return;
 
