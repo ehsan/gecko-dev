@@ -119,8 +119,6 @@ WebappsRegistry.prototype = {
   // mozIDOMApplicationRegistry implementation
   
   install: function(aURL, aParams) {
-    let installURL = this._window.location.href;
-    let installOrigin = this._getOrigin(installURL);
     let request = this.createRequest();
     let requestID = this.getRequestId(request);
     let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
@@ -129,6 +127,7 @@ WebappsRegistry.prototype = {
     xhr.addEventListener("load", (function() {
       if (xhr.status == 200) {
         try {
+          let installOrigin = this._getOrigin(this._window.location.href);
           let manifest = JSON.parse(xhr.responseText, installOrigin);
           if (!this.checkManifest(manifest, installOrigin)) {
             Services.DOMRequest.fireError(request, "INVALID_MANIFEST");
@@ -139,7 +138,7 @@ WebappsRegistry.prototype = {
                                                               manifestURL: aURL,
                                                               manifest: manifest,
                                                               receipts: receipts },
-                                                              from: installURL,
+                                                              from: this._window.location.href,
                                                               oid: this._id,
                                                               requestID: requestID });
           }

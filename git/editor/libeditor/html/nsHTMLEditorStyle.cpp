@@ -937,13 +937,15 @@ nsresult nsHTMLEditor::PromoteRangeIfStartsOrEndsInNamedAnchor(nsIDOMRange *inRa
           !nsTextEditUtils::IsBody(tmp) &&
           !nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
-    GetNodeLocation(tmp, address_of(parent), &tmpOffset);
+    res = GetNodeLocation(tmp, address_of(parent), &tmpOffset);
+    NS_ENSURE_SUCCESS(res, res);
     tmp = parent;
   }
   NS_ENSURE_TRUE(tmp, NS_ERROR_NULL_POINTER);
   if (nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
-    GetNodeLocation(tmp, address_of(parent), &tmpOffset);
+    res = GetNodeLocation(tmp, address_of(parent), &tmpOffset);
+    NS_ENSURE_SUCCESS(res, res);
     startNode = parent;
     startOffset = tmpOffset;
   }
@@ -953,13 +955,15 @@ nsresult nsHTMLEditor::PromoteRangeIfStartsOrEndsInNamedAnchor(nsIDOMRange *inRa
           !nsTextEditUtils::IsBody(tmp) &&
           !nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
-    GetNodeLocation(tmp, address_of(parent), &tmpOffset);
+    res = GetNodeLocation(tmp, address_of(parent), &tmpOffset);
+    NS_ENSURE_SUCCESS(res, res);
     tmp = parent;
   }
   NS_ENSURE_TRUE(tmp, NS_ERROR_NULL_POINTER);
   if (nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
-    GetNodeLocation(tmp, address_of(parent), &tmpOffset);
+    res = GetNodeLocation(tmp, address_of(parent), &tmpOffset);
+    NS_ENSURE_SUCCESS(res, res);
     endNode = parent;
     endOffset = tmpOffset + 1;
   }
@@ -991,7 +995,8 @@ nsresult nsHTMLEditor::PromoteInlineRange(nsIDOMRange *inRange)
           IsEditable(startNode) &&
           IsAtFrontOfNode(startNode, startOffset) )
   {
-    GetNodeLocation(startNode, address_of(parent), &startOffset);
+    res = GetNodeLocation(startNode, address_of(parent), &startOffset);
+    NS_ENSURE_SUCCESS(res, res);
     startNode = parent;
   }
   NS_ENSURE_TRUE(startNode, NS_ERROR_NULL_POINTER);
@@ -1001,7 +1006,8 @@ nsresult nsHTMLEditor::PromoteInlineRange(nsIDOMRange *inRange)
           IsEditable(endNode) &&
           IsAtEndOfNode(endNode, endOffset) )
   {
-    GetNodeLocation(endNode, address_of(parent), &endOffset);
+    res = GetNodeLocation(endNode, address_of(parent), &endOffset);
+    NS_ENSURE_SUCCESS(res, res);
     endNode = parent;
     endOffset++;  // we are AFTER this node
   }
@@ -1029,7 +1035,8 @@ bool nsHTMLEditor::IsAtFrontOfNode(nsIDOMNode *aNode, PRInt32 aOffset)
     nsCOMPtr<nsIDOMNode> firstNode;
     GetFirstEditableChild(aNode, address_of(firstNode));
     NS_ENSURE_TRUE(firstNode, true); 
-    PRInt32 offset = GetChildOffset(firstNode, aNode);
+    PRInt32 offset;
+    nsEditor::GetChildOffset(firstNode, aNode, offset);
     if (offset < aOffset) return false;
     return true;
   }
@@ -1051,7 +1058,8 @@ bool nsHTMLEditor::IsAtEndOfNode(nsIDOMNode *aNode, PRInt32 aOffset)
     nsCOMPtr<nsIDOMNode> lastNode;
     GetLastEditableChild(aNode, address_of(lastNode));
     NS_ENSURE_TRUE(lastNode, true); 
-    PRInt32 offset = GetChildOffset(lastNode, aNode);
+    PRInt32 offset;
+    nsEditor::GetChildOffset(lastNode, aNode, offset);
     if (offset < aOffset) return true;
     return false;
   }
@@ -1754,15 +1762,19 @@ nsHTMLEditor::RelativeFontChangeHelper(PRInt32 aSizeChange, nsINode* aNode)
   if (aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::font) &&
       aNode->AsElement()->HasAttr(kNameSpaceID_None, nsGkAtoms::size)) {
     // Cycle through children and adjust relative font size.
-    for (PRUint32 i = aNode->GetChildCount(); i--; ) {
-      nsresult rv = RelativeFontChangeOnNode(aSizeChange, aNode->GetChildAt(i));
+    for (nsIContent* child = aNode->GetLastChild();
+         child;
+         child = child->GetPreviousSibling()) {
+      nsresult rv = RelativeFontChangeOnNode(aSizeChange, child);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
 
   // Now cycle through the children.
-  for (PRUint32 i = aNode->GetChildCount(); i--; ) {
-    nsresult rv = RelativeFontChangeHelper(aSizeChange, aNode->GetChildAt(i));
+  for (nsIContent* child = aNode->GetLastChild();
+       child;
+       child = child->GetPreviousSibling()) {
+    nsresult rv = RelativeFontChangeHelper(aSizeChange, child);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -1828,8 +1840,10 @@ nsHTMLEditor::RelativeFontChangeOnNode(PRInt32 aSizeChange, nsINode* aNode)
   // MOOSE: we should group the children together if possible
   // into a single "big" or "small".  For the moment they are
   // each getting their own.  
-  for (PRUint32 i = aNode->GetChildCount(); i--; ) {
-    nsresult rv = RelativeFontChangeOnNode(aSizeChange, aNode->GetChildAt(i));
+  for (nsIContent* child = aNode->GetLastChild();
+       child;
+       child = child->GetPreviousSibling()) {
+    nsresult rv = RelativeFontChangeOnNode(aSizeChange, child);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

@@ -447,7 +447,8 @@ nsPlaintextEditor::CreateBRImpl(nsCOMPtr<nsIDOMNode>* aInOutParent,
       // split the text node
       res = SplitNode(node, theOffset, getter_AddRefs(tmp));
       NS_ENSURE_SUCCESS(res, res);
-      GetNodeLocation(node, address_of(tmp), &offset);
+      res = GetNodeLocation(node, address_of(tmp), &offset);
+      NS_ENSURE_SUCCESS(res, res);
     }
     // create br
     res = CreateNode(brType, tmp, offset, getter_AddRefs(brNode));
@@ -467,7 +468,8 @@ nsPlaintextEditor::CreateBRImpl(nsCOMPtr<nsIDOMNode>* aInOutParent,
   {
     nsCOMPtr<nsIDOMNode> parent;
     PRInt32 offset;
-    GetNodeLocation(*outBRNode, address_of(parent), &offset);
+    res = GetNodeLocation(*outBRNode, address_of(parent), &offset);
+    NS_ENSURE_SUCCESS(res, res);
 
     nsCOMPtr<nsISelection> selection;
     res = GetSelection(getter_AddRefs(selection));
@@ -524,7 +526,8 @@ nsPlaintextEditor::InsertBR(nsCOMPtr<nsIDOMNode>* outBRNode)
   NS_ENSURE_SUCCESS(res, res);
     
   // position selection after br
-  GetNodeLocation(*outBRNode, address_of(selNode), &selOffset);
+  res = GetNodeLocation(*outBRNode, address_of(selNode), &selOffset);
+  NS_ENSURE_SUCCESS(res, res);
   nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
   selPriv->SetInterlinePosition(true);
   return selection->Collapse(selNode, selOffset+1);
@@ -1567,7 +1570,8 @@ nsPlaintextEditor::SelectEntireDocument(nsISelection *aSelection)
   if (childNode && nsTextEditUtils::IsMozBR(childNode)) {
     nsCOMPtr<nsIDOMNode> parentNode;
     PRInt32 parentOffset;
-    GetNodeLocation(childNode, address_of(parentNode), &parentOffset);
+    rv = GetNodeLocation(childNode, address_of(parentNode), &parentOffset);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     return aSelection->Extend(parentNode, parentOffset);
   }

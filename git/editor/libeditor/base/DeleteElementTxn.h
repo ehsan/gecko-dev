@@ -3,54 +3,53 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef DeleteNodeTxn_h__
-#define DeleteNodeTxn_h__
+#ifndef DeleteElementTxn_h__
+#define DeleteElementTxn_h__
 
 #include "EditTxn.h"
 
-#include "nsIContent.h"
+#include "nsIDOMNode.h"
+#include "nsIEditor.h"
 #include "nsCOMPtr.h"
 
 class nsRangeUpdater;
-class nsEditor;
 
 /**
  * A transaction that deletes a single element
  */
-class DeleteNodeTxn : public EditTxn
+class DeleteElementTxn : public EditTxn
 {
 public:
   /** initialize the transaction.
     * @param aElement the node to delete
     */
-  nsresult Init(nsEditor* aEditor, nsINode* aNode,
-                nsRangeUpdater* aRangeUpdater);
+  NS_IMETHOD Init(nsIEditor *aEditor, nsIDOMNode *aElement, nsRangeUpdater *aRangeUpdater);
 
-  DeleteNodeTxn();
+  DeleteElementTxn();
 
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(DeleteNodeTxn, EditTxn)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(DeleteElementTxn, EditTxn)
 
   NS_DECL_EDITTXN
 
   NS_IMETHOD RedoTransaction();
 
 protected:
-
+  
   /** the element to delete */
-  nsCOMPtr<nsINode> mNode;
+  nsCOMPtr<nsIDOMNode> mElement;
 
   /** parent of node to delete */
-  nsCOMPtr<nsINode> mParent;
+  nsCOMPtr<nsIDOMNode> mParent;
 
   /** next sibling to remember for undo/redo purposes */
-  nsCOMPtr<nsIContent> mRefNode;
+  nsCOMPtr<nsIDOMNode> mRefNode;
 
   /** the editor for this transaction */
-  nsEditor* mEditor;
+  nsIEditor* mEditor;
 
   /** range updater object */
-  nsRangeUpdater* mRangeUpdater;
+  nsRangeUpdater *mRangeUpdater;
 };
 
 #endif

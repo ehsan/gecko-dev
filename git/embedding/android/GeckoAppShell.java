@@ -1843,8 +1843,4 @@ public class GeckoAppShell
 
     public static void notifyWakeLockChanged(String topic, String state) {
     }
-
-    public static String getGfxInfoData() {
-        return null;
-    }
 }

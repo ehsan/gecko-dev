@@ -24,7 +24,6 @@
 #include "mozilla/dom/ContentChild.h"
 
 #include "mozilla/Util.h"
-#include "mozilla/Attributes.h"
 
 #include "nsAppRunner.h"
 #include "mozilla/AppData.h"
@@ -1181,7 +1180,7 @@ ScopedXPCOMStartup::Initialize()
  * This is a little factory class that serves as a singleton-service-factory
  * for the nativeappsupport object.
  */
-class nsSingletonFactory MOZ_FINAL : public nsIFactory
+class nsSingletonFactory : public nsIFactory
 {
 public:
   NS_DECL_ISUPPORTS

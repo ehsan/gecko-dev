@@ -9,9 +9,8 @@
 
 #include "nsIStreamLoader.h"
 #include "nsStringAPI.h"
-#include "mozilla/Attributes.h"
 
-class nsAlertsImageLoadListener MOZ_FINAL : public nsIStreamLoaderObserver
+class nsAlertsImageLoadListener : public nsIStreamLoaderObserver
 {
 public:
   nsAlertsImageLoadListener(const nsAString &aName,

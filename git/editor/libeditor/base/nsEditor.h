@@ -41,7 +41,7 @@ class nsIPresShell;
 class ChangeAttributeTxn;
 class CreateElementTxn;
 class InsertElementTxn;
-class DeleteNodeTxn;
+class DeleteElementTxn;
 class InsertTextTxn;
 class DeleteTextTxn;
 class SplitElementTxn;
@@ -176,7 +176,6 @@ public:
                                            nsIDOMNode ** aNewNode);
 
   /* helper routines for node/parent manipulations */
-  nsresult DeleteNode(nsINode* aNode);
   nsresult ReplaceContainer(nsINode* inNode,
                             mozilla::dom::Element** outNode,
                             const nsAString& aNodeType,
@@ -252,9 +251,10 @@ protected:
                                        PRInt32      aOffset,
                                        InsertElementTxn ** aTxn);
 
-  /** create a transaction for removing aNode from its parent.
+  /** create a transaction for removing aElement from its parent.
     */
-  nsresult CreateTxnForDeleteNode(nsINode* aNode, DeleteNodeTxn** aTxn);
+  NS_IMETHOD CreateTxnForDeleteElement(nsIDOMNode * aElement,
+                                       DeleteElementTxn ** aTxn);
 
 
   nsresult CreateTxnForDeleteSelection(EDirection aAction,
@@ -436,19 +436,20 @@ public:
                          bool        aNodeToKeepIsFirst);
 
   /**
-   * Return the offset of aChild in aParent.  Asserts fatally if parent or
-   * child is null, or parent is not child's parent.
+   *  Set aOffset to the offset of aChild in aParent.  
+   *  Returns an error if aChild is not an immediate child of aParent.
    */
-  static PRInt32 GetChildOffset(nsIDOMNode *aChild,
-                                nsIDOMNode *aParent);
+  static nsresult GetChildOffset(nsIDOMNode *aChild, 
+                                 nsIDOMNode *aParent, 
+                                 PRInt32    &aOffset);
 
   /**
-   *  Set outParent to the parent of aChild.
-   *  Set outOffset to the offset of aChild in outParent.
+   *  Set aParent to the parent of aChild.
+   *  Set aOffset to the offset of aChild in aParent.  
    */
-  static void GetNodeLocation(nsIDOMNode* aChild,
-                              nsCOMPtr<nsIDOMNode>* outParent,
-                              PRInt32* outOffset);
+  static nsresult GetNodeLocation(nsIDOMNode *aChild, 
+                                 nsCOMPtr<nsIDOMNode> *aParent, 
+                                 PRInt32    *aOffset);
 
   /** returns the number of things inside aNode in the out-param aCount.  
     * @param  aNode is the node to get the length of.  
@@ -589,6 +590,7 @@ public:
   bool NodesSameType(nsIDOMNode *aNode1, nsIDOMNode *aNode2);
   virtual bool AreNodesSameType(nsIContent* aNode1, nsIContent* aNode2);
 
+  static bool IsTextOrElementNode(nsIDOMNode *aNode);
   static bool IsTextNode(nsIDOMNode *aNode);
   static bool IsTextNode(nsINode *aNode);
   
