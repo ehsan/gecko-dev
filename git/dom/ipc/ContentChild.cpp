@@ -1290,14 +1290,6 @@ ContentChild::RecvCycleCollect()
     return true;
 }
 
-#ifdef MOZ_NUWA_PROCESS
-static void
-OnFinishNuwaPreparation ()
-{
-    MakeNuwaProcess();
-}
-#endif
-
 static void
 PreloadSlowThings()
 {
@@ -1305,18 +1297,6 @@ PreloadSlowThings()
     nsLayoutStylesheetCache::UserContentSheet();
 
     TabChild::PreloadSlowThings();
-
-#ifdef MOZ_NUWA_PROCESS
-    // After preload of slow things, start freezing threads.
-    if (IsNuwaProcess()) {
-        // Perform GC before freezing the Nuwa process to reduce memory usage.
-        ContentChild::GetSingleton()->RecvGarbageCollect();
-
-        MessageLoop::current()->
-                PostTask(FROM_HERE,
-                         NewRunnableFunction(OnFinishNuwaPreparation));
-    }
-#endif
 }
 
 bool
