@@ -16,8 +16,6 @@ using namespace js;
 using namespace js::ion;
 using namespace mozilla;
 
-#ifdef JS_ASMJS
-
 #if defined(XP_WIN)
 # define XMM_sig(p,i) ((p)->Xmm##i)
 # define EIP_sig(p) ((p)->Eip)
@@ -409,7 +407,7 @@ HandleException(PEXCEPTION_POINTERS exception)
 
     uint8_t **ppc = ContextToPC(context);
     uint8_t *pc = *ppc;
-	JS_ASSERT(pc == record->ExceptionAddress);
+    JS_ASSERT(pc == record->ExceptionAddress);
 
     const AsmJSModule &module = activation->module();
     if (!module.containsPC(pc))
@@ -900,7 +898,8 @@ HandleSignal(int signum, siginfo_t *info, void *ctx)
 #  endif
 }
 
-static struct sigaction sPrevHandler;
+static struct sigaction sPrevSegvHandler;
+static struct sigaction sPrevBusHandler;
 
 static void
 AsmJSFaultHandler(int signum, siginfo_t *info, void *context)
@@ -915,49 +914,54 @@ AsmJSFaultHandler(int signum, siginfo_t *info, void *context)
     // be re-executed which will crash in the normal way. The advantage to
     // doing this is that we remove ourselves from the crash stack which
     // simplifies crash reports. Note: the order of these tests matter.
-    if (sPrevHandler.sa_flags & SA_SIGINFO) {
-        sPrevHandler.sa_sigaction(signum, info, context);
+    struct sigaction* prevHandler = NULL;
+    if (signum == SIGSEGV)
+        prevHandler = &sPrevSegvHandler;
+    else {
+	JS_ASSERT(signum == SIGBUS);
+        prevHandler = &sPrevBusHandler;
+    }
+
+    if (prevHandler->sa_flags & SA_SIGINFO) {
+        prevHandler->sa_sigaction(signum, info, context);
         exit(signum);  // backstop
-    } else if (sPrevHandler.sa_handler == SIG_DFL || sPrevHandler.sa_handler == SIG_IGN) {
-        sigaction(signum, &sPrevHandler, NULL);
+    } else if (prevHandler->sa_handler == SIG_DFL || prevHandler->sa_handler == SIG_IGN) {
+        sigaction(signum, prevHandler, NULL);
     } else {
-        sPrevHandler.sa_handler(signum);
+        prevHandler->sa_handler(signum);
         exit(signum);  // backstop
     }
 }
 # endif
-#endif // JS_ASMJS
 
 bool
 EnsureAsmJSSignalHandlersInstalled(JSRuntime *rt)
 {
-#if defined(JS_ASMJS)
-# if defined(XP_MACOSX)
+#if defined(XP_MACOSX)
     // On OSX, each JSRuntime gets its own handler.
     return rt->asmJSMachExceptionHandler.installed() || rt->asmJSMachExceptionHandler.install(rt);
-# else
+#else
     // Assume Windows or Unix. For these platforms, there is a single,
     // process-wide signal handler installed. Take care to only install it once.
     InstallSignalHandlersMutex::Lock lock;
     if (lock.handlersInstalled())
         return true;
 
-#  if defined(XP_WIN)
+# if defined(XP_WIN)
     if (!AddVectoredExceptionHandler(/* FirstHandler = */true, AsmJSExceptionHandler))
         return false;
-#  else  // assume Unix
+# else  // assume Unix
     struct sigaction sigAction;
     sigAction.sa_sigaction = &AsmJSFaultHandler;
     sigemptyset(&sigAction.sa_mask);
     sigAction.sa_flags = SA_SIGINFO;
-    if (sigaction(SIGSEGV, &sigAction, &sPrevHandler))
+    if (sigaction(SIGSEGV, &sigAction, &sPrevSegvHandler))
         return false;
-    if (sigaction(SIGBUS, &sigAction, &sPrevHandler))
+    if (sigaction(SIGBUS, &sigAction, &sPrevBusHandler))
         return false;
-#  endif
+# endif
 
     lock.setHandlersInstalled();
-# endif
 #endif
     return true;
 }
@@ -975,7 +979,6 @@ EnsureAsmJSSignalHandlersInstalled(JSRuntime *rt)
 void
 js::TriggerOperationCallbackForAsmJSCode(JSRuntime *rt)
 {
-#if defined(JS_ASMJS)
     JS_ASSERT(rt->currentThreadOwnsOperationCallbackLock());
 
     AsmJSActivation *activation = rt->mainThread.asmJSActivationStackFromAnyThread();
@@ -984,13 +987,23 @@ js::TriggerOperationCallbackForAsmJSCode(JSRuntime *rt)
 
     const AsmJSModule &module = activation->module();
 
-# if defined(XP_WIN)
+#if defined(XP_WIN)
     DWORD oldProtect;
     if (!VirtualProtect(module.functionCode(), module.functionBytes(), PAGE_NOACCESS, &oldProtect))
         MOZ_CRASH();
-# else  // assume Unix
+#else  // assume Unix
     if (mprotect(module.functionCode(), module.functionBytes(), PROT_NONE))
         MOZ_CRASH();
-# endif
 #endif
 }
+
+#ifdef MOZ_ASAN
+// When running with asm.js under AddressSanitizer, we need to explicitely
+// tell AddressSanitizer to allow custom signal handlers because it will 
+// otherwise trigger ASan's SIGSEGV handler for the internal SIGSEGVs that 
+// asm.js would otherwise handle.
+extern "C" MOZ_ASAN_BLACKLIST
+const char* __asan_default_options() {
+    return "allow_user_segv_handler=1";
+}
+#endif

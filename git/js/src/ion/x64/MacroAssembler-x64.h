@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_macro_assembler_x64_h__
-#define jsion_macro_assembler_x64_h__
+#ifndef ion_x64_MacroAssembler_x64_h
+#define ion_x64_MacroAssembler_x64_h
 
 #include "ion/shared/MacroAssembler-x86-shared.h"
 #include "ion/MoveResolver.h"
@@ -166,7 +166,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         if (payload != dest.valueReg())
             movq(payload, dest.valueReg());
         mov(ImmShiftedTag(type), ScratchReg);
-        orq(Operand(ScratchReg), dest.valueReg());
+        orq(ScratchReg, dest.valueReg());
     }
     void pushValue(ValueOperand val) {
         push(val.valueReg());
@@ -206,15 +206,16 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         JS_ASSERT(src != dest);
 
         JSValueShiftedTag tag = (JSValueShiftedTag)JSVAL_TYPE_TO_SHIFTED_TAG(type);
-        mov(ImmShiftedTag(tag), dest);
 #ifdef DEBUG
         if (type == JSVAL_TYPE_INT32 || type == JSVAL_TYPE_BOOLEAN) {
             Label upper32BitsZeroed;
-            branchPtr(Assembler::BelowOrEqual, src, Imm32(UINT32_MAX), &upper32BitsZeroed);
+            movePtr(ImmWord(UINT32_MAX), dest);
+            branchPtr(Assembler::BelowOrEqual, src, dest, &upper32BitsZeroed);
             breakpoint();
             bind(&upper32BitsZeroed);
         }
 #endif
+        mov(ImmShiftedTag(tag), dest);
         orq(src, dest);
     }
 
@@ -386,8 +387,12 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         cmpq(lhs, ScratchReg);
     }
     void cmpPtr(const Operand &lhs, const ImmWord rhs) {
-        mov(rhs, ScratchReg);
-        cmpq(lhs, ScratchReg);
+        if ((intptr_t)rhs.value <= INT32_MAX && (intptr_t)rhs.value >= INT32_MIN) {
+            cmpq(lhs, Imm32((int32_t)rhs.value));
+        } else {
+            mov(rhs, ScratchReg);
+            cmpq(lhs, ScratchReg);
+        }
     }
     void cmpPtr(const Address &lhs, const ImmGCPtr rhs) {
         cmpPtr(Operand(lhs), rhs);
@@ -442,8 +447,12 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
     void addPtr(ImmWord imm, const Register &dest) {
         JS_ASSERT(dest != ScratchReg);
-        mov(imm, ScratchReg);
-        addq(ScratchReg, dest);
+        if ((intptr_t)imm.value <= INT32_MAX && (intptr_t)imm.value >= INT32_MIN) {
+            addq(Imm32((int32_t)imm.value), dest);
+        } else {
+            mov(imm, ScratchReg);
+            addq(ScratchReg, dest);
+        }
     }
     void addPtr(const Address &src, const Register &dest) {
         addq(Operand(src), dest);
@@ -547,14 +556,18 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
     void loadPtr(const BaseIndex &src, Register dest) {
         movq(Operand(src), dest);
-	}
+    }
     void loadPrivate(const Address &src, Register dest) {
         loadPtr(src, dest);
         shlq(Imm32(1), dest);
     }
     void storePtr(ImmWord imm, const Address &address) {
-        mov(imm, ScratchReg);
-        movq(ScratchReg, Operand(address));
+        if ((intptr_t)imm.value <= INT32_MAX && (intptr_t)imm.value >= INT32_MIN) {
+            mov(Imm32((int32_t)imm.value), Operand(address));
+        } else {
+            mov(imm, ScratchReg);
+            movq(ScratchReg, Operand(address));
+        }
     }
     void storePtr(ImmGCPtr imm, const Address &address) {
         movq(imm, ScratchReg);
@@ -621,7 +634,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
     void cmpTag(const ValueOperand &operand, ImmTag tag) {
         Register reg = splitTagForTest(operand);
-        cmpl(Operand(reg), tag);
+        cmpl(reg, tag);
     }
 
     void branchTestUndefined(Condition cond, Register tag, Label *label) {
@@ -787,7 +800,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     // Note that the |dest| register here may be ScratchReg, so we shouldn't
     // use it.
     void unboxInt32(const ValueOperand &src, const Register &dest) {
-        movl(Operand(src.valueReg()), dest);
+        movl(src.valueReg(), dest);
     }
     void unboxInt32(const Operand &src, const Register &dest) {
         movl(src, dest);
@@ -810,7 +823,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
 
     void unboxBoolean(const ValueOperand &src, const Register &dest) {
-        movl(Operand(src.valueReg()), dest);
+        movl(src.valueReg(), dest);
     }
     void unboxBoolean(const Operand &src, const Register &dest) {
         movl(src, dest);
@@ -820,7 +833,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
 
     void unboxMagic(const ValueOperand &src, const Register &dest) {
-        movl(Operand(src.valueReg()), dest);
+        movl(src.valueReg(), dest);
     }
 
     void unboxDouble(const ValueOperand &src, const FloatRegister &dest) {
@@ -912,10 +925,10 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
 
     // These two functions use the low 32-bits of the full value register.
     void boolValueToDouble(const ValueOperand &operand, const FloatRegister &dest) {
-        cvtsi2sd(Operand(operand.valueReg()), dest);
+        cvtsi2sd(operand.valueReg(), dest);
     }
     void int32ValueToDouble(const ValueOperand &operand, const FloatRegister &dest) {
-        cvtsi2sd(Operand(operand.valueReg()), dest);
+        cvtsi2sd(operand.valueReg(), dest);
     }
 
     void loadConstantDouble(double d, const FloatRegister &dest) {
@@ -1102,5 +1115,4 @@ typedef MacroAssemblerX64 MacroAssemblerSpecific;
 } // namespace ion
 } // namespace js
 
-#endif // jsion_macro_assembler_x64_h__
-
+#endif /* ion_x64_MacroAssembler_x64_h */

@@ -4,8 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if !defined(jsion_baseline_frame_h__) && defined(JS_ION)
-#define jsion_baseline_frame_h__
+#ifndef ion_BaselineFrame_h
+#define ion_BaselineFrame_h
+
+#ifdef JS_ION
 
 #include "jscntxt.h"
 #include "jscompartment.h"
@@ -113,6 +115,10 @@ class BaselineFrame
         uint8_t *pointer = (uint8_t *)this + Size() + offsetOfCalleeToken();
         return *(CalleeToken *)pointer;
     }
+    void replaceCalleeToken(CalleeToken token) {
+        uint8_t *pointer = (uint8_t *)this + Size() + offsetOfCalleeToken();
+        *(CalleeToken *)pointer = token;
+    }
     JSScript *script() const {
         if (isEvalFrame())
             return evalScript();
@@ -144,24 +150,24 @@ class BaselineFrame
         return (Value *)this - (slot + 1);
     }
 
-    Value &unaliasedVar(unsigned i, MaybeCheckAliasing checkAliasing) const {
+    Value &unaliasedVar(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
         JS_ASSERT_IF(checkAliasing, !script()->varIsAliased(i));
         JS_ASSERT(i < script()->nfixed);
         return *valueSlot(i);
     }
 
-    Value &unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing) const {
+    Value &unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
         JS_ASSERT(i < numFormalArgs());
         JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
         JS_ASSERT_IF(checkAliasing, !script()->formalIsAliased(i));
-        return formals()[i];
+        return argv()[i];
     }
 
-    Value &unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing) const {
+    Value &unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
         JS_ASSERT(i < numActualArgs());
         JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
         JS_ASSERT_IF(checkAliasing && i < numFormalArgs(), !script()->formalIsAliased(i));
-        return actuals()[i];
+        return argv()[i];
     }
 
     Value &unaliasedLocal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
@@ -184,13 +190,10 @@ class BaselineFrame
                          BaselineFrame::Size() +
                          offsetOfThis());
     }
-    Value *formals() const {
+    Value *argv() const {
         return (Value *)(reinterpret_cast<const uint8_t *>(this) +
                          BaselineFrame::Size() +
                          offsetOfArg(0));
-    }
-    Value *actuals() const {
-        return formals();
     }
 
     bool copyRawFrameSlots(AutoValueVector *vec) const;
@@ -334,6 +337,9 @@ class BaselineFrame
     bool isDebuggerFrame() const {
         return false;
     }
+    bool isGeneratorFrame() const {
+        return false;
+    }
 
     IonJSFrameLayout *framePrefix() const {
         uint8_t *fp = (uint8_t *)this + Size() + FramePointerOffset;
@@ -395,5 +401,6 @@ JS_STATIC_ASSERT(((sizeof(BaselineFrame) + BaselineFrame::FramePointerOffset) % 
 } // namespace ion
 } // namespace js
 
-#endif
+#endif // JS_ION
 
+#endif /* ion_BaselineFrame_h */

@@ -4,9 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-
-#ifndef jsion_mir_opcodes_h__
-#define jsion_mir_opcodes_h__
+#ifndef ion_MOpcodes_h
+#define ion_MOpcodes_h
 
 namespace js {
 namespace ion {
@@ -55,6 +54,7 @@ namespace ion {
     _(MinMax)                                                               \
     _(Abs)                                                                  \
     _(Sqrt)                                                                 \
+    _(Atan2)                                                                \
     _(Pow)                                                                  \
     _(PowHalf)                                                              \
     _(Random)                                                               \
@@ -102,10 +102,12 @@ namespace ion {
     _(FunctionEnvironment)                                                  \
     _(TypeBarrier)                                                          \
     _(MonitorTypes)                                                         \
+    _(PostWriteBarrier)                                                     \
     _(GetPropertyCache)                                                     \
     _(GetPropertyPolymorphic)                                               \
     _(SetPropertyPolymorphic)                                               \
     _(GetElementCache)                                                      \
+    _(SetElementCache)                                                      \
     _(BindNameCache)                                                        \
     _(GuardShape)                                                           \
     _(GuardObjectType)                                                      \
@@ -153,6 +155,8 @@ namespace ion {
     _(StringLength)                                                         \
     _(ArgumentsLength)                                                      \
     _(GetArgument)                                                          \
+    _(RunOncePrologue)                                                      \
+    _(Rest)                                                                 \
     _(Floor)                                                                \
     _(Round)                                                                \
     _(In)                                                                   \
@@ -163,6 +167,7 @@ namespace ion {
     _(GetDOMProperty)                                                       \
     _(SetDOMProperty)                                                       \
     _(IsCallable)                                                           \
+    _(HaveSameClass)                                                        \
     _(AsmJSNeg)                                                             \
     _(AsmJSUDiv)                                                            \
     _(AsmJSUMod)                                                            \
@@ -185,6 +190,7 @@ namespace ion {
     _(ParNewDenseArray)                                                     \
     _(ParBailout)                                                           \
     _(ParLambda)                                                            \
+    _(ParRest)                                                              \
     _(ParSlice)                                                             \
     _(ParWriteGuard)                                                        \
     _(ParDump)                                                              \
@@ -214,5 +220,4 @@ class MInstructionVisitorWithDefaults : public MInstructionVisitor
 } // namespace ion
 } // namespace js
 
-#endif // jsion_mir_opcodes_h__
-
+#endif /* ion_MOpcodes_h */

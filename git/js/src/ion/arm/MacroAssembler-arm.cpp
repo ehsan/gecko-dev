@@ -94,11 +94,15 @@ MacroAssemblerARM::convertDoubleToInt32(const FloatRegister &src, const Register
     ma_vcmp(src, ScratchFloatReg);
     as_vmrs(pc);
     ma_b(fail, Assembler::VFP_NotEqualOrUnordered);
-    // If they're equal, test for 0.  It would be nicer to test for -0.0 explicitly, but that seems hard.
+
     if (negativeZeroCheck) {
         ma_cmp(dest, Imm32(0));
+        // Test and bail for -0.0, when integer result is 0
+        // Move the top word of the double into the output reg, if it is non-zero,
+        // then the original value was -0.0
+        as_vxfer(dest, InvalidReg, src, FloatToCore, Assembler::Equal, 1);
+        ma_cmp(dest, Imm32(0x80000000), Assembler::Equal);
         ma_b(fail, Assembler::Equal);
-        // guard for != 0.
     }
 }
 
@@ -2675,13 +2679,18 @@ MacroAssemblerARMCompat::extractTag(const BaseIndex &address, Register scratch)
 }
 
 void
-MacroAssemblerARMCompat::moveValue(const Value &val, Register type, Register data) {
+MacroAssemblerARMCompat::moveValue(const Value &val, Register type, Register data)
+{
     jsval_layout jv = JSVAL_TO_IMPL(val);
     ma_mov(Imm32(jv.s.tag), type);
-    ma_mov(Imm32(jv.s.payload.i32), data);
+    if (val.isMarkable())
+        ma_mov(ImmGCPtr(reinterpret_cast<gc::Cell *>(val.toGCThing())), data);
+    else
+        ma_mov(Imm32(jv.s.payload.i32), data);
 }
 void
-MacroAssemblerARMCompat::moveValue(const Value &val, const ValueOperand &dest) {
+MacroAssemblerARMCompat::moveValue(const Value &val, const ValueOperand &dest)
+{
     moveValue(val, dest.typeReg(), dest.payloadReg());
 }
 
@@ -2689,7 +2698,8 @@ MacroAssemblerARMCompat::moveValue(const Value &val, const ValueOperand &dest) {
 // X86/X64-common (ARM too now) interface.
 /////////////////////////////////////////////////////////////////
 void
-MacroAssemblerARMCompat::storeValue(ValueOperand val, Operand dst) {
+MacroAssemblerARMCompat::storeValue(ValueOperand val, Operand dst)
+{
     ma_str(val.payloadReg(), ToPayload(dst));
     ma_str(val.typeReg(), ToType(dst));
 }
@@ -3241,13 +3251,15 @@ MacroAssemblerARMCompat::handleFailureWithHandler(void *handler)
     passABIArg(r0);
     callWithABI(handler);
 
-    Label catch_;
     Label entryFrame;
+    Label catch_;
+    Label finally;
     Label return_;
 
     ma_ldr(Operand(sp, offsetof(ResumeFromException, kind)), r0);
     branch32(Assembler::Equal, r0, Imm32(ResumeFromException::RESUME_ENTRY_FRAME), &entryFrame);
     branch32(Assembler::Equal, r0, Imm32(ResumeFromException::RESUME_CATCH), &catch_);
+    branch32(Assembler::Equal, r0, Imm32(ResumeFromException::RESUME_FINALLY), &finally);
     branch32(Assembler::Equal, r0, Imm32(ResumeFromException::RESUME_FORCED_RETURN), &return_);
 
     breakpoint(); // Invalid kind.
@@ -3268,6 +3280,21 @@ MacroAssemblerARMCompat::handleFailureWithHandler(void *handler)
     ma_ldr(Operand(sp, offsetof(ResumeFromException, target)), r0);
     ma_ldr(Operand(sp, offsetof(ResumeFromException, framePointer)), r11);
     ma_ldr(Operand(sp, offsetof(ResumeFromException, stackPointer)), sp);
+    jump(r0);
+
+    // If we found a finally block, this must be a baseline frame. Push
+    // two values expected by JSOP_RETSUB: BooleanValue(true) and the
+    // exception.
+    bind(&finally);
+    ValueOperand exception = ValueOperand(r1, r2);
+    loadValue(Operand(sp, offsetof(ResumeFromException, exception)), exception);
+
+    ma_ldr(Operand(sp, offsetof(ResumeFromException, target)), r0);
+    ma_ldr(Operand(sp, offsetof(ResumeFromException, framePointer)), r11);
+    ma_ldr(Operand(sp, offsetof(ResumeFromException, stackPointer)), sp);
+
+    pushValue(BooleanValue(true));
+    pushValue(exception);
     jump(r0);
 
     // Only used in debug mode. Return BaselineFrame->returnValue() to the caller.

@@ -379,7 +379,7 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 
     // Call the target function.
     // Note that this assumes the function is JITted.
-    masm.movl(Operand(eax, offsetof(JSFunction, u.i.script_)), eax);
+    masm.movl(Operand(eax, JSFunction::offsetOfNativeOrScript()), eax);
     masm.loadBaselineOrIonRaw(eax, eax, mode, NULL);
     masm.call(eax);
     uint32_t returnOffset = masm.currentOffset();
@@ -545,11 +545,12 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 
       case Type_Handle:
         outReg = regs.takeAny();
-        masm.Push(UndefinedValue());
+        masm.PushEmptyRooted(f.outParamRootType);
         masm.movl(esp, outReg);
         break;
 
       case Type_Int32:
+      case Type_Pointer:
         outReg = regs.takeAny();
         masm.reserveStack(sizeof(int32_t));
         masm.movl(esp, outReg);
@@ -575,6 +576,8 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
                 argDisp += sizeof(void *);
                 break;
               case VMFunction::DoubleByValue:
+                // We don't pass doubles in float registers on x86, so no need
+                // to check for argPassedInFloatReg.
                 masm.passABIArg(MoveOperand(argsBase, argDisp));
                 argDisp += sizeof(void *);
                 masm.passABIArg(MoveOperand(argsBase, argDisp));
@@ -619,14 +622,18 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
     // Load the outparam and free any allocated stack.
     switch (f.outParam) {
       case Type_Handle:
+        masm.popRooted(f.outParamRootType, ReturnReg, JSReturnOperand);
+        break;
+
       case Type_Value:
         masm.loadValue(Address(esp, 0), JSReturnOperand);
         masm.freeStack(sizeof(Value));
         break;
 
       case Type_Int32:
+      case Type_Pointer:
         masm.load32(Address(esp, 0), ReturnReg);
-        masm.freeStack(sizeof(JSBool));
+        masm.freeStack(sizeof(int32_t));
         break;
 
       default:
@@ -660,7 +667,7 @@ IonRuntime::generatePreBarrier(JSContext *cx, MIRType type)
     MacroAssembler masm;
 
     RegisterSet save;
-    if (cx->runtime->jitSupportsFloatingPoint) {
+    if (cx->runtime()->jitSupportsFloatingPoint) {
         save = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
                            FloatRegisterSet(FloatRegisters::VolatileMask));
     } else {
@@ -670,7 +677,7 @@ IonRuntime::generatePreBarrier(JSContext *cx, MIRType type)
     masm.PushRegsInMask(save);
 
     JS_ASSERT(PreBarrierReg == edx);
-    masm.movl(ImmWord(cx->runtime), ecx);
+    masm.movl(ImmWord(cx->runtime()), ecx);
 
     masm.setupUnalignedABICall(2, eax);
     masm.passABIArg(ecx);
@@ -715,7 +722,7 @@ IonRuntime::generateDebugTrapHandler(JSContext *cx)
     masm.movePtr(ImmWord((void *)NULL), BaselineStubReg);
     EmitEnterStubFrame(masm, scratch3);
 
-    IonCompartment *ion = cx->compartment->ionCompartment();
+    IonCompartment *ion = cx->compartment()->ionCompartment();
     IonCode *code = ion->getVMWrapper(HandleDebugTrapInfo);
     if (!code)
         return NULL;

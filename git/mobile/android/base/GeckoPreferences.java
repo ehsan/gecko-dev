@@ -72,6 +72,7 @@ public class GeckoPreferences
     private static String PREFS_MENU_CHAR_ENCODING = "browser.menu.showCharacterEncoding";
     private static String PREFS_MP_ENABLED = "privacy.masterpassword.enabled";
     private static String PREFS_UPDATER_AUTODOWNLOAD = "app.update.autodownload";
+    private static String PREFS_GEO_REPORTING = "app.geo.reportdata";
     private static String PREFS_HEALTHREPORT_LINK = NON_PREF_PREFIX + "healthreport.link";
 
     // These values are chosen to be distinct from other Activity constants.
@@ -96,7 +97,7 @@ public class GeckoPreferences
                 int resource = getResources().getIdentifier(resourceName, "xml", getPackageName());
                 addPreferencesFromResource(resource);
             } else {
-                addPreferencesFromResource(R.xml.preferences_nonfragment);
+                addPreferencesFromResource(R.xml.preferences);
             }
         }
 
@@ -127,7 +128,7 @@ public class GeckoPreferences
         } else {
             // Use top-level settings screen.
             if (!onIsMultiPane()) {
-                fragmentArgs.putString(INTENT_EXTRA_RESOURCES, "preferences_main");
+                fragmentArgs.putString(INTENT_EXTRA_RESOURCES, "preferences");
             } else {
                 fragmentArgs.putString(INTENT_EXTRA_RESOURCES, "preferences_general");
             }
@@ -431,15 +432,19 @@ public class GeckoPreferences
         } else if (PREFS_ANNOUNCEMENTS_ENABLED.equals(prefName)) {
             // Send a broadcast intent to the product announcements service, either to start or
             // to stop the repeated background checks.
-            broadcastAnnouncementsPref(GeckoApp.mAppContext, ((Boolean) newValue).booleanValue());
+            broadcastAnnouncementsPref(GeckoAppShell.getContext(), ((Boolean) newValue).booleanValue());
         } else if (PREFS_UPDATER_AUTODOWNLOAD.equals(prefName)) {
-            org.mozilla.gecko.updater.UpdateServiceHelper.registerForUpdates(GeckoApp.mAppContext, (String) newValue);
+            org.mozilla.gecko.updater.UpdateServiceHelper.registerForUpdates(GeckoAppShell.getContext(), (String) newValue);
         } else if (PREFS_HEALTHREPORT_UPLOAD_ENABLED.equals(prefName)) {
             // The healthreport pref only lives in Android, so we do not persist
             // to Gecko, but we do broadcast intent to the health report
             // background uploader service, which will start or stop the
             // repeated background upload attempts.
             broadcastHealthReportUploadPref(GeckoAppShell.getContext(), ((Boolean) newValue).booleanValue());
+            return true;
+        } else if (PREFS_GEO_REPORTING.equals(prefName)) {
+            // Translate boolean value to int for geo reporting pref.
+            PrefsHelper.setPref(prefName, (Boolean) newValue ? 1 : 0);
             return true;
         }
 
@@ -462,7 +467,7 @@ public class GeckoPreferences
     }
 
     private EditText getTextBox(int aHintText) {
-        EditText input = new EditText(GeckoApp.mAppContext);
+        EditText input = new EditText(GeckoAppShell.getContext());
         int inputtype = InputType.TYPE_CLASS_TEXT;
         inputtype |= InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
         input.setInputType(inputtype);
@@ -693,6 +698,27 @@ public class GeckoPreferences
                             fontSizePref.setSummary(fontSizeName); // Ex: "Small".
                         }
                     });
+                }
+            }
+
+            @Override
+            public void prefValue(String prefName, final int value) {
+                final Preference pref = getField(prefName);
+                final CheckBoxPrefSetter prefSetter;
+                if (PREFS_GEO_REPORTING.equals(prefName)) {
+                    if (Build.VERSION.SDK_INT < 14) {
+                        prefSetter = new CheckBoxPrefSetter();
+                    } else {
+                        prefSetter = new TwoStatePrefSetter();
+                    }
+                    ThreadUtils.postToUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            prefSetter.setBooleanPref(pref, value == 1);
+                        }
+                    });
+                } else {
+                    Log.w(LOGTAG, "Unhandled int value for pref [" + pref + "]");
                 }
             }
 

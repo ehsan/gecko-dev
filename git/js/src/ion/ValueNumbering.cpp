@@ -366,10 +366,9 @@ ValueNumberer::eliminateRedundancies()
         IonSpew(IonSpew_GVN, "Looking at block %d", block->id());
 
         // Add all immediate dominators to the front of the worklist.
-        for (size_t i = 0; i < block->numImmediatelyDominatedBlocks(); i++) {
-            if (!worklist.append(block->getImmediatelyDominatedBlock(i)))
-                return false;
-        }
+        if (!worklist.append(block->immediatelyDominatedBlocksBegin(),
+                             block->immediatelyDominatedBlocksEnd()))
+            return false;
 
         // For each instruction, attempt to look up a dominating definition.
         for (MDefinitionIterator iter(block); iter; ) {
@@ -420,6 +419,24 @@ bool
 ValueNumberer::analyze()
 {
     return computeValueNumbers() && eliminateRedundancies();
+}
+
+// Called by the compiler if we need to re-run GVN.
+bool
+ValueNumberer::clear()
+{
+    IonSpew(IonSpew_GVN, "Clearing value numbers");
+
+    // Clear the VN of every MDefinition
+    for (ReversePostorderIterator block(graph_.rpoBegin()); block != graph_.rpoEnd(); block++) {
+        if (mir->shouldCancel("Value Numbering (clearing)"))
+            return false;
+        for (MDefinitionIterator iter(*block); iter; iter++)
+            iter->clearValueNumberData();
+        block->lastIns()->clearValueNumberData();
+    }
+
+    return true;
 }
 
 uint32_t

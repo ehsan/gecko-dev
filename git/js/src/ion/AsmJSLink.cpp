@@ -23,8 +23,6 @@ using namespace js;
 using namespace js::ion;
 using namespace mozilla;
 
-#ifdef JS_ASMJS
-
 static bool
 LinkFail(JSContext *cx, const char *str)
 {
@@ -82,10 +80,10 @@ ValidateFFI(JSContext *cx, AsmJSModule::Global &global, HandleValue importVal,
     if (!GetProperty(cx, importVal, field, &v))
         return false;
 
-    if (!v.isObject() || !v.toObject().isFunction())
+    if (!v.isObject() || !v.toObject().is<JSFunction>())
         return LinkFail(cx, "FFI imports must be functions");
 
-    (*ffis)[global.ffiIndex()] = v.toObject().toFunction();
+    (*ffis)[global.ffiIndex()] = &v.toObject().as<JSFunction>();
     return true;
 }
 
@@ -188,7 +186,7 @@ DynamicallyLinkModule(JSContext *cx, CallArgs args, AsmJSModule &module)
         if (!IsTypedArrayBuffer(bufferVal))
             return LinkFail(cx, "bad ArrayBuffer argument");
 
-        heap = &bufferVal.toObject().asArrayBuffer();
+        heap = &bufferVal.toObject().as<ArrayBufferObject>();
 
         if (!IsPowerOfTwo(heap->byteLength()) || heap->byteLength() < AsmJSAllocationGranularity)
             return LinkFail(cx, "ArrayBuffer byteLength must be a power of two greater than or equal to 4096");
@@ -245,7 +243,7 @@ DynamicallyLinkModule(JSContext *cx, CallArgs args, AsmJSModule &module)
     }
 
     for (unsigned i = 0; i < module.numExits(); i++)
-        module.exitIndexToGlobalDatum(i).fun = ffis[module.exit(i).ffiIndex()]->toFunction();
+        module.exitIndexToGlobalDatum(i).fun = &ffis[module.exit(i).ffiIndex()]->as<JSFunction>();
 
     module.setIsLinked(heap);
     return true;
@@ -258,15 +256,15 @@ AsmJSActivation::AsmJSActivation(JSContext *cx, const AsmJSModule &module)
     profiler_(NULL),
     resumePC_(NULL)
 {
-    if (cx->runtime->spsProfiler.enabled()) {
-        profiler_ = &cx->runtime->spsProfiler;
+    if (cx->runtime()->spsProfiler.enabled()) {
+        profiler_ = &cx->runtime()->spsProfiler;
         profiler_->enterNative("asm.js code", this);
     }
 
-    prev_ = cx_->runtime->mainThread.asmJSActivationStack_;
+    prev_ = cx_->runtime()->mainThread.asmJSActivationStack_;
 
-    JSRuntime::AutoLockForOperationCallback lock(cx_->runtime);
-    cx_->runtime->mainThread.asmJSActivationStack_ = this;
+    JSRuntime::AutoLockForOperationCallback lock(cx_->runtime());
+    cx_->runtime()->mainThread.asmJSActivationStack_ = this;
 
     (void) errorRejoinSP_;  // squelch GCC warning
 }
@@ -276,10 +274,10 @@ AsmJSActivation::~AsmJSActivation()
     if (profiler_)
         profiler_->exitNative();
 
-    JS_ASSERT(cx_->runtime->mainThread.asmJSActivationStack_ == this);
+    JS_ASSERT(cx_->runtime()->mainThread.asmJSActivationStack_ == this);
 
-    JSRuntime::AutoLockForOperationCallback lock(cx_->runtime);
-    cx_->runtime->mainThread.asmJSActivationStack_ = prev_;
+    JSRuntime::AutoLockForOperationCallback lock(cx_->runtime());
+    cx_->runtime()->mainThread.asmJSActivationStack_ = prev_;
 }
 
 static const unsigned ASM_MODULE_SLOT = 0;
@@ -289,7 +287,7 @@ extern JSBool
 js::CallAsmJS(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs callArgs = CallArgsFromVp(argc, vp);
-    RootedFunction callee(cx, callArgs.callee().toFunction());
+    RootedFunction callee(cx, &callArgs.callee().as<JSFunction>());
 
     // An asm.js function stores, in its extended slots:
     //  - a pointer to the module from which it was returned
@@ -332,6 +330,8 @@ js::CallAsmJS(JSContext *cx, unsigned argc, Value *vp)
 
     {
         AsmJSActivation activation(cx, module);
+        ion::IonContext ictx(cx, NULL);
+        JitActivation jitActivation(cx, /* firstFrameIsConstructing = */ false, /* active */ false);
 
         // Call into generated code.
 #ifdef JS_CPU_ARM
@@ -389,7 +389,8 @@ HandleDynamicLinkFailure(JSContext *cx, CallArgs args, AsmJSModule &module, Hand
     const jschar *chars = src->chars().get();
 
     RootedFunction fun(cx, NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED,
-                                       cx->global(), name));
+                                       cx->global(), name, JSFunction::FinalizeKind,
+                                       TenuredObject));
     if (!fun)
         return false;
 
@@ -410,8 +411,8 @@ HandleDynamicLinkFailure(JSContext *cx, CallArgs args, AsmJSModule &module, Hand
 
     unsigned argc = args.length();
 
-    InvokeArgsGuard args2;
-    if (!cx->stack.pushInvokeArgs(cx, argc, &args2))
+    InvokeArgs args2(cx);
+    if (!args2.init(argc))
         return false;
 
     args2.setCallee(ObjectValue(*fun));
@@ -471,7 +472,7 @@ JSBool
 js::LinkAsmJS(JSContext *cx, unsigned argc, JS::Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    RootedFunction fun(cx, args.callee().toFunction());
+    RootedFunction fun(cx, &args.callee().as<JSFunction>());
     RootedObject moduleObj(cx, &AsmJSModuleObject(fun));
     AsmJSModule &module = AsmJSModuleObjectToModule(moduleObj);
 
@@ -527,5 +528,3 @@ js::IsAsmJSModuleNative(js::Native native)
 {
     return native == LinkAsmJS;
 }
-
-#endif  // defined(JS_ASMJS)

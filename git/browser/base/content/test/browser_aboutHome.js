@@ -244,10 +244,58 @@ let gTests = [
     Services.prefs.clearUserPref("browser.rights.override");
   }
 },
+
+{
+  desc: "Check that the search UI/ action is updated when the search engine is changed",
+  setup: function() {},
+  run: function()
+  {
+    let currEngine = Services.search.currentEngine;
+    let unusedEngines = [].concat(Services.search.getVisibleEngines()).filter(x => x != currEngine);
+    let searchbar = document.getElementById("searchbar");
+
+    function checkSearchUI(engine) {
+      let doc = gBrowser.selectedTab.linkedBrowser.contentDocument;
+      let searchText = doc.getElementById("searchText");
+      let logoElt = doc.getElementById("searchEngineLogo");
+      let engineName = doc.documentElement.getAttribute("searchEngineName");
+
+      is(engineName, engine.name, "Engine name should've been updated");
+
+      if (!logoElt.parentNode.hidden) {
+        is(logoElt.alt, engineName, "Alt text of logo image should match search engine name")
+      } else {
+        is(searchText.placeholder, engineName, "Placeholder text should match search engine name");
+      }
+    }
+    // Do a sanity check that all attributes are correctly set to begin with
+    checkSearchUI(currEngine);
+
+    let deferred = Promise.defer();
+    promiseBrowserAttributes(gBrowser.selectedTab).then(function() {
+      // Test if the update propagated
+      checkSearchUI(unusedEngines[0]);
+      searchbar.currentEngine = currEngine;
+      deferred.resolve();
+    });
+
+    // The following cleanup function will set currentEngine back to the previous
+    // engine if we fail to do so above.
+    registerCleanupFunction(function() {
+      searchbar.currentEngine = currEngine;
+    });
+    // Set the current search engine to an unused one
+    searchbar.currentEngine = unusedEngines[0];
+    searchbar.select();
+    return deferred.promise;
+  }
+},
+
 {
   desc: "Check POST search engine support",
   setup: function() {},
-  beforeRun: function () {
+  run: function()
+  {
     let deferred = Promise.defer();
     let currEngine = Services.search.defaultEngine;
     let searchObserver = function search_observer(aSubject, aTopic, aData) {
@@ -266,7 +314,26 @@ let gTests = [
         Services.search.removeEngine(engine);
         Services.search.defaultEngine = currEngine;
       });
-      deferred.resolve();
+
+      let needle = "Search for something awesome.";
+
+      // Ready to execute the tests!
+      promiseBrowserAttributes(gBrowser.selectedTab).then(function() {
+        let document = gBrowser.selectedTab.linkedBrowser.contentDocument;
+        let searchText = document.getElementById("searchText");
+
+        waitForLoad(function() {
+          let loadedText = gBrowser.contentDocument.body.textContent;
+          ok(loadedText, "search page loaded");
+          is(loadedText, "searchterms=" + escape(needle.replace(/\s/g, "+")),
+             "Search text should arrive correctly");
+          deferred.resolve();
+        });
+
+        searchText.value = needle;
+        searchText.focus();
+        EventUtils.synthesizeKey("VK_RETURN", {});
+      });
     };
     Services.obs.addObserver(searchObserver, "browser-search-engine-modified", false);
     registerCleanupFunction(function () {
@@ -274,30 +341,6 @@ let gTests = [
     });
     Services.search.addEngine("http://test:80/browser/browser/base/content/test/POSTSearchEngine.xml",
                               Ci.nsISearchEngine.DATA_XML, null, false);
-    return deferred.promise;
-  },
-  run: function()
-  {
-    let deferred = Promise.defer();
-
-    let needle = "Search for something awesome.";
-
-    // Ready to execute the tests!
-    let document = gBrowser.selectedTab.linkedBrowser.contentDocument;
-    let searchText = document.getElementById("searchText");
-
-    waitForLoad(function() {
-      let loadedText = gBrowser.contentDocument.body.textContent;
-      ok(loadedText, "search page loaded");
-      is(loadedText, "searchterms=" + escape(needle.replace(/\s/g, "+")),
-         "Search text should arrive correctly");
-      deferred.resolve();
-    });
-
-    searchText.value = needle;
-    searchText.focus();
-    EventUtils.synthesizeKey("VK_RETURN", {});
-
     return deferred.promise;
   }
 }

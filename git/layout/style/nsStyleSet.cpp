@@ -30,6 +30,8 @@
 #include "nsStyleSheetService.h"
 #include "mozilla/dom/Element.h"
 #include "GeckoProfiler.h"
+#include "nsHTMLCSSStyleSheet.h"
+#include "nsHTMLStyleSheet.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -110,6 +112,7 @@ nsStyleSet::nsStyleSet()
     mInShutdown(false),
     mAuthorStyleDisabled(false),
     mInReconstruct(false),
+    mInitFontFeatureValuesLookup(true),
     mDirty(0),
     mUnusedRuleNodeCount(0)
 {
@@ -317,19 +320,28 @@ nsStyleSet::GatherRuleProcessors(sheetType aType)
     // elements later if mAuthorStyleDisabled.
     return NS_OK;
   }
-  if (aType == eAnimationSheet) {
-    // We have no sheet for the animations level; just a rule
-    // processor.  (XXX: We should probably do this for the other
-    // non-CSS levels too!)
-    mRuleProcessors[aType] = PresContext()->AnimationManager();
-    return NS_OK;
-  }
-  if (aType == eTransitionSheet) {
-    // We have no sheet for the transitions level; just a rule
-    // processor.  (XXX: We should probably do this for the other
-    // non-CSS levels too!)
-    mRuleProcessors[aType] = PresContext()->TransitionManager();
-    return NS_OK;
+  switch (aType) {
+    // handle the types for which have a rule processor that does not
+    // implement the style sheet interface.
+    case eAnimationSheet:
+      MOZ_ASSERT(mSheets[aType].Count() == 0);
+      mRuleProcessors[aType] = PresContext()->AnimationManager();
+      return NS_OK;
+    case eTransitionSheet:
+      MOZ_ASSERT(mSheets[aType].Count() == 0);
+      mRuleProcessors[aType] = PresContext()->TransitionManager();
+      return NS_OK;
+    case eStyleAttrSheet:
+      MOZ_ASSERT(mSheets[aType].Count() == 0);
+      mRuleProcessors[aType] = PresContext()->Document()->GetInlineStyleSheet();
+      return NS_OK;
+    case ePresHintSheet:
+      MOZ_ASSERT(mSheets[aType].Count() == 0);
+      mRuleProcessors[aType] = PresContext()->Document()->GetAttributeStyleSheet();
+      return NS_OK;
+    default:
+      // keep going
+      break;
   }
   if (aType == eScopedDocSheet) {
     // Create a rule processor for each scope.
@@ -422,11 +434,7 @@ nsStyleSet::AppendStyleSheet(sheetType aType, nsIStyleSheet *aSheet)
   if (!mSheets[aType].AppendObject(aSheet))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  if (!mBatching)
-    return GatherRuleProcessors(aType);
-
-  mDirty |= 1 << aType;
-  return NS_OK;
+  return DirtyRuleProcessors(aType);
 }
 
 nsresult
@@ -439,11 +447,7 @@ nsStyleSet::PrependStyleSheet(sheetType aType, nsIStyleSheet *aSheet)
   if (!mSheets[aType].InsertObjectAt(aSheet, 0))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  if (!mBatching)
-    return GatherRuleProcessors(aType);
-
-  mDirty |= 1 << aType;
-  return NS_OK;
+  return DirtyRuleProcessors(aType);
 }
 
 nsresult
@@ -453,11 +457,8 @@ nsStyleSet::RemoveStyleSheet(sheetType aType, nsIStyleSheet *aSheet)
   NS_ASSERTION(aSheet->IsComplete(),
                "Incomplete sheet being removed from style set");
   mSheets[aType].RemoveObject(aSheet);
-  if (!mBatching)
-    return GatherRuleProcessors(aType);
 
-  mDirty |= 1 << aType;
-  return NS_OK;
+  return DirtyRuleProcessors(aType);
 }
 
 nsresult
@@ -468,11 +469,7 @@ nsStyleSet::ReplaceSheets(sheetType aType,
   if (!mSheets[aType].AppendObjects(aNewSheets))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  if (!mBatching)
-    return GatherRuleProcessors(aType);
-
-  mDirty |= 1 << aType;
-  return NS_OK;
+  return DirtyRuleProcessors(aType);
 }
 
 nsresult
@@ -487,10 +484,16 @@ nsStyleSet::InsertStyleSheetBefore(sheetType aType, nsIStyleSheet *aNewSheet,
   int32_t idx = mSheets[aType].IndexOf(aReferenceSheet);
   if (idx < 0)
     return NS_ERROR_INVALID_ARG;
-  
+
   if (!mSheets[aType].InsertObjectAt(aNewSheet, idx))
     return NS_ERROR_OUT_OF_MEMORY;
 
+  return DirtyRuleProcessors(aType);
+}
+
+nsresult
+nsStyleSet::DirtyRuleProcessors(sheetType aType)
+{
   if (!mBatching)
     return GatherRuleProcessors(aType);
 
@@ -558,11 +561,8 @@ nsStyleSet::AddDocStyleSheet(nsIStyleSheet* aSheet, nsIDocument* aDocument)
   }
   if (!sheets.InsertObjectAt(aSheet, index))
     return NS_ERROR_OUT_OF_MEMORY;
-  if (!mBatching)
-    return GatherRuleProcessors(type);
 
-  mDirty |= 1 << type;
-  return NS_OK;
+  return DirtyRuleProcessors(type);
 }
 
 nsresult
@@ -1104,7 +1104,7 @@ nsStyleSet::WalkRuleProcessors(nsIStyleRuleProcessor::EnumFunc aFunc,
 
   if (mRuleProcessors[ePresHintSheet])
     (*aFunc)(mRuleProcessors[ePresHintSheet], aData);
-  
+
   bool cutOffInheritance = false;
   if (mBindingManager) {
     // We can supply additional document-level sheets that should be walked.
@@ -1541,6 +1541,59 @@ nsStyleSet::AppendKeyframesRules(nsPresContext* aPresContext,
 }
 
 bool
+nsStyleSet::AppendFontFeatureValuesRules(nsPresContext* aPresContext,
+                                 nsTArray<nsCSSFontFeatureValuesRule*>& aArray)
+{
+  NS_ENSURE_FALSE(mInShutdown, false);
+
+  for (uint32_t i = 0; i < NS_ARRAY_LENGTH(gCSSSheetTypes); ++i) {
+    nsCSSRuleProcessor *ruleProc = static_cast<nsCSSRuleProcessor*>
+                                    (mRuleProcessors[gCSSSheetTypes[i]].get());
+    if (ruleProc &&
+        !ruleProc->AppendFontFeatureValuesRules(aPresContext, aArray))
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+already_AddRefed<gfxFontFeatureValueSet>
+nsStyleSet::GetFontFeatureValuesLookup()
+{
+  if (mInitFontFeatureValuesLookup) {
+    mInitFontFeatureValuesLookup = false;
+
+    nsTArray<nsCSSFontFeatureValuesRule*> rules;
+    AppendFontFeatureValuesRules(PresContext(), rules);
+
+    mFontFeatureValuesLookup = new gfxFontFeatureValueSet();
+
+    uint32_t i, numRules = rules.Length();
+    for (i = 0; i < numRules; i++) {
+      nsCSSFontFeatureValuesRule *rule = rules[i];
+
+      const nsTArray<nsString>& familyList = rule->GetFamilyList();
+      const nsTArray<gfxFontFeatureValueSet::FeatureValues>&
+        featureValues = rule->GetFeatureValues();
+
+      // for each family
+      uint32_t f, numFam;
+
+      numFam = familyList.Length();
+      for (f = 0; f < numFam; f++) {
+        const nsString& family = familyList.ElementAt(f);
+        nsAutoString silly(family);
+        mFontFeatureValuesLookup->AddFontFeatureValues(silly, featureValues);
+      }
+    }
+  }
+
+  nsRefPtr<gfxFontFeatureValueSet> lookup = mFontFeatureValuesLookup;
+  return lookup.forget();
+}
+
+bool
 nsStyleSet::AppendPageRules(nsPresContext* aPresContext,
                             nsTArray<nsCSSPageRule*>& aArray)
 {
@@ -1812,7 +1865,7 @@ struct MOZ_STACK_CLASS AttributeData : public AttributeRuleProcessorData {
       mHint(nsRestyleHint(0))
   {}
   nsRestyleHint   mHint;
-}; 
+};
 
 static bool
 SheetHasAttributeStyle(nsIStyleRuleProcessor* aProcessor, void *aData)

@@ -4,8 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if !defined(jsion_baseline_jit_h__) && defined(JS_ION)
-#define jsion_baseline_jit_h__
+#ifndef ion_BaselineJIT_h
+#define ion_BaselineJIT_h
+
+#ifdef JS_ION
 
 #include "jscntxt.h"
 #include "jscompartment.h"
@@ -261,10 +263,13 @@ IsBaselineEnabled(JSContext *cx)
 }
 
 MethodStatus
-CanEnterBaselineJIT(JSContext *cx, JSScript *scriptArg, StackFrame *fp, bool newType);
+CanEnterBaselineMethod(JSContext *cx, RunState &state);
+
+MethodStatus
+CanEnterBaselineAtBranch(JSContext *cx, StackFrame *fp, bool newType);
 
 IonExecStatus
-EnterBaselineMethod(JSContext *cx, StackFrame *fp);
+EnterBaselineMethod(JSContext *cx, RunState &state);
 
 IonExecStatus
 EnterBaselineAtBranch(JSContext *cx, StackFrame *fp, jsbytecode *pc);
@@ -319,7 +324,7 @@ struct BaselineBailoutInfo
 };
 
 uint32_t
-BailoutIonToBaseline(JSContext *cx, IonActivation *activation, IonBailoutIterator &iter,
+BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIterator &iter,
                      bool invalidate, BaselineBailoutInfo **bailoutInfo);
 
 // Mark baseline scripts on the stack as active, so that they are not discarded
@@ -330,5 +335,6 @@ MarkActiveBaselineScripts(Zone *zone);
 } // namespace ion
 } // namespace js
 
-#endif
+#endif // JS_ION
 
+#endif /* ion_BaselineJIT_h */

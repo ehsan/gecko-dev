@@ -16,15 +16,11 @@ AllocationIntegrityState::record()
     if (!instructions.empty())
         return true;
 
-    if (!instructions.reserve(graph.numInstructions()))
+    if (!instructions.appendN(InstructionInfo(), graph.numInstructions()))
         return false;
-    for (size_t i = 0; i < graph.numInstructions(); i++)
-        instructions.infallibleAppend(InstructionInfo());
 
-    if (!virtualRegisters.reserve(graph.numVirtualRegisters()))
+    if (!virtualRegisters.appendN((LDefinition *)NULL, graph.numVirtualRegisters()))
         return false;
-    for (size_t i = 0; i < graph.numVirtualRegisters(); i++)
-        virtualRegisters.infallibleAppend((LDefinition *)NULL);
 
     if (!blocks.reserve(graph.numBlocks()))
         return false;
@@ -291,10 +287,10 @@ AllocationIntegrityState::checkSafepointAllocation(LInstruction *ins,
         JS_ASSERT(safepoint->hasGcPointer(alloc));
         break;
 #ifdef JS_NUNBOX32
-      // Do not assert that safepoint information for nunboxes is complete,
+      // Do not assert that safepoint information for nunbox types is complete,
       // as if a vreg for a value's components are copied in multiple places
-      // then the safepoint information may not reflect all copies.
-      // See SafepointWriter::writeNunboxParts.
+      // then the safepoint information may not reflect all copies. All copies
+      // of payloads must be reflected, however, for generational GC.
       case LDefinition::TYPE:
         if (populateSafepoints) {
             IonSpew(IonSpew_RegAlloc, "Safepoint type v%u i%u %s",
@@ -310,6 +306,7 @@ AllocationIntegrityState::checkSafepointAllocation(LInstruction *ins,
             if (!safepoint->addNunboxPayload(vreg, alloc))
                 return false;
         }
+        JS_ASSERT(safepoint->hasNunboxPayload(alloc));
         break;
 #else
       case LDefinition::BOX:
@@ -424,8 +421,7 @@ AllocationIntegrityState::dump()
     // were discovered.
 
     Vector<IntegrityItem, 20, SystemAllocPolicy> seenOrdered;
-    for (size_t i = 0; i < seen.count(); i++)
-        seenOrdered.append(IntegrityItem());
+    seenOrdered.appendN(IntegrityItem(), seen.count());
 
     for (IntegrityItemSet::Enum iter(seen); !iter.empty(); iter.popFront()) {
         IntegrityItem item = iter.front();

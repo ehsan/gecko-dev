@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_parallel_functions_h__
-#define jsion_parallel_functions_h__
+#ifndef ion_ParallelFunctions_h
+#define ion_ParallelFunctions_h
 
 #include "vm/ThreadPool.h"
 #include "vm/ForkJoin.h"
@@ -55,6 +55,10 @@ ParallelResult ParGreaterThanOrEqual(ForkJoinSlice *slice, MutableHandleValue v1
 ParallelResult ParStringsEqual(ForkJoinSlice *slice, HandleString v1, HandleString v2, JSBool *);
 ParallelResult ParStringsUnequal(ForkJoinSlice *slice, HandleString v1, HandleString v2, JSBool *);
 
+ParallelResult InitRestParameter(ForkJoinSlice *slice, uint32_t length, Value *rest,
+                                 HandleObject templateObj, HandleObject res,
+                                 MutableHandleObject out);
+
 void ParallelAbort(ParallelBailoutCause cause,
                    JSScript *outermostScript,
                    JSScript *currentScript,
@@ -72,4 +76,4 @@ void ParCallToUncompiledScript(JSFunction *func);
 } // namespace ion
 } // namespace js
 
-#endif // jsion_parallel_functions_h__
+#endif /* ion_ParallelFunctions_h */

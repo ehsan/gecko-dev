@@ -43,6 +43,7 @@ BaselineScript::BaselineScript(uint32_t prologueOffset, uint32_t spsPushToggleOf
 { }
 
 static const size_t BASELINE_LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 4096;
+static const unsigned BASELINE_MAX_ARGS_LENGTH = 20000;
 
 static bool
 CheckFrame(StackFrame *fp)
@@ -59,9 +60,7 @@ CheckFrame(StackFrame *fp)
         return false;
     }
 
-    static const unsigned MAX_ARGS_LENGTH = 20000;
-
-    if (fp->isNonEvalFunctionFrame() && fp->numActualArgs() > MAX_ARGS_LENGTH) {
+    if (fp->isNonEvalFunctionFrame() && fp->numActualArgs() > BASELINE_MAX_ARGS_LENGTH) {
         // Fall back to the interpreter to avoid running out of stack space.
         IonSpew(IonSpew_BaselineAbort, "Too many arguments (%u)", fp->numActualArgs());
         return false;
@@ -73,111 +72,73 @@ CheckFrame(StackFrame *fp)
 static bool
 IsJSDEnabled(JSContext *cx)
 {
-    return cx->compartment->debugMode() && cx->runtime->debugHooks.callHook;
+    return cx->compartment()->debugMode() && cx->runtime()->debugHooks.callHook;
 }
 
 static IonExecStatus
-EnterBaseline(JSContext *cx, StackFrame *fp, void *jitcode, bool osr)
+EnterBaseline(JSContext *cx, EnterJitData &data)
 {
     JS_CHECK_RECURSION(cx, return IonExec_Aborted);
     JS_ASSERT(ion::IsBaselineEnabled(cx));
-    JS_ASSERT(CheckFrame(fp));
+    JS_ASSERT_IF(data.osrFrame, CheckFrame(data.osrFrame));
 
-    EnterIonCode enter = cx->compartment->ionCompartment()->enterBaselineJIT();
-
-    // maxArgc is the maximum of arguments between the number of actual
-    // arguments and the number of formal arguments. It accounts for |this|.
-    int maxArgc = 0;
-    Value *maxArgv = NULL;
-    int numActualArgs = 0;
-    RootedValue thisv(cx);
-
-    void *calleeToken;
-    if (fp->isNonEvalFunctionFrame()) {
-        // CountArgSlot include |this| and the |scopeChain|, and maybe |argumentsObj|
-        // Want to keep including this, but remove the scopeChain and any argumentsObj.
-        maxArgc = CountArgSlots(fp->script(), fp->fun()) - StartArgSlot(fp->script(), fp->fun());
-        maxArgv = fp->formals() - 1;            // -1 = include |this|
-
-        // Formal arguments are the argument corresponding to the function
-        // definition and actual arguments are corresponding to the call-site
-        // arguments.
-        numActualArgs = fp->numActualArgs();
-
-        // We do not need to handle underflow because formal arguments are pad
-        // with |undefined| values but we need to distinguish between the
-        if (fp->hasOverflowArgs()) {
-            int formalArgc = maxArgc;
-            Value *formalArgv = maxArgv;
-            maxArgc = numActualArgs + 1; // +1 = include |this|
-            maxArgv = fp->actuals() - 1; // -1 = include |this|
-
-            // The beginning of the actual args is not updated, so we just copy
-            // the formal args into the actual args to get a linear vector which
-            // can be copied by generateEnterJit.
-            memcpy(maxArgv, formalArgv, formalArgc * sizeof(Value));
-        }
-        calleeToken = CalleeToToken(&fp->callee());
-    } else {
-        // For eval function frames, set the callee token to the enclosing function.
-        if (fp->isFunctionFrame())
-            calleeToken = CalleeToToken(&fp->callee());
-        else
-            calleeToken = CalleeToToken(fp->script());
-        thisv = fp->thisValue();
-        maxArgc = 1;
-        maxArgv = thisv.address();
-    }
+    EnterIonCode enter = cx->compartment()->ionCompartment()->enterBaselineJIT();
 
     // Caller must construct |this| before invoking the Ion function.
-    JS_ASSERT_IF(fp->isConstructing(), fp->functionThis().isObject());
+    JS_ASSERT_IF(data.constructing, data.maxArgv[0].isObject());
 
-    RootedValue result(cx, Int32Value(numActualArgs));
+    data.result.setInt32(data.numActualArgs);
     {
         AssertCompartmentUnchanged pcc(cx);
         IonContext ictx(cx, NULL);
-        IonActivation activation(cx, fp);
+        JitActivation activation(cx, data.constructing);
         JSAutoResolveFlags rf(cx, RESOLVE_INFER);
+        AutoFlushInhibitor afi(cx->compartment()->ionCompartment());
 
-        // Pass the scope chain for global and eval frames.
-        JSObject *scopeChain = NULL;
-        if (!fp->isNonEvalFunctionFrame())
-            scopeChain = fp->scopeChain();
+        if (data.osrFrame)
+            data.osrFrame->setRunningInJit();
 
-        // For OSR, pass the number of locals + stack values.
-        uint32_t numStackValues = osr ? fp->script()->nfixed + cx->regs().stackDepth() : 0;
-        JS_ASSERT_IF(osr, !IsJSDEnabled(cx));
+        JS_ASSERT_IF(data.osrFrame, !IsJSDEnabled(cx));
 
-        AutoFlushInhibitor afi(cx->compartment->ionCompartment());
         // Single transition point from Interpreter to Baseline.
-        enter(jitcode, maxArgc, maxArgv, osr ? fp : NULL, calleeToken, scopeChain, numStackValues,
-              result.address());
+        enter(data.jitcode, data.maxArgc, data.maxArgv, data.osrFrame, data.calleeToken,
+              data.scopeChain, data.osrNumStackValues, data.result.address());
+
+        if (data.osrFrame)
+            data.osrFrame->clearRunningInJit();
     }
 
-    JS_ASSERT(fp == cx->fp());
-    JS_ASSERT(!cx->runtime->hasIonReturnOverride());
+    JS_ASSERT(!cx->runtime()->hasIonReturnOverride());
 
-    // The trampoline wrote the return value but did not set the HAS_RVAL flag.
-    fp->setReturnValue(result);
-
-    // Ion callers wrap primitive constructor return.
-    if (!result.isMagic() && fp->isConstructing() && fp->returnValue().isPrimitive())
-        fp->setReturnValue(ObjectValue(fp->constructorThis()));
+    // Jit callers wrap primitive constructor return.
+    if (!data.result.isMagic() && data.constructing && data.result.isPrimitive())
+        data.result = data.maxArgv[0];
 
     // Release temporary buffer used for OSR into Ion.
-    cx->runtime->getIonRuntime(cx)->freeOsrTempData();
+    cx->runtime()->getIonRuntime(cx)->freeOsrTempData();
 
-    JS_ASSERT_IF(result.isMagic(), result.isMagic(JS_ION_ERROR));
-    return result.isMagic() ? IonExec_Error : IonExec_Ok;
+    JS_ASSERT_IF(data.result.isMagic(), data.result.isMagic(JS_ION_ERROR));
+    return data.result.isMagic() ? IonExec_Error : IonExec_Ok;
 }
 
 IonExecStatus
-ion::EnterBaselineMethod(JSContext *cx, StackFrame *fp)
+ion::EnterBaselineMethod(JSContext *cx, RunState &state)
 {
-    BaselineScript *baseline = fp->script()->baselineScript();
-    void *jitcode = baseline->method()->raw();
+    BaselineScript *baseline = state.script()->baselineScript();
 
-    return EnterBaseline(cx, fp, jitcode, /* osr = */false);
+    EnterJitData data(cx);
+    data.jitcode = baseline->method()->raw();
+
+    AutoValueVector vals(cx);
+    if (!SetEnterJitData(cx, data, state, vals))
+        return IonExec_Error;
+
+    IonExecStatus status = EnterBaseline(cx, data);
+    if (status != IonExec_Ok)
+        return status;
+
+    state.setReturnValue(data.result);
+    return IonExec_Ok;
 }
 
 IonExecStatus
@@ -186,14 +147,48 @@ ion::EnterBaselineAtBranch(JSContext *cx, StackFrame *fp, jsbytecode *pc)
     JS_ASSERT(JSOp(*pc) == JSOP_LOOPENTRY);
 
     BaselineScript *baseline = fp->script()->baselineScript();
-    uint8_t *jitcode = baseline->nativeCodeForPC(fp->script(), pc);
+
+    EnterJitData data(cx);
+    data.jitcode = baseline->nativeCodeForPC(fp->script(), pc);
 
     // Skip debug breakpoint/trap handler, the interpreter already handled it
     // for the current op.
-    if (cx->compartment->debugMode())
-        jitcode += MacroAssembler::ToggledCallSize();
+    if (cx->compartment()->debugMode())
+        data.jitcode += MacroAssembler::ToggledCallSize();
 
-    return EnterBaseline(cx, fp, jitcode, /* osr = */true);
+    data.osrFrame = fp;
+    data.osrNumStackValues = fp->script()->nfixed + cx->interpreterRegs().stackDepth();
+
+    RootedValue thisv(cx);
+
+    if (fp->isNonEvalFunctionFrame()) {
+        data.constructing = fp->isConstructing();
+        data.numActualArgs = fp->numActualArgs();
+        data.maxArgc = Max(fp->numActualArgs(), fp->numFormalArgs()) + 1; // +1 = include |this|
+        data.maxArgv = fp->argv() - 1; // -1 = include |this|
+        data.scopeChain = NULL;
+        data.calleeToken = CalleeToToken(&fp->callee());
+    } else {
+        thisv = fp->thisValue();
+        data.constructing = false;
+        data.numActualArgs = 0;
+        data.maxArgc = 1;
+        data.maxArgv = thisv.address();
+        data.scopeChain = fp->scopeChain();
+
+        // For eval function frames, set the callee token to the enclosing function.
+        if (fp->isFunctionFrame())
+            data.calleeToken = CalleeToToken(&fp->callee());
+        else
+            data.calleeToken = CalleeToToken(fp->script());
+    }
+
+    IonExecStatus status = EnterBaseline(cx, data);
+    if (status != IonExec_Ok)
+        return status;
+
+    fp->setReturnValue(data.result);
+    return IonExec_Ok;
 }
 
 static MethodStatus
@@ -214,7 +209,7 @@ BaselineCompile(JSContext *cx, HandleScript script)
     if (!compiler.init())
         return Method_Error;
 
-    AutoFlushCache afc("BaselineJIT", cx->runtime->ionRuntime());
+    AutoFlushCache afc("BaselineJIT", cx->runtime()->ionRuntime());
     MethodStatus status = compiler.compile();
 
     JS_ASSERT_IF(status == Method_Compiled, script->hasBaselineScript());
@@ -226,34 +221,19 @@ BaselineCompile(JSContext *cx, HandleScript script)
     return status;
 }
 
-MethodStatus
-ion::CanEnterBaselineJIT(JSContext *cx, JSScript *scriptArg, StackFrame *fp, bool newType)
+static MethodStatus
+CanEnterBaselineJIT(JSContext *cx, HandleScript script, bool osr)
 {
-    // Skip if baseline compilation is disabled in options.
     JS_ASSERT(ion::IsBaselineEnabled(cx));
 
     // Skip if the script has been disabled.
-    if (!scriptArg->canBaselineCompile())
+    if (!script->canBaselineCompile())
         return Method_Skipped;
 
-    if (scriptArg->length > BaselineScript::MAX_JSSCRIPT_LENGTH)
+    if (script->length > BaselineScript::MAX_JSSCRIPT_LENGTH)
         return Method_CantCompile;
 
-    RootedScript script(cx, scriptArg);
-
-    // If constructing, allocate a new |this| object.
-    if (fp->isConstructing() && fp->functionThis().isPrimitive()) {
-        RootedObject callee(cx, &fp->callee());
-        RootedObject obj(cx, CreateThisForFunction(cx, callee, newType));
-        if (!obj)
-            return Method_Skipped;
-        fp->functionThis().setObject(*obj);
-    }
-
-    if (!CheckFrame(fp))
-        return Method_CantCompile;
-
-    if (!cx->compartment->ensureIonCompartmentExists(cx))
+    if (!cx->compartment()->ensureIonCompartmentExists(cx))
         return Method_Error;
 
     if (script->hasBaselineScript())
@@ -263,7 +243,7 @@ ion::CanEnterBaselineJIT(JSContext *cx, JSScript *scriptArg, StackFrame *fp, boo
     // is enabled, so that we don't have to OSR and don't have to update the
     // frame pointer stored in JSD's frames list.
     if (IsJSDEnabled(cx)) {
-        if (JSOp(*cx->regs().pc) == JSOP_LOOPENTRY) // No OSR.
+        if (osr)
             return Method_Skipped;
     } else if (script->incUseCount() <= js_IonOptions.baselineUsesBeforeCompile) {
         return Method_Skipped;
@@ -287,6 +267,60 @@ ion::CanEnterBaselineJIT(JSContext *cx, JSScript *scriptArg, StackFrame *fp, boo
 
     return BaselineCompile(cx, script);
 }
+
+MethodStatus
+ion::CanEnterBaselineAtBranch(JSContext *cx, StackFrame *fp, bool newType)
+{
+   // If constructing, allocate a new |this| object.
+   if (fp->isConstructing() && fp->functionThis().isPrimitive()) {
+       RootedObject callee(cx, &fp->callee());
+       RootedObject obj(cx, CreateThisForFunction(cx, callee, newType));
+       if (!obj)
+           return Method_Skipped;
+       fp->functionThis().setObject(*obj);
+   }
+
+   if (!CheckFrame(fp))
+       return Method_CantCompile;
+
+   RootedScript script(cx, fp->script());
+   return CanEnterBaselineJIT(cx, script, /* osr = */true);
+}
+
+MethodStatus
+ion::CanEnterBaselineMethod(JSContext *cx, RunState &state)
+{
+    if (state.isInvoke()) {
+        InvokeState &invoke = *state.asInvoke();
+
+        if (invoke.args().length() > BASELINE_MAX_ARGS_LENGTH) {
+            IonSpew(IonSpew_BaselineAbort, "Too many arguments (%u)", invoke.args().length());
+            return Method_CantCompile;
+        }
+
+        // If constructing, allocate a new |this| object.
+        if (invoke.constructing() && invoke.args().thisv().isPrimitive()) {
+            RootedObject callee(cx, &invoke.args().callee());
+            RootedObject obj(cx, CreateThisForFunction(cx, callee, invoke.useNewType()));
+            if (!obj)
+                return Method_Skipped;
+            invoke.args().setThis(ObjectValue(*obj));
+        }
+    } else if (state.isExecute()) {
+        ExecuteType type = state.asExecute()->type();
+        if (type == EXECUTE_DEBUG || type == EXECUTE_DEBUG_GLOBAL) {
+            IonSpew(IonSpew_BaselineAbort, "debugger frame");
+            return Method_CantCompile;
+        }
+    } else {
+        JS_ASSERT(state.isGenerator());
+        IonSpew(IonSpew_BaselineAbort, "generator frame");
+        return Method_CantCompile;
+    }
+
+    RootedScript script(cx, state.script());
+    return CanEnterBaselineJIT(cx, script, /* osr = */false);
+};
 
 // Be safe, align IC entry list to 8 in all cases.
 static const unsigned DataAlignment = sizeof(uintptr_t);
@@ -833,7 +867,7 @@ ion::ToggleBaselineSPS(JSRuntime *runtime, bool enable)
 }
 
 static void
-MarkActiveBaselineScripts(JSContext *cx, const IonActivationIterator &activation)
+MarkActiveBaselineScripts(JSContext *cx, const JitActivationIterator &activation)
 {
     for (ion::IonFrameIterator iter(activation); !iter.done(); ++iter) {
         switch (iter.type()) {
@@ -856,10 +890,10 @@ MarkActiveBaselineScripts(JSContext *cx, const IonActivationIterator &activation
 void
 ion::MarkActiveBaselineScripts(Zone *zone)
 {
-    // First check if there is an IonActivation on the stack, so that there
+    // First check if there is a JitActivation on the stack, so that there
     // must be a valid IonContext.
-    IonActivationIterator iter(zone->rt);
-    if (!iter.more())
+    JitActivationIterator iter(zone->rt);
+    if (iter.done())
         return;
 
     // If baseline is disabled, there are no baseline scripts on the stack.
@@ -867,7 +901,7 @@ ion::MarkActiveBaselineScripts(Zone *zone)
     if (!ion::IsBaselineEnabled(cx))
         return;
 
-    for (; iter.more(); ++iter) {
+    for (; !iter.done(); ++iter) {
         if (iter.activation()->compartment()->zone() == zone)
             MarkActiveBaselineScripts(cx, iter);
     }
