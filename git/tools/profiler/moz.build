@@ -24,7 +24,8 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
     ]
     UNIFIED_SOURCES += [
         'BreakpadSampler.cpp',
-        'JSStreamWriter.cpp',
+        'JSCustomObjectBuilder.cpp',
+        'JSObjectBuilder.cpp',
         'nsProfiler.cpp',
         'nsProfilerFactory.cpp',
         'platform.cpp',

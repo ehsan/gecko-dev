@@ -239,7 +239,7 @@ public:
   void DidAnimateLengthList(uint8_t aAttrEnum);
   void DidAnimatePointList();
   void DidAnimatePathSegList();
-  void DidAnimateTransformList(int32_t aModType);
+  void DidAnimateTransformList();
   void DidAnimateString(uint8_t aAttrEnum);
 
   enum {

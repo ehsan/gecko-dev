@@ -356,24 +356,19 @@ IsAboutToBeFinalized(T **thingp)
     JS_ASSERT(thingp);
     JS_ASSERT(*thingp);
 
-    T *thing = *thingp;
-    JSRuntime *rt = thing->runtimeFromAnyThread();
-
     /* Permanent atoms are never finalized by non-owning runtimes. */
-    if (ThingIsPermanentAtom(thing) && !TlsPerThreadData.get()->associatedWith(rt))
-        return false;
-
-#ifdef JSGC_GENERATIONAL
-    Nursery &nursery = rt->gcNursery;
-    JS_ASSERT_IF(!rt->isHeapMinorCollecting(), !nursery.isInside(thing));
-    if (rt->isHeapMinorCollecting()) {
-        if (nursery.isInside(thing))
-            return !nursery.getForwardedPointer(thingp);
+    if (ThingIsPermanentAtom(*thingp) &&
+        !TlsPerThreadData.get()->associatedWith((*thingp)->runtimeFromAnyThread()))
+    {
         return false;
     }
-#endif
 
-    if (!thing->tenuredZone()->isGCSweeping())
+#ifdef JSGC_GENERATIONAL
+    Nursery &nursery = (*thingp)->runtimeFromMainThread()->gcNursery;
+    if (nursery.isInside(*thingp))
+        return !nursery.getForwardedPointer(thingp);
+#endif
+    if (!(*thingp)->tenuredZone()->isGCSweeping())
         return false;
 
     /*
@@ -383,9 +378,10 @@ IsAboutToBeFinalized(T **thingp)
      * compartment group and during minor gc. Rather than do the extra check,
      * we just assert that it's not necessary.
      */
-    JS_ASSERT_IF(!rt->isHeapMinorCollecting(), !thing->arenaHeader()->allocatedDuringIncremental);
+    JS_ASSERT_IF(!(*thingp)->runtimeFromAnyThread()->isHeapMinorCollecting(),
+                 !(*thingp)->arenaHeader()->allocatedDuringIncremental);
 
-    return !thing->isMarked();
+    return !(*thingp)->isMarked();
 }
 
 template <typename T>

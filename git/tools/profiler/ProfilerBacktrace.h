@@ -15,7 +15,8 @@ public:
   ProfilerBacktrace(SyncProfile* aProfile);
   ~ProfilerBacktrace();
 
-  void StreamJSObject(JSStreamWriter& b);
+  template<typename Builder> void
+  BuildJSObject(Builder& aObjBuilder, typename Builder::ObjectHandle aScope);
 
 private:
   ProfilerBacktrace(const ProfilerBacktrace&);

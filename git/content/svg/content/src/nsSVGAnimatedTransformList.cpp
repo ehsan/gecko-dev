@@ -11,7 +11,6 @@
 #include "nsSMILValue.h"
 #include "SVGContentUtils.h"
 #include "SVGTransformListSMILType.h"
-#include "nsIDOMMutationEvent.h"
 
 namespace mozilla {
 
@@ -76,7 +75,6 @@ nsresult
 nsSVGAnimatedTransformList::SetAnimValue(const SVGTransformList& aValue,
                                          nsSVGElement *aElement)
 {
-  bool prevSet = HasTransform() || aElement->GetAnimateMotionTransform();
   SVGAnimatedTransformList *domWrapper =
     SVGAnimatedTransformList::GetDOMWrapperIfExists(this);
   if (domWrapper) {
@@ -108,13 +106,7 @@ nsSVGAnimatedTransformList::SetAnimValue(const SVGTransformList& aValue,
     ClearAnimValue(aElement);
     return rv;
   }
-  int32_t modType;
-  if(prevSet) {
-    modType = nsIDOMMutationEvent::MODIFICATION;
-  } else {
-    modType = nsIDOMMutationEvent::ADDITION;
-  }
-  aElement->DidAnimateTransformList(modType);
+  aElement->DidAnimateTransformList();
   return NS_OK;
 }
 
@@ -132,13 +124,7 @@ nsSVGAnimatedTransformList::ClearAnimValue(nsSVGElement *aElement)
     domWrapper->InternalAnimValListWillChangeLengthTo(mBaseVal.Length());
   }
   mAnimVal = nullptr;
-  int32_t modType;
-  if (HasTransform() || aElement->GetAnimateMotionTransform()) {
-    modType = nsIDOMMutationEvent::MODIFICATION;
-  } else {
-    modType = nsIDOMMutationEvent::REMOVAL;
-  }
-  aElement->DidAnimateTransformList(modType);
+  aElement->DidAnimateTransformList();
 }
 
 bool

@@ -26,61 +26,88 @@ ProfilerMarkerPayload::~ProfilerMarkerPayload()
   profiler_free_backtrace(mStack);
 }
 
-void
-ProfilerMarkerPayload::streamCommonProps(const char* aMarkerType,
-                                          JSStreamWriter& b)
+template<typename Builder> void
+ProfilerMarkerPayload::prepareCommonProps(const char* aMarkerType,
+                                          Builder& aBuilder,
+                                          typename Builder::ObjectHandle aObject)
 {
   MOZ_ASSERT(aMarkerType);
-  b.NameValue("type", aMarkerType);
+  aBuilder.DefineProperty(aObject, "type", aMarkerType);
   if (!mStartTime.IsNull()) {
-    b.NameValue("startTime", profiler_time(mStartTime));
+    aBuilder.DefineProperty(aObject, "startTime", profiler_time(mStartTime));
   }
   if (!mEndTime.IsNull()) {
-    b.NameValue("endTime", profiler_time(mEndTime));
+    aBuilder.DefineProperty(aObject, "endTime", profiler_time(mEndTime));
   }
   if (mStack) {
-    b.Name("stack");
-    mStack->StreamJSObject(b);
+    typename Builder::RootedObject stack(aBuilder.context(),
+                                         aBuilder.CreateObject());
+    aBuilder.DefineProperty(aObject, "stack", stack);
+    mStack->BuildJSObject(aBuilder, stack);
   }
 }
+
+template void
+ProfilerMarkerPayload::prepareCommonProps<JSCustomObjectBuilder>(
+                                   const char* aMarkerType,
+                                   JSCustomObjectBuilder& b,
+                                   JSCustomObjectBuilder::ObjectHandle aObject);
+template void
+ProfilerMarkerPayload::prepareCommonProps<JSObjectBuilder>(
+                                         const char* aMarkerType,
+                                         JSObjectBuilder& b,
+                                         JSObjectBuilder::ObjectHandle aObject);
 
 ProfilerMarkerTracing::ProfilerMarkerTracing(const char* aCategory, TracingMetadata aMetaData)
   : mCategory(aCategory)
   , mMetaData(aMetaData)
 {}
 
-void
-ProfilerMarkerTracing::streamPayloadImp(JSStreamWriter& b)
+template<typename Builder>
+typename Builder::Object
+ProfilerMarkerTracing::preparePayloadImp(Builder& b)
 {
-  b.BeginObject();
-    streamCommonProps("tracing", b);
+  typename Builder::RootedObject data(b.context(), b.CreateObject());
+  prepareCommonProps("tracing", b, data);
 
-    if (GetCategory()) {
-      b.NameValue("category", GetCategory());
+  if (GetCategory()) {
+    b.DefineProperty(data, "category", GetCategory());
+  }
+  if (GetMetaData() != TRACING_DEFAULT) {
+    if (GetMetaData() == TRACING_INTERVAL_START) {
+      b.DefineProperty(data, "interval", "start");
+    } else if (GetMetaData() == TRACING_INTERVAL_END) {
+      b.DefineProperty(data, "interval", "end");
     }
-    if (GetMetaData() != TRACING_DEFAULT) {
-      if (GetMetaData() == TRACING_INTERVAL_START) {
-        b.NameValue("interval", "start");
-      } else if (GetMetaData() == TRACING_INTERVAL_END) {
-        b.NameValue("interval", "end");
-      }
-    }
-  b.EndObject();
+  }
+
+  return data;
 }
+
+template JSCustomObjectBuilder::Object
+ProfilerMarkerTracing::preparePayloadImp<JSCustomObjectBuilder>(JSCustomObjectBuilder& b);
+template JSObjectBuilder::Object
+ProfilerMarkerTracing::preparePayloadImp<JSObjectBuilder>(JSObjectBuilder& b);
 
 ProfilerMarkerImagePayload::ProfilerMarkerImagePayload(gfxASurface *aImg)
   : mImg(aImg)
 {}
 
-void
-ProfilerMarkerImagePayload::streamPayloadImp(JSStreamWriter& b)
+template<typename Builder>
+typename Builder::Object
+ProfilerMarkerImagePayload::preparePayloadImp(Builder& b)
 {
-  b.BeginObject();
-    streamCommonProps("innerHTML", b);
-    // TODO: Finish me
-    //b.NameValue("innerHTML", "<img src=''/>");
-  b.EndObject();
+  typename Builder::RootedObject data(b.context(), b.CreateObject());
+  prepareCommonProps("innerHTML", b, data);
+  // TODO: Finish me
+  //b.DefineProperty(data, "innerHTML", "<img src=''/>");
+  return data;
 }
+
+template JSCustomObjectBuilder::Object
+ProfilerMarkerImagePayload::preparePayloadImp<JSCustomObjectBuilder>(JSCustomObjectBuilder& b);
+template JSObjectBuilder::Object
+ProfilerMarkerImagePayload::preparePayloadImp<JSObjectBuilder>(JSObjectBuilder& b);
 
 IOMarkerPayload::IOMarkerPayload(const char* aSource,
                                  const char* aFilename,
@@ -98,18 +125,23 @@ IOMarkerPayload::~IOMarkerPayload(){
   free(mFilename);
 }
 
-void
-IOMarkerPayload::streamPayloadImp(JSStreamWriter& b)
+template<typename Builder> typename Builder::Object
+IOMarkerPayload::preparePayloadImp(Builder& b)
 {
-  b.BeginObject();
-    streamCommonProps("io", b);
-    b.NameValue("source", mSource);
-    if (mFilename != nullptr) {
-      b.NameValue("filename", mFilename);
-    }
-  b.EndObject();
+  typename Builder::RootedObject data(b.context(), b.CreateObject());
+  prepareCommonProps("io", b, data);
+  b.DefineProperty(data, "source", mSource);
+  if (mFilename != nullptr) {
+    b.DefineProperty(data, "filename", mFilename);
+  }
+
+  return data;
 }
 
+template JSCustomObjectBuilder::Object
+IOMarkerPayload::preparePayloadImp<JSCustomObjectBuilder>(JSCustomObjectBuilder& b);
+template JSObjectBuilder::Object
+IOMarkerPayload::preparePayloadImp<JSObjectBuilder>(JSObjectBuilder& b);
 
 void
 ProfilerJSEventMarker(const char *event)

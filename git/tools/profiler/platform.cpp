@@ -132,19 +132,28 @@ ProfilerMarker::GetTime() {
   return mTime;
 }
 
-void ProfilerMarker::StreamJSObject(JSStreamWriter& b) const {
-  b.BeginObject();
-    b.NameValue("name", GetMarkerName());
-    // TODO: Store the callsite for this marker if available:
-    // if have location data
-    //   b.NameValue(marker, "location", ...);
-    if (mPayload) {
-      b.Name("data");
-      mPayload->StreamPayload(b);
-    }
-    b.NameValue("time", mTime);
-  b.EndObject();
+template<typename Builder> void
+ProfilerMarker::BuildJSObject(Builder& b, typename Builder::ArrayHandle markers) const {
+  typename Builder::RootedObject marker(b.context(), b.CreateObject());
+  b.DefineProperty(marker, "name", GetMarkerName());
+  // TODO: Store the callsite for this marker if available:
+  // if have location data
+  //   b.DefineProperty(marker, "location", ...);
+  if (mPayload) {
+    typename Builder::RootedObject markerData(b.context(),
+                                              mPayload->PreparePayload(b));
+    b.DefineProperty(marker, "data", markerData);
+  }
+  b.DefineProperty(marker, "time", mTime);
+  b.ArrayPush(markers, marker);
 }
+
+template void
+ProfilerMarker::BuildJSObject<JSCustomObjectBuilder>(JSCustomObjectBuilder& b,
+                              JSCustomObjectBuilder::ArrayHandle markers) const;
+template void
+ProfilerMarker::BuildJSObject<JSObjectBuilder>(JSObjectBuilder& b,
+                                    JSObjectBuilder::ArrayHandle markers) const;
 
 PendingMarkers::~PendingMarkers() {
   clearMarkers();
@@ -562,24 +571,6 @@ JSObject *mozilla_sampler_get_profile_data(JSContext *aCx)
   }
 
   return t->ToJSObject(aCx);
-}
-
-void mozilla_sampler_save_profile_to_file(const char* aFilename)
-{
-  TableTicker *t = tlsTicker.get();
-  if (!t) {
-    return;
-  }
-
-  std::ofstream stream;
-  stream.open(aFilename);
-  if (stream.is_open()) {
-    t->ToStreamAsJSON(stream);
-    stream.close();
-    LOGF("Saved to %s", aFilename);
-  } else {
-    LOG("Fail to open profile log file.");
-  }
 }
 
 
