@@ -4,16 +4,15 @@
 _("Test that node reassignment responses are respected on all kinds of " +
   "requests.");
 
-Cu.import("resource://services-common/log4moz.js");
+// Don't sync any engines by default.
+Svc.DefaultPrefs.set("registerEngines", "")
+
 Cu.import("resource://services-common/rest.js");
 Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-sync/policies.js");
 Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/status.js");
-Cu.import("resource://services-sync/util.js");
-Cu.import("resource://testing-common/services/sync/rotaryengine.js");
-Cu.import("resource://testing-common/services/sync/utils.js");
-
-Service.engineManager.clear();
+Cu.import("resource://services-common/log4moz.js");
 
 function run_test() {
   Log4Moz.repository.getLogger("Sync.AsyncResource").level = Log4Moz.Level.Trace;
@@ -24,7 +23,7 @@ function run_test() {
   Log4Moz.repository.getLogger("Sync.SyncScheduler").level = Log4Moz.Level.Trace;
   initTestLogging();
 
-  Service.engineManager.register(RotaryEngine);
+  Engines.register(RotaryEngine);
 
   // None of the failures in this file should result in a UI error.
   function onUIError() {
@@ -78,7 +77,7 @@ function prepareServer() {
   Service.serverURL  = TEST_SERVER_URL;
   Service.clusterURL = TEST_CLUSTER_URL;
 
-  do_check_eq(Service.userAPIURI, "http://localhost:8080/user/1.0/");
+  do_check_eq(Service.userAPI, "http://localhost:8080/user/1.0/");
   let server = new SyncServer();
   server.registerUser("johndoe");
   server.start();
@@ -130,7 +129,7 @@ function syncAndExpectNodeReassignment(server, firstNotification, between,
     function onSecondSync() {
       _("Second sync completed.");
       Svc.Obs.remove(secondNotification, onSecondSync);
-      Service.scheduler.clearSyncTriggers();
+      SyncScheduler.clearSyncTriggers();
 
       // Make absolutely sure that any event listeners are done with their work
       // before we proceed.
@@ -160,7 +159,7 @@ add_test(function test_momentary_401_engine() {
   let john   = server.user("johndoe");
 
   _("Enabling the Rotary engine.");
-  let engine = Service.engineManager.get("rotary");
+  let engine = Engines.get("rotary");
   engine.enabled = true;
 
   // We need the server to be correctly set up prior to experimenting. Do this
@@ -312,24 +311,24 @@ add_test(function test_loop_avoidance_storage() {
     // We store nextSync in prefs, which offers us only limited resolution.
     // Include that logic here.
     let expectedNextSync = 1000 * Math.floor((now + MINIMUM_BACKOFF_INTERVAL) / 1000);
-    _("Next sync scheduled for " + Service.scheduler.nextSync);
+    _("Next sync scheduled for " + SyncScheduler.nextSync);
     _("Expected to be slightly greater than " + expectedNextSync);
 
-    do_check_true(Service.scheduler.nextSync >= expectedNextSync);
-    do_check_true(!!Service.scheduler.syncTimer);
+    do_check_true(SyncScheduler.nextSync >= expectedNextSync);
+    do_check_true(!!SyncScheduler.syncTimer);
 
     // Undo our evil scheme.
     server.toplevelHandlers.storage = oldHandler;
 
     // Bring the timer forward to kick off a successful sync, so we can watch
     // the pref get cleared.
-    Service.scheduler.scheduleNextSync(0);
+    SyncScheduler.scheduleNextSync(0);
   }
   function onThirdSync() {
     Svc.Obs.remove(thirdNotification, onThirdSync);
 
     // That'll do for now; no more syncs.
-    Service.scheduler.clearSyncTriggers();
+    SyncScheduler.clearSyncTriggers();
 
     // Make absolutely sure that any event listeners are done with their work
     // before we proceed.
@@ -355,7 +354,7 @@ add_test(function test_loop_avoidance_engine() {
   let john   = server.user("johndoe");
 
   _("Enabling the Rotary engine.");
-  let engine = Service.engineManager.get("rotary");
+  let engine = Engines.get("rotary");
   engine.enabled = true;
 
   // We need the server to be correctly set up prior to experimenting. Do this
@@ -449,25 +448,25 @@ add_test(function test_loop_avoidance_engine() {
     // We store nextSync in prefs, which offers us only limited resolution.
     // Include that logic here.
     let expectedNextSync = 1000 * Math.floor((now + MINIMUM_BACKOFF_INTERVAL) / 1000);
-    _("Next sync scheduled for " + Service.scheduler.nextSync);
+    _("Next sync scheduled for " + SyncScheduler.nextSync);
     _("Expected to be slightly greater than " + expectedNextSync);
 
-    do_check_true(Service.scheduler.nextSync >= expectedNextSync);
-    do_check_true(!!Service.scheduler.syncTimer);
+    do_check_true(SyncScheduler.nextSync >= expectedNextSync);
+    do_check_true(!!SyncScheduler.syncTimer);
 
     // Undo our evil scheme.
     beforeSuccessfulSync();
 
     // Bring the timer forward to kick off a successful sync, so we can watch
     // the pref get cleared.
-    Service.scheduler.scheduleNextSync(0);
+    SyncScheduler.scheduleNextSync(0);
   }
 
   function onThirdSync() {
     Svc.Obs.remove(thirdNotification, onThirdSync);
 
     // That'll do for now; no more syncs.
-    Service.scheduler.clearSyncTriggers();
+    SyncScheduler.clearSyncTriggers();
 
     // Make absolutely sure that any event listeners are done with their work
     // before we proceed.

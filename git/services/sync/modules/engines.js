@@ -2,25 +2,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const EXPORTED_SYMBOLS = [
-  "EngineManager",
-  "Engine",
-  "SyncEngine",
-  "Tracker",
-  "Store"
-];
+const EXPORTED_SYMBOLS = ['Engines', 'Engine', 'SyncEngine',
+                          'Tracker', 'Store'];
 
-const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
+const Cu = Components.utils;
 
 Cu.import("resource://services-common/async.js");
-Cu.import("resource://services-common/log4moz.js");
-Cu.import("resource://services-common/observers.js");
-Cu.import("resource://services-common/utils.js");
-Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-common/observers.js");
+Cu.import("resource://services-sync/identity.js");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
+
+Cu.import("resource://services-sync/main.js");    // So we can get to Service for callbacks.
 
 /*
  * Trackers are associated with a single engine and deal with
@@ -33,14 +32,9 @@ Cu.import("resource://services-sync/util.js");
  * want to sync.
  *
  */
-function Tracker(name, engine) {
-  if (!engine) {
-    throw new Error("Tracker must be associated with an Engine instance.");
-  }
-
+function Tracker(name) {
   name = name || "Unnamed";
   this.name = this.file = name.toLowerCase();
-  this.engine = engine;
 
   this._log = Log4Moz.repository.getLogger("Sync.Tracker." + name);
   let level = Svc.Prefs.get("log.logger.engine." + this.name, "Debug");
@@ -171,14 +165,9 @@ Tracker.prototype = {
  * and/or applyIncoming function on top of the basic APIs.
  */
 
-function Store(name, engine) {
-  if (!engine) {
-    throw new Error("Store must be associated with an Engine instance.");
-  }
-
+function Store(name) {
   name = name || "Unnamed";
   this.name = name.toLowerCase();
-  this.engine = engine;
 
   this._log = Log4Moz.repository.getLogger("Sync.Store." + name);
   let level = Svc.Prefs.get("log.logger.engine." + this.name, "Debug");
@@ -362,16 +351,21 @@ Store.prototype = {
   }
 };
 
-function EngineManager(service) {
-  this.service = service;
 
+// Singleton service, holds registered engines
+
+XPCOMUtils.defineLazyGetter(this, "Engines", function() {
+  return new EngineManagerSvc();
+});
+
+function EngineManagerSvc() {
   this._engines = {};
   this._log = Log4Moz.repository.getLogger("Sync.EngineManager");
   this._log.level = Log4Moz.Level[Svc.Prefs.get(
     "log.logger.service.engines", "Debug")];
 }
-EngineManager.prototype = {
-  get: function get(name) {
+EngineManagerSvc.prototype = {
+  get: function EngMgr_get(name) {
     // Return an array of engines if we have an array of names
     if (Array.isArray(name)) {
       let engines = [];
@@ -391,15 +385,13 @@ EngineManager.prototype = {
     }
     return engine;
   },
-
-  getAll: function getAll() {
-    return [engine for ([name, engine] in Iterator(this._engines))];
+  getAll: function EngMgr_getAll() {
+    return [engine for ([name, engine] in Iterator(Engines._engines))];
   },
-
-  getEnabled: function getEnabled() {
+  getEnabled: function EngMgr_getEnabled() {
     return this.getAll().filter(function(engine) engine.enabled);
   },
-
+  
   /**
    * Register an Engine to the service. Alternatively, give an array of engine
    * objects to register.
@@ -408,12 +400,12 @@ EngineManager.prototype = {
    *        Engine object used to get an instance of the engine
    * @return The engine object if anything failed
    */
-  register: function register(engineObject) {
+  register: function EngMgr_register(engineObject) {
     if (Array.isArray(engineObject))
       return engineObject.map(this.register, this);
 
     try {
-      let engine = new engineObject(this.service);
+      let engine = new engineObject();
       let name = engine.name;
       if (name in this._engines)
         this._log.error("Engine '" + name + "' is already registered!");
@@ -421,8 +413,6 @@ EngineManager.prototype = {
         this._engines[name] = engine;
     }
     catch(ex) {
-      this._log.error(CommonUtils.exceptionStr(ex));
-
       let mesg = ex.message ? ex.message : ex;
       let name = engineObject || "";
       name = name.prototype || "";
@@ -434,29 +424,17 @@ EngineManager.prototype = {
       return engineObject;
     }
   },
-
-  unregister: function unregister(val) {
+  unregister: function EngMgr_unregister(val) {
     let name = val;
     if (val instanceof Engine)
       name = val.name;
     delete this._engines[name];
-  },
-
-  clear: function clear() {
-    for (let name in this._engines) {
-      delete this._engines[name];
-    }
-  },
+  }
 };
 
-function Engine(name, service) {
-  if (!service) {
-    throw new Error("Engine must be associated with a Service instance.");
-  }
-
+function Engine(name) {
   this.Name = name || "Unnamed";
   this.name = name.toLowerCase();
-  this.service = service;
 
   this._notify = Utils.notify("weave:engine:");
   this._log = Log4Moz.repository.getLogger("Sync.Engine." + this.Name);
@@ -482,13 +460,13 @@ Engine.prototype = {
   get score() this._tracker.score,
 
   get _store() {
-    let store = new this._storeObj(this.Name, this);
+    let store = new this._storeObj(this.Name);
     this.__defineGetter__("_store", function() store);
     return store;
   },
 
   get _tracker() {
-    let tracker = new this._trackerObj(this.Name, this);
+    let tracker = new this._trackerObj(this.Name);
     this.__defineGetter__("_tracker", function() tracker);
     return tracker;
   },
@@ -527,9 +505,8 @@ Engine.prototype = {
   }
 };
 
-function SyncEngine(name, service) {
-  Engine.call(this, name || "SyncEngine", service);
-
+function SyncEngine(name) {
+  Engine.call(this, name || "SyncEngine");
   this.loadToFetch();
   this.loadPreviousFailed();
 }
@@ -560,7 +537,7 @@ SyncEngine.prototype = {
   applyIncomingBatchSize: DEFAULT_STORE_BATCH_SIZE,
 
   get storageURL() Svc.Prefs.get("clusterURL") + SYNC_API_VERSION +
-    "/" + this.service.identity.username + "/storage/",
+    "/" + Identity.username + "/storage/",
 
   get engineURL() this.storageURL + this.name,
 
@@ -672,7 +649,7 @@ SyncEngine.prototype = {
   _syncStartup: function SyncEngine__syncStartup() {
 
     // Determine if we need to wipe on outdated versions
-    let metaGlobal = this.service.recordManager.get(this.metaURL);
+    let metaGlobal = Records.get(this.metaURL);
     let engines = metaGlobal.payload.engines || {};
     let engineData = engines[this.name] || {};
 
@@ -748,7 +725,7 @@ SyncEngine.prototype = {
 
     // Figure out how many total items to fetch this sync; do less on mobile.
     let batchSize = Infinity;
-    let newitems = new Collection(this.engineURL, this._recordObj, this.service);
+    let newitems = new Collection(this.engineURL, this._recordObj);
     let isMobile = (Svc.Prefs.get("client.type") == "mobile");
 
     if (isMobile) {
@@ -805,12 +782,9 @@ SyncEngine.prototype = {
       }
     }
 
-    let key = this.service.collectionKeys.keyForCollection(this.name);
-
     // Not binding this method to 'this' for performance reasons. It gets
     // called for every incoming record.
     let self = this;
-
     newitems.recordHandler = function(item) {
       if (aborting) {
         return;
@@ -822,13 +796,13 @@ SyncEngine.prototype = {
 
       // Track the collection for the WBO.
       item.collection = self.name;
-
+      
       // Remember which records were processed
       handled.push(item.id);
 
       try {
         try {
-          item.decrypt(key);
+          item.decrypt();
         } catch (ex if Utils.isHMACMismatch(ex)) {
           let strategy = self.handleHMACMismatch(item, true);
           if (strategy == SyncEngine.kRecoveryStrategy.retry) {
@@ -836,14 +810,13 @@ SyncEngine.prototype = {
             try {
               // Try decrypting again, typically because we've got new keys.
               self._log.info("Trying decrypt again...");
-              key = self.service.collectionKeys.keyForCollection(self.name);
-              item.decrypt(key);
+              item.decrypt();
               strategy = null;
             } catch (ex if Utils.isHMACMismatch(ex)) {
               strategy = self.handleHMACMismatch(item, false);
             }
           }
-
+          
           switch (strategy) {
             case null:
               // Retry succeeded! No further handling.
@@ -911,8 +884,8 @@ SyncEngine.prototype = {
 
     // Mobile: check if we got the maximum that we requested; get the rest if so.
     if (handled.length == newitems.limit) {
-      let guidColl = new Collection(this.engineURL, null, this.service);
-
+      let guidColl = new Collection(this.engineURL);
+      
       // Sort and limit so that on mobile we only get the last X records.
       guidColl.limit = this.downloadLimit;
       guidColl.newer = this.lastSync;
@@ -1205,7 +1178,7 @@ SyncEngine.prototype = {
                       " outgoing records");
 
       // collection we'll upload
-      let up = new Collection(this.engineURL, null, this.service);
+      let up = new Collection(this.engineURL);
       let count = 0;
 
       // Upload what we've got so far in the collection
@@ -1244,7 +1217,7 @@ SyncEngine.prototype = {
           if (this._log.level <= Log4Moz.Level.Trace)
             this._log.trace("Outgoing: " + out);
 
-          out.encrypt(this.service.collectionKeys.keyForCollection(this.name));
+          out.encrypt();
           up.pushData(out);
         }
         catch(ex) {
@@ -1271,7 +1244,7 @@ SyncEngine.prototype = {
     this._tracker.resetScore();
 
     let doDelete = Utils.bind2(this, function(key, val) {
-      let coll = new Collection(this.engineURL, this._recordObj, this.service);
+      let coll = new Collection(this.engineURL, this._recordObj);
       coll[key] = val;
       coll.delete();
     });
@@ -1322,16 +1295,14 @@ SyncEngine.prototype = {
     let canDecrypt = false;
 
     // Fetch the most recently uploaded record and try to decrypt it
-    let test = new Collection(this.engineURL, this._recordObj, this.service);
+    let test = new Collection(this.engineURL, this._recordObj);
     test.limit = 1;
     test.sort = "newest";
     test.full = true;
-
-    let key = this.service.collectionKeys.keyForCollection(this.name);
-    test.recordHandler = function recordHandler(record) {
-      record.decrypt(key);
+    test.recordHandler = function(record) {
+      record.decrypt();
       canDecrypt = true;
-    }.bind(this);
+    };
 
     // Any failure fetching/decrypting will just result in false
     try {
@@ -1352,7 +1323,7 @@ SyncEngine.prototype = {
   },
 
   wipeServer: function wipeServer() {
-    let response = this.service.resource(this.engineURL).delete();
+    let response = new Resource(this.engineURL).delete();
     if (response.status != 200 && response.status != 404) {
       throw response;
     }
@@ -1382,7 +1353,7 @@ SyncEngine.prototype = {
    */
   handleHMACMismatch: function handleHMACMismatch(item, mayRetry) {
     // By default we either try again, or bail out noisily.
-    return (this.service.handleHMACEvent() && mayRetry) ?
+    return (Weave.Service.handleHMACEvent() && mayRetry) ?
            SyncEngine.kRecoveryStrategy.retry :
            SyncEngine.kRecoveryStrategy.error;
   }

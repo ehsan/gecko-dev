@@ -3,13 +3,12 @@
 
 Cu.import("resource://services-sync/engines/clients.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/keys.js");
 Cu.import("resource://services-sync/policies.js");
-Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/status.js");
-Cu.import("resource://services-sync/util.js");
-Cu.import("resource://testing-common/services/sync/utils.js");
+
+Svc.DefaultPrefs.set("registerEngines", "");
+Cu.import("resource://services-sync/service.js");
 
 const TEST_MAINTENANCE_URL = "http://localhost:8080/maintenance/";
 const logsdir = FileUtils.getDir("ProfD", ["weave", "logs"], true);
@@ -22,14 +21,12 @@ const PROLONGED_ERROR_DURATION =
 const NON_PROLONGED_ERROR_DURATION =
   (Svc.Prefs.get('errorhandler.networkFailureReportTimeout') / 2) * 1000;
 
-Service.engineManager.clear();
-
 function setLastSync(lastSyncValue) {
   Svc.Prefs.set("lastSync", (new Date(Date.now() - lastSyncValue)).toString());
 }
 
 function CatapultEngine() {
-  SyncEngine.call(this, "Catapult", Service);
+  SyncEngine.call(this, "Catapult");
 }
 CatapultEngine.prototype = {
   __proto__: SyncEngine.prototype,
@@ -41,12 +38,7 @@ CatapultEngine.prototype = {
   }
 };
 
-let engineManager = Service.engineManager;
-engineManager.register(CatapultEngine);
-
-// This relies on Service/ErrorHandler being a singleton. Fixing this will take
-// a lot of work.
-let errorHandler = Service.errorHandler;
+Engines.register(CatapultEngine);
 
 function run_test() {
   initTestLogging("Trace");
@@ -62,9 +54,9 @@ function generateCredentialsChangedFailure() {
   // Make sync fail due to changed credentials. We simply re-encrypt
   // the keys with a different Sync Key, without changing the local one.
   let newSyncKeyBundle = new SyncKeyBundle("johndoe", "23456234562345623456234562");
-  let keys = Service.collectionKeys.asWBO();
+  let keys = CollectionKeys.asWBO();
   keys.encrypt(newSyncKeyBundle);
-  keys.upload(Service.resource(Service.cryptoKeysURL));
+  keys.upload(Service.cryptoKeysURL);
 }
 
 function service_unavailable(request, response) {
@@ -78,10 +70,10 @@ function sync_httpd_setup() {
   let global = new ServerWBO("global", {
     syncID: Service.syncID,
     storageVersion: STORAGE_VERSION,
-    engines: {clients: {version: Service.clientsEngine.version,
-                        syncID: Service.clientsEngine.syncID},
-              catapult: {version: engineManager.get("catapult").version,
-                         syncID: engineManager.get("catapult").syncID}}
+    engines: {clients: {version: Clients.version,
+                        syncID: Clients.syncID},
+              catapult: {version: Engines.get("catapult").version,
+                         syncID: Engines.get("catapult").syncID}}
   });
   let clientsColl = new ServerCollection({}, true);
 
@@ -134,10 +126,10 @@ function setUp() {
 }
 
 function generateAndUploadKeys() {
-  generateNewKeys(Service.collectionKeys);
-  let serverKeys = Service.collectionKeys.asWBO("crypto", "keys");
-  serverKeys.encrypt(Service.identity.syncKeyBundle);
-  return serverKeys.upload(Service.resource(Service.cryptoKeysURL)).success;
+  generateNewKeys();
+  let serverKeys = CollectionKeys.asWBO("crypto", "keys");
+  serverKeys.encrypt(Identity.syncKeyBundle);
+  return serverKeys.upload(Service.cryptoKeysURL).success;
 }
 
 function clean() {
@@ -209,22 +201,22 @@ add_test(function test_credentials_changed_logout() {
 add_test(function test_no_lastSync_pref() {
   // Test reported error.
   Status.resetSync();
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.sync = CREDENTIALS_CHANGED;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test unreported error.
   Status.resetSync();
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.login = LOGIN_FAILED_NETWORK_ERROR;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   run_next_test();
 });
 
 add_test(function test_shouldReportError() {
   Status.login = MASTER_PASSWORD_LOCKED;
-  do_check_false(errorHandler.shouldReportError());
+  do_check_false(ErrorHandler.shouldReportError());
 
   // Give ourselves a clusterURL so that the temporary 401 no-error situation
   // doesn't come into play.
@@ -234,172 +226,172 @@ add_test(function test_shouldReportError() {
   // Test dontIgnoreErrors, non-network, non-prolonged, login error reported
   Status.resetSync();
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.login = LOGIN_FAILED_NO_PASSWORD;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test dontIgnoreErrors, non-network, non-prolonged, sync error reported
   Status.resetSync();
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.sync = CREDENTIALS_CHANGED;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test dontIgnoreErrors, non-network, prolonged, login error reported
   Status.resetSync();
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.login = LOGIN_FAILED_NO_PASSWORD;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test dontIgnoreErrors, non-network, prolonged, sync error reported
   Status.resetSync();
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.sync = CREDENTIALS_CHANGED;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test dontIgnoreErrors, network, non-prolonged, login error reported
   Status.resetSync();
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.login = LOGIN_FAILED_NETWORK_ERROR;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test dontIgnoreErrors, network, non-prolonged, sync error reported
   Status.resetSync();
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.sync = LOGIN_FAILED_NETWORK_ERROR;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test dontIgnoreErrors, network, prolonged, login error reported
   Status.resetSync();
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.login = LOGIN_FAILED_NETWORK_ERROR;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test dontIgnoreErrors, network, prolonged, sync error reported
   Status.resetSync();
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.sync = LOGIN_FAILED_NETWORK_ERROR;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test non-network, prolonged, login error reported
   Status.resetSync();
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = false;
+  ErrorHandler.dontIgnoreErrors = false;
   Status.login = LOGIN_FAILED_NO_PASSWORD;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test non-network, prolonged, sync error reported
   Status.resetSync();
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = false;
+  ErrorHandler.dontIgnoreErrors = false;
   Status.sync = CREDENTIALS_CHANGED;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test network, prolonged, login error reported
   Status.resetSync();
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = false;
+  ErrorHandler.dontIgnoreErrors = false;
   Status.login = LOGIN_FAILED_NETWORK_ERROR;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test network, prolonged, sync error reported
   Status.resetSync();
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = false;
+  ErrorHandler.dontIgnoreErrors = false;
   Status.sync = LOGIN_FAILED_NETWORK_ERROR;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test non-network, non-prolonged, login error reported
   Status.resetSync();
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = false;
+  ErrorHandler.dontIgnoreErrors = false;
   Status.login = LOGIN_FAILED_NO_PASSWORD;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test non-network, non-prolonged, sync error reported
   Status.resetSync();
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = false;
+  ErrorHandler.dontIgnoreErrors = false;
   Status.sync = CREDENTIALS_CHANGED;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test network, non-prolonged, login error reported
   Status.resetSync();
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = false;
+  ErrorHandler.dontIgnoreErrors = false;
   Status.login = LOGIN_FAILED_NETWORK_ERROR;
-  do_check_false(errorHandler.shouldReportError());
+  do_check_false(ErrorHandler.shouldReportError());
 
   // Test network, non-prolonged, sync error reported
   Status.resetSync();
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = false;
+  ErrorHandler.dontIgnoreErrors = false;
   Status.sync = LOGIN_FAILED_NETWORK_ERROR;
-  do_check_false(errorHandler.shouldReportError());
+  do_check_false(ErrorHandler.shouldReportError());
 
   // Test server maintenance, sync errors are not reported
   Status.resetSync();
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = false;
+  ErrorHandler.dontIgnoreErrors = false;
   Status.sync = SERVER_MAINTENANCE;
-  do_check_false(errorHandler.shouldReportError());
+  do_check_false(ErrorHandler.shouldReportError());
 
   // Test server maintenance, login errors are not reported
   Status.resetSync();
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = false;
+  ErrorHandler.dontIgnoreErrors = false;
   Status.login = SERVER_MAINTENANCE;
-  do_check_false(errorHandler.shouldReportError());
+  do_check_false(ErrorHandler.shouldReportError());
 
   // Test prolonged, server maintenance, sync errors are reported
   Status.resetSync();
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = false;
+  ErrorHandler.dontIgnoreErrors = false;
   Status.sync = SERVER_MAINTENANCE;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test prolonged, server maintenance, login errors are reported
   Status.resetSync();
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = false;
+  ErrorHandler.dontIgnoreErrors = false;
   Status.login = SERVER_MAINTENANCE;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test dontIgnoreErrors, server maintenance, sync errors are reported
   Status.resetSync();
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.sync = SERVER_MAINTENANCE;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test dontIgnoreErrors, server maintenance, login errors are reported
   Status.resetSync();
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.login = SERVER_MAINTENANCE;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test dontIgnoreErrors, prolonged, server maintenance,
   // sync errors are reported
   Status.resetSync();
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.sync = SERVER_MAINTENANCE;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   // Test dontIgnoreErrors, prolonged, server maintenance,
   // login errors are reported
   Status.resetSync();
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.dontIgnoreErrors = true;
+  ErrorHandler.dontIgnoreErrors = true;
   Status.login = SERVER_MAINTENANCE;
-  do_check_true(errorHandler.shouldReportError());
+  do_check_true(ErrorHandler.shouldReportError());
 
   run_next_test();
 });
@@ -419,7 +411,7 @@ add_test(function test_shouldReportError_master_password() {
 
   setLastSync(NON_PROLONGED_ERROR_DURATION);
   Service.sync();
-  do_check_false(errorHandler.shouldReportError());
+  do_check_false(ErrorHandler.shouldReportError());
 
   // Clean up.
   Service.verifyLogin = Service._verifyLogin;
@@ -432,7 +424,7 @@ add_test(function test_login_syncAndReportErrors_non_network_error() {
   // when calling syncAndReportErrors
   let server = sync_httpd_setup();
   setUp();
-  Service.identity.basicPassword = null;
+  Identity.basicPassword = null;
 
   Svc.Obs.add("weave:ui:login:error", function onSyncError() {
     Svc.Obs.remove("weave:ui:login:error", onSyncError);
@@ -443,7 +435,7 @@ add_test(function test_login_syncAndReportErrors_non_network_error() {
   });
 
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_sync_syncAndReportErrors_non_network_error() {
@@ -468,7 +460,7 @@ add_test(function test_sync_syncAndReportErrors_non_network_error() {
   });
 
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_login_syncAndReportErrors_prolonged_non_network_error() {
@@ -476,7 +468,7 @@ add_test(function test_login_syncAndReportErrors_prolonged_non_network_error() {
   // reported when calling syncAndReportErrors.
   let server = sync_httpd_setup();
   setUp();
-  Service.identity.basicPassword = null;
+  Identity.basicPassword = null;
 
   Svc.Obs.add("weave:ui:login:error", function onSyncError() {
     Svc.Obs.remove("weave:ui:login:error", onSyncError);
@@ -487,7 +479,7 @@ add_test(function test_login_syncAndReportErrors_prolonged_non_network_error() {
   });
 
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_sync_syncAndReportErrors_prolonged_non_network_error() {
@@ -512,7 +504,7 @@ add_test(function test_sync_syncAndReportErrors_prolonged_non_network_error() {
   });
 
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_login_syncAndReportErrors_network_error() {
@@ -530,7 +522,7 @@ add_test(function test_login_syncAndReportErrors_network_error() {
   });
 
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 
@@ -548,7 +540,7 @@ add_test(function test_sync_syncAndReportErrors_network_error() {
   });
 
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_login_syncAndReportErrors_prolonged_network_error() {
@@ -567,7 +559,7 @@ add_test(function test_login_syncAndReportErrors_prolonged_network_error() {
   });
 
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_sync_syncAndReportErrors_prolonged_network_error() {
@@ -585,14 +577,14 @@ add_test(function test_sync_syncAndReportErrors_prolonged_network_error() {
   });
 
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_login_prolonged_non_network_error() {
   // Test prolonged, non-network errors are reported
   let server = sync_httpd_setup();
   setUp();
-  Service.identity.basicPassword = null;
+  Identity.basicPassword = null;
 
   Svc.Obs.add("weave:ui:login:error", function onSyncError() {
     Svc.Obs.remove("weave:ui:login:error", onSyncError);
@@ -669,7 +661,7 @@ add_test(function test_login_non_network_error() {
   // Test non-network errors are reported
   let server = sync_httpd_setup();
   setUp();
-  Service.identity.basicPassword = null;
+  Identity.basicPassword = null;
 
   Svc.Obs.add("weave:ui:login:error", function onSyncError() {
     Svc.Obs.remove("weave:ui:login:error", onSyncError);
@@ -750,7 +742,7 @@ add_test(function test_sync_server_maintenance_error() {
   setUp();
 
   const BACKOFF = 42;
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.exception = {status: 503,
                       headers: {"retry-after": BACKOFF}};
@@ -868,7 +860,7 @@ add_test(function test_crypto_keys_login_server_maintenance_error() {
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
   // Force re-download of keys
-  Service.collectionKeys.clear();
+  CollectionKeys.clear();
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -907,7 +899,7 @@ add_test(function test_sync_prolonged_server_maintenance_error() {
   setUp();
 
   const BACKOFF = 42;
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.exception = {status: 503,
                       headers: {"retry-after": BACKOFF}};
@@ -1002,7 +994,7 @@ add_test(function test_download_crypto_keys_login_prolonged_server_maintenance_e
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
   // Force re-download of keys
-  Service.collectionKeys.clear();
+  CollectionKeys.clear();
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -1106,7 +1098,7 @@ add_test(function test_wipeRemote_prolonged_server_maintenance_error(){
   Service.clusterURL = TEST_MAINTENANCE_URL;
   generateAndUploadKeys();
 
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.exception = null;
   engine.enabled = true;
 
@@ -1143,7 +1135,7 @@ add_test(function test_sync_syncAndReportErrors_server_maintenance_error() {
   setUp();
 
   const BACKOFF = 42;
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.exception = {status: 503,
                       headers: {"retry-after": BACKOFF}};
@@ -1160,7 +1152,7 @@ add_test(function test_sync_syncAndReportErrors_server_maintenance_error() {
   do_check_eq(Status.service, STATUS_OK);
 
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_info_collections_login_syncAndReportErrors_server_maintenance_error() {
@@ -1194,7 +1186,7 @@ add_test(function test_info_collections_login_syncAndReportErrors_server_mainten
   do_check_eq(Status.service, STATUS_OK);
 
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_meta_global_login_syncAndReportErrors_server_maintenance_error() {
@@ -1228,7 +1220,7 @@ add_test(function test_meta_global_login_syncAndReportErrors_server_maintenance_
   do_check_eq(Status.service, STATUS_OK);
 
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_download_crypto_keys_login_syncAndReportErrors_server_maintenance_error() {
@@ -1241,7 +1233,7 @@ add_test(function test_download_crypto_keys_login_syncAndReportErrors_server_mai
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
   // Force re-download of keys
-  Service.collectionKeys.clear();
+  CollectionKeys.clear();
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -1264,7 +1256,7 @@ add_test(function test_download_crypto_keys_login_syncAndReportErrors_server_mai
   do_check_eq(Status.service, STATUS_OK);
 
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_upload_crypto_keys_login_syncAndReportErrors_server_maintenance_error() {
@@ -1298,7 +1290,7 @@ add_test(function test_upload_crypto_keys_login_syncAndReportErrors_server_maint
   do_check_eq(Status.service, STATUS_OK);
 
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_wipeServer_login_syncAndReportErrors_server_maintenance_error() {
@@ -1332,7 +1324,7 @@ add_test(function test_wipeServer_login_syncAndReportErrors_server_maintenance_e
   do_check_eq(Status.service, STATUS_OK);
 
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_wipeRemote_syncAndReportErrors_server_maintenance_error(){
@@ -1345,7 +1337,7 @@ add_test(function test_wipeRemote_syncAndReportErrors_server_maintenance_error()
   Service.clusterURL = TEST_MAINTENANCE_URL;
   generateAndUploadKeys();
 
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.exception = null;
   engine.enabled = true;
 
@@ -1372,7 +1364,7 @@ add_test(function test_wipeRemote_syncAndReportErrors_server_maintenance_error()
 
   Svc.Prefs.set("firstSync", "wipeRemote");
   setLastSync(NON_PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_sync_syncAndReportErrors_prolonged_server_maintenance_error() {
@@ -1382,7 +1374,7 @@ add_test(function test_sync_syncAndReportErrors_prolonged_server_maintenance_err
   setUp();
 
   const BACKOFF = 42;
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.exception = {status: 503,
                       headers: {"retry-after": BACKOFF}};
@@ -1399,7 +1391,7 @@ add_test(function test_sync_syncAndReportErrors_prolonged_server_maintenance_err
   do_check_eq(Status.service, STATUS_OK);
 
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_info_collections_login_syncAndReportErrors_prolonged_server_maintenance_error() {
@@ -1433,7 +1425,7 @@ add_test(function test_info_collections_login_syncAndReportErrors_prolonged_serv
   do_check_eq(Status.service, STATUS_OK);
 
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_meta_global_login_syncAndReportErrors_prolonged_server_maintenance_error() {
@@ -1467,7 +1459,7 @@ add_test(function test_meta_global_login_syncAndReportErrors_prolonged_server_ma
   do_check_eq(Status.service, STATUS_OK);
 
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_download_crypto_keys_login_syncAndReportErrors_prolonged_server_maintenance_error() {
@@ -1480,7 +1472,7 @@ add_test(function test_download_crypto_keys_login_syncAndReportErrors_prolonged_
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
   // Force re-download of keys
-  Service.collectionKeys.clear();
+  CollectionKeys.clear();
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -1503,7 +1495,7 @@ add_test(function test_download_crypto_keys_login_syncAndReportErrors_prolonged_
   do_check_eq(Status.service, STATUS_OK);
 
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_upload_crypto_keys_login_syncAndReportErrors_prolonged_server_maintenance_error() {
@@ -1537,7 +1529,7 @@ add_test(function test_upload_crypto_keys_login_syncAndReportErrors_prolonged_se
   do_check_eq(Status.service, STATUS_OK);
 
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_wipeServer_login_syncAndReportErrors_prolonged_server_maintenance_error() {
@@ -1571,13 +1563,13 @@ add_test(function test_wipeServer_login_syncAndReportErrors_prolonged_server_mai
   do_check_eq(Status.service, STATUS_OK);
 
   setLastSync(PROLONGED_ERROR_DURATION);
-  errorHandler.syncAndReportErrors();
+  ErrorHandler.syncAndReportErrors();
 });
 
 add_test(function test_sync_engine_generic_fail() {
   let server = sync_httpd_setup();
 
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.sync = function sync() {
     Svc.Obs.notify("weave:engine:sync:error", "", "catapult");
@@ -1629,7 +1621,7 @@ add_test(function test_logs_on_sync_error_despite_shouldReportError() {
 
   // Ensure that we report no error.
   Status.login = MASTER_PASSWORD_LOCKED;
-  do_check_false(errorHandler.shouldReportError());
+  do_check_false(ErrorHandler.shouldReportError());
 
   Svc.Obs.add("weave:service:reset-file-log", function onResetFileLog() {
     Svc.Obs.remove("weave:service:reset-file-log", onResetFileLog);
@@ -1657,7 +1649,7 @@ add_test(function test_logs_on_login_error_despite_shouldReportError() {
 
   // Ensure that we report no error.
   Status.login = MASTER_PASSWORD_LOCKED;
-  do_check_false(errorHandler.shouldReportError());
+  do_check_false(ErrorHandler.shouldReportError());
 
   Svc.Obs.add("weave:service:reset-file-log", function onResetFileLog() {
     Svc.Obs.remove("weave:service:reset-file-log", onResetFileLog);
@@ -1680,7 +1672,7 @@ add_test(function test_logs_on_login_error_despite_shouldReportError() {
 add_test(function test_engine_applyFailed() {
   let server = sync_httpd_setup();
 
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   delete engine.exception;
   engine.sync = function sync() {

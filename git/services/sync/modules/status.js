@@ -16,7 +16,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 let Status = {
   _log: Log4Moz.repository.getLogger("Sync.Status"),
-  _authManager: new IdentityManager(),
+  _authManager: Identity,
   ready: false,
 
   get service() {

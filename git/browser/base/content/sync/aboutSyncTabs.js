@@ -130,7 +130,7 @@ let RemoteTabViewer = {
   },
 
   _generateTabList: function() {
-    let engine = Weave.Service.engineManager.get("tabs");
+    let engine = Weave.Engines.get("tabs");
     let list = this._tabsList;
 
     // clear out existing richlistitems
@@ -155,7 +155,7 @@ let RemoteTabViewer = {
           let attrs = {
             type: "client",
             clientName: client.clientName,
-            class: Weave.Service.clientsEngine.isMobile(client.id) ? "mobile" : "desktop"
+            class: Weave.Clients.isMobile(client.id) ? "mobile" : "desktop"
           };
           let clientEnt = this.createItem(attrs);
           list.appendChild(clientEnt);
@@ -211,11 +211,11 @@ let RemoteTabViewer = {
     }
 
     // if Clients hasn't synced yet this session, need to sync it as well
-    if (Weave.Service.clientsEngine.lastSync == 0)
-      Weave.Service.clientsEngine.sync();
+    if (Weave.Clients.lastSync == 0)
+      Weave.Clients.sync();
 
     // Force a sync only for the tabs engine
-    let engine = Weave.Service.engineManager.get("tabs");
+    let engine = Weave.Engines.get("tabs");
     engine.lastModified = null;
     engine.sync();
     Services.prefs.setIntPref("services.sync.lastTabFetch",

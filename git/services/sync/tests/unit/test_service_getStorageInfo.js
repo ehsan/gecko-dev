@@ -2,10 +2,9 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 Cu.import("resource://services-common/rest.js");
-Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/service.js");
+Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://testing-common/services/sync/utils.js");
 
 let collections = {steam:  65.11328,
                    petrol: 82.488281,
@@ -33,8 +32,8 @@ add_test(function test_success() {
 
     // Ensure that the request is sent off with the right bits.
     do_check_true(basic_auth_matches(handler.request,
-                                     Service.identity.username,
-                                     Service.identity.basicPassword));
+                                     Identity.username,
+                                     Identity.basicPassword));
     let expectedUA = Services.appinfo.name + "/" + Services.appinfo.version +
                      " FxSync/" + WEAVE_VERSION + "." +
                      Services.appinfo.appBuildID + ".desktop";

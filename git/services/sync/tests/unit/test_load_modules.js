@@ -1,6 +1,3 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
 const modules = [
   "addonutils.js",
   "addonsreconciler.js",
@@ -24,30 +21,14 @@ const modules = [
   "resource.js",
   "rest.js",
   "service.js",
-  "stages/cluster.js",
-  "stages/enginesync.js",
   "status.js",
-  "userapi.js",
   "util.js",
 ];
 
-const testingModules = [
-  "fakeservices.js",
-  "rotaryengine.js",
-  "utils.js",
-];
-
 function run_test() {
-  for (let m of modules) {
-    let res = "resource://services-sync/" + m;
-    _("Attempting to load " + res);
-    Cu.import(res, {});
-  }
-
-  for (let m of testingModules) {
-    let res = "resource://testing-common/services/sync/" + m;
-    _("Attempting to load " + res);
-    Cu.import(res, {});
+  for each (let m in modules) {
+    _("Attempting to load resource://services-sync/" + m);
+    Cu.import("resource://services-sync/" + m, {});
   }
 }
 

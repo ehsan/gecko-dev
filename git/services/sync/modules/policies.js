@@ -2,24 +2,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const EXPORTED_SYMBOLS = [
-  "ErrorHandler",
-  "SyncScheduler",
-];
+const EXPORTED_SYMBOLS = ["SyncScheduler",
+                          "ErrorHandler",
+                          "SendCredentialsController"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
-Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/status.js");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/engines.js");
+Cu.import("resource://services-sync/engines/clients.js");
+Cu.import("resource://services-sync/status.js");
 
-function SyncScheduler(service) {
-  this.service = service;
-  this.init();
-}
-SyncScheduler.prototype = {
+Cu.import("resource://services-sync/main.js");    // So we can get to Service for callbacks.
+
+let SyncScheduler = {
   _log: Log4Moz.repository.getLogger("Sync.SyncScheduler"),
 
   _fatalLoginStatus: [LOGIN_FAILED_NO_USERNAME,
@@ -199,7 +197,7 @@ SyncScheduler.prototype = {
          Svc.Idle.addIdleObserver(this, Svc.Prefs.get("scheduler.idleTime"));
          break;
       case "weave:service:start-over":
-         this.setDefaults();
+         SyncScheduler.setDefaults();
          try {
            Svc.Idle.removeIdleObserver(this, Svc.Prefs.get("scheduler.idleTime"));
          } catch (ex if (ex.result == Cr.NS_ERROR_FAILURE)) {
@@ -260,7 +258,7 @@ SyncScheduler.prototype = {
   },
 
   calculateScore: function calculateScore() {
-    let engines = [this.service.clientsEngine].concat(this.service.engineManager.getEnabled());
+    let engines = [Clients].concat(Engines.getEnabled());
     for (let i = 0;i < engines.length;i++) {
       this._log.trace(engines[i].name + ": score: " + engines[i].score);
       this.globalScore += engines[i].score;
@@ -276,7 +274,7 @@ SyncScheduler.prototype = {
    */
   updateClientMode: function updateClientMode() {
     // Nothing to do if it's the same amount
-    let numClients = this.service.clientsEngine.stats.numClients;
+    let numClients = Clients.stats.numClients;
     if (this.numClients == numClients)
       return;
 
@@ -300,7 +298,7 @@ SyncScheduler.prototype = {
     // Should we be syncing now, if not, cancel any sync timers and return
     // if we're in backoff, we'll schedule the next sync.
     let ignore = [kSyncBackoffNotMet, kSyncMasterPasswordLocked];
-    let skip = this.service._checkSync(ignore);
+    let skip = Weave.Service._checkSync(ignore);
     this._log.trace("_checkSync returned \"" + skip + "\".");
     if (skip) {
       this.clearSyncTriggers();
@@ -333,7 +331,7 @@ SyncScheduler.prototype = {
       return;
     }
 
-    Utils.nextTick(this.service.sync, this.service);
+    Utils.nextTick(Weave.Service.sync, Weave.Service);
   },
 
   /**
@@ -348,7 +346,7 @@ SyncScheduler.prototype = {
     // Ensure the interval is set to no less than the backoff.
     if (Status.backoffInterval && interval < Status.backoffInterval) {
       this._log.trace("Requested interval " + interval +
-                      " ms is smaller than the backoff interval. " +
+                      " ms is smaller than the backoff interval. " + 
                       "Using backoff interval " +
                       Status.backoffInterval + " ms instead.");
       interval = Status.backoffInterval;
@@ -408,13 +406,13 @@ SyncScheduler.prototype = {
   * Sync should first start to sync.
   */
   delayedAutoConnect: function delayedAutoConnect(delay) {
-    if (this.service._checkSetup() == STATUS_OK) {
+    if (Weave.Service._checkSetup() == STATUS_OK) {
       Utils.namedTimer(this.autoConnect, delay * 1000, this, "_autoTimer");
     }
   },
 
   autoConnect: function autoConnect() {
-    if (this.service._checkSetup() == STATUS_OK && !this.service._checkSync()) {
+    if (Weave.Service._checkSetup() == STATUS_OK && !Weave.Service._checkSync()) {
       // Schedule a sync based on when a previous sync was scheduled.
       // scheduleNextSync() will do the right thing if that time lies in
       // the past.
@@ -461,17 +459,14 @@ SyncScheduler.prototype = {
     // Clear out any scheduled syncs
     if (this.syncTimer)
       this.syncTimer.clear();
-  },
+  }
+
 };
 
 const LOG_PREFIX_SUCCESS = "success-";
 const LOG_PREFIX_ERROR   = "error-";
 
-function ErrorHandler(service) {
-  this.service = service;
-  this.init();
-}
-ErrorHandler.prototype = {
+let ErrorHandler = {
 
   /**
    * Flag that turns on error reporting for all errors, incl. network errors.
@@ -545,7 +540,7 @@ ErrorHandler.prototype = {
         break;
       case "weave:service:sync:error":
         if (Status.sync == CREDENTIALS_CHANGED) {
-          this.service.logout();
+          Weave.Service.logout();
         }
 
         this.resetFileLog(Svc.Prefs.get("log.appender.file.logOnError"),
@@ -609,7 +604,7 @@ ErrorHandler.prototype = {
     this._log.debug("Beginning user-triggered sync.");
 
     this.dontIgnoreErrors = true;
-    Utils.nextTick(this.service.sync, this.service);
+    Utils.nextTick(Weave.Service.sync, Weave.Service);
   },
 
   /**
@@ -631,23 +626,23 @@ ErrorHandler.prototype = {
     // Deletes a file from oldLogs each tick until there are none left.
     function deleteFile() {
       if (index >= oldLogs.length) {
-        this._cleaningUpFileLogs = false;
+        ErrorHandler._cleaningUpFileLogs = false;
         Svc.Obs.notify("weave:service:cleanup-logs");
         return;
       }
       try {
         oldLogs[index].remove(false);
       } catch (ex) {
-        this._log._debug("Encountered error trying to clean up old log file '"
-                         + oldLogs[index].leafName + "':"
-                         + Utils.exceptionStr(ex));
+        ErrorHandler._log._debug("Encountered error trying to clean up old log file '"
+                                 + oldLogs[index].leafName + "':"
+                                 + Utils.exceptionStr(ex));
       }
       index++;
       Utils.nextTick(deleteFile);
     }
 
     if (oldLogs.length > 0) {
-      this._cleaningUpFileLogs = true;
+      ErrorHandler._cleaningUpFileLogs = true;
       Utils.nextTick(deleteFile);
     }
   },
@@ -671,14 +666,13 @@ ErrorHandler.prototype = {
         let filename = filenamePrefix + Date.now() + ".txt";
         let file = FileUtils.getFile("ProfD", ["weave", "logs", filename]);
         let outStream = FileUtils.openFileOutputStream(file);
-
-        NetUtil.asyncCopy(inStream, outStream, function onCopyComplete() {
+        NetUtil.asyncCopy(inStream, outStream, function () {
           Svc.Obs.notify("weave:service:reset-file-log");
-          if (filenamePrefix == LOG_PREFIX_ERROR &&
-              !this._cleaningUpFileLogs) {
-            Utils.nextTick(this.cleanupLogs, this);
+          if (filenamePrefix == LOG_PREFIX_ERROR
+              && !ErrorHandler._cleaningUpFileLogs) {
+            Utils.nextTick(ErrorHandler.cleanupLogs, ErrorHandler);
           }
-        }.bind(this));
+        });
       } catch (ex) {
         Svc.Obs.notify("weave:service:reset-file-log");
       }
@@ -735,11 +729,11 @@ ErrorHandler.prototype = {
       this._log.trace("shouldReportError: true (prolonged sync failure).");
       return true;
     }
-
+ 
     // We got a 401 mid-sync. Wait for the next sync before actually handling
     // an error. This assumes that we'll get a 401 again on a login fetch in
     // order to report the error.
-    if (!this.service.clusterURL) {
+    if (!Weave.Service.clusterURL) {
       this._log.trace("shouldReportError: false (no cluster URL; " +
                       "possible node reassignment).");
       return false;
@@ -762,7 +756,7 @@ ErrorHandler.prototype = {
         break;
 
       case 401:
-        this.service.logout();
+        Weave.Service.logout();
         this._log.info("Got 401 response; resetting clusterURL.");
         Svc.Prefs.reset("clusterURL");
 
@@ -780,7 +774,7 @@ ErrorHandler.prototype = {
           Svc.Prefs.set("lastSyncReassigned", true);
         }
         this._log.info("Attempting to schedule another sync.");
-        this.service.scheduler.scheduleNextSync(delay);
+        SyncScheduler.scheduleNextSync(delay);
         break;
 
       case 500:
@@ -789,7 +783,7 @@ ErrorHandler.prototype = {
       case 504:
         Status.enforceBackoff = true;
         if (resp.status == 503 && resp.headers["retry-after"]) {
-          if (this.service.isLoggedIn) {
+          if (Weave.Service.isLoggedIn) {
             Status.sync = SERVER_MAINTENANCE;
           } else {
             Status.login = SERVER_MAINTENANCE;
@@ -809,7 +803,7 @@ ErrorHandler.prototype = {
       case Cr.NS_ERROR_PROXY_CONNECTION_REFUSED:
         // The constant says it's about login, but in fact it just
         // indicates general network error.
-        if (this.service.isLoggedIn) {
+        if (Weave.Service.isLoggedIn) {
           Status.sync = LOGIN_FAILED_NETWORK_ERROR;
         } else {
           Status.login = LOGIN_FAILED_NETWORK_ERROR;
@@ -817,4 +811,96 @@ ErrorHandler.prototype = {
         break;
     }
   },
+};
+
+
+/**
+ * Send credentials over an active J-PAKE channel.
+ * 
+ * This object is designed to take over as the JPAKEClient controller,
+ * presumably replacing one that is UI-based which would either cause
+ * DOM objects to leak or the JPAKEClient to be GC'ed when the DOM
+ * context disappears. This object stays alive for the duration of the
+ * transfer by being strong-ref'ed as an nsIObserver.
+ * 
+ * Credentials are sent after the first sync has been completed
+ * (successfully or not.)
+ * 
+ * Usage:
+ * 
+ *   jpakeclient.controller = new SendCredentialsController(jpakeclient);
+ * 
+ */
+function SendCredentialsController(jpakeclient) {
+  this._log = Log4Moz.repository.getLogger("Sync.SendCredentialsController");
+  this._log.level = Log4Moz.Level[Svc.Prefs.get("log.logger.service.main")];
+
+  this._log.trace("Loading.");
+  this.jpakeclient = jpakeclient;
+
+  // Register ourselves as observers the first Sync finishing (either
+  // successfully or unsuccessfully, we don't care) or for removing
+  // this device's sync configuration, in case that happens while we
+  // haven't finished the first sync yet.
+  Services.obs.addObserver(this, "weave:service:sync:finish", false);
+  Services.obs.addObserver(this, "weave:service:sync:error",  false);
+  Services.obs.addObserver(this, "weave:service:start-over",  false);
+}
+SendCredentialsController.prototype = {
+
+  unload: function unload() {
+    this._log.trace("Unloading.");
+    try {
+      Services.obs.removeObserver(this, "weave:service:sync:finish");
+      Services.obs.removeObserver(this, "weave:service:sync:error");
+      Services.obs.removeObserver(this, "weave:service:start-over");
+    } catch (ex) {
+      // Ignore.
+    }
+  },
+
+  observe: function observe(subject, topic, data) {
+    switch (topic) {
+      case "weave:service:sync:finish":
+      case "weave:service:sync:error":
+        Utils.nextTick(this.sendCredentials, this);
+        break;
+      case "weave:service:start-over":
+        // This will call onAbort which will call unload().
+        this.jpakeclient.abort();
+        break;
+    }
+  },
+
+  sendCredentials: function sendCredentials() {
+    this._log.trace("Sending credentials.");
+    let credentials = {account:   Weave.Identity.account,
+                       password:  Weave.Identity.basicPassword,
+                       synckey:   Weave.Identity.syncKey,
+                       serverURL: Weave.Service.serverURL};
+    this.jpakeclient.sendAndComplete(credentials);
+  },
+
+  // JPAKEClient controller API
+
+  onComplete: function onComplete() {
+    this._log.debug("Exchange was completed successfully!");
+    this.unload();
+
+    // Schedule a Sync for soonish to fetch the data uploaded by the
+    // device with which we just paired.
+    SyncScheduler.scheduleNextSync(SyncScheduler.activeInterval);
+  },
+
+  onAbort: function onAbort(error) {
+    // It doesn't really matter why we aborted, but the channel is closed
+    // for sure, so we won't be able to do anything with it.
+    this._log.debug("Exchange was aborted with error: " + error);
+    this.unload();
+  },
+
+  // Irrelevant methods for this controller:
+  displayPIN: function displayPIN() {},
+  onPairingStart: function onPairingStart() {},
+  onPaired: function onPaired() {}
 };

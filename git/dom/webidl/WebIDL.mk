@@ -19,7 +19,6 @@ webidl_files = \
   CanvasRenderingContext2D.webidl \
   ClientRectList.webidl \
   CSSStyleDeclaration.webidl \
-  DOMImplementation.webidl \
   DOMTokenList.webidl \
   DOMSettableTokenList.webidl \
   Function.webidl \

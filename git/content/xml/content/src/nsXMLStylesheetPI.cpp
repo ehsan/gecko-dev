@@ -130,7 +130,7 @@ void
 nsXMLStylesheetPI::SetNodeValueInternal(const nsAString& aNodeValue,
                                         ErrorResult& aError)
 {
-  nsGenericDOMDataNode::SetNodeValueInternal(aNodeValue, aError);
+  nsGenericDOMDataNode::SetNodeValue(aNodeValue, aError);
   if (!aError.Failed()) {
     UpdateStyleSheetInternal(nullptr, true);
   }

@@ -31,8 +31,8 @@ PrefRec.prototype = {
 Utils.deferGetSet(PrefRec, "cleartext", ["value"]);
 
 
-function PrefsEngine(service) {
-  SyncEngine.call(this, "Prefs", service);
+function PrefsEngine() {
+  SyncEngine.call(this, "Prefs");
 }
 PrefsEngine.prototype = {
   __proto__: SyncEngine.prototype,
@@ -65,8 +65,8 @@ PrefsEngine.prototype = {
 };
 
 
-function PrefStore(name, engine) {
-  Store.call(this, name, engine);
+function PrefStore(name) {
+  Store.call(this, name);
   Svc.Obs.add("profile-before-change", function() {
     this.__prefs = null;
   }, this);
@@ -188,8 +188,8 @@ PrefStore.prototype = {
   }
 };
 
-function PrefTracker(name, engine) {
-  Tracker.call(this, name, engine);
+function PrefTracker(name) {
+  Tracker.call(this, name);
   Svc.Obs.add("profile-before-change", this);
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
