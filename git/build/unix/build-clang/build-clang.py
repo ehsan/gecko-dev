@@ -13,7 +13,6 @@ import os.path
 import shutil
 import tarfile
 import subprocess
-import platform
 
 def check_run(args):
     r = subprocess.call(args)
@@ -47,7 +46,7 @@ def with_env(env, f):
 
 def build_tar_package(tar, name, base, directory):
     name = os.path.realpath(name)
-    run_in(base, [tar, "-cjf", name, directory])
+    run_in(base, [tar, "-cjf", name, "--owner=root", directory])
 
 def svn_co(url, directory, revision):
     check_run(["svn", "co", "-r", revision, url, directory])
@@ -84,8 +83,6 @@ def build_one_stage_aux(stage_dir, is_stage_one):
 
     build_package(llvm_source_dir, build_dir, configure_opts)
 
-isDarwin = platform.system() == "Darwin"
-
 if not os.path.exists(source_dir):
     os.makedirs(source_dir)
     svn_co("http://llvm.org/svn/llvm-project/llvm/trunk",
@@ -96,12 +93,8 @@ if not os.path.exists(source_dir):
            compiler_rt_source_dir, llvm_revision)
     os.symlink("../../clang", llvm_source_dir + "/tools/clang")
     os.symlink("../../compiler-rt", llvm_source_dir + "/projects/compiler-rt")
-    if isDarwin:
-        patch("clang-no-ios.patch", 0, clang_source_dir)
-        patch("compiler-rt-no-ios.patch", 0, compiler_rt_source_dir)
-    else:
-        patch("old-ld-hack.patch", 1, llvm_source_dir)
-        patch("compiler-rt-gnu89-inline.patch", 0, compiler_rt_source_dir)
+    patch("old-ld-hack.patch", 1, llvm_source_dir)
+    patch("compiler-rt-gnu89-inline.patch", 0, compiler_rt_source_dir)
 
 if os.path.exists(build_dir):
     shutil.rmtree(build_dir)
@@ -109,28 +102,13 @@ os.makedirs(build_dir)
 
 stage1_dir = build_dir + '/stage1'
 stage1_inst_dir = stage1_dir + '/clang'
-
-if isDarwin:
-    extra_cflags = ""
-    extra_cxxflags = ""
-    cc = "/usr/bin/clang"
-    cxx = "/usr/bin/clang++"
-else:
-    extra_cflags = "-static-libgcc"
-    extra_cxxflags = "-static-libgcc -static-libstdc++"
-    cc = "/tools/gcc-4.5-0moz3/bin/gcc %s" % extra_cflags
-    cxx = "/tools/gcc-4.5-0moz3/bin/g++ %s" % extra_cxxflags
-
-build_one_stage({"CC"  : cc,
-                 "CXX" : cxx },
+build_one_stage({"CC"  : "/tools/gcc-4.5-0moz3/bin/gcc -static-libgcc",
+                 "CXX" : "/tools/gcc-4.5-0moz3/bin/g++ -static-libgcc -static-libstdc++"},
                 stage1_dir, True)
 
-if not isDarwin:
-    extra_cflags += " -fgnu89-inline"
-
 stage2_dir = build_dir + '/stage2'
-build_one_stage({"CC"  : stage1_inst_dir + "/bin/clang %s" % extra_cflags,
-                 "CXX" : stage1_inst_dir + "/bin/clang++ %s" % extra_cxxflags},
+build_one_stage({"CC"  : stage1_inst_dir + "/bin/clang -static-libgcc -fgnu89-inline",
+                 "CXX" : stage1_inst_dir + "/bin/clang++ -static-libgcc -static-libstdc++"},
                 stage2_dir, False)
 
-build_tar_package("tar", "clang.tar.bz2", stage2_dir, "clang")
+build_tar_package("/bin/tar", "clang.tar.bz2", stage2_dir, "clang")

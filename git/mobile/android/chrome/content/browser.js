@@ -1395,8 +1395,8 @@ var SelectionHandler = {
   // Units in pixels
   HANDLE_WIDTH: 35,
   HANDLE_HEIGHT: 64,
+  HANDLE_VERTICAL_MARGIN: 4,
   HANDLE_PADDING: 20,
-  HANDLE_VERTICAL_OFFSET: 10,
 
   init: function sh_init() {
     Services.obs.addObserver(this, "Gesture:SingleTap", false);
@@ -1453,12 +1453,16 @@ var SelectionHandler = {
     }
 
     // Find the selected text rect and send it back so the handles can position correctly
-    if (selection.rangeCount == 0 || !selection.getRangeAt(0))
+    if (selection.rangeCount == 0)
+      return;
+
+    let range = selection.getRangeAt(0);
+    if (!range)
       return;
 
     // Initialize the cache
     this.cache = {};
-    this.updateCacheForSelection();
+    this.updateCacheFromRange(range);
     this.updateCacheOffset();
 
     // Cache the selected text since the selection might be gone by the time we get the "end" message
@@ -1502,50 +1506,37 @@ var SelectionHandler = {
       this._end.style.top = aY + this.cache.offset.y + "px";
     }
 
+    //XXX bug 765057: Reverse text selection handles if necessary
+
     // Send mouse events to the top-level window
     let cwu = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
 
-    // If we're moving the start handle, we need to re-position the carat
-    if (aIsStartHandle)
-      this._sendStartMouseEvents(cwu);
-
-    // We always need to fire events for the end to move the selection
-    this._sendEndMouseEvents(cwu);
-
-    // Update the cached selection area after firing the mouse events
-    let selectionReversed = this.updateCacheForSelection(aIsStartHandle);
-
-    // Reverse the handles if necessary
-    if (selectionReversed) {
-      let oldStart = this._start;
-      let oldEnd = this._end;
-
-      oldStart.setAttribute("anonid", "selection-handle-end");
-      oldEnd.setAttribute("anonid", "selection-handle-start");
-
-      this._start = oldEnd;
-      this._end = oldStart;
-
-      // Re-send mouse events to update the selection corresponding to the new handles
-      this._sendStartMouseEvents(cwu);
-      this._sendEndMouseEvents(cwu);
+    if (aIsStartHandle) {
+      // If we're moving the start handle, we need to re-position the caret using a fake mouse click
+      let start = this._start.getBoundingClientRect();
+      cwu.sendMouseEventToWindow("mousedown", start.right - this.HANDLE_PADDING, start.top - this.HANDLE_VERTICAL_MARGIN, 0, 0, 0, true);
+      cwu.sendMouseEventToWindow("mouseup", start.right - this.HANDLE_PADDING, start.top - this.HANDLE_VERTICAL_MARGIN, 0, 0, 0, true);
     }
-  },
 
-  // Positions the caret using a fake mouse click
-  _sendStartMouseEvents: function sh_sendStartMouseEvents(cwu) {
-    let start = this._start.getBoundingClientRect();
-    // Send mouse events 1px above handle to avoid hitting the handle div (bad things happen in that case)
-    cwu.sendMouseEventToWindow("mousedown", start.right - this.HANDLE_PADDING, start.top - 1, 0, 0, 0, true);
-    cwu.sendMouseEventToWindow("mouseup", start.right - this.HANDLE_PADDING, start.top - 1, 0, 0, 0, true);
-  },
-
-  // Selects text between the carat at the start and an end point using a fake shift+click
-  _sendEndMouseEvents: function sh_sendEndMouseEvents(cwu) {
+    // Send a shift+click to select text between the carat at the start and an end point
     let end = this._end.getBoundingClientRect();
-    // Send mouse events 1px above handle to avoid hitting the handle div (bad things happen in that case)
-    cwu.sendMouseEventToWindow("mousedown", end.left + this.HANDLE_PADDING, end.top - 1, 0, 1, Ci.nsIDOMNSEvent.SHIFT_MASK, true);
-    cwu.sendMouseEventToWindow("mouseup", end.left + this.HANDLE_PADDING, end.top - 1, 0, 1, Ci.nsIDOMNSEvent.SHIFT_MASK, true);
+    cwu.sendMouseEventToWindow("mousedown", end.left + this.HANDLE_PADDING, end.top - this.HANDLE_VERTICAL_MARGIN, 0, 1, Ci.nsIDOMNSEvent.SHIFT_MASK, true);
+    cwu.sendMouseEventToWindow("mouseup", end.left + this.HANDLE_PADDING, end.top - this.HANDLE_VERTICAL_MARGIN, 0, 1, Ci.nsIDOMNSEvent.SHIFT_MASK, true);
+  },
+
+  finishMoveSelection: function sh_finishMoveSelection(aIsStartHandle) {
+    // Cache the selected text since the selection might be gone by the time we get the "end" message
+    let selection = this._view.getSelection();
+    this.selectedText = selection.toString().trim();
+
+    // Update the cache to match the new selection range
+    let range = selection.getRangeAt(0);
+
+    this.updateCacheFromRange(range);
+    this.updateCacheOffset();
+
+    // Adjust the handles to be in the correct spot relative to the text selection
+    this.positionHandles();
   },
 
   // aX/aY are in top-level window browser coordinates
@@ -1581,27 +1572,12 @@ var SelectionHandler = {
     this.cache = null;
   },
 
-  // Returns true if the selection has been reversed. Takes optional aIsStartHandle
-  // param to decide whether the selection has been reversed.
-  updateCacheForSelection: function sh_updateCacheForSelection(aIsStartHandle) {
-    let range = this._view.getSelection().getRangeAt(0);
-    this.cache.rect = range.getBoundingClientRect();
+  updateCacheFromRange: function sh_updateCacheFromRange(aRange) {
+    let rects = aRange.getClientRects();
+    this.cache.start = { x: rects[0].left, y: rects[0].bottom };
+    this.cache.end = { x: rects[rects.length - 1].right, y: rects[rects.length - 1].bottom };
 
-    let rects = range.getClientRects();
-    let start = { x: rects[0].left, y: rects[0].bottom };
-    let end = { x: rects[rects.length - 1].right, y: rects[rects.length - 1].bottom };
-
-    let selectionReversed = false;
-    if (this.cache.start) {
-      // If the end moved past the old end, but we're dragging the start handle, then that handle should become the end handle (and vice versa)
-      selectionReversed = (aIsStartHandle && (end.y > this.cache.end.y || (end.y == this.cache.end.y && end.x > this.cache.end.x))) ||
-                          (!aIsStartHandle && (start.y < this.cache.start.y || (start.y == this.cache.start.y && start.x < this.cache.start.x)));
-    }
-
-    this.cache.start = start;
-    this.cache.end = end;
-
-    return selectionReversed;
+    this.cache.rect = aRange.getBoundingClientRect();
   },
 
   updateCacheOffset: function sh_updateCacheOffset() {
@@ -1632,10 +1608,10 @@ var SelectionHandler = {
   // handle elements to ensure the handles point exactly at the ends of the selection.
   positionHandles: function sh_positionHandles() {
     this._start.style.left = (this.cache.start.x + this.cache.offset.x - this.HANDLE_WIDTH - this.HANDLE_PADDING) + "px";
-    this._start.style.top = (this.cache.start.y + this.cache.offset.y - this.HANDLE_VERTICAL_OFFSET) + "px";
+    this._start.style.top = (this.cache.start.y + this.cache.offset.y - this.HANDLE_VERTICAL_MARGIN - this.HANDLE_PADDING) + "px";
 
     this._end.style.left = (this.cache.end.x + this.cache.offset.x - this.HANDLE_PADDING) + "px";
-    this._end.style.top = (this.cache.end.y + this.cache.offset.y - this.HANDLE_VERTICAL_OFFSET) + "px";
+    this._end.style.top = (this.cache.end.y + this.cache.offset.y - this.HANDLE_VERTICAL_MARGIN - this.HANDLE_PADDING) + "px";
   },
 
   showHandles: function sh_showHandles() {
@@ -1708,12 +1684,8 @@ var SelectionHandler = {
         this._touchId = null;
         this._touchDelta = null;
 
-        // Update the cached selected text
-        let selection = this._view.getSelection();
-        this.selectedText = selection.toString().trim();
-
-        // Adjust the handles to be in the correct spot relative to the text selection
-        this.positionHandles();
+        // Update the cached values after the dragging action is over
+        this.finishMoveSelection(isStartHandle);
         break;
 
       case "touchmove":

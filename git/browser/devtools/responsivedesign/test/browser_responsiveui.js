@@ -28,7 +28,7 @@ function test() {
     // Menus are correctly updated?
     is(document.getElementById("Tools:ResponsiveUI").getAttribute("checked"), "true", "menus checked");
 
-    instance = gBrowser.selectedTab.__responsiveUI;
+    instance = gBrowser.selectedTab.responsiveUI;
     ok(instance, "instance of the module is attached to the tab.");
 
     instance.transitionsEnabled = false;

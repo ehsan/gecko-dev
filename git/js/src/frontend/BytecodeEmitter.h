@@ -63,13 +63,21 @@ class GCConstList {
     void finish(ConstArray *array);
 };
 
+struct GlobalScope {
+    GlobalScope(JSContext *cx, JSObject *globalObj)
+      : globalObj(cx, globalObj)
+    { }
+
+    RootedObject globalObj;
+};
+
 struct BytecodeEmitter
 {
-    SharedContext   *const sc;      /* context shared between parsing and bytecode generation */
+    SharedContext   *sc;            /* context shared between parsing and bytecode generation */
 
-    BytecodeEmitter *const parent;  /* enclosing function or global context */
+    BytecodeEmitter *parent;        /* enclosing function or global context */
 
-    const Rooted<JSScript*> script;       /* the JSScript we're ultimately producing */
+    Rooted<JSScript*> script;       /* the JSScript we're ultimately producing */
 
     struct {
         jsbytecode  *base;          /* base of JS bytecode vector */
@@ -82,9 +90,7 @@ struct BytecodeEmitter
         unsigned    currentLine;    /* line number for tree-based srcnote gen */
     } prolog, main, *current;
 
-    Parser          *const parser;  /* the parser */
-
-    StackFrame      *const callerFrame; /* scripted caller frame for eval and dbgapi */
+    Parser          *parser;        /* the parser */
 
     OwnedAtomIndexMapPtr atomIndices; /* literals indexed for mapping */
     unsigned        firstLine;      /* first line, for JSScript::initFromEmitter */
@@ -108,6 +114,8 @@ struct BytecodeEmitter
     CGObjectList    regexpList;     /* list of emitted regexp that will be
                                        cloned during execution */
 
+    GlobalScope     *globalScope;   /* frontend::CompileScript global scope, or null */
+
     /* Vectors of pn_cookie slot values. */
     typedef Vector<uint32_t, 8> SlotVector;
     SlotVector      closedArgs;
@@ -119,12 +127,7 @@ struct BytecodeEmitter
 
     bool            inForInit:1;        /* emitting init expr of for; exclude 'in' */
 
-    const bool      hasGlobalScope:1;   /* frontend::CompileScript's scope chain is the
-                                           global object */
-
-    BytecodeEmitter(BytecodeEmitter *parent, Parser *parser, SharedContext *sc,
-                    HandleScript script, StackFrame *callerFrame, bool hasGlobalScope,
-                    unsigned lineno);
+    BytecodeEmitter(Parser *parser, SharedContext *sc, Handle<JSScript*> script, unsigned lineno);
     bool init();
 
     /*

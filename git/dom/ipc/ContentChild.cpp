@@ -382,9 +382,9 @@ ContentChild::DeallocPMemoryReportRequest(PMemoryReportRequestChild* actor)
 }
 
 PBrowserChild*
-ContentChild::AllocPBrowser(const PRUint32& aChromeFlags, const bool& aIsBrowserFrame)
+ContentChild::AllocPBrowser(const PRUint32& aChromeFlags)
 {
-    nsRefPtr<TabChild> iframe = new TabChild(aChromeFlags, aIsBrowserFrame);
+    nsRefPtr<TabChild> iframe = new TabChild(aChromeFlags);
     return NS_SUCCEEDED(iframe->Init()) ? iframe.forget().get() : NULL;
 }
 

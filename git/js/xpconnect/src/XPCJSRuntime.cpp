@@ -302,9 +302,20 @@ void XPCJSRuntime::TraceBlackJS(JSTracer* trc, void* data)
     // Skip this part if XPConnect is shutting down. We get into
     // bad locking problems with the thread iteration otherwise.
     if (!self->GetXPConnect()->IsShuttingDown()) {
-        // Trace those AutoMarkingPtr lists!
-        if (AutoMarkingPtr *roots = Get()->mAutoRoots)
-            roots->TraceJSAll(trc);
+        Mutex* threadLock = XPCPerThreadData::GetLock();
+        if (threadLock)
+        { // scoped lock
+            MutexAutoLock lock(*threadLock);
+
+            XPCPerThreadData* iterp = nsnull;
+            XPCPerThreadData* thread;
+
+            while (nsnull != (thread =
+                              XPCPerThreadData::IterateThreads(&iterp))) {
+                // Trace those AutoMarkingPtr lists!
+                thread->TraceJS(trc);
+            }
+        }
     }
 
     {
@@ -690,28 +701,38 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool is
             // Skip this part if XPConnect is shutting down. We get into
             // bad locking problems with the thread iteration otherwise.
             if (!self->GetXPConnect()->IsShuttingDown()) {
+                Mutex* threadLock = XPCPerThreadData::GetLock();
+                if (threadLock)
+                { // scoped lock
+                    MutexAutoLock lock(*threadLock);
 
-                // Mark those AutoMarkingPtr lists!
-                if (AutoMarkingPtr *roots = Get()->mAutoRoots)
-                    roots->MarkAfterJSFinalizeAll();
+                    XPCPerThreadData* iterp = nsnull;
+                    XPCPerThreadData* thread;
 
-                XPCCallContext* ccxp = XPCJSRuntime::Get()->GetCallContext();
-                while (ccxp) {
-                    // Deal with the strictness of callcontext that
-                    // complains if you ask for a set when
-                    // it is in a state where the set could not
-                    // possibly be valid.
-                    if (ccxp->CanGetSet()) {
-                        XPCNativeSet* set = ccxp->GetSet();
-                        if (set)
-                            set->Mark();
+                    while (nsnull != (thread =
+                                      XPCPerThreadData::IterateThreads(&iterp))) {
+                        // Mark those AutoMarkingPtr lists!
+                        thread->MarkAutoRootsAfterJSFinalize();
+
+                        XPCCallContext* ccxp = thread->GetCallContext();
+                        while (ccxp) {
+                            // Deal with the strictness of callcontext that
+                            // complains if you ask for a set when
+                            // it is in a state where the set could not
+                            // possibly be valid.
+                            if (ccxp->CanGetSet()) {
+                                XPCNativeSet* set = ccxp->GetSet();
+                                if (set)
+                                    set->Mark();
+                            }
+                            if (ccxp->CanGetInterface()) {
+                                XPCNativeInterface* iface = ccxp->GetInterface();
+                                if (iface)
+                                    iface->Mark();
+                            }
+                            ccxp = ccxp->GetPrevCallContext();
+                        }
                     }
-                    if (ccxp->CanGetInterface()) {
-                        XPCNativeInterface* iface = ccxp->GetInterface();
-                        if (iface)
-                            iface->Mark();
-                    }
-                    ccxp = ccxp->GetPrevCallContext();
                 }
             }
 
@@ -767,8 +788,8 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool is
             XPCWrappedNativeScope::FinishedFinalizationPhaseOfGC();
 
             // Now we are going to recycle any unused WrappedNativeTearoffs.
-            // We do this by iterating all the live callcontexts
-            // and marking the tearoffs in use. And then we
+            // We do this by iterating all the live callcontexts (on all
+            // threads!) and marking the tearoffs in use. And then we
             // iterate over all the WrappedNative wrappers and sweep their
             // tearoffs.
             //
@@ -781,25 +802,38 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool is
             // Skip this part if XPConnect is shutting down. We get into
             // bad locking problems with the thread iteration otherwise.
             if (!self->GetXPConnect()->IsShuttingDown()) {
-                // Do the marking...
+                Mutex* threadLock = XPCPerThreadData::GetLock();
+                if (threadLock) {
+                    // Do the marking...
 
-                XPCCallContext* ccxp = XPCJSRuntime::Get()->GetCallContext();
-                while (ccxp) {
-                    // Deal with the strictness of callcontext that
-                    // complains if you ask for a tearoff when
-                    // it is in a state where the tearoff could not
-                    // possibly be valid.
-                    if (ccxp->CanGetTearOff()) {
-                        XPCWrappedNativeTearOff* to =
-                            ccxp->GetTearOff();
-                        if (to)
-                            to->Mark();
+                    { // scoped lock
+                        MutexAutoLock lock(*threadLock);
+
+                        XPCPerThreadData* iterp = nsnull;
+                        XPCPerThreadData* thread;
+
+                        while (nsnull != (thread =
+                                          XPCPerThreadData::IterateThreads(&iterp))) {
+                            XPCCallContext* ccxp = thread->GetCallContext();
+                            while (ccxp) {
+                                // Deal with the strictness of callcontext that
+                                // complains if you ask for a tearoff when
+                                // it is in a state where the tearoff could not
+                                // possibly be valid.
+                                if (ccxp->CanGetTearOff()) {
+                                    XPCWrappedNativeTearOff* to =
+                                        ccxp->GetTearOff();
+                                    if (to)
+                                        to->Mark();
+                                }
+                                ccxp = ccxp->GetPrevCallContext();
+                            }
+                        }
                     }
-                    ccxp = ccxp->GetPrevCallContext();
-                }
 
-                // Do the sweeping...
-                XPCWrappedNativeScope::SweepAllWrappedNativeTearOffs();
+                    // Do the sweeping...
+                    XPCWrappedNativeScope::SweepAllWrappedNativeTearOffs();
+                }
             }
 
             // Now we need to kill the 'Dying' XPCWrappedNativeProtos.
@@ -953,12 +987,6 @@ DetachedWrappedNativeProtoShutdownMarker(JSDHashTable *table, JSDHashEntryHdr *h
     return JS_DHASH_NEXT;
 }
 
-void XPCJSRuntime::DestroyJSContextStack()
-{
-    delete mJSContextStack;
-    mJSContextStack = nsnull;
-}
-
 void XPCJSRuntime::SystemIsBeingShutDown()
 {
     DOM_ClearInterfaces();
@@ -1001,9 +1029,6 @@ XPCJSRuntime::~XPCJSRuntime()
 
     if (mJSCycleCollectionContext)
         JS_DestroyContextNoGC(mJSCycleCollectionContext);
-
-    if (mCallContext)
-        mCallContext->SystemIsBeingShutDown();
 
 #ifdef XPC_DUMP_AT_SHUTDOWN
     {
@@ -1126,6 +1151,8 @@ XPCJSRuntime::~XPCJSRuntime()
         fprintf(stderr, "nJRSI: destroyed runtime %p\n", (void *)mJSRuntime);
 #endif
     }
+
+    XPCPerThreadData::ShutDown();
 }
 
 static void
@@ -1909,12 +1936,7 @@ bool PreserveWrapper(JSContext *cx, JSObject *obj)
 XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
  : mXPConnect(aXPConnect),
    mJSRuntime(nsnull),
-   mJSContextStack(new XPCJSContextStack()),
    mJSCycleCollectionContext(nsnull),
-   mCallContext(nsnull),
-   mAutoRoots(nsnull),
-   mResolveName(JSID_VOID),
-   mResolvingWrapper(nsnull),
    mWrappedJSMap(JSObject2WrappedJSMap::newMap(XPC_JS_MAP_SIZE)),
    mWrappedJSClassMap(IID2WrappedJSClassMap::newMap(XPC_JS_CLASS_MAP_SIZE)),
    mIID2NativeInterfaceMap(IID2NativeInterfaceMap::newMap(XPC_NATIVE_INTERFACE_MAP_SIZE)),
@@ -1936,8 +1958,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mWatchdogWakeup(nsnull),
    mWatchdogThread(nsnull),
    mWatchdogHibernating(false),
-   mLastActiveTime(-1),
-   mExceptionManagerNotAvailable(false)
+   mLastActiveTime(-1)
 {
 #ifdef XPC_CHECK_WRAPPERS_AT_SHUTDOWN
     DEBUG_WrappedNativeHashtable =
@@ -2091,6 +2112,10 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
         ok = InternStaticDictionaryJSVals(cx);
     }
     if (!ok)
+        return false;
+
+    XPCPerThreadData* tls = XPCPerThreadData::GetData(cx);
+    if (!tls)
         return false;
 
     XPCContext* xpc = new XPCContext(this, cx);

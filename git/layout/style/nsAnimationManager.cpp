@@ -213,30 +213,16 @@ ElementAnimations::EnsureStyleRuleFor(TimeStamp aRefreshTime,
       // the keyframes.
       NS_ABORT_IF_FALSE(currentIterationCount >= 0.0, "must be positive");
       PRUint32 whichIteration = int(currentIterationCount);
-      if (whichIteration == anim.mIterationCount && whichIteration != 0) {
+      if (whichIteration == anim.mIterationCount) {
         // When the animation's iteration count is an integer (as it
         // normally is), we need to end at 100% of its last iteration
-        // rather than 0% of the next one (unless it's zero).
+        // rather than 0% of the next one.
         --whichIteration;
       }
       double positionInIteration =
         currentIterationCount - double(whichIteration);
-      bool thisIterationReverse = false;
-      switch (anim.mDirection) {
-        case NS_STYLE_ANIMATION_DIRECTION_NORMAL:
-          thisIterationReverse = false;
-          break;
-        case NS_STYLE_ANIMATION_DIRECTION_REVERSE:
-          thisIterationReverse = true;
-          break;
-        case NS_STYLE_ANIMATION_DIRECTION_ALTERNATE:
-          thisIterationReverse = (whichIteration & 1) == 1;
-          break;
-        case NS_STYLE_ANIMATION_DIRECTION_ALTERNATE_REVERSE:
-          thisIterationReverse = (whichIteration & 1) == 0;
-          break;
-      }
-      if (thisIterationReverse) {
+      if (anim.mDirection == NS_STYLE_ANIMATION_DIRECTION_ALTERNATE &&
+          (whichIteration & 1) == 1) {
         positionInIteration = 1.0 - positionInIteration;
       }
 

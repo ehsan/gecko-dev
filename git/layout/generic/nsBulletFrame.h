@@ -130,6 +130,7 @@ protected:
   nsRefPtr<nsBulletListener> mListener;
 
   nsSize mIntrinsicSize;
+  nsSize mComputedSize;
   PRInt32 mOrdinal;
   bool mTextIsRTL;
 
