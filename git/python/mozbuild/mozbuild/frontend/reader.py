@@ -37,8 +37,6 @@ from mozbuild.util import (
     ReadOnlyDict,
 )
 
-from mozbuild.backend.configenvironment import ConfigEnvironment
-
 from .sandbox import (
     SandboxError,
     SandboxExecutionError,
@@ -118,8 +116,6 @@ class MozbuildSandbox(Sandbox):
         """
         Sandbox.__init__(self, allowed_variables=VARIABLES)
 
-        self._log = logging.getLogger(__name__)
-
         self.config = config
 
         topobjdir = os.path.abspath(config.topobjdir)
@@ -147,13 +143,6 @@ class MozbuildSandbox(Sandbox):
                 # subdirectory of its topobjdir. Therefore, the topobjdir of
                 # the external source directory is the parent of our topobjdir.
                 topobjdir = os.path.dirname(topobjdir)
-
-                # This is suboptimal because we load the config.status multiple
-                # times. We should consider caching it, possibly by moving this
-                # code up to the reader.
-                config = ConfigEnvironment.from_config_status(
-                    os.path.join(topobjdir, 'config.status'))
-                self.config = config
                 break
 
         self.topsrcdir = topsrcdir
@@ -174,14 +163,7 @@ class MozbuildSandbox(Sandbox):
             substs = {}
             for k, v in config.substs.items():
                 if not isinstance(v, text_type):
-                    try:
-                        v = v.decode('utf-8')
-                    except UnicodeDecodeError:
-                        log(self._log, logging.INFO, 'lossy_encoding',
-                            {'variable': k},
-                            'Lossy Unicode encoding for {variable}. See bug 844509.')
-
-                        v = v.decode('utf-8', 'replace')
+                    v = v.decode('utf-8', 'strict')
 
                 substs[k] = v
 

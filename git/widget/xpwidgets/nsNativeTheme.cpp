@@ -22,7 +22,6 @@
 #include "nsProgressFrame.h"
 #include "nsMeterFrame.h"
 #include "nsMenuFrame.h"
-#include "nsRangeFrame.h"
 #include "mozilla/dom/Element.h"
 #include <algorithm>
 
@@ -302,16 +301,6 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
                                        ? aFrame->GetParent() : aFrame);
     if (meterFrame) {
       return !meterFrame->ShouldUseNativeStyle();
-    }
-  }
-
-  /**
-   * nsRangeFrame owns the logic and will tell us what we should do.
-   */
-  if (aWidgetType == NS_THEME_RANGE) {
-    nsRangeFrame* rangeFrame = do_QueryFrame(aFrame);
-    if (rangeFrame) {
-      return !rangeFrame->ShouldUseNativeStyle();
     }
   }
 
@@ -659,12 +648,4 @@ nsNativeTheme::GetAdjacentSiblingFrameWithSameAppearance(nsIFrame* aFrame,
        aFrame->GetRect().XMost() != sibling->GetRect().x))
     return nullptr;
   return sibling;
-}
-
-bool
-nsNativeTheme::IsRangeHorizontal(nsIFrame* aFrame)
-{
-  MOZ_ASSERT(aFrame->GetType() == nsGkAtoms::rangeFrame);
-
-  return static_cast<nsRangeFrame*>(aFrame)->IsHorizontal();
 }

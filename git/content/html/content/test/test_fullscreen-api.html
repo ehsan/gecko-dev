@@ -95,18 +95,14 @@ function runNextTest() {
   }
 }
 
-if (isOSXMtnLion) {
-  todo(false, "Mountain Lion doesn't like this test (bug 802504)");
-} else {
-  try {
-    window.fullScreen = true;
-  } catch (e) {
-  }
-  is(window.fullScreen, false, "Shouldn't be able to set window fullscreen from content");
-
-  addLoadEvent(nextTest);
-  SimpleTest.waitForExplicitFinish();
+try {
+  window.fullScreen = true;
+} catch (e) {
 }
+is(window.fullScreen, false, "Shouldn't be able to set window fullscreen from content");
+
+addLoadEvent(nextTest);
+SimpleTest.waitForExplicitFinish();
 
 </script>
 </pre>

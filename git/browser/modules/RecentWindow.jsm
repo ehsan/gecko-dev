@@ -33,7 +33,6 @@ this.RecentWindow = {
       return (!win.closed &&
               win.toolbar.visible &&
               (!checkPrivacy ||
-               PrivateBrowsingUtils.permanentPrivateBrowsing ||
                PrivateBrowsingUtils.isWindowPrivate(win) == aOptions.private));
     }
 

@@ -13,7 +13,6 @@ interface DummyInterface {
   RTCConfiguration rtcConfiguration();
   CFStateChangeEventDict cfstateChangeEvent();
   USSDReceivedEventDict ussdReceivedEvent();
-  InspectorRGBTriple rgbTriple();
 };
 
 interface DummyInterfaceWorkers {

@@ -32,7 +32,7 @@ public:
   NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter);
 
   virtual nsresult InitFromCtor(const nsAString& aType,
-                                JSContext* aCx, JS::Value* aVal);
+                                JSContext* aCx, jsval* aVal);
 
   static nsIntPoint CalculateScreenPoint(nsPresContext* aPresContext,
                                          nsEvent* aEvent)

@@ -20,7 +20,6 @@
 #include "nsWrapperCache.h"
 #include "mozilla/Attributes.h"
 
-class nsClientRect;
 class nsClientRectList;
 class nsIDOMDocumentFragment;
 
@@ -193,8 +192,8 @@ public:
   void SetStartAfter(nsINode& aNode, ErrorResult& aErr);
   void SetStartBefore(nsINode& aNode, ErrorResult& aErr);
   void SurroundContents(nsINode& aNode, ErrorResult& aErr);
-  already_AddRefed<nsClientRect> GetBoundingClientRect();
-  already_AddRefed<nsClientRectList> GetClientRects();
+  already_AddRefed<nsIDOMClientRect> GetBoundingClientRect();
+  already_AddRefed<nsClientRectList> GetClientRects(ErrorResult& aErr);
 
   nsINode* GetParentObject() const { return mOwner; }
   virtual JSObject* WrapObject(JSContext* cx, JSObject* scope) MOZ_OVERRIDE MOZ_FINAL;

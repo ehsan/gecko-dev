@@ -176,7 +176,7 @@ nsProfiler::GetSharedLibraryInformation(nsAString& aOutString)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsProfiler::GetProfileData(JSContext* aCx, JS::Value* aResult)
+NS_IMETHODIMP nsProfiler::GetProfileData(JSContext* aCx, jsval* aResult)
 {
   JSObject *obj = SAMPLER_GET_PROFILE_DATA(aCx);
   if (!obj)

@@ -67,7 +67,7 @@ nsDOMMessageEvent::UnrootData()
 }
 
 NS_IMETHODIMP
-nsDOMMessageEvent::GetData(JSContext* aCx, JS::Value* aData)
+nsDOMMessageEvent::GetData(JSContext* aCx, jsval* aData)
 {
   *aData = mData;
   if (!JS_WrapValue(aCx, aData))
@@ -100,7 +100,7 @@ NS_IMETHODIMP
 nsDOMMessageEvent::InitMessageEvent(const nsAString& aType,
                                     bool aCanBubble,
                                     bool aCancelable,
-                                    const JS::Value& aData,
+                                    const jsval& aData,
                                     const nsAString& aOrigin,
                                     const nsAString& aLastEventId,
                                     nsIDOMWindow* aSource)

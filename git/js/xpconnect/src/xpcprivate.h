@@ -2719,7 +2719,6 @@ public:
     static nsresult
     WrapNewGlobal(XPCCallContext &ccx, xpcObjectHelper &nativeHelper,
                   nsIPrincipal *principal, bool initStandardClasses,
-                  JS::ZoneSpecifier zoneSpec,
                   XPCWrappedNative **wrappedGlobal);
 
     static nsresult
@@ -4194,7 +4193,6 @@ struct SandboxOptions {
         , wantComponents(true)
         , wantXHRConstructor(false)
         , proto(NULL)
-        , sameZoneAs(NULL)
     { }
 
     bool wantXrays;
@@ -4202,12 +4200,10 @@ struct SandboxOptions {
     bool wantXHRConstructor;
     JSObject* proto;
     nsCString sandboxName;
-    JSObject* sameZoneAs;
 };
 
 JSObject *
-CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
-                   JS::ZoneSpecifier zoneSpec);
+CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal);
 }
 
 // Helper for creating a sandbox object to use for evaluating

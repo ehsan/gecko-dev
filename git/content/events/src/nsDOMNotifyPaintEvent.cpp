@@ -54,26 +54,33 @@ nsDOMNotifyPaintEvent::GetRegion()
 NS_IMETHODIMP
 nsDOMNotifyPaintEvent::GetBoundingClientRect(nsIDOMClientRect** aResult)
 {
-  nsRefPtr<nsClientRect> rect = new nsClientRect(ToSupports(this));
+  // Weak ref, since we addref it below
+  nsClientRect* rect = new nsClientRect();
+  if (!rect)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  if (mPresContext) {
-    rect->SetLayoutRect(GetRegion().GetBounds());
-  }
+  NS_ADDREF(*aResult = rect);
+  if (!mPresContext)
+    return NS_OK;
 
-  rect.forget(aResult);
+  rect->SetLayoutRect(GetRegion().GetBounds());
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMNotifyPaintEvent::GetClientRects(nsIDOMClientRectList** aResult)
 {
-  nsISupports* parent = ToSupports(this);
-  nsRefPtr<nsClientRectList> rectList = new nsClientRectList(parent);
+  nsRefPtr<nsClientRectList> rectList =
+    new nsClientRectList(static_cast<nsIDOMEvent*>(static_cast<nsDOMEvent*>(this)));
+  if (!rectList)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   nsRegion r = GetRegion();
   nsRegionRectIterator iter(r);
   for (const nsRect* rgnRect = iter.Next(); rgnRect; rgnRect = iter.Next()) {
-    nsRefPtr<nsClientRect> rect = new nsClientRect(parent);
+    nsRefPtr<nsClientRect> rect = new nsClientRect();
+    if (!rect)
+      return NS_ERROR_OUT_OF_MEMORY;
     
     rect->SetLayoutRect(*rgnRect);
     rectList->Append(rect);

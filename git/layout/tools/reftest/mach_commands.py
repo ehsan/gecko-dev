@@ -4,7 +4,6 @@
 
 from __future__ import unicode_literals
 
-import mozpack.path
 import os
 import re
 
@@ -12,6 +11,8 @@ from mozbuild.base import (
     MachCommandBase,
     MozbuildObject,
 )
+
+from moztesting.util import parse_test_path
 
 from mach.decorators import (
     CommandArgument,
@@ -41,14 +42,12 @@ class ReftestRunner(MozbuildObject):
 
     def _find_manifest(self, suite, test_file):
         assert test_file
-        path_arg = self._wrap_path_argument(test_file)
-        relpath = path_arg.relpath()
+        parsed = parse_test_path(test_file, self.topsrcdir)
+        if parsed['is_dir']:
+            return os.path.join(parsed['normalized'], self._manifest_file(suite))
 
-        if os.path.isdir(path_arg.srcdir_path()):
-            return mozpack.path.join(relpath, self._manifest_file(suite))
-
-        if relpath.endswith('.list'):
-            return relpath
+        if parsed['normalized'].endswith('.list'):
+            return parsed['normalized']
 
         raise Exception('Running a single test is not currently supported')
 
@@ -81,7 +80,7 @@ class ReftestRunner(MozbuildObject):
 
         if test_file:
             path = self._find_manifest(suite, test_file)
-            if not os.path.exists(mozpack.path.join(self.topsrcdir, path)):
+            if not os.path.exists(path):
                 raise Exception('No manifest file was found at %s.' % path)
             env[b'TEST_PATH'] = path
         if filter:

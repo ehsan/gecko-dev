@@ -63,7 +63,7 @@
 #define DECREMENT_RECURSION_LEVEL(table_)                                     \
     PR_BEGIN_MACRO                                                            \
         if (RECURSION_LEVEL(table_) != IMMUTABLE_RECURSION_LEVEL) {           \
-            MOZ_ASSERT(RECURSION_LEVEL(table_) > 0);                          \
+            NS_ASSERTION(RECURSION_LEVEL(table_) > 0, "RECURSION_LEVEL(table_) > 0");              \
             --RECURSION_LEVEL(table_);                                        \
         }                                                                     \
     PR_END_MACRO
@@ -365,7 +365,8 @@ PL_DHashTableFinish(PLDHashTable *table)
     }
 
     DECREMENT_RECURSION_LEVEL(table);
-    MOZ_ASSERT(RECURSION_LEVEL_SAFE_TO_FINISH(table));
+    NS_ASSERTION(RECURSION_LEVEL_SAFE_TO_FINISH(table),
+                 "RECURSION_LEVEL_SAFE_TO_FINISH(table)");
 
     /* Free entry storage last. */
     table->ops->freeTable(table, table->entryStore);
@@ -570,7 +571,8 @@ PL_DHashTableOperate(PLDHashTable *table, const void *key, PLDHashOperator op)
     uint32_t size;
     int deltaLog2;
 
-    MOZ_ASSERT(op == PL_DHASH_LOOKUP || RECURSION_LEVEL(table) == 0);
+    NS_ASSERTION(op == PL_DHASH_LOOKUP || RECURSION_LEVEL(table) == 0,
+                 "op == PL_DHASH_LOOKUP || RECURSION_LEVEL(table) == 0");
     INCREMENT_RECURSION_LEVEL(table);
 
     keyHash = table->ops->hashKey(table, key);
@@ -675,7 +677,8 @@ PL_DHashTableRawRemove(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
     PLDHashNumber keyHash;      /* load first in case clearEntry goofs it */
 
-    MOZ_ASSERT(RECURSION_LEVEL(table) != IMMUTABLE_RECURSION_LEVEL);
+    NS_ASSERTION(RECURSION_LEVEL(table) != IMMUTABLE_RECURSION_LEVEL,
+                 "RECURSION_LEVEL(table) != IMMUTABLE_RECURSION_LEVEL");
 
     NS_ASSERTION(PL_DHASH_ENTRY_IS_LIVE(entry),
                  "PL_DHASH_ENTRY_IS_LIVE(entry)");
@@ -723,7 +726,8 @@ PL_DHashTableEnumerate(PLDHashTable *table, PLDHashEnumerator etor, void *arg)
         entryAddr += entrySize;
     }
 
-    MOZ_ASSERT(!didRemove || RECURSION_LEVEL(table) == 1);
+    NS_ASSERTION(!didRemove || RECURSION_LEVEL(table) == 1,
+                 "!didRemove || RECURSION_LEVEL(table) == 1");
 
     /*
      * Shrink or compress if a quarter or more of all entries are removed, or

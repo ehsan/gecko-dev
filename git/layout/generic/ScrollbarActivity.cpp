@@ -7,7 +7,6 @@
 #include "nsContentUtils.h"
 #include "nsIFrame.h"
 #include "nsIScrollableFrame.h"
-#include "nsComponentManagerUtils.h"
 
 namespace mozilla {
 

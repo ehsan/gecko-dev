@@ -30,7 +30,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    * Indicates the state of the device's ICC card.
    *
    * Possible values: null, 'unknown', 'absent', 'pinRequired', 'pukRequired',
-   * 'networkLocked', 'corporateLocked', 'serviceProviderLocked', 'ready'.
+   * 'networkLocked', 'ready'.
    */
   readonly attribute DOMString cardState;
 
@@ -131,27 +131,16 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *   unlockCardLock({lockType: "pin",
    *                   pin: "..."});
    *
-   * (2) Unlocking the PUK and supplying a new PIN:
-   *
-   *   unlockCardLock({lockType: "puk",
-   *                   puk: "...",
-   *                   newPin: "..."});
-   *
-   * (3) Network depersonalization. Unlocking the network control key (NCK).
+   * (2) Network depersonalization. Unlocking the network control key (NCK).
    *
    *   unlockCardLock({lockType: "nck",
    *                   pin: "..."});
    *
-   * (4) Corporate depersonalization. Unlocking the corporate control key (CCK).
+   * (3) Unlocking the PUK and supplying a new PIN:
    *
-   *   unlockCardLock({lockType: "cck",
-   *                   pin: "..."});
-   *
-   * (5) Service Provider depersonalization. Unlocking the service provider
-   *     control key (SPCK).
-   *
-   *   unlockCardLock({lockType: "spck",
-   *                   pin: "..."});
+   *   unlockCardLock({lockType: "puk",
+   *                   puk: "...",
+   *                   newPin: "..."});
    *
    * @return a nsIDOMDOMRequest.
    *         The request's result will be an object containing

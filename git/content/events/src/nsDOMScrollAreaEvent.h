@@ -35,26 +35,6 @@ public:
   NS_IMETHOD_(void) Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType);
   NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter);
 
-  float X() const
-  {
-    return mClientArea.Left();
-  }
-
-  float Y() const
-  {
-    return mClientArea.Top();
-  }
-
-  float Width() const
-  {
-    return mClientArea.Width();
-  }
-
-  float Height() const
-  {
-    return mClientArea.Height();
-  }
-
 protected:
   nsClientRect mClientArea;
 };

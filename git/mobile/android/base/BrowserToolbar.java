@@ -111,6 +111,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     private int mFaviconSize;
 
     private PropertyAnimator mVisibilityAnimator;
+    private TimerTask mDelayedVisibilityTask;
 
     private enum ToolbarVisibility {
         VISIBLE,
@@ -501,11 +502,21 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         return (metrics.getPageHeight() >= metrics.getHeight());
     }
 
-    public void animateVisibility(boolean show) {
+    private void startVisibilityAnimation() {
+        // Only start the animation if we're showing the toolbar, or it's ok
+        // to hide it.
+        if (mVisibility == ToolbarVisibility.VISIBLE ||
+            canToolbarHide()) {
+            mVisibilityAnimator.start();
+        }
+    }
+
+    public void animateVisibility(boolean show, long delay) {
         // Do nothing if there's a delayed animation pending that does the
         // same thing and this request also has a delay.
         if (mVisibility != ToolbarVisibility.INCONSISTENT &&
-            show == isVisible()) {
+            ((delay > 0) == (mDelayedVisibilityTask != null)) &&
+            (show == isVisible())) {
             return;
         }
 
@@ -515,12 +526,17 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         mVisibilityAnimator = new PropertyAnimator(VISIBILITY_ANIMATION_DURATION);
         mVisibilityAnimator.attach(mLayout, PropertyAnimator.Property.SCROLL_Y,
                                    show ? 0 : mLayout.getHeight());
-
-        // Only start the animation if we're showing the toolbar, or it's ok
-        // to hide it.
-        if (mVisibility == ToolbarVisibility.VISIBLE ||
-            canToolbarHide()) {
-            mVisibilityAnimator.start();
+        if (delay > 0) {
+            mDelayedVisibilityTask = new TimerTask() {
+                @Override
+                public void run() {
+                    startVisibilityAnimation();
+                    mDelayedVisibilityTask = null;
+                }
+            };
+            mLayout.postDelayed(mDelayedVisibilityTask, delay);
+        } else {
+            startVisibilityAnimation();
         }
     }
 
@@ -542,12 +558,16 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             show = (velocity > 0) ? false : true;
         }
 
-        animateVisibility(show);
+        animateVisibility(show, 0);
     }
 
     public void cancelVisibilityAnimation() {
+        mVisibility = ToolbarVisibility.INCONSISTENT;
+        if (mDelayedVisibilityTask != null) {
+            mLayout.removeCallbacks(mDelayedVisibilityTask);
+            mDelayedVisibilityTask = null;
+        }
         if (mVisibilityAnimator != null) {
-            mVisibility = ToolbarVisibility.INCONSISTENT;
             mVisibilityAnimator.stop(false);
             mVisibilityAnimator = null;
         }

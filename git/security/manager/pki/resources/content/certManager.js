@@ -327,12 +327,12 @@ function backupCerts()
   var numcerts = selected_certs.length;
   if (!numcerts)
     return;
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var fp = Components.classes[nsFilePicker].createInstance(nsIFilePicker);
   fp.init(window,
-          bundle.getString("chooseP12BackupFileDialog"),
+          bundle.GetStringFromName("chooseP12BackupFileDialog"),
           nsIFilePicker.modeSave);
-  fp.appendFilter(bundle.getString("file_browse_PKCS12_spec"),
+  fp.appendFilter(bundle.GetStringFromName("file_browse_PKCS12_spec"),
                   "*.p12");
   fp.appendFilters(nsIFilePicker.filterAll);
   var rv = fp.show();
@@ -377,12 +377,12 @@ function editCerts()
 
 function restoreCerts()
 {
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var fp = Components.classes[nsFilePicker].createInstance(nsIFilePicker);
   fp.init(window,
-          bundle.getString("chooseP12RestoreFileDialog2"),
+          bundle.GetStringFromName("chooseP12RestoreFileDialog2"),
           nsIFilePicker.modeOpen);
-  fp.appendFilter(bundle.getString("file_browse_PKCS12_spec"),
+  fp.appendFilter(bundle.GetStringFromName("file_browse_PKCS12_spec"),
                   "*.p12; *.pfx");
   fp.appendFilters(nsIFilePicker.filterAll);
   if (fp.show() == nsIFilePicker.returnOK) {
@@ -418,7 +418,8 @@ function deleteCerts()
     return;
 
   var params = Components.classes[nsDialogParamBlock].createInstance(nsIDialogParamBlock);
-
+  
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var selTab = document.getElementById('certMgrTabbox').selectedItem;
   var selTabID = selTab.getAttribute('id');
   var t;
@@ -514,12 +515,12 @@ function viewCerts()
 
 function addCACerts()
 {
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var fp = Components.classes[nsFilePicker].createInstance(nsIFilePicker);
   fp.init(window,
-          bundle.getString("importCACertsPrompt"),
+          bundle.GetStringFromName("importCACertsPrompt"),
           nsIFilePicker.modeOpen);
-  fp.appendFilter(bundle.getString("file_browse_Certificate_spec"),
+  fp.appendFilter(bundle.GetStringFromName("file_browse_Certificate_spec"),
                   "*.crt; *.cert; *.cer; *.pem; *.der");
   fp.appendFilters(nsIFilePicker.filterAll);
   if (fp.show() == nsIFilePicker.returnOK) {
@@ -549,12 +550,12 @@ function onSmartCardChange()
 
 function addEmailCert()
 {
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var fp = Components.classes[nsFilePicker].createInstance(nsIFilePicker);
   fp.init(window,
-          bundle.getString("importEmailCertPrompt"),
+          bundle.GetStringFromName("importEmailCertPrompt"),
           nsIFilePicker.modeOpen);
-  fp.appendFilter(bundle.getString("file_browse_Certificate_spec"),
+  fp.appendFilter(bundle.GetStringFromName("file_browse_Certificate_spec"),
                   "*.crt; *.cert; *.cer; *.pem; *.der");
   fp.appendFilters(nsIFilePicker.filterAll);
   if (fp.show() == nsIFilePicker.returnOK) {
@@ -570,12 +571,12 @@ function addEmailCert()
 
 function addWebSiteCert()
 {
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var fp = Components.classes[nsFilePicker].createInstance(nsIFilePicker);
   fp.init(window,
-          bundle.getString("importServerCertPrompt"),
+          bundle.GetStringFromName("importServerCertPrompt"),
           nsIFilePicker.modeOpen);
-  fp.appendFilter(bundle.getString("file_browse_Certificate_spec"),
+  fp.appendFilter(bundle.GetStringFromName("file_browse_Certificate_spec"),
                   "*.crt; *.cert; *.cer; *.pem; *.der");
   fp.appendFilters(nsIFilePicker.filterAll);
   if (fp.show() == nsIFilePicker.returnOK) {

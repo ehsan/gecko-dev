@@ -107,7 +107,7 @@ private:
 
   nsresult
   WriteOrAppend(const jsval& aValue, JSContext* aCx,
-                nsISupports** _retval, bool aAppend);
+                nsIDOMFileRequest** _retval, bool aAppend);
 
   nsresult
   Finish();

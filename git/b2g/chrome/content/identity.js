@@ -89,7 +89,6 @@ function doInternalWatch() {
       },
       JSON.stringify(options),
       function(...things) {
-        // internal watch log callback
         log("(watch) internal: ", things);
       }
     );
@@ -137,7 +136,7 @@ addEventListener("DOMContentLoaded", function(e) {
 
 // listen for request
 addMessageListener(kIdentityDelegateRequest, function(aMessage) {
-  log("injected identity.js received", kIdentityDelegateRequest);
+  log("injected identity.js received", kIdentityDelegateRequest, "\n\n\n");
   options = aMessage.json;
   showUI = true;
   func = doInternalRequest;
@@ -146,7 +145,7 @@ addMessageListener(kIdentityDelegateRequest, function(aMessage) {
 
 // listen for watch
 addMessageListener(kIdentityDelegateWatch, function(aMessage) {
-  log("injected identity.js received", kIdentityDelegateWatch);
+  log("injected identity.js received", kIdentityDelegateWatch, "\n\n\n");
   options = aMessage.json;
   showUI = false;
   func = doInternalWatch;
@@ -155,7 +154,7 @@ addMessageListener(kIdentityDelegateWatch, function(aMessage) {
 
 // listen for logout
 addMessageListener(kIdentityDelegateLogout, function(aMessage) {
-  log("injected identity.js received", kIdentityDelegateLogout);
+  log("injected identity.js received", kIdentityDelegateLogout, "\n\n\n");
   options = aMessage.json;
   showUI = false;
   func = doInternalLogout;

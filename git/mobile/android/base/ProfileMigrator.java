@@ -14,7 +14,6 @@ import org.mozilla.gecko.sqlite.SQLiteBridge;
 import org.mozilla.gecko.sqlite.SQLiteBridgeException;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
-import org.mozilla.gecko.util.ThreadUtils;
 
 import android.accounts.Account;
 import android.content.ContentProviderOperation;
@@ -610,7 +609,7 @@ public class ProfileMigrator {
             final String clientName = mSyncSettingsMap.get("services.sync.client.name");
             final String clientGuid = mSyncSettingsMap.get("services.sync.client.GUID");
 
-            ThreadUtils.postToBackgroundThread(new Runnable() {
+            GeckoAppShell.getHandler().post(new Runnable() {
                 @Override
                 public void run() {
                     if (userName == null || syncKey == null || syncPass == null) {
@@ -638,7 +637,7 @@ public class ProfileMigrator {
         }
 
         protected void registerAndRequest() {
-            ThreadUtils.postToBackgroundThread(new Runnable() {
+            GeckoAppShell.getHandler().post(new Runnable() {
                 @Override
                 public void run() {
                     requestValues();
@@ -653,7 +652,7 @@ public class ProfileMigrator {
                 @Override
                 protected void onPostExecute(Boolean result) {
                     if (result.booleanValue()) {
-                        ThreadUtils.postToBackgroundThread(new Runnable() {
+                        GeckoAppShell.getHandler().post(new Runnable() {
                             @Override
                             public void run() {
                                 Log.i(LOGTAG, "Sync account already configured, skipping.");
@@ -934,7 +933,7 @@ public class ProfileMigrator {
 
             // GlobalHistory access communicates with Gecko
             // and must run on its thread.
-            ThreadUtils.postToBackgroundThread(new Runnable() {
+            GeckoAppShell.getHandler().post(new Runnable() {
                     @Override
                     public void run() {
                         for (String url : placesHistory) {

@@ -22,7 +22,7 @@ PSmsChild* gSmsChild;
 NS_IMPL_ISUPPORTS2(SmsIPCService, nsISmsService, nsIMobileMessageDatabaseService)
 
 void
-SendRequest(const IPCSmsRequest& aRequest, nsIMobileMessageCallback* aRequestReply)
+SendRequest(const IPCSmsRequest& aRequest, nsISmsRequest* aRequestReply)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -73,9 +73,40 @@ SmsIPCService::GetSegmentInfoForText(const nsAString & aText,
 NS_IMETHODIMP
 SmsIPCService::Send(const nsAString& aNumber,
                     const nsAString& aMessage,
-                    nsIMobileMessageCallback* aRequest)
+                    nsISmsRequest* aRequest)
 {
   SendRequest(SendMessageRequest(nsString(aNumber), nsString(aMessage)), aRequest);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+SmsIPCService::CreateSmsMessage(int32_t aId,
+                                const nsAString& aDelivery,
+                                const nsAString& aDeliveryStatus,
+                                const nsAString& aSender,
+                                const nsAString& aReceiver,
+                                const nsAString& aBody,
+                                const nsAString& aMessageClass,
+                                const jsval& aTimestamp,
+                                const bool aRead,
+                                JSContext* aCx,
+                                nsIDOMMozSmsMessage** aMessage)
+{
+  return SmsMessage::Create(aId, aDelivery, aDeliveryStatus,
+                            aSender, aReceiver,
+                            aBody, aMessageClass, aTimestamp, aRead,
+                            aCx, aMessage);
+}
+
+NS_IMETHODIMP
+SmsIPCService::CreateSmsSegmentInfo(int32_t aSegments,
+                                    int32_t aCharsPerSegment,
+                                    int32_t aCharsAvailableInLastSegment,
+                                    nsIDOMMozSmsSegmentInfo** aSegmentInfo)
+{
+  nsCOMPtr<nsIDOMMozSmsSegmentInfo> info =
+      new SmsSegmentInfo(aSegments, aCharsPerSegment, aCharsAvailableInLastSegment);
+  info.forget(aSegmentInfo);
   return NS_OK;
 }
 
@@ -84,7 +115,7 @@ SmsIPCService::Send(const nsAString& aNumber,
  */
 NS_IMETHODIMP
 SmsIPCService::GetMessageMoz(int32_t aMessageId,
-                             nsIMobileMessageCallback* aRequest)
+                             nsISmsRequest* aRequest)
 {
   SendRequest(GetMessageRequest(aMessageId), aRequest);
   return NS_OK;
@@ -92,7 +123,7 @@ SmsIPCService::GetMessageMoz(int32_t aMessageId,
 
 NS_IMETHODIMP
 SmsIPCService::DeleteMessage(int32_t aMessageId,
-                             nsIMobileMessageCallback* aRequest)
+                             nsISmsRequest* aRequest)
 {
   SendRequest(DeleteMessageRequest(aMessageId), aRequest);
   return NS_OK;
@@ -101,7 +132,7 @@ SmsIPCService::DeleteMessage(int32_t aMessageId,
 NS_IMETHODIMP
 SmsIPCService::CreateMessageList(nsIDOMMozSmsFilter* aFilter,
                                  bool aReverse,
-                                 nsIMobileMessageCallback* aRequest)
+                                 nsISmsRequest* aRequest)
 {
   SmsFilterData data = SmsFilterData(static_cast<SmsFilter*>(aFilter)->GetData());
   SendRequest(CreateMessageListRequest(data, aReverse), aRequest);
@@ -110,7 +141,7 @@ SmsIPCService::CreateMessageList(nsIDOMMozSmsFilter* aFilter,
 
 NS_IMETHODIMP
 SmsIPCService::GetNextMessageInList(int32_t aListId,
-                                    nsIMobileMessageCallback* aRequest)
+                                    nsISmsRequest* aRequest)
 {
   SendRequest(GetNextMessageInListRequest(aListId), aRequest);
   return NS_OK;
@@ -126,14 +157,14 @@ SmsIPCService::ClearMessageList(int32_t aListId)
 NS_IMETHODIMP
 SmsIPCService::MarkMessageRead(int32_t aMessageId,
                                bool aValue,
-                               nsIMobileMessageCallback* aRequest)
+                               nsISmsRequest* aRequest)
 {
   SendRequest(MarkMessageReadRequest(aMessageId, aValue), aRequest);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-SmsIPCService::GetThreadList(nsIMobileMessageCallback* aRequest)
+SmsIPCService::GetThreadList(nsISmsRequest* aRequest)
 {
   SendRequest(GetThreadListRequest(), aRequest);
   return NS_OK;

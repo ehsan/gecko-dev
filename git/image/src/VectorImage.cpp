@@ -5,27 +5,25 @@
 
 #include "VectorImage.h"
 
-#include <algorithm>
-
-#include "gfxContext.h"
-#include "gfxDrawable.h"
-#include "gfxPlatform.h"
-#include "gfxUtils.h"
 #include "imgDecoderObserver.h"
-#include "mozilla/AutoRestore.h"
-#include "mozilla/dom/SVGSVGElement.h"
-#include "nsComponentManagerUtils.h"
+#include "SVGDocumentWrapper.h"
+#include "gfxContext.h"
+#include "gfxPlatform.h"
+#include "nsPresContext.h"
+#include "nsRect.h"
 #include "nsIObserverService.h"
 #include "nsIPresShell.h"
 #include "nsIStreamListener.h"
 #include "nsMimeTypes.h"
-#include "nsPresContext.h"
-#include "nsRect.h"
+#include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
-#include "nsStubDocumentObserver.h"
-#include "nsSVGEffects.h" // for nsSVGRenderingObserver
 #include "nsSVGUtils.h"  // for nsSVGUtils::ConvertToSurfaceSize
-#include "SVGDocumentWrapper.h"
+#include "nsSVGEffects.h" // for nsSVGRenderingObserver
+#include "gfxDrawable.h"
+#include "gfxUtils.h"
+#include "mozilla/AutoRestore.h"
+#include "mozilla/dom/SVGSVGElement.h"
+#include <algorithm>
 
 namespace mozilla {
 

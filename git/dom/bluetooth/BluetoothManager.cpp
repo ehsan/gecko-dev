@@ -102,14 +102,14 @@ BluetoothManager::BluetoothManager(nsPIDOMWindow *aWindow)
 
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE_VOID(bs);
-  bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING(KEY_MANAGER), this);
+  bs->RegisterBluetoothSignalHandler(mPath, this);
 }
 
 BluetoothManager::~BluetoothManager()
 {
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE_VOID(bs);
-  bs->UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(KEY_MANAGER), this);
+  bs->UnregisterBluetoothSignalHandler(mPath, this);
 }
 
 void

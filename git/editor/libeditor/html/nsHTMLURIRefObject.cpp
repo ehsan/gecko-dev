@@ -117,7 +117,7 @@ nsHTMLURIRefObject::GetNextURI(nsAString & aURI)
     NS_ENSURE_TRUE(element, NS_ERROR_INVALID_ARG);
 
     mCurAttrIndex = 0;
-    element->GetAttributes(getter_AddRefs(mAttributes));
+    mNode->GetAttributes(getter_AddRefs(mAttributes));
     NS_ENSURE_TRUE(mAttributes, NS_ERROR_NOT_INITIALIZED);
 
     rv = mAttributes->GetLength(&mAttributeCnt);

@@ -8,7 +8,6 @@
 
 #include "BluetoothService.h"
 
-#include "BluetoothCommon.h"
 #include "BluetoothManager.h"
 #include "BluetoothParent.h"
 #include "BluetoothReplyRunnable.h"
@@ -137,7 +136,7 @@ public:
       } else {
         signalName = NS_LITERAL_STRING("Disabled");
       }
-      signalPath = NS_LITERAL_STRING(KEY_MANAGER);
+      signalPath = NS_LITERAL_STRING("/");
       BluetoothSignal signal(signalName, signalPath, v);
       gBluetoothService->DistributeSignal(signal);
     }
@@ -277,7 +276,7 @@ RemoveObserversExceptBluetoothManager
    nsAutoPtr<BluetoothSignalObserverList>& value,
    void* arg)
 {
-  if (!key.EqualsLiteral(KEY_MANAGER)) {
+  if (!key.EqualsLiteral("/")) {
     return PL_DHASH_REMOVE;
   }
 
@@ -410,10 +409,10 @@ BluetoothService::DistributeSignal(const BluetoothSignal& aSignal)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (aSignal.path().EqualsLiteral(KEY_LOCAL_AGENT)) {
+  if (aSignal.path().EqualsLiteral(LOCAL_AGENT_PATH)) {
     Notify(aSignal);
     return;
-  } else if (aSignal.path().EqualsLiteral(KEY_REMOTE_AGENT)) {
+  } else if (aSignal.path().EqualsLiteral(REMOTE_AGENT_PATH)) {
     Notify(aSignal);
     return;
   }

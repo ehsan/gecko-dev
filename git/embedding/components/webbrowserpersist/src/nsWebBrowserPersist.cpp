@@ -58,7 +58,6 @@
 #include "nsIDOMProcessingInstruction.h"
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsIDOMHTMLAreaElement.h"
-#include "nsIDOMHTMLCollection.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsIDOMHTMLScriptElement.h"
 #include "nsIDOMHTMLLinkElement.h"
@@ -86,8 +85,6 @@
 #include "nsIProtocolHandler.h"
 
 #include "nsWebBrowserPersist.h"
-
-#include "nsIContent.h"
 
 using namespace mozilla;
 
@@ -3373,14 +3370,13 @@ nsWebBrowserPersist::StoreURIAttributeNS(
     NS_ENSURE_ARG_POINTER(aNamespaceURI);
     NS_ENSURE_ARG_POINTER(aAttribute);
 
-    nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aNode);
-    MOZ_ASSERT(element);
+    nsresult rv = NS_OK;
 
     // Find the named URI attribute on the (element) node and store
     // a reference to the URI that maps onto a local file name
 
     nsCOMPtr<nsIDOMMozNamedAttrMap> attrMap;
-    nsresult rv = element->GetAttributes(getter_AddRefs(attrMap));
+    rv = aNode->GetAttributes(getter_AddRefs(attrMap));
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
     NS_ConvertASCIItoUTF16 namespaceURI(aNamespaceURI);
@@ -3477,21 +3473,20 @@ nsWebBrowserPersist::FixupURI(nsAString &aURI)
 
 nsresult
 nsWebBrowserPersist::FixupNodeAttributeNS(nsIDOMNode *aNode,
-                                          const char *aNamespaceURI,
-                                          const char *aAttribute)
+                                        const char *aNamespaceURI,
+                                        const char *aAttribute)
 {
     NS_ENSURE_ARG_POINTER(aNode);
     NS_ENSURE_ARG_POINTER(aNamespaceURI);
     NS_ENSURE_ARG_POINTER(aAttribute);
 
+    nsresult rv = NS_OK;
+
     // Find the named URI attribute on the (element) node and change it to reference
     // a local file.
 
-    nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aNode);
-    MOZ_ASSERT(element);
-
     nsCOMPtr<nsIDOMMozNamedAttrMap> attrMap;
-    nsresult rv = element->GetAttributes(getter_AddRefs(attrMap));
+    rv = aNode->GetAttributes(getter_AddRefs(attrMap));
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
     NS_ConvertASCIItoUTF16 attribute(aAttribute);
@@ -3516,11 +3511,8 @@ nsWebBrowserPersist::FixupAnchor(nsIDOMNode *aNode)
 {
     NS_ENSURE_ARG_POINTER(aNode);
 
-    nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aNode);
-    MOZ_ASSERT(element);
-
     nsCOMPtr<nsIDOMMozNamedAttrMap> attrMap;
-    nsresult rv = element->GetAttributes(getter_AddRefs(attrMap));
+    nsresult rv = aNode->GetAttributes(getter_AddRefs(attrMap));
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
     if (mPersistFlags & PERSIST_FLAGS_DONT_FIXUP_LINKS)

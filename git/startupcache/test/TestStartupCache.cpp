@@ -411,7 +411,7 @@ SetupJS(JSContext **cxp)
 
 bool
 GetHistogramCounts(const char *testmsg, const nsACString &histogram_id,
-                   JSContext *cx, JS::Value *counts)
+                   JSContext *cx, jsval *counts)
 {
   nsCOMPtr<nsITelemetry> telemetry = do_GetService("@mozilla.org/base/telemetry;1");
   JS::AutoValueRooter h(cx);
@@ -448,7 +448,7 @@ CompareCountArrays(JSContext *cx, JSObject *before, JSObject *after)
   }
 
   for (uint32_t i = 0; i < before_size; ++i) {
-    JS::Value before_num, after_num;
+    jsval before_num, after_num;
 
     if (!(JS_GetElement(cx, before, i, &before_num)
           && JS_GetElement(cx, after, i, &after_num))) {

@@ -69,9 +69,7 @@ NS_IMPL_ISUPPORTS1(nsEventListenerService, nsIEventListenerService)
 
 // Caller must root *aJSVal!
 bool
-nsEventListenerInfo::GetJSVal(JSContext* aCx,
-                              mozilla::Maybe<JSAutoCompartment>& aAc,
-                              JS::Value* aJSVal)
+nsEventListenerInfo::GetJSVal(JSContext* aCx, mozilla::Maybe<JSAutoCompartment>& aAc, jsval* aJSVal)
 {
   *aJSVal = JSVAL_NULL;
   nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(mListener);
@@ -111,7 +109,7 @@ nsEventListenerInfo::ToSource(nsAString& aResult)
         // Extra block to finish the auto request before calling pop
         JSAutoRequest ar(cx);
         mozilla::Maybe<JSAutoCompartment> ac;
-        JS::Value v = JSVAL_NULL;
+        jsval v = JSVAL_NULL;
         if (GetJSVal(cx, ac, &v)) {
           JSString* str = JS_ValueToSource(cx, v);
           if (str) {
@@ -153,7 +151,7 @@ nsEventListenerInfo::GetDebugObject(nsISupports** aRetVal)
         // Extra block to finish the auto request before calling pop
         JSAutoRequest ar(cx);
         mozilla::Maybe<JSAutoCompartment> ac;
-        JS::Value v = JSVAL_NULL;
+        jsval v = JSVAL_NULL;
         if (GetJSVal(cx, ac, &v)) {
           nsCOMPtr<jsdIValue> jsdValue;
           rv = jsd->WrapValue(v, getter_AddRefs(jsdValue));

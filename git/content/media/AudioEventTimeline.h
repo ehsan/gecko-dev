@@ -120,6 +120,13 @@ template <class ErrorResult>
 class AudioEventTimeline
 {
 public:
+  // This constructor should only be used for objects which are meant to be
+  // copied from other properly constructed objects.
+  AudioEventTimeline()
+    : mValue(0.f)
+  {
+  }
+
   explicit AudioEventTimeline(float aDefaultValue)
     : mValue(aDefaultValue)
   {

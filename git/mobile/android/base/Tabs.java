@@ -6,9 +6,8 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
 import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.gecko.sync.setup.SyncAccounts;
 
 import org.json.JSONObject;
 
@@ -107,7 +106,7 @@ public class Tabs implements GeckoEventListener {
         };
 
         // The listener will run on the background thread (see 2nd argument).
-        mAccountManager.addOnAccountsUpdatedListener(mAccountListener, ThreadUtils.getBackgroundHandler(), false);
+        mAccountManager.addOnAccountsUpdatedListener(mAccountListener, GeckoAppShell.getHandler(), false);
 
         if (mContentObserver != null) {
             BrowserDB.registerBookmarkObserver(getContentResolver(), mContentObserver);
@@ -450,7 +449,7 @@ public class Tabs implements GeckoEventListener {
 
     public void refreshThumbnails() {
         final ThumbnailHelper helper = ThumbnailHelper.getInstance();
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        GeckoAppShell.getHandler().post(new Runnable() {
             @Override
             public void run() {
                 for (final Tab tab : mOrder) {
@@ -554,7 +553,7 @@ public class Tabs implements GeckoEventListener {
     public void persistAllTabs() {
         final GeckoApp activity = getActivity();
         final Iterable<Tab> tabs = getTabsInOrder();
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        GeckoAppShell.getHandler().post(new Runnable() {
             @Override
             public void run() {
                 boolean syncIsSetup = SyncAccounts.syncAccountsExist(activity);

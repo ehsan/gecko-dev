@@ -9,12 +9,12 @@ class nsPIDOMWindow;
 #include "PCOMContentPermissionRequestChild.h"
 
 #include "DOMRequest.h"
-#include "DOMCursor.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDOMClassInfoID.h"
 #include "nsIClassInfo.h"
 #include "nsIContentPermissionPrompt.h"
+#include "nsIDOMDeviceStorageCursor.h"
 #include "nsIDOMWindow.h"
 #include "nsIURI.h"
 #include "nsInterfaceHashtable.h"
@@ -28,11 +28,8 @@ class nsPIDOMWindow;
 #include "mozilla/Mutex.h"
 #include "prtime.h"
 #include "DeviceStorage.h"
-#include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
 
-namespace mozilla {
-class ErrorResult;
-} // namespace mozilla
+#include "DeviceStorageRequestChild.h"
 
 #define POST_ERROR_EVENT_FILE_EXISTS                 "NoModificationAllowedError"
 #define POST_ERROR_EVENT_FILE_DOES_NOT_EXIST         "NotFoundError"
@@ -91,7 +88,8 @@ private:
 };
 
 class nsDOMDeviceStorageCursor MOZ_FINAL
-  : public mozilla::dom::DOMCursor
+  : public nsIDOMDeviceStorageCursor
+  , public mozilla::dom::DOMRequest
   , public nsIContentPermissionRequest
   , public PCOMContentPermissionRequestChild
   , public mozilla::dom::devicestorage::DeviceStorageRequestChildCallback
@@ -99,10 +97,7 @@ class nsDOMDeviceStorageCursor MOZ_FINAL
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSICONTENTPERMISSIONREQUEST
-  NS_FORWARD_NSIDOMDOMCURSOR(mozilla::dom::DOMCursor::)
-
-  // DOMCursor
-  virtual void Continue(mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
+  NS_DECL_NSIDOMDEVICESTORAGECURSOR
 
   nsDOMDeviceStorageCursor(nsIDOMWindow* aWindow,
                            nsIPrincipal* aPrincipal,

@@ -1779,8 +1779,6 @@ function finishTests()
   SpecialPowers.clearUserPref("mousewheel.with_win.delta_multiplier_y");
   SpecialPowers.clearUserPref("mousewheel.with_win.delta_multiplier_z");
 
-  winUtils.restoreNormalRefresh();
-
   window.opener.finish();
 }
 

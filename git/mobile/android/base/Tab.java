@@ -15,7 +15,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.gfx.Layer;
-import org.mozilla.gecko.util.ThreadUtils;
 
 import android.content.ContentResolver;
 import android.graphics.Bitmap;
@@ -164,7 +163,7 @@ public class Tab {
     }
 
     public void updateThumbnail(final Bitmap b) {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        GeckoAppShell.getHandler().post(new Runnable() {
             @Override
             public void run() {
                 if (b != null) {
@@ -322,7 +321,7 @@ public class Tab {
     }
 
     void updateBookmark() {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        GeckoAppShell.getHandler().post(new Runnable() {
             @Override
             public void run() {
                 final String url = getURL();
@@ -340,7 +339,7 @@ public class Tab {
     }
 
     public void addBookmark() {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        GeckoAppShell.getHandler().post(new Runnable() {
             @Override
             public void run() {
                 String url = getURL();
@@ -353,7 +352,7 @@ public class Tab {
     }
 
     public void removeBookmark() {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        GeckoAppShell.getHandler().post(new Runnable() {
             @Override
             public void run() {
                 String url = getURL();
@@ -550,7 +549,7 @@ public class Tab {
 
         final String oldURL = getURL();
         final Tab tab = this;
-        ThreadUtils.getBackgroundHandler().postDelayed(new Runnable() {
+        GeckoAppShell.getHandler().postDelayed(new Runnable() {
             @Override
             public void run() {
                 // tab.getURL() may return null

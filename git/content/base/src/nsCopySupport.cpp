@@ -732,11 +732,8 @@ nsCopySupport::FireClipboardEvent(int32_t aType, nsIPresShell* aPresShell, nsISe
   if (aType == NS_PASTE) {
     // Clear and mark the clipboardData as readonly. This prevents someone
     // from reading the clipboard contents after the paste event has fired.
-    if (clipboardData) {
-      clipboardData->ClearAll();
-      clipboardData->SetReadOnly();
-    }
-
+    clipboardData->ClearAll();
+    clipboardData->SetReadOnly();
     return doDefault;
   }
 
@@ -761,7 +758,7 @@ nsCopySupport::FireClipboardEvent(int32_t aType, nsIPresShell* aPresShell, nsISe
     if (NS_FAILED(rv)) {
       return false;
     }
-  } else if (clipboardData) {
+  } else {
     // check to see if any data was put on the data transfer.
     clipboardData->GetMozItemCount(&count);
     if (count) {

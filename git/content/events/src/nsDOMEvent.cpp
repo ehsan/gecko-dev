@@ -36,7 +36,6 @@
 #include "nsPIWindowRoot.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 static char *sPopupAllowedEvents;
 
@@ -93,7 +92,7 @@ nsDOMEvent::InitPresContextData(nsPresContext* aPresContext)
   // Get the explicit original target (if it's anonymous make it null)
   {
     nsCOMPtr<nsIContent> content = GetTargetFromFrame();
-    mExplicitOriginalTarget = content;
+    mExplicitOriginalTarget = do_QueryInterface(content);
     if (content && content->IsInAnonymousSubtree()) {
       mExplicitOriginalTarget = nullptr;
     }
@@ -223,36 +222,28 @@ NS_METHOD nsDOMEvent::GetType(nsAString& aType)
   return NS_OK;
 }
 
-static EventTarget*
-GetDOMEventTarget(nsIDOMEventTarget* aTarget)
+static nsresult
+GetDOMEventTarget(nsIDOMEventTarget* aTarget,
+                  nsIDOMEventTarget** aDOMTarget)
 {
-  return aTarget ? aTarget->GetTargetForDOMEvent() : nullptr;
-}
+  nsIDOMEventTarget* realTarget =
+    aTarget ? aTarget->GetTargetForDOMEvent() : aTarget;
 
-EventTarget*
-nsDOMEvent::GetTarget() const
-{
-  return GetDOMEventTarget(mEvent->target);
+  NS_IF_ADDREF(*aDOMTarget = realTarget);
+
+  return NS_OK;
 }
 
 NS_METHOD
 nsDOMEvent::GetTarget(nsIDOMEventTarget** aTarget)
 {
-  NS_IF_ADDREF(*aTarget = GetTarget());
-  return NS_OK;
-}
-
-EventTarget*
-nsDOMEvent::GetCurrentTarget() const
-{
-  return GetDOMEventTarget(mEvent->currentTarget);
+  return GetDOMEventTarget(mEvent->target, aTarget);
 }
 
 NS_IMETHODIMP
 nsDOMEvent::GetCurrentTarget(nsIDOMEventTarget** aCurrentTarget)
 {
-  NS_IF_ADDREF(*aCurrentTarget = GetCurrentTarget());
-  return NS_OK;
+  return GetDOMEventTarget(mEvent->currentTarget, aCurrentTarget);
 }
 
 //
@@ -273,37 +264,26 @@ nsDOMEvent::GetTargetFromFrame()
   return realEventContent.forget();
 }
 
-EventTarget*
-nsDOMEvent::GetExplicitOriginalTarget() const
-{
-  if (mExplicitOriginalTarget) {
-    return mExplicitOriginalTarget;
-  }
-  return GetTarget();
-}
-
 NS_IMETHODIMP
 nsDOMEvent::GetExplicitOriginalTarget(nsIDOMEventTarget** aRealEventTarget)
 {
-  NS_IF_ADDREF(*aRealEventTarget = GetExplicitOriginalTarget());
-  return NS_OK;
-}
-
-EventTarget*
-nsDOMEvent::GetOriginalTarget() const
-{
-  if (mEvent->originalTarget) {
-    return GetDOMEventTarget(mEvent->originalTarget);
+  if (mExplicitOriginalTarget) {
+    *aRealEventTarget = mExplicitOriginalTarget;
+    NS_ADDREF(*aRealEventTarget);
+    return NS_OK;
   }
 
-  return GetTarget();
+  return GetTarget(aRealEventTarget);
 }
 
 NS_IMETHODIMP
 nsDOMEvent::GetOriginalTarget(nsIDOMEventTarget** aOriginalTarget)
 {
-  NS_IF_ADDREF(*aOriginalTarget = GetOriginalTarget());
-  return NS_OK;
+  if (mEvent->originalTarget) {
+    return GetDOMEventTarget(mEvent->originalTarget, aOriginalTarget);
+  }
+
+  return GetTarget(aOriginalTarget);
 }
 
 NS_IMETHODIMP_(void)
@@ -314,7 +294,7 @@ nsDOMEvent::SetTrusted(bool aTrusted)
 
 NS_IMETHODIMP
 nsDOMEvent::Initialize(nsISupports* aOwner, JSContext* aCx, JSObject* aObj,
-                       uint32_t aArgc, JS::Value* aArgv)
+                       uint32_t aArgc, jsval* aArgv)
 {
   NS_ENSURE_TRUE(aArgc >= 1, NS_ERROR_XPC_NOT_ENOUGH_ARGS);
 
@@ -355,7 +335,7 @@ nsDOMEvent::Initialize(nsISupports* aOwner, JSContext* aCx, JSObject* aObj,
 
 nsresult
 nsDOMEvent::InitFromCtor(const nsAString& aType,
-                         JSContext* aCx, JS::Value* aVal)
+                         JSContext* aCx, jsval* aVal)
 {
   mozilla::idl::EventInit d;
   nsresult rv = d.Init(aCx, aVal);
@@ -396,50 +376,43 @@ nsDOMEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
   return e.forget();
 }
 
-uint16_t
-nsDOMEvent::EventPhase() const
+NS_IMETHODIMP
+nsDOMEvent::GetEventPhase(uint16_t* aEventPhase)
 {
   // Note, remember to check that this works also
   // if or when Bug 235441 is fixed.
   if ((mEvent->currentTarget &&
        mEvent->currentTarget == mEvent->target) ||
        mEvent->mFlags.InTargetPhase()) {
-    return nsIDOMEvent::AT_TARGET;
+    *aEventPhase = nsIDOMEvent::AT_TARGET;
+  } else if (mEvent->mFlags.mInCapturePhase) {
+    *aEventPhase = nsIDOMEvent::CAPTURING_PHASE;
+  } else if (mEvent->mFlags.mInBubblingPhase) {
+    *aEventPhase = nsIDOMEvent::BUBBLING_PHASE;
+  } else {
+    *aEventPhase = nsIDOMEvent::NONE;
   }
-  if (mEvent->mFlags.mInCapturePhase) {
-    return nsIDOMEvent::CAPTURING_PHASE;
-  }
-  if (mEvent->mFlags.mInBubblingPhase) {
-    return nsIDOMEvent::BUBBLING_PHASE;
-  }
-  return nsIDOMEvent::NONE;
-}
-
-NS_IMETHODIMP
-nsDOMEvent::GetEventPhase(uint16_t* aEventPhase)
-{
-  *aEventPhase = EventPhase();
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMEvent::GetBubbles(bool* aBubbles)
 {
-  *aBubbles = Bubbles();
+  *aBubbles = mEvent->mFlags.mBubbles;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMEvent::GetCancelable(bool* aCancelable)
 {
-  *aCancelable = Cancelable();
+  *aCancelable = mEvent->mFlags.mCancelable;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMEvent::GetTimeStamp(uint64_t* aTimeStamp)
 {
-  *aTimeStamp = TimeStamp();
+  *aTimeStamp = mEvent->time;
   return NS_OK;
 }
 
@@ -505,7 +478,7 @@ nsDOMEvent::PreventCapture()
 NS_IMETHODIMP
 nsDOMEvent::GetIsTrusted(bool *aIsTrusted)
 {
-  *aIsTrusted = IsTrusted();
+  *aIsTrusted = mEvent->mFlags.mIsTrusted;
   return NS_OK;
 }
 
@@ -516,7 +489,7 @@ nsDOMEvent::PreventDefault()
     mEvent->mFlags.mDefaultPrevented = true;
 
     // Need to set an extra flag for drag events.
-    if (mEvent->eventStructType == NS_DRAG_EVENT && IsTrusted()) {
+    if (mEvent->eventStructType == NS_DRAG_EVENT && mEvent->mFlags.mIsTrusted) {
       nsCOMPtr<nsINode> node = do_QueryInterface(mEvent->currentTarget);
       if (!node) {
         nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(mEvent->currentTarget);
@@ -547,7 +520,7 @@ nsDOMEvent::InitEvent(const nsAString& aEventTypeArg, bool aCanBubbleArg, bool a
   // Make sure this event isn't already being dispatched.
   NS_ENSURE_TRUE(!mEvent->mFlags.mIsBeingDispatched, NS_OK);
 
-  if (IsTrusted()) {
+  if (mEvent->mFlags.mIsTrusted) {
     // Ensure the caller is permitted to dispatch trusted DOM events.
     if (!nsContentUtils::IsCallerChrome()) {
       SetTrusted(false);
@@ -1234,16 +1207,14 @@ NS_IMETHODIMP
 nsDOMEvent::GetPreventDefault(bool* aReturn)
 {
   NS_ENSURE_ARG_POINTER(aReturn);
-  *aReturn = GetPreventDefault();
+  *aReturn = mEvent && mEvent->mFlags.mDefaultPrevented;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMEvent::GetDefaultPrevented(bool* aReturn)
 {
-  NS_ENSURE_ARG_POINTER(aReturn);
-  *aReturn = DefaultPrevented();
-  return NS_OK;
+  return GetPreventDefault(aReturn);
 }
 
 NS_IMETHODIMP_(void)
@@ -1257,9 +1228,17 @@ nsDOMEvent::Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType)
   GetType(type);
   IPC::WriteParam(aMsg, type);
 
-  IPC::WriteParam(aMsg, Bubbles());
-  IPC::WriteParam(aMsg, Cancelable());
-  IPC::WriteParam(aMsg, IsTrusted());
+  bool bubbles = false;
+  GetBubbles(&bubbles);
+  IPC::WriteParam(aMsg, bubbles);
+
+  bool cancelable = false;
+  GetCancelable(&cancelable);
+  IPC::WriteParam(aMsg, cancelable);
+
+  bool trusted = false;
+  GetIsTrusted(&trusted);
+  IPC::WriteParam(aMsg, trusted);
 
   // No timestamp serialization for now!
 }

@@ -14,6 +14,7 @@
 #include "jsprototypes.h"
 #include "jstypes.h"
 
+#ifdef __cplusplus
 
 namespace JS {
 
@@ -26,9 +27,9 @@ class Value;
 template <typename T>
 class Rooted;
 
-struct Zone;
-
 } /* namespace JS */
+
+#endif /* __cplusplus */
 
 /*
  * In release builds, jsid is defined to be an integral type. This
@@ -264,11 +265,8 @@ struct ContextFriendFields {
     /* The current compartment. */
     JSCompartment       *compartment;
 
-    /* The current zone. */
-    JS::Zone            *zone_;
-
     explicit ContextFriendFields(JSRuntime *rt)
-      : runtime(rt), compartment(NULL), zone_(NULL)
+      : runtime(rt), compartment(NULL)
     { }
 
     static const ContextFriendFields *get(const JSContext *cx) {

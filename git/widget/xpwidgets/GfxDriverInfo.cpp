@@ -4,9 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GfxDriverInfo.h"
-
 #include "nsIGfxInfo.h"
-#include "nsTArray.h"
 
 using namespace mozilla::widget;
 

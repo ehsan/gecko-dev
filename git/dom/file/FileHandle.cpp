@@ -133,12 +133,12 @@ NS_IMETHODIMP
 FileHandle::GetFile(nsIDOMDOMRequest** _retval)
 {
   ErrorResult rv;
-  nsRefPtr<DOMRequest> request = GetFile(rv);
+  nsCOMPtr<nsIDOMDOMRequest> request = GetFile(rv);
   request.forget(_retval);
   return rv.ErrorCode();
 }
 
-already_AddRefed<DOMRequest>
+already_AddRefed<nsIDOMDOMRequest>
 FileHandle::GetFile(ErrorResult& aError)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -170,7 +170,8 @@ FileHandle::GetFile(ErrorResult& aError)
     return nullptr;
   }
 
-  return request.forget();
+  nsRefPtr<DOMRequest> domRequest = request.forget();
+  return domRequest.forget();
 }
 
 NS_IMETHODIMP_(int64_t)

@@ -622,22 +622,19 @@ StackBasedEventTarget::QueryInterface(REFNSIID aIID,
 }
 
 NS_IMETHODIMP
-ImmediateRunEventTarget::Dispatch(nsIRunnable* aRunnable,
-                                  uint32_t aFlags)
+MainThreadEventTarget::Dispatch(nsIRunnable* aRunnable,
+                                uint32_t aFlags)
 {
   NS_ASSERTION(aRunnable, "Null pointer!");
 
-  nsCOMPtr<nsIRunnable> runnable(aRunnable);
-  DebugOnly<nsresult> rv =
-    runnable->Run();
-  MOZ_ASSERT(NS_SUCCEEDED(rv));
-  return NS_OK;
+  nsCOMPtr<nsIRunnable> runnable = aRunnable;
+  return NS_DispatchToMainThread(aRunnable, aFlags);
 }
 
 NS_IMETHODIMP
-ImmediateRunEventTarget::IsOnCurrentThread(bool* aIsOnCurrentThread)
+MainThreadEventTarget::IsOnCurrentThread(bool* aIsOnCurrentThread)
 {
-  *aIsOnCurrentThread = true;
+  *aIsOnCurrentThread = NS_IsMainThread();
   return NS_OK;
 }
 

@@ -53,7 +53,7 @@ public:
   TestShellCommandParent() : mCx(NULL) { }
 
   JSBool SetCallback(JSContext* aCx,
-                     JS::Value aCallback);
+                     jsval aCallback);
 
   JSBool RunCallback(const nsString& aResponse);
 

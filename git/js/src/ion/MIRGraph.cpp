@@ -23,11 +23,7 @@ MIRGenerator::MIRGenerator(JSCompartment *compartment,
     temp_(temp),
     graph_(graph),
     error_(false),
-    cancelBuild_(0),
-    maxAsmJSStackArgBytes_(0),
-    performsAsmJSCall_(false),
-    asmJSHeapAccesses_(GetIonContext()->cx),
-    asmJSGlobalAccesses_(GetIonContext()->cx)
+    cancelBuild_(0)
 { }
 
 bool
@@ -230,27 +226,23 @@ MBasicBlock::inherit(MBasicBlock *pred, uint32_t popped)
         stackPosition_ -= popped;
         if (kind_ != PENDING_LOOP_HEADER)
             copySlots(pred);
-    } else if (pc()) {
+    } else {
         uint32_t stackDepth = info().script()->analysis()->getCode(pc()).stackDepth;
         stackPosition_ = info().firstStackSlot() + stackDepth;
         JS_ASSERT(stackPosition_ >= popped);
         stackPosition_ -= popped;
-    } else {
-        stackPosition_ = info().firstStackSlot();
     }
 
     JS_ASSERT(info_.nslots() >= stackPosition_);
     JS_ASSERT(!entryResumePoint_);
 
-    if (pc()) {
-        // Propagate the caller resume point from the inherited block.
-        MResumePoint *callerResumePoint = pred ? pred->callerResumePoint() : NULL;
+    // Propagate the caller resume point from the inherited block.
+    MResumePoint *callerResumePoint = pred ? pred->callerResumePoint() : NULL;
 
-        // Create a resume point using our initial stack state.
-        entryResumePoint_ = new MResumePoint(this, pc(), callerResumePoint, MResumePoint::ResumeAt);
-        if (!entryResumePoint_->init())
-            return false;
-    }
+    // Create a resume point using our initial stack state.
+    entryResumePoint_ = new MResumePoint(this, pc(), callerResumePoint, MResumePoint::ResumeAt);
+    if (!entryResumePoint_->init())
+        return false;
 
     if (pred) {
         if (!predecessors_.append(pred))
@@ -264,10 +256,9 @@ MBasicBlock::inherit(MBasicBlock *pred, uint32_t popped)
                 phi->setOperand(0, pred->getSlot(i));
                 addPhi(phi);
                 setSlot(i, phi);
-                if (entryResumePoint())
-                    entryResumePoint()->setOperand(i, phi);
+                entryResumePoint()->setOperand(i, phi);
             }
-        } else if (entryResumePoint()) {
+        } else {
             for (size_t i = 0; i < stackDepth(); i++)
                 entryResumePoint()->setOperand(i, getSlot(i));
         }
@@ -322,8 +313,7 @@ void
 MBasicBlock::initSlot(uint32_t slot, MDefinition *ins)
 {
     slots_[slot] = ins;
-    if (entryResumePoint())
-        entryResumePoint()->setOperand(slot, ins);
+    entryResumePoint()->setOperand(slot, ins);
 }
 
 void
@@ -682,8 +672,7 @@ MBasicBlock::addPredecessorPopN(MBasicBlock *pred, uint32_t popped)
                 phi->setOperand(predecessors_.length(), other);
 
                 setSlot(i, phi);
-                if (entryResumePoint())
-                    entryResumePoint()->replaceOperand(i, phi);
+                entryResumePoint()->replaceOperand(i, phi);
             }
         }
     }
@@ -730,7 +719,7 @@ MBasicBlock::setBackedge(MBasicBlock *pred)
     // Predecessors must be finished, and at the correct stack depth.
     JS_ASSERT(lastIns_);
     JS_ASSERT(pred->lastIns_);
-    JS_ASSERT_IF(entryResumePoint(), pred->stackDepth() == entryResumePoint()->stackDepth());
+    JS_ASSERT(pred->stackDepth() == entryResumePoint()->stackDepth());
 
     // We must be a pending loop header
     JS_ASSERT(kind_ == PENDING_LOOP_HEADER);

@@ -164,7 +164,7 @@ BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aWindow,
 
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE_VOID(bs);
-  bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING(KEY_ADAPTER), this);
+  bs->RegisterBluetoothSignalHandler(mPath, this);
 }
 
 BluetoothAdapter::~BluetoothAdapter()
@@ -172,7 +172,7 @@ BluetoothAdapter::~BluetoothAdapter()
   BluetoothService* bs = BluetoothService::Get();
   // We can be null on shutdown, where this might happen
   NS_ENSURE_TRUE_VOID(bs);
-  bs->UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(KEY_ADAPTER), this);
+  bs->UnregisterBluetoothSignalHandler(mPath, this);
   Unroot();
 }
 
@@ -301,8 +301,9 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     NS_ASSERTION(aData.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue,
                  "DeviceCreated: Invalid value type");
 
-    nsRefPtr<BluetoothDevice> device =
-      BluetoothDevice::Create(GetOwner(), GetPath(), aData.value());
+    nsRefPtr<BluetoothDevice> device = BluetoothDevice::Create(GetOwner(),
+                                                               GetPath(),
+                                                               aData.value());
     nsCOMPtr<nsIDOMEvent> event;
     NS_NewDOMBluetoothDeviceEvent(getter_AddRefs(event), this, nullptr, nullptr);
 
@@ -343,9 +344,9 @@ BluetoothAdapter::StartStopDiscovery(bool aStart, nsIDOMDOMRequest** aRequest)
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
   if (aStart) {
-    rv = bs->StartDiscoveryInternal(results);
+    rv = bs->StartDiscoveryInternal(mPath, results);
   } else {
-    rv = bs->StopDiscoveryInternal(results);
+    rv = bs->StopDiscoveryInternal(mPath, results);
   }
   if(NS_FAILED(rv)) {
     NS_WARNING("Start/Stop Discovery failed!");
@@ -458,7 +459,7 @@ BluetoothAdapter::SetName(const nsAString& aName,
   BluetoothNamedValue property(NS_LITERAL_STRING("Name"), value);
   return SetProperty(GetOwner(), property, aRequest);
 }
-
+ 
 NS_IMETHODIMP
 BluetoothAdapter::SetDiscoverable(const bool aDiscoverable,
                                   nsIDOMDOMRequest** aRequest)
@@ -519,17 +520,18 @@ BluetoothAdapter::PairUnpair(bool aPair,
   nsRefPtr<BluetoothVoidReplyRunnable> results =
     new BluetoothVoidReplyRunnable(req);
 
-  nsAutoString addr;
+  nsString addr;
   aDevice->GetAddress(addr);
 
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
   if (aPair) {
-    rv = bs->CreatePairedDeviceInternal(addr,
+    rv = bs->CreatePairedDeviceInternal(mPath,
+                                        addr,
                                         kCreatePairedDeviceTimeout,
                                         results);
   } else {
-    rv = bs->RemoveDeviceInternal(addr, results);
+    rv = bs->RemoveDeviceInternal(mPath, addr, results);
   }
 
   if (NS_FAILED(rv)) {
@@ -666,7 +668,7 @@ BluetoothAdapter::Connect(const nsAString& aDeviceAddress,
 
   nsRefPtr<BluetoothVoidReplyRunnable> results =
     new BluetoothVoidReplyRunnable(req);
-  bs->Connect(aDeviceAddress, aProfileId, results);
+  bs->Connect(aDeviceAddress, mPath, aProfileId, results);
 
   req.forget(aRequest);
   return NS_OK;

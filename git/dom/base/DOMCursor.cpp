@@ -7,7 +7,6 @@
 #include "DOMCursor.h"
 #include "nsIDOMClassInfo.h"
 #include "nsError.h"
-#include "mozilla/dom/DOMCursorBinding.h"
 
 DOMCI_DATA(DOMCursor, mozilla::dom::DOMCursor)
 
@@ -40,6 +39,7 @@ DOMCursor::DOMCursor(nsIDOMWindow* aWindow, nsICursorContinueCallback* aCallback
   , mCallback(aCallback)
   , mFinished(false)
 {
+  MOZ_ASSERT(aCallback);
 }
 
 void
@@ -51,6 +51,7 @@ DOMCursor::Reset()
   if (mRooted) {
     UnrootResultVal();
   }
+  mResult = JSVAL_VOID;
   mDone = false;
 }
 
@@ -65,37 +66,22 @@ DOMCursor::FireDone()
 NS_IMETHODIMP
 DOMCursor::GetDone(bool *aDone)
 {
-  *aDone = Done();
+  *aDone = mFinished;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 DOMCursor::Continue()
 {
-  ErrorResult rv;
-  Continue(rv);
-  return rv.ErrorCode();
-}
-
-void
-DOMCursor::Continue(ErrorResult& aRv)
-{
-  MOZ_ASSERT(mCallback, "If you're creating your own cursor class with no callback, you should override Continue()");
-
   // We need to have a result here because we must be in a 'success' state.
   if (mResult == JSVAL_VOID) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return;
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
   Reset();
   mCallback->HandleContinue();
-}
 
-/* virtual */ JSObject*
-DOMCursor::WrapObject(JSContext* aCx, JSObject* aScope)
-{
-  return DOMCursorBinding::Wrap(aCx, aScope, this);
+  return NS_OK;
 }
 
 } // namespace dom

@@ -28,7 +28,7 @@ public:
   NS_FORWARD_TO_NSDOMUIEVENT
 
   virtual nsresult InitFromCtor(const nsAString& aType,
-                                JSContext* aCx, JS::Value* aVal);
+                                JSContext* aCx, jsval* aVal);
 protected:
   // Specific implementation for a mouse event.
   virtual nsresult Which(uint32_t* aWhich);

@@ -23,7 +23,7 @@ var skip_enable_buttons = false;
 /* Do the initial load of all PKCS# modules and list them. */
 function LoadModules()
 {
-  bundle = document.getElementById("pippki_bundle");
+  bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   secmoddb = Components.classes[nsPKCS11ModuleDB].getService(nsIPKCS11ModuleDB);
   window.crypto.enableSmartCardEvents = true;
   document.addEventListener("smartcard-insert", onSmartCardChange, false);
@@ -39,7 +39,8 @@ function getPKCS11()
 
 function getNSSString(name)
 {
-  return document.getElementById("pipnss_bundle").getString(name);
+  return srGetStrBundle("chrome://pipnss/locale/pipnss.properties").
+    GetStringFromName(name);
 }
 
 function doPrompt(msg)
@@ -108,9 +109,9 @@ function SetFIPSButton()
   var fipsButton = document.getElementById("fipsbutton");
   var label;
   if (secmoddb.isFIPSEnabled) {
-   label = bundle.getString("disable_fips");
+   label = bundle.GetStringFromName("disable_fips"); 
   } else {
-   label = bundle.getString("enable_fips");
+   label = bundle.GetStringFromName("enable_fips"); 
   }
   fipsButton.setAttribute("label", label);
 
@@ -260,45 +261,45 @@ function showSlotInfo()
   ClearInfoList();
   switch (selected_slot.status) {
    case nsIPKCS11Slot.SLOT_DISABLED:
-     AddInfoRow(bundle.getString("devinfo_status"),
-                bundle.getString("devinfo_stat_disabled"),
+     AddInfoRow(bundle.GetStringFromName("devinfo_status"), 
+                bundle.GetStringFromName("devinfo_stat_disabled"), 
                 "tok_status");
      present = false;
      break;
    case nsIPKCS11Slot.SLOT_NOT_PRESENT:
-     AddInfoRow(bundle.getString("devinfo_status"),
-                bundle.getString("devinfo_stat_notpresent"),
+     AddInfoRow(bundle.GetStringFromName("devinfo_status"), 
+                bundle.GetStringFromName("devinfo_stat_notpresent"), 
                 "tok_status");
      present = false;
      break;
    case nsIPKCS11Slot.SLOT_UNINITIALIZED:
-     AddInfoRow(bundle.getString("devinfo_status"),
-                bundle.getString("devinfo_stat_uninitialized"),
+     AddInfoRow(bundle.GetStringFromName("devinfo_status"), 
+                bundle.GetStringFromName("devinfo_stat_uninitialized"), 
                 "tok_status");
      break;
    case nsIPKCS11Slot.SLOT_NOT_LOGGED_IN:
-     AddInfoRow(bundle.getString("devinfo_status"),
-                bundle.getString("devinfo_stat_notloggedin"),
+     AddInfoRow(bundle.GetStringFromName("devinfo_status"), 
+                bundle.GetStringFromName("devinfo_stat_notloggedin"), 
                 "tok_status");
      break;
    case nsIPKCS11Slot.SLOT_LOGGED_IN:
-     AddInfoRow(bundle.getString("devinfo_status"),
-                bundle.getString("devinfo_stat_loggedin"),
+     AddInfoRow(bundle.GetStringFromName("devinfo_status"), 
+                bundle.GetStringFromName("devinfo_stat_loggedin"), 
                 "tok_status");
      break;
    case nsIPKCS11Slot.SLOT_READY:
-     AddInfoRow(bundle.getString("devinfo_status"),
-                bundle.getString("devinfo_stat_ready"),
+     AddInfoRow(bundle.GetStringFromName("devinfo_status"), 
+                bundle.GetStringFromName("devinfo_stat_ready"), 
                 "tok_status");
      break;
   }
-  AddInfoRow(bundle.getString("devinfo_desc"),
+  AddInfoRow(bundle.GetStringFromName("devinfo_desc"), 
              selected_slot.desc, "slot_desc");
-  AddInfoRow(bundle.getString("devinfo_manID"),
+  AddInfoRow(bundle.GetStringFromName("devinfo_manID"), 
              selected_slot.manID, "slot_manID");
-  AddInfoRow(bundle.getString("devinfo_hwversion"),
+  AddInfoRow(bundle.GetStringFromName("devinfo_hwversion"),
              selected_slot.HWVersion, "slot_hwv");
-  AddInfoRow(bundle.getString("devinfo_fwversion"),
+  AddInfoRow(bundle.GetStringFromName("devinfo_fwversion"),
              selected_slot.FWVersion, "slot_fwv");
   if (present) {
      showTokenInfo();
@@ -308,9 +309,9 @@ function showSlotInfo()
 function showModuleInfo()
 {
   ClearInfoList();
-  AddInfoRow(bundle.getString("devinfo_modname"),
+  AddInfoRow(bundle.GetStringFromName("devinfo_modname"),
              selected_module.name, "module_name");
-  AddInfoRow(bundle.getString("devinfo_modpath"),
+  AddInfoRow(bundle.GetStringFromName("devinfo_modpath"),
              selected_module.libName, "module_path");
 }
 
@@ -344,13 +345,13 @@ function doLogin()
     var tok_status = document.getElementById("tok_status");
     if (selected_token.isLoggedIn()) {
       tok_status.setAttribute("label", 
-                              bundle.getString("devinfo_stat_loggedin"));
+                          bundle.GetStringFromName("devinfo_stat_loggedin"));
     } else {
       tok_status.setAttribute("label",
-                              bundle.getString("devinfo_stat_notloggedin"));
+                       bundle.GetStringFromName("devinfo_stat_notloggedin"));
     }
   } catch (e) {
-    doPrompt(bundle.getString("login_failed"));
+    doPrompt(bundle.GetStringFromName("login_failed"));
   }
   enableButtons();
 }
@@ -366,10 +367,10 @@ function doLogout()
     var tok_status = document.getElementById("tok_status");
     if (selected_token.isLoggedIn()) {
       tok_status.setAttribute("label", 
-                              bundle.getString("devinfo_stat_loggedin"));
+                          bundle.GetStringFromName("devinfo_stat_loggedin"));
     } else {
       tok_status.setAttribute("label",
-                              bundle.getString("devinfo_stat_notloggedin"));
+                       bundle.GetStringFromName("devinfo_stat_notloggedin"));
     }
   } catch (e) {
   }
@@ -438,10 +439,10 @@ function changePassword()
 // browse fs for PKCS#11 device
 function doBrowseFiles()
 {
-  var srbundle = document.getElementById("pippki_bundle");
+  var srbundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var fp = Components.classes[nsFilePicker].createInstance(nsIFilePicker);
   fp.init(window,
-          srbundle.getString("loadPK11TokenDialog"),
+          srbundle.GetStringFromName("loadPK11TokenDialog"),
           nsIFilePicker.modeOpen);
   fp.appendFilters(nsIFilePicker.filterAll);
   if (fp.show() == nsIFilePicker.returnOK) {
@@ -474,15 +475,15 @@ function showTokenInfo()
 {
   //ClearInfoList();
   var selected_token = selected_slot.getToken();
-  AddInfoRow(bundle.getString("devinfo_label"),
+  AddInfoRow(bundle.GetStringFromName("devinfo_label"), 
              selected_token.tokenLabel, "tok_label");
-  AddInfoRow(bundle.getString("devinfo_manID"),
+  AddInfoRow(bundle.GetStringFromName("devinfo_manID"),
              selected_token.tokenManID, "tok_manID");
-  AddInfoRow(bundle.getString("devinfo_serialnum"),
+  AddInfoRow(bundle.GetStringFromName("devinfo_serialnum"), 
              selected_token.tokenSerialNumber, "tok_sNum");
-  AddInfoRow(bundle.getString("devinfo_hwversion"),
+  AddInfoRow(bundle.GetStringFromName("devinfo_hwversion"),
              selected_token.tokenHWVersion, "tok_hwv");
-  AddInfoRow(bundle.getString("devinfo_fwversion"),
+  AddInfoRow(bundle.GetStringFromName("devinfo_fwversion"),
              selected_token.tokenFWVersion, "tok_fwv");
 }
 
@@ -500,7 +501,7 @@ function toggleFIPS()
       case nsIPKCS11Slot.SLOT_UNINITIALIZED:
       case nsIPKCS11Slot.SLOT_READY:
         // Token has either no or an empty password.
-        doPrompt(bundle.getString("fips_nonempty_password_required"));
+        doPrompt(bundle.GetStringFromName("fips_nonempty_password_required"));
         return;
     }
   }
@@ -509,7 +510,7 @@ function toggleFIPS()
     secmoddb.toggleFIPSMode();
   }
   catch (e) {
-    doPrompt(bundle.getString("unable_to_toggle_FIPS"));
+    doPrompt(bundle.GetStringFromName("unable_to_toggle_FIPS"));
     return;
   }
 

@@ -7,6 +7,7 @@
 #ifndef mozilla_dom_file_domarchiverequest_h__
 #define mozilla_dom_file_domarchiverequest_h__
 
+#include "nsIDOMArchiveRequest.h"
 #include "ArchiveReader.h"
 #include "DOMRequest.h"
 
@@ -19,21 +20,15 @@ BEGIN_FILE_NAMESPACE
  * This is the ArchiveRequest that handles any operation
  * related to ArchiveReader
  */
-class ArchiveRequest : public mozilla::dom::DOMRequest
+class ArchiveRequest : public mozilla::dom::DOMRequest,
+                       public nsIDOMArchiveRequest
 {
 public:
-  static bool PrefEnabled()
-  {
-    return ArchiveReader::PrefEnabled();
-  }
-
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
-
-  ArchiveReader* Reader() const;
-
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMARCHIVEREQUEST
 
+  NS_FORWARD_NSIDOMDOMREQUEST(DOMRequest::)
+  NS_FORWARD_NSIDOMEVENTTARGET_NOPREHANDLEEVENT(DOMRequest::)
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(ArchiveRequest, DOMRequest)
 
   ArchiveRequest(nsIDOMWindow* aWindow,

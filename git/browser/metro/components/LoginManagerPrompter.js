@@ -54,7 +54,7 @@ LoginManagerPrompter.prototype = {
             var bunService = Cc["@mozilla.org/intl/stringbundle;1"].
                              getService(Ci.nsIStringBundleService);
             this.__strBundle = bunService.createBundle(
-                        "chrome://browser/locale/passwordmgr.properties");
+                        "chrome://passwordmgr/locale/passwordmgr.properties");
             if (!this.__strBundle)
                 throw "String bundle for Login Manager not present!";
         }
@@ -337,7 +337,7 @@ LoginManagerPrompter.prototype = {
         var changeButtonAccessKey =
               this._getLocalizedString("notifyBarChangeButtonAccessKey");
         var dontChangeButtonText =
-              this._getLocalizedString("notifyBarDontChangeButtonText2");
+              this._getLocalizedString("notifyBarDontChangeButtonText");
         var dontChangeButtonAccessKey =
               this._getLocalizedString("notifyBarDontChangeButtonAccessKey");
 

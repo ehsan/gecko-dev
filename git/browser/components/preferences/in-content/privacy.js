@@ -263,7 +263,7 @@ var gPrivacyPane = {
       const Cc = Components.classes, Ci = Components.interfaces;
       let brandName = document.getElementById("bundleBrand").getString("brandShortName");
       let bundle = document.getElementById("bundlePreferences");
-      let msg = bundle.getFormattedString(autoStart.checked ?
+      let msg = bundle.getFormattedString(pref.value ?
                                           "featureEnableRequiresRestart" : "featureDisableRequiresRestart",
                                           [brandName]);
       let title = bundle.getFormattedString("shouldRestartTitle", [brandName]);

@@ -9381,7 +9381,7 @@ var prefShowCmdSpec = {
     }
   ],
   exec: function Command_prefShow(args, context) {
-    return l10n.lookupFormat('prefShowSettingValue', [ args.setting.name, args.setting.value ]);
+    return args.setting.value;
   }
 };
 

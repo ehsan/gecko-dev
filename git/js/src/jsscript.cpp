@@ -121,8 +121,7 @@ Bindings::initWithTemporaryStorage(JSContext *cx, InternalBindingsHandle self,
             return false;
 #endif
 
-        StackBaseShape base(cx->compartment, &CallClass, cx->global(),
-                            BaseShape::VAROBJ | BaseShape::DELEGATE);
+        StackBaseShape base(&CallClass, cx->global(), BaseShape::VAROBJ | BaseShape::DELEGATE);
 
         RawUnownedBaseShape nbase = BaseShape::getUnowned(cx, base);
         if (!nbase)
@@ -1640,7 +1639,6 @@ JSScript::Create(JSContext *cx, HandleObject enclosingScope, bool savedCallerFun
 
     script->enclosingScopeOrOriginalFunction_ = enclosingScope;
     script->savedCallerFun = savedCallerFun;
-    script->compartment_ = cx->compartment;
 
     /* Establish invariant: principals implies originPrincipals. */
     if (options.principals) {
@@ -2398,7 +2396,6 @@ js::CloneFunctionScript(JSContext *cx, HandleFunction original, HandleFunction c
 
     RootedScript script(cx, clone->nonLazyScript());
     JS_ASSERT(script);
-    JS_ASSERT(!script->asmJS);
     JS_ASSERT(script->compartment() == original->compartment());
     JS_ASSERT_IF(script->compartment() != cx->compartment,
                  !script->enclosingStaticScope());
@@ -2684,8 +2681,6 @@ JSScript::markChildren(JSTracer *trc)
         MarkObject(trc, &enclosingScopeOrOriginalFunction_, "enclosing");
 
     if (IS_GC_MARKING_TRACER(trc)) {
-        compartment()->mark();
-
         if (code)
             MarkScriptBytecode(trc->runtime, code);
     }
@@ -2712,8 +2707,6 @@ JSScript::markChildren(JSTracer *trc)
 
 #ifdef JS_ION
     ion::TraceIonScripts(trc, this);
-    if (asmJS)
-        MarkObject(trc, &asmJS, "asmJS");
 #endif
 }
 
@@ -2829,7 +2822,7 @@ JSScript::argumentsOptimizationFailed(JSContext *cx, HandleScript script)
 
 #ifdef JS_METHODJIT
     if (script->hasMJITInfo()) {
-        mjit::ExpandInlineFrames(cx->zone());
+        mjit::ExpandInlineFrames(cx->compartment);
         mjit::Recompiler::clearStackReferences(cx->runtime->defaultFreeOp(), script);
         mjit::ReleaseScriptCode(cx->runtime->defaultFreeOp(), script);
     }

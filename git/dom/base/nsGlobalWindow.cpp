@@ -1949,23 +1949,12 @@ CreateNativeGlobalForInner(JSContext* aCx,
   MOZ_ASSERT(aNativeGlobal);
   MOZ_ASSERT(aHolder);
 
-  nsGlobalWindow *top = NULL;
-  if (aNewInner->GetOuterWindow()) {
-    top = aNewInner->GetTop();
-  }
-  JS::ZoneSpecifier zoneSpec = JS::FreshZone;
-  if (top) {
-    if (top->GetGlobalJSObject()) {
-      zoneSpec = JS::SameZoneAs(top->GetGlobalJSObject());
-    }
-  }
-
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
 
   nsRefPtr<nsIXPConnectJSObjectHolder> jsholder;
   nsresult rv = xpc->InitClassesWithNewWrappedGlobal(
     aCx, ToSupports(aNewInner),
-    aPrincipal, 0, zoneSpec, getter_AddRefs(jsholder));
+    aPrincipal, 0, getter_AddRefs(jsholder));
   NS_ENSURE_SUCCESS(rv, rv);
 
   MOZ_ASSERT(jsholder);
@@ -2679,16 +2668,17 @@ nsGlobalWindow::GetIsTabModalPromptAllowed()
   return allowTabModal;
 }
 
-EventTarget*
+nsIDOMEventTarget*
 nsGlobalWindow::GetTargetForDOMEvent()
 {
-  return GetOuterWindowInternal();
+  return static_cast<nsIDOMEventTarget*>(GetOuterWindowInternal());
 }
 
-EventTarget*
+nsIDOMEventTarget*
 nsGlobalWindow::GetTargetForEventTargetChain()
 {
-  return IsInnerWindow() ? this : GetCurrentInnerWindowInternal();
+  return IsInnerWindow() ?
+    this : static_cast<nsIDOMEventTarget*>(GetCurrentInnerWindowInternal());
 }
 
 nsresult
@@ -4635,23 +4625,6 @@ nsGlobalWindow::GetLength(uint32_t* aLength)
 {
   *aLength = GetLength();
   return NS_OK;
-}
-
-already_AddRefed<nsIDOMWindow>
-nsGlobalWindow::GetChildWindow(jsid aName)
-{
-  const jschar *chars = JS_GetInternedStringChars(JSID_TO_STRING(aName));
-
-  nsCOMPtr<nsIDocShellTreeNode> dsn(do_QueryInterface(GetDocShell()));
-  NS_ENSURE_TRUE(dsn, nullptr);
-
-  nsCOMPtr<nsIDocShellTreeItem> child;
-  dsn->FindChildWithName(reinterpret_cast<const PRUnichar*>(chars),
-                         false, true, nullptr, nullptr,
-                         getter_AddRefs(child));
-
-  nsCOMPtr<nsIDOMWindow> child_win(do_GetInterface(child));
-  return child_win.forget();
 }
 
 bool
@@ -10121,11 +10094,11 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
   TimeStamp deadline;
 
   if (aTimeout && aTimeout->mWhen > now) {
-    // The OS timer fired early (which can happen due to the timers
-    // having lower precision than TimeStamp does).  Set |deadline| to
-    // be the time when the OS timer *should* have fired so that any
-    // timers that *should* have fired before aTimeout *will* be fired
-    // now.
+    // The OS timer fired early (yikes!), and possibly out of order
+    // too. Set |deadline| to be the time when the OS timer *should*
+    // have fired so that any timers that *should* have fired before
+    // aTimeout *will* be fired now. This happens most of the time on
+    // Win2k.
 
     deadline = aTimeout->mWhen;
   } else {

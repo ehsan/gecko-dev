@@ -34,7 +34,7 @@ class CodeGeneratorX64 : public CodeGeneratorX86Shared
                            const Register &elements, const LAllocation *index);
 
   public:
-    CodeGeneratorX64(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm);
+    CodeGeneratorX64(MIRGenerator *gen, LIRGraph *graph);
 
   public:
     bool visitValue(LValue *value);
@@ -52,15 +52,6 @@ class CodeGeneratorX64 : public CodeGeneratorX86Shared
     bool visitCompareBAndBranch(LCompareBAndBranch *lir);
     bool visitCompareV(LCompareV *lir);
     bool visitCompareVAndBranch(LCompareVAndBranch *lir);
-    bool visitUInt32ToDouble(LUInt32ToDouble *lir);
-    bool visitAsmJSLoadHeap(LAsmJSLoadHeap *ins);
-    bool visitAsmJSStoreHeap(LAsmJSStoreHeap *ins);
-    bool visitAsmJSLoadGlobalVar(LAsmJSLoadGlobalVar *ins);
-    bool visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar *ins);
-    bool visitAsmJSLoadFuncPtr(LAsmJSLoadFuncPtr *ins);
-    bool visitAsmJSLoadFFIFunc(LAsmJSLoadFFIFunc *ins);
-
-    void postAsmJSCall(LAsmJSCall *lir) {}
 };
 
 typedef CodeGeneratorX64 CodeGeneratorSpecific;

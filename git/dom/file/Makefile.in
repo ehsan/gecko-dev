@@ -24,7 +24,6 @@ EXPORTS_NAMESPACES = mozilla/dom/file
 CPPSRCS = \
   AsyncHelper.cpp \
   DOMFileHandle.cpp \
-  DOMFileRequest.cpp \
   File.cpp \
   FileHandle.cpp \
   FileHelper.cpp \
@@ -47,7 +46,6 @@ EXPORTS = \
 
 EXPORTS_mozilla/dom/file = \
   DOMFileHandle.h \
-  DOMFileRequest.h \
   File.h \
   FileCommon.h \
   FileHandle.h \

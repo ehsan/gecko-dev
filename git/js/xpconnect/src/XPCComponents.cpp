@@ -3279,10 +3279,7 @@ xpc_CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandbo
 
     JSObject *sandbox;
 
-    JS::ZoneSpecifier zoneSpec = options.sameZoneAs
-                                 ? JS::SameZoneAs(js::UnwrapObject(options.sameZoneAs))
-                                 : JS::SystemZone;
-    sandbox = xpc::CreateGlobalObject(cx, &SandboxClass, principal, zoneSpec);
+    sandbox = xpc::CreateGlobalObject(cx, &SandboxClass, principal);
     if (!sandbox)
         return NS_ERROR_FAILURE;
 
@@ -3633,10 +3630,6 @@ ParseOptionsObject(JSContext *cx, jsval from, SandboxOptions &options)
 
     rv = GetStringPropFromOptions(cx, optionsObject,
                                   "sandboxName", options.sandboxName);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = GetObjPropFromOptions(cx, optionsObject,
-                               "sameZoneAs", &options.sameZoneAs);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return NS_OK;

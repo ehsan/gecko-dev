@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.util.ThreadUtils;
 
 import android.content.BroadcastReceiver;
 import android.content.ComponentCallbacks2;
@@ -106,7 +105,7 @@ class MemoryMonitor extends BroadcastReceiver {
         if (Intent.ACTION_DEVICE_STORAGE_LOW.equals(intent.getAction())) {
             Log.d(LOGTAG, "Device storage is low");
             mStoragePressure = true;
-            ThreadUtils.postToBackgroundThread(new StorageReducer(context));
+            GeckoAppShell.getHandler().post(new StorageReducer(context));
         } else if (Intent.ACTION_DEVICE_STORAGE_OK.equals(intent.getAction())) {
             Log.d(LOGTAG, "Device storage is ok");
             mStoragePressure = false;
@@ -179,9 +178,9 @@ class MemoryMonitor extends BroadcastReceiver {
         synchronized void start() {
             if (mPosted) {
                 // cancel the old one before scheduling a new one
-                ThreadUtils.getBackgroundHandler().removeCallbacks(this);
+                GeckoAppShell.getHandler().removeCallbacks(this);
             }
-            ThreadUtils.getBackgroundHandler().postDelayed(this, DECREMENT_DELAY);
+            GeckoAppShell.getHandler().postDelayed(this, DECREMENT_DELAY);
             mPosted = true;
         }
 
@@ -194,7 +193,7 @@ class MemoryMonitor extends BroadcastReceiver {
             }
 
             // need to keep decrementing
-            ThreadUtils.getBackgroundHandler().postDelayed(this, DECREMENT_DELAY);
+            GeckoAppShell.getHandler().postDelayed(this, DECREMENT_DELAY);
         }
     }
 
@@ -208,7 +207,7 @@ class MemoryMonitor extends BroadcastReceiver {
         public void run() {
             // this might get run right on startup, if so wait 10 seconds and try again
             if (!GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
-                ThreadUtils.getBackgroundHandler().postDelayed(this, 10000);
+                GeckoAppShell.getHandler().postDelayed(this, 10000);
                 return;
             }
 

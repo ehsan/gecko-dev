@@ -14,8 +14,7 @@ namespace mobilemessage {
 NS_IMPL_ISUPPORTS1(MobileMessageDatabaseService, nsIMobileMessageDatabaseService)
 
 NS_IMETHODIMP
-MobileMessageDatabaseService::GetMessageMoz(int32_t aMessageId,
-                                            nsIMobileMessageCallback* aRequest)
+MobileMessageDatabaseService::GetMessageMoz(int32_t aMessageId, nsISmsRequest* aRequest)
 {
   if (!AndroidBridge::Bridge()) {
     return NS_OK;
@@ -26,8 +25,7 @@ MobileMessageDatabaseService::GetMessageMoz(int32_t aMessageId,
 }
 
 NS_IMETHODIMP
-MobileMessageDatabaseService::DeleteMessage(int32_t aMessageId,
-                                            nsIMobileMessageCallback* aRequest)
+MobileMessageDatabaseService::DeleteMessage(int32_t aMessageId, nsISmsRequest* aRequest)
 {
   if (!AndroidBridge::Bridge()) {
     return NS_OK;
@@ -39,8 +37,7 @@ MobileMessageDatabaseService::DeleteMessage(int32_t aMessageId,
 
 NS_IMETHODIMP
 MobileMessageDatabaseService::CreateMessageList(nsIDOMMozSmsFilter* aFilter,
-                                                bool aReverse,
-                                                nsIMobileMessageCallback* aRequest)
+                                                bool aReverse, nsISmsRequest* aRequest)
 {
   if (!AndroidBridge::Bridge()) {
     return NS_OK;
@@ -52,8 +49,7 @@ MobileMessageDatabaseService::CreateMessageList(nsIDOMMozSmsFilter* aFilter,
 }
 
 NS_IMETHODIMP
-MobileMessageDatabaseService::GetNextMessageInList(int32_t aListId,
-                                                   nsIMobileMessageCallback* aRequest)
+MobileMessageDatabaseService::GetNextMessageInList(int32_t aListId, nsISmsRequest* aRequest)
 {
   if (!AndroidBridge::Bridge()) {
     return NS_OK;
@@ -75,16 +71,15 @@ MobileMessageDatabaseService::ClearMessageList(int32_t aListId)
 }
 
 NS_IMETHODIMP
-MobileMessageDatabaseService::MarkMessageRead(int32_t aMessageId,
-                                              bool aValue,
-                                              nsIMobileMessageCallback* aRequest)
+MobileMessageDatabaseService::MarkMessageRead(int32_t aMessageId, bool aValue,
+                                              nsISmsRequest* aRequest)
 {
   // TODO: This would need to be implemented as part of Bug 748391
   return NS_OK;
 }
 
 NS_IMETHODIMP
-MobileMessageDatabaseService::GetThreadList(nsIMobileMessageCallback* aRequest)
+MobileMessageDatabaseService::GetThreadList(nsISmsRequest* aRequest)
 {
   NS_NOTYETIMPLEMENTED("Implement me!");
   return NS_ERROR_NOT_IMPLEMENTED;

@@ -25,6 +25,7 @@ extern PRLogModuleInfo *GetTimerLog();
 #undef DEBUG_TIMERS
 #endif
 
+#define NS_TIMER_CLASSNAME "Timer"
 #define NS_TIMER_CID \
 { /* 5ff24248-1dd2-11b2-8427-fbab44f29bc8 */         \
      0x5ff24248,                                     \
@@ -51,7 +52,7 @@ public:
   static NS_HIDDEN_(void) Shutdown();
 
   friend class TimerThread;
-  friend struct TimerAdditionComparator;
+  friend class TimerAdditionComparator;
 
   void Fire();
   nsresult PostTimerEvent();

@@ -188,7 +188,7 @@ nsDOMUIEvent::InitUIEvent(const nsAString& typeArg,
 
 nsresult
 nsDOMUIEvent::InitFromCtor(const nsAString& aType,
-                           JSContext* aCx, JS::Value* aVal)
+                           JSContext* aCx, jsval* aVal)
 {
   mozilla::idl::UIEventInit d;
   nsresult rv = d.Init(aCx, aVal);

@@ -251,11 +251,10 @@ add_task(function test_json_payload_simple() {
     do_check_eq(typeof payload, "string");
     let original = JSON.parse(payload);
 
-    do_check_eq(original.version, 2);
+    do_check_eq(original.version, 1);
     do_check_eq(original.thisPingDate, reporter._formatDate(now));
     do_check_eq(Object.keys(original.data.last).length, 0);
     do_check_eq(Object.keys(original.data.days).length, 0);
-    do_check_false("notInitialized" in original);
 
     reporter.lastPingDate = new Date(now.getTime() - 24 * 60 * 60 * 1000 - 10);
 
@@ -586,32 +585,6 @@ add_task(function test_error_message_scrubbing() {
   }
 });
 
-add_task(function test_basic_appinfo() {
-  function verify(d) {
-    do_check_eq(d["_v"], 1);
-    do_check_eq(d._v, 1);
-    do_check_eq(d.vendor, "Mozilla");
-    do_check_eq(d.name, "xpcshell");
-    do_check_eq(d.id, "xpcshell@tests.mozilla.org");
-    do_check_eq(d.version, "1");
-    do_check_eq(d.appBuildID, "20121107");
-    do_check_eq(d.platformVersion, "p-ver");
-    do_check_eq(d.platformBuildID, "20121106");
-    do_check_eq(d.os, "XPCShell");
-    do_check_eq(d.xpcomabi, "noarch-spidermonkey");
-    do_check_true("updateChannel" in d);
-  }
-  let reporter = yield getReporter("basic_appinfo");
-  try {
-    verify(reporter.obtainAppInfo());
-    let payload = yield reporter.collectAndObtainJSONPayload(true);
-    do_check_eq(payload["version"], 2);
-    verify(payload["geckoAppInfo"]);
-  } finally {
-    reporter._shutdown();
-  }
-});
-
 // Ensure collection occurs if upload is disabled.
 add_task(function test_collect_when_upload_disabled() {
   let reporter = getJustReporter("collect_when_upload_disabled");
@@ -621,6 +594,7 @@ add_task(function test_collect_when_upload_disabled() {
   let name = "healthreport-testing-collect_when_upload_disabled-healthreport-lastDailyCollection";
   let pref = "app.update.lastUpdateTime." + name;
   do_check_false(Services.prefs.prefHasUserValue(pref));
+
   try {
     yield reporter.onInit();
     do_check_true(Services.prefs.prefHasUserValue(pref));
@@ -631,84 +605,3 @@ add_task(function test_collect_when_upload_disabled() {
     reporter._shutdown();
   }
 });
-
-add_task(function test_failure_if_not_initialized() {
-  let reporter = yield getReporter("failure_if_not_initialized");
-  reporter._shutdown();
-
-  let error = false;
-  try {
-    yield reporter.requestDataUpload();
-  } catch (ex) {
-    error = true;
-    do_check_true(ex.message.contains("Not initialized."));
-  } finally {
-    do_check_true(error);
-    error = false;
-  }
-
-  try {
-    yield reporter.collectMeasurements();
-  } catch (ex) {
-    error = true;
-    do_check_true(ex.message.contains("Not initialized."));
-  } finally {
-    do_check_true(error);
-    error = false;
-  }
-
-  // getJSONPayload always works (to facilitate error upload).
-  yield reporter.getJSONPayload();
-});
-
-add_task(function test_upload_on_init_failure() {
-  let reporter = yield getJustReporter("upload_on_init_failure", SERVER_URI, true);
-  let server = new BagheeraServer(SERVER_URI);
-  server.createNamespace(reporter.serverNamespace);
-  server.start(SERVER_PORT);
-
-  reporter.onInitializeProviderManagerFinished = function () {
-    throw new Error("Fake error during provider manager initialization.");
-  };
-
-  let deferred = Promise.defer();
-
-  let oldOnResult = reporter._onBagheeraResult;
-  Object.defineProperty(reporter, "_onBagheeraResult", {
-    value: function (request, isDelete, result) {
-      do_check_false(isDelete);
-      do_check_true(result.transportSuccess);
-      do_check_true(result.serverSuccess);
-
-      oldOnResult.call(reporter, request, isDelete, result);
-      deferred.resolve();
-    },
-  });
-
-  reporter._policy.recordUserAcceptance();
-  let error = false;
-  try {
-    yield reporter.onInit();
-  } catch (ex) {
-    error = true;
-  } finally {
-    do_check_true(error);
-  }
-
-  // At this point the emergency upload should have been initiated. We
-  // wait for our monkeypatched response handler to signal request
-  // completion.
-  yield deferred.promise;
-
-  do_check_true(server.hasDocument(reporter.serverNamespace, reporter.lastSubmitID));
-  let doc = server.getDocument(reporter.serverNamespace, reporter.lastSubmitID);
-  do_check_true("notInitialized" in doc);
-  do_check_eq(doc.notInitialized, 1);
-  do_check_true("errors" in doc);
-  do_check_eq(doc.errors.length, 1);
-  do_check_true(doc.errors[0].contains("Fake error during provider manager initialization"));
-
-  reporter._shutdown();
-  yield shutdownServer(server);
-});
-

@@ -2,19 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Attributes.h"
+#include "mozilla/DebugOnly.h"
+
+#include "base/basictypes.h"
+
 #include "nsDeviceStorage.h"
 
-#include "mozilla/Attributes.h"
 #include "mozilla/ClearOnShutdown.h"
-#include "mozilla/DebugOnly.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/devicestorage/PDeviceStorageRequestChild.h"
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/dom/PBrowserChild.h"
 #include "mozilla/dom/PContentPermissionRequestChild.h"
-#include "mozilla/dom/PermissionMessageUtils.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
 
 #include "nsAutoPtr.h"
 #include "nsDOMEvent.h"
@@ -28,16 +28,20 @@
 #include "nsNetUtil.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIPrincipal.h"
+#include "mozilla/Preferences.h"
 #include "nsJSUtils.h"
 #include "DictionaryHelpers.h"
+#include "mozilla/Attributes.h"
 #include "nsContentUtils.h"
 #include "nsXULAppAPI.h"
 #include "TabChild.h"
 #include "DeviceStorageRequestChild.h"
 #include "nsIDOMDeviceStorageChangeEvent.h"
 #include "nsCRT.h"
+#include "mozilla/Services.h"
 #include "nsIObserverService.h"
 #include "GeneratedEvents.h"
+#include "mozilla/dom/PermissionMessageUtils.h"
 #include "nsIMIMEService.h"
 #include "nsCExternalHandlerService.h"
 #include "nsIPermissionManager.h"
@@ -738,7 +742,7 @@ nsDOMDeviceStorage::SetRootDirectoryForType(const nsAString& aType)
     dirService->Get(NS_WIN_MUSIC_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
 #endif
   }
-
+  
   // Apps directory
   else if (aType.EqualsLiteral(DEVICESTORAGE_APPS)) {
 #ifdef MOZ_WIDGET_GONK
@@ -1021,12 +1025,9 @@ ContinueCursorEvent::Run()
   nsDOMDeviceStorageCursor* cursor = static_cast<nsDOMDeviceStorageCursor*>(mRequest.get());
   jsval val = nsIFileToJsval(cursor->GetOwner(), file);
 
-  if (file) {
-    cursor->mOkToCallContinue = true;
-    cursor->FireSuccess(val);
-  } else {
-    cursor->FireDone();
-  }
+  cursor->mOkToCallContinue = true;
+
+  mRequest->FireSuccess(val);
   mRequest = nullptr;
   return NS_OK;
 }
@@ -1068,18 +1069,24 @@ private:
   nsRefPtr<DOMRequest> mRequest;
 };
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMDeviceStorageCursor)
-  NS_INTERFACE_MAP_ENTRY(nsIContentPermissionRequest)
-NS_INTERFACE_MAP_END_INHERITING(DOMCursor)
+DOMCI_DATA(DeviceStorageCursor, nsDOMDeviceStorageCursor)
 
-NS_IMPL_ADDREF_INHERITED(nsDOMDeviceStorageCursor, DOMCursor)
-NS_IMPL_RELEASE_INHERITED(nsDOMDeviceStorageCursor, DOMCursor)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMDeviceStorageCursor)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMDeviceStorageCursor)
+  NS_INTERFACE_MAP_ENTRY(nsIContentPermissionRequest)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMDOMRequest)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMDeviceStorageCursor)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DeviceStorageCursor)
+NS_INTERFACE_MAP_END_INHERITING(DOMRequest)
+
+NS_IMPL_ADDREF_INHERITED(nsDOMDeviceStorageCursor, DOMRequest)
+NS_IMPL_RELEASE_INHERITED(nsDOMDeviceStorageCursor, DOMRequest)
 
 nsDOMDeviceStorageCursor::nsDOMDeviceStorageCursor(nsIDOMWindow* aWindow,
                                                    nsIPrincipal* aPrincipal,
                                                    DeviceStorageFile* aFile,
                                                    PRTime aSince)
-  : DOMCursor(aWindow, nullptr)
+  : DOMRequest(aWindow)
   , mOkToCallContinue(false)
   , mSince(aSince)
   , mFile(aFile)
@@ -1172,12 +1179,11 @@ nsDOMDeviceStorageCursor::Allow()
   return NS_OK;
 }
 
-void
-nsDOMDeviceStorageCursor::Continue(ErrorResult& aRv)
+NS_IMETHODIMP
+nsDOMDeviceStorageCursor::Continue()
 {
   if (!mOkToCallContinue) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return;
+    return NS_ERROR_UNEXPECTED;
   }
 
   if (mRooted) {
@@ -1193,6 +1199,7 @@ nsDOMDeviceStorageCursor::Continue(ErrorResult& aRv)
   event->Continue();
 
   mOkToCallContinue = false;
+  return NS_OK;
 }
 
 bool
@@ -1216,7 +1223,7 @@ nsDOMDeviceStorageCursor::IPDLRelease()
 void
 nsDOMDeviceStorageCursor::RequestComplete()
 {
-  NS_ASSERTION(!mOkToCallContinue, "mOkToCallContinue must be false");
+  NS_ASSERTION(!mOkToCallContinue, "mOkToCallContinue must be false");  
   mOkToCallContinue = true;
 }
 
@@ -2137,7 +2144,7 @@ nsDOMDeviceStorage::Enumerate(const JS::Value & aName,
                              const JS::Value & aOptions,
                              JSContext* aCx,
                              uint8_t aArgc,
-                             nsIDOMDOMCursor** aRetval)
+                             nsIDOMDeviceStorageCursor** aRetval)
 {
   return EnumerateInternal(aName, aOptions, aCx, aArgc, false, aRetval);
 }
@@ -2147,7 +2154,7 @@ nsDOMDeviceStorage::EnumerateEditable(const JS::Value & aName,
                                      const JS::Value & aOptions,
                                      JSContext* aCx,
                                      uint8_t aArgc,
-                                     nsIDOMDOMCursor** aRetval)
+                                     nsIDOMDeviceStorageCursor** aRetval)
 {
   return EnumerateInternal(aName, aOptions, aCx, aArgc, true, aRetval);
 }
@@ -2176,7 +2183,7 @@ nsDOMDeviceStorage::EnumerateInternal(const JS::Value & aName,
                                      JSContext* aCx,
                                      uint8_t aArgc,
                                      bool aEditable,
-                                     nsIDOMDOMCursor** aRetval)
+                                     nsIDOMDeviceStorageCursor** aRetval)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
   if (!win)
@@ -2433,13 +2440,13 @@ nsDOMDeviceStorage::DispatchEvent(nsIDOMEvent *aEvt,
   return nsDOMEventTargetHelper::DispatchEvent(aEvt, aRetval);
 }
 
-EventTarget*
+nsIDOMEventTarget *
 nsDOMDeviceStorage::GetTargetForDOMEvent()
 {
   return nsDOMEventTargetHelper::GetTargetForDOMEvent();
 }
 
-EventTarget *
+nsIDOMEventTarget *
 nsDOMDeviceStorage::GetTargetForEventTargetChain()
 {
   return nsDOMEventTargetHelper::GetTargetForEventTargetChain();

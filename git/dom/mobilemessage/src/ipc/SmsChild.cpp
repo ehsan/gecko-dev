@@ -110,7 +110,7 @@ SmsChild::DeallocPSmsRequest(PSmsRequestChild* aActor)
  * SmsRequestChild
  ******************************************************************************/
 
-SmsRequestChild::SmsRequestChild(nsIMobileMessageCallback* aReplyRequest)
+SmsRequestChild::SmsRequestChild(nsISmsRequest* aReplyRequest)
 : mReplyRequest(aReplyRequest)
 {
   MOZ_COUNT_CTOR(SmsRequestChild);

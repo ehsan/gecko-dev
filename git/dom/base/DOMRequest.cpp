@@ -25,7 +25,6 @@ DOMRequest::DOMRequest(nsIDOMWindow* aWindow)
   , mDone(false)
   , mRooted(false)
 {
-  SetIsDOMBinding();
   Init(aWindow);
 }
 
@@ -36,7 +35,6 @@ DOMRequest::DOMRequest()
   , mDone(false)
   , mRooted(false)
 {
-  SetIsDOMBinding();
 }
 
 void
@@ -77,29 +75,14 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(DOMRequest, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(DOMRequest, nsDOMEventTargetHelper)
 
-/* virtual */ JSObject*
-DOMRequest::WrapObject(JSContext* aCx, JSObject* aScope)
-{
-  return DOMRequestBinding::Wrap(aCx, aScope, this);
-}
-
 NS_IMPL_EVENT_HANDLER(DOMRequest, success)
 NS_IMPL_EVENT_HANDLER(DOMRequest, error)
 
 NS_IMETHODIMP
 DOMRequest::GetReadyState(nsAString& aReadyState)
 {
-  DOMRequestReadyState readyState = ReadyState();
-  switch (readyState) {
-    case DOMRequestReadyStateValues::Pending:
-      aReadyState.AssignLiteral("pending");
-      break;
-    case DOMRequestReadyStateValues::Done:
-      aReadyState.AssignLiteral("done");
-      break;
-    default:
-      MOZ_NOT_REACHED("Unrecognized readyState.");
-  }
+  mDone ? aReadyState.AssignLiteral("done") :
+          aReadyState.AssignLiteral("pending");
 
   return NS_OK;
 }
@@ -107,14 +90,21 @@ DOMRequest::GetReadyState(nsAString& aReadyState)
 NS_IMETHODIMP
 DOMRequest::GetResult(jsval* aResult)
 {
-  *aResult = Result();
+  NS_ASSERTION(mDone || mResult == JSVAL_VOID,
+               "Result should be undefined when pending");
+  *aResult = mResult;
+
   return NS_OK;
 }
 
 NS_IMETHODIMP
 DOMRequest::GetError(nsIDOMDOMError** aError)
 {
-  NS_IF_ADDREF(*aError = GetError());
+  NS_ASSERTION(mDone || !mError,
+               "Error should be null when pending");
+
+  NS_IF_ADDREF(*aError = mError);
+
   return NS_OK;
 }
 

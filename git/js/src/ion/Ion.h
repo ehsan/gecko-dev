@@ -81,11 +81,6 @@ struct IonOptions
     // Default: true
     bool uce;
 
-    // Toggles whether Effective Address Analysis is performed.
-    //
-    // Default: true
-    bool eaa;
-
     // Toggles whether compilation occurs off the main thread.
     //
     // Default: true iff there are at least two CPUs available
@@ -194,7 +189,6 @@ struct IonOptions
         edgeCaseAnalysis(true),
         rangeAnalysis(true),
         uce(true),
-        eaa(true),
         parallelCompilation(false),
         usesBeforeCompile(10240),
         usesBeforeCompileNoJaeger(40),
@@ -241,12 +235,9 @@ enum AbortReason {
 class IonContext
 {
   public:
-    IonContext(JSContext *cx, TempAllocator *temp);
-    IonContext(JSCompartment *comp, TempAllocator *temp);
-    IonContext(JSRuntime *rt);
+    IonContext(JSContext *cx, JSCompartment *compartment, TempAllocator *temp);
     ~IonContext();
 
-    JSRuntime *runtime;
     JSContext *cx;
     JSCompartment *compartment;
     TempAllocator *temp;
@@ -313,13 +304,13 @@ bool Invalidate(JSContext *cx, RawScript script, bool resetUses = true);
 void MarkValueFromIon(JSRuntime *rt, Value *vp);
 void MarkShapeFromIon(JSRuntime *rt, Shape **shapep);
 
-void ToggleBarriers(JS::Zone *zone, bool needs);
+void ToggleBarriers(JSCompartment *comp, bool needs);
 
 class IonBuilder;
 class MIRGenerator;
 class CodeGenerator;
 
-CodeGenerator *CompileBackEnd(MIRGenerator *mir, MacroAssembler *maybeMasm = NULL);
+CodeGenerator *CompileBackEnd(MIRGenerator *mir);
 void AttachFinishedCompilations(JSContext *cx);
 void FinishOffThreadBuilder(IonBuilder *builder);
 
@@ -332,7 +323,7 @@ void ForbidCompilation(JSContext *cx, RawScript script);
 void ForbidCompilation(JSContext *cx, RawScript script, ExecutionMode mode);
 uint32_t UsesBeforeIonRecompile(RawScript script, jsbytecode *pc);
 
-void PurgeCaches(RawScript script, JS::Zone *zone);
+void PurgeCaches(RawScript script, JSCompartment *c);
 size_t MemoryUsed(RawScript script, JSMallocSizeOfFun mallocSizeOf);
 void DestroyIonScripts(FreeOp *fop, RawScript script);
 void TraceIonScripts(JSTracer* trc, RawScript script);

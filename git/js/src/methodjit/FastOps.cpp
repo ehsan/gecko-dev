@@ -1249,10 +1249,6 @@ mjit::Compiler::jsop_setelem_typed(int atype)
         int32_t length = (int32_t) TypedArray::length(array);
         void *data = TypedArray::viewData(array);
 
-        // The 'data' pointer can change in rare circumstances
-        // (ArrayBufferObject::changeContents).
-        types::HeapTypeSet::WatchObjectStateChange(cx, array->getType(cx));
-
         objReg = frame.allocReg();
 
         if (key.isConstant()) {
@@ -1853,10 +1849,6 @@ mjit::Compiler::jsop_getelem_typed(int atype)
         JSObject *array = &obj->getValue().toObject();
         int32_t length = (int32_t) TypedArray::length(array);
         void *data = TypedArray::viewData(array);
-
-        // The 'data' pointer can change in rare circumstances
-        // (ArrayBufferObject::changeContents).
-        types::HeapTypeSet::WatchObjectStateChange(cx, array->getType(cx));
 
         objReg = frame.allocReg();
 

@@ -72,7 +72,7 @@ public:
   }
 
 private:
-  JS::Value mData;
+  jsval mData;
   bool mDataRooted;
   nsString mOrigin;
   nsString mLastEventId;

@@ -91,11 +91,11 @@ AssemblerX86Shared::executableCopy(void *buffer)
 }
 
 void
-AssemblerX86Shared::processCodeLabels(uint8_t *rawCode)
+AssemblerX86Shared::processCodeLabels(IonCode *code)
 {
     for (size_t i = 0; i < codeLabels_.length(); i++) {
         CodeLabel label = codeLabels_[i];
-        Bind(rawCode, label.dest(), rawCode + label.src()->offset());
+        Bind(code, label.dest(), code->raw() + label.src()->offset());
     }
 }
 
@@ -141,9 +141,9 @@ AutoFlushCache::flushAnyway()
 
 AutoFlushCache::~AutoFlushCache()
 {
-    if (!runtime_)
+    if (!myCompartment_)
         return;
 
-    if (runtime_->flusher() == this)
-        runtime_->setFlusher(NULL);
+    if (myCompartment_->flusher() == this)
+        myCompartment_->setFlusher(NULL);
 }

@@ -751,11 +751,11 @@ Assembler::trace(JSTracer *trc)
 }
 
 void
-Assembler::processCodeLabels(uint8_t *rawCode)
+Assembler::processCodeLabels(IonCode *code)
 {
     for (size_t i = 0; i < codeLabels_.length(); i++) {
         CodeLabel label = codeLabels_[i];
-        Bind(rawCode, label.dest(), rawCode + actualOffset(label.src()->offset()));
+        Bind(code, label.dest(), code->raw() + actualOffset(label.src()->offset()));
     }
 }
 
@@ -774,11 +774,12 @@ Assembler::writeCodePointer(AbsoluteLabel *absoluteLabel) {
 }
 
 void
-Assembler::Bind(uint8_t *rawCode, AbsoluteLabel *label, const void *address)
+Assembler::Bind(IonCode *code, AbsoluteLabel *label, const void *address)
 {
     // See writeCodePointer comment.
+    uint8_t *raw = code->raw();
     uint32_t off = actualOffset(label->offset());
-    *reinterpret_cast<const void **>(rawCode + off) = address;
+    *reinterpret_cast<const void **>(raw + off) = address;
 }
 
 Assembler::Condition
@@ -2513,21 +2514,21 @@ AutoFlushCache::update(uintptr_t newStart, size_t len)
 
 AutoFlushCache::~AutoFlushCache()
 {
-   if (!runtime_)
+   if (!myCompartment_)
         return;
 
     flushAnyway();
     IonSpewCont(IonSpew_CacheFlush, ">", name_);
-    if (runtime_->flusher() == this) {
+    if (myCompartment_->flusher() == this) {
         IonSpewFin(IonSpew_CacheFlush);
-        runtime_->setFlusher(NULL);
+        myCompartment_->setFlusher(NULL);
     }
-}
 
+}
 void
 AutoFlushCache::flushAnyway()
 {
-    if (!runtime_)
+    if (!myCompartment_)
         return;
 
     IonSpewCont(IonSpew_CacheFlush, "|", name_);
@@ -2536,11 +2537,11 @@ AutoFlushCache::flushAnyway()
         return;
 
     if (start_) {
-        JSC::ExecutableAllocator::cacheFlush((void *)start_, size_t(stop_ - start_ + sizeof(Instruction)));
+        JSC::ExecutableAllocator::cacheFlush((void*)start_, (size_t)(stop_ - start_ + sizeof(Instruction)));
     } else {
         JSC::ExecutableAllocator::cacheFlush(NULL, 0xff000000);
     }
     used_ = false;
-}
 
+}
 Assembler *Assembler::dummy = NULL;

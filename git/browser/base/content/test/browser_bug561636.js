@@ -352,7 +352,7 @@ function()
 function()
 {
   let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>";
-  let tab = gBrowser.addTab();
+  let tab = gBrowser.addTab(uri);
 
   gObserver.notifyInvalidSubmit = function() {
     executeSoon(function() {
@@ -373,16 +373,22 @@ function()
 
   Services.obs.addObserver(gObserver, "invalidformsubmit", false);
 
-  tab.linkedBrowser.addEventListener("load", function(e) {
-    let browser = e.currentTarget;
-    browser.removeEventListener("load", arguments.callee, true);
-
-    isnot(gBrowser.selectedTab.linkedBrowser, browser,
+  function doClick() {
+    isnot(gBrowser.selectedTab, tab,
           "This tab should have been loaded in background");
-    browser.contentDocument.getElementById('s').click();
-  }, true);
 
-  tab.linkedBrowser.loadURI(uri);
+    tab.linkedBrowser.contentDocument.getElementById('s').click();
+  }
+
+  if (tab.linkedBrowser.contentDocument.readyState == 'complete') {
+    doClick();
+  } else {
+    tab.linkedBrowser.addEventListener("load", function(aEvent) {
+      tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
+
+      doClick();
+    }, true);
+  }
 },
 
 /**

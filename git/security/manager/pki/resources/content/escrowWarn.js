@@ -20,12 +20,13 @@ function onLoad()
  
   var isupports = pkiParams.getISupportAtIndex(1);
   cert = isupports.QueryInterface(nsIX509Cert); 
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var dispName = cert.commonName;
   if (dispName == null)
     dispName = cert.windowTitle;
 
-  var msg = bundle.getFormattedString("escrowFinalMessage", [dispName]);
+  var msg = bundle.formatStringFromName("escrowFinalMessage",
+                                        [dispName], 1);
   setText("message1",msg);
 }
 

@@ -16,8 +16,8 @@
 namespace mozilla {
 namespace dom {
 
-class DOMCursor : public DOMRequest
-                , public nsIDOMDOMCursor
+class DOMCursor : public nsIDOMDOMCursor
+                , public DOMRequest
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -25,23 +25,13 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(DOMCursor,
                                                          DOMRequest)
 
+  DOMCursor() MOZ_DELETE;
   DOMCursor(nsIDOMWindow* aWindow, nsICursorContinueCallback *aCallback);
-
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
-
-  bool Done() const
-  {
-    return mFinished;
-  }
-  virtual void Continue(ErrorResult& aRv);
 
   void Reset();
   void FireDone();
 
 private:
-  DOMCursor() MOZ_DELETE;
-
   nsCOMPtr<nsICursorContinueCallback> mCallback;
   bool mFinished;
 };

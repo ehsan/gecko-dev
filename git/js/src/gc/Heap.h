@@ -91,6 +91,7 @@ struct Cell
     MOZ_ALWAYS_INLINE void unmark(uint32_t color) const;
 
     inline JSRuntime *runtime() const;
+    inline JSCompartment *compartment() const;
     inline Zone *zone() const;
 
 #ifdef DEBUG
@@ -978,6 +979,13 @@ Cell::unmark(uint32_t color) const
     JS_ASSERT(color != BLACK);
     AssertValidColor(this, color);
     chunk()->bitmap.unmark(this, color);
+}
+
+JSCompartment *
+Cell::compartment() const
+{
+    JS_ASSERT(isTenured());
+    return arenaHeader()->zone;
 }
 
 Zone *

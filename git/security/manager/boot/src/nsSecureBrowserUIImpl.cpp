@@ -447,10 +447,7 @@ nsSecureBrowserUIImpl::Notify(nsIDOMHTMLFormElement* aDOMForm,
   {
     ReentrantMonitorAutoEnter lock(mReentrantMonitor);
     window = do_QueryReferent(mWindow);
-
-    // The window was destroyed, so we assume no form was submitted within it.
-    if (!window)
-      return NS_OK;
+    NS_ASSERTION(window, "Window has gone away?!");
   }
 
   bool isChild;

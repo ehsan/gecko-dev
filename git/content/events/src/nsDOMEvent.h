@@ -89,10 +89,10 @@ public:
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aCx, JSObject* aObj,
-                        uint32_t aArgc, JS::Value* aArgv);
+                        uint32_t aArgc, jsval* aArgv);
 
   virtual nsresult InitFromCtor(const nsAString& aType,
-                                JSContext* aCx, JS::Value* aVal);
+                                JSContext* aCx, jsval* aVal);
 
   void InitPresContextData(nsPresContext* aPresContext);
 
@@ -126,10 +126,28 @@ public:
   // Implemented as xpidl method
   // void GetType(nsString& aRetval) {}
 
-  mozilla::dom::EventTarget* GetTarget() const;
-  mozilla::dom::EventTarget* GetCurrentTarget() const;
+  already_AddRefed<mozilla::dom::EventTarget> GetTarget()
+  {
+    nsCOMPtr<nsIDOMEventTarget> t;
+    GetTarget(getter_AddRefs(t));
+    nsCOMPtr<mozilla::dom::EventTarget> et = do_QueryInterface(t);
+    return et.forget();
+  }
 
-  uint16_t EventPhase() const;
+  already_AddRefed<mozilla::dom::EventTarget> GetCurrentTarget()
+  {
+    nsCOMPtr<nsIDOMEventTarget> t;
+    GetCurrentTarget(getter_AddRefs(t));
+    nsCOMPtr<mozilla::dom::EventTarget> et = do_QueryInterface(t);
+    return et.forget();
+  }
+
+  uint16_t EventPhase()
+  {
+    uint16_t p;
+    GetEventPhase(&p);
+    return p;
+  }
 
   // xpidl implementation
   // void StopPropagation();
@@ -137,37 +155,47 @@ public:
   // xpidl implementation
   // void StopImmediatePropagation();
 
-  bool Bubbles() const
+  bool Bubbles()
   {
-    return mEvent->mFlags.mBubbles;
+    bool b;
+    GetBubbles(&b);
+    return b;
   }
 
-  bool Cancelable() const
+  bool Cancelable()
   {
-    return mEvent->mFlags.mCancelable;
+    bool c;
+    GetCancelable(&c);
+    return c;
   }
 
   // xpidl implementation
   // void PreventDefault();
 
-  bool DefaultPrevented() const
+  bool DefaultPrevented()
   {
-    return mEvent && mEvent->mFlags.mDefaultPrevented;
+    bool d;
+    GetDefaultPrevented(&d);
+    return d;
   }
 
-  bool MultipleActionsPrevented() const
+  bool MultipleActionsPrevented()
   {
     return mEvent->mFlags.mMultipleActionsPrevented;
   }
 
-  bool IsTrusted() const
+  bool IsTrusted()
   {
-    return mEvent->mFlags.mIsTrusted;
+    bool i;
+    GetIsTrusted(&i);
+    return i;
   }
 
-  uint64_t TimeStamp() const
+  uint64_t TimeStamp()
   {
-    return mEvent->time;
+    uint64_t t;
+    GetTimeStamp(&t);
+    return t;
   }
 
   void InitEvent(const nsAString& aType, bool aBubbles, bool aCancelable,
@@ -176,12 +204,27 @@ public:
     aRv = InitEvent(aType, aBubbles, aCancelable);
   }
 
-  mozilla::dom::EventTarget* GetOriginalTarget() const;
-  mozilla::dom::EventTarget* GetExplicitOriginalTarget() const;
-
-  bool GetPreventDefault() const
+  already_AddRefed<mozilla::dom::EventTarget> GetOriginalTarget()
   {
-    return DefaultPrevented();
+    nsCOMPtr<nsIDOMEventTarget> t;
+    GetOriginalTarget(getter_AddRefs(t));
+    nsCOMPtr<mozilla::dom::EventTarget> et = do_QueryInterface(t);
+    return et.forget();
+  }
+
+  already_AddRefed<mozilla::dom::EventTarget> GetExplicitOriginalTarget()
+  {
+    nsCOMPtr<nsIDOMEventTarget> t;
+    GetExplicitOriginalTarget(getter_AddRefs(t));
+    nsCOMPtr<mozilla::dom::EventTarget> et = do_QueryInterface(t);
+    return et.forget();
+  }
+
+  bool GetPreventDefault()
+  {
+    bool d;
+    GetDefaultPrevented(&d);
+    return d;
   }
 
 protected:
@@ -192,7 +235,7 @@ protected:
 
   nsEvent*                    mEvent;
   nsRefPtr<nsPresContext>     mPresContext;
-  nsCOMPtr<mozilla::dom::EventTarget> mExplicitOriginalTarget;
+  nsCOMPtr<nsIDOMEventTarget> mExplicitOriginalTarget;
   nsCOMPtr<nsPIDOMWindow>     mOwner; // nsPIDOMWindow for now.
   nsString                    mCachedType;
   bool                        mEventIsInternal;

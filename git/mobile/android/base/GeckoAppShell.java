@@ -12,8 +12,8 @@ import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PanZoomController;
 import org.mozilla.gecko.mozglue.GeckoLoader;
 import org.mozilla.gecko.util.EventDispatcher;
+import org.mozilla.gecko.util.GeckoBackgroundThread;
 import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
 
 import android.app.ActivityManager;
 import android.app.PendingIntent;
@@ -48,6 +48,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.MessageQueue;
@@ -145,6 +146,8 @@ public class GeckoAppShell
     private static Sensor gLightSensor = null;
 
     private static boolean mLocationHighAccuracy = false;
+
+    private static Handler sGeckoHandler;
 
     static ActivityHandlerHelper sActivityHelper = new ActivityHandlerHelper();
     static NotificationServiceClient sNotificationClient;
@@ -254,8 +257,22 @@ public class GeckoAppShell
         }
     }
 
+    // Get a Handler for the main java thread
+    public static Handler getMainHandler() {
+        return GeckoApp.mAppContext.mMainHandler;
+    }
+
+    public static Handler getGeckoHandler() {
+        return sGeckoHandler;
+    }
+
+    public static Handler getHandler() {
+        return GeckoBackgroundThread.getHandler();
+    }
+
     public static void runGecko(String apkPath, String args, String url, String type) {
         Looper.prepare();
+        sGeckoHandler = new Handler();
 
         // run gecko -- it will spawn its own thread
         GeckoAppShell.nativeInit();
@@ -352,7 +369,7 @@ public class GeckoAppShell
         e.setAckNeeded(true);
 
         long time = SystemClock.uptimeMillis();
-        boolean isUiThread = ThreadUtils.isOnUiThread();
+        boolean isMainThread = (GeckoApp.mAppContext.getMainLooper().getThread() == Thread.currentThread());
 
         synchronized (sEventAckLock) {
             if (sWaitingForEventAck) {
@@ -374,7 +391,7 @@ public class GeckoAppShell
                 }
                 long waited = SystemClock.uptimeMillis() - time;
                 Log.d(LOGTAG, "Gecko event sync taking too long: " + waited + "ms");
-                if (isUiThread && waited >= 4000) {
+                if (isMainThread && waited >= 4000) {
                     Log.w(LOGTAG, "Gecko event sync took too long, aborting!", new Exception());
                     sWaitingForEventAck = false;
                     break;
@@ -392,7 +409,7 @@ public class GeckoAppShell
     }
 
     public static void enableLocation(final boolean enable) {
-        ThreadUtils.postToUiThread(new Runnable() {
+        getMainHandler().post(new Runnable() { 
                 @Override
                 public void run() {
                     LocationManager lm = (LocationManager)
@@ -602,7 +619,7 @@ public class GeckoAppShell
     public static void createShortcut(final String aTitle, final String aURI, final String aUniqueURI,
                                       final Bitmap aIcon, final String aType)
     {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        getHandler().post(new Runnable() {
             @Override
             public void run() {
                 // the intent to be launched by the shortcut
@@ -639,7 +656,7 @@ public class GeckoAppShell
     }
 
     public static void removeShortcut(final String aTitle, final String aURI, final String aUniqueURI, final String aType) {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        getHandler().post(new Runnable() {
             @Override
             public void run() {
                 // the intent to be launched by the shortcut
@@ -674,7 +691,7 @@ public class GeckoAppShell
         // On uninstall, we need to do a couple of things:
         //   1. nuke the running app process.
         //   2. nuke the profile that was assigned to that webapp
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        getHandler().post(new Runnable() {
             @Override
             public void run() {
                 int index = WebAppAllocator.getInstance(GeckoApp.mAppContext).releaseIndexForApp(uniqueURI);
@@ -1111,7 +1128,7 @@ public class GeckoAppShell
     // Note: the main looper won't work because it may be blocked on the
     // gecko thread, which is most likely this thread
     static String getClipboardText() {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        getHandler().post(new Runnable() { 
             @Override
             @SuppressWarnings("deprecation")
             public void run() {
@@ -1145,7 +1162,7 @@ public class GeckoAppShell
     }
 
     static void setClipboardText(final String text) {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        getHandler().post(new Runnable() { 
             @Override
             @SuppressWarnings("deprecation")
             public void run() {
@@ -1329,7 +1346,7 @@ public class GeckoAppShell
     }
 
     public static void notifyDefaultPrevented(final boolean defaultPrevented) {
-        ThreadUtils.postToUiThread(new Runnable() {
+        getMainHandler().post(new Runnable() {
             @Override
             public void run() {
                 LayerView view = GeckoApp.mAppContext.getLayerView();
@@ -1684,7 +1701,7 @@ public class GeckoAppShell
     static byte[] sCameraBuffer = null;
 
     static int[] initCamera(String aContentType, int aCamera, int aWidth, int aHeight) {
-        ThreadUtils.postToUiThread(new Runnable() {
+        getMainHandler().post(new Runnable() {
                 @Override
                 public void run() {
                     try {
@@ -1776,7 +1793,7 @@ public class GeckoAppShell
     }
 
     static synchronized void closeCamera() {
-        ThreadUtils.postToUiThread(new Runnable() {
+        getMainHandler().post(new Runnable() {
                 @Override
                 public void run() {
                     try {
@@ -1846,7 +1863,7 @@ public class GeckoAppShell
     }
 
     static void markUriVisited(final String uri) {    // invoked from native JNI code
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        getHandler().post(new Runnable() { 
             @Override
             public void run() {
                 GlobalHistory.getInstance().add(uri);
@@ -1855,7 +1872,7 @@ public class GeckoAppShell
     }
 
     static void setUriTitle(final String uri, final String title) {    // invoked from native JNI code
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        getHandler().post(new Runnable() {
             @Override
             public void run() {
                 GlobalHistory.getInstance().update(uri, title);

@@ -7,7 +7,6 @@
 #include "AudioContext.h"
 #include "nsContentUtils.h"
 #include "nsIDOMWindow.h"
-#include "nsPIDOMWindow.h"
 #include "mozilla/ErrorResult.h"
 #include "MediaStreamGraph.h"
 #include "AudioDestinationNode.h"
@@ -60,9 +59,10 @@ AudioContext::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
     return nullptr;
   }
 
-  nsRefPtr<AudioContext> object = new AudioContext(window);
+  AudioContext* object = new AudioContext(window);
+  NS_ADDREF(object);
   window->AddAudioContext(object);
-  return object.forget();
+  return object;
 }
 
 already_AddRefed<AudioBufferSourceNode>
@@ -189,12 +189,6 @@ MediaStream*
 AudioContext::DestinationStream() const
 {
   return Destination()->Stream();
-}
-
-double
-AudioContext::CurrentTime() const
-{
-  return MediaTimeToSeconds(Destination()->Stream()->GetCurrentTime());
 }
 
 }

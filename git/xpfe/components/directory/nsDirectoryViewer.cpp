@@ -164,7 +164,7 @@ nsHTTPIndex::OnFTPControlLog(bool server, const char *msg)
     JSObject* global = JS_GetGlobalObject(cx);
     NS_ENSURE_TRUE(global, NS_OK);
 
-    JS::Value params[2];
+    jsval params[2];
 
     nsString unicodeMsg;
     unicodeMsg.AssignWithConversion(msg);
@@ -175,7 +175,7 @@ nsHTTPIndex::OnFTPControlLog(bool server, const char *msg)
     params[0] = BOOLEAN_TO_JSVAL(server);
     params[1] = STRING_TO_JSVAL(jsMsgStr);
     
-    JS::Value val;
+    jsval val;
     JS_CallFunctionName(cx,
                         global, 
                         "OnFTPControlLog",
@@ -260,7 +260,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
                  "unable to get jsobj from xpconnect wrapper");
     if (NS_FAILED(rv)) return rv;
 
-    JS::Value jslistener = OBJECT_TO_JSVAL(jsobj);
+    jsval jslistener = OBJECT_TO_JSVAL(jsobj);
 
     // ...and stuff it into the global context
     JSAutoRequest ar(cx);

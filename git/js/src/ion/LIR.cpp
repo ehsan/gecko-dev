@@ -254,10 +254,7 @@ LAllocation::toString() const
       case LAllocation::DOUBLE_SLOT:
         JS_snprintf(buf, sizeof(buf), "stack:d%d", toStackSlot()->slot());
         return buf;
-      case LAllocation::INT_ARGUMENT:
-        JS_snprintf(buf, sizeof(buf), "arg:%d", toArgument()->index());
-        return buf;
-      case LAllocation::DOUBLE_ARGUMENT:
+      case LAllocation::ARGUMENT:
         JS_snprintf(buf, sizeof(buf), "arg:%d", toArgument()->index());
         return buf;
       case LAllocation::USE:
