@@ -579,6 +579,7 @@ GLContextProviderCGL::CreateOffscreen(const gfxIntSize& aSize,
                                       const ContextFormat& aFormat)
 {
     ContextFormat actualFormat(aFormat);
+    actualFormat.samples = 0;
 
     nsRefPtr<GLContextCGL> glContext;
     

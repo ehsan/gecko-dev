@@ -210,10 +210,9 @@ class nsHtml5StreamParser : public nsIStreamListener,
 
     /**
      * Sets mCharset and mCharsetSource appropriately for the XML View Source
-     * case if aEncoding names a supported rough ASCII superset and sets
-     * the mCharset and mCharsetSource to the UTF-8 default otherwise.
+     * case if aEncoding names a supported rough ASCII superset.
      */
-    void SetEncodingFromExpat(const PRUnichar* aEncoding);
+    void MaybeSetEncodingFromExpat(const PRUnichar* aEncoding);
 
   private:
 

@@ -131,8 +131,6 @@ public:
       GetScaledFontForFont(gfxFont *aFont);
     virtual already_AddRefed<gfxASurface>
       GetThebesSurfaceForDrawTarget(mozilla::gfx::DrawTarget *aTarget);
-    virtual mozilla::RefPtr<mozilla::gfx::DrawTarget>
-      CreateOffscreenDrawTarget(const mozilla::gfx::IntSize& aSize, mozilla::gfx::SurfaceFormat aFormat);
 
     enum RenderMode {
         /* Use GDI and windows surfaces */

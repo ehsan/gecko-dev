@@ -1037,11 +1037,8 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, c
     const int stencil = mCreationFormat.stencil;
     int samples = mCreationFormat.samples;
 
-    GLint maxSamples = 0;
-    if (SupportsFramebufferMultisample() && !aDisableAA)
-        fGetIntegerv(LOCAL_GL_MAX_SAMPLES, &maxSamples);
-
-    samples = NS_MIN(samples, maxSamples);
+    if (!SupportsFramebufferMultisample() || aDisableAA)
+        samples = 0;
 
     const bool useDrawMSFBO = (samples > 0);
 
@@ -2433,14 +2430,14 @@ GLContext::SetBlitFramebufferForDestTexture(GLuint aTexture)
                           aTexture,
                           0);
 
-    if (aTexture && (fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) !=
-                     LOCAL_GL_FRAMEBUFFER_COMPLETE)) {
+    if (aTexture) {
+        DebugOnly<GLenum> status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
 
-        // Note: if you are hitting this, it is likely that
+        // Note: if you are hitting this assertion, it is likely that
         // your texture is not texture complete -- that is, you
         // allocated a texture name, but didn't actually define its
         // size via a call to TexImage2D.
-        NS_RUNTIMEABORT("Error setting up framebuffer --- framebuffer not complete!");
+        NS_ASSERTION(status == LOCAL_GL_FRAMEBUFFER_COMPLETE, "Framebuffer not complete!");
     }
 }
 

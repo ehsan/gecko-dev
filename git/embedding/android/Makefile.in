@@ -54,7 +54,6 @@ JAVAFILES = \
   GeckoInputConnection.java \
   AlertNotification.java \
   SurfaceInfo.java \
-  GeckoBatteryManager.java \
   $(NULL)
 
 PROCESSEDJAVAFILES = \

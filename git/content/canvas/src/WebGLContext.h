@@ -733,7 +733,6 @@ public:
 
     friend class WebGLTexture;
     friend class WebGLFramebuffer;
-    friend class WebGLProgram;
 };
 
 // this class is a mixin for the named type wrappers, and is used
@@ -1422,43 +1421,21 @@ public:
     WebGLShader(WebGLContext *context, WebGLuint name, WebGLenum stype) :
         WebGLContextBoundObject(context),
         mName(name), mDeleted(false), mType(stype),
-        mNeedsTranslation(true), mAttachCount(0),
-        mDeletePending(false)
+        mNeedsTranslation(true), mAttachCount(0)
     { }
-
-    void DetachedFromProgram() {
-        DecrementAttachCount();
-        if (mDeletePending && AttachCount() <= 0) {
-            DeleteWhenNotAttached();
-        }
-    }
-
-    void DeleteWhenNotAttached() {
-        if (mDeleted)
-            return;
-
-        if (AttachCount() > 0) {
-            mDeletePending = true;
-            return;
-        }
-
-        Delete();
-    }
 
     void Delete() {
         if (mDeleted)
             return;
-
         ZeroOwners();
         mDeleted = true;
-        mDeletePending = false;
     }
 
-    bool Deleted() { return mDeleted; }
+    bool Deleted() { return mDeleted && mAttachCount == 0; }
     WebGLuint GLName() { return mName; }
     WebGLenum ShaderType() { return mType; }
 
-    PRInt32 AttachCount() { return mAttachCount; }
+    PRUint32 AttachCount() { return mAttachCount; }
     void IncrementAttachCount() { mAttachCount++; }
     void DecrementAttachCount() { mAttachCount--; }
 
@@ -1492,8 +1469,7 @@ protected:
     nsString mSource;
     nsCString mTranslationLog;
     bool mNeedsTranslation;
-    PRInt32 mAttachCount;
-    bool mDeletePending;
+    PRUint32 mAttachCount;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(WebGLShader, WEBGLSHADER_PRIVATE_IID)
@@ -1520,45 +1496,22 @@ public:
         mMapUniformLocations.Init();
     }
 
-    void DeleteWhenNotCurrent() {
-        if (mDeleted)
-            return;
-
-        if (mContext->mCurrentProgram == this) {
-            mDeletePending = true;
-            return;
-        }
-
-        Delete();
-    }
-
     void Delete() {
         if (mDeleted)
             return;
-
-        DetachShaders();
         ZeroOwners();
         mDeleted = true;
-        mDeletePending = false;
     }
 
     void DetachShaders() {
         for (PRUint32 i = 0; i < mAttachedShaders.Length(); ++i) {
-            WebGLShader* shader = mAttachedShaders[i];
-            if (shader)
-                shader->DetachedFromProgram();
+            if (mAttachedShaders[i])
+                mAttachedShaders[i]->DecrementAttachCount();
         }
         mAttachedShaders.Clear();
     }
 
-    void NoLongerCurrent() {
-        if (mDeletePending) {
-            DetachShaders();
-            DeleteWhenNotCurrent();
-        }
-    }
-
-    bool Deleted() { return mDeleted; }
+    bool Deleted() { return mDeleted && !mDeletePending; }
     void SetDeletePending() { mDeletePending = true; }
     void ClearDeletePending() { mDeletePending = false; }
     bool HasDeletePending() { return mDeletePending; }
@@ -1585,7 +1538,7 @@ public:
     // return true if the shader was found and removed
     bool DetachShader(WebGLShader *shader) {
         if (mAttachedShaders.RemoveElement(shader)) {
-            shader->DetachedFromProgram();
+            shader->DecrementAttachCount();
             return true;
         }
         return false;

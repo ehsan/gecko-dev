@@ -64,21 +64,25 @@ public:
 
   CheckPermissionsHelper(OpenDatabaseHelper* aHelper,
                          nsIDOMWindow* aWindow,
+                         const nsAString& aName,
                          const nsACString& aASCIIOrigin)
   : mHelper(aHelper),
     mWindow(aWindow),
+    mName(aName),
     mASCIIOrigin(aASCIIOrigin),
     mHasPrompted(false),
     mPromptResult(0)
   {
     NS_ASSERTION(aHelper, "Null pointer!");
     NS_ASSERTION(aWindow, "Null pointer!");
+    NS_ASSERTION(!aName.IsEmpty(), "Empty name!");
     NS_ASSERTION(!aASCIIOrigin.IsEmpty(), "Empty origin!");
   }
 
 private:
   nsRefPtr<OpenDatabaseHelper> mHelper;
   nsCOMPtr<nsIDOMWindow> mWindow;
+  nsString mName;
   nsCString mASCIIOrigin;
   bool mHasPrompted;
   PRUint32 mPromptResult;

@@ -134,7 +134,9 @@ function setWindowName()
   
   if (cert instanceof nsIX509Cert3)
   {
-    cert.requestUsagesArrayAsync(new listener());
+    cert.requestUsagesArrayAsync(
+            getProxyOnUIThread(new listener(),
+                               Components.interfaces.nsICertVerificationListener));
   }
 }
 
@@ -312,6 +314,20 @@ function updateCertDump()
     asn1Tree.loadASN1Structure(cert.ASN1Structure);
   }
   displaySelected();
+}
+
+function getProxyOnUIThread(aObject, aInterface) {
+    var mainThread = Components.
+            classes["@mozilla.org/thread-manager;1"].
+            getService().mainThread;
+
+    var proxyMgr = Components.
+            classes["@mozilla.org/xpcomproxy;1"].
+            getService(Components.interfaces.nsIProxyObjectManager);
+
+    return proxyMgr.getProxyForObject(mainThread,
+            aInterface, aObject, 5);
+    // 5 == NS_PROXY_ALWAYS | NS_PROXY_SYNC
 }
 
 function getCurrentCert()

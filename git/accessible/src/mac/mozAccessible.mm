@@ -190,7 +190,9 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
                                                            NSAccessibilityTitleAttribute,
                                                            NSAccessibilityValueAttribute,
                                                            NSAccessibilitySubroleAttribute,
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_4
                                                            NSAccessibilityRoleDescriptionAttribute,
+#endif
                                                            NSAccessibilityPositionAttribute,
                                                            NSAccessibilityEnabledAttribute,
                                                            NSAccessibilitySizeAttribute,
@@ -234,8 +236,10 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
     return [NSNumber numberWithBool:[self isEnabled]];
   if ([attribute isEqualToString:NSAccessibilityValueAttribute])
     return [self value];
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_4
   if ([attribute isEqualToString:NSAccessibilityRoleDescriptionAttribute])
     return NSAccessibilityRoleDescription([self role], nil);
+#endif
   if ([attribute isEqualToString: (NSString*) kInstanceDescriptionAttribute])
     return [self customDescription];
   if ([attribute isEqualToString:NSAccessibilityFocusedAttribute])

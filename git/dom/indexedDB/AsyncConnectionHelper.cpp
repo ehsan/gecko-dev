@@ -559,7 +559,9 @@ TransactionPoolEventTarget::Dispatch(nsIRunnable* aRunnable,
   NS_ASSERTION(aRunnable, "Null pointer!");
   NS_ASSERTION(aFlags == NS_DISPATCH_NORMAL, "Unsupported!");
 
-  TransactionThreadPool* pool = TransactionThreadPool::GetOrCreate();
+  TransactionThreadPool* pool = TransactionThreadPool::Get();
+  NS_ASSERTION(pool, "This should never be null!");
+
   return pool->Dispatch(mTransaction, aRunnable, false, nsnull);
 }
 

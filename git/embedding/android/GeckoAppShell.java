@@ -114,8 +114,6 @@ public class GeckoAppShell
 
     public static native void processNextNativeEvent();
 
-    public static native void notifyBatteryChange(float aLevel, boolean aCharging);
-
     // A looper thread, accessed by GeckoAppShell.getHandler
     private static class LooperThread extends Thread {
         public SynchronousQueue<Handler> mHandlerQueue =
@@ -1587,17 +1585,5 @@ public class GeckoAppShell
         } catch(InterruptedException ie) {
             Log.w("GeckoAppShell", "exception firing tracer", ie);
         }
-    }
-
-    public static void enableBatteryNotifications() {
-        GeckoBatteryManager.enableNotifications();
-    }
-
-    public static void disableBatteryNotifications() {
-        GeckoBatteryManager.disableNotifications();
-    }
-
-    public static float[] getCurrentBatteryInformation() {
-        return GeckoBatteryManager.getCurrentInformation();
     }
 }

@@ -85,10 +85,6 @@ public:
   // NS_GENERIC_FACTORY_CONSTRUCTOR_INIT require it be nsresult return.
   virtual nsresult Init();
   
-  // Gets the driver info table. Used by GfxInfoBase to check for general cases
-  // (while subclasses check for more specific ones).
-  virtual const GfxDriverInfo* GetGfxDriverInfo() = 0;
-
   // only useful on X11
   NS_IMETHOD_(void) GetData() { }
 
@@ -96,8 +92,7 @@ protected:
 
   virtual nsresult GetFeatureStatusImpl(PRInt32 aFeature, PRInt32* aStatus,
                                         nsAString& aSuggestedDriverVersion,
-                                        GfxDriverInfo* aDriverInfo = nsnull,
-                                        OperatingSystem* aOS = nsnull);
+                                        GfxDriverInfo* aDriverInfo = nsnull) = 0;
 
 private:
 

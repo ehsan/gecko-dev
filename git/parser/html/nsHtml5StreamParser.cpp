@@ -406,24 +406,15 @@ nsHtml5StreamParser::SniffBOMlessUTF16BasicLatin(const PRUint8* aFromSegment,
 }
 
 void
-nsHtml5StreamParser::SetEncodingFromExpat(const PRUnichar* aEncoding)
+nsHtml5StreamParser::MaybeSetEncodingFromExpat(const PRUnichar* aEncoding)
 {
-  if (aEncoding) {
-    nsDependentString utf16(aEncoding);
-    nsCAutoString utf8;
-    CopyUTF16toUTF8(utf16, utf8);
-    if (PreferredForInternalEncodingDecl(utf8)) {
-      mCharset.Assign(utf8);
-      mCharsetSource = kCharsetFromMetaTag; // closest for XML
-      return;
-    }
-    // else the page declared an encoding Gecko doesn't support and we'd
-    // end up defaulting to UTF-8 anyway. Might as well fall through here
-    // right away and let the encoding be set to UTF-8 which we'd default to
-    // anyway.
+  nsDependentString utf16(aEncoding);
+  nsCAutoString utf8;
+  CopyUTF16toUTF8(utf16, utf8);
+  if (PreferredForInternalEncodingDecl(utf8)) {
+    mCharset.Assign(utf8);
+    mCharsetSource = kCharsetFromMetaTag; // closest for XML
   }
-  mCharset.AssignLiteral("UTF-8"); // XML defaults to UTF-8 without a BOM
-  mCharsetSource = kCharsetFromMetaTag; // means confident
 }
 
 // A separate user data struct is used instead of passing the
@@ -445,7 +436,7 @@ HandleXMLDeclaration(void* aUserData,
                      int aStandalone)
 {
   UserData* ud = static_cast<UserData*>(aUserData);
-  ud->mStreamParser->SetEncodingFromExpat(
+  ud->mStreamParser->MaybeSetEncodingFromExpat(
       reinterpret_cast<const PRUnichar*>(aEncoding));
   XML_StopParser(ud->mExpat, false);
 }

@@ -1265,7 +1265,13 @@ WebGLContext::DeleteProgram(nsIWebGLProgram *pobj)
 
     gl->fDeleteProgram(progname);
 
-    prog->DeleteWhenNotCurrent();
+    if (prog == mCurrentProgram) {
+        prog->SetDeletePending();
+    } else {
+        prog->DetachShaders();
+    }
+
+    prog->Delete();
     mMapPrograms.Remove(progname);
 
     return NS_OK;
@@ -1289,7 +1295,7 @@ WebGLContext::DeleteShader(nsIWebGLShader *sobj)
     MakeContextCurrent();
 
     gl->fDeleteShader(shadername);
-    shader->DeleteWhenNotAttached();
+    shader->Delete();
     mMapShaders.Remove(shadername);
 
     return NS_OK;
@@ -1317,8 +1323,6 @@ WebGLContext::DetachShader(nsIWebGLProgram *pobj, nsIWebGLShader *shobj)
     MakeContextCurrent();
 
     gl->fDetachShader(progname, shadername);
-
-    shader->DetachedFromProgram();
 
     return NS_OK;
 }
@@ -2632,12 +2636,6 @@ WebGLContext::GetProgramParameter(nsIWebGLProgram *pobj, PRUint32 pname, nsIVari
             break;
         case LOCAL_GL_DELETE_STATUS:
         case LOCAL_GL_LINK_STATUS:
-        {
-            GLint i = 0;
-            gl->fGetProgramiv(progname, pname, &i);
-            wrval->SetAsBool(bool(i));
-        }
-            break;
         case LOCAL_GL_VALIDATE_STATUS:
         {
             GLint i = 0;
@@ -3016,11 +3014,8 @@ WebGLContext::GetVertexAttrib(WebGLuint index, WebGLenum pname, nsIVariant **ret
             wrval->SetAsISupports(mAttribBuffers[index].buf);
             break;
 
-        case LOCAL_GL_VERTEX_ATTRIB_ARRAY_STRIDE:
-            wrval->SetAsInt32(mAttribBuffers[index].stride);
-            break;
-
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_SIZE:
+        case LOCAL_GL_VERTEX_ATTRIB_ARRAY_STRIDE:
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_TYPE:
         {
             GLint i = 0;
@@ -4331,11 +4326,12 @@ WebGLContext::UseProgram(nsIWebGLProgram *pobj)
 
     gl->fUseProgram(progname);
 
-    WebGLProgram* previous = mCurrentProgram;
-    mCurrentProgram = prog;
+    if (mCurrentProgram && mCurrentProgram->HasDeletePending()) {
+        mCurrentProgram->DetachShaders();
+        mCurrentProgram->ClearDeletePending();
+    }
 
-    if (previous)
-        previous->NoLongerCurrent();
+    mCurrentProgram = prog;
 
     return NS_OK;
 }
@@ -4572,6 +4568,7 @@ WebGLContext::GetShaderParameter(nsIWebGLShader *sobj, WebGLenum pname, nsIVaria
             wrval->SetAsBool(bool(i));
         }
             break;
+
         default:
             return NS_ERROR_NOT_IMPLEMENTED;
     }

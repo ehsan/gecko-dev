@@ -428,8 +428,6 @@ DOMCI_CLASS(GeoPositionCoords)
 DOMCI_CLASS(GeoPositionAddress)
 DOMCI_CLASS(GeoPositionError)
 
-DOMCI_CLASS(BatteryManager)
-
 // @font-face in CSS
 DOMCI_CLASS(CSSFontFaceRule)
 DOMCI_CLASS(CSSFontFaceStyleDecl)
