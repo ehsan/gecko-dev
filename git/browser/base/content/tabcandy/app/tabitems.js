@@ -132,8 +132,7 @@ window.TabItems = {
         }
       });
       
-      $("<div class='close'><img src='img/closetab.png'/></div>").appendTo($div);
-      $("<div class='expander'><img src='img/expand.png'/></div>").appendTo($div);
+      $("<div class='close'>x</div>").appendTo($div);
   
       if($div.length == 1) {
         var p = Page.findOpenSpaceFor($div); // TODO shouldn't know about Page
