@@ -277,7 +277,14 @@ WebappsActor.prototype = {
       }
     }
     function checkSideloading(aManifest) {
-      return self._getAppType(aManifest.type);
+      let appType = self._getAppType(aManifest.type);
+
+      // In production builds, don't allow installation of certified apps.
+      if (!DOMApplicationRegistry.allowSideloadingCertified &&
+          appType == Ci.nsIPrincipal.APP_STATUS_CERTIFIED) {
+        throw new Error("Installing certified apps is not allowed.");
+      }
+      return appType;
     }
     function writeManifest(aAppType) {
       // Move manifest.webapp to the destination directory.
@@ -323,8 +330,8 @@ WebappsActor.prototype = {
       run: function run() {
         try {
           readManifest().
-            then(writeManifest).
             then(checkSideloading).
+            then(writeManifest).
             then(readMetadata).
             then(function ({ metadata, appType }) {
               let origin = metadata.origin;
@@ -383,6 +390,14 @@ WebappsActor.prototype = {
             }
 
             let appType = self._getAppType(aManifest.type);
+
+            // In production builds, don't allow installation of certified apps.
+            if (!DOMApplicationRegistry.allowSideloadingCertified &&
+                appType == Ci.nsIPrincipal.APP_STATUS_CERTIFIED) {
+              self._sendError("Installing certified apps is not allowed.", aId);
+              return;
+            }
+
             let origin = "app://" + aId;
 
             // Create a fake app object with the minimum set of properties we need.

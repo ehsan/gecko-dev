@@ -62,8 +62,11 @@ var StartUI = {
   onClick: function onClick(aEvent) {
     // If someone clicks / taps in empty grid space, take away
     // focus from the nav bar edit so the soft keyboard will hide.
-    this.chromeWin.BrowserUI.blurNavBar();
-
+    if (this.chromeWin.BrowserUI.blurNavBar()) {
+      // Advanced notice to CAO, so we can shuffle the nav bar in advance
+      // of the keyboard transition.
+      this.chromeWin.ContentAreaObserver.navBarWillBlur();
+    }
     if (aEvent.button == 0) {
       this.chromeWin.ContextUI.dismissTabs();
     }

@@ -93,36 +93,6 @@ function isString(aValue) {
 }
 
 /**
- * Serialize the unknown properties of aObject into aSerializable.
- */
-function serializeUnknownProperties(aObject, aSerializable)
-{
-  if (aObject._unknownProperties) {
-    for (let property in aObject._unknownProperties) {
-      aSerializable[property] = aObject._unknownProperties[property];
-    }
-  }
-}
-
-/**
- * Check for any unknown properties in aSerializable and preserve those in the
- * _unknownProperties field of aObject. aFilterFn is called for each property
- * name of aObject and should return true only for unknown properties.
- */
-function deserializeUnknownProperties(aObject, aSerializable, aFilterFn)
-{
-  for (let property in aSerializable) {
-    if (aFilterFn(property)) {
-      if (!aObject._unknownProperties) {
-        aObject._unknownProperties = { };
-      }
-
-      aObject._unknownProperties[property] = aSerializable[property];
-    }
-  }
-}
-
-/**
  * This determines the minimum time interval between updates to the number of
  * bytes transferred, and is a limiting factor to the sequence of readings used
  * in calculating the speed of the download.
@@ -862,18 +832,12 @@ Download.prototype = {
       serializable.error = { message: this.error.message };
     }
 
-    if (this.startTime) {
-      serializable.startTime = this.startTime.toJSON();
-    }
-
     // These are serialized unless they are false, null, or empty strings.
     for (let property of kSerializableDownloadProperties) {
-      if (property != "error" && property != "startTime" && this[property]) {
+      if (property != "error" && this[property]) {
         serializable[property] = this[property];
       }
     }
-
-    serializeUnknownProperties(this, serializable);
 
     return serializable;
   },
@@ -905,6 +869,7 @@ const kSerializableDownloadProperties = [
   "succeeded",
   "canceled",
   "error",
+  "startTime",
   "totalBytes",
   "hasPartialData",
   "tryToKeepPartialData",
@@ -952,25 +917,11 @@ Download.fromSerializable = function (aSerializable) {
   }
   download.saver.download = download;
 
-  if ("startTime" in aSerializable) {
-    let time = aSerializable.startTime.getTime
-             ? aSerializable.startTime.getTime()
-             : aSerializable.startTime;
-    download.startTime = new Date(time);
-  }
-
   for (let property of kSerializableDownloadProperties) {
     if (property in aSerializable) {
       download[property] = aSerializable[property];
     }
   }
-
-  deserializeUnknownProperties(download, aSerializable, property =>
-    kSerializableDownloadProperties.indexOf(property) == -1 &&
-    property != "startTime" &&
-    property != "source" &&
-    property != "target" &&
-    property != "saver");
 
   return download;
 };
@@ -1010,7 +961,7 @@ DownloadSource.prototype = {
   toSerializable: function ()
   {
     // Simplify the representation if we don't have other details.
-    if (!this.isPrivate && !this.referrer && !this._unknownProperties) {
+    if (!this.isPrivate && !this.referrer) {
       return this.url;
     }
 
@@ -1021,8 +972,6 @@ DownloadSource.prototype = {
     if (this.referrer) {
       serializable.referrer = this.referrer;
     }
-
-    serializeUnknownProperties(this, serializable);
     return serializable;
   },
 };
@@ -1061,11 +1010,7 @@ DownloadSource.fromSerializable = function (aSerializable) {
     if ("referrer" in aSerializable) {
       source.referrer = aSerializable.referrer;
     }
-
-    deserializeUnknownProperties(source, aSerializable, property =>
-      property != "url" && property != "isPrivate" && property != "referrer");
   }
-
   return source;
 };
 
@@ -1099,14 +1044,12 @@ DownloadTarget.prototype = {
   toSerializable: function ()
   {
     // Simplify the representation if we don't have other details.
-    if (!this.partFilePath && !this._unknownProperties) {
+    if (!this.partFilePath) {
       return this.path;
     }
 
-    let serializable = { path: this.path,
-                         partFilePath: this.partFilePath };
-    serializeUnknownProperties(this, serializable);
-    return serializable;
+    return { path: this.path,
+             partFilePath: this.partFilePath };
   },
 };
 
@@ -1119,7 +1062,6 @@ DownloadTarget.prototype = {
  *        object with the following properties:
  *        {
  *          path: String containing the path of the target file.
- *          partFilePath: optional string containing the part file path.
  *        }
  *
  * @return The newly created DownloadTarget object.
@@ -1139,9 +1081,6 @@ DownloadTarget.fromSerializable = function (aSerializable) {
     if ("partFilePath" in aSerializable) {
       target.partFilePath = aSerializable.partFilePath;
     }
-
-    deserializeUnknownProperties(target, aSerializable, property =>
-      property != "path" && property != "partFilePath");
   }
   return target;
 };
@@ -1649,14 +1588,12 @@ DownloadCopySaver.prototype = {
   toSerializable: function ()
   {
     // Simplify the representation if we don't have other details.
-    if (!this.entityID && !this._unknownProperties) {
+    if (!this.entityID) {
       return "copy";
     }
 
-    let serializable = { type: "copy",
-                         entityID: this.entityID };
-    serializeUnknownProperties(this, serializable);
-    return serializable;
+    return { type: "copy",
+             entityID: this.entityID };
   },
 };
 
@@ -1674,10 +1611,6 @@ DownloadCopySaver.fromSerializable = function (aSerializable) {
   if ("entityID" in aSerializable) {
     saver.entityID = aSerializable.entityID;
   }
-
-  deserializeUnknownProperties(saver, aSerializable, property =>
-    property != "entityID" && property != "type");
-
   return saver;
 };
 
