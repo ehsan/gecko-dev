@@ -52,6 +52,32 @@ using namespace mozilla;
 using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
+// Constants and structures
+
+/**
+ * Item of the gCSSTextAttrsMap map.
+ */
+struct nsCSSTextAttrMapItem
+{
+  const char* mCSSName;
+  const char* mCSSValue;
+  nsIAtom** mAttrName;
+  const char* mAttrValue;
+};
+
+/**
+ * The map of CSS properties to text attributes.
+ */
+const char* const kAnyValue = nsnull;
+const char* const kCopyValue = nsnull;
+
+static nsCSSTextAttrMapItem gCSSTextAttrsMap[] =
+{
+  // CSS name            CSS value        Attribute name                     Attribute value
+  { "vertical-align",    kAnyValue,       &nsGkAtoms::textPosition,          kCopyValue }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 // TextAttrsMgr
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,61 +139,62 @@ TextAttrsMgr::GetAttributes(nsIPersistentProperties* aAttributes,
     frame = offsetElm->GetPrimaryFrame();
   }
 
+  nsTArray<TextAttr*> textAttrArray(9);
+
   // "language" text attribute
   LangTextAttr langTextAttr(mHyperTextAcc, hyperTextElm, offsetNode);
+  textAttrArray.AppendElement(&langTextAttr);
+
+  // "text-position" text attribute
+  CSSTextAttr posTextAttr(0, hyperTextElm, offsetElm);
+  textAttrArray.AppendElement(&posTextAttr);
 
   // "background-color" text attribute
   BGColorTextAttr bgColorTextAttr(rootFrame, frame);
+  textAttrArray.AppendElement(&bgColorTextAttr);
 
   // "color" text attribute
   ColorTextAttr colorTextAttr(rootFrame, frame);
+  textAttrArray.AppendElement(&colorTextAttr);
 
   // "font-family" text attribute
   FontFamilyTextAttr fontFamilyTextAttr(rootFrame, frame);
+  textAttrArray.AppendElement(&fontFamilyTextAttr);
 
   // "font-size" text attribute
   FontSizeTextAttr fontSizeTextAttr(rootFrame, frame);
+  textAttrArray.AppendElement(&fontSizeTextAttr);
 
   // "font-style" text attribute
   FontStyleTextAttr fontStyleTextAttr(rootFrame, frame);
+  textAttrArray.AppendElement(&fontStyleTextAttr);
 
   // "font-weight" text attribute
   FontWeightTextAttr fontWeightTextAttr(rootFrame, frame);
+  textAttrArray.AppendElement(&fontWeightTextAttr);
 
   // "text-underline(line-through)-style(color)" text attributes
   TextDecorTextAttr textDecorTextAttr(rootFrame, frame);
-
-  // "text-position" text attribute
-  TextPosTextAttr textPosTextAttr(rootFrame, frame);
-
-  TextAttr* attrArray[] =
-  {
-    &langTextAttr,
-    &bgColorTextAttr,
-    &colorTextAttr,
-    &fontFamilyTextAttr,
-    &fontSizeTextAttr,
-    &fontStyleTextAttr,
-    &fontWeightTextAttr,
-    &textDecorTextAttr,
-    &textPosTextAttr
-  };
+  textAttrArray.AppendElement(&textDecorTextAttr);
 
   // Expose text attributes if applicable.
   if (aAttributes) {
-    for (PRUint32 idx = 0; idx < ArrayLength(attrArray); idx++)
-      attrArray[idx]->Expose(aAttributes, mIncludeDefAttrs);
+    PRUint32 len = textAttrArray.Length();
+    for (PRUint32 idx = 0; idx < len; idx++)
+      textAttrArray[idx]->Expose(aAttributes, mIncludeDefAttrs);
   }
 
   // Expose text attributes range where they are applied if applicable.
   if (mOffsetAcc)
-    GetRange(attrArray, ArrayLength(attrArray), aStartHTOffset, aEndHTOffset);
+    GetRange(textAttrArray, aStartHTOffset, aEndHTOffset);
 }
 
 void
-TextAttrsMgr::GetRange(TextAttr* aAttrArray[], PRUint32 aAttrArrayLen,
+TextAttrsMgr::GetRange(const nsTArray<TextAttr*>& aTextAttrArray,
                        PRInt32* aStartHTOffset, PRInt32* aEndHTOffset)
 {
+  PRUint32 attrLen = aTextAttrArray.Length();
+
   // Navigate backward from anchor accessible to find start offset.
   for (PRInt32 childIdx = mOffsetAccIdx - 1; childIdx >= 0; childIdx--) {
     nsAccessible *currAcc = mHyperTextAcc->GetChildAt(childIdx);
@@ -182,8 +209,8 @@ TextAttrsMgr::GetRange(TextAttr* aAttrArray[], PRUint32 aAttrArrayLen,
       return;
 
     bool offsetFound = false;
-    for (PRUint32 attrIdx = 0; attrIdx < aAttrArrayLen; attrIdx++) {
-      TextAttr* textAttr = aAttrArray[attrIdx];
+    for (PRUint32 attrIdx = 0; attrIdx < attrLen; attrIdx++) {
+      TextAttr* textAttr = aTextAttrArray[attrIdx];
       if (!textAttr->Equal(currElm)) {
         offsetFound = true;
         break;
@@ -208,8 +235,8 @@ TextAttrsMgr::GetRange(TextAttr* aAttrArray[], PRUint32 aAttrArrayLen,
       return;
 
     bool offsetFound = false;
-    for (PRUint32 attrIdx = 0; attrIdx < aAttrArrayLen; attrIdx++) {
-      TextAttr* textAttr = aAttrArray[attrIdx];
+    for (PRUint32 attrIdx = 0; attrIdx < attrLen; attrIdx++) {
+      TextAttr* textAttr = aTextAttrArray[attrIdx];
 
       // Alter the end offset when text attribute changes its value and stop
       // the search.
@@ -263,6 +290,60 @@ TextAttrsMgr::LangTextAttr::
 {
   nsCoreUtils::GetLanguageFor(aElm, mRootContent, aLang);
   return !aLang.IsEmpty();
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// CSSTextAttr
+////////////////////////////////////////////////////////////////////////////////
+
+TextAttrsMgr::CSSTextAttr::
+  CSSTextAttr(PRUint32 aIndex, nsIContent* aRootElm, nsIContent* aElm) :
+  TTextAttr<nsString>(!aElm), mIndex(aIndex)
+{
+  mIsRootDefined = GetValueFor(aRootElm, &mRootNativeValue);
+
+  if (aElm)
+    mIsDefined = GetValueFor(aElm, &mNativeValue);
+}
+
+bool
+TextAttrsMgr::CSSTextAttr::
+  GetValueFor(nsIContent* aElm, nsString* aValue)
+{
+  nsCOMPtr<nsIDOMCSSStyleDeclaration> currStyleDecl =
+    nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), aElm);
+  if (!currStyleDecl)
+    return false;
+
+  NS_ConvertASCIItoUTF16 cssName(gCSSTextAttrsMap[mIndex].mCSSName);
+
+  nsresult rv = currStyleDecl->GetPropertyValue(cssName, *aValue);
+  if (NS_FAILED(rv))
+    return true;
+
+  const char *cssValue = gCSSTextAttrsMap[mIndex].mCSSValue;
+  if (cssValue != kAnyValue && !aValue->EqualsASCII(cssValue))
+    return false;
+
+  return true;
+}
+
+void
+TextAttrsMgr::CSSTextAttr::
+  ExposeValue(nsIPersistentProperties* aAttributes, const nsString& aValue)
+{
+  const char* attrValue = gCSSTextAttrsMap[mIndex].mAttrValue;
+  if (attrValue != kCopyValue) {
+    nsAutoString formattedValue;
+    AppendASCIItoUTF16(attrValue, formattedValue);
+    nsAccUtils::SetAccAttr(aAttributes, *gCSSTextAttrsMap[mIndex].mAttrName,
+                           formattedValue);
+    return;
+  }
+
+  nsAccUtils::SetAccAttr(aAttributes, *gCSSTextAttrsMap[mIndex].mAttrName,
+                         aValue);
 }
 
 
@@ -660,105 +741,4 @@ TextAttrsMgr::TextDecorTextAttr::
     nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::textLineThroughColor,
                            formattedColor);
   }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// TextPosTextAttr
-////////////////////////////////////////////////////////////////////////////////
-
-TextAttrsMgr::TextPosTextAttr::
-  TextPosTextAttr(nsIFrame* aRootFrame, nsIFrame* aFrame) :
-  TTextAttr<TextPosValue>(!aFrame)
-{
-  mRootNativeValue = GetTextPosValue(aRootFrame);
-  mIsRootDefined = mRootNativeValue != eTextPosNone;
-
-  if (aFrame) {
-    mNativeValue = GetTextPosValue(aFrame);
-    mIsDefined = mNativeValue != eTextPosNone;
-  }
-}
-
-bool
-TextAttrsMgr::TextPosTextAttr::
-  GetValueFor(nsIContent* aContent, TextPosValue* aValue)
-{
-  nsIFrame* frame = aContent->GetPrimaryFrame();
-  if (frame) {
-    *aValue = GetTextPosValue(frame);
-    return *aValue != eTextPosNone;
-  }
-
-  return false;
-}
-
-void
-TextAttrsMgr::TextPosTextAttr::
-  ExposeValue(nsIPersistentProperties* aAttributes, const TextPosValue& aValue)
-{
-  switch (aValue) {
-    case eTextPosBaseline:
-      nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::textPosition,
-                             NS_LITERAL_STRING("baseline"));
-      break;
-
-    case eTextPosSub:
-      nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::textPosition,
-                             NS_LITERAL_STRING("sub"));
-      break;
-
-    case eTextPosSuper:
-      nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::textPosition,
-                             NS_LITERAL_STRING("super"));
-      break;
-  }
-}
-
-TextAttrsMgr::TextPosValue
-TextAttrsMgr::TextPosTextAttr::
-  GetTextPosValue(nsIFrame* aFrame) const
-{
-  const nsStyleCoord& styleCoord = aFrame->GetStyleTextReset()->mVerticalAlign;
-  switch (styleCoord.GetUnit()) {
-    case eStyleUnit_Enumerated:
-      switch (styleCoord.GetIntValue()) {
-        case NS_STYLE_VERTICAL_ALIGN_BASELINE:
-          return eTextPosBaseline;
-        case NS_STYLE_VERTICAL_ALIGN_SUB:
-          return eTextPosSub;
-        case NS_STYLE_VERTICAL_ALIGN_SUPER:
-          return eTextPosSuper;
-
-        // No good guess for these:
-        //   NS_STYLE_VERTICAL_ALIGN_TOP
-        //   NS_STYLE_VERTICAL_ALIGN_TEXT_TOP
-        //   NS_STYLE_VERTICAL_ALIGN_MIDDLE
-        //   NS_STYLE_VERTICAL_ALIGN_TEXT_BOTTOM
-        //   NS_STYLE_VERTICAL_ALIGN_BOTTOM
-        //   NS_STYLE_VERTICAL_ALIGN_MIDDLE_WITH_BASELINE
-        // Do not expose value of text-position attribute.
-
-        default:
-          break;
-      }
-      return eTextPosNone;
-
-    case eStyleUnit_Percent:
-    {
-      float percentValue = styleCoord.GetPercentValue();
-      return percentValue > 0 ?
-        eTextPosSuper :
-        (percentValue < 0 ? eTextPosSub : eTextPosBaseline);
-    }
-
-    case eStyleUnit_Coord:
-    {
-       nscoord coordValue = styleCoord.GetCoordValue();
-       return coordValue > 0 ?
-         eTextPosSuper :
-         (coordValue < 0 ? eTextPosSub : eTextPosBaseline);
-    }
-  }
-
-  return eTextPosNone;
 }

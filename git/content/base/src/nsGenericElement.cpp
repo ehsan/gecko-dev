@@ -2314,7 +2314,7 @@ nsGenericElement::GetClientRects(nsIDOMClientRectList** aResult)
 {
   *aResult = nsnull;
 
-  nsRefPtr<nsClientRectList> rectList = new nsClientRectList(this);
+  nsRefPtr<nsClientRectList> rectList = new nsClientRectList();
 
   nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
   if (!frame) {

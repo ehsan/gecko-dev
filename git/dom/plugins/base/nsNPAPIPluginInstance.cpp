@@ -1488,7 +1488,7 @@ nsNPAPIPluginInstance::InitAsyncSurface(NPSize *size, NPImageFormat format,
   if (mOwner)
     return mOwner->InitAsyncSurface(size, format, initData, surface);
 
-  return NPERR_GENERIC_ERROR;
+  return NS_ERROR_FAILURE;
 }
 
 NPError
@@ -1497,7 +1497,7 @@ nsNPAPIPluginInstance::FinalizeAsyncSurface(NPAsyncSurface *surface)
   if (mOwner)
     return mOwner->FinalizeAsyncSurface(surface);
 
-  return NPERR_GENERIC_ERROR;
+  return NS_ERROR_FAILURE;
 }
 
 void

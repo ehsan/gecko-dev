@@ -376,26 +376,31 @@ PlacesViewBase.prototype = {
   _setLivemarkStatusMenuItem:
   function PVB_setLivemarkStatusMenuItem(aPopup, aStatus) {
     let statusMenuitem = aPopup._statusMenuitem;
-    if (!statusMenuitem) {
+    let stringId = "";
+    if (aStatus == Ci.mozILivemark.STATUS_LOADING)
+      stringId = "bookmarksLivemarkLoading";
+    else if (aStatus == Ci.mozILivemark.STATUS_FAILED)
+      stringId = "bookmarksLivemarkFailed";
+
+    if (stringId && !statusMenuitem) {
       // Create the status menuitem and cache it in the popup object.
       statusMenuitem = document.createElement("menuitem");
+      statusMenuitem.setAttribute("livemarkStatus", stringId);
       statusMenuitem.className = "livemarkstatus-menuitem";
+      statusMenuitem.setAttribute("label", PlacesUIUtils.getString(stringId));
       statusMenuitem.setAttribute("disabled", true);
+      aPopup.insertBefore(statusMenuitem, aPopup._startMarker.nextSibling);
       aPopup._statusMenuitem = statusMenuitem;
     }
-
-    if (aStatus == Ci.mozILivemark.STATUS_LOADING ||
-        aStatus == Ci.mozILivemark.STATUS_FAILED) {
+    else if (stringId &&
+             statusMenuitem.getAttribute("livemarkStatus") != stringId) {
       // Status has changed, update the cached status menuitem.
-      let stringId = aStatus == Ci.mozILivemark.STATUS_LOADING ?
-                       "bookmarksLivemarkLoading" : "bookmarksLivemarkFailed";
       statusMenuitem.setAttribute("label", PlacesUIUtils.getString(stringId));
-      if (aPopup._startMarker.nextSibling != statusMenuitem)
-        aPopup.insertBefore(statusMenuitem, aPopup._startMarker.nextSibling);
     }
-    else {
+    else if (!stringId && statusMenuitem) {
       // The livemark has finished loading.
       aPopup.removeChild(aPopup._statusMenuitem);
+      aPopup._statusMenuitem = null;
     }
   },
 
@@ -1012,10 +1017,9 @@ PlacesToolbar.prototype = {
 
   _updateChevronPopupNodesVisibility:
   function PT__updateChevronPopupNodesVisibility() {
-    for (let i = 0, node = this._chevronPopup._startMarker.nextSibling;
-         node != this._chevronPopup._endMarker;
-         i++, node = node.nextSibling) {
-      node.hidden = this._rootElt.childNodes[i].style.visibility != "hidden";
+    for (let i = 0; i < this._chevronPopup.childNodes.length; i++) {
+      this._chevronPopup.childNodes[i].hidden =
+        this._rootElt.childNodes[i].style.visibility != "hidden";
     }
   },
 

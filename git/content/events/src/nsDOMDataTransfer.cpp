@@ -58,20 +58,7 @@
 
 using namespace mozilla;
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMDataTransfer)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMDataTransfer)
-  if (tmp->mFiles) {
-    tmp->mFiles->Disconnect();
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFiles)
-  }
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDragTarget)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDragImage)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMDataTransfer)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFiles)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDragTarget)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDragImage)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_2(nsDOMDataTransfer, mDragTarget, mDragImage)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMDataTransfer)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMDataTransfer)
@@ -248,7 +235,7 @@ nsDOMDataTransfer::GetFiles(nsIDOMFileList** aFileList)
     return NS_OK;
 
   if (!mFiles) {
-    mFiles = new nsDOMFileList(static_cast<nsIDOMDataTransfer*>(this));
+    mFiles = new nsDOMFileList();
     NS_ENSURE_TRUE(mFiles, NS_ERROR_OUT_OF_MEMORY);
 
     PRUint32 count = mItems.Length();

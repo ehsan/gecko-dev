@@ -587,9 +587,6 @@ nsHTMLInputElement::nsHTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
 
 nsHTMLInputElement::~nsHTMLInputElement()
 {
-  if (mFileList) {
-    mFileList->Disconnect();
-  }
   DestroyImageLoadingContent();
   FreeData();
 }
@@ -637,10 +634,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLInputElement,
                                                   nsGenericHTMLFormElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mControllers)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mFiles)
-  if (tmp->mFileList) {
-    tmp->mFileList->Disconnect();
-    tmp->mFileList = nsnull;
-  }
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFileList);
   //XXX should unlink more?
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
                                                               
@@ -2779,7 +2773,7 @@ nsHTMLInputElement::GetFiles(nsIDOMFileList** aFileList)
   }
 
   if (!mFileList) {
-    mFileList = new nsDOMFileList(static_cast<nsIContent*>(this));
+    mFileList = new nsDOMFileList();
     if (!mFileList) return NS_ERROR_OUT_OF_MEMORY;
 
     UpdateFileList();

@@ -1911,6 +1911,9 @@ echo-dirs:
 echo-module:
 	@echo $(MODULE)
 
+echo-requires:
+	@echo $(REQUIRES)
+
 echo-depth-path:
 	@$(topsrcdir)/build/unix/print-depth-path.sh
 
@@ -2017,6 +2020,7 @@ FREEZE_VARIABLES = \
   DIRS \
   LIBRARY \
   MODULE \
+  REQUIRES \
   SHORT_LIBNAME \
   TIERS \
   EXTRA_COMPONENTS \
