@@ -73,14 +73,10 @@ function SettingsServiceLock(aSettingsService, aTransactionCallback) {
     cpmm.addMessageListener(msgs[msg], this);
   }
 
-  let createLockPayload = {
-    lockID: this._id,
-    isServiceLock: true,
-    windowID: undefined,
-    lockStack: (new Error).stack
-  };
   cpmm.sendAsyncMessage("Settings:CreateLock",
-                        createLockPayload,
+                        { lockID: this._id,
+                          isServiceLock: true,
+                          windowID: undefined },
                         undefined,
                         Services.scriptSecurityManager.getSystemPrincipal());
   Services.tm.currentThread.dispatch(closeHelper, Ci.nsIThread.DISPATCH_NORMAL);

@@ -3147,7 +3147,16 @@ RILNetworkInterface.prototype = {
       throw Cr.NS_ERROR_UNEXPECTED;
     }
 
-    return this.apnSetting.mmsc || "";
+    let mmsc = this.apnSetting.mmsc;
+    if (!mmsc) {
+      try {
+        mmsc = Services.prefs.getCharPref("ril.mms.mmsc");
+      } catch (e) {
+        mmsc = "";
+      }
+    }
+
+    return mmsc;
   },
 
   get mmsProxy() {
@@ -3156,7 +3165,16 @@ RILNetworkInterface.prototype = {
       throw Cr.NS_ERROR_UNEXPECTED;
     }
 
-    return this.apnSetting.mmsproxy || "";
+    let proxy = this.apnSetting.mmsproxy;
+    if (!proxy) {
+      try {
+        proxy = Services.prefs.getCharPref("ril.mms.mmsproxy");
+      } catch (e) {
+        proxy = "";
+      }
+    }
+
+    return proxy;
   },
 
   get mmsPort() {
@@ -3165,9 +3183,16 @@ RILNetworkInterface.prototype = {
       throw Cr.NS_ERROR_UNEXPECTED;
     }
 
-    // Note: Port 0 is reserved, so we treat it as invalid as well.
-    // See http://www.iana.org/assignments/port-numbers
-    return this.apnSetting.mmsport || -1;
+    let port = this.apnSetting.mmsport;
+    if (!port) {
+      try {
+        port = Services.prefs.getIntPref("ril.mms.mmsport");
+      } catch (e) {
+        port = -1;
+      }
+    }
+
+    return port;
   },
 
   // Helpers

@@ -235,13 +235,13 @@ function initCanvasDebuggerFrontend(aUrl) {
   });
 }
 
-function teardown({target}) {
+function teardown(aPanel) {
   info("Destroying the specified canvas debugger.");
 
-  let {tab} = target;
-  return gDevTools.closeToolbox(target).then(() => {
-    removeTab(tab);
-  });
+  return promise.all([
+    once(aPanel, "destroyed"),
+    removeTab(aPanel.target.tab)
+  ]);
 }
 
 /**

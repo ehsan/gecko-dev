@@ -147,8 +147,6 @@
     Services.prefs.setIntPref("loop.retry_delay.limit", 20); // 20 ms
 
     do_register_cleanup(function() {
-      Services.prefs.clearUserPref("loop.retry_delay.start");
-      Services.prefs.clearUserPref("loop.retry_delay.limit");
       Services.prefs.setCharPref("loop.server", kLoopServerUrl);
     });
 

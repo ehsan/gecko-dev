@@ -38,6 +38,8 @@ function* checkFxA401() {
 }
 
 add_task(function* setup() {
+  Services.prefs.setCharPref("loop.server", BASE_URL);
+  Services.prefs.setCharPref("services.push.serverURL", "ws://localhost/");
   Services.prefs.setBoolPref("loop.gettingStarted.seen", true);
   MozLoopServiceInternal.mocks.pushHandler = mockPushHandler;
   // Normally the same pushUrl would be registered but we change it in the test
@@ -48,6 +50,8 @@ add_task(function* setup() {
   registerCleanupFunction(function* () {
     info("cleanup time");
     yield promiseDeletedOAuthParams(BASE_URL);
+    Services.prefs.clearUserPref("loop.server");
+    Services.prefs.clearUserPref("services.push.serverURL");
     Services.prefs.clearUserPref("loop.gettingStarted.seen");
     MozLoopServiceInternal.mocks.pushHandler = undefined;
     delete mockPushHandler.registeredChannels[MozLoopService.channelIDs.callsFxA];
@@ -130,7 +134,6 @@ add_task(function* params_no_hawk_session() {
 });
 
 add_task(function* params_nonJSON() {
-  let loopServerUrl = Services.prefs.getCharPref("loop.server");
   Services.prefs.setCharPref("loop.server", "https://localhost:3000/invalid");
   // Reset after changing the server so a new HawkClient is created
   yield resetFxA();
@@ -142,7 +145,7 @@ add_task(function* params_nonJSON() {
     caught = true;
   });
   ok(caught, "Should have caught the rejection");
-  Services.prefs.setCharPref("loop.server", loopServerUrl);
+  Services.prefs.setCharPref("loop.server", BASE_URL);
 });
 
 add_task(function* invalidState() {
