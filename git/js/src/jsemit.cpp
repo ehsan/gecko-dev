@@ -1558,7 +1558,7 @@ js_DefineCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
                              JSParseNode *pn)
 {
     jsdouble dval;
-    int32_t ival;
+    jsint ival;
     JSAtom *valueAtom;
 
     /* XXX just do numbers for now */
@@ -2872,7 +2872,7 @@ EmitElemOp(JSContext *cx, JSParseNode *pn, JSOp op, JSCodeGenerator *cg)
 {
     ptrdiff_t top;
     JSParseNode *left, *right, *next, ltmp, rtmp;
-    int32_t slot;
+    jsint slot;
 
     top = CG_OFFSET(cg);
     if (pn->pn_arity == PN_LIST) {
@@ -2992,7 +2992,7 @@ EmitElemOp(JSContext *cx, JSParseNode *pn, JSOp op, JSCodeGenerator *cg)
 static JSBool
 EmitNumberOp(JSContext *cx, jsdouble dval, JSCodeGenerator *cg)
 {
-    int32_t ival;
+    jsint ival;
     uint32 u;
     ptrdiff_t off;
     jsbytecode *pc;
@@ -3047,7 +3047,7 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
     uint32 caseCount, tableLength;
     JSParseNode **table;
     jsdouble d;
-    int32_t i, low, high;
+    jsint i, low, high;
     JSAtom *atom;
     JSAtomListElement *ale;
     intN noteIndex;
