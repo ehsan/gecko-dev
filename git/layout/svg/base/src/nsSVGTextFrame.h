@@ -121,7 +121,7 @@ private:
    */
   void UpdateGlyphPositioning(PRBool aForceGlobalTransform);
 
-  void SetWhitespaceHandling(nsSVGGlyphFrame *aFrame);
+  void SetWhitespaceHandling(nsISVGGlyphFragmentLeaf *fragment);
 
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
 
