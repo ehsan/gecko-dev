@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-435497-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 435497;
 var summary = 'Do not assert op2 == JSOP_INITELEM';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-349283.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 349283;
 var summary = 'Do not crash with let statement in with block';

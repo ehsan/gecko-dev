@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-24712.js';
 
 test();
 

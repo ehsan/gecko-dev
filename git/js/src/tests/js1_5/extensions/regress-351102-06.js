@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-351102-06.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 351102;
 var summary = 'try/catch-guard/finally GC issues';

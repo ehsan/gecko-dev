@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-464862.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 464862;
 var summary = 'Do not assert: ( int32_t(delta) == uint8_t(delta) )';

@@ -568,8 +568,7 @@ JSRuntime::init(uint32 maxbytes)
 #endif
 
     if (!(defaultCompartment = new JSCompartment(this)) ||
-        !defaultCompartment->init() ||
-        !compartments.append(defaultCompartment)) {
+        !defaultCompartment->init()) {
         return false;
     }
 
@@ -658,10 +657,8 @@ JSRuntime::~JSRuntime()
         JS_DESTROY_LOCK(debuggerLock);
 #endif
     propertyTree.finish();
-    /* Delete all remaining Compartments. Ideally only the defaultCompartment should be left. */
-    for (JSCompartment **c = compartments.begin(); c != compartments.end(); ++c)
-        delete *c;
-    compartments.clear();
+    if (defaultCompartment)
+        delete defaultCompartment;
 }
 
 JS_PUBLIC_API(JSRuntime *)
@@ -896,11 +893,12 @@ JS_SuspendRequest(JSContext *cx)
     if (saveDepth == 0)
         return 0;
 
-    JS_THREAD_DATA(cx)->conservativeGC.enable();
     do {
         cx->outstandingRequests++;  /* compensate for StopRequest */
         StopRequest(cx);
     } while (cx->requestDepth);
+
+    JS_THREAD_DATA(cx)->conservativeGC.enable();
 
     return saveDepth;
 #else
@@ -915,12 +913,13 @@ JS_ResumeRequest(JSContext *cx, jsrefcount saveDepth)
     if (saveDepth == 0)
         return;
 
+    JS_THREAD_DATA(cx)->conservativeGC.disable();
+
     JS_ASSERT(cx->outstandingRequests != 0);
     do {
         JS_BeginRequest(cx);
         cx->outstandingRequests--;  /* compensate for JS_BeginRequest */
     } while (--saveDepth != 0);
-    JS_THREAD_DATA(cx)->conservativeGC.disable();
 #endif
 }
 
@@ -1879,7 +1878,6 @@ JS_strdup(JSContext *cx, const char *s)
 JS_PUBLIC_API(JSBool)
 JS_NewNumberValue(JSContext *cx, jsdouble d, jsval *rval)
 {
-    d = JS_CANONICALIZE_NAN(d);
     Valueify(rval)->setNumber(d);
     return JS_TRUE;
 }

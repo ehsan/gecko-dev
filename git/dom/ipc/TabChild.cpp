@@ -495,6 +495,8 @@ TabChild::~TabChild()
       do_GetWeakReference(static_cast<nsSupportsWeakReference*>(this));
     webBrowser->RemoveWebBrowserListener(weak, NS_GET_IID(nsIWebProgressListener));
 
+    DestroyWidget();
+
     if (webBrowser) {
       webBrowser->SetContainerWindow(nsnull);
     }
@@ -594,6 +596,8 @@ TabChild::OnRefreshAttempted(nsIWebProgress *aWebProgress,
   *aRefreshAllowed = refreshAllowed;
   return NS_OK;
 }
+                             
+                             
 
 bool
 TabChild::RecvLoadURL(const nsCString& uri)
@@ -953,15 +957,6 @@ TabChild::RecvAsyncMessage(const nsString& aMessage,
   return true;
 }
 
-bool
-TabChild::RecvDestroy()
-{
-    DestroyWidget();
-
-    // XXX what other code in ~TabChild() should we be running here?
-
-    return Send__delete__(this);
-}
 
 bool
 TabChild::InitTabChildGlobal()

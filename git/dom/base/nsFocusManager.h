@@ -113,8 +113,6 @@ public:
    */
   static nsIContent* GetRedirectedFocus(nsIContent* aContent);
 
-  static PRBool sMouseFocusesFormControl;
-
 protected:
 
   nsFocusManager();

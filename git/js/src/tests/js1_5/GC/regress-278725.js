@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-278725.js';
 //-----------------------------------------------------------------------------
 // testcase by James Ross <silver@warwickcompsoc.co.uk>
 var BUGNUMBER = 278725;

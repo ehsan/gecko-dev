@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '11.1.4.js';
 
 START("11.1.4 - XML Initializer");
 

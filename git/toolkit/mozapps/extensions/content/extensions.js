@@ -1218,8 +1218,8 @@ var gSearchView = {
       return score;
 
     aStr = aStr.trim().toLocaleLowerCase();
-    var haystack = aStr.split(/\s+/);
-    var needles = aQuery.split(/\s+/);
+    var haystack = aStr.split(/\W+/);
+    var needles = aQuery.split(/\W+/);
 
     for (let n = 0; n < needles.length; n++) {
       for (let h = 0; h < haystack.length; h++) {

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-474319.js';
 
 var summary = 'Do not crash with e4x, map and concat';
 var BUGNUMBER = 474319;

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-362583.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 362583;
 var summary = 'Do not assert: caller->fun && !JSFUN_HEAVYWEIGHT_TEST(caller->fun->flags)';

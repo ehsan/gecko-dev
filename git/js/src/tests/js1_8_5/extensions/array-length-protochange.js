@@ -1,6 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/licenses/publicdomain/
 
+var gTestfile = 'array-length-protochange.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 548671;
 var summary =

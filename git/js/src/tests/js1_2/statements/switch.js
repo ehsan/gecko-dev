@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'switch.js';
 
 /**
    Filename:     switch.js

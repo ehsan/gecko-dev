@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.5.4.17.js';
 
 START("13.5.4.17 - XMLList processingInstructions()");
 

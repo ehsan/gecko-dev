@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-465686.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 465686;
 var summary = 'Do not crash @ tiny_free_list_add_ptr';

@@ -207,8 +207,6 @@
 
 #include "mozilla/FunctionTimer.h"
 
-#include "Layers.h"
-
 #ifdef NS_FUNCTION_TIMER
 #define NS_TIME_FUNCTION_DECLARE_DOCURL                \
   nsCAutoString docURL__("N/A");                       \
@@ -230,8 +228,8 @@ static NS_DEFINE_IID(kRangeCID,     NS_RANGE_CID);
 #include "nsIMemoryReporter.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 using namespace mozilla::layers;
+using namespace mozilla::dom;
 
 PRBool nsIPresShell::gIsAccessibilityActive = PR_FALSE;
 CapturingContentInfo nsIPresShell::gCaptureInfo;
@@ -812,8 +810,6 @@ public:
 
   virtual already_AddRefed<nsPIDOMWindow> GetRootWindow();
 
-  virtual LayerManager* GetLayerManager();
-
   //nsIViewObserver interface
 
   NS_IMETHOD Paint(nsIView* aDisplayRoot,
@@ -950,13 +946,6 @@ public:
                                                 const nsRect& aBounds,
                                                 nscolor aBackstopColor,
                                                 PRBool aForceDraw);
-
-  virtual nsresult AddPrintPreviewBackgroundItem(nsDisplayListBuilder& aBuilder,
-                                                 nsDisplayList& aList,
-                                                 nsIFrame* aFrame,
-                                                 const nsRect& aBounds);
-
-  virtual nscolor ComputeBackstopColor(nsIView* aDisplayRoot);
 
 protected:
   virtual ~PresShell();
@@ -1314,6 +1303,13 @@ private:
   PRPackedBool mInResize;
 
 private:
+  /*
+   * Computes the backstop color for the view: transparent if in a transparent
+   * widget, otherwise the PresContext default background color. This color is
+   * only visible if the contents of the view as a whole are translucent.
+   */
+  nscolor ComputeBackstopColor(nsIView* aDisplayRoot);
+
 #ifdef DEBUG
   // Ensure that every allocation from the PresArena is eventually freed.
   PRUint32 mPresArenaAllocCount;
@@ -1366,9 +1362,6 @@ public:
   static PRInt64 SizeOfBidiMemoryReporter(void *) {
     return EstimateShellsMemory(LiveShellBidiSizeEnumerator);
   }
-
-protected:
-  void QueryIsActive();
 };
 
 class nsAutoCauseReflowNotifier
@@ -1602,7 +1595,6 @@ PresShell::PresShell()
 #endif
   mSelectionFlags = nsISelectionDisplay::DISPLAY_TEXT | nsISelectionDisplay::DISPLAY_IMAGES;
   mIsThemeSupportDisabled = PR_FALSE;
-  mIsActive = PR_TRUE;
 #ifdef DEBUG
   mPresArenaAllocCount = 0;
 #endif
@@ -1808,9 +1800,6 @@ PresShell::Init(nsIDocument* aDocument,
     }
   }
 #endif // MOZ_SMIL
-
-  // Get our activeness from the docShell.
-  QueryIsActive();
 
   return NS_OK;
 }
@@ -4789,7 +4778,6 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
     // Process pending restyles, since any flush of the presshell wants
     // up-to-date style data.
     if (!mIsDestroying) {
-      mViewManager->FlushDelayedResize(PR_FALSE);
       mPresContext->FlushPendingMediaFeatureValuesChanged();
 
       // Flush any pending update of the user font set, since that could
@@ -4836,7 +4824,7 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
     if (aType >= (mSuppressInterruptibleReflows ? Flush_Layout : Flush_InterruptibleLayout) &&
         !mIsDestroying) {
       mFrameConstructor->RecalcQuotesAndCounters();
-      mViewManager->FlushDelayedResize(PR_TRUE);
+      mViewManager->FlushDelayedResize();
       if (ProcessReflowCommands(aType < Flush_Layout) && mContentToScrollTo) {
         // We didn't get interrupted.  Go ahead and scroll to our content
         DoScrollContentIntoView(mContentToScrollTo, mContentScrollVPosition,
@@ -4860,6 +4848,12 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       // Flushing paints, so perform the invalidates and drawing
       // immediately
       updateFlags = NS_VMREFRESH_IMMEDIATE;
+    }
+    else if (aType < Flush_InterruptibleLayout) {
+      // Not flushing reflows, so do deferred invalidates.  This will keep us
+      // from possibly flushing out reflows due to invalidates being processed
+      // at the end of this view batch.
+      updateFlags = NS_VMREFRESH_DEFERRED;
     }
     batch.EndUpdateViewBatch(updateFlags);
   }
@@ -5309,12 +5303,7 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
     flags |= nsLayoutUtils::PAINT_SYNC_DECODE_IMAGES;
   }
   if (aFlags & RENDER_USE_WIDGET_LAYERS) {
-    // We only support using widget layers on display root's with widgets.
-    nsIView* view = rootFrame->GetView();
-    if (view && view->GetWidget() &&
-        nsLayoutUtils::GetDisplayRootFrame(rootFrame) == rootFrame) {
-      flags |= nsLayoutUtils::PAINT_WIDGET_LAYERS;
-    }
+    flags |= nsLayoutUtils::PAINT_WIDGET_LAYERS;
   }
   if (!(aFlags & RENDER_CARET)) {
     flags |= nsLayoutUtils::PAINT_HIDE_CARET;
@@ -5737,16 +5726,6 @@ PresShell::RenderSelection(nsISelection* aSelection,
                              aScreenRect);
 }
 
-nsresult
-PresShell::AddPrintPreviewBackgroundItem(nsDisplayListBuilder& aBuilder,
-                                         nsDisplayList&        aList,
-                                         nsIFrame*             aFrame,
-                                         const nsRect&         aBounds)
-{
-  return aList.AppendNewToBottom(
-      new (&aBuilder) nsDisplaySolidColor(aFrame, aBounds, NS_RGB(115, 115, 115)));
-}
-
 static PRBool
 AddCanvasBackgroundColor(const nsDisplayList& aList, nsIFrame* aCanvasFrame,
                          nscolor aColor)
@@ -5849,19 +5828,6 @@ struct PaintParams {
   const nsRegion* mDirtyRegion;
   nscolor mBackgroundColor;
 };
-
-LayerManager* PresShell::GetLayerManager()
-{
-  NS_ASSERTION(mViewManager, "Should have view manager");
-
-  nsIView* rootView;
-  if (NS_SUCCEEDED(mViewManager->GetRootView(rootView)) && rootView) {
-    if (nsIWidget* widget = rootView->GetWidget()) {
-      return widget->GetLayerManager();
-    }
-  }
-  return nsnull;
-}
 
 static void DrawThebesLayer(ThebesLayer* aLayer,
                             gfxContext* aContext,
@@ -7340,10 +7306,6 @@ PresShell::Thaw()
     mDocument->EnumerateSubDocuments(ThawSubDocument, nsnull);
 
   UnsuppressPainting();
-
-  // Get the activeness of our presshell, as this might have changed
-  // while we were in the bfcache
-  QueryIsActive();
 }
 
 void
@@ -8980,17 +8942,4 @@ void nsIPresShell::ReleaseStatics()
   NS_ASSERTION(sLiveShells, "ReleaseStatics called without Initialize!");
   delete sLiveShells;
   sLiveShells = nsnull;
-}
-
-// Asks our docshell whether we're active.
-void PresShell::QueryIsActive()
-{
-  nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
-  nsCOMPtr<nsIDocShell> docshell(do_QueryInterface(container));
-  if (docshell) {
-    PRBool isActive;
-    nsresult rv = docshell->GetIsActive(&isActive);
-    if (NS_SUCCEEDED(rv))
-      SetIsActive(isActive);
-  }
 }

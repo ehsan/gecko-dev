@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-482421.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 482421;
 var summary = 'TM: Do not assert: vp >= StackBase(fp)';

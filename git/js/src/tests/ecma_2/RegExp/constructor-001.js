@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'constructor-001.js';
 
 /**
  *  File Name:          RegExp/constructor-001.js

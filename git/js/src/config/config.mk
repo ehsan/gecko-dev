@@ -45,9 +45,6 @@
 #
 
 # Define an include-at-most-once flag
-#ifdef INCLUDED_CONFIG_MK
-#$(error Don't include config.mk twice!)
-#endif
 INCLUDED_CONFIG_MK = 1
 
 EXIT_ON_ERROR = set -e; # Shell loops continue past errors without this.
@@ -185,7 +182,7 @@ else
   endif
 endif
 
-MOZALLOC_LIB = $(call EXPAND_LIBNAME_PATH,mozalloc,$(DIST)/lib)
+MOZALLOC_LIB = -L$(DIST)/bin $(call EXPAND_MOZLIBNAME,mozalloc)
 
 OS_CFLAGS += $(_DEBUG_CFLAGS)
 OS_CXXFLAGS += $(_DEBUG_CFLAGS)

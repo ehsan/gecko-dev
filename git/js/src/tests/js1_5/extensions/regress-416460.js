@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-416460.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 416460;
 var summary = 'Do not assert: SCOPE_GET_PROPERTY(OBJ_SCOPE(pobj), ATOM_TO_JSID(atom))';

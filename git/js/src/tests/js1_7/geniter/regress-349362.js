@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-349362.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 349362;
 var summary = 'generator toString should be [object Generator]';

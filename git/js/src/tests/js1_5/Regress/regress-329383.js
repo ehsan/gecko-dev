@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-329383.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 329383;
 var summary = 'Math copysign issues';

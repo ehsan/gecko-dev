@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.5.4.13.js';
 
 START("13.5.4.13 - XMLList hasSimpleContent()");
 

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-374106.js';
 
 var BUGNUMBER = 374106;
 var summary = 'e4x XMLList.contains execution halts with complex match';

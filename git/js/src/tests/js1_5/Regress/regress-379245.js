@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-379245.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 379245;
 var summary = 'inline calls';

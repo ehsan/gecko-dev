@@ -37,6 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-255245.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 255245;
 var summary = 'Function.prototype.toSource/.toString show "setrval" instead of "return"';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-475645-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 475645;
 var summary = 'Do not crash @ nanojit::LIns::isop';

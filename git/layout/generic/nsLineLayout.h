@@ -221,9 +221,11 @@ public:
   //----------------------------------------
   // Inform the line-layout about the presence of a floating frame
   // XXX get rid of this: use get-frame-type?
-  PRBool AddFloat(nsIFrame* aFloat, nscoord aAvailableWidth)
+  PRBool AddFloat(nsIFrame*       aFloat,
+                  nscoord         aAvailableWidth,
+                  nsReflowStatus& aReflowStatus)
   {
-    return mBlockRS->AddFloat(this, aFloat, aAvailableWidth);
+    return mBlockRS->AddFloat(this, aFloat, aAvailableWidth, aReflowStatus);
   }
 
   void SetTrimmableWidth(nscoord aTrimmableWidth) {
@@ -368,9 +370,6 @@ public:
    */
   nsIFrame* GetLineContainerFrame() const { return mBlockReflowState->frame; }
   const nsLineList::iterator* GetLine() const {
-    return GetFlag(LL_GOTLINEBOX) ? &mLineBox : nsnull;
-  }
-  nsLineList::iterator* GetLine() {
     return GetFlag(LL_GOTLINEBOX) ? &mLineBox : nsnull;
   }
   

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-452786.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 452786;
 var summary = 'Do not crash with (new Date()).getMonth.call(new Function())';

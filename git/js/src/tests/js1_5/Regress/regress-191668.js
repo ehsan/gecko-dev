@@ -46,6 +46,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-191668.js';
 var UBound = 0;
 var BUGNUMBER = 191668;
 var summary = 'Testing script containing <!- at internal buffer boundary';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-352873-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 352873;
 var summary = 'decompilation of nested |try...catch| with |with|';

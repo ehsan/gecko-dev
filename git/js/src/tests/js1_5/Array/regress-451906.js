@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-451906.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 451906;
 var summary = 'Index array by numeric string';

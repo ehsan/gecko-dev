@@ -97,9 +97,9 @@ public:
     JNIEnv* AttachThread(PRBool asDaemon = PR_TRUE);
 
     /* These are all implemented in Java */
-    static void NotifyIME(int aType, int aState);
+    void NotifyIME(int aType, int aState);
 
-    static void NotifyIMEChange(const PRUnichar *aText, PRUint32 aTextLen, int aStart, int aEnd, int aNewEnd);
+    void NotifyIMEChange(const PRUnichar *aText, PRUint32 aTextLen, int aStart, int aEnd, int aNewEnd);
 
     void EnableAccelerometer(bool aEnable);
 
@@ -114,13 +114,9 @@ public:
     void SetSurfaceView(jobject jobj);
     AndroidGeckoSurfaceView& SurfaceView() { return mSurfaceView; }
 
-    PRBool GetHandlersForProtocol(const char *aScheme, nsStringArray* aStringArray = nsnull);
+    void GetHandlersForMimeType(const char *aMimeType, nsStringArray* aStringArray);
 
-    PRBool GetHandlersForMimeType(const char *aMimeType, nsStringArray* aStringArray = nsnull);
-
-    PRBool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType, 
-                           const nsAString& aPackageName = EmptyString(), 
-                           const nsAString& aClassName = EmptyString());
+    PRBool OpenUriExternal(nsCString& aUriSpec, nsCString& aMimeType);
 
     void GetMimeTypeFromExtension(const nsCString& aFileExt, nsCString& aMimeType);
 
@@ -177,7 +173,6 @@ protected:
     jmethodID jScheduleRestart;
     jmethodID jGetOutstandingDrawEvents;
     jmethodID jGetHandlersForMimeType;
-    jmethodID jGetHandlersForProtocol;
     jmethodID jOpenUriExternal;
     jmethodID jGetMimeTypeFromExtension;
     jmethodID jMoveTaskToBack;

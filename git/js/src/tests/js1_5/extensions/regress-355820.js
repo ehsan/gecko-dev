@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-355820.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 355820;
 var summary = 'Remove non-standard Script object';

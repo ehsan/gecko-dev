@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-476871-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 476871;
 var summary = 'Do not crash @ js_StepXMLListFilter';

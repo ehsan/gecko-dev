@@ -45,6 +45,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-192105.js';
 var UBound = 0;
 var BUGNUMBER = 192105;
 var summary = 'Using |instanceof| to check if f() is called as constructor';

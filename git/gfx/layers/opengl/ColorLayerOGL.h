@@ -53,12 +53,9 @@ public:
   { 
     mImplData = static_cast<LayerOGL*>(this);
   }
-  ~ColorLayerOGL() { Destroy(); }
 
   // LayerOGL Implementation
   virtual Layer* GetLayer();
-
-  virtual void Destroy() { mDestroyed = PR_TRUE; }
 
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset);

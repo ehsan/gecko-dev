@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '11.2.2.js';
 
 START("11.2.2 - Function Calls");
 

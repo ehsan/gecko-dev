@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-476655.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 476655;
 var summary = 'TM: Do not assert: count <= (size_t) (fp->regs->sp - StackBase(fp) - depth)';

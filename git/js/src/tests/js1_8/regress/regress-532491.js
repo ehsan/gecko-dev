@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-532491.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 466128;
 var summary = 'Assertion failure: staticLevel == script->staticLevel, at ../jsobj.cpp';

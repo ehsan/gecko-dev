@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-341360.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 341360;
 var summary = 'clearInterval broken';

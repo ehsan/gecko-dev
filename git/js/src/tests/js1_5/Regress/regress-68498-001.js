@@ -50,6 +50,7 @@
  *   DontDelete property of the global object"
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-68498-001.js';
 var BUGNUMBER = 68498;
 var summary ='Testing that variable statement outside any eval creates'  +
   ' a DontDelete property of the global object';

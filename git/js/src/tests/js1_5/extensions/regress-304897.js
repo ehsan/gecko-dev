@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-304897.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 304897;
 var summary = 'uneval("\\t"), uneval("\\x09")';

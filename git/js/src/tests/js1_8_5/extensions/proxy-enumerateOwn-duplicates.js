@@ -1,6 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/licenses/publicdomain/
 
+var gTestfile = 'proxy-enumerateOwn-duplicates.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 580200;
 var summary =

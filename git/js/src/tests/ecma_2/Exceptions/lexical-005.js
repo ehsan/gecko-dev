@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'lexical-005.js';
 
 /**
    File Name:          lexical-005.js

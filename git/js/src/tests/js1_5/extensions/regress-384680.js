@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-384680.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 384680;
 var summary = 'Round-trip change in decompilation with paren useless expression';

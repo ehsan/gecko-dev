@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'fe-001.js';
 
 if (1) function f() {return 1;}
 if (0) function f() {return 0;}

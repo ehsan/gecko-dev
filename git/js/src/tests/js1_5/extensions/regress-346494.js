@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-346494.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 346494;
 var summary = 'try-catch-finally scope';

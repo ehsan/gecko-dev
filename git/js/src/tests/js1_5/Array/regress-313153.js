@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-313153.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 313153;
 var summary = 'generic native method dispatcher extra actual arguments';

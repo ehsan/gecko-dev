@@ -212,14 +212,7 @@ public:
   {
   }
 
-  NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
-  {
-    nsresult rv;
-    *aStyle = static_cast<nsXULElement*>(mElement.get())->GetStyle(&rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-    NS_ADDREF(*aStyle);
-    return NS_OK;
-  }
+  NS_FORWARD_NSIDOMELEMENTCSSINLINESTYLE(static_cast<nsXULElement*>(mElement.get())->)
   NS_FORWARD_NSIFRAMELOADEROWNER(static_cast<nsXULElement*>(mElement.get())->);
 private:
   nsCOMPtr<nsIDOMXULElement> mElement;
@@ -1930,8 +1923,10 @@ NS_IMPL_XUL_STRING_ATTR(TooltipText, tooltiptext)
 NS_IMPL_XUL_STRING_ATTR(StatusText, statustext)
 
 nsresult
-nsXULElement::EnsureLocalStyle()
+nsXULElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
+    nsresult rv;
+
     // Clone the prototype rule, if we don't have a local one.
     if (mPrototype &&
         !mAttrsAndChildren.GetAttr(nsGkAtoms::style, kNameSpaceID_None)) {
@@ -1940,8 +1935,7 @@ nsXULElement::EnsureLocalStyle()
                   FindPrototypeAttribute(kNameSpaceID_None, nsGkAtoms::style);
         if (protoattr && protoattr->mValue.Type() == nsAttrValue::eCSSStyleRule) {
             nsCOMPtr<nsICSSRule> ruleClone;
-            nsresult rv = protoattr->mValue.GetCSSStyleRuleValue()->
-                Clone(*getter_AddRefs(ruleClone));
+            rv = protoattr->mValue.GetCSSStyleRuleValue()->Clone(*getter_AddRefs(ruleClone));
             NS_ENSURE_SUCCESS(rv, rv);
 
             nsAttrValue value;
@@ -1953,7 +1947,7 @@ nsXULElement::EnsureLocalStyle()
         }
     }
 
-    return NS_OK;
+    return nsStyledElement::GetStyle(aStyle);
 }
 
 nsresult

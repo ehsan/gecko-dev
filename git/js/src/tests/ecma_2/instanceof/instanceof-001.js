@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'instanceof-001.js';
 
 /**
    File Name:          instanceof-1.js

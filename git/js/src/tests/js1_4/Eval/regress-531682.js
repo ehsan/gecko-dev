@@ -4,6 +4,7 @@
  * http://creativecommons.org/licenses/publicdomain/
  */
 
+var gTestfile = 'regress-531682.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 531682;
 var summary = 'Checking proper wrapping of scope in  eval(source, scope)';

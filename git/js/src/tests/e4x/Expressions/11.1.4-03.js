@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '11.1.4-03.js';
 
 var summary = '11.1.4 - XML Initializer should accept single comment';
 var BUGNUMBER = 257679;

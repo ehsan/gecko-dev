@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-350387.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 350387;
 var summary = 'Var declaration and let with same name';

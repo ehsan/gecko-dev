@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-354924.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 354924;
 var summary = 'Do not crash with export/import and setter';

@@ -37,6 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-116228.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 116228;
 var summary = 'Do not crash - JSOP_THIS should null obj register';

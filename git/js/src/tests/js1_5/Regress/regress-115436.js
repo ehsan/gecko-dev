@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-115436.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 115436;
 var summary = 'Do not crash javascript warning duplicate arguments';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-308111.js';
 
 var summary = "Regression - Do not crash when searching large e4x tree";
 var BUGNUMBER = 308111;

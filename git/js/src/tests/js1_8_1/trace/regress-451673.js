@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-451673.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 451673;
 var summary = 'TM: Tracing prime number generation';

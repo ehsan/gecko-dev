@@ -5,6 +5,7 @@
  * Contributor: Blake Kaplan
  */
 
+var gTestfile = 'regress-470758-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 470758;
 var summary = 'Do not crash with eval upvars';
