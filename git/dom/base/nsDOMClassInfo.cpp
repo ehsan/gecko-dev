@@ -94,6 +94,7 @@
 #include "nsDOMWindowUtils.h"
 #include "nsIDOMGlobalPropertyInitializer.h"
 #include "mozilla/Preferences.h"
+#include "nsLocation.h"
 
 // Window scriptable helper includes
 #include "nsIDocShell.h"
@@ -198,7 +199,6 @@
 #include "nsIPresShell.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMCSSStyleDeclaration.h"
-#include "nsStyleSet.h"
 #include "nsStyleContext.h"
 #include "nsAutoPtr.h"
 #include "nsMemory.h"

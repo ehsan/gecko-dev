@@ -249,8 +249,6 @@ JSONSpewer::spewMIR(MIRGraph *mir)
             stringValue("backedge");
         if (block->isLoopHeader())
             stringValue("loopheader");
-        if (block->isSplitEdge())
-            stringValue("splitedge");
         endList();
 
         beginListProperty("predecessors");

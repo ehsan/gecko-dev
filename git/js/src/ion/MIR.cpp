@@ -210,7 +210,6 @@ MConstant::MConstant(const js::Value &vp)
   : value_(vp)
 {
     setResultType(MIRTypeFromValue(vp));
-    setIdempotent();
 }
 
 
@@ -376,10 +375,8 @@ MBinaryBitwiseInstruction::infer(const TypeOracle::Binary &b)
 {
     if (b.lhs == MIRType_Object || b.rhs == MIRType_Object)
         specialization_ = MIRType_None;
-    else {
+    else
         specialization_ = MIRType_Int32;
-        setIdempotent();
-    }
 }
 
 void
@@ -387,11 +384,9 @@ MBinaryArithInstruction::infer(const TypeOracle::Binary &b)
 {
     if (b.lhs == MIRType_Int32 && b.rhs == MIRType_Int32) {
         specialization_ = MIRType_Int32;
-        setIdempotent();
         setResultType(specialization_);
     } else if (b.lhs == MIRType_Double && b.rhs == MIRType_Double) {
         specialization_ = MIRType_Double;
-        setIdempotent();
         setResultType(specialization_);
     } else if (b.lhs < MIRType_String && b.rhs < MIRType_String) {
         specialization_ = MIRType_Any;

@@ -1580,6 +1580,8 @@ nsDocument::~nsDocument()
   nsCycleCollector_DEBUG_wasFreed(static_cast<nsIDocument*>(this));
 #endif
 
+  NS_ASSERTION(!mIsShowing, "Destroying a currently-showing document");
+
   mInDestructor = PR_TRUE;
   mInUnlinkOrDeletion = PR_TRUE;
 
@@ -8401,7 +8403,7 @@ PRInt64
 nsDocument::SizeOf() const
 {
   PRInt64 size = MemoryReporter::GetBasicSize<nsDocument, nsIDocument>(this);
-  size += mAttrStyleSheet ? mAttrStyleSheet->SizeOf() : 0;
+  size += mAttrStyleSheet ? mAttrStyleSheet->DOMSizeOf() : 0;
   return size;
 }
 
