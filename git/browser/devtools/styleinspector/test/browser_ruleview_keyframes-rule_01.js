@@ -80,7 +80,7 @@ function testMoxy(inspector, view) {
 
 function* testNode(selector, inspector, view) {
   let element = getNode(selector);
-  yield selectNode(selector, inspector);
+  yield selectNode(element, inspector);
   let elementStyle = view._elementStyle;
   return {element, elementStyle};
 }

@@ -14,14 +14,14 @@ let test = asyncTest(function*() {
   let {toolbox, inspector, view} = yield openComputedView();
 
   yield selectNode("#test", inspector);
-  yield testMatchedSelectors(view, inspector);
+  yield testMatchedSelectors(view);
 });
 
-function* testMatchedSelectors(view, inspector) {
+function* testMatchedSelectors(view) {
   info("checking selector counts, matched rules and titles");
 
-  let nodeFront = yield getNodeFront("#test", inspector);
-  is(nodeFront, view.viewedElement, "style inspector node matches the selected node");
+  is(getNode("#test"), view.viewedElement.rawNode(),
+      "style inspector node matches the selected node");
 
   let propertyView = new PropertyView(view, "color");
   propertyView.buildMain();

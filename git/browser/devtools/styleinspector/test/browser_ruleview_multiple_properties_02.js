@@ -16,7 +16,7 @@ let test = asyncTest(function*() {
   let newElement = content.document.createElement("div");
   newElement.textContent = "Test Element";
   content.document.body.appendChild(newElement);
-  yield selectNode("div", inspector);
+  yield selectNode(newElement, inspector);
   let ruleEditor = getRuleViewRuleEditor(view, 0);
 
   yield testMultiValues(inspector, ruleEditor, view);
