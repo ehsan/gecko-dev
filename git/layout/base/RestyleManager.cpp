@@ -2795,9 +2795,20 @@ ElementRestyler::Restyle(nsRestyleHint aRestyleHint)
     // to the style context (as is done by nsTransformedTextRun objects, which
     // can be referenced by a text frame's mTextRun longer than the frame's
     // mStyleContext).
-    ContextToClear* toClear = mContextsToClear.AppendElement();
-    toClear->mStyleContext = Move(oldContext);
-    toClear->mStructs = swappedStructs;
+    //
+    // We coalesce entries in mContextsToClear when we detect that the last
+    // style context appended has oldContext as its parent, as
+    // ClearCachedInheritedStyleDataOnDescendants handles a whole subtree
+    // of style contexts.
+    if (!mContextsToClear.IsEmpty() &&
+        mContextsToClear.LastElement().mStyleContext->GetParent() == oldContext &&
+        mContextsToClear.LastElement().mStructs == swappedStructs) {
+      mContextsToClear.LastElement().mStyleContext = Move(oldContext);
+    } else {
+      ContextToClear* toClear = mContextsToClear.AppendElement();
+      toClear->mStyleContext = Move(oldContext);
+      toClear->mStructs = swappedStructs;
+    }
   }
 
   mRestyleTracker.AddRestyleRootsIfAwaitingRestyle(descendants);
@@ -2970,7 +2981,7 @@ ElementRestyler::RestyleSelf(nsIFrame* aSelf,
 
   RestyleResult result;
 
-  if (aRestyleHint) {
+  if (aRestyleHint || true /* XXX bug 1092363 */) {
     result = eRestyleResult_Continue;
   } else {
     result = ComputeRestyleResultFromFrame(aSelf);
@@ -3268,7 +3279,9 @@ ElementRestyler::RestyleSelf(nsIFrame* aSelf,
       // previous continuation, so newContext == oldContext.
 
       if (result != eRestyleResult_Stop) {
-        if (copyFromContinuation) {
+        if (true) {
+          // XXX bug 1092363
+        } else if (copyFromContinuation) {
           LOG_RESTYLE("not swapping style structs, since we copied from a "
                       "continuation");
         } else if (oldContext->IsShared() && newContext->IsShared()) {
