@@ -9,7 +9,6 @@ let newTab = null;
 
 add_task(function() {
   info("Check Sync button functionality");
-  Services.prefs.setCharPref("identity.fxaccounts.remote.signup.uri", "http://example.com/");
 
   // add the Sync button to the panel
   CustomizableUI.addWidgetToArea("sync-button", CustomizableUI.AREA_PANEL);
@@ -35,7 +34,6 @@ add_task(function() {
 });
 
 add_task(function asyncCleanup() {
-  Services.prefs.clearUserPref("identity.fxaccounts.remote.signup.uri");
   // reset the panel UI to the default state
   yield resetCustomization();
   ok(CustomizableUI.inDefaultState, "The panel UI is in default state again.");

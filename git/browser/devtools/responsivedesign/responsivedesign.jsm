@@ -213,8 +213,7 @@ function ResponsiveUI(aWindow, aTab)
     this.onPageLoad();
   }
 
-  // E10S: We should be using target here. See bug 1028234
-  ResponsiveUIManager.emit("on", { tab: this.tab });
+  ResponsiveUIManager.emit("on", this.tab, this);
 }
 
 ResponsiveUI.prototype = {
@@ -306,8 +305,7 @@ ResponsiveUI.prototype = {
     if (this.touchEventHandler)
       this.touchEventHandler.stop();
     this._telemetry.toolClosed("responsive");
-    // E10S: We should be using target here. See bug 1028234
-    ResponsiveUIManager.emit("off", { tab: this.tab });
+    ResponsiveUIManager.emit("off", this.tab, this);
   },
 
   /**

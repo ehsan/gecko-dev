@@ -14,10 +14,10 @@ exports.items = [
     description: gcli.lookup("injectDesc"),
     manual: gcli.lookup("injectManual2"),
     params: [{
-      name: "library",
+      name: 'library',
       type: {
         name: "union",
-        alternatives: [
+        types: [
           {
             name: "selection",
             lookup: [
@@ -45,7 +45,7 @@ exports.items = [
             ]
           },
           {
-            name: "url"
+            name: "string"
           }
         ]
       },
@@ -55,13 +55,9 @@ exports.items = [
       let document = context.environment.document;
       let library = args.library;
       let name = (library.type === "selection") ?
-          library.selection.name : library.url;
+          library.selection.name : library.string;
       let src = (library.type === "selection") ?
-          library.selection.src : library.url;
-
-      if (context.environment.window.location.protocol == "https:") {
-        src = src.replace(/^http:/, "https:");
-      }
+          library.selection.src : library.string;
 
       try {
         // Check if URI is valid

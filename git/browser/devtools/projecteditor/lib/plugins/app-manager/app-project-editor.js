@@ -27,27 +27,15 @@ var AppProjectEditor = Class({
   },
 
   load: function(resource) {
+    this.elt.textContent = "";
     let {appManagerOpts} = this.host.project;
+    let iframe = this.iframe = this.elt.ownerDocument.createElement("iframe");
+    iframe.setAttribute("flex", "1");
+    iframe.setAttribute("src", appManagerOpts.projectOverviewURL);
+    this.elt.appendChild(iframe);
 
-    // Only load the frame the first time it is selected
-    if (!this.iframe || this.iframe.getAttribute("src") !== appManagerOpts.projectOverviewURL) {
-
-      this.elt.textContent = "";
-      let iframe = this.iframe = this.elt.ownerDocument.createElement("iframe");
-      let iframeLoaded = this.iframeLoaded = promise.defer();
-
-      iframe.addEventListener("load", function onLoad() {
-        iframe.removeEventListener("load", onLoad);
-        iframeLoaded.resolve();
-      });
-
-      iframe.setAttribute("flex", "1");
-      iframe.setAttribute("src", appManagerOpts.projectOverviewURL);
-      this.elt.appendChild(iframe);
-
-    }
-
-    promise.all([this.iframeLoaded.promise, this.appended]).then(() => {
+    // Wait for other `appended` listeners before emitting load.
+    this.appended.then(() => {
       this.emit("load");
     });
   }

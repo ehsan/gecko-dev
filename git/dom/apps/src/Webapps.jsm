@@ -2695,12 +2695,11 @@ this.DOMApplicationRegistry = {
   _manifestCache: {},
 
   _readManifests: function(aData) {
-    let manifestCache = this._manifestCache;
     return Task.spawn(function*() {
       for (let elem of aData) {
         let id = elem.id;
 
-        if (!manifestCache[id]) {
+        if (!this._manifestCache[id]) {
           // the manifest file used to be named manifest.json, so fallback on this.
           let baseDir = this.webapps[id].basePath == this.getCoreAppsBasePath()
                           ? "coreAppsDir" : DIRECTORY_NAME;
@@ -2709,14 +2708,14 @@ this.DOMApplicationRegistry = {
 
           let fileNames = ["manifest.webapp", "update.webapp", "manifest.json"];
           for (let fileName of fileNames) {
-            manifestCache[id] = yield AppsUtils.loadJSONAsync(OS.Path.join(dir.path, fileName));
-            if (manifestCache[id]) {
+            this._manifestCache[id] = yield AppsUtils.loadJSONAsync(OS.Path.join(dir.path, fileName));
+            if (this._manifestCache[id]) {
               break;
             }
           }
         }
 
-        elem.manifest = manifestCache[id];
+        elem.manifest = this._manifestCache[id];
       }
 
       return aData;

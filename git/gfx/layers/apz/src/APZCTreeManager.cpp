@@ -378,8 +378,114 @@ APZCTreeManager::ReceiveInputEvent(const InputData& aEvent,
   gfx3DMatrix transformToGecko;
   switch (aEvent.mInputType) {
     case MULTITOUCH_INPUT: {
-      MultiTouchInput touchInput = aEvent.AsMultiTouchInput();
-      result = ProcessTouchInput(touchInput, aOutTargetGuid);
+      const MultiTouchInput& multiTouchInput = aEvent.AsMultiTouchInput();
+      if (multiTouchInput.mType == MultiTouchInput::MULTITOUCH_START) {
+        // If we are in an overscrolled state and a second finger goes down,
+        // ignore that second touch point completely. The touch-start for it is
+        // dropped completely; subsequent touch events until the touch-end for it
+        // will have this touch point filtered out.
+        if (mApzcForInputBlock && mApzcForInputBlock->IsOverscrolled()) {
+          if (mRetainedTouchIdentifier == -1) {
+            mRetainedTouchIdentifier = mApzcForInputBlock->GetLastTouchIdentifier();
+          }
+          return nsEventStatus_eConsumeNoDefault;
+        }
+        // MULTITOUCH_START input contains all active touches of the current
+        // session thus resetting mTouchCount.
+        mTouchCount = multiTouchInput.mTouches.Length();
+        mInOverscrolledApzc = false;
+        mApzcForInputBlock = GetTargetAPZC(ScreenPoint(multiTouchInput.mTouches[0].mScreenPoint),
+                                           &mInOverscrolledApzc);
+        if (multiTouchInput.mTouches.Length() == 1) {
+          // If we have one touch point, this might be the start of a pan.
+          // Prepare for possible overscroll handoff.
+          BuildOverscrollHandoffChain(mApzcForInputBlock);
+        }
+        for (size_t i = 1; i < multiTouchInput.mTouches.Length(); i++) {
+          nsRefPtr<AsyncPanZoomController> apzc2 = GetTargetAPZC(ScreenPoint(multiTouchInput.mTouches[i].mScreenPoint),
+                                                                 &mInOverscrolledApzc);
+          mApzcForInputBlock = CommonAncestor(mApzcForInputBlock.get(), apzc2.get());
+          APZCTM_LOG("Using APZC %p as the common ancestor\n", mApzcForInputBlock.get());
+          // For now, we only ever want to do pinching on the root APZC for a given layers id. So
+          // when we find the common ancestor of multiple points, also walk up to the root APZC.
+          mApzcForInputBlock = RootAPZCForLayersId(mApzcForInputBlock);
+          APZCTM_LOG("Using APZC %p as the root APZC for multi-touch\n", mApzcForInputBlock.get());
+        }
+
+        if (mApzcForInputBlock) {
+          // Cache transformToApzc so it can be used for future events in this block.
+          GetInputTransforms(mApzcForInputBlock, transformToApzc, transformToGecko);
+          mCachedTransformToApzcForInputBlock = transformToApzc;
+        } else {
+          // Reset the cached apz transform
+          mCachedTransformToApzcForInputBlock = gfx3DMatrix();
+        }
+      } else if (mApzcForInputBlock) {
+        APZCTM_LOG("Re-using APZC %p as continuation of event block\n", mApzcForInputBlock.get());
+      }
+
+      // If we receive a touch-cancel, it means all touches are finished, so we
+      // can stop ignoring any that we were ignoring.
+      if (multiTouchInput.mType == MultiTouchInput::MULTITOUCH_CANCEL) {
+        mRetainedTouchIdentifier = -1;
+      }
+
+      if (mApzcForInputBlock) {
+        mApzcForInputBlock->GetGuid(aOutTargetGuid);
+        // Use the cached transform to compute the point to send to the APZC.
+        // This ensures that the sequence of touch points an APZC sees in an
+        // input block are all in the same coordinate space.
+        transformToApzc = mCachedTransformToApzcForInputBlock;
+
+        // Make a copy of the input event that we pass, with some modifications,
+        // to the target APZC.
+        MultiTouchInput inputForApzc(multiTouchInput);
+
+        // If we are currently ignoring any touch points, filter them out from
+        // the set of touch points included in this event.
+        if (mRetainedTouchIdentifier != -1) {
+          for (size_t j = 0; j < inputForApzc.mTouches.Length(); ++j) {
+            if (inputForApzc.mTouches[j].mIdentifier != mRetainedTouchIdentifier) {
+              // TODO(botond): Once we get rid of ReceiveInputEvent(WidgetInputEvent),
+              // the signature of this function will change to take the InputData
+              // via non-const reference. We can then remove the touch point from
+              // multiTouchInput rather than the copy (inputForApzc), so that
+              // content doesn't get it either.
+              inputForApzc.mTouches.RemoveElementAt(j);
+              --j;
+            }
+          }
+          if (inputForApzc.mTouches.IsEmpty()) {
+            return nsEventStatus_eConsumeNoDefault;
+          }
+        }
+
+        for (size_t i = 0; i < inputForApzc.mTouches.Length(); i++) {
+          ApplyTransform(&(inputForApzc.mTouches[i].mScreenPoint), transformToApzc);
+        }
+        mApzcForInputBlock->ReceiveInputEvent(inputForApzc);
+      }
+      result = mInOverscrolledApzc ? nsEventStatus_eConsumeNoDefault
+             : mApzcForInputBlock ? nsEventStatus_eConsumeDoDefault
+             : nsEventStatus_eIgnore;
+      if (multiTouchInput.mType == MultiTouchInput::MULTITOUCH_CANCEL ||
+          multiTouchInput.mType == MultiTouchInput::MULTITOUCH_END) {
+        if (mTouchCount >= multiTouchInput.mTouches.Length()) {
+          // MULTITOUCH_END input contains only released touches thus decrementing.
+          mTouchCount -= multiTouchInput.mTouches.Length();
+        } else {
+          NS_WARNING("Got an unexpected touchend/touchcancel");
+          mTouchCount = 0;
+        }
+        // If we have an mApzcForInputBlock and it's the end of the touch sequence
+        // then null it out so we don't keep a dangling reference and leak things.
+        if (mTouchCount == 0) {
+          mApzcForInputBlock = nullptr;
+          mInOverscrolledApzc = false;
+          mRetainedTouchIdentifier = -1;
+          ClearOverscrollHandoffChain();
+        }
+      }
       break;
     } case PANGESTURE_INPUT: {
       const PanGestureInput& panInput = aEvent.AsPanGestureInput();
@@ -440,17 +546,20 @@ APZCTreeManager::ReceiveInputEvent(const InputData& aEvent,
 }
 
 already_AddRefed<AsyncPanZoomController>
-APZCTreeManager::GetTouchInputBlockAPZC(const MultiTouchInput& aEvent,
+APZCTreeManager::GetTouchInputBlockAPZC(const WidgetTouchEvent& aEvent,
                                         bool* aOutInOverscrolledApzc)
 {
-  nsRefPtr<AsyncPanZoomController> apzc;
-  if (aEvent.mTouches.Length() == 0) {
-    return apzc.forget();
+  ScreenPoint point = ScreenPoint(aEvent.touches[0]->mRefPoint.x, aEvent.touches[0]->mRefPoint.y);
+  // Ignore events if any touch hits inside an overscrolled apzc.
+  nsRefPtr<AsyncPanZoomController> apzc = GetTargetAPZC(point, aOutInOverscrolledApzc);
+  if (aEvent.touches.Length() == 1) {
+    // If we have one touch point, this might be the start of a pan.
+    // Prepare for possible overscroll handoff.
+    BuildOverscrollHandoffChain(apzc);
   }
-
-  apzc = GetTargetAPZC(aEvent.mTouches[0].mScreenPoint, aOutInOverscrolledApzc);
-  for (size_t i = 1; i < aEvent.mTouches.Length(); i++) {
-    nsRefPtr<AsyncPanZoomController> apzc2 = GetTargetAPZC(aEvent.mTouches[i].mScreenPoint, aOutInOverscrolledApzc);
+  for (size_t i = 1; i < aEvent.touches.Length(); i++) {
+    point = ScreenPoint(aEvent.touches[i]->mRefPoint.x, aEvent.touches[i]->mRefPoint.y);
+    nsRefPtr<AsyncPanZoomController> apzc2 = GetTargetAPZC(point, aOutInOverscrolledApzc);
     apzc = CommonAncestor(apzc.get(), apzc2.get());
     APZCTM_LOG("Using APZC %p as the common ancestor\n", apzc.get());
     // For now, we only ever want to do pinching on the root APZC for a given layers id. So
@@ -458,18 +567,19 @@ APZCTreeManager::GetTouchInputBlockAPZC(const MultiTouchInput& aEvent,
     apzc = RootAPZCForLayersId(apzc);
     APZCTM_LOG("Using APZC %p as the root APZC for multi-touch\n", apzc.get());
   }
-
-  // Prepare for possible overscroll handoff.
-  BuildOverscrollHandoffChain(apzc);
-
   return apzc.forget();
 }
 
 nsEventStatus
-APZCTreeManager::ProcessTouchInput(MultiTouchInput& aInput,
+APZCTreeManager::ProcessTouchEvent(WidgetTouchEvent& aEvent,
                                    ScrollableLayerGuid* aOutTargetGuid)
 {
-  if (aInput.mType == MultiTouchInput::MULTITOUCH_START) {
+  MOZ_ASSERT(NS_IsMainThread());
+
+  if (!aEvent.touches.Length()) {
+    return nsEventStatus_eIgnore;
+  }
+  if (aEvent.message == NS_TOUCH_START) {
     // If we are in an overscrolled state and a second finger goes down,
     // ignore that second touch point completely. The touch-start for it is
     // dropped completely; subsequent touch events until the touch-end for it
@@ -480,23 +590,11 @@ APZCTreeManager::ProcessTouchInput(MultiTouchInput& aInput,
       }
       return nsEventStatus_eConsumeNoDefault;
     }
-
     // NS_TOUCH_START event contains all active touches of the current
     // session thus resetting mTouchCount.
-    mTouchCount = aInput.mTouches.Length();
+    mTouchCount = aEvent.touches.Length();
     mInOverscrolledApzc = false;
-    nsRefPtr<AsyncPanZoomController> apzc = GetTouchInputBlockAPZC(aInput, &mInOverscrolledApzc);
-    if (apzc != mApzcForInputBlock) {
-      // If we're moving to a different APZC as our input target, then send a cancel event
-      // to the old one so that it clears its internal state. Otherwise it could get left
-      // in the middle of a panning touch block (for example) and not clean up properly.
-      if (mApzcForInputBlock) {
-        MultiTouchInput cancel(MultiTouchInput::MULTITOUCH_CANCEL, 0, TimeStamp::Now(), 0);
-        mApzcForInputBlock->ReceiveInputEvent(cancel);
-      }
-      mApzcForInputBlock = apzc;
-    }
-
+    mApzcForInputBlock = GetTouchInputBlockAPZC(aEvent, &mInOverscrolledApzc);
     if (mApzcForInputBlock) {
       // Cache apz transform so it can be used for future events in this block.
       gfx3DMatrix transformToGecko;
@@ -505,28 +603,26 @@ APZCTreeManager::ProcessTouchInput(MultiTouchInput& aInput,
       // Reset the cached apz transform
       mCachedTransformToApzcForInputBlock = gfx3DMatrix();
     }
-  } else if (mApzcForInputBlock) {
-    APZCTM_LOG("Re-using APZC %p as continuation of event block\n", mApzcForInputBlock.get());
   }
 
   // If we receive a touch-cancel, it means all touches are finished, so we
   // can stop ignoring any that we were ignoring.
-  if (aInput.mType == MultiTouchInput::MULTITOUCH_CANCEL) {
+  if (aEvent.message == NS_TOUCH_CANCEL) {
     mRetainedTouchIdentifier = -1;
   }
 
   // If we are currently ignoring any touch points, filter them out from the
-  // set of touch points included in this event. Note that we modify aInput
+  // set of touch points included in this event. Note that we modify aEvent
   // itself, so that the touch points are also filtered out when the caller
   // passes the event on to content.
   if (mRetainedTouchIdentifier != -1) {
-    for (size_t j = 0; j < aInput.mTouches.Length(); ++j) {
-      if (aInput.mTouches[j].mIdentifier != mRetainedTouchIdentifier) {
-        aInput.mTouches.RemoveElementAt(j);
+    for (size_t j = 0; j < aEvent.touches.Length(); ++j) {
+      if (aEvent.touches[j]->Identifier() != mRetainedTouchIdentifier) {
+        aEvent.touches.RemoveElementAt(j);
         --j;
       }
     }
-    if (aInput.mTouches.IsEmpty()) {
+    if (aEvent.touches.IsEmpty()) {
       return nsEventStatus_eConsumeNoDefault;
     }
   }
@@ -537,7 +633,7 @@ APZCTreeManager::ProcessTouchInput(MultiTouchInput& aInput,
     // This ensures that the sequence of touch points an APZC sees in an
     // input block are all in the same coordinate space.
     gfx3DMatrix transformToApzc = mCachedTransformToApzcForInputBlock;
-    MultiTouchInput inputForApzc(aInput);
+    MultiTouchInput inputForApzc(aEvent);
     for (size_t i = 0; i < inputForApzc.mTouches.Length(); i++) {
       ApplyTransform(&(inputForApzc.mTouches[i].mScreenPoint), transformToApzc);
     }
@@ -549,36 +645,31 @@ APZCTreeManager::ProcessTouchInput(MultiTouchInput& aInput,
     gfx3DMatrix transformToGecko;
     GetInputTransforms(mApzcForInputBlock, transformToApzc, transformToGecko);
     gfx3DMatrix outTransform = transformToApzc * transformToGecko;
-    for (size_t i = 0; i < aInput.mTouches.Length(); i++) {
-      ApplyTransform(&(aInput.mTouches[i].mScreenPoint), outTransform);
+    for (size_t i = 0; i < aEvent.touches.Length(); i++) {
+      ApplyTransform(&(aEvent.touches[i]->mRefPoint), outTransform);
     }
   }
-
   nsEventStatus result = mInOverscrolledApzc ? nsEventStatus_eConsumeNoDefault
                        : mApzcForInputBlock ? nsEventStatus_eConsumeDoDefault
                        : nsEventStatus_eIgnore;
-
-  if (aInput.mType == MultiTouchInput::MULTITOUCH_END) {
-    if (mTouchCount >= aInput.mTouches.Length()) {
+  // If we have an mApzcForInputBlock and it's the end of the touch sequence
+  // then null it out so we don't keep a dangling reference and leak things.
+  if (aEvent.message == NS_TOUCH_CANCEL ||
+      aEvent.message == NS_TOUCH_END) {
+    if (mTouchCount >= aEvent.touches.Length()) {
       // NS_TOUCH_END event contains only released touches thus decrementing.
-      mTouchCount -= aInput.mTouches.Length();
+      mTouchCount -= aEvent.touches.Length();
     } else {
       NS_WARNING("Got an unexpected touchend/touchcancel");
       mTouchCount = 0;
     }
-  } else if (aInput.mType == MultiTouchInput::MULTITOUCH_CANCEL) {
-    mTouchCount = 0;
+    if (mTouchCount == 0) {
+      mApzcForInputBlock = nullptr;
+      mInOverscrolledApzc = false;
+      mRetainedTouchIdentifier = -1;
+      ClearOverscrollHandoffChain();
+    }
   }
-
-  // If it's the end of the touch sequence then clear out variables so we
-  // keep dangling references and leak things.
-  if (mTouchCount == 0) {
-    mApzcForInputBlock = nullptr;
-    mInOverscrolledApzc = false;
-    mRetainedTouchIdentifier = -1;
-    ClearOverscrollHandoffChain();
-  }
-
   return result;
 }
 
@@ -627,27 +718,12 @@ nsEventStatus
 APZCTreeManager::ReceiveInputEvent(WidgetInputEvent& aEvent,
                                    ScrollableLayerGuid* aOutTargetGuid)
 {
-  // This function will be removed as part of bug 930939.
-  // In general it is preferable to use the version of ReceiveInputEvent
-  // that takes an InputData, as that is usable from off-main-thread.
-
   MOZ_ASSERT(NS_IsMainThread());
 
   switch (aEvent.eventStructType) {
     case NS_TOUCH_EVENT: {
       WidgetTouchEvent& touchEvent = *aEvent.AsTouchEvent();
-      MultiTouchInput touchInput(touchEvent);
-      nsEventStatus result = ProcessTouchInput(touchInput, aOutTargetGuid);
-      // touchInput was modified in-place to possibly remove some
-      // touch points (if we are overscrolled), and the coordinates were
-      // modified using the APZ untransform. We need to copy these changes
-      // back into the WidgetInputEvent.
-      touchEvent.touches.Clear();
-      touchEvent.touches.SetCapacity(touchInput.mTouches.Length());
-      for (size_t i = 0; i < touchInput.mTouches.Length(); i++) {
-        *touchEvent.touches.AppendElement() = touchInput.mTouches[i].ToNewDOMTouch();
-      }
-      return result;
+      return ProcessTouchEvent(touchEvent, aOutTargetGuid);
     }
     default: {
       return ProcessEvent(aEvent, aOutTargetGuid);
@@ -971,8 +1047,6 @@ APZCTreeManager::BuildOverscrollHandoffChain(const nsRefPtr<AsyncPanZoomControll
       mOverscrollHandoffChain.clear();
       return;
     }
-    APZCTM_LOG("mOverscrollHandoffChain[%d] = %p\n", mOverscrollHandoffChain.length(), apzc);
-
     if (apzc->GetScrollHandoffParentId() == FrameMetrics::NULL_SCROLL_ID) {
       if (!apzc->IsRootForLayersId()) {
         // This probably indicates a bug or missed case in layout code
