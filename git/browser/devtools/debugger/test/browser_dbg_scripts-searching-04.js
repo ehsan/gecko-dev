@@ -4,11 +4,6 @@
 
 const TAB_URL = EXAMPLE_URL + "browser_dbg_script-switching.html";
 
-/**
- * Tests if the global search results switch back and forth, and wrap around
- * when switching between them.
- */
-
 var gPane = null;
 var gTab = null;
 var gDebuggee = null;
@@ -129,7 +124,7 @@ function doFirstJump() {
     }
   });
   executeSoon(function() {
-    EventUtils.sendKey("DOWN");
+    EventUtils.sendKey("ENTER");
   });
 }
 
@@ -156,7 +151,7 @@ function doSecondJump() {
     }
   });
   executeSoon(function() {
-    EventUtils.sendKey("RETURN");
+    EventUtils.sendKey("ENTER");
   });
 }
 
@@ -176,7 +171,7 @@ function doWrapAroundJump() {
         is(gScripts.visibleItemsCount, 2,
           "Not all the correct scripts are shown after the search. (3)");
 
-        doBackwardsWrapAroundJump();
+        testSearchTokenEmpty();
       });
     } else {
       ok(false, "We jumped in a bowl of hot lava (aka WRONG MATCH). That was bad for us.");
@@ -187,33 +182,6 @@ function doWrapAroundJump() {
   });
 }
 
-function doBackwardsWrapAroundJump() {
-  window.addEventListener("Debugger:ScriptShown", function _onEvent(aEvent) {
-    window.removeEventListener(aEvent.type, _onEvent);
-    info("Current script url:\n" + aEvent.detail.url + "\n");
-    info("Debugger editor text:\n" + gEditor.getText() + "\n");
-
-    let url = aEvent.detail.url;
-    if (url.indexOf("-02.js") != -1) {
-      executeSoon(function() {
-        info("Editor caret position: " + gEditor.getCaretPosition().toSource() + "\n");
-        ok(gEditor.getCaretPosition().line == 5 &&
-           gEditor.getCaretPosition().col == 6,
-          "The editor didn't jump to the correct line. (4)");
-        is(gScripts.visibleItemsCount, 2,
-          "Not all the correct scripts are shown after the search. (4)");
-
-        testSearchTokenEmpty();
-      });
-    } else {
-      ok(false, "We jumped in a bowl of hot lava (aka WRONG MATCH). That was bad for us.");
-    }
-  });
-  executeSoon(function() {
-    EventUtils.sendKey("UP");
-  });
-}
-
 function testSearchTokenEmpty() {
   window.addEventListener("Debugger:GlobalSearch:TokenEmpty", function _onEvent(aEvent) {
     window.removeEventListener(aEvent.type, _onEvent);
@@ -221,14 +189,14 @@ function testSearchTokenEmpty() {
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
     let url = gScripts.selected;
-    if (url.indexOf("-02.js") != -1) {
+    if (url.indexOf("-01.js") != -1) {
       executeSoon(function() {
         info("Editor caret position: " + gEditor.getCaretPosition().toSource() + "\n");
-        ok(gEditor.getCaretPosition().line == 5 &&
+        ok(gEditor.getCaretPosition().line == 4 &&
            gEditor.getCaretPosition().col == 6,
-          "The editor didn't remain at the correct line. (5)");
+          "The editor didn't remain at the correct line. (4)");
         is(gScripts.visibleItemsCount, 2,
-          "Not all the correct scripts are shown after the search. (5)");
+          "Not all the correct scripts are shown after the search. (4)");
 
         is(gSearchView._pane.childNodes.length, 0,
           "The global search pane shouldn't have any child nodes after clear().");
@@ -279,6 +247,5 @@ registerCleanupFunction(function() {
   gDebugger = null;
   gEditor = null;
   gScripts = null;
-  gSearchView = null;
   gSearchBox = null;
 });
