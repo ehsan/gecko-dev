@@ -751,7 +751,6 @@ MobileMessageDatabaseService.prototype = {
         }
         threadRecord.lastMessageType = messageRecord.type;
         cursor.update(threadRecord);
-        cursor.continue();
       };
 
       request.onerror = function onerror(event) {
@@ -760,8 +759,8 @@ MobileMessageDatabaseService.prototype = {
             debug("Caught error on transaction", event.target.errorCode);
           }
         }
-        cursor.continue();
       };
+      cursor.continue();
     };
   },
 
