@@ -16,23 +16,19 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'downloads'
 
-UNIFIED_SOURCES += [
-    'nsDownloadManager.cpp',
-]
-
-# SQLFunctions.cpp cannot be built in unified mode because of Windows headers.
 SOURCES += [
+    'nsDownloadManager.cpp',
     'SQLFunctions.cpp',
 ]
 
 if CONFIG['MOZ_URL_CLASSIFIER']:
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'ApplicationReputation.cpp',
         'csd.pb.cc'
     ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'nsDownloadScanner.cpp',
     ]
 

@@ -33,22 +33,14 @@ public:
                                     const FrameMetrics& aMetrics);
 
     /* Applies the scroll and zoom parameters from the given FrameMetrics object to
-       the root frame corresponding to the given DOMWindowUtils. If tiled thebes
-       layers are enabled, this will align the displayport to tile boundaries.
-       Setting the scroll position can cause some small adjustments to be made
-       to the actual scroll position. aMetrics' display port and scroll position
-       will be updated with any modifications made. */
+       the root frame corresponding to the given DOMWindowUtils. */
     static void UpdateRootFrame(nsIDOMWindowUtils* aUtils,
-                                FrameMetrics& aMetrics);
+                                const FrameMetrics& aMetrics);
 
     /* Applies the scroll parameters from the given FrameMetrics object to the subframe
-       corresponding to the given content object. If tiled thebes
-       layers are enabled, this will align the displayport to tile boundaries.
-       Setting the scroll position can cause some small adjustments to be made
-       to the actual scroll position. aMetrics' display port and scroll position
-       will be updated with any modifications made. */
+       corresponding to the given content object. */
     static void UpdateSubFrame(nsIContent* aContent,
-                               FrameMetrics& aMetrics);
+                               const FrameMetrics& aMetrics);
 
     /* Get the DOMWindowUtils for the window corresponding to the given document. */
     static already_AddRefed<nsIDOMWindowUtils> GetDOMWindowUtils(const nsIDocument* aDoc);

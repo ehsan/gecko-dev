@@ -346,11 +346,15 @@ MediaDecodeTask::Decode()
       (audioData->mAudioBuffer->Data());
 
     if (sampleRate != destSampleRate) {
-      const uint32_t maxOutSamples = resampledFrames - mDecodeJob.mWriteIndex;
+      const uint32_t expectedOutSamples = static_cast<uint32_t>(
+          static_cast<uint64_t>(destSampleRate) *
+          static_cast<uint64_t>(audioData->mFrames) /
+          static_cast<uint64_t>(sampleRate)
+        );
 
       for (uint32_t i = 0; i < audioData->mChannels; ++i) {
         uint32_t inSamples = audioData->mFrames;
-        uint32_t outSamples = maxOutSamples;
+        uint32_t outSamples = expectedOutSamples;
 
         WebAudioUtils::SpeexResamplerProcess(
             resampler, i, &bufferData[i * audioData->mFrames], &inSamples,
@@ -360,7 +364,6 @@ MediaDecodeTask::Decode()
         if (i == audioData->mChannels - 1) {
           mDecodeJob.mWriteIndex += outSamples;
           MOZ_ASSERT(mDecodeJob.mWriteIndex <= resampledFrames);
-          MOZ_ASSERT(inSamples == audioData->mFrames);
         }
       }
     } else {
@@ -377,23 +380,32 @@ MediaDecodeTask::Decode()
   }
 
   if (sampleRate != destSampleRate) {
-    uint32_t inputLatency = speex_resampler_get_input_latency(resampler);
-    const uint32_t maxOutSamples = resampledFrames - mDecodeJob.mWriteIndex;
+    int inputLatency = speex_resampler_get_input_latency(resampler);
+    int outputLatency = speex_resampler_get_output_latency(resampler);
+    AudioDataValue* zero = (AudioDataValue*)calloc(inputLatency, sizeof(AudioDataValue));
+
+    if (!zero) {
+      // Out of memory!
+      ReportFailureOnMainThread(WebAudioDecodeJob::UnknownError);
+      return;
+    }
+
     for (uint32_t i = 0; i < channelCount; ++i) {
       uint32_t inSamples = inputLatency;
-      uint32_t outSamples = maxOutSamples;
+      uint32_t outSamples = outputLatency;
 
       WebAudioUtils::SpeexResamplerProcess(
-          resampler, i, (AudioDataValue*)nullptr, &inSamples,
+          resampler, i, zero, &inSamples,
           mDecodeJob.mChannelBuffers[i] + mDecodeJob.mWriteIndex,
           &outSamples);
 
       if (i == channelCount - 1) {
         mDecodeJob.mWriteIndex += outSamples;
         MOZ_ASSERT(mDecodeJob.mWriteIndex <= resampledFrames);
-        MOZ_ASSERT(inSamples == inputLatency);
       }
     }
+
+    free(zero);
   }
 
   mPhase = PhaseEnum::AllocateBuffer;

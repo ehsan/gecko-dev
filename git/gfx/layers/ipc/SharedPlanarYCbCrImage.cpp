@@ -7,6 +7,7 @@
 #include <stddef.h>                     // for size_t
 #include <stdio.h>                      // for printf
 #include "ISurfaceAllocator.h"          // for ISurfaceAllocator, etc
+#include "gfxPoint.h"                   // for gfxIntSize
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/gfx/Types.h"          // for SurfaceFormat::FORMAT_YUV
 #include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
@@ -44,12 +45,6 @@ SharedPlanarYCbCrImage::~SharedPlanarYCbCrImage() {
   }
 }
 
-DeprecatedSharedPlanarYCbCrImage::DeprecatedSharedPlanarYCbCrImage(ISurfaceAllocator* aAllocator)
-: PlanarYCbCrImage(nullptr)
-, mSurfaceAllocator(aAllocator), mAllocated(false)
-{
-  MOZ_COUNT_CTOR(DeprecatedSharedPlanarYCbCrImage);
-}
 
 DeprecatedSharedPlanarYCbCrImage::~DeprecatedSharedPlanarYCbCrImage() {
   MOZ_COUNT_DTOR(DeprecatedSharedPlanarYCbCrImage);
@@ -125,16 +120,14 @@ SharedPlanarYCbCrImage::AllocateAndGetNewBuffer(uint32_t aSize)
 {
   NS_ABORT_IF_FALSE(!mTextureClient->IsAllocated(), "This image already has allocated data");
   size_t size = YCbCrImageDataSerializer::ComputeMinBufferSize(aSize);
-
-  // get new buffer _without_ setting mBuffer.
-  if (!mTextureClient->Allocate(size)) {
-    return nullptr;
-  }
-
   // update buffer size
   mBufferSize = size;
 
+  // get new buffer _without_ setting mBuffer.
+  bool status = mTextureClient->Allocate(mBufferSize);
+  MOZ_ASSERT(status);
   YCbCrImageDataSerializer serializer(mTextureClient->GetBuffer());
+
   return serializer.GetData();
 }
 
@@ -143,21 +136,8 @@ SharedPlanarYCbCrImage::SetDataNoCopy(const Data &aData)
 {
   mData = aData;
   mSize = aData.mPicSize;
-  /* SetDataNoCopy is used to update YUV plane offsets without (re)allocating
-   * memory previously allocated with AllocateAndGetNewBuffer().
-   * serializer.GetData() returns the address of the memory previously allocated
-   * with AllocateAndGetNewBuffer(), that we subtract from the Y, Cb, Cr
-   * channels to compute 0-based offsets to pass to InitializeBufferInfo.
-   */
   YCbCrImageDataSerializer serializer(mTextureClient->GetBuffer());
-  uint8_t *base = serializer.GetData();
-  uint32_t yOffset = aData.mYChannel - base;
-  uint32_t cbOffset = aData.mCbChannel - base;
-  uint32_t crOffset = aData.mCrChannel - base;
-  serializer.InitializeBufferInfo(yOffset,
-                                  cbOffset,
-                                  crOffset,
-                                  aData.mYSize,
+  serializer.InitializeBufferInfo(aData.mYSize,
                                   aData.mCbCrSize,
                                   aData.mStereoMode);
 }
@@ -262,18 +242,16 @@ DeprecatedSharedPlanarYCbCrImage::AllocateAndGetNewBuffer(uint32_t aSize)
 {
   NS_ABORT_IF_FALSE(!mAllocated, "This image already has allocated data");
   size_t size = YCbCrImageDataSerializer::ComputeMinBufferSize(aSize);
-
-  // get new buffer _without_ setting mBuffer.
-  if (!AllocateBuffer(size)) {
-    return nullptr;
-  }
-
   // update buffer size
   mBufferSize = size;
 
+  // get new buffer _without_ setting mBuffer.
+  AllocateBuffer(mBufferSize);
   YCbCrImageDataSerializer serializer(mShmem.get<uint8_t>());
+
   return serializer.GetData();
 }
+
 
 void
 DeprecatedSharedPlanarYCbCrImage::SetDataNoCopy(const Data &aData)

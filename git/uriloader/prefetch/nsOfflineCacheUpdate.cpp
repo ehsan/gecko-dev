@@ -69,11 +69,7 @@ static const int32_t  kCustomProfileQuota = 512000;
 //
 extern PRLogModuleInfo *gOfflineCacheUpdateLog;
 #endif
-
-#undef LOG
 #define LOG(args) PR_LOG(gOfflineCacheUpdateLog, 4, args)
-
-#undef LOG_ENABLED
 #define LOG_ENABLED() PR_LOG_TEST(gOfflineCacheUpdateLog, 4)
 
 class AutoFreeArray {
@@ -309,7 +305,8 @@ nsManifestCheck::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
 // nsOfflineCacheUpdateItem::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS5(nsOfflineCacheUpdateItem,
+NS_IMPL_ISUPPORTS6(nsOfflineCacheUpdateItem,
+                   nsIDOMLoadStatus,
                    nsIRequestObserver,
                    nsIStreamListener,
                    nsIRunnable,
@@ -331,7 +328,7 @@ nsOfflineCacheUpdateItem::nsOfflineCacheUpdateItem(nsIURI *aURI,
     , mPreviousApplicationCache(aPreviousApplicationCache)
     , mItemType(type)
     , mChannel(nullptr)
-    , mState(LoadStatus::UNINITIALIZED)
+    , mState(nsIDOMLoadStatus::UNINITIALIZED)
     , mBytesRead(0)
 {
 }
@@ -408,7 +405,7 @@ nsOfflineCacheUpdateItem::OpenChannel(nsOfflineCacheUpdate *aUpdate)
 
     mUpdate = aUpdate;
 
-    mState = LoadStatus::REQUESTED;
+    mState = nsIDOMLoadStatus::REQUESTED;
 
     return NS_OK;
 }
@@ -421,7 +418,7 @@ nsOfflineCacheUpdateItem::Cancel()
         mChannel = nullptr;
     }
 
-    mState = LoadStatus::UNINITIALIZED;
+    mState = nsIDOMLoadStatus::UNINITIALIZED;
 
     return NS_OK;
 }
@@ -434,7 +431,7 @@ NS_IMETHODIMP
 nsOfflineCacheUpdateItem::OnStartRequest(nsIRequest *aRequest,
                                          nsISupports *aContext)
 {
-    mState = LoadStatus::RECEIVING;
+    mState = nsIDOMLoadStatus::RECEIVING;
 
     return NS_OK;
 }
@@ -511,7 +508,7 @@ nsOfflineCacheUpdateItem::Run()
     // take this item as already finished and finish the update process too
     // early when ProcessNextURI() would get called between OnStopRequest()
     // and Run() of this item.  Finish() would then have been called twice.
-    mState = LoadStatus::LOADED;
+    mState = nsIDOMLoadStatus::LOADED;
 
     nsRefPtr<nsOfflineCacheUpdate> update;
     update.swap(mUpdate);
@@ -590,6 +587,57 @@ nsOfflineCacheUpdateItem::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
     return NS_OK;
 }
 
+//-----------------------------------------------------------------------------
+// nsOfflineCacheUpdateItem::nsIDOMLoadStatus
+//-----------------------------------------------------------------------------
+
+NS_IMETHODIMP
+nsOfflineCacheUpdateItem::GetSource(nsIDOMNode **aSource)
+{
+    *aSource = nullptr;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsOfflineCacheUpdateItem::GetUri(nsAString &aURI)
+{
+    nsAutoCString spec;
+    nsresult rv = mURI->GetSpec(spec);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    CopyUTF8toUTF16(spec, aURI);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsOfflineCacheUpdateItem::GetTotalSize(int32_t *aTotalSize)
+{
+    if (mChannel) {
+      int64_t size64;
+      nsresult rv = mChannel->GetContentLength(&size64);
+      NS_ENSURE_SUCCESS(rv, rv);
+      *aTotalSize = int32_t(size64); // XXX - loses precision
+      return NS_OK;
+    }
+
+    *aTotalSize = -1;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsOfflineCacheUpdateItem::GetLoadedSize(int32_t *aLoadedSize)
+{
+    *aLoadedSize = int32_t(mBytesRead); // XXX - loses precision
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsOfflineCacheUpdateItem::GetReadyState(uint16_t *aReadyState)
+{
+    *aReadyState = mState;
+    return NS_OK;
+}
+
 nsresult
 nsOfflineCacheUpdateItem::GetRequestSucceeded(bool * succeeded)
 {
@@ -629,23 +677,23 @@ nsOfflineCacheUpdateItem::GetRequestSucceeded(bool * succeeded)
 bool
 nsOfflineCacheUpdateItem::IsScheduled()
 {
-    return mState == LoadStatus::UNINITIALIZED;
+    return mState == nsIDOMLoadStatus::UNINITIALIZED;
 }
 
 bool
 nsOfflineCacheUpdateItem::IsInProgress()
 {
-    return mState == LoadStatus::REQUESTED ||
-           mState == LoadStatus::RECEIVING;
+    return mState == nsIDOMLoadStatus::REQUESTED ||
+           mState == nsIDOMLoadStatus::RECEIVING;
 }
 
 bool
 nsOfflineCacheUpdateItem::IsCompleted()
 {
-    return mState == LoadStatus::LOADED;
+    return mState == nsIDOMLoadStatus::LOADED;
 }
 
-nsresult
+NS_IMETHODIMP
 nsOfflineCacheUpdateItem::GetStatus(uint16_t *aStatus)
 {
     if (!mChannel) {

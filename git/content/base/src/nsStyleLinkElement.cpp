@@ -14,7 +14,6 @@
 
 #include "mozilla/css/Loader.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/ShadowRoot.h"
 #include "nsCSSStyleSheet.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
@@ -177,18 +176,17 @@ nsStyleLinkElement::UpdateStyleSheet(nsICSSLoaderObserver* aObserver,
                                      bool* aWillNotify,
                                      bool* aIsAlternate)
 {
-  return DoUpdateStyleSheet(nullptr, nullptr, aObserver, aWillNotify,
-                            aIsAlternate, false);
+  return DoUpdateStyleSheet(nullptr, aObserver, aWillNotify, aIsAlternate,
+                            false);
 }
 
 nsresult
 nsStyleLinkElement::UpdateStyleSheetInternal(nsIDocument *aOldDocument,
-                                             ShadowRoot *aOldShadowRoot,
                                              bool aForceUpdate)
 {
   bool notify, alternate;
-  return DoUpdateStyleSheet(aOldDocument, aOldShadowRoot, nullptr, &notify,
-                            &alternate, aForceUpdate);
+  return DoUpdateStyleSheet(aOldDocument, nullptr, &notify, &alternate,
+                            aForceUpdate);
 }
 
 static bool
@@ -274,8 +272,7 @@ GetScopeElement(nsIStyleSheet* aSheet)
 }
 
 nsresult
-nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument* aOldDocument,
-                                       ShadowRoot* aOldShadowRoot,
+nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
                                        nsICSSLoaderObserver* aObserver,
                                        bool* aWillNotify,
                                        bool* aIsAlternate,
@@ -286,17 +283,6 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument* aOldDocument,
   nsCOMPtr<nsIContent> thisContent;
   CallQueryInterface(this, getter_AddRefs(thisContent));
 
-  // All instances of nsStyleLinkElement should implement nsIContent.
-  NS_ENSURE_TRUE(thisContent, NS_ERROR_FAILURE);
-
-  // Check for a ShadowRoot because link elements are inert in a
-  // ShadowRoot.
-  ShadowRoot* containingShadow = thisContent->GetContainingShadow();
-  if (thisContent->IsHTML(nsGkAtoms::link) &&
-      (aOldShadowRoot || containingShadow)) {
-    return NS_OK;
-  }
-
   Element* oldScopeElement = GetScopeElement(mStyleSheet);
 
   if (mStyleSheet && aOldDocument) {
@@ -304,19 +290,16 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument* aOldDocument,
     // stylesheet.  We want to do this even if updates are disabled, since
     // otherwise a sheet with a stale linking element pointer will be hanging
     // around -- not good!
-    if (aOldShadowRoot) {
-      aOldShadowRoot->RemoveSheet(mStyleSheet);
-    } else {
-      aOldDocument->BeginUpdate(UPDATE_STYLE);
-      aOldDocument->RemoveStyleSheet(mStyleSheet);
-      aOldDocument->EndUpdate(UPDATE_STYLE);
-    }
-
+    aOldDocument->BeginUpdate(UPDATE_STYLE);
+    aOldDocument->RemoveStyleSheet(mStyleSheet);
+    aOldDocument->EndUpdate(UPDATE_STYLE);
     nsStyleLinkElement::SetStyleSheet(nullptr);
     if (oldScopeElement) {
       UpdateIsElementInStyleScopeFlagOnSubtree(oldScopeElement);
     }
   }
+
+  NS_ENSURE_TRUE(thisContent, NS_ERROR_FAILURE);
 
   // When static documents are created, stylesheets are cloned manually.
   if (mDontLoadStyle || !mUpdatesEnabled ||
@@ -345,15 +328,9 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument* aOldDocument,
   }
 
   if (mStyleSheet) {
-    if (thisContent->HasFlag(NODE_IS_IN_SHADOW_TREE)) {
-      ShadowRoot* containingShadow = thisContent->GetContainingShadow();
-      containingShadow->RemoveSheet(mStyleSheet);
-    } else {
-      doc->BeginUpdate(UPDATE_STYLE);
-      doc->RemoveStyleSheet(mStyleSheet);
-      doc->EndUpdate(UPDATE_STYLE);
-    }
-
+    doc->BeginUpdate(UPDATE_STYLE);
+    doc->RemoveStyleSheet(mStyleSheet);
+    doc->EndUpdate(UPDATE_STYLE);
     nsStyleLinkElement::SetStyleSheet(nullptr);
   }
 
@@ -443,22 +420,13 @@ nsStyleLinkElement::UpdateStyleSheetScopedness(bool aIsNowScoped)
 
   nsIDocument* document = thisContent->GetOwnerDocument();
 
-  if (thisContent->HasFlag(NODE_IS_IN_SHADOW_TREE)) {
-    ShadowRoot* containingShadow = thisContent->GetContainingShadow();
-    containingShadow->RemoveSheet(mStyleSheet);
+  document->BeginUpdate(UPDATE_STYLE);
+  document->RemoveStyleSheet(mStyleSheet);
 
-    mStyleSheet->SetScopeElement(newScopeElement);
+  mStyleSheet->SetScopeElement(newScopeElement);
 
-    containingShadow->InsertSheet(mStyleSheet, thisContent);
-  } else {
-    document->BeginUpdate(UPDATE_STYLE);
-    document->RemoveStyleSheet(mStyleSheet);
-
-    mStyleSheet->SetScopeElement(newScopeElement);
-
-    document->AddStyleSheet(mStyleSheet);
-    document->EndUpdate(UPDATE_STYLE);
-  }
+  document->AddStyleSheet(mStyleSheet);
+  document->EndUpdate(UPDATE_STYLE);
 
   if (oldScopeElement) {
     UpdateIsElementInStyleScopeFlagOnSubtree(oldScopeElement);

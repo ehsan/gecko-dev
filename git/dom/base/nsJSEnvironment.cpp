@@ -722,7 +722,7 @@ static const char js_ion_eager_str[]          = JS_OPTIONS_DOT_STR "ion.unsafe_e
 static const char js_parallel_parsing_str[]   = JS_OPTIONS_DOT_STR "parallel_parsing";
 static const char js_ion_parallel_compilation_str[] = JS_OPTIONS_DOT_STR "ion.parallel_compilation";
 
-void
+int
 nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
 {
   nsJSContext *context = reinterpret_cast<nsJSContext *>(data);
@@ -807,6 +807,8 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   if (zeal >= 0)
     ::JS_SetGCZeal(context->mContext, (uint8_t)zeal, frequency);
 #endif
+
+  return 0;
 }
 
 nsJSContext::nsJSContext(bool aGCOnDestruction,
@@ -1328,7 +1330,9 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, JS::Value *aArgv)
       // cast is probably safe since wchar_t and jschar are expected
       // to be equivalent; both unsigned 16-bit entities
       JSString *str =
-        ::JS_NewUCStringCopyN(cx, data.get(), data.Length());
+        ::JS_NewUCStringCopyN(cx,
+                              reinterpret_cast<const jschar *>(data.get()),
+                              data.Length());
       NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
 
       *aArgv = STRING_TO_JSVAL(str);
@@ -1685,7 +1689,7 @@ ReportAndDump(JSContext *cx, unsigned argc, JS::Value *vp)
 
   dmd::ClearReports();
   fprintf(stderr, "DMD: running reporters...\n");
-  dmd::RunReportersForThisProcess();
+  dmd::RunReporters();
   dmd::Writer writer(FpWrite, fp);
   dmd::Dump(writer);
 
@@ -2681,32 +2685,35 @@ mozilla::dom::StartupJSEnvironment()
   gCCStats.Clear();
 }
 
-static void
+static int
 ReportAllJSExceptionsPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
   bool reportAll = Preferences::GetBool(aPrefName, false);
   nsContentUtils::XPConnect()->SetReportAllJSExceptions(reportAll);
+  return 0;
 }
 
-static void
+static int
 SetMemoryHighWaterMarkPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
   int32_t highwatermark = Preferences::GetInt(aPrefName, 128);
 
   JS_SetGCParameter(sRuntime, JSGC_MAX_MALLOC_BYTES,
                     highwatermark * 1024L * 1024L);
+  return 0;
 }
 
-static void
+static int
 SetMemoryMaxPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
   int32_t pref = Preferences::GetInt(aPrefName, -1);
   // handle overflow and negative pref values
   uint32_t max = (pref <= 0 || pref >= 0x1000) ? -1 : (uint32_t)pref * 1024 * 1024;
   JS_SetGCParameter(sRuntime, JSGC_MAX_BYTES, max);
+  return 0;
 }
 
-static void
+static int
 SetMemoryGCModePrefChangedCallback(const char* aPrefName, void* aClosure)
 {
   bool enableCompartmentGC = Preferences::GetBool("javascript.options.mem.gc_per_compartment");
@@ -2720,38 +2727,43 @@ SetMemoryGCModePrefChangedCallback(const char* aPrefName, void* aClosure)
     mode = JSGC_MODE_GLOBAL;
   }
   JS_SetGCParameter(sRuntime, JSGC_MODE, mode);
+  return 0;
 }
 
-static void
+static int
 SetMemoryGCSliceTimePrefChangedCallback(const char* aPrefName, void* aClosure)
 {
   int32_t pref = Preferences::GetInt(aPrefName, -1);
   // handle overflow and negative pref values
   if (pref > 0 && pref < 100000)
     JS_SetGCParameter(sRuntime, JSGC_SLICE_TIME_BUDGET, pref);
+  return 0;
 }
 
-static void
+static int
 SetMemoryGCPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
   int32_t pref = Preferences::GetInt(aPrefName, -1);
   // handle overflow and negative pref values
   if (pref >= 0 && pref < 10000)
     JS_SetGCParameter(sRuntime, (JSGCParamKey)(intptr_t)aClosure, pref);
+  return 0;
 }
 
-static void
+static int
 SetMemoryGCDynamicHeapGrowthPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
   bool pref = Preferences::GetBool(aPrefName);
   JS_SetGCParameter(sRuntime, JSGC_DYNAMIC_HEAP_GROWTH, pref);
+  return 0;
 }
 
-static void
+static int
 SetMemoryGCDynamicMarkSlicePrefChangedCallback(const char* aPrefName, void* aClosure)
 {
   bool pref = Preferences::GetBool(aPrefName);
   JS_SetGCParameter(sRuntime, JSGC_DYNAMIC_MARK_SLICE, pref);
+  return 0;
 }
 
 JSObject*
@@ -2821,32 +2833,6 @@ NS_DOMStructuredCloneError(JSContext* cx,
   xpc::Throw(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
 }
 
-static bool
-AsmJSCacheOpenEntryForRead(JS::Handle<JSObject*> aGlobal,
-                           const jschar* aBegin,
-                           const jschar* aLimit,
-                           size_t* aSize,
-                           const uint8_t** aMemory,
-                           intptr_t *aHandle)
-{
-  nsIPrincipal* principal = nsContentUtils::GetObjectPrincipal(aGlobal);
-  return asmjscache::OpenEntryForRead(principal, aBegin, aLimit, aSize, aMemory,
-                                      aHandle);
-}
-
-static bool
-AsmJSCacheOpenEntryForWrite(JS::Handle<JSObject*> aGlobal,
-                            const jschar* aBegin,
-                            const jschar* aEnd,
-                            size_t aSize,
-                            uint8_t** aMemory,
-                            intptr_t* aHandle)
-{
-  nsIPrincipal* principal = nsContentUtils::GetObjectPrincipal(aGlobal);
-  return asmjscache::OpenEntryForWrite(principal, aBegin, aEnd, aSize, aMemory,
-                                       aHandle);
-}
-
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
 void
@@ -2895,9 +2881,9 @@ nsJSContext::EnsureStatics()
 
   // Set up the asm.js cache callbacks
   static JS::AsmJSCacheOps asmJSCacheOps = {
-    AsmJSCacheOpenEntryForRead,
+    asmjscache::OpenEntryForRead,
     asmjscache::CloseEntryForRead,
-    AsmJSCacheOpenEntryForWrite,
+    asmjscache::OpenEntryForWrite,
     asmjscache::CloseEntryForWrite,
     asmjscache::GetBuildId
   };

@@ -8,9 +8,9 @@
 
 #include "jsiter.h"
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
+#include "mozilla/Util.h"
 
 #include "jsarray.h"
 #include "jsatom.h"
@@ -396,11 +396,7 @@ NewPropertyIteratorObject(JSContext *cx, unsigned flags)
         return &obj->as<PropertyIteratorObject>();
     }
 
-    JSObject *obj = NewBuiltinClassInstance(cx, &PropertyIteratorObject::class_);
-    if (!obj)
-        return nullptr;
-
-    return &obj->as<PropertyIteratorObject>();
+    return &NewBuiltinClassInstance(cx, &PropertyIteratorObject::class_)->as<PropertyIteratorObject>();
 }
 
 NativeIterator *
@@ -622,10 +618,8 @@ js::GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleVa
                     if (!pobj->isNative() ||
                         !pobj->hasEmptyElements() ||
                         pobj->hasUncacheableProto() ||
-                        pobj->getOps()->enumerate ||
-                        pobj->getClass()->enumerate != JS_EnumerateStub ||
-                        pobj->nativeContainsPure(cx->names().iteratorIntrinsic))
-                    {
+                        obj->getOps()->enumerate ||
+                        pobj->getClass()->enumerate != JS_EnumerateStub) {
                         shapes.clear();
                         goto miss;
                     }
@@ -978,8 +972,7 @@ js::CloseIterator(JSContext *cx, HandleObject obj)
 bool
 js::UnwindIteratorForException(JSContext *cx, HandleObject obj)
 {
-    RootedValue v(cx);
-    cx->getPendingException(&v);
+    RootedValue v(cx, cx->getPendingException());
     cx->clearPendingException();
     if (!CloseIterator(cx, obj))
         return false;
@@ -1124,7 +1117,7 @@ bool
 js_SuppressDeletedElement(JSContext *cx, HandleObject obj, uint32_t index)
 {
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
     return js_SuppressDeletedProperty(cx, obj, id);
 }
@@ -1196,12 +1189,7 @@ js_IteratorMore(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
             return false;
         if (!Invoke(cx, ObjectValue(*iterobj), rval, 0, nullptr, rval)) {
             /* Check for StopIteration. */
-            if (!cx->isExceptionPending())
-                return false;
-            RootedValue exception(cx);
-            if (!cx->getPendingException(&exception))
-                return false;
-            if (!JS_IsStopIteration(exception))
+            if (!cx->isExceptionPending() || !JS_IsStopIteration(cx->getPendingException()))
                 return false;
 
             cx->clearPendingException();
@@ -1572,7 +1560,7 @@ js_NewGenerator(JSContext *cx, const FrameRegs &stackRegs)
                    (-1 + /* one Value included in JSGenerator */
                     vplen +
                     VALUES_PER_STACK_FRAME +
-                    stackfp->script()->nslots()) * sizeof(HeapValue);
+                    stackfp->script()->nslots) * sizeof(HeapValue);
 
     JS_ASSERT(nbytes % sizeof(Value) == 0);
     JS_STATIC_ASSERT(sizeof(StackFrame) % sizeof(HeapValue) == 0);
@@ -1943,7 +1931,6 @@ GlobalObject::initIteratorClasses(JSContext *cx, Handle<GlobalObject *> global)
         if (!LinkConstructorAndPrototype(cx, genFunction, genFunctionProto))
             return false;
 
-        AutoLockForCompilation lock(cx);
         global->setSlot(STAR_GENERATOR_OBJECT_PROTO, ObjectValue(*genObjectProto));
         global->setConstructor(JSProto_GeneratorFunction, ObjectValue(*genFunction));
         global->setPrototype(JSProto_GeneratorFunction, ObjectValue(*genFunctionProto));

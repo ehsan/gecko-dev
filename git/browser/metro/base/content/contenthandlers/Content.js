@@ -37,13 +37,13 @@ XPCOMUtils.defineLazyServiceGetter(this, "gFocusManager",
 XPCOMUtils.defineLazyServiceGetter(this, "gDOMUtils",
   "@mozilla.org/inspector/dom-utils;1", "inIDOMUtils");
 
-this.XULDocument = Ci.nsIDOMXULDocument;
-this.HTMLHtmlElement = Ci.nsIDOMHTMLHtmlElement;
-this.HTMLIFrameElement = Ci.nsIDOMHTMLIFrameElement;
-this.HTMLFrameElement = Ci.nsIDOMHTMLFrameElement;
-this.HTMLFrameSetElement = Ci.nsIDOMHTMLFrameSetElement;
-this.HTMLSelectElement = Ci.nsIDOMHTMLSelectElement;
-this.HTMLOptionElement = Ci.nsIDOMHTMLOptionElement;
+let XULDocument = Ci.nsIDOMXULDocument;
+let HTMLHtmlElement = Ci.nsIDOMHTMLHtmlElement;
+let HTMLIFrameElement = Ci.nsIDOMHTMLIFrameElement;
+let HTMLFrameElement = Ci.nsIDOMHTMLFrameElement;
+let HTMLFrameSetElement = Ci.nsIDOMHTMLFrameSetElement;
+let HTMLSelectElement = Ci.nsIDOMHTMLSelectElement;
+let HTMLOptionElement = Ci.nsIDOMHTMLOptionElement;
 
 const kReferenceDpi = 240; // standard "pixel" size used in some preferences
 
@@ -82,7 +82,6 @@ function getBoundingContentRect(aElement) {
 
   return new Rect(r.left + offset.x, r.top + offset.y, r.width, r.height);
 }
-this.getBoundingContentRect = getBoundingContentRect;
 
 /*
  * getOverflowContentBoundingRect
@@ -109,7 +108,6 @@ function getOverflowContentBoundingRect(aElement) {
 
   return r;
 }
-this.getOverflowContentBoundingRect = getOverflowContentBoundingRect;
 
 /*
  * Content
@@ -118,6 +116,7 @@ this.getOverflowContentBoundingRect = getOverflowContentBoundingRect;
  */
 let Content = {
   _debugEvents: false,
+  _isZoomedIn: false,
 
   get formAssistant() {
     delete this.formAssistant;
@@ -146,6 +145,7 @@ let Content = {
     addEventListener("DOMAutoComplete", this, false);
     addEventListener("DOMFormHasPassword", this, false);
     addEventListener("blur", this, false);
+    addEventListener("pagehide", this, false);
     // Attach a listener to watch for "click" events bubbling up from error
     // pages and other similar page. This lets us fix bugs like 401575 which
     // require error page UI to do privileged things, without letting error
@@ -201,12 +201,17 @@ let Content = {
         break;
 
       case "DOMContentLoaded":
+        LoginManagerContent.onContentLoaded(aEvent);
         this._maybeNotifyErrorPage();
         break;
 
       case "DOMAutoComplete":
       case "blur":
         LoginManagerContent.onUsernameInput(aEvent);
+        break;
+
+      case "pagehide":
+        this._isZoomedIn = false;
         break;
 
       case "touchstart":
@@ -376,6 +381,11 @@ let Content = {
   },
 
   _onDoubleTap: function (aX, aY) {
+    if (this._isZoomedIn) {
+      this._zoomOut();
+      return;
+    }
+
     let { element } = Content.getCurrentWindowAndOffset(aX, aY);
     while (element && !this._shouldZoomToElement(element)) {
       element = element.parentNode;
@@ -394,12 +404,14 @@ let Content = {
   _zoomOut: function() {
     let rect = new Rect(0,0,0,0);
     this._zoomToRect(rect);
+    this._isZoomedIn = false;
   },
 
   _zoomToElement: function(aElement) {
     let rect = getBoundingContentRect(aElement);
     this._inflateRect(rect, kZoomToElementMargin);
     this._zoomToRect(rect);
+    this._isZoomedIn = true;
   },
 
   _inflateRect: function(aRect, aMargin) {
@@ -414,11 +426,13 @@ let Content = {
     let viewId = utils.getViewId(content.document.documentElement);
     let presShellId = {};
     utils.getPresShellId(presShellId);
-    sendAsyncMessage("Content:ZoomToRect", {
-      rect: aRect,
-      presShellId: presShellId.value,
-      viewId: viewId,
-    });
+    let zoomData = [aRect.x,
+                    aRect.y,
+                    aRect.width,
+                    aRect.height,
+                    presShellId.value,
+                    viewId].join(",");
+    Services.obs.notifyObservers(null, "apzc-zoom-to-rect", zoomData);
   },
 
   _shouldZoomToElement: function(aElement) {
@@ -585,6 +599,5 @@ var FormSubmitObserver = {
     return this;
   }
 };
-this.Content = Content;
 
 FormSubmitObserver.init();

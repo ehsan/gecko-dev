@@ -28,10 +28,7 @@
 #ifndef CPU_SUPPORT_H
 #define CPU_SUPPORT_H
 
-#include "opus_types.h"
-#include "opus_defines.h"
-
-#if defined(OPUS_HAVE_RTCD) && defined(OPUS_ARM_ASM)
+#if defined(OPUS_HAVE_RTCD) && defined(ARMv4_ASM)
 #include "arm/armcpu.h"
 
 /* We currently support 4 ARM variants:
@@ -45,7 +42,7 @@
 #else
 #define OPUS_ARCHMASK 0
 
-static OPUS_INLINE int opus_select_arch(void)
+static inline int opus_select_arch(void)
 {
   return 0;
 }

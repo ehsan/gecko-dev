@@ -279,7 +279,7 @@ appUpdater.prototype =
       }
 
       appStartup.quit(Components.interfaces.nsIAppStartup.eAttemptQuit |
-                      Components.interfaces.nsIAppStartup.eRestartTouchEnvironment);
+                      Components.interfaces.nsIAppStartup.eRestart);
       return;
     }
 

@@ -28,15 +28,20 @@ DirectEval(JSContext *cx, const CallArgs &args);
 
 // Performs a direct eval called from Ion code.
 extern bool
-DirectEvalStringFromIon(JSContext *cx,
-                        HandleObject scopeObj, HandleScript callerScript,
-                        HandleValue thisValue, HandleString str,
-                        jsbytecode * pc, MutableHandleValue vp);
+DirectEvalFromIon(JSContext *cx,
+                  HandleObject scopeObj, HandleScript callerScript,
+                  HandleValue thisValue, HandleString str,
+                  jsbytecode * pc, MutableHandleValue vp);
+
+// True iff 'v' is the built-in eval function for the global object that
+// corresponds to 'scopeChain'.
 extern bool
-DirectEvalValueFromIon(JSContext *cx,
-                       HandleObject scopeObj, HandleScript callerScript,
-                       HandleValue thisValue, HandleValue evalArg,
-                       jsbytecode * pc, MutableHandleValue vp);
+IsBuiltinEvalForScope(JSObject *scopeChain, const Value &v);
+
+class GlobalObject;
+
+extern bool
+IsBuiltinEvalForScope(GlobalObject *global, const Value &v);
 
 // True iff fun is a built-in eval function.
 extern bool

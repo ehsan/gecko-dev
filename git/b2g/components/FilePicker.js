@@ -32,7 +32,6 @@ const AUDIO_FILTERS = ['audio/basic', 'audio/L24', 'audio/mp4',
                        'audio/webm'];
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
-Cu.import("resource://gre/modules/FileUtils.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, 'cpmm',
                                    '@mozilla.org/childprocessmessagemanager;1',
@@ -48,8 +47,7 @@ FilePicker.prototype = {
   /* members */
 
   mParent: undefined,
-  mExtraProps: undefined,
-  mFilterTypes: undefined,
+  mFilterTypes: [],
   mFileEnumerator: undefined,
   mFilePickerShownCallback: undefined,
 
@@ -57,8 +55,6 @@ FilePicker.prototype = {
 
   init: function(parent, title, mode) {
     this.mParent = parent;
-    this.mExtraProps = {};
-    this.mFilterTypes = [];
     this.mMode = mode;
 
     if (mode != Ci.nsIFilePicker.modeOpen &&
@@ -89,8 +85,6 @@ FilePicker.prototype = {
 
     if (filterMask & Ci.nsIFilePicker.filterImages) {
       this.mFilterTypes = this.mFilterTypes.concat(IMAGE_FILTERS);
-      // This property is needed for the gallery app pick activity.
-      this.mExtraProps['nocrop'] = true;
     }
 
     // Ci.nsIFilePicker.filterXML is not supported
@@ -106,10 +100,7 @@ FilePicker.prototype = {
       this.mFilterTypes = this.mFilterTypes.concat(AUDIO_FILTERS);
     }
 
-    if (filterMask & Ci.nsIFilePicker.filterAll) {
-      // This property is needed for the gallery app pick activity.
-      this.mExtraProps['nocrop'] = true;
-    }
+    // Ci.nsIFilePicker.filterAll is by default
   },
 
   appendFilter: function(title, extensions) {
@@ -124,12 +115,6 @@ FilePicker.prototype = {
     let detail = {};
     if (this.mFilterTypes) {
        detail.type = this.mFilterTypes;
-    }
-
-    for (let prop in this.mExtraProps) {
-      if (!(prop in detail)) {
-        detail[prop] = this.mExtraProps[prop];
-      }
     }
 
     cpmm.sendAsyncMessage('file-picker', detail);
@@ -180,39 +165,17 @@ FilePicker.prototype = {
       return;
     }
 
-    // The name to be shown can be part of the message, or can be taken from
-    // the DOMFile (if the blob is a DOMFile).
-    let name = data.result.name;
-    if (!name &&
-        (data.result.blob instanceof this.mParent.File) &&
-        data.result.blob.name) {
-      name = data.result.blob.name;
-    }
+    var mimeSvc = Cc["@mozilla.org/mime;1"].getService(Ci.nsIMIMEService);
+    var mimeInfo = mimeSvc.getFromTypeAndExtension(data.result.blob.type, '');
 
-    // Let's try to remove the full path and take just the filename.
-    if (name) {
-      let file = new FileUtils.File(data.result.blob.name);
-      if (file && file.leafName) {
-        name = file.leafName;
-      }
-    }
-
-    // the fallback is a filename composed by 'blob' + extension.
-    if (!name) {
-      name = 'blob';
-      if (data.result.blob.type) {
-        let mimeSvc = Cc["@mozilla.org/mime;1"].getService(Ci.nsIMIMEService);
-        let mimeInfo = mimeSvc.getFromTypeAndExtension(data.result.blob.type, '');
-        if (mimeInfo) {
-          name += '.' + mimeInfo.primaryExtension;
-        }
-      }
+    var name = 'blob';
+    if (mimeInfo) {
+      name += '.' + mimeInfo.primaryExtension;
     }
 
     let file = new this.mParent.File(data.result.blob,
                                      { name: name,
                                        type: data.result.blob.type });
-
     if (file) {
       this.fireSuccess(file);
     } else {

@@ -512,7 +512,6 @@ protected:
   const nsSMILInstanceTime* GetEffectiveBeginInstance() const;
   const nsSMILInterval* GetPreviousInterval() const;
   bool              HasPlayed() const { return !mOldIntervals.IsEmpty(); }
-  bool              HasClientInFillRange() const;
   bool              EndHasEventConditions() const;
   bool              AreEndTimesDependentOn(
                       const nsSMILInstanceTime* aBase) const;
@@ -615,9 +614,6 @@ protected:
   bool mDeferIntervalUpdates;
   bool mDoDeferredUpdate; // Set if an update to the current interval was
                           // requested while mDeferIntervalUpdates was set
-
-  // Stack-based helper class to call UpdateCurrentInterval when it is destroyed
-  class AutoIntervalUpdater;
 
   // Recursion depth checking
   uint8_t              mDeleteCount;

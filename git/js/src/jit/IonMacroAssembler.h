@@ -193,26 +193,24 @@ class MacroAssembler : public MacroAssemblerSpecific
         embedsNurseryPointers_(false),
         sps_(nullptr)
     {
-        IonContext *icx = GetIonContext();
-        JSContext *cx = icx->cx;
+        JSContext *cx = GetIonContext()->cx;
         if (cx)
             constructRoot(cx);
 
-        if (!icx->temp) {
+        if (!GetIonContext()->temp) {
             JS_ASSERT(cx);
             alloc_.construct(cx);
         }
 
-        moveResolver_.setAllocator(*icx->temp);
 #ifdef JS_CPU_ARM
         initWithAllocator();
-        m_buffer.id = icx->getNextAssemblerId();
+        m_buffer.id = GetIonContext()->getNextAssemblerId();
 #endif
     }
 
     // This constructor should only be used when there is no IonContext active
     // (for example, Trampoline-$(ARCH).cpp and IonCaches.cpp).
-    MacroAssembler(JSContext *cx, IonScript *ion = nullptr)
+    MacroAssembler(JSContext *cx)
       : enoughMemory_(true),
         embedsNurseryPointers_(false),
         sps_(nullptr)
@@ -220,13 +218,10 @@ class MacroAssembler : public MacroAssemblerSpecific
         constructRoot(cx);
         ionContext_.construct(cx, (js::jit::TempAllocator *)nullptr);
         alloc_.construct(cx);
-        moveResolver_.setAllocator(*ionContext_.ref().temp);
 #ifdef JS_CPU_ARM
         initWithAllocator();
         m_buffer.id = GetIonContext()->getNextAssemblerId();
 #endif
-        if (ion)
-            setFramePushed(ion->frameSize());
     }
 
     // asm.js compilation handles its own IonContet-pushing
@@ -242,14 +237,28 @@ class MacroAssembler : public MacroAssemblerSpecific
 #endif
     }
 
+    MacroAssembler(JSContext *cx, IonScript *ion)
+      : enoughMemory_(true),
+        embedsNurseryPointers_(false),
+        sps_(nullptr)
+    {
+        constructRoot(cx);
+         ionContext_.construct(cx, (js::jit::TempAllocator *)nullptr);
+         alloc_.construct(cx);
+#ifdef JS_CPU_ARM
+         initWithAllocator();
+         m_buffer.id = GetIonContext()->getNextAssemblerId();
+#endif
+        setFramePushed(ion->frameSize());
+    }
+
     void setInstrumentation(IonInstrumentation *sps) {
         sps_ = sps;
     }
 
-    void resetForNewCodeGenerator(TempAllocator &alloc) {
+    void resetForNewCodeGenerator() {
         setFramePushed(0);
         moveResolver_.clearTempObjectPool();
-        moveResolver_.setAllocator(alloc);
     }
 
     void constructRoot(JSContext *cx) {
@@ -294,12 +303,12 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
     void loadObjClass(Register objReg, Register dest) {
         loadPtr(Address(objReg, JSObject::offsetOfType()), dest);
-        loadPtr(Address(dest, types::TypeObject::offsetOfClasp()), dest);
+        loadPtr(Address(dest, offsetof(types::TypeObject, clasp)), dest);
     }
     void branchTestObjClass(Condition cond, Register obj, Register scratch, const js::Class *clasp,
                             Label *label) {
         loadPtr(Address(obj, JSObject::offsetOfType()), scratch);
-        branchPtr(cond, Address(scratch, types::TypeObject::offsetOfClasp()), ImmPtr(clasp), label);
+        branchPtr(cond, Address(scratch, offsetof(types::TypeObject, clasp)), ImmPtr(clasp), label);
     }
     void branchTestObjShape(Condition cond, Register obj, const Shape *shape, Label *label) {
         branchPtr(cond, Address(obj, JSObject::offsetOfShape()), ImmGCPtr(shape), label);
@@ -355,7 +364,7 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     void loadObjProto(Register obj, Register dest) {
         loadPtr(Address(obj, JSObject::offsetOfType()), dest);
-        loadPtr(Address(dest, types::TypeObject::offsetOfProto()), dest);
+        loadPtr(Address(dest, offsetof(types::TypeObject, proto)), dest);
     }
 
     void loadStringLength(Register str, Register dest) {
@@ -399,7 +408,7 @@ class MacroAssembler : public MacroAssemblerSpecific
         } else if (IsFloatingPointType(src.type())) {
             FloatRegister reg = src.typedReg().fpu();
             if (src.type() == MIRType_Float32) {
-                convertFloat32ToDouble(reg, ScratchFloatReg);
+                convertFloatToDouble(reg, ScratchFloatReg);
                 reg = ScratchFloatReg;
             }
             storeDouble(reg, dest);
@@ -492,20 +501,20 @@ class MacroAssembler : public MacroAssemblerSpecific
     void branchIfFunctionHasNoScript(Register fun, Label *label) {
         // 16-bit loads are slow and unaligned 32-bit loads may be too so
         // perform an aligned 32-bit load and adjust the bitmask accordingly.
-        JS_ASSERT(JSFunction::offsetOfNargs() % sizeof(uint32_t) == 0);
-        JS_ASSERT(JSFunction::offsetOfFlags() == JSFunction::offsetOfNargs() + 2);
+        JS_STATIC_ASSERT(offsetof(JSFunction, nargs) % sizeof(uint32_t) == 0);
+        JS_STATIC_ASSERT(offsetof(JSFunction, flags) == offsetof(JSFunction, nargs) + 2);
         JS_STATIC_ASSERT(IS_LITTLE_ENDIAN);
-        Address address(fun, JSFunction::offsetOfNargs());
+        Address address(fun, offsetof(JSFunction, nargs));
         uint32_t bit = JSFunction::INTERPRETED << 16;
         branchTest32(Assembler::Zero, address, Imm32(bit), label);
     }
     void branchIfInterpreted(Register fun, Label *label) {
         // 16-bit loads are slow and unaligned 32-bit loads may be too so
         // perform an aligned 32-bit load and adjust the bitmask accordingly.
-        JS_ASSERT(JSFunction::offsetOfNargs() % sizeof(uint32_t) == 0);
-        JS_ASSERT(JSFunction::offsetOfFlags() == JSFunction::offsetOfNargs() + 2);
+        JS_STATIC_ASSERT(offsetof(JSFunction, nargs) % sizeof(uint32_t) == 0);
+        JS_STATIC_ASSERT(offsetof(JSFunction, flags) == offsetof(JSFunction, nargs) + 2);
         JS_STATIC_ASSERT(IS_LITTLE_ENDIAN);
-        Address address(fun, JSFunction::offsetOfNargs());
+        Address address(fun, offsetof(JSFunction, nargs));
         uint32_t bit = JSFunction::INTERPRETED << 16;
         branchTest32(Assembler::NonZero, address, Imm32(bit), label);
     }
@@ -547,7 +556,7 @@ class MacroAssembler : public MacroAssemblerSpecific
         } else if (IsFloatingPointType(v.type())) {
             FloatRegister reg = v.typedReg().fpu();
             if (v.type() == MIRType_Float32) {
-                convertFloat32ToDouble(reg, ScratchFloatReg);
+                convertFloatToDouble(reg, ScratchFloatReg);
                 reg = ScratchFloatReg;
             }
             Push(reg);
@@ -639,7 +648,7 @@ class MacroAssembler : public MacroAssemblerSpecific
         computeEffectiveAddress(address, PreBarrierReg);
 
         const JitRuntime *rt = GetIonContext()->runtime->jitRuntime();
-        JitCode *preBarrier = (type == MIRType_Shape)
+        IonCode *preBarrier = (type == MIRType_Shape)
                               ? rt->shapePreBarrier()
                               : rt->valuePreBarrier();
 
@@ -799,9 +808,9 @@ class MacroAssembler : public MacroAssemblerSpecific
     // abort.  Branches to fail in that case.
     void checkInterruptFlagsPar(const Register &tempReg, Label *fail);
 
-    // If the JitCode that created this assembler needs to transition into the VM,
-    // we want to store the JitCode on the stack in order to mark it during a GC.
-    // This is a reference to a patch location where the JitCode* will be written.
+    // If the IonCode that created this assembler needs to transition into the VM,
+    // we want to store the IonCode on the stack in order to mark it during a GC.
+    // This is a reference to a patch location where the IonCode* will be written.
   private:
     CodeOffsetLabel exitCodePatch_;
 
@@ -813,7 +822,7 @@ class MacroAssembler : public MacroAssemblerSpecific
         // Push VMFunction pointer, to mark arguments.
         Push(ImmPtr(f));
     }
-    void enterFakeExitFrame(JitCode *codeVal = nullptr) {
+    void enterFakeExitFrame(IonCode *codeVal = nullptr) {
         linkExitFrame();
         Push(ImmPtr(codeVal));
         Push(ImmPtr(nullptr));
@@ -829,11 +838,11 @@ class MacroAssembler : public MacroAssemblerSpecific
                                       ExecutionMode executionMode);
 
     void enterFakeParallelExitFrame(Register slice, Register scratch,
-                                    JitCode *codeVal = nullptr);
+                                    IonCode *codeVal = nullptr);
 
     void enterFakeExitFrame(Register cxReg, Register scratch,
                             ExecutionMode executionMode,
-                            JitCode *codeVal = nullptr);
+                            IonCode *codeVal = nullptr);
 
     void leaveExitFrame() {
         freeStack(IonExitFooterFrame::Size());
@@ -843,11 +852,11 @@ class MacroAssembler : public MacroAssemblerSpecific
         return exitCodePatch_.offset() != 0;
     }
 
-    void link(JitCode *code) {
+    void link(IonCode *code) {
         JS_ASSERT(!oom());
         // If this code can transition to C++ code and witness a GC, then we need to store
-        // the JitCode onto the stack in order to GC it correctly.  exitCodePatch should
-        // be unset if the code never needed to push its JitCode*.
+        // the IonCode onto the stack in order to GC it correctly.  exitCodePatch should
+        // be unset if the code never needed to push its IonCode*.
         if (hasEnteredExitFrame()) {
             patchDataWithValueCheck(CodeLocationLabel(code, exitCodePatch_),
                                     ImmPtr(code),
@@ -867,14 +876,9 @@ class MacroAssembler : public MacroAssemblerSpecific
     // been made so that a safepoint can be made at that location.
 
     template <typename T>
-    void callWithABINoProfiling(const T &fun, MoveOp::Type result = MoveOp::GENERAL) {
-        MacroAssemblerSpecific::callWithABI(fun, result);
-    }
-
-    template <typename T>
-    void callWithABI(const T &fun, MoveOp::Type result = MoveOp::GENERAL) {
+    void callWithABI(const T &fun, Result result = GENERAL) {
         leaveSPSFrame();
-        callWithABINoProfiling(fun, result);
+        MacroAssemblerSpecific::callWithABI(fun, result);
         reenterSPSFrame();
     }
 
@@ -888,7 +892,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     // see above comment for what is returned
-    uint32_t callWithExitFrame(JitCode *target) {
+    uint32_t callWithExitFrame(IonCode *target) {
         leaveSPSFrame();
         MacroAssemblerSpecific::callWithExitFrame(target);
         uint32_t ret = currentOffset();
@@ -897,7 +901,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     // see above comment for what is returned
-    uint32_t callWithExitFrame(JitCode *target, Register dynStack) {
+    uint32_t callWithExitFrame(IonCode *target, Register dynStack) {
         leaveSPSFrame();
         MacroAssemblerSpecific::callWithExitFrame(target, dynStack);
         uint32_t ret = currentOffset();
@@ -1096,7 +1100,6 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     void finish();
 
-    void assumeUnreachable(const char *output);
     void printf(const char *output);
     void printf(const char *output, Register value);
 
@@ -1176,11 +1179,6 @@ class MacroAssembler : public MacroAssemblerSpecific
         IntConversion_ClampToUint8,
     };
 
-    enum IntConversionInputKind {
-        IntConversion_NumbersOnly,
-        IntConversion_Any
-    };
-
     //
     // Functions for converting values to int.
     //
@@ -1195,8 +1193,7 @@ class MacroAssembler : public MacroAssemblerSpecific
                            Label *handleStringEntry, Label *handleStringRejoin,
                            Label *truncateDoubleSlow,
                            Register stringReg, FloatRegister temp, Register output,
-                           Label *fail, IntConversionBehavior behavior,
-                           IntConversionInputKind conversion = IntConversion_Any);
+                           Label *fail, IntConversionBehavior behavior);
     void convertValueToInt(ValueOperand value, FloatRegister temp, Register output, Label *fail,
                            IntConversionBehavior behavior)
     {
@@ -1222,13 +1219,12 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
     void convertValueToInt32(ValueOperand value, MDefinition *input,
                              FloatRegister temp, Register output, Label *fail,
-                             bool negativeZeroCheck, IntConversionInputKind conversion = IntConversion_Any)
+                             bool negativeZeroCheck)
     {
         convertValueToInt(value, input, nullptr, nullptr, nullptr, InvalidReg, temp, output, fail,
                           negativeZeroCheck
                           ? IntConversion_NegativeZeroCheck
-                          : IntConversion_Normal,
-                          conversion);
+                          : IntConversion_Normal);
     }
     bool convertValueToInt32(JSContext *cx, const Value &v, Register output, Label *fail,
                              bool negativeZeroCheck)
@@ -1321,21 +1317,13 @@ class MacroAssembler : public MacroAssemblerSpecific
   public:
     class AfterICSaveLive {
         friend class MacroAssembler;
-        AfterICSaveLive(uint32_t initialStack)
-#ifdef JS_DEBUG
-          : initialStack(initialStack)
-#endif
+        AfterICSaveLive()
         {}
-
-#ifdef JS_DEBUG
-      public:
-        uint32_t initialStack;
-#endif
     };
 
     AfterICSaveLive icSaveLive(RegisterSet &liveRegs) {
         PushRegsInMask(liveRegs);
-        return AfterICSaveLive(framePushed());
+        return AfterICSaveLive();
     }
 
     bool icBuildOOLFakeExitFrame(void *fakeReturnAddr, AfterICSaveLive &aic) {
@@ -1343,7 +1331,6 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     void icRestoreLive(RegisterSet &liveRegs, AfterICSaveLive &aic) {
-        JS_ASSERT(framePushed() == aic.initialStack);
         PopRegsInMask(liveRegs);
     }
 };

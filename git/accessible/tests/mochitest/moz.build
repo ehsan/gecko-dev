@@ -28,11 +28,7 @@ DIRS += [
     'textattrs',
     'textcaret',
     'textselection',
+    'tree',
     'treeupdate',
     'value',
-]
-
-A11Y_MANIFESTS += [
-    'a11y.ini',
-    'tree/a11y.ini',
 ]

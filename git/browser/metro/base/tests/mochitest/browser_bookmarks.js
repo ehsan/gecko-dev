@@ -32,13 +32,13 @@ function tearDown() {
 }
 
 gTests.push({
-  desc: "Test bookmarks StartUI hide",
+  desc: "Test bookmarks StartUI unpin",
   setUp: setup,
   tearDown: tearDown,
-  run: function testBookmarksStartHide() {
-    let hideButton = document.getElementById("hide-selected-button");
+  run: function testBookmarksStartUnpin() {
+    let unpinButton = document.getElementById("unpin-selected-button");
 
-    // --------- hide item 2
+    // --------- unpin item 2
 
     let item = gStartView._getItemForBookmarkId(2);
 
@@ -46,19 +46,19 @@ gTests.push({
     sendContextMenuClickToElement(window, item, 10, 10);
     yield promise;
 
-    ok(!hideButton.hidden, "Hide button is visible.");
+    ok(!unpinButton.hidden, "Unpin button is visible.");
 
     let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-    hideButton.click();
+    unpinButton.click();
     yield promise;
 
     item = gStartView._getItemForBookmarkId(2);
 
     ok(!item, "Item not in grid");
-    ok(!gStartView._pinHelper.isPinned(2), "Item hidden");
+    ok(!gStartView._pinHelper.isPinned(2), "Item unpinned");
     ok(gStartView._set.itemCount === gStartView._limit, "Grid repopulated");
 
-    // --------- hide multiple items
+    // --------- unpin multiple items
 
     let item1 = gStartView._getItemForBookmarkId(0);
     let item2 = gStartView._getItemForBookmarkId(5);
@@ -70,10 +70,10 @@ gTests.push({
     sendContextMenuClickToElement(window, item3, 10, 10);
     yield promise;
 
-    ok(!hideButton.hidden, "Hide button is visible.");
+    ok(!unpinButton.hidden, "Unpin button is visible.");
 
     let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-    EventUtils.synthesizeMouse(hideButton, 10, 10, {}, window);
+    EventUtils.synthesizeMouse(unpinButton, 10, 10, {}, window);
     yield promise;
 
     item1 = gStartView._getItemForBookmarkId(0);
@@ -81,7 +81,7 @@ gTests.push({
     item3 = gStartView._getItemForBookmarkId(12);
 
     ok(!item1 && !item2 && !item3, "Items are not in grid");
-    ok(!gStartView._pinHelper.isPinned(0) && !gStartView._pinHelper.isPinned(5) && !gStartView._pinHelper.isPinned(12) , "Items hidden");
+    ok(!gStartView._pinHelper.isPinned(0) && !gStartView._pinHelper.isPinned(5) && !gStartView._pinHelper.isPinned(12) , "Items unpinned");
     ok(gStartView._set.itemCount === gStartView._limit - 1, "Grid repopulated");
   }
 });

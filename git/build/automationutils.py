@@ -67,8 +67,7 @@ DEBUGGER_INFO = {
 
   "lldb": {
     "interactive": True,
-    "args": "--",
-    "requiresEscapedArgs": True
+    "args": "--"
   },
 
   # valgrind doesn't explain much about leaks unless you set the
@@ -212,8 +211,7 @@ def getDebuggerInfo(directory, debugger, debuggerArgs, debuggerInteractive = Fal
     debuggerInfo = {
       "path": debuggerPath,
       "interactive" : getDebuggerInfo("interactive", False),
-      "args": getDebuggerInfo("args", "").split(),
-      "requiresEscapedArgs": getDebuggerInfo("requiresEscapedArgs", False)
+      "args": getDebuggerInfo("args", "").split()
     }
 
     if debuggerArgs:
@@ -448,11 +446,14 @@ def environment(xrePath, env=None, crashreporter=True, debugger=False, dmdPath=N
   else:
     env['MOZ_CRASHREPORTER_DISABLE'] = '1'
 
-  # Set WebRTC logging in case it is not set yet
+  # Additional temporary logging while we try to debug some intermittent
+  # WebRTC conditions. This is necessary to troubleshoot bugs 841496,
+  # 841150, and 839677 (at least)
+  # Also (temporary) bug 870002 (mediastreamgraph)
   env.setdefault('NSPR_LOG_MODULES', 'signaling:5,mtransport:3')
-  env.setdefault('R_LOG_LEVEL', '5')
-  env.setdefault('R_LOG_DESTINATION', 'stderr')
-  env.setdefault('R_LOG_VERBOSE', '1')
+  env['R_LOG_LEVEL'] = '5'
+  env['R_LOG_DESTINATION'] = 'stderr'
+  env['R_LOG_VERBOSE'] = '1'
 
   # ASan specific environment stuff
   asan = bool(mozinfo.info.get("asan"))
@@ -569,7 +570,14 @@ class ShutdownLeaks(object):
       self.seenShutdown = True
 
   def process(self):
-    for test in self._parseLeakingTests():
+    leakingTests = self._parseLeakingTests()
+
+    if leakingTests:
+      totalWindows = sum(len(test["leakedWindows"]) for test in leakingTests)
+      totalDocShells = sum(len(test["leakedDocShells"]) for test in leakingTests)
+      self.logger("TEST-UNEXPECTED-FAIL | ShutdownLeaks | leaked %d DOMWindow(s) and %d DocShell(s) until shutdown", totalWindows, totalDocShells)
+
+    for test in leakingTests:
       for url, count in self._zipLeakedWindows(test["leakedWindows"]):
         self.logger("TEST-UNEXPECTED-FAIL | %s | leaked %d window(s) until shutdown [url = %s]", test["fileName"], count, url)
 

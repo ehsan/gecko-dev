@@ -90,7 +90,7 @@ CompareCacheClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
   entryPtr->~CompareCacheHashEntryPtr();
 }
 
-static const PLDHashTableOps gMapOps = {
+static PLDHashTableOps gMapOps = {
   PL_DHashAllocTable,
   PL_DHashFreeTable,
   PL_DHashVoidPtrKeyStub,

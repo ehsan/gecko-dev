@@ -14,7 +14,6 @@
 
 #include "gc/GCInternals.h"
 #include "gc/Zone.h"
-#include "js/GCAPI.h"
 #include "js/HashTable.h"
 
 #include "jscntxtinlines.h"
@@ -366,8 +365,7 @@ typedef HashMap<void *, VerifyNode *, DefaultHasher<void *>, SystemAllocPolicy> 
  * The nodemap field is a hashtable that maps from the address of the GC thing
  * to the VerifyNode that represents it.
  */
-struct VerifyPreTracer : JSTracer
-{
+struct VerifyPreTracer : JSTracer {
     /* The gcNumber when the verification began. */
     uint64_t number;
 
@@ -381,14 +379,8 @@ struct VerifyPreTracer : JSTracer
     char *term;
     NodeMap nodemap;
 
-    VerifyPreTracer(JSRuntime *rt) : root(nullptr) {
-        JS::DisableGenerationalGC(rt);
-    }
-
-    ~VerifyPreTracer() {
-        js_free(root);
-        JS::EnableGenerationalGC(runtime);
-    }
+    VerifyPreTracer() : root(nullptr) {}
+    ~VerifyPreTracer() { js_free(root); }
 };
 
 /*
@@ -454,7 +446,7 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
     if (rt->gcVerifyPreData || rt->gcIncrementalState != NO_INCREMENTAL)
         return;
 
-    MinorGC(rt, JS::gcreason::EVICT_NURSERY);
+    MinorGC(rt, JS::gcreason::API);
 
     AutoPrepareForTracing prep(rt, WithAtoms);
 
@@ -464,7 +456,7 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
     for (GCChunkSet::Range r(rt->gcChunkSet.all()); !r.empty(); r.popFront())
         r.front()->bitmap.clear();
 
-    VerifyPreTracer *trc = js_new<VerifyPreTracer>(rt);
+    VerifyPreTracer *trc = js_new<VerifyPreTracer>();
     if (!trc)
         return;
 
@@ -584,8 +576,6 @@ AssertMarkedOrAllocated(const EdgeValue &edge)
 void
 gc::EndVerifyPreBarriers(JSRuntime *rt)
 {
-    JS_ASSERT(!JS::IsGenerationalGCEnabled(rt));
-
     AutoPrepareForTracing prep(rt, SkipAtoms);
 
     VerifyPreTracer *trc = (VerifyPreTracer *)rt->gcVerifyPreData;
@@ -668,7 +658,7 @@ gc::StartVerifyPostBarriers(JSRuntime *rt)
         return;
     }
 
-    MinorGC(rt, JS::gcreason::EVICT_NURSERY);
+    MinorGC(rt, JS::gcreason::API);
 
     VerifyPostTracer *trc = js_new<VerifyPostTracer>();
     if (!trc)
@@ -830,11 +820,10 @@ MaybeVerifyPreBarriers(JSRuntime *rt, bool always)
 static void
 MaybeVerifyPostBarriers(JSRuntime *rt, bool always)
 {
-#ifdef JSGC_GENERATIONAL
     if (rt->gcZeal() != ZealVerifierPostValue)
         return;
 
-    if (rt->mainThread.suppressGC || !rt->gcStoreBuffer.isEnabled())
+    if (rt->mainThread.suppressGC)
         return;
 
     if (VerifyPostTracer *trc = (VerifyPostTracer *)rt->gcVerifyPostData) {
@@ -844,7 +833,6 @@ MaybeVerifyPostBarriers(JSRuntime *rt, bool always)
         EndVerifyPostBarriers(rt);
     }
     StartVerifyPostBarriers(rt);
-#endif
 }
 
 void
@@ -867,15 +855,6 @@ js::gc::FinishVerifier(JSRuntime *rt)
         rt->gcVerifyPostData = nullptr;
     }
 #endif
-}
-
-void
-js::gc::CrashAtUnhandlableOOM(const char *reason)
-{
-    char msgbuf[1024];
-    JS_snprintf(msgbuf, sizeof(msgbuf), "[unhandlable oom] %s", reason);
-    MOZ_ReportAssertionFailure(msgbuf, __FILE__, __LINE__);
-    MOZ_CRASH();
 }
 
 #endif /* JS_GC_ZEAL */

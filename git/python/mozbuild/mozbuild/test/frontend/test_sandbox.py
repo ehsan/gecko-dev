@@ -28,10 +28,9 @@ from mozbuild.frontend.sandbox_symbols import (
 
 from mozbuild.test.common import MockConfig
 
-import mozpack.path as mozpath
 
-test_data_path = mozpath.abspath(mozpath.dirname(__file__))
-test_data_path = mozpath.join(test_data_path, 'data')
+test_data_path = os.path.abspath(os.path.dirname(__file__))
+test_data_path = os.path.join(test_data_path, 'data')
 
 
 class TestSandbox(unittest.TestCase):
@@ -39,7 +38,7 @@ class TestSandbox(unittest.TestCase):
         config = None
 
         if data_path is not None:
-            config = MockConfig(mozpath.join(test_data_path, data_path))
+            config = MockConfig(os.path.join(test_data_path, data_path))
         else:
             config = MockConfig()
 
@@ -51,11 +50,11 @@ class TestSandbox(unittest.TestCase):
 
         self.assertEqual(sandbox['TOPSRCDIR'], config.topsrcdir)
         self.assertEqual(sandbox['TOPOBJDIR'],
-            mozpath.abspath(config.topobjdir))
+            os.path.abspath(config.topobjdir))
         self.assertEqual(sandbox['RELATIVEDIR'], '')
         self.assertEqual(sandbox['SRCDIR'], config.topsrcdir)
         self.assertEqual(sandbox['OBJDIR'],
-            mozpath.abspath(config.topobjdir).replace(os.sep, '/'))
+            os.path.abspath(config.topobjdir).replace(os.sep, '/'))
 
     def test_symbol_presence(self):
         # Ensure no discrepancies between the master symbol table and what's in
@@ -80,7 +79,7 @@ class TestSandbox(unittest.TestCase):
         self.assertEqual(sandbox['SRCDIR'], '/'.join([config.topsrcdir,
             'foo/bar']))
         self.assertEqual(sandbox['OBJDIR'],
-            mozpath.abspath('/'.join([config.topobjdir, 'foo/bar'])).replace(os.sep, '/'))
+            os.path.abspath('/'.join([config.topobjdir, 'foo/bar'])).replace(os.sep, '/'))
 
     def test_config_access(self):
         sandbox = self.sandbox()
@@ -147,9 +146,9 @@ class TestSandbox(unittest.TestCase):
         sandbox = self.sandbox()
 
         sandbox.exec_source('DIRS = ["foo"]', 'foo.py')
-        sandbox.exec_source('DIRS += ["bar"]', 'foo.py')
+        sandbox.exec_source('DIRS = ["bar"]', 'foo.py')
 
-        self.assertEqual(sandbox['DIRS'], ['foo', 'bar'])
+        self.assertEqual(sandbox['DIRS'], ['bar'])
 
     def test_exec_source_illegal_key_set(self):
         sandbox = self.sandbox()
@@ -226,7 +225,7 @@ add_tier_dir('t1', 'bat', static=True)
 
         self.assertEqual(sandbox['DIRS'], ['foo', 'bar'])
         self.assertEqual(sandbox.main_path,
-            mozpath.join(sandbox['TOPSRCDIR'], 'moz.build'))
+            os.path.join(sandbox['TOPSRCDIR'], 'moz.build'))
         self.assertEqual(len(sandbox.all_paths), 2)
 
     def test_include_outside_topsrcdir(self):
@@ -235,7 +234,7 @@ add_tier_dir('t1', 'bat', static=True)
         with self.assertRaises(SandboxLoadError) as se:
             sandbox.exec_file('relative.build')
 
-        expected = mozpath.join(test_data_path, 'moz.build')
+        expected = os.path.join(test_data_path, 'moz.build')
         self.assertEqual(se.exception.illegal_path, expected)
 
     def test_include_error_stack(self):
@@ -253,7 +252,7 @@ add_tier_dir('t1', 'bat', static=True)
         self.assertEqual(args[1], 'set_unknown')
         self.assertEqual(args[2], 'ILLEGAL')
 
-        expected_stack = [mozpath.join(sandbox.config.topsrcdir, p) for p in [
+        expected_stack = [os.path.join(sandbox.config.topsrcdir, p) for p in [
             'moz.build', 'included-1.build', 'included-2.build']]
 
         self.assertEqual(e.file_stack, expected_stack)
@@ -284,6 +283,14 @@ add_tier_dir('t1', 'bat', static=True)
         sandbox.exec_file('moz.build')
 
         self.assertEqual(sandbox['DIRS'], ['foo'])
+
+    def test_external_make_dirs(self):
+        sandbox = self.sandbox()
+        sandbox.exec_source('EXTERNAL_MAKE_DIRS += ["foo"]', 'test.py')
+        sandbox.exec_source('PARALLEL_EXTERNAL_MAKE_DIRS += ["bar"]', 'test.py')
+
+        self.assertEqual(sandbox['EXTERNAL_MAKE_DIRS'], ['foo'])
+        self.assertEqual(sandbox['PARALLEL_EXTERNAL_MAKE_DIRS'], ['bar'])
 
     def test_error(self):
         sandbox = self.sandbox()

@@ -416,7 +416,7 @@ FrameworkView::OnDataShareRequested(IDataTransferManager* aDTM,
     getter_AddRefs(brandBundle));
   NS_ENSURE_TRUE(brandBundle, E_FAIL);
   if(brandBundle) {
-    brandBundle->GetStringFromName(MOZ_UTF16("brandFullName"),
+    brandBundle->GetStringFromName(NS_LITERAL_STRING("brandFullName").get(),
                                    getter_Copies(brandName));
   }
 

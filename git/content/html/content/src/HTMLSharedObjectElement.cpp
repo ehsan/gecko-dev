@@ -8,6 +8,7 @@
 #include "mozilla/dom/HTMLEmbedElementBinding.h"
 #include "mozilla/dom/HTMLAppletElementBinding.h"
 #include "mozilla/dom/ElementInlines.h"
+#include "mozilla/Util.h"
 
 #include "nsIDocument.h"
 #include "nsIPluginDocument.h"

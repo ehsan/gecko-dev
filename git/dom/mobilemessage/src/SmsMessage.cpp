@@ -36,11 +36,10 @@ SmsMessage::SmsMessage(int32_t aId,
                        const nsString& aBody,
                        MessageClass aMessageClass,
                        uint64_t aTimestamp,
-                       uint64_t aSentTimestamp,
                        uint64_t aDeliveryTimestamp,
                        bool aRead)
   : mData(aId, aThreadId, aIccId, aDelivery, aDeliveryStatus,
-          aSender, aReceiver, aBody, aMessageClass, aTimestamp, aSentTimestamp,
+          aSender, aReceiver, aBody, aMessageClass, aTimestamp,
           aDeliveryTimestamp, aRead)
 {
 }
@@ -61,7 +60,6 @@ SmsMessage::Create(int32_t aId,
                    const nsAString& aBody,
                    const nsAString& aMessageClass,
                    const JS::Value& aTimestamp,
-                   const JS::Value& aSentTimestamp,
                    const JS::Value& aDeliveryTimestamp,
                    const bool aRead,
                    JSContext* aCx,
@@ -120,10 +118,6 @@ SmsMessage::Create(int32_t aId,
 
   // Set |timestamp|.
   nsresult rv = convertTimeToInt(aCx, aTimestamp, data.timestamp());
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Set |sentTimestamp|.
-  rv = convertTimeToInt(aCx, aSentTimestamp, data.sentTimestamp());
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Set |deliveryTimestamp|.
@@ -266,23 +260,27 @@ SmsMessage::GetMessageClass(nsAString& aMessageClass)
 }
 
 NS_IMETHODIMP
-SmsMessage::GetTimestamp(DOMTimeStamp* aTimestamp)
+SmsMessage::GetTimestamp(JSContext* cx, JS::Value* aDate)
 {
-  *aTimestamp = mData.timestamp();
+  JSObject *obj = JS_NewDateObjectMsec(cx, mData.timestamp());
+  NS_ENSURE_TRUE(obj, NS_ERROR_FAILURE);
+
+  *aDate = OBJECT_TO_JSVAL(obj);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-SmsMessage::GetSentTimestamp(DOMTimeStamp* aSentTimestamp)
+SmsMessage::GetDeliveryTimestamp(JSContext* aCx, JS::Value* aDate)
 {
-  *aSentTimestamp = mData.sentTimestamp();
-  return NS_OK;
-}
+  if (mData.deliveryTimestamp() == 0) {
+    *aDate = JSVAL_NULL;
+    return NS_OK;
+  }
 
-NS_IMETHODIMP
-SmsMessage::GetDeliveryTimestamp(DOMTimeStamp* aDate)
-{
-  *aDate = mData.deliveryTimestamp();
+  JSObject *obj = JS_NewDateObjectMsec(aCx, mData.deliveryTimestamp());
+  NS_ENSURE_TRUE(obj, NS_ERROR_FAILURE);
+
+  *aDate = OBJECT_TO_JSVAL(obj);
   return NS_OK;
 }
 

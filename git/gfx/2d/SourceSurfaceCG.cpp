@@ -5,7 +5,6 @@
 
 #include "SourceSurfaceCG.h"
 #include "DrawTargetCG.h"
-#include "DataSourceSurfaceWrapper.h"
 
 #include "MacIOSurface.h"
 #include "Tools.h"
@@ -39,12 +38,8 @@ SourceSurfaceCG::GetDataSurface()
 {
   //XXX: we should be more disciplined about who takes a reference and where
   CGImageRetain(mImage);
-  RefPtr<DataSourceSurface> dataSurf = new DataSourceSurfaceCG(mImage);
-
-  // We also need to make sure that the returned surface has
-  // surface->GetType() == SURFACE_DATA.
-  dataSurf = new DataSourceSurfaceWrapper(dataSurf);
-
+  RefPtr<DataSourceSurfaceCG> dataSurf =
+    new DataSourceSurfaceCG(mImage);
   return dataSurf;
 }
 
@@ -52,7 +47,7 @@ static void releaseCallback(void *info, const void *data, size_t size) {
   free(info);
 }
 
-CGImageRef
+static CGImageRef
 CreateCGImage(void *aInfo,
               const void *aData,
               const IntSize &aSize,

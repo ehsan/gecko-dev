@@ -22,7 +22,6 @@
   padding: 1px 4px;
   margin-top: 4px;
   -moz-user-select: none;
-  word-wrap: break-word;
 }
 
 .ruleview-rule-source:hover {
@@ -116,7 +115,6 @@
 
 .ruleview-property {
   border-left: 2px solid transparent;
-  clear: right;
 }
 
 .ruleview-property  > * {
@@ -135,10 +133,6 @@
 .ruleview-namecontainer:hover > .ruleview-propertyname,
 .ruleview-propertycontainer:hover > .ruleview-propertyvalue {
   border-bottom-color: hsl(0,0%,50%);
-}
-
-.ruleview-selector {
-  word-wrap: break-word;
 }
 
 .ruleview-selector-separator, .ruleview-selector-unmatched {

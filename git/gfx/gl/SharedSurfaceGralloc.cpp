@@ -15,7 +15,6 @@
 
 #include "ui/GraphicBuffer.h"
 #include "../layers/ipc/ShadowLayers.h"
-#include "ScopedGLHelpers.h"
 
 #define DEBUG_GRALLOC
 #ifdef DEBUG_GRALLOC
@@ -44,7 +43,7 @@ SurfaceFactory_Gralloc::SurfaceFactory_Gralloc(GLContext* prodGL,
 
     MOZ_ASSERT(allocator);
 
-    mAllocator = allocator;
+    mAllocator = allocator->asWeakPtr();
 }
 
 SharedSurface_Gralloc*

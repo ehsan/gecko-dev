@@ -20,7 +20,7 @@ using mozilla::FloorLog2;
 bool
 SafepointWriter::init(TempAllocator &alloc, uint32_t slotCount)
 {
-    frameSlots_ = BitSet::New(alloc, slotCount / sizeof(intptr_t));
+    frameSlots_ = BitSet::New(alloc, slotCount);
     if (!frameSlots_)
         return false;
 
@@ -99,17 +99,14 @@ MapSlotsToBitset(BitSet *set, CompactBufferWriter &stream, uint32_t nslots, uint
     set->clear();
 
     for (uint32_t i = 0; i < nslots; i++) {
-        // Slots are represented at a distance from |fp|. We divide by the
-        // pointer size, since we only care about pointer-sized/aligned slots
-        // here. Since the stack grows down, this means slots start at index 1,
-        // so we subtract 1 to pack the bitset.
-        JS_ASSERT(slots[i] % sizeof(intptr_t) == 0);
-        JS_ASSERT(slots[i] / sizeof(intptr_t) > 0);
-        set->insert(slots[i] / sizeof(intptr_t) - 1);
+        // Slots are represented at a distance from |fp|. Since the stack grows
+        // down, this means slots start at index 1, so we subtract 1 to pack
+        // the bitset.
+        set->insert(slots[i] - 1);
     }
 
     size_t count = set->rawLength();
-    const uint32_t *words = set->raw();
+    uint32_t *words = set->raw();
     for (size_t i = 0; i < count; i++)
         stream.writeUnsigned(words[i]);
 }
@@ -337,7 +334,7 @@ SafepointWriter::endEntry()
 SafepointReader::SafepointReader(IonScript *script, const SafepointIndex *si)
   : stream_(script->safepoints() + si->safepointOffset(),
             script->safepoints() + script->safepointsSize()),
-    frameSlots_(script->frameSlots() / sizeof(intptr_t))
+    frameSlots_(script->frameSlots())
 {
     osiCallPointOffset_ = stream_.readUnsigned();
 
@@ -377,21 +374,22 @@ SafepointReader::InvalidationPatchPoint(IonScript *script, const SafepointIndex 
 void
 SafepointReader::advanceFromGcRegs()
 {
-    currentSlotChunk_ = 0;
-    nextSlotChunkNumber_ = 0;
+    currentSlotChunkNumber_ = 0;
+    currentSlotChunk_ = stream_.readUnsigned();
 }
 
 bool
 SafepointReader::getSlotFromBitmap(uint32_t *slot)
 {
     while (currentSlotChunk_ == 0) {
+        currentSlotChunkNumber_++;
+
         // Are there any more chunks to read?
-        if (nextSlotChunkNumber_ == BitSet::RawLengthForBits(frameSlots_))
+        if (currentSlotChunkNumber_ == BitSet::RawLengthForBits(frameSlots_))
             return false;
 
         // Yes, read the next chunk.
         currentSlotChunk_ = stream_.readUnsigned();
-        nextSlotChunkNumber_++;
     }
 
     // The current chunk still has bits in it, so get the next bit, then mask
@@ -400,9 +398,8 @@ SafepointReader::getSlotFromBitmap(uint32_t *slot)
     currentSlotChunk_ &= ~(1 << bit);
 
     // Return the slot, taking care to add 1 back in since it was subtracted
-    // when added in the original bitset, and re-scale it by the pointer size,
-    // reversing the transformation in MapSlotsToBitset.
-    *slot = (((nextSlotChunkNumber_ - 1) * BitSet::BitsPerWord) + bit + 1) * sizeof(intptr_t);
+    // when added in the original bitset.
+    *slot = (currentSlotChunkNumber_ * sizeof(uint32_t) * 8) + bit + 1;
     return true;
 }
 
@@ -419,8 +416,8 @@ void
 SafepointReader::advanceFromGcSlots()
 {
     // No, reset the counter.
-    currentSlotChunk_ = 0;
-    nextSlotChunkNumber_ = 0;
+    currentSlotChunkNumber_ = 0;
+    currentSlotChunk_ = stream_.readUnsigned();
 }
 
 bool
@@ -456,7 +453,7 @@ PartFromStream(CompactBufferReader &stream, NunboxPartKind kind, uint32_t info)
         return LStackSlot(info);
 
     JS_ASSERT(kind == Part_Arg);
-    return LArgument(info);
+    return LArgument(LAllocation::INT_ARGUMENT, info);
 }
 
 bool

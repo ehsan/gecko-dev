@@ -147,7 +147,7 @@ bool CopyDirectory(const FilePath& from_path,
   char* dir_list[] = { top_dir, NULL };
   FTS* fts = fts_open(dir_list, FTS_PHYSICAL | FTS_NOSTAT, NULL);
   if (!fts) {
-    CHROMIUM_LOG(ERROR) << "fts_open failed: " << strerror(errno);
+    LOG(ERROR) << "fts_open failed: " << strerror(errno);
     return false;
   }
 
@@ -203,11 +203,11 @@ bool CopyDirectory(const FilePath& from_path,
         break;
       case FTS_SL:      // Symlink.
       case FTS_SLNONE:  // Symlink with broken target.
-        CHROMIUM_LOG(WARNING) << "CopyDirectory() skipping symbolic link: " <<
+        LOG(WARNING) << "CopyDirectory() skipping symbolic link: " <<
             ent->fts_path;
         continue;
       case FTS_DEFAULT:  // Some other sort of file.
-        CHROMIUM_LOG(WARNING) << "CopyDirectory() skipping file of unknown type: " <<
+        LOG(WARNING) << "CopyDirectory() skipping file of unknown type: " <<
             ent->fts_path;
         continue;
       default:
@@ -227,7 +227,7 @@ bool CopyDirectory(const FilePath& from_path,
   }
 
   if (error) {
-    CHROMIUM_LOG(ERROR) << "CopyDirectory(): " << strerror(error);
+    LOG(ERROR) << "CopyDirectory(): " << strerror(error);
     return false;
   }
   return true;

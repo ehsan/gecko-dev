@@ -27,7 +27,7 @@ interface URLUtils {
            attribute DOMString port;
            attribute DOMString pathname;
            attribute DOMString search;
-           attribute URLSearchParams? searchParams;
+           // attribute URLQuery? query;
            attribute DOMString hash;
 };
 

@@ -16,8 +16,8 @@
 
 /* loading of CSS style sheets using the network APIs */
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
 #include "mozilla/css/Loader.h"
 #include "nsIRunnable.h"
@@ -48,7 +48,6 @@
 #include "nsIThreadInternal.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsINetworkSeer.h"
-#include "mozilla/dom/ShadowRoot.h"
 #include "mozilla/dom/URL.h"
 
 #ifdef MOZ_XUL
@@ -449,8 +448,7 @@ SheetLoadData::OnProcessNextEvent(nsIThreadInternal* aThread,
 
 NS_IMETHODIMP
 SheetLoadData::AfterProcessNextEvent(nsIThreadInternal* aThread,
-                                     uint32_t aRecursionDepth,
-                                     bool aEventWasProcessed)
+                                     uint32_t aRecursionDepth)
 {
   // We want to fire our load even before or after event processing,
   // whichever comes first.
@@ -1880,14 +1878,8 @@ Loader::LoadInlineStyle(nsIContent* aElement,
 
   PrepareSheet(sheet, aTitle, aMedia, nullptr, aScopeElement, *aIsAlternate);
 
-  if (aElement->HasFlag(NODE_IS_IN_SHADOW_TREE)) {
-    ShadowRoot* containingShadow = aElement->GetContainingShadow();
-    MOZ_ASSERT(containingShadow);
-    containingShadow->InsertSheet(sheet, aElement);
-  } else {
-    rv = InsertSheetInDoc(sheet, aElement, mDocument);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  rv = InsertSheetInDoc(sheet, aElement, mDocument);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   SheetLoadData* data = new SheetLoadData(this, aTitle, nullptr, sheet,
                                           owningElement, *aIsAlternate,

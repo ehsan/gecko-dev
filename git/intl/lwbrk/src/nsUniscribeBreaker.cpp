@@ -22,7 +22,6 @@ NS_GetComplexLineBreaks(const PRUnichar* aText, uint32_t aLength,
   int outItems = 0;
   HRESULT result;
   nsAutoTArray<SCRIPT_ITEM, 64> items;
-  char16ptr_t text = aText;
 
   memset(aBreakBefore, false, aLength);
 
@@ -30,7 +29,7 @@ NS_GetComplexLineBreaks(const PRUnichar* aText, uint32_t aLength,
     return;
 
   do {
-    result = ScriptItemize(text, aLength, items.Length(), nullptr, nullptr,
+    result = ScriptItemize(aText, aLength, items.Length(), nullptr, nullptr,
                            items.Elements(), &outItems);
 
     if (result == E_OUTOFMEMORY) {
@@ -47,7 +46,7 @@ NS_GetComplexLineBreaks(const PRUnichar* aText, uint32_t aLength,
     if (!sla.AppendElements(endOffset - startOffset))
       return;
 
-    if (ScriptBreak(text + startOffset, endOffset - startOffset,
+    if (ScriptBreak(aText + startOffset, endOffset - startOffset,
                     &items[iItem].a,  sla.Elements()) < 0) 
       return;
 

@@ -57,18 +57,18 @@ void SystemMonitor::RemoveObserver(PowerObserver* obs) {
 }
 
 void SystemMonitor::NotifyPowerStateChange() {
-  CHROMIUM_LOG(INFO) << "PowerStateChange: "
-                     << (BatteryPower() ? "On" : "Off") << " battery";
+  LOG(INFO) << "PowerStateChange: "
+           << (BatteryPower() ? "On" : "Off") << " battery";
   observer_list_->Notify(&PowerObserver::OnPowerStateChange, this);
 }
 
 void SystemMonitor::NotifySuspend() {
-  CHROMIUM_LOG(INFO) << "Power Suspending";
+  LOG(INFO) << "Power Suspending";
   observer_list_->Notify(&PowerObserver::OnSuspend, this);
 }
 
 void SystemMonitor::NotifyResume() {
-  CHROMIUM_LOG(INFO) << "Power Resuming";
+  LOG(INFO) << "Power Resuming";
   observer_list_->Notify(&PowerObserver::OnResume, this);
 }
 

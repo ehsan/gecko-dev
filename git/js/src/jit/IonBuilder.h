@@ -13,7 +13,6 @@
 // JSScript.
 
 #include "jit/BytecodeAnalysis.h"
-#include "jit/IonOptimizationLevels.h"
 #include "jit/MIR.h"
 #include "jit/MIRGenerator.h"
 #include "jit/MIRGraph.h"
@@ -212,10 +211,9 @@ class IonBuilder : public MIRGenerator
     static int CmpSuccessors(const void *a, const void *b);
 
   public:
-    IonBuilder(JSContext *analysisContext, CompileCompartment *comp, TempAllocator *temp,
-               MIRGraph *graph, types::CompilerConstraintList *constraints,
-               BaselineInspector *inspector, CompileInfo *info,
-               const OptimizationInfo *optimizationInfo, BaselineFrameInspector *baselineFrame,
+    IonBuilder(JSContext *analysisContext, CompileCompartment *comp, TempAllocator *temp, MIRGraph *graph,
+               types::CompilerConstraintList *constraints,
+               BaselineInspector *inspector, CompileInfo *info, BaselineFrameInspector *baselineFrame,
                size_t inliningDepth = 0, uint32_t loopDepth = 0);
 
     bool build();
@@ -232,9 +230,14 @@ class IonBuilder : public MIRGenerator
     bool abort(const char *message, ...);
     void spew(const char *message);
 
+    static bool inliningEnabled() {
+        return js_IonOptions.inlining;
+    }
+
     JSFunction *getSingleCallTarget(types::TemporaryTypeSet *calleeTypes);
     bool getPolyCallTargets(types::TemporaryTypeSet *calleeTypes, bool constructing,
                             ObjectVector &targets, uint32_t maxTargets, bool *gotLambda);
+    bool canInlineTarget(JSFunction *target, CallInfo &callInfo);
 
     void popCfgStack();
     DeferredEdge *filterDeadDeferredEdges(DeferredEdge *edge);
@@ -322,8 +325,6 @@ class IonBuilder : public MIRGenerator
     bool resumeAt(MInstruction *ins, jsbytecode *pc);
     bool resumeAfter(MInstruction *ins);
     bool maybeInsertResume();
-
-    void insertRecompileCheck();
 
     bool initParameters();
     void rewriteParameter(uint32_t slotIdx, MDefinition *param, int32_t argIndex);
@@ -431,9 +432,6 @@ class IonBuilder : public MIRGenerator
     // binary data lookup helpers.
     bool lookupTypeRepresentationSet(MDefinition *typedObj,
                                      TypeRepresentationSet *out);
-    bool typeSetToTypeRepresentationSet(types::TemporaryTypeSet *types,
-                                        TypeRepresentationSet *out,
-                                        types::TypeTypedObject::Kind kind);
     bool lookupTypedObjectField(MDefinition *typedObj,
                                 PropertyName *name,
                                 int32_t *fieldOffset,
@@ -456,11 +454,6 @@ class IonBuilder : public MIRGenerator
                                      MDefinition *offset,
                                      ScalarTypeRepresentation *typeRepr,
                                      MDefinition *value);
-    bool checkTypedObjectIndexInBounds(size_t elemSize,
-                                       MDefinition *obj,
-                                       MDefinition *index,
-                                       MDefinition **indexAsByteOffset,
-                                       TypeRepresentationSet objTypeReprs);
 
     // jsop_setelem() helpers.
     bool setElemTryTyped(bool *emitted, MDefinition *object,
@@ -583,20 +576,11 @@ class IonBuilder : public MIRGenerator
         InliningStatus_Inlined
     };
 
-    enum InliningDecision
-    {
-        InliningDecision_Error,
-        InliningDecision_Inline,
-        InliningDecision_DontInline
-    };
-
-    static InliningDecision DontInline(JSScript *targetScript, const char *reason);
-
     // Oracles.
-    InliningDecision canInlineTarget(JSFunction *target, CallInfo &callInfo);
-    InliningDecision makeInliningDecision(JSFunction *target, CallInfo &callInfo);
-    bool selectInliningTargets(ObjectVector &targets, CallInfo &callInfo,
-                               BoolVector &choiceSet, uint32_t *numInlineable);
+    bool canEnterInlinedFunction(JSFunction *target);
+    bool makeInliningDecision(JSFunction *target, CallInfo &callInfo);
+    uint32_t selectInliningTargets(ObjectVector &targets, CallInfo &callInfo,
+                                   BoolVector &choiceSet);
 
     // Native inlining helpers.
     types::TemporaryTypeSet *getInlineReturnTypeSet();
@@ -611,7 +595,6 @@ class IonBuilder : public MIRGenerator
     // Math natives.
     InliningStatus inlineMathAbs(CallInfo &callInfo);
     InliningStatus inlineMathFloor(CallInfo &callInfo);
-    InliningStatus inlineMathCeil(CallInfo &callInfo);
     InliningStatus inlineMathRound(CallInfo &callInfo);
     InliningStatus inlineMathSqrt(CallInfo &callInfo);
     InliningStatus inlineMathAtan2(CallInfo &callInfo);
@@ -645,6 +628,16 @@ class IonBuilder : public MIRGenerator
     // Slot intrinsics.
     InliningStatus inlineUnsafeSetReservedSlot(CallInfo &callInfo);
     InliningStatus inlineUnsafeGetReservedSlot(CallInfo &callInfo);
+
+    // Parallel intrinsics.
+    InliningStatus inlineNewParallelArray(CallInfo &callInfo);
+    InliningStatus inlineParallelArray(CallInfo &callInfo);
+    InliningStatus inlineParallelArrayTail(CallInfo &callInfo,
+                                           JSFunction *target,
+                                           MDefinition *ctor,
+                                           types::TemporaryTypeSet *ctorTypes,
+                                           uint32_t discards,
+                                           Native native);
 
     // Utility intrinsics.
     InliningStatus inlineIsCallable(CallInfo &callInfo);
@@ -725,7 +718,7 @@ class IonBuilder : public MIRGenerator
     }
 
     // A builder is inextricably tied to a particular script.
-    JSScript *script_;
+    HeapPtrScript script_;
 
     // If off thread compilation is successful, the final code generator is
     // attached here. Code has been generated, but not linked (there is not yet
@@ -736,7 +729,7 @@ class IonBuilder : public MIRGenerator
   public:
     void clearForBackEnd();
 
-    JSScript *script() const { return script_; }
+    JSScript *script() const { return script_.get(); }
 
     CodeGenerator *backgroundCodegen() const { return backgroundCodegen_; }
     void setBackgroundCodegen(CodeGenerator *codegen) { backgroundCodegen_ = codegen; }
@@ -765,17 +758,6 @@ class IonBuilder : public MIRGenerator
 
     // Constraints for recording dependencies on type information.
     types::CompilerConstraintList *constraints_;
-
-    mozilla::Maybe<AutoLockForCompilation> lock_;
-
-    void lock() {
-        if (!analysisContext)
-            lock_.construct(compartment);
-    }
-    void unlock() {
-        if (!analysisContext)
-            lock_.destroy();
-    }
 
     // Basic analysis information about the script.
     BytecodeAnalysis analysis_;
@@ -867,14 +849,14 @@ class CallInfo
         fun_ = callInfo.fun();
         thisArg_ = callInfo.thisArg();
 
-        if (!args_.appendAll(callInfo.argv()))
+        if (!args_.append(callInfo.argv().begin(), callInfo.argv().end()))
             return false;
 
         return true;
     }
 
     bool init(MBasicBlock *current, uint32_t argc) {
-        JS_ASSERT(args_.empty());
+        JS_ASSERT(args_.length() == 0);
 
         // Get the arguments in the right order
         if (!args_.reserve(argc))
@@ -910,8 +892,8 @@ class CallInfo
     }
 
     void setArgs(MDefinitionVector *args) {
-        JS_ASSERT(args_.empty());
-        args_.appendAll(*args);
+        JS_ASSERT(args_.length() == 0);
+        args_.append(args->begin(), args->end());
     }
 
     MDefinitionVector &argv() {

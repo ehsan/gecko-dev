@@ -26,11 +26,10 @@ class nsIScriptContext;
 namespace mozilla {
 namespace dom {
 
-class ShadowRoot;
 class XBLChildrenElement;
 
-} // namespace dom
-} // namespace mozilla
+}
+}
 
 class nsAnonymousContentList;
 
@@ -41,7 +40,6 @@ class nsXBLBinding
 {
 public:
   nsXBLBinding(nsXBLPrototypeBinding* aProtoBinding);
-  nsXBLBinding(mozilla::dom::ShadowRoot* aShadowRoot, nsXBLPrototypeBinding* aProtoBinding);
   ~nsXBLBinding();
 
   /**
@@ -141,7 +139,7 @@ public:
                                 JS::MutableHandle<JSObject*> aClassObject,
                                 bool* aNew);
 
-  bool AllowScripts();
+  bool AllowScripts();  // XXX make const
 
   mozilla::dom::XBLChildrenElement* FindInsertionPointFor(nsIContent* aChild);
 

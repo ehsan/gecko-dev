@@ -348,8 +348,6 @@ public:
 
   virtual bool AssumeAllImagesVisible() MOZ_OVERRIDE;
 
-  virtual void RestyleShadowRoot(mozilla::dom::ShadowRoot* aShadowRoot);
-
 protected:
   virtual ~PresShell();
 
@@ -666,6 +664,7 @@ protected:
                                            nsIWidget *aRootWidget);
 
   void FireResizeEvent();
+  void FireBeforeResizeEvent();
   static void AsyncResizeEventCallback(nsITimer* aTimer, void* aPresShell);
 
   virtual void SynthesizeMouseMove(bool aFromScroll) MOZ_OVERRIDE;

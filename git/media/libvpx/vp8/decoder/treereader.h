@@ -9,17 +9,18 @@
  */
 
 
-#ifndef TREEREADER_H_
-#define TREEREADER_H_
+#ifndef tree_reader_h
+#define tree_reader_h 1
 
 #include "vp8/common/treecoder.h"
+
 #include "dboolhuff.h"
 
 typedef BOOL_DECODER vp8_reader;
 
 #define vp8_read vp8dx_decode_bool
 #define vp8_read_literal vp8_decode_value
-#define vp8_read_bit(R) vp8_read(R, vp8_prob_half)
+#define vp8_read_bit( R) vp8_read( R, vp8_prob_half)
 
 
 /* Intent of tree data structure is to make decoding trivial. */
@@ -37,4 +38,4 @@ static int vp8_treed_read(
     return -i;
 }
 
-#endif  // TREEREADER_H_
+#endif /* tree_reader_h */

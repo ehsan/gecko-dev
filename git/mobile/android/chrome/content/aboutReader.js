@@ -365,7 +365,7 @@ AboutReader.prototype = {
     if (!this._article || this._readingListCount < 1)
       return;
 
-    gChromeWin.BrowserApp.loadURI("about:home?page=reading_list");
+    gChromeWin.sendMessageToJava({ type: "Reader:GoToReadingList" });
   },
 
   _onShare: function Reader_onShare() {

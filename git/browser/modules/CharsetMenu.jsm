@@ -51,6 +51,7 @@ const kEncodings = new Set([
   "ISO-8859-7",
   // Hebrew
   "windows-1255",
+  "ISO-8859-8-I",
   "ISO-8859-8",
   // Japanese
   "Shift_JIS",
@@ -81,7 +82,7 @@ const kPinned = [
 ];
 
 this.CharsetMenu = Object.freeze({
-  build: function BuildCharsetMenu(event, idPrefix="", showAccessKeys=false) {
+  build: function BuildCharsetMenu(event, showAccessKeys) {
     let parent = event.target;
     if (parent.lastChild.localName != "menuseparator") {
       // Detector menu or charset menu already built
@@ -107,7 +108,7 @@ this.CharsetMenu = Object.freeze({
           // Some items intentionally don't have an accesskey
         }
       }
-      menuItem.setAttribute("id", idPrefix + "charset." + encoding);
+      menuItem.setAttribute("id", "charset." + encoding);
       return menuItem;
     }
 

@@ -21,8 +21,6 @@
 #include "jsgcinlines.h"
 #include "jsinferinlines.h"
 
-#include "vm/ObjectImpl-inl.h"
-
 /* static */ inline bool
 JSObject::setGenericAttributes(JSContext *cx, js::HandleObject obj,
                                js::HandleId id, unsigned *attrsp)
@@ -53,7 +51,7 @@ JSObject::deleteProperty(JSContext *cx, js::HandleObject obj, js::HandleProperty
 /* static */ inline bool
 JSObject::deleteElement(JSContext *cx, js::HandleObject obj, uint32_t index, bool *succeeded)
 {
-    JS::RootedId id(cx);
+    jsid id;
     if (!js::IndexToId(cx, index, &id))
         return false;
     js::types::MarkTypePropertyConfigured(cx, obj, id);
@@ -393,9 +391,6 @@ JSObject::clearType(JSContext *cx, js::HandleObject obj)
 inline void
 JSObject::setType(js::types::TypeObject *newType)
 {
-    // Note: This is usually called for newly created objects that haven't
-    // escaped to script yet, so don't require that the compilation lock be
-    // held here.
     JS_ASSERT(newType);
     JS_ASSERT(!hasSingletonType());
     type_ = newType;
@@ -408,42 +403,9 @@ JSObject::getProto(JSContext *cx, js::HandleObject obj, js::MutableHandleObject 
         JS_ASSERT(obj->is<js::ProxyObject>());
         return js::Proxy::getPrototypeOf(cx, obj, protop);
     } else {
-        protop.set(obj->getTaggedProto().toObjectOrNull());
+        protop.set(obj->js::ObjectImpl::getProto());
         return true;
     }
-}
-
-/* static */ inline bool
-JSObject::setProto(JSContext *cx, JS::HandleObject obj, JS::HandleObject proto, bool *succeeded)
-{
-    /* Proxies live in their own little world. */
-    if (obj->getTaggedProto().isLazy()) {
-        JS_ASSERT(obj->is<js::ProxyObject>());
-        return js::Proxy::setPrototypeOf(cx, obj, proto, succeeded);
-    }
-
-    /* ES6 9.1.2 step 5 forbids changing [[Prototype]] if not [[Extensible]]. */
-    bool extensible;
-    if (!JSObject::isExtensible(cx, obj, &extensible))
-        return false;
-    if (!extensible) {
-        *succeeded = false;
-        return true;
-    }
-
-    /* ES6 9.1.2 step 6 forbids generating cyclical prototype chains. */
-    js::RootedObject obj2(cx);
-    for (obj2 = proto; obj2; ) {
-        if (obj2 == obj) {
-            *succeeded = false;
-            return true;
-        }
-
-        if (!JSObject::getProto(cx, obj2, &obj2))
-            return false;
-    }
-
-    return SetClassAndProto(cx, obj, obj->getClass(), proto, succeeded);
 }
 
 inline bool JSObject::isVarObj()
@@ -464,11 +426,11 @@ JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::Initi
      * make sure their presence is consistent with the shape.
      */
     JS_ASSERT(shape && type);
-    JS_ASSERT(type->clasp() == shape->getObjectClass());
-    JS_ASSERT(type->clasp() != &js::ArrayObject::class_);
-    JS_ASSERT(js::gc::GetGCKindSlots(kind, type->clasp()) == shape->numFixedSlots());
-    JS_ASSERT_IF(type->clasp()->flags & JSCLASS_BACKGROUND_FINALIZE, IsBackgroundFinalized(kind));
-    JS_ASSERT_IF(type->clasp()->finalize, heap == js::gc::TenuredHeap);
+    JS_ASSERT(type->clasp == shape->getObjectClass());
+    JS_ASSERT(type->clasp != &js::ArrayObject::class_);
+    JS_ASSERT(js::gc::GetGCKindSlots(kind, type->clasp) == shape->numFixedSlots());
+    JS_ASSERT_IF(type->clasp->flags & JSCLASS_BACKGROUND_FINALIZE, IsBackgroundFinalized(kind));
+    JS_ASSERT_IF(type->clasp->finalize, heap == js::gc::TenuredHeap);
     JS_ASSERT_IF(extantSlots, dynamicSlotsCount(shape->numFixedSlots(), shape->slotSpan()));
 
     js::HeapSlot *slots = extantSlots;
@@ -498,7 +460,7 @@ JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::Initi
     obj->slots = slots;
     obj->elements = js::emptyObjectElements;
 
-    const js::Class *clasp = type->clasp();
+    const js::Class *clasp = type->clasp;
     if (clasp->hasPrivate())
         obj->privateRef(shape->numFixedSlots()) = nullptr;
 
@@ -515,9 +477,9 @@ JSObject::createArray(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::
                       uint32_t length)
 {
     JS_ASSERT(shape && type);
-    JS_ASSERT(type->clasp() == shape->getObjectClass());
-    JS_ASSERT(type->clasp() == &js::ArrayObject::class_);
-    JS_ASSERT_IF(type->clasp()->finalize, heap == js::gc::TenuredHeap);
+    JS_ASSERT(type->clasp == shape->getObjectClass());
+    JS_ASSERT(type->clasp == &js::ArrayObject::class_);
+    JS_ASSERT_IF(type->clasp->finalize, heap == js::gc::TenuredHeap);
 
     /*
      * Arrays use their fixed slots to store elements, and must have enough
@@ -532,36 +494,17 @@ JSObject::createArray(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::
      */
     JS_ASSERT(js::gc::GetGCKindSlots(kind) >= js::ObjectElements::VALUES_PER_HEADER);
 
-    js::HeapSlot *slots = nullptr;
-    if (size_t nDynamicSlots = dynamicSlotsCount(shape->numFixedSlots(), shape->slotSpan())) {
-        slots = cx->pod_malloc<js::HeapSlot>(nDynamicSlots);
-        if (!slots)
-            return nullptr;
-        js::Debug_SetSlotRangeToCrashOnTouch(slots, nDynamicSlots);
-    }
+    uint32_t capacity = js::gc::GetGCKindSlots(kind) - js::ObjectElements::VALUES_PER_HEADER;
 
     JSObject *obj = js_NewGCObject<js::CanGC>(cx, kind, heap);
-    if (!obj) {
-        js_free(slots);
+    if (!obj)
         return nullptr;
-    }
-
-#ifdef JSGC_GENERATIONAL
-    if (slots && heap != js::gc::TenuredHeap)
-        cx->asJSContext()->runtime()->gcNursery.notifyInitialSlots(obj, slots);
-#endif
-
-    uint32_t capacity = js::gc::GetGCKindSlots(kind) - js::ObjectElements::VALUES_PER_HEADER;
 
     obj->shape_.init(shape);
     obj->type_.init(type);
-    obj->slots = slots;
+    obj->slots = nullptr;
     obj->setFixedElements();
     new (obj->getElementsHeader()) js::ObjectElements(capacity, length);
-
-    size_t span = shape->slotSpan();
-    if (span)
-        obj->initializeSlotRange(0, span);
 
     return &obj->as<js::ArrayObject>();
 }
@@ -621,7 +564,7 @@ JSObject::getElement(JSContext *cx, js::HandleObject obj, js::HandleObject recei
         return op(cx, obj, receiver, index, vp);
 
     JS::RootedId id(cx);
-    if (!js::IndexToId(cx, index, &id))
+    if (!js::IndexToId(cx, index, id.address()))
         return false;
     return getGeneric(cx, obj, receiver, id, vp);
 }
@@ -634,9 +577,42 @@ JSObject::getElementNoGC(JSContext *cx, JSObject *obj, JSObject *receiver,
     if (op)
         return false;
 
-    if (index > JSID_INT_MAX)
+    jsid id;
+    if (!js::IndexToId(cx, index, &id))
         return false;
-    return getGenericNoGC(cx, obj, receiver, INT_TO_JSID(index), vp);
+    return getGenericNoGC(cx, obj, receiver, id, vp);
+}
+
+/* static */ inline bool
+JSObject::getElementIfPresent(JSContext *cx, js::HandleObject obj, js::HandleObject receiver,
+                              uint32_t index, js::MutableHandleValue vp,
+                              bool *present)
+{
+    js::ElementIfPresentOp op = obj->getOps()->getElementIfPresent;
+    if (op)
+        return op(cx, obj, receiver, index, vp, present);
+
+    /*
+     * For now, do the index-to-id conversion just once, then use
+     * lookupGeneric/getGeneric.  Once lookupElement and getElement stop both
+     * doing index-to-id conversions, we can use those here.
+     */
+    JS::RootedId id(cx);
+    if (!js::IndexToId(cx, index, id.address()))
+        return false;
+
+    JS::RootedObject obj2(cx);
+    js::RootedShape prop(cx);
+    if (!lookupGeneric(cx, obj, id, &obj2, &prop))
+        return false;
+
+    if (!prop) {
+        *present = false;
+        return true;
+    }
+
+    *present = true;
+    return getGeneric(cx, obj, receiver, id, vp);
 }
 
 inline js::GlobalObject &
@@ -981,11 +957,8 @@ DefineConstructorAndPrototype(JSContext *cx, Handle<GlobalObject*> global,
     JS_ASSERT(!global->nativeLookup(cx, id));
 
     /* Set these first in case AddTypePropertyId looks for this class. */
-    {
-        AutoLockForCompilation lock(cx);
-        global->setConstructor(key, ObjectValue(*ctor));
-        global->setPrototype(key, ObjectValue(*proto));
-    }
+    global->setConstructor(key, ObjectValue(*ctor));
+    global->setPrototype(key, ObjectValue(*proto));
     global->setConstructorPropertySlot(key, ObjectValue(*ctor));
 
     if (!global->addDataProperty(cx, id, GlobalObject::constructorPropertySlot(key), 0)) {
@@ -1052,21 +1025,15 @@ static JS_ALWAYS_INLINE bool
 NewObjectMetadata(ExclusiveContext *cxArg, JSObject **pmetadata)
 {
     // The metadata callback is invoked before each created object, except when
-    // analysis/compilation is active, to avoid recursion.
+    // analysis/compilation/parsing is active as the callback may reenter JS.
     JS_ASSERT(!*pmetadata);
     if (JSContext *cx = cxArg->maybeJSContext()) {
         if (JS_UNLIKELY((size_t)cx->compartment()->hasObjectMetadataCallback()) &&
-            !cx->compartment()->activeAnalysis)
+            !cx->compartment()->activeAnalysis &&
+            !cx->runtime()->mainThread.activeCompilations)
         {
-            JS::DisableGenerationalGC(cx->runtime());
-
-            // Use AutoEnterAnalysis to prohibit both any GC activity under the
-            // callback, and any reentering of JS via Invoke() etc.
-            types::AutoEnterAnalysis enter(cx);
-
-            bool status = cx->compartment()->callObjectMetadataCallback(cx, pmetadata);
-            JS::EnableGenerationalGC(cx->runtime());
-            return status;
+            gc::AutoSuppressGC suppress(cx);
+            return cx->compartment()->callObjectMetadataCallback(cx, pmetadata);
         }
     }
     return true;

@@ -33,10 +33,7 @@ public:
   virtual Point CurrentPoint() const;
   virtual TemporaryRef<Path> Finish();
 
-  void AppendPath(const SkPath &aPath);
-
 private:
-
   void SetFillRule(FillRule aFillRule);
 
   SkPath mPath;

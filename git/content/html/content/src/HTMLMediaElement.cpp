@@ -7,8 +7,8 @@
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/HTMLMediaElementBinding.h"
 #include "mozilla/dom/ElementInlines.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/MathAlgorithms.h"
+#include "mozilla/Util.h"
 
 #include "base/basictypes.h"
 #include "nsIDOMHTMLMediaElement.h"
@@ -1320,12 +1320,6 @@ HTMLMediaElement::SetCurrentTime(double aCurrentTime, ErrorResult& aRv)
     return;
   }
 
-  if (!mPlayed) {
-    LOG(PR_LOG_DEBUG, ("HTMLMediaElement::mPlayed not available."));
-    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return;
-  }
-
   if (mCurrentPlayRangeStart != -1.0) {
     double rangeEndTime = CurrentTime();
     LOG(PR_LOG_DEBUG, ("%p Adding \'played\' a range : [%f, %f]", this, mCurrentPlayRangeStart, rangeEndTime));
@@ -1433,9 +1427,7 @@ HTMLMediaElement::Played()
   nsRefPtr<TimeRanges> ranges = new TimeRanges();
 
   uint32_t timeRangeCount = 0;
-  if (mPlayed) {
-    mPlayed->GetLength(&timeRangeCount);
-  }
+  mPlayed->GetLength(&timeRangeCount);
   for (uint32_t i = 0; i < timeRangeCount; i++) {
     double begin;
     double end;
@@ -1763,29 +1755,7 @@ HTMLMediaElement::CaptureStreamInternal(bool aFinishWhenEnded)
   }
 
   OutputMediaStream* out = mOutputStreams.AppendElement();
-#ifdef DEBUG
-  // Estimate hints based on the type of the media element
-  // under the preference media.capturestream_hints for the
-  // debug builds only. This allows WebRTC Peer Connection
-  // to behave appropriately when media streams generated
-  // via mozCaptureStream*() are added to the Peer Connection.
-  // This functionality is planned to be used as part of Audio
-  // Quality Performance testing for WebRTC.
-  // Bug932845: Revisit this once hints mechanism is dealt with
-  // holistically.
-  uint8_t hints = 0;
-  if (Preferences::GetBool("media.capturestream_hints.enabled")) {
-    nsCOMPtr<nsIDOMHTMLVideoElement> video = do_QueryObject(this);
-    if (video && GetVideoFrameContainer()) {
-      hints = DOMMediaStream::HINT_CONTENTS_VIDEO | DOMMediaStream::HINT_CONTENTS_AUDIO;
-    } else {
-      hints = DOMMediaStream::HINT_CONTENTS_AUDIO;
-    }
-  }
-  out->mStream = DOMMediaStream::CreateTrackUnionStream(window, hints);
-#else
   out->mStream = DOMMediaStream::CreateTrackUnionStream(window);
-#endif
   nsRefPtr<nsIPrincipal> principal = GetCurrentPrincipal();
   out->mStream->CombineWithPrincipal(principal);
   out->mFinishWhenEnded = aFinishWhenEnded;
@@ -2714,7 +2684,7 @@ public:
 
   // These notifications run on the media graph thread so we need to
   // dispatch events to the main thread.
-  virtual void NotifyBlockingChanged(MediaStreamGraph* aGraph, Blocking aBlocked) MOZ_OVERRIDE
+  virtual void NotifyBlockingChanged(MediaStreamGraph* aGraph, Blocking aBlocked)
   {
     nsCOMPtr<nsIRunnable> event;
     if (aBlocked == BLOCKED) {
@@ -2724,21 +2694,20 @@ public:
     }
     aGraph->DispatchToMainThreadAfterStreamStateUpdate(event.forget());
   }
-  virtual void NotifyFinished(MediaStreamGraph* aGraph) MOZ_OVERRIDE
+  virtual void NotifyFinished(MediaStreamGraph* aGraph)
   {
     nsCOMPtr<nsIRunnable> event =
       NS_NewRunnableMethod(this, &StreamListener::DoNotifyFinished);
     aGraph->DispatchToMainThreadAfterStreamStateUpdate(event.forget());
   }
-  virtual void NotifyHasCurrentData(MediaStreamGraph* aGraph) MOZ_OVERRIDE
+  virtual void NotifyHasCurrentData(MediaStreamGraph* aGraph)
   {
     MutexAutoLock lock(mMutex);
     nsCOMPtr<nsIRunnable> event =
       NS_NewRunnableMethod(this, &StreamListener::DoNotifyHaveCurrentData);
     aGraph->DispatchToMainThreadAfterStreamStateUpdate(event.forget());
   }
-  virtual void NotifyOutput(MediaStreamGraph* aGraph,
-                            GraphTime aCurrentTime) MOZ_OVERRIDE
+  virtual void NotifyOutput(MediaStreamGraph* aGraph)
   {
     MutexAutoLock lock(mMutex);
     if (mPendingNotifyOutput)
@@ -3223,6 +3192,11 @@ VideoFrameContainer* HTMLMediaElement::GetVideoFrameContainer()
   if (mVideoFrameContainer)
     return mVideoFrameContainer;
 
+  // If we have a print surface, this is just a static image so
+  // no image container is required
+  if (mPrintSurface)
+    return nullptr;
+
   // Only video frames need an image container.
   nsCOMPtr<nsIDOMHTMLVideoElement> video = do_QueryObject(this);
   if (!video)
@@ -3599,7 +3573,26 @@ HTMLMediaElement::CopyInnerTo(Element* aDest)
   NS_ENSURE_SUCCESS(rv, rv);
   if (aDest->OwnerDoc()->IsStaticDocument()) {
     HTMLMediaElement* dest = static_cast<HTMLMediaElement*>(aDest);
-    dest->mMediaSize = mMediaSize;
+    if (mPrintSurface) {
+      dest->mPrintSurface = mPrintSurface;
+      dest->mMediaSize = mMediaSize;
+    } else {
+      nsIFrame* frame = GetPrimaryFrame();
+      Element* element;
+      if (frame && frame->GetType() == nsGkAtoms::HTMLVideoFrame &&
+          static_cast<nsVideoFrame*>(frame)->ShouldDisplayPoster()) {
+        nsIContent* content = static_cast<nsVideoFrame*>(frame)->GetPosterImage();
+        element = content ? content->AsElement() : nullptr;
+      } else {
+        element = const_cast<HTMLMediaElement*>(this);
+      }
+
+      nsLayoutUtils::SurfaceFromElementResult res =
+        nsLayoutUtils::SurfaceFromElement(element,
+                                          nsLayoutUtils::SFE_WANT_NEW_SURFACE);
+      dest->mPrintSurface = res.mSurface;
+      dest->mMediaSize = nsIntSize(res.mSize.width, res.mSize.height);
+    }
   }
   return rv;
 }

@@ -8,4 +8,3 @@ EXTRA_COMPONENTS += [
     'reftest-cmdline.js',
 ]
 
-JAR_MANIFESTS += ['jar.mn']

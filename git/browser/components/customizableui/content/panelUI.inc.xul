@@ -5,6 +5,7 @@
 <panel id="PanelUI-popup"
        role="group"
        type="arrow"
+       level="top"
        hidden="true"
        noautofocus="true">
   <panelmultiview id="PanelUI-multiView" mainViewId="PanelUI-mainView">
@@ -16,19 +17,15 @@
       <footer id="PanelUI-footer">
         <!-- The parentNode is used so that the footer is presented as the anchor
              instead of just the button being the anchor. -->
-        <toolbarbutton id="PanelUI-customize" label="&appMenuCustomize.label;"
-                       exitLabel="&appMenuCustomizeExit.label;" tabindex="0"
-                       oncommand="gCustomizeMode.toggle();"/>
         <toolbarbutton id="PanelUI-help" label="&helpMenu.label;" tabindex="0"
-                       tooltiptext="&helpMenu.label;"
                        oncommand="PanelUI.showHelpView(this.parentNode);"/>
+        <toolbarbutton id="PanelUI-customize" label="&appMenuCustomize.label;" tabindex="0"
+                       oncommand="gCustomizeMode.toggle();"/>
         <toolbarbutton id="PanelUI-quit" tabindex="0"
 #ifdef XP_WIN
                        label="&quitApplicationCmdWin.label;"
-                       tooltiptext="&quitApplicationCmdWin.label;"
 #else
                        label="&quitApplicationCmd.label;"
-                       tooltiptext="&quitApplicationCmd.label;"
 #endif
                        command="cmd_quitApplication"/>
       </footer>
@@ -36,12 +33,6 @@
 
     <panelview id="PanelUI-history" flex="1">
       <label value="&appMenuHistory.label;"/>
-      <toolbarbutton id="appMenuViewHistorySidebar" tabindex="0"
-                     label="&appMenuHistory.viewSidebar.label;"
-                     type="checkbox"
-                     oncommand="toggleSidebar('viewHistorySidebar'); PanelUI.hide();">
-        <observes element="viewHistorySidebar" attribute="checked"/>
-      </toolbarbutton>
       <toolbarbutton id="appMenuClearRecentHistory" tabindex="0"
                      label="&appMenuHistory.clearRecent.label;"
                      command="Tools:Sanitize"/>
@@ -49,11 +40,11 @@
                      label="&appMenuHistory.restoreSession.label;"
                      command="Browser:RestoreLastSession"/>
       <menuseparator id="PanelUI-recentlyClosedTabs-separator"/>
-      <vbox id="PanelUI-recentlyClosedTabs" tooltip="bhTooltip"/>
+      <vbox id="PanelUI-recentlyClosedTabs"/>
       <menuseparator id="PanelUI-recentlyClosedWindows-separator"/>
-      <vbox id="PanelUI-recentlyClosedWindows" tooltip="bhTooltip"/>
+      <vbox id="PanelUI-recentlyClosedWindows"/>
       <menuseparator id="PanelUI-historyItems-separator"/>
-      <vbox id="PanelUI-historyItems" tooltip="bhTooltip"/>
+      <vbox id="PanelUI-historyItems"/>
       <label value="&appMenuHistory.showAll.label;"
              id="PanelUI-historyMore"
              class="text-link"
@@ -101,8 +92,6 @@
 
     </panelview>
 
-    <panelview id="PanelUI-socialapi" flex="1"/>
-
     <panelview id="PanelUI-feeds" flex="1" oncommand="FeedHandler.subscribeToFeed(null, event);"></panelview>
 
     <panelview id="PanelUI-helpView" flex="1">
@@ -132,9 +121,9 @@
        see bug 492960 comment 20. -->
   <menupopup id="customizationPanelItemContextMenu">
     <menuitem oncommand="gCustomizeMode.addToToolbar(document.popupNode)"
-              class="customize-context-moveToToolbar"
-              accesskey="&customizeMenu.moveToToolbar.accesskey;"
-              label="&customizeMenu.moveToToolbar.label;"/>
+              class="customize-context-addToToolbar"
+              accesskey="&customizeMenu.addToToolbar.accesskey;"
+              label="&customizeMenu.addToToolbar.label;"/>
     <menuitem oncommand="gCustomizeMode.removeFromArea(document.popupNode)"
               class="customize-context-removeFromPanel"
               accesskey="&customizeMenu.removeFromMenu.accesskey;"

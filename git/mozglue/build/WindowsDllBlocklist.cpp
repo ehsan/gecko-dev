@@ -150,20 +150,20 @@ static const char kBlockedDllsParameter[] = "BlockedDllList=";
 static const int kBlockedDllsParameterLen =
   sizeof(kBlockedDllsParameter) - 1;
 
-static const char kBlocklistInitFailedParameter[] = "BlocklistInitFailed=1\n";
+static const char kBlocklistInitFailedParameter[] = "BlocklistInitFailed=";
 static const int kBlocklistInitFailedParameterLen =
   sizeof(kBlocklistInitFailedParameter) - 1;
 
-static const char kUser32BeforeBlocklistParameter[] = "User32BeforeBlocklist=1\n";
+static const char kUser32BeforeBlocklistParameter[] = "User32BeforeBlocklist=";
 static const int kUser32BeforeBlocklistParameterLen =
-  sizeof(kUser32BeforeBlocklistParameter) - 1;
+  sizeof(kUser32BeforeBlocklistParameterLen) - 1;
 
 static DWORD sThreadLoadingXPCOMModule;
 static bool sBlocklistInitFailed;
 static bool sUser32BeforeBlocklist;
 
 // Duplicated from xpcom glue. Ideally this should be shared.
-void
+static void
 printf_stderr(const char *fmt, ...)
 {
   if (IsDebuggerPresent()) {
@@ -368,7 +368,7 @@ DllBlockSet::Write(HANDLE file)
 
   // Because this method is called after a crash occurs, and uses heap memory,
   // protect this entire block with a structured exception handler.
-  MOZ_SEH_TRY {
+  __try {
     for (DllBlockSet* b = gFirst; b; b = b->mNext) {
       // write name[,v.v.v.v];
       WriteFile(file, b->mName, strlen(b->mName), &nBytes, nullptr);
@@ -391,7 +391,7 @@ DllBlockSet::Write(HANDLE file)
       WriteFile(file, ";", 1, &nBytes, nullptr);
     }
   }
-  MOZ_SEH_EXCEPT (EXCEPTION_EXECUTE_HANDLER) { }
+  __except (EXCEPTION_EXECUTE_HANDLER) { }
 }
 
 static
@@ -643,10 +643,12 @@ DllBlocklist_WriteNotes(HANDLE file)
   if (sBlocklistInitFailed) {
     WriteFile(file, kBlocklistInitFailedParameter,
               kBlocklistInitFailedParameterLen, &nBytes, nullptr);
+    WriteFile(file, "1\n", 2, &nBytes, nullptr);
   }
 
   if (sUser32BeforeBlocklist) {
     WriteFile(file, kUser32BeforeBlocklistParameter,
               kUser32BeforeBlocklistParameterLen, &nBytes, nullptr);
+    WriteFile(file, "1\n", 2, &nBytes, nullptr);
   }
 }

@@ -101,7 +101,7 @@ AreaPositionManager.prototype = {
       let doc = aContainer.ownerDocument;
       let draggedItem = doc.getElementById(aDraggedItemId);
       // If dragging a wide item, always pick the first item in a row:
-      if (this._inPanel && draggedItem &&
+      if (draggedItem &&
           draggedItem.classList.contains(CustomizableUI.WIDE_PANEL_CLASS)) {
         return this._firstInRow(closest);
       }

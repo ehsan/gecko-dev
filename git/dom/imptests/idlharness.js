@@ -14,7 +14,7 @@ policies and contribution forms [3].
  *
  *   <script src=/resources/testharness.js></script>
  *   <script src=/resources/testharnessreport.js></script>
- *   <script src=/resources/WebIDLParser.js></script>
+ *   <script src=/resources/webidl2.js></script>
  *   <script src=/resources/idlharness.js></script>
  *
  * Then you'll need some type of IDLs.  Here's some script that can be run on a
@@ -304,7 +304,8 @@ IdlArray.prototype.internal_add_idls = function(parsed_idls)
             break;
 
         case "typedef":
-            this.members[parsed_idl.name] = new IdlTypedef(parsed_idl);
+            // TODO
+            console.log("typedef not yet supported");
             break;
 
         case "callback":
@@ -316,9 +317,8 @@ IdlArray.prototype.internal_add_idls = function(parsed_idls)
             this.members[parsed_idl.name] = new IdlEnum(parsed_idl);
             break;
 
-        case "callback interface":
+        case "callback":
             // TODO
-            console.log("callback interface not yet supported");
             break;
 
         default:
@@ -543,8 +543,6 @@ IdlArray.prototype.assert_type_is = function(value, type)
 
         case "float":
         case "double":
-        case "unrestricted float":
-        case "unrestricted double":
             // TODO: distinguish these cases
             assert_equals(typeof value, "number");
             return;
@@ -583,10 +581,6 @@ IdlArray.prototype.assert_type_is = function(value, type)
         assert_equals(typeof value, "string");
     }
     else if (this.members[type] instanceof IdlDictionary)
-    {
-        // TODO: Test when we actually have something to test this on
-    }
-    else if (this.members[type] instanceof IdlTypedef)
     {
         // TODO: Test when we actually have something to test this on
     }
@@ -1148,46 +1142,41 @@ IdlInterface.prototype.test_self = function()
         }
     }.bind(this), this.name + " interface: existence and properties of interface object");
 
-    if (!this.is_callback()) {
-        test(function() {
-            // This function tests WebIDL as of 2013-08-25.
-            // http://dev.w3.org/2006/webapi/WebIDL/#es-interface-call
-
+    if (this.has_extended_attribute("Constructor"))
+    {
+        test(function()
+        {
             assert_own_property(window, this.name,
                                 "window does not have own property " + format_value(this.name));
 
-            // "Interface objects for non-callback interfaces MUST have a
-            // property named “length” with attributes { [[Writable]]: false,
-            // [[Enumerable]]: false, [[Configurable]]: false } whose value is
-            // a Number."
+            // "Interface objects for interfaces declared with a [Constructor]
+            // extended attribute must have a property named “length” with
+            // attributes { [[Writable]]: false, [[Enumerable]]: false,
+            // [[Configurable]]: false } whose value is a Number determined as
+            // follows: . . .
+            // "Return the length of the shortest argument list of the entries
+            // in S."
+            // TODO: Variadic constructors.  Should generalize this so that it
+            // works for testing operation length too (currently we just don't
+            // support multiple operations with the same identifier).
+            var expected_length = this.extAttrs
+                .filter(function(attr) { return attr.name == "Constructor"; })
+                .map(function(attr) {
+                    return attr.arguments ? attr.arguments.filter(
+                        function(arg) {
+                            return !arg.optional;
+                        }).length : 0;
+                })
+                .reduce(function(m, n) { return Math.min(m, n); });
             assert_own_property(window[this.name], "length");
+            assert_equals(window[this.name].length, expected_length, "wrong value for " + this.name + ".length");
             var desc = Object.getOwnPropertyDescriptor(window[this.name], "length");
             assert_false("get" in desc, this.name + ".length has getter");
             assert_false("set" in desc, this.name + ".length has setter");
             assert_false(desc.writable, this.name + ".length is writable");
             assert_false(desc.enumerable, this.name + ".length is enumerable");
             assert_false(desc.configurable, this.name + ".length is configurable");
-
-            var constructors = this.extAttrs
-                .filter(function(attr) { return attr.name == "Constructor"; });
-            var expected_length;
-            if (!constructors.length) {
-                // "If the [Constructor] extended attribute, does not appear on
-                // the interface definition, then the value is 0."
-                expected_length = 0;
-            } else {
-                // "Otherwise, the value is determined as follows: . . .
-                // "Return the length of the shortest argument list of the
-                // entries in S."
-                expected_length = constructors.map(function(attr) {
-                    return attr.arguments ? attr.arguments.filter(function(arg) {
-                        return !arg.optional;
-                    }).length : 0;
-                })
-                .reduce(function(m, n) { return Math.min(m, n); });
-            }
-            assert_equals(window[this.name].length, expected_length, "wrong value for " + this.name + ".length");
-        }.bind(this), this.name + " interface object length");
+        }.bind(this), this.name + " interface constructor");
     }
 
     // TODO: Test named constructors if I find any interfaces that have them.
@@ -1388,24 +1377,16 @@ IdlInterface.prototype.test_members = function()
                                     "window does not have own property " + format_value(this.name));
                 assert_own_property(window[this.name], "prototype",
                                     'interface "' + this.name + '" does not have own property "prototype"');
+                assert_true(member.name in window[this.name].prototype,
+                            "The prototype object must have a property " +
+                            format_value(member.name));
 
-                if (member["static"]) {
-                    assert_own_property(window[this.name], member.name,
-                        "The interface object must have a property " +
-                        format_value(member.name));
-                }
-                else
-                {
-                    assert_true(member.name in window[this.name].prototype,
-                        "The prototype object must have a property " +
-                        format_value(member.name));
+                // TODO: Needs to test for LenientThis.
+                assert_throws(new TypeError(), function() {
+                    window[this.name].prototype[member.name];
+                }.bind(this), "getting property on prototype object must throw TypeError");
 
-                    // TODO: Needs to test for LenientThis.
-                    assert_throws(new TypeError(), function() {
-                        window[this.name].prototype[member.name];
-                    }.bind(this), "getting property on prototype object must throw TypeError");
-                    do_interface_attribute_asserts(window[this.name].prototype, member);
-                }
+                do_interface_attribute_asserts(window[this.name].prototype, member);
             }.bind(this), this.name + " interface: attribute " + member.name);
         }
         else if (member.type == "operation")
@@ -1439,20 +1420,11 @@ IdlInterface.prototype.test_members = function()
                 // and with an argument count of 0 (for the ECMAScript language
                 // binding) has no entries."
                 //
-                var prototypeOrInterfaceObject;
-                if (member["static"]) {
-                    assert_own_property(window[this.name], member.name,
-                            "interface prototype object missing static operation");
-                    prototypeOrInterfaceObject = window[this.name];
-                }
-                else
-                {
-                    assert_own_property(window[this.name].prototype, member.name,
-                            "interface prototype object missing non-static operation");
-                    prototypeOrInterfaceObject = window[this.name].prototype;
-                }
+                // TODO: The library doesn't seem to support static operations.
+                assert_own_property(window[this.name].prototype, member.name,
+                    "interface prototype object missing non-static operation");
 
-                var desc = Object.getOwnPropertyDescriptor(prototypeOrInterfaceObject, member.name);
+                var desc = Object.getOwnPropertyDescriptor(window[this.name].prototype, member.name);
                 // "The property has attributes { [[Writable]]: true,
                 // [[Enumerable]]: true, [[Configurable]]: true }."
                 assert_false("get" in desc, "property has getter");
@@ -1462,7 +1434,7 @@ IdlInterface.prototype.test_members = function()
                 assert_true(desc.configurable, "property is not configurable");
                 // "The value of the property is a Function object whose
                 // behavior is as follows . . ."
-                assert_equals(typeof prototypeOrInterfaceObject[member.name], "function",
+                assert_equals(typeof window[this.name].prototype[member.name], "function",
                               "property must be a function");
                 // "The value of the Function object’s “length” property is
                 // a Number determined as follows:
@@ -1471,7 +1443,7 @@ IdlInterface.prototype.test_members = function()
                 // entries in S."
                 //
                 // TODO: Doesn't handle overloading or variadic arguments.
-                assert_equals(prototypeOrInterfaceObject[member.name].length,
+                assert_equals(window[this.name].prototype[member.name].length,
                     member.arguments.filter(function(arg) {
                         return !arg.optional;
                     }).length,
@@ -1488,12 +1460,11 @@ IdlInterface.prototype.test_members = function()
                 // This should be hit if the operation is not static, there is
                 // no [ImplicitThis] attribute, and the this value is null.
                 //
-                // TODO: We currently ignore the [ImplicitThis] case.
-                if (!member["static"]) {
-                    assert_throws(new TypeError(), function() {
-                        window[this.name].prototype[member.name].apply(null, args);
-                    }, "calling operation with this = null didn't throw TypeError");
-                }
+                // TODO: We currently ignore the static and [ImplicitThis]
+                // cases.
+                assert_throws(new TypeError(), function() {
+                    window[this.name].prototype[member.name].apply(null, args);
+                }, "calling operation with this = null didn't throw TypeError");
 
                 // ". . . If O is not null and is also not a platform object
                 // that implements interface I, throw a TypeError."
@@ -1625,35 +1596,33 @@ IdlInterface.prototype.test_interface_of = function(desc, obj, exception, expect
             {
                 assert_equals(exception, null, "Unexpected exception when evaluating object");
                 assert_equals(typeof obj, expected_typeof, "wrong typeof object");
-                if (!member["static"]) {
-                    assert_inherits(obj, member.name);
-                    if (member.type == "const")
+                assert_inherits(obj, member.name);
+                if (member.type == "const")
+                {
+                    assert_equals(obj[member.name], constValue(member.value));
+                }
+                if (member.type == "attribute")
+                {
+                    // Attributes are accessor properties, so they might
+                    // legitimately throw an exception rather than returning
+                    // anything.
+                    var property, thrown = false;
+                    try
                     {
-                        assert_equals(obj[member.name], constValue(member.value));
+                        property = obj[member.name];
                     }
-                    if (member.type == "attribute")
+                    catch (e)
                     {
-                        // Attributes are accessor properties, so they might
-                        // legitimately throw an exception rather than returning
-                        // anything.
-                        var property, thrown = false;
-                        try
-                        {
-                            property = obj[member.name];
-                        }
-                        catch (e)
-                        {
-                            thrown = true;
-                        }
-                        if (!thrown)
-                        {
-                            this.array.assert_type_is(property, member.idlType);
-                        }
+                        thrown = true;
                     }
-                    if (member.type == "operation")
+                    if (!thrown)
                     {
-                        assert_equals(typeof obj[member.name], "function");
+                        this.array.assert_type_is(property, member.idlType);
                     }
+                }
+                if (member.type == "operation")
+                {
+                    assert_equals(typeof obj[member.name], "function");
                 }
             }.bind(this), this.name + " interface: " + desc + ' must inherit property "' + member.name + '" with the proper type (' + i + ')');
         }
@@ -1666,13 +1635,7 @@ IdlInterface.prototype.test_interface_of = function(desc, obj, exception, expect
             {
                 assert_equals(exception, null, "Unexpected exception when evaluating object");
                 assert_equals(typeof obj, expected_typeof, "wrong typeof object");
-                if (!member["static"]) {
-                    assert_inherits(obj, member.name);
-                }
-                else
-                {
-                    assert_false(member.name in obj);
-                }
+                assert_inherits(obj, member.name);
                 var args = [];
                 for (var i = 0; i < member.arguments.length; i++)
                 {
@@ -1822,7 +1785,6 @@ function create_suitable_object(type)
         case "byte": case "octet": case "short": case "unsigned short":
         case "long": case "unsigned long": case "long long":
         case "unsigned long long": case "float": case "double":
-        case "unrestricted float": case "unrestricted double":
             return 7;
 
         case "DOMString":
@@ -1851,6 +1813,8 @@ function IdlEnum(obj)
     /** Self-explanatory. */
     this.name = obj.name;
 
+    console.log("Name is " + this.name);
+
     /** An array of values produced by the "enum" production. */
     this.values = obj.values;
 
@@ -1859,26 +1823,15 @@ function IdlEnum(obj)
 
 IdlEnum.prototype = Object.create(IdlObject.prototype);
 
-/// IdlTypedef ///
-// Used for IdlArray.prototype.assert_type_is
-function IdlTypedef(obj)
+IdlEnum.prototype.test = function()
 //@{
 {
-    /**
-     * obj is an object produced by the WebIDLParser.js "typedef"
-     * production.
-     */
-
-    /** Self-explanatory. */
-    this.name = obj.name;
-
-    /** An array of values produced by the "typedef" production. */
-    this.values = obj.values;
-
+            test(function()
+            {
+		// NOTHING to test
+		return;
+	    });
 }
 //@}
-
-IdlTypedef.prototype = Object.create(IdlObject.prototype);
-
 }());
 // vim: set expandtab shiftwidth=4 tabstop=4 foldmarker=@{,@} foldmethod=marker:

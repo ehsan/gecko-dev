@@ -174,8 +174,8 @@
             }
 
             return {
-              x: (aClientX - bcr.left) / scale + scrollX,
-              y: (aClientY - bcr.top) / scale + scrollY
+              x: (aClientX + scrollX - bcr.left) / scale,
+              y: (aClientY + scrollY - bcr.top) / scale
             };
           ]]>
         </body>
@@ -204,12 +204,11 @@
             }
 
             let bcr = this.getBoundingClientRect();
-            let clientRect = Rect.fromRect(aClientRect);
             return new Rect(
-              (clientRect.x - bcr.left) / scale + scrollX,
-              (clientRect.y - bcr.top) / scale + scrollY,
-              clientRect.width / scale,
-              clientRect.height / scale
+              (aClientRect.x + scrollX - bcr.left) / scale,
+              (aClientRect.y + scrollY - bcr.top) / scale,
+              aClientRect.width / scale,
+              aClientRect.height / scale
             );
           ]]>
         </body>

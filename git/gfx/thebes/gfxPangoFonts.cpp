@@ -3,6 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Util.h"
+
 #include "prlink.h"
 #include "gfxTypes.h"
 
@@ -1410,7 +1412,10 @@ gfxPangoFontGroup::GetFontAt(int32_t i)
 void
 gfxPangoFontGroup::UpdateFontList()
 {
-    uint64_t newGeneration = GetGeneration();
+    if (!mUserFontSet)
+        return;
+
+    uint64_t newGeneration = mUserFontSet->GetGeneration();
     if (newGeneration == mCurrGeneration)
         return;
 

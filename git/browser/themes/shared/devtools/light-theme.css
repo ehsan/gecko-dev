@@ -11,11 +11,6 @@
   color: black;
 }
 
-::-moz-selection {
-  background-color: #4c9ed9;
-  color: #f5f7fa;
-}
-
 .theme-twisty {
   cursor: pointer;
   width: 14px;
@@ -52,12 +47,12 @@
   background-color: #CCC;
 }
 
-.theme-bg-darker {
+.theme-bg-darker,
+.cm-s-mozilla .CodeMirror-gutters {
   background: #EFEFEF;
 }
 
-.theme-bg-contrast,
-.variable-or-property:not([overridden])[changed] { /* contrast bg color to attract attention on a container */
+.theme-bg-contrast { /* contrast bg color to attract attention on a container */
   background: #a18650;
 }
 
@@ -78,9 +73,7 @@
 .theme-comment,
 .cm-s-mozilla .cm-meta,
 .cm-s-mozilla .cm-hr,
-.cm-s-mozilla .cm-comment,
-.variable-or-property .token-undefined,
-.variable-or-property .token-null { /* grey */
+.cm-s-mozilla .cm-comment { /* grey */
   color: hsl(90,2%,46%);
 }
 
@@ -95,10 +88,7 @@
 }
 
 .theme-fg-color1,
-.cm-s-mozilla .cm-number,
-.variable-or-property .token-number,
-.variable-or-property[return] > .title > .name,
-.variable-or-property[scope] > .title > .name { /* green */
+.cm-s-mozilla .cm-number { /* green */
   color: hsl(72,100%,27%);
 }
 
@@ -107,16 +97,14 @@
 .cm-s-mozilla .cm-builtin,
 .cm-s-mozilla .cm-def,
 .cm-s-mozilla .cm-property,
-.cm-s-mozilla .cm-qualifier,
-.variables-view-variable > .title > .name { /* blue */
+.cm-s-mozilla .cm-qualifier { /* blue */
   color: hsl(208,56%,40%);
 }
 
 .theme-fg-color3,
 .cm-s-mozilla .cm-variable,
 .cm-s-mozilla .cm-tag,
-.cm-s-mozilla .cm-header,
-.variables-view-property > .title > .name { /* dark blue */
+.cm-s-mozilla .cm-header { /* dark blue */
   color: hsl(208,81%,21%)
 }
 
@@ -132,17 +120,14 @@
 
 .theme-fg-color6,
 .cm-s-mozilla .cm-string,
-.cm-s-mozilla .cm-string-2,
-.variable-or-property .token-string { /* Orange */
+.cm-s-mozilla .cm-string-2 { /* Orange */
   color: hsl(24,85%,39%);
 }
 
 .theme-fg-color7,
 .cm-s-mozilla .cm-atom,
 .cm-s-mozilla .cm-quote,
-.cm-s-mozilla .cm-error,
-.variable-or-property .token-boolean,
-.variable-or-property[exception] > .title > .name { /* Red */
+.cm-s-mozilla .cm-error { /* Red */
   color: #bf5656;
 }
 
@@ -161,12 +146,6 @@
 .computedview-colorswatch,
 .markupview-colorswatch {
   box-shadow: 0 0 0 1px #EFEFEF;
-}
-
-.variables-view-scope:focus > .title,
-.variable-or-property:focus > .title {
-  background:  hsl(208,56%,40%); /* fg-color2 */
-  color: white;
 }
 
 /* CodeMirror specific styles.
@@ -208,27 +187,6 @@ div.cm-s-mozilla span.CodeMirror-matchingbracket { /* highlight brackets */
   color: black;
 }
 
-/* Highlight for a line that contains an error. */
-div.CodeMirror div.error-line {
-  background: rgba(255,0,0,0.2);
-}
-
-/* Highlight for a line that represents a stack frame's location. */
-div.CodeMirror div.debug-line {
-  background: rgba(0,128,255,0.1);
-  box-shadow:
-    0 1px 0 0 rgba(0,128,255,0.4),
-    0 -1px 0 0 rgba(0,128,255,0.4);
-}
-
-/* Generic highlighted text */
-div.CodeMirror span.marked-text {
-  background: rgba(255,255,0,0.2);
-  border: 1px dashed rgba(192,192,0,0.6);
-  -moz-margin-start: -1px;
-  -moz-margin-end: -1px;
-}
-
 /* Highlight for evaluating current statement. */
 div.CodeMirror span.eval-text {
   background-color: #ccd;
@@ -240,7 +198,6 @@ div.CodeMirror span.eval-text {
 
 .cm-s-mozilla .CodeMirror-gutters { /* vertical line next to line numbers */
   border-right-color: #a6a6a6;
-  background-color: #f7f7f7;
 }
 
 .cm-s-markup-view pre {
@@ -300,5 +257,3 @@ div.CodeMirror span.eval-text {
 .theme-tooltip-panel .devtools-tooltip-simple-text:last-child {
   border-bottom: 0;
 }
-
-%include toolbars.inc.css

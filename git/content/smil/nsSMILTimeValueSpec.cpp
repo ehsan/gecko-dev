@@ -36,11 +36,21 @@ nsSMILTimeValueSpec::EventListener::HandleEvent(nsIDOMEvent* aEvent)
 //----------------------------------------------------------------------
 // Implementation
 
+#ifdef _MSC_VER
+// Disable "warning C4355: 'this' : used in base member initializer list".
+// We can ignore that warning because we know that mReferencedElement's
+// constructor doesn't dereference the pointer passed to it.
+#pragma warning(push)
+#pragma warning(disable:4355)
+#endif
 nsSMILTimeValueSpec::nsSMILTimeValueSpec(nsSMILTimedElement& aOwner,
                                          bool aIsBegin)
   : mOwner(&aOwner),
     mIsBegin(aIsBegin),
-    mReferencedElement(MOZ_THIS_IN_INITIALIZER_LIST())
+    mReferencedElement(this)
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 {
 }
 

@@ -30,7 +30,12 @@ class TextureClient;
 class DeprecatedSharedPlanarYCbCrImage : public PlanarYCbCrImage
 {
 public:
-  DeprecatedSharedPlanarYCbCrImage(ISurfaceAllocator* aAllocator);
+  DeprecatedSharedPlanarYCbCrImage(ISurfaceAllocator* aAllocator)
+  : PlanarYCbCrImage(nullptr)
+  , mSurfaceAllocator(aAllocator), mAllocated(false)
+  {
+    MOZ_COUNT_CTOR(DeprecatedSharedPlanarYCbCrImage);
+  }
 
   ~DeprecatedSharedPlanarYCbCrImage();
 
@@ -84,7 +89,7 @@ public:
 
 private:
   ipc::Shmem mShmem;
-  RefPtr<ISurfaceAllocator> mSurfaceAllocator;
+  ISurfaceAllocator* mSurfaceAllocator;
   bool mAllocated;
 };
 

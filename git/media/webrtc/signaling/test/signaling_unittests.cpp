@@ -865,14 +865,7 @@ class SignalingAgent {
   void AddStream(uint32_t hint =
          DOMMediaStream::HINT_CONTENTS_AUDIO |
          DOMMediaStream::HINT_CONTENTS_VIDEO,
-       MediaStream *stream = nullptr,
-       sipcc::MediaConstraints *constraints = nullptr
-       ) {
-
-    sipcc::MediaConstraints noConstraints;
-    if (!constraints) {
-      constraints = &noConstraints;
-    }
+       MediaStream *stream = nullptr) {
 
     nsRefPtr<DOMMediaStream> domMediaStream;
     if (stream) {
@@ -882,7 +875,7 @@ class SignalingAgent {
     }
 
     domMediaStream->SetHintContents(hint);
-    ASSERT_EQ(pc->AddStream(*domMediaStream, *constraints), NS_OK);
+    ASSERT_EQ(pc->AddStream(*domMediaStream), NS_OK);
     domMediaStream_ = domMediaStream;
   }
 
@@ -1131,9 +1124,7 @@ void CreateAnswer(sipcc::MediaConstraints& constraints, std::string offer,
       return nullptr;
     }
 
-    const auto &pipelines = streamInfo->GetPipelines();
-    auto it = pipelines.find(track);
-    return (it == pipelines.end())? nullptr : it->second;
+    return streamInfo->GetPipeline(track);
   }
 
   void CheckMediaPipeline(int stream, int track, uint32_t flags,

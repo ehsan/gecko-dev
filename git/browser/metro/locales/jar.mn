@@ -16,15 +16,12 @@
   locale/browser/config.dtd               (%chrome/config.dtd)
   locale/browser/preferences.dtd          (%chrome/preferences.dtd)
   locale/browser/aboutPanel.dtd           (%chrome/aboutPanel.dtd)
-  locale/browser/searchPanel.dtd          (%chrome/searchPanel.dtd)
   locale/browser/checkbox.dtd             (%chrome/checkbox.dtd)
   locale/browser/sync.dtd                 (%chrome/sync.dtd)
   locale/browser/sync.properties          (%chrome/sync.properties)
   locale/browser/passwordmgr.properties   (%chrome/passwordmgr.properties)
   locale/browser/phishing.dtd             (%chrome/phishing.dtd)
-#ifdef MOZ_CRASHREPORTER
-  locale/browser/crashprompt.dtd          (%chrome/crashprompt.dtd)
-#endif
+  locale/browser/crashprompt.properties   (%chrome/crashprompt.properties)
   locale/browser/aboutAddons.dtd          (%chrome/aboutAddons.dtd)
 
 @AB_CD@.jar:

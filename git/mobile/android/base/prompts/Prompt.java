@@ -9,7 +9,6 @@ import org.mozilla.gecko.util.GeckoEventResponder;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.widget.DateTimePicker;
-import org.mozilla.gecko.prompts.ColorPickerInput;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.GeckoAppShell;
 
@@ -109,11 +108,8 @@ public class Prompt implements OnClickListener, OnCancelListener, OnItemClickLis
         }
     }
 
-    private View applyInputStyle(View view, PromptInput input) {
-        // Don't add padding to color picker views
-        if (input.canApplyInputStyle()) {
-            view.setPadding(mInputPaddingSize, 0, mInputPaddingSize, 0);
-	}
+    private View applyInputStyle(View view) {
+        view.setPadding(mInputPaddingSize, 0, mInputPaddingSize, 0);
         return view;
     }
 
@@ -337,14 +333,12 @@ public class Prompt implements OnClickListener, OnCancelListener, OnItemClickLis
 
             if (length == 1) {
                 root = mInputs[0].getView(mContext);
-                applyInputStyle(root, mInputs[0]);
                 scrollable |= mInputs[0].getScrollable();
             } else if (length > 1) {
                 LinearLayout linearLayout = new LinearLayout(mContext);
                 linearLayout.setOrientation(LinearLayout.VERTICAL);
                 for (int i = 0; i < length; i++) {
                     View content = mInputs[i].getView(mContext);
-                    applyInputStyle(content, mInputs[i]);
                     linearLayout.addView(content);
                     scrollable |= mInputs[i].getScrollable();
                 }
@@ -352,11 +346,11 @@ public class Prompt implements OnClickListener, OnCancelListener, OnItemClickLis
             }
 
             if (scrollable) {
-                builder.setView(root);
+                builder.setView(applyInputStyle(root));
             } else {
                 ScrollView view = new ScrollView(mContext);
                 view.addView(root);
-                builder.setView(view);
+                builder.setView(applyInputStyle(view));
             }
         } catch(Exception ex) {
             Log.e(LOGTAG, "Error showing prompt inputs", ex);

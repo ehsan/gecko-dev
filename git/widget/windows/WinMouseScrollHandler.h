@@ -334,9 +334,10 @@ private:
   private:
     void Init();
 
-    static void OnChange(const char* aPrefName, void* aClosure)
+    static int OnChange(const char* aPrefName, void* aClosure)
     {
       static_cast<UserPrefs*>(aClosure)->MarkDirty();
+      return 0;
     }
 
     bool mInitialized;

@@ -1090,31 +1090,35 @@ nsSVGUtils::GetClipRectForFrame(nsIFrame *aFrame,
 void
 nsSVGUtils::CompositeSurfaceMatrix(gfxContext *aContext,
                                    gfxASurface *aSurface,
-                                   SourceSurface *aSourceSurface,
-                                   const gfxPoint &aSurfaceOffset,
-                                   const gfxMatrix &aCTM)
+                                   const gfxMatrix &aCTM, float aOpacity)
 {
   if (aCTM.IsSingular())
     return;
-
-  if (aSurface) {
+  
+  if (aContext->IsCairo()) {
     aContext->Save();
     aContext->Multiply(aCTM);
-    aContext->Translate(aSurfaceOffset);
     aContext->SetSource(aSurface);
-    aContext->Paint();
+    aContext->Paint(aOpacity);
     aContext->Restore();
   } else {
-    DrawTarget *destDT = aContext->GetDrawTarget();
-    Matrix oldMat = destDT->GetTransform();
-    destDT->SetTransform(ToMatrix(aCTM) * oldMat);
+    DrawTarget *dt = aContext->GetDrawTarget();
+    Matrix oldMat = dt->GetTransform();
+    RefPtr<SourceSurface> surf =
+      gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(dt, aSurface);
+    dt->SetTransform(ToMatrix(aCTM) * oldMat);
 
-    IntSize size = aSourceSurface->GetSize();
-    Rect sourceRect(Point(0, 0), Size(size.width, size.height));
-    Rect drawRect = sourceRect + ToPoint(aSurfaceOffset);
-    destDT->DrawSurface(aSourceSurface, drawRect, sourceRect);
+    gfxSize size = aSurface->GetSize();
+    NS_ASSERTION(size.width >= 0 && size.height >= 0, "Failure to get size for aSurface.");
 
-    destDT->SetTransform(oldMat);
+    gfxPoint pt = aSurface->GetDeviceOffset();
+
+    dt->FillRect(Rect(-pt.x, -pt.y, size.width, size.height),
+                 SurfacePattern(surf, EXTEND_CLAMP,
+                                Matrix(1.0f, 0, 0, 1.0f, -pt.x, -pt.y)),
+                 DrawOptions(aOpacity));
+
+    dt->SetTransform(oldMat);
   }
 }
 

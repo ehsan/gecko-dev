@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
@@ -97,12 +97,12 @@ nsDirectoryService::GetCurrentProcessDirectory(nsIFile** aFile)
 
 
 #ifdef XP_WIN
-    wchar_t buf[MAX_PATH + 1];
+    PRUnichar buf[MAX_PATH + 1];
     SetLastError(ERROR_SUCCESS);
     if (GetModuleFileNameW(0, buf, mozilla::ArrayLength(buf)) &&
         GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
         // chop off the executable name by finding the rightmost backslash
-        wchar_t* lastSlash = wcsrchr(buf, L'\\');
+        PRUnichar* lastSlash = wcsrchr(buf, L'\\');
         if (lastSlash)
             *(lastSlash + 1) = L'\0';
 

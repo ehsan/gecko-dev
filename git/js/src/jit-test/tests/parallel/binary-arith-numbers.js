@@ -18,11 +18,12 @@ function theTest() {
   jsarray0.map(op);
 
   // this version will never actually touch the strings:
-  assertArraySeqParResultsEq(range(0, 1024), "map", function (i) { return i % 10; });
+  var jsarray1 = range(0, 1024).map(i => i % 10);
+  compareAgainstArray(jsarray1, "map", op);
 
   // but if we try against the original we get bailouts:
   assertParallelExecWillBail(function (mode) {
-    jsarray0.mapPar(op, mode);
+    new ParallelArray(jsarray0).map(op, mode);
   });
 }
 

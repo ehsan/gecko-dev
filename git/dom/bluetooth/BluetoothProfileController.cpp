@@ -16,11 +16,12 @@
 
 USING_BLUETOOTH_NAMESPACE
 
-#define BT_LOGR_PROFILE(mgr, msg, ...)               \
-  do {                                               \
-    nsCString name;                                  \
-    mgr->GetName(name);                              \
-    BT_LOGR("[%s] " msg, name.get(), ##__VA_ARGS__); \
+#define BT_LOGR_PROFILE(mgr, args...)                 \
+  do {                                                \
+    nsCString name;                                   \
+    mgr->GetName(name);                               \
+    BT_LOGR("%s: [%s] %s", __FUNCTION__, name.get(),  \
+      nsPrintfCString(args).get());                   \
   } while(0)
 
 BluetoothProfileController::BluetoothProfileController(
@@ -139,27 +140,19 @@ BluetoothProfileController::SetupProfiles(bool aAssignServiceClass)
   bool hasAudio = HAS_AUDIO(mTarget.cod);
   bool hasRendering = HAS_RENDERING(mTarget.cod);
   bool isPeripheral = IS_PERIPHERAL(mTarget.cod);
-  bool isRemoteControl = IS_REMOTE_CONTROL(mTarget.cod);
-  bool isKeyboard = IS_KEYBOARD(mTarget.cod);
-  bool isPointingDevice = IS_POINTING_DEVICE(mTarget.cod);
 
   NS_ENSURE_TRUE_VOID(hasAudio || hasRendering || isPeripheral);
 
-  // Audio bit should be set if remote device supports HFP/HSP.
+  /**
+   * Connect to HFP/HSP first. Then, connect A2DP if Rendering bit is set.
+   */
   if (hasAudio) {
     AddProfile(BluetoothHfpManager::Get());
   }
-
-  // Rendering bit should be set if remote device supports A2DP.
-  // A device which supports AVRCP should claim that it's a peripheral and it's
-  // a remote control.
-  if (hasRendering || (isPeripheral && isRemoteControl)) {
+  if (hasRendering) {
     AddProfile(BluetoothA2dpManager::Get());
   }
-
-  // A device which supports HID should claim that it's a peripheral and it's
-  // either a keyboard, a pointing device, or both.
-  if (isPeripheral && (isKeyboard || isPointingDevice)) {
+  if (isPeripheral) {
     AddProfile(BluetoothHidManager::Get());
   }
 }
@@ -170,7 +163,6 @@ BluetoothProfileController::Start()
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!mDeviceAddress.IsEmpty());
   MOZ_ASSERT(mProfilesIndex == -1);
-  NS_ENSURE_TRUE_VOID(mProfiles.Length() > 0);
 
   ++mProfilesIndex;
   BT_LOGR_PROFILE(mProfiles[mProfilesIndex], "");
@@ -187,9 +179,9 @@ BluetoothProfileController::Next()
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!mDeviceAddress.IsEmpty());
-  MOZ_ASSERT(mProfilesIndex < (int)mProfiles.Length());
+  MOZ_ASSERT(mProfilesIndex < mProfiles.Length());
 
-  if (++mProfilesIndex < (int)mProfiles.Length()) {
+  if (++mProfilesIndex < mProfiles.Length()) {
     BT_LOGR_PROFILE(mProfiles[mProfilesIndex], "");
 
     if (mConnect) {

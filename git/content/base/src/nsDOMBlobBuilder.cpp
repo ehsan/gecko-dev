@@ -257,15 +257,12 @@ nsDOMMultipartFile::ParseBlobArrayArgument(JSContext* aCx, JS::Value& aValue,
         continue;
       }
       if (JS_IsArrayBufferViewObject(obj)) {
-        nsresult rv = blobSet.AppendVoidPtr(
-                                          JS_GetArrayBufferViewData(obj),
-                                          JS_GetArrayBufferViewByteLength(obj));
-        NS_ENSURE_SUCCESS(rv, rv);
+        blobSet.AppendVoidPtr(JS_GetArrayBufferViewData(obj),
+                              JS_GetArrayBufferViewByteLength(obj));
         continue;
       }
       if (JS_IsArrayBufferObject(obj)) {
-        nsresult rv = blobSet.AppendArrayBuffer(obj);
-        NS_ENSURE_SUCCESS(rv, rv);
+        blobSet.AppendArrayBuffer(obj);
         continue;
       }
     }
@@ -273,9 +270,7 @@ nsDOMMultipartFile::ParseBlobArrayArgument(JSContext* aCx, JS::Value& aValue,
     // coerce it to a string
     JSString* str = JS::ToString(aCx, element);
     NS_ENSURE_TRUE(str, NS_ERROR_TYPE_ERR);
-
-    nsresult rv = blobSet.AppendString(str, aNativeEOL, aCx);
-    NS_ENSURE_SUCCESS(rv, rv);
+    blobSet.AppendString(str, aNativeEOL, aCx);
   }
 
   mBlobs = blobSet.GetBlobs();

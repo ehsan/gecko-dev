@@ -11,7 +11,6 @@
 #include "ThebesLayerD3D9.h"
 #include "gfxPlatform.h"
 #include "gfxImageSurface.h"
-#include "gfx2DGlue.h"
 #include "yuv_convert.h"
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
@@ -404,7 +403,7 @@ ImageLayerD3D9::RenderLayer()
 
   SetShaderTransformAndOpacity();
 
-  gfx::IntSize size = image->GetSize();
+  gfxIntSize size = image->GetSize();
 
   if (image->GetFormat() == CAIRO_SURFACE ||
       image->GetFormat() == REMOTE_IMAGE_BITMAP ||
@@ -565,7 +564,7 @@ ImageLayerD3D9::GetAsTexture(gfxIntSize* aSize)
   }
 
   bool dontCare;
-  *aSize = gfx::ThebesIntSize(image->GetSize());
+  *aSize = image->GetSize();
   nsRefPtr<IDirect3DTexture9> result = GetTexture(image, dontCare);
   return result.forget();
 }

@@ -12,7 +12,6 @@
 
 HANDLE sCon;
 LPCWSTR metroDX10Available = L"MetroD3DAvailable";
-LPCWSTR metroLastAHE = L"MetroLastAHE";
 
 typedef HRESULT (WINAPI*D3D10CreateDevice1Func)
   (IDXGIAdapter *, D3D10_DRIVER_TYPE, HMODULE, UINT,
@@ -82,7 +81,7 @@ IsImmersiveProcessDynamic(HANDLE process)
 }
 
 bool
-IsProcessRunning(const wchar_t *processName, bool bCheckIfMetro)
+IsImmersiveProcessRunning(const wchar_t *processName)
 {
   bool exists = false;
   PROCESSENTRY32W entry;
@@ -94,9 +93,7 @@ IsProcessRunning(const wchar_t *processName, bool bCheckIfMetro)
     while (!exists && Process32Next(snapshot, &entry)) {
       if (!_wcsicmp(entry.szExeFile, processName)) {
         HANDLE process = OpenProcess(GENERIC_READ, FALSE, entry.th32ProcessID);
-        bool isImmersiveProcess = IsImmersiveProcessDynamic(process);
-        if ((bCheckIfMetro && isImmersiveProcess) ||
-            (!bCheckIfMetro && !isImmersiveProcess)) {
+        if (IsImmersiveProcessDynamic(process)) {
           exists = true;
         }
         CloseHandle(process);
@@ -106,21 +103,6 @@ IsProcessRunning(const wchar_t *processName, bool bCheckIfMetro)
 
   CloseHandle(snapshot);
   return exists;
-}
-
-/*
- * Retrieve the last front end ui we launched so we can target it
- * again. This value is updated down in nsAppRunner when the browser
- * starts up.
- */
-AHE_TYPE
-GetLastAHE()
-{
-  DWORD ahe;
-  if (GetDWORDRegKey(metroLastAHE, ahe)) {
-    return (AHE_TYPE) ahe;
-  }
-  return AHE_DESKTOP;
 }
 
 bool

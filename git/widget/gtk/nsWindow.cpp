@@ -5,10 +5,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/MiscEvents.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/TextEvents.h"
+#include "mozilla/Util.h"
 #include <algorithm>
 
 #include "prlink.h"
@@ -1997,7 +1997,6 @@ struct ExposeRegion
     }
     bool Init(cairo_t* cr)
     {
-        mRects = cairo_copy_clip_rectangle_list(cr);
         if (mRects->status != CAIRO_STATUS_SUCCESS) {
             NS_WARNING("Failed to obtain cairo rectangle list.");
             return false;
@@ -2816,6 +2815,9 @@ nsWindow::OnButtonReleaseEvent(GdkEventButton *aEvent)
 void
 nsWindow::OnContainerFocusInEvent(GdkEventFocus *aEvent)
 {
+    NS_ASSERTION(mWindowType != eWindowType_popup,
+                 "Unexpected focus on a popup window");
+
     LOGFOCUS(("OnContainerFocusInEvent [%p]\n", (void *)this));
 
     // Unset the urgency hint, if possible
@@ -3317,7 +3319,7 @@ GetBrandName(nsXPIDLString& brandName)
 
     if (bundle)
         bundle->GetStringFromName(
-            MOZ_UTF16("brandShortName"),
+            NS_LITERAL_STRING("brandShortName").get(),
             getter_Copies(brandName));
 
     if (brandName.IsEmpty())
@@ -4753,7 +4755,7 @@ nsWindow::CheckForRollup(gdouble aMouseX, gdouble aMouseY,
         bool rollup = true;
         if (aIsWheel) {
             rollup = rollupListener->ShouldRollupOnMouseWheelEvent();
-            retVal = rollupListener->ShouldConsumeOnMouseWheelEvent();
+            retVal = true;
         }
         // if we're dealing with menus, we probably have submenus and
         // we don't want to rollup if the click is in a parent menu of
@@ -5974,12 +5976,7 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
 TemporaryRef<DrawTarget>
 nsWindow::StartRemoteDrawing()
 {
-#if (MOZ_WIDGET_GTK == 2)
   gfxASurface *surf = GetThebesSurface();
-#else
-  // TODO GTK3
-  gfxASurface *surf = nullptr;
-#endif
   if (!surf) {
     return nullptr;
   }

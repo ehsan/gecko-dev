@@ -4,8 +4,7 @@
 
 "use strict";
 
-let { Cu }       = require("chrome");
-let { defer }    = Cu.import("resource://gre/modules/Promise.jsm", {}).Promise;
+let { defer }    = require("sdk/core/promise");
 let EventEmitter = require("devtools/shared/event-emitter");
 
 const { PROFILE_IDLE, PROFILE_COMPLETED, PROFILE_RUNNING } = require("devtools/profiler/consts");

@@ -22,6 +22,7 @@
     _(TableSwitch)                  \
     _(TableSwitchV)                 \
     _(Goto)                         \
+    _(NewParallelArray)             \
     _(NewArray)                     \
     _(NewObject)                    \
     _(NewSlots)                     \
@@ -47,10 +48,8 @@
     _(ApplyArgsGeneric)             \
     _(Bail)                         \
     _(GetDynamicName)               \
-    _(FilterArgumentsOrEvalS)       \
-    _(FilterArgumentsOrEvalV)       \
-    _(CallDirectEvalS)              \
-    _(CallDirectEvalV)              \
+    _(FilterArgumentsOrEval)        \
+    _(CallDirectEval)               \
     _(StackArgT)                    \
     _(StackArgV)                    \
     _(CreateThis)                   \
@@ -235,7 +234,6 @@
     _(IteratorMore)                 \
     _(IteratorEnd)                  \
     _(ArrayLength)                  \
-    _(SetArrayLength)               \
     _(TypedArrayLength)             \
     _(TypedArrayElements)           \
     _(TypedObjectElements)          \
@@ -279,7 +277,6 @@
     _(AsmJSCall)                    \
     _(AsmJSCheckOverRecursed)       \
     _(CheckInterruptPar)            \
-    _(RecompileCheck)               \
     _(AssertRangeI)                 \
     _(AssertRangeD)                 \
     _(AssertRangeF)                 \

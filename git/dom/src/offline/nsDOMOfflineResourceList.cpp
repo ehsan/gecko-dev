@@ -14,6 +14,7 @@
 #include "nsICacheSession.h"
 #include "nsICacheService.h"
 #include "nsIOfflineCacheUpdate.h"
+#include "nsIDOMLoadStatus.h"
 #include "nsAutoPtr.h"
 #include "nsContentUtils.h"
 #include "nsEventDispatcher.h"

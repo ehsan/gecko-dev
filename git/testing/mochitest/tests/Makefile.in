@@ -3,7 +3,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-TEST_FILES = \
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES = \
   test_sanity.html \
   test_sanityException.html \
   test_sanityException2.html \
@@ -22,7 +24,8 @@ TEST_FILES = \
   test_sanityEventUtils.html \
   test_sanitySimpletest.html \
   $(NULL)
+
 # Copy the sanity tests into a subdirectory, so the top level is all dirs
 # in the test screen.
-TEST_DEST = $(DEPTH)/_tests/$(relativesrcdir)/Harness_sanity
-INSTALL_TARGETS += TEST
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/$(relativesrcdir)/Harness_sanity

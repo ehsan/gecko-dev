@@ -8,5 +8,3 @@ EXTRA_COMPONENTS += [
     'nsContentDispatchChooser.js',
     'nsContentDispatchChooser.manifest',
 ]
-
-JAR_MANIFESTS += ['jar.mn']

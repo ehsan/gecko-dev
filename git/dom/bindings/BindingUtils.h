@@ -9,7 +9,6 @@
 
 #include "jsfriendapi.h"
 #include "jswrapper.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Alignment.h"
 #include "mozilla/Array.h"
 #include "mozilla/dom/BindingDeclarations.h"
@@ -24,7 +23,7 @@
 #include "mozilla/ErrorResult.h"
 #include "mozilla/HoldDropJSObjects.h"
 #include "mozilla/Likely.h"
-#include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 #include "nsCycleCollector.h"
 #include "nsIXPConnect.h"
 #include "MainThreadUtils.h"
@@ -291,10 +290,6 @@ public:
 
   ~ProtoAndIfaceArray() {
     MOZ_COUNT_DTOR(ProtoAndIfaceArray);
-  }
-
-  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) {
-    return aMallocSizeOf(this);
   }
 };
 

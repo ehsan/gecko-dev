@@ -11,7 +11,7 @@
 #include "ImageTypes.h"                 // for ImageFormat::SHARED_TEXTURE
 #include "gfxPoint.h"                   // for gfxIntSize
 #include "nsCOMPtr.h"                   // for already_AddRefed
-#include "mozilla/gfx/Point.h"          // for IntSize
+#include "nsSize.h"                     // for nsIntSize
 
 class gfxASurface;
 
@@ -27,14 +27,14 @@ public:
   struct Data {
     gl::SharedTextureHandle mHandle;
     gl::SharedTextureShareType mShareType;
-    gfx::IntSize mSize;
+    gfxIntSize mSize;
     bool mInverted;
   };
 
   void SetData(const Data& aData) { mData = aData; }
   const Data* GetData() { return &mData; }
 
-  gfx::IntSize GetSize() { return mData.mSize; }
+  gfxIntSize GetSize() { return mData.mSize; }
 
   virtual already_AddRefed<gfxASurface> GetAsSurface() {
     return nullptr;

@@ -176,11 +176,11 @@ WebSocket::ConsoleError()
 
     if (mReadyState < WebSocket::OPEN) {
       PrintErrorOnConsole("chrome://global/locale/appstrings.properties",
-                          MOZ_UTF16("connectionFailure"),
+                          NS_LITERAL_STRING("connectionFailure").get(),
                           formatStrings, ArrayLength(formatStrings));
     } else {
       PrintErrorOnConsole("chrome://global/locale/appstrings.properties",
-                          MOZ_UTF16("netInterrupt"),
+                          NS_LITERAL_STRING("netInterrupt").get(),
                           formatStrings, ArrayLength(formatStrings));
     }
   }

@@ -26,7 +26,8 @@ interface nsIPrefetchService : nsISupports
                      in boolean aExplicit);
 
     /**
-     * Enumerate the items in the prefetch queue.
+     * Enumerate the items in the prefetch queue.  Each element in the
+     * enumeration is an nsIDOMLoadStatus.
      */
     nsISimpleEnumerator enumerateQueue();
 

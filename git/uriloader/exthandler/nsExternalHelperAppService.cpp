@@ -11,8 +11,8 @@
 #include "base/basictypes.h"
 
 /* This must occur *after* base/basictypes.h to avoid typedefs conflicts. */
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Base64.h"
+#include "mozilla/Util.h"
 
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/TabChild.h"
@@ -121,8 +121,7 @@
 #endif
 
 #ifdef NECKO_PROTOCOL_rtsp
-#include "nsIScriptSecurityManager.h"
-#include "nsIMessageManager.h"
+#include "nsISystemMessagesInternal.h"
 #endif
 
 using namespace mozilla;
@@ -606,29 +605,41 @@ private:
 } // anonymous namespace
 
 /**
- * This function sends a message. This 'content-handler' message is handled in
- * b2g/chrome/content/shell.js where it starts an activity request that will
- * open the video app.
+ * This function broadcasts a system message in order to launch video app for
+ * rtsp scheme. This is Gonk-specific behavior.
  */
 void nsExternalHelperAppService::LaunchVideoAppForRtsp(nsIURI* aURI)
 {
-  bool rv;
+  NS_NAMED_LITERAL_STRING(msgType, "rtsp-open-video");
 
-  // Get a system principal.
-  nsCOMPtr<nsIScriptSecurityManager> securityManager =
-    do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
-  NS_ENSURE_TRUE_VOID(securityManager);
+  // Make the url is rtsp.
+  bool isRTSP = false;
+  aURI->SchemeIs("rtsp", &isRTSP);
+  NS_ASSERTION(isRTSP, "Not rtsp protocol! Something goes wrong here");
 
-  nsCOMPtr<nsIPrincipal> principal;
-  securityManager->GetSystemPrincipal(getter_AddRefs(principal));
-  NS_ENSURE_TRUE_VOID(principal);
-
-  // Construct the message in jsVal format.
+  // Construct jsval for system message.
   AutoSafeJSContext cx;
   AutoClearPendingException helper(cx);
   JS::Rooted<JSObject*> msgObj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
   NS_ENSURE_TRUE_VOID(msgObj);
   JS::Rooted<JS::Value> jsVal(cx);
+  bool rv;
+
+  // Set the "url" and "title" properties of the message.
+  // In the case of RTSP streaming, the title is the same as the url.
+  {
+    nsAutoCString spec;
+    aURI->GetAsciiSpec(spec);
+    JSString *urlStr = JS_NewStringCopyN(cx, spec.get(), spec.Length());
+    NS_ENSURE_TRUE_VOID(urlStr);
+    jsVal.setString(urlStr);
+
+    rv = JS_SetProperty(cx, msgObj, "url", jsVal);
+    NS_ENSURE_TRUE_VOID(rv);
+
+    rv = JS_SetProperty(cx, msgObj, "title", jsVal);
+    NS_ENSURE_TRUE_VOID(rv);
+  }
 
   // Set the "type" property of the message. This is a fake MIME type.
   {
@@ -636,29 +647,18 @@ void nsExternalHelperAppService::LaunchVideoAppForRtsp(nsIURI* aURI)
     JSString *typeStr = JS_NewStringCopyN(cx, mimeType.get(), mimeType.Length());
     NS_ENSURE_TRUE_VOID(typeStr);
     jsVal.setString(typeStr);
-    rv = JS_SetProperty(cx, msgObj, "type", jsVal);
-    NS_ENSURE_TRUE_VOID(rv);
   }
-  // Set the "url" and "title" properties of the message.
-  // They are the same in the case of RTSP streaming.
-  {
-    nsAutoCString spec;
-    aURI->GetSpec(spec);
-    JSString *urlStr = JS_NewStringCopyN(cx, spec.get(), spec.Length());
-    NS_ENSURE_TRUE_VOID(urlStr);
-    jsVal.setString(urlStr);
-    rv = JS_SetProperty(cx, msgObj, "url", jsVal);
-    NS_ENSURE_TRUE_VOID(rv);
-    rv = JS_SetProperty(cx, msgObj, "title", jsVal);
-  }
-  jsVal.setObject(*msgObj);
+  rv = JS_SetProperty(cx, msgObj, "type", jsVal);
+  NS_ENSURE_TRUE_VOID(rv);
 
-  // Send the message.
-  nsCOMPtr<nsIMessageSender> cpmm =
-    do_GetService("@mozilla.org/childprocessmessagemanager;1");
-  NS_ENSURE_TRUE_VOID(cpmm);
-  cpmm->SendAsyncMessage(NS_LITERAL_STRING("content-handler"),
-    jsVal, JSVAL_NULL, principal, cx, 2);
+  // Broadcast system message.
+  nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
+    do_GetService("@mozilla.org/system-message-internal;1");
+  NS_ENSURE_TRUE_VOID(systemMessenger);
+  jsVal.setObject(*msgObj);
+  systemMessenger->BroadcastMessage(msgType, jsVal, JS::UndefinedValue());
+
+  return;
 }
 #endif
 
@@ -1463,7 +1463,7 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   rv = mTempFile->Append(NS_ConvertUTF8toUTF16(tempLeafName));
   // make this file unique!!!
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = mTempFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0644);
+  rv = mTempFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Now save the temp leaf name, minus the ".part" bit, so we can use it later.
@@ -1842,7 +1842,7 @@ void nsExternalAppHandler::SendStatusChange(ErrorType type, nsresult rv, nsIRequ
                 // We don't have a listener.  Simply show the alert ourselves.
                 nsCOMPtr<nsIPrompt> prompter(do_GetInterface(mWindowContext));
                 nsXPIDLString title;
-                bundle->FormatStringFromName(MOZ_UTF16("title"),
+                bundle->FormatStringFromName(NS_LITERAL_STRING("title").get(),
                                              strings,
                                              1,
                                              getter_Copies(title));
@@ -2289,7 +2289,7 @@ NS_IMETHODIMP nsExternalAppHandler::LaunchWithApplication(nsIFile * aApplication
   fileToUse->Append(mSuggestedFileName);  
 #endif
 
-  nsresult rv = fileToUse->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0644);
+  nsresult rv = fileToUse->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
   if(NS_SUCCEEDED(rv))
   {
     mFinalFileDestination = do_QueryInterface(fileToUse);

@@ -14,6 +14,7 @@
 #include "nsPrintfCString.h"            // for nsPrintfCString
 #include "nsString.h"                   // for nsAutoCString
 
+class gfxImageSurface;
 class nsIntRegion;
 
 namespace mozilla {
@@ -38,18 +39,20 @@ ImageHost::~ImageHost() {}
 void
 ImageHost::UseTextureHost(TextureHost* aTexture)
 {
-  if (mFrontBuffer) {
-    // XXX - When we implement sharing textures between several compositables
-    // we will need to not remove the compositor if there is another compositable
-    // using the texture.
-    mFrontBuffer->SetCompositor(nullptr);
-  }
-  CompositableHost::UseTextureHost(aTexture);
   mFrontBuffer = aTexture;
 }
 
+void
+ImageHost::RemoveTextureHost(uint64_t aTextureID)
+{
+  CompositableHost::RemoveTextureHost(aTextureID);
+  if (mFrontBuffer && mFrontBuffer->GetID() == aTextureID) {
+    mFrontBuffer = nullptr;
+  }
+}
+
 TextureHost*
-ImageHost::GetAsTextureHost()
+ImageHost::GetTextureHost()
 {
   return mFrontBuffer;
 }
@@ -72,12 +75,7 @@ ImageHost::Composite(EffectChain& aEffectChain,
   if (!mFrontBuffer) {
     return;
   }
-
-  // Make sure the front buffer has a compositor
-  mFrontBuffer->SetCompositor(GetCompositor());
-
-  AutoLockTextureHost autoLock(mFrontBuffer);
-  if (autoLock.Failed()) {
+  if (!mFrontBuffer->Lock()) {
     NS_WARNING("failed to lock front buffer");
     return;
   }
@@ -154,15 +152,7 @@ ImageHost::Composite(EffectChain& aEffectChain,
                                      rect, aClipRect,
                                      aTransform);
   }
-}
-
-void
-ImageHost::SetCompositor(Compositor* aCompositor)
-{
-  if (mFrontBuffer && mCompositor != aCompositor) {
-    mFrontBuffer->SetCompositor(aCompositor);
-  }
-  CompositableHost::SetCompositor(aCompositor);
+  mFrontBuffer->Unlock();
 }
 
 void
@@ -210,7 +200,7 @@ ImageHost::GetRenderState()
 }
 
 #ifdef MOZ_DUMP_PAINTING
-TemporaryRef<gfx::DataSourceSurface>
+already_AddRefed<gfxImageSurface>
 ImageHost::GetAsSurface()
 {
   return mFrontBuffer->GetAsSurface();
@@ -409,7 +399,7 @@ DeprecatedImageHostSingle::Dump(FILE* aFile,
   }
 }
 
-TemporaryRef<gfx::DataSourceSurface>
+already_AddRefed<gfxImageSurface>
 DeprecatedImageHostSingle::GetAsSurface()
 {
   return mDeprecatedTextureHost->GetAsSurface();

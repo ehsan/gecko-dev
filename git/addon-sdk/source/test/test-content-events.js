@@ -44,9 +44,16 @@ exports["test multiple tabs"] = function(assert, done) {
 
   on(events, "data", handler);
   function handler ({type, target, timeStamp}) {
-    eventFilter(type, target, () => {
+    // ignore about:blank pages and *-document-global-created
+    // events that are not very consistent.
+    // ignore http:// requests, as Fennec's `about:home` page
+    // displays add-ons a user could install
+    if (target.URL !== "about:blank" &&
+        target.URL !== "about:home" &&
+        !target.URL.match(/^https?:\/\//i) &&
+        type !== "chrome-document-global-created" &&
+        type !== "content-document-global-created")
       actual.push(type + " -> " + target.URL)
-    });
   }
 
   let window = getMostRecentBrowserWindow();
@@ -85,9 +92,12 @@ exports["test nested frames"] = function(assert, done) {
   let actual = [];
   on(events, "data", handler);
   function handler ({type, target, timeStamp}) {
-    eventFilter(type, target, () => {
+    // ignore about:blank pages and *-global-created
+    // events that are not very consistent.
+    if (target.URL !== "about:blank" &&
+       type !== "chrome-document-global-created" &&
+       type !== "content-document-global-created")
       actual.push(type + " -> " + target.URL)
-    });
   }
 
   let window =  getMostRecentBrowserWindow();
@@ -116,20 +126,4 @@ exports["test nested frames"] = function(assert, done) {
     });
 };
 
-// ignore about:blank pages and *-document-global-created
-// events that are not very consistent.
-// ignore http:// requests, as Fennec's `about:home` page
-// displays add-ons a user could install
-// ignore local `searchplugins` files loaded
-// Calls callback if passes filter
-function eventFilter (type, target, callback) {
-  if (target.URL !== "about:blank" &&
-    target.URL !== "about:home" &&
-    !target.URL.match(/^https?:\/\//i) &&
-    !target.URL.match(/searchplugins/) &&
-    type !== "chrome-document-global-created" &&
-    type !== "content-document-global-created")
-  
-    callback();
-}
 require("test").run(exports);

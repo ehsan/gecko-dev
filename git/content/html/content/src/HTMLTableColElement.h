@@ -17,7 +17,6 @@ public:
   HTMLTableColElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
-    SetHasWeirdParserInsertionMode();
   }
   virtual ~HTMLTableColElement();
 

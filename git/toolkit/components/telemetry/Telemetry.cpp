@@ -232,18 +232,15 @@ HangReports::GetDuration(unsigned aIndex) const {
   return mDurations[aIndex];
 }
 
-class TelemetryImpl MOZ_FINAL
-  : public MemoryUniReporter
-  , public nsITelemetry
+class TelemetryImpl MOZ_FINAL : public nsITelemetry
 {
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSITELEMETRY
 
 public:
+  TelemetryImpl();
   ~TelemetryImpl();
-
-  void InitMemoryReporter();
-
+  
   static bool CanRecord();
   static already_AddRefed<nsITelemetry> CreateTelemetryInstance();
   static void ShutdownTelemetry();
@@ -255,8 +252,7 @@ public:
 #endif
   static void RecordThreadHangStats(Telemetry::ThreadHangStats& aStats);
   static nsresult GetHistogramEnumId(const char *name, Telemetry::ID *id);
-  int64_t Amount() MOZ_OVERRIDE;
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+  static int64_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
   struct Stat {
     uint32_t hitCount;
     uint32_t totalTime;
@@ -268,7 +264,7 @@ public:
   typedef nsBaseHashtableET<nsCStringHashKey, StmtStats> SlowSQLEntryType;
 
 private:
-  TelemetryImpl();
+  size_t SizeOfIncludingThisHelper(mozilla::MallocSizeOf aMallocSizeOf);
 
   static nsCString SanitizeSQL(const nsACString& sql);
 
@@ -330,6 +326,7 @@ private:
   // mThreadHangStats stores recorded, inactive thread hang stats
   Vector<Telemetry::ThreadHangStats> mThreadHangStats;
   Mutex mThreadHangStatsMutex;
+  nsCOMPtr<nsIMemoryReporter> mReporter;
 
   CombinedStacks mLateWritesStacks; // This is collected out of the main thread.
   bool mCachedTelemetryData;
@@ -341,14 +338,8 @@ private:
 
 TelemetryImpl*  TelemetryImpl::sTelemetry = nullptr;
 
-int64_t
-TelemetryImpl::Amount()
-{
-  return SizeOfIncludingThis(MallocSizeOf);
-}
-
 size_t
-TelemetryImpl::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+TelemetryImpl::SizeOfIncludingThisHelper(mozilla::MallocSizeOf aMallocSizeOf)
 {
   size_t n = aMallocSizeOf(this);
   // Ignore the hashtables in mAddonMap; they are not significant.
@@ -359,18 +350,40 @@ TelemetryImpl::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
   n += mTrackedDBs.SizeOfExcludingThis(nullptr, aMallocSizeOf);
   n += mHangReports.SizeOfExcludingThis();
   n += mThreadHangStats.sizeOfExcludingThis(aMallocSizeOf);
+  return n;
+}
 
-  // It's a bit gross that we measure this other stuff that lives outside of
-  // TelemetryImpl... oh well.
+int64_t
+TelemetryImpl::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+{
+  int64_t n = 0;
+  if (sTelemetry) {
+    n += sTelemetry->SizeOfIncludingThisHelper(aMallocSizeOf);
+  }
+
   StatisticsRecorder::Histograms hs;
   StatisticsRecorder::GetHistograms(&hs);
+
   for (HistogramIterator it = hs.begin(); it != hs.end(); ++it) {
     Histogram *h = *it;
     n += h->SizeOfIncludingThis(aMallocSizeOf);
   }
-
   return n;
 }
+
+class TelemetryReporter MOZ_FINAL : public MemoryUniReporter
+{
+public:
+  TelemetryReporter()
+    : MemoryUniReporter("explicit/telemetry", KIND_HEAP, UNITS_BYTES,
+                         "Memory used by the telemetry system.")
+  {}
+private:
+  int64_t Amount() MOZ_OVERRIDE
+  {
+    return TelemetryImpl::SizeOfIncludingThis(MallocSizeOf);
+  }
+};
 
 // A initializer to initialize histogram collection
 StatisticsRecorder gStatisticsRecorder;
@@ -382,9 +395,11 @@ struct TelemetryHistogram {
   uint32_t bucketCount;
   uint32_t histogramType;
   uint32_t id_offset;
+  uint32_t comment_offset;
   bool extendedStatisticsOK;
 
   const char *id() const;
+  const char *comment() const;
 };
 
 #include "TelemetryHistogramData.inc"
@@ -394,6 +409,12 @@ const char *
 TelemetryHistogram::id() const
 {
   return &gHistogramStringTable[this->id_offset];
+}
+
+const char *
+TelemetryHistogram::comment() const
+{
+  return &gHistogramStringTable[this->comment_offset];
 }
 
 bool
@@ -743,7 +764,7 @@ public:
 private:
   const char* mShutdownTimeFilename;
   nsCOMPtr<nsIFile> mFailedProfileLockFile;
-  nsRefPtr<TelemetryImpl> mTelemetry;
+  nsCOMPtr<TelemetryImpl> mTelemetry;
   nsCOMPtr<nsIFile> mProfileDir;
 
 public:
@@ -923,8 +944,6 @@ TelemetryImpl::AsyncFetchTelemetryData(nsIFetchTelemetryDataCallback *aCallback)
 }
 
 TelemetryImpl::TelemetryImpl():
-MemoryUniReporter("explicit/telemetry", KIND_HEAP, UNITS_BYTES,
-                  "Memory used by the telemetry system."),
 mHistogramMap(Telemetry::HistogramCount),
 mCanRecord(XRE_GetProcessType() == GeckoProcessType_Default),
 mHashMutex("Telemetry::mHashMutex"),
@@ -939,8 +958,8 @@ mFailedLockCount(0)
     "addons.sqlite", "content-prefs.sqlite", "cookies.sqlite",
     "downloads.sqlite", "extensions.sqlite", "formhistory.sqlite",
     "index.sqlite", "healthreport.sqlite", "permissions.sqlite",
-    "places.sqlite", "search.sqlite", "seer.sqlite", "signons.sqlite",
-    "urlclassifier3.sqlite", "webappsstore.sqlite"
+    "places.sqlite", "search.sqlite", "signons.sqlite", "urlclassifier3.sqlite",
+    "webappsstore.sqlite"
   };
 
   for (size_t i = 0; i < ArrayLength(trackedDBs); i++)
@@ -950,15 +969,12 @@ mFailedLockCount(0)
   // Mark immutable to prevent asserts on simultaneous access from multiple threads
   mTrackedDBs.MarkImmutable();
 #endif
+  mReporter = new TelemetryReporter();
+  NS_RegisterMemoryReporter(mReporter);
 }
 
 TelemetryImpl::~TelemetryImpl() {
-  UnregisterWeakMemoryReporter(this);
-}
-
-void
-TelemetryImpl::InitMemoryReporter() {
-  RegisterWeakMemoryReporter(this);
+  NS_UnregisterMemoryReporter(mReporter);
 }
 
 NS_IMETHODIMP
@@ -1943,19 +1959,25 @@ TelemetryImpl::GetLateWrites(JSContext *cx, JS::Value *ret)
 }
 
 NS_IMETHODIMP
-TelemetryImpl::RegisteredHistograms(uint32_t *aCount, char*** aHistograms)
+TelemetryImpl::GetRegisteredHistograms(JSContext *cx, JS::Value *ret)
 {
   size_t count = ArrayLength(gHistograms);
-  char** histograms = static_cast<char**>(nsMemory::Alloc(count * sizeof(char*)));
+  JS::Rooted<JSObject*> info(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+  if (!info)
+    return NS_ERROR_FAILURE;
 
   for (size_t i = 0; i < count; ++i) {
-    const char* h = gHistograms[i].id();
-    size_t len = strlen(h);
-    histograms[i] = static_cast<char*>(nsMemory::Clone(h, len+1));
+    JSString *comment = JS_InternString(cx, gHistograms[i].comment());
+
+    if (!(comment
+          && JS_DefineProperty(cx, info, gHistograms[i].id(),
+                               STRING_TO_JSVAL(comment), nullptr, nullptr,
+                               JSPROP_ENUMERATE))) {
+      return NS_ERROR_FAILURE;
+    }
   }
 
-  *aCount = count;
-  *aHistograms = histograms;
+  *ret = OBJECT_TO_JSVAL(info);
   return NS_OK;
 }
 
@@ -2006,9 +2028,6 @@ TelemetryImpl::CreateTelemetryInstance()
   NS_ADDREF(sTelemetry);
   // AddRef for the caller
   nsCOMPtr<nsITelemetry> ret = sTelemetry;
-
-  sTelemetry->InitMemoryReporter();
-
   return ret.forget();
 }
 
@@ -2183,28 +2202,28 @@ TelemetryImpl::RecordSlowStatement(const nsACString &sql,
 {
   if (!sTelemetry || !sTelemetry->mCanRecord)
     return;
-
+  
+  nsAutoCString dbNameComment;
+  dbNameComment.AppendPrintf(" /* %s */", dbName.BeginReading());
+  
   bool isFirefoxDB = sTelemetry->mTrackedDBs.Contains(dbName);
   if (isFirefoxDB) {
     nsAutoCString sanitizedSQL(SanitizeSQL(sql));
     if (sanitizedSQL.Length() > kMaxSlowStatementLength) {
       sanitizedSQL.SetLength(kMaxSlowStatementLength);
       sanitizedSQL += "...";
+      sanitizedSQL += dbNameComment;
     }
-    sanitizedSQL.AppendPrintf(" /* %s */", nsPromiseFlatCString(dbName).get());
     StoreSlowSQL(sanitizedSQL, delay, Sanitized);
   } else {
     // Report aggregate DB-level statistics for addon DBs
     nsAutoCString aggregate;
-    aggregate.AppendPrintf("Untracked SQL for %s",
-                           nsPromiseFlatCString(dbName).get());
+    aggregate.AppendPrintf("Untracked SQL for %s", dbName.BeginReading());
     StoreSlowSQL(aggregate, delay, Sanitized);
   }
 
-  nsAutoCString fullSQL;
-  fullSQL.AppendPrintf("%s /* %s */",
-                       nsPromiseFlatCString(sql).get(),
-                       nsPromiseFlatCString(dbName).get());
+  nsAutoCString fullSQL(sql);
+  fullSQL += dbNameComment;
   StoreSlowSQL(fullSQL, delay, Unsanitized);
 }
 
@@ -2233,7 +2252,7 @@ TelemetryImpl::RecordThreadHangStats(Telemetry::ThreadHangStats& aStats)
   sTelemetry->mThreadHangStats.append(Move(aStats));
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(TelemetryImpl, MemoryUniReporter, nsITelemetry)
+NS_IMPL_ISUPPORTS1(TelemetryImpl, nsITelemetry)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsITelemetry, TelemetryImpl::CreateTelemetryInstance)
 
 #define NS_TELEMETRY_CID \

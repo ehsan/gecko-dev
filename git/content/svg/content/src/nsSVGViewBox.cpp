@@ -182,7 +182,7 @@ nsSVGViewBox::GetBaseValueString(nsAString& aValue) const
   }
   PRUnichar buf[200];
   nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-                            MOZ_UTF16("%g %g %g %g"),
+                            NS_LITERAL_STRING("%g %g %g %g").get(),
                             (double)mBaseVal.x, (double)mBaseVal.y,
                             (double)mBaseVal.width, (double)mBaseVal.height);
   aValue.Assign(buf);

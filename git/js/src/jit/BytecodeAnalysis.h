@@ -50,13 +50,13 @@ class BytecodeAnalysis
     bool init(TempAllocator &alloc, GSNCache &gsn);
 
     BytecodeInfo &info(jsbytecode *pc) {
-        JS_ASSERT(infos_[script_->pcToOffset(pc)].initialized);
-        return infos_[script_->pcToOffset(pc)];
+        JS_ASSERT(infos_[pc - script_->code].initialized);
+        return infos_[pc - script_->code];
     }
 
     BytecodeInfo *maybeInfo(jsbytecode *pc) {
-        if (infos_[script_->pcToOffset(pc)].initialized)
-            return &infos_[script_->pcToOffset(pc)];
+        if (infos_[pc - script_->code].initialized)
+            return &infos_[pc - script_->code];
         return nullptr;
     }
 

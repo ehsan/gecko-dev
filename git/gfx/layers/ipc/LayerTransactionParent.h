@@ -81,13 +81,11 @@ protected:
   virtual bool RecvUpdate(const EditArray& cset,
                           const TargetConfig& targetConfig,
                           const bool& isFirstPaint,
-                          const bool& scheduleComposite,
                           EditReplyArray* reply) MOZ_OVERRIDE;
 
   virtual bool RecvUpdateNoSwap(const EditArray& cset,
                                 const TargetConfig& targetConfig,
-                                const bool& isFirstPaint,
-                                const bool& scheduleComposite) MOZ_OVERRIDE;
+                                const bool& isFirstPaint) MOZ_OVERRIDE;
 
   virtual bool RecvClearCachedResources() MOZ_OVERRIDE;
   virtual bool RecvGetOpacity(PLayerParent* aParent,
@@ -108,26 +106,9 @@ protected:
   virtual PCompositableParent* AllocPCompositableParent(const TextureInfo& aInfo) MOZ_OVERRIDE;
   virtual bool DeallocPCompositableParent(PCompositableParent* actor) MOZ_OVERRIDE;
 
-  virtual PTextureParent* AllocPTextureParent() MOZ_OVERRIDE;
-  virtual bool DeallocPTextureParent(PTextureParent* actor) MOZ_OVERRIDE;
-
   void Attach(ShadowLayerParent* aLayerParent,
               CompositableParent* aCompositable,
               bool aIsAsyncVideo);
-
-  void AddIPDLReference() {
-    MOZ_ASSERT(mIPCOpen == false);
-    mIPCOpen = true;
-    AddRef();
-  }
-  void ReleaseIPDLReference() {
-    MOZ_ASSERT(mIPCOpen == true);
-    mIPCOpen = false;
-    Release();
-  }
-  friend class CompositorParent;
-  friend class CrossProcessCompositorParent;
-  friend class layout::RenderFrameParent;
 
 private:
   nsRefPtr<LayerManagerComposite> mLayerManager;
@@ -154,8 +135,6 @@ private:
   // vice versa.  In both cases though, we want to ignore shadow-layer
   // transactions posted by the child.
   bool mDestroyed;
-
-  bool mIPCOpen;
 };
 
 } // namespace layers

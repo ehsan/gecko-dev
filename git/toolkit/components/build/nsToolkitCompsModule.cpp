@@ -36,8 +36,6 @@
 #include "nsBrowserStatusFilter.h"
 #include "mozilla/FinalizationWitnessService.h"
 
-using namespace mozilla;
-
 /////////////////////////////////////////////////////////////////////////////
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsAppStartup, Init)
@@ -115,7 +113,7 @@ NS_DEFINE_NAMED_CID(NS_UPDATEPROCESSOR_CID);
 #endif
 NS_DEFINE_NAMED_CID(FINALIZATIONWITNESSSERVICE_CID);
 
-static const Module::CIDEntry kToolkitCIDs[] = {
+static const mozilla::Module::CIDEntry kToolkitCIDs[] = {
   { &kNS_TOOLKIT_APPSTARTUP_CID, false, nullptr, nsAppStartupConstructor },
   { &kNS_USERINFO_CID, false, nullptr, nsUserInfoConstructor },
   { &kNS_ALERTSSERVICE_CID, false, nullptr, nsAlertsServiceConstructor },
@@ -143,7 +141,7 @@ static const Module::CIDEntry kToolkitCIDs[] = {
   { nullptr }
 };
 
-static const Module::ContractIDEntry kToolkitContracts[] = {
+static const mozilla::Module::ContractIDEntry kToolkitContracts[] = {
   { NS_APPSTARTUP_CONTRACTID, &kNS_TOOLKIT_APPSTARTUP_CID },
   { NS_USERINFO_CONTRACTID, &kNS_USERINFO_CID },
   { NS_ALERTSERVICE_CONTRACTID, &kNS_ALERTSSERVICE_CID },
@@ -172,8 +170,8 @@ static const Module::ContractIDEntry kToolkitContracts[] = {
   { nullptr }
 };
 
-static const Module kToolkitModule = {
-  Module::kVersion,
+static const mozilla::Module kToolkitModule = {
+  mozilla::Module::kVersion,
   kToolkitCIDs,
   kToolkitContracts
 };

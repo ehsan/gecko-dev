@@ -79,9 +79,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "OS",
 XPCOMUtils.defineLazyModuleGetter(this, "SessionStore",
                                   "resource:///modules/sessionstore/SessionStore.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "BrowserUITelemetry",
-                                  "resource:///modules/BrowserUITelemetry.jsm");
-
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
 
@@ -479,9 +476,8 @@ BrowserGlue.prototype = {
     webrtcUI.init();
     AboutHome.init();
     SessionStore.init();
-    BrowserUITelemetry.init();
 
-    if (Services.appinfo.browserTabsRemote)
+    if (Services.prefs.getBoolPref("browser.tabs.remote"))
       ContentClick.init();
 
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
@@ -1289,7 +1285,7 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 19;
+    const UI_VERSION = 18;
     const BROWSER_DOCURL = "chrome://browser/content/browser.xul#";
     let currentUIVersion = 0;
     try {
@@ -1536,22 +1532,6 @@ BrowserGlue.prototype = {
       }
     }
 
-    if (currentUIVersion < 19) {
-      let detector = null;    
-      try {
-        detector = Services.prefs.getComplexValue("intl.charset.detector",
-                                                  Ci.nsIPrefLocalizedString).data;
-      } catch (ex) {}
-      if (!(detector == "" ||
-            detector == "ja_parallel_state_machine" ||
-            detector == "ruprob" ||
-            detector == "ukprob")) {
-        // If the encoding detector pref value is not reachable from the UI,
-        // reset to default (varies by localization).
-        Services.prefs.clearUserPref("intl.charset.detector");
-      }
-    }
-
     if (this._dirty)
       this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
 
@@ -1611,7 +1591,7 @@ BrowserGlue.prototype = {
     // be set to the version it has been added in, we will compare its value
     // to users' smartBookmarksVersion and add new smart bookmarks without
     // recreating old deleted ones.
-    const SMART_BOOKMARKS_VERSION = 6;
+    const SMART_BOOKMARKS_VERSION = 4;
     const SMART_BOOKMARKS_ANNO = "Places/SmartBookmark";
     const SMART_BOOKMARKS_PREF = "browser.places.smartBookmarksVersion";
 
@@ -1672,25 +1652,8 @@ BrowserGlue.prototype = {
             parent: PlacesUtils.bookmarksMenuFolderId,
             position: menuIndex++,
             newInVersion: 1
-          },
+          }
         };
-
-        if (Services.sysinfo.getProperty("hasWindowsTouchInterface")) {
-          smartBookmarks.Windows8Touch = {
-            title: bundle.GetStringFromName("windows8TouchTitle"),
-            uri: NetUtil.newURI("place:folder=" +
-                                PlacesUtils.annotations.getItemsWithAnnotation('metro/bookmarksRoot', {})[0] +
-                                "&queryType=" +
-                                Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS +
-                                "&sort=" +
-                                Ci.nsINavHistoryQueryOptions.SORT_BY_DATEADDED_DESCENDING +
-                                "&maxResults=" + MAX_RESULTS +
-                                "&excludeQueries=1"),
-            parent: PlacesUtils.bookmarksMenuFolderId,
-            position: menuIndex++,
-            newInVersion: 6
-          };
-        }
 
         // Set current itemId, parent and position if Smart Bookmark exists,
         // we will use these informations to create the new version at the same

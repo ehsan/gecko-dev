@@ -131,18 +131,6 @@ DeviceStorageRequestParent::Dispatch()
       break;
     }
 
-    case DeviceStorageParams::TDeviceStorageFormatParams:
-    {
-      DeviceStorageFormatParams p = mParams;
-
-      nsRefPtr<DeviceStorageFile> dsf =
-        new DeviceStorageFile(p.type(), p.storageName());
-      nsRefPtr<PostFormatResultEvent> r
-        = new PostFormatResultEvent(this, dsf);
-      NS_DispatchToMainThread(r);
-      break;
-    }
-
     case DeviceStorageParams::TDeviceStorageEnumerationParams:
     {
       DeviceStorageEnumerationParams p = mParams;
@@ -224,14 +212,6 @@ DeviceStorageRequestParent::EnsureRequiredPermissions(
       DeviceStorageAvailableParams p = mParams;
       type = p.type();
       requestType = DEVICE_STORAGE_REQUEST_AVAILABLE;
-      break;
-    }
-
-    case DeviceStorageParams::TDeviceStorageFormatParams:
-    {
-      DeviceStorageFormatParams p = mParams;
-      type = p.type();
-      requestType = DEVICE_STORAGE_REQUEST_FORMAT;
       break;
     }
 
@@ -742,34 +722,6 @@ DeviceStorageRequestParent::PostAvailableResultEvent::CancelableRun()
   }
 
   AvailableStorageResponse response(state);
-  unused << mParent->Send__delete__(mParent, response);
-  return NS_OK;
-}
-
-DeviceStorageRequestParent::PostFormatResultEvent::
-  PostFormatResultEvent(DeviceStorageRequestParent* aParent,
-                           DeviceStorageFile* aFile)
-  : CancelableRunnable(aParent)
-  , mFile(aFile)
-{
-}
-
-DeviceStorageRequestParent::PostFormatResultEvent::
-  ~PostFormatResultEvent()
-{
-}
-
-nsresult
-DeviceStorageRequestParent::PostFormatResultEvent::CancelableRun()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  nsString state = NS_LITERAL_STRING("unavailable");
-  if (mFile) {
-    mFile->DoFormat(state);
-  }
-
-  FormatStorageResponse response(state);
   unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
 }

@@ -879,10 +879,10 @@ protected:
   void ARIAName(nsString& aName);
 
   /**
-   * Return the name for XUL element.
+   * Compute the name of HTML/XUL node.
    */
-  static void XULElmName(DocAccessible* aDocument,
-                         nsIContent* aElm, nsString& aName);
+  mozilla::a11y::ENameValueFlag GetHTMLName(nsString& aName);
+  mozilla::a11y::ENameValueFlag GetXULName(nsString& aName);
 
   // helper method to verify frames
   static nsresult GetFullKeyName(const nsAString& aModifierName, const nsAString& aKeyName, nsAString& aStringOut);

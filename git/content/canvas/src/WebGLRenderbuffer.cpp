@@ -8,7 +8,6 @@
 #include "WebGLTexture.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "GLContext.h"
-#include "ScopedGLHelpers.h"
 
 using namespace mozilla;
 using namespace mozilla::gl;
@@ -18,7 +17,7 @@ DepthStencilDepthFormat(GLContext* gl) {
     // We might not be able to get 24-bit, so let's pretend!
     if (gl->IsGLES2() && !gl->IsExtensionSupported(gl::GLContext::OES_depth24))
         return LOCAL_GL_DEPTH_COMPONENT16;
-
+    
     return LOCAL_GL_DEPTH_COMPONENT24;
 }
 
@@ -128,7 +127,7 @@ WebGLRenderbuffer::BindRenderbuffer() const {
      * `mSecondaryRB` is used when we have to pretend that the renderbuffer is
      * DEPTH_STENCIL, when it's actually one DEPTH buffer `mPrimaryRB` and one
      * STENCIL buffer `mSecondaryRB`.
-     *
+     * 
      * In the DEPTH_STENCIL emulation case, we're actually juggling two RBs, but
      * we can only bind one of them at a time. We choose to unconditionally bind
      * the depth RB. When we need to ask about the stencil buffer (say, how many
@@ -152,7 +151,7 @@ WebGLRenderbuffer::RenderbufferStorage(GLenum internalFormat, GLsizei width, GLs
     }
 
     gl->fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, primaryFormat, width, height);
-
+    
     if (!mSecondaryRB) {
         MOZ_ASSERT(!secondaryFormat);
         return;

@@ -53,7 +53,6 @@ UNIFIED_SOURCES += [
     'nsToolkit.mm',
     'nsWidgetFactory.mm',
     'nsWindowMap.mm',
-    'OSXNotificationCenter.mm',
     'WidgetTraceEvent.mm',
 ]
 
@@ -71,11 +70,3 @@ if CONFIG['TARGET_CPU'] == 'x86_64':
     ]
 
 FINAL_LIBRARY = 'xul'
-LOCAL_INCLUDES += [
-    '../shared',
-    '../xpwidgets',
-    '/layout/forms',
-    '/layout/generic',
-    '/layout/xul',
-]
-

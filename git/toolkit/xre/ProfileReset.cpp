@@ -80,7 +80,7 @@ ProfileResetCleanup(nsIToolkitProfile* aOldProfile)
 
   nsXPIDLString resetBackupDirectoryName;
 
-  static const PRUnichar* kResetBackupDirectory = MOZ_UTF16("resetBackupDirectory");
+  static const PRUnichar* kResetBackupDirectory = NS_LITERAL_STRING("resetBackupDirectory").get();
   rv = sb->FormatStringFromName(kResetBackupDirectory, params, 2,
                                 getter_Copies(resetBackupDirectoryName));
 

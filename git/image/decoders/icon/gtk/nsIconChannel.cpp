@@ -320,7 +320,7 @@ nsIconChannel::InitWithGnome(nsIMozIconURI *aIconURI)
     nsAutoString appName;
 
     if (bundle) {
-      bundle->GetStringFromName(MOZ_UTF16("brandShortName"),
+      bundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
                                 getter_Copies(appName));
     } else {
       NS_WARNING("brand.properties not present, using default application name");

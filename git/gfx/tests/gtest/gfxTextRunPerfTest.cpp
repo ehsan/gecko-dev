@@ -5,7 +5,7 @@
 
 #include "gtest/gtest.h"
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
 #include "nsTArray.h"

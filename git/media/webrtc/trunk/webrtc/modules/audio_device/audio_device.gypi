@@ -47,6 +47,9 @@
       ],
       'conditions': [
         ['build_with_mozilla==1', {
+          'include_dirs': [
+            '$(DIST)/include',
+          ],
           'cflags_mozilla': [
             '$(NSPR_CFLAGS)',
           ],
@@ -73,16 +76,14 @@
         }],
         ['OS=="android"', {
           'include_dirs': [
-            '/widget/android',
+            '$(topsrcdir)/widget/android',
             'android',
           ],
         }], # OS==android
         ['moz_widget_toolkit_gonk==1', {
-          'cflags_mozilla': [
-            '-I$(ANDROID_SOURCE)/frameworks/wilhelm/include',
-            '-I$(ANDROID_SOURCE)/system/media/wilhelm/include',
-          ],
           'include_dirs': [
+            '$(ANDROID_SOURCE)/frameworks/wilhelm/include',
+            '$(ANDROID_SOURCE)/system/media/wilhelm/include',
             'android',
           ],
         }], # moz_widget_toolkit_gonk==1

@@ -14,7 +14,6 @@
 #include "jstypes.h"
 
 #include "gc/Heap.h"
-#include "jit/IonOptimizationLevels.h"
 #include "jit/IonTypes.h"
 
 namespace JSC {
@@ -39,7 +38,7 @@ class MacroAssembler;
 class CodeOffsetLabel;
 class PatchableBackedge;
 
-class JitCode : public gc::BarrieredCell<JitCode>
+class IonCode : public gc::BarrieredCell<IonCode>
 {
   protected:
     uint8_t *code_;
@@ -54,15 +53,15 @@ class JitCode : public gc::BarrieredCell<JitCode>
                                       // This is necessary to prevent GC tracing.
 
 #if JS_BITS_PER_WORD == 32
-    // Ensure JitCode is gc::Cell aligned.
+    // Ensure IonCode is gc::Cell aligned.
     uint32_t padding_;
 #endif
 
-    JitCode()
+    IonCode()
       : code_(nullptr),
         pool_(nullptr)
     { }
-    JitCode(uint8_t *code, uint32_t bufferSize, JSC::ExecutablePool *pool)
+    IonCode(uint8_t *code, uint32_t bufferSize, JSC::ExecutablePool *pool)
       : code_(code),
         pool_(pool),
         bufferSize_(bufferSize),
@@ -89,7 +88,6 @@ class JitCode : public gc::BarrieredCell<JitCode>
 
   public:
     uint8_t *raw() const {
-        AutoThreadSafeAccess ts(this);
         return code_;
     }
     size_t instructionsSize() const {
@@ -103,7 +101,7 @@ class JitCode : public gc::BarrieredCell<JitCode>
 
     void togglePreBarriers(bool enabled);
 
-    // If this JitCode object has been, effectively, corrupted due to
+    // If this IonCode object has been, effectively, corrupted due to
     // invalidation patching, then we have to remember this so we don't try and
     // trace relocation entries that may now be corrupt.
     bool invalidated() const {
@@ -116,28 +114,28 @@ class JitCode : public gc::BarrieredCell<JitCode>
 
     void copyFrom(MacroAssembler &masm);
 
-    static JitCode *FromExecutable(uint8_t *buffer) {
-        JitCode *code = *(JitCode **)(buffer - sizeof(JitCode *));
+    static IonCode *FromExecutable(uint8_t *buffer) {
+        IonCode *code = *(IonCode **)(buffer - sizeof(IonCode *));
         JS_ASSERT(code->raw() == buffer);
         return code;
     }
 
     static size_t offsetOfCode() {
-        return offsetof(JitCode, code_);
+        return offsetof(IonCode, code_);
     }
 
     uint8_t *jumpRelocTable() {
         return code_ + jumpRelocTableOffset();
     }
 
-    // Allocates a new JitCode object which will be managed by the GC. If no
+    // Allocates a new IonCode object which will be managed by the GC. If no
     // object can be allocated, nullptr is returned. On failure, |pool| is
     // automatically released, so the code may be freed.
     template <AllowGC allowGC>
-    static JitCode *New(JSContext *cx, uint8_t *code, uint32_t bufferSize, JSC::ExecutablePool *pool);
+    static IonCode *New(JSContext *cx, uint8_t *code, uint32_t bufferSize, JSC::ExecutablePool *pool);
 
   public:
-    static inline ThingRootKind rootKind() { return THING_ROOT_JIT_CODE; }
+    static inline ThingRootKind rootKind() { return THING_ROOT_ION_CODE; }
 };
 
 class SnapshotWriter;
@@ -166,10 +164,10 @@ struct IonScript
 {
   private:
     // Code pointer containing the actual method.
-    EncapsulatedPtr<JitCode> method_;
+    EncapsulatedPtr<IonCode> method_;
 
     // Deoptimization table used by this method.
-    EncapsulatedPtr<JitCode> deoptTable_;
+    EncapsulatedPtr<IonCode> deoptTable_;
 
     // Entrypoint for OSR, or nullptr.
     jsbytecode *osrPc_;
@@ -201,9 +199,6 @@ struct IonScript
     // Flag set if IonScript was compiled with SPS profiling enabled.
     bool hasSPSInstrumentation_;
 
-    // Flag for if this script is getting recompiled.
-    bool recompiling_;
-
     // Any kind of data needed by the runtime, these can be either cache
     // information or profiling info.
     uint32_t runtimeData_;
@@ -223,7 +218,8 @@ struct IonScript
     uint32_t safepointsStart_;
     uint32_t safepointsSize_;
 
-    // Number of bytes this function reserves on the stack.
+    // Number of STACK_SLOT_SIZE-length slots this function reserves on the
+    // stack.
     uint32_t frameSlots_;
 
     // Frame size is the value that can be added to the StackPointer along
@@ -257,13 +253,10 @@ struct IonScript
     uint32_t backedgeEntries_;
 
     // Number of references from invalidation records.
-    uint32_t refcount_;
+    size_t refcount_;
 
     // Identifier of the compilation which produced this code.
     types::RecompileInfo recompileInfo_;
-
-    // The optimization level this script was compiled in.
-    OptimizationLevel optimizationLevel_;
 
     // Number of times we tried to enter this script via OSR but failed due to
     // a LOOPENTRY pc other than osrPc_.
@@ -314,8 +307,7 @@ struct IonScript
     }
     bool addDependentAsmJSModule(JSContext *cx, DependentAsmJSModuleExit exit);
     void removeDependentAsmJSModule(DependentAsmJSModuleExit exit) {
-        if (!dependentAsmJSModules)
-            return;
+        JS_ASSERT(dependentAsmJSModules);
         for (size_t i = 0; i < dependentAsmJSModules->length(); i++) {
             if (dependentAsmJSModules->begin()[i].module == exit.module &&
                 dependentAsmJSModules->begin()[i].exitIndex == exit.exitIndex)
@@ -339,8 +331,7 @@ struct IonScript
                           size_t snapshotsSize, size_t snapshotEntries,
                           size_t constants, size_t safepointIndexEntries, size_t osiIndexEntries,
                           size_t cacheEntries, size_t runtimeSize, size_t safepointsSize,
-                          size_t callTargetEntries, size_t backedgeEntries,
-                          OptimizationLevel optimizationLevel);
+                          size_t callTargetEntries, size_t backedgeEntries);
     static void Trace(JSTracer *trc, IonScript *script);
     static void Destroy(FreeOp *fop, IonScript *script);
 
@@ -353,19 +344,16 @@ struct IonScript
     static inline size_t offsetOfSkipArgCheckEntryOffset() {
         return offsetof(IonScript, skipArgCheckEntryOffset_);
     }
-    static inline size_t offsetOfRefcount() {
-        return offsetof(IonScript, refcount_);
-    }
 
   public:
-    JitCode *method() const {
+    IonCode *method() const {
         return method_;
     }
-    void setMethod(JitCode *code) {
+    void setMethod(IonCode *code) {
         JS_ASSERT(!invalidated());
         method_ = code;
     }
-    void setDeoptTable(JitCode *code) {
+    void setDeoptTable(IonCode *code) {
         deoptTable_ = code;
     }
     void setOsrPc(jsbytecode *osrPc) {
@@ -513,7 +501,7 @@ struct IonScript
     void copyCacheEntries(const uint32_t *caches, MacroAssembler &masm);
     void copySafepoints(const SafepointWriter *writer);
     void copyCallTargetEntries(JSScript **callTargets);
-    void copyPatchableBackedges(JSContext *cx, JitCode *code,
+    void copyPatchableBackedges(JSContext *cx, IonCode *code,
                                 PatchableBackedgeInfo *backedges);
 
     bool invalidated() const {
@@ -534,29 +522,11 @@ struct IonScript
     const types::RecompileInfo& recompileInfo() const {
         return recompileInfo_;
     }
-    types::RecompileInfo& recompileInfoRef() {
-        return recompileInfo_;
-    }
-    OptimizationLevel optimizationLevel() const {
-        return optimizationLevel_;
-    }
     uint32_t incrOsrPcMismatchCounter() {
         return ++osrPcMismatchCounter_;
     }
     void resetOsrPcMismatchCounter() {
         osrPcMismatchCounter_ = 0;
-    }
-
-    void setRecompiling() {
-        recompiling_ = true;
-    }
-
-    bool isRecompiling() const {
-        return recompiling_;
-    }
-
-    void clearRecompiling() {
-        recompiling_ = false;
     }
 
     static void writeBarrierPre(Zone *zone, IonScript *ionScript);

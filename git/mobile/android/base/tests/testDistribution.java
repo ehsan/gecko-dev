@@ -303,7 +303,7 @@ public class testDistribution extends ContentProviderTest {
     @Override
     public void setUp() throws Exception {
         // TODO: Set up the content provider after setting the distribution.
-        super.setUp("org.mozilla.gecko.db.BrowserProvider", "AUTHORITY", "browser.db");
+        super.setUp("org.mozilla.gecko.db.BrowserProvider", "AUTHORITY");
     }
 
     private void delete(File file) throws Exception {

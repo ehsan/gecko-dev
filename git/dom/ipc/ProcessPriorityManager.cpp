@@ -43,7 +43,9 @@
 //
 // (Wow, our logging story is a huge mess.)
 
-// #define ENABLE_LOGGING 1
+#ifndef HAVE_64BIT_OS
+#define ENABLE_LOGGING 1
+#endif
 
 #if defined(ANDROID) && defined(ENABLE_LOGGING)
 #  include <android/log.h>
@@ -156,7 +158,7 @@ private:
   static bool sInitialized;
   static StaticRefPtr<ProcessPriorityManagerImpl> sSingleton;
 
-  static void PrefChangedCallback(const char* aPref, void* aClosure);
+  static int PrefChangedCallback(const char* aPref, void* aClosure);
 
   ProcessPriorityManagerImpl();
   ~ProcessPriorityManagerImpl() {}
@@ -343,11 +345,12 @@ private:
 NS_IMPL_ISUPPORTS1(ProcessPriorityManagerImpl,
                    nsIObserver);
 
-/* static */ void
+/* static */ int
 ProcessPriorityManagerImpl::PrefChangedCallback(const char* aPref,
                                                 void* aClosure)
 {
   StaticInit();
+  return 0;
 }
 
 /* static */ bool
@@ -1042,9 +1045,7 @@ ParticularProcessPriorityManager::ShutDown()
     mResetPriorityTimer = nullptr;
   }
 
-  if (mPriority == PROCESS_PRIORITY_BACKGROUND && !IsPreallocated()) {
-    ProcessPriorityManager::RemoveFromBackgroundLRUPool(mContentParent);
-  }
+  ProcessPriorityManager::RemoveFromBackgroundLRUPool(mContentParent);
 
   mContentParent = nullptr;
 }

@@ -94,7 +94,7 @@ nsWindowMemoryReporter::Init()
   MOZ_ASSERT(!sWindowReporter);
   sWindowReporter = new nsWindowMemoryReporter();
   ClearOnShutdown(&sWindowReporter);
-  RegisterStrongMemoryReporter(sWindowReporter);
+  NS_RegisterMemoryReporter(sWindowReporter);
   RegisterNonJSSizeOfTab(NonJSSizeOfTab);
 
   nsCOMPtr<nsIObserverService> os = services::GetObserverService();
@@ -107,7 +107,7 @@ nsWindowMemoryReporter::Init()
                     /* weakRef = */ true);
   }
 
-  RegisterStrongMemoryReporter(new GhostWindowsReporter());
+  NS_RegisterMemoryReporter(new GhostWindowsReporter());
   RegisterGhostWindowsDistinguishedAmount(GhostWindowsReporter::DistinguishedAmount);
 }
 
@@ -166,7 +166,7 @@ AppendWindowURI(nsGlobalWindow *aWindow, nsACString& aStr)
   }
 }
 
-MOZ_DEFINE_MALLOC_SIZE_OF(WindowsMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(WindowsMallocSizeOf)
 
 // The key is the window ID.
 typedef nsDataHashtable<nsUint64HashKey, nsCString> WindowPaths;
@@ -446,6 +446,13 @@ ReportGhostWindowsEnumerator(nsUint64HashKey* aIDHashKey, void* aClosure)
   }
 
   return PL_DHASH_NEXT;
+}
+
+NS_IMETHODIMP
+nsWindowMemoryReporter::GetName(nsACString &aName)
+{
+  aName.AssignLiteral("window-objects");
+  return NS_OK;
 }
 
 NS_IMETHODIMP

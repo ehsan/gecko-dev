@@ -9,6 +9,7 @@ this.EXPORTED_SYMBOLS = ['Keyboard'];
 const Cu = Components.utils;
 const Cc = Components.classes;
 const Ci = Components.interfaces;
+const kFormsFrameScript = 'chrome://global/content/forms.js';
 
 Cu.import('resource://gre/modules/Services.jsm');
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -79,6 +80,16 @@ this.Keyboard = {
     mm.addMessageListener('Forms:GetContext:Result:OK', this);
     mm.addMessageListener('Forms:SetComposition:Result:OK', this);
     mm.addMessageListener('Forms:EndComposition:Result:OK', this);
+
+    // When not running apps OOP, we need to load forms.js here since this
+    // won't happen from dom/ipc/preload.js
+    try {
+      if (Services.prefs.getBoolPref("dom.ipc.tabs.disabled") === true) {
+        mm.loadFrameScript(kFormsFrameScript, true);
+      }
+    } catch (e) {
+      dump('Error loading ' + kFormsFrameScript + ' as frame script: ' + e + '\n');
+    }
   },
 
   receiveMessage: function keyboardReceiveMessage(msg) {
@@ -103,12 +114,7 @@ this.Keyboard = {
         return;
       }
 
-      let testing = false;
-      try {
-        testing = Services.prefs.getBoolPref("dom.mozInputMethod.testing");
-      } catch (e) {
-      }
-      if (!testing && !mm.assertPermission("input")) {
+      if (!mm.assertPermission("input")) {
         dump("Keyboard message " + msg.name +
         " from a content process with no 'input' privileges.");
         return;
@@ -185,9 +191,11 @@ this.Keyboard = {
   handleFocusChange: function keyboardHandleFocusChange(msg) {
     this.forwardEvent('Keyboard:FocusChange', msg);
 
+    let browser = Services.wm.getMostRecentWindow("navigator:browser");
+
     // Chrome event, used also to render value selectors; that's why we need
     // the info about choices / min / max here as well...
-    this.sendChromeEvent({
+    browser.shell.sendChromeEvent({
       type: 'inputmethod-contextchange',
       inputType: msg.data.type,
       value: msg.data.value,
@@ -222,13 +230,15 @@ this.Keyboard = {
   },
 
   showInputMethodPicker: function keyboardShowInputMethodPicker() {
-    this.sendChromeEvent({
+    let browser = Services.wm.getMostRecentWindow("navigator:browser");
+    browser.shell.sendChromeEvent({
       type: "inputmethod-showall"
     });
   },
 
   switchToNextInputMethod: function keyboardSwitchToNextInputMethod() {
-    this.sendChromeEvent({
+    let browser = Services.wm.getMostRecentWindow("navigator:browser");
+    browser.shell.sendChromeEvent({
       type: "inputmethod-next"
     });
   },
@@ -268,13 +278,6 @@ this.Keyboard = {
     this._layouts = layouts;
 
     ppmm.broadcastAsyncMessage('Keyboard:LayoutsChange', layouts);
-  },
-
-  sendChromeEvent: function(event) {
-    let browser = Services.wm.getMostRecentWindow("navigator:browser");
-    if (browser && browser.shell) {
-      browser.shell.sendChromeEvent(event);;
-    }
   }
 };
 

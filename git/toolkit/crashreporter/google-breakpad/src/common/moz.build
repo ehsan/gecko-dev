@@ -7,8 +7,11 @@
 if CONFIG['OS_ARCH'] in ('Darwin', 'Linux'):
     DIRS += ['dwarf']
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'convert_UTF.c',
+]
+
+SOURCES += [
     'logging.cc',
     'module.cc',
     'pathname_stripper.cc',
@@ -17,7 +20,7 @@ UNIFIED_SOURCES += [
 ]
 
 if CONFIG['OS_TARGET'] != 'WINNT':
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'arm_ex_reader.cc',
         'arm_ex_to_module.cc',
         'dwarf/bytereader.cc',
@@ -31,7 +34,7 @@ if CONFIG['OS_TARGET'] != 'WINNT':
     ]
 
 if CONFIG['OS_ARCH'] == 'Linux':
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'linux/dump_symbols.cc',
         'linux/elf_symbols_to_module.cc',
     ]
@@ -40,7 +43,7 @@ if CONFIG['OS_TARGET'] == 'Android':
     pass
 else:
     if CONFIG['OS_TARGET'] != 'WINNT':
-        UNIFIED_SOURCES += [
+        SOURCES += [
             'stabs_reader.cc',
             'stabs_to_module.cc',
         ]
@@ -66,12 +69,11 @@ if CONFIG['OS_TARGET'] != 'WINNT' and CONFIG['MOZ_CRASHREPORTER']:
     ]
 
 if CONFIG['OS_ARCH'] == 'Darwin':
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'mac/dump_syms.mm',
     ]
 
 if CONFIG['OS_TARGET'] == 'Android':
-    # We don't support unifying assembly files.
     SOURCES += [
         'android/breakpad_getcontext.S',
     ]
@@ -81,9 +83,3 @@ LIBRARY_NAME = 'breakpad_common_s'
 MSVC_ENABLE_PGO = True
 
 FINAL_LIBRARY = 'xulapp_s'
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    DEFINES['ELFSIZE'] = 32
-
-if CONFIG['OS_TARGET'] == 'Android':
-    DEFINES['NO_STABS_SUPPORT'] = True

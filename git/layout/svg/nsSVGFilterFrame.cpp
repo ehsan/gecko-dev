@@ -451,7 +451,13 @@ nsSVGFilterFrame::PaintFilteredFrame(nsRenderingContext *aContext,
   if (!instance.get()) {
     return NS_OK;
   }
-  return instance.get()->Render(aContext->ThebesContext());
+  nsRefPtr<gfxASurface> result;
+  nsresult rv = instance.get()->Render(getter_AddRefs(result));
+  if (NS_SUCCEEDED(rv) && result) {
+    nsSVGUtils::CompositeSurfaceMatrix(aContext->ThebesContext(),
+      result, instance.get()->GetFilterSpaceToDeviceSpaceTransform(), 1.0);
+  }
+  return rv;
 }
 
 static nsRect
@@ -525,8 +531,11 @@ nsSVGFilterFrame::GetPostFilterBounds(nsIFrame *aFilteredFrame,
   if (!instance.get()) {
     return nsRect();
   }
+  // We've passed in the source's bounding box so the instance knows about
+  // it. Now we can ask the instance to compute the bounding box of
+  // the filter output.
   nsIntRect bbox;
-  nsresult rv = instance.get()->ComputePostFilterExtents(&bbox);
+  nsresult rv = instance.get()->ComputeOutputBBox(&bbox);
   if (NS_SUCCEEDED(rv)) {
     return TransformFilterSpaceToFrameSpace(instance.get(), &bbox);
   }

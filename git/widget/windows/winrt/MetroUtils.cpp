@@ -33,92 +33,72 @@ using namespace Microsoft::WRL::Wrappers;
 using namespace ABI::Windows::UI::ViewManagement;
 using namespace ABI::Windows::Graphics::Display;
 
-// Conversion between logical and physical coordinates
+// File-scoped statics (unnamed namespace)
+namespace {
+  FLOAT LogToPhysFactor() {
+    ComPtr<IDisplayInformationStatics> dispInfoStatics;
+    if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayInformation).Get(),
+                                       dispInfoStatics.GetAddressOf()))) {
+      ComPtr<IDisplayInformation> dispInfo;
+      if (SUCCEEDED(dispInfoStatics->GetForCurrentView(&dispInfo))) {
+        FLOAT dpi;
+        if (SUCCEEDED(dispInfo->get_LogicalDpi(&dpi))) {
+          return dpi / 96.0f;
+        }
+      }
+    }
 
-double
-MetroUtils::LogToPhysFactor()
-{
-  ComPtr<IDisplayInformationStatics> dispInfoStatics;
-  if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayInformation).Get(),
-                                      dispInfoStatics.GetAddressOf()))) {
-    ComPtr<IDisplayInformation> dispInfo;
-    if (SUCCEEDED(dispInfoStatics->GetForCurrentView(&dispInfo))) {
+    ComPtr<IDisplayPropertiesStatics> dispProps;
+    if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayProperties).Get(),
+                                       dispProps.GetAddressOf()))) {
       FLOAT dpi;
-      if (SUCCEEDED(dispInfo->get_LogicalDpi(&dpi))) {
-        return (double)dpi / 96.0f;
+      if (SUCCEEDED(dispProps->get_LogicalDpi(&dpi))) {
+        return dpi / 96.0f;
       }
     }
+
+    return 1.0f;
   }
 
-  ComPtr<IDisplayPropertiesStatics> dispProps;
-  if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayProperties).Get(),
-                                      dispProps.GetAddressOf()))) {
-    FLOAT dpi;
-    if (SUCCEEDED(dispProps->get_LogicalDpi(&dpi))) {
-      return (double)dpi / 96.0f;
-    }
+  FLOAT PhysToLogFactor() {
+    return 1.0f / LogToPhysFactor();
   }
+};
 
-  return 1.0;
-}
-
-double
-MetroUtils::PhysToLogFactor()
+// Conversion between logical and physical coordinates
+int32_t
+MetroUtils::LogToPhys(FLOAT aValue)
 {
-  return 1.0 / LogToPhysFactor();
-}
-
-double
-MetroUtils::ScaleFactor()
-{
-  // Return the resolution scale factor reported by the metro environment.
-  // XXX TODO: also consider the desktop resolution setting, as IE appears to do?
-  ComPtr<IDisplayInformationStatics> dispInfoStatics;
-  if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayInformation).Get(),
-                                      dispInfoStatics.GetAddressOf()))) {
-    ComPtr<IDisplayInformation> dispInfo;
-    if (SUCCEEDED(dispInfoStatics->GetForCurrentView(&dispInfo))) {
-      ResolutionScale scale;
-      if (SUCCEEDED(dispInfo->get_ResolutionScale(&scale))) {
-        return (double)scale / 100.0;
-      }
-    }
-  }
-
-  ComPtr<IDisplayPropertiesStatics> dispProps;
-  if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayProperties).Get(),
-                                     dispProps.GetAddressOf()))) {
-    ResolutionScale scale;
-    if (SUCCEEDED(dispProps->get_ResolutionScale(&scale))) {
-      return (double)scale / 100.0;
-    }
-  }
-
-  return 1.0;
+  return int32_t(NS_round(aValue * LogToPhysFactor()));
 }
 
 nsIntPoint
 MetroUtils::LogToPhys(const Point& aPt)
 {
-  double factor = LogToPhysFactor();
+  FLOAT factor = LogToPhysFactor();
   return nsIntPoint(int32_t(NS_round(aPt.X * factor)), int32_t(NS_round(aPt.Y * factor)));
 }
 
 nsIntRect
 MetroUtils::LogToPhys(const Rect& aRect)
 {
-  double factor = LogToPhysFactor();
+  FLOAT factor = LogToPhysFactor();
   return nsIntRect(int32_t(NS_round(aRect.X * factor)),
                    int32_t(NS_round(aRect.Y * factor)),
                    int32_t(NS_round(aRect.Width * factor)),
                    int32_t(NS_round(aRect.Height * factor)));
 }
 
+FLOAT
+MetroUtils::PhysToLog(int32_t aValue)
+{
+  return FLOAT(aValue) * PhysToLogFactor();
+}
+
 Point
 MetroUtils::PhysToLog(const nsIntPoint& aPt)
 {
-  // Points contain FLOATs
-  FLOAT factor = (FLOAT)PhysToLogFactor();
+  FLOAT factor = PhysToLogFactor();
   Point p = { FLOAT(aPt.x) * factor, FLOAT(aPt.y) * factor };
   return p;
 }

@@ -35,6 +35,7 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         'Transport_win.h',
     ]
     SOURCES += [
+        'CrossProcessMutex_windows.cpp',
         'SharedMemory_windows.cpp',
         'Transport_win.cpp',
         'WindowsMessageLoop.cpp',
@@ -44,21 +45,9 @@ else:
         'Transport_posix.h',
     ]
     UNIFIED_SOURCES += [
+        'CrossProcessMutex_unimplemented.cpp',
         'SharedMemory_posix.cpp',
         'Transport_posix.cpp',
-    ]
-
-if CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
-        'CrossProcessMutex_windows.cpp',
-    ]
-elif CONFIG['OS_ARCH'] == 'Linux':
-    UNIFIED_SOURCES += [
-        'CrossProcessMutex_posix.cpp',
-    ]
-else:
-    UNIFIED_SOURCES += [
-        'CrossProcessMutex_unimplemented.cpp',
     ]
 
 # Android has its own,
@@ -114,14 +103,6 @@ IPDL_SOURCES = [
     'URIParams.ipdlh',
 ]
 
-
-LOCAL_INCLUDES += [
-    '/xpcom/threads',
-]
-
 include('/ipc/chromium/chromium-config.mozbuild')
 
 FINAL_LIBRARY = 'xul'
-
-for var in ('MOZ_CHILD_PROCESS_NAME', 'MOZ_CHILD_PROCESS_BUNDLE'):
-    DEFINES[var] = '"%s"' % CONFIG[var]

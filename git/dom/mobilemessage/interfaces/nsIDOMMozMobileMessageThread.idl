@@ -2,10 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "domstubs.idl"
 #include "nsISupports.idl"
 
-[scriptable, builtinclass, uuid(525ad3a6-59a9-11e3-bdc3-836486cb58be)]
+[scriptable, builtinclass, uuid(9672c75d-61a2-470e-964b-2396dcff7cf6)]
 interface nsIDOMMozMobileMessageThread : nsISupports
 {
   // Unique identity of the thread.
@@ -25,7 +24,8 @@ interface nsIDOMMozMobileMessageThread : nsISupports
   readonly attribute jsval              participants; // DOMString[]
 
   // Timestamp of the last message in the thread.
-  readonly attribute DOMTimeStamp       timestamp;
+  [implicit_jscontext]
+  readonly attribute jsval              timestamp; // jsval is for Date.
 
   // Message type of the last message in the thread.
   readonly attribute DOMString          lastMessageType;

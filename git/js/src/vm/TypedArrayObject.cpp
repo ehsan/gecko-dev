@@ -338,7 +338,7 @@ ArrayBufferObject::neuterViews(JSContext *cx, Handle<ArrayBufferObject*> buffer)
     size_t numViews = 0;
     for (view = GetViewList(buffer); view; view = view->nextView()) {
         numViews++;
-        view->neuter(cx);
+        view->neuter();
 
         // Notify compiled jit code that the base pointer has moved.
         MarkObjectStateChange(cx, view);
@@ -1038,6 +1038,16 @@ ArrayBufferObject::obj_getElement(JSContext *cx, HandleObject obj,
 }
 
 bool
+ArrayBufferObject::obj_getElementIfPresent(JSContext *cx, HandleObject obj, HandleObject receiver,
+                                           uint32_t index, MutableHandleValue vp, bool *present)
+{
+    RootedObject delegate(cx, ArrayBufferDelegate(cx, obj));
+    if (!delegate)
+        return false;
+    return JSObject::getElementIfPresent(cx, delegate, receiver, index, vp, present);
+}
+
+bool
 ArrayBufferObject::obj_getSpecial(JSContext *cx, HandleObject obj,
                                   HandleObject receiver, HandleSpecialId sid,
                                   MutableHandleValue vp)
@@ -1182,10 +1192,8 @@ TypedArrayObject::isArrayIndex(jsid id, uint32_t *ip)
 }
 
 void
-TypedArrayObject::neuter(JSContext *cx)
+TypedArrayObject::neuter()
 {
-    AutoLockForCompilation lock(cx);
-
     setSlot(LENGTH_SLOT, Int32Value(0));
     setSlot(BYTELENGTH_SLOT, Int32Value(0));
     setSlot(BYTEOFFSET_SLOT, Int32Value(0));
@@ -1484,6 +1492,27 @@ class TypedArrayObjectTemplate : public TypedArrayObject
 
         Rooted<PropertyName*> name(cx, atom->asPropertyName());
         return obj_getProperty(cx, obj, receiver, name, vp);
+    }
+
+    static bool
+    obj_getElementIfPresent(JSContext *cx, HandleObject tarray, HandleObject receiver, uint32_t index,
+                            MutableHandleValue vp, bool *present)
+    {
+        // Fast-path the common case of index < length
+        if (index < tarray->as<TypedArrayObject>().length()) {
+            // this inline function is specialized for each type
+            copyIndexToValue(tarray, index, vp);
+            *present = true;
+            return true;
+        }
+
+        RootedObject proto(cx, tarray->getProto());
+        if (!proto) {
+            vp.setUndefined();
+            return true;
+        }
+
+        return JSObject::getElementIfPresent(cx, proto, receiver, index, vp, present);
     }
 
     static bool
@@ -2627,12 +2656,12 @@ ArrayBufferViewObject::prependToViews(ArrayBufferViewObject *viewsHead)
 }
 
 void
-ArrayBufferViewObject::neuter(JSContext *cx)
+ArrayBufferViewObject::neuter()
 {
     if (is<DataViewObject>())
         as<DataViewObject>().neuter();
     else
-        as<TypedArrayObject>().neuter(cx);
+        as<TypedArrayObject>().neuter();
 }
 
 // this default implementation is only valid for integer types
@@ -3451,6 +3480,7 @@ const Class ArrayBufferObject::class_ = {
         ArrayBufferObject::obj_getGeneric,
         ArrayBufferObject::obj_getProperty,
         ArrayBufferObject::obj_getElement,
+        ArrayBufferObject::obj_getElementIfPresent,
         ArrayBufferObject::obj_getSpecial,
         ArrayBufferObject::obj_setGeneric,
         ArrayBufferObject::obj_setProperty,
@@ -3462,9 +3492,8 @@ const Class ArrayBufferObject::class_ = {
         ArrayBufferObject::obj_deleteElement,
         ArrayBufferObject::obj_deleteSpecial,
         nullptr, nullptr, /* watch/unwatch */
-        nullptr,          /* slice */
         ArrayBufferObject::obj_enumerate,
-        nullptr,          /* thisObject      */
+        nullptr,       /* thisObject      */
     }
 };
 
@@ -3614,6 +3643,7 @@ IMPL_TYPED_ARRAY_COMBINED_UNWRAPPERS(Float64, double, double)
         _typedArray##Object::obj_getGeneric,                                   \
         _typedArray##Object::obj_getProperty,                                  \
         _typedArray##Object::obj_getElement,                                   \
+        _typedArray##Object::obj_getElementIfPresent,                          \
         _typedArray##Object::obj_getSpecial,                                   \
         _typedArray##Object::obj_setGeneric,                                   \
         _typedArray##Object::obj_setProperty,                                  \
@@ -3625,9 +3655,8 @@ IMPL_TYPED_ARRAY_COMBINED_UNWRAPPERS(Float64, double, double)
         _typedArray##Object::obj_deleteElement,                                \
         _typedArray##Object::obj_deleteSpecial,                                \
         nullptr, nullptr, /* watch/unwatch */                                  \
-        nullptr,          /* slice */                                          \
         _typedArray##Object::obj_enumerate,                                    \
-        nullptr,          /* thisObject  */                                    \
+        nullptr,             /* thisObject  */                                 \
     }                                                                          \
 }
 

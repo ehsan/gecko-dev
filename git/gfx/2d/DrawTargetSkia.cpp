@@ -8,7 +8,6 @@
 #include "ScaledFontBase.h"
 #include "ScaledFontCairo.h"
 #include "skia/SkDevice.h"
-#include "FilterNodeSoftware.h"
 
 #ifdef USE_SKIA_GPU
 #include "skia/SkGpuDevice.h"
@@ -132,44 +131,27 @@ DrawTargetSkia::SetGlobalCacheLimits(int aCount, int aSizeInBytes)
 }
 
 void
-DrawTargetSkia::PurgeCaches()
+DrawTargetSkia::PurgeCache()
 {
   if (mGrContext) {
-    mGrContext->freeGpuResources();
+    mGrContext->purgeCache();
   }
 }
 
 /* static */ void
-DrawTargetSkia::PurgeAllCaches()
+DrawTargetSkia::PurgeTextureCaches()
 {
   std::vector<DrawTargetSkia*>& targets = GLDrawTargets();
   uint32_t targetCount = targets.size();
+  if (targetCount == 0)
+    return;
+
   for (uint32_t i = 0; i < targetCount; i++) {
-    targets[i]->PurgeCaches();
+    targets[i]->PurgeCache();
   }
 }
 
 #endif
-
-static SkBitmap
-GetBitmapForSurface(SourceSurface *aSurface)
-{
-  switch (aSurface->GetType()) {
-  case SURFACE_SKIA:
-    return static_cast<SourceSurfaceSkia*>(aSurface)->GetBitmap();
-  case SURFACE_DATA:
-    {
-      DataSourceSurface* surf = static_cast<DataSourceSurface*>(aSurface);
-      SkBitmap tmp;
-      tmp.setConfig(GfxFormatToSkiaConfig(surf->GetFormat()),
-                    surf->GetSize().width, surf->GetSize().height, surf->Stride());
-      tmp.setPixels(surf->GetData());
-      return tmp;
-    }
-  default:
-    MOZ_CRASH("Non-skia SourceSurfaces need to be DataSourceSurfaces");
-  }
-}
 
 DrawTargetSkia::DrawTargetSkia()
   : mSnapshot(nullptr)
@@ -265,7 +247,7 @@ void SetPaintPattern(SkPaint& aPaint, const Pattern& aPattern, Float aAlpha = 1.
     }
     case PATTERN_SURFACE: {
       const SurfacePattern& pat = static_cast<const SurfacePattern&>(aPattern);
-      const SkBitmap& bitmap = GetBitmapForSurface(pat.mSurface);
+      const SkBitmap& bitmap = static_cast<SourceSurfaceSkia*>(pat.mSurface.get())->GetBitmap();
 
       SkShader::TileMode mode = ExtendModeToTileMode(pat.mExtendMode);
       SkShader* shader = SkShader::CreateBitmapShader(bitmap, mode, mode);
@@ -352,7 +334,7 @@ DrawTargetSkia::DrawSurface(SourceSurface *aSurface,
                             const DrawSurfaceOptions &aSurfOptions,
                             const DrawOptions &aOptions)
 {
-  if (!(aSurface->GetType() == SURFACE_SKIA || aSurface->GetType() == SURFACE_DATA)) {
+  if (aSurface->GetType() != SURFACE_SKIA) {
     return;
   }
 
@@ -374,7 +356,7 @@ DrawTargetSkia::DrawSurface(SourceSurface *aSurface,
   SkRect sourceBoundingRect = RectToSkRect(boundingSource);
   SkIRect sourceBoundingIRect = RectToSkIRect(boundingSource);
 
-  const SkBitmap& bitmap = GetBitmapForSurface(aSurface);
+  const SkBitmap& bitmap = static_cast<SourceSurfaceSkia*>(aSurface)->GetBitmap();
  
   AutoPaintSetup paint(mCanvas.get(), aOptions);
   if (aSurfOptions.mFilter == FILTER_POINT) {
@@ -402,16 +384,6 @@ DrawTargetSkia::DrawSurface(SourceSurface *aSurface,
 }
 
 void
-DrawTargetSkia::DrawFilter(FilterNode *aNode,
-                           const Rect &aSourceRect,
-                           const Point &aDestPoint,
-                           const DrawOptions &aOptions)
-{
-  FilterNodeSoftware* filter = static_cast<FilterNodeSoftware*>(aNode);
-  filter->Draw(this, aSourceRect, aDestPoint, aOptions);
-}
-
-void
 DrawTargetSkia::DrawSurfaceWithShadow(SourceSurface *aSurface,
                                       const Point &aDest,
                                       const Color &aColor,
@@ -425,7 +397,7 @@ DrawTargetSkia::DrawSurfaceWithShadow(SourceSurface *aSurface,
 
   uint32_t blurFlags = SkBlurMaskFilter::kHighQuality_BlurFlag |
                        SkBlurMaskFilter::kIgnoreTransform_BlurFlag;
-  const SkBitmap& bitmap = GetBitmapForSurface(aSurface);
+  const SkBitmap& bitmap = static_cast<SourceSurfaceSkia*>(aSurface)->GetBitmap();
   SkShader* shader = SkShader::CreateBitmapShader(bitmap, SkShader::kClamp_TileMode, SkShader::kClamp_TileMode);
   SkMatrix matrix;
   matrix.reset();
@@ -726,7 +698,7 @@ DrawTargetSkia::CopySurface(SourceSurface *aSurface,
 
   MarkChanged();
 
-  const SkBitmap& bitmap = GetBitmapForSurface(aSurface);
+  const SkBitmap& bitmap = static_cast<SourceSurfaceSkia*>(aSurface)->GetBitmap();
 
   mCanvas->save();
   mCanvas->resetMatrix();
@@ -899,12 +871,6 @@ DrawTargetSkia::CreateGradientStops(GradientStop *aStops, uint32_t aNumStops, Ex
   std::stable_sort(stops.begin(), stops.end());
   
   return new GradientStopsSkia(stops, aNumStops, aExtendMode);
-}
-
-TemporaryRef<FilterNode>
-DrawTargetSkia::CreateFilter(FilterType aType)
-{
-  return FilterNodeSoftware::Create(aType);
 }
 
 void

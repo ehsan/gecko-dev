@@ -5,15 +5,16 @@
 
 package org.mozilla.gecko.gfx;
 
+import org.mozilla.gecko.BrowserApp;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.ZoomConstraints;
-import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
 import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.FloatUtils;
+import org.mozilla.gecko.util.ThreadUtils;
 
 import android.content.Context;
 import android.graphics.PointF;
@@ -55,6 +56,7 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
      */
     private ImmutableViewportMetrics mFrameMetrics;
 
+    /* Used by robocop for testing purposes */
     private DrawListener mDrawListener;
 
     /* Used as temporaries by syncViewportInfo */
@@ -383,6 +385,9 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
                 if (!oldMetrics.fuzzyEquals(newMetrics)) {
                     abortPanZoomAnimation();
                 }
+                mPanZoomController.updateScrollOffset(
+                		messageMetrics.viewportRectLeft / messageMetrics.zoomFactor,
+                		messageMetrics.viewportRectTop / messageMetrics.zoomFactor);
                 break;
             case PAGE_SIZE:
                 // adjust the page dimensions to account for differences in zoom
@@ -970,13 +975,11 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     }
 
     /** Used by robocop for testing purposes. Not for production use! */
-    @RobocopTarget
     public void setDrawListener(DrawListener listener) {
         mDrawListener = listener;
     }
 
     /** Used by robocop for testing purposes. Not for production use! */
-    @RobocopTarget
     public static interface DrawListener {
         public void drawFinished();
     }

@@ -207,10 +207,10 @@ AudioSession::Start()
                                 getter_AddRefs(bundle));
     NS_ENSURE_TRUE(bundle, NS_ERROR_FAILURE);
 
-    bundle->GetStringFromName(MOZ_UTF16("brandFullName"),
+    bundle->GetStringFromName(NS_LITERAL_STRING("brandFullName").get(),
                               getter_Copies(mDisplayName));
 
-    wchar_t *buffer;
+    PRUnichar *buffer;
     mIconPath.GetMutableData(&buffer, MAX_PATH);
 
     // XXXkhuey we should provide a way for a xulrunner app to specify an icon

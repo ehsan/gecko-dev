@@ -30,4 +30,14 @@ PlatformDecoderModule::Create()
   return nullptr;
 }
 
+void
+PlatformDecoderModule::OnDecodeThreadStart()
+{
+}
+
+void
+PlatformDecoderModule::OnDecodeThreadFinish()
+{
+}
+
 } // namespace mozilla

@@ -94,35 +94,6 @@ this.WbxmlEnd = {
 };
 
 /**
- * Escape XML reserved characters &, <, >, " and ' which may appear in the
- * WBXML-encoded strings in their original form.
- *
- * @param str
- *        A string with potentially unescaped characters
- *
- * @return A string with the &, <, >, " and ' characters turned into XML
- *         character entitites
- *
- * @see WAP-192-WBXML-20010725-A, clause 6.1
- */
-this.escapeReservedCharacters = function escape_reserved_characters(str) {
-  let dst = "";
-
-  for (var i = 0; i < str.length; i++) {
-    switch (str[i]) {
-      case '&' : dst += "&amp;" ; break;
-      case '<' : dst += "&lt;"  ; break;
-      case '>' : dst += "&gt;"  ; break;
-      case '"' : dst += "&quot;"; break;
-      case '\'': dst += "&apos;"; break;
-      default  : dst += str[i];
-    }
-  }
-
-  return dst;
-}
-
-/**
  * Handle string table in WBXML message.
  *
  * @see WAP-192-WBXML-20010725-A, clause 5.7
@@ -147,9 +118,7 @@ this.readStringTable = function decode_wbxml_read_string_table(start, stringTabl
 this.WbxmlStringTable = {
   decode: function decode_wbxml_string_table(data, decodeInfo) {
     let start = WSP.Octet.decode(data);
-    let str = readStringTable(start, decodeInfo.stringTable, decodeInfo.charset);
-
-    return escapeReservedCharacters(str);
+    return readStringTable(start, decodeInfo.stringTable, decodeInfo.charset);
   }
 };
 
@@ -173,9 +142,7 @@ this.WbxmlInlineString = {
       charCode = WSP.Octet.decode(data);
     }
 
-    let str = WSP.PduHelper.decodeStringContent(stringData, decodeInfo.charset);
-
-    return escapeReservedCharacters(str);
+    return WSP.PduHelper.decodeStringContent(stringData, decodeInfo.charset);
   },
 };
 

@@ -231,7 +231,7 @@ Accessible::Name(nsString& aName)
     // for processing, the user agent shall choose the first one.
     for (nsIContent* childElm = mContent->GetFirstChild(); childElm;
          childElm = childElm->GetNextSibling()) {
-      if (childElm->IsSVG(nsGkAtoms::desc)) {
+      if (childElm->IsSVG(nsGkAtoms::title)) {
         nsTextEquivUtils::AppendTextEquivFromContent(this, childElm, &aName);
         return eNameFromTooltip;
       }
@@ -294,7 +294,7 @@ Accessible::Description(nsString& aDescription)
       } else if (mContent->IsSVG()) {
         for (nsIContent* childElm = mContent->GetFirstChild(); childElm;
              childElm = childElm->GetNextSibling()) {
-          if (childElm->IsSVG(nsGkAtoms::desc)) {
+          if (childElm->IsSVG(nsGkAtoms::title)) {
             nsTextEquivUtils::AppendTextEquivFromContent(this, childElm,
                                                          &aDescription);
             break;
@@ -1052,37 +1052,56 @@ Accessible::TakeFocus()
   return NS_OK;
 }
 
-void
-Accessible::XULElmName(DocAccessible* aDocument,
-                       nsIContent* aElm, nsString& aName)
+ENameValueFlag
+Accessible::GetHTMLName(nsString& aLabel)
 {
-  /**
-   * 3 main cases for XUL Controls to be labeled
-   *   1 - control contains label="foo"
-   *   2 - control has, as a child, a label element
-   *        - label has either value="foo" or children
-   *   3 - non-child label contains control="controlID"
-   *        - label has either value="foo" or children
-   * Once a label is found, the search is discontinued, so a control
-   *  that has a label child as well as having a label external to
-   *  the control that uses the control="controlID" syntax will use
-   *  the child label for its Name.
-   */
+  Accessible* labelAcc = nullptr;
+  HTMLLabelIterator iter(Document(), this);
+  while ((labelAcc = iter.Next())) {
+    nsTextEquivUtils::AppendTextEquivFromContent(this, labelAcc->GetContent(),
+                                                 &aLabel);
+    aLabel.CompressWhitespace();
+  }
 
+  if (!aLabel.IsEmpty())
+    return eNameOK;
+
+  nsTextEquivUtils::GetNameFromSubtree(this, aLabel);
+  return aLabel.IsEmpty() ? eNameOK : eNameFromSubtree;
+}
+
+/**
+  * 3 main cases for XUL Controls to be labeled
+  *   1 - control contains label="foo"
+  *   2 - control has, as a child, a label element
+  *        - label has either value="foo" or children
+  *   3 - non-child label contains control="controlID"
+  *        - label has either value="foo" or children
+  * Once a label is found, the search is discontinued, so a control
+  *  that has a label child as well as having a label external to
+  *  the control that uses the control="controlID" syntax will use
+  *  the child label for its Name.
+  */
+ENameValueFlag
+Accessible::GetXULName(nsString& aName)
+{
   // CASE #1 (via label attribute) -- great majority of the cases
-  nsCOMPtr<nsIDOMXULLabeledControlElement> labeledEl = do_QueryInterface(aElm);
+  nsCOMPtr<nsIDOMXULLabeledControlElement> labeledEl =
+    do_QueryInterface(mContent);
   if (labeledEl) {
     labeledEl->GetLabel(aName);
   } else {
-    nsCOMPtr<nsIDOMXULSelectControlItemElement> itemEl = do_QueryInterface(aElm);
+    nsCOMPtr<nsIDOMXULSelectControlItemElement> itemEl =
+      do_QueryInterface(mContent);
     if (itemEl) {
       itemEl->GetLabel(aName);
     } else {
-      nsCOMPtr<nsIDOMXULSelectControlElement> select = do_QueryInterface(aElm);
+      nsCOMPtr<nsIDOMXULSelectControlElement> select =
+        do_QueryInterface(mContent);
       // Use label if this is not a select control element which 
       // uses label attribute to indicate which option is selected
       if (!select) {
-        nsCOMPtr<nsIDOMXULElement> xulEl(do_QueryInterface(aElm));
+        nsCOMPtr<nsIDOMXULElement> xulEl(do_QueryInterface(mContent));
         if (xulEl)
           xulEl->GetAttribute(NS_LITERAL_STRING("label"), aName);
       }
@@ -1092,7 +1111,7 @@ Accessible::XULElmName(DocAccessible* aDocument,
   // CASES #2 and #3 ------ label as a child or <label control="id" ... > </label>
   if (aName.IsEmpty()) {
     Accessible* labelAcc = nullptr;
-    XULLabelIterator iter(aDocument, aElm);
+    XULLabelIterator iter(Document(), mContent);
     while ((labelAcc = iter.Next())) {
       nsCOMPtr<nsIDOMXULLabelElement> xulLabel =
         do_QueryInterface(labelAcc->GetContent());
@@ -1101,27 +1120,30 @@ Accessible::XULElmName(DocAccessible* aDocument,
         // If no value attribute, a non-empty label must contain
         // children that define its text -- possibly using HTML
         nsTextEquivUtils::
-          AppendTextEquivFromContent(labelAcc, labelAcc->GetContent(), &aName);
+          AppendTextEquivFromContent(this, labelAcc->GetContent(), &aName);
       }
     }
   }
 
   aName.CompressWhitespace();
   if (!aName.IsEmpty())
-    return;
+    return eNameOK;
 
   // Can get text from title of <toolbaritem> if we're a child of a <toolbaritem>
-  nsIContent *bindingParent = aElm->GetBindingParent();
-  nsIContent* parent =
-    bindingParent? bindingParent->GetParent() : aElm->GetParent();
+  nsIContent *bindingParent = mContent->GetBindingParent();
+  nsIContent *parent = bindingParent? bindingParent->GetParent() :
+                                      mContent->GetParent();
   while (parent) {
     if (parent->Tag() == nsGkAtoms::toolbaritem &&
         parent->GetAttr(kNameSpaceID_None, nsGkAtoms::title, aName)) {
       aName.CompressWhitespace();
-      return;
+      return eNameOK;
     }
     parent = parent->GetParent();
   }
+
+  nsTextEquivUtils::GetNameFromSubtree(this, aName);
+  return aName.IsEmpty() ? eNameOK : eNameFromSubtree;
 }
 
 nsresult
@@ -2456,37 +2478,18 @@ Accessible::ARIAName(nsString& aName)
 ENameValueFlag
 Accessible::NativeName(nsString& aName)
 {
-  if (mContent->IsHTML()) {
-    Accessible* label = nullptr;
-    HTMLLabelIterator iter(Document(), this);
-    while ((label = iter.Next())) {
-      nsTextEquivUtils::AppendTextEquivFromContent(this, label->GetContent(),
-                                                   &aName);
-      aName.CompressWhitespace();
-    }
+  if (mContent->IsHTML())
+    return GetHTMLName(aName);
 
-    if (!aName.IsEmpty())
-      return eNameOK;
-
-    nsTextEquivUtils::GetNameFromSubtree(this, aName);
-    return aName.IsEmpty() ? eNameOK : eNameFromSubtree;
-  }
-
-  if (mContent->IsXUL()) {
-    XULElmName(mDoc, mContent, aName);
-    if (!aName.IsEmpty())
-      return eNameOK;
-
-    nsTextEquivUtils::GetNameFromSubtree(this, aName);
-    return aName.IsEmpty() ? eNameOK : eNameFromSubtree;
-  }
+  if (mContent->IsXUL())
+    return GetXULName(aName);
 
   if (mContent->IsSVG()) {
     // If user agents need to choose among multiple ‘desc’ or ‘title’ elements
     // for processing, the user agent shall choose the first one.
     for (nsIContent* childElm = mContent->GetFirstChild(); childElm;
          childElm = childElm->GetNextSibling()) {
-      if (childElm->IsSVG(nsGkAtoms::title)) {
+      if (childElm->IsSVG(nsGkAtoms::desc)) {
         nsTextEquivUtils::AppendTextEquivFromContent(this, childElm, &aName);
         return eNameOK;
       }
@@ -3267,12 +3270,12 @@ KeyBinding::ToPlatformFormat(nsAString& aValue) const
     return;
 
   nsAutoString separator;
-  keyStringBundle->GetStringFromName(MOZ_UTF16("MODIFIER_SEPARATOR"),
+  keyStringBundle->GetStringFromName(NS_LITERAL_STRING("MODIFIER_SEPARATOR").get(),
                                      getter_Copies(separator));
 
   nsAutoString modifierName;
   if (mModifierMask & kControl) {
-    keyStringBundle->GetStringFromName(MOZ_UTF16("VK_CONTROL"),
+    keyStringBundle->GetStringFromName(NS_LITERAL_STRING("VK_CONTROL").get(),
                                        getter_Copies(modifierName));
 
     aValue.Append(modifierName);
@@ -3280,7 +3283,7 @@ KeyBinding::ToPlatformFormat(nsAString& aValue) const
   }
 
   if (mModifierMask & kAlt) {
-    keyStringBundle->GetStringFromName(MOZ_UTF16("VK_ALT"),
+    keyStringBundle->GetStringFromName(NS_LITERAL_STRING("VK_ALT").get(),
                                        getter_Copies(modifierName));
 
     aValue.Append(modifierName);
@@ -3288,7 +3291,7 @@ KeyBinding::ToPlatformFormat(nsAString& aValue) const
   }
 
   if (mModifierMask & kShift) {
-    keyStringBundle->GetStringFromName(MOZ_UTF16("VK_SHIFT"),
+    keyStringBundle->GetStringFromName(NS_LITERAL_STRING("VK_SHIFT").get(),
                                        getter_Copies(modifierName));
 
     aValue.Append(modifierName);
@@ -3296,7 +3299,7 @@ KeyBinding::ToPlatformFormat(nsAString& aValue) const
   }
 
   if (mModifierMask & kMeta) {
-    keyStringBundle->GetStringFromName(MOZ_UTF16("VK_META"),
+    keyStringBundle->GetStringFromName(NS_LITERAL_STRING("VK_META").get(),
                                        getter_Copies(modifierName));
 
     aValue.Append(modifierName);

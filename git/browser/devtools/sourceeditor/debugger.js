@@ -174,11 +174,8 @@ function setDebugLocation(ctx, line) {
   let { ed } = ctx;
   let meta = dbginfo.get(ed);
 
-  clearDebugLocation(ctx);
-
   meta.debugLocation = line;
   ed.addMarker(line, "breakpoints", "debugLocation");
-  ed.addLineClass(line, "debug-line");
 }
 
 /**
@@ -202,7 +199,6 @@ function clearDebugLocation(ctx) {
 
   if (meta.debugLocation != null) {
     ed.removeMarker(meta.debugLocation, "breakpoints", "debugLocation");
-    ed.removeLineClass(meta.debugLocation, "debug-line");
     meta.debugLocation = null;
   }
 }

@@ -276,9 +276,10 @@ NS_IMETHODIMP imgTools::EncodeImageData(gfxImageSurface *aSurface,
 NS_IMETHODIMP imgTools::GetFirstImageFrame(imgIContainer *aContainer,
                                            gfxImageSurface **aSurface)
 {
-  nsRefPtr<gfxASurface> surface =
-    aContainer->GetFrame(imgIContainer::FRAME_FIRST,
-                         imgIContainer::FLAG_SYNC_DECODE);
+  nsRefPtr<gfxASurface> surface;
+  aContainer->GetFrame(imgIContainer::FRAME_FIRST,
+                       imgIContainer::FLAG_SYNC_DECODE,
+                       getter_AddRefs(surface));
   NS_ENSURE_TRUE(surface, NS_ERROR_NOT_AVAILABLE);
 
   nsRefPtr<gfxImageSurface> frame(surface->CopyToARGB32ImageSurface());

@@ -18,6 +18,13 @@ using namespace js::types;
 
 using mozilla::ArrayLength;
 
+static inline bool
+DefinePropertyHelper(JSContext *cx, HandleObject obj, Handle<PropertyName*> name, HandleValue v)
+{
+    return !!baseops::DefineProperty(cx, obj, name, v,
+                                     JS_PropertyStub, JS_StrictPropertyStub, JSPROP_ENUMERATE);
+}
+
 bool
 js::CreateRegExpMatchResult(JSContext *cx, HandleString input_, const jschar *chars, size_t length,
                             MatchPairs &matches, MutableHandleValue rval)
@@ -62,38 +69,22 @@ js::CreateRegExpMatchResult(JSContext *cx, HandleString input_, const jschar *ch
         }
     }
 
-    /* Get the templateObject that defines the shape and type of the output object */
-    JSObject *templateObject = cx->compartment()->regExps.getOrCreateMatchResultTemplateObject(cx);
-    if (!templateObject)
-        return false;
-
     /* Copy the rooted vector into the array object. */
-    RootedObject arr(cx, NewDenseCopiedArrayWithTemplate(cx, elements.length(), elements.begin(),
-                                                         templateObject));
-    if (!arr)
+    RootedObject array(cx, NewDenseCopiedArray(cx, elements.length(), elements.begin()));
+    if (!array)
         return false;
 
-    /* Set the |index| property. (TemplateObject positions it in slot 0) */
+    /* Set the |index| property. */
     RootedValue index(cx, Int32Value(matches[0].start));
-    arr->nativeSetSlot(0, index);
+    if (!DefinePropertyHelper(cx, array, cx->names().index, index))
+        return false;
 
-    /* Set the |input| property. (TemplateObject positions it in slot 1) */
+    /* Set the |input| property. */
     RootedValue inputVal(cx, StringValue(input));
-    arr->nativeSetSlot(1, inputVal);
-
-#ifdef DEBUG
-    RootedValue test(cx);
-    RootedId id(cx, NameToId(cx->names().index));
-    if (!baseops::GetProperty(cx, arr, id, &test))
+    if (!DefinePropertyHelper(cx, array, cx->names().input, inputVal))
         return false;
-    JS_ASSERT(test == index);
-    id = NameToId(cx->names().input);
-    if (!baseops::GetProperty(cx, arr, id, &test))
-        return false;
-    JS_ASSERT(test == inputVal);
-#endif
 
-    rval.setObject(*arr);
+    rval.setObject(*array);
     return true;
 }
 

@@ -10,10 +10,6 @@ Cu.import("resource://gre/modules/PageThumbs.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-const STATE_LOADING = 1;
-const STATE_CAPTURING = 2;
-const STATE_CANCELED = 3;
-
 const backgroundPageThumbsContent = {
 
   init: function () {
@@ -60,103 +56,55 @@ const backgroundPageThumbsContent = {
   },
 
   _onCapture: function (msg) {
-    this._nextCapture = {
-      id: msg.data.id,
-      url: msg.data.url,
-    };
-    if (this._currentCapture) {
-      if (this._state == STATE_LOADING) {
-        // Cancel the current capture.
-        this._state = STATE_CANCELED;
-        this._loadAboutBlank();
-      }
-      // Let the current capture finish capturing, or if it was just canceled,
-      // wait for onStateChange due to the about:blank load.
-      return;
-    }
-    this._startNextCapture();
-  },
-
-  _startNextCapture: function () {
-    if (!this._nextCapture)
-      return;
-    this._currentCapture = this._nextCapture;
-    delete this._nextCapture;
-    this._state = STATE_LOADING;
-    this._currentCapture.pageLoadStartDate = new Date();
-    this._webNav.loadURI(this._currentCapture.url,
+    this._webNav.loadURI(msg.json.url,
                          Ci.nsIWebNavigation.LOAD_FLAGS_STOP_CONTENT,
                          null, null, null);
+    // If a page was already loading, onStateChange is synchronously called at
+    // this point by loadURI.
+    this._requestID = msg.json.id;
+    this._requestDate = new Date();
   },
 
   onStateChange: function (webProgress, req, flags, status) {
-    if (webProgress.isTopLevel &&
-        (flags & Ci.nsIWebProgressListener.STATE_STOP) &&
-        this._currentCapture) {
-      if (req.name == "about:blank") {
-        if (this._state == STATE_CAPTURING) {
-          // about:blank has loaded, ending the current capture.
-          this._finishCurrentCapture();
-          delete this._currentCapture;
-          this._startNextCapture();
-        }
-        else if (this._state == STATE_CANCELED) {
-          // A capture request was received while the current capture's page
-          // was still loading.
-          delete this._currentCapture;
-          this._startNextCapture();
-        }
-      }
-      else if (this._state == STATE_LOADING) {
-        // The requested page has loaded.  Capture it.
-        this._state = STATE_CAPTURING;
-        this._captureCurrentPage();
-      }
-    }
-  },
+    if (!webProgress.isTopLevel ||
+        !(flags & Ci.nsIWebProgressListener.STATE_STOP) ||
+        req.name == "about:blank")
+      return;
 
-  _captureCurrentPage: function () {
-    let capture = this._currentCapture;
-    capture.finalURL = this._webNav.currentURI.spec;
-    capture.pageLoadTime = new Date() - capture.pageLoadStartDate;
+    let requestID = this._requestID;
+    let pageLoadTime = new Date() - this._requestDate;
+    delete this._requestID;
 
     let canvas = PageThumbs._createCanvas(content);
-    let canvasDrawDate = new Date();
+    let captureDate = new Date();
     PageThumbs._captureToCanvas(content, canvas);
-    capture.canvasDrawTime = new Date() - canvasDrawDate;
+    let captureTime = new Date() - captureDate;
 
-    canvas.toBlob(blob => {
-      capture.imageBlob = blob;
-      // Load about:blank to finish the capture and wait for onStateChange.
-      this._loadAboutBlank();
-    });
-  },
-
-  _finishCurrentCapture: function () {
-    let capture = this._currentCapture;
+    let finalURL = this._webNav.currentURI.spec;
     let fileReader = Cc["@mozilla.org/files/filereader;1"].
                      createInstance(Ci.nsIDOMFileReader);
     fileReader.onloadend = () => {
       sendAsyncMessage("BackgroundPageThumbs:didCapture", {
-        id: capture.id,
+        id: requestID,
         imageData: fileReader.result,
-        finalURL: capture.finalURL,
+        finalURL: finalURL,
         telemetry: {
-          CAPTURE_PAGE_LOAD_TIME_MS: capture.pageLoadTime,
-          CAPTURE_CANVAS_DRAW_TIME_MS: capture.canvasDrawTime,
+          CAPTURE_PAGE_LOAD_TIME_MS: pageLoadTime,
+          CAPTURE_CANVAS_DRAW_TIME_MS: captureTime,
         },
       });
     };
-    fileReader.readAsArrayBuffer(capture.imageBlob);
-  },
+    canvas.toBlob(blob => fileReader.readAsArrayBuffer(blob));
 
-  // We load about:blank to finish all captures, even canceled captures.  Two
-  // reasons: GC the captured page, and ensure it can't possibly load any more
-  // resources.
-  _loadAboutBlank: function _loadAboutBlank() {
-    this._webNav.loadURI("about:blank",
-                         Ci.nsIWebNavigation.LOAD_FLAGS_STOP_CONTENT,
-                         null, null, null);
+    // If no other pages are loading, load about:blank to cause the captured
+    // window to be collected... eventually.  Calling loadURI at this point
+    // trips an assertion in nsLoadGroup::Cancel, so do it on another stack.
+    Services.tm.mainThread.dispatch(() => {
+      if (!("_requestID" in this))
+        this._webNav.loadURI("about:blank",
+                             Ci.nsIWebNavigation.LOAD_FLAGS_STOP_CONTENT,
+                             null, null, null);
+    }, Ci.nsIEventTarget.DISPATCH_NORMAL);
   },
 
   QueryInterface: XPCOMUtils.generateQI([

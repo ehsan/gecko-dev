@@ -40,6 +40,7 @@
 #endif
 
 #include <stdint.h>
+#include "mozilla/Util.h"
 #include "mozilla/unused.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Mutex.h"
@@ -109,6 +110,28 @@ class Mutex {
 };
 
 // ----------------------------------------------------------------------------
+// ScopedLock
+//
+// Stack-allocated ScopedLocks provide block-scoped locking and
+// unlocking of a mutex.
+class ScopedLock {
+ public:
+  explicit ScopedLock(Mutex* mutex): mutex_(mutex) {
+    ASSERT(mutex_ != NULL);
+    mutex_->Lock();
+  }
+  ~ScopedLock() {
+    mutex_->Unlock();
+  }
+
+ private:
+  Mutex* mutex_;
+  DISALLOW_COPY_AND_ASSIGN(ScopedLock);
+};
+
+
+
+// ----------------------------------------------------------------------------
 // OS
 //
 // This class has static methods for the different platform specific
@@ -123,6 +146,10 @@ class OS {
 
   // Sleep for a number of microseconds.
   static void SleepMicro(const int microseconds);
+
+  // Factory method for creating platform dependent Mutex.
+  // Please use delete to reclaim the storage for the returned Mutex.
+  static Mutex* CreateMutex();
 
   // On supported platforms, setup a signal handler which would start
   // the profiler.

@@ -27,7 +27,6 @@ const Ci = Components.interfaces;
 let SharedAll = {};
 Cu.import("resource://gre/modules/osfile/osfile_shared_allthreads.jsm", SharedAll);
 Cu.import("resource://gre/modules/Deprecated.jsm", this);
-Cu.import("resource://gre/modules/Timer.jsm", this);
 
 // Boilerplate, to simplify the transition to require()
 let LOG = SharedAll.LOG.bind(SharedAll, "Controller");
@@ -118,26 +117,6 @@ let Scheduler = {
    */
   latestPromise: Promise.resolve("OS.File scheduler hasn't been launched yet"),
 
-  /**
-   * A timer used to automatically shut down the worker after some time.
-   */
-  resetTimer: null,
-
-  restartTimer: function(arg) {
-    let delay;
-    try {
-      delay = Services.prefs.getIntPref("osfile.reset_worker_delay");
-    } catch(e) {
-      // Don't auto-shutdown if we don't have a delay preference set.
-      return;
-    }
-
-    if (this.resetTimer) {
-      clearTimeout(this.resetTimer);
-    }
-    this.resetTimer = setTimeout(File.resetWorker, delay);
-  },
-
   post: function post(...args) {
     if (this.shutdown) {
       LOG("OS.File is not available anymore. The following request has been rejected.", args);
@@ -160,12 +139,6 @@ let Scheduler = {
     let promise = worker.post.apply(worker, args);
     return this.latestPromise = promise.then(
       function onSuccess(data) {
-        // Don't restart the timer when reseting the worker, since that will
-        // lead to an endless "resetWorker()" loop.
-        if (args[0] != "Meta_reset") {
-          Scheduler.restartTimer();
-        }
-
         // Check for duration and return result.
         if (!options) {
           return data.ok;
@@ -194,12 +167,6 @@ let Scheduler = {
         return data.ok;
       },
       function onError(error) {
-        // Don't restart the timer when reseting the worker, since that will
-        // lead to an endless "resetWorker()" loop.
-        if (args[0] != "Meta_reset") {
-          Scheduler.restartTimer();
-        }
-
         // Decode any serialized error
         if (error instanceof PromiseWorker.WorkerError) {
           throw OS.File.Error.fromMsg(error.data);

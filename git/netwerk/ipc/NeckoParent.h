@@ -117,19 +117,11 @@ protected:
                                                const nsString& aBinaryType);
   virtual bool DeallocPTCPServerSocketParent(PTCPServerSocketParent*);
   virtual PUDPSocketParent* AllocPUDPSocketParent(const nsCString& aHost,
-                                                  const uint16_t& aPort,
-                                                  const nsCString& aFilter);
+                                                  const uint16_t& aPort);
   virtual bool RecvPUDPSocketConstructor(PUDPSocketParent*,
                                          const nsCString& aHost,
-                                         const uint16_t& aPort,
-                                         const nsCString& aFilter);
+                                         const uint16_t& aPort);
   virtual bool DeallocPUDPSocketParent(PUDPSocketParent*);
-  virtual PDNSRequestParent* AllocPDNSRequestParent(const nsCString& aHost,
-                                                    const uint32_t& aFlags);
-  virtual bool RecvPDNSRequestConstructor(PDNSRequestParent* actor,
-                                          const nsCString& hostName,
-                                          const uint32_t& flags);
-  virtual bool DeallocPDNSRequestParent(PDNSRequestParent*);
   virtual bool RecvHTMLDNSPrefetch(const nsString& hostname,
                                    const uint16_t& flags);
   virtual bool RecvCancelHTMLDNSPrefetch(const nsString& hostname,

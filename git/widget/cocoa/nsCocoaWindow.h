@@ -78,7 +78,6 @@ typedef struct _nsCocoaWindowList {
   NSTrackingArea* mTrackingArea;
 
   BOOL mBeingShown;
-  BOOL mDrawTitle;
 }
 
 - (void)importState:(NSDictionary*)aState;
@@ -104,9 +103,6 @@ typedef struct _nsCocoaWindowList {
 - (ChildView*)mainChildView;
 
 - (NSArray*)titlebarControls;
-
-- (void)setWantsTitleDrawn:(BOOL)aDrawTitle;
-- (BOOL)wantsTitleDrawn;
 
 @end
 
@@ -298,7 +294,6 @@ public:
     virtual void SetShowsToolbarButton(bool aShow);
     virtual void SetShowsFullScreenButton(bool aShow);
     virtual void SetWindowAnimationType(WindowAnimationType aType);
-    virtual void SetDrawsTitle(bool aDrawTitle);
     NS_IMETHOD SetNonClientMargins(nsIntMargin &margins);
     NS_IMETHOD SetWindowTitlebarColor(nscolor aColor, bool aActive);
     virtual void SetDrawsInTitlebar(bool aState);

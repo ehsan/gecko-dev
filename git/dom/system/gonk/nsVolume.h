@@ -29,8 +29,7 @@ public:
   // used to update the volume cache maintained in the child process.
   nsVolume(const nsAString& aName, const nsAString& aMountPoint,
            const int32_t& aState, const int32_t& aMountGeneration,
-           const bool& aIsMediaPresent, const bool& aIsSharing,
-           const bool& aIsFormatting)
+           const bool& aIsMediaPresent, const bool& aIsSharing)
     : mName(aName),
       mMountPoint(aMountPoint),
       mState(aState),
@@ -38,8 +37,7 @@ public:
       mMountLocked(false),
       mIsFake(false),
       mIsMediaPresent(aIsMediaPresent),
-      mIsSharing(aIsSharing),
-      mIsFormatting(aIsFormatting)
+      mIsSharing(aIsSharing)
   {
   }
 
@@ -52,8 +50,7 @@ public:
       mMountLocked(true),  // Needs to agree with Volume::Volume
       mIsFake(false),
       mIsMediaPresent(false),
-      mIsSharing(false),
-      mIsFormatting(false)
+      mIsSharing(false)
   {
   }
 
@@ -77,7 +74,6 @@ public:
   bool IsFake() const                 { return mIsFake; }
   bool IsMediaPresent() const         { return mIsMediaPresent; }
   bool IsSharing() const              { return mIsSharing; }
-  bool IsFormatting() const           { return mIsFormatting; }
 
   typedef nsTArray<nsRefPtr<nsVolume> > Array;
 
@@ -90,7 +86,6 @@ private:
 
   void SetIsFake(bool aIsFake);
   void SetState(int32_t aState);
-  static void FormatVolumeIOThread(const nsCString& aVolume);
 
   nsString mName;
   nsString mMountPoint;
@@ -100,7 +95,6 @@ private:
   bool     mIsFake;
   bool     mIsMediaPresent;
   bool     mIsSharing;
-  bool     mIsFormatting;
 };
 
 } // system

@@ -13,7 +13,7 @@
 #include "jit/arm/Assembler-arm.h"
 
 #if !(defined(ANDROID) || defined(MOZ_B2G))
-#define HWCAP_ARMv7 (1 << 29)
+#define HWCAP_ARMv7 (1 << 31)
 #include <asm/hwcap.h>
 #else
 #define HWCAP_VFP      (1<<0)
@@ -71,8 +71,7 @@ uint32_t GetARMFlags()
         return false;
 
     char buf[1024];
-    memset(buf, 0, sizeof(buf));
-    fread(buf, sizeof(char), sizeof(buf)-1, fp);
+    fread(buf, sizeof(char), sizeof(buf), fp);
     fclose(fp);
     if (strstr(buf, "vfp"))
         flags |= HWCAP_VFP;

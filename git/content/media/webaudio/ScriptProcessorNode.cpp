@@ -67,13 +67,6 @@ private:
       return front;
     }
 
-    // Empties the buffer queue.
-    void Clear()
-    {
-      mMutex.AssertCurrentThreadOwns();
-      mBufferList.clear();
-    }
-
   private:
     typedef std::deque<AudioChunk> BufferList;
 
@@ -111,24 +104,15 @@ public:
       // interval will be very short. |latency - bufferDuration| will be
       // negative, effectively moving back mLatency to a smaller and smaller
       // value, until it crosses zero, at which point we stop dropping buffers
-      // and resume normal operation. This does not work if at the same time,
-      // the MSG thread was also slowed down, so if the latency on the MSG
-      // thread is normal, and we are still dropping buffers, and mLatency is
-      // still more than twice the duration of a buffer, we reset it and stop
-      // dropping buffers.
+      // and resume normal operation.
       float latency = (now - mLastEventTime).ToSeconds();
       float bufferDuration = aBufferSize / mSampleRate;
       mLatency += latency - bufferDuration;
       mLastEventTime = now;
-      if (mLatency > MAX_LATENCY_S ||
-          (mDroppingBuffers && mLatency > 0.0 &&
-           fabs(latency - bufferDuration) < bufferDuration)) {
+      if (mLatency > MAX_LATENCY_S || (mDroppingBuffers && mLatency > 0.0)) {
         mDroppingBuffers = true;
         return;
       } else {
-        if (mDroppingBuffers) {
-          mLatency = 0;
-        }
         mDroppingBuffers = false;
       }
     }
@@ -181,18 +165,6 @@ public:
   {
     MOZ_ASSERT(!NS_IsMainThread());
     return mDelaySoFar == TRACK_TICKS_MAX ? 0 : mDelaySoFar;
-  }
-
-  void Reset()
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-    mDelaySoFar = TRACK_TICKS_MAX;
-    mLatency = 0.0f;
-    {
-      MutexAutoLock lock(mOutputQueue.Lock());
-      mOutputQueue.Clear();
-    }
-    mLastEventTime = TimeStamp();
   }
 
 private:
@@ -249,18 +221,6 @@ public:
     // If our node is dead, just output silence.
     if (!Node()) {
       aOutput->SetNull(WEBAUDIO_BLOCK_SIZE);
-      return;
-    }
-
-    // This node is not connected to anything. Per spec, we don't fire the
-    // onaudioprocess event. We also want to clear out the input and output
-    // buffer queue, and output a null buffer.
-    if (!(aStream->ConsumerCount() ||
-          aStream->AsProcessedStream()->InputPortCount())) {
-      aOutput->SetNull(WEBAUDIO_BLOCK_SIZE);
-      mSharedBuffers->Reset();
-      mSeenNonSilenceInput = false;
-      mInputWriteIndex = 0;
       return;
     }
 

@@ -195,7 +195,7 @@ ThreadPool::~ThreadPool()
 size_t
 ThreadPool::numWorkers() const
 {
-    return runtime_->workerThreadCount();
+    return runtime_->helperThreadCount();
 }
 
 bool

@@ -76,6 +76,12 @@ public:
   void ResetAnimation();
 
   /**
+   * Number of times to loop the image.
+   * @note -1 means forever.
+   */
+  void SetLoopCount(int32_t aLoopCount);
+
+  /**
    * The animation mode of the image.
    *
    * Constants defined in imgIContainer.idl.
@@ -119,10 +125,9 @@ private: // methods
    * Gets the length of a single loop of this image, in milliseconds.
    *
    * If this image is not finished decoding, is not animated, or it is animated
-   * but does not loop, returns -1. Can return 0 in the case of an animated image
-   * that has a 0ms delay between its frames and does not loop.
+   * but does not loop, returns 0.
    */
-  int32_t GetSingleLoopTime() const;
+  uint32_t GetSingleLoopTime() const;
 
   /**
    * Advances the animation. Typically, this will advance a single frame, but it
@@ -156,7 +161,7 @@ private: // data
   uint32_t mCurrentAnimationFrameIndex;
 
   //! number of loops remaining before animation stops (-1 no stop)
-  int32_t mLoopCounter;
+  int32_t mLoopCount;
 
   //! All the frames of the image, shared with our owner
   FrameBlender& mFrameBlender;

@@ -183,13 +183,6 @@ Toolbox.prototype = {
   },
 
   /**
-   * Get the toggled state of the split console
-   */
-  get splitConsole() {
-    return this._splitConsole;
-  },
-
-  /**
    * Open the toolbox
    */
   open: function() {
@@ -237,20 +230,8 @@ Toolbox.prototype = {
     }, true);
   },
 
-  _isResponsiveModeActive: function() {
-    let responsiveModeActive = false;
-    if (this.target.isLocalTab) {
-      let tab = this.target.tab;
-      let browserWindow = tab.ownerDocument.defaultView;
-      let responsiveUIManager = browserWindow.ResponsiveUI.ResponsiveUIManager;
-      responsiveModeActive = responsiveUIManager.isActiveForTab(tab);
-    }
-    return responsiveModeActive;
-  },
-
   _splitConsoleOnKeypress: function(e) {
-    let responsiveModeActive = this._isResponsiveModeActive();
-    if (e.keyCode === e.DOM_VK_ESCAPE && !responsiveModeActive) {
+    if (e.keyCode === e.DOM_VK_ESCAPE) {
       this.toggleSplitConsole();
     }
   },
@@ -992,7 +973,16 @@ Toolbox.prototype = {
     gDevTools.off("tool-registered", this._toolRegistered);
     gDevTools.off("tool-unregistered", this._toolUnregistered);
 
+    // Revert docShell.allowJavascript back to its original value if it was
+    // changed via the Disable JS option.
+    if (typeof this._origAllowJavascript != "undefined") {
+      let docShell = this._host.hostTab.linkedBrowser.docShell;
+      docShell.allowJavascript = this._origAllowJavascript;
+      this._origAllowJavascript = undefined;
+    }
+
     let outstanding = [];
+
     for (let [id, panel] of this._toolPanels) {
       try {
         outstanding.push(panel.destroy());

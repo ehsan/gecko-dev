@@ -567,24 +567,6 @@ public:
     }
   }
 
-  virtual void HandleLongTapUp(const CSSIntPoint& aPoint,
-                             int32_t aModifiers) MOZ_OVERRIDE
-  {
-    if (MessageLoop::current() != mUILoop) {
-      // We have to send this message from the "UI thread" (main
-      // thread).
-      mUILoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this, &RemoteContentController::HandleLongTapUp,
-                          aPoint, aModifiers));
-      return;
-    }
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->HandleLongTapUp(aPoint, aModifiers);
-    }
-  }
-
   void ClearRenderFrame() { mRenderFrame = nullptr; }
 
   virtual void SendAsyncScrollDOMEvent(bool aIsRoot,
@@ -633,36 +615,6 @@ public:
     return mHaveZoomConstraints;
   }
 
-  virtual void NotifyTransformBegin(const ScrollableLayerGuid& aGuid)
-  {
-    if (MessageLoop::current() != mUILoop) {
-      mUILoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this, &RemoteContentController::NotifyTransformBegin,
-                          aGuid));
-      return;
-    }
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->NotifyTransformBegin(aGuid.mScrollId);
-    }
-  }
-
-  virtual void NotifyTransformEnd(const ScrollableLayerGuid& aGuid)
-  {
-    if (MessageLoop::current() != mUILoop) {
-      mUILoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this, &RemoteContentController::NotifyTransformEnd,
-                          aGuid));
-      return;
-    }
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->NotifyTransformEnd(aGuid.mScrollId);
-    }
-  }
-
 private:
   void DoRequestContentRepaint(const FrameMetrics& aFrameMetrics)
   {
@@ -695,8 +647,7 @@ RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
   nsRefPtr<LayerManager> lm = GetFrom(mFrameLoader);
   // Perhaps the document containing this frame currently has no presentation?
   if (lm && lm->GetBackendType() == LAYERS_CLIENT) {
-    *aTextureFactoryIdentifier =
-      static_cast<ClientLayerManager*>(lm.get())->GetTextureFactoryIdentifier();
+    *aTextureFactoryIdentifier = lm->GetTextureFactoryIdentifier();
   } else {
     *aTextureFactoryIdentifier = TextureFactoryIdentifier();
   }
@@ -780,8 +731,7 @@ RenderFrameParent::ContentViewScaleChanged(nsContentView* aView)
 void
 RenderFrameParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
                                        const TargetConfig& aTargetConfig,
-                                       bool aIsFirstPaint,
-                                       bool aScheduleComposite)
+                                       bool isFirstPaint)
 {
   // View map must only contain views that are associated with the current
   // shadow layer tree. We must always update the map when shadow layers
@@ -911,6 +861,15 @@ RenderFrameParent::NotifyInputEvent(const WidgetInputEvent& aEvent,
 }
 
 void
+RenderFrameParent::NotifyDimensionsChanged(ScreenIntSize size)
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->UpdateRootCompositionBounds(
+      mLayersId, ScreenIntRect(ScreenIntPoint(), size));
+  }
+}
+
+void
 RenderFrameParent::ActorDestroy(ActorDestroyReason why)
 {
   if (mLayersId != 0) {
@@ -956,15 +915,13 @@ RenderFrameParent::AllocPLayerTransactionParent()
     return nullptr;
   }
   nsRefPtr<LayerManager> lm = GetFrom(mFrameLoader);
-  LayerTransactionParent* result = new LayerTransactionParent(lm->AsLayerManagerComposite(), this, 0);
-  result->AddIPDLReference();
-  return result;
+  return new LayerTransactionParent(lm->AsLayerManagerComposite(), this, 0);
 }
 
 bool
 RenderFrameParent::DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers)
 {
-  static_cast<LayerTransactionParent*>(aLayers)->ReleaseIPDLReference();
+  delete aLayers;
   return true;
 }
 
@@ -1103,6 +1060,15 @@ RenderFrameParent::UpdateZoomConstraints(uint32_t aPresShellId,
   if (GetApzcTreeManager()) {
     GetApzcTreeManager()->UpdateZoomConstraints(ScrollableLayerGuid(mLayersId, aPresShellId, aViewId),
                                                 aAllowZoom, aMinZoom, aMaxZoom);
+  }
+}
+
+void
+RenderFrameParent::UpdateScrollOffset(uint32_t aPresShellId, ViewID aViewId, const CSSIntPoint& aScrollOffset)
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->UpdateScrollOffset(ScrollableLayerGuid(mLayersId, aPresShellId, aViewId),
+                                             aScrollOffset);
   }
 }
 

@@ -22,9 +22,6 @@ class StupidAllocator : public RegisterAllocator
     struct AllocatedRegister {
         AnyRegister reg;
 
-        // The type of the value in the register.
-        LDefinition::Type type;
-
         // Virtual register this physical reg backs, or MISSING_ALLOCATION.
         uint32_t vreg;
 
@@ -42,7 +39,7 @@ class StupidAllocator : public RegisterAllocator
     };
 
     // Active allocation for the current code position.
-    mozilla::Array<AllocatedRegister, MAX_REGISTERS> registers;
+    AllocatedRegister registers[MAX_REGISTERS];
     uint32_t registerCount;
 
     // Type indicating an index into registers.
@@ -75,7 +72,7 @@ class StupidAllocator : public RegisterAllocator
 
     void syncRegister(LInstruction *ins, RegisterIndex index);
     void evictRegister(LInstruction *ins, RegisterIndex index);
-    void loadRegister(LInstruction *ins, uint32_t vreg, RegisterIndex index, LDefinition::Type type);
+    void loadRegister(LInstruction *ins, uint32_t vreg, RegisterIndex index);
 
     RegisterIndex findExistingRegister(uint32_t vreg);
 

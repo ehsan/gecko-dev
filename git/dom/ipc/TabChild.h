@@ -51,8 +51,7 @@ class ClonedMessageData;
 
 class TabChildGlobal : public nsDOMEventTargetHelper,
                        public nsIContentFrameMessageManager,
-                       public nsIScriptObjectPrincipal,
-                       public nsIGlobalObject
+                       public nsIScriptObjectPrincipal
 {
 public:
   TabChildGlobal(TabChild* aTabChild);
@@ -128,7 +127,6 @@ public:
 
   virtual JSContext* GetJSContextForEventHandlers() MOZ_OVERRIDE;
   virtual nsIPrincipal* GetPrincipal() MOZ_OVERRIDE;
-  virtual JSObject* GetGlobalJSObject() MOZ_OVERRIDE;
 
   nsCOMPtr<nsIContentFrameMessageManager> mMessageManager;
   TabChild* mTabChild;
@@ -219,9 +217,6 @@ public:
     virtual bool RecvHandleDoubleTap(const CSSIntPoint& aPoint);
     virtual bool RecvHandleSingleTap(const CSSIntPoint& aPoint);
     virtual bool RecvHandleLongTap(const CSSIntPoint& aPoint);
-    virtual bool RecvHandleLongTapUp(const CSSIntPoint& aPoint);
-    virtual bool RecvNotifyTransformBegin(const ViewID& aViewId);
-    virtual bool RecvNotifyTransformEnd(const ViewID& aViewId);
     virtual bool RecvActivate();
     virtual bool RecvDeactivate();
     virtual bool RecvMouseEvent(const nsString& aType,
@@ -247,7 +242,7 @@ public:
     virtual bool RecvTextEvent(const mozilla::WidgetTextEvent& event);
     virtual bool RecvSelectionEvent(const mozilla::WidgetSelectionEvent& event);
     virtual bool RecvActivateFrameEvent(const nsString& aType, const bool& capture);
-    virtual bool RecvLoadRemoteScript(const nsString& aURL, const bool& aRunInGlobalScope);
+    virtual bool RecvLoadRemoteScript(const nsString& aURL);
     virtual bool RecvAsyncMessage(const nsString& aMessage,
                                   const ClonedMessageData& aData,
                                   const InfallibleTArray<CpowEntry>& aCpows,
@@ -468,7 +463,7 @@ private:
     nsCOMPtr<nsIWebNavigation> mWebNav;
     nsCOMPtr<nsIWidget> mWidget;
     nsCOMPtr<nsIURI> mLastURI;
-    FrameMetrics mLastRootMetrics;
+    FrameMetrics mLastMetrics;
     RenderFrameChild* mRemoteFrame;
     nsRefPtr<ContentChild> mManager;
     nsRefPtr<TabChildGlobal> mTabChildGlobal;
@@ -498,7 +493,6 @@ private:
     bool mTriedBrowserInit;
     ScreenOrientation mOrientation;
     bool mUpdateHitRegion;
-    bool mContextMenuHandled;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

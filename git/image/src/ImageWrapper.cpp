@@ -196,11 +196,12 @@ ImageWrapper::GetAnimated(bool* aAnimated)
   return mInnerImage->GetAnimated(aAnimated);
 }
 
-NS_IMETHODIMP_(already_AddRefed<gfxASurface>)
+NS_IMETHODIMP
 ImageWrapper::GetFrame(uint32_t aWhichFrame,
-                       uint32_t aFlags)
+                       uint32_t aFlags,
+                       gfxASurface** _retval)
 {
-  return mInnerImage->GetFrame(aWhichFrame, aFlags);
+  return mInnerImage->GetFrame(aWhichFrame, aFlags, _retval);
 }
 
 NS_IMETHODIMP_(bool)

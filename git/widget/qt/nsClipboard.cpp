@@ -11,7 +11,7 @@
 #include <QImageWriter>
 #include <QBuffer>
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsClipboard.h"
 #include "nsISupportsPrimitives.h"
@@ -176,9 +176,10 @@ nsClipboard::SetNativeClipboardData( nsITransferable *aTransferable,
                 if (!image)  // Not getting an image for an image mime type!?
                    continue;
 
-                nsRefPtr<gfxASurface> surface =
-                  image->GetFrame(imgIContainer::FRAME_CURRENT,
-                                  imgIContainer::FLAG_SYNC_DECODE);
+                nsRefPtr<gfxASurface> surface;
+                image->GetFrame(imgIContainer::FRAME_CURRENT,
+                                imgIContainer::FLAG_SYNC_DECODE,
+                                getter_AddRefs(surface));
                 if (!surface)
                   continue;
 

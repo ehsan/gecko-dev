@@ -796,6 +796,7 @@ function openDebugger(aOptions = {})
     let panelWin = panel.panelWin;
 
     panel._view.Variables.lazyEmpty = false;
+    panel._view.Variables.lazyAppend = false;
 
     let resolveObject = {
       target: target,
@@ -1071,10 +1072,20 @@ function waitForMessages(aOptions)
       return false;
     }
 
-    // The rule tries to match the newer types of messages, based on their
-    // object constructor.
-    if (aRule.type && (!aElement._messageObject ||
-                       !(aElement._messageObject instanceof aRule.type))) {
+    if (aRule.type) {
+      // The rule tries to match the newer types of messages, based on their
+      // object constructor.
+      if (!aElement._messageObject ||
+          !(aElement._messageObject instanceof aRule.type)) {
+        return false;
+      }
+    }
+    else if (aElement._messageObject) {
+      // If the message element holds a reference to its object, it means this
+      // is a newer message type. All of the older waitForMessages() rules do
+      // not expect this kind of messages. We return false here.
+      // TODO: we keep this behavior until bug 778766 is fixed. After that we
+      // will not require |type| to match newer types of messages.
       return false;
     }
 

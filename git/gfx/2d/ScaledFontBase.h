@@ -14,7 +14,6 @@
 #endif
 
 #ifdef USE_SKIA
-#include "skia/SkPath.h"
 #include "skia/SkTypeface.h"
 #endif
 #ifdef USE_CAIRO_SCALED_FONT
@@ -34,7 +33,7 @@ public:
 
   virtual TemporaryRef<Path> GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget *aTarget);
 
-  virtual void CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder, BackendType aBackendType, const Matrix *aTransformHint);
+  virtual void CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder, const Matrix *aTransformHint);
 
   float GetSize() { return mSize; }
 
@@ -54,7 +53,6 @@ protected:
   friend class DrawTargetSkia;
 #ifdef USE_SKIA
   SkTypeface* mTypeface;
-  SkPath GetSkiaPathForGlyphs(const GlyphBuffer &aBuffer);
 #endif
 #ifdef USE_CAIRO_SCALED_FONT
   cairo_scaled_font_t* mScaledFont;

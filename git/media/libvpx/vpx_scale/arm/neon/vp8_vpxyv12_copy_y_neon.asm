@@ -9,19 +9,18 @@
 ;
 
 
-    EXPORT  |vpx_yv12_copy_y_neon|
+    EXPORT  |vp8_yv12_copy_y_neon|
 
     ARM
     REQUIRE8
     PRESERVE8
 
-    INCLUDE vpx_scale_asm_offsets.asm
+    INCLUDE asm_com_offsets.asm
 
     AREA ||.text||, CODE, READONLY, ALIGN=2
 
-;void vpx_yv12_copy_y_neon(const YV12_BUFFER_CONFIG *src_ybc,
-;                          YV12_BUFFER_CONFIG *dst_ybc)
-|vpx_yv12_copy_y_neon| PROC
+;void vpxyv12_copy_y_neon(YV12_BUFFER_CONFIG *src_ybc, YV12_BUFFER_CONFIG *dst_ybc)
+|vp8_yv12_copy_y_neon| PROC
     push            {r4 - r11, lr}
     vpush           {d8-d15}
 

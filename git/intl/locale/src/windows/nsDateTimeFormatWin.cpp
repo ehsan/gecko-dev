@@ -237,7 +237,8 @@ int nsDateTimeFormatWin::nsGetTimeFormatW(DWORD dwFlags, const SYSTEMTIME *lpTim
   int len = 0;
   len = GetTimeFormatW(mLCID, dwFlags, lpTime, 
                        format ?
-                       NS_ConvertASCIItoUTF16(format).get() :
+                       const_cast<LPCWSTR>
+                                 (NS_ConvertASCIItoUTF16(format).get()) :
                        nullptr,
                        (LPWSTR) timeStr, cchTime);
   return len;
@@ -248,7 +249,10 @@ int nsDateTimeFormatWin::nsGetDateFormatW(DWORD dwFlags, const SYSTEMTIME *lpDat
 {
   int len = 0;
   len = GetDateFormatW(mLCID, dwFlags, lpDate, 
-                       format ? NS_ConvertASCIItoUTF16(format).get() : nullptr,
+                       format ?
+                       const_cast<LPCWSTR>
+                                 (NS_ConvertASCIItoUTF16(format).get()) :
+                       nullptr,
                        (LPWSTR) dateStr, cchDate);
   return len;
 }

@@ -129,7 +129,7 @@ FormAssistant.prototype = {
     }
 
     // Don't re-open when navigating to avoid repopulating list when changing selection.
-    if (this._isAutocomplete(aElement) && this._open && Util.isNavigationKey(aEvent.keyCode)) {
+    if (this._isAutocomplete(aElement) && this._open && this._isNavigationKey(aEvent)) {
       return false;
     }
 
@@ -291,6 +291,22 @@ FormAssistant.prototype = {
         }
         break;
     }
+  },
+
+  _isNavigationKey: function (aEvent) {
+    // Ignore navigation keys
+    if (aEvent.keyCode) {
+      let navigationKeys = [
+        aEvent.DOM_VK_DOWN,
+        aEvent.DOM_VK_UP,
+        aEvent.DOM_VK_LEFT,
+        aEvent.DOM_VK_RIGHT,
+        aEvent.DOM_VK_PAGE_UP,
+        aEvent.DOM_VK_PAGE_DOWN];
+
+      return navigationKeys.indexOf(aEvent.keyCode) != -1;
+    }
+    return false;
   },
 
   _executeDelayed: function formHelperExecuteSoon(aCallback) {
@@ -560,7 +576,6 @@ FormAssistant.prototype = {
     return result;
   }
 };
-this.FormAssistant = FormAssistant;
 
 
 /******************************************************************************
@@ -689,7 +704,6 @@ SelectWrapper.prototype = {
     }, 0);
   }
 };
-this.SelectWrapper = SelectWrapper;
 
 
 // bug 559792
@@ -747,4 +761,3 @@ MenulistWrapper.prototype = {
     }, 0);
   }
 };
-this.MenulistWrapper = MenulistWrapper;

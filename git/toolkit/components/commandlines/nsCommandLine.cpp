@@ -551,7 +551,7 @@ nsCommandLine::EnumerateHandlers(EnumerateHandlersCallback aCallback, void *aClo
 
     nsCOMPtr<nsICommandLineHandler> clh(do_GetService(contractID.get()));
     if (!clh) {
-      LogConsoleMessage(MOZ_UTF16("Contract ID '%s' was registered as a command line handler for entry '%s', but could not be created."),
+      LogConsoleMessage(NS_LITERAL_STRING("Contract ID '%s' was registered as a command line handler for entry '%s', but could not be created.").get(),
                         contractID.get(), entry.get());
       continue;
     }

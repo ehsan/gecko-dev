@@ -14,7 +14,6 @@
 
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jshashutil.h"
 #include "jsobj.h"
 
 #include "js/HashTable.h"
@@ -195,7 +194,7 @@ ShapeTable::search(jsid id, bool adding)
 
     /* Hit: return entry. */
     shape = SHAPE_CLEAR_COLLISION(stored);
-    if (shape && shape->propidRaw() == id)
+    if (shape && shape->propid() == id)
         return spp;
 
     /* Collision: double hash. */
@@ -229,7 +228,7 @@ ShapeTable::search(jsid id, bool adding)
             return (adding && firstRemoved) ? firstRemoved : spp;
 
         shape = SHAPE_CLEAR_COLLISION(stored);
-        if (shape && shape->propidRaw() == id) {
+        if (shape && shape->propid() == id) {
             JS_ASSERT(collision_flag);
             return spp;
         }
@@ -397,7 +396,7 @@ JSObject::getChildProperty(ExclusiveContext *cx,
     StackShape::AutoRooter childRoot(cx, &child);
     RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, child));
 
-    if (!obj->inDictionaryMode()) {
+    if (!shape) {
         shape = cx->compartment()->propertyTree.getChild(cx, parent, obj->numFixedSlots(), child);
         if (!shape)
             return nullptr;
@@ -419,7 +418,7 @@ JSObject::lookupChildProperty(ThreadSafeContext *cx,
 
     RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, child));
 
-    if (!obj->inDictionaryMode()) {
+    if (!shape) {
         shape = cx->compartment_->propertyTree.lookupChild(cx, parent, child);
         if (!shape)
             return nullptr;
@@ -1469,7 +1468,8 @@ BaseShape::getUnowned(ExclusiveContext *cx, const StackBaseShape &base)
     if (!table.initialized() && !table.init())
         return nullptr;
 
-    DependentAddPtr<BaseShapeSet> p(cx, table, &base);
+    BaseShapeSet::AddPtr p = table.lookupForAdd(&base);
+
     if (p)
         return *p;
 
@@ -1483,7 +1483,7 @@ BaseShape::getUnowned(ExclusiveContext *cx, const StackBaseShape &base)
 
     UnownedBaseShape *nbase = static_cast<UnownedBaseShape *>(nbase_);
 
-    if (!p.add(cx, table, &base, nbase))
+    if (!table.relookupOrAdd(p, &base, nbase))
         return nullptr;
 
     return nbase;
@@ -1588,9 +1588,6 @@ EmptyShape::getInitialShape(ExclusiveContext *cx, const Class *clasp, TaggedProt
 {
     JS_ASSERT_IF(proto.isObject(), cx->isInsideCurrentCompartment(proto.toObject()));
     JS_ASSERT_IF(parent, cx->isInsideCurrentCompartment(parent));
-#ifdef JSGC_GENERATIONAL
-    JS_ASSERT_IF(metadata && cx->hasNursery(), !cx->nursery().isInside(metadata));
-#endif
 
     InitialShapeSet &table = cx->compartment()->initialShapes;
 
@@ -1598,8 +1595,9 @@ EmptyShape::getInitialShape(ExclusiveContext *cx, const Class *clasp, TaggedProt
         return nullptr;
 
     typedef InitialShapeEntry::Lookup Lookup;
-    DependentAddPtr<InitialShapeSet>
-        p(cx, table, Lookup(clasp, proto, parent, metadata, nfixed, objectFlags));
+    InitialShapeSet::AddPtr p =
+        table.lookupForAdd(Lookup(clasp, proto, parent, metadata, nfixed, objectFlags));
+
     if (p)
         return p->shape;
 
@@ -1618,9 +1616,11 @@ EmptyShape::getInitialShape(ExclusiveContext *cx, const Class *clasp, TaggedProt
         return nullptr;
     new (shape) EmptyShape(nbase, nfixed);
 
-    Lookup lookup(clasp, protoRoot, parentRoot, metadataRoot, nfixed, objectFlags);
-    if (!p.add(cx, table, lookup, InitialShapeEntry(shape, protoRoot)))
+    if (!table.relookupOrAdd(p, Lookup(clasp, protoRoot, parentRoot, metadataRoot, nfixed, objectFlags),
+                             InitialShapeEntry(shape, protoRoot)))
+    {
         return nullptr;
+    }
 
     return shape;
 }

@@ -19,7 +19,7 @@ typedef struct
     short col;
 } MV;
 
-typedef union int_mv
+typedef union
 {
     uint32_t  as_int;
     MV        as_mv;

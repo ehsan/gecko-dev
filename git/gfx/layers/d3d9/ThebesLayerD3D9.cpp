@@ -7,7 +7,7 @@
 
 // This must occur *after* layers/PLayerTransaction.h to avoid
 // typedefs conflicts.
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "ipc/AutoOpenSurface.h"
 

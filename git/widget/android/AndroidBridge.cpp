@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Util.h"
 #include "mozilla/layers/CompositorChild.h"
 #include "mozilla/layers/CompositorParent.h"
 
@@ -62,8 +63,8 @@ jclass AndroidBridge::GetClassGlobalRef(JNIEnv* env, const char* className)
 {
     jobject classLocalRef = env->FindClass(className);
     if (!classLocalRef) {
-        ALOG(">>> FATAL JNI ERROR! FindClass(className=\"%s\") failed. Did ProGuard optimize away something it shouldn't have?",
-             className);
+        ALOG(">>> FATAL JNI ERROR! FindClass(className=\"%s\") failed. Did "
+             "ProGuard optimize away a non-public class?", className);
         env->ExceptionDescribe();
         MOZ_CRASH();
     }
@@ -84,8 +85,8 @@ jmethodID AndroidBridge::GetMethodID(JNIEnv* env, jclass jClass,
    jmethodID methodID = env->GetMethodID(jClass, methodName, methodType);
    if (!methodID) {
        ALOG(">>> FATAL JNI ERROR! GetMethodID(methodName=\"%s\", "
-            "methodType=\"%s\") failed. Did ProGuard optimize away something it shouldn't have?",
-            methodName, methodType);
+            "methodType=\"%s\") failed. Did ProGuard optimize away a non-"
+            "public method?", methodName, methodType);
        env->ExceptionDescribe();
        MOZ_CRASH();
    }
@@ -98,8 +99,8 @@ jmethodID AndroidBridge::GetStaticMethodID(JNIEnv* env, jclass jClass,
   jmethodID methodID = env->GetStaticMethodID(jClass, methodName, methodType);
   if (!methodID) {
       ALOG(">>> FATAL JNI ERROR! GetStaticMethodID(methodName=\"%s\", "
-           "methodType=\"%s\") failed. Did ProGuard optimize away something it shouldn't have?",
-           methodName, methodType);
+           "methodType=\"%s\") failed. Did ProGuard optimize away a non-"
+           "public method?", methodName, methodType);
       env->ExceptionDescribe();
       MOZ_CRASH();
   }
@@ -112,8 +113,8 @@ jfieldID AndroidBridge::GetFieldID(JNIEnv* env, jclass jClass,
     jfieldID fieldID = env->GetFieldID(jClass, fieldName, fieldType);
     if (!fieldID) {
         ALOG(">>> FATAL JNI ERROR! GetFieldID(fieldName=\"%s\", "
-             "fieldType=\"%s\") failed. Did ProGuard optimize away something it shouldn't have?",
-             fieldName, fieldType);
+             "fieldType=\"%s\") failed. Did ProGuard optimize away a non-"
+             "public field?", fieldName, fieldType);
         env->ExceptionDescribe();
         MOZ_CRASH();
     }
@@ -126,8 +127,8 @@ jfieldID AndroidBridge::GetStaticFieldID(JNIEnv* env, jclass jClass,
     jfieldID fieldID = env->GetStaticFieldID(jClass, fieldName, fieldType);
     if (!fieldID) {
         ALOG(">>> FATAL JNI ERROR! GetStaticFieldID(fieldName=\"%s\", "
-             "fieldType=\"%s\") failed. Did ProGuard optimize away something it shouldn't have?",
-             fieldName, fieldType);
+             "fieldType=\"%s\") failed. Did ProGuard optimize away a non-"
+             "public field?", fieldName, fieldType);
         env->ExceptionDescribe();
         MOZ_CRASH();
     }
@@ -1926,7 +1927,7 @@ AndroidBridge::IsContentDocumentDisplayed()
 }
 
 bool
-AndroidBridge::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const LayerRect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical, ScreenRect& aCompositionBounds, CSSToScreenScale& aZoom)
+AndroidBridge::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const LayerRect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical, gfx::Rect& aViewport, float& aScaleX, float& aScaleY)
 {
     GeckoLayerClient *client = mLayerClient;
     if (!client) {
@@ -1946,11 +1947,11 @@ AndroidBridge::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const
 
     ProgressiveUpdateData* progressiveUpdateData = ProgressiveUpdateData::Wrap(progressiveUpdateDataJObj);
 
-    aCompositionBounds.x = progressiveUpdateData->getx();
-    aCompositionBounds.y = progressiveUpdateData->gety();
-    aCompositionBounds.width = progressiveUpdateData->getwidth();
-    aCompositionBounds.height = progressiveUpdateData->getheight();
-    aZoom.scale = progressiveUpdateData->getscale();
+    aViewport.x = progressiveUpdateData->getx();
+    aViewport.y = progressiveUpdateData->gety();
+    aViewport.width = progressiveUpdateData->getwidth();
+    aViewport.height = progressiveUpdateData->getheight();
+    aScaleX = aScaleY = progressiveUpdateData->getscale();
 
     bool ret = progressiveUpdateData->getabort();
     delete progressiveUpdateData;
@@ -2000,11 +2001,6 @@ AndroidBridge::HandleLongTap(const CSSIntPoint& aPoint, int32_t aModifiers)
     nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", aPoint.x, aPoint.y);
     nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
             NS_LITERAL_CSTRING("Gesture:LongPress"), data));
-}
-
-void
-AndroidBridge::HandleLongTapUp(const CSSIntPoint& aPoint, int32_t aModifiers)
-{
 }
 
 void

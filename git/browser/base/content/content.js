@@ -38,6 +38,9 @@ if (Services.prefs.getBoolPref("browser.tabs.remote")) {
     sendAsyncMessage("contextmenu", {}, { event: event });
   }, false);
 } else {
+  addEventListener("DOMContentLoaded", function(event) {
+    LoginManagerContent.onContentLoaded(event);
+  });
   addEventListener("DOMFormHasPassword", function(event) {
     InsecurePasswordUtils.checkForInsecurePasswords(event.target);
     LoginManagerContent.onFormPassword(event);

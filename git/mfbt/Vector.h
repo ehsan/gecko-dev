@@ -11,7 +11,6 @@
 
 #include "mozilla/Alignment.h"
 #include "mozilla/AllocPolicy.h"
-#include "mozilla/ArrayUtils.h" // for PointerRangeSize
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/MathAlgorithms.h"
@@ -21,6 +20,7 @@
 #include "mozilla/ReentrancyGuard.h"
 #include "mozilla/TemplateLib.h"
 #include "mozilla/TypeTraits.h"
+#include "mozilla/Util.h" // for PointerRangeSize
 
 #include <new> // for placement new
 
@@ -969,7 +969,7 @@ VectorBase<T, N, AP, TV>::erase(T* it)
     *it = *(it + 1);
     ++it;
   }
-    popBack();
+  popBack();
 }
 
 template<typename T, size_t N, class AP, class TV>

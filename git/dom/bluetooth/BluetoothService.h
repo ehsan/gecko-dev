@@ -172,6 +172,20 @@ public:
               const BluetoothNamedValue& aValue,
               BluetoothReplyRunnable* aRunnable) = 0;
 
+  /**
+   * Get the path of a device
+   *
+   * @param aAdapterPath Path to the Adapter that's communicating with the device
+   * @param aDeviceAddress Device address (XX:XX:XX:XX:XX:XX format)
+   * @param aDevicePath Return value of path
+   *
+   * @return True if path set correctly, false otherwise
+   */
+  virtual bool
+  GetDevicePath(const nsAString& aAdapterPath,
+                const nsAString& aDeviceAddress,
+                nsAString& aDevicePath) = 0;
+
   virtual nsresult
   CreatePairedDeviceInternal(const nsAString& aAddress,
                              int aTimeout,
@@ -180,6 +194,12 @@ public:
   virtual nsresult
   RemoveDeviceInternal(const nsAString& aObjectPath,
                        BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual nsresult
+  GetScoSocket(const nsAString& aObjectPath,
+               bool aAuth,
+               bool aEncrypt,
+               mozilla::ipc::UnixSocketConsumer* aConsumer) = 0;
 
   /**
    * Get corresponding service channel of specific service on remote device.
@@ -297,16 +317,9 @@ public:
   void
   RemoveObserverFromTable(const nsAString& key);
 
-  /**
-   * Below 2 function/variable are used for ensuring event 'AdapterAdded' will
-   * be fired after event 'Enabled'.
-   */
-  void TryFiringAdapterAdded();
-  void AdapterAddedReceived();
-
 protected:
-  BluetoothService() : mEnabled(false)
-                     , mAdapterAddedReceived(false)
+  BluetoothService()
+  : mEnabled(false)
   {
   }
 
@@ -395,8 +408,6 @@ private:
    * Bluetooth operations though.
    */
   nsCOMPtr<nsIThread> mBluetoothThread;
-
-  bool mAdapterAddedReceived;
 };
 
 END_BLUETOOTH_NAMESPACE

@@ -10,7 +10,7 @@
 #include "WebGLContextUtils.h"
 #include "WebGLBuffer.h"
 #include "WebGLVertexAttribData.h"
-#include "WebGLMemoryTracker.h"
+#include "WebGLMemoryReporterWrapper.h"
 #include "WebGLFramebuffer.h"
 #include "WebGLVertexArray.h"
 #include "WebGLQuery.h"
@@ -38,7 +38,6 @@
 
 #include "GLContextProvider.h"
 #include "GLContext.h"
-#include "ScopedGLHelpers.h"
 
 #include "gfxCrashReporterUtils.h"
 
@@ -83,7 +82,7 @@ WebGLMemoryPressureObserver::Observe(nsISupports* aSubject,
         ProcessPriorityManager::CurrentProcessIsForeground())
         wantToLoseContext = false;
     else if (!nsCRT::strcmp(aSomeData,
-                            MOZ_UTF16("heap-minimize")))
+                            NS_LITERAL_STRING("heap-minimize").get()))
         wantToLoseContext = mContext->mLoseContextOnHeapMinimize;
 
     if (wantToLoseContext)
@@ -179,7 +178,7 @@ WebGLContext::WebGLContext()
     mPixelStorePackAlignment = 4;
     mPixelStoreUnpackAlignment = 4;
 
-    WebGLMemoryTracker::AddWebGLContext(this);
+    WebGLMemoryReporterWrapper::AddWebGLContext(this);
 
     mAllowRestore = true;
     mContextLossTimerRunning = false;
@@ -213,7 +212,7 @@ WebGLContext::WebGLContext()
 WebGLContext::~WebGLContext()
 {
     DestroyResourcesAndContext();
-    WebGLMemoryTracker::RemoveWebGLContext(this);
+    WebGLMemoryReporterWrapper::RemoveWebGLContext(this);
     TerminateContextLossTimer();
     mContextRestorer = nullptr;
 }
@@ -670,8 +669,8 @@ void WebGLContext::LoseOldestWebGLContextIfLimitExceeded()
     // when choosing which one to lose first.
     UpdateLastUseIndex();
 
-    WebGLMemoryTracker::ContextsArrayType &contexts
-      = WebGLMemoryTracker::Contexts();
+    WebGLMemoryReporterWrapper::ContextsArrayType &contexts
+      = WebGLMemoryReporterWrapper::Contexts();
 
     // quick exit path, should cover a majority of cases
     if (contexts.Length() <= kMaxWebGLContextsPerPrincipal) {

@@ -25,7 +25,6 @@
 
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/PeerConnectionImplEnumsBinding.h"
-#include "StreamBuffer.h"
 
 #ifdef MOZILLA_INTERNAL_API
 #include "mozilla/TimeStamp.h"
@@ -55,7 +54,6 @@ class NrIceCtx;
 class NrIceMediaStream;
 class NrIceStunServer;
 class NrIceTurnServer;
-class MediaPipeline;
 
 #ifdef USE_FAKE_MEDIA_STREAMS
 typedef Fake_DOMMediaStream DOMMediaStream;
@@ -337,28 +335,15 @@ public:
   }
 
   NS_IMETHODIMP_TO_ERRORRESULT(AddStream, ErrorResult &rv,
-                               DOMMediaStream& aMediaStream,
-                               const MediaConstraintsInternal& aConstraints)
+                               DOMMediaStream& aMediaStream)
   {
-    rv = AddStream(aMediaStream, aConstraints);
+    rv = AddStream(aMediaStream);
   }
-
-  NS_IMETHODIMP AddStream(DOMMediaStream & aMediaStream,
-                          const MediaConstraintsExternal& aConstraints);
 
   NS_IMETHODIMP_TO_ERRORRESULT(RemoveStream, ErrorResult &rv,
                                DOMMediaStream& aMediaStream)
   {
     rv = RemoveStream(aMediaStream);
-  }
-
-  NS_IMETHODIMP GetFingerprint(char** fingerprint);
-  void GetFingerprint(nsAString& fingerprint)
-  {
-    char *tmp;
-    GetFingerprint(&tmp);
-    fingerprint.AssignASCII(tmp);
-    delete[] tmp;
   }
 
   NS_IMETHODIMP GetLocalDescription(char** aSDP);
@@ -534,24 +519,14 @@ private:
 
 #ifdef MOZILLA_INTERNAL_API
   // Fills in an RTCStatsReportInternal. Must be run on STS.
-  void GetStats_s(
-      mozilla::TrackID trackId,
-      bool internalStats,
-      nsAutoPtr<std::vector<mozilla::RefPtr<mozilla::MediaPipeline>>> pipelines,
-      DOMHighResTimeStamp now);
-
-  nsresult GetStatsImpl_s(
-      mozilla::TrackID trackId,
-      bool internalStats,
-      nsAutoPtr<std::vector<mozilla::RefPtr<mozilla::MediaPipeline>>> pipelines,
-      DOMHighResTimeStamp now,
-      mozilla::dom::RTCStatsReportInternal *report);
+  void GetStats_s(uint32_t trackId,
+                  bool internalStats,
+                  DOMHighResTimeStamp now);
 
   // Sends an RTCStatsReport to JS. Must run on main thread.
-  void OnStatsReport_m(
-      nsresult result,
-      nsAutoPtr<std::vector<mozilla::RefPtr<mozilla::MediaPipeline>>> pipelines,
-      nsAutoPtr<mozilla::dom::RTCStatsReportInternal> report);
+  void OnStatsReport_m(uint32_t trackId,
+                       nsresult result,
+                       nsAutoPtr<mozilla::dom::RTCStatsReportInternal> report);
 
   // Fetches logs matching pattern from RLogRingBuffer. Must be run on STS.
   void GetLogging_s(const std::string& pattern);

@@ -35,7 +35,7 @@
 
       window.onload = function() {
         canvas = document.querySelector("canvas");
-        gl = canvas.getContext("webgl", { preserveDrawingBuffer: true });
+        gl = canvas.getContext("webgl");
 
         let shaderProgram = gl.createProgram();
         let vertexShader, fragmentShader;

@@ -79,7 +79,7 @@ CheckArgumentsWithinEval(JSContext *cx, Parser<FullParseHandler> &parser, Handle
     }
 
     // It's an error to use |arguments| in a legacy generator expression.
-    if (script->isGeneratorExp() && script->isLegacyGenerator()) {
+    if (script->isGeneratorExp && script->isLegacyGenerator()) {
         parser.report(ParseError, false, nullptr, JSMSG_BAD_GENEXP_BODY, js_arguments_str);
         return false;
     }
@@ -142,8 +142,7 @@ CanLazilyParse(ExclusiveContext *cx, const ReadOnlyCompileOptions &options)
     return options.canLazilyParse &&
         options.compileAndGo &&
         options.sourcePolicy == CompileOptions::SAVE_SOURCE &&
-        !(cx->compartment()->debugMode() &&
-          cx->compartment()->runtimeFromAnyThread()->debugHooks.newScriptHook);
+        !cx->compartment()->debugMode();
 }
 
 void
@@ -238,7 +237,7 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     bool savedCallerFun =
         options.compileAndGo &&
         evalCaller &&
-        (evalCaller->function() || evalCaller->savedCallerFun());
+        (evalCaller->function() || evalCaller->savedCallerFun);
     Rooted<JSScript*> script(cx, JSScript::Create(cx, NullPtr(), savedCallerFun,
                                                   options, staticLevel, sourceObject, 0, length));
     if (!script)
@@ -274,7 +273,7 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
         return nullptr;
 
     /* If this is a direct call to eval, inherit the caller's strictness.  */
-    if (evalCaller && evalCaller->strict())
+    if (evalCaller && evalCaller->strict)
         globalsc.strict = true;
 
     if (options.compileAndGo) {
@@ -450,11 +449,11 @@ frontend::CompileLazyFunction(JSContext *cx, LazyScript *lazy, const jschar *cha
     script->bindings = pn->pn_funbox->bindings;
 
     if (lazy->directlyInsideEval())
-        script->setDirectlyInsideEval();
+        script->directlyInsideEval = true;
     if (lazy->usesArgumentsAndApply())
-        script->setUsesArgumentsAndApply();
+        script->usesArgumentsAndApply = true;
     if (lazy->hasBeenCloned())
-        script->setHasBeenCloned();
+        script->hasBeenCloned = true;
 
     BytecodeEmitter bce(/* parent = */ nullptr, &parser, pn->pn_funbox, script, options.forEval,
                         /* evalCaller = */ NullPtr(), /* hasGlobalScope = */ true,

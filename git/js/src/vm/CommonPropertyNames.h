@@ -33,7 +33,6 @@
     macro(Collator, Collator, "Collator") \
     macro(CollatorCompareGet, CollatorCompareGet, "Intl_Collator_compare_get") \
     macro(columnNumber, columnNumber, "columnNumber") \
-    macro(comma, comma, ",") \
     macro(compare, compare, "compare") \
     macro(configurable, configurable, "configurable") \
     macro(construct, construct, "construct") \
@@ -167,7 +166,6 @@
     macro(uint8Clamped, uint8Clamped, "uint8Clamped") \
     macro(uint16, uint16, "uint16") \
     macro(uint32, uint32, "uint32") \
-    macro(unsized, unsized, "unsized") \
     macro(unwatch, unwatch, "unwatch") \
     macro(url, url, "url") \
     macro(usage, usage, "usage") \

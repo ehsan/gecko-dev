@@ -32,10 +32,7 @@ function doTest() {
   is(results.slice(0, 6), "throws", "looking for an exception");
 }
 
-SimpleTest.runTestExpectingConsoleMessages(doTest, [{
-  forbid: true,
-  message: /An invalid or illegal string was specified/
-}]);
+SimpleTest.runTestExpectingConsoleMessages(doTest, []);
 </script>
 </body>
 </html>

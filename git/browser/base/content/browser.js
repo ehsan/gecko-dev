@@ -9,7 +9,6 @@ let Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/NotificationDB.jsm");
 Cu.import("resource:///modules/RecentWindow.jsm");
-Cu.import("resource://gre/modules/WindowsPrefSync.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
@@ -117,10 +116,10 @@ XPCOMUtils.defineLazyGetter(this, "DeveloperToolbar", function() {
   return new tmp.DeveloperToolbar(window, document.getElementById("developer-toolbar"));
 });
 
-XPCOMUtils.defineLazyGetter(this, "BrowserToolboxProcess", function() {
+XPCOMUtils.defineLazyGetter(this, "BrowserDebuggerProcess", function() {
   let tmp = {};
-  Cu.import("resource:///modules/devtools/ToolboxProcess.jsm", tmp);
-  return tmp.BrowserToolboxProcess;
+  Cu.import("resource:///modules/devtools/DebuggerProcess.jsm", tmp);
+  return tmp.BrowserDebuggerProcess;
 });
 
 XPCOMUtils.defineLazyModuleGetter(this, "Social",
@@ -251,15 +250,7 @@ function UpdateBackForwardCommands(aWebNavigation) {
       backBroadcaster.setAttribute("disabled", true);
   }
 
-  let canGoForward = aWebNavigation.canGoForward;
-  if (forwardDisabled) {
-    // Force the button to either be hidden (if we are already disabled,
-    // and should be), or to show if we're about to un-disable it:
-    // otherwise no transition will occur and it'll never show:
-    CombinedBackForward.setForwardButtonOcclusion(!canGoForward);
-  }
-
-  if (forwardDisabled == canGoForward) {
+  if (forwardDisabled == aWebNavigation.canGoForward) {
     if (forwardDisabled)
       forwardBroadcaster.removeAttribute("disabled");
     else
@@ -750,7 +741,7 @@ var gBrowserInit = {
   delayedStartupFinished: false,
 
   onLoad: function() {
-    gMultiProcessBrowser = Services.appinfo.browserTabsRemote;
+    gMultiProcessBrowser = gPrefService.getBoolPref("browser.tabs.remote");
 
     var mustLoadSidebar = false;
 
@@ -912,7 +903,6 @@ var gBrowserInit = {
 
     // Misc. inits.
     CombinedStopReload.init();
-    CombinedBackForward.init();
     gPrivateBrowsingUI.init();
     TabsInTitlebar.init();
 
@@ -1161,10 +1151,14 @@ var gBrowserInit = {
       Cu.reportError("Could not end startup crash tracking: " + ex);
     }
 
-    if (typeof WindowsPrefSync !== 'undefined') {
-      // Pulls in Metro controlled prefs and pushes out Desktop controlled prefs
-      WindowsPrefSync.init();
-    }
+#ifdef XP_WIN
+#ifdef MOZ_METRO
+    gMetroPrefs.prefDomain.forEach(function(prefName) {
+      gMetroPrefs.pushDesktopControlledPrefToMetro(prefName);
+      Services.prefs.addObserver(prefName, gMetroPrefs, false);
+    }, this);
+#endif
+#endif
 
     if (gMultiProcessBrowser) {
       // Bug 862519 - Backspace doesn't work in electrolysis builds.
@@ -1230,7 +1224,6 @@ var gBrowserInit = {
     // uninit methods don't depend on the services having been initialized).
 
     CombinedStopReload.uninit();
-    CombinedBackForward.uninit();
 
     gGestureSupport.init(false);
 
@@ -1287,9 +1280,13 @@ var gBrowserInit = {
         Cu.reportError(ex);
       }
 
-      if (typeof WindowsPrefSync !== 'undefined') {
-        WindowsPrefSync.uninit();
-      }
+#ifdef XP_WIN
+#ifdef MOZ_METRO
+      gMetroPrefs.prefDomain.forEach(function(prefName) {
+        Services.prefs.removeObserver(prefName, gMetroPrefs);
+      });
+#endif
+#endif
 
       BrowserOffline.uninit();
       OfflineApps.uninit();
@@ -1361,6 +1358,8 @@ var gBrowserInit = {
         }
       }
     }
+
+    SocialUI.nonBrowserWindowInit();
 
     if (PrivateBrowsingUtils.permanentPrivateBrowsing) {
       document.getElementById("macDockMenuNewWindow").hidden = true;
@@ -2461,56 +2460,6 @@ function BrowserFullScreen()
   window.fullScreen = !window.fullScreen;
 }
 
-function _checkDefaultAndSwitchToMetro() {
-#ifdef HAVE_SHELL_SERVICE
-#ifdef XP_WIN
-#ifdef MOZ_METRO
-  let shell = Components.classes["@mozilla.org/browser/shell-service;1"].
-    getService(Components.interfaces.nsIShellService);
-  let isDefault = shell.isDefaultBrowser(false, false);
-
-  if (isDefault) {
-    let appStartup = Components.classes["@mozilla.org/toolkit/app-startup;1"].
-    getService(Components.interfaces.nsIAppStartup);
-
-    Services.prefs.setBoolPref('browser.sessionstore.resume_session_once', true);
-
-    let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"]
-                     .createInstance(Ci.nsISupportsPRBool);
-    Services.obs.notifyObservers(cancelQuit, "quit-application-requested", "restart");
-
-    if (!cancelQuit.data) {
-      appStartup.quit(Components.interfaces.nsIAppStartup.eAttemptQuit |
-                      Components.interfaces.nsIAppStartup.eRestartTouchEnvironment);
-    }
-    return true;
-  }
-  return false;
-#endif
-#endif
-#endif
-}
-
-function SwitchToMetro() {
-#ifdef HAVE_SHELL_SERVICE
-#ifdef XP_WIN
-#ifdef MOZ_METRO
-  if (this._checkDefaultAndSwitchToMetro()) {
-    return;
-  }
-
-  let shell = Components.classes["@mozilla.org/browser/shell-service;1"].
-    getService(Components.interfaces.nsIShellService);
-
-  shell.setDefaultBrowser(false, false);
-
-  let intervalID = window.setInterval(this._checkDefaultAndSwitchToMetro, 1000);
-  window.setTimeout(function() { window.clearInterval(intervalID); }, 10000);
-#endif
-#endif
-#endif
-}
-
 function onFullScreen(event) {
   FullScreen.toggle(event);
 }
@@ -2944,37 +2893,13 @@ const BrowserSearch = {
       return;
     }
 #endif
-    let openSearchPageIfFieldIsNotActive = function(aSearchBar) {
-      if (!aSearchBar || document.activeElement != aSearchBar.textbox.inputField)
-        openUILinkIn(Services.search.defaultEngine.searchForm, "current");
-    };
-
-    let searchBar = this.searchBar;
-    let placement = CustomizableUI.getPlacementOfWidget("search-container");
-    let focusSearchBar = () => {
-      searchBar = this.searchBar;
+    var searchBar = this.searchBar;
+    if (searchBar && window.fullScreen)
+      FullScreen.mouseoverToggle(true);
+    if (searchBar)
       searchBar.select();
-      openSearchPageIfFieldIsNotActive(searchBar);
-    };
-    if (placement && placement.area == CustomizableUI.AREA_PANEL) {
-      // The panel is not constructed until the first time it is shown.
-      PanelUI.show().then(focusSearchBar);
-      return;
-    }
-    if (placement && placement.area == CustomizableUI.AREA_NAVBAR && searchBar &&
-        searchBar.parentNode.classList.contains("overflowedItem")) {
-      let navBar = document.getElementById(CustomizableUI.AREA_NAVBAR);
-      navBar.overflowable.show().then(() => {
-        focusSearchBar();
-      });
-      return;
-    }
-    if (searchBar) {
-      if (window.fullScreen)
-        FullScreen.mouseoverToggle(true);
-      searchBar.select();
-    }
-    openSearchPageIfFieldIsNotActive(searchBar);
+    if (!searchBar || document.activeElement != searchBar.textbox.inputField)
+      openUILinkIn(Services.search.defaultEngine.searchForm, "current");
   },
 
   /**
@@ -3790,7 +3715,6 @@ var XULBrowserWindow = {
   onUpdateCurrentBrowser: function XWB_onUpdateCurrentBrowser(aStateFlags, aStatus, aMessage, aTotalProgress) {
     if (FullZoom.updateBackgroundTabs)
       FullZoom.onLocationChange(gBrowser.currentURI, true);
-    CombinedBackForward.setForwardButtonOcclusion(!gBrowser.webProgress.canGoForward);
     var nsIWebProgressListener = Components.interfaces.nsIWebProgressListener;
     var loadingDone = aStateFlags & nsIWebProgressListener.STATE_STOP;
     // use a pseudo-object instead of a (potentially nonexistent) channel for getting
@@ -3864,43 +3788,6 @@ var LinkTargetDisplay = {
     XULBrowserWindow.updateStatusField();
   }
 };
-
-let CombinedBackForward = {
-  init: function() {
-    this.forwardButton = document.getElementById("forward-button");
-    // Add a transition listener to the url bar to hide the forward button
-    // when necessary
-    if (gURLBar)
-      gURLBar.addEventListener("transitionend", this);
-    // On startup, or if the user customizes, our listener isn't attached,
-    // and no transitions fire anyway, so we need to make sure we've hidden the
-    // button if necessary:
-    if (this.forwardButton && this.forwardButton.hasAttribute("disabled")) {
-      this.setForwardButtonOcclusion(true);
-    }
-  },
-  uninit: function() {
-    if (gURLBar)
-      gURLBar.removeEventListener("transitionend", this);
-  },
-  handleEvent: function(aEvent) {
-    if (aEvent.type == "transitionend" &&
-        (aEvent.propertyName == "margin-left" || aEvent.propertyName == "margin-right") &&
-        this.forwardButton.hasAttribute("disabled")) {
-      this.setForwardButtonOcclusion(true);
-    }
-  },
-  setForwardButtonOcclusion: function(shouldBeOccluded) {
-    if (!this.forwardButton)
-      return;
-
-    let hasAttribute = this.forwardButton.hasAttribute("occluded-by-urlbar");
-    if (shouldBeOccluded && !hasAttribute)
-      this.forwardButton.setAttribute("occluded-by-urlbar", "true");
-    else if (!shouldBeOccluded && hasAttribute)
-      this.forwardButton.removeAttribute("occluded-by-urlbar");
-  }
-}
 
 var CombinedStopReload = {
   init: function () {
@@ -4240,7 +4127,6 @@ function onViewToolbarsPopupShowing(aEvent, aInsertPoint) {
   var firstMenuItem = aInsertPoint || popup.firstChild;
 
   let toolbarNodes = Array.slice(gNavToolbox.childNodes);
-  toolbarNodes = toolbarNodes.concat(gNavToolbox.externalToolbars);
 
   for (let toolbar of toolbarNodes) {
     let toolbarName = toolbar.getAttribute("toolbarname");
@@ -4263,16 +4149,8 @@ function onViewToolbarsPopupShowing(aEvent, aInsertPoint) {
     }
   }
 
-
-  let moveToPanel = popup.querySelector(".customize-context-moveToPanel");
-  let removeFromToolbar = popup.querySelector(".customize-context-removeFromToolbar");
-  // View -> Toolbars menu doesn't have the moveToPanel or removeFromToolbar items.
-  if (!moveToPanel || !removeFromToolbar) {
-    return;
-  }
-
-  // triggerNode can be a nested child element of a toolbaritem.
-  let toolbarItem = popup.triggerNode;
+  // The explicitOriginalTarget can be a nested child element of a toolbaritem.
+  let toolbarItem = aEvent.explicitOriginalTarget;
 
   if (toolbarItem && toolbarItem.localName == "toolbarpaletteitem") {
     toolbarItem = toolbarItem.firstChild;
@@ -4289,15 +4167,22 @@ function onViewToolbarsPopupShowing(aEvent, aInsertPoint) {
 
   // Right-clicking on an empty part of the tabstrip will exit
   // the above loop with toolbarItem being the xul:document.
-  // That has no parentNode, and we should disable the items in
-  // this case.
-  let movable = toolbarItem && toolbarItem.parentNode &&
-                CustomizableUI.isWidgetRemovable(toolbarItem);
+  if (!toolbarItem.parentNode) {
+    return;
+  }
+
+  let addToPanel = popup.querySelector(".customize-context-addToPanel");
+  let removeFromToolbar = popup.querySelector(".customize-context-removeFromToolbar");
+  // View -> Toolbars menu doesn't have the addToPanel or removeFromToolbar items.
+  if (!addToPanel || !removeFromToolbar) {
+    return;
+  }
+  let movable = toolbarItem && CustomizableUI.isWidgetRemovable(toolbarItem);
   if (movable) {
-    moveToPanel.removeAttribute("disabled");
+    addToPanel.removeAttribute("disabled");
     removeFromToolbar.removeAttribute("disabled");
   } else {
-    moveToPanel.setAttribute("disabled", true);
+    addToPanel.setAttribute("disabled", true);
     removeFromToolbar.setAttribute("disabled", true);
   }
 }
@@ -4754,6 +4639,60 @@ function fireSidebarFocusedEvent() {
   sidebar.contentWindow.dispatchEvent(event);
 }
 
+#ifdef XP_WIN
+#ifdef MOZ_METRO
+/**
+ * Some prefs that have consequences in both Metro and Desktop such as
+ * app-update prefs, are automatically pushed from Desktop here for use
+ * in Metro.
+ */
+var gMetroPrefs = {
+  prefDomain: ["app.update.auto", "app.update.enabled",
+               "app.update.service.enabled",
+               "app.update.metro.enabled"],
+  observe: function (aSubject, aTopic, aPrefName)
+  {
+    if (aTopic != "nsPref:changed")
+      return;
+
+    this.pushDesktopControlledPrefToMetro(aPrefName);
+  },
+
+  /**
+   * Writes the pref to HKCU in the registry and adds a pref-observer to keep
+   * the registry in sync with changes to the value.
+   */
+  pushDesktopControlledPrefToMetro: function(aPrefName) {
+    let registry = Cc["@mozilla.org/windows-registry-key;1"].
+                    createInstance(Ci.nsIWindowsRegKey);
+    try {
+      var prefType = Services.prefs.getPrefType(aPrefName);
+      let prefFunc;
+      if (prefType == Components.interfaces.nsIPrefBranch.PREF_INT)
+        prefFunc = "getIntPref";
+      else if (prefType == Components.interfaces.nsIPrefBranch.PREF_BOOL)
+        prefFunc = "getBoolPref";
+      else if (prefType == Components.interfaces.nsIPrefBranch.PREF_STRING)
+        prefFunc = "getCharPref";
+      else
+        throw "Unsupported pref type";
+
+      let prefValue = Services.prefs[prefFunc](aPrefName);
+      registry.create(Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER,
+                    "Software\\Mozilla\\Firefox\\Metro\\Prefs\\" + prefType,
+                    Ci.nsIWindowsRegKey.ACCESS_WRITE);
+      // Always write as string, but the registry subfolder will determine
+      // how Metro interprets that string value.
+      registry.writeStringValue(aPrefName, prefValue);
+    } catch (ex) {
+      Components.utils.reportError("Couldn't push pref " + aPrefName + ": " + ex);
+    } finally {
+      registry.close();
+    }
+  }
+};
+#endif
+#endif
 
 var gHomeButton = {
   prefDomain: "browser.startup.homepage",
@@ -5148,7 +5087,7 @@ function MultiplexHandler(event)
         SelectDetector(event, false);
     } else if (name == 'charsetGroup') {
         var charset = node.getAttribute('id');
-        charset = charset.substring(charset.indexOf('charset.') + 'charset.'.length);
+        charset = charset.substring('charset.'.length, charset.length)
         BrowserSetForcedCharacterSet(charset);
     } else if (name == 'charsetCustomize') {
         //do nothing - please remove this else statement, once the charset prefs moves to the pref window
@@ -5161,7 +5100,7 @@ function MultiplexHandler(event)
 function SelectDetector(event, doReload)
 {
     var uri =  event.target.getAttribute("id");
-    var prefvalue = uri.substring(uri.indexOf('chardet.') + 'chardet.'.length);
+    var prefvalue = uri.substring('chardet.'.length, uri.length);
     if ("off" == prefvalue) { // "off" is special value to turn off the detectors
         prefvalue = "";
     }
@@ -6152,16 +6091,33 @@ function undoCloseTab(aIndex) {
   if (gBrowser.tabs.length == 1 && isTabEmpty(gBrowser.selectedTab))
     blankTabToRemove = gBrowser.selectedTab;
 
-  var tab = null;
-  if (SessionStore.getClosedTabCount(window) > (aIndex || 0)) {
-    TabView.prepareUndoCloseTab(blankTabToRemove);
-    tab = SessionStore.undoCloseTab(window, aIndex || 0);
-    TabView.afterUndoCloseTab();
+  let numberOfTabsToUndoClose = 0;
+  let index = Number(aIndex);
 
-    if (blankTabToRemove)
-      gBrowser.removeTab(blankTabToRemove);
+
+  if (isNaN(index)) {
+    index = 0;
+    numberOfTabsToUndoClose = SessionStore.getNumberOfTabsClosedLast(window);
+  } else {
+    if (0 > index || index >= SessionStore.getClosedTabCount(window))
+      return null;
+    numberOfTabsToUndoClose = 1;
   }
 
+  let tab = null;
+  while (numberOfTabsToUndoClose > 0 &&
+         numberOfTabsToUndoClose--) {
+    TabView.prepareUndoCloseTab(blankTabToRemove);
+    tab = SessionStore.undoCloseTab(window, index);
+    TabView.afterUndoCloseTab();
+    if (blankTabToRemove) {
+      gBrowser.removeTab(blankTabToRemove);
+      blankTabToRemove = null;
+    }
+  }
+
+  // Reset the number of tabs closed last time to the default.
+  SessionStore.setNumberOfTabsClosedLast(window, 1);
   return tab;
 }
 
@@ -6462,6 +6418,9 @@ var gIdentityHandler = {
     // If we've already got an active notification, bail out to avoid showing it repeatedly.
     if (PopupNotifications.getNotification("mixed-content-blocked", gBrowser.selectedBrowser))
       return;
+
+    let helplink = document.getElementById("mixed-content-blocked-helplink");
+    helplink.setAttribute("onclick", "openHelpLink('mixed-content');");
 
     let brandBundle = document.getElementById("bundle_brand");
     let brandShortName = brandBundle.getString("brandShortName");
@@ -6981,8 +6940,13 @@ var TabContextMenu = {
       menuItem.disabled = disabled;
 
     // Session store
-    document.getElementById("context_undoCloseTab").disabled =
-      SessionStore.getClosedTabCount(window) == 0;
+    let undoCloseTabElement = document.getElementById("context_undoCloseTab");
+    let closedTabCount = SessionStore.getNumberOfTabsClosedLast(window);
+    undoCloseTabElement.disabled = closedTabCount == 0;
+    // Change the label of "Undo Close Tab" to specify if it will undo a batch-close
+    // or a single close.
+    let visibleLabel = closedTabCount <= 1 ? "singletablabel" : "multipletablabel";
+    undoCloseTabElement.setAttribute("label", undoCloseTabElement.getAttribute(visibleLabel));
 
     // Only one of pin/unpin should be visible
     document.getElementById("context_pinTab").hidden = this.contextTab.pinned;

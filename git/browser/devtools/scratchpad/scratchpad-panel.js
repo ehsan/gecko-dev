@@ -5,9 +5,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const {Cu} = require("chrome");
 const EventEmitter = require("devtools/shared/event-emitter");
-const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
+const promise = require("sdk/core/promise");
 
 
 function ScratchpadPanel(iframeWindow, toolbox) {
@@ -15,7 +14,7 @@ function ScratchpadPanel(iframeWindow, toolbox) {
   this._toolbox = toolbox;
   this.panelWin = iframeWindow;
   this.scratchpad = Scratchpad;
-
+  
   Scratchpad.target = this.target;
   Scratchpad.hideMenu();
 

@@ -22,10 +22,7 @@
  */
 #ifndef VP8DX_H
 #define VP8DX_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "vpx_codec_impl_top.h"
 
 /*!\name Algorithm interface for VP8
  *
@@ -34,64 +31,38 @@ extern "C" {
  * @{
  */
 extern vpx_codec_iface_t  vpx_codec_vp8_dx_algo;
-extern vpx_codec_iface_t *vpx_codec_vp8_dx(void);
-
-/* TODO(jkoleszar): These move to VP9 in a later patch set. */
-extern vpx_codec_iface_t  vpx_codec_vp9_dx_algo;
-extern vpx_codec_iface_t *vpx_codec_vp9_dx(void);
+extern vpx_codec_iface_t* vpx_codec_vp8_dx(void);
 /*!@} - end algorithm interface member group*/
 
 /* Include controls common to both the encoder and decoder */
 #include "vp8.h"
 
 
-/*!\enum vp8_dec_control_id
- * \brief VP8 decoder control functions
+/*!\brief VP8 decoder control functions
  *
  * This set of macros define the control functions available for the VP8
  * decoder interface.
  *
  * \sa #vpx_codec_control
  */
-enum vp8_dec_control_id {
-  /** control function to get info on which reference frames were updated
-   *  by the last decode
-   */
-  VP8D_GET_LAST_REF_UPDATES = VP8_DECODER_CTRL_ID_START,
-
-  /** check if the indicated frame is corrupted */
-  VP8D_GET_FRAME_CORRUPTED,
-
-  /** control function to get info on which reference frames were used
-   *  by the last decode
-   */
-  VP8D_GET_LAST_REF_USED,
-
-  /** decryption function to decrypt encoded buffer data immediately
-   * before decoding. Takes a vp8_decrypt_init, which contains
-   * a callback function and opaque context pointer.
-   */
-  VP8D_SET_DECRYPTOR,
-
-  /** For testing. */
-  VP9_INVERT_TILE_DECODE_ORDER,
-
-  VP8_DECODER_CTRL_ID_MAX
-};
-
-/*!\brief Structure to hold decryption state
- *
- * Defines a structure to hold the decryption state and access function.
- */
-typedef struct vp8_decrypt_init {
-    /** Decrypt n bytes of data from input -> output, using the decrypt_state
-     *  passed in VP8D_SET_DECRYPTOR.
+enum vp8_dec_control_id
+{
+    /** control function to get info on which reference frames were updated
+     *  by the last decode
      */
-    void (*decrypt_cb)(void *decrypt_state, const unsigned char *input,
-                       unsigned char *output, int count);
-    /*! Decryption state. */
-    void *decrypt_state;
-} vp8_decrypt_init;
+    VP8D_GET_LAST_REF_UPDATES = VP8_DECODER_CTRL_ID_START,
+
+    /** check if the indicated frame is corrupted */
+    VP8D_GET_FRAME_CORRUPTED,
+
+    /** control function to get info on which reference frames were used
+     *  by the last decode
+     */
+    VP8D_GET_LAST_REF_USED,
+
+    VP8_DECODER_CTRL_ID_MAX
+} ;
+
 
 /*!\brief VP8 decoder control function parameter type
  *
@@ -104,13 +75,9 @@ typedef struct vp8_decrypt_init {
 VPX_CTRL_USE_TYPE(VP8D_GET_LAST_REF_UPDATES,   int *)
 VPX_CTRL_USE_TYPE(VP8D_GET_FRAME_CORRUPTED,    int *)
 VPX_CTRL_USE_TYPE(VP8D_GET_LAST_REF_USED,      int *)
-VPX_CTRL_USE_TYPE(VP8D_SET_DECRYPTOR,          vp8_decrypt_init *)
-VPX_CTRL_USE_TYPE(VP9_INVERT_TILE_DECODE_ORDER, int)
 
 /*! @} - end defgroup vp8_decoder */
 
-#ifdef __cplusplus
-}  // extern "C"
-#endif
 
+#include "vpx_codec_impl_bottom.h"
 #endif

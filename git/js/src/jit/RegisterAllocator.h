@@ -369,7 +369,7 @@ class RegisterAllocator
 static inline AnyRegister
 GetFixedRegister(const LDefinition *def, const LUse *use)
 {
-    return def->isFloatReg()
+    return def->type() == LDefinition::DOUBLE
            ? AnyRegister(FloatRegister::FromCode(use->registerCode()))
            : AnyRegister(Register::FromCode(use->registerCode()));
 }

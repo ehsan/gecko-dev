@@ -4,26 +4,18 @@
 var testPath = "http://mochi.test:8888/browser/content/html/content/test/";
 var popup;
 
-let {LoadContextInfo} = Cu.import("resource://gre/modules/LoadContextInfo.jsm", null);
-let {Services} = Cu.import("resource://gre/modules/Services.jsm", null);
-
-function checkCache(url, inMemory, shouldExist, cb)
+function checkCache(url, policy, shouldExist, cb)
 {
-  var cache = Services.cache2;
-  var storage = cache.diskCacheStorage(LoadContextInfo.default, false);
+  var cache = Components.classes["@mozilla.org/network/cache-service;1"].
+              getService(Components.interfaces.nsICacheService);
+  var session = cache.createSession(
+                  "wyciwyg", policy,
+                  Components.interfaces.nsICache.STREAM_BASED);
 
-  function CheckCacheListener(inMemory, shouldExist)
-  {
-    this.inMemory = inMemory;
-    this.shouldExist = shouldExist;
-    this.onCacheEntryCheck = function() {
-      return Components.interfaces.nsICacheEntryOpenCallback.ENTRY_WANTED;
-    };
-
-    this.onCacheEntryAvailable = function oCEA(entry, isNew, appCache, status) {
+  var checkCacheListener = {
+    onCacheEntryAvailable: function oCEA(entry, access, status) {
       if (shouldExist) {
         ok(entry, "Entry not found");
-        is(this.inMemory, !entry.persistToDisk, "Entry is " + (inMemory ? "" : " not ") + " in memory as expected");
         is(status, Components.results.NS_OK, "Entry not found");
       } else {
         ok(!entry, "Entry found");
@@ -32,12 +24,12 @@ function checkCache(url, inMemory, shouldExist, cb)
       }
 
       setTimeout(cb, 0);
-    };
+    }
   };
 
-  storage.asyncOpenURI(Services.io.newURI(url, null, null), "",
-                       Components.interfaces.nsICacheStorage.OPEN_READONLY,
-                       new CheckCacheListener(inMemory, shouldExist));
+  session.asyncOpenCacheEntry(url,
+                              Components.interfaces.nsICache.ACCESS_READ,
+                              checkCacheListener);
 }
 function getPopupURL() {
   var sh = popup.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
@@ -53,8 +45,11 @@ function testContinue() {
   is(wyciwygURL.substring(0, 10), "wyciwyg://", "Unexpected URL.");
   popup.close()
 
-  // We have to find the entry and it must not be persisted to disk
-  checkCache(wyciwygURL, true, true, finish);
+  checkCache(wyciwygURL, Components.interfaces.nsICache.STORE_ON_DISK, false,
+    function() {
+      checkCache(wyciwygURL, Components.interfaces.nsICache.STORE_IN_MEMORY,
+                 true, finish);
+    });
 }
 
 function waitForWyciwygDocument() {

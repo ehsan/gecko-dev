@@ -155,9 +155,9 @@ static bool
 ExecuteSequentially(JSContext *cx, HandleValue funVal, bool *complete)
 {
     uint32_t numSlices = ForkJoinSlices(cx);
+    FastInvokeGuard fig(cx, funVal);
     bool allComplete = true;
     for (uint32_t i = 0; i < numSlices; i++) {
-        FastInvokeGuard fig(cx, funVal);
         InvokeArgs &args = fig.args();
         if (!args.init(3))
             return false;
@@ -191,7 +191,7 @@ namespace js {
 // of operation.
 enum ForkJoinMode {
     // WARNING: If you change this enum, you MUST update
-    // ForkJoinMode() in Utilities.js
+    // ForkJoinMode() in ParallelArray.js
 
     // The "normal" behavior: attempt parallel, fallback to
     // sequential.  If compilation is ongoing in a helper thread, then
@@ -699,12 +699,12 @@ js::ParallelDo::enqueueInitialScript(ExecutionStatus *status)
     if (script->hasParallelIonScript()) {
         if (!script->parallelIonScript()->hasUncompiledCallTarget()) {
             Spew(SpewOps, "Script %p:%s:%d already compiled, no uncompiled callees",
-                 script.get(), script->filename(), script->lineno());
+                 script.get(), script->filename(), script->lineno);
             return GreenLight;
         }
 
         Spew(SpewOps, "Script %p:%s:%d already compiled, may have uncompiled callees",
-             script.get(), script->filename(), script->lineno());
+             script.get(), script->filename(), script->lineno);
     }
 
     // Otherwise, add to the worklist of scripts to process.
@@ -765,7 +765,7 @@ js::ParallelDo::compileForParallelExecution(ExecutionStatus *status)
                     Spew(SpewCompile,
                          "Script %p:%s:%d has no baseline script, "
                          "but use count grew from %d to %d",
-                         script.get(), script->filename(), script->lineno(),
+                         script.get(), script->filename(), script->lineno,
                          previousUseCount, currentUseCount);
                 } else {
                     uint32_t stallCount = ++worklistData_[i].stallCount;
@@ -776,7 +776,7 @@ js::ParallelDo::compileForParallelExecution(ExecutionStatus *status)
                     Spew(SpewCompile,
                          "Script %p:%s:%d has no baseline script, "
                          "and use count has %u stalls at %d",
-                         script.get(), script->filename(), script->lineno(),
+                         script.get(), script->filename(), script->lineno,
                          stallCount, previousUseCount);
                 }
                 continue;
@@ -796,7 +796,7 @@ js::ParallelDo::compileForParallelExecution(ExecutionStatus *status)
                     Spew(SpewCompile,
                          "Script %p:%s:%d cannot be compiled, "
                          "falling back to sequential execution",
-                         script.get(), script->filename(), script->lineno());
+                         script.get(), script->filename(), script->lineno);
                     return sequentialExecution(true, status);
 
                   case Method_Skipped:
@@ -805,7 +805,7 @@ js::ParallelDo::compileForParallelExecution(ExecutionStatus *status)
                     if (script->isParallelIonCompilingOffThread()) {
                         Spew(SpewCompile,
                              "Script %p:%s:%d compiling off-thread",
-                             script.get(), script->filename(), script->lineno());
+                             script.get(), script->filename(), script->lineno);
                         offMainThreadCompilationsInProgress = true;
                         continue;
                     }
@@ -814,7 +814,7 @@ js::ParallelDo::compileForParallelExecution(ExecutionStatus *status)
                   case Method_Compiled:
                     Spew(SpewCompile,
                          "Script %p:%s:%d compiled",
-                         script.get(), script->filename(), script->lineno());
+                         script.get(), script->filename(), script->lineno);
                     JS_ASSERT(script->hasParallelIonScript());
                     break;
                 }
@@ -863,23 +863,12 @@ js::ParallelDo::compileForParallelExecution(ExecutionStatus *status)
                          "Script %p:%s:%d is not stalled, "
                          "but no parallel ion script found, "
                          "restarting loop",
-                         script.get(), script->filename(), script->lineno());
+                         script.get(), script->filename(), script->lineno);
                 }
             }
         }
-
-        if (allScriptsPresent) {
-            // For testing modes, we want to make sure that all off thread
-            // compilation tasks are finished, so we don't race with
-            // off-main-thread-compilation setting an interrupt flag while we
-            // are in the middle of a test, causing unexpected bailouts.
-            if (mode_ != ForkJoinModeNormal) {
-                StopAllOffThreadCompilations(cx_->compartment());
-                if (!js_HandleExecutionInterrupt(cx_))
-                    return fatalError(status);
-            }
+        if (allScriptsPresent)
             break;
-        }
     }
 
     Spew(SpewCompile, "Compilation complete (final worklist length %d)",
@@ -925,7 +914,7 @@ js::ParallelDo::appendCallTargetsToWorklist(uint32_t index,
         target = ion->callTargetList()[i];
         parallel::Spew(parallel::SpewCompile,
                        "Adding call target %s:%u",
-                       target->filename(), target->lineno());
+                       target->filename(), target->lineno);
         if (appendCallTargetToWorklist(target, status) == RedLight)
             return RedLight;
     }
@@ -945,7 +934,7 @@ js::ParallelDo::appendCallTargetToWorklist(HandleScript script,
     // Fallback to sequential if disabled.
     if (!script->canParallelIonCompile()) {
         Spew(SpewCompile, "Skipping %p:%s:%u, canParallelIonCompile() is false",
-             script.get(), script->filename(), script->lineno());
+             script.get(), script->filename(), script->lineno);
         return sequentialExecution(true, status);
     }
 
@@ -953,7 +942,7 @@ js::ParallelDo::appendCallTargetToWorklist(HandleScript script,
         // Skip if the code is expected to result in a bailout.
         if (script->parallelIonScript()->bailoutExpected()) {
             Spew(SpewCompile, "Skipping %p:%s:%u, bailout expected",
-                 script.get(), script->filename(), script->lineno());
+                 script.get(), script->filename(), script->lineno);
             return sequentialExecution(false, status);
         }
     }
@@ -970,13 +959,13 @@ js::ParallelDo::addToWorklist(HandleScript script)
     for (uint32_t i = 0; i < worklist_.length(); i++) {
         if (worklist_[i] == script) {
             Spew(SpewCompile, "Skipping %p:%s:%u, already in worklist",
-                 script.get(), script->filename(), script->lineno());
+                 script.get(), script->filename(), script->lineno);
             return true;
         }
     }
 
     Spew(SpewCompile, "Enqueued %p:%s:%u",
-         script.get(), script->filename(), script->lineno());
+         script.get(), script->filename(), script->lineno);
 
     // Note that we add all possibly compilable functions to the worklist,
     // even if they're already compiled. This is so that we can return
@@ -1126,7 +1115,7 @@ js::ParallelDo::invalidateBailedOutScripts()
              "Bailout from thread %d: cause %d, topScript %p:%s:%d",
              i,
              bailoutRecords_[i].cause,
-             script.get(), script->filename(), script->lineno());
+             script.get(), script->filename(), script->lineno);
 
         switch (bailoutRecords_[i].cause) {
           // An interrupt is not the fault of the script, so don't
@@ -1145,7 +1134,7 @@ js::ParallelDo::invalidateBailedOutScripts()
             continue;
 
         Spew(SpewBailouts, "Invalidating script %p:%s:%d due to cause %d",
-             script.get(), script->filename(), script->lineno(),
+             script.get(), script->filename(), script->lineno,
              bailoutRecords_[i].cause);
 
         types::RecompileInfo co = script->parallelIonScript()->recompileInfo();
@@ -1273,7 +1262,7 @@ js::ParallelDo::hasScript(Vector<types::RecompileInfo> &scripts, JSScript *scrip
 template <uint32_t maxArgc>
 class ParallelIonInvoke
 {
-    EnterJitCode enter_;
+    EnterIonCode enter_;
     void *jitcode_;
     void *calleeToken_;
     Value argv_[maxArgc + 2];
@@ -1296,7 +1285,7 @@ class ParallelIonInvoke
 
         // Find JIT code pointer.
         IonScript *ion = callee->nonLazyScript()->parallelIonScript();
-        JitCode *code = ion->method();
+        IonCode *code = ion->method();
         jitcode_ = code->raw();
         enter_ = rt->jitRuntime()->enterIon();
         calleeToken_ = CalleeToToken(callee);
@@ -2080,7 +2069,7 @@ class ParallelSpewer
         if (!active[SpewCompile])
             return;
 
-        spew(SpewCompile, "COMPILE %p:%s:%u", script.get(), script->filename(), script->lineno());
+        spew(SpewCompile, "COMPILE %p:%s:%u", script.get(), script->filename(), script->lineno);
         depth++;
     }
 
@@ -2218,8 +2207,8 @@ js::ParallelTestsShouldPass(JSContext *cx)
 {
     return jit::IsIonEnabled(cx) &&
            jit::IsBaselineEnabled(cx) &&
-           !jit::js_JitOptions.eagerCompilation &&
-           jit::js_JitOptions.baselineUsesBeforeCompile != 0 &&
+           !jit::js_IonOptions.eagerCompilation &&
+           jit::js_IonOptions.baselineUsesBeforeCompile != 0 &&
            cx->runtime()->gcZeal() == 0;
 }
 
