@@ -311,13 +311,9 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     bool isLoopHeader() const {
         return kind_ == LOOP_HEADER;
     }
-    bool hasUniqueBackedge() const {
-        JS_ASSERT(isLoopHeader());
-        JS_ASSERT(numPredecessors() >= 2);
-        return numPredecessors() == 2;
-    }
     MBasicBlock *backedge() const {
-        JS_ASSERT(hasUniqueBackedge());
+        JS_ASSERT(isLoopHeader());
+        JS_ASSERT(numPredecessors() == 1 || numPredecessors() == 2);
         return getPredecessor(numPredecessors() - 1);
     }
     MBasicBlock *loopHeaderOfBackedge() const {
@@ -332,9 +328,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
         if (!numSuccessors())
             return false;
         MBasicBlock *lastSuccessor = getSuccessor(numSuccessors() - 1);
-        return lastSuccessor->isLoopHeader() &&
-               lastSuccessor->hasUniqueBackedge() &&
-               lastSuccessor->backedge() == this;
+        return lastSuccessor->isLoopHeader() && lastSuccessor->backedge() == this;
     }
     bool isSplitEdge() const {
         return kind_ == SPLIT_EDGE;
@@ -382,14 +376,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
 
     MBasicBlock *getImmediatelyDominatedBlock(size_t i) const {
         return immediatelyDominated_[i];
-    }
-
-    MBasicBlock **immediatelyDominatedBlocksBegin() {
-        return immediatelyDominated_.begin();
-    }
-
-    MBasicBlock **immediatelyDominatedBlocksEnd() {
-        return immediatelyDominated_.end();
     }
 
     size_t numDominated() const {

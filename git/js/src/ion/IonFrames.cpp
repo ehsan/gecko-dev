@@ -1275,12 +1275,12 @@ InlineFrameIteratorMaybeGC<allowGC>::findNextFrame()
 
         si_.nextFrame();
 
-        callee_ = &funval.toObject().as<JSFunction>();
+        callee_ = funval.toObject().toFunction();
 
         // Inlined functions may be clones that still point to the lazy script
         // for the executed script, if they are clones. The actual script
         // exists though, just make sure the function points to it.
-        script_ = callee_->existingScript();
+        script_ = callee_->getExistingScript();
 
         pc_ = script_->code + si_.pcOffset();
     }

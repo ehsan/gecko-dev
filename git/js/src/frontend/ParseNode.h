@@ -432,9 +432,11 @@ struct ParseNode
   public:
     ParseNode(ParseNodeKind kind, JSOp op, ParseNodeArity arity)
       : pn_type(kind), pn_op(op), pn_arity(arity), pn_parens(0), pn_used(0), pn_defn(0),
-        pn_pos(0, 0), pn_offset(0), pn_next(NULL), pn_link(NULL)
+        pn_offset(0), pn_next(NULL), pn_link(NULL)
     {
         JS_ASSERT(kind < PNK_LIMIT);
+        pn_pos.begin = 0;
+        pn_pos.end = 0;
         memset(&pn_u, 0, sizeof pn_u);
     }
 
@@ -893,17 +895,8 @@ struct TernaryNode : public ParseNode
 {
     TernaryNode(ParseNodeKind kind, JSOp op, ParseNode *kid1, ParseNode *kid2, ParseNode *kid3)
       : ParseNode(kind, op, PN_TERNARY,
-                  TokenPos((kid1 ? kid1 : kid2 ? kid2 : kid3)->pn_pos.begin,
-                           (kid3 ? kid3 : kid2 ? kid2 : kid1)->pn_pos.end))
-    {
-        pn_kid1 = kid1;
-        pn_kid2 = kid2;
-        pn_kid3 = kid3;
-    }
-
-    TernaryNode(ParseNodeKind kind, JSOp op, ParseNode *kid1, ParseNode *kid2, ParseNode *kid3,
-                const TokenPos &pos)
-      : ParseNode(kind, op, PN_TERNARY, pos)
+                  TokenPos::make((kid1 ? kid1 : kid2 ? kid2 : kid3)->pn_pos.begin,
+                                 (kid3 ? kid3 : kid2 ? kid2 : kid1)->pn_pos.end))
     {
         pn_kid1 = kid1;
         pn_kid2 = kid2;
@@ -925,15 +918,10 @@ struct TernaryNode : public ParseNode
 
 struct ListNode : public ParseNode
 {
-    ListNode(ParseNodeKind kind, const TokenPos &pos)
-      : ParseNode(kind, JSOP_NOP, PN_LIST, pos)
-    {
-        makeEmpty();
-    }
-
     ListNode(ParseNodeKind kind, JSOp op, ParseNode *kid)
-      : ParseNode(kind, op, PN_LIST, kid->pn_pos)
+      : ParseNode(kind, op, PN_LIST)
     {
+        pn_pos = kid->pn_pos;
         initList(kid);
     }
 
@@ -1004,7 +992,7 @@ class LabeledStatement : public ParseNode
 {
   public:
     LabeledStatement(PropertyName *label, ParseNode *stmt, uint32_t begin)
-      : ParseNode(PNK_LABEL, JSOP_NOP, PN_NAME, TokenPos(begin, stmt->pn_pos.end))
+      : ParseNode(PNK_LABEL, JSOP_NOP, PN_NAME, TokenPos::make(begin, stmt->pn_pos.end))
     {
         pn_atom = label;
         pn_expr = stmt;
@@ -1029,8 +1017,8 @@ class LabeledStatement : public ParseNode
 class LoopControlStatement : public ParseNode
 {
   protected:
-    LoopControlStatement(ParseNodeKind kind, PropertyName *label, const TokenPos &pos)
-      : ParseNode(kind, JSOP_NOP, PN_NULLARY, pos)
+    LoopControlStatement(ParseNodeKind kind, PropertyName *label, uint32_t begin, uint32_t end)
+      : ParseNode(kind, JSOP_NOP, PN_NULLARY, TokenPos::make(begin, end))
     {
         JS_ASSERT(kind == PNK_BREAK || kind == PNK_CONTINUE);
         pn_u.loopControl.label = label;
@@ -1053,8 +1041,8 @@ class LoopControlStatement : public ParseNode
 class BreakStatement : public LoopControlStatement
 {
   public:
-    BreakStatement(PropertyName *label, const TokenPos &pos)
-      : LoopControlStatement(PNK_BREAK, label, pos)
+    BreakStatement(PropertyName *label, uint32_t begin, uint32_t end)
+      : LoopControlStatement(PNK_BREAK, label, begin, end)
     { }
 
     static bool test(const ParseNode &node) {
@@ -1068,8 +1056,8 @@ class BreakStatement : public LoopControlStatement
 class ContinueStatement : public LoopControlStatement
 {
   public:
-    ContinueStatement(PropertyName *label, const TokenPos &pos)
-      : LoopControlStatement(PNK_CONTINUE, label, pos)
+    ContinueStatement(PropertyName *label, uint32_t begin, uint32_t end)
+      : LoopControlStatement(PNK_CONTINUE, label, begin, end)
     { }
 
     static bool test(const ParseNode &node) {
@@ -1093,7 +1081,7 @@ class ConditionalExpression : public ParseNode
   public:
     ConditionalExpression(ParseNode *condition, ParseNode *thenExpr, ParseNode *elseExpr)
       : ParseNode(PNK_CONDITIONAL, JSOP_NOP, PN_TERNARY,
-                  TokenPos(condition->pn_pos.begin, elseExpr->pn_pos.end))
+                  TokenPos::make(condition->pn_pos.begin, elseExpr->pn_pos.end))
     {
         JS_ASSERT(condition);
         JS_ASSERT(thenExpr);
@@ -1166,7 +1154,7 @@ class PropertyAccess : public ParseNode
 {
   public:
     PropertyAccess(ParseNode *lhs, PropertyName *name, uint32_t begin, uint32_t end)
-      : ParseNode(PNK_DOT, JSOP_GETPROP, PN_NAME, TokenPos(begin, end))
+      : ParseNode(PNK_DOT, JSOP_GETPROP, PN_NAME, TokenPos::make(begin, end))
     {
         JS_ASSERT(lhs != NULL);
         JS_ASSERT(name != NULL);
@@ -1193,7 +1181,7 @@ class PropertyByValue : public ParseNode
 {
   public:
     PropertyByValue(ParseNode *lhs, ParseNode *propExpr, uint32_t begin, uint32_t end)
-      : ParseNode(PNK_ELEM, JSOP_GETELEM, PN_BINARY, TokenPos(begin, end))
+      : ParseNode(PNK_ELEM, JSOP_GETELEM, PN_BINARY, TokenPos::make(begin, end))
     {
         pn_u.binary.left = lhs;
         pn_u.binary.right = propExpr;
@@ -1411,7 +1399,7 @@ class ObjectBox
 
     ObjectBox(JSObject *object, ObjectBox *traceLink);
     bool isModuleBox() { return object->is<Module>(); }
-    bool isFunctionBox() { return object->is<JSFunction>(); }
+    bool isFunctionBox() { return object->isFunction(); }
     ModuleBox *asModuleBox();
     FunctionBox *asFunctionBox();
     void trace(JSTracer *trc);

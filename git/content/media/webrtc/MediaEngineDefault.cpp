@@ -336,7 +336,7 @@ MediaEngineDefaultAudioSource::Start(SourceMediaStream* aStream, TrackID aID)
   mTrackID = aID;
 
   // 1 Audio frame per Video frame
-  mTimer->InitWithCallback(this, MediaEngine::DEFAULT_AUDIO_TIMER_MS,
+  mTimer->InitWithCallback(this, 1000 / MediaEngineDefaultVideoSource::DEFAULT_VIDEO_FPS,
                            nsITimer::TYPE_REPEATING_SLACK);
   mState = kStarted;
 
@@ -373,9 +373,7 @@ NS_IMETHODIMP
 MediaEngineDefaultAudioSource::Notify(nsITimer* aTimer)
 {
   AudioSegment segment;
-
-  // Notify timer is set every DEFAULT_AUDIO_TIMER_MS milliseconds.
-  segment.InsertNullDataAtStart((AUDIO_RATE * MediaEngine::DEFAULT_AUDIO_TIMER_MS) / 1000);
+  segment.InsertNullDataAtStart(AUDIO_RATE/100); // 10ms of fake data
 
   mSource->AppendToTrack(mTrackID, &segment);
 

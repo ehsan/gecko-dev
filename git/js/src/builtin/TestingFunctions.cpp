@@ -883,13 +883,13 @@ static JSBool
 DisplayName(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    if (argc == 0 || !args[0].isObject() || !args[0].toObject().is<JSFunction>()) {
+    if (argc == 0 || !args[0].isObject() || !args[0].toObject().isFunction()) {
         RootedObject arg(cx, &args.callee());
         ReportUsageError(cx, arg, "Must have one function argument");
         return false;
     }
 
-    JSFunction *fun = &args[0].toObject().as<JSFunction>();
+    JSFunction *fun = args[0].toObject().toFunction();
     JSString *str = fun->displayAtom();
     vp->setString(str == NULL ? cx->runtime()->emptyString : str);
     return true;
@@ -928,7 +928,7 @@ SetObjectMetadataCallback(JSContext *cx, unsigned argc, jsval *vp)
 
     args.rval().setUndefined();
 
-    if (argc == 0 || !args[0].isObject() || !args[0].toObject().is<JSFunction>()) {
+    if (argc == 0 || !args[0].isObject() || !args[0].toObject().isFunction()) {
         if (objectMetadataFunction)
             JS_RemoveObjectRoot(cx, &objectMetadataFunction);
         objectMetadataFunction = NULL;

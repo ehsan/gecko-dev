@@ -273,7 +273,7 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType,
 
   nsCOMPtr<nsILoadGroup> loadGroup = mDocument->GetDocumentLoadGroup();
 
-  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetWindow()));
+  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetScriptGlobalObject()));
   if (!window) {
     return NS_ERROR_NULL_POINTER;
   }
@@ -430,8 +430,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
   // For now though, if JS is disabled we assume every language is
   // disabled.
   // XXX is this different from the mDocument->IsScriptEnabled() call?
-  nsCOMPtr<nsIScriptGlobalObject> globalObject =
-    do_QueryInterface(mDocument->GetWindow());
+  nsIScriptGlobalObject *globalObject = mDocument->GetScriptGlobalObject();
   if (!globalObject) {
     return false;
   }

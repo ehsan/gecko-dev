@@ -118,7 +118,7 @@ public:
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
-                            JS::MutableHandle<JS::Value> aVal);
+                            jsval* aVal);
   void ReleaseMainThreadObjects()
   {
     mFileInfo = nullptr;
@@ -1016,7 +1016,7 @@ CreateFileHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
 nsresult
 CreateFileHelper::GetSuccessResult(JSContext* aCx,
-                                   JS::MutableHandle<JS::Value> aVal)
+                                   jsval* aVal)
 {
   nsRefPtr<IDBFileHandle> fileHandle =
     IDBFileHandle::Create(mDatabase, mName, mType, mFileInfo.forget());

@@ -96,11 +96,12 @@ JSScript::setFunction(JSFunction *fun)
 inline JSFunction *
 JSScript::getFunction(size_t index)
 {
-    JSFunction *fun = &getObject(index)->as<JSFunction>();
+    JSObject *funobj = getObject(index);
 #ifdef DEBUG
+    JSFunction *fun = funobj->toFunction();
     JS_ASSERT_IF(fun->isNative(), IsAsmJSModuleNative(fun->native()));
 #endif
-    return fun;
+    return funobj->toFunction();
 }
 
 inline JSFunction *
@@ -161,7 +162,7 @@ JSScript::writeBarrierPre(JSScript *script)
 
     JS::Zone *zone = script->zone();
     if (zone->needsBarrier()) {
-        JS_ASSERT(!zone->rt->isHeapMajorCollecting());
+        JS_ASSERT(!zone->rt->isHeapBusy());
         JSScript *tmp = script;
         MarkScriptUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
         JS_ASSERT(tmp == script);
@@ -183,7 +184,7 @@ js::LazyScript::writeBarrierPre(js::LazyScript *lazy)
 
     JS::Zone *zone = lazy->zone();
     if (zone->needsBarrier()) {
-        JS_ASSERT(!zone->rt->isHeapMajorCollecting());
+        JS_ASSERT(!zone->rt->isHeapBusy());
         js::LazyScript *tmp = lazy;
         MarkLazyScriptUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
         JS_ASSERT(tmp == lazy);
@@ -201,13 +202,13 @@ inline JSFunction *
 JSScript::originalFunction() const {
     if (!isCallsiteClone)
         return NULL;
-    return &enclosingScopeOrOriginalFunction_->as<JSFunction>();
+    return enclosingScopeOrOriginalFunction_->toFunction();
 }
 
 inline void
 JSScript::setOriginalFunctionObject(JSObject *fun) {
     JS_ASSERT(isCallsiteClone);
-    JS_ASSERT(fun->is<JSFunction>());
+    JS_ASSERT(fun->isFunction());
     enclosingScopeOrOriginalFunction_ = fun;
 }
 

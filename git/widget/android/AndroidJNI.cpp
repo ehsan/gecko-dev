@@ -942,8 +942,7 @@ Java_org_mozilla_gecko_ANRReporter_requestNativeStack(JNIEnv*, jclass)
     const char *NATIVE_STACK_FEATURES[] = {"leaf", "threads", "privacy"};
     // Buffer one sample and let the profiler wait a long time
     profiler_start(100, 10000, NATIVE_STACK_FEATURES,
-        sizeof(NATIVE_STACK_FEATURES) / sizeof(char*),
-        NULL, 0);
+        sizeof(NATIVE_STACK_FEATURES) / sizeof(char*));
     return JNI_TRUE;
 }
 

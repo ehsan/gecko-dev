@@ -140,7 +140,7 @@ js_InitBooleanClass(JSContext *cx, HandleObject obj)
 {
     JS_ASSERT(obj->isNative());
 
-    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
+    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
 
     RootedObject booleanProto (cx, global->createBlankPrototype(cx, &BooleanObject::class_));
     if (!booleanProto)

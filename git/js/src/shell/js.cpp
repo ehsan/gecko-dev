@@ -170,7 +170,6 @@ FILE *gOutFile = NULL;
 
 static bool reportWarnings = true;
 static bool compileOnly = false;
-static bool fuzzingSafe = false;
 
 #ifdef DEBUG
 static bool OOM_printAllocationCount = false;
@@ -1440,8 +1439,8 @@ ValueToScript(JSContext *cx, jsval v, JSFunction **funp = NULL)
     // Unwrap bound functions.
     while (fun->isBoundFunction()) {
         JSObject *target = fun->getBoundFunctionTarget();
-        if (target && target->is<JSFunction>())
-            fun = &target->as<JSFunction>();
+        if (target && target->isFunction())
+            fun = target->toFunction();
         else
             break;
     }
@@ -1494,7 +1493,7 @@ GetScriptAndPCArgs(JSContext *cx, unsigned argc, jsval *argv, MutableHandleScrip
         jsval v = argv[0];
         unsigned intarg = 0;
         if (!JSVAL_IS_PRIMITIVE(v) &&
-            JS_GetClass(&v.toObject()) == Jsvalify(&JSFunction::class_)) {
+            JS_GetClass(&v.toObject()) == Jsvalify(&FunctionClass)) {
             script = ValueToScript(cx, v);
             if (!script)
                 return false;
@@ -1650,7 +1649,7 @@ LineToPC(JSContext *cx, unsigned argc, jsval *vp)
     script = GetTopScript(cx);
     jsval v = args[0];
     if (!JSVAL_IS_PRIMITIVE(v) &&
-        JS_GetClass(&v.toObject()) == Jsvalify(&JSFunction::class_))
+        JS_GetClass(&v.toObject()) == Jsvalify(&FunctionClass))
     {
         script = ValueToScript(cx, v);
         if (!script)
@@ -1894,9 +1893,9 @@ DisassembleScript(JSContext *cx, HandleScript script, HandleFunction fun, bool l
         ObjectArray *objects = script->objects();
         for (unsigned i = 0; i != objects->length; ++i) {
             JSObject *obj = objects->vector[i];
-            if (obj->is<JSFunction>()) {
+            if (obj->isFunction()) {
                 Sprint(sp, "\n");
-                RootedFunction fun(cx, &obj->as<JSFunction>());
+                RootedFunction fun(cx, obj->toFunction());
                 if (fun->isInterpreted()) {
                     RootedScript script(cx, fun->getOrCreateScript(cx));
                     if (!script || !DisassembleScript(cx, script, fun, lines, recursive, sp))
@@ -2322,7 +2321,7 @@ Clone(JSContext *cx, unsigned argc, jsval *vp)
             ac.construct(cx, obj);
             args[0] = ObjectValue(*obj);
         }
-        if (obj && obj->is<JSFunction>()) {
+        if (obj && obj->isFunction()) {
             funobj = obj;
         } else {
             JSFunction *fun = JS_ValueToFunction(cx, args[0]);
@@ -2332,7 +2331,7 @@ Clone(JSContext *cx, unsigned argc, jsval *vp)
         }
     }
     if (funobj->compartment() != cx->compartment()) {
-        JSFunction *fun = &funobj->as<JSFunction>();
+        JSFunction *fun = funobj->toFunction();
         if (fun->hasScript() && fun->nonLazyScript()->compileAndGo) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNEXPECTED_TYPE,
                                  "function", "compile-and-go");
@@ -3062,7 +3061,7 @@ Timeout(JSContext *cx, unsigned argc, jsval *vp)
 
     if (argc > 1) {
         RootedValue value(cx, JS_ARGV(cx, vp)[1]);
-        if (!value.isObject() || !value.toObject().is<JSFunction>()) {
+        if (!value.isObject() || !value.toObject().isFunction()) {
             JS_ReportError(cx, "Second argument must be a timeout function");
             return false;
         }
@@ -3330,11 +3329,11 @@ DecompileFunctionSomehow(JSContext *cx, unsigned argc, Value *vp,
                          JSString *(*decompiler)(JSContext *, JSFunction *, unsigned))
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() < 1 || !args[0].isObject() || !args[0].toObject().is<JSFunction>()) {
+    if (args.length() < 1 || !args[0].isObject() || !args[0].toObject().isFunction()) {
         args.rval().setUndefined();
         return true;
     }
-    JSString *result = decompiler(cx, &args[0].toObject().as<JSFunction>(), 0);
+    JSString *result = decompiler(cx, args[0].toObject().toFunction(), 0);
     if (!result)
         return false;
     args.rval().setString(result);
@@ -3520,7 +3519,7 @@ EnableStackWalkingAssertion(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 GetMaxArgs(JSContext *cx, unsigned arg, jsval *vp)
 {
-    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(ARGS_LENGTH_MAX));
+    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(StackSpace::ARGS_LENGTH_MAX));
     return true;
 }
 
@@ -3647,6 +3646,26 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
     JS_FN_HELP("setDebuggerHandler", SetDebuggerHandler, 1, 0,
 "setDebuggerHandler(f)",
 "  Set handler for debugger keyword to f."),
+
+    JS_FN_HELP("setThrowHook", SetThrowHook, 1, 0,
+"setThrowHook(f)",
+"  Set throw hook to f."),
+
+    JS_FN_HELP("trap", Trap, 3, 0,
+"trap([fun, [pc,]] exp)",
+"  Trap bytecode execution."),
+
+    JS_FN_HELP("untrap", Untrap, 2, 0,
+"untrap(fun[, pc])",
+"  Remove a trap."),
+
+    JS_FN_HELP("line2pc", LineToPC, 0, 0,
+"line2pc([fun,] line)",
+"  Map line number to PC."),
+
+    JS_FN_HELP("pc2line", PCToLine, 0, 0,
+"pc2line(fun[, pc])",
+"  Map PC to line number."),
 
     JS_FN_HELP("throwError", ThrowError, 0, 0,
 "throwError()",
@@ -3780,6 +3799,10 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
 "  Read filename into returned string. Filename is relative to the directory\n"
                "  containing the current script."),
 
+    JS_FN_HELP("system", System, 1, 0,
+"system(command)",
+"  Execute command on the current host, returning result code."),
+
     JS_FN_HELP("compile", Compile, 1, 0,
 "compile(code)",
 "  Compiles a string to bytecode, potentially throwing."),
@@ -3801,6 +3824,10 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
     JS_FN_HELP("elapsed", Elapsed, 0, 0,
 "elapsed()",
 "  Execution time elapsed for the current context."),
+
+    JS_FN_HELP("parent", Parent, 1, 0,
+"parent(obj)",
+"  Returns the parent of obj."),
 
     JS_FN_HELP("decompileFunction", DecompileFunction, 1, 0,
 "decompileFunction(func)",
@@ -3858,39 +3885,11 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
     JS_FS_HELP_END
 };
 
-static const JSFunctionSpecWithHelp fuzzing_unsafe_functions[] = {
+static const JSFunctionSpecWithHelp self_hosting_functions[] = {
     JS_FN_HELP("getSelfHostedValue", GetSelfHostedValue, 1, 0,
 "getSelfHostedValue()",
 "  Get a self-hosted value by its name. Note that these values don't get \n"
 "  cached, so repeatedly getting the same value creates multiple distinct clones."),
-
-    JS_FN_HELP("parent", Parent, 1, 0,
-"parent(obj)",
-"  Returns the parent of obj."),
-
-    JS_FN_HELP("line2pc", LineToPC, 0, 0,
-"line2pc([fun,] line)",
-"  Map line number to PC."),
-
-    JS_FN_HELP("pc2line", PCToLine, 0, 0,
-"pc2line(fun[, pc])",
-"  Map PC to line number."),
-
-    JS_FN_HELP("setThrowHook", SetThrowHook, 1, 0,
-"setThrowHook(f)",
-"  Set throw hook to f."),
-
-    JS_FN_HELP("system", System, 1, 0,
-"system(command)",
-"  Execute command on the current host, returning result code."),
-
-    JS_FN_HELP("trap", Trap, 3, 0,
-"trap([fun, [pc,]] exp)",
-"  Trap bytecode execution."),
-
-    JS_FN_HELP("untrap", Untrap, 2, 0,
-"untrap(fun[, pc])",
-"  Remove a trap."),
 
     JS_FS_HELP_END
 };
@@ -4542,7 +4541,7 @@ static JSClass *GetDomClass();
 #endif
 
 static bool
-dom_get_x(JSContext* cx, HandleObject obj, void *self, JSJitGetterCallArgs args)
+dom_get_x(JSContext* cx, JSHandleObject obj, void *self, JSJitGetterCallArgs args)
 {
     JS_ASSERT(JS_GetClass(obj) == GetDomClass());
     JS_ASSERT(self == (void *)0x1234);
@@ -4551,7 +4550,7 @@ dom_get_x(JSContext* cx, HandleObject obj, void *self, JSJitGetterCallArgs args)
 }
 
 static bool
-dom_set_x(JSContext* cx, HandleObject obj, void *self, JSJitSetterCallArgs args)
+dom_set_x(JSContext* cx, JSHandleObject obj, void *self, JSJitSetterCallArgs args)
 {
     JS_ASSERT(JS_GetClass(obj) == GetDomClass());
     JS_ASSERT(self == (void *)0x1234);
@@ -4559,7 +4558,7 @@ dom_set_x(JSContext* cx, HandleObject obj, void *self, JSJitSetterCallArgs args)
 }
 
 static bool
-dom_doFoo(JSContext* cx, HandleObject obj, void *self, const JSJitMethodCallArgs& args)
+dom_doFoo(JSContext* cx, JSHandleObject obj, void *self, const JSJitMethodCallArgs& args)
 {
     JS_ASSERT(JS_GetClass(obj) == GetDomClass());
     JS_ASSERT(self == (void *)0x1234);
@@ -4735,7 +4734,7 @@ dom_constructor(JSContext* cx, unsigned argc, JS::Value *vp)
 }
 
 static JSBool
-InstanceClassHasProtoAtDepth(HandleObject protoObject, uint32_t protoID, uint32_t depth)
+InstanceClassHasProtoAtDepth(JSHandleObject protoObject, uint32_t protoID, uint32_t depth)
 {
     /* There's only a single (fake) DOM object in the shell, so just return true. */
     return true;
@@ -4833,8 +4832,11 @@ NewGlobalObject(JSContext *cx, JSObject *sameZoneAs)
         if (!js::DefineTestingFunctions(cx, glob))
             return NULL;
 
-        if (!fuzzingSafe && !JS_DefineFunctionsWithHelp(cx, glob, fuzzing_unsafe_functions))
+        if (getenv("MOZ_SELFHOSTEDJS") &&
+            !JS_DefineFunctionsWithHelp(cx, glob, self_hosting_functions))
+        {
             return NULL;
+        }
 
         RootedObject it(cx, JS_DefineObject(cx, glob, "it", &its_class, NULL, 0));
         if (!it)
@@ -5127,9 +5129,6 @@ Shell(JSContext *cx, OptionParser *op, char **envp)
         JS_ToggleOptions(cx, JSOPTION_TYPE_INFERENCE);
     }
 
-    if (op->getBoolOption("fuzzing-safe"))
-        fuzzingSafe = true;
-
     RootedObject glob(cx);
     glob = NewGlobalObject(cx, NULL);
     if (!glob)
@@ -5301,8 +5300,6 @@ main(int argc, char **argv, char **envp)
                             "(default: 10)", -1)
         || !op.addBoolOption('\0', "no-fpu", "Pretend CPU does not support floating-point operations "
                              "to test JIT codegen (no-op on platforms other than x86).")
-        || !op.addBoolOption('\0', "fuzzing-safe", "Don't expose functions that aren't safe for "
-                             "fuzzers to call")
 #ifdef JSGC_GENERATIONAL
         || !op.addBoolOption('\0', "no-ggc", "Disable Generational GC")
 #endif

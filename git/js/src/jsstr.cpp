@@ -43,7 +43,6 @@
 #include "vm/Interpreter.h"
 #include "vm/NumericConversions.h"
 #include "vm/RegExpObject.h"
-#include "vm/ScopeObject.h"
 #include "vm/Shape.h"
 #include "vm/StringBuffer.h"
 
@@ -2131,8 +2130,8 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
         unsigned p = res->getMatches().parenCount();
         unsigned argc = 1 + p + 2;
 
-        InvokeArgs &args = rdata.fig.args();
-        if (!args.init(argc))
+        InvokeArgsGuard &args = rdata.fig.args();
+        if (!args.pushed() && !cx->stack.pushInvokeArgs(cx, argc, &args))
             return false;
 
         args.setCallee(ObjectValue(*lambda));
@@ -2639,7 +2638,7 @@ str_replace_flat_lambda(JSContext *cx, CallArgs outerArgs, ReplaceData &rdata, c
 
     /* lambda(matchStr, matchStart, textstr) */
     static const uint32_t lambdaArgc = 3;
-    if (!rdata.fig.args().init(lambdaArgc))
+    if (!cx->stack.pushInvokeArgs(cx, lambdaArgc, &rdata.fig.args()))
         return false;
 
     CallArgs &args = rdata.fig.args();
@@ -2691,10 +2690,10 @@ static const uint32_t ReplaceOptArg = 2;
 static bool
 LambdaIsGetElem(JSContext *cx, JSObject &lambda, MutableHandleObject pobj)
 {
-    if (!lambda.is<JSFunction>())
+    if (!lambda.isFunction())
         return true;
 
-    JSFunction *fun = &lambda.as<JSFunction>();
+    JSFunction *fun = lambda.toFunction();
     if (!fun->isInterpreted())
         return true;
 
@@ -3535,7 +3534,7 @@ js::str_fromCharCode(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JS_ASSERT(args.length() <= ARGS_LENGTH_MAX);
+    JS_ASSERT(args.length() <= StackSpace::ARGS_LENGTH_MAX);
     if (args.length() == 1) {
         uint16_t code;
         if (!ToUint16(cx, args[0], &code))
@@ -3593,7 +3592,7 @@ js_InitStringClass(JSContext *cx, HandleObject obj)
 {
     JS_ASSERT(obj->isNative());
 
-    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
+    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
 
     Rooted<JSString*> empty(cx, cx->runtime()->emptyString);
     RootedObject proto(cx, global->createBlankPrototype(cx, &StringObject::class_));

@@ -1234,7 +1234,7 @@ NewObjectGCKind(js::Class *clasp)
 {
     if (clasp == &ArrayClass)
         return gc::FINALIZE_OBJECT8;
-    if (clasp == &JSFunction::class_)
+    if (clasp == &FunctionClass)
         return gc::FINALIZE_OBJECT2;
     return gc::FINALIZE_OBJECT4;
 }
@@ -1244,7 +1244,7 @@ NewObject(JSContext *cx, Class *clasp, types::TypeObject *type_, JSObject *paren
           gc::AllocKind kind, NewObjectKind newKind)
 {
     JS_ASSERT(clasp != &ArrayClass);
-    JS_ASSERT_IF(clasp == &JSFunction::class_,
+    JS_ASSERT_IF(clasp == &FunctionClass,
                  kind == JSFunction::FinalizeKind || kind == JSFunction::ExtendedFinalizeKind);
     JS_ASSERT_IF(parent, &parent->global() == cx->compartment()->maybeGlobal());
 
@@ -1282,7 +1282,7 @@ void
 NewObjectCache::fillProto(EntryIndex entry, Class *clasp, js::TaggedProto proto,
                           gc::AllocKind kind, JSObject *obj)
 {
-    JS_ASSERT_IF(proto.isObject(), !proto.toObject()->is<GlobalObject>());
+    JS_ASSERT_IF(proto.isObject(), !proto.toObject()->isGlobal());
     JS_ASSERT(obj->getTaggedProto() == proto);
     return fill(entry, clasp, proto.raw(), kind, obj);
 }
@@ -1304,8 +1304,7 @@ js::NewObjectWithGivenProto(JSContext *cx, js::Class *clasp,
     if (proto.isObject() &&
         newKind == GenericObject &&
         !cx->compartment()->objectMetadataCallback &&
-        (!parent || parent == proto.toObject()->getParent()) &&
-        !proto.toObject()->is<GlobalObject>())
+        (!parent || parent == proto.toObject()->getParent()) && !proto.toObject()->isGlobal())
     {
         if (cache.lookupProto(clasp, proto.toObject(), allocKind, &entry)) {
             JSObject *obj = cache.newObjectFromHit(cx, entry, GetInitialHeap(newKind, clasp));
@@ -1362,12 +1361,12 @@ js::NewObjectWithClassProtoCommon(JSContext *cx, js::Class *clasp, JSObject *pro
     NewObjectCache &cache = cx->runtime()->newObjectCache;
 
     NewObjectCache::EntryIndex entry = -1;
-    if (parentArg->is<GlobalObject>() &&
+    if (parentArg->isGlobal() &&
         protoKey != JSProto_Null &&
         newKind == GenericObject &&
         !cx->compartment()->objectMetadataCallback)
     {
-        if (cache.lookupGlobal(clasp, &parentArg->as<GlobalObject>(), allocKind, &entry)) {
+        if (cache.lookupGlobal(clasp, &parentArg->asGlobal(), allocKind, &entry)) {
             JSObject *obj = cache.newObjectFromHit(cx, entry, GetInitialHeap(newKind, clasp));
             if (obj)
                 return obj;
@@ -1389,7 +1388,7 @@ js::NewObjectWithClassProtoCommon(JSContext *cx, js::Class *clasp, JSObject *pro
         return NULL;
 
     if (entry != -1 && !obj->hasDynamicSlots())
-        cache.fillGlobal(entry, clasp, &parent->as<GlobalObject>(), allocKind, obj);
+        cache.fillGlobal(entry, clasp, &parent->asGlobal(), allocKind, obj);
 
     return obj;
 }
@@ -1433,7 +1432,7 @@ bool
 js::NewObjectScriptedCall(JSContext *cx, MutableHandleObject pobj)
 {
     jsbytecode *pc;
-    RootedScript script(cx, cx->currentScript(&pc));
+    RootedScript script(cx, cx->stack.currentScript(&pc));
     gc::AllocKind allocKind = NewObjectGCKind(&ObjectClass);
     NewObjectKind newKind = script
                             ? UseNewTypeForInitializer(cx, script, pc, &ObjectClass)
@@ -1538,7 +1537,7 @@ js::CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, JSObject 
     JSObject *res;
 
     if (proto) {
-        RootedTypeObject type(cx, proto->getNewType(cx, &ObjectClass, &callee->as<JSFunction>()));
+        RootedTypeObject type(cx, proto->getNewType(cx, &ObjectClass, callee->toFunction()));
         if (!type)
             return NULL;
         res = CreateThisForFunctionWithType(cx, type, callee->getParent(), newKind);
@@ -1548,7 +1547,7 @@ js::CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, JSObject 
     }
 
     if (res && cx->typeInferenceEnabled()) {
-        JSScript *script = callee->as<JSFunction>().nonLazyScript();
+        JSScript *script = callee->toFunction()->nonLazyScript();
         TypeScript::SetThis(cx, script, types::Type::ObjectType(res));
     }
 
@@ -1575,7 +1574,7 @@ js::CreateThisForFunction(JSContext *cx, HandleObject callee, bool newType)
         /* Reshape the singleton before passing it as the 'this' value. */
         JSObject::clear(cx, nobj);
 
-        JSScript *calleeScript = callee->as<JSFunction>().nonLazyScript();
+        JSScript *calleeScript = callee->toFunction()->nonLazyScript();
         TypeScript::SetThis(cx, calleeScript, types::Type::ObjectType(nobj));
 
         return nobj;
@@ -1641,7 +1640,7 @@ js_InferFlags(JSContext *cx, unsigned defaultFlags)
      * handle the case of cross-compartment property access.
      */
     jsbytecode *pc;
-    JSScript *script = cx->currentScript(&pc, JSContext::ALLOW_CROSS_COMPARTMENT);
+    JSScript *script = cx->stack.currentScript(&pc, ContextStack::ALLOW_CROSS_COMPARTMENT);
     if (!script)
         return defaultFlags;
 
@@ -1782,7 +1781,7 @@ js::CloneObject(JSContext *cx, HandleObject obj, Handle<js::TaggedProto> proto, 
     if (!clone)
         return NULL;
     if (obj->isNative()) {
-        if (clone->is<JSFunction>() && (obj->compartment() != clone->compartment())) {
+        if (clone->isFunction() && (obj->compartment() != clone->compartment())) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                  JSMSG_CANT_CLONE_OBJECT);
             return NULL;
@@ -1958,7 +1957,7 @@ void
 JSObject::TradeGuts(JSContext *cx, JSObject *a, JSObject *b, TradeGutsReserved &reserved)
 {
     JS_ASSERT(a->compartment() == b->compartment());
-    JS_ASSERT(a->is<JSFunction>() == b->is<JSFunction>());
+    JS_ASSERT(a->isFunction() == b->isFunction());
 
     /*
      * Swap the object's types, to restore their initial type information.
@@ -1969,7 +1968,7 @@ JSObject::TradeGuts(JSContext *cx, JSObject *a, JSObject *b, TradeGutsReserved &
     b->type_ = tmp;
 
     /* Don't try to swap a JSFunction for a plain function JSObject. */
-    JS_ASSERT_IF(a->is<JSFunction>(), a->tenuredSizeOfThis() == b->tenuredSizeOfThis());
+    JS_ASSERT_IF(a->isFunction(), a->tenuredSizeOfThis() == b->tenuredSizeOfThis());
 
     /*
      * Regexp guts are more complicated -- we would need to migrate the
@@ -2135,7 +2134,7 @@ DefineStandardSlot(JSContext *cx, HandleObject obj, JSProtoKey key, JSAtom *atom
          * property is not yet present, force it into a new one bound to a
          * reserved slot. Otherwise, go through the normal property path.
          */
-        JS_ASSERT(obj->is<GlobalObject>());
+        JS_ASSERT(obj->isGlobal());
         JS_ASSERT(obj->isNative());
 
         if (!obj->nativeLookup(cx, id)) {
@@ -2159,7 +2158,7 @@ static void
 SetClassObject(JSObject *obj, JSProtoKey key, JSObject *cobj, JSObject *proto)
 {
     JS_ASSERT(!obj->getParent());
-    if (!obj->is<GlobalObject>())
+    if (!obj->isGlobal())
         return;
 
     obj->setReservedSlot(key, ObjectOrNullValue(cobj));
@@ -2170,7 +2169,7 @@ static void
 ClearClassObject(JSObject *obj, JSProtoKey key)
 {
     JS_ASSERT(!obj->getParent());
-    if (!obj->is<GlobalObject>())
+    if (!obj->isGlobal())
         return;
 
     obj->setSlot(key, UndefinedValue());
@@ -2199,12 +2198,12 @@ js::DefineConstructorAndPrototype(JSContext *cx, HandleObject obj, JSProtoKey ke
      *    otherwise-uninitialized global.
      *
      * 3. NewObject allocating a JSFunction-sized GC-thing when clasp is
-     *    &JSFunction::class_, not a JSObject-sized (smaller) GC-thing.
+     *    &FunctionClass, not a JSObject-sized (smaller) GC-thing.
      *
      * The JS_NewObjectForGivenProto and JS_NewObject APIs also allow clasp to
-     * be &JSFunction::class_ (we could break compatibility easily). But
-     * fixing (3) is not enough without addressing the bootstrapping dependency
-     * on (1) and (2).
+     * be &FunctionClass (we could break compatibility easily). But fixing
+     * (3) is not enough without addressing the bootstrapping dependency on (1)
+     * and (2).
      */
 
     /*
@@ -2229,9 +2228,7 @@ js::DefineConstructorAndPrototype(JSContext *cx, HandleObject obj, JSProtoKey ke
          * of obj (the global object) is has a reserved slot indexed by key;
          * and (c) key is not the null key.
          */
-        if (!(clasp->flags & JSCLASS_IS_ANONYMOUS) || !obj->is<GlobalObject>() ||
-            key == JSProto_Null)
-        {
+        if (!(clasp->flags & JSCLASS_IS_ANONYMOUS) || !obj->isGlobal() || key == JSProto_Null) {
             uint32_t attrs = (clasp->flags & JSCLASS_IS_ANONYMOUS)
                            ? JSPROP_READONLY | JSPROP_PERMANENT
                            : 0;
@@ -2525,7 +2522,7 @@ JSObject::growSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32_t
     Debug_SetSlotRangeToCrashOnTouch(obj->slots + oldCount, newCount - oldCount);
 
     /* Changes in the slots of global objects can trigger recompilation. */
-    if (changed && obj->is<GlobalObject>())
+    if (changed && obj->isGlobal())
         types::MarkObjectStateChange(cx, obj);
 
     return true;
@@ -2570,7 +2567,7 @@ JSObject::shrinkSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32
     obj->slots = newslots;
 
     /* Watch for changes in global object slots, as for growSlots. */
-    if (changed && obj->is<GlobalObject>())
+    if (changed && obj->isGlobal())
         types::MarkObjectStateChange(cx, obj);
 }
 
@@ -2766,35 +2763,41 @@ JSObject::maybeDensifySparseElements(JSContext *cx, HandleObject obj)
 }
 
 ObjectElements *
-AllocateElements(ThreadSafeContext *tcx, JSObject *obj, uint32_t nelems)
+AllocateElements(JSObject::MaybeContext maybecx, JSObject *obj, uint32_t nelems)
 {
+    if (JSContext *cx = maybecx.context) {
 #ifdef JSGC_GENERATIONAL
-    if (tcx->isJSContext()) {
-        JSContext *cx = tcx->asJSContext();
         return cx->runtime()->gcNursery.allocateElements(cx, obj, nelems);
-    }
+#else
+        return static_cast<js::ObjectElements *>(cx->malloc_(nelems * sizeof(HeapValue)));
 #endif
+    }
 
-    return static_cast<js::ObjectElements *>(tcx->malloc_(nelems * sizeof(HeapValue)));
+    Allocator *alloc = maybecx.allocator;
+    return static_cast<js::ObjectElements *>(alloc->malloc_(nelems * sizeof(HeapValue)));
 }
 
 ObjectElements *
-ReallocateElements(ThreadSafeContext *tcx, JSObject *obj, ObjectElements *oldHeader,
+ReallocateElements(JSObject::MaybeContext maybecx, JSObject *obj, ObjectElements *oldHeader,
                    uint32_t oldCount, uint32_t newCount)
 {
+    if (JSContext *cx = maybecx.context) {
 #ifdef JSGC_GENERATIONAL
-    if (tcx->isJSContext()) {
-        JSContext *cx = tcx->asJSContext();
         return cx->runtime()->gcNursery.reallocateElements(cx, obj, oldHeader, oldCount, newCount);
-    }
+#else
+        return static_cast<js::ObjectElements *>(cx->realloc_(oldHeader,
+                                                              oldCount * sizeof(HeapValue),
+                                                              newCount * sizeof(HeapSlot)));
 #endif
+    }
 
-    return static_cast<js::ObjectElements *>(tcx->realloc_(oldHeader, oldCount * sizeof(HeapSlot),
-                                                           newCount * sizeof(HeapSlot)));
+    Allocator *alloc = maybecx.allocator;
+    return static_cast<js::ObjectElements *>(alloc->realloc_(oldHeader, oldCount * sizeof(HeapSlot),
+                                                             newCount * sizeof(HeapSlot)));
 }
 
 bool
-JSObject::growElements(ThreadSafeContext *tcx, uint32_t newcap)
+JSObject::growElements(MaybeContext cx, uint32_t newcap)
 {
     JS_ASSERT(isExtensible());
     JS_ASSERT_IF(isArray() && !arrayLengthIsWritable(),
@@ -2841,11 +2844,11 @@ JSObject::growElements(ThreadSafeContext *tcx, uint32_t newcap)
 
     ObjectElements *newheader;
     if (hasDynamicElements()) {
-        newheader = ReallocateElements(tcx, this, getElementsHeader(), oldAllocated, newAllocated);
+        newheader = ReallocateElements(cx, this, getElementsHeader(), oldAllocated, newAllocated);
         if (!newheader)
             return false; /* Leave elements as its old size. */
     } else {
-        newheader = AllocateElements(tcx, this, newAllocated);
+        newheader = AllocateElements(cx, this, newAllocated);
         if (!newheader)
             return false; /* Leave elements as its old size. */
         js_memcpy(newheader, getElementsHeader(),
@@ -2994,7 +2997,7 @@ bool
 js_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key, MutableHandleObject objp)
 {
     RootedObject global(cx, &obj->global());
-    if (!global->is<GlobalObject>()) {
+    if (!global->isGlobal()) {
         objp.set(NULL);
         return true;
     }
@@ -3759,7 +3762,7 @@ js::LookupNameWithGlobalDefault(JSContext *cx, HandlePropertyName name, HandleOb
     RootedShape prop(cx);
 
     RootedObject scope(cx, scopeChain);
-    for (; !scope->is<GlobalObject>(); scope = scope->enclosingScope()) {
+    for (; !scope->isGlobal(); scope = scope->enclosingScope()) {
         if (!JSObject::lookupGeneric(cx, scope, id, &pobj, &prop))
             return false;
         if (prop)
@@ -3795,7 +3798,7 @@ NativeGetInline(JSContext *cx,
 
     {
         jsbytecode *pc;
-        JSScript *script = cx->currentScript(&pc);
+        JSScript *script = cx->stack.currentScript(&pc);
         if (script && script->hasAnalysis()) {
             analyze::Bytecode *code = script->analysis()->maybeCode(pc);
             if (code)
@@ -3930,7 +3933,7 @@ GetPropertyHelperInline(JSContext *cx,
          */
         if (vp.isUndefined()) {
             jsbytecode *pc = NULL;
-            RootedScript script(cx, cx->currentScript(&pc));
+            RootedScript script(cx, cx->stack.currentScript(&pc));
             if (!pc)
                 return true;
             JSOp op = (JSOp) *pc;
@@ -4157,7 +4160,7 @@ static bool
 MaybeReportUndeclaredVarAssignment(JSContext *cx, JSString *propname)
 {
     {
-        JSScript *script = cx->currentScript(NULL, JSContext::ALLOW_CROSS_COMPARTMENT);
+        JSScript *script = cx->stack.currentScript(NULL, ContextStack::ALLOW_CROSS_COMPARTMENT);
         if (!script)
             return true;
 
@@ -4181,7 +4184,7 @@ js::ReportIfUndeclaredVarAssignment(JSContext *cx, HandleString propname)
 {
     {
         jsbytecode *pc;
-        JSScript *script = cx->currentScript(&pc, JSContext::ALLOW_CROSS_COMPARTMENT);
+        JSScript *script = cx->stack.currentScript(&pc, ContextStack::ALLOW_CROSS_COMPARTMENT);
         if (!script)
             return true;
 
@@ -4301,7 +4304,7 @@ baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receive
         /* We should never add properties to lexical blocks. */
         JS_ASSERT(!obj->is<BlockObject>());
 
-        if (obj->is<GlobalObject>() &&
+        if (obj->isGlobal() &&
             (defineHow & DNP_UNQUALIFIED) &&
             !MaybeReportUndeclaredVarAssignment(cx, JSID_TO_STRING(id)))
         {
@@ -4699,7 +4702,7 @@ js::DefaultValue(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValu
 }
 
 JS_FRIEND_API(JSBool)
-JS_EnumerateState(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
+JS_EnumerateState(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op,
                   MutableHandleValue statep, JS::MutableHandleId idp)
 {
     /* If the class has a custom JSCLASS_NEW_ENUMERATE hook, call it. */
@@ -4956,7 +4959,7 @@ js_GetObjectSlotName(JSTracer *trc, char *buf, size_t bufsize)
 
     if (!shape) {
         const char *slotname = NULL;
-        if (obj->is<GlobalObject>()) {
+        if (obj->isGlobal()) {
 #define TEST_SLOT_MATCHES_PROTOTYPE(name,code,init)                           \
             if ((code) == slot) { slotname = js_##name##_str; goto found; }
             JS_FOR_EACH_PROTOTYPE(TEST_SLOT_MATCHES_PROTOTYPE)
@@ -4990,8 +4993,7 @@ js_ReportGetterOnlyAssignment(JSContext *cx)
 }
 
 JS_FRIEND_API(JSBool)
-js_GetterOnlyPropertyStub(JSContext *cx, HandleObject obj, HandleId id, JSBool strict,
-                          MutableHandleValue vp)
+js_GetterOnlyPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, MutableHandleValue vp)
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_GETTER_ONLY);
     return JS_FALSE;
@@ -5018,8 +5020,8 @@ dumpValue(const Value &v)
         fprintf(stderr, "%g", v.toDouble());
     else if (v.isString())
         v.toString()->dump();
-    else if (v.isObject() && v.toObject().is<JSFunction>()) {
-        JSFunction *fun = &v.toObject().as<JSFunction>();
+    else if (v.isObject() && v.toObject().isFunction()) {
+        JSFunction *fun = v.toObject().toFunction();
         if (fun->displayAtom()) {
             fputs("<function ", stderr);
             FileEscapedString(stderr, fun->displayAtom(), 0);

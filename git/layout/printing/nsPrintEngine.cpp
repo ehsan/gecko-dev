@@ -3518,8 +3518,12 @@ nsPrintEngine::TurnScriptingOn(bool aDoTurnOn)
       continue;
     }
 
-    if (nsCOMPtr<nsPIDOMWindow> window = doc->GetWindow()) {
-      nsCOMPtr<nsIScriptGlobalObject> scriptGlobalObj = do_QueryInterface(window);
+    // get the script global object
+    nsIScriptGlobalObject *scriptGlobalObj = doc->GetScriptGlobalObject();
+
+    if (scriptGlobalObj) {
+      nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(scriptGlobalObj);
+      NS_ASSERTION(window, "Can't get nsPIDOMWindow");
       nsIScriptContext *scx = scriptGlobalObj->GetContext();
       NS_WARN_IF_FALSE(scx, "Can't get nsIScriptContext");
       nsresult propThere = NS_PROPTABLE_PROP_NOT_THERE;

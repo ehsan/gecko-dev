@@ -1140,7 +1140,7 @@ Zone::reduceGCTriggerBytes(size_t amount)
 }
 
 Allocator::Allocator(Zone *zone)
-  : zone_(zone)
+  : zone(zone)
 {}
 
 inline void
@@ -1161,6 +1161,23 @@ PushArenaAllocatedDuringSweep(JSRuntime *runtime, ArenaHeader *arena)
 {
     arena->setNextAllocDuringSweep(runtime->gcArenasAllocatedDuringSweep);
     runtime->gcArenasAllocatedDuringSweep = arena;
+}
+
+void *
+ArenaLists::parallelAllocate(Zone *zone, AllocKind thingKind, size_t thingSize)
+{
+    /*
+     * During parallel Rivertrail sections, if no existing arena can
+     * satisfy the allocation, then a new one is allocated. If that
+     * fails, then we return NULL which will cause the parallel
+     * section to abort.
+     */
+
+    void *t = allocateFromFreeList(thingKind, thingSize);
+    if (t)
+        return t;
+
+    return allocateFromArenaInline(zone, thingKind);
 }
 
 inline void *
@@ -1476,38 +1493,34 @@ RunLastDitchGC(JSContext *cx, JS::Zone *zone, AllocKind thingKind)
 
 template <AllowGC allowGC>
 /* static */ void *
-ArenaLists::refillFreeList(ThreadSafeContext *tcx, AllocKind thingKind)
+ArenaLists::refillFreeList(JSContext *cx, AllocKind thingKind)
 {
-    JS_ASSERT(tcx->allocator()->arenas.freeLists[thingKind].isEmpty());
+    JS_ASSERT(cx->zone()->allocator.arenas.freeLists[thingKind].isEmpty());
 
-    Zone *zone = tcx->allocator()->zone_;
+    Zone *zone = cx->zone();
     JSRuntime *rt = zone->rt;
     JS_ASSERT(!rt->isHeapBusy());
 
     bool runGC = rt->gcIncrementalState != NO_INCREMENTAL &&
                  zone->gcBytes > zone->gcTriggerBytes &&
-                 tcx->allowGC() && allowGC;
-
+                 allowGC;
     for (;;) {
         if (JS_UNLIKELY(runGC)) {
-            if (void *thing = RunLastDitchGC(tcx->asJSContext(), zone, thingKind))
+            if (void *thing = RunLastDitchGC(cx, zone, thingKind))
                 return thing;
         }
 
         /*
          * allocateFromArena may fail while the background finalization still
-         * run. If we aren't in a fork join, we want to wait for it to finish
-         * and restart. However, checking for that is racy as the background
-         * finalization could free some things after allocateFromArena decided
-         * to fail but at this point it may have already stopped. To avoid
-         * this race we always try to allocate twice.
-         *
-         * If we're in a fork join, we simply try it once and return whatever
-         * value we get.
+         * run. In that case we want to wait for it to finish and restart.
+         * However, checking for that is racy as the background finalization
+         * could free some things after allocateFromArena decided to fail but
+         * at this point it may have already stopped. To avoid this race we
+         * always try to allocate twice.
          */
         for (bool secondAttempt = false; ; secondAttempt = true) {
-            void *thing = tcx->allocator()->arenas.allocateFromArenaInline(zone, thingKind);
-            if (JS_LIKELY(!!thing) || tcx->isForkJoinSlice())
+            void *thing = zone->allocator.arenas.allocateFromArenaInline(zone, thingKind);
+            if (JS_LIKELY(!!thing))
                 return thing;
             if (secondAttempt)
                 break;
@@ -1528,15 +1541,15 @@ ArenaLists::refillFreeList(ThreadSafeContext *tcx, AllocKind thingKind)
     }
 
     JS_ASSERT(allowGC);
-    js_ReportOutOfMemory(tcx->asJSContext());
+    js_ReportOutOfMemory(cx);
     return NULL;
 }
 
 template void *
-ArenaLists::refillFreeList<NoGC>(ThreadSafeContext *cx, AllocKind thingKind);
+ArenaLists::refillFreeList<NoGC>(JSContext *cx, AllocKind thingKind);
 
 template void *
-ArenaLists::refillFreeList<CanGC>(ThreadSafeContext *cx, AllocKind thingKind);
+ArenaLists::refillFreeList<CanGC>(JSContext *cx, AllocKind thingKind);
 
 JSGCTraceKind
 js_GetGCThingTraceKind(void *thing)
@@ -1982,7 +1995,7 @@ js::MaybeGC(JSContext *cx)
     int64_t now = PRMJ_Now();
     if (rt->gcNextFullGCTime && rt->gcNextFullGCTime <= now) {
         if (rt->gcChunkAllocationSinceLastGC ||
-            rt->gcNumArenasFreeCommitted > rt->gcDecommitThreshold)
+            rt->gcNumArenasFreeCommitted > FreeCommittedArenasThreshold)
         {
             JS::PrepareForFullGC(rt);
             GCSlice(rt, GC_SHRINK, JS::gcreason::MAYBEGC);
@@ -2558,7 +2571,6 @@ PurgeRuntime(JSRuntime *rt)
         comp->purge();
 
     rt->freeLifoAlloc.transferUnusedFrom(&rt->tempLifoAlloc);
-    rt->interpreterStack().purge(rt);
 
     rt->gsnCache.purge();
     rt->newObjectCache.purge();
@@ -4133,6 +4145,8 @@ AutoGCSlice::AutoGCSlice(JSRuntime *rt)
      * is set at the beginning of the mark phase. During incremental GC, we also
      * set it at the start of every phase.
      */
+    rt->stackSpace.markActiveCompartments();
+
     for (ActivationIterator iter(rt); !iter.done(); ++iter)
         iter.activation()->compartment()->zone()->active = true;
 

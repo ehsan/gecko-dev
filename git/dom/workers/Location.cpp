@@ -129,8 +129,7 @@ private:
   }
 
   static JSBool
-  GetProperty(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-              JS::MutableHandle<JS::Value> aVp)
+  GetProperty(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JS::MutableHandle<JS::Value> aVp)
   {
     JSClass* classPtr = JS_GetClass(aObj);
     if (classPtr != &sClass) {

@@ -32,7 +32,7 @@ typedef Rooted<ArgumentsObject *> RootedArgumentsObject;
 StaticScopeIter::StaticScopeIter(JSContext *cx, JSObject *objArg)
   : obj(cx, objArg), onNamedLambda(false)
 {
-    JS_ASSERT_IF(obj, obj->is<StaticBlockObject>() || obj->is<JSFunction>());
+    JS_ASSERT_IF(obj, obj->is<StaticBlockObject>() || obj->isFunction());
 }
 
 bool
@@ -46,14 +46,14 @@ StaticScopeIter::operator++(int)
 {
     if (obj->is<StaticBlockObject>()) {
         obj = obj->as<StaticBlockObject>().enclosingStaticScope();
-    } else if (onNamedLambda || !obj->as<JSFunction>().isNamedLambda()) {
+    } else if (onNamedLambda || !obj->toFunction()->isNamedLambda()) {
         onNamedLambda = false;
-        obj = obj->as<JSFunction>().nonLazyScript()->enclosingStaticScope();
+        obj = obj->toFunction()->nonLazyScript()->enclosingStaticScope();
     } else {
         onNamedLambda = true;
     }
-    JS_ASSERT_IF(obj, obj->is<StaticBlockObject>() || obj->is<JSFunction>());
-    JS_ASSERT_IF(onNamedLambda, obj->is<JSFunction>());
+    JS_ASSERT_IF(obj, obj->is<StaticBlockObject>() || obj->isFunction());
+    JS_ASSERT_IF(onNamedLambda, obj->isFunction());
 }
 
 bool
@@ -61,7 +61,7 @@ StaticScopeIter::hasDynamicScopeObject() const
 {
     return obj->is<StaticBlockObject>()
            ? obj->as<StaticBlockObject>().needsClone()
-           : obj->as<JSFunction>().isHeavyweight();
+           : obj->toFunction()->isHeavyweight();
 }
 
 Shape *
@@ -93,7 +93,7 @@ JSScript *
 StaticScopeIter::funScript() const
 {
     JS_ASSERT(type() == FUNCTION);
-    return obj->as<JSFunction>().nonLazyScript();
+    return obj->toFunction()->nonLazyScript();
 }
 
 /*****************************************************************************/

@@ -97,7 +97,7 @@ already_AddRefed<nsPIWindowRoot>
 nsXULCommandDispatcher::GetWindowRoot()
 {
   if (mDocument) {
-    nsCOMPtr<nsPIDOMWindow> window(mDocument->GetWindow());
+    nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetScriptGlobalObject()));
     if (window) {
       return window->GetTopWindowRoot();
     }

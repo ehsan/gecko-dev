@@ -16,11 +16,15 @@ AllocationIntegrityState::record()
     if (!instructions.empty())
         return true;
 
-    if (!instructions.appendN(InstructionInfo(), graph.numInstructions()))
+    if (!instructions.reserve(graph.numInstructions()))
         return false;
+    for (size_t i = 0; i < graph.numInstructions(); i++)
+        instructions.infallibleAppend(InstructionInfo());
 
-    if (!virtualRegisters.appendN((LDefinition *)NULL, graph.numVirtualRegisters()))
+    if (!virtualRegisters.reserve(graph.numVirtualRegisters()))
         return false;
+    for (size_t i = 0; i < graph.numVirtualRegisters(); i++)
+        virtualRegisters.infallibleAppend((LDefinition *)NULL);
 
     if (!blocks.reserve(graph.numBlocks()))
         return false;
@@ -421,7 +425,8 @@ AllocationIntegrityState::dump()
     // were discovered.
 
     Vector<IntegrityItem, 20, SystemAllocPolicy> seenOrdered;
-    seenOrdered.appendN(IntegrityItem(), seen.count());
+    for (size_t i = 0; i < seen.count(); i++)
+        seenOrdered.append(IntegrityItem());
 
     for (IntegrityItemSet::Enum iter(seen); !iter.empty(); iter.popFront()) {
         IntegrityItem item = iter.front();

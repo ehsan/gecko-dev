@@ -6100,10 +6100,10 @@ nsContentUtils::IsPatternMatching(nsAString& aValue, nsAString& aPattern,
                                   nsIDocument* aDocument)
 {
   NS_ASSERTION(aDocument, "aDocument should be a valid pointer (not null)");
-  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aDocument->GetWindow());
-  NS_ENSURE_TRUE(sgo, true);
+  NS_ENSURE_TRUE(aDocument->GetScriptGlobalObject(), true);
 
-  AutoPushJSContext cx(sgo->GetContext()->GetNativeContext());
+  AutoPushJSContext cx(aDocument->GetScriptGlobalObject()->
+                       GetContext()->GetNativeContext());
   NS_ENSURE_TRUE(cx, true);
 
   // The pattern has to match the entire value.

@@ -281,8 +281,7 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   // nsXBLProtoImpl::InstallImplementation does.
   nsIDocument* document = aBoundElement->OwnerDoc();
 
-  nsCOMPtr<nsIScriptGlobalObject> global =
-    do_QueryInterface(document->GetWindow());
+  nsIScriptGlobalObject* global = document->GetScriptGlobalObject();
   if (!global) {
     return NS_OK;
   }

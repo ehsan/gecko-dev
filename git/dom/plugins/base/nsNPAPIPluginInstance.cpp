@@ -1618,8 +1618,7 @@ nsNPAPIPluginInstance::GetJSContext(JSContext* *outContext)
   nsresult rv = mOwner->GetDocument(getter_AddRefs(document));
 
   if (NS_SUCCEEDED(rv) && document) {
-    nsCOMPtr<nsIScriptGlobalObject> global =
-      do_QueryInterface(document->GetWindow());
+    nsIScriptGlobalObject *global = document->GetScriptGlobalObject();
 
     if (global) {
       nsIScriptContext *context = global->GetContext();

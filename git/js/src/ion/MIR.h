@@ -5863,7 +5863,7 @@ class MPolyInlineDispatch : public MControlInstruction, public SingleObjectPolic
     }
 
     JSFunction *getFunction(size_t i) const {
-        return &getFunctionConstant(i)->value().toObject().as<JSFunction>();
+        return getFunctionConstant(i)->value().toObject().toFunction();
     }
 
     MBasicBlock *getFunctionBlock(size_t i) const {

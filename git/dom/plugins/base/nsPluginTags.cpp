@@ -332,7 +332,14 @@ nsPluginTag::GetDisabled(bool* aDisabled)
 bool
 nsPluginTag::IsBlocklisted()
 {
-  return GetBlocklistState() == nsIBlocklistService::STATE_BLOCKED;
+  nsCOMPtr<nsIBlocklistService> bls = do_GetService("@mozilla.org/extensions/blocklist;1");
+  if (!bls) {
+    return false;
+  }
+
+  uint32_t state = nsIBlocklistService::STATE_NOT_BLOCKED;
+  bls->GetPluginBlocklistState(this, EmptyString(), EmptyString(), &state);
+  return state == nsIBlocklistService::STATE_BLOCKED;
 }
 
 NS_IMETHODIMP

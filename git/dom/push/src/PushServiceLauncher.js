@@ -27,7 +27,6 @@ PushServiceLauncher.prototype = {
         Services.obs.addObserver(this, "final-ui-startup", true);
         break;
       case "final-ui-startup":
-        Services.obs.removeObserver(this, "final-ui-startup");
         if (!Services.prefs.getBoolPref("services.push.enabled")) {
           return;
         }

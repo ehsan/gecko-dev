@@ -15,6 +15,10 @@ DISABLED_EXTRA_COMPONENTS = \
   Webapps.manifest \
   $(NULL)
 
+DISABLED_EXTRA_PP_COMPONENTS = \
+  Webapps.js \
+  $(NULL)
+
 EXTRA_PP_JS_MODULES += \
   Webapps.jsm \
   AppsUtils.jsm \

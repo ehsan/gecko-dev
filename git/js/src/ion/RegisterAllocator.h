@@ -65,9 +65,12 @@ struct AllocationIntegrityState
 
         InstructionInfo(const InstructionInfo &o)
         {
-            inputs.append(o.inputs);
-            temps.append(o.temps);
-            outputs.append(o.outputs);
+            for (size_t i = 0; i < o.inputs.length(); i++)
+                inputs.append(o.inputs[i]);
+            for (size_t i = 0; i < o.temps.length(); i++)
+                temps.append(o.temps[i]);
+            for (size_t i = 0; i < o.outputs.length(); i++)
+                outputs.append(o.outputs[i]);
         }
     };
     Vector<InstructionInfo, 0, SystemAllocPolicy> instructions;
@@ -76,7 +79,8 @@ struct AllocationIntegrityState
         Vector<InstructionInfo, 5, SystemAllocPolicy> phis;
         BlockInfo() {}
         BlockInfo(const BlockInfo &o) {
-            phis.append(o.phis);
+            for (size_t i = 0; i < o.phis.length(); i++)
+                phis.append(o.phis[i]);
         }
     };
     Vector<BlockInfo, 0, SystemAllocPolicy> blocks;

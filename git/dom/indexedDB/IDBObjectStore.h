@@ -94,7 +94,7 @@ public:
   static bool
   DeserializeValue(JSContext* aCx,
                    StructuredCloneReadInfo& aCloneReadInfo,
-                   JS::MutableHandle<JS::Value> aValue);
+                   jsval* aValue);
 
   static bool
   SerializeValue(JSContext* aCx,

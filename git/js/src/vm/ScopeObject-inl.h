@@ -86,14 +86,14 @@ CallObject::isForEval() const
 {
     JS_ASSERT(getReservedSlot(CALLEE_SLOT).isObjectOrNull());
     JS_ASSERT_IF(getReservedSlot(CALLEE_SLOT).isObject(),
-                 getReservedSlot(CALLEE_SLOT).toObject().is<JSFunction>());
+                 getReservedSlot(CALLEE_SLOT).toObject().isFunction());
     return getReservedSlot(CALLEE_SLOT).isNull();
 }
 
 inline JSFunction &
 CallObject::callee() const
 {
-    return getReservedSlot(CALLEE_SLOT).toObject().as<JSFunction>();
+    return *getReservedSlot(CALLEE_SLOT).toObject().toFunction();
 }
 
 inline const Value &

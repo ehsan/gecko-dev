@@ -493,7 +493,7 @@ js_InitRegExpClass(JSContext *cx, HandleObject obj)
 {
     JS_ASSERT(obj->isNative());
 
-    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
+    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
 
     RootedObject proto(cx, global->createBlankPrototype(cx, &RegExpObject::class_));
     if (!proto)
