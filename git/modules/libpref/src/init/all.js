@@ -219,9 +219,6 @@ pref("gfx.use_text_smoothing_setting", false);
 // loading and rendering of framesets and iframes
 pref("browser.frames.enabled", true);
 
-// form submission
-pref("browser.forms.submit.backwards_compatible", true);
-
 // Number of characters to consider emphasizing for rich autocomplete results
 pref("toolkit.autocomplete.richBoundaryCutoff", 200);
 
@@ -1069,13 +1066,6 @@ pref("bidi.direction", 1);
 // 2 = logicaltexttypeBidi
 // 3 = visualtexttypeBidi
 pref("bidi.texttype", 1);
-// ------------------
-//  Controls Text Mode
-// ------------------
-// 1 = logicalcontrolstextmodeBidiCmd
-// 2 = visualcontrolstextmodeBidi <-- NO LONGER SUPPORTED
-// 3 = containercontrolstextmodeBidi *
-pref("bidi.controlstextmode", 1);
 // ------------------
 //  Numeral Style
 // ------------------

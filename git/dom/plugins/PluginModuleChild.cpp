@@ -81,8 +81,9 @@ PluginModuleChild::PluginModuleChild() :
     mShutdownFunc(0)
 #ifdef OS_WIN
   , mGetEntryPointsFunc(0)
+#elif defined(MOZ_WIDGET_GTK2)
+  , mNestedLoopTimerId(0)
 #endif
-//  ,mNextInstanceId(0)
 {
     NS_ASSERTION(!gInstance, "Something terribly wrong here!");
     memset(&mFunctions, 0, sizeof(mFunctions));
@@ -241,12 +242,88 @@ wrap_gtk_plug_embedded(GtkPlug* plug) {
         (*real_gtk_plug_embedded)(plug);
     }
 }
+
+//
+// The next four constants are knobs that can be tuned.  They trade
+// off potential UI lag from delayed event processing with CPU time.
+//
+static const gint kNestedLoopDetectorPriority = G_PRIORITY_HIGH_IDLE;
+// 90ms so that we can hopefully break livelocks before the user
+// notices UI lag (100ms)
+static const guint kNestedLoopDetectorIntervalMs = 90;
+
+static const gint kBrowserEventPriority = G_PRIORITY_HIGH_IDLE;
+static const guint kBrowserEventIntervalMs = 10;
+
+// static
+gboolean
+PluginModuleChild::DetectNestedEventLoop(gpointer data)
+{
+    PluginModuleChild* pmc = static_cast<PluginModuleChild*>(data);
+
+    NS_ABORT_IF_FALSE(0 != pmc->mNestedLoopTimerId,
+                      "callback after descheduling");
+    NS_ABORT_IF_FALSE(1 < g_main_depth(),
+                      "not canceled before returning to main event loop!");
+
+    PLUGIN_LOG_DEBUG(("Detected nested glib event loop"));
+
+    // just detected a nested loop; start a timer that will
+    // periodically rpc-call back into the browser and process some
+    // events
+    pmc->mNestedLoopTimerId =
+        g_timeout_add_full(kBrowserEventPriority,
+                           kBrowserEventIntervalMs,
+                           PluginModuleChild::ProcessBrowserEvents,
+                           data,
+                           NULL);
+    // cancel the nested-loop detection timer
+    return FALSE;
+}
+
+// static
+gboolean
+PluginModuleChild::ProcessBrowserEvents(gpointer data)
+{
+    NS_ABORT_IF_FALSE(1 < g_main_depth(),
+                      "not canceled before returning to main event loop!");
+
+    PluginModuleChild* pmc = static_cast<PluginModuleChild*>(data);
+
+    pmc->CallProcessSomeEvents();
+
+    return TRUE;
+}
+
+void
+PluginModuleChild::EnteredCxxStack()
+{
+    NS_ABORT_IF_FALSE(0 == mNestedLoopTimerId,
+                      "previous timer not descheduled");
+
+    mNestedLoopTimerId =
+        g_timeout_add_full(kNestedLoopDetectorPriority,
+                           kNestedLoopDetectorIntervalMs,
+                           PluginModuleChild::DetectNestedEventLoop,
+                           this,
+                           NULL);
+}
+
+void
+PluginModuleChild::ExitedCxxStack()
+{
+    NS_ABORT_IF_FALSE(0 < mNestedLoopTimerId,
+                      "nested loop timeout not scheduled");
+
+    g_source_remove(mNestedLoopTimerId);
+    mNestedLoopTimerId = 0;
+}
+
 #endif
 
 bool
 PluginModuleChild::InitGraphics()
 {
-    // FIXME/cjones: is this the place for this?
 #if defined(MOZ_WIDGET_GTK2)
     // Work around plugins that don't interact well with GDK
     // client-side windows.
@@ -275,6 +352,10 @@ PluginModuleChild::InitGraphics()
         gQApp = new QApplication(0, NULL);
 #else
     // may not be necessary on all platforms
+#endif
+#ifdef MOZ_X11
+    // Do this after initializing GDK, or GDK will install its own handler.
+    XRE_InstallX11ErrorHandler();
 #endif
 
     return true;
@@ -1514,23 +1595,6 @@ PluginModuleChild::DeallocPPluginInstance(PPluginInstanceChild* aActor)
     return true;
 }
 
-bool
-PluginModuleChild::PluginInstanceDestroyed(PluginInstanceChild* aActor,
-                                           NPError* rv)
-{
-    PLUGIN_LOG_DEBUG_METHOD;
-    AssertPluginThread();
-
-    NPP npp = aActor->GetNPP();
-
-    *rv = mFunctions.destroy(npp, 0);
-    npp->ndata = 0;
-
-    DeallocNPObjectsForInstance(aActor);
-
-    return true;
-}
-
 NPObject* NP_CALLBACK
 PluginModuleChild::NPN_CreateObject(NPP aNPP, NPClass* aClass)
 {
@@ -1538,6 +1602,10 @@ PluginModuleChild::NPN_CreateObject(NPP aNPP, NPClass* aClass)
     AssertPluginThread();
 
     PluginInstanceChild* i = InstCast(aNPP);
+    if (i->mDeletingHash) {
+        NS_ERROR("Plugin used NPP after NPP_Destroy");
+        return NULL;
+    }
 
     NPObject* newObject;
     if (aClass && aClass->allocate) {
@@ -1577,17 +1645,30 @@ PluginModuleChild::NPN_ReleaseObject(NPObject* aNPObj)
 {
     AssertPluginThread();
 
+    NPObjectData* d = current()->mObjectMap.GetEntry(aNPObj);
+    if (!d) {
+        NS_ERROR("Releasing object not in mObjectMap?");
+        return;
+    }
+
+    DeletingObjectEntry* doe = NULL;
+    if (d->instance->mDeletingHash) {
+        doe = d->instance->mDeletingHash->GetEntry(aNPObj);
+        if (!doe) {
+            NS_ERROR("An object for a destroyed instance isn't in the instance deletion hash");
+            return;
+        }
+        if (doe->mDeleted)
+            return;
+    }
+
     int32_t refCnt = PR_AtomicDecrement((PRInt32*)&aNPObj->referenceCount);
     NS_LOG_RELEASE(aNPObj, refCnt, "NPObject");
 
     if (refCnt == 0) {
         DeallocNPObject(aNPObj);
-#ifdef DEBUG
-        NPObjectData* d = current()->mObjectMap.GetEntry(aNPObj);
-        NS_ASSERTION(d, "NPObject not mapped?");
-        NS_ASSERTION(!d->actor, "NPObject has actor at destruction?");
-#endif
-        current()->mObjectMap.RemoveEntry(aNPObj);
+        if (doe)
+            doe->mDeleted = true;
     }
     return;
 }
@@ -1600,39 +1681,28 @@ PluginModuleChild::DeallocNPObject(NPObject* aNPObj)
     } else {
         child::_memfree(aNPObj);
     }
-}
 
-PLDHashOperator
-PluginModuleChild::DeallocForInstance(NPObjectData* d, void* userArg)
-{
-    if (d->instance == static_cast<PluginInstanceChild*>(userArg)) {
-        NPObject* o = d->GetKey();
-        if (o->_class && o->_class->invalidate)
-            o->_class->invalidate(o);
+    NPObjectData* d = current()->mObjectMap.GetEntry(aNPObj);
+    if (d->actor)
+        d->actor->NPObjectDestroyed();
 
-#ifdef NS_BUILD_REFCNT_LOGGING
-        {
-            int32_t refCnt = o->referenceCount;
-            while (refCnt) {
-                --refCnt;
-                NS_LOG_RELEASE(o, refCnt, "NPObject");
-            }
-        }
-#endif
-
-        DeallocNPObject(o);
-
-        if (d->actor)
-            d->actor->NPObjectDestroyed();
-
-        return PL_DHASH_REMOVE;
-    }
-
-    return PL_DHASH_NEXT;
+    current()->mObjectMap.RemoveEntry(aNPObj);
 }
 
 void
-PluginModuleChild::DeallocNPObjectsForInstance(PluginInstanceChild* instance)
+PluginModuleChild::FindNPObjectsForInstance(PluginInstanceChild* instance)
 {
-    mObjectMap.EnumerateEntries(DeallocForInstance, instance);
+    NS_ASSERTION(instance->mDeletingHash, "filling null mDeletingHash?");
+    mObjectMap.EnumerateEntries(CollectForInstance, instance);
+}
+
+PLDHashOperator
+PluginModuleChild::CollectForInstance(NPObjectData* d, void* userArg)
+{
+    PluginInstanceChild* instance = static_cast<PluginInstanceChild*>(userArg);
+    if (d->instance == instance) {
+        NPObject* o = d->GetKey();
+        instance->mDeletingHash->PutEntry(o);
+    }
+    return PL_DHASH_NEXT;
 }
