@@ -898,7 +898,10 @@ js_LoopEdge(JSContext* cx)
         return false; /* done recording */
     }
 
-    Fragment* f = tm->fragmento->getLoop(cx->fp->regs->pc);
+    InterpState state;
+    state.ip = (FOpcodep)cx->fp->regs->pc;
+
+    Fragment* f = tm->fragmento->getLoop(state);
     if (!f->code()) {
         int hits = ++f->hits();
         if (!f->isBlacklisted() && hits >= HOTLOOP1) {
@@ -926,8 +929,6 @@ js_LoopEdge(JSContext* cx)
     }
     double* entry_sp = &native[fi->nativeStackBase/sizeof(double) +
                                (cx->fp->regs->sp - cx->fp->spbase - 1)];
-    InterpState state;
-    state.ip = cx->fp->regs->pc;
     state.sp = (void*)entry_sp;
     state.rp = NULL;
     state.f = NULL;
@@ -1206,16 +1207,16 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
 void
 TraceRecorder::stobj_set_slot(LIns* obj_ins, unsigned slot, LIns*& dslots_ins, LIns* v_ins)
 {
-    if (slot < JS_INITIAL_NSLOTS)
+    if (slot < JS_INITIAL_NSLOTS) {
         lir->insStorei(v_ins,
-                obj_ins,
-                offsetof(JSObject, fslots) + slot * sizeof(jsval));
-    else {
+                       obj_ins,
+                       offsetof(JSObject, fslots) + slot * sizeof(jsval));
+    } else {
         if (!dslots_ins)
             dslots_ins = lir->insLoadi(obj_ins, offsetof(JSObject, dslots));
         lir->insStorei(v_ins,
-                dslots_ins,
-                (slot - JS_INITIAL_NSLOTS) * sizeof(jsval));
+                       dslots_ins,
+                       (slot - JS_INITIAL_NSLOTS) * sizeof(jsval));
     }
 }
 

@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef __nanojit_h__
+#ifndef __nanojit_h_
 #define __nanojit_h__
 
 #include <stddef.h>
@@ -68,7 +68,8 @@ namespace nanojit
 	class RegAlloc;
 	typedef avmplus::AvmCore AvmCore;
 	typedef avmplus::OSDep OSDep;
-	typedef avmplus::SortedMap<const void*,Fragment*,avmplus::LIST_GCObjects> FragmentMap;
+	typedef const uint16_t* FragID;
+	typedef avmplus::SortedMap<FragID,Fragment*,avmplus::LIST_GCObjects> FragmentMap;
 	typedef avmplus::SortedMap<SideExit*,RegAlloc*,avmplus::LIST_GCObjects> RegAllocMap;
 	typedef avmplus::List<LIns*,avmplus::LIST_NonGCObjects>	InsList;
 	typedef avmplus::List<char*, avmplus::LIST_GCObjects> StringList;
@@ -166,4 +167,4 @@ namespace nanojit
 #include "Assembler.h"
 #include "TraceTreeDrawer.h"
 
-#endif // __nanojit_h__
+#endif // __nanojit_h_

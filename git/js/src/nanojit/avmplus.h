@@ -180,9 +180,11 @@ typedef int FunctionID;
 
 namespace avmplus
 {
+    typedef const uint16_t* FOpcodep;
+    
     struct InterpState
     {
-        void* ip;
+        FOpcodep ip;
         void* sp;
         void* rp;
         void* f;
@@ -248,7 +250,7 @@ namespace avmplus
     {
         class Labels {
         public:
-            const char* format(const void* ip)
+            const char* format(FOpcodep ip)
             {
                 static char buf[33];
                 sprintf(buf, "%p", ip);
