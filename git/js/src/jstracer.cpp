@@ -5903,37 +5903,35 @@ TraceRecorder::record_JSOP_NEG()
         return true;
     }
 
-    JS_ASSERT(JSVAL_TAG(v) == JSVAL_STRING || JSVAL_TAG(v) == JSVAL_BOOLEAN);
-
     LIns* args[] = { get(&v), cx_ins };
-    set(&v, lir->ins1(LIR_fneg,
-                      lir->insCall(JSVAL_IS_STRING(v)
-                                   ? &js_StringToNumber_ci
-                                   : &js_BooleanOrUndefinedToNumber_ci,
-                                   args)));
+    if (JSVAL_IS_STRING(v)) {
+        set(&v, lir->ins1(LIR_fneg, lir->insCall(&js_StringToNumber_ci, args)));
+        return true;
+    }
+
+    JS_ASSERT(JSVAL_TAG(v) == JSVAL_BOOLEAN);
+    set(&v, lir->ins1(LIR_fneg, lir->insCall(&js_BooleanOrUndefinedToNumber_ci, args)));
     return true;
 }
 
 JS_REQUIRES_STACK bool
 TraceRecorder::record_JSOP_POS()
 {
-    jsval& v = stackval(-1);
+    jsval& r = stackval(-1);
 
-    if (!JSVAL_IS_PRIMITIVE(v))
+    if (!JSVAL_IS_PRIMITIVE(r))
         return call_imacro(unary_imacros.sign);
 
-    if (isNumber(v))
+    if (isNumber(r))
         return true;
 
-    if (JSVAL_IS_NULL(v)) {
-        set(&v, lir->insImmq(0));
+    if (JSVAL_IS_NULL(r)) {
+        set(&r, lir->insImmq(0));
         return true;
     }
 
-    JS_ASSERT(JSVAL_TAG(v) == JSVAL_STRING || JSVAL_TAG(v) == JSVAL_BOOLEAN);
-
-    LIns* args[] = { get(&v), cx_ins };
-    set(&v, lir->insCall(JSVAL_IS_STRING(v)
+    LIns* args[] = { get(&r), cx_ins };
+    set(&r, lir->insCall(JSVAL_IS_STRING(r)
                          ? &js_StringToNumber_ci
                          : &js_BooleanOrUndefinedToNumber_ci,
                          args));
@@ -6095,17 +6093,9 @@ TraceRecorder::functionCall(bool constructing, uintN argc)
                     goto next_specialization;
                 *argp = this_ins;
             } else if (argtype == 'S') {   /* this, as a string */
-                if (JSVAL_IS_STRING(tval)) {
-                    *argp = this_ins;
-                } else if (!JSVAL_IS_PRIMITIVE(tval) && 
-                           guardClass(JSVAL_TO_OBJECT(tval), 
-                                      this_ins, 
-                                      &js_StringClass, 
-                                      MISMATCH_EXIT)) {
-                    *argp = stobj_get_fslot(this_ins, JSSLOT_PRIVATE);
-                } else {
+                if (!JSVAL_IS_STRING(tval))
                     goto next_specialization;
-                }
+                *argp = this_ins;
             } else if (argtype == 'f') {
                 *argp = INS_CONSTPTR(JSVAL_TO_OBJECT(fval));
             } else if (argtype == 'p') {
