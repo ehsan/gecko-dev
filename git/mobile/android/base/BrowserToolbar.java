@@ -88,6 +88,8 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
     private static List<View> sActionItems;
 
+    private boolean mAnimatingEntry;
+
     private int mDuration;
     private TranslateAnimation mSlideUpIn;
     private TranslateAnimation mSlideUpOut;
@@ -119,6 +121,8 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         sActionItems = new ArrayList<View>();
         Tabs.registerOnTabsChangedListener(this);
         mAnimateSiteSecurity = true;
+
+        mAnimatingEntry = false;
     }
 
     public void from(LinearLayout layout) {
@@ -134,6 +138,8 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         mShowSiteSecurity = false;
         mShowReader = false;
+
+        mAnimatingEntry = false;
 
         mAddressBarBg = (BrowserToolbarBackground) mLayout.findViewById(R.id.address_bar_bg);
         mAddressBarView = mLayout.findViewById(R.id.addressbar);
@@ -392,7 +398,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                 }
                 break;
             case RESTORED:
-                updateTabCount(Tabs.getInstance().getCount());
+                updateTabCount(Tabs.getInstance().getDisplayCount());
                 break;
             case SELECTED:
                 mAnimateSiteSecurity = false;
@@ -406,7 +412,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                 break;
             case CLOSED:
             case ADDED:
-                updateTabCountAndAnimate(Tabs.getInstance().getCount());
+                updateTabCountAndAnimate(Tabs.getInstance().getDisplayCount());
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     updateBackButton(tab.canDoBack());
                     updateForwardButton(tab.canDoForward());
@@ -603,8 +609,12 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                                        1);
 
                 buttonsAnimator.start();
+
+                mAnimatingEntry = false;
             }
         });
+
+        mAnimatingEntry = true;
 
         mHandler.postDelayed(new Runnable() {
             public void run() {
@@ -619,6 +629,9 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             mActivity.onSearchRequested();
             return;
         }
+
+        if (mAnimatingEntry)
+            return;
 
         final PropertyAnimator contentAnimator = new PropertyAnimator(250);
         contentAnimator.setUseHardwareLayer(false);
@@ -679,9 +692,11 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
                 // Once the entry is fully expanded, start awesome screen
                 mActivity.onSearchRequested();
+                mAnimatingEntry = false;
             }
         });
 
+        mAnimatingEntry = true;
         contentAnimator.start();
     }
 
@@ -1148,7 +1163,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             setSecurityMode(tab.getSecurityMode());
             setReaderMode(tab.getReaderEnabled());
             setShadowVisibility(true);
-            updateTabCount(Tabs.getInstance().getCount());
+            updateTabCount(Tabs.getInstance().getDisplayCount());
             updateBackButton(tab.canDoBack());
             updateForwardButton(tab.canDoForward());
 
