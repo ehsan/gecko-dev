@@ -61,7 +61,7 @@ public:
    *                  result will deoptimize your script somewhat in many cases.
    */
   virtual nsresult EvaluateString(const nsAString& aScript,
-                                  JS::Handle<JSObject*> aScopeObject,
+                                  JSObject& aScopeObject,
                                   JS::CompileOptions& aOptions,
                                   bool aCoerceToString,
                                   JS::Value* aRetValue) = 0;

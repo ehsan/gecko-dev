@@ -7,7 +7,6 @@
 #include "jsfriendapi.h"
 #include "nsJSUtils.h"
 #include "nsIDOMTCPSocket.h"
-#include "nsContentUtils.h"
 #include "mozilla/unused.h"
 #include "mozilla/AppProcessChecker.h"
 
@@ -15,9 +14,9 @@ namespace IPC {
 
 //Defined in TCPSocketChild.cpp
 extern bool
-DeserializeArrayBuffer(JS::Handle<JSObject*> aObj,
+DeserializeArrayBuffer(JSObject* aObj,
                        const InfallibleTArray<uint8_t>& aBuffer,
-                       JS::MutableHandle<JS::Value> aVal);
+                       JS::Value* aVal);
 
 }
 
@@ -96,10 +95,8 @@ TCPSocketParent::RecvData(const SendableData& aData)
   nsresult rv;
   switch (aData.type()) {
     case SendableData::TArrayOfuint8_t: {
-      AutoSafeJSContext cx;
-      JS::Rooted<JS::Value> val(cx);
-      JS::Rooted<JSObject*> obj(cx, mIntermediaryObj);
-      IPC::DeserializeArrayBuffer(obj, aData.get_ArrayOfuint8_t(), &val);
+      JS::Value val;
+      IPC::DeserializeArrayBuffer(mIntermediaryObj, aData.get_ArrayOfuint8_t(), &val);
       rv = mIntermediary->SendArrayBuffer(val);
       NS_ENSURE_SUCCESS(rv, true);
       break;
@@ -170,8 +167,8 @@ TCPSocketParent::SendCallback(const nsAString& aType, const JS::Value& aDataVal,
     } else {
       nsDependentJSString name;
 
-      JS::Rooted<JS::Value> val(aCx);
-      if (!JS_GetProperty(aCx, obj, "name", val.address())) {
+      JS::Value val;
+      if (!JS_GetProperty(aCx, obj, "name", &val)) {
         NS_ERROR("No name property on supposed error object");
       } else if (JSVAL_IS_STRING(val)) {
         if (!name.init(aCx, JSVAL_TO_STRING(val))) {

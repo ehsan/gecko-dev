@@ -185,7 +185,7 @@ class ParallelDo
 
   private:
     JSContext *cx_;
-    HandleObject fun_;
+    HeapPtrObject fun_;
     Vector<ParallelBailoutRecord, 16> bailoutRecords;
 
     inline bool executeSequentially();

@@ -20,7 +20,7 @@ extern "C" {
 
 struct PKIX_PL_NssContextStruct {
         SECCertificateUsage certificateUsage;
-        PLArenaPool *arena;
+        PRArenaPool *arena;
         void *wincx;
         PKIX_UInt32 timeoutSeconds;
         PKIX_UInt32 maxResponseLength;

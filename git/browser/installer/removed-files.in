@@ -1066,6 +1066,7 @@ xpicleanup@BIN_SUFFIX@
   modules/PluginProvider.jsm
   modules/PluralForm.jsm
   modules/PopupNotifications.jsm
+  modules/PropertyPanel.jsm
   modules/reflect.jsm
   modules/Services.jsm
   modules/services-common/async.js

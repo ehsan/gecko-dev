@@ -23,7 +23,7 @@ let initialString = longString.substring(0,
   tempScope.DebuggerServer.LONG_STRING_INITIAL_LENGTH);
 
 let inputValues = [
-  // [showsVariablesView?, input value, expected output format,
+  // [showsPropertyPanel?, input value, expected output format,
   //    print() output, console API output, optional console API test]
 
   // 0
@@ -132,7 +132,7 @@ function testNext() {
 function testGen() {
   let cpos = pos;
 
-  let showsVariablesView = inputValues[cpos][0];
+  let showsPropertyPanel = inputValues[cpos][0];
   let inputValue = inputValues[cpos][1];
   let expectedOutput = inputValues[cpos][2];
 
@@ -224,35 +224,35 @@ function testGen() {
   // Test click on output.
   let eventHandlerID = eventHandlers.length + 1;
 
-  let variablesViewShown = function(aEvent, aView, aOptions) {
+  let propertyPanelShown = function(aEvent, aView, aOptions) {
     if (aOptions.label.indexOf(expectedOutput) == -1) {
       return;
     }
 
-    HUD.jsterm.off("variablesview-open", variablesViewShown);
+    HUD.jsterm.off("variablesview-open", propertyPanelShown);
 
     eventHandlers[eventHandlerID] = null;
 
-    ok(showsVariablesView,
-      "the variables view shown for inputValues[" + cpos + "]");
+    ok(showsPropertyPanel,
+      "the property panel shown for inputValues[" + cpos + "]");
 
     popupShown[cpos] = true;
 
-    if (showsVariablesView) {
+    if (showsPropertyPanel) {
       executeSoon(subtestNext);
     }
   };
 
-  HUD.jsterm.on("variablesview-open", variablesViewShown);
+  HUD.jsterm.on("variablesview-open", propertyPanelShown);
 
-  eventHandlers.push(variablesViewShown);
+  eventHandlers.push(propertyPanelShown);
 
-  // Send the mousedown, mouseup and click events to check if the variables
-  // view opens.
+  // Send the mousedown, mouseup and click events to check if the property
+  // panel opens.
   EventUtils.sendMouseEvent({ type: "mousedown" }, messageBody, window);
   EventUtils.sendMouseEvent({ type: "click" }, messageBody, window);
 
-  if (showsVariablesView) {
+  if (showsPropertyPanel) {
     yield; // wait for the panel to open if we need to.
   }
 
@@ -276,7 +276,7 @@ function testEnd() {
 
   for (let i = 0; i < inputValues.length; i++) {
     if (inputValues[i][0] && !popupShown[i]) {
-      ok(false, "the variables view failed to show for inputValues[" + i + "]");
+      ok(false, "the property panel failed to show for inputValues[" + i + "]");
     }
   }
 

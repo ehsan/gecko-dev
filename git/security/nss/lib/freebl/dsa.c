@@ -158,7 +158,7 @@ dsa_NewKeyExtended(const PQGParams *params, const SECItem * seed,
     mp_int p, g;
     mp_int x, y;
     mp_err err;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     DSAPrivateKey *key;
     /* Check args. */
     if (!params || !privKey || !seed || !seed->data) {

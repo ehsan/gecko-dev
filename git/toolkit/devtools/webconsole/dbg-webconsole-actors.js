@@ -73,14 +73,9 @@ function WebConsoleActor(aConnection, aParentActor)
   this._prefs = {};
 
   this.dbg = new Debugger();
+  this._createGlobal();
 
   this._protoChains = new Map();
-  this._dbgGlobals = new Map();
-  this._getDebuggerGlobal(this.window);
-
-  this._onObserverNotification = this._onObserverNotification.bind(this);
-  Services.obs.addObserver(this._onObserverNotification,
-                           "inner-window-destroyed", false);
 }
 
 WebConsoleActor.prototype =
@@ -115,24 +110,23 @@ WebConsoleActor.prototype =
   _prefs: null,
 
   /**
-   * Tells the current inner ID of |this.window|. When the page is navigated, we
-   * need to recreate the jsterm helpers.
+   * Tells the current inner window of the window of |this._dbgWindow|. When the
+   * page is navigated, we recreate the debugger object.
    * @private
-   * @type number
+   * @type object
    */
   _globalWindowId: 0,
 
   /**
-   * Holds a map between inner window IDs and Debugger.Objects for the window
-   * objects.
+   * The Debugger.Object that wraps the content window.
    * @private
-   * @type Map
+   * @type object
    */
-  _dbgGlobals: null,
+  _dbgWindow: null,
 
   /**
-   * Object that holds the JSTerm API, the helper functions, for the default
-   * window object.
+   * Object that holds the API we give to the JSTermHelpers constructor. This is
+   * where the JSTerm helper functions are added.
    *
    * @see this._getJSTermHelpers()
    * @private
@@ -228,14 +222,11 @@ WebConsoleActor.prototype =
       this.consoleProgressListener = null;
     }
     this.conn.removeActorPool(this._actorPool);
-    Services.obs.removeObserver(this._onObserverNotification,
-                                "inner-window-destroyed");
     this._actorPool = null;
     this._protoChains.clear();
-    this._dbgGlobals.clear();
-    this._jstermHelpers = null;
     this.dbg.enabled = false;
     this.dbg = null;
+    this._dbgWindow = null;
     this._globalWindowId = 0;
     this.conn = this._window = null;
   },
@@ -256,34 +247,12 @@ WebConsoleActor.prototype =
    *
    * @param mixed aValue
    *        The value you want to get a debuggee value for.
-   * @param boolean aUseObjectGlobal
-   *        If |true| the object global is determined and added as a debuggee,
-   *        otherwise |this.window| is used when makeDebuggeeValue() is invoked.
    * @return object
    *         Debuggee value for |aValue|.
    */
-  makeDebuggeeValue: function WCA_makeDebuggeeValue(aValue, aUseObjectGlobal)
+  makeDebuggeeValue: function WCA_makeDebuggeeValue(aValue)
   {
-    let global = this.window;
-    if (aUseObjectGlobal && typeof aValue == "object") {
-      try {
-        global = Cu.getGlobalForObject(aValue);
-      }
-      catch (ex) {
-        // The above can throw an exception if aValue is not an actual object.
-      }
-    }
-    let dbgGlobal = null;
-    try {
-      dbgGlobal = this._getDebuggerGlobal(global);
-    }
-    catch (ex) {
-      // The above call can throw in addDebuggee() if the given global object
-      // is already in the stackframe of code that is executing now. Console.jsm
-      // and the Browser Console can cause this case.
-      dbgGlobal = this._getDebuggerGlobal(this.window);
-    }
-    return dbgGlobal.makeDebuggeeValue(aValue);
+    return this._dbgWindow.makeDebuggeeValue(aValue);
   },
 
   /**
@@ -535,7 +504,8 @@ WebConsoleActor.prototype =
     };
     let evalInfo = this.evalWithDebugger(input, evalOptions);
     let evalResult = evalInfo.result;
-    let helperResult = evalInfo.helperResult;
+    let helperResult = this._jstermHelpers.helperResult;
+    delete this._jstermHelpers.helperResult;
 
     let result, error, errorMessage;
     if (evalResult) {
@@ -617,44 +587,40 @@ WebConsoleActor.prototype =
   //////////////////
 
   /**
-   * Get the Debugger.Object for the given global object (usually a window
-   * object).
-   *
+   * Create the Debugger.Object for the current window.
    * @private
-   * @param object aGlobal
-   *        The global object for which you want a Debugger.Object.
-   * @return Debugger.Object
-   *         The Debugger.Object for the given global object.
    */
-  _getDebuggerGlobal: function WCA__getDebuggerGlobal(aGlobal)
+  _createGlobal: function WCA__createGlobal()
   {
-    let windowId = WebConsoleUtils.getInnerWindowId(aGlobal);
-    if (!this._dbgGlobals.has(windowId)) {
-      let dbgGlobal = this.dbg.addDebuggee(aGlobal);
-      this.dbg.removeDebuggee(aGlobal);
-      this._dbgGlobals.set(windowId, dbgGlobal);
+    let windowId = WebConsoleUtils.getInnerWindowId(this.window);
+    if (this._globalWindowId == windowId) {
+      return;
     }
-    return this._dbgGlobals.get(windowId);
+
+    this._globalWindowId = windowId;
+
+    this._dbgWindow = this.dbg.addDebuggee(this.window);
+    this.dbg.removeDebuggee(this.window);
+
+    // Update the JSTerm helpers.
+    this._jstermHelpers = this._getJSTermHelpers(this._dbgWindow);
   },
 
   /**
-   * Create an object with the API we expose to the Web Console during
-   * JavaScript evaluation.
+   * Create an object with the API we expose to the JSTermHelpers constructor.
    * This object inherits properties and methods from the Web Console actor.
    *
    * @private
-   * @param object aDebuggerGlobal
+   * @param object aDebuggerObject
    *        A Debugger.Object that wraps a content global. This is used for the
    *        JSTerm helpers.
    * @return object
-   *         The same object as |this|, but with an added |sandbox| property.
-   *         The sandbox holds methods and properties that can be used as
-   *         bindings during JS evaluation.
    */
-  _getJSTermHelpers: function WCA__getJSTermHelpers(aDebuggerGlobal)
+  _getJSTermHelpers: function WCA__getJSTermHelpers(aDebuggerObject)
   {
     let helpers = Object.create(this);
     helpers.sandbox = Object.create(null);
+    helpers._dbgWindow = aDebuggerObject;
     JSTermHelpers(helpers);
 
     // Make sure the helpers can be used during eval.
@@ -663,7 +629,7 @@ WebConsoleActor.prototype =
       if (desc.get || desc.set) {
         continue;
       }
-      helpers.sandbox[name] = aDebuggerGlobal.makeDebuggeeValue(desc.value);
+      helpers.sandbox[name] = helpers.makeDebuggeeValue(desc.value);
     }
     return helpers;
   },
@@ -671,7 +637,7 @@ WebConsoleActor.prototype =
   /**
    * Evaluates a string using the debugger API.
    *
-   * To allow the variables view to update properties from the Web Console we
+   * To allow the variables view to update properties from the web console we
    * provide the "bindObjectActor" mechanism: the Web Console tells the
    * ObjectActor ID for which it desires to evaluate an expression. The
    * Debugger.Object pointed at by the actor ID is bound such that it is
@@ -685,22 +651,15 @@ WebConsoleActor.prototype =
    * frame actor ID, such that the expression can be evaluated in the
    * user-selected stack frame.
    *
-   * For the above to work we need the debugger and the Web Console to share
+   * For the above to work we need the debugger and the web console to share
    * a connection, otherwise the Web Console actor will not find the frame
    * actor.
    *
    * The Debugger.Frame comes from the jsdebugger's Debugger instance, which
    * is different from the Web Console's Debugger instance. This means that
-   * for evaluation to work, we need to create a new instance for the jsterm
+   * for evaluation to work, we need to create a new instance for  the jsterm
    * helpers - they need to be Debugger.Objects coming from the jsdebugger's
    * Debugger instance.
-   *
-   * When |bindObjectActor| is used objects can come from different iframes,
-   * from different domains. To avoid permission-related errors when objects
-   * come from a different window, we also determine the object's own global,
-   * such that evaluation happens in the context of that global. This means that
-   * evaluation will happen in the object's iframe, rather than the top level
-   * window.
    *
    * @param string aString
    *        String to evaluate.
@@ -719,10 +678,11 @@ WebConsoleActor.prototype =
    *         - window: the Debugger.Object for the global where the string was
    *         evaluated.
    *         - result: the result of the evaluation.
-   *         - helperResult: any result coming from a JSTerm helper function.
    */
   evalWithDebugger: function WCA_evalWithDebugger(aString, aOptions = {})
   {
+    this._createGlobal();
+
     // The help function needs to be easy to guess, so we make the () optional.
     if (aString.trim() == "help" || aString.trim() == "?") {
       aString = "help()";
@@ -737,6 +697,8 @@ WebConsoleActor.prototype =
       }
     }
 
+    let helpers = this._jstermHelpers;
+    let found$ = false, found$$ = false;
     let frame = null, frameActor = null;
     if (aOptions.frameActor) {
       frameActor = this.conn.getActor(aOptions.frameActor);
@@ -750,12 +712,8 @@ WebConsoleActor.prototype =
     }
 
     let dbg = this.dbg;
-    let dbgWindow = null;
-    let helpers = null;
-    let found$ = false, found$$ = false;
+    let dbgWindow = this._dbgWindow;
 
-    // Determine which debugger to use, depending on the presence of the
-    // stackframe.
     if (frame) {
       // Avoid having bindings from a different Debugger. The Debugger.Frame
       // comes from the jsdebugger's Debugger instance.
@@ -770,37 +728,14 @@ WebConsoleActor.prototype =
       }
     }
     else {
-      // Use the Web Console debugger object.
-      dbgWindow = this._getDebuggerGlobal(this.window);
-
-      let windowId = WebConsoleUtils.getInnerWindowId(this.window);
-      if (this._globalWindowId != windowId) {
-        this._jstermHelpers = null;
-        this._globalWindowId = windowId;
-      }
-      if (!this._jstermHelpers) {
-        this._jstermHelpers = this._getJSTermHelpers(dbgWindow);
-      }
-
-      helpers = this._jstermHelpers;
-      found$ = !!dbgWindow.getOwnPropertyDescriptor("$");
-      found$$ = !!dbgWindow.getOwnPropertyDescriptor("$$");
+      found$ = !!this._dbgWindow.getOwnPropertyDescriptor("$");
+      found$$ = !!this._dbgWindow.getOwnPropertyDescriptor("$$");
     }
 
     let bindings = helpers.sandbox;
     if (bindSelf) {
-      // Determine the global of the given JavaScript object.
       let jsObj = bindSelf.unsafeDereference();
-      let global = Cu.getGlobalForObject(jsObj);
-
-      if (global != this.window) {
-        dbgWindow = dbg.addDebuggee(global);
-        if (dbg == this.dbg) {
-          dbg.removeDebuggee(global);
-        }
-      }
-
-      bindings._self = dbgWindow.makeDebuggeeValue(jsObj);
+      bindings._self = helpers.makeDebuggeeValue(jsObj);
     }
 
     let $ = null, $$ = null;
@@ -813,6 +748,7 @@ WebConsoleActor.prototype =
       delete bindings.$$;
     }
 
+    helpers.helperResult = null;
     helpers.evalInput = aString;
 
     let result;
@@ -820,12 +756,14 @@ WebConsoleActor.prototype =
       result = frame.evalWithBindings(aString, bindings);
     }
     else {
-      result = dbgWindow.evalInGlobalWithBindings(aString, bindings);
+      result = this._dbgWindow.evalInGlobalWithBindings(aString, bindings);
     }
 
-    let helperResult = helpers.helperResult;
     delete helpers.evalInput;
-    delete helpers.helperResult;
+    if (helpers != this._jstermHelpers) {
+      this._jstermHelpers.helperResult = helpers.helperResult;
+      delete helpers.helperResult;
+    }
 
     if ($) {
       bindings.$ = $;
@@ -840,7 +778,6 @@ WebConsoleActor.prototype =
 
     return {
       result: result,
-      helperResult: helperResult,
       dbg: dbg,
       frame: frame,
       window: dbgWindow,
@@ -978,10 +915,11 @@ WebConsoleActor.prototype =
     let result = WebConsoleUtils.cloneObject(aMessage);
     delete result.wrappedJSObject;
 
-    result.arguments = Array.map(aMessage.arguments || [], (aObj) => {
-      let dbgObj = this.makeDebuggeeValue(aObj, true);
-      return this.createValueGrip(dbgObj);
-    });
+    result.arguments = Array.map(aMessage.arguments || [],
+      function(aObj) {
+        let dbgObj = this.makeDebuggeeValue(aObj);
+        return this.createValueGrip(dbgObj);
+      }, this);
 
     return result;
   },
@@ -1006,23 +944,6 @@ WebConsoleActor.prototype =
     }
 
     return window;
-  },
-
-  /**
-   * Notification observer for the "inner-window-destroyed" topic. This function
-   * cleans up |this._dbgGlobals| when needed.
-   *
-   * @private
-   * @param object aSubject
-   *        Notification subject - in this case it is the inner window ID that
-   *        was destroyed.
-   */
-  _onObserverNotification: function WCA__onObserverNotification(aSubject)
-  {
-    let windowId = aSubject.QueryInterface(Ci.nsISupportsPRUint64).data;
-    if (this._dbgGlobals.has(windowId)) {
-      this._dbgGlobals.delete(windowId);
-    }
   },
 };
 

@@ -45,7 +45,7 @@ public:
                                                          nsIScriptContext)
 
   virtual nsresult EvaluateString(const nsAString& aScript,
-                                  JS::Handle<JSObject*> aScopeObject,
+                                  JSObject& aScopeObject,
                                   JS::CompileOptions &aOptions,
                                   bool aCoerceToString,
                                   JS::Value* aRetValue);

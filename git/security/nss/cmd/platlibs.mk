@@ -36,13 +36,11 @@ ifdef USE_STATIC_LIBS
 
 DEFINES += -DNSS_USE_STATIC_LIBS
 # $(PROGRAM) has explicit dependencies on $(EXTRA_LIBS)
-ifndef NSS_USE_SYSTEM_FREEBL
+ifndef USE_SYSTEM_FREEBL
 CRYPTOLIB=$(DIST)/lib/$(LIB_PREFIX)freebl.$(LIB_SUFFIX)
 SOFTOKENLIB=$(DIST)/lib/$(LIB_PREFIX)softokn.$(LIB_SUFFIX)
 else
-# Use the system installed freebl static library and set softoken one to empty.
-# Some tools need to link statically with freebl but none with softoken. Only
-# the softoken shared library, not the static one, is installed in the system.
+# Use the system freebl and softoken libraries
 CRYPTOLIB=$(FREEBL_LIB_DIR)/$(LIB_PREFIX)freebl.$(LIB_SUFFIX)
 SOFTOKENLIB=
 EXTRA_SHARED_LIBS += \

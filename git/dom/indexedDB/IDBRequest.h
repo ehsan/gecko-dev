@@ -130,7 +130,7 @@ public:
   already_AddRefed<IDBOpenDBRequest>
   Create(IDBFactory* aFactory,
          nsPIDOMWindow* aOwner,
-         JS::Handle<JSObject*> aScriptOwner,
+         JSObject* aScriptOwner,
          JSContext* aCallingCx);
 
   void SetTransaction(IDBTransaction* aTransaction);

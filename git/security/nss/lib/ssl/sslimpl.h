@@ -608,7 +608,7 @@ struct sslSessionIDStr {
 	} ssl2;
 	struct {
 	    /* values that are copied into the server's on-disk SID cache. */
-	    PRUint8               sessionIDLength;
+	    uint8                 sessionIDLength;
 	    SSL3Opaque            sessionID[SSL3_SESSIONID_BYTES];
 
 	    ssl3CipherSuite       cipherSuite;
@@ -865,7 +865,7 @@ struct ssl3StateStr {
 			/* This says what cipher suites we can do, and should 
 			 * be either SSL_ALLOWED or SSL_RESTRICTED 
 			 */
-    PLArenaPool *        peerCertArena;
+    PRArenaPool *        peerCertArena;  
 			    /* These are used to keep track of the peer CA */
     void *               peerCertChain;     
 			    /* chain while we are trying to validate it.   */
@@ -919,26 +919,26 @@ typedef struct SSLWrappedSymWrappingKeyStr {
 } SSLWrappedSymWrappingKey;
 
 typedef struct SessionTicketStr {
-    PRUint16              ticket_version;
+    uint16                ticket_version;
     SSL3ProtocolVersion   ssl_version;
     ssl3CipherSuite       cipher_suite;
     SSLCompressionMethod  compression_method;
     SSLSignType           authAlgorithm;
-    PRUint32              authKeyBits;
+    uint32                authKeyBits;
     SSLKEAType            keaType;
-    PRUint32              keaKeyBits;
+    uint32                keaKeyBits;
     /*
      * exchKeyType and msWrapMech contain meaningful values only if
      * ms_is_wrapped is true.
      */
-    PRUint8               ms_is_wrapped;
+    uint8                 ms_is_wrapped;
     SSLKEAType            exchKeyType; /* XXX(wtc): same as keaType above? */
     CK_MECHANISM_TYPE     msWrapMech;
-    PRUint16              ms_length;
+    uint16                ms_length;
     SSL3Opaque            master_secret[48];
     ClientIdentity        client_identity;
     SECItem               peer_cert;
-    PRUint32              timestamp;
+    uint32                timestamp;
     SECItem               srvName; /* negotiated server name */
 }  SessionTicket;
 
@@ -1535,7 +1535,7 @@ typedef enum { ec_noName     = 0,
 	       ec_pastLastName
 } ECName;
 
-extern SECStatus ssl3_ECName2Params(PLArenaPool *arena, ECName curve,
+extern SECStatus ssl3_ECName2Params(PRArenaPool *arena, ECName curve,
 				   SECKEYECParams *params);
 ECName	ssl3_GetCurveWithECKeyStrength(PRUint32 curvemsk, int requiredECCbits);
 

@@ -21,6 +21,7 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
+Cu.import("resource:///modules/PropertyPanel.jsm");
 Cu.import("resource:///modules/source-editor.jsm");
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource:///modules/devtools/scratchpad-manager.jsm");
@@ -78,7 +79,7 @@ var Scratchpad = {
       .replace(/^\/\*/, "")
       .replace(/\*\/$/, "");
 
-    aLine.split(",").forEach(pair => {
+    aLine.split(",").forEach(function (pair) {
       let [key, val] = pair.split(":");
 
       if (key && val) {
@@ -620,18 +621,18 @@ var Scratchpad = {
     let encoder = new TextEncoder();
     let buffer = encoder.encode(this.getText());
     let promise = OS.File.writeAtomic(aFile.path, buffer,{tmpPath: aFile.path + ".tmp"});
-    promise.then(value => {
+    promise.then(function success(value) {
       if (aCallback) {
         aCallback.call(this, Components.results.NS_OK);
       }
-    }, reason => {
+    }.bind(this), function failure(reason) {
       if (!aSilentError) {
         window.alert(this.strings.GetStringFromName("saveFile.failed"));
       }
       if (aCallback) {
         aCallback.call(this, Components.results.NS_ERROR_UNEXPECTED);
       }
-    });
+    }.bind(this));
 
   },
 
@@ -655,7 +656,8 @@ var Scratchpad = {
     let channel = NetUtil.newChannel(aFile);
     channel.contentType = "application/javascript";
 
-    NetUtil.asyncFetch(channel, (aInputStream, aStatus) => {
+    let self = this;
+    NetUtil.asyncFetch(channel, function(aInputStream, aStatus) {
       let content = null;
 
       if (Components.isSuccessCode(aStatus)) {
@@ -668,22 +670,22 @@ var Scratchpad = {
 
         // Check to see if the first line is a mode-line comment.
         let line = content.split("\n")[0];
-        let modeline = this._scanModeLine(line);
+        let modeline = self._scanModeLine(line);
         let chrome = Services.prefs.getBoolPref(DEVTOOLS_CHROME_ENABLED);
 
         if (chrome && modeline["-sp-context"] === "browser") {
-          this.setBrowserContext();
+          self.setBrowserContext();
         }
 
-        this.setText(content);
-        this.editor.resetUndo();
+        self.setText(content);
+        self.editor.resetUndo();
       }
       else if (!aSilentError) {
-        window.alert(this.strings.GetStringFromName("openFile.failed"));
+        window.alert(self.strings.GetStringFromName("openFile.failed"));
       }
 
       if (aCallback) {
-        aCallback.call(this, aStatus, content);
+        aCallback.call(self, aStatus, content);
       }
     });
   },
@@ -696,8 +698,8 @@ var Scratchpad = {
    */
   openFile: function SP_openFile(aIndex)
   {
-    let promptCallback = aFile => {
-      this.promptSave((aCloseFile, aSaved, aStatus) => {
+    let promptCallback = function(aFile) {
+      this.promptSave(function(aCloseFile, aSaved, aStatus) {
         let shouldOpen = aCloseFile;
         if (aSaved && !Components.isSuccessCode(aStatus)) {
           shouldOpen = false;
@@ -730,21 +732,23 @@ var Scratchpad = {
           this.importFromFile(file, false);
           this.setRecentFile(file);
         }
-      });
-    };
+      }.bind(this));
+    }.bind(this);
 
     if (aIndex > -1) {
       promptCallback();
     } else {
       let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-      fp.init(window, this.strings.GetStringFromName("openFile.title"),
-              Ci.nsIFilePicker.modeOpen);
-      fp.defaultString = "";
-      fp.open(aResult => {
+      let fpCallback = function fpCallback_done(aResult) {
         if (aResult != Ci.nsIFilePicker.returnCancel) {
           promptCallback(fp.file);
         }
-      });
+      };
+
+      fp.init(window, this.strings.GetStringFromName("openFile.title"),
+              Ci.nsIFilePicker.modeOpen);
+      fp.defaultString = "";
+      fp.open(fpCallback);
     }
   },
 
@@ -949,7 +953,7 @@ var Scratchpad = {
     let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
     file.initWithPath(this.filename);
 
-    this.exportToFile(file, true, false, aStatus => {
+    this.exportToFile(file, true, false, function(aStatus) {
       if (Components.isSuccessCode(aStatus)) {
         this.editor.dirty = false;
         this.setRecentFile(file);
@@ -969,10 +973,10 @@ var Scratchpad = {
   saveFileAs: function SP_saveFileAs(aCallback)
   {
     let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-    let fpCallback = aResult => {
+    let fpCallback = function fpCallback_done(aResult) {
       if (aResult != Ci.nsIFilePicker.returnCancel) {
         this.setFilename(fp.file.path);
-        this.exportToFile(fp.file, true, false, aStatus => {
+        this.exportToFile(fp.file, true, false, function(aStatus) {
           if (Components.isSuccessCode(aStatus)) {
             this.editor.dirty = false;
             this.setRecentFile(fp.file);
@@ -982,7 +986,7 @@ var Scratchpad = {
           }
         });
       }
-    };
+    }.bind(this);
 
     fp.init(window, this.strings.GetStringFromName("saveFileAs"),
             Ci.nsIFilePicker.modeSave);
@@ -1005,7 +1009,7 @@ var Scratchpad = {
       return;
     }
 
-    this.importFromFile(file, false, (aStatus, aContent) => {
+    this.importFromFile(file, false, function(aStatus, aContent) {
       if (aCallback) {
         aCallback(aStatus);
       }
@@ -1041,8 +1045,8 @@ var Scratchpad = {
         return;
       }
       if (button == BUTTON_POSITION_REVERT) {
-        this.revertFile(aStatus => {
-          if (aCallback) {
+        this.revertFile(function(aStatus) {
+          if(aCallback){
             aCallback(true, aStatus);
           }
         });
@@ -1344,7 +1348,7 @@ var Scratchpad = {
       }
 
       if (button == BUTTON_POSITION_SAVE) {
-        this.saveFile(aStatus => {
+        this.saveFile(function(aStatus) {
           if (aCallback) {
             aCallback(true, true, aStatus);
           }
@@ -1383,7 +1387,7 @@ var Scratchpad = {
    */
   close: function SP_close(aCallback)
   {
-    this.promptSave((aShouldClose, aSaved, aStatus) => {
+    this.promptSave(function(aShouldClose, aSaved, aStatus) {
       let shouldClose = aShouldClose;
       if (aSaved && !Components.isSuccessCode(aStatus)) {
         shouldClose = false;
@@ -1395,7 +1399,7 @@ var Scratchpad = {
       if (aCallback) {
         aCallback();
       }
-    });
+    }.bind(this));
   },
 
   _observers: [],

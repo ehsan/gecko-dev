@@ -213,9 +213,10 @@ SSL_AuthCertificate(void *arg, PRFileDesc *fd, PRBool checkSig, PRBool isServer)
     CERTCertDBHandle * handle;
     sslSocket *        ss;
     SECCertUsage       certUsage;
-    const char *       hostname    = NULL;
+    const char *             hostname    = NULL;
     PRTime             now = PR_Now();
-    SECItemArray *     certStatusArray;
+    SECItemArray *certStatusArray;
+    unsigned int i;
     
     ss = ssl_FindSocket(fd);
     PORT_Assert(ss != NULL);
@@ -226,10 +227,9 @@ SSL_AuthCertificate(void *arg, PRFileDesc *fd, PRBool checkSig, PRBool isServer)
     handle = (CERTCertDBHandle *)arg;
     certStatusArray = &ss->sec.ci.sid->peerCertStatus;
 
-    if (certStatusArray->len) {
+    for (i = 0; i < certStatusArray->len; ++i) {
         CERT_CacheOCSPResponseFromSideChannel(handle, ss->sec.peerCert,
-					now, &certStatusArray->items[0],
-					ss->pkcs11PinArg);
+					now, &certStatusArray->items[i], arg);
     }
 
     /* this may seem backwards, but isn't. */

@@ -30,7 +30,7 @@
 
 /* member names from PKCS#1, section 7.2 */
 struct SECKEYRSAPrivateKeyStr {
-    PLArenaPool * arena;
+    PRArenaPool * arena;
     SECItem version;
     SECItem modulus;
     SECItem publicExponent;
@@ -59,7 +59,7 @@ typedef struct SECKEYDSAPrivateKeyStr SECKEYDSAPrivateKey;
 ** Structure member names suggested by PKCS#3.
 */
 struct SECKEYDHPrivateKeyStr {
-    PLArenaPool * arena;
+    PRArenaPool * arena;
     SECItem prime;
     SECItem base;
     SECItem privateValue;
@@ -217,7 +217,7 @@ PK11_ImportDERPrivateKeyInfoAndReturnKey(PK11SlotInfo *slot, SECItem *derPKI,
 	void *wincx) 
 {
     SECKEYPrivateKeyInfo *pki = NULL;
-    PLArenaPool *temparena = NULL;
+    PRArenaPool *temparena = NULL;
     SECStatus rv = SECFailure;
 
     temparena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -426,7 +426,7 @@ PK11_ImportPrivateKeyInfoAndReturnKey(PK11SlotInfo *slot,
     SECKEYRawPrivateKey *lpk = NULL;
     const SEC_ASN1Template *keyTemplate, *paramTemplate;
     void *paramDest = NULL;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
 
     arena = PORT_NewArena(2048);
     if(!arena) {

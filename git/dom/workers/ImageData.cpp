@@ -37,8 +37,7 @@ public:
   }
 
   static JSObject*
-  Create(JSContext* aCx, uint32_t aWidth,
-         uint32_t aHeight, JS::Handle<JSObject*> aData)
+  Create(JSContext* aCx, uint32_t aWidth, uint32_t aHeight, JSObject *aData)
   {
     MOZ_ASSERT(aData);
     MOZ_ASSERT(JS_IsTypedArrayObject(aData));
@@ -168,8 +167,7 @@ InitClass(JSContext* aCx, JSObject* aGlobal)
 }
 
 JSObject*
-Create(JSContext* aCx, uint32_t aWidth,
-       uint32_t aHeight, JS::Handle<JSObject*> aData)
+Create(JSContext* aCx, uint32_t aWidth, uint32_t aHeight, JSObject* aData)
 {
   return ImageData::Create(aCx, aWidth, aHeight, aData);
 }

@@ -704,7 +704,7 @@ nss_arena_unmark_release
     nss_arena_call_destructor_chain(arenaMark->next_destructor);
 #endif /* ARENA_DESTRUCTOR_LIST */
 
-    PL_ARENA_RELEASE(&arena->pool, inner_mark);
+    PR_ARENA_RELEASE(&arena->pool, inner_mark);
     /* No error return */
   }
 
@@ -797,7 +797,7 @@ nss_zalloc_arena_locked
   void *rv;
   struct pointer_header *h;
   PRUint32 my_size = size + sizeof(struct pointer_header);
-  PL_ARENA_ALLOCATE(p, &arena->pool, my_size);
+  PR_ARENA_ALLOCATE(p, &arena->pool, my_size);
   if( (void *)NULL == p ) {
     nss_SetError(NSS_ERROR_NO_MEMORY);
     return (void *)NULL;
@@ -1179,7 +1179,7 @@ nss_ZRealloc
       return pointer;
     }
 
-    PL_ARENA_ALLOCATE(p, &arena->pool, my_newSize);
+    PR_ARENA_ALLOCATE(p, &arena->pool, my_newSize);
     if( (void *)NULL == p ) {
       PR_Unlock(arena->lock);
       nss_SetError(NSS_ERROR_NO_MEMORY);

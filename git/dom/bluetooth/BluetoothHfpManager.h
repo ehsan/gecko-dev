@@ -110,7 +110,7 @@ private:
   void ResetCallArray();
 
   void NotifyDialer(const nsAString& aCommand);
-  void NotifyStatusChanged(const nsAString& aType);
+  void NotifySettings();
   void NotifyAudioManager(const nsAString& aAddress);
 
   bool SendCommand(const char* aCommand, uint8_t aValue = 0);

@@ -22,7 +22,7 @@ typedef struct EncodedContext{
     SECItem isCA;
     SECItem pathLenConstraint;
     SECItem encodedValue;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
 }EncodedContext;
 
 static const SEC_ASN1Template CERTBasicConstraintsTemplate[] = {
@@ -41,10 +41,10 @@ static unsigned char hexFalse = 0x00;
 #define GEN_BREAK(status) rv = status; break;
 
 SECStatus CERT_EncodeBasicConstraintValue
-   (PLArenaPool *arena, CERTBasicConstraints *value, SECItem *encodedValue)
+   (PRArenaPool *arena, CERTBasicConstraints *value, SECItem *encodedValue)
 {
     EncodedContext encodeContext;
-    PLArenaPool *our_pool = NULL;
+    PRArenaPool *our_pool = NULL;   
     SECStatus rv = SECSuccess;
 
     do {
@@ -91,7 +91,7 @@ SECStatus CERT_DecodeBasicConstraintValue
    (CERTBasicConstraints *value, const SECItem *encodedValue)
 {
     EncodedContext decodeContext;
-    PLArenaPool *our_pool;
+    PRArenaPool *our_pool;
     SECStatus rv = SECSuccess;
 
     do {

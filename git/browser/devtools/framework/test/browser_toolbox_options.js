@@ -26,16 +26,24 @@ function testSelectTool(aToolbox) {
 
 function testOptionsShortcut() {
   ok(true, "Toolbox selected via selectTool method");
-  toolbox.once("options-selected", testOptions);
+  toolbox.once("options-selected", testOptionsButtonClick);
   toolbox.selectTool("webconsole")
          .then(() => synthesizeKeyFromKeyTag("toolbox-options-key", doc));
 }
 
-function testOptions(event, tool) {
+function testOptionsButtonClick() {
+  ok(true, "Toolbox selected via shortcut");
+  toolbox.once("options-selected", testOptions);
+  toolbox.selectTool("webconsole")
+         .then(() => doc.getElementById("toolbox-tab-options").click());
+}
+
+function testOptions(event, iframe) {
   ok(true, "Toolbox selected via button click");
-  panelWin = tool.panelWin;
+  panelWin = iframe.contentWindow;
+  let panelDoc = iframe.contentDocument;
   // Testing pref changes
-  let prefCheckboxes = tool.panelDoc.querySelectorAll("checkbox[data-pref]");
+  let prefCheckboxes = panelDoc.querySelectorAll("checkbox[data-pref]");
   for (let checkbox of prefCheckboxes) {
     prefNodes.push(checkbox);
     prefValues.push(Services.prefs.getBoolPref(checkbox.getAttribute("data-pref")));

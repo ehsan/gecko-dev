@@ -31,25 +31,6 @@ function test() {
         },
 
         {
-          setup: function() {
-            Services.prefs.setBoolPref("browser.cache.disk.enable", false);
-            helpers.setInput(options, 'appcache list', 13);
-          },
-          check: {
-            input:  'appcache list',
-            markup: 'VVVVVVVVVVVVV',
-            status: 'VALID',
-            args: {},
-          },
-          exec: {
-            output: [ /cache is disabled/ ]
-          },
-          post: function(output) {
-            Services.prefs.setBoolPref("browser.cache.disk.enable", true);
-          }
-        },
-
-        {
           setup: 'appcache list',
           check: {
             input:  'appcache list',
@@ -75,8 +56,8 @@ function test() {
           exec: {
             output: [ /page1/, /page2/, /page3/ ]
           },
-          post: function(output, text) {
-            ok(!text.contains("index"), "index is not contained in output");
+          post: function(output) {
+            ok(!output.contains("index"), "index is not contained in output");
           }
         },
 
@@ -137,11 +118,11 @@ function test() {
           exec: {
             output: [ /no results/ ]
           },
-          post: function(output, text) {
-            ok(!text.contains("index"), "index is not contained in output");
-            ok(!text.contains("page1"), "page1 is not contained in output");
-            ok(!text.contains("page2"), "page1 is not contained in output");
-            ok(!text.contains("page3"), "page1 is not contained in output");
+          post: function(output) {
+            ok(!output.contains("index"), "index is not contained in output");
+            ok(!output.contains("page1"), "page1 is not contained in output");
+            ok(!output.contains("page2"), "page1 is not contained in output");
+            ok(!output.contains("page3"), "page1 is not contained in output");
           }
         },
 

@@ -33,7 +33,7 @@ size_t RNG_FileUpdate(const char *fileName, size_t limit);
 static size_t CopyLowBits(void *dst, size_t dstlen, void *src, size_t srclen)
 {
     union endianness {
-	PRInt32 i;
+	int32 i;
 	char c[4];
     } u;
 
@@ -601,7 +601,7 @@ GiveSystemInfo(void)
 static size_t
 GetHighResClock(void *buf, size_t maxbytes)
 {
-    bigtime_t bigtime; /* Actually a int64 */
+    bigtime_t bigtime; /* Actually an int64 */
 
     bigtime = real_time_clock_usecs();
     return CopyLowBits(buf, maxbytes, &bigtime, sizeof(bigtime));
@@ -611,7 +611,7 @@ static void
 GiveSystemInfo(void)
 {
     system_info *info = NULL;
-    PRInt32 val;
+    int32 val;                     
     get_system_info(info);
     if (info) {
         val = info->boot_time;
