@@ -34,6 +34,7 @@
       class="header"
       hidden="true"
       data-category="paneSync">
+  <image class="header-icon"/>
   <label class="header-name">&paneSync.title;</label>
 </hbox>
 
@@ -218,14 +219,20 @@
       <deck id="fxaLoginStatus">
 
         <!-- logged in and verified and all is good -->
-        <hbox align="center">
+        <hbox>
           <label id="fxaEmailAddress1"/>
+          <vbox>
+            <label class="text-link"
+                   onclick="gSyncPane.manageFirefoxAccount();">
+              &manage.label;
+            </label>
+          </vbox>
           <spacer flex="1"/>
-          <button oncommand="gSyncPane.manageFirefoxAccount();"
-                  label="&manage.label;"/>
-          <button id="fxaUnlinkButton"
-                  oncommand="gSyncPane.unlinkFirefoxAccount(true);"
-                  label="&disconnect.label;"/>
+          <vbox>
+            <button id="fxaUnlinkButton"
+                    oncommand="gSyncPane.unlinkFirefoxAccount(true);"
+                    label="&disconnect.label;"/>
+          </vbox>
         </hbox>
 
         <!-- logged in to an unverified account -->

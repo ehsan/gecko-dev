@@ -13,19 +13,14 @@
     <org.mozilla.search.autocomplete.ClearableEditText
         android:id="@+id/auto_complete_edit_text"
         android:layout_width="match_parent"
-        android:layout_height="@dimen/search_bar_height"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp"
-        android:paddingLeft="@dimen/card_background_padding_x"
-        android:paddingRight="@dimen/card_background_padding_x"/>
+        android:layout_height="wrap_content"
+        android:padding="10dp"/>
 
     <ListView
         android:id="@+id/auto_complete_dropdown"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/global_background_color"
-        android:divider="@null"
-        android:dividerHeight="0dp"
+        android:background="#fff"
         android:visibility="gone"/>
 
 </LinearLayout>

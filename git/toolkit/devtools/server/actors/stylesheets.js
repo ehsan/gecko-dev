@@ -888,7 +888,7 @@ let StyleSheetActor = protocol.ActorClass({
       this._insertTransistionRule();
     }
     else {
-      events.emit(this, "style-applied");
+      this._notifyStyleApplied();
     }
 
     this._getMediaRules().then((rules) => {

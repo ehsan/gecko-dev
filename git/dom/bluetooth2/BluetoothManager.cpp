@@ -246,10 +246,17 @@ BluetoothManager::DispatchAttributeEvent()
   MOZ_ASSERT(NS_IsMainThread());
   BT_API2_LOGR();
 
-  AutoJSAPI jsapi;
-  NS_ENSURE_TRUE_VOID(jsapi.Init(GetOwner()));
-  JSContext* cx = jsapi.cx();
-  JS::Rooted<JS::Value> value(cx);
+  AutoJSContext cx;
+  JS::Rooted<JS::Value> value(cx, JS::NullValue());
+
+  nsCOMPtr<nsIGlobalObject> global =
+    do_QueryInterface(GetOwner());
+  NS_ENSURE_TRUE_VOID(global);
+
+  JS::Rooted<JSObject*> scope(cx, global->GetGlobalJSObject());
+  NS_ENSURE_TRUE_VOID(scope);
+
+  JSAutoCompartment ac(cx, scope);
 
   nsTArray<nsString> types;
   BT_APPEND_ENUM_STRING(types,

@@ -38,12 +38,7 @@ function testSourceIsUgly() {
 }
 
 function clickPrettyPrintButton() {
-  // Wait a tick before clicking to make sure the frontend's blackboxchange
-  // handlers have finished.
-  return new Promise(resolve => {
-    gDebugger.document.getElementById("pretty-print").click();
-    resolve();
-  });
+  gDebugger.document.getElementById("pretty-print").click();
 }
 
 function testSourceIsStillUgly() {

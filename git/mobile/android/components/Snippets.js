@@ -386,6 +386,7 @@ Snippets.prototype = {
   observe: function(subject, topic, data) {
     switch(topic) {
       case "browser-delayed-startup-finished":
+        Services.obs.removeObserver(this, "browser-delayed-startup-finished", false);
         if (Services.prefs.getBoolPref("browser.snippets.syncPromo.enabled")) {
           loadSyncPromoBanner();
         }

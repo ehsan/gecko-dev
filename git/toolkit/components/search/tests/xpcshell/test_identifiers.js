@@ -7,6 +7,7 @@
 
 "use strict";
 
+const Ci = Components.interfaces;
 const SEARCH_APP_DIR = 1;
 
 function run_test() {

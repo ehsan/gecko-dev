@@ -36,14 +36,15 @@ class BluetoothAdapter : public DOMEventTargetHelper
 public:
   NS_DECL_ISUPPORTS_INHERITED
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(BluetoothAdapter,
-                                           DOMEventTargetHelper)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(BluetoothAdapter,
+                                                         DOMEventTargetHelper)
 
   static already_AddRefed<BluetoothAdapter>
   Create(nsPIDOMWindow* aOwner, const BluetoothValue& aValue);
 
   void Notify(const BluetoothSignal& aParam);
 
+  void Unroot();
   void SetPropertyByValue(const BluetoothNamedValue& aValue);
 
   virtual void DisconnectFromOwner() MOZ_OVERRIDE;
@@ -56,6 +57,12 @@ public:
   void GetAddress(nsString& aAddress) const
   {
     aAddress = mAddress;
+  }
+
+  uint32_t
+  Class() const
+  {
+    return mClass;
   }
 
   void
@@ -75,6 +82,17 @@ public:
   {
     return mDiscoverable;
   }
+
+  uint32_t
+  DiscoverableTimeout() const
+  {
+    return mDiscoverableTimeout;
+  }
+
+  void GetDevices(JSContext* aContext, JS::MutableHandle<JS::Value> aDevices,
+                  ErrorResult& aRv);
+  void GetUuids(JSContext* aContext, JS::MutableHandle<JS::Value> aUuids,
+                ErrorResult& aRv);
 
   /**
    * Update this adapter's discovery handle in use (mDiscoveryHandleInUse).
@@ -148,6 +166,7 @@ public:
   already_AddRefed<DOMRequest>
     SendMediaPlayStatus(const MediaPlayStatus& aMediaPlayStatus, ErrorResult& aRv);
 
+  IMPL_EVENT_HANDLER(devicefound);
   IMPL_EVENT_HANDLER(a2dpstatuschanged);
   IMPL_EVENT_HANDLER(hfpstatuschanged);
   IMPL_EVENT_HANDLER(pairedstatuschanged);
@@ -167,6 +186,8 @@ private:
   BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue);
   ~BluetoothAdapter();
 
+  void Root();
+
   already_AddRefed<mozilla::dom::DOMRequest>
     PairUnpair(bool aPair, const nsAString& aDeviceAddress, ErrorResult& aRv);
 
@@ -178,32 +199,22 @@ private:
   BluetoothAdapterAttribute
     ConvertStringToAdapterAttribute(const nsAString& aString);
 
-  void GetPairedDeviceProperties(const nsTArray<nsString>& aDeviceAddresses);
-
-  void HandleDeviceFound(const BluetoothValue& aValue);
-
-  /**
-   * mDevices holds references of all created device objects.
-   * It is an empty array when the adapter state is disabled.
-   *
-   * Devices will be appended when
-   * 1) Enabling BT: Paired devices reported by stack.
-   * 2) Discovering: Discovered devices during discovery operation.
-   * A device won't be appended if a device object with the same
-   * address already exists.
-   *
-   * Devices will be removed when
-   * 1) Starting discovery: All unpaired devices will be removed before this
-   *    adapter starts a new discovery.
-   * 2) Disabling BT: All devices will be removed.
-   */
-  nsTArray<nsRefPtr<BluetoothDevice> > mDevices;
+  JS::Heap<JSObject*> mJsUuids;
+  JS::Heap<JSObject*> mJsDeviceAddresses;
   nsRefPtr<BluetoothDiscoveryHandle> mDiscoveryHandleInUse;
   BluetoothAdapterState mState;
   nsString mAddress;
   nsString mName;
   bool mDiscoverable;
   bool mDiscovering;
+  bool mPairable;
+  bool mPowered;
+  uint32_t mPairableTimeout;
+  uint32_t mDiscoverableTimeout;
+  uint32_t mClass;
+  nsTArray<nsString> mDeviceAddresses;
+  nsTArray<nsString> mUuids;
+  bool mIsRooted;
 };
 
 END_BLUETOOTH_NAMESPACE
