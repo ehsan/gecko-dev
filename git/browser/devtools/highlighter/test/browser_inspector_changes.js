@@ -50,7 +50,7 @@ function createDocument()
 
 function getInspectorProp(aName)
 {
-  for each (let view in computedViewTree().propertyViews) {
+  for each (let view in InspectorUI.stylePanel.cssHtmlTree.propertyViews) {
     if (view.name == aName) {
       return view;
     }
@@ -79,16 +79,18 @@ function runInspectorTests()
   // Start up the style inspector panel...
   Services.obs.addObserver(stylePanelTests, "StyleInspector-populated", false);
 
-  InspectorUI.sidebar.show();
-  InspectorUI.sidebar.activatePanel("computedview");
+  executeSoon(function() {
+    InspectorUI.showSidebar();
+    document.getElementById(InspectorUI.getToolbarButtonId("styleinspector")).click();
+  });
 }
 
 function stylePanelTests()
 {
   Services.obs.removeObserver(stylePanelTests, "StyleInspector-populated");
 
-  ok(InspectorUI.sidebar.visible, "Inspector Sidebar is open");
-  ok(computedViewTree(), "Style Panel has a cssHtmlTree");
+  ok(InspectorUI.isSidebarOpen, "Inspector Sidebar is open");
+  ok(InspectorUI.stylePanel.cssHtmlTree, "Style Panel has a cssHtmlTree");
 
   let propView = getInspectorProp("font-size");
   is(propView.value, "10px", "Style inspector should be showing the correct font size.");
@@ -112,13 +114,11 @@ function stylePanelAfterChange()
 function stylePanelNotActive()
 {
   // Tests changes made while the style panel is not active.
-  InspectorUI.sidebar.activatePanel("ruleview");
-
+  InspectorUI.ruleButton.click();
   executeSoon(function() {
-    Services.obs.addObserver(stylePanelAfterSwitch, "StyleInspector-populated", false);
     testDiv.style.fontSize = "20px";
-    InspectorUI.nodeChanged();
-    InspectorUI.sidebar.activatePanel("computedview");
+    Services.obs.addObserver(stylePanelAfterSwitch, "StyleInspector-populated", false);
+    document.getElementById(InspectorUI.getToolbarButtonId("styleinspector")).click();
   });
 }
 

@@ -13,12 +13,19 @@ function createDocument()
     '.matches {color: #F00;}</style>' +
     '<span id="matches" class="matches">Some styled text</span>';
   doc.title = "Tests that the no results placeholder works properly";
-  stylePanel = new ComputedViewPanel(window);
-  stylePanel.createPanel(doc.body, runStyleInspectorTests);
+  stylePanel = new StyleInspector(window);
+  Services.obs.addObserver(runStyleInspectorTests, "StyleInspector-opened", false);
+  stylePanel.createPanel(false, function() {
+    stylePanel.open(doc.body);
+  });
 }
 
 function runStyleInspectorTests()
 {
+  Services.obs.removeObserver(runStyleInspectorTests, "StyleInspector-opened", false);
+
+  ok(stylePanel.isOpen(), "style inspector is open");
+
   Services.obs.addObserver(SI_AddFilterText, "StyleInspector-populated", false);
 
   let span = doc.querySelector("#matches");
@@ -83,12 +90,14 @@ function SI_checkPlaceholderHidden()
 
   is(display, "none", "placeholder is hidden");
 
-  stylePanel.destroy();
-  finishUp();
+  Services.obs.addObserver(finishUp, "StyleInspector-closed", false);
+  stylePanel.close();
 }
 
 function finishUp()
 {
+  Services.obs.removeObserver(finishUp, "StyleInspector-closed", false);
+  ok(!stylePanel.isOpen(), "style inspector is closed");
   doc = stylePanel = null;
   gBrowser.removeCurrentTab();
   finish();

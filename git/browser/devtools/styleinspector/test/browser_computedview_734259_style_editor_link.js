@@ -30,14 +30,18 @@ function createDocument()
   let span = doc.querySelector("span");
   ok(span, "captain, we have the span");
 
+  stylePanel = new StyleInspector(window);
   Services.obs.addObserver(testInlineStyle, "StyleInspector-populated", false);
-  stylePanel = new ComputedViewPanel(window);
-  stylePanel.createPanel(span);
+  stylePanel.createPanel(false, function() {
+    stylePanel.open(span);
+  });
 }
 
 function testInlineStyle()
 {
   Services.obs.removeObserver(testInlineStyle, "StyleInspector-populated", false);
+
+  ok(stylePanel.isOpen(), "style inspector is open");
 
   info("expanding property");
   expandProperty(0, function propertyExpanded() {
@@ -109,8 +113,8 @@ function validateStyleEditorSheet(aEditor)
   info("closing window");
   win.close();
 
-  stylePanel.destroy();
-  finishUp();
+  Services.obs.addObserver(finishUp, "StyleInspector-closed", false);
+  stylePanel.close();
 }
 
 function expandProperty(aIndex, aCallback)
@@ -134,6 +138,8 @@ function getLinkByIndex(aIndex)
 
 function finishUp()
 {
+  Services.obs.removeObserver(finishUp, "StyleInspector-closed", false);
+  ok(!stylePanel.isOpen(), "style inspector is closed");
   doc = win = stylePanel = null;
   gBrowser.removeCurrentTab();
   finish();
