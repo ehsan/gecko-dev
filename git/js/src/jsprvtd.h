@@ -158,12 +158,11 @@ struct Token;
 struct TokenPos;
 struct TokenPtr;
 
-class ContextAllocPolicy;
-class SystemAllocPolicy;
+class TempAllocPolicy;
 
 template <class T,
           size_t MinInlineCapacity = 0,
-          class AllocPolicy = ContextAllocPolicy>
+          class AllocPolicy = TempAllocPolicy>
 class Vector;
 
 template <class>
@@ -172,12 +171,12 @@ struct DefaultHasher;
 template <class Key,
           class Value,
           class HashPolicy = DefaultHasher<Key>,
-          class AllocPolicy = ContextAllocPolicy>
+          class AllocPolicy = TempAllocPolicy>
 class HashMap;
 
 template <class T,
           class HashPolicy = DefaultHasher<T>,
-          class AllocPolicy = ContextAllocPolicy>
+          class AllocPolicy = TempAllocPolicy>
 class HashSet;
 
 class PropertyCache;
@@ -242,7 +241,7 @@ typedef void
                         void      *callerdata);
 
 typedef void
-(* JSSourceHandler)(const char *filename, uintN lineno, jschar *str,
+(* JSSourceHandler)(const char *filename, uintN lineno, const jschar *str,
                     size_t length, void **listenerTSData, void *closure);
 
 /*

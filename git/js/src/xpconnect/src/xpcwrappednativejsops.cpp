@@ -713,8 +713,8 @@ TraceScopeJSObjects(JSTracer *trc, XPCWrappedNativeScope* scope)
     }
 }
 
-void
-xpc_TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper)
+static void
+TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper)
 {
     // NOTE: It might be nice to also do the wrapper->Mark() call here too
     // when we are called during the marking phase of JS GC to mark the
@@ -743,22 +743,34 @@ xpc_TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper)
 }
 
 static void
-XPC_WN_Shared_Trace(JSTracer *trc, JSObject *obj)
+MarkWrappedNative(JSTracer *trc, JSObject *obj, bool helper)
 {
     JSObject *obj2;
+
+    // Pass null for the first JSContext* parameter  to skip any security
+    // checks and to avoid potential state change there.
     XPCWrappedNative* wrapper =
-        XPCWrappedNative::GetWrappedNativeOfJSObject(trc->context, obj, nsnull,
-                                                     &obj2);
+        XPCWrappedNative::GetWrappedNativeOfJSObject(nsnull, obj, nsnull, &obj2);
 
     if(wrapper)
     {
         if(wrapper->IsValid())
-             xpc_TraceForValidWrapper(trc, wrapper);
+        {
+            if(helper)
+                wrapper->GetScriptableCallback()->Trace(wrapper, trc, obj);
+             TraceForValidWrapper(trc, wrapper);
+        }
     }
     else if(obj2)
     {
         GetSlimWrapperProto(obj2)->TraceJS(trc);
     }
+}
+
+static void
+XPC_WN_Shared_Trace(JSTracer *trc, JSObject *obj)
+{
+    MarkWrappedNative(trc, obj, false);
 }
 
 static JSBool
@@ -1098,22 +1110,7 @@ XPC_WN_Helper_Finalize(JSContext *cx, JSObject *obj)
 static void
 XPC_WN_Helper_Trace(JSTracer *trc, JSObject *obj)
 {
-    JSObject *obj2;
-    XPCWrappedNative* wrapper =
-        XPCWrappedNative::GetWrappedNativeOfJSObject(trc->context, obj, nsnull,
-                                                     &obj2);
-    if(wrapper)
-    {
-        if(wrapper->IsValid())
-        {
-            wrapper->GetScriptableCallback()->Trace(wrapper, trc, obj);
-            xpc_TraceForValidWrapper(trc, wrapper);
-        }
-    }
-    else if(obj2)
-    {
-        GetSlimWrapperProto(obj2)->TraceJS(trc);
-    }
+    MarkWrappedNative(trc, obj, true);
 }
 
 static JSBool
@@ -1706,13 +1703,6 @@ XPC_WN_Shared_Proto_Enumerate(JSContext *cx, JSObject *obj)
     return JS_TRUE;
 }
 
-static JSBool
-XPC_WN_Shared_Proto_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
-{
-    // XXX ?
-    return JS_TRUE;
-}
-
 static void
 XPC_WN_Shared_Proto_Finalize(JSContext *cx, JSObject *obj)
 {
@@ -1774,7 +1764,7 @@ js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass = {
     js::StrictPropertyStub,         // setProperty;
     XPC_WN_Shared_Proto_Enumerate,  // enumerate;
     XPC_WN_ModsAllowed_Proto_Resolve, // resolve;
-    JS_VALUEIFY(js::ConvertOp, XPC_WN_Shared_Proto_Convert), // convert;
+    js::ConvertStub,                // convert;
     XPC_WN_Shared_Proto_Finalize,   // finalize;
 
     /* Optionally non-null members start here. */
@@ -1801,7 +1791,7 @@ js::Class XPC_WN_ModsAllowed_NoCall_Proto_JSClass = {
     js::StrictPropertyStub,         // setProperty;
     XPC_WN_Shared_Proto_Enumerate,  // enumerate;
     XPC_WN_ModsAllowed_Proto_Resolve,// resolve;
-    JS_VALUEIFY(js::ConvertOp, XPC_WN_Shared_Proto_Convert), // convert;
+    js::ConvertStub,                 // convert;
     XPC_WN_Shared_Proto_Finalize,    // finalize;
 
     /* Optionally non-null members start here. */
@@ -1891,7 +1881,7 @@ js::Class XPC_WN_NoMods_WithCall_Proto_JSClass = {
     JS_VALUEIFY(js::StrictPropertyOp, XPC_WN_OnlyIWrite_Proto_SetPropertyStub), // setProperty;
     XPC_WN_Shared_Proto_Enumerate,                                              // enumerate;
     XPC_WN_NoMods_Proto_Resolve,                                                // resolve;
-    JS_VALUEIFY(js::ConvertOp, XPC_WN_Shared_Proto_Convert),                    // convert;
+    js::ConvertStub,                                                            // convert;
     XPC_WN_Shared_Proto_Finalize,                                               // finalize;
 
     /* Optionally non-null members start here. */
@@ -1918,7 +1908,7 @@ js::Class XPC_WN_NoMods_NoCall_Proto_JSClass = {
     JS_VALUEIFY(js::StrictPropertyOp, XPC_WN_OnlyIWrite_Proto_SetPropertyStub), // setProperty;
     XPC_WN_Shared_Proto_Enumerate,                                              // enumerate;
     XPC_WN_NoMods_Proto_Resolve,                                                // resolve;
-    JS_VALUEIFY(js::ConvertOp, XPC_WN_Shared_Proto_Convert),                    // convert;
+    js::ConvertStub,                                                            // convert;
     XPC_WN_Shared_Proto_Finalize,                                               // finalize;
 
     /* Optionally non-null members start here. */

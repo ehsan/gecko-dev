@@ -728,6 +728,7 @@ var FormHelperUI = {
 
     this._updateContainerForSelect(lastElement, this._currentElement);
     this._zoom(Rect.fromRect(aElement.rect), Rect.fromRect(aElement.caretRect));
+    this._updateSuggestionsFor(this._currentElement);
 
     // Prevent the view to scroll automatically while typing
     this._currentBrowser.scrollSync = false;
@@ -884,8 +885,11 @@ var FormHelperUI = {
 
   doAutoComplete: function formHelperDoAutoComplete(aElement) {
     // Suggestions are only in <label>s. Ignore the rest.
-    if (aElement instanceof Ci.nsIDOMXULLabelElement)
-      this._currentBrowser.messageManager.sendAsyncMessage("FormAssist:AutoComplete", { value: aElement.getAttribute("data") });
+    if (!(aElement instanceof Ci.nsIDOMXULLabelElement))
+      return;
+
+    this._currentBrowser.messageManager.sendAsyncMessage("FormAssist:AutoComplete", { value: aElement.getAttribute("data") });
+    ContentPopupHelper.popup = null;
   },
 
   get _open() {
@@ -1185,11 +1189,11 @@ var ContextHelper = {
     let label = document.getElementById("context-hint");
     label.value = this.popupState.label || "";
 
+    this.sizeToContent();
     this._panel.hidden = false;
     window.addEventListener("resize", this, true);
     window.addEventListener("keypress", this, true);
 
-    this.sizeToContent();
     BrowserUI.pushPopup(this, [this._popup]);
 
     let event = document.createEvent("Events");
@@ -1211,7 +1215,8 @@ var ContextHelper = {
   },
 
   sizeToContent: function sizeToContent() {
-    this._popup.maxWidth = window.innerWidth * 0.75;
+    let style = document.defaultView.getComputedStyle(this._panel, null);
+    this._popup.width = window.innerWidth - (parseInt(style.paddingLeft) + parseInt(style.paddingRight));
   },
 
   handleEvent: function handleEvent(aEvent) {
@@ -1391,7 +1396,7 @@ var FullScreenVideo = {
         this._dispatchMouseEvent("Browser:MouseDown", aEvent.clientX, aEvent.clientY);
         break;
       case "TapSingle":
-        this._dispatchMouseEvent("Browser:MouseUp", aEvent.clientX, aEvent.clientY);
+        this._dispatchMouseEvent("Browser:MouseClick", aEvent.clientX, aEvent.clientY);
         break;
     }
   },

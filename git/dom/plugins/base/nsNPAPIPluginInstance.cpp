@@ -82,7 +82,6 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
     mWindowlessLocal(PR_FALSE),
     mTransparent(PR_FALSE),
     mCached(PR_FALSE),
-    mWantsAllNetworkStreams(PR_FALSE),
     mUsesDOMForCursor(PR_FALSE),
     mInPluginInitCall(PR_FALSE),
     mPlugin(plugin),
@@ -680,12 +679,6 @@ NPError nsNPAPIPluginInstance::SetTransparent(PRBool aTransparent)
   return NPERR_NO_ERROR;
 }
 
-NPError nsNPAPIPluginInstance::SetWantsAllNetworkStreams(PRBool aWantsAllNetworkStreams)
-{
-  mWantsAllNetworkStreams = aWantsAllNetworkStreams;
-  return NPERR_NO_ERROR;
-}
-
 NPError nsNPAPIPluginInstance::SetUsesDOMForCursor(PRBool aUsesDOMForCursor)
 {
   mUsesDOMForCursor = aUsesDOMForCursor;
@@ -724,22 +717,6 @@ nsresult nsNPAPIPluginInstance::GetDrawingModel(PRInt32* aModel)
 #ifdef XP_MACOSX
   *aModel = (PRInt32)mDrawingModel;
   return NS_OK;
-#else
-  return NS_ERROR_FAILURE;
-#endif
-}
-
-nsresult nsNPAPIPluginInstance::IsRemoteDrawingCoreAnimation(PRBool* aDrawing)
-{
-#ifdef XP_MACOSX
-  if (!mPlugin)
-      return NS_ERROR_FAILURE;
-
-  PluginLibrary* library = mPlugin->GetLibrary();
-  if (!library)
-      return NS_ERROR_FAILURE;
-  
-  return library->IsRemoteDrawingCoreAnimation(&mNPP, aDrawing);
 #else
   return NS_ERROR_FAILURE;
 #endif

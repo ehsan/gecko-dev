@@ -63,7 +63,6 @@ DOMCI_CLASS(Text)
 DOMCI_CLASS(Comment)
 DOMCI_CLASS(CDATASection)
 DOMCI_CLASS(ProcessingInstruction)
-DOMCI_CLASS(Notation)
 DOMCI_CLASS(NodeList)
 DOMCI_CLASS(NamedNodeMap)
 
@@ -77,6 +76,9 @@ DOMCI_CLASS(DragEvent)
 DOMCI_CLASS(KeyboardEvent)
 DOMCI_CLASS(PopupBlockedEvent)
 DOMCI_CLASS(DeviceOrientationEvent)
+DOMCI_CLASS(DeviceMotionEvent)
+DOMCI_CLASS(DeviceAcceleration)
+DOMCI_CLASS(DeviceRotationRate)
 
 // HTML classes
 DOMCI_CLASS(HTMLDocument)
@@ -225,7 +227,6 @@ DOMCI_CLASS(CSSMozDocumentRule)
 
 DOMCI_CLASS(BeforeUnloadEvent)
 
-#ifdef MOZ_SVG
 // The SVG document
 DOMCI_CLASS(SVGDocument)
 
@@ -343,7 +344,6 @@ DOMCI_CLASS(SVGRect)
 DOMCI_CLASS(SVGTransform)
 DOMCI_CLASS(SVGTransformList)
 DOMCI_CLASS(SVGZoomEvent)
-#endif // MOZ_SVG
 
 // Canvas
 DOMCI_CLASS(HTMLCanvasElement)
@@ -393,9 +393,7 @@ DOMCI_CLASS(EventSource)
 DOMCI_CLASS(ClientRect)
 DOMCI_CLASS(ClientRectList)
 
-#ifdef MOZ_SVG
 DOMCI_CLASS(SVGForeignObjectElement)
-#endif
 
 DOMCI_CLASS(XULCommandEvent)
 DOMCI_CLASS(CommandEvent)
@@ -459,9 +457,7 @@ DOMCI_CLASS(SimpleGestureEvent)
 
 DOMCI_CLASS(MozTouchEvent)
 
-#ifdef MOZ_MATHML
 DOMCI_CLASS(MathMLElement)
-#endif
 
 DOMCI_CLASS(Worker)
 DOMCI_CLASS(ChromeWorker)
@@ -488,9 +484,7 @@ DOMCI_CLASS(HashChangeEvent)
 DOMCI_CLASS(EventListenerInfo)
 
 DOMCI_CLASS(TransitionEvent)
-#ifdef MOZ_CSS_ANIMATIONS
 DOMCI_CLASS(AnimationEvent)
-#endif
 
 DOMCI_CLASS(ContentFrameMessageManager)
 
@@ -522,10 +516,8 @@ DOMCI_CLASS(Touch)
 DOMCI_CLASS(TouchList)
 DOMCI_CLASS(TouchEvent)
 
-#ifdef MOZ_CSS_ANIMATIONS
 DOMCI_CLASS(MozCSSKeyframeRule)
 DOMCI_CLASS(MozCSSKeyframesRule)
-#endif
 
 DOMCI_CLASS(MediaQueryList)
 DOMCI_CLASS(CustomEvent)

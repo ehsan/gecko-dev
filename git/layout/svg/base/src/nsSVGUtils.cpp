@@ -189,7 +189,7 @@ NS_SMILEnabled()
   if (!sInitialized) {
     /* check and register ourselves with the pref */
     gSMILEnabled = Preferences::GetBool(SMIL_PREF_STR);
-    nsContentUtils::RegisterPrefCallback(SMIL_PREF_STR, SMILPrefChanged, nsnull);
+    Preferences::RegisterCallback(SMILPrefChanged, SMIL_PREF_STR);
 
     sInitialized = PR_TRUE;
   }
@@ -749,7 +749,7 @@ nsSVGUtils::GetOuterSVGFrameAndCoveredRegion(nsIFrame* aFrame, nsRect* aRect)
 }
 
 gfxMatrix
-nsSVGUtils::GetViewBoxTransform(nsSVGElement* aElement,
+nsSVGUtils::GetViewBoxTransform(const nsSVGElement* aElement,
                                 float aViewportWidth, float aViewportHeight,
                                 float aViewboxX, float aViewboxY,
                                 float aViewboxWidth, float aViewboxHeight,
@@ -763,7 +763,7 @@ nsSVGUtils::GetViewBoxTransform(nsSVGElement* aElement,
 }
 
 gfxMatrix
-nsSVGUtils::GetViewBoxTransform(nsSVGElement* aElement,
+nsSVGUtils::GetViewBoxTransform(const nsSVGElement* aElement,
                                 float aViewportWidth, float aViewportHeight,
                                 float aViewboxX, float aViewboxY,
                                 float aViewboxWidth, float aViewboxHeight,

@@ -61,7 +61,6 @@ using namespace mozilla;
 
 const float kAccessoryViewPadding = 5;
 const int   kSaveTypeControlTag = 1;
-const char  kLastTypeIndexPref[] = "filepicker.lastTypeIndex";
 
 static PRBool gCallSecretHiddenFileAPI = PR_FALSE;
 const char kShowHiddenFilesPref[] = "filepicker.showHiddenFiles";
@@ -143,10 +142,6 @@ nsFilePicker::InitNative(nsIWidget *aParent, const nsAString& aTitle,
 {
   mTitle = aTitle;
   mMode = aMode;
-
-  // read in initial type index from prefs
-  mSelectedTypeIndex =
-    Preferences::GetInt(kLastTypeIndexPref, mSelectedTypeIndex);
 }
 
 NSView* nsFilePicker::GetAccessoryView()
@@ -398,16 +393,22 @@ nsFilePicker::GetLocalFiles(const nsString& inTitle, PRBool inAllowMultiple, nsC
   
   if (result == NSFileHandlingPanelCancelButton)
     return retVal;
-  
-  // append each chosen file to our list
-  for (unsigned int i = 0; i < [[thePanel URLs] count]; i++) {
-    NSURL *theURL = [[thePanel URLs] objectAtIndex:i];
-    if (theURL) {
-      nsCOMPtr<nsILocalFile> localFile;
-      NS_NewLocalFile(EmptyString(), PR_TRUE, getter_AddRefs(localFile));
-      nsCOMPtr<nsILocalFileMac> macLocalFile = do_QueryInterface(localFile);
-      if (macLocalFile && NS_SUCCEEDED(macLocalFile->InitWithCFURL((CFURLRef)theURL)))
-        outFiles.AppendObject(localFile);
+
+  // Converts data from a NSArray of NSURL to the returned format.
+  // We should be careful to not call [thePanel URLs] more than once given that
+  // it creates a new array each time.
+  // We are using Fast Enumeration, thus the NSURL array is created once then
+  // iterated.
+  for (NSURL* url in [thePanel URLs]) {
+    if (!url) {
+      continue;
+    }
+
+    nsCOMPtr<nsILocalFile> localFile;
+    NS_NewLocalFile(EmptyString(), PR_TRUE, getter_AddRefs(localFile));
+    nsCOMPtr<nsILocalFileMac> macLocalFile = do_QueryInterface(localFile);
+    if (macLocalFile && NS_SUCCEEDED(macLocalFile->InitWithCFURL((CFURLRef)url))) {
+      outFiles.AppendObject(localFile);
     }
   }
 
@@ -505,8 +506,6 @@ nsFilePicker::PutLocalFile(const nsString& inTitle, const nsString& inDefaultNam
   NSPopUpButton* popupButton = [accessoryView viewWithTag:kSaveTypeControlTag];
   if (popupButton) {
     mSelectedTypeIndex = [popupButton indexOfSelectedItem];
-    // save out to prefs for initializing other file picker instances
-    Preferences::SetInt(kLastTypeIndexPref, mSelectedTypeIndex);
   }
 
   NSURL* fileURL = [thePanel URL];
@@ -536,8 +535,13 @@ nsFilePicker::GetFilterList()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  if (mFilters.Length() <= (PRUint32)mSelectedTypeIndex) {
+  if (!mFilters.Length()) {
     return nil;
+  }
+
+  if (mFilters.Length() <= (PRUint32)mSelectedTypeIndex) {
+    NS_WARNING("An out of range index has been selected. Using the first index instead.");
+    mSelectedTypeIndex = 0;
   }
 
   const nsString& filterWide = mFilters[mSelectedTypeIndex];

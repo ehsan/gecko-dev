@@ -571,10 +571,10 @@ public:
 
 private:
   // Enable updates for the accelerometer.
-  void EnableAccelerationUpdates();
+  void EnableDeviceMotionUpdates();
 
   // Disables updates for the accelerometer.
-  void DisableAccelerationUpdates();
+  void DisableDeviceMotionUpdates();
 
 protected:
   friend class HashchangeCallback;
@@ -724,7 +724,7 @@ protected:
 
   static void MakeScriptDialogTitle(nsAString &aOutTitle);
 
-  static PRBool CanMoveResizeWindows();
+  PRBool CanMoveResizeWindows();
 
   PRBool   GetBlurSuppression();
 
@@ -889,8 +889,8 @@ protected:
   // should be displayed.
   PRPackedBool           mFocusByKeyOccurred : 1;
 
-  // Indicates whether this window is getting acceleration change events
-  PRPackedBool           mHasAcceleration : 1;
+  // Indicates whether this window is getting device motion change events
+  PRPackedBool           mHasDeviceMotion : 1;
 
   // whether we've sent the destroy notification for our window id
   PRPackedBool           mNotifiedIDDestroyed : 1;
@@ -1026,8 +1026,8 @@ public:
     mCleanMessageManager = PR_FALSE;
   }
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGlobalChromeWindow,
-                                                     nsGlobalWindow)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalChromeWindow,
+                                           nsGlobalWindow)
 
   nsCOMPtr<nsIBrowserDOMWindow> mBrowserDOMWindow;
   nsCOMPtr<nsIChromeFrameMessageManager> mMessageManager;

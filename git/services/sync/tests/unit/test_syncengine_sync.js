@@ -5,96 +5,8 @@ Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
 
-/*
- * A fake engine implementation.
- * 
- * Complete with record, store, and tracker implementations.
- */
-
-function SteamRecord(collection, id) {
-  CryptoWrapper.call(this, collection, id);
-}
-SteamRecord.prototype = {
-  __proto__: CryptoWrapper.prototype
-};
-Utils.deferGetSet(SteamRecord, "cleartext", ["denomination"]);
-
-function SteamStore() {
-  Store.call(this, "Steam");
-  this.items = {};
-}
-SteamStore.prototype = {
-  __proto__: Store.prototype,
-
-  create: function Store_create(record) {
-    this.items[record.id] = record.denomination;
-  },
-
-  remove: function Store_remove(record) {
-    delete this.items[record.id];
-  },
-
-  update: function Store_update(record) {
-    this.items[record.id] = record.denomination;
-  },
-
-  itemExists: function Store_itemExists(id) {
-    return (id in this.items);
-  },
-
-  createRecord: function(id, collection) {
-    var record = new SteamRecord(collection, id);
-    record.denomination = this.items[id] || "Data for new record: " + id;
-    return record;
-  },
-
-  changeItemID: function(oldID, newID) {
-    this.items[newID] = this.items[oldID];
-    delete this.items[oldID];
-  },
-
-  getAllIDs: function() {
-    let ids = {};
-    for (var id in this.items) {
-      ids[id] = true;
-    }
-    return ids;
-  },
-
-  wipe: function() {
-    this.items = {};
-  }
-};
-
-function SteamTracker() {
-  Tracker.call(this, "Steam");
-}
-SteamTracker.prototype = {
-  __proto__: Tracker.prototype
-};
-
-
-function SteamEngine() {
-  SyncEngine.call(this, "Steam");
-}
-SteamEngine.prototype = {
-  __proto__: SyncEngine.prototype,
-  _storeObj: SteamStore,
-  _trackerObj: SteamTracker,
-  _recordObj: SteamRecord,
-
-  _findDupe: function(item) {
-    for (let [id, value] in Iterator(this._store.items)) {
-      if (item.denomination == value) {
-        return id;
-      }
-    }
-  }
-};
-
-
-function makeSteamEngine() {
-  return new SteamEngine();
+function makeRotaryEngine() {
+  return new RotaryEngine();
 }
 
 /*
@@ -128,11 +40,11 @@ function test_syncStartup_emptyOrOutdatedGlobalsResetsSync() {
                                   denomination: "Flying Scotsman"}));
 
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   engine._store.items = {rekolok: "Rekonstruktionslokomotive"};
   try {
 
@@ -151,7 +63,7 @@ function test_syncStartup_emptyOrOutdatedGlobalsResetsSync() {
     engine._syncStartup();
 
     // The meta/global WBO has been filled with data about the engine
-    let engineData = metaGlobal.payload.engines["steam"];
+    let engineData = metaGlobal.payload.engines["rotary"];
     do_check_eq(engineData.version, engine.version);
     do_check_eq(engineData.syncID, engine.syncID);
 
@@ -173,13 +85,13 @@ function test_syncStartup_serverHasNewerVersion() {
   let syncTesting = new SyncTestingInfrastructure();
   Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
-  let global = new ServerWBO('global', {engines: {steam: {version: 23456}}});
+  let global = new ServerWBO('global', {engines: {rotary: {version: 23456}}});
   let server = httpd_setup({
       "/1.1/foo/storage/meta/global": global.handler()
   });
   do_test_pending();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   try {
 
     // The server has a newer version of the data and our engine can
@@ -210,9 +122,9 @@ function test_syncStartup_syncIDMismatchResetsClient() {
   do_test_pending();
 
   // global record with a different syncID than our engine has
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   let global = new ServerWBO('global',
-                             {engines: {steam: {version: engine.version,
+                             {engines: {rotary: {version: engine.version,
                                                 syncID: 'foobar'}}});
   server.registerPathHandler("/1.1/foo/storage/meta/global", global.handler());
 
@@ -249,11 +161,11 @@ function test_processIncoming_emptyServer() {
   let collection = new ServerCollection();
 
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   try {
 
     // Merely ensure that this code path is run without any errors
@@ -292,15 +204,15 @@ function test_processIncoming_createFromServer() {
                                          denomination: "Pathological Case"}));
 
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler(),
-      "/1.1/foo/storage/steam/flying": collection.wbos.flying.handler(),
-      "/1.1/foo/storage/steam/scotsman": collection.wbos.scotsman.handler()
+      "/1.1/foo/storage/rotary": collection.handler(),
+      "/1.1/foo/storage/rotary/flying": collection.wbos.flying.handler(),
+      "/1.1/foo/storage/rotary/scotsman": collection.wbos.scotsman.handler()
   });
   do_test_pending();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
 
   try {
@@ -386,11 +298,11 @@ function test_processIncoming_reconcile() {
                                 deleted: true}));
 
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   engine._store.items = {newerserver: "New data, but not as new as server!",
                          olderidentical: "Older but identical",
                          updateclient: "Got data?",
@@ -403,7 +315,7 @@ function test_processIncoming_reconcile() {
   engine._tracker.addChangedID('olderidentical', Date.now()/1000);
 
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
 
   try {
@@ -482,13 +394,13 @@ function test_processIncoming_mobile_batchSize() {
   }
 
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
 
   try {
@@ -555,14 +467,14 @@ function test_processIncoming_store_toFetch() {
     collection.wbos[id] = wbo;
   }
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   engine.enabled = true;
 
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
@@ -598,7 +510,7 @@ function test_processIncoming_store_toFetch() {
 
 
 function test_processIncoming_resume_toFetch() {
-  _("toFetch items left over from previous syncs are fetched on the next sync, along with new items.");
+  _("toFetch and previousFailed items left over from previous syncs are fetched on the next sync, along with new items.");
   let syncTesting = new SyncTestingInfrastructure();
   Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
@@ -616,21 +528,29 @@ function test_processIncoming_resume_toFetch() {
   collection.wbos.rekolok = new ServerWBO(
       'rekolok', encryptPayload({id: 'rekolok',
                                  denomination: "Rekonstruktionslokomotive"}));
+  for (var i = 0; i < 3; i++) {
+    let id = 'failed' + i;
+    let payload = encryptPayload({id: id, denomination: "Record No. " + i});
+    let wbo = new ServerWBO(id, payload);
+    wbo.modified = LASTSYNC - 10;
+    collection.wbos[id] = wbo;
+  }
 
   collection.wbos.flying.modified = collection.wbos.scotsman.modified
     = LASTSYNC - 10;
   collection.wbos.rekolok.modified = LASTSYNC + 10;
 
   // Time travel 10 seconds into the future but still download the above WBOs.
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   engine.lastSync = LASTSYNC;
   engine.toFetch = ["flying", "scotsman"];
+  engine.previousFailed = ["failed0", "failed1", "failed2"];
 
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
@@ -648,7 +568,10 @@ function test_processIncoming_resume_toFetch() {
     do_check_eq(engine._store.items.flying, "LNER Class A3 4472");
     do_check_eq(engine._store.items.scotsman, "Flying Scotsman");
     do_check_eq(engine._store.items.rekolok, "Rekonstruktionslokomotive");
-
+    do_check_eq(engine._store.items.failed0, "Record No. 0");
+    do_check_eq(engine._store.items.failed1, "Record No. 1");
+    do_check_eq(engine._store.items.failed2, "Record No. 2");
+    do_check_eq(engine.previousFailed.length, 0);
   } finally {
     server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
@@ -665,7 +588,7 @@ function test_processIncoming_applyIncomingBatchSize_smaller() {
 
   // Engine that doesn't like the first and last record it's given.
   const APPLY_BATCH_SIZE = 10;
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   engine.applyIncomingBatchSize = APPLY_BATCH_SIZE;
   engine._store._applyIncomingBatch = engine._store.applyIncomingBatch;
   engine._store.applyIncomingBatch = function (records) {
@@ -684,10 +607,10 @@ function test_processIncoming_applyIncomingBatchSize_smaller() {
   }
 
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
@@ -699,12 +622,13 @@ function test_processIncoming_applyIncomingBatchSize_smaller() {
     engine._syncStartup();
     engine._processIncoming();
 
-    // Records have been applied.
+    // Records have been applied and the expected failures have failed.
     do_check_eq([id for (id in engine._store.items)].length,
                 APPLY_BATCH_SIZE - 1 - 2);
-    do_check_eq(engine.toFetch.length, 2);
-    do_check_eq(engine.toFetch[0], "record-no-0");
-    do_check_eq(engine.toFetch[1], "record-no-8");
+    do_check_eq(engine.toFetch.length, 0);
+    do_check_eq(engine.previousFailed.length, 2);
+    do_check_eq(engine.previousFailed[0], "record-no-0");
+    do_check_eq(engine.previousFailed[1], "record-no-8");
 
   } finally {
     server.stop(do_test_finished);
@@ -723,7 +647,7 @@ function test_processIncoming_applyIncomingBatchSize_multiple() {
   const APPLY_BATCH_SIZE = 10;
 
   // Engine that applies records in batches.
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   engine.applyIncomingBatchSize = APPLY_BATCH_SIZE;
   let batchCalls = 0;
   engine._store._applyIncomingBatch = engine._store.applyIncomingBatch;
@@ -742,10 +666,10 @@ function test_processIncoming_applyIncomingBatchSize_multiple() {
   }
 
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
@@ -762,6 +686,182 @@ function test_processIncoming_applyIncomingBatchSize_multiple() {
     do_check_eq([id for (id in engine._store.items)].length,
                 APPLY_BATCH_SIZE * 3);
 
+  } finally {
+    server.stop(do_test_finished);
+    Svc.Prefs.resetBranch("");
+    Records.clearCache();
+  }
+}
+
+
+function test_processIncoming_failed_items_reported_once() {
+  _("Ensure that failed records are reported only once.");
+  let syncTesting = new SyncTestingInfrastructure();
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
+  Svc.Prefs.set("username", "foo");
+  
+  const APPLY_BATCH_SIZE = 5;
+  const NUMBER_OF_RECORDS = 15;
+
+  // Engine that fails the first record.
+  let engine = makeRotaryEngine();
+  engine.applyIncomingBatchSize = APPLY_BATCH_SIZE;
+  engine._store._applyIncomingBatch = engine._store.applyIncomingBatch;
+  engine._store.applyIncomingBatch = function (records) {
+    engine._store._applyIncomingBatch(records.slice(1));
+    return [records[0].id];
+  };
+
+  // Create a batch of server side records.
+  let collection = new ServerCollection();
+  for (var i = 0; i < NUMBER_OF_RECORDS; i++) {
+    let id = 'record-no-' + i;
+    let payload = encryptPayload({id: id, denomination: "Record No. " + id});
+    collection.wbos[id] = new ServerWBO(id, payload);
+  }
+
+  let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
+  meta_global.payload.engines = {rotary: {version: engine.version,
+                                         syncID: engine.syncID}};
+  let server = sync_httpd_setup({
+      "/1.1/foo/storage/rotary": collection.handler()
+  });
+  do_test_pending();
+
+  try {
+    let called = 0;
+    let counts;
+
+    // Confirm initial environment.
+    do_check_eq(engine.lastSync, 0);
+    do_check_eq(engine.toFetch.length, 0);
+    do_check_eq(engine.previousFailed.length, 0);
+    do_check_eq([id for (id in engine._store.items)].length, 0);
+
+    Svc.Obs.add("weave:engine:sync:apply-failed", function(count) {
+      _("Called with " + JSON.stringify(counts));
+      counts = count;
+      called++;
+    });
+
+    // Do sync.
+    engine._syncStartup();
+    engine._processIncoming();
+    
+    // Confirm failures.
+    do_check_eq([id for (id in engine._store.items)].length, 12);
+    do_check_eq(engine.previousFailed.length, 3);
+    do_check_eq(engine.previousFailed[0], "record-no-0");
+    do_check_eq(engine.previousFailed[1], "record-no-5");
+    do_check_eq(engine.previousFailed[2], "record-no-10");
+
+    // There are newly failed records and they are reported.
+    do_check_eq(called, 1);
+    do_check_eq(counts.failed, 3);
+    do_check_eq(counts.applied, 15);
+    do_check_eq(counts.newFailed, 3);
+
+    // Sync again, 1 of the failed items are the same, the rest didn't fail.
+    engine._processIncoming();
+    
+    // Confirming removed failures.
+    do_check_eq([id for (id in engine._store.items)].length, 14);
+    do_check_eq(engine.previousFailed.length, 1);
+    do_check_eq(engine.previousFailed[0], "record-no-0");
+
+    // Failures weren't notified again because there were no newly failed items.
+    do_check_eq(called, 1);
+    do_check_eq(counts.failed, 3);
+    do_check_eq(counts.applied, 15);
+    do_check_eq(counts.newFailed, 3);
+  } finally {
+    server.stop(do_test_finished);
+    Svc.Prefs.resetBranch("");
+    Records.clearCache();
+  }
+}
+
+
+function test_processIncoming_previousFailed() {
+  _("Ensure that failed records are retried.");
+  let syncTesting = new SyncTestingInfrastructure();
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
+  Svc.Prefs.set("username", "foo");
+  Svc.Prefs.set("client.type", "mobile");
+  
+  const APPLY_BATCH_SIZE = 4;
+  const NUMBER_OF_RECORDS = 14;
+
+  // Engine that fails the first 2 records.
+  let engine = makeRotaryEngine();
+  engine.mobileGUIDFetchBatchSize = engine.applyIncomingBatchSize = APPLY_BATCH_SIZE;  
+  engine._store._applyIncomingBatch = engine._store.applyIncomingBatch;
+  engine._store.applyIncomingBatch = function (records) {
+    engine._store._applyIncomingBatch(records.slice(2));
+    return [records[0].id, records[1].id];
+  };
+
+  // Create a batch of server side records.
+  let collection = new ServerCollection();
+  for (var i = 0; i < NUMBER_OF_RECORDS; i++) {
+    let id = 'record-no-' + i;
+    let payload = encryptPayload({id: id, denomination: "Record No. " + i});
+    collection.wbos[id] = new ServerWBO(id, payload);
+  }
+
+  let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
+  meta_global.payload.engines = {rotary: {version: engine.version,
+                                         syncID: engine.syncID}};
+  let server = sync_httpd_setup({
+      "/1.1/foo/storage/rotary": collection.handler()
+  });
+  do_test_pending();
+
+  try {
+    // Confirm initial environment.
+    do_check_eq(engine.lastSync, 0);
+    do_check_eq(engine.toFetch.length, 0);
+    do_check_eq(engine.previousFailed.length, 0);
+    do_check_eq([id for (id in engine._store.items)].length, 0);
+
+    // Initial failed items in previousFailed to be reset.
+    let previousFailed = [Utils.makeGUID(), Utils.makeGUID(), Utils.makeGUID()];
+    engine.previousFailed = previousFailed;
+    do_check_eq(engine.previousFailed, previousFailed);
+
+    // Do sync.
+    engine._syncStartup();
+    engine._processIncoming();
+
+    // Expected result: 4 sync batches with 2 failures each => 8 failures
+    do_check_eq([id for (id in engine._store.items)].length, 6);
+    do_check_eq(engine.previousFailed.length, 8);
+    do_check_eq(engine.previousFailed[0], "record-no-0");
+    do_check_eq(engine.previousFailed[1], "record-no-1");
+    do_check_eq(engine.previousFailed[2], "record-no-4");
+    do_check_eq(engine.previousFailed[3], "record-no-5");
+    do_check_eq(engine.previousFailed[4], "record-no-8");
+    do_check_eq(engine.previousFailed[5], "record-no-9");
+    do_check_eq(engine.previousFailed[6], "record-no-12");
+    do_check_eq(engine.previousFailed[7], "record-no-13");
+
+    // Sync again with the same failed items (records 0, 1, 8, 9).
+    engine._processIncoming();
+
+    // A second sync with the same failed items should not add the same items again.
+    // Items that did not fail a second time should no longer be in previousFailed.
+    do_check_eq([id for (id in engine._store.items)].length, 10);
+    do_check_eq(engine.previousFailed.length, 4);
+    do_check_eq(engine.previousFailed[0], "record-no-0");
+    do_check_eq(engine.previousFailed[1], "record-no-1");
+    do_check_eq(engine.previousFailed[2], "record-no-8");
+    do_check_eq(engine.previousFailed[3], "record-no-9");
+
+    // Refetched items that didn't fail the second time are in engine._store.items.
+    do_check_eq(engine._store.items['record-no-4'], "Record No. 4");
+    do_check_eq(engine._store.items['record-no-5'], "Record No. 5");
+    do_check_eq(engine._store.items['record-no-12'], "Record No. 12");
+    do_check_eq(engine._store.items['record-no-13'], "Record No. 13");
   } finally {
     server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
@@ -798,7 +898,7 @@ function test_processIncoming_failed_records() {
                          "record-no-" + (23 + MOBILE_BATCH_SIZE * 2),
                          "record-no-" + (2 + MOBILE_BATCH_SIZE * 3),
                          "record-no-" + (1 + MOBILE_BATCH_SIZE * 3)];
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   engine.applyIncomingBatchSize = MOBILE_BATCH_SIZE;
 
   engine.__reconcile = engine._reconcile;
@@ -817,7 +917,7 @@ function test_processIncoming_failed_records() {
   };
 
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
 
   // Keep track of requests made of a collection.
@@ -832,7 +932,7 @@ function test_processIncoming_failed_records() {
     };
   }
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": recording_handler(collection)
+      "/1.1/foo/storage/rotary": recording_handler(collection)
   });
   do_test_pending();
 
@@ -841,6 +941,7 @@ function test_processIncoming_failed_records() {
     // Confirm initial environment
     do_check_eq(engine.lastSync, 0);
     do_check_eq(engine.toFetch.length, 0);
+    do_check_eq(engine.previousFailed.length, 0);
     do_check_eq([id for (id in engine._store.items)].length, 0);
 
     let observerSubject;
@@ -860,11 +961,11 @@ function test_processIncoming_failed_records() {
                 NUMBER_OF_RECORDS - BOGUS_RECORDS.length);
 
     // Ensure that the bogus records will be fetched again on the next sync.
-    do_check_eq(engine.toFetch.length, BOGUS_RECORDS.length);
-    engine.toFetch.sort();
+    do_check_eq(engine.previousFailed.length, BOGUS_RECORDS.length);
+    engine.previousFailed.sort();
     BOGUS_RECORDS.sort();
-    for (let i = 0; i < engine.toFetch.length; i++) {
-      do_check_eq(engine.toFetch[i], BOGUS_RECORDS[i]);
+    for (let i = 0; i < engine.previousFailed.length; i++) {
+      do_check_eq(engine.previousFailed[i], BOGUS_RECORDS[i]);
     }
 
     // Ensure the observer was notified
@@ -901,7 +1002,7 @@ function test_processIncoming_failed_records() {
     server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
     Records.clearCache();
-    syncTesting = new SyncTestingInfrastructure(makeSteamEngine);
+    syncTesting = new SyncTestingInfrastructure(makeRotaryEngine);
   }
 }
 
@@ -935,16 +1036,16 @@ function test_processIncoming_decrypt_failed() {
   };
 
   // Some broken records also exist locally.
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   engine.enabled = true;
   engine._store.items = {nojson: "Valid JSON",
                          nodecrypt: "Valid ciphertext"};
 
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
@@ -952,6 +1053,7 @@ function test_processIncoming_decrypt_failed() {
 
     // Confirm initial state
     do_check_eq(engine.toFetch.length, 0);
+    do_check_eq(engine.previousFailed.length, 0);
 
     let observerSubject;
     let observerData;
@@ -965,11 +1067,11 @@ function test_processIncoming_decrypt_failed() {
     engine.lastSync = collection.wbos.nojson.modified - 1;
     engine.sync();
 
-    do_check_eq(engine.toFetch.length, 4);
-    do_check_eq(engine.toFetch[0], "nojson");
-    do_check_eq(engine.toFetch[1], "nojson2");
-    do_check_eq(engine.toFetch[2], "nodecrypt");
-    do_check_eq(engine.toFetch[3], "nodecrypt2");
+    do_check_eq(engine.previousFailed.length, 4);
+    do_check_eq(engine.previousFailed[0], "nojson");
+    do_check_eq(engine.previousFailed[1], "nojson2");
+    do_check_eq(engine.previousFailed[2], "nodecrypt");
+    do_check_eq(engine.previousFailed[3], "nodecrypt2");
 
     // Ensure the observer was notified
     do_check_eq(observerData, engine.name);
@@ -995,14 +1097,14 @@ function test_uploadOutgoing_toEmptyServer() {
   collection.wbos.scotsman = new ServerWBO('scotsman');
 
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler(),
-      "/1.1/foo/storage/steam/flying": collection.wbos.flying.handler(),
-      "/1.1/foo/storage/steam/scotsman": collection.wbos.scotsman.handler()
+      "/1.1/foo/storage/rotary": collection.handler(),
+      "/1.1/foo/storage/rotary/flying": collection.wbos.flying.handler(),
+      "/1.1/foo/storage/rotary/scotsman": collection.wbos.scotsman.handler()
   });
   do_test_pending();
   generateNewKeys();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   engine.lastSync = 123; // needs to be non-zero so that tracker is queried
   engine._store.items = {flying: "LNER Class A3 4472",
                          scotsman: "Flying Scotsman"};
@@ -1010,7 +1112,7 @@ function test_uploadOutgoing_toEmptyServer() {
   engine._tracker.addChangedID('scotsman', 0);
 
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
 
   try {
@@ -1057,11 +1159,11 @@ function test_uploadOutgoing_failed() {
   collection.wbos.flying = new ServerWBO('flying');
 
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   engine.lastSync = 123; // needs to be non-zero so that tracker is queried
   engine._store.items = {flying: "LNER Class A3 4472",
                          scotsman: "Flying Scotsman",
@@ -1075,7 +1177,7 @@ function test_uploadOutgoing_failed() {
   engine._tracker.addChangedID('peppercorn', PEPPERCORN_CHANGED);
 
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
 
   try {
@@ -1106,7 +1208,7 @@ function test_uploadOutgoing_failed() {
     server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
     Records.clearCache();
-    syncTesting = new SyncTestingInfrastructure(makeSteamEngine);
+    syncTesting = new SyncTestingInfrastructure(makeRotaryEngine);
   }
 }
 
@@ -1129,7 +1231,7 @@ function test_uploadOutgoing_MAX_UPLOAD_RECORDS() {
   }(collection.post));
 
   // Create a bunch of records (and server side handlers)
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   for (var i = 0; i < 234; i++) {
     let id = 'record-no-' + i;
     engine._store.items[id] = "Record No. " + i;
@@ -1138,11 +1240,11 @@ function test_uploadOutgoing_MAX_UPLOAD_RECORDS() {
   }
 
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
 
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
@@ -1166,14 +1268,14 @@ function test_uploadOutgoing_MAX_UPLOAD_RECORDS() {
     server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
     Records.clearCache();
-    syncTesting = new SyncTestingInfrastructure(makeSteamEngine);
+    syncTesting = new SyncTestingInfrastructure(makeRotaryEngine);
   }
 }
 
 
 function test_syncFinish_noDelete() {
   _("SyncEngine._syncFinish resets tracker's score");
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   engine._delete = {}; // Nothing to delete
   engine._tracker.score = 100;
 
@@ -1201,11 +1303,11 @@ function test_syncFinish_deleteByIds() {
                                 denomination: "Rekonstruktionslokomotive"}));
 
   let server = httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   try {
     engine._delete = {ids: ['flying', 'rekolok']};
     engine._syncFinish();
@@ -1255,11 +1357,11 @@ function test_syncFinish_deleteLotsInBatches() {
   }
 
   let server = httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   try {
 
     // Confirm initial environment
@@ -1310,12 +1412,12 @@ function test_sync_partialUpload() {
 
   let collection = new ServerCollection();
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
   generateNewKeys();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   engine.lastSync = 123; // needs to be non-zero so that tracker is queried
   engine.lastSyncLocal = 456;
 
@@ -1341,7 +1443,7 @@ function test_sync_partialUpload() {
   }
 
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
-  meta_global.payload.engines = {steam: {version: engine.version,
+  meta_global.payload.engines = {rotary: {version: engine.version,
                                          syncID: engine.syncID}};
 
   try {
@@ -1392,11 +1494,11 @@ function test_canDecrypt_noCryptoKeys() {
                                 denomination: "LNER Class A3 4472"}));
 
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   try {
 
     do_check_false(engine.canDecrypt());
@@ -1423,11 +1525,11 @@ function test_canDecrypt_true() {
                                 denomination: "LNER Class A3 4472"}));
 
   let server = sync_httpd_setup({
-      "/1.1/foo/storage/steam": collection.handler()
+      "/1.1/foo/storage/rotary": collection.handler()
   });
   do_test_pending();
 
-  let engine = makeSteamEngine();
+  let engine = makeRotaryEngine();
   try {
 
     do_check_true(engine.canDecrypt());
@@ -1457,6 +1559,8 @@ function run_test() {
   test_processIncoming_resume_toFetch();
   test_processIncoming_applyIncomingBatchSize_smaller();
   test_processIncoming_applyIncomingBatchSize_multiple();
+  test_processIncoming_failed_items_reported_once();
+  test_processIncoming_previousFailed();
   test_processIncoming_failed_records();
   test_processIncoming_decrypt_failed();
   test_uploadOutgoing_toEmptyServer();

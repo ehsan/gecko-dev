@@ -64,10 +64,7 @@
 #include "nsIServiceManager.h"
 #include "nsEscape.h"
 #include "mozilla/dom/Element.h"
-
-#ifdef MOZ_SVG
 #include "nsHtml5SVGLoadDispatcher.h"
-#endif
 
 namespace dom = mozilla::dom;
 
@@ -380,7 +377,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       }
       
       nsCOMPtr<nsIContent> newContent;
-      nsCOMPtr<nsINodeInfo> nodeInfo = aBuilder->GetNodeInfoManager()->GetNodeInfo(name, nsnull, ns);
+      nsCOMPtr<nsINodeInfo> nodeInfo = aBuilder->GetNodeInfoManager()->
+        GetNodeInfo(name, nsnull, ns, nsIDOMNode::ELEMENT_NODE);
       NS_ASSERTION(nodeInfo, "Got null nodeinfo.");
       NS_NewElement(getter_AddRefs(newContent),
                     ns, nodeInfo.forget(),
@@ -421,7 +419,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         nsCOMPtr<nsINodeInfo> optionNodeInfo = 
           aBuilder->GetNodeInfoManager()->GetNodeInfo(nsHtml5Atoms::option, 
                                                       nsnull, 
-                                                      kNameSpaceID_XHTML);
+                                                      kNameSpaceID_XHTML,
+                                                      nsIDOMNode::ELEMENT_NODE);
                                                       
         for (PRUint32 i = 0; i < theContent.Length(); ++i) {
           nsCOMPtr<nsIContent> optionElt;
@@ -696,7 +695,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       sele->FreezeUriAsyncDefer();
       return rv;
     }
-#ifdef MOZ_SVG
     case eTreeOpSvgLoad: {
       nsIContent* node = *(mOne.node);
       nsCOMPtr<nsIRunnable> event = new nsHtml5SVGLoadDispatcher(node);
@@ -705,7 +703,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       }
       return rv;
     }
-#endif
     default: {
       NS_NOTREACHED("Bogus tree op");
     }

@@ -88,6 +88,8 @@ protected:
     virtual bool AnswerNPP_SetWindow(const NPRemoteWindow& window);
 
     virtual bool
+    AnswerNPP_GetValue_NPPVpluginWantsAllNetworkStreams(bool* wantsAllStreams, NPError* rv);
+    virtual bool
     AnswerNPP_GetValue_NPPVpluginNeedsXEmbed(bool* needs, NPError* rv);
     virtual bool
     AnswerNPP_GetValue_NPPVpluginScriptableNPObject(PPluginScriptableObjectChild** value,
@@ -414,11 +416,14 @@ private:
     CGContextRef          mShContext;
     int16_t               mDrawingModel;
     nsCARenderer          mCARenderer;
+    void                 *mCGLayer;
 
 public:
     const NPCocoaEvent* getCurrentEvent() {
         return mCurrentEvent;
     }
+  
+    bool CGDraw(CGContextRef ref, nsIntRect aUpdateRect);
 
 #if defined(__i386__)
     NPEventModel EventModel() { return mEventModel; }
@@ -510,6 +515,12 @@ private:
     // Back surface, just keeping reference to
     // surface which is on ParentProcess side
     nsRefPtr<gfxASurface> mBackSurface;
+
+#ifdef XP_MACOSX
+    // Current IOSurface available for rendering
+    // We can't use thebes gfxASurface like other platforms.
+    nsAutoPtr<nsIOSurface> mCurrentIOSurface; 
+#endif
 
     // (Not to be confused with mBackSurface).  This is a recent copy
     // of the opaque pixels under our object frame, if

@@ -42,7 +42,6 @@
 
 #include "nsXULPrototypeCache.h"
 
-#include "nsContentUtils.h"
 #include "plstr.h"
 #include "nsXULPrototypeDocument.h"
 #include "nsCSSStyleSheet.h"
@@ -51,8 +50,6 @@
 #include "nsIURI.h"
 
 #include "nsIChromeRegistry.h"
-#include "nsIFastLoadService.h"
-#include "nsIFastLoadFileControl.h"
 #include "nsIFile.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
@@ -77,6 +74,7 @@ static NS_DEFINE_CID(kXULPrototypeCacheCID, NS_XULPROTOTYPECACHE_CID);
 static PRBool gDisableXULCache = PR_FALSE; // enabled by default
 static const char kDisableXULCachePref[] = "nglayout.debug.disable_xul_cache";
 static const char kXULCacheInfoKey[] = "nsXULPrototypeCache.startupCache";
+static const char kXULCachePrefix[] = "xulcache";
 
 //----------------------------------------------------------------------
 
@@ -143,9 +141,8 @@ NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult)
     // XXX Ignore return values.
     gDisableXULCache =
         Preferences::GetBool(kDisableXULCachePref, gDisableXULCache);
-    nsContentUtils::RegisterPrefCallback(kDisableXULCachePref,
-                                         DisableXULCacheChangedCallback,
-                                         nsnull);
+    Preferences::RegisterCallback(DisableXULCacheChangedCallback,
+                                  kDisableXULCachePref);
 
     nsresult rv = result->QueryInterface(aIID, aResult);
 
@@ -460,8 +457,10 @@ nsXULPrototypeCache::WritePrototype(nsXULPrototypeDocument* aPrototypeDocument)
 nsresult
 nsXULPrototypeCache::GetInputStream(nsIURI* uri, nsIObjectInputStream** stream) 
 {
-    nsCAutoString spec;
-    uri->GetPath(spec);
+    nsCAutoString spec(kXULCachePrefix);
+    nsresult rv = NS_PathifyURI(uri, spec);
+    if (NS_FAILED(rv)) 
+        return NS_ERROR_NOT_AVAILABLE;
     
     nsAutoArrayPtr<char> buf;
     PRUint32 len;
@@ -469,8 +468,7 @@ nsXULPrototypeCache::GetInputStream(nsIURI* uri, nsIObjectInputStream** stream)
     if (!gStartupCache)
         return NS_ERROR_NOT_AVAILABLE;
     
-    nsresult rv = gStartupCache->GetBuffer(spec.get(), getter_Transfers(buf), 
-                                           &len);
+    rv = gStartupCache->GetBuffer(spec.get(), getter_Transfers(buf), &len);
     if (NS_FAILED(rv)) 
         return NS_ERROR_NOT_AVAILABLE;
 
@@ -535,8 +533,10 @@ nsXULPrototypeCache::FinishOutputStream(nsIURI* uri)
                                        &len);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCAutoString spec;
-    uri->GetPath(spec);
+    nsCAutoString spec(kXULCachePrefix);
+    rv = NS_PathifyURI(uri, spec);
+    if (NS_FAILED(rv))
+        return NS_ERROR_NOT_AVAILABLE;
     rv = gStartupCache->PutBuffer(spec.get(), buf, len);
     if (NS_SUCCEEDED(rv))
         mOutputStreamTable.Remove(uri);
@@ -553,11 +553,14 @@ nsXULPrototypeCache::HasData(nsIURI* uri, PRBool* exists)
         *exists = PR_TRUE;
         return NS_OK;
     }
-    nsCAutoString spec;
-    uri->GetPath(spec);
+    nsCAutoString spec(kXULCachePrefix);
+    nsresult rv = NS_PathifyURI(uri, spec);
+    if (NS_FAILED(rv)) {
+        *exists = PR_FALSE;
+        return NS_OK;
+    }
     nsAutoArrayPtr<char> buf;
     PRUint32 len;
-    nsresult rv;
     if (gStartupCache)
         rv = gStartupCache->GetBuffer(spec.get(), getter_Transfers(buf), 
                                       &len);
@@ -627,9 +630,8 @@ nsXULPrototypeCache::BeginCaching(nsIURI* aURI)
     gDisableXULDiskCache =
         Preferences::GetBool(kDisableXULCachePref, gDisableXULDiskCache);
 
-    nsContentUtils::RegisterPrefCallback(kDisableXULCachePref,
-                                         CachePrefChangedCallback,
-                                         nsnull);
+    Preferences::RegisterCallback(CachePrefChangedCallback,
+                                  kDisableXULCachePref);
 
     if (gDisableXULDiskCache)
         return NS_ERROR_NOT_AVAILABLE;

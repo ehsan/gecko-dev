@@ -54,7 +54,6 @@
 #include "nsTableCellFrame.h"
 #include "nsIServiceManager.h"
 #include "nsIPercentHeightObserver.h"
-#include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
 #include "mozilla/Preferences.h"
 #ifdef IBMBIDI
@@ -406,9 +405,7 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext)
      mStylePosition->mMaxHeight.GetUnit() != eStyleUnit_Auto) ||
     mStylePosition->OffsetHasPercent(NS_SIDE_TOP) ||
     mStylePosition->mOffset.GetBottomUnit() != eStyleUnit_Auto ||
-    frame->IsBoxFrame() ||
-    (mStylePosition->mHeight.GetUnit() == eStyleUnit_Auto &&
-     frame->GetIntrinsicSize().height.GetUnit() == eStyleUnit_Percent);
+    frame->IsBoxFrame();
 
   if (mStyleText->mLineHeight.GetUnit() == eStyleUnit_Enumerated) {
     NS_ASSERTION(mStyleText->mLineHeight.GetIntValue() ==
@@ -1626,8 +1623,7 @@ static PRBool BlinkIsAllowed(void)
 {
   if (!sPrefIsLoaded) {
     // Set up a listener and check the initial value
-    nsContentUtils::RegisterPrefCallback("browser.blink_allowed", PrefsChanged,
-                                         nsnull);
+    Preferences::RegisterCallback(PrefsChanged, "browser.blink_allowed");
     PrefsChanged(nsnull, nsnull);
     sPrefIsLoaded = PR_TRUE;
   }

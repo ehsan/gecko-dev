@@ -51,6 +51,9 @@ ifdef ENABLE_TESTS
 # We can't have index.html in this directory because it would prevent
 # running the tests here.
 DIRS		+= bug649134
+
+# For form-related test suite.
+DIRS		+= forms
 endif
 
 include $(topsrcdir)/config/rules.mk
@@ -240,6 +243,7 @@ _TEST_FILES = \
 		test_bug587469.html \
 		test_bug598643.html \
 		test_bug596350.html \
+		test_bug598833-1.html \
 		test_bug600155.html \
 		test_bug556007.html \
 		test_bug606817.html \
@@ -278,6 +282,9 @@ _TEST_FILES = \
 		test_bug649134.html \
 		test_bug658746.html \
 		test_bug659596.html \
+		test_bug659743.xml \
+		test_bug660663.html \
+		test_restore_from_parser_fragment.html \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

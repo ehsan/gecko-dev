@@ -19,6 +19,8 @@ var gInternalManager = null;
 var gAppInfo = null;
 var gAddonsList;
 
+var TEST_UNPACKED = false;
+
 function createAppInfo(id, name, version, platformVersion) {
   gAppInfo = {
     // nsIXULAppInfo
@@ -161,7 +163,7 @@ function do_get_addon_root_uri(aProfileDir, aId) {
 }
 
 function do_get_expected_addon_name(aId) {
-  if (Services.prefs.getBoolPref("extensions.alwaysUnpack"))
+  if (TEST_UNPACKED)
     return aId;
   return aId + ".xpi";
 }
@@ -467,7 +469,7 @@ function createInstallRDF(aData) {
   rdf += '<Description about="urn:mozilla:install-manifest">\n';
 
   ["id", "version", "type", "internalName", "updateURL", "updateKey",
-   "optionsURL", "aboutURL", "iconURL", "icon64URL",
+   "optionsURL", "optionsType", "aboutURL", "iconURL", "icon64URL",
    "skinnable", "bootstrap"].forEach(function(aProp) {
     if (aProp in aData)
       rdf += "<em:" + aProp + ">" + escapeXML(aData[aProp]) + "</em:" + aProp + ">\n";
@@ -569,7 +571,7 @@ function writeInstallRDFForExtension(aData, aDir, aId, aExtraFile) {
 
   var dir = aDir.clone();
 
-  if (Services.prefs.getBoolPref("extensions.alwaysUnpack")) {
+  if (TEST_UNPACKED) {
     dir.append(id);
     writeInstallRDFToDir(aData, dir, aExtraFile);
     return dir;

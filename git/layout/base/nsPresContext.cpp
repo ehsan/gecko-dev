@@ -94,9 +94,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsObjectFrame.h"
 #include "nsTransitionManager.h"
-#ifdef MOZ_CSS_ANIMATIONS
 #include "nsAnimationManager.h"
-#endif
 #include "mozilla/dom/Element.h"
 #include "nsIFrameMessageManager.h"
 #include "FrameLayerBuilder.h"
@@ -239,6 +237,8 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   mFocusBackgroundColor = mBackgroundColor;
   mFocusRingWidth = 1;
 
+  mBodyTextColor = mDefaultColor;
+
   if (aType == eContext_Galley) {
     mMedium = nsGkAtoms::screen;
   } else {
@@ -289,42 +289,44 @@ nsPresContext::~nsPresContext()
   }
 
   // Unregister preference callbacks
-  nsContentUtils::UnregisterPrefCallback("font.",
-                                         nsPresContext::PrefChangedCallback,
-                                         this);
-  nsContentUtils::UnregisterPrefCallback("browser.display.",
-                                         nsPresContext::PrefChangedCallback,
-                                         this);
-  nsContentUtils::UnregisterPrefCallback("browser.underline_anchors",
-                                         nsPresContext::PrefChangedCallback,
-                                         this);
-  nsContentUtils::UnregisterPrefCallback("browser.anchor_color",
-                                         nsPresContext::PrefChangedCallback,
-                                         this);
-  nsContentUtils::UnregisterPrefCallback("browser.active_color",
-                                         nsPresContext::PrefChangedCallback,
-                                         this);
-  nsContentUtils::UnregisterPrefCallback("browser.visited_color",
-                                         nsPresContext::PrefChangedCallback,
-                                         this);
-  nsContentUtils::UnregisterPrefCallback("image.animation_mode",
-                                         nsPresContext::PrefChangedCallback,
-                                         this);
+  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
+                                  "font.",
+                                  this);
+  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
+                                  "browser.display.",
+                                  this);
+  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
+                                  "browser.underline_anchors",
+                                  this);
+  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
+                                  "browser.anchor_color",
+                                  this);
+  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
+                                  "browser.active_color",
+                                  this);
+  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
+                                  "browser.visited_color",
+                                  this);
+  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
+                                  "image.animation_mode",
+                                  this);
 #ifdef IBMBIDI
-  nsContentUtils::UnregisterPrefCallback("bidi.", PrefChangedCallback, this);
+  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
+                                  "bidi.",
+                                  this);
 #endif // IBMBIDI
-  nsContentUtils::UnregisterPrefCallback("dom.send_after_paint_to_content",
-                                         nsPresContext::PrefChangedCallback,
-                                         this);
-  nsContentUtils::UnregisterPrefCallback("gfx.font_rendering.",
-                                         nsPresContext::PrefChangedCallback,
-                                         this);
-  nsContentUtils::UnregisterPrefCallback("layout.css.dpi",
-                                         nsPresContext::PrefChangedCallback,
-                                         this);
-  nsContentUtils::UnregisterPrefCallback("layout.css.devPixelsPerPx",
-                                         nsPresContext::PrefChangedCallback,
-                                         this);
+  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
+                                  "dom.send_after_paint_to_content",
+                                  this);
+  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
+                                  "gfx.font_rendering.",
+                                  this);
+  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
+                                  "layout.css.dpi",
+                                  this);
+  Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
+                                  "layout.css.devPixelsPerPx",
+                                  this);
 
   NS_IF_RELEASE(mDeviceContext);
   NS_IF_RELEASE(mLookAndFeel);
@@ -711,6 +713,9 @@ nsPresContext::GetUserPreferences()
 
   mFocusRingStyle =
     Preferences::GetInt("browser.display.focus_ring_style", mFocusRingStyle);
+
+  mBodyTextColor = mDefaultColor;
+  
   // * use fonts?
   mUseDocumentFonts =
     Preferences::GetInt("browser.display.use_document_fonts") != 0;
@@ -765,8 +770,10 @@ nsPresContext::GetUserPreferences()
 }
 
 void
-nsPresContext::AppUnitsPerDevPixelChanged()
+nsPresContext::InvalidateThebesLayers()
 {
+  if (!mShell)
+    return;
   nsIFrame* rootFrame = mShell->FrameManager()->GetRootFrame();
   if (rootFrame) {
     // FrameLayerBuilder caches invalidation-related values that depend on the
@@ -774,6 +781,12 @@ nsPresContext::AppUnitsPerDevPixelChanged()
     // is completely flushed.
     FrameLayerBuilder::InvalidateThebesLayersInSubtree(rootFrame);
   }
+}
+
+void
+nsPresContext::AppUnitsPerDevPixelChanged()
+{
+  InvalidateThebesLayers();
 
   mDeviceContext->FlushFontCache();
 
@@ -861,6 +874,7 @@ nsPresContext::UpdateAfterPreferencesChanged()
     mShell->SetPreferenceStyleRules(PR_TRUE);
   }
 
+  InvalidateThebesLayers();
   mDeviceContext->FlushFontCache();
 
   nsChangeHint hint = nsChangeHint(0);
@@ -907,11 +921,9 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
   if (!mTransitionManager)
     return NS_ERROR_OUT_OF_MEMORY;
 
-#ifdef MOZ_CSS_ANIMATIONS
   mAnimationManager = new nsAnimationManager(this);
   if (!mAnimationManager)
     return NS_ERROR_OUT_OF_MEMORY;
-#endif
 
   if (mDocument->GetDisplayDocument()) {
     NS_ASSERTION(mDocument->GetDisplayDocument()->GetShell() &&
@@ -955,42 +967,44 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
   mLangService = do_GetService(NS_LANGUAGEATOMSERVICE_CONTRACTID);
 
   // Register callbacks so we're notified when the preferences change
-  nsContentUtils::RegisterPrefCallback("font.",
-                                       nsPresContext::PrefChangedCallback,
-                                       this);
-  nsContentUtils::RegisterPrefCallback("browser.display.",
-                                       nsPresContext::PrefChangedCallback,
-                                       this);
-  nsContentUtils::RegisterPrefCallback("browser.underline_anchors",
-                                       nsPresContext::PrefChangedCallback,
-                                       this);
-  nsContentUtils::RegisterPrefCallback("browser.anchor_color",
-                                       nsPresContext::PrefChangedCallback,
-                                       this);
-  nsContentUtils::RegisterPrefCallback("browser.active_color",
-                                       nsPresContext::PrefChangedCallback,
-                                       this);
-  nsContentUtils::RegisterPrefCallback("browser.visited_color",
-                                       nsPresContext::PrefChangedCallback,
-                                       this);
-  nsContentUtils::RegisterPrefCallback("image.animation_mode",
-                                       nsPresContext::PrefChangedCallback,
-                                       this);
+  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
+                                "font.",
+                                this);
+  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
+                                "browser.display.",
+                                this);
+  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
+                                "browser.underline_anchors",
+                                this);
+  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
+                                "browser.anchor_color",
+                                this);
+  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
+                                "browser.active_color",
+                                this);
+  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
+                                "browser.visited_color",
+                                this);
+  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
+                                "image.animation_mode",
+                                this);
 #ifdef IBMBIDI
-  nsContentUtils::RegisterPrefCallback("bidi.", PrefChangedCallback,
-                                       this);
+  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
+                                "bidi.",
+                                this);
 #endif
-  nsContentUtils::RegisterPrefCallback("dom.send_after_paint_to_content",
-                                       nsPresContext::PrefChangedCallback,
-                                       this);
-  nsContentUtils::RegisterPrefCallback("gfx.font_rendering.", PrefChangedCallback,
-                                       this);
-  nsContentUtils::RegisterPrefCallback("layout.css.dpi",
-                                       nsPresContext::PrefChangedCallback,
-                                       this);
-  nsContentUtils::RegisterPrefCallback("layout.css.devPixelsPerPx",
-                                       nsPresContext::PrefChangedCallback,
-                                       this);
+  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
+                                "dom.send_after_paint_to_content",
+                                this);
+  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
+                                "gfx.font_rendering.",
+                                this);
+  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
+                                "layout.css.dpi",
+                                this);
+  Preferences::RegisterCallback(nsPresContext::PrefChangedCallback,
+                                "layout.css.devPixelsPerPx",
+                                this);
 
   rv = mEventManager->Init();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1075,12 +1089,10 @@ nsPresContext::SetShell(nsIPresShell* aShell)
       mTransitionManager->Disconnect();
       mTransitionManager = nsnull;
     }
-#ifdef MOZ_CSS_ANIMATIONS
     if (mAnimationManager) {
       mAnimationManager->Disconnect();
       mAnimationManager = nsnull;
     }
-#endif
   }
 }
 
@@ -1638,9 +1650,7 @@ nsPresContext::RebuildAllStyleData(nsChangeHint aExtraHint)
   }
 
   RebuildUserFontSet();
-#ifdef MOZ_CSS_ANIMATIONS
   AnimationManager()->KeyframesListIsDirty();
-#endif
 
   mShell->FrameConstructor()->RebuildAllStyleData(aExtraHint);
 }

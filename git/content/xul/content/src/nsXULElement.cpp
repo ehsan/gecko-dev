@@ -244,6 +244,12 @@ nsXULElement::nsXULElement(already_AddRefed<nsINodeInfo> aNodeInfo)
       mBindingParent(nsnull)
 {
     XUL_PROTOTYPE_ATTRIBUTE_METER(gNumElements);
+
+    // We may be READWRITE by default; check.
+    if (IsReadWriteTextElement()) {
+        AddStatesSilently(NS_EVENT_STATE_MOZ_READWRITE);
+        RemoveStatesSilently(NS_EVENT_STATE_MOZ_READONLY);
+    }
 }
 
 nsXULElement::nsXULSlots::nsXULSlots()
@@ -322,9 +328,9 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype,
     nsCOMPtr<nsINodeInfo> nodeInfo;
     if (aDocument) {
         nsINodeInfo* ni = aPrototype->mNodeInfo;
-        nodeInfo = aDocument->NodeInfoManager()->GetNodeInfo(ni->NameAtom(),
-                                                             ni->GetPrefixAtom(),
-                                                             ni->NamespaceID());
+        nodeInfo = aDocument->NodeInfoManager()->
+          GetNodeInfo(ni->NameAtom(), ni->GetPrefixAtom(), ni->NamespaceID(),
+                      nsIDOMNode::ELEMENT_NODE);
         NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
     }
     else {
@@ -891,6 +897,16 @@ nsXULElement::MaybeAddPopupListener(nsIAtom* aLocalName)
 //
 // nsIContent interface
 //
+void
+nsXULElement::UpdateEditableState(PRBool aNotify)
+{
+    // Don't call through to nsGenericElement here because the things
+    // it does don't work for cases when we're an editable control.
+    nsIContent *parent = GetParent();
+
+    SetEditableFlag(parent && parent->HasFlag(NODE_IS_EDITABLE));
+    UpdateState(aNotify);
+}
 
 nsresult
 nsXULElement::BindToTree(nsIDocument* aDocument,
@@ -1022,7 +1038,7 @@ nsXULElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
         PRInt32 treeRows;
         listBox->GetRowCount(&treeRows);
         if (treeRows > 0) {
-            newCurrentIndex = PR_MIN((treeRows - 1), newCurrentIndex);
+            newCurrentIndex = NS_MIN((treeRows - 1), newCurrentIndex);
             nsCOMPtr<nsIDOMElement> newCurrentItem;
             listBox->GetItemAtIndex(newCurrentIndex, getter_AddRefs(newCurrentItem));
             nsCOMPtr<nsIDOMXULSelectControlItemElement> xulCurItem = do_QueryInterface(newCurrentItem);
@@ -1361,12 +1377,7 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     nsAutoString oldValue;
     GetAttr(aNameSpaceID, aName, oldValue);
 
-    // When notifying, make sure to keep track of states whose value
-    // depends solely on the value of an attribute.
-    nsEventStates stateMask;
     if (aNotify) {
-        stateMask = IntrinsicState();
- 
         nsNodeUtils::AttributeWillChange(this, aNameSpaceID, aName,
                                          nsIDOMMutationEvent::REMOVAL);
     }
@@ -1466,12 +1477,9 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
 
     }
 
+    UpdateState(aNotify);
+
     if (aNotify) {
-        stateMask ^= IntrinsicState();
-        if (doc && !stateMask.IsEmpty()) {
-            MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, aNotify);
-            doc->ContentStateChanged(this, stateMask);
-        }
         nsNodeUtils::AttributeChanged(this, aNameSpaceID, aName,
                                       nsIDOMMutationEvent::REMOVAL);
     }
@@ -2248,10 +2256,7 @@ nsXULElement::IntrinsicState() const
 {
     nsEventStates state = nsStyledElement::IntrinsicState();
 
-    const nsIAtom* tag = Tag();
-    if (GetNameSpaceID() == kNameSpaceID_XUL &&
-        (tag == nsGkAtoms::textbox || tag == nsGkAtoms::textarea) &&
-        !HasAttr(kNameSpaceID_None, nsGkAtoms::readonly)) {
+    if (IsReadWriteTextElement()) {
         state |= NS_EVENT_STATE_MOZ_READWRITE;
         state &= ~NS_EVENT_STATE_MOZ_READONLY;
     }
@@ -2646,7 +2651,8 @@ nsXULPrototypeElement::Serialize(nsIObjectOutputStream* aStream,
         if (mAttributes[i].mName.IsAtom()) {
             ni = mNodeInfo->NodeInfoManager()->
                 GetNodeInfo(mAttributes[i].mName.Atom(), nsnull,
-                            kNameSpaceID_None);
+                            kNameSpaceID_None,
+                            nsIDOMNode::ATTRIBUTE_NODE);
             NS_ASSERTION(ni, "the nodeinfo should already exist");
         }
         else {

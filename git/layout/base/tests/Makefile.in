@@ -149,6 +149,8 @@ _TEST_FILES =	\
 		test_bug548545.xhtml \
 		test_bug558663.html \
 		test_bug559499.html \
+		test_bug582181-1.html \
+		test_bug582181-2.html \
 		test_flush_on_paint.html \
 		test_mozPaintCount.html \
 		test_scroll_selection_into_view.html \
@@ -158,6 +160,7 @@ _TEST_FILES =	\
 		test_bug582771.html \
 		test_bug603550.html \
 		test_bug629838.html \
+		test_bug646757.html \
 		$(NULL)
 
 # Tests for bugs 441782, 467672 and 570378 don't pass reliably on Windows, because of bug 469208
@@ -331,6 +334,7 @@ _TEST_FILES += \
 		test_bug588174.html \
 		test_bug607529.html \
 		file_bug607529.html \
+		test_bug644768.html \
 		$(NULL)
 endif
 

@@ -53,9 +53,7 @@
 #include "nsIDOMCompositionListener.h"
 #include "nsIDOMUIListener.h"
 #include "nsITextControlFrame.h"
-#ifdef MOZ_SVG
 #include "nsGkAtoms.h"
-#endif // MOZ_SVG
 #include "nsPIDOMWindow.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIJSEventListener.h"
@@ -82,7 +80,6 @@
 #include "nsIScriptObjectOwner.h" // for nsIScriptEventHandlerOwner
 #include "nsFocusManager.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMNSDocument.h"
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "nsIDOMEventGroup.h"
@@ -503,7 +500,8 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
                                    kAllMutationBits :
                                    MutationBitForEventType(aType));
     }
-  } else if (aTypeAtom == nsGkAtoms::ondeviceorientation) {
+  } else if (aTypeAtom == nsGkAtoms::ondeviceorientation ||
+             aTypeAtom == nsGkAtoms::ondevicemotion) {
     nsPIDOMWindow* window = GetInnerWindowForTarget();
     if (window)
       window->SetHasOrientationEventListener();
@@ -1006,7 +1004,6 @@ nsEventListenerManager::CompileEventHandlerInternal(nsIScriptContext *aContext,
     if (content) {
       nsAutoString handlerBody;
       nsIAtom* attrName = aName;
-#ifdef MOZ_SVG
       if (aName == nsGkAtoms::onSVGLoad)
         attrName = nsGkAtoms::onload;
       else if (aName == nsGkAtoms::onSVGUnload)
@@ -1021,7 +1018,6 @@ nsEventListenerManager::CompileEventHandlerInternal(nsIScriptContext *aContext,
         attrName = nsGkAtoms::onscroll;
       else if (aName == nsGkAtoms::onSVGZoom)
         attrName = nsGkAtoms::onzoom;
-#endif // MOZ_SVG
 #ifdef MOZ_SMIL
       else if (aName == nsGkAtoms::onbeginEvent)
         attrName = nsGkAtoms::onbegin;

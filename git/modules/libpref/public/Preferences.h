@@ -57,6 +57,11 @@ class nsString;
 class nsAdoptingString;
 class nsAdoptingCString;
 
+#ifndef have_PrefChangedFunc_typedef
+typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
+#define have_PrefChangedFunc_typedef
+#endif
+
 namespace mozilla {
 
 class Preferences : public nsIPrefService,
@@ -81,7 +86,7 @@ public:
   /**
    * Returns the singleton instance which is addreffed.
    */
-  static Preferences* GetInstance();
+  static Preferences* GetInstanceForService();
 
   /**
    * Finallizes global members.
@@ -92,7 +97,11 @@ public:
    * Returns shared pref service instance
    * NOTE: not addreffed.
    */
-  static nsIPrefService* GetService() { return sPreferences; }
+  static nsIPrefService* GetService()
+  {
+    NS_ENSURE_TRUE(InitStaticMembers(), nsnull);
+    return sPreferences;
+  }
 
   /**
    * Returns shared pref branch instance.
@@ -100,7 +109,8 @@ public:
    */
   static nsIPrefBranch2* GetRootBranch()
   {
-    return sPreferences ? sPreferences->mRootBranch.get() : nsnull;
+    NS_ENSURE_TRUE(InitStaticMembers(), nsnull);
+    return sPreferences->mRootBranch.get();
   }
 
   /**
@@ -164,6 +174,9 @@ public:
   static nsresult GetLocalizedCString(const char* aPref, nsACString* aResult);
   static nsresult GetLocalizedString(const char* aPref, nsAString* aResult);
 
+  static nsresult GetComplex(const char* aPref, const nsIID &aType,
+                             void** aResult);
+
   /**
    * Sets various type pref values.
    */
@@ -178,10 +191,18 @@ public:
   static nsresult SetString(const char* aPref, const PRUnichar* aValue);
   static nsresult SetString(const char* aPref, const nsAString &aValue);
 
+  static nsresult SetComplex(const char* aPref, const nsIID &aType,
+                             nsISupports* aValue);
+
   /**
    * Clears user set pref.
    */
   static nsresult ClearUser(const char* aPref);
+
+  /**
+   * Whether the pref has a user value or not.
+   */
+  static PRBool HasUserValue(const char* aPref);
 
   /**
    * Adds/Removes the observer for the root pref branch.
@@ -192,6 +213,43 @@ public:
   static nsresult AddStrongObserver(nsIObserver* aObserver, const char* aPref);
   static nsresult AddWeakObserver(nsIObserver* aObserver, const char* aPref);
   static nsresult RemoveObserver(nsIObserver* aObserver, const char* aPref);
+
+  /**
+   * Adds/Removes two or more observers for the root pref branch.
+   * Pass to aPrefs an array of const char* whose last item is NULL.
+   */
+  static nsresult AddStrongObservers(nsIObserver* aObserver,
+                                     const char** aPrefs);
+  static nsresult AddWeakObservers(nsIObserver* aObserver,
+                                   const char** aPrefs);
+  static nsresult RemoveObservers(nsIObserver* aObserver,
+                                  const char** aPrefs);
+
+  /**
+   * Registers/Unregisters the callback function for the aPref.
+   */
+  static nsresult RegisterCallback(PrefChangedFunc aCallback,
+                                   const char* aPref,
+                                   void* aClosure = nsnull);
+  static nsresult UnregisterCallback(PrefChangedFunc aCallback,
+                                     const char* aPref,
+                                     void* aClosure = nsnull);
+
+  /**
+   * Adds the aVariable to cache table.  aVariable must be a pointer for a
+   * static variable.  The value will be modified when the pref value is
+   * changed but note that even if you modified it, the value isn't assigned to
+   * the pref.
+   */
+  static nsresult AddBoolVarCache(PRBool* aVariable,
+                                  const char* aPref,
+                                  PRBool aDefault = PR_FALSE);
+  static nsresult AddIntVarCache(PRInt32* aVariable,
+                                 const char* aPref,
+                                 PRInt32 aDefault = 0);
+  static nsresult AddUintVarCache(PRUint32* aVariable,
+                                  const char* aPref,
+                                  PRUint32 aDefault = 0);
 
 protected:
   nsresult NotifyServiceObservers(const char *aSubject);
@@ -213,7 +271,7 @@ private:
   /**
    * Init static members.  TRUE if it succeeded.  Otherwise, FALSE.
    */
-  static PRBool InitStaticMembers();
+  static PRBool InitStaticMembers(PRBool aForService = PR_FALSE);
 };
 
 } // namespace mozilla

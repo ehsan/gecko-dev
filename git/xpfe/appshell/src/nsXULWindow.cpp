@@ -77,8 +77,6 @@
 #include "nsIScreenManager.h"
 #include "nsIScreen.h"
 #include "nsIScrollable.h"
-#include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIWindowWatcher.h"
 #include "nsIURI.h"
@@ -92,6 +90,10 @@
 #include "nsWebShellWindow.h" // get rid of this one, too...
 
 #include "prenv.h"
+
+#include "mozilla/Preferences.h"
+
+using namespace mozilla;
 
 #define SIZEMODE_NORMAL     NS_LITERAL_STRING("normal")
 #define SIZEMODE_MAXIMIZED  NS_LITERAL_STRING("maximized")
@@ -1342,8 +1344,8 @@ void nsXULWindow::StaggerPosition(PRInt32 &aRequestedX, PRInt32 &aRequestedY,
         nsCOMPtr<nsIBaseWindow> listBaseWindow(do_QueryInterface(supportsWindow));
         listBaseWindow->GetPosition(&listX, &listY);
 
-        if (PR_ABS(listX - aRequestedX) <= kSlop &&
-            PR_ABS(listY - aRequestedY) <= kSlop) {
+        if (NS_ABS(listX - aRequestedX) <= kSlop &&
+            NS_ABS(listY - aRequestedY) <= kSlop) {
           // collision! offset and start over
           if (bouncedX & 0x1)
             aRequestedX -= kOffset;
@@ -1778,19 +1780,14 @@ NS_IMETHODIMP nsXULWindow::CreateNewContentWindow(PRInt32 aChromeFlags,
 
   nsCOMPtr<nsIURI> uri;
 
-  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-  if (prefs) {
-    nsXPIDLCString urlStr;
-    nsresult prefres;
-    prefres = prefs->GetCharPref("browser.chromeURL", getter_Copies(urlStr));
-    if (NS_SUCCEEDED(prefres) && urlStr.IsEmpty())
-      prefres = NS_ERROR_FAILURE;
-    if (NS_FAILED(prefres))
-      urlStr.AssignLiteral("chrome://navigator/content/navigator.xul");
+  nsAdoptingCString urlStr = Preferences::GetCString("browser.chromeURL");
+  if (urlStr.IsEmpty()) {
+    urlStr.AssignLiteral("chrome://navigator/content/navigator.xul");
+  }
 
-    nsCOMPtr<nsIIOService> service(do_GetService(NS_IOSERVICE_CONTRACTID));
-    if (service)
-      service->NewURI(urlStr, nsnull, nsnull, getter_AddRefs(uri));
+  nsCOMPtr<nsIIOService> service(do_GetService(NS_IOSERVICE_CONTRACTID));
+  if (service) {
+    service->NewURI(urlStr, nsnull, nsnull, getter_AddRefs(uri));
   }
   NS_ENSURE_TRUE(uri, NS_ERROR_FAILURE);
 

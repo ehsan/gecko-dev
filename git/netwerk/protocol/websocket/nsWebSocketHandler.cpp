@@ -103,18 +103,6 @@ static PRLogModuleInfo *webSocketLog = nsnull;
 #define SEC_WEBSOCKET_VERSION "7"
 
 /*
- * About using rand() without a srand() or initstate()
- *
- * rand() is commonly called throughout the codebase with the assumption
- * that it has been seeded securely. That does indeed happen in
- * the initialization of the nsUUIDGenerator sevice - getting secure
- * seed information from  PR_GetRandomNoise() and giving that to
- * initstate(). We won't repeat that here "just in case" because
- * it is easy to drain some systems of their true random sources.
- */
-
-
-/*
  * About SSL unsigned certificates
  *
  * wss will not work to a host using an unsigned certificate unless there
@@ -277,15 +265,18 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsPostMessage, nsIRunnable)
 class nsWSAdmissionManager
 {
 public:
-    nsWSAdmissionManager() {}
+    nsWSAdmissionManager()
+    {
+        MOZ_COUNT_CTOR(nsWSAdmissionManager);
+    }
 
     class nsOpenConn
     {
     public:
         nsOpenConn(nsCString &addr, nsWebSocketHandler *handler)
             : mAddress(addr), mHandler(handler)
-        {}
-        ~nsOpenConn() {}
+        { MOZ_COUNT_CTOR(nsOpenConn); }
+        ~nsOpenConn() {MOZ_COUNT_DTOR(nsOpenConn); }
         
         nsCString mAddress;
         nsRefPtr<nsWebSocketHandler> mHandler;
@@ -293,6 +284,7 @@ public:
     
     ~nsWSAdmissionManager()
     {
+        MOZ_COUNT_DTOR(nsWSAdmissionManager);
         for (PRUint32 i = 0; i < mData.Length(); i++)
             delete mData[i];
     }
@@ -363,6 +355,8 @@ public:
         mContext(aContext),
         mListener(aListener)
     {
+        MOZ_COUNT_CTOR(nsWSCompression);
+
         mZlib.zalloc = allocator;
         mZlib.zfree = destructor;
         mZlib.opaque = Z_NULL;
@@ -384,6 +378,8 @@ public:
 
     ~nsWSCompression()
     {
+        MOZ_COUNT_DTOR(nsWSCompression);
+
         if (mActive)
             deflateEnd(&mZlib);
     }
@@ -869,9 +865,11 @@ nsWebSocketHandler::ProcessInput(PRUint8 *buffer, PRUint32 count)
                     mCloseTimer->Cancel();
                     mCloseTimer = nsnull;
                 }
-                nsCOMPtr<nsIRunnable> event =
-                    new CallOnServerClose(mListener, mContext);
-                NS_DispatchToMainThread(event);
+                if (mListener) {
+                    nsCOMPtr<nsIRunnable> event =
+                            new CallOnServerClose(mListener, mContext);
+                    NS_DispatchToMainThread(event);
+                }
 
                 if (mClientClosed)
                     ReleaseSession();
@@ -963,7 +961,7 @@ nsWebSocketHandler::ApplyMask(PRUint32 mask, PRUint8 *data, PRUint64 len)
     // but the buffer might not be alligned. So we first deal with
     // 0 to 3 bytes of preamble individually
 
-    while (len && ((unsigned long) data & 3)) {
+    while (len && (reinterpret_cast<PRUptrdiff>(data) & 3)) {
         *data ^= mask >> 24;
         mask = PR_ROTATE_LEFT32(mask, 8);
         data++;
@@ -1162,7 +1160,18 @@ nsWebSocketHandler::PrimeNewOutgoingMessage()
     
     // Perfom the sending mask. never use a zero mask
     PRUint32 mask;
-    while (!(mask = (PRUint32) rand()));
+    do {
+        PRUint8 *buffer;
+        nsresult rv = mRandomGenerator->GenerateRandomBytes(4, &buffer);
+        if (NS_FAILED(rv)) {
+            LOG(("WebSocketHandler:: PrimeNewOutgoingMessage() "
+                 "GenerateRandomBytes failure %x\n", rv));
+            StopSession(rv);
+            return;
+        }
+        mask = * reinterpret_cast<PRUint32 *>(buffer);
+        NS_Free(buffer);
+    } while (!mask);
     *(((PRUint32 *)payload) - 1) = PR_htonl(mask);
 
     LOG(("WebSocketHandler:: PrimeNewOutgoingMessage() "
@@ -1307,9 +1316,11 @@ nsWebSocketHandler::StopSession(nsresult reason)
 
     if (!mCalledOnStop) {
         mCalledOnStop = 1;
-        nsCOMPtr<nsIRunnable> event =
-            new CallOnStop(mListener, mContext, reason);
-        NS_DispatchToMainThread(event);
+        if (mListener) {
+            nsCOMPtr<nsIRunnable> event =
+                    new CallOnStop(mListener, mContext, reason);
+            NS_DispatchToMainThread(event);
+        }
     }
 
     return;
@@ -1475,13 +1486,13 @@ nsWebSocketHandler::SetupRequest()
             NS_LITERAL_CSTRING("Sec-WebSocket-Extensions"),
             NS_LITERAL_CSTRING("deflate-stream"), PR_FALSE);
 
-    PRUint32      secKey[4];
+    PRUint8      *secKey;
     nsCAutoString secKeyString;
-    secKey[0] = (PRUint32) rand();
-    secKey[1] = (PRUint32) rand();
-    secKey[2] = (PRUint32) rand();
-    secKey[3] = (PRUint32) rand();
+    
+    rv = mRandomGenerator->GenerateRandomBytes(16, &secKey);
+    NS_ENSURE_SUCCESS(rv, rv);
     char* b64 = PL_Base64Encode((const char *)secKey, 16, nsnull);
+    NS_Free(secKey);
     if (!b64) return NS_ERROR_OUT_OF_MEMORY;
     secKeyString.Assign(b64);
     PR_Free(b64);
@@ -1633,7 +1644,7 @@ nsWebSocketHandler::AsyncOnChannelRedirect(
     
     if (NS_FAILED(rv)) {
         LOG(("nsWebSocketHandler Redirect could not QI to HTTP\n"));
-        callback->OnRedirectVerifyCallback(NS_ERROR_FAILURE);
+        callback->OnRedirectVerifyCallback(rv);
         return NS_OK;
     }
 
@@ -1642,17 +1653,22 @@ nsWebSocketHandler::AsyncOnChannelRedirect(
     
     if (NS_FAILED(rv)) {
         LOG(("nsWebSocketHandler Redirect could not QI to HTTP Upgrade\n"));
-        callback->OnRedirectVerifyCallback(NS_ERROR_FAILURE);
+        callback->OnRedirectVerifyCallback(rv);
         return NS_OK;
     }
     
-    // The redirect is OK
+    // The redirect is likely OK
 
     newChannel->SetNotificationCallbacks(this);
     mURI = newuri;
     mHttpChannel = newHttpChannel;
     mChannel = newUpgradeChannel;
-    SetupRequest();
+    rv = SetupRequest();
+    if (NS_FAILED(rv)) {
+        LOG(("nsWebSocketHandler Redirect could not SetupRequest()\n"));
+        callback->OnRedirectVerifyCallback(rv);
+        return NS_OK;
+    }
     
     // We cannot just tell the callback OK right now due to the 1 connect at
     // a time policy. First we need to complete the old location and then
@@ -1667,7 +1683,7 @@ nsWebSocketHandler::AsyncOnChannelRedirect(
     rv = ApplyForAdmission();
     if (NS_FAILED(rv)) {
         LOG(("nsWebSocketHandler Redirect failed due to DNS failure\n"));
-        callback->OnRedirectVerifyCallback(NS_ERROR_FAILURE);
+        callback->OnRedirectVerifyCallback(rv);
         mRedirectCallback = nsnull;
     }
     
@@ -1848,6 +1864,13 @@ nsWebSocketHandler::AsyncOpen(nsIURI *aURI,
     mSocketThread = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
     if (NS_FAILED(rv)) {
         NS_WARNING("unable to continue without socket transport service");
+        return rv;
+    }
+
+    mRandomGenerator = do_GetService("@mozilla.org/security/random-generator;1",
+                                     &rv);
+    if (NS_FAILED(rv)) {
+        NS_WARNING("unable to continue without random number generator");
         return rv;
     }
 
