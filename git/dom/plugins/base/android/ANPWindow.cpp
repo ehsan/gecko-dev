@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,15 +12,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is TransforMiiX XSLT processor code.
+ * The Original Code is Android NPAPI support code
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Peter Van der Beken <peterv@propagandism.org>
+ *   Doug Turner <dougt@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,13 +36,56 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef TRANSFRMX_ATOMS_H
-#define TRANSFRMX_ATOMS_H
+#include "assert.h"
+#include "ANPBase.h"
+#include <android/log.h>
 
-#include "nsGkAtoms.h"
-typedef class nsGkAtoms txXPathAtoms;
-typedef class nsGkAtoms txXMLAtoms;
-typedef class nsGkAtoms txXSLTAtoms;
-typedef class nsGkAtoms txHTMLAtoms;
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPlugins" , ## args)
+#define ASSIGN(obj, name)   (obj)->name = anp_window_##name
 
-#endif
+void
+anp_window_setVisibleRects(NPP instance, const ANPRectI rects[], int32_t count)
+{
+  NOT_IMPLEMENTED();
+}
+
+void
+anp_window_clearVisibleRects(NPP instance)
+{
+  NOT_IMPLEMENTED();
+}
+
+void
+anp_window_showKeyboard(NPP instance, bool value)
+{
+  NOT_IMPLEMENTED();
+}
+
+void
+anp_window_requestFullScreen(NPP instance)
+{
+  NOT_IMPLEMENTED();
+}
+
+void
+anp_window_exitFullScreen(NPP instance)
+{
+  NOT_IMPLEMENTED();
+}
+
+void
+anp_window_requestCenterFitZoom(NPP instance)
+{
+  NOT_IMPLEMENTED();
+}
+
+void InitWindowInterface(ANPWindowInterfaceV0 *i) {
+  _assert(i->inSize == sizeof(*i));
+  ASSIGN(i, setVisibleRects);
+  ASSIGN(i, clearVisibleRects);
+  ASSIGN(i, showKeyboard);
+  ASSIGN(i, requestFullScreen);
+  ASSIGN(i, exitFullScreen);
+  ASSIGN(i, requestCenterFitZoom);
+}
+

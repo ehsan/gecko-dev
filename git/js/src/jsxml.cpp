@@ -4737,10 +4737,28 @@ static JSBool
 xml_lookupElement(JSContext *cx, JSObject *obj, uint32 index, JSObject **objp,
                   JSProperty **propp)
 {
+    JSXML *xml = reinterpret_cast<JSXML *>(obj->getPrivate());
+    if (!HasIndexedProperty(xml, index)) {
+        *objp = NULL;
+        *propp = NULL;
+        return true;
+    }
+
     jsid id;
     if (!IndexToId(cx, index, &id))
         return false;
-    return xml_lookupProperty(cx, obj, id, objp, propp);
+
+    const Shape *shape =
+        js_AddNativeProperty(cx, obj, id,
+                             Valueify(GetProperty), Valueify(PutProperty),
+                             SHAPE_INVALID_SLOT, JSPROP_ENUMERATE,
+                             0, 0);
+    if (!shape)
+        return false;
+
+    *objp = obj;
+    *propp = (JSProperty *) shape;
+    return true;
 }
 
 static JSBool
@@ -4894,10 +4912,28 @@ xml_deleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool st
 static JSBool
 xml_deleteElement(JSContext *cx, JSObject *obj, uint32 index, Value *rval, JSBool strict)
 {
-    jsid id;
-    if (!IndexToId(cx, index, &id))
+    JSXML *xml = reinterpret_cast<JSXML *>(obj->getPrivate());
+    if (xml->xml_class != JSXML_CLASS_LIST) {
+        /* See NOTE in spec: this variation is reserved for future use. */
+        ReportBadXMLName(cx, DoubleValue(index));
         return false;
-    return xml_deleteProperty(cx, obj, id, rval, strict);
+    }
+
+    /* ECMA-357 9.2.1.3. */
+    DeleteListElement(cx, xml, index);
+
+    /*
+     * If this object has its own (mutable) scope,  then we may have added a
+     * property to the scope in xml_lookupProperty for it to return to mean
+     * "found" and to provide a handle for access operations to call the
+     * property's getter or setter. But now it's time to remove any such
+     * property, to purge the property cache and remove the scope entry.
+     */
+    if (!obj->nativeEmpty() && !js_DeleteElement(cx, obj, index, rval, false))
+        return false;
+
+    rval->setBoolean(true);
+    return true;
 }
 
 static JSString *
