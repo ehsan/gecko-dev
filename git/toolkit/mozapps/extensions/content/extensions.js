@@ -1477,8 +1477,8 @@ var gCategories = {
     category.setAttribute("priority", aPriority);
     category.setAttribute("hidden", aStartHidden);
 
-    var node;
-    for (node of this.node.children) {
+    var node = this.node.firstChild;
+    while (node = node.nextSibling) {
       var nodePriority = parseInt(node.getAttribute("priority"));
       // If the new type's priority is higher than this one then this is the
       // insertion point
@@ -1650,7 +1650,7 @@ var gHeader = {
     this._search.addEventListener("command", function search_onCommand(aEvent) {
       var query = aEvent.target.value;
       if (query.length == 0)
-        return;
+        return false;
 
       gViewController.loadView("addons://search/" + encodeURIComponent(query));
     }, false);
@@ -2306,7 +2306,6 @@ var gSearchView = {
         return listitem;
       listitem = listitem.nextSibling;
     }
-    return null;
   }
 };
 
@@ -2459,7 +2458,6 @@ var gListView = {
         return listitem;
       listitem = listitem.nextSibling;
     }
-    return null;
   }
 };
 

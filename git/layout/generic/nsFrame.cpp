@@ -2680,9 +2680,7 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
     return NS_ERROR_FAILURE;
 
   // On touchables devices, touch the screen is usually a pan action,
-  // so let's reposition the caret if needed but do not select text
-  // if the touch did not happen over an editable element.  Otherwise,
-  // let the user move the caret by tapping and dragging.
+  // so let reposition the caret if needed but do not select text
   if (!offsets.content->IsEditable() &&
       Preferences::GetBool("browser.ignoreNativeFrameTextSelection", false)) {
     return fc->HandleClick(offsets.content, offsets.StartOffset(),
