@@ -24,7 +24,6 @@ Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource:///modules/devtools/BreadcrumbsWidget.jsm");
 Cu.import("resource:///modules/devtools/SideMenuWidget.jsm");
 Cu.import("resource:///modules/devtools/VariablesView.jsm");
-Cu.import("resource:///modules/devtools/VariablesViewController.jsm");
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Parser",
@@ -73,24 +72,6 @@ let DebuggerController = {
 
     DebuggerView.initialize(() => {
       DebuggerView._isInitialized = true;
-
-      VariablesViewController.attach(DebuggerView.Variables, {
-        getGripClient: aObject => {
-          return this.activeThread.pauseGrip(aObject);
-        }
-      });
-
-      // Relay events from the VariablesView.
-      DebuggerView.Variables.on("fetched", (aEvent, aType) => {
-        switch (aType) {
-          case "variables":
-            window.dispatchEvent(document, "Debugger:FetchedVariables");
-            break;
-          case "properties":
-            window.dispatchEvent(document, "Debugger:FetchedProperties");
-            break;
-        }
-      });
 
       // Chrome debugging needs to initiate the connection by itself.
       if (window._isChromeDebugger) {
@@ -422,7 +403,6 @@ ThreadState.prototype = {
   }
 };
 
-
 /**
  * Keeps the stack frame list up-to-date, using the thread client's
  * stack frame cache.
@@ -433,6 +413,9 @@ function StackFrames() {
   this._onFrames = this._onFrames.bind(this);
   this._onFramesCleared = this._onFramesCleared.bind(this);
   this._afterFramesCleared = this._afterFramesCleared.bind(this);
+  this._fetchScopeVariables = this._fetchScopeVariables.bind(this);
+  this._fetchVarProperties = this._fetchVarProperties.bind(this);
+  this._addVarExpander = this._addVarExpander.bind(this);
   this.evaluate = this.evaluate.bind(this);
 }
 
@@ -605,12 +588,7 @@ StackFrames.prototype = {
     DebuggerView.StackFrames.empty();
 
     for (let frame of this.activeThread.cachedFrames) {
-      let depth = frame.depth;
-      let { url, line } = frame.where;
-      let frameLocation = NetworkHelper.convertToUnicode(unescape(url));
-      let frameTitle = StackFrameUtils.getFrameTitle(frame);
-
-      DebuggerView.StackFrames.addFrame(frameTitle, frameLocation, line, depth);
+      this._addFrame(frame);
     }
     if (this.currentFrame == null) {
       DebuggerView.StackFrames.selectedDepth = 0;
@@ -683,7 +661,6 @@ StackFrames.prototype = {
     // Clear existing scopes and create each one dynamically.
     DebuggerView.Variables.empty();
 
-
     // If watch expressions evaluation results are available, create a scope
     // to contain all the values.
     if (this.syncedWatchExpressions && watchExpressionsEvaluation) {
@@ -707,26 +684,67 @@ StackFrames.prototype = {
       // Create a scope to contain all the inspected variables.
       let label = StackFrameUtils.getScopeLabel(environment);
       let scope = DebuggerView.Variables.addScope(label);
-      let innermost = environment == frame.environment;
 
-      // Handle special additions to the innermost scope.
-      if (innermost) {
+      // Handle additions to the innermost scope.
+      if (environment == frame.environment) {
         this._insertScopeFrameReferences(scope, frame);
-      }
-
-      DebuggerView.Variables.controller.addExpander(scope, environment);
-
-      // The innermost scope is always automatically expanded, because it
-      // contains the variables in the current stack frame which are likely to
-      // be inspected.
-      if (innermost || this.autoScopeExpand) {
+        this._addScopeExpander(scope, environment);
+        // Always expand the innermost scope by default.
         scope.expand();
+      }
+      // Lazily add nodes for every other environment scope.
+      else {
+        this._addScopeExpander(scope, environment);
+        this.autoScopeExpand && scope.expand();
       }
     } while ((environment = environment.parent));
 
     // Signal that variables have been fetched.
     window.dispatchEvent(document, "Debugger:FetchedVariables");
     DebuggerView.Variables.commitHierarchy();
+  },
+
+  /**
+   * Adds an 'onexpand' callback for a scope, lazily handling
+   * the addition of new variables.
+   *
+   * @param Scope aScope
+   *        The scope where the variables will be placed into.
+   * @param object aEnv
+   *        The scope's environment.
+   */
+  _addScopeExpander: function(aScope, aEnv) {
+    aScope._sourceEnvironment = aEnv;
+
+    // It's a good idea to be prepared in case of an expansion.
+    aScope.addEventListener("mouseover", this._fetchScopeVariables, false);
+    // Make sure that variables are always available on expansion.
+    aScope.onexpand = this._fetchScopeVariables;
+  },
+
+  /**
+   * Adds an 'onexpand' callback for a variable, lazily handling
+   * the addition of new properties.
+   *
+   * @param Variable aVar
+   *        The variable where the properties will be placed into.
+   * @param any aGrip
+   *        The grip of the variable.
+   */
+  _addVarExpander: function(aVar, aGrip) {
+    // No need for expansion for primitive values.
+    if (VariablesView.isPrimitive({ value: aGrip })) {
+      return;
+    }
+    aVar._sourceGrip = aGrip;
+
+    // Some variables are likely to contain a very large number of properties.
+    // It's a good idea to be prepared in case of an expansion.
+    if (aVar.name == "window" || aVar.name == "this") {
+      aVar.addEventListener("mouseover", this._fetchVarProperties, false);
+    }
+    // Make sure that properties are always available on expansion.
+    aVar.onexpand = this._fetchVarProperties;
   },
 
   /**
@@ -752,8 +770,8 @@ StackFrames.prototype = {
       for (let i = 0; i < totalExpressions; i++) {
         let name = DebuggerView.WatchExpressions.getExpression(i);
         let expVal = ownProperties[i].value;
-        let expRef = aScope.addItem(name, ownProperties[i]);
-        DebuggerView.Variables.controller.addExpander(expRef, expVal);
+        let expRef = aScope.addVar(name, ownProperties[i]);
+        this._addVarExpander(expRef, expVal);
 
         // Revert some of the custom watch expressions scope presentation flags.
         expRef.switch = null;
@@ -769,6 +787,51 @@ StackFrames.prototype = {
   },
 
   /**
+   * Adds variables to a scope in the view. Triggered when a scope is
+   * expanded or is hovered. It does not expand the scope.
+   *
+   * @param Scope aScope
+   *        The scope where the variables will be placed into.
+   */
+  _fetchScopeVariables: function(aScope) {
+    // Fetch the variables only once.
+    if (aScope._fetched) {
+      return;
+    }
+    aScope._fetched = true;
+    let env = aScope._sourceEnvironment;
+
+    switch (env.type) {
+      case "with":
+      case "object":
+        // Add nodes for every variable in scope.
+        this.activeThread.pauseGrip(env.object).getPrototypeAndProperties((aResponse) => {
+          let { ownProperties, safeGetterValues } = aResponse;
+          this._mergeSafeGetterValues(ownProperties, safeGetterValues);
+          this._insertScopeVariables(ownProperties, aScope);
+
+          // Signal that variables have been fetched.
+          window.dispatchEvent(document, "Debugger:FetchedVariables");
+          DebuggerView.Variables.commitHierarchy();
+        });
+        break;
+      case "block":
+      case "function":
+        // Add nodes for every argument and every other variable in scope.
+        this._insertScopeArguments(env.bindings.arguments, aScope);
+        this._insertScopeVariables(env.bindings.variables, aScope);
+
+        // No need to signal that variables have been fetched, since
+        // the scope arguments and variables are already attached to the
+        // environment bindings, so pausing the active thread is unnecessary.
+        break;
+      default:
+        Cu.reportError("Unknown Debugger.Environment type: " + env.type);
+        break;
+    }
+  },
+
+  /**
    * Add nodes for special frame references in the innermost scope.
    *
    * @param Scope aScope
@@ -779,19 +842,152 @@ StackFrames.prototype = {
   _insertScopeFrameReferences: function(aScope, aFrame) {
     // Add any thrown exception.
     if (this.currentException) {
-      let excRef = aScope.addItem("<exception>", { value: this.currentException });
-      DebuggerView.Variables.controller.addExpander(excRef, this.currentException);
+      let excRef = aScope.addVar("<exception>", { value: this.currentException });
+      this._addVarExpander(excRef, this.currentException);
     }
     // Add any returned value.
     if (this.currentReturnedValue) {
-      let retRef = aScope.addItem("<return>", { value: this.currentReturnedValue });
-      DebuggerView.Variables.controller.addExpander(retRef, this.currentReturnedValue);
+      let retRef = aScope.addVar("<return>", { value: this.currentReturnedValue });
+      this._addVarExpander(retRef, this.currentReturnedValue);
     }
     // Add "this".
     if (aFrame.this) {
-      let thisRef = aScope.addItem("this", { value: aFrame.this });
-      DebuggerView.Variables.controller.addExpander(thisRef, aFrame.this);
+      let thisRef = aScope.addVar("this", { value: aFrame.this });
+      this._addVarExpander(thisRef, aFrame.this);
     }
+  },
+
+  /**
+   * Add nodes for every argument in scope.
+   *
+   * @param object aArguments
+   *        The map of names to arguments, as specified in the protocol.
+   * @param Scope aScope
+   *        The scope where the nodes will be placed into.
+   */
+  _insertScopeArguments: function(aArguments, aScope) {
+    if (!aArguments) {
+      return;
+    }
+    for (let argument of aArguments) {
+      let name = Object.getOwnPropertyNames(argument)[0];
+      let argRef = aScope.addVar(name, argument[name]);
+      let argVal = argument[name].value;
+      this._addVarExpander(argRef, argVal);
+    }
+  },
+
+  /**
+   * Add nodes for every variable in scope.
+   *
+   * @param object aVariables
+   *        The map of names to variables, as specified in the protocol.
+   * @param Scope aScope
+   *        The scope where the nodes will be placed into.
+   */
+  _insertScopeVariables: function(aVariables, aScope) {
+    if (!aVariables) {
+      return;
+    }
+    let variableNames = Object.keys(aVariables);
+
+    // Sort all of the variables before adding them, if preferred.
+    if (Prefs.variablesSortingEnabled) {
+      variableNames.sort();
+    }
+    // Add the variables to the specified scope.
+    for (let name of variableNames) {
+      let varRef = aScope.addVar(name, aVariables[name]);
+      let varVal = aVariables[name].value;
+      this._addVarExpander(varRef, varVal);
+    }
+  },
+
+  /**
+   * Adds properties to a variable in the view. Triggered when a variable is
+   * expanded or certain variables are hovered. It does not expand the variable.
+   *
+   * @param Variable aVar
+   *        The variable where the properties will be placed into.
+   */
+  _fetchVarProperties: function(aVar) {
+    // Fetch the properties only once.
+    if (aVar._fetched) {
+      return;
+    }
+    aVar._fetched = true;
+    let grip = aVar._sourceGrip;
+
+    this.activeThread.pauseGrip(grip).getPrototypeAndProperties((aResponse) => {
+      let { ownProperties, prototype, safeGetterValues } = aResponse;
+      let sortable = VariablesView.NON_SORTABLE_CLASSES.indexOf(grip.class) == -1;
+
+      this._mergeSafeGetterValues(ownProperties, safeGetterValues);
+
+      // Add all the variable properties.
+      if (ownProperties) {
+        aVar.addProperties(ownProperties, {
+          // Not all variables need to force sorted properties.
+          sorted: sortable,
+          // Expansion handlers must be set after the properties are added.
+          callback: this._addVarExpander
+        });
+      }
+
+      // Add the variable's __proto__.
+      if (prototype && prototype.type != "null") {
+        aVar.addProperty("__proto__", { value: prototype });
+        // Expansion handlers must be set after the properties are added.
+        this._addVarExpander(aVar.get("__proto__"), prototype);
+      }
+
+      // Mark the variable as having retrieved all its properties.
+      aVar._retrieved = true;
+
+      // Signal that properties have been fetched.
+      window.dispatchEvent(document, "Debugger:FetchedProperties");
+      DebuggerView.Variables.commitHierarchy();
+    });
+  },
+
+  /**
+   * Merge the safe getter values descriptors into the "own properties" object
+   * that comes from a "prototypeAndProperties" response packet. This is needed
+   * for Variables View.
+   *
+   * @private
+   * @param object aOwnProperties
+   *        The |ownProperties| object that will get the new safe getter values.
+   * @param object aSafeGetterValues
+   *        The |safeGetterValues| object.
+   */
+  _mergeSafeGetterValues: function(aOwnProperties, aSafeGetterValues) {
+    // Merge the safe getter values into one object such that we can use it
+    // in VariablesView.
+    for (let name of Object.keys(aSafeGetterValues)) {
+      if (name in aOwnProperties) {
+        aOwnProperties[name].getterValue = aSafeGetterValues[name].getterValue;
+        aOwnProperties[name].getterPrototypeLevel =
+          aSafeGetterValues[name].getterPrototypeLevel;
+      } else {
+        aOwnProperties[name] = aSafeGetterValues[name];
+      }
+    }
+  },
+
+  /**
+   * Adds the specified stack frame to the list.
+   *
+   * @param object aFrame
+   *        The new frame to add.
+   */
+  _addFrame: function(aFrame) {
+    let depth = aFrame.depth;
+    let { url, line } = aFrame.where;
+    let frameLocation = NetworkHelper.convertToUnicode(unescape(url));
+    let frameTitle = StackFrameUtils.getFrameTitle(aFrame);
+
+    DebuggerView.StackFrames.addFrame(frameTitle, frameLocation, line, depth);
   },
 
   /**
