@@ -416,7 +416,7 @@ nsTextEquivUtils::IsWhitespace(PRUnichar aChar)
 
 PRUint32 nsTextEquivUtils::gRoleToNameRulesMap[] =
 {
-  eFromSubtreeIfRec, // ROLE_NOTHING
+  eNoRule,           // ROLE_NOTHING
   eNoRule,           // ROLE_TITLEBAR
   eNoRule,           // ROLE_MENUBAR
   eNoRule,           // ROLE_SCROLLBAR

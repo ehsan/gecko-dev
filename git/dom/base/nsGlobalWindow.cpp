@@ -145,8 +145,6 @@
 #include "nsISelection.h"
 #include "nsIPrompt.h"
 #include "nsIPromptService.h"
-#include "nsIPromptFactory.h"
-#include "nsIWritablePropertyBag2.h"
 #include "nsIWebNavigation.h"
 #include "nsIWebBrowser.h"
 #include "nsIWebBrowserChrome.h"
@@ -478,12 +476,6 @@ nsDummyJavaPluginOwner::Destroy()
 NS_IMETHODIMP
 nsDummyJavaPluginOwner::SetInstance(nsIPluginInstance *aInstance)
 {
-  // If we're going to null out mInstance after use, be sure to call
-  // mInstance->InvalidateOwner() here, since it now won't be called
-  // from nsDummyJavaPluginOwner::Destroy().
-  if (mInstance && !aInstance)
-    mInstance->InvalidateOwner();
-
   mInstance = aInstance;
 
   return NS_OK;
@@ -597,85 +589,6 @@ nsDummyJavaPluginOwner::SendIdleEvent()
 }
 
 /**
- * An object implementing the window.URL property.
- */
-class nsDOMMozURLProperty : public nsIDOMMozURLProperty
-{
-public:
-  nsDOMMozURLProperty(nsGlobalWindow* aWindow)
-    : mWindow(aWindow)
-  {
-  }
-
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMMOZURLPROPERTY
-
-  void ClearWindowReference() {
-    mWindow = nsnull;
-  }
-private:
-  nsGlobalWindow* mWindow;
-};
-
-DOMCI_DATA(MozURLProperty, nsDOMMozURLProperty)
-NS_IMPL_ADDREF(nsDOMMozURLProperty)
-NS_IMPL_RELEASE(nsDOMMozURLProperty)
-NS_INTERFACE_MAP_BEGIN(nsDOMMozURLProperty)
-    NS_INTERFACE_MAP_ENTRY(nsIDOMMozURLProperty)
-    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMMozURLProperty)
-    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozURLProperty)
-NS_INTERFACE_MAP_END
-
-NS_IMETHODIMP
-nsDOMMozURLProperty::CreateObjectURL(nsIDOMBlob* aBlob, nsAString& aURL)
-{
-  NS_PRECONDITION(!mWindow || mWindow->IsInnerWindow(),
-                  "Should be inner window");
-
-  NS_ENSURE_STATE(mWindow && mWindow->mDoc);
-  NS_ENSURE_ARG_POINTER(aBlob);
-
-  nsIDocument* doc = mWindow->mDoc;
-
-  nsresult rv = aBlob->GetInternalUrl(doc->NodePrincipal(), aURL);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  doc->RegisterFileDataUri(NS_LossyConvertUTF16toASCII(aURL));
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMMozURLProperty::RevokeObjectURL(const nsAString& aURL)
-{
-  NS_PRECONDITION(!mWindow || mWindow->IsInnerWindow(),
-                  "Should be inner window");
-
-  NS_ENSURE_STATE(mWindow);
-
-  NS_LossyConvertUTF16toASCII asciiurl(aURL);
-
-  nsIPrincipal* winPrincipal = mWindow->GetPrincipal();
-  if (!winPrincipal) {
-    return NS_OK;
-  }
-
-  nsIPrincipal* principal =
-    nsFileDataProtocolHandler::GetFileDataEntryPrincipal(asciiurl);
-  PRBool subsumes;
-  if (principal && winPrincipal &&
-      NS_SUCCEEDED(winPrincipal->Subsumes(principal, &subsumes)) &&
-      subsumes) {
-    if (mWindow->mDoc) {
-      mWindow->mDoc->UnregisterFileDataUri(asciiurl);
-    }
-    nsFileDataProtocolHandler::RemoveFileDataEntry(asciiurl);
-  }
-
-  return NS_OK;
-}
-
-/**
  * An indirect observer object that means we don't have to implement nsIObserver
  * on nsGlobalWindow, where any script could see it.
  */
@@ -743,7 +656,7 @@ nsPIDOMWindow::nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
   mMayHaveAudioAvailableEventListener(PR_FALSE), mIsModalContentWindow(PR_FALSE),
   mIsActive(PR_FALSE), mInnerWindow(nsnull), mOuterWindow(aOuterWindow),
   // Make sure no actual window ends up with mWindowID == 0
-  mWindowID(++gNextWindowID), mHasNotifiedGlobalCreated(PR_FALSE)
+  mWindowID(++gNextWindowID)
  {}
 
 nsPIDOMWindow::~nsPIDOMWindow() {}
@@ -1005,10 +918,6 @@ nsGlobalWindow::~nsGlobalWindow()
 #endif
 
   delete mPendingStorageEventsObsolete;
-
-  if (mURLProperty) {
-    mURLProperty->ClearWindowReference();
-  }
 
   nsLayoutStatics::Release();
 }
@@ -1320,7 +1229,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
   NS_INTERFACE_MAP_ENTRY(nsIDOMStorageWindow)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Window)
   OUTER_WINDOW_ONLY
     NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
@@ -2211,23 +2119,9 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   mContext->GC();
   mContext->DidInitializeContext();
 
-  if (newInnerWindow && !newInnerWindow->mHasNotifiedGlobalCreated && mDoc) {
-    // We should probably notify. However if this is the, arguably bad,
-    // situation when we're creating a temporary non-chrome-about-blank
-    // document in a chrome docshell, don't notify just yet. Instead wait
-    // until we have a real chrome doc.
-    nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryInterface(mDocShell));
-    PRInt32 itemType = nsIDocShellTreeItem::typeContent;
-    if (treeItem) {
-      treeItem->GetItemType(&itemType);
-    }
-
-    if (itemType != nsIDocShellTreeItem::typeChrome ||
-        nsContentUtils::IsSystemPrincipal(mDoc->NodePrincipal())) {
-      newInnerWindow->mHasNotifiedGlobalCreated = PR_TRUE;
-      nsContentUtils::AddScriptRunner(
-        NS_NewRunnableMethod(this, &nsGlobalWindow::DispatchDOMWindowCreated));
-    }
+  if (!aState && !reUseInnerWindow) {
+    nsContentUtils::AddScriptRunner(
+      NS_NewRunnableMethod(this, &nsGlobalWindow::DispatchDOMWindowCreated));
   }
 
   return NS_OK;
@@ -3234,13 +3128,32 @@ nsGlobalWindow::GetApplicationCache(nsIDOMOfflineResourceList **aApplicationCach
 NS_IMETHODIMP
 nsGlobalWindow::CreateBlobURL(nsIDOMBlob* aBlob, nsAString& aURL)
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
+  FORWARD_TO_INNER(CreateBlobURL, (aBlob, aURL), NS_ERROR_UNEXPECTED);
+
+  NS_ENSURE_STATE(mDoc);
+
+  NS_ENSURE_ARG_POINTER(aBlob);
+
+  nsresult rv = aBlob->GetInternalUrl(mDoc->NodePrincipal(), aURL);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mDoc->RegisterFileDataUri(NS_LossyConvertUTF16toASCII(aURL));
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsGlobalWindow::RevokeBlobURL(const nsAString& aURL)
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
+  FORWARD_TO_INNER(RevokeBlobURL, (aURL), NS_ERROR_UNEXPECTED);
+
+  NS_ENSURE_STATE(mDoc);
+
+  NS_LossyConvertUTF16toASCII asciiurl(aURL);
+  mDoc->UnregisterFileDataUri(asciiurl);
+  nsFileDataProtocolHandler::RemoveFileDataEntry(asciiurl);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -4564,18 +4477,9 @@ nsGlobalWindow::Alert(const nsAString& aString)
   nsContentUtils::StripNullChars(*str, final);
 
   nsresult rv;
-  nsCOMPtr<nsIPromptFactory> promptFac =
-    do_GetService("@mozilla.org/prompter;1", &rv);
+  nsCOMPtr<nsIPromptService> promptSvc =
+    do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIPrompt> prompt;
-  rv = promptFac->GetPrompt(this, NS_GET_IID(nsIPrompt),
-                            reinterpret_cast<void**>(&prompt));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIWritablePropertyBag2> promptBag = do_QueryInterface(prompt);
-  if (promptBag)
-    promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), PR_TRUE);
 
   if (shouldEnableDisableDialog) {
     PRBool disallowDialog = PR_FALSE;
@@ -4583,12 +4487,12 @@ nsGlobalWindow::Alert(const nsAString& aString)
     nsContentUtils::GetLocalizedString(nsContentUtils::eCOMMON_DIALOG_PROPERTIES,
                                        "ScriptDialogLabel", label);
 
-    rv = prompt->AlertCheck(title.get(), final.get(), label.get(),
-                            &disallowDialog);
+    rv = promptSvc->AlertCheck(this, title.get(), final.get(), label.get(),
+                               &disallowDialog);
     if (disallowDialog)
       PreventFurtherDialogs();
   } else {
-    rv = prompt->Alert(title.get(), final.get());
+    rv = promptSvc->Alert(this, title.get(), final.get());
   }
 
   return rv;
@@ -4626,18 +4530,9 @@ nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
   nsContentUtils::StripNullChars(aString, final);
 
   nsresult rv;
-  nsCOMPtr<nsIPromptFactory> promptFac =
-    do_GetService("@mozilla.org/prompter;1", &rv);
+  nsCOMPtr<nsIPromptService> promptSvc =
+    do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIPrompt> prompt;
-  rv = promptFac->GetPrompt(this, NS_GET_IID(nsIPrompt),
-                            reinterpret_cast<void**>(&prompt));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIWritablePropertyBag2> promptBag = do_QueryInterface(prompt);
-  if (promptBag)
-    promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), PR_TRUE);
 
   if (shouldEnableDisableDialog) {
     PRBool disallowDialog = PR_FALSE;
@@ -4645,12 +4540,12 @@ nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
     nsContentUtils::GetLocalizedString(nsContentUtils::eCOMMON_DIALOG_PROPERTIES,
                                        "ScriptDialogLabel", label);
 
-    rv = prompt->ConfirmCheck(title.get(), final.get(), label.get(),
-                              &disallowDialog, aReturn);
+    rv = promptSvc->ConfirmCheck(this, title.get(), final.get(), label.get(),
+                                 &disallowDialog, aReturn);
     if (disallowDialog)
       PreventFurtherDialogs();
   } else {
-    rv = prompt->Confirm(title.get(), final.get(), aReturn);
+    rv = promptSvc->Confirm(this, title.get(), final.get(), aReturn);
   }
 
   return rv;
@@ -4688,18 +4583,9 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
   nsContentUtils::StripNullChars(aInitial, fixedInitial);
 
   nsresult rv;
-  nsCOMPtr<nsIPromptFactory> promptFac =
-    do_GetService("@mozilla.org/prompter;1", &rv);
+  nsCOMPtr<nsIPromptService> promptSvc =
+    do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIPrompt> prompt;
-  rv = promptFac->GetPrompt(this, NS_GET_IID(nsIPrompt),
-                            reinterpret_cast<void**>(&prompt));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIWritablePropertyBag2> promptBag = do_QueryInterface(prompt);
-  if (promptBag)
-    promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), PR_TRUE);
 
   // Pass in the default value, if any.
   PRUnichar *inoutValue = ToNewUnicode(fixedInitial);
@@ -4712,8 +4598,8 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
   }
 
   PRBool ok;
-  rv = prompt->Prompt(title.get(), fixedMessage.get(),
-                      &inoutValue, label.get(), &disallowDialog, &ok);
+  rv = promptSvc->Prompt(this, title.get(), fixedMessage.get(),
+                         &inoutValue, label.get(), &disallowDialog, &ok);
 
   if (disallowDialog) {
     PreventFurtherDialogs();
@@ -7981,8 +7867,7 @@ nsGlobalWindow::GetInterface(const nsIID & aIID, void **aSink)
       }
     }
   }
-  else if (aIID.Equals(NS_GET_IID(nsIDOMWindowUtils)) ||
-           aIID.Equals(NS_GET_IID(nsIDOMWindowUtils_MOZILLA_2_0_BRANCH))) {
+  else if (aIID.Equals(NS_GET_IID(nsIDOMWindowUtils))) {
     FORWARD_TO_OUTER(GetInterface, (aIID, aSink), NS_ERROR_NOT_INITIALIZED);
 
     nsCOMPtr<nsISupports> utils(do_QueryReferent(mWindowUtils));
@@ -9799,20 +9684,6 @@ nsGlobalWindow::SetHasOrientationEventListener()
     mHasAcceleration = PR_TRUE;
     ac->AddWindowListener(this);
   }
-}
-
-NS_IMETHODIMP
-nsGlobalWindow::GetURL(nsIDOMMozURLProperty** aURL)
-{
-  FORWARD_TO_INNER(GetURL, (aURL), NS_ERROR_UNEXPECTED);
-
-  if (!mURLProperty) {
-    mURLProperty = new nsDOMMozURLProperty(this);
-  }
-
-  NS_ADDREF(*aURL = mURLProperty);
-
-  return NS_OK;
 }
 
 // nsGlobalChromeWindow implementation

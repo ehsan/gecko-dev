@@ -1465,7 +1465,7 @@ str_indexOf(JSContext *cx, uintN argc, Value *vp)
             if (i <= 0) {
                 start = 0;
             } else if (jsuint(i) > textlen) {
-                start = textlen;
+                start = 0;
                 textlen = 0;
             } else {
                 start = i;
@@ -1480,7 +1480,7 @@ str_indexOf(JSContext *cx, uintN argc, Value *vp)
             if (d <= 0) {
                 start = 0;
             } else if (d > textlen) {
-                start = textlen;
+                start = 0;
                 textlen = 0;
             } else {
                 start = (jsint)d;

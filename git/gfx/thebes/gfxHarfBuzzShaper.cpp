@@ -205,13 +205,12 @@ struct HMetrics {
 };
 
 void
-gfxHarfBuzzShaper::GetGlyphAdvance(gfxContext *aContext,
+gfxHarfBuzzShaper::GetGlyphMetrics(gfxContext *aContext,
                                    hb_codepoint_t glyph,
-                                   hb_position_t *x_advance,
-                                   hb_position_t *y_advance) const
+                                   hb_glyph_metrics_t *metrics) const
 {
     if (mUseHintedWidths) {
-        *x_advance = mFont->GetHintedGlyphWidth(aContext, glyph);
+        metrics->x_advance = mFont->GetHintedGlyphWidth(aContext, glyph);
         return;
     }
 
@@ -230,20 +229,21 @@ gfxHarfBuzzShaper::GetGlyphAdvance(gfxContext *aContext,
     // to contain mNumLongMetrics records
     const HMetrics* hmtx =
         reinterpret_cast<const HMetrics*>(hb_blob_lock(mHmtxTable));
-    *x_advance =
+    metrics->x_advance =
         FloatToFixed(mFont->FUnitsToDevUnitsFactor() *
                      PRUint16(hmtx->metrics[glyph].advanceWidth));
     hb_blob_unlock(mHmtxTable);
+
+    // TODO: set additional metrics if/when harfbuzz needs them
 }
 
 static void
-HBGetGlyphAdvance(hb_font_t *font, hb_face_t *face, const void *user_data,
-                  hb_codepoint_t glyph,
-                  hb_position_t *x_advance, hb_position_t *y_advance)
+HBGetGlyphMetrics(hb_font_t *font, hb_face_t *face, const void *user_data,
+                  hb_codepoint_t glyph, hb_glyph_metrics_t *metrics)
 {
     const FontCallbackData *fcd =
         static_cast<const FontCallbackData*>(user_data);
-    fcd->mShaper->GetGlyphAdvance(fcd->mContext, glyph, x_advance, y_advance);
+    fcd->mShaper->GetGlyphMetrics(fcd->mContext, glyph, metrics);
 }
 
 static hb_bool_t
@@ -711,8 +711,8 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
             // harfbuzz shaper used
             sHBFontFuncs = hb_font_funcs_copy(hb_font_funcs_create());
             hb_font_funcs_set_glyph_func(sHBFontFuncs, HBGetGlyph);
-            hb_font_funcs_set_glyph_advance_func(sHBFontFuncs,
-                                                 HBGetGlyphAdvance);
+            hb_font_funcs_set_glyph_metrics_func(sHBFontFuncs,
+                                                 HBGetGlyphMetrics);
             hb_font_funcs_set_contour_point_func(sHBFontFuncs,
                                                  HBGetContourPoint);
             hb_font_funcs_set_kerning_func(sHBFontFuncs, HBGetKerning);

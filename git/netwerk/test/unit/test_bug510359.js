@@ -19,7 +19,6 @@ function setupChannel(suffix, value) {
     var httpChan = chan.QueryInterface(Components.interfaces.nsIHttpChannel);
     httpChan.requestMethod = "GET";
     httpChan.setRequestHeader("x-request", value, false);
-    httpChan.setRequestHeader("Cookie", "c="+value, false);
     return httpChan;
 }
 

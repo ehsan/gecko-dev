@@ -175,12 +175,6 @@ private:
    */
   bool VerifyReadyForRendering();
 
-  /**
-   * This will fill our vertex buffer with the data of our quad, it may be
-   * called when the vertex buffer is recreated.
-   */
-  bool CreateVertexBuffer();
-
   /* Array used to store all swap chains for device resets */
   nsTArray<SwapChainD3D9*> mSwapChains;
 

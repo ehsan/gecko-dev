@@ -474,7 +474,7 @@ nsFileControlFrame::CaptureMouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
     // and not fire onchange when it should.
     PRBool oldState = mFrame->mTextFrame->GetFireChangeEventState();
     mFrame->mTextFrame->SetFireChangeEventState(PR_TRUE);
-    inputElement->SetFiles(newFiles, true);
+    inputElement->SetFiles(newFiles);
 
     mFrame->mTextFrame->SetFireChangeEventState(oldState);
     // May need to fire an onchange here

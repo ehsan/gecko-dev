@@ -55,7 +55,6 @@ import android.util.*;
 
 public class GeckoInputConnection
     extends BaseInputConnection
-    implements TextWatcher
 {
     public GeckoInputConnection (View targetView) {
         super(targetView, true);
@@ -487,16 +486,10 @@ public class GeckoInputConnection
                                  int start, int oldEnd, int newEnd) {
         //Log.d("GeckoAppJava", "IME: notifyTextChange");
 
-        if (!text.contentEquals(GeckoApp.surfaceView.mEditable))
-            GeckoApp.surfaceView.setupEditable(text);
-
         if (mUpdateRequest == null)
             return;
 
         mUpdateExtract.flags = 0;
-
-        // We update from (0, oldEnd) to (0, newEnd) because some Android IMEs
-        // assume that updates start at zero, according to jchen.
         mUpdateExtract.partialStartOffset = 0;
         mUpdateExtract.partialEndOffset = oldEnd;
 
@@ -504,7 +497,7 @@ public class GeckoInputConnection
         mUpdateExtract.selectionStart = newEnd;
         mUpdateExtract.selectionEnd = newEnd;
 
-        mUpdateExtract.text = text.substring(0, newEnd);
+        mUpdateExtract.text = text;
         mUpdateExtract.startOffset = 0;
 
         imm.updateExtractedText(GeckoApp.surfaceView,
@@ -523,50 +516,12 @@ public class GeckoInputConnection
                 mCompositionStart + mComposingText.length());
         else
             imm.updateSelection(GeckoApp.surfaceView, start, end, -1, -1);
-
-        int maxLen = GeckoApp.surfaceView.mEditable.length();
-        Selection.setSelection(GeckoApp.surfaceView.mEditable, 
-                               Math.min(start, maxLen),
-                               Math.min(end, maxLen));
     }
 
     public void reset() {
         mComposing = false;
         mComposingText = null;
         mUpdateRequest = null;
-    }
-
-    // TextWatcher
-    public void onTextChanged(CharSequence s, int start, int before, int count)
-    {
-        GeckoAppShell.sendEventToGecko(
-            new GeckoEvent(GeckoEvent.IME_SET_SELECTION, start, before));
-
-        if (count == 0) {
-            GeckoAppShell.sendEventToGecko(
-                new GeckoEvent(GeckoEvent.IME_DELETE_TEXT, 0, 0));
-        } else {
-            // Start and stop composition to force UI updates.
-            finishComposingText();
-            GeckoAppShell.sendEventToGecko(
-                new GeckoEvent(GeckoEvent.IME_COMPOSITION_BEGIN, 0, 0));
-
-            GeckoAppShell.sendEventToGecko(
-                new GeckoEvent(0, count,
-                               GeckoEvent.IME_RANGE_RAWINPUT, 0, 0, 0,
-                               s.subSequence(start, start + count).toString()));
-
-            GeckoAppShell.sendEventToGecko(
-                new GeckoEvent(GeckoEvent.IME_COMPOSITION_END, 0, 0));
-        }
-    }
-
-    public void afterTextChanged(Editable s)
-    {
-    }
-
-    public void beforeTextChanged(CharSequence s, int start, int count, int after)
-    {
     }
 
     // Is a composition active?

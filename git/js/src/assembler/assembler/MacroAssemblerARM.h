@@ -1056,11 +1056,6 @@ public:
         convertInt32ToDouble(ARMRegisters::S0, srcDest);
     }
 
-    void ensureSpace(int space)
-    {
-        m_assembler.ensureSpace(space);
-    }
-
     void forceFlushConstantPool()
     {
         m_assembler.forceFlushConstantPool();

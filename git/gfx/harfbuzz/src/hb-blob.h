@@ -31,7 +31,6 @@
 
 HB_BEGIN_DECLS
 
-
 typedef enum {
   HB_MEMORY_MODE_DUPLICATE,
   HB_MEMORY_MODE_READONLY,
@@ -82,7 +81,6 @@ hb_blob_try_writable_inplace (hb_blob_t *blob);
 
 hb_bool_t
 hb_blob_try_writable (hb_blob_t *blob);
-
 
 HB_END_DECLS
 

@@ -6441,19 +6441,20 @@ nsWindow::ResetInputState()
 }
 
 NS_IMETHODIMP
-nsWindow::SetInputMode(const IMEContext& aContext)
+nsWindow::SetIMEEnabled(PRUint32 aState)
 {
-    return mIMModule ? mIMModule->SetInputMode(this, &aContext) : NS_OK;
+    return mIMModule ? mIMModule->SetIMEEnabled(this, aState) : NS_OK;
 }
 
 NS_IMETHODIMP
-nsWindow::GetInputMode(IMEContext& aContext)
+nsWindow::GetIMEEnabled(PRUint32* aState)
 {
+  NS_ENSURE_ARG_POINTER(aState);
   if (!mIMModule) {
-      aContext.mStatus = nsIWidget::IME_STATUS_DISABLED;
+      *aState = nsIWidget::IME_STATUS_DISABLED;
       return NS_OK;
   }
-  return mIMModule->GetInputMode(&aContext);
+  return mIMModule->GetIMEEnabled(aState);
 }
 
 NS_IMETHODIMP

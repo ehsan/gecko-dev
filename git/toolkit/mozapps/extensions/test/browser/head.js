@@ -291,14 +291,6 @@ function wait_for_window_open(aCallback) {
   });
 }
 
-function get_string(aName) {
-  var bundle = Services.strings.createBundle("chrome://mozapps/locale/extensions/extensions.properties");
-  if (arguments.length == 1)
-    return bundle.GetStringFromName(aName);
-  var args = Array.slice(arguments, 1);
-  return bundle.formatStringFromName(aName, args, args.length);
-}
-
 function is_hidden(aElement) {
   var style = aElement.ownerDocument.defaultView.getComputedStyle(aElement, "");
   if (style.display == "none")
@@ -990,22 +982,6 @@ MockInstall.prototype = {
           return;
         }
 
-        // Adding addon to MockProvider to be implemented when needed
-        if (this._addonToInstall)
-          this.addon = this._addonToInstall;
-        else {
-          this.addon = new MockAddon("", this.name, this.type);
-          this.addon.version = this.version;
-          this.addon.pendingOperations = AddonManager.PENDING_INSTALL;
-        }
-        this.addon.install = this;
-        if (this.existingAddon) {
-          if (!this.addon.id)
-            this.addon.id = this.existingAddon.id;
-          this.existingAddon.pendingUpgrade = this.addon;
-          this.existingAddon.pendingOperations |= AddonManager.PENDING_UPGRADE;
-        }
-
         this.state = AddonManager.STATE_DOWNLOADED;
         this.callListeners("onDownloadEnded");
 
@@ -1017,7 +993,13 @@ MockInstall.prototype = {
           return;
         }
 
-        AddonManagerPrivate.callAddonListeners("onInstalling", this.addon);
+        // Adding addon to MockProvider to be implemented when needed
+        if (this._addonToInstall)
+          this.addon = this._addonToInstall;
+        else {
+          this.addon = new MockAddon("", this.name, this.type);
+          this.addon.pendingOperations = AddonManager.PENDING_INSTALL;
+        }
 
         this.state = AddonManager.STATE_INSTALLED;
         this.callListeners("onInstallEnded");

@@ -100,7 +100,6 @@
 #include "nsIContentSecurityPolicy.h"
 #include "nsAsyncRedirectVerifyHelper.h"
 #include "jstypedarray.h"
-#include "nsStringBuffer.h"
 
 #define LOAD_STR "load"
 #define ERROR_STR "error"
@@ -1175,13 +1174,12 @@ nsXMLHttpRequest::ConvertBodyToText(nsAString& aOutBuffer)
   if (NS_FAILED(rv))
     return rv;
 
-  nsStringBuffer* buf =
-    nsStringBuffer::Alloc((outBufferLength + 1) * sizeof(PRUnichar));
-  if (!buf) {
+  PRUnichar * outBuffer =
+    static_cast<PRUnichar*>(nsMemory::Alloc((outBufferLength + 1) *
+                                               sizeof(PRUnichar)));
+  if (!outBuffer) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-
-  PRUnichar* outBuffer = static_cast<PRUnichar*>(buf->Data());
 
   PRInt32 totalChars = 0,
           outBufferIndex = 0,
@@ -1214,18 +1212,10 @@ nsXMLHttpRequest::ConvertBodyToText(nsAString& aOutBuffer)
     }
   } while ( NS_FAILED(rv) && (dataLen > 0) );
 
-  // Use the string buffer if it is small, or doesn't contain
-  // too much extra data.
-  if (outBufferLength < 127 ||
-      (outBufferLength * 0.9) < totalChars) {
-    outBuffer[totalChars] = PRUnichar(0);
-    // Move ownership to mResponseBodyUnicode.
-    buf->ToString(totalChars, mResponseBodyUnicode, PR_TRUE);
-  } else {
-    mResponseBodyUnicode.Assign(outBuffer, totalChars);
-    buf->Release();
-  }
+  mResponseBodyUnicode.Assign(outBuffer, totalChars);
   aOutBuffer = mResponseBodyUnicode;
+  nsMemory::Free(outBuffer);
+
   return NS_OK;
 }
 

@@ -399,8 +399,9 @@
 
             var button = aEvent.target.buttonInfo;
             if (button.popup) {
+              document.popupNode = aEvent.target;
               document.getElementById(button.popup).
-                openPopup(aEvent.originalTarget, "after_start", 0, 0, false, false, aEvent);
+                showPopup(aEvent.originalTarget, -1, -1, "popup", "bottomleft", "topleft");
               aEvent.stopPropagation();
             }
             else {

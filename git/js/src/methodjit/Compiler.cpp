@@ -2474,7 +2474,6 @@ mjit::Compiler::canUseApplyTricks()
     jsbytecode *nextpc = PC + JSOP_ARGUMENTS_LENGTH;
     return *nextpc == JSOP_FUNAPPLY &&
            IsLowerableFunCallOrApply(nextpc) &&
-           !analysis->jumpTarget(nextpc) &&
            !debugMode();
 }
 
@@ -4325,7 +4324,6 @@ mjit::Compiler::jsop_getgname(uint32 index)
     JS_ASSERT(fe->isTypeKnown() && fe->getKnownType() == JSVAL_TYPE_OBJECT);
 
     MICGenInfo mic(ic::MICInfo::GET);
-    RESERVE_IC_SPACE(masm);
     RegisterID objReg;
     Jump shapeGuard;
 
@@ -4428,7 +4426,6 @@ mjit::Compiler::jsop_setgname(uint32 index, bool usePropertyCache)
     JS_ASSERT_IF(objFe->isTypeKnown(), objFe->getKnownType() == JSVAL_TYPE_OBJECT);
 
     MICGenInfo mic(ic::MICInfo::SET);
-    RESERVE_IC_SPACE(masm);
     RegisterID objReg;
     Jump shapeGuard;
 

@@ -62,13 +62,13 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsRecentBadCertsService,
 nsRecentBadCertsService::nsRecentBadCertsService()
 :mNextStorePosition(0)
 {
-  monitor = nsAutoMonitor::NewMonitor("security.recentBadCertsMonitor");
+  monitor = PR_NewMonitor();
 }
 
 nsRecentBadCertsService::~nsRecentBadCertsService()
 {
   if (monitor)
-    nsAutoMonitor::DestroyMonitor(monitor);
+    PR_DestroyMonitor(monitor);
 }
 
 nsresult

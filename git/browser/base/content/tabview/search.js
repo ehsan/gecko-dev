@@ -259,7 +259,7 @@ TabMatcher.prototype = {
   // Returns all of <TabItem>s that .matched() doesn't return.
   unmatched: function TabMatcher_unmatched() {
     var tabs = TabItems.getItems();
-    if (this.term.length < 2)
+    if ( this.term.length < 2 )
       return tabs;
       
     return this._filterForUnmatches(tabs);
@@ -284,7 +284,7 @@ TabMatcher.prototype = {
       matchFunc(tab, i);
     });
 
-    otherMatches.forEach(function(tab,i) {
+    otherMatches.forEach(function(tab,i){
       otherFunc(tab, i+matches.length);      
     });
     
@@ -352,18 +352,18 @@ SearchEventHandlerClass.prototype = {
   // Function: inSearchKeyHandler
   // Handles all keypresses while search mode.
   inSearchKeyHandler: function (event) {
+    var term = iQ("#searchbox").val();
+
     if ((event.keyCode == event.DOM_VK_ESCAPE) || 
         (event.keyCode == event.DOM_VK_BACK_SPACE && term.length <= 1)) {
       hideSearch(event);
       return;
     }
 
-    let matcher = createSearchTabMacher();
-    let matches = matcher.matched();
-    let others =  matcher.matchedTabsFromOtherWindows();
-    if ((event.keyCode == event.DOM_VK_RETURN || 
-         event.keyCode == event.DOM_VK_ENTER) && 
-         (matches.length > 0 || others.length > 0)) {
+    var matcher = new TabMatcher(term);
+    var matches = matcher.matched();
+    var others =  matcher.matchedTabsFromOtherWindows();
+    if (event.keyCode == event.DOM_VK_RETURN && (matches.length > 0 || others.length > 0)) {
       hideSearch(event);
       if (matches.length > 0) 
         matches[0].zoomIn();
@@ -377,7 +377,7 @@ SearchEventHandlerClass.prototype = {
   // Make sure the event handlers are appropriate for
   // the before-search mode. 
   switchToBeforeMode: function switchToBeforeMode() {
-    let self = this;
+    var self = this;
     if (this.currentHandler)
       iQ(window).unbind("keypress", this.currentHandler);
     this.currentHandler = function(event) self.beforeSearchKeyHandler(event);
@@ -389,7 +389,7 @@ SearchEventHandlerClass.prototype = {
   // Make sure the event handlers are appropriate for
   // the in-search mode.   
   switchToInMode: function switchToInMode() {
-    let self = this;
+    var self = this;
     if (this.currentHandler)
       iQ(window).unbind("keypress", this.currentHandler);
     this.currentHandler = function(event) self.inSearchKeyHandler(event);
@@ -428,7 +428,7 @@ var TabHandlers = {
     // either be a <TabItem> or a <xul:tab>. In other functions
     // it is always a <TabItem>. Also note that index is offset
     // by the number of matches within the window.
-    let item = iQ("<div/>")
+    var item = iQ("<div/>")
       .addClass("inlineMatch")
       .click(function(event){
         hideSearch(event);
@@ -459,10 +459,10 @@ var TabHandlers = {
     // mode.
     if (TabHandlers._mouseDownLocation.x == event.clientX &&
         TabHandlers._mouseDownLocation.y == event.clientY){
-      hideSearch();
-      return;
+        hideSearch();
+        return;
     }
-
+    
     iQ("#search").show();
     iQ("#searchbox")[0].focus();
     // Marshal the search.
@@ -472,17 +472,13 @@ var TabHandlers = {
   _mouseDownLocation: null
 };
 
-function createSearchTabMacher() {
-  return new TabMatcher(iQ("#searchbox").val());
-}
-
 function hideSearch(event){
   iQ("#searchbox").val("");
   iQ("#search").hide();
-
+  
   iQ("#searchbutton").css({ opacity:.8 });
-
-  let mainWindow = gWindow.document.getElementById("main-window");
+  
+  var mainWindow = gWindow.document.getElementById("main-window");    
   mainWindow.setAttribute("activetitlebarcolor", "#C4C4C4");
 
   performSearch();
@@ -503,7 +499,7 @@ function hideSearch(event){
 }
 
 function performSearch() {
-  let matcher = new TabMatcher(iQ("#searchbox").val());
+  var matcher = new TabMatcher(iQ("#searchbox").val());
 
   // Remove any previous other-window search results and
   // hide the display area.
@@ -518,6 +514,7 @@ function ensureSearchShown(event){
   var $search = iQ("#search");
   var $searchbox = iQ("#searchbox");
   iQ("#searchbutton").css({ opacity: 1 });
+
 
   if (!isSearchEnabled()) {
     $search.show();

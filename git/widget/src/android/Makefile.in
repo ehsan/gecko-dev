@@ -104,4 +104,3 @@ LOCAL_INCLUDES += \
 	-I$(srcdir) \
 	$(NULL)
 
-include $(topsrcdir)/ipc/chromium/chromium-config.mk

@@ -2143,10 +2143,8 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile * pluginsDir,
 
     // do it if we still want it
     if (bAddIt) {
-      if (!seenBefore) {
-        // We have a valid new plugin so report that plugins have changed.
-        *aPluginsChanged = PR_TRUE;
-      }
+      // We have a valid new plugin so report that plugins have changed.
+      *aPluginsChanged = PR_TRUE;
 
       // If we're not creating a plugin list, simply looking for changes,
       // then we're done.

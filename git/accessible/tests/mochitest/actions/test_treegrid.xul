@@ -68,6 +68,7 @@
     function doTestActions()
     {
       var treeNode = getNode("tabletree");
+      treeNode.removeEventListener("TreeViewChanged", doTestActions, false);
 
       var treeBodyNode = treeNode.boxObject.treeBody;
       treeNode.focus();
@@ -149,7 +150,7 @@
     function doTest()
     {
       var treeNode = getNode("tabletree");
-      waitForEvent(EVENT_REORDER, treeNode, doTestActions);
+      treeNode.addEventListener("TreeViewChanged", doTestActions, false);
       treeNode.view = new nsTreeTreeView();
     }
 

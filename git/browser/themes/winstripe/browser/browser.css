@@ -194,10 +194,6 @@
   opacity: .3;
 }
 
-#appmenuPrimaryPane {
-  -moz-border-end: 1px solid ThreeDShadow;
-}
-
 @media all and (-moz-windows-default-theme) {
   #appmenu-popup {
     -moz-appearance: none;
@@ -607,9 +603,13 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   min-width: 57px;
 }
 
-#TabsToolbar .toolbarbutton-1,
-#TabsToolbar .toolbarbutton-1 > .toolbarbutton-menubutton-button,
-#TabsToolbar .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
+#TabsToolbar > .toolbarbutton-1,
+#TabsToolbar > .toolbarbutton-1 > .toolbarbutton-menubutton-button,
+#TabsToolbar > .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker,
+#TabsToolbar > toolbarpaletteitem > .toolbarbutton-1,
+#TabsToolbar > toolbarpaletteitem > .toolbarbutton-1 > .toolbarbutton-menubutton-button,
+#TabsToolbar > toolbarpaletteitem > .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker,
+#TabsToolbar > #bookmarks-menu-button-container > #bookmarks-menu-button {
   -moz-appearance: toolbarbutton;
 %ifdef WINSTRIPE_AERO
   margin: -2px 0 -1px;
@@ -636,7 +636,8 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 }
 %endif
 
-#TabsToolbar .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
+#TabsToolbar > .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker,
+#TabsToolbar > toolbarpaletteitem > .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
   -moz-appearance: none;
 }
 
@@ -654,8 +655,7 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 }
 
 #back-button:-moz-locale-dir(rtl) > .toolbarbutton-icon,
-#forward-button:-moz-locale-dir(rtl),
-#forward-button:-moz-locale-dir(rtl) > .toolbarbutton-text {
+#forward-button:-moz-locale-dir(rtl) {
   -moz-transform: scaleX(-1);
 }
 
@@ -1545,7 +1545,9 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 @media all and (-moz-touch-enabled) {
   .tabbrowser-arrowscrollbox > .scrollbutton-up,
   .tabbrowser-arrowscrollbox > .scrollbutton-down,
-  #TabsToolbar .toolbarbutton-1 {
+  #TabsToolbar > toolbarbutton,
+  #TabsToolbar > toolbarpaletteitem > toolbarbutton,
+  #TabsToolbar > #bookmarks-menu-button-container > #bookmarks-menu-button {
     min-width: 8.1mozmm;
   }
 
@@ -2113,8 +2115,4 @@ panel[dimmed="true"] {
 #status-bar > statusbarpanel {
   border-width: 0;
   -moz-appearance: none;
-}
-
-browser[tabmodalPromptShowing] {
-  filter: url("chrome://browser/skin/effects.svg#blurAndDesaturate");
 }

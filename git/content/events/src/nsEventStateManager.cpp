@@ -2790,7 +2790,6 @@ nsEventStateManager::DecideGestureEvent(nsGestureNotifyEvent* aEvent,
   aEvent->panDirection = panDirection;
 }
 
-#ifdef XP_MACOSX
 static bool
 NodeAllowsClickThrough(nsINode* aNode)
 {
@@ -2811,7 +2810,6 @@ NodeAllowsClickThrough(nsINode* aNode)
   }
   return true;
 }
-#endif
 
 NS_IMETHODIMP
 nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
