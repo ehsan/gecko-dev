@@ -23,27 +23,32 @@ public:
     void Main();
 
 protected:    
-    virtual bool RecvAsync() MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual bool RecvAsync() {
         if (!mOnStack)
             fail("not on C++ stack?!");
         return true;
     }
 
-    virtual bool RecvSync() MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual bool RecvSync() {
         if (!mOnStack)
             fail("not on C++ stack?!");
         return true;
     }
 
-    virtual bool AnswerRpc() MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual bool AnswerRpc() {
         if (!mOnStack)
             fail("not on C++ stack?!");
         return true;
     }
 
-    virtual bool AnswerStackFrame() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerStackFrame();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");  
@@ -51,17 +56,21 @@ protected:
         QuitParent();
     }
 
-    virtual void EnteredCxxStack() MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual void EnteredCxxStack() {
         mOnStack = true;
     }
-    virtual void ExitedCxxStack() MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual void ExitedCxxStack() {
         mOnStack = false;
     }
 
-    virtual void EnteredCall() MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual void EnteredCall() {
         ++mIncallDepth;
     }
-    virtual void ExitedCall() MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual void ExitedCall() {
         --mIncallDepth;
     }
 
@@ -81,11 +90,14 @@ public:
     void RunTests();
 
 protected:
-    virtual bool RecvStart() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvStart();
 
-    virtual bool AnswerStackFrame() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerStackFrame();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");
@@ -99,19 +111,23 @@ protected:
         QuitChild();
     }
 
-    virtual void EnteredCxxStack() MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual void EnteredCxxStack() {
         ++mEntered;
         mOnStack = true;
     }
-    virtual void ExitedCxxStack() MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual void ExitedCxxStack() {
         ++mExited;
         mOnStack = false;
     }
 
-    virtual void EnteredCall() MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual void EnteredCall() {
         ++mIncallDepth;
     }
-    virtual void ExitedCall() MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual void ExitedCall() {
         --mIncallDepth;
     }
 

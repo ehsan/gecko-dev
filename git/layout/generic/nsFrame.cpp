@@ -252,15 +252,6 @@ nsIFrame::MarkAsAbsoluteContainingBlock() {
   Properties().Set(AbsoluteContainingBlockProperty(), new nsAbsoluteContainingBlock(GetAbsoluteListID()));
 }
 
-void
-nsIFrame::ClearDisplayItemCache()
-{
-  if (GetStateBits() & NS_FRAME_HAS_CACHED_BACKGROUND) {
-    Properties().Delete(CachedBackgroundImage());
-    RemoveStateBits(NS_FRAME_HAS_CACHED_BACKGROUND);
-  }
-}
-
 bool
 nsIFrame::CheckAndClearPaintedState()
 {
@@ -4704,7 +4695,6 @@ void
 nsIFrame::InvalidateInternal(const nsRect& aDamageRect, nscoord aX, nscoord aY,
                              nsIFrame* aForChild, PRUint32 aFlags)
 {
-  ClearDisplayItemCache();
   nsSVGEffects::InvalidateDirectRenderingObservers(this);
   if (nsSVGIntegrationUtils::UsingEffectsForFrame(this)) {
     nsRect r = nsSVGIntegrationUtils::AdjustInvalidAreaForSVGEffects(this,

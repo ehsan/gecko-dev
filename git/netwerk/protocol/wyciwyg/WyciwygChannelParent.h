@@ -39,8 +39,7 @@ protected:
                              const bool& isContent,
                              const bool& usingPrivateBrowsing,
                              const bool& isInBrowserElement,
-                             const PRUint32& appId,
-                             const nsCString& extendedOrigin);
+                             const PRUint32& appId);
   virtual bool RecvWriteToCacheEntry(const nsString& data);
   virtual bool RecvCloseCacheEntry(const nsresult& reason);
   virtual bool RecvSetCharsetAndSource(const PRInt32& source,
@@ -60,7 +59,6 @@ protected:
   bool mIsInBrowserElement          : 1;
 
   PRUint32 mAppId;
-  nsCString mExtendedOrigin;
 };
 
 } // namespace net

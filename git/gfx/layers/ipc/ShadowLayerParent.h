@@ -32,7 +32,8 @@ public:
   ContainerLayer* AsContainer() const;
 
 private:
-  virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+  NS_OVERRIDE
+  virtual void ActorDestroy(ActorDestroyReason why);
 
   nsRefPtr<Layer> mLayer;
 };

@@ -200,10 +200,9 @@ struct CCParticipantVTableImpl { };
 template <typename T>
 struct CCParticipantVTableImpl<T, eCycleCollectionParticipant>
 {
-    nsCycleCollectionParticipant *GetParticipant() const
+    nsCycleCollectionParticipant *GetParticipant()
     {
-        return const_cast<nsCycleCollectionParticipant *>
-               (reinterpret_cast<const nsCycleCollectionParticipant *>(this));
+        return reinterpret_cast<nsCycleCollectionParticipant *>(this);
     }
     nsCycleCollectionParticipantVTableCommon<T> cycleCollectionParticipant;
 };
@@ -212,10 +211,9 @@ struct CCParticipantVTableImpl<T, eCycleCollectionParticipant>
 template <typename T>
 struct CCParticipantVTableImpl<T, eScriptObjectTracer>
 {
-    nsScriptObjectTracer *GetParticipant() const
+    nsScriptObjectTracer *GetParticipant()
     {
-        return const_cast<nsScriptObjectTracer *>
-               (reinterpret_cast<const nsScriptObjectTracer *>(this));
+        return reinterpret_cast<nsScriptObjectTracer *>(this);
     }
     nsCycleCollectionParticipantVTableCommon<T> cycleCollectionParticipant;
     nsScriptObjectTracerVTable scriptObjectTracer;
@@ -225,10 +223,9 @@ struct CCParticipantVTableImpl<T, eScriptObjectTracer>
 template <typename T>
 struct CCParticipantVTableImpl<T, eXPCOMCycleCollectionParticipant>
 {
-    nsXPCOMCycleCollectionParticipant *GetParticipant() const
+    nsXPCOMCycleCollectionParticipant *GetParticipant()
     {
-        return const_cast<nsXPCOMCycleCollectionParticipant *>
-               (reinterpret_cast<const nsXPCOMCycleCollectionParticipant *>(this));
+        return reinterpret_cast<nsXPCOMCycleCollectionParticipant *>(this);
     }
     nsCycleCollectionParticipantVTableCommon<T> cycleCollectionParticipant;
     nsScriptObjectTracerVTable scriptObjectTracer;
@@ -670,7 +667,7 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 
 #define NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE                               \
-  static const CCParticipantVTable<NS_CYCLE_COLLECTION_INNERCLASS>::Type       \
+  static CCParticipantVTable<NS_CYCLE_COLLECTION_INNERCLASS>::Type             \
       NS_CYCLE_COLLECTION_INNERNAME;
 
 #define NS_DECL_CYCLE_COLLECTION_CLASS_BODY_NO_UNLINK(_class, _base)           \
@@ -884,17 +881,17 @@ struct Skippable
   { &_class::UnmarkIfPurpleImpl }
 
 #define NS_IMPL_CYCLE_COLLECTION_NATIVE_CLASS(_class)                          \
-  const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>             \
+  CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>                   \
     ::Type _class::NS_CYCLE_COLLECTION_INNERNAME =                             \
   { NS_IMPL_CYCLE_COLLECTION_NATIVE_VTABLE(NS_CYCLE_COLLECTION_CLASSNAME(_class)) };
 
 #define NS_IMPL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(_class)            \
-  const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>             \
+  CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>                   \
     ::Type _class::NS_CYCLE_COLLECTION_INNERNAME =                             \
   { NS_IMPL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_VTABLE(NS_CYCLE_COLLECTION_CLASSNAME(_class)) };
 
 #define NS_IMPL_CYCLE_COLLECTION_CLASS(_class)                                 \
-  const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>             \
+  CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>                   \
     ::Type _class::NS_CYCLE_COLLECTION_INNERNAME =                             \
   { NS_IMPL_CYCLE_COLLECTION_VTABLE(NS_CYCLE_COLLECTION_CLASSNAME(_class)) };
 

@@ -175,6 +175,9 @@ public:
     mValidRegion.Sub(mValidRegion, aRegion);
   }
 
+  // BasicImplData
+  virtual bool MustRetainContent() { return HasShadow(); }
+
   // Shadow methods
   virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs);
   virtual ShadowableLayer* AsShadowableLayer() { return this; }

@@ -103,6 +103,10 @@ nsSVGInnerSVGFrame::ReflowSVG()
 void
 nsSVGInnerSVGFrame::NotifySVGChanged(PRUint32 aFlags)
 {
+  NS_ABORT_IF_FALSE(!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS) ||
+                    (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
+                    "Must be NS_STATE_SVG_NONDISPLAY_CHILD!");
+
   NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
                     "Invalidation logic may need adjusting");
 
@@ -143,7 +147,7 @@ nsSVGInnerSVGFrame::NotifySVGChanged(PRUint32 aFlags)
       // dimensions:
       aFlags &= ~COORD_CONTEXT_CHANGED;
 
-      if (!aFlags) {
+      if (!(aFlags & ~DO_NOT_NOTIFY_RENDERING_OBSERVERS)) {
         return; // No notification flags left
       }
     }

@@ -18,14 +18,9 @@ class TextSelection implements GeckoEventListener {
         mStartHandle = startHandle;
         mEndHandle = endHandle;
 
-        // Only register listeners if we have valid start/end handles
-        if (mStartHandle == null || mEndHandle == null) {
-            Log.e(LOGTAG, "Failed to initialize text selection because at least one handle is null");
-        } else {
-            GeckoAppShell.registerGeckoEventListener("TextSelection:ShowHandles", this);
-            GeckoAppShell.registerGeckoEventListener("TextSelection:HideHandles", this);
-            GeckoAppShell.registerGeckoEventListener("TextSelection:PositionHandles", this);
-        }
+        GeckoAppShell.registerGeckoEventListener("TextSelection:ShowHandles", this);
+        GeckoAppShell.registerGeckoEventListener("TextSelection:HideHandles", this);
+        GeckoAppShell.registerGeckoEventListener("TextSelection:PositionHandles", this);
     }
 
     void destroy() {

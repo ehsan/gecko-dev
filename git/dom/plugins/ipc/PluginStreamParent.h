@@ -24,7 +24,7 @@ public:
                      const nsCString& target, NPError* result);
   virtual ~PluginStreamParent() { }
 
-  virtual bool IsBrowserStream() MOZ_OVERRIDE { return false; }
+  NS_OVERRIDE virtual bool IsBrowserStream() { return false; }
 
   virtual bool AnswerNPN_Write(const Buffer& data, int32_t* written);
 

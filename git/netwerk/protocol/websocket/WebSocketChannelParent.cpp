@@ -53,8 +53,7 @@ WebSocketChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
                                       const bool& isContent,
                                       const bool& usePrivateBrowsing,
                                       const bool& isInBrowserElement,
-                                      const PRUint32& appId,
-                                      const nsCString& extendedOrigin)
+                                      const PRUint32& appId)
 {
   LOG(("WebSocketChannelParent::RecvAsyncOpen() %p\n", this));
   nsresult rv;
@@ -74,7 +73,6 @@ WebSocketChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
   mUsePrivateBrowsing = usePrivateBrowsing;
   mIsInBrowserElement = isInBrowserElement;
   mAppId = appId;
-  mExtendedOrigin = extendedOrigin;
   rv = mChannel->SetNotificationCallbacks(this);
   if (NS_FAILED(rv))
     goto fail;
@@ -221,7 +219,7 @@ WebSocketChannelParent::ActorDestroy(ActorDestroyReason why)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-WebSocketChannelParent::GetInterface(const nsIID & iid, void **result)
+WebSocketChannelParent::GetInterface(const nsIID & iid, void **result NS_OUTPARAM)
 {
   LOG(("WebSocketChannelParent::GetInterface() %p\n", this));
   if (mAuthProvider && iid.Equals(NS_GET_IID(nsIAuthPromptProvider)))
@@ -301,14 +299,6 @@ WebSocketChannelParent::GetAppId(PRUint32* aAppId)
   NS_ENSURE_ARG_POINTER(aAppId);
 
   *aAppId = mAppId;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WebSocketChannelParent::GetExtendedOrigin(nsIURI *aUri,
-                                          nsACString &aResult)
-{
-  aResult = mExtendedOrigin;
   return NS_OK;
 }
 

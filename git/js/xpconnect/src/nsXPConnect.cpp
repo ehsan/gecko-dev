@@ -556,9 +556,7 @@ public:
                                   nsCycleCollectionTraversalCallback &cb);
 };
 
-static const CCParticipantVTable<nsXPConnectParticipant>::Type
-XPConnect_cycleCollectorGlobal =
-{
+static CCParticipantVTable<nsXPConnectParticipant>::Type XPConnect_cycleCollectorGlobal = {
   NS_IMPL_CYCLE_COLLECTION_NATIVE_VTABLE(nsXPConnectParticipant)
 };
 
@@ -982,9 +980,7 @@ public:
     }
 };
 
-static const CCParticipantVTable<JSContextParticipant>::Type
-JSContext_cycleCollectorGlobal =
-{
+static CCParticipantVTable<JSContextParticipant>::Type JSContext_cycleCollectorGlobal = {
   NS_IMPL_CYCLE_COLLECTION_NATIVE_VTABLE(JSContextParticipant)
 };
 
@@ -1054,7 +1050,6 @@ CreateNewGlobal(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
     // We take ownership of |priv|. Ensure that either we free it in the case
     // of failure or give ownership to the compartment in case of success (in
     // that case it will be free'd in CompartmentCallback during GC).
-    MOZ_ASSERT(priv);
     nsAutoPtr<xpc::CompartmentPrivate> priv_holder(priv);
     JSObject *tempGlobal =
         JS_NewGlobalObject(cx, clasp, nsJSPrincipals::get(principal));

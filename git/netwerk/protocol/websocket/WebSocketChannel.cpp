@@ -2222,7 +2222,7 @@ WebSocketChannel::OnLookupComplete(nsICancelable *aRequest,
 // nsIInterfaceRequestor
 
 NS_IMETHODIMP
-WebSocketChannel::GetInterface(const nsIID & iid, void **result)
+WebSocketChannel::GetInterface(const nsIID & iid, void **result NS_OUTPARAM)
 {
   LOG(("WebSocketChannel::GetInterface() %p\n", this));
 

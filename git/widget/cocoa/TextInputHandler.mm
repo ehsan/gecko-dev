@@ -3108,7 +3108,7 @@ PluginTextInputHandler::ConvertUnicodeToCharCode(PRUnichar aUniChar,
   TextEncoding      systemEncoding;
   Str255            convertedString;
 
-  *aOutChar = '\0';
+  *aOutChar = nsnull;
 
   OSStatus err =
     ::UpgradeScriptInfoToTextEncoding(smSystemScript,

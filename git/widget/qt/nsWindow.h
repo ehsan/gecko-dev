@@ -188,7 +188,7 @@ public:
     }
 
     // Some of the nsIWidget methods
-    virtual bool IsEnabled() const;
+    NS_IMETHOD         IsEnabled        (bool *aState);
 
     // called when we are destroyed
     void OnDestroy(void);

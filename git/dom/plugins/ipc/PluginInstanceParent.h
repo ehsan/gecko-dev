@@ -53,13 +53,13 @@ public:
     bool Init();
     NPError Destroy();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+    NS_OVERRIDE virtual void ActorDestroy(ActorDestroyReason why);
 
     virtual PPluginScriptableObjectParent*
     AllocPPluginScriptableObject();
 
-    virtual bool
-    RecvPPluginScriptableObjectConstructor(PPluginScriptableObjectParent* aActor) MOZ_OVERRIDE;
+    NS_OVERRIDE virtual bool
+    RecvPPluginScriptableObjectConstructor(PPluginScriptableObjectParent* aActor);
 
     virtual bool
     DeallocPPluginScriptableObject(PPluginScriptableObjectParent* aObject);
@@ -139,13 +139,13 @@ public:
                        const bool& file,
                        NPError* result);
 
-    virtual bool
+    NS_OVERRIDE virtual bool
     AnswerPStreamNotifyConstructor(PStreamNotifyParent* actor,
                                    const nsCString& url,
                                    const nsCString& target,
                                    const bool& post, const nsCString& buffer,
                                    const bool& file,
-                                   NPError* result) MOZ_OVERRIDE;
+                                   NPError* result);
 
     virtual bool
     DeallocPStreamNotify(PStreamNotifyParent* notifyData);
@@ -173,17 +173,17 @@ public:
     virtual bool
     AnswerNPN_PopPopupsEnabledState();
 
-    virtual bool
+    NS_OVERRIDE virtual bool
     AnswerNPN_GetValueForURL(const NPNURLVariable& variable,
                              const nsCString& url,
-                             nsCString* value, NPError* result) MOZ_OVERRIDE;
+                             nsCString* value, NPError* result);
 
-    virtual bool
+    NS_OVERRIDE virtual bool
     AnswerNPN_SetValueForURL(const NPNURLVariable& variable,
                              const nsCString& url,
-                             const nsCString& value, NPError* result) MOZ_OVERRIDE;
+                             const nsCString& value, NPError* result);
 
-    virtual bool
+    NS_OVERRIDE virtual bool
     AnswerNPN_GetAuthenticationInfo(const nsCString& protocol,
                                     const nsCString& host,
                                     const int32_t& port,
@@ -191,9 +191,9 @@ public:
                                     const nsCString& realm,
                                     nsCString* username,
                                     nsCString* password,
-                                    NPError* result) MOZ_OVERRIDE;
+                                    NPError* result);
 
-    virtual bool
+    NS_OVERRIDE virtual bool
     AnswerNPN_ConvertPoint(const double& sourceX,
                            const bool&   ignoreDestX,
                            const double& sourceY,
@@ -202,7 +202,7 @@ public:
                            const NPCoordinateSpace& destSpace,
                            double *destX,
                            double *destY,
-                           bool *result) MOZ_OVERRIDE;
+                           bool *result);
 
     virtual bool
     AnswerNPN_InitAsyncSurface(const gfxIntSize& size,
@@ -213,8 +213,8 @@ public:
     virtual bool
     RecvRedrawPlugin();
 
-    virtual bool
-    RecvNegotiatedCarbon() MOZ_OVERRIDE;
+    NS_OVERRIDE virtual bool
+    RecvNegotiatedCarbon();
 
     virtual bool RecvReleaseDXGISharedSurface(const DXGISharedSurfaceHandle &aHandle);
 
@@ -292,11 +292,13 @@ private:
     typedef mozilla::layers::ImageContainer ImageContainer;
     ImageContainer *GetImageContainer();
 
+    NS_OVERRIDE
     virtual PPluginBackgroundDestroyerParent*
-    AllocPPluginBackgroundDestroyer() MOZ_OVERRIDE;
+    AllocPPluginBackgroundDestroyer();
 
+    NS_OVERRIDE
     virtual bool
-    DeallocPPluginBackgroundDestroyer(PPluginBackgroundDestroyerParent* aActor) MOZ_OVERRIDE;
+    DeallocPPluginBackgroundDestroyer(PPluginBackgroundDestroyerParent* aActor);
 
     bool InternalGetValueForNPObject(NPNVariable aVariable,
                                      PPluginScriptableObjectParent** aValue,

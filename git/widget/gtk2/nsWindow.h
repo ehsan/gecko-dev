@@ -122,7 +122,7 @@ public:
                                          PRInt32 aWidth,
                                          PRInt32 aHeight,
                                          bool     aRepaint);
-    virtual bool       IsEnabled() const;
+    NS_IMETHOD         IsEnabled        (bool *aState);
 
 
     NS_IMETHOD         PlaceBehind(nsTopLevelWidgetZPlacement  aPlacement,

@@ -589,7 +589,7 @@ nsresult nsPluginHost::GetURL(nsISupports* pluginInst,
 {
   return GetURLWithHeaders(static_cast<nsNPAPIPluginInstance*>(pluginInst),
                            url, target, streamListener, altHost, referrer,
-                           forceJSEnabled, 0, nsnull);
+                           forceJSEnabled, nsnull, nsnull);
 }
 
 nsresult nsPluginHost::GetURLWithHeaders(nsNPAPIPluginInstance* pluginInst,
@@ -3869,12 +3869,13 @@ CheckForDisabledWindows()
     windowList->GetNext(getter_AddRefs(supportsWindow));
     nsCOMPtr<nsIBaseWindow> baseWin(do_QueryInterface(supportsWindow));
     if (baseWin) {
+      bool aFlag;
       nsCOMPtr<nsIWidget> widget;
       baseWin->GetMainWidget(getter_AddRefs(widget));
       if (widget && !widget->GetParent() &&
           widget->IsVisible() &&
-          !widget->IsEnabled()) {
-        nsIWidget* child = widget->GetFirstChild();
+          NS_SUCCEEDED(widget->IsEnabled(&aFlag)) && aFlag == false) {
+        nsIWidget * child = widget->GetFirstChild();
         bool enable = true;
         while (child)  {
           nsWindowType aType;

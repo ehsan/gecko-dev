@@ -1021,7 +1021,6 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
   bool usePrivateBrowsing = false;
   bool isInBrowserElement = false;
   PRUint32 appId = 0;
-  nsCAutoString extendedOrigin;
   nsCOMPtr<nsILoadContext> loadContext;
   GetCallback(loadContext);
   if (loadContext) {
@@ -1030,7 +1029,6 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
     loadContext->GetUsePrivateBrowsing(&usePrivateBrowsing);
     loadContext->GetIsInBrowserElement(&isInBrowserElement);
     loadContext->GetAppId(&appId);
-    loadContext->GetExtendedOrigin(mURI, extendedOrigin);
   }
 
   //
@@ -1060,7 +1058,7 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
                 mForceAllowThirdPartyCookie, mSendResumeAt,
                 mStartPos, mEntityID, mChooseApplicationCache,
                 appCacheClientId, mAllowSpdy, haveLoadContext, isContent,
-                usePrivateBrowsing, isInBrowserElement, appId, extendedOrigin);
+                usePrivateBrowsing, isInBrowserElement, appId);
 
   return NS_OK;
 }

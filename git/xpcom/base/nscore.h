@@ -325,18 +325,14 @@ typedef PRUint32 nsrefcnt;
 #endif
 
 /**
- * Use C++11 nullptr if available; otherwise use a C++ typesafe template; and
- * for C, fall back to longs.  See bugs 547964 and 626472.
+ * The preferred symbol for null.  Make sure this is the same size as
+ * void* on the target.  See bug 547964.
  */
-#ifndef HAVE_NULLPTR
 #if defined(_WIN64)
-# define nullptr 0LL
+# define nsnull 0LL
 #else
-# define nullptr 0L
+# define nsnull 0L
 #endif
-#endif /* defined(HAVE_NULLPTR) */
-
-#define nsnull nullptr
 
 
 #include "nsError.h"
@@ -440,6 +436,23 @@ typedef PRUint32 nsrefcnt;
 #define NS_OKONHEAP
 #define NS_SUPPRESS_STACK_CHECK
 #define NS_MUST_OVERRIDE
+#endif
+
+/**
+ * Attributes defined to help Dehydra GCC analysis.
+ */
+#ifdef NS_STATIC_CHECKING
+# define NS_SCRIPTABLE __attribute__((user("NS_script")))
+# define NS_INPARAM __attribute__((user("NS_inparam")))
+# define NS_OUTPARAM  __attribute__((user("NS_outparam")))
+# define NS_INOUTPARAM __attribute__((user("NS_inoutparam")))
+# define NS_OVERRIDE __attribute__((user("NS_override")))
+#else
+# define NS_SCRIPTABLE
+# define NS_INPARAM
+# define NS_OUTPARAM
+# define NS_INOUTPARAM
+# define NS_OVERRIDE
 #endif
 
 /*

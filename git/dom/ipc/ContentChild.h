@@ -76,8 +76,8 @@ public:
     virtual bool
     DeallocPCrashReporter(PCrashReporterChild*);
 
-    virtual PHalChild* AllocPHal() MOZ_OVERRIDE;
-    virtual bool DeallocPHal(PHalChild*) MOZ_OVERRIDE;
+    NS_OVERRIDE virtual PHalChild* AllocPHal();
+    NS_OVERRIDE virtual bool DeallocPHal(PHalChild*);
 
     virtual PIndexedDBChild* AllocPIndexedDB();
     virtual bool DeallocPIndexedDB(PIndexedDBChild* aActor);

@@ -17,9 +17,8 @@
 #include "nsISupportsPrimitives.h"
 #include "nsIGSettingsService.h"
 #include "nsInterfaceHashtable.h"
-#include "mozilla/Attributes.h"
 
-class nsUnixSystemProxySettings MOZ_FINAL : public nsISystemProxySettings {
+class nsUnixSystemProxySettings : public nsISystemProxySettings {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSISYSTEMPROXYSETTINGS

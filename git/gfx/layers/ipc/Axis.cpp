@@ -10,7 +10,13 @@
 namespace mozilla {
 namespace layers {
 
-static const float EPSILON = 0.0001f;
+static const float EPSILON = 0.0001;
+
+/**
+ * Milliseconds per frame, used to judge how much displacement should have
+ * happened every frame based on the velocity calculated from touch events.
+ */
+static const float MS_PER_FRAME = 1000.0f / 60.0f;
 
 /**
  * Maximum acceleration that can happen between two frames. Velocity is
@@ -18,49 +24,44 @@ static const float EPSILON = 0.0001f;
  * or we get a touch point very far away from the previous position for some
  * reason.
  */
-static const float MAX_EVENT_ACCELERATION = 0.5f;
+static const float MAX_EVENT_ACCELERATION = 12;
 
 /**
  * Amount of friction applied during flings when going above
  * VELOCITY_THRESHOLD.
  */
-static const float FLING_FRICTION_FAST = 0.0025f;
+static const float FLING_FRICTION_FAST = 0.010;
 
 /**
  * Amount of friction applied during flings when going below
  * VELOCITY_THRESHOLD.
  */
-static const float FLING_FRICTION_SLOW = 0.0015f;
+static const float FLING_FRICTION_SLOW = 0.008;
 
 /**
  * Maximum velocity before fling friction increases.
  */
-static const float VELOCITY_THRESHOLD = 1.0f;
+static const float VELOCITY_THRESHOLD = 10;
 
 /**
  * When flinging, if the velocity goes below this number, we just stop the
  * animation completely. This is to prevent asymptotically approaching 0
  * velocity and rerendering unnecessarily.
  */
-static const float FLING_STOPPED_THRESHOLD = 0.01f;
+static const float FLING_STOPPED_THRESHOLD = 0.1f;
 
 Axis::Axis(AsyncPanZoomController* aAsyncPanZoomController)
   : mPos(0.0f),
     mVelocity(0.0f),
-    mAsyncPanZoomController(aAsyncPanZoomController),
-    mLockPanning(false)
+    mAsyncPanZoomController(aAsyncPanZoomController)
 {
 
 }
 
-void Axis::UpdateWithTouchAtDevicePoint(PRInt32 aPos, const TimeDuration& aTimeDelta) {
-  if (mLockPanning) {
-    return;
-  }
+void Axis::UpdateWithTouchAtDevicePoint(PRInt32 aPos, PRInt32 aTimeDelta) {
+  float newVelocity = MS_PER_FRAME * (mPos - aPos) / aTimeDelta;
 
-  float newVelocity = (mPos - aPos) / aTimeDelta.ToMilliseconds();
-
-  bool curVelocityIsLow = fabsf(newVelocity) < 0.01f;
+  bool curVelocityIsLow = fabsf(newVelocity) < 1.0f;
   bool directionChange = (mVelocity > 0) != (newVelocity != 0);
 
   // If a direction change has happened, or the current velocity due to this new
@@ -68,7 +69,7 @@ void Axis::UpdateWithTouchAtDevicePoint(PRInt32 aPos, const TimeDuration& aTimeD
   if (curVelocityIsLow || (directionChange && fabs(newVelocity) - EPSILON <= 0.0f)) {
     mVelocity = newVelocity;
   } else {
-    float maxChange = fabsf(mVelocity * aTimeDelta.ToMilliseconds() * MAX_EVENT_ACCELERATION);
+    float maxChange = fabsf(mVelocity * aTimeDelta * MAX_EVENT_ACCELERATION);
     mVelocity = NS_MIN(mVelocity + maxChange, NS_MAX(mVelocity - maxChange, newVelocity));
   }
 
@@ -80,11 +81,10 @@ void Axis::StartTouch(PRInt32 aPos) {
   mStartPos = aPos;
   mPos = aPos;
   mVelocity = 0.0f;
-  mLockPanning = false;
 }
 
-PRInt32 Axis::GetDisplacementForDuration(float aScale, const TimeDuration& aDelta) {
-  PRInt32 displacement = NS_lround(mVelocity * aScale * aDelta.ToMilliseconds());
+PRInt32 Axis::UpdateAndGetDisplacement(float aScale) {
+  PRInt32 displacement = NS_lround(mVelocity * aScale);
   // If this displacement will cause an overscroll, throttle it. Can potentially
   // bring it to 0 even if the velocity is high.
   if (DisplacementWillOverscroll(displacement) != OVERSCROLL_NONE) {
@@ -101,10 +101,6 @@ void Axis::StopTouch() {
   mVelocity = 0.0f;
 }
 
-void Axis::LockPanning() {
-  mLockPanning = true;
-}
-
 bool Axis::FlingApplyFrictionOrCancel(const TimeDuration& aDelta) {
   if (fabsf(mVelocity) <= FLING_STOPPED_THRESHOLD) {
     // If the velocity is very low, just set it to 0 and stop the fling,
@@ -113,9 +109,9 @@ bool Axis::FlingApplyFrictionOrCancel(const TimeDuration& aDelta) {
     mVelocity = 0.0f;
     return false;
   } else if (fabsf(mVelocity) >= VELOCITY_THRESHOLD) {
-    mVelocity *= NS_MAX(1.0f - FLING_FRICTION_FAST * aDelta.ToMilliseconds(), 0.0);
+    mVelocity *= 1.0f - FLING_FRICTION_FAST * aDelta.ToMilliseconds();
   } else {
-    mVelocity *= NS_MAX(1.0f - FLING_FRICTION_SLOW * aDelta.ToMilliseconds(), 0.0);
+    mVelocity *= 1.0f - FLING_FRICTION_SLOW * aDelta.ToMilliseconds();
   }
   return true;
 }

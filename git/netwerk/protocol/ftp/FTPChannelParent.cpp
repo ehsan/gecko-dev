@@ -68,8 +68,7 @@ FTPChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
                                 const bool& isContent,
                                 const bool& usePrivateBrowsing,
                                 const bool& isInBrowserElement,
-                                const PRUint32& appId,
-                                const nsCString& extendedOrigin)
+                                const PRUint32& appId)
 {
   nsCOMPtr<nsIURI> uri(aURI);
 
@@ -110,7 +109,6 @@ FTPChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
   mUsePrivateBrowsing = usePrivateBrowsing;
   mIsInBrowserElement = isInBrowserElement;
   mAppId = appId;
-  mExtendedOrigin = extendedOrigin;
   mChannel->SetNotificationCallbacks(this);
 
   rv = mChannel->AsyncOpen(this, nsnull);
@@ -322,14 +320,6 @@ FTPChannelParent::GetAppId(PRUint32* aAppId)
   *aAppId = mAppId;
   return NS_OK;
 }
-
-NS_IMETHODIMP
-FTPChannelParent::GetExtendedOrigin(nsIURI *aUri, nsACString &aResult)
-{
-  aResult = mExtendedOrigin;
-  return NS_OK;
-}
-
 
 } // namespace net
 } // namespace mozilla

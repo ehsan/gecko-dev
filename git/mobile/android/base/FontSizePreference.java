@@ -136,13 +136,10 @@ class FontSizePreference extends DialogPreference {
         if (mCurrentOrientation != newConfig.orientation) {
             mCurrentOrientation = newConfig.orientation;
 
-            // mPreviewFontView will be null if the dialog has not yet been shown.
-            if (mPreviewFontView != null) {
-                // Recalculate the mPreviewFontView dimensions since we have new screen dimensions.
-                setPreviewFontViewWidth();
-                mPreviewFontViewHeightSet = false;
-                setFontSizeToMaximum(); // Expects onGlobalLayout() to be called.
-            }
+            // Recalculate the mPreviewFontView dimensions since we have new screen dimensions.
+            setPreviewFontViewWidth();
+            mPreviewFontViewHeightSet = false;
+            setFontSizeToMaximum(); // Expects onGlobalLayout() to be called.
         }
     }
 

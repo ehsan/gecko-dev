@@ -78,13 +78,15 @@ class PluginModuleChild : public PPluginModuleChild
 {
     typedef mozilla::dom::PCrashReporterChild PCrashReporterChild;
 protected:
+    NS_OVERRIDE
     virtual mozilla::ipc::RPCChannel::RacyRPCPolicy
-    MediateRPCRace(const Message& parent, const Message& child) MOZ_OVERRIDE
+    MediateRPCRace(const Message& parent, const Message& child)
     {
         return MediateRace(parent, child);
     }
 
-    virtual bool ShouldContinueFromReplyTimeout() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool ShouldContinueFromReplyTimeout();
 
     // Implement the PPluginModuleChild interface
     virtual bool AnswerNP_GetEntryPoints(NPError* rv);
@@ -161,8 +163,8 @@ protected:
 
     MOZ_NORETURN void QuickExit();
 
-    virtual bool
-    RecvProcessNativeEventsInRPCCall() MOZ_OVERRIDE;
+    NS_OVERRIDE virtual bool
+    RecvProcessNativeEventsInRPCCall();
 
 public:
     PluginModuleChild();
@@ -308,12 +310,16 @@ private:
     static gboolean DetectNestedEventLoop(gpointer data);
     static gboolean ProcessBrowserEvents(gpointer data);
 
-    virtual void EnteredCxxStack() MOZ_OVERRIDE;
-    virtual void ExitedCxxStack() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual void EnteredCxxStack();
+    NS_OVERRIDE
+    virtual void ExitedCxxStack();
 #elif defined(MOZ_WIDGET_QT)
 
-    virtual void EnteredCxxStack() MOZ_OVERRIDE;
-    virtual void ExitedCxxStack() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual void EnteredCxxStack();
+    NS_OVERRIDE
+    virtual void ExitedCxxStack();
 #endif
 
     PRLibrary* mLibrary;
@@ -423,8 +429,10 @@ private:
     static PLDHashOperator CollectForInstance(NPObjectData* d, void* userArg);
 
 #if defined(OS_WIN)
-    virtual void EnteredCall() MOZ_OVERRIDE;
-    virtual void ExitedCall() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual void EnteredCall();
+    NS_OVERRIDE
+    virtual void ExitedCall();
 
     // Entered/ExitedCall notifications keep track of whether the plugin has
     // entered a nested event loop within this RPC call.

@@ -6267,10 +6267,7 @@ nsBlockFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   // Prepare for text-overflow processing.
   nsAutoPtr<TextOverflow> textOverflow(
-    TextOverflow::WillProcessLines(aBuilder, this));
-
-  // We'll collect our lines' display items here, & then append this to aLists.
-  nsDisplayListCollection linesDisplayListCollection;
+    TextOverflow::WillProcessLines(aBuilder, aLists, this));
 
   // Don't use the line cursor if we might have a descendant placeholder ...
   // it might skip lines that contain placeholders but don't themselves
@@ -6296,7 +6293,7 @@ nsBlockFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
           break;
         }
         rv = DisplayLine(aBuilder, lineArea, aDirtyRect, line, depth, drawnLines,
-                         linesDisplayListCollection, this, textOverflow);
+                         aLists, this, textOverflow);
         if (NS_FAILED(rv))
           break;
       }
@@ -6311,7 +6308,7 @@ nsBlockFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
          ++line) {
       nsRect lineArea = line->GetVisualOverflowArea();
       rv = DisplayLine(aBuilder, lineArea, aDirtyRect, line, depth, drawnLines,
-                       linesDisplayListCollection, this, textOverflow);
+                       aLists, this, textOverflow);
       if (NS_FAILED(rv))
         break;
       if (!lineArea.IsEmpty()) {
@@ -6329,15 +6326,6 @@ nsBlockFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       SetupLineCursor();
     }
   }
-
-  // Pick up the resulting text-overflow markers.  We append them to
-  // PositionedDescendants just before we append the lines' display items,
-  // so that our text-overflow markers will appear on top of this block's
-  // normal content but below any of its its' positioned children.
-  if (textOverflow) {
-    aLists.PositionedDescendants()->AppendToTop(&textOverflow->GetMarkers());
-  }
-  linesDisplayListCollection.MoveTo(aLists);
 
   if (NS_SUCCEEDED(rv) && HasOutsideBullet()) {
     // Display outside bullets manually

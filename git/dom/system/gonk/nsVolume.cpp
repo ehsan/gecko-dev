@@ -48,7 +48,7 @@ NS_IMETHODIMP nsVolume::GetState(PRInt32 *aState)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsVolume::GetStats(nsIVolumeStat **aResult)
+NS_IMETHODIMP nsVolume::GetStats(nsIVolumeStat **aResult NS_OUTPARAM)
 {
   if (mState != STATE_MOUNTED) {
     return NS_ERROR_NOT_AVAILABLE;

@@ -39,8 +39,9 @@ import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 
 import org.mozilla.gecko.gfx.InputConnectionHandler;
-import org.mozilla.gecko.gfx.LayerController;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -89,6 +90,15 @@ public class GeckoInputConnection
     private static int mIMEState;
     private static String mIMETypeHint;
     private static String mIMEActionHint;
+
+    // The blocklist is so short that ArrayList is probably cheaper than HashSet.
+    private final Collection<String> sFormAutoCompleteBlocklist = Arrays.asList(new String[] {
+        "com.adamrocker.android.input.simeji/.OpenWnnSimeji",   // Simeji (bug 768108)
+        "com.google.android.inputmethod.japanese/.MozcService", // Google Japanese Input (bug 775850)
+        "com.nuance.swype.input/.IME",                          // Swype Beta (bug 755909)
+        "com.owplus.ime.openwnnplus/.OpenWnnJAJP",              // OpenWnn Plus (bug 768108)
+        "com.swype.android.inputmethod/.SwypeInputMethod"       // Swype (bug 755909)
+        });
 
     private String mCurrentInputMethod;
 
@@ -294,11 +304,6 @@ public class GeckoInputConnection
         return super.setComposingText(text, newCursorPosition);
     }
 
-    private static View getView() {
-        LayerController controller = GeckoApp.mAppContext.getLayerController();
-        return (controller == null ? null : controller.getView());
-    }
-
     private Span getSelection() {
         Editable content = getEditable();
         int start = Selection.getSelectionStart(content);
@@ -436,8 +441,8 @@ public class GeckoInputConnection
     }
 
     private static InputMethodManager getInputMethodManager() {
-        Context context = getView().getContext();
-        return InputMethods.getInputMethodManager(context);
+        Context context = GeckoApp.mAppContext.getLayerController().getView().getContext();
+        return (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
     }
 
     protected void notifyTextChange(InputMethodManager imm, String text,
@@ -456,7 +461,7 @@ public class GeckoInputConnection
         if (mUpdateRequest == null)
             return;
 
-        View v = getView();
+        View v = GeckoApp.mAppContext.getLayerController().getView();
 
         if (imm == null) {
             imm = getInputMethodManager();
@@ -519,7 +524,7 @@ public class GeckoInputConnection
         }
 
         if (imm != null && imm.isFullscreenMode()) {
-            View v = getView();
+            View v = GeckoApp.mAppContext.getLayerController().getView();
             imm.updateSelection(v, start, end, -1, -1);
         }
     }
@@ -836,8 +841,7 @@ public class GeckoInputConnection
         else if (mIMEActionHint != null && mIMEActionHint.length() != 0)
             outAttrs.actionLabel = mIMEActionHint;
 
-        GeckoApp app = GeckoApp.mAppContext;
-        DisplayMetrics metrics = app.getDisplayMetrics();
+        DisplayMetrics metrics = GeckoApp.mAppContext.getDisplayMetrics();
         if (Math.min(metrics.widthPixels, metrics.heightPixels) > INLINE_IME_MIN_DISPLAY_SIZE) {
             // prevent showing full-screen keyboard only when the screen is tall enough
             // to show some reasonable amount of the page (see bug 752709)
@@ -853,13 +857,18 @@ public class GeckoInputConnection
         }
 
         String prevInputMethod = mCurrentInputMethod;
-        mCurrentInputMethod = InputMethods.getCurrentInputMethod(app);
+        mCurrentInputMethod = getCurrentInputMethod();
 
-        // If the user has changed IMEs, then notify input method observers.
+        // If the user has changed IMEs, check whether the new IME is blocklisted.
         if (mCurrentInputMethod != prevInputMethod) {
-            FormAssistPopup popup = app.mFormAssistPopup;
+            FormAssistPopup popup = GeckoApp.mAppContext.mFormAssistPopup;
             if (popup != null) {
-                popup.onInputMethodChanged(mCurrentInputMethod);
+                boolean blocklisted = mCurrentInputMethod != null &&
+                                      sFormAutoCompleteBlocklist.contains(mCurrentInputMethod);
+                if (DEBUG && blocklisted) {
+                    Log.d(LOGTAG, "FormAssist: Blocklisting \"" + mCurrentInputMethod + "\" IME");
+                }
+                popup.block(blocklisted);
             }
         }
 
@@ -920,7 +929,7 @@ public class GeckoInputConnection
             // Let active IME process pre-IME key events
             return false;
 
-        View view = getView();
+        View view = GeckoApp.mAppContext.getLayerController().getView();
         KeyListener keyListener = TextKeyListener.getInstance();
 
         // KeyListener returns true if it handled the event for us.
@@ -968,7 +977,7 @@ public class GeckoInputConnection
             // Let active IME process pre-IME key events
             return false;
 
-        View view = getView();
+        View view = GeckoApp.mAppContext.getLayerController().getView();
         KeyListener keyListener = TextKeyListener.getInstance();
 
         if (mIMEState == IME_STATE_DISABLED ||
@@ -988,7 +997,7 @@ public class GeckoInputConnection
     }
 
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-        View v = getView();
+        View v = GeckoApp.mAppContext.getLayerController().getView();
         switch (keyCode) {
             case KeyEvent.KEYCODE_MENU:
                 InputMethodManager imm = getInputMethodManager();
@@ -1009,7 +1018,7 @@ public class GeckoInputConnection
     public void notifyIME(final int type, final int state) {
         postToUiThread(new Runnable() {
             public void run() {
-                View v = getView();
+                View v = GeckoApp.mAppContext.getLayerController().getView();
                 if (v == null)
                     return;
 
@@ -1054,7 +1063,7 @@ public class GeckoInputConnection
     public void notifyIMEEnabled(final int state, final String typeHint, final String actionHint) {
         postToUiThread(new Runnable() {
             public void run() {
-                View v = getView();
+                View v = GeckoApp.mAppContext.getLayerController().getView();
                 if (v == null)
                     return;
 
@@ -1115,9 +1124,7 @@ public class GeckoInputConnection
             // TimerTask.run() is running on a random background thread, so post to UI thread.
             postToUiThread(new Runnable() {
                 public void run() {
-                    final View v = getView();
-                    if (v == null)
-                        return;
+                    final View v = GeckoApp.mAppContext.getLayerController().getView();
 
                     final InputMethodManager imm = getInputMethodManager();
                     if (imm == null)
@@ -1172,6 +1179,12 @@ public class GeckoInputConnection
 
         return new Span(start, end, content);
     }
+
+    private String getCurrentInputMethod() {
+        return Secure.getString(GeckoApp.mAppContext.getContentResolver(),
+                                Secure.DEFAULT_INPUT_METHOD);
+    }
+
 
     private static String prettyPrintString(CharSequence s) {
         // Quote string and replace newlines with CR arrows.

@@ -155,8 +155,6 @@ public:
   nsRegion& ScaleRoundOut(float aXScale, float aYScale);
   nsRegion& ScaleInverseRoundOut(float aXScale, float aYScale);
   nsIntRegion ScaleToOutsidePixels (float aXScale, float aYScale, nscoord aAppUnitsPerPixel) const;
-  nsIntRegion ScaleToInsidePixels (float aXScale, float aYScale, nscoord aAppUnitsPerPixel) const;
-  nsIntRegion ScaleToNearestPixels (float aXScale, float aYScale, nscoord aAppUnitsPerPixel) const;
   nsIntRegion ToOutsidePixels (nscoord aAppUnitsPerPixel) const;
   nsIntRegion ToNearestPixels (nscoord aAppUnitsPerPixel) const;
 

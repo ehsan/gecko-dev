@@ -168,13 +168,13 @@ public:
         // These methods acquire the monitor and forward to the
         // similarly named methods in AsyncChannel below
         // (OnMessageReceivedFromLink(), etc)
-        virtual void OnMessageReceived(const Message& msg) MOZ_OVERRIDE;
-        virtual void OnChannelConnected(int32 peer_pid) MOZ_OVERRIDE;
-        virtual void OnChannelError() MOZ_OVERRIDE;
+        NS_OVERRIDE virtual void OnMessageReceived(const Message& msg);
+        NS_OVERRIDE virtual void OnChannelConnected(int32 peer_pid);
+        NS_OVERRIDE virtual void OnChannelError();
 
-        virtual void EchoMessage(Message *msg) MOZ_OVERRIDE;
-        virtual void SendMessage(Message *msg) MOZ_OVERRIDE;
-        virtual void SendClose() MOZ_OVERRIDE;
+        NS_OVERRIDE virtual void EchoMessage(Message *msg);
+        NS_OVERRIDE virtual void SendMessage(Message *msg);
+        NS_OVERRIDE virtual void SendClose();
     };
     
     class ThreadLink : public Link {
@@ -185,9 +185,9 @@ public:
         ThreadLink(AsyncChannel *aChan, AsyncChannel *aTargetChan);
         virtual ~ThreadLink();
 
-        virtual void EchoMessage(Message *msg) MOZ_OVERRIDE;
-        virtual void SendMessage(Message *msg) MOZ_OVERRIDE;
-        virtual void SendClose() MOZ_OVERRIDE;
+        NS_OVERRIDE virtual void EchoMessage(Message *msg);
+        NS_OVERRIDE virtual void SendMessage(Message *msg);
+        NS_OVERRIDE virtual void SendClose();
     };
 
 protected:

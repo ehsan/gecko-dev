@@ -565,10 +565,12 @@ NS_METHOD nsWindow::Enable(bool aState)
 
 //-----------------------------------------------------------------------------
 
-bool nsWindow::IsEnabled() const
+NS_METHOD nsWindow::IsEnabled(bool* aState)
 {
+  NS_ENSURE_ARG_POINTER(aState);
   HWND hMain = GetMainWindow();
-  return !hMain || WinIsWindowEnabled(hMain);
+  *aState = !hMain || WinIsWindowEnabled(hMain);
+  return NS_OK;
 }
 
 //-----------------------------------------------------------------------------

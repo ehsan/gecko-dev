@@ -431,8 +431,8 @@ void nsCARenderer::Destroy() {
   mOpenGLContext = nsnull;
   mCGImage = nsnull;
   mIOSurface = nsnull;
-  mFBO = 0;
-  mIOTexture = 0;
+  mFBO = nsnull;
+  mIOTexture = nsnull;
 }
 
 nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight,

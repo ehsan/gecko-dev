@@ -1610,26 +1610,10 @@ var SelectionHandler = {
     }
   },
 
-  _ignoreCollapsedSelection: false,
-
   notifySelectionChanged: function sh_notifySelectionChanged(aDoc, aSel, aReason) {
-    if (aSel.isCollapsed) {
-      // Bail if we're ignoring events for a collapsed selection.
-      if (this._ignoreCollapsedSelection)
-        return;
-
-      // If the selection is collapsed because of one of the mouse events we 
-      // sent while moving the handle, don't get rid of the selection handles.
-      if (aReason & Ci.nsISelectionListener.MOUSEDOWN_REASON) {
-        this._ignoreCollapsedSelection = true;
-        return;
-      }
-
-      // Otherwise, we do want to end the selection.
+    // If the selection was removed, call endSelection() to clean up
+    if (aSel == "" && aReason == Ci.nsISelectionListener.NO_REASON)
       this.endSelection();
-    }
-
-    this._ignoreCollapsedSelection = false;
   },
 
   // aX/aY are in top-level window browser coordinates
@@ -1786,16 +1770,12 @@ var SelectionHandler = {
     this.hideHandles();
 
     let selectedText = "";
-    let pointInSelection = false;
     if (this._view) {
       let selection = this._view.getSelection();
       if (selection) {
-        // Get the text before we clear the selection!
-        selectedText = selection.toString().trim();
-
-        // Also figure out if the point is in the selection before we clear it.
+        // Get the text to copy if the tap is in the selection
         if (arguments.length == 2 && this._pointInSelection(aX, aY))
-          pointInSelection = true;
+          selectedText = selection.toString().trim();
 
         selection.removeAllRanges();
         selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
@@ -1803,7 +1783,7 @@ var SelectionHandler = {
     }
 
     // Only try copying text if there's text to copy!
-    if (pointInSelection && selectedText.length) {
+    if (selectedText.length) {
       let element = ElementTouchHelper.anyElementFromPoint(BrowserApp.selectedBrowser.contentWindow, aX, aY);
       // Only try copying text if the tap happens in the same view
       if (element.ownerDocument.defaultView == this._view) {

@@ -289,7 +289,7 @@ abstract public class BrowserApp extends GeckoApp
     public View getActionBarLayout() {
         int actionBarRes;
 
-        if (!GeckoApp.mAppContext.hasPermanentMenuKey() || GeckoApp.mAppContext.isTablet())
+        if (GeckoApp.mAppContext.hasPermanentMenuKey())
            actionBarRes = R.layout.browser_toolbar_menu;
         else
            actionBarRes = R.layout.browser_toolbar;
@@ -298,11 +298,6 @@ abstract public class BrowserApp extends GeckoApp
         actionBar.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.FILL_PARENT,
                                                                 (int) mAppContext.getResources().getDimension(R.dimen.browser_toolbar_height)));
         return actionBar;
-    }
-
-    @Override
-    public boolean hasTabsSideBar() {
-        return (mTabsPanel != null && mTabsPanel.isSideBar());
     }
 
     void addTab() {
@@ -329,7 +324,7 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     public boolean autoHideTabs() {
-        if (!hasTabsSideBar() && areTabsShown()) {
+        if (!isTablet() && areTabsShown()) {
             hideTabs();
             return true;
         }
@@ -351,7 +346,7 @@ abstract public class BrowserApp extends GeckoApp
         mMainLayoutAnimator = new PropertyAnimator(150);
         mMainLayoutAnimator.setPropertyAnimationListener(this);
 
-        if (hasTabsSideBar()) {
+        if (isTablet()) {
             mMainLayoutAnimator.attach(mBrowserToolbar.getLayout(),
                                        PropertyAnimator.Property.SHRINK_LEFT,
                                        width);
@@ -389,7 +384,7 @@ abstract public class BrowserApp extends GeckoApp
     public void onPropertyAnimationEnd() {
         mMainHandler.post(new Runnable() {
             public void run() {
-                if (hasTabsSideBar() && mTabsPanel.isShown()) {
+                if (isTablet() && mTabsPanel.isShown()) {
                     // Fake the gecko layout to have been shrunk, instead of sliding.
                     ((LinearLayout.LayoutParams) mGeckoLayout.getLayoutParams()).setMargins(mTabsPanel.getWidth(), 0, 0, 0);
                     mGeckoLayout.scrollTo(0, 0);

@@ -163,14 +163,16 @@ public:
     , mRemoteFrame(aRemoteFrame)
   {}
 
+  NS_OVERRIDE
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager,
-                                   const ContainerParameters& aParameters) MOZ_OVERRIDE
-  { return mozilla::LAYER_ACTIVE_FORCE; }
+                                   const ContainerParameters& aParameters)
+  { return mozilla::LAYER_ACTIVE; }  
 
+  NS_OVERRIDE
   virtual already_AddRefed<Layer>
   BuildLayer(nsDisplayListBuilder* aBuilder, LayerManager* aManager,
-             const ContainerParameters& aContainerParameters) MOZ_OVERRIDE;
+             const ContainerParameters& aContainerParameters);
 
   NS_DISPLAY_DECL_NAME("Remote", TYPE_REMOTE)
 
@@ -200,7 +202,7 @@ public:
     , mId(aId)
   {}
 
-  nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE
+  NS_OVERRIDE nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
   {
     *aSnap = false;
     return mRect;
@@ -212,8 +214,8 @@ public:
     return 0;
   }
 
-  void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-               HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE;
+  NS_OVERRIDE void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
+                           HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
 
   NS_DISPLAY_DECL_NAME("Remote-Shadow", TYPE_REMOTE_SHADOW)
 

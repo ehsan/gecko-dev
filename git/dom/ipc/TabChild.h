@@ -259,12 +259,15 @@ public:
     bool IsAsyncPanZoomEnabled();
 
 protected:
+    NS_OVERRIDE
     virtual PRenderFrameChild* AllocPRenderFrame(ScrollingBehavior* aScrolling,
                                                  LayersBackend* aBackend,
                                                  int32_t* aMaxTextureSize,
-                                                 uint64_t* aLayersId) MOZ_OVERRIDE;
-    virtual bool DeallocPRenderFrame(PRenderFrameChild* aFrame) MOZ_OVERRIDE;
-    virtual bool RecvDestroy() MOZ_OVERRIDE;
+                                                 uint64_t* aLayersId);
+    NS_OVERRIDE
+    virtual bool DeallocPRenderFrame(PRenderFrameChild* aFrame);
+    NS_OVERRIDE
+    virtual bool RecvDestroy();
 
     nsEventStatus DispatchWidgetEvent(nsGUIEvent& event);
 

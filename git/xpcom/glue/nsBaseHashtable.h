@@ -99,7 +99,7 @@ public:
    * @return true if the key exists. If key does not exist, pData is not
    *   modified.
    */
-  bool Get(KeyType aKey, UserDataType* pData) const
+  bool Get(KeyType aKey, UserDataType* pData NS_OUTPARAM) const
   {
     EntryType* ent = this->GetEntry(aKey);
 
@@ -125,7 +125,7 @@ public:
   {
     EntryType* ent = this->GetEntry(aKey);
     if (!ent)
-      return 0;
+      return nsnull;
 
     return ent->mData;
   }

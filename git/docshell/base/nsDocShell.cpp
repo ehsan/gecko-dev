@@ -2747,10 +2747,6 @@ nsDocShell::GetSameTypeParent(nsIDocShellTreeItem ** aParent)
     NS_ENSURE_ARG_POINTER(aParent);
     *aParent = nsnull;
 
-    if (mIsBrowserFrame) {
-        return NS_OK;
-    }
-
     nsCOMPtr<nsIDocShellTreeItem> parent =
         do_QueryInterface(GetAsSupports(mParent));
     if (!parent)
@@ -2761,27 +2757,6 @@ nsDocShell::GetSameTypeParent(nsIDocShellTreeItem ** aParent)
 
     if (parentType == mItemType) {
         parent.swap(*aParent);
-    }
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::GetParentIgnoreBrowserFrame(nsIDocShell** aParent)
-{
-    NS_ENSURE_ARG_POINTER(aParent);
-    *aParent = nsnull;
-
-    nsCOMPtr<nsIDocShellTreeItem> parent =
-        do_QueryInterface(GetAsSupports(mParent));
-    if (!parent)
-        return NS_OK;
-
-    PRInt32 parentType;
-    NS_ENSURE_SUCCESS(parent->GetItemType(&parentType), NS_ERROR_FAILURE);
-
-    if (parentType == mItemType) {
-        nsCOMPtr<nsIDocShell> parentDS = do_QueryInterface(parent);
-        parentDS.forget(aParent);
     }
     return NS_OK;
 }
@@ -5017,20 +4992,12 @@ nsDocShell::SetIsActive(bool aIsActive)
       }
   }
 
-  // Recursively tell all of our children, but don't tell <iframe mozbrowser>
-  // children; they handle their state separately.
+  // Recursively tell all of our children
   PRInt32 n = mChildList.Count();
   for (PRInt32 i = 0; i < n; ++i) {
       nsCOMPtr<nsIDocShell> docshell = do_QueryInterface(ChildAt(i));
-      if (!docshell) {
-          continue;
-      }
-
-      bool isContentBoundary = false;
-      docshell->GetIsContentBoundary(&isContentBoundary);
-      if (!isContentBoundary) {
-          docshell->SetIsActive(aIsActive);
-      }
+      if (docshell)
+        docshell->SetIsActive(aIsActive);
   }
 
   return NS_OK;
@@ -11123,9 +11090,16 @@ NS_IMETHODIMP nsDocShell::EnsureFind()
 bool
 nsDocShell::IsFrame()
 {
-    nsCOMPtr<nsIDocShellTreeItem> parent;
-    GetSameTypeParent(getter_AddRefs(parent));
-    return !!parent;
+    nsCOMPtr<nsIDocShellTreeItem> parent =
+        do_QueryInterface(GetAsSupports(mParent));
+    if (parent) {
+        PRInt32 parentType = ~mItemType;        // Not us
+        parent->GetItemType(&parentType);
+        if (parentType == mItemType)    // This is a frame
+            return true;
+    }
+
+    return false;
 }
 
 /* boolean IsBeingDestroyed (); */
@@ -11360,20 +11334,6 @@ nsDocShell::GetIsContent(bool *aIsContent)
     *aIsContent = (mItemType == typeContent);
     return NS_OK;
 }
-
-NS_IMETHODIMP
-nsDocShell::GetExtendedOrigin(nsIURI *aUri, nsACString &aResult)
-{
-    bool isInBrowserElement;
-    GetIsInBrowserElement(&isInBrowserElement);
-
-    nsCOMPtr<nsIScriptSecurityManager> ssmgr =
-      do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
-    NS_ENSURE_TRUE(ssmgr, false);
-
-    return ssmgr->GetExtendedOrigin(aUri, mAppId, isInBrowserElement, aResult);
-}
-
 
 bool
 nsDocShell::IsOKToLoadURI(nsIURI* aURI)
@@ -12035,7 +11995,7 @@ NS_IMETHODIMP
 nsDocShell::SetIsBrowserElement()
 {
     if (mIsBrowserFrame) {
-        NS_ERROR("You should not call SetIsBrowserElement() more than once.");
+        NS_ERROR("You should not call SetIsBrowser() more than once.");
         return NS_OK;
     }
 
@@ -12163,9 +12123,10 @@ nsDocShell::GetAppId(PRUint32* aAppId)
 
     MOZ_ASSERT(GetFrameType() != eFrameTypeApp);
 
-    nsCOMPtr<nsIDocShell> parent;
-    GetParentIgnoreBrowserFrame(getter_AddRefs(parent));
+    nsCOMPtr<nsIDocShellTreeItem> parentAsItem;
+    GetSameTypeParent(getter_AddRefs(parentAsItem));
 
+    nsCOMPtr<nsIDocShell> parent = do_QueryInterface(parentAsItem);
     if (!parent) {
         *aAppId = nsIScriptSecurityManager::NO_APP_ID;
         return NS_OK;

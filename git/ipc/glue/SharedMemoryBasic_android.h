@@ -31,16 +31,20 @@ public:
 
   virtual ~SharedMemoryBasic();
 
-  virtual bool Create(size_t aNbytes) MOZ_OVERRIDE;
+  NS_OVERRIDE
+  virtual bool Create(size_t aNbytes);
 
-  virtual bool Map(size_t nBytes) MOZ_OVERRIDE;
+  NS_OVERRIDE
+  virtual bool Map(size_t nBytes);
 
-  virtual void* memory() const MOZ_OVERRIDE
+  NS_OVERRIDE
+  virtual void* memory() const
   {
     return mMemory;
   }
 
-  virtual SharedMemoryType Type() const MOZ_OVERRIDE
+  NS_OVERRIDE
+  virtual SharedMemoryType Type() const
   {
     return TYPE_BASIC;
   }

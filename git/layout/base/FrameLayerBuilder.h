@@ -123,9 +123,7 @@ public:
   FrameLayerBuilder() :
     mRetainingManager(nsnull),
     mDetectedDOMModification(false),
-    mInvalidateAllLayers(false),
-    mContainerLayerGeneration(0),
-    mMaxContainerLayerGeneration(0)
+    mInvalidateAllLayers(false)
   {
     MOZ_COUNT_CTOR(FrameLayerBuilder);
     mNewDisplayItemData.Init();
@@ -469,16 +467,11 @@ protected:
    */
   class DisplayItemData {
   public:
-    DisplayItemData(Layer* aLayer, PRUint32 aKey, LayerState aLayerState, PRUint32 aGeneration)
-      : mLayer(aLayer)
-      , mDisplayItemKey(aKey)
-      , mContainerLayerGeneration(aGeneration)
-      , mLayerState(aLayerState)
-    {}
+    DisplayItemData(Layer* aLayer, PRUint32 aKey, LayerState aLayerState)
+      : mLayer(aLayer), mDisplayItemKey(aKey), mLayerState(aLayerState) {}
 
     nsRefPtr<Layer> mLayer;
     PRUint32        mDisplayItemKey;
-    PRUint32        mContainerLayerGeneration;
     LayerState      mLayerState;
   };
 
@@ -502,14 +495,12 @@ protected:
       // array and invalid region.  Be careful.
       mData.SwapElements(toCopy.mData);
       mInvalidRegion.swap(toCopy.mInvalidRegion);
-      mContainerLayerGeneration = toCopy.mContainerLayerGeneration;
     }
 
     bool HasNonEmptyContainerLayer();
 
     nsAutoTArray<DisplayItemData, 1> mData;
     nsRefPtr<RefCountedRegion> mInvalidRegion;
-    PRUint32 mContainerLayerGeneration;
     bool mIsSharingContainerLayer;
 
     enum { ALLOW_MEMMOVE = false };
@@ -553,14 +544,13 @@ protected:
    * mItem always has an underlying frame.
    */
   struct ClippedDisplayItem {
-    ClippedDisplayItem(nsDisplayItem* aItem, const Clip& aClip, PRUint32 aGeneration)
-      : mItem(aItem), mClip(aClip), mContainerLayerGeneration(aGeneration)
+    ClippedDisplayItem(nsDisplayItem* aItem, const Clip& aClip)
+      : mItem(aItem), mClip(aClip)
     {
     }
 
     nsDisplayItem* mItem;
     Clip mClip;
-    PRUint32 mContainerLayerGeneration;
     bool mInactiveLayer;
   };
 
@@ -585,7 +575,6 @@ public:
     // The translation set on this ThebesLayer before we started updating the
     // layer tree.
     nsIntPoint mLastPaintOffset;
-    PRUint32 mContainerLayerGeneration;
     bool mHasExplicitLastPaintOffset;
     /**
       * The first mCommonClipCount rounded rectangle clips are identical for
@@ -613,11 +602,6 @@ protected:
                                                        void* aUserArg);
   static PLDHashOperator StoreNewDisplayItemData(DisplayItemDataEntry* aEntry,
                                                  void* aUserArg);
-  static PLDHashOperator RestoreDisplayItemData(DisplayItemDataEntry* aEntry,
-                                                void *aUserArg);
-
-  static PLDHashOperator RestoreThebesLayerItemEntries(ThebesLayerItemsEntry* aEntry,
-                                                       void *aUserArg);
 
   /**
    * Returns true if the DOM has been modified since we started painting,
@@ -659,9 +643,6 @@ protected:
    * during this paint.
    */
   bool                                mInvalidateAllLayers;
-
-  PRUint32                            mContainerLayerGeneration;
-  PRUint32                            mMaxContainerLayerGeneration;
 };
 
 }

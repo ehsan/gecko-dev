@@ -74,7 +74,7 @@ public:
 
     // Stops timer used for the read timeout tick if there are no currently
     // active connections.
-    void ConditionallyStopTimeoutTick();
+    void ConditionallyStopReadTimeoutTick();
 
     // adds a transaction to the list of managed transactions.
     nsresult AddTransaction(nsHttpTransaction *, PRInt32 priority);
@@ -265,9 +265,6 @@ private:
         // connection complete
         PRUint32 UnconnectedHalfOpens();
 
-        // Remove a particular half open socket from the mHalfOpens array
-        void RemoveHalfOpen(nsHalfOpenSocket *);
-
         // Pipeline depths for various states
         const static PRUint32 kPipelineUnlimited  = 1024; // fully open - extended green
         const static PRUint32 kPipelineOpen       = 6;    // 6 on each conn - normal green
@@ -391,10 +388,7 @@ private:
         void     SetupBackupTimer();
         void     CancelBackupTimer();
         void     Abandon();
-        double   Duration(mozilla::TimeStamp epoch);
-        nsISocketTransport *SocketTransport() { return mSocketTransport; }
-        nsISocketTransport *BackupTransport() { return mBackupTransport; }
-
+        
         nsAHttpTransaction *Transaction() { return mTransaction; }
 
         bool IsSpeculative() { return mSpeculative; }
@@ -586,10 +580,10 @@ private:
     nsCOMPtr<nsITimer> mTimer;
 
     // A 1s tick to call nsHttpConnection::ReadTimeoutTick on
-    // active http/1 connections and check for orphaned half opens.
-    // Disabled when there are no active or half open connections.
-    nsCOMPtr<nsITimer> mTimeoutTick;
-    bool mTimeoutTickArmed;
+    // active http/1 connections. Disabled when there are no
+    // active connections.
+    nsCOMPtr<nsITimer> mReadTimeoutTick;
+    bool mReadTimeoutTickArmed;
 
     //
     // the connection table
@@ -606,10 +600,10 @@ private:
                                                      void *closure);
     // Read Timeout Tick handlers
     void ActivateTimeoutTick();
-    void TimeoutTick();
-    static PLDHashOperator TimeoutTickCB(const nsACString &key,
-                                         nsAutoPtr<nsConnectionEntry> &ent,
-                                         void *closure);
+    void ReadTimeoutTick();
+    static PLDHashOperator ReadTimeoutTickCB(const nsACString &key,
+                                             nsAutoPtr<nsConnectionEntry> &ent,
+                                             void *closure);
 
     // For diagnostics
     void OnMsgPrintDiagnostics(PRInt32, void *);
