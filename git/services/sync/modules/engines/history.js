@@ -141,9 +141,15 @@ HistoryStore.prototype = {
     }
   },
 
+  _defineStm: function HistStore__defineStm(prop, sql) {
+    let stm = this._db.createStatement(sql);
+    this.__defineGetter__(prop, function() stm);
+    return stm;
+  },
+
   get _visitStm() {
-    this._log.trace("Creating SQL statement: _visitStm");
-    let stm = this._db.createStatement(
+    let stm = this._defineStm(
+      "_visitStm",
       "SELECT * FROM ( " +
         "SELECT visit_type AS type, visit_date AS date " +
         "FROM moz_historyvisits_temp " +
@@ -161,13 +167,12 @@ HistoryStore.prototype = {
         "LIMIT 10 " +
       ") " +
       "ORDER BY 2 DESC LIMIT 10"); /* 2 is visit_date */
-    this.__defineGetter__("_visitStm", function() stm);
     return stm;
   },
 
   get _pidStm() {
-    this._log.trace("Creating SQL statement: _pidStm");
-    let stm = this._db.createStatement(
+    let stm = this._defineStm(
+      "_pidStm",
       "SELECT * FROM " + 
         "(SELECT id FROM moz_places_temp WHERE url = :url LIMIT 1) " +
       "UNION ALL " +
@@ -177,42 +182,36 @@ HistoryStore.prototype = {
         "LIMIT 1 " +
       ") " +
       "LIMIT 1");
-    this.__defineGetter__("_pidStm", function() stm);
     return stm;
   },
 
   get _urlStm() {
-    this._log.trace("Creating SQL statement: _urlStm");
-    let stm = this._db.createStatement(
+    let stm = this._defineStm(
+      "_urlStm",
       "SELECT * FROM " +
         "(SELECT url FROM moz_places_temp WHERE id = :id LIMIT 1) " +
       "UNION ALL " +
       "SELECT * FROM ( " +
-        "SELECT url FROM moz_places WHERE id = :id " +
+        "SELECT url FROM moz_places WHERE ud = :id " +
         "AND id NOT IN (SELECT id from moz_places_temp) " +
         "LIMIT 1 " +
       ") " +
       "LIMIT 1");
-    this._log.trace("_urlStm 1");
-    this.__defineGetter__("_urlStm", function() stm);
-    this._log.trace("_urlStm 2");
     return stm;
   },
 
   get _annoAttrIdStm() {
-    this._log.trace("Creating SQL statement: _annoAttrIdStm");
-    let stm = this._db.createStatement(
+    let stm = this._defineStm(
+      "_annoAttrIdStm",
       "SELECT id from moz_anno_attributes WHERE name = :name");
-    this.__defineGetter__("_annoAttrIdStm", function() stm);
     return stm;
   },
 
   get _findPidByAnnoStm() {
-    this._log.trace("Creating SQL statement: _findPidByAnnoStm");
-    let stm = this._db.createStatement(
+    let stm = this._defineStm(
+      "_findPidByAnnoStm",
       "SELECT place_id AS id FROM moz_annos " +
         "WHERE anno_attribute_id = :attr AND content = :content");
-    this.__defineGetter__("_findPidByAnnoStm", function() stm);
     return stm;
   },
 
@@ -228,16 +227,12 @@ HistoryStore.prototype = {
       return visits;
     }
 
-    try {
-      this._visitStm.params.placeid = placeid;
-      while (this._visitStm.step()) {
-        visits.push({date: this._visitStm.row.date,
-                     type: this._visitStm.row.type});
-      }
-    } finally {
-      this._visitStm.reset();
+    this._visitStm.params.placeid = placeid;
+    while (this._visitStm.step()) {
+      visits.push({date: this._visitStm.row.date,
+                   type: this._visitStm.row.type});
     }
-
+    this._visitStm.reset();
     return visits;
   },
 
@@ -257,7 +252,7 @@ HistoryStore.prototype = {
   },
 
   // See bug 468732 for why we use SQL here
-  _findURLByGUID: function HistStore__findURLByGUID(guid) {
+  _findURLByGUID: function HistStore__findByGUID(guid) {
     try {
       this._annoAttrIdStm.params.name = "weave/guid";
       if (!this._annoAttrIdStm.step())
