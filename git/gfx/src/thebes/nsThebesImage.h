@@ -75,11 +75,18 @@ public:
     virtual nsresult Optimize(nsIDeviceContext* aContext);
     virtual nsColorMap *GetColorMap();
 
-    virtual void Draw(gfxContext*        aContext,
-                      const gfxMatrix&   aUserSpaceToImageSpace,
-                      const gfxRect&     aFill,
-                      const nsIntMargin& aPadding,
-                      const nsIntRect&   aSubimage);
+    NS_IMETHOD Draw(nsIRenderingContext &aContext,
+                    const gfxRect &aSourceRect,
+                    const gfxRect &aSubimageRect,
+                    const gfxRect &aDestRect);
+
+    nsresult ThebesDrawTile(gfxContext *thebesContext,
+                            nsIDeviceContext* dx,
+                            const gfxPoint& aOffset,
+                            const gfxRect& aTileRect,
+                            const nsIntRect& aSubimageRect,
+                            const PRInt32 aXPadding,
+                            const PRInt32 aYPadding);
 
     virtual PRInt8 GetAlphaDepth();
     virtual void* GetBitInfo();

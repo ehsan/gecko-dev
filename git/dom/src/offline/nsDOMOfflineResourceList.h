@@ -131,7 +131,6 @@ private:
   nsCOMArray<nsIDOMEventListener> mProgressListeners;
   nsCOMArray<nsIDOMEventListener> mCachedListeners;
   nsCOMArray<nsIDOMEventListener> mUpdateReadyListeners;
-  nsCOMArray<nsIDOMEventListener> mObsoleteListeners;
 
   nsCOMPtr<nsIDOMEventListener> mOnCheckingListener;
   nsCOMPtr<nsIDOMEventListener> mOnErrorListener;
@@ -140,7 +139,6 @@ private:
   nsCOMPtr<nsIDOMEventListener> mOnProgressListener;
   nsCOMPtr<nsIDOMEventListener> mOnCachedListener;
   nsCOMPtr<nsIDOMEventListener> mOnUpdateReadyListener;
-  nsCOMPtr<nsIDOMEventListener> mOnObsoleteListener;
 
   struct PendingEvent {
     nsCOMPtr<nsIDOMEvent> event;

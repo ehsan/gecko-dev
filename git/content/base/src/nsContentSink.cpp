@@ -73,7 +73,6 @@
 #include "nsIOfflineCacheUpdate.h"
 #include "nsIApplicationCache.h"
 #include "nsIApplicationCacheContainer.h"
-#include "nsIApplicationCacheChannel.h"
 #include "nsIApplicationCacheService.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIDOMLoadStatus.h"
@@ -1077,7 +1076,7 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
   // Grab the application cache the document was loaded from, if any.
   nsCOMPtr<nsIApplicationCache> applicationCache;
 
-  nsCOMPtr<nsIApplicationCacheChannel> applicationCacheChannel =
+  nsCOMPtr<nsIApplicationCacheContainer> applicationCacheChannel =
     do_QueryInterface(mDocument->GetChannel());
   if (applicationCacheChannel) {
     rv = applicationCacheChannel->GetApplicationCache(

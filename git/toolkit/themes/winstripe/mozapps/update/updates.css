@@ -1,15 +1,9 @@
 /**
  * General
  */
-.heed {
+.wizard-button[dlgtype="finish"] {
   font-weight: bold;
 }
-
-.wizard-button > .button-box {
-  padding-left: 15px !important;
-  padding-right: 15px !important;
-}
-
 
 link {
   color: -moz-nativehyperlinktext;
@@ -35,7 +29,10 @@ link:focus {
   border: 1px dotted black;
 }
 
-remotecontent {
+/**
+ * License Page
+ */
+license {
   margin-top: 1px;
   margin-bottom: 2px;
   -moz-margin-start: 6px;
@@ -44,19 +41,16 @@ remotecontent {
   padding-bottom: 1px;
 }
 
-/**
- * License Page
- */
 .loadingBox {
   padding: 3px 5px 3px 5px;
 }
-.remoteLoadingThrobber {
+.licenseLoadingThrobber {
   margin-top: 3px;
 }
-.remoteLoadingThrobber[state="loading"] {
+.licenseLoadingThrobber[state="loading"] {
   list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
-.remoteLoadingThrobber[state="error"] {
+.licenseLoadingThrobber[state="error"] {
   list-style-image: url("chrome://global/skin/icons/notfound.png");
 }
 
@@ -65,6 +59,15 @@ remotecontent {
  */
 #moreDetails {
   margin: 1px 5px 4px 3px;
+}
+
+wizard[currentpageid="updatesfound"] .wizard-button[dlgtype="next"] {
+  font-weight: bold;
+}
+
+wizard[currentpageid="updatesfound"] .wizard-button[dlgtype="next"] > .button-box {
+  padding-left: 15px;
+  padding-right: 15px;  
 }
 
 #updateForMoreInfo {
@@ -92,75 +95,28 @@ remotecontent {
 /**
  * Downloading Page
  */
-#downloadStatusTop, #downloadStatusLine {
-  -moz-box-align: center;
+#downloadName {
+  margin-top: 3px;
 }
 
 #downloadStatus {
+  margin-top: 6px;
   height: 3em !important;
 }
-
 #downloadThrobber {
-  margin-left: 5px;
+  margin: 5px 3px 0px 5px;
   list-style-image: url("chrome://global/skin/icons/notloading_16.png");
 }
-
 #downloadThrobber[state="loading"] {
   list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
-
-#downloadStatusProgress {
-  padding-right: 5px;
-}
-
-#pauseButton {
-  -moz-appearance: none;
-  list-style-image: url(chrome://mozapps/skin/downloads/downloadButtons.png);
-  -moz-image-region: rect(0px, 48px, 16px, 32px);
-  background-color: transparent;
-  border: none;
-  padding: 0;
-  margin: 0;
-  min-width: 0;
-  min-height: 0;
-}
-
-/* !Important must be used otherwise this won't immediately take affect */
-#pauseButton > .button-box {
-  padding: 0 !important;
-}
-
-#pauseButton:hover {
-  -moz-image-region: rect(16px, 48px, 32px, 32px);
-}
-
-#pauseButton:active {
-  -moz-image-region: rect(32px, 48px, 48px, 32px);
-}
-
-#pauseButton[disabled="true"] {
-  -moz-image-region: rect(48px, 48px, 64px, 32px);
-}
-
-#pauseButton[paused="true"] {
-  -moz-image-region: rect(0px, 16px, 16px, 0px);
-}
-
-#pauseButton[paused="true"]:hover {
-  -moz-image-region: rect(16px, 16px, 32px, 0px);
-}
-
-#pauseButton[paused="true"]:active {
-  -moz-image-region: rect(32px, 16px, 48px, 0px);
-}
-
-#pauseButton[paused="true"][disabled="true"] {
-  -moz-image-region: rect(48px, 16px, 64px, 0px);
+#downloadStatusLine {
+  -moz-box-align: start;
 }
 
 #verificationFailedIcon {
-  margin-left: 5px;
   list-style-image: url("chrome://global/skin/icons/notfound.png");
+  margin: 5px 3px 0px 5px;
 }
 
 /**
@@ -213,3 +169,4 @@ update {
   margin-left: 27px;
   margin-bottom: 10px;
 }
+

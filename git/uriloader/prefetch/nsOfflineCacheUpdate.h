@@ -217,10 +217,6 @@ public:
 
     void LoadCompleted();
 
-    void AddDocument(nsIDOMDocument *aDocument) {
-        mDocuments.AppendObject(aDocument);
-    };
-
 private:
     nsresult HandleManifest(PRBool *aDoUpdate);
     nsresult AddURI(nsIURI *aURI, PRUint32 aItemType);
@@ -237,11 +233,9 @@ private:
     nsresult NotifyError();
     nsresult NotifyChecking();
     nsresult NotifyNoUpdate();
-    nsresult NotifyObsolete();
     nsresult NotifyDownloading();
     nsresult NotifyStarted(nsOfflineCacheUpdateItem *aItem);
     nsresult NotifyCompleted(nsOfflineCacheUpdateItem *aItem);
-    nsresult AssociateDocument(nsIDOMDocument *aDocument);
     nsresult Finish();
 
     enum {
@@ -253,11 +247,9 @@ private:
         STATE_FINISHED
     } mState;
 
-    PRPackedBool mAddedItems;
-    PRPackedBool mPartialUpdate;
-    PRPackedBool mSucceeded;
-    PRPackedBool mObsolete;
-
+    PRBool mAddedItems;
+    PRBool mPartialUpdate;
+    PRBool mSucceeded;
     nsCString mUpdateDomain;
     nsCOMPtr<nsIURI> mManifestURI;
 
@@ -278,9 +270,6 @@ private:
     /* Clients watching this update for changes */
     nsCOMArray<nsIWeakReference> mWeakObservers;
     nsCOMArray<nsIOfflineCacheUpdateObserver> mObservers;
-
-    /* Documents that requested this update */
-    nsCOMArray<nsIDOMDocument> mDocuments;
 };
 
 class nsOfflineCacheUpdateService : public nsIOfflineCacheUpdateService
@@ -300,11 +289,6 @@ public:
     nsresult Init();
 
     nsresult Schedule(nsOfflineCacheUpdate *aUpdate);
-    nsresult Schedule(nsIURI *aManifestURI,
-                      nsIURI *aDocumentURI,
-                      nsIDOMDocument *aDocument,
-                      nsIOfflineCacheUpdate **aUpdate);
-
     nsresult UpdateFinished(nsOfflineCacheUpdate *aUpdate);
 
     /**
@@ -315,7 +299,7 @@ public:
 
     /** Addrefs and returns the singleton nsOfflineCacheUpdateService. */
     static nsOfflineCacheUpdateService *GetInstance();
-
+    
 private:
     nsresult ProcessNextUpdate();
 

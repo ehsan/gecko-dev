@@ -1197,15 +1197,14 @@ nsNavHistory::InitStatements()
 
   // mDBGetTags
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-      "SELECT GROUP_CONCAT(tag_title, ?1) FROM ("
-        "SELECT t.title AS tag_title "
-        "FROM moz_bookmarks b "
-        "JOIN moz_bookmarks t ON t.id = b.parent "
-        "WHERE b.fk = IFNULL((SELECT id FROM moz_places_temp WHERE url = ?3), "
-                            "(SELECT id FROM moz_places WHERE url = ?3)) "
-          "AND b.type = ") +
-            nsPrintfCString("%d", nsINavBookmarksService::TYPE_BOOKMARK) +
-        NS_LITERAL_CSTRING(" AND t.parent = ?2 ORDER BY t.title)"),
+      "SELECT GROUP_CONCAT(t.title, ' ') "
+      "FROM moz_bookmarks b "
+      "JOIN moz_bookmarks t ON t.id = b.parent "
+      "WHERE b.fk = IFNULL((SELECT id FROM moz_places_temp WHERE url = ?2), "
+                          "(SELECT id FROM moz_places WHERE url = ?2)) "
+        "AND b.type = ") +
+          nsPrintfCString("%d", nsINavBookmarksService::TYPE_BOOKMARK) +
+        NS_LITERAL_CSTRING(" AND t.parent = ?1 "),
     getter_AddRefs(mDBGetTags));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -5972,11 +5971,9 @@ nsNavHistory::FilterResultSet(nsNavHistoryQueryResultNode* aQueryNode,
 
       // Fetch the tags
       mozStorageStatementScoper scoper(mDBGetTags);
-      rv = mDBGetTags->BindStringParameter(0, NS_LITERAL_STRING(" "));
+      rv = mDBGetTags->BindInt32Parameter(0, GetTagsFolder());
       NS_ENSURE_SUCCESS(rv, rv);
-      rv = mDBGetTags->BindInt32Parameter(1, GetTagsFolder());
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = mDBGetTags->BindUTF8StringParameter(2, aSet[nodeIndex]->mURI);
+      rv = mDBGetTags->BindUTF8StringParameter(1, aSet[nodeIndex]->mURI);
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsAutoString nodeTags;

@@ -77,9 +77,6 @@ function test() {
   function releaseCtrl()
     EventUtils.synthesizeKey("VK_CONTROL", { type: "keyup" });
 
-  function isOpen()
-    ctrlTab.panel.state == "showing" || ctrlTab.panel.state == "open";
-
   function assertTabs(aTabs) {
     var tabs = gBrowser.mTabs.length;
     if (tabs != aTabs) {
@@ -113,15 +110,18 @@ function test() {
     }
 
     if (tabCount > 2) {
-      ok(isOpen(),
+      ok(ctrlTab.panel.state == "showing" || ctrlTab.panel.state == "open",
          "With " + tabCount + " tabs open, Ctrl+Tab opens the preview panel");
+
+      is(ctrlTab.label.value, gBrowser.mTabs[expectedIndex].label,
+         "Preview panel displays label of expected tab");
 
       releaseCtrl();
 
-      ok(!isOpen(),
+      ok(ctrlTab.panel.state == "hiding" || ctrlTab.panel.state == "closed",
          "Releasing Ctrl closes the preview panel");
     } else {
-      ok(!isOpen(),
+      ok(ctrlTab.panel.state == "hiding" || ctrlTab.panel.state == "closed",
          "With " + tabCount + " tabs open, Ctrl+Tab doesn't open the preview panel");
     }
 

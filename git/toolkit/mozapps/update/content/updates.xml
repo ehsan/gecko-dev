@@ -7,18 +7,18 @@
           xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
           xmlns:xbl="http://www.mozilla.org/xbl">
   
-  <binding id="remotecontent">
+  <binding id="license">
     <content>
       <xul:vbox flex="1" class="loadingBox">
         <xul:hbox align="start">
-          <xul:image class="remoteLoadingThrobber" xbl:inherits="state"/>
+          <xul:image class="licenseLoadingThrobber" xbl:inherits="state"/>
           <xul:vbox flex="1">
-            <xul:description flex="1" class="remoteLoadingMessage" crop="right"/>
+            <xul:description flex="1" class="licenseLoadingMessage" crop="right"/>
           </xul:vbox>
         </xul:hbox>
       </xul:vbox>
       <xul:vbox flex="1">
-        <xul:browser class="remoteContent" type="content" flex="1"/>
+        <xul:browser class="licenseContent" type="content" flex="1"/>
       </xul:vbox>
       <xul:stringbundle anonid="strings" 
                         src="chrome://mozapps/locale/update/updates.properties"/>
@@ -38,18 +38,19 @@
       ]]></constructor>
 
       <destructor><![CDATA[
-        // clean up the listener but you may not have one if you never showed
-        // the page with a <remotecontent> element
-        if (this._remoteProgressListener) 
+        // clean up the listener
+        // but you may not have one if you never showed the page with
+        // a <license> element
+        if (this._licenseProgressListener) 
           this._content.webProgress
-              .removeProgressListener(this._remoteProgressListener);
+              .removeProgressListener(this._licenseProgressListener);
       ]]></destructor>
 
       <field name="_message">
-        document.getAnonymousElementByAttribute(this, "class", "remoteLoadingMessage");
+        document.getAnonymousElementByAttribute(this, "class", "licenseLoadingMessage");
       </field>
       <field name="_content">
-        document.getAnonymousElementByAttribute(this, "class", "remoteContent");
+        document.getAnonymousElementByAttribute(this, "class", "licenseContent");
       </field>
       <field name="_strings">
         document.getAnonymousElementByAttribute(this, "anonid", "strings");
@@ -57,7 +58,7 @@
       
       <field name="update_name">null</field>
       <field name="update_version">null</field>
-      <field name="_remoteProgressListener">null</field>
+      <field name="_licenseProgressListener">null</field>
 
       <method name="_setMessageValue">
         <parameter name="value"/>
@@ -83,7 +84,6 @@
       <method name="onLoad">
         <body><![CDATA[
           this.setAttribute("selectedIndex", "1");
-          this.setAttribute("state", "loaded");
 
           var e = document.createEvent("Events");
           e.initEvent("load", false, true);
@@ -109,7 +109,7 @@
         <setter><![CDATA[
           var self = this;
 
-          this._remoteProgressListener = {
+          this._licenseProgressListener = {
             QueryInterface: function(aIID) 
             {
               if (aIID.equals(Components.interfaces.nsIWebProgressListener) ||
@@ -148,8 +148,8 @@
                     }
                   }
                   catch (ex) 
-                  {
-                    // the channel.requestSucceeded can throw
+                  { 
+                    // the channel.requestSucceeded can throw 
                     // NS_ERROR_NOT_AVAILABLE if you can't reach the server
                     // so we treat that as an error
                   }
@@ -162,7 +162,7 @@
           }
 
           this._content.webProgress
-              .addProgressListener(this._remoteProgressListener,
+              .addProgressListener(this._licenseProgressListener,
                Components.interfaces.nsIWebProgress.NOTIFY_ALL);
 
           // load the url now that the listener is registered
