@@ -544,23 +544,18 @@ nsFaviconService::DoSetAndLoadFaviconForPage(nsIURI* aPageURI,
 
   nsCOMPtr<nsIURI> page(aPageURI);
 
+  // don't load favicons when history is disabled
   nsNavHistory* history = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(history, NS_ERROR_FAILURE);
-
-  PRBool canAdd;
-  nsresult rv = history->CanAddURI(page, &canAdd);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // If history is disabled or the page isn't addable to history, only load
-  // favicons if the page is bookmarked.
-  if (!canAdd || history->IsHistoryDisabled()) {
-    // Check to see whether this favicon is for a bookmark.
+  if (history->IsHistoryDisabled()) {
+    // history is disabled - check to see if this favicon could be for a
+    // bookmark
     nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
     NS_ENSURE_TRUE(bookmarks, NS_ERROR_UNEXPECTED);
 
     nsCOMPtr<nsIURI> bookmarkURI;
-    rv = bookmarks->GetBookmarkedURIFor(aPageURI,
-                                        getter_AddRefs(bookmarkURI));
+    nsresult rv = bookmarks->GetBookmarkedURIFor(aPageURI,
+                                                 getter_AddRefs(bookmarkURI));
     NS_ENSURE_SUCCESS(rv, rv);
     if (! bookmarkURI) {
       // page is not bookmarked, don't save favicon
@@ -576,7 +571,7 @@ nsFaviconService::DoSetAndLoadFaviconForPage(nsIURI* aPageURI,
 
   // check the failed favicon cache
   PRBool previouslyFailed;
-  rv = IsFailedFavicon(aFaviconURI, &previouslyFailed);
+  nsresult rv = IsFailedFavicon(aFaviconURI, &previouslyFailed);
   NS_ENSURE_SUCCESS(rv, rv);
   if (previouslyFailed) {
     if (aForceReload)
@@ -584,6 +579,13 @@ nsFaviconService::DoSetAndLoadFaviconForPage(nsIURI* aPageURI,
     else
       return NS_OK; // ignore previously failed favicons
   }
+
+  // filter out bad URLs
+  PRBool canAdd;
+  rv = history->CanAddURI(page, &canAdd);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (! canAdd)
+    return NS_OK; // ignore favicons for this url
 
   // If have an image loaded in the main frame, that image will get set as its
   // own favicon. It would be nice to store a resampled version of the image,
@@ -671,7 +673,6 @@ nsFaviconService::DoSetAndLoadFaviconForPage(nsIURI* aPageURI,
 
   rv = channel->SetNotificationCallbacks(listenerRequestor);
   NS_ENSURE_SUCCESS(rv, rv);
-
   rv = channel->AsyncOpen(listener, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
