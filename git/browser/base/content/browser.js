@@ -2630,7 +2630,6 @@ function BrowserOnAboutPageLoad(doc) {
     // Inject search engine and snippets URL.
     let docElt = doc.documentElement;
     docElt.setAttribute("snippetsURL", AboutHomeUtils.snippetsURL);
-    docElt.setAttribute("snippetsVersion", AboutHomeUtils.snippetsVersion);
     docElt.setAttribute("searchEngineName",
                         AboutHomeUtils.defaultSearchEngine.name);
     docElt.setAttribute("searchEngineURL",
@@ -4770,11 +4769,6 @@ var TabsProgressListener = {
       // longer exists)
       if (!Object.getOwnPropertyDescriptor(window, "PopupNotifications").get)
         PopupNotifications.locationChange(aBrowser);
-
-      // Only handle background browsers as long as the selected browser is
-      // handled in XULBrowserWindow.onLocationChange (bug 839516).
-      if (aBrowser != gBrowser.selectedBrowser)
-        gBrowser.getNotificationBox(aBrowser).removeTransientNotifications();
 
       FullZoom.onLocationChange(aLocationURI, false, aBrowser);
     }

@@ -9,6 +9,7 @@
 #include "nsIDOMHTMLTableElement.h"
 #include "mozilla/dom/HTMLTableCaptionElement.h"
 #include "mozilla/dom/HTMLTableSectionElement.h"
+#include "nsMappedAttributes.h"
 
 namespace mozilla {
 namespace dom {
@@ -223,7 +224,12 @@ protected:
   // to be recalculated.
   nsMappedAttributes *mTableInheritedAttributes;
   void BuildInheritedAttributes();
-  void ReleaseInheritedAttributes();
+  void ReleaseInheritedAttributes() {
+    if (mTableInheritedAttributes &&
+        mTableInheritedAttributes != TABLE_ATTRS_DIRTY)
+      NS_RELEASE(mTableInheritedAttributes);
+      mTableInheritedAttributes = TABLE_ATTRS_DIRTY;
+  }
 };
 
 } // namespace dom

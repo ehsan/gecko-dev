@@ -27,7 +27,6 @@ EXPORTS_mtransport = \
   ../dtlsidentity.h \
   ../nricectx.h \
   ../nricemediastream.h \
-  ../nriceresolverfake.h \
   ../transportflow.h \
   ../transportlayer.h \
   ../transportlayerdtls.h \

@@ -868,12 +868,8 @@ let CaptivePortalDetectionHelper = (function() {
       capService.abort(_ongoingInterface);
       _ongoingInterface = null;
     }
-    try {
-      capService.checkCaptivePortal(interfaceName, capCallback);
-      _ongoingInterface = interfaceName;
-    } catch (e) {
-      debug('Fail to detect captive portal due to: ' + e.message);
-    }
+    capService.checkCaptivePortal(interfaceName, capCallback);
+    _ongoingInterface = interfaceName;
   };
 
   let _abort = function (interfaceName) {

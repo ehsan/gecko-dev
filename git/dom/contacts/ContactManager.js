@@ -398,10 +398,6 @@ ContactManager.prototype = {
     }
   },
 
-  _pushArray: function(aArr1, aArr2) {
-    aArr1.push.apply(aArr1, aArr2);
-  },
-
   receiveMessage: function(aMessage) {
     if (DEBUG) debug("receiveMessage: " + aMessage.name);
     let msg = aMessage.json;
@@ -420,16 +416,14 @@ ContactManager.prototype = {
         break;
       case "Contacts:GetAll:Next":
         let data = this._cursorData[msg.cursorId];
-        let result = contacts ? this._convertContacts(contacts) : [null];
+        let contact = msg.contact ? this._convertContact(msg.contact) : null;
         if (data.waitingForNext) {
           if (DEBUG) debug("cursor waiting for contact, sending");
           data.waitingForNext = false;
-          let contact = result.shift();
-          this._pushArray(data.cachedContacts, result);
           this._fireSuccessOrDone(data.cursor, contact);
         } else {
           if (DEBUG) debug("cursor not waiting, saving");
-          this._pushArray(data.cachedContacts, result);
+          data.cachedContacts.push(contact);
         }
         break;
       case "Contacts:GetSimContacts:Return:OK":
@@ -643,8 +637,7 @@ ContactManager.prototype = {
     let data = this._cursorData[aCursorId];
     if (data.cachedContacts.length > 0) {
       if (DEBUG) debug("contact in cache");
-      let contact = data.cachedContacts.shift();
-      this._fireSuccessOrDone(data.cursor, contact);
+      this._fireSuccessOrDone(data.cursor, data.cachedContacts.shift());
     } else {
       if (DEBUG) debug("waiting for contact");
       data.waitingForNext = true;

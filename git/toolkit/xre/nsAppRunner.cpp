@@ -1062,7 +1062,12 @@ static nsresult AppInfoConstructor(nsISupports* aOuter,
     QueryInterface(aIID, aResult);
 }
 
-bool gLogConsoleErrors = false;
+bool gLogConsoleErrors
+#ifdef DEBUG
+         = true;
+#else
+         = false;
+#endif
 
 #define NS_ENSURE_TRUE_LOG(x, ret)               \
   PR_BEGIN_MACRO                                 \

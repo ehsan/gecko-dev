@@ -148,14 +148,10 @@ struct Pool
         poolData = static_cast<uint8_t*>(malloc_(buffSize * immSize));
         if (poolData == NULL)
             return false;
-
-        void *otherSpace = malloc_(sizeof(Pool));
-        if (otherSpace == NULL)
+        other = new Pool(other->maxOffset, other->immSize, other->instSize, other->bias,
+                         other->alignment, other->isBackref, other->canDedup);
+        if (other == NULL)
             return false;
-
-        other = new (otherSpace) Pool(other->maxOffset, other->immSize, other->instSize,
-                                      other->bias, other->alignment, other->isBackref,
-                                      other->canDedup);
         new (&loadOffsets) LoadOffsets;
 
         limitingUser = BufferOffset();

@@ -410,10 +410,6 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
-  virtual bool UpdateOverflow() MOZ_OVERRIDE {
-    return mInner.UpdateOverflow();
-  }
-
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
   NS_IMETHOD AppendFrames(ChildListID     aListID,
@@ -534,8 +530,8 @@ public:
   virtual void ResetScrollPositionForLayerPixelAlignment() {
     mInner.ResetScrollPositionForLayerPixelAlignment();
   }
-  virtual bool DidHistoryRestore() MOZ_OVERRIDE {
-    return mInner.mDidHistoryRestore;
+  virtual bool UpdateOverflow() {
+    return mInner.UpdateOverflow();
   }
 
   // nsIStatefulFrame
@@ -560,6 +556,8 @@ public:
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
+
+  bool DidHistoryRestore() { return mInner.mDidHistoryRestore; }
 
 #ifdef ACCESSIBILITY
   virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
@@ -627,10 +625,6 @@ public:
 #if 0
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
 #endif
-
-  virtual bool UpdateOverflow() MOZ_OVERRIDE {
-    return mInner.UpdateOverflow();
-  }
 
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
@@ -787,8 +781,8 @@ public:
   virtual void ResetScrollPositionForLayerPixelAlignment() {
     mInner.ResetScrollPositionForLayerPixelAlignment();
   }
-  virtual bool DidHistoryRestore() MOZ_OVERRIDE {
-    return mInner.mDidHistoryRestore;
+  virtual bool UpdateOverflow() {
+    return mInner.UpdateOverflow();
   }
 
   // nsIStatefulFrame

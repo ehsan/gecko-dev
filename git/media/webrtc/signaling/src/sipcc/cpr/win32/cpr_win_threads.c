@@ -18,8 +18,6 @@
 #include <windows.h>
 #include <process.h>
 
-void CSFLogRegisterThread(const cprThread_t thread);
-
 typedef struct {
     cprThreadStartRoutine startRoutine;
 	void *data;
@@ -206,8 +204,6 @@ cprCreateThread(const char* name,
         /* Malloc failed */
         CPR_ERROR("%s - Malloc for new thread failed.\n", fname);
     }
-
-    CSFLogRegisterThread(threadPtr);
 
     return(threadPtr);
 };

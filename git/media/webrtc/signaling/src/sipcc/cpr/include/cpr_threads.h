@@ -127,6 +127,7 @@ cprRC_t cprDestroyThread(cprThread_t thread);
  */
 cprRC_t cprAdjustRelativeThreadPriority(int relPri);
 
+
 __END_DECLS
 
 #endif

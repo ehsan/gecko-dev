@@ -19,8 +19,8 @@ struct Margin :
 
   // Constructors
   Margin(const Margin& aMargin) : Super(aMargin) {}
-  Margin(Float aTop, Float aRight, Float aBottom, Float aLeft)
-    : Super(aTop, aRight, aBottom, aLeft) {}
+  Margin(Float aLeft,  Float aTop, Float aRight, Float aBottom)
+    : Super(aLeft, aTop, aRight, aBottom) {}
 };
 
 struct IntRect :

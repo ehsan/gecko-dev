@@ -367,23 +367,15 @@ PuppetWidget::IMEEndComposition(bool aCancel)
 }
 
 NS_IMETHODIMP
-PuppetWidget::NotifyIME(NotificationToIME aNotification)
+PuppetWidget::ResetInputState()
 {
-  switch (aNotification) {
-    case NOTIFY_IME_OF_CURSOR_POS_CHANGED:
-    case REQUEST_TO_COMMIT_COMPOSITION:
-      return IMEEndComposition(false);
-    case REQUEST_TO_CANCEL_COMPOSITION:
-      return IMEEndComposition(true);
-    case NOTIFY_IME_OF_FOCUS:
-      return NotifyIMEOfFocusChange(true);
-    case NOTIFY_IME_OF_BLUR:
-      return NotifyIMEOfFocusChange(false);
-    case NOTIFY_IME_OF_SELECTION_CHANGE:
-      return NotifyIMEOfSelectionChange();
-    default:
-      return NS_ERROR_NOT_IMPLEMENTED;
-  }
+  return IMEEndComposition(false);
+}
+
+NS_IMETHODIMP
+PuppetWidget::CancelComposition()
+{
+  return IMEEndComposition(true);
 }
 
 NS_IMETHODIMP_(void)
@@ -426,8 +418,8 @@ PuppetWidget::GetInputContext()
   return context;
 }
 
-nsresult
-PuppetWidget::NotifyIMEOfFocusChange(bool aFocus)
+NS_IMETHODIMP
+PuppetWidget::OnIMEFocusChange(bool aFocus)
 {
 #ifndef MOZ_CROSS_PROCESS_IME
   return NS_OK;
@@ -448,8 +440,8 @@ PuppetWidget::NotifyIMEOfFocusChange(bool aFocus)
       mTabChild->SendNotifyIMETextHint(queryEvent.mReply.mString);
     }
   } else {
-    // Might not have been committed composition yet
-    IMEEndComposition(false);
+    // ResetInputState might not have been called yet
+    ResetInputState();
   }
 
   uint32_t chromeSeqno;
@@ -460,7 +452,7 @@ PuppetWidget::NotifyIMEOfFocusChange(bool aFocus)
 
   if (aFocus) {
     if (mIMEPreference.mWantUpdates && mIMEPreference.mWantHints) {
-      NotifyIMEOfSelectionChange(); // Update selection
+      OnIMESelectionChange(); // Update selection
     }
   } else {
     mIMELastBlurSeqno = chromeSeqno;
@@ -475,9 +467,7 @@ PuppetWidget::GetIMEUpdatePreference()
 }
 
 NS_IMETHODIMP
-PuppetWidget::NotifyIMEOfTextChange(uint32_t aStart,
-                                    uint32_t aEnd,
-                                    uint32_t aNewEnd)
+PuppetWidget::OnIMETextChange(uint32_t aStart, uint32_t aEnd, uint32_t aNewEnd)
 {
 #ifndef MOZ_CROSS_PROCESS_IME
   return NS_OK;
@@ -503,8 +493,8 @@ PuppetWidget::NotifyIMEOfTextChange(uint32_t aStart,
   return NS_OK;
 }
 
-nsresult
-PuppetWidget::NotifyIMEOfSelectionChange()
+NS_IMETHODIMP
+PuppetWidget::OnIMESelectionChange(void)
 {
 #ifndef MOZ_CROSS_PROCESS_IME
   return NS_OK;

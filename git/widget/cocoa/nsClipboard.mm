@@ -431,17 +431,13 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
         continue;
       }
 
-      nsRefPtr<gfxASurface> surface;
-      image->GetFrame(imgIContainer::FRAME_CURRENT,
-                      imgIContainer::FLAG_SYNC_DECODE,
-                      getter_AddRefs(surface));
-      if (!surface) {
+      nsRefPtr<gfxImageSurface> frame;
+      rv = image->CopyFrame(  imgIContainer::FRAME_CURRENT,
+                              imgIContainer::FLAG_SYNC_DECODE,
+                              getter_AddRefs(frame));
+      if (NS_FAILED(rv) || !frame) {
         continue;
-      }
-      nsRefPtr<gfxImageSurface> frame(surface->GetAsReadableARGB32ImageSurface());
-      if (!frame) {
-        continue;
-      }
+      }      
       CGImageRef imageRef = NULL;
       nsresult rv = nsCocoaUtils::CreateCGImageFromSurface(frame, &imageRef);
       if (NS_FAILED(rv) || !imageRef) {

@@ -131,7 +131,7 @@ MappableExtractFile::Create(const char *name, Zip *zip, Zip::Stream *stream)
     }
   } else if (stream->GetType() == Zip::Stream::STORE) {
     SeekableZStream zStream;
-    if (!zStream.Init(stream->GetBuffer(), stream->GetSize())) {
+    if (!zStream.Init(stream->GetBuffer())) {
       log("Couldn't initialize SeekableZStream for %s", name);
       return NULL;
     }
@@ -353,7 +353,7 @@ MappableSeekableZStream::Create(const char *name, Zip *zip,
   if (pthread_mutex_init(&mappable->mutex, NULL))
     return NULL;
 
-  if (!mappable->zStream.Init(stream->GetBuffer(), stream->GetSize()))
+  if (!mappable->zStream.Init(stream->GetBuffer()))
     return NULL;
 
   mappable->buffer = _MappableBuffer::Create(name,

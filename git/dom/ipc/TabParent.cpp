@@ -722,7 +722,7 @@ TabParent::RecvNotifyIMEFocus(const bool& aFocus,
   mIMETabParent = aFocus ? this : nullptr;
   mIMESelectionAnchor = 0;
   mIMESelectionFocus = 0;
-  widget->NotifyIME(aFocus ? NOTIFY_IME_OF_FOCUS : NOTIFY_IME_OF_BLUR);
+  widget->OnIMEFocusChange(aFocus);
 
   if (aFocus) {
     *aPreference = widget->GetIMEUpdatePreference();
@@ -741,7 +741,7 @@ TabParent::RecvNotifyIMETextChange(const uint32_t& aStart,
   if (!widget)
     return true;
 
-  widget->NotifyIMEOfTextChange(aStart, aEnd, aNewEnd);
+  widget->OnIMETextChange(aStart, aEnd, aNewEnd);
   return true;
 }
 
@@ -757,7 +757,7 @@ TabParent::RecvNotifyIMESelection(const uint32_t& aSeqno,
   if (aSeqno == mIMESeqno) {
     mIMESelectionAnchor = aAnchor;
     mIMESelectionFocus = aFocus;
-    widget->NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE);
+    widget->OnIMESelectionChange();
   }
   return true;
 }
@@ -852,9 +852,8 @@ TabParent::SendCompositionEvent(nsCompositionEvent& event)
 }
 
 /**
- * During REQUEST_TO_COMMIT_COMPOSITION or REQUEST_TO_CANCEL_COMPOSITION,
- * widget usually sends a NS_TEXT_TEXT event to finalize or clear the
- * composition, respectively
+ * During ResetInputState or CancelComposition, widget usually sends a
+ * NS_TEXT_TEXT event to finalize or clear the composition, respectively
  *
  * Because the event will not reach content in time, we intercept it
  * here and pass the text as the EndIMEComposition return value
@@ -934,8 +933,11 @@ TabParent::RecvEndIMEComposition(const bool& aCancel,
 
   mIMECompositionEnding = true;
 
-  widget->NotifyIME(aCancel ? REQUEST_TO_CANCEL_COMPOSITION :
-                              REQUEST_TO_COMMIT_COMPOSITION);
+  if (aCancel) {
+    widget->CancelIMEComposition();
+  } else {
+    widget->ResetInputState();
+  }
 
   mIMECompositionEnding = false;
   *aComposition = mIMECompositionText;

@@ -4,7 +4,6 @@
 
 package org.mozilla.gecko.background.common.log;
 
-import java.io.PrintWriter;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -13,7 +12,6 @@ import org.mozilla.gecko.background.common.GlobalConstants;
 import org.mozilla.gecko.background.common.log.writers.AndroidLevelCachingLogWriter;
 import org.mozilla.gecko.background.common.log.writers.AndroidLogWriter;
 import org.mozilla.gecko.background.common.log.writers.LogWriter;
-import org.mozilla.gecko.background.common.log.writers.PrintLogWriter;
 import org.mozilla.gecko.background.common.log.writers.SimpleTagLogWriter;
 import org.mozilla.gecko.background.common.log.writers.ThreadLocalTagLogWriter;
 
@@ -117,16 +115,6 @@ public class Logger {
   public static synchronized void resetLogging() {
     stopLoggingToAll();
     logWriters.addAll(Logger.defaultLogWriters());
-  }
-
-  /**
-   * Start writing log output to stdout.
-   * <p>
-   * Use <code>resetLogging</code> to stop logging to stdout.
-   */
-  public static synchronized void startLoggingToConsole() {
-    setThreadLogTag("Test");
-    startLoggingTo(new PrintLogWriter(new PrintWriter(System.out, true)));
   }
 
   // Synchronized version for other classes to use.

@@ -8,10 +8,12 @@
 
 #include "nsDOMEventTargetHelper.h"
 #include "nsIDOMMozCellBroadcast.h"
-#include "nsICellBroadcastProvider.h"
+#include "nsIRadioInterfaceLayer.h"
 #include "mozilla/Attributes.h"
 
 class nsPIDOMWindow;
+
+class nsIRILContentHelper;
 
 namespace mozilla {
 namespace dom {
@@ -19,30 +21,31 @@ namespace dom {
 class CellBroadcast MOZ_FINAL : public nsDOMEventTargetHelper
                               , public nsIDOMMozCellBroadcast
 {
-  /**
-   * Class CellBroadcast doesn't actually inherit nsICellBroadcastListener.
-   * Instead, it owns an nsICellBroadcastListener derived instance mListener
-   * and passes it to nsICellBroadcastProvider. The onreceived events are first
-   * delivered to mListener and then forwarded to its owner, CellBroadcast. See
-   * also bug 775997 comment #51.
-   */
-  class Listener;
-
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMMOZCELLBROADCAST
-  NS_DECL_NSICELLBROADCASTLISTENER
+
+  /**
+   * Class CellBroadcast doesn't actually inherit nsIRILCellBroadcastCallback.
+   * Instead, it owns an nsIRILCellBroadcastCallback derived instance mCallback
+   * and passes it to RILContentHelper. The onreceived events are first
+   * delivered to mCallback and then forwarded to its owner, CellBroadcast.
+   */
+  NS_DECL_NSIRILCELLBROADCASTCALLBACK
 
   NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(CellBroadcast,
+                                           nsDOMEventTargetHelper)
+
   CellBroadcast() MOZ_DELETE;
   CellBroadcast(nsPIDOMWindow *aWindow,
-                nsICellBroadcastProvider* aProvider);
+                nsIRILContentHelper* aRIL);
   ~CellBroadcast();
 
 private:
-  nsCOMPtr<nsICellBroadcastProvider> mProvider;
-  nsRefPtr<Listener> mListener;
+  nsCOMPtr<nsIRILContentHelper> mRIL;
+  nsCOMPtr<nsIRILCellBroadcastCallback> mCallback;
 };
 
 } // namespace dom

@@ -986,7 +986,11 @@ RasterImage::GetAnimated(bool *aAnimated)
   return NS_OK;
 }
 
-nsresult
+
+//******************************************************************************
+/* [noscript] gfxImageSurface copyFrame(in uint32_t aWhichFrame,
+ *                                      in uint32_t aFlags); */
+NS_IMETHODIMP
 RasterImage::CopyFrame(uint32_t aWhichFrame,
                        uint32_t aFlags,
                        gfxImageSurface **_retval)
@@ -3045,10 +3049,9 @@ RasterImage::DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
     }
   }
 
-  nsIntMargin padding(framerect.y,
+  nsIntMargin padding(framerect.x, framerect.y,
                       mSize.width - framerect.XMost(),
-                      mSize.height - framerect.YMost(),
-                      framerect.x);
+                      mSize.height - framerect.YMost());
 
   frame->Draw(aContext, aFilter, userSpaceToImageSpace, aFill, padding, subimage);
 }

@@ -864,6 +864,8 @@ TRY_AGAIN_NO_SHARING:
         if (!IsExtensionSupported(EXT_framebuffer_object))
             return false;
 
+        InitFramebuffers();
+
         return true;
     }
 

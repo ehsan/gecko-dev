@@ -63,6 +63,7 @@
 #include "nsBidiPresUtils.h"
 #endif // IBMBIDI
 
+#include "nsIDOMHTMLBodyElement.h"
 #include "nsIDOMHTMLHtmlElement.h"
 
 static const int MIN_LINES_NEEDING_CURSOR = 20;

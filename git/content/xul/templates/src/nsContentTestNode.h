@@ -8,6 +8,7 @@
 
 #include "nscore.h"
 #include "nsRuleNetwork.h"
+#include "nsFixedSizeAllocator.h"
 #include "nsIAtom.h"
 #include "nsIDOMDocument.h"
 

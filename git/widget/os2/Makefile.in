@@ -65,11 +65,8 @@ endif
 libs::	install-readme
 	$(INSTALL) $(srcdir)/MozSounds.cmd $(DIST)/bin/
 
-export-preqs = \
-    $(call mkdir_deps,res) \
-    $(NULL)
-
-export:: $(export-preqs)
+export::
+	test -d ./res || mkdir ./res
 	test -f ./res/aliasb.ptr || cp $(srcdir)/res/*.* ./res
 
 

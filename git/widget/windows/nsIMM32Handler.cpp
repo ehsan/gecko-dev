@@ -462,7 +462,7 @@ nsIMM32Handler::OnInputLangChange(nsWindow* aWindow,
     ("IMM32: OnInputLangChange, hWnd=%08x, wParam=%08x, lParam=%08x\n",
      aWindow->GetWindowHandle(), wParam, lParam));
 
-  aWindow->NotifyIME(REQUEST_TO_COMMIT_COMPOSITION);
+  aWindow->ResetInputState();
   NS_ASSERTION(!mIsComposing, "ResetInputState failed");
 
   if (mIsComposing) {

@@ -201,7 +201,8 @@ class MarionetteJSTestCase(CommonTestCase):
             self.marionette.set_context(context)
 
         if context != "chrome":
-            self.marionette.navigate('data:text/html,<html>test page</html>')
+            page = self.marionette.absolute_url("empty.html")
+            self.marionette.navigate(page)
 
         timeout = self.timeout_re.search(js)
         if timeout:

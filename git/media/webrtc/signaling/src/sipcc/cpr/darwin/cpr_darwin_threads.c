@@ -17,7 +17,6 @@
 #define LINUX_MIN_THREAD_PRIORITY (-20)	/* tbd: check MV linux: current val from Larry port */
 #define LINUX_MAX_THREAD_PRIORITY (+19)	/* tbd: check MV linux. current val from Larry port */
 
-void CSFLogRegisterThread(const cprThread_t thread);
 
 /**
  * cprCreateThread
@@ -93,7 +92,6 @@ cprCreateThread (const char *name,
          */
         threadPtr->u.handlePtr = threadId;
         threadPtr->threadId = ++id;
-        CSFLogRegisterThread(threadPtr);
         return threadPtr;
     }
 
@@ -213,3 +211,4 @@ cprGetThreadId (cprThread_t thread)
     }
     return 0;
 }
+

@@ -24,12 +24,7 @@
 #include "nsIClassInfo.h"
 #include "mozilla/net/DNS.h"
 
-#include "prerror.h"
-
 class nsSocketTransport;
-
-nsresult
-ErrorAccordingToNSPR(PRErrorCode errorCode);
 
 //-----------------------------------------------------------------------------
 

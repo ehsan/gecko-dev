@@ -561,19 +561,11 @@ protected:
     AttrRelProvider& operator =(const AttrRelProvider&);
   };
 
-  typedef nsTArray<nsAutoPtr<AttrRelProvider> > AttrRelProviderArray;
-  typedef nsClassHashtable<nsStringHashKey, AttrRelProviderArray>
-    DependentIDsHashtable;
-
   /**
    * The cache of IDs pointed by relation attributes.
    */
-  DependentIDsHashtable mDependentIDsHash;
-
-  static PLDHashOperator
-    CycleCollectorTraverseDepIDsEntry(const nsAString& aKey,
-                                      AttrRelProviderArray* aProviders,
-                                      void* aUserArg);
+  typedef nsTArray<nsAutoPtr<AttrRelProvider> > AttrRelProviderArray;
+  nsClassHashtable<nsStringHashKey, AttrRelProviderArray> mDependentIDsHash;
 
   friend class RelatedAccIterator;
 

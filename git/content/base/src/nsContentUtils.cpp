@@ -1761,11 +1761,9 @@ nsContentUtils::IsCallerXBL()
     JSContext *cx = GetCurrentJSContext();
     if (!cx)
         return false;
-
     // New Hotness.
-    if (XPCJSRuntime::Get()->XBLScopesEnabled())
-        return xpc::IsXBLScope(js::GetContextCompartment(cx));
-
+    if (xpc::IsXBLScope(js::GetContextCompartment(cx)))
+        return true;
     // XBL scopes are behind a pref, so check the XBL bit as well.
     if (!JS_DescribeScriptedCaller(cx, &script, nullptr) || !script)
         return false;
@@ -6337,13 +6335,77 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
   }
 
 #ifdef MOZ_MEDIA
-  if (DecoderTraits::IsSupportedInVideoDocument(nsDependentCString(aType))) {
+#ifdef MOZ_OGG
+  if (DecoderTraits::IsOggType(nsDependentCString(aType))) {
     docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
     if (docFactory && aLoaderType) {
       *aLoaderType = TYPE_CONTENT;
     }
     return docFactory.forget();
   }
+#endif
+
+#ifdef MOZ_WIDGET_GONK
+  if (DecoderTraits::IsOmxSupportedType(nsDependentCString(aType))) {
+    docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
+    if (docFactory && aLoaderType) {
+      *aLoaderType = TYPE_CONTENT;
+    }
+    return docFactory.forget();
+  }
+#endif
+
+#ifdef MOZ_WEBM
+  if (DecoderTraits::IsWebMType(nsDependentCString(aType))) {
+    docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
+    if (docFactory && aLoaderType) {
+      *aLoaderType = TYPE_CONTENT;
+    }
+    return docFactory.forget();
+  }
+#endif
+
+#ifdef MOZ_DASH
+  if (DecoderTraits::IsDASHMPDType(nsDependentCString(aType))) {
+    docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
+    if (docFactory && aLoaderType) {
+      *aLoaderType = TYPE_CONTENT;
+    }
+    return docFactory.forget();
+  }
+#endif
+
+#ifdef MOZ_GSTREAMER
+  if (DecoderTraits::IsGStreamerSupportedType(nsDependentCString(aType))) {
+    docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
+    if (docFactory && aLoaderType) {
+      *aLoaderType = TYPE_CONTENT;
+    }
+    return docFactory.forget();
+  }
+#endif
+
+#ifdef MOZ_MEDIA_PLUGINS
+  if (mozilla::MediaDecoder::IsMediaPluginsEnabled() &&
+      DecoderTraits::IsMediaPluginsType(nsDependentCString(aType))) {
+    docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
+    if (docFactory && aLoaderType) {
+      *aLoaderType = TYPE_CONTENT;
+    }
+    return docFactory.forget();
+  }
+#endif // MOZ_MEDIA_PLUGINS
+
+#ifdef MOZ_WMF
+  if (DecoderTraits::IsWMFSupportedType(nsDependentCString(aType))) {
+    docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
+    if (docFactory && aLoaderType) {
+      *aLoaderType = TYPE_CONTENT;
+    }
+    return docFactory.forget();
+  }
+#endif
+
 #endif // MOZ_MEDIA
 
   return NULL;

@@ -42,18 +42,14 @@
 #define debug(...)
 #endif
 
-/* HAVE_64BIT_OS is not defined when building host tools, so use
- * __SIZEOF_POINTER__ */
-#if defined(HAVE_64BIT_OS) || __SIZEOF_POINTER__ == 8
+#ifdef HAVE_64BIT_OS
 #  define PRIxAddr "lx"
 #  define PRIxSize "lx"
 #  define PRIdSize "ld"
-#  define PRIuSize "lu"
 #else
 #  define PRIxAddr "x"
 #  define PRIxSize "x"
 #  define PRIdSize "d"
-#  define PRIuSize "u"
 #endif
 
 #endif /* Logging_h */

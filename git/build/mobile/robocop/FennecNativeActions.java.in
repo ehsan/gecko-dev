@@ -105,7 +105,6 @@ public class FennecNativeActions implements Actions {
         private final String mGeckoEvent;
         private final Object[] mRegistrationParams;
         private boolean mEventReceived;
-        private boolean mEventEverReceived;
         private String mEventData;
         private static final int MAX_WAIT_MS = 90000;
 
@@ -141,7 +140,6 @@ public class FennecNativeActions implements Actions {
             }
             FennecNativeDriver.log(FennecNativeDriver.LogLevel.DEBUG,
                 "unblocked on expecter for " + mGeckoEvent);
-            mEventReceived = false;
         }
 
         public synchronized void blockUntilClear(long millis) {
@@ -191,7 +189,6 @@ public class FennecNativeActions implements Actions {
             }
             FennecNativeDriver.log(FennecNativeDriver.LogLevel.DEBUG,
                 "unblocked on expecter for " + mGeckoEvent);
-            mEventReceived = false;
         }
 
         public synchronized String blockForEventData() {
@@ -200,7 +197,7 @@ public class FennecNativeActions implements Actions {
         }
 
         public synchronized boolean eventReceived() {
-            return mEventEverReceived;
+            return mEventReceived;
         }
 
         void notifyOfEvent(Object[] args) {
@@ -208,7 +205,6 @@ public class FennecNativeActions implements Actions {
                 "received event " + mGeckoEvent);
             synchronized (this) {
                 mEventReceived = true;
-                mEventEverReceived = true;
                 mEventData = args[1].toString();
                 this.notifyAll();
             }

@@ -265,19 +265,12 @@ function findChromeWindowForChats(preferredWindow) {
 this.openChatWindow =
  function openChatWindow(chromeWindow, provider, url, callback, mode) {
   chromeWindow = findChromeWindowForChats(chromeWindow);
-  if (!chromeWindow) {
-    Cu.reportError("Failed to open a social chat window - no host window could be found.");
+  if (!chromeWindow)
     return;
-  }
   let fullURI = provider.resolveUri(url);
-  if (!provider.isSameOrigin(fullURI)) {
-    Cu.reportError("Failed to open a social chat window - the requested URL is not the same origin as the provider.");
+  if (!provider.isSameOrigin(fullURI))
     return;
-  }
-  if (!chromeWindow.SocialChatBar.openChat(provider, fullURI.spec, callback, mode)) {
-    Cu.reportError("Failed to open a social chat window - the chatbar is not available in the target window.");
-    return;
-  }
+  chromeWindow.SocialChatBar.openChat(provider, fullURI.spec, callback, mode);
   // getAttention is ignored if the target window is already foreground, so
   // we can call it unconditionally.
   chromeWindow.getAttention();

@@ -748,16 +748,11 @@ nsWindowsShellService::SetShouldCheckDefaultBrowser(bool aShouldCheck)
 static nsresult
 WriteBitmap(nsIFile* aFile, imgIContainer* aImage)
 {
-  nsresult rv;
-
-  nsRefPtr<gfxASurface> surface;
-  aImage->GetFrame(imgIContainer::FRAME_FIRST,
-                   imgIContainer::FLAG_SYNC_DECODE,
-                   getter_AddRefs(surface));
-  NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
-
-  nsRefPtr<gfxImageSurface> image(surface->GetAsReadableARGB32ImageSurface());
-  NS_ENSURE_TRUE(image, NS_ERROR_FAILURE);
+  nsRefPtr<gfxImageSurface> image;
+  nsresult rv = aImage->CopyFrame(imgIContainer::FRAME_FIRST,
+                                  imgIContainer::FLAG_SYNC_DECODE,
+                                  getter_AddRefs(image));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   int32_t width = image->Width();
   int32_t height = image->Height();

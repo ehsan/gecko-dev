@@ -73,6 +73,8 @@
 <script class="testbody" type="application/javascript">
 <![CDATA[
 
+SimpleTest.expectAssertions(0, 2); // bug 846096
+
 SimpleTest.waitForExplicitFinish();
 
 var gTestId = -1;

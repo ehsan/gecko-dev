@@ -65,7 +65,6 @@ public:
   inline void NotifyOfDocumentShutdown(nsIDocument* aDocument)
   {
     mDocAccessibleCache.Remove(aDocument);
-    RemoveListeners(aDocument);
   }
 
 #ifdef DEBUG
@@ -102,10 +101,9 @@ private:
                              uint32_t aLoadEventType);
 
   /**
-   * Add/remove 'pagehide' and 'DOMContentLoaded' event listeners.
+   * Add 'pagehide' and 'DOMContentLoaded' event listeners.
    */
   void AddListeners(nsIDocument *aDocument, bool aAddPageShowListener);
-  void RemoveListeners(nsIDocument* aDocument);
 
   /**
    * Create document or root accessible.

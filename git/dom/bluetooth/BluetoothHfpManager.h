@@ -8,7 +8,7 @@
 #define mozilla_dom_bluetooth_bluetoothhfpmanager_h__
 
 #include "BluetoothCommon.h"
-#include "BluetoothTelephonyListener.h"
+#include "BluetoothRilListener.h"
 #include "mozilla/ipc/UnixSocket.h"
 #include "nsIObserver.h"
 
@@ -110,7 +110,7 @@ private:
   enum mozilla::ipc::SocketConnectionStatus mSocketStatus;
 
   nsTArray<Call> mCurrentCallArray;
-  nsAutoPtr<BluetoothTelephonyListener> mListener;
+  nsAutoPtr<BluetoothRilListener> mListener;
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
 };
 

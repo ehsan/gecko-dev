@@ -916,55 +916,36 @@ class ArrayBufferObject;
  */
 class ObjectElements
 {
-  public:
-    enum Flags {
-        CONVERT_DOUBLE_ELEMENTS = 0x1
-    };
-
-  private:
     friend class ::JSObject;
     friend class ObjectImpl;
     friend class ArrayBufferObject;
 
-    /* See Flags enum above. */
-    uint32_t flags;
+    /* Number of allocated slots. */
+    uint32_t capacity;
 
     /*
      * Number of initialized elements. This is <= the capacity, and for arrays
      * is <= the length. Memory for elements above the initialized length is
      * uninitialized, but values between the initialized length and the proper
      * length are conceptually holes.
-     *
-     * ArrayBufferObject uses this field to store byteLength.
      */
     uint32_t initializedLength;
 
-    /*
-     * Beware, one or both of the following fields is clobbered by
-     * ArrayBufferObject. See GetViewList.
-     */
-
-    /* Number of allocated slots. */
-    uint32_t capacity;
-
     /* 'length' property of array objects, unused for other objects. */
     uint32_t length;
+
+    /* If non-zero, integer elements should be converted to doubles. */
+    uint32_t convertDoubleElements;
 
     void staticAsserts() {
         MOZ_STATIC_ASSERT(sizeof(ObjectElements) == VALUES_PER_HEADER * sizeof(Value),
                           "Elements size and values-per-Elements mismatch");
     }
 
-    bool shouldConvertDoubleElements() const {
-        return flags & CONVERT_DOUBLE_ELEMENTS;
-    }
-    void setShouldConvertDoubleElements() {
-        flags |= CONVERT_DOUBLE_ELEMENTS;
-    }
-
   public:
+
     ObjectElements(uint32_t capacity, uint32_t length)
-      : flags(0), initializedLength(0), capacity(capacity), length(length)
+      : capacity(capacity), initializedLength(0), length(length), convertDoubleElements(0)
     {}
 
     HeapSlot *elements() { return (HeapSlot *)(uintptr_t(this) + sizeof(ObjectElements)); }
@@ -972,17 +953,17 @@ class ObjectElements
         return (ObjectElements *)(uintptr_t(elems) - sizeof(ObjectElements));
     }
 
-    static int offsetOfFlags() {
-        return (int)offsetof(ObjectElements, flags) - (int)sizeof(ObjectElements);
+    static int offsetOfCapacity() {
+        return (int)offsetof(ObjectElements, capacity) - (int)sizeof(ObjectElements);
     }
     static int offsetOfInitializedLength() {
         return (int)offsetof(ObjectElements, initializedLength) - (int)sizeof(ObjectElements);
     }
-    static int offsetOfCapacity() {
-        return (int)offsetof(ObjectElements, capacity) - (int)sizeof(ObjectElements);
-    }
     static int offsetOfLength() {
         return (int)offsetof(ObjectElements, length) - (int)sizeof(ObjectElements);
+    }
+    static int offsetOfConvertDoubleElements() {
+        return (int)offsetof(ObjectElements, convertDoubleElements) - (int)sizeof(ObjectElements);
     }
 
     static bool ConvertElementsToDoubles(JSContext *cx, uintptr_t elements);

@@ -3826,10 +3826,9 @@ nsGfxScrollFrameInner::GetActualScrollbarSizes() const
 {
   nsRect r = mOuter->GetPaddingRect() - mOuter->GetPosition();
 
-  return nsMargin(mScrollPort.y - r.y,
+  return nsMargin(mScrollPort.x - r.x, mScrollPort.y - r.y,
                   r.XMost() - mScrollPort.XMost(),
-                  r.YMost() - mScrollPort.YMost(),
-                  mScrollPort.x - r.x);
+                  r.YMost() - mScrollPort.YMost());
 }
 
 void

@@ -11,7 +11,6 @@ relativesrcdir = @relativesrcdir@
 include $(DEPTH)/config/autoconf.mk
 
 FILES = \
-	empty.txt \
 	source.txt \
 	$(NULL)
 

@@ -27,10 +27,6 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.Rect;
 import android.net.Uri;
-import android.nfc.NdefMessage;
-import android.nfc.NdefRecord;
-import android.nfc.NfcAdapter;
-import android.nfc.NfcEvent;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -221,22 +217,6 @@ abstract public class BrowserApp extends GeckoApp
 
         Distribution.init(this, getPackageResourcePath());
         JavaAddonManager.getInstance().init(getApplicationContext());
-
-        if (Build.VERSION.SDK_INT >= 10) {
-            NfcAdapter nfc = NfcAdapter.getDefaultAdapter(this);
-            if (nfc != null) {
-                nfc.setNdefPushMessageCallback(new NfcAdapter.CreateNdefMessageCallback() {
-                    @Override
-                    public NdefMessage createNdefMessage(NfcEvent event) {
-                        Tab tab = Tabs.getInstance().getSelectedTab();
-                        if (tab == null || tab.isPrivate()) {
-                            return null;
-                        }
-                        return new NdefMessage(NdefRecord.createUri(tab.getURL()));
-                    }
-                }, this);
-            }
-        }
     }
 
     @Override
@@ -253,16 +233,6 @@ abstract public class BrowserApp extends GeckoApp
         unregisterEventListener("Feedback:OpenPlayStore");
         unregisterEventListener("Feedback:MaybeLater");
         unregisterEventListener("Telemetry:Gather");
-
-        if (Build.VERSION.SDK_INT >= 10) {
-            NfcAdapter nfc = NfcAdapter.getDefaultAdapter(this);
-            if (nfc != null) {
-                // null this out even though the docs say it's not needed,
-                // because the source code looks like it will only do this
-                // automatically on API 14+
-                nfc.setNdefPushMessageCallback(null, this);
-            }
-        }
     }
 
     @Override
@@ -1240,16 +1210,8 @@ abstract public class BrowserApp extends GeckoApp
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
 
-        String action = intent.getAction();
-
-        if (Build.VERSION.SDK_INT >= 10 && NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
-            String uri = intent.getDataString();
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createURILoadEvent(uri));
-        }
-
-        if (!Intent.ACTION_MAIN.equals(action) || !mInitialized) {
+        if (!Intent.ACTION_MAIN.equals(intent.getAction()) || !mInitialized)
             return;
-        }
 
         (new UiAsyncTask<Void, Void, Boolean>(GeckoAppShell.getHandler()) {
             @Override

@@ -330,6 +330,7 @@ nsLayoutStatics::Shutdown()
 
   nsAttrValue::Shutdown();
   nsContentUtils::Shutdown();
+  nsNodeInfo::ClearCache();
   nsLayoutStylesheetCache::Shutdown();
   NS_NameSpaceManagerShutdown();
 

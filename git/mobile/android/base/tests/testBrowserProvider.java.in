@@ -942,10 +942,8 @@ public class testBrowserProvider extends ContentProviderTest {
             while (!c.isAfterLast()) {
                 String guid = c.getString(guidColumn);
                 long pos = c.getLong(posColumn);
-                if ((pos != i) || (guid == null) || (!guid.equals(items[i]))) {
-                    mAsserter.is(pos, (long) i, "Position matches sequence.");
-                    mAsserter.is(guid, items[i], "GUID matches sequence.");
-                }
+                mAsserter.is(pos, (long) i, "Position matches sequence.");
+                mAsserter.is(guid, items[i], "GUID matches sequence.");
                 ++i;
                 c.moveToNext();
             }

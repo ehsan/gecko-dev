@@ -124,7 +124,7 @@ static bool SetupGlobalThread() {
   if (!gThread) {
     nsIThread *thread;
 
-    nsresult rv = NS_NewNamedThread("pseudo-main",&thread);
+    nsresult rv = NS_NewThread(&thread);
     if (NS_FAILED(rv))
       return false;
 

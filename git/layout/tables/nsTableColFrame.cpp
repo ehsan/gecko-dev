@@ -12,6 +12,7 @@
 #include "nsGkAtoms.h"
 #include "nsCSSRendering.h"
 #include "nsIContent.h"
+#include "nsIDOMHTMLTableColElement.h"
 
 #define COL_TYPE_BITS                 (NS_FRAME_STATE_BIT(28) | \
                                        NS_FRAME_STATE_BIT(29) | \

@@ -134,10 +134,6 @@ uint32_t nsChildView::sLastInputEventCount = 0;
 
 - (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext alternate:(BOOL)aIsAlternate;
 
-- (BOOL)isUsingOpenGL;
-- (void)drawUsingOpenGL;
-- (void)drawUsingOpenGLCallback;
-
 // Called using performSelector:withObject:afterDelay:0 to release
 // aWidgetArray (and its contents) the next time through the run loop.
 - (void)releaseWidgets:(NSArray*)aWidgetArray;
@@ -1664,29 +1660,14 @@ bool nsChildView::HasPendingInputEvent()
 
 #pragma mark -
 
-NS_IMETHODIMP
-nsChildView::NotifyIME(NotificationToIME aNotification)
+// Force Input Method Editor to commit the uncommitted input
+// Note that this and other IME methods don't necessarily
+// get called on the same ChildView that input is going through.
+NS_IMETHODIMP nsChildView::ResetInputState()
 {
-  switch (aNotification) {
-    case REQUEST_TO_COMMIT_COMPOSITION:
-      NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
-      mTextInputHandler->CommitIMEComposition();
-      return NS_OK;
-    case REQUEST_TO_CANCEL_COMPOSITION:
-      NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
-      mTextInputHandler->CancelIMEComposition();
-      return NS_OK;
-    case NOTIFY_IME_OF_FOCUS:
-      NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
-      mTextInputHandler->OnFocusChangeInGecko(true);
-      return NS_OK;
-    case NOTIFY_IME_OF_BLUR:
-      NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
-      mTextInputHandler->OnFocusChangeInGecko(false);
-      return NS_OK;
-    default:
-      return NS_ERROR_NOT_IMPLEMENTED;
-  }
+  NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
+  mTextInputHandler->CommitIMEComposition();
+  return NS_OK;
 }
 
 NS_IMETHODIMP_(void)
@@ -1744,6 +1725,14 @@ nsChildView::GetInputContext()
   return mInputContext;
 }
 
+// Destruct and don't commit the IME composition string.
+NS_IMETHODIMP nsChildView::CancelIMEComposition()
+{
+  NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
+  mTextInputHandler->CancelIMEComposition();
+  return NS_OK;
+}
+
 NS_IMETHODIMP nsChildView::GetToggledKeyState(uint32_t aKeyCode,
                                               bool* aLEDState)
 {
@@ -1767,6 +1756,13 @@ NS_IMETHODIMP nsChildView::GetToggledKeyState(uint32_t aKeyCode,
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
+NS_IMETHODIMP nsChildView::OnIMEFocusChange(bool aFocus)
+{
+  NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
+  mTextInputHandler->OnFocusChangeInGecko(aFocus);
+  return NS_OK;
 }
 
 NSView<mozView>* nsChildView::GetEditorView()
@@ -2283,23 +2279,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 - (void)setNeedsDisplayInRect:(NSRect)aRect
 {
-  if (![[self window] isVisible])
-    return;
-
-  if ([self isUsingOpenGL]) {
-    // Draw the frame outside of setNeedsDisplayInRect to prevent us from
-    // needing to access the normal window buffer surface unnecessarily, so we
-    // waste less time synchronizing the two surfaces. (These synchronizations
-    // show up in a profiler as CGSDeviceLock / _CGSLockWindow /
-    // _CGSSynchronizeWindowBackingStore.) It also means that Cocoa doesn't
-    // have any potentially expensive invalid rect management for us.
-    if (!mWaitingForPaint) {
-      mWaitingForPaint = YES;
-      [self performSelector:@selector(drawUsingOpenGLCallback) withObject:nil afterDelay:0];
-    }
-  } else {
-    [super setNeedsDisplayInRect:aRect];
-  }
+  [super setNeedsDisplayInRect:aRect];
 
   if ([[self window] isKindOfClass:[ToolbarWindow class]]) {
     ToolbarWindow* window = (ToolbarWindow*)[self window];
@@ -2548,6 +2528,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 - (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext alternate:(BOOL)aIsAlternate
 {
+  SAMPLE_LABEL("widget", "ChildView::drawRect");
   if (!mGeckoChild || !mGeckoChild->IsVisible())
     return;
 
@@ -2567,21 +2548,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
   CGAffineTransform xform = CGContextGetCTM(aContext);
   fprintf (stderr, "  xform in: [%f %f %f %f %f %f]\n", xform.a, xform.b, xform.c, xform.d, xform.tx, xform.ty);
 #endif
-
-  if ([self isUsingOpenGL]) {
-    // We usually don't get here for Gecko-initiated repaints. Instead, those
-    // eventually call drawUsingOpenGL, and don't go through drawRect.
-    // Paints that come through here are triggered by something that Cocoa
-    // controls, for example by window resizing or window focus changes.
-
-    // Do GL composition and return.
-    [self drawUsingOpenGL];
-    return;
-  }
-
-  SAMPLE_LABEL("widget", "ChildView::drawRect");
-
   nsIntRegion region;
+
   nsIntRect boundingRect = mGeckoChild->CocoaPointsToDevPixels(aRect);
   const NSRect *rects;
   NSInteger count, i;
@@ -2595,6 +2563,33 @@ NSEvent* gLastDragMouseDownEvent = nil;
     region.And(region, boundingRect);
   } else {
     region = boundingRect;
+  }
+
+  LayerManager *layerManager = mGeckoChild->GetLayerManager(nullptr);
+  if (layerManager->GetBackendType() == mozilla::layers::LAYERS_OPENGL) {
+    NSOpenGLContext *glContext;
+
+    LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(layerManager);
+    manager->SetClippingRegion(region);
+    glContext = (NSOpenGLContext *)manager->GetNSOpenGLContext();
+
+    if (!mGLContext) {
+      [self setGLContext:glContext];
+    }
+
+    [glContext setView:self];
+    [glContext update];
+
+    mGeckoChild->PaintWindow(region, aIsAlternate);
+
+    // Force OpenGL to refresh the very first time we draw. This works around a
+    // Mac OS X bug that stops windows updating on OS X when we use OpenGL.
+    if (!mDidForceRefreshOpenGL) {
+      [self performSelector:@selector(forceRefreshOpenGL) withObject:nil afterDelay:0];
+      mDidForceRefreshOpenGL = YES;
+    }
+
+    return;
   }
 
   // Create Cairo objects.
@@ -2638,9 +2633,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   // Force OpenGL to refresh the very first time we draw. This works around a
   // Mac OS X bug that stops windows updating on OS X when we use OpenGL.
-  LayerManager *layerManager = mGeckoChild->GetLayerManager(nullptr);
-  if (mUsingOMTCompositor && painted && !mDidForceRefreshOpenGL &&
-      layerManager->AsShadowManager()) {
+  if (painted && !mDidForceRefreshOpenGL &&
+      layerManager->AsShadowManager() && mUsingOMTCompositor) {
     if (!mDidForceRefreshOpenGL) {
       [self performSelector:@selector(forceRefreshOpenGL) withObject:nil afterDelay:0];
       mDidForceRefreshOpenGL = YES;
@@ -2672,57 +2666,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   CGContextSetLineWidth(aContext, 4.0);
   CGContextStrokeRect(aContext, NSRectToCGRect(aRect));
 #endif
-}
-
-- (BOOL)isUsingOpenGL
-{
-  if (!mGeckoChild || ![self window])
-    return NO;
-
-  return mGeckoChild->GetLayerManager(nullptr)->GetBackendType() == mozilla::layers::LAYERS_OPENGL;
-}
-
-- (void)drawUsingOpenGL
-{
-  SAMPLE_LABEL("widget", "ChildView::drawUsingOpenGL");
-
-  if (![self isUsingOpenGL] || !mGeckoChild->IsVisible())
-    return;
-
-  mWaitingForPaint = NO;
-
-  nsIntRect geckoBounds;
-  mGeckoChild->GetBounds(geckoBounds);
-  nsIntRegion region(geckoBounds);
-
-  LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGeckoChild->GetLayerManager(nullptr));
-  manager->SetClippingRegion(region);
-  NSOpenGLContext *glContext = (NSOpenGLContext *)manager->GetNSOpenGLContext();
-
-  if (!mGLContext) {
-    [self setGLContext:glContext];
-  }
-
-  [glContext setView:self];
-  [glContext update];
-
-  mGeckoChild->PaintWindow(region, false);
-
-  // Force OpenGL to refresh the very first time we draw. This works around a
-  // Mac OS X bug that stops windows updating on OS X when we use OpenGL.
-  if (!mDidForceRefreshOpenGL) {
-    [self performSelector:@selector(forceRefreshOpenGL) withObject:nil afterDelay:0];
-    mDidForceRefreshOpenGL = YES;
-  }
-}
-
-// Called asynchronously after setNeedsDisplay in order to avoid entering the
-// normal drawing machinery.
-- (void)drawUsingOpenGLCallback
-{
-  if (mWaitingForPaint) {
-    [self drawUsingOpenGL];
-  }
 }
 
 - (void)releaseWidgets:(NSArray*)aWidgetArray
