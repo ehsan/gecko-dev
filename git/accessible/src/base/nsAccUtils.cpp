@@ -47,7 +47,9 @@
 #include "nsARIAMap.h"
 #include "nsDocAccessible.h"
 #include "nsHyperTextAccessible.h"
+#include "nsHTMLTableAccessible.h"
 #include "nsTextAccessible.h"
+#include "nsXULTreeGridAccessible.h"
 
 #include "nsIDOMXULContainerElement.h"
 #include "nsIDOMXULSelectCntrlEl.h"

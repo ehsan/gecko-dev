@@ -1,4 +1,3 @@
-#filter substitution
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,16 +11,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Firefox Mobile Test Framework.
+ * The Original Code is Android Sync Client.
  *
- * The Initial Developer of the Original Code is Mozilla.
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- * Trevor Fairey <tnfairey@gmail.com>
- * David Burns <dburns@mozilla.com>
- * Joel Maher <joel.maher@gmail.com>
+ *   Jason Voll <jvoll@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,22 +35,30 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-package @ANDROID_PACKAGE_NAME@;
+package org.mozilla.gecko.sync.repositories.android;
 
-public interface Assert {
-    void dumpLog(String message);
-    void setLogFile(String filename);
-    void setTestName(String testName);
+import android.provider.BaseColumns;
 
-    void finalize();
-    void ok(boolean condition, String name, String diag);
-    void is(Object a, Object b, String name);
-    void isnot(Object a, Object b, String name);
-    void todo(boolean condition, String name, String diag);
-    void todo_is(Object a, Object b, String name);
-    void todo_isnot(Object a, Object b, String name);
-    void info(String name, String message);
+public final class PasswordColumns implements BaseColumns {
 
-    // robocop-specific asserts
-    void ispixel(int actual, int r, int g, int b, String name);
+  /*
+   * IMPORTANT NOTE
+   * This file takes the column names from mobile/android/base/GeckoPassword.java
+   * and is included here to avoid creating a compile-time dependency on Fennec.
+   */
+
+  public static final String _ID = "id";
+  public static final String HOSTNAME = "hostname";
+  public static final String HTTP_REALM = "httpRealm";
+  public static final String FORM_SUBMIT_URL = "formSubmitURL";
+  public static final String USERNAME_FIELD = "usernameField";
+  public static final String PASSWORD_FIELD = "passwordField";
+  public static final String ENCRYPTED_USERNAME = "encryptedUsername";
+  public static final String ENCRYPTED_PASSWORD = "encryptedPassword";
+  public static final String GUID = "guid";
+  public static final String ENC_TYPE = "encType";
+  public static final String TIME_CREATED = "timeCreated";
+  public static final String TIME_LAST_USED = "timeLastUsed";
+  public static final String TIME_PASSWORD_CHANGED = "timePasswordChanged";
+  public static final String TIMES_USED = "timesUsed";
 }

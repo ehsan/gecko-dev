@@ -61,7 +61,6 @@
 #include "mozilla/Util.h" // DebugOnly
 #include "sampler.h"
 #include "nsIScriptError.h"
-#include "mozilla/Preferences.h"
 
 using namespace mozilla;
 
@@ -122,8 +121,7 @@ nsHtml5TreeOpExecutor::WillParse()
 NS_IMETHODIMP
 nsHtml5TreeOpExecutor::WillBuildModel(nsDTDMode aDTDMode)
 {
-  if (mDocShell && !GetDocument()->GetScriptGlobalObject() &&
-      !IsExternalViewSource()) {
+  if (mDocShell && !GetDocument()->GetScriptGlobalObject()) {
     // Not loading as data but script global object not ready
     return MarkAsBroken(NS_ERROR_DOM_INVALID_STATE_ERR);
   }
@@ -971,27 +969,6 @@ nsHtml5TreeOpExecutor::GetViewSourceBaseURI()
   return mViewSourceBaseURI;
 }
 
-//static
-void
-nsHtml5TreeOpExecutor::InitializeStatics()
-{
-  mozilla::Preferences::AddBoolVarCache(&sExternalViewSource,
-                                        "view_source.editor.external");
-}
-
-bool
-nsHtml5TreeOpExecutor::IsExternalViewSource()
-{
-  if (!sExternalViewSource) {
-    return false;
-  }
-  bool isViewSource = false;
-  if (mDocumentURI) {
-    mDocumentURI->SchemeIs("view-source", &isViewSource);
-  }
-  return isViewSource;
-}
-
 // Speculative loading
 
 already_AddRefed<nsIURI>
@@ -1083,4 +1060,3 @@ PRUint32 nsHtml5TreeOpExecutor::sAppendBatchExaminations = 0;
 PRUint32 nsHtml5TreeOpExecutor::sLongestTimeOffTheEventLoop = 0;
 PRUint32 nsHtml5TreeOpExecutor::sTimesFlushLoopInterrupted = 0;
 #endif
-bool nsHtml5TreeOpExecutor::sExternalViewSource = false;

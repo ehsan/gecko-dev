@@ -1356,16 +1356,14 @@ pref("mousewheel.horizscroll.withmetakey.sysnumlines",true);
 
 // These define the smooth scroll behavior (min ms, max ms) for different triggers
 // Some triggers:
-// mouseWheel: Discrete mouse wheel events, Synaptics touchpads on windows (generate wheel events)
+// Pixels: Discrete mouse wheel events, Synaptics touchpads on windows (generate wheel events)
 // Lines:  Up/Down/Left/Right KB arrows
 // Pages:  Page up/down, Space
 // Scrollbars: Clicking scrollbars arrows, clicking scrollbars tracks
 // Note: Currently OS X trackpad and magic mouse don't use our smooth scrolling
 // Note: These are relevant only when "general.smoothScroll" is enabled
-pref("general.smoothScroll.mouseWheel.durationMinMS", 200);
-pref("general.smoothScroll.mouseWheel.durationMaxMS", 400);
-pref("general.smoothScroll.pixels.durationMinMS", 150);
-pref("general.smoothScroll.pixels.durationMaxMS", 150);
+pref("general.smoothScroll.pixels.durationMinMS", 200);
+pref("general.smoothScroll.pixels.durationMaxMS", 400);
 pref("general.smoothScroll.lines.durationMinMS", 150);
 pref("general.smoothScroll.lines.durationMaxMS", 150);
 pref("general.smoothScroll.pages.durationMinMS", 150);
@@ -1374,8 +1372,6 @@ pref("general.smoothScroll.scrollbars.durationMinMS", 150);
 pref("general.smoothScroll.scrollbars.durationMaxMS", 150);
 pref("general.smoothScroll.other.durationMinMS", 150);
 pref("general.smoothScroll.other.durationMaxMS", 150);
-// Enable disable smooth scrolling for different triggers (when "general.smoothScroll" is enabled)
-pref("general.smoothScroll.mouseWheel", true);
 pref("general.smoothScroll.pixels", true);
 pref("general.smoothScroll.lines", true);
 pref("general.smoothScroll.pages", true);

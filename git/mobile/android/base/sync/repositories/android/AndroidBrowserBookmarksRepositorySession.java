@@ -198,8 +198,8 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     dataAccessor = (AndroidBrowserBookmarksDataAccessor) dbHelper;
   }
 
-  private static int getTypeFromCursor(Cursor cur) {
-    return RepoUtils.getIntFromCursor(cur, BrowserContract.Bookmarks.TYPE);
+  private static long getTypeFromCursor(Cursor cur) {
+    return RepoUtils.getLongFromCursor(cur, BrowserContract.Bookmarks.TYPE);
   }
 
   private static boolean rowIsFolder(Cursor cur) {
@@ -479,10 +479,10 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       return true;
     }
 
-    if (BrowserContractHelpers.isSupportedType(bmk.type)) {
+    if (bmk.isBookmark() ||
+        bmk.isFolder()) {
       return false;
     }
-
     Logger.debug(LOG_TAG, "Ignoring record with guid: " + bmk.guid + " and type: " + bmk.type);
     return true;
   }
@@ -566,11 +566,6 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
 
   @Override
   protected Record prepareRecord(Record record) {
-    if (record.deleted) {
-      Logger.debug(LOG_TAG, "No need to prepare deleted record " + record.guid);
-      return record;
-    }
-
     BookmarkRecord bmk = (BookmarkRecord) record;
 
     if (!isSpecialRecord(record)) {
@@ -583,22 +578,22 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
         Logger.pii(LOG_TAG, "Inserting folder " + bmk.guid + ", " + bmk.title +
                             " with parent " + bmk.androidParentID +
                             " (" + bmk.parentID + ", " + bmk.parentName +
-                            ", " + bmk.androidPosition + ")");
+                            ", " + bmk.pos + ")");
       } else {
         Logger.pii(LOG_TAG, "Inserting bookmark " + bmk.guid + ", " + bmk.title + ", " +
                             bmk.bookmarkURI + " with parent " + bmk.androidParentID +
                             " (" + bmk.parentID + ", " + bmk.parentName +
-                            ", " + bmk.androidPosition + ")");
+                            ", " + bmk.pos + ")");
       }
     } else {
       if (bmk.isFolder()) {
         Logger.debug(LOG_TAG, "Inserting folder " + bmk.guid +  ", parent " +
                               bmk.androidParentID +
-                              " (" + bmk.parentID + ", " + bmk.androidPosition + ")");
+                              " (" + bmk.parentID + ", " + bmk.pos + ")");
       } else {
         Logger.debug(LOG_TAG, "Inserting bookmark " + bmk.guid + " with parent " +
                               bmk.androidParentID +
-                              " (" + bmk.parentID + ", " + ", " + bmk.androidPosition + ")");
+                              " (" + bmk.parentID + ", " + ", " + bmk.pos + ")");
       }
     }
     return bmk;
@@ -690,7 +685,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     }
     final BookmarkRecord bookmarkRecord = (BookmarkRecord) record;
     if (bookmarkRecord.isFolder()) {
-      Logger.debug(LOG_TAG, "Deleting folder. Ensuring consistency of children. TODO: Bug 724470.");
+      Logger.debug(LOG_TAG, "Deleting folder. Ensuring consistency of children.");
       handleFolderDeletion(bookmarkRecord);
       return;
     }
@@ -773,20 +768,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
   @Override
   protected String buildRecordString(Record record) {
     BookmarkRecord bmk = (BookmarkRecord) record;
-    String parent = bmk.parentName + "/";
-    if (bmk.isBookmark()) {
-      return "b" + parent + bmk.bookmarkURI + ":" + bmk.title;
-    }
-    if (bmk.isFolder()) {
-      return "f" + parent + bmk.title;
-    }
-    if (bmk.isSeparator()) {
-      return "s" + parent + bmk.androidPosition;
-    }
-    if (bmk.isQuery()) {
-      return "q" + parent + bmk.bookmarkURI;
-    }
-    return null;
+    return bmk.title + bmk.bookmarkURI + bmk.type + bmk.parentName;
   }
 
   public static BookmarkRecord computeParentFields(BookmarkRecord rec, String suggestedParentGUID, String suggestedParentName) {
@@ -833,7 +815,8 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
         Logger.pii(LOG_TAG, "> Title:            " + rec.title);
         Logger.pii(LOG_TAG, "> Type:             " + rec.type);
         Logger.pii(LOG_TAG, "> URI:              " + rec.bookmarkURI);
-        Logger.pii(LOG_TAG, "> Position:         " + rec.androidPosition);
+        Logger.pii(LOG_TAG, "> Android position: " + rec.androidPosition);
+        Logger.pii(LOG_TAG, "> Position:         " + rec.pos);
         if (rec.isFolder()) {
           Logger.pii(LOG_TAG, "FOLDER: Children are " +
                              (rec.children == null ?
@@ -860,20 +843,15 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       return logBookmark(rec);
     }
 
-    int rowType = getTypeFromCursor(cur);
-    String typeString = BrowserContractHelpers.typeStringForCode(rowType);
+    boolean isFolder = rowIsFolder(cur);
 
-    if (typeString == null) {
-      Logger.warn(LOG_TAG, "Unsupported type code " + rowType);
-      return null;
-    }
-
-    rec.type = typeString;
     rec.title = RepoUtils.getStringFromCursor(cur, BrowserContract.Bookmarks.TITLE);
     rec.bookmarkURI = RepoUtils.getStringFromCursor(cur, BrowserContract.Bookmarks.URL);
     rec.description = RepoUtils.getStringFromCursor(cur, BrowserContract.Bookmarks.DESCRIPTION);
     rec.tags = RepoUtils.getJSONArrayFromCursor(cur, BrowserContract.Bookmarks.TAGS);
     rec.keyword = RepoUtils.getStringFromCursor(cur, BrowserContract.Bookmarks.KEYWORD);
+    rec.type = isFolder ? AndroidBrowserBookmarksDataAccessor.TYPE_FOLDER :
+                          AndroidBrowserBookmarksDataAccessor.TYPE_BOOKMARK;
 
     rec.androidID = RepoUtils.getLongFromCursor(cur, BrowserContract.Bookmarks._ID);
     rec.androidPosition = RepoUtils.getLongFromCursor(cur, BrowserContract.Bookmarks.POSITION);

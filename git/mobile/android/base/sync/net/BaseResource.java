@@ -6,7 +6,6 @@ package org.mozilla.gecko.sync.net;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.lang.ref.WeakReference;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.KeyManagementException;
@@ -74,8 +73,6 @@ public class BaseResource implements Resource {
   protected HttpRequestBase request;
   public String charset = "utf-8";
 
-  protected static WeakReference<HttpResponseObserver> httpResponseObserver = null;
-
   public BaseResource(String uri) throws URISyntaxException {
     this(uri, rewriteLocalhost);
   }
@@ -100,20 +97,6 @@ public class BaseResource implements Resource {
     } else {
       this.uri = uri;
     }
-  }
-
-  public static synchronized HttpResponseObserver getHttpResponseObserver() {
-    if (httpResponseObserver == null) {
-      return null;
-    }
-    return httpResponseObserver.get();
-  }
-
-  public static synchronized void setHttpResponseObserver(HttpResponseObserver newHttpResponseObserver) {
-    if (httpResponseObserver != null) {
-      httpResponseObserver.clear();
-    }
-    httpResponseObserver = new WeakReference<HttpResponseObserver>(newHttpResponseObserver);
   }
 
   public URI getURI() {
@@ -246,10 +229,6 @@ public class BaseResource implements Resource {
     try {
       HttpResponse response = client.execute(request, context);
       Logger.debug(LOG_TAG, "Response: " + response.getStatusLine().toString());
-      HttpResponseObserver observer = getHttpResponseObserver();
-      if (observer != null) {
-        observer.observeHttpResponse(response);
-      }
       delegate.handleHttpResponse(response);
     } catch (ClientProtocolException e) {
       delegate.handleHttpProtocolException(e);

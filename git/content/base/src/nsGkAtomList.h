@@ -1935,8 +1935,7 @@ GK_ATOM(VolumeUp, "VolumeUp")
 GK_ATOM(VolumeDown, "VolumeDown")
 GK_ATOM(Menu, "Menu")
 
-// Smooth scroll events origins
-GK_ATOM(mouseWheel, "mouseWheel")  // For discrete wheel events (e.g. not OSX magic mouse)
+// Smooth scroll profiles
 GK_ATOM(pixels,     "pixels")
 GK_ATOM(lines,      "lines")
 GK_ATOM(pages,      "pages")

@@ -102,7 +102,7 @@ if [ "$MOZ_SAFE_BROWSING" ]; then
   "
 fi
 
-if [ "$MAKENSISU" ]; then
+if [ "$MOZ_WIDGET_TOOLKIT" = "windows" ]; then
   add_makefiles "
     browser/installer/windows/Makefile
   "

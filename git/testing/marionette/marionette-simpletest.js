@@ -36,7 +36,6 @@ Marionette.prototype = {
   },
 
   log: function Marionette__log(msg, level) {
-    dump("MARIONETTE LOG: " + (level ? level : "INFO") + ": " + msg);
     if (this.logObj != null) {
       this.logObj.log(msg, level);
     }

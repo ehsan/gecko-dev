@@ -99,7 +99,7 @@ ic::GetGlobalName(VMFrame &f, ic::GetGlobalNameIC *ic)
     }
 
     if (!shape ||
-        !shape->hasDefaultGetter() ||
+        !shape->hasDefaultGetterOrIsMethod() ||
         !shape->hasSlot())
     {
         if (shape)
@@ -165,7 +165,8 @@ UpdateSetGlobalName(VMFrame &f, ic::SetGlobalNameIC *ic, JSObject *obj, const Sh
     if (!shape)
         return Lookup_Uncacheable;
 
-    if (!shape->hasDefaultSetter() ||
+    if (shape->isMethod() ||
+        !shape->hasDefaultSetter() ||
         !shape->writable() ||
         !shape->hasSlot() ||
         obj->watched())

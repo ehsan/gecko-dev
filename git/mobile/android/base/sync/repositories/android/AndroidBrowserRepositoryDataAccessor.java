@@ -92,14 +92,10 @@ public abstract class AndroidBrowserRepositoryDataAccessor {
     return BrowserContract.SyncColumns.DATE_MODIFIED + " >= " + Long.toString(timestamp);
   }
 
-  public void delete(String where, String[] args) {
-    Uri uri = getUri();
-    context.getContentResolver().delete(uri, where, args);
-  }
-
   public void wipe() {
-    Logger.debug(LOG_TAG, "Wiping.");
-    delete(null, null);
+    Uri uri = getUri();
+    Logger.debug(LOG_TAG, "Wiping: " + uri);
+    context.getContentResolver().delete(uri, null, null);
   }
 
   public void purgeDeleted() throws NullCursorException {
