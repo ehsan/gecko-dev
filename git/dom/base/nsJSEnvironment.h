@@ -95,7 +95,7 @@ public:
                                  const char *aURL,
                                  PRUint32 aLineNo,
                                  PRUint32 aVersion,
-                                 nsScriptObjectHolder<JSScript>& aScriptObject);
+                                 nsScriptObjectHolder &aScriptObject);
   virtual nsresult ExecuteScript(JSScript* aScriptObject,
                                  JSObject* aScopeObject,
                                  nsAString* aRetValue,
@@ -107,14 +107,14 @@ public:
                                        const nsAString& aBody,
                                        const char *aURL, PRUint32 aLineNo,
                                        PRUint32 aVersion,
-                                       nsScriptObjectHolder<JSObject>& aHandler);
+                                       nsScriptObjectHolder &aHandler);
   virtual nsresult CallEventHandler(nsISupports* aTarget, JSObject* aScope,
                                     JSObject* aHandler,
                                     nsIArray *argv, nsIVariant **rv);
   virtual nsresult BindCompiledEventHandler(nsISupports *aTarget,
                                             JSObject *aScope,
                                             JSObject* aHandler,
-                                            nsScriptObjectHolder<JSObject>& aBoundHandler);
+                                            nsScriptObjectHolder& aBoundHandler);
   virtual nsresult CompileFunction(JSObject* aTarget,
                                    const nsACString& aName,
                                    PRUint32 aArgCount,
@@ -126,6 +126,7 @@ public:
                                    bool aShared,
                                    JSObject** aFunctionObject);
 
+  virtual void SetDefaultLanguageVersion(PRUint32 aVersion);
   virtual nsIScriptGlobalObject *GetGlobalObject();
   virtual JSContext* GetNativeContext();
   virtual JSObject* GetNativeGlobal();
@@ -168,7 +169,7 @@ public:
 
   virtual nsresult Serialize(nsIObjectOutputStream* aStream, JSScript* aScriptObject);
   virtual nsresult Deserialize(nsIObjectInputStream* aStream,
-                               nsScriptObjectHolder<JSScript>& aResult);
+                               nsScriptObjectHolder &aResult);
 
   virtual nsresult DropScriptObject(void *object);
   virtual nsresult HoldScriptObject(void *object);

@@ -336,13 +336,13 @@ public:
 
     void UnlinkJSObjects();
 
-    void Set(nsScriptObjectHolder<JSScript>& aHolder)
+    void Set(nsScriptObjectHolder &aHolder)
     {
         NS_ASSERTION(mScriptObject.mLangID == aHolder.getScriptTypeID(),
                      "Wrong language, this will leak the previous object.");
 
         mScriptObject.mLangID = aHolder.getScriptTypeID();
-        Set(aHolder.get());
+        Set(aHolder.getScript());
     }
     void Set(JSScript* aObject);
 

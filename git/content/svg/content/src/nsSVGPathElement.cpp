@@ -388,7 +388,7 @@ nsSVGPathElement::IsAttributeMapped(const nsIAtom* name) const
     sMarkersMap
   };
 
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGPathElementBase::IsAttributeMapped(name);
 }
 

@@ -518,7 +518,7 @@ public:
 
   virtual NS_HIDDEN_(void)
     CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
-                             nsScriptObjectHolder<JSObject>& aHandler);
+                             nsScriptObjectHolder& aHandler);
 
   virtual bool TakeFocus(bool aFocus, PRUint32 aFocusMethod);
   virtual void SetReadyForFocus();

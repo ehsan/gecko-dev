@@ -106,7 +106,7 @@ ReportError(JSContext *cx, const char *msg)
 
 nsresult
 mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_obj,
-                                 const nsAString& charset, const char *uriStr,
+                                 jschar *charset, const char *uriStr,
                                  nsIIOService *serv, nsIPrincipal *principal,
                                  JSScript **scriptp)
 {
@@ -153,10 +153,10 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_ob
      * exceptions, including the source/line number */
     er = JS_SetErrorReporter(cx, mozJSLoaderErrorReporter);
 
-    if (!charset.IsVoid()) {
+    if (charset) {
         nsString script;
         rv = nsScriptLoader::ConvertToUTF16(nsnull, reinterpret_cast<const PRUint8*>(buf.get()), len,
-                                            charset, nsnull, script);
+                                            nsDependentString(reinterpret_cast<PRUnichar*>(charset)), nsnull, script);
 
         if (NS_FAILED(rv)) {
             JSPRINCIPALS_DROP(cx, jsPrincipals);
@@ -180,12 +180,9 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_ob
     return NS_OK;
 }
 
-NS_IMETHODIMP
-mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
-                                    const JS::Value& target,
-                                    const nsAString& charset,
-                                    JSContext* cx,
-                                    JS::Value* retval)
+NS_IMETHODIMP /* args and return value are delt with using XPConnect and JSAPI */
+mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
+                                     /* [, JSObject *target_obj] */)
 {
     /*
      * Loads a local url and evals it into the current cx
@@ -198,19 +195,48 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
      * Should ONLY (O N L Y !) be called from JavaScript code.
      */
 
-    nsresult rv = NS_OK;
+    /* gotta define most of this stuff up here because of all the gotos,
+     * defined the rest up here to be consistent */
+    nsresult  rv;
+    JSBool    ok;
 
 #ifdef NS_FUNCTION_TIMER
     NS_TIME_FUNCTION_FMT("%s (line %d) (url: %s)", MOZ_FUNCTION_NAME,
-                         __LINE__, NS_LossyConvertUTF16toASCII(url).get());
+                         __LINE__, NS_LossyConvertUTF16toASCII(aURL).get());
+#else
+    (void)aURL; // prevent compiler warning
 #endif
+
+    /* get JS things from the CallContext */
+    nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
+    if (!xpc) return NS_ERROR_FAILURE;
+
+    nsAXPCNativeCallContext *cc = nsnull;
+    rv = xpc->GetCurrentNativeCallContext(&cc);
+    if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
+
+    JSContext *cx;
+    rv = cc->GetJSContext (&cx);
+    if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
+
+    PRUint32 argc;
+    rv = cc->GetArgc (&argc);
+    if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
+
+    jsval *argv;
+    rv = cc->GetArgvPtr (&argv);
+    if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
+
+    jsval *rval;
+    rv = cc->GetRetValPtr (&rval);
+    if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
 
     /* set mJSPrincipals if it's not here already */
     if (!mSystemPrincipal) {
         nsCOMPtr<nsIScriptSecurityManager> secman =
             do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
         if (!secman)
-            return NS_OK;
+            return rv;
 
         rv = secman->GetSystemPrincipal(getter_AddRefs(mSystemPrincipal));
         if (NS_FAILED(rv) || !mSystemPrincipal)
@@ -219,55 +245,80 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
 
     JSAutoRequest ar(cx);
 
-    JSObject* targetObj;
-    if (!JS_ValueToObject(cx, target, &targetObj))
-        return NS_ERROR_ILLEGAL_VALUE;
+    JSString *url;
+    JSObject *target_obj = nsnull;
+    jschar   *charset = nsnull;
+    ok = JS_ConvertArguments (cx, argc, argv, "S / o W", &url, &target_obj, &charset);
+    if (!ok) {
+        /* let the exception raised by JS_ConvertArguments show through */
+        return NS_OK;
+    }
 
+    JSAutoByteString urlbytes(cx, url);
+    if (!urlbytes) {
+        return NS_OK;
+    }
 
-    if (!targetObj) {
-        // If the user didn't provide an object to eval onto, find the global
-        // object by walking the parent chain of the calling object.
-        nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
-        NS_ENSURE_TRUE(xpc, NS_ERROR_FAILURE);
+    if (!target_obj) {
+        /* if the user didn't provide an object to eval onto, find the global
+         * object by walking the parent chain of the calling object */
 
-        nsAXPCNativeCallContext *cc = nsnull;
-        rv = xpc->GetCurrentNativeCallContext(&cc);
-        NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+#ifdef DEBUG_rginda
+        JSObject *got_glob = JS_GetGlobalObject (cx);
+        fprintf (stderr, "JS_GetGlobalObject says glob is %p.\n", got_glob);
+        target_obj = JS_GetPrototype (cx, got_glob);
+        fprintf (stderr, "That glob's prototype is %p.\n", target_obj);
+        target_obj = JS_GetParent (cx, got_glob);
+        fprintf (stderr, "That glob's parent is %p.\n", target_obj);
+#endif
 
         nsCOMPtr<nsIXPConnectWrappedNative> wn;
-        rv = cc->GetCalleeWrapper(getter_AddRefs(wn));
-        NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+        rv = cc->GetCalleeWrapper (getter_AddRefs(wn));
+        if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
 
-        rv = wn->GetJSObject(&targetObj);
-        NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+        rv = wn->GetJSObject (&target_obj);
+        if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
 
-        JSObject *maybeGlob = JS_GetParent(cx, targetObj);
-        while (maybeGlob) {
-            targetObj = maybeGlob;
-            maybeGlob = JS_GetParent(cx, maybeGlob);
+#ifdef DEBUG_rginda
+        fprintf (stderr, "Parent chain: %p", target_obj);
+#endif
+        JSObject *maybe_glob = JS_GetParent (cx, target_obj);
+        while (maybe_glob != nsnull) {
+#ifdef DEBUG_rginda
+            fprintf (stderr, ", %p", maybe_glob);
+#endif
+            target_obj = maybe_glob;
+            maybe_glob = JS_GetParent (cx, maybe_glob);
         }
+#ifdef DEBUG_rginda
+        fprintf (stderr, "\n");
+#endif
     }
 
     // Remember an object out of the calling compartment so that we
     // can properly wrap the result later.
     nsCOMPtr<nsIPrincipal> principal = mSystemPrincipal;
-    JSObject *result_obj = targetObj;
-    targetObj = JS_FindCompilationScope(cx, targetObj);
-    if (!targetObj)
+    JSObject *result_obj = target_obj;
+    target_obj = JS_FindCompilationScope(cx, target_obj);
+    if (!target_obj)
         return NS_ERROR_FAILURE;
 
-    if (targetObj != result_obj) {
+    if (target_obj != result_obj) {
         nsCOMPtr<nsIScriptSecurityManager> secman =
             do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
         if (!secman)
             return NS_ERROR_FAILURE;
 
-        rv = secman->GetObjectPrincipal(cx, targetObj, getter_AddRefs(principal));
+        rv = secman->GetObjectPrincipal(cx, target_obj, getter_AddRefs(principal));
         NS_ENSURE_SUCCESS(rv, rv);
+
+#ifdef DEBUG_rginda
+        fprintf (stderr, "Final global: %p\n", target_obj);
+#endif
     }
 
     JSAutoEnterCompartment ac;
-    if (!ac.enter(cx, targetObj))
+    if (!ac.enter(cx, target_obj))
         return NS_ERROR_UNEXPECTED;
 
     /* load up the url.  From here on, failures are reflected as ``custom''
@@ -305,7 +356,7 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
 
     // Make sure to explicitly create the URI, since we'll need the
     // canonicalized spec.
-    rv = NS_NewURI(getter_AddRefs(uri), NS_LossyConvertUTF16toASCII(url).get(), nsnull, serv);
+    rv = NS_NewURI(getter_AddRefs(uri), urlbytes.ptr(), nsnull, serv);
     if (NS_FAILED(rv)) {
         return ReportError(cx, LOAD_ERROR_NOURI);
     }
@@ -347,8 +398,7 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
     if (cache)
         rv = ReadCachedScript(cache, cachePath, cx, &script);
     if (!script) {
-        rv = ReadScript(uri, cx, targetObj, charset,
-                        static_cast<const char*>(uriStr.get()), serv,
+        rv = ReadScript(uri, cx, target_obj, charset, (char *)uriStr.get(), serv,
                         principal, &script);
         writeScript = true;
     }
@@ -356,11 +406,11 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
     if (NS_FAILED(rv) || !script)
         return rv;
 
-    bool ok = JS_ExecuteScriptVersion(cx, targetObj, script, retval, version);
+    ok = JS_ExecuteScriptVersion(cx, target_obj, script, rval, version);
 
     if (ok) {
         JSAutoEnterCompartment rac;
-        if (!rac.enter(cx, result_obj) || !JS_WrapValue(cx, retval))
+        if (!rac.enter(cx, result_obj) || !JS_WrapValue(cx, rval))
             return NS_ERROR_UNEXPECTED;
     }
 
@@ -368,5 +418,7 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
         WriteCachedScript(cache, cachePath, cx, script);
     }
 
+    cc->SetReturnValueWasSet (ok);
     return NS_OK;
 }
+

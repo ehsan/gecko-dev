@@ -767,17 +767,15 @@ class nsCOMPtr MOZ_FINAL
           return temp;
         }
 
-      template <typename I>
       void
-      forget( I** rhs NS_OUTPARAM )
+      forget( T** rhs NS_OUTPARAM )
           // Set the target of rhs to the value of mRawPtr and null out mRawPtr.
           // Useful to avoid unnecessary AddRef/Release pairs with "out"
-          // parameters where rhs bay be a T** or an I** where I is a base class
-          // of T.
+          // parameters.
         {
           NS_ASSERTION(rhs, "Null pointer passed to forget!");
-          *rhs = get();
-          mRawPtr = 0;
+          *rhs = 0;
+          swap(*rhs);
         }
 
       T*

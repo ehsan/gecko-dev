@@ -307,7 +307,7 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   if (!boundContext)
     return NS_OK;
 
-  nsScriptObjectHolder<JSObject> handler(boundContext);
+  nsScriptObjectHolder handler(boundContext);
   nsISupports *scriptTarget;
 
   if (winRoot) {
@@ -321,16 +321,16 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
 
   // Bind it to the bound element
   JSObject* scope = boundGlobal->GetGlobalJSObject();
-  nsScriptObjectHolder<JSObject> boundHandler(boundContext);
+  nsScriptObjectHolder boundHandler(boundContext);
   rv = boundContext->BindCompiledEventHandler(scriptTarget, scope,
-                                              handler.get(), boundHandler);
+                                              handler.getObject(), boundHandler);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Execute it.
   nsCOMPtr<nsIJSEventListener> eventListener;
   rv = NS_NewJSEventListener(boundContext, scope,
                              scriptTarget, onEventAtom,
-                             boundHandler.get(),
+                             boundHandler.getObject(),
                              getter_AddRefs(eventListener));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -344,14 +344,14 @@ nsresult
 nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
                                           nsIScriptContext *aBoundContext,
                                           nsIAtom *aName,
-                                          nsScriptObjectHolder<JSObject>& aHandler)
+                                          nsScriptObjectHolder &aHandler)
 {
   // Check to see if we've already compiled this
   nsCOMPtr<nsPIDOMWindow> pWindow = do_QueryInterface(aGlobal);
   if (pWindow) {
     JSObject* cachedHandler = pWindow->GetCachedXBLPrototypeHandler(this);
     if (cachedHandler) {
-      aHandler.set(cachedHandler);
+      aHandler.setObject(cachedHandler);
       return aHandler ? NS_OK : NS_ERROR_FAILURE;
     }
   }

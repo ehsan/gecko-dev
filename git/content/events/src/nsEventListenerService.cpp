@@ -187,9 +187,8 @@ nsEventListenerInfo::GetDebugObject(nsISupports** aRetVal)
         jsval v = JSVAL_NULL;
         if (GetJSVal(cx, ac, &v)) {
           nsCOMPtr<jsdIValue> jsdValue;
-          rv = jsd->WrapValue(v, getter_AddRefs(jsdValue));
-          NS_ENSURE_SUCCESS(rv, rv);
-          jsdValue.forget(aRetVal);
+          jsd->WrapJSValue(v, getter_AddRefs(jsdValue));
+          *aRetVal = jsdValue.forget().get();
         }
       }
       stack->Pop(&cx);
