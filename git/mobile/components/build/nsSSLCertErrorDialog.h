@@ -13,7 +13,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mobile Browser.
+ * The Original Code is Mobile Browser SSL Cert Dialog Override.
  *
  * The Initial Developer of the Original Code is
  * the Mozilla Foundation <http://www.mozilla.org/>.
@@ -37,33 +37,27 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ModuleUtils.h"
+#ifndef __NS_SSLCERTERRORDIALOG_H__
+#define __NS_SSLCERTERRORDIALOG_H__
 
-#include "nsShellService.h"
-#include "nsSSLCertErrorDialog.h"
+#include "nsISSLCertErrorDialog.h"
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsShellService)
-NS_DEFINE_NAMED_CID(nsShellService_CID);
+class nsSSLCertErrorDialog : public nsISSLCertErrorDialog
+{
+public:
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsSSLCertErrorDialog)
-NS_DEFINE_NAMED_CID(nsSSLCertErrorDialog_CID);
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSISSLCERTERRORDIALOG
 
-static const mozilla::Module::CIDEntry kBrowserCIDs[] = {
-  { &knsShellService_CID, false, NULL, nsShellServiceConstructor },
-  { &knsSSLCertErrorDialog_CID, false, NULL, nsSSLCertErrorDialogConstructor },
-  { NULL }
+  nsSSLCertErrorDialog() {};
+  ~nsSSLCertErrorDialog() {};
+
 };
 
-static const mozilla::Module::ContractIDEntry kBrowserContracts[] = {
-  { nsShellService_ContractID, &knsShellService_CID },
-  { nsSSLCertErrorDialog_ContractID, &knsSSLCertErrorDialog_CID },
-  { NULL }
-};
+#define nsSSLCertErrorDialog_CID                    \
+{ 0xb13f1121, 0xfa10, 0x4a7d,                       \
+{0x82, 0xe5, 0x31, 0x59, 0x9b, 0x89, 0x60, 0xb8} }
 
-static const mozilla::Module kBrowserModule = {
-  mozilla::Module::kVersion,
-  kBrowserCIDs,
-  kBrowserContracts
-};
+#define nsSSLCertErrorDialog_ContractID "@mozilla.org/nsSSLCertErrorDialog;1"
 
-NSMODULE_DEFN(nsBrowserCompsModule) = &kBrowserModule;
+#endif

@@ -13,7 +13,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mobile Browser.
+ * The Original Code is Mobile Browser SSL Cert Dialog Override.
  *
  * The Initial Developer of the Original Code is
  * the Mozilla Foundation <http://www.mozilla.org/>.
@@ -37,33 +37,22 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ModuleUtils.h"
-
-#include "nsShellService.h"
 #include "nsSSLCertErrorDialog.h"
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsShellService)
-NS_DEFINE_NAMED_CID(nsShellService_CID);
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsSSLCertErrorDialog, nsISSLCertErrorDialog)
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsSSLCertErrorDialog)
-NS_DEFINE_NAMED_CID(nsSSLCertErrorDialog_CID);
-
-static const mozilla::Module::CIDEntry kBrowserCIDs[] = {
-  { &knsShellService_CID, false, NULL, nsShellServiceConstructor },
-  { &knsSSLCertErrorDialog_CID, false, NULL, nsSSLCertErrorDialogConstructor },
-  { NULL }
-};
-
-static const mozilla::Module::ContractIDEntry kBrowserContracts[] = {
-  { nsShellService_ContractID, &knsShellService_CID },
-  { nsSSLCertErrorDialog_ContractID, &knsSSLCertErrorDialog_CID },
-  { NULL }
-};
-
-static const mozilla::Module kBrowserModule = {
-  mozilla::Module::kVersion,
-  kBrowserCIDs,
-  kBrowserContracts
-};
-
-NSMODULE_DEFN(nsBrowserCompsModule) = &kBrowserModule;
+NS_IMETHODIMP
+nsSSLCertErrorDialog::ShowCertError(nsIInterfaceRequestor *ctx, 
+                                    nsISSLStatus *status, 
+                                    nsIX509Cert *cert, 
+                                    const nsAString & textErrorMessage, 
+                                    const nsAString & htmlErrorMessage, 
+                                    const nsACString & hostName, 
+                                    PRUint32 portNumber)
+{
+  /* Returning NS_OK here does not mean that this connection will continue
+   * successfully.  The connection has been or will be aborted regardless of
+   * what we do here.
+   */
+  return NS_OK;
+}
