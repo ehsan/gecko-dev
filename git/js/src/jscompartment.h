@@ -46,7 +46,6 @@
 #include "jsgc.h"
 #include "jsgcstats.h"
 #include "jsobj.h"
-#include "jsscope.h"
 #include "vm/GlobalObject.h"
 
 #ifdef _MSC_VER
@@ -249,28 +248,37 @@ struct JS_FRIEND_API(JSCompartment) {
     jsrefcount                   liveDictModeNodes;
 #endif
 
-    /* Set of all unowned base shapes in the compartment. */
-    js::BaseShapeSet             baseShapes;
-    void sweepBaseShapeTable(JSContext *cx);
+    typedef js::ReadBarriered<js::EmptyShape> BarrieredEmptyShape;
+    typedef js::ReadBarriered<const js::Shape> BarrieredShape;
 
-    /* Set of initial shapes in the compartment. */
-    js::InitialShapeSet          initialShapes;
-    void sweepInitialShapeTable(JSContext *cx);
+    /*
+     * Runtime-shared empty scopes for well-known built-in objects that lack
+     * class prototypes (the usual locus of an emptyShape). Mnemonic: ABCDEW
+     */
+    BarrieredEmptyShape          emptyArgumentsShape;
+    BarrieredEmptyShape          emptyBlockShape;
+    BarrieredEmptyShape          emptyCallShape;
+    BarrieredEmptyShape          emptyDeclEnvShape;
+    BarrieredEmptyShape          emptyEnumeratorShape;
+    BarrieredEmptyShape          emptyWithShape;
 
-    /* Set of default 'new' or lazy types in the compartment. */
-    js::types::TypeObjectSet     newTypeObjects;
-    js::types::TypeObjectSet     lazyTypeObjects;
-    void sweepNewTypeObjectTable(JSContext *cx, js::types::TypeObjectSet &table);
+    typedef js::HashSet<js::EmptyShape *,
+                        js::DefaultHasher<js::EmptyShape *>,
+                        js::SystemAllocPolicy> EmptyShapeSet;
 
-    js::types::TypeObject        *emptyTypeObject;
+    EmptyShapeSet                emptyShapes;
 
-    /* Get the default 'new' type for objects with a NULL prototype. */
-    inline js::types::TypeObject *getEmptyType(JSContext *cx);
-
-    js::types::TypeObject *getLazyType(JSContext *cx, JSObject *proto);
-
-    /* Cache to speed up object creation. */
-    js::NewObjectCache           newObjectCache;
+    /*
+     * Initial shapes given to RegExp and String objects, encoding the initial
+     * sets of built-in instance properties and the fixed slots where they must
+     * be stored (see JSObject::JSSLOT_(REGEXP|STRING)_*). Later property
+     * additions may cause these shapes to not be used by a RegExp or String
+     * (even along the entire shape parent chain, should the object go into
+     * dictionary mode). But because all the initial properties are
+     * non-configurable, they will always map to fixed slots.
+     */
+    BarrieredShape               initialRegExpShape;
+    BarrieredShape               initialStringShape;
 
   private:
     enum { DebugFromC = 1, DebugFromJS = 2 };

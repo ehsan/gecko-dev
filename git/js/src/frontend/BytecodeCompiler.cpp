@@ -93,7 +93,7 @@ DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script)
                                  JSPROP_ENUMERATE | JSPROP_PERMANENT, 0, 0, DNP_SKIP_TYPE);
         if (!shape)
             return false;
-        def.knownSlot = shape->slot();
+        def.knownSlot = shape->slot;
     }
 
     Vector<JSScript *, 16> worklist(cx);
@@ -123,10 +123,10 @@ DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script)
                 JSObject *obj = arr->vector[i];
                 if (!obj->isFunction())
                     continue;
-                JSFunction *fun = obj->toFunction();
+                JSFunction *fun = obj->getFunctionPrivate();
                 JS_ASSERT(fun->isInterpreted());
                 JSScript *inner = fun->script();
-                if (outer->function() && outer->function()->isHeavyweight()) {
+                if (outer->isHeavyweightFunction) {
                     outer->isOuterFunction = true;
                     inner->isInnerFunction = true;
                 }

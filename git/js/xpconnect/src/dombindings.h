@@ -187,8 +187,8 @@ private:
 
     static JSObject *ensureExpandoObject(JSContext *cx, JSObject *obj);
 
-    static js::Shape *getProtoShape(JSObject *obj);
-    static void setProtoShape(JSObject *obj, js::Shape *shape);
+    static uint32 getProtoShape(JSObject *obj);
+    static void setProtoShape(JSObject *obj, uint32 shape);
 
     static JSBool length_getter(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 

@@ -117,6 +117,7 @@ class JSWrapper;
 namespace js {
 
 struct ArgumentsData;
+struct FlatClosureData;
 struct Class;
 
 class RegExpObject;
@@ -217,11 +218,8 @@ class LifoAlloc;
 class PropertyCache;
 struct PropertyCacheEntry;
 
-class BaseShape;
-class UnownedBaseShape;
 struct Shape;
 struct EmptyShape;
-class ShapeKindArray;
 class Bindings;
 
 class MultiDeclRange;

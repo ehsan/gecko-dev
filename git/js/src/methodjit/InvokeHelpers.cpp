@@ -310,7 +310,8 @@ UncachedInlineCall(VMFrame &f, InitialFrameFlags initial,
 {
     JSContext *cx = f.cx;
     CallArgs args = CallArgsFromSp(argc, f.regs.sp);
-    JSFunction *newfun = args.callee().toFunction();
+    JSObject &callee = args.callee();
+    JSFunction *newfun = callee.getFunctionPrivate();
     JSScript *newscript = newfun->script();
 
     bool construct = InitialFrameFlagsAreConstructing(initial);
@@ -351,7 +352,7 @@ UncachedInlineCall(VMFrame &f, InitialFrameFlags initial,
     FrameRegs regs = f.regs;
 
     /* Get pointer to new frame/slots, prepare arguments. */
-    if (!cx->stack.pushInlineFrame(cx, regs, args, *newfun, newscript, initial, &f.stackLimit))
+    if (!cx->stack.pushInlineFrame(cx, regs, args, callee, newfun, newscript, initial, &f.stackLimit))
         return false;
 
     /* Finish the handoff to the new frame regs. */
@@ -414,6 +415,7 @@ stubs::UncachedNewHelper(VMFrame &f, uint32 argc, UncachedCallResult *ucr)
 
     /* Try to do a fast inline call before the general Invoke path. */
     if (IsFunctionObject(args.calleev(), &ucr->fun) && ucr->fun->isInterpretedConstructor()) {
+        ucr->callee = &args.callee();
         if (!UncachedInlineCall(f, INITIAL_CONSTRUCT, &ucr->codeAddr, &ucr->unjittable, argc))
             THROW();
     } else {
@@ -467,7 +469,10 @@ stubs::UncachedCallHelper(VMFrame &f, uint32 argc, bool lowered, UncachedCallRes
     JSContext *cx = f.cx;
     CallArgs args = CallArgsFromSp(argc, f.regs.sp);
 
-    if (IsFunctionObject(args.calleev(), &ucr->fun)) {
+    if (IsFunctionObject(args.calleev(), &ucr->callee)) {
+        ucr->callee = &args.callee();
+        ucr->fun = ucr->callee->getFunctionPrivate();
+
         if (ucr->fun->isInterpreted()) {
             InitialFrameFlags initial = lowered ? INITIAL_LOWERED : INITIAL_NONE;
             if (!UncachedInlineCall(f, initial, &ucr->codeAddr, &ucr->unjittable, argc))
@@ -605,7 +610,7 @@ js_InternalThrow(VMFrame &f)
      */
     cx->compartment->jaegerCompartment()->setLastUnfinished(Jaeger_Unfinished);
 
-    if (!script->ensureRanAnalysis(cx, NULL)) {
+    if (!script->ensureRanAnalysis(cx)) {
         js_ReportOutOfMemory(cx);
         return NULL;
     }
@@ -738,7 +743,7 @@ js_InternalInterpret(void *returnData, void *returnType, void *returnReg, js::VM
     JSOp op = JSOp(*pc);
     const JSCodeSpec *cs = &js_CodeSpec[op];
 
-    if (!script->ensureRanAnalysis(cx, NULL)) {
+    if (!script->ensureRanAnalysis(cx)) {
         js_ReportOutOfMemory(cx);
         return js_InternalThrow(f);
     }

@@ -82,9 +82,6 @@ void
 MarkShape(JSTracer *trc, const MarkablePtr<const Shape> &shape, const char *name);
 
 void
-MarkBaseShapeUnbarriered(JSTracer *trc, BaseShape *shape, const char *name);
-
-void
 MarkTypeObjectUnbarriered(JSTracer *trc, types::TypeObject *type, const char *name);
 
 void

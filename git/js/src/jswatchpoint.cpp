@@ -86,9 +86,7 @@ WatchpointMap::watch(JSContext *cx, JSObject *obj, jsid id,
     JS_ASSERT(id == js_CheckForStringIndex(id));
     JS_ASSERT(JSID_IS_STRING(id) || JSID_IS_INT(id));
 
-    if (!obj->setWatched(cx))
-        return false;
-
+    obj->setWatched(cx);
     Watchpoint w;
     w.handler = handler;
     w.closure = closure;
@@ -149,7 +147,8 @@ WatchpointMap::triggerWatchpoint(JSContext *cx, JSObject *obj, jsid id, Value *v
     old.setUndefined();
     if (obj->isNative()) {
         if (const Shape *shape = obj->nativeLookup(cx, id)) {
-            if (shape->hasSlot()) {
+            uint32 slot = shape->slot;
+            if (obj->containsSlot(slot)) {
                 if (shape->isMethod()) {
                     /*
                      * The existing watched property is a method. Trip
@@ -157,8 +156,7 @@ WatchpointMap::triggerWatchpoint(JSContext *cx, JSObject *obj, jsid id, Value *v
                      * passing an uncloned function object to the
                      * handler.
                      */
-                    old = UndefinedValue();
-                    Value method = ObjectValue(*obj->nativeGetMethod(shape));
+                    Value method = ObjectValue(shape->methodObject());
                     if (!obj->methodReadBarrier(cx, *shape, &method))
                         return false;
                     shape = obj->nativeLookup(cx, id);
@@ -166,7 +164,7 @@ WatchpointMap::triggerWatchpoint(JSContext *cx, JSObject *obj, jsid id, Value *v
                     JS_ASSERT(!shape->isMethod());
                     old = method;
                 } else {
-                    old = obj->nativeGetSlot(shape->slot());
+                    old = obj->nativeGetSlot(slot);
                 }
             }
         }

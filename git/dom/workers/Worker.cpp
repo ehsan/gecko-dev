@@ -91,8 +91,8 @@ public:
   InitClass(JSContext* aCx, JSObject* aObj, JSObject* aParentProto,
             bool aMainRuntime)
   {
-    JSObject* proto = js::InitClassWithReserved(aCx, aObj, aParentProto, &sClass, Construct,
-                                                0, sProperties, sFunctions, NULL, NULL);
+    JSObject* proto = JS_InitClass(aCx, aObj, aParentProto, &sClass, Construct,
+                                   0, sProperties, sFunctions, NULL, NULL);
     if (!proto) {
       return NULL;
     }
@@ -102,10 +102,11 @@ public:
       parent->AssertIsOnWorkerThread();
 
       JSObject* constructor = JS_GetConstructor(aCx, proto);
-      if (!constructor)
+      if (!constructor ||
+          !JS_SetReservedSlot(aCx, constructor, CONSTRUCTOR_SLOT_PARENT,
+                              PRIVATE_TO_JSVAL(parent))) {
         return NULL;
-      js::SetFunctionNativeReserved(constructor, CONSTRUCTOR_SLOT_PARENT,
-                                    PRIVATE_TO_JSVAL(parent));
+      }
     }
 
     return proto;
@@ -152,8 +153,11 @@ protected:
       return false;
     }
 
-    jsval priv = js::GetFunctionNativeReserved(JSVAL_TO_OBJECT(JS_CALLEE(aCx, aVp)),
-                                               CONSTRUCTOR_SLOT_PARENT);
+    jsval priv;
+    if (!JS_GetReservedSlot(aCx, JSVAL_TO_OBJECT(JS_CALLEE(aCx, aVp)),
+                            CONSTRUCTOR_SLOT_PARENT, &priv)) {
+      return false;
+    }
 
     RuntimeService* runtimeService;
     WorkerPrivate* parent;
@@ -341,8 +345,8 @@ public:
   InitClass(JSContext* aCx, JSObject* aObj, JSObject* aParentProto,
             bool aMainRuntime)
   {
-    JSObject* proto = js::InitClassWithReserved(aCx, aObj, aParentProto, &sClass, Construct,
-                                                0, NULL, NULL, NULL, NULL);
+    JSObject* proto = JS_InitClass(aCx, aObj, aParentProto, &sClass, Construct,
+                                   0, NULL, NULL, NULL, NULL);
     if (!proto) {
       return NULL;
     }
@@ -352,10 +356,11 @@ public:
       parent->AssertIsOnWorkerThread();
 
       JSObject* constructor = JS_GetConstructor(aCx, proto);
-      if (!constructor)
+      if (!constructor ||
+          !JS_SetReservedSlot(aCx, constructor, CONSTRUCTOR_SLOT_PARENT,
+                              PRIVATE_TO_JSVAL(parent))) {
         return NULL;
-      js::SetFunctionNativeReserved(constructor, CONSTRUCTOR_SLOT_PARENT,
-                                    PRIVATE_TO_JSVAL(parent));
+      }
     }
 
     return proto;
