@@ -20,8 +20,6 @@ public:
   HTMLOptGroupElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~HTMLOptGroupElement();
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLOptGroupElement, optgroup)
-
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 

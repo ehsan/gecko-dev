@@ -625,12 +625,14 @@ public:
   static void MapScrollingAttributeInto(const nsMappedAttributes* aAttributes,
                                         nsRuleData* aData);
   /**
-   * Get the presentation state for this, or create it if it does not exist.
-   * Generally used by SaveState().
+   * Get the presentation state for a piece of content, or create it if it does
+   * not exist.  Generally used by SaveState().
    *
-   * @return the presentation state (out param)
+   * @param aContent the content to get presentation state for.
+   * @param aPresState the presentation state (out param)
    */
-  nsPresState* GetPrimaryPresState();
+  static nsresult GetPrimaryPresState(nsGenericHTMLElement* aContent,
+                                      nsPresState** aPresState);
   /**
    * Get the layout history object *and* generate the key for a particular
    * piece of content.

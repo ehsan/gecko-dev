@@ -5799,15 +5799,18 @@ JS_CallFunctionValue(JSContext *cx, JSObject *objArg, jsval fval, unsigned argc,
 }
 
 JS_PUBLIC_API(bool)
-JS::Call(JSContext *cx, jsval thisv, jsval fval, unsigned argc, jsval *argv,
-         MutableHandleValue rval)
+JS::Call(JSContext *cx, jsval thisv, jsval fval, unsigned argc, jsval *argv, jsval *rval)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, thisv, fval, JSValueArray(argv, argc));
     AutoLastFrameCheck lfc(cx);
 
-    return Invoke(cx, thisv, fval, argc, argv, rval);
+    RootedValue rv(cx);
+    if (!Invoke(cx, thisv, fval, argc, argv, &rv))
+        return false;
+    *rval = rv;
+    return true;
 }
 
 JS_PUBLIC_API(JSObject *)

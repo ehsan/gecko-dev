@@ -6,7 +6,3 @@
 
 MODULE = 'test_startupcache'
 
-CPP_UNIT_TESTS += [
-    'TestStartupCache.cpp',
-]
-

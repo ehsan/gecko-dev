@@ -1,8 +1,7 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
  * A counting Bloom filter implementation.  This allows consumers to
@@ -11,8 +10,8 @@
  * incorrectly answer "yes" when the correct answer is "no").
  */
 
-#ifndef mozilla_BloomFilter_h
-#define mozilla_BloomFilter_h
+#ifndef mozilla_BloomFilter_h_
+#define mozilla_BloomFilter_h_
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Likely.h"
@@ -232,4 +231,4 @@ BloomFilter<KeySize, T>::mightContain(const T* t) const
 
 } // namespace mozilla
 
-#endif /* mozilla_BloomFilter_h */
+#endif /* mozilla_BloomFilter_h_ */
