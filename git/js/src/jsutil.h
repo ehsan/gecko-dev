@@ -108,12 +108,13 @@ JS_Assert(const char *s, const char *file, JSIntn ln);
  */
 extern JS_PUBLIC_API(void) JS_Abort(void);
 
-#ifdef DEBUG
+#if 0
 # define JS_BASIC_STATS 1
+# define JS_SCOPE_DEPTH_METER 1
 #endif
 
-#ifdef DEBUG_brendan
-# define JS_SCOPE_DEPTH_METER 1
+#if defined DEBUG && !defined JS_BASIC_STATS
+# define JS_BASIC_STATS 1
 #endif
 
 #ifdef JS_BASIC_STATS

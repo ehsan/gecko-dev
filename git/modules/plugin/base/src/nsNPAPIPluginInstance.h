@@ -48,7 +48,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsIPluginInstanceOwner.h"
 #include "nsITimer.h"
-#include "mozilla/TimeStamp.h"
 
 #include "npfunctions.h"
 #include "mozilla/PluginLibrary.h"
@@ -112,10 +111,7 @@ public:
   virtual ~nsNPAPIPluginInstance();
 
   // returns the state of mStarted
-  PRBool IsRunning();
-
-  // return is only valid when the plugin is not running
-  mozilla::TimeStamp LastStopTime();
+  PRBool IsStarted();
 
   // cache this NPAPI plugin
   nsresult SetCached(PRBool aCache);
@@ -159,7 +155,7 @@ protected:
   PRPackedBool mWindowless;
   PRPackedBool mWindowlessLocal;
   PRPackedBool mTransparent;
-  PRPackedBool mRunning;
+  PRPackedBool mStarted;
   PRPackedBool mCached;
   PRPackedBool mWantsAllNetworkStreams;
 
@@ -182,10 +178,6 @@ private:
 
   // non-null during a HandleEvent call
   void* mCurrentPluginEvent;
-
-  // Timestamp for the last time this plugin was stopped.
-  // This is only valid when the plugin is actually stopped!
-  mozilla::TimeStamp mStopTime;
 };
 
 #endif // nsNPAPIPluginInstance_h_

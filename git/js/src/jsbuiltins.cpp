@@ -235,8 +235,7 @@ js_AddProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
 
     uint32 slot = sprop->slot;
     JSScope* scope = OBJ_SCOPE(obj);
-    if (slot != scope->freeslot)
-        goto exit_trace;
+    JS_ASSERT(slot == scope->freeslot);
     JS_ASSERT(sprop->parent == scope->lastProperty());
 
     if (scope->owned()) {

@@ -66,11 +66,10 @@ class Queue {
 
 public:
     void ensure(unsigned size) {
-        if (_max > size)
-            return;
         if (!_max)
-            _max = 8;
-        _max = JS_MAX(_max * 2, size);
+            _max = 16;
+        while (_max < size)
+            _max <<= 1;
         if (alloc) {
             T* tmp = new (*alloc) T[_max];
             memcpy(tmp, _data, _len * sizeof(T));
@@ -156,16 +155,6 @@ public:
     T* data() const {
         return _data;
     }
-
-    int offsetOf(T slot) {
-        T* p = _data;
-        unsigned n = 0;
-        for (n = 0; n < _len; ++n)
-            if (*p++ == slot)
-                return n;
-        return -1;
-    }
-
 };
 
 /*
@@ -227,6 +216,54 @@ public:
 
     TreeFragment* toTreeFragment();
 };
+
+struct LinkableFragment : public VMFragment
+{
+    LinkableFragment(const void* _ip verbose_only(, uint32_t profFragID))
+      : VMFragment(_ip verbose_only(, profFragID))
+    { }
+
+    uint32 branchCount;
+};
+
+/*
+ * argc is cx->fp->argc at the trace loop header, i.e., the number of arguments
+ * pushed for the innermost JS frame. This is required as part of the fragment
+ * key because the fragment will write those arguments back to the interpreter
+ * stack when it exits, using its typemap, which implicitly incorporates a
+ * given value of argc. Without this feature, a fragment could be called as an
+ * inner tree with two different values of argc, and entry type checking or
+ * exit frame synthesis could crash.
+ */
+struct TreeFragment : public LinkableFragment
+{
+    TreeFragment(const void* _ip, JSObject* _globalObj, uint32 _globalShape, uint32 _argc
+               verbose_only(, uint32_t profFragID)) :
+        LinkableFragment(_ip verbose_only(, profFragID)),
+        treeInfo(NULL),
+        first(NULL),
+        next(NULL),
+        peer(NULL),
+        globalObj(_globalObj),
+        globalShape(_globalShape),
+        argc(_argc)
+    { }
+
+    TreeInfo *treeInfo;
+    TreeFragment* first;
+    TreeFragment* next;
+    TreeFragment* peer;
+    JSObject* globalObj;
+    uint32 globalShape;
+    uint32 argc;
+};
+
+inline TreeFragment*
+VMFragment::toTreeFragment()
+{
+    JS_ASSERT(root == this);
+    return static_cast<TreeFragment*>(this);
+}
 
 #if defined(JS_JIT_SPEW) || defined(NJ_NO_VARIADIC_MACROS)
 
@@ -347,8 +384,7 @@ enum JSTraceType_
     TT_STRING         = 4, /* pointer to JSString */
     TT_NULL           = 5, /* null */
     TT_PSEUDOBOOLEAN  = 6, /* true, false, or undefined (0, 1, or 2) */
-    TT_FUNCTION       = 7, /* pointer to JSObject whose class is js_FunctionClass */
-    TT_IGNORE         = 8
+    TT_FUNCTION       = 7  /* pointer to JSObject whose class is js_FunctionClass */
 }
 #if defined(__GNUC__) && defined(USE_TRACE_TYPE_ENUM)
 __attribute__((packed))
@@ -373,8 +409,6 @@ typedef Queue<uint16> SlotList;
 class TypeMap : public Queue<JSTraceType> {
 public:
     TypeMap(nanojit::Allocator* alloc) : Queue<JSTraceType>(alloc) {}
-    void set(unsigned stackSlots, unsigned ngslots,
-             const JSTraceType* stackTypeMap, const JSTraceType* globalTypeMap);
     JS_REQUIRES_STACK void captureTypes(JSContext* cx, JSObject* globalObj, SlotList& slots, unsigned callDepth);
     JS_REQUIRES_STACK void captureMissingGlobalTypes(JSContext* cx, JSObject* globalObj, SlotList& slots,
                                                      unsigned stackSlots);
@@ -599,6 +633,8 @@ struct REHashFn {
     }
 };
 
+class TreeInfo;
+
 struct FrameInfo {
     JSObject*       block;      // caller block chain head
     jsbytecode*     pc;         // caller fp->regs->pc
@@ -659,71 +695,51 @@ enum RecursionStatus
     Recursion_Detected          /* Tree has down recursion and maybe up recursion. */
 };
 
-struct LinkableFragment : public VMFragment
-{
-    LinkableFragment(const void* _ip, nanojit::Allocator* alloc
-                     verbose_only(, uint32_t profFragID))
-      : VMFragment(_ip verbose_only(, profFragID)), typeMap(alloc), nStackTypes(0)
-    { }
-
-    uint32                  branchCount;
+class TreeInfo {
+public:
+    TreeFragment* const       rootFragment;
+    JSScript*               script;
+    unsigned                maxNativeStackSlots;
+    ptrdiff_t               nativeStackBase;
+    unsigned                maxCallDepth;
     TypeMap                 typeMap;
     unsigned                nStackTypes;
     SlotList*               globalSlots;
-};
-
-/*
- * argc is cx->fp->argc at the trace loop header, i.e., the number of arguments
- * pushed for the innermost JS frame. This is required as part of the fragment
- * key because the fragment will write those arguments back to the interpreter
- * stack when it exits, using its typemap, which implicitly incorporates a
- * given value of argc. Without this feature, a fragment could be called as an
- * inner tree with two different values of argc, and entry type checking or
- * exit frame synthesis could crash.
- */
-struct TreeFragment : public LinkableFragment
-{
-    TreeFragment(const void* _ip, nanojit::Allocator* alloc, JSObject* _globalObj,
-                 uint32 _globalShape, uint32 _argc verbose_only(, uint32_t profFragID)):
-        LinkableFragment(_ip, alloc verbose_only(, profFragID)),
-        first(NULL),
-        next(NULL),
-        peer(NULL),
-        globalObj(_globalObj),
-        globalShape(_globalShape),
-        argc(_argc),
-        dependentTrees(alloc),
-        linkedTrees(alloc),
-        sideExits(alloc),
-        gcthings(alloc),
-        sprops(alloc)
-    { }
-
-    TreeFragment* first;
-    TreeFragment* next;
-    TreeFragment* peer;
-    JSObject* globalObj;
-    uint32 globalShape;
-    uint32 argc;
     /* Dependent trees must be trashed if this tree dies, and updated on missing global types */
-    Queue<TreeFragment*>    dependentTrees;
+    Queue<TreeFragment*> dependentTrees;
     /* Linked trees must be updated on missing global types, but are not dependent */
-    Queue<TreeFragment*>    linkedTrees;
+    Queue<TreeFragment*> linkedTrees;
+    Queue<VMSideExit*>      sideExits;
+    UnstableExit*           unstableExits;
+    /* All embedded GC things are registered here so the GC can scan them. */
+    Queue<jsval>            gcthings;
+    Queue<JSScopeProperty*> sprops;
 #ifdef DEBUG
     const char*             treeFileName;
     uintN                   treeLineNumber;
     uintN                   treePCOffset;
 #endif
-    JSScript*               script;
     RecursionStatus         recursion;
-    UnstableExit*           unstableExits;
-    Queue<VMSideExit*>      sideExits;
-    ptrdiff_t               nativeStackBase;
-    unsigned                maxCallDepth;
-    /* All embedded GC things are registered here so the GC can scan them. */
-    Queue<jsval>            gcthings;
-    Queue<JSScopeProperty*> sprops;
-    unsigned                maxNativeStackSlots;
+
+    TreeInfo(nanojit::Allocator* alloc,
+             TreeFragment* fragment,
+             SlotList* globalSlots)
+        : rootFragment(fragment),
+          script(NULL),
+          maxNativeStackSlots(0),
+          nativeStackBase(0),
+          maxCallDepth(0),
+          typeMap(alloc),
+          nStackTypes(0),
+          globalSlots(globalSlots),
+          dependentTrees(alloc),
+          linkedTrees(alloc),
+          sideExits(alloc),
+          unstableExits(NULL),
+          gcthings(alloc),
+          sprops(alloc),
+          recursion(Recursion_None)
+    {}
 
     inline unsigned nGlobalTypes() {
         return typeMap.length() - nStackTypes;
@@ -734,17 +750,12 @@ struct TreeFragment : public LinkableFragment
     inline JSTraceType* stackTypeMap() {
         return typeMap.data();
     }
+    inline JSObject* globalObj() {
+        return rootFragment->globalObj;
+    }
 
-    JS_REQUIRES_STACK void initialize(JSContext* cx, SlotList *globalSlots);
     UnstableExit* removeUnstableExit(VMSideExit* exit);
 };
-
-inline TreeFragment*
-VMFragment::toTreeFragment()
-{
-    JS_ASSERT(root == this);
-    return static_cast<TreeFragment*>(this);
-}
 
 typedef enum JSBuiltinStatus {
     JSBUILTIN_BAILED = 1,
@@ -924,8 +935,8 @@ class TraceRecorder
     /* The Fragment being recorded by this recording session. */
     VMFragment* const               fragment;
 
-    /* The root fragment representing the tree. */
-    TreeFragment* const             tree;
+    /* The tree to which this |fragment| will belong when finished. */
+    TreeInfo* const                 treeInfo;
 
     /* The reason we started recording. */
     RecordReason const              recordReason;
@@ -953,11 +964,6 @@ class TraceRecorder
     nanojit::LIns* const            eos_ins;
     nanojit::LIns* const            eor_ins;
     nanojit::LIns* const            loopLabel;
-
-    /* Lazy slot import state. */
-    unsigned                        importStackSlots;
-    unsigned                        importGlobalSlots;
-    TypeMap                         importTypeMap;
 
     /*
      * The LirBuffer used to supply memory to our LirWriter pipeline. Also contains the most recent
@@ -1058,20 +1064,17 @@ class TraceRecorder
     JS_REQUIRES_STACK nanojit::GuardRecord* createGuardRecord(VMSideExit* exit);
 
     bool isGlobal(jsval* p) const;
-    ptrdiff_t nativeGlobalSlot(jsval *p) const;
     ptrdiff_t nativeGlobalOffset(jsval* p) const;
     JS_REQUIRES_STACK ptrdiff_t nativeStackOffset(jsval* p) const;
-    JS_REQUIRES_STACK ptrdiff_t nativeStackSlot(jsval* p) const;
     JS_REQUIRES_STACK ptrdiff_t nativespOffset(jsval* p) const;
     JS_REQUIRES_STACK void import(nanojit::LIns* base, ptrdiff_t offset, jsval* p, JSTraceType t,
                                   const char *prefix, uintN index, JSStackFrame *fp);
-    JS_REQUIRES_STACK void import(TreeFragment* tree, nanojit::LIns* sp, unsigned stackSlots,
+    JS_REQUIRES_STACK void import(TreeInfo* treeInfo, nanojit::LIns* sp, unsigned stackSlots,
                                   unsigned callDepth, unsigned ngslots, JSTraceType* typeMap);
     void trackNativeStackUse(unsigned slots);
 
     JS_REQUIRES_STACK bool isValidSlot(JSScope* scope, JSScopeProperty* sprop);
     JS_REQUIRES_STACK bool lazilyImportGlobalSlot(unsigned slot);
-    JS_REQUIRES_STACK void importGlobalSlot(unsigned slot);
 
     JS_REQUIRES_STACK void guard(bool expected, nanojit::LIns* cond, ExitType exitType);
     JS_REQUIRES_STACK void guard(bool expected, nanojit::LIns* cond, VMSideExit* exit);
@@ -1145,11 +1148,10 @@ class TraceRecorder
     JS_REQUIRES_STACK nanojit::LIns* alu(nanojit::LOpcode op, jsdouble v0, jsdouble v1,
                                          nanojit::LIns* s0, nanojit::LIns* s1);
     nanojit::LIns* f2i(nanojit::LIns* f);
-    nanojit::LIns* f2u(nanojit::LIns* f);
     JS_REQUIRES_STACK nanojit::LIns* makeNumberInt32(nanojit::LIns* f);
     JS_REQUIRES_STACK nanojit::LIns* stringify(jsval& v);
 
-    JS_REQUIRES_STACK nanojit::LIns* newArguments(nanojit::LIns* callee_ins);
+    JS_REQUIRES_STACK nanojit::LIns* newArguments();
 
     JS_REQUIRES_STACK RecordingStatus call_imacro(jsbytecode* imacro);
 
@@ -1288,7 +1290,7 @@ class TraceRecorder
                                                                              ExitType exitType);
     JS_REQUIRES_STACK RecordingStatus guardNotGlobalObject(JSObject* obj,
                                                              nanojit::LIns* obj_ins);
-    void clearFrameSlotsFromTracker(Tracker& which);
+    void clearFrameSlotsFromCache();
     JS_REQUIRES_STACK void putArguments();
     JS_REQUIRES_STACK RecordingStatus guardCallee(jsval& callee);
     JS_REQUIRES_STACK JSStackFrame      *guardArguments(JSObject *obj, nanojit::LIns* obj_ins,
@@ -1363,7 +1365,7 @@ class TraceRecorder
     inline void operator delete(void *p) { free(p); }
 
     JS_REQUIRES_STACK
-    TraceRecorder(JSContext* cx, VMSideExit*, VMFragment*,
+    TraceRecorder(JSContext* cx, VMSideExit*, VMFragment*, TreeInfo*,
                   unsigned stackSlots, unsigned ngslots, JSTraceType* typeMap,
                   VMSideExit* expectedInnerExit, jsbytecode* outerTree,
                   uint32 outerArgc, RecordReason reason);
@@ -1379,7 +1381,6 @@ class TraceRecorder
     friend class AdjustCallerGlobalTypesVisitor;
     friend class AdjustCallerStackTypesVisitor;
     friend class TypeCompatibilityVisitor;
-    friend class ImportFrameSlotsVisitor;
     friend class SlotMap;
     friend class DefaultSlotMap;
     friend class DetermineTypesVisitor;
@@ -1391,14 +1392,14 @@ class TraceRecorder
 
 public:
     static bool JS_REQUIRES_STACK
-    startRecorder(JSContext*, VMSideExit*, VMFragment*,
+    startRecorder(JSContext*, VMSideExit*, VMFragment*, TreeInfo*,
                   unsigned stackSlots, unsigned ngslots, JSTraceType* typeMap,
                   VMSideExit* expectedInnerExit, jsbytecode* outerTree,
                   uint32 outerArgc, RecordReason reason);
 
     /* Accessors. */
     VMFragment*         getFragment() const { return fragment; }
-    TreeFragment*       getTree() const { return tree; }
+    TreeInfo*           getTreeInfo() const { return treeInfo; }
     bool                outOfMemory() const { return traceMonitor->outOfMemory(); }
 
     /* Entry points / callbacks from the interpreter. */

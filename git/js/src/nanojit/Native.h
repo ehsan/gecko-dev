@@ -61,11 +61,17 @@ namespace nanojit {
           : unsigned
 #endif
     {
-#define OPDEF(op, number, repKind, retType) \
+        // flags; upper bits reserved
+        LIR64    = 0x40,            // result is double or quad
+
+#define OPDEF(op, number, repkind) \
         LIR_##op = (number),
+#define OPD64(op, number, repkind) \
+        LIR_##op = ((number) | LIR64),
 #include "LIRopcode.tbl"
         LIR_sentinel,
 #undef OPDEF
+#undef OPD64
 
 #ifdef NANOJIT_64BIT
 #  define PTR_SIZE(a,b)  b
@@ -117,10 +123,6 @@ namespace nanojit {
 
 #ifndef NJ_JTBL_SUPPORTED
 #  define NJ_JTBL_SUPPORTED 0
-#endif
-
-#ifndef NJ_EXPANDED_LOADSTORE_SUPPORTED
-#  define NJ_EXPANDED_LOADSTORE_SUPPORTED 0
 #endif
 
 namespace nanojit {
@@ -181,14 +183,19 @@ namespace nanojit {
     #elif defined(NJ_VERBOSE)
         // Used for printing native instructions.  Like Assembler::outputf(),
         // but only outputs if LC_Assembly is set.  Also prepends the output
-        // with the address of the current native instruction.
+        // with the address of the current native instruction if
+        // LC_NoCodeAddrs is not set.  
         #define asm_output(...) do { \
             counter_increment(native); \
             if (_logc->lcbits & LC_Assembly) { \
                 outline[0]='\0'; \
-               VMPI_sprintf(outline, "%010lx   ", (unsigned long)_nIns); \
+                if (outputAddr) \
+                   VMPI_sprintf(outline, "%010lx   ", (unsigned long)_nIns); \
+                else \
+                   VMPI_memset(outline, (int)' ', 10+3); \
                 sprintf(&outline[13], ##__VA_ARGS__); \
                 output(); \
+                outputAddr=(_logc->lcbits & LC_NoCodeAddrs) ? false : true;    \
             } \
         } while (0) /* no semi */
         #define gpn(r)                  regNames[(r)]

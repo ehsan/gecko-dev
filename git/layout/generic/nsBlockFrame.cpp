@@ -2552,9 +2552,7 @@ nsBlockFrame::PullFrameFrom(nsBlockReflowState& aState,
         "mPrevChild should be the LastChild of the line we are adding to");
       // The frame is being pulled from a next-in-flow; therefore we
       // need to add it to our sibling list.
-      if (NS_LIKELY(!aFromOverflowLine)) {
-        NS_ASSERTION(aFromLine == aFromContainer->mLines.begin(),
-                     "should only pull from first line");
+      if (fromLine == aFromContainer->mLines.begin()) {
         // Pulling from the next-in-flow's normal line list
         aFromContainer->mFrames.RemoveFrame(frame);
       } else {
