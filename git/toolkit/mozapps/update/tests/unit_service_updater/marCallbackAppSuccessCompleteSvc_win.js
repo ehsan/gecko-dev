@@ -12,7 +12,7 @@ function run_test() {
   setupTestCommon();
   gTestFiles = gTestFilesCompleteSuccess;
   gTestDirs = gTestDirsCompleteSuccess;
-  setupUpdaterTest(FILE_COMPLETE_MAR);
+  setupUpdaterTest(FILE_COMPLETE_MAR, false, false);
 
   gCallbackBinFile = "exe0.exe";
 
@@ -24,6 +24,6 @@ function setupAppFilesFinished() {
 }
 
 function checkUpdateFinished() {
-  checkFilesAfterUpdateSuccess(getApplyDirFile, false, false);
+  checkFilesAfterUpdateSuccess();
   checkCallbackServiceLog();
 }

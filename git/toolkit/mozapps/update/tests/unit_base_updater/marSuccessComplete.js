@@ -9,16 +9,7 @@ function run_test() {
   setupTestCommon();
   gTestFiles = gTestFilesCompleteSuccess;
   gTestDirs = gTestDirsCompleteSuccess;
-  preventDistributionFiles();
-  setupUpdaterTest(FILE_COMPLETE_MAR);
-  if (IS_MACOSX) {
-    // Create files in the old distribution directory location to verify that
-    // the directory and its contents are moved to the new location on update.
-    let testFile = getApplyDirFile(DIR_MACOS + "distribution/testFile", true);
-    writeFile(testFile, "test\n");
-    testFile = getApplyDirFile(DIR_MACOS + "distribution/test/testFile", true);
-    writeFile(testFile, "test\n");
-  }
+  setupUpdaterTest(FILE_COMPLETE_MAR, false, false);
 
   createUpdaterINI();
 
@@ -40,7 +31,7 @@ function run_test() {
  * support launching post update process.
  */
 function checkUpdateApplied() {
-  if (IS_WIN || IS_MACOSX) {
+  if (IS_MACOSX || IS_WIN) {
     gCheckFunc = finishCheckUpdateApplied;
     checkPostUpdateAppLog();
   } else {
@@ -62,34 +53,11 @@ function finishCheckUpdateApplied() {
     do_check_true(timeDiff < MAC_MAX_TIME_DIFFERENCE);
   }
 
-  let distributionDir = getApplyDirFile(DIR_RESOURCES + "distribution", true);
-  if (IS_MACOSX) {
-    logTestInfo("testing that the distribution directory is moved from the " +
-                "old location to the new location");
-    logTestInfo("testing " + distributionDir.path + " should exist");
-    do_check_true(distributionDir.exists());
-
-    let testFile = getApplyDirFile(DIR_RESOURCES + "distribution/testFile", true);
-    logTestInfo("testing " + testFile.path + " should exist");
-    do_check_true(testFile.exists());
-
-    testFile = getApplyDirFile(DIR_RESOURCES + "distribution/test/testFile", true);
-    logTestInfo("testing " + testFile.path + " should exist");
-    do_check_true(testFile.exists());
-
-    distributionDir = getApplyDirFile(DIR_MACOS + "distribution", true);
-    logTestInfo("testing " + distributionDir.path + " shouldn't exist");
-    do_check_false(distributionDir.exists());
-
-    checkUpdateLogContains("Moving old distribution directory to new location");
-  } else {
-    logTestInfo("testing that files aren't added with an add-if instruction " +
-                "when the file's destination directory doesn't exist");
-    logTestInfo("testing " + distributionDir.path + " shouldn't exist");
-    do_check_false(distributionDir.exists());
+  checkFilesAfterUpdateSuccess();
+  // Sorting on Linux is different so skip this check for now.
+  if (!IS_UNIX) {
+    checkUpdateLogContents(LOG_COMPLETE_SUCCESS);
   }
 
-  checkFilesAfterUpdateSuccess(getApplyDirFile, false, false);
-  checkUpdateLogContents(LOG_COMPLETE_SUCCESS, true);
   checkCallbackAppLog();
 }

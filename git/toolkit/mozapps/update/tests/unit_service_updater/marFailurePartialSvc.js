@@ -15,7 +15,7 @@ function run_test() {
   gTestFiles[11].originalFile = "partial.png";
   gTestDirs = gTestDirsPartialSuccess;
   setTestFilesAndDirsForFailure();
-  setupUpdaterTest(FILE_PARTIAL_MAR);
+  setupUpdaterTest(FILE_PARTIAL_MAR, false, false);
 
   createUpdaterINI();
 
@@ -41,6 +41,11 @@ function setupAppFilesFinished() {
  * the test.
  */
 function checkUpdateFinished() {
+  if (IS_MACOSX || IS_WIN) {
+    // Check that the post update process was not launched.
+    do_check_false(getPostUpdateFile(".running").exists());
+  }
+
   if (IS_MACOSX) {
     logTestInfo("testing last modified time on the apply to directory has " +
                 "changed after a successful update (bug 600098)");
@@ -50,14 +55,11 @@ function checkUpdateFinished() {
     do_check_true(timeDiff < MAC_MAX_TIME_DIFFERENCE);
   }
 
-  if (IS_WIN || IS_MACOSX) {
-    let running = getPostUpdateFile(".running");
-    logTestInfo("checking that the post update process running file doesn't " +
-                "exist. Path: " + running.path);
-    do_check_false(running.exists());
+  checkFilesAfterUpdateFailure();
+  // Sorting on Linux is different so skip this check for now.
+  if (!IS_UNIX) {
+    checkUpdateLogContents(LOG_PARTIAL_FAILURE);
   }
 
-  checkFilesAfterUpdateFailure(getApplyDirFile, false, false);
-  checkUpdateLogContents(LOG_PARTIAL_FAILURE);
   checkCallbackServiceLog();
 }

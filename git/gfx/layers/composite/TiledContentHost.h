@@ -137,7 +137,7 @@ public:
 
   bool HasDoubleBufferedTiles() { return mHasDoubleBufferedTiles; }
 
-  bool IsValid() const { return mIsValid; }
+  bool IsValid() const { return !mUninitialized; }
 
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
   virtual void SetReleaseFence(const android::sp<android::Fence>& aReleaseFence);
@@ -162,7 +162,7 @@ protected:
 private:
   CSSToParentLayerScale mFrameResolution;
   bool mHasDoubleBufferedTiles;
-  bool mIsValid;
+  bool mUninitialized;
 };
 
 /**
@@ -215,8 +215,8 @@ public:
     return mLowPrecisionTiledBuffer.GetValidRegion();
   }
 
-  virtual bool UseTiledLayerBuffer(ISurfaceAllocator* aAllocator,
-                                   const SurfaceDescriptorTiles& aTiledDescriptor) MOZ_OVERRIDE;
+  void UseTiledLayerBuffer(ISurfaceAllocator* aAllocator,
+                           const SurfaceDescriptorTiles& aTiledDescriptor);
 
   void Composite(EffectChain& aEffectChain,
                  float aOpacity,

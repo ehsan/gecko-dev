@@ -286,9 +286,14 @@ def processSingleLeakFile(leakLogFileName, processType, leakThreshold):
 
   # totalBytesLeaked was seen and is non-zero.
   if totalBytesLeaked > leakThreshold:
-    logAsWarning = True
-    # Fail the run if we're over the threshold (which defaults to 0)
-    prefix = "TEST-UNEXPECTED-FAIL"
+    if processType == "tab":
+      # For now, ignore tab process leaks. See bug 1051230.
+      log.info("WARNING | leakcheck | ignoring leaks in tab process")
+      prefix = "WARNING"
+    else:
+      logAsWarning = True
+      # Fail the run if we're over the threshold (which defaults to 0)
+      prefix = "TEST-UNEXPECTED-FAIL"
   else:
     prefix = "WARNING"
   # Create a comma delimited string of the first N leaked objects found,
@@ -306,7 +311,7 @@ def processSingleLeakFile(leakLogFileName, processType, leakThreshold):
     log.info("%s | leakcheck | %s %d bytes leaked (%s)"
              % (prefix, processString, totalBytesLeaked, leakedObjectSummary))
 
-def processLeakLog(leakLogFile, leakThresholds):
+def processLeakLog(leakLogFile, leakThreshold = 0):
   """Process the leak log, including separate leak logs created
   by child processes.
 
@@ -321,28 +326,14 @@ def processLeakLog(leakLogFile, leakThresholds):
   optional.
 
   All other file names are treated as being for default processes.
-
-  leakThresholds should be a dict mapping process types to leak thresholds,
-  in bytes. If a process type is not present in the dict the threshold
-  will be 0.
   """
 
   if not os.path.exists(leakLogFile):
     log.info("WARNING | leakcheck | refcount logging is off, so leaks can't be detected!")
     return
 
-  # This list is based on kGeckoProcessTypeString. ipdlunittest processes likely
-  # are not going to produce leak logs we will ever see.
-  knownProcessTypes = ["default", "plugin", "tab", "geckomediaplugin"]
-
-  for processType in knownProcessTypes:
-    log.info("TEST-INFO | leakcheck | %s process: leak threshold set at %d bytes"
-             % (processType, leakThresholds.get(processType, 0)))
-
-  for processType in leakThresholds:
-    if not processType in knownProcessTypes:
-      log.info("TEST-UNEXPECTED-FAIL | leakcheck | Unknown process type %s in leakThresholds"
-               % processType)
+  if leakThreshold != 0:
+    log.info("TEST-INFO | leakcheck | threshold set at %d bytes" % leakThreshold)
 
   (leakLogFileDir, leakFileBase) = os.path.split(leakLogFile)
   if leakFileBase[-4:] == ".log":
@@ -359,10 +350,6 @@ def processLeakLog(leakLogFile, leakThresholds):
         processType = m.group(1)
       else:
         processType = "default"
-      if not processType in knownProcessTypes:
-        log.info("TEST-UNEXPECTED-FAIL | leakcheck | Leak log with unknown process type %s"
-                 % processType)
-      leakThreshold = leakThresholds.get(processType, 0)
       processSingleLeakFile(thisFile, processType, leakThreshold)
 
 def replaceBackSlashes(input):
@@ -403,10 +390,7 @@ def environment(xrePath, env=None, crashreporter=True, debugger=False, dmdPath=N
 
   assert os.path.isabs(xrePath)
 
-  if mozinfo.isMac:
-    ldLibraryPath = os.path.join(os.path.dirname(xrePath), "MacOS")
-  else:
-    ldLibraryPath = xrePath
+  ldLibraryPath = xrePath
 
   envVar = None
   dmdLibrary = None

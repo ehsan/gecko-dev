@@ -297,13 +297,9 @@ Headers::IsForbiddenResponseHeader(const nsACString& aName) const
 }
 
 void
-Headers::Fill(const Headers& aInit, ErrorResult& aRv)
+Headers::Fill(const Headers& aInit, ErrorResult&)
 {
-  const nsTArray<Entry>& list = aInit.mList;
-  for (uint32_t i = 0; i < list.Length() && !aRv.Failed(); ++i) {
-    const Entry& entry = list[i];
-    Append(entry.mName, entry.mValue, aRv);
-  }
+  mList = aInit.mList;
 }
 
 void

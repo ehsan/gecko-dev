@@ -107,11 +107,6 @@ public class UpdateService extends IntentService {
         } else if (UpdateServiceHelper.ACTION_CANCEL_DOWNLOAD.equals(intent.getAction())) {
             mCancelDownload = true;
         } else {
-            if (!UpdateServiceHelper.ACTION_APPLY_UPDATE.equals(intent.getAction())) {
-                // Delete the update package used to install the current version.
-                deleteUpdatePackage(getLastFileName());
-            }
-
             super.onStartCommand(intent, flags, startId);
         }
 
@@ -417,26 +412,8 @@ public class UpdateService extends IntentService {
         mNotificationManager.notify(NOTIFICATION_ID, notification);
     }
 
-    private boolean deleteUpdatePackage(String path) {
-        if (path == null) {
-            return false;
-        }
-
-        File pkg = new File(path);
-        if (!pkg.exists()) {
-            return false;
-        }
-
-        pkg.delete();
-        Log.i(LOGTAG, "deleted update package: " + path);
-
-        return true;
-    }
-
     private File downloadUpdatePackage(UpdateInfo info, boolean overwriteExisting) {
-        File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        String fileName = new File(info.url.getFile()).getName();
-        File downloadFile = new File(path, fileName);
+        File downloadFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), new File(info.url.getFile()).getName());
 
         if (!overwriteExisting && info.buildID.equals(getLastBuildID()) && downloadFile.exists()) {
             // The last saved buildID is the same as the one for the current update. We also have a file
@@ -556,7 +533,7 @@ public class UpdateService extends IntentService {
 
     private void applyUpdate(String updatePath) {
         if (updatePath == null) {
-            updatePath = getLastFileName();
+            updatePath = mPrefs.getString(KEY_LAST_FILE_NAME, null);
         }
         applyUpdate(new File(updatePath));
     }
@@ -590,10 +567,6 @@ public class UpdateService extends IntentService {
 
     private String getLastHashValue() {
         return mPrefs.getString(KEY_LAST_HASH_VALUE, null);
-    }
-
-    private String getLastFileName() {
-        return mPrefs.getString(KEY_LAST_FILE_NAME, null);
     }
 
     private Calendar getLastAttemptDate() {

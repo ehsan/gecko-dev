@@ -384,8 +384,7 @@ nsContextMenu.prototype = {
     if (canSpell) {
       var dictMenu = document.getElementById("spell-dictionaries-menu");
       var dictSep = document.getElementById("spell-language-separator");
-      let count = InlineSpellCheckerUI.addDictionaryListToMenu(dictMenu, dictSep);
-      this.showItem(dictSep, count > 0);
+      InlineSpellCheckerUI.addDictionaryListToMenu(dictMenu, dictSep);
       this.showItem("spell-add-dictionaries-main", false);
     }
     else if (this.onEditableArea) {
@@ -503,14 +502,7 @@ nsContextMenu.prototype = {
     let tt = devtools.TargetFactory.forTab(gBrowser.selectedTab);
     return gDevTools.showToolbox(tt, "inspector").then(function(toolbox) {
       let inspector = toolbox.getCurrentPanel();
-      if (this.isRemote) {
-        this.browser.messageManager.sendAsyncMessage("debug:inspect", {}, {node: this.target});
-        inspector.walker.findInspectingNode().then(nodeFront => {
-          inspector.selection.setNodeFront(nodeFront, "browser-context-menu");
-        });
-      } else {
-        inspector.selection.setNode(this.target, "browser-context-menu");
-      }
+      inspector.selection.setNode(this.target, "browser-context-menu");
     }.bind(this));
   },
 

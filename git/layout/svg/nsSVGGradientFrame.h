@@ -47,12 +47,11 @@ public:
 
   // nsSVGPaintServerFrame methods:
   virtual already_AddRefed<gfxPattern>
-    GetPaintServerPattern(nsIFrame* aSource,
-                          const DrawTarget* aDrawTarget,
+    GetPaintServerPattern(nsIFrame *aSource,
                           const gfxMatrix& aContextMatrix,
                           nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                           float aGraphicOpacity,
-                          const gfxRect* aOverrideBounds) MOZ_OVERRIDE;
+                          const gfxRect *aOverrideBounds) MOZ_OVERRIDE;
 
   // nsIFrame interface:
   virtual nsresult AttributeChanged(int32_t         aNameSpaceID,

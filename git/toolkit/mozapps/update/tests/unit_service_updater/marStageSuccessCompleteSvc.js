@@ -5,8 +5,43 @@
 
 /* General Complete MAR File Staged Patch Apply Test */
 
+function runHelperProcess(args) {
+  let helperBin = getTestDirFile(FILE_HELPER_BIN);
+  let process = AUS_Cc["@mozilla.org/process/util;1"].
+                createInstance(AUS_Ci.nsIProcess);
+  process.init(helperBin);
+  logTestInfo("Running " + helperBin.path + " " + args.join(" "));
+  process.run(true, args, args.length);
+  do_check_eq(process.exitValue, 0);
+}
+
+function createSymlink() {
+  let args = ["setup-symlink", "moz-foo", "moz-bar", "target",
+              getApplyDirFile().path + "/a/b/link"];
+  runHelperProcess(args);
+  getApplyDirFile("a/b/link", false).permissions = 0o666;
+  
+  args = ["setup-symlink", "moz-foo2", "moz-bar2", "target2",
+          getApplyDirFile().path + "/a/b/link2", "change-perm"];
+  runHelperProcess(args);
+}
+
+function removeSymlink() {
+  let args = ["remove-symlink", "moz-foo", "moz-bar", "target",
+              getApplyDirFile().path + "/a/b/link"];
+  runHelperProcess(args);
+  args = ["remove-symlink", "moz-foo2", "moz-bar2", "target2",
+          getApplyDirFile().path + "/a/b/link2"];
+  runHelperProcess(args);
+}
+
+function checkSymlink() {
+  let args = ["check-symlink", getApplyDirFile().path + "/a/b/link"];
+  runHelperProcess(args);
+}
+
 function run_test() {
-  if (!shouldRunServiceTest(false, true)) {
+  if (!shouldRunServiceTest()) {
     return;
   }
 
@@ -17,7 +52,7 @@ function run_test() {
   gTestFiles[gTestFiles.length - 1].compareContents = "FromComplete\n";
   gTestFiles[gTestFiles.length - 1].comparePerms = 0o644;
   gTestDirs = gTestDirsCompleteSuccess;
-  setupUpdaterTest(FILE_COMPLETE_MAR);
+  setupUpdaterTest(FILE_COMPLETE_MAR, false, false);
 
   createUpdaterINI(false);
 
@@ -31,17 +66,14 @@ function run_test() {
     applyToDir.lastModifiedTime = yesterday;
   }
 
-  // Don't test symlinks on Mac OS X in this test since it tends to timeout.
-  // It is tested on Mac OS X in marAppInUseStageSuccessComplete_unix.js
-  if (IS_UNIX && !IS_MACOSX) {
+  if (IS_UNIX) {
     removeSymlink();
     createSymlink();
     do_register_cleanup(removeSymlink);
-    gTestFiles.splice(gTestFiles.length - 3, 0,
-    {
+    gTestFiles.push({
       description      : "Readable symlink",
       fileName         : "link",
-      relPathDir       : DIR_RESOURCES,
+      relPathDir       : "a/b/",
       originalContents : "test",
       compareContents  : "test",
       originalFile     : null,
@@ -59,22 +91,31 @@ function setupAppFilesFinished() {
 }
 
 function checkUpdateFinished() {
-  checkFilesAfterUpdateSuccess(getStageDirFile, true, false);
-  checkUpdateLogContents(LOG_COMPLETE_SUCCESS);
+  if (IS_MACOSX) {
+    logTestInfo("testing last modified time on the apply to directory has " +
+                "changed after a successful update (bug 600098)");
+    let now = Date.now();
+    let applyToDir = getApplyDirFile();
+    let timeDiff = Math.abs(applyToDir.lastModifiedTime - now);
+    do_check_true(timeDiff < MAC_MAX_TIME_DIFFERENCE);
+  }
 
-  if (IS_WIN || IS_MACOSX) {
-    let running = getPostUpdateFile(".running");
-    logTestInfo("checking that the post update process running file doesn't " +
-                "exist. Path: " + running.path);
-    do_check_false(running.exists());
+  checkFilesAfterUpdateSuccess();
+  // Sorting on Linux is different so skip this check for now.
+  if (!IS_UNIX) {
+    checkUpdateLogContents(LOG_COMPLETE_SUCCESS);
+  }
+
+  if (IS_MACOSX || IS_WIN) {
+    // Check that the post update process was not launched when staging an
+    // update.
+    do_check_false(getPostUpdateFile(".running").exists());
   }
 
   // Switch the application to the staged application that was updated.
   gStageUpdate = false;
   gSwitchApp = true;
-  do_timeout(TEST_CHECK_TIMEOUT, function() {
-    runUpdate(0, STATE_SUCCEEDED);
-  });
+  runUpdate(0, STATE_SUCCEEDED);
 }
 
 /**
@@ -82,7 +123,7 @@ function checkUpdateFinished() {
  * support launching post update process.
  */
 function checkUpdateApplied() {
-  if (IS_WIN || IS_MACOSX) {
+  if (IS_MACOSX || IS_WIN) {
     gCheckFunc = finishCheckUpdateApplied;
     checkPostUpdateAppLog();
   } else {
@@ -104,53 +145,13 @@ function finishCheckUpdateApplied() {
     do_check_true(timeDiff < MAC_MAX_TIME_DIFFERENCE);
   }
 
-  if (IS_WIN || IS_MACOSX) {
-    let running = getPostUpdateFile(".running");
-    logTestInfo("checking that the post update process running file exists. " +
-                "Path: " + running.path);
-    do_check_true(running.exists());
-  }
-
-  if (IS_UNIX && !IS_MACOSX) {
+  checkFilesAfterUpdateSuccess();
+  if (IS_UNIX) {
     checkSymlink();
+  } else {
+    // Sorting on Linux is different so skip this check for now.
+    checkUpdateLogContents(LOG_COMPLETE_SUCCESS);
   }
-  checkFilesAfterUpdateSuccess(getApplyDirFile, false, false);
-  checkUpdateLogContents(LOG_COMPLETE_SUCCESS);
+
   checkCallbackAppLog();
-}
-
-function runHelperProcess(args) {
-  let helperBin = getTestDirFile(FILE_HELPER_BIN);
-  let process = AUS_Cc["@mozilla.org/process/util;1"].
-                createInstance(AUS_Ci.nsIProcess);
-  process.init(helperBin);
-  logTestInfo("Running " + helperBin.path + " " + args.join(" "));
-  process.run(true, args, args.length);
-  do_check_eq(process.exitValue, 0);
-}
-
-function createSymlink() {
-  let args = ["setup-symlink", "moz-foo", "moz-bar", "target",
-              getApplyDirFile().path + "/" + DIR_RESOURCES + "link"];
-  runHelperProcess(args);
-  getApplyDirFile(DIR_RESOURCES + "link", false).permissions = 0o666;
-  
-  args = ["setup-symlink", "moz-foo2", "moz-bar2", "target2",
-          getApplyDirFile().path + "/" + DIR_RESOURCES + "link2", "change-perm"];
-  runHelperProcess(args);
-}
-
-function removeSymlink() {
-  let args = ["remove-symlink", "moz-foo", "moz-bar", "target",
-              getApplyDirFile().path + "/" + DIR_RESOURCES + "link"];
-  runHelperProcess(args);
-  args = ["remove-symlink", "moz-foo2", "moz-bar2", "target2",
-          getApplyDirFile().path + "/" + DIR_RESOURCES + "link2"];
-  runHelperProcess(args);
-}
-
-function checkSymlink() {
-  let args = ["check-symlink",
-              getApplyDirFile().path + "/" + DIR_RESOURCES + "link"];
-  runHelperProcess(args);
 }

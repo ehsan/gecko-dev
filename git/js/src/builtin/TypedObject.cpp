@@ -1189,9 +1189,7 @@ StructTypeDescr::maybeForwardedFieldDescr(size_t index) const
     JSObject &fieldDescrs =
         *MaybeForwarded(&getReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_TYPES).toObject());
     JS_ASSERT(index < fieldDescrs.getDenseInitializedLength());
-    JSObject &descr =
-        *MaybeForwarded(&fieldDescrs.getDenseElement(index).toObject());
-    return descr.as<SizedTypeDescr>();
+    return fieldDescrs.getDenseElement(index).toObject().as<SizedTypeDescr>();
 }
 
 /******************************************************************************
@@ -1481,7 +1479,7 @@ TypedObject::length() const
 
     if (is<InlineOpaqueTypedObject>())
         return typeDescr().as<SizedArrayTypeDescr>().length();
-    return as<OutlineTypedObject>().length();
+    return getReservedSlot(JS_BUFVIEW_SLOT_LENGTH).toInt32();
 }
 
 uint8_t *
@@ -1765,10 +1763,15 @@ OutlineTypedObject::obj_trace(JSTracer *trc, JSObject *object)
     // prototypes) are never allocated in the nursery.
     TypeDescr &descr = typedObj.maybeForwardedTypeDescr();
 
+    if (!descr.opaque() || !typedObj.maybeForwardedIsAttached()) {
+        gc::MarkSlot(trc, &typedObj.getFixedSlotRef(JS_BUFVIEW_SLOT_OWNER), "typed object owner");
+        return;
+    }
+
     // Mark the owner, watching in case it is moved by the tracer.
-    JSObject *oldOwner = typedObj.maybeOwner();
+    JSObject *oldOwner = &typedObj.owner();
     gc::MarkSlot(trc, &typedObj.getFixedSlotRef(JS_BUFVIEW_SLOT_OWNER), "typed object owner");
-    JSObject *owner = typedObj.maybeOwner();
+    JSObject *owner = &typedObj.owner();
 
     uint8_t *mem = typedObj.outOfLineTypedMem();
 
@@ -1782,9 +1785,6 @@ OutlineTypedObject::obj_trace(JSTracer *trc, JSObject *object)
         typedObj.setPrivate(mem);
     }
 
-    if (!descr.opaque() || !typedObj.maybeForwardedIsAttached())
-        return;
-
     switch (descr.kind()) {
       case type::Scalar:
       case type::Reference:
@@ -1795,11 +1795,8 @@ OutlineTypedObject::obj_trace(JSTracer *trc, JSObject *object)
         break;
 
       case type::UnsizedArray:
-      {
-        SizedTypeDescr &elemType = descr.as<UnsizedArrayTypeDescr>().maybeForwardedElementType();
-        elemType.traceInstances(trc, mem, typedObj.length());
+        descr.as<UnsizedArrayTypeDescr>().elementType().traceInstances(trc, mem, typedObj.length());
         break;
-      }
     }
 }
 

@@ -141,7 +141,6 @@ AudioStream::AudioStream()
   , mNeedsStart(false)
   , mShouldDropFrames(false)
   , mPendingAudioInitTask(false)
-  , mLastGoodPosition(0)
 {
   // keep a ref in case we shut down later than nsLayoutStatics
   mLatencyLog = AsyncLatencyLogger::Get(true);
@@ -857,12 +856,7 @@ AudioStream::GetPositionInFramesUnlocked()
     }
   }
 
-  MOZ_ASSERT(position >= mLastGoodPosition, "cubeb position shouldn't go backward");
-  // This error handling/recovery keeps us in good shape in release build.
-  if (position >= mLastGoodPosition) {
-    mLastGoodPosition = position;
-  }
-  return std::min<uint64_t>(mLastGoodPosition, INT64_MAX);
+  return std::min<uint64_t>(position, INT64_MAX);
 }
 
 int64_t

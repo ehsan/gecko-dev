@@ -809,8 +809,8 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             gAndroidScreenBounds.width = newScreenWidth;
             gAndroidScreenBounds.height = newScreenHeight;
 
-            if (XRE_GetProcessType() != GeckoProcessType_Default &&
-                !Preferences::GetBool("browser.tabs.remote.desktopbehavior", false)) {
+            if (XRE_GetProcessType() != GeckoProcessType_Default ||
+                !BrowserTabsRemote()) {
                 break;
             }
 

@@ -251,7 +251,7 @@ BasicCompositor::DrawQuad(const gfx::Rect& aRect,
   RefPtr<DrawTarget> dest = buffer;
 
   buffer->PushClipRect(aClipRect);
-  AutoRestoreTransform autoRestoreTransform(dest);
+  AutoSaveTransform autoSaveTransform(dest);
 
   Matrix newTransform;
   Rect transformBounds;

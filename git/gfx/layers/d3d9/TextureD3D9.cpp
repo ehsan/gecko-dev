@@ -631,10 +631,6 @@ void
 CairoTextureClientD3D9::Unlock()
 {
   MOZ_ASSERT(mIsLocked, "Unlocked called while the texture is not locked!");
-  if (!mIsLocked) {
-    return;
-  }
-
   if (mDrawTarget) {
     mDrawTarget->Flush();
     mDrawTarget = nullptr;

@@ -2590,6 +2590,15 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     bool allow = GetDocShell()->GetCanExecuteScripts();
     xpc::Scriptability::Get(GetWrapperPreserveColor()).SetDocShellAllowsScript(allow);
 
+    // If we created a new inner window above, we need to do the last little bit
+    // of initialization now that the dust has settled.
+    if (createdInnerWindow) {
+      JS::Rooted<JSObject*> global(cx, newInnerGlobal);
+      JS::Rooted<JSObject*> proto(cx);
+      JS_GetPrototype(cx, global, &proto);
+      WindowNamedPropertiesHandler::Install(cx, proto);
+    }
+
     if (!aState) {
       JS::Rooted<JSObject*> rootedWrapper(cx, GetWrapperPreserveColor());
       if (!JS_DefineProperty(cx, newInnerGlobal, "window", rootedWrapper,
@@ -13964,14 +13973,6 @@ nsGlobalWindow::ClearDocumentDependentSlots(JSContext* aCx)
   MOZ_ASSERT(IsDOMBinding());
   WindowBinding::ClearCachedDocumentValue(aCx, this);
   WindowBinding::ClearCachedPerformanceValue(aCx, this);
-}
-
-/* static */
-JSObject*
-nsGlobalWindow::CreateNamedPropertiesObject(JSContext *aCx,
-                                            JS::Handle<JSObject*> aProto)
-{
-  return WindowNamedPropertiesHandler::Create(aCx, aProto);
 }
 
 #ifdef MOZ_B2G

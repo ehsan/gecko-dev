@@ -314,7 +314,7 @@ ReportError(JSContext *cx, const char *message, JSErrorReport *reportp,
 
 /*
  * The given JSErrorReport object have been zeroed and must not outlive
- * cx->fp() (otherwise owned fields may become invalid).
+ * cx->fp() (otherwise report->originPrincipals may become invalid).
  */
 static void
 PopulateReportBlame(JSContext *cx, JSErrorReport *report)
@@ -329,7 +329,7 @@ PopulateReportBlame(JSContext *cx, JSErrorReport *report)
 
     report->filename = iter.scriptFilename();
     report->lineno = iter.computeLine(&report->column);
-    report->isMuted = iter.mutedErrors();
+    report->originPrincipals = iter.originPrincipals();
 }
 
 /*

@@ -515,9 +515,6 @@ var gPopupBlockerObserver = {
     var perm = shouldBlock ? pm.DENY_ACTION : pm.ALLOW_ACTION;
     pm.add(gBrowser.currentURI, "popup", perm);
 
-    if (!shouldBlock)
-      this.showAllBlockedPopups(gBrowser.selectedBrowser);
-
     gBrowser.getNotificationBox().removeCurrentNotification();
   },
 
@@ -572,7 +569,6 @@ var gPopupBlockerObserver = {
         // xxxdz this should make the option say "Show file picker" and do it (Bug 590306)
         if (!blockedPopup.popupWindowURI)
           continue;
-
         var popupURIspec = blockedPopup.popupWindowURI.spec;
 
         // Sometimes the popup URI that we get back from the blockedPopup
@@ -595,6 +591,9 @@ var gPopupBlockerObserver = {
         var label = gNavigatorBundle.getFormattedString("popupShowPopupPrefix",
                                                         [popupURIspec]);
         menuitem.setAttribute("label", label);
+        menuitem.setAttribute("popupWindowURI", popupURIspec);
+        menuitem.setAttribute("popupWindowFeatures", blockedPopup.popupWindowFeatures);
+        menuitem.setAttribute("popupWindowName", blockedPopup.popupWindowName);
         menuitem.setAttribute("oncommand", "gPopupBlockerObserver.showBlockedPopup(event);");
         menuitem.setAttribute("popupReportIndex", i);
         menuitem.popupReportBrowser = browser;
@@ -639,18 +638,6 @@ var gPopupBlockerObserver = {
     var popupReportIndex = target.getAttribute("popupReportIndex");
     let browser = target.popupReportBrowser;
     browser.unblockPopup(popupReportIndex);
-  },
-
-  showAllBlockedPopups: function (aBrowser)
-  {
-    let popups = aBrowser.blockedPopups;
-    if (!popups)
-      return;
-
-    for (let i = 0; i < popups.length; i++) {
-      if (popups[i].popupWindowURI)
-        aBrowser.unblockPopup(i);
-    }
   },
 
   editPopupSettings: function ()
@@ -6092,11 +6079,6 @@ function BrowserOpenAddonsMgr(aView) {
   }
 }
 
-function BrowserOpenApps() {
-  let appsURL = Services.urlFormatter.formatURLPref("browser.apps.URL");
-  switchToTabHavingURI(appsURL, true)
-}
-
 function GetSearchFieldBookmarkData(node) {
   var charset = node.ownerDocument.characterSet;
 
@@ -6797,11 +6779,11 @@ var gIdentityHandler = {
     if (gURLBar.getAttribute("pageproxystate") != "valid")
       return;
 
-    let value = gBrowser.currentURI.spec;
-    let urlString = value + "\n" + gBrowser.contentTitle;
-    let htmlString = "<a href=\"" + value + "\">" + value + "</a>";
+    var value = content.location.href;
+    var urlString = value + "\n" + content.document.title;
+    var htmlString = "<a href=\"" + value + "\">" + value + "</a>";
 
-    let dt = event.dataTransfer;
+    var dt = event.dataTransfer;
     dt.setData("text/x-moz-url", urlString);
     dt.setData("text/uri-list", value);
     dt.setData("text/plain", value);
@@ -6957,16 +6939,20 @@ let gRemoteTabsUI = {
       return;
     }
 
+    let remoteTabs = Services.appinfo.browserTabsRemote;
+    let autostart = Services.appinfo.browserTabsRemoteAutostart;
+
     let newRemoteWindow = document.getElementById("menu_newRemoteWindow");
     let newNonRemoteWindow = document.getElementById("menu_newNonRemoteWindow");
-#ifdef E10S_TESTING_ONLY
-    let autostart = Services.appinfo.browserTabsRemoteAutostart;
+
+    if (!remoteTabs) {
+      newRemoteWindow.hidden = true;
+      newNonRemoteWindow.hidden = true;
+      return;
+    }
+
     newRemoteWindow.hidden = autostart;
     newNonRemoteWindow.hidden = !autostart;
-#else
-    newRemoteWindow.hidden = true;
-    newNonRemoteWindow.hidden = true;
-#endif
   }
 };
 

@@ -6,17 +6,11 @@
 
 EXPORTS += [
     'CryptoTask.h',
-    'nsClientAuthRemember.h',
     'nsCrypto.h',
-    'nsNSSCallbacks.h',
-    'nsNSSCertificate.h',
-    'nsNSSComponent.h',
-    'nsNSSHelper.h',
     'nsNSSShutDown.h',
     'nsRandomGenerator.h',
     'NSSErrorsService.h',
     'ScopedNSSTypes.h',
-    'SharedCertVerifier.h',
 ]
 
 EXPORTS.mozilla += [

@@ -841,7 +841,16 @@ nsXULAppInfo::GetProcessID(uint32_t* aResult)
   return NS_OK;
 }
 
+static bool gBrowserTabsRemote = false;
 static bool gBrowserTabsRemoteInitialized = false;
+
+NS_IMETHODIMP
+nsXULAppInfo::GetBrowserTabsRemote(bool* aResult)
+{
+  *aResult = BrowserTabsRemote();
+  return NS_OK;
+}
+
 static bool gBrowserTabsRemoteAutostart = false;
 static bool gBrowserTabsRemoteAutostartInitialized = false;
 
@@ -4164,8 +4173,6 @@ XREMain::XRE_mainRun()
 
 /*
  * XRE_main - A class based main entry point used by most platforms.
- *            Note that on OSX, aAppData->xreDirectory will point to
- *            .app/Contents/Resources.
  */
 int
 XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
@@ -4558,15 +4565,15 @@ XRE_GetProcessType()
   return mozilla::startup::sChildProcessType;
 }
 
-static void
-LogE10sBlockedReason(const char *reason) {
-  nsAutoString msg(NS_LITERAL_STRING("==================\nE10s has been blocked from running because:\n"));
-  msg.Append(NS_ConvertASCIItoUTF16(reason));
-  msg.AppendLiteral("\n==================\n");
-  nsCOMPtr<nsIConsoleService> console(do_GetService("@mozilla.org/consoleservice;1"));
-  if (console) {
-    console->LogStringMessage(msg.get());
+bool
+mozilla::BrowserTabsRemote()
+{
+  if (!gBrowserTabsRemoteInitialized) {
+    gBrowserTabsRemote = Preferences::GetBool("browser.tabs.remote", false);
+    gBrowserTabsRemoteInitialized = true;
   }
+
+  return gBrowserTabsRemote;
 }
 
 bool
@@ -4576,26 +4583,11 @@ mozilla::BrowserTabsRemoteAutostart()
   return false;
 #endif
   if (!gBrowserTabsRemoteAutostartInitialized) {
-    bool optInPref = Preferences::GetBool("browser.tabs.remote.autostart", false);
-    bool trialPref = Preferences::GetBool("browser.tabs.remote.autostart.1", false);
-    bool prefEnabled = optInPref || trialPref;
-
+    bool hasIME = KeyboardMayHaveIME();
+    bool prefEnabled = Preferences::GetBool("browser.tabs.remote.autostart", false) ||
+                       (Preferences::GetBool("browser.tabs.remote.autostart.1", false) && !hasIME);
     bool disabledForA11y = Preferences::GetBool("browser.tabs.remote.autostart.disabled-because-using-a11y", false);
-    // Only disable for IME for the automatic pref, not the opt-in one.
-    bool disabledForIME = trialPref && KeyboardMayHaveIME();
-
-    if (prefEnabled) {
-      if (gSafeMode) {
-        LogE10sBlockedReason("Firefox is in safe mode.");
-      } else if (disabledForA11y) {
-        LogE10sBlockedReason("An accessibility tool is active.");
-      } else if (disabledForIME) {
-        LogE10sBlockedReason("The keyboard being used has activated IME.");
-      } else {
-        gBrowserTabsRemoteAutostart = true;
-      }
-    }
-
+    gBrowserTabsRemoteAutostart = !gSafeMode && !disabledForA11y && prefEnabled;
 
 #if defined(XP_WIN) || defined(XP_MACOSX)
   // If for any reason we suspect acceleration will be disabled, disabled
@@ -4604,6 +4596,13 @@ mozilla::BrowserTabsRemoteAutostart()
     // Check prefs
     bool accelDisabled = Preferences::GetBool("layers.acceleration.disabled", false) &&
                          !Preferences::GetBool("layers.acceleration.force-enabled", false);
+    // Check env flags
+    if (!accelDisabled) {
+      const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
+      if (acceleratedEnv && (*acceleratedEnv != '0')) {
+        accelDisabled = false;
+      }
+    }
 
 #if defined(XP_MACOSX)
     accelDisabled = !nsCocoaFeatures::AccelerateByDefault();
@@ -4636,18 +4635,8 @@ mozilla::BrowserTabsRemoteAutostart()
         }
       }
     }
-
-    // Check env flags
-    if (accelDisabled) {
-      const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
-      if (acceleratedEnv && (*acceleratedEnv != '0')) {
-        accelDisabled = false;
-      }
-    }
-
     if (accelDisabled) {
       gBrowserTabsRemoteAutostart = false;
-      LogE10sBlockedReason("Hardware acceleration is disabled.");
     }
   }
 #endif

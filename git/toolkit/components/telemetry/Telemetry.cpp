@@ -728,8 +728,7 @@ HistogramGet(const char *name, const char *expiration, uint32_t min, uint32_t ma
              uint32_t bucketCount, uint32_t histogramType, Histogram **result)
 {
   if (histogramType != nsITelemetry::HISTOGRAM_BOOLEAN
-      && histogramType != nsITelemetry::HISTOGRAM_FLAG
-      && histogramType != nsITelemetry::HISTOGRAM_COUNT) {
+      && histogramType != nsITelemetry::HISTOGRAM_FLAG) {
     // Sanity checks for histogram parameters.
     if (min >= max)
       return NS_ERROR_ILLEGAL_VALUE;
@@ -761,9 +760,6 @@ HistogramGet(const char *name, const char *expiration, uint32_t min, uint32_t ma
     break;
   case nsITelemetry::HISTOGRAM_FLAG:
     *result = FlagHistogram::FactoryGet(name, Histogram::kUmaTargetedHistogramFlag);
-    break;
-  case nsITelemetry::HISTOGRAM_COUNT:
-    *result = CountHistogram::FactoryGet(name, Histogram::kUmaTargetedHistogramFlag);
     break;
   default:
     return NS_ERROR_INVALID_ARG;
@@ -908,37 +904,33 @@ IsEmpty(const Histogram *h)
 bool
 JSHistogram_Add(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-  JSObject *obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj) {
+  JS::CallArgs args = CallArgsFromVp(argc, vp);
+  if (!args.length()) {
+    JS_ReportError(cx, "Expected one argument");
     return false;
   }
 
-  Histogram *h = static_cast<Histogram*>(JS_GetPrivate(obj));
-  Histogram::ClassType type = h->histogram_type();
+  if (!(args[0].isNumber() || args[0].isBoolean())) {
+    JS_ReportError(cx, "Not a number");
+    return false;
+  }
 
-  int32_t value = 1;
-  if (type != base::CountHistogram::COUNT_HISTOGRAM) {
-    JS::CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.length()) {
-      JS_ReportError(cx, "Expected one argument");
-      return false;
-    }
-
-    if (!(args[0].isNumber() || args[0].isBoolean())) {
-      JS_ReportError(cx, "Not a number");
-      return false;
-    }
-
-    if (!JS::ToInt32(cx, args[0], &value)) {
-      return false;
-    }
+  int32_t value;
+  if (!JS::ToInt32(cx, args[0], &value)) {
+    return false;
   }
 
   if (TelemetryImpl::CanRecord()) {
+    JSObject *obj = JS_THIS_OBJECT(cx, vp);
+    if (!obj) {
+      return false;
+    }
+
+    Histogram *h = static_cast<Histogram*>(JS_GetPrivate(obj));
     h->Add(value);
   }
-
   return true;
+
 }
 
 bool
@@ -1591,12 +1583,10 @@ TelemetryImpl::GetHistogramSnapshots(JSContext *cx, JS::MutableHandle<JS::Value>
     return NS_ERROR_FAILURE;
   ret.setObject(*root_obj);
 
-  // Ensure that all the HISTOGRAM_FLAG & HISTOGRAM_COUNT histograms have
-  // been created, so that their values are snapshotted.
+  // Ensure that all the HISTOGRAM_FLAG histograms have been created, so
+  // that their values are snapshotted.
   for (size_t i = 0; i < Telemetry::HistogramCount; ++i) {
-    const uint32_t type = gHistograms[i].histogramType;
-    if (type == nsITelemetry::HISTOGRAM_FLAG ||
-        type == nsITelemetry::HISTOGRAM_COUNT) {
+    if (gHistograms[i].histogramType == nsITelemetry::HISTOGRAM_FLAG) {
       Histogram *h;
       DebugOnly<nsresult> rv = GetHistogramByEnumId(Telemetry::ID(i), &h);
       MOZ_ASSERT(NS_SUCCEEDED(rv));

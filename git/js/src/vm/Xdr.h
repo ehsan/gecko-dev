@@ -28,7 +28,7 @@ namespace js {
  *
  *  https://developer.mozilla.org/en-US/docs/SpiderMonkey/Internals/Bytecode
  */
-static const uint32_t XDR_BYTECODE_VERSION = uint32_t(0xb973c0de - 185);
+static const uint32_t XDR_BYTECODE_VERSION = uint32_t(0xb973c0de - 184);
 
 class XDRBuffer {
   public:
@@ -100,12 +100,19 @@ class XDRState {
     XDRBuffer buf;
 
   protected:
+    JSPrincipals *originPrincipals_;
+
     explicit XDRState(JSContext *cx)
-      : buf(cx) { }
+      : buf(cx), originPrincipals_(nullptr) {
+    }
 
   public:
     JSContext *cx() const {
         return buf.cx();
+    }
+
+    JSPrincipals *originPrincipals() const {
+        return originPrincipals_;
     }
 
     bool codeUint8(uint8_t *n) {
@@ -253,7 +260,8 @@ class XDREncoder : public XDRState<XDR_ENCODE> {
 
 class XDRDecoder : public XDRState<XDR_DECODE> {
   public:
-    XDRDecoder(JSContext *cx, const void *data, uint32_t length);
+    XDRDecoder(JSContext *cx, const void *data, uint32_t length,
+               JSPrincipals *originPrincipals);
 
 };
 

@@ -665,11 +665,6 @@ protected:
                                 nsStyleContext* aStyleContext,
                                 nsPresContext* aPresContext,
                                 bool& aCanStoreInRuleTree);
-  void SetStyleClipPathToCSSValue(nsStyleClipPath* aStyleClipPath,
-                                  const nsCSSValue* aValue,
-                                  nsStyleContext* aStyleContext,
-                                  nsPresContext* aPresContext,
-                                  bool& aCanStoreInRuleTree);
 
 private:
   nsRuleNode(nsPresContext* aPresContext, nsRuleNode* aParent,

@@ -15,7 +15,7 @@ function run_test() {
   // application return code and update.status result.
   gTestFiles = gTestFilesCommon;
   gTestDirs = [];
-  setupUpdaterTest(FILE_WRONG_CHANNEL_MAR);
+  setupUpdaterTest(FILE_WRONG_CHANNEL_MAR, false, false);
 
   createUpdaterINI();
 
@@ -31,11 +31,11 @@ function run_test() {
  * the test.
  */
 function checkUpdateApplied() {
-  if (IS_WIN || IS_MACOSX) {
+  if (IS_MACOSX || IS_WIN) {
     // Check that the post update process was not launched.
     do_check_false(getPostUpdateFile(".running").exists());
   }
 
-  checkFilesAfterUpdateSuccess(getApplyDirFile, false, false);
+  checkFilesAfterUpdateSuccess();
   doTestFinish();
 }

@@ -28,10 +28,6 @@
 #include "nsContentUtils.h"
 #include "nsGlobalWindow.h"
 
-#include "mozilla/dom/ScriptSettings.h"
-
-using namespace mozilla::dom;
-
 bool
 nsJSUtils::GetCallingLocation(JSContext* aContext, const char* *aFilename,
                               uint32_t* aLineno)
@@ -124,7 +120,7 @@ nsJSUtils::ReportPendingException(JSContext *aContext)
 }
 
 nsresult
-nsJSUtils::CompileFunction(AutoJSAPI& jsapi,
+nsJSUtils::CompileFunction(JSContext* aCx,
                            JS::Handle<JSObject*> aTarget,
                            JS::CompileOptions& aOptions,
                            const nsACString& aName,
@@ -133,12 +129,10 @@ nsJSUtils::CompileFunction(AutoJSAPI& jsapi,
                            const nsAString& aBody,
                            JSObject** aFunctionObject)
 {
-  MOZ_ASSERT(jsapi.OwnsErrorReporting());
-  JSContext* cx = jsapi.cx();
-  MOZ_ASSERT(js::GetEnterCompartmentDepth(cx) > 0);
-  MOZ_ASSERT_IF(aTarget, js::IsObjectInContextCompartment(aTarget, cx));
+  MOZ_ASSERT(js::GetEnterCompartmentDepth(aCx) > 0);
+  MOZ_ASSERT_IF(aTarget, js::IsObjectInContextCompartment(aTarget, aCx));
   MOZ_ASSERT_IF(aOptions.versionSet, aOptions.version != JSVERSION_UNKNOWN);
-  mozilla::DebugOnly<nsIScriptContext*> ctx = GetScriptContextFromJSContext(cx);
+  mozilla::DebugOnly<nsIScriptContext*> ctx = GetScriptContextFromJSContext(aCx);
   MOZ_ASSERT_IF(ctx, ctx->IsContextInitialized());
 
   // Do the junk Gecko is supposed to do before calling into JSAPI.
@@ -147,13 +141,14 @@ nsJSUtils::CompileFunction(AutoJSAPI& jsapi,
   }
 
   // Compile.
-  JS::Rooted<JSFunction*> fun(cx);
-  if (!JS::CompileFunction(cx, aTarget, aOptions,
+  JS::Rooted<JSFunction*> fun(aCx);
+  if (!JS::CompileFunction(aCx, aTarget, aOptions,
                            PromiseFlatCString(aName).get(),
                            aArgCount, aArgArray,
                            PromiseFlatString(aBody).get(),
                            aBody.Length(), &fun))
   {
+    ReportPendingException(aCx);
     return NS_ERROR_FAILURE;
   }
 

@@ -35,10 +35,14 @@ function do_crash(setup, callback, canReturnZero)
   // get current process filename (xpcshell)
   let ds = Components.classes["@mozilla.org/file/directory_service;1"]
     .getService(Components.interfaces.nsIProperties);
-  let bin = ds.get("XREExeF", Components.interfaces.nsILocalFile);
+  let bin = ds.get("CurProcD", Components.interfaces.nsILocalFile);
+  bin.append("xpcshell");
   if (!bin.exists()) {
-    // weird, can't find xpcshell binary?
-    do_throw("Can't find xpcshell binary!");
+    bin.leafName = "xpcshell.exe";
+    do_check_true(bin.exists());
+    if (!bin.exists())
+      // weird, can't find xpcshell binary?
+      do_throw("Can't find xpcshell binary!");
   }
   // get Gre dir (GreD)
   let greD = ds.get("GreD", Components.interfaces.nsILocalFile);
