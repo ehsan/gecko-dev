@@ -483,7 +483,7 @@ WebConsole.prototype = {
 
     let showSource = ({ DebuggerView }) => {
       if (DebuggerView.Sources.containsValue(aSourceURL)) {
-        DebuggerView.setEditorLocation(aSourceURL, aSourceLine, { noDebug: true });
+        DebuggerView.setEditorLocation(aSourceURL, aSourceLine);
         return;
       }
       toolbox.selectTool("webconsole");
