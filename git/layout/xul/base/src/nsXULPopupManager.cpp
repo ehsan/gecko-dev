@@ -341,6 +341,10 @@ nsMenuPopupFrame* GetPopupToMoveOrResize(nsIFrame* aFrame)
   if (menuPopupFrame->PopupState() != ePopupOpenAndVisible)
     return nullptr;
 
+  nsIWidget* widget = menuPopupFrame->GetWidget();
+  if (widget && !widget->IsVisible())
+    return nullptr;
+
   return menuPopupFrame;
 }
 
@@ -1473,11 +1477,8 @@ nsXULPopupManager::MayShowPopup(nsMenuPopupFrame* aPopup)
   // window, so this is always disabled.
   nsCOMPtr<nsIWidget> mainWidget;
   baseWin->GetMainWidget(getter_AddRefs(mainWidget));
-  if (mainWidget) {
-    int32_t sizeMode;
-    mainWidget->GetSizeMode(&sizeMode);
-    if (sizeMode == nsSizeMode_Minimized)
-      return false;
+  if (mainWidget && mainWidget->SizeMode() == nsSizeMode_Minimized) {
+    return false;
   }
 
   // cannot open a popup that is a submenu of a menupopup that isn't open.

@@ -12,9 +12,18 @@
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/TypedArray.h"
 #include "nsCOMPtr.h"
+#include "mozilla/dom/UnionTypes.h"
+
+// Forward declare this before we include TestCodeGenBinding.h, because that header relies on including
+// this one for it, for ParentDict. Hopefully it won't begin to rely on it in more fundamental ways.
+namespace mozilla {
+namespace dom {
+class TestExternalInterface;
+} // namespace dom
+} // namespace mozilla
+
 // We don't export TestCodeGenBinding.h, but it's right in our parent dir.
 #include "../TestCodeGenBinding.h"
-#include "mozilla/dom/UnionTypes.h"
 
 extern bool TestFuncControlledMember(JSContext*, JSObject*);
 
@@ -73,7 +82,7 @@ class TestNonWrapperCacheInterface : public nsISupports
 public:
   NS_DECL_ISUPPORTS
 
-  virtual JSObject* WrapObject(JSContext* cx, JSObject* scope);
+  virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> scope);
 };
 
 class OnlyForUseInConstructor : public nsISupports,
@@ -123,6 +132,18 @@ public:
   static
   already_AddRefed<TestInterface> Test(const GlobalObject&, const nsAString&,
                                        ErrorResult&);
+  static
+  already_AddRefed<TestInterface> Test2(const GlobalObject&,
+                                        JSContext*,
+                                        const DictForConstructor&,
+                                        JS::Value,
+                                        JSObject&,
+                                        JSObject*,
+                                        const Sequence<Dict>&,
+                                        const Optional<JS::Value>&,
+                                        const Optional<NonNull<JSObject> >&,
+                                        const Optional<JSObject*>&,
+                                        ErrorResult&);
 
   // Integer types
   int8_t ReadonlyByte();
@@ -677,6 +698,25 @@ private:
   void PassOptionalNullableString(Optional<nsAString>&) MOZ_DELETE;
   void PassOptionalNullableStringWithDefaultValue(nsAString&) MOZ_DELETE;
   void PassVariadicString(Sequence<nsString>&) MOZ_DELETE;
+
+  // Make sure dictionary arguments are always const
+  void PassDictionary(JSContext*, Dict&) MOZ_DELETE;
+  void PassOtherDictionary(GrandparentDict&) MOZ_DELETE;
+  void PassSequenceOfDictionaries(JSContext*, Sequence<Dict>&) MOZ_DELETE;
+  void PassDictionaryOrLong(JSContext*, Dict&) MOZ_DELETE;
+  void PassDictContainingDict(JSContext*, DictContainingDict&) MOZ_DELETE;
+  void PassDictContainingSequence(DictContainingSequence&) MOZ_DELETE;
+
+  // Make sure various nullable things are always const
+  void PassNullableEnum(Nullable<TestEnum>&) MOZ_DELETE;
+
+  // Make sure unions are always const
+  void PassUnion(JSContext*, ObjectOrLong& arg) MOZ_DELETE;
+  void PassUnionWithNullable(JSContext*, ObjectOrNullOrLong& arg) MOZ_DELETE;
+  void PassNullableUnion(JSContext*, Nullable<ObjectOrLong>&) MOZ_DELETE;
+  void PassOptionalUnion(JSContext*, Optional<ObjectOrLong>&) MOZ_DELETE;
+  void PassOptionalNullableUnion(JSContext*, Optional<Nullable<ObjectOrLong> >&) MOZ_DELETE;
+  void PassOptionalNullableUnionWithDefaultValue(JSContext*, Nullable<ObjectOrLong>&) MOZ_DELETE;
 };
 
 class TestIndexedGetterInterface : public nsISupports,

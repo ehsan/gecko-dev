@@ -24,12 +24,31 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(AudioNode, nsDOMEventTargetHel
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(AudioNode, nsDOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(AudioNode, nsDOMEventTargetHelper)
+
+NS_IMETHODIMP_(nsrefcnt)
+AudioNode::Release()
+{
+  if (mRefCnt.get() == 1) {
+    // We are about to be deleted, disconnect the object from the graph before
+    // the derived type is destroyed.
+    DisconnectFromGraph();
+  }
+  nsrefcnt r = nsDOMEventTargetHelper::Release();
+  NS_LOG_RELEASE(this, r, "AudioNode");
+  return r;
+}
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(AudioNode)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
-AudioNode::AudioNode(AudioContext* aContext)
+AudioNode::AudioNode(AudioContext* aContext,
+                     uint32_t aChannelCount,
+                     ChannelCountMode aChannelCountMode,
+                     ChannelInterpretation aChannelInterpretation)
   : mContext(aContext)
+  , mChannelCount(aChannelCount)
+  , mChannelCountMode(aChannelCountMode)
+  , mChannelInterpretation(aChannelInterpretation)
 {
   MOZ_ASSERT(aContext);
   nsDOMEventTargetHelper::BindToOwner(aContext->GetParentObject());
@@ -38,7 +57,6 @@ AudioNode::AudioNode(AudioContext* aContext)
 
 AudioNode::~AudioNode()
 {
-  DisconnectFromGraph();
   MOZ_ASSERT(mInputNodes.IsEmpty());
   MOZ_ASSERT(mOutputNodes.IsEmpty());
 }
@@ -128,7 +146,7 @@ AudioNode::Connect(AudioNode& aDestination, uint32_t aOutput,
   input->mInputNode = this;
   input->mInputPort = aInput;
   input->mOutputPort = aOutput;
-  if (SupportsMediaStreams() && aDestination.mStream) {
+  if (aDestination.mStream) {
     // Connect streams in the MediaStreamGraph
     MOZ_ASSERT(aDestination.mStream->AsProcessedStream());
     ProcessedMediaStream* ps =
@@ -163,6 +181,15 @@ AudioNode::SendThreeDPointParameterToStream(uint32_t aIndex, const ThreeDPoint& 
   AudioNodeStream* ns = static_cast<AudioNodeStream*>(mStream.get());
   MOZ_ASSERT(ns, "How come we don't have a stream here?");
   ns->SetThreeDPointParameter(aIndex, aValue);
+}
+
+void
+AudioNode::SendChannelMixingParametersToStream()
+{
+  AudioNodeStream* ns = static_cast<AudioNodeStream*>(mStream.get());
+  MOZ_ASSERT(ns, "How come we don't have a stream here?");
+  ns->SetChannelMixingParameters(mChannelCount, mChannelCountMode,
+                                 mChannelInterpretation);
 }
 
 void

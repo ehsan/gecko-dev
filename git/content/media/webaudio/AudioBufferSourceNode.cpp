@@ -17,13 +17,13 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(AudioBufferSourceNode, AudioNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(AudioBufferSourceNode)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mBuffer)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPlaybackRate)
   if (tmp->Context()) {
     tmp->Context()->UnregisterAudioBufferSourceNode(tmp);
   }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END_INHERITED(AudioNode)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(AudioBufferSourceNode, AudioNode)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBuffer)
@@ -312,6 +312,11 @@ public:
       mPlaybackRate = mPlaybackRateTimeline.GetValueAtTime<TrackTicks>(aStream->GetCurrentPosition());
     }
 
+    // Make sure the playback rate if something our resampler can work with.
+    if (mPlaybackRate <= 0.0 || mPlaybackRate >= 1024) {
+      mPlaybackRate = 1.0;
+    }
+
     uint32_t currentOutSampleRate, currentInSampleRate;
     if (ShouldResample()) {
       SpeexResamplerState* resampler = Resampler(mChannels);
@@ -398,7 +403,10 @@ public:
 };
 
 AudioBufferSourceNode::AudioBufferSourceNode(AudioContext* aContext)
-  : AudioNode(aContext)
+  : AudioNode(aContext,
+              2,
+              ChannelCountMode::Max,
+              ChannelInterpretation::Speakers)
   , mLoopStart(0.0)
   , mLoopEnd(0.0)
   , mOffset(0.0)
@@ -423,7 +431,7 @@ AudioBufferSourceNode::~AudioBufferSourceNode()
 }
 
 JSObject*
-AudioBufferSourceNode::WrapObject(JSContext* aCx, JSObject* aScope)
+AudioBufferSourceNode::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return AudioBufferSourceNodeBinding::Wrap(aCx, aScope, this);
 }
@@ -527,7 +535,7 @@ AudioBufferSourceNode::Stop(double aWhen, ErrorResult& aRv)
   }
 
   AudioNodeStream* ns = static_cast<AudioNodeStream*>(mStream.get());
-  if (!ns) {
+  if (!ns || !Context()) {
     // We've already stopped and had our stream shut down
     return;
   }
@@ -562,8 +570,6 @@ AudioBufferSourceNode::SendDopplerShiftToStream(double aDopplerShift)
 void
 AudioBufferSourceNode::SendLoopParametersToStream()
 {
-  SendInt32ParameterToStream(LOOP, mLoop ? 1 : 0);
-
   // Don't compute and set the loop parameters unnecessarily
   if (mLoop && mBuffer) {
     float rate = mBuffer->SampleRate();
@@ -580,8 +586,13 @@ AudioBufferSourceNode::SendLoopParametersToStream()
     }
     int32_t loopStartTicks = NS_lround(actualLoopStart * rate);
     int32_t loopEndTicks = NS_lround(actualLoopEnd * rate);
-    SendInt32ParameterToStream(LOOPSTART, loopStartTicks);
-    SendInt32ParameterToStream(LOOPEND, loopEndTicks);
+    if (loopStartTicks < loopEndTicks) {
+      SendInt32ParameterToStream(LOOPSTART, loopStartTicks);
+      SendInt32ParameterToStream(LOOPEND, loopEndTicks);
+      SendInt32ParameterToStream(LOOP, 1);
+    }
+  } else if (!mLoop) {
+    SendInt32ParameterToStream(LOOP, 0);
   }
 }
 

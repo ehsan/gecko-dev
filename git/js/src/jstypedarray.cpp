@@ -4,32 +4,27 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jstypedarray.h"
+
 #include <string.h>
 
-#include "mozilla/DebugOnly.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/PodOperations.h"
 
 #include "jstypes.h"
 #include "jsutil.h"
-#include "jsprf.h"
 #include "jsapi.h"
 #include "jsarray.h"
-#include "jsatom.h"
-#include "jsbool.h"
 #include "jscntxt.h"
 #include "jscpucfg.h"
 #include "jsversion.h"
 #include "jsgc.h"
 #include "jsinterp.h"
-#include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
-#include "jstypedarray.h"
 
 #include "gc/Barrier.h"
 #include "gc/Marking.h"
-#include "gc/StoreBuffer.h"
 #include "vm/GlobalObject.h"
 #include "vm/NumericConversions.h"
 
@@ -50,7 +45,6 @@ using namespace js;
 using namespace js::gc;
 using namespace js::types;
 
-using mozilla::DebugOnly;
 using mozilla::PodCopy;
 
 /*
@@ -397,7 +391,7 @@ ArrayBufferObject::prepareForAsmJS(JSContext *cx, Handle<ArrayBufferObject*> buf
 }
 
 void
-ArrayBufferObject::releaseAsmJSArrayBuffer(FreeOp *fop, RawObject obj)
+ArrayBufferObject::releaseAsmJSArrayBuffer(FreeOp *fop, JSObject *obj)
 {
     ArrayBufferObject &buffer = obj->asArrayBuffer();
     JS_ASSERT(buffer.isAsmJSArrayBuffer());
@@ -438,7 +432,7 @@ ArrayBufferObject::prepareForAsmJS(JSContext *cx, Handle<ArrayBufferObject*> buf
 }
 
 void
-ArrayBufferObject::releaseAsmJSArrayBuffer(FreeOp *fop, RawObject obj)
+ArrayBufferObject::releaseAsmJSArrayBuffer(FreeOp *fop, JSObject *obj)
 {
     fop->free_(obj->asArrayBuffer().getElementsHeader());
 }
@@ -500,7 +494,7 @@ SetBufferLink(JSObject *view, JSObject *buffer)
 }
 
 void
-ArrayBufferObject::addView(RawObject view)
+ArrayBufferObject::addView(JSObject *view)
 {
     // This view should never have been associated with a buffer before
     JS_ASSERT(BufferLink(view) == UNSET_BUFFER_LINK);
@@ -648,7 +642,7 @@ ArrayBufferObject::stealContents(JSContext *cx, JSObject *obj, void **contents,
 }
 
 void
-ArrayBufferObject::obj_trace(JSTracer *trc, RawObject obj)
+ArrayBufferObject::obj_trace(JSTracer *trc, JSObject *obj)
 {
     /*
      * If this object changes, it will get marked via the private data barrier,
@@ -1160,7 +1154,7 @@ js::IsDataView(JSObject* obj)
 }
 
 void
-TypedArray::neuter(RawObject tarray)
+TypedArray::neuter(JSObject *tarray)
 {
     JS_ASSERT(tarray->isTypedArray());
     tarray->setSlot(LENGTH_SLOT, Int32Value(0));
@@ -1382,7 +1376,7 @@ class TypedArrayTemplate
     }
 
     static void
-    obj_trace(JSTracer *trc, RawObject obj)
+    obj_trace(JSTracer *trc, JSObject *obj)
     {
         MarkSlot(trc, &obj->getFixedSlotRef(BUFFER_SLOT), "typedarray.buffer");
     }
@@ -1847,7 +1841,7 @@ class TypedArrayTemplate
             return fromArray(cx, dataObj);
 
         /* (ArrayBuffer, [byteOffset, [length]]) */
-        int32_t byteOffset = -1;
+        int32_t byteOffset = 0;
         int32_t length = -1;
 
         if (argc > 1) {
@@ -1908,7 +1902,7 @@ class TypedArrayTemplate
         unsigned flags = JSPROP_SHARED | JSPROP_GETTER | JSPROP_PERMANENT;
 
         Rooted<GlobalObject*> global(cx, cx->compartment->maybeGlobal());
-        RawObject getter = NewFunction(cx, NullPtr(), Getter<ValueGetter>, 0,
+        JSObject *getter = NewFunction(cx, NullPtr(), Getter<ValueGetter>, 0,
                                        JSFunction::NATIVE_FUN, global, NullPtr());
         if (!getter)
             return false;
@@ -2105,7 +2099,7 @@ class TypedArrayTemplate
 
   public:
     static JSObject *
-    fromBuffer(JSContext *cx, HandleObject bufobj, int32_t byteOffsetInt, int32_t lengthInt,
+    fromBuffer(JSContext *cx, HandleObject bufobj, uint32_t byteOffset, int32_t lengthInt,
                HandleObject proto)
     {
         if (!ObjectClassIs(bufobj, ESClass_ArrayBuffer, cx)) {
@@ -2156,7 +2150,7 @@ class TypedArrayTemplate
 
                 ag.setCallee(cx->compartment->maybeGlobal()->createArrayFromBuffer<NativeType>());
                 ag.setThis(ObjectValue(*bufobj));
-                ag[0] = Int32Value(byteOffsetInt);
+                ag[0] = NumberValue(byteOffset);
                 ag[1] = Int32Value(lengthInt);
                 ag[2] = ObjectValue(*proto);
 
@@ -2171,19 +2165,17 @@ class TypedArrayTemplate
             return NULL; // must be arrayBuffer
         }
 
-        uint32_t boffset = (byteOffsetInt == -1) ? 0 : uint32_t(byteOffsetInt);
-
         ArrayBufferObject &buffer = bufobj->asArrayBuffer();
 
-        if (boffset > buffer.byteLength() || boffset % sizeof(NativeType) != 0) {
+        if (byteOffset > buffer.byteLength() || byteOffset % sizeof(NativeType) != 0) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_TYPED_ARRAY_BAD_ARGS);
             return NULL; // invalid byteOffset
         }
 
         uint32_t len;
         if (lengthInt == -1) {
-            len = (buffer.byteLength() - boffset) / sizeof(NativeType);
-            if (len * sizeof(NativeType) != buffer.byteLength() - boffset) {
+            len = (buffer.byteLength() - byteOffset) / sizeof(NativeType);
+            if (len * sizeof(NativeType) != buffer.byteLength() - byteOffset) {
                 JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_TYPED_ARRAY_BAD_ARGS);
                 return NULL; // given byte array doesn't map exactly to sizeof(NativeType) * N
             }
@@ -2193,21 +2185,21 @@ class TypedArrayTemplate
 
         // Go slowly and check for overflow.
         uint32_t arrayByteLength = len * sizeof(NativeType);
-        if (len >= INT32_MAX / sizeof(NativeType) || boffset >= INT32_MAX - arrayByteLength) {
+        if (len >= INT32_MAX / sizeof(NativeType) || byteOffset >= INT32_MAX - arrayByteLength) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_TYPED_ARRAY_BAD_ARGS);
-            return NULL; // overflow when calculating boffset + len * sizeof(NativeType)
+            return NULL; // overflow when calculating byteOffset + len * sizeof(NativeType)
         }
 
-        if (arrayByteLength + boffset > buffer.byteLength()) {
+        if (arrayByteLength + byteOffset > buffer.byteLength()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_TYPED_ARRAY_BAD_ARGS);
-            return NULL; // boffset + len is too big for the arraybuffer
+            return NULL; // byteOffset + len is too big for the arraybuffer
         }
 
-        return makeInstance(cx, bufobj, boffset, len, proto);
+        return makeInstance(cx, bufobj, byteOffset, len, proto);
     }
 
     static JSObject *
-    fromLength(JSContext *cx, int32_t nelements)
+    fromLength(JSContext *cx, uint32_t nelements)
     {
         RootedObject buffer(cx, createBufferWithSizeAndCount(cx, nelements));
         if (!buffer)
@@ -2599,7 +2591,11 @@ ArrayBufferObject::createTypedArrayFromBufferImpl(JSContext *cx, CallArgs args)
     Rooted<JSObject*> proto(cx, &args[2].toObject());
 
     Rooted<JSObject*> obj(cx);
-    obj = ArrayType::fromBuffer(cx, buffer, args[0].toInt32(), args[1].toInt32(), proto);
+    double byteOffset = args[0].toNumber();
+    MOZ_ASSERT(0 <= byteOffset);
+    MOZ_ASSERT(byteOffset <= UINT32_MAX);
+    MOZ_ASSERT(byteOffset == uint32_t(byteOffset));
+    obj = ArrayType::fromBuffer(cx, buffer, uint32_t(byteOffset), args[1].toInt32(), proto);
     if (!obj)
         return false;
     args.rval().setObject(*obj);
@@ -2844,7 +2840,7 @@ struct DataViewIO
 
     static void fromBuffer(DataType *dest, const uint8_t *unalignedBuffer, bool wantSwap)
     {
-        JS_ASSERT((reinterpret_cast<uintptr_t>(dest) & (Min<size_t>(JS_ALIGN_OF_POINTER, sizeof(DataType)) - 1)) == 0);
+        JS_ASSERT((reinterpret_cast<uintptr_t>(dest) & (Min<size_t>(MOZ_ALIGNOF(void*), sizeof(DataType)) - 1)) == 0);
         memcpy((void *) dest, unalignedBuffer, sizeof(ReadWriteType));
         if (wantSwap) {
             ReadWriteType *rwDest = reinterpret_cast<ReadWriteType *>(dest);
@@ -2854,7 +2850,7 @@ struct DataViewIO
 
     static void toBuffer(uint8_t *unalignedBuffer, const DataType *src, bool wantSwap)
     {
-        JS_ASSERT((reinterpret_cast<uintptr_t>(src) & (Min<size_t>(JS_ALIGN_OF_POINTER, sizeof(DataType)) - 1)) == 0);
+        JS_ASSERT((reinterpret_cast<uintptr_t>(src) & (Min<size_t>(MOZ_ALIGNOF(void*), sizeof(DataType)) - 1)) == 0);
         ReadWriteType temp = *reinterpret_cast<const ReadWriteType *>(src);
         if (wantSwap)
             temp = swapBytes(temp);
@@ -3377,7 +3373,6 @@ const JSFunctionSpec _typedArray::jsfuncs[] = {                                \
 #define IMPL_TYPED_ARRAY_JSAPI_CONSTRUCTORS(Name,NativeType)                                 \
   JS_FRIEND_API(JSObject *) JS_New ## Name ## Array(JSContext *cx, uint32_t nelements)       \
   {                                                                                          \
-      MOZ_ASSERT(nelements <= INT32_MAX);                                                    \
       return TypedArrayTemplate<NativeType>::fromLength(cx, nelements);                      \
   }                                                                                          \
   JS_FRIEND_API(JSObject *) JS_New ## Name ## ArrayFromArray(JSContext *cx, JSObject *other_)\
@@ -3386,12 +3381,11 @@ const JSFunctionSpec _typedArray::jsfuncs[] = {                                \
       return TypedArrayTemplate<NativeType>::fromArray(cx, other);                           \
   }                                                                                          \
   JS_FRIEND_API(JSObject *) JS_New ## Name ## ArrayWithBuffer(JSContext *cx,                 \
-                               JSObject *arrayBuffer_, uint32_t byteoffset, int32_t length)  \
+                               JSObject *arrayBuffer_, uint32_t byteOffset, int32_t length)  \
   {                                                                                          \
-      MOZ_ASSERT(byteoffset <= INT32_MAX);                                                   \
       Rooted<JSObject*> arrayBuffer(cx, arrayBuffer_);                                       \
       Rooted<JSObject*> proto(cx, NULL);                                                     \
-      return TypedArrayTemplate<NativeType>::fromBuffer(cx, arrayBuffer, byteoffset, length, \
+      return TypedArrayTemplate<NativeType>::fromBuffer(cx, arrayBuffer, byteOffset, length, \
                                                         proto);                              \
   }                                                                                          \
   JS_FRIEND_API(JSBool) JS_Is ## Name ## Array(JSObject *obj)                                \
@@ -3638,7 +3632,7 @@ InitArrayBufferClass(JSContext *cx)
 
     RootedId byteLengthId(cx, NameToId(cx->names().byteLength));
     unsigned flags = JSPROP_SHARED | JSPROP_GETTER | JSPROP_PERMANENT;
-    RawObject getter = NewFunction(cx, NullPtr(), ArrayBufferObject::byteLengthGetter, 0,
+    JSObject *getter = NewFunction(cx, NullPtr(), ArrayBufferObject::byteLengthGetter, 0,
                                    JSFunction::NATIVE_FUN, global, NullPtr());
     if (!getter)
         return NULL;

@@ -192,6 +192,8 @@ class ParallelArrayVisitor : public MInstructionVisitor
     SAFE_OP(TypeBarrier) // causes a bailout if the type is not found: a-ok with us
     SAFE_OP(MonitorTypes) // causes a bailout if the type is not found: a-ok with us
     SAFE_OP(GetPropertyCache)
+    SAFE_OP(GetPropertyPolymorphic)
+    UNSAFE_OP(SetPropertyPolymorphic)
     UNSAFE_OP(GetElementCache)
     UNSAFE_OP(BindNameCache)
     SAFE_OP(GuardShape)
@@ -213,8 +215,10 @@ class ParallelArrayVisitor : public MInstructionVisitor
     UNSAFE_OP(ArrayPush)
     SAFE_OP(LoadTypedArrayElement)
     SAFE_OP(LoadTypedArrayElementHole)
+    SAFE_OP(LoadTypedArrayElementStatic)
     MAYBE_WRITE_GUARDED_OP(StoreTypedArrayElement, elements)
     WRITE_GUARDED_OP(StoreTypedArrayElementHole, elements)
+    UNSAFE_OP(StoreTypedArrayElementStatic)
     UNSAFE_OP(ClampToUint8)
     SAFE_OP(LoadFixedSlot)
     WRITE_GUARDED_OP(StoreFixedSlot, object)
@@ -493,9 +497,24 @@ bool
 ParallelArrayVisitor::visitCompare(MCompare *compare)
 {
     MCompare::CompareType type = compare->compareType();
-    return type == MCompare::Compare_Int32 ||
-           type == MCompare::Compare_Double ||
-           type == MCompare::Compare_String;
+
+    switch (type) {
+      case MCompare::Compare_Int32:
+      case MCompare::Compare_Double:
+      case MCompare::Compare_Null:
+      case MCompare::Compare_Undefined:
+      case MCompare::Compare_Boolean:
+      case MCompare::Compare_Object:
+      case MCompare::Compare_Value:
+      case MCompare::Compare_Unknown:
+      case MCompare::Compare_String:
+        // These paths through compare are ok in any mode.
+        return true;
+
+      default:
+        SpewMIR(compare, "unsafe compareType=%d\n", type);
+        return markUnsafe();
+    }
 }
 
 bool
@@ -740,7 +759,7 @@ GetPossibleCallees(JSContext *cx, HandleScript script, jsbytecode *pc,
 
     RootedFunction fun(cx);
     for (unsigned i = 0; i < objCount; i++) {
-        RawObject obj = calleeTypes->getSingleObject(i);
+        JSObject *obj = calleeTypes->getSingleObject(i);
         if (obj && obj->isFunction()) {
             fun = obj->toFunction();
         } else {

@@ -28,18 +28,17 @@
  * array object.
  */
 
+#include "jsclone.h"
+
 #include "mozilla/FloatingPoint.h"
 
-#include "jsclone.h"
 #include "jsdate.h"
 #include "jstypedarray.h"
 
 #include "jstypedarrayinlines.h"
 
 #include "vm/BooleanObject-inl.h"
-#include "vm/NumberObject-inl.h"
 #include "vm/RegExpObject-inl.h"
-#include "vm/StringObject-inl.h"
 
 using namespace js;
 using mozilla::LittleEndian;
@@ -880,14 +879,14 @@ JSStructuredCloneReader::readTypedArray(uint32_t arrayType, uint32_t nelems, Val
         return false;
 
     // Read the ArrayBuffer object and its contents (but no properties)
-    Value v;
+    RootedValue v(context());
     uint32_t byteOffset;
     if (v1Read) {
-        if (!readV1ArrayBuffer(arrayType, nelems, &v))
+        if (!readV1ArrayBuffer(arrayType, nelems, v.address()))
             return false;
         byteOffset = 0;
     } else {
-        if (!startRead(&v))
+        if (!startRead(v.address()))
             return false;
         uint64_t n;
         if (!in.read(&n))

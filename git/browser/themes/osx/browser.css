@@ -3048,7 +3048,8 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 }
 
 .popup-notification-icon[popupid="indexedDB-permissions-prompt"],
-.popup-notification-icon[popupid="indexedDB-quota-prompt"] {
+.popup-notification-icon[popupid="indexedDB-quota-prompt"],
+.popup-notification-icon[popupid*="offline-app-requested"] {
   list-style-image: url(chrome://global/skin/icons/question-64.png);
 }
 
@@ -3464,7 +3465,7 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   margin: 2px;
 }
 
-.toolbarbutton-badge[badge]:not([badge=""])::after {
+.toolbarbutton-badge[badge]:not([badge=""]) {
   /* The |content| property is set in the content stylesheet. */
   font-size: 9px;
   font-weight: bold;
@@ -3477,18 +3478,26 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   position: absolute;
   top: 0;
   right: 0;
+  z-index: 1;
 }
 
-.toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl)::after {
+.toolbarbutton-badge[badge]:not([badge=""]):-moz-window-inactive {
+  background-color: rgb(230,230,230);
+  box-shadow: none;
+  border: 1px solid rgb(206,206,206);
+  color: rgb(192,192,192);
+}
+
+.toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl) {
   left: 0;
   right: auto;
 }
 
-toolbar[mode="icons"] > *|* > .toolbarbutton-badge[badge]:not([badge=""])::after {
+toolbar[mode="icons"] > *|* > .toolbarbutton-badge[badge]:not([badge=""]) {
   right: -2px;
 }
 
-toolbar[mode="icons"] > *|* > .toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl)::after {
+toolbar[mode="icons"] > *|* > .toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl) {
   left: -2px;
 }
 
@@ -3778,5 +3787,3 @@ panel[type="arrow"][popupid="click-to-play-plugins"] > .panel-arrowcontainer > .
     -moz-padding-end: 50px;
   }
 }
-
-

@@ -311,10 +311,9 @@ IonBuilder::inlineArrayPush(CallInfo &callInfo)
 
     MDefinition *obj = callInfo.thisArg();
     MDefinition *value = callInfo.getArg(0);
-    if (PropertyWriteNeedsTypeBarrier(cx, current, &obj, NULL, &value))
+    if (PropertyWriteNeedsTypeBarrier(cx, current, &obj, NULL, &value, /* canModify = */ false))
         return InliningStatus_NotInlined;
-    if (obj != callInfo.thisArg() || value != callInfo.getArg(0))
-        return InliningStatus_NotInlined;
+    JS_ASSERT(obj == callInfo.thisArg() && value == callInfo.getArg(0));
 
     if (getInlineReturnType() != MIRType_Int32)
         return InliningStatus_NotInlined;
@@ -926,7 +925,7 @@ IonBuilder::inlineUnsafeSetElement(CallInfo &callInfo)
         MDefinition *id = callInfo.getArg(idxi);
         MDefinition *elem = callInfo.getArg(elemi);
 
-        if (PropertyWriteNeedsTypeBarrier(cx, current, &obj, NULL, &elem))
+        if (PropertyWriteNeedsTypeBarrier(cx, current, &obj, NULL, &elem, /* canModify = */ false))
             return InliningStatus_NotInlined;
 
         int arrayType;
@@ -1098,7 +1097,7 @@ IonBuilder::inlineNewParallelArray(CallInfo &callInfo)
         return InliningStatus_NotInlined;
 
     types::StackTypeSet *ctorTypes = callInfo.getArg(0)->resultTypeSet();
-    RawObject targetObj = ctorTypes ? ctorTypes->getSingleton() : NULL;
+    JSObject *targetObj = ctorTypes ? ctorTypes->getSingleton() : NULL;
     RootedFunction target(cx);
     if (targetObj && targetObj->isFunction())
         target = targetObj->toFunction();
@@ -1162,6 +1161,8 @@ IonBuilder::inlineParallelArrayTail(CallInfo &callInfo,
     if (returnTypes->unknownObject() || returnTypes->getObjectCount() != 1)
         return InliningStatus_NotInlined;
     types::TypeObject *typeObject = returnTypes->getTypeObject(0);
+    if (typeObject->clasp != &ParallelArrayObject::class_)
+        return InliningStatus_NotInlined;
 
     // Create the call and add in the non-this arguments.
     uint32_t targetArgs = argc;

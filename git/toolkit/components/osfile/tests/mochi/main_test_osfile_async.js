@@ -644,6 +644,11 @@ let test_iter = maketest("iter", function iter(test) {
     test.is(referenceEntries.size, allFiles1.length, "All the entries in the directory have been listed");
     for (let entry of allFiles1) {
       test.ok(referenceEntries.has(entry.path), "File " + entry.path + " effectively exists");
+      // Ensure that we have correct isDir and isSymLink
+      // Current directory is {objdir}/_tests/testing/mochitest/, assume it has some dirs and symlinks.
+      var f = new FileUtils.File(entry.path);
+      test.is(entry.isDir, f.isDirectory(), "Get file " + entry.path + " isDir correctly");
+      test.is(entry.isSymLink, f.isSymlink(), "Get file " + entry.path + " isSymLink correctly");
     }
 
     yield iterator.close();
@@ -815,13 +820,29 @@ let test_system_shutdown = maketest("system_shutdown", function system_shutdown(
   return Task.spawn(function () {
     // Save original DEBUG value.
     let originalDebug = OS.Shared.DEBUG;
+    // Count the number of times the leaks are logged.
+    let logCounter = 0;
     // Create a console listener.
     function inDebugTest(resource, f) {
       return Task.spawn(function task() {
         let originalDebug = OS.Shared.DEBUG;
         OS.Shared.TEST = true;
         OS.Shared.DEBUG = true;
+
         let waitObservation = Promise.defer();
+        // Unregister a listener, reset DEBUG and TEST both when the promise is
+        // resolved or rejected.
+        let cleanUp = function cleanUp() {
+          Services.console.unregisterListener(listener);
+          OS.Shared.DEBUG = originalDebug;
+          OS.Shared.TEST = false;
+          test.info("Unregistered listener for resource " + resource);
+        };
+        waitObservation.promise.then(cleanUp, cleanUp);
+
+        // Measure how long it takes to receive a log message.
+        let logStart;
+
         let listener = {
           observe: function (aMessage) {
             test.info("Waiting for a console message mentioning resource " + resource);
@@ -838,7 +859,13 @@ let test_system_shutdown = maketest("system_shutdown", function system_shutdown(
               "detected.") >= 0, "Noticing file descriptors leaks, as expected.");
             let found = aMessage.message.indexOf(resource) >= 0;
             if (found) {
+              if (++logCounter > 2) {
+                test.fail("test.osfile.web-workers-shutdown observer should only " +
+                  "be activated 2 times.");
+              }
               test.ok(true, "Leaked resource is correctly listed in the log.");
+              test.info(
+                "It took " + (Date.now() - logStart) + "MS to receive a log message.");
               setTimeout(function() { waitObservation.resolve(); });
             } else {
               test.info("This log didn't list the expected resource: " + resource + "\ngot " + aMessage.message);
@@ -846,31 +873,60 @@ let test_system_shutdown = maketest("system_shutdown", function system_shutdown(
           }
         };
         Services.console.registerListener(listener);
+        logStart = Date.now();
         f();
+        // If listener does not resolve webObservation in timely manner (100MS),
+        // reject it.
+        setTimeout(function() {
+          test.info("waitObservation timeout exceeded.");
+          waitObservation.reject();
+        }, 500);
         yield waitObservation.promise;
-        Services.console.unregisterListener(listener);
-        OS.Shared.DEBUG = originalDebug;
-        OS.Shared.TEST = false;
-        test.info("Unregistered listener for resource " + resource);
       });
     }
+
+    // Enable test shutdown observer.
+    Services.prefs.setBoolPref("toolkit.osfile.test.shutdown.observer", true);
 
     let currentDir = yield OS.File.getCurrentDirectory();
     test.info("Testing for leaks of directory iterator " + currentDir);
     let iterator = new OS.File.DirectoryIterator(currentDir);
-    yield inDebugTest(currentDir, function() {
-      Services.obs.notifyObservers(null, "test.osfile.web-workers-shutdown",
-        null);
-    });
+    try {
+      yield inDebugTest(currentDir, function() {
+        Services.obs.notifyObservers(null, "test.osfile.web-workers-shutdown",
+          null);
+      });
+      test.ok(true, "Log messages observation promise resolved as expected.");
+    } catch (ex) {
+      test.fail("Log messages observation promise was rejected.");
+    }
     yield iterator.close();
 
+    let testFileDescriptorsLeaks = function testFileDescriptorsLeaks(shouldResolve) {
+      return Task.spawn(function task() {
+        let openedFile = yield OS.File.open(EXISTING_FILE);
+        try {
+          yield inDebugTest(EXISTING_FILE, function() {
+            Services.obs.notifyObservers(null, "test.osfile.web-workers-shutdown",
+              null);
+          });
+          test.ok(shouldResolve,
+            "Log message observation promise resolved as expected.");
+        } catch (ex) {
+          test.ok(!shouldResolve,
+            "Log message observation promise was rejected as expected.");
+        }
+        yield openedFile.close();
+      });
+    };
+
     test.info("Testing for leaks of file " + EXISTING_FILE);
-    let openedFile = yield OS.File.open(EXISTING_FILE);
-    yield inDebugTest(EXISTING_FILE, function() {
-      Services.obs.notifyObservers(null, "test.osfile.web-workers-shutdown",
-        null);
-    });
-    yield openedFile.close();
+    yield testFileDescriptorsLeaks(true);
+
+    // Disable test shutdown observer.
+    Services.prefs.clearUserPref("toolkit.osfile.test.shutdown.observer");
+    // Nothing should be logged since the test shutdown observer is unregistered.
+    yield testFileDescriptorsLeaks(false);
   });
 });
 

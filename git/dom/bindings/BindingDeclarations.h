@@ -372,14 +372,21 @@ public:
     return true;
   }
 
-  operator JS::Value()
+  // Note: This operator can be const because we return by value, not
+  // by reference.
+  operator JS::Value() const
   {
     return mValue;
   }
 
-  operator const JS::Value() const
+  JS::Value* operator&()
   {
-    return mValue;
+    return &mValue;
+  }
+
+  const JS::Value* operator&() const
+  {
+    return &mValue;
   }
 
 private:

@@ -265,7 +265,7 @@ ion::CanEnterBaselineJIT(JSContext *cx, JSScript *scriptArg, StackFrame *fp, boo
     if (IsJSDEnabled(cx)) {
         if (JSOp(*cx->regs().pc) == JSOP_LOOPENTRY) // No OSR.
             return Method_Skipped;
-    } else if (scriptArg->incUseCount() <= js_IonOptions.baselineUsesBeforeCompile) {
+    } else if (script->incUseCount() <= js_IonOptions.baselineUsesBeforeCompile) {
         return Method_Skipped;
     }
 
@@ -659,7 +659,7 @@ BaselineScript::pcForReturnAddress(JSScript *script, uint8_t *nativeAddress)
 }
 
 void
-BaselineScript::toggleDebugTraps(RawScript script, jsbytecode *pc)
+BaselineScript::toggleDebugTraps(JSScript *script, jsbytecode *pc)
 {
     JS_ASSERT(script->baselineScript() == this);
 
@@ -779,7 +779,7 @@ BaselineScript::purgeOptimizedStubs(Zone *zone)
 }
 
 void
-ion::FinishDiscardBaselineScript(FreeOp *fop, RawScript script)
+ion::FinishDiscardBaselineScript(FreeOp *fop, JSScript *script)
 {
     if (!script->hasBaselineScript())
         return;

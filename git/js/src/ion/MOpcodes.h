@@ -103,6 +103,8 @@ namespace ion {
     _(TypeBarrier)                                                          \
     _(MonitorTypes)                                                         \
     _(GetPropertyCache)                                                     \
+    _(GetPropertyPolymorphic)                                               \
+    _(SetPropertyPolymorphic)                                               \
     _(GetElementCache)                                                      \
     _(BindNameCache)                                                        \
     _(GuardShape)                                                           \
@@ -126,8 +128,10 @@ namespace ion {
     _(ArrayConcat)                                                          \
     _(LoadTypedArrayElement)                                                \
     _(LoadTypedArrayElementHole)                                            \
+    _(LoadTypedArrayElementStatic)                                          \
     _(StoreTypedArrayElement)                                               \
     _(StoreTypedArrayElementHole)                                           \
+    _(StoreTypedArrayElementStatic)                                         \
     _(EffectiveAddress)                                                     \
     _(ClampToUint8)                                                         \
     _(LoadFixedSlot)                                                        \

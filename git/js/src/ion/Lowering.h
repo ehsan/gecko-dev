@@ -189,10 +189,13 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitArrayConcat(MArrayConcat *ins);
     bool visitLoadTypedArrayElement(MLoadTypedArrayElement *ins);
     bool visitLoadTypedArrayElementHole(MLoadTypedArrayElementHole *ins);
+    bool visitLoadTypedArrayElementStatic(MLoadTypedArrayElementStatic *ins);
     bool visitClampToUint8(MClampToUint8 *ins);
     bool visitLoadFixedSlot(MLoadFixedSlot *ins);
     bool visitStoreFixedSlot(MStoreFixedSlot *ins);
     bool visitGetPropertyCache(MGetPropertyCache *ins);
+    bool visitGetPropertyPolymorphic(MGetPropertyPolymorphic *ins);
+    bool visitSetPropertyPolymorphic(MSetPropertyPolymorphic *ins);
     bool visitGetElementCache(MGetElementCache *ins);
     bool visitBindNameCache(MBindNameCache *ins);
     bool visitGuardClass(MGuardClass *ins);

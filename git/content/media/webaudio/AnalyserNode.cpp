@@ -75,7 +75,10 @@ public:
 };
 
 AnalyserNode::AnalyserNode(AudioContext* aContext)
-  : AudioNode(aContext)
+  : AudioNode(aContext,
+              1,
+              ChannelCountMode::Explicit,
+              ChannelInterpretation::Speakers)
   , mFFTSize(2048)
   , mMinDecibels(-100.)
   , mMaxDecibels(-30.)
@@ -88,7 +91,7 @@ AnalyserNode::AnalyserNode(AudioContext* aContext)
 }
 
 JSObject*
-AnalyserNode::WrapObject(JSContext* aCx, JSObject* aScope)
+AnalyserNode::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return AnalyserNodeBinding::Wrap(aCx, aScope, this);
 }

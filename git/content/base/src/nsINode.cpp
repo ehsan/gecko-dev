@@ -26,7 +26,6 @@
 #include "nsContentList.h"
 #include "nsContentUtils.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsCycleCollector.h"
 #include "nsDocument.h"
 #include "mozilla/dom/Attr.h"
 #include "nsDOMAttributeMap.h"
@@ -62,7 +61,6 @@
 #include "nsIEditor.h"
 #include "nsIEditorIMESupport.h"
 #include "nsIFrame.h"
-#include "nsIJSContextStack.h"
 #include "nsILinkHandler.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
@@ -2377,7 +2375,7 @@ nsINode::QuerySelectorAll(const nsAString& aSelector, ErrorResult& aResult)
 }
 
 JSObject*
-nsINode::WrapObject(JSContext *aCx, JSObject *aScope)
+nsINode::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
   MOZ_ASSERT(IsDOMBinding());
 

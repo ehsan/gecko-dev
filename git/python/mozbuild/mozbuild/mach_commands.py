@@ -195,6 +195,22 @@ class Build(MachCommandBase):
         print(FINDER_SLOW_MESSAGE % finder_percent)
 
 
+    @Command('configure', help='Configure the tree (run configure and config.status')
+    def configure(self):
+        def on_line(line):
+            self.log(logging.INFO, 'build_output', {'line': line}, '{line}')
+
+        status = self._run_make(srcdir=True, filename='client.mk',
+            target='configure', line_handler=on_line, log=False,
+            print_directory=False, allow_parallel=False, ensure_exit_code=False)
+
+        if not status:
+            print('Configure complete!')
+            print('Be sure to run |mach build| to pick up any changes');
+
+        return status
+
+
     @Command('clobber', help='Clobber the tree (delete the object directory).')
     def clobber(self):
         try:
@@ -275,7 +291,7 @@ class Warnings(MachCommandBase):
 @CommandProvider
 class GTestCommands(MachCommandBase):
     @Command('gtest', help='Run GTest unit tests.')
-    @CommandArgument('gtest_filter', default='*', nargs='?', metavar='gtest_filter',
+    @CommandArgument('gtest_filter', default=b"*", nargs='?', metavar='gtest_filter',
         help="test_filter is a ':'-separated list of wildcard patterns (called the positive patterns),"
              "optionally followed by a '-' and another ':'-separated pattern list (called the negative patterns).")
     @CommandArgument('--jobs', '-j', default='1', nargs='?', metavar='jobs', type=int,

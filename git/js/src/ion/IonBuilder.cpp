@@ -151,7 +151,7 @@ IonBuilder::getSingleCallTarget(types::StackTypeSet *calleeTypes)
     if (!calleeTypes)
         return NULL;
 
-    RawObject obj = calleeTypes->getSingleton();
+    JSObject *obj = calleeTypes->getSingleton();
     if (!obj || !obj->isFunction())
         return NULL;
 
@@ -908,11 +908,11 @@ IonBuilder::maybeAddOsrTypeBarriers()
     for (uint32_t i = info().startArgSlot(); i < osrBlock->stackDepth(); i++) {
         MInstruction *def = osrBlock->getSlot(i)->toOsrValue();
 
-        MPhi *headerPhi = header->getSlot(i)->toPhi();
+        MDefinition *headerValue = header->getSlot(i);
         MPhi *preheaderPhi = preheader->getSlot(i)->toPhi();
 
-        MIRType type = headerPhi->type();
-        types::StackTypeSet *typeSet = headerPhi->resultTypeSet();
+        MIRType type = headerValue->type();
+        types::StackTypeSet *typeSet = headerValue->resultTypeSet();
 
         if (!addOsrValueTypeBarrier(i, &def, type, typeSet))
             return false;
@@ -1741,8 +1741,10 @@ IonBuilder::restartLoop(CFGState state)
     // of the appropriate type and incoming edges to preserve.
     graph().removeBlocksAfter(header);
 
-    // Remove all instructions from the header itself.
+    // Remove all instructions from the header itself, and all resume points
+    // except the entry resume point.
     header->discardAllInstructions();
+    header->discardAllResumePoints(/* discardEntry = */ false);
     header->setStackDepth(header->getPredecessor(0)->stackDepth());
 
     popCfgStack();
@@ -3257,7 +3259,7 @@ IonBuilder::jsop_binary(JSOp op, MDefinition *left, MDefinition *right)
     bool overflowed = types::HasOperationOverflowed(script(), pc);
 
     current->add(ins);
-    ins->infer(overflowed);
+    ins->infer(inspector, pc, overflowed);
     current->push(ins);
 
     if (ins->isEffectful())
@@ -4319,6 +4321,9 @@ IonBuilder::createThisScriptedSingleton(HandleFunction target, MDefinition *call
     // Get the singleton prototype (if exists)
     RootedObject proto(cx, getSingletonPrototype(target));
     if (!proto)
+        return NULL;
+
+    if (!target->nonLazyScript()->types)
         return NULL;
 
     // Generate an inline path to create a new |this| object with
@@ -5407,7 +5412,7 @@ IonBuilder::newPendingLoopHeader(MBasicBlock *predecessor, jsbytecode *pc, bool 
             bool haveValue = false;
             Value existingValue;
             {
-                uint32_t arg = i - info().firstActualArgSlot();
+                uint32_t arg = i - info().firstArgSlot();
                 uint32_t var = i - info().firstLocalSlot();
                 if (arg < info().nargs()) {
                     if (!script()->formalIsAliased(arg)) {
@@ -5854,9 +5859,6 @@ IonBuilder::jsop_getgname(HandlePropertyName name)
 bool
 ion::TypeSetIncludes(types::TypeSet *types, MIRType input, types::TypeSet *inputTypes)
 {
-    if (inputTypes)
-        return inputTypes->isSubset(types);
-
     switch (input) {
       case MIRType_Undefined:
       case MIRType_Null:
@@ -5868,10 +5870,10 @@ ion::TypeSetIncludes(types::TypeSet *types, MIRType input, types::TypeSet *input
         return types->hasType(types::Type::PrimitiveType(ValueTypeFromMIRType(input)));
 
       case MIRType_Object:
-        return types->unknownObject();
+        return types->unknownObject() || (inputTypes && inputTypes->isSubset(types));
 
       case MIRType_Value:
-        return types->unknown();
+        return types->unknown() || (inputTypes && inputTypes->isSubset(types));
 
       default:
         JS_NOT_REACHED("Bad input type");
@@ -6232,9 +6234,93 @@ IonBuilder::getTypedArrayElements(MDefinition *obj)
     return MTypedArrayElements::New(obj);
 }
 
+MDefinition *
+IonBuilder::convertShiftToMaskForStaticTypedArray(MDefinition *id,
+                                                  ArrayBufferView::ViewType viewType)
+{
+    if (!id->isRsh() || id->isEffectful())
+        return NULL;
+    if (!id->getOperand(1)->isConstant())
+        return NULL;
+    const Value &value = id->getOperand(1)->toConstant()->value();
+    if (!value.isInt32() || uint32_t(value.toInt32()) != TypedArrayShift(viewType))
+        return NULL;
+
+    // Instead of shifting, mask off the low bits of the index so that
+    // a non-scaled access on the typed array can be performed.
+    MConstant *mask = MConstant::New(Int32Value(~((1 << value.toInt32()) - 1)));
+    MBitAnd *ptr = MBitAnd::New(id->getOperand(0), mask);
+
+    ptr->infer();
+    JS_ASSERT(!ptr->isEffectful());
+
+    current->add(mask);
+    current->add(ptr);
+
+    return ptr;
+}
+
+bool
+IonBuilder::jsop_getelem_typed_static(bool *psucceeded)
+{
+    if (!LIRGenerator::allowStaticTypedArrayAccesses())
+        return true;
+
+    MDefinition *id = current->peek(-1);
+    MDefinition *obj = current->peek(-2);
+
+    if (ElementAccessHasExtraIndexedProperty(cx, obj))
+        return true;
+
+    if (!obj->resultTypeSet())
+        return true;
+    JSObject *typedArray = obj->resultTypeSet()->getSingleton();
+    if (!typedArray)
+        return true;
+    JS_ASSERT(typedArray->isTypedArray());
+
+    ArrayBufferView::ViewType viewType = JS_GetArrayBufferViewType(typedArray);
+
+    MDefinition *ptr = convertShiftToMaskForStaticTypedArray(id, viewType);
+    if (!ptr)
+        return true;
+
+    obj->setFolded();
+
+    MLoadTypedArrayElementStatic *load = MLoadTypedArrayElementStatic::New(typedArray, ptr);
+    current->add(load);
+
+    // The load is infallible if an undefined result will be coerced to the
+    // appropriate numeric type if the read is out of bounds. The truncation
+    // analysis picks up some of these cases, but is incomplete with respect
+    // to others. For now, sniff the bytecode for simple patterns following
+    // the load which guarantee a truncation or numeric conversion.
+    if (viewType == ArrayBufferView::TYPE_FLOAT32 || viewType == ArrayBufferView::TYPE_FLOAT64) {
+        jsbytecode *next = pc + JSOP_GETELEM_LENGTH;
+        if (*next == JSOP_POS)
+            load->setInfallible();
+    } else {
+        jsbytecode *next = pc + JSOP_GETELEM_LENGTH;
+        if (*next == JSOP_ZERO && *(next + JSOP_ZERO_LENGTH) == JSOP_BITOR)
+            load->setInfallible();
+    }
+
+    current->popn(2);
+    current->push(load);
+
+    *psucceeded = true;
+    return true;
+}
+
 bool
 IonBuilder::jsop_getelem_typed(int arrayType)
 {
+    bool staticAccess = false;
+    if (!jsop_getelem_typed_static(&staticAccess))
+        return false;
+    if (staticAccess)
+        return true;
+
     types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
 
     MDefinition *id = current->pop();
@@ -6449,8 +6535,58 @@ IonBuilder::jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion)
 }
 
 bool
+IonBuilder::jsop_setelem_typed_static(bool *psucceeded)
+{
+    if (!LIRGenerator::allowStaticTypedArrayAccesses())
+        return true;
+
+    MDefinition *value = current->peek(-1);
+    MDefinition *id = current->peek(-2);
+    MDefinition *obj = current->peek(-3);
+
+    if (ElementAccessHasExtraIndexedProperty(cx, obj))
+        return true;
+
+    if (!obj->resultTypeSet())
+        return true;
+    JSObject *typedArray = obj->resultTypeSet()->getSingleton();
+    if (!typedArray)
+        return true;
+    JS_ASSERT(typedArray->isTypedArray());
+
+    ArrayBufferView::ViewType viewType = JS_GetArrayBufferViewType(typedArray);
+
+    MDefinition *ptr = convertShiftToMaskForStaticTypedArray(id, viewType);
+    if (!ptr)
+        return true;
+
+    obj->setFolded();
+
+    // Clamp value to [0, 255] for Uint8ClampedArray.
+    MDefinition *toWrite = value;
+    if (viewType == ArrayBufferView::TYPE_UINT8_CLAMPED) {
+        toWrite = MClampToUint8::New(value);
+        current->add(toWrite->toInstruction());
+    }
+
+    MInstruction *store = MStoreTypedArrayElementStatic::New(typedArray, ptr, toWrite);
+    current->add(store);
+    current->popn(3);
+    current->push(value);
+
+    *psucceeded = true;
+    return resumeAfter(store);
+}
+
+bool
 IonBuilder::jsop_setelem_typed(int arrayType)
 {
+    bool staticAccess = false;
+    if (!jsop_setelem_typed_static(&staticAccess))
+        return false;
+    if (staticAccess)
+        return true;
+
     MDefinition *value = current->pop();
     MDefinition *id = current->pop();
     MDefinition *obj = current->pop();
@@ -6633,7 +6769,7 @@ GetDefiniteSlot(JSContext *cx, types::StackTypeSet *types, JSAtom *atom)
     if (!type || type->unknownProperties())
         return NULL;
 
-    RawId id = AtomToId(atom);
+    jsid id = AtomToId(atom);
     if (id != types::IdToTypeId(id))
         return NULL;
 
@@ -6826,7 +6962,7 @@ IonBuilder::TestCommonPropFunc(JSContext *cx, types::StackTypeSet *types, Handle
         if (obj != foundProto) {
             // Walk the prototype chain. Everyone has to have the property, since we
             // just checked, so propSet cannot be NULL.
-            RawId typeId = types::IdToTypeId(id);
+            jsid typeId = types::IdToTypeId(id);
             while (true) {
                 types::HeapTypeSet *propSet = curType->getProperty(cx, typeId, false);
                 // This assert is now assured, since we have faulted them in
@@ -6967,7 +7103,7 @@ IonBuilder::invalidatedIdempotentCache()
 }
 
 bool
-IonBuilder::loadSlot(MDefinition *obj, HandleShape shape, MIRType rvalType,
+IonBuilder::loadSlot(MDefinition *obj, Shape *shape, MIRType rvalType,
                      bool barrier, types::StackTypeSet *types)
 {
     JS_ASSERT(shape->hasDefaultGetter());
@@ -6994,7 +7130,7 @@ IonBuilder::loadSlot(MDefinition *obj, HandleShape shape, MIRType rvalType,
 }
 
 bool
-IonBuilder::storeSlot(MDefinition *obj, RawShape shape, MDefinition *value, bool needsBarrier)
+IonBuilder::storeSlot(MDefinition *obj, Shape *shape, MDefinition *value, bool needsBarrier)
 {
     JS_ASSERT(shape->hasDefaultSetter());
     JS_ASSERT(shape->writable());
@@ -7047,12 +7183,12 @@ IonBuilder::jsop_getprop(HandlePropertyName name)
     if (!getPropTryCommonGetter(&emitted, id, barrier, types) || emitted)
         return emitted;
 
-    // Try to emit a monomorphic cache based on data in JM caches.
-    if (!getPropTryMonomorphic(&emitted, id, barrier, types) || emitted)
+    // Try to emit a monomorphic/polymorphic access based on baseline caches.
+    if (!getPropTryInlineAccess(&emitted, name, id, barrier, types) || emitted)
         return emitted;
 
     // Try to emit a polymorphic cache.
-    if (!getPropTryPolymorphic(&emitted, name, id, barrier, types) || emitted)
+    if (!getPropTryCache(&emitted, name, id, barrier, types) || emitted)
         return emitted;
 
     // Emit a call.
@@ -7211,51 +7347,90 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, HandleId id,
     return true;
 }
 
+static bool
+CanInlinePropertyOpShapes(const Vector<Shape *> &shapes)
+{
+    for (size_t i = 0; i < shapes.length(); i++) {
+        // We inline the property access as long as the shape is not in
+        // dictionary made. We cannot be sure that the shape is still a
+        // lastProperty, and calling Shape::search() on dictionary mode
+        // shapes that aren't lastProperty is invalid.
+        if (shapes[i]->inDictionary())
+            return false;
+    }
+
+    return true;
+}
+
 bool
-IonBuilder::getPropTryMonomorphic(bool *emitted, HandleId id,
-                                  bool barrier, types::StackTypeSet *types)
+IonBuilder::getPropTryInlineAccess(bool *emitted, HandlePropertyName name, HandleId id,
+                                   bool barrier, types::StackTypeSet *types)
 {
     JS_ASSERT(*emitted == false);
-    bool accessGetter = script()->analysis()->getCode(pc).accessGetter;
-
     if (current->peek(-1)->type() != MIRType_Object)
         return true;
 
-    RootedShape objShape(cx, mjit::GetPICSingleShape(cx, script(), pc, info().constructing()));
-    if (!objShape)
-        objShape = inspector->maybeMonomorphicShapeForPropertyOp(pc);
-
-    if (!objShape || objShape->inDictionary()) {
-        spew("GETPROP not monomorphic");
-        return true;
+    Vector<Shape *> shapes(cx);
+    if (Shape *objShape = mjit::GetPICSingleShape(cx, script(), pc, info().constructing())) {
+        if (!shapes.append(objShape))
+            return false;
+    } else {
+        if (!inspector->maybeShapesForPropertyOp(pc, shapes))
+            return false;
     }
 
-    MDefinition *obj = current->pop();
-
-    // The JM IC was monomorphic, so we inline the property access as long as
-    // the shape is not in dictionary made. We cannot be sure that the shape is
-    // still a lastProperty, and calling Shape::search() on dictionary mode
-    // shapes that aren't lastProperty is invalid.
-    obj = addShapeGuard(obj, objShape, Bailout_CachedShapeGuard);
-
-    spew("Inlining monomorphic GETPROP");
-    RootedShape shape(cx, objShape->search(cx, id));
-    JS_ASSERT(shape);
+    if (shapes.empty() || !CanInlinePropertyOpShapes(shapes))
+        return true;
 
     MIRType rvalType = MIRTypeFromValueType(types->getKnownTypeTag());
-    if (barrier || IsNullOrUndefined(rvalType) || accessGetter)
+    if (barrier || IsNullOrUndefined(rvalType))
         rvalType = MIRType_Value;
 
-    if (!loadSlot(obj, shape, rvalType, barrier, types))
-        return false;
+    MDefinition *obj = current->pop();
+    if (shapes.length() == 1) {
+        // In the monomorphic case, use separate ShapeGuard and LoadSlot
+        // instructions.
+        spew("Inlining monomorphic GETPROP");
+
+        Shape *objShape = shapes[0];
+        obj = addShapeGuard(obj, objShape, Bailout_CachedShapeGuard);
+
+        Shape *shape = objShape->search(cx, id);
+        JS_ASSERT(shape);
+
+        if (!loadSlot(obj, shape, rvalType, barrier, types))
+            return false;
+    } else {
+        JS_ASSERT(shapes.length() > 1);
+        spew("Inlining polymorphic GETPROP");
+
+        MGetPropertyPolymorphic *load = MGetPropertyPolymorphic::New(obj, name);
+        current->add(load);
+        current->push(load);
+
+        for (size_t i = 0; i < shapes.length(); i++) {
+            Shape *objShape = shapes[i];
+            Shape *shape =  objShape->search(cx, id);
+            JS_ASSERT(shape);
+            if (!load->addShape(objShape, shape))
+                return false;
+        }
+
+        if (failedShapeGuard_)
+            load->setNotMovable();
+
+        load->setResultType(rvalType);
+        if (!pushTypeBarrier(load, types, barrier))
+            return false;
+    }
 
     *emitted = true;
     return true;
 }
 
 bool
-IonBuilder::getPropTryPolymorphic(bool *emitted, HandlePropertyName name, HandleId id,
-                                  bool barrier, types::StackTypeSet *types)
+IonBuilder::getPropTryCache(bool *emitted, HandlePropertyName name, HandleId id,
+                            bool barrier, types::StackTypeSet *types)
 {
     JS_ASSERT(*emitted == false);
     bool accessGetter = script()->analysis()->getCode(pc).accessGetter;
@@ -7395,27 +7570,55 @@ IonBuilder::jsop_setprop(HandlePropertyName name)
         return resumeAfter(fixed);
     }
 
-    RawShape objShape = mjit::GetPICSingleShape(cx, script(), pc, info().constructing());
-    if (!objShape)
-        objShape = inspector->maybeMonomorphicShapeForPropertyOp(pc);
-
-    if (objShape && !objShape->inDictionary()) {
-        // The JM IC was monomorphic, so we inline the property access as
-        // long as the shape is not in dictionary mode. We cannot be sure
-        // that the shape is still a lastProperty, and calling Shape::search
-        // on dictionary mode shapes that aren't lastProperty is invalid.
-        obj = addShapeGuard(obj, objShape, Bailout_CachedShapeGuard);
-
-        RootedShape shape(cx, objShape->search(cx, NameToId(name)));
-        JS_ASSERT(shape);
-
-        spew("Inlining monomorphic SETPROP");
-
-        bool needsBarrier = objTypes->propertyNeedsBarrier(cx, id);
-        return storeSlot(obj, shape, value, needsBarrier);
+    Vector<Shape *> shapes(cx);
+    if (Shape *objShape = mjit::GetPICSingleShape(cx, script(), pc, info().constructing())) {
+        if (!shapes.append(objShape))
+            return false;
+    } else {
+        if (!inspector->maybeShapesForPropertyOp(pc, shapes))
+            return false;
     }
 
-    spew("SETPROP not monomorphic");
+    if (!shapes.empty() && CanInlinePropertyOpShapes(shapes)) {
+        if (shapes.length() == 1) {
+            spew("Inlining monomorphic SETPROP");
+
+            // The JM IC was monomorphic, so we inline the property access as
+            // long as the shape is not in dictionary mode. We cannot be sure
+            // that the shape is still a lastProperty, and calling Shape::search
+            // on dictionary mode shapes that aren't lastProperty is invalid.
+            Shape *objShape = shapes[0];
+            obj = addShapeGuard(obj, objShape, Bailout_CachedShapeGuard);
+
+            Shape *shape = objShape->search(cx, NameToId(name));
+            JS_ASSERT(shape);
+
+            bool needsBarrier = objTypes->propertyNeedsBarrier(cx, id);
+            return storeSlot(obj, shape, value, needsBarrier);
+        } else {
+            JS_ASSERT(shapes.length() > 1);
+            spew("Inlining polymorphic SETPROP");
+
+            MSetPropertyPolymorphic *ins = MSetPropertyPolymorphic::New(obj, value);
+            current->add(ins);
+            current->push(value);
+
+            for (size_t i = 0; i < shapes.length(); i++) {
+                Shape *objShape = shapes[i];
+                Shape *shape =  objShape->search(cx, id);
+                JS_ASSERT(shape);
+                if (!ins->addShape(objShape, shape))
+                    return false;
+            }
+
+            if (objTypes->propertyNeedsBarrier(cx, id))
+                ins->setNeedsBarrier();
+
+            return resumeAfter(ins);
+        }
+    }
+
+    spew("SETPROP IC");
 
     MSetPropertyCache *ins = MSetPropertyCache::New(obj, value, name, script()->strict);
 
@@ -7765,7 +7968,7 @@ IonBuilder::jsop_instanceof()
     // exact function and prototype object being tested for, use a typed path.
     do {
         types::StackTypeSet *rhsTypes = rhs->resultTypeSet();
-        RawObject rhsObject = rhsTypes ? rhsTypes->getSingleton() : NULL;
+        JSObject *rhsObject = rhsTypes ? rhsTypes->getSingleton() : NULL;
         if (!rhsObject || !rhsObject->isFunction() || rhsObject->isBoundFunction())
             break;
 
@@ -7775,7 +7978,7 @@ IonBuilder::jsop_instanceof()
 
         types::HeapTypeSet *protoTypes =
             rhsType->getProperty(cx, NameToId(cx->names().classPrototype), false);
-        RawObject protoObject = protoTypes ? protoTypes->getSingleton(cx) : NULL;
+        JSObject *protoObject = protoTypes ? protoTypes->getSingleton(cx) : NULL;
         if (!protoObject)
             break;
 
@@ -7817,7 +8020,7 @@ IonBuilder::addBoundsCheck(MDefinition *index, MDefinition *length)
 }
 
 MInstruction *
-IonBuilder::addShapeGuard(MDefinition *obj, const RawShape shape, BailoutKind bailoutKind)
+IonBuilder::addShapeGuard(MDefinition *obj, Shape *const shape, BailoutKind bailoutKind)
 {
     MGuardShape *guard = MGuardShape::New(obj, shape, bailoutKind);
     current->add(guard);

@@ -29,21 +29,27 @@ const unsigned MAX_SCRIPT_PROCESSOR_CHANNELS = 10000;
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_3(AudioContext,
-                                        mWindow, mDestination, mListener)
+NS_IMPL_CYCLE_COLLECTION_INHERITED_2(AudioContext, nsDOMEventTargetHelper,
+                                     mDestination, mListener)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(AudioContext, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(AudioContext, Release)
+NS_IMPL_ADDREF_INHERITED(AudioContext, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(AudioContext, nsDOMEventTargetHelper)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(AudioContext)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 static uint8_t gWebAudioOutputKey;
 
 AudioContext::AudioContext(nsPIDOMWindow* aWindow)
-  : mWindow(aWindow)
-  , mDestination(new AudioDestinationNode(this, MediaStreamGraph::GetInstance()))
+  : mDestination(new AudioDestinationNode(this, MediaStreamGraph::GetInstance()))
 {
   // Actually play audio
   mDestination->Stream()->AddAudioOutput(&gWebAudioOutputKey);
+  nsDOMEventTargetHelper::BindToOwner(aWindow);
   SetIsDOMBinding();
+
+  mPannerNodes.Init();
+  mAudioBufferSourceNodes.Init();
+  mScriptProcessorNodes.Init();
 }
 
 AudioContext::~AudioContext()
@@ -51,7 +57,7 @@ AudioContext::~AudioContext()
 }
 
 JSObject*
-AudioContext::WrapObject(JSContext* aCx, JSObject* aScope)
+AudioContext::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return AudioContextBinding::Wrap(aCx, aScope, this);
 }
@@ -75,7 +81,7 @@ AudioContext::CreateBufferSource()
 {
   nsRefPtr<AudioBufferSourceNode> bufferNode =
     new AudioBufferSourceNode(this);
-  mAudioBufferSourceNodes.AppendElement(bufferNode);
+  mAudioBufferSourceNodes.PutEntry(bufferNode);
   return bufferNode.forget();
 }
 
@@ -141,7 +147,7 @@ AudioContext::CreateScriptProcessor(uint32_t aBufferSize,
   nsRefPtr<ScriptProcessorNode> scriptProcessor =
     new ScriptProcessorNode(this, aBufferSize, aNumberOfInputChannels,
                             aNumberOfOutputChannels);
-  mScriptProcessorNodes.AppendElement(scriptProcessor);
+  mScriptProcessorNodes.PutEntry(scriptProcessor);
   return scriptProcessor.forget();
 }
 
@@ -174,7 +180,7 @@ already_AddRefed<PannerNode>
 AudioContext::CreatePanner()
 {
   nsRefPtr<PannerNode> pannerNode = new PannerNode(this);
-  mPannerNodes.AppendElement(pannerNode);
+  mPannerNodes.PutEntry(pannerNode);
   return pannerNode.forget();
 }
 
@@ -237,30 +243,40 @@ AudioContext::RemoveFromDecodeQueue(WebAudioDecodeJob* aDecodeJob)
 void
 AudioContext::UnregisterAudioBufferSourceNode(AudioBufferSourceNode* aNode)
 {
-  mAudioBufferSourceNodes.RemoveElement(aNode);
+  mAudioBufferSourceNodes.RemoveEntry(aNode);
 }
 
 void
 AudioContext::UnregisterPannerNode(PannerNode* aNode)
 {
-  mPannerNodes.RemoveElement(aNode);
+  mPannerNodes.RemoveEntry(aNode);
 }
 
 void
 AudioContext::UnregisterScriptProcessorNode(ScriptProcessorNode* aNode)
 {
-  mScriptProcessorNodes.RemoveElement(aNode);
+  mScriptProcessorNodes.RemoveEntry(aNode);
+}
+
+static PLDHashOperator
+UnregisterPannerNodeOn(nsPtrHashKey<AudioBufferSourceNode>* aEntry, void* aData)
+{
+  aEntry->GetKey()->UnregisterPannerNode();
+  return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+FindConnectedSourcesOn(nsPtrHashKey<PannerNode>* aEntry, void* aData)
+{
+  aEntry->GetKey()->FindConnectedSources();
+  return PL_DHASH_NEXT;
 }
 
 void
 AudioContext::UpdatePannerSource()
 {
-  for (unsigned i = 0; i < mAudioBufferSourceNodes.Length(); i++) {
-    mAudioBufferSourceNodes[i]->UnregisterPannerNode();
-  }
-  for (unsigned i = 0; i < mPannerNodes.Length(); i++) {
-    mPannerNodes[i]->FindConnectedSources();
-  }
+  mAudioBufferSourceNodes.EnumerateEntries(UnregisterPannerNodeOn, nullptr);
+  mPannerNodes.EnumerateEntries(FindConnectedSourcesOn, nullptr);
 }
 
 MediaStreamGraph*
@@ -281,6 +297,22 @@ AudioContext::CurrentTime() const
   return MediaTimeToSeconds(Destination()->Stream()->GetCurrentTime());
 }
 
+template <class T>
+static PLDHashOperator
+GetHashtableEntry(nsPtrHashKey<T>* aEntry, void* aData)
+{
+  nsTArray<T*>* array = static_cast<nsTArray<T*>*>(aData);
+  array->AppendElement(aEntry->GetKey());
+  return PL_DHASH_NEXT;
+}
+
+template <class T>
+static void
+GetHashtableElements(nsTHashtable<nsPtrHashKey<T> >& aHashtable, nsTArray<T*>& aArray)
+{
+  aHashtable.EnumerateEntries(&GetHashtableEntry<T>, &aArray);
+}
+
 void
 AudioContext::Shutdown()
 {
@@ -289,14 +321,22 @@ AudioContext::Shutdown()
 
   // Stop all audio buffer source nodes, to make sure that they release
   // their self-references.
-  for (uint32_t i = 0; i < mAudioBufferSourceNodes.Length(); ++i) {
+  // We first gather an array of the nodes and then call Stop on each one,
+  // since Stop may delete the object and therefore trigger a re-entrant
+  // hashtable call to remove the pointer from the hashtable, which is
+  // not safe.
+  nsTArray<AudioBufferSourceNode*> sourceNodes;
+  GetHashtableElements(mAudioBufferSourceNodes, sourceNodes);
+  for (uint32_t i = 0; i < sourceNodes.Length(); ++i) {
     ErrorResult rv;
-    mAudioBufferSourceNodes[i]->Stop(0.0, rv);
+    sourceNodes[i]->Stop(0.0, rv);
   }
   // Stop all script processor nodes, to make sure that they release
   // their self-references.
-  for (uint32_t i = 0; i < mScriptProcessorNodes.Length(); ++i) {
-    mScriptProcessorNodes[i]->Stop();
+  nsTArray<ScriptProcessorNode*> spNodes;
+  GetHashtableElements(mScriptProcessorNodes, spNodes);
+  for (uint32_t i = 0; i < spNodes.Length(); ++i) {
+    spNodes[i]->Stop();
   }
 }
 
@@ -325,6 +365,9 @@ AudioContext::GetJSContext() const
 
   nsCOMPtr<nsIScriptGlobalObject> scriptGlobal =
     do_QueryInterface(GetParentObject());
+  if (!scriptGlobal) {
+    return nullptr;
+  }
   nsIScriptContext* scriptContext = scriptGlobal->GetContext();
   if (!scriptContext) {
     return nullptr;

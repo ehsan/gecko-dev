@@ -750,6 +750,12 @@ MToInt32::computeRange()
     setRange(new Range(input.lower(), input.upper()));
 }
 
+void
+MLoadTypedArrayElementStatic::computeRange()
+{
+    setRange(new Range(this));
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Range Analysis
 ///////////////////////////////////////////////////////////////////////////////
@@ -1337,6 +1343,13 @@ MToDouble::truncate()
 }
 
 bool
+MLoadTypedArrayElementStatic::truncate()
+{
+    setInfallible();
+    return false;
+}
+
+bool
 MDefinition::isOperandTruncated(size_t index) const
 {
     return false;
@@ -1446,9 +1459,23 @@ RangeAnalysis::truncate()
     IonSpew(IonSpew_Range, "Do range-base truncation (backward loop)");
 
     Vector<MInstruction *, 16, SystemAllocPolicy> worklist;
+    Vector<MBinaryBitwiseInstruction *, 16, SystemAllocPolicy> bitops;
 
     for (PostorderIterator block(graph_.poBegin()); block != graph_.poEnd(); block++) {
         for (MInstructionReverseIterator iter(block->rbegin()); iter != block->rend(); iter++) {
+            // Remember all bitop instructions for folding after range analysis.
+            switch (iter->op()) {
+              case MDefinition::Op_BitAnd:
+              case MDefinition::Op_BitOr:
+              case MDefinition::Op_BitXor:
+              case MDefinition::Op_Lsh:
+              case MDefinition::Op_Rsh:
+              case MDefinition::Op_Ursh:
+                if (!bitops.append(static_cast<MBinaryBitwiseInstruction*>(*iter)))
+                    return false;
+              default:;
+            }
+
             // Set truncated flag if range analysis ensure that it has no
             // rounding errors and no freactional part.
             const Range *r = iter->range();
@@ -1478,6 +1505,16 @@ RangeAnalysis::truncate()
         ins->setNotInWorklist();
         RemoveTruncatesOnOutput(ins);
         AdjustTruncatedInputs(ins);
+    }
+
+    // Fold any unnecessary bitops in the graph, such as (x | 0) on an integer
+    // input. This is done after range analysis rather than during GVN as the
+    // presence of the bitop can change which instructions are truncated.
+    for (size_t i = 0; i < bitops.length(); i++) {
+        MBinaryBitwiseInstruction *ins = bitops[i];
+        MDefinition *folded = ins->foldUnnecessaryBitop();
+        if (folded != ins)
+            ins->replaceAllUsesWith(folded);
     }
 
     return true;

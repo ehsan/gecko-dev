@@ -1429,13 +1429,12 @@ nsCSSFrameConstructor::nsCSSFrameConstructor(nsIDocument *aDocument,
   , mRebuildAllExtraHint(nsChangeHint(0))
   , mAnimationGeneration(0)
   , mPendingRestyles(ELEMENT_HAS_PENDING_RESTYLE |
-                     ELEMENT_IS_POTENTIAL_RESTYLE_ROOT, this)
+                     ELEMENT_IS_POTENTIAL_RESTYLE_ROOT)
   , mPendingAnimationRestyles(ELEMENT_HAS_PENDING_ANIMATION_RESTYLE |
-                              ELEMENT_IS_POTENTIAL_ANIMATION_RESTYLE_ROOT, this)
+                              ELEMENT_IS_POTENTIAL_ANIMATION_RESTYLE_ROOT)
 {
-  // XXXbz this should be in Init() or something!
-  mPendingRestyles.Init();
-  mPendingAnimationRestyles.Init();
+  mPendingRestyles.Init(this);
+  mPendingAnimationRestyles.Init(this);
 
 #ifdef DEBUG
   static bool gFirstTime = true;
@@ -4145,14 +4144,14 @@ nsCSSFrameConstructor::BeginBuildingScrollFrame(nsFrameConstructorState& aState,
 
   // we used the style that was passed in. So resolve another one.
   nsStyleSet *styleSet = mPresShell->StyleSet();
-  nsStyleContext* aScrolledChildStyle =
-    styleSet->ResolveAnonymousBoxStyle(aScrolledPseudo, contentStyle).get();
+  nsRefPtr<nsStyleContext> scrolledChildStyle =
+    styleSet->ResolveAnonymousBoxStyle(aScrolledPseudo, contentStyle);
 
   if (gfxScrollFrame) {
      gfxScrollFrame->SetInitialChildList(kPrincipalList, anonymousItems);
   }
 
-  return aScrolledChildStyle;
+  return scrolledChildStyle.forget();
 }
 
 void
@@ -7728,8 +7727,8 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
           !(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)) {
         if (aChange & nsChangeHint_UpdateEffects) {
           needInvalidatingPaint = true;
-          // Invalidate and update our area:
-          nsSVGUtils::InvalidateBounds(aFrame, false);
+          nsSVGEffects::InvalidateRenderingObservers(aFrame);
+          // Need to update our overflow rects:
           nsSVGUtils::ScheduleReflowSVG(aFrame);
         } else {
           needInvalidatingPaint = true;
@@ -8787,11 +8786,15 @@ nsCSSFrameConstructor::CreateContinuingFrame(nsPresContext* aPresContext,
     // Create a continuing area frame
     // XXXbz we really shouldn't have to do this by hand!
     nsIFrame* blockFrame = GetFieldSetBlockFrame(aFrame);
-    nsIFrame* continuingBlockFrame =
-      CreateContinuingFrame(aPresContext, blockFrame, newFrame);
-
-    // Set the fieldset's initial child list
-    SetInitialSingleChild(newFrame, continuingBlockFrame);
+    if (blockFrame) {
+      nsIFrame* continuingBlockFrame =
+        CreateContinuingFrame(aPresContext, blockFrame, newFrame);
+      // Set the fieldset's initial child list
+      SetInitialSingleChild(newFrame, continuingBlockFrame);
+    } else {
+      MOZ_ASSERT(aFrame->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER,
+                 "FieldSet block may only be null for overflow containers");
+    }
   } else if (nsGkAtoms::legendFrame == frameType) {
     newFrame = NS_NewLegendFrame(shell, styleContext);
     newFrame->Init(content, aParentFrame, aFrame);
@@ -10008,19 +10011,22 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
     // XXXbz we could do this on the FrameConstructionItemList level,
     // no?  And if we cared we could look through the item list
     // instead of groveling through the framelist here..
-    nsIContent *badKid = AnyKidsNeedBlockParent(aFrameItems.FirstChild());
-    nsDependentAtomString parentTag(aContent->Tag()), kidTag(badKid->Tag());
-    const PRUnichar* params[] = { parentTag.get(), kidTag.get() };
     nsStyleContext *frameStyleContext = aFrame->StyleContext();
-    const nsStyleDisplay *display = frameStyleContext->StyleDisplay();
-    const char *message =
-      (display->mDisplay == NS_STYLE_DISPLAY_INLINE_BOX)
-        ? "NeededToWrapXULInlineBox" : "NeededToWrapXUL";
-    nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                    "FrameConstructor", mDocument,
-                                    nsContentUtils::eXUL_PROPERTIES,
-                                    message,
-                                    params, ArrayLength(params));
+    // Report a warning for non-GC frames:
+    if (!aFrame->IsGeneratedContentFrame()) {
+      nsIContent *badKid = AnyKidsNeedBlockParent(aFrameItems.FirstChild());
+      nsDependentAtomString parentTag(aContent->Tag()), kidTag(badKid->Tag());
+      const PRUnichar* params[] = { parentTag.get(), kidTag.get() };
+      const nsStyleDisplay *display = frameStyleContext->StyleDisplay();
+      const char *message =
+        (display->mDisplay == NS_STYLE_DISPLAY_INLINE_BOX)
+          ? "NeededToWrapXULInlineBox" : "NeededToWrapXUL";
+      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                      "FrameConstructor", mDocument,
+                                      nsContentUtils::eXUL_PROPERTIES,
+                                      message,
+                                      params, ArrayLength(params));
+    }
 
     nsRefPtr<nsStyleContext> blockSC = mPresShell->StyleSet()->
       ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozXULAnonymousBlock,

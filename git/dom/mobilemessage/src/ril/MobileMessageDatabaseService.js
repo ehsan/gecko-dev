@@ -898,18 +898,6 @@ MobileMessageDatabaseService.prototype = {
           return;
         }
 
-        // If the overriding message is going to be saved into another
-        // thread which is different from the original one containing the
-        // overrided message, we need to update the original thread info.
-        if (isOverriding &&
-            (!threadRecord || threadRecord.id != aMessageRecord.threadId)) {
-          self.updateThreadByMessageChange(messageStore,
-                                           threadStore,
-                                           aMessageRecord.threadId,
-                                           aMessageRecord.id,
-                                           aMessageRecord.read);
-        }
-
         let insertMessageRecord = function (threadId) {
           // Setup threadId & threadIdIndex.
           aMessageRecord.threadId = threadId;
@@ -919,8 +907,28 @@ MobileMessageDatabaseService.prototype = {
           for each (let id in participantIds) {
             aMessageRecord.participantIdsIndex.push([id, timestamp]);
           }
-          // Really add to message store.
-          messageStore.put(aMessageRecord);
+
+          if (!isOverriding) {
+            // Really add to message store.
+            messageStore.put(aMessageRecord);
+            return;
+          }
+
+          // If we're going to override an old message, we need to update the
+          // info of the original thread containing the overridden message.
+          // To get the original thread ID and read status of the overridden
+          // message record, we need to retrieve it before overriding it.
+          messageStore.get(aMessageRecord.id).onsuccess = function(event) {
+            let oldMessageRecord = event.target.result;
+            messageStore.put(aMessageRecord);
+            if (oldMessageRecord) {
+              self.updateThreadByMessageChange(messageStore,
+                                               threadStore,
+                                               oldMessageRecord.threadId,
+                                               aMessageRecord.id,
+                                               oldMessageRecord.read);
+            }
+          };
         };
 
         let timestamp = aMessageRecord.timestamp;
@@ -1001,13 +1009,21 @@ MobileMessageDatabaseService.prototype = {
       aMessage.receiver = self;
     } else if (aMessage.type == "mms") {
       let receivers = aMessage.receivers;
-      if (!receivers.length) {
-        // TODO Bug 853384 - we cannot expose empty receivers for
-        // an MMS message. Returns 'myself' when .msisdn isn't valid.
-        receivers.push(self ? self : "myself");
-      } else {
-        // TODO Bug 853384 - we cannot correcly exclude the phone number
-        // from the receivers, thus wrongly building the index.
+      // We need to add the receivers (excluding our own) into the participants
+      // of a thread. Some cases we might encounter here:
+      // 1. receivers.length == 0
+      //    This usually happens when receiving an MMS notification indication
+      //    which doesn't carry any receivers.
+      // 2. receivers.length == 1
+      //    If the receivers contain single phone number, we don't need to
+      //    add it into participants because we know that number is our own.
+      // 3. receivers.length >= 2
+      //    If the receivers contain multiple phone numbers, we need to add all
+      //    of them but not our own into participants.
+      if (receivers.length >= 2) {
+        // TODO Bug 853384 - for some SIM cards, the phone number might not be
+        // available, so we cannot correcly exclude our own from the receivers,
+        // thus wrongly building the thread index.
         let slicedReceivers = receivers.slice();
         if (self) {
           let found = slicedReceivers.indexOf(self);

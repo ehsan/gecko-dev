@@ -26,6 +26,7 @@ class MDefinitionIterator;
 typedef InlineListIterator<MInstruction> MInstructionIterator;
 typedef InlineListReverseIterator<MInstruction> MInstructionReverseIterator;
 typedef InlineForwardListIterator<MPhi> MPhiIterator;
+typedef InlineForwardListIterator<MResumePoint> MResumePointIterator;
 
 class LBlock;
 
@@ -156,6 +157,11 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     // Adds a phi instruction, but does not set successorWithPhis.
     void addPhi(MPhi *phi);
 
+    // Adds a resume point to this block.
+    void addResumePoint(MResumePoint *resume) {
+        resumePoints_.pushFront(resume);
+    }
+
     // Adds a predecessor. Every predecessor must have the same exit stack
     // depth as the entry state to this block. Adding a predecessor
     // automatically creates phi nodes and rewrites uses as needed.
@@ -217,6 +223,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     MDefinitionIterator discardDefAt(MDefinitionIterator &iter);
     void discardAllInstructions();
     void discardAllPhis();
+    void discardAllResumePoints(bool discardEntry = true);
 
     // Discards a phi instruction and updates predecessor successorWithPhis.
     MPhiIterator discardPhiAt(MPhiIterator &at);
@@ -250,6 +257,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     }
 
     uint32_t domIndex() const {
+        JS_ASSERT(!isDead());
         return domIndex_;
     }
     void setDomIndex(uint32_t d) {
@@ -270,6 +278,12 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     }
     bool phisEmpty() const {
         return phis_.empty();
+    }
+    MResumePointIterator resumePointsBegin() const {
+        return resumePoints_.begin();
+    }
+    MResumePointIterator resumePointsEnd() const {
+        return resumePoints_.end();
     }
     MInstructionIterator begin() {
         return instructions_.begin();
@@ -453,6 +467,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     InlineList<MInstruction> instructions_;
     Vector<MBasicBlock *, 1, IonAllocPolicy> predecessors_;
     InlineForwardList<MPhi> phis_;
+    InlineForwardList<MResumePoint> resumePoints_;
     FixedList<MDefinition *> slots_;
     uint32_t stackPosition_;
     MControlInstruction *lastIns_;
@@ -495,11 +510,11 @@ class MIRGraph
     MStart *osrStart_;
 
     // List of compiled/inlined scripts.
-    Vector<RawScript, 4, IonAllocPolicy> scripts_;
+    Vector<JSScript *, 4, IonAllocPolicy> scripts_;
 
     // List of possible scripts that this graph may call. Currently this is
     // only tracked when compiling for parallel execution.
-    Vector<RawScript, 4, IonAllocPolicy> callTargets_;
+    Vector<JSScript *, 4, IonAllocPolicy> callTargets_;
 
     size_t numBlocks_;
 
@@ -619,7 +634,7 @@ class MIRGraph
     MStart *osrStart() {
         return osrStart_;
     }
-    bool addScript(RawScript script) {
+    bool addScript(JSScript *script) {
         // The same script may be inlined multiple times, add it only once.
         for (size_t i = 0; i < scripts_.length(); i++) {
             if (scripts_[i] == script)
@@ -633,7 +648,7 @@ class MIRGraph
     JSScript **scripts() {
         return scripts_.begin();
     }
-    bool addCallTarget(RawScript script) {
+    bool addCallTarget(JSScript *script) {
         for (size_t i = 0; i < callTargets_.length(); i++) {
             if (callTargets_[i] == script)
                 return true;

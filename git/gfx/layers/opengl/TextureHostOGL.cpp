@@ -593,11 +593,24 @@ SurfaceFormatForAndroidPixelFormat(android::PixelFormat aFormat)
     return FORMAT_R5G6B5;
   case android::PIXEL_FORMAT_A_8:
     return FORMAT_A8;
-  case 17: // NV21 YUV format, see http://developer.android.com/reference/android/graphics/ImageFormat.html#NV21
+  case HAL_PIXEL_FORMAT_YCbCr_422_SP:
+  case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+  case HAL_PIXEL_FORMAT_YCbCr_422_I:
+  case HAL_PIXEL_FORMAT_YV12:
     return FORMAT_B8G8R8A8; // yup, use FORMAT_B8G8R8A8 even though it's a YUV texture. This is an external texture.
   default:
-    MOZ_NOT_REACHED("Unknown Android pixel format");
-    return FORMAT_UNKNOWN;
+    if (aFormat >= 0x100 && aFormat <= 0x1FF) {
+      // Reserved range for HAL specific formats.
+      return FORMAT_B8G8R8A8;
+    } else {
+      // This is not super-unreachable, there's a bunch of hypothetical pixel
+      // formats we don't deal with.
+      // We only want to abort in debug builds here, since if we crash here
+      // we'll take down the compositor process and thus the phone. This seems
+      // like undesirable behaviour. We'd rather have a subtle artifact.
+      MOZ_ASSERT(false, "Unknown Android pixel format.");
+      return FORMAT_UNKNOWN;
+    }
   }
 }
 
@@ -605,10 +618,29 @@ static GLenum
 TextureTargetForAndroidPixelFormat(android::PixelFormat aFormat)
 {
   switch (aFormat) {
-  case 17: // NV21 YUV format, see http://developer.android.com/reference/android/graphics/ImageFormat.html#NV21
+  case HAL_PIXEL_FORMAT_YCbCr_422_SP:
+  case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+  case HAL_PIXEL_FORMAT_YCbCr_422_I:
+  case HAL_PIXEL_FORMAT_YV12:
     return LOCAL_GL_TEXTURE_EXTERNAL;
-  default:
+  case android::PIXEL_FORMAT_RGBA_8888:
+  case android::PIXEL_FORMAT_RGBX_8888:
+  case android::PIXEL_FORMAT_RGB_565:
+  case android::PIXEL_FORMAT_A_8:
     return LOCAL_GL_TEXTURE_2D;
+  default:
+    if (aFormat >= 0x100 && aFormat <= 0x1FF) {
+      // Reserved range for HAL specific formats.
+      return LOCAL_GL_TEXTURE_EXTERNAL;
+    } else {
+      // This is not super-unreachable, there's a bunch of hypothetical pixel
+      // formats we don't deal with.
+      // We only want to abort in debug builds here, since if we crash here
+      // we'll take down the compositor process and thus the phone. This seems
+      // like undesirable behaviour. We'd rather have a subtle artifact.
+      MOZ_ASSERT(false, "Unknown Android pixel format.");
+      return LOCAL_GL_TEXTURE_EXTERNAL;
+    }
   }
 }
 
@@ -637,6 +669,16 @@ GrallocTextureHostOGL::DeleteTextures()
   }
 }
 
+// only used for hacky fix in gecko 23 for bug 862324
+static void
+RegisterTextureHostAtGrallocBufferActor(TextureHost* aTextureHost, const SurfaceDescriptor& aSurfaceDescriptor)
+{
+  if (IsSurfaceDescriptorValid(aSurfaceDescriptor)) {
+    GrallocBufferActor* actor = static_cast<GrallocBufferActor*>(aSurfaceDescriptor.get_SurfaceDescriptorGralloc().bufferParent());
+    actor->SetTextureHost(aTextureHost);
+  }
+}
+
 void
 GrallocTextureHostOGL::UpdateImpl(const SurfaceDescriptor& aImage,
                                  nsIntRegion* aRegion)
@@ -648,8 +690,12 @@ void
 GrallocTextureHostOGL::SwapTexturesImpl(const SurfaceDescriptor& aImage,
                                         nsIntRegion*)
 {
-  android::sp<android::GraphicBuffer> buffer = GrallocBufferActor::GetFrom(aImage);
   MOZ_ASSERT(aImage.type() == SurfaceDescriptor::TSurfaceDescriptorGralloc);
+
+  if (mBuffer) {
+    // only done for hacky fix in gecko 23 for bug 862324.
+    RegisterTextureHostAtGrallocBufferActor(nullptr, *mBuffer);
+  }
 
   const SurfaceDescriptorGralloc& desc = aImage.get_SurfaceDescriptorGralloc();
   mGraphicBuffer = GrallocBufferActor::GetFrom(desc);
@@ -657,6 +703,11 @@ GrallocTextureHostOGL::SwapTexturesImpl(const SurfaceDescriptor& aImage,
   mTextureTarget = TextureTargetForAndroidPixelFormat(mGraphicBuffer->getPixelFormat());
 
   DeleteTextures();
+
+  // only done for hacky fix in gecko 23 for bug 862324.
+  // Doing this in SetBuffer is not enough, as ImageHostBuffered::SwapTextures can
+  // change the value of *mBuffer without calling SetBuffer again.
+  RegisterTextureHostAtGrallocBufferActor(this, aImage);
 }
 
 void GrallocTextureHostOGL::BindTexture(GLenum aTextureUnit)
@@ -678,6 +729,13 @@ GrallocTextureHostOGL::IsValid() const
 GrallocTextureHostOGL::~GrallocTextureHostOGL()
 {
   DeleteTextures();
+
+  // only done for hacky fix in gecko 23 for bug 862324.
+  if (mBuffer) {
+    // make sure that if the GrallocBufferActor survives us, it doesn't keep a dangling
+    // pointer to us.
+    RegisterTextureHostAtGrallocBufferActor(nullptr, *mBuffer);
+  }
 }
 
 bool
@@ -734,6 +792,17 @@ GrallocTextureHostOGL::GetFormat() const
   return mFormat;
 }
 
+void
+GrallocTextureHostOGL::SetBuffer(SurfaceDescriptor* aBuffer, ISurfaceAllocator* aAllocator) MOZ_OVERRIDE
+{
+  MOZ_ASSERT(!mBuffer, "Will leak the old mBuffer");
+  mBuffer = aBuffer;
+  mDeAllocator = aAllocator;
+
+  // only done for hacky fix in gecko 23 for bug 862324.
+  // Doing this in SwapTextures is not enough, as the crash could occur right after SetBuffer.
+  RegisterTextureHostAtGrallocBufferActor(this, *mBuffer);
+}
 
 #endif
 

@@ -107,7 +107,6 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIIOService.h"
-#include "nsIJSContextStack.h"
 #include "nsIJSRuntimeService.h"
 #include "nsILineBreaker.h"
 #include "nsILoadContext.h"
@@ -188,7 +187,6 @@ const char kLoadAsData[] = "loadAsData";
 nsIDOMScriptObjectFactory *nsContentUtils::sDOMScriptObjectFactory = nullptr;
 nsIXPConnect *nsContentUtils::sXPConnect;
 nsIScriptSecurityManager *nsContentUtils::sSecurityManager;
-nsIThreadJSContextStack *nsContentUtils::sThreadJSContextStack;
 nsIParserService *nsContentUtils::sParserService = nullptr;
 nsINameSpaceManager *nsContentUtils::sNameSpaceManager;
 nsIIOService *nsContentUtils::sIOService;
@@ -365,7 +363,6 @@ nsContentUtils::Init()
   NS_ENSURE_TRUE(xpconnect, NS_ERROR_FAILURE);
 
   sXPConnect = xpconnect;
-  sThreadJSContextStack = xpconnect;
 
   sSecurityManager = nsScriptSecurityManager::GetScriptSecurityManager();
   if(!sSecurityManager)
@@ -975,8 +972,6 @@ struct NormalizeNewlinesCharTraits {
     OutputIterator mIterator;
 };
 
-#ifdef HAVE_CPP_PARTIAL_SPECIALIZATION
-
 template <class CharT>
 struct NormalizeNewlinesCharTraits<CharT*> {
   public:
@@ -991,40 +986,6 @@ struct NormalizeNewlinesCharTraits<CharT*> {
   private:
     CharT* mCharPtr;
 };
-
-#else
-
-template <>
-struct NormalizeNewlinesCharTraits<char*> {
-  public:
-    typedef char value_type;
-
-  public:
-    NormalizeNewlinesCharTraits(char* aCharPtr) : mCharPtr(aCharPtr) { }
-    void writechar(char aChar) {
-      *mCharPtr++ = aChar;
-    }
-
-  private:
-    char* mCharPtr;
-};
-
-template <>
-struct NormalizeNewlinesCharTraits<PRUnichar*> {
-  public:
-    typedef PRUnichar value_type;
-
-  public:
-    NormalizeNewlinesCharTraits(PRUnichar* aCharPtr) : mCharPtr(aCharPtr) { }
-    void writechar(PRUnichar aChar) {
-      *mCharPtr++ = aChar;
-    }
-
-  private:
-    PRUnichar* mCharPtr;
-};
-
-#endif
 
 template <class OutputIterator>
 class CopyNormalizeNewlines
@@ -1447,7 +1408,6 @@ nsContentUtils::Shutdown()
   NS_IF_RELEASE(sConsoleService);
   NS_IF_RELEASE(sDOMScriptObjectFactory);
   sXPConnect = nullptr;
-  sThreadJSContextStack = nullptr;
   NS_IF_RELEASE(sSecurityManager);
   NS_IF_RELEASE(sNameSpaceManager);
   NS_IF_RELEASE(sParserService);
@@ -1682,10 +1642,7 @@ nsContentUtils::GetContextFromDocument(nsIDocument *aDocument)
 void
 nsContentUtils::TraceSafeJSContext(JSTracer* aTrc)
 {
-  if (!sThreadJSContextStack) {
-    return;
-  }
-  JSContext* cx = sThreadJSContextStack->GetSafeJSContext();
+  JSContext* cx = GetSafeJSContext();
   if (!cx) {
     return;
   }
@@ -1697,9 +1654,7 @@ nsContentUtils::TraceSafeJSContext(JSTracer* aTrc)
 nsPIDOMWindow *
 nsContentUtils::GetWindowFromCaller()
 {
-  JSContext *cx = nullptr;
-  sThreadJSContextStack->Peek(&cx);
-
+  JSContext *cx = GetCurrentJSContext();
   if (cx) {
     nsCOMPtr<nsPIDOMWindow> win =
       do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
@@ -1731,9 +1686,7 @@ nsContentUtils::GetDocumentFromCaller()
 nsIDocument*
 nsContentUtils::GetDocumentFromContext()
 {
-  JSContext *cx = nullptr;
-  sThreadJSContextStack->Peek(&cx);
-
+  JSContext *cx = GetCurrentJSContext();
   if (cx) {
     nsIScriptGlobalObject *sgo = nsJSUtils::GetDynamicScriptGlobal(cx);
 
@@ -2535,11 +2488,11 @@ nsContentUtils::SplitQName(const nsIContent* aNamespaceResolver,
     if (*aNamespace == kNameSpaceID_Unknown)
       return NS_ERROR_FAILURE;
 
-    *aLocalName = NS_NewAtom(Substring(colon + 1, end));
+    *aLocalName = NS_NewAtom(Substring(colon + 1, end)).get();
   }
   else {
     *aNamespace = kNameSpaceID_None;
-    *aLocalName = NS_NewAtom(aQName);
+    *aLocalName = NS_NewAtom(aQName).get();
   }
   NS_ENSURE_TRUE(aLocalName, NS_ERROR_OUT_OF_MEMORY);
   return NS_OK;
@@ -2624,7 +2577,7 @@ nsContentUtils::SplitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
     nameStart = (uriEnd + 1);
     if (nameEnd)  {
       const PRUnichar *prefixStart = nameEnd + 1;
-      *aPrefix = NS_NewAtom(Substring(prefixStart, pos));
+      *aPrefix = NS_NewAtom(Substring(prefixStart, pos)).get();
     }
     else {
       nameEnd = pos;
@@ -2637,7 +2590,7 @@ nsContentUtils::SplitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
     nameEnd = pos;
     *aPrefix = nullptr;
   }
-  *aLocalName = NS_NewAtom(Substring(nameStart, nameEnd));
+  *aLocalName = NS_NewAtom(Substring(nameStart, nameEnd)).get();
 }
 
 // static
@@ -3024,39 +2977,6 @@ nsCxPusher::~nsCxPusher()
   Pop();
 }
 
-static bool
-IsContextOnStack(nsIJSContextStack *aStack, JSContext *aContext)
-{
-  JSContext *ctx = nullptr;
-  aStack->Peek(&ctx);
-  if (!ctx)
-    return false;
-  if (ctx == aContext)
-    return true;
-
-  nsCOMPtr<nsIJSContextStackIterator>
-    iterator(do_CreateInstance("@mozilla.org/js/xpc/ContextStackIterator;1"));
-  NS_ENSURE_TRUE(iterator, false);
-
-  nsresult rv = iterator->Reset(aStack);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  bool done;
-  while (NS_SUCCEEDED(iterator->Done(&done)) && !done) {
-    rv = iterator->Prev(&ctx);
-    NS_ASSERTION(NS_SUCCEEDED(rv), "Broken iterator implementation");
-
-    if (!ctx) {
-      continue;
-    }
-
-    if (nsJSUtils::GetDynamicScriptContext(ctx) && ctx == aContext)
-      return true;
-  }
-
-  return false;
-}
-
 bool
 nsCxPusher::Push(EventTarget *aCurrentTarget)
 {
@@ -3145,20 +3065,23 @@ nsCxPusher::Push(JSContext *cx)
 void
 nsCxPusher::DoPush(JSContext* cx)
 {
-  nsIThreadJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
-  if (!stack) {
+  nsIXPConnect *xpc = nsContentUtils::XPConnect();
+  if (!xpc) {
     // If someone tries to push a cx when we don't have the relevant state,
     // it's probably safest to just crash.
     MOZ_CRASH();
   }
 
-  if (cx && IsContextOnStack(stack, cx)) {
+  // NB: The GetDynamicScriptContext is historical and might not be sane.
+  if (cx && nsJSUtils::GetDynamicScriptContext(cx) &&
+      xpc::danger::IsJSContextOnStack(cx))
+  {
     // If the context is on the stack, that means that a script
     // is running at the moment in the context.
     mScriptIsRunning = true;
   }
 
-  if (NS_FAILED(stack->Push(cx))) {
+  if (!xpc::danger::PushJSContext(cx)) {
     MOZ_CRASH();
   }
 
@@ -3179,8 +3102,7 @@ nsCxPusher::PushNull()
 void
 nsCxPusher::Pop()
 {
-  nsIThreadJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
-  MOZ_ASSERT(stack);
+  MOZ_ASSERT(nsContentUtils::XPConnect());
   if (!mPushedSomething) {
     mScx = nullptr;
     mPushedSomething = false;
@@ -3199,8 +3121,8 @@ nsCxPusher::Pop()
   MOZ_ASSERT_IF(mPushedContext, mCompartmentDepthOnEntry ==
                                 js::GetEnterCompartmentDepth(mPushedContext));
   DebugOnly<JSContext*> stackTop;
-  MOZ_ASSERT(NS_SUCCEEDED(stack->Peek(&stackTop)) && mPushedContext == stackTop);
-  stack->Pop(nullptr);
+  MOZ_ASSERT(mPushedContext == nsContentUtils::GetCurrentJSContext());
+  xpc::danger::PopJSContext();
 
   if (!mScriptIsRunning && mScx) {
     // No JS is running in the context, but executing the event handler might have
@@ -3338,8 +3260,7 @@ nsContentUtils::ReportToConsoleNonLocalized(const nsAString& aErrorText,
 
   nsAutoCString spec;
   if (!aLineNumber) {
-    JSContext *cx = nullptr;
-    sThreadJSContextStack->Peek(&cx);
+    JSContext *cx = GetCurrentJSContext();
     if (cx) {
       const char* filename;
       uint32_t lineno;
@@ -4233,7 +4154,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
   nsCOMPtr<nsIDOMDocumentFragment> frag;
   aRv = ParseFragmentXML(aFragment, document, tagStack,
                          aPreventScriptExecution, getter_AddRefs(frag));
-  return static_cast<DocumentFragment*>(frag.forget().get());
+  return frag.forget().downcast<DocumentFragment>();
 }
 
 /* static */
@@ -5261,12 +5182,12 @@ nsContentUtils::HidePopupsInDocument(nsIDocument* aDocument)
 already_AddRefed<nsIDragSession>
 nsContentUtils::GetDragSession()
 {
-  nsIDragSession* dragSession = nullptr;
+  nsCOMPtr<nsIDragSession> dragSession;
   nsCOMPtr<nsIDragService> dragService =
     do_GetService("@mozilla.org/widget/dragservice;1");
   if (dragService)
-    dragService->GetCurrentSession(&dragSession);
-  return dragSession;
+    dragService->GetCurrentSession(getter_AddRefs(dragSession));
+  return dragSession.forget();
 }
 
 /* static */
@@ -5490,18 +5411,14 @@ nsContentUtils::GetContextForEventHandlers(nsINode* aNode,
 JSContext *
 nsContentUtils::GetCurrentJSContext()
 {
-  JSContext *cx = nullptr;
-
-  sThreadJSContextStack->Peek(&cx);
-
-  return cx;
+  return sXPConnect->GetCurrentJSContext();
 }
 
 /* static */
 JSContext *
 nsContentUtils::GetSafeJSContext()
 {
-  return sThreadJSContextStack->GetSafeJSContext();
+  return sXPConnect->GetSafeJSContext();
 }
 
 /* static */
@@ -5836,15 +5753,13 @@ nsContentUtils::GetDocumentFromScriptContext(nsIScriptContext *aScriptContext)
 
   nsCOMPtr<nsIDOMWindow> window =
     do_QueryInterface(aScriptContext->GetGlobalObject());
-  nsIDocument *doc = nullptr;
+  nsCOMPtr<nsIDocument> doc;
   if (window) {
     nsCOMPtr<nsIDOMDocument> domdoc;
     window->GetDocument(getter_AddRefs(domdoc));
-    if (domdoc) {
-      CallQueryInterface(domdoc, &doc);
-    }
+    doc = do_QueryInterface(domdoc);
   }
-  return doc;
+  return doc.forget();
 }
 
 /* static */
@@ -5942,9 +5857,9 @@ nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
     return NS_OK;
   }
 
-  NS_ENSURE_TRUE(sXPConnect && sThreadJSContextStack, NS_ERROR_UNEXPECTED);
+  NS_ENSURE_TRUE(sXPConnect, NS_ERROR_UNEXPECTED);
 
-  // Keep sXPConnect and sThreadJSContextStack alive. If we're on the main
+  // Keep sXPConnect alive. If we're on the main
   // thread then this can be done simply and cheaply by adding a reference to
   // nsLayoutStatics. If we're not on the main thread then we need to add a
   // more expensive reference sXPConnect directly. We have to use manual
@@ -5959,20 +5874,11 @@ nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
     sXPConnect->AddRef();
   }
 
-  JSContext *topJSContext;
-  nsresult rv = sThreadJSContextStack->Peek(&topJSContext);
-  if (NS_SUCCEEDED(rv)) {
-    bool push = topJSContext != cx;
-    if (push) {
-      rv = sThreadJSContextStack->Push(cx);
-    }
-    if (NS_SUCCEEDED(rv)) {
-      rv = sXPConnect->WrapNativeToJSVal(cx, scope, native, cache, aIID,
-                                         aAllowWrapping, vp, aHolder);
-      if (push) {
-        sThreadJSContextStack->Pop(nullptr);
-      }
-    }
+  nsresult rv = NS_OK;
+  {
+    AutoPushJSContext context(cx);
+    rv = sXPConnect->WrapNativeToJSVal(context, scope, native, cache, aIID,
+                                       aAllowWrapping, vp, aHolder);
   }
 
   if (isMainThread) {

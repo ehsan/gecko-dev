@@ -44,8 +44,8 @@
 #ifdef DEBUG_verbose
 #   define DEBUG_COUNT(name, count)                                             \
         { if ((count % 10) == 0) printf (name ": %i\n", count); }
-#   define DEBUG_CREATE(name, count) {count++; DEBUG_COUNT ("+++++ "name,count)}
-#   define DEBUG_DESTROY(name, count) {count--; DEBUG_COUNT ("----- "name,count)}
+#   define DEBUG_CREATE(name, count) {count++; DEBUG_COUNT ("+++++ " name,count)}
+#   define DEBUG_DESTROY(name, count) {count--; DEBUG_COUNT ("----- " name,count)}
 #else
 #   define DEBUG_CREATE(name, count) 
 #   define DEBUG_DESTROY(name, count)
@@ -151,8 +151,8 @@ jsds_FindEphemeral (LiveEphemeral **listHead, void *key)
     {
         if (lv_record->key == key)
         {
-            NS_IF_ADDREF(lv_record->value);
-            return lv_record->value;
+            nsCOMPtr<jsdIEphemeral> ret = lv_record->value;
+            return ret.forget();
         }
         lv_record = reinterpret_cast<LiveEphemeral *>
                                     (PR_NEXT_LINK(&lv_record->links));

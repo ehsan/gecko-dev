@@ -734,12 +734,10 @@ XPCConvert::JSData2Native(JSContext* cx, void* d, HandleValue s,
                 return false;
             }
             uint32_t length = JS_GetStringLength(str);
-            nsIAtom* atom = NS_NewAtom(nsDependentSubstring(chars,
-                                                            chars + length));
-            if (!atom && pErr)
-                *pErr = NS_ERROR_OUT_OF_MEMORY;
-            *((nsISupports**)d) = atom;
-            return atom != nullptr;
+            nsCOMPtr<nsIAtom> atom =
+                NS_NewAtom(nsDependentSubstring(chars, chars + length));
+            atom.forget((nsISupports**)d);
+            return true;
         }
         //else ...
 
@@ -840,8 +838,8 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                 return false;
 
             if (!flat) {
-                flat = cache->WrapObject(lccx.GetJSContext(),
-                                         xpcscope->GetGlobalJSObject());
+                JS::Rooted<JSObject*> global(cx, xpcscope->GetGlobalJSObject());
+                flat = cache->WrapObject(cx, global);
                 if (!flat)
                     return false;
             }
@@ -1138,10 +1136,10 @@ XPCConvert::ConstructException(nsresult rv, const char* message,
 
 /********************************/
 
-class AutoExceptionRestorer
+class MOZ_STACK_CLASS AutoExceptionRestorer
 {
 public:
-    AutoExceptionRestorer(JSContext *cx, jsval v)
+    AutoExceptionRestorer(JSContext *cx, Value v)
         : mContext(cx), tvr(cx, v)
     {
         JS_ClearPendingException(mContext);
@@ -1149,12 +1147,12 @@ public:
 
     ~AutoExceptionRestorer()
     {
-        JS_SetPendingException(mContext, tvr.jsval_value());
+        JS_SetPendingException(mContext, tvr);
     }
 
 private:
     JSContext * const mContext;
-    AutoValueRooter tvr;
+    RootedValue tvr;
 };
 
 // static

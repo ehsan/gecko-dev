@@ -49,7 +49,6 @@
 #include "nsIDocShell.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsIJSContextStack.h"
 #include "nsIJSRuntimeService.h"
 #include "nsISSLStatusProvider.h"
 #include "nsIScriptContext.h"
@@ -1290,9 +1289,19 @@ TabChild::GetCachedFileDescriptor(const nsAString& aPath,
 
     MOZ_ASSERT(info);
     MOZ_ASSERT(info->mPath == aPath);
-    MOZ_ASSERT(!info->mCallback);
-    MOZ_ASSERT(!info->mCanceled);
 
+    // If we got a previous request for this file descriptor that was then
+    // canceled, insert the new request ahead of the old in the queue so that
+    // it will be serviced first.
+    if (info->mCanceled) {
+        // This insertion will change the array and invalidate |info|, so
+        // be careful not to touch |info| after this.
+        mCachedFileDescriptorInfos.InsertElementAt(index,
+            new CachedFileDescriptorInfo(aPath, aCallback));
+        return false;
+    }
+
+    MOZ_ASSERT(!info->mCallback);
     info->mCallback = aCallback;
 
     nsRefPtr<CachedFileDescriptorCallbackRunnable> runnable =
@@ -2018,14 +2027,6 @@ TabChild::RecvDestroy()
   return Send__delete__(this);
 }
 
-/* virtual */ bool
-TabChild::RecvSetAppType(const nsString& aAppType)
-{
-  MOZ_ASSERT_IF(!aAppType.IsEmpty(), HasOwnApp());
-  mAppType = aAppType;
-  return true;
-}
-
 PRenderFrameChild*
 TabChild::AllocPRenderFrame(ScrollingBehavior* aScrolling,
                             TextureFactoryIdentifier* aTextureFactoryIdentifier,
@@ -2086,10 +2087,9 @@ TabChild::InitRenderingState()
     static_cast<PuppetWidget*>(mWidget.get())->InitIMEState();
 
     uint64_t id;
-    TextureFactoryIdentifier textureFactoryIdentifier;
     RenderFrameChild* remoteFrame =
         static_cast<RenderFrameChild*>(SendPRenderFrameConstructor(
-                                         &mScrolling, &textureFactoryIdentifier, &id));
+                                         &mScrolling, &mTextureFactoryIdentifier, &id));
     if (!remoteFrame) {
       NS_WARNING("failed to construct RenderFrame");
       return false;
@@ -2105,8 +2105,8 @@ TabChild::InitRenderingState()
           return false;
         }
         shadowManager =
-            compositorChild->SendPLayerTransactionConstructor(textureFactoryIdentifier.mParentBackend,
-                                                              id, &textureFactoryIdentifier);
+            compositorChild->SendPLayerTransactionConstructor(mTextureFactoryIdentifier.mParentBackend,
+                                                              id, &mTextureFactoryIdentifier);
     } else {
         // Pushing transactions to the parent content.
         shadowManager = remoteFrame->SendPLayerTransactionConstructor();
@@ -2120,11 +2120,11 @@ TabChild::InitRenderingState()
     }
 
     ShadowLayerForwarder* lf =
-        mWidget->GetLayerManager(shadowManager, textureFactoryIdentifier.mParentBackend)
+        mWidget->GetLayerManager(shadowManager, mTextureFactoryIdentifier.mParentBackend)
                ->AsShadowForwarder();
     NS_ABORT_IF_FALSE(lf && lf->HasShadowManager(),
                       "PuppetWidget should have shadow manager");
-    lf->IdentifyTextureHost(textureFactoryIdentifier);
+    lf->IdentifyTextureHost(mTextureFactoryIdentifier);
 
     mRemoteFrame = remoteFrame;
 
@@ -2170,9 +2170,24 @@ TabChild::GetDPI(float* aDPI)
 }
 
 void
+TabChild::GetDefaultScale(double* aScale)
+{
+    *aScale = -1.0;
+    if (!mRemoteFrame) {
+        return;
+    }
+
+    SendGetDefaultScale(aScale);
+}
+
+void
 TabChild::NotifyPainted()
 {
-    if (UseDirectCompositor() && !mNotified) {
+    // Normally we only need to notify the content process once, but with BasicCompositor
+    // we need to notify content every change so that it can compute an invalidation
+    // region and send that to the widget.
+    if (UseDirectCompositor() &&
+        (!mNotified || mTextureFactoryIdentifier.mParentBackend == LAYERS_BASIC)) {
         mRemoteFrame->SendNotifyCompositorTransaction();
         mNotified = true;
     }

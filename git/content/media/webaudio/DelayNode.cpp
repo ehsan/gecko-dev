@@ -271,7 +271,10 @@ public:
 };
 
 DelayNode::DelayNode(AudioContext* aContext, double aMaxDelay)
-  : AudioNode(aContext)
+  : AudioNode(aContext,
+              2,
+              ChannelCountMode::Max,
+              ChannelInterpretation::Speakers)
   , mDelay(new AudioParam(this, SendDelayToStream, 0.0f))
 {
   DelayNodeEngine* engine = new DelayNodeEngine(this, aContext->Destination());
@@ -282,7 +285,7 @@ DelayNode::DelayNode(AudioContext* aContext, double aMaxDelay)
 }
 
 JSObject*
-DelayNode::WrapObject(JSContext* aCx, JSObject* aScope)
+DelayNode::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return DelayNodeBinding::Wrap(aCx, aScope, this);
 }
