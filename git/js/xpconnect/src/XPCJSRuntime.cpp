@@ -14,7 +14,6 @@
 #include "XPCJSMemoryReporter.h"
 #include "WrapperFactory.h"
 #include "dom_quickstubs.h"
-#include "mozJSComponentLoader.h"
 
 #include "nsIMemoryReporter.h"
 #include "nsIObserverService.h"
@@ -675,7 +674,7 @@ CanSkipWrappedJS(nsXPCWrappedJS *wrappedJS)
     // If traversing wrappedJS wouldn't release it, nor
     // cause any other objects to be added to the graph, no
     // need to add it to the graph at all.
-    bool isRootWrappedJS = wrappedJS->IsRootWrapper();
+    bool isRootWrappedJS = wrappedJS->GetRootWrapper() == wrappedJS;
     if (nsCCUncollectableMarker::sGeneration &&
         (!obj || !xpc_IsGrayGCThing(obj)) &&
         !wrappedJS->IsSubjectToFinalization() &&
@@ -2631,13 +2630,9 @@ JSReporter::CollectReports(WindowPaths *windowPaths,
     if (!JS::CollectRuntimeStats(xpcrt->Runtime(), &rtStats, &orphanReporter))
         return NS_ERROR_FAILURE;
 
-    size_t xpconnect = xpcrt->SizeOfIncludingThis(JSMallocSizeOf);
-
-    XPCWrappedNativeScope::ScopeSizeInfo sizeInfo(JSMallocSizeOf);
-    XPCWrappedNativeScope::AddSizeOfAllScopesIncludingThis(&sizeInfo);
-
-    mozJSComponentLoader* loader = mozJSComponentLoader::Get();
-    size_t jsComponentLoaderSize = loader ? loader->SizeOfIncludingThis(JSMallocSizeOf) : 0;
+    size_t xpconnect =
+        xpcrt->SizeOfIncludingThis(JSMallocSizeOf) +
+        XPCWrappedNativeScope::SizeOfAllScopesIncludingThis(JSMallocSizeOf);
 
     // This is the second step (see above).  First we report stuff in the
     // "explicit" tree, then we report other stuff.
@@ -2716,25 +2711,13 @@ JSReporter::CollectReports(WindowPaths *windowPaths,
                  KIND_OTHER,
                  rtStats.gcHeapGCThings,
                  "Memory on the garbage-collected JavaScript heap that holds GC things such "
-                 "as objects, strings, scripts, etc.");
+                 "as objects, strings, scripts, etc.")
 
     // Report xpconnect.
 
-    REPORT_BYTES(NS_LITERAL_CSTRING("explicit/xpconnect/runtime"),
+    REPORT_BYTES(NS_LITERAL_CSTRING("explicit/xpconnect"),
                  KIND_HEAP, xpconnect,
-                 "Memory used by XPConnect runtime.");
-
-    REPORT_BYTES(NS_LITERAL_CSTRING("explicit/xpconnect/scopes"),
-                 KIND_HEAP, sizeInfo.mScopeAndMapSize,
-                 "Memory used by XPConnect scopes.");
-
-    REPORT_BYTES(NS_LITERAL_CSTRING("explicit/xpconnect/proto-iface-cache"),
-                 KIND_HEAP, sizeInfo.mProtoAndIfaceCacheSize,
-                 "Memory used for prototype and interface binding caches.");
-
-    REPORT_BYTES(NS_LITERAL_CSTRING("explicit/xpconnect/js-component-loader"),
-                 KIND_HEAP, jsComponentLoaderSize,
-                 "Memory used by XPConnect's JS component loader.");
+                 "Memory used by XPConnect.");
 
     return NS_OK;
 }
@@ -2965,7 +2948,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mVariantRoots(nullptr),
    mWrappedJSRoots(nullptr),
    mObjectHolderRoots(nullptr),
-   mWatchdogManager(new WatchdogManager(MOZ_THIS_IN_INITIALIZER_LIST())),
+   mWatchdogManager(new WatchdogManager(this)),
    mJunkScope(nullptr),
    mAsyncSnowWhiteFreer(new AsyncFreeSnowWhite())
 {

@@ -91,7 +91,7 @@ protected:
   virtual nsresult NativeGetColor(ColorID aID, nscolor &aResult) = 0;
   bool IsSpecialColor(ColorID aID, nscolor &aColor);
 
-  static void OnPrefChanged(const char* aPref, void* aClosure);
+  static int OnPrefChanged(const char* aPref, void* aClosure);
 
   static bool sInitialized;
   static nsLookAndFeelIntPref sIntPrefs[];

@@ -315,13 +315,10 @@ var SelectionHandler = {
           label: this._getValue(action, "label", ""),
           icon: this._getValue(action, "icon", "drawable://ic_status_logo"),
           showAsAction: this._getValue(action, "showAsAction", true),
-          order: this._getValue(action, "order", 0)
         };
         actions.push(a);
       }
     }
-
-    actions.sort((a, b) => b.order - a.order);
 
     sendMessageToJava({
       type: type,
@@ -343,7 +340,6 @@ var SelectionHandler = {
         SelectionHandler.selectAll(aElement);
       },
       selector: ClipboardHelper.selectAllContext,
-      order: 1,
     },
 
     CUT: {
@@ -360,7 +356,6 @@ var SelectionHandler = {
         // copySelection closes the selection. Show a caret where we just cut the text.
         SelectionHandler.attachCaret(aElement);
       },
-      order: 1,
       selector: ClipboardHelper.cutContext,
     },
 
@@ -371,7 +366,6 @@ var SelectionHandler = {
       action: function() {
         SelectionHandler.copySelection();
       },
-      order: 1,
       selector: ClipboardHelper.getCopyContext(false)
     },
 
@@ -384,7 +378,6 @@ var SelectionHandler = {
         SelectionHandler._positionHandles();
         SelectionHandler._updateMenu();
       },
-      order: 1,
       selector: ClipboardHelper.pasteContext,
     },
 
@@ -395,6 +388,10 @@ var SelectionHandler = {
       action: function() {
         SelectionHandler.shareSelection();
       },
+      showAsAction: function(aElement) {
+        return !((aElement instanceof HTMLInputElement && aElement.mozIsTextField(false)) ||
+                 (aElement instanceof HTMLTextAreaElement));
+      },
       selector: ClipboardHelper.shareContext,
     },
 
@@ -404,6 +401,10 @@ var SelectionHandler = {
       },
       id: "search_action",
       icon: "drawable://ic_url_bar_search",
+      showAsAction: function(aElement) {
+        return !((aElement instanceof HTMLInputElement && aElement.mozIsTextField(false)) ||
+                 (aElement instanceof HTMLTextAreaElement));
+      },
       action: function() {
         SelectionHandler.searchSelection();
         SelectionHandler._closeSelection();

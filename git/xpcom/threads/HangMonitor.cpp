@@ -70,7 +70,7 @@ static const int32_t MAX_CALL_STACK_PCS = 400;
 #endif
 
 // PrefChangedFunc
-void
+int
 PrefChanged(const char*, void*)
 {
   int32_t newval = Preferences::GetInt(kHangMonitorPrefName);
@@ -88,6 +88,8 @@ PrefChanged(const char*, void*)
     gTimeout = newval;
     lock.Notify();
   }
+
+  return 0;
 }
 
 void

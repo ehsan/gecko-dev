@@ -10,7 +10,9 @@
 #include "jsprf.h"
 #include "nsCxPusher.h"
 #include "nsContentUtils.h"
+#include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
+#include "nsTextFormatter.h"
 
 using namespace mozilla;
 
@@ -49,12 +51,15 @@ NS_CYCLE_COLLECTION_CLASSNAME(nsXPCWrappedJS)::Traverse
         cb.NoteJSChild(tmp->GetJSObjectPreserveColor());
     }
 
-    if (tmp->IsRootWrapper()) {
+    nsXPCWrappedJS* root = tmp->GetRootWrapper();
+    if (root == tmp) {
+        // The root wrapper keeps the aggregated native object alive.
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "aggregated native");
         cb.NoteXPCOMChild(tmp->GetAggregatedNativeObject());
     } else {
+        // Non-root wrappers keep their root alive.
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "root");
-        cb.NoteXPCOMChild(static_cast<nsIXPConnectWrappedJS*>(tmp->GetRootWrapper()));
+        cb.NoteXPCOMChild(static_cast<nsIXPConnectWrappedJS*>(root));
     }
 
     return NS_OK;
@@ -214,7 +219,7 @@ nsXPCWrappedJS::GetTraceName(JSTracer* trc, char *buf, size_t bufsize)
 NS_IMETHODIMP
 nsXPCWrappedJS::GetWeakReference(nsIWeakReference** aInstancePtr)
 {
-    if (!IsRootWrapper())
+    if (mRoot != this)
         return mRoot->GetWeakReference(aInstancePtr);
 
     return nsSupportsWeakReference::GetWeakReference(aInstancePtr);
@@ -339,7 +344,7 @@ nsXPCWrappedJS::nsXPCWrappedJS(JSContext* cx,
                                nsISupports* aOuter)
     : mJSObj(aJSObj),
       mClass(aClass),
-      mRoot(root ? root : MOZ_THIS_IN_INITIALIZER_LIST()),
+      mRoot(root ? root : this),
       mNext(nullptr),
       mOuter(root ? nullptr : aOuter)
 {
@@ -351,7 +356,7 @@ nsXPCWrappedJS::nsXPCWrappedJS(JSContext* cx,
     NS_ADDREF(aClass);
     NS_IF_ADDREF(mOuter);
 
-    if (!IsRootWrapper())
+    if (mRoot != this)
         NS_ADDREF(mRoot);
 
 }
@@ -360,7 +365,8 @@ nsXPCWrappedJS::~nsXPCWrappedJS()
 {
     NS_PRECONDITION(0 == mRefCnt, "refcounting error");
 
-    if (IsRootWrapper()) {
+    if (mRoot == this) {
+        // Remove this root wrapper from the map
         XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
         JSObject2WrappedJSMap* map = rt->GetWrappedJSMap();
         if (map)
@@ -375,7 +381,8 @@ nsXPCWrappedJS::Unlink()
     if (IsValid()) {
         XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
         if (rt) {
-            if (IsRootWrapper()) {
+            if (mRoot == this) {
+                // remove this root wrapper from the map
                 JSObject2WrappedJSMap* map = rt->GetWrappedJSMap();
                 if (map)
                     map->Remove(this);
@@ -388,7 +395,7 @@ nsXPCWrappedJS::Unlink()
         mJSObj = nullptr;
     }
 
-    if (IsRootWrapper()) {
+    if (mRoot == this) {
         ClearWeakReferences();
     } else if (mRoot) {
         // unlink this wrapper
@@ -544,8 +551,9 @@ nsXPCWrappedJS::DebugDump(int16_t depth)
     XPC_LOG_ALWAYS(("nsXPCWrappedJS @ %x with mRefCnt = %d", this, mRefCnt.get()));
         XPC_LOG_INDENT();
 
+        bool isRoot = mRoot == this;
         XPC_LOG_ALWAYS(("%s wrapper around JSObject @ %x", \
-                        IsRootWrapper() ? "ROOT":"non-root", mJSObj.get()));
+                        isRoot ? "ROOT":"non-root", mJSObj.get()));
         char* name;
         GetClass()->GetInterfaceInfo()->GetName(&name);
         XPC_LOG_ALWAYS(("interface name is %s", name));
@@ -557,18 +565,18 @@ nsXPCWrappedJS::DebugDump(int16_t depth)
             NS_Free(iid);
         XPC_LOG_ALWAYS(("nsXPCWrappedJSClass @ %x", mClass));
 
-        if (!IsRootWrapper())
+        if (!isRoot)
             XPC_LOG_OUTDENT();
         if (mNext) {
-            if (IsRootWrapper()) {
+            if (isRoot) {
                 XPC_LOG_ALWAYS(("Additional wrappers for this object..."));
                 XPC_LOG_INDENT();
             }
             mNext->DebugDump(depth);
-            if (IsRootWrapper())
+            if (isRoot)
                 XPC_LOG_OUTDENT();
         }
-        if (IsRootWrapper())
+        if (isRoot)
             XPC_LOG_OUTDENT();
 #endif
     return NS_OK;

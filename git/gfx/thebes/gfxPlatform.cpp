@@ -323,7 +323,7 @@ gfxPlatform::GetPlatform()
     return gPlatform;
 }
 
-void RecordingPrefChanged(const char *aPrefName, void *aClosure)
+int RecordingPrefChanged(const char *aPrefName, void *aClosure)
 {
   if (Preferences::GetBool("gfx.2d.recording", false)) {
     nsAutoCString fileName;
@@ -334,17 +334,17 @@ void RecordingPrefChanged(const char *aPrefName, void *aClosure)
     } else {
       nsCOMPtr<nsIFile> tmpFile;
       if (NS_FAILED(NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpFile)))) {
-        return;
+        return 0;
       }
       fileName.AppendPrintf("moz2drec_%i_%i.aer", XRE_GetProcessType(), getpid());
 
       nsresult rv = tmpFile->AppendNative(fileName);
       if (NS_FAILED(rv))
-        return;
+        return 0;
 
       rv = tmpFile->GetNativePath(fileName);
       if (NS_FAILED(rv))
-        return;
+        return 0;
     }
 
     gPlatform->mRecorder = Factory::CreateEventRecorderForFile(fileName.BeginReading());
@@ -353,6 +353,8 @@ void RecordingPrefChanged(const char *aPrefName, void *aClosure)
   } else {
     Factory::SetGlobalEventRecorder(nullptr);
   }
+
+  return 0;
 }
 
 void

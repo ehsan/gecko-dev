@@ -277,7 +277,7 @@ js::DumpIonScriptCounts(Sprinter *sp, jit::IonScriptCounts *ionCounts)
 void
 js_DumpPCCounts(JSContext *cx, HandleScript script, js::Sprinter *sp)
 {
-    JS_ASSERT(script->hasScriptCounts());
+    JS_ASSERT(script->hasScriptCounts);
 
 #ifdef DEBUG
     jsbytecode *pc = script->code();
@@ -697,16 +697,16 @@ BytecodeParser::parse()
 #ifdef DEBUG
 
 bool
-js::ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc, uint32_t *depth, bool *reachablePC)
+js::ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc, uint32_t *depth)
 {
     BytecodeParser parser(cx, script);
     if (!parser.parse())
         return false;
 
-    *reachablePC = parser.isReachable(pc);
+    if (!parser.isReachable(pc))
+        return false;
 
-    if (*reachablePC)
-        *depth = parser.stackDepthAtPC(pc);
+    *depth = parser.stackDepthAtPC(pc);
 
     return true;
 }
@@ -2365,7 +2365,7 @@ js::GetPCCountScriptContents(JSContext *cx, size_t index)
 
     StringBuffer buf(cx);
 
-    if (!script->function() && !script->compileAndGo())
+    if (!script->function() && !script->compileAndGo)
         return buf.finishString();
 
     {

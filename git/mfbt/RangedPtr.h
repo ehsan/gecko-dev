@@ -204,8 +204,6 @@ class RangedPtr
     }
 
     T& operator*() const {
-      MOZ_ASSERT(ptr >= rangeStart);
-      MOZ_ASSERT(ptr < rangeEnd);
       return *ptr;
     }
 

@@ -10,8 +10,6 @@
 #include "nsICookie2.h"
 #include "nsString.h"
 
-#include "mozilla/MemoryReporting.h"
-
 /** 
  * The nsCookie class is the main cookie storage medium for use within cookie
  * code. It implements nsICookie2, which extends nsICookie, a frozen interface
@@ -78,8 +76,6 @@ class nsCookie : public nsICookie2
 
     virtual ~nsCookie() {}
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-
     // fast (inline, non-xpcom) getters
     inline const nsDependentCString Name()  const { return nsDependentCString(mName, mValue - 1); }
     inline const nsDependentCString Value() const { return nsDependentCString(mValue, mHost - 1); }
@@ -108,8 +104,6 @@ class nsCookie : public nsICookie2
     // so we save on the overhead of using nsCStrings. However, we
     // store a terminating null for each string, so we can hand them
     // out as nsAFlatCStrings.
-    //
-    // Please update SizeOfIncludingThis if this strategy changes.
     const char  *mName;
     const char  *mValue;
     const char  *mHost;

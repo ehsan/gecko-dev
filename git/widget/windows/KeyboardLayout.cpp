@@ -947,9 +947,6 @@ NativeKey::InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
 
   aKeyEvent.mIsRepeat = IsRepeat();
   aKeyEvent.mKeyNameIndex = mKeyNameIndex;
-  if (mKeyNameIndex == KEY_NAME_INDEX_USE_STRING) {
-    aKeyEvent.mKeyValue = mCommittedCharsAndModifiers.ToString();
-  }
   aKeyEvent.location = GetKeyLocation();
   aModKeyState.InitInputEvent(aKeyEvent);
 }
@@ -1671,9 +1668,6 @@ KeyboardLayout::InitNativeKey(NativeKey& aNativeKey,
     return;
   }
 
-  MOZ_ASSERT(aNativeKey.mKeyNameIndex == KEY_NAME_INDEX_USE_STRING,
-    "Printable key's key name index must be KEY_NAME_INDEX_USE_STRING");
-
   bool isKeyDown = aNativeKey.IsKeyDownMessage();
   uint8_t shiftState =
     VirtualKey::ModifiersToShiftState(aModKeyState.GetModifiers());
@@ -2317,10 +2311,6 @@ KeyboardLayout::ConvertNativeKeyCodeToDOMKeyCode(UINT aNativeKeyCode) const
 KeyNameIndex
 KeyboardLayout::ConvertNativeKeyCodeToKeyNameIndex(uint8_t aVirtualKey) const
 {
-  if (IsPrintableCharKey(aVirtualKey)) {
-    return KEY_NAME_INDEX_USE_STRING;
-  }
-
 #define NS_NATIVE_KEY_TO_DOM_KEY_NAME_INDEX(aNativeKey, aKeyNameIndex)
 #define NS_JAPANESE_NATIVE_KEY_TO_DOM_KEY_NAME_INDEX(aNativeKey, aKeyNameIndex)
 #define NS_KOREAN_NATIVE_KEY_TO_DOM_KEY_NAME_INDEX(aNativeKey, aKeyNameIndex)
@@ -2338,6 +2328,9 @@ KeyboardLayout::ConvertNativeKeyCodeToKeyNameIndex(uint8_t aVirtualKey) const
 #define NS_NATIVE_KEY_TO_DOM_KEY_NAME_INDEX(aNativeKey, aKeyNameIndex)
 
     default:
+      if (IsPrintableCharKey(aVirtualKey)) {
+        return KEY_NAME_INDEX_PrintableKey;
+      }
       break;
   }
 

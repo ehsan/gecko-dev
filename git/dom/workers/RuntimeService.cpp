@@ -270,7 +270,7 @@ GetWorkerPref(const nsACString& aPref,
   return result;
 }
 
-void
+int
 LoadJSContextOptions(const char* aPrefName, void* /* aClosure */)
 {
   AssertIsOnMainThread();
@@ -278,7 +278,7 @@ LoadJSContextOptions(const char* aPrefName, void* /* aClosure */)
   RuntimeService* rts = RuntimeService::GetService();
   if (!rts && !gRuntimeServiceDuringInit) {
     // May be shutting down, just bail.
-    return;
+    return 0;
   }
 
   const nsDependentCString prefName(aPrefName);
@@ -293,13 +293,13 @@ LoadJSContextOptions(const char* aPrefName, void* /* aClosure */)
                                           PREF_MEM_OPTIONS_PREFIX)) ||
       prefName.EqualsLiteral(PREF_JS_OPTIONS_PREFIX PREF_JIT_HARDENING) ||
       prefName.EqualsLiteral(PREF_WORKERS_OPTIONS_PREFIX PREF_JIT_HARDENING)) {
-    return;
+    return 0;
   }
 
 #ifdef JS_GC_ZEAL
   if (prefName.EqualsLiteral(PREF_JS_OPTIONS_PREFIX PREF_GCZEAL) ||
       prefName.EqualsLiteral(PREF_WORKERS_OPTIONS_PREFIX PREF_GCZEAL)) {
-    return;
+    return 0;
   }
 #endif
 
@@ -349,10 +349,12 @@ LoadJSContextOptions(const char* aPrefName, void* /* aClosure */)
   if (rts) {
     rts->UpdateAllWorkerJSContextOptions();
   }
+
+  return 0;
 }
 
 #ifdef JS_GC_ZEAL
-void
+int
 LoadGCZealOptions(const char* /* aPrefName */, void* /* aClosure */)
 {
   AssertIsOnMainThread();
@@ -360,7 +362,7 @@ LoadGCZealOptions(const char* /* aPrefName */, void* /* aClosure */)
   RuntimeService* rts = RuntimeService::GetService();
   if (!rts && !gRuntimeServiceDuringInit) {
     // May be shutting down, just bail.
-    return;
+    return 0;
   }
 
   int32_t gczeal = GetWorkerPref<int32_t>(NS_LITERAL_CSTRING(PREF_GCZEAL), -1);
@@ -379,6 +381,8 @@ LoadGCZealOptions(const char* /* aPrefName */, void* /* aClosure */)
   if (rts) {
     rts->UpdateAllWorkerGCZeal();
   }
+
+  return 0;
 }
 #endif
 
@@ -414,7 +418,7 @@ UpdatOtherJSGCMemoryOption(RuntimeService* aRuntimeService,
 }
 
 
-void
+int
 LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */)
 {
   AssertIsOnMainThread();
@@ -423,7 +427,7 @@ LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */)
 
   if (!rts && !gRuntimeServiceDuringInit) {
     // May be shutting down, just bail.
-    return;
+    return 0;
   }
 
   NS_NAMED_LITERAL_CSTRING(jsPrefix, PREF_JS_OPTIONS_PREFIX);
@@ -442,7 +446,7 @@ LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */)
   }
   else {
     NS_ERROR("Unknown pref name!");
-    return;
+    return 0;
   }
 
 #ifdef DEBUG
@@ -565,9 +569,11 @@ LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */)
     NS_WARNING(message.get());
 #endif
   }
+
+  return 0;
 }
 
-void
+int
 LoadJITHardeningOption(const char* /* aPrefName */, void* /* aClosure */)
 {
   AssertIsOnMainThread();
@@ -576,7 +582,7 @@ LoadJITHardeningOption(const char* /* aPrefName */, void* /* aClosure */)
 
   if (!rts && !gRuntimeServiceDuringInit) {
     // May be shutting down, just bail.
-    return;
+    return 0;
   }
 
   bool value = GetWorkerPref(NS_LITERAL_CSTRING(PREF_JIT_HARDENING), false);
@@ -586,6 +592,8 @@ LoadJITHardeningOption(const char* /* aPrefName */, void* /* aClosure */)
   if (rts) {
     rts->UpdateAllWorkerJITHardening(value);
   }
+
+  return 0;
 }
 
 void
@@ -2304,7 +2312,7 @@ RuntimeService::Observe(nsISupports* aSubject, const char* aTopic,
   return NS_OK;
 }
 
-/* static */ void
+/* static */ int
 RuntimeService::WorkerPrefChanged(const char* aPrefName, void* aClosure)
 {
   AssertIsOnMainThread();
@@ -2332,4 +2340,5 @@ RuntimeService::WorkerPrefChanged(const char* aPrefName, void* aClosure)
   if (rts) {
     rts->UpdateAllWorkerPreference(key, sDefaultPreferences[key]);
   }
+  return 0;
 }

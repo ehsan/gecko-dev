@@ -1815,7 +1815,7 @@ DoCompareFallback(JSContext *cx, BaselineFrame *frame, ICCompare_Fallback *stub,
                     rhs.isUndefined() ? "Undefined" : "Number");
         ICCompare_NumberWithUndefined::Compiler compiler(cx, op, lhs.isUndefined());
         ICStub *doubleStub = compiler.getStub(compiler.getStubSpace(script));
-        if (!doubleStub)
+        if (!stub)
             return false;
 
         stub->addNewStub(doubleStub);
@@ -4234,9 +4234,7 @@ ICGetElemNativeCompiler::generateStubCode(MacroAssembler &masm)
     }
 
     // Since this stub sometimes enter a stub frame, we manually set this to true (lie).
-#ifdef DEBUG
     entersStubFrame_ = true;
-#endif
 
     // Key has been atomized if necessary.  Do identity check on string pointer.
     masm.branchPtr(Assembler::NotEqual, nameAddr, strExtract, &failure);
@@ -4298,20 +4296,12 @@ ICGetElemNativeCompiler::generateStubCode(MacroAssembler &masm)
             masm.branchTestUndefined(Assembler::NotEqual, valAddr, &skipNoSuchMethod);
 
             GeneralRegisterSet regs = availableGeneralRegs(0);
-            regs.take(R1);
-            regs.take(R0);
             regs.takeUnchecked(objReg);
+            regs.take(R1);
+            Register scratch = regs.takeAnyExcluding(BaselineTailCallReg);
             if (popR1)
                 masm.pop(R1.scratchReg());
-
-            // Box and push obj and key onto baseline frame stack for decompiler.
-            masm.tagValue(JSVAL_TYPE_OBJECT, objReg, R0);
-            EmitStowICValues(masm, 2);
-
-            regs.add(R0);
-            regs.takeUnchecked(objReg);
-
-            enterStubFrame(masm, regs.getAnyExcluding(BaselineTailCallReg));
+            enterStubFrame(masm, scratch);
 
             masm.pushValue(R1);
             masm.push(objReg);
@@ -4319,10 +4309,6 @@ ICGetElemNativeCompiler::generateStubCode(MacroAssembler &masm)
                 return false;
 
             leaveStubFrame(masm);
-
-            // Pop pushed obj and key from baseline stack.
-            EmitUnstowICValues(masm, 2, /* discard = */ true);
-
             // Result is already in R0
             masm.jump(&afterNoSuchMethod);
             masm.bind(&skipNoSuchMethod);
@@ -4479,29 +4465,17 @@ ICGetElem_Dense::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Check if __noSuchMethod__ should be called.
 #if JS_HAS_NO_SUCH_METHOD
-#ifdef DEBUG
     entersStubFrame_ = true;
-#endif
     if (isCallElem_) {
         Label afterNoSuchMethod;
         Label skipNoSuchMethod;
         regs = availableGeneralRegs(0);
         regs.takeUnchecked(obj);
         regs.takeUnchecked(key);
-        regs.takeUnchecked(BaselineTailCallReg);
         ValueOperand val = regs.takeValueOperand();
 
         masm.loadValue(element, val);
         masm.branchTestUndefined(Assembler::NotEqual, val, &skipNoSuchMethod);
-
-        // Box and push obj and key onto baseline frame stack for decompiler.
-        EmitRestoreTailCallReg(masm);
-        masm.tagValue(JSVAL_TYPE_OBJECT, obj, val);
-        masm.pushValue(val);
-        masm.tagValue(JSVAL_TYPE_INT32, key, val);
-        masm.pushValue(val);
-        EmitRepushTailCallReg(masm);
-
         regs.add(val);
 
         // Call __noSuchMethod__ checker.  Object pointer is in objReg.
@@ -4516,10 +4490,6 @@ ICGetElem_Dense::Compiler::generateStubCode(MacroAssembler &masm)
             return false;
 
         leaveStubFrame(masm);
-
-        // Pop pushed obj and key from baseline stack.
-        EmitUnstowICValues(masm, 2, /* discard = */ true);
-
         // Result is already in R0
         masm.jump(&afterNoSuchMethod);
         masm.bind(&skipNoSuchMethod);
@@ -4611,9 +4581,7 @@ ICGetElem_Arguments::Compiler::generateStubCode(MacroAssembler &masm)
     // Variatns of GetElem_Arguments can enter stub frames if entered in CallProp
     // context when noSuchMethod support is on.
 #if JS_HAS_NO_SUCH_METHOD
-#ifdef DEBUG
     entersStubFrame_ = true;
-#endif
 #endif
 
     Label failure;
@@ -4735,33 +4703,19 @@ ICGetElem_Arguments::Compiler::generateStubCode(MacroAssembler &masm)
 
         // Call __noSuchMethod__ checker.  Object pointer is in objReg.
         regs = availableGeneralRegs(0);
+        // R1 and objReg are guaranteed not to overlap.
         regs.takeUnchecked(objReg);
-        regs.takeUnchecked(idxReg);
-        regs.takeUnchecked(BaselineTailCallReg);
-        ValueOperand val = regs.takeValueOperand();
+        regs.take(R1);
+        masm.tagValue(JSVAL_TYPE_INT32, idxReg, R1);
+        scratchReg = regs.takeAnyExcluding(BaselineTailCallReg);
+        enterStubFrame(masm, scratchReg);
 
-        // Box and push obj and key onto baseline frame stack for decompiler.
-        EmitRestoreTailCallReg(masm);
-        masm.tagValue(JSVAL_TYPE_OBJECT, objReg, val);
-        masm.pushValue(val);
-        masm.tagValue(JSVAL_TYPE_INT32, idxReg, val);
-        masm.pushValue(val);
-        EmitRepushTailCallReg(masm);
-
-        regs.add(val);
-        enterStubFrame(masm, regs.getAnyExcluding(BaselineTailCallReg));
-        regs.take(val);
-
-        masm.pushValue(val);
+        masm.pushValue(R1);
         masm.push(objReg);
         if (!callVM(LookupNoSuchMethodHandlerInfo, masm))
             return false;
 
         leaveStubFrame(masm);
-
-        // Pop pushed obj and key from baseline stack.
-        EmitUnstowICValues(masm, 2, /* discard = */ true);
-
         // Result is already in R0
         masm.jump(&afterNoSuchMethod);
         masm.bind(&skipNoSuchMethod);
@@ -4958,7 +4912,7 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub,
         if (!InitArrayElemOperation(cx, pc, obj, index.toInt32(), rhs))
             return false;
     } else {
-        if (!SetObjectElement(cx, obj, index, rhs, script->strict(), script, pc))
+        if (!SetObjectElement(cx, obj, index, rhs, script->strict, script, pc))
             return false;
     }
 
@@ -6384,9 +6338,7 @@ ICGetProp_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Even though the fallback frame doesn't enter a stub frame, the CallScripted
     // frame that we are emulating does. Again, we lie.
-#ifdef DEBUG
     entersStubFrame_ = true;
-#endif
 
     leaveStubFrame(masm, true);
 
@@ -6570,9 +6522,7 @@ ICGetPropNativeCompiler::generateStubCode(MacroAssembler &masm)
     BaseIndex result(holderReg, scratch, TimesOne);
 
 #if JS_HAS_NO_SUCH_METHOD
-#ifdef DEBUG
     entersStubFrame_ = true;
-#endif
     if (isCallProp_) {
         // Check for __noSuchMethod__ invocation.
         Label afterNoSuchMethod;
@@ -6583,33 +6533,16 @@ ICGetPropNativeCompiler::generateStubCode(MacroAssembler &masm)
         masm.branchTestUndefined(Assembler::NotEqual, R0, &skipNoSuchMethod);
 
         masm.pop(objReg);
+        enterStubFrame(masm, scratch);
 
-        // Call __noSuchMethod__ checker.  Object pointer is in objReg.
-        regs = availableGeneralRegs(0);
-        regs.takeUnchecked(objReg);
-        regs.takeUnchecked(BaselineTailCallReg);
-        ValueOperand val = regs.takeValueOperand();
-
-        // Box and push obj onto baseline frame stack for decompiler.
-        EmitRestoreTailCallReg(masm);
-        masm.tagValue(JSVAL_TYPE_OBJECT, objReg, val);
-        masm.pushValue(val);
-        EmitRepushTailCallReg(masm);
-
-        enterStubFrame(masm, regs.getAnyExcluding(BaselineTailCallReg));
-
-        masm.movePtr(ImmGCPtr(propName_.get()), val.scratchReg());
-        masm.tagValue(JSVAL_TYPE_STRING, val.scratchReg(), val);
-        masm.pushValue(val);
+        masm.movePtr(ImmGCPtr(propName_.get()), R1.scratchReg());
+        masm.tagValue(JSVAL_TYPE_STRING, R1.scratchReg(), R1);
+        masm.pushValue(R1);
         masm.push(objReg);
         if (!callVM(LookupNoSuchMethodHandlerInfo, masm))
             return false;
 
         leaveStubFrame(masm);
-
-        // Pop pushed obj from baseline stack.
-        EmitUnstowICValues(masm, 1, /* discard = */ true);
-
         masm.jump(&afterNoSuchMethod);
         masm.bind(&skipNoSuchMethod);
 
@@ -7246,7 +7179,7 @@ DoSetPropFallback(JSContext *cx, BaselineFrame *frame, ICSetProp_Fallback *stub,
             return false;
     } else if (op == JSOP_SETALIASEDVAR) {
         obj->as<ScopeObject>().setAliasedVar(cx, pc, name, rhs);
-    } else if (script->strict()) {
+    } else if (script->strict) {
         if (!js::SetProperty<true>(cx, obj, id, rhs))
             return false;
     } else {
@@ -7308,9 +7241,7 @@ ICSetProp_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Even though the fallback frame doesn't enter a stub frame, the CallScripted
     // frame that we are emulating does. Again, we lie.
-#ifdef DEBUG
     entersStubFrame_ = true;
-#endif
 
     leaveStubFrame(masm, true);
 
@@ -7923,7 +7854,7 @@ TryAttachCallStub(JSContext *cx, ICCall_Fallback *stub, HandleScript script, jsb
         if (!calleeScript->hasBaselineScript() && !calleeScript->hasIonScript())
             return true;
 
-        if (calleeScript->shouldCloneAtCallsite())
+        if (calleeScript->shouldCloneAtCallsite)
             return true;
 
         // Check if this stub chain has already generalized scripted calls.
@@ -8028,7 +7959,7 @@ MaybeCloneFunctionAtCallsite(JSContext *cx, MutableHandleValue callee, HandleScr
     if (!IsFunctionObject(callee, fun.address()))
         return true;
 
-    if (!fun->hasScript() || !fun->nonLazyScript()->shouldCloneAtCallsite())
+    if (!fun->hasScript() || !fun->nonLazyScript()->shouldCloneAtCallsite)
         return true;
 
     if (!cx->typeInferenceEnabled())

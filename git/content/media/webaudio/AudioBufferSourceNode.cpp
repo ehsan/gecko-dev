@@ -217,7 +217,7 @@ public:
                                              outputData, &outSamples);
         if (++i == aChannels) {
           mPosition += inSamples;
-          MOZ_ASSERT(mPosition <= mDuration || mLoop);
+          MOZ_ASSERT(mPosition <= mDuration);
           aFramesWritten = outSamples;
           if (inSamples == aAvailableInInputBuffer && !mLoop) {
             // If the available output space were unbounded then the input
