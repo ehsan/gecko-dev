@@ -1660,6 +1660,7 @@ static const nsContractIDMapData kConstructorMap[] =
   NS_DEFINE_CONSTRUCTOR_DATA(FileReader, NS_FILEREADER_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(FormData, NS_FORMDATA_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XMLSerializer, NS_XMLSERIALIZER_CONTRACTID)
+  NS_DEFINE_CONSTRUCTOR_DATA(XMLHttpRequest, NS_XMLHTTPREQUEST_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(WebSocket, NS_WEBSOCKET_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XPathEvaluator, NS_XPATH_EVALUATOR_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XSLTProcessor,
@@ -1694,13 +1695,6 @@ NS_DOMStorageEventCtor(nsISupports** aInstancePtrResult)
   return CallQueryInterface(e, aInstancePtrResult);
 }
 
-nsresult
-NS_XMLHttpRequestCtor(nsISupports** aInstancePtrResult)
-{
-  nsXMLHttpRequest* xhr = new nsXMLHttpRequest();
-  return CallQueryInterface(xhr, aInstancePtrResult);
-}
-
 struct nsConstructorFuncMapData
 {
   PRInt32 mDOMClassInfoID;
@@ -1729,7 +1723,6 @@ static const nsConstructorFuncMapData kConstructorFuncMap[] =
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MouseEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(StorageEvent)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(MozSmsFilter, sms::SmsFilter::NewSmsFilter)
-  NS_DEFINE_CONSTRUCTOR_FUNC_DATA(XMLHttpRequest, NS_XMLHttpRequestCtor)
 };
 
 nsIXPConnect *nsDOMClassInfo::sXPConnect = nsnull;
@@ -5469,17 +5462,10 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       NS_ASSERTION(frameWin->IsOuterWindow(), "GetChildFrame gave us an inner?");
 
       frameWin->EnsureInnerWindow();
-      JSObject *global = frameWin->GetGlobalJSObject();
-
-      // This null check fixes a hard-to-reproduce crash that occurs when we
-      // get here when we're mid-call to nsDocShell::Destroy. See bug 640904
-      // comment 105.
-      if (NS_UNLIKELY(!global))
-          return NS_ERROR_FAILURE;
 
       nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
       jsval v;
-      rv = WrapNative(cx, global, frame,
+      rv = WrapNative(cx, frameWin->GetGlobalJSObject(), frame,
                       &NS_GET_IID(nsIDOMWindow), true, &v,
                       getter_AddRefs(holder));
       NS_ENSURE_SUCCESS(rv, rv);

@@ -3978,9 +3978,10 @@ void
 nsFrame::FinishReflowWithAbsoluteFrames(nsPresContext*           aPresContext,
                                         nsHTMLReflowMetrics&     aDesiredSize,
                                         const nsHTMLReflowState& aReflowState,
-                                        nsReflowStatus&          aStatus)
+                                        nsReflowStatus&          aStatus,
+                                        bool                     aConstrainHeight)
 {
-  ReflowAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, aStatus);
+  ReflowAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, aStatus, aConstrainHeight);
 
   FinishAndStoreOverflow(&aDesiredSize);
 }
@@ -3997,7 +3998,8 @@ void
 nsFrame::ReflowAbsoluteFrames(nsPresContext*           aPresContext,
                               nsHTMLReflowMetrics&     aDesiredSize,
                               const nsHTMLReflowState& aReflowState,
-                              nsReflowStatus&          aStatus)
+                              nsReflowStatus&          aStatus,
+                              bool                     aConstrainHeight)
 {
   if (HasAbsolutelyPositionedChildren()) {
     nsAbsoluteContainingBlock* absoluteContainer = GetAbsoluteContainingBlock();
@@ -4018,7 +4020,7 @@ nsFrame::ReflowAbsoluteFrames(nsPresContext*           aPresContext,
 
     absoluteContainer->Reflow(container, aPresContext, aReflowState, aStatus,
                               containingBlockWidth, containingBlockHeight,
-                              true, true, true, // XXX could be optimized
+                              aConstrainHeight, true, true, // XXX could be optimized
                               &aDesiredSize.mOverflowAreas);
   }
 }
