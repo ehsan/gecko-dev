@@ -302,7 +302,7 @@ function findChromeWindowForChats(preferredWindow) {
   }
   while (enumerator.hasMoreElements()) {
     let win = enumerator.getNext();
-    if (!win.closed && isWindowGoodForChats(win))
+    if (win && isWindowGoodForChats(win))
       topMost = win;
   }
   return topMost;
