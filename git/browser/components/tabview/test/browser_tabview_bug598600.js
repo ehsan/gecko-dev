@@ -5,7 +5,6 @@ let newWin;
 function test() {
   let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
 
-  requestLongerTimeout(2);
   waitForExplicitFinish();
 
   // open a new window and setup the window state.

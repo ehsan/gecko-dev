@@ -381,7 +381,7 @@ function startTest() {
   setupFormHistory(runTest);
 }
 
-SimpleTest.waitForFocus(startTest);
+window.onload = startTest;
 
 SimpleTest.waitForExplicitFinish();
 </script>
