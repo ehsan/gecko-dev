@@ -2457,12 +2457,6 @@ ia64*-hpux*)
     	AC_CHECK_HEADERS(mmintrin.h)
     	AC_DEFINE(_X86_)
 	;;
-    alpha-*)
-    	AC_DEFINE(_ALPHA_)
-	;;
-    mips-*)
-    	AC_DEFINE(_MIPS_)
-	;;
     x86_64-*)
         AC_DEFINE(_AMD64_)
         ;;
@@ -4770,17 +4764,6 @@ AC_SUBST(MOZ_OPTIMIZE_LDFLAGS)
 AC_SUBST(MOZ_OPTIMIZE_SIZE_TWEAK)
 
 dnl ========================================================
-dnl = (Deprecated) generation of debugger info for specific modules
-dnl ========================================================
-MOZ_ARG_ENABLE_STRING(debugger-info-modules,
-[  --enable-debugger-info-modules
-                          Enable/disable debugger info for specific modules],
-[ if test "$enableval" != "no"; then
-    AC_MSG_WARN([--enable-debugger-info-modules is deprecated, use --enable-debug-symbols instead])
-    MOZ_DEBUG_SYMBOLS=1
-  fi ])
-
-dnl ========================================================
 dnl = Enable generation of debug symbols
 dnl ========================================================
 MOZ_ARG_ENABLE_STRING(debug-symbols,
@@ -4795,7 +4778,10 @@ MOZ_ARG_ENABLE_STRING(debug-symbols,
               AC_MSG_ERROR([--enable-debug-symbols flags cannot be used with --enable-debug flags])
           fi
       fi
-  fi ])
+  else
+      MOZ_DEBUG_SYMBOLS=
+  fi ],
+  MOZ_DEBUG_SYMBOLS=1)
 
 if test -n "$MOZ_DEBUG" -o -n "$MOZ_DEBUG_SYMBOLS"; then
     AC_DEFINE(MOZ_DEBUG_SYMBOLS)
@@ -5501,7 +5487,7 @@ MOZ_ARG_DISABLE_BOOL(md,
   [_cpp_md_flag=],
   [_cpp_md_flag=1],
   [dnl Default is to turn on -MD if using GNU-compatible compilers
-   if test "$GNU_CC" -a "$GNU_CXX" -a "$OS_ARCH" != "WINNT" -a "$OS_ARCH" != "WINCE"; then
+   if test "$GNU_CC" -a "$GNU_CXX"; then
      _cpp_md_flag=1
    fi
   dnl Default is to use -xM if using Sun Studio on Solaris
@@ -5679,7 +5665,6 @@ AC_SUBST(MOZ_SHARK)
 AC_SUBST(MOZ_CALLGRIND)
 AC_SUBST(MOZ_VTUNE)
 AC_SUBST(MOZ_PROFILING)
-AC_SUBST(MOZ_JSLOADER)
 AC_SUBST(MOZ_QUANTIFY)
 AC_SUBST(LIBICONV)
 
