@@ -62,6 +62,16 @@ class MarionetteTestResult(unittest._TextTestResult):
     def printLogs(self, test):
         for testcase in test._tests:
             if hasattr(testcase, 'loglines') and testcase.loglines:
+                # Don't dump loglines to the console if they only contain
+                # TEST-START and TEST-END.
+                skip_log = True
+                for line in testcase.loglines:
+                    str_line = ' '.join(line)
+                    if not 'TEST-END' in str_line and not 'TEST-START' in str_line:
+                        skip_log = False
+                        break
+                if skip_log:
+                    return
                 self.stream.writeln('START LOG:')
                 for line in testcase.loglines:
                     self.stream.writeln(' '.join(line))
@@ -184,7 +194,7 @@ class MarionetteTestRunner(object):
                  es_server=None, rest_server=None, logger=None,
                  testgroup="marionette", noWindow=False, logcat_dir=None,
                  xml_output=None, repeat=0, perf=False, perfserv=None,
-                 gecko_path=None, testvars=None):
+                 gecko_path=None, testvars=None, tree=None):
         self.address = address
         self.emulator = emulator
         self.emulatorBinary = emulatorBinary
@@ -211,6 +221,7 @@ class MarionetteTestRunner(object):
         self.perfserv = perfserv
         self.gecko_path = gecko_path
         self.testvars = None
+        self.tree = tree
 
         if testvars is not None:
             if not os.path.exists(testvars):
@@ -319,7 +330,7 @@ class MarionetteTestRunner(object):
             logfile = logfile)
 
         testgroup.set_primary_product(
-            tree = 'b2g',
+            tree = self.tree,
             buildtype = 'opt',
             revision = self.revision)
 
@@ -642,7 +653,10 @@ def parse_options():
                       'installed on the device or emulator')
     parser.add_option('--testvars', dest='testvars', action='store',
                       default=None,
-                     help='path to a JSON file with any test data required')
+                      help='path to a JSON file with any test data required')
+    parser.add_option('--tree', dest='tree', action='store',
+                      default='b2g',
+                      help='the tree that the revsion parameter refers to')
 
     options, tests = parser.parse_args()
 
@@ -688,6 +702,7 @@ def startTestRunner(runner_class, options, tests):
                           noWindow=options.noWindow,
                           revision=options.revision,
                           testgroup=options.testgroup,
+                          tree=options.tree,
                           autolog=options.autolog,
                           xml_output=options.xml_output,
                           repeat=options.repeat,
