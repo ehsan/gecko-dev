@@ -424,12 +424,6 @@ public:
   bool IsInSubdocument() { return mPresShellStates.Length() > 1; }
 
   /**
-   * Return true if we're currently building a display list for the root
-   * presshell which is the presshell of a chrome document.
-   */
-  bool IsInRootChromeDocument() { return mIsInRootChromeDocument; }
-
-  /**
    * @return true if images have been set to decode synchronously.
    */
   bool ShouldSyncDecodeImages() { return mSyncDecodeImages; }
@@ -903,7 +897,6 @@ private:
   // True when we're building a display list that's directly or indirectly
   // under an nsDisplayTransform
   bool                           mInTransform;
-  bool                           mIsInRootChromeDocument;
   bool                           mSyncDecodeImages;
   bool                           mIsPaintingToWindow;
   bool                           mIsCompositingCheap;
@@ -914,7 +907,6 @@ private:
   // display list has a display port. An async-scrollable scroll frame is one
   // which WantsAsyncScroll().
   bool                           mHaveScrollableDisplayPort;
-  bool                           mWindowDraggingAllowed;
 };
 
 class nsDisplayItem;

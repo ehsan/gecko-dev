@@ -826,7 +826,7 @@ class GCRuntime
         Finished
     };
 
-    void minorGCImpl(JS::gcreason::Reason reason, Nursery::ObjectGroupList *pretenureGroups);
+    void minorGCImpl(JS::gcreason::Reason reason, Nursery::TypeObjectList *pretenureTypes);
 
     // For ArenaLists::allocateFromArena()
     friend class ArenaLists;
@@ -1097,15 +1097,10 @@ class GCRuntime
     unsigned generationalDisabled;
 
     /*
-     * Whether compacting GC can is enabled globally.
+     * Some code cannot tolerate compacting GC so it can be disabled with this
+     * counter.
      */
-    bool compactingEnabled;
-
-    /*
-     * Some code cannot tolerate compacting GC so it can be disabled temporarily
-     * with AutoDisableCompactingGC which uses this counter.
-     */
-    unsigned compactingDisabledCount;
+    unsigned compactingDisabled;
 
     /*
      * This is true if we are in the middle of a brain transplant (e.g.,

@@ -328,17 +328,17 @@ class LGuardShape : public LInstructionHelper<0, 1, 1>
     }
 };
 
-class LGuardObjectGroup : public LInstructionHelper<0, 1, 1>
+class LGuardObjectType : public LInstructionHelper<0, 1, 1>
 {
   public:
-    LIR_HEADER(GuardObjectGroup);
+    LIR_HEADER(GuardObjectType);
 
-    LGuardObjectGroup(const LAllocation &in, const LDefinition &temp) {
+    LGuardObjectType(const LAllocation &in, const LDefinition &temp) {
         setOperand(0, in);
         setTemp(0, temp);
     }
-    const MGuardObjectGroup *mir() const {
-        return mir_->toGuardObjectGroup();
+    const MGuardObjectType *mir() const {
+        return mir_->toGuardObjectType();
     }
     const LDefinition *tempInt() {
         return getTemp(0);

@@ -2692,7 +2692,7 @@ class MNewArray
     {
         ArrayObject *obj = templateObject();
         setResultType(MIRType_Object);
-        if (!obj->isSingleton())
+        if (!obj->hasSingletonType())
             setResultTypeSet(MakeSingletonTypeSet(constraints, obj));
     }
 
@@ -2754,7 +2754,7 @@ class MNewArrayCopyOnWrite : public MNullaryInstruction
       : templateObject_(templateObject),
         initialHeap_(initialHeap)
     {
-        MOZ_ASSERT(!templateObject->isSingleton());
+        MOZ_ASSERT(!templateObject->hasSingletonType());
         setResultType(MIRType_Object);
         setResultTypeSet(MakeSingletonTypeSet(constraints, templateObject));
     }
@@ -2798,7 +2798,7 @@ class MNewArrayDynamicLength
     {
         setGuard(); // Need to throw if length is negative.
         setResultType(MIRType_Object);
-        if (!templateObject->isSingleton())
+        if (!templateObject->hasSingletonType())
             setResultTypeSet(MakeSingletonTypeSet(constraints, templateObject));
     }
 
@@ -2847,7 +2847,7 @@ class MNewObject
         PlainObject *obj = templateObject();
         MOZ_ASSERT_IF(mode != ObjectLiteral, !shouldUseVM());
         setResultType(MIRType_Object);
-        if (!obj->isSingleton())
+        if (!obj->hasSingletonType())
             setResultTypeSet(MakeSingletonTypeSet(constraints, obj));
 
         // The constant is kept separated in a MConstant, this way we can safely
@@ -6313,8 +6313,8 @@ class MStringSplit
     JSObject *templateObject() const {
         return &getOperand(2)->toConstant()->value().toObject();
     }
-    types::ObjectGroup *group() const {
-        return templateObject()->group();
+    types::TypeObject *typeObject() const {
+        return templateObject()->type();
     }
     bool possiblyCalls() const MOZ_OVERRIDE {
         return true;
@@ -7152,22 +7152,22 @@ struct LambdaFunctionInfo
     uint16_t flags;
     gc::Cell *scriptOrLazyScript;
     bool singletonType;
-    bool useSingletonForClone;
+    bool useNewTypeForClone;
 
     explicit LambdaFunctionInfo(JSFunction *fun)
       : fun(fun), flags(fun->flags()),
         scriptOrLazyScript(fun->hasScript()
                            ? (gc::Cell *) fun->nonLazyScript()
                            : (gc::Cell *) fun->lazyScript()),
-        singletonType(fun->isSingleton()),
-        useSingletonForClone(types::UseSingletonForClone(fun))
+        singletonType(fun->hasSingletonType()),
+        useNewTypeForClone(types::UseNewTypeForClone(fun))
     {}
 
     LambdaFunctionInfo(const LambdaFunctionInfo &info)
       : fun((JSFunction *) info.fun), flags(info.flags),
         scriptOrLazyScript(info.scriptOrLazyScript),
         singletonType(info.singletonType),
-        useSingletonForClone(info.useSingletonForClone)
+        useNewTypeForClone(info.useNewTypeForClone)
     {}
 };
 
@@ -7181,7 +7181,7 @@ class MLambda
       : MBinaryInstruction(scopeChain, cst), info_(&cst->value().toObject().as<JSFunction>())
     {
         setResultType(MIRType_Object);
-        if (!info().fun->isSingleton() && !types::UseSingletonForClone(info().fun))
+        if (!info().fun->hasSingletonType() && !types::UseNewTypeForClone(info().fun))
             setResultTypeSet(MakeSingletonTypeSet(constraints, info().fun));
     }
 
@@ -7219,8 +7219,8 @@ class MLambdaArrow
       : MBinaryInstruction(scopeChain, this_), info_(fun)
     {
         setResultType(MIRType_Object);
-        MOZ_ASSERT(!types::UseSingletonForClone(fun));
-        if (!fun->isSingleton())
+        MOZ_ASSERT(!types::UseNewTypeForClone(fun));
+        if (!fun->hasSingletonType())
             setResultTypeSet(MakeSingletonTypeSet(constraints, fun));
     }
 
@@ -9195,11 +9195,11 @@ typedef Vector<bool, 4, JitAllocPolicy> BoolVector;
 class InlinePropertyTable : public TempObject
 {
     struct Entry : public TempObject {
-        AlwaysTenured<types::ObjectGroup *> group;
+        AlwaysTenured<types::TypeObject *> typeObj;
         AlwaysTenuredFunction func;
 
-        Entry(types::ObjectGroup *group, JSFunction *func)
-          : group(group), func(func)
+        Entry(types::TypeObject *typeObj, JSFunction *func)
+          : typeObj(typeObj), func(func)
         { }
     };
 
@@ -9226,17 +9226,17 @@ class InlinePropertyTable : public TempObject
         return pc_;
     }
 
-    bool addEntry(TempAllocator &alloc, types::ObjectGroup *group, JSFunction *func) {
-        return entries_.append(new(alloc) Entry(group, func));
+    bool addEntry(TempAllocator &alloc, types::TypeObject *typeObj, JSFunction *func) {
+        return entries_.append(new(alloc) Entry(typeObj, func));
     }
 
     size_t numEntries() const {
         return entries_.length();
     }
 
-    types::ObjectGroup *getObjectGroup(size_t i) const {
+    types::TypeObject *getTypeObject(size_t i) const {
         MOZ_ASSERT(i < numEntries());
-        return entries_[i]->group;
+        return entries_[i]->typeObj;
     }
 
     JSFunction *getFunction(size_t i) const {
@@ -9359,8 +9359,8 @@ class MGetPropertyCache
     bool updateForReplacement(MDefinition *ins) MOZ_OVERRIDE;
 };
 
-// Emit code to load a value from an object if its shape/group matches one of
-// the shapes/groups observed by the baseline IC, else bails out.
+// Emit code to load a value from an object if its shape/type matches one of
+// the shapes/types observed by the baseline IC, else bails out.
 class MGetPropertyPolymorphic
   : public MUnaryInstruction,
     public SingleObjectPolicy::Data
@@ -9374,13 +9374,13 @@ class MGetPropertyPolymorphic
     };
 
     Vector<Entry, 4, JitAllocPolicy> nativeShapes_;
-    Vector<types::ObjectGroup *, 4, JitAllocPolicy> unboxedGroups_;
+    Vector<types::TypeObject *, 4, JitAllocPolicy> unboxedTypes_;
     AlwaysTenuredPropertyName name_;
 
     MGetPropertyPolymorphic(TempAllocator &alloc, MDefinition *obj, PropertyName *name)
       : MUnaryInstruction(obj),
         nativeShapes_(alloc),
-        unboxedGroups_(alloc),
+        unboxedTypes_(alloc),
         name_(name)
     {
         setGuard();
@@ -9409,8 +9409,8 @@ class MGetPropertyPolymorphic
         entry.shape = shape;
         return nativeShapes_.append(entry);
     }
-    bool addUnboxedGroup(types::ObjectGroup *group) {
-        return unboxedGroups_.append(group);
+    bool addUnboxedType(types::TypeObject *type) {
+        return unboxedTypes_.append(type);
     }
     size_t numShapes() const {
         return nativeShapes_.length();
@@ -9421,11 +9421,11 @@ class MGetPropertyPolymorphic
     Shape *shape(size_t i) const {
         return nativeShapes_[i].shape;
     }
-    size_t numUnboxedGroups() const {
-        return unboxedGroups_.length();
+    size_t numUnboxedTypes() const {
+        return unboxedTypes_.length();
     }
-    types::ObjectGroup *unboxedGroup(size_t i) const {
-        return unboxedGroups_[i];
+    types::TypeObject *unboxedType(size_t i) const {
+        return unboxedTypes_[i];
     }
     PropertyName *name() const {
         return name_;
@@ -9435,14 +9435,14 @@ class MGetPropertyPolymorphic
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
         return AliasSet::Load(AliasSet::ObjectFields | AliasSet::FixedSlot | AliasSet::DynamicSlot |
-                              (unboxedGroups_.empty() ? 0 : (AliasSet::TypedArrayElement | AliasSet::Element)));
+                              (unboxedTypes_.empty() ? 0 : (AliasSet::TypedArrayElement | AliasSet::Element)));
     }
 
     bool mightAlias(const MDefinition *store) const MOZ_OVERRIDE;
 };
 
-// Emit code to store a value to an object's slots if its shape/group matches
-// one of the shapes/groups observed by the baseline IC, else bails out.
+// Emit code to store a value to an object's slots if its shape matches
+// one of the shapes observed by the baseline IC, else bails out.
 class MSetPropertyPolymorphic
   : public MBinaryInstruction,
     public MixPolicy<SingleObjectPolicy, NoFloatPolicy<1> >::Data
@@ -9456,7 +9456,7 @@ class MSetPropertyPolymorphic
     };
 
     Vector<Entry, 4, JitAllocPolicy> nativeShapes_;
-    Vector<types::ObjectGroup *, 4, JitAllocPolicy> unboxedGroups_;
+    Vector<types::TypeObject *, 4, JitAllocPolicy> unboxedTypes_;
     AlwaysTenuredPropertyName name_;
     bool needsBarrier_;
 
@@ -9464,7 +9464,7 @@ class MSetPropertyPolymorphic
                             PropertyName *name)
       : MBinaryInstruction(obj, value),
         nativeShapes_(alloc),
-        unboxedGroups_(alloc),
+        unboxedTypes_(alloc),
         name_(name),
         needsBarrier_(false)
     {
@@ -9484,8 +9484,8 @@ class MSetPropertyPolymorphic
         entry.shape = shape;
         return nativeShapes_.append(entry);
     }
-    bool addUnboxedGroup(types::ObjectGroup *group) {
-        return unboxedGroups_.append(group);
+    bool addUnboxedType(types::TypeObject *type) {
+        return unboxedTypes_.append(type);
     }
     size_t numShapes() const {
         return nativeShapes_.length();
@@ -9496,11 +9496,11 @@ class MSetPropertyPolymorphic
     Shape *shape(size_t i) const {
         return nativeShapes_[i].shape;
     }
-    size_t numUnboxedGroups() const {
-        return unboxedGroups_.length();
+    size_t numUnboxedTypes() const {
+        return unboxedTypes_.length();
     }
-    types::ObjectGroup *unboxedGroup(size_t i) const {
-        return unboxedGroups_[i];
+    types::TypeObject *unboxedType(size_t i) const {
+        return unboxedTypes_[i];
     }
     PropertyName *name() const {
         return name_;
@@ -9519,7 +9519,7 @@ class MSetPropertyPolymorphic
     }
     AliasSet getAliasSet() const MOZ_OVERRIDE {
         return AliasSet::Store(AliasSet::ObjectFields | AliasSet::FixedSlot | AliasSet::DynamicSlot |
-                               (unboxedGroups_.empty() ? 0 : (AliasSet::TypedArrayElement | AliasSet::Element)));
+                               (unboxedTypes_.empty() ? 0 : (AliasSet::TypedArrayElement | AliasSet::Element)));
     }
 };
 
@@ -9530,14 +9530,14 @@ class MDispatchInstruction
     // Map from JSFunction* -> MBasicBlock.
     struct Entry {
         JSFunction *func;
-        // If |func| has a singleton group, |funcGroup| is null. Otherwise,
-        // |funcGroup| holds the ObjectGroup for |func|, and dispatch guards
-        // on the group instead of directly on the function.
-        types::ObjectGroup *funcGroup;
+        // If |func| has a singleton type, |funcType| is null. Otherwise,
+        // |funcType| holds the TypeObject for |func|, and dispatch guards
+        // on the type instead of directly on the function.
+        types::TypeObject *funcType;
         MBasicBlock *block;
 
-        Entry(JSFunction *func, types::ObjectGroup *funcGroup, MBasicBlock *block)
-          : func(func), funcGroup(funcGroup), block(block)
+        Entry(JSFunction *func, types::TypeObject *funcType, MBasicBlock *block)
+          : func(func), funcType(funcType), block(block)
         { }
     };
     Vector<Entry, 4, JitAllocPolicy> map_;
@@ -9605,8 +9605,8 @@ class MDispatchInstruction
     }
 
   public:
-    void addCase(JSFunction *func, types::ObjectGroup *funcGroup, MBasicBlock *block) {
-        map_.append(Entry(func, funcGroup, block));
+    void addCase(JSFunction *func, types::TypeObject *funcType, MBasicBlock *block) {
+        map_.append(Entry(func, funcType, block));
     }
     uint32_t numCases() const {
         return map_.length();
@@ -9614,8 +9614,8 @@ class MDispatchInstruction
     JSFunction *getCase(uint32_t i) const {
         return map_[i].func;
     }
-    types::ObjectGroup *getCaseObjectGroup(uint32_t i) const {
-        return map_[i].funcGroup;
+    types::TypeObject *getCaseTypeObject(uint32_t i) const {
+        return map_[i].funcType;
     }
     MBasicBlock *getCaseBlock(uint32_t i) const {
         return map_[i].block;
@@ -9639,24 +9639,24 @@ class MDispatchInstruction
     }
 };
 
-// Polymorphic dispatch for inlining, keyed off incoming ObjectGroup.
-class MObjectGroupDispatch : public MDispatchInstruction
+// Polymorphic dispatch for inlining, keyed off incoming TypeObject.
+class MTypeObjectDispatch : public MDispatchInstruction
 {
-    // Map ObjectGroup (of CallProp's Target Object) -> JSFunction (yielded by the CallProp).
+    // Map TypeObject (of CallProp's Target Object) -> JSFunction (yielded by the CallProp).
     InlinePropertyTable *inlinePropertyTable_;
 
-    MObjectGroupDispatch(TempAllocator &alloc, MDefinition *input, InlinePropertyTable *table)
+    MTypeObjectDispatch(TempAllocator &alloc, MDefinition *input, InlinePropertyTable *table)
       : MDispatchInstruction(alloc, input),
         inlinePropertyTable_(table)
     { }
 
   public:
-    INSTRUCTION_HEADER(ObjectGroupDispatch)
+    INSTRUCTION_HEADER(TypeObjectDispatch)
 
-    static MObjectGroupDispatch *New(TempAllocator &alloc, MDefinition *ins,
-                                     InlinePropertyTable *table)
+    static MTypeObjectDispatch *New(TempAllocator &alloc, MDefinition *ins,
+                                    InlinePropertyTable *table)
     {
-        return new(alloc) MObjectGroupDispatch(alloc, ins, table);
+        return new(alloc) MTypeObjectDispatch(alloc, ins, table);
     }
 
     InlinePropertyTable *propTable() const {
@@ -9847,19 +9847,19 @@ class MGuardShapePolymorphic
     }
 };
 
-// Guard on an object's group, inclusively or exclusively.
-class MGuardObjectGroup
+// Guard on an object's type, inclusively or exclusively.
+class MGuardObjectType
   : public MUnaryInstruction,
     public SingleObjectPolicy::Data
 {
-    AlwaysTenured<types::ObjectGroup *> group_;
+    AlwaysTenured<types::TypeObject *> typeObject_;
     bool bailOnEquality_;
     BailoutKind bailoutKind_;
 
-    MGuardObjectGroup(MDefinition *obj, types::ObjectGroup *group, bool bailOnEquality,
-                      BailoutKind bailoutKind)
+    MGuardObjectType(MDefinition *obj, types::TypeObject *typeObject, bool bailOnEquality,
+                     BailoutKind bailoutKind)
       : MUnaryInstruction(obj),
-        group_(group),
+        typeObject_(typeObject),
         bailOnEquality_(bailOnEquality),
         bailoutKind_(bailoutKind)
     {
@@ -9869,18 +9869,18 @@ class MGuardObjectGroup
     }
 
   public:
-    INSTRUCTION_HEADER(GuardObjectGroup)
+    INSTRUCTION_HEADER(GuardObjectType)
 
-    static MGuardObjectGroup *New(TempAllocator &alloc, MDefinition *obj, types::ObjectGroup *group,
-                                  bool bailOnEquality, BailoutKind bailoutKind) {
-        return new(alloc) MGuardObjectGroup(obj, group, bailOnEquality, bailoutKind);
+    static MGuardObjectType *New(TempAllocator &alloc, MDefinition *obj, types::TypeObject *typeObject,
+                                 bool bailOnEquality, BailoutKind bailoutKind) {
+        return new(alloc) MGuardObjectType(obj, typeObject, bailOnEquality, bailoutKind);
     }
 
     MDefinition *obj() const {
         return getOperand(0);
     }
-    const types::ObjectGroup *group() const {
-        return group_;
+    const types::TypeObject *typeObject() const {
+        return typeObject_;
     }
     bool bailOnEquality() const {
         return bailOnEquality_;
@@ -9889,13 +9889,13 @@ class MGuardObjectGroup
         return bailoutKind_;
     }
     bool congruentTo(const MDefinition *ins) const MOZ_OVERRIDE {
-        if (!ins->isGuardObjectGroup())
+        if (!ins->isGuardObjectType())
             return false;
-        if (group() != ins->toGuardObjectGroup()->group())
+        if (typeObject() != ins->toGuardObjectType()->typeObject())
             return false;
-        if (bailOnEquality() != ins->toGuardObjectGroup()->bailOnEquality())
+        if (bailOnEquality() != ins->toGuardObjectType()->bailOnEquality())
             return false;
-        if (bailoutKind() != ins->toGuardObjectGroup()->bailoutKind())
+        if (bailoutKind() != ins->toGuardObjectType()->bailoutKind())
             return false;
         return congruentIfOperandsEqual(ins);
     }
@@ -12692,7 +12692,7 @@ bool ElementAccessHasExtraIndexedProperty(types::CompilerConstraintList *constra
 MIRType DenseNativeElementType(types::CompilerConstraintList *constraints, MDefinition *obj);
 BarrierKind PropertyReadNeedsTypeBarrier(JSContext *propertycx,
                                          types::CompilerConstraintList *constraints,
-                                         types::ObjectGroupKey *object, PropertyName *name,
+                                         types::TypeObjectKey *object, PropertyName *name,
                                          types::TemporaryTypeSet *observed, bool updateObserved);
 BarrierKind PropertyReadNeedsTypeBarrier(JSContext *propertycx,
                                          types::CompilerConstraintList *constraints,

@@ -101,7 +101,8 @@ void
 nsElementFrameLoaderOwner::EnsureFrameLoader()
 {
   Element* thisElement = ThisFrameElement();
-  if (!thisElement->IsInDoc() ||
+  if (!thisElement->GetParent() ||
+      !thisElement->IsInDoc() ||
       mFrameLoader ||
       mFrameLoaderCreationDisallowed) {
     // If frame loader is there, we just keep it around, cached

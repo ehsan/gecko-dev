@@ -62,16 +62,16 @@ RegExpObjectBuilder::getOrCreate()
 }
 
 bool
-RegExpObjectBuilder::getOrCreateClone(HandleObjectGroup group)
+RegExpObjectBuilder::getOrCreateClone(HandleTypeObject type)
 {
     MOZ_ASSERT(!reobj_);
-    MOZ_ASSERT(group->clasp() == &RegExpObject::class_);
+    MOZ_ASSERT(type->clasp() == &RegExpObject::class_);
 
-    JSObject *parent = group->proto().toObject()->getParent();
+    JSObject *parent = type->proto().toObject()->getParent();
 
     // Note: RegExp objects are always allocated in the tenured heap. This is
     // not strictly required, but simplifies embedding them in jitcode.
-    reobj_ = NewObjectWithGroup<RegExpObject>(cx->asJSContext(), group, parent, TenuredObject);
+    reobj_ = NewObjectWithType<RegExpObject>(cx->asJSContext(), type, parent, TenuredObject);
     if (!reobj_)
         return false;
     reobj_->initPrivate(nullptr);
@@ -104,8 +104,8 @@ RegExpObjectBuilder::build(HandleAtom source, RegExpFlag flags)
 RegExpObject *
 RegExpObjectBuilder::clone(Handle<RegExpObject *> other)
 {
-    RootedObjectGroup group(cx, other->group());
-    if (!getOrCreateClone(group))
+    RootedTypeObject type(cx, other->type());
+    if (!getOrCreateClone(type))
         return nullptr;
 
     /*
@@ -706,13 +706,13 @@ RegExpCompartment::createMatchResultTemplateObject(JSContext *cx)
     if (!templateObject)
         return matchResultTemplateObject_; // = nullptr
 
-    // Create a new group for the template.
+    // Create a new type for the template.
     Rooted<TaggedProto> proto(cx, templateObject->getTaggedProto());
-    types::ObjectGroup *group =
-        cx->compartment()->types.newObjectGroup(cx, templateObject->getClass(), proto);
-    if (!group)
+    types::TypeObject *type =
+        cx->compartment()->types.newTypeObject(cx, templateObject->getClass(), proto);
+    if (!type)
         return matchResultTemplateObject_; // = nullptr
-    templateObject->setGroup(group);
+    templateObject->setType(type);
 
     /* Set dummy index property */
     RootedValue index(cx, Int32Value(0));
@@ -859,7 +859,7 @@ js::CloneRegExpObject(JSContext *cx, JSObject *obj_)
     RegExpObjectBuilder builder(cx);
     Rooted<RegExpObject*> regex(cx, &obj_->as<RegExpObject>());
     JSObject *res = builder.clone(regex);
-    MOZ_ASSERT_IF(res, res->group() == regex->group());
+    MOZ_ASSERT_IF(res, res->type() == regex->type());
     return res;
 }
 

@@ -208,19 +208,6 @@ class TurnClient : public ::testing::Test {
     std::cerr << "Allocation succeeded with addr=" << relay_addr_ << std::endl;
   }
 
-  void Deallocate_s() {
-    ASSERT_TRUE(turn_ctx_);
-
-    int r = nr_turn_client_deallocate(turn_ctx_);
-    ASSERT_EQ(0, r);
-  }
-
-  void Deallocate() {
-    RUN_ON_THREAD(test_utils->sts_target(),
-                  WrapRunnable(this, &TurnClient::Deallocate_s),
-                  NS_DISPATCH_SYNC);
-  }
-
   void Readable(NR_SOCKET s, int how, void *arg) {
     // Re-arm
     std::cerr << "Socket is readable" << std::endl;
@@ -278,7 +265,7 @@ class TurnClient : public ::testing::Test {
     }
   }
 
-  void SendTo_s(const std::string& target, bool expect_success) {
+  void SendTo_s(const std::string& target) {
     nr_transport_addr addr;
     int r;
 
@@ -305,15 +292,12 @@ class TurnClient : public ::testing::Test {
     r = nr_turn_client_send_indication(turn_ctx_,
                                             test, sizeof(test), 0,
                                             &addr);
-    if (expect_success) {
-      ASSERT_EQ(0, r);
-    }
+    ASSERT_EQ(0, r);
   }
 
-  void SendTo(const std::string& target, bool expect_success=true) {
+  void SendTo(const std::string& target) {
     RUN_ON_THREAD(test_utils->sts_target(),
-                  WrapRunnable(this, &TurnClient::SendTo_s, target,
-                               expect_success),
+                  WrapRunnable(this, &TurnClient::SendTo_s, target),
                   NS_DISPATCH_SYNC);
   }
 
@@ -352,13 +336,14 @@ TEST_F(TurnClient, AllocateTcp) {
 TEST_F(TurnClient, AllocateAndHold) {
   Allocate();
   PR_Sleep(20000);
-  ASSERT_TRUE(turn_ctx_->state == NR_TURN_CLIENT_STATE_ALLOCATED);
 }
 
 TEST_F(TurnClient, SendToSelf) {
   Allocate();
   SendTo(relay_addr_);
-  ASSERT_TRUE_WAIT(received() == 100, 5000);
+  ASSERT_TRUE_WAIT(received() == 100, 1000);
+  PR_Sleep(10000); // Wait 10 seconds to make sure the
+                   // CreatePermission has time to complete/fail.
   SendTo(relay_addr_);
   ASSERT_TRUE_WAIT(received() == 200, 1000);
 }
@@ -368,36 +353,11 @@ TEST_F(TurnClient, SendToSelfTcp) {
   SetTcp();
   Allocate();
   SendTo(relay_addr_);
-  ASSERT_TRUE_WAIT(received() == 100, 5000);
+  ASSERT_TRUE_WAIT(received() == 100, 1000);
+  PR_Sleep(10000); // Wait 10 seconds to make sure the
+                   // CreatePermission has time to complete/fail.
   SendTo(relay_addr_);
   ASSERT_TRUE_WAIT(received() == 200, 1000);
-}
-
-TEST_F(TurnClient, DeallocateReceiveFailure) {
-  Allocate();
-  SendTo(relay_addr_);
-  ASSERT_TRUE_WAIT(received() == 100, 5000);
-  Deallocate();
-  turn_ctx_->state = NR_TURN_CLIENT_STATE_ALLOCATED;
-  SendTo(relay_addr_, true);
-  PR_Sleep(1000);
-  ASSERT_TRUE(received() == 100);
-}
-
-TEST_F(TurnClient, DeallocateReceiveFailureTcp) {
-  SetTcp();
-  Allocate();
-  SendTo(relay_addr_);
-  ASSERT_TRUE_WAIT(received() == 100, 5000);
-  Deallocate();
-  turn_ctx_->state = NR_TURN_CLIENT_STATE_ALLOCATED;
-  /* Either the connection got closed by the TURN server already, then the send
-   * is going to fail, which we simply ignore. Or the connection is still alive
-   * and we cand send the data, but it should not get forwarded to us. In either
-   * case we should not receive more data. */
-  SendTo(relay_addr_, false);
-  PR_Sleep(1000);
-  ASSERT_TRUE(received() == 100);
 }
 
 TEST_F(TurnClient, AllocateDummyServer) {

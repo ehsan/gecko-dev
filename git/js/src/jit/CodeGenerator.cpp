@@ -723,9 +723,9 @@ CodeGenerator::visitFunctionDispatch(LFunctionDispatch *lir)
     for (size_t i = 0; i < casesWithFallback - 1; i++) {
         MOZ_ASSERT(i < mir->numCases());
         LBlock *target = skipTrivialBlocks(mir->getCaseBlock(i))->lir();
-        if (types::ObjectGroup *funcGroup = mir->getCaseObjectGroup(i)) {
-            masm.branchPtr(Assembler::Equal, Address(input, JSObject::offsetOfGroup()),
-                           ImmGCPtr(funcGroup), target->label());
+        if (types::TypeObject *funcType = mir->getCaseTypeObject(i)) {
+            masm.branchPtr(Assembler::Equal, Address(input, JSObject::offsetOfType()),
+                           ImmGCPtr(funcType), target->label());
         } else {
             JSFunction *func = mir->getCase(i);
             masm.branchPtr(Assembler::Equal, input, ImmGCPtr(func), target->label());
@@ -737,17 +737,17 @@ CodeGenerator::visitFunctionDispatch(LFunctionDispatch *lir)
 }
 
 void
-CodeGenerator::visitObjectGroupDispatch(LObjectGroupDispatch *lir)
+CodeGenerator::visitTypeObjectDispatch(LTypeObjectDispatch *lir)
 {
-    MObjectGroupDispatch *mir = lir->mir();
+    MTypeObjectDispatch *mir = lir->mir();
     Register input = ToRegister(lir->input());
     Register temp = ToRegister(lir->temp());
 
-    // Hold the incoming ObjectGroup.
+    // Hold the incoming TypeObject.
 
-    masm.loadPtr(Address(input, JSObject::offsetOfGroup()), temp);
+    masm.loadPtr(Address(input, JSObject::offsetOfType()), temp);
 
-    // Compare ObjectGroups.
+    // Compare TypeObjects.
 
     MacroAssembler::BranchGCPtr lastBranch;
     LBlock *lastBlock = nullptr;
@@ -764,8 +764,8 @@ CodeGenerator::visitObjectGroupDispatch(LObjectGroupDispatch *lir)
             if (lastBranch.isInitialized())
                 lastBranch.emit(masm);
 
-            types::ObjectGroup *group = propTable->getObjectGroup(j);
-            lastBranch = MacroAssembler::BranchGCPtr(Assembler::Equal, temp, ImmGCPtr(group),
+            types::TypeObject *typeObj = propTable->getTypeObject(j);
+            lastBranch = MacroAssembler::BranchGCPtr(Assembler::Equal, temp, ImmGCPtr(typeObj),
                                                      target->label());
             lastBlock = target;
             found = true;
@@ -1704,7 +1704,7 @@ CodeGenerator::visitLambdaArrow(LLambdaArrow *lir)
                                    (ArgList(), ImmGCPtr(info.fun), scopeChain, thisv),
                                    StoreRegisterTo(output));
 
-    MOZ_ASSERT(!info.useSingletonForClone);
+    MOZ_ASSERT(!info.useNewTypeForClone);
 
     if (info.singletonType) {
         // If the function has a singleton type, this instruction will only be
@@ -2234,26 +2234,26 @@ CodeGenerator::emitGetPropertyPolymorphic(LInstruction *ins, Register obj, Regis
 {
     MGetPropertyPolymorphic *mir = ins->mirRaw()->toGetPropertyPolymorphic();
 
-    size_t total = mir->numUnboxedGroups() + mir->numShapes();
+    size_t total = mir->numUnboxedTypes() + mir->numShapes();
     MOZ_ASSERT(total > 1);
 
-    bool groupInScratch = mir->numUnboxedGroups() > 1;
+    bool typeInScratch = mir->numUnboxedTypes() > 1;
     bool shapeInScratch = mir->numShapes() > 1;
 
     Label done;
 
     for (size_t i = 0; i < total; i++) {
-        bool unboxedGroup = i < mir->numUnboxedGroups();
+        bool unboxedType = i < mir->numUnboxedTypes();
 
-        ImmGCPtr comparePtr = unboxedGroup
-                              ? ImmGCPtr(mir->unboxedGroup(i))
-                              : ImmGCPtr(mir->objShape(i - mir->numUnboxedGroups()));
-        Address addr(obj, unboxedGroup ? JSObject::offsetOfGroup() : JSObject::offsetOfShape());
+        ImmGCPtr comparePtr = unboxedType
+                              ? ImmGCPtr(mir->unboxedType(i))
+                              : ImmGCPtr(mir->objShape(i - mir->numUnboxedTypes()));
+        Address addr(obj, unboxedType ? JSObject::offsetOfType() : JSObject::offsetOfShape());
 
-        if ((i == 0 && groupInScratch) || (i == mir->numUnboxedGroups() && shapeInScratch))
+        if ((i == 0 && typeInScratch) || (i == mir->numUnboxedTypes() && shapeInScratch))
             masm.loadPtr(addr, scratch);
 
-        bool inScratch = unboxedGroup ? groupInScratch : shapeInScratch;
+        bool inScratch = unboxedType ? typeInScratch : shapeInScratch;
 
         Label next;
         if (i == total - 1) {
@@ -2268,14 +2268,14 @@ CodeGenerator::emitGetPropertyPolymorphic(LInstruction *ins, Register obj, Regis
                 masm.branchPtr(Assembler::NotEqual, addr, comparePtr, &next);
         }
 
-        if (unboxedGroup) {
+        if (unboxedType) {
             const UnboxedLayout::Property *property =
-                mir->unboxedGroup(i)->unboxedLayout().lookup(mir->name());
+                mir->unboxedType(i)->unboxedLayout().lookup(mir->name());
             Address propertyAddr(obj, UnboxedPlainObject::offsetOfData() + property->offset);
 
             masm.loadUnboxedProperty(propertyAddr, property->type, output);
         } else {
-            Shape *shape = mir->shape(i - mir->numUnboxedGroups());
+            Shape *shape = mir->shape(i - mir->numUnboxedTypes());
             if (shape->slot() < shape->numFixedSlots()) {
                 // Fixed slot.
                 masm.loadTypedOrValue(Address(obj, NativeObject::getFixedSlotOffset(shape->slot())),
@@ -2321,25 +2321,25 @@ CodeGenerator::emitSetPropertyPolymorphic(LInstruction *ins, Register obj, Regis
 {
     MSetPropertyPolymorphic *mir = ins->mirRaw()->toSetPropertyPolymorphic();
 
-    size_t total = mir->numUnboxedGroups() + mir->numShapes();
+    size_t total = mir->numUnboxedTypes() + mir->numShapes();
     MOZ_ASSERT(total > 1);
 
-    bool groupInScratch = mir->numUnboxedGroups() > 1;
+    bool typeInScratch = mir->numUnboxedTypes() > 1;
     bool shapeInScratch = mir->numShapes() > 1;
 
     Label done;
     for (size_t i = 0; i < total; i++) {
-        bool unboxedGroup = i < mir->numUnboxedGroups();
+        bool unboxedType = i < mir->numUnboxedTypes();
 
-        ImmGCPtr comparePtr = unboxedGroup
-                              ? ImmGCPtr(mir->unboxedGroup(i))
-                              : ImmGCPtr(mir->objShape(i - mir->numUnboxedGroups()));
-        Address addr(obj, unboxedGroup ? JSObject::offsetOfGroup() : JSObject::offsetOfShape());
+        ImmGCPtr comparePtr = unboxedType
+                              ? ImmGCPtr(mir->unboxedType(i))
+                              : ImmGCPtr(mir->objShape(i - mir->numUnboxedTypes()));
+        Address addr(obj, unboxedType ? JSObject::offsetOfType() : JSObject::offsetOfShape());
 
-        if ((i == 0 && groupInScratch) || (i == mir->numUnboxedGroups() && shapeInScratch))
+        if ((i == 0 && typeInScratch) || (i == mir->numUnboxedTypes() && shapeInScratch))
             masm.loadPtr(addr, scratch);
 
-        bool inScratch = unboxedGroup ? groupInScratch : shapeInScratch;
+        bool inScratch = unboxedType ? typeInScratch : shapeInScratch;
 
         Label next;
         if (i == total - 1) {
@@ -2354,9 +2354,9 @@ CodeGenerator::emitSetPropertyPolymorphic(LInstruction *ins, Register obj, Regis
                 masm.branchPtr(Assembler::NotEqual, addr, comparePtr, &next);
         }
 
-        if (unboxedGroup) {
+        if (unboxedType) {
             const UnboxedLayout::Property *property =
-                mir->unboxedGroup(i)->unboxedLayout().lookup(mir->name());
+                mir->unboxedType(i)->unboxedLayout().lookup(mir->name());
             Address propertyAddr(obj, UnboxedPlainObject::offsetOfData() + property->offset);
 
             if (property->type == JSVAL_TYPE_OBJECT)
@@ -2368,7 +2368,7 @@ CodeGenerator::emitSetPropertyPolymorphic(LInstruction *ins, Register obj, Regis
 
             masm.storeUnboxedProperty(propertyAddr, property->type, value, nullptr);
         } else {
-            Shape *shape = mir->shape(i - mir->numUnboxedGroups());
+            Shape *shape = mir->shape(i - mir->numUnboxedTypes());
             if (shape->slot() < shape->numFixedSlots()) {
                 // Fixed slot.
                 Address addr(obj, NativeObject::getFixedSlotOffset(shape->slot()));
@@ -3676,11 +3676,11 @@ CodeGenerator::emitObjectOrStringResultChecks(LInstruction *lir, MDefinition *mi
 
         masm.bind(&miss);
 
-        // Type set guards might miss when an object's group changes and its
+        // Type set guards might miss when an object's type changes and its
         // properties become unknown, so check for this case.
-        masm.loadPtr(Address(output, JSObject::offsetOfGroup()), temp);
+        masm.loadPtr(Address(output, JSObject::offsetOfType()), temp);
         masm.branchTestPtr(Assembler::NonZero,
-                           Address(temp, types::ObjectGroup::offsetOfFlags()),
+                           Address(temp, types::TypeObject::offsetOfFlags()),
                            Imm32(types::OBJECT_FLAG_UNKNOWN_PROPERTIES), &ok);
 
         masm.assumeUnreachable("MIR instruction returned object with unexpected type");
@@ -3753,14 +3753,14 @@ CodeGenerator::emitValueResultChecks(LInstruction *lir, MDefinition *mir)
 
         masm.bind(&miss);
 
-        // Type set guards might miss when an object's group changes and its
+        // Type set guards might miss when an object's type changes and its
         // properties become unknown, so check for this case.
         Label realMiss;
         masm.branchTestObject(Assembler::NotEqual, output, &realMiss);
         Register payload = masm.extractObject(output, temp1);
-        masm.loadPtr(Address(payload, JSObject::offsetOfGroup()), temp1);
+        masm.loadPtr(Address(payload, JSObject::offsetOfType()), temp1);
         masm.branchTestPtr(Assembler::NonZero,
-                           Address(temp1, types::ObjectGroup::offsetOfFlags()),
+                           Address(temp1, types::TypeObject::offsetOfFlags()),
                            Imm32(types::OBJECT_FLAG_UNKNOWN_PROPERTIES), &ok);
         masm.bind(&realMiss);
 
@@ -3934,7 +3934,7 @@ class OutOfLineNewArray : public OutOfLineCodeBase<CodeGenerator>
     }
 };
 
-typedef ArrayObject *(*NewDenseArrayFn)(ExclusiveContext *, uint32_t, HandleObjectGroup,
+typedef ArrayObject *(*NewDenseArrayFn)(ExclusiveContext *, uint32_t, HandleTypeObject,
                                         AllocatingBehaviour);
 static const VMFunction NewDenseArrayInfo = FunctionInfo<NewDenseArrayFn>(NewDenseArray);
 
@@ -3947,11 +3947,11 @@ CodeGenerator::visitNewArrayCallVM(LNewArray *lir)
     saveLive(lir);
 
     JSObject *templateObject = lir->mir()->templateObject();
-    types::ObjectGroup *group =
-        templateObject->isSingleton() ? nullptr : templateObject->group();
+    types::TypeObject *type =
+        templateObject->hasSingletonType() ? nullptr : templateObject->type();
 
     pushArg(Imm32(lir->mir()->allocatingBehaviour()));
-    pushArg(ImmGCPtr(group));
+    pushArg(ImmGCPtr(type));
     pushArg(Imm32(lir->mir()->count()));
 
     callVM(NewDenseArrayInfo, lir);
@@ -4067,7 +4067,7 @@ CodeGenerator::visitNewArrayCopyOnWrite(LNewArrayCopyOnWrite *lir)
     masm.bind(ool->rejoin());
 }
 
-typedef ArrayObject *(*ArrayConstructorOneArgFn)(JSContext *, HandleObjectGroup, int32_t length);
+typedef ArrayObject *(*ArrayConstructorOneArgFn)(JSContext *, HandleTypeObject, int32_t length);
 static const VMFunction ArrayConstructorOneArgInfo =
     FunctionInfo<ArrayConstructorOneArgFn>(ArrayConstructorOneArg);
 
@@ -4082,7 +4082,7 @@ CodeGenerator::visitNewArrayDynamicLength(LNewArrayDynamicLength *lir)
     gc::InitialHeap initialHeap = lir->mir()->initialHeap();
 
     OutOfLineCode *ool = oolCallVM(ArrayConstructorOneArgInfo, lir,
-                                   (ArgList(), ImmGCPtr(templateObject->group()), lengthReg),
+                                   (ArgList(), ImmGCPtr(templateObject->type()), lengthReg),
                                    StoreRegisterTo(objReg));
 
     size_t numSlots = gc::GetGCKindSlots(templateObject->asTenured().getAllocKind());
@@ -4095,7 +4095,7 @@ CodeGenerator::visitNewArrayDynamicLength(LNewArrayDynamicLength *lir)
     // use the template object and not allocate the elements, but it's more
     // efficient to do a single big allocation than (repeatedly) reallocating
     // the array later on when filling it.
-    if (!templateObject->isSingleton() && templateObject->length() <= inlineLength)
+    if (!templateObject->hasSingletonType() && templateObject->length() <= inlineLength)
         masm.branch32(Assembler::Above, lengthReg, Imm32(templateObject->length()), ool->entry());
     else
         masm.jump(ool->entry());
@@ -4333,12 +4333,12 @@ CodeGenerator::visitSimdUnbox(LSimdUnbox *lir)
     Register temp = ToRegister(lir->temp());
     Label bail;
 
-    // obj->group()
-    masm.loadPtr(Address(object, JSObject::offsetOfGroup()), temp);
+    // obj->type()
+    masm.loadPtr(Address(object, JSObject::offsetOfType()), temp);
 
     // Guard that the object has the same representation as the one produced for
     // SIMD value-type.
-    Address clasp(temp, types::ObjectGroup::offsetOfClasp());
+    Address clasp(temp, types::TypeObject::offsetOfClasp());
     static_assert(!SimdTypeDescr::Opaque, "SIMD objects are transparent");
     masm.branchPtr(Assembler::NotEqual, clasp, ImmPtr(&InlineTransparentTypedObject::class_),
                    &bail);
@@ -4346,7 +4346,7 @@ CodeGenerator::visitSimdUnbox(LSimdUnbox *lir)
     // obj->type()->typeDescr()
     // The previous class pointer comparison implies that the addendumKind is
     // Addendum_TypeDescr.
-    masm.loadPtr(Address(temp, types::ObjectGroup::offsetOfAddendum()), temp);
+    masm.loadPtr(Address(temp, types::TypeObject::offsetOfAddendum()), temp);
 
     // Check for the /Kind/ reserved slot of the TypeDescr.  This is an Int32
     // Value which is equivalent to the object class check.
@@ -4418,7 +4418,7 @@ CodeGenerator::visitNewDeclEnvObject(LNewDeclEnvObject *lir)
     masm.bind(ool->rejoin());
 }
 
-typedef JSObject *(*NewCallObjectFn)(JSContext *, HandleShape, HandleObjectGroup, uint32_t);
+typedef JSObject *(*NewCallObjectFn)(JSContext *, HandleShape, HandleTypeObject, uint32_t);
 static const VMFunction NewCallObjectInfo =
     FunctionInfo<NewCallObjectFn>(NewCallObject);
 
@@ -4434,7 +4434,7 @@ CodeGenerator::visitNewCallObject(LNewCallObject *lir)
     uint32_t lexicalBegin = script->bindings.aliasedBodyLevelLexicalBegin();
     OutOfLineCode *ool = oolCallVM(NewCallObjectInfo, lir,
                                    (ArgList(), ImmGCPtr(templateObj->lastProperty()),
-                                               ImmGCPtr(templateObj->group()),
+                                               ImmGCPtr(templateObj->type()),
                                                Imm32(lexicalBegin)),
                                    StoreRegisterTo(objReg));
 
@@ -4640,7 +4640,7 @@ CodeGenerator::visitCreateThisWithTemplate(LCreateThisWithTemplate *lir)
     JSObject *templateObject = lir->mir()->templateObject();
     gc::AllocKind allocKind = templateObject->asTenured().getAllocKind();
     gc::InitialHeap initialHeap = lir->mir()->initialHeap();
-    const js::Class *clasp = templateObject->getClass();
+    const js::Class *clasp = templateObject->type()->clasp();
     Register objReg = ToRegister(lir->output());
     Register tempReg = ToRegister(lir->temp());
 
@@ -4809,8 +4809,8 @@ CodeGenerator::visitTypedObjectDescr(LTypedObjectDescr *lir)
     Register obj = ToRegister(lir->object());
     Register out = ToRegister(lir->output());
 
-    masm.loadPtr(Address(obj, JSObject::offsetOfGroup()), out);
-    masm.loadPtr(Address(out, types::ObjectGroup::offsetOfAddendum()), out);
+    masm.loadPtr(Address(obj, JSObject::offsetOfType()), out);
+    masm.loadPtr(Address(out, types::TypeObject::offsetOfAddendum()), out);
 }
 
 void
@@ -6033,7 +6033,7 @@ CodeGenerator::visitFromCharCode(LFromCharCode *lir)
     masm.bind(ool->rejoin());
 }
 
-typedef JSObject *(*StringSplitFn)(JSContext *, HandleObjectGroup, HandleString, HandleString);
+typedef JSObject *(*StringSplitFn)(JSContext *, HandleTypeObject, HandleString, HandleString);
 static const VMFunction StringSplitInfo = FunctionInfo<StringSplitFn>(js::str_split_string);
 
 void
@@ -6041,7 +6041,7 @@ CodeGenerator::visitStringSplit(LStringSplit *lir)
 {
     pushArg(ToRegister(lir->separator()));
     pushArg(ToRegister(lir->string()));
-    pushArg(ImmGCPtr(lir->mir()->group()));
+    pushArg(ImmGCPtr(lir->mir()->typeObject()));
 
     callVM(StringSplitInfo, lir);
 }

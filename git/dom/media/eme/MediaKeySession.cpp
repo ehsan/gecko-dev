@@ -36,8 +36,7 @@ NS_IMPL_RELEASE_INHERITED(MediaKeySession, DOMEventTargetHelper)
 // unique token.
 static uint32_t sMediaKeySessionNum = 0;
 
-MediaKeySession::MediaKeySession(JSContext* aCx,
-                                 nsPIDOMWindow* aParent,
+MediaKeySession::MediaKeySession(nsPIDOMWindow* aParent,
                                  MediaKeys* aKeys,
                                  const nsAString& aKeySystem,
                                  SessionType aSessionType,
@@ -49,12 +48,9 @@ MediaKeySession::MediaKeySession(JSContext* aCx,
   , mToken(sMediaKeySessionNum++)
   , mIsClosed(false)
   , mUninitialized(true)
-  , mKeyStatusMap(new MediaKeyStatusMap(aCx, aParent, aRv))
+  , mKeyStatusMap(new MediaKeyStatusMap(aParent))
 {
   MOZ_ASSERT(aParent);
-  if (aRv.Failed()) {
-    return;
-  }
   mClosed = mKeys->MakePromise(aRv);
 }
 

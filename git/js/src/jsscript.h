@@ -1955,7 +1955,6 @@ class LazyScript : public gc::TenuredCell
     ScriptSource *scriptSource() const {
         return sourceObject()->source();
     }
-    ScriptSource *maybeForwardedScriptSource() const;
     bool mutedErrors() const {
         return scriptSource()->mutedErrors();
     }
@@ -2053,8 +2052,8 @@ class LazyScript : public gc::TenuredCell
         p_.treatAsRunOnce = true;
     }
 
-    const char *filename() const {
-        return scriptSource()->filename();
+    ScriptSource *source() const {
+        return sourceObject()->source();
     }
     uint32_t begin() const {
         return begin_;

@@ -4295,7 +4295,7 @@ ParseNode::getConstantValue(ExclusiveContext *cx, AllowConstantObjects allowObje
         }
         MOZ_ASSERT(idx == count);
 
-        types::FixArrayGroup(cx, obj);
+        types::FixArrayType(cx, obj);
         vp.setObject(*obj);
         return true;
       }
@@ -4358,7 +4358,7 @@ ParseNode::getConstantValue(ExclusiveContext *cx, AllowConstantObjects allowObje
             }
         }
 
-        types::FixObjectGroup(cx, obj);
+        types::FixObjectType(cx, obj);
         vp.setObject(*obj);
         return true;
       }
@@ -4376,7 +4376,7 @@ EmitSingletonInitialiser(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *
         return false;
 
     RootedNativeObject obj(cx, &value.toObject().as<NativeObject>());
-    if (!obj->is<ArrayObject>() && !JSObject::setSingleton(cx, obj))
+    if (!obj->is<ArrayObject>() && !JSObject::setSingletonType(cx, obj))
         return false;
 
     ObjectBox *objbox = bce->parser->newObjectBox(obj);

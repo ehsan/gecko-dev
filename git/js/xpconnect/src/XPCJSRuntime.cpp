@@ -1928,13 +1928,13 @@ ReportZoneStats(const JS::ZoneStats &zStats,
         zStats.jitCodesGCHeap,
         "References to executable code pools used by the JITs.");
 
-    ZCREPORT_GC_BYTES(pathPrefix + NS_LITERAL_CSTRING("object-groups/gc-heap"),
-        zStats.objectGroupsGCHeap,
-        "Classification and type inference information about objects.");
+    ZCREPORT_GC_BYTES(pathPrefix + NS_LITERAL_CSTRING("type-objects/gc-heap"),
+        zStats.typeObjectsGCHeap,
+        "Type inference information about objects.");
 
-    ZCREPORT_BYTES(pathPrefix + NS_LITERAL_CSTRING("object-groups/malloc-heap"),
-        zStats.objectGroupsMallocHeap,
-        "Object group addenda.");
+    ZCREPORT_BYTES(pathPrefix + NS_LITERAL_CSTRING("type-objects/malloc-heap"),
+        zStats.typeObjectsMallocHeap,
+        "Type object addenda.");
 
     ZCREPORT_BYTES(pathPrefix + NS_LITERAL_CSTRING("type-pool"),
         zStats.typePool,
@@ -2989,6 +2989,14 @@ JSSizeOfTab(JSObject *objArg, size_t *jsObjectsSize, size_t *jsStringsSize,
 
 } // namespace xpc
 
+#ifdef MOZ_CRASHREPORTER
+static bool
+DiagnosticMemoryCallback(void *ptr, size_t size)
+{
+    return CrashReporter::RegisterAppMemory(ptr, size) == NS_OK;
+}
+#endif
+
 static void
 AccumulateTelemetryCallback(int id, uint32_t sample, const char *key)
 {
@@ -3316,6 +3324,9 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     JS_AddWeakPointerCallback(runtime, WeakPointerCallback, this);
     JS_SetWrapObjectCallbacks(runtime, &WrapObjectCallbacks);
     js::SetPreserveWrapperCallback(runtime, PreserveWrapper);
+#ifdef MOZ_CRASHREPORTER
+    JS_EnumerateDiagnosticMemoryRegions(DiagnosticMemoryCallback);
+#endif
 #ifdef MOZ_ENABLE_PROFILER_SPS
     if (PseudoStack *stack = mozilla_get_pseudo_stack())
         stack->sampleRuntime(runtime);

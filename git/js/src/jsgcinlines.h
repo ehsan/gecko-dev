@@ -614,10 +614,10 @@ NewJitCode(js::ExclusiveContext *cx)
 }
 
 inline
-types::ObjectGroup *
-NewObjectGroup(js::ExclusiveContext *cx)
+types::TypeObject *
+NewTypeObject(js::ExclusiveContext *cx)
 {
-    return gc::AllocateNonObject<types::ObjectGroup, js::CanGC>(cx);
+    return gc::AllocateNonObject<types::TypeObject, js::CanGC>(cx);
 }
 
 template <js::AllowGC allowGC>

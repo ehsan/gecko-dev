@@ -103,7 +103,7 @@
     _(TestVAndBranch)               \
     _(TestOAndBranch)               \
     _(FunctionDispatch)             \
-    _(ObjectGroupDispatch)          \
+    _(TypeObjectDispatch)           \
     _(Compare)                      \
     _(CompareAndBranch)             \
     _(CompareD)                     \
@@ -201,7 +201,7 @@
     _(StoreSlotT)                   \
     _(GuardShape)                   \
     _(GuardShapePolymorphic)        \
-    _(GuardObjectGroup)             \
+    _(GuardObjectType)              \
     _(GuardObjectIdentity)          \
     _(GuardClass)                   \
     _(TypeBarrierV)                 \

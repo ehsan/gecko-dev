@@ -345,8 +345,7 @@ DecodePool::NotifyProgress(Decoder* aDecoder)
 {
   MOZ_ASSERT(aDecoder);
 
-  if (!NS_IsMainThread() ||
-      (aDecoder->GetFlags() & imgIContainer::FLAG_ASYNC_NOTIFY)) {
+  if (!NS_IsMainThread()) {
     NotifyProgressWorker::Dispatch(aDecoder->GetImage(),
                                    aDecoder->TakeProgress(),
                                    aDecoder->TakeInvalidRect(),
@@ -364,8 +363,7 @@ DecodePool::NotifyDecodeComplete(Decoder* aDecoder)
 {
   MOZ_ASSERT(aDecoder);
 
-  if (!NS_IsMainThread() ||
-      (aDecoder->GetFlags() & imgIContainer::FLAG_ASYNC_NOTIFY)) {
+  if (!NS_IsMainThread()) {
     NotifyDecodeCompleteWorker::Dispatch(aDecoder);
     return;
   }

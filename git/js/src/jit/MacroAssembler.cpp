@@ -55,14 +55,14 @@ class TypeWrapper {
             return 0;
         return 1;
     }
-    inline JSObject *getSingletonNoBarrier(unsigned) const {
-        if (t_.isSingleton())
-            return t_.singletonNoBarrier();
+    inline JSObject *getSingleObjectNoBarrier(unsigned) const {
+        if (t_.isSingleObject())
+            return t_.singleObjectNoBarrier();
         return nullptr;
     }
-    inline types::ObjectGroup *getGroupNoBarrier(unsigned) const {
-        if (t_.isGroup())
-            return t_.groupNoBarrier();
+    inline types::TypeObject *getTypeObjectNoBarrier(unsigned) const {
+        if (t_.isTypeObject())
+            return t_.typeObjectNoBarrier();
         return nullptr;
     }
 };
@@ -144,9 +144,9 @@ MacroAssembler::guardTypeSet(const Source &address, const TypeSet *types, Barrie
         // properties become unknown, so check for this case.
         if (obj == scratch)
             extractObject(address, scratch);
-        loadPtr(Address(obj, JSObject::offsetOfGroup()), scratch);
+        loadPtr(Address(obj, JSObject::offsetOfType()), scratch);
         branchTestPtr(Assembler::NonZero,
-                      Address(scratch, types::ObjectGroup::offsetOfFlags()),
+                      Address(scratch, types::TypeObject::offsetOfFlags()),
                       Imm32(types::OBJECT_FLAG_UNKNOWN_PROPERTIES), &matched);
 
         assumeUnreachable("Unexpected object type");
@@ -175,22 +175,22 @@ MacroAssembler::guardObjectType(Register obj, const TypeSet *types,
 
     BranchGCPtr lastBranch;
     MOZ_ASSERT(!lastBranch.isInitialized());
-    bool hasObjectGroups = false;
+    bool hasTypeObjects = false;
     unsigned count = types->getObjectCount();
     for (unsigned i = 0; i < count; i++) {
-        if (!types->getSingletonNoBarrier(i)) {
-            hasObjectGroups = hasObjectGroups || types->getGroupNoBarrier(i);
+        if (!types->getSingleObjectNoBarrier(i)) {
+            hasTypeObjects = hasTypeObjects || types->getTypeObjectNoBarrier(i);
             continue;
         }
 
         if (lastBranch.isInitialized())
             lastBranch.emit(*this);
 
-        JSObject *object = types->getSingletonNoBarrier(i);
+        JSObject *object = types->getSingleObjectNoBarrier(i);
         lastBranch = BranchGCPtr(Equal, obj, ImmGCPtr(object), &matched);
     }
 
-    if (hasObjectGroups) {
+    if (hasTypeObjects) {
         // We are possibly going to overwrite the obj register. So already
         // emit the branch, since branch depends on previous value of obj
         // register and there is definitely a branch following. So no need
@@ -201,17 +201,17 @@ MacroAssembler::guardObjectType(Register obj, const TypeSet *types,
 
         // Note: Some platforms give the same register for obj and scratch.
         // Make sure when writing to scratch, the obj register isn't used anymore!
-        loadPtr(Address(obj, JSObject::offsetOfGroup()), scratch);
+        loadPtr(Address(obj, JSObject::offsetOfType()), scratch);
 
         for (unsigned i = 0; i < count; i++) {
-            if (!types->getGroupNoBarrier(i))
+            if (!types->getTypeObjectNoBarrier(i))
                 continue;
 
             if (lastBranch.isInitialized())
                 lastBranch.emit(*this);
 
-            types::ObjectGroup *group = types->getGroupNoBarrier(i);
-            lastBranch = BranchGCPtr(Equal, scratch, ImmGCPtr(group), &matched);
+            types::TypeObject *object = types->getTypeObjectNoBarrier(i);
+            lastBranch = BranchGCPtr(Equal, scratch, ImmGCPtr(object), &matched);
         }
     }
 
@@ -1192,7 +1192,7 @@ MacroAssembler::initGCThing(Register obj, Register slots, JSObject *templateObj,
     // Fast initialization of an empty object returned by allocateObject().
 
     storePtr(ImmGCPtr(templateObj->lastProperty()), Address(obj, JSObject::offsetOfShape()));
-    storePtr(ImmGCPtr(templateObj->group()), Address(obj, JSObject::offsetOfGroup()));
+    storePtr(ImmGCPtr(templateObj->type()), Address(obj, JSObject::offsetOfType()));
 
     if (templateObj->isNative()) {
         NativeObject *ntemplate = &templateObj->as<NativeObject>();

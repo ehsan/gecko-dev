@@ -207,7 +207,7 @@ class AbstractFramePtr
     inline bool hasArgsObj() const;
     inline ArgumentsObject &argsObj() const;
     inline void initArgsObj(ArgumentsObject &argsobj) const;
-    inline bool createSingleton() const;
+    inline bool useNewType() const;
 
     inline bool copyRawFrameSlots(AutoValueVector *vec) const;
 
@@ -318,7 +318,7 @@ class InterpreterFrame
         RUNNING_IN_JIT     =    0x20000,
 
         /* Miscellaneous state. */
-        CREATE_SINGLETON   =    0x40000   /* Constructed |this| object should be singleton. */
+        USE_NEW_TYPE       =    0x40000   /* Use new type for constructed |this| object. */
     };
 
   private:
@@ -814,13 +814,13 @@ class InterpreterFrame
         return flags_ & HAS_ARGS_OBJ;
     }
 
-    void setCreateSingleton() {
+    void setUseNewType() {
         MOZ_ASSERT(isConstructing());
-        flags_ |= CREATE_SINGLETON;
+        flags_ |= USE_NEW_TYPE;
     }
-    bool createSingleton() const {
+    bool useNewType() const {
         MOZ_ASSERT(isConstructing());
-        return flags_ & CREATE_SINGLETON;
+        return flags_ & USE_NEW_TYPE;
     }
 
     bool isDebuggerEvalFrame() const {

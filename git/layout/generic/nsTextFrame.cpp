@@ -5543,8 +5543,7 @@ nsTextFrame::PaintOneShadow(uint32_t aOffset, uint32_t aLength,
                             const gfxPoint& aFramePt, const gfxPoint& aTextBaselinePt,
                             gfxContext* aCtx, const nscolor& aForegroundColor,
                             const nsCharClipDisplayItem::ClipEdges& aClipEdges,
-                            nscoord aLeftSideOffset, gfxRect& aBoundingBox,
-                            uint32_t aBlurFlags)
+                            nscoord aLeftSideOffset, gfxRect& aBoundingBox)
 {
   PROFILER_LABEL("nsTextFrame", "PaintOneShadow",
     js::ProfileEntry::Category::GRAPHICS);
@@ -5565,8 +5564,7 @@ nsTextFrame::PaintOneShadow(uint32_t aOffset, uint32_t aLength,
   nsContextBoxBlur contextBoxBlur;
   gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, 0, blurRadius,
                                                   PresContext()->AppUnitsPerDevPixel(),
-                                                  aCtx, aDirtyRect, nullptr,
-                                                  aBlurFlags);
+                                                  aCtx, aDirtyRect, nullptr);
   if (!shadowContext)
     return;
 
@@ -6078,28 +6076,13 @@ nsTextFrame::PaintShadows(nsCSSShadowArray* aShadow,
       shadowMetrics.mAdvanceWidth, shadowMetrics.mAscent + shadowMetrics.mDescent);
   shadowMetrics.mBoundingBox.UnionRect(shadowMetrics.mBoundingBox,
                                        decorationRect);
-
-  // If the textrun uses any color or SVG fonts, we need to force use of a mask
-  // for shadow rendering even if blur radius is zero.
-  uint32_t blurFlags = 0;
-  uint32_t numGlyphRuns;
-  const gfxTextRun::GlyphRun* run = mTextRun->GetGlyphRuns(&numGlyphRuns);
-  while (numGlyphRuns-- > 0) {
-    if (run->mFont->AlwaysNeedsMaskForShadow()) {
-      blurFlags = nsContextBoxBlur::FORCE_MASK;
-      break;
-    }
-    run++;
-  }
-
   for (uint32_t i = aShadow->Length(); i > 0; --i) {
     PaintOneShadow(aOffset, aLength,
                    aShadow->ShadowAt(i - 1), &aProvider,
                    aDirtyRect, aFramePt, aTextBaselinePt, aCtx,
                    aForegroundColor, aClipEdges,
                    aLeftEdgeOffset,
-                   shadowMetrics.mBoundingBox,
-                   blurFlags);
+                   shadowMetrics.mBoundingBox);
   }
 }
 

@@ -50,11 +50,11 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_, js::gc::Initi
 
     JSObject *templateObj = reinterpret_cast<JSObject *>(&entry->templateObject);
 
-    // Do an end run around JSObject::group() to avoid doing AutoUnprotectCell
+    // Do an end run around JSObject::type() to avoid doing AutoUnprotectCell
     // on the templateObj, which is not a GC thing and can't use runtimeFromAnyThread.
-    types::ObjectGroup *group = templateObj->group_;
+    types::TypeObject *type = templateObj->type_;
 
-    if (group->shouldPreTenure())
+    if (type->shouldPreTenure())
         heap = gc::TenuredHeap;
 
     if (cx->runtime()->gc.upcomingZealousGC())
@@ -64,13 +64,13 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_, js::gc::Initi
     // so that we trigger the right kind of GC automatically.
     if (allowGC) {
         mozilla::DebugOnly<JSObject *> obj =
-            js::gc::AllocateObjectForCacheHit<allowGC>(cx, entry->kind, heap, group->clasp());
+            js::gc::AllocateObjectForCacheHit<allowGC>(cx, entry->kind, heap, type->clasp());
         MOZ_ASSERT(!obj);
         return nullptr;
     }
 
     MOZ_ASSERT(allowGC == NoGC);
-    JSObject *obj = js::gc::AllocateObjectForCacheHit<NoGC>(cx, entry->kind, heap, group->clasp());
+    JSObject *obj = js::gc::AllocateObjectForCacheHit<NoGC>(cx, entry->kind, heap, type->clasp());
     if (obj) {
         copyCachedToObject(obj, templateObj, entry->kind);
         probes::CreateObject(cx, obj);

@@ -122,7 +122,7 @@ JS_SplicePrototype(JSContext *cx, HandleObject obj, HandleObject proto)
      */
     CHECK_REQUEST(cx);
 
-    if (!obj->isSingleton()) {
+    if (!obj->hasSingletonType()) {
         /*
          * We can see non-singleton objects when trying to splice prototypes
          * due to mutable __proto__ (ugh).
@@ -140,9 +140,9 @@ JS_NewObjectWithUniqueType(JSContext *cx, const JSClass *clasp, HandleObject pro
 {
     /*
      * Create our object with a null proto and then splice in the correct proto
-     * after we setSingleton, so that we don't pollute the default
-     * ObjectGroup attached to our proto with information about our object, since
-     * we're not going to be using that ObjectGroup anyway.
+     * after we setSingletonType, so that we don't pollute the default
+     * TypeObject attached to our proto with information about our object, since
+     * we're not going to be using that TypeObject anyway.
      */
     RootedObject obj(cx, NewObjectWithGivenProto(cx, (const js::Class *)clasp, nullptr,
                                                  parent, SingletonObject));
@@ -477,7 +477,7 @@ js::GetObjectProto(JSContext *cx, JS::Handle<JSObject*> obj, JS::MutableHandle<J
     if (IsProxy(obj))
         return JS_GetPrototype(cx, obj, proto);
 
-    proto.set(reinterpret_cast<const shadow::Object*>(obj.get())->group->proto);
+    proto.set(reinterpret_cast<const shadow::Object*>(obj.get())->type->proto);
     return true;
 }
 
@@ -707,7 +707,7 @@ FormatFrame(JSContext *cx, const ScriptFrameIter &iter, char *buf, int num,
     RootedFunction fun(cx, iter.maybeCallee(cx));
     RootedString funname(cx);
     if (fun)
-        funname = fun->displayAtom();
+        funname = fun->atom();
 
     RootedValue thisVal(cx);
     if (iter.hasUsableAbstractFramePtr() && iter.computeThis(cx)) {

@@ -545,10 +545,10 @@ JSCompartment::sweepInnerViews()
 }
 
 void
-JSCompartment::sweepObjectGroupTables()
+JSCompartment::sweepTypeObjectTables()
 {
-    sweepNewObjectGroupTable(newObjectGroups);
-    sweepNewObjectGroupTable(lazyObjectGroups);
+    sweepNewTypeObjectTable(newTypeObjects);
+    sweepNewTypeObjectTable(lazyTypeObjects);
 }
 
 void
@@ -652,8 +652,8 @@ JSCompartment::sweepCrossCompartmentWrappers()
 void JSCompartment::fixupAfterMovingGC()
 {
     fixupGlobal();
-    fixupNewObjectGroupTable(newObjectGroups);
-    fixupNewObjectGroupTable(lazyObjectGroups);
+    fixupNewTypeObjectTable(newTypeObjects);
+    fixupNewTypeObjectTable(lazyTypeObjects);
     fixupInitialShapeTable();
     fixupBaseShapeTable();
 }
@@ -693,10 +693,10 @@ JSCompartment::clearTables()
         baseShapes.clear();
     if (initialShapes.initialized())
         initialShapes.clear();
-    if (newObjectGroups.initialized())
-        newObjectGroups.clear();
-    if (lazyObjectGroups.initialized())
-        lazyObjectGroups.clear();
+    if (newTypeObjects.initialized())
+        newTypeObjects.clear();
+    if (lazyTypeObjects.initialized())
+        lazyTypeObjects.clear();
     if (savedStacks_.initialized())
         savedStacks_.clear();
 }
@@ -820,8 +820,8 @@ JSCompartment::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
                                  tiArrayTypeTables, tiObjectTypeTables);
     *compartmentTables += baseShapes.sizeOfExcludingThis(mallocSizeOf)
                         + initialShapes.sizeOfExcludingThis(mallocSizeOf)
-                        + newObjectGroups.sizeOfExcludingThis(mallocSizeOf)
-                        + lazyObjectGroups.sizeOfExcludingThis(mallocSizeOf);
+                        + newTypeObjects.sizeOfExcludingThis(mallocSizeOf)
+                        + lazyTypeObjects.sizeOfExcludingThis(mallocSizeOf);
     *innerViewsArg += innerViews.sizeOfExcludingThis(mallocSizeOf);
     if (lazyArrayBuffers)
         *lazyArrayBuffersArg += lazyArrayBuffers->sizeOfIncludingThis(mallocSizeOf);

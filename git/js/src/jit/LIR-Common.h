@@ -2098,15 +2098,15 @@ class LFunctionDispatch : public LInstructionHelper<0, 1, 0>
     }
 };
 
-class LObjectGroupDispatch : public LInstructionHelper<0, 1, 1>
+class LTypeObjectDispatch : public LInstructionHelper<0, 1, 1>
 {
-    // Dispatch is performed based on an ObjectGroup -> block
+    // Dispatch is performed based on a TypeObject -> block
     // map inferred by the MIR.
 
   public:
-    LIR_HEADER(ObjectGroupDispatch);
+    LIR_HEADER(TypeObjectDispatch);
 
-    LObjectGroupDispatch(const LAllocation &in, const LDefinition &temp) {
+    LTypeObjectDispatch(const LAllocation &in, const LDefinition &temp) {
         setOperand(0, in);
         setTemp(0, temp);
     }
@@ -2115,8 +2115,8 @@ class LObjectGroupDispatch : public LInstructionHelper<0, 1, 1>
         return getTemp(0);
     }
 
-    MObjectGroupDispatch *mir() {
-        return mir_->toObjectGroupDispatch();
+    MTypeObjectDispatch *mir() {
+        return mir_->toTypeObjectDispatch();
     }
 };
 

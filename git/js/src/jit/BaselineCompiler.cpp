@@ -1721,21 +1721,21 @@ BaselineCompiler::emit_JSOP_NEWARRAY()
     frame.syncStack(0);
 
     uint32_t length = GET_UINT24(pc);
-    RootedObjectGroup group(cx);
-    if (!types::UseSingletonForInitializer(script, pc, JSProto_Array)) {
-        group = types::TypeScript::InitGroup(cx, script, pc, JSProto_Array);
-        if (!group)
+    RootedTypeObject type(cx);
+    if (!types::UseNewTypeForInitializer(script, pc, JSProto_Array)) {
+        type = types::TypeScript::InitObject(cx, script, pc, JSProto_Array);
+        if (!type)
             return false;
     }
 
-    // Pass length in R0, group in R1.
+    // Pass length in R0, type in R1.
     masm.move32(Imm32(length), R0.scratchReg());
-    masm.movePtr(ImmGCPtr(group), R1.scratchReg());
+    masm.movePtr(ImmGCPtr(type), R1.scratchReg());
 
     ArrayObject *templateObject = NewDenseUnallocatedArray(cx, length, nullptr, TenuredObject);
     if (!templateObject)
         return false;
-    templateObject->setGroup(group);
+    templateObject->setType(type);
 
     ICNewArray_Fallback::Compiler stubCompiler(cx, templateObject);
     if (!emitOpIC(stubCompiler.getStub(&stubSpace_)))
@@ -1796,10 +1796,10 @@ BaselineCompiler::emit_JSOP_NEWOBJECT()
 {
     frame.syncStack(0);
 
-    RootedObjectGroup group(cx);
-    if (!types::UseSingletonForInitializer(script, pc, JSProto_Object)) {
-        group = types::TypeScript::InitGroup(cx, script, pc, JSProto_Object);
-        if (!group)
+    RootedTypeObject type(cx);
+    if (!types::UseNewTypeForInitializer(script, pc, JSProto_Object)) {
+        type = types::TypeScript::InitObject(cx, script, pc, JSProto_Object);
+        if (!type)
             return false;
     }
 
@@ -1808,21 +1808,21 @@ BaselineCompiler::emit_JSOP_NEWOBJECT()
     if (!templateObject)
         return false;
 
-    if (group) {
-        templateObject->setGroup(group);
+    if (type) {
+        templateObject->setType(type);
     } else {
-        if (!JSObject::setSingleton(cx, templateObject))
+        if (!JSObject::setSingletonType(cx, templateObject))
             return false;
     }
 
     // Try to do the allocation inline.
     Label done;
-    if (group && !group->shouldPreTenure() && !templateObject->hasDynamicSlots()) {
+    if (type && !type->shouldPreTenure() && !templateObject->hasDynamicSlots()) {
         Label slowPath;
         Register objReg = R0.scratchReg();
         Register tempReg = R1.scratchReg();
-        masm.movePtr(ImmGCPtr(group), tempReg);
-        masm.branchTest32(Assembler::NonZero, Address(tempReg, types::ObjectGroup::offsetOfFlags()),
+        masm.movePtr(ImmGCPtr(type), tempReg);
+        masm.branchTest32(Assembler::NonZero, Address(tempReg, types::TypeObject::offsetOfFlags()),
                           Imm32(types::OBJECT_FLAG_PRE_TENURE), &slowPath);
         masm.branchPtr(Assembler::NotEqual, AbsoluteAddress(cx->compartment()->addressOfMetadataCallback()),
                       ImmWord(0), &slowPath);
@@ -1847,22 +1847,22 @@ BaselineCompiler::emit_JSOP_NEWINIT()
     frame.syncStack(0);
     JSProtoKey key = JSProtoKey(GET_UINT8(pc));
 
-    RootedObjectGroup group(cx);
-    if (!types::UseSingletonForInitializer(script, pc, key)) {
-        group = types::TypeScript::InitGroup(cx, script, pc, key);
-        if (!group)
+    RootedTypeObject type(cx);
+    if (!types::UseNewTypeForInitializer(script, pc, key)) {
+        type = types::TypeScript::InitObject(cx, script, pc, key);
+        if (!type)
             return false;
     }
 
     if (key == JSProto_Array) {
-        // Pass length in R0, group in R1.
+        // Pass length in R0, type in R1.
         masm.move32(Imm32(0), R0.scratchReg());
-        masm.movePtr(ImmGCPtr(group), R1.scratchReg());
+        masm.movePtr(ImmGCPtr(type), R1.scratchReg());
 
         ArrayObject *templateObject = NewDenseUnallocatedArray(cx, 0, nullptr, TenuredObject);
         if (!templateObject)
             return false;
-        templateObject->setGroup(group);
+        templateObject->setType(type);
 
         ICNewArray_Fallback::Compiler stubCompiler(cx, templateObject);
         if (!emitOpIC(stubCompiler.getStub(&stubSpace_)))
@@ -1875,10 +1875,10 @@ BaselineCompiler::emit_JSOP_NEWINIT()
         if (!templateObject)
             return false;
 
-        if (group) {
-            templateObject->setGroup(group);
+        if (type) {
+            templateObject->setType(type);
         } else {
-            if (!JSObject::setSingleton(cx, templateObject))
+            if (!JSObject::setSingletonType(cx, templateObject))
                 return false;
         }
 

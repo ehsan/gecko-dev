@@ -1757,6 +1757,16 @@ extern JS_PUBLIC_API(void)
 JS_SetCTypesCallbacks(JSObject *ctypesObj, const JSCTypesCallbacks *callbacks);
 #endif
 
+typedef bool
+(* JSEnumerateDiagnosticMemoryCallback)(void *ptr, size_t length);
+
+/*
+ * Enumerate memory regions that contain diagnostic information
+ * intended to be included in crash report minidumps.
+ */
+extern JS_PUBLIC_API(void)
+JS_EnumerateDiagnosticMemoryRegions(JSEnumerateDiagnosticMemoryCallback callback);
+
 extern JS_PUBLIC_API(void *)
 JS_malloc(JSContext *cx, size_t nbytes);
 
@@ -1947,10 +1957,7 @@ typedef enum JSGCParamKey {
     JSGC_MIN_EMPTY_CHUNK_COUNT = 21,
 
     /* We never keep more than this many unused chunks in the free chunk pool. */
-    JSGC_MAX_EMPTY_CHUNK_COUNT = 22,
-
-    /* Whether compacting GC is enabled. */
-    JSGC_COMPACTING_ENABLED = 23
+    JSGC_MAX_EMPTY_CHUNK_COUNT = 22
 } JSGCParamKey;
 
 extern JS_PUBLIC_API(void)

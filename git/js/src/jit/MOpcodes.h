@@ -39,7 +39,7 @@ namespace jit {
     _(Goto)                                                                 \
     _(Test)                                                                 \
     _(GotoWithFake)                                                         \
-    _(ObjectGroupDispatch)                                                  \
+    _(TypeObjectDispatch)                                                   \
     _(FunctionDispatch)                                                     \
     _(Compare)                                                              \
     _(Phi)                                                                  \
@@ -160,7 +160,7 @@ namespace jit {
     _(BindNameCache)                                                        \
     _(GuardShape)                                                           \
     _(GuardShapePolymorphic)                                                \
-    _(GuardObjectGroup)                                                     \
+    _(GuardObjectType)                                                      \
     _(GuardObjectIdentity)                                                  \
     _(GuardClass)                                                           \
     _(ArrayLength)                                                          \

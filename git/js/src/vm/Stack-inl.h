@@ -535,10 +535,10 @@ AbstractFramePtr::hasCallObj() const
 }
 
 inline bool
-AbstractFramePtr::createSingleton() const
+AbstractFramePtr::useNewType() const
 {
     if (isInterpreterFrame())
-        return asInterpreterFrame()->createSingleton();
+        return asInterpreterFrame()->useNewType();
     return false;
 }
 

@@ -1654,13 +1654,13 @@ CodeGeneratorARM::visitGuardShape(LGuardShape *guard)
 }
 
 void
-CodeGeneratorARM::visitGuardObjectGroup(LGuardObjectGroup *guard)
+CodeGeneratorARM::visitGuardObjectType(LGuardObjectType *guard)
 {
     Register obj = ToRegister(guard->input());
     Register tmp = ToRegister(guard->tempInt());
 
-    masm.ma_ldr(DTRAddr(obj, DtrOffImm(JSObject::offsetOfGroup())), tmp);
-    masm.ma_cmp(tmp, ImmGCPtr(guard->mir()->group()));
+    masm.ma_ldr(DTRAddr(obj, DtrOffImm(JSObject::offsetOfType())), tmp);
+    masm.ma_cmp(tmp, ImmGCPtr(guard->mir()->typeObject()));
 
     Assembler::Condition cond =
         guard->mir()->bailOnEquality() ? Assembler::Equal : Assembler::NotEqual;

@@ -14,6 +14,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include "jscrashreport.h"
 #include "jsprf.h"
 #include "jsutil.h"
 #include "prmjtime.h"
@@ -579,8 +580,6 @@ Join(const FragmentVector &fragments) {
 UniqueChars
 Statistics::formatDescription()
 {
-    const double bytesPerMiB = 1024 * 1024;
-
     int64_t sccTotal, sccLongest;
     sccDurations(&sccTotal, &sccLongest);
 
@@ -600,7 +599,6 @@ Statistics::formatDescription()
   SCC Sweep Total (MaxPause): %.3fms (%.3fms)\n\
   HeapSize: %.3f MiB\n\
   Chunk Delta (magnitude): %+d  (%d)\n\
-  Arenas Relocated: %.3f MiB\n\
 ";
     char buffer[1024];
     memset(buffer, 0, sizeof(buffer));
@@ -615,10 +613,9 @@ Statistics::formatDescription()
                 counts[STAT_STOREBUFFER_OVERFLOW],
                 mmu20 * 100., mmu50 * 100.,
                 t(sccTotal), t(sccLongest),
-                double(preBytes) / bytesPerMiB,
+                double(preBytes) / 1024. / 1024.,
                 counts[STAT_NEW_CHUNK] - counts[STAT_DESTROY_CHUNK], counts[STAT_NEW_CHUNK] +
-                                                                     counts[STAT_DESTROY_CHUNK],
-                double(ArenaSize * counts[STAT_ARENA_RELOCATED]) / bytesPerMiB);
+                                                                  counts[STAT_DESTROY_CHUNK]);
     return make_string_copy(buffer);
 }
 
@@ -931,6 +928,8 @@ Statistics::beginGC(JSGCInvocationKind kind)
 void
 Statistics::endGC()
 {
+    crash::SnapshotGCStack();
+
     for (size_t j = 0; j < MAX_MULTIPARENT_PHASES + 1; j++)
         for (int i = 0; i < PHASE_LIMIT; i++)
             phaseTotals[j][i] += phaseTimes[j][i];

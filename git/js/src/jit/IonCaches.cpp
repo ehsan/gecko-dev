@@ -487,8 +487,8 @@ GeneratePrototypeGuards(JSContext *cx, IonScript *ion, MacroAssembler &masm, JSO
     if (obj->hasUncacheableProto()) {
         // Note: objectReg and scratchReg may be the same register, so we cannot
         // use objectReg in the rest of this function.
-        masm.loadPtr(Address(objectReg, JSObject::offsetOfGroup()), scratchReg);
-        Address proto(scratchReg, types::ObjectGroup::offsetOfProto());
+        masm.loadPtr(Address(objectReg, JSObject::offsetOfType()), scratchReg);
+        Address proto(scratchReg, types::TypeObject::offsetOfProto());
         masm.branchPtr(Assembler::NotEqual, proto,
                        ImmMaybeNurseryPtr(obj->getProto()), failures);
     }
@@ -500,10 +500,10 @@ GeneratePrototypeGuards(JSContext *cx, IonScript *ion, MacroAssembler &masm, JSO
         return;
     while (pobj != holder) {
         if (pobj->hasUncacheableProto()) {
-            MOZ_ASSERT(!pobj->isSingleton());
+            MOZ_ASSERT(!pobj->hasSingletonType());
             masm.movePtr(ImmMaybeNurseryPtr(pobj), scratchReg);
-            Address groupAddr(scratchReg, JSObject::offsetOfGroup());
-            masm.branchPtr(Assembler::NotEqual, groupAddr, ImmGCPtr(pobj->group()), failures);
+            Address objType(scratchReg, JSObject::offsetOfType());
+            masm.branchPtr(Assembler::NotEqual, objType, ImmGCPtr(pobj->type()), failures);
         }
         pobj = pobj->getProto();
     }
@@ -788,8 +788,8 @@ GenerateReadSlot(JSContext *cx, IonScript *ion, MacroAssembler &masm,
                                        failures);
     } else {
         attacher.branchNextStubOrLabel(masm, Assembler::NotEqual,
-                                       Address(object, JSObject::offsetOfGroup()),
-                                       ImmGCPtr(obj->group()),
+                                       Address(object, JSObject::offsetOfType()),
+                                       ImmGCPtr(obj->type()),
                                        failures);
     }
 
@@ -890,8 +890,8 @@ GenerateReadUnboxed(JSContext *cx, IonScript *ion, MacroAssembler &masm,
 {
     // Guard on the type of the object.
     attacher.branchNextStub(masm, Assembler::NotEqual,
-                            Address(object, JSObject::offsetOfGroup()),
-                            ImmGCPtr(obj->group()));
+                            Address(object, JSObject::offsetOfType()),
+                            ImmGCPtr(obj->type()));
 
     Address address(object, UnboxedPlainObject::offsetOfData() + property->offset);
 
@@ -1897,10 +1897,10 @@ CheckTypeSetForWrite(MacroAssembler &masm, JSObject *obj, jsid id,
                      Register object, ConstantOrRegister value, Label *failure)
 {
     TypedOrValueRegister valReg = value.reg();
-    types::ObjectGroup *group = obj->group();
-    if (group->unknownProperties())
+    types::TypeObject *type = obj->type();
+    if (type->unknownProperties())
         return;
-    types::HeapTypeSet *propTypes = group->maybeGetProperty(id);
+    types::HeapTypeSet *propTypes = type->maybeGetProperty(id);
     MOZ_ASSERT(propTypes);
 
     // guardTypeSet can read from type sets without triggering read barriers.
@@ -1928,11 +1928,11 @@ GenerateSetSlot(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &att
         // We can't do anything that would change the HeapTypeSet, so
         // just guard that it's already there.
 
-        // Obtain and guard on the ObjectGroup of the object.
-        types::ObjectGroup *group = obj->group();
+        // Obtain and guard on the TypeObject of the object.
+        types::TypeObject *type = obj->type();
         masm.branchPtr(Assembler::NotEqual,
-                       Address(object, JSObject::offsetOfGroup()),
-                       ImmGCPtr(group), &failures);
+                       Address(object, JSObject::offsetOfType()),
+                       ImmGCPtr(type), &failures);
 
         if (checkTypeset) {
             masm.push(object);
@@ -2463,7 +2463,7 @@ SetPropertyIC::attachCallSetter(JSContext *cx, HandleScript outerScript, IonScri
 
 static void
 GenerateAddSlot(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &attacher,
-                NativeObject *obj, Shape *oldShape, types::ObjectGroup *oldGroup,
+                NativeObject *obj, Shape *oldShape, types::TypeObject *oldType,
                 Register object, ConstantOrRegister value,
                 bool checkTypeset)
 {
@@ -2472,8 +2472,8 @@ GenerateAddSlot(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &att
     Label failures;
 
     // Guard the type of the object
-    masm.branchPtr(Assembler::NotEqual, Address(object, JSObject::offsetOfGroup()),
-                   ImmGCPtr(oldGroup), &failures);
+    masm.branchPtr(Assembler::NotEqual, Address(object, JSObject::offsetOfType()),
+                   ImmGCPtr(oldType), &failures);
 
     // Guard shapes along prototype chain.
     masm.branchTestObjShape(Assembler::NotEqual, object, oldShape, &failures);
@@ -2511,24 +2511,24 @@ GenerateAddSlot(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &att
         masm.callPreBarrier(shapeAddr, MIRType_Shape);
     masm.storePtr(ImmGCPtr(newShape), shapeAddr);
 
-    if (oldGroup != obj->group()) {
-        // Changing object's group from a partially to fully initialized group,
-        // per the acquired properties analysis. Only change the group if the
-        // old group still has a newScript.
+    if (oldType != obj->type()) {
+        // Changing object's type from a partially to fully initialized type,
+        // per the acquired properties analysis. Only change the type if the
+        // old type still has a newScript.
         Label noTypeChange, skipPop;
 
         masm.push(object);
-        masm.loadPtr(Address(object, JSObject::offsetOfGroup()), object);
+        masm.loadPtr(Address(object, JSObject::offsetOfType()), object);
         masm.branchPtr(Assembler::Equal,
-                       Address(object, types::ObjectGroup::offsetOfAddendum()),
+                       Address(object, types::TypeObject::offsetOfAddendum()),
                        ImmWord(0),
                        &noTypeChange);
         masm.pop(object);
 
-        Address groupAddr(object, JSObject::offsetOfGroup());
+        Address typeAddr(object, JSObject::offsetOfType());
         if (cx->zone()->needsIncrementalBarrier())
-            masm.callPreBarrier(groupAddr, MIRType_ObjectGroup);
-        masm.storePtr(ImmGCPtr(obj->group()), groupAddr);
+            masm.callPreBarrier(typeAddr, MIRType_TypeObject);
+        masm.storePtr(ImmGCPtr(obj->type()), typeAddr);
 
         masm.jump(&skipPop);
         masm.bind(&noTypeChange);
@@ -2564,14 +2564,14 @@ GenerateAddSlot(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &att
 
 bool
 SetPropertyIC::attachAddSlot(JSContext *cx, HandleScript outerScript, IonScript *ion,
-                             HandleNativeObject obj, HandleShape oldShape, HandleObjectGroup oldGroup,
+                             HandleNativeObject obj, HandleShape oldShape, HandleTypeObject oldType,
                              bool checkTypeset)
 {
     MOZ_ASSERT_IF(!needsTypeBarrier(), !checkTypeset);
 
     MacroAssembler masm(cx, ion, outerScript, profilerLeavePc_);
     RepatchStubAppender attacher(*this);
-    GenerateAddSlot(cx, masm, attacher, obj, oldShape, oldGroup, object(), value(), checkTypeset);
+    GenerateAddSlot(cx, masm, attacher, obj, oldShape, oldType, object(), value(), checkTypeset);
     return linkAndAttachStub(cx, masm, attacher, ion, "adding");
 }
 
@@ -2579,13 +2579,13 @@ static bool
 CanInlineSetPropTypeCheck(JSObject *obj, jsid id, ConstantOrRegister val, bool *checkTypeset)
 {
     bool shouldCheck = false;
-    types::ObjectGroup *group = obj->group();
-    if (!group->unknownProperties()) {
-        types::HeapTypeSet *propTypes = group->maybeGetProperty(id);
+    types::TypeObject *type = obj->type();
+    if (!type->unknownProperties()) {
+        types::HeapTypeSet *propTypes = type->maybeGetProperty(id);
         if (!propTypes)
             return false;
         if (!propTypes->unknown()) {
-            if (obj->isSingleton() && !propTypes->nonConstantProperty())
+            if (obj->hasSingletonType() && !propTypes->nonConstantProperty())
                 return false;
             shouldCheck = true;
             if (val.constant()) {
@@ -2695,7 +2695,7 @@ IsPropertyAddInlineable(NativeObject *obj, HandleId id, ConstantOrRegister val, 
     // Don't attach if we are adding a property to an object which the new
     // script properties analysis hasn't been performed for yet, as there
     // may be a shape change required here afterwards.
-    if (obj->group()->newScript() && !obj->group()->newScript()->analyzed())
+    if (obj->type()->newScript() && !obj->type()->newScript()->analyzed())
         return false;
 
     if (needsTypeBarrier)
@@ -2747,8 +2747,8 @@ GenerateSetUnboxed(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &
 
     // Guard on the type of the object.
     masm.branchPtr(Assembler::NotEqual,
-                   Address(object, JSObject::offsetOfGroup()),
-                   ImmGCPtr(obj->group()), &failure);
+                   Address(object, JSObject::offsetOfType()),
+                   ImmGCPtr(obj->type()), &failure);
 
     if (checkTypeset) {
         masm.push(object);
@@ -2771,7 +2771,7 @@ GenerateSetUnboxed(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &
     // never been converted to native objects and the type set check performed
     // above ensures the value being written can be stored in the unboxed
     // object.
-    Label *storeFailure = obj->group()->unknownProperties() ? &failure : nullptr;
+    Label *storeFailure = obj->type()->unknownProperties() ? &failure : nullptr;
 
     masm.storeUnboxedProperty(address, unboxedType, value, storeFailure);
 
@@ -2828,8 +2828,8 @@ SetPropertyIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
     RootedPropertyName name(cx, cache.name());
     RootedId id(cx, AtomToId(name));
 
-    RootedObjectGroup oldGroup(cx, obj->getGroup(cx));
-    if (!oldGroup)
+    RootedTypeObject oldType(cx, obj->getType(cx));
+    if (!oldType)
         return false;
 
     // Stop generating new stubs once we hit the stub count limit, see
@@ -2913,7 +2913,7 @@ SetPropertyIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
                                 &checkTypeset))
     {
         RootedNativeObject nobj(cx, &obj->as<NativeObject>());
-        if (!cache.attachAddSlot(cx, script, ion, nobj, oldShape, oldGroup, checkTypeset))
+        if (!cache.attachAddSlot(cx, script, ion, nobj, oldShape, oldType, checkTypeset))
             return false;
         addedSetterStub = true;
     }

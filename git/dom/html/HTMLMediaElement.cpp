@@ -3016,12 +3016,6 @@ void HTMLMediaElement::MetadataLoaded(const MediaInfo* aInfo,
   mTags = aTags.forget();
   mLoadedDataFired = false;
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_METADATA);
-
-  if (mIsEncrypted) {
-    nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-    obs->NotifyObservers(static_cast<nsIContent*>(this), "media-eme-metadataloaded", nullptr);
-  }
-
   DispatchAsyncEvent(NS_LITERAL_STRING("durationchange"));
   if (IsVideo() && mHasVideo) {
     mMediaSize = aInfo->mVideo.mDisplay;

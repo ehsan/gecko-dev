@@ -1117,10 +1117,10 @@ UpdateShapeTypeAndValue(ExclusiveContext *cx, NativeObject *obj, Shape *shape, c
 
         // Per the acquired properties analysis, when the shape of a partially
         // initialized object is changed to its fully initialized shape, its
-        // group can be updated as well.
-        if (types::TypeNewScript *newScript = obj->groupRaw()->newScript()) {
+        // type can be updated as well.
+        if (types::TypeNewScript *newScript = obj->typeRaw()->newScript()) {
             if (newScript->initializedShape() == shape)
-                obj->setGroup(newScript->initializedGroup());
+                obj->setType(newScript->initializedType());
         }
     }
     if (!shape->hasSlot() || !shape->hasDefaultGetter() || !shape->hasDefaultSetter())
@@ -1593,10 +1593,10 @@ GetExistingProperty(JSContext *cx,
     if (shape->hasSlot()) {
         vp.set(obj->getSlot(shape->slot()));
         MOZ_ASSERT_IF(!vp.isMagic(JS_UNINITIALIZED_LEXICAL) &&
-                      !obj->isSingleton() &&
+                      !obj->hasSingletonType() &&
                       !obj->template is<ScopeObject>() &&
                       shape->hasDefaultGetter(),
-                      js::types::TypeHasProperty(cx, obj->group(), shape->propid(), vp));
+                      js::types::TypeHasProperty(cx, obj->type(), shape->propid(), vp));
     } else {
         vp.setUndefined();
     }

@@ -710,10 +710,8 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
         int32_t linkOffset;
         rv = SplitNodeDeep(link, selNode, selOffset, &linkOffset, true, address_of(leftLink));
         NS_ENSURE_SUCCESS(rv, rv);
-        if (leftLink) {
-          selNode = GetNodeLocation(leftLink, &selOffset);
-          selection->Collapse(selNode, selOffset+1);
-        }
+        selNode = GetNodeLocation(leftLink, &selOffset);
+        selection->Collapse(selNode, selOffset+1);
       }
     }
   }

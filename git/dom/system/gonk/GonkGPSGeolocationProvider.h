@@ -109,8 +109,8 @@ private:
   // preference value.
   uint32_t mNumberOfRilServices;
   bool mObservingNetworkConnStateChange;
-#endif
   bool mObservingSettingsChange;
+#endif
   bool mSupportsSingleShot;
   bool mSupportsTimeInjection;
 

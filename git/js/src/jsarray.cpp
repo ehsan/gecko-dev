@@ -1213,12 +1213,12 @@ js::array_join(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static inline bool
-InitArrayTypes(JSContext *cx, ObjectGroup *group, const Value *vector, unsigned count)
+InitArrayTypes(JSContext *cx, TypeObject *type, const Value *vector, unsigned count)
 {
-    if (!group->unknownProperties()) {
+    if (!type->unknownProperties()) {
         AutoEnterAnalysis enter(cx);
 
-        HeapTypeSet *types = group->getProperty(cx, JSID_VOID);
+        HeapTypeSet *types = type->getProperty(cx, JSID_VOID);
         if (!types)
             return false;
 
@@ -1247,10 +1247,10 @@ InitArrayElements(JSContext *cx, HandleObject obj, uint32_t start, uint32_t coun
     if (count == 0)
         return true;
 
-    types::ObjectGroup *group = obj->getGroup(cx);
-    if (!group)
+    types::TypeObject *type = obj->getType(cx);
+    if (!type)
         return false;
-    if (updateTypes && !InitArrayTypes(cx, group, vector, count))
+    if (updateTypes && !InitArrayTypes(cx, type, vector, count))
         return false;
 
     /*
@@ -2319,17 +2319,17 @@ js::array_unshift(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static inline void
-TryReuseArrayGroup(JSObject *obj, ArrayObject *narr)
+TryReuseArrayType(JSObject *obj, ArrayObject *narr)
 {
     /*
-     * Try to change the group of a newly created array narr to the same group
+     * Try to change the type of a newly created array narr to the same type
      * as obj. This can only be performed if the original object is an array
      * and has the same prototype.
      */
-    MOZ_ASSERT(narr->getProto()->hasNewGroup(&ArrayObject::class_, narr->group()));
+    MOZ_ASSERT(narr->getProto()->hasNewType(&ArrayObject::class_, narr->type()));
 
-    if (obj->is<ArrayObject>() && !obj->isSingleton() && obj->getProto() == narr->getProto())
-        narr->setGroup(obj->group());
+    if (obj->is<ArrayObject>() && !obj->hasSingletonType() && obj->getProto() == narr->getProto())
+        narr->setType(obj->type());
 }
 
 /*
@@ -2363,8 +2363,8 @@ CanOptimizeForDenseStorage(HandleObject arr, uint32_t startingIndex, uint32_t co
      * case can't happen, because any dense array used as the prototype of
      * another object is first slowified, for type inference's sake.
      */
-    types::ObjectGroup *arrGroup = arr->getGroup(cx);
-    if (MOZ_UNLIKELY(!arrGroup || arrGroup->hasAllFlags(OBJECT_FLAG_ITERATED)))
+    types::TypeObject *arrType = arr->getType(cx);
+    if (MOZ_UNLIKELY(!arrType || arrType->hasAllFlags(OBJECT_FLAG_ITERATED)))
         return false;
 
     /*
@@ -2435,13 +2435,13 @@ js::array_splice_impl(JSContext *cx, unsigned argc, Value *vp, bool returnValueI
             arr = NewDenseCopiedArray(cx, actualDeleteCount, obj.as<ArrayObject>(), actualStart);
             if (!arr)
                 return false;
-            TryReuseArrayGroup(obj, arr);
+            TryReuseArrayType(obj, arr);
         }
     } else {
         arr = NewDenseFullyAllocatedArray(cx, actualDeleteCount);
         if (!arr)
             return false;
-        TryReuseArrayGroup(obj, arr);
+        TryReuseArrayType(obj, arr);
 
         RootedValue fromValue(cx);
         for (uint32_t k = 0; k < actualDeleteCount; k++) {
@@ -2652,7 +2652,7 @@ js::array_concat(JSContext *cx, unsigned argc, Value *vp)
         narr = NewDenseCopiedArray(cx, initlen, aobj.as<ArrayObject>(), 0);
         if (!narr)
             return false;
-        TryReuseArrayGroup(aobj, narr);
+        TryReuseArrayType(aobj, narr);
         narr->setLength(cx, length);
         args.rval().setObject(*narr);
         if (argc == 0)
@@ -2715,7 +2715,7 @@ struct SortComparatorIndexes
 
 // Returns all indexed properties in the range [begin, end) found on |obj| or
 // its proto chain. This function does not handle proxies, objects with
-// resolve/lookupProperty hooks or indexed getters, as those can introduce
+// resolve/lookupGeneric hooks or indexed getters, as those can introduce
 // new properties. In those cases, *success is set to |false|.
 static bool
 GetIndexedPropertiesInRange(JSContext *cx, HandleObject obj, uint32_t begin, uint32_t end,
@@ -2727,7 +2727,7 @@ GetIndexedPropertiesInRange(JSContext *cx, HandleObject obj, uint32_t begin, uin
     // properties.
     JSObject *pobj = obj;
     do {
-        if (!pobj->isNative() || pobj->getClass()->resolve || pobj->getOps()->lookupProperty)
+        if (!pobj->isNative() || pobj->getClass()->resolve || pobj->getOps()->lookupGeneric)
             return true;
     } while ((pobj = pobj->getProto()));
 
@@ -2900,7 +2900,7 @@ js::array_slice(JSContext *cx, unsigned argc, Value *vp)
         narr = NewDenseFullyAllocatedArray(cx, end - begin);
         if (!narr)
             return false;
-        TryReuseArrayGroup(obj, narr);
+        TryReuseArrayType(obj, narr);
 
         ArrayObject *aobj = &obj->as<ArrayObject>();
         if (aobj->getDenseInitializedLength() > begin) {
@@ -2916,7 +2916,7 @@ js::array_slice(JSContext *cx, unsigned argc, Value *vp)
     narr = NewDensePartlyAllocatedArray(cx, end - begin);
     if (!narr)
         return false;
-    TryReuseArrayGroup(obj, narr);
+    TryReuseArrayType(obj, narr);
 
     if (js::GetElementsOp op = obj->getOps()->getElements) {
         // Ensure that we have dense elements, so that ElementAdder::append can
@@ -2982,10 +2982,10 @@ array_filter(JSContext *cx, unsigned argc, Value *vp)
     RootedObject arr(cx, NewDenseFullyAllocatedArray(cx, 0));
     if (!arr)
         return false;
-    ObjectGroup *newGroup = GetCallerInitGroup(cx, JSProto_Array);
-    if (!newGroup)
+    TypeObject *newtype = GetTypeCallerInitObject(cx, JSProto_Array);
+    if (!newtype)
         return false;
-    arr->setGroup(newGroup);
+    arr->setType(newtype);
 
     /* Step 7. */
     uint32_t k = 0;
@@ -3060,16 +3060,16 @@ IsArrayConstructor(const Value &v)
 }
 
 static bool
-ArrayFromCallArgs(JSContext *cx, HandleObjectGroup group, CallArgs &args)
+ArrayFromCallArgs(JSContext *cx, HandleTypeObject type, CallArgs &args)
 {
-    if (!InitArrayTypes(cx, group, args.array(), args.length()))
+    if (!InitArrayTypes(cx, type, args.array(), args.length()))
         return false;
     JSObject *obj = (args.length() == 0)
         ? NewDenseEmptyArray(cx)
         : NewDenseCopiedArray(cx, args.length(), args.array());
     if (!obj)
         return false;
-    obj->setGroup(group);
+    obj->setType(type);
     args.rval().setObject(*obj);
     return true;
 }
@@ -3082,10 +3082,10 @@ array_of(JSContext *cx, unsigned argc, Value *vp)
     if (IsArrayConstructor(args.thisv()) || !IsConstructor(args.thisv())) {
         // IsArrayConstructor(this) will usually be true in practice. This is
         // the most common path.
-        RootedObjectGroup group(cx, GetCallerInitGroup(cx, JSProto_Array));
-        if (!group)
+        RootedTypeObject type(cx, GetTypeCallerInitObject(cx, JSProto_Array));
+        if (!type)
             return false;
-        return ArrayFromCallArgs(cx, group, args);
+        return ArrayFromCallArgs(cx, type, args);
     }
 
     // Step 4.
@@ -3189,12 +3189,12 @@ bool
 js_Array(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    RootedObjectGroup group(cx, GetCallerInitGroup(cx, JSProto_Array));
-    if (!group)
+    RootedTypeObject type(cx, GetTypeCallerInitObject(cx, JSProto_Array));
+    if (!type)
         return false;
 
     if (args.length() != 1 || !args[0].isNumber())
-        return ArrayFromCallArgs(cx, group, args);
+        return ArrayFromCallArgs(cx, type, args);
 
     uint32_t length;
     if (args[0].isInt32()) {
@@ -3220,7 +3220,7 @@ js_Array(JSContext *cx, unsigned argc, Value *vp)
     AllocatingBehaviour allocating = (length <= ArrayObject::EagerAllocationMaxLength)
                                    ? NewArray_FullyAllocating
                                    : NewArray_PartlyAllocating;
-    RootedObject obj(cx, NewDenseArray(cx, length, group, allocating));
+    RootedObject obj(cx, NewDenseArray(cx, length, type, allocating));
     if (!obj)
         return false;
 
@@ -3229,7 +3229,7 @@ js_Array(JSContext *cx, unsigned argc, Value *vp)
 }
 
 ArrayObject *
-js::ArrayConstructorOneArg(JSContext *cx, HandleObjectGroup group, int32_t lengthInt)
+js::ArrayConstructorOneArg(JSContext *cx, HandleTypeObject type, int32_t lengthInt)
 {
     if (lengthInt < 0) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
@@ -3240,7 +3240,7 @@ js::ArrayConstructorOneArg(JSContext *cx, HandleObjectGroup group, int32_t lengt
     AllocatingBehaviour allocating = (length <= ArrayObject::EagerAllocationMaxLength)
                                    ? NewArray_FullyAllocating
                                    : NewArray_PartlyAllocating;
-    return NewDenseArray(cx, length, group, allocating);
+    return NewDenseArray(cx, length, type, allocating);
 }
 
 static JSObject *
@@ -3251,8 +3251,8 @@ CreateArrayPrototype(JSContext *cx, JSProtoKey key)
     if (!proto)
         return nullptr;
 
-    RootedObjectGroup group(cx, cx->getNewGroup(&ArrayObject::class_, TaggedProto(proto)));
-    if (!group)
+    RootedTypeObject type(cx, cx->getNewType(&ArrayObject::class_, TaggedProto(proto)));
+    if (!type)
         return nullptr;
 
     JSObject *metadata = nullptr;
@@ -3266,21 +3266,21 @@ CreateArrayPrototype(JSContext *cx, JSProtoKey key)
         return nullptr;
 
     RootedArrayObject arrayProto(cx, ArrayObject::createArray(cx, gc::FINALIZE_OBJECT4,
-                                                              gc::TenuredHeap, shape, group, 0));
+                                                              gc::TenuredHeap, shape, type, 0));
     if (!arrayProto ||
-        !JSObject::setSingleton(cx, arrayProto) ||
+        !JSObject::setSingletonType(cx, arrayProto) ||
         !AddLengthProperty(cx, arrayProto))
     {
         return nullptr;
     }
 
     /*
-     * The default 'new' group of Array.prototype is required by type inference
+     * The default 'new' type of Array.prototype is required by type inference
      * to have unknown properties, to simplify handling of e.g. heterogenous
      * arrays in JSON and script literals and allows setDenseArrayElement to
      * be used without updating the indexed type set for such default arrays.
      */
-    if (!JSObject::setNewGroupUnknown(cx, &ArrayObject::class_, arrayProto))
+    if (!JSObject::setNewTypeUnknown(cx, &ArrayObject::class_, arrayProto))
         return nullptr;
 
     return arrayProto;
@@ -3379,8 +3379,8 @@ NewArray(ExclusiveContext *cxArg, uint32_t length,
     if (!proto && !GetBuiltinPrototype(cxArg, JSProto_Array, &proto))
         return nullptr;
 
-    RootedObjectGroup group(cxArg, cxArg->getNewGroup(&ArrayObject::class_, TaggedProto(proto)));
-    if (!group)
+    RootedTypeObject type(cxArg, cxArg->getNewType(&ArrayObject::class_, TaggedProto(proto)));
+    if (!type)
         return nullptr;
 
     JSObject *metadata = nullptr;
@@ -3399,7 +3399,7 @@ NewArray(ExclusiveContext *cxArg, uint32_t length,
 
     RootedArrayObject arr(cxArg, ArrayObject::createArray(cxArg, allocKind,
                                                           GetInitialHeap(newKind, &ArrayObject::class_),
-                                                          shape, group, length));
+                                                          shape, type, length));
     if (!arr)
         return nullptr;
 
@@ -3410,7 +3410,7 @@ NewArray(ExclusiveContext *cxArg, uint32_t length,
         EmptyShape::insertInitialShape(cxArg, shape, proto);
     }
 
-    if (newKind == SingletonObject && !JSObject::setSingleton(cxArg, arr))
+    if (newKind == SingletonObject && !JSObject::setSingletonType(cxArg, arr))
         return nullptr;
 
     if (entry != -1 &&
@@ -3458,11 +3458,11 @@ js::NewDenseUnallocatedArray(ExclusiveContext *cx, uint32_t length, JSObject *pr
 }
 
 ArrayObject *
-js::NewDenseArray(ExclusiveContext *cx, uint32_t length, HandleObjectGroup group,
+js::NewDenseArray(ExclusiveContext *cx, uint32_t length, HandleTypeObject type,
                   AllocatingBehaviour allocating)
 {
-    NewObjectKind newKind = !group ? SingletonObject : GenericObject;
-    if (group && group->shouldPreTenure())
+    NewObjectKind newKind = !type ? SingletonObject : GenericObject;
+    if (type && type->shouldPreTenure())
         newKind = TenuredObject;
 
     ArrayObject *arr;
@@ -3477,11 +3477,11 @@ js::NewDenseArray(ExclusiveContext *cx, uint32_t length, HandleObjectGroup group
     if (!arr)
         return nullptr;
 
-    if (group)
-        arr->setGroup(group);
+    if (type)
+        arr->setType(type);
 
     // If the length calculation overflowed, make sure that is marked for the
-    // new group.
+    // new type.
     if (arr->length() > INT32_MAX)
         arr->setLength(cx, arr->length());
 
@@ -3535,12 +3535,12 @@ js::NewDenseFullyAllocatedArrayWithTemplate(JSContext *cx, uint32_t length, JSOb
     MOZ_ASSERT(CanBeFinalizedInBackground(allocKind, &ArrayObject::class_));
     allocKind = GetBackgroundAllocKind(allocKind);
 
-    RootedObjectGroup group(cx, templateObject->group());
+    RootedTypeObject type(cx, templateObject->type());
     RootedShape shape(cx, templateObject->lastProperty());
 
     gc::InitialHeap heap = GetInitialHeap(GenericObject, &ArrayObject::class_);
     Rooted<ArrayObject *> arr(cx, ArrayObject::createArray(cx, allocKind,
-                                                           heap, shape, group, length));
+                                                           heap, shape, type, length));
     if (!arr)
         return nullptr;
 

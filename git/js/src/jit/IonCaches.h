@@ -748,7 +748,7 @@ class SetPropertyIC : public RepatchIonCache
                           void *returnAddr);
 
     bool attachAddSlot(JSContext *cx, HandleScript outerScript, IonScript *ion,
-                       HandleNativeObject obj, HandleShape oldShape, HandleObjectGroup oldGroup,
+                       HandleNativeObject obj, HandleShape oldShape, HandleTypeObject oldType,
                        bool checkTypeset);
 
     bool attachSetUnboxed(JSContext *cx, HandleScript outerScript, IonScript *ion,

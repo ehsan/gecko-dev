@@ -891,12 +891,12 @@ GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void
     // to the corresponding prototype in the new compartment. This will briefly
     // create cross compartment pointers, which will be fixed by the
     // MergeCompartments call below.
-    for (gc::ZoneCellIter iter(parseTask->cx->zone(), gc::FINALIZE_OBJECT_GROUP);
+    for (gc::ZoneCellIter iter(parseTask->cx->zone(), gc::FINALIZE_TYPE_OBJECT);
          !iter.done();
          iter.next())
     {
-        types::ObjectGroup *group = iter.get<types::ObjectGroup>();
-        TaggedProto proto(group->proto());
+        types::TypeObject *object = iter.get<types::TypeObject>();
+        TaggedProto proto(object->proto());
         if (!proto.isObject())
             continue;
 
@@ -910,7 +910,7 @@ GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void
         JSObject *newProto = GetBuiltinPrototypePure(global, key);
         MOZ_ASSERT(newProto);
 
-        group->setProtoUnchecked(TaggedProto(newProto));
+        object->setProtoUnchecked(TaggedProto(newProto));
     }
 
     // Move the parsed script and all its contents into the desired compartment.

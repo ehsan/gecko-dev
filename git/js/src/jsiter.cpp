@@ -483,9 +483,8 @@ static inline PropertyIteratorObject *
 NewPropertyIteratorObject(JSContext *cx, unsigned flags)
 {
     if (flags & JSITER_ENUMERATE) {
-        RootedObjectGroup group(cx, cx->getNewGroup(&PropertyIteratorObject::class_,
-                                                    TaggedProto(nullptr)));
-        if (!group)
+        RootedTypeObject type(cx, cx->getNewType(&PropertyIteratorObject::class_, TaggedProto(nullptr)));
+        if (!type)
             return nullptr;
 
         JSObject *metadata = nullptr;
@@ -499,7 +498,7 @@ NewPropertyIteratorObject(JSContext *cx, unsigned flags)
             return nullptr;
 
         JSObject *obj = JSObject::create(cx, ITERATOR_FINALIZE_KIND,
-                                         GetInitialHeap(GenericObject, clasp), shape, group);
+                                         GetInitialHeap(GenericObject, clasp), shape, type);
         if (!obj)
             return nullptr;
         PropertyIteratorObject *res = &obj->as<PropertyIteratorObject>();
@@ -578,9 +577,9 @@ VectorToKeyIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVecto
 {
     MOZ_ASSERT(!(flags & JSITER_FOREACH));
 
-    if (obj->isSingleton() && !obj->setIteratedSingleton(cx))
+    if (obj->hasSingletonType() && !obj->setIteratedSingleton(cx))
         return false;
-    types::MarkObjectGroupFlags(cx, obj, types::OBJECT_FLAG_ITERATED);
+    types::MarkTypeObjectFlags(cx, obj, types::OBJECT_FLAG_ITERATED);
 
     Rooted<PropertyIteratorObject *> iterobj(cx, NewPropertyIteratorObject(cx, flags));
     if (!iterobj)
@@ -621,9 +620,9 @@ VectorToValueIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVec
 {
     MOZ_ASSERT(flags & JSITER_FOREACH);
 
-    if (obj->isSingleton() && !obj->setIteratedSingleton(cx))
+    if (obj->hasSingletonType() && !obj->setIteratedSingleton(cx))
         return false;
-    types::MarkObjectGroupFlags(cx, obj, types::OBJECT_FLAG_ITERATED);
+    types::MarkTypeObjectFlags(cx, obj, types::OBJECT_FLAG_ITERATED);
 
     Rooted<PropertyIteratorObject*> iterobj(cx, NewPropertyIteratorObject(cx, flags));
     if (!iterobj)

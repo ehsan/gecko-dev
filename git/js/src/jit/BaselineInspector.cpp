@@ -82,13 +82,13 @@ SetElemICInspector::sawTypedArrayWrite() const
 bool
 BaselineInspector::maybeInfoForPropertyOp(jsbytecode *pc,
                                           ShapeVector &nativeShapes,
-                                          ObjectGroupVector &unboxedGroups)
+                                          TypeObjectVector &unboxedTypes)
 {
     // Return lists of native shapes and unboxed objects seen by the baseline
     // IC for the current op. Empty lists indicate no shapes/types are known,
     // or there was an uncacheable access.
     MOZ_ASSERT(nativeShapes.empty());
-    MOZ_ASSERT(unboxedGroups.empty());
+    MOZ_ASSERT(unboxedTypes.empty());
 
     if (!hasBaselineScript())
         return true;
@@ -99,23 +99,23 @@ BaselineInspector::maybeInfoForPropertyOp(jsbytecode *pc,
     ICStub *stub = entry.firstStub();
     while (stub->next()) {
         Shape *shape = nullptr;
-        types::ObjectGroup *group = nullptr;
+        types::TypeObject *type = nullptr;
         if (stub->isGetProp_Native()) {
             shape = stub->toGetProp_Native()->shape();
         } else if (stub->isSetProp_Native()) {
             shape = stub->toSetProp_Native()->shape();
         } else if (stub->isGetProp_Unboxed()) {
-            group = stub->toGetProp_Unboxed()->group();
+            type = stub->toGetProp_Unboxed()->type();
         } else if (stub->isSetProp_Unboxed()) {
-            group = stub->toSetProp_Unboxed()->group();
+            type = stub->toSetProp_Unboxed()->type();
         } else {
             nativeShapes.clear();
-            unboxedGroups.clear();
+            unboxedTypes.clear();
             return true;
         }
 
-        // Don't add the same shape/group twice (this can happen if there are
-        // multiple SetProp_Native stubs with different ObjectGroups).
+        // Don't add the same shape/type twice (this can happen if there are
+        // multiple SetProp_Native stubs with different TypeObject's).
         if (shape) {
             bool found = false;
             for (size_t i = 0; i < nativeShapes.length(); i++) {
@@ -128,13 +128,13 @@ BaselineInspector::maybeInfoForPropertyOp(jsbytecode *pc,
                 return false;
         } else {
             bool found = false;
-            for (size_t i = 0; i < unboxedGroups.length(); i++) {
-                if (unboxedGroups[i] == group) {
+            for (size_t i = 0; i < unboxedTypes.length(); i++) {
+                if (unboxedTypes[i] == type) {
                     found = true;
                     break;
                 }
             }
-            if (!found && !unboxedGroups.append(group))
+            if (!found && !unboxedTypes.append(type))
                 return false;
         }
 
@@ -144,19 +144,19 @@ BaselineInspector::maybeInfoForPropertyOp(jsbytecode *pc,
     if (stub->isGetProp_Fallback()) {
         if (stub->toGetProp_Fallback()->hadUnoptimizableAccess()) {
             nativeShapes.clear();
-            unboxedGroups.clear();
+            unboxedTypes.clear();
         }
     } else {
         if (stub->toSetProp_Fallback()->hadUnoptimizableAccess()) {
             nativeShapes.clear();
-            unboxedGroups.clear();
+            unboxedTypes.clear();
         }
     }
 
-    // Don't inline if there are more than 5 shapes/groups.
-    if (nativeShapes.length() + unboxedGroups.length() > 5) {
+    // Don't inline if there are more than 5 shapes/types.
+    if (nativeShapes.length() + unboxedTypes.length() > 5) {
         nativeShapes.clear();
-        unboxedGroups.clear();
+        unboxedTypes.clear();
     }
 
     return true;

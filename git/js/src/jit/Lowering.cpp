@@ -201,7 +201,7 @@ void
 LIRGenerator::visitNewCallObject(MNewCallObject *ins)
 {
     LInstruction *lir;
-    if (ins->templateObject()->isSingleton()) {
+    if (ins->templateObject()->hasSingletonType()) {
         LNewSingletonCallObject *singletonLir = new(alloc()) LNewSingletonCallObject(temp());
         define(singletonLir, ins);
         lir = singletonLir;
@@ -844,9 +844,9 @@ LIRGenerator::visitFunctionDispatch(MFunctionDispatch *ins)
 }
 
 void
-LIRGenerator::visitObjectGroupDispatch(MObjectGroupDispatch *ins)
+LIRGenerator::visitTypeObjectDispatch(MTypeObjectDispatch *ins)
 {
-    LObjectGroupDispatch *lir = new(alloc()) LObjectGroupDispatch(useRegister(ins->input()), temp());
+    LTypeObjectDispatch *lir = new(alloc()) LTypeObjectDispatch(useRegister(ins->input()), temp());
     add(lir, ins);
 }
 
@@ -2124,11 +2124,11 @@ LIRGenerator::visitStringReplace(MStringReplace *ins)
 void
 LIRGenerator::visitLambda(MLambda *ins)
 {
-    if (ins->info().singletonType || ins->info().useSingletonForClone) {
+    if (ins->info().singletonType || ins->info().useNewTypeForClone) {
         // If the function has a singleton type, this instruction will only be
         // executed once so we don't bother inlining it.
         //
-        // If UseSingletonForClone is true, we will assign a singleton type to
+        // If UseNewTypeForClone is true, we will assign a singleton type to
         // the clone and we have to clone the script, we can't do that inline.
         LLambdaForSingleton *lir = new(alloc()) LLambdaForSingleton(useRegisterAtStart(ins->scopeChain()));
         defineReturn(lir, ins);
@@ -2312,7 +2312,7 @@ LIRGenerator::visitTypeBarrier(MTypeBarrier *ins)
         return;
     }
 
-    // Handle typebarrier with specific ObjectGroup/SingleObjects.
+    // Handle typebarrier with specific TypeObject/SingleObjects.
     if (inputType == MIRType_Object && !types->hasType(types::Type::AnyObjectType()) &&
         ins->barrierKind() != BarrierKind::TypeTagOnly)
     {

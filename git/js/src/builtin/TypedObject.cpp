@@ -1495,13 +1495,13 @@ OutlineTypedObject::createUnattachedWithClass(JSContext *cx,
     MOZ_ASSERT(clasp == &OutlineTransparentTypedObject::class_ ||
                clasp == &OutlineOpaqueTypedObject::class_);
 
-    RootedObjectGroup group(cx, cx->getNewGroup(clasp, TaggedProto(&descr->typedProto()), descr));
-    if (!group)
+    RootedTypeObject type(cx, cx->getNewType(clasp, TaggedProto(&descr->typedProto()), descr));
+    if (!type)
         return nullptr;
 
     NewObjectKind newKind = (heap == gc::TenuredHeap) ? MaybeSingletonObject : GenericObject;
-    OutlineTypedObject *obj = NewObjectWithGroup<OutlineTypedObject>(cx, group, cx->global(),
-                                                                     gc::FINALIZE_OBJECT0, newKind);
+    OutlineTypedObject *obj = NewObjectWithType<OutlineTypedObject>(cx, type, cx->global(),
+                                                                    gc::FINALIZE_OBJECT0, newKind);
     if (!obj)
         return nullptr;
 
@@ -1681,8 +1681,8 @@ OutlineTypedObject::obj_trace(JSTracer *trc, JSObject *object)
 }
 
 bool
-TypedObject::obj_lookupProperty(JSContext *cx, HandleObject obj, HandleId id,
-                                MutableHandleObject objp, MutableHandleShape propp)
+TypedObject::obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
+                              MutableHandleObject objp, MutableHandleShape propp)
 {
     MOZ_ASSERT(obj->is<TypedObject>());
 
@@ -1731,8 +1731,19 @@ TypedObject::obj_lookupProperty(JSContext *cx, HandleObject obj, HandleId id,
 }
 
 bool
+TypedObject::obj_lookupProperty(JSContext *cx,
+                                HandleObject obj,
+                                HandlePropertyName name,
+                                MutableHandleObject objp,
+                                MutableHandleShape propp)
+{
+    RootedId id(cx, NameToId(name));
+    return obj_lookupGeneric(cx, obj, id, objp, propp);
+}
+
+bool
 TypedObject::obj_lookupElement(JSContext *cx, HandleObject obj, uint32_t index,
-                               MutableHandleObject objp, MutableHandleShape propp)
+                                MutableHandleObject objp, MutableHandleShape propp)
 {
     MOZ_ASSERT(obj->is<TypedObject>());
     MarkNonNativePropertyFound<CanGC>(propp);
@@ -1761,15 +1772,35 @@ ReportPropertyError(JSContext *cx,
 }
 
 bool
-TypedObject::obj_defineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue v,
-                                PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
+TypedObject::obj_defineGeneric(JSContext *cx, HandleObject obj, HandleId id, HandleValue v,
+                              PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
 {
     return ReportPropertyError(cx, JSMSG_UNDEFINED_PROP, id);
 }
 
 bool
-TypedObject::obj_getProperty(JSContext *cx, HandleObject obj, HandleObject receiver,
-                             HandleId id, MutableHandleValue vp)
+TypedObject::obj_defineProperty(JSContext *cx, HandleObject obj,
+                               HandlePropertyName name, HandleValue v,
+                               PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
+{
+    Rooted<jsid> id(cx, NameToId(name));
+    return obj_defineGeneric(cx, obj, id, v, getter, setter, attrs);
+}
+
+bool
+TypedObject::obj_defineElement(JSContext *cx, HandleObject obj, uint32_t index, HandleValue v,
+                               PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
+{
+    AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
+    Rooted<jsid> id(cx);
+    if (!IndexToId(cx, index, &id))
+        return false;
+    return obj_defineGeneric(cx, obj, id, v, getter, setter, attrs);
+}
+
+bool
+TypedObject::obj_getGeneric(JSContext *cx, HandleObject obj, HandleObject receiver,
+                           HandleId id, MutableHandleValue vp)
 {
     MOZ_ASSERT(obj->is<TypedObject>());
     Rooted<TypedObject *> typedObj(cx, &obj->as<TypedObject>());
@@ -1826,8 +1857,16 @@ TypedObject::obj_getProperty(JSContext *cx, HandleObject obj, HandleObject recei
 }
 
 bool
+TypedObject::obj_getProperty(JSContext *cx, HandleObject obj, HandleObject receiver,
+                              HandlePropertyName name, MutableHandleValue vp)
+{
+    RootedId id(cx, NameToId(name));
+    return obj_getGeneric(cx, obj, receiver, id, vp);
+}
+
+bool
 TypedObject::obj_getElement(JSContext *cx, HandleObject obj, HandleObject receiver,
-                            uint32_t index, MutableHandleValue vp)
+                             uint32_t index, MutableHandleValue vp)
 {
     MOZ_ASSERT(obj->is<TypedObject>());
     Rooted<TypedObject *> typedObj(cx, &obj->as<TypedObject>());
@@ -1855,10 +1894,10 @@ TypedObject::obj_getElement(JSContext *cx, HandleObject obj, HandleObject receiv
 
 /*static*/ bool
 TypedObject::obj_getArrayElement(JSContext *cx,
-                                 Handle<TypedObject*> typedObj,
-                                 Handle<TypeDescr*> typeDescr,
-                                 uint32_t index,
-                                 MutableHandleValue vp)
+                                Handle<TypedObject*> typedObj,
+                                Handle<TypeDescr*> typeDescr,
+                                uint32_t index,
+                                MutableHandleValue vp)
 {
     if (index >= (size_t) typedObj->length()) {
         vp.setUndefined();
@@ -1871,8 +1910,8 @@ TypedObject::obj_getArrayElement(JSContext *cx,
 }
 
 bool
-TypedObject::obj_setProperty(JSContext *cx, HandleObject obj, HandleId id,
-                             MutableHandleValue vp, bool strict)
+TypedObject::obj_setGeneric(JSContext *cx, HandleObject obj, HandleId id,
+                           MutableHandleValue vp, bool strict)
 {
     MOZ_ASSERT(obj->is<TypedObject>());
     Rooted<TypedObject *> typedObj(cx, &obj->as<TypedObject>());
@@ -1915,8 +1954,17 @@ TypedObject::obj_setProperty(JSContext *cx, HandleObject obj, HandleId id,
 }
 
 bool
+TypedObject::obj_setProperty(JSContext *cx, HandleObject obj,
+                             HandlePropertyName name, MutableHandleValue vp,
+                             bool strict)
+{
+    RootedId id(cx, NameToId(name));
+    return obj_setGeneric(cx, obj, id, vp, strict);
+}
+
+bool
 TypedObject::obj_setElement(JSContext *cx, HandleObject obj, uint32_t index,
-                            MutableHandleValue vp, bool strict)
+                           MutableHandleValue vp, bool strict)
 {
     MOZ_ASSERT(obj->is<TypedObject>());
     Rooted<TypedObject *> typedObj(cx, &obj->as<TypedObject>());
@@ -2039,8 +2087,8 @@ IsOwnId(JSContext *cx, HandleObject obj, HandleId id)
 }
 
 bool
-TypedObject::obj_setPropertyAttributes(JSContext *cx, HandleObject obj, HandleId id,
-                                       unsigned *attrsp)
+TypedObject::obj_setGenericAttributes(JSContext *cx, HandleObject obj,
+                                       HandleId id, unsigned *attrsp)
 {
     if (IsOwnId(cx, obj, id))
         return ReportPropertyError(cx, JSMSG_CANT_REDEFINE_PROP, id);
@@ -2055,7 +2103,7 @@ TypedObject::obj_setPropertyAttributes(JSContext *cx, HandleObject obj, HandleId
 }
 
 bool
-TypedObject::obj_deleteProperty(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
+TypedObject::obj_deleteGeneric(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
 {
     if (IsOwnId(cx, obj, id))
         return ReportPropertyError(cx, JSMSG_CANT_DELETE, id);
@@ -2131,12 +2179,12 @@ InlineTypedObject::create(JSContext *cx, HandleTypeDescr descr, gc::InitialHeap 
                          ? &InlineOpaqueTypedObject::class_
                          : &InlineTransparentTypedObject::class_;
 
-    RootedObjectGroup group(cx, cx->getNewGroup(clasp, TaggedProto(&descr->typedProto()), descr));
-    if (!group)
+    RootedTypeObject type(cx, cx->getNewType(clasp, TaggedProto(&descr->typedProto()), descr));
+    if (!type)
         return nullptr;
 
     NewObjectKind newKind = (heap == gc::TenuredHeap) ? MaybeSingletonObject : GenericObject;
-    return NewObjectWithGroup<InlineTypedObject>(cx, group, cx->global(), allocKind, newKind);
+    return NewObjectWithType<InlineTypedObject>(cx, type, cx->global(), allocKind, newKind);
 }
 
 /* static */ InlineTypedObject *
@@ -2322,13 +2370,21 @@ LazyArrayBufferTable::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
         JS_NULL_CLASS_SPEC,                              \
         JS_NULL_CLASS_EXT,                               \
         {                                                \
+            TypedObject::obj_lookupGeneric,              \
             TypedObject::obj_lookupProperty,             \
+            TypedObject::obj_lookupElement,              \
+            TypedObject::obj_defineGeneric,              \
             TypedObject::obj_defineProperty,             \
+            TypedObject::obj_defineElement,              \
+            TypedObject::obj_getGeneric,                 \
             TypedObject::obj_getProperty,                \
+            TypedObject::obj_getElement,                 \
+            TypedObject::obj_setGeneric,                 \
             TypedObject::obj_setProperty,                \
+            TypedObject::obj_setElement,                 \
             TypedObject::obj_getOwnPropertyDescriptor,   \
-            TypedObject::obj_setPropertyAttributes,      \
-            TypedObject::obj_deleteProperty,             \
+            TypedObject::obj_setGenericAttributes,       \
+            TypedObject::obj_deleteGeneric,              \
             nullptr, nullptr, /* watch/unwatch */        \
             nullptr,   /* getElements */                 \
             TypedObject::obj_enumerate,                  \

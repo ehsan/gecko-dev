@@ -1064,7 +1064,6 @@ pref("javascript.options.mem.max", -1);
 pref("javascript.options.mem.gc_per_compartment", true);
 pref("javascript.options.mem.gc_incremental", true);
 pref("javascript.options.mem.gc_incremental_slice_ms", 10);
-pref("javascript.options.mem.gc_compacting", true);
 pref("javascript.options.mem.log", false);
 pref("javascript.options.mem.notify", false);
 pref("javascript.options.gc_on_memory_pressure", true);
@@ -3922,7 +3921,6 @@ pref("layers.dump", false);
 #ifdef MOZ_DUMP_PAINTING
 // If we're dumping layers, also dump the texture data
 pref("layers.dump-texture", false);
-pref("layers.dump-decision", false);
 #endif
 pref("layers.draw-borders", false);
 pref("layers.draw-tile-borders", false);

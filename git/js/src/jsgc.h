@@ -45,10 +45,6 @@ namespace jit {
     class JitCode;
 }
 
-namespace gcstats {
-struct Statistics;
-}
-
 namespace gc {
 
 struct FinalizePhase;
@@ -68,7 +64,7 @@ template <> struct MapTypeToFinalizeKind<LazyScript>        { static const Alloc
 template <> struct MapTypeToFinalizeKind<Shape>             { static const AllocKind kind = FINALIZE_SHAPE; };
 template <> struct MapTypeToFinalizeKind<AccessorShape>     { static const AllocKind kind = FINALIZE_ACCESSOR_SHAPE; };
 template <> struct MapTypeToFinalizeKind<BaseShape>         { static const AllocKind kind = FINALIZE_BASE_SHAPE; };
-template <> struct MapTypeToFinalizeKind<types::ObjectGroup> { static const AllocKind kind = FINALIZE_OBJECT_GROUP; };
+template <> struct MapTypeToFinalizeKind<types::TypeObject> { static const AllocKind kind = FINALIZE_TYPE_OBJECT; };
 template <> struct MapTypeToFinalizeKind<JSFatInlineString> { static const AllocKind kind = FINALIZE_FAT_INLINE_STRING; };
 template <> struct MapTypeToFinalizeKind<JSString>          { static const AllocKind kind = FINALIZE_STRING; };
 template <> struct MapTypeToFinalizeKind<JSExternalString>  { static const AllocKind kind = FINALIZE_EXTERNAL_STRING; };
@@ -97,7 +93,7 @@ IsNurseryAllocable(AllocKind kind)
         false,     /* FINALIZE_SHAPE */
         false,     /* FINALIZE_ACCESSOR_SHAPE */
         false,     /* FINALIZE_BASE_SHAPE */
-        false,     /* FINALIZE_OBJECT_GROUP */
+        false,     /* FINALIZE_TYPE_OBJECT */
         false,     /* FINALIZE_FAT_INLINE_STRING */
         false,     /* FINALIZE_STRING */
         false,     /* FINALIZE_EXTERNAL_STRING */
@@ -130,7 +126,7 @@ IsBackgroundFinalized(AllocKind kind)
         true,      /* FINALIZE_SHAPE */
         true,      /* FINALIZE_ACCESSOR_SHAPE */
         true,      /* FINALIZE_BASE_SHAPE */
-        true,      /* FINALIZE_OBJECT_GROUP */
+        true,      /* FINALIZE_TYPE_OBJECT */
         true,      /* FINALIZE_FAT_INLINE_STRING */
         true,      /* FINALIZE_STRING */
         false,     /* FINALIZE_EXTERNAL_STRING */
@@ -476,8 +472,7 @@ class ArenaList {
 
     ArenaHeader *removeRemainingArenas(ArenaHeader **arenap, const AutoLockGC &lock);
     ArenaHeader *pickArenasToRelocate(JSRuntime *runtime);
-    ArenaHeader *relocateArenas(ArenaHeader *toRelocate, ArenaHeader *relocated,
-                                gcstats::Statistics& stats);
+    ArenaHeader *relocateArenas(ArenaHeader *toRelocate, ArenaHeader *relocated);
 };
 
 /*
@@ -605,7 +600,7 @@ class ArenaLists
     ArenaHeader *gcShapeArenasToUpdate;
     ArenaHeader *gcAccessorShapeArenasToUpdate;
     ArenaHeader *gcScriptArenasToUpdate;
-    ArenaHeader *gcObjectGroupArenasToUpdate;
+    ArenaHeader *gcTypeObjectArenasToUpdate;
 
     // While sweeping type information, these lists save the arenas for the
     // objects which have already been finalized in the foreground (which must
@@ -626,7 +621,7 @@ class ArenaLists
         gcShapeArenasToUpdate = nullptr;
         gcAccessorShapeArenasToUpdate = nullptr;
         gcScriptArenasToUpdate = nullptr;
-        gcObjectGroupArenasToUpdate = nullptr;
+        gcTypeObjectArenasToUpdate = nullptr;
         savedEmptyObjectArenas = nullptr;
     }
 
@@ -804,7 +799,7 @@ class ArenaLists
         MOZ_ASSERT(freeLists[kind].isEmpty());
     }
 
-    ArenaHeader *relocateArenas(ArenaHeader *relocatedList, gcstats::Statistics& stats);
+    ArenaHeader *relocateArenas(ArenaHeader *relocatedList);
 
     void queueForegroundObjectsForSweep(FreeOp *fop);
     void queueForegroundThingsForSweep(FreeOp *fop);

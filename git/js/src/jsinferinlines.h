@@ -92,72 +92,62 @@ RecompileInfo::shouldSweep(TypeZone &types)
 // Types
 /////////////////////////////////////////////////////////////////////
 
-/* static */ inline ObjectGroupKey *
-ObjectGroupKey::get(JSObject *obj)
+inline TypeObject *
+TypeObjectKey::asTypeObjectNoBarrier()
 {
-    MOZ_ASSERT(obj);
-    if (obj->isSingleton())
-        return (ObjectGroupKey *) (uintptr_t(obj) | 1);
-    return (ObjectGroupKey *) obj->group();
-}
-
-/* static */ inline ObjectGroupKey *
-ObjectGroupKey::get(ObjectGroup *group)
-{
-    MOZ_ASSERT(group);
-    if (group->singleton())
-        return (ObjectGroupKey *) (uintptr_t(group->singleton()) | 1);
-    return (ObjectGroupKey *) group;
-}
-
-inline ObjectGroup *
-ObjectGroupKey::groupNoBarrier()
-{
-    MOZ_ASSERT(isGroup());
-    return (ObjectGroup *) this;
+    MOZ_ASSERT(isTypeObject());
+    return (TypeObject *) this;
 }
 
 inline JSObject *
-ObjectGroupKey::singletonNoBarrier()
+TypeObjectKey::asSingleObjectNoBarrier()
 {
-    MOZ_ASSERT(isSingleton());
+    MOZ_ASSERT(isSingleObject());
     return (JSObject *) (uintptr_t(this) & ~1);
 }
 
-inline ObjectGroup *
-ObjectGroupKey::group()
+inline TypeObject *
+TypeObjectKey::asTypeObject()
 {
-    ObjectGroup *res = groupNoBarrier();
-    ObjectGroup::readBarrier(res);
+    TypeObject *res = asTypeObjectNoBarrier();
+    TypeObject::readBarrier(res);
     return res;
 }
 
 inline JSObject *
-ObjectGroupKey::singleton()
+TypeObjectKey::asSingleObject()
 {
-    JSObject *res = singletonNoBarrier();
+    JSObject *res = asSingleObjectNoBarrier();
     JSObject::readBarrier(res);
     return res;
+}
+
+/* static */ inline TypeObjectKey *
+TypeObjectKey::get(JSObject *obj)
+{
+    if (obj->hasSingletonType())
+        return (TypeObjectKey *) (uintptr_t(obj) | 1);
+    return TypeObjectKey::get(obj->type());
 }
 
 /* static */ inline Type
 Type::ObjectType(JSObject *obj)
 {
-    if (obj->isSingleton())
+    if (obj->hasSingletonType())
         return Type(uintptr_t(obj) | 1);
-    return Type(uintptr_t(obj->group()));
+    return Type(uintptr_t(obj->type()));
 }
 
 /* static */ inline Type
-Type::ObjectType(ObjectGroup *group)
+Type::ObjectType(TypeObject *obj)
 {
-    if (group->singleton())
-        return Type(uintptr_t(group->singleton()) | 1);
-    return Type(uintptr_t(group));
+    if (obj->singleton())
+        return Type(uintptr_t(obj->singleton()) | 1);
+    return Type(uintptr_t(obj));
 }
 
 /* static */ inline Type
-Type::ObjectType(ObjectGroupKey *obj)
+Type::ObjectType(TypeObjectKey *obj)
 {
     return Type(uintptr_t(obj));
 }
@@ -269,8 +259,9 @@ TypeIdString(jsid id)
  * intermediate types (i.e. JITs) can use this to ensure that intermediate
  * information is not collected and does not change.
  *
- * Ensures that GC cannot occur. Does additional sanity checking that inference
- * is not reentrant and that recompilations occur properly.
+ * Pins inference results so that intermediate type information, TypeObjects
+ * and JSScripts won't be collected during GC. Does additional sanity checking
+ * that inference is not reentrant and that recompilations occur properly.
  */
 struct AutoEnterAnalysis
 {
@@ -381,27 +372,27 @@ GetClassForProtoKey(JSProtoKey key)
 }
 
 /*
- * Get the default 'new' group for a given standard class, per the currently
+ * Get the default 'new' object for a given standard class, per the currently
  * active global.
  */
-inline ObjectGroup *
-GetNewObjectGroup(JSContext *cx, JSProtoKey key)
+inline TypeObject *
+GetTypeNewObject(JSContext *cx, JSProtoKey key)
 {
     RootedObject proto(cx);
     if (key != JSProto_Null && !GetBuiltinPrototype(cx, key, &proto))
         return nullptr;
-    return cx->getNewGroup(GetClassForProtoKey(key), TaggedProto(proto.get()));
+    return cx->getNewType(GetClassForProtoKey(key), TaggedProto(proto.get()));
 }
 
-/* Get a group for the immediate allocation site within a native. */
-inline ObjectGroup *
-GetCallerInitGroup(JSContext *cx, JSProtoKey key)
+/* Get a type object for the immediate allocation site within a native. */
+inline TypeObject *
+GetTypeCallerInitObject(JSContext *cx, JSProtoKey key)
 {
     jsbytecode *pc;
     RootedScript script(cx, cx->currentScript(&pc));
     if (script)
-        return TypeScript::InitGroup(cx, script, pc, key);
-    return GetNewObjectGroup(cx, key);
+        return TypeScript::InitObject(cx, script, pc, key);
+    return GetTypeNewObject(cx, key);
 }
 
 void MarkIteratorUnknownSlow(JSContext *cx);
@@ -426,10 +417,10 @@ TypeMonitorCall(JSContext *cx, const js::CallArgs &args, bool constructing)
 inline bool
 TrackPropertyTypes(ExclusiveContext *cx, JSObject *obj, jsid id)
 {
-    if (obj->hasLazyGroup() || obj->group()->unknownProperties())
+    if (obj->hasLazyType() || obj->type()->unknownProperties())
         return false;
 
-    if (obj->isSingleton() && !obj->group()->maybeGetProperty(id))
+    if (obj->hasSingletonType() && !obj->type()->maybeGetProperty(id))
         return false;
 
     return true;
@@ -440,19 +431,19 @@ EnsureTrackPropertyTypes(JSContext *cx, JSObject *obj, jsid id)
 {
     id = IdToTypeId(id);
 
-    if (obj->isSingleton()) {
+    if (obj->hasSingletonType()) {
         AutoEnterAnalysis enter(cx);
-        if (obj->hasLazyGroup() && !obj->getGroup(cx)) {
-            CrashAtUnhandlableOOM("Could not allocate ObjectGroup in EnsureTrackPropertyTypes");
+        if (obj->hasLazyType() && !obj->getType(cx)) {
+            CrashAtUnhandlableOOM("Could not allocate TypeObject in EnsureTrackPropertyTypes");
             return;
         }
-        if (!obj->group()->unknownProperties() && !obj->group()->getProperty(cx, id)) {
-            MOZ_ASSERT(obj->group()->unknownProperties());
+        if (!obj->type()->unknownProperties() && !obj->type()->getProperty(cx, id)) {
+            MOZ_ASSERT(obj->type()->unknownProperties());
             return;
         }
     }
 
-    MOZ_ASSERT(obj->group()->unknownProperties() || TrackPropertyTypes(cx, obj, id));
+    MOZ_ASSERT(obj->type()->unknownProperties() || TrackPropertyTypes(cx, obj, id));
 }
 
 inline bool
@@ -468,26 +459,26 @@ inline bool
 PropertyHasBeenMarkedNonConstant(JSObject *obj, jsid id)
 {
     // Non-constant properties are only relevant for singleton objects.
-    if (!obj->isSingleton())
+    if (!obj->hasSingletonType())
         return true;
 
     // EnsureTrackPropertyTypes must have been called on this object.
-    if (obj->group()->unknownProperties())
+    if (obj->type()->unknownProperties())
         return true;
-    HeapTypeSet *types = obj->group()->maybeGetProperty(IdToTypeId(id));
+    HeapTypeSet *types = obj->type()->maybeGetProperty(IdToTypeId(id));
     return types->nonConstantProperty();
 }
 
 inline bool
 HasTypePropertyId(JSObject *obj, jsid id, Type type)
 {
-    if (obj->hasLazyGroup())
+    if (obj->hasLazyType())
         return true;
 
-    if (obj->group()->unknownProperties())
+    if (obj->type()->unknownProperties())
         return true;
 
-    if (HeapTypeSet *types = obj->group()->maybeGetProperty(IdToTypeId(id)))
+    if (HeapTypeSet *types = obj->type()->maybeGetProperty(IdToTypeId(id)))
         return types->hasType(type);
 
     return false;
@@ -499,8 +490,8 @@ HasTypePropertyId(JSObject *obj, jsid id, const Value &value)
     return HasTypePropertyId(obj, id, GetValueType(value));
 }
 
-void AddTypePropertyId(ExclusiveContext *cx, ObjectGroup *group, jsid id, Type type);
-void AddTypePropertyId(ExclusiveContext *cx, ObjectGroup *group, jsid id, const Value &value);
+void AddTypePropertyId(ExclusiveContext *cx, TypeObject *obj, jsid id, Type type);
+void AddTypePropertyId(ExclusiveContext *cx, TypeObject *obj, jsid id, const Value &value);
 
 /* Add a possible type for a property of obj. */
 inline void
@@ -508,7 +499,7 @@ AddTypePropertyId(ExclusiveContext *cx, JSObject *obj, jsid id, Type type)
 {
     id = IdToTypeId(id);
     if (TrackPropertyTypes(cx, obj, id))
-        AddTypePropertyId(cx, obj->group(), id, type);
+        AddTypePropertyId(cx, obj->type(), id, type);
 }
 
 inline void
@@ -516,18 +507,19 @@ AddTypePropertyId(ExclusiveContext *cx, JSObject *obj, jsid id, const Value &val
 {
     id = IdToTypeId(id);
     if (TrackPropertyTypes(cx, obj, id))
-        AddTypePropertyId(cx, obj->group(), id, value);
+        AddTypePropertyId(cx, obj->type(), id, value);
 }
 
+/* Set one or more dynamic flags on a type object. */
 inline void
-MarkObjectGroupFlags(ExclusiveContext *cx, JSObject *obj, ObjectGroupFlags flags)
+MarkTypeObjectFlags(ExclusiveContext *cx, JSObject *obj, TypeObjectFlags flags)
 {
-    if (!obj->hasLazyGroup() && !obj->group()->hasAllFlags(flags))
-        obj->group()->setFlags(cx, flags);
+    if (!obj->hasLazyType() && !obj->type()->hasAllFlags(flags))
+        obj->type()->setFlags(cx, flags);
 }
 
 inline void
-MarkObjectGroupUnknownProperties(JSContext *cx, ObjectGroup *obj)
+MarkTypeObjectUnknownProperties(JSContext *cx, TypeObject *obj)
 {
     if (!obj->unknownProperties())
         obj->markUnknown(cx);
@@ -538,7 +530,7 @@ MarkTypePropertyNonData(ExclusiveContext *cx, JSObject *obj, jsid id)
 {
     id = IdToTypeId(id);
     if (TrackPropertyTypes(cx, obj, id))
-        obj->group()->markPropertyNonData(cx, id);
+        obj->type()->markPropertyNonData(cx, id);
 }
 
 inline void
@@ -546,27 +538,27 @@ MarkTypePropertyNonWritable(ExclusiveContext *cx, JSObject *obj, jsid id)
 {
     id = IdToTypeId(id);
     if (TrackPropertyTypes(cx, obj, id))
-        obj->group()->markPropertyNonWritable(cx, id);
+        obj->type()->markPropertyNonWritable(cx, id);
 }
 
 inline bool
 IsTypePropertyIdMarkedNonData(JSObject *obj, jsid id)
 {
-    return obj->group()->isPropertyNonData(id);
+    return obj->type()->isPropertyNonData(id);
 }
 
 inline bool
 IsTypePropertyIdMarkedNonWritable(JSObject *obj, jsid id)
 {
-    return obj->group()->isPropertyNonWritable(id);
+    return obj->type()->isPropertyNonWritable(id);
 }
 
 /* Mark a state change on a particular object. */
 inline void
 MarkObjectStateChange(ExclusiveContext *cx, JSObject *obj)
 {
-    if (!obj->hasLazyGroup() && !obj->group()->unknownProperties())
-        obj->group()->markStateChange(cx);
+    if (!obj->hasLazyType() && !obj->type()->unknownProperties())
+        obj->type()->markStateChange(cx);
 }
 
 /*
@@ -575,15 +567,15 @@ MarkObjectStateChange(ExclusiveContext *cx, JSObject *obj)
  */
 
 inline void
-FixArrayGroup(ExclusiveContext *cx, ArrayObject *obj)
+FixArrayType(ExclusiveContext *cx, ArrayObject *obj)
 {
-    cx->compartment()->types.fixArrayGroup(cx, obj);
+    cx->compartment()->types.fixArrayType(cx, obj);
 }
 
 inline void
-FixObjectGroup(ExclusiveContext *cx, PlainObject *obj)
+FixObjectType(ExclusiveContext *cx, PlainObject *obj)
 {
-    cx->compartment()->types.fixObjectGroup(cx, obj);
+    cx->compartment()->types.fixObjectType(cx, obj);
 }
 
 /* Interface helpers for JSScript*. */
@@ -698,22 +690,22 @@ struct AllocationSiteKey : public DefaultHasher<AllocationSiteKey> {
     }
 };
 
-/* Whether to use a singleton kind for an initializer opcode at script/pc. */
+/* Whether to use a new type object for an initializer opcode at script/pc. */
 js::NewObjectKind
-UseSingletonForInitializer(JSScript *script, jsbytecode *pc, JSProtoKey key);
+UseNewTypeForInitializer(JSScript *script, jsbytecode *pc, JSProtoKey key);
 
 js::NewObjectKind
-UseSingletonForInitializer(JSScript *script, jsbytecode *pc, const Class *clasp);
+UseNewTypeForInitializer(JSScript *script, jsbytecode *pc, const Class *clasp);
 
-/* static */ inline ObjectGroup *
-TypeScript::InitGroup(JSContext *cx, JSScript *script, jsbytecode *pc, JSProtoKey kind)
+/* static */ inline TypeObject *
+TypeScript::InitObject(JSContext *cx, JSScript *script, jsbytecode *pc, JSProtoKey kind)
 {
-    MOZ_ASSERT(!UseSingletonForInitializer(script, pc, kind));
+    MOZ_ASSERT(!UseNewTypeForInitializer(script, pc, kind));
 
     uint32_t offset = script->pcToOffset(pc);
 
     if (offset >= AllocationSiteKey::OFFSET_LIMIT)
-        return GetNewObjectGroup(cx, kind);
+        return GetTypeNewObject(cx, kind);
 
     AllocationSiteKey key;
     key.script = script;
@@ -721,26 +713,25 @@ TypeScript::InitGroup(JSContext *cx, JSScript *script, jsbytecode *pc, JSProtoKe
     key.kind = kind;
 
     if (!cx->compartment()->types.allocationSiteTable)
-        return cx->compartment()->types.addAllocationSiteObjectGroup(cx, key);
+        return cx->compartment()->types.addAllocationSiteTypeObject(cx, key);
 
     AllocationSiteTable::Ptr p = cx->compartment()->types.allocationSiteTable->lookup(key);
 
     if (p)
         return p->value();
-    return cx->compartment()->types.addAllocationSiteObjectGroup(cx, key);
+    return cx->compartment()->types.addAllocationSiteTypeObject(cx, key);
 }
 
-/* Set the group to use for obj according to the site it was allocated at. */
+/* Set the type to use for obj according to the site it was allocated at. */
 static inline bool
-SetInitializerObjectGroup(JSContext *cx, HandleScript script, jsbytecode *pc, HandleObject obj,
-                          NewObjectKind kind)
+SetInitializerObjectType(JSContext *cx, HandleScript script, jsbytecode *pc, HandleObject obj, NewObjectKind kind)
 {
     JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(obj->getClass());
     MOZ_ASSERT(key != JSProto_Null);
-    MOZ_ASSERT(kind == UseSingletonForInitializer(script, pc, key));
+    MOZ_ASSERT(kind == UseNewTypeForInitializer(script, pc, key));
 
     if (kind == SingletonObject) {
-        MOZ_ASSERT(obj->isSingleton());
+        MOZ_ASSERT(obj->hasSingletonType());
 
         /*
          * Inference does not account for types of run-once initializer
@@ -749,10 +740,10 @@ SetInitializerObjectGroup(JSContext *cx, HandleScript script, jsbytecode *pc, Ha
          */
         TypeScript::Monitor(cx, script, pc, ObjectValue(*obj));
     } else {
-        types::ObjectGroup *group = TypeScript::InitGroup(cx, script, pc, key);
-        if (!group)
+        types::TypeObject *type = TypeScript::InitObject(cx, script, pc, key);
+        if (!type)
             return false;
-        obj->uninlinedSetGroup(group);
+        obj->uninlinedSetType(type);
     }
 
     return true;
@@ -775,7 +766,7 @@ TypeScript::Monitor(JSContext *cx, const js::Value &rval)
 /* static */ inline void
 TypeScript::MonitorAssign(JSContext *cx, HandleObject obj, jsid id)
 {
-    if (!obj->isSingleton()) {
+    if (!obj->hasSingletonType()) {
         /*
          * Mark as unknown any object which has had dynamic assignments to
          * non-integer properties at SETELEM opcodes. This avoids making large
@@ -791,10 +782,10 @@ TypeScript::MonitorAssign(JSContext *cx, HandleObject obj, jsid id)
         // But if we don't have too many properties yet, don't do anything.  The
         // idea here is that normal object initialization should not trigger
         // deoptimization in most cases, while actual usage as a hashmap should.
-        ObjectGroup* group = obj->group();
-        if (group->getPropertyCount() < 128)
+        TypeObject* type = obj->type();
+        if (type->getPropertyCount() < 128)
             return;
-        MarkObjectGroupUnknownProperties(cx, group);
+        MarkTypeObjectUnknownProperties(cx, type);
     }
 }
 
@@ -1026,35 +1017,35 @@ HashSetLookup(U **values, unsigned count, T key)
     return nullptr;
 }
 
-inline ObjectGroupKey *
+inline TypeObjectKey *
 Type::objectKey() const
 {
     MOZ_ASSERT(isObject());
-    return (ObjectGroupKey *) data;
+    return (TypeObjectKey *) data;
 }
 
 inline JSObject *
-Type::singleton() const
+Type::singleObject() const
 {
-    return objectKey()->singleton();
+    return objectKey()->asSingleObject();
 }
 
-inline ObjectGroup *
-Type::group() const
+inline TypeObject *
+Type::typeObject() const
 {
-    return objectKey()->group();
+    return objectKey()->asTypeObject();
 }
 
 inline JSObject *
-Type::singletonNoBarrier() const
+Type::singleObjectNoBarrier() const
 {
-    return objectKey()->singletonNoBarrier();
+    return objectKey()->asSingleObjectNoBarrier();
 }
 
-inline ObjectGroup *
-Type::groupNoBarrier() const
+inline TypeObject *
+Type::typeObjectNoBarrier() const
 {
-    return objectKey()->groupNoBarrier();
+    return objectKey()->asTypeObjectNoBarrier();
 }
 
 inline bool
@@ -1071,7 +1062,7 @@ TypeSet::hasType(Type type) const
         return !!(flags & TYPE_FLAG_ANYOBJECT);
     } else {
         return !!(flags & TYPE_FLAG_ANYOBJECT) ||
-            HashSetLookup<ObjectGroupKey*,ObjectGroupKey,ObjectGroupKey>
+            HashSetLookup<TypeObjectKey*,TypeObjectKey,TypeObjectKey>
             (objectSet, baseObjectCount(), type.objectKey()) != nullptr;
     }
 }
@@ -1139,61 +1130,60 @@ TypeSet::getObjectCount() const
     return count;
 }
 
-inline ObjectGroupKey *
+inline TypeObjectKey *
 TypeSet::getObject(unsigned i) const
 {
     MOZ_ASSERT(i < getObjectCount());
     if (baseObjectCount() == 1) {
         MOZ_ASSERT(i == 0);
-        return (ObjectGroupKey *) objectSet;
+        return (TypeObjectKey *) objectSet;
     }
     return objectSet[i];
 }
 
 inline JSObject *
-TypeSet::getSingleton(unsigned i) const
+TypeSet::getSingleObject(unsigned i) const
 {
-    ObjectGroupKey *key = getObject(i);
-    return (key && key->isSingleton()) ? key->singleton() : nullptr;
+    TypeObjectKey *key = getObject(i);
+    return (key && key->isSingleObject()) ? key->asSingleObject() : nullptr;
 }
 
-inline ObjectGroup *
-TypeSet::getGroup(unsigned i) const
+inline TypeObject *
+TypeSet::getTypeObject(unsigned i) const
 {
-    ObjectGroupKey *key = getObject(i);
-    return (key && key->isGroup()) ? key->group() : nullptr;
+    TypeObjectKey *key = getObject(i);
+    return (key && key->isTypeObject()) ? key->asTypeObject() : nullptr;
 }
 
 inline JSObject *
-TypeSet::getSingletonNoBarrier(unsigned i) const
+TypeSet::getSingleObjectNoBarrier(unsigned i) const
 {
-    ObjectGroupKey *key = getObject(i);
-    return (key && key->isSingleton()) ? key->singletonNoBarrier() : nullptr;
+    TypeObjectKey *key = getObject(i);
+    return (key && key->isSingleObject()) ? key->asSingleObjectNoBarrier() : nullptr;
 }
 
-inline ObjectGroup *
-TypeSet::getGroupNoBarrier(unsigned i) const
+inline TypeObject *
+TypeSet::getTypeObjectNoBarrier(unsigned i) const
 {
-    ObjectGroupKey *key = getObject(i);
-    return (key && key->isGroup()) ? key->groupNoBarrier() : nullptr;
+    TypeObjectKey *key = getObject(i);
+    return (key && key->isTypeObject()) ? key->asTypeObjectNoBarrier() : nullptr;
 }
 
 inline const Class *
 TypeSet::getObjectClass(unsigned i) const
 {
-    if (JSObject *object = getSingleton(i))
+    if (JSObject *object = getSingleObject(i))
         return object->getClass();
-    if (ObjectGroup *group = getGroup(i))
-        return group->clasp();
+    if (TypeObject *object = getTypeObject(i))
+        return object->clasp();
     return nullptr;
 }
 
 /////////////////////////////////////////////////////////////////////
-// ObjectGroup
+// TypeObject
 /////////////////////////////////////////////////////////////////////
 
-inline
-ObjectGroup::ObjectGroup(const Class *clasp, TaggedProto proto, ObjectGroupFlags initialFlags)
+inline TypeObject::TypeObject(const Class *clasp, TaggedProto proto, TypeObjectFlags initialFlags)
 {
     mozilla::PodZero(this);
 
@@ -1206,24 +1196,24 @@ ObjectGroup::ObjectGroup(const Class *clasp, TaggedProto proto, ObjectGroupFlags
 
     setGeneration(zone()->types.generation);
 
-    InferSpew(ISpewOps, "newGroup: %s", ObjectGroupString(this));
+    InferSpew(ISpewOps, "newObject: %s", TypeObjectString(this));
 }
 
 inline void
-ObjectGroup::finalize(FreeOp *fop)
+TypeObject::finalize(FreeOp *fop)
 {
     fop->delete_(newScriptDontCheckGeneration());
     fop->delete_(maybeUnboxedLayoutDontCheckGeneration());
 }
 
 inline uint32_t
-ObjectGroup::basePropertyCount()
+TypeObject::basePropertyCount()
 {
     return (flags() & OBJECT_FLAG_PROPERTY_COUNT_MASK) >> OBJECT_FLAG_PROPERTY_COUNT_SHIFT;
 }
 
 inline void
-ObjectGroup::setBasePropertyCount(uint32_t count)
+TypeObject::setBasePropertyCount(uint32_t count)
 {
     // Note: Callers must ensure they are performing threadsafe operations.
     MOZ_ASSERT(count <= OBJECT_FLAG_PROPERTY_COUNT_LIMIT);
@@ -1232,7 +1222,7 @@ ObjectGroup::setBasePropertyCount(uint32_t count)
 }
 
 inline HeapTypeSet *
-ObjectGroup::getProperty(ExclusiveContext *cx, jsid id)
+TypeObject::getProperty(ExclusiveContext *cx, jsid id)
 {
     MOZ_ASSERT(JSID_IS_VOID(id) || JSID_IS_EMPTY(id) || JSID_IS_STRING(id) || JSID_IS_SYMBOL(id));
     MOZ_ASSERT_IF(!JSID_IS_EMPTY(id), id == IdToTypeId(id));
@@ -1273,7 +1263,7 @@ ObjectGroup::getProperty(ExclusiveContext *cx, jsid id)
 }
 
 inline HeapTypeSet *
-ObjectGroup::maybeGetProperty(jsid id)
+TypeObject::maybeGetProperty(jsid id)
 {
     MOZ_ASSERT(JSID_IS_VOID(id) || JSID_IS_EMPTY(id) || JSID_IS_STRING(id) || JSID_IS_SYMBOL(id));
     MOZ_ASSERT_IF(!JSID_IS_EMPTY(id), id == IdToTypeId(id));
@@ -1286,7 +1276,7 @@ ObjectGroup::maybeGetProperty(jsid id)
 }
 
 inline unsigned
-ObjectGroup::getPropertyCount()
+TypeObject::getPropertyCount()
 {
     uint32_t count = basePropertyCount();
     if (count > SET_ARRAY_SIZE)
@@ -1295,7 +1285,7 @@ ObjectGroup::getPropertyCount()
 }
 
 inline Property *
-ObjectGroup::getProperty(unsigned i)
+TypeObject::getProperty(unsigned i)
 {
     MOZ_ASSERT(i < getPropertyCount());
     if (basePropertyCount() == 1) {
@@ -1338,8 +1328,8 @@ struct GCMethods<const types::Type>
 {
     static types::Type initial() { return types::Type::UnknownType(); }
     static bool poisoned(const types::Type &v) {
-        return (v.isGroup() && IsPoisonedPtr(v.group()))
-            || (v.isSingleton() && IsPoisonedPtr(v.singleton()));
+        return (v.isTypeObject() && IsPoisonedPtr(v.typeObject()))
+            || (v.isSingleObject() && IsPoisonedPtr(v.singleObject()));
     }
 };
 
@@ -1348,8 +1338,8 @@ struct GCMethods<types::Type>
 {
     static types::Type initial() { return types::Type::UnknownType(); }
     static bool poisoned(const types::Type &v) {
-        return (v.isGroup() && IsPoisonedPtr(v.group()))
-            || (v.isSingleton() && IsPoisonedPtr(v.singleton()));
+        return (v.isTypeObject() && IsPoisonedPtr(v.typeObject()))
+            || (v.isSingleObject() && IsPoisonedPtr(v.singleObject()));
     }
 };
 
