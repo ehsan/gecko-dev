@@ -11,19 +11,19 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is bookmark all pages test with tab view.
+ * The Original Code is the Extension Manager.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Foundation.
+ * the Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- * Raymond Lee <raymond@appcoast.com>
+ *   Dave Townsend <dtownsend@oxymoronical.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -35,33 +35,31 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function test() {
-  waitForExplicitFinish();
+#include "jscntxt.h"
+#include "amIInstallTrigger.h"
+#include "nsIDOMWindowInternal.h"
+#include "nsIURI.h"
+#include "amIWebInstaller.h"
+#include "nsCOMPtr.h"
 
-  let tabOne = gBrowser.addTab("about:blank");
-  let tabTwo = gBrowser.addTab("http://mochi.test:8888/");
-  gBrowser.selectedTab = tabTwo;
+#define AM_InstallTrigger_CID \
+ {0xfcfcdf1e, 0xe9ef, 0x4141, {0x90, 0xd8, 0xd5, 0xff, 0x84, 0xc1, 0x7c, 0xce}}
+#define AM_INSTALLTRIGGER_CONTRACTID "@mozilla.org/addons/installtrigger;1"
 
-  let browser = gBrowser.getBrowserForTab(tabTwo);
-  let onLoad = function() {
-    browser.removeEventListener("load", onLoad, true);
+class amInstallTrigger : public amIInstallTrigger
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_AMIINSTALLTRIGGER
 
-    gBrowser.showOnlyTheseTabs([tabTwo]);
+  amInstallTrigger();
 
-    is(gBrowser.visibleTabs.length, 1, "Only one tab is visible");
+private:
+  ~amInstallTrigger();
 
-    let uris = PlacesCommandHook._getUniqueTabInfo();
-    is(uris.length, 1, "Only one uri is returned");
+  JSContext* GetJSContext();
+  already_AddRefed<nsIDOMWindowInternal> GetOriginatingWindow(JSContext* aCx);
+  already_AddRefed<nsIURI> GetOriginatingURI(nsIDOMWindowInternal* aWindow);
 
-    is(uris[0].spec, tabTwo.linkedBrowser.currentURI.spec, "It's the correct URI");
-
-    gBrowser.removeTab(tabOne);
-    gBrowser.removeTab(tabTwo);
-    Array.forEach(gBrowser.tabs, function(tab) {
-      tab.hidden = false;
-    });
-
-    finish();
-  }
-  browser.addEventListener("load", onLoad, true);
-}
+  nsCOMPtr<amIWebInstaller> mManager;
+};

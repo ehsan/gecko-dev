@@ -222,10 +222,6 @@
 
 #include "mozilla/FunctionTimer.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#endif
-
 using namespace mozilla::widget;
 
 /**************************************************************

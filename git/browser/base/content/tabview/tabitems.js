@@ -856,7 +856,6 @@ window.TabItems = {
       Items.unsquish(null, tab.tabItem);
 
       tab.tabItem = null;
-      Storage.saveTab(tab, null);
 
       let index = this._tabsWaitingForUpdate.indexOf(tab);
       if (index != -1)
