@@ -39,6 +39,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 
@@ -66,7 +67,7 @@ public:
   NS_DECL_NSIDOMHTMLFIELDSETELEMENT
 
   // nsIFormControl
-  NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_FIELDSET; }
+  NS_IMETHOD_(PRInt32) GetType() const { return NS_FORM_FIELDSET; }
   NS_IMETHOD Reset();
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
@@ -93,8 +94,6 @@ nsHTMLFieldSetElement::~nsHTMLFieldSetElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLFieldSetElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFieldSetElement, nsGenericElement)
 
-
-DOMCI_DATA(HTMLFieldSetElement, nsHTMLFieldSetElement)
 
 // QueryInterface implementation for nsHTMLFieldSetElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLFieldSetElement)

@@ -10,9 +10,8 @@
 #include "base/command_line.h"
 #include "base/string_util.h"
 
-#include "nsRegion.h"
-
 #include "IPDLUnitTestSubprocess.h"
+#include "IPDLUnitTestThreadChild.h"
 
 //-----------------------------------------------------------------------------
 //===== TEMPLATED =====
@@ -20,6 +19,7 @@ ${INCLUDES}
 //-----------------------------------------------------------------------------
 
 using mozilla::_ipdltest::IPDLUnitTestSubprocess;
+using mozilla::_ipdltest::IPDLUnitTestThreadChild;
 
 void* mozilla::_ipdltest::gParentActor;
 IPDLUnitTestSubprocess* mozilla::_ipdltest::gSubprocess;
@@ -126,16 +126,11 @@ IPDLUnitTestMain(void* aData)
     IPDLUnitTestType test = IPDLUnitTestFromString(testString);
     if (!test) {
         // use this instead of |fail()| because we don't know what the test is
-        fprintf(stderr, MOZ_IPDL_TESTFAIL_LABEL "| %s | unknown unit test %s\n",
+        fprintf(stderr, MOZ_IPDL_TESTFAIL_LABEL "| %s | unknown unit test %s\\n",
                 "<--->", testString);
         NS_RUNTIMEABORT("can't continue");
     }
     gIPDLUnitTestName = testString;
-
-    if (NS_FAILED(nsRegion::InitStatic()))
-        fail("initializing nsRegion");
-
-    printf(MOZ_IPDL_TESTINFO_LABEL "| running test | %s\n", gIPDLUnitTestName);
 
     std::vector<std::string> testCaseArgs;
     testCaseArgs.push_back(testString);

@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Debugging and logging component for Win32 (body).                    */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2005, 2008, 2009 by                         */
+/*  Copyright 1996-2001, 2002, 2005, 2008 by                               */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -55,6 +55,29 @@
 #include <windows.h>
 
 
+#ifdef _WIN32_WCE
+
+  void
+  OutputDebugStringEx( const char*  str )
+  {
+    static WCHAR  buf[8192];
+
+
+    int sz = MultiByteToWideChar( CP_ACP, 0, str, -1, buf,
+                                  sizeof ( buf ) / sizeof ( *buf ) );
+    if ( !sz )
+      lstrcpyW( buf, L"OutputDebugStringEx: MultiByteToWideChar failed" );
+
+    OutputDebugStringW( buf );
+  }
+
+#else
+
+#define OutputDebugStringEx  OutputDebugStringA
+
+#endif
+
+
   FT_BASE_DEF( void )
   FT_Message( const char*  fmt, ... )
   {
@@ -66,7 +89,7 @@
     vprintf( fmt, ap );
     /* send the string to the debugger as well */
     vsprintf( buf, fmt, ap );
-    OutputDebugStringA( buf );
+    OutputDebugStringEx( buf );
     va_end( ap );
   }
 
@@ -80,7 +103,7 @@
 
     va_start( ap, fmt );
     vsprintf( buf, fmt, ap );
-    OutputDebugStringA( buf );
+    OutputDebugStringEx( buf );
     va_end( ap );
 
     exit( EXIT_FAILURE );
@@ -126,8 +149,19 @@
   FT_BASE_DEF( void )
   ft_debug_init( void )
   {
+#ifdef _WIN32_WCE
+
+    /* Windows Mobile doesn't have environment API:           */
+    /* GetEnvironmentStrings, GetEnvironmentVariable, getenv. */
+    /*                                                        */
+    /* FIXME!!! How to set debug mode?                        */
+    const char*  ft2_debug = 0;
+
+#else
+
     const char*  ft2_debug = getenv( "FT2_DEBUG" );
 
+#endif
 
     if ( ft2_debug )
     {

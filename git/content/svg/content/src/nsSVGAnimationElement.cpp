@@ -43,8 +43,6 @@
 #include "nsSMILAnimationFunction.h"
 #include "nsISMILAttr.h"
 
-using namespace mozilla::dom;
-
 //----------------------------------------------------------------------
 // nsISupports methods
 
@@ -137,7 +135,7 @@ nsSVGAnimationElement::HasAnimAttr(nsIAtom* aAttName) const
   return HasAttr(kNameSpaceID_None, aAttName);
 }
 
-Element*
+nsIContent*
 nsSVGAnimationElement::GetTargetElementContent()
 {
   if (HasAttr(kNameSpaceID_XLink, nsGkAtoms::href)) {
@@ -334,6 +332,9 @@ nsSVGAnimationElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   nsSVGAnimationElementBase::UnbindFromTree(aDeep, aNullParent);
 }
 
+//----------------------------------------------------------------------
+// nsIContent methods
+
 PRBool
 nsSVGAnimationElement::ParseAttribute(PRInt32 aNamespaceID,
                                       nsIAtom* aAttribute,
@@ -405,12 +406,6 @@ nsSVGAnimationElement::UnsetAttr(PRInt32 aNamespaceID,
   }
 
   return NS_OK;
-}
-
-PRBool
-nsSVGAnimationElement::IsNodeOfType(PRUint32 aFlags) const
-{
-  return !(aFlags & ~(eCONTENT | eSVG | eANIMATION));
 }
 
 //----------------------------------------------------------------------

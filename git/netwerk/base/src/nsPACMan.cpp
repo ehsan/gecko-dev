@@ -42,7 +42,6 @@
 #include "nsIDNSListener.h"
 #include "nsICancelable.h"
 #include "nsIAuthPrompt.h"
-#include "nsIPromptFactory.h"
 #include "nsIHttpChannel.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
@@ -269,7 +268,7 @@ nsPACMan::LoadPACFromURI(nsIURI *pacURI)
 
   if (!mLoadPending) {
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &nsPACMan::StartLoading);
+        NS_NEW_RUNNABLE_METHOD(nsPACMan, this, StartLoading);
     nsresult rv;
     if (NS_FAILED(rv = NS_DispatchToCurrentThread(event)))
       return rv;
@@ -460,11 +459,9 @@ NS_IMETHODIMP
 nsPACMan::GetInterface(const nsIID &iid, void **result)
 {
   // In case loading the PAC file requires authentication.
-  if (iid.Equals(NS_GET_IID(nsIAuthPrompt))) {
-    nsCOMPtr<nsIPromptFactory> promptFac = do_GetService("@mozilla.org/prompter;1");
-    NS_ENSURE_TRUE(promptFac, NS_ERROR_FAILURE);
-    return promptFac->GetPrompt(nsnull, iid, reinterpret_cast<void**>(result));
-  }
+  if (iid.Equals(NS_GET_IID(nsIAuthPrompt)))
+    return CallCreateInstance(NS_DEFAULTAUTHPROMPT_CONTRACTID,
+                              nsnull, iid, result);
 
   // In case loading the PAC file results in a redirect.
   if (iid.Equals(NS_GET_IID(nsIChannelEventSink))) {

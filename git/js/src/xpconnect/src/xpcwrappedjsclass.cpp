@@ -779,7 +779,7 @@ nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
         PRBool isSystem;
         rv = secMan->IsSystemPrincipal(objPrin, &isSystem);
         if((NS_FAILED(rv) || !isSystem) &&
-           !IS_WRAPPER_CLASS(selfObj->getClass()))
+           !IS_WRAPPER_CLASS(STOBJ_GET_CLASS(selfObj)))
         {
             // A content object.
             nsRefPtr<SameOriginCheckedComponent> checked =
@@ -1250,17 +1250,6 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
     return NS_ERROR_FAILURE;
 }
 
-class ContextPrincipalGuard
-{
-    nsIScriptSecurityManager *ssm;
-    XPCCallContext &ccx;
-  public:
-    ContextPrincipalGuard(XPCCallContext &ccx)
-      : ssm(nsnull), ccx(ccx) {}
-    void principalPushed(nsIScriptSecurityManager *ssm) { this->ssm = ssm; }
-    ~ContextPrincipalGuard() { if (ssm) ssm->PopContextPrincipal(ccx); }
-};
-
 NS_IMETHODIMP
 nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
                                 const XPTMethodDescriptor* info,
@@ -1270,6 +1259,8 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     jsval* sp = nsnull;
     uint8 i;
     uint8 argc=0;
+    uint8 stack_size;
+    jsval result;
     uint8 paramCount=0;
     nsresult retval = NS_ERROR_FAILURE;
     nsresult pending_result = NS_OK;
@@ -1279,11 +1270,13 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     JSObject* obj;
     const char* name = info->name;
     jsval fval;
+    void* mark;
     JSBool foundDependentParam;
     XPCContext* xpcc;
     JSContext* cx;
     JSObject* thisObj;
-    bool invokeCall;
+    JSBool popPrincipal = JS_FALSE;
+    nsIScriptSecurityManager* ssm = nsnull;
 
     // Make sure not to set the callee on ccx until after we've gone through
     // the whole nsIXPCFunctionThisTranslator bit.  That code uses ccx to
@@ -1303,8 +1296,17 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     }
 
     AutoScriptEvaluate scriptEval(cx);
-    js::InvokeArgsGuard args;
-    ContextPrincipalGuard principalGuard(ccx);
+#ifdef DEBUG_stats_jband
+    PRIntervalTime startTime = PR_IntervalNow();
+    PRIntervalTime endTime = 0;
+    static int totalTime = 0;
+
+
+    static int count = 0;
+    static const int interval = 10;
+    if(0 == (++count % interval))
+        printf("<<<<<<<< %d calls on nsXPCWrappedJSs made.  (%d)\n", count, PR_IntervalToMilliseconds(totalTime));
+#endif
 
     obj = thisObj = wrapper->GetJSObject();
 
@@ -1322,44 +1324,25 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     xpcc->SetException(nsnull);
     ccx.GetThreadData()->SetException(nsnull);
 
-    if(XPCPerThreadData::IsMainThread(ccx))
-    {
-        nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
-        if(ssm)
-        {
-            nsCOMPtr<nsIPrincipal> objPrincipal;
-            ssm->GetObjectPrincipal(ccx, obj, getter_AddRefs(objPrincipal));
-            if(objPrincipal)
-            {
-                JSStackFrame* fp = nsnull;
-                nsresult rv =
-                    ssm->PushContextPrincipal(ccx, JS_FrameIterator(ccx, &fp),
-                                              objPrincipal);
-                if(NS_FAILED(rv))
-                {
-                    JS_ReportOutOfMemory(ccx);
-                    retval = NS_ERROR_OUT_OF_MEMORY;
-                    goto pre_call_clean_up;
-                }
-
-                principalGuard.principalPushed(ssm);
-            }
-        }
-    }
-
-    // We use js_Invoke so that the gcthings we use as args will be rooted by
-    // the engine as we do conversions and prepare to do the function call.
-    // This adds a fair amount of complexity, but it's a good optimization
-    // compared to calling JS_AddRoot for each item.
+    // We use js_AllocStack, js_Invoke, and js_FreeStack so that the gcthings
+    // we use as args will be rooted by the engine as we do conversions and
+    // prepare to do the function call. This adds a fair amount of complexity,
+    // but is a good optimization compared to calling JS_AddRoot for each item.
 
     js::LeaveTrace(cx);
 
     // setup stack
 
     // if this isn't a function call then we don't need to push extra stuff
-    invokeCall = !(XPT_MD_IS_SETTER(info->flags) || XPT_MD_IS_GETTER(info->flags));
-    if (invokeCall)
+    if(XPT_MD_IS_GETTER(info->flags) || XPT_MD_IS_SETTER(info->flags))
     {
+        stack_size = argc;
+    }
+    else
+    {
+        // allocate extra space for function and 'this'
+        stack_size = argc + 2;
+
         // We get fval before allocating the stack to avoid gc badness that can
         // happen if the GetProperty call leaves our request and the gc runs
         // while the stack we allocate contains garbage.
@@ -1459,21 +1442,18 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
         }
     }
 
-    /*
-     * pushInvokeArgs allocates |2 + argc| slots, but getters and setters
-     * require only one rooted jsval, so waste one value.
-     */
-    JS_ASSERT_IF(!invokeCall, argc < 2);
-    if (!cx->stack().pushInvokeArgsFriendAPI(cx, invokeCall ? argc : 0, args))
+    // if stack_size is zero then we won't be needing a stack
+    if(stack_size && !(stackbase = sp = js_AllocStack(cx, stack_size, &mark)))
     {
         retval = NS_ERROR_OUT_OF_MEMORY;
         goto pre_call_clean_up;
     }
 
-    sp = stackbase = args.getvp();
+    NS_ASSERTION(XPT_MD_IS_GETTER(info->flags) || sp,
+                 "Only a getter needs no stack.");
 
     // this is a function call, so push function and 'this'
-    if(invokeCall)
+    if(stack_size != argc)
     {
         *sp++ = fval;
         *sp++ = OBJECT_TO_JSVAL(thisObj);
@@ -1670,23 +1650,51 @@ pre_call_clean_up:
     // Make sure "this" doesn't get deleted during this call.
     nsCOMPtr<nsIXPCWrappedJSClass> kungFuDeathGrip(this);
 
+    result = JSVAL_NULL;
+    AUTO_MARK_JSVAL(ccx, &result);
+
     if(!readyToDoTheCall)
-        return retval;
+        goto done;
 
     // do the deed - note exceptions
 
     JS_ClearPendingException(cx);
 
-    /* On success, the return value is placed in |*stackbase|. */
+    if(XPCPerThreadData::IsMainThread(ccx))
+    {
+        ssm = XPCWrapper::GetSecurityManager();
+        if(ssm)
+        {
+            nsCOMPtr<nsIPrincipal> objPrincipal;
+            ssm->GetObjectPrincipal(ccx, obj, getter_AddRefs(objPrincipal));
+            if(objPrincipal)
+            {
+                JSStackFrame* fp = nsnull;
+                nsresult rv =
+                    ssm->PushContextPrincipal(ccx, JS_FrameIterator(ccx, &fp),
+                                              objPrincipal);
+                if(NS_FAILED(rv))
+                {
+                    JS_ReportOutOfMemory(ccx);
+                    retval = NS_ERROR_OUT_OF_MEMORY;
+                    goto done;
+                }
+
+                popPrincipal = JS_TRUE;
+            }
+        }
+    }
+
     if(XPT_MD_IS_GETTER(info->flags))
-        success = JS_GetProperty(cx, obj, name, stackbase);
+        success = JS_GetProperty(cx, obj, name, &result);
     else if(XPT_MD_IS_SETTER(info->flags))
-        success = JS_SetProperty(cx, obj, name, stackbase);
+        success = JS_SetProperty(cx, obj, name, sp-1);
     else
     {
         if(!JSVAL_IS_PRIMITIVE(fval))
         {
-            success = js_Invoke(cx, args, 0);
+            success = js_Invoke(cx, argc, stackbase, 0);
+            result = *stackbase;
         }
         else
         {
@@ -1713,6 +1721,9 @@ pre_call_clean_up:
         }
     }
 
+    if(popPrincipal)
+        ssm->PopContextPrincipal(ccx);
+
     if(!success)
     {
         PRBool forceReport;
@@ -1722,7 +1733,8 @@ pre_call_clean_up:
         // May also want to check if we're moving from content->chrome and force
         // a report in that case.
 
-        return CheckForException(ccx, name, GetInterfaceName(), forceReport);
+        retval = CheckForException(ccx, name, GetInterfaceName(), forceReport);
+        goto done;
     }
 
     ccx.GetThreadData()->SetException(nsnull); // XXX necessary?
@@ -1759,7 +1771,7 @@ pre_call_clean_up:
             pv = (nsXPTCMiniVariant*) nativeParams[i].val.p;
 
         if(param.IsRetval())
-            val = *stackbase;
+            val = result;
         else if(JSVAL_IS_PRIMITIVE(stackbase[i+2]) ||
                 !JS_GetPropertyById(cx, JSVAL_TO_OBJECT(stackbase[i+2]),
                     mRuntime->GetStringID(XPCJSRuntime::IDX_VALUE),
@@ -1810,7 +1822,7 @@ pre_call_clean_up:
             pv = (nsXPTCMiniVariant*) nativeParams[i].val.p;
 
             if(param.IsRetval())
-                val = *stackbase;
+                val = result;
             else if(!JS_GetPropertyById(cx, JSVAL_TO_OBJECT(stackbase[i+2]),
                         mRuntime->GetStringID(XPCJSRuntime::IDX_VALUE),
                         &val))
@@ -1923,6 +1935,15 @@ pre_call_clean_up:
         retval = pending_result;
     }
 
+done:
+    if(sp)
+        js_FreeStack(cx, mark);
+
+#ifdef DEBUG_stats_jband
+    endTime = PR_IntervalNow();
+    printf("%s::%s %d ( c->js ) \n", GetInterfaceName(), info->GetName(), PR_IntervalToMilliseconds(endTime-startTime));
+    totalTime += endTime-startTime;
+#endif
     return retval;
 }
 

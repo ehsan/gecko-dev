@@ -56,7 +56,7 @@ class nsINodeInfo;
 
 nsresult
 NS_NewSVGSVGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo,
-                    PRUint32 aFromParser);
+                    PRBool aFromParser);
 
 typedef nsSVGGraphicElement nsSVGUseElementBase;
 
@@ -113,8 +113,8 @@ protected:
   public:
     SourceReference(nsSVGUseElement* aContainer) : mContainer(aContainer) {}
   protected:
-    virtual void ElementChanged(Element* aFrom, Element* aTo) {
-      nsReferencedElement::ElementChanged(aFrom, aTo);
+    virtual void ContentChanged(nsIContent* aFrom, nsIContent* aTo) {
+      nsReferencedElement::ContentChanged(aFrom, aTo);
       if (aFrom) {
         aFrom->RemoveMutationObserver(mContainer);
       }

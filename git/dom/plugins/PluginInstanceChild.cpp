@@ -42,11 +42,9 @@
 #include "BrowserStreamChild.h"
 #include "PluginStreamChild.h"
 #include "StreamNotifyChild.h"
-#include "PluginProcessChild.h"
 
 #include "mozilla/ipc/SyncChannel.h"
 
-using mozilla::ipc::ProcessChild;
 using namespace mozilla::plugins;
 
 #ifdef MOZ_WIDGET_GTK2
@@ -59,38 +57,22 @@ using namespace mozilla::plugins;
 #elif defined(MOZ_WIDGET_QT)
 #include <QX11Info>
 #elif defined(OS_WIN)
-#ifndef WM_MOUSEHWHEEL
-#define WM_MOUSEHWHEEL     0x020E
-#endif
-
-#include "nsWindowsDllInterceptor.h"
-
-typedef BOOL (WINAPI *User32TrackPopupMenu)(HMENU hMenu,
-                                            UINT uFlags,
-                                            int x,
-                                            int y,
-                                            int nReserved,
-                                            HWND hWnd,
-                                            CONST RECT *prcRect);
-static WindowsDllInterceptor sUser32Intercept;
-static HWND sWinlessPopupSurrogateHWND = NULL;
-static User32TrackPopupMenu sUser32TrackPopupMenuStub = NULL;
 
 using mozilla::gfx::SharedDIB;
 
 #include <windows.h>
 #include <windowsx.h>
 
-// Flash WM_USER message delay time for PostDelayedTask. Borrowed
-// from Chromium's web plugin delegate src. See 'flash msg throttling
-// helpers' section for details.
-const int kFlashWMUSERMessageThrottleDelayMs = 5;
-
 #define NS_OOPP_DOUBLEPASS_MSGID TEXT("MozDoublePassMsg")
 
-#elif defined(XP_MACOSX)
-#include <ApplicationServices/ApplicationServices.h>
-#endif // defined(XP_MACOSX)
+// During nested ui loops, parent is processing windows events via spin loop,
+// which results in rpc in-calls to child. If child falls behind in processing
+// these, an ugly stall condition occurs. To ensure child stays in sync, we use
+// a timer callback to schedule work on in-calls.
+#define CHILD_MODALPUMPTIMEOUT 50
+#define CHILD_MODALLOOPTIMER   654321
+
+#endif // defined(OS_WIN)
 
 PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface,
                                          const nsCString& aMimeType)
@@ -102,48 +84,36 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface,
     , mPluginWindowHWND(0)
     , mPluginWndProc(0)
     , mPluginParentHWND(0)
+    , mNestedEventHook(0)
+    , mNestedPumpHook(0)
+    , mNestedEventLevelDepth(0)
+    , mNestedEventState(false)
     , mCachedWinlessPluginHWND(0)
-    , mWinlessPopupSurrogateHWND(0)
-    , mWinlessThrottleOldWndProc(0)
-    , mWinlessHiddenMsgHWND(0)
+    , mEventPumpTimer(0)
 #endif // OS_WIN
-    , mAsyncCallMutex("PluginInstanceChild::mAsyncCallMutex")
-#if defined(OS_MACOSX)  
-    , mShColorSpace(nsnull)
-    , mShContext(nsnull)
-    , mDrawingModel(NPDrawingModelCoreGraphics)
-#endif
 {
     memset(&mWindow, 0, sizeof(mWindow));
     mData.ndata = (void*) this;
-    mData.pdata = nsnull;
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
     mWindow.ws_info = &mWsInfo;
     memset(&mWsInfo, 0, sizeof(mWsInfo));
-    mWsInfo.display = DefaultXDisplay();
+#ifdef MOZ_WIDGET_GTK2
+    mWsInfo.display = GDK_DISPLAY();
+#elif defined(MOZ_WIDGET_QT)
+    mWsInfo.display = QX11Info::display();
+#endif // MOZ_WIDGET_GTK2
 #endif // MOZ_X11 && XP_UNIX && !XP_MACOSX
 #if defined(OS_WIN)
     memset(&mAlphaExtract, 0, sizeof(mAlphaExtract));
     mAlphaExtract.doublePassEvent = ::RegisterWindowMessage(NS_OOPP_DOUBLEPASS_MSGID);
 #endif // OS_WIN
     InitQuirksModes(aMimeType);
-#if defined(OS_WIN)
-    InitPopupMenuHook();
-#endif // OS_WIN
 }
 
 PluginInstanceChild::~PluginInstanceChild()
 {
 #if defined(OS_WIN)
   DestroyPluginWindow();
-#endif
-#if defined(OS_MACOSX)
-    if (mShColorSpace) {
-        ::CGColorSpaceRelease(mShColorSpace);
-    }
-    if (mShContext) {
-        ::CGContextRelease(mShContext);
-    }
 #endif
 }
 
@@ -154,15 +124,8 @@ PluginInstanceChild::InitQuirksModes(const nsCString& aMimeType)
     // application/x-silverlight
     // application/x-silverlight-2
     NS_NAMED_LITERAL_CSTRING(silverlight, "application/x-silverlight");
-    // application/x-shockwave-flash
-    NS_NAMED_LITERAL_CSTRING(flash, "application/x-shockwave-flash");
     if (FindInReadable(silverlight, aMimeType)) {
         mQuirks |= QUIRK_SILVERLIGHT_WINLESS_INPUT_TRANSLATION;
-        mQuirks |= QUIRK_WINLESS_TRACKPOPUP_HOOK;
-    }
-    else if (FindInReadable(flash, aMimeType)) {
-        mQuirks |= QUIRK_WINLESS_TRACKPOPUP_HOOK;
-        mQuirks |= QUIRK_FLASH_THROTTLE_WMUSER_EVENTS; 
     }
 #endif
 }
@@ -343,35 +306,6 @@ PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
 #endif
     }
 
-#ifdef XP_MACOSX
-   case NPNVsupportsCoreGraphicsBool: {
-        *((NPBool*)aValue) = true;
-        return NPERR_NO_ERROR;
-    }
-
-    case NPNVsupportsCoreAnimationBool: {
-        *((NPBool*)aValue) = true;
-        return NPERR_NO_ERROR;
-    }
-
-    case NPNVsupportsInvalidatingCoreAnimationBool: {
-        *((NPBool*)aValue) = true;
-        return NPERR_NO_ERROR;
-    }
-
-    case NPNVsupportsCocoaBool: {
-        *((NPBool*)aValue) = true;
-        return NPERR_NO_ERROR;
-    }
-  
-#ifndef NP_NO_QUICKDRAW
-    case NPNVsupportsQuickDrawBool: {
-        *((NPBool*)aValue) = false;
-        return NPERR_NO_ERROR;
-    }
-#endif /* NP_NO_QUICKDRAW */
-#endif /* XP_MACOSX */
-
     default:
         PR_LOG(gPluginLog, PR_LOG_WARNING,
                ("In PluginInstanceChild::NPN_GetValue: Unhandled NPNVariable %i (%s)",
@@ -410,29 +344,6 @@ PluginInstanceChild::NPN_SetValue(NPPVariable aVar, void* aValue)
 
         return rv;
     }
-
-#ifdef XP_MACOSX
-    case NPPVpluginDrawingModel: {
-        NPError rv;
-        int drawingModel = (int16) (intptr_t) aValue;
-
-        if (!CallNPN_SetValue_NPPVpluginDrawingModel(drawingModel, &rv))
-            return NPERR_GENERIC_ERROR;
-        mDrawingModel = drawingModel;
-
-        return rv;
-    }
-
-    case NPPVpluginEventModel: {
-        NPError rv;
-        int eventModel = (int16) (intptr_t) aValue;
-
-        if (!CallNPN_SetValue_NPPVpluginEventModel(eventModel, &rv))
-            return NPERR_GENERIC_ERROR;
-
-        return rv;
-    }
-#endif
 
     default:
         PR_LOG(gPluginLog, PR_LOG_WARNING,
@@ -539,7 +450,7 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
                           event.event.xgraphicsexpose.drawable));
 #endif
 
-#ifdef XP_MACOSX
+#ifdef OS_MACOSX
     // Mac OS X does not define an NPEvent structure. It defines more specific types.
     NPCocoaEvent evcopy = event.event;
 #else
@@ -548,10 +459,6 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
 #endif
 
 #ifdef OS_WIN
-    // FIXME/bug 567645: temporarily drop the "dummy event" on the floor
-    if (WM_NULL == evcopy.event)
-        return true;
-
     // Painting for win32. SharedSurfacePaint handles everything.
     if (mWindow.type == NPWindowTypeDrawable) {
        if (evcopy.event == WM_PAINT) {
@@ -576,18 +483,6 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
     else
         *handled = mPluginIface->event(&mData, reinterpret_cast<void*>(&evcopy));
 
-#ifdef XP_MACOSX
-    // Release any reference counted objects created in the child process.
-    if (evcopy.type == NPCocoaEventKeyDown ||
-        evcopy.type == NPCocoaEventKeyUp) {
-      ::CFRelease((CFStringRef)evcopy.data.key.characters);
-      ::CFRelease((CFStringRef)evcopy.data.key.charactersIgnoringModifiers);
-    }
-    else if (evcopy.type == NPCocoaEventTextInput) {
-      ::CFRelease((CFStringRef)evcopy.data.text.text);
-    }
-#endif
-
 #ifdef MOZ_X11
     if (GraphicsExpose == event.event.type) {
         // Make sure the X server completes the drawing before the parent
@@ -603,155 +498,6 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
 
     return true;
 }
-
-#ifdef XP_MACOSX
-
-bool
-PluginInstanceChild::AnswerNPP_HandleEvent_Shmem(const NPRemoteEvent& event,
-                                                 Shmem& mem,
-                                                 int16_t* handled,
-                                                 Shmem* rtnmem)
-{
-    PLUGIN_LOG_DEBUG_FUNCTION;
-    AssertPluginThread();
-
-    PaintTracker pt;
-
-    NPCocoaEvent evcopy = event.event;
-
-    if (evcopy.type == NPCocoaEventDrawRect) {
-        if (!mShColorSpace) {
-            mShColorSpace = CreateSystemColorSpace();
-            if (!mShColorSpace) {
-                PLUGIN_LOG_DEBUG(("Could not allocate ColorSpace."));
-                *handled = false;
-                *rtnmem = mem;
-                return true;
-            } 
-        }
-        if (!mShContext) {
-            void* cgContextByte = mem.get<char>();
-            mShContext = ::CGBitmapContextCreate(cgContextByte, 
-                              mWindow.width, mWindow.height, 8, 
-                              mWindow.width * 4, mShColorSpace, 
-                              kCGImageAlphaPremultipliedFirst |
-                              kCGBitmapByteOrder32Host);
-    
-            if (!mShContext) {
-                PLUGIN_LOG_DEBUG(("Could not allocate CGBitmapContext."));
-                *handled = false;
-                *rtnmem = mem;
-                return true;
-            }
-        }
-        CGRect clearRect = ::CGRectMake(0, 0, mWindow.width, mWindow.height);
-        ::CGContextClearRect(mShContext, clearRect);
-        evcopy.data.draw.context = mShContext; 
-    } else {
-        PLUGIN_LOG_DEBUG(("Invalid event type for AnswerNNP_HandleEvent_Shmem."));
-        *handled = false;
-        *rtnmem = mem;
-        return true;
-    } 
-
-    if (!mPluginIface->event) {
-        *handled = false;
-    } else {
-        ::CGContextSaveGState(evcopy.data.draw.context);
-        *handled = mPluginIface->event(&mData, reinterpret_cast<void*>(&evcopy));
-        ::CGContextRestoreGState(evcopy.data.draw.context);
-    }
-
-    *rtnmem = mem;
-    return true;
-}
-
-#else
-bool
-PluginInstanceChild::AnswerNPP_HandleEvent_Shmem(const NPRemoteEvent& event,
-                                                 Shmem& mem,
-                                                 int16_t* handled,
-                                                 Shmem* rtnmem)
-{
-    NS_RUNTIMEABORT("not reached.");
-    *rtnmem = mem;
-    return true;
-}
-#endif
-
-#ifdef XP_MACOSX
-bool
-PluginInstanceChild::AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
-                                                     const uint32_t &surfaceid,
-                                                     int16_t* handled)
-{
-    PLUGIN_LOG_DEBUG_FUNCTION;
-    AssertPluginThread();
-
-    PaintTracker pt;
-
-    NPCocoaEvent evcopy = event.event;
-    nsIOSurface* surf = nsIOSurface::LookupSurface(surfaceid);
-    if (!surf) {
-        NS_ERROR("Invalid IOSurface.");
-        *handled = false;
-        return false;
-    }
-
-    if (evcopy.type == NPCocoaEventDrawRect) {
-        mCARenderer.AttachIOSurface(surf);
-        if (!mCARenderer.isInit()) {
-            void *caLayer = nsnull;
-            NPError result = mPluginIface->getvalue(GetNPP(), 
-                                     NPPVpluginCoreAnimationLayer,
-                                     &caLayer);
-            if (result != NPERR_NO_ERROR || !caLayer) {
-                PLUGIN_LOG_DEBUG(("Plugin requested CoreAnimation but did not "
-                                  "provide CALayer."));
-                *handled = false;
-                return false;
-            }
-            mCARenderer.SetupRenderer(caLayer, mWindow.width, mWindow.height);
-            // Flash needs to have the window set again after this step
-            if (mPluginIface->setwindow)
-                (void) mPluginIface->setwindow(&mData, &mWindow);
-        }
-    } else {
-        PLUGIN_LOG_DEBUG(("Invalid event type for "
-                          "AnswerNNP_HandleEvent_IOSurface."));
-        *handled = false;
-        return false;
-    } 
-
-    mCARenderer.Render(mWindow.width, mWindow.height, nsnull);
-
-    return true;
-
-}
-
-#else
-bool
-PluginInstanceChild::AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
-                                                     const uint32_t &surfaceid,
-                                                     int16_t* handled)
-{
-    NS_RUNTIMEABORT("NPP_HandleEvent_IOSurface is a OSX-only message");
-    return false;
-}
-#endif
-
-bool
-PluginInstanceChild::RecvWindowPosChanged(const NPRemoteEvent& event)
-{
-#ifdef OS_WIN
-    int16_t dontcare;
-    return AnswerNPP_HandleEvent(event, &dontcare);
-#else
-    NS_RUNTIMEABORT("WindowPosChanged is a windows-only message");
-    return false;
-#endif
-}
-
 
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
 static bool
@@ -810,11 +556,9 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
                          &mWsInfo.visual, &mWsInfo.depth))
         return false;
 
+    if (aWindow.type == NPWindowTypeWindow) {
 #ifdef MOZ_WIDGET_GTK2
-    if (aWindow.type == NPWindowTypeWindow
-        && gtk_check_version(2,18,7) != NULL) { // older
-        GdkWindow* socket_window = gdk_window_lookup(aWindow.window);
-        if (socket_window) {
+        if (GdkWindow* socket_window = gdk_window_lookup(aWindow.window)) {
             // A GdkWindow for the socket already exists.  Need to
             // workaround https://bugzilla.gnome.org/show_bug.cgi?id=607061
             // See wrap_gtk_plug_embedded in PluginModuleChild.cpp.
@@ -822,8 +566,8 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
                               "moz-existed-before-set-window",
                               GUINT_TO_POINTER(1));
         }
-    }
 #endif
+    }
 
     if (mPluginIface->setwindow)
         (void) mPluginIface->setwindow(&mData, &mWindow);
@@ -859,11 +603,6 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
       break;
 
       case NPWindowTypeDrawable:
-          mWindow.type = aWindow.type;
-          if (mQuirks & QUIRK_WINLESS_TRACKPOPUP_HOOK)
-              CreateWinlessPopupSurrogate();
-          if (mQuirks & QUIRK_FLASH_THROTTLE_WMUSER_EVENTS)
-              SetupFlashMsgThrottle();
           return SharedSurfaceSetWindow(aWindow);
       break;
 
@@ -873,7 +612,7 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
       break;
     }
 
-#elif defined(XP_MACOSX)
+#elif defined(OS_MACOSX)
 
     mWindow.x = aWindow.x;
     mWindow.y = aWindow.y;
@@ -882,18 +621,6 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
     mWindow.clipRect = aWindow.clipRect;
     mWindow.type = aWindow.type;
 
-    if (mShContext) {
-        // Release the shared context so that it is reallocated
-        // with the new size. 
-        ::CGContextRelease(mShContext);
-        mShContext = nsnull;
-    }
-
-    if (mPluginIface->setwindow)
-        (void) mPluginIface->setwindow(&mData, &mWindow);
-
-#elif defined(ANDROID)
-#  warning Need Android impl
 #else
 #  error Implement me for your OS
 #endif
@@ -1072,30 +799,14 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
 
     // The plugin received keyboard focus, let the parent know so the dom is up to date.
     if (message == WM_MOUSEACTIVATE)
-      self->CallPluginFocusChange(PR_TRUE);
+        self->CallPluginGotFocus();
 
     // Prevent lockups due to plugins making rpc calls when the parent
-    // is making a synchronous SendMessage call to the child window. Add
-    // more messages as needed.
-    if ((InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
-        switch(message) {
-            case WM_KILLFOCUS:
-            case WM_MOUSEHWHEEL:
-            case WM_MOUSEWHEEL:
-            case WM_HSCROLL:
-            case WM_VSCROLL:
-            ReplyMessage(0);
-            break;
-        }
-    }
-
-    if (message == WM_KILLFOCUS)
-      self->CallPluginFocusChange(PR_FALSE);
-
-    if (message == WM_USER+1 &&
-        (self->mQuirks & PluginInstanceChild::QUIRK_FLASH_THROTTLE_WMUSER_EVENTS)) {
-        self->FlashThrottleMessage(hWnd, message, wParam, lParam, true);
-        return 0;
+    // is making a synchronous SetFocus api call. (bug 541362) Add more
+    // windowing events as needed for other api.
+    if (message == WM_KILLFOCUS && 
+        ((InSendMessageEx(NULL) & (ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND)) {
+        ReplyMessage(0); // Unblock the caller
     }
 
     LRESULT res = CallWindowProc(self->mPluginWndProc, hWnd, message, wParam,
@@ -1110,115 +821,121 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
     return res;
 }
 
-/* windowless track popup menu helpers */
+/* winless modal ui loop logic */
 
-BOOL
-WINAPI
-PluginInstanceChild::TrackPopupHookProc(HMENU hMenu,
-                                        UINT uFlags,
-                                        int x,
-                                        int y,
-                                        int nReserved,
-                                        HWND hWnd,
-                                        CONST RECT *prcRect)
+VOID CALLBACK
+PluginInstanceChild::PumpTimerProc(HWND hwnd,
+                                   UINT uMsg,
+                                   UINT_PTR idEvent,
+                                   DWORD dwTime)
 {
-  if (!sUser32TrackPopupMenuStub) {
-      NS_ERROR("TrackPopupMenu stub isn't set! Badness!");
-      return 0;
-  }
-
-  // Only change the parent when we know this is a context on the plugin
-  // surface within the browser. Prevents resetting the parent on child ui
-  // displayed by plugins that have working parent-child relationships.
-  PRUnichar szClass[21];
-  bool haveClass = GetClassNameW(hWnd, szClass, NS_ARRAY_LENGTH(szClass));
-  if (!haveClass || 
-      (wcscmp(szClass, L"MozillaWindowClass") &&
-       wcscmp(szClass, L"SWFlash_Placeholder"))) {
-      // Unrecognized parent
-      return sUser32TrackPopupMenuStub(hMenu, uFlags, x, y, nReserved,
-                                       hWnd, prcRect);
-  }
-
-  // Called on an unexpected event, warn.
-  if (!sWinlessPopupSurrogateHWND) {
-      NS_WARNING(
-          "Untraced TrackPopupHookProc call! Menu might not work right!");
-      return sUser32TrackPopupMenuStub(hMenu, uFlags, x, y, nReserved,
-                                       hWnd, prcRect);
-  }
-
-  HWND surrogateHwnd = sWinlessPopupSurrogateHWND;
-  sWinlessPopupSurrogateHWND = NULL;
-
-  // Popups that don't use TPM_RETURNCMD expect a final command message
-  // when an item is selected and the context closes. Since we replace
-  // the parent, we need to forward this back to the real parent so it
-  // can act on the menu item selected.
-  bool isRetCmdCall = (uFlags & TPM_RETURNCMD);
-
-  // A little trick scrounged from chromium's code - set the focus
-  // to our surrogate parent so keyboard nav events go to the menu. 
-  HWND focusHwnd = SetFocus(surrogateHwnd);
-  DWORD res = sUser32TrackPopupMenuStub(hMenu, uFlags|TPM_RETURNCMD, x, y,
-                                        nReserved, surrogateHwnd, prcRect);
-  if (IsWindow(focusHwnd)) {
-      SetFocus(focusHwnd);
-  }
-
-  if (!isRetCmdCall && res) {
-      SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(res, 0), 0);
-  }
-
-  return res;
+    MessageLoop::current()->ScheduleWork();
 }
 
-void
-PluginInstanceChild::InitPopupMenuHook()
+LRESULT CALLBACK
+PluginInstanceChild::NestedInputPumpHook(int nCode,
+                                         WPARAM wParam,
+                                         LPARAM lParam)
 {
-    if (!(mQuirks & QUIRK_WINLESS_TRACKPOPUP_HOOK) ||
-        sUser32TrackPopupMenuStub)
-        return;
-
-    // Note, once WindowsDllInterceptor is initialized for a module,
-    // it remains initialized for that particular module for it's
-    // lifetime. Additional instances are needed if other modules need
-    // to be hooked.
-    sUser32Intercept.Init("user32.dll");
-    sUser32Intercept.AddHook("TrackPopupMenu", TrackPopupHookProc,
-                             (void**) &sUser32TrackPopupMenuStub);
+    if (nCode >= 0) {
+        MessageLoop::current()->ScheduleWork();
+    }
+    return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
-void
-PluginInstanceChild::CreateWinlessPopupSurrogate()
-{
-    // already initialized
-    if (mWinlessPopupSurrogateHWND)
-        return;
+// gTempChildPointer is only in use from the time we enter handle event, to the
+// point where ui might be created by that call. If ui isn't created, there's
+// no issue. If ui is created, the parent can't start processing messages in
+// spin loop until InternalCallSetNestedEventState is set, at which point,
+// gTempChildPointer is no longer needed.
+static PluginInstanceChild* gTempChildPointer;
 
-    HWND hwnd = NULL;
-    NPError result;
-    if (!CallNPN_GetValue_NPNVnetscapeWindow(&hwnd, &result)) {
-        NS_ERROR("CallNPN_GetValue_NPNVnetscapeWindow failed.");
-        return;
+LRESULT CALLBACK
+PluginInstanceChild::NestedInputEventHook(int nCode,
+                                          WPARAM wParam,
+                                          LPARAM lParam)
+{
+    if (!gTempChildPointer) {
+        return CallNextHookEx(NULL, nCode, wParam, lParam);
     }
 
-    mWinlessPopupSurrogateHWND =
-        CreateWindowEx(WS_EX_NOPARENTNOTIFY, L"Static", NULL, WS_CHILD, 0, 0,
-                       0, 0, hwnd, 0, GetModuleHandle(NULL), 0);
-    if (!mWinlessPopupSurrogateHWND) {
-        NS_ERROR("CreateWindowEx failed for winless placeholder!");
-        return;
+    if (nCode >= 0) {
+        NS_ASSERTION(gTempChildPointer, "Never should be null here!");
+        gTempChildPointer->ResetNestedEventHook();
+        gTempChildPointer->SetNestedInputPumpHook();
+        gTempChildPointer->InternalCallSetNestedEventState(true);
+
+        gTempChildPointer = NULL;
     }
-    return;
+    return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
 void
-PluginInstanceChild::DestroyWinlessPopupSurrogate()
+PluginInstanceChild::SetNestedInputPumpHook()
 {
-    if (mWinlessPopupSurrogateHWND)
-        DestroyWindow(mWinlessPopupSurrogateHWND);
-    mWinlessPopupSurrogateHWND = NULL;
+    NS_ASSERTION(!mNestedPumpHook,
+        "mNestedPumpHook already setup in call to SetNestedInputPumpHook?");
+
+    PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
+
+    mNestedPumpHook = SetWindowsHookEx(WH_CALLWNDPROC,
+                                       NestedInputPumpHook,
+                                       NULL,
+                                       GetCurrentThreadId());
+    mEventPumpTimer = 
+        SetTimer(NULL,
+                 CHILD_MODALLOOPTIMER,
+                 CHILD_MODALPUMPTIMEOUT,
+                 PumpTimerProc);
+}
+
+void
+PluginInstanceChild::ResetPumpHooks()
+{
+    if (mNestedPumpHook)
+        UnhookWindowsHookEx(mNestedPumpHook);
+    mNestedPumpHook = NULL;
+    if (mEventPumpTimer)
+        KillTimer(NULL, mEventPumpTimer);
+}
+
+void
+PluginInstanceChild::SetNestedInputEventHook()
+{
+    NS_ASSERTION(!mNestedEventHook,
+        "mNestedEventHook already setup in call to SetNestedInputEventHook?");
+
+    PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
+
+    // WH_GETMESSAGE hooks are triggered by peek message calls in parent due to
+    // attached message queues, resulting in stomped in-process ipc calls.  So
+    // we use a filter hook specific to dialogs, menus, and scroll bars to kick
+    // things off.
+    mNestedEventHook = SetWindowsHookEx(WH_MSGFILTER,
+                                        NestedInputEventHook,
+                                        NULL,
+                                        GetCurrentThreadId());
+}
+
+void
+PluginInstanceChild::ResetNestedEventHook()
+{
+    PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
+    if (mNestedEventHook)
+        UnhookWindowsHookEx(mNestedEventHook);
+    mNestedEventHook = NULL;
+}
+
+void
+PluginInstanceChild::InternalCallSetNestedEventState(bool aState)
+{
+    if (aState != mNestedEventState) {
+        PLUGIN_LOG_DEBUG(
+            ("PluginInstanceChild::InternalCallSetNestedEventState(%i)",
+            (int)aState));
+        mNestedEventState = aState;
+        SendSetNestedEventState(mNestedEventState);
+    }
 }
 
 /* windowless handle event helpers */
@@ -1292,19 +1009,32 @@ PluginInstanceChild::WinlessHandleEvent(NPEvent& event)
     // special handling during delivery.
     int16_t handled;
 
-    // TrackPopupMenu will fail if the parent window is not associated with
-    // our ui thread. So we hook TrackPopupMenu so we can hand in a surrogate
-    // parent created in the child process.
-    if ((mQuirks & QUIRK_WINLESS_TRACKPOPUP_HOOK) && // XXX turn on by default?
-          (event.event == WM_RBUTTONDOWN || // flash
-           event.event == WM_RBUTTONUP)) {  // silverlight
-      sWinlessPopupSurrogateHWND = mWinlessPopupSurrogateHWND;
+    mNestedEventLevelDepth++;
+    PLUGIN_LOG_DEBUG(("WinlessHandleEvent start depth: %i", mNestedEventLevelDepth));
+
+    // On the first, non-reentrant call, setup our modal ui detection hook.
+    if (mNestedEventLevelDepth == 1) {
+        NS_ASSERTION(!gTempChildPointer, "valid gTempChildPointer here?");
+        gTempChildPointer = this;
+        SetNestedInputEventHook();
     }
 
+    bool old_state = MessageLoop::current()->NestableTasksAllowed();
+    MessageLoop::current()->SetNestableTasksAllowed(true);
     handled = mPluginIface->event(&mData, reinterpret_cast<void*>(&event));
+    MessageLoop::current()->SetNestableTasksAllowed(old_state);
 
-    sWinlessPopupSurrogateHWND = NULL;
+    gTempChildPointer = NULL;
 
+    mNestedEventLevelDepth--;
+    PLUGIN_LOG_DEBUG(("WinlessHandleEvent end depth: %i", mNestedEventLevelDepth));
+
+    NS_ASSERTION(!(mNestedEventLevelDepth < 0), "mNestedEventLevelDepth < 0?");
+    if (mNestedEventLevelDepth <= 0) {
+        ResetNestedEventHook();
+        ResetPumpHooks();
+        InternalCallSetNestedEventState(false);
+    }
     return handled;
 }
 
@@ -1440,8 +1170,8 @@ PluginInstanceChild::SharedSurfacePaint(NPEvent& evcopy)
               }
 
               // See gfxWindowsNativeDrawing, color order doesn't have to match.
-              UpdatePaintClipRect(pRect);
               ::FillRect(mSharedSurfaceDib.GetHDC(), pRect, (HBRUSH)GetStockObject(WHITE_BRUSH));
+              UpdatePaintClipRect(pRect);
               evcopy.wParam = WPARAM(mSharedSurfaceDib.GetHDC());
               if (!mPluginIface->event(&mData, reinterpret_cast<void*>(&evcopy))) {
                   mAlphaExtract.doublePass = RENDER_NATIVE;
@@ -1470,7 +1200,6 @@ PluginInstanceChild::SharedSurfacePaint(NPEvent& evcopy)
         break;
         case RENDER_BACK_TWO:
               // copy our cached surface back
-              UpdatePaintClipRect(pRect);
               ::BitBlt(mSharedSurfaceDib.GetHDC(),
                        pRect->left,
                        pRect->top,
@@ -1485,179 +1214,6 @@ PluginInstanceChild::SharedSurfacePaint(NPEvent& evcopy)
         break;
     }
     return false;
-}
-
-/* flash msg throttling helpers */
-
-// Flash has the unfortunate habit of flooding dispatch loops with custom
-// windowing events they use for timing. We throttle these by dropping the
-// delivery priority below any other event, including pending ipc io
-// notifications. We do this for both windowed and windowless controls.
-// Note flash's windowless msg window can last longer than our instance,
-// so we try to unhook when the window is destroyed and in NPP_Destroy.
-
-void
-PluginInstanceChild::UnhookWinlessFlashThrottle()
-{
-  // We may have already unhooked
-  if (!mWinlessThrottleOldWndProc)
-      return;
-
-  WNDPROC tmpProc = mWinlessThrottleOldWndProc;
-  mWinlessThrottleOldWndProc = nsnull;
-
-  NS_ASSERTION(mWinlessHiddenMsgHWND,
-               "Missing mWinlessHiddenMsgHWND w/subclass set??");
-
-  // reset the subclass
-  SetWindowLongPtr(mWinlessHiddenMsgHWND, GWLP_WNDPROC,
-                   reinterpret_cast<LONG>(tmpProc));
-
-  // Remove our instance prop
-  RemoveProp(mWinlessHiddenMsgHWND, kPluginInstanceChildProperty);
-  mWinlessHiddenMsgHWND = nsnull;
-}
-
-// static
-LRESULT CALLBACK
-PluginInstanceChild::WinlessHiddenFlashWndProc(HWND hWnd,
-                                               UINT message,
-                                               WPARAM wParam,
-                                               LPARAM lParam)
-{
-    PluginInstanceChild* self = reinterpret_cast<PluginInstanceChild*>(
-        GetProp(hWnd, kPluginInstanceChildProperty));
-    if (!self) {
-        NS_NOTREACHED("Badness!");
-        return 0;
-    }
-
-    NS_ASSERTION(self->mWinlessThrottleOldWndProc,
-                 "Missing subclass procedure!!");
-
-    // Throttle
-    if (message == WM_USER+1) {
-        self->FlashThrottleMessage(hWnd, message, wParam, lParam, false);
-        return 0;
-     }
-
-    // Unhook
-    if (message == WM_CLOSE || message == WM_NCDESTROY) {
-        WNDPROC tmpProc = self->mWinlessThrottleOldWndProc;
-        self->UnhookWinlessFlashThrottle();
-        LRESULT res = CallWindowProc(tmpProc, hWnd, message, wParam, lParam);
-        return res;
-    }
-
-    return CallWindowProc(self->mWinlessThrottleOldWndProc,
-                          hWnd, message, wParam, lParam);
-}
-
-// Enumerate all thread windows looking for flash's hidden message window.
-// Once we find it, sub class it so we can throttle user msgs.  
-// static
-BOOL CALLBACK
-PluginInstanceChild::EnumThreadWindowsCallback(HWND hWnd,
-                                               LPARAM aParam)
-{
-    PluginInstanceChild* self = reinterpret_cast<PluginInstanceChild*>(aParam);
-    if (!self) {
-        NS_NOTREACHED("Enum befuddled!");
-        return FALSE;
-    }
-
-    PRUnichar className[64];
-    if (!GetClassNameW(hWnd, className, sizeof(className)/sizeof(PRUnichar)))
-      return TRUE;
-    
-    if (!wcscmp(className, L"SWFlash_PlaceholderX")) {
-        WNDPROC oldWndProc =
-            reinterpret_cast<WNDPROC>(GetWindowLongPtr(hWnd, GWLP_WNDPROC));
-        // Only set this if we haven't already.
-        if (oldWndProc != WinlessHiddenFlashWndProc) {
-            if (self->mWinlessThrottleOldWndProc) {
-                NS_WARNING("mWinlessThrottleWndProc already set???");
-                return FALSE;
-            }
-            // Subsclass and store self as a property
-            self->mWinlessHiddenMsgHWND = hWnd;
-            self->mWinlessThrottleOldWndProc =
-                reinterpret_cast<WNDPROC>(SetWindowLongPtr(hWnd, GWLP_WNDPROC,
-                reinterpret_cast<LONG>(WinlessHiddenFlashWndProc)));
-            SetProp(hWnd, kPluginInstanceChildProperty, self);
-            NS_ASSERTION(self->mWinlessThrottleOldWndProc,
-                         "SetWindowLongPtr failed?!");
-        }
-        // Return no matter what once we find the right window.
-        return FALSE;
-    }
-
-    return TRUE;
-}
-
-
-void
-PluginInstanceChild::SetupFlashMsgThrottle()
-{
-    if (mWindow.type == NPWindowTypeDrawable) {
-        // Search for the flash hidden message window and subclass it. Only
-        // search for flash windows belonging to our ui thread!
-        if (mWinlessThrottleOldWndProc)
-            return;
-        EnumThreadWindows(GetCurrentThreadId(), EnumThreadWindowsCallback,
-                          reinterpret_cast<LPARAM>(this));
-    }
-    else {
-        // Already setup through quirks and the subclass.
-        return;
-    }
-}
-
-WNDPROC
-PluginInstanceChild::FlashThrottleAsyncMsg::GetProc()
-{ 
-    if (mInstance) {
-        return mWindowed ? mInstance->mPluginWndProc :
-                           mInstance->mWinlessThrottleOldWndProc;
-    }
-    return nsnull;
-}
- 
-void
-PluginInstanceChild::FlashThrottleAsyncMsg::Run()
-{
-    RemoveFromAsyncList();
-
-    // GetProc() checks mInstance, and pulls the procedure from
-    // PluginInstanceChild. We don't transport sub-class procedure
-    // ptrs around in FlashThrottleAsyncMsg msgs.
-    if (!GetProc())
-        return;
-  
-    // deliver the event to flash 
-    CallWindowProc(GetProc(), GetWnd(), GetMsg(), GetWParam(), GetLParam());
-}
-
-void
-PluginInstanceChild::FlashThrottleMessage(HWND aWnd,
-                                          UINT aMsg,
-                                          WPARAM aWParam,
-                                          LPARAM aLParam,
-                                          bool isWindowed)
-{
-    // We reuse ChildAsyncCall so we get the cancelation work
-    // that's done in Destroy.
-    FlashThrottleAsyncMsg* task = new FlashThrottleAsyncMsg(this,
-        aWnd, aMsg, aWParam, aLParam, isWindowed);
-    if (!task)
-        return; 
-
-    {
-        MutexAutoLock lock(mAsyncCallMutex);
-        mPendingAsyncCalls.AppendElement(task);
-    }
-    MessageLoop::current()->PostDelayedTask(FROM_HERE,
-        task, kFlashWMUSERMessageThrottleDelayMs);
 }
 
 #endif // OS_WIN
@@ -1685,13 +1241,8 @@ PluginInstanceChild::AnswerUpdateWindow()
     PR_LOG(gPluginLog, PR_LOG_DEBUG, ("%s", FULLFUNCTION));
 
 #if defined(OS_WIN)
-    if (mPluginWindowHWND) {
-        RECT rect;
-        if (GetUpdateRect(GetParent(mPluginWindowHWND), &rect, FALSE)) {
-            ::InvalidateRect(mPluginWindowHWND, &rect, FALSE); 
-        }
-        UpdateWindow(mPluginWindowHWND);
-    }
+    if (mPluginWindowHWND)
+      UpdateWindow(mPluginWindowHWND);
     return true;
 #else
     NS_NOTREACHED("PluginInstanceChild::AnswerUpdateWindow not implemented!");
@@ -1956,18 +1507,6 @@ PluginInstanceChild::UnscheduleTimer(uint32_t id)
     mTimers.RemoveElement(id, ChildTimer::IDComparator());
 }
 
-void
-PluginInstanceChild::AsyncCall(PluginThreadCallback aFunc, void* aUserData)
-{
-    ChildAsyncCall* task = new ChildAsyncCall(this, aFunc, aUserData);
-
-    {
-        MutexAutoLock lock(mAsyncCallMutex);
-        mPendingAsyncCalls.AppendElement(task);
-    }
-    ProcessChild::message_loop()->PostTask(FROM_HERE, task);
-}
-
 static PLDHashOperator
 InvalidateObject(DeletingObjectEntry* e, void* userArg)
 {
@@ -2020,12 +1559,9 @@ PluginInstanceChild::AnswerNPP_Destroy(NPError* aResult)
     for (PRUint32 i = 0; i < streams.Length(); ++i)
         static_cast<BrowserStreamChild*>(streams[i])->FinishDelivery();
 
-    {
-        MutexAutoLock lock(mAsyncCallMutex);
-        for (PRUint32 i = 0; i < mPendingAsyncCalls.Length(); ++i)
-            mPendingAsyncCalls[i]->Cancel();
-        mPendingAsyncCalls.TruncateLength(0);
-    }
+    for (PRUint32 i = 0; i < mPendingAsyncCalls.Length(); ++i)
+        mPendingAsyncCalls[i]->Cancel();
+    mPendingAsyncCalls.TruncateLength(0);
 
     mTimers.Clear();
 
@@ -2046,8 +1582,8 @@ PluginInstanceChild::AnswerNPP_Destroy(NPError* aResult)
 
 #if defined(OS_WIN)
     SharedSurfaceRelease();
-    DestroyWinlessPopupSurrogate();
-    UnhookWinlessFlashThrottle();
+    ResetNestedEventHook();
+    ResetPumpHooks();
 #endif
 
     return true;

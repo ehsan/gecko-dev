@@ -35,19 +35,17 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-include protocol PContentProcess;
-include protocol PTestShellCommand;
-include protocol PContextWrapper;
+include protocol "PContentProcess.ipdl";
+include protocol "PTestShellCommand.ipdl";
 
 namespace mozilla {
 namespace ipc {
 
-rpc protocol PTestShell
+protocol PTestShell
 {
   manager PContentProcess;
 
   manages PTestShellCommand;
-  manages PContextWrapper;
 
 child:
   __delete__();
@@ -55,10 +53,6 @@ child:
   ExecuteCommand(nsString aCommand);
 
   PTestShellCommand(nsString aCommand);
-
-parent:
-  PContextWrapper();
-
 };
 
 } // namespace ipc

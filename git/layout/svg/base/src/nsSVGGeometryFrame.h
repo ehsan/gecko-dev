@@ -101,7 +101,7 @@ public:
 
 protected:
   nsSVGPaintServerFrame *GetPaintServer(const nsStyleSVGPaint *aPaint,
-                                        const FramePropertyDescriptor *aProperty);
+                                        nsIAtom *aType);
 
 private:
   nsresult GetStrokeDashArray(double **arr, PRUint32 *count);

@@ -29,11 +29,9 @@ let promptService = {
   }
 };
 
-/* FIXME
 Cm.QueryInterface(Ci.nsIComponentRegistrar)
   .registerFactory(Components.ID(kPromptServiceUUID), "Prompt Service",
                    kPromptServiceContractID, fakePromptServiceFactory);
-*/
 
 const kCompleteState = Ci.nsIWebProgressListener.STATE_STOP +
                        Ci.nsIWebProgressListener.STATE_IS_NETWORK;
@@ -54,7 +52,7 @@ var gProgressListener = {
       // Check we failed on unknown protocol (received an alert from docShell)
       ok(didFail, "Correctly failed on unknown protocol");
       // Check we opened all tabs
-      ok(gBrowser.tabs.length == kURIs.length, "Correctly opened all expected tabs");
+      ok(gBrowser.mTabs.length == kURIs.length, "Correctly opened all expected tabs");
       finishTest();
     }
   },
@@ -66,8 +64,6 @@ var gProgressListener = {
 }
 
 function test() {
-  todo(false, "temp. disabled");
-  return; /* FIXME */
   waitForExplicitFinish();
   // Wait for all tabs to finish loading
   gBrowser.addTabsProgressListener(gProgressListener);
@@ -89,8 +85,8 @@ function finishTest() {
   gBrowser.removeTabsProgressListener(gProgressListener);
 
   // Close opened tabs
-  for (var i = gBrowser.tabs.length-1; i > 0; i--)
-    gBrowser.removeTab(gBrowser.tabs[i]);
+  for (var i = gBrowser.mTabs.length-1; i > 0; i--)
+    gBrowser.removeTab(gBrowser.mTabs[i]);
 
   finish();
 }

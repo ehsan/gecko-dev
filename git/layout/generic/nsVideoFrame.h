@@ -44,14 +44,13 @@
 #include "nsContainerFrame.h"
 #include "nsString.h"
 #include "nsAString.h"
+#include "nsPresContext.h"
 #include "nsIIOService.h"
 #include "nsITimer.h"
 #include "nsTArray.h"
 #include "nsIAnonymousContentCreator.h"
 #include "Layers.h"
 #include "ImageLayers.h"
-
-class nsPresContext;
 
 nsIFrame* NS_NewVideoFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 
@@ -74,6 +73,9 @@ public:
                               nsIAtom* aAttribute,
                               PRInt32 aModType);
 
+  void PaintVideo(nsIRenderingContext& aRenderingContext,
+                   const nsRect& aDirtyRect, nsPoint aPt);
+                              
   /* get the size of the video's display */
   nsSize GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext);
   virtual nsSize GetIntrinsicRatio();
@@ -92,7 +94,7 @@ public:
                     nsReflowStatus&          aStatus);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual nsIAtom* GetType() const;

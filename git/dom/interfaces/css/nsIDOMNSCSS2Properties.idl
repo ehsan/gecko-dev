@@ -40,7 +40,7 @@
 
 #include "nsIDOMSVGCSS2Properties.idl"
 
-[scriptable, uuid(649B0B41-C5F7-4EA2-B6DF-CFFF6B6DD30A)]
+[scriptable, uuid(be39bc6d-3b24-4421-9599-8fdf3ad33baf)]
 interface nsIDOMNSCSS2Properties : nsIDOMSVGCSS2Properties
 {
            /* Non-DOM 2 extensions */
@@ -49,13 +49,13 @@ interface nsIDOMNSCSS2Properties : nsIDOMSVGCSS2Properties
            attribute DOMString        MozAppearance;
                                         // raises(DOMException) on setting
 
-           attribute DOMString        backgroundClip;
+           attribute DOMString        MozBackgroundClip;
                                         // raises(DOMException) on setting
 
            attribute DOMString        MozBackgroundInlinePolicy;
                                         // raises(DOMException) on setting
 
-           attribute DOMString        backgroundOrigin;
+           attribute DOMString        MozBackgroundOrigin;
                                         // raises(DOMException) on setting
 
            attribute DOMString        MozBinding;
@@ -258,7 +258,7 @@ interface nsIDOMNSCSS2Properties : nsIDOMSVGCSS2Properties
            attribute DOMString        MozWindowShadow;
                                         // raises(DOMException) on setting
 
-           attribute DOMString        backgroundSize;
+           attribute DOMString        MozBackgroundSize;
                                         // raises(DOMException) on setting
 
            attribute DOMString        MozTransitionProperty;
@@ -280,8 +280,5 @@ interface nsIDOMNSCSS2Properties : nsIDOMSVGCSS2Properties
                                         // raises(DOMException) on setting
 
            attribute DOMString        MozTabSize;
-                                        // raises(DOMException) on setting
-
-           attribute DOMString        MozResize;
                                         // raises(DOMException) on setting
 };

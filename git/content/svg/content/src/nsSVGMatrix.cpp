@@ -41,7 +41,6 @@
 #include "nsSVGValue.h"
 #include <math.h>
 #include "nsContentUtils.h"
-#include "nsISupportsImpl.h"
 
 const double radPerDegree = 2.0*3.1415926535 / 360.0;
 
@@ -103,8 +102,6 @@ nsSVGMatrix::nsSVGMatrix(float a, float b, float c,
 
 NS_IMPL_ADDREF(nsSVGMatrix)
 NS_IMPL_RELEASE(nsSVGMatrix)
-
-DOMCI_DATA(SVGMatrix, nsSVGMatrix)
 
 NS_INTERFACE_MAP_BEGIN(nsSVGMatrix)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)

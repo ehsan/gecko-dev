@@ -85,18 +85,7 @@ public:
   NS_IMETHOD GetEventTarget(nsIFrame **aFrame) = 0;
   NS_IMETHOD GetEventTargetContent(nsEvent* aEvent, nsIContent** aContent) = 0;
 
-  /**
-   * Returns the content state of aContent.
-   * @param aContent      The control whose state is requested.
-   * @param aFollowLabels Whether to reflect a label's content state on its
-   *                      associated control. If aFollowLabels is true and
-   *                      aContent is a control which has a label that has the 
-   *                      hover or active content state set, GetContentState
-   *                      will pretend that those states are also set on aContent.
-   * @return              The content state.
-   */
-  virtual PRInt32 GetContentState(nsIContent *aContent,
-                                  PRBool aFollowLabels = PR_FALSE) = 0;
+  NS_IMETHOD GetContentState(nsIContent *aContent, PRInt32& aState) = 0;
 
   /**
    * Notify that the given NS_EVENT_STATE_* bit has changed for this content.
@@ -213,8 +202,5 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIEventStateManager, NS_IEVENTSTATEMANAGER_IID)
 // Handler for the content has crashed
 #define NS_EVENT_STATE_HANDLER_CRASHED \
                                      0x08000000
-
-// content has focus and should show a ring
-#define NS_EVENT_STATE_FOCUSRING     0x10000000
 
 #endif // nsIEventStateManager_h__

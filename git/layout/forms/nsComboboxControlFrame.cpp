@@ -54,7 +54,6 @@
 #include "nsIDOMHTMLSelectElement.h" 
 #include "nsIDOMHTMLOptionElement.h" 
 #include "nsIDOMNSHTMLOptionCollectn.h" 
-#include "nsPIDOMWindow.h"
 #include "nsIPresShell.h"
 #include "nsIDeviceContext.h"
 #include "nsIView.h"
@@ -300,17 +299,17 @@ NS_QUERYFRAME_HEAD(nsComboboxControlFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsBlockFrame)
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsComboboxControlFrame::CreateAccessible()
+NS_IMETHODIMP nsComboboxControlFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLComboboxAccessible(mContent,
-                                                    PresContext()->PresShell());
+    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(mContent);
+    nsCOMPtr<nsIWeakReference> weakShell(do_GetWeakReference(PresContext()->PresShell()));
+    return accService->CreateHTMLComboboxAccessible(node, weakShell, aAccessible);
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 
@@ -901,6 +900,17 @@ nsComboboxControlFrame::RemoveOption(PRInt32 aIndex)
 }
 
 NS_IMETHODIMP
+nsComboboxControlFrame::GetOptionSelected(PRInt32 aIndex, PRBool* aValue)
+{
+  NS_ASSERTION(mDropdownFrame, "No dropdown frame!");
+
+  nsISelectControlFrame* listFrame = do_QueryFrame(mDropdownFrame);
+  NS_ASSERTION(listFrame, "No list frame!");
+
+  return listFrame->GetOptionSelected(aIndex, aValue);
+}
+
+NS_IMETHODIMP
 nsComboboxControlFrame::OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex)
 {
   nsAutoScriptBlocker scriptBlocker;
@@ -1170,23 +1180,22 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
   }
 
   // Create a text frame and put it inside the block frame
-  nsIFrame* textFrame = NS_NewTextFrame(shell, textStyleContext);
-  if (NS_UNLIKELY(!textFrame)) {
+  mTextFrame = NS_NewTextFrame(shell, textStyleContext);
+  if (NS_UNLIKELY(!mTextFrame)) {
     return nsnull;
   }
 
   // initialize the text frame
-  rv = textFrame->Init(aContent, mDisplayFrame, nsnull);
+  rv = mTextFrame->Init(aContent, mDisplayFrame, nsnull);
   if (NS_FAILED(rv)) {
     mDisplayFrame->Destroy();
     mDisplayFrame = nsnull;
-    textFrame->Destroy();
-    textFrame = nsnull;
+    mTextFrame->Destroy();
+    mTextFrame = nsnull;
     return nsnull;
   }
-  mDisplayContent->SetPrimaryFrame(textFrame);
 
-  nsFrameList textList(textFrame, textFrame);
+  nsFrameList textList(mTextFrame, mTextFrame);
   mDisplayFrame->SetInitialChildList(nsnull, textList);
   return mDisplayFrame;
 }
@@ -1356,21 +1365,14 @@ nsComboboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  // draw a focus indicator only when focus rings should be drawn
-  nsIDocument* doc = mContent->GetCurrentDoc();
-  if (doc) {
-    nsPIDOMWindow* window = doc->GetWindow();
-    if (window && window->ShouldShowFocusRing()) {
-      nsPresContext *presContext = PresContext();
-      const nsStyleDisplay *disp = GetStyleDisplay();
-      if ((!IsThemed(disp) ||
-           !presContext->GetTheme()->ThemeDrawsFocusForWidget(presContext, this, disp->mAppearance)) &&
-          mDisplayFrame && IsVisibleForPainting(aBuilder)) {
-        nsresult rv = aLists.Content()->AppendNewToTop(new (aBuilder)
-                                                       nsDisplayComboboxFocus(this));
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-    }
+  nsPresContext *presContext = PresContext();
+  const nsStyleDisplay *disp = GetStyleDisplay();
+  if ((!IsThemed(disp) ||
+       !presContext->GetTheme()->ThemeDrawsFocusForWidget(presContext, this, disp->mAppearance)) &&
+      mDisplayFrame && IsVisibleForPainting(aBuilder)) {
+    nsresult rv = aLists.Content()->AppendNewToTop(new (aBuilder)
+                                                   nsDisplayComboboxFocus(this));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   return DisplaySelectionOverlay(aBuilder, aLists);

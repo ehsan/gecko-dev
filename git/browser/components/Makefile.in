@@ -62,6 +62,7 @@ PARALLEL_DIRS = \
   certerror \
   dirprovider \
   feeds \
+  microsummaries \
   places \
   preferences \
   privatebrowsing \
@@ -83,10 +84,6 @@ endif
 
 ifdef MOZ_SAFE_BROWSING
 PARALLEL_DIRS += safebrowsing
-endif
-
-ifdef ENABLE_TESTS
-DIRS += test
 endif
 
 DIRS += build

@@ -407,15 +407,6 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
         break;
       }
 
-      case NS_UISTATECHANGED: {
-        nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(docShell);
-        if (window) {
-          nsUIStateChangeEvent* event = (nsUIStateChangeEvent*)aEvent;
-          window->SetKeyboardIndicators(event->showAccelerators, event->showFocusRings);
-        }
-        break;
-      }
-
       case NS_SETZLEVEL: {
         nsZLevelEvent *zEvent = (nsZLevelEvent *) aEvent;
 
@@ -745,7 +736,7 @@ PRBool nsWebShellWindow::ExecuteCloseHandler()
     nsCOMPtr<nsIDocumentViewer> docViewer(do_QueryInterface(contentViewer));
 
     if (docViewer) {
-      nsRefPtr<nsPresContext> presContext;
+      nsCOMPtr<nsPresContext> presContext;
       docViewer->GetPresContext(getter_AddRefs(presContext));
 
       nsEventStatus status = nsEventStatus_eIgnore;

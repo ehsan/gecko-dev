@@ -4,7 +4,7 @@
  */
 
 static const int args_length = 4;
-#if defined(XP_WIN) && defined(_MSC_VER)
+#ifdef XP_WIN
 #define _UNICODE
 #include <tchar.h>
 #include <stdio.h>
@@ -43,9 +43,9 @@ int wmain(int argc, _TCHAR* argv[]) {
       return i;
     }
   }
-
+  
   return 0;
-}
+} 
 #else
 #include <string.h>
 #include <stdio.h>
@@ -66,12 +66,12 @@ int main(int argc, char* argv[]) {
     return -1;
 
   for (int i = 1; i < argc; ++i) {
-    printf("argv[%d] = %s; expected = %s\n", i, argv[i], expected_utf8[i - 1]);
+    printf("argv[%d] = %s; expected = %s\n", argv[i], expected_utf8[i - 1]);
     if (strcmp(expected_utf8[i - 1], argv[i])) {
       return i;
     }
   }
-
+  
   return 0;
-}
+} 
 #endif

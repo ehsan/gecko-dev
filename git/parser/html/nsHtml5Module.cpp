@@ -48,7 +48,6 @@
 #include "nsHtml5Module.h"
 #include "nsIObserverService.h"
 #include "nsIServiceManager.h"
-#include "mozilla/Services.h"
 
 // static
 PRBool nsHtml5Module::sEnabled = PR_FALSE;
@@ -73,6 +72,7 @@ nsHtml5Module::InitializeStatics()
   nsHtml5TreeBuilder::initializeStatics();
   nsHtml5UTF16Buffer::initializeStatics();
   nsHtml5StreamParser::InitializeStatics();
+  nsHtml5TreeOpExecutor::InitializeStatics();
 #ifdef DEBUG
   sNsHtml5ModuleInitialized = PR_TRUE;
 #endif
@@ -148,7 +148,7 @@ nsHtml5Module::GetStreamParserThread()
     if (!sStreamParserThread) {
       NS_NewThread(&sStreamParserThread);
       NS_ASSERTION(sStreamParserThread, "Thread creation failed!");
-      nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+      nsCOMPtr<nsIObserverService> os = do_GetService("@mozilla.org/observer-service;1");
       NS_ASSERTION(os, "do_GetService failed");
       os->AddObserver(new nsHtml5ParserThreadTerminator(sStreamParserThread), 
                       "xpcom-shutdown-threads",

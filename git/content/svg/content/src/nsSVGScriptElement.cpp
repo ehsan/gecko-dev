@@ -59,8 +59,8 @@ class nsSVGScriptElement : public nsSVGScriptElementBase,
 protected:
   friend nsresult NS_NewSVGScriptElement(nsIContent **aResult,
                                          nsINodeInfo *aNodeInfo,
-                                         PRUint32 aFromParser);
-  nsSVGScriptElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser);
+                                         PRBool aFromParser);
+  nsSVGScriptElement(nsINodeInfo *aNodeInfo, PRBool aFromParser);
   
 public:
   // interfaces:
@@ -117,8 +117,6 @@ NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(Script)
 NS_IMPL_ADDREF_INHERITED(nsSVGScriptElement,nsSVGScriptElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGScriptElement,nsSVGScriptElementBase)
 
-DOMCI_DATA(SVGScriptElement, nsSVGScriptElement)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGScriptElement)
   NS_NODE_INTERFACE_TABLE8(nsSVGScriptElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGScriptElement,
@@ -131,7 +129,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGScriptElementBase)
 // Implementation
 
 nsSVGScriptElement::nsSVGScriptElement(nsINodeInfo *aNodeInfo,
-                                       PRUint32 aFromParser)
+                                       PRBool aFromParser)
   : nsSVGScriptElementBase(aNodeInfo)
 {
   mDoneAddingChildren = !aFromParser;

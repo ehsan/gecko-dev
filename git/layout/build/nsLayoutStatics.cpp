@@ -53,6 +53,7 @@
 #include "nsCSSPseudoElements.h"
 #include "nsCSSRendering.h"
 #include "nsCSSScanner.h"
+#include "nsICSSStyleSheet.h"
 #include "nsDOMAttribute.h"
 #include "nsDOMClassInfo.h"
 #include "nsEventListenerManager.h"
@@ -80,7 +81,6 @@
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsXMLHttpRequest.h"
-#include "nsWebSocket.h"
 #include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
@@ -89,9 +89,6 @@
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
 #include "nsFileControlFrame.h"
-#ifdef MOZ_SVG
-#include "nsSVGUtils.h"
-#endif
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -129,14 +126,14 @@ PRBool NS_SVGEnabled();
 #endif
 
 #include "nsError.h"
+#include "nsTraceRefcnt.h"
 
 #include "nsCycleCollector.h"
 #include "nsJSEnvironment.h"
-#include "nsContentSink.h"
 
 extern void NS_ShutdownChainItemPool();
 
-nsrefcnt nsLayoutStatics::sLayoutStaticRefcnt = 0;
+static nsrefcnt sLayoutStaticRefcnt;
 
 nsresult
 nsLayoutStatics::Initialize()
@@ -286,10 +283,8 @@ nsLayoutStatics::Initialize()
   nsAudioStream::InitLibrary();
 #endif
 
-  nsContentSink::InitializeStatics();
   nsHtml5Module::InitializeStatics();
-  nsIPresShell::InitializeStatics();
-
+  
   nsCrossSiteListenerProxy::Startup();
 
   rv = nsFrameList::Init();
@@ -325,10 +320,6 @@ nsLayoutStatics::Shutdown()
   nsFrame::DisplayReflowShutdown();
 #endif
   nsCellMap::Shutdown();
-
-#ifdef MOZ_SVG
-  nsSVGUtils::Shutdown();
-#endif
 
   // Release all of our atoms
   nsColorNames::ReleaseTable();
@@ -368,6 +359,7 @@ nsLayoutStatics::Shutdown()
   nsJSRuntime::Shutdown();
   nsGlobalWindow::ShutDown();
   nsDOMClassInfo::ShutDown();
+  nsTextControlFrame::ShutDown();
   nsListControlFrame::Shutdown();
   nsXBLWindowKeyHandler::ShutDown();
   nsAutoCopyListener::Shutdown();
@@ -388,10 +380,6 @@ nsLayoutStatics::Shutdown()
 
   nsXMLHttpRequest::ShutdownACCache();
   
-  nsWebSocket::ReleaseGlobals();
-  
-  nsIPresShell::ReleaseStatics();
-
   nsHtml5Module::ReleaseStatics();
 
   nsRegion::ShutdownStatic();
@@ -401,4 +389,32 @@ nsLayoutStatics::Shutdown()
   nsFrameList::Shutdown();
 
   nsFileControlFrame::DestroyUploadLastDir();
+}
+
+void
+nsLayoutStatics::AddRef()
+{
+  NS_ASSERTION(NS_IsMainThread(),
+               "nsLayoutStatics reference counting must be on main thread");
+
+  NS_ASSERTION(sLayoutStaticRefcnt,
+               "nsLayoutStatics already dropped to zero!");
+
+  ++sLayoutStaticRefcnt;
+  NS_LOG_ADDREF(&sLayoutStaticRefcnt, sLayoutStaticRefcnt,
+                "nsLayoutStatics", 1);
+}
+
+void
+nsLayoutStatics::Release()
+{
+  NS_ASSERTION(NS_IsMainThread(),
+               "nsLayoutStatics reference counting must be on main thread");
+
+  --sLayoutStaticRefcnt;
+  NS_LOG_RELEASE(&sLayoutStaticRefcnt, sLayoutStaticRefcnt,
+                 "nsLayoutStatics");
+
+  if (!sLayoutStaticRefcnt)
+    Shutdown();
 }

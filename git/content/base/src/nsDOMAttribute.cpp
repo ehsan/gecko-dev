@@ -73,13 +73,6 @@ nsDOMAttribute::nsDOMAttribute(nsDOMAttributeMap *aAttrMap,
 
   // We don't add a reference to our content. It will tell us
   // to drop our reference when it goes away.
-
-  EnsureChildState();
-
-  nsIContent* content = GetContentInternal();
-  if (content) {
-    content->AddMutationObserver(this);
-  }
 }
 
 nsDOMAttribute::~nsDOMAttribute()
@@ -87,12 +80,6 @@ nsDOMAttribute::~nsDOMAttribute()
   if (mChild) {
     static_cast<nsTextNode*>(mChild)->UnbindFromAttribute();
     NS_RELEASE(mChild);
-    mFirstChild = nsnull;
-  }
-
-  nsIContent* content = GetContentInternal();
-  if (content) {
-    content->RemoveMutationObserver(this);
   }
 }
 
@@ -118,19 +105,16 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMAttribute)
   if (tmp->mChild) {
     static_cast<nsTextNode*>(tmp->mChild)->UnbindFromAttribute();
     NS_RELEASE(tmp->mChild);
-    tmp->mFirstChild = nsnull;
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-DOMCI_DATA(Attr, nsDOMAttribute)
-
 // QueryInterface implementation for nsDOMAttribute
 NS_INTERFACE_TABLE_HEAD(nsDOMAttribute)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_NODE_INTERFACE_TABLE6(nsDOMAttribute, nsIDOMAttr, nsIAttribute, nsIDOMNode,
-                           nsIDOM3Attr, nsPIDOMEventTarget, nsIMutationObserver)
+  NS_NODE_INTERFACE_TABLE8(nsDOMAttribute, nsIDOMAttr, nsIAttribute, nsINode,
+                           nsIDOMNode, nsIDOM3Node, nsIDOM3Attr,
+                           nsPIDOMEventTarget, nsIDOMXPathNSResolver)
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDOMAttribute)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsISupportsWeakReference,
                                  new nsNodeSupportsWeakRefTearoff(this))
@@ -140,9 +124,6 @@ NS_INTERFACE_TABLE_HEAD(nsDOMAttribute)
                                  nsDOMEventRTTearoff::Create(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMNSEventTarget,
                                  nsDOMEventRTTearoff::Create(this))
-  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOM3Node, new nsNode3Tearoff(this))
-  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
-                                 new nsNode3Tearoff(this))
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Attr)
 NS_INTERFACE_MAP_END
 
@@ -157,11 +138,6 @@ nsDOMAttribute::SetMap(nsDOMAttributeMap *aMap)
     // We're breaking a relationship with content and not getting a new one,
     // need to locally cache value. GetValue() does that.
     GetValue(mValue);
-  }
-
-  nsIContent* content = GetContentInternal();
-  if (content) {
-    content->RemoveMutationObserver(this);
   }
   
   mAttrMap = aMap;
@@ -181,7 +157,7 @@ nsDOMAttribute::SetOwnerDocument(nsIDocument* aDocument)
   nsIDocument *doc = GetOwnerDoc();
   NS_ASSERTION(doc != aDocument, "bad call to nsDOMAttribute::SetOwnerDocument");
   if (doc) {
-    doc->DeleteAllPropertiesFor(this);
+    doc->PropertyTable()->DeleteAllPropertiesFor(this);
   }
 
   nsCOMPtr<nsINodeInfo> newNodeInfo;
@@ -325,7 +301,11 @@ nsDOMAttribute::GetChildNodes(nsIDOMNodeList** aChildNodes)
 NS_IMETHODIMP
 nsDOMAttribute::HasChildNodes(PRBool* aHasChildNodes)
 {
-  *aHasChildNodes = mFirstChild != nsnull;
+  PRBool hasChild;
+  nsresult rv = EnsureChildState(PR_FALSE, hasChild);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aHasChildNodes = hasChild;
 
   return NS_OK;
 }
@@ -345,8 +325,12 @@ nsDOMAttribute::GetFirstChild(nsIDOMNode** aFirstChild)
 {
   *aFirstChild = nsnull;
 
-  if (mFirstChild) {
-    CallQueryInterface(mFirstChild, aFirstChild);
+  PRBool hasChild;
+  nsresult rv = EnsureChildState(PR_TRUE, hasChild);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (mChild) {
+    CallQueryInterface(mChild, aFirstChild);
   }
   
   return NS_OK;
@@ -388,13 +372,13 @@ nsDOMAttribute::GetAttributes(nsIDOMNamedNodeMap** aAttributes)
 NS_IMETHODIMP
 nsDOMAttribute::InsertBefore(nsIDOMNode* aNewChild, nsIDOMNode* aRefChild, nsIDOMNode** aReturn)
 {
-  return ReplaceOrInsertBefore(PR_FALSE, aNewChild, aRefChild, aReturn);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 nsDOMAttribute::ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
 {
-  return ReplaceOrInsertBefore(PR_TRUE, aNewChild, aOldChild, aReturn);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -406,7 +390,7 @@ nsDOMAttribute::RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
 NS_IMETHODIMP
 nsDOMAttribute::AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
 {
-  return InsertBefore(aNewChild, nsnull, aReturn);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 nsresult
@@ -516,48 +500,122 @@ nsDOMAttribute::IsSupported(const nsAString& aFeature,
                                                aFeature, aVersion, aReturn);
 }
 
-already_AddRefed<nsIURI>
-nsDOMAttribute::GetBaseURI() const
+NS_IMETHODIMP
+nsDOMAttribute::GetBaseURI(nsAString &aURI)
 {
-  nsINode *parent = GetContentInternal();
-
-  return parent ? parent->GetBaseURI() : nsnull;
+  aURI.Truncate();
+  nsresult rv = NS_OK;
+  nsCOMPtr<nsIDOM3Node> node(do_QueryInterface(GetContentInternal()));
+  if (node)
+    rv = node->GetBaseURI(aURI);
+  return rv;
 }
 
-PRBool
-nsDOMAttribute::IsEqualNode(nsINode* aOther)
+NS_IMETHODIMP
+nsDOMAttribute::CompareDocumentPosition(nsIDOMNode* aOther,
+                                        PRUint16* aReturn)
 {
-  if (!aOther || !aOther->IsNodeOfType(eATTRIBUTE))
-    return PR_FALSE;
+  NS_ENSURE_ARG_POINTER(aOther);
 
-  nsDOMAttribute *other = static_cast<nsDOMAttribute*>(aOther);
+  nsCOMPtr<nsINode> other = do_QueryInterface(aOther);
+  NS_ENSURE_TRUE(other, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+
+  *aReturn = nsContentUtils::ComparePosition(other, this);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMAttribute::IsSameNode(nsIDOMNode* aOther,
+                           PRBool* aReturn)
+{
+  NS_ASSERTION(aReturn, "IsSameNode() called with aReturn == nsnull!");
+  
+  *aReturn = SameCOMIdentity(static_cast<nsIDOMNode*>(this), aOther);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMAttribute::IsEqualNode(nsIDOMNode* aOther,
+                            PRBool* aReturn)
+{
+  NS_ENSURE_ARG_POINTER(aOther);
+
+  *aReturn = PR_FALSE;
+
+  // Node type check by QI.  We also reuse this later.
+  nsCOMPtr<nsIAttribute> aOtherAttr = do_QueryInterface(aOther);
+  if (!aOtherAttr) {
+    return NS_OK;
+  }
 
   // Prefix, namespace URI, local name, node name check.
-  if (!mNodeInfo->Equals(other->NodeInfo())) {
-    return PR_FALSE;
+  if (!mNodeInfo->Equals(aOtherAttr->NodeInfo())) {
+    return NS_OK;
   }
 
   // Value check
-  // Checks not needed:  Child nodes, attributes.
   nsAutoString ourValue, otherValue;
-  GetValue(ourValue);
-  other->GetValue(otherValue);
+  nsresult rv = GetValue(ourValue);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = aOther->GetNodeValue(otherValue);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!ourValue.Equals(otherValue))
+    return NS_OK;
 
-  return ourValue.Equals(otherValue);
+  // Checks not needed:  Child nodes, attributes.
+
+  *aReturn = PR_TRUE;
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
+nsDOMAttribute::IsDefaultNamespace(const nsAString& aNamespaceURI,
+                                   PRBool* aReturn)
+{
+  *aReturn = PR_FALSE;
+  nsCOMPtr<nsIDOM3Node> node(do_QueryInterface(GetContentInternal()));
+  if (node) {
+    return node->IsDefaultNamespace(aNamespaceURI, aReturn);
+  }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDOMAttribute::GetTextContent(nsAString &aTextContent)
 {
-  GetNodeValue(aTextContent);
+  return GetNodeValue(aTextContent);
 }
 
-nsresult
+NS_IMETHODIMP
 nsDOMAttribute::SetTextContent(const nsAString& aTextContent)
 {
   return SetNodeValue(aTextContent);
 }
 
+
+NS_IMETHODIMP
+nsDOMAttribute::GetFeature(const nsAString& aFeature,
+                           const nsAString& aVersion,
+                           nsISupports** aReturn)
+{
+  return nsGenericElement::InternalGetFeature(static_cast<nsIDOMAttr*>(this), 
+                                              aFeature, aVersion, aReturn);
+}
+
+NS_IMETHODIMP
+nsDOMAttribute::SetUserData(const nsAString& aKey, nsIVariant* aData,
+                            nsIDOMUserDataHandler* aHandler,
+                            nsIVariant** aResult)
+{
+  return nsNodeUtils::SetUserData(this, aKey, aData, aHandler, aResult);
+}
+
+NS_IMETHODIMP
+nsDOMAttribute::GetUserData(const nsAString& aKey, nsIVariant** aResult)
+{
+  return nsNodeUtils::GetUserData(this, aKey, aResult);
+}
 
 NS_IMETHODIMP
 nsDOMAttribute::GetIsId(PRBool* aReturn)
@@ -586,6 +644,30 @@ nsDOMAttribute::GetSchemaTypeInfo(nsIDOM3TypeInfo** aReturn)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+NS_IMETHODIMP
+nsDOMAttribute::LookupPrefix(const nsAString& aNamespaceURI,
+                             nsAString& aPrefix)
+{
+  nsCOMPtr<nsIDOM3Node> node(do_QueryInterface(GetContentInternal()));
+  if (node)
+    return node->LookupPrefix(aNamespaceURI, aPrefix);
+
+  SetDOMStringToNull(aPrefix);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMAttribute::LookupNamespaceURI(const nsAString& aNamespacePrefix,
+                                   nsAString& aNamespaceURI)
+{
+  nsCOMPtr<nsIDOM3Node> node(do_QueryInterface(GetContentInternal()));
+  if (node)
+    return node->LookupNamespaceURI(aNamespacePrefix, aNamespaceURI);
+
+  SetDOMStringToNull(aNamespaceURI);
+  return NS_OK;
+}
+
 PRBool
 nsDOMAttribute::IsNodeOfType(PRUint32 aFlags) const
 {
@@ -595,30 +677,38 @@ nsDOMAttribute::IsNodeOfType(PRUint32 aFlags) const
 PRUint32
 nsDOMAttribute::GetChildCount() const
 {
-  return mFirstChild ? 1 : 0;
+  return GetChildCount(PR_FALSE);
 }
 
 nsIContent *
 nsDOMAttribute::GetChildAt(PRUint32 aIndex) const
 {
-  return aIndex == 0 ? mFirstChild : nsnull;
+  // Don't need to check result of EnsureChildState since mChild will be null.
+  PRBool hasChild;
+  EnsureChildState(PR_TRUE, hasChild);
+
+  return aIndex == 0 && hasChild ? mChild : nsnull;
 }
 
 nsIContent * const *
 nsDOMAttribute::GetChildArray(PRUint32* aChildCount) const
 {
-  *aChildCount = GetChildCount();
-  return &mFirstChild;
+  *aChildCount = GetChildCount(PR_TRUE);
+  return &mChild;
 }
 
 PRInt32
 nsDOMAttribute::IndexOf(nsINode* aPossibleChild) const
 {
-  if (!aPossibleChild || aPossibleChild != mFirstChild) {
+  // No need to call EnsureChildState here. If we don't already have a child
+  // then aPossibleChild can't possibly be our child.
+  if (!aPossibleChild || aPossibleChild != mChild) {
     return -1;
   }
 
-  return 0;
+  PRBool hasChild;
+  EnsureChildState(PR_FALSE, hasChild);
+  return hasChild ? 0 : -1;
 }
 
 nsresult
@@ -662,6 +752,8 @@ nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationE
   if (guard.Mutated(0) && mChild != child) {
     return NS_OK;
   }
+  NS_RELEASE(mChild);
+  static_cast<nsTextNode*>(child.get())->UnbindFromAttribute();
 
   nsString nullString;
   SetDOMStringToNull(nullString);
@@ -725,52 +817,31 @@ nsDOMAttribute::GetSystemEventGroup(nsIDOMEventGroup** aGroup)
   return elm->GetSystemEventGroupLM(aGroup);
 }
 
-void
-nsDOMAttribute::EnsureChildState()
+nsresult
+nsDOMAttribute::EnsureChildState(PRBool aSetText, PRBool &aHasChild) const
 {
-  NS_PRECONDITION(!mChild, "Someone screwed up");
+  aHasChild = PR_FALSE;
+
+  nsDOMAttribute* mutableThis = const_cast<nsDOMAttribute*>(this);
 
   nsAutoString value;
-  GetValue(value);
+  mutableThis->GetValue(value);
 
-  if (!value.IsEmpty()) {
-    NS_NewTextNode(&mChild, mNodeInfo->NodeInfoManager());
+  if (!mChild && !value.IsEmpty()) {
+    nsresult rv = NS_NewTextNode(&mutableThis->mChild,
+                                 mNodeInfo->NodeInfoManager());
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    static_cast<nsTextNode*>(mChild)->BindToAttribute(this);
-    mFirstChild = mChild;
-
-    mChild->SetText(value, PR_FALSE);
-  }
-}
-
-void
-nsDOMAttribute::AttributeChanged(nsIDocument* aDocument,
-                                 nsIContent* aContent,
-                                 PRInt32 aNameSpaceID,
-                                 nsIAtom* aAttribute,
-                                 PRInt32 aModType)
-{
-  nsIContent* content = GetContentInternal();
-  if (aContent != content) {
-    return;
+    static_cast<nsTextNode*>(mChild)->BindToAttribute(mutableThis);
   }
 
-  if (aNameSpaceID != mNodeInfo->NamespaceID()) {
-    return;
+  aHasChild = !value.IsEmpty();
+
+  if (aSetText && aHasChild) {
+    mChild->SetText(value, PR_TRUE);
   }
 
-  nsCOMPtr<nsIAtom> nameAtom = GetNameAtom(content);
-  if (nameAtom != aAttribute) {
-    return;
-  }
-
-  // Just blow away our mChild and recreate it if needed
-  if (mChild) {
-    static_cast<nsTextNode*>(mChild)->UnbindFromAttribute();
-    NS_RELEASE(mChild);
-    mFirstChild = nsnull;
-  }
-  EnsureChildState();
+  return NS_OK;
 }
 
 void

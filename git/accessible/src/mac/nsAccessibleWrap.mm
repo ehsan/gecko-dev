@@ -46,9 +46,9 @@
 #import "mozActionElements.h"
 #import "mozTextAccessible.h"
 
-nsAccessibleWrap::
-  nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessible(aContent, aShell), mNativeWrapper(nsnull)
+nsAccessibleWrap::nsAccessibleWrap(nsIDOMNode* aNode, nsIWeakReference *aShell): 
+  nsAccessible(aNode, aShell),
+  mNativeWrapper(nsnull)
 {
 }
 
@@ -60,20 +60,19 @@ nsAccessibleWrap::~nsAccessibleWrap()
   }
 }
 
-PRBool
+nsresult
 nsAccessibleWrap::Init () 
 {
-  if (!nsAccessible::Init())
-    return PR_FALSE;
-
+  // need to pass the call up, so we're cached (which nsAccessNode::Init() takes care of).
+  nsresult rv = nsAccessible::Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+  
   if (!mNativeWrapper && !AncestorIsFlat()) {
     // Create our native object using the class type specified in GetNativeType().
     mNativeWrapper = new AccessibleWrapper (this, GetNativeType());
-    if (!mNativeWrapper)
-      return PR_FALSE;
   }
 
-  return PR_TRUE;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -149,7 +148,7 @@ nsAccessibleWrap::GetNativeType ()
 // this method is very important. it is fired when an accessible object "dies". after this point
 // the object might still be around (because some 3rd party still has a ref to it), but it is
 // in fact 'dead'.
-void
+nsresult
 nsAccessibleWrap::Shutdown ()
 {
   if (mNativeWrapper) {
@@ -157,7 +156,7 @@ nsAccessibleWrap::Shutdown ()
     mNativeWrapper = nsnull;
   }
   
-  nsAccessible::Shutdown();
+  return nsAccessible::Shutdown();
 }
 
 nsresult
@@ -185,7 +184,8 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
       eventType != nsIAccessibleEvent::EVENT_VALUE_CHANGE)
     return NS_OK;
 
-  nsAccessible *accessible = aEvent->GetAccessible();
+  nsCOMPtr<nsIAccessible> accessible;
+  nsresult rv = aEvent->GetAccessible(getter_AddRefs(accessible));
   NS_ENSURE_STATE(accessible);
 
   mozAccessible *nativeAcc = nil;
@@ -227,34 +227,35 @@ nsAccessibleWrap::GetUnignoredChildCount(PRBool aDeepCount)
   // if we're flat, we have no children.
   if (nsAccUtils::MustPrune(this))
     return 0;
-
-  PRInt32 resultChildCount = 0;
-
-  PRInt32 childCount = GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessibleWrap *childAcc =
-      static_cast<nsAccessibleWrap*>(GetChildAt(childIdx));
-
+  
+  PRInt32 childCount = 0;
+  GetChildCount(&childCount);
+  
+  nsCOMPtr<nsIAccessible> curAcc;
+  
+  while (NextChild(curAcc)) {
+    nsAccessibleWrap *childWrap = static_cast<nsAccessibleWrap*>(curAcc.get());
+    
     // if the current child is not ignored, count it.
-    if (!childAcc->IsIgnored())
-      ++resultChildCount;
-
+    if (!childWrap->IsIgnored())
+      ++childCount;
+      
     // if it's flat, we don't care to inspect its children.
-    if (nsAccUtils::MustPrune(childAcc))
+    if (nsAccUtils::MustPrune(childWrap))
       continue;
-
+    
     if (aDeepCount) {
       // recursively count the unignored children of our children since it's a deep count.
-      resultChildCount += childAcc->GetUnignoredChildCount(PR_TRUE);
+      childCount += childWrap->GetUnignoredChildCount(PR_TRUE);
     } else {
       // no deep counting, but if the child is ignored, we want to substitute it for its
       // children.
-      if (childAcc->IsIgnored()) 
-        resultChildCount += childAcc->GetUnignoredChildCount(PR_FALSE);
+      if (childWrap->IsIgnored()) 
+        childCount += childWrap->GetUnignoredChildCount(PR_FALSE);
     }
   } 
   
-  return resultChildCount;
+  return childCount;
 }
 
 // if we for some reason have no native accessible, we should be skipped over (and traversed)
@@ -268,20 +269,19 @@ nsAccessibleWrap::IsIgnored()
 void
 nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsRefPtr<nsAccessibleWrap> > &aChildrenArray)
 {
+  nsCOMPtr<nsIAccessible> curAcc;
+  
   // we're flat; there are no children.
   if (nsAccUtils::MustPrune(this))
     return;
-
-  PRInt32 childCount = GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessibleWrap *childAcc =
-      static_cast<nsAccessibleWrap*>(GetChildAt(childIdx));
-
-    if (childAcc->IsIgnored()) {
+  
+  while (NextChild(curAcc)) {
+    nsAccessibleWrap *childWrap = static_cast<nsAccessibleWrap*>(curAcc.get());
+    if (childWrap->IsIgnored()) {
       // element is ignored, so try adding its children as substitutes, if it has any.
-      if (!nsAccUtils::MustPrune(childAcc)) {
+      if (!nsAccUtils::MustPrune(childWrap)) {
         nsTArray<nsRefPtr<nsAccessibleWrap> > children;
-        childAcc->GetUnignoredChildren(children);
+        childWrap->GetUnignoredChildren(children);
         if (!children.IsEmpty()) {
           // add the found unignored descendants to the array.
           aChildrenArray.AppendElements(children);
@@ -289,7 +289,7 @@ nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsRefPtr<nsAccessibleWrap> > &aC
       }
     } else
       // simply add the element, since it's not ignored.
-      aChildrenArray.AppendElement(childAcc);
+      aChildrenArray.AppendElement(childWrap);
   }
 }
 
@@ -308,29 +308,4 @@ nsAccessibleWrap::GetUnignoredParent()
   NS_IF_ADDREF(outValue = parentWrap);
   
   return outValue;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessibleWrap protected
-
-PRBool
-nsAccessibleWrap::AncestorIsFlat()
-{
-  // We don't create a native object if we're child of a "flat" accessible;
-  // for example, on OS X buttons shouldn't have any children, because that
-  // makes the OS confused. 
-  //
-  // To maintain a scripting environment where the XPCOM accessible hierarchy
-  // look the same on all platforms, we still let the C++ objects be created
-  // though.
-
-  nsAccessible* parent(GetParent());
-  while (parent) {
-    if (nsAccUtils::MustPrune(parent))
-      return PR_TRUE;
-
-    parent = parent->GetParent();
-  }
-  // no parent was flat
-  return PR_FALSE;
 }

@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 
@@ -92,8 +93,6 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTableCaptionElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTableCaptionElement, nsGenericElement)
 
 
-DOMCI_DATA(HTMLTableCaptionElement, nsHTMLTableCaptionElement)
-
 // QueryInterface implementation for nsHTMLTableCaptionElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLTableCaptionElement)
   NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableCaptionElement,
@@ -124,7 +123,7 @@ nsHTMLTableCaptionElement::ParseAttribute(PRInt32 aNamespaceID,
                                           nsAttrValue& aResult)
 {
   if (aAttribute == nsGkAtoms::align && aNamespaceID == kNameSpaceID_None) {
-    return aResult.ParseEnumValue(aValue, kCaptionAlignTable, PR_FALSE);
+    return aResult.ParseEnumValue(aValue, kCaptionAlignTable);
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,

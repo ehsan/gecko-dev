@@ -8,11 +8,11 @@ var testdata = {
 };
 
 function test() {
-  // test getting nonexistent values
+  // test getting non-existing values
   var itemValue = Application.prefs.getValue(testdata.missing, "default");
-  is(itemValue, "default", "Check 'Application.prefs.getValue' for nonexistent item");
+  is(itemValue, "default", "Check 'Application.prefs.getValue' for non-existing item");
 
-  is(Application.prefs.get(testdata.missing), null, "Check 'Application.prefs.get' for nonexistent item");
+  is(Application.prefs.get(testdata.missing), null, "Check 'Application.prefs.get' for non-existing item");
 
   // test setting and getting a value
   Application.prefs.setValue(testdata.dummy, "dummy");
@@ -35,12 +35,12 @@ function test() {
   is(itemValue, "default", "Check 'Application.prefs.getValue' for reset pref");
 
   // test to see if a non-existant property exists
-  ok(!Application.prefs.has(testdata.dummy), "Check non-existant property for existence");
+  ok(!Application.prefs.has(testdata.dummy), "Check non-existant property for existance");
 
   // PREF: string browser.active_color == #EE0000
 
   // test to see if an existing string property exists
-  ok(Application.prefs.has(testdata.string), "Check existing string property for existence");
+  ok(Application.prefs.has(testdata.string), "Check existing string property for existance");
 
   // test accessing a non-existant string property
   var val = Application.prefs.getValue(testdata.dummy, "default");
@@ -67,7 +67,7 @@ function test() {
   // PREF: integer permissions.default.image == 1
 
   // test to see if an existing integer property exists
-  ok(Application.prefs.has(testdata.integer), "Check existing integer property for existence");
+  ok(Application.prefs.has(testdata.integer), "Check existing integer property for existance");
 
   // test accessing a non-existant integer property
   var val = Application.prefs.getValue(testdata.dummy, 0);
@@ -94,7 +94,7 @@ function test() {
   // PREF: boolean browser.blink_allowed == true
 
   // test to see if an existing boolean property exists
-  ok(Application.prefs.has(testdata.boolean), "Check existing boolean property for existence");
+  ok(Application.prefs.has(testdata.boolean), "Check existing boolean property for existance");
 
   // test accessing a non-existant boolean property
   var val = Application.prefs.getValue(testdata.dummy, true);
@@ -147,9 +147,6 @@ function test() {
 
   pref.locked = false;
   ok(!pref.locked, "A single preference is unlocked.");
-
-  // Preference events tests disabled until bug 533290 is fixed
-  return;
 
   // check for change event when setting a value
   waitForExplicitFinish();

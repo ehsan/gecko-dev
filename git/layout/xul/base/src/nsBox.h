@@ -44,9 +44,9 @@ class nsITheme;
 
 #define DEFAULT_ORDINAL_GROUP 1
 
-#define NS_STATE_IS_ROOT        NS_FRAME_STATE_BIT(24)
-#define NS_STATE_SET_TO_DEBUG   NS_FRAME_STATE_BIT(26)
-#define NS_STATE_DEBUG_WAS_SET  NS_FRAME_STATE_BIT(27)
+#define NS_STATE_IS_ROOT        0x01000000
+#define NS_STATE_SET_TO_DEBUG   0x04000000
+#define NS_STATE_DEBUG_WAS_SET  0x08000000
 
 class nsBox : public nsIFrame {
 
@@ -111,6 +111,7 @@ rollbox.
   void CoordNeedsRecalc(nscoord& aCoord);
 
   void AddBorderAndPadding(nsSize& aSize);
+  void AddMargin(nsSize& aSize);
 
   static void AddBorderAndPadding(nsIBox* aBox, nsSize& aSize);
   static void AddMargin(nsIBox* aChild, nsSize& aSize);

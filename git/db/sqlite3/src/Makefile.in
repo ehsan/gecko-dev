@@ -100,13 +100,11 @@ CSRCS = \
 # don't have to vacuum to make sure the data is not visible in the file.
 # -DSQLITE_ENABLE_FTS3=1 enables the full-text index module.
 # -DSQLITE_CORE=1 statically links that module into the SQLite library.
-# Note: Be sure to update the configure.in checks when these change!
 DEFINES = \
   -DSQLITE_SECURE_DELETE=1 \
   -DSQLITE_THREADSAFE=1 \
   -DSQLITE_CORE=1 \
   -DSQLITE_ENABLE_FTS3=1 \
-  -DSQLITE_ENABLE_UNLOCK_NOTIFY=1 \
   $(NULL)
 
 # -DSQLITE_ENABLE_LOCKING_STYLE=1 to help with AFP folders

@@ -1,4 +1,4 @@
-asserts(0-6) load 307322-1.svg # bug 563481
+load 307322-1.svg
 load 327705-1.svg
 load 336994-1.html
 load 344888-1.svg
@@ -42,9 +42,5 @@ load 427325-1.svg
 load 428228-1.svg
 load 428841-1.svg
 load 435209-1.svg
-load 436418-mpathRoot-1.svg
 load 448244-1.svg
 load 466576-1.xhtml
-asserts(0-2) load 535691-1.svg # Bug 535691
-load 539167-1.svg
-load 573316-1.svg

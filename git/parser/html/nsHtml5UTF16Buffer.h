@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010 Mozilla Foundation
+ * Copyright (c) 2008 Mozilla Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -44,9 +44,10 @@
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsAHtml5TreeBuilderState.h"
-#include "nsHtml5Macros.h"
+#include "nsAHtml5EncodingDeclarationHandler.h"
 
 class nsHtml5StreamParser;
+class nsHtml5SpeculativeLoader;
 
 class nsHtml5Tokenizer;
 class nsHtml5TreeBuilder;

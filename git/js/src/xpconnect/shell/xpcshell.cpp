@@ -89,6 +89,11 @@
 #include <unistd.h>
 #endif
 
+#ifdef MOZ_IPC
+#include "mozilla/dom/ContentProcessParent.h"
+#include "mozilla/ipc/TestShellParent.h"
+#endif
+
 #ifndef XPCONNECT_STANDALONE
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
@@ -108,6 +113,11 @@
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsICrashReporter.h"
+#endif
+
+#ifdef MOZ_IPC
+using mozilla::dom::ContentProcessParent;
+using mozilla::ipc::TestShellParent;
 #endif
 
 class XPCShellDirProvider : public nsIDirectoryServiceProvider2
@@ -241,8 +251,8 @@ GetLocationProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
 #ifdef EDITLINE
 extern "C" {
-extern JS_EXPORT_API(char)     *readline(const char *prompt);
-extern JS_EXPORT_API(void)     add_history(char *line);
+extern char     *readline(const char *prompt);
+extern void     add_history(char *line);
 }
 #endif
 
@@ -553,19 +563,6 @@ GC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
-#ifdef JS_GC_ZEAL
-static JSBool
-GCZeal(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
-{
-    uint32 zeal;
-    if (!JS_ValueToECMAUint32(cx, argv[0], &zeal))
-        return JS_FALSE;
-
-    JS_SetGCZeal(cx, (PRUint8)zeal);
-    return JS_TRUE;
-}
-#endif
-
 #ifdef DEBUG
 
 static JSBool
@@ -694,21 +691,6 @@ SendCommand(JSContext* cx,
     return JS_TRUE;
 }
 
-static JSBool
-GetChildGlobalObject(JSContext* cx,
-                     JSObject*,
-                     uintN,
-                     jsval*,
-                     jsval* rval)
-{
-    JSObject* global;
-    if (XRE_GetChildGlobalObject(cx, &global)) {
-        *rval = OBJECT_TO_JSVAL(global);
-        return JS_TRUE;
-    }
-    return JS_FALSE;
-}
-
 #endif // MOZ_IPC
 
 /*
@@ -809,24 +791,6 @@ Options(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
-static JSBool
-Parent(JSContext *cx, uintN argc, jsval *vp)
-{
-    if (argc != 1) {
-        JS_ReportError(cx, "Wrong number of arguments");
-        return JS_FALSE;
-    }
-
-    jsval v = JS_ARGV(cx, vp)[0];
-    if (JSVAL_IS_PRIMITIVE(v)) {
-        JS_ReportError(cx, "Only objects have parents!");
-        return JS_FALSE;
-    }
-
-    *vp = OBJECT_TO_JSVAL(JS_GetParent(cx, JSVAL_TO_OBJECT(v)));
-    return JS_TRUE;
-}
-
 static JSFunctionSpec glob_functions[] = {
     {"print",           Print,          0,0,0},
     {"readline",        ReadLine,       1,0,0},
@@ -837,18 +801,13 @@ static JSFunctionSpec glob_functions[] = {
     {"dumpXPC",         DumpXPC,        1,0,0},
     {"dump",            Dump,           1,0,0},
     {"gc",              GC,             0,0,0},
-#ifdef JS_GC_ZEAL
-    {"gczeal",          GCZeal,         1,0,0},
-#endif
     {"clear",           Clear,          1,0,0},
     {"options",         Options,        0,0,0},
-    JS_FN("parent",     Parent,         1,0),
 #ifdef DEBUG
     {"dumpHeap",        DumpHeap,       5,0,0},
 #endif
 #ifdef MOZ_IPC
     {"sendCommand",     SendCommand,    1,0,0},
-    {"getChildGlobalObject", GetChildGlobalObject, 0,0,0},
 #endif
 #ifdef MOZ_SHARK
     {"startShark",      js_StartShark,      0,0,0},
@@ -1243,7 +1202,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
 
                 if (!JS_SealObject(cx, obj, JS_TRUE))
                     return JS_FALSE;
-                gobj = JS_NewGlobalObject(cx, &global_class);
+                gobj = JS_NewObject(cx, &global_class, NULL, NULL);
                 if (!gobj)
                     return JS_FALSE;
                 if (!JS_SetPrototype(cx, gobj, obj))
@@ -1376,7 +1335,7 @@ FullTrustSecMan::CanGetService(JSContext * aJSContext, const nsCID & aCID)
 }
 
 #ifndef XPCONNECT_STANDALONE
-/* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in jsval aName, inout voidPtr aPolicy); */
+/* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in JSVal aName, inout voidPtr aPolicy); */
 NS_IMETHODIMP
 FullTrustSecMan::CanAccess(PRUint32 aAction,
                            nsAXPCNativeCallContext *aCallContext,
@@ -1387,7 +1346,7 @@ FullTrustSecMan::CanAccess(PRUint32 aAction,
     return NS_OK;
 }
 
-/* [noscript] void checkPropertyAccess (in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in string aClassName, in jsval aProperty, in PRUint32 aAction); */
+/* [noscript] void checkPropertyAccess (in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in string aClassName, in JSVal aProperty, in PRUint32 aAction); */
 NS_IMETHODIMP
 FullTrustSecMan::CheckPropertyAccess(JSContext * aJSContext,
                                      JSObject * aJSObject,

@@ -49,8 +49,6 @@ NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGEnum::DOMAnimatedEnum, mSVGElement)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGEnum::DOMAnimatedEnum)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGEnum::DOMAnimatedEnum)
 
-DOMCI_DATA(SVGAnimatedEnumeration, nsSVGEnum::DOMAnimatedEnum)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGEnum::DOMAnimatedEnum)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedEnumeration)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
@@ -177,7 +175,7 @@ nsresult
 nsSVGEnum::SMILEnum::ValueFromString(const nsAString& aStr,
                                      const nsISMILAnimationElement* /*aSrcElement*/,
                                      nsSMILValue& aValue,
-                                     PRBool& aPreventCachingOfSandwich) const
+                                     PRBool& aCanCache) const
 {
   nsCOMPtr<nsIAtom> valAtom = do_GetAtom(aStr);
   nsSVGEnumMapping *mapping = mVal->GetMapping(mSVGElement);
@@ -187,7 +185,7 @@ nsSVGEnum::SMILEnum::ValueFromString(const nsAString& aStr,
       nsSMILValue val(&SMILEnumType::sSingleton);
       val.mU.mUint = mapping->mVal;
       aValue = val;
-      aPreventCachingOfSandwich = PR_FALSE;
+      aCanCache = PR_TRUE;
       return NS_OK;
     }
     mapping++;

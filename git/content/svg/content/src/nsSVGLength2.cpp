@@ -76,8 +76,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGLength2::DOMAnimVal)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLength)
 NS_INTERFACE_MAP_END
 
-DOMCI_DATA(SVGAnimatedLength, nsSVGLength2::DOMAnimatedLength)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGLength2::DOMAnimatedLength)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedLength)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
@@ -522,7 +520,7 @@ nsresult
 nsSVGLength2::SMILLength::ValueFromString(const nsAString& aStr,
                                  const nsISMILAnimationElement* /*aSrcElement*/,
                                  nsSMILValue& aValue,
-                                 PRBool& aPreventCachingOfSandwich) const
+                                 PRBool& aCanCache) const
 {
   float value;
   PRUint16 unitType;
@@ -535,10 +533,9 @@ nsSVGLength2::SMILLength::ValueFromString(const nsAString& aStr,
   nsSMILValue val(&nsSMILFloatType::sSingleton);
   val.mU.mDouble = value / mVal->GetUnitScaleFactor(mSVGElement, unitType);
   aValue = val;
-  aPreventCachingOfSandwich =
-              (unitType == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE ||
-               unitType == nsIDOMSVGLength::SVG_LENGTHTYPE_EMS ||
-               unitType == nsIDOMSVGLength::SVG_LENGTHTYPE_EXS);
+  aCanCache = (unitType != nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE &&
+               unitType != nsIDOMSVGLength::SVG_LENGTHTYPE_EMS &&
+               unitType != nsIDOMSVGLength::SVG_LENGTHTYPE_EXS);
 
   return NS_OK;
 }

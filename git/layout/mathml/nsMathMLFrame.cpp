@@ -45,6 +45,7 @@
 #include "nsIDocument.h"
 #include "nsStyleSet.h"
 #include "nsIStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIDOMCSSStyleSheet.h"
 #include "nsICSSRule.h"
 #include "nsICSSStyleRule.h"
@@ -168,8 +169,7 @@ nsMathMLFrame::ResolveMathMLCharStyle(nsPresContext*  aPresContext,
     nsCSSPseudoElements::ePseudo_mozMathAnonymous; // savings
   nsRefPtr<nsStyleContext> newStyleContext;
   newStyleContext = aPresContext->StyleSet()->
-    ResolvePseudoElementStyle(aContent->AsElement(), pseudoType,
-                              aParentStyleContext);
+    ResolvePseudoElementStyle(aContent, pseudoType, aParentStyleContext);
 
   if (newStyleContext)
     aMathMLChar->SetStyleContext(newStyleContext);

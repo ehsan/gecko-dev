@@ -169,12 +169,6 @@ menubar > menu:-moz-lwtheme[_moz-menuactive="true"]:not([disabled="true"]) {
   text-shadow: none;
 }
 
-%ifdef XP_WIN
-menubar > menu:-moz-window-inactive {
-  color: ThreeDShadow;
-}
-%endif
-
 /* ..... internal content .... */
 
 .menubar-left {
@@ -236,7 +230,7 @@ menulist > menupopup > menu > label {
   padding-bottom: 0px;
 }
 
-menulist:-moz-focusring > menupopup > menuitem[_moz-menuactive="true"] {
+menulist > menupopup > menuitem[_moz-menuactive="true"] {
   border: 1px dotted #F5DB95;
   background-color: highlight;
   color: highlighttext;

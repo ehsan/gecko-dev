@@ -53,7 +53,6 @@
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsStaticNameTable.h"
-#include "prlog.h" // for PR_STATIC_ASSERT
 
 // required to make the symbol external, so that TestCSSPropertyLookup.cpp can link with it
 extern const char* const kCSSRawProperties[];
@@ -520,6 +519,12 @@ const PRInt32 nsCSSProps::kBackgroundAttachmentKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
+const PRInt32 nsCSSProps::kBackgroundClipKTable[] = {
+  eCSSKeyword_border,     NS_STYLE_BG_CLIP_BORDER,
+  eCSSKeyword_padding,    NS_STYLE_BG_CLIP_PADDING,
+  eCSSKeyword_UNKNOWN,-1
+};
+
 const PRInt32 nsCSSProps::kBackgroundInlinePolicyKTable[] = {
   eCSSKeyword_each_box,     NS_STYLE_BG_INLINE_POLICY_EACH_BOX,
   eCSSKeyword_continuous,   NS_STYLE_BG_INLINE_POLICY_CONTINUOUS,
@@ -527,13 +532,10 @@ const PRInt32 nsCSSProps::kBackgroundInlinePolicyKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_BORDER == NS_STYLE_BG_ORIGIN_BORDER);
-PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_PADDING == NS_STYLE_BG_ORIGIN_PADDING);
-PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_CONTENT == NS_STYLE_BG_ORIGIN_CONTENT);
 const PRInt32 nsCSSProps::kBackgroundOriginKTable[] = {
-  eCSSKeyword_border_box, NS_STYLE_BG_ORIGIN_BORDER,
-  eCSSKeyword_padding_box, NS_STYLE_BG_ORIGIN_PADDING,
-  eCSSKeyword_content_box, NS_STYLE_BG_ORIGIN_CONTENT,
+  eCSSKeyword_border,     NS_STYLE_BG_ORIGIN_BORDER,
+  eCSSKeyword_padding,    NS_STYLE_BG_ORIGIN_PADDING,
+  eCSSKeyword_content,    NS_STYLE_BG_ORIGIN_CONTENT,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1104,14 +1106,6 @@ const PRInt32 nsCSSProps::kRadialGradientSizeKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const PRInt32 nsCSSProps::kResizeKTable[] = {
-  eCSSKeyword_none,       NS_STYLE_RESIZE_NONE,
-  eCSSKeyword_both,       NS_STYLE_RESIZE_BOTH,
-  eCSSKeyword_horizontal, NS_STYLE_RESIZE_HORIZONTAL,
-  eCSSKeyword_vertical,   NS_STYLE_RESIZE_VERTICAL,
-  eCSSKeyword_UNKNOWN,-1
-};
-
 const PRInt32 nsCSSProps::kSpeakKTable[] = {
   eCSSKeyword_none,      NS_STYLE_SPEAK_NONE,
   eCSSKeyword_normal,    NS_STYLE_SPEAK_NORMAL,
@@ -1579,9 +1573,9 @@ static const nsCSSProperty gBackgroundSubpropTable[] = {
   eCSSProperty_background_repeat,
   eCSSProperty_background_attachment,
   eCSSProperty_background_position,
-  eCSSProperty_background_clip,
-  eCSSProperty_background_origin,
-  eCSSProperty_background_size,
+  eCSSProperty__moz_background_clip,
+  eCSSProperty__moz_background_origin,
+  eCSSProperty__moz_background_size,
   eCSSProperty_UNKNOWN
 };
 
@@ -1627,13 +1621,8 @@ static const nsCSSProperty gBorderBottomSubpropTable[] = {
   eCSSProperty_UNKNOWN
 };
 
-PR_STATIC_ASSERT(NS_SIDE_TOP == 0);
-PR_STATIC_ASSERT(NS_SIDE_RIGHT == 1);
-PR_STATIC_ASSERT(NS_SIDE_BOTTOM == 2);
-PR_STATIC_ASSERT(NS_SIDE_LEFT == 3);
 static const nsCSSProperty gBorderColorSubpropTable[] = {
   // Code relies on these being in top-right-bottom-left order.
-  // Code relies on these matching the NS_SIDE_* constants.
   eCSSProperty_border_top_color,
   eCSSProperty_border_right_color_value,
   eCSSProperty_border_bottom_color,

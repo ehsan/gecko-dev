@@ -6,7 +6,6 @@
 #include <QtGui/QGraphicsWidget>
 
 #include "nsIWidget.h"
-#include "prenv.h"
 
 class QEvent;
 class QPixmap;
@@ -147,14 +146,8 @@ public:
     MozQGraphicsView(MozQWidget* aTopLevel, QWidget * aParent = nsnull)
      : QGraphicsView (new QGraphicsScene(), aParent)
      , mEventHandler(this, aTopLevel)
-     , mTopLevelWidget(aTopLevel)
     {
         scene()->addItem(aTopLevel);
-    }
-
-    MozQWidget* GetTopLevelWidget()
-    {
-        return mTopLevelWidget;
     }
 
 protected:
@@ -179,7 +172,6 @@ protected:
 
 private:
     MozQGraphicsViewEvents mEventHandler;
-    MozQWidget* mTopLevelWidget;
 };
 
 #endif

@@ -42,7 +42,6 @@
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/dom/ContentProcessChild.h"
 #include "mozilla/net/HttpChannelChild.h"
-#include "mozilla/net/CookieServiceChild.h"
 
 namespace mozilla {
 namespace net {
@@ -87,7 +86,7 @@ void NeckoChild::DestroyNeckoChild()
 }
 
 PHttpChannelChild* 
-NeckoChild::AllocPHttpChannel(PIFrameEmbeddingChild* iframeEmbedding)
+NeckoChild::AllocPHttpChannel()
 {
   // We don't allocate here: see HttpChannelChild::AsyncOpen()
   NS_RUNTIMEABORT("AllocPHttpChannel should not be called");
@@ -99,25 +98,7 @@ NeckoChild::DeallocPHttpChannel(PHttpChannelChild* channel)
 {
   NS_ABORT_IF_FALSE(IsNeckoChild(), "DeallocPHttpChannel called by non-child!");
 
-  // Delete channel (HttpChannelChild's refcnt must already hit 0 to get here)
-  delete channel;
-  return true;
-}
-
-PCookieServiceChild* 
-NeckoChild::AllocPCookieService()
-{
-  // We don't allocate here: see nsCookieService::GetSingleton()
-  NS_NOTREACHED("AllocPCookieService should not be called");
-  return nsnull;
-}
-
-bool 
-NeckoChild::DeallocPCookieService(PCookieServiceChild* cs)
-{
-  NS_ASSERTION(IsNeckoChild(), "DeallocPCookieService called by non-child!");
-
-  CookieServiceChild *p = static_cast<CookieServiceChild*>(cs);
+  HttpChannelChild *p = static_cast<HttpChannelChild*>(channel);
   p->Release();
   return true;
 }

@@ -38,8 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStoragePrivateHelpers_h
-#define mozStoragePrivateHelpers_h
+#ifndef _mozStoragePrivateHelpers_h_
+#define _mozStoragePrivateHelpers_h_
 
 /**
  * This file contains convenience methods for mozStorage.
@@ -52,8 +52,7 @@
 #include "nsAutoPtr.h"
 
 class mozIStorageCompletionCallback;
-class mozIStorageBaseStatement;
-class mozIStorageBindingParams;
+class mozIStorageStatement;
 class nsIRunnable;
 
 namespace mozilla {
@@ -89,18 +88,20 @@ nsresult convertResultCode(int aSQLiteResultCode);
 void checkAndLogStatementPerformance(sqlite3_stmt *aStatement);
 
 /**
- * Convert the provided jsval into a variant representation if possible.
+ * Binds a jsval to a statement at the given index.
  *
  * @param aCtx
- *        The JSContext the value is from.
+ *        The JSContext jsval is associated with.
+ * @param aStatement
+ *        The statement to bind to.
+ * @param aIdx
+ *        The one-based index to bind aValue to.
  * @param aValue
- *        The JavaScript value to convert.  All primitive types are supported,
- *        but only Date objects are supported from the Date family.  Date
- *        objects are coerced to PRTime (nanoseconds since epoch) values.
- * @return the variant if conversion was successful, nsnull if conversion
- *         failed.  The caller is responsible for addref'ing if non-null.
+ *        The value to bind to aStatement.
+ * @return true if we bound the value to the statement, false otherwise.
  */
-nsIVariant *convertJSValToVariant(JSContext *aCtx, jsval aValue);
+bool bindJSValue(JSContext *aCtx, mozIStorageStatement *aStatement, int aIdx,
+                 jsval aValue);
 
 /**
  * Obtains an event that will notify a completion callback about completion.
@@ -109,34 +110,10 @@ nsIVariant *convertJSValToVariant(JSContext *aCtx, jsval aValue);
  *        The callback to be notified.
  * @return an nsIRunnable that can be dispatched to the calling thread.
  */
-already_AddRefed<nsIRunnable> newCompletionEvent(
-  mozIStorageCompletionCallback *aCallback
-);
-
-
-/**
- * Performs a sqlite3_step on aStatement, while properly handling SQLITE_LOCKED
- * when not on the main thread by waiting until we are notified.
- *
- * @param aStatement
- *        A pointer to a sqlite3_stmt object.
- * @return the result from sqlite3_step.
- */
-int stepStmt(sqlite3_stmt *aStatement);
-
-/**
- * Obtains a prepared sqlite3_stmt object for aDatabase from aSQL.
- *
- * @param aDatabase
- *        The database the statement will execute on.
- * @param aSQL
- *        The SQL statement to compile.
- * @return the result from sqlite3_prepare_v2.
- */
-int prepareStmt(sqlite3 *aDatabase, const nsCString &aSQL,
-                sqlite3_stmt **_stmt);
+already_AddRefed<nsIRunnable>
+newCompletionEvent(mozIStorageCompletionCallback *aCallback);
 
 } // namespace storage
 } // namespace mozilla
 
-#endif // mozStoragePrivateHelpers_h
+#endif // _mozStoragePrivateHelpers_h_

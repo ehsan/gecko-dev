@@ -69,15 +69,8 @@ TaskbarTabPreview::~TaskbarTabPreview() {
     ::DestroyIcon(mIcon);
     mIcon = NULL;
   }
-
-  // We need to ensure that proxy window disappears or else Bad Things happen.
-  if (mProxyWindow)
-    Disable();
-
-  NS_ASSERTION(!mProxyWindow, "Taskbar proxy window was not destroyed!");
-
-  if (mWnd)
-    DetachFromNSWindow();
+  // Do this here because this is our last chance to execute methods in this class
+  (void) SetVisible(PR_FALSE);
 }
 
 nsresult
@@ -174,40 +167,22 @@ TaskbarTabPreview::WndProc(UINT nMsg, WPARAM wParam, LPARAM lParam) {
       return 0;
     case WM_ACTIVATE:
       if (LOWORD(wParam) == WA_ACTIVE) {
-        // Activate the tab the user selected then restore the main window,
-        // keeping normal/max window state intact.
         PRBool activateWindow;
         nsresult rv = mController->OnActivate(&activateWindow);
         if (NS_SUCCEEDED(rv) && activateWindow) {
-          nsWindow* win = nsWindow::GetNSWindowPtr(mWnd);
-          if (win) {
-            nsWindow * parent = win->GetTopLevelWindow(true);
-            if (parent) {
-              parent->Show(true);
-            }
-          }
+          ::SetActiveWindow(mWnd);
+          if (::IsIconic(mWnd))
+            ::ShowWindow(mWnd, SW_RESTORE);
+          else
+            ::BringWindowToTop(mWnd);
         }
       }
       return 0;
     case WM_GETICON:
       return (LRESULT)mIcon;
     case WM_SYSCOMMAND:
-      // Send activation events to the top level window and select the proper
-      // tab through the controller.
-      if (wParam == SC_RESTORE || wParam == SC_MAXIMIZE) {
-        PRBool activateWindow;
-        nsresult rv = mController->OnActivate(&activateWindow);
-        if (NS_SUCCEEDED(rv) && activateWindow) {
-          // Note, restoring an iconic, maximized window here will only
-          // activate the maximized window. This is not a bug, it's default
-          // windows behavior.
-          ::SendMessageW(mWnd, WM_SYSCOMMAND, wParam, lParam);
-        }
-        return 0;
-      }
-      // Forward everything else to the top level window. Do not forward
-      // close since that's intended for the tab. When the preview proxy
-      // closes, we'll close the tab above.
+      // Forward syscommands like restore/minimize/maximize to the container
+      // window. Do not forward close since that's intended for the tab.
       return wParam == SC_CLOSE
            ? ::DefWindowProcW(mProxyWindow, WM_SYSCOMMAND, wParam, lParam)
            : ::SendMessageW(mWnd, WM_SYSCOMMAND, wParam, lParam);
@@ -228,8 +203,6 @@ TaskbarTabPreview::GlobalWndProc(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lPa
     preview->mProxyWindow = hWnd;
   } else {
     preview = reinterpret_cast<TaskbarTabPreview*>(::GetPropW(hWnd, TASKBARPREVIEW_HWNDID));
-    if (nMsg == WM_DESTROY)
-      ::RemovePropW(hWnd, TASKBARPREVIEW_HWNDID);
   }
 
   if (preview)
@@ -278,11 +251,7 @@ TaskbarTabPreview::Enable() {
 
 nsresult
 TaskbarTabPreview::Disable() {
-  // TaskbarPreview::Disable assumes that mWnd is valid but this method can be
-  // called when it is null iff the nsWindow has already been destroyed and we
-  // are still visible for some reason during object destruction.
-  if (mWnd)
-    TaskbarPreview::Disable();
+  TaskbarPreview::Disable();
 
   if (FAILED(mTaskbar->UnregisterTab(mProxyWindow)))
     return NS_ERROR_FAILURE;
@@ -296,12 +265,15 @@ TaskbarTabPreview::Disable() {
 }
 
 void
-TaskbarTabPreview::DetachFromNSWindow() {
+TaskbarTabPreview::DetachFromNSWindow(PRBool windowIsAlive) {
   (void) SetVisible(PR_FALSE);
-  WindowHook &hook = GetWindowHook();
-  hook.RemoveMonitor(WM_WINDOWPOSCHANGED, MainWindowHook, this);
 
-  TaskbarPreview::DetachFromNSWindow();
+  if (windowIsAlive) {
+    WindowHook &hook = GetWindowHook();
+    hook.RemoveMonitor(WM_WINDOWPOSCHANGED, MainWindowHook, this);
+  }
+
+  TaskbarPreview::DetachFromNSWindow(windowIsAlive);
 }
 
 /* static */

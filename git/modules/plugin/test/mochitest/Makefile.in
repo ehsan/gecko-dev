@@ -50,7 +50,6 @@ _MOCHITEST_FILES = \
   test_npruntime_npnevaluate.html \
   test_npruntime_npninvoke.html \
   test_npruntime_npninvokedefault.html \
-  test_npruntime_identifiers.html \
   loremipsum.txt \
   loremipsum_file.txt \
   loremipsum_nocache.txt \
@@ -69,9 +68,6 @@ _MOCHITEST_FILES = \
   test_pluginstream_poststream.html \
   test_pluginstream_seek.html \
   test_pluginstream_newstream.html \
-  test_fullpage.html \
-  loremipsum.xtest \
-  loremipsum.xtest^headers^ \
   test_multipleinstanceobjects.html \
   test_streamNotify.html \
   test_instantiation.html \
@@ -84,18 +80,19 @@ _MOCHITEST_FILES = \
   test_streamatclose.html \
   neverending.sjs \
   test_newstreamondestroy.html \
-  test_crashing.html \
-  $(warning test_crashing2.html disabled due to random orange; see bug 566049) \
-  test_hanging.html \
-  crashing_subpage.html \
-  test_GCrace.html \
-  test_propertyAndMethod.html \
-  test_bug539565-1.html \
-  test_bug539565-2.html \
-  test_enumerate.html \
   $(NULL)
 
 #  test_npruntime_npnsetexception.html \ Disabled for e10s
+
+ifdef MOZ_IPC
+_MOCHITEST_FILES += \
+  test_crashing.html \
+  test_crashing2.html \
+  test_hanging.html \
+  crashing_subpage.html \
+  test_GCrace.html \
+  $(NULL)
+endif
 
 ifeq ($(OS_ARCH),WINNT)
 _MOCHITEST_FILES += \
@@ -110,36 +107,27 @@ _MOCHICHROME_FILES = \
   test_wmode.xul \
   $(NULL)
 
-ifdef MOZ_CRASHREPORTER
-_MOCHICHROME_FILES += \
-  test_crash_notify.xul \
-  test_crash_notify_no_report.xul \
-  test_crash_submit.xul \
-  $(NULL)
-endif
-
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 _MOCHICHROME_FILES += \
   test_convertpoint.xul \
-  $(NULL)
-
-_MOCHITEST_FILES += \
-  test_cocoa_window_focus.html \
-  cocoa_window_focus.html \
-  test_cocoa_focus.html \
-  cocoa_focus.html \
   $(NULL)
 endif
 
 ifeq (gtk2,$(MOZ_WIDGET_TOOLKIT))
 _MOCHITEST_FILES += \
 		test_copyText.html \
-		test_crash_nested_loop.html \
 		$(NULL)
+endif
+
+ifdef MOZ_IPC
+_MOCHICHROME_FILES += \
+  test_crash_notify.xul \
+  test_crash_notify_no_report.xul \
+  $(NULL)
 endif
 
 libs:: $(_MOCHICHROME_FILES)
 	$(INSTALL) $^ $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)
 
 libs:: $(_MOCHITEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+	$(INSTALL) $^ $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

@@ -82,11 +82,9 @@ nsAbsoluteContainingBlock::AppendFrames(nsIFrame*      aDelegatingFrame,
 
   // no damage to intrinsic widths, since absolutely positioned frames can't
   // change them
-  aDelegatingFrame->PresContext()->PresShell()->
+  return aDelegatingFrame->PresContext()->PresShell()->
     FrameNeedsReflow(aDelegatingFrame, nsIPresShell::eResize,
                      NS_FRAME_HAS_DIRTY_CHILDREN);
-
-  return NS_OK;
 }
 
 nsresult
@@ -106,11 +104,9 @@ nsAbsoluteContainingBlock::InsertFrames(nsIFrame*      aDelegatingFrame,
 
   // no damage to intrinsic widths, since absolutely positioned frames can't
   // change them
-  aDelegatingFrame->PresContext()->PresShell()->
+  return aDelegatingFrame->PresContext()->PresShell()->
     FrameNeedsReflow(aDelegatingFrame, nsIPresShell::eResize,
                      NS_FRAME_HAS_DIRTY_CHILDREN);
-
-  return NS_OK;
 }
 
 void

@@ -38,27 +38,23 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-include protocol PContentProcess;
-include protocol PHttpChannel;
-include protocol PCookieService;
-include protocol PIFrameEmbedding;
+include protocol "PContentProcess.ipdl";
+include protocol "PHttpChannel.ipdl";
 
 namespace mozilla {
 namespace net {
 
 
 //-------------------------------------------------------------------
-sync protocol PNecko
+protocol PNecko
 {
   manager PContentProcess;
   manages PHttpChannel;
-  manages PCookieService;
 
 parent:
   __delete__();
 
-  PHttpChannel(nullable PIFrameEmbedding iframeEmbedding);
-  PCookieService();
+  PHttpChannel();
 };
 
 

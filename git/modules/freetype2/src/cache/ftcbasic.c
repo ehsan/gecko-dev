@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    The FreeType basic cache interface (body).                           */
 /*                                                                         */
-/*  Copyright 2003, 2004, 2005, 2006, 2007, 2009 by                        */
+/*  Copyright 2003, 2004, 2005, 2006, 2007 by                              */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -17,16 +17,14 @@
 
 
 #include <ft2build.h>
-#include FT_INTERNAL_DEBUG_H
 #include FT_CACHE_H
 #include "ftcglyph.h"
 #include "ftcimage.h"
 #include "ftcsbits.h"
+#include FT_INTERNAL_MEMORY_H
 
 #include "ftccback.h"
 #include "ftcerror.h"
-
-#define FT_COMPONENT  trace_cache
 
 
 #ifdef FT_CONFIG_OPTION_OLD_INTERNALS
@@ -142,18 +140,8 @@
 
     error = FTC_Manager_LookupFace( manager, family->attrs.scaler.face_id,
                                     &face );
-
-    if ( error || !face )
-      return result;
-
-    if ( (FT_ULong)face->num_glyphs > FT_UINT_MAX || 0 > face->num_glyphs )
-    {
-      FT_TRACE1(( "ftc_basic_family_get_count: too large number of glyphs " ));
-      FT_TRACE1(( "in this face, truncated\n", face->num_glyphs ));
-    }
-
     if ( !error )
-      result = (FT_UInt)face->num_glyphs;
+      result = face->num_glyphs;
 
     return result;
   }
@@ -316,7 +304,7 @@
                          FTC_Node       *anode )
   {
     FTC_BasicQueryRec  query;
-    FTC_Node           node = 0; /* make compiler happy */
+    FTC_INode          node = 0;  /* make compiler happy */
     FT_Error           error;
     FT_UInt32          hash;
 
@@ -332,13 +320,13 @@
     if ( anode )
       *anode  = NULL;
 
-#if defined( FT_CONFIG_OPTION_OLD_INTERNALS ) && ( FT_INT_MAX > 0xFFFFU )
+#ifdef FT_CONFIG_OPTION_OLD_INTERNALS
 
     /*
      *  This one is a major hack used to detect whether we are passed a
      *  regular FTC_ImageType handle, or a legacy FTC_OldImageDesc one.
      */
-    if ( (FT_ULong)type->width >= 0x10000L )
+    if ( type->width >= 0x10000 )
     {
       FTC_OldImageDesc  desc = (FTC_OldImageDesc)type;
 
@@ -353,16 +341,10 @@
 #endif /* FT_CONFIG_OPTION_OLD_INTERNALS */
 
     {
-      if ( (FT_ULong)(type->flags - FT_INT_MIN) > FT_UINT_MAX )
-      {
-        FT_TRACE1(( "FTC_ImageCache_Lookup: higher bits in load_flags" ));
-        FT_TRACE1(( "0x%x are dropped\n", (type->flags & ~((FT_ULong)FT_UINT_MAX)) ));
-      }
-
       query.attrs.scaler.face_id = type->face_id;
       query.attrs.scaler.width   = type->width;
       query.attrs.scaler.height  = type->height;
-      query.attrs.load_flags     = (FT_UInt)type->flags;
+      query.attrs.load_flags     = type->flags;
     }
 
     query.attrs.scaler.pixel = 1;
@@ -383,7 +365,7 @@
     error = FTC_GCache_Lookup( FTC_GCACHE( cache ),
                                hash, gindex,
                                FTC_GQUERY( &query ),
-                               &node );
+                               (FTC_Node*) &node );
 #endif
     if ( !error )
     {
@@ -391,8 +373,8 @@
 
       if ( anode )
       {
-        *anode = node;
-        node->ref_count++;
+        *anode = FTC_NODE( node );
+        FTC_NODE( node )->ref_count++;
       }
     }
 
@@ -412,7 +394,7 @@
                                FTC_Node       *anode )
   {
     FTC_BasicQueryRec  query;
-    FTC_Node           node = 0; /* make compiler happy */
+    FTC_INode          node = 0;  /* make compiler happy */
     FT_Error           error;
     FT_UInt32          hash;
 
@@ -428,15 +410,8 @@
     if ( anode )
       *anode  = NULL;
 
-    /* FT_Load_Glyph(), FT_Load_Char() take FT_UInt flags */
-    if ( load_flags > FT_UINT_MAX )
-    {
-      FT_TRACE1(( "FTC_ImageCache_LookupScaler: higher bits in load_flags" ));
-      FT_TRACE1(( "0x%x are dropped\n", (load_flags & ~((FT_ULong)FT_UINT_MAX)) ));
-    }
-
     query.attrs.scaler     = scaler[0];
-    query.attrs.load_flags = (FT_UInt)load_flags;
+    query.attrs.load_flags = load_flags;
 
     hash = FTC_BASIC_ATTR_HASH( &query.attrs ) + gindex;
 
@@ -453,8 +428,8 @@
 
       if ( anode )
       {
-        *anode = node;
-        node->ref_count++;
+        *anode = FTC_NODE( node );
+        FTC_NODE( node )->ref_count++;
       }
     }
 
@@ -655,7 +630,7 @@
   {
     FT_Error           error;
     FTC_BasicQueryRec  query;
-    FTC_Node           node = 0; /* make compiler happy */
+    FTC_SNode          node = 0; /* make compiler happy */
     FT_UInt32          hash;
 
 
@@ -668,12 +643,12 @@
 
     *ansbit = NULL;
 
-#if defined( FT_CONFIG_OPTION_OLD_INTERNALS ) && ( FT_INT_MAX > 0xFFFFU )
+#ifdef FT_CONFIG_OPTION_OLD_INTERNALS
 
     /*  This one is a major hack used to detect whether we are passed a
      *  regular FTC_ImageType handle, or a legacy FTC_OldImageDesc one.
      */
-    if ( (FT_ULong)type->width >= 0x10000L )
+    if ( type->width >= 0x10000 )
     {
       FTC_OldImageDesc  desc = (FTC_OldImageDesc)type;
 
@@ -688,16 +663,10 @@
 #endif /* FT_CONFIG_OPTION_OLD_INTERNALS */
 
     {
-      if ( (FT_ULong)(type->flags - FT_INT_MIN) > FT_UINT_MAX )
-      {
-        FT_TRACE1(( "FTC_ImageCache_Lookup: higher bits in load_flags" ));
-        FT_TRACE1(( "0x%x are dropped\n", (type->flags & ~((FT_ULong)FT_UINT_MAX)) ));
-      }
-
       query.attrs.scaler.face_id = type->face_id;
       query.attrs.scaler.width   = type->width;
       query.attrs.scaler.height  = type->height;
-      query.attrs.load_flags     = (FT_UInt)type->flags;
+      query.attrs.load_flags     = type->flags;
     }
 
     query.attrs.scaler.pixel = 1;
@@ -721,18 +690,17 @@
                                hash,
                                gindex,
                                FTC_GQUERY( &query ),
-                               &node );
+                               (FTC_Node*)&node );
 #endif
     if ( error )
       goto Exit;
 
-    *ansbit = FTC_SNODE( node )->sbits +
-              ( gindex - FTC_GNODE( node )->gindex );
+    *ansbit = node->sbits + ( gindex - FTC_GNODE( node )->gindex );
 
     if ( anode )
     {
-      *anode = node;
-      node->ref_count++;
+      *anode = FTC_NODE( node );
+      FTC_NODE( node )->ref_count++;
     }
 
   Exit:
@@ -752,7 +720,7 @@
   {
     FT_Error           error;
     FTC_BasicQueryRec  query;
-    FTC_Node           node = 0; /* make compiler happy */
+    FTC_SNode          node = 0; /* make compiler happy */
     FT_UInt32          hash;
 
 
@@ -765,15 +733,8 @@
 
     *ansbit = NULL;
 
-    /* FT_Load_Glyph(), FT_Load_Char() take FT_UInt flags */
-    if ( load_flags > FT_UINT_MAX )
-    {
-      FT_TRACE1(( "FTC_ImageCache_LookupScaler: higher bits in load_flags" ));
-      FT_TRACE1(( "0x%x are dropped\n", (load_flags & ~((FT_ULong)FT_UINT_MAX)) ));
-    }
-
     query.attrs.scaler     = scaler[0];
-    query.attrs.load_flags = (FT_UInt)load_flags;
+    query.attrs.load_flags = load_flags;
 
     /* beware, the hash must be the same for all glyph ranges! */
     hash = FTC_BASIC_ATTR_HASH( &query.attrs ) +
@@ -789,13 +750,12 @@
     if ( error )
       goto Exit;
 
-    *ansbit = FTC_SNODE( node )->sbits +
-              ( gindex - FTC_GNODE( node )->gindex );
+    *ansbit = node->sbits + ( gindex - FTC_GNODE( node )->gindex );
 
     if ( anode )
     {
-      *anode = node;
-      node->ref_count++;
+      *anode = FTC_NODE( node );
+      FTC_NODE( node )->ref_count++;
     }
 
   Exit:

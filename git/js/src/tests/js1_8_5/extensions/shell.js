@@ -4,12 +4,7 @@
  * http://creativecommons.org/licenses/publicdomain/
  */
 
-gTestsubsuite = 'extensions';
-
-// The Worker constructor can take a relative URL, but different test runners
-// run in different enough environments that it doesn't all just automatically
-// work. For the shell, we use just a filename; for the browser, see browser.js.
-var workerDir = '';
+gTestsuite = 'js1_8_5_extensions';
 
 // explicitly turn on js185
 // XXX: The browser currently only supports up to version 1.8

@@ -241,7 +241,7 @@ XPCWrappedNativeScope::SetGlobal(XPCCallContext& ccx, JSObject* aGlobal)
     mScriptObjectPrincipal = nsnull;
     // Now init our script object principal, if the new global has one
 
-    const JSClass* jsClass = aGlobal->getClass();
+    const JSClass* jsClass = STOBJ_GET_CLASS(aGlobal);
     if(!(~jsClass->flags & (JSCLASS_HAS_PRIVATE |
                             JSCLASS_PRIVATE_IS_NSISUPPORTS)))
     {
@@ -720,7 +720,7 @@ XPCWrappedNativeScope*
 GetScopeOfObject(JSObject* obj)
 {
     nsISupports* supports;
-    JSClass* clazz = obj->getClass();
+    JSClass* clazz = STOBJ_GET_CLASS(obj);
     JSBool isWrapper = IS_WRAPPER_CLASS(clazz);
 
     if(isWrapper && IS_SLIM_WRAPPER_OBJECT(obj))
@@ -1116,8 +1116,6 @@ XPCWrappedNativeScope::GetWrapperFor(JSContext *cx, JSObject *obj,
                      "touching non-wrappednative object cross origin?");
         NS_ASSERTION(hint == SJOW || hint == COW || hint == UNKNOWN, "bad hint");
 #endif
-        if(hint & XPCNW)
-            hint = SJOW;
         return hint;
     }
 

@@ -56,8 +56,6 @@ class nsIContent;
 class nsIURI;
 class nsIFrameFrame;
 class nsIView;
-class nsIInProcessContentFrameMessageManager;
-class AutoResetInShow;
 
 #ifdef MOZ_IPC
 namespace mozilla {
@@ -77,8 +75,6 @@ class QX11EmbedContainer;
 
 class nsFrameLoader : public nsIFrameLoader
 {
-  friend class AutoResetInShow;
-
 protected:
   nsFrameLoader(nsIContent *aOwner) :
     mOwnerContent(aOwner),
@@ -86,11 +82,8 @@ protected:
     mIsTopLevelContent(PR_FALSE),
     mDestroyCalled(PR_FALSE),
     mNeedsAsyncDestroy(PR_FALSE),
-    mInSwap(PR_FALSE),
-    mInShow(PR_FALSE),
-    mHideCalled(PR_FALSE)
+    mInSwap(PR_FALSE)
 #ifdef MOZ_IPC
-    , mDelayRemoteDialogs(PR_FALSE)
     , mRemoteWidgetCreated(PR_FALSE)
     , mRemoteFrame(false)
     , mChildProcess(nsnull)
@@ -118,16 +111,16 @@ public:
   nsresult ReallyStartLoading();
   void Finalize();
   nsIDocShell* GetExistingDocShell() { return mDocShell; }
-  nsPIDOMEventTarget* GetTabChildGlobalAsEventTarget();
+
   nsresult CreateStaticClone(nsIFrameLoader* aDest);
 
   /**
    * Called from the layout frame associated with this frame loader;
    * this notifies us to hook up with the widget and view.
    */
-  PRBool Show(PRInt32 marginWidth, PRInt32 marginHeight,
-              PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
-              nsIFrameFrame* frame);
+  bool Show(PRInt32 marginWidth, PRInt32 marginHeight,
+            PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
+            nsIFrameFrame* frame);
 
   /**
    * Called from the layout frame associated with this frame loader, when
@@ -145,12 +138,10 @@ public:
                                nsRefPtr<nsFrameLoader>& aFirstToSwap,
                                nsRefPtr<nsFrameLoader>& aSecondToSwap);
 
-  // When IPC is enabled, destroy any associated child process.
-  void DestroyChild();
-
 #ifdef MOZ_IPC
   mozilla::dom::PIFrameEmbeddingParent* GetChildProcess();
 #endif
+
   nsFrameMessageManager* GetFrameMessageManager() { return mMessageManager; }
 
 private:
@@ -164,8 +155,7 @@ private:
    * initialize mDocShell.
    */
   nsresult MaybeCreateDocShell();
-  nsresult EnsureMessageManager();
-  NS_HIDDEN_(void) GetURL(nsString& aURL);
+  void GetURL(nsString& aURL);
 
   // Properly retrieves documentSize of any subdocument type.
   NS_HIDDEN_(nsIntSize) GetSubDocumentSize(const nsIFrame *aIFrame);
@@ -189,25 +179,16 @@ private:
   nsCOMPtr<nsIDocShell> mDocShell;
   nsCOMPtr<nsIURI> mURIToLoad;
   nsIContent *mOwnerContent; // WEAK
-public:
-  // public because a callback needs these.
-  nsRefPtr<nsFrameMessageManager> mMessageManager;
-  nsCOMPtr<nsIInProcessContentFrameMessageManager> mChildMessageManager;
-private:
   PRPackedBool mDepthTooGreat : 1;
   PRPackedBool mIsTopLevelContent : 1;
   PRPackedBool mDestroyCalled : 1;
   PRPackedBool mNeedsAsyncDestroy : 1;
   PRPackedBool mInSwap : 1;
-  PRPackedBool mInShow : 1;
-  PRPackedBool mHideCalled : 1;
 
 #ifdef MOZ_IPC
-  PRPackedBool mDelayRemoteDialogs : 1;
   PRPackedBool mRemoteWidgetCreated : 1;
   bool mRemoteFrame;
   // XXX leaking
-  nsCOMPtr<nsIObserver> mChildHost;
   mozilla::dom::TabParent* mChildProcess;
 
 #ifdef MOZ_WIDGET_GTK2
@@ -216,7 +197,7 @@ private:
   QX11EmbedContainer* mRemoteSocket;
 #endif
 #endif
-
+  nsRefPtr<nsFrameMessageManager> mMessageManager;
 };
 
 #endif

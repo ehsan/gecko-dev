@@ -33,7 +33,7 @@ tab {
   -moz-appearance: tab;
 }
 
-tab:-moz-focusring {
+tab:focus {
   /* Tab focus rings need to overlay adjacent tabs. */
   position: relative;
 }

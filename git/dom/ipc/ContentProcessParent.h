@@ -47,7 +47,6 @@
 #include "nsIObserver.h"
 #include "nsIThreadInternal.h"
 #include "mozilla/Monitor.h"
-#include "nsIPrefService.h"
 
 namespace mozilla {
 
@@ -68,7 +67,7 @@ private:
     typedef mozilla::ipc::TestShellParent TestShellParent;
 
 public:
-    static ContentProcessParent* GetSingleton(PRBool aForceNew = PR_TRUE);
+    static ContentProcessParent* GetSingleton();
 
 #if 0
     // TODO: implement this somewhere!
@@ -84,10 +83,7 @@ public:
     TestShellParent* CreateTestShell();
     bool DestroyTestShell(TestShellParent* aTestShell);
 
-    void ReportChildAlreadyBlocked();
     bool RequestRunToCompletion();
-
-    bool IsAlive();
 
 protected:
     virtual void ActorDestroy(ActorDestroyReason why);
@@ -112,42 +108,13 @@ private:
     virtual PNeckoParent* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoParent* necko);
 
-    virtual bool RecvGetPrefType(const nsCString& prefName,
-            PRInt32* retValue, nsresult* rv);
-
-    virtual bool RecvGetBoolPref(const nsCString& prefName,
-            PRBool* retValue, nsresult* rv);
-
-    virtual bool RecvGetIntPref(const nsCString& prefName,
-            PRInt32* retValue, nsresult* rv);
-
-    virtual bool RecvGetCharPref(const nsCString& prefName,
-            nsCString* retValue, nsresult* rv);
-
-    virtual bool RecvGetPrefLocalizedString(const nsCString& prefName,
-            nsString* retValue, nsresult* rv);
-
-    virtual bool RecvPrefHasUserValue(const nsCString& prefName,
-            PRBool* retValue, nsresult* rv);
-
-    virtual bool RecvPrefIsLocked(const nsCString& prefName,
-            PRBool* retValue, nsresult* rv);
-
-    virtual bool RecvGetChildList(const nsCString& domain,
-            nsTArray<nsCString>* list, nsresult* rv);
-
-    void EnsurePrefService();
-
     mozilla::Monitor mMonitor;
 
     GeckoChildProcessHost* mSubprocess;
 
     int mRunToCompletionDepth;
-    bool mShouldCallUnblockChild;
     nsCOMPtr<nsIThreadObserver> mOldObserver;
 
-    bool mIsAlive;
-    nsCOMPtr<nsIPrefBranch> mPrefService; 
 };
 
 } // namespace dom

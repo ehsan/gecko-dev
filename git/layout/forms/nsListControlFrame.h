@@ -144,7 +144,7 @@ public:
 
     // for accessibility purposes
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
     // nsHTMLContainerFrame
@@ -188,6 +188,7 @@ public:
   // nsISelectControlFrame
   NS_IMETHOD AddOption(PRInt32 index);
   NS_IMETHOD RemoveOption(PRInt32 index);
+  NS_IMETHOD GetOptionSelected(PRInt32 aIndex, PRBool* aValue);
   NS_IMETHOD DoneAddingChildren(PRBool aIsDone);
 
   /**

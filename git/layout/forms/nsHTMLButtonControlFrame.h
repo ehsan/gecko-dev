@@ -43,6 +43,8 @@
 #include "nsIFormControlFrame.h"
 #include "nsHTMLParts.h"
 
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsStyleContext.h"
 #include "nsLeafFrame.h"
 #include "nsCSSRendering.h"
@@ -52,7 +54,6 @@
 #include "nsButtonFrameRenderer.h"
 
 class nsIRenderingContext;
-class nsPresContext;
 
 class nsHTMLButtonControlFrame : public nsHTMLContainerFrame,
                                  public nsIFormControlFrame 
@@ -104,7 +105,7 @@ public:
                          nsIFrame*       aOldFrame);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual nsIAtom* GetType() const;

@@ -62,20 +62,17 @@ JSObject::isDenseArray() const
 }
 
 inline bool
-JSObject::isSlowArray() const
-{
-    return getClass() == &js_SlowArrayClass;
-}
-
-inline bool
 JSObject::isArray() const
 {
-    return isDenseArray() || isSlowArray();
+    return isDenseArray() || getClass() == &js_SlowArrayClass;
 }
 
+#define OBJ_IS_DENSE_ARRAY(cx,obj)  (obj)->isDenseArray()
+#define OBJ_IS_ARRAY(cx,obj)        (obj)->isArray()
+
 /*
- * Dense arrays are not native -- aobj->isNative() for a dense array aobj
- * results in false, meaning aobj->map does not point to a JSScope.
+ * Dense arrays are not native (OBJ_IS_NATIVE(cx, aobj) for a dense array aobj
+ * results in false, meaning aobj->map does not point to a JSScope).
  *
  * But Array methods are called via aobj.sort(), e.g., and the interpreter and
  * the trace recorder must consult the property cache in order to perform well.
@@ -93,9 +90,9 @@ JSObject::isArray() const
  * (obj) for the |this| value of a getter, setter, or method call (bug 476447).
  */
 static JS_INLINE JSObject *
-js_GetProtoIfDenseArray(JSObject *obj)
+js_GetProtoIfDenseArray(JSContext *cx, JSObject *obj)
 {
-    return obj->isDenseArray() ? obj->getProto() : obj;
+    return OBJ_IS_DENSE_ARRAY(cx, obj) ? OBJ_GET_PROTO(cx, obj) : obj;
 }
 
 extern JSObject *
@@ -112,11 +109,34 @@ extern JSObject * JS_FASTCALL
 js_NewArrayWithSlots(JSContext* cx, JSObject* proto, uint32 len);
 
 extern JSObject *
-js_NewArrayObject(JSContext *cx, jsuint length, const jsval *vector, bool holey = false);
+js_NewArrayObject(JSContext *cx, jsuint length, jsval *vector,
+                  JSBool holey = JS_FALSE);
 
 /* Create an array object that starts out already made slow/sparse. */
 extern JSObject *
 js_NewSlowArrayObject(JSContext *cx);
+
+extern JSBool
+js_MakeArraySlow(JSContext *cx, JSObject *obj);
+
+#define JSSLOT_ARRAY_LENGTH            JSSLOT_PRIVATE
+#define JSSLOT_ARRAY_COUNT             (JSSLOT_ARRAY_LENGTH + 1)
+#define JSSLOT_ARRAY_UNUSED            (JSSLOT_ARRAY_COUNT + 1)
+
+static JS_INLINE uint32
+js_DenseArrayCapacity(JSObject *obj)
+{
+    JS_ASSERT(obj->isDenseArray());
+    return obj->dslots ? (uint32) obj->dslots[-1] : 0;
+}
+
+static JS_INLINE void
+js_SetDenseArrayCapacity(JSObject *obj, uint32 capacity)
+{
+    JS_ASSERT(obj->isDenseArray());
+    JS_ASSERT(obj->dslots);
+    obj->dslots[-1] = (jsval) capacity;
+}
 
 extern JSBool
 js_GetLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp);
@@ -212,26 +232,6 @@ js_Array(JSContext* cx, JSObject* obj, uintN argc, jsval* argv, jsval* rval);
  */
 JS_FRIEND_API(JSObject *)
 js_NewArrayObjectWithCapacity(JSContext *cx, jsuint capacity, jsval **vector);
-
-/*
- * Makes a fast clone of a dense array as long as the array only contains
- * primitive values.
- *
- * If the return value is JS_FALSE then clone will not be set.
- *
- * If the return value is JS_TRUE then clone will either be set to the address
- * of a new JSObject or to NULL if the array was not dense or contained values
- * that were not primitives.
- */
-JS_FRIEND_API(JSBool)
-js_CloneDensePrimitiveArray(JSContext *cx, JSObject *obj, JSObject **clone);
-
-/*
- * Returns JS_TRUE if the given object is a dense array that contains only
- * primitive values.
- */
-JS_FRIEND_API(JSBool)
-js_IsDensePrimitiveArray(JSObject *obj);
 
 JS_END_EXTERN_C
 

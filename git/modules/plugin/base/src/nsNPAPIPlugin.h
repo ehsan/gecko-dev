@@ -76,7 +76,8 @@ private:
   typedef mozilla::PluginLibrary PluginLibrary;
 
 public:
-  nsNPAPIPlugin();
+  nsNPAPIPlugin(NPPluginFuncs* callbacks,
+                PluginLibrary* aLibrary /*assume ownership*/);
   virtual ~nsNPAPIPlugin();
 
   NS_DECL_ISUPPORTS
@@ -86,26 +87,27 @@ public:
   // will prevent this from calling NP_Initialize.
   static nsresult CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
                                nsIPlugin** aResult);
-
-#if defined(XP_MACOSX) && !defined(__LP64__)
+#ifdef XP_MACOSX
   void SetPluginRefNum(short aRefNum);
 #endif
 
 #ifdef MOZ_IPC
-  // The IPC mechanism notifies the nsNPAPIPlugin if the plugin
-  // crashes and is no longer usable. pluginDumpID/browserDumpID are
-  // the IDs of respective minidumps that were written, or empty if no
-  // minidump was written.
-  void PluginCrashed(const nsAString& pluginDumpID,
-                     const nsAString& browserDumpID);
+  // The IPC mechanism notifies the nsNPAPIPlugin if the plugin crashes and is
+  // no longer usable. dumpID is the ID of a minidump that was written,
+  // or empty if no minidump was written.
+  void PluginCrashed(const nsAString& dumpID);
 #endif
 
 protected:
+  // Ensures that the static browser functions are properly initialized
+  static void CheckClassInitialized();
 
-#if defined(XP_MACOSX) && !defined(__LP64__)
+#ifdef XP_MACOSX
   short mPluginRefNum;
 #endif
 
+  // The plugin-side callbacks that the browser calls. One set of
+  // plugin callbacks for each plugin.
   NPPluginFuncs mPluginFuncs;
   PluginLibrary* mLibrary;
 };

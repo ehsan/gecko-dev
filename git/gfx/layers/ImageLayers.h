@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -167,11 +167,6 @@ public:
     return mManager;
   }
 
-  /**
-   * Returns the size of the image in pixels.
-   */
-  virtual gfxIntSize GetCurrentSize() = 0;
-
 protected:
   LayerManager* mManager;
 
@@ -211,19 +206,7 @@ protected:
 /**
  * We assume that the image data is in the REC 470M color space (see
  * Theora specification, section 4.3.1).
- *
- * The YCbCr format can be:
- *
- * 4:4:4 - CbCr width/height are the same as Y.
- * 4:2:2 - CbCr width is half that of Y. Height is the same.
- * 4:2:0 - CbCr width and height is half that of Y.
- *
- * The color format is detected based on the height/width ratios
- * defined above.
- * 
- * The Image that is rendered is the picture region defined by
- * mPicX, mPicY and mPicSize. The size of the rendered image is
- * mPicSize, not mYSize or mCbCrSize.
+ * XXX Eventually we should some color space parameter(s) here.
  */
 class THEBES_API PlanarYCbCrImage : public Image {
 public:
@@ -237,21 +220,23 @@ public:
     PRUint8* mCrChannel;
     PRInt32 mCbCrStride;
     gfxIntSize mCbCrSize;
-    // Picture region
-    PRUint32 mPicX;
-    PRUint32 mPicY;
-    gfxIntSize mPicSize;
   };
 
-  enum {
-    MAX_DIMENSION = 16384
-  };
+  typedef void (* ToARGBHook)(const Data& aData, PRUint8* aOutput);
+  /**
+   * XXX this is just a hack until we can get YCbCr conversion code into
+   * gfx
+   * This must be called before SetData().
+   */
+  virtual void SetRGBConverter(ToARGBHook aHook) {}
 
   /**
    * This makes a copy of the data buffers.
    * XXX Eventually we will change this to not make a copy of the data,
-   * Right now it doesn't matter because the BasicLayer implementation
-   * does YCbCr conversion here anyway.
+   * but we can't do that until we have tighter control of nsOggDecoder's
+   * buffer management (i.e. not going through liboggplay). Right now
+   * it doesn't matter because the BasicLayer implementation does YCbCr
+   * conversion here anyway.
    */
   virtual void SetData(const Data& aData) = 0;
 

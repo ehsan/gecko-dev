@@ -42,9 +42,6 @@
 #include "nsString.h"
 #include "nsLiteralString.h"
 #include "nsIDOMSVGSVGElement.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 // Implementation
@@ -59,8 +56,6 @@ nsSVGDocument::~nsSVGDocument()
 
 //----------------------------------------------------------------------
 // nsISupports methods:
-
-DOMCI_DATA(SVGDocument, nsSVGDocument)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGDocument)
   NS_INTERFACE_TABLE_INHERITED2(nsSVGDocument,
@@ -129,7 +124,7 @@ NS_IMETHODIMP
 nsSVGDocument::GetRootElement(nsIDOMSVGSVGElement** aRootElement)
 {
   *aRootElement = nsnull;
-  Element* root = nsDocument::GetRootElement();
+  nsIContent* root = GetRootContent();
 
   return root ? CallQueryInterface(root, aRootElement) : NS_OK;
 }

@@ -58,6 +58,7 @@
 #include "nsCSSProps.h"
 
 #include "nsCOMPtr.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsHTMLReflowState.h"
 #include "prenv.h"
@@ -1316,6 +1317,7 @@ nsStyleGradient::nsStyleGradient(void)
   : mShape(NS_STYLE_GRADIENT_SHAPE_LINEAR)
   , mSize(NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER)
   , mRepeating(PR_FALSE)
+  , mRefCnt(0)
 {
 }
 
@@ -1804,7 +1806,6 @@ nsStyleDisplay::nsStyleDisplay()
   mBreakAfter = PR_FALSE;
   mOverflowX = NS_STYLE_OVERFLOW_VISIBLE;
   mOverflowY = NS_STYLE_OVERFLOW_VISIBLE;
-  mResize = NS_STYLE_RESIZE_NONE;
   mClipFlags = NS_STYLE_CLIP_AUTO;
   mClip.SetRect(0,0,0,0);
   mOpacity = 1.0f;
@@ -1840,7 +1841,6 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   mBreakAfter = aSource.mBreakAfter;
   mOverflowX = aSource.mOverflowX;
   mOverflowY = aSource.mOverflowY;
-  mResize = aSource.mResize;
   mClipFlags = aSource.mClipFlags;
   mClip = aSource.mClip;
   mOpacity = aSource.mOpacity;
@@ -1864,8 +1864,7 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
       || mDisplay != aOther.mDisplay
       || (mFloats == NS_STYLE_FLOAT_NONE) != (aOther.mFloats == NS_STYLE_FLOAT_NONE)
       || mOverflowX != aOther.mOverflowX
-      || mOverflowY != aOther.mOverflowY
-      || mResize != aOther.mResize)
+      || mOverflowY != aOther.mOverflowY)
     NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
 
   if (mFloats != aOther.mFloats) {
@@ -2124,18 +2123,6 @@ nsStyleContent::nsStyleContent(const nsStyleContent& aSource)
 
 nsChangeHint nsStyleContent::CalcDifference(const nsStyleContent& aOther) const
 {
-  // In ReResolveStyleContext we assume that if there's no existing
-  // ::before or ::after and we don't have to restyle children of the
-  // node then we can't end up with a ::before or ::after due to the
-  // restyle of the node itself.  That's not quite true, but the only
-  // exception to the above is when the 'content' property of the node
-  // changes and the pseudo-element inherits the changed value.  Since
-  // the code here triggers a frame change on the node in that case,
-  // the optimization in ReResolveStyleContext is ok.  But if we ever
-  // change this code to not reconstruct frames on changes to the
-  // 'content' property, then we will need to revisit the optimization
-  // in ReResolveStyleContext.
-
   if (mContentCount != aOther.mContentCount ||
       mIncrementCount != aOther.mIncrementCount || 
       mResetCount != aOther.mResetCount) {
@@ -2327,6 +2314,26 @@ nsChangeHint nsStyleTextReset::MaxDifference()
   return NS_STYLE_HINT_REFLOW;
 }
 #endif
+
+// --------------------
+// nsCSSShadowArray
+// nsCSSShadowItem
+//
+
+nsrefcnt
+nsCSSShadowArray::Release()
+{
+  if (mRefCnt == PR_UINT32_MAX) {
+    NS_WARNING("refcount overflow, leaking object");
+    return mRefCnt;
+  }
+  mRefCnt--;
+  if (mRefCnt == 0) {
+    delete this;
+    return 0;
+  }
+  return mRefCnt;
+}
 
 // Allowed to return one of NS_STYLE_HINT_NONE, NS_STYLE_HINT_REFLOW
 // or NS_STYLE_HINT_VISUAL. Currently we just return NONE or REFLOW, though.

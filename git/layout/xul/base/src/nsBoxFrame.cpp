@@ -101,6 +101,9 @@
 #include "nsIDocument.h"
 #include "nsIURI.h"
 
+
+static NS_DEFINE_IID(kWidgetCID, NS_CHILD_CID);
+
 //define DEBUG_REDRAW
 
 #define DEBUG_SPRING_SIZE 8
@@ -1054,12 +1057,6 @@ nsBoxFrame::InsertFrames(nsIAtom*        aListName,
    if (mLayoutManager)
      mLayoutManager->ChildrenInserted(this, state, aPrevFrame, newFrames);
 
-   // Make sure to check box order _after_ notifying the layout
-   // manager; otherwise the slice we give the layout manager will
-   // just be bogus.  If the layout manager cares about the order, we
-   // just lose.
-   CheckBoxOrder(state);
-
 #ifdef DEBUG_LAYOUT
    // if we are in debug make sure our children are in debug as well.
    if (mState & NS_STATE_CURRENTLY_IN_DEBUG)
@@ -1086,12 +1083,6 @@ nsBoxFrame::AppendFrames(nsIAtom*        aListName,
    // notify the layout manager
    if (mLayoutManager)
      mLayoutManager->ChildrenAppended(this, state, newFrames);
-
-   // Make sure to check box order _after_ notifying the layout
-   // manager; otherwise the slice we give the layout manager will
-   // just be bogus.  If the layout manager cares about the order, we
-   // just lose.
-   CheckBoxOrder(state);
 
 #ifdef DEBUG_LAYOUT
    // if we are in debug make sure our children are in debug as well.
@@ -1273,12 +1264,11 @@ public:
   }
 #endif
 
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, nsRect aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
-    nsPoint rectCenter(aRect.x + aRect.width / 2, aRect.y + aRect.height / 2);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) {
     static_cast<nsBoxFrame*>(mFrame)->
-      DisplayDebugInfoFor(this, rectCenter - aBuilder->ToReferenceFrame(mFrame));
-    aOutFrames->AppendElement(this);
+      DisplayDebugInfoFor(this, aPt - aBuilder->ToReferenceFrame(mFrame));
+    return PR_TRUE;
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder
                      nsIRenderingContext* aCtx);
@@ -1926,6 +1916,30 @@ nsBoxFrame::RegUnregAccessKey(PRBool aDoReg)
   return rv;
 }
 
+void
+nsBoxFrame::FireDOMEventSynch(const nsAString& aDOMEventName, nsIContent *aContent)
+{
+  // XXX This will be deprecated, because it is not good to fire synchronous DOM events
+  // from layout. It's better to use nsFrame::FireDOMEvent() which is asynchronous.
+  nsPresContext *presContext = PresContext();
+  nsIContent *content = aContent ? aContent : mContent;
+  if (content && presContext) {
+    // Fire a DOM event
+    nsCOMPtr<nsIDOMEvent> event;
+    if (NS_SUCCEEDED(nsEventDispatcher::CreateEvent(presContext, nsnull,
+                                                    NS_LITERAL_STRING("Events"),
+                                                    getter_AddRefs(event)))) {
+      event->InitEvent(aDOMEventName, PR_TRUE, PR_TRUE);
+
+      nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
+      privateEvent->SetTrusted(PR_TRUE);
+
+      nsEventDispatcher::DispatchDOMEvent(content, nsnull, event,
+                                          presContext, nsnull);
+    }
+  }
+}
+
 PRBool
 nsBoxFrame::SupportsOrdinalsInChildren()
 {
@@ -2146,47 +2160,31 @@ public:
   nsDisplayXULEventRedirector(nsIFrame* aFrame, nsDisplayList* aList,
                               nsIFrame* aTargetFrame)
     : nsDisplayWrapList(aFrame, aList), mTargetFrame(aTargetFrame) {}
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState);
   NS_DISPLAY_DECL_NAME("XULEventRedirector")
 private:
   nsIFrame* mTargetFrame;
 };
 
-void nsDisplayXULEventRedirector::HitTest(nsDisplayListBuilder* aBuilder,
-    const nsRect& aRect, HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
+nsIFrame* nsDisplayXULEventRedirector::HitTest(nsDisplayListBuilder* aBuilder,
+    nsPoint aPt, HitTestState* aState)
 {
-  nsTArray<nsIFrame*> outFrames;
-  mList.HitTest(aBuilder, aRect, aState, &outFrames);
+  nsIFrame* frame = mList.HitTest(aBuilder, aPt, aState);
+  if (!frame)
+    return nsnull;
 
-  PRBool topMostAdded = PR_FALSE;
-  PRUint32 localLength = outFrames.Length();
-
-  for (PRUint32 i = 0; i < localLength; i++) {
-
-    for (nsIContent* content = outFrames.ElementAt(i)->GetContent();
-         content && content != mTargetFrame->GetContent();
-         content = content->GetParent()) {
-      if (content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::allowevents,
-                               nsGkAtoms::_true, eCaseMatters)) {
-        // Events are allowed on 'frame', so let it go.
-        aOutFrames->AppendElement(outFrames.ElementAt(i));
-        topMostAdded = PR_TRUE;
-      }
+  for (nsIContent* content = frame->GetContent();
+       content && content != mTargetFrame->GetContent();
+       content = content->GetParent()) {
+    if (content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::allowevents,
+                             nsGkAtoms::_true, eCaseMatters)) {
+      // Events are allowed on 'frame', so let it go.
+      return frame;
     }
-
-    // If there was no hit on the topmost frame or its ancestors,
-    // add the target frame itself as the first candidate (see bug 562554).
-    if (!topMostAdded) {
-      topMostAdded = PR_TRUE;
-      aOutFrames->AppendElement(mTargetFrame);
-    }
-
   }
-  // If no hits were found, treat it as a hit on the target frame itself.
-  if (localLength == 0) {
-    aOutFrames->AppendElement(mTargetFrame);
-  }
+  // Treat it as a hit on the target frame itself.
+  return mTargetFrame;
 }
 
 class nsXULEventRedirectorWrapper : public nsDisplayWrapper

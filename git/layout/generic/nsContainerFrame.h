@@ -327,18 +327,6 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  // Destructor function for the proptable-stored framelists
-  static void DestroyFrameList(void* aPropertyValue)
-  {
-    if (aPropertyValue) {
-      static_cast<nsFrameList*>(aPropertyValue)->Destroy();
-    }
-  }
-
-  NS_DECLARE_FRAME_PROPERTY(OverflowProperty, DestroyFrameList)
-  NS_DECLARE_FRAME_PROPERTY(OverflowContainersProperty, DestroyFrameList)
-  NS_DECLARE_FRAME_PROPERTY(ExcessOverflowContainersProperty, DestroyFrameList)
-
 protected:
   nsContainerFrame(nsStyleContext* aContext) : nsSplittableFrame(aContext) {}
   ~nsContainerFrame();
@@ -434,15 +422,15 @@ protected:
    * Get the PresContext-stored nsFrameList named aPropID for this frame.
    * May return null.
    */
-  nsFrameList* GetPropTableFrames(nsPresContext*                 aPresContext,
-                                  const FramePropertyDescriptor* aProperty) const;
+  nsFrameList* GetPropTableFrames(nsPresContext*  aPresContext,
+                                  nsIAtom*        aPropID) const;
 
   /**
    * Remove and return the PresContext-stored nsFrameList named aPropID for
    * this frame. May return null.
    */
-  nsFrameList* RemovePropTableFrames(nsPresContext*                 aPresContext,
-                                     const FramePropertyDescriptor* aProperty);
+  nsFrameList* RemovePropTableFrames(nsPresContext*  aPresContext,
+                                     nsIAtom*        aPropID) const;
 
   /**
    * Remove aFrame from the PresContext-stored nsFrameList named aPropID
@@ -450,17 +438,18 @@ protected:
    * Return true if the aFrame was successfully removed,
    * Return false otherwise.
    */
-  PRBool RemovePropTableFrame(nsPresContext*                 aPresContext,
-                              nsIFrame*                      aFrame,
-                              const FramePropertyDescriptor* aProperty);
+
+  PRBool RemovePropTableFrame(nsPresContext*  aPresContext,
+                              nsIFrame*       aFrame,
+                              nsIAtom*        aPropID) const;
 
   /**
    * Set the PresContext-stored nsFrameList named aPropID for this frame
    * to the given aFrameList, which must not be null.
    */
-  nsresult SetPropTableFrames(nsPresContext*                 aPresContext,
-                              nsFrameList*                   aFrameList,
-                              const FramePropertyDescriptor* aProperty);
+  nsresult SetPropTableFrames(nsPresContext*  aPresContext,
+                              nsFrameList*    aFrameList,
+                              nsIAtom*        aPropID) const;
   // ==========================================================================
 
   nsFrameList mFrames;
@@ -593,9 +582,9 @@ private:
      to increment this walker to the next overflow container. */
   nsIFrame* mSentry;
   /* Parent of all frames in mOverflowContList. If our mOverflowContList
-     is an excessOverflowContainersProperty, or null, then this is our frame
-     (the frame that was passed in to our constructor). Otherwise this is
-     that frame's next-in-flow, and our mOverflowContList is mParent's
+     is an excessOverflowContainersProperty, then this our frame (the frame
+     that was passed in to our constructor). Otherwise this is that frame's
+     next-in-flow, and our mOverflowContList is mParent's
      overflowContainersProperty */
   nsContainerFrame* mParent;
   /* Tells SetUpListWalker whether or not to walk us past any continuations
@@ -610,7 +599,7 @@ nsFrameList*
 nsContainerFrame::GetOverflowFrames() const
 {
   nsFrameList* list =
-    static_cast<nsFrameList*>(Properties().Get(OverflowProperty()));
+    static_cast<nsFrameList*>(GetProperty(nsGkAtoms::overflowProperty));
   NS_ASSERTION(!list || !list->IsEmpty(), "Unexpected empty overflow list");
   return list;
 }
@@ -620,7 +609,7 @@ nsFrameList*
 nsContainerFrame::StealOverflowFrames()
 {
   nsFrameList* list =
-    static_cast<nsFrameList*>(Properties().Remove(OverflowProperty()));
+    static_cast<nsFrameList*>(UnsetProperty(nsGkAtoms::overflowProperty));
   NS_ASSERTION(!list || !list->IsEmpty(), "Unexpected empty overflow list");
   return list;
 }

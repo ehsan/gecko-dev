@@ -92,11 +92,11 @@ class nsIntervalSet;
  * flow frames whose placeholders are in the overflow list.
  * -- A given piece of content has at most one placeholder
  * frame in a block's normal child list.
- * -- While a block is being reflowed, it may have a FloatContinuationProperty
+ * -- While a block is being reflowed, it may have a floatContinuationProperty
  * frame property that points to an nsFrameList in its
  * nsBlockReflowState. This list contains continuations for
  * floats whose prev-in-flow is in the block's regular float
- * list. The list is always empty/nonexistent after the
+ * list. The list is always empty/non-existent after the
  * block has been reflowed.
  * -- In all these frame lists, if there are two frames for
  * the same content appearing in the list, then the frames
@@ -115,15 +115,15 @@ class nsIntervalSet;
  * performed on the block. This flag must be either set on all blocks in a 
  * continuation chain or none of them.
  */
-#define NS_BLOCK_NEEDS_BIDI_RESOLUTION      NS_FRAME_STATE_BIT(20)
-#define NS_BLOCK_HAS_LINE_CURSOR            NS_FRAME_STATE_BIT(24)
-#define NS_BLOCK_HAS_OVERFLOW_LINES         NS_FRAME_STATE_BIT(25)
-#define NS_BLOCK_HAS_OVERFLOW_OUT_OF_FLOWS  NS_FRAME_STATE_BIT(26)
+#define NS_BLOCK_NEEDS_BIDI_RESOLUTION      0x00100000 
+#define NS_BLOCK_HAS_LINE_CURSOR            0x01000000
+#define NS_BLOCK_HAS_OVERFLOW_LINES         0x02000000
+#define NS_BLOCK_HAS_OVERFLOW_OUT_OF_FLOWS  0x04000000
 
 // Set on any block that has descendant frames in the normal
 // flow with 'clear' set to something other than 'none'
 // (including <BR CLEAR="..."> frames)
-#define NS_BLOCK_HAS_CLEAR_CHILDREN         NS_FRAME_STATE_BIT(27)
+#define NS_BLOCK_HAS_CLEAR_CHILDREN         0x08000000
 
 #define nsBlockFrameSuper nsHTMLContainerFrame
 
@@ -155,8 +155,6 @@ public:
   const_reverse_line_iterator rend_lines() const { return mLines.rend(); }
 
   friend nsIFrame* NS_NewBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
-
-  NS_DECLARE_FRAME_PROPERTY(FloatContinuationProperty, nsnull)
 
   // nsQueryFrame
   NS_DECL_QUERYFRAME
@@ -202,7 +200,7 @@ public:
 #endif
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   // line cursor methods to speed up searching for the line(s)
@@ -271,6 +269,12 @@ public:
    */
   PRBool CheckForCollapsedBottomMarginFromClearanceLine();
 
+  /** return the topmost block child based on y-index.
+    * almost always the first or second line, if there is one.
+    * accounts for lines that hold only compressed white space, etc.
+    */
+  nsIFrame* GetTopBlockChild(nsPresContext *aPresContext);
+
   static nsresult GetCurrentLine(nsBlockReflowState *aState, nsLineBox **aOutCurrentLine);
 
   static PRBool BlockIsMarginRoot(nsIFrame* aBlock);
@@ -333,7 +337,7 @@ protected:
   already_AddRefed<nsStyleContext> GetFirstLetterStyle(nsPresContext* aPresContext)
   {
     return aPresContext->StyleSet()->
-      ProbePseudoElementStyle(mContent->AsElement(),
+      ProbePseudoElementStyle(mContent,
                               nsCSSPseudoElements::ePseudo_firstLetter,
                               mStyleContext);
   }

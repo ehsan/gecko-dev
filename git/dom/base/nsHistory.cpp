@@ -77,8 +77,6 @@ nsHistory::~nsHistory()
 }
 
 
-DOMCI_DATA(History, nsHistory)
-
 // QueryInterface implementation for nsHistory
 NS_INTERFACE_MAP_BEGIN(nsHistory)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMHistory)
@@ -247,7 +245,8 @@ nsHistory::Go(PRInt32 aDelta)
 
       nsIPresShell *shell;
       nsPresContext *pcx;
-      if (doc && (shell = doc->GetShell()) && (pcx = shell->GetPresContext())) {
+      if (doc && (shell = doc->GetPrimaryShell()) &&
+          (pcx = shell->GetPresContext())) {
         pcx->RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
       }
 

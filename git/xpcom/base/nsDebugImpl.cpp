@@ -50,10 +50,6 @@
 #include "prenv.h"
 #include "pratom.h"
 
-#ifdef ANDROID
-#include <android/log.h>
-#endif
-
 #if defined(XP_BEOS)
 /* For DEBUGGER macros */
 #include <Debug.h>
@@ -75,8 +71,6 @@
 #include <tchar.h>
 #include "nsString.h"
 #endif
-
-#include "mozilla/mozalloc_abort.h"
 
 static void
 Abort(const char *aMsg);
@@ -313,10 +307,6 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      fprintf(stderr, "\07");
 #endif
 
-#ifdef ANDROID
-   __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", buf.buffer);
-#endif
-
    // Write the message to stderr
    fprintf(stderr, "%s\n", buf.buffer);
    fflush(stderr);
@@ -330,7 +320,7 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      return;
 
    case NS_DEBUG_ABORT:
-#if defined(DEBUG) && defined(_WIN32)
+#ifdef DEBUG
      RealBreak();
 #endif
      nsTraceRefcntImpl::WalkTheStack(stderr);
@@ -367,16 +357,48 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      return;
 
    case NS_ASSERT_TRAP:
-   case NS_ASSERT_UNINITIALIZED: // Default to "trap" behavior
      Break(buf.buffer);
-     return;
    }   
+}
+
+static void
+TouchBadMemory()
+{
+  // XXX this should use the frame poisoning code
+  gAssertionCount += *((PRInt32 *) 0); // TODO annotation saying we know 
+                                       // this is crazy
 }
 
 static void
 Abort(const char *aMsg)
 {
-  mozalloc_abort(aMsg);
+#if defined(_WIN32)
+  TouchBadMemory();
+
+#ifndef WINCE
+  //This should exit us
+  raise(SIGABRT);
+#endif
+  //If we are ignored exit this way..
+  _exit(3);
+#elif defined(XP_UNIX)
+  PR_Abort();
+#elif defined(XP_BEOS)
+  {
+#ifndef DEBUG_cls
+	DEBUGGER(aMsg);
+#endif
+  }
+#else
+  // Don't know how to abort on this platform! call Break() instead
+  Break(aMsg);
+#endif
+
+  // Still haven't aborted?  Try dereferencing null.
+  TouchBadMemory();
+
+  // Still haven't aborted?  Try _exit().
+  PR_ProcessExit(127);
 }
 
 static void

@@ -42,7 +42,6 @@
 #include "nsPrintObject.h"
 #include "nsPrintPreviewListener.h"
 #include "nsIWebProgressListener.h"
-#include "mozilla/Services.h"
 
 //-----------------------------------------------------
 // PR LOGGING
@@ -76,8 +75,7 @@ nsPrintData::nsPrintData(ePrintDataType aType) :
 {
 
   nsCOMPtr<nsIStringBundle> brandBundle;
-  nsCOMPtr<nsIStringBundleService> svc =
-    mozilla::services::GetStringBundleService();
+  nsCOMPtr<nsIStringBundleService> svc( do_GetService( NS_STRINGBUNDLE_CONTRACTID ) );
   if (svc) {
     svc->CreateBundle( "chrome://branding/locale/brand.properties", getter_AddRefs( brandBundle ) );
     if (brandBundle) {

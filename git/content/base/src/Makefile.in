@@ -76,7 +76,6 @@ CPPSRCS		= \
 		nsAttrAndChildArray.cpp \
 		nsAttrValue.cpp \
 		nsCCUncollectableMarker.cpp \
-		nsChannelPolicy.cpp \
 		nsCommentNode.cpp \
 		nsContentAreaDragDrop.cpp \
 		nsContentIterator.cpp \
@@ -91,14 +90,12 @@ CPPSRCS		= \
 		nsDOMAttribute.cpp \
 		nsDOMAttributeMap.cpp \
 		nsDOMDocumentType.cpp \
-		nsDOMEventTargetWrapperCache.cpp \
 		nsDOMFile.cpp \
 		nsDOMFileReader.cpp \
 		nsDOMLists.cpp \
 		nsDOMParser.cpp \
 		nsDOMSerializer.cpp \
 		nsDOMTokenList.cpp \
-		nsDOMSettableTokenList.cpp \
 		nsDocument.cpp \
 		nsDocumentEncoder.cpp \
 		nsDocumentFragment.cpp \
@@ -139,15 +136,13 @@ CPPSRCS		= \
 		nsTextNode.cpp \
 		nsTraversal.cpp \
 		nsTreeWalker.cpp \
-		nsWebSocket.cpp \
 		nsXHTMLContentSerializer.cpp \
 		nsXMLContentSerializer.cpp \
 		nsXMLHttpRequest.cpp \
 		nsXMLNameSpaceMap.cpp \
 		Link.cpp \
-		nsFileDataProtocolHandler.cpp \
 		nsFrameMessageManager.cpp \
-		nsInProcessTabChildGlobal.cpp \
+		nsFileDataProtocolHandler.cpp \
 		$(NULL)
 
 GQI_SRCS = contentbase.gqi
@@ -159,7 +154,6 @@ FORCE_STATIC_LIB = 1
 EXTRA_COMPONENTS = \
 		$(srcdir)/nsBadCertHandler.js \
 		contentSecurityPolicy.js \
-		contentAreaDropListener.js \
 		$(NULL)
 
 EXTRA_JS_MODULES = \
@@ -184,10 +178,6 @@ INCLUDES	+= \
 		-I$(srcdir)/../../xml/document/src \
 		-I$(topsrcdir)/xpcom/io \
 		-I$(topsrcdir)/dom/ipc \
-		-I$(topsrcdir)/js/src/xpconnect/src \
-		-I$(topsrcdir)/caps/include \
 		$(NULL)
-
-CXXFLAGS += $(TK_CFLAGS)
 
 DEFINES += -D_IMPL_NS_LAYOUT

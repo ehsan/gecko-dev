@@ -348,13 +348,6 @@ nsPluginTag::GetFilename(nsACString& aFileName)
 }
 
 NS_IMETHODIMP
-nsPluginTag::GetFullpath(nsACString& aFullPath)
-{
-  aFullPath = mFullPath;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsPluginTag::GetVersion(nsACString& aVersion)
 {
   aVersion = mVersion;
@@ -575,7 +568,8 @@ void nsPluginTag::TryUnloadPlugin()
 
 nsPluginInstanceTag::nsPluginInstanceTag(nsPluginTag* aPluginTag,
                                          nsIPluginInstance* aInstance,
-                                         const char * url)
+                                         const char * url,
+                                         PRBool aDefaultPlugin)
 {
   NS_ASSERTION(aInstance, "Must have a valid plugin instance when creating an nsPluginInstanceTag");
   NS_ADDREF(aInstance);
@@ -584,6 +578,8 @@ nsPluginInstanceTag::nsPluginInstanceTag(nsPluginTag* aPluginTag,
   mPluginTag = aPluginTag;
   
   mURL = PL_strdup(url);
+
+  mDefaultPlugin = aDefaultPlugin;
 }
 
 nsPluginInstanceTag::~nsPluginInstanceTag()

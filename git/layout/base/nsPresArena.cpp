@@ -357,20 +357,6 @@ struct nsPresArena::State {
   }
 };
 
-PRUint32
-nsPresArena::Size()
-{
-  PLArena *arena = &mState->mPool.first;
-  PRUint32 result = 0;
-
-  while (arena) {
-    result += arena->limit - arena->base;
-    arena = arena->next;
-  }
-
-  return result;
-}
-
 #else
 // Stub implementation that forwards everything to malloc and does not
 // poison.
@@ -387,12 +373,6 @@ struct nsPresArena::State
     PR_Free(aPtr);
   }
 };
-
-PRUint32
-nsPresArena::Size()
-{
-  return 0;
-}
 
 #endif // DEBUG_TRACEMALLOC_PRESARENA
 

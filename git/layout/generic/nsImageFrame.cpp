@@ -183,17 +183,15 @@ NS_QUERYFRAME_HEAD(nsImageFrame)
 NS_QUERYFRAME_TAIL_INHERITING(ImageFrameSuper)
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsImageFrame::CreateAccessible()
+NS_IMETHODIMP nsImageFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLImageAccessible(mContent,
-                                                 PresContext()->PresShell());
+    return accService->CreateHTMLImageAccessible(static_cast<nsIFrame*>(this), aAccessible);
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 
@@ -1011,9 +1009,8 @@ nsImageFrame::DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
 
   // Paint the border
   nsRecessedBorder recessedBorder(borderEdgeWidth, PresContext());
-  nsCSSRendering::PaintBorderWithStyleBorder(PresContext(), aRenderingContext,
-                                             this, inner, inner,
-                                             recessedBorder, mStyleContext);
+  nsCSSRendering::PaintBorder(PresContext(), aRenderingContext, this, inner,
+                              inner, recessedBorder, mStyleContext);
 
   // Adjust the inner rect to account for the one pixel recessed border,
   // and a six pixel padding on each edge
@@ -1261,9 +1258,12 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   // XXX what on EARTH is this code for?
+  PRInt16 displaySelection = 0;
   nsresult result;
   nsPresContext* presContext = PresContext();
-  PRInt16 displaySelection = presContext->PresShell()->GetSelectionFlags();
+  result = presContext->PresShell()->GetSelectionFlags(&displaySelection);
+  if (NS_FAILED(result))
+    return result;
   if (!(displaySelection & nsISelectionDisplay::DISPLAY_IMAGES))
     return NS_OK;//no need to check the blue border, we cannot be drawn selected
 //insert hook here for image selection drawing
@@ -1533,7 +1533,7 @@ nsImageFrame::GetCursor(const nsPoint& aPoint,
       // specified will inherit the style from the image.
       nsRefPtr<nsStyleContext> areaStyle = 
         PresContext()->PresShell()->StyleSet()->
-          ResolveStyleFor(area->AsElement(), GetStyleContext());
+          ResolveStyleFor(area, GetStyleContext());
       if (areaStyle) {
         FillCursorInformationFromStyle(areaStyle->GetStyleUserInterface(),
                                        aCursor);
@@ -1591,12 +1591,12 @@ nsImageFrame::List(FILE* out, PRInt32 aIndent) const
   if (HasView()) {
     fprintf(out, " [view=%p]", (void*)GetView());
   }
-  fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
+  fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, 
+mRect.height);
   if (0 != mState) {
-    fprintf(out, " [state=%016llx]", mState);
+    fprintf(out, " [state=%08x]", mState);
   }
   fprintf(out, " [content=%p]", (void*)mContent);
-  fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
 
   // output the img src url
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
@@ -1673,7 +1673,6 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
                        loadFlags,
                        nsnull,
                        nsnull,
-                       nsnull,      /* channel policy not needed */
                        aRequest);
 }
 

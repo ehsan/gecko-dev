@@ -53,11 +53,20 @@
 #include "nsThreadUtils.h"
 #include "prlog.h"
 #include "nsHashKeys.h"
-#ifdef MOZ_CRASHREPORTER
-#  include "nsExceptionHandler.h"
-#endif
 
 namespace mozilla {
+
+// XXX might want to move these to nscore.h or something, they can be
+// generally useful
+struct void_t { };
+struct null_t { };
+
+namespace ipc {
+
+typedef intptr_t NPRemoteIdentifier;
+
+} /* namespace ipc */
+
 namespace plugins {
 
 enum ScriptableObjectType
@@ -69,11 +78,6 @@ enum ScriptableObjectType
 mozilla::ipc::RPCChannel::RacyRPCPolicy
 MediateRace(const mozilla::ipc::RPCChannel::Message& parent,
             const mozilla::ipc::RPCChannel::Message& child);
-
-std::string
-MungePluginDsoPath(const std::string& path);
-std::string
-UnmungePluginDsoPath(const std::string& munged);
 
 extern PRLogModuleInfo* gPluginLog;
 
@@ -124,17 +128,10 @@ struct NPRemoteWindow
 typedef HWND NativeWindowHandle;
 #elif defined(MOZ_X11)
 typedef XID NativeWindowHandle;
-#elif defined(XP_MACOSX) || defined(ANDROID)
+#elif defined(XP_MACOSX)
 typedef intptr_t NativeWindowHandle; // never actually used, will always be 0
 #else
 #error Need NativeWindowHandle for this platform
-#endif
-
-#ifdef MOZ_CRASHREPORTER
-typedef CrashReporter::ThreadId NativeThreadId;
-#else
-// unused in this case
-typedef int32 NativeThreadId;
 #endif
 
 // XXX maybe not the best place for these. better one?
@@ -207,34 +204,12 @@ NPNVariableToString(NPNVariable aVar)
 }
 #undef VARSTR
 
-inline bool IsPluginThread()
-{
-  MessageLoop* loop = MessageLoop::current();
-  if (!loop)
-      return false;
-  return (loop->type() == MessageLoop::TYPE_UI);
-}
 
 inline void AssertPluginThread()
 {
-  NS_ASSERTION(IsPluginThread(), "Should be on the plugin's main thread!");
+  NS_ASSERTION(MessageLoopForUI::current(),
+               "should be on the plugin's main thread!");
 }
-
-#define ENSURE_PLUGIN_THREAD(retval) \
-  PR_BEGIN_MACRO \
-    if (!IsPluginThread()) { \
-      NS_WARNING("Not running on the plugin's main thread!"); \
-      return (retval); \
-    } \
-  PR_END_MACRO
-
-#define ENSURE_PLUGIN_THREAD_VOID() \
-  PR_BEGIN_MACRO \
-    if (!IsPluginThread()) { \
-      NS_WARNING("Not running on the plugin's main thread!"); \
-      return; \
-    } \
-  PR_END_MACRO
 
 void DeferNPObjectLastRelease(const NPNetscapeFuncs* f, NPObject* o);
 void DeferNPVariantLastRelease(const NPNetscapeFuncs* f, NPVariant* v);
@@ -456,61 +431,6 @@ struct ParamTraits<NPString>
   }
 };
 
-#ifdef XP_MACOSX
-template <>
-struct ParamTraits<NPNSString*>
-{
-  typedef NPNSString* paramType;
-
-  // Empty string writes a length of 0 and no buffer.
-  // We don't write a NULL terminating character in buffers.
-  static void Write(Message* aMsg, const paramType& aParam)
-  {
-    CFStringRef cfString = (CFStringRef)aParam;
-    long length = ::CFStringGetLength(cfString);
-    WriteParam(aMsg, length);
-    if (length == 0) {
-      return;
-    }
-
-    // Attempt to get characters without any allocation/conversion.
-    if (::CFStringGetCharactersPtr(cfString)) {
-      aMsg->WriteBytes(::CFStringGetCharactersPtr(cfString), length * sizeof(UniChar));
-    } else {
-      UniChar *buffer = (UniChar*)moz_xmalloc(length * sizeof(UniChar));
-      ::CFStringGetCharacters(cfString, ::CFRangeMake(0, length), buffer);
-      aMsg->WriteBytes(buffer, length * sizeof(UniChar));
-      free(buffer);
-    }
-  }
-
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
-  {
-    long length;
-    if (!ReadParam(aMsg, aIter, &length)) {
-      return false;
-    }
-
-    UniChar* buffer = nsnull;
-    if (length != 0) {
-      if (!aMsg->ReadBytes(aIter, (const char**)&buffer, length * sizeof(UniChar)) ||
-          !buffer) {
-        return false;
-      }
-    }
-
-    *aResult = (NPNSString*)::CFStringCreateWithBytes(kCFAllocatorDefault, (UInt8*)buffer,
-                                                      length * sizeof(UniChar),
-                                                      kCFStringEncodingUTF16, false);
-    if (!*aResult) {
-      return false;
-    }
-
-    return true;
-  }
-};
-#endif
-
 template <>
 struct ParamTraits<NPVariant>
 {
@@ -647,6 +567,32 @@ struct ParamTraits<NPVariant>
   }
 };
 
+template<>
+struct ParamTraits<mozilla::void_t>
+{
+  typedef mozilla::void_t paramType;
+  static void Write(Message* aMsg, const paramType& aParam) { }
+  static bool
+  Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    *aResult = paramType();
+    return true;
+  }
+};
+
+template<>
+struct ParamTraits<mozilla::null_t>
+{
+  typedef mozilla::null_t paramType;
+  static void Write(Message* aMsg, const paramType& aParam) { }
+  static bool
+  Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    *aResult = paramType();
+    return true;
+  }
+};
+
 template <>
 struct ParamTraits<mozilla::plugins::IPCByteRange>
 {
@@ -716,35 +662,6 @@ struct ParamTraits<NPNURLVariable>
   }
 };
 
-  
-template<>
-struct ParamTraits<NPCoordinateSpace>
-{
-  typedef NPCoordinateSpace paramType;
-
-  static void Write(Message* aMsg, const paramType& aParam)
-  {
-    WriteParam(aMsg, int32(aParam));
-  }
-
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
-  {
-    int32 intval;
-    if (ReadParam(aMsg, aIter, &intval)) {
-      switch (intval) {
-      case NPCoordinateSpacePlugin:
-      case NPCoordinateSpaceWindow:
-      case NPCoordinateSpaceFlippedWindow:
-      case NPCoordinateSpaceScreen:
-      case NPCoordinateSpaceFlippedScreen:
-        *aResult = paramType(intval);
-        return true;
-      }
-    }
-    return false;
-  }
-};
-
 } /* namespace IPC */
 
 
@@ -762,8 +679,6 @@ struct ParamTraits<NPCoordinateSpace>
 #  error Sorry, OS/2 is not supported
 #elif defined(XP_UNIX) && defined(MOZ_X11)
 #  include "mozilla/plugins/NPEventX11.h"
-#elif defined(ANDROID)
-#  include "mozilla/plugins/NPEventAndroid.h"
 #else
 #  error Unsupported platform
 #endif

@@ -59,13 +59,12 @@
 
 /***************************************************************************/
 
-// NB: jsval is declared in nsIVariant.idl
+// NB: JSVal is declared in nsIVariant.idl
 
 [ptr] native JSContextPtr(JSContext);
 [ptr] native JSClassPtr(JSClass);
 [ptr] native JSObjectPtr(JSObject);
 [ptr] native JSValPtr(jsval);
-      native JSPropertyOp(JSPropertyOp);
       native JSEqualityOp(JSEqualityOp);
       native JSID(jsid);
 [ptr] native voidPtrPtr(void*);
@@ -180,8 +179,8 @@ interface nsIXPConnectWrappedNative : nsIXPConnectJSObjectHolder
      */
 
     readonly attribute nsIXPConnect XPConnect;
-    nsIInterfaceInfo FindInterfaceWithMember(in jsval nameID);
-    nsIInterfaceInfo FindInterfaceWithName(in jsval nameID);
+    nsIInterfaceInfo FindInterfaceWithMember(in JSVal nameID);
+    nsIInterfaceInfo FindInterfaceWithName(in JSVal nameID);
 
     void debugDump(in short depth);
 
@@ -397,7 +396,7 @@ interface nsIXPCFunctionThisTranslator : nsISupports
     { 0xbd, 0xd6, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74 } }
 %}
 
-[uuid(0332b12a-8103-4601-aed3-b9933a0d9441)]
+[uuid(96540596-c21e-4183-bb47-f6a5c1ad2dba)]
 interface nsIXPConnect : nsISupports
 {
 %{ C++
@@ -500,7 +499,7 @@ interface nsIXPConnect : nsISupports
                       in nsISupports  aCOMObj,
                       in nsIIDPtr     aIID,
                       in boolean      aAllowWrapper,
-                      out jsval       aVal,
+                      out JSVal       aVal,
                       out nsIXPConnectJSObjectHolder aHolder);
 
     /**
@@ -533,7 +532,7 @@ interface nsIXPConnect : nsISupports
            [iid_is(aIID),retval] out nsQIResult result);
 
     /**
-     * Wraps the given jsval in a nsIVariant and returns the new variant.
+     * Wraps the given JSVal in a nsIVariant and returns the new variant.
      */
     nsIVariant
     jSValToVariant(in JSContextPtr cx, in JSValPtr aJSVal);
@@ -652,9 +651,9 @@ interface nsIXPConnect : nsISupports
                                  in JSObjectPtr  aNewParent,
                                  in nsISupports  aCOMObj);
     void
-    moveWrappers(in JSContextPtr aJSContext,
-                 in JSObjectPtr  aOldScope,
-                 in JSObjectPtr  aNewScope);
+    reparentScopeAwareWrappers(in JSContextPtr aJSContext,
+                               in JSObjectPtr  aOldScope,
+                               in JSObjectPtr  aNewScope);
 
     void clearAllWrappedNativeSecurityPolicies();
 
@@ -665,8 +664,8 @@ interface nsIXPConnect : nsISupports
 
     void releaseJSContext(in JSContextPtr aJSContext, in PRBool noGC);
 
-    jsval variantToJS(in JSContextPtr ctx, in JSObjectPtr scope, in nsIVariant value);
-    nsIVariant JSToVariant(in JSContextPtr ctx, in jsval value);
+    JSVal variantToJS(in JSContextPtr ctx, in JSObjectPtr scope, in nsIVariant value);
+    nsIVariant JSToVariant(in JSContextPtr ctx, in JSVal value);
 
     /**
      * Preconfigure XPCNativeWrapper automation so that when a scripted
@@ -723,7 +722,7 @@ interface nsIXPConnect : nsISupports
      *         is responsible for rooting the jsval before making a call
      *         to this method.
      */
-    [noscript] jsval evalInSandboxObject(in AString source, in JSContextPtr cx,
+    [noscript] JSVal evalInSandboxObject(in AString source, in JSContextPtr cx,
                                          in nsIXPConnectJSObjectHolder sandbox,
                                          in PRBool returnStringOnly);
 
@@ -733,7 +732,7 @@ interface nsIXPConnect : nsISupports
      * @param aParent The parent to create the wrapper with.
      * @param aWrappedObj The object to wrap.
      */
-    [noscript] jsval getXOWForObject(in JSContextPtr aJSContext,
+    [noscript] JSVal getXOWForObject(in JSContextPtr aJSContext,
                                      in JSObjectPtr aParent,
                                      in JSObjectPtr aWrappedObj);
 
@@ -743,7 +742,7 @@ interface nsIXPConnect : nsISupports
      * @param aParent The parent to create the wrapper with.
      * @param aWrappedObj The object to wrap.
      */
-    [noscript] jsval getCOWForObject(in JSContextPtr aJSContext,
+    [noscript] JSVal getCOWForObject(in JSContextPtr aJSContext,
                                      in JSObjectPtr aParent,
                                      in JSObjectPtr aWrappedObj);
 
@@ -849,7 +848,7 @@ interface nsIXPConnect : nsISupports
      *     The filename flags from the script that will use this wrapper. See
      *     above (aPrincipal) for details.
      */
-    [noscript] jsval getWrapperForObject(
+    [noscript] JSVal getWrapperForObject(
         in JSContextPtr aJSContext,
         in JSObjectPtr aObject,
         in JSObjectPtr aScope,
@@ -869,5 +868,5 @@ interface nsIXPConnect : nsISupports
 #endif
 %}
 
-    [notxpcom] void getNativeWrapperGetPropertyOp(out JSPropertyOp getProperty);
+    [notxpcom] JSClassPtr getNativeWrapperClass();
 };

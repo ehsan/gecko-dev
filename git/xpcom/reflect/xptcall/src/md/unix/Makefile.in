@@ -39,7 +39,6 @@ DEPTH		= ../../../../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-NO_PROFILE_GUIDED_OPTIMIZE = 1
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -84,7 +83,7 @@ endif
 endif
 endif
 
-ifneq (,$(filter NetBSD OpenBSD BSD_OS GNU,$(OS_ARCH)))
+ifneq (,$(filter NetBSD OpenBSD BSD_OS,$(OS_ARCH)))
 ifeq (86,$(findstring 86,$(OS_TEST)))
 CPPSRCS		:= xptcinvoke_unixish_x86.cpp xptcstubs_unixish_x86.cpp
 endif
@@ -147,20 +146,19 @@ endif
 #
 ifeq ($(OS_ARCH),SunOS)
 ifeq (x86_64,$(OS_TEST))
+CPPSRCS		:= xptcstubs_x86_64_solaris.cpp
 ifndef GNU_CC
-CPPSRCS		:= xptcstubs_x86_64_solaris.cpp xptcinvoke_x86_64_solaris.cpp
+CPPSRCS		+= xptcinvoke_x86_64_solaris.cpp
 ASFILES		:= xptcstubs_asm_x86_64_solaris_SUNW.s
 else
-CPPSRCS		:= xptcstubs_x86_64_linux.cpp xptcinvoke_x86_64_unix.cpp
+CPPSRCS		+= xptcinvoke_x86_64_unix.cpp
 endif
 else
 ifeq (86,$(findstring 86,$(OS_TEST)))
+CPPSRCS		:= xptcinvoke_x86_solaris.cpp xptcstubs_x86_solaris.cpp
 # 28817: if Solaris Intel OS, and native compiler, always build optimised.
 ifndef GNU_CC
-CPPSRCS		:= xptcinvoke_x86_solaris.cpp xptcstubs_x86_solaris.cpp
 ASFILES		:= xptcinvoke_asm_x86_solaris_SUNW.s xptcstubs_asm_x86_solaris_SUNW.s
-else
-CPPSRCS		:= xptcinvoke_gcc_x86_unix.cpp xptcstubs_gcc_x86_unix.cpp
 endif
 endif
 endif
@@ -249,14 +247,12 @@ endif
 # Linux/HPPA/gcc
 #
 ifeq ($(OS_ARCH),Linux)
-ifneq (,$(filter hppa hppa2.0 hppa1.1,$(OS_TEST)))
+ifneq (,$(filter hppa2.0 hppa1.1,$(OS_TEST)))
 ifndef GNU_CXX
 $(error Unknown C++ compiler, xptcall assembly will probably be incorrect.)
 else
 CPPSRCS		:= xptcinvoke_pa32.cpp xptcstubs_pa32.cpp
 ASFILES		:= xptcstubs_asm_parisc_linux.s xptcinvoke_asm_parisc_linux.s
-# #434190 optimized builds crash
-CXXFLAGS 	:=  $(filter-out $(MOZ_OPTIMIZE_FLAGS), $(CXXFLAGS))
 endif
 endif
 endif

@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 
@@ -94,7 +95,6 @@ nsHTMLParagraphElement::~nsHTMLParagraphElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLParagraphElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLParagraphElement, nsGenericElement)
 
-DOMCI_DATA(HTMLParagraphElement, nsHTMLParagraphElement)
 
 // QueryInterface implementation for nsHTMLParagraphElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLParagraphElement)

@@ -43,7 +43,7 @@
 #include "nsContentUtils.h"
 
 
-class nsXMLCDATASection : public nsGenericTextNode,
+class nsXMLCDATASection : public nsGenericDOMDataNode,
                           public nsIDOMCDATASection
 {
 public:
@@ -97,7 +97,7 @@ NS_NewXMLCDATASection(nsIContent** aInstancePtrResult,
 }
 
 nsXMLCDATASection::nsXMLCDATASection(nsINodeInfo *aNodeInfo)
-  : nsGenericTextNode(aNodeInfo)
+  : nsGenericDOMDataNode(aNodeInfo)
 {
 }
 
@@ -105,8 +105,6 @@ nsXMLCDATASection::~nsXMLCDATASection()
 {
 }
 
-
-DOMCI_DATA(CDATASection, nsXMLCDATASection)
 
 // QueryInterface implementation for nsXMLCDATASection
 NS_INTERFACE_TABLE_HEAD(nsXMLCDATASection)

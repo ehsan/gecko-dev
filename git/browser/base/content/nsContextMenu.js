@@ -87,7 +87,7 @@ function nsContextMenu(aXulMenu, aBrowser) {
   this.isContentSelected = false;
   this.shouldDisplay     = true;
   this.isDesignMode      = false;
-  this.onEditableArea = false;
+  this.possibleSpellChecking = false;
   this.ellipsis = "\u2026";
   try {
     this.ellipsis = gPrefService.getComplexValue("intl.ellipsis",
@@ -100,6 +100,10 @@ function nsContextMenu(aXulMenu, aBrowser) {
 
 // Prototype for nsContextMenu "class."
 nsContextMenu.prototype = {
+  // onDestroy is a no-op at this point.
+  onDestroy: function () {
+  },
+
   // Initialize context menu.
   initMenu: function CM_initMenu(aPopup, aBrowser) {
     this.menu = aPopup;
@@ -367,7 +371,7 @@ nsContextMenu.prototype = {
     var canSpell = InlineSpellCheckerUI.canSpellCheck;
     var onMisspelling = InlineSpellCheckerUI.overMisspelling;
     this.showItem("spell-check-enabled", canSpell);
-    this.showItem("spell-separator", canSpell || this.onEditableArea);
+    this.showItem("spell-separator", canSpell || this.possibleSpellChecking);
     if (canSpell) {
       document.getElementById("spell-check-enabled")
               .setAttribute("checked", InlineSpellCheckerUI.enabled);
@@ -395,7 +399,7 @@ nsContextMenu.prototype = {
       InlineSpellCheckerUI.addDictionaryListToMenu(dictMenu, dictSep);
       this.showItem("spell-add-dictionaries-main", false);
     }
-    else if (this.onEditableArea) {
+    else if (this.possibleSpellChecking) {
       // when there is no spellchecker but we might be able to spellcheck
       // add the add to dictionaries item. This will ensure that people
       // with no dictionaries will be able to download them
@@ -503,7 +507,7 @@ nsContextMenu.prototype = {
     this.inFrame           = false;
     this.hasBGImage        = false;
     this.bgImageURL        = "";
-    this.onEditableArea = false;
+    this.possibleSpellChecking = false;
 
     // Clear any old spellchecking items from the menu, this used to
     // be in the menu hiding code but wasn't getting called in all
@@ -552,7 +556,7 @@ nsContextMenu.prototype = {
         // allow spellchecking UI on all writable text boxes except passwords
         if (this.onTextInput && ! this.target.readOnly &&
             this.target.type != "password") {
-          this.onEditableArea = true;
+          this.possibleSpellChecking = true;
           InlineSpellCheckerUI.init(this.target.QueryInterface(Ci.nsIDOMNSEditableElement).editor);
           InlineSpellCheckerUI.initFromEvent(aRangeParent, aRangeOffset);
         }
@@ -561,7 +565,7 @@ nsContextMenu.prototype = {
       else if (this.target instanceof HTMLTextAreaElement) {
         this.onTextInput = true;
         if (!this.target.readOnly) {
-          this.onEditableArea = true;
+          this.possibleSpellChecking = true;
           InlineSpellCheckerUI.init(this.target.QueryInterface(Ci.nsIDOMNSEditableElement).editor);
           InlineSpellCheckerUI.initFromEvent(aRangeParent, aRangeOffset);
         }
@@ -662,41 +666,39 @@ nsContextMenu.prototype = {
       this.inFrame = true;
 
     // if the document is editable, show context menu like in text inputs
-    if (!this.onEditableArea) {
-      var win = this.target.ownerDocument.defaultView;
-      if (win) {
-        var isEditable = false;
-        try {
-          var editingSession = win.QueryInterface(Ci.nsIInterfaceRequestor)
-                                  .getInterface(Ci.nsIWebNavigation)
-                                  .QueryInterface(Ci.nsIInterfaceRequestor)
-                                  .getInterface(Ci.nsIEditingSession);
-          if (editingSession.windowIsEditable(win) &&
-              this.getComputedStyle(this.target, "-moz-user-modify") == "read-write") {
-            isEditable = true;
-          }
+    var win = this.target.ownerDocument.defaultView;
+    if (win) {
+      var isEditable = false;
+      try {
+        var editingSession = win.QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIWebNavigation)
+                                .QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIEditingSession);
+        if (editingSession.windowIsEditable(win) &&
+            this.getComputedStyle(this.target, "-moz-user-modify") == "read-write") {
+          isEditable = true;
         }
-        catch(ex) {
-          // If someone built with composer disabled, we can't get an editing session.
-        }
+      }
+      catch(ex) {
+        // If someone built with composer disabled, we can't get an editing session.
+      }
 
-        if (isEditable) {
-          this.onTextInput       = true;
-          this.onKeywordField    = false;
-          this.onImage           = false;
-          this.onLoadedImage     = false;
-          this.onCompletedImage  = false;
-          this.onMathML          = false;
-          this.inFrame           = false;
-          this.hasBGImage        = false;
-          this.isDesignMode      = true;
-          this.onEditableArea = true;
-          InlineSpellCheckerUI.init(editingSession.getEditorForWindow(win));
-          var canSpell = InlineSpellCheckerUI.canSpellCheck;
-          InlineSpellCheckerUI.initFromEvent(aRangeParent, aRangeOffset);
-          this.showItem("spell-check-enabled", canSpell);
-          this.showItem("spell-separator", canSpell);
-        }
+      if (isEditable) {
+        this.onTextInput       = true;
+        this.onKeywordField    = false;
+        this.onImage           = false;
+        this.onLoadedImage     = false;
+        this.onCompletedImage  = false;
+        this.onMathML          = false;
+        this.inFrame           = false;
+        this.hasBGImage        = false;
+        this.isDesignMode      = true;
+        this.possibleSpellChecking = true;
+        InlineSpellCheckerUI.init(editingSession.getEditorForWindow(win));
+        var canSpell = InlineSpellCheckerUI.canSpellCheck;
+        InlineSpellCheckerUI.initFromEvent(aRangeParent, aRangeOffset);
+        this.showItem("spell-check-enabled", canSpell);
+        this.showItem("spell-separator", canSpell);
       }
     }
   },
@@ -1333,7 +1335,8 @@ nsContextMenu.prototype = {
   // This is used to disable the context menu for form controls.
   isTargetAFormControl: function(aNode) {
     if (aNode instanceof HTMLInputElement)
-      return (!aNode.mozIsTextField(false) && aNode.type != "image");
+      return (aNode.type != "text" && aNode.type != "password" &&
+              aNode.type != "image");
 
     return (aNode instanceof HTMLButtonElement) ||
            (aNode instanceof HTMLSelectElement) ||
@@ -1343,7 +1346,7 @@ nsContextMenu.prototype = {
 
   isTargetATextBox: function(node) {
     if (node instanceof HTMLInputElement)
-      return node.mozIsTextField(false);
+      return (node.type == "text" || node.type == "password")
 
     return (node instanceof HTMLTextAreaElement);
   },

@@ -71,16 +71,6 @@ Tester.prototype = {
   },
 
   waitForWindowsState: function Tester_waitForWindowsState(aCallback) {
-    if (this.currentTest && window.gBrowser && gBrowser.tabs.length > 1) {
-      while (gBrowser.tabs.length > 1) {
-        let lastTab = gBrowser.tabContainer.lastChild;
-        let msg = "Found an unexpected tab at the end of test run: " +
-                  lastTab.linkedBrowser.currentURI.spec;
-        this.currentTest.addResult(new testResult(false, msg, "", false));
-        gBrowser.removeTab(lastTab);
-      }
-    }
-
     this.dumper.dump("TEST-INFO | checking window state\n");
     let windowsEnum = this._wm.getEnumerator("navigator:browser");
     while (windowsEnum.hasMoreElements()) {
@@ -99,10 +89,20 @@ Tester.prototype = {
     }
 
     // Make sure the window is raised before each test.
-    let self = this;
-    this.SimpleTest.waitForFocus(function() {
-      aCallback.apply(self);
-    });
+    if (this._fm.activeWindow != window) {
+      this.dumper.dump("TEST-INFO | (browser-test.js) | Waiting for window activation...\n");
+      let self = this;
+      window.addEventListener("activate", function () {
+        window.removeEventListener("activate", arguments.callee, false);
+        setTimeout(function () {
+          aCallback.apply(self);
+        }, 0);
+      }, false);
+      window.focus();
+      return;
+    }
+
+    aCallback.apply(this);
   },
 
   finish: function Tester_finish(aSkipSummary) {
@@ -125,7 +125,6 @@ Tester.prototype = {
     }
 
     this.dumper.dump("\n*** End BrowserChrome Test Results ***\n");
-    this.dumper.dump("TEST-START | Shutdown\n");
 
     this.dumper.done();
 
@@ -171,7 +170,7 @@ Tester.prototype = {
   },
 
   execTest: function Tester_execTest() {
-    this.dumper.dump("TEST-START | " + this.currentTest.path + "\n");
+    this.dumper.dump("Running " + this.currentTest.path + "...\n");
 
     // Load the tests into a testscope
     this.currentTest.scope = new testScope(this, this.currentTest);
@@ -313,12 +312,8 @@ function testScope(aTester, aTest) {
     self.__done = false;
   };
 
-  this.waitForFocus = function test_waitForFocus(callback, targetWindow, expectBlankPage) {
-    self.SimpleTest.waitForFocus(callback, targetWindow, expectBlankPage);
-  };
-
-  this.waitForClipboard = function test_waitForClipboard(expected, setup, success, failure) {
-    self.SimpleTest.waitForClipboard(expected, setup, success, failure);
+  this.waitForFocus = function test_waitForFocus(callback, targetWindow) {
+    self.SimpleTest.waitForFocus(callback, targetWindow);
   };
 
   this.registerCleanupFunction = function test_registerCleanupFunction(aFunction) {

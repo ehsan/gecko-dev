@@ -25,7 +25,7 @@
  *   Robert O'Callahan <roc+moz@cs.cmu.edu>
  *   L. David Baron <dbaron@dbaron.org>
  *   IBM Corporation
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -99,8 +99,6 @@
 static const int MIN_LINES_NEEDING_CURSOR = 20;
 
 #define DISABLE_FLOAT_BREAKING_IN_COLUMNS
-
-using namespace mozilla;
 
 #ifdef DEBUG
 #include "nsPrintfCString.h"
@@ -267,18 +265,6 @@ RecordReflowStatus(PRBool aChildIsBlock, nsReflowStatus aFrameReflowStatus)
 }
 #endif
 
-// Destructor function for the overflowLines frame property
-static void
-DestroyOverflowLines(void* aPropertyValue)
-{
-  NS_ERROR("Overflow lines should never be destroyed by the FramePropertyTable");
-}
-
-NS_DECLARE_FRAME_PROPERTY(LineCursorProperty, nsnull)
-NS_DECLARE_FRAME_PROPERTY(OverflowLinesProperty, DestroyOverflowLines)
-NS_DECLARE_FRAME_PROPERTY(OverflowOutOfFlowsProperty,
-                          nsContainerFrame::DestroyFrameList)
-
 //----------------------------------------------------------------------
 
 nsIFrame*
@@ -382,11 +368,11 @@ nsBlockFrame::List(FILE* out, PRInt32 aIndent) const
     fprintf(out, " next-in-flow=%p", static_cast<void*>(GetNextInFlow()));
   }
 
-  void* IBsibling = Properties().Get(IBSplitSpecialSibling());
+  void* IBsibling = GetProperty(nsGkAtoms::IBSplitSpecialSibling);
   if (IBsibling) {
     fprintf(out, " IBSplitSpecialSibling=%p", IBsibling);
   }
-  void* IBprevsibling = Properties().Get(IBSplitSpecialPrevSibling());
+  void* IBprevsibling = GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling);
   if (IBprevsibling) {
     fprintf(out, " IBSplitSpecialPrevSibling=%p", IBprevsibling);
   }
@@ -398,7 +384,7 @@ nsBlockFrame::List(FILE* out, PRInt32 aIndent) const
   // Output the rect and state
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
-    fprintf(out, " [state=%016llx]", mState);
+    fprintf(out, " [state=%08x]", mState);
   }
   nsBlockFrame* f = const_cast<nsBlockFrame*>(this);
   if (f->HasOverflowRect()) {
@@ -1249,10 +1235,8 @@ nsBlockFrame::ComputeFinalSize(const nsHTMLReflowState& aReflowState,
 #endif
 
   // Compute final width
-  aMetrics.width =
-    NSCoordSaturatingAdd(NSCoordSaturatingAdd(borderPadding.left,
-                                              aReflowState.ComputedWidth()), 
-                         borderPadding.right);
+  aMetrics.width = borderPadding.left + aReflowState.ComputedWidth() +
+    borderPadding.right;
 
   // Return bottom margin information
   // rbs says he hit this assertion occasionally (see bug 86947), so
@@ -1323,11 +1307,7 @@ nsBlockFrame::ComputeFinalSize(const nsHTMLReflowState& aReflowState,
                     && computedHeightLeftOver ),
                  "overflow container must not have computedHeightLeftOver");
 
-    aMetrics.height =
-      NSCoordSaturatingAdd(NSCoordSaturatingAdd(borderPadding.top,
-                                                computedHeightLeftOver),
-                           borderPadding.bottom);
-
+    aMetrics.height = borderPadding.top + computedHeightLeftOver + borderPadding.bottom;
     if (NS_FRAME_IS_NOT_COMPLETE(aState.mReflowStatus)
         && aMetrics.height < aReflowState.availableHeight) {
       // We ran out of height on this page but we're incomplete
@@ -2222,13 +2202,6 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
         while (line != end_lines()) {
           rv = ReflowLine(aState, line, &keepGoing);
           NS_ENSURE_SUCCESS(rv, rv);
-
-          if (aState.mReflowState.WillReflowAgainForClearance()) {
-            line->MarkDirty();
-            keepGoing = PR_FALSE;
-            break;
-          }
-
           DumpLine(aState, line, deltaY, -1);
           if (!keepGoing) {
             if (0 == line->GetChildCount()) {
@@ -2242,6 +2215,7 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
           }
 
           if (aState.mPresContext->CheckForInterrupt(this)) {
+            willReflowAgain = PR_TRUE;
             MarkLineDirtyForInterrupt(line);
             break;
           }
@@ -2858,6 +2832,27 @@ nsBlockFrame::ShouldApplyTopMargin(nsBlockReflowState& aState,
   // block. Therefore its top-margin will be collapsed by the
   // generational collapsing logic with its parent (us).
   return PR_FALSE;
+}
+
+nsIFrame*
+nsBlockFrame::GetTopBlockChild(nsPresContext* aPresContext)
+{
+  if (mLines.empty())
+    return nsnull;
+
+  nsLineBox *firstLine = mLines.front();
+  if (firstLine->IsBlock())
+    return firstLine->mFirstChild;
+
+  if (!firstLine->CachedIsEmpty())
+    return nsnull;
+
+  line_iterator secondLine = begin_lines();
+  ++secondLine;
+  if (secondLine == end_lines() || !secondLine->IsBlock())
+    return nsnull;
+
+  return secondLine->mFirstChild;
 }
 
 nsresult
@@ -4495,7 +4490,7 @@ nsBlockFrame::GetOverflowLines() const
     return nsnull;
   }
   nsLineList* lines = static_cast<nsLineList*>
-    (Properties().Get(OverflowLinesProperty()));
+                                 (GetProperty(nsGkAtoms::overflowLinesProperty));
   NS_ASSERTION(lines && !lines->empty(),
                "value should always be stored and non-empty when state set");
   return lines;
@@ -4508,11 +4503,26 @@ nsBlockFrame::RemoveOverflowLines()
     return nsnull;
   }
   nsLineList* lines = static_cast<nsLineList*>
-    (Properties().Remove(OverflowLinesProperty()));
+                                 (UnsetProperty(nsGkAtoms::overflowLinesProperty));
   NS_ASSERTION(lines && !lines->empty(),
                "value should always be stored and non-empty when state set");
   RemoveStateBits(NS_BLOCK_HAS_OVERFLOW_LINES);
   return lines;
+}
+
+// Destructor function for the overflowLines frame property
+static void
+DestroyOverflowLines(void*           aFrame,
+                     nsIAtom*        aPropertyName,
+                     void*           aPropertyValue,
+                     void*           aDtorData)
+{
+  if (aPropertyValue) {
+    nsLineList* lines = static_cast<nsLineList*>(aPropertyValue);
+    nsPresContext *context = static_cast<nsPresContext*>(aDtorData);
+    nsLineBox::DeleteLineList(context, *lines, nsnull);
+    delete lines;
+  }
 }
 
 // This takes ownership of aOverflowLines.
@@ -4525,12 +4535,14 @@ nsBlockFrame::SetOverflowLines(nsLineList* aOverflowLines)
   NS_ASSERTION(!(GetStateBits() & NS_BLOCK_HAS_OVERFLOW_LINES),
                "Overwriting existing overflow lines");
 
-  FrameProperties props = Properties();
-  // Verify that we won't overwrite an existing overflow list
-  NS_ASSERTION(!props.Get(OverflowLinesProperty()), "existing overflow list");
-  props.Set(OverflowLinesProperty(), aOverflowLines);
+  nsPresContext *presContext = PresContext();
+  nsresult rv = presContext->PropertyTable()->
+    SetProperty(this, nsGkAtoms::overflowLinesProperty, aOverflowLines,
+                DestroyOverflowLines, presContext);
+  // Verify that we didn't overwrite an existing overflow list
+  NS_ASSERTION(rv != NS_PROPTABLE_PROP_OVERWRITTEN, "existing overflow list");
   AddStateBits(NS_BLOCK_HAS_OVERFLOW_LINES);
-  return NS_OK;
+  return rv;
 }
 
 nsFrameList*
@@ -4540,7 +4552,7 @@ nsBlockFrame::GetOverflowOutOfFlows() const
     return nsnull;
   }
   nsFrameList* result =
-    GetPropTableFrames(PresContext(), OverflowOutOfFlowsProperty());
+    GetPropTableFrames(PresContext(), nsGkAtoms::overflowOutOfFlowsProperty);
   NS_ASSERTION(result, "value should always be non-empty when state set");
   return result;
 }
@@ -4559,20 +4571,20 @@ nsBlockFrame::SetOverflowOutOfFlows(const nsFrameList& aList,
     }
     nsFrameList* list =
       RemovePropTableFrames(PresContext(),
-                            OverflowOutOfFlowsProperty());
+                            nsGkAtoms::overflowOutOfFlowsProperty);
     NS_ASSERTION(aPropValue == list, "prop value mismatch");
     delete list;
     RemoveStateBits(NS_BLOCK_HAS_OVERFLOW_OUT_OF_FLOWS);
   }
   else if (GetStateBits() & NS_BLOCK_HAS_OVERFLOW_OUT_OF_FLOWS) {
     NS_ASSERTION(aPropValue == GetPropTableFrames(PresContext(),
-                                 OverflowOutOfFlowsProperty()),
+                                 nsGkAtoms::overflowOutOfFlowsProperty),
                  "prop value mismatch");
     *aPropValue = aList;
   }
   else {
     SetPropTableFrames(PresContext(), new nsFrameList(aList),
-                       OverflowOutOfFlowsProperty());
+                       nsGkAtoms::overflowOutOfFlowsProperty);
     AddStateBits(NS_BLOCK_HAS_OVERFLOW_OUT_OF_FLOWS);
   }
 }
@@ -5172,6 +5184,13 @@ nsBlockFrame::DoRemoveFrame(nsIFrame* aDeletedFrame, PRUint32 aFlags)
     return NS_OK;
   }
 
+  // If next-in-flow is an overflow container, must remove it first
+  nsIFrame* next = aDeletedFrame->GetNextInFlow();
+  if (next && next->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER) {
+    static_cast<nsContainerFrame*>(next->GetParent())
+      ->DeleteNextInFlowChild(next->PresContext(), next, PR_FALSE);
+  }
+
   nsIPresShell* presShell = presContext->PresShell();
 
   // Find the line that contains deletedFrame
@@ -5267,17 +5286,8 @@ nsBlockFrame::DoRemoveFrame(nsIFrame* aDeletedFrame, PRUint32 aFlags)
     printf("DoRemoveFrame: %s line=%p frame=",
            searchingOverflowList?"overflow":"normal", line.get());
     nsFrame::ListTag(stdout, aDeletedFrame);
-    printf(" prevSibling=%p deletedNextContinuation=%p\n",
-           aDeletedFrame->GetPrevSibling(), deletedNextContinuation);
+    printf(" prevSibling=%p deletedNextContinuation=%p\n", prevSibling, deletedNextContinuation);
 #endif
-
-    // If next-in-flow is an overflow container, must remove it first.
-    if (deletedNextContinuation &&
-        deletedNextContinuation->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER) {
-      static_cast<nsContainerFrame*>(deletedNextContinuation->GetParent())
-        ->DeleteNextInFlowChild(presContext, deletedNextContinuation, PR_FALSE);
-      deletedNextContinuation = nsnull;
-    }
 
     aDeletedFrame->Destroy();
     aDeletedFrame = deletedNextContinuation;
@@ -5397,7 +5407,7 @@ nsBlockFrame::StealFrame(nsPresContext* aPresContext,
     PRBool removed = mFloats.RemoveFrameIfPresent(aChild);
     if (!removed) {
       nsFrameList* list = GetPropTableFrames(aPresContext,
-                                             FloatContinuationProperty());
+                                          nsGkAtoms::floatContinuationProperty);
       if (list) {
         removed = list->RemoveFrameIfPresent(aChild);
       }
@@ -6125,28 +6135,24 @@ nsBlockFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsBlockFrame::CreateAccessible()
+NS_IMETHODIMP nsBlockFrame::GetAccessible(nsIAccessible** aAccessible)
 {
+  *aAccessible = nsnull;
   nsCOMPtr<nsIAccessibilityService> accService = 
     do_GetService("@mozilla.org/accessibilityService;1");
-  if (!accService) {
-    return nsnull;
-  }
-
-  nsPresContext* presContext = PresContext();
+  NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
 
   // block frame may be for <hr>
   if (mContent->Tag() == nsGkAtoms::hr) {
-    return accService->CreateHTMLHRAccessible(mContent,
-                                              presContext->PresShell());
+    return accService->CreateHTMLHRAccessible(static_cast<nsIFrame*>(this), aAccessible);
   }
 
-  if (!mBullet || !presContext) {
+  nsPresContext *aPresContext = PresContext();
+  if (!mBullet || !aPresContext) {
     if (!mContent->GetParent()) {
       // Don't create accessible objects for the root content node, they are redundant with
       // the nsDocAccessible object created with the document node
-      return nsnull;
+      return NS_ERROR_FAILURE;
     }
     
     nsCOMPtr<nsIDOMHTMLDocument> htmlDoc =
@@ -6157,13 +6163,12 @@ nsBlockFrame::CreateAccessible()
       if (SameCOMIdentity(body, mContent)) {
         // Don't create accessible objects for the body, they are redundant with
         // the nsDocAccessible object created with the document node
-        return nsnull;
+        return NS_ERROR_FAILURE;
       }
     }
 
     // Not a bullet, treat as normal HTML container
-    return accService->CreateHyperTextAccessible(mContent,
-                                                 presContext->PresShell());
+    return accService->CreateHyperTextAccessible(static_cast<nsIFrame*>(this), aAccessible);
   }
 
   // Create special list bullet accessible
@@ -6179,8 +6184,10 @@ nsBlockFrame::CreateAccessible()
     mBullet->GetListItemText(*myList, bulletText);
   }
 
-  return accService->CreateHTMLLIAccessible(mContent, presContext->PresShell(),
-                                            bulletText);
+  return accService->CreateHTMLLIAccessible(static_cast<nsIFrame*>(this), 
+                                            static_cast<nsIFrame*>(mBullet), 
+                                            bulletText,
+                                            aAccessible);
 }
 #endif
 
@@ -6190,7 +6197,7 @@ void nsBlockFrame::ClearLineCursor()
     return;
   }
 
-  Properties().Delete(LineCursorProperty());
+  UnsetProperty(nsGkAtoms::lineCursorProperty);
   RemoveStateBits(NS_BLOCK_HAS_LINE_CURSOR);
 }
 
@@ -6201,7 +6208,8 @@ void nsBlockFrame::SetupLineCursor()
     return;
   }
    
-  Properties().Set(LineCursorProperty(), mLines.front());
+  SetProperty(nsGkAtoms::lineCursorProperty,
+              mLines.front(), nsnull);
   AddStateBits(NS_BLOCK_HAS_LINE_CURSOR);
 }
 
@@ -6211,10 +6219,8 @@ nsLineBox* nsBlockFrame::GetFirstLineContaining(nscoord y)
     return nsnull;
   }
 
-  FrameProperties props = Properties();
-  
   nsLineBox* property = static_cast<nsLineBox*>
-    (props.Get(LineCursorProperty()));
+                                   (GetProperty(nsGkAtoms::lineCursorProperty));
   line_iterator cursor = mLines.begin(property);
   nsRect cursorArea = cursor->GetCombinedArea();
 
@@ -6230,7 +6236,8 @@ nsLineBox* nsBlockFrame::GetFirstLineContaining(nscoord y)
   }
 
   if (cursor.get() != property) {
-    props.Set(LineCursorProperty(), cursor.get());
+    SetProperty(nsGkAtoms::lineCursorProperty,
+                cursor.get(), nsnull);
   }
 
   return cursor.get();
@@ -6341,28 +6348,12 @@ nsBlockFrame::SetInitialChildList(nsIAtom*        aListName,
       return rv;
     }
 
-    // Create a list bullet if this is a list-item. Note that this is
-    // done here so that RenumberLists will work (it needs the bullets
-    // to store the bullet numbers).  Also note that due to various
-    // wrapper frames (scrollframes, columns) we want to use the
-    // outermost (primary, ideally, but it's not set yet when we get
-    // here) frame of our content for the display check.  On the other
-    // hand, we look at ourselves for the GetPrevInFlow() check, since
-    // for a columnset we don't want a bullet per column.  Note that
-    // the outermost frame for the content is the primary frame in
-    // most cases; the ones when it's not (like tables) can't be
-    // NS_STYLE_DISPLAY_LIST_ITEM).
-    nsIFrame* possibleListItem = this;
-    while (1) {
-      nsIFrame* parent = possibleListItem->GetParent();
-      if (parent->GetContent() != GetContent()) {
-        break;
-      }
-      possibleListItem = parent;
-    }
+    // Create list bullet if this is a list-item. Note that this is done
+    // here so that RenumberLists will work (it needs the bullets to
+    // store the bullet numbers).
+    const nsStyleDisplay* styleDisplay = GetStyleDisplay();
     if ((nsnull == GetPrevInFlow()) &&
-        (NS_STYLE_DISPLAY_LIST_ITEM ==
-           possibleListItem->GetStyleDisplay()->mDisplay) &&
+        (NS_STYLE_DISPLAY_LIST_ITEM == styleDisplay->mDisplay) &&
         (nsnull == mBullet)) {
       // Resolve style for the bullet frame
       const nsStyleList* styleList = GetStyleList();
@@ -6384,8 +6375,7 @@ nsBlockFrame::SetInitialChildList(nsIAtom*        aListName,
         CorrectStyleParentFrame(this,
           nsCSSPseudoElements::GetPseudoAtom(pseudoType))->GetStyleContext();
       nsRefPtr<nsStyleContext> kidSC = shell->StyleSet()->
-        ResolvePseudoElementStyle(mContent->AsElement(), pseudoType,
-                                  parentStyle);
+        ResolvePseudoElementStyle(mContent, pseudoType, parentStyle);
 
       // Create bullet frame
       nsBulletFrame* bullet = new (shell) nsBulletFrame(kidSC);
@@ -6416,8 +6406,7 @@ nsBlockFrame::SetInitialChildList(nsIAtom*        aListName,
 PRBool
 nsBlockFrame::BulletIsEmpty() const
 {
-  NS_ASSERTION(mContent->GetPrimaryFrame()->GetStyleDisplay()->mDisplay ==
-                 NS_STYLE_DISPLAY_LIST_ITEM &&
+  NS_ASSERTION(GetStyleDisplay()->mDisplay == NS_STYLE_DISPLAY_LIST_ITEM &&
                HaveOutsideBullet(),
                "should only care when we have an outside bullet");
   const nsStyleList* list = GetStyleList();
@@ -6926,7 +6915,30 @@ nsBlockFrame::ResolveBidi()
   if (!bidiUtils)
     return NS_ERROR_NULL_POINTER;
 
-  return bidiUtils->Resolve(this);
+  return bidiUtils->Resolve(this, IsVisualFormControl(presContext));
+}
+
+PRBool
+nsBlockFrame::IsVisualFormControl(nsPresContext* aPresContext)
+{
+  // We always use logical order on form controls, so that they will display
+  // correctly in native widgets in OSs with Bidi support.
+  // If the page uses logical ordering we can bail out immediately, but on
+  // visual pages we need to drill up in content to detect whether this block
+  // is a descendant of a form control.
+
+  if (!aPresContext->IsVisualMode()) {
+    return PR_FALSE;
+  }
+
+  nsIContent* content = GetContent();
+  for ( ; content; content = content->GetParent()) {
+    if (content->IsNodeOfType(nsINode::eHTML_FORM_CONTROL)) {
+      return PR_TRUE;
+    }
+  }
+  
+  return PR_FALSE;
 }
 #endif
 

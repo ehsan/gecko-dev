@@ -61,8 +61,6 @@ nsMimeTypeArray::~nsMimeTypeArray()
 }
 
 
-DOMCI_DATA(MimeTypeArray, nsMimeTypeArray)
-
 // QueryInterface implementation for nsMimeTypeArray
 NS_INTERFACE_MAP_BEGIN(nsMimeTypeArray)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
@@ -285,8 +283,6 @@ nsMimeType::~nsMimeType()
 }
 
 
-DOMCI_DATA(MimeType, nsMimeType)
-
 // QueryInterface implementation for nsMimeType
 NS_INTERFACE_MAP_BEGIN(nsMimeType)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
@@ -311,7 +307,14 @@ nsMimeType::GetEnabledPlugin(nsIDOMPlugin** aEnabledPlugin)
   nsAutoString type;
   GetType(type);
 
-  *aEnabledPlugin = mPlugin;
+  PRBool disabled = PR_FALSE;
+
+  if (type.Length() == 1 && type.First() == '*') {
+    // Check if the default plugin is disabled.
+    disabled = nsContentUtils::GetBoolPref("plugin.default_plugin_disabled");
+  }
+
+  *aEnabledPlugin = disabled ? nsnull : mPlugin;
 
   NS_IF_ADDREF(*aEnabledPlugin);
 

@@ -27,7 +27,8 @@ FT_BEGIN_HEADER
 
   /* the Indic-specific script class */
 
-  AF_DECLARE_SCRIPT_CLASS(af_indic_script_class)
+  FT_CALLBACK_TABLE const AF_ScriptClassRec
+  af_indic_script_class;
 
 
 /* */

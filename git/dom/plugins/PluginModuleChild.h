@@ -51,13 +51,11 @@
 #include "npfunctions.h"
 
 #include "nsAutoPtr.h"
-#include "nsDataHashtable.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 
 #include "mozilla/plugins/PPluginModuleChild.h"
 #include "mozilla/plugins/PluginInstanceChild.h"
-#include "mozilla/plugins/PluginIdentifierChild.h"
 
 // NOTE: stolen from nsNPAPIPlugin.h
 
@@ -89,11 +87,6 @@ typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) (void);
 namespace mozilla {
 namespace plugins {
 
-#ifdef MOZ_WIDGET_QT
-class NestedLoopTimer;
-static const int kNestedLoopDetectorIntervalMs = 90;
-#endif
-
 class PluginScriptableObjectChild;
 class PluginInstanceChild;
 
@@ -108,14 +101,7 @@ protected:
     }
 
     // Implement the PPluginModuleChild interface
-    virtual bool AnswerNP_Initialize(NativeThreadId* tid, NPError* rv);
-
-    virtual PPluginIdentifierChild*
-    AllocPPluginIdentifier(const nsCString& aString,
-                           const int32_t& aInt);
-
-    virtual bool
-    DeallocPPluginIdentifier(PPluginIdentifierChild* aActor);
+    virtual bool AnswerNP_Initialize(NPError* rv);
 
     virtual PPluginInstanceChild*
     AllocPPluginInstance(const nsCString& aMimeType,
@@ -181,29 +167,11 @@ public:
      */
     static void NP_CALLBACK NPN_ReleaseObject(NPObject* aNPObj);
 
-    /**
-     * The child implementations of NPIdentifier-related functions.
-     */
-    static NPIdentifier NP_CALLBACK NPN_GetStringIdentifier(const NPUTF8* aName);
-    static void NP_CALLBACK NPN_GetStringIdentifiers(const NPUTF8** aNames,
-                                                     int32_t aNameCount,
-                                                     NPIdentifier* aIdentifiers);
-    static NPIdentifier NP_CALLBACK NPN_GetIntIdentifier(int32_t aIntId);
-    static bool NP_CALLBACK NPN_IdentifierIsString(NPIdentifier aIdentifier);
-    static NPUTF8* NP_CALLBACK NPN_UTF8FromIdentifier(NPIdentifier aIdentifier);
-    static int32_t NP_CALLBACK NPN_IntFromIdentifier(NPIdentifier aIdentifier);
-
 private:
     bool InitGraphics();
 #if defined(MOZ_WIDGET_GTK2)
     static gboolean DetectNestedEventLoop(gpointer data);
     static gboolean ProcessBrowserEvents(gpointer data);
-
-    NS_OVERRIDE
-    virtual void EnteredCxxStack();
-    NS_OVERRIDE
-    virtual void ExitedCxxStack();
-#elif defined(MOZ_WIDGET_QT)
 
     NS_OVERRIDE
     virtual void EnteredCxxStack();
@@ -258,15 +226,6 @@ private:
     // When the browser no longer might be blocked on a plugin's IPC
     // response, we deschedule whichever of (1) or (2) is active.
     guint mNestedLoopTimerId;
-#  ifdef DEBUG
-    // Depth of the stack of calls to g_main_context_dispatch before any
-    // nested loops are run.  This is 1 when IPC calls are dispatched from
-    // g_main_context_iteration, or 0 when dispatched directly from
-    // MessagePumpForUI.
-    int mTopLoopDepth;
-#  endif
-#elif defined (MOZ_WIDGET_QT)
-    NestedLoopTimer *mNestedLoopTimerObject;
 #endif
 
     struct NPObjectData : public nsPtrHashKey<NPObject>
@@ -289,9 +248,6 @@ private:
      */
     nsTHashtable<NPObjectData> mObjectMap;
 
-    nsDataHashtable<nsCStringHashKey, PluginIdentifierChild*> mStringIdentifiers;
-    nsDataHashtable<nsUint32HashKey, PluginIdentifierChild*> mIntIdentifiers;
-
 public: // called by PluginInstanceChild
     /**
      * Dealloc an NPObject after last-release or when the associated instance
@@ -311,39 +267,6 @@ public: // called by PluginInstanceChild
 
 private:
     static PLDHashOperator CollectForInstance(NPObjectData* d, void* userArg);
-
-#if defined(OS_WIN)
-    NS_OVERRIDE
-    virtual void EnteredCall();
-    NS_OVERRIDE
-    virtual void ExitedCall();
-
-    // Entered/ExitedCall notifications keep track of whether the plugin has
-    // entered a nested event loop within this RPC call.
-    struct IncallFrame
-    {
-        IncallFrame()
-            : _spinning(false)
-            , _savedNestableTasksAllowed(false)
-        { }
-
-        bool _spinning;
-        bool _savedNestableTasksAllowed;
-    };
-
-    nsAutoTArray<IncallFrame, 8> mIncallPumpingStack;
-
-    static LRESULT CALLBACK NestedInputEventHook(int code,
-                                                 WPARAM wParam,
-                                                 LPARAM lParam);
-    static LRESULT CALLBACK CallWindowProcHook(int code,
-                                               WPARAM wParam,
-                                               LPARAM lParam);
-    void SetEventHooks();
-    void ResetEventHooks();
-    HHOOK mNestedEventHook;
-    HHOOK mGlobalCallWndProcHook;
-#endif
 };
 
 } /* namespace plugins */

@@ -60,7 +60,6 @@ struct HasResultCodes
         MsgNotKnown,
         MsgNotAllowed,
         MsgPayloadError,
-        MsgProcessingError,
         MsgRouteError,
         MsgValueError,
     };
@@ -126,19 +125,19 @@ public:
 
 protected:
     // Can be run on either thread
-    void AssertWorkerThread() const
+    void AssertWorkerThread()
     {
         NS_ABORT_IF_FALSE(mWorkerLoop == MessageLoop::current(),
                           "not on worker thread!");
     }
 
-    void AssertIOThread() const
+    void AssertIOThread()
     {
         NS_ABORT_IF_FALSE(mIOLoop == MessageLoop::current(),
                           "not on IO thread!");
     }
 
-    bool Connected() const {
+    bool Connected() {
         mMutex.AssertCurrentThreadOwns();
         return ChannelConnected == mChannelState;
     }
@@ -146,15 +145,15 @@ protected:
     // Run on the worker thread
     void OnDispatchMessage(const Message& aMsg);
     virtual bool OnSpecialMessage(uint16 id, const Message& msg);
-    void SendSpecialMessage(Message* msg) const;
+    void SendSpecialMessage(Message* msg);
 
     // Tell the IO thread to close the channel and wait for it to ACK.
     void SynchronouslyClose();
 
     bool MaybeHandleError(Result code, const char* channelName);
-    void ReportConnectionError(const char* channelName) const;
+    void ReportConnectionError(const char* channelName);
 
-    void PrintErrorMessage(const char* channelName, const char* msg) const
+    void PrintErrorMessage(const char* channelName, const char* msg)
     {
         fprintf(stderr, "\n###!!! [%s][%s] Error: %s\n\n",
                 mChild ? "Child" : "Parent", channelName, msg);
@@ -162,10 +161,8 @@ protected:
 
     // Run on the worker thread
 
-    void SendThroughTransport(Message* msg) const;
-
     void OnNotifyMaybeChannelError();
-    virtual bool ShouldDeferNotifyMaybeError() const {
+    virtual bool ShouldDeferNotifyMaybeError() {
         return false;
     }
     void NotifyChannelClosed();
@@ -176,8 +173,8 @@ protected:
     // Run on the IO thread
 
     void OnChannelOpened();
+    void OnSend(Message* aMsg);
     void OnCloseChannel();
-    void PostErrorNotifyTask();
 
     // Return true if |msg| is a special message targeted at the IO
     // thread, in which case it shouldn't be delivered to the worker.
@@ -193,7 +190,6 @@ protected:
     MessageLoop* mWorkerLoop;   // thread where work is done
     bool mChild;                // am I the child or parent?
     CancelableTask* mChannelErrorTask; // NotifyMaybeChannelError runnable
-    IPC::Channel::Listener* mExistingListener; // channel's previous listener
 };
 
 

@@ -95,10 +95,6 @@ protected:
   nsCOMPtr<nsIContent> mRootContent;
 
   nsresult Init(nsQueryContentEvent* aEvent);
-  nsresult Init(nsSelectionEvent* aEvent);
-
-  // InitCommon() is called from each Init().
-  nsresult InitCommon();
 
 public:
   // FlatText means the text that is generated from DOM tree. The BR elements

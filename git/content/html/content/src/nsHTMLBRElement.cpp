@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 
@@ -90,8 +91,6 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLBRElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLBRElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLBRElement, nsHTMLBRElement)
-
 // QueryInterface implementation for nsHTMLBRElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLBRElement)
   NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLBRElement, nsIDOMHTMLBRElement)
@@ -120,7 +119,7 @@ nsHTMLBRElement::ParseAttribute(PRInt32 aNamespaceID,
                                 nsAttrValue& aResult)
 {
   if (aAttribute == nsGkAtoms::clear && aNamespaceID == kNameSpaceID_None) {
-    return aResult.ParseEnumValue(aValue, kClearTable, PR_FALSE);
+    return aResult.ParseEnumValue(aValue, kClearTable);
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,

@@ -108,7 +108,7 @@ public:
   virtual PRBool IsContainingBlock() const;
 
 #ifdef ACCESSIBILITY  
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD  GetAccessible(nsIAccessible** aAccessible);
 #endif
 
 #ifdef DEBUG
@@ -120,7 +120,7 @@ public:
 protected:
 
   virtual PRIntn GetSkipSides() const;
-  void ReparentFrameList(const nsFrameList& aFrameList);
+  void ReParentFrameList(const nsFrameList& aFrameList);
 
   nsIFrame* mLegendFrame;
   nsIFrame* mContentFrame;
@@ -186,20 +186,20 @@ public:
   }
 #endif
 
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("FieldSetBorderBackground")
 };
 
-void nsDisplayFieldSetBorderBackground::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                                                HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
+nsIFrame* nsDisplayFieldSetBorderBackground::HitTest(nsDisplayListBuilder* aBuilder,
+    nsPoint aPt, HitTestState* aState)
 {
   // aPt is guaranteed to be in this item's bounds. We do the hit test based on the
   // frame bounds even though our background doesn't cover the whole frame.
   // It's not clear whether this is correct.
-  aOutFrames->AppendElement(mFrame);
+  return mFrame;
 }
 
 void
@@ -306,7 +306,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyle, mStyleContext,
+                                skipSides);
 
     aRenderingContext.PopState();
 
@@ -320,7 +321,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyle, mStyleContext,
+                                skipSides);
 
     aRenderingContext.PopState();
 
@@ -333,7 +335,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyle, mStyleContext,
+                                skipSides);
 
     aRenderingContext.PopState();
   } else {
@@ -341,7 +344,7 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect,
                                 nsRect(aPt, mRect.Size()),
-                                mStyleContext, skipSides);
+                                *borderStyle, mStyleContext, skipSides);
   }
 }
 
@@ -618,7 +621,7 @@ nsFieldSetFrame::AppendFrames(nsIAtom*       aListName,
                               nsFrameList&   aFrameList)
 {
   // aFrameList is not allowed to contain "the legend" for this fieldset
-  ReparentFrameList(aFrameList);
+  ReParentFrameList(aFrameList);
   return mContentFrame->AppendFrames(aListName, aFrameList);
 }
 
@@ -632,7 +635,7 @@ nsFieldSetFrame::InsertFrames(nsIAtom*       aListName,
                "inserting after sibling frame with different parent");
 
   // aFrameList is not allowed to contain "the legend" for this fieldset
-  ReparentFrameList(aFrameList);
+  ReParentFrameList(aFrameList);
   if (NS_UNLIKELY(aPrevFrame == mLegendFrame)) {
     aPrevFrame = nsnull;
   }
@@ -649,29 +652,27 @@ nsFieldSetFrame::RemoveFrame(nsIAtom*       aListName,
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsFieldSetFrame::CreateAccessible()
+NS_IMETHODIMP nsFieldSetFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLGroupboxAccessible(mContent,
-                                                    PresContext()->PresShell());
+    return accService->CreateHTMLGroupboxAccessible(static_cast<nsIFrame*>(this), aAccessible);
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 
 void
-nsFieldSetFrame::ReparentFrameList(const nsFrameList& aFrameList)
+nsFieldSetFrame::ReParentFrameList(const nsFrameList& aFrameList)
 {
   nsFrameManager* frameManager = PresContext()->FrameManager();
   for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
     NS_ASSERTION(mLegendFrame || e.get()->GetType() != nsGkAtoms::legendFrame,
                  "The fieldset's legend is not allowed in this list");
     e.get()->SetParent(mContentFrame);
-    frameManager->ReparentStyleContext(e.get());
+    frameManager->ReParentStyleContext(e.get());
   }
   mContentFrame->AddStateBits(GetStateBits() & NS_FRAME_HAS_CHILD_WITH_VIEW);
 }

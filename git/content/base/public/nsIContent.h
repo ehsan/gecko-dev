@@ -46,6 +46,7 @@
 
 // Forward declarations
 class nsIAtom;
+class nsPresContext;
 class nsIDOMEvent;
 class nsIContent;
 class nsIEventListenerManager;
@@ -71,8 +72,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0x1450010b, 0xcdca, 0x451c, \
-  { 0xba, 0xdc, 0x07, 0x90, 0x89, 0x7b, 0xce, 0xb8 } }
+{ 0x07734640, 0x0900, 0x480d, \
+ { 0x97, 0x5a, 0x31, 0xc7, 0x0e, 0xcd, 0x15, 0x2b } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -558,7 +559,7 @@ public:
    *         > 0 can be tabbed to in the order specified by this value
    * @return whether the content is focusable via mouse, kbd or script.
    */
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE)
+  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull)
   {
     if (aTabIndex) 
       *aTabIndex = -1; // Default, not tabbable
@@ -615,7 +616,20 @@ public:
                               IME_STATUS_PASSWORD | IME_STATUS_PLUGIN,
     IME_STATUS_MASK_OPENED  = IME_STATUS_OPEN | IME_STATUS_CLOSE
   };
-  virtual PRUint32 GetDesiredIMEState();
+  virtual PRUint32 GetDesiredIMEState()
+  {
+    if (!IsEditableInternal())
+      return IME_STATUS_DISABLE;
+    nsIContent *editableAncestor = nsnull;
+    for (nsIContent* parent = GetParent();
+         parent && parent->HasFlag(NODE_IS_EDITABLE);
+         parent = parent->GetParent())
+      editableAncestor = parent;
+    // This is in another editable content, use the result of it.
+    if (editableAncestor)
+      return editableAncestor->GetDesiredIMEState();
+    return IME_STATUS_ENABLE;
+  }
 
   /**
    * Gets content node with the binding (or native code, possibly on the
@@ -630,12 +644,14 @@ public:
   virtual nsIContent *GetBindingParent() const = 0;
 
   /**
-   * Returns the content node that is the parent of this node in the flattened
-   * tree.
+   * Get the base URI for any relative URIs within this piece of
+   * content. Generally, this is the document's base URI, but certain
+   * content carries a local base for backward compatibility, and XML
+   * supports setting a per-node base URI.
    *
-   * @return the flattened tree parent
+   * @return the base URI
    */
-  nsIContent *GetFlattenedTreeParent() const;
+  virtual already_AddRefed<nsIURI> GetBaseURI() const = 0;
 
   /**
    * API to check if this is a link that's traversed in response to user input
@@ -691,8 +707,8 @@ public:
    *
    * If you also need to determine whether the parser is the one creating your
    * element (through createElement() or cloneNode() generally) then add a
-   * PRUint32 aFromParser to the NS_NewXXX() constructor for your element and
-   * have the parser pass the appropriate flags. See nsHTMLInputElement.cpp and
+   * boolean aFromParser to the NS_NewXXX() constructor for your element and
+   * have the parser pass true.  See nsHTMLInputElement.cpp and
    * nsHTMLContentSink::MakeContentObject().
    *
    * DO NOT USE THIS METHOD to get around the fact that it's hard to deal with
@@ -778,12 +794,7 @@ public:
    * value of the null-namespace attribute whose name is given by
    * GetIDAttributeName().  This may be null if there is no ID.
    */
-  nsIAtom* GetID() const {
-    if (HasFlag(NODE_HAS_ID)) {
-      return DoGetID();
-    }
-    return nsnull;
-  }
+  virtual nsIAtom* GetID() const = 0;
 
   /**
    * Get the class list of this content node (this corresponds to the
@@ -910,22 +921,6 @@ public:
   virtual nsresult SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
                                             PRBool aNotify) = 0;
 #endif // MOZ_SMIL
-
-  nsresult LookupNamespaceURI(const nsAString& aNamespacePrefix,
-                              nsAString& aNamespaceURI) const;
-
-  nsIAtom* LookupPrefix(const nsAString& aNamespaceURI);
-
-  PRBool IsEqual(nsIContent *aOther);
-
-  virtual PRBool IsEqualNode(nsINode* aOther);
-
-protected:
-  /**
-   * Hook for implementing GetID.  This is guaranteed to only be
-   * called if the NODE_HAS_ID flag is set.
-   */
-  virtual nsIAtom* DoGetID() const = 0;
 
 private:
   /**

@@ -82,8 +82,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
 
-DOMCI_DATA(SVGUseElement, nsSVGUseElement)
-
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsSVGUseElement)
   NS_NODE_INTERFACE_TABLE6(nsSVGUseElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGURIReference,
@@ -208,7 +206,6 @@ nsSVGUseElement::AttributeChanged(nsIDocument *aDocument,
 void
 nsSVGUseElement::ContentAppended(nsIDocument *aDocument,
                                  nsIContent *aContainer,
-                                 nsIContent *aFirstNewContent,
                                  PRInt32 aNewIndexInContainer)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aContainer)) {
@@ -451,11 +448,9 @@ void
 nsSVGUseElement::TriggerReclone()
 {
   nsIDocument *doc = GetCurrentDoc();
-  if (!doc)
-    return;
-  nsIPresShell *presShell = doc->GetShell();
-  if (!presShell)
-    return;
+  if (!doc) return;
+  nsIPresShell *presShell = doc->GetPrimaryShell();
+  if (!presShell) return;
   presShell->PostRecreateFramesFor(this);
 }
 

@@ -107,7 +107,7 @@ public:
   NS_IMETHOD OnTransformDone(nsresult aResult, nsIDocument *aResultDocument);
 
   // nsICSSLoaderObserver
-  NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet, PRBool aWasAlternate,
+  NS_IMETHOD StyleSheetLoaded(nsICSSStyleSheet* aSheet, PRBool aWasAlternate,
                               nsresult aStatus);
   static PRBool ParsePIData(const nsString &aData, nsString &aHref,
                           nsString &aTitle, nsString &aMedia,
@@ -133,11 +133,10 @@ protected:
   virtual PRBool SetDocElement(PRInt32 aNameSpaceID, 
                                nsIAtom *aTagName,
                                nsIContent *aContent);
-  virtual PRBool NotifyForDocElement() { return PR_TRUE; }
   virtual nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                  nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                  nsIContent** aResult, PRBool* aAppendContent,
-                                 PRUint32 aFromParser);
+                                 PRBool aFromParser);
 
   // aParent is allowed to be null here if this is the root content
   // being closed
@@ -152,6 +151,8 @@ protected:
   nsresult PushContent(nsIContent *aContent);
   void PopContent();
   PRBool HaveNotifiedForCurrentContent() const;
+
+  void ProcessBASETag(nsIContent* aContent);
 
   nsresult FlushTags();
 
@@ -205,6 +206,7 @@ protected:
   PRUint8 mPrettyPrintXML : 1;
   PRUint8 mPrettyPrintHasSpecialRoot : 1;
   PRUint8 mPrettyPrintHasFactoredElements : 1;
+  PRUint8 mHasProcessedBase : 1;
   PRUint8 mPrettyPrinting : 1;  // True if we called PrettyPrint() and it
                                 // decided we should in fact prettyprint.
   

@@ -38,7 +38,7 @@
 #ifndef NS_SMILTARGETIDENTIFIER_H_
 #define NS_SMILTARGETIDENTIFIER_H_
 
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsAutoPtr.h"
 #include "prtypes.h"
 
@@ -67,7 +67,7 @@ struct nsSMILTargetIdentifier
             aOther.mIsCSS         == mIsCSS);
   }
 
-  nsRefPtr<mozilla::dom::Element> mElement;
+  nsRefPtr<nsIContent> mElement;
   nsRefPtr<nsIAtom>    mAttributeName; // XXX need to consider namespaces here
   PRPackedBool         mIsCSS;
 };

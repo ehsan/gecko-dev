@@ -41,14 +41,13 @@
 #define nsHTMLEditorEventListener_h__
 
 #include "nsEditorEventListener.h"
-
-class nsHTMLEditor;
+#include "nsHTMLEditor.h"
 
 class nsHTMLEditorEventListener : public nsEditorEventListener
 {
 public:
-  nsHTMLEditorEventListener() :
-    nsEditorEventListener()
+  nsHTMLEditorEventListener(nsHTMLEditor* aEditor) :
+    nsEditorEventListener(aEditor)
   {
   }
 
@@ -56,17 +55,9 @@ public:
   {
   }
 
-#ifdef DEBUG
-  // WARNING: You must be use nsHTMLEditor or its sub class for this class.
-  virtual nsresult Connect(nsEditor* aEditor);
-#endif
-
   NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent);
   NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent);
   NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
-
-protected:
-  inline nsHTMLEditor* GetHTMLEditor();
 };
 
 #endif // nsHTMLEditorEventListener_h__

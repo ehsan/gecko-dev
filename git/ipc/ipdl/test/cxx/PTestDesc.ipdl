@@ -1,13 +1,13 @@
-include protocol PTestDescSub;
-include protocol PTestDescSubsub;
+include protocol "PTestDescSub.ipdl";
+include protocol "PTestDescSubsub.ipdl";
 
 namespace mozilla {
 namespace _ipdltest {
 
-rpc protocol PTestDesc {
+protocol PTestDesc {
     manages PTestDescSub; 
 child:
-    rpc PTestDescSub(nullable PTestDescSubsub dummy);
+    PTestDescSub();
 
     Test(PTestDescSubsub a);
 

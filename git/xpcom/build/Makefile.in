@@ -68,17 +68,12 @@ CPPSRCS		= \
 		$(XPCOM_GLUENS_SRC_LCPPSRCS) \
 		nsXPComInit.cpp \
 		nsXPCOMStrings.cpp \
-		Services.cpp \
 		$(NULL)
 
 ifndef MOZ_ENABLE_LIBXUL
 ifeq (,$(filter-out WINNT WINCE OS2,$(OS_ARCH)))
 CPPSRCS += dlldeps.cpp
 endif
-endif
-
-ifdef MOZ_OMNIJAR
-CPPSRCS += Omnijar.cpp
 endif
 
 SHARED_LIBRARY_LIBS = \
@@ -130,9 +125,6 @@ EXPORTS	= \
 
 EXPORTS_mozilla = \
   XPCOM.h \
-  Services.h \
-  ServiceList.h \
-  Omnijar.h \
   $(NULL)
 
 # Force use of PIC
@@ -158,7 +150,7 @@ DEFINES		+= \
 		-DEXPORT_XPTC_API
 
 EXTRA_DSO_LDOPTS +=				\
-	-L$(LIBXUL_DIST)/lib $(MOZALLOC_LIB)    \
+	$(MOZALLOC_LIB)				\
 	$(NSPR_LIBS)				\
 	$(NULL)
 
@@ -192,9 +184,6 @@ ifeq ($(OS_ARCH),WINNT)
 OS_LIBS += $(call EXPAND_LIBNAME,shell32 ole32 uuid version)
 ifneq (,$(MOZ_DEBUG)$(NS_TRACE_MALLOC))
 OS_LIBS += $(call EXPAND_LIBNAME,imagehlp)
-endif
-ifndef MOZ_ENABLE_LIBXUL
-OS_LIBS += $(call EXPAND_LIBNAME,psapi)
 endif
 endif # WINNT
 

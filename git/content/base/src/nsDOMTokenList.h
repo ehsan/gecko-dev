@@ -56,14 +56,14 @@ public:
 
   void DropReference();
 
-protected:
+private:
   ~nsDOMTokenList();
 
   const nsAttrValue* GetParsedAttr() {
     if (!mElement) {
       return nsnull;
     }
-    return mElement->GetAttrInfo(kNameSpaceID_None, mAttrAtom).mValue;
+    return mElement->GetParsedAttr(mAttrAtom);
   }
 
   nsresult CheckToken(const nsAString& aStr);

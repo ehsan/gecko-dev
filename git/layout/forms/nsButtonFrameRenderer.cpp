@@ -140,9 +140,9 @@ public:
   }
 #endif  
   
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
-    aOutFrames->AppendElement(mFrame);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) {
+    return mFrame;
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
@@ -234,8 +234,9 @@ nsButtonFrameRenderer::PaintOutlineAndFocusBorders(nsPresContext* aPresContext,
 
     GetButtonOuterFocusRect(aRect, rect);
 
+    const nsStyleBorder* border = mOuterFocusStyle->GetStyleBorder();
     nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, mFrame,
-                                aDirtyRect, rect, mOuterFocusStyle);
+                                aDirtyRect, rect, *border, mOuterFocusStyle);
   }
 
   if (mInnerFocusStyle) { 
@@ -243,8 +244,9 @@ nsButtonFrameRenderer::PaintOutlineAndFocusBorders(nsPresContext* aPresContext,
 
     GetButtonInnerFocusRect(aRect, rect);
 
+    const nsStyleBorder* border = mInnerFocusStyle->GetStyleBorder();
     nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, mFrame,
-                                aDirtyRect, rect, mInnerFocusStyle);
+                                aDirtyRect, rect, *border, mInnerFocusStyle);
   }
 }
 
@@ -263,12 +265,14 @@ nsButtonFrameRenderer::PaintBorderAndBackground(nsPresContext* aPresContext,
 
   nsStyleContext* context = mFrame->GetStyleContext();
 
+  const nsStyleBorder* border = context->GetStyleBorder();
+
   nsCSSRendering::PaintBackground(aPresContext, aRenderingContext, mFrame,
                                   aDirtyRect, buttonRect, aBGFlags);
   nsCSSRendering::PaintBoxShadowInner(aPresContext, aRenderingContext,
                                       mFrame, buttonRect, aDirtyRect);
   nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, mFrame,
-                              aDirtyRect, buttonRect, context);
+                              aDirtyRect, buttonRect, *border, context);
 }
 
 
@@ -349,6 +353,20 @@ nsButtonFrameRenderer::GetButtonInnerFocusBorderAndPadding()
   return result;
 }
 
+nsMargin
+nsButtonFrameRenderer::GetButtonOutlineBorderAndPadding()
+{
+  nsMargin borderAndPadding(0,0,0,0);
+  return borderAndPadding;
+}
+
+// gets the full size of our border with all the focus borders
+nsMargin
+nsButtonFrameRenderer::GetFullButtonBorderAndPadding()
+{
+  return GetAddedButtonBorderAndPadding() + GetButtonBorderAndPadding();
+}
+
 // gets all the focus borders and padding that will be added to the regular border
 nsMargin
 nsButtonFrameRenderer::GetAddedButtonBorderAndPadding()
@@ -368,13 +386,13 @@ nsButtonFrameRenderer::ReResolveStyles(nsPresContext* aPresContext)
 
   // style for the inner such as a dotted line (Windows)
   mInnerFocusStyle =
-    styleSet->ProbePseudoElementStyle(mFrame->GetContent()->AsElement(),
+    styleSet->ProbePseudoElementStyle(mFrame->GetContent(),
                                       nsCSSPseudoElements::ePseudo_mozFocusInner,
                                       context);
 
   // style for outer focus like a ridged border (MAC).
   mOuterFocusStyle =
-    styleSet->ProbePseudoElementStyle(mFrame->GetContent()->AsElement(),
+    styleSet->ProbePseudoElementStyle(mFrame->GetContent(),
                                       nsCSSPseudoElements::ePseudo_mozFocusOuter,
                                       context);
 }

@@ -54,16 +54,18 @@ class nsSMILTimeValueSpec;
 // For an overview of how this class is related to other SMIL time classes see
 // the documentation in nsSMILTimeValue.h
 //
-// These objects are owned by an nsSMILTimedElement but MAY also be referenced
-// by:
+// These objects are owned by an nsSMILTimedElement but may be referred to by
+// nsSMILTimeValueSpec objects owned by the same nsSMILTimedElement.
 //
-// a) nsSMILIntervals that belong to the same nsSMILTimedElement and which refer
-//    to the nsSMILInstanceTimes which form the interval endpoints; and/or
-// b) nsSMILIntervals that belong to other nsSMILTimedElements but which need to
-//    update dependent instance times when they change or are deleted.
-//    E.g. for begin='a.begin', 'a' needs to inform dependent
-//    nsSMILInstanceTimes if its begin time changes. This notification is
-//    performed by the nsSMILInterval.
+// For example, a syncbase nsSMILTimeValueSpec such as 'a.begin' will generate
+// instance times based on when 'a' begins and will give these instance times to
+// the owner nsSMILTimedElement. It will also keep a pointer to the last created
+// instance time so it can tell its owner nsSMILTimedElement to update or
+// delete it.
+//
+// Furthermore, nsSMILInstanceTime objects may refer to other nsSMILInstanceTime
+// objects to represent dependency chains that are used for resolving priorities
+// within the animation sandwich.
 
 class nsSMILInstanceTime
 {
@@ -109,7 +111,8 @@ public:
     mTime = aNewTime;
   }
 
-  PRBool IsDependent(const nsSMILInstanceTime& aOther) const;
+  PRBool IsDependent(const nsSMILInstanceTime& aOther,
+                     PRUint32 aRecursionDepth = 0) const;
 
   PRBool SameTimeAndBase(const nsSMILInstanceTime& aOther) const
   {
@@ -121,15 +124,48 @@ public:
   PRUint32 Serial() const { return mSerial; }
   void SetSerial(PRUint32 aIndex) { mSerial = aIndex; }
 
-  NS_INLINE_DECL_REFCOUNTING(nsSMILInstanceTime)
+  nsrefcnt AddRef()
+  {
+    if (mRefCnt == PR_UINT32_MAX) {
+      NS_WARNING("refcount overflow, leaking nsSMILInstanceTime");
+      return mRefCnt;
+    }
+    NS_ASSERT_OWNINGTHREAD(_class);
+    NS_ABORT_IF_FALSE(_mOwningThread.GetThread() == PR_GetCurrentThread(),
+        "nsSMILInstanceTime addref isn't thread-safe!");
+    ++mRefCnt;
+    NS_LOG_ADDREF(this, mRefCnt, "nsSMILInstanceTime", sizeof(*this));
+    return mRefCnt;
+  }
+
+  nsrefcnt Release()
+  {
+    if (mRefCnt == PR_UINT32_MAX) {
+      NS_WARNING("refcount overflow, leaking nsSMILInstanceTime");
+      return mRefCnt;
+    }
+    NS_ABORT_IF_FALSE(_mOwningThread.GetThread() == PR_GetCurrentThread(),
+        "nsSMILInstanceTime release isn't thread-safe!");
+    --mRefCnt;
+    NS_LOG_RELEASE(this, mRefCnt, "nsSMILInstanceTime");
+    if (mRefCnt == 0) {
+      delete this;
+      return 0;
+    }
+    return mRefCnt;
+  }
 
 protected:
   void SetBaseInterval(nsSMILInterval* aBaseInterval);
+  void BreakPotentialCycle(const nsSMILInstanceTime* aNewTail) const;
   const nsSMILInstanceTime* GetBaseTime() const;
 
   nsSMILTimeValue mTime;
 
-  // Internal flags used to represent the behaviour of different instance times
+  nsAutoRefCnt mRefCnt;
+  NS_DECL_OWNINGTHREAD
+
+  // Internal flags used for represent behaviour of different instance times`
   enum {
     // Indicates if this instance time should be removed when the owning timed
     // element is reset. True for events and DOM calls.
@@ -153,11 +189,8 @@ protected:
   PRUint32      mSerial; // A serial number used by the containing class to
                          // specify the sort order for instance times with the
                          // same mTime.
-  PRPackedBool  mVisited; // (mutable) Cycle tracking
-  PRPackedBool  mChainEnd; // Flag to indicate that this instance time is part
-                           // of some cyclic dependency and that in order to
-                           // avoid infinite recursion the cycle should not be
-                           // followed any further than this point.
+  PRPackedBool  mVisited;
+  PRPackedBool  mChainEnd;
 
   nsSMILTimeValueSpec* mCreator; // The nsSMILTimeValueSpec object that created
                                  // us. (currently only needed for syncbase

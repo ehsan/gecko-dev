@@ -43,7 +43,6 @@
 #include "nsWeakReference.h"
 
 #include "nsIEditor.h"
-#include "nsIPlaintextEditor.h"
 #include "nsIEditorIMESupport.h"
 #include "nsIPhonetic.h"
 
@@ -58,6 +57,7 @@
 #include "nsIEditActionListener.h"
 #include "nsIEditorObserver.h"
 #include "nsIDocumentStateListener.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIDOMElement.h"
 #include "nsSelectionState.h"
 #include "nsIEditorSpellCheck.h"
@@ -85,10 +85,8 @@ class RemoveStyleSheetTxn;
 class nsIFile;
 class nsISelectionController;
 class nsIDOMEventTarget;
-class nsCSSStyleSheet;
-class nsKeyEvent;
 
-#define kMOZEditorBogusNodeAttrAtom nsEditProperty::mozEditorBogusNode
+#define kMOZEditorBogusNodeAttr NS_LITERAL_STRING("_moz_editor_bogus_node")
 #define kMOZEditorBogusNodeValue NS_LITERAL_STRING("TRUE")
 
 /** implementation of an editor object.  it will be the controller/focal point 
@@ -99,7 +97,8 @@ class nsKeyEvent;
 class nsEditor : public nsIEditor,
                  public nsIEditorIMESupport,
                  public nsSupportsWeakReference,
-                 public nsIPhonetic
+                 public nsIPhonetic,
+                 public nsStubMutationObserver
 {
 public:
 
@@ -155,6 +154,10 @@ public:
   // nsIPhonetic
   NS_DECL_NSIPHONETIC
 
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
+
 public:
 
   
@@ -192,12 +195,6 @@ public:
       nsIContent** aContent   - returned Content that was created with above namespace.
   */
   nsresult CreateHTMLContent(const nsAString& aTag, nsIContent** aContent);
-
-  // IME event handlers
-  virtual nsresult BeginIMEComposition();
-  virtual nsresult UpdateIMEComposition(const nsAString &aCompositionString,
-                                        nsIPrivateTextRangeList *aTextRange)=0;
-  nsresult EndIMEComposition();
 
 protected:
   nsCString mContentMIMEType;       // MIME type of the doc we are editing.
@@ -262,11 +259,11 @@ protected:
 
   /** create a transaction for adding a style sheet
     */
-  NS_IMETHOD CreateTxnForAddStyleSheet(nsCSSStyleSheet* aSheet, AddStyleSheetTxn* *aTxn);
+  NS_IMETHOD CreateTxnForAddStyleSheet(nsICSSStyleSheet* aSheet, AddStyleSheetTxn* *aTxn);
 
   /** create a transaction for removing a style sheet
     */
-  NS_IMETHOD CreateTxnForRemoveStyleSheet(nsCSSStyleSheet* aSheet, RemoveStyleSheetTxn* *aTxn);
+  NS_IMETHOD CreateTxnForRemoveStyleSheet(nsICSSStyleSheet* aSheet, RemoveStyleSheetTxn* *aTxn);
   
   NS_IMETHOD DeleteText(nsIDOMCharacterData *aElement,
                         PRUint32             aOffset,
@@ -314,6 +311,9 @@ protected:
   /** make the given selection span the entire document */
   NS_IMETHOD SelectEntireDocument(nsISelection *aSelection);
 
+  /* Helper for output routines -- we expect subclasses to override this */
+  NS_IMETHOD GetWrapWidth(PRInt32* aWrapCol);
+
   /** helper method for scrolling the selection into view after
    *  an edit operation. aScrollToAnchor should be PR_TRUE if you
    *  want to scroll to the point where the selection was started.
@@ -346,7 +346,7 @@ protected:
 
 
   // install the event listeners for the editor 
-  virtual nsresult InstallEventListeners();
+  nsresult InstallEventListeners();
 
   virtual nsresult CreateEventListeners();
 
@@ -358,7 +358,7 @@ protected:
    */
   PRBool GetDesiredSpellCheckState();
 
-  nsKeyEvent* GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent);
+  nsresult QueryComposition(nsTextEventReply* aReply);
 
 public:
 
@@ -536,8 +536,8 @@ public:
   static PRInt32 GetIndexOf(nsIDOMNode *aParent, nsIDOMNode *aChild);
   static nsCOMPtr<nsIDOMNode> GetChildAt(nsIDOMNode *aParent, PRInt32 aOffset);
   
-  static nsresult GetStartNodeAndOffset(nsISelection *aSelection, nsIDOMNode **outStartNode, PRInt32 *outStartOffset);
-  static nsresult GetEndNodeAndOffset(nsISelection *aSelection, nsIDOMNode **outEndNode, PRInt32 *outEndOffset);
+  static nsresult GetStartNodeAndOffset(nsISelection *aSelection, nsCOMPtr<nsIDOMNode> *outStartNode, PRInt32 *outStartOffset);
+  static nsresult GetEndNodeAndOffset(nsISelection *aSelection, nsCOMPtr<nsIDOMNode> *outEndNode, PRInt32 *outEndOffset);
 #if DEBUG_JOE
   static void DumpNode(nsIDOMNode *aNode, PRInt32 indent=0);
 #endif
@@ -571,8 +571,6 @@ public:
 
   PRBool GetShouldTxnSetSelection();
 
-  virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
-
   nsresult HandleInlineSpellCheck(PRInt32 action,
                                     nsISelection *aSelection,
                                     nsIDOMNode *previousSelectedNode,
@@ -582,97 +580,10 @@ public:
                                     nsIDOMNode *aEndNode,
                                     PRInt32 aEndOffset);
 
-  virtual already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget() = 0;
+  already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget();
 
   // Fast non-refcounting editor root element accessor
   nsIDOMElement *GetRoot();
-
-  // Accessor methods to flags
-  PRBool IsPlaintextEditor() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorPlaintextMask) != 0;
-  }
-
-  PRBool IsSingleLineEditor() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorSingleLineMask) != 0;
-  }
-
-  PRBool IsPasswordEditor() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorPasswordMask) != 0;
-  }
-
-  PRBool IsReadonly() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorReadonlyMask) != 0;
-  }
-
-  PRBool IsDisabled() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorDisabledMask) != 0;
-  }
-
-  PRBool IsInputFiltered() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorFilterInputMask) != 0;
-  }
-
-  PRBool IsMailEditor() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorMailMask) != 0;
-  }
-
-  PRBool UseAsyncUpdate() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask) != 0;
-  }
-
-  PRBool IsWrapHackEnabled() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorEnableWrapHackMask) != 0;
-  }
-
-  PRBool IsFormWidget() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorWidgetMask) != 0;
-  }
-
-  PRBool NoCSS() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorNoCSSMask) != 0;
-  }
-
-  PRBool IsInteractionAllowed() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorAllowInteraction) != 0;
-  }
-
-  PRBool DontEchoPassword() const
-  {
-    return (mFlags & nsIPlaintextEditor::eEditorDontEchoPassword) != 0;
-  }
-
-  PRBool IsTabbable() const
-  {
-    return IsSingleLineEditor() || IsPasswordEditor() || IsFormWidget() ||
-           IsInteractionAllowed();
-  }
-
-  // Whether the editor has focus or not.
-  virtual PRBool HasFocus();
-
-  // FindSelectionRoot() returns a selection root of this editor when aNode
-  // gets focus.  aNode must be a content node or a document node.  When the
-  // target isn't a part of this editor, returns NULL.  If this is for
-  // designMode, you should set the document node to aNode except that an
-  // element in the document has focus.
-  virtual already_AddRefed<nsIContent> FindSelectionRoot(nsINode* aNode);
-
-  // Initializes selection and caret for the editor.  If aEventTarget isn't
-  // a host of the editor, i.e., the editor doesn't get focus, this does
-  // nothing.
-  nsresult InitializeSelection(nsIDOMEventTarget* aFocusEventTarget);
 
 protected:
 
@@ -681,6 +592,7 @@ protected:
   
   nsWeakPtr       mPresShellWeak;   // weak reference to the nsIPresShell
   nsWeakPtr       mSelConWeak;   // weak reference to the nsISelectionController
+  nsIViewManager *mViewManager;
   PRInt32         mUpdateCount;
   nsIViewManager::UpdateViewBatch mBatch;
 

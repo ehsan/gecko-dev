@@ -139,24 +139,24 @@ NS_IMPL_ISUPPORTS4(imgContainer, imgIContainer, nsITimerCallback, nsIProperties,
 //******************************************************************************
 imgContainer::imgContainer() :
   mSize(0,0),
+  mHasSize(PR_FALSE),
   mAnim(nsnull),
   mAnimationMode(kNormalAnimMode),
   mLoopCount(-1),
   mObserver(nsnull),
-  mLockCount(0),
-  mDiscardTimer(nsnull),
-  mDecoder(nsnull),
-  mWorker(nsnull),
-  mBytesDecoded(0),
-  mDecoderFlags(imgIDecoder::DECODER_FLAG_NONE),
-  mHasSize(PR_FALSE),
   mDecodeOnDraw(PR_FALSE),
   mMultipart(PR_FALSE),
   mInitialized(PR_FALSE),
   mDiscardable(PR_FALSE),
+  mLockCount(0),
+  mDiscardTimer(nsnull),
   mHasSourceData(PR_FALSE),
   mDecoded(PR_FALSE),
   mHasBeenDecoded(PR_FALSE),
+  mDecoder(nsnull),
+  mWorker(nsnull),
+  mBytesDecoded(0),
+  mDecoderFlags(imgIDecoder::DECODER_FLAG_NONE),
   mWorkerPending(PR_FALSE),
   mInDecoder(PR_FALSE),
   mError(PR_FALSE)
@@ -234,9 +234,9 @@ NS_IMETHODIMP imgContainer::Init(imgIDecoderObserver *aObserver,
   // Store initialization data
   mObserver = do_GetWeakReference(aObserver);
   mSourceDataMimeType.Assign(aMimeType);
-  mDiscardable = !!(aFlags & INIT_FLAG_DISCARDABLE);
-  mDecodeOnDraw = !!(aFlags & INIT_FLAG_DECODE_ON_DRAW);
-  mMultipart = !!(aFlags & INIT_FLAG_MULTIPART);
+  mDiscardable = aFlags & INIT_FLAG_DISCARDABLE;
+  mDecodeOnDraw = aFlags & INIT_FLAG_DECODE_ON_DRAW;;
+  mMultipart = aFlags & INIT_FLAG_MULTIPART;
 
   // Statistics
   if (mDiscardable) {
@@ -639,30 +639,18 @@ NS_IMETHODIMP imgContainer::GetDataSize(PRUint32 *_retval)
   *_retval = 0;
 
   // Account for any compressed source data
-  *_retval += GetSourceDataSize();
+  *_retval += mSourceData.Length();
   NS_ABORT_IF_FALSE(StoringSourceData() || (*_retval == 0),
                     "Non-zero source data size when we aren't storing it?");
 
   // Account for any uncompressed frames
-  *_retval += GetDecodedDataSize();
-  return NS_OK;
-}
-
-PRUint32 imgContainer::GetDecodedDataSize()
-{
-  PRUint32 val = 0;
   for (PRUint32 i = 0; i < mFrames.Length(); ++i) {
     imgFrame *frame = mFrames.SafeElementAt(i, nsnull);
     NS_ABORT_IF_FALSE(frame, "Null frame in frame array!");
-    val += frame->EstimateMemoryUsed();
+    *_retval += frame->GetImageDataLength();
   }
 
-  return val;
-}
-
-PRUint32 imgContainer::GetSourceDataSize()
-{
-  return mSourceData.Length();
+  return NS_OK;
 }
 
 void imgContainer::DeleteImgFrame(PRUint32 framenum)
@@ -1397,15 +1385,6 @@ NS_IMETHODIMP imgContainer::NewSourceData()
 }
 
 //******************************************************************************
-/* void setSourceSizeHint(in unsigned long sizeHint); */
-NS_IMETHODIMP imgContainer::SetSourceSizeHint(PRUint32 sizeHint)
-{
-  if (sizeHint && StoringSourceData())
-    mSourceData.SetCapacity(sizeHint);
-  return NS_OK;
-}
-
-//******************************************************************************
 /* void notify(in nsITimer timer); */
 NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
 {
@@ -1633,8 +1612,7 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
       return rv;
     }
     needToBlankComposite = PR_TRUE;
-  } else if (aNextFrameIndex != mAnim->lastCompositedFrameIndex+1) {
-
+  } else if (aNextFrameIndex == 1) {
     // When we are looping the compositing frame needs to be cleared.
     needToBlankComposite = PR_TRUE;
   }

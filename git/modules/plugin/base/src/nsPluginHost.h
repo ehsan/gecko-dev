@@ -160,9 +160,7 @@ public:
   void RemoveIdleTimeTarget(nsIPluginInstanceOwner* objectFrame);
 
 #ifdef MOZ_IPC
-  void PluginCrashed(nsNPAPIPlugin* plugin,
-                     const nsAString& pluginDumpID,
-                     const nsAString& browserDumpID);
+  void PluginCrashed(nsNPAPIPlugin* plugin, const nsAString& dumpID);
 #endif
 
   nsPluginInstanceTag *FindInstanceTag(nsIPluginInstance *instance);
@@ -174,10 +172,6 @@ public:
   void StopRunningInstances(nsISupportsArray* aReloadDocs, nsPluginTag* aPluginTag);
 
   nsTArray< nsAutoPtr<nsPluginInstanceTag> > *InstanceTagArray();
-
-  // Return the tag for |aLibrary| if found, nsnull if not.
-  nsPluginTag*
-  FindTagForLibrary(PRLibrary* aLibrary);
 
 private:
   nsresult
@@ -192,7 +186,7 @@ private:
   NewEmbeddedPluginStream(nsIURI* aURL, nsIPluginInstanceOwner *aOwner, nsIPluginInstance* aInstance);
 
   nsresult
-  NewFullPagePluginStream(nsIStreamListener *&aStreamListener, nsIURI* aURI, nsIPluginInstance *aInstance);
+  NewFullPagePluginStream(nsIStreamListener *&aStreamListener, nsIPluginInstance *aInstance);
 
   // Return an nsPluginTag for this type, if any.  If aCheckEnabled is
   // true, only enabled plugins will be returned.
@@ -202,7 +196,7 @@ private:
   nsPluginTag*
   FindPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
 
-  // Return the tag for |aPlugin| if found, nsnull if not.
+  // Return the tag for |plugin| if found, nsnull if not.
   nsPluginTag*
   FindTagForPlugin(nsIPlugin* aPlugin);
 
@@ -210,9 +204,12 @@ private:
   FindStoppedPluginForURL(nsIURI* aURL, nsIPluginInstanceOwner *aOwner);
 
   nsresult
+  SetUpDefaultPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
+
+  nsresult
   AddInstanceToActiveList(nsCOMPtr<nsIPlugin> aPlugin,
                           nsIPluginInstance* aInstance,
-                          nsIURI* aURL);
+                          nsIURI* aURL, PRBool aDefaultPlugin);
 
   nsresult
   FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsChanged);
@@ -266,6 +263,12 @@ private:
 
   // set by pref plugin.override_internal_types
   PRPackedBool mOverrideInternalTypes;
+
+  // set by pref plugin.allow_alien_star_handler
+  PRPackedBool mAllowAlienStarHandler;
+
+  // set by pref plugin.default_plugin_disabled
+  PRPackedBool mDefaultPluginDisabled;
 
   // set by pref plugin.disable
   PRPackedBool mPluginsDisabled;

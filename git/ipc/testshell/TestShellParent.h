@@ -47,18 +47,11 @@
 #include "nsAutoJSValHolder.h"
 #include "nsStringGlue.h"
 
-struct JSContext;
-struct JSObject;
-
 namespace mozilla {
-
-namespace jsipc {
-class PContextWrapperParent;
-}
-
 namespace ipc {
 
 class TestShellCommandParent;
+
 
 class TestShellParent : public PTestShellParent
 {
@@ -71,11 +64,6 @@ public:
 
   bool
   CommandDone(TestShellCommandParent* aActor, const nsString& aResponse);
-
-  PContextWrapperParent* AllocPContextWrapper();
-  bool DeallocPContextWrapper(PContextWrapperParent* actor);
-
-  JSBool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
 };
 
 

@@ -65,8 +65,6 @@ typedef void         (* NP_LOADDS NPP_URLNotifyProcPtr)(NPP instance, const char
    by the plugin on the way out. The browser is responsible for releasing. */
 typedef NPError      (* NP_LOADDS NPP_GetValueProcPtr)(NPP instance, NPPVariable variable, void *ret_value);
 typedef NPError      (* NP_LOADDS NPP_SetValueProcPtr)(NPP instance, NPNVariable variable, void *value);
-typedef NPBool       (* NP_LOADDS NPP_GotFocusPtr)(NPP instance, NPFocusDirection direction);
-typedef void         (* NP_LOADDS NPP_LostFocusPtr)(NPP instance);
 
 typedef NPError      (*NPN_GetValueProcPtr)(NPP instance, NPNVariable variable, void *ret_value);
 typedef NPError      (*NPN_SetValueProcPtr)(NPP instance, NPPVariable variable, void *value);
@@ -110,8 +108,8 @@ typedef bool         (*NPN_HasPropertyProcPtr)(NPP npp, NPObject *obj, NPIdentif
 typedef bool         (*NPN_HasMethodProcPtr)(NPP npp, NPObject *obj, NPIdentifier propertyName);
 typedef void         (*NPN_ReleaseVariantValueProcPtr)(NPVariant *variant);
 typedef void         (*NPN_SetExceptionProcPtr)(NPObject *obj, const NPUTF8 *message);
-typedef void         (*NPN_PushPopupsEnabledStateProcPtr)(NPP npp, NPBool enabled);
-typedef void         (*NPN_PopPopupsEnabledStateProcPtr)(NPP npp);
+typedef bool         (*NPN_PushPopupsEnabledStateProcPtr)(NPP npp, NPBool enabled);
+typedef bool         (*NPN_PopPopupsEnabledStateProcPtr)(NPP npp);
 typedef bool         (*NPN_EnumerateProcPtr)(NPP npp, NPObject *obj, NPIdentifier **identifier, uint32_t *count);
 typedef void         (*NPN_PluginThreadAsyncCallProcPtr)(NPP instance, void (*func)(void *), void *userData);
 typedef bool         (*NPN_ConstructProcPtr)(NPP npp, NPObject* obj, const NPVariant *args, uint32_t argCount, NPVariant *result);
@@ -122,8 +120,6 @@ typedef uint32_t     (*NPN_ScheduleTimerPtr)(NPP instance, uint32_t interval, NP
 typedef void         (*NPN_UnscheduleTimerPtr)(NPP instance, uint32_t timerID);
 typedef NPError      (*NPN_PopUpContextMenuPtr)(NPP instance, NPMenu* menu);
 typedef NPBool       (*NPN_ConvertPointPtr)(NPP instance, double sourceX, double sourceY, NPCoordinateSpace sourceSpace, double *destX, double *destY, NPCoordinateSpace destSpace);
-typedef NPBool       (*NPN_HandleEventPtr)(NPP instance, void *event, NPBool handled);
-typedef NPBool       (*NPN_UnfocusInstancePtr)(NPP instance, NPFocusDirection direction);
 
 typedef struct _NPPluginFuncs {
   uint16_t size;
@@ -142,8 +138,6 @@ typedef struct _NPPluginFuncs {
   void* javaClass;
   NPP_GetValueProcPtr getvalue;
   NPP_SetValueProcPtr setvalue;
-  NPP_GotFocusPtr gotfocus;
-  NPP_LostFocusPtr lostfocus;
 } NPPluginFuncs;
 
 typedef struct _NPNetscapeFuncs {
@@ -201,8 +195,6 @@ typedef struct _NPNetscapeFuncs {
   NPN_UnscheduleTimerPtr unscheduletimer;
   NPN_PopUpContextMenuPtr popupcontextmenu;
   NPN_ConvertPointPtr convertpoint;
-  NPN_HandleEventPtr handleevent;
-  NPN_UnfocusInstancePtr unfocusinstance;
 } NPNetscapeFuncs;
 
 #ifdef XP_MACOSX
@@ -230,7 +222,7 @@ typedef const char* (*NP_GetMIMEDescriptionProcPtr)();
 typedef OSErr (*BP_GetSupportedMIMETypesProcPtr)(BPSupportedMIMETypes*, UInt32);
 #endif
 
-#if defined(_WIN32)
+#if defined(_WINDOWS)
 #define OSCALL WINAPI
 #else
 #if defined(__OS2__)
@@ -252,7 +244,7 @@ typedef OSErr (*BP_GetSupportedMIMETypesProcPtr)(BPSupportedMIMETypes*, UInt32);
 #define NP_EXPORT(__type) NP_VISIBILITY_DEFAULT __type
 #endif
 
-#if defined(_WIN32) || defined (__OS2__)
+#if defined(_WINDOWS) || defined (__OS2__)
 #ifdef __cplusplus
 extern "C" {
 #endif

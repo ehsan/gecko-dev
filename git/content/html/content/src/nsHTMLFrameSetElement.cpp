@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIFrameSetElement.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDocument.h"
@@ -135,8 +136,6 @@ nsHTMLFrameSetElement::~nsHTMLFrameSetElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLFrameSetElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLFrameSetElement, nsGenericElement) 
 
-
-DOMCI_DATA(HTMLFrameSetElement, nsHTMLFrameSetElement)
 
 // QueryInterface implementation for nsHTMLFrameSetElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLFrameSetElement)

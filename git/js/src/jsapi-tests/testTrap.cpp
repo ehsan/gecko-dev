@@ -5,11 +5,10 @@ static int emptyTrapCallCount = 0;
 
 static JSTrapStatus
 EmptyTrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
-                 jsval closure)
+                 void *closure)
 {
     JS_GC(cx);
-    if (JSVAL_IS_STRING(closure))
-        ++emptyTrapCallCount;
+    ++emptyTrapCallCount;
     return JSTRAP_CONTINUE;
 }
 
@@ -50,8 +49,8 @@ BEGIN_TEST(testTrap_gc)
     static const char trapClosureText[] = "some trap closure";
     JSString *trapClosure = JS_NewStringCopyZ(cx, trapClosureText);
     CHECK(trapClosure);
-    JS_SetTrap(cx, script, line2, EmptyTrapHandler, STRING_TO_JSVAL(trapClosure));
-    JS_SetTrap(cx, script, line6, EmptyTrapHandler, STRING_TO_JSVAL(trapClosure));
+    JS_SetTrap(cx, script, line2, EmptyTrapHandler, trapClosure);
+    JS_SetTrap(cx, script, line6, EmptyTrapHandler, trapClosure);
 
     JS_GC(cx);
 

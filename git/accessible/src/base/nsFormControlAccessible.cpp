@@ -44,25 +44,27 @@
 #include "nsIDOMXULElement.h"
 #include "nsIDOMXULControlElement.h"
 
-////////////////////////////////////////////////////////////////////////////////
-// nsRadioButtonAccessible
-////////////////////////////////////////////////////////////////////////////////
+// ------------
+// Radio button
+// ------------
 
-nsRadioButtonAccessible::
-  nsRadioButtonAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsFormControlAccessible(aContent, aShell)
-{
+nsRadioButtonAccessible::nsRadioButtonAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
+nsFormControlAccessible(aNode, aShell)
+{ 
 }
 
-NS_IMETHODIMP
-nsRadioButtonAccessible::GetNumActions(PRUint8 *aNumActions)
+/**
+  *
+  */
+NS_IMETHODIMP nsRadioButtonAccessible::GetNumActions(PRUint8 *_retval)
 {
-  NS_ENSURE_ARG_POINTER(aNumActions);
-  *aNumActions = 1;
-
+  *_retval = 1;
   return NS_OK;
 }
 
+/**
+  *
+  */
 NS_IMETHODIMP nsRadioButtonAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 {
   if (aIndex == eAction_Click) {

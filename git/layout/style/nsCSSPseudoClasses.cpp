@@ -67,6 +67,12 @@ void nsCSSPseudoClasses::AddRefAtoms()
                          NS_ARRAY_LENGTH(CSSPseudoClasses_info));
 }
 
+PRBool nsCSSPseudoClasses::IsPseudoClass(nsIAtom *aAtom)
+{
+  return nsAtomListUtils::IsMember(aAtom,CSSPseudoClasses_info,
+                                   NS_ARRAY_LENGTH(CSSPseudoClasses_info));
+}
+
 PRBool
 nsCSSPseudoClasses::HasStringArg(nsIAtom* aAtom)
 {
@@ -83,12 +89,6 @@ nsCSSPseudoClasses::HasNthPairArg(nsIAtom* aAtom)
          aAtom == nsCSSPseudoClasses::nthLastChild ||
          aAtom == nsCSSPseudoClasses::nthOfType ||
          aAtom == nsCSSPseudoClasses::nthLastOfType;
-}
-
-PRBool
-nsCSSPseudoClasses::HasSelectorListArg(nsIAtom* aAtom)
-{
-  return aAtom == nsCSSPseudoClasses::any;
 }
 
 nsCSSPseudoClasses::Type

@@ -60,8 +60,6 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(A)
 NS_IMPL_ADDREF_INHERITED(nsSVGAElement, nsSVGAElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGAElement, nsSVGAElementBase)
 
-DOMCI_DATA(SVGAElement, nsSVGAElement)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGAElement)
   NS_NODE_INTERFACE_TABLE6(nsSVGAElement,
                            nsIDOMNode,
@@ -167,26 +165,8 @@ nsSVGAElement::GetHrefURI() const
 }
 
 
-NS_IMETHODIMP_(PRBool)
-nsSVGAElement::IsAttributeMapped(const nsIAtom* name) const
-{
-  static const MappedAttributeEntry* const map[] = {
-    sFEFloodMap,
-    sFiltersMap,
-    sFontSpecificationMap,
-    sGradientStopMap,
-    sLightingEffectsMap,
-    sMarkersMap,
-    sTextContentElementsMap,
-    sViewportsMap
-  };
-
-  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
-    nsSVGAElementBase::IsAttributeMapped(name);
-}
-
 PRBool
-nsSVGAElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
+nsSVGAElement::IsFocusable(PRInt32 *aTabIndex)
 {
   nsCOMPtr<nsIURI> uri;
   if (IsLink(getter_AddRefs(uri))) {

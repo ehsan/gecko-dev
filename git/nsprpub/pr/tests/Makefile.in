@@ -450,11 +450,6 @@ LIBPTHREAD = -ldce
 endif
 endif
 
-ifeq ($(OS_TARGET),Android)
-LDOPTS=$(OS_LDFLAGS)
-LIBPTHREAD=
-XCFLAGS=${OS_CFLAGS}
-endif
 
 #####################################################
 #

@@ -92,8 +92,6 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Title)
 NS_IMPL_ADDREF_INHERITED(nsSVGTitleElement, nsSVGTitleElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGTitleElement, nsSVGTitleElementBase)
 
-DOMCI_DATA(SVGTitleElement, nsSVGTitleElement)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGTitleElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGTitleElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGTitleElement,
@@ -128,7 +126,6 @@ nsSVGTitleElement::CharacterDataChanged(nsIDocument *aDocument,
 void
 nsSVGTitleElement::ContentAppended(nsIDocument *aDocument,
                                    nsIContent *aContainer,
-                                   nsIContent *aFirstNewContent,
                                    PRInt32 aNewIndexInContainer)
 {
   SendTitleChangeEvent(PR_FALSE);

@@ -157,8 +157,7 @@ nsBlockReflowState::~nsBlockReflowState()
   }
 
   if (GetFlag(BRS_PROPTABLE_FLOATCLIST)) {
-    mPresContext->PropertyTable()->
-      Delete(mBlock, nsBlockFrame::FloatContinuationProperty());
+    mBlock->UnsetProperty(nsGkAtoms::floatContinuationProperty);
   }
 }
 
@@ -433,9 +432,8 @@ void
 nsBlockReflowState::SetupFloatContinuationList()
 {
   if (!GetFlag(BRS_PROPTABLE_FLOATCLIST)) {
-    mPresContext->PropertyTable()->
-      Set(mBlock, nsBlockFrame::FloatContinuationProperty(),
-          &mFloatContinuations);
+    mBlock->SetProperty(nsGkAtoms::floatContinuationProperty,
+                        &mFloatContinuations, nsnull);
     SetFlag(BRS_PROPTABLE_FLOATCLIST, PR_TRUE);
   }
 }
@@ -943,7 +941,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame*       aFloat,
     // area into which the float has grown or from which the float has
     // shrunk.
     nscoord top = NS_MIN(region.y, oldRegion.y) - borderPadding.top;
-    nscoord bottom = NS_MAX(region.YMost(), oldRegion.YMost()) - borderPadding.top;
+    nscoord bottom = NS_MAX(region.YMost(), oldRegion.YMost()) - borderPadding.left;
     mFloatManager->IncludeInDamage(top, bottom);
   }
 

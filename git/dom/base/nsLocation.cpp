@@ -145,7 +145,6 @@ nsLocation::~nsLocation()
 {
 }
 
-DOMCI_DATA(Location, nsLocation)
 
 // QueryInterface implementation for nsLocation
 NS_INTERFACE_MAP_BEGIN(nsLocation)
@@ -794,7 +793,8 @@ nsLocation::Reload(PRBool aForceget)
 
     nsIPresShell *shell;
     nsPresContext *pcx;
-    if (doc && (shell = doc->GetShell()) && (pcx = shell->GetPresContext())) {
+    if (doc && (shell = doc->GetPrimaryShell()) &&
+        (pcx = shell->GetPresContext())) {
       pcx->RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
 
@@ -920,7 +920,7 @@ nsLocation::GetSourceBaseURL(JSContext* cx, nsIURI** sourceURL)
   nsCOMPtr<nsIDocument> doc;
   nsresult rv = GetSourceDocument(cx, getter_AddRefs(doc));
   if (doc) {
-    *sourceURL = doc->GetBaseURI().get();
+    NS_IF_ADDREF(*sourceURL = doc->GetBaseURI());
   } else {
     *sourceURL = nsnull;
   }

@@ -48,7 +48,9 @@
 #include "nsIRegion.h"
 #include "nsView.h"
 #include "nsIViewObserver.h"
-#include "nsIDeviceContext.h"
+
+//Uncomment the following line to enable generation of viewmanager performance data.
+//#define NS_VM_PERF_METRICS 1
 
 
 /**
@@ -130,6 +132,8 @@ public:
 
   NS_IMETHOD  RemoveChild(nsIView *parent);
 
+  NS_IMETHOD  MoveViewBy(nsIView *aView, nscoord aX, nscoord aY);
+
   NS_IMETHOD  MoveViewTo(nsIView *aView, nscoord aX, nscoord aY);
 
   NS_IMETHOD  ResizeView(nsIView *aView, const nsRect &aRect, PRBool aRepaintExposedAreaOnly = PR_FALSE);
@@ -209,7 +213,19 @@ private:
    */
   nsIntRect ViewToWidget(nsView *aView, nsView* aWidgetView, const nsRect &aRect) const;
 
-  void DoSetWindowDimensions(nscoord aWidth, nscoord aHeight);
+  void DoSetWindowDimensions(nscoord aWidth, nscoord aHeight)
+  {
+    nsRect oldDim;
+    nsRect newDim(0, 0, aWidth, aHeight);
+    mRootView->GetDimensions(oldDim);
+    // We care about resizes even when one dimension is already zero.
+    if (!oldDim.IsExactEqual(newDim)) {
+      // Don't resize the widget. It is already being set elsewhere.
+      mRootView->SetDimensions(newDim, PR_TRUE, PR_FALSE);
+      if (mObserver)
+        mObserver->ResizeReflow(mRootView, aWidth, aHeight);
+    }
+  }
 
   // Safety helpers
   void IncrementUpdateCount() {
@@ -249,7 +265,7 @@ public: // NOT in nsIViewManager, so private to the view module
   nsViewManager* RootViewManager() const { return mRootViewManager; }
   PRBool IsRootVM() const { return this == RootViewManager(); }
 
-  nsEventStatus HandleEvent(nsView* aView, nsGUIEvent* aEvent);
+  nsEventStatus HandleEvent(nsView* aView, nsPoint aPoint, nsGUIEvent* aEvent);
 
   virtual nsresult WillBitBlit(nsIView* aView, const nsRect& aRect,
                                nsPoint aScrollAmount);
@@ -265,12 +281,6 @@ public: // NOT in nsIViewManager, so private to the view module
   // Call this when you need to let the viewmanager know that it now has
   // pending updates.
   void PostPendingUpdate() { RootViewManager()->mHasPendingUpdates = PR_TRUE; }
-
-  PRInt32 AppUnitsPerDevPixel() const
-  {
-    return mContext->AppUnitsPerDevPixel();
-  }
-
 private:
   nsCOMPtr<nsIDeviceContext> mContext;
   nsIViewObserver   *mObserver;
@@ -307,6 +317,9 @@ private:
 
   //from here to public should be static and locked... MMP
   static PRInt32           mVMCount;        //number of viewmanagers
+
+  //Rendering context used to cleanup the blending buffers
+  static nsIRenderingContext* gCleanupContext;
 
   //list of view managers
   static nsVoidArray       *gViewManagers;

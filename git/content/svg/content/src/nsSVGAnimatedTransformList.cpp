@@ -67,8 +67,6 @@ nsSVGAnimatedTransformList::Init(nsIDOMSVGTransformList* baseVal)
 NS_IMPL_ADDREF(nsSVGAnimatedTransformList)
 NS_IMPL_RELEASE(nsSVGAnimatedTransformList)
 
-DOMCI_DATA(SVGAnimatedTransformList, nsSVGAnimatedTransformList)
-
 NS_INTERFACE_MAP_BEGIN(nsSVGAnimatedTransformList)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedTransformList)
