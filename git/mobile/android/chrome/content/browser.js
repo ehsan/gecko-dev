@@ -1653,7 +1653,7 @@ var BrowserApp = {
       case "Passwords:Init": {
         let storage = Cc["@mozilla.org/login-manager/storage/mozStorage;1"].
                       getService(Ci.nsILoginManagerStorage);
-        storage.initialize();
+        storage.init();
         Services.obs.removeObserver(this, "Passwords:Init");
         break;
       }
@@ -3084,39 +3084,6 @@ function Tab(aURL, aParams) {
   this.create(aURL, aParams);
 }
 
-/*
- * Sanity limit for URIs passed to UI code.
- *
- * 2000 is the typical industry limit, largely due to older IE versions.
- *
- * We use 25000, so we'll allow almost any value through.
- *
- * Still, this truncation doesn't affect history, so this is only a practical
- * concern in two ways: the truncated value is used when editing URIs, and as
- * the key for favicon fetches.
- */
-const MAX_URI_LENGTH = 25000;
-
-/*
- * Similar restriction for titles. This is only a display concern.
- */
-const MAX_TITLE_LENGTH = 255;
-
-/**
- * Ensure that a string is of a sane length.
- */
-function truncate(text, max) {
-  if (!text || !max) {
-    return text;
-  }
-
-  if (text.length <= max) {
-    return text;
-  }
-
-  return text.slice(0, max) + "…";
-}
-
 Tab.prototype = {
   create: function(aURL, aParams) {
     if (this.browser)
@@ -3187,12 +3154,12 @@ Tab.prototype = {
       let message = {
         type: "Tab:Added",
         tabID: this.id,
-        uri: truncate(uri, MAX_URI_LENGTH),
+        uri: uri,
         parentId: ("parentId" in aParams) ? aParams.parentId : -1,
         tabIndex: ("tabIndex" in aParams) ? aParams.tabIndex : -1,
         external: ("external" in aParams) ? aParams.external : false,
         selected: ("selected" in aParams) ? aParams.selected : true,
-        title: truncate(title, MAX_TITLE_LENGTH),
+        title: title,
         delayLoad: aParams.delayLoad || false,
         desktopMode: this.desktopMode,
         isPrivate: isPrivate,
@@ -3241,7 +3208,7 @@ Tab.prototype = {
       this.browser.__SS_data = {
         entries: [{
           url: aURL,
-          title: truncate(title, MAX_TITLE_LENGTH)
+          title: title
         }],
         index: 1
       };
@@ -3980,7 +3947,7 @@ Tab.prototype = {
         sendMessageToJava({
           type: "DOMTitleChanged",
           tabID: this.id,
-          title: truncate(aEvent.target.title, MAX_TITLE_LENGTH)
+          title: aEvent.target.title.substring(0, 255)
         });
         break;
       }
@@ -4169,7 +4136,7 @@ Tab.prototype = {
       let message = {
         type: "Content:StateChange",
         tabID: this.id,
-        uri: truncate(uri, MAX_URI_LENGTH),
+        uri: uri,
         state: aStateFlags,
         restoring: restoring,
         success: success
@@ -4235,7 +4202,7 @@ Tab.prototype = {
     let message = {
       type: "Content:LocationChange",
       tabID: this.id,
-      uri: truncate(fixedURI.spec, MAX_URI_LENGTH),
+      uri: fixedURI.spec,
       userSearch: this.userSearch || "",
       baseDomain: baseDomain,
       contentType: (contentType ? contentType : ""),
@@ -7438,8 +7405,8 @@ let Reader = {
           sendMessageToJava({
             type: "Reader:Added",
             result: result,
-            title: truncate(article.title, MAX_TITLE_LENGTH),
-            url: truncate(url, MAX_URI_LENGTH),
+            title: article.title,
+            url: url,
             length: article.length,
             excerpt: article.excerpt
           });

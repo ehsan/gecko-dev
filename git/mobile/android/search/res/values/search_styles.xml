@@ -10,6 +10,4 @@
         <item name="android:colorBackground">@color/global_background_color</item>
     </style>
 
-    <style name="SettingsTheme" parent="@android:style/Theme.Light"/>
-
 </resources>

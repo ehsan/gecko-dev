@@ -14,8 +14,7 @@ const TESTCASE_URI_SCSS = TEST_BASE + "sourcemap-sass/sourcemaps.scss";
 const TESTCASE_URI_MAP = TEST_BASE + "sourcemap-css/sourcemaps.css.map";
 const TESTCASE_SCSS_NAME = "sourcemaps.scss";
 
-const SOURCE_MAP_PREF = "devtools.styleeditor.source-maps-enabled";
-const TRANSITIONS_PREF = "devtools.styleeditor.transitions";
+const PREF = "devtools.styleeditor.source-maps-enabled";
 
 const CSS_TEXT = "* { color: blue }";
 
@@ -32,8 +31,7 @@ function test()
 {
   waitForExplicitFinish();
 
-  Services.prefs.setBoolPref(SOURCE_MAP_PREF, true);
-  Services.prefs.setBoolPref(TRANSITIONS_PREF, false);
+  Services.prefs.setBoolPref(PREF, true);
 
   Task.spawn(function() {
     // copy all our files over so we don't screw them up for other tests
@@ -128,8 +126,7 @@ function pauseForTimeChange() {
 }
 
 function finishUp() {
-  Services.prefs.clearUserPref(SOURCE_MAP_PREF);
-  Services.prefs.clearUserPref(TRANSITIONS_PREF);
+  Services.prefs.clearUserPref(PREF);
   finish();
 }
 

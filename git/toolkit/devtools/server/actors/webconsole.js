@@ -10,6 +10,7 @@ const { Cc, Ci, Cu } = require("chrome");
 const { DebuggerServer, ActorPool } = require("devtools/server/main");
 const { EnvironmentActor, LongStringActor, ObjectActor, ThreadActor } = require("devtools/server/actors/script");
 const { update } = require("devtools/toolkit/DevToolsUtils");
+const Debugger = require("Debugger");
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -66,7 +67,7 @@ function WebConsoleActor(aConnection, aParentActor)
 
   this._prefs = {};
 
-  this.dbg = this.parentActor.makeDebugger();
+  this.dbg = new Debugger();
 
   this._netEvents = new Map();
   this._gripDepth = 0;
@@ -1010,6 +1011,7 @@ WebConsoleActor.prototype =
     // If we have an object to bind to |_self|, create a Debugger.Object
     // referring to that object, belonging to dbg.
     let bindSelf = null;
+    let dbgWindow = dbg.makeGlobalObjectReference(this.evalWindow);
     if (aOptions.bindObjectActor) {
       let objActor = this.getActorByID(aOptions.bindObjectActor);
       if (objActor) {
