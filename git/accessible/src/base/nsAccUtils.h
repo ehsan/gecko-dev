@@ -197,6 +197,11 @@ public:
                                               PRUint64 aState);
 
   /**
+   * Return multi selectable container for the given item.
+   */
+  static nsAccessible *GetMultiSelectableContainer(nsINode *aNode);
+
+  /**
    * Return true if the DOM node of given accessible has aria-selected="true"
    * attribute.
    */
