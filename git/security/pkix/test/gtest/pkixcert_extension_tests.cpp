@@ -63,7 +63,7 @@ CreateCertWithOneExtension(const char* subjectStr, const ByteString& extension)
 class TrustEverythingTrustDomain final : public TrustDomain
 {
 private:
-  Result GetCertTrust(EndEntityOrCA, const CertPolicyId&, Input,
+  Result GetCertTrust(EndEntityOrCA, const CertPolicyId&, Input candidateCert,
                       /*out*/ TrustLevel& trustLevel) override
   {
     trustLevel = TrustLevel::TrustAnchor;
@@ -89,35 +89,22 @@ private:
     return Success;
   }
 
-  Result DigestBuf(Input input, DigestAlgorithm digestAlg,
-                   /*out*/ uint8_t* digestBuf, size_t digestLen) override
+  Result VerifySignedData(const SignedDataWithSignature& signedData,
+                          Input subjectPublicKeyInfo) override
   {
-    return TestDigestBuf(input, digestAlg, digestBuf, digestLen);
+    return TestVerifySignedData(signedData, subjectPublicKeyInfo);
   }
 
-  Result CheckRSAPublicKeyModulusSizeInBits(EndEntityOrCA, unsigned int)
-                                            override
+  Result DigestBuf(Input, /*out*/ uint8_t*, size_t) override
   {
-    return Success;
+    ADD_FAILURE();
+    return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result VerifyRSAPKCS1SignedDigest(const SignedDigest& signedDigest,
-                                    Input subjectPublicKeyInfo) override
+  Result CheckPublicKey(Input subjectPublicKeyInfo) override
   {
-    return TestVerifyRSAPKCS1SignedDigest(signedDigest, subjectPublicKeyInfo);
+    return TestCheckPublicKey(subjectPublicKeyInfo);
   }
-
-  Result CheckECDSACurveIsAcceptable(EndEntityOrCA, NamedCurve) override
-  {
-    return Success;
-  }
-
-  Result VerifyECDSASignedDigest(const SignedDigest& signedDigest,
-                                 Input subjectPublicKeyInfo) override
-  {
-    return TestVerifyECDSASignedDigest(signedDigest, subjectPublicKeyInfo);
-  }
-
 };
 
 // python DottedOIDToCode.py --tlv unknownExtensionOID 1.3.6.1.4.1.13769.666.666.666.1.500.9.3

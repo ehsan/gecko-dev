@@ -1126,8 +1126,6 @@ SelectionCarets::NotifyBlur(bool aIsLeavingDocument)
   if (aIsLeavingDocument) {
     CancelLongTapDetector();
   }
-  CancelScrollEndDetector();
-  mInAsyncPanZoomGesture = false;
   DispatchSelectionStateChangedEvent(nullptr, SelectionState::Blur);
 }
 
@@ -1180,39 +1178,29 @@ DispatchScrollViewChangeEvent(nsIPresShell *aPresShell, const dom::ScrollState a
 void
 SelectionCarets::AsyncPanZoomStarted(const mozilla::CSSIntPoint aScrollPos)
 {
-  if (mVisible) {
-    mInAsyncPanZoomGesture = true;
-    SetVisibility(false);
+  mInAsyncPanZoomGesture = true;
+  SetVisibility(false);
 
-    SELECTIONCARETS_LOG("Dispatch scroll started with position x=%d, y=%d",
-                        aScrollPos.x, aScrollPos.y);
-    DispatchScrollViewChangeEvent(mPresShell, dom::ScrollState::Started, aScrollPos);
-  } else {
-    nsRefPtr<dom::Selection> selection = GetSelection();
-    if (selection && selection->RangeCount() && selection->IsCollapsed()) {
-      mInAsyncPanZoomGesture = true;
-      DispatchScrollViewChangeEvent(mPresShell, dom::ScrollState::Started, aScrollPos);
-    }
-  }
+  SELECTIONCARETS_LOG("Dispatch scroll started with position x=%d, y=%d",
+                      aScrollPos.x, aScrollPos.y);
+  DispatchScrollViewChangeEvent(mPresShell, dom::ScrollState::Started, aScrollPos);
 }
 
 void
 SelectionCarets::AsyncPanZoomStopped(const mozilla::CSSIntPoint aScrollPos)
 {
-  if (mInAsyncPanZoomGesture) {
-    mInAsyncPanZoomGesture = false;
-    SELECTIONCARETS_LOG("Update selection carets after APZ is stopped!");
-    UpdateSelectionCarets();
+  mInAsyncPanZoomGesture = false;
+  SELECTIONCARETS_LOG("Update selection carets after APZ is stopped!");
+  UpdateSelectionCarets();
 
-    // SelectionStateChangedEvent should be dispatched before ScrollViewChangeEvent.
-    DispatchSelectionStateChangedEvent(GetSelection(),
-                                       SelectionState::Updateposition);
+  // SelectionStateChangedEvent should be dispatched before ScrollViewChangeEvent.
+  DispatchSelectionStateChangedEvent(GetSelection(),
+                                     SelectionState::Updateposition);
 
-    SELECTIONCARETS_LOG("Dispatch scroll stopped with position x=%d, y=%d",
-                        aScrollPos.x, aScrollPos.y);
+  SELECTIONCARETS_LOG("Dispatch scroll stopped with position x=%d, y=%d",
+                      aScrollPos.x, aScrollPos.y);
 
-    DispatchScrollViewChangeEvent(mPresShell, dom::ScrollState::Stopped, aScrollPos);
-  }
+  DispatchScrollViewChangeEvent(mPresShell, dom::ScrollState::Stopped, aScrollPos);
 }
 
 void
@@ -1308,18 +1296,6 @@ SelectionCarets::LaunchScrollEndDetector()
                                                 kScrollEndTimerDelay,
                                                 nsITimer::TYPE_ONE_SHOT);
 }
-
-void
-SelectionCarets::CancelScrollEndDetector()
-{
-  if (!mScrollEndDetectorTimer) {
-    return;
-  }
-
-  SELECTIONCARETS_LOG("Cancel scroll end detector!");
-  mScrollEndDetectorTimer->Cancel();
-}
-
 
 /* static */void
 SelectionCarets::FireScrollEnd(nsITimer* aTimer, void* aSelectionCarets)

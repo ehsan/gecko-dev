@@ -25,7 +25,7 @@
 #include <functional>
 #include <vector>
 
-#include "pkixgtest.h"
+#include "gtest/gtest.h"
 #include "pkix/pkixtypes.h"
 #include "pkixder.h"
 
@@ -190,28 +190,23 @@ TEST_F(pkixder_pki_types_tests, OptionalVersionMissing)
 
 static const size_t MAX_ALGORITHM_OID_DER_LENGTH = 13;
 
-struct InvalidAlgorithmIdentifierTestInfo
+template <typename T>
+struct AlgorithmIdentifierTestInfo
 {
+  T algorithm;
   uint8_t der[MAX_ALGORITHM_OID_DER_LENGTH];
   size_t derLength;
 };
 
-struct ValidDigestAlgorithmIdentifierTestInfo
-{
-  DigestAlgorithm algorithm;
-  uint8_t der[MAX_ALGORITHM_OID_DER_LENGTH];
-  size_t derLength;
-};
-
-class pkixder_DigestAlgorithmIdentifier_Valid
+class pkixder_DigestAlgorithmIdentifier
   : public ::testing::Test
-  , public ::testing::WithParamInterface<ValidDigestAlgorithmIdentifierTestInfo>
+  , public ::testing::WithParamInterface<
+                AlgorithmIdentifierTestInfo<DigestAlgorithm>>
 {
 };
 
-static const ValidDigestAlgorithmIdentifierTestInfo
-  VALID_DIGEST_ALGORITHM_TEST_INFO[] =
-{
+static const AlgorithmIdentifierTestInfo<DigestAlgorithm>
+DIGEST_ALGORITHM_TEST_INFO[] = {
   { DigestAlgorithm::sha512,
     { 0x30, 0x0b, 0x06, 0x09,
       0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03 },
@@ -234,9 +229,9 @@ static const ValidDigestAlgorithmIdentifierTestInfo
   },
 };
 
-TEST_P(pkixder_DigestAlgorithmIdentifier_Valid, Valid)
+TEST_P(pkixder_DigestAlgorithmIdentifier, Valid)
 {
-  const ValidDigestAlgorithmIdentifierTestInfo& param(GetParam());
+  const AlgorithmIdentifierTestInfo<DigestAlgorithm>& param(GetParam());
 
   {
     Input input;
@@ -265,218 +260,165 @@ TEST_P(pkixder_DigestAlgorithmIdentifier_Valid, Valid)
   }
 }
 
-INSTANTIATE_TEST_CASE_P(pkixder_DigestAlgorithmIdentifier_Valid,
-                        pkixder_DigestAlgorithmIdentifier_Valid,
-                        testing::ValuesIn(VALID_DIGEST_ALGORITHM_TEST_INFO));
+INSTANTIATE_TEST_CASE_P(pkixder_DigestAlgorithmIdentifier,
+                        pkixder_DigestAlgorithmIdentifier,
+                        testing::ValuesIn(DIGEST_ALGORITHM_TEST_INFO));
 
-class pkixder_DigestAlgorithmIdentifier_Invalid
-  : public ::testing::Test
-  , public ::testing::WithParamInterface<InvalidAlgorithmIdentifierTestInfo>
+TEST_F(pkixder_DigestAlgorithmIdentifier, Invalid_MD5)
 {
-};
-
-static const InvalidAlgorithmIdentifierTestInfo
-  INVALID_DIGEST_ALGORITHM_TEST_INFO[] =
-{
-  { // MD5
-    { 0x30, 0x0a, 0x06, 0x08,
-      0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x05 },
-    12,
-  },
-  { // ecdsa-with-SHA256 (1.2.840.10045.4.3.2) (not a hash algorithm)
-    { 0x30, 0x0a, 0x06, 0x08,
-      0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x02 },
-    12,
-  },
-};
-
-TEST_P(pkixder_DigestAlgorithmIdentifier_Invalid, Invalid)
-{
-  const InvalidAlgorithmIdentifierTestInfo& param(GetParam());
-  Input input;
-  ASSERT_EQ(Success, input.Init(param.der, param.derLength));
+  // The OID identifies MD5 (1.2.840.113549.2.5). It is invalid because we
+  // don't accept MD5 as a hash algorithm.
+  static const uint8_t DER[] = {
+    0x30, 0x0a, 0x06, 0x08,
+    0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x05
+  };
+  Input input(DER);
   Reader reader(input);
+
   DigestAlgorithm alg;
   ASSERT_EQ(Result::ERROR_INVALID_ALGORITHM,
             DigestAlgorithmIdentifier(reader, alg));
 }
 
-INSTANTIATE_TEST_CASE_P(pkixder_DigestAlgorithmIdentifier_Invalid,
-                        pkixder_DigestAlgorithmIdentifier_Invalid,
-                        testing::ValuesIn(INVALID_DIGEST_ALGORITHM_TEST_INFO));
-
-struct ValidSignatureAlgorithmIdentifierValueTestInfo
+TEST_F(pkixder_DigestAlgorithmIdentifier, Invalid_Digest_ECDSA_WITH_SHA256)
 {
-  PublicKeyAlgorithm publicKeyAlg;
-  DigestAlgorithm digestAlg;
-  uint8_t der[MAX_ALGORITHM_OID_DER_LENGTH];
-  size_t derLength;
-};
+  // The OID identifies ecdsa-with-SHA256 (1.2.840.10045.4.3.2). It is invalid
+  // because ECDSA-with-SHA256 is not a hash algorithm.
+  static const uint8_t DER[] = {
+    0x30, 0x0a, 0x06, 0x08,
+    0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x02, //
+  };
+  Input input(DER);
+  Reader reader(input);
 
-static const ValidSignatureAlgorithmIdentifierValueTestInfo
-  VALID_SIGNATURE_ALGORITHM_VALUE_TEST_INFO[] =
+  DigestAlgorithm alg;
+  ASSERT_EQ(Result::ERROR_INVALID_ALGORITHM,
+            DigestAlgorithmIdentifier(reader, alg));
+}
+
+static const AlgorithmIdentifierTestInfo<SignatureAlgorithm>
+  SIGNATURE_ALGORITHM_TEST_INFO[] =
 {
-  // ECDSA
-  { PublicKeyAlgorithm::ECDSA,
-    DigestAlgorithm::sha512,
-    { 0x06, 0x08,
+  { SignatureAlgorithm::ecdsa_with_sha512,
+    { 0x30, 0x0a, 0x06, 0x08,
       0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x04 },
-    10,
+    12,
   },
-  { PublicKeyAlgorithm::ECDSA,
-    DigestAlgorithm::sha384,
-    { 0x06, 0x08,
+  { SignatureAlgorithm::ecdsa_with_sha384,
+    { 0x30, 0x0a, 0x06, 0x08,
       0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x03 },
-    10,
+    12,
   },
-  { PublicKeyAlgorithm::ECDSA,
-    DigestAlgorithm::sha256,
-    { 0x06, 0x08,
+  { SignatureAlgorithm::ecdsa_with_sha256,
+    { 0x30, 0x0a, 0x06, 0x08,
       0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x02 },
-    10,
+    12,
   },
-  { PublicKeyAlgorithm::ECDSA,
-    DigestAlgorithm::sha1,
-    { 0x06, 0x07,
+  { SignatureAlgorithm::ecdsa_with_sha1,
+    { 0x30, 0x09, 0x06, 0x07,
       0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x01 },
-    9,
+    11,
   },
 
   // RSA
-  { PublicKeyAlgorithm::RSA_PKCS1,
-    DigestAlgorithm::sha512,
-    { 0x06, 0x09,
+  { SignatureAlgorithm::rsa_pkcs1_with_sha512,
+    { 0x30, 0x0b, 0x06, 0x09,
       0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0d },
-    11,
+    13,
   },
-  { PublicKeyAlgorithm::RSA_PKCS1,
-    DigestAlgorithm::sha384,
-    { 0x06, 0x09,
+  { SignatureAlgorithm::rsa_pkcs1_with_sha384,
+    { 0x30, 0x0b, 0x06, 0x09,
       0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0c },
-    11,
+    13,
   },
-  { PublicKeyAlgorithm::RSA_PKCS1,
-    DigestAlgorithm::sha256,
-    { 0x06, 0x09,
+  { SignatureAlgorithm::rsa_pkcs1_with_sha256,
+    { 0x30, 0x0b, 0x06, 0x09,
       0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b },
-    11,
+    13,
   },
-  { PublicKeyAlgorithm::RSA_PKCS1,
-    DigestAlgorithm::sha1,
+  { SignatureAlgorithm::rsa_pkcs1_with_sha1,
     // IETF Standard OID
-    { 0x06, 0x09,
+    { 0x30, 0x0b, 0x06, 0x09,
       0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x05 },
+    13,
+  },
+  { SignatureAlgorithm::rsa_pkcs1_with_sha1,
+    // Legacy OIW OID (bug 1042479)
+    { 0x30, 0x07, 0x06, 0x05,
+      0x2b, 0x0e, 0x03, 0x02, 0x1d },
+    9,
+  },
+
+  // id-dsa-with-sha256 (2.16.840.1.101.3.4.3.2)
+  { SignatureAlgorithm::unsupported_algorithm,
+    { 0x30, 0x0b, 0x06, 0x09,
+      0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03, 0x02 },
+    13,
+  },
+
+  // id-dsa-with-sha1 (1.2.840.10040.4.3)
+  { SignatureAlgorithm::unsupported_algorithm,
+    { 0x30, 0x09, 0x06, 0x07,
+      0x2a, 0x86, 0x48, 0xce, 0x38, 0x04, 0x03 },
     11,
   },
-  { PublicKeyAlgorithm::RSA_PKCS1,
-    DigestAlgorithm::sha1,
-    // Legacy OIW OID (bug 1042479)
-    { 0x06, 0x05,
-      0x2b, 0x0e, 0x03, 0x02, 0x1d },
-    7,
+
+  // RSA-with-MD5 (1.2.840.113549.1.1.4)
+  { SignatureAlgorithm::unsupported_algorithm,
+    { 0x30, 0x0b, 0x06, 0x09,
+      0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x04 },
+    13,
+  },
+
+  // id-sha256 (2.16.840.1.101.3.4.2.1). It is invalid because SHA-256 is not
+  // a signature algorithm.
+  { SignatureAlgorithm::unsupported_algorithm,
+    { 0x30, 0x0b, 0x06, 0x09,
+      0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01 },
+    13,
   },
 };
 
-class pkixder_SignatureAlgorithmIdentifierValue_Valid
+class pkixder_SignatureAlgorithmIdentifier
   : public ::testing::Test
   , public ::testing::WithParamInterface<
-             ValidSignatureAlgorithmIdentifierValueTestInfo>
+                AlgorithmIdentifierTestInfo<SignatureAlgorithm>>
 {
 };
 
-TEST_P(pkixder_SignatureAlgorithmIdentifierValue_Valid, Valid)
+TEST_P(pkixder_SignatureAlgorithmIdentifier, ValidAndInvalid)
 {
-  const ValidSignatureAlgorithmIdentifierValueTestInfo& param(GetParam());
+  const AlgorithmIdentifierTestInfo<SignatureAlgorithm>& param(GetParam());
 
   {
     Input input;
     ASSERT_EQ(Success, input.Init(param.der, param.derLength));
     Reader reader(input);
-    PublicKeyAlgorithm publicKeyAlg;
-    DigestAlgorithm digestAlg;
-    ASSERT_EQ(Success,
-              SignatureAlgorithmIdentifierValue(reader, publicKeyAlg,
-                                                digestAlg));
-    ASSERT_EQ(param.publicKeyAlg, publicKeyAlg);
-    ASSERT_EQ(param.digestAlg, digestAlg);
+    SignatureAlgorithm alg;
+    ASSERT_EQ(Success, SignatureAlgorithmIdentifier(reader, alg));
+    ASSERT_EQ(param.algorithm, alg);
     ASSERT_EQ(Success, End(reader));
   }
 
   {
     uint8_t derWithNullParam[MAX_ALGORITHM_OID_DER_LENGTH + 2];
     memcpy(derWithNullParam, param.der, param.derLength);
+    derWithNullParam[1] += 2; // we're going to expand the value by 2 bytes
     derWithNullParam[param.derLength] = 0x05; // NULL tag
     derWithNullParam[param.derLength + 1] = 0x00; // length zero
 
     Input input;
     ASSERT_EQ(Success, input.Init(derWithNullParam, param.derLength + 2));
     Reader reader(input);
-    PublicKeyAlgorithm publicKeyAlg;
-    DigestAlgorithm digestAlg;
-    ASSERT_EQ(Success,
-              SignatureAlgorithmIdentifierValue(reader, publicKeyAlg,
-                                                digestAlg));
-    ASSERT_EQ(param.publicKeyAlg, publicKeyAlg);
-    ASSERT_EQ(param.digestAlg, digestAlg);
+    SignatureAlgorithm alg;
+    ASSERT_EQ(Success, SignatureAlgorithmIdentifier(reader, alg));
+    ASSERT_EQ(param.algorithm, alg);
     ASSERT_EQ(Success, End(reader));
   }
 }
 
-INSTANTIATE_TEST_CASE_P(
-  pkixder_SignatureAlgorithmIdentifierValue_Valid,
-  pkixder_SignatureAlgorithmIdentifierValue_Valid,
-  testing::ValuesIn(VALID_SIGNATURE_ALGORITHM_VALUE_TEST_INFO));
-
-static const InvalidAlgorithmIdentifierTestInfo
-  INVALID_SIGNATURE_ALGORITHM_VALUE_TEST_INFO[] =
-{
-  // id-dsa-with-sha256 (2.16.840.1.101.3.4.3.2)
-  { { 0x06, 0x09,
-      0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03, 0x02 },
-    11,
-  },
-
-  // id-dsa-with-sha1 (1.2.840.10040.4.3)
-  { { 0x06, 0x07,
-      0x2a, 0x86, 0x48, 0xce, 0x38, 0x04, 0x03 },
-    9,
-  },
-
-  // RSA-with-MD5 (1.2.840.113549.1.1.4)
-  { { 0x06, 0x09,
-      0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x04 },
-    11,
-  },
-
-  // id-sha256 (2.16.840.1.101.3.4.2.1). It is invalid because SHA-256 is not
-  // a signature algorithm.
-  { { 0x06, 0x09,
-      0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01 },
-    11,
-  },
-};
-
-class pkixder_SignatureAlgorithmIdentifier_Invalid
-  : public ::testing::Test
-  , public ::testing::WithParamInterface<InvalidAlgorithmIdentifierTestInfo>
-{
-};
-
-TEST_P(pkixder_SignatureAlgorithmIdentifier_Invalid, Invalid)
-{
-  const InvalidAlgorithmIdentifierTestInfo& param(GetParam());
-  Input input;
-  ASSERT_EQ(Success, input.Init(param.der, param.derLength));
-  Reader reader(input);
-  der::PublicKeyAlgorithm publicKeyAlg;
-  DigestAlgorithm digestAlg;
-  ASSERT_EQ(Result::ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED,
-            SignatureAlgorithmIdentifierValue(reader, publicKeyAlg, digestAlg));
-}
-
-INSTANTIATE_TEST_CASE_P(
-  pkixder_SignatureAlgorithmIdentifier_Invalid,
-  pkixder_SignatureAlgorithmIdentifier_Invalid,
-  testing::ValuesIn(INVALID_SIGNATURE_ALGORITHM_VALUE_TEST_INFO));
+INSTANTIATE_TEST_CASE_P(pkixder_SignatureAlgorithmIdentifier,
+                        pkixder_SignatureAlgorithmIdentifier,
+                        testing::ValuesIn(SIGNATURE_ALGORITHM_TEST_INFO));
 
 } // unnamed namespace

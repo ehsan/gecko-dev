@@ -7,7 +7,7 @@
 #ifndef proxy_ScriptedDirectProxyHandler_h
 #define proxy_ScriptedDirectProxyHandler_h
 
-#include "js/Proxy.h"
+#include "jsproxy.h"
 
 namespace js {
 

@@ -82,7 +82,8 @@ BackCert::Init()
   // XXX: Ignored. What are we supposed to check? This seems totally redundant
   // with Certificate.signatureAlgorithm. Is it important to check that they
   // are consistent with each other? It doesn't seem to matter!
-  rv = der::ExpectTagAndGetValue(tbsCertificate, der::SEQUENCE, signature);
+  SignatureAlgorithm signature;
+  rv = der::SignatureAlgorithmIdentifier(tbsCertificate, signature);
   if (rv != Success) {
     return rv;
   }
@@ -102,6 +103,13 @@ BackCert::Init()
   if (rv != Success) {
     return rv;
   }
+  // TODO(bug XXXXXXX): We defer parsing/validating subjectPublicKeyInfo to
+  // the point where the public key is needed. For end-entity certificates, we
+  // assume that the caller will extract the public key and use it somehow; if
+  // they don't do that then we'll never know whether the key is invalid. On
+  // the other hand, if the caller never uses the key then in some ways it
+  // doesn't matter. Regardless, we should parse and validate
+  // subjectPublicKeyKeyInfo internally.
   rv = der::ExpectTagAndGetTLV(tbsCertificate, der::SEQUENCE,
                                subjectPublicKeyInfo);
   if (rv != Success) {

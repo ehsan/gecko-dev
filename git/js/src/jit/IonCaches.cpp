@@ -8,6 +8,7 @@
 
 #include "mozilla/TemplateLib.h"
 
+#include "jsproxy.h"
 #include "jstypes.h"
 
 #include "builtin/TypedObject.h"
@@ -21,7 +22,6 @@
 # include "jit/PerfSpewer.h"
 #endif
 #include "jit/VMFunctions.h"
-#include "js/Proxy.h"
 #include "vm/Shape.h"
 
 #include "jit/JitFrames-inl.h"

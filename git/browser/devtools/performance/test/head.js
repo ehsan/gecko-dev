@@ -262,10 +262,6 @@ function click (win, button) {
   EventUtils.sendMouseEvent({ type: "click" }, button, win);
 }
 
-function mousedown (win, button) {
-  EventUtils.sendMouseEvent({ type: "mousedown" }, button, win);
-}
-
 function* startRecording(panel) {
   let win = panel.panelWin;
   let clicked = panel.panelWin.PerformanceView.once(win.EVENTS.UI_START_RECORDING);

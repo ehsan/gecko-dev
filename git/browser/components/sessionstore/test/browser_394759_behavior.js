@@ -39,23 +39,11 @@ function test() {
     let url = "http://example.com/?window=" + windowsToOpen.length;
 
     provideWindow(function onTestURLLoaded(win) {
-      let tabReady = () => {
-        win.close();
-        // Give it time to close
-        executeSoon(function() {
-          openWindowRec(windowsToOpen, expectedResults, recCallback);
-        });
-      };
-
-      if (win.gMultiProcessBrowser) {
-        let tab = win.gBrowser.selectedTab;
-        tab.addEventListener("SSTabRestored", function onTabRestored() {
-          tab.removeEventListener("SSTabRestored", onTabRestored);
-          tabReady();
-        });
-      } else {
-        tabReady();
-      }
+      win.close();
+      // Give it time to close
+      executeSoon(function() {
+        openWindowRec(windowsToOpen, expectedResults, recCallback);
+      });
     }, url, settings);
   }
 

@@ -169,12 +169,14 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
   , mRemoteFrame(false)
   , mClipSubdocument(true)
   , mClampScrollPosition(true)
+  , mRemoteBrowserInitialized(false)
   , mObservingOwnerContent(false)
   , mVisible(true)
   , mCurrentRemoteFrame(nullptr)
   , mRemoteBrowser(nullptr)
   , mChildID(0)
   , mEventMode(EVENT_MODE_NORMAL_DISPATCH)
+  , mPendingFrameSent(false)
 {
   ResetPermissionManagerStatus();
 }
@@ -361,6 +363,15 @@ nsFrameLoader::ReallyStartLoadingInternal()
 
   if (mRemoteFrame) {
     if (!mRemoteBrowser) {
+      if (!mPendingFrameSent) {
+        nsCOMPtr<nsIObserverService> os = services::GetObserverService();
+        if (os && !mRemoteBrowserInitialized) {
+          os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
+                              "remote-browser-pending", nullptr);
+          mPendingFrameSent = true;
+        }
+      }
+
       TryRemoteBrowser();
 
       if (!mRemoteBrowser) {
@@ -902,11 +913,16 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size,
 
     EnsureMessageManager();
 
-    InitializeBrowserAPI();
     nsCOMPtr<nsIObserverService> os = services::GetObserverService();
-    if (os) {
+    if (os && !mRemoteBrowserInitialized) {
+      if (!mPendingFrameSent) {
+        os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
+                            "remote-browser-pending", nullptr);
+        mPendingFrameSent = true;
+      }
       os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
                           "remote-browser-shown", nullptr);
+      mRemoteBrowserInitialized = true;
     }
   } else {
     nsIntRect dimensions;
@@ -1769,7 +1785,6 @@ nsFrameLoader::MaybeCreateDocShell()
     mDocShell->SetIsBrowserInsideApp(containingAppId);
   }
 
-  InitializeBrowserAPI();
   nsCOMPtr<nsIObserverService> os = services::GetObserverService();
   if (os) {
     os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
@@ -2190,6 +2205,7 @@ nsFrameLoader::TryRemoteBrowser()
                                    eCaseMatters)) {
       unused << mRemoteBrowser->SendSetUpdateHitRegion(true);
     }
+    parentDocShell->SetOpenedRemote(mRemoteBrowser);
   }
   return true;
 }
@@ -2732,13 +2748,4 @@ nsFrameLoader::GetLoadContext(nsILoadContext** aLoadContext)
   }
   loadContext.forget(aLoadContext);
   return NS_OK;
-}
-
-void
-nsFrameLoader::InitializeBrowserAPI()
-{
-  nsCOMPtr<nsIMozBrowserFrame> browserFrame = do_QueryInterface(mOwnerContent);
-  if (browserFrame) {
-    browserFrame->InitializeBrowserAPI();
-  }
 }

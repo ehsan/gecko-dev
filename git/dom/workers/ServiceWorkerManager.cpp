@@ -1996,7 +1996,7 @@ ServiceWorkerManager::CreateServiceWorker(const nsACString& aScriptSpec,
   }
 
   nsRefPtr<ServiceWorker> serviceWorker;
-  RuntimeService* rs = RuntimeService::GetOrCreateService();
+  RuntimeService* rs = RuntimeService::GetService();
   if (!rs) {
     return NS_ERROR_FAILURE;
   }

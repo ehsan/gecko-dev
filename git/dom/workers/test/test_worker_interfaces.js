@@ -35,7 +35,7 @@ var ecmaGlobals =
     "Int32Array",
     "Int8Array",
     "InternalError",
-    {name: "Intl", b2g: false, android: false},
+    {name: "Intl", desktop: true},
     "Iterator",
     "JSON",
     "Map",
@@ -167,11 +167,11 @@ var interfaceNamesInGlobalScope =
   ];
 // IMPORTANT: Do not change the list above without review from a DOM peer!
 
-function createInterfaceMap(prefMap, permissionMap, version, userAgent, isB2G) {
+function createInterfaceMap(prefMap, permissionMap, version, userAgent) {
   var isNightly = version.endsWith("a1");
   var isRelease = !version.contains("a");
   var isDesktop = !/Mobile|Tablet/.test(userAgent);
-  var isAndroid = !!navigator.userAgent.contains("Android");
+  var isB2G = !isDesktop && !userAgent.contains("Android");
 
   var interfaceMap = {};
 
@@ -182,7 +182,6 @@ function createInterfaceMap(prefMap, permissionMap, version, userAgent, isB2G) {
         interfaceMap[entry] = true;
       } else if ((entry.nightly === !isNightly) ||
                  (entry.desktop === !isDesktop) ||
-                 (entry.android === !isAndroid) ||
                  (entry.b2g === !isB2G) ||
                  (entry.release === !isRelease) ||
                  (entry.pref && !prefMap[entry.pref])  ||
@@ -200,8 +199,8 @@ function createInterfaceMap(prefMap, permissionMap, version, userAgent, isB2G) {
   return interfaceMap;
 }
 
-function runTest(prefMap, permissionMap, version, userAgent, isB2G) {
-  var interfaceMap = createInterfaceMap(prefMap, permissionMap, version, userAgent, isB2G);
+function runTest(prefMap, permissionMap, version, userAgent) {
+  var interfaceMap = createInterfaceMap(prefMap, permissionMap, version, userAgent);
   for (var name of Object.getOwnPropertyNames(self)) {
     // An interface name should start with an upper case character.
     if (!/^[A-Z]/.test(name)) {
@@ -253,10 +252,8 @@ workerTestGetPrefs(prefs, function(prefMap) {
   workerTestGetPermissions(permissions, function(permissionMap) {
     workerTestGetVersion(function(version) {
       workerTestGetUserAgent(function(userAgent) {
-        workerTestGetIsB2G(function(isB2G) {
-          runTest(prefMap, permissionMap, version, userAgent, isB2G);
-          workerTestDone();
-	});
+        runTest(prefMap, permissionMap, version, userAgent);
+        workerTestDone();
       });
     });
   });

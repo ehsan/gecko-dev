@@ -1455,12 +1455,7 @@ Engine.prototype = {
 
     LOG("_initFromURIAndLoad: Downloading engine from: \"" + this._uri.spec + "\".");
 
-    var chan = NetUtil.ioService.newChannelFromURI2(this._uri,
-                                                    null,      // aLoadingNode
-                                                    Services.scriptSecurityManager.getSystemPrincipal(),
-                                                    null,      // aTriggeringPrincipal
-                                                    Ci.nsILoadInfo.SEC_NORMAL,
-                                                    Ci.nsIContentPolicy.TYPE_OTHER);
+    var chan = NetUtil.ioService.newChannelFromURI(this._uri);
 
     if (this._engineToUpdate && (chan instanceof Ci.nsIHttpChannel)) {
       var lastModified = engineMetadataService.getAttr(this._engineToUpdate,
@@ -1523,12 +1518,7 @@ Engine.prototype = {
 
     LOG("_initFromURISync: Loading engine from: \"" + this._uri.spec + "\".");
 
-    var chan = NetUtil.ioService.newChannelFromURI2(this._uri,
-                                                    null,      // aLoadingNode
-                                                    Services.scriptSecurityManager.getSystemPrincipal(),
-                                                    null,      // aTriggeringPrincipal
-                                                    Ci.nsILoadInfo.SEC_NORMAL,
-                                                    Ci.nsIContentPolicy.TYPE_OTHER);
+    var chan = NetUtil.ioService.newChannelFromURI(this._uri);
 
     var stream = chan.open();
     var parser = Cc["@mozilla.org/xmlextras/domparser;1"].
@@ -1845,12 +1835,7 @@ Engine.prototype = {
             getBoolPref(BROWSER_SEARCH_PREF + "cache.enabled", true)) {
           LOG("_setIcon: Downloading icon: \"" + uri.spec +
               "\" for engine: \"" + this.name + "\"");
-          var chan = NetUtil.ioService.newChannelFromURI2(uri,
-                                                          null,      // aLoadingNode
-                                                          Services.scriptSecurityManager.getSystemPrincipal(),
-                                                          null,      // aTriggeringPrincipal
-                                                          Ci.nsILoadInfo.SEC_NORMAL,
-                                                          Ci.nsIContentPolicy.TYPE_IMAGE);
+          var chan = NetUtil.ioService.newChannelFromURI(uri);
 
           let iconLoadCallback = function (aByteArray, aEngine) {
             // This callback may run after we've already set a preferred icon,
@@ -3885,12 +3870,7 @@ SearchService.prototype = {
       let listURL = root + "list.txt";
       let names = [];
       try {
-        let chan = NetUtil.ioService.newChannelFromURI2(makeURI(listURL),
-                                                        null,      // aLoadingNode
-                                                        Services.scriptSecurityManager.getSystemPrincipal(),
-                                                        null,      // aTriggeringPrincipal
-                                                        Ci.nsILoadInfo.SEC_NORMAL,
-                                                        Ci.nsIContentPolicy.TYPE_OTHER);
+        let chan = NetUtil.ioService.newChannelFromURI(makeURI(listURL));
         let sis = Cc["@mozilla.org/scriptableinputstream;1"].
                   createInstance(Ci.nsIScriptableInputStream);
         sis.init(chan.open());
@@ -4951,12 +4931,7 @@ var engineMetadataService = {
         if (jsonFile.exists()) {
           try {
             let uri = Services.io.newFileURI(jsonFile);
-            let stream = Services.io.newChannelFromURI2(uri,
-                                                        null,      // aLoadingNode
-                                                        Services.scriptSecurityManager.getSystemPrincipal(),
-                                                        null,      // aTriggeringPrincipal
-                                                        Ci.nsILoadInfo.SEC_NORMAL,
-                                                        Ci.nsIContentPolicy.TYPE_OTHER).open();
+            let stream = Services.io.newChannelFromURI(uri).open();
             this._store = parseJsonFromStream(stream);
           } catch (x) {
             LOG("metadata syncInit: could not load JSON file " + x);

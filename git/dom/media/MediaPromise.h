@@ -62,10 +62,6 @@ public:
   typedef RejectValueT RejectValueType;
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaPromise)
-
-protected:
-  // MediaPromise is the public type, and never constructed directly. Construct
-  // a MediaPromise::Private, defined below.
   explicit MediaPromise(const char* aCreationSite)
     : mCreationSite(aCreationSite)
     , mMutex("MediaPromise Mutex")
@@ -74,30 +70,20 @@ protected:
     PROMISE_LOG("%s creating MediaPromise (%p)", mCreationSite, this);
   }
 
-public:
-  // MediaPromise::Private allows us to separate the public interface (upon which
-  // consumers of the promise may invoke methods like Then()) from the private
-  // interface (upon which the creator of the promise may invoke Resolve() or
-  // Reject()). APIs should create and store a MediaPromise::Private (usually
-  // via a MediaPromiseHolder), and return a MediaPromise to consumers.
-  //
-  // NB: We can include the definition of this class inline once B2G ICS is gone.
-  class Private;
-
   static nsRefPtr<MediaPromise>
   CreateAndResolve(ResolveValueType aResolveValue, const char* aResolveSite)
   {
-    nsRefPtr<typename MediaPromise::Private> p = new MediaPromise::Private(aResolveSite);
+    nsRefPtr<MediaPromise> p = new MediaPromise(aResolveSite);
     p->Resolve(aResolveValue, aResolveSite);
-    return Move(p);
+    return p;
   }
 
   static nsRefPtr<MediaPromise>
   CreateAndReject(RejectValueType aRejectValue, const char* aRejectSite)
   {
-    nsRefPtr<typename MediaPromise::Private> p = new MediaPromise::Private(aRejectSite);
+    nsRefPtr<MediaPromise> p = new MediaPromise(aRejectSite);
     p->Reject(aRejectValue, aRejectSite);
-    return Move(p);
+    return p;
   }
 
   class Consumer
@@ -342,12 +328,12 @@ public:
     return;
   }
 
-  void ChainTo(already_AddRefed<Private> aChainedPromise, const char* aCallSite)
+  void ChainTo(already_AddRefed<MediaPromise> aChainedPromise, const char* aCallSite)
   {
     MutexAutoLock lock(mMutex);
     MOZ_DIAGNOSTIC_ASSERT(!IsExclusive || !mHaveConsumer);
     mHaveConsumer = true;
-    nsRefPtr<Private> chainedPromise = aChainedPromise;
+    nsRefPtr<MediaPromise> chainedPromise = aChainedPromise;
     PROMISE_LOG("%s invoking Chain() [this=%p, chainedPromise=%p, isPending=%d]",
                 aCallSite, this, chainedPromise.get(), (int) IsPending());
     if (!IsPending()) {
@@ -355,6 +341,24 @@ public:
     } else {
       mChainedPromises.AppendElement(chainedPromise);
     }
+  }
+
+  void Resolve(ResolveValueType aResolveValue, const char* aResolveSite)
+  {
+    MutexAutoLock lock(mMutex);
+    MOZ_ASSERT(IsPending());
+    PROMISE_LOG("%s resolving MediaPromise (%p created at %s)", aResolveSite, this, mCreationSite);
+    mResolveValue.emplace(aResolveValue);
+    DispatchAll();
+  }
+
+  void Reject(RejectValueType aRejectValue, const char* aRejectSite)
+  {
+    MutexAutoLock lock(mMutex);
+    MOZ_ASSERT(IsPending());
+    PROMISE_LOG("%s rejecting MediaPromise (%p created at %s)", aRejectSite, this, mCreationSite);
+    mRejectValue.emplace(aRejectValue);
+    DispatchAll();
   }
 
 protected:
@@ -373,7 +377,7 @@ protected:
     mChainedPromises.Clear();
   }
 
-  void ForwardTo(Private* aOther)
+  void ForwardTo(MediaPromise* aOther)
   {
     MOZ_ASSERT(!IsPending());
     if (mResolveValue.isSome()) {
@@ -396,34 +400,8 @@ protected:
   Maybe<ResolveValueType> mResolveValue;
   Maybe<RejectValueType> mRejectValue;
   nsTArray<nsRefPtr<ThenValueBase>> mThenValues;
-  nsTArray<nsRefPtr<Private>> mChainedPromises;
+  nsTArray<nsRefPtr<MediaPromise>> mChainedPromises;
   bool mHaveConsumer;
-};
-
-template<typename ResolveValueT, typename RejectValueT, bool IsExclusive>
-class MediaPromise<ResolveValueT, RejectValueT, IsExclusive>::Private
-  : public MediaPromise<ResolveValueT, RejectValueT, IsExclusive>
-{
-public:
-  explicit Private(const char* aCreationSite) : MediaPromise(aCreationSite) {}
-
-  void Resolve(ResolveValueT aResolveValue, const char* aResolveSite)
-  {
-    MutexAutoLock lock(mMutex);
-    MOZ_ASSERT(IsPending());
-    PROMISE_LOG("%s resolving MediaPromise (%p created at %s)", aResolveSite, this, mCreationSite);
-    mResolveValue.emplace(aResolveValue);
-    DispatchAll();
-  }
-
-  void Reject(RejectValueT aRejectValue, const char* aRejectSite)
-  {
-    MutexAutoLock lock(mMutex);
-    MOZ_ASSERT(IsPending());
-    PROMISE_LOG("%s rejecting MediaPromise (%p created at %s)", aRejectSite, this, mCreationSite);
-    mRejectValue.emplace(aRejectValue);
-    DispatchAll();
-  }
 };
 
 /*
@@ -444,9 +422,9 @@ public:
       mMonitor->AssertCurrentThreadOwns();
     }
     if (!mPromise) {
-      mPromise = new (typename PromiseType::Private)(aMethodName);
+      mPromise = new PromiseType(aMethodName);
     }
-    nsRefPtr<PromiseType> p = mPromise.get();
+    nsRefPtr<PromiseType> p = mPromise;
     return p.forget();
   }
 
@@ -461,13 +439,13 @@ public:
     return !mPromise;
   }
 
-  already_AddRefed<typename PromiseType::Private> Steal()
+  already_AddRefed<PromiseType> Steal()
   {
     if (mMonitor) {
       mMonitor->AssertCurrentThreadOwns();
     }
 
-    nsRefPtr<typename PromiseType::Private> p = mPromise;
+    nsRefPtr<PromiseType> p = mPromise;
     mPromise = nullptr;
     return p.forget();
   }
@@ -512,7 +490,7 @@ public:
 
 private:
   Monitor* mMonitor;
-  nsRefPtr<typename PromiseType::Private> mPromise;
+  nsRefPtr<PromiseType> mPromise;
 };
 
 /*
@@ -612,7 +590,7 @@ template<typename PromiseType>
 class ProxyRunnable : public nsRunnable
 {
 public:
-  ProxyRunnable(typename PromiseType::Private* aProxyPromise, MethodCallBase<PromiseType>* aMethodCall)
+  ProxyRunnable(PromiseType* aProxyPromise, MethodCallBase<PromiseType>* aMethodCall)
     : mProxyPromise(aProxyPromise), mMethodCall(aMethodCall) {}
 
   NS_IMETHODIMP Run()
@@ -624,7 +602,7 @@ public:
   }
 
 private:
-  nsRefPtr<typename PromiseType::Private> mProxyPromise;
+  nsRefPtr<PromiseType> mProxyPromise;
   nsAutoPtr<MethodCallBase<PromiseType>> mMethodCall;
 };
 
@@ -632,11 +610,11 @@ template<typename PromiseType, typename TargetType>
 static nsRefPtr<PromiseType>
 ProxyInternal(TargetType* aTarget, MethodCallBase<PromiseType>* aMethodCall, const char* aCallerName)
 {
-  nsRefPtr<typename PromiseType::Private> p = new (typename PromiseType::Private)(aCallerName);
+  nsRefPtr<PromiseType> p = new PromiseType(aCallerName);
   nsRefPtr<ProxyRunnable<PromiseType>> r = new ProxyRunnable<PromiseType>(p, aMethodCall);
   nsresult rv = detail::DispatchMediaPromiseRunnable(aTarget, r);
   MOZ_DIAGNOSTIC_ASSERT(NS_SUCCEEDED(rv));
-  return Move(p);
+  return p;
 }
 
 } // namespace detail

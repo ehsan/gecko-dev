@@ -10,7 +10,7 @@
 #include "mozilla/Likely.h"
 
 #include "jsapi.h"
-#include "js/Proxy.h"
+#include "jsproxy.h"
 #include "nsString.h"
 
 #define DOM_PROXY_OBJECT_SLOT js::PROXY_PRIVATE_SLOT

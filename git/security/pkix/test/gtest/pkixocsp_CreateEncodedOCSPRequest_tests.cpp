@@ -22,7 +22,7 @@
  * limitations under the License.
  */
 
-#include "pkixgtest.h"
+#include "gtest/gtest.h"
 #include "pkix/pkix.h"
 #include "pkixder.h"
 #include "pkixtestutil.h"
@@ -59,33 +59,19 @@ private:
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result DigestBuf(Input item, DigestAlgorithm digestAlg,
-                   /*out*/ uint8_t *digestBuf, size_t digestBufLen)
+  Result VerifySignedData(const SignedDataWithSignature&, Input) override
+  {
+    ADD_FAILURE();
+    return Result::FATAL_ERROR_LIBRARY_FAILURE;
+  }
+
+  Result DigestBuf(Input item, /*out*/ uint8_t *digestBuf, size_t digestBufLen)
                    override
   {
-    return TestDigestBuf(item, digestAlg, digestBuf, digestBufLen);
+    return TestDigestBuf(item, digestBuf, digestBufLen);
   }
 
-  Result CheckRSAPublicKeyModulusSizeInBits(EndEntityOrCA, unsigned int)
-                                            final override
-  {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  Result VerifyRSAPKCS1SignedDigest(const SignedDigest&, Input) override
-  {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  Result CheckECDSACurveIsAcceptable(EndEntityOrCA, NamedCurve) final override
-  {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  Result VerifyECDSASignedDigest(const SignedDigest&, Input) override
+  Result CheckPublicKey(Input subjectPublicKeyInfo) override
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;

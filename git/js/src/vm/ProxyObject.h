@@ -7,7 +7,8 @@
 #ifndef vm_ProxyObject_h
 #define vm_ProxyObject_h
 
-#include "js/Proxy.h"
+#include "jsproxy.h"
+
 #include "vm/NativeObject.h"
 
 namespace js {

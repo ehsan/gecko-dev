@@ -109,11 +109,6 @@ GMPStorageChild::CreateRecord(const nsCString& aRecordName,
   }
 
   MOZ_ASSERT(aRecordName.Length() && aOutRecord);
-
-  if (HasRecord(aRecordName)) {
-    return GMPRecordInUse;
-  }
-
   nsRefPtr<GMPRecordImpl> record(new GMPRecordImpl(this, aRecordName, aClient));
   mRecords.Put(aRecordName, record); // Addrefs
 

@@ -190,7 +190,7 @@ TrackBuffer::AppendData(LargeDataBuffer* aData, int64_t aTimestampOffset)
     if (!gotInit) {
       // We need a new decoder, but we can't initialize it yet.
       nsRefPtr<SourceBufferDecoder> decoder =
-        NewDecoder(aTimestampOffset);
+        NewDecoder(aTimestampOffset - mAdjustedTimestamp);
       // The new decoder is stored in mDecoders/mCurrentDecoder, so we
       // don't need to do anything with 'decoder'. It's only a placeholder.
       if (!decoder) {
@@ -198,7 +198,7 @@ TrackBuffer::AppendData(LargeDataBuffer* aData, int64_t aTimestampOffset)
         return p;
       }
     } else {
-      if (!decoders.NewDecoder(aTimestampOffset)) {
+      if (!decoders.NewDecoder(aTimestampOffset - mAdjustedTimestamp)) {
         mInitializationPromise.Reject(NS_ERROR_FAILURE, __func__);
         return p;
       }
@@ -211,7 +211,7 @@ TrackBuffer::AppendData(LargeDataBuffer* aData, int64_t aTimestampOffset)
   }
 
   if (gotMedia) {
-    if (mParser->IsMediaSegmentPresent(aData) && mLastEndTimestamp &&
+    if (mLastEndTimestamp &&
         (!mParser->TimestampsFuzzyEqual(start, mLastEndTimestamp.value()) ||
          mLastTimestampOffset != aTimestampOffset ||
          mDecoderPerSegment ||
@@ -224,7 +224,7 @@ TrackBuffer::AppendData(LargeDataBuffer* aData, int64_t aTimestampOffset)
         // processed or not continuous, so we must create a new decoder
         // to handle the decoding.
         if (!hadCompleteInitData ||
-            !decoders.NewDecoder(aTimestampOffset)) {
+            !decoders.NewDecoder(aTimestampOffset - mAdjustedTimestamp)) {
           mInitializationPromise.Reject(NS_ERROR_FAILURE, __func__);
           return p;
         }
@@ -240,9 +240,8 @@ TrackBuffer::AppendData(LargeDataBuffer* aData, int64_t aTimestampOffset)
     mLastEndTimestamp.emplace(end);
   }
 
-  if (gotMedia && start != mAdjustedTimestamp &&
-      ((start < 0 && -start < FUZZ_TIMESTAMP_OFFSET && start < mAdjustedTimestamp) ||
-       (start > 0 && (start < FUZZ_TIMESTAMP_OFFSET || start < mAdjustedTimestamp)))) {
+  if (gotMedia && start > 0 &&
+      (start < FUZZ_TIMESTAMP_OFFSET || start < mAdjustedTimestamp)) {
     AdjustDecodersTimestampOffset(mAdjustedTimestamp - start);
     mAdjustedTimestamp = start;
   }
@@ -256,12 +255,11 @@ TrackBuffer::AppendData(LargeDataBuffer* aData, int64_t aTimestampOffset)
     // We're going to have to wait for the decoder to initialize, the promise
     // will be resolved once initialization completes.
     return p;
+  } else if (gotMedia) {
+    // Tell our reader that we have more data to ensure that playback starts if
+    // required when data is appended.
+    mParentDecoder->GetReader()->MaybeNotifyHaveData();
   }
-
-  // Tell our reader that we have more data to ensure that playback starts if
-  // required when data is appended.
-  mParentDecoder->GetReader()->MaybeNotifyHaveData();
-
   mInitializationPromise.Resolve(gotMedia, __func__);
   return p;
 }
@@ -457,8 +455,7 @@ TrackBuffer::NewDecoder(int64_t aTimestampOffset)
 
   DiscardCurrentDecoder();
 
-  nsRefPtr<SourceBufferDecoder> decoder =
-    mParentDecoder->CreateSubDecoder(mType, aTimestampOffset - mAdjustedTimestamp);
+  nsRefPtr<SourceBufferDecoder> decoder = mParentDecoder->CreateSubDecoder(mType, aTimestampOffset);
   if (!decoder) {
     return nullptr;
   }

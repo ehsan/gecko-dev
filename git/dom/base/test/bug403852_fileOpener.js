@@ -11,7 +11,5 @@ addMessageListener("file.open", function () {
   sendAsyncMessage("file.opened", {
     file: new File(testFile),
     mtime: testFile.lastModifiedTime,
-    fileWithDate: new File(testFile, { lastModified: 123 }),
-    fileDate: 123,
   });
 });

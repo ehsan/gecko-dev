@@ -78,12 +78,7 @@ Protocol.prototype = {
     let {url} = parseURI(aURI);
     let file = PageThumbsStorage.getFilePathForURL(url);
     let fileuri = Services.io.newFileURI(new FileUtils.File(file));
-    return Services.io.newChannelFromURI2(fileuri,
-                                          null,      // aLoadingNode
-                                          Services.scriptSecurityManager.getSystemPrincipal(),
-                                          null,      // aTriggeringPrincipal
-                                          Ci.nsILoadInfo.SEC_NORMAL,
-                                          Ci.nsIContentPolicy.TYPE_IMAGE);
+    return Services.io.newChannelFromURI(fileuri);
   },
 
   /**

@@ -9,7 +9,7 @@
 
 #include "mozilla/Attributes.h"
 
-#include "js/Proxy.h"
+#include "jsproxy.h"
 
 namespace js {
 

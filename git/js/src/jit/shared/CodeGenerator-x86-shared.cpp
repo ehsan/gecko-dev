@@ -2657,13 +2657,13 @@ CodeGeneratorX86Shared::visitSimdBinaryArithIx4(LSimdBinaryArithIx4 *ins)
 
     MSimdBinaryArith::Operation op = ins->operation();
     switch (op) {
-      case MSimdBinaryArith::Op_add:
+      case MSimdBinaryArith::Add:
         masm.vpaddd(rhs, lhs, output);
         return;
-      case MSimdBinaryArith::Op_sub:
+      case MSimdBinaryArith::Sub:
         masm.vpsubd(rhs, lhs, output);
         return;
-      case MSimdBinaryArith::Op_mul: {
+      case MSimdBinaryArith::Mul: {
         if (AssemblerX86Shared::HasSSE41()) {
             masm.vpmulld(rhs, lhs, output);
             return;
@@ -2684,19 +2684,19 @@ CodeGeneratorX86Shared::visitSimdBinaryArithIx4(LSimdBinaryArithIx4 *ins)
         masm.vshufps(MacroAssembler::ComputeShuffleMask(LaneZ, LaneX, LaneW, LaneY), lhs, lhs, lhs);
         return;
       }
-      case MSimdBinaryArith::Op_div:
+      case MSimdBinaryArith::Div:
         // x86 doesn't have SIMD i32 div.
         break;
-      case MSimdBinaryArith::Op_max:
+      case MSimdBinaryArith::Max:
         // we can do max with a single instruction only if we have SSE4.1
         // using the PMAXSD instruction.
         break;
-      case MSimdBinaryArith::Op_min:
+      case MSimdBinaryArith::Min:
         // we can do max with a single instruction only if we have SSE4.1
         // using the PMINSD instruction.
         break;
-      case MSimdBinaryArith::Op_minNum:
-      case MSimdBinaryArith::Op_maxNum:
+      case MSimdBinaryArith::MinNum:
+      case MSimdBinaryArith::MaxNum:
         break;
     }
     MOZ_CRASH("unexpected SIMD op");
@@ -2711,19 +2711,19 @@ CodeGeneratorX86Shared::visitSimdBinaryArithFx4(LSimdBinaryArithFx4 *ins)
 
     MSimdBinaryArith::Operation op = ins->operation();
     switch (op) {
-      case MSimdBinaryArith::Op_add:
+      case MSimdBinaryArith::Add:
         masm.vaddps(rhs, lhs, output);
         return;
-      case MSimdBinaryArith::Op_sub:
+      case MSimdBinaryArith::Sub:
         masm.vsubps(rhs, lhs, output);
         return;
-      case MSimdBinaryArith::Op_mul:
+      case MSimdBinaryArith::Mul:
         masm.vmulps(rhs, lhs, output);
         return;
-      case MSimdBinaryArith::Op_div:
+      case MSimdBinaryArith::Div:
         masm.vdivps(rhs, lhs, output);
         return;
-      case MSimdBinaryArith::Op_max: {
+      case MSimdBinaryArith::Max: {
         FloatRegister lhsCopy = masm.reusedInputFloat32x4(lhs, ScratchSimdReg);
         masm.vcmpunordps(rhs, lhsCopy, ScratchSimdReg);
 
@@ -2736,14 +2736,14 @@ CodeGeneratorX86Shared::visitSimdBinaryArithFx4(LSimdBinaryArithFx4 *ins)
         masm.vorps(ScratchSimdReg, output, output); // or in the all-ones NaNs
         return;
       }
-      case MSimdBinaryArith::Op_min: {
+      case MSimdBinaryArith::Min: {
         FloatRegister rhsCopy = masm.reusedInputAlignedFloat32x4(rhs, ScratchSimdReg);
         masm.vminps(Operand(lhs), rhsCopy, ScratchSimdReg);
         masm.vminps(rhs, lhs, output);
         masm.vorps(ScratchSimdReg, output, output); // NaN or'd with arbitrary bits is NaN
         return;
       }
-      case MSimdBinaryArith::Op_minNum: {
+      case MSimdBinaryArith::MinNum: {
         FloatRegister tmp = ToFloatRegister(ins->temp());
         masm.loadConstantInt32x4(SimdConstant::SplatX4(int32_t(0x80000000)), tmp);
 
@@ -2773,7 +2773,7 @@ CodeGeneratorX86Shared::visitSimdBinaryArithFx4(LSimdBinaryArithFx4 *ins)
         }
         return;
       }
-      case MSimdBinaryArith::Op_maxNum: {
+      case MSimdBinaryArith::MaxNum: {
         FloatRegister mask = ScratchSimdReg;
         masm.loadConstantInt32x4(SimdConstant::SplatX4(0), mask);
         masm.vpcmpeqd(Operand(lhs), mask, mask);

@@ -2922,30 +2922,24 @@ ArenaLists::queueForegroundThingsForSweep(FreeOp *fop)
     gcScriptArenasToUpdate = arenaListsToSweep[FINALIZE_SCRIPT];
 }
 
-/* static */ void *
-GCRuntime::tryRefillFreeListFromMainThread(JSContext *cx, AllocKind thingKind)
+static void *
+RunLastDitchGC(JSContext *cx, JS::Zone *zone, AllocKind thingKind)
 {
-    ArenaLists *arenas = cx->arenas();
-    Zone *zone = cx->zone();
+    PrepareZoneForGC(zone);
 
-    AutoMaybeStartBackgroundAllocation maybeStartBGAlloc;
+    JSRuntime *rt = cx->runtime();
 
-    void *thing = arenas->allocateFromArena(zone, thingKind, maybeStartBGAlloc);
-    if (MOZ_LIKELY(thing))
-        return thing;
+    /* The last ditch GC preserves all atoms. */
+    AutoKeepAtoms keepAtoms(cx->perThreadData);
+    rt->gc.gc(GC_NORMAL, JS::gcreason::LAST_DITCH);
 
-    // Even if allocateFromArena failed due to OOM, a background
-    // finalization or allocation task may be running freeing more memory
-    // or adding more available memory to our free pool; wait for them to
-    // finish, then try to allocate again in case they made more memory
-    // available.
-    cx->runtime()->gc.waitBackgroundSweepOrAllocEnd();
-
-    thing = arenas->allocateFromArena(zone, thingKind, maybeStartBGAlloc);
-    if (thing)
-        return thing;
-
-    return nullptr;
+    /*
+     * The JSGC_END callback can legitimately allocate new GC
+     * things and populate the free list. If that happens, just
+     * return that list head.
+     */
+    size_t thingSize = Arena::thingSize(thingKind);
+    return zone->arenas.allocateFromFreeList(thingKind, thingSize);
 }
 
 template <AllowGC allowGC>
@@ -2956,29 +2950,51 @@ GCRuntime::refillFreeListFromMainThread(JSContext *cx, AllocKind thingKind)
     MOZ_ASSERT(!rt->isHeapBusy(), "allocating while under GC");
     MOZ_ASSERT_IF(allowGC, !rt->currentThreadHasExclusiveAccess());
 
-    // Try to allocate; synchronize with background GC threads if necessary.
-    void *thing = tryRefillFreeListFromMainThread(cx, thingKind);
-    if (MOZ_LIKELY(thing))
-        return thing;
+    ArenaLists *arenas = cx->arenas();
+    Zone *zone = cx->zone();
 
-    // Perform a last-ditch GC to hopefully free up some memory.
-    {
-        // If we are doing a fallible allocation, percolate up the OOM
-        // instead of reporting it.
-        if (!allowGC)
-            return nullptr;
+    // If we have grown past our GC heap threshold while in the middle of an
+    // incremental GC, we're growing faster than we're GCing, so stop the world
+    // and do a full, non-incremental GC right now, if possible.
+    const bool mustCollectNow = allowGC && rt->gc.isIncrementalGCInProgress() &&
+                                zone->usage.gcBytes() > zone->threshold.gcTriggerBytes();
 
-        JS::PrepareZoneForGC(cx->zone());
-        AutoKeepAtoms keepAtoms(cx->perThreadData);
-        rt->gc.gc(GC_NORMAL, JS::gcreason::LAST_DITCH);
-    }
+    bool outOfMemory = false;  // Set true if we fail to allocate.
+    bool ranGC = false;  // Once we've GC'd and still cannot allocate, report.
+    do {
+        if (MOZ_UNLIKELY(mustCollectNow || outOfMemory)) {
+            // If we are doing a fallible allocation, percolate up the OOM
+            // instead of reporting it.
+            if (!allowGC) {
+                MOZ_ASSERT(!mustCollectNow);
+                return nullptr;
+            }
 
-    // Retry the allocation after the last-ditch GC.
-    thing = tryRefillFreeListFromMainThread(cx, thingKind);
-    if (thing)
-        return thing;
+            if (void *thing = RunLastDitchGC(cx, zone, thingKind))
+                return thing;
+            ranGC = true;
+        }
 
-    // We are really just totally out of memory.
+        AutoMaybeStartBackgroundAllocation maybeStartBGAlloc;
+        void *thing = arenas->allocateFromArena(zone, thingKind, maybeStartBGAlloc);
+        if (MOZ_LIKELY(thing))
+            return thing;
+
+        // Even if allocateFromArena failed due to OOM, a background
+        // finalization or allocation task may be running freeing more memory
+        // or adding more available memory to our free pool; wait for them to
+        // finish, then try to allocate again in case they made more memory
+        // available.
+        rt->gc.waitBackgroundSweepOrAllocEnd();
+
+        thing = arenas->allocateFromArena(zone, thingKind, maybeStartBGAlloc);
+        if (MOZ_LIKELY(thing))
+            return thing;
+
+        // Retry after a last-ditch GC, unless we've already tried that.
+        outOfMemory = true;
+    } while (!ranGC);
+
     MOZ_ASSERT(allowGC, "A fallible allocation must not report OOM on failure.");
     js_ReportOutOfMemory(cx);
     return nullptr;

@@ -257,7 +257,9 @@ CheckCertHostname(Input endEntityCertDER, Input hostname)
       return Result::ERROR_BAD_CERT_DOMAIN;
     case MatchResult::Match:
       return Success;
-    MOZILLA_PKIX_UNREACHABLE_DEFAULT_ENUM
+    default:
+      return NotReached("Invalid match result",
+                        Result::FATAL_ERROR_LIBRARY_FAILURE);
   }
 }
 
@@ -719,8 +721,10 @@ MatchPresentedIDWithReferenceID(GeneralNameType presentedIDType,
       return NotReached("unexpected nameType for SearchType::Match",
                         Result::FATAL_ERROR_INVALID_ARGS);
 
-    MOZILLA_PKIX_UNREACHABLE_DEFAULT_ENUM
- }
+    default:
+      return NotReached("Invalid nameType for MatchPresentedIDWithReferenceID",
+                        Result::FATAL_ERROR_INVALID_ARGS);
+  }
 
   if (rv != Success) {
     return rv;
@@ -896,11 +900,10 @@ CheckPresentedIDConformsToNameConstraintsSubtrees(
         case GeneralNameType::registeredID: // fall through
           return Result::ERROR_CERT_NOT_IN_NAME_SPACE;
 
-        case GeneralNameType::nameConstraints:
+        case GeneralNameType::nameConstraints: // fall through
+        default:
           return NotReached("invalid presentedIDType",
                             Result::FATAL_ERROR_LIBRARY_FAILURE);
-
-        MOZILLA_PKIX_UNREACHABLE_DEFAULT_ENUM
       }
 
       switch (subtreesType) {
@@ -916,6 +919,9 @@ CheckPresentedIDConformsToNameConstraintsSubtrees(
             return Result::ERROR_CERT_NOT_IN_NAME_SPACE;
           }
           break;
+        default:
+          return NotReached("unexpected subtreesType",
+                            Result::FATAL_ERROR_INVALID_ARGS);
       }
     }
   } while (!subtrees.AtEnd());
@@ -1136,7 +1142,8 @@ MatchPresentedDNSIDWithReferenceDNSID(
     }
 
     case IDRole::PresentedID: // fall through
-      return NotReached("IDRole::PresentedID is not a valid referenceDNSIDRole",
+    default:
+      return NotReached("invalid or unknown referenceDNSIDRole",
                         Result::FATAL_ERROR_INVALID_ARGS);
   }
 
@@ -1341,6 +1348,8 @@ MatchPresentedDirectoryNameWithConstraint(NameConstraintsSubtrees subtreesType,
       }
       matches = true;
       return Success;
+    default:
+      return NotReached("invalid subtrees", Result::FATAL_ERROR_INVALID_ARGS);
   }
 
   for (;;) {
@@ -1500,6 +1509,10 @@ MatchPresentedRFC822NameWithReferenceRFC822Name(Input presentedRFC822Name,
                AllowDotlessSubdomainMatches::No, IDRole::NameConstraint,
                referenceRFC822Name, matches);
     }
+
+    default:
+      return NotReached("invalid referenceRFC822NameRole",
+                        Result::FATAL_ERROR_INVALID_ARGS);
   }
 
   if (!IsValidRFC822Name(referenceRFC822Name)) {
@@ -1642,14 +1655,13 @@ FinishIPv6Address(/*in/out*/ uint8_t (&address)[16], int numComponents,
   }
 
   // Shift components that occur after the contraction over.
-  size_t componentsToMove = static_cast<size_t>(numComponents -
-                                                contractionIndex);
-  memmove(address + (2u * static_cast<size_t>(8 - componentsToMove)),
-          address + (2u * static_cast<size_t>(contractionIndex)),
+  int componentsToMove = numComponents - contractionIndex;
+  memmove(address + (2u * (8 - componentsToMove)),
+          address + (2u * contractionIndex),
           componentsToMove * 2u);
   // Fill in the contracted area with zeros.
-  memset(address + (2u * static_cast<size_t>(contractionIndex)), 0u,
-         (8u - static_cast<size_t>(numComponents)) * 2u);
+  memset(address + (2u * contractionIndex), 0u,
+         (8u - numComponents) * 2u);
 
   return true;
 }
@@ -1786,6 +1798,7 @@ ParseIPv6Address(Input hostname, /*out*/ uint8_t (&out)[16])
       if (contractionIndex != -1) {
         return false; // multiple contractions are not allowed.
       }
+      uint8_t b;
       if (input.Read(b) != Success || b != ':') {
         assert(false);
         return false;

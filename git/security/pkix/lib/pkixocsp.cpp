@@ -27,12 +27,7 @@
 #include "pkix/pkix.h"
 #include "pkixcheck.h"
 #include "pkixutil.h"
-
-namespace {
-
-const size_t SHA1_DIGEST_LENGTH = 160 / 8;
-
-} // unnamed namespace
+#include "pkixder.h"
 
 namespace mozilla { namespace pkix {
 
@@ -133,9 +128,8 @@ CheckOCSPResponseSignerCert(TrustDomain& trustDomain,
   }
 
   // TODO(bug 926260): check name constraints
-
-  rv = VerifySignedData(trustDomain, potentialSigner.GetSignedData(),
-                        issuerSubjectPublicKeyInfo);
+  rv = WrappedVerifySignedData(trustDomain, potentialSigner.GetSignedData(),
+                               issuerSubjectPublicKeyInfo);
 
   // TODO: check for revocation of the OCSP responder certificate unless no-check
   // or the caller forcing no-check. To properly support the no-check policy, we'd
@@ -156,7 +150,7 @@ static inline Result BasicResponse(Reader&, Context&);
 static inline Result ResponseData(
                        Reader& tbsResponseData,
                        Context& context,
-                       const der::SignedDataWithSignature& signedResponseData,
+                       const SignedDataWithSignature& signedResponseData,
                        const DERArray& certs);
 static inline Result SingleResponse(Reader& input, Context& context);
 static Result ExtensionNotUnderstood(Reader& extnID, Input extnValue,
@@ -201,16 +195,17 @@ MatchResponderID(TrustDomain& trustDomain,
                           potentialSignerSubjectPublicKeyInfo, match);
     }
 
-    MOZILLA_PKIX_UNREACHABLE_DEFAULT_ENUM
+    default:
+      return Result::ERROR_OCSP_MALFORMED_RESPONSE;
   }
 }
 
 static Result
 VerifyOCSPSignedData(TrustDomain& trustDomain,
-                     const der::SignedDataWithSignature& signedResponseData,
+                     const SignedDataWithSignature& signedResponseData,
                      Input spki)
 {
-  Result rv = VerifySignedData(trustDomain, signedResponseData, spki);
+  Result rv = WrappedVerifySignedData(trustDomain, signedResponseData, spki);
   if (rv == Result::ERROR_BAD_SIGNATURE) {
     rv = Result::ERROR_OCSP_BAD_SIGNATURE;
   }
@@ -226,7 +221,7 @@ VerifyOCSPSignedData(TrustDomain& trustDomain,
 static Result
 VerifySignature(Context& context, ResponderIDType responderIDType,
                 Input responderID, const DERArray& certs,
-                const der::SignedDataWithSignature& signedResponseData)
+                const SignedDataWithSignature& signedResponseData)
 {
   bool match;
   Result rv = MatchResponderID(context.trustDomain, responderIDType,
@@ -325,8 +320,9 @@ VerifyEncodedOCSPResponse(TrustDomain& trustDomain, const struct CertID& certID,
       return Result::ERROR_REVOKED_CERTIFICATE;
     case CertStatus::Unknown:
       return Result::ERROR_OCSP_UNKNOWN_CERT;
-     MOZILLA_PKIX_UNREACHABLE_DEFAULT_ENUM
   }
+
+  return NotReached("unknown CertStatus", Result::ERROR_OCSP_UNKNOWN_CERT);
 }
 
 // OCSPResponse ::= SEQUENCE {
@@ -397,7 +393,7 @@ Result
 BasicResponse(Reader& input, Context& context)
 {
   Reader tbsResponseData;
-  der::SignedDataWithSignature signedData;
+  SignedDataWithSignature signedData;
   Result rv = der::SignedData(input, tbsResponseData, signedData);
   if (rv != Success) {
     if (rv == Result::ERROR_BAD_SIGNATURE) {
@@ -454,7 +450,7 @@ BasicResponse(Reader& input, Context& context)
 //    responseExtensions  [1] EXPLICIT Extensions OPTIONAL }
 static inline Result
 ResponseData(Reader& input, Context& context,
-             const der::SignedDataWithSignature& signedResponseData,
+             const SignedDataWithSignature& signedResponseData,
              const DERArray& certs)
 {
   der::Version version;
@@ -724,16 +720,15 @@ CertID(Reader& input, const Context& context, /*out*/ bool& match)
     return Success;
   }
 
-  if (issuerNameHash.GetLength() != SHA1_DIGEST_LENGTH) {
+  if (issuerNameHash.GetLength() != TrustDomain::DIGEST_LENGTH) {
     return Result::ERROR_OCSP_MALFORMED_RESPONSE;
   }
 
   // From http://tools.ietf.org/html/rfc6960#section-4.1.1:
   // "The hash shall be calculated over the DER encoding of the
   // issuer's name field in the certificate being checked."
-  uint8_t hashBuf[SHA1_DIGEST_LENGTH];
-  rv = context.trustDomain.DigestBuf(context.certID.issuer,
-                                     DigestAlgorithm::sha1, hashBuf,
+  uint8_t hashBuf[TrustDomain::DIGEST_LENGTH];
+  rv = context.trustDomain.DigestBuf(context.certID.issuer, hashBuf,
                                      sizeof(hashBuf));
   if (rv != Success) {
     return rv;
@@ -763,10 +758,10 @@ static Result
 MatchKeyHash(TrustDomain& trustDomain, Input keyHash,
              const Input subjectPublicKeyInfo, /*out*/ bool& match)
 {
-  if (keyHash.GetLength() != SHA1_DIGEST_LENGTH)  {
+  if (keyHash.GetLength() != TrustDomain::DIGEST_LENGTH)  {
     return Result::ERROR_OCSP_MALFORMED_RESPONSE;
   }
-  static uint8_t hashBuf[SHA1_DIGEST_LENGTH];
+  static uint8_t hashBuf[TrustDomain::DIGEST_LENGTH];
   Result rv = KeyHash(trustDomain, subjectPublicKeyInfo, hashBuf,
                       sizeof hashBuf);
   if (rv != Success) {
@@ -782,7 +777,7 @@ Result
 KeyHash(TrustDomain& trustDomain, const Input subjectPublicKeyInfo,
         /*out*/ uint8_t* hashBuf, size_t hashBufSize)
 {
-  if (!hashBuf || hashBufSize != SHA1_DIGEST_LENGTH) {
+  if (!hashBuf || hashBufSize != TrustDomain::DIGEST_LENGTH) {
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
@@ -815,8 +810,7 @@ KeyHash(TrustDomain& trustDomain, const Input subjectPublicKeyInfo,
     return rv;
   }
 
-  return trustDomain.DigestBuf(subjectPublicKey, DigestAlgorithm::sha1,
-                               hashBuf, hashBufSize);
+  return trustDomain.DigestBuf(subjectPublicKey, hashBuf, hashBufSize);
 }
 
 Result
@@ -876,7 +870,7 @@ CreateEncodedOCSPRequest(TrustDomain& trustDomain, const struct CertID& certID,
     0x06, 0x05, 0x2B, 0x0E, 0x03, 0x02, 0x1A, //   OBJECT IDENTIFIER id-sha1
     0x05, 0x00,                               //   NULL
   };
-  static const uint8_t hashLen = 160 / 8;
+  static const uint8_t hashLen = TrustDomain::DIGEST_LENGTH;
 
   static const unsigned int totalLenWithoutSerialNumberData
     = 2                             // OCSPRequest
@@ -921,8 +915,7 @@ CreateEncodedOCSPRequest(TrustDomain& trustDomain, const struct CertID& certID,
   // reqCert.issuerNameHash (OCTET STRING)
   *d++ = 0x04;
   *d++ = hashLen;
-  Result rv = trustDomain.DigestBuf(certID.issuer, DigestAlgorithm::sha1, d,
-                                    hashLen);
+  Result rv = trustDomain.DigestBuf(certID.issuer, d, hashLen);
   if (rv != Success) {
     return rv;
   }

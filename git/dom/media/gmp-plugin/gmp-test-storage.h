@@ -52,7 +52,7 @@ public:
   virtual void OpenComplete(GMPErr aStatus, GMPRecord* aRecord) = 0;
 };
 
-void
+GMPErr
 GMPOpenRecord(const std::string& aRecordName,
               OpenContinuation* aContinuation);
 
