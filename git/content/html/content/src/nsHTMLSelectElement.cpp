@@ -1845,8 +1845,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // QueryInterface implementation for nsHTMLOptionCollection
 NS_INTERFACE_TABLE_HEAD(nsHTMLOptionCollection)
-  NS_INTERFACE_TABLE4(nsHTMLOptionCollection,
-                      nsIHTMLCollection,
+  NS_INTERFACE_TABLE3(nsHTMLOptionCollection,
                       nsIDOMNSHTMLOptionCollection,
                       nsIDOMHTMLOptionsCollection,
                       nsIDOMHTMLCollection)
@@ -1856,9 +1855,9 @@ NS_INTERFACE_MAP_END
 
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsHTMLOptionCollection,
-                                          nsIHTMLCollection)
+                                          nsIDOMNSHTMLOptionCollection)
 NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsHTMLOptionCollection,
-                                           nsIHTMLCollection)
+                                           nsIDOMNSHTMLOptionCollection)
 
 
 // nsIDOMNSHTMLOptionCollection interface
@@ -1948,15 +1947,11 @@ nsHTMLOptionCollection::SetSelectedIndex(PRInt32 aSelectedIndex)
 NS_IMETHODIMP
 nsHTMLOptionCollection::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  nsresult rv;
-  nsISupports* item = GetNodeAt(aIndex, &rv);
-  if (!item) {
-    *aReturn = nsnull;
+  nsIDOMHTMLOptionElement *option = mElements.SafeObjectAt(aIndex);
 
-    return rv;
-  }
+  NS_IF_ADDREF(*aReturn = option);
 
-  return CallQueryInterface(item, aReturn);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

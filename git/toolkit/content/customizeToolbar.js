@@ -56,19 +56,17 @@ function InitWithToolbox(aToolbox)
 {
   gToolbox = aToolbox;
   gToolboxDocument = gToolbox.ownerDocument;
-  gToolbox.customizing = true;
-
-  gToolbox.addEventListener("dragstart", onToolbarDragStart, false);
+  
+  gToolbox.addEventListener("draggesture", onToolbarDragGesture, false);
   gToolbox.addEventListener("dragover", onToolbarDragOver, false);
-  gToolbox.addEventListener("dragleave", onToolbarDragLeave, false);
-  gToolbox.addEventListener("drop", onToolbarDrop, false);
+  gToolbox.addEventListener("dragexit", onToolbarDragExit, false);
+  gToolbox.addEventListener("dragdrop", onToolbarDragDrop, false);
 
   initDialog();
 }
 
 function finishToolbarCustomization()
 {
-  gToolbox.customizing = false;
   removeToolboxListeners();
   unwrapToolbarItems();
   persistCurrentSets();
@@ -111,10 +109,10 @@ function repositionDialog()
 
 function removeToolboxListeners()
 {
-  gToolbox.removeEventListener("dragstart", onToolbarDragStart, false);
+  gToolbox.removeEventListener("draggesture", onToolbarDragGesture, false);
   gToolbox.removeEventListener("dragover", onToolbarDragOver, false);
-  gToolbox.removeEventListener("dragleave", onToolbarDragLeave, false);
-  gToolbox.removeEventListener("drop", onToolbarDrop, false);
+  gToolbox.removeEventListener("dragexit", onToolbarDragExit, false);
+  gToolbox.removeEventListener("dragdrop", onToolbarDragDrop, false);
 }
 
 /**
@@ -743,7 +741,7 @@ function isToolbarItem(aElt)
 ///////////////////////////////////////////////////////////////////////////
 //// Drag and Drop observers
 
-function onToolbarDragStart(aEvent)
+function onToolbarDragGesture(aEvent)
 {
   nsDragAndDrop.startDrag(aEvent, dragStartObserver);
 }
@@ -753,12 +751,12 @@ function onToolbarDragOver(aEvent)
   nsDragAndDrop.dragOver(aEvent, toolbarDNDObserver);
 }
 
-function onToolbarDrop(aEvent)
+function onToolbarDragDrop(aEvent)
 {
   nsDragAndDrop.drop(aEvent, toolbarDNDObserver);
 }
 
-function onToolbarDragLeave(aEvent)
+function onToolbarDragExit(aEvent)
 {
   if (gCurrentDragOverItem)
     setDragActive(gCurrentDragOverItem, false);

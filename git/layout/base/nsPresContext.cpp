@@ -84,7 +84,6 @@
 #include "nsRuleNode.h"
 #include "nsEventDispatcher.h"
 #include "gfxUserFontSet.h"
-#include "nsIEventListenerManager.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -151,7 +150,7 @@ IsVisualCharset(const nsCString& aCharset)
 
 
 static PLDHashOperator
-destroy_loads(const void * aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
+destroy_loads(const void * aKey, nsCOMPtr<nsImageLoader>& aData, void* closure)
 {
   aData->Destroy();
   return PL_DHASH_NEXT;
@@ -300,7 +299,7 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsPresContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsPresContext)
 
 static PLDHashOperator
-TraverseImageLoader(const void * aKey, nsRefPtr<nsImageLoader>& aData,
+TraverseImageLoader(const void * aKey, nsCOMPtr<nsImageLoader>& aData,
                     void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb =
@@ -817,6 +816,9 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
   if (!mImageLoaders.Init())
     return NS_ERROR_OUT_OF_MEMORY;
   
+  if (!mBorderImageLoaders.Init())
+    return NS_ERROR_OUT_OF_MEMORY;
+  
   // Get the look and feel service here; default colors will be initialized
   // from calling GetUserPreferences() when we get a presshell.
   nsresult rv = CallGetService(kLookAndFeelCID, &mLookAndFeel);
@@ -1026,13 +1028,10 @@ static void SetImgAnimModeOnImgReq(imgIRequest* aImgReq, PRUint16 aMode)
 
  // Enumeration call back for HashTable
 static PLDHashOperator
-set_animation_mode(const void * aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
+set_animation_mode(const void * aKey, nsCOMPtr<nsImageLoader>& aData, void* closure)
 {
-  for (nsImageLoader *loader = aData; loader;
-       loader = loader->GetNextLoader()) {
-    imgIRequest* imgReq = loader->GetRequest();
-    SetImgAnimModeOnImgReq(imgReq, (PRUint16)NS_PTR_TO_INT32(closure));
-  }
+  imgIRequest* imgReq = aData->GetRequest();
+  SetImgAnimModeOnImgReq(imgReq, (PRUint16)NS_PTR_TO_INT32(closure));
   return PL_DHASH_NEXT;
 }
 
@@ -1167,29 +1166,66 @@ nsPresContext::SetFullZoom(float aZoom)
   mCurAppUnitsPerDevPixel = AppUnitsPerDevPixel();
 }
 
-void
-nsPresContext::SetImageLoaders(nsIFrame* aTargetFrame,
-                               nsImageLoader* aImageLoaders)
+imgIRequest*
+nsPresContext::DoLoadImage(nsPresContext::ImageLoaderTable& aTable,
+                           imgIRequest* aImage,
+                           nsIFrame* aTargetFrame,
+                           PRBool aReflowOnLoad)
 {
-  nsRefPtr<nsImageLoader> oldLoaders;
-  mImageLoaders.Get(aTargetFrame, getter_AddRefs(oldLoaders));
+  // look and see if we have a loader for the target frame.
+  nsCOMPtr<nsImageLoader> loader;
+  aTable.Get(aTargetFrame, getter_AddRefs(loader));
 
-  if (aImageLoaders) {
-    mImageLoaders.Put(aTargetFrame, aImageLoaders);
-  } else if (oldLoaders) {
-    mImageLoaders.Remove(aTargetFrame);
+  if (!loader) {
+    loader = new nsImageLoader();
+    if (!loader)
+      return nsnull;
+
+    loader->Init(aTargetFrame, this, aReflowOnLoad);
+    mImageLoaders.Put(aTargetFrame, loader);
   }
 
-  if (oldLoaders)
-    oldLoaders->Destroy();
+  loader->Load(aImage);
+
+  imgIRequest *request = loader->GetRequest();
+
+  return request;
+}
+
+imgIRequest*
+nsPresContext::LoadImage(imgIRequest* aImage, nsIFrame* aTargetFrame)
+{
+  return DoLoadImage(mImageLoaders, aImage, aTargetFrame, PR_FALSE);
+}
+
+imgIRequest*
+nsPresContext::LoadBorderImage(imgIRequest* aImage, nsIFrame* aTargetFrame)
+{
+  return DoLoadImage(mBorderImageLoaders, aImage, aTargetFrame,
+                     aTargetFrame->GetStyleBorder()->ImageBorderDiffers());
 }
 
 void
 nsPresContext::StopImagesFor(nsIFrame* aTargetFrame)
 {
-  SetImageLoaders(aTargetFrame, nsnull);
+  StopBackgroundImageFor(aTargetFrame);
+  StopBorderImageFor(aTargetFrame);
 }
 
+void
+nsPresContext::DoStopImageFor(nsPresContext::ImageLoaderTable& aTable,
+                              nsIFrame* aTargetFrame)
+{
+  nsCOMPtr<nsImageLoader> loader;
+  aTable.Get(aTargetFrame, getter_AddRefs(loader));
+
+  if (loader) {
+    loader->Destroy();
+
+    aTable.Remove(aTargetFrame);
+  }
+}
+  
 void
 nsPresContext::SetContainer(nsISupports* aHandler)
 {
@@ -1542,10 +1578,10 @@ nsPresContext::SetUserFontSet(gfxUserFontSet *aUserFontSet)
 void
 nsPresContext::FireDOMPaintEvent()
 {
-  nsCOMPtr<nsPIDOMWindow> ourWindow = mDocument->GetWindow();
-  if (!ourWindow)
+  nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
+  if (!docShell)
     return;
-
+  nsCOMPtr<nsPIDOMWindow> ourWindow = do_GetInterface(docShell);
   nsISupports* eventTarget = ourWindow;
   if (mSameDocDirtyRegion.IsEmpty() && !IsChrome()) {
     // Don't tell the window about this event, it should not know that
@@ -1553,9 +1589,6 @@ nsPresContext::FireDOMPaintEvent()
     // (Events sent to the window get propagated to the chrome event handler
     // automatically.)
     eventTarget = ourWindow->GetChromeEventHandler();
-    if (!eventTarget) {
-      return;
-    }
   }
   // Events sent to the window get propagated to the chrome event handler
   // automatically.
@@ -1574,43 +1607,10 @@ nsPresContext::FireDOMPaintEvent()
   nsEventDispatcher::Dispatch(eventTarget, this, &event);
 }
 
-static PRBool MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
-{
-  if (!aInnerWindow)
-    return PR_FALSE;
-  if (aInnerWindow->HasPaintEventListeners())
-    return PR_TRUE;
-
-  nsPIDOMEventTarget* chromeEventHandler = aInnerWindow->GetChromeEventHandler();
-  if (!chromeEventHandler)
-    return PR_FALSE;
-
-  nsCOMPtr<nsIEventListenerManager> manager;
-  chromeEventHandler->GetListenerManager(PR_FALSE, getter_AddRefs(manager));
-  if (manager && manager->MayHavePaintEventListener())
-    return PR_TRUE;
-
-  nsCOMPtr<nsINode> node = do_QueryInterface(chromeEventHandler);
-  if (node)
-    return MayHavePaintEventListener(node->GetOwnerDoc()->GetInnerWindow());
-
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(chromeEventHandler);
-  if (window)
-    return MayHavePaintEventListener(window);
-
-  return PR_FALSE;
-}
-
 void
 nsPresContext::NotifyInvalidation(const nsRect& aRect, PRBool aIsCrossDoc)
 {
-  // If there is no paint event listener, then we don't need to fire
-  // the asynchronous event. We don't even need to record invalidation.
-  // MayHavePaintEventListener is pretty cheap and we could make it
-  // even cheaper by providing a more efficient
-  // nsPIDOMWindow::GetListenerManager.
-  if (aRect.IsEmpty() ||
-      !MayHavePaintEventListener(mDocument->GetInnerWindow()))
+  if (aRect.IsEmpty())
     return;
 
   if (mSameDocDirtyRegion.IsEmpty() && mCrossDocDirtyRegion.IsEmpty()) {

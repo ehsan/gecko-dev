@@ -57,18 +57,15 @@ class nsIThread;
 class nsIVariant;
 class nsIXMLHttpRequest;
 class nsDOMWorkerXHREvent;
-class nsDOMWorkerXHRFinishSyncXHRRunnable;
 class nsDOMWorkerXHRWrappedListener;
 class nsXMLHttpRequest;
 
-class nsDOMWorkerXHRProxy : public nsIRunnable,
+class nsDOMWorkerXHRProxy : public nsRunnable,
                             public nsIDOMEventListener,
                             public nsIRequestObserver
 {
-  friend class nsDOMWorkerXHRAttachUploadListenersRunnable;
+
   friend class nsDOMWorkerXHREvent;
-  friend class nsDOMWorkerXHRFinishSyncXHRRunnable;
-  friend class nsDOMWorkerXHRLastProgressOrLoadEvent;
   friend class nsDOMWorkerXHR;
   friend class nsDOMWorkerXHRUpload;
 
@@ -81,9 +78,7 @@ class nsDOMWorkerXHRProxy : public nsIRunnable,
     (const nsAString&, nsIDOMEventListener*, PRBool);
 
 public:
-  typedef nsAutoTArray<nsCOMPtr<nsIRunnable>, 5> SyncEventQueue;
-
-  NS_DECL_ISUPPORTS
+  NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMEVENTLISTENER
   NS_DECL_NSIRUNNABLE
   NS_DECL_NSIREQUESTOBSERVER
@@ -95,19 +90,7 @@ public:
 
   nsIXMLHttpRequest* GetXMLHttpRequest();
 
-  nsresult OpenRequest(const nsACString& aMethod,
-                       const nsACString& aUrl,
-                       PRBool aAsync,
-                       const nsAString& aUser,
-                       const nsAString& aPassword);
-
   nsresult Abort();
-
-  SyncEventQueue* SetSyncEventQueue(SyncEventQueue* aQueue);
-
-  PRInt32 ChannelID() {
-    return mChannelID;
-  }
 
 protected:
   nsresult InitInternal();
@@ -115,7 +98,6 @@ protected:
 
   nsresult Destroy();
 
-  void AddRemoveXHRListeners(PRBool aAdd);
   void FlipOwnership();
 
   nsresult AddEventListener(PRUint32 aType,
@@ -144,6 +126,11 @@ protected:
   nsresult GetAllResponseHeaders(char** _retval);
   nsresult GetResponseHeader(const nsACString& aHeader,
                              nsACString& _retval);
+  nsresult OpenRequest(const nsACString& aMethod,
+                       const nsACString& aUrl,
+                       PRBool aAsync,
+                       const nsAString& aUser,
+                       const nsAString& aPassword);
   nsresult Send(nsIVariant* aBody);
   nsresult SendAsBinary(const nsAString& aBody);
   nsresult GetResponseText(nsAString& _retval);
@@ -155,14 +142,6 @@ protected:
   nsresult OverrideMimeType(const nsACString& aMimetype);
   nsresult GetMultipart(PRBool* aMultipart);
   nsresult SetMultipart(PRBool aMultipart);
-  nsresult GetWithCredentials(PRBool* aWithCredentials);
-  nsresult SetWithCredentials(PRBool aWithCredentials);
-
-  nsresult RunSyncEventLoop();
-
-  // aEvent is used to see if we should check upload listeners as well. If left
-  // unset we always check upload listeners.
-  PRBool HasListenersForType(PRUint32 aType, nsIDOMEvent* aEvent = nsnull);
 
   // May be weak or strong, check mOwnedByXHR.
   nsDOMWorkerXHR* mWorkerXHR;
@@ -177,7 +156,6 @@ protected:
   nsCOMPtr<nsIThread> mMainThread;
 
   nsRefPtr<nsDOMWorkerXHREvent> mLastXHREvent;
-  nsRefPtr<nsDOMWorkerXHREvent> mLastProgressOrLoadEvent;
 
   nsTArray<ListenerArray> mXHRListeners;
   nsTArray<WrappedListener> mXHROnXListeners;
@@ -185,23 +163,11 @@ protected:
   nsTArray<ListenerArray> mUploadListeners;
   nsTArray<WrappedListener> mUploadOnXListeners;
 
-  SyncEventQueue* mSyncEventQueue;
-
-  PRInt32 mChannelID;
-
-  // Only touched on the worker thread!
-  nsCOMPtr<nsIThread> mSyncXHRThread;
-
-  // Touched on more than one thread, protected by the worker's lock.
-  nsRefPtr<nsDOMWorkerXHRFinishSyncXHRRunnable> mSyncFinishedRunnable;
-
   // Whether or not this object is owned by the real XHR object.
   PRPackedBool mOwnedByXHR;
 
-  PRPackedBool mWantUploadListeners;
+  PRPackedBool mMultipart;
   PRPackedBool mCanceled;
-
-  PRPackedBool mSyncRequest;
 };
 
 #endif /* __NSDOMWORKERXHRPROXY_H__ */

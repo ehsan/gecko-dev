@@ -3347,8 +3347,7 @@ FlushLayoutForTree(nsIDOMWindow* aWindow)
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, PRInt32 aX, PRInt32 aY,
                                        PRInt32 aW, PRInt32 aH, 
-                                       const nsAString& aBGColor,
-                                       PRUint32 flags)
+                                       const nsAString& aBGColor)
 {
     NS_ENSURE_ARG(aWindow != nsnull);
 
@@ -3368,10 +3367,9 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, PRInt32 aX, PRInt3
       // XXX ERRMSG we need to report an error to developers here! (bug 329026)
         return NS_ERROR_DOM_SECURITY_ERR;
     }
-
+    
     // Flush layout updates
-    if (!(flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH))
-        FlushLayoutForTree(aWindow);
+    FlushLayoutForTree(aWindow);
 
     nsCOMPtr<nsPresContext> presContext;
     nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aWindow);

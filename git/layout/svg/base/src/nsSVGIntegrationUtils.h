@@ -53,9 +53,6 @@ class nsIDOMSVGMatrix;
 class nsSVGIntegrationUtils
 {
 public:
-  /**
-   * Returns true if a non-SVG frame has SVG effects.
-   */
   static PRBool
   UsingEffectsForFrame(const nsIFrame* aFrame);
 

@@ -389,23 +389,21 @@ nsImageBoxFrame::PaintImage(nsIRenderingContext& aRenderingContext,
 //
 // When the style context changes, make sure that all of our image is up to date.
 //
-/* virtual */ void
-nsImageBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+NS_IMETHODIMP
+nsImageBoxFrame::DidSetStyleContext()
 {
-  nsLeafBoxFrame::DidSetStyleContext(aOldStyleContext);
-
   // Fetch our subrect.
   const nsStyleList* myList = GetStyleList();
   mSubRect = myList->mImageRegion; // before |mSuppressStyleCheck| test!
 
   if (mUseSrcAttr || mSuppressStyleCheck)
-    return; // No more work required, since the image isn't specified by style.
+    return NS_OK; // No more work required, since the image isn't specified by style.
 
   // If we're using a native theme implementation, we shouldn't draw anything.
   const nsStyleDisplay* disp = GetStyleDisplay();
   if (disp->mAppearance && nsBox::gTheme && 
       nsBox::gTheme->ThemeSupportsWidget(nsnull, this, disp->mAppearance))
-    return;
+    return NS_OK;
 
   // If list-style-image changes, we have a new image.
   nsCOMPtr<nsIURI> oldURI, newURI;
@@ -417,9 +415,10 @@ nsImageBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   if (newURI == oldURI ||   // handles null==null
       (newURI && oldURI &&
        NS_SUCCEEDED(newURI->Equals(oldURI, &equal)) && equal))
-    return;
+    return NS_OK;
 
   UpdateImage();
+  return NS_OK;
 } // DidSetStyleContext
 
 void

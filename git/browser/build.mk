@@ -60,12 +60,6 @@ package:
 install::
 	@$(MAKE) -C browser/installer install
 
-clean::
-	@$(MAKE) -C browser/installer clean
-
-distclean::
-	@$(MAKE) -C browser/installer distclean
-
 ifdef ENABLE_TESTS
 # Implemented in testing/testsuite-targets.mk
 

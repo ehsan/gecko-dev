@@ -77,6 +77,14 @@ const char* const nsDOMWorkerXHREventTarget::sListenerTypes[] = {
   "readystatechange"                   /* LISTENER_TYPE_READYSTATECHANGE */
 };
 
+// Convenience defines for event *indexes* in the sListenerTypes array.
+#define LISTENER_TYPE_ABORT 0
+#define LISTENER_TYPE_ERROR 1
+#define LISTENER_TYPE_LOAD 2
+#define LISTENER_TYPE_LOADSTART 3
+#define LISTENER_TYPE_PROGRESS 4
+#define LISTENER_TYPE_READYSTATECHANGE 5
+
 // This should always be set to the length of sListenerTypes.
 const PRUint32 nsDOMWorkerXHREventTarget::sMaxXHREventTypes =
   NS_ARRAY_LENGTH(nsDOMWorkerXHREventTarget::sListenerTypes);
@@ -504,17 +512,15 @@ nsDOMWorkerXHR::GetOnXListener(PRUint32 aType)
 NS_IMETHODIMP
 nsDOMWorkerXHR::GetChannel(nsIChannel** aChannel)
 {
-  NS_ENSURE_ARG_POINTER(aChannel);
-  *aChannel = nsnull;
-  return NS_OK;
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 nsDOMWorkerXHR::GetResponseXML(nsIDOMDocument** aResponseXML)
 {
-  NS_ENSURE_ARG_POINTER(aResponseXML);
-  *aResponseXML = nsnull;
-  return NS_OK;
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -674,6 +680,9 @@ nsDOMWorkerXHR::Open(const nsACString& aMethod,
     JSBool asyncBool;
     JS_ValueToBoolean(cx, argv[2], &asyncBool);
     async = (PRBool)asyncBool;
+
+    // XXX Remove me once we support sync XHR
+    NS_ENSURE_TRUE(async, NS_ERROR_INVALID_ARG);
 
     if (argc < 4) {
       break;
@@ -844,7 +853,6 @@ nsDOMWorkerXHR::Init(nsIPrincipal* aPrincipal,
                      nsPIDOMWindow* aOwnerWindow)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_NOTREACHED("No one should be calling this!");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -909,31 +917,13 @@ nsDOMWorkerXHR::SetOnreadystatechange(nsIDOMEventListener* aOnreadystatechange)
 NS_IMETHODIMP
 nsDOMWorkerXHR::GetWithCredentials(PRBool* aWithCredentials)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-
-  if (mCanceled) {
-    return NS_ERROR_ABORT;
-  }
-
   NS_ENSURE_ARG_POINTER(aWithCredentials);
-
-  nsresult rv = mXHRProxy->GetWithCredentials(aWithCredentials);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  *aWithCredentials = PR_FALSE;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMWorkerXHR::SetWithCredentials(PRBool aWithCredentials)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-
-  if (mCanceled) {
-    return NS_ERROR_ABORT;
-  }
-
-  nsresult rv = mXHRProxy->SetWithCredentials(aWithCredentials);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   return NS_OK;
 }

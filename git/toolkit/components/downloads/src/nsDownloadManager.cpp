@@ -26,7 +26,6 @@
  *   Srirang G Doddihal <brahmana@doddihal.com>
  *   Edward Lee <edward.lee@engineering.uiuc.edu>
  *   Graeme McCutcheon <graememcc_firefox@graeme-online.co.uk>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -86,7 +85,7 @@
 
 #if defined(XP_WIN) && !defined(WINCE) 
 #include <shlobj.h>
-#ifdef DOWNLOAD_SCANNER
+#ifndef __MINGW32__
 #include "nsDownloadScanner.h"
 #endif
 #endif
@@ -140,7 +139,7 @@ nsDownloadManager::GetSingleton()
 
 nsDownloadManager::~nsDownloadManager()
 {
-#ifdef DOWNLOAD_SCANNER
+#if defined(XP_WIN) && !defined(__MINGW32__)
   mScanner = nsnull;
 #endif
   gDownloadManagerService = nsnull;
@@ -277,62 +276,15 @@ nsDownloadManager::ResumeOnWakeCallback(nsITimer *aTimer, void *aClosure)
   (void)dlMgr->ResumeAllDownloads(PR_FALSE);
 }
 
-already_AddRefed<mozIStorageConnection>
-nsDownloadManager::GetFileDBConnection(nsIFile *dbFile) const
-{
-  NS_ASSERTION(dbFile, "GetFileDBConnection called with an invalid nsIFile");
-
-  nsCOMPtr<mozIStorageService> storage =
-    do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(storage, nsnull);
-
-  nsCOMPtr<mozIStorageConnection> conn;
-  nsresult rv = storage->OpenDatabase(dbFile, getter_AddRefs(conn));
-  if (rv == NS_ERROR_FILE_CORRUPTED) {
-    // delete and try again, since we don't care so much about losing a user's
-    // download history
-    rv = dbFile->Remove(PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, nsnull);
-    rv = storage->OpenDatabase(dbFile, getter_AddRefs(conn));
-  }
-  NS_ENSURE_SUCCESS(rv, nsnull);
-
-  return conn.forget();
-}
-
-already_AddRefed<mozIStorageConnection>
-nsDownloadManager::GetMemoryDBConnection() const
-{
-  nsCOMPtr<mozIStorageService> storage =
-    do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(storage, nsnull);
-
-  nsCOMPtr<mozIStorageConnection> conn;
-  nsresult rv = storage->OpenSpecialDatabase("memory", getter_AddRefs(conn));
-  NS_ENSURE_SUCCESS(rv, nsnull);
-
-  return conn.forget();
-}
-
 nsresult
-nsDownloadManager::InitMemoryDB()
-{
-  mDBConn = GetMemoryDBConnection();
-  if (!mDBConn)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  nsresult rv = CreateTable();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  mDBType = DATABASE_MEMORY;
-  return NS_OK;
-}
-
-nsresult
-nsDownloadManager::InitFileDB(PRBool *aDoImport)
+nsDownloadManager::InitDB(PRBool *aDoImport)
 {
   nsresult rv;
   *aDoImport = PR_FALSE;
+
+  nsCOMPtr<mozIStorageService> storage =
+    do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIFile> dbFile;
   rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
@@ -341,8 +293,15 @@ nsDownloadManager::InitFileDB(PRBool *aDoImport)
   rv = dbFile->Append(DM_DB_NAME);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mDBConn = GetFileDBConnection(dbFile);
-  NS_ENSURE_TRUE(mDBConn, NS_ERROR_NOT_AVAILABLE);
+  rv = storage->OpenDatabase(dbFile, getter_AddRefs(mDBConn));
+  if (rv == NS_ERROR_FILE_CORRUPTED) {
+    // delete and try again, since we don't care so much about losing a users
+    // download history
+    rv = dbFile->Remove(PR_FALSE);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = storage->OpenDatabase(dbFile, getter_AddRefs(mDBConn));
+  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool tableExists;
   rv = mDBConn->TableExists(NS_LITERAL_CSTRING("moz_downloads"), &tableExists);
@@ -351,11 +310,8 @@ nsDownloadManager::InitFileDB(PRBool *aDoImport)
     *aDoImport = PR_TRUE;
     rv = CreateTable();
     NS_ENSURE_SUCCESS(rv, rv);
-    mDBType = DATABASE_DISK;
     return NS_OK;
   }
-
-  mDBType = DATABASE_DISK;
 
   // Checking the database schema now
   PRInt32 schemaVersion;
@@ -570,9 +526,6 @@ nsDownloadManager::InitFileDB(PRBool *aDoImport)
 
       // if the statement fails, that means all the columns were not there.
       // First we backup the database
-      nsCOMPtr<mozIStorageService> storage =
-        do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
-      NS_ENSURE_TRUE(storage, NS_ERROR_NOT_AVAILABLE);
       nsCOMPtr<nsIFile> backup;
       rv = storage->BackupDatabaseFile(dbFile, DM_DB_CORRUPT_FILENAME, nsnull,
                                        getter_AddRefs(backup));
@@ -941,20 +894,8 @@ nsDownloadManager::Init()
   mObserverService = do_GetService("@mozilla.org/observer-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRBool doImport = PR_FALSE;
-  switch (mDBType) {
-    case DATABASE_MEMORY:
-      rv = InitMemoryDB();
-      break;
-
-    case DATABASE_DISK:
-      rv = InitFileDB(&doImport);
-      break;
-
-    default:
-      NS_ASSERTION(0, "Unexpected value encountered for nsDownloadManager::mDBType");
-      break;
-  }
+  PRBool doImport;
+  rv = InitDB(&doImport);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (doImport)
@@ -968,7 +909,7 @@ nsDownloadManager::Init()
                                    getter_AddRefs(mBundle));
   NS_ENSURE_SUCCESS(rv, rv);
 
-#ifdef DOWNLOAD_SCANNER
+#if defined(XP_WIN) && !defined(__MINGW32__) && !defined(WINCE)
   mScanner = new nsDownloadScanner();
   if (!mScanner)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -1474,7 +1415,7 @@ nsDownloadManager::AddDownload(DownloadType aDownloadType,
   }
 
   DownloadState startState = nsIDownloadManager::DOWNLOAD_QUEUED;
-#ifdef DOWNLOAD_SCANNER
+#if defined(XP_WIN) && !defined(__MINGW32__) && !defined(WINCE)
   if (mScanner) {
     AVCheckPolicyState res = mScanner->CheckPolicy(aSource, aTarget);
     if (res == AVPOLICY_BLOCKED) {
@@ -1842,20 +1783,6 @@ nsDownloadManager::NotifyListenersOnStateChange(nsIWebProgress *aProgress,
                                  aDownload);
 }
 
-nsresult
-nsDownloadManager::SwitchDatabaseTypeTo(enum nsDownloadManager::DatabaseType aType)
-{
-  if (aType == mDBType)
-    return NS_OK; // no-op
-
-  mDBType = aType;
-
-  (void)PauseAllDownloads(PR_TRUE);
-  (void)RemoveAllDownloads();
-
-  return Init();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// nsINavHistoryObserver
 
@@ -2003,12 +1930,6 @@ nsDownloadManager::Observe(nsISupports *aSubject,
     // We can now resume all downloads that are supposed to auto-resume.
     (void)ResumeAllDownloads(PR_FALSE);
   }
-  else if (strcmp(aTopic, "dlmgr-switchdb") == 0) {
-    if (NS_LITERAL_STRING("memory").Equals(aData))
-      return SwitchDatabaseTypeTo(DATABASE_MEMORY);
-    else if (NS_LITERAL_STRING("disk").Equals(aData))
-      return SwitchDatabaseTypeTo(DATABASE_DISK);
-  }
   else if (strcmp(aTopic, "alertclickcallback") == 0) {
     nsCOMPtr<nsIDownloadManagerUI> dmui =
       do_GetService("@mozilla.org/download-manager-ui;1", &rv);
@@ -2144,7 +2065,7 @@ nsDownload::SetState(DownloadState aState)
       // Transfers are finished, so break the reference cycle
       Finalize();
       break;
-#ifdef DOWNLOAD_SCANNER
+#if defined(XP_WIN) && !defined(__MINGW32__) && !defined(WINCE)
     case nsIDownloadManager::DOWNLOAD_SCANNING:
     {
       nsresult rv = mDownloadManager->mScanner ? mDownloadManager->mScanner->ScanDownload(this) : NS_ERROR_NOT_INITIALIZED;
@@ -2273,10 +2194,6 @@ nsDownload::SetState(DownloadState aState)
       break;
     case nsIDownloadManager::DOWNLOAD_DIRTY:
       mDownloadManager->SendEvent(this, "dl-dirty");
-      break;
-    case nsIDownloadManager::DOWNLOAD_CANCELED:
-      mDownloadManager->SendEvent(this, "dl-cancel");
-      break;
     default:
       break;
   }

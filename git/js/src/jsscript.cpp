@@ -1874,9 +1874,9 @@ js_IsInsideTryWithFinally(JSScript *script, jsbytecode *pc)
     off = (uint32)(pc - script->main);
     do {
         if (off - tn->start < tn->length) {
-            if (tn->kind == JSTRY_FINALLY)
+            if (tn->kind == JSTN_FINALLY)
                 return JS_TRUE;
-            JS_ASSERT(tn->kind == JSTRY_CATCH);
+            JS_ASSERT(tn->kind == JSTN_CATCH);
         }
     } while (++tn != tnlimit);
     return JS_FALSE;

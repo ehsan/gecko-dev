@@ -430,17 +430,14 @@ DoCommandCallback(const char *aCommand, void *aData)
 
 
 NS_IMETHODIMP
-nsTextInputListener::KeyDown(nsIDOMEvent *aDOMEvent)
+nsTextInputListener::KeyDown(nsIDOMEvent *aKeyEvent)
 {
-  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aDOMEvent));
-  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
-
   nsNativeKeyEvent nativeEvent;
   nsINativeKeyBindings *bindings = GetKeyBindings();
   if (bindings &&
-      nsContentUtils::DOMEventToNativeKeyEvent(keyEvent, &nativeEvent, PR_FALSE)) {
+      nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, PR_FALSE)) {
     if (bindings->KeyDown(nativeEvent, DoCommandCallback, mFrame)) {
-      aDOMEvent->PreventDefault();
+      aKeyEvent->PreventDefault();
     }
   }
 
@@ -448,17 +445,14 @@ nsTextInputListener::KeyDown(nsIDOMEvent *aDOMEvent)
 }
 
 NS_IMETHODIMP
-nsTextInputListener::KeyPress(nsIDOMEvent *aDOMEvent)
+nsTextInputListener::KeyPress(nsIDOMEvent *aKeyEvent)
 {
-  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aDOMEvent));
-  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
-
   nsNativeKeyEvent nativeEvent;
   nsINativeKeyBindings *bindings = GetKeyBindings();
   if (bindings &&
-      nsContentUtils::DOMEventToNativeKeyEvent(keyEvent, &nativeEvent, PR_TRUE)) {
+      nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, PR_TRUE)) {
     if (bindings->KeyPress(nativeEvent, DoCommandCallback, mFrame)) {
-      aDOMEvent->PreventDefault();
+      aKeyEvent->PreventDefault();
     }
   }
 
@@ -466,17 +460,14 @@ nsTextInputListener::KeyPress(nsIDOMEvent *aDOMEvent)
 }
 
 NS_IMETHODIMP
-nsTextInputListener::KeyUp(nsIDOMEvent *aDOMEvent)
+nsTextInputListener::KeyUp(nsIDOMEvent *aKeyEvent)
 {
-  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aDOMEvent));
-  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
-
   nsNativeKeyEvent nativeEvent;
   nsINativeKeyBindings *bindings = GetKeyBindings();
   if (bindings &&
-      nsContentUtils::DOMEventToNativeKeyEvent(keyEvent, &nativeEvent, PR_FALSE)) {
+      nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, PR_FALSE)) {
     if (bindings->KeyUp(nativeEvent, DoCommandCallback, mFrame)) {
-      aDOMEvent->PreventDefault();
+      aKeyEvent->PreventDefault();
     }
   }
 
@@ -600,7 +591,6 @@ public:
   NS_IMETHOD GetCaretVisible(PRBool *_retval);
   NS_IMETHOD SetCaretVisibilityDuringSelection(PRBool aVisibility);
   NS_IMETHOD CharacterMove(PRBool aForward, PRBool aExtend);
-  NS_IMETHOD CharacterExtendForDelete();
   NS_IMETHOD WordMove(PRBool aForward, PRBool aExtend);
   NS_IMETHOD WordExtendForDelete(PRBool aForward);
   NS_IMETHOD LineMove(PRBool aForward, PRBool aExtend);
@@ -827,13 +817,6 @@ nsTextInputSelectionImpl::CharacterMove(PRBool aForward, PRBool aExtend)
   return NS_ERROR_NULL_POINTER;
 }
 
-NS_IMETHODIMP
-nsTextInputSelectionImpl::CharacterExtendForDelete()
-{
-  if (mFrameSelection)
-    return mFrameSelection->CharacterExtendForDelete();
-  return NS_ERROR_NULL_POINTER;
-}
 
 NS_IMETHODIMP
 nsTextInputSelectionImpl::WordMove(PRBool aForward, PRBool aExtend)
@@ -1027,6 +1010,10 @@ nsTextControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
   }
   if (aIID.Equals(NS_GET_IID(nsIScrollableViewProvider)) && IsScrollable()) {
     *aInstancePtr = static_cast<nsIScrollableViewProvider*>(this);
+    return NS_OK;
+  }
+  if (aIID.Equals(NS_GET_IID(nsIPhonetic))) {
+    *aInstancePtr = static_cast<nsIPhonetic*>(this);
     return NS_OK;
   }
 
@@ -2496,7 +2483,7 @@ nsTextControlFrame::GetText(nsString* aText)
 }
 
 
-nsresult
+NS_IMETHODIMP
 nsTextControlFrame::GetPhonetic(nsAString& aPhonetic)
 {
   aPhonetic.Truncate(0); 

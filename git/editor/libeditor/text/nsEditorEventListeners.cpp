@@ -69,7 +69,6 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIEventStateManager.h"
 #include "nsISelectionPrivate.h"
-#include "nsIDOMDragEvent.h"
 
 //#define DEBUG_IME
 
@@ -496,37 +495,21 @@ nsTextEditorDragListener::~nsTextEditorDragListener()
 {
 }
 
-NS_IMPL_ISUPPORTS1(nsTextEditorDragListener, nsIDOMEventListener)
+NS_IMPL_ISUPPORTS2(nsTextEditorDragListener, nsIDOMEventListener, nsIDOMDragListener)
 
 nsresult
 nsTextEditorDragListener::HandleEvent(nsIDOMEvent* aEvent)
 {
-  // make sure it's a drag event
-  nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(aEvent);
-  if (dragEvent) {
-    nsAutoString eventType;
-    aEvent->GetType(eventType);
-    if (eventType.EqualsLiteral("draggesture"))
-      return DragGesture(dragEvent);
-    if (eventType.EqualsLiteral("dragenter"))
-      return DragEnter(dragEvent);
-    if (eventType.EqualsLiteral("dragover"))
-      return DragOver(dragEvent);
-    if (eventType.EqualsLiteral("dragleave"))
-      return DragLeave(dragEvent);
-    if (eventType.EqualsLiteral("drop"))
-      return Drop(dragEvent);
-  }
   return NS_OK;
 }
 
 
 nsresult
-nsTextEditorDragListener::DragGesture(nsIDOMDragEvent* aDragEvent)
+nsTextEditorDragListener::DragGesture(nsIDOMEvent* aDragEvent)
 {
   if ( !mEditor )
     return NS_ERROR_NULL_POINTER;
-
+  
   // ...figure out if a drag should be started...
   PRBool canDrag;
   nsresult rv = mEditor->CanDrag(aDragEvent, &canDrag);
@@ -538,7 +521,7 @@ nsTextEditorDragListener::DragGesture(nsIDOMDragEvent* aDragEvent)
 
 
 nsresult
-nsTextEditorDragListener::DragEnter(nsIDOMDragEvent* aDragEvent)
+nsTextEditorDragListener::DragEnter(nsIDOMEvent* aDragEvent)
 {
   nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
   if (!presShell)
@@ -562,7 +545,7 @@ nsTextEditorDragListener::DragEnter(nsIDOMDragEvent* aDragEvent)
 
 
 nsresult
-nsTextEditorDragListener::DragOver(nsIDOMDragEvent* aDragEvent)
+nsTextEditorDragListener::DragOver(nsIDOMEvent* aDragEvent)
 {
   // XXX cache this between drag events?
   nsresult rv;
@@ -624,7 +607,7 @@ nsTextEditorDragListener::DragOver(nsIDOMDragEvent* aDragEvent)
 
 
 nsresult
-nsTextEditorDragListener::DragLeave(nsIDOMDragEvent* aDragEvent)
+nsTextEditorDragListener::DragExit(nsIDOMEvent* aDragEvent)
 {
   if (mCaret && mCaretDrawn)
   {
@@ -642,7 +625,7 @@ nsTextEditorDragListener::DragLeave(nsIDOMDragEvent* aDragEvent)
 
 
 nsresult
-nsTextEditorDragListener::Drop(nsIDOMDragEvent* aMouseEvent)
+nsTextEditorDragListener::DragDrop(nsIDOMEvent* aMouseEvent)
 {
   if (mCaret)
   {
@@ -701,10 +684,20 @@ nsTextEditorDragListener::Drop(nsIDOMDragEvent* aMouseEvent)
   return mEditor->InsertFromDrop(aMouseEvent);
 }
 
+nsresult
+nsTextEditorDragListener::Drag(nsIDOMEvent* aDragEvent)
+{
+  return NS_OK;
+}
 
+nsresult
+nsTextEditorDragListener::DragEnd(nsIDOMEvent* aDragEvent)
+{
+  return NS_OK;
+}
 
 PRBool
-nsTextEditorDragListener::CanDrop(nsIDOMDragEvent* aEvent)
+nsTextEditorDragListener::CanDrop(nsIDOMEvent* aEvent)
 {
   // if the target doc is read-only, we can't drop
   PRUint32 flags;

@@ -85,7 +85,6 @@ REQUIRES	= xpcom \
 		  windowwatcher \
 		  imglib2 \
 		  jar \
-		  prefetch \
 		  $(NULL)
 
 SDK_XPIDLSRCS = \

@@ -3287,11 +3287,7 @@ IsSpecialContent(nsIContent*     aContent,
       aTag == nsGkAtoms::spacer ||
       aTag == nsGkAtoms::button ||
       aTag == nsGkAtoms::isindex ||
-      aTag == nsGkAtoms::canvas ||
-#if defined(MOZ_MEDIA)
-      aTag == nsGkAtoms::video ||
-#endif
-      PR_FALSE;
+      aTag == nsGkAtoms::canvas;
   }
 
 
@@ -8690,8 +8686,9 @@ PRBool NotifyListBoxBody(nsPresContext*    aPresContext,
     xulElement->GetBoxObject(getter_AddRefs(boxObject));
     nsCOMPtr<nsPIListBoxObject> listBoxObject = do_QueryInterface(boxObject);
     if (listBoxObject) {
-      nsListBoxBodyFrame* listBoxBodyFrame = listBoxObject->GetListBoxBody(PR_FALSE);
-      if (listBoxBodyFrame) {
+      nsIListBoxObject* listboxBody = listBoxObject->GetListBoxBody(PR_FALSE);
+      if (listboxBody) {
+        nsListBoxBodyFrame *listBoxBodyFrame = static_cast<nsListBoxBodyFrame*>(listboxBody);
         if (aOperation == CONTENT_REMOVED) {
           // Except if we have an aChildFrame and its parent is not the right
           // thing, then we don't do this.  Pseudo frames are so much fun....

@@ -37,7 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: staticobj.c,v $ $Revision: 1.2 $ $Date: 2008/10/05 20:59:19 $""; @(#) $RCSfile: staticobj.c,v $ $Revision: 1.2 $ $Date: 2008/10/05 20:59:19 $";
+static const char CVS_ID[] = "@(#) $RCSfile: staticobj.c,v $ $Revision: 1.1 $ $Date: 2005/11/04 02:05:04 $""; @(#) $RCSfile: staticobj.c,v $ $Revision: 1.1 $ $Date: 2005/11/04 02:05:04 $";
 #endif /* DEBUG */
 
 #ifndef CKCAPI_H
@@ -67,8 +67,8 @@ static const NSSItem nss_ckcapi_items_1 [] = {
   { (void *)"Mozilla CAPI Access", (PRUint32)20 }
 };
 
-ckcapiInternalObject nss_ckcapi_data[] = {
+PR_IMPLEMENT_DATA(ckcapiInternalObject) nss_ckcapi_data[] = {
   { ckcapiRaw, { 5, nss_ckcapi_types_1, nss_ckcapi_items_1} , {NULL} },
 };
 
-const PRUint32 nss_ckcapi_nObjects = 1;
+PR_IMPLEMENT_DATA(const PRUint32) nss_ckcapi_nObjects = 1;

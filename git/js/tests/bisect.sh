@@ -63,6 +63,8 @@ fi
 
 source $TEST_DIR/bin/library.sh
 
+TEST_JSDIR=${TEST_JSDIR:-$TEST_DIR/tests/mozilla.org/js}
+
 usage()
 {
     cat <<EOF
@@ -138,12 +140,6 @@ fi
 OPTIND=1
 
 eval source $TEST_DIR/bin/set-build-env.sh -p $bisect_product -b $bisect_branch $bisect_extraflag -T $bisect_buildtype > /dev/null
-
-# TEST_JSDIR must be set after set-build-env.sh is called
-# on Windows since TEST_DIR can be modified in set-build-env.sh
-# from the pure cygwin path /work/... to a the cygwin windows path
-# /c/work/...
-TEST_JSDIR=${TEST_JSDIR:-$TEST_DIR/tests/mozilla.org/js}
 
 case $bisect_branch in
     1.8.*|1.9.0)

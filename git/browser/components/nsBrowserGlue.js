@@ -73,19 +73,13 @@ function BrowserGlue() {
 }
 
 BrowserGlue.prototype = {
-  __prefs: null,
-  get _prefs() {
-    if (!this.__prefs)
-      this.__prefs = Cc["@mozilla.org/preferences-service;1"].
-                     getService(Ci.nsIPrefBranch);
-    return this.__prefs;
-  },
-
   _saveSession: false,
 
   _setPrefToSaveSession: function()
   {
-    this._prefs.setBoolPref("browser.sessionstore.resume_session_once", true);
+    var prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                     getService(Ci.nsIPrefBranch);
+    prefBranch.setBoolPref("browser.sessionstore.resume_session_once", true);
   },
 
   // nsIObserver implementation 
@@ -183,9 +177,11 @@ BrowserGlue.prototype = {
   {
     // Check to see if the EULA must be shown on startup
 
+    var prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                     getService(Ci.nsIPrefBranch);
     var mustDisplayEULA = false;
     try {
-      mustDisplayEULA = !this._prefs.getBoolPref("browser.EULA.override");
+      mustDisplayEULA = !prefBranch.getBoolPref("browser.EULA.override");
     } catch (e) {
       // Pref might not exist
     }
@@ -193,8 +189,8 @@ BrowserGlue.prototype = {
     // Make sure it hasn't already been accepted
     if (mustDisplayEULA) {
       try {
-        var EULAVersion = this._prefs.getIntPref("browser.EULA.version");
-        mustDisplayEULA = !this._prefs.getBoolPref("browser.EULA." + EULAVersion + ".accepted");
+        var EULAVersion = prefBranch.getIntPref("browser.EULA.version");
+        mustDisplayEULA = !prefBranch.getBoolPref("browser.EULA." + EULAVersion + ".accepted");
       } catch(ex) {
       }
     }
@@ -244,8 +240,10 @@ BrowserGlue.prototype = {
   // Browser startup complete. All initial windows have opened.
   _onBrowserStartup: function()
   {
+    var prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                     getService(Ci.nsIPrefBranch);
     // If new add-ons were installed during startup open the add-ons manager.
-    if (this._prefs.prefHasUserValue(PREF_EM_NEW_ADDONS_LIST)) {
+    if (prefBranch.prefHasUserValue(PREF_EM_NEW_ADDONS_LIST)) {
       var args = Cc["@mozilla.org/supports-array;1"].
                  createInstance(Ci.nsISupportsArray);
       var str = Cc["@mozilla.org/supports-string;1"].
@@ -254,14 +252,14 @@ BrowserGlue.prototype = {
       args.AppendElement(str);
       var str = Cc["@mozilla.org/supports-string;1"].
                 createInstance(Ci.nsISupportsString);
-      str.data = this._prefs.getCharPref(PREF_EM_NEW_ADDONS_LIST);
+      str.data = prefBranch.getCharPref(PREF_EM_NEW_ADDONS_LIST);
       args.AppendElement(str);
       const EMURL = "chrome://mozapps/content/extensions/extensions.xul";
       const EMFEATURES = "chrome,menubar,extra-chrome,toolbar,dialog=no,resizable";
       var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
                getService(Ci.nsIWindowWatcher);
       ww.openWindow(null, EMURL, "_blank", EMFEATURES, args);
-      this._prefs.clearUserPref(PREF_EM_NEW_ADDONS_LIST);
+      prefBranch.clearUserPref(PREF_EM_NEW_ADDONS_LIST);
     }
   },
 
@@ -293,20 +291,22 @@ BrowserGlue.prototype = {
     if (aQuitType != "restart")
       aQuitType = "quit";
 
+    var prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                     getService(Ci.nsIPrefBranch);
     var showPrompt = true;
     try {
       // browser.warnOnQuit is a hidden global boolean to override all quit prompts
       // browser.warnOnRestart specifically covers app-initiated restarts where we restart the app
       // browser.tabs.warnOnClose is the global "warn when closing multiple tabs" pref
 
-      var sessionWillBeSaved = this._prefs.getIntPref("browser.startup.page") == 3 ||
-                               this._prefs.getBoolPref("browser.sessionstore.resume_session_once");
-      if (sessionWillBeSaved || !this._prefs.getBoolPref("browser.warnOnQuit"))
+      var sessionWillBeSaved = prefBranch.getIntPref("browser.startup.page") == 3 ||
+                               prefBranch.getBoolPref("browser.sessionstore.resume_session_once");
+      if (sessionWillBeSaved || !prefBranch.getBoolPref("browser.warnOnQuit"))
         showPrompt = false;
       else if (aQuitType == "restart")
-        showPrompt = this._prefs.getBoolPref("browser.warnOnRestart");
+        showPrompt = prefBranch.getBoolPref("browser.warnOnRestart");
       else
-        showPrompt = this._prefs.getBoolPref("browser.tabs.warnOnClose");
+        showPrompt = prefBranch.getBoolPref("browser.tabs.warnOnClose");
     } catch (ex) {}
 
     if (!showPrompt)
@@ -360,7 +360,7 @@ BrowserGlue.prototype = {
     switch (buttonChoice) {
     case 2: // Quit
       if (neverAsk.value)
-        this._prefs.setBoolPref("browser.tabs.warnOnClose", false);
+        prefBranch.setBoolPref("browser.tabs.warnOnClose", false);
       break;
     case 1: // Cancel
       aCancelQuit.QueryInterface(Ci.nsISupportsPRBool);
@@ -370,10 +370,10 @@ BrowserGlue.prototype = {
       this._saveSession = true;
       if (neverAsk.value) {
         if (aQuitType == "restart")
-          this._prefs.setBoolPref("browser.warnOnRestart", false);
+          prefBranch.setBoolPref("browser.warnOnRestart", false);
         else {
           // always save state when shutting down
-          this._prefs.setIntPref("browser.startup.page", 3);
+          prefBranch.setIntPref("browser.startup.page", 3);
         }
       }
       break;
@@ -425,10 +425,13 @@ BrowserGlue.prototype = {
     var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
                   getService(Ci.nsINavHistoryService);
 
+    var prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                     getService(Ci.nsIPrefBranch);
+
     var importBookmarks = false;
     var restoreDefaultBookmarks = false;
     try {
-      restoreDefaultBookmarks = this._prefs.getBoolPref("browser.bookmarks.restore_default_bookmarks");
+      restoreDefaultBookmarks = prefBranch.getBoolPref("browser.bookmarks.restore_default_bookmarks");
     } catch(ex) {}
 
     if (restoreDefaultBookmarks) {
@@ -439,7 +442,7 @@ BrowserGlue.prototype = {
     }
     else {
       try {
-        importBookmarks = this._prefs.getBoolPref("browser.places.importBookmarksHTML");
+        importBookmarks = prefBranch.getBoolPref("browser.places.importBookmarksHTML");
       } catch(ex) {}
     }
 
@@ -462,7 +465,7 @@ BrowserGlue.prototype = {
         // if there's no JSON backup or we are restoring default bookmarks
 
         // ensurePlacesDefaultQueriesInitialized() is called by import.
-        this._prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
+        prefBranch.setIntPref("browser.places.smartBookmarksVersion", 0);
 
         var dirService = Cc["@mozilla.org/file/directory_service;1"].
                          getService(Ci.nsIProperties);
@@ -483,9 +486,9 @@ BrowserGlue.prototype = {
           // Report the error, but ignore it.
           Cu.reportError(err);
         }
-        this._prefs.setBoolPref("browser.places.importBookmarksHTML", false);
+        prefBranch.setBoolPref("browser.places.importBookmarksHTML", false);
         if (restoreDefaultBookmarks)
-          this._prefs.setBoolPref("browser.bookmarks.restore_default_bookmarks",
+          prefBranch.setBoolPref("browser.bookmarks.restore_default_bookmarks",
                                  false);
       }
     }
@@ -509,9 +512,11 @@ BrowserGlue.prototype = {
 
     // Backup bookmarks to bookmarks.html to support apps that depend
     // on the legacy format.
+    var prefs = Cc["@mozilla.org/preferences-service;1"].
+                getService(Ci.nsIPrefBranch);
     var autoExportHTML = false;
     try {
-      autoExportHTML = this._prefs.getBoolPref("browser.bookmarks.autoExportHTML");
+      autoExportHTML = prefs.getBoolPref("browser.bookmarks.autoExportHTML");
     } catch(ex) {
       Components.utils.reportError(ex);
     }
@@ -536,8 +541,10 @@ BrowserGlue.prototype = {
     if (!lastBackup ||
         Date.now() - lastBackup.lastModifiedTime > BOOKMARKS_ARCHIVE_INTERVAL) {
       var maxBackups = 5;
+      var prefs = Cc["@mozilla.org/preferences-service;1"].
+                  getService(Ci.nsIPrefBranch);
       try {
-        maxBackups = this._prefs.getIntPref("browser.bookmarks.max_backups");
+        maxBackups = prefs.getIntPref("browser.bookmarks.max_backups");
       } catch(ex) {}
 
       PlacesUtils.archiveBookmarksFile(maxBackups, false /* don't force */);
@@ -545,9 +552,11 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function bg__migrateUI() {
+    var prefBranch = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+
     var migration = 0;
     try {
-      migration = this._prefs.getIntPref("browser.migration.version");
+      migration = prefBranch.getIntPref("browser.migration.version");
     } catch(ex) {}
 
     if (migration == 0) {
@@ -591,7 +600,7 @@ BrowserGlue.prototype = {
       this._dataSource = null;
 
       // update the migration version
-      this._prefs.setIntPref("browser.migration.version", 1);
+      prefBranch.setIntPref("browser.migration.version", 1);
     }
   },
 
@@ -636,11 +645,14 @@ BrowserGlue.prototype = {
     // XXX should this be a pref?  see bug #399268
     const MAX_RESULTS = 10;
 
+    var prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                     getService(Ci.nsIPrefBranch);
+
     // get current smart bookmarks version
     // By default, if the pref is not set up, we must create Smart Bookmarks
     var smartBookmarksCurrentVersion = 0;
     try {
-      smartBookmarksCurrentVersion = this._prefs.getIntPref(SMART_BOOKMARKS_PREF);
+      smartBookmarksCurrentVersion = prefBranch.getIntPref(SMART_BOOKMARKS_PREF);
     } catch(ex) {}
 
     // bail out if we don't have to create or update Smart Bookmarks
@@ -760,8 +772,8 @@ BrowserGlue.prototype = {
       Components.utils.reportError(ex);
     }
     finally {
-      this._prefs.setIntPref(SMART_BOOKMARKS_PREF, SMART_BOOKMARKS_VERSION);
-      this._prefs.QueryInterface(Ci.nsIPrefService).savePrefFile(null);
+      prefBranch.setIntPref(SMART_BOOKMARKS_PREF, SMART_BOOKMARKS_VERSION);
+      prefBranch.QueryInterface(Ci.nsIPrefService).savePrefFile(null);
     }
   },
 
@@ -784,68 +796,7 @@ BrowserGlue.prototype = {
   ]
 }
 
-function GeolocationPrompt() {}
-
-GeolocationPrompt.prototype = {
-  classDescription: "Geolocation Prompting Component",
-  classID:          Components.ID("{C6E8C44D-9F39-4AF7-BCC0-76E38A8310F5}"),
-  contractID:       "@mozilla.org/geolocation/prompt;1",
-
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIGeolocationPrompt]),
- 
-  prompt: function(request) {
-
-    function getChromeWindow(aWindow) {
-      var chromeWin = aWindow 
-        .QueryInterface(Ci.nsIInterfaceRequestor)
-        .getInterface(Ci.nsIWebNavigation)
-        .QueryInterface(Ci.nsIDocShellTreeItem)
-        .rootTreeItem
-        .QueryInterface(Ci.nsIInterfaceRequestor)
-        .getInterface(Ci.nsIDOMWindow)
-        .QueryInterface(Ci.nsIDOMChromeWindow);
-      return chromeWin;
-    }
-
-    var requestingWindow = request.requestingWindow.top;
-    var tabbrowser = getChromeWindow(requestingWindow).wrappedJSObject.gBrowser;
-    var browser = tabbrowser.getBrowserForDocument(requestingWindow.document);
-    var notificationBox = tabbrowser.getNotificationBox(browser);
-
-    var notification = notificationBox.getNotificationWithValue("geolocation");
-    if (!notification) {
-      var bundleService = Cc["@mozilla.org/intl/stringbundle;1"].getService(Ci.nsIStringBundleService);
-      var browserBundle = bundleService.createBundle("chrome://browser/locale/browser.properties");
-
-      var buttons = [{
-        label: browserBundle.GetStringFromName("geolocation.exactLocation"),
-        accessKey: browserBundle.GetStringFromName("geolocation.exactLocationKey"),
-        callback: function() request.allow() ,
-        },
-        {
-        label: browserBundle.GetStringFromName("geolocation.neighborhoodLocation"),
-        accessKey: browserBundle.GetStringFromName("geolocation.neighborhoodLocationKey"),
-        callback: function() request.allowButFuzz() ,
-        },
-        {
-        label: browserBundle.GetStringFromName("geolocation.nothingLocation"),
-        accessKey: browserBundle.GetStringFromName("geolocation.nothingLocationKey"),
-        callback: function() request.cancel() ,
-        }];
-      
-      var message = browserBundle.formatStringFromName("geolocation.requestMessage",
-                                                       [request.requestingURI.spec], 1);      
-      notificationBox.appendNotification(message,
-                                         "geolocation",
-                                         "chrome://browser/skin/Info.png",
-                                         notificationBox.PRIORITY_INFO_HIGH,
-                                         buttons);
-    }
-  },
-};
-
-
 //module initialization
 function NSGetModule(aCompMgr, aFileSpec) {
-  return XPCOMUtils.generateModule([BrowserGlue, GeolocationPrompt]);
+  return XPCOMUtils.generateModule([BrowserGlue]);
 }

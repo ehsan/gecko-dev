@@ -56,9 +56,6 @@
 #include "nsCOMArray.h"
 #include "nsNodeUtils.h"
 #include "nsIEventListenerManager.h"
-#include "nsTextNode.h"
-#include "mozAutoDocUpdate.h"
-#include "nsMutationEvent.h"
 
 //----------------------------------------------------------------------
 PRBool nsDOMAttribute::sInitialized;
@@ -91,10 +88,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMAttribute)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMAttribute)
-  if (tmp->mChild) {
-    static_cast<nsTextNode*>(tmp->mChild)->UnbindFromAttribute();
-    NS_RELEASE(tmp->mChild);
-  }
+  NS_IF_RELEASE(tmp->mChild);
   NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
@@ -364,10 +358,7 @@ nsDOMAttribute::ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild, nsIDO
 NS_IMETHODIMP
 nsDOMAttribute::RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
 {
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aOldChild);
-  PRInt32 index = IndexOf(content);
-  return (index == -1) ? NS_ERROR_DOM_NOT_FOUND_ERR :
-    RemoveChildAt(index, PR_TRUE);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -716,37 +707,7 @@ nsDOMAttribute::AppendChildTo(nsIContent* aKid, PRBool aNotify)
 nsresult
 nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
-  if (aIndex != 0 || !mChild) {
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIContent> child = mChild;
-  nsMutationGuard::DidMutate();
-  mozAutoDocUpdate updateBatch(GetOwnerDoc(), UPDATE_CONTENT_MODEL, aNotify);
-  nsMutationGuard guard;
-
-  mozAutoSubtreeModified subtree(nsnull, nsnull);
-  if (aNotify &&
-      nsContentUtils::HasMutationListeners(mChild,
-                                           NS_EVENT_BITS_MUTATION_NODEREMOVED,
-                                           this)) {
-    mozAutoRemovableBlockerRemover blockerRemover;
-    nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEREMOVED);
-    mutation.mRelatedNode =
-      do_QueryInterface(static_cast<nsIAttribute*>(this));
-    subtree.UpdateTarget(GetOwnerDoc(), this);
-    nsEventDispatcher::Dispatch(mChild, nsnull, &mutation);
-  }
-  if (guard.Mutated(0) && mChild != child) {
-    return NS_OK;
-  }
-  NS_RELEASE(mChild);
-  static_cast<nsTextNode*>(child.get())->UnbindFromAttribute();
-
-  nsString nullString;
-  SetDOMStringToNull(nullString);
-  SetValue(nullString);
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 nsresult
@@ -828,7 +789,7 @@ nsDOMAttribute::EnsureChildState(PRBool aSetText, PRBool &aHasChild) const
                                  mNodeInfo->NodeInfoManager());
     NS_ENSURE_SUCCESS(rv, rv);
 
-    static_cast<nsTextNode*>(mChild)->BindToAttribute(mutableThis);
+    // XXX We should be setting |this| as the parent of the textnode!
   }
 
   aHasChild = !value.IsEmpty();

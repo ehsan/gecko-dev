@@ -447,22 +447,10 @@ var FeedResultService = {
       else
         spec = "feed:" + spec;
 
-      // Retrieving the shell service might fail on some systems, most
-      // notably systems where GNOME is not installed.
-      try {
-        var ss =
-            Cc["@mozilla.org/browser/shell-service;1"].
-            getService(Ci.nsIShellService);
-        ss.openApplicationWithURI(clientApp, spec);
-      } catch(e) {
-        // If we couldn't use the shell service, fallback to using a
-        // nsIProcess instance
-        var p =
-            Cc["@mozilla.org/process/util;1"].
-            createInstance(Ci.nsIProcess);
-        p.init(clientApp);
-        p.run(false, [spec], 1);
-      }
+      var ss = 
+          Cc["@mozilla.org/browser/shell-service;1"].
+          getService(Ci.nsIShellService);
+      ss.openApplicationWithURI(clientApp, spec);
       break;
 
     default:

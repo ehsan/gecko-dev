@@ -142,7 +142,7 @@ protected:
   // being closed
   virtual nsresult CloseElement(nsIContent* aContent);
 
-  virtual nsresult FlushText(PRBool aReleaseTextNode = PR_TRUE);
+  virtual nsresult FlushText();
 
   nsresult AddContentAsLeaf(nsIContent *aContent);
 
@@ -199,8 +199,6 @@ protected:
   PRInt32 mTextSize;
   
   PRInt32 mNotifyLevel;
-  nsCOMPtr<nsIContent> mLastTextNode;
-  PRInt32 mLastTextNodeSize;
 
   PRUint8 mConstrainSize : 1;
   PRUint8 mPrettyPrintXML : 1;

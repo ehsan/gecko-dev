@@ -122,49 +122,37 @@ function testListbox(id)
   });
 }
 
-function testRichListbox(id, andThen)
+function testRichListbox(id)
 {
   var listbox = document.getElementById(id);
-  var tests = [];
-
-  function helper()
+  
+  function helper(aStart, aDelta, aExpected, aKind)
   {
-    var [aStart, aDelta, aExpected, aKind] = tests[0];
-    tests.shift();
     listbox.scrollToIndex(aStart);
     synthesizeMouseScroll(listbox, 10, 10,
                           {axis:"vertical", delta:aDelta, type:aKind.eventType,
                            hasPixels:aKind.hasPixels});
-    setTimeout(function() {
-      is(listbox.getIndexOfFirstVisibleRow(), aKind.shouldScrollNative ? aExpected : aStart,
-         "mouse-scroll of '" + id + "' vertical starting " + aStart + " delta " + aDelta
-         + " eventType " + aKind.eventType + " hasPixels " + aKind.hasPixels);
-  
-      // Check that horizontal scrolling has no effect
-      listbox.scrollToIndex(aStart);
-      synthesizeMouseScroll(listbox, 10, 10,
-                            {axis:"horizontal", delta:aDelta, type:aKind.eventType,
-                             hasPixels:aKind.hasPixels});
-      setTimeout(function() {
-        is(listbox.getIndexOfFirstVisibleRow(), aStart,
-           "mouse-scroll of '" + id + "' horizontal starting " + aStart + " delta " + aDelta
-           + " eventType " + aKind.eventType + " hasPixels " + aKind.hasPixels);
-        if (tests.length)
-          helper();
-        else
-          andThen();
-      }, 0);
-    }, 0);
+    is(listbox.getIndexOfFirstVisibleRow(), aKind.shouldScrollNative ? aExpected : aStart,
+       "mouse-scroll of '" + id + "' vertical starting " + aStart + " delta " + aDelta
+       + " eventType " + aKind.eventType + " hasPixels " + aKind.hasPixels);
+
+    // Check that horizontal scrolling has no effect
+    listbox.scrollToIndex(aStart);
+    synthesizeMouseScroll(listbox, 10, 10,
+                          {axis:"horizontal", delta:aDelta, type:aKind.eventType,
+                           hasPixels:aKind.hasPixels});  
+    is(listbox.getIndexOfFirstVisibleRow(), aStart,
+       "mouse-scroll of '" + id + "' horizontal starting " + aStart + " delta " + aDelta
+       + " eventType " + aKind.eventType + " hasPixels " + aKind.hasPixels);
   }
   
   // richlistbox currently uses native XUL scrolling, so the "line"
   // amounts don't necessarily correspond 1-to-1 with listbox items. So
   // we just check that scrolling up/down a lot hits the first/last items
   kinds.forEach(function(aKind) {
-    tests.push([2, -100, 0, aKind]);
-    tests.push([2, 100, listbox.getRowCount() - listbox.getNumberOfVisibleRows(), aKind]);
+    helper(2, -100, 0, aKind);
+    helper(2, 100, listbox.getRowCount() - listbox.getNumberOfVisibleRows(), aKind);
   });
-  helper();
 }
 
 function testArrowScrollbox(id)
@@ -219,12 +207,11 @@ function testArrowScrollbox(id)
 
 function runTests()
 {
-  testRichListbox("richlistbox", function() {
-    testListbox("listbox");
-    testArrowScrollbox("hscrollbox");
-    testArrowScrollbox("vscrollbox");
-    SimpleTest.finish();
-  });
+  testRichListbox("richlistbox");
+  testListbox("listbox");
+  testArrowScrollbox("hscrollbox");
+  testArrowScrollbox("vscrollbox");
+  SimpleTest.finish();
 }
 
 window.onload = function() { setTimeout(runTests, 0); };

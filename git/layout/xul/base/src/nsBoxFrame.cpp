@@ -179,14 +179,14 @@ nsBoxFrame::SetInitialChildList(nsIAtom*        aListName,
   return r;
 }
 
-/* virtual */ void
-nsBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+NS_IMETHODIMP
+nsBoxFrame::DidSetStyleContext()
 {
-  nsContainerFrame::DidSetStyleContext(aOldStyleContext);
-
   // The values that CacheAttributes() computes depend on our style,
   // so we need to recompute them here...
   CacheAttributes();
+
+  return NS_OK;
 }
 
 /**

@@ -45,9 +45,9 @@ function Canceler(continueFn) {
 
 Canceler.prototype = {
   QueryInterface: function(iid) {
-    if (iid.equals(Ci.nsIStreamListener) ||
-        iid.equals(Ci.nsIRequestObserver) ||
-        iid.equals(Ci.nsISupports))
+    if (iid.Equals(Ci.nsIStreamListener) ||
+        iid.Equals(Ci.nsIRequestObserver) ||
+        iid.Equals(Ci.nsISupports))
       return this;
     throw Components.results.NS_ERROR_NO_INTERFACE;
   },

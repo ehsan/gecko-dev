@@ -60,11 +60,9 @@ interface nsIStreamListener;
 interface nsIChannel : nsIRequest
 {
     /**
-     * The original URI used to construct the channel. This is used in
-     * the case of a redirect or URI "resolution" (e.g. resolving a
-     * resource: URI to a file: URI) so that the original pre-redirect
-     * URI can still be obtained.  This is never null.  Attempts to
-     * set it to null must throw.
+     * The original URI used to construct the channel. This is used in the case
+     * of a redirect or URI "resolution" (e.g. resolving a resource: URI to a
+     * file: URI) so that the original pre-redirect URI can still be obtained. 
      *
      * NOTE: this is distinctly different from the http Referer (referring URI),
      * which is typically the page that contained the original URI (accessible

@@ -275,7 +275,6 @@ nsTableFrame::Destroy()
   nsHTMLContainerFrame::Destroy();
 }
 
-
 // Make sure any views are positioned properly
 void
 nsTableFrame::RePositionViews(nsIFrame* aFrame)
@@ -2228,37 +2227,6 @@ nsTableFrame::GetCollapsedWidth(nsMargin aBorderPadding)
 }
 
 
-   /* virtual */ void
-nsTableFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
-{
-   if (!aOldStyleContext) //avoid this on init
-     return;
-   
-   if (IsBorderCollapse() &&
-       BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
-     nsRect damageArea(0, 0, GetColCount(), GetRowCount());
-     SetBCDamageArea(damageArea);
-   }
-
-   //avoid this on init or nextinflow
-   if (!mTableLayoutStrategy || GetPrevInFlow())
-     return;
-     
-   PRBool isAuto = IsAutoLayout();
-   if (isAuto != (LayoutStrategy()->GetType() == nsITableLayoutStrategy::Auto)) {
-     nsITableLayoutStrategy* temp;
-     if (isAuto)
-       temp = new BasicTableLayoutStrategy(this);
-     else
-       temp = new FixedTableLayoutStrategy(this);
-     
-     if (temp) {
-       delete mTableLayoutStrategy;
-       mTableLayoutStrategy = temp;
-     }
-  }
-}
-
 
 
 NS_IMETHODIMP
@@ -2371,11 +2339,8 @@ nsTableFrame::InsertFrames(nsIAtom*        aListName,
         nsIFrame* kidFrame;
         PRBool isColGroup = (NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP ==
                              display->mDisplay);
-        nsTableColGroupFrame* lastColGroup;
         if (isColGroup) {
           kidFrame = mColGroups.FirstChild();
-          nsTableColGroupFrame::GetLastRealColGroup(this,
-                                                   (nsIFrame**) &lastColGroup);
         }
         else {
           kidFrame = mFrames.FirstChild();
@@ -2384,9 +2349,10 @@ nsTableFrame::InsertFrames(nsIAtom*        aListName,
         PRInt32 lastIndex = -1;
         while (kidFrame) {
           if (isColGroup) {
-            if (kidFrame == lastColGroup) {
-              aPrevFrame = kidFrame; // there is no real colgroup after this one
-              break;
+            nsTableColGroupType groupType =
+              ((nsTableColGroupFrame *)kidFrame)->GetColType();
+            if (eColGroupAnonymousCell == groupType) {
+              continue;
             }
           }
           pseudoFrame = kidFrame;
@@ -4689,35 +4655,8 @@ GetColorAndStyle(const nsIFrame*  aFrame,
   width = styleData->GetActualBorderWidth(aSide);
   aWidth = nsPresContext::AppUnitsToIntCSSPixels(width);
 }
-
-class nsDelayedCalcBCBorders : public nsRunnable {
-public:
-  nsDelayedCalcBCBorders(nsIFrame* aFrame) :
-    mFrame(aFrame) {}
-
-  NS_IMETHOD Run() {
-    if (mFrame) {
-      nsTableFrame* tableFrame = static_cast <nsTableFrame*>(mFrame.GetFrame());
-      if (tableFrame) {
-        if (tableFrame->NeedToCalcBCBorders()) {
-          tableFrame->CalcBCBorders();
-        }
-      }
-    }
-    return NS_OK;
-  }
-private:
-  nsWeakFrame mFrame;
-};
-  
-PRBool
-nsTableFrame::BCRecalcNeeded(nsStyleContext* aOldStyleContext,
-                             nsStyleContext* aNewStyleContext)
-{
-  // XXX bernd temp disabled till I figure out the mac failure
-  return PR_FALSE;
-}
-
+ 
+ 
 /* BCCellBorder represents a border segment which can be either a horizontal
  * or a vertical segment. For each segment we need to know the color, width,
  * style, who owns it and how long it is in cellmap coordinates.
@@ -6921,9 +6860,13 @@ nsTableFrame::InvalidateFrame(nsIFrame* aFrame,
     aFrame->Invalidate(overflowRect);
     parent->Invalidate(aOrigOverflowRect + aOrigRect.TopLeft());
   } else {
+    nsHTMLReflowMetrics desiredSize;
     nsRect rect = aFrame->GetRect();
+    desiredSize.width = rect.width;
+    desiredSize.height = rect.height;
+    desiredSize.mOverflowArea = overflowRect;
     aFrame->CheckInvalidateSizeChange(aOrigRect, aOrigOverflowRect,
-                                      rect.Size());
+                                      desiredSize);
     aFrame->InvalidateRectDifference(aOrigOverflowRect, overflowRect);
     parent->InvalidateRectDifference(aOrigRect, rect);
   }    
