@@ -13,7 +13,6 @@ import java.util.List;
 
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.db.BrowserContract.SuggestedSites;
 import org.mozilla.gecko.db.BrowserContract.TopSites;
 import org.mozilla.gecko.db.TopSitesCursorWrapper;
 
@@ -31,17 +30,10 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
                                                            Bookmarks.TITLE,
                                                            Bookmarks.POSITION };
 
-    private String[] SUGGESTED_SITES_COLUMNS = new String[] { SuggestedSites._ID,
-                                                              SuggestedSites.URL,
-                                                              SuggestedSites.TITLE,
-                                                              SuggestedSites.IMAGE_URL,
-                                                              SuggestedSites.BG_COLOR };
-
     private final int MIN_COUNT = 6;
 
     private final String TOP_PREFIX = "top-";
     private final String PINNED_PREFIX = "pinned-";
-    private final String SUGGESTED_PREFIX = "suggested-";
 
     private Cursor createTopSitesCursor(int count) {
         MatrixCursor c = new MatrixCursor(TOP_SITES_COLUMNS);
@@ -79,28 +71,11 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
         return c;
     }
 
-    private Cursor createSuggestedSitesCursor(int count) {
-        MatrixCursor c = new MatrixCursor(SUGGESTED_SITES_COLUMNS);
-
-        for (int i = 0; i < count; i++) {
-            RowBuilder row = c.newRow();
-            row.add(-1);
-            row.add(SUGGESTED_PREFIX + "url" + i);
-            row.add(SUGGESTED_PREFIX + "title" + i);
-            row.add(SUGGESTED_PREFIX + "imageUrl" + i);
-            row.add(SUGGESTED_PREFIX + "bgColor" + i);
-        }
-
-        return c;
-    }
-
-    private TopSitesCursorWrapper createTopSitesCursorWrapper(int topSitesCount, Integer[] pinnedPositions,
-            int suggestedSitesCount) {
+    private TopSitesCursorWrapper createTopSitesCursorWrapper(int topSitesCount, Integer[] pinnedPositions) {
         Cursor pinnedSites = createPinnedSitesCursor(pinnedPositions);
         Cursor topSites = createTopSitesCursor(topSitesCount);
-        Cursor suggestedSites = createSuggestedSitesCursor(suggestedSitesCount);
 
-        return new TopSitesCursorWrapper(pinnedSites, topSites, suggestedSites, MIN_COUNT);
+        return new TopSitesCursorWrapper(pinnedSites, topSites, MIN_COUNT);
     }
 
     private void assertUrlAndTitle(Cursor c, String prefix, int index) {
@@ -129,68 +104,45 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
     }
 
     public void testCount() {
-        // The sum of all sites is smaller than MIN_COUNT
-        Cursor c = createTopSitesCursorWrapper(2, new Integer[] { 0, 1 }, 1);
+        // The sum of top and pinned sites is smaller than MIN_COUNT
+        Cursor c = createTopSitesCursorWrapper(2, new Integer[] { 0, 1 });
         assertEquals(MIN_COUNT, c.getCount());
         c.close();
 
-        // No top or suggested sites, some pinned sites, still smaller than MIN_COUNT
-        c = createTopSitesCursorWrapper(0, new Integer[] { 0, 1, 2 }, 0);
+        // No top sites, some pinned sites, still smaller than MIN_COUNT
+        c = createTopSitesCursorWrapper(0, new Integer[] { 0, 1, 2 });
         assertEquals(MIN_COUNT, c.getCount());
         c.close();
 
-        // Some top sites, no pinned or suggested sites, still smaller than MIN_COUNT
-        c = createTopSitesCursorWrapper(3, null, 0);
-        assertEquals(MIN_COUNT, c.getCount());
-        c.close();
-
-        // Some suggested sites, no pinned or top sites, still smaller than MIN_COUNT
-        c = createTopSitesCursorWrapper(0, null, 3);
+        // Some top sites, no pinned sites, still smaller than MIN_COUNT
+        c = createTopSitesCursorWrapper(3, null);
         assertEquals(MIN_COUNT, c.getCount());
         c.close();
 
         // The sum of top and pinned sites is greater than MIN_COUNT
-        c = createTopSitesCursorWrapper(10, new Integer[] { 0, 1, 2 }, 0);
+        c = createTopSitesCursorWrapper(10, new Integer[] { 0, 1, 2 });
         assertEquals(13, c.getCount());
-        c.close();
-
-        // The sum of suggested and pinned sites is greater than MIN_COUNT
-        c = createTopSitesCursorWrapper(0, new Integer[] { 0, 1 }, 8);
-        assertEquals(10, c.getCount());
-        c.close();
-
-        // The sum of top, pinned, and suggested sites is greater than MIN_COUNT
-        c = createTopSitesCursorWrapper(2, new Integer[] { 0, 1, 2 }, 2);
-        assertEquals(7, c.getCount());
-        c.close();
-
-        // The sum of top and suggested sites is smaller than MIN_COUNT
-        c = createTopSitesCursorWrapper(2, null, 2);
-        assertEquals(MIN_COUNT, c.getCount());
         c.close();
     }
 
     public void testCloseWrappedCursors() {
         Cursor pinnedSites = createPinnedSitesCursor(new Integer[] { 0, 1 });
         Cursor topSites = createTopSitesCursor(2);
-        Cursor suggestedSites = createSuggestedSitesCursor(2);
-        Cursor wrapper = new TopSitesCursorWrapper(pinnedSites, topSites, suggestedSites, MIN_COUNT);
+        Cursor wrapper = new TopSitesCursorWrapper(pinnedSites, topSites, MIN_COUNT);
 
         assertFalse(pinnedSites.isClosed());
         assertFalse(topSites.isClosed());
-        assertFalse(suggestedSites.isClosed());
 
         wrapper.close();
 
         // Closing wrapper closes wrapped cursors
         assertTrue(pinnedSites.isClosed());
         assertTrue(topSites.isClosed());
-        assertTrue(suggestedSites.isClosed());
     }
 
     public void testIsPinned() {
         Integer[] pinnedPositions = new Integer[] { 0, 1 };
-        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions, 2);
+        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions);
 
         List<Integer> pinnedList = Arrays.asList(pinnedPositions);
 
@@ -205,7 +157,7 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
 
     public void testBlankPositions() {
         Integer[] pinnedPositions = new Integer[] { 0, 1, 4 };
-        TopSitesCursorWrapper c = createTopSitesCursorWrapper(0, pinnedPositions, 1);
+        TopSitesCursorWrapper c = createTopSitesCursorWrapper(0, pinnedPositions);
 
         c.moveToPosition(-1);
         while (c.moveToNext()) {
@@ -219,7 +171,7 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
 
     public void testIsNull() {
         Integer[] pinnedPositions = new Integer[] { 0, 1, 4 };
-        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions, 1);
+        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions);
 
         c.moveToPosition(-1);
         while (c.moveToNext()) {
@@ -231,32 +183,18 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
                 assertTrue(c.isNull(c.getColumnIndex(TopSites.DISPLAY)));
                 assertTrue(c.isNull(c.getColumnIndex(TopSites.BOOKMARK_ID)));
                 assertTrue(c.isNull(c.getColumnIndex(TopSites.HISTORY_ID)));
-                assertTrue(c.isNull(c.getColumnIndex(TopSites.IMAGE_URL)));
-                assertTrue(c.isNull(c.getColumnIndex(TopSites.BG_COLOR)));
             } else if (rowType == TopSites.TYPE_PINNED) {
                 assertFalse(c.isNull(c.getColumnIndex(TopSites.URL)));
                 assertFalse(c.isNull(c.getColumnIndex(TopSites.TITLE)));
                 assertTrue(c.isNull(c.getColumnIndex(TopSites.DISPLAY)));
                 assertTrue(c.isNull(c.getColumnIndex(TopSites.BOOKMARK_ID)));
                 assertTrue(c.isNull(c.getColumnIndex(TopSites.HISTORY_ID)));
-                assertTrue(c.isNull(c.getColumnIndex(TopSites.IMAGE_URL)));
-                assertTrue(c.isNull(c.getColumnIndex(TopSites.BG_COLOR)));
             } else if (rowType == TopSites.TYPE_TOP) {
                 assertFalse(c.isNull(c.getColumnIndex(TopSites.URL)));
                 assertFalse(c.isNull(c.getColumnIndex(TopSites.TITLE)));
                 assertFalse(c.isNull(c.getColumnIndex(TopSites.DISPLAY)));
                 assertFalse(c.isNull(c.getColumnIndex(TopSites.BOOKMARK_ID)));
                 assertFalse(c.isNull(c.getColumnIndex(TopSites.HISTORY_ID)));
-                assertTrue(c.isNull(c.getColumnIndex(TopSites.IMAGE_URL)));
-                assertTrue(c.isNull(c.getColumnIndex(TopSites.BG_COLOR)));
-            } else if (rowType == TopSites.TYPE_SUGGESTED) {
-                assertFalse(c.isNull(c.getColumnIndex(TopSites.URL)));
-                assertFalse(c.isNull(c.getColumnIndex(TopSites.TITLE)));
-                assertTrue(c.isNull(c.getColumnIndex(TopSites.DISPLAY)));
-                assertTrue(c.isNull(c.getColumnIndex(TopSites.BOOKMARK_ID)));
-                assertTrue(c.isNull(c.getColumnIndex(TopSites.HISTORY_ID)));
-                assertFalse(c.isNull(c.getColumnIndex(TopSites.IMAGE_URL)));
-                assertFalse(c.isNull(c.getColumnIndex(TopSites.BG_COLOR)));
             } else {
                 fail("Invalid row type found in the cursor");
             }
@@ -266,12 +204,11 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
     }
 
     public void testColumnValues() {
-        Integer[] pinnedPositions = new Integer[] { 0, 1 };
-        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions, 1);
+        Integer[] pinnedPositions = new Integer[] { 0, 1, 4 };
+        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions);
 
         int topIndex = 0;
         int pinnedIndex = 0;
-        int suggestedIndex = 0;
 
         c.moveToPosition(-1);
         while (c.moveToNext()) {
@@ -283,8 +220,6 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
                 assertUrlAndTitle(c, PINNED_PREFIX, pinnedIndex++);
             } else if (rowType == TopSites.TYPE_TOP) {
                 assertUrlAndTitle(c, TOP_PREFIX, topIndex++);
-            } else if (rowType == TopSites.TYPE_SUGGESTED) {
-                assertUrlAndTitle(c, SUGGESTED_PREFIX, suggestedIndex++);
             } else {
                 fail("Invalid row type found in the cursor");
             }
@@ -295,9 +230,9 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
 
     public void testColumns() {
         Integer[] pinnedPositions = new Integer[] { 0, 1, 4 };
-        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions, 3);
+        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions);
 
-        assertEquals(9, c.getColumnCount());
+        assertEquals(7, c.getColumnCount());
 
         String[] columnNames = c.getColumnNames();
         assertEquals(columnNames.length, c.getColumnCount());
@@ -319,8 +254,8 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
     }
 
     public void testRowTypes() {
-        Integer[] pinnedPositions = new Integer[] { 0, 4 };
-        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions, 1);
+        Integer[] pinnedPositions = new Integer[] { 0, 1, 4 };
+        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions);
 
         // Check pinned sites
         for (int i = 0; i < pinnedPositions.length; i++) {
@@ -328,11 +263,8 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
         }
 
         // Check top sites
-        assertRowType(c, 1, TopSites.TYPE_TOP);
         assertRowType(c, 2, TopSites.TYPE_TOP);
-
-        // Suggested site
-        assertRowType(c, 3, TopSites.TYPE_SUGGESTED);
+        assertRowType(c, 3, TopSites.TYPE_TOP);
 
         // Blank position
         assertRowType(c, 5, TopSites.TYPE_BLANK);
@@ -342,7 +274,7 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
 
     public void testPositionOutOfBounds() {
         Integer[] pinnedPositions = new Integer[] { 0, 1, 4 };
-        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions, 1);
+        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions);
 
         boolean failed = false;
         try {
@@ -367,7 +299,7 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
 
     public void testColumnIndexOutOfBounds() {
         Integer[] pinnedPositions = new Integer[] { 0, 1, 4 };
-        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions, 1);
+        TopSitesCursorWrapper c = createTopSitesCursorWrapper(2, pinnedPositions);
 
         boolean failed = false;
         try {
@@ -386,20 +318,6 @@ public class TestTopSitesCursorWrapper extends BrowserTestCase {
             failed = true;
         }
         assertTrue(failed);
-
-        c.close();
-    }
-
-    public void testNullSuggestedCursor() {
-        Cursor pinnedSites = createPinnedSitesCursor(new Integer[] { 0, 1, 4 });
-        Cursor topSites = createTopSitesCursor(3);
-        Cursor c = new TopSitesCursorWrapper(pinnedSites, topSites, null, MIN_COUNT);
-
-        // Simply go through all rows and make sure nothing breaks.
-        c.moveToPosition(-1);
-        while (c.moveToNext()) {
-            assertNotSame(TopSites.TYPE_SUGGESTED, getRowType(c));
-        }
 
         c.close();
     }
