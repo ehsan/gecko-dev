@@ -1436,7 +1436,6 @@ pref("devtools.editor.expandtab", true);
 pref("devtools.editor.keymap", "default");
 pref("devtools.editor.autoclosebrackets", true);
 pref("devtools.editor.detectindentation", true);
-pref("devtools.editor.autocomplete", true);
 
 // Enable the Font Inspector
 pref("devtools.fontinspector.enabled", true);

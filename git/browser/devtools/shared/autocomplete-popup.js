@@ -169,6 +169,7 @@ AutocompletePopup.prototype = {
     if (this.isOpen) {
       this.hidePopup();
     }
+    this.clearItems();
 
     if (this.onSelect) {
       this._list.removeEventListener("select", this.onSelect, false);
@@ -186,8 +187,6 @@ AutocompletePopup.prototype = {
       gDevTools.off("pref-changed", this._handleThemeChange);
     }
 
-    this._list.remove();
-    this._panel.remove();
     this._document = null;
     this._list = null;
     this._panel = null;
