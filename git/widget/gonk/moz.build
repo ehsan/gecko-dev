@@ -64,5 +64,3 @@ if CONFIG['ANDROID_VERSION'] == '15':
 
 LIBXUL_LIBRARY = True
 
-LIBRARY_NAME = 'widget_gonk'
-

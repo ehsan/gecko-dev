@@ -391,12 +391,10 @@ VectorImage::OnImageDataComplete(nsIRequest* aRequest,
 
   // Actually fire OnStopRequest.
   if (mStatusTracker) {
-    // XXX(seth): Is this seriously the least insane way to do this?
     nsRefPtr<imgStatusTracker> clone = mStatusTracker->CloneForRecording();
     imgDecoderObserver* observer = clone->GetDecoderObserver();
     observer->OnStopRequest(aLastPart, finalStatus);
-    ImageStatusDiff diff = mStatusTracker->Difference(clone);
-    mStatusTracker->ApplyDifference(diff);
+    imgStatusTracker::StatusDiff diff = mStatusTracker->CalculateAndApplyDifference(clone);
     mStatusTracker->SyncNotifyDifference(diff);
   }
   return finalStatus;
@@ -863,8 +861,7 @@ VectorImage::OnStartRequest(nsIRequest* aRequest, nsISupports* aCtxt)
     nsRefPtr<imgStatusTracker> clone = mStatusTracker->CloneForRecording();
     imgDecoderObserver* observer = clone->GetDecoderObserver();
     observer->OnStartDecode();
-    ImageStatusDiff diff = mStatusTracker->Difference(clone);
-    mStatusTracker->ApplyDifference(diff);
+    imgStatusTracker::StatusDiff diff = mStatusTracker->CalculateAndApplyDifference(clone);
     mStatusTracker->SyncNotifyDifference(diff);
   }
 
@@ -952,8 +949,7 @@ VectorImage::OnSVGDocumentLoaded()
     observer->OnStopFrame();
     observer->OnStopDecode(NS_OK); // Unblock page load.
 
-    ImageStatusDiff diff = mStatusTracker->Difference(clone);
-    mStatusTracker->ApplyDifference(diff);
+    imgStatusTracker::StatusDiff diff = mStatusTracker->CalculateAndApplyDifference(clone);
     mStatusTracker->SyncNotifyDifference(diff);
   }
 
@@ -976,8 +972,7 @@ VectorImage::OnSVGDocumentError()
 
     // Unblock page load.
     observer->OnStopDecode(NS_ERROR_FAILURE);
-    ImageStatusDiff diff = mStatusTracker->Difference(clone);
-    mStatusTracker->ApplyDifference(diff);
+    imgStatusTracker::StatusDiff diff = mStatusTracker->CalculateAndApplyDifference(clone);
     mStatusTracker->SyncNotifyDifference(diff);
   }
 }

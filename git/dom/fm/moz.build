@@ -12,7 +12,6 @@ XPIDL_SOURCES += [
 XPIDL_MODULE = 'dom_fm'
 
 MODULE = 'dom'
-LIBRARY_NAME = 'domfm_s'
 
 CPP_SOURCES += [
     'FMRadio.cpp',
@@ -29,3 +28,4 @@ EXTRA_COMPONENTS += [
 ]
 
 LIBXUL_LIBRARY = True
+

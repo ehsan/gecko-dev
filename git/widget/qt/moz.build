@@ -53,5 +53,3 @@ if CONFIG[' MOZ_ENABLE_QTMOBILITY']:
 
 LIBXUL_LIBRARY = True
 
-LIBRARY_NAME = 'widget_qt'
-

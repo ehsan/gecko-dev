@@ -21,7 +21,6 @@
 #include "mozilla/layers/CompositorOGL.h"  // for CompositorOGL
 #include "mozilla/layers/ISurfaceAllocator.h"
 #include "mozilla/layers/YCbCrImageDataSerializer.h"
-#include "mozilla/layers/GrallocTextureHost.h"
 #include "nsPoint.h"                    // for nsIntPoint
 #include "nsRegion.h"                   // for nsIntRegion
 #ifdef XP_MACOSX
@@ -89,14 +88,6 @@ CreateTextureHostOGL(uint64_t aID,
                                         desc.inverted());
       break;
     }
-#ifdef MOZ_WIDGET_GONK
-    case SurfaceDescriptor::TNewSurfaceDescriptorGralloc: {
-      const NewSurfaceDescriptorGralloc& desc =
-        aDesc.get_NewSurfaceDescriptorGralloc();
-      result = new GrallocTextureHostOGL(aID, aFlags, desc);
-      break;
-    }
-#endif
     default: return nullptr;
   }
   return result.forget();

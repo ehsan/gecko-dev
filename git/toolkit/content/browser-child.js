@@ -8,7 +8,6 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
-Cu.import("resource://gre/modules/RemoteAddonsChild.jsm");
 
 let WebProgressListener = {
   init: function() {
@@ -224,6 +223,4 @@ addEventListener("ImageContentLoaded", function (aEvent) {
     sendAsyncMessage("ImageDocumentLoaded", { width: req.image.width,
                                               height: req.image.height });
   }
-}, false);
-
-RemoteAddonsChild.init(this);
+}, false)

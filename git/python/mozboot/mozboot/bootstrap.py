@@ -53,8 +53,6 @@ class Bootstrapper(object):
                 cls = MintBootstrapper
             elif distro == 'Ubuntu':
                 cls = UbuntuBootstrapper
-            elif distro == 'Elementary':
-                cls = UbuntuBootstrapper
             else:
                 raise NotImplementedError('Bootstrap support for this Linux '
                                           'distro not yet available.')

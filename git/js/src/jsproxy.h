@@ -9,25 +9,12 @@
 
 #include "mozilla/Maybe.h"
 
+#include "jsapi.h"
 #include "jsfriendapi.h"
 
 #include "js/CallNonGenericMethod.h"
-#include "js/Class.h"
 
 namespace js {
-
-using JS::AutoIdVector;
-using JS::CallArgs;
-using JS::HandleId;
-using JS::HandleObject;
-using JS::HandleValue;
-using JS::IsAcceptableThis;
-using JS::MutableHandle;
-using JS::MutableHandleObject;
-using JS::MutableHandleValue;
-using JS::NativeImpl;
-using JS::PrivateValue;
-using JS::Value;
 
 class RegExpGuard;
 class JS_FRIEND_API(Wrapper);
@@ -288,12 +275,12 @@ extern JS_FRIEND_DATA(js::Class* const) OuterWindowProxyClassPtr;
 
 inline bool IsObjectProxyClass(const Class *clasp)
 {
-    return clasp == ObjectProxyClassPtr || clasp == OuterWindowProxyClassPtr;
+    return clasp == js::ObjectProxyClassPtr || clasp == js::OuterWindowProxyClassPtr;
 }
 
 inline bool IsFunctionProxyClass(const Class *clasp)
 {
-    return clasp == FunctionProxyClassPtr;
+    return clasp == js::FunctionProxyClassPtr;
 }
 
 inline bool IsProxyClass(const Class *clasp)
@@ -401,8 +388,8 @@ class JS_FRIEND_API(AutoEnterPolicy)
         // * The policy set rv to false, indicating that we should throw.
         // * The caller did not instruct us to ignore exceptions.
         // * The policy did not throw itself.
-        if (!allow && !rv && mayThrow)
-            reportErrorIfExceptionIsNotPending(cx, id);
+        if (!allow && !rv && mayThrow && !JS_IsExceptionPending(cx))
+            reportError(cx, id);
     }
 
     virtual ~AutoEnterPolicy() { recordLeave(); }
@@ -416,7 +403,7 @@ class JS_FRIEND_API(AutoEnterPolicy)
         : context(NULL)
 #endif
         {};
-    void reportErrorIfExceptionIsNotPending(JSContext *cx, jsid id);
+    void reportError(JSContext *cx, jsid id);
     bool allow;
     bool rv;
 

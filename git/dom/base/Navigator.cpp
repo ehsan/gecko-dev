@@ -452,7 +452,8 @@ Navigator::GetMimeTypes(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
-    mMimeTypes = new nsMimeTypeArray(mWindow);
+    nsWeakPtr win = do_GetWeakReference(mWindow);
+    mMimeTypes = new nsMimeTypeArray(win);
   }
 
   return mMimeTypes;
@@ -466,7 +467,8 @@ Navigator::GetPlugins(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
-    mPlugins = new nsPluginArray(mWindow);
+    nsWeakPtr win = do_GetWeakReference(mWindow);
+    mPlugins = new nsPluginArray(win);
     mPlugins->Init();
   }
 
@@ -580,7 +582,8 @@ Navigator::JavaEnabled(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return false;
     }
-    mMimeTypes = new nsMimeTypeArray(mWindow);
+    nsWeakPtr win = do_GetWeakReference(mWindow);
+    mMimeTypes = new nsMimeTypeArray(win);
   }
 
   RefreshMIMEArray();

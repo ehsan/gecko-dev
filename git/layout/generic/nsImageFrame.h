@@ -277,7 +277,6 @@ private:
 
   nsCOMPtr<imgINotificationObserver> mListener;
 
-  nsCOMPtr<imgIContainer> mImage;
   nsSize mComputedSize;
   nsIFrame::IntrinsicSize mIntrinsicSize;
   nsSize mIntrinsicRatio;

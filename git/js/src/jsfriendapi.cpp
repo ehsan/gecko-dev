@@ -37,8 +37,8 @@ JS_STATIC_ASSERT(offsetof(JSRuntime, mainThread) ==
                  PerThreadDataFriendFields::RuntimeMainThreadOffset);
 
 PerThreadDataFriendFields::PerThreadDataFriendFields()
+  : nativeStackLimit(0)
 {
-    PodArrayZero(nativeStackLimit);
 #if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
     PodArrayZero(thingGCRooters);
 #endif
@@ -403,12 +403,6 @@ js::IsObjectInContextCompartment(JSObject *obj, const JSContext *cx)
 }
 
 JS_FRIEND_API(bool)
-js::RunningWithTrustedPrincipals(JSContext *cx)
-{
-    return cx->runningWithTrustedPrincipals();
-}
-
-JS_FRIEND_API(bool)
 js::IsOriginalScriptFunction(JSFunction *fun)
 {
     return fun->nonLazyScript()->function() == fun;
@@ -553,12 +547,6 @@ void
 js::SetPreserveWrapperCallback(JSRuntime *rt, PreserveWrapperCallback callback)
 {
     rt->preserveWrapperCallback = callback;
-}
-
-JS_FRIEND_API(JSErrorReport*)
-js::ErrorFromException(Value val)
-{
-    return js_ErrorFromException(val);
 }
 
 /*

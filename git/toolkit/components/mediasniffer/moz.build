@@ -23,5 +23,3 @@ CSRCS += [
 
 LIBXUL_LIBRARY = True
 
-LIBRARY_NAME = 'mediasniffer'
-

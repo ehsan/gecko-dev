@@ -9,6 +9,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME	= nkwyciwyg_s
 LOCAL_INCLUDES = \
   -I$(srcdir)/../../base/src \
   $(NULL)

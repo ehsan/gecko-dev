@@ -334,18 +334,9 @@ CallSetter(JSContext *cx, HandleObject obj, HandleId id, StrictPropertyOp op, un
 }
 
 inline uintptr_t
-GetNativeStackLimit(ThreadSafeContext *cx)
+GetNativeStackLimit(ExclusiveContext *cx)
 {
-    StackKind kind;
-    if (cx->isJSContext()) {
-        kind = cx->asJSContext()->runningWithTrustedPrincipals()
-                 ? StackForTrustedScript : StackForUntrustedScript;
-    } else {
-        // For other threads, we just use the trusted stack depth, since it's
-        // unlikely that we'll be mixing trusted and untrusted code together.
-        kind = StackForTrustedScript;
-    }
-    return cx->perThreadData->nativeStackLimit[kind];
+    return cx->perThreadData->nativeStackLimit;
 }
 
 inline void

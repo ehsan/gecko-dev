@@ -11,7 +11,6 @@
 #include <stdint.h>
 
 #include "jsalloc.h"
-#include "jspubtd.h"
 #ifdef JS_THREADSAFE
 # include "prcvar.h"
 # include "prlock.h"

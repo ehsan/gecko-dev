@@ -35,6 +35,3 @@ else:
             'xptcinvoke.cpp',
             'xptcstubs.cpp',
         ]
-
-LIBRARY_NAME = 'xptcmd'
-

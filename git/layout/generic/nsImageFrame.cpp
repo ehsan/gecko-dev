@@ -244,10 +244,13 @@ nsImageFrame::Init(nsIContent*      aContent,
     p->AdjustPriority(-1);
 
   // If we already have an image container, OnStartContainer won't be called
+  // Set the animation mode here
   if (currentRequest) {
     nsCOMPtr<imgIContainer> image;
     currentRequest->GetImage(getter_AddRefs(image));
-    OnStartContainer(currentRequest, image);
+    if (image) {
+      image->SetAnimationMode(aPresContext->ImageAnimationMode());
+    }
   }
 }
 
@@ -512,18 +515,6 @@ nsImageFrame::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aDat
   return NS_OK;
 }
 
-static bool
-SizeIsAvailable(imgIRequest* aRequest)
-{
-  if (!aRequest)
-    return false;
-
-  uint32_t imageStatus = 0;
-  nsresult rv = aRequest->GetImageStatus(&imageStatus);
-
-  return NS_SUCCEEDED(rv) && (imageStatus & imgIRequest::STATUS_SIZE_AVAILABLE); 
-}
-
 nsresult
 nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
 {
@@ -541,25 +532,9 @@ nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
     // We don't care
     return NS_OK;
   }
-
-  bool intrinsicSizeChanged = false;
-  if (SizeIsAvailable(aRequest)) {
-    // This is valid and for the current request, so update our stored image
-    // container, orienting according to our style.
-    mImage = nsLayoutUtils::OrientImage(aImage, StyleVisibility()->mImageOrientation);
-    
-    intrinsicSizeChanged = UpdateIntrinsicSize(mImage);
-    intrinsicSizeChanged = UpdateIntrinsicRatio(mImage) || intrinsicSizeChanged;
-  } else {
-    // We no longer have a valid image, so release our stored image container.
-    mImage = nullptr;
-
-    // Have to size to 0,0 so that GetDesiredSize recalculates the size.
-    mIntrinsicSize.width.SetCoordValue(0);
-    mIntrinsicSize.height.SetCoordValue(0);
-    mIntrinsicRatio.SizeTo(0, 0);
-    intrinsicSizeChanged = true;
-  }
+  
+  bool intrinsicSizeChanged = UpdateIntrinsicSize(aImage);
+  intrinsicSizeChanged = UpdateIntrinsicRatio(aImage) || intrinsicSizeChanged;
 
   if (intrinsicSizeChanged && (mState & IMAGE_GOTINITIALREFLOW)) {
     // Now we need to reflow if we have an unconstrained size and have
@@ -634,7 +609,13 @@ nsImageFrame::OnStopRequest(imgIRequest *aRequest,
     return NS_ERROR_FAILURE;
   }
 
-  NotifyNewCurrentRequest(aRequest, aStatus);
+  bool multipart = false;
+  aRequest->GetMultipart(&multipart);
+
+  if (loadType == nsIImageLoadingContent::PENDING_REQUEST || multipart) {
+    NotifyNewCurrentRequest(aRequest, aStatus);
+  }
+
   return NS_OK;
 }
 
@@ -642,22 +623,17 @@ void
 nsImageFrame::NotifyNewCurrentRequest(imgIRequest *aRequest,
                                       nsresult aStatus)
 {
-  nsCOMPtr<imgIContainer> image;
-  aRequest->GetImage(getter_AddRefs(image));
-  NS_ASSERTION(image || NS_FAILED(aStatus), "Successful load with no container?");
-
   // May have to switch sizes here!
   bool intrinsicSizeChanged = true;
-  if (NS_SUCCEEDED(aStatus) && image && SizeIsAvailable(aRequest)) {
-    // Update our stored image container, orienting according to our style.
-    mImage = nsLayoutUtils::OrientImage(image, StyleVisibility()->mImageOrientation);
-
-    intrinsicSizeChanged = UpdateIntrinsicSize(mImage);
-    intrinsicSizeChanged = UpdateIntrinsicRatio(mImage) || intrinsicSizeChanged;
-  } else {
-    // We no longer have a valid image, so release our stored image container.
-    mImage = nullptr;
-
+  if (NS_SUCCEEDED(aStatus)) {
+    nsCOMPtr<imgIContainer> imageContainer;
+    aRequest->GetImage(getter_AddRefs(imageContainer));
+    NS_ASSERTION(imageContainer, "Successful load with no container?");
+    intrinsicSizeChanged = UpdateIntrinsicSize(imageContainer);
+    intrinsicSizeChanged = UpdateIntrinsicRatio(imageContainer) ||
+      intrinsicSizeChanged;
+  }
+  else {
     // Have to size to 0,0 so that GetDesiredSize recalculates the size
     mIntrinsicSize.width.SetCoordValue(0);
     mIntrinsicSize.height.SetCoordValue(0);
@@ -697,16 +673,30 @@ nsImageFrame::FrameChanged(imgIRequest *aRequest,
 void
 nsImageFrame::EnsureIntrinsicSizeAndRatio(nsPresContext* aPresContext)
 {
-  // If mIntrinsicSize.width and height are 0, then we need to update from the
-  // image container.
+  // if mIntrinsicSize.width and height are 0, then we should
+  // check to see if the size is already known by the image container.
   if (mIntrinsicSize.width.GetUnit() == eStyleUnit_Coord &&
       mIntrinsicSize.width.GetCoordValue() == 0 &&
       mIntrinsicSize.height.GetUnit() == eStyleUnit_Coord &&
       mIntrinsicSize.height.GetCoordValue() == 0) {
 
-    if (mImage) {
-      UpdateIntrinsicSize(mImage);
-      UpdateIntrinsicRatio(mImage);
+    // Jump through all the hoops to get the status of the request
+    nsCOMPtr<imgIRequest> currentRequest;
+    nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
+    if (imageLoader)
+      imageLoader->GetRequest(nsIImageLoadingContent::CURRENT_REQUEST,
+                              getter_AddRefs(currentRequest));
+    uint32_t status = 0;
+    if (currentRequest)
+      currentRequest->GetImageStatus(&status);
+
+    // If we know the size, we can grab it and use it for an update
+    if (status & imgIRequest::STATUS_SIZE_AVAILABLE) {
+      nsCOMPtr<imgIContainer> imgCon;
+      currentRequest->GetImage(getter_AddRefs(imgCon));
+      NS_ABORT_IF_FALSE(imgCon, "SIZE_AVAILABLE, but no imgContainer?");
+      UpdateIntrinsicSize(imgCon);
+      UpdateIntrinsicRatio(imgCon);
     } else {
       // image request is null or image size not known, probably an
       // invalid image specified
@@ -1403,17 +1393,31 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     nsEventStates contentState = mContent->AsElement()->State();
     bool imageOK = IMAGE_OK(contentState, true);
 
-    // XXX(seth): The SizeIsAvailable check here should not be necessary - the
-    // intention is that a non-null mImage means we have a size, but there is
-    // currently some code that violates this invariant.
-    if (!imageOK || !mImage || !SizeIsAvailable(currentRequest)) {
+    nsCOMPtr<imgIContainer> imgCon;
+    if (currentRequest) {
+      currentRequest->GetImage(getter_AddRefs(imgCon));
+    }
+
+    // Determine if the size is available
+    bool haveSize = false;
+    uint32_t imageStatus = 0;
+    if (currentRequest)
+      currentRequest->GetImageStatus(&imageStatus);
+    if (imageStatus & imgIRequest::STATUS_SIZE_AVAILABLE)
+      haveSize = true;
+
+    // We should never have the size and not have an image container
+    NS_ABORT_IF_FALSE(!haveSize || imgCon, "Have size but not container?");
+
+    if (!imageOK || !haveSize) {
       // No image yet, or image load failed. Draw the alt-text and an icon
       // indicating the status
       aLists.Content()->AppendNewToTop(new (aBuilder)
         nsDisplayAltFeedback(aBuilder, this));
-    } else {
+    }
+    else {
       aLists.Content()->AppendNewToTop(new (aBuilder)
-        nsDisplayImage(aBuilder, this, mImage));
+        nsDisplayImage(aBuilder, this, imgCon));
 
       // If we were previously displaying an icon, we're not anymore
       if (mDisplayingIcon) {

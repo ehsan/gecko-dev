@@ -29,5 +29,3 @@ LIBXUL_LIBRARY = True
 
 MSVC_ENABLE_PGO = True
 
-LIBRARY_NAME = 'jsdomstorage_s'
-

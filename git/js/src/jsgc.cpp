@@ -3318,7 +3318,7 @@ Zone::findOutgoingEdges(ComponentFinder<JS::Zone> &finder)
 static void
 FindZoneGroups(JSRuntime *rt)
 {
-    ComponentFinder<Zone> finder(rt->mainThread.nativeStackLimit[StackForSystemCode]);
+    ComponentFinder<Zone> finder(rt->mainThread.nativeStackLimit);
     if (!rt->gcIsIncremental)
         finder.useOneComponent();
 

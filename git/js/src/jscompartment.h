@@ -9,7 +9,6 @@
 
 #include "mozilla/MemoryReporting.h"
 
-#include "builtin/TypeRepresentation.h"
 #include "gc/Zone.h"
 #include "vm/GlobalObject.h"
 
@@ -207,9 +206,6 @@ struct JSCompartment
     int64_t                      lastAnimationTime;
 
     js::RegExpCompartment        regExps;
-
-    /* Set of all currently living type representations. */
-    js::TypeRepresentationSet    typeReprs;
 
   private:
     void sizeOfTypeInferenceData(JS::TypeInferenceSizes *stats, mozilla::MallocSizeOf mallocSizeOf);
