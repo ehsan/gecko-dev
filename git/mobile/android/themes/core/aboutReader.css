@@ -334,7 +334,6 @@ body {
   padding: 0;
   list-style: none;
   background-color: #ced7de;
-  -moz-user-select: none;
 }
 
 .toolbar-hidden {
