@@ -554,7 +554,8 @@ public:
 
     enum ContextFlags {
         ContextFlagsNone = 0x0,
-        ContextFlagsGlobal = 0x1
+        ContextFlagsGlobal = 0x1,
+        ContextFlagsMesaLLVMPipe = 0x2
     };
 
     enum GLContextType {
@@ -1494,6 +1495,9 @@ public:
         OES_standard_derivatives,
         EXT_texture_filter_anisotropic,
         EXT_texture_compression_s3tc,
+        EXT_texture_compression_dxt1,
+        ANGLE_texture_compression_dxt3,
+        ANGLE_texture_compression_dxt5,
         EXT_framebuffer_blit,
         ANGLE_framebuffer_blit,
         EXT_framebuffer_multisample,

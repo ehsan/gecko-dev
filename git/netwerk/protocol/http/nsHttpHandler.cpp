@@ -284,7 +284,15 @@ nsHttpHandler::Init()
     rv = InitConnectionMgr();
     if (NS_FAILED(rv)) return rv;
 
+#ifdef ANDROID
     mProductSub.AssignLiteral(MOZILLA_UAVERSION);
+#else
+    mProductSub.AssignLiteral(MOZ_UA_BUILDID);
+#endif
+    if (mProductSub.IsEmpty() && appInfo)
+        appInfo->GetPlatformBuildID(mProductSub);
+    if (mProductSub.Length() > 8)
+        mProductSub.SetLength(8);
 
     // Startup the http category
     // Bring alive the objects in the http-protocol-startup category
@@ -1189,6 +1197,15 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
                 PR_SecondsToInterval((PRUint16) clamped(val, 0, 0x7fffffff));
     }
 
+    // on transition of network.http.diagnostics to true print
+    // a bunch of information to the console
+    if (pref && PREF_CHANGED(HTTP_PREF("diagnostics"))) {
+        rv = prefs->GetBoolPref(HTTP_PREF("diagnostics"), &cVar);
+        if (NS_SUCCEEDED(rv) && cVar) {
+            if (mConnMgr)
+                mConnMgr->PrintDiagnostics();
+        }
+    }
     //
     // INTL options
     //

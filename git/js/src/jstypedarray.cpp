@@ -2287,6 +2287,9 @@ DataViewObject::class_constructor(JSContext *cx, unsigned argc, Value *vp)
         argv[argc + 2].setObject(*proto);
         argv[0].setUndefined(); // We want to use a different callee (avoid an assertion)
 
+        // Appease 'thisv' assertion in CrossCompartmentWrapper::nativeCall
+        argv[1].setMagic(JS_IS_CONSTRUCTING);
+
         CallArgs proxyArgs = CallArgsFromVp(argc + 1, argv.begin());
         if (!Proxy::nativeCall(cx, bufobj, &DataViewClass, constructWithProto, proxyArgs))
             return false;
@@ -2918,6 +2921,7 @@ IMPL_TYPED_ARRAY_JSAPI_CONSTRUCTORS(Float64, double)
     #_typedArray,                                                              \
     JSCLASS_HAS_RESERVED_SLOTS(TypedArray::FIELD_MAX) |                        \
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |                        \
+    JSCLASS_HAS_CACHED_PROTO(JSProto_##_typedArray) |                          \
     JSCLASS_FOR_OF_ITERATION |                                                 \
     Class::NON_NATIVE,                                                         \
     JS_PropertyStub,         /* addProperty */                                 \

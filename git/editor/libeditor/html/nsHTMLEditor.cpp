@@ -3407,8 +3407,11 @@ nsHTMLEditor::DeleteSelectionImpl(EDirection aAction,
   // Don't strip wrappers if this is the only wrapper in the block.  Then we'll
   // add a <br> later, so it won't be an empty wrapper in the end.
   nsCOMPtr<nsIContent> blockParent = content;
-  while (!IsBlockNode(blockParent)) {
+  while (blockParent && !IsBlockNode(blockParent)) {
     blockParent = blockParent->GetParent();
+  }
+  if (!blockParent) {
+    return NS_OK;
   }
   bool emptyBlockParent;
   res = IsEmptyNode(blockParent, &emptyBlockParent);
@@ -3878,6 +3881,20 @@ nsHTMLEditor::SelectAll()
 
 // this will NOT find aAttribute unless aAttribute has a non-null value
 // so singleton attributes like <Table border> will not be matched!
+bool nsHTMLEditor::IsTextPropertySetByContent(nsIContent*      aContent,
+                                              nsIAtom*         aProperty,
+                                              const nsAString* aAttribute,
+                                              const nsAString* aValue,
+                                              nsAString*       outValue)
+{
+  MOZ_ASSERT(aContent && aProperty);
+  MOZ_ASSERT_IF(aAttribute, aValue);
+  bool isSet;
+  IsTextPropertySetByContent(aContent->AsDOMNode(), aProperty, aAttribute,
+                             aValue, isSet, outValue);
+  return isSet;
+}
+
 void nsHTMLEditor::IsTextPropertySetByContent(nsIDOMNode        *aNode,
                                               nsIAtom           *aProperty, 
                                               const nsAString   *aAttribute, 

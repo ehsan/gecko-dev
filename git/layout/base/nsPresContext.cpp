@@ -1406,15 +1406,12 @@ nsPresContext::ScreenWidthInchesForFontInflation(bool* aChanged)
   float deviceWidthInches =
     float(clientRect.width) / float(dx->AppUnitsPerPhysicalInch());
 
-  if (deviceWidthInches != mLastFontInflationScreenWidth) {
-    if (mLastFontInflationScreenWidth != -1.0) {
-      if (aChanged) {
-        *aChanged = true;
-      } else {
-        NS_NOTREACHED("somebody should have checked for screen width change "
-                      "and triggered a reflow");
-      }
-    }
+  if (mLastFontInflationScreenWidth == -1.0) {
+    mLastFontInflationScreenWidth = deviceWidthInches;
+  }
+
+  if (deviceWidthInches != mLastFontInflationScreenWidth && aChanged) {
+    *aChanged = true;
     mLastFontInflationScreenWidth = deviceWidthInches;
   }
 
@@ -1822,8 +1819,10 @@ nsPresContext::EnsureVisible()
       cv->GetPresContext(getter_AddRefs(currentPresContext));
       if (currentPresContext == this) {
         // OK, this is us.  We want to call Show() on the content viewer.
-        cv->Show();
-        return true;
+        nsresult result = cv->Show();
+        if (NS_SUCCEEDED(result)) {
+          return true;
+        }
       }
     }
   }

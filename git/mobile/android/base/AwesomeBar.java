@@ -11,11 +11,11 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ContentResolver;
 import android.content.Context;
-import android.content.res.Resources;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.Spanned;
@@ -56,12 +56,12 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
 
     static final String URL_KEY = "url";
     static final String CURRENT_URL_KEY = "currenturl";
-    static final String TYPE_KEY = "type";
+    static final String TARGET_KEY = "target";
     static final String SEARCH_KEY = "search";
     static final String USER_ENTERED_KEY = "user_entered";
-    static enum Type { ADD, EDIT };
+    static enum Target { NEW_TAB, CURRENT_TAB };
 
-    private String mType;
+    private String mTarget;
     private AwesomeBarTabs mAwesomeTabs;
     private AwesomeBarEditText mText;
     private ImageButton mGoButton;
@@ -102,25 +102,9 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
             }
         });
 
-        Resources resources = getResources();
-        
-        int padding[] = { mText.getPaddingLeft(),
-                          mText.getPaddingTop(),
-                          mText.getPaddingRight(),
-                          mText.getPaddingBottom() };
-
-        GeckoStateListDrawable states = new GeckoStateListDrawable();
-        states.initializeFilter(GeckoApp.mBrowserToolbar.getHighlightColor());
-        states.addState(new int[] { android.R.attr.state_focused }, resources.getDrawable(R.drawable.address_bar_url_pressed));
-        states.addState(new int[] { android.R.attr.state_pressed }, resources.getDrawable(R.drawable.address_bar_url_pressed));
-        states.addState(new int[] { }, resources.getDrawable(R.drawable.address_bar_url_default));
-        mText.setBackgroundDrawable(states);
-
-        mText.setPadding(padding[0], padding[1], padding[2], padding[3]);
-
         Intent intent = getIntent();
         String currentUrl = intent.getStringExtra(CURRENT_URL_KEY);
-        mType = intent.getStringExtra(TYPE_KEY);
+        mTarget = intent.getStringExtra(TARGET_KEY);
         if (currentUrl != null) {
             mText.setText(currentUrl);
             mText.selectAll();
@@ -300,7 +284,7 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
     private void openUrlAndFinish(String url) {
         Intent resultIntent = new Intent();
         resultIntent.putExtra(URL_KEY, url);
-        resultIntent.putExtra(TYPE_KEY, mType);
+        resultIntent.putExtra(TARGET_KEY, mTarget);
         finishWithResult(resultIntent);
     }
 
@@ -316,7 +300,7 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
 
         Intent resultIntent = new Intent();
         resultIntent.putExtra(URL_KEY, url);
-        resultIntent.putExtra(TYPE_KEY, mType);
+        resultIntent.putExtra(TARGET_KEY, mTarget);
         resultIntent.putExtra(USER_ENTERED_KEY, true);
         finishWithResult(resultIntent);
     }
@@ -324,7 +308,7 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
     private void openSearchAndFinish(String url, String engine) {
         Intent resultIntent = new Intent();
         resultIntent.putExtra(URL_KEY, url);
-        resultIntent.putExtra(TYPE_KEY, mType);
+        resultIntent.putExtra(TARGET_KEY, mTarget);
         resultIntent.putExtra(SEARCH_KEY, engine);
         finishWithResult(resultIntent);
     }
@@ -521,7 +505,7 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
                     break;
                 }
 
-                GeckoApp.mAppContext.loadUrl(url, AwesomeBar.Type.ADD);
+                GeckoApp.mAppContext.loadUrl(url, AwesomeBar.Target.NEW_TAB);
                 Toast.makeText(this, R.string.new_tab_opened, Toast.LENGTH_SHORT).show();
                 break;
             }
@@ -586,7 +570,14 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
                 break;
             }
             case R.id.remove_bookmark: {
-                (new GeckoAsyncTask<Void, Void, Void>() {
+                (new AsyncTask<Void, Void, Void>() {
+                    private boolean mInReadingList;
+
+                    @Override
+                    public void onPreExecute() {
+                        mInReadingList = mAwesomeTabs.isInReadingList();
+                    }
+
                     @Override
                     public Void doInBackground(Void... params) {
                         BrowserDB.removeBookmark(mResolver, id);
@@ -595,7 +586,11 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
 
                     @Override
                     public void onPostExecute(Void result) {
-                        Toast.makeText(AwesomeBar.this, R.string.bookmark_removed, Toast.LENGTH_SHORT).show();
+                        int messageId = R.string.bookmark_removed;
+                        if (mInReadingList)
+                            messageId = R.string.reading_list_removed;
+
+                        Toast.makeText(AwesomeBar.this, messageId, Toast.LENGTH_SHORT).show();
                     }
                 }).execute();
                 break;

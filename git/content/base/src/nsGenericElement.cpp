@@ -173,7 +173,6 @@ nsINode::nsSlots::Unlink()
 nsINode::~nsINode()
 {
   NS_ASSERTION(!HasSlots(), "nsNodeUtils::LastRelease was not called?");
-  NS_ASSERTION(mSubtreeRoot == this, "Didn't restore state properly?");
 }
 
 void*
@@ -3116,10 +3115,6 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     //    aDocument->BindingManager()->ChangeDocumentFor(this, nsnull,
     //                                                   aDocument);
 
-    // We no longer need to track the subtree pointer (and in fact we'll assert
-    // if we do this any later).
-    ClearSubtreeRootPointer();
-
     // Being added to a document.
     SetInDocument();
 
@@ -3129,9 +3124,6 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                NODE_NEEDS_FRAME | NODE_DESCENDANTS_NEED_FRAMES |
                // And the restyle bits
                ELEMENT_ALL_RESTYLE_FLAGS);
-  } else {
-    // If we're not in the doc, update our subtree pointer.
-    SetSubtreeRootPointer(aParent->SubtreeRoot());
   }
 
   // If NODE_FORCE_XBL_BINDINGS was set we might have anonymous children
@@ -3250,9 +3242,6 @@ nsGenericElement::UnbindFromTree(bool aDeep, bool aNullParent)
     SetParentIsContent(false);
   }
   ClearInDocument();
-
-  // Begin keeping track of our subtree root.
-  SetSubtreeRootPointer(aNullParent ? this : mParent->SubtreeRoot());
 
   if (document) {
     // Notify XBL- & nsIAnonymousContentCreator-generated
@@ -3561,6 +3550,12 @@ nsGenericElement::SetSMILOverrideStyleRule(css::StyleRule* aStyleRule,
   }
 
   return NS_OK;
+}
+
+bool
+nsGenericElement::IsLabelable() const
+{
+  return false;
 }
 
 css::StyleRule*
@@ -6121,7 +6116,7 @@ inline static nsresult FindMatchingElements(nsINode* aRoot,
 
   nsIDocument* doc = aRoot->OwnerDoc();  
   TreeMatchContext matchingContext(false, nsRuleWalker::eRelevantLinkUnvisited,
-                                   doc);
+                                   doc, TreeMatchContext::eNeverMatchVisited);
   doc->FlushPendingLinkUpdates();
 
   // Fast-path selectors involving IDs.  We can only do this if aRoot
@@ -6235,7 +6230,8 @@ nsGenericElement::MozMatchesSelector(const nsAString& aSelector, nsresult* aResu
     OwnerDoc()->FlushPendingLinkUpdates();
     TreeMatchContext matchingContext(false,
                                      nsRuleWalker::eRelevantLinkUnvisited,
-                                     OwnerDoc());
+                                     OwnerDoc(),
+                                     TreeMatchContext::eNeverMatchVisited);
     matches = nsCSSRuleProcessor::SelectorListMatches(this, matchingContext,
                                                       selectorList);
   }

@@ -151,7 +151,7 @@ var BrowserApp = {
     Services.obs.addObserver(this, "Preferences:Get", false);
     Services.obs.addObserver(this, "Preferences:Set", false);
     Services.obs.addObserver(this, "ScrollTo:FocusedInput", false);
-    Services.obs.addObserver(this, "Sanitize:ClearAll", false);
+    Services.obs.addObserver(this, "Sanitize:ClearData", false);
     Services.obs.addObserver(this, "Telemetry:Add", false);
     Services.obs.addObserver(this, "PanZoom:PanZoom", false);
     Services.obs.addObserver(this, "FullScreen:Exit", false);
@@ -204,6 +204,7 @@ var BrowserApp = {
     ActivityObserver.init();
     WebappsUI.init();
     RemoteDebugger.init();
+    UserAgent.init();
     AccessFu.attach(window);
 
     // Init LoginManager
@@ -403,6 +404,7 @@ var BrowserApp = {
     SearchEngines.uninit();
     WebappsUI.uninit();
     RemoteDebugger.uninit();
+    UserAgent.uninit();
   },
 
   // This function returns false during periods where the browser displayed document is
@@ -827,6 +829,31 @@ var BrowserApp = {
     }
   },
 
+  sanitize: function (aItems) {
+    let sanitizer = new Sanitizer();
+    let json = JSON.parse(aItems);
+    let success = true;
+
+    for (let key in json) {
+      if (!json[key])
+        continue;
+
+      try {
+        sanitizer.clearItem(key);
+      } catch (e) {
+        dump("sanitize error: " + e);
+        success = false;
+      }
+    }
+
+    sendMessageToJava({
+      gecko: {
+        type: "Sanitize:Finished",
+        success: success
+      }
+    });
+  },
+
   scrollToFocusedInput: function(aBrowser) {
     let doc = aBrowser.contentDocument;
     if (!doc)
@@ -943,8 +970,8 @@ var BrowserApp = {
       this.setPreferences(aData);
     } else if (aTopic == "ScrollTo:FocusedInput") {
       this.scrollToFocusedInput(browser);
-    } else if (aTopic == "Sanitize:ClearAll") {
-      Sanitizer.sanitize();
+    } else if (aTopic == "Sanitize:ClearData") {
+      this.sanitize(aData);
     } else if (aTopic == "FullScreen:Exit") {
       browser.contentDocument.mozCancelFullScreen();
     } else if (aTopic == "Viewport:Change") {
@@ -1401,6 +1428,83 @@ var NativeWindow = {
 };
 
 
+var UserAgent = {
+  DESKTOP_UA: null,
+
+  init: function ua_init() {
+    Services.obs.addObserver(this, "DesktopMode:Change", false);
+    Services.obs.addObserver(this, "http-on-modify-request", false);
+
+    // See https://developer.mozilla.org/en/Gecko_user_agent_string_reference
+    this.DESKTOP_UA = Cc["@mozilla.org/network/protocol;1?name=http"]
+                        .getService(Ci.nsIHttpProtocolHandler).userAgent
+                        .replace(/Android; [a-zA-Z]+/, "X11; Linux x86_64")
+                        .replace(/Gecko\/[0-9\.]+/, "Gecko/20100101");
+  },
+
+  uninit: function ua_uninit() {
+    Services.obs.removeObserver(this, "DesktopMode:Change");
+    Services.obs.removeObserver(this, "http-on-modify-request");
+  },
+
+  _getRequestLoadContext: function ua_getRequestLoadContext(aRequest) {
+    if (aRequest && aRequest.notificationCallbacks) {
+      try {
+        return aRequest.notificationCallbacks.getInterface(Ci.nsILoadContext);
+      } catch (ex) { }
+    }
+
+    if (aRequest && aRequest.loadGroup && aRequest.loadGroup.notificationCallbacks) {
+      try {
+        return aRequest.loadGroup.notificationCallbacks.getInterface(Ci.nsILoadContext);
+      } catch (ex) { }
+    }
+
+    return null;
+  },
+
+  _getWindowForRequest: function ua_getWindowForRequest(aRequest) {
+    let loadContext = this._getRequestLoadContext(aRequest);
+    if (loadContext)
+      return loadContext.associatedWindow;
+    return null;
+  },
+
+  observe: function ua_observe(aSubject, aTopic, aData) {
+    switch (aTopic) {
+      case "DesktopMode:Change": {
+        let args = JSON.parse(aData);
+        let tab = BrowserApp.getTabForId(args.tabId);
+        if (tab != null)
+          tab.reloadWithMode(args.desktopMode);
+        break;
+      }
+      case "http-on-modify-request": {
+        let channel = aSubject.QueryInterface(Ci.nsIHttpChannel);
+        let channelWindow = this._getWindowForRequest(channel);
+        let tab = BrowserApp.getTabForWindow(channelWindow);
+        if (tab == null)
+          break;
+
+        // Send XUL UA to YouTube; temporary hack to make videos play
+        if (channel.URI.host.indexOf("youtube") != -1) {
+          let ua = Cc["@mozilla.org/network/protocol;1?name=http"].getService(Ci.nsIHttpProtocolHandler).userAgent;
+#expand let version = "__MOZ_APP_VERSION__";
+          ua += " Fennec/" + version;
+          channel.setRequestHeader("User-Agent", ua, false);
+        }
+
+        // Send desktop UA if "Request Desktop Site" is enabled
+        if (tab.desktopMode && (channel.loadFlags & Ci.nsIChannel.LOAD_DOCUMENT_URI))
+          channel.setRequestHeader("User-Agent", this.DESKTOP_UA, false);
+
+        break;
+      }
+    }
+  }
+};
+
+
 function nsBrowserAccess() {
 }
 
@@ -1510,7 +1614,6 @@ function Tab(aURL, aParams) {
   this.browser = null;
   this.id = 0;
   this.showProgress = true;
-  this.create(aURL, aParams);
   this._zoom = 1.0;
   this._drawZoom = 1.0;
   this.userScrollPos = { x: 0, y: 0 };
@@ -1518,6 +1621,10 @@ function Tab(aURL, aParams) {
   this.pluginDoorhangerTimeout = null;
   this.shouldShowPluginDoorhanger = true;
   this.clickToPlayPluginsActivated = false;
+  this.desktopMode = false;
+  this.originalURI = null;
+
+  this.create(aURL, aParams);
 }
 
 Tab.prototype = {
@@ -1547,6 +1654,7 @@ Tab.prototype = {
     } catch (e) {}
 
     this.id = ++gTabIDFactory;
+    this.desktopMode = ("desktopMode" in aParams) ? aParams.desktopMode : false;
 
     let message = {
       gecko: {
@@ -1557,7 +1665,8 @@ Tab.prototype = {
         external: ("external" in aParams) ? aParams.external : false,
         selected: ("selected" in aParams) ? aParams.selected : true,
         title: aParams.title || aURL,
-        delayLoad: aParams.delayLoad || false
+        delayLoad: aParams.delayLoad || false,
+        desktopMode: this.desktopMode
       }
     };
     sendMessageToJava(message);
@@ -1608,6 +1717,53 @@ Tab.prototype = {
         dump("Handled load error: " + e)
       }
     }
+  },
+
+  /** 
+   * Reloads the tab with the desktop mode setting.
+   */
+  reloadWithMode: function (aDesktopMode) {
+    // Set desktop mode for tab and send change to Java
+    if (this.desktopMode != aDesktopMode) {
+      this.desktopMode = aDesktopMode;
+      sendMessageToJava({
+        gecko: {
+          type: "DesktopMode:Changed",
+          desktopMode: aDesktopMode,
+          tabId: this.id
+        }
+      });
+    }
+
+    // Only reload the page for http/https schemes
+    let currentURI = this.browser.currentURI;
+    if (!currentURI.schemeIs("http") && !currentURI.schemeIs("https"))
+      return;
+
+    let url = currentURI.spec;
+    let flags = Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
+    if (this.originalURI && !this.originalURI.equals(currentURI)) {
+      // We were redirected; reload the original URL
+      url = this.originalURI.spec;
+      flags |= Ci.nsIWebNavigation.LOAD_FLAGS_REPLACE_HISTORY;
+    } else {
+      // Many sites use mobile-specific URLs, such as:
+      //   http://m.yahoo.com
+      //   http://www.google.com/m
+      // If the user clicks "Request Desktop Site" while on a mobile site, it
+      // will appear to do nothing since the mobile URL is still being
+      // requested. To address this, we do the following:
+      //   1) Remove the path from the URL (http://www.google.com/m?q=query -> http://www.google.com)
+      //   2) If a host subdomain is "m", remove it (http://en.m.wikipedia.org -> http://en.wikipedia.org)
+      // This means the user is sent to site's home page, but this is better
+      // than the setting having no effect at all.
+      if (aDesktopMode)
+        url = currentURI.prePath.replace(/([\/\.])m\./g, "$1");
+      else
+        flags |= Ci.nsIWebNavigation.LOAD_FLAGS_REPLACE_HISTORY;
+    }
+
+    this.browser.docShell.loadURI(url, flags, null, null, null);
   },
 
   destroy: function() {
@@ -1839,7 +1995,9 @@ Tab.prototype = {
     this.userScrollPos.x = win.scrollX;
     this.userScrollPos.y = win.scrollY;
     this.setResolution(aViewport.zoom, false);
-    this.setDisplayPort(aViewport.displayPort);
+
+    if (aViewport.displayPort)
+      this.setDisplayPort(aViewport.displayPort);
   },
 
   setResolution: function(aZoom, aForce) {
@@ -2197,7 +2355,11 @@ Tab.prototype = {
       let success = false; 
       let uri = "";
       try {
-        uri = aRequest.QueryInterface(Components.interfaces.nsIChannel).originalURI.spec;
+        // Remember original URI for UA changes on redirected pages
+        this.originalURI = aRequest.QueryInterface(Components.interfaces.nsIChannel).originalURI;
+
+        if (this.originalURI != null)
+          uri = this.originalURI.spec;
       } catch (e) { }
       try {
         success = aRequest.QueryInterface(Components.interfaces.nsIHttpChannel).requestSucceeded;
@@ -2235,10 +2397,12 @@ Tab.prototype = {
     let documentURI = contentWin.document.documentURIObject.spec;
     let contentType = contentWin.document.contentType;
     
-    // XXX If fixedURI matches browser.lastURI, we assume this isn't a real location
+    // If fixedURI matches browser.lastURI, we assume this isn't a real location
     // change but rather a spurious addition like a wyciwyg URI prefix. See Bug 747883.
+    // Note that we have to ensure fixedURI is not the same as aLocationURI so we
+    // don't false-positive page reloads as spurious additions.
     let sameDocument = (aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT) != 0 ||
-                       ((this.browser.lastURI != null) && fixedURI.equals(this.browser.lastURI));
+                       ((this.browser.lastURI != null) && fixedURI.equals(this.browser.lastURI) && !fixedURI.equals(aLocationURI));
     this.browser.lastURI = fixedURI;
 
     // Reset state of click-to-play plugin notifications.
@@ -2491,29 +2655,6 @@ Tab.prototype = {
     return zoom;
   },
 
-  getRequestLoadContext: function(aRequest) {
-    if (aRequest && aRequest.notificationCallbacks) {
-      try {
-        return aRequest.notificationCallbacks.getInterface(Ci.nsILoadContext);
-      } catch (ex) { }
-    }
-
-    if (aRequest && aRequest.loadGroup && aRequest.loadGroup.notificationCallbacks) {
-      try {
-        return aRequest.loadGroup.notificationCallbacks.getInterface(Ci.nsILoadContext);
-      } catch (ex) { }
-    }
-
-    return null;
-  },
-
-  getWindowForRequest: function(aRequest) {
-    let loadContext = this.getRequestLoadContext(aRequest);
-    if (loadContext)
-      return loadContext.associatedWindow;
-    return null;
-  },
-
   observe: function(aSubject, aTopic, aData) {
     switch (aTopic) {
       case "before-first-paint":
@@ -2710,6 +2851,29 @@ var BrowserEventHandler = {
     sendMessageToJava({ gecko: { type: "Browser:ZoomToPageWidth"} });
   },
 
+  _isRectZoomedIn: function(aRect, aViewport) {
+    // This function checks to see if the area of the rect visible in the
+    // viewport (i.e. the "overlapArea" variable below) is approximately
+    // the max area of the rect we can show. It also checks that the rect
+    // is actually on-screen by testing the left and right edges of the rect.
+    // In effect, this tells us whether or not zooming in to this rect
+    // will significantly change what the user is seeing.
+    const minDifference = -20;
+    const maxDifference = 20;
+
+    let vRect = new Rect(aViewport.cssX, aViewport.cssY, aViewport.cssWidth, aViewport.cssHeight);
+    let overlap = vRect.intersect(aRect);
+    let overlapArea = overlap.width * overlap.height;
+    let availHeight = Math.min(aRect.width * vRect.height / vRect.width, aRect.height);
+    let showing = overlapArea / (aRect.width * availHeight);
+    let dw = (aRect.width - vRect.width);
+    let dx = (aRect.x - vRect.x);
+
+    return (showing > 0.9 &&
+            dx > minDifference && dx < maxDifference &&
+            dw > minDifference && dw < maxDifference);
+  },
+
   onDoubleTap: function(aData) {
     let data = JSON.parse(aData);
 
@@ -2729,39 +2893,40 @@ var BrowserEventHandler = {
       this._zoomOut();
     } else {
       const margin = 15;
-      const minDifference = -20;
-      const maxDifference = 20;
       let rect = ElementTouchHelper.getBoundingContentRect(element);
 
       let viewport = BrowserApp.selectedTab.getViewport();
-      let vRect = new Rect(viewport.cssX, viewport.cssY, viewport.cssWidth, viewport.cssHeight);
       let bRect = new Rect(Math.max(viewport.cssPageLeft, rect.x - margin),
                            rect.y,
-                           rect.w + 2*margin,
+                           rect.w + 2 * margin,
                            rect.h);
-
       // constrict the rect to the screen's right edge
       bRect.width = Math.min(bRect.width, viewport.cssPageRight - bRect.x);
 
-      let overlap = vRect.intersect(bRect);
-      let overlapArea = overlap.width*overlap.height;
-      // we want to know if the area of the element showing is near the max we can show
-      // on the screen at any time and if its already stretching the width of the screen
-      let availHeight = Math.min(bRect.width*vRect.height/vRect.width, bRect.height);
-      let showing = overlapArea/(bRect.width*availHeight);
-      let dw = (bRect.width - vRect.width);
-      let dx = (bRect.x - vRect.x);
-
-      if (showing > 0.9 &&
-          dx > minDifference && dx < maxDifference &&
-          dw > minDifference && dw < maxDifference) {
-            this._zoomOut();
-            return;
+      // if the rect is already taking up most of the visible area and is stretching the
+      // width of the page, then we want to zoom out instead.
+      if (this._isRectZoomedIn(bRect, viewport)) {
+        this._zoomOut();
+        return;
       }
 
       rect.type = "Browser:ZoomToRect";
-      rect.x = bRect.x; rect.y = bRect.y;
-      rect.w = bRect.width; rect.h = availHeight;
+      rect.x = bRect.x;
+      rect.y = bRect.y;
+      rect.w = bRect.width;
+      rect.h = Math.min(bRect.width * viewport.cssHeight / viewport.cssWidth, bRect.height);
+
+      // if the block we're zooming to is really tall, and the user double-tapped
+      // more than a screenful of height from the top of it, then adjust the y-coordinate
+      // so that we center the actual point the user double-tapped upon. this prevents
+      // flying to the top of a page when double-tapping to zoom in (bug 761721).
+      // the 1.2 multiplier is just a little fuzz to compensate for bRect including horizontal
+      // margins but not vertical ones.
+      let cssTapY = viewport.cssY + data.y;
+      if ((bRect.height > rect.h) && (cssTapY > rect.y + (rect.h * 1.2))) {
+        rect.y = cssTapY - (rect.h / 2);
+      }
+
       sendMessageToJava({ gecko: rect });
     }
   },
@@ -2848,7 +3013,8 @@ var BrowserEventHandler = {
     var computedStyle = win.getComputedStyle(elem);
     if (!computedStyle)
       return false;
-    return computedStyle.overflow == 'auto' || computedStyle.overflow == 'scroll';
+    return computedStyle.overflowX == 'auto' || computedStyle.overflowX == 'scroll'
+        || computedStyle.overflowY == 'auto' || computedStyle.overflowY == 'scroll';
   },
 
   _findScrollableElement: function(elem, checkElem) {
@@ -3225,7 +3391,7 @@ var FindHelper = {
       this._targetTab = BrowserApp.selectedTab;
       this._find = Cc["@mozilla.org/typeaheadfind;1"].createInstance(Ci.nsITypeAheadFind);
       this._find.init(this._targetTab.browser.docShell);
-      this._initialViewport = JSON.stringify(this._targetTab.viewport);
+      this._initialViewport = JSON.stringify(this._targetTab.getViewport());
       this._viewportChanged = false;
     }
 
@@ -3234,17 +3400,22 @@ var FindHelper = {
   },
 
   findAgain: function(aString, aFindBackwards) {
+    // This can happen if the user taps next/previous after re-opening the search bar
+    if (!this._findInProgress) {
+      this.doFind(aString);
+      return;
+    }
+
     let result = this._find.findAgain(aFindBackwards, false);
     this.handleResult(result);
   },
 
   findClosed: function() {
-    if (!this._findInProgress) {
-      // this should never happen
-      Cu.reportError("Warning: findClosed() called while _findInProgress is false!");
-      // fall through and clean up anyway
-    }
+    // If there's no find in progress, there's nothing to clean up
+    if (!this._findInProgress)
+      return;
 
+    this._find.collapseSelection();
     this._find = null;
     this._findInProgress = false;
     this._targetTab = null;
@@ -3260,7 +3431,7 @@ var FindHelper = {
           Cu.reportError("Warning: selected tab changed during find!");
           // fall through and restore viewport on the initial tab anyway
         }
-        this._targetTab.viewport = JSON.parse(this._initialViewport);
+        this._targetTab.setViewport(JSON.parse(this._initialViewport));
         this._targetTab.sendViewportUpdate();
       }
     } else {
@@ -3467,6 +3638,12 @@ var FormAssistant = {
   _showAutoCompleteSuggestions: function _showAutoCompleteSuggestions(aElement) {
     if (!this._isAutoComplete(aElement))
       return false;
+
+    // Don't display the form auto-complete popup after the user starts typing
+    // to avoid confusing the IME. See bug 758820 and bug 632744.
+    if (aElement.value.length > 0) {
+        return false;
+    }
 
     let autoCompleteSuggestions = this._getAutoCompleteSuggestions(aElement.value, aElement);
     let listSuggestions = this._getListSuggestions(aElement);
@@ -3716,7 +3893,7 @@ var ViewportHandler = {
         let document = target.ownerDocument;
         let browser = BrowserApp.getBrowserForDocument(document);
         let tab = BrowserApp.getTabForBrowser(browser);
-        if (tab)
+        if (tab && tab.contentDocumentIsDisplayed)
           this.updateMetadata(tab);
         break;
 
@@ -3790,7 +3967,7 @@ var ViewportHandler = {
     let allowZoom = !/^(0|no|false)$/.test(allowZoomStr); // WebKit allows 0, "no", or "false"
 
 
-    if (scale == NaN && minScale == NaN && maxScale == NaN && allowZoomStr == "" && widthStr == "" && heightStr == "") {
+    if (isNaN(scale) && isNaN(minScale) && isNaN(maxScale) && allowZoomStr == "" && widthStr == "" && heightStr == "") {
 	// Only check for HandheldFriendly if we don't have a viewport meta tag
 	let handheldFriendly = windowUtils.getDocumentMetadata("HandheldFriendly");
 
@@ -5211,7 +5388,7 @@ var WebappsUI = {
 
 var RemoteDebugger = {
   init: function rd_init() {
-    Services.prefs.addObserver("remote-debugger.", this, false);
+    Services.prefs.addObserver("devtools.debugger.", this, false);
 
     if (this._isEnabled())
       this._start();
@@ -5222,14 +5399,14 @@ var RemoteDebugger = {
       return;
 
     switch (aData) {
-      case "remote-debugger.enabled":
+      case "devtools.debugger.remote-enabled":
         if (this._isEnabled())
           this._start();
         else
           this._stop();
         break;
 
-      case "remote-debugger.port":
+      case "devtools.debugger.remote-port":
         if (this._isEnabled())
           this._restart();
         break;
@@ -5237,16 +5414,40 @@ var RemoteDebugger = {
   },
 
   uninit: function rd_uninit() {
-    Services.prefs.removeObserver("remote-debugger.", this);
+    Services.prefs.removeObserver("devtools.debugger.", this);
     this._stop();
   },
 
   _getPort: function _rd_getPort() {
-    return Services.prefs.getIntPref("remote-debugger.port");
+    return Services.prefs.getIntPref("devtools.debugger.remote-port");
   },
 
   _isEnabled: function rd_isEnabled() {
-    return Services.prefs.getBoolPref("remote-debugger.enabled");
+    return Services.prefs.getBoolPref("devtools.debugger.remote-enabled");
+  },
+
+  /**
+   * Prompt the user to accept or decline the incoming connection.
+   *
+   * @return true if the connection should be permitted, false otherwise
+   */
+  _allowConnection: function rd_allowConnection() {
+    let title = Strings.browser.GetStringFromName("remoteIncomingPromptTitle");
+    let msg = Strings.browser.GetStringFromName("remoteIncomingPromptMessage");
+    let btn = Strings.browser.GetStringFromName("remoteIncomingPromptDisable");
+    let prompt = Services.prompt;
+    let flags = prompt.BUTTON_POS_0 * prompt.BUTTON_TITLE_OK +
+                prompt.BUTTON_POS_1 * prompt.BUTTON_TITLE_CANCEL +
+                prompt.BUTTON_POS_2 * prompt.BUTTON_TITLE_IS_STRING +
+                prompt.BUTTON_POS_1_DEFAULT;
+    let result = prompt.confirmEx(null, title, msg, flags, null, null, btn, null, { value: false });
+    if (result == 0)
+      return true;
+    if (result == 2) {
+      this._stop();
+      Services.prefs.setBoolPref("devtools.debugger.remote-enabled", false);
+    }
+    return false;
   },
 
   _restart: function rd_restart() {
@@ -5257,12 +5458,12 @@ var RemoteDebugger = {
   _start: function rd_start() {
     try {
       if (!DebuggerServer.initialized) {
-        DebuggerServer.init();
+        DebuggerServer.init(this._allowConnection);
         DebuggerServer.addActors("chrome://browser/content/dbg-browser-actors.js");
       }
 
       let port = this._getPort();
-      DebuggerServer.openListener(port, false);
+      DebuggerServer.openListener(port);
       dump("Remote debugger listening on port " + port);
     } catch(e) {
       dump("Remote debugger didn't start: " + e);

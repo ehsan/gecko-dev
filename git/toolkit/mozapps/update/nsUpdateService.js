@@ -11,7 +11,7 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/ctypes.jsm")
+Components.utils.import("resource://gre/modules/ctypes.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -432,15 +432,15 @@ XPCOMUtils.defineLazyGetter(this, "gCanStageUpdates", function aus_gCanStageUpda
 #endif
 
   try {
-    var updateTestFile = getUpdateFile([FILE_PERMS_TEST]);
+    var updateTestFile = getInstallDirRoot();
+    updateTestFile.append(FILE_PERMS_TEST);
     LOG("gCanStageUpdates - testing write access " + updateTestFile.path);
     testWriteAccess(updateTestFile, true);
 #ifndef XP_MACOSX
     // On all platforms except Mac, we need to test the parent directory as well,
     // as we need to be able to move files in that directory during the replacing
     // step.
-    updateTestFile = getUpdateDirCreate([]);
-    updateTestFile = updateTestFile.parent;
+    updateTestFile = getInstallDirRoot().parent;
     updateTestFile.append(FILE_PERMS_TEST);
     LOG("gCanStageUpdates - testing write access " + updateTestFile.path);
     updateTestFile.createUnique(Ci.nsILocalFile.DIRECTORY_TYPE,
@@ -550,6 +550,22 @@ function getUpdateDirCreate(pathArray) {
   }
 #endif
   return FileUtils.getDir(KEY_APPDIR, pathArray, true);
+}
+
+/**
+ * Gets the root of the installation directory which is the application
+ * bundle directory on Mac OS X and the location of the application binary
+ * on all other platforms.
+ *
+ * @return nsIFile object for the directory
+ */
+function getInstallDirRoot() {
+  var dir = FileUtils.getDir(KEY_APPDIR, [], false);
+#ifdef XP_MACOSX
+  // On Mac, we store the Updated.app directory inside the bundle directory.
+  dir = dir.parent.parent;
+#endif
+  return dir;
 }
 
 /**
@@ -753,18 +769,22 @@ function cleanUpUpdatesDir(aBackgroundUpdate) {
           }
         }
         f.moveTo(dir, FILE_LAST_LOG);
-        continue;
+        if (aBackgroundUpdate) {
+          // We're not going to delete any files, so we can just
+          // bail out of the loop right now.
+          break;
+        } else {
+          continue;
+        }
       }
       catch (e) {
         LOG("cleanUpUpdatesDir - failed to move file " + f.path + " to " +
             dir.path + " and rename it to " + FILE_LAST_LOG);
       }
-    } else if (f.leafName == FILE_UPDATE_STATUS && aBackgroundUpdate) {
-      // Leave the update.status file alone when a background update
-      // has been performed.  We don't remove this file here because
-      // after the application directory gets replaced by the staged
-      // update, this will end up being the update.status file which
-      // represents the status of the update performed.
+    } else if (aBackgroundUpdate) {
+      // Don't delete any files when an update has been staged, as
+      // we need to keep them around in case we would have to fall
+      // back to applying the update on application restart.
       continue;
     }
     // Now, recursively remove this file.  The recursive removal is really
@@ -988,6 +1008,37 @@ function handleUpdateFailure(update, errorCode) {
   }
   
   return false;
+}
+
+/**
+ * Fall back to downloading a complete update in case an update has failed.
+ *
+ * @param update the update object that has failed to apply.
+ * @param postStaging true if we have just attempted to stage an update.
+ */
+function handleFallbackToCompleteUpdate(update, postStaging) {
+  cleanupActiveUpdate();
+
+  update.statusText = gUpdateBundle.GetStringFromName("patchApplyFailure");
+  var oldType = update.selectedPatch ? update.selectedPatch.type
+                                     : "complete";
+  if (update.selectedPatch && oldType == "partial" && update.patchCount == 2) {
+    // Partial patch application failed, try downloading the complete
+    // update in the background instead.
+    LOG("UpdateService:_postUpdateProcessing - install of partial patch " +
+        "failed, downloading complete patch");
+    var status = Cc["@mozilla.org/updates/update-service;1"].
+                 getService(Ci.nsIApplicationUpdateService).
+                 downloadUpdate(update, !postStaging);
+    if (status == STATE_NONE)
+      cleanupActiveUpdate();
+  }
+  else {
+    LOG("handleFallbackToCompleteUpdate - install of complete or " +
+        "only one patch offered failed.");
+  }
+  update.QueryInterface(Ci.nsIWritablePropertyBag);
+  update.setProperty("patchingFailed", oldType);
 }
 
 /**
@@ -1571,26 +1622,8 @@ UpdateService.prototype = {
       }
 
       // Something went wrong with the patch application process.
-      cleanupActiveUpdate();
+      handleFallbackToCompleteUpdate(update, false);
 
-      update.statusText = gUpdateBundle.GetStringFromName("patchApplyFailure");
-      var oldType = update.selectedPatch ? update.selectedPatch.type
-                                         : "complete";
-      if (update.selectedPatch && oldType == "partial" && update.patchCount == 2) {
-        // Partial patch application failed, try downloading the complete
-        // update in the background instead.
-        LOG("UpdateService:_postUpdateProcessing - install of partial patch " +
-            "failed, downloading complete patch");
-        var status = this.downloadUpdate(update, true);
-        if (status == STATE_NONE)
-          cleanupActiveUpdate();
-      }
-      else {
-        LOG("UpdateService:_postUpdateProcessing - install of complete or " +
-            "only one patch offered failed... showing error.");
-      }
-      update.QueryInterface(Ci.nsIWritablePropertyBag);
-      update.setProperty("patchingFailed", oldType);
       prompter.showUpdateError(update);
     }
   },
@@ -2021,6 +2054,13 @@ UpdateService.prototype = {
   /**
    * See nsIUpdateService.idl
    */
+  get canStageUpdates() {
+    return gCanStageUpdates;
+  },
+
+  /**
+   * See nsIUpdateService.idl
+   */
   addDownloadListener: function AUS_addDownloadListener(listener) {
     if (!this._downloader) {
       LOG("UpdateService:addDownloadListener - no downloader!");
@@ -2108,6 +2148,11 @@ UpdateService.prototype = {
     if (this.isDownloading)
       this._downloader.cancel();
   },
+
+  /**
+   * See nsIUpdateService.idl
+   */
+  getUpdatesDirectory: getUpdatesDir,
 
   /**
    * See nsIUpdateService.idl
@@ -2391,7 +2436,9 @@ UpdateManager.prototype = {
     update.state = ary[0];
     if (update.state == STATE_FAILED && ary[1]) {
       updateSucceeded = false;
-      handleUpdateFailure(update, ary[1]);
+      if (!handleUpdateFailure(update, ary[1])) {
+        handleFallbackToCompleteUpdate(update, true);
+      }
     }
     if (update.state == STATE_APPLIED && shouldUseService()) {
       writeStatusFile(getUpdatesDir(), update.state = STATE_APPLIED_SVC);
@@ -2409,6 +2456,8 @@ UpdateManager.prototype = {
 
     // Send an observer notification which the update wizard uses in
     // order to update its UI.
+    LOG("UpdateManager:refreshUpdateStatus - Notifying observers that " +
+        "the update was staged. state: " + update.state + ", status: " + status);
     Services.obs.notifyObservers(null, "update-staged", update.state);
 
     // Do this after *everything* else, since it will likely cause the app

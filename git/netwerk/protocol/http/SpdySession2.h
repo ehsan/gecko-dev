@@ -154,6 +154,8 @@ public:
   // an overload of nsAHttpSegementReader
   virtual nsresult CommitToSegmentSize(PRUint32 size);
   
+  void     PrintDiagnostics (nsCString &log);
+
 private:
 
   enum stateType {
@@ -180,6 +182,7 @@ private:
   void        GenerateRstStream(PRUint32, PRUint32);
   void        GenerateGoAway();
   void        CleanupStream(SpdyStream2 *, nsresult, rstReason);
+  void        CloseStream(SpdyStream2 *, nsresult);
 
   void        SetWriteCallbacks();
   void        FlushOutputQueue();

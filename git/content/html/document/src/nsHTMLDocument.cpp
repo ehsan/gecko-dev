@@ -42,6 +42,7 @@
 #include "nsContentList.h"
 #include "nsDOMError.h"
 #include "nsIPrincipal.h"
+#include "nsJSPrincipals.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsAttrName.h"
 #include "nsNodeUtils.h"
@@ -1555,6 +1556,13 @@ nsHTMLDocument::Open(const nsAString& aContentTypeOrUrl,
 
   SetReadyStateInternal(nsIDocument::READYSTATE_LOADING);
 
+  // After changing everything around, make sure that the principal on the
+  // document's compartment exactly matches NodePrincipal().
+  DebugOnly<JSObject*> wrapper = GetWrapperPreserveColor();
+  MOZ_ASSERT_IF(wrapper,
+                JS_GetCompartmentPrincipals(js::GetObjectCompartment(wrapper)) ==
+                nsJSPrincipals::get(NodePrincipal()));
+
   NS_ENSURE_SUCCESS(rv, rv);
   return CallQueryInterface(this, aReturn);
 }
@@ -2788,7 +2796,6 @@ static const struct MidasCommand gMidasCommandTable[] = {
   { "copy",          "cmd_copy",            "", true,  false },
   { "paste",         "cmd_paste",           "", true,  false },
   { "delete",        "cmd_delete",          "", true,  false },
-  { "forwarddelete", "cmd_forwardDelete",   "", true,  false },
   { "selectall",     "cmd_selectAll",       "", true,  false },
   { "undo",          "cmd_undo",            "", true,  false },
   { "redo",          "cmd_redo",            "", true,  false },
@@ -2805,8 +2812,6 @@ static const struct MidasCommand gMidasCommandTable[] = {
   { "createlink",    "cmd_insertLinkNoUI",  "", false, false },
   { "insertimage",   "cmd_insertImageNoUI", "", false, false },
   { "inserthtml",    "cmd_insertHTML",      "", false, false },
-  { "inserttext",    "cmd_insertText",      "", false, false },
-  { "insertparagraph", "cmd_insertText",  "\n", true,  false },
   { "gethtml",       "cmd_getContents",     "", false, false },
   { "justifyleft",   "cmd_align",       "left", true,  false },
   { "justifyright",  "cmd_align",      "right", true,  false },
@@ -2816,6 +2821,7 @@ static const struct MidasCommand gMidasCommandTable[] = {
   { "unlink",        "cmd_removeLinks",     "", true,  false },
   { "insertorderedlist",   "cmd_ol",        "", true,  false },
   { "insertunorderedlist", "cmd_ul",        "", true,  false },
+  { "insertparagraph", "cmd_paragraphState", "p", true, false },
   { "formatblock",   "cmd_paragraphState",  "", false, false },
   { "heading",       "cmd_paragraphState",  "", false, false },
   { "styleWithCSS",  "cmd_setDocumentUseCSS", "", false, true },
@@ -3115,8 +3121,7 @@ nsHTMLDocument::ExecCommand(const nsAString& commandID,
       rv = cmdParams->SetBooleanValue("state_attribute", boolVal);
     } else if (cmdToDispatch.EqualsLiteral("cmd_fontFace")) {
       rv = cmdParams->SetStringValue("state_attribute", value);
-    } else if (cmdToDispatch.EqualsLiteral("cmd_insertHTML") ||
-               cmdToDispatch.EqualsLiteral("cmd_insertText")) {
+    } else if (cmdToDispatch.EqualsLiteral("cmd_insertHTML")) {
       rv = cmdParams->SetStringValue("state_data", value);
     } else {
       rv = cmdParams->SetCStringValue("state_attribute", paramStr.get());

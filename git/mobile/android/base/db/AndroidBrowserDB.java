@@ -191,7 +191,7 @@ public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
         int count = cursor.getCount();
         cursor.close();
 
-        return (count == 1);
+        return (count > 0);
     }
 
     public String getUrlForKeyword(ContentResolver cr, String keyword) {
@@ -264,6 +264,10 @@ public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
             removeBookmarkPost11(cr, uri);
         else
             removeBookmarkPre11(cr, uri);
+    }
+
+    public void addReadingListItem(ContentResolver cr, String title, String uri) {
+        // Do nothing
     }
 
     public void registerBookmarkObserverPre11(ContentResolver cr, ContentObserver observer) {

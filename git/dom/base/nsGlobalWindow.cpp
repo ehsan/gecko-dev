@@ -62,6 +62,7 @@
 #include "nsAutoJSValHolder.h"
 #include "nsDOMMediaQueryList.h"
 #include "mozilla/dom/workers/Workers.h"
+#include "nsJSPrincipals.h"
 
 // Interfaces Needed
 #include "nsIFrame.h"
@@ -569,10 +570,10 @@ nsPIDOMWindow::~nsPIDOMWindow() {}
 // nsOuterWindowProxy: Outer Window Proxy
 //*****************************************************************************
 
-class nsOuterWindowProxy : public js::Wrapper
+class nsOuterWindowProxy : public js::DirectWrapper
 {
 public:
-  nsOuterWindowProxy() : js::Wrapper(0) {}
+  nsOuterWindowProxy() : js::DirectWrapper(0) {}
 
   virtual bool isOuterWindow() {
     return true;
@@ -1083,11 +1084,13 @@ nsGlobalWindow::FreeInnerObjects()
   mHistory = nsnull;
 
   if (mNavigator) {
+    mNavigator->OnNavigation();
     mNavigator->Invalidate();
     mNavigator = nsnull;
   }
 
   if (mScreen) {
+    mScreen->Reset();
     mScreen = nsnull;
   }
 
@@ -1748,6 +1751,10 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
   nsGlobalWindow *currentInner = GetCurrentInnerWindowInternal();
 
+  if (currentInner && currentInner->mNavigator) {
+    currentInner->mNavigator->OnNavigation();
+  }
+
   nsRefPtr<nsGlobalWindow> newInnerWindow;
   bool createdInnerWindow = false;
 
@@ -1783,6 +1790,14 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     if (!JS_RefreshCrossCompartmentWrappers(cx, mJSObject)) {
       return NS_ERROR_FAILURE;
     }
+
+    // Inner windows are only reused for same-origin principals, but the principals
+    // don't necessarily match exactly. Update the principal on the compartment to
+    // match the new document.
+    // NB: We don't just call currentInner->RefreshCompartmentPrincipals() here
+    // because we haven't yet set its mDoc to aDocument.
+    JS_SetCompartmentPrincipals(js::GetObjectCompartment(currentInner->mJSObject),
+                                nsJSPrincipals::get(aDocument->NodePrincipal()));
   } else {
     if (aState) {
       newInnerWindow = wsh->GetInnerWindow();
@@ -2217,16 +2232,6 @@ nsGlobalWindow::DetachFromDocShell()
   nsGlobalWindow *currentInner = GetCurrentInnerWindowInternal();
 
   if (currentInner) {
-    JSObject* obj = currentInner->FastGetGlobalJSObject();
-    if (obj) {
-      JSContext* cx = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
-
-      JSAutoRequest ar(cx);
-
-      js::NukeChromeCrossCompartmentWrappersForGlobal(cx, obj,
-                                                      js::NukeForGlobalObject);
-    }
-
     NS_ASSERTION(mDoc, "Must have doc!");
     
     // Remember the document's principal.
@@ -4237,6 +4242,15 @@ nsGlobalWindow::DispatchCustomEvent(const char *aEventName)
                                        true, true, &defaultActionEnabled);
 
   return defaultActionEnabled;
+}
+
+void
+nsGlobalWindow::RefreshCompartmentPrincipal()
+{
+  FORWARD_TO_INNER(RefreshCompartmentPrincipal, (), /* void */ );
+
+  JS_SetCompartmentPrincipals(js::GetObjectCompartment(mJSObject),
+                              nsJSPrincipals::get(mDoc->NodePrincipal()));
 }
 
 static already_AddRefed<nsIDocShellTreeItem>
@@ -8200,14 +8214,15 @@ NS_IMETHODIMP
 nsGlobalWindow::GetMozIndexedDB(nsIIDBFactory** _retval)
 {
   if (!mIndexedDB) {
+    nsresult rv;
+
     if (!IsChromeWindow()) {
       nsCOMPtr<mozIThirdPartyUtil> thirdPartyUtil =
         do_GetService(THIRDPARTYUTIL_CONTRACTID);
       NS_ENSURE_TRUE(thirdPartyUtil, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
       bool isThirdParty;
-      nsresult rv = thirdPartyUtil->IsThirdPartyWindow(this, nsnull,
-                                                       &isThirdParty);
+      rv = thirdPartyUtil->IsThirdPartyWindow(this, nsnull, &isThirdParty);
       NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
       if (isThirdParty) {
@@ -8217,8 +8232,9 @@ nsGlobalWindow::GetMozIndexedDB(nsIIDBFactory** _retval)
       }
     }
 
-    mIndexedDB = indexedDB::IDBFactory::Create(this);
-    NS_ENSURE_TRUE(mIndexedDB, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    // This may be null if being created from a file.
+    rv = indexedDB::IDBFactory::Create(this, getter_AddRefs(mIndexedDB));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsCOMPtr<nsIIDBFactory> request(mIndexedDB);
