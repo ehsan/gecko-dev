@@ -1287,7 +1287,7 @@ public:
 
     if (!threadConnection.get()) {
       BT_WARNING("%s: DBus connection has been closed.", __FUNCTION__);
-      return NS_ERROR_FAILURE;
+      return false;
     }
 
     sAdapterPath = mAdapterPath;

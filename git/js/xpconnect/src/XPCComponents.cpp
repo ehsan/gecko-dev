@@ -3737,7 +3737,10 @@ public:
     NS_DECL_ISUPPORTS
 
 private:
+    static bool ContextHolderOperationCallback(JSContext *cx);
+
     JSContext* mJSContext;
+    JSContext* mOrigCx;
     nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
@@ -3747,6 +3750,7 @@ ContextHolder::ContextHolder(JSContext *aOuterCx,
                              HandleObject aSandbox,
                              nsIPrincipal *aPrincipal)
     : mJSContext(JS_NewContext(JS_GetRuntime(aOuterCx), 1024)),
+      mOrigCx(aOuterCx),
       mPrincipal(aPrincipal)
 {
     if (mJSContext) {
@@ -3761,6 +3765,7 @@ ContextHolder::ContextHolder(JSContext *aOuterCx,
                       JSOPTION_PRIVATE_IS_NSISUPPORTS);
         js::SetDefaultObjectForContext(mJSContext, aSandbox);
         JS_SetContextPrivate(mJSContext, this);
+        JS_SetOperationCallback(mJSContext, ContextHolderOperationCallback);
     }
 }
 
@@ -3768,6 +3773,21 @@ ContextHolder::~ContextHolder()
 {
     if (mJSContext)
         JS_DestroyContextNoGC(mJSContext);
+}
+
+bool
+ContextHolder::ContextHolderOperationCallback(JSContext *cx)
+{
+    ContextHolder* thisObject =
+        static_cast<ContextHolder*>(JS_GetContextPrivate(cx));
+    NS_ASSERTION(thisObject, "How did that happen?");
+
+    JSContext *origCx = thisObject->mOrigCx;
+    JSOperationCallback callback = JS_GetOperationCallback(origCx);
+    bool ok = true;
+    if (callback)
+        ok = callback(origCx);
+    return ok;
 }
 
 /***************************************************************************/

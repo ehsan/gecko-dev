@@ -295,8 +295,6 @@ this.PushService = {
         // online, it is likely that these statements will be no-ops.
         if (this._udpServer) {
           this._udpServer.close();
-          // Set to null since this is checked in _listenForUDPWakeup()
-          this._udpServer = null;
         }
 
         this._shutdownWS();
@@ -506,7 +504,6 @@ this.PushService = {
 
     if (this._udpServer) {
       this._udpServer.close();
-      this._udpServer = null;
     }
 
     // All pending requests (ideally none) are dropped at this point. We

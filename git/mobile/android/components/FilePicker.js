@@ -160,7 +160,7 @@ FilePicker.prototype = {
     if (this._domWin) {
       PromptUtils.fireDialogEvent(this._domWin, "DOMWillOpenModalDialog");
       let winUtils = this._domWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      winUtils.enterModalState();
+      callerWin = winUtils.enterModalStateWithWindow();
     }
 
     this._promptActive = true;
