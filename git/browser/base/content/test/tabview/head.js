@@ -106,8 +106,7 @@ function afterAllTabsLoaded(callback, win) {
 
   for (let a = 0; a < win.gBrowser.tabs.length; a++) {
     let browser = win.gBrowser.tabs[a].linkedBrowser;
-    if (browser.contentDocument.readyState != "complete" ||
-        browser.webProgress.isLoadingDocument) {
+    if (browser.contentDocument.readyState != "complete") {
       stillToLoad++;
       browser.addEventListener("load", onLoad, true);
     }

@@ -213,8 +213,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsEditor)
  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIEditor)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsEditor)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsEditor)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsEditor, nsIEditor)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsEditor, nsIEditor)
 
 #ifdef XP_MAC
 #pragma mark -
@@ -4759,24 +4759,23 @@ nsEditor::CreateTxnForDeleteCharacter(nsIDOMCharacterData  *aData,
                "invalid direction");
   nsAutoString data;
   aData->GetData(data);
-  PRUint32 segOffset = aOffset, segLength = 1;
+  PRUint32 segOffset, segLength = 1;
   if (aDirection == eNext) {
+    segOffset = aOffset;
     if (segOffset + 1 < data.Length() &&
         NS_IS_HIGH_SURROGATE(data[segOffset]) &&
         NS_IS_LOW_SURROGATE(data[segOffset+1])) {
       // delete both halves of the surrogate pair
       ++segLength;
     }
-  } else if (aOffset > 0) {
-    --segOffset;
+  } else {
+    segOffset = aOffset - 1;
     if (segOffset > 0 &&
-      NS_IS_LOW_SURROGATE(data[segOffset]) &&
-      NS_IS_HIGH_SURROGATE(data[segOffset-1])) {
+        NS_IS_LOW_SURROGATE(data[segOffset]) &&
+        NS_IS_HIGH_SURROGATE(data[segOffset-1])) {
       ++segLength;
       --segOffset;
     }
-  } else {
-    return NS_ERROR_FAILURE;
   }
   return CreateTxnForDeleteText(aData, segOffset, segLength, aTxn);
 }
@@ -4790,7 +4789,7 @@ nsEditor::CreateTxnForDeleteInsertionPoint(nsIDOMRange          *aRange,
                                            PRInt32              *aOffset,
                                            PRInt32              *aLength)
 {
-  NS_ASSERTION(aAction != eNone, "invalid action");
+  NS_ASSERTION(aAction == eNext || aAction == ePrevious, "invalid action");
 
   // get the node and offset of the insertion point
   nsCOMPtr<nsIDOMNode> node;

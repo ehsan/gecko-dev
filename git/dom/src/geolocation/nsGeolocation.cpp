@@ -34,6 +34,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "nsContentPermissionHelper.h"
 #include "nsXULAppAPI.h"
 
@@ -52,6 +53,7 @@
 
 #include "nsDOMEventTargetHelper.h"
 #include "TabChild.h"
+#endif
 
 #include "nsGeolocation.h"
 #include "nsAutoPtr.h"
@@ -476,6 +478,7 @@ nsGeolocationRequest::Shutdown()
   mErrorCallback = nsnull;
 }
 
+#ifdef MOZ_IPC
 bool nsGeolocationRequest::Recv__delete__(const bool& allow)
 {
   if (allow)
@@ -484,6 +487,7 @@ bool nsGeolocationRequest::Recv__delete__(const bool& allow)
     (void) Cancel();
   return true;
 }
+#endif
 ////////////////////////////////////////////////////
 // nsGeolocationService
 ////////////////////////////////////////////////////
@@ -673,11 +677,13 @@ nsGeolocationService::StartDevice()
   // inactivivity
   SetDisconnectTimer();
 
+#ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
     cpc->SendAddGeolocationListener();
     return NS_OK;
   }
+#endif
 
   // Start them up!
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -716,11 +722,13 @@ nsGeolocationService::StopDevice()
     mDisconnectTimer = nsnull;
   }
 
+#ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
     cpc->SendRemoveGeolocationListener();
     return; // bail early
   }
+#endif
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (!obs)
@@ -1041,6 +1049,7 @@ nsGeolocation::WindowOwnerStillExists()
 bool
 nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
 {
+#ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mOwner);
     if (!window)
@@ -1062,6 +1071,7 @@ nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
     request->Sendprompt();
     return true;
   }
+#endif
 
   if (nsContentUtils::GetBoolPref("geo.prompt.testing", PR_FALSE))
   {

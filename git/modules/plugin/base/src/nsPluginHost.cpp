@@ -1740,7 +1740,11 @@ static nsresult CreateNPAPIPlugin(nsPluginTag *aPluginTag,
                                   nsNPAPIPlugin **aOutNPAPIPlugin)
 {
   // If this is an in-process plugin we'll need to load it here if we haven't already.
+#ifdef MOZ_IPC
   if (!nsNPAPIPlugin::RunPluginOOP(aPluginTag)) {
+#else
+  if (!aPluginTag->mLibrary) {
+#endif
     if (aPluginTag->mFullPath.IsEmpty())
       return NS_ERROR_FAILURE;
     nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1");
@@ -4023,6 +4027,7 @@ NS_IMETHODIMP nsPluginHost::Notify(nsITimer* timer)
   return NS_ERROR_FAILURE;
 }
 
+#ifdef MOZ_IPC
 #ifdef XP_WIN
 // Re-enable any top level browser windows that were disabled by modal dialogs
 // displayed by the crashed plugin.
@@ -4132,6 +4137,7 @@ nsPluginHost::PluginCrashed(nsNPAPIPlugin* aPlugin,
   CheckForDisabledWindows();
 #endif
 }
+#endif
 
 nsNPAPIPluginInstance*
 nsPluginHost::FindInstance(const char *mimetype)

@@ -40,7 +40,9 @@
 #include <QX11Info>
 #endif
 
+#ifdef MOZ_IPC
 #include "base/basictypes.h"
+#endif 
 
 #include "prtypes.h"
 #include "prmem.h"
@@ -112,8 +114,10 @@ using mozilla::PluginLibrary;
 #include "mozilla/PluginPRLibrary.h"
 using mozilla::PluginPRLibrary;
 
+#ifdef MOZ_IPC
 #include "mozilla/plugins/PluginModuleParent.h"
 using mozilla::plugins::PluginModuleParent;
+#endif
 
 #ifdef MOZ_X11
 #include "mozilla/X11Util.h"
@@ -262,6 +266,7 @@ nsNPAPIPlugin::SetPluginRefNum(short aRefNum)
 }
 #endif
 
+#ifdef MOZ_IPC
 void
 nsNPAPIPlugin::PluginCrashed(const nsAString& pluginDumpID,
                              const nsAString& browserDumpID)
@@ -269,6 +274,9 @@ nsNPAPIPlugin::PluginCrashed(const nsAString& pluginDumpID,
   nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
   host->PluginCrashed(this, pluginDumpID, browserDumpID);
 }
+#endif
+
+#ifdef MOZ_IPC
 
 #if defined(XP_MACOSX) && defined(__i386__)
 static PRInt32 OSXVersion()
@@ -453,6 +461,8 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   return oopPluginsEnabled;
 }
 
+#endif // MOZ_IPC
+
 inline PluginLibrary*
 GetNewPluginLibrary(nsPluginTag *aPluginTag)
 {
@@ -460,9 +470,11 @@ GetNewPluginLibrary(nsPluginTag *aPluginTag)
     return nsnull;
   }
 
+#ifdef MOZ_IPC
   if (nsNPAPIPlugin::RunPluginOOP(aPluginTag)) {
     return PluginModuleParent::LoadModule(aPluginTag->mFullPath.get());
   }
+#endif
   return new PluginPRLibrary(aPluginTag->mFullPath.get(), aPluginTag->mLibrary);
 }
 
@@ -2362,11 +2374,6 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
     case NPPVpluginWantsAllNetworkStreams: {
       PRBool bWantsAllNetworkStreams = (result != nsnull);
       return inst->SetWantsAllNetworkStreams(bWantsAllNetworkStreams);
-    }
-
-    case NPPVpluginUsesDOMForCursorBool: {
-      PRBool useDOMForCursor = (result != nsnull);
-      return inst->SetUsesDOMForCursor(useDOMForCursor);
     }
 
 #ifdef XP_MACOSX

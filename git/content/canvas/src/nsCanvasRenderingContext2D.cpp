@@ -38,15 +38,24 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "base/basictypes.h"
+#ifdef MOZ_IPC
+#  include "base/basictypes.h"
+#endif
 
 #include "nsIDOMXULElement.h"
+
+#ifdef _MSC_VER
+#define _USE_MATH_DEFINES
+#endif
+#include <math.h>
+#if defined(XP_WIN) || defined(XP_OS2)
+#include <float.h>
+#endif
 
 #include "prmem.h"
 #include "prenv.h"
 
 #include "nsIServiceManager.h"
-#include "nsMathUtils.h"
 
 #include "nsContentUtils.h"
 
@@ -55,7 +64,6 @@
 #include "nsIDOMCanvasRenderingContext2D.h"
 #include "nsICanvasRenderingContextInternal.h"
 #include "nsHTMLCanvasElement.h"
-#include "nsSVGEffects.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIVariant.h"
@@ -112,23 +120,51 @@
 #include "nsStyleUtil.h"
 #include "CanvasImageCache.h"
 
-#include <algorithm>
-#include "mozilla/dom/ContentParent.h"
-#include "mozilla/ipc/PDocumentRendererParent.h"
-#include "mozilla/dom/PBrowserParent.h"
-#include "mozilla/ipc/DocumentRendererParent.h"
+#ifdef MOZ_IPC
+#  include <algorithm>
+#  include "mozilla/dom/ContentParent.h"
+#  include "mozilla/ipc/PDocumentRendererParent.h"
+#  include "mozilla/dom/PBrowserParent.h"
+#  include "mozilla/ipc/DocumentRendererParent.h"
 
 // windows.h (included by chromium code) defines this, in its infinite wisdom
-#undef DrawText
+#  undef DrawText
 
 using namespace mozilla::ipc;
+#endif
+
+#ifdef MOZ_SVG
+#include "nsSVGEffects.h"
+#endif
 
 using namespace mozilla;
 using namespace mozilla::layers;
 using namespace mozilla::dom;
 
+#ifndef M_PI
+#define M_PI		3.14159265358979323846
+#define M_PI_2		1.57079632679489661923
+#endif
+
 /* Float validation stuff */
-#define VALIDATE(_f)  if (!NS_finite(_f)) return PR_FALSE
+
+static inline bool
+DoubleIsFinite(double d)
+{
+#ifdef WIN32
+    // NOTE: '!!' casts an int to bool without spamming MSVC warning C4800.
+    return !!_finite(d);
+#else
+    return finite(d);
+#endif
+}
+
+#define VALIDATE(_f)  if (!DoubleIsFinite(_f)) return PR_FALSE
+
+/* These must take doubles as args, because JSDOUBLE_IS_FINITE expects
+ * to take the address of its argument; we can't cast/convert in the
+ * macro.
+ */
 
 static PRBool FloatValidate (double f1) {
     VALIDATE(f1);
@@ -776,8 +812,8 @@ protected:
     friend struct nsCanvasBidiProcessor;
 };
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCanvasRenderingContext2D)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCanvasRenderingContext2D)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsCanvasRenderingContext2D, nsIDOMCanvasRenderingContext2D)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsCanvasRenderingContext2D, nsIDOMCanvasRenderingContext2D)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsCanvasRenderingContext2D)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCanvasRenderingContext2D)
@@ -1119,7 +1155,6 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
         }
 
         gCanvasMemoryUsed += width * height * 4;
-        JS_updateMallocCounter(nsContentUtils::GetCurrentJSContext(), width * height * 4);
     }
 
     return InitializeWithSurface(NULL, surface, width, height);
@@ -1202,6 +1237,7 @@ nsCanvasRenderingContext2D::SetIsOpaque(PRBool isOpaque)
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::SetIsIPC(PRBool isIPC)
 {
+#ifdef MOZ_IPC
     if (isIPC == mIPC)
         return NS_OK;
 
@@ -1215,6 +1251,9 @@ nsCanvasRenderingContext2D::SetIsIPC(PRBool isIPC)
     }
 
     return NS_OK;
+#else
+    return NS_ERROR_NOT_IMPLEMENTED;
+#endif
 }
 
 NS_IMETHODIMP
@@ -3736,6 +3775,7 @@ nsCanvasRenderingContext2D::AsyncDrawXULElement(nsIDOMXULElement* aElem, float a
     if (!frameloader)
         return NS_ERROR_FAILURE;
 
+#ifdef MOZ_IPC
     PBrowserParent *child = frameloader->GetRemoteBrowser();
     if (!child) {
         nsCOMPtr<nsIDOMWindow> window =
@@ -3783,6 +3823,14 @@ nsCanvasRenderingContext2D::AsyncDrawXULElement(nsIDOMXULElement* aElem, float a
     }
 
     return NS_OK;
+#else
+    nsCOMPtr<nsIDOMWindow> window =
+        do_GetInterface(frameloader->GetExistingDocShell());
+    if (!window)
+        return NS_ERROR_FAILURE;
+
+    return DrawWindow(window, aX, aY, aW, aH, aBGColor, flags);
+#endif
 }
 
 //
@@ -3845,51 +3893,32 @@ nsCanvasRenderingContext2D::GetImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
         return NS_ERROR_DOM_SECURITY_ERR;
     }
 
-    if (w == 0 || h == 0 || aDataLen != w * h * 4)
+    if (w == 0 || h == 0)
         return NS_ERROR_DOM_SYNTAX_ERR;
 
-    CheckedInt32 rightMost = CheckedInt32(x) + w;
-    CheckedInt32 bottomMost = CheckedInt32(y) + h;
+    if (!CanvasUtils::CheckSaneSubrectSize (x, y, w, h, mWidth, mHeight))
+        return NS_ERROR_DOM_SYNTAX_ERR;
 
-    if (!rightMost.valid() || !bottomMost.valid())
+    PRUint32 len = w * h * 4;
+    if (aDataLen != len)
         return NS_ERROR_DOM_SYNTAX_ERR;
 
     /* Copy the surface contents to the buffer */
-    nsRefPtr<gfxImageSurface> tmpsurf =
-        new gfxImageSurface(aData,
-                            gfxIntSize(w, h),
-                            w * 4,
-                            gfxASurface::ImageFormatARGB32);
-
-    if (tmpsurf->CairoStatus())
+    nsRefPtr<gfxImageSurface> tmpsurf = new gfxImageSurface(aData,
+                                                            gfxIntSize(w, h),
+                                                            w * 4,
+                                                            gfxASurface::ImageFormatARGB32);
+    if (!tmpsurf || tmpsurf->CairoStatus())
         return NS_ERROR_FAILURE;
 
     nsRefPtr<gfxContext> tmpctx = new gfxContext(tmpsurf);
 
-    if (tmpctx->HasError())
+    if (!tmpctx || tmpctx->HasError())
         return NS_ERROR_FAILURE;
 
-    gfxRect srcRect(0, 0, mWidth, mHeight);
-    gfxRect destRect(x, y, w, h);
-
-    bool finishedPainting = false;
-    // In the common case, we want to avoid the Rectangle call.
-    if (!srcRect.Contains(destRect)) {
-        // If the requested area is entirely outside the canvas, we're done.
-        gfxRect tmp = srcRect.Intersect(destRect);
-        finishedPainting = tmp.IsEmpty();
-
-        // Set clipping region if necessary.
-        if (!finishedPainting) {
-            tmpctx->Rectangle(tmp);
-        }
-    }
-
-    if (!finishedPainting) {
-        tmpctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-        tmpctx->SetSource(mSurface, gfxPoint(-x, -y));
-        tmpctx->Paint();
-    }
+    tmpctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+    tmpctx->SetSource(mSurface, gfxPoint(-(int)x, -(int)y));
+    tmpctx->Paint();
 
     // make sure sUnpremultiplyTable has been created
     EnsureUnpremultiplyTable();

@@ -293,20 +293,6 @@ public:
   void SetInTransform(PRBool aInTransform) { mInTransform = aInTransform; }
 
   /**
-   * Call this if using display port for scrolling.
-   */
-  void SetHasDisplayPort() { mHasDisplayPort = PR_TRUE; }
-  PRBool GetHasDisplayPort() { return mHasDisplayPort; }
-
-  /**
-   * Call this if ReferenceFrame() is a viewport frame with fixed-position
-   * children, or when we construct an item which will return true from
-   * ShouldFixToViewport()
-   */
-  void SetHasFixedItems() { mHasFixedItems = PR_TRUE; }
-  PRBool GetHasFixedItems() { return mHasFixedItems; }
-
-  /**
    * Returns true if snapping is enabled for the final drawing context.
    * The default is true.
    */
@@ -470,9 +456,6 @@ public:
   }
 
 private:
-  void MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame, nsIFrame* aFrame,
-                                    const nsRect& aDirtyRect);
-
   struct PresShellState {
     nsIPresShell* mPresShell;
     nsIFrame*     mCaretFrame;
@@ -509,8 +492,6 @@ private:
   PRPackedBool                   mSyncDecodeImages;
   PRPackedBool                   mIsPaintingToWindow;
   PRPackedBool                   mSnappingEnabled;
-  PRPackedBool                   mHasDisplayPort;
-  PRPackedBool                   mHasFixedItems;
 };
 
 class nsDisplayItem;
@@ -666,7 +647,7 @@ public:
    * to the nearest viewport *and* they cover the viewport's scrollport.
    * Only return true if the contents actually vary when scrolling in the viewport.
    */
-  virtual PRBool ShouldFixToViewport(nsDisplayListBuilder* aBuilder)
+  virtual PRBool IsFixedAndCoveringViewport(nsDisplayListBuilder* aBuilder)
   { return PR_FALSE; }
 
   /**
@@ -1520,7 +1501,7 @@ public:
   virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder,
                                                 nsIFrame* aFrame);
   virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor);
-  virtual PRBool ShouldFixToViewport(nsDisplayListBuilder* aBuilder);
+  virtual PRBool IsFixedAndCoveringViewport(nsDisplayListBuilder* aBuilder);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("Background", TYPE_BACKGROUND)
@@ -1788,6 +1769,7 @@ public:
   NS_DISPLAY_DECL_NAME("OwnLayer", TYPE_OWN_LAYER)
 };
 
+#ifdef MOZ_IPC
 /**
  * This creates a layer for the given list of items, whose visibility is
  * determined by the displayport for the given frame instead of what is
@@ -1835,6 +1817,7 @@ public:
 private:
   nsIFrame* mViewportFrame;
 };
+#endif
 
 /**
  * nsDisplayClip can clip a list of items, but we take a single item

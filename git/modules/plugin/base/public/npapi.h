@@ -366,9 +366,7 @@ typedef enum {
   /* Checks to see if the plug-in would like the browser to load the "src" attribute. */
   NPPVpluginCancelSrcStream = 20,
 
-  NPPVSupportsAdvancedKeyHandling = 21,
-
-  NPPVpluginUsesDOMForCursorBool = 22
+  NPPVSupportsAdvancedKeyHandling = 21
 
 #if defined(XP_MACOSX)
   /* Used for negotiating drawing models */

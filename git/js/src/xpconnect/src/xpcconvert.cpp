@@ -1640,13 +1640,10 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
             JSBool found;
 
             // heuristic to see if it might be usable as an xpcexception
-            if(!JS_GetPropertyAttributes(cx, obj, "message", &ignored, &found))
-               return NS_ERROR_FAILURE;
-
-            if(found && !JS_GetPropertyAttributes(cx, obj, "result", &ignored, &found))
-                return NS_ERROR_FAILURE;
-
-            if(found)
+            if(JS_GetPropertyAttributes(cx, obj, "message", &ignored, &found) &&
+               found &&
+               JS_GetPropertyAttributes(cx, obj, "result", &ignored, &found) &&
+               found)
             {
                 // lets try to build a wrapper around the JSObject
                 nsXPCWrappedJS* jswrapper;
@@ -1656,8 +1653,8 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
                                                  nsnull, &jswrapper);
                 if(NS_FAILED(rv))
                     return rv;
-
-                *exceptn = static_cast<nsIException *>(jswrapper->GetXPTCStub());
+                *exceptn = reinterpret_cast<nsIException*>
+                           (jswrapper);
                 return NS_OK;
             }
 

@@ -538,7 +538,7 @@ nsXPConnect::ToParticipant(void *p)
 }
 
 NS_IMETHODIMP
-nsXPConnect::Root(void *p)
+nsXPConnect::RootAndUnlinkJSObjects(void *p)
 {
     return NS_OK;
 }
@@ -864,15 +864,17 @@ nsXPConnect::GetOutstandingRequests(JSContext* cx)
 class JSContextParticipant : public nsCycleCollectionParticipant
 {
 public:
-    NS_IMETHOD Root(void *n)
-    {
-        return NS_OK;
-    }
-    NS_IMETHOD Unlink(void *n)
+    NS_IMETHOD RootAndUnlinkJSObjects(void *n)
     {
         JSContext *cx = static_cast<JSContext*>(n);
         NS_ASSERTION(cx->globalObject, "global object NULL before unlinking");
         cx->globalObject = nsnull;
+        return NS_OK;
+    }
+    NS_IMETHOD Unlink(void *n)
+    {
+        // We must not unlink a JSContext because Root/Unroot don't ensure that
+        // the pointer is still valid.
         return NS_OK;
     }
     NS_IMETHOD Unroot(void *n)

@@ -37,7 +37,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "base/basictypes.h"
+#endif
 
 #include "mozilla/XPCOM.h"
 #include "nsXULAppAPI.h"
@@ -149,6 +151,7 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "mozilla/scache/StartupCache.h"
 #endif
 
+#ifdef MOZ_IPC
 #include "base/at_exit.h"
 #include "base/command_line.h"
 #include "base/message_loop.h"
@@ -166,6 +169,7 @@ static bool sCommandLineWasInitialized;
 static BrowserProcessSubThread* sIOThread;
 
 } /* anonymous namespace */
+#endif
 
 // Registry Factory creation function defined in nsRegistry.cpp
 // We hook into this function locally to create and register the registry
@@ -364,6 +368,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
 
     NS_LogInit();
 
+#ifdef MOZ_IPC
     NS_TIME_FUNCTION_MARK("Next: IPC init");
 
     // Set up chromium libs
@@ -391,6 +396,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
 
         sIOThread = ioThread.release();
     }
+#endif
 
     NS_TIME_FUNCTION_MARK("Next: thread manager init");
 
@@ -477,6 +483,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     }
 #endif
 
+#ifdef MOZ_IPC
     if ((sCommandLineWasInitialized = !CommandLine::IsInitialized())) {
         NS_TIME_FUNCTION_MARK("Next: IPC command line init");
 
@@ -500,6 +507,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
         CommandLine::Init(1, &argv);
 #endif
     }
+#endif
 
     NS_ASSERTION(nsComponentManagerImpl::gComponentManager == NULL, "CompMgr not null at init");
 
@@ -738,6 +746,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
 
     NS_IF_RELEASE(gDebug);
 
+#ifdef MOZ_IPC
     if (sIOThread) {
         delete sIOThread;
         sIOThread = nsnull;
@@ -754,6 +763,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
         delete sExitManager;
         sExitManager = nsnull;
     }
+#endif
 
 #ifdef MOZ_OMNIJAR
     mozilla::SetOmnijar(nsnull);

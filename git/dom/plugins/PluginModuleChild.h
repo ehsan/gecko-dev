@@ -161,7 +161,6 @@ public:
     PluginModuleChild();
     virtual ~PluginModuleChild();
 
-    // aPluginFilename is UTF8, not native-charset!
     bool Init(const std::string& aPluginFilename,
               base::ProcessHandle aParentProcessHandle,
               MessageLoop* aIOLoop,
@@ -283,7 +282,7 @@ private:
 #endif
 
     PRLibrary* mLibrary;
-    nsCString mPluginFilename; // UTF8
+    nsCString mPluginFilename;
     nsCString mUserAgent;
     int mQuirks;
 
