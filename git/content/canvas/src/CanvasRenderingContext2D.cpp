@@ -1232,7 +1232,7 @@ ObjectToMatrix(JSContext* cx, JS::Handle<JSObject*> obj, Matrix& matrix,
   for (uint32_t i = 0; i < 6; ++i) {
     JS::Rooted<JS::Value> elt(cx);
     double d;
-    if (!JS_GetElement(cx, obj, i, &elt)) {
+    if (!JS_GetElement(cx, obj, i, elt.address())) {
       error.Throw(NS_ERROR_FAILURE);
       return false;
     }

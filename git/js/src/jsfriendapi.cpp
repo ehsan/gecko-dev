@@ -218,12 +218,12 @@ JS_SetCompartmentPrincipals(JSCompartment *compartment, JSPrincipals *principals
 
     // Any compartment with the trusted principals -- and there can be
     // multiple -- is a system compartment.
-    JSPrincipals *trusted = compartment->runtimeFromMainThread()->trustedPrincipals();
+    JSPrincipals *trusted = compartment->rt->trustedPrincipals();
     bool isSystem = principals && principals == trusted;
 
     // Clear out the old principals, if any.
     if (compartment->principals) {
-        JS_DropPrincipals(compartment->runtimeFromMainThread(), compartment->principals);
+        JS_DropPrincipals(compartment->rt, compartment->principals);
         compartment->principals = NULL;
         // We'd like to assert that our new principals is always same-origin
         // with the old one, but JSPrincipals doesn't give us a way to do that.
@@ -337,7 +337,7 @@ js::IsSystemZone(Zone *zone)
 JS_FRIEND_API(bool)
 js::IsAtomsCompartment(JSCompartment *comp)
 {
-    return comp == comp->runtimeFromAnyThread()->atomsCompartment;
+    return comp == comp->rt->atomsCompartment;
 }
 
 JS_FRIEND_API(bool)
@@ -920,7 +920,7 @@ JS::IncrementalObjectBarrier(JSObject *obj)
     if (!obj)
         return;
 
-    JS_ASSERT(!obj->zone()->runtimeFromMainThread()->isHeapMajorCollecting());
+    JS_ASSERT(!obj->zone()->rt->isHeapMajorCollecting());
 
     AutoMarkInDeadZone amn(obj->zone());
 
@@ -938,7 +938,7 @@ JS::IncrementalReferenceBarrier(void *ptr, JSGCTraceKind kind)
                  ? static_cast<JSObject *>(cell)->zone()
                  : cell->tenuredZone();
 
-    JS_ASSERT(!zone->runtimeFromMainThread()->isHeapMajorCollecting());
+    JS_ASSERT(!zone->rt->isHeapMajorCollecting());
 
     AutoMarkInDeadZone amn(zone);
 

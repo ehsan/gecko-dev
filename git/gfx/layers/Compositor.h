@@ -172,7 +172,7 @@ class Compositor : public RefCounted<Compositor>
 public:
   Compositor()
     : mCompositorID(0)
-    , mDiagnosticTypes(DIAGNOSTIC_NONE)
+    , mDrawColoredBorders(false)
   {
     MOZ_COUNT_CTOR(Compositor);
   }
@@ -335,12 +335,16 @@ public:
    */
   virtual bool SupportsPartialTextureUpdate() = 0;
 
-  void SetDiagnosticTypes(DiagnosticTypes aDiagnostics)
+  void EnableColoredBorders()
   {
-    mDiagnosticTypes = aDiagnostics;
+    mDrawColoredBorders = true;
+  }
+  void DisableColoredBorders()
+  {
+    mDrawColoredBorders = false;
   }
 
-  void DrawDiagnostics(DiagnosticFlags aFlags,
+  void DrawDiagnostics(const gfx::Color& color,
                        const gfx::Rect& visibleRect,
                        const gfx::Rect& aClipRect,
                        const gfx::Matrix4x4& transform,
@@ -413,7 +417,7 @@ public:
 protected:
   uint32_t mCompositorID;
   static LayersBackend sBackend;
-  DiagnosticTypes mDiagnosticTypes;
+  bool mDrawColoredBorders;
 };
 
 } // namespace layers

@@ -150,9 +150,9 @@ public: // WebIDL interface:
             ErrorResult& aRv);
   void Send(nsIDOMBlob* aData,
             ErrorResult& aRv);
-  void Send(const ArrayBuffer& aData,
+  void Send(ArrayBuffer& aData,
             ErrorResult& aRv);
-  void Send(const ArrayBufferView& aData,
+  void Send(ArrayBufferView& aData,
             ErrorResult& aRv);
 
 private: // constructor && distructor

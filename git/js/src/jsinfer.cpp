@@ -6545,8 +6545,7 @@ TypeCompartment::sweepCompilerOutputs(FreeOp *fop, bool discardConstraints)
 void
 JSCompartment::sweepNewTypeObjectTable(TypeObjectSet &table)
 {
-    gcstats::AutoPhase ap(runtimeFromMainThread()->gcStats,
-                          gcstats::PHASE_SWEEP_TABLES_TYPE_OBJECT);
+    gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_TABLES_TYPE_OBJECT);
 
     JS_ASSERT(zone()->isGCSweeping());
     if (table.initialized()) {
@@ -6857,7 +6856,7 @@ TypeZone::sweep(FreeOp *fop, bool releaseTypes)
 {
     JS_ASSERT(zone()->isGCSweeping());
 
-    JSRuntime *rt = fop->runtime();
+    JSRuntime *rt = zone()->rt;
 
     /*
      * Clear the analysis pool, but don't release its data yet. While

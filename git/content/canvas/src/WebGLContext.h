@@ -338,15 +338,13 @@ public:
     void BlendFuncSeparate(WebGLenum srcRGB, WebGLenum dstRGB,
                            WebGLenum srcAlpha, WebGLenum dstAlpha);
     void BufferData(WebGLenum target, WebGLsizeiptr size, WebGLenum usage);
-    void BufferData(WebGLenum target, const dom::ArrayBufferView &data,
+    void BufferData(WebGLenum target, dom::ArrayBufferView &data,
                     WebGLenum usage);
-    void BufferData(WebGLenum target,
-                    const Nullable<dom::ArrayBuffer> &maybeData,
-                    WebGLenum usage);
+    void BufferData(WebGLenum target, dom::ArrayBuffer *data, WebGLenum usage);
     void BufferSubData(WebGLenum target, WebGLsizeiptr byteOffset,
-                       const dom::ArrayBufferView &data);
+                       dom::ArrayBufferView &data);
     void BufferSubData(WebGLenum target, WebGLsizeiptr byteOffset,
-                       const Nullable<dom::ArrayBuffer> &maybeData);
+                       dom::ArrayBuffer *data);
     WebGLenum CheckFramebufferStatus(WebGLenum target);
     void Clear(WebGLbitfield mask);
     void ClearColor(WebGLclampf r, WebGLclampf g, WebGLclampf b, WebGLclampf a);
@@ -357,12 +355,11 @@ public:
     void CompressedTexImage2D(WebGLenum target, WebGLint level,
                               WebGLenum internalformat, WebGLsizei width,
                               WebGLsizei height, WebGLint border,
-                              const dom::ArrayBufferView& view);
+                              dom::ArrayBufferView& view);
     void CompressedTexSubImage2D(WebGLenum target, WebGLint level,
                                  WebGLint xoffset, WebGLint yoffset,
                                  WebGLsizei width, WebGLsizei height,
-                                 WebGLenum format,
-                                 const dom::ArrayBufferView& view);
+                                 WebGLenum format, dom::ArrayBufferView& view);
     void CopyTexImage2D(WebGLenum target, WebGLint level,
                         WebGLenum internalformat, WebGLint x, WebGLint y,
                         WebGLsizei width, WebGLsizei height, WebGLint border);
@@ -490,8 +487,7 @@ public:
     }
     void ReadPixels(WebGLint x, WebGLint y, WebGLsizei width, WebGLsizei height,
                     WebGLenum format, WebGLenum type,
-                    const Nullable<dom::ArrayBufferView> &pixels,
-                    ErrorResult& rv);
+                    dom::ArrayBufferView* pixels, ErrorResult& rv);
     void RenderbufferStorage(WebGLenum target, WebGLenum internalformat,
                              WebGLsizei width, WebGLsizei height);
     void SampleCoverage(WebGLclampf value, WebGLboolean invert) {
@@ -513,8 +509,7 @@ public:
     void TexImage2D(WebGLenum target, WebGLint level,
                     WebGLenum internalformat, WebGLsizei width,
                     WebGLsizei height, WebGLint border, WebGLenum format,
-                    WebGLenum type,
-                    const Nullable<dom::ArrayBufferView> &pixels,
+                    WebGLenum type, dom::ArrayBufferView *pixels,
                     ErrorResult& rv);
     void TexImage2D(WebGLenum target, WebGLint level,
                     WebGLenum internalformat, WebGLenum format, WebGLenum type,
@@ -552,8 +547,7 @@ public:
     void TexSubImage2D(WebGLenum target, WebGLint level,
                        WebGLint xoffset, WebGLint yoffset,
                        WebGLsizei width, WebGLsizei height, WebGLenum format,
-                       WebGLenum type,
-                       const Nullable<dom::ArrayBufferView> &pixels,
+                       WebGLenum type, dom::ArrayBufferView* pixels,
                        ErrorResult& rv);
     void TexSubImage2D(WebGLenum target, WebGLint level,
                        WebGLint xoffset, WebGLint yoffset, WebGLenum format,
@@ -598,8 +592,7 @@ public:
     void Uniform4f(WebGLUniformLocation* location, WebGLfloat x, WebGLfloat y,
                    WebGLfloat z, WebGLfloat w);
     
-    void Uniform1iv(WebGLUniformLocation* location,
-                    const dom::Int32Array& arr) {
+    void Uniform1iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
         Uniform1iv_base(location, arr.Length(), arr.Data());
     }
     void Uniform1iv(WebGLUniformLocation* location,
@@ -609,8 +602,7 @@ public:
     void Uniform1iv_base(WebGLUniformLocation* location, uint32_t arrayLength,
                          const WebGLint* data);
 
-    void Uniform2iv(WebGLUniformLocation* location,
-                    const dom::Int32Array& arr) {
+    void Uniform2iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
         Uniform2iv_base(location, arr.Length(), arr.Data());
     }
     void Uniform2iv(WebGLUniformLocation* location,
@@ -620,8 +612,7 @@ public:
     void Uniform2iv_base(WebGLUniformLocation* location, uint32_t arrayLength,
                          const WebGLint* data);
 
-    void Uniform3iv(WebGLUniformLocation* location,
-                    const dom::Int32Array& arr) {
+    void Uniform3iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
         Uniform3iv_base(location, arr.Length(), arr.Data());
     }
     void Uniform3iv(WebGLUniformLocation* location,
@@ -631,8 +622,7 @@ public:
     void Uniform3iv_base(WebGLUniformLocation* location, uint32_t arrayLength,
                          const WebGLint* data);
     
-    void Uniform4iv(WebGLUniformLocation* location,
-                    const dom::Int32Array& arr) {
+    void Uniform4iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
         Uniform4iv_base(location, arr.Length(), arr.Data());
     }
     void Uniform4iv(WebGLUniformLocation* location,
@@ -642,8 +632,7 @@ public:
     void Uniform4iv_base(WebGLUniformLocation* location, uint32_t arrayLength,
                          const WebGLint* data);
 
-    void Uniform1fv(WebGLUniformLocation* location,
-                    const dom::Float32Array& arr) {
+    void Uniform1fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
         Uniform1fv_base(location, arr.Length(), arr.Data());
     }
     void Uniform1fv(WebGLUniformLocation* location,
@@ -653,8 +642,7 @@ public:
     void Uniform1fv_base(WebGLUniformLocation* location, uint32_t arrayLength,
                          const WebGLfloat* data);
 
-    void Uniform2fv(WebGLUniformLocation* location,
-                    const dom::Float32Array& arr) {
+    void Uniform2fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
         Uniform2fv_base(location, arr.Length(), arr.Data());
     }
     void Uniform2fv(WebGLUniformLocation* location,
@@ -664,8 +652,7 @@ public:
     void Uniform2fv_base(WebGLUniformLocation* location, uint32_t arrayLength,
                          const WebGLfloat* data);
 
-    void Uniform3fv(WebGLUniformLocation* location,
-                    const dom::Float32Array& arr) {
+    void Uniform3fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
         Uniform3fv_base(location, arr.Length(), arr.Data());
     }
     void Uniform3fv(WebGLUniformLocation* location,
@@ -675,8 +662,7 @@ public:
     void Uniform3fv_base(WebGLUniformLocation* location, uint32_t arrayLength,
                          const WebGLfloat* data);
     
-    void Uniform4fv(WebGLUniformLocation* location,
-                    const dom::Float32Array& arr) {
+    void Uniform4fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
         Uniform4fv_base(location, arr.Length(), arr.Data());
     }
     void Uniform4fv(WebGLUniformLocation* location,
@@ -688,7 +674,7 @@ public:
 
     void UniformMatrix2fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
-                          const dom::Float32Array &value) {
+                          dom::Float32Array &value) {
         UniformMatrix2fv_base(location, transpose, value.Length(), value.Data());
     }
     void UniformMatrix2fv(WebGLUniformLocation* location,
@@ -703,7 +689,7 @@ public:
 
     void UniformMatrix3fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
-                          const dom::Float32Array &value) {
+                          dom::Float32Array &value) {
         UniformMatrix3fv_base(location, transpose, value.Length(), value.Data());
     }
     void UniformMatrix3fv(WebGLUniformLocation* location,
@@ -718,7 +704,7 @@ public:
 
     void UniformMatrix4fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
-                          const dom::Float32Array &value) {
+                          dom::Float32Array &value) {
         UniformMatrix4fv_base(location, transpose, value.Length(), value.Data());
     }
     void UniformMatrix4fv(WebGLUniformLocation* location,
@@ -752,7 +738,7 @@ public:
     void VertexAttrib4f(WebGLuint index, WebGLfloat x0, WebGLfloat x1,
                         WebGLfloat x2, WebGLfloat x3);
 
-    void VertexAttrib1fv(WebGLuint idx, const dom::Float32Array &arr) {
+    void VertexAttrib1fv(WebGLuint idx, dom::Float32Array &arr) {
         VertexAttrib1fv_base(idx, arr.Length(), arr.Data());
     }
     void VertexAttrib1fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
@@ -761,7 +747,7 @@ public:
     void VertexAttrib1fv_base(WebGLuint idx, uint32_t arrayLength,
                               const WebGLfloat* ptr);
 
-    void VertexAttrib2fv(WebGLuint idx, const dom::Float32Array &arr) {
+    void VertexAttrib2fv(WebGLuint idx, dom::Float32Array &arr) {
         VertexAttrib2fv_base(idx, arr.Length(), arr.Data());
     }
     void VertexAttrib2fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
@@ -770,7 +756,7 @@ public:
     void VertexAttrib2fv_base(WebGLuint idx, uint32_t arrayLength,
                               const WebGLfloat* ptr);
 
-    void VertexAttrib3fv(WebGLuint idx, const dom::Float32Array &arr) {
+    void VertexAttrib3fv(WebGLuint idx, dom::Float32Array &arr) {
         VertexAttrib3fv_base(idx, arr.Length(), arr.Data());
     }
     void VertexAttrib3fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
@@ -779,7 +765,7 @@ public:
     void VertexAttrib3fv_base(WebGLuint idx, uint32_t arrayLength,
                               const WebGLfloat* ptr);
 
-    void VertexAttrib4fv(WebGLuint idx, const dom::Float32Array &arr) {
+    void VertexAttrib4fv(WebGLuint idx, dom::Float32Array &arr) {
         VertexAttrib4fv_base(idx, arr.Length(), arr.Data());
     }
     void VertexAttrib4fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {

@@ -800,10 +800,19 @@ struct JSRuntime : public JS::shadow::Runtime,
     void *ownerThread() const { return ownerThread_; }
     void clearOwnerThread();
     void setOwnerThread();
+    JS_FRIEND_API(void) abortIfWrongThread() const;
+#ifdef DEBUG
+    JS_FRIEND_API(void) assertValidThread() const;
+#else
+    void assertValidThread() const {}
+#endif
   private:
-    void *ownerThread_;
-    friend bool js::CurrentThreadCanAccessRuntime(JSRuntime *rt);
+    void                *ownerThread_;
   public:
+#else
+  public:
+    void abortIfWrongThread() const {}
+    void assertValidThread() const {}
 #endif
 
     /* Temporary arena pool used while compiling and decompiling. */
@@ -1687,7 +1696,7 @@ PerThreadData::setIonStackLimit(uintptr_t limit)
 inline JSRuntime *
 PerThreadData::runtimeFromMainThread()
 {
-    JS_ASSERT(js::CurrentThreadCanAccessRuntime(runtime_));
+    runtime_->assertValidThread();
     return runtime_;
 }
 

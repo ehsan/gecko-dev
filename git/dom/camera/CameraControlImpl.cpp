@@ -107,7 +107,7 @@ CameraControlImpl::Set(JSContext* aCx, uint32_t aKey, const JS::Value& aValue, u
   for (uint32_t i = 0; i < length; ++i) {
     JS::Rooted<JS::Value> v(aCx);
 
-    if (!JS_GetElement(aCx, regions, i, &v)) {
+    if (!JS_GetElement(aCx, regions, i, v.address())) {
       return NS_ERROR_FAILURE;
     }
 
@@ -189,7 +189,7 @@ CameraControlImpl::Get(JSContext* aCx, uint32_t aKey, JS::Value* aValue)
     }
 
     v = OBJECT_TO_JSVAL(o);
-    if (!JS_SetElement(aCx, array, i, &v)) {
+    if (!JS_SetElement(aCx, array, i, v.address())) {
       return NS_ERROR_FAILURE;
     }
   }

@@ -3690,33 +3690,21 @@ class Parser(Tokenizer):
 
     def p_EnumValueList(self, p):
         """
-            EnumValueList : STRING EnumValueListComma
+            EnumValueList : STRING EnumValues
         """
         p[0] = [p[1]]
         p[0].extend(p[2])
 
-    def p_EnumValueListComma(self, p):
+    def p_EnumValues(self, p):
         """
-            EnumValueListComma : COMMA EnumValueListString
+            EnumValues : COMMA STRING EnumValues
         """
-        p[0] = p[2]
+        p[0] = [p[2]]
+        p[0].extend(p[3])
 
-    def p_EnumValueListCommaEmpty(self, p):
+    def p_EnumValuesEmpty(self, p):
         """
-            EnumValueListComma :
-        """
-        p[0] = []
-
-    def p_EnumValueListString(self, p):
-        """
-            EnumValueListString : STRING EnumValueListComma
-        """
-        p[0] = [p[1]]
-        p[0].extend(p[2])
-
-    def p_EnumValueListStringEmpty(self, p):
-        """
-            EnumValueListString :
+            EnumValues :
         """
         p[0] = []
 

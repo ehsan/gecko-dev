@@ -95,22 +95,6 @@ function prepareTest(nextTest, url) {
   gTestBrowser.contentWindow.location = url;
 }
 
-// Due to layout being async, "PluginBindAttached" may trigger later.
-// This wraps a function to force a layout flush, thus triggering it,
-// and schedules the function execution so they're definitely executed
-// afterwards.
-function runAfterPluginBindingAttached(func) {
-  let doc = gTestBrowser.contentDocument;
-  return function() {
-    let elems = doc.getElementsByTagName('embed');
-    if (elems.length < 1) {
-      elems = doc.getElementsByTagName('object');
-    }
-    elems[0].clientTop;
-    executeSoon(func);
-  };
-}
-
 // Test that the click-to-play doorhanger still works when navigating to data URLs
 function test1a() {
   let popupNotification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
@@ -120,7 +104,7 @@ function test1a() {
   let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
   ok(!objLoadingContent.activated, "Test 1a, Plugin should not be activated");
 
-  gNextTest = runAfterPluginBindingAttached(test1b);
+  gNextTest = test1b;
   gTestBrowser.contentDocument.getElementById("data-link-1").click();
 }
 
@@ -142,7 +126,7 @@ function test1b() {
 
 function test1c() {
   clearAllPluginPermissions();
-  prepareTest(runAfterPluginBindingAttached(test2a), gHttpTestRoot + "plugin_data_url.html");
+  prepareTest(test2a, gHttpTestRoot + "plugin_data_url.html");
 }
 
 // Test that the click-to-play notification doesn't break when navigating to data URLs with multiple plugins
@@ -153,7 +137,7 @@ function test2a() {
   let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
   ok(!objLoadingContent.activated, "Test 2a, Plugin should not be activated");
 
-  gNextTest = runAfterPluginBindingAttached(test2b);
+  gNextTest = test2b;
   gTestBrowser.contentDocument.getElementById("data-link-2").click();
 }
 
@@ -200,7 +184,7 @@ function test2c() {
   ok(objLoadingContent.activated, "Test 2c, Plugin should be activated");
 
   clearAllPluginPermissions();
-  prepareTest(runAfterPluginBindingAttached(test3a), gHttpTestRoot + "plugin_data_url.html");
+  prepareTest(test3a, gHttpTestRoot + "plugin_data_url.html");
 }
 
 // Test that when navigating to a data url, the plugin permission is inherited
@@ -230,8 +214,7 @@ function test3c() {
   ok(objLoadingContent.activated, "Test 3c, Plugin should be activated");
 
   clearAllPluginPermissions();
-  prepareTest(runAfterPluginBindingAttached(test4b),
-              'data:text/html,<embed id="test" style="width: 200px; height: 200px" type="application/x-test"/>');
+  prepareTest(test4b, 'data:text/html,<embed id="test" style="width: 200px; height: 200px" type="application/x-test"/>');
 }
 
 // Test that the click-to-play doorhanger still works when directly navigating to data URLs

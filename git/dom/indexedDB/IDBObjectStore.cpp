@@ -953,7 +953,7 @@ IDBObjectStore::AppendIndexUpdateInfo(
 
     for (uint32_t arrayIndex = 0; arrayIndex < arrayLength; arrayIndex++) {
       JS::Rooted<JS::Value> arrayItem(aCx);
-      if (!JS_GetElement(aCx, array, arrayIndex, &arrayItem)) {
+      if (!JS_GetElement(aCx, array, arrayIndex, arrayItem.address())) {
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
 

@@ -55,8 +55,6 @@ const INTERFACE_DELIMIT = "\0";
 
 importScripts("systemlibs.js");
 
-const SDK_VERSION = libcutils.property_get("ro.build.version.sdk", "0");
-
 function netdResponseType(code) {
   return Math.floor(code/100)*100;
 }
@@ -309,51 +307,25 @@ let gPending = false;
 let gReason = [];
 
 /**
- * This helper function acts like String.split() fucntion.
- * The function finds the first token in the javascript
- * uint8 type array object, where tokens are delimited by
- * the delimiter. The first token and the index pointer to
- * the next token are returned in this function.
- */
-function split(start, data, delimiter) {
-  // Sanity check.
-  if (start < 0 || data.length <= 0) {
-    return null;
-  }
-
-  let result = "";
-  let i = start;
-  while (i < data.length) {
-    let octet = data[i];
-    i += 1;
-    if (octet === delimiter) {
-      return {token: result, index: i};
-    }
-    result += String.fromCharCode(octet);
-  }
-  return null;
-}
-
-/**
  * Handle received data from netd.
  */
 function onNetdMessage(data) {
-  let result = split(0, data, 32);
-  if (!result) {
-    nextNetdCommand();
-    return;
-  }
-  let code = parseInt(result.token);
-
-  // Netd response contains the command sequence number
-  // in non-broadcast message for Android jb version.
-  // The format is ["code" "optional sequence number" "reason"]
-  if (!isBroadcastMessage(code) && SDK_VERSION >= 16) {
-    result = split(result.index, data, 32);
-  }
-
-  let i = result.index;
+  let result = "";
   let reason = "";
+
+  // The return result is separated from the reason by a space character.
+  let i = 0;
+  while (i < data.length) {
+    let octet = data[i];
+    i += 1;
+    if (octet == 32) {
+      break;
+    }
+    result += String.fromCharCode(octet);
+  }
+
+  let code = parseInt(result);
+
   for (; i < data.length; i++) {
     let octet = data[i];
     reason += String.fromCharCode(octet);
@@ -411,10 +383,7 @@ function nextNetdCommand() {
   [gCurrentCommand, gCurrentCallback] = gCommandQueue.shift();
   debug("Sending '" + gCurrentCommand + "' command to netd.");
   gPending = true;
-
-  // Android JB version adds sequence number to netd command.
-  let command = (SDK_VERSION >= 16) ? "0 " + gCurrentCommand : gCurrentCommand;
-  return postNetdCommand(command);
+  return postNetdCommand(gCurrentCommand);
 }
 
 function setInterfaceUp(params, callback) {

@@ -143,10 +143,11 @@ MobileMessageCallback::NotifyMessageDeleted(bool *aDeleted, uint32_t aSize)
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   JS::Rooted<JSObject*> deleteArrayObj(cx, JS_NewArrayObject(cx, aSize, NULL));
-  JS::Rooted<JS::Value> value(cx);
+  JS::Rooted<JS::Value> jsValTrue(cx, JS::BooleanValue(true));
+  JS::Rooted<JS::Value> jsValFalse(cx, JS::BooleanValue(false));
   for (uint32_t i = 0; i < aSize; i++) {
-    value.setBoolean(aDeleted[i]);
-    JS_SetElement(cx, deleteArrayObj, i, &value);
+    JS_SetElement(cx, deleteArrayObj, i,
+                  aDeleted[i] ? jsValTrue.address() : jsValFalse.address());
   }
 
   JS::Rooted<JS::Value> deleteArrayVal(cx, JS::ObjectValue(*deleteArrayObj));

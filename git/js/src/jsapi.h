@@ -199,15 +199,15 @@ class AutoArrayRooter : private AutoGCRooter {
 
     Value *array;
 
-    MutableHandle<Value> handleAt(size_t i)
+    MutableHandleValue handleAt(size_t i)
     {
         JS_ASSERT(i < size_t(tag_));
-        return MutableHandle<Value>::fromMarkedLocation(&array[i]);
+        return MutableHandleValue::fromMarkedLocation(&array[i]);
     }
-    Handle<Value> handleAt(size_t i) const
+    HandleValue handleAt(size_t i) const
     {
         JS_ASSERT(i < size_t(tag_));
-        return Handle<Value>::fromMarkedLocation(&array[i]);
+        return HandleValue::fromMarkedLocation(&array[i]);
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
@@ -283,12 +283,8 @@ class AutoVectorRooter : protected AutoGCRooter
     T &operator[](size_t i) { return vector[i]; }
     const T &operator[](size_t i) const { return vector[i]; }
 
-    JS::MutableHandle<T> handleAt(size_t i) {
-        return JS::MutableHandle<T>::fromMarkedLocation(&vector[i]);
-    }
-    JS::Handle<T> handleAt(size_t i) const {
-        return JS::Handle<T>::fromMarkedLocation(&vector[i]);
-    }
+    JS::MutableHandle<T> handleAt(size_t i) { return JS::MutableHandle<T>::fromMarkedLocation(&vector[i]); }
+    JS::Handle<T> handleAt(size_t i) const { return JS::Handle<T>::fromMarkedLocation(&vector[i]); }
 
     const T *begin() const { return vector.begin(); }
     T *begin() { return vector.begin(); }
@@ -757,8 +753,7 @@ CallNonGenericMethod(JSContext *cx, IsAcceptableThis Test, NativeImpl Impl, Call
  * *vp out parameter, on success, is the new property value after the action.
  */
 typedef JSBool
-(* JSPropertyOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                 JS::MutableHandle<JS::Value> vp);
+(* JSPropertyOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp);
 
 /*
  * Set a property named by id in obj, treating the assignment as strict
@@ -768,8 +763,7 @@ typedef JSBool
  * set.
  */
 typedef JSBool
-(* JSStrictPropertyOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                       JSBool strict, JS::MutableHandle<JS::Value> vp);
+(* JSStrictPropertyOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSBool strict, JS::MutableHandle<JS::Value> vp);
 
 /*
  * Delete a property named by id in obj.
@@ -787,8 +781,7 @@ typedef JSBool
  * set *succeeded to true and return true.
  */
 typedef JSBool
-(* JSDeletePropertyOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                       JSBool *succeeded);
+(* JSDeletePropertyOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSBool *succeeded);
 
 /*
  * This function type is used for callbacks that enumerate the properties of
@@ -824,7 +817,7 @@ typedef JSBool
  */
 typedef JSBool
 (* JSNewEnumerateOp)(JSContext *cx, JS::Handle<JSObject*> obj, JSIterateOp enum_op,
-                     JS::MutableHandle<JS::Value> statep, JS::MutableHandle<jsid> idp);
+                     JS::MutableHandle<JS::Value> statep, JS::MutableHandleId idp);
 
 /*
  * The old-style JSClass.enumerate op should define all lazy properties not
@@ -862,7 +855,7 @@ typedef JSBool
  */
 typedef JSBool
 (* JSNewResolveOp)(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, unsigned flags,
-                   JS::MutableHandle<JSObject*> objp);
+                   JS::MutableHandleObject objp);
 
 /*
  * Convert obj to the given type, returning true with the resulting value in
@@ -1100,8 +1093,8 @@ typedef JSBool
  * wrap a function.
  */
 typedef JSObject *
-(* JSWrapObjectCallback)(JSContext *cx, JS::Handle<JSObject*> existing, JS::Handle<JSObject*> obj,
-                         JS::Handle<JSObject*> proto, JS::Handle<JSObject*> parent,
+(* JSWrapObjectCallback)(JSContext *cx, JS::HandleObject existing, JS::HandleObject obj,
+                         JS::HandleObject proto, JS::HandleObject parent,
                          unsigned flags);
 
 /*
@@ -1110,7 +1103,7 @@ typedef JSObject *
  * or even finding a more suitable object for the new compartment.
  */
 typedef JSObject *
-(* JSPreWrapCallback)(JSContext *cx, JS::Handle<JSObject*> scope, JS::Handle<JSObject*> obj,
+(* JSPreWrapCallback)(JSContext *cx, JS::HandleObject scope, JS::HandleObject obj,
                       unsigned flags);
 
 /*
@@ -1124,7 +1117,7 @@ typedef JSObject *
  * compartment wrapper that gets passed to wrap.
  */
 typedef JSObject *
-(* JSSameCompartmentWrapObjectCallback)(JSContext *cx, JS::Handle<JSObject*> obj);
+(* JSSameCompartmentWrapObjectCallback)(JSContext *cx, JS::HandleObject obj);
 
 typedef void
 (* JSDestroyCompartmentCallback)(JSFreeOp *fop, JSCompartment *compartment);
@@ -1539,7 +1532,7 @@ namespace JS {
 
 /* ES5 9.3 ToNumber. */
 JS_ALWAYS_INLINE bool
-ToNumber(JSContext *cx, Handle<Value> v, double *out)
+ToNumber(JSContext *cx, HandleValue v, double *out)
 {
     AssertArgumentsAreSane(cx, v);
     {
@@ -2071,14 +2064,14 @@ extern JS_PUBLIC_API(JSBool)
 JS_WrapId(JSContext *cx, jsid *idp);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_TransplantObject(JSContext *cx, JS::Handle<JSObject*> origobj, JS::Handle<JSObject*> target);
+JS_TransplantObject(JSContext *cx, JS::HandleObject origobj, JS::HandleObject target);
 
 extern JS_FRIEND_API(JSObject *)
 js_TransplantObjectWithWrapper(JSContext *cx,
-                               JS::Handle<JSObject*> origobj,
-                               JS::Handle<JSObject*> origwrapper,
-                               JS::Handle<JSObject*> targetobj,
-                               JS::Handle<JSObject*> targetwrapper);
+                               JS::HandleObject origobj,
+                               JS::HandleObject origwrapper,
+                               JS::HandleObject targetobj,
+                               JS::HandleObject targetwrapper);
 
 extern JS_PUBLIC_API(JSBool)
 JS_RefreshCrossCompartmentWrappers(JSContext *cx, JSObject *ob);
@@ -2170,11 +2163,11 @@ JS_InitStandardClasses(JSContext *cx, JSObject *obj);
  * loops any classes not yet resolved lazily.
  */
 extern JS_PUBLIC_API(JSBool)
-JS_ResolveStandardClass(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
+JS_ResolveStandardClass(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
                         JSBool *resolved);
 
 extern JS_PUBLIC_API(JSBool)
-JS_EnumerateStandardClasses(JSContext *cx, JS::Handle<JSObject*> obj);
+JS_EnumerateStandardClasses(JSContext *cx, JS::HandleObject obj);
 
 extern JS_PUBLIC_API(JSBool)
 JS_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key, JSObject **objp);
@@ -3279,7 +3272,7 @@ JS_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent);
 
 /* Queries the [[Extensible]] property of the object. */
 extern JS_PUBLIC_API(JSBool)
-JS_IsExtensible(JSContext *cx, JS::Handle<JSObject*> obj, JSBool *extensible);
+JS_IsExtensible(JSContext *cx, JS::HandleObject obj, JSBool *extensible);
 
 extern JS_PUBLIC_API(JSBool)
 JS_IsNative(JSObject *obj);
@@ -3310,7 +3303,7 @@ extern JS_PUBLIC_API(JSBool)
 JS_FreezeObject(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(JSBool)
-JS_PreventExtensions(JSContext *cx, JS::Handle<JSObject*> obj);
+JS_PreventExtensions(JSContext *cx, JS::HandleObject obj);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_New(JSContext *cx, JSObject *ctor, unsigned argc, jsval *argv);
@@ -3444,9 +3437,7 @@ class PropertyDescriptorOperations
     bool hasShortId() const { return desc()->attrs & JSPROP_SHORTID; }
     bool hasAttributes(unsigned attrs) const { return desc()->attrs & attrs; }
 
-    JS::MutableHandle<JSObject*> object() {
-        return JS::MutableHandle<JSObject*>::fromMarkedLocation(&desc()->obj);
-    }
+    JS::MutableHandleObject object() { return JS::MutableHandleObject::fromMarkedLocation(&desc()->obj); }
     unsigned attributes() const { return desc()->attrs; }
     unsigned shortid() const {
         MOZ_ASSERT(hasShortId());
@@ -3454,19 +3445,15 @@ class PropertyDescriptorOperations
     }
     JSPropertyOp getter() const { return desc()->getter; }
     JSStrictPropertyOp setter() const { return desc()->setter; }
-    JS::Handle<JSObject*> getterObject() const {
+    JS::HandleObject getterObject() const {
         MOZ_ASSERT(hasGetterObject());
-        return JS::Handle<JSObject*>::fromMarkedLocation(
-                reinterpret_cast<JSObject *const *>(&desc()->getter));
+        return JS::HandleObject::fromMarkedLocation(reinterpret_cast<JSObject *const *>(&desc()->getter));
     }
-    JS::Handle<JSObject*> setterObject() const {
+    JS::HandleObject setterObject() const {
         MOZ_ASSERT(hasSetterObject());
-        return JS::Handle<JSObject*>::fromMarkedLocation(
-                reinterpret_cast<JSObject *const *>(&desc()->setter));
+        return JS::HandleObject::fromMarkedLocation(reinterpret_cast<JSObject *const *>(&desc()->setter));
     }
-    JS::MutableHandle<Value> value() {
-        return JS::MutableHandle<Value>::fromMarkedLocation(&desc()->value);
-    }
+    JS::MutableHandleValue value() { return JS::MutableHandleValue::fromMarkedLocation(&desc()->value); }
 
     void setAttributes(unsigned attrs) { desc()->attrs = attrs; }
     void setShortId(unsigned id) { desc()->shortid = id; }
@@ -3514,12 +3501,8 @@ class HandleBase<JSPropertyDescriptor>
         return static_cast<const JS::Handle<JSPropertyDescriptor>*>(this)->address();
     }
   public:
-    JS::Handle<JS::Value> value() const {
-        return JS::Handle<JS::Value>::fromMarkedLocation(&extract()->value);
-    }
-    JS::Handle<JSObject*> obj() const {
-        return JS::Handle<JSObject*>::fromMarkedLocation(&extract()->obj);
-    }
+    JS::HandleValue value() const { return JS::HandleValue::fromMarkedLocation(&extract()->value); }
+    JS::HandleObject obj() const { return JS::HandleObject::fromMarkedLocation(&extract()->obj); }
 };
 
 template <>
@@ -3577,13 +3560,14 @@ extern JS_PUBLIC_API(JSBool)
 JS_DeleteProperty(JSContext *cx, JSObject *obj, const char *name);
 
 extern JS_PUBLIC_API(JSBool)
-JS_DeleteProperty2(JSContext *cx, JSObject *obj, const char *name, bool *succeeded);
+JS_DeleteProperty2(JSContext *cx, JSObject *obj, const char *name,
+                   JS::MutableHandle<JS::Value> rval);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DeletePropertyById(JSContext *cx, JSObject *obj, jsid id);
 
 extern JS_PUBLIC_API(JSBool)
-JS_DeletePropertyById2(JSContext *cx, JSObject *obj, jsid id, bool *succeeded);
+JS_DeletePropertyById2(JSContext *cx, JSObject *obj, jsid id, JS::MutableHandle<JS::Value> rval);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DefineUCProperty(JSContext *cx, JSObject *obj,
@@ -3658,8 +3642,9 @@ JS_SetUCProperty(JSContext *cx, JSObject *obj,
                  JS::Handle<JS::Value> v);
 
 extern JS_PUBLIC_API(JSBool)
-JS_DeleteUCProperty2(JSContext *cx, JSObject *obj, const jschar *name, size_t namelen,
-                     bool *succeeded);
+JS_DeleteUCProperty2(JSContext *cx, JSObject *obj,
+                     const jschar *name, size_t namelen,
+                     JS::MutableHandle<JS::Value> rval);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_NewArrayObject(JSContext *cx, int length, jsval *vector);
@@ -3684,14 +3669,14 @@ extern JS_PUBLIC_API(JSBool)
 JS_HasElement(JSContext *cx, JSObject *obj, uint32_t index, JSBool *foundp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_LookupElement(JSContext *cx, JSObject *obj, uint32_t index, JS::MutableHandle<JS::Value> vp);
+JS_LookupElement(JSContext *cx, JSObject *obj, uint32_t index, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_GetElement(JSContext *cx, JSObject *obj, uint32_t index, JS::MutableHandle<JS::Value> vp);
+JS_GetElement(JSContext *cx, JSObject *obj, uint32_t index, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_ForwardGetElementTo(JSContext *cx, JSObject *obj, uint32_t index, JSObject *onBehalfOf,
-                       JS::MutableHandle<JS::Value> vp);
+                       jsval *vp);
 
 /*
  * Get the property with name given by |index|, if it has one.  If
@@ -3700,16 +3685,16 @@ JS_ForwardGetElementTo(JSContext *cx, JSObject *obj, uint32_t index, JSObject *o
  */
 extern JS_PUBLIC_API(JSBool)
 JS_GetElementIfPresent(JSContext *cx, JSObject *obj, uint32_t index, JSObject *onBehalfOf,
-                       JS::MutableHandle<JS::Value> vp, JSBool* present);
+                       jsval *vp, JSBool* present);
 
 extern JS_PUBLIC_API(JSBool)
-JS_SetElement(JSContext *cx, JSObject *obj, uint32_t index, JS::MutableHandle<JS::Value> vp);
+JS_SetElement(JSContext *cx, JSObject *obj, uint32_t index, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DeleteElement(JSContext *cx, JSObject *obj, uint32_t index);
 
 extern JS_PUBLIC_API(JSBool)
-JS_DeleteElement2(JSContext *cx, JSObject *obj, uint32_t index, bool *succeeded);
+JS_DeleteElement2(JSContext *cx, JSObject *obj, uint32_t index, jsval *rval);
 
 /*
  * Remove all configurable properties from the given (non-global) object and
@@ -4039,7 +4024,7 @@ class JS_PUBLIC_API(CompileOptions)
     const char *filename;
     unsigned lineno;
     unsigned column;
-    Handle<JSObject*> element;
+    HandleObject element;
     bool compileAndGo;
     bool forEval;
     bool noScriptRval;
@@ -4064,7 +4049,7 @@ class JS_PUBLIC_API(CompileOptions)
         filename = f; lineno = l; return *this;
     }
     CompileOptions &setColumn(unsigned c) { column = c; return *this; }
-    CompileOptions &setElement(Handle<JSObject*> e) { element = e; return *this; }
+    CompileOptions &setElement(HandleObject e) { element = e; return *this; }
     CompileOptions &setCompileAndGo(bool cng) { compileAndGo = cng; return *this; }
     CompileOptions &setForEval(bool eval) { forEval = eval; return *this; }
     CompileOptions &setNoScriptRval(bool nsr) { noScriptRval = nsr; return *this; }
@@ -5222,11 +5207,11 @@ JS_DecodeInterpretedFunction(JSContext *cx, const void *data, uint32_t length,
 
 namespace JS {
 
-extern JS_PUBLIC_DATA(const Handle<Value>) NullHandleValue;
-extern JS_PUBLIC_DATA(const Handle<Value>) UndefinedHandleValue;
+extern JS_PUBLIC_DATA(const HandleValue) NullHandleValue;
+extern JS_PUBLIC_DATA(const HandleValue) UndefinedHandleValue;
 
-extern JS_PUBLIC_DATA(const Handle<jsid>) JSID_VOIDHANDLE;
-extern JS_PUBLIC_DATA(const Handle<jsid>) JSID_EMPTYHANDLE;
+extern JS_PUBLIC_DATA(const HandleId) JSID_VOIDHANDLE;
+extern JS_PUBLIC_DATA(const HandleId) JSID_EMPTYHANDLE;
 
 } /* namespace JS */
 

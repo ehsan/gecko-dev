@@ -124,33 +124,23 @@ let Agent = {
   /**
    * Write the session to disk.
    */
-  write: function (stateString) {
-    let exn;
+  write: function (stateString, options) {
     let telemetry = {};
-
     if (!this.hasWrittenState) {
-      try {
-        let startMs = Date.now();
-        File.move(this.path, this.backupPath);
-        telemetry.FX_SESSION_RESTORE_BACKUP_FILE_MS = Date.now() - startMs;
-      } catch (ex if isNoSuchFileEx(ex)) {
-        // Ignore exceptions about non-existent files.
-      } catch (ex) {
-        // Throw the exception after we wrote the state to disk
-        // so that the backup can't interfere with the actual write.
-        exn = ex;
+      if (options && options.backupOnFirstWrite) {
+        try {
+          let startMs = Date.now();
+          File.move(this.path, this.backupPath);
+          telemetry.FX_SESSION_RESTORE_BACKUP_FILE_MS = Date.now() - startMs;
+        } catch (ex if isNoSuchFileEx(ex)) {
+          // Ignore exceptions about non-existent files.
+        }
       }
 
       this.hasWrittenState = true;
     }
 
-    let ret = this._write(stateString, telemetry);
-
-    if (exn) {
-      throw exn;
-    }
-
-    return ret;
+    return this._write(stateString, telemetry);
   },
 
   /**

@@ -1218,7 +1218,7 @@ WebSocket::Send(nsIDOMBlob* aData,
 }
 
 void
-WebSocket::Send(const ArrayBuffer& aData,
+WebSocket::Send(ArrayBuffer& aData,
                 ErrorResult& aRv)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
@@ -1232,7 +1232,7 @@ WebSocket::Send(const ArrayBuffer& aData,
 }
 
 void
-WebSocket::Send(const ArrayBufferView& aData,
+WebSocket::Send(ArrayBufferView& aData,
                 ErrorResult& aRv)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");

@@ -284,8 +284,14 @@ JavaScriptChild::AnswerDelete(const ObjectId &objId, const nsString &id, ReturnS
     if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
-    if (!JS_DeletePropertyById2(cx, obj, internedId, success))
+    RootedValue v(cx);
+    if (!JS_DeletePropertyById2(cx, obj, internedId, &v))
         return fail(cx, rs);
+
+    JSBool b;
+    if (!JS_ValueToBoolean(cx, v, &b))
+        return fail(cx, rs);
+    *success = !!b;
 
     return ok(rs);
 }
