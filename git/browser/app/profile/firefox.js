@@ -183,11 +183,7 @@ pref("app.update.metro.enabled", true);
 pref("app.update.silent", false);
 
 // If set to true, the hamburger button will show badges for update events.
-#ifdef MOZ_DEV_EDITION
-pref("app.update.badge", true);
-#else
 pref("app.update.badge", false);
-#endif
 
 // If set to true, the Update Service will apply updates in the background
 // when it finishes downloading them.
@@ -1640,7 +1636,17 @@ pref("shumway.disabled", true);
 // (This is intentionally on the high side; see bug 746055.)
 pref("image.mem.max_decoded_image_kb", 256000);
 
+// Enable by default development builds up until early beta
+#ifdef EARLY_BETA_OR_EARLIER
 pref("loop.enabled", true);
+pref("loop.throttled", false);
+#else
+pref("loop.enabled", true);
+pref("loop.throttled", true);
+pref("loop.soft_start_ticket_number", -1);
+pref("loop.soft_start_hostname", "soft-start.loop.services.mozilla.com");
+#endif
+
 pref("loop.server", "https://loop.services.mozilla.com");
 pref("loop.seenToS", "unseen");
 pref("loop.learnMoreUrl", "https://www.firefox.com/hello/");

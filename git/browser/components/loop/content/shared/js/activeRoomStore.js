@@ -52,12 +52,10 @@ loop.store.ActiveRoomStore = (function() {
     this._dispatcher.register(this, [
       "roomFailure",
       "setupWindowData",
-      "fetchServerData",
       "updateRoomInfo",
       "joinRoom",
       "joinedRoom",
-      "windowUnload",
-      "leaveRoom"
+      "windowUnload"
     ]);
 
     /**
@@ -154,26 +152,6 @@ loop.store.ActiveRoomStore = (function() {
     },
 
     /**
-     * Execute fetchServerData event action from the dispatcher. Although
-     * this is to fetch the server data - for rooms on the standalone client,
-     * we don't actually need to get any data. Therefore we just save the
-     * data that is given to us for when the user chooses to join the room.
-     *
-     * @param {sharedActions.FetchServerData} actionData
-     */
-    fetchServerData: function(actionData) {
-      if (actionData.windowType !== "room") {
-        // Nothing for us to do here, leave it to other stores.
-        return;
-      }
-
-      this.setStoreState({
-        roomToken: actionData.token,
-        roomState: ROOM_STATES.READY
-      });
-    },
-
-    /**
      * Handles the updateRoomInfo action. Updates the room data and
      * sets the state to `READY`.
      *
@@ -232,13 +210,6 @@ loop.store.ActiveRoomStore = (function() {
      * Handles the window being unloaded. Ensures the room is left.
      */
     windowUnload: function() {
-      this._leaveRoom();
-    },
-
-    /**
-     * Handles a room being left.
-     */
-    leaveRoom: function() {
       this._leaveRoom();
     },
 
