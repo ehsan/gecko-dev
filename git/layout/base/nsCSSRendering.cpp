@@ -642,16 +642,6 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
   SN();
 }
 
-static nsRect
-GetOutlineInnerRect(nsIFrame* aFrame)
-{
-  nsRect* savedOutlineInnerRect = static_cast<nsRect*>
-    (aFrame->GetProperty(nsGkAtoms::outlineInnerRectProperty));
-  if (savedOutlineInnerRect)
-    return *savedOutlineInnerRect;
-  return aFrame->GetOverflowRect();
-}
-
 void
 nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
                              nsIRenderingContext& aRenderingContext,
@@ -681,6 +671,9 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   // get the radius for our outline
   GetBorderRadiusTwips(aOutlineStyle.mOutlineRadius, aBorderArea.width, twipsRadii);
 
+  nscoord offset;
+  aOutlineStyle.GetOutlineOffset(offset);
+
   // When the outline property is set on :-moz-anonymous-block or
   // :-moz-anonyomus-positioned-block pseudo-elements, it inherited that
   // outline from the inline that was broken because it contained a
@@ -697,35 +690,47 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
     frameForArea = frameForArea->GetFirstChild(nsnull);
     NS_ASSERTION(frameForArea, "anonymous block with no children?");
   } while (frameForArea);
-  nsRect innerRect; // relative to aBorderArea.TopLeft()
+  nsRect overflowArea;
   if (frameForArea == aForFrame) {
-    innerRect = GetOutlineInnerRect(aForFrame);
+    overflowArea = aForFrame->GetOverflowRect();
   } else {
     for (; frameForArea; frameForArea = frameForArea->GetNextSibling()) {
       // The outline has already been included in aForFrame's overflow
       // area, but not in those of its descendants, so we have to
       // include it.  Otherwise we'll end up drawing the outline inside
       // the border.
-      nsRect r(GetOutlineInnerRect(frameForArea) +
+      nsRect r(frameForArea->GetOverflowRect() +
                frameForArea->GetOffsetTo(aForFrame));
-      innerRect.UnionRect(innerRect, r);
+      nscoord delta = PR_MAX(offset + width, 0);
+      r.Inflate(delta, delta);
+      overflowArea.UnionRect(overflowArea, r);
     }
   }
 
-  innerRect += aBorderArea.TopLeft();
-  nscoord offset;
-  aOutlineStyle.GetOutlineOffset(offset);
-  innerRect.Inflate(offset, offset);
+  nsRect outerRect(overflowArea + aBorderArea.TopLeft());
+  nsRect innerRect(outerRect);
+  if (width + offset >= 0) {
+    // the overflow area is exactly the outside edge of the outline
+    innerRect.Deflate(width, width);
+  } else {
+    // the overflow area is exactly the rectangle containing the frame and its
+    // children; we can compute the outline directly
+    innerRect.Deflate(-offset, -offset);
+    if (innerRect.width < 0 || innerRect.height < 0) {
+      return; // Protect against negative outline sizes
+    }
+    outerRect = innerRect;
+    outerRect.Inflate(width, width);
+  }
+
   // If the dirty rect is completely inside the border area (e.g., only the
   // content is being painted), then we can skip out now
   // XXX this isn't exactly true for rounded borders, where the inside curves may
   // encroach into the content area.  A safer calculation would be to
   // shorten insideRect by the radius one each side before performing this test.
-  if (innerRect.Contains(aDirtyRect))
+  if (innerRect.Contains(aDirtyRect)) {
     return;
-
-  nsRect outerRect = innerRect;
-  outerRect.Inflate(width, width);
+  }
 
   // Get our conversion values
   nscoord twipsPerPixel = aPresContext->DevPixelsToAppUnits(1);

@@ -1830,9 +1830,11 @@ nsXULElement::GetID() const
 }
 
 const nsAttrValue*
-nsXULElement::DoGetClasses() const
+nsXULElement::GetClasses() const
 {
-    NS_ASSERTION(HasFlag(NODE_MAY_HAVE_CLASS), "Unexpected call");
+    if (!HasFlag(NODE_MAY_HAVE_CLASS)) {
+        return nsnull;
+    }
     return FindLocalOrProtoAttr(kNameSpaceID_None, nsGkAtoms::_class);
 }
 

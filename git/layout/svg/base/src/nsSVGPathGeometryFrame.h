@@ -65,7 +65,8 @@ class nsSVGPathGeometryFrame : public nsSVGPathGeometryFrameBase,
                              nsStyleContext* aContext);
 protected:
   nsSVGPathGeometryFrame(nsStyleContext* aContext) :
-    nsSVGPathGeometryFrameBase(aContext) {}
+    nsSVGPathGeometryFrameBase(aContext),
+    mPropagateTransform(PR_TRUE) {}
 
 public:
   // nsISupports interface:
@@ -111,7 +112,6 @@ protected:
   NS_IMETHOD NotifyRedrawSuspended();
   NS_IMETHOD NotifyRedrawUnsuspended();
   NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
-  virtual PRBool GetMatrixPropagation();
   NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
   virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
   NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
@@ -143,6 +143,7 @@ private:
   void RemovePathProperties();
 
   nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
+  PRPackedBool mPropagateTransform;
 };
 
 #endif // __NS_SVGPATHGEOMETRYFRAME_H__

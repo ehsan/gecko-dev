@@ -73,8 +73,6 @@ nsXTFElementWrapper::nsXTFElementWrapper(nsINodeInfo* aNodeInfo,
       mTmpAttrName(nsGkAtoms::_asterix) // XXX this is a hack, but names
                                             // have to have a value
 {
-  // We never know when we might have a class
-  SetFlags(NODE_MAY_HAVE_CLASS);
 }
 
 nsXTFElementWrapper::~nsXTFElementWrapper()
@@ -933,7 +931,7 @@ nsXTFElementWrapper::GetClassAttributeName() const
 }
 
 const nsAttrValue*
-nsXTFElementWrapper::DoGetClasses() const
+nsXTFElementWrapper::GetClasses() const
 {
   const nsAttrValue* val = nsnull;
   nsIAtom* clazzAttr = GetClassAttributeName();

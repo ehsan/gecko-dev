@@ -565,12 +565,7 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
     {
       LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::ProcessData -- JPEG_DECOMPRESS_SEQUENTIAL case");
       
-      PRBool suspend;
-      nsresult rv = OutputScanlines(&suspend);
-      if (NS_FAILED(rv))
-        return rv;
-      
-      if (suspend) {
+      if (!OutputScanlines()) {
         PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
                ("} (I/O suspension after OutputScanlines() - SEQUENTIAL)"));
         return NS_OK; /* I/O suspension */
@@ -616,12 +611,7 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
         if (mInfo.output_scanline == 0xffffff)
           mInfo.output_scanline = 0;
 
-        PRBool suspend;
-        nsresult rv = OutputScanlines(&suspend);
-        if (NS_FAILED(rv))
-          return rv;
-
-        if (suspend) {
+        if (!OutputScanlines()) {
           if (mInfo.output_scanline == 0) {
             /* didn't manage to read any lines - flag so we don't call
                jpeg_start_output() multiple times for the same scan */
@@ -698,13 +688,11 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
 }
 
 
-nsresult
-nsJPEGDecoder::OutputScanlines(PRBool* suspend)
+PRBool
+nsJPEGDecoder::OutputScanlines()
 {
-  *suspend = PR_FALSE;
-
   const PRUint32 top = mInfo.output_scanline;
-  nsresult rv = NS_OK;
+  PRBool rv = PR_TRUE;
 
   mFrame->LockImageData();
   
@@ -721,7 +709,7 @@ nsJPEGDecoder::OutputScanlines(PRBool* suspend)
       if (mInfo.cconvert->color_convert == ycc_rgb_convert_argb) {
         /* Special case: scanline will be directly converted into packed ARGB */
         if (jpeg_read_scanlines(&mInfo, (JSAMPARRAY)&imageRow, 1) != 1) {
-          *suspend = PR_TRUE; /* suspend */
+          rv = PR_FALSE; /* suspend */
           break;
         }
         continue; /* all done for this row! */
@@ -735,7 +723,7 @@ nsJPEGDecoder::OutputScanlines(PRBool* suspend)
 
       /* Request one scanline.  Returns 0 or 1 scanlines. */    
       if (jpeg_read_scanlines(&mInfo, &sampleRow, 1) != 1) {
-        *suspend = PR_TRUE; /* suspend */
+        rv = PR_FALSE; /* suspend */
         break;
       }
 
@@ -799,7 +787,7 @@ nsJPEGDecoder::OutputScanlines(PRBool* suspend)
   if (top != mInfo.output_scanline) {
       nsIntRect r(0, top, mInfo.output_width, mInfo.output_scanline-top);
       nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
-      rv = img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
+      img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
       mObserver->OnDataAvailable(nsnull, mFrame, &r);
   }
   

@@ -313,9 +313,6 @@
 
 ################################################################################
 # Macros for creating Install Options ini files
-#
-# DEPRECATED - all ini creation code should be added to the application's
-# installer and uninstaller files.
 
 !macro createComponentsINI
   WriteINIStr "$PLUGINSDIR\components.ini" "Settings" NumFields "5"

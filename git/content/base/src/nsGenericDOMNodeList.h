@@ -36,22 +36,17 @@
  * ***** END LICENSE BLOCK ***** */
 
 /*
- * A base class for simple DOM NodeLists which implements nsISupports and Item()
- * and expects subclasess to implement GetLength() and GetNodeAt()
+ * A base class for simple DOM NodeLists which implements nsISupports
+ * and expects subclasess to implement GetLength() and Item()
  */
-
-// XXXbz we don't use this for much... should we be using it more, or
-// just nix it?
 
 #ifndef nsGenericDOMNodeList_h__
 #define nsGenericDOMNodeList_h__
 
 #include "nsISupports.h"
 #include "nsIDOMNodeList.h"
-#include "nsINodeList.h"
 
-class nsGenericDOMNodeList : public nsIDOMNodeList,
-                             public nsINodeList
+class nsGenericDOMNodeList : public nsIDOMNodeList 
 {
 public:
   nsGenericDOMNodeList();
@@ -59,14 +54,10 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD    Item(PRUint32 aIndex, nsIDOMNode** aReturn);
-
   // The following need to be defined in the subclass
   // nsIDOMNodeList interface
   NS_IMETHOD    GetLength(PRUint32* aLength)=0;
-
-  // nsINodeList interface
-  virtual nsINode* GetNodeAt(PRUint32 aIndex) = 0;
+  NS_IMETHOD    Item(PRUint32 aIndex, nsIDOMNode** aReturn)=0;
 };
 
 #endif // nsGenericDOMNodeList_h__

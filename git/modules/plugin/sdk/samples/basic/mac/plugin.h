@@ -50,7 +50,7 @@ public:
   void shut();
   NPBool isInitialized();
   NPError SetWindow(NPWindow* pNPWindow);
-  uint16_t  HandleEvent(void* event);
+  uint16  HandleEvent(void* event);
 
 private:
   // locals

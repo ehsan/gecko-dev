@@ -212,10 +212,10 @@ nsPluginInstance::SetWindow(NPWindow* window)
 //
 // HandleEvent
 //
-uint16_t
+uint16
 nsPluginInstance::HandleEvent(void* event)
 {
-	int16_t eventHandled = FALSE;
+	int16 eventHandled = FALSE;
 	
 	EventRecord* ev = (EventRecord*) event;
 	if (event != NULL)
