@@ -8,7 +8,7 @@
 #include "nsRect.h"
 #include "nsIWidget.h"
 #include "nsWidgetsCID.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsGUIEvent.h"
@@ -214,7 +214,7 @@ protected:
 
   virtual void            ResolveIconName(const nsAString &aIconName,
                                           const nsAString &aIconSuffix,
-                                          nsIFile **aResult);
+                                          nsILocalFile **aResult);
   virtual void            OnDestroy();
   virtual void            BaseCreate(nsIWidget *aParent,
                                      const nsIntRect &aRect,

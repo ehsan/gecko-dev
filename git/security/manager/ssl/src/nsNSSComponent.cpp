@@ -50,7 +50,7 @@
 #include "nsIEntropyCollector.h"
 #include "nsIBufEntropyCollector.h"
 #include "nsIServiceManager.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsITokenPasswordDialogs.h"
 #include "nsICRLManager.h"
 #include "nsNSSShutDown.h"
@@ -801,7 +801,7 @@ nsNSSComponent::InstallLoadableRoots()
   };
 
   for (size_t il = 0; il < sizeof(possible_ckbi_locations)/sizeof(const char*); ++il) {
-    nsCOMPtr<nsIFile> mozFile;
+    nsCOMPtr<nsILocalFile> mozFile;
     char *fullLibraryPath = nsnull;
 
     if (!possible_ckbi_locations[il])
@@ -818,7 +818,7 @@ nsNSSComponent::InstallLoadableRoots()
           continue;
         }
         // Get the directory containing the nss3 library.
-        nsCOMPtr<nsIFile> nssLib(do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, &rv));
+        nsCOMPtr<nsILocalFile> nssLib(do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, &rv));
         if (NS_SUCCEEDED(rv)) {
           rv = nssLib->InitWithNativePath(nsDependentCString(nss_path));
         }
@@ -831,7 +831,7 @@ nsNSSComponent::InstallLoadableRoots()
         }
       } else {
         directoryService->Get( possible_ckbi_locations[il],
-                               NS_GET_IID(nsIFile), 
+                               NS_GET_IID(nsILocalFile), 
                                getter_AddRefs(mozFile));
       }
   

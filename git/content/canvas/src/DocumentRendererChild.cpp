@@ -11,7 +11,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMDocument.h"
-#include "nsIDocShell.h"
 #include "nsIDocShellTreeNode.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocument.h"
@@ -37,7 +36,7 @@ bool
 DocumentRendererChild::RenderDocument(nsIDOMWindow *window,
                                       const nsRect& documentRect,
                                       const gfxMatrix& transform,
-                                      const nsString& aBGColor,
+                                      const nsString& bgcolor,
                                       PRUint32 renderFlags,
                                       bool flushLayout, 
                                       const nsIntSize& renderSize,
@@ -57,16 +56,13 @@ DocumentRendererChild::RenderDocument(nsIDOMWindow *window,
     if (!presContext)
         return false;
 
-    nsCSSParser parser;
-    nsCSSValue bgColorValue;
-    if (!parser.ParseColorString(aBGColor, nsnull, 0, bgColorValue)) {
-        return false;
-    }
-
     nscolor bgColor;
-    if (!nsRuleNode::ComputeColor(bgColorValue, presContext, nsnull, bgColor)) {
+    nsCSSParser parser;
+    nsresult rv = parser.ParseColorString(bgcolor, nsnull, 0, &bgColor);
+    if (NS_FAILED(rv))
         return false;
-    }
+
+    nsIPresShell* presShell = presContext->PresShell();
 
     // Draw directly into the output array.
     data.SetLength(renderSize.width * renderSize.height * 4);
@@ -79,8 +75,7 @@ DocumentRendererChild::RenderDocument(nsIDOMWindow *window,
     nsRefPtr<gfxContext> ctx = new gfxContext(surf);
     ctx->SetMatrix(transform);
 
-    presContext->PresShell()->
-      RenderDocument(documentRect, renderFlags, bgColor, ctx);
+    presShell->RenderDocument(documentRect, renderFlags, bgColor, ctx);
 
     return true;
 }

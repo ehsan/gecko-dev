@@ -6,7 +6,7 @@
 
 #include "nsISupports.idl"
 
-interface nsIFile;
+interface nsILocalFile;
 interface nsIURI;
 interface nsIDOMWindow;
 interface nsISimpleEnumerator;
@@ -104,15 +104,15 @@ interface nsIFilePicker : nsISupports
   * @param      displayDirectory  the name of the directory
   *
   */
-  attribute nsIFile displayDirectory;
+  attribute nsILocalFile displayDirectory;
 
 
  /**
-  * Get the nsIFile for the file or directory.
+  * Get the nsILocalFile for the file or directory.
   *
   * @return Returns the file currently selected
   */
-  readonly attribute nsIFile file;
+  readonly attribute nsILocalFile file;
 
  /**
   * Get the nsIURI for the file or directory.

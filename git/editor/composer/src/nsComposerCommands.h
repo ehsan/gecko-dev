@@ -89,7 +89,8 @@ protected:
 class nsInsertTagCommand : public nsBaseComposerCommand
 {
 public:
-  explicit nsInsertTagCommand(nsIAtom* aTagName);
+
+              nsInsertTagCommand(const char* aTagName);
   virtual     ~nsInsertTagCommand();
     
   NS_DECL_ISUPPORTS_INHERITED
@@ -98,7 +99,7 @@ public:
 
 protected:
 
-  nsIAtom* mTagName;
+  const char* mTagName;
 };
 
 

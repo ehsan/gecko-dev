@@ -243,7 +243,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
         {
         }
 
-        nsresult Init(nsIFile* parent)
+        nsresult Init(nsILocalFile* parent)
         {
             nsCAutoString filepath;
             parent->GetNativeTarget(filepath);
@@ -358,9 +358,9 @@ class nsDirEnumerator : public nsISimpleEnumerator,
         }
 
     protected:
-        PRDir*             mDir;
-        nsCOMPtr<nsIFile>  mParent;
-        nsCOMPtr<nsIFile>  mNext;
+        PRDir*                  mDir;
+        nsCOMPtr<nsILocalFile>  mParent;
+        nsCOMPtr<nsILocalFile>  mNext;
 };
 
 NS_IMPL_ISUPPORTS2(nsDirEnumerator, nsISimpleEnumerator, nsIDirectoryEnumerator)
@@ -439,7 +439,7 @@ NS_IMETHODIMP nsDriveEnumerator::GetNext(nsISupports **aNext)
     mDrives >>= 1;
     mLetter++;
 
-    nsIFile *file;
+    nsILocalFile *file;
     nsresult rv = NS_NewNativeLocalFile(nsDependentCString(drive),
                                         false, &file);
     *aNext = file;
@@ -1993,7 +1993,7 @@ nsLocalFile::GetParent(nsIFile * *aParent)
     else
         parentPath.AssignLiteral("\\\\.");
 
-    nsCOMPtr<nsIFile> localFile;
+    nsCOMPtr<nsILocalFile> localFile;
     nsresult rv = NS_NewNativeLocalFile(parentPath, false, getter_AddRefs(localFile));
 
     if(NS_SUCCEEDED(rv) && localFile)
@@ -2375,7 +2375,7 @@ nsLocalFile::Launch()
 }
 
 nsresult
-NS_NewNativeLocalFile(const nsACString &path, bool followLinks, nsIFile* *result)
+NS_NewNativeLocalFile(const nsACString &path, bool followLinks, nsILocalFile* *result)
 {
     nsLocalFile* file = new nsLocalFile();
     if (file == nsnull)
@@ -2546,7 +2546,7 @@ nsLocalFile::GetHashCode(PRUint32 *aResult)
 }
 
 nsresult
-NS_NewLocalFile(const nsAString &path, bool followLinks, nsIFile* *result)
+NS_NewLocalFile(const nsAString &path, bool followLinks, nsILocalFile* *result)
 {
     nsCAutoString buf;
     nsresult rv = NS_CopyUnicodeToNative(path, buf);

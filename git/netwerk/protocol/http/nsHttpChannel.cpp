@@ -5368,7 +5368,7 @@ nsHttpChannel::SetOfflineCacheClientID(const nsACString &value)
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetProfileDirectory(nsIFile **_result)
+nsHttpChannel::GetProfileDirectory(nsILocalFile **_result)
 {
     NS_ENSURE_ARG(_result);
 
@@ -5377,7 +5377,7 @@ nsHttpChannel::GetProfileDirectory(nsIFile **_result)
 }
 
 NS_IMETHODIMP
-nsHttpChannel::SetProfileDirectory(nsIFile *value)
+nsHttpChannel::SetProfileDirectory(nsILocalFile *value)
 {
     mProfileDirectory = value;
     return NS_OK;

@@ -1040,7 +1040,7 @@ nsDownloadManager::GetDownloadFromDB(PRUint32 aID, nsDownload **retVal)
         do_CreateInstance(NS_LOCALHANDLERAPP_CONTRACTID, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      nsCOMPtr<nsIFile> localExecutable;
+      nsCOMPtr<nsILocalFile> localExecutable;
       rv = NS_NewNativeLocalFile(EmptyCString(), false,
                                  getter_AddRefs(localExecutable));
       NS_ENSURE_SUCCESS(rv, rv);
@@ -1105,9 +1105,9 @@ nsDownloadManager::GetActiveDownloads(nsISimpleEnumerator **aResult)
  * this should be kept in sync with nsExternalHelperAppService.cpp
  */
 NS_IMETHODIMP
-nsDownloadManager::GetDefaultDownloadsDirectory(nsIFile **aResult)
+nsDownloadManager::GetDefaultDownloadsDirectory(nsILocalFile **aResult)
 {
-  nsCOMPtr<nsIFile> downloadDir;
+  nsCOMPtr<nsILocalFile> downloadDir;
 
   nsresult rv;
   nsCOMPtr<nsIProperties> dirService =
@@ -1131,12 +1131,12 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsIFile **aResult)
 
 #if defined (XP_MACOSX)
   rv = dirService->Get(NS_OSX_DEFAULT_DOWNLOAD_DIR,
-                       NS_GET_IID(nsIFile),
+                       NS_GET_IID(nsILocalFile),
                        getter_AddRefs(downloadDir));
   NS_ENSURE_SUCCESS(rv, rv);
 #elif defined(XP_WIN)
   rv = dirService->Get(NS_WIN_DEFAULT_DOWNLOAD_DIR,
-                       NS_GET_IID(nsIFile),
+                       NS_GET_IID(nsILocalFile),
                        getter_AddRefs(downloadDir));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1152,7 +1152,7 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsIFile **aResult)
   if (version < 6) { // XP/2K
     // First get "My Documents"
     rv = dirService->Get(NS_WIN_PERSONAL_DIR,
-                         NS_GET_IID(nsIFile),
+                         NS_GET_IID(nsILocalFile),
                          getter_AddRefs(downloadDir));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1177,7 +1177,7 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsIFile **aResult)
     // we found most apropriate to be the default target folder for downloads
     // on the platform.
     rv = dirService->Get(NS_UNIX_XDG_DOCUMENTS_DIR,
-                         NS_GET_IID(nsIFile),
+                         NS_GET_IID(nsILocalFile),
                          getter_AddRefs(downloadDir));
 #elif defined(MOZ_WIDGET_ANDROID)
     // Android doesn't have a $HOME directory, and by default we only have
@@ -1193,12 +1193,12 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsIFile **aResult)
     }
 #else
   rv = dirService->Get(NS_UNIX_DEFAULT_DOWNLOAD_DIR,
-                       NS_GET_IID(nsIFile),
+                       NS_GET_IID(nsILocalFile),
                        getter_AddRefs(downloadDir));
   // fallback to Home/Downloads
   if (NS_FAILED(rv)) {
     rv = dirService->Get(NS_UNIX_HOME_DIR,
-                         NS_GET_IID(nsIFile),
+                         NS_GET_IID(nsILocalFile),
                          getter_AddRefs(downloadDir));
     NS_ENSURE_SUCCESS(rv, rv);
     rv = downloadDir->Append(folderName);
@@ -1207,7 +1207,7 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsIFile **aResult)
 #endif
 #else
   rv = dirService->Get(NS_OS_HOME_DIR,
-                       NS_GET_IID(nsIFile),
+                       NS_GET_IID(nsILocalFile),
                        getter_AddRefs(downloadDir));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = downloadDir->Append(folderName);
@@ -1224,7 +1224,7 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsIFile **aResult)
 #define NS_PREF_DIR            "dir"
 
 NS_IMETHODIMP
-nsDownloadManager::GetUserDownloadsDirectory(nsIFile **aResult)
+nsDownloadManager::GetUserDownloadsDirectory(nsILocalFile **aResult)
 {
   nsresult rv;
   nsCOMPtr<nsIProperties> dirService =
@@ -1248,12 +1248,12 @@ nsDownloadManager::GetUserDownloadsDirectory(nsIFile **aResult)
   switch(val) {
     case 0: // Desktop
       {
-        nsCOMPtr<nsIFile> downloadDir;
+        nsCOMPtr<nsILocalFile> downloadDir;
         nsCOMPtr<nsIProperties> dirService =
            do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv);
         NS_ENSURE_SUCCESS(rv, rv);
         rv = dirService->Get(NS_OS_DESKTOP_DIR,
-                             NS_GET_IID(nsIFile),
+                             NS_GET_IID(nsILocalFile),
                              getter_AddRefs(downloadDir));
         NS_ENSURE_SUCCESS(rv, rv);
         downloadDir.forget(aResult);
@@ -1264,9 +1264,9 @@ nsDownloadManager::GetUserDownloadsDirectory(nsIFile **aResult)
       return GetDefaultDownloadsDirectory(aResult);
     case 2: // Custom
       {
-        nsCOMPtr<nsIFile> customDirectory;
+        nsCOMPtr<nsILocalFile> customDirectory;
         prefBranch->GetComplexValue(NS_PREF_DIR,
-                                    NS_GET_IID(nsIFile),
+                                    NS_GET_IID(nsILocalFile),
                                     getter_AddRefs(customDirectory));
         if (customDirectory) {
           bool exists = false;
@@ -1296,7 +1296,7 @@ nsDownloadManager::GetUserDownloadsDirectory(nsIFile **aResult)
         rv = GetDefaultDownloadsDirectory(aResult);
         if (NS_SUCCEEDED(rv)) {
           (void)prefBranch->SetComplexValue(NS_PREF_DIR,
-                                            NS_GET_IID(nsIFile),
+                                            NS_GET_IID(nsILocalFile),
                                             *aResult);
         }
         return rv;
@@ -1313,7 +1313,7 @@ nsDownloadManager::AddDownload(DownloadType aDownloadType,
                                const nsAString& aDisplayName,
                                nsIMIMEInfo *aMIMEInfo,
                                PRTime aStartTime,
-                               nsIFile *aTempFile,
+                               nsILocalFile *aTempFile,
                                nsICancelable *aCancelable,
                                nsIDownload **aDownload)
 {
@@ -1374,7 +1374,10 @@ nsDownloadManager::AddDownload(DownloadType aDownloadType,
     if (locHandlerApp) {
       nsCOMPtr<nsIFile> executable;
       (void)locHandlerApp->GetExecutable(getter_AddRefs(executable));
-      (void)executable->GetPersistentDescriptor(persistentDescriptor);
+      nsCOMPtr<nsILocalFile> locExecutable = do_QueryInterface(executable);
+
+      if (locExecutable)
+        (void)locExecutable->GetPersistentDescriptor(persistentDescriptor);
     }
 
     (void)aMIMEInfo->GetPreferredAction(&action);
@@ -1510,7 +1513,7 @@ nsDownloadManager::CancelDownload(PRUint32 aID)
       dl->mTempFile->Remove(false);
   }
 
-  nsCOMPtr<nsIFile> file;
+  nsCOMPtr<nsILocalFile> file;
   if (NS_SUCCEEDED(dl->GetTargetFile(getter_AddRefs(file))))
   {
     bool exists;
@@ -2554,7 +2557,7 @@ nsDownload::OnStateChange(nsIWebProgress *aWebProgress,
       // Our best bet is the file itself, but if for some reason it's gone or
       // if we have multiple files, the next best is what we've calculated.
       PRInt64 fileSize;
-      nsCOMPtr<nsIFile> file;
+      nsCOMPtr<nsILocalFile> file;
       //  We need a nsIFile clone to deal with file size caching issues. :(
       nsCOMPtr<nsIFile> clone;
       if (!mHasMultipleFiles &&
@@ -2615,7 +2618,7 @@ nsDownload::Init(nsIURI *aSource,
                  const nsAString& aDisplayName,
                  nsIMIMEInfo *aMIMEInfo,
                  PRTime aStartTime,
-                 nsIFile *aTempFile,
+                 nsILocalFile *aTempFile,
                  nsICancelable *aCancelable)
 {
   NS_WARNING("Huh...how did we get here?!");
@@ -2697,7 +2700,7 @@ nsDownload::GetMIMEInfo(nsIMIMEInfo **aMIMEInfo)
 }
 
 NS_IMETHODIMP
-nsDownload::GetTargetFile(nsIFile **aTargetFile)
+nsDownload::GetTargetFile(nsILocalFile **aTargetFile)
 {
   nsresult rv;
 
@@ -2801,7 +2804,7 @@ nsDownload::ExecuteDesiredAction()
 nsresult
 nsDownload::MoveTempToTarget()
 {
-  nsCOMPtr<nsIFile> target;
+  nsCOMPtr<nsILocalFile> target;
   nsresult rv = GetTargetFile(getter_AddRefs(target));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2830,7 +2833,7 @@ nsresult
 nsDownload::OpenWithApplication()
 {
   // First move the temporary file to the target location
-  nsCOMPtr<nsIFile> target;
+  nsCOMPtr<nsILocalFile> target;
   nsresult rv = GetTargetFile(getter_AddRefs(target));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2951,7 +2954,7 @@ nsDownload::Resume()
 
   // Make sure we can get a file, either the temporary or the real target, for
   // both purposes of file size and a target to write to
-  nsCOMPtr<nsIFile> targetLocalFile(mTempFile);
+  nsCOMPtr<nsILocalFile> targetLocalFile(mTempFile);
   if (!targetLocalFile) {
     rv = GetTargetFile(getter_AddRefs(targetLocalFile));
     NS_ENSURE_SUCCESS(rv, rv);

@@ -7,7 +7,7 @@
 /* Windows-specific local file uri parsing */
 #include "nsURLHelper.h"
 #include "nsEscape.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include <windows.h>
 
 nsresult
@@ -51,10 +51,10 @@ net_GetFileFromURLSpec(const nsACString &aURL, nsIFile **result)
 {
     nsresult rv;
 
-    nsCOMPtr<nsIFile> localFile(
+    nsCOMPtr<nsILocalFile> localFile(
             do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, &rv));
     if (NS_FAILED(rv)) {
-        NS_ERROR("Only nsIFile supported right now");
+        NS_ERROR("Only nsILocalFile supported right now");
         return rv;
     }
 

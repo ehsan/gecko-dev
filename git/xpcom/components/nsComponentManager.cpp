@@ -209,7 +209,7 @@ ArenaStrdup(const char *s, PLArenaPool *arena)
 }
 
 // this is safe to call during InitXPCOM
-static already_AddRefed<nsIFile>
+static already_AddRefed<nsILocalFile>
 GetLocationFromDirectoryService(const char* prop)
 {
     nsCOMPtr<nsIProperties> directoryService;
@@ -220,9 +220,9 @@ GetLocationFromDirectoryService(const char* prop)
     if (!directoryService)
         return NULL;
 
-    nsCOMPtr<nsIFile> file;
+    nsCOMPtr<nsILocalFile> file;
     nsresult rv = directoryService->Get(prop,
-                                        NS_GET_IID(nsIFile),
+                                        NS_GET_IID(nsILocalFile),
                                         getter_AddRefs(file));
     if (NS_FAILED(rv))
         return NULL;
@@ -230,16 +230,17 @@ GetLocationFromDirectoryService(const char* prop)
     return file.forget();
 }
 
-static already_AddRefed<nsIFile>
-CloneAndAppend(nsIFile* aBase, const nsACString& append)
+static already_AddRefed<nsILocalFile>
+CloneAndAppend(nsILocalFile* aBase, const nsACString& append)
 {
     nsCOMPtr<nsIFile> f;
     aBase->Clone(getter_AddRefs(f));
     if (!f)
         return NULL;
 
+    nsCOMPtr<nsILocalFile> lf = do_QueryInterface(f);
     f->AppendNative(append);
-    return f.forget();
+    return lf.forget();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -312,16 +313,16 @@ nsresult nsComponentManagerImpl::Init()
     mLoaderMap.Init();
     mKnownModules.Init();
 
-    nsCOMPtr<nsIFile> greDir =
+    nsCOMPtr<nsILocalFile> greDir =
         GetLocationFromDirectoryService(NS_GRE_DIR);
-    nsCOMPtr<nsIFile> appDir =
+    nsCOMPtr<nsILocalFile> appDir =
         GetLocationFromDirectoryService(NS_XPCOM_CURRENT_PROCESS_DIR);
 
     InitializeStaticModules();
     InitializeModuleLocations();
 
     ComponentLocation* cl = sModuleLocations->InsertElementAt(0);
-    nsCOMPtr<nsIFile> lf = CloneAndAppend(appDir, NS_LITERAL_CSTRING("chrome.manifest"));
+    nsCOMPtr<nsILocalFile> lf = CloneAndAppend(appDir, NS_LITERAL_CSTRING("chrome.manifest"));
     cl->type = NS_COMPONENT_LOCATION;
     cl->location.Init(lf);
 
@@ -1534,7 +1535,11 @@ nsComponentManagerImpl::UnregisterFactory(const nsCID& aClass,
 NS_IMETHODIMP
 nsComponentManagerImpl::AutoRegister(nsIFile* aLocation)
 {
-    XRE_AddManifestLocation(NS_COMPONENT_LOCATION, aLocation);
+    nsCOMPtr<nsILocalFile> lf = do_QueryInterface(aLocation);
+    if (!lf)
+        return NS_ERROR_INVALID_ARG;
+
+    XRE_AddManifestLocation(NS_COMPONENT_LOCATION, lf);
     return NS_OK;
 }
 
@@ -1769,7 +1774,7 @@ XRE_AddStaticComponent(const mozilla::Module* aComponent)
 }
 
 NS_IMETHODIMP
-nsComponentManagerImpl::AddBootstrappedManifestLocation(nsIFile* aLocation)
+nsComponentManagerImpl::AddBootstrappedManifestLocation(nsILocalFile* aLocation)
 {
   nsString path;
   nsresult rv = aLocation->GetPath(path);
@@ -1780,19 +1785,19 @@ nsComponentManagerImpl::AddBootstrappedManifestLocation(nsIFile* aLocation)
     return XRE_AddJarManifestLocation(NS_BOOTSTRAPPED_LOCATION, aLocation);
   }
 
-  nsCOMPtr<nsIFile> manifest =
+  nsCOMPtr<nsILocalFile> manifest =
     CloneAndAppend(aLocation, NS_LITERAL_CSTRING("chrome.manifest"));
   return XRE_AddManifestLocation(NS_BOOTSTRAPPED_LOCATION, manifest);
 }
 
 NS_IMETHODIMP
-nsComponentManagerImpl::RemoveBootstrappedManifestLocation(nsIFile* aLocation)
+nsComponentManagerImpl::RemoveBootstrappedManifestLocation(nsILocalFile* aLocation)
 {
   nsCOMPtr<nsIChromeRegistry> cr = mozilla::services::GetChromeRegistryService();
   if (!cr)
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIFile> manifest;
+  nsCOMPtr<nsILocalFile> manifest;
   nsString path;
   nsresult rv = aLocation->GetPath(path);
   if (NS_FAILED(rv))
@@ -1804,7 +1809,7 @@ nsComponentManagerImpl::RemoveBootstrappedManifestLocation(nsIFile* aLocation)
   if (Substring(path, path.Length() - 4).Equals(NS_LITERAL_STRING(".xpi"))) {
     elem.location.Init(aLocation, "chrome.manifest");
   } else {
-    nsCOMPtr<nsIFile> lf = CloneAndAppend(aLocation, NS_LITERAL_CSTRING("chrome.manifest"));
+    nsCOMPtr<nsILocalFile> lf = CloneAndAppend(aLocation, NS_LITERAL_CSTRING("chrome.manifest"));
     elem.location.Init(lf);
   }
 
@@ -1816,7 +1821,7 @@ nsComponentManagerImpl::RemoveBootstrappedManifestLocation(nsIFile* aLocation)
 }
 
 EXPORT_XPCOM_API(nsresult)
-XRE_AddManifestLocation(NSLocationType aType, nsIFile* aLocation)
+XRE_AddManifestLocation(NSLocationType aType, nsILocalFile* aLocation)
 {
     nsComponentManagerImpl::InitializeModuleLocations();
     nsComponentManagerImpl::ComponentLocation* c = 
@@ -1832,7 +1837,7 @@ XRE_AddManifestLocation(NSLocationType aType, nsIFile* aLocation)
 }
 
 EXPORT_XPCOM_API(nsresult)
-XRE_AddJarManifestLocation(NSLocationType aType, nsIFile* aLocation)
+XRE_AddJarManifestLocation(NSLocationType aType, nsILocalFile* aLocation)
 {
     nsComponentManagerImpl::InitializeModuleLocations();
     nsComponentManagerImpl::ComponentLocation* c = 

@@ -1238,7 +1238,7 @@ nsBaseWidget::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
  * Returns true if the icon file exists and can be read.
  */
 static bool
-ResolveIconNameHelper(nsIFile *aFile,
+ResolveIconNameHelper(nsILocalFile *aFile,
                       const nsAString &aIconName,
                       const nsAString &aIconSuffix)
 {
@@ -1260,7 +1260,7 @@ ResolveIconNameHelper(nsIFile *aFile,
 void
 nsBaseWidget::ResolveIconName(const nsAString &aIconName,
                               const nsAString &aIconSuffix,
-                              nsIFile **aResult)
+                              nsILocalFile **aResult)
 { 
   *aResult = nsnull;
 
@@ -1280,7 +1280,7 @@ nsBaseWidget::ResolveIconName(const nsAString &aIconName,
       dirs->GetNext(getter_AddRefs(element));
       if (!element)
         continue;
-      nsCOMPtr<nsIFile> file = do_QueryInterface(element);
+      nsCOMPtr<nsILocalFile> file = do_QueryInterface(element);
       if (!file)
         continue;
       if (ResolveIconNameHelper(file, aIconName, aIconSuffix)) {
@@ -1292,8 +1292,8 @@ nsBaseWidget::ResolveIconName(const nsAString &aIconName,
 
   // then check the main app chrome directory
 
-  nsCOMPtr<nsIFile> file;
-  dirSvc->Get(NS_APP_CHROME_DIR, NS_GET_IID(nsIFile),
+  nsCOMPtr<nsILocalFile> file;
+  dirSvc->Get(NS_APP_CHROME_DIR, NS_GET_IID(nsILocalFile),
               getter_AddRefs(file));
   if (file && ResolveIconNameHelper(file, aIconName, aIconSuffix))
     NS_ADDREF(*aResult = file);

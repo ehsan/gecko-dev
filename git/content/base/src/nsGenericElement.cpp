@@ -3960,24 +3960,25 @@ nsGenericElement::SaveSubtreeState()
 // latter case it may be null.
 static
 bool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
-                      bool aIsReplace, nsINode* aRefChild)
+                        bool aIsReplace, nsINode* aRefChild)
 {
-  MOZ_ASSERT(aNewChild, "Must have new child");
-  MOZ_ASSERT_IF(aIsReplace, aRefChild);
-  MOZ_ASSERT(aParent);
-  MOZ_ASSERT(aParent->IsNodeOfType(nsINode::eDOCUMENT) ||
-             aParent->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT) ||
-             aParent->IsElement(),
-             "Nodes that are not documents, document fragments or elements "
-             "can't be parents!");
+  NS_PRECONDITION(aNewChild, "Must have new child");
+  NS_PRECONDITION(!aIsReplace || aRefChild,
+                  "Must have ref content for replace");
+  NS_PRECONDITION(aParent->IsNodeOfType(nsINode::eDOCUMENT) ||
+                  aParent->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT) ||
+                  aParent->IsElement(),
+                  "Nodes that are not documents, document fragments or "
+                  "elements can't be parents!");
 
   // A common case is that aNewChild has no kids, in which case
   // aParent can't be a descendant of aNewChild unless they're
   // actually equal to each other.  Fast-path that case, since aParent
   // could be pretty deep in the DOM tree.
-  if (aNewChild == aParent ||
-      (aNewChild->GetFirstChild() &&
-       nsContentUtils::ContentIsDescendantOf(aParent, aNewChild))) {
+  if (aParent &&
+      (aNewChild == aParent ||
+       (aNewChild->GetFirstChild() &&
+        nsContentUtils::ContentIsDescendantOf(aParent, aNewChild)))) {
     return false;
   }
 
@@ -3990,8 +3991,8 @@ bool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
   case nsIDOMNode::TEXT_NODE :
   case nsIDOMNode::CDATA_SECTION_NODE :
   case nsIDOMNode::ENTITY_REFERENCE_NODE :
-    // Allowed under Elements and DocumentFragments
-    return aParent->NodeType() != nsIDOMNode::DOCUMENT_NODE;
+    // Only allowed under elements
+    return aParent != nsnull;
   case nsIDOMNode::ELEMENT_NODE :
     {
       if (!aParent->IsNodeOfType(nsINode::eDOCUMENT)) {
@@ -3999,8 +4000,8 @@ bool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
         return true;
       }
 
-      nsIDocument* parentDocument = static_cast<nsIDocument*>(aParent);
-      Element* rootElement = parentDocument->GetRootElement();
+      Element* rootElement =
+        static_cast<nsIDocument*>(aParent)->GetRootElement();
       if (rootElement) {
         // Already have a documentElement, so this is only OK if we're
         // replacing it.
@@ -4014,7 +4015,13 @@ bool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
         return true;
       }
 
-      nsIContent* docTypeContent = parentDocument->GetDocumentType();
+      // Now grovel for a doctype
+      nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aParent);
+      NS_ASSERTION(doc, "Shouldn't happen");
+      nsCOMPtr<nsIDOMDocumentType> docType;
+      doc->GetDoctype(getter_AddRefs(docType));
+      nsCOMPtr<nsIContent> docTypeContent = do_QueryInterface(docType);
+      
       if (!docTypeContent) {
         // It's all good.
         return true;
@@ -4036,8 +4043,11 @@ bool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
         return false;
       }
 
-      nsIDocument* parentDocument = static_cast<nsIDocument*>(aParent);
-      nsIContent* docTypeContent = parentDocument->GetDocumentType();
+      nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aParent);
+      NS_ASSERTION(doc, "Shouldn't happen");
+      nsCOMPtr<nsIDOMDocumentType> docType;
+      doc->GetDoctype(getter_AddRefs(docType));
+      nsCOMPtr<nsIContent> docTypeContent = do_QueryInterface(docType);
       if (docTypeContent) {
         // Already have a doctype, so this is only OK if we're replacing it
         return aIsReplace && docTypeContent == aRefChild;
@@ -4045,7 +4055,8 @@ bool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
 
       // We don't have a doctype yet.  Our one remaining constraint is
       // that the doctype must come before the documentElement.
-      Element* rootElement = parentDocument->GetRootElement();
+      Element* rootElement =
+        static_cast<nsIDocument*>(aParent)->GetRootElement();
       if (!rootElement) {
         // It's all good
         return true;

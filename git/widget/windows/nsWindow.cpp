@@ -86,6 +86,7 @@
 #include "nsIClipboard.h"
 #include "nsIMM32Handler.h"
 #include "WinMouseScrollHandler.h"
+#include "nsILocalFile.h"
 #include "nsFontMetrics.h"
 #include "nsIFontEnumerator.h"
 #include "nsGUIEvent.h"
@@ -2793,7 +2794,7 @@ NS_METHOD nsWindow::SetIcon(const nsAString& aIconSpec)
 {
   // Assume the given string is a local identifier for an icon file.
 
-  nsCOMPtr<nsIFile> iconFile;
+  nsCOMPtr<nsILocalFile> iconFile;
   ResolveIconName(aIconSpec, NS_LITERAL_STRING(".ico"),
                   getter_AddRefs(iconFile));
   if (!iconFile)

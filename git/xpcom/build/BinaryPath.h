@@ -135,9 +135,9 @@ private:
 #endif
 
 public:
-  static nsresult GetFile(const char *argv0, nsIFile* *aResult)
+  static nsresult GetFile(const char *argv0, nsILocalFile* *aResult)
   {
-    nsCOMPtr<nsIFile> lf;
+    nsCOMPtr<nsILocalFile> lf;
 #ifdef XP_WIN
     PRUnichar exePath[MAXPATHLEN];
     nsresult rv = GetW(argv0, exePath);

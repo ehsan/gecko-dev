@@ -299,7 +299,7 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
     case NS_FOLDER_VALUE_CUSTOM:
       {
         Preferences::GetComplex(NS_PREF_DOWNLOAD_DIR,
-                                NS_GET_IID(nsIFile),
+                                NS_GET_IID(nsILocalFile),
                                 getter_AddRefs(dir));
         if (!dir) break;
 
@@ -334,7 +334,7 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
   char* downloadDir = getenv("DOWNLOADS_DIRECTORY");
   nsresult rv;
   if (downloadDir) {
-    nsCOMPtr<nsIFile> ldir; 
+    nsCOMPtr<nsILocalFile> ldir; 
     rv = NS_NewNativeLocalFile(nsDependentCString(downloadDir),
                                true, getter_AddRefs(ldir));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -756,7 +756,7 @@ nsresult nsExternalHelperAppService::GetFileTokenForPath(const PRUnichar * aPlat
 {
   nsDependentString platformAppPath(aPlatformAppPath);
   // First, check if we have an absolute path
-  nsIFile* localFile = nsnull;
+  nsILocalFile* localFile = nsnull;
   nsresult rv = NS_NewLocalFile(platformAppPath, true, &localFile);
   if (NS_SUCCEEDED(rv)) {
     *aFile = localFile;
@@ -927,28 +927,30 @@ NS_IMETHODIMP nsExternalHelperAppService::DeleteTemporaryFileOnExit(nsIFile * aT
 {
   nsresult rv = NS_OK;
   bool isFile = false;
+  nsCOMPtr<nsILocalFile> localFile (do_QueryInterface(aTemporaryFile, &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // as a safety measure, make sure the nsIFile is really a file and not a directory object.
-  aTemporaryFile->IsFile(&isFile);
+  localFile->IsFile(&isFile);
   if (!isFile) return NS_OK;
 
   if (mInPrivateBrowsing)
-    mTemporaryPrivateFilesList.AppendObject(aTemporaryFile);
+    mTemporaryPrivateFilesList.AppendObject(localFile);
   else
-    mTemporaryFilesList.AppendObject(aTemporaryFile);
+    mTemporaryFilesList.AppendObject(localFile);
 
   return NS_OK;
 }
 
-void nsExternalHelperAppService::FixFilePermissions(nsIFile* aFile)
+void nsExternalHelperAppService::FixFilePermissions(nsILocalFile* aFile)
 {
   // This space intentionally left blank
 }
 
-void nsExternalHelperAppService::ExpungeTemporaryFilesHelper(nsCOMArray<nsIFile> &fileList)
+void nsExternalHelperAppService::ExpungeTemporaryFilesHelper(nsCOMArray<nsILocalFile> &fileList)
 {
   PRInt32 numEntries = fileList.Count();
-  nsIFile* localFile;
+  nsILocalFile* localFile;
   for (PRInt32 index = 0; index < numEntries; index++)
   {
     localFile = fileList[index];
@@ -1872,7 +1874,8 @@ nsresult nsExternalAppHandler::ExecuteDesiredAction()
       }
       else if(action == nsIMIMEInfo::saveToDisk)
       {
-        mExtProtSvc->FixFilePermissions(mFinalFileDestination);
+        nsCOMPtr<nsILocalFile> destfile(do_QueryInterface(mFinalFileDestination));
+        mExtProtSvc->FixFilePermissions(destfile);
       }
     }
 
@@ -1924,8 +1927,9 @@ nsresult nsExternalAppHandler::InitializeDownload(nsITransfer* aTransfer)
   rv = NS_NewFileURI(getter_AddRefs(target), mFinalFileDestination);
   if (NS_FAILED(rv)) return rv;
   
+  nsCOMPtr<nsILocalFile> lf(do_QueryInterface(mTempFile));
   rv = aTransfer->Init(mSourceUrl, target, EmptyString(),
-                       mMimeInfo, mTimeDownloadStarted, mTempFile, this);
+                       mMimeInfo, mTimeDownloadStarted, lf, this);
   if (NS_FAILED(rv)) return rv;
 
   // Now let's add the download to history
@@ -1974,7 +1978,7 @@ nsresult nsExternalAppHandler::CreateProgressListener()
   return rv;
 }
 
-nsresult nsExternalAppHandler::PromptForSaveToFile(nsIFile ** aNewFile, const nsAFlatString &aDefaultFile, const nsAFlatString &aFileExtension)
+nsresult nsExternalAppHandler::PromptForSaveToFile(nsILocalFile ** aNewFile, const nsAFlatString &aDefaultFile, const nsAFlatString &aFileExtension)
 {
   // invoke the dialog!!!!! use mWindowContext as the window context parameter for the dialog request
   // Convert to use file picker? No, then embeddors could not do any sort of
@@ -2010,8 +2014,10 @@ nsresult nsExternalAppHandler::MoveFile(nsIFile * aNewFileLocation)
   nsresult rv = NS_OK;
   NS_ASSERTION(mStopRequestIssued, "uhoh, how did we get here if we aren't done getting data?");
  
+  nsCOMPtr<nsILocalFile> fileToUse = do_QueryInterface(aNewFileLocation);
+
   // if the on stop request was actually issued then it's now time to actually perform the file move....
-  if (mStopRequestIssued && aNewFileLocation)
+  if (mStopRequestIssued && fileToUse)
   {
     // Unfortunately, MoveTo will fail if a file already exists at the user specified location....
     // but the user has told us, this is where they want the file! (when we threw up the save to file dialog,
@@ -2019,16 +2025,16 @@ nsresult nsExternalAppHandler::MoveFile(nsIFile * aNewFileLocation)
     // fileToUse if it already exists.
     bool equalToTempFile = false;
     bool filetoUseAlreadyExists = false;
-    aNewFileLocation->Equals(mTempFile, &equalToTempFile);
-    aNewFileLocation->Exists(&filetoUseAlreadyExists);
+    fileToUse->Equals(mTempFile, &equalToTempFile);
+    fileToUse->Exists(&filetoUseAlreadyExists);
     if (filetoUseAlreadyExists && !equalToTempFile)
-      aNewFileLocation->Remove(false);
+      fileToUse->Remove(false);
 
      // extract the new leaf name from the file location
      nsAutoString fileName;
-     aNewFileLocation->GetLeafName(fileName);
+     fileToUse->GetLeafName(fileName);
      nsCOMPtr<nsIFile> directoryLocation;
-     rv = aNewFileLocation->GetParent(getter_AddRefs(directoryLocation));
+     rv = fileToUse->GetParent(getter_AddRefs(directoryLocation));
      if (directoryLocation)
      {
        rv = mTempFile->MoveTo(directoryLocation, fileName);
@@ -2037,7 +2043,7 @@ nsresult nsExternalAppHandler::MoveFile(nsIFile * aNewFileLocation)
      {
        // Send error notification.        
        nsAutoString path;
-       aNewFileLocation->GetPath(path);
+       fileToUse->GetPath(path);
        SendStatusChange(kWriteError, rv, nsnull, path);
        Cancel(rv); // Cancel (and clean up temp file).
      }
@@ -2045,7 +2051,7 @@ nsresult nsExternalAppHandler::MoveFile(nsIFile * aNewFileLocation)
      else
      {
        // tag the file with its source URI
-       nsCOMPtr<nsILocalFileOS2> localFileOS2 = do_QueryInterface(aNewFileLocation);
+       nsCOMPtr<nsILocalFileOS2> localFileOS2 = do_QueryInterface(fileToUse);
        if (localFileOS2)
        {
          nsCAutoString url;
@@ -2078,7 +2084,7 @@ NS_IMETHODIMP nsExternalAppHandler::SaveToDisk(nsIFile * aNewFileLocation, bool 
   // The helper app dialog has told us what to do.
   mReceivedDispositionInfo = true;
 
-  nsCOMPtr<nsIFile> fileToUse = do_QueryInterface(aNewFileLocation);
+  nsCOMPtr<nsILocalFile> fileToUse = do_QueryInterface(aNewFileLocation);
   if (!fileToUse)
   {
     nsAutoString leafName;

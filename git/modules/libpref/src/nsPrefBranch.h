@@ -11,7 +11,7 @@
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIRelativeFilePref.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsString.h"
 #include "nsVoidArray.h"
 #include "nsTArray.h"
@@ -243,6 +243,6 @@ public:
   virtual       ~nsRelativeFilePref();
   
 private:
-  nsCOMPtr<nsIFile> mFile;
+  nsCOMPtr<nsILocalFile> mFile;
   nsCString mRelativeToKey;
 };

@@ -370,8 +370,6 @@ public:
    * called with a pointer to the current document, in that case the
    * document remains unchanged, but a new inner window will be
    * created.
-   *
-   * aDocument must not be null.
    */
   virtual nsresult SetNewDocument(nsIDocument *aDocument,
                                   nsISupports *aState,

@@ -88,7 +88,6 @@
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/ipc/PDocumentRendererParent.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/unused.h"
 
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
@@ -173,14 +172,11 @@ public:
       return NS_ERROR_DOM_INDEX_SIZE_ERR;
     }
 
-    nsCSSValue value;
-    nsCSSParser parser;
-    if (!parser.ParseColorString(colorstr, nsnull, 0, value)) {
-      return NS_ERROR_DOM_SYNTAX_ERR;
-    }
-
     nscolor color;
-    if (!nsRuleNode::ComputeColor(value, nsnull, nsnull, color)) {
+    nsCSSParser parser;
+    nsresult rv = parser.ParseColorString(nsString(colorstr),
+                                          nsnull, 0, &color);
+    if (NS_FAILED(rv)) {
       return NS_ERROR_DOM_SYNTAX_ERR;
     }
 
@@ -373,6 +369,7 @@ public:
   nsresult Redraw();
 
   // nsICanvasRenderingContextInternal
+  NS_IMETHOD SetCanvasElement(nsHTMLCanvasElement* aParentCanvas);
   NS_IMETHOD SetDimensions(PRInt32 width, PRInt32 height);
   NS_IMETHOD InitializeWithSurface(nsIDocShell *shell, gfxASurface *surface, PRInt32 width, PRInt32 height)
   { return NS_ERROR_NOT_IMPLEMENTED; }
@@ -446,9 +443,6 @@ protected:
   nsresult SetStyleFromStringOrInterface(const nsAString& aStr, nsISupports *aInterface, Style aWhichStyle);
   nsresult GetStyleAsStringOrInterface(nsAString& aStr, nsISupports **aInterface, PRInt32 *aType, Style aWhichStyle);
 
-  // Returns whether a color was successfully parsed.
-  bool ParseColor(const nsAString& aString, nscolor* aColor);
-
   void StyleColorToString(const nscolor& aColor, nsAString& aStr);
 
   /**
@@ -481,6 +475,10 @@ protected:
     */
   SurfaceFormat GetSurfaceFormat() const;
 
+  nsHTMLCanvasElement *HTMLCanvasElement() {
+    return static_cast<nsHTMLCanvasElement*>(mCanvasElement.get());
+  }
+
   // Member vars
   PRInt32 mWidth, mHeight;
 
@@ -499,6 +497,9 @@ protected:
   bool mResetLayer;
   // This is needed for drawing in drawAsyncXULElement
   bool mIPC;
+
+  // the canvas element we're a context of
+  nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
 
   // If mCanvasElement is not provided, then a docshell is
   nsCOMPtr<nsIDocShell> mDocShell;
@@ -776,7 +777,7 @@ protected:
                                 gradient->mRadius2, gradient->GetGradientStopsForTarget(aRT));
       } else if (state.patternStyles[aStyle]) {
         if (aCtx->mCanvasElement) {
-          CanvasUtils::DoDrawImageSecurityCheck(aCtx->mCanvasElement,
+          CanvasUtils::DoDrawImageSecurityCheck(aCtx->HTMLCanvasElement(),
                                                 state.patternStyles[aStyle]->mPrincipal,
                                                 state.patternStyles[aStyle]->mForceWriteOnly,
                                                 state.patternStyles[aStyle]->mCORSUsed);
@@ -940,7 +941,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCanvasRenderingContext2DAzure)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCanvasElement)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCanvasRenderingContext2DAzure)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mCanvasElement, nsINode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCanvasElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // XXX
@@ -988,6 +989,7 @@ NS_NewCanvasRenderingContext2DAzure(nsIDOMCanvasRenderingContext2D** aResult)
 nsCanvasRenderingContext2DAzure::nsCanvasRenderingContext2DAzure()
   : mValid(false), mZero(false), mOpaque(false), mResetLayer(true)
   , mIPC(false)
+  , mCanvasElement(nsnull)
   , mIsEntireFrameInvalid(false)
   , mPredictManyRedrawCalls(false), mPathTransformWillUpdate(false)
   , mInvalidateCount(0)
@@ -1007,41 +1009,11 @@ nsCanvasRenderingContext2DAzure::~nsCanvasRenderingContext2DAzure()
   }
 }
 
-bool
-nsCanvasRenderingContext2DAzure::ParseColor(const nsAString& aString,
-                                            nscolor* aColor)
-{
-  nsIDocument* document = mCanvasElement
-                          ? mCanvasElement->OwnerDoc()
-                          : nsnull;
-
-  // Pass the CSS Loader object to the parser, to allow parser error
-  // reports to include the outer window ID.
-  nsCSSParser parser(document ? document->CSSLoader() : nsnull);
-  nsCSSValue value;
-  if (!parser.ParseColorString(aString, nsnull, 0, value)) {
-    return false;
-  }
-
-  nsIPresShell* presShell = GetPresShell();
-  nsRefPtr<nsStyleContext> parentContext;
-  if (mCanvasElement && mCanvasElement->IsInDoc()) {
-    // Inherit from the canvas element.
-    parentContext = nsComputedDOMStyle::GetStyleContextForElement(
-      mCanvasElement, nsnull, presShell);
-  }
-
-  unused << nsRuleNode::ComputeColor(
-    value, presShell ? presShell->GetPresContext() : nsnull, parentContext,
-    *aColor);
-  return true;
-}
-
 nsresult
 nsCanvasRenderingContext2DAzure::Reset()
 {
   if (mCanvasElement) {
-    mCanvasElement->InvalidateCanvas();
+    HTMLCanvasElement()->InvalidateCanvas();
   }
 
   // only do this for non-docshell created contexts,
@@ -1067,9 +1039,19 @@ nsCanvasRenderingContext2DAzure::SetStyleFromStringOrInterface(const nsAString& 
                                                                nsISupports *aInterface,
                                                                Style aWhichStyle)
 {
+  nsresult rv;
+  nscolor color;
+
   if (!aStr.IsVoid()) {
-    nscolor color;
-    if (!ParseColor(aStr, &color)) {
+    nsIDocument* document = mCanvasElement ?
+                            HTMLCanvasElement()->OwnerDoc() : nsnull;
+
+    // Pass the CSS Loader object to the parser, to allow parser error
+    // reports to include the outer window ID.
+    nsCSSParser parser(document ? document->CSSLoader() : nsnull);
+    rv = parser.ParseColorString(aStr, nsnull, 0, &color);
+    if (NS_FAILED(rv)) {
+      // Error reporting happens inside the CSS parser
       return NS_OK;
     }
 
@@ -1094,7 +1076,7 @@ nsCanvasRenderingContext2DAzure::SetStyleFromStringOrInterface(const nsAString& 
   nsContentUtils::ReportToConsole(
     nsIScriptError::warningFlag,
     "Canvas",
-    mCanvasElement ? mCanvasElement->OwnerDoc() : nsnull,
+    mCanvasElement ? HTMLCanvasElement()->OwnerDoc() : nsnull,
     nsContentUtils::eDOM_PROPERTIES,
     "UnexpectedCanvasVariantStyle");
 
@@ -1167,9 +1149,9 @@ nsCanvasRenderingContext2DAzure::Redraw()
       gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);
   mThebesSurface->MarkDirty();
 
-  nsSVGEffects::InvalidateDirectRenderingObservers(mCanvasElement);
+  nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
 
-  mCanvasElement->InvalidateCanvasContent(nsnull);
+  HTMLCanvasElement()->InvalidateCanvasContent(nsnull);
 
   return NS_OK;
 }
@@ -1199,10 +1181,10 @@ nsCanvasRenderingContext2DAzure::Redraw(const mgfx::Rect &r)
       gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);
   mThebesSurface->MarkDirty();
 
-  nsSVGEffects::InvalidateDirectRenderingObservers(mCanvasElement);
+  nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
 
   gfxRect tmpR = ThebesRect(r);
-  mCanvasElement->InvalidateCanvasContent(&tmpR);
+  HTMLCanvasElement()->InvalidateCanvasContent(&tmpR);
 
   return;
 }
@@ -1487,6 +1469,14 @@ nsCanvasRenderingContext2DAzure::GetSurfaceFormat() const
 //
 // nsCanvasRenderingContext2DAzure impl
 //
+
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::SetCanvasElement(nsHTMLCanvasElement* aCanvasElement)
+{
+  mCanvasElement = aCanvasElement;
+
+  return NS_OK;
+}
 
 NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::GetCanvas(nsIDOMHTMLCanvasElement **canvas)
@@ -2024,13 +2014,20 @@ nsCanvasRenderingContext2DAzure::GetShadowBlur(float *blur)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::SetShadowColor(const nsAString& aColor)
+nsCanvasRenderingContext2DAzure::SetShadowColor(const nsAString& colorstr)
 {
+  nsIDocument* document = mCanvasElement ?
+                          HTMLCanvasElement()->OwnerDoc() : nsnull;
+
+  // Pass the CSS Loader object to the parser, to allow parser error reports
+  // to include the outer window ID.
+  nsCSSParser parser(document ? document->CSSLoader() : nsnull);
   nscolor color;
-  if (!ParseColor(aColor, &color)) {
+  nsresult rv = parser.ParseColorString(colorstr, nsnull, 0, &color);
+  if (NS_FAILED(rv)) {
+    // Error reporting happens inside the CSS parser
     return NS_OK;
   }
-
   CurrentState().shadowColor = color;
 
   return NS_OK;
@@ -2663,8 +2660,9 @@ nsCanvasRenderingContext2DAzure::SetFont(const nsAString& font)
     * string is equal to the old one.
     */
 
-  if (!mCanvasElement && !mDocShell) {
-      NS_WARNING("Canvas element must be non-null or a docshell must be provided");
+  nsCOMPtr<nsIContent> content = do_QueryInterface(mCanvasElement);
+  if (!content && !mDocShell) {
+      NS_WARNING("Canvas element must be an nsIContent and non-null or a docshell must be provided");
       return NS_ERROR_FAILURE;
   }
 
@@ -2707,10 +2705,10 @@ nsCanvasRenderingContext2DAzure::SetFont(const nsAString& font)
   // values (2em, bolder, etc.)
   nsRefPtr<nsStyleContext> parentContext;
 
-  if (mCanvasElement && mCanvasElement->IsInDoc()) {
+  if (content && content->IsInDoc()) {
       // inherit from the canvas element
       parentContext = nsComputedDOMStyle::GetStyleContextForElement(
-              mCanvasElement,
+              content->AsElement(),
               nsnull,
               presShell);
   } else {
@@ -3150,8 +3148,9 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   if (aMaxWidth < 0)
     return NS_ERROR_INVALID_ARG;
 
-  if (!mCanvasElement && !mDocShell) {
-    NS_WARNING("Canvas element must be non-null or a docshell must be provided");
+  nsCOMPtr<nsIContent> content = do_QueryInterface(mCanvasElement);
+  if (!content && !mDocShell) {
+      NS_WARNING("Canvas element must be an nsIContent and non-null or a docshell must be provided");
     return NS_ERROR_FAILURE;
   }
 
@@ -3168,10 +3167,10 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   // for now, default to ltr if not in doc
   bool isRTL = false;
 
-  if (mCanvasElement && mCanvasElement->IsInDoc()) {
+  if (content && content->IsInDoc()) {
     // try to find the closest context
     nsRefPtr<nsStyleContext> canvasStyle =
-      nsComputedDOMStyle::GetStyleContextForElement(mCanvasElement,
+      nsComputedDOMStyle::GetStyleContextForElement(content->AsElement(),
                                                     nsnull,
                                                     presShell);
     if (!canvasStyle) {
@@ -3610,7 +3609,7 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
 
       if (srcSurf && mCanvasElement) {
         // Do security check here.
-        CanvasUtils::DoDrawImageSecurityCheck(mCanvasElement,
+        CanvasUtils::DoDrawImageSecurityCheck(HTMLCanvasElement(),
                                               content->NodePrincipal(), canvas->IsWriteOnly(),
                                               false);
         imgSize = gfxIntSize(srcSurf->GetSize().width, srcSurf->GetSize().height);
@@ -3618,7 +3617,7 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
     }
   } else {
     gfxASurface* imgsurf =
-      CanvasImageCache::Lookup(imgElt, mCanvasElement, &imgSize);
+      CanvasImageCache::Lookup(imgElt, HTMLCanvasElement(), &imgSize);
     if (imgsurf) {
       srcSurf = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mTarget, imgsurf);
     }
@@ -3644,13 +3643,13 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
     imgSize = res.mSize;
 
     if (mCanvasElement) {
-      CanvasUtils::DoDrawImageSecurityCheck(mCanvasElement,
+      CanvasUtils::DoDrawImageSecurityCheck(HTMLCanvasElement(),
                                             res.mPrincipal, res.mIsWriteOnly,
                                             res.mCORSUsed);
     }
 
     if (res.mImageRequest) {
-      CanvasImageCache::NotifyDrawImage(imgElt, mCanvasElement,
+      CanvasImageCache::NotifyDrawImage(imgElt, HTMLCanvasElement(),
                                         res.mImageRequest, res.mSurface, imgSize);
     }
 
@@ -3789,7 +3788,7 @@ nsCanvasRenderingContext2DAzure::DrawWindow(nsIDOMWindow* aWindow, float aX, flo
   // protect against too-large surfaces that will cause allocation
   // or overflow issues
   if (!gfxASurface::CheckSurfaceSize(gfxIntSize(PRInt32(aW), PRInt32(aH)),
-                                     0xffff))
+                                      0xffff))
     return NS_ERROR_FAILURE;
 
   nsRefPtr<gfxASurface> drawSurf;
@@ -3829,9 +3828,19 @@ nsCanvasRenderingContext2DAzure::DrawWindow(nsIDOMWindow* aWindow, float aX, flo
     return NS_ERROR_FAILURE;
 
   nscolor bgColor;
-  if (!ParseColor(aBGColor, &bgColor)) {
-    return NS_ERROR_FAILURE;
-  }
+
+  nsIDocument* elementDoc = mCanvasElement ?
+                            HTMLCanvasElement()->OwnerDoc() : nsnull;
+
+  // Pass the CSS Loader object to the parser, to allow parser error reports
+  // to include the outer window ID.
+  nsCSSParser parser(elementDoc ? elementDoc->CSSLoader() : nsnull);
+  nsresult rv = parser.ParseColorString(PromiseFlatString(aBGColor),
+                                        nsnull, 0, &bgColor);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsIPresShell* presShell = presContext->PresShell();
+  NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
 
   nsRect r(nsPresContext::CSSPixelsToAppUnits(aX),
            nsPresContext::CSSPixelsToAppUnits(aY),
@@ -3853,8 +3862,7 @@ nsCanvasRenderingContext2DAzure::DrawWindow(nsIDOMWindow* aWindow, float aX, flo
     renderDocFlags |= nsIPresShell::RENDER_ASYNC_DECODE_IMAGES;
   }
 
-  unused << presContext->PresShell()->
-    RenderDocument(r, renderDocFlags, bgColor, thebes);
+  rv = presShell->RenderDocument(r, renderDocFlags, bgColor, thebes);
 
   // note that aX and aY are coordinates in the document that
   // we're drawing; aX and aY are drawn to 0,0 in current user
@@ -3990,7 +3998,8 @@ nsCanvasRenderingContext2DAzure::GetImageData(double aSx, double aSy,
 
   // Check only if we have a canvas element; if we were created with a docshell,
   // then it's special internal use.
-  if (mCanvasElement && mCanvasElement->IsWriteOnly() &&
+  if (mCanvasElement &&
+      HTMLCanvasElement()->IsWriteOnly() &&
       !nsContentUtils::IsCallerTrustedForRead())
   {
     // XXX ERRMSG we need to report an error to developers here! (bug 329026)
@@ -4197,7 +4206,7 @@ nsCanvasRenderingContext2DAzure::PutImageData_explicit(PRInt32 x, PRInt32 y, PRU
           return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
       dirtyX = checkedDirtyX.value();
-      dirtyWidth = -dirtyWidth;
+      dirtyWidth = -(int32)dirtyWidth;
     }
 
     if (dirtyHeight < 0) {
@@ -4209,7 +4218,7 @@ nsCanvasRenderingContext2DAzure::PutImageData_explicit(PRInt32 x, PRInt32 y, PRU
           return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
       dirtyY = checkedDirtyY.value();
-      dirtyHeight = -dirtyHeight;
+      dirtyHeight = -(int32)dirtyHeight;
     }
 
     // bound the dirty rect within the imageData rectangle
@@ -4387,7 +4396,7 @@ nsCanvasRenderingContext2DAzure::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     // releasing the reference to the element.
     // The userData will receive DidTransactionCallbacks, which flush the
     // the invalidation state to indicate that the canvas is up to date.
-    userData = new CanvasRenderingContext2DUserData(mCanvasElement);
+    userData = new CanvasRenderingContext2DUserData(HTMLCanvasElement());
     canvasLayer->SetDidTransactionCallback(
             CanvasRenderingContext2DUserData::DidTransactionCallback, userData);
   }

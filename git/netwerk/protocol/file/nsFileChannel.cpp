@@ -248,7 +248,7 @@ nsFileChannel::nsFileChannel(nsIURI *uri)
   nsCOMPtr<nsIFile> file;
   nsCOMPtr <nsIURI> targetURI;
   nsCAutoString fileTarget;
-  nsCOMPtr<nsIFile> resolvedFile;
+  nsCOMPtr<nsILocalFile> resolvedFile;
   bool symLink;
   nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(uri);
   if (fileURL && 

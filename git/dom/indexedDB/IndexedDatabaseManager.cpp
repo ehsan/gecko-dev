@@ -10,6 +10,7 @@
 #include "nsIDOMScriptObjectFactory.h"
 #include "nsIFile.h"
 #include "nsIFileStorage.h"
+#include "nsILocalFile.h"
 #include "nsIObserverService.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptSecurityManager.h"
@@ -277,7 +278,7 @@ IndexedDatabaseManager::GetDirectoryForOrigin(const nsACString& aASCIIOrigin,
                                               nsIFile** aDirectory) const
 {
   nsresult rv;
-  nsCOMPtr<nsIFile> directory =
+  nsCOMPtr<nsILocalFile> directory =
     do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -290,7 +291,7 @@ IndexedDatabaseManager::GetDirectoryForOrigin(const nsACString& aASCIIOrigin,
   rv = directory->Append(originSanitized);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  directory.forget(aDirectory);
+  directory.forget(reinterpret_cast<nsILocalFile**>(aDirectory));
   return NS_OK;
 }
 

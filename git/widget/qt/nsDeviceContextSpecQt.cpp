@@ -26,7 +26,7 @@
 #include "nsIServiceManager.h"
 #include "nsPrintSettingsQt.h"
 #include "nsIFileStreams.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsTArray.h"
 
 #include <unistd.h>
@@ -179,7 +179,7 @@ NS_IMETHODIMP nsDeviceContextSpecQt::EndDocument()
     }
     // Handle print-to-file ourselves for the benefit of embedders
     nsXPIDLString targetPath;
-    nsCOMPtr<nsIFile> destFile;
+    nsCOMPtr<nsILocalFile> destFile;
     mPrintSettings->GetToFileName(getter_Copies(targetPath));
 
     nsresult rv = NS_NewNativeLocalFile(NS_ConvertUTF16toUTF8(targetPath),

@@ -7,7 +7,7 @@
 #ifndef _nsDiskCacheBlockFile_h_
 #define _nsDiskCacheBlockFile_h_
 
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 
 /******************************************************************************
  *  nsDiskCacheBlockFile
@@ -29,7 +29,7 @@ public:
             {}
     ~nsDiskCacheBlockFile() { (void) Close(true); }
     
-    nsresult  Open( nsIFile *  blockFile, PRUint32  blockSize,
+    nsresult  Open( nsILocalFile *  blockFile, PRUint32  blockSize,
                     PRUint32  bitMapSize);
     nsresult  Close(bool flush);
     

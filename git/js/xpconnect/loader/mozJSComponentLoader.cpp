@@ -22,7 +22,7 @@
 #include "nsICategoryManager.h"
 #include "nsIComponentManager.h"
 #include "mozilla/Module.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIServiceManager.h"
 #include "nsISupports.h"
 #include "mozJSComponentLoader.h"
@@ -442,7 +442,7 @@ mozJSComponentLoader::ReallyInit()
 const mozilla::Module*
 mozJSComponentLoader::LoadModule(FileLocation &aFile)
 {
-    nsCOMPtr<nsIFile> file = aFile.GetBaseFile();
+    nsCOMPtr<nsILocalFile> file = aFile.GetBaseFile();
 
     nsCString spec;
     aFile.GetURIString(spec);
@@ -608,7 +608,7 @@ class ANSIFileAutoCloser
 #endif
 
 nsresult
-mozJSComponentLoader::GlobalForLocation(nsIFile *aComponentFile,
+mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
                                         nsIURI *aURI,
                                         JSObject **aGlobal,
                                         char **aLocation,
@@ -666,7 +666,7 @@ mozJSComponentLoader::GlobalForLocation(nsIFile *aComponentFile,
 
         nsCOMPtr<nsIXPConnectJSObjectHolder> locationHolder;
         rv = xpc->WrapNative(cx, global, aComponentFile,
-                             NS_GET_IID(nsIFile),
+                             NS_GET_IID(nsILocalFile),
                              getter_AddRefs(locationHolder));
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1092,7 +1092,7 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
     rv = baseFileURL->GetFile(getter_AddRefs(sourceFile));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIFile> sourceLocalFile;
+    nsCOMPtr<nsILocalFile> sourceLocalFile;
     sourceLocalFile = do_QueryInterface(sourceFile, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 

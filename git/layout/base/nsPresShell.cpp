@@ -872,9 +872,6 @@ PresShell::Init(nsIDocument* aDocument,
   // Get our activeness from the docShell.
   QueryIsActive();
 
-  // Setup our font inflation preferences.
-  SetupFontInflation();
-
   return NS_OK;
 }
 
@@ -8039,7 +8036,7 @@ DumpToPNG(nsIPresShell* shell, nsAString& name) {
                         imgIEncoder::INPUT_FORMAT_HOSTARGB, EmptyString());
 
   // XXX not sure if this is the right way to write to a file
-  nsCOMPtr<nsIFile> file = do_CreateInstance("@mozilla.org/file/local;1");
+  nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1");
   NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
   rv = file->InitWithPath(name);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -8959,12 +8956,4 @@ nsIPresShell::SetScrollPositionClampingScrollPortSize(nscoord aWidth, nscoord aH
   mScrollPositionClampingScrollPortSizeSet = true;
   mScrollPositionClampingScrollPortSize.width = aWidth;
   mScrollPositionClampingScrollPortSize.height = aHeight;
-}
-
-void
-PresShell::SetupFontInflation()
-{
-  mFontSizeInflationEmPerLine = nsLayoutUtils::FontSizeInflationEmPerLine();
-  mFontSizeInflationMinTwips = nsLayoutUtils::FontSizeInflationMinTwips();
-  mFontSizeInflationLineThreshold = nsLayoutUtils::FontSizeInflationLineThreshold();
 }

@@ -18,6 +18,7 @@
 #include "nsNetUtil.h"
 #include "nsIFile.h"
 #include "nsIInputStream.h"
+#include "nsILocalFile.h"
 #include "nsIObserverService.h"
 #include "nsIStringEnumerator.h"
 #include "nsIZipReader.h"

@@ -5,7 +5,7 @@
 
 // Interfaces Needed
 #include "nsIDirectoryService.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 
 #include "nsCOMPtr.h"
 #include "nsDirectoryServiceUtils.h"

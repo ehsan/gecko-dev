@@ -70,7 +70,7 @@
 #include "mozilla/Mutex.h"
 #include "nsDebug.h"
 #include "nsCRT.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIFileStreams.h"
 #include "nsInterfaceHashtable.h"
 #include "prprf.h"
@@ -215,7 +215,7 @@ static const int kMagicChildCrashReportFd = 4;
 
 // |dumpMapLock| must protect all access to |pidToMinidump|.
 static Mutex* dumpMapLock;
-typedef nsInterfaceHashtable<nsUint32HashKey, nsIFile> ChildMinidumpMap;
+typedef nsInterfaceHashtable<nsUint32HashKey, nsILocalFile> ChildMinidumpMap;
 static ChildMinidumpMap* pidToMinidump;
 
 // Crashreporter annotations that we don't send along in subprocess
@@ -315,13 +315,13 @@ my_inttostring(intmax_t t, char* buffer, size_t buffer_length)
 
 #ifdef XP_WIN
 static void
-CreateFileFromPath(const xpstring& path, nsIFile** file)
+CreateFileFromPath(const xpstring& path, nsILocalFile** file)
 {
   NS_NewLocalFile(nsDependentString(path.c_str()), false, file);
 }
 #else
 static void
-CreateFileFromPath(const xpstring& path, nsIFile** file)
+CreateFileFromPath(const xpstring& path, nsILocalFile** file)
 {
   NS_NewNativeLocalFile(nsDependentCString(path.c_str()), false, file);
 }
@@ -634,7 +634,7 @@ static bool ShouldReport()
   return !(envvar && *envvar);
 }
 
-nsresult SetExceptionHandler(nsIFile* aXREDirectory,
+nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
                              bool force/*=false*/)
 {
   nsresult rv;
@@ -890,8 +890,12 @@ nsresult SetMinidumpPath(const nsAString& aPath)
 static nsresult
 WriteDataToFile(nsIFile* aFile, const nsACString& data)
 {
+  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(aFile);
+  NS_ENSURE_TRUE(localFile, NS_ERROR_FAILURE);
+
   PRFileDesc* fd;
-  nsresult rv = aFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE, 00600, &fd);
+  nsresult rv = localFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE, 00600,
+                                            &fd);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = NS_OK;
@@ -905,8 +909,11 @@ WriteDataToFile(nsIFile* aFile, const nsACString& data)
 static nsresult
 GetFileContents(nsIFile* aFile, nsACString& data)
 {
+  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(aFile);
+  NS_ENSURE_TRUE(localFile, NS_ERROR_FAILURE);
+
   PRFileDesc* fd;
-  nsresult rv = aFile->OpenNSPRFileDesc(PR_RDONLY, 0, &fd);
+  nsresult rv = localFile->OpenNSPRFileDesc(PR_RDONLY, 0, &fd);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = NS_OK;
@@ -985,7 +992,7 @@ InitInstallTime(nsACString& aInstallTime)
 // time since last crash, which must be calculated at
 // crash time.
 // If any piece of data doesn't exist, initialize it first.
-nsresult SetupExtraData(nsIFile* aAppDataDirectory,
+nsresult SetupExtraData(nsILocalFile* aAppDataDirectory,
                         const nsACString& aBuildID)
 {
   nsCOMPtr<nsIFile> dataDirectory;
@@ -1565,8 +1572,10 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
     do_GetService("@mozilla.org/xpcom/ini-processor-factory;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(reporterINI);
+  NS_ENSURE_TRUE(localFile, NS_ERROR_FAILURE);
   nsCOMPtr<nsIINIParser> iniParser;
-  rv = iniFactory->CreateINIParser(reporterINI,
+  rv = iniFactory->CreateINIParser(localFile,
                                    getter_AddRefs(iniParser));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1630,15 +1639,15 @@ nsresult SetSubmitReports(bool aSubmitReports)
 // The "pending" dir is Crash Reports/pending, from which minidumps
 // can be submitted
 static bool
-GetPendingDir(nsIFile** dir)
+GetPendingDir(nsILocalFile** dir)
 {
   nsCOMPtr<nsIProperties> dirSvc =
     do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID);
   if (!dirSvc)
     return false;
-  nsCOMPtr<nsIFile> pendingDir;
+  nsCOMPtr<nsILocalFile> pendingDir;
   if (NS_FAILED(dirSvc->Get("UAppData",
-                            NS_GET_IID(nsIFile),
+                            NS_GET_IID(nsILocalFile),
                             getter_AddRefs(pendingDir))) ||
       NS_FAILED(pendingDir->Append(NS_LITERAL_STRING("Crash Reports"))) ||
       NS_FAILED(pendingDir->Append(NS_LITERAL_STRING("pending"))))
@@ -1655,7 +1664,7 @@ GetPendingDir(nsIFile** dir)
 // "somthing else" is, but the minidumps stay in [profile]/minidumps/
 // limbo.
 static bool
-GetMinidumpLimboDir(nsIFile** dir)
+GetMinidumpLimboDir(nsILocalFile** dir)
 {
   if (ShouldReport()) {
     return GetPendingDir(dir);
@@ -1667,7 +1676,7 @@ GetMinidumpLimboDir(nsIFile** dir)
 }
 
 bool
-GetMinidumpForID(const nsAString& id, nsIFile** minidump)
+GetMinidumpForID(const nsAString& id, nsILocalFile** minidump)
 {
   if (!GetMinidumpLimboDir(minidump))
     return false;
@@ -1676,7 +1685,7 @@ GetMinidumpForID(const nsAString& id, nsIFile** minidump)
 }
 
 bool
-GetIDFromMinidump(nsIFile* minidump, nsAString& id)
+GetIDFromMinidump(nsILocalFile* minidump, nsAString& id)
 {
   if (NS_SUCCEEDED(minidump->GetLeafName(id))) {
     id.Replace(id.Length() - 4, 4, NS_LITERAL_STRING(""));
@@ -1686,7 +1695,7 @@ GetIDFromMinidump(nsIFile* minidump, nsAString& id)
 }
 
 bool
-GetExtraFileForID(const nsAString& id, nsIFile** extraFile)
+GetExtraFileForID(const nsAString& id, nsILocalFile** extraFile)
 {
   if (!GetMinidumpLimboDir(extraFile))
     return false;
@@ -1695,7 +1704,7 @@ GetExtraFileForID(const nsAString& id, nsIFile** extraFile)
 }
 
 bool
-GetExtraFileForMinidump(nsIFile* minidump, nsIFile** extraFile)
+GetExtraFileForMinidump(nsILocalFile* minidump, nsILocalFile** extraFile)
 {
   nsAutoString leafName;
   nsresult rv = minidump->GetLeafName(leafName);
@@ -1707,21 +1716,25 @@ GetExtraFileForMinidump(nsIFile* minidump, nsIFile** extraFile)
   if (NS_FAILED(rv))
     return false;
 
+  nsCOMPtr<nsILocalFile> extra = do_QueryInterface(extraF);
+  if (!extra)
+    return false;
+
   leafName.Replace(leafName.Length() - 3, 3,
                    NS_LITERAL_STRING("extra"));
-  rv = extraF->SetLeafName(leafName);
+  rv = extra->SetLeafName(leafName);
   if (NS_FAILED(rv))
     return false;
 
   *extraFile = NULL;
-  extraF.swap(*extraFile);
+  extra.swap(*extraFile);
   return true;
 }
 
 bool
 AppendExtraData(const nsAString& id, const AnnotationTable& data)
 {
-  nsCOMPtr<nsIFile> extraFile;
+  nsCOMPtr<nsILocalFile> extraFile;
   if (!GetExtraFileForID(id, getter_AddRefs(extraFile)))
     return false;
   return AppendExtraData(extraFile, data);
@@ -1778,7 +1791,7 @@ EnumerateAnnotations(const nsACString& key,
 }
 
 static bool
-WriteExtraData(nsIFile* extraFile,
+WriteExtraData(nsILocalFile* extraFile,
                const AnnotationTable& data,
                const Blacklist& blacklist,
                bool writeCrashTime=false,
@@ -1810,18 +1823,18 @@ WriteExtraData(nsIFile* extraFile,
 }
 
 bool
-AppendExtraData(nsIFile* extraFile, const AnnotationTable& data)
+AppendExtraData(nsILocalFile* extraFile, const AnnotationTable& data)
 {
   return WriteExtraData(extraFile, data, Blacklist());
 }
 
 
 static bool
-WriteExtraForMinidump(nsIFile* minidump,
+WriteExtraForMinidump(nsILocalFile* minidump,
                       const Blacklist& blacklist,
-                      nsIFile** extraFile)
+                      nsILocalFile** extraFile)
 {
-  nsCOMPtr<nsIFile> extra;
+  nsCOMPtr<nsILocalFile> extra;
   if (!GetExtraFileForMinidump(minidump, getter_AddRefs(extra)))
     return false;
 
@@ -1842,7 +1855,7 @@ WriteExtraForMinidump(nsIFile* minidump,
 static bool
 MoveToPending(nsIFile* dumpFile, nsIFile* extraFile)
 {
-  nsCOMPtr<nsIFile> pendingDir;
+  nsCOMPtr<nsILocalFile> pendingDir;
   if (!GetPendingDir(getter_AddRefs(pendingDir)))
     return false;
 
@@ -1861,8 +1874,8 @@ OnChildProcessDumpRequested(void* aContext,
 #endif
                             )
 {
-  nsCOMPtr<nsIFile> minidump;
-  nsCOMPtr<nsIFile> extraFile;
+  nsCOMPtr<nsILocalFile> minidump;
+  nsCOMPtr<nsILocalFile> extraFile;
 
   CreateFileFromPath(
 #ifdef XP_MACOSX
@@ -2125,14 +2138,14 @@ SetRemoteExceptionHandler(const nsACString& crashPipe)
 
 
 bool
-TakeMinidumpForChild(PRUint32 childPid, nsIFile** dump)
+TakeMinidumpForChild(PRUint32 childPid, nsILocalFile** dump)
 {
   if (!GetEnabled())
     return false;
 
   MutexAutoLock lock(*dumpMapLock);
 
-  nsCOMPtr<nsIFile> d;
+  nsCOMPtr<nsILocalFile> d;
   bool found = pidToMinidump->Get(childPid, getter_AddRefs(d));
   if (found)
     pidToMinidump->Remove(childPid);
@@ -2147,8 +2160,8 @@ TakeMinidumpForChild(PRUint32 childPid, nsIFile** dump)
 // CreatePairedMinidumps() and helpers
 //
 struct PairedDumpContext {
-  nsCOMPtr<nsIFile>* minidump;
-  nsCOMPtr<nsIFile>* extra;
+  nsCOMPtr<nsILocalFile>* minidump;
+  nsCOMPtr<nsILocalFile>* extra;
   const Blacklist& blacklist;
 };
 
@@ -2163,8 +2176,8 @@ PairedDumpCallback(const XP_CHAR* dump_path,
                    bool succeeded)
 {
   PairedDumpContext* ctx = static_cast<PairedDumpContext*>(context);
-  nsCOMPtr<nsIFile>& minidump = *ctx->minidump;
-  nsCOMPtr<nsIFile>& extra = *ctx->extra;
+  nsCOMPtr<nsILocalFile>& minidump = *ctx->minidump;
+  nsCOMPtr<nsILocalFile>& extra = *ctx->extra;
   const Blacklist& blacklist = ctx->blacklist;
 
   xpstring dump(dump_path);
@@ -2205,8 +2218,8 @@ bool
 CreatePairedMinidumps(ProcessHandle childPid,
                       ThreadId childBlamedThread,
                       nsAString* pairGUID,
-                      nsIFile** childDump,
-                      nsIFile** parentDump)
+                      nsILocalFile** childDump,
+                      nsILocalFile** parentDump)
 {
   if (!GetEnabled())
     return false;
@@ -2243,8 +2256,8 @@ CreatePairedMinidumps(ProcessHandle childPid,
 #endif
 
   // dump the child
-  nsCOMPtr<nsIFile> childMinidump;
-  nsCOMPtr<nsIFile> childExtra;
+  nsCOMPtr<nsILocalFile> childMinidump;
+  nsCOMPtr<nsILocalFile> childExtra;
   Blacklist childBlacklist(kSubprocessBlacklist,
                            ArrayLength(kSubprocessBlacklist));
   PairedDumpContext childCtx =
@@ -2258,8 +2271,8 @@ CreatePairedMinidumps(ProcessHandle childPid,
     return false;
 
   // dump the parent
-  nsCOMPtr<nsIFile> parentMinidump;
-  nsCOMPtr<nsIFile> parentExtra;
+  nsCOMPtr<nsILocalFile> parentMinidump;
+  nsCOMPtr<nsILocalFile> parentExtra;
   // nothing's blacklisted for this process
   Blacklist parentBlacklist;
   PairedDumpContext parentCtx =

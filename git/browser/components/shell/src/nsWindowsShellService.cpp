@@ -213,9 +213,9 @@ GetHelperPath(nsAutoString& aPath)
     do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIFile> appHelper;
+  nsCOMPtr<nsILocalFile> appHelper;
   rv = directoryService->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
-                             NS_GET_IID(nsIFile),
+                             NS_GET_IID(nsILocalFile),
                              getter_AddRefs(appHelper));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1042,7 +1042,7 @@ nsWindowsShellService::LaunchPrefetchClearCommand(nsITimer *aTimer, void*)
 #endif
 
 NS_IMETHODIMP
-nsWindowsShellService::OpenApplicationWithURI(nsIFile* aApplication,
+nsWindowsShellService::OpenApplicationWithURI(nsILocalFile* aApplication,
                                               const nsACString& aURI)
 {
   nsresult rv;
@@ -1061,7 +1061,7 @@ nsWindowsShellService::OpenApplicationWithURI(nsIFile* aApplication,
 }
 
 NS_IMETHODIMP
-nsWindowsShellService::GetDefaultFeedReader(nsIFile** _retval)
+nsWindowsShellService::GetDefaultFeedReader(nsILocalFile** _retval)
 {
   *_retval = nsnull;
 
@@ -1090,7 +1090,7 @@ nsWindowsShellService::GetDefaultFeedReader(nsIFile** _retval)
     path = Substring(path, 0, path.FindChar(' '));
   }
 
-  nsCOMPtr<nsIFile> defaultReader =
+  nsCOMPtr<nsILocalFile> defaultReader =
     do_CreateInstance("@mozilla.org/file/local;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 

@@ -13,7 +13,7 @@
 #include "nsIDownload.h"
 #include "nsIDownloadManager.h"
 #include "nsIDownloadProgressListener.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIMIMEInfo.h"
 #include "nsINavHistoryService.h"
 #include "nsIObserver.h"
@@ -378,7 +378,7 @@ private:
   nsCOMPtr<nsIURI> mReferrer;
   nsCOMPtr<nsICancelable> mCancelable;
   nsCOMPtr<nsIRequest> mRequest;
-  nsCOMPtr<nsIFile> mTempFile;
+  nsCOMPtr<nsILocalFile> mTempFile;
   nsCOMPtr<nsIMIMEInfo> mMIMEInfo;
 
   DownloadState mDownloadState;

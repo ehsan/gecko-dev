@@ -7,6 +7,7 @@
 
 interface nsISimpleEnumerator;
 interface nsIFile;
+interface nsILocalFile;
 interface nsIToolkitProfile;
 interface nsIProfileLock;
 
@@ -32,8 +33,8 @@ interface nsIToolkitProfileService : nsISupports
      * Lock an arbitrary path as a profile. If the path does not exist, it
      * will be created and the defaults copied from the application directory.
      */
-    nsIProfileLock lockProfilePath(in nsIFile aDirectory,
-                                   in nsIFile aTempDirectory);
+    nsIProfileLock lockProfilePath(in nsILocalFile aDirectory,
+                                   in nsILocalFile aTempDirectory);
 
     /**
      * Create a new profile.
@@ -48,8 +49,8 @@ interface nsIToolkitProfileService : nsISupports
      * @param aName
      *        The profile name.
      */
-    nsIToolkitProfile createProfile(in nsIFile aRootDir,
-                                    in nsIFile aTempDir,
+    nsIToolkitProfile createProfile(in nsILocalFile aRootDir,
+                                    in nsILocalFile aTempDir,
                                     in AUTF8String aName);
 
     /**

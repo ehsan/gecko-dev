@@ -84,6 +84,7 @@
 
 #include "nsIMIMEService.h"
 #include "nsCExternalHandlerService.h"
+#include "nsILocalFile.h"
 #include "nsIFileChannel.h"
 
 #include "nsPluginSafety.h"
@@ -95,6 +96,7 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsXULAppAPI.h"
 #include "nsAppDirectoryServiceDefs.h"
+#include "nsIFile.h"
 #include "nsPluginDirServiceProvider.h"
 #include "nsPluginError.h"
 
@@ -1544,7 +1546,7 @@ static nsresult CreateNPAPIPlugin(nsPluginTag *aPluginTag,
   if (!nsNPAPIPlugin::RunPluginOOP(aPluginTag)) {
     if (aPluginTag->mFullPath.IsEmpty())
       return NS_ERROR_FAILURE;
-    nsCOMPtr<nsIFile> file = do_CreateInstance("@mozilla.org/file/local;1");
+    nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1");
     file->InitWithPath(NS_ConvertUTF8toUTF16(aPluginTag->mFullPath));
     nsPluginFile pluginFile(file);
     PRLibrary* pluginLibrary = NULL;
@@ -1894,7 +1896,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
   if (NS_FAILED(rv))
     return rv;
 
-  nsAutoTArray<nsCOMPtr<nsIFile>, 6> pluginFiles;
+  nsAutoTArray<nsCOMPtr<nsILocalFile>, 6> pluginFiles;
 
   bool hasMore;
   while (NS_SUCCEEDED(iter->HasMoreElements(&hasMore)) && hasMore) {
@@ -1902,7 +1904,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
     rv = iter->GetNext(getter_AddRefs(supports));
     if (NS_FAILED(rv))
       continue;
-    nsCOMPtr<nsIFile> dirEntry(do_QueryInterface(supports, &rv));
+    nsCOMPtr<nsILocalFile> dirEntry(do_QueryInterface(supports, &rv));
     if (NS_FAILED(rv))
       continue;
 
@@ -1918,7 +1920,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
   bool warnOutdated = false;
 
   for (PRUint32 i = 0; i < pluginFiles.Length(); i++) {
-    nsCOMPtr<nsIFile>& localfile = pluginFiles[i];
+    nsCOMPtr<nsILocalFile>& localfile = pluginFiles[i];
 
     nsString utf16FilePath;
     rv = localfile->GetPath(utf16FilePath);
@@ -2443,7 +2445,11 @@ nsPluginHost::WritePluginInfo()
   if (NS_FAILED(rv))
     return rv;
 
-  rv = pluginReg->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE, 0600, &fd);
+  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(pluginReg, &rv);
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = localFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE, 0600, &fd);
   if (NS_FAILED(rv))
     return rv;
 
@@ -2549,9 +2555,9 @@ nsPluginHost::WritePluginInfo()
 
   PR_Close(fd);
   nsCOMPtr<nsIFile> parent;
-  rv = pluginReg->GetParent(getter_AddRefs(parent));
+  rv = localFile->GetParent(getter_AddRefs(parent));
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = pluginReg->MoveToNative(parent, kPluginRegistryFilename);
+  rv = localFile->MoveToNative(parent, kPluginRegistryFilename);
   return rv;
 }
 
@@ -2591,8 +2597,12 @@ nsPluginHost::ReadPluginInfo()
   if (NS_FAILED(rv))
     return rv;
 
+  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(pluginReg, &rv);
+  if (NS_FAILED(rv))
+    return rv;
+
   PRInt64 fileSize;
-  rv = pluginReg->GetFileSize(&fileSize);
+  rv = localFile->GetFileSize(&fileSize);
   if (NS_FAILED(rv))
     return rv;
 
@@ -2607,7 +2617,7 @@ nsPluginHost::ReadPluginInfo()
   if (!registry)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  rv = pluginReg->OpenNSPRFileDesc(PR_RDONLY, 0444, &fd);
+  rv = localFile->OpenNSPRFileDesc(PR_RDONLY, 0444, &fd);
   if (NS_FAILED(rv))
     return rv;
 
@@ -2710,7 +2720,7 @@ nsPluginHost::ReadPluginInfo()
         return rv;
       // try to derive a file name from the full path
       if (fullpath) {
-        nsCOMPtr<nsIFile> file = do_CreateInstance("@mozilla.org/file/local;1");
+        nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1");
         file->InitWithNativePath(nsDependentCString(fullpath));
         file->GetNativeLeafName(derivedFileName);
         filename = derivedFileName.get();
@@ -3522,7 +3532,7 @@ nsPluginHost::CreateTempFileToPost(const char *aPostDataURL, nsIFile **aTmpFile)
   rv = NS_GetFileFromURLSpec(nsDependentCString(aPostDataURL),
                              getter_AddRefs(inFile));
   if (NS_FAILED(rv)) {
-    nsCOMPtr<nsIFile> localFile;
+    nsCOMPtr<nsILocalFile> localFile;
     rv = NS_NewNativeLocalFile(nsDependentCString(aPostDataURL), false,
                                getter_AddRefs(localFile));
     if (NS_FAILED(rv)) return rv;

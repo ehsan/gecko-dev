@@ -257,7 +257,7 @@ private:
     nsCString mUpdateDomain;
     nsCOMPtr<nsIURI> mManifestURI;
     nsCOMPtr<nsIURI> mDocumentURI;
-    nsCOMPtr<nsIFile> mCustomProfileDir;
+    nsCOMPtr<nsILocalFile> mCustomProfileDir;
 
     nsCString mClientID;
     nsCOMPtr<nsIApplicationCache> mApplicationCache;
@@ -317,7 +317,7 @@ public:
                       nsIURI *aDocumentURI,
                       nsIDOMDocument *aDocument,
                       nsIDOMWindow* aWindow,
-                      nsIFile* aCustomProfileDir,
+                      nsILocalFile* aCustomProfileDir,
                       nsIOfflineCacheUpdate **aUpdate);
 
     virtual nsresult UpdateFinished(nsOfflineCacheUpdate *aUpdate);

@@ -98,7 +98,7 @@ nsZipHandle::nsZipHandle()
 NS_IMPL_THREADSAFE_ADDREF(nsZipHandle)
 NS_IMPL_THREADSAFE_RELEASE(nsZipHandle)
 
-nsresult nsZipHandle::Init(nsIFile *file, nsZipHandle **ret)
+nsresult nsZipHandle::Init(nsILocalFile *file, nsZipHandle **ret)
 {
   mozilla::AutoFDClose fd;
   nsresult rv = file->OpenNSPRFileDesc(PR_RDONLY, 0000, &fd.rwget());
@@ -192,7 +192,7 @@ nsresult nsZipArchive::OpenArchive(nsZipHandle *aZipHandle)
   nsresult rv = BuildFileList();
   char *env = PR_GetEnv("MOZ_JAR_LOG_DIR");
   if (env && NS_SUCCEEDED(rv) && aZipHandle->mFile) {
-    nsCOMPtr<nsIFile> logFile;
+    nsCOMPtr<nsILocalFile> logFile;
     nsresult rv2 = NS_NewLocalFile(NS_ConvertUTF8toUTF16(env), false, getter_AddRefs(logFile));
     
     if (!NS_SUCCEEDED(rv2))
@@ -202,7 +202,7 @@ nsresult nsZipArchive::OpenArchive(nsZipHandle *aZipHandle)
     logFile->Create(nsIFile::DIRECTORY_TYPE, 0700);
 
     nsAutoString name;
-    nsCOMPtr<nsIFile> file = aZipHandle->mFile.GetBaseFile();
+    nsCOMPtr<nsILocalFile> file = aZipHandle->mFile.GetBaseFile();
     file->GetLeafName(name);
     name.Append(NS_LITERAL_STRING(".log"));
     logFile->Append(name);
@@ -217,8 +217,12 @@ nsresult nsZipArchive::OpenArchive(nsZipHandle *aZipHandle)
 
 nsresult nsZipArchive::OpenArchive(nsIFile *aFile)
 {
+  nsresult rv;
+  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(aFile, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsRefPtr<nsZipHandle> handle;
-  nsresult rv = nsZipHandle::Init(aFile, getter_AddRefs(handle));
+  rv = nsZipHandle::Init(localFile, getter_AddRefs(handle));
   if (NS_FAILED(rv))
     return rv;
 

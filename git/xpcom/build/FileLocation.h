@@ -8,7 +8,7 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIURI.h"
 #include "FileUtils.h"
 
@@ -36,16 +36,16 @@ public:
   /**
    * Constructor for plain files
    */
-  FileLocation(nsIFile *file)
+  FileLocation(nsILocalFile *file)
   {
     Init(file);
   }
 
   /**
    * Constructors for path within an archive. The archive can be given either
-   * as nsIFile or nsZipArchive.
+   * as nsILocalFile or nsZipArchive.
    */
-  FileLocation(nsIFile *zip, const char *path)
+  FileLocation(nsILocalFile *zip, const char *path)
   {
     Init(zip, path);
   }
@@ -63,14 +63,14 @@ public:
   /**
    * Initialization functions corresponding to constructors
    */
-  void Init(nsIFile *file)
+  void Init(nsILocalFile *file)
   {
     mBaseZip = NULL;
     mBaseFile = file;
     mPath.Truncate();
   }
 
-  void Init(nsIFile *zip, const char *path)
+  void Init(nsILocalFile *zip, const char *path)
   {
     mBaseZip = NULL;
     mBaseFile = zip;
@@ -95,7 +95,7 @@ public:
    * - The archive file when the location is in an archive
    * - The outer archive file when the location is in an archive in an archive
    */
-  already_AddRefed<nsIFile> GetBaseFile();
+  already_AddRefed<nsILocalFile> GetBaseFile();
 
   /**
    * Returns whether the "base file" (see GetBaseFile) is an archive
@@ -155,7 +155,7 @@ public:
    */
   nsresult GetData(Data &data);
 private:
-  nsCOMPtr<nsIFile> mBaseFile;
+  nsCOMPtr<nsILocalFile> mBaseFile;
   nsRefPtr<nsZipArchive> mBaseZip;
   nsCString mPath;
 }; /* class FileLocation */

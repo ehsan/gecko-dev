@@ -38,7 +38,7 @@ nsresult TestWinAttribs()
 
     // File variables
     HANDLE hIndexed;
-    nsCOMPtr<nsIFile> localFile;
+    nsCOMPtr<nsILocalFile> localFile;
     WCHAR filePath[MAX_PATH];
 
     // Create and open temporary file

@@ -27,9 +27,10 @@
 #include "nsIServiceManager.h"
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsStringAPI.h"
 #include "nsIDirectoryService.h"
+#include "nsILocalFile.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nscore.h"
@@ -90,12 +91,12 @@ public:
 
     bool SetGREDir(const char *dir);
     void ClearGREDir() { mGREDir = nsnull; }
-    void SetAppFile(nsIFile *appFile);
+    void SetAppFile(nsILocalFile *appFile);
     void ClearAppFile() { mAppFile = nsnull; }
 
 private:
-    nsCOMPtr<nsIFile> mGREDir;
-    nsCOMPtr<nsIFile> mAppFile;
+    nsCOMPtr<nsILocalFile> mGREDir;
+    nsCOMPtr<nsILocalFile> mAppFile;
 };
 
 /***************************************************************************/
@@ -170,7 +171,7 @@ GetLocationProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, jsval *vp)
         NS_ConvertUTF8toUTF16 filenameString(filename);
 #endif
 
-        nsCOMPtr<nsIFile> location;
+        nsCOMPtr<nsILocalFile> location;
         if (NS_SUCCEEDED(rv)) {
             rv = NS_NewLocalFile(filenameString,
                                  false, getter_AddRefs(location));
@@ -196,7 +197,7 @@ GetLocationProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, jsval *vp)
                 !symlink)
                 location->Normalize();
             rv = xpc->WrapNative(cx, obj, location,
-                                 NS_GET_IID(nsIFile),
+                                 NS_GET_IID(nsILocalFile),
                                  getter_AddRefs(locationHolder));
 
             if (NS_SUCCEEDED(rv) &&
@@ -1704,7 +1705,7 @@ main(int argc, char **argv, char **envp)
 
     NS_LogInit();
 
-    nsCOMPtr<nsIFile> appFile;
+    nsCOMPtr<nsILocalFile> appFile;
     rv = XRE_GetBinaryPath(argv[0], getter_AddRefs(appFile));
     if (NS_FAILED(rv)) {
         printf("Couldn't find application file.\n");
@@ -1737,7 +1738,7 @@ main(int argc, char **argv, char **envp)
         if (argc < 3)
             return usage();
 
-        nsCOMPtr<nsIFile> dir;
+        nsCOMPtr<nsILocalFile> dir;
         rv = XRE_GetFileFromPath(argv[2], getter_AddRefs(dir));
         if (NS_SUCCEEDED(rv)) {
             appDir = do_QueryInterface(dir, &rv);
@@ -1754,7 +1755,7 @@ main(int argc, char **argv, char **envp)
         if (argc < 3)
             return usage();
 
-        nsCOMPtr<nsIFile> lf;
+        nsCOMPtr<nsILocalFile> lf;
         rv = XRE_GetFileFromPath(argv[2], getter_AddRefs(lf));
         if (NS_FAILED(rv)) {
             printf("Couldn't get manifest file.\n");
@@ -1768,8 +1769,8 @@ main(int argc, char **argv, char **envp)
 
     {
         if (argc > 1 && !strcmp(argv[1], "--greomni")) {
-            nsCOMPtr<nsIFile> greOmni;
-            nsCOMPtr<nsIFile> appOmni;
+            nsCOMPtr<nsILocalFile> greOmni;
+            nsCOMPtr<nsILocalFile> appOmni;
             XRE_GetFileFromPath(argv[2], getter_AddRefs(greOmni));
             if (argc > 3 && !strcmp(argv[3], "--appomni")) {
                 XRE_GetFileFromPath(argv[4], getter_AddRefs(appOmni));
@@ -2007,7 +2008,7 @@ XPCShellDirProvider::SetGREDir(const char *dir)
 }
 
 void
-XPCShellDirProvider::SetAppFile(nsIFile* appFile)
+XPCShellDirProvider::SetAppFile(nsILocalFile* appFile)
 {
     mAppFile = appFile;
 }
@@ -2067,7 +2068,7 @@ XPCShellDirProvider::GetFile(const char *prop, bool *persistent,
 #endif
         nsAutoString pathName;
         pathName.AssignASCII(path);
-        nsCOMPtr<nsIFile> localFile;
+        nsCOMPtr<nsILocalFile> localFile;
         nsresult rv = NS_NewLocalFile(pathName, true, getter_AddRefs(localFile));
         if (NS_FAILED(rv)) {
             return rv;
