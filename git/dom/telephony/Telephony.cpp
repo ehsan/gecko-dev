@@ -634,8 +634,12 @@ Telephony::NotifyError(uint32_t aServiceId,
                        int32_t aCallIndex,
                        const nsAString& aError)
 {
-  nsRefPtr<TelephonyCall> callToNotify =
-    GetCallFromEverywhere(aServiceId, aCallIndex);
+  if (mCalls.IsEmpty()) {
+    NS_ERROR("No existing call!");
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  nsRefPtr<TelephonyCall> callToNotify = GetCall(aServiceId, aCallIndex);
   if (!callToNotify) {
     NS_ERROR("Don't call me with a bad call index!");
     return NS_ERROR_UNEXPECTED;

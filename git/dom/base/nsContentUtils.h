@@ -1240,19 +1240,12 @@ public:
                                     nsAString& aResult, const mozilla::fallible_t&);
 
   /**
-   * Utility method that checks if a given node has any non-empty children. This
-   * method does not descend recursively into children by default.
-   *
-   * @param aDiscoverMode Set to eRecurseIntoChildren to descend recursively
-   * into children.
+   * Utility method that checks if a given node has any non-empty
+   * children.
+   * NOTE! This method does not descend recursivly into elements.
+   * Though it would be easy to make it so if needed
    */
-  enum TextContentDiscoverMode MOZ_ENUM_TYPE(uint8_t) {
-    eRecurseIntoChildren, eDontRecurseIntoChildren
-  };
-
-  static bool HasNonEmptyTextContent(
-    nsINode* aNode,
-    TextContentDiscoverMode aDiscoverMode = eDontRecurseIntoChildren);
+  static bool HasNonEmptyTextContent(nsINode* aNode);
 
   /**
    * Delete strings allocated for nsContentList matches

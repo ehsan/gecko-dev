@@ -392,8 +392,3 @@ partial interface Navigator {
   boolean sendBeacon(DOMString url,
                      optional (ArrayBufferView or Blob or DOMString or FormData)? data = null);
 };
-
-partial interface Navigator {
-  [Pref="dom.tv.enabled", CheckPermissions="tv", Func="Navigator::HasTVSupport"]
-  readonly attribute TVManager? tv;
-};

@@ -75,14 +75,6 @@ const cloneValueInto = function(value, targetWindow) {
     return value;
   }
 
-  // Strip Function properties, since they can not be cloned across boundaries
-  // like this.
-  for (let prop of Object.getOwnPropertyNames(value)) {
-    if (typeof value[prop] == "function") {
-      delete value[prop];
-    }
-  }
-
   // Inspect for an error this way, because the Error object is special.
   if (value.constructor.name == "Error") {
     return cloneErrorObject(value, targetWindow);
@@ -184,10 +176,8 @@ function injectLoopAPI(targetWindow) {
           }
 
           // We have to clone the error property since it may be an Error object.
-          if (error.hasOwnProperty("toString")) {
-            delete error.toString;
-          }
           errors[type] = Cu.cloneInto(error, targetWindow);
+
         }
         return Cu.cloneInto(errors, targetWindow);
       },
@@ -206,34 +196,34 @@ function injectLoopAPI(targetWindow) {
     },
 
     /**
-     * Returns the callData for a specific conversation window id.
+     * Returns the callData for a specific callDataId
      *
      * The data was retrieved from the LoopServer via a GET/calls/<version> request
      * triggered by an incoming message from the LoopPushServer.
      *
-     * @param {Number} conversationWindowId
+     * @param {int} loopCallId
      * @returns {callData} The callData or undefined if error.
      */
     getCallData: {
       enumerable: true,
       writable: true,
-      value: function(conversationWindowId) {
-        return Cu.cloneInto(LoopCalls.getCallData(conversationWindowId), targetWindow);
+      value: function(loopCallId) {
+        return Cu.cloneInto(LoopCalls.getCallData(loopCallId), targetWindow);
       }
     },
 
     /**
-     * Releases the callData for a specific conversation window id.
+     * Releases the callData for a specific loopCallId
      *
      * The result of this call will be a free call session slot.
      *
-     * @param {Number} conversationWindowId
+     * @param {int} loopCallId
      */
     releaseCallData: {
       enumerable: true,
       writable: true,
-      value: function(conversationWindowId) {
-        LoopCalls.releaseCallData(conversationWindowId);
+      value: function(loopCallId) {
+        LoopCalls.releaseCallData(loopCallId);
       }
     },
 
