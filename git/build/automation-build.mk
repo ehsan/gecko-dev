@@ -1,4 +1,5 @@
-ifneq (,$(filter OS2 WINCE WINNT,$(OS_ARCH)))
+
+ifeq ($(USE_SHORT_LIBNAME), 1)
 PROGRAM = $(MOZ_APP_NAME)$(BIN_SUFFIX)
 else
 PROGRAM = $(MOZ_APP_NAME)-bin$(BIN_SUFFIX)

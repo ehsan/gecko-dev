@@ -431,15 +431,6 @@ function openReleaseNotes()
   openUILinkIn(relnotesURL, "tab");
 }
 
-/**
- * Opens the troubleshooting information (about:support) page for this version
- * of the application.
- */
-function openTroubleshootingPage()
-{
-  openUILinkIn("about:support", "tab");
-}
-
 #ifdef MOZ_UPDATER
 /**
  * Opens the update manager and checks for updates to the application.
