@@ -46,7 +46,6 @@
 #include "nsEscape.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
-#include "nsIViewSourceChannel.h"
 #include "nsChannelProperties.h"
 
 #include "nsIScriptSecurityManager.h"
@@ -787,11 +786,8 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
             nsCAutoString contentType;
             nsCAutoString charset;
             NS_ParseContentType(header, contentType, charset);
-            nsCAutoString channelContentType;
-            channel->GetContentType(channelContentType);
-            mIsUnsafe = !(contentType.Equals(channelContentType) &&
-                          (contentType.EqualsLiteral("application/java-archive") ||
-                           contentType.EqualsLiteral("application/x-jar")));
+            mIsUnsafe = !contentType.EqualsLiteral("application/java-archive") &&
+                        !contentType.EqualsLiteral("application/x-jar");
             rv = httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Content-Disposition"),
                                                 header);
             if (NS_SUCCEEDED(rv))
@@ -820,14 +816,6 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
         }
 
         if (!allowUnpack) {
-            status = NS_ERROR_UNSAFE_CONTENT_TYPE;
-        }
-    }
-
-    if (NS_SUCCEEDED(status)) {
-        // Refuse to unpack view-source: jars even if open-unsafe-types is set.
-        nsCOMPtr<nsIViewSourceChannel> viewSource = do_QueryInterface(channel);
-        if (viewSource) {
             status = NS_ERROR_UNSAFE_CONTENT_TYPE;
         }
     }

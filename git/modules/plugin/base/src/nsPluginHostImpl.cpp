@@ -5434,15 +5434,15 @@ nsPluginHostImpl::ReadPluginInfo()
     return rv;
 
   while (reader.NextLine()) {
-    const char *filename = reader.LinePtr();
+    char *filename = reader.LinePtr();
     if (!reader.NextLine())
       return rv;
 
-    const char *fullpath = reader.LinePtr();
+    char *fullpath = reader.LinePtr();
     if (!reader.NextLine())
       return rv;
 
-    const char *version;
+    char *version;
     if (regHasVersion) {
       version = reader.LinePtr();
       if (!reader.NextLine())
@@ -5462,11 +5462,11 @@ nsPluginHostImpl::ReadPluginInfo()
     if (!reader.NextLine())
       return rv;
 
-    const char *description = reader.LinePtr();
+    char *description = reader.LinePtr();
     if (!reader.NextLine())
       return rv;
 
-    const char *name = reader.LinePtr();
+    char *name = reader.LinePtr();
     if (!reader.NextLine())
       return rv;
 

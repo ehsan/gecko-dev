@@ -264,7 +264,7 @@ class nsDataObj : public IDataObject,
 
 		ULONG        m_cRef;              // the reference count
 
-    nsTArray<nsCString> mDataFlavors;
+    nsTPtrArray<nsCString> mDataFlavors;
 
     nsITransferable  * mTransferable; // nsDataObj owns and ref counts nsITransferable, 
                                       // the nsITransferable does know anything about the nsDataObj

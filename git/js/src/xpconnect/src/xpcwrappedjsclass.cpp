@@ -1470,13 +1470,13 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
                     {
                         // JSPROP_GETTER means the getter is actually a
                         // function object.
-                        ccx.SetCallee(JS_FUNC_TO_DATA_PTR(JSObject*, getter));
+                        ccx.SetCallee((JSObject*)getter);
                     }
                     else if(XPT_MD_IS_SETTER(info->flags) && (attrs & JSPROP_SETTER))
                     {
                         // JSPROP_SETTER means the setter is actually a
                         // function object.
-                        ccx.SetCallee(JS_FUNC_TO_DATA_PTR(JSObject*, setter));
+                        ccx.SetCallee((JSObject*)setter);
                     }
                 }
             }

@@ -78,8 +78,14 @@ nsDataObjCollection::~nsDataObjCollection()
 
   PRUint32 i;
 
-  mDataFlavors.Clear();
-  mDataObjects.Clear();
+  for (i = 0; i < mDataFlavors.Length(); ++i) {
+    delete mDataFlavors.ElementAt(i);
+  }
+ 
+  for (i = 0; i < mDataObjects.Length(); ++i) {
+    IDataObject * dataObj = mDataObjects.ElementAt(i);
+    NS_RELEASE(dataObj);
+  }
 
   m_enumFE->Release();
 }
@@ -332,7 +338,7 @@ void nsDataObjCollection::AddDataFlavor(nsString * aDataFlavor, LPFORMATETC aFE)
   // Later, OLE will tell us it's needs a certain type of FORMATETC (text, unicode, etc)
   // so we will look up data flavor that corresponds to the FE
   // and then ask the transferable for that type of data
-  mDataFlavors.AppendElement(*aDataFlavor);
+  mDataFlavors.AppendElement(new nsString(*aDataFlavor));
   m_enumFE->AddFE(aFE);
 }
 
@@ -341,5 +347,6 @@ void nsDataObjCollection::AddDataFlavor(nsString * aDataFlavor, LPFORMATETC aFE)
 //-----------------------------------------------------
 void nsDataObjCollection::AddDataObject(IDataObject * aDataObj)
 {
+  NS_ADDREF(aDataObj);
   mDataObjects.AppendElement(aDataObj);
 }

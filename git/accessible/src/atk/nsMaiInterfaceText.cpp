@@ -40,8 +40,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsMaiInterfaceText.h"
-
-#include "nsRoleMap.h"
 #include "nsString.h"
 #include "nsIPersistentProperties2.h"
 
@@ -80,10 +78,9 @@ textInterfaceInitCB(AtkTextIface *aIface)
 void ConvertTexttoAsterisks(nsAccessibleWrap* accWrap, nsAString& aString)
 {
     // convert each char to "*" when it's "password text" 
-    PRUint32 accRole = 0;
+    PRUint32 accRole;
     accWrap->GetRoleInternal(&accRole);
-    PRUint32 atkRole = atkRoleMap[accRole];
-    if (atkRole == ATK_ROLE_PASSWORD_TEXT) {
+    if (static_cast<AtkRole>(accRole) == ATK_ROLE_PASSWORD_TEXT) {
         for (PRUint32 i = 0; i < aString.Length(); i++)
             aString.Replace(i, 1, NS_LITERAL_STRING("*"));
     }
@@ -191,9 +188,9 @@ getCharacterAtOffsetCB(AtkText *aText, gint aOffset)
     // convert char to "*" when it's "password text" 
     PRUint32 accRole;
     accWrap->GetRoleInternal(&accRole);
-    PRUint32 atkRole = atkRoleMap[accRole];
-    if (atkRole == ATK_ROLE_PASSWORD_TEXT)
+    if (static_cast<AtkRole>(accRole) == ATK_ROLE_PASSWORD_TEXT) {
         uniChar = '*';
+    }
 
     return (NS_FAILED(rv)) ? 0 : static_cast<gunichar>(uniChar);
 }
