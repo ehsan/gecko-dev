@@ -39,9 +39,7 @@ function getGlobalCache(aInnerWindowID) {
 }
 
 // when the window is destroyed, eliminate the associated globals cache
-if (!isWorker) {
-  Services.obs.addObserver(function observer(subject, topic, data) {
-    let id = subject.QueryInterface(Ci.nsISupportsPRUint64).data;
-    delete globalsCache[id];
-  }, 'inner-window-destroyed', false);
-}
+Services.obs.addObserver(function observer(subject, topic, data) {
+  let id = subject.QueryInterface(Ci.nsISupportsPRUint64).data;
+  delete globalsCache[id];
+}, 'inner-window-destroyed', false);

@@ -7,21 +7,22 @@ MARIONETTE_HEAD_JS = "head.js";
 const TEST_NUMBER = "0912345678";
 const TEST_TIME_SECONDS = 5;
 const TEST_DATA = [
-  // Currently emulator doesn't support CALL_FORWARD_REASON_ALL_CALL_FORWARDING
-  // and CALL_FORWARD_REASON_ALL_CONDITIONAL_CALL_FORWARDING, so
-  // we expect to get a 'GenericFailure' error here.
+  // Test get calling forwarding.
+  // TODO: Bug 861725 - B2G Emulator: support call forwarding
+  // Currently emulator doesn't support REQUEST_QUERY_CALL_FORWARD_STATUS, so
+  // we expect to get a 'RequestNotSupported' error here.
   {
     options: {
       action: MozMobileConnection.CALL_FORWARD_ACTION_DISABLE,
-      reason: MozMobileConnection.CALL_FORWARD_REASON_ALL_CALL_FORWARDING,
+      reason: MozMobileConnection.CALL_FORWARD_REASON_UNCONDITIONAL,
     },
-    errorMsg: "GenericFailure"
+    expectedErrorMsg: "RequestNotSupported"
   }, {
     options: {
       action: MozMobileConnection.CALL_FORWARD_ACTION_ENABLE,
-      reason: MozMobileConnection.CALL_FORWARD_REASON_ALL_CONDITIONAL_CALL_FORWARDING,
+      reason: MozMobileConnection.CALL_FORWARD_REASON_MOBILE_BUSY,
     },
-    errorMsg: "GenericFailure"
+    expectedErrorMsg: "RequestNotSupported"
   },
   // Test passing invalid action. We expect to get a 'InvalidParameter' error.
   {
@@ -30,13 +31,13 @@ const TEST_DATA = [
       action: MozMobileConnection.CALL_FORWARD_ACTION_QUERY_STATUS,
       reason: MozMobileConnection.CALL_FORWARD_REASON_MOBILE_BUSY,
     },
-    errorMsg: "InvalidParameter"
+    expectedErrorMsg: "InvalidParameter"
   }, {
     options: {
       action: 10 /* Invalid action */,
       reason: MozMobileConnection.CALL_FORWARD_REASON_MOBILE_BUSY,
     },
-    errorMsg: "InvalidParameter"
+    expectedErrorMsg: "InvalidParameter"
   },
   // Test passing invalid reason. We expect to get a 'InvalidParameter' error.
   {
@@ -44,11 +45,11 @@ const TEST_DATA = [
       action: MozMobileConnection.CALL_FORWARD_ACTION_DISABLE,
       reason: 10 /*Invalid reason*/,
     },
-    errorMsg: "InvalidParameter"
+    expectedErrorMsg: "InvalidParameter"
   }
 ];
 
-function testSetCallForwardingOption(aOptions, aErrorMsg) {
+function testSetCallForwardingOption(aOptions, aExpectedErrorMsg) {
   log("Test setting call forwarding to " + JSON.stringify(aOptions));
 
   aOptions.number = TEST_NUMBER;
@@ -56,9 +57,9 @@ function testSetCallForwardingOption(aOptions, aErrorMsg) {
 
   return setCallForwardingOption(aOptions)
     .then(function resolve() {
-      ok(false, "setCallForwardingOption success");
+      ok(!aExpectedErrorMsg, "setCallForwardingOption success");
     }, function reject(aError) {
-      is(aError.name, aErrorMsg, "failed to setCallForwardingOption");
+      is(aError.name, aExpectedErrorMsg, "failed to setCallForwardingOption");
     });
 }
 
@@ -68,7 +69,7 @@ startTestCommon(function() {
   for (let i = 0; i < TEST_DATA.length; i++) {
     let data = TEST_DATA[i];
     promise = promise.then(() => testSetCallForwardingOption(data.options,
-                                                             data.errorMsg));
+                                                             data.expectedErrorMsg));
   }
   return promise;
 });

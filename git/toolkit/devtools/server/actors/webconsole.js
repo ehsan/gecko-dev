@@ -7,6 +7,7 @@
 "use strict";
 
 const { Cc, Ci, Cu } = require("chrome");
+const Debugger = require("Debugger");
 const { DebuggerServer, ActorPool } = require("devtools/server/main");
 const { EnvironmentActor, LongStringActor, ObjectActor, ThreadActor } = require("devtools/server/actors/script");
 const { update } = require("devtools/toolkit/DevToolsUtils");

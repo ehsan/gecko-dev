@@ -238,5 +238,8 @@ let gPage = {
       let shownCount = Math.min(10, count);
       Services.telemetry.getHistogramById(shownId).add(shownCount);
     }
+
+    // Set up initial search state.
+    gSearch.setUpInitialState();
   }
 };

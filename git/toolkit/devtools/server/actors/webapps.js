@@ -164,9 +164,8 @@ PackageUploadBulkActor.prototype._closeFile = function() {
 };
 
 PackageUploadBulkActor.prototype.stream = function({copyTo}) {
-  return copyTo(this.openedFile).then(() => {
+  copyTo(this.openedFile).then(() => {
     this._closeFile();
-    return {};
   });
 };
 
