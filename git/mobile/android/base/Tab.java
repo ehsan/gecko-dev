@@ -22,7 +22,6 @@ import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 
@@ -89,7 +88,7 @@ public class Tab {
         mZoomConstraints = new ZoomConstraints(false);
         mPluginViews = new ArrayList<View>();
         mPluginLayers = new HashMap<Object, Layer>();
-        mState = shouldShowProgress(url) ? STATE_SUCCESS : STATE_LOADING;
+        mState = GeckoApp.shouldShowProgress(url) ? STATE_SUCCESS : STATE_LOADING;
     }
 
     private ContentResolver getContentResolver() {
@@ -529,32 +528,6 @@ public class Tab {
 
         Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, uri);
     }
-
-    private boolean shouldShowProgress(String url) {
-        return "about:home".equals(url) || ReaderModeUtils.isAboutReader(url);
-    }
-
-    void handleDocumentStart(boolean showProgress, String url) {
-        setState(shouldShowProgress(url) ? STATE_SUCCESS : STATE_LOADING);
-        updateIdentityData(null);
-        setReaderEnabled(false);
-    }
-
-    void handleDocumentStop(boolean success) {
-        setState(success ? STATE_SUCCESS : STATE_ERROR);
-
-        final String oldURL = getURL();
-        final Tab tab = this;
-        GeckoAppShell.getHandler().postDelayed(new Runnable() {
-            public void run() {
-                // tab.getURL() may return null
-                if (!TextUtils.equals(oldURL, getURL()))
-                    return;
-
-                ThumbnailHelper.getInstance().getAndProcessThumbnailFor(tab);
-            }
-        }, 500);
-     }
 
     protected void saveThumbnailToDB() {
         try {

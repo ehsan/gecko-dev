@@ -201,9 +201,6 @@ public class TabsTray extends TwoWayView
             int selected = getPositionForTab(Tabs.getInstance().getSelectedTab());
             for (int i=0; i < getCount(); i++)
                  TabsTray.this.setItemChecked(i, (i == selected));
-
-            if (selected != -1)
-                TabsTray.this.setSelection(selected);
         }
 
         public void clear() {

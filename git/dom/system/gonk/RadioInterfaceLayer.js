@@ -96,9 +96,6 @@ const RIL_IPC_MOBILECONNECTION_MSG_NAMES = [
   "RIL:SendStkMenuSelection",
   "RIL:SendStkTimerExpiration",
   "RIL:SendStkEventDownload",
-  "RIL:IccOpenChannel",
-  "RIL:IccExchangeAPDU",
-  "RIL:IccCloseChannel",
   "RIL:RegisterMobileConnectionMsg",
   "RIL:SetCallForwardingOption",
   "RIL:GetCallForwardingOption"
@@ -496,18 +493,6 @@ RadioInterfaceLayer.prototype = {
       case "RIL:SendStkEventDownload":
         this.sendStkEventDownload(msg.json);
         break;
-      case "RIL:IccOpenChannel":
-        this.saveRequestTarget(msg);
-        this.iccOpenChannel(msg.json);
-        break;
-      case "RIL:IccCloseChannel":
-        this.saveRequestTarget(msg);
-        this.iccCloseChannel(msg.json);
-        break;
-      case "RIL:IccExchangeAPDU":
-        this.saveRequestTarget(msg);
-        this.iccExchangeAPDU(msg.json);
-        break;
       case "RIL:RegisterMobileConnectionMsg":
         this.registerMessageTarget("mobileconnection", msg.target);
         break;
@@ -565,15 +550,6 @@ RadioInterfaceLayer.prototype = {
         break;
       case "callError":
         this.handleCallError(message);
-        break;
-      case "iccOpenChannel":
-        this.handleIccOpenChannel(message);
-        break;
-      case "iccCloseChannel":
-        this.handleIccCloseChannel(message);
-        break;
-      case "iccExchangeAPDU":
-        this.handleIccExchangeAPDU(message);
         break;
       case "getAvailableNetworks":
         this.handleGetAvailableNetworks(message);
@@ -1389,30 +1365,6 @@ RadioInterfaceLayer.prototype = {
   },
 
   /**
-   * Open Logical UICC channel (aid) for Secure Element access
-   */
-  handleIccOpenChannel: function handleIccOpenChannel(message) {
-    debug("handleIccOpenChannel: " + JSON.stringify(message));
-    this._sendRequestResults("RIL:IccOpenChannel", message);
-  },
-
-  /**
-   * Close Logical UICC channel
-   */
-  handleIccCloseChannel: function handleIccCloseChannel(message) {
-    debug("handleIccCloseChannel: " + JSON.stringify(message));
-    this._sendRequestResults("RIL:IccCloseChannel", message);
-  },
-
-  /**
-   * Exchange APDU data on an open Logical UICC channel
-   */
-  handleIccExchangeAPDU: function handleIccExchangeAPDU(message) {
-    debug("handleIccExchangeAPDU: " + JSON.stringify(message));
-    this._sendRequestResults("RIL:IccExchangeAPDU", message);
-  },
-
-  /**
    * Handle available networks returned by the 'getAvailableNetworks' request.
    */
   handleGetAvailableNetworks: function handleGetAvailableNetworks(message) {
@@ -1476,18 +1428,6 @@ RadioInterfaceLayer.prototype = {
                                      0, options);
   },
 
-  createSmsMessageFromRecord: function createSmsMessageFromRecord(aRecord) {
-    return gSmsService.createSmsMessage(aRecord.id,
-                                        aRecord.delivery,
-                                        aRecord.deliveryStatus,
-                                        aRecord.sender,
-                                        aRecord.receiver,
-                                        aRecord.body,
-                                        aRecord.messageClass,
-                                        aRecord.timestamp,
-                                        aRecord.read);
-  },
-
   portAddressedSmsApps: null,
   handleSmsReceived: function handleSmsReceived(message) {
     debug("handleSmsReceived: " + JSON.stringify(message));
@@ -1513,11 +1453,6 @@ RadioInterfaceLayer.prototype = {
       return true;
     }
 
-    message.type = "sms";
-    message.sender = message.sender || null;
-    message.receiver = message.receiver || null;
-    message.body = message.fullBody = message.fullBody || null;
-
     // TODO: Bug #768441
     // For now we don't store indicators persistently. When the mwi.discard
     // flag is false, we'll need to persist the indicator to EFmwis.
@@ -1525,14 +1460,13 @@ RadioInterfaceLayer.prototype = {
 
     let mwi = message.mwi;
     if (mwi) {
-      mwi.returnNumber = message.sender;
-      mwi.returnMessage = message.fullBody;
+      mwi.returnNumber = message.sender || null;
+      mwi.returnMessage = message.fullBody || null;
       this._sendTargetMessage("voicemail", "RIL:VoicemailNotification", mwi);
       return true;
     }
 
-    let notifyReceived = function notifyReceived(rv, record) {
-      let sms = this.createSmsMessageFromRecord(record);
+    let notifyReceived = function notifyReceived(rv, sms) {
       let success = Components.isSuccessCode(rv);
 
       // Acknowledge the reception of the SMS.
@@ -1550,30 +1484,38 @@ RadioInterfaceLayer.prototype = {
       }
 
       gSystemMessenger.broadcastMessage("sms-received", {
-        id: message.id,
-        delivery: DOM_SMS_DELIVERY_RECEIVED,
-        deliveryStatus: RIL.GECKO_SMS_DELIVERY_STATUS_SUCCESS,
-        sender: message.sender,
-        receiver: message.receiver,
-        body: message.fullBody,
-        messageClass: message.messageClass,
-        timestamp: message.timestamp,
-        read: false
+          id: message.id,
+          delivery: DOM_SMS_DELIVERY_RECEIVED,
+          deliveryStatus: RIL.GECKO_SMS_DELIVERY_STATUS_SUCCESS,
+          sender: message.sender || null,
+          receiver: message.receiver || null,
+          body: message.fullBody || null,
+          messageClass: message.messageClass,
+          timestamp: message.timestamp,
+          read: false
       });
-
       Services.obs.notifyObservers(sms, kSmsReceivedObserverTopic, null);
     }.bind(this);
 
     if (message.messageClass != RIL.GECKO_SMS_MESSAGE_CLASSES[RIL.PDU_DCS_MSG_CLASS_0]) {
-      message.id = gMobileMessageDatabaseService.saveReceivedMessage(message,
-                                                                     notifyReceived);
+      message.id = gMobileMessageDatabaseService.saveReceivedMessage(
+        message.sender || null,
+        message.fullBody || null,
+        message.messageClass,
+        message.timestamp,
+        notifyReceived);
     } else {
       message.id = -1;
-      message.delivery = DOM_SMS_DELIVERY_RECEIVED;
-      message.deliveryStatus = RIL.GECKO_SMS_DELIVERY_STATUS_SUCCESS;
-      message.read = false;
-
-      notifyReceived(Cr.NS_OK, message);
+      let sms = gSmsService.createSmsMessage(message.id,
+                                             DOM_SMS_DELIVERY_RECEIVED,
+                                             RIL.GECKO_SMS_DELIVERY_STATUS_SUCCESS,
+                                             message.sender || null,
+                                             message.receiver || null,
+                                             message.fullBody || null,
+                                             message.messageClass,
+                                             message.timestamp,
+                                             false);
+      notifyReceived(Cr.NS_OK, sms);
     }
 
     // SMS ACK will be sent in notifyReceived. Return false here.
@@ -1606,8 +1548,7 @@ RadioInterfaceLayer.prototype = {
     gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
                                                      DOM_SMS_DELIVERY_SENT,
                                                      options.sms.deliveryStatus,
-                                                     function notifyResult(rv, record) {
-      let sms = this.createSmsMessageFromRecord(record);
+                                                     function notifyResult(rv, sms) {
       //TODO bug 832140 handle !Components.isSuccessCode(rv)
       gSystemMessenger.broadcastMessage("sms-sent",
                                         {id: options.sms.id,
@@ -1645,14 +1586,13 @@ RadioInterfaceLayer.prototype = {
     gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
                                                      options.sms.delivery,
                                                      message.deliveryStatus,
-                                                     function notifyResult(rv, record) {
-      let sms = this.createSmsMessageFromRecord(record);
+                                                     function notifyResult(rv, sms) {
       //TODO bug 832140 handle !Components.isSuccessCode(rv)
       let topic = (message.deliveryStatus == RIL.GECKO_SMS_DELIVERY_STATUS_SUCCESS)
                   ? kSmsDeliverySuccessObserverTopic
                   : kSmsDeliveryErrorObserverTopic;
       Services.obs.notifyObservers(sms, topic, null);
-    }.bind(this));
+    });
   },
 
   handleSmsSendFailed: function handleSmsSendFailed(message) {
@@ -1674,12 +1614,11 @@ RadioInterfaceLayer.prototype = {
     gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
                                                      DOM_SMS_DELIVERY_ERROR,
                                                      RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
-                                                     function notifyResult(rv, record) {
-      let sms = this.createSmsMessageFromRecord(record);
+                                                     function notifyResult(rv, sms) {
       //TODO bug 832140 handle !Components.isSuccessCode(rv)
       options.request.notifySendMessageFailed(error);
       Services.obs.notifyObservers(sms, kSmsFailedObserverTopic, null);
-    }.bind(this));
+    });
   },
 
   /**
@@ -2156,24 +2095,6 @@ RadioInterfaceLayer.prototype = {
 
   sendStkEventDownload: function sendStkEventDownload(message) {
     message.rilMessageType = "sendStkEventDownload";
-    this.worker.postMessage(message);
-  },
-
-  iccOpenChannel: function iccOpenChannel(message) {
-    debug("ICC Open Channel");
-    message.rilMessageType = "iccOpenChannel";
-    this.worker.postMessage(message);
-  },
-
-  iccCloseChannel: function iccCloseChannel(message) {
-    debug("ICC Close Channel");
-    message.rilMessageType = "iccCloseChannel";
-    this.worker.postMessage(message);
-  },
-
-  iccExchangeAPDU: function iccExchangeAPDU(message) {
-    debug("ICC Exchange APDU");
-    message.rilMessageType = "iccExchangeAPDU";
     this.worker.postMessage(message);
   },
 
@@ -2658,17 +2579,8 @@ RadioInterfaceLayer.prototype = {
     let deliveryStatus = options.requestStatusReport
                        ? RIL.GECKO_SMS_DELIVERY_STATUS_PENDING
                        : RIL.GECKO_SMS_DELIVERY_STATUS_NOT_APPLICABLE;
-    let sendingMessage = {
-      type: "sms",
-      receiver: number,
-      body: message,
-      deliveryStatus: deliveryStatus,
-      timestamp: timestamp
-    };
-
-    let id = gMobileMessageDatabaseService.saveSendingMessage(sendingMessage,
-                                                              function notifyResult(rv, record) {
-      let sms = this.createSmsMessageFromRecord(record);
+    let id = gMobileMessageDatabaseService.saveSendingMessage(number, message, deliveryStatus, timestamp,
+                                                              function notifyResult(rv, sms) {
       //TODO bug 832140 handle !Components.isSuccessCode(rv)
       Services.obs.notifyObservers(sms, kSmsSendingObserverTopic, null);
 

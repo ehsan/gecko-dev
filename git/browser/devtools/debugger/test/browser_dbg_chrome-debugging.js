@@ -8,7 +8,6 @@
 
 var gClient = null;
 var gTab = null;
-var gHomeTab = null;
 var gThreadClient = null;
 var gNewGlobal = false;
 var gAttached = false;
@@ -34,7 +33,8 @@ function test()
           gAttached = true;
 
           // Ensure that a new global will be created.
-          gHomeTab = gBrowser.addTab("about:home");
+          let frame = content.document.createElement("iframe");
+          content.document.querySelector("body").appendChild(frame);
 
           finish_test();
         });
@@ -58,7 +58,6 @@ function finish_test()
   }
   gClient.removeListener("newScript", onNewScript);
   gThreadClient.resume(function(aResponse) {
-    removeTab(gHomeTab);
     removeTab(gTab);
     gClient.close(function() {
       ok(gNewGlobal, "Received newGlobal event.");

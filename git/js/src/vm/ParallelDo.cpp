@@ -19,9 +19,9 @@
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 
-#ifdef JS_ION
+#if defined(JS_THREADSAFE) && defined(JS_ION)
 #include "ion/ParallelArrayAnalysis.h"
-#endif // ION
+#endif // THREADSAFE && ION
 
 #if defined(DEBUG) && defined(JS_THREADSAFE) && defined(JS_ION)
 #include "ion/Ion.h"

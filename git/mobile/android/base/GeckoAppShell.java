@@ -1502,11 +1502,12 @@ public class GeckoAppShell
         boolean callback(int pid);
     }
 
+    static int sPidColumn = -1;
+    static int sUserColumn = -1;
     private static void EnumerateGeckoProcesses(GeckoProcessesVisitor visiter) {
-        int pidColumn = -1;
-        int userColumn = -1;
 
         try {
+
             // run ps and parse its output
             java.lang.Process ps = Runtime.getRuntime().exec("ps");
             BufferedReader in = new BufferedReader(new InputStreamReader(ps.getInputStream()),
@@ -1515,28 +1516,30 @@ public class GeckoAppShell
             String headerOutput = in.readLine();
 
             // figure out the column offsets.  We only care about the pid and user fields
-            StringTokenizer st = new StringTokenizer(headerOutput);
-            
-            int tokenSoFar = 0;
-            while (st.hasMoreTokens()) {
-                String next = st.nextToken();
-                if (next.equalsIgnoreCase("PID"))
-                    pidColumn = tokenSoFar;
-                else if (next.equalsIgnoreCase("USER"))
-                    userColumn = tokenSoFar;
-                tokenSoFar++;
+            if (sPidColumn == -1 || sUserColumn == -1) {
+                StringTokenizer st = new StringTokenizer(headerOutput);
+                
+                int tokenSoFar = 0;
+                while(st.hasMoreTokens()) {
+                    String next = st.nextToken();
+                    if (next.equalsIgnoreCase("PID"))
+                        sPidColumn = tokenSoFar;
+                    else if (next.equalsIgnoreCase("USER"))
+                        sUserColumn = tokenSoFar;
+                    tokenSoFar++;
+                }
             }
 
             // alright, the rest are process entries.
             String psOutput = null;
             while ((psOutput = in.readLine()) != null) {
                 String[] split = psOutput.split("\\s+");
-                if (split.length <= pidColumn || split.length <= userColumn)
+                if (split.length <= sPidColumn || split.length <= sUserColumn)
                     continue;
-                int uid = android.os.Process.getUidForName(split[userColumn]);
+                int uid = android.os.Process.getUidForName(split[sUserColumn]);
                 if (uid == android.os.Process.myUid() &&
                     !split[split.length - 1].equalsIgnoreCase("ps")) {
-                    int pid = Integer.parseInt(split[pidColumn]);
+                    int pid = Integer.parseInt(split[sPidColumn]);
                     boolean keepGoing = visiter.callback(pid);
                     if (keepGoing == false)
                         break;

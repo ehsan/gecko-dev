@@ -84,11 +84,14 @@
 
 import xpidl
 import header
-import makeutils
 import os, re
 import sys
 
 # === Preliminaries
+
+# --makedepend-output support.
+make_dependencies = []
+make_targets = []
 
 def warn(msg):
     sys.stderr.write(msg + '\n')
@@ -147,7 +150,7 @@ def findIDL(includePath, irregularFilenames, interfaceName):
                     % (interfaceName, includePath))
 
 def loadIDL(parser, includePath, filename):
-    makeutils.dependencies.append(filename)
+    make_dependencies.append(filename)
     text = open(filename, 'r').read()
     idl = parser.parse(text, filename=filename)
     idl.resolve(includePath, parser)
@@ -1241,7 +1244,7 @@ stubTopTemplate = '''\
 
 def writeStubFile(filename, headerFilename, conf, interfaces):
     print "Creating stub file", filename
-    makeutils.targets.append(filename)
+    make_targets.append(filename)
 
     f = open(filename, 'w')
     filesIncluded = set()
@@ -1293,6 +1296,23 @@ def writeStubFile(filename, headerFilename, conf, interfaces):
     finally:
         f.close()
 
+def makeQuote(filename):
+    return filename.replace(' ', '\\ ')  # enjoy!
+
+def writeMakeDependOutput(filename):
+    print "Creating makedepend file", filename
+    f = open(filename, 'w')
+    try:
+        if len(make_targets) > 0:
+            f.write("%s:" % makeQuote(make_targets[0]))
+            for filename in make_dependencies:
+                f.write(' \\\n\t\t%s' % makeQuote(filename))
+            f.write('\n\n')
+            for filename in make_targets[1:]:
+                f.write('%s: %s\n' % (makeQuote(filename), makeQuote(make_targets[0])))
+    finally:
+        f.close()
+
 def main():
     from optparse import OptionParser
     o = OptionParser(usage="usage: %prog [options] configfile")
@@ -1339,7 +1359,7 @@ def main():
                       conf, interfaces)
         writeHeaderFile(options.header_output, conf.name)
         if options.makedepend_output is not None:
-            makeutils.writeMakeDependOutput(options.makedepend_output)
+            writeMakeDependOutput(options.makedepend_output)
     except Exception, exc:
         if options.verbose_errors:
             raise

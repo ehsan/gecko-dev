@@ -5,7 +5,7 @@
 
 #include "mozilla/Util.h"
 
-#include "mozilla/dom/HTMLIFrameElement.h"
+#include "nsHTMLIFrameElement.h"
 #include "nsIDOMSVGDocument.h"
 #include "nsMappedAttributes.h"
 #include "nsAttrValueInlines.h"
@@ -14,86 +14,86 @@
 #include "nsStyleConsts.h"
 #include "nsContentUtils.h"
 
+using namespace mozilla;
+using namespace mozilla::dom;
+
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(IFrame)
 
-DOMCI_NODE_DATA(HTMLIFrameElement, mozilla::dom::HTMLIFrameElement)
-
-namespace mozilla {
-namespace dom {
-
-HTMLIFrameElement::HTMLIFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                     FromParser aFromParser)
+nsHTMLIFrameElement::nsHTMLIFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                                         FromParser aFromParser)
   : nsGenericHTMLFrameElement(aNodeInfo, aFromParser)
 {
 }
 
-HTMLIFrameElement::~HTMLIFrameElement()
+nsHTMLIFrameElement::~nsHTMLIFrameElement()
 {
 }
 
-NS_IMPL_ADDREF_INHERITED(HTMLIFrameElement, Element)
-NS_IMPL_RELEASE_INHERITED(HTMLIFrameElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLIFrameElement, Element)
+NS_IMPL_RELEASE_INHERITED(nsHTMLIFrameElement, Element)
 
-// QueryInterface implementation for HTMLIFrameElement
-NS_INTERFACE_TABLE_HEAD(HTMLIFrameElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(HTMLIFrameElement)
-    NS_INTERFACE_TABLE_ENTRY(HTMLIFrameElement, nsIDOMHTMLIFrameElement)
-    NS_INTERFACE_TABLE_ENTRY(HTMLIFrameElement, nsIDOMGetSVGDocument)
+DOMCI_NODE_DATA(HTMLIFrameElement, nsHTMLIFrameElement)
+
+// QueryInterface implementation for nsHTMLIFrameElement
+NS_INTERFACE_TABLE_HEAD(nsHTMLIFrameElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(nsHTMLIFrameElement)
+    NS_INTERFACE_TABLE_ENTRY(nsHTMLIFrameElement, nsIDOMHTMLIFrameElement)
+    NS_INTERFACE_TABLE_ENTRY(nsHTMLIFrameElement, nsIDOMGetSVGDocument)
   NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLIFrameElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLIFrameElement,
                                                nsGenericHTMLFrameElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLIFrameElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLIFrameElement)
+NS_IMPL_ELEMENT_CLONE(nsHTMLIFrameElement)
 
-NS_IMPL_STRING_ATTR(HTMLIFrameElement, Align, align)
-NS_IMPL_STRING_ATTR(HTMLIFrameElement, FrameBorder, frameborder)
-NS_IMPL_STRING_ATTR(HTMLIFrameElement, Height, height)
-NS_IMPL_URI_ATTR(HTMLIFrameElement, LongDesc, longdesc)
-NS_IMPL_STRING_ATTR(HTMLIFrameElement, MarginHeight, marginheight)
-NS_IMPL_STRING_ATTR(HTMLIFrameElement, MarginWidth, marginwidth)
-NS_IMPL_STRING_ATTR(HTMLIFrameElement, Name, name)
-NS_IMPL_STRING_ATTR(HTMLIFrameElement, Scrolling, scrolling)
-NS_IMPL_URI_ATTR(HTMLIFrameElement, Src, src)
-NS_IMPL_STRING_ATTR(HTMLIFrameElement, Width, width)
-NS_IMPL_BOOL_ATTR(HTMLIFrameElement, AllowFullscreen, allowfullscreen)
-NS_IMPL_STRING_ATTR(HTMLIFrameElement, Sandbox, sandbox)
+NS_IMPL_STRING_ATTR(nsHTMLIFrameElement, Align, align)
+NS_IMPL_STRING_ATTR(nsHTMLIFrameElement, FrameBorder, frameborder)
+NS_IMPL_STRING_ATTR(nsHTMLIFrameElement, Height, height)
+NS_IMPL_URI_ATTR(nsHTMLIFrameElement, LongDesc, longdesc)
+NS_IMPL_STRING_ATTR(nsHTMLIFrameElement, MarginHeight, marginheight)
+NS_IMPL_STRING_ATTR(nsHTMLIFrameElement, MarginWidth, marginwidth)
+NS_IMPL_STRING_ATTR(nsHTMLIFrameElement, Name, name)
+NS_IMPL_STRING_ATTR(nsHTMLIFrameElement, Scrolling, scrolling)
+NS_IMPL_URI_ATTR(nsHTMLIFrameElement, Src, src)
+NS_IMPL_STRING_ATTR(nsHTMLIFrameElement, Width, width)
+NS_IMPL_BOOL_ATTR(nsHTMLIFrameElement, Allowfullscreen, allowfullscreen)
+NS_IMPL_STRING_ATTR(nsHTMLIFrameElement, Sandbox, sandbox)
 
 void
-HTMLIFrameElement::GetItemValueText(nsAString& aValue)
+nsHTMLIFrameElement::GetItemValueText(nsAString& aValue)
 {
   GetSrc(aValue);
 }
 
 void
-HTMLIFrameElement::SetItemValueText(const nsAString& aValue)
+nsHTMLIFrameElement::SetItemValueText(const nsAString& aValue)
 {
   SetSrc(aValue);
 }
 
 NS_IMETHODIMP
-HTMLIFrameElement::GetContentDocument(nsIDOMDocument** aContentDocument)
+nsHTMLIFrameElement::GetContentDocument(nsIDOMDocument** aContentDocument)
 {
   return nsGenericHTMLFrameElement::GetContentDocument(aContentDocument);
 }
 
 NS_IMETHODIMP
-HTMLIFrameElement::GetContentWindow(nsIDOMWindow** aContentWindow)
+nsHTMLIFrameElement::GetContentWindow(nsIDOMWindow** aContentWindow)
 {
   return nsGenericHTMLFrameElement::GetContentWindow(aContentWindow);
 }
 
 NS_IMETHODIMP
-HTMLIFrameElement::GetSVGDocument(nsIDOMDocument **aResult)
+nsHTMLIFrameElement::GetSVGDocument(nsIDOMDocument **aResult)
 {
   return GetContentDocument(aResult);
 }
 
 bool
-HTMLIFrameElement::ParseAttribute(int32_t aNamespaceID,
-                                  nsIAtom* aAttribute,
-                                  const nsAString& aValue,
-                                  nsAttrValue& aResult)
+nsHTMLIFrameElement::ParseAttribute(int32_t aNamespaceID,
+                                    nsIAtom* aAttribute,
+                                    const nsAString& aValue,
+                                    nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::marginwidth) {
@@ -180,7 +180,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
 }
 
 NS_IMETHODIMP_(bool)
-HTMLIFrameElement::IsAttributeMapped(const nsIAtom* aAttribute) const
+nsHTMLIFrameElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
   static const MappedAttributeEntry attributes[] = {
     { &nsGkAtoms::width },
@@ -202,15 +202,15 @@ HTMLIFrameElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 
 
 nsMapRuleToAttributesFunc
-HTMLIFrameElement::GetAttributeMappingFunction() const
+nsHTMLIFrameElement::GetAttributeMappingFunction() const
 {
   return &MapAttributesIntoRule;
 }
 
 nsresult
-HTMLIFrameElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue,
-                                bool aNotify)
+nsHTMLIFrameElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+                                  const nsAttrValue* aValue,
+                                  bool aNotify)
 {
   if (aName == nsGkAtoms::sandbox && aNameSpaceID == kNameSpaceID_None) {
     // Parse the new value of the sandbox attribute, and if we have a docshell
@@ -237,7 +237,7 @@ HTMLIFrameElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 uint32_t
-HTMLIFrameElement::GetSandboxFlags()
+nsHTMLIFrameElement::GetSandboxFlags()
 {
   nsAutoString sandboxAttr;
 
@@ -248,6 +248,3 @@ HTMLIFrameElement::GetSandboxFlags()
   // No sandbox attribute, no sandbox flags.
   return 0;
 }
-
-} // namespace dom
-} // namespace mozilla

@@ -610,17 +610,6 @@ function getTextFromClipboard()
  */
 function prettyName(aIdentifier)
 {
-  if (aIdentifier instanceof Array) {
-    var msg = "";
-    for (var idx = 0; idx < aIdentifier.length; idx++) {
-      if (msg != "")
-        msg += ", ";
-
-      msg += prettyName(aIdentifier[idx]);
-    }
-    return msg;
-  }
-
   if (aIdentifier instanceof nsIAccessible) {
     var acc = getAccessible(aIdentifier);
     var msg = "[" + getNodePrettyName(acc.DOMNode);

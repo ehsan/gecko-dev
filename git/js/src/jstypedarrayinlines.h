@@ -213,12 +213,10 @@ InitTypedArrayDataPointer(JSObject *obj, ArrayBufferObject *buffer, size_t byteO
 static NewObjectKind
 DataViewNewObjectKind(JSContext *cx, uint32_t byteLength, JSObject *proto)
 {
-    if (!proto && byteLength >= TypedArray::SINGLETON_TYPE_BYTE_LENGTH)
-        return SingletonObject;
     jsbytecode *pc;
     JSScript *script = cx->stack.currentScript(&pc);
-    if (!script)
-        return GenericObject;
+    if (!proto && byteLength >= TypedArray::SINGLETON_TYPE_BYTE_LENGTH)
+        return SingletonObject;
     return types::UseNewTypeForInitializer(cx, script, pc, &DataViewClass);
 }
 

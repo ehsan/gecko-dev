@@ -4731,7 +4731,7 @@ nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust)
   GetFullScreen(&rootWinFullScreen);
   // Only chrome can change our fullScreen mode, unless we're running in
   // untrusted mode.
-  if (aFullScreen == rootWinFullScreen ||
+  if (aFullScreen == rootWinFullScreen || 
       (aRequireTrust && !nsContentUtils::IsCallerChrome())) {
     return NS_OK;
   }
@@ -4792,8 +4792,7 @@ nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust)
     // DOM full-screen mode and the user exits full-screen mode with
     // the browser full-screen mode toggle keyboard-shortcut, we'll detect
     // that and leave DOM API full-screen mode too.
-    nsCOMPtr<nsIDocument> doc(do_QueryInterface(mDocument));
-    nsIDocument::ExitFullscreen(doc, /* async */ false);
+    nsIDocument::ExitFullScreen(false);
   }
 
   if (!mWakeLock && mFullScreen) {

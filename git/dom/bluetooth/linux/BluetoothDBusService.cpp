@@ -2466,9 +2466,11 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
       errorStr.AssignLiteral("BluetoothOppManager has connected/is connecting!");
       DispatchBluetoothReply(aRunnable, v, errorStr);
     }
-  } else {
-    NS_WARNING("Unknown Profile");
   }
+
+#ifdef DEBUG
+  NS_WARNING("Unknown Profile");
+#endif
 }
 
 void

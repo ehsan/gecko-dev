@@ -1025,8 +1025,7 @@ nsScriptLoader::ConvertToUTF16(nsIChannel* aChannel, const uint8_t* aData,
 
   if (!unicodeDecoder &&
       aChannel &&
-      NS_SUCCEEDED(aChannel->GetContentCharset(charset)) &&
-      !charset.IsEmpty()) {
+      NS_SUCCEEDED(aChannel->GetContentCharset(charset))) {
     charsetConv->GetUnicodeDecoder(charset.get(),
                                    getter_AddRefs(unicodeDecoder));
   }

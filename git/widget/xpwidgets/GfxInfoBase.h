@@ -17,7 +17,6 @@
 #include "nsString.h"
 #include "GfxInfoCollector.h"
 #include "nsIGfxInfoDebug.h"
-#include "mozilla/Mutex.h"
 
 namespace mozilla {
 namespace widget {  
@@ -96,7 +95,6 @@ private:
 
   nsCString mFailures[9]; // The choice of 9 is Ehsan's
   uint32_t mFailureCount;
-  Mutex mMutex;
 
 };
 

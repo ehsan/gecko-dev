@@ -3,26 +3,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_HTMLIFrameElement_h
-#define mozilla_dom_HTMLIFrameElement_h
-
 #include "nsGenericHTMLFrameElement.h"
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsIDOMGetSVGDocument.h"
 
-namespace mozilla {
-namespace dom {
-
-class HTMLIFrameElement MOZ_FINAL : public nsGenericHTMLFrameElement
-                                  , public nsIDOMHTMLIFrameElement
-                                  , public nsIDOMGetSVGDocument
+class nsHTMLIFrameElement : public nsGenericHTMLFrameElement
+                          , public nsIDOMHTMLIFrameElement
+                          , public nsIDOMGetSVGDocument
 {
 public:
-  HTMLIFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                    FromParser aFromParser = NOT_FROM_PARSER);
-  virtual ~HTMLIFrameElement();
+  nsHTMLIFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                      mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+  virtual ~nsHTMLIFrameElement();
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLIFrameElement, iframe)
+  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(nsHTMLIFrameElement, iframe)
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -64,8 +58,3 @@ protected:
   virtual void GetItemValueText(nsAString& text);
   virtual void SetItemValueText(const nsAString& text);
 };
-
-} // namespace dom
-} // namespace mozilla
-
-#endif

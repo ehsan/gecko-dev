@@ -778,7 +778,7 @@ stubs::TriggerIonCompile(VMFrame &f)
     AssertCanGC();
     RootedScript script(f.cx, f.script());
 
-    if (ion::js_IonOptions.parallelCompilation && !f.cx->runtime->profilingScripts) {
+    if (ion::js_IonOptions.parallelCompilation) {
         if (script->hasIonScript()) {
             /*
              * Normally TriggerIonCompile is not called if !script->ion, but the
@@ -808,7 +808,8 @@ stubs::TriggerIonCompile(VMFrame &f)
             compileStatus = ion::CanEnterAtBranch(f.cx, script, f.cx->fp(), osrPC,
                                                   f.fp()->isConstructing());
         } else {
-            compileStatus = ion::CanEnter(f.cx, script, f.cx->fp(), f.fp()->isConstructing());
+            compileStatus = ion::CanEnter(f.cx, script, f.cx->fp(), f.fp()->isConstructing(),
+                                          /* newType = */ false);
         }
 
         if (compileStatus != ion::Method_Compiled) {

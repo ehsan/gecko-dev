@@ -86,7 +86,7 @@
 #include "sampler.h"
 
 #include "jsapi.h"
-#include "mozilla/dom/HTMLIFrameElement.h"
+#include "nsHTMLIFrameElement.h"
 #include "nsSandboxFlags.h"
 
 #include "mozilla/dom/StructuredCloneUtils.h"
@@ -450,8 +450,8 @@ nsFrameLoader::ReallyStartLoadingInternal()
 
   // Is this an <iframe> with a sandbox attribute or a parent which is
   // sandboxed ?
-  HTMLIFrameElement* iframe =
-    HTMLIFrameElement::FromContent(mOwnerContent);
+  nsHTMLIFrameElement* iframe =
+    nsHTMLIFrameElement::FromContent(mOwnerContent);
 
   uint32_t sandboxFlags = 0;
 

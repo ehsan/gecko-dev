@@ -19,8 +19,6 @@
   <![CDATA[
   "use strict";
 
-  SimpleTest.expectAssertions(27);
-
   const Cc = Components.classes;
   const Ci = Components.interfaces;
   const Cr = Components.results;

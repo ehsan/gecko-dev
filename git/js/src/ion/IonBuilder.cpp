@@ -3237,12 +3237,14 @@ IonBuilder::makeInliningDecision(AutoObjectVector &targets)
     uint32_t totalSize = 0;
     uint32_t maxInlineDepth = js_IonOptions.maxInlineDepth;
     bool allFunctionsAreSmall = true;
+    RootedFunction target(cx);
+    RootedScript targetScript(cx);
     for (size_t i = 0; i < targets.length(); i++) {
-        JSFunction *target = targets[i]->toFunction();
+        target = targets[i]->toFunction();
         if (!target->isInterpreted())
             return false;
 
-        JSScript *targetScript = target->nonLazyScript();
+        targetScript = target->nonLazyScript();
         uint32_t calleeUses = targetScript->getUseCount();
 
         totalSize += targetScript->length;
@@ -3279,7 +3281,6 @@ IonBuilder::makeInliningDecision(AutoObjectVector &targets)
     JSOp op = JSOp(*pc);
     for (size_t i = 0; i < targets.length(); i++) {
         JSFunction *target = targets[i]->toFunction();
-        JSScript *targetScript = target->nonLazyScript();
 
         if (!canInlineTarget(target)) {
             IonSpew(IonSpew_Inlining, "Decided not to inline");
@@ -4487,14 +4488,15 @@ IonBuilder::jsop_eval(uint32_t argc)
             return abort("Direct eval in global code");
 
         types::StackTypeSet *thisTypes = oracle->thisTypeSet(script());
-
-        // The 'this' value for the outer and eval scripts must be the
-        // same. This is not guaranteed if a primitive string/number/etc.
-        // is passed through to the eval invoke as the primitive may be
-        // boxed into different objects if accessed via 'this'.
-        JSValueType type = thisTypes->getKnownTypeTag();
-        if (type != JSVAL_TYPE_OBJECT && type != JSVAL_TYPE_NULL && type != JSVAL_TYPE_UNDEFINED)
-            return abort("Direct eval from script with maybe-primitive 'this'");
+        if (!thisTypes) {
+            // The 'this' value for the outer and eval scripts must be the
+            // same. This is not guaranteed if a primitive string/number/etc.
+            // is passed through to the eval invoke as the primitive may be
+            // boxed into different objects if accessed via 'this'.
+            JSValueType type = thisTypes->getKnownTypeTag();
+            if (type != JSVAL_TYPE_OBJECT && type != JSVAL_TYPE_NULL && type != JSVAL_TYPE_UNDEFINED)
+                return abort("Direct eval from script with maybe-primitive 'this'");
+        }
 
         CallInfo callInfo(cx, /* constructing = */ false);
         if (!callInfo.init(current, argc))
