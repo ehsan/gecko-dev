@@ -41,10 +41,8 @@ HelperAppLauncherDialog.prototype = {
     let displaySize = DownloadUtils.convertByteUnits(aSize);
     if (displaySize[0] > 0) // [0] is size, [1] is units
       return displaySize.join("");
-    else {
-      let browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
-      return browserBundle.GetStringFromName("downloadsUnknownSize");
-    }
+    else
+      return Strings.browser.GetStringFromName("downloadsUnknownSize");
   },
 
   _getChromeWindow: function (aWindow) {

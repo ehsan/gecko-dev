@@ -58,4 +58,4 @@ exports["test unload window observer"] = function(assert, done) {
   }
 };
 
-require("sdk/test").run(exports);
+require("test").run(exports);

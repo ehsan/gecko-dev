@@ -4,7 +4,7 @@ package @ANDROID_PACKAGE_NAME@.tests;
 import @ANDROID_PACKAGE_NAME@.*;
 import android.widget.ListView;
 
-public class testClearPrivateData extends AboutHomeTest  {
+public class testClearPrivateData extends PixelTest  {
 
     @Override
     protected int getTestType() {
@@ -19,9 +19,8 @@ public class testClearPrivateData extends AboutHomeTest  {
     private void clearHistory() {
         // Loading a page so we are sure that there is at least one history entry
         String url = getAbsoluteUrl("/robocop/robocop_blank_01.html");
-        inputAndLoadUrl(url);
+        loadAndPaint(url);
 
-        /*  Removed by Bug 896576 - [fig] Remove [getHistoryList] from BaseTest
         // Checking that the history list is not empty
         ListView hList = getHistoryList("Today|Yesterday");
         mAsserter.ok(hList.getAdapter().getCount() > 0,"checking history exists","history exists");
@@ -40,6 +39,5 @@ public class testClearPrivateData extends AboutHomeTest  {
         // Checking that history list is empty
         hList = getHistoryList("History", 0);
         mAsserter.ok(hList != null,"checking history is cleared ","history is cleared");
-        */
     }
 }

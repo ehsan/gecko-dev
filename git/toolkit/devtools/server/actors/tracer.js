@@ -535,7 +535,7 @@ function timeSinceTraceStarted({ startTime }) {
  *        The type of completion value to serialize (return, throw, or yield).
  */
 function serializeCompletionValue(aType, { value }) {
-  if (!Object.hasOwnProperty.call(value, aType)) {
+  if (typeof value[aType] === "undefined") {
     return undefined;
   }
   return createValueGrip(value[aType], true);

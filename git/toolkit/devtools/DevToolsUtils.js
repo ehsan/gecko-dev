@@ -6,26 +6,12 @@
 
 /* General utilities used throughout devtools. */
 
-/**
- * Turn the error |aError| into a string, without fail.
- */
+/* Turn the error e into a string, without fail. */
 this.safeErrorString = function safeErrorString(aError) {
   try {
-    let errorString = aError.toString();
-    if (typeof errorString === "string") {
-      // Attempt to attach a stack to |errorString|. If it throws an error, or
-      // isn't a string, don't use it.
-      try {
-        if (aError.stack) {
-          let stack = aError.stack.toString();
-          if (typeof stack === "string") {
-            errorString += "\nStack: " + stack;
-          }
-        }
-      } catch (ee) { }
-
-      return errorString;
-    }
+    var s = aError.toString();
+    if (typeof s === "string")
+      return s;
   } catch (ee) { }
 
   return "<failed trying to find error description>";
@@ -36,6 +22,9 @@ this.safeErrorString = function safeErrorString(aError) {
  */
 this.reportException = function reportException(aWho, aException) {
   let msg = aWho + " threw an exception: " + safeErrorString(aException);
+  if (aException.stack) {
+    msg += "\nCall stack:\n" + aException.stack;
+  }
 
   dump(msg + "\n");
 

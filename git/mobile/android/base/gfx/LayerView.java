@@ -265,7 +265,7 @@ public class LayerView extends FrameLayout {
             // created, and it will be shown immediately at startup. Shortly
             // after, the tab's background color will be used before any content
             // is shown.
-            mTextureView.setBackgroundColor(Color.WHITE);
+            mTextureView.setBackgroundResource(R.color.background_normal);
             addView(mTextureView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         } else {
             // This will stop PropertyAnimator from creating a drawing cache (i.e. a bitmap)
@@ -273,7 +273,7 @@ public class LayerView extends FrameLayout {
             setWillNotCacheDrawing(false);
 
             mSurfaceView = new LayerSurfaceView(getContext(), this);
-            mSurfaceView.setBackgroundColor(Color.WHITE);
+            mSurfaceView.setBackgroundResource(R.color.background_normal);
             addView(mSurfaceView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
 
             SurfaceHolder holder = mSurfaceView.getHolder();

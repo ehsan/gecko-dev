@@ -303,7 +303,6 @@ var DebuggerServer = {
     this.addActors("resource://gre/modules/devtools/server/actors/webapps.js");
     this.registerModule("devtools/server/actors/inspector");
     this.registerModule("devtools/server/actors/tracer");
-    this.registerModule("devtools/server/actors/device");
   },
 
   /**
@@ -835,12 +834,13 @@ DebuggerServerConnection.prototype = {
   },
 
   _unknownError: function DSC__unknownError(aPrefix, aError) {
-    let errorString = aPrefix + ": " + safeErrorString(aError);
+    let errorString = safeErrorString(aError);
+    errorString += "\n" + aError.stack;
     Cu.reportError(errorString);
     dumpn(errorString);
     return {
       error: "unknownError",
-      message: errorString
+      message: (aPrefix + "': " + errorString)
     };
   },
 

@@ -3232,8 +3232,6 @@ RadioInterface.prototype = {
 function RILNetworkInterface(radioInterface, apnSetting) {
   this.radioInterface = radioInterface;
   this.apnSetting = apnSetting;
-
-  this.connectedTypes = [];
 }
 
 RILNetworkInterface.prototype = {
@@ -3404,12 +3402,12 @@ RILNetworkInterface.prototype = {
   registeredAsDataCallCallback: false,
   registeredAsNetworkInterface: false,
   connecting: false,
-  apnSetting: null,
+  apnSetting: {},
 
   // APN failed connections. Retry counter
   apnRetryCounter: 0,
 
-  connectedTypes: null,
+  connectedTypes: [],
 
   inConnectedTypes: function inConnectedTypes(type) {
     return this.connectedTypes.indexOf(type) != -1;

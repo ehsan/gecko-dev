@@ -1,4 +1,4 @@
-/* this source code form is subject to the terms of the mozilla public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -28,24 +28,21 @@
  *
  */
 
-"use strict";
-
 const EventEmitter = require("devtools/shared/event-emitter");
 
 function ObservableObject(object = {}) {
-  EventEmitter.decorate(this);
   let handler = new Handler(this);
   this.object = new Proxy(object, handler);
   handler._wrappers.set(this.object, object);
   handler._paths.set(object, []);
 }
 
-module.exports = ObservableObject;
+exports.ObservableObject = ObservableObject;
 
-function isObject(x) {
-  if (typeof x === "object")
-    return x !== null;
-  return typeof x === "function";
+ObservableObject.prototype = new EventEmitter();
+
+function isObject(value) {
+  return Object(value) === value;
 }
 
 function Handler(emitter) {
@@ -74,7 +71,7 @@ Handler.prototype = {
     if (!isObject(value) || !this._wrappers.has(value)) {
       return [value, this._paths.get(target).concat(key)];
     }
-    return [this._wrappers.get(value), this._paths.get(target).concat(key)];
+    return [this._wrappers.get(value), this._paths.get(value)];
   },
   get: function(target, key) {
     let value = target[key];
