@@ -123,6 +123,9 @@ function testLocationChange()
       is(gSearchView._splitter.hidden, true,
         "The global search pane splitter shouldn't be visible after a page navigation.");
 
+      is(gDebugger.DebuggerController.SourceScripts.getCache().length, 0,
+        "The scripts sources cache for global searching should be cleared after a page navigation.")
+
       closeDebuggerAndFinish();
     });
   });
