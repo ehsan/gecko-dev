@@ -14,7 +14,6 @@ MOCHITEST_BROWSER_FILES = \
   head.js \
   browser_head.js \
   browser_pass.js \
-  browser_add_task.js \
   browser_async.js \
   browser_privileges.js \
   browser_popupNode.js \
@@ -26,7 +25,6 @@ MOCHITEST_BROWSER_FILES = \
 # Disabled, these are only good for testing the harness' failure reporting
 #  browser_zz_fail_openwindow.js \
 #  browser_fail.js \
-#  browser_fail_add_task.js \
 #  browser_fail_async_throw.js \
 #  browser_fail_fp.js \
 #  browser_fail_pf.js \

@@ -8,13 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/test/testsupport/fileutils.h"
+#include "testsupport/fileutils.h"
 
 #include <cstdio>
 #include <list>
 #include <string>
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 
 #ifdef WIN32
 #define chdir _chdir

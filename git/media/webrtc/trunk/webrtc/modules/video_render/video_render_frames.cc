@@ -36,14 +36,12 @@ int32_t VideoRenderFrames::AddFrame(I420VideoFrame* new_frame) {
 
   if (new_frame->render_time_ms() + KOldRenderTimestampMS < time_now) {
     WEBRTC_TRACE(kTraceWarning, kTraceVideoRenderer, -1,
-                 "%s: too old frame, timestamp=%u.",
-                 __FUNCTION__, new_frame->timestamp());
+                 "%s: too old frame.", __FUNCTION__);
     return -1;
   }
   if (new_frame->render_time_ms() > time_now + KFutureRenderTimestampMS) {
     WEBRTC_TRACE(kTraceWarning, kTraceVideoRenderer, -1,
-                 "%s: frame too long into the future, timestamp=%u.",
-                 __FUNCTION__, new_frame->timestamp());
+                 "%s: frame too long into the future.", __FUNCTION__);
     return -1;
   }
 
@@ -61,8 +59,8 @@ int32_t VideoRenderFrames::AddFrame(I420VideoFrame* new_frame) {
         KMaxNumberOfFrames) {
       // Already allocated too many frames.
       WEBRTC_TRACE(kTraceWarning, kTraceVideoRenderer,
-                   -1, "%s: too many frames, timestamp=%u, limit=%d",
-                   __FUNCTION__, new_frame->timestamp(), KMaxNumberOfFrames);
+                   -1, "%s: too many frames, limit: %d", __FUNCTION__,
+                   KMaxNumberOfFrames);
       return -1;
     }
 

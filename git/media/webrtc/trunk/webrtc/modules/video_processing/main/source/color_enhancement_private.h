@@ -1,7 +1,7 @@
 #ifndef VPM_COLOR_ENHANCEMENT_PRIVATE_H
 #define VPM_COLOR_ENHANCEMENT_PRIVATE_H
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 namespace webrtc {
 

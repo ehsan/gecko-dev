@@ -4,7 +4,7 @@
 
 loadRelativeToScript('utility.js');
 loadRelativeToScript('annotations.js');
-loadRelativeToScript('CFG.js');
+loadRelativeToScript('suppressedPoints.js');
 
 var subclasses = {};
 var superclasses = {};
@@ -230,10 +230,8 @@ for (var nameIndex = minStream; nameIndex <= maxStream; nameIndex++) {
     functionBodies = JSON.parse(data.readString());
     for (var body of functionBodies)
         body.suppressed = [];
-    for (var body of functionBodies) {
-        for (var [pbody, id] of allRAIIGuardedCallPoints(body, isSuppressConstructor))
-            pbody.suppressed[id] = true;
-    }
+    for (var body of functionBodies)
+        computeSuppressedPoints(body);
 
     seenCallees = {};
     seenSuppressedCallees = {};

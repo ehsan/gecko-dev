@@ -10,9 +10,8 @@
 #include "nsPresContext.h"
 #include "nsIDOMEvent.h"
 #include "mozilla/Attributes.h"
+#include "nsClientRect.h"
 #include "nsWrapperCache.h"
-
-class nsClientRect;
 
 class nsPaintRequest MOZ_FINAL : public nsIDOMPaintRequest
                                , public nsWrapperCache

@@ -15,8 +15,7 @@
     </resources>
   </binding>
 
-  <binding id="checkbox-baseline" role="xul:checkbox"
-    extends="chrome://global/content/bindings/general.xml#basetext">
+  <binding id="checkbox-baseline" extends="chrome://global/content/bindings/general.xml#basetext">
     <content>
       <xul:image class="checkbox-check" xbl:inherits="checked,disabled"/>
       <xul:hbox class="checkbox-label-box" flex="1">
@@ -25,7 +24,15 @@
       </xul:hbox>
     </content>
     
-    <implementation implements="nsIDOMXULCheckboxElement">
+    <implementation implements="nsIDOMXULCheckboxElement, nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULCheckbox;
+          ]]>
+        </getter>
+      </property>
+
       <method name="setChecked">
         <parameter name="aValue"/>
         <body>

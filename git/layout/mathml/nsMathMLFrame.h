@@ -7,9 +7,16 @@
 #define nsMathMLFrame_h___
 
 #include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
+#include "nsPresContext.h"
 #include "nsFontMetrics.h"
+#include "nsStyleContext.h"
+#include "nsMathMLAtoms.h"
 #include "nsMathMLOperators.h"
 #include "nsIMathMLFrame.h"
+#include "nsFrame.h"
+#include "nsCSSValue.h"
+#include "nsMathMLElement.h"
 #include "nsLayoutUtils.h"
 
 class nsMathMLChar;

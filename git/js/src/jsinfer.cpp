@@ -232,9 +232,9 @@ types::InferSpew(SpewChannel channel, const char *fmt, ...)
 
     va_list ap;
     va_start(ap, fmt);
-    fprintf(stderr, "[infer] ");
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
+    fprintf(stdout, "[infer] ");
+    vfprintf(stdout, fmt, ap);
+    fprintf(stdout, "\n");
     va_end(ap);
 }
 
@@ -427,47 +427,47 @@ void
 TypeSet::print()
 {
     if (flags & TYPE_FLAG_OWN_PROPERTY)
-        fprintf(stderr, " [own]");
+        printf(" [own]");
     if (flags & TYPE_FLAG_CONFIGURED_PROPERTY)
-        fprintf(stderr, " [configured]");
+        printf(" [configured]");
 
     if (definiteProperty())
-        fprintf(stderr, " [definite:%d]", definiteSlot());
+        printf(" [definite:%d]", definiteSlot());
 
     if (baseFlags() == 0 && !baseObjectCount()) {
-        fprintf(stderr, " missing");
+        printf(" missing");
         return;
     }
 
     if (flags & TYPE_FLAG_UNKNOWN)
-        fprintf(stderr, " unknown");
+        printf(" unknown");
     if (flags & TYPE_FLAG_ANYOBJECT)
-        fprintf(stderr, " object");
+        printf(" object");
 
     if (flags & TYPE_FLAG_UNDEFINED)
-        fprintf(stderr, " void");
+        printf(" void");
     if (flags & TYPE_FLAG_NULL)
-        fprintf(stderr, " null");
+        printf(" null");
     if (flags & TYPE_FLAG_BOOLEAN)
-        fprintf(stderr, " bool");
+        printf(" bool");
     if (flags & TYPE_FLAG_INT32)
-        fprintf(stderr, " int");
+        printf(" int");
     if (flags & TYPE_FLAG_DOUBLE)
-        fprintf(stderr, " float");
+        printf(" float");
     if (flags & TYPE_FLAG_STRING)
-        fprintf(stderr, " string");
+        printf(" string");
     if (flags & TYPE_FLAG_LAZYARGS)
-        fprintf(stderr, " lazyargs");
+        printf(" lazyargs");
 
     uint32_t objectCount = baseObjectCount();
     if (objectCount) {
-        fprintf(stderr, " object[%u]", objectCount);
+        printf(" object[%u]", objectCount);
 
         unsigned count = getObjectCount();
         for (unsigned i = 0; i < count; i++) {
             TypeObjectKey *object = getObject(i);
             if (object)
-                fprintf(stderr, " %s", TypeString(Type::ObjectType(object)));
+                printf(" %s", TypeString(Type::ObjectType(object)));
         }
     }
 }
@@ -2976,7 +2976,6 @@ ScriptAnalysis::addSingletonTypeBarrier(JSContext *cx, const jsbytecode *pc, Typ
 void
 TypeCompartment::print(JSContext *cx, bool force)
 {
-#ifdef DEBUG
     gc::AutoSuppressGC suppressGC(cx);
 
     JSCompartment *compartment = this->compartment();
@@ -2986,18 +2985,25 @@ TypeCompartment::print(JSContext *cx, bool force)
         return;
 
     for (gc::CellIter i(compartment->zone(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
-        // Note: use cx->runtime() instead of cx to work around IsInRequest(cx)
-        // assertion failures when we're called from DestroyContext.
-        RootedScript script(cx->runtime(), i.get<JSScript>());
-        if (script->types)
-            script->types->printTypes(cx, script);
+        RootedScript script(cx, i.get<JSScript>());
+        if (script->hasAnalysis() && script->analysis()->ranInference())
+            script->analysis()->printTypes(cx);
     }
 
+#ifdef DEBUG
     for (gc::CellIter i(compartment->zone(), gc::FINALIZE_TYPE_OBJECT); !i.done(); i.next()) {
         TypeObject *object = i.get<TypeObject>();
         object->print();
     }
 #endif
+
+    printf("Counts: ");
+    for (unsigned count = 0; count < TYPE_COUNT_LIMIT; count++) {
+        if (count)
+            printf("/");
+        printf("%u", typeCounts[count]);
+    }
+    printf(" (%u over)\n", typeCountOver);
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -3846,46 +3852,46 @@ void
 TypeObject::print()
 {
     TaggedProto tagged(proto);
-    fprintf(stderr, "%s : %s",
+    printf("%s : %s",
            TypeObjectString(this),
            tagged.isObject() ? TypeString(Type::ObjectType(proto))
                             : (tagged.isLazy() ? "(lazy)" : "(null)"));
 
     if (unknownProperties()) {
-        fprintf(stderr, " unknown");
+        printf(" unknown");
     } else {
         if (!hasAnyFlags(OBJECT_FLAG_SPARSE_INDEXES))
-            fprintf(stderr, " dense");
+            printf(" dense");
         if (!hasAnyFlags(OBJECT_FLAG_NON_PACKED))
-            fprintf(stderr, " packed");
+            printf(" packed");
         if (!hasAnyFlags(OBJECT_FLAG_LENGTH_OVERFLOW))
-            fprintf(stderr, " noLengthOverflow");
+            printf(" noLengthOverflow");
         if (hasAnyFlags(OBJECT_FLAG_EMULATES_UNDEFINED))
-            fprintf(stderr, " emulatesUndefined");
+            printf(" emulatesUndefined");
         if (hasAnyFlags(OBJECT_FLAG_ITERATED))
-            fprintf(stderr, " iterated");
+            printf(" iterated");
         if (interpretedFunction)
-            fprintf(stderr, " ifun");
+            printf(" ifun");
     }
 
     unsigned count = getPropertyCount();
 
     if (count == 0) {
-        fprintf(stderr, " {}\n");
+        printf(" {}\n");
         return;
     }
 
-    fprintf(stderr, " {");
+    printf(" {");
 
     for (unsigned i = 0; i < count; i++) {
         Property *prop = getProperty(i);
         if (prop) {
-            fprintf(stderr, "\n    %s:", TypeIdString(prop->id));
+            printf("\n    %s:", TypeIdString(prop->id));
             prop->types.print();
         }
     }
 
-    fprintf(stderr, "\n}\n");
+    printf("\n}\n");
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -5245,6 +5251,130 @@ CheckNewScriptProperties(JSContext *cx, HandleTypeObject type, HandleFunction fu
     PodCopy(newScript->initializerList,
             state.initializerList.begin(),
             state.initializerList.length());
+}
+
+/////////////////////////////////////////////////////////////////////
+// Printing
+/////////////////////////////////////////////////////////////////////
+
+void
+ScriptAnalysis::printTypes(JSContext *cx)
+{
+    AutoEnterAnalysis enter(NULL, script_->compartment());
+    TypeCompartment *compartment = &script_->compartment()->types;
+
+    /*
+     * Check if there are warnings for used values with unknown types, and build
+     * statistics about the size of type sets found for stack values.
+     */
+    for (unsigned offset = 0; offset < script_->length; offset++) {
+        if (!maybeCode(offset))
+            continue;
+
+        unsigned defCount = GetDefCount(script_, offset);
+        if (!defCount)
+            continue;
+
+        for (unsigned i = 0; i < defCount; i++) {
+            TypeSet *types = pushedTypes(offset, i);
+
+            if (types->unknown()) {
+                compartment->typeCountOver++;
+                continue;
+            }
+
+            unsigned typeCount = 0;
+
+            if (types->hasAnyFlag(TYPE_FLAG_ANYOBJECT) || types->getObjectCount() != 0)
+                typeCount++;
+            for (TypeFlags flag = 1; flag < TYPE_FLAG_ANYOBJECT; flag <<= 1) {
+                if (types->hasAnyFlag(flag))
+                    typeCount++;
+            }
+
+            /*
+             * Adjust the type counts for floats: values marked as floats
+             * are also marked as ints by the inference, but for counting
+             * we don't consider these to be separate types.
+             */
+            if (types->hasAnyFlag(TYPE_FLAG_DOUBLE)) {
+                JS_ASSERT(types->hasAnyFlag(TYPE_FLAG_INT32));
+                typeCount--;
+            }
+
+            if (typeCount > TypeCompartment::TYPE_COUNT_LIMIT) {
+                compartment->typeCountOver++;
+            } else if (typeCount == 0) {
+                /* Ignore values without types, this may be unreached code. */
+            } else {
+                compartment->typeCounts[typeCount-1]++;
+            }
+        }
+    }
+
+#ifdef DEBUG
+
+    if (script_->function())
+        printf("Function");
+    else if (script_->isCachedEval)
+        printf("Eval");
+    else
+        printf("Main");
+    printf(" #%u %s (line %d):\n", script_->id(), script_->filename(), script_->lineno);
+
+    printf("locals:");
+    printf("\n    return:");
+    TypeScript::ReturnTypes(script_)->print();
+    printf("\n    this:");
+    TypeScript::ThisTypes(script_)->print();
+
+    for (unsigned i = 0; script_->function() && i < script_->function()->nargs; i++) {
+        printf("\n    arg%u:", i);
+        TypeScript::ArgTypes(script_, i)->print();
+    }
+    printf("\n");
+
+    RootedScript script(cx, script_);
+    for (unsigned offset = 0; offset < script_->length; offset++) {
+        if (!maybeCode(offset))
+            continue;
+
+        jsbytecode *pc = script_->code + offset;
+
+        PrintBytecode(cx, script, pc);
+
+        if (js_CodeSpec[*pc].format & JOF_TYPESET) {
+            TypeSet *types = TypeScript::BytecodeTypes(script_, pc);
+            printf("  typeset %d:", (int) (types - script_->types->typeArray()));
+            types->print();
+            printf("\n");
+        }
+
+        unsigned defCount = GetDefCount(script_, offset);
+        for (unsigned i = 0; i < defCount; i++) {
+            printf("  type %d:", i);
+            pushedTypes(offset, i)->print();
+            printf("\n");
+        }
+
+        if (getCode(offset).monitoredTypes)
+            printf("  monitored\n");
+
+        TypeBarrier *barrier = getCode(offset).typeBarriers;
+        if (barrier != NULL) {
+            printf("  barrier:");
+            while (barrier) {
+                printf(" %s", TypeString(barrier->type));
+                barrier = barrier->next;
+            }
+            printf("\n");
+        }
+    }
+
+    printf("\n");
+
+#endif /* DEBUG */
+
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -6643,61 +6773,6 @@ TypeZone::sweep(FreeOp *fop, bool releaseTypes)
         rt->freeLifoAlloc.transferFrom(&oldAlloc);
     }
 }
-
-#ifdef DEBUG
-void
-TypeScript::printTypes(JSContext *cx, HandleScript script) const
-{
-    JS_ASSERT(script->types == this);
-
-    if (!bytecodeMap)
-        return;
-
-    AutoEnterAnalysis enter(NULL, script->compartment());
-
-    if (script->function())
-        fprintf(stderr, "Function");
-    else if (script->isForEval())
-        fprintf(stderr, "Eval");
-    else
-        fprintf(stderr, "Main");
-    fprintf(stderr, " #%u %s:%d ", script->id(), script->filename(), script->lineno);
-
-    if (script->function()) {
-        if (js::PropertyName *name = script->function()->name()) {
-            const jschar *chars = name->getChars(NULL);
-            JSString::dumpChars(chars, name->length());
-        }
-    }
-
-    fprintf(stderr, "\n    return:");
-    TypeScript::ReturnTypes(script)->print();
-    fprintf(stderr, "\n    this:");
-    TypeScript::ThisTypes(script)->print();
-
-    for (unsigned i = 0; script->function() && i < script->function()->nargs; i++) {
-        fprintf(stderr, "\n    arg%u:", i);
-        TypeScript::ArgTypes(script, i)->print();
-    }
-    fprintf(stderr, "\n");
-
-    for (jsbytecode *pc = script->code;
-         pc < script->code + script->length;
-         pc += GetBytecodeLength(pc))
-    {
-        PrintBytecode(cx, script, pc);
-
-        if (js_CodeSpec[*pc].format & JOF_TYPESET) {
-            TypeSet *types = TypeScript::BytecodeTypes(script, pc);
-            fprintf(stderr, "  typeset %u:", unsigned(types - typeArray()));
-            types->print();
-            fprintf(stderr, "\n");
-        }
-    }
-
-    fprintf(stderr, "\n");
-}
-#endif /* DEBUG */
 
 /////////////////////////////////////////////////////////////////////
 // Binary data

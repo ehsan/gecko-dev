@@ -110,6 +110,8 @@ JSString::dump()
     if (const jschar *chars = getChars(NULL)) {
         fprintf(stderr, "JSString* (%p) = jschar * (%p) = ",
                 (void *) this, (void *) chars);
+
+        extern void DumpChars(const jschar *s, size_t n);
         dumpChars(chars, length());
     } else {
         fprintf(stderr, "(oom in JSString::dump)");

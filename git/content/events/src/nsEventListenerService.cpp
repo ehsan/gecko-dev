@@ -5,9 +5,13 @@
 #include "nsEventListenerService.h"
 #include "nsCOMArray.h"
 #include "nsEventListenerManager.h"
+#include "nsIVariant.h"
+#include "nsIServiceManager.h"
 #include "nsMemory.h"
 #include "nsCxPusher.h"
 #include "nsIXPConnect.h"
+#include "nsIDOMWindow.h"
+#include "nsPIDOMWindow.h"
 #include "nsJSUtils.h"
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
@@ -17,7 +21,6 @@
 #endif
 #include "nsDOMClassInfoID.h"
 #include "mozilla/Maybe.h"
-#include "nsServiceManagerUtils.h"
 
 using namespace mozilla::dom;
 using mozilla::AutoSafeJSContext;

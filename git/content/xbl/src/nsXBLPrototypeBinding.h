@@ -36,7 +36,7 @@ class nsCSSStyleSheet;
 class nsXBLPrototypeBinding
 {
 public:
-  nsIContent* GetBindingElement() const { return mBinding; }
+  already_AddRefed<nsIContent> GetBindingElement();
   void SetBindingElement(nsIContent* aElement);
 
   nsIURI* BindingURI() const { return mBindingURI; }

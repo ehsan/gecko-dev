@@ -283,8 +283,8 @@ public:
   void SetSignalingState_m(SignalingState aSignalingState);
 
 #ifdef MOZILLA_INTERNAL_API
-  // initialize telemetry for when calls start
-  void startCallTelem();
+  // Set start time for Telemetry
+  void setStartTime();
 #endif
 
 private:

@@ -25,6 +25,7 @@
 #include "nsIFormControlFrame.h"
 #include "nsIForm.h"
 #include "nsIFormProcessor.h"
+#include "nsIFrame.h"
 #include "nsIListControlFrame.h"
 #include "nsLayoutUtils.h"
 #include "nsMappedAttributes.h"

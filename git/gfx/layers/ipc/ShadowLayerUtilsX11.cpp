@@ -45,9 +45,6 @@ namespace layers {
 static bool
 UsingXCompositing()
 {
-  if (!PR_GetEnv("MOZ_LAYERS_ENABLE_XLIB_SURFACES")) {
-      return false;
-  }
   return (gfxASurface::SurfaceTypeXlib ==
           gfxPlatform::GetPlatform()->ScreenReferenceSurface()->GetType());
 }
@@ -120,6 +117,9 @@ ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
                                                   uint32_t aCaps,
                                                   SurfaceDescriptor* aBuffer)
 {
+  if (!PR_GetEnv("MOZ_LAYERS_ENABLE_XLIB_SURFACES")) {
+      return false;
+  }
   if (!UsingXCompositing()) {
     // If we're not using X compositing, we're probably compositing on
     // the client side, in which case X surfaces would just slow

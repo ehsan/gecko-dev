@@ -12,14 +12,20 @@
 #include "nsGUIEvent.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
+#include "nsITimer.h"
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
+#include "nsIFrameLoader.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsIMarkupDocumentViewer.h"
+#include "nsIScrollableFrame.h"
 #include "nsFocusManager.h"
+#include "nsEventStates.h"
 #include "mozilla/TimeStamp.h"
 #include "nsIFrame.h"
 #include "Units.h"
 
+class nsIPresShell;
 class nsIContent;
 class nsIDocument;
 class nsIDocShell;
@@ -28,10 +34,7 @@ class nsIDocShellTreeItem;
 class imgIContainer;
 class nsDOMDataTransfer;
 class MouseEnterLeaveDispatcher;
-class nsEventStates;
-class nsIMarkupDocumentViewer;
-class nsIScrollableFrame;
-class nsITimer;
+class nsIFrame;
 
 namespace mozilla {
 namespace dom {

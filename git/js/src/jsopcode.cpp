@@ -603,7 +603,7 @@ js_Disassemble1(JSContext *cx, HandleScript script, jsbytecode *pc,
 
       case JOF_OBJECT: {
         /* Don't call obj.toSource if analysis/inference is active. */
-        if (script->compartment()->activeAnalysis) {
+        if (cx->compartment()->activeAnalysis) {
             Sprint(sp, " object");
             break;
         }

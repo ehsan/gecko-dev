@@ -63,8 +63,7 @@ class VCMReceiver {
                    int low_rtt_nack_threshold_ms,
                    int high_rtt_nack_threshold_ms);
   void SetNackSettings(size_t max_nack_list_size,
-                       int max_packet_age_to_nack,
-                       int max_incomplete_time_ms);
+                       int max_packet_age_to_nack);
   VCMNackMode NackMode() const;
   VCMNackStatus NackList(uint16_t* nackList, uint16_t size,
                          uint16_t* nack_list_length);
@@ -82,11 +81,16 @@ class VCMReceiver {
   bool DecodeWithErrors() const;
 
   // Returns size in time (milliseconds) of complete continuous frames in the
-  // jitter buffer. The render time is estimated based on the render delay at
-  // the time this function is called.
+  // jitter buffer.
   int RenderBufferSizeMs();
 
  private:
+  VCMEncodedFrame* FrameForDecoding(uint16_t max_wait_time_ms,
+                                    int64_t nextrender_time_ms,
+                                    VCMReceiver* dual_receiver);
+  VCMEncodedFrame* FrameForRendering(uint16_t max_wait_time_ms,
+                                     int64_t nextrender_time_ms,
+                                     VCMReceiver* dual_receiver);
   void CopyJitterBufferStateFromReceiver(const VCMReceiver& receiver);
   void UpdateState(VCMReceiverState new_state);
   void UpdateState(const VCMEncodedFrame& frame);

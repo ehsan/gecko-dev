@@ -7,11 +7,8 @@
 #define nsMathMLmtableFrame_h___
 
 #include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
-#include "nsBlockFrame.h"
-#include "nsTableOuterFrame.h"
-#include "nsTableRowFrame.h"
-#include "nsTableCellFrame.h"
 
 //
 // <mtable> -- table or matrix

@@ -277,8 +277,8 @@ struct ZoneStats : js::ZoneStatsPod
 
     ZoneStats(mozilla::MoveRef<ZoneStats> other)
         : ZoneStatsPod(other),
-          strings(mozilla::OldMove(other->strings)),
-          notableStrings(mozilla::OldMove(other->notableStrings))
+          strings(mozilla::Move(other->strings)),
+          notableStrings(mozilla::Move(other->notableStrings))
     {}
 
     // Add other's numbers to this object's numbers.  Both objects'

@@ -1,12 +1,8 @@
-/*
- *  Copyright (c) 2013 The WebRTC project authors. All Rights Reserved.
- *
- *  Use of this source code is governed by a BSD-style license
- *  that can be found in the LICENSE file in the root of the source
- *  tree. An additional intellectual property rights grant can be found
- *  in the file PATENTS.  All contributing project authors may
- *  be found in the AUTHORS file in the root of the source tree.
- */
+// Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file under third_party_mods/chromium directory of
+// source tree or at
+// http://src.chromium.org/viewvc/chrome/trunk/src/LICENSE
 
 // Various inline functions and macros to fix compilation of 32 bit target
 // on MSVC with /Wp64 flag enabled.

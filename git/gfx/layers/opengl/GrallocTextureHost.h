@@ -26,24 +26,22 @@ public:
                           android::GraphicBuffer* aGraphicBuffer,
                           gfx::SurfaceFormat aFormat);
 
-  virtual bool IsValid() const MOZ_OVERRIDE;
+  virtual TextureSourceOGL* AsSourceOGL() MOZ_OVERRIDE { return this; }
 
   virtual void BindTexture(GLenum aTextureUnit) MOZ_OVERRIDE;
 
-  virtual void UnbindTexture() MOZ_OVERRIDE {}
-
   virtual gfx::IntSize GetSize() const MOZ_OVERRIDE;
 
-  virtual TextureSourceOGL* AsSourceOGL() MOZ_OVERRIDE { return this; }
+  virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE;
 
   virtual GLenum GetTextureTarget() const MOZ_OVERRIDE;
-
-  virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE;
 
   virtual GLenum GetWrapMode() const MOZ_OVERRIDE
   {
     return LOCAL_GL_CLAMP_TO_EDGE;
   }
+
+  virtual void UnbindTexture() MOZ_OVERRIDE {}
 
   void DeallocateDeviceData();
 
@@ -58,6 +56,8 @@ public:
   {
     mGraphicBuffer = nullptr;
   }
+
+  bool IsValid() const;
 
   already_AddRefed<gfxImageSurface> GetAsSurface();
 
@@ -84,6 +84,8 @@ public:
 
   virtual void Unlock() MOZ_OVERRIDE;
 
+  virtual bool IsValid() const MOZ_OVERRIDE;
+
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
 
   virtual void DeallocateSharedData() MOZ_OVERRIDE;
@@ -102,8 +104,6 @@ public:
   }
 
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
-
-  bool IsValid() const;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "GrallocTextureHostOGL"; }

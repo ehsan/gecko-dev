@@ -2335,8 +2335,8 @@ numericSuffixes = {
     IDLType.Tags.uint64: 'ULL',
     IDLType.Tags.unrestricted_float: 'F',
     IDLType.Tags.float: 'F',
-    IDLType.Tags.unrestricted_double: '',
-    IDLType.Tags.double: ''
+    IDLType.Tags.unrestricted_double: 'D',
+    IDLType.Tags.double: 'D'
 }
 
 def numericValue(t, v):
@@ -2551,28 +2551,6 @@ class JSToNativeConversionInfo():
         self.dealWithOptional = dealWithOptional
         self.declArgs = declArgs
         self.holderArgs = holderArgs
-
-def getHandleDefault(defaultValue):
-    tag = defaultValue.type.tag()
-    if tag in numericSuffixes:
-        # Some numeric literals require a suffix to compile without warnings
-        return numericValue(tag, defaultValue.value)
-    assert(tag == IDLType.Tags.bool)
-    return toStringBool(defaultValue.value)
-
-def handleDefaultStringValue(defaultValue, method):
-    """
-    Returns a string which ends up calling 'method' with a (PRUnichar*, length)
-    pair that sets this string default value.  This string is suitable for
-    passing as the second argument of handleDefault; in particular it does not
-    end with a ';'
-    """
-    assert defaultValue.type.isDOMString()
-    return ("static const PRUnichar data[] = { %s };\n"
-            "%s(data, ArrayLength(data) - 1)" %
-            (", ".join(["'" + char + "'" for char in
-                        defaultValue.value] + ["0"]),
-             method))
 
 # If this function is modified, modify CGNativeMember.getArg and
 # CGNativeMember.getRetvalInfo accordingly.  The latter cares about the decltype
@@ -2911,6 +2889,9 @@ for (uint32_t i = 0; i < length; ++i) {
         if nullable:
             type = type.inner
 
+        assert(defaultValue is None or
+               (isinstance(defaultValue, IDLNullValue) and nullable))
+
         unionArgumentObj = "${holderName}"
         if nullable:
             unionArgumentObj += ".ref()"
@@ -3114,36 +3095,15 @@ for (uint32_t i = 0; i < length; ++i) {
             holderArgs = "${declName}"
             constructHolder = None
 
-        if defaultValue and not isinstance(defaultValue, IDLNullValue):
-            tag = defaultValue.type.tag()
-
-            if tag in numericSuffixes or tag is IDLType.Tags.bool:
-                defaultStr = getHandleDefault(defaultValue)
-                value = declLoc + (".Value()" if nullable else "")
-                default = CGGeneric("%s.SetAs%s() = %s;" % (value,
-                                                            defaultValue.type,
-                                                            defaultStr))
-            else:
-                default = CGGeneric(
-                    handleDefaultStringValue(
-                        defaultValue, "%s.SetStringData" % unionArgumentObj) +
-                    ";")
-
-            templateBody = CGIfElseWrapper("!(${haveValue})", default, templateBody)
-
         templateBody = CGList([constructHolder, templateBody], "\n")
-
         if nullable:
             if defaultValue:
-                if isinstance(defaultValue, IDLNullValue):
-                    extraConditionForNull = "!(${haveValue}) || "
-                else:
-                    extraConditionForNull = "${haveValue} && "
+                assert(isinstance(defaultValue, IDLNullValue))
+                valueMissing = "!(${haveValue}) || "
             else:
-                extraConditionForNull = ""
+                valueMissing = ""
             templateBody = handleNull(templateBody, declLoc,
-                                      extraConditionForNull=extraConditionForNull)
-
+                                      extraConditionForNull=valueMissing)
         templateBody = CGList([constructDecl, templateBody], "\n")
 
         return JSToNativeConversionInfo(templateBody.define(),
@@ -3389,11 +3349,14 @@ for (uint32_t i = 0; i < length; ++i) {
 
             if isinstance(defaultValue, IDLNullValue):
                 assert(type.nullable())
-                defaultCode = "%s.SetNull()" % varName
-            else:
-                defaultCode = handleDefaultStringValue(defaultValue,
-                                                       "%s.SetData" % varName)
-            return handleDefault(conversionCode, defaultCode)
+                return handleDefault(conversionCode,
+                                     "%s.SetNull()" % varName)
+            return handleDefault(
+                conversionCode,
+                ("static const PRUnichar data[] = { %s };\n"
+                 "%s.SetData(data, ArrayLength(data) - 1)" %
+                 (", ".join(["'" + char + "'" for char in defaultValue.value] + ["0"]),
+                  varName)))
 
         if isMember:
             # We have to make a copy, because our jsval may well not
@@ -3729,11 +3692,18 @@ for (uint32_t i = 0; i < length; ++i) {
         # We already handled IDLNullValue, so just deal with the other ones
         not isinstance(defaultValue, IDLNullValue)):
         tag = defaultValue.type.tag()
-        defaultStr = getHandleDefault(defaultValue)
-        template = CGIfElseWrapper("${haveValue}",
-                                   CGGeneric(template),
-                                   CGGeneric("%s = %s;" % (writeLoc,
-                                                           defaultStr))).define()
+        if tag in numericSuffixes:
+            # Some numeric literals require a suffix to compile without warnings
+            defaultStr = numericValue(tag, defaultValue.value)
+        else:
+            assert(tag == IDLType.Tags.bool)
+            defaultStr = toStringBool(defaultValue.value)
+        template = CGWrapper(CGIndenter(CGGeneric(template)),
+                             pre="if (${haveValue}) {\n",
+                             post=("\n"
+                                   "} else {\n"
+                                   "  %s = %s;\n"
+                                   "}" % (writeLoc, defaultStr))).define()
 
     return JSToNativeConversionInfo(template, declType=declType,
                                     dealWithOptional=isOptional)
@@ -6139,11 +6109,11 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider, isReturnValue=
     if type.isObject():
         body = ("mUnion.mValue.mObject.SetValue(cx, obj);\n"
                 "mUnion.mType = mUnion.eObject;")
-        setters = [ClassMethod("SetToObject", "void",
-                               [Argument("JSContext*", "cx"),
-                                Argument("JSObject*", "obj")],
-                               inline=True, bodyInHeader=True,
-                               body=body)]
+        setter = ClassMethod("SetToObject", "void",
+                             [Argument("JSContext*", "cx"),
+                              Argument("JSObject*", "obj")],
+                             inline=True, bodyInHeader=True,
+                             body=body)
 
     else:
         jsConversion = string.Template(conversionInfo.template).substitute(
@@ -6158,25 +6128,19 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider, isReturnValue=
                                  pre="tryNext = false;\n",
                                  post="\n"
                                       "return true;")
-        setters = [ClassMethod("TrySetTo" + name, "bool",
-                               [Argument("JSContext*", "cx"),
-                                Argument("JS::Handle<JS::Value>", "value"),
-                                Argument("JS::MutableHandle<JS::Value>", "pvalue"),
-                                Argument("bool&", "tryNext")],
-                               inline=True, bodyInHeader=True,
-                               body=jsConversion.define())]
-        if type.isString():
-            setters.append(ClassMethod("SetStringData", "void",
-                [Argument("const nsDependentString::char_type*", "aData"),
-                 Argument("nsDependentString::size_type", "aLength")],
-                inline=True, bodyInHeader=True,
-                body="mStringHolder.SetData(aData, aLength);"))
+        setter = ClassMethod("TrySetTo" + name, "bool",
+                             [Argument("JSContext*", "cx"),
+                              Argument("JS::Handle<JS::Value>", "value"),
+                              Argument("JS::MutableHandle<JS::Value>", "pvalue"),
+                              Argument("bool&", "tryNext")],
+                             inline=True, bodyInHeader=True,
+                             body=jsConversion.define())
 
     return {
                 "name": name,
                 "structType": structType,
                 "externalType": externalType,
-                "setters": setters,
+                "setter": setter,
                 "holderType": conversionInfo.holderType.define() if conversionInfo.holderType else None,
                 "ctorArgs": ctorArgs,
                 "ctorArgList": [Argument("JSContext*", "cx")] if type.isSpiderMonkeyInterface() else []
@@ -6337,7 +6301,7 @@ class CGUnionConversionStruct(CGThing):
         for t in self.type.flatMemberTypes:
             vars = getUnionTypeTemplateVars(self.type,
                                             t, self.descriptorProvider)
-            methods.extend(vars["setters"])
+            methods.append(vars["setter"])
             if vars["name"] != "Object":
                 body=string.Template("mUnion.mType = mUnion.e${name};\n"
                                      "return mUnion.mValue.m${name}.SetValue(${ctorArgs});").substitute(vars)

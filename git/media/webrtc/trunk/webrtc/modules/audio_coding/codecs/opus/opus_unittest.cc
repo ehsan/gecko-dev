@@ -19,9 +19,9 @@ struct WebRtcOpusDecInst;
 namespace webrtc {
 
 // Number of samples in a 60 ms stereo frame, sampled at 48 kHz.
-const int kOpusNumberOfSamples = 480 * 6 * 2;
+enum { kOpusNumberOfSamples = 480 * 6 * 2 };
 // Maximum number of bytes in output bitstream.
-const size_t kMaxBytes = 1000;
+enum { kMaxBytes = 1000 };
 
 class OpusTest : public ::testing::Test {
  protected:

@@ -76,15 +76,15 @@ public:
   Dispatch(JSContext* aCx)
   {
     mWorkerPrivate->AssertIsOnWorkerThread();
-    AutoSyncLoopHolder syncLoop(mWorkerPrivate);
-    mSyncQueueKey = syncLoop.SyncQueueKey();
+    mSyncQueueKey = mWorkerPrivate->CreateNewSyncLoop();
 
     if (NS_FAILED(NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL))) {
       JS_ReportError(aCx, "Failed to dispatch to main thread!");
+      mWorkerPrivate->StopSyncLoop(mSyncQueueKey, false);
       return false;
     }
 
-    return syncLoop.RunAndForget(aCx);
+    return mWorkerPrivate->RunSyncLoop(aCx, mSyncQueueKey);
   }
 
 private:

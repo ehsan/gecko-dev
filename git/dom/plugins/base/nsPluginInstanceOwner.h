@@ -83,6 +83,10 @@ public:
   
   nsresult ProcessMouseDown(nsIDOMEvent* aKeyEvent);
   nsresult ProcessKeyPress(nsIDOMEvent* aKeyEvent);
+#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
+  nsresult Text(nsIDOMEvent* aTextEvent);
+#endif
+
   nsresult Destroy();  
 
 #ifdef XP_WIN

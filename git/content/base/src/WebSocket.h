@@ -92,15 +92,18 @@ public: // WebIDL interface:
 
   // Constructor:
   static already_AddRefed<WebSocket> Constructor(const GlobalObject& aGlobal,
+                                                 JSContext *aCx,
                                                  const nsAString& aUrl,
                                                  ErrorResult& rv);
 
   static already_AddRefed<WebSocket> Constructor(const GlobalObject& aGlobal,
+                                                 JSContext *aCx,
                                                  const nsAString& aUrl,
                                                  const nsAString& aProtocol,
                                                  ErrorResult& rv);
 
   static already_AddRefed<WebSocket> Constructor(const GlobalObject& aGlobal,
+                                                 JSContext *aCx,
                                                  const nsAString& aUrl,
                                                  const Sequence<nsString>& aProtocols,
                                                  ErrorResult& rv);

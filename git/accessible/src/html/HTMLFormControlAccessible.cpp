@@ -22,6 +22,7 @@
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIEditor.h"
 #include "nsIFormControl.h"
+#include "nsIFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsISelectionController.h"
 #include "jsapi.h"

@@ -13,7 +13,7 @@
       'target_name': 'no_op',
       'type': 'executable',
       'dependencies': [
-        '../voice_engine/voice_engine.gyp:voice_engine',
+        '../voice_engine/voice_engine.gyp:voice_engine_core',
       ],
       'sources': [ 'no_op.cc', ],
     },

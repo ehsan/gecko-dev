@@ -250,7 +250,12 @@ struct StructField {
     explicit StructField(size_t index,
                          jsid &id,
                          TypeRepresentation *typeRepr,
-                         size_t offset);
+                         size_t offset)
+      : index(index),
+        id(id),
+        typeRepr(typeRepr),
+        offset(offset)
+    {}
 };
 
 class StructTypeRepresentation : public TypeRepresentation {

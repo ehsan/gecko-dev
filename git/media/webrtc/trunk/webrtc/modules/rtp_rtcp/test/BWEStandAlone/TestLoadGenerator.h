@@ -13,8 +13,8 @@
 
 #include <stdlib.h>
 
-#include "webrtc/modules/interface/module_common_types.h"
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
+#include "module_common_types.h"
 
 class TestSenderReceiver;
 namespace webrtc {

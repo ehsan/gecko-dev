@@ -8,7 +8,6 @@
 
 #include "nsChromeRegistry.h"
 #include "nsVoidArray.h"
-#include "mozilla/Move.h"
 
 namespace mozilla {
 namespace dom {
@@ -127,8 +126,8 @@ class nsChromeRegistryChrome : public nsChromeRegistry
     typedef nsURIHashKey::KeyTypePointer KeyTypePointer;
 
     OverlayListEntry(KeyTypePointer aKey) : nsURIHashKey(aKey) { }
-    OverlayListEntry(OverlayListEntry&& toMove) : nsURIHashKey(mozilla::Move(toMove)),
-                                                  mArray(mozilla::Move(toMove.mArray)) { }
+    OverlayListEntry(OverlayListEntry& toCopy) : nsURIHashKey(toCopy),
+                                                 mArray(toCopy.mArray) { }
     ~OverlayListEntry() { }
 
     void AddURI(nsIURI* aURI);

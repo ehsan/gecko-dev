@@ -17,7 +17,7 @@
     </resources>
   </binding>
 
-  <binding id="menulist" display="xul:menu" role="xul:menulist"
+  <binding id="menulist" display="xul:menu"
            extends="chrome://global/content/bindings/menulist.xml#menulist-base">
     <content sizetopopup="pref">
       <xul:hbox class="menulist-label-box" flex="1">
@@ -66,7 +66,7 @@
       </handler>
     </handlers>
 
-    <implementation implements="nsIDOMXULMenuListElement, nsIDOMEventListener">
+    <implementation implements="nsIDOMXULMenuListElement, nsIAccessibleProvider, nsIDOMEventListener">
       <constructor>
         this.setInitialSelection()
       </constructor>
@@ -386,6 +386,17 @@
         ]]>
         </body>
       </method>
+
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            // Droppable is currently used for the Firefox bookmarks dialog only
+            return (this.getAttribute("droppable") == "false") ?
+                   Components.interfaces.nsIAccessibleProvider.XULTextBox :
+                   Components.interfaces.nsIAccessibleProvider.XULCombobox;
+          ]]>
+        </getter>
+      </property>
 
       <destructor>
         <![CDATA[

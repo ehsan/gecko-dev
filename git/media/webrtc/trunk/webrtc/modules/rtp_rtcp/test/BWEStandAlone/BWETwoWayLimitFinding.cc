@@ -8,8 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/BWETwoWayLimitFinding.h"
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/TestLoadGenerator.h"
+#include "BWETwoWayLimitFinding.h"
+#include "TestLoadGenerator.h"
 
 
 BWETwoWayLimitFinding::BWETwoWayLimitFinding(
@@ -72,3 +72,4 @@ bool BWETwoWayLimitFinding::StoppingCriterionMaster()
 
     return (_forwLimitReached && _revLimitReached);
 }
+

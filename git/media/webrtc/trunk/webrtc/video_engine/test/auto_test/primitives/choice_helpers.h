@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-#include "webrtc/video_engine/test/auto_test/primitives/input_helpers.h"
+#include "video_engine/test/auto_test/primitives/input_helpers.h"
 
 namespace webrtc {
 

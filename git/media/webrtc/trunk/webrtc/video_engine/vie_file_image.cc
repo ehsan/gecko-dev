@@ -9,7 +9,7 @@
  */
 
 // Placed first to get WEBRTC_VIDEO_ENGINE_FILE_API.
-#include "webrtc/engine_configurations.h"
+#include "engine_configurations.h"  // NOLINT
 
 #ifdef WEBRTC_VIDEO_ENGINE_FILE_API
 

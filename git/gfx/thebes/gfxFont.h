@@ -605,12 +605,11 @@ private:
 
         FontTableHashEntry(KeyTypePointer aTag)
             : KeyClass(aTag), mBlob() { }
-
-        FontTableHashEntry(FontTableHashEntry&& toMove)
-            : KeyClass(mozilla::Move(toMove))
-            , mBlob(mozilla::Move(toMove.mBlob))
+        // Copying transfers blob association.
+        FontTableHashEntry(FontTableHashEntry& toCopy)
+            : KeyClass(toCopy), mBlob(toCopy.mBlob)
         {
-            toMove.mBlob = nullptr;
+            toCopy.mBlob = nullptr;
         }
 
         ~FontTableHashEntry() { Clear(); }

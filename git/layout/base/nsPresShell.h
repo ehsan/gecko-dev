@@ -556,6 +556,13 @@ protected:
     }
 
   protected:
+    void Init(nsInputEvent* aEvent)
+    {
+      mEvent->time = aEvent->time;
+      mEvent->refPoint = aEvent->refPoint;
+      mEvent->modifiers = aEvent->modifiers;
+    }
+
     nsDelayedInputEvent()
     : nsDelayedEvent(), mEvent(nullptr) {}
 
@@ -572,7 +579,8 @@ protected:
                                 aEvent->widget,
                                 aEvent->reason,
                                 aEvent->context);
-      static_cast<nsMouseEvent*>(mEvent)->AssignMouseEventData(*aEvent, false);
+      Init(aEvent);
+      static_cast<nsMouseEvent*>(mEvent)->clickCount = aEvent->clickCount;
     }
 
     virtual ~nsDelayedMouseEvent()
@@ -589,7 +597,12 @@ protected:
       mEvent = new nsKeyEvent(aEvent->mFlags.mIsTrusted,
                               aEvent->message,
                               aEvent->widget);
-      static_cast<nsKeyEvent*>(mEvent)->AssignKeyEventData(*aEvent, false);
+      Init(aEvent);
+      static_cast<nsKeyEvent*>(mEvent)->keyCode = aEvent->keyCode;
+      static_cast<nsKeyEvent*>(mEvent)->charCode = aEvent->charCode;
+      static_cast<nsKeyEvent*>(mEvent)->alternativeCharCodes =
+        aEvent->alternativeCharCodes;
+      static_cast<nsKeyEvent*>(mEvent)->isChar = aEvent->isChar;
     }
 
     virtual ~nsDelayedKeyEvent()

@@ -169,12 +169,14 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 
     nsPluginFile pluginFile(localFile);
 
-#if defined(MOZ_X11) || defined(OS_MACOSX)
+    // Maemo flash can render with any provided rectangle and so does not
+    // require this quirk.
+#if (defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)) || defined(OS_MACOSX)
     nsPluginInfo info = nsPluginInfo();
     if (NS_FAILED(pluginFile.GetPluginInfo(info, &mLibrary)))
         return false;
 
-#if defined(MOZ_X11)
+#if defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)
     NS_NAMED_LITERAL_CSTRING(flash10Head, "Shockwave Flash 10.");
     if (StringBeginsWith(nsDependentCString(info.fDescription), flash10Head)) {
         AddQuirk(QUIRK_FLASH_EXPOSE_COORD_TRANSLATION);

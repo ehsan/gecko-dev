@@ -15,7 +15,7 @@
 #ifndef WEBRTC_VOICE_ENGINE_VOE_TEST_INTERFACE_H
 #define WEBRTC_VOICE_ENGINE_VOE_TEST_INTERFACE_H
 
-#include "webrtc/common_types.h"
+#include "common_types.h"
 
 namespace voetest {
 // TODO(andrew): Using directives not permitted.

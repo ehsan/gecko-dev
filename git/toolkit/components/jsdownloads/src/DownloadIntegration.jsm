@@ -259,7 +259,14 @@ this.DownloadIntegration = {
         directory = this._getDirectory("DfltDwnld");
       }
 #elifdef XP_UNIX
-#ifdef ANDROID
+#ifdef MOZ_PLATFORM_MAEMO
+      // As maemo does not follow the XDG "standard" (as usually desktop
+      // Linux distros do) neither has a working $HOME/Desktop folder
+      // for us to fallback into, "$HOME/MyDocs/.documents/" is the folder
+      // we found most appropriate to be the default target folder for
+      // downloads on the platform.
+      directory = this._getDirectory("XDGDocs");
+#elifdef ANDROID
       // Android doesn't have a $HOME directory, and by default we only have
       // write access to /data/data/org.mozilla.{$APP} and /sdcard
       let directoryPath = gEnvironment.get("DOWNLOADS_DIRECTORY");
