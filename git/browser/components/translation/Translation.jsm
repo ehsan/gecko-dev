@@ -100,16 +100,10 @@ this.Translation = {
  */
 function TranslationUI(aBrowser) {
   this.browser = aBrowser;
+  aBrowser.messageManager.addMessageListener("Translation:Finished", this);
 }
 
 TranslationUI.prototype = {
-  get browser() this._browser,
-  set browser(aBrowser) {
-    if (this._browser)
-      this._browser.messageManager.removeMessageListener("Translation:Finished", this);
-    aBrowser.messageManager.addMessageListener("Translation:Finished", this);
-    this._browser = aBrowser;
-  },
   translate: function(aFrom, aTo) {
     if (aFrom == aTo ||
         (this.state == Translation.STATE_TRANSLATED &&
@@ -137,17 +131,7 @@ TranslationUI.prototype = {
     if (notification)
       PopupNotifications.remove(notification);
 
-    let callback = (aTopic, aNewBrowser) => {
-      if (aTopic == "swapping") {
-        let infoBarVisible =
-          this.notificationBox.getNotificationWithValue("translation");
-        aNewBrowser.translationUI = this;
-        this.browser = aNewBrowser;
-        if (infoBarVisible)
-          this.showTranslationInfoBar();
-        return true;
-      }
-
+    let callback = aTopic => {
       if (aTopic != "showing")
         return false;
       let notification = this.notificationBox.getNotificationWithValue("translation");

@@ -4461,8 +4461,13 @@ RilObject.prototype = {
       }
 
       let state = strings[i + 3];
-      network.state = RIL_QAN_STATE_TO_GECKO_STATE[state];
+      if (state === NETWORK_STATE_UNKNOWN) {
+        // TODO: looks like this might conflict in style with
+        // GECKO_NETWORK_STYLE_UNKNOWN / nsINetworkManager
+        state = GECKO_QAN_STATE_UNKNOWN;
+      }
 
+      network.state = state;
       networks.push(network);
     }
     return networks;
@@ -5524,7 +5529,7 @@ RilObject.prototype[REQUEST_GET_CURRENT_CALLS] = function REQUEST_GET_CURRENT_CA
     if (RILQUIRKS_CALLSTATE_EXTRA_UINT32) {
       Buf.readInt32();
     }
-    call.number             = Buf.readString();
+    call.number             = Buf.readString(); //TODO munge with TOA
     call.numberPresentation = Buf.readInt32(); // CALL_PRESENTATION_*
     call.name               = Buf.readString();
     call.namePresentation   = Buf.readInt32();
@@ -6855,7 +6860,7 @@ RilObject.prototype[UNSOLICITED_CDMA_CALL_WAITING] = function UNSOLICITED_CDMA_C
   call.alertPitch          = Buf.readInt32();
   call.signal              = Buf.readInt32();
   this.sendChromeMessage({rilMessageType: "cdmaCallWaiting",
-                          waitingCall: call});
+                          number: call.number});
 };
 RilObject.prototype[UNSOLICITED_CDMA_OTA_PROVISION_STATUS] = function UNSOLICITED_CDMA_OTA_PROVISION_STATUS() {
   let status = this.context.Buf.readInt32List()[0];
