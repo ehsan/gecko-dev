@@ -43,7 +43,6 @@
 #include "nsObjectFrame.h"
 #include "nsTransitionManager.h"
 #include "nsAnimationManager.h"
-#include "CounterStyleManager.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
 #include "nsIMessageManager.h"
@@ -239,8 +238,6 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   NS_ASSERTION(mDocument, "Null document");
   mUserFontSet = nullptr;
   mUserFontSetDirty = true;
-
-  mCounterStylesDirty = true;
 
   // if text perf logging enabled, init stats struct
   PRLogModuleInfo *log = gfxPlatform::GetLog(eGfxLog_textperf);
@@ -967,11 +964,8 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
 
   mAnimationManager = new nsAnimationManager(this);
 
-  // Since there are methods in nsPresContext have the same name as the
-  // classes, it is necessary to prefix them with the namespace here.
+  // FIXME: Why is mozilla:: needed?
   mRestyleManager = new mozilla::RestyleManager(this);
-
-  mCounterStyleManager = new mozilla::CounterStyleManager(this);
 
   if (mDocument->GetDisplayDocument()) {
     NS_ASSERTION(mDocument->GetDisplayDocument()->GetShell() &&
@@ -1147,10 +1141,6 @@ nsPresContext::SetShell(nsIPresShell* aShell)
     if (mRestyleManager) {
       mRestyleManager->Disconnect();
       mRestyleManager = nullptr;
-    }
-    if (mCounterStyleManager) {
-      mCounterStyleManager->Disconnect();
-      mCounterStyleManager = nullptr;
     }
 
     if (IsRoot()) {
@@ -1877,7 +1867,6 @@ nsPresContext::RebuildAllStyleData(nsChangeHint aExtraHint)
   mUsesRootEMUnits = false;
   mUsesViewportUnits = false;
   RebuildUserFontSet();
-  RebuildCounterStyles();
 
   RestyleManager()->RebuildAllStyleData(aExtraHint);
 }
@@ -2210,46 +2199,6 @@ nsPresContext::UserFontSetUpdated()
   //      reuse of cached data even when no style rules have changed.
 
   PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW);
-}
-
-void
-nsPresContext::FlushCounterStyles()
-{
-  if (!mShell) {
-    return; // we've been torn down
-  }
-  if (mCounterStyleManager->IsInitial()) {
-    // Still in its initial state, no need to clean.
-    return;
-  }
-
-  if (mCounterStylesDirty) {
-    bool changed = mCounterStyleManager->NotifyRuleChanged();
-    if (changed) {
-      PresShell()->NotifyCounterStylesAreDirty();
-      PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW);
-    }
-    mCounterStylesDirty = false;
-  }
-}
-
-void
-nsPresContext::RebuildCounterStyles()
-{
-  if (mCounterStyleManager->IsInitial()) {
-    // Still in its initial state, no need to reset.
-    return;
-  }
-
-  mCounterStylesDirty = true;
-  mDocument->SetNeedStyleFlush();
-  if (!mPostedFlushCounterStyles) {
-    nsCOMPtr<nsIRunnable> ev =
-      NS_NewRunnableMethod(this, &nsPresContext::HandleRebuildCounterStyles);
-    if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
-      mPostedFlushCounterStyles = true;
-    }
-  }
 }
 
 void

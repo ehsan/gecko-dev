@@ -16,9 +16,8 @@
 #include "RestyleTracker.h"
 #include "nsPresContext.h"
 
-class nsIFrame;
 class nsRefreshDriver;
-class nsStyleChangeList;
+class nsIFrame;
 struct TreeMatchContext;
 
 namespace mozilla {

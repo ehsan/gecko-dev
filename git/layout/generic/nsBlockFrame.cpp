@@ -48,7 +48,6 @@
 #include "nsRenderingContext.h"
 #include "TextOverflow.h"
 #include "nsIFrameInlines.h"
-#include "CounterStyleManager.h"
 
 #include "nsBidiPresUtils.h"
 
@@ -6487,10 +6486,17 @@ nsBlockFrame::SetInitialChildList(ChildListID     aListID,
         !GetPrevInFlow()) {
       // Resolve style for the bullet frame
       const nsStyleList* styleList = StyleList();
-      CounterStyle* style = styleList->GetCounterStyle();
-      nsCSSPseudoElements::Type pseudoType = style->IsBullet() ?
-        nsCSSPseudoElements::ePseudo_mozListBullet :
-        nsCSSPseudoElements::ePseudo_mozListNumber;
+      nsCSSPseudoElements::Type pseudoType;
+      switch (styleList->mListStyleType) {
+        case NS_STYLE_LIST_STYLE_DISC:
+        case NS_STYLE_LIST_STYLE_CIRCLE:
+        case NS_STYLE_LIST_STYLE_SQUARE:
+          pseudoType = nsCSSPseudoElements::ePseudo_mozListBullet;
+          break;
+        default:
+          pseudoType = nsCSSPseudoElements::ePseudo_mozListNumber;
+          break;
+      }
 
       nsIPresShell *shell = presContext->PresShell();
 
@@ -6529,23 +6535,35 @@ nsBlockFrame::BulletIsEmpty() const
                  NS_STYLE_DISPLAY_LIST_ITEM && HasOutsideBullet(),
                "should only care when we have an outside bullet");
   const nsStyleList* list = StyleList();
-  return list->GetCounterStyle()->IsNone() &&
+  return list->mListStyleType == NS_STYLE_LIST_STYLE_NONE &&
          !list->GetListStyleImage();
 }
 
 void
-nsBlockFrame::GetSpokenBulletText(nsAString& aText) const
+nsBlockFrame::GetBulletText(nsAString& aText) const
 {
+  aText.Truncate();
+
   const nsStyleList* myList = StyleList();
-  if (myList->GetListStyleImage()) {
+  if (myList->GetListStyleImage() ||
+      myList->mListStyleType == NS_STYLE_LIST_STYLE_DISC) {
     aText.Assign(kDiscCharacter);
     aText.Append(' ');
-  } else {
+  }
+  else if (myList->mListStyleType == NS_STYLE_LIST_STYLE_CIRCLE) {
+    aText.Assign(kCircleCharacter);
+    aText.Append(' ');
+  }
+  else if (myList->mListStyleType == NS_STYLE_LIST_STYLE_SQUARE) {
+    aText.Assign(kSquareCharacter);
+    aText.Append(' ');
+  }
+  else if (myList->mListStyleType != NS_STYLE_LIST_STYLE_NONE) {
     nsBulletFrame* bullet = GetBullet();
     if (bullet) {
-      bullet->GetSpokenText(aText);
-    } else {
-      aText.Truncate();
+      nsAutoString text;
+      bullet->GetListItemText(*myList, text);
+      aText = text;
     }
   }
 }

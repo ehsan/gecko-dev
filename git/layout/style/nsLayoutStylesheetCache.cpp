@@ -227,16 +227,6 @@ nsLayoutStylesheetCache::MathMLSheet()
   return gStyleCache->mMathMLSheet;
 }
 
-nsCSSStyleSheet*
-nsLayoutStylesheetCache::CounterStylesSheet()
-{
-  EnsureGlobal();
-  if (!gStyleCache)
-    return nullptr;
-
-  return gStyleCache->mCounterStylesSheet;
-}
-
 void
 nsLayoutStylesheetCache::Shutdown()
 {
@@ -276,7 +266,6 @@ nsLayoutStylesheetCache::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf
   MEASURE(mQuirkSheet);
   MEASURE(mFullScreenOverrideSheet);
   MEASURE(mSVGSheet);
-  MEASURE(mCounterStylesSheet);
   if (mMathMLSheet) {
     MEASURE(mMathMLSheet);
   }
@@ -347,12 +336,6 @@ nsLayoutStylesheetCache::nsLayoutStylesheetCache()
     LoadSheet(uri, mSVGSheet, true);
   }
   NS_ASSERTION(mSVGSheet, "Could not load svg.css");
-
-  NS_NewURI(getter_AddRefs(uri), "resource://gre-resources/counterstyles.css");
-  if (uri) {
-    LoadSheet(uri, mCounterStylesSheet, true);
-  }
-  NS_ASSERTION(mCounterStylesSheet, "Could not load counterstyles.css");
 
   // mMathMLSheet is created on-demand since its use is rare. This helps save
   // memory for Firefox OS apps.

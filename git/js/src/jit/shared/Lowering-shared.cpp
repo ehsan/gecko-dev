@@ -214,7 +214,7 @@ LIRGeneratorShared::assignSnapshot(LInstruction *ins, BailoutKind kind)
 }
 
 bool
-LIRGeneratorShared::assignSafepoint(LInstruction *ins, MInstruction *mir, BailoutKind kind)
+LIRGeneratorShared::assignSafepoint(LInstruction *ins, MInstruction *mir)
 {
     JS_ASSERT(!osiPoint_);
     JS_ASSERT(!ins->safepoint());
@@ -222,7 +222,7 @@ LIRGeneratorShared::assignSafepoint(LInstruction *ins, MInstruction *mir, Bailou
     ins->initSafepoint(alloc());
 
     MResumePoint *mrp = mir->resumePoint() ? mir->resumePoint() : lastResumePoint_;
-    LSnapshot *postSnapshot = buildSnapshot(ins, mrp, kind);
+    LSnapshot *postSnapshot = buildSnapshot(ins, mrp, Bailout_Normal);
     if (!postSnapshot)
         return false;
 

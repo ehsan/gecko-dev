@@ -171,13 +171,12 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
     // effects (if any), it may check pre-conditions and bailout if they do not
     // hold. This function informs the register allocator that it will need to
     // capture appropriate state.
-    bool assignSnapshot(LInstruction *ins, BailoutKind kind);
+    bool assignSnapshot(LInstruction *ins, BailoutKind kind = Bailout_Normal);
 
     // Marks this instruction as needing to call into either the VM or GC. This
     // function may build a snapshot that captures the result of its own
     // instruction, and as such, should generally be called after define*().
-    bool assignSafepoint(LInstruction *ins, MInstruction *mir,
-                         BailoutKind kind = Bailout_DuringVMCall);
+    bool assignSafepoint(LInstruction *ins, MInstruction *mir);
 
   public:
     bool visitConstant(MConstant *ins);

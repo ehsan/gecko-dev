@@ -29,7 +29,6 @@ class nsCSSKeyframesRule;
 class nsCSSPageRule;
 class nsCSSFontFeatureValuesRule;
 class nsCSSStyleSheet;
-class nsCSSCounterStyleRule;
 
 /**
  * The CSS style rule processor provides a mechanism for sibling style
@@ -129,9 +128,6 @@ public:
 
   nsCSSKeyframesRule* KeyframesRuleForName(nsPresContext* aPresContext,
                                            const nsString& aName);
-
-  nsCSSCounterStyleRule* CounterStyleRuleForName(nsPresContext* aPresContext,
-                                                 const nsAString& aName);
 
   bool AppendPageRules(nsPresContext* aPresContext,
                        nsTArray<nsCSSPageRule*>& aArray);

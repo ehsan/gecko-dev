@@ -889,7 +889,7 @@ static int nr_ice_component_stun_server_default_cb(void *cb_arg,nr_stun_server_c
 
     _status=0;
  abort:
-    return(_status);
+    return 0;
   }
 
 int nr_ice_component_nominated_pair(nr_ice_component *comp, nr_ice_cand_pair *pair)

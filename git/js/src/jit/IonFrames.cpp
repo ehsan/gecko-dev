@@ -83,23 +83,20 @@ JitFrameIterator::JitFrameIterator(ThreadSafeContext *cx)
     type_(JitFrame_Exit),
     returnAddressToFp_(nullptr),
     frameSize_(0),
-    mode_(cx->isForkJoinContext() ? ParallelExecution : SequentialExecution),
-    kind_(Kind_FrameIterator),
     cachedSafepointIndex_(nullptr),
-    activation_(nullptr)
+    activation_(nullptr),
+    mode_(cx->isForkJoinContext() ? ParallelExecution : SequentialExecution)
 {
 }
 
 JitFrameIterator::JitFrameIterator(const ActivationIterator &activations)
-  : current_(activations.jitTop()),
-    type_(JitFrame_Exit),
-    returnAddressToFp_(nullptr),
-    frameSize_(0),
-    mode_(activations->asJit()->cx()->isForkJoinContext() ? ParallelExecution
-                                                          : SequentialExecution),
-    kind_(Kind_FrameIterator),
-    cachedSafepointIndex_(nullptr),
-    activation_(activations->asJit())
+    : current_(activations.jitTop()),
+      type_(JitFrame_Exit),
+      returnAddressToFp_(nullptr),
+      frameSize_(0),
+      cachedSafepointIndex_(nullptr),
+      activation_(activations->asJit()),
+      mode_(activation_->cx()->isForkJoinContext() ? ParallelExecution : SequentialExecution)
 {
 }
 
@@ -108,23 +105,8 @@ JitFrameIterator::JitFrameIterator(IonJSFrameLayout *fp, ExecutionMode mode)
     type_(JitFrame_IonJS),
     returnAddressToFp_(fp->returnAddress()),
     frameSize_(fp->prevFrameLocalSize()),
-    mode_(mode),
-    kind_(Kind_FrameIterator)
+    mode_(mode)
 {
-}
-
-IonBailoutIterator *
-JitFrameIterator::asBailoutIterator()
-{
-    MOZ_ASSERT(isBailoutIterator());
-    return static_cast<IonBailoutIterator *>(this);
-}
-
-const IonBailoutIterator *
-JitFrameIterator::asBailoutIterator() const
-{
-    MOZ_ASSERT(isBailoutIterator());
-    return static_cast<const IonBailoutIterator *>(this);
 }
 
 bool
@@ -1716,14 +1698,7 @@ JitFrameIterator::ionScriptFromCalleeToken() const
     switch (GetCalleeTokenTag(calleeToken())) {
       case CalleeToken_Function:
       case CalleeToken_Script:
-        switch (mode_) {
-          case SequentialExecution:
-            return script()->ionScript();
-          case ParallelExecution:
-            return script()->parallelIonScript();
-          default:
-            MOZ_ASSUME_UNREACHABLE("No such execution mode");
-        }
+        return mode_ == ParallelExecution ? script()->parallelIonScript() : script()->ionScript();
       default:
         MOZ_ASSUME_UNREACHABLE("unknown callee token type");
     }
@@ -1779,11 +1754,7 @@ InlineFrameIterator::InlineFrameIterator(ThreadSafeContext *cx, const InlineFram
     script_(cx)
 {
     if (frame_) {
-        if (frame_->isBailoutIterator())
-            start_ = SnapshotIterator(*frame_->asBailoutIterator());
-        else
-            start_ = SnapshotIterator(*frame_);
-
+        start_ = SnapshotIterator(*frame_);
         // findNextFrame will iterate to the next frame and init. everything.
         // Therefore to settle on the same frame, we report one frame less readed.
         framesRead_ = iter->framesRead_ - 1;
