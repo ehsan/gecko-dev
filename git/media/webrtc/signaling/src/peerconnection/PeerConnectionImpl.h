@@ -74,7 +74,6 @@ class PeerConnectionObserver;
 typedef NS_ConvertUTF8toUTF16 PCObserverString;
 #endif
 }
-class MediaConstraintsExternal;
 }
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
@@ -99,7 +98,6 @@ namespace sipcc {
 using mozilla::dom::PeerConnectionObserver;
 using mozilla::dom::RTCConfiguration;
 using mozilla::dom::MediaConstraintsInternal;
-using mozilla::MediaConstraintsExternal;
 using mozilla::DOMMediaStream;
 using mozilla::NrIceCtx;
 using mozilla::NrIceMediaStream;
@@ -111,6 +109,7 @@ using mozilla::NrIceTurnServer;
 class PeerConnectionWrapper;
 class PeerConnectionMedia;
 class RemoteSourceStreamInfo;
+class MediaConstraintsExternal;
 class OnCallEventArgs;
 
 class IceConfiguration
@@ -254,7 +253,7 @@ public:
 
   // Initialize PeerConnection from an IceConfiguration object (unit-tests)
   nsresult Initialize(PeerConnectionObserver& aObserver,
-                      nsGlobalWindow* aWindow,
+                      nsIDOMWindow* aWindow,
                       const IceConfiguration& aConfiguration,
                       nsIThread* aThread) {
     return Initialize(aObserver, aWindow, &aConfiguration, nullptr, aThread);
@@ -262,12 +261,12 @@ public:
 
   // Initialize PeerConnection from an RTCConfiguration object (JS entrypoint)
   void Initialize(PeerConnectionObserver& aObserver,
-                  nsGlobalWindow& aWindow,
+                  nsIDOMWindow* aWindow,
                   const RTCConfiguration& aConfiguration,
                   nsISupports* aThread,
                   ErrorResult &rv)
   {
-    nsresult r = Initialize(aObserver, &aWindow, nullptr, &aConfiguration, aThread);
+    nsresult r = Initialize(aObserver, aWindow, nullptr, &aConfiguration, aThread);
     if (NS_FAILED(r)) {
       rv.Throw(r);
     }
@@ -447,7 +446,7 @@ private:
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
   PeerConnectionImpl& operator=(PeerConnectionImpl);
   NS_IMETHODIMP Initialize(PeerConnectionObserver& aObserver,
-                           nsGlobalWindow* aWindow,
+                           nsIDOMWindow* aWindow,
                            const IceConfiguration* aConfiguration,
                            const RTCConfiguration* aRTCConfiguration,
                            nsISupports* aThread);

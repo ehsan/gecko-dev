@@ -986,6 +986,7 @@ CSPSourceList.fromString = function(aStr, aCSPRep, self, enforceSelfChecks) {
     // if a source is a *, then we can permit all sources
     if (src.permitAll) {
       slObj._permitAllSources = true;
+      return slObj;
     } else {
       slObj._sources.push(src);
     }

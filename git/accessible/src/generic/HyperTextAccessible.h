@@ -262,15 +262,6 @@ public:
    */
   int32_t CaretLineNumber();
 
-  /**
-   * Return the caret rect and the widget containing the caret within this
-   * text accessible.
-   *
-   * @param [out] the widget containing the caret
-   * @return      the caret rect
-   */
-  nsIntRect GetCaretRect(nsIWidget** aWidget);
-
   //////////////////////////////////////////////////////////////////////////////
   // EditableTextAccessible
 

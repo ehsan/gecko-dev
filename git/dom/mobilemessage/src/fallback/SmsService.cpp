@@ -6,6 +6,7 @@
 #include "SmsMessage.h"
 #include "SmsSegmentInfo.h"
 #include "SmsService.h"
+#include "jsapi.h"
 
 namespace mozilla {
 namespace dom {

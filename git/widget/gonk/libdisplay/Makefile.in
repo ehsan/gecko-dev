@@ -16,6 +16,7 @@ VPATH           = \
   $(srcdir) \
   $(NULL)
 
+FORCE_STATIC_LIB= 1
 STL_FLAGS=
 
 include $(topsrcdir)/config/rules.mk

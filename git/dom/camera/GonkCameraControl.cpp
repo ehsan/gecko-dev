@@ -25,6 +25,7 @@
 #include "nsCOMPtr.h"
 #include "nsDOMClassInfo.h"
 #include "nsMemory.h"
+#include "jsapi.h"
 #include "nsThread.h"
 #include <media/MediaProfiles.h>
 #include "mozilla/FileUtils.h"

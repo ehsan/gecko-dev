@@ -56,8 +56,6 @@ XPIDL_SOURCES += [
     'nsINetUtil.idl',
     'nsINetworkLinkService.idl',
     'nsINetworkProperties.idl',
-    'nsINetworkSeer.idl',
-    'nsINetworkSeerVerifier.idl',
     'nsINSSErrorsService.idl',
     'nsIParentChannel.idl',
     'nsIParentRedirectingChannel.idl',

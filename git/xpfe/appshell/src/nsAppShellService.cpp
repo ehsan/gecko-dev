@@ -31,6 +31,7 @@
 /* For implementing GetHiddenWindowAndJSContext */
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptContext.h"
+#include "jsapi.h"
 
 #include "nsAppShellService.h"
 #include "nsISupportsPrimitives.h"

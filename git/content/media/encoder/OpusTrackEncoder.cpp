@@ -115,6 +115,7 @@ SerializeOpusCommentHeader(const nsCString& aVendor,
 
 OpusTrackEncoder::OpusTrackEncoder()
   : AudioTrackEncoder()
+  , mEncoderState(ID_HEADER)
   , mEncoder(nullptr)
   , mSourceSegment(new AudioSegment())
   , mLookahead(0)
@@ -186,8 +187,8 @@ OpusTrackEncoder::GetPacketDuration()
   return GetOutputSampleRate() * kFrameDurationMs / 1000;
 }
 
-nsRefPtr<TrackMetadataBase>
-OpusTrackEncoder::GetMetadata()
+nsresult
+OpusTrackEncoder::GetHeader(nsTArray<uint8_t>* aOutput)
 {
   {
     // Wait if mEncoder is not initialized.
@@ -198,35 +199,50 @@ OpusTrackEncoder::GetMetadata()
   }
 
   if (mCanceled || mDoneEncoding) {
-    return nullptr;
+    return NS_ERROR_FAILURE;
   }
 
-  OpusMetadata* meta = new OpusMetadata();
-
-  mLookahead = 0;
-  int error = opus_encoder_ctl(mEncoder, OPUS_GET_LOOKAHEAD(&mLookahead));
-  if (error != OPUS_OK) {
+  switch (mEncoderState) {
+  case ID_HEADER:
+  {
     mLookahead = 0;
+    int error = opus_encoder_ctl(mEncoder, OPUS_GET_LOOKAHEAD(&mLookahead));
+    if (error != OPUS_OK) {
+      mLookahead = 0;
+    }
+
+    // The ogg time stamping and pre-skip is always timed at 48000.
+    SerializeOpusIdHeader(mChannels, mLookahead*(kOpusSamplingRate/mSamplingRate),
+                          mSamplingRate, aOutput);
+
+    mEncoderState = COMMENT_HEADER;
+    break;
   }
+  case COMMENT_HEADER:
+  {
+    nsCString vendor;
+    vendor.AppendASCII(opus_get_version_string());
 
-  // The ogg time stamping and pre-skip is always timed at 48000.
-  SerializeOpusIdHeader(mChannels, mLookahead*(kOpusSamplingRate/mSamplingRate),
-                        mSamplingRate, &meta->mIdHeader);
+    nsTArray<nsCString> comments;
+    comments.AppendElement(NS_LITERAL_CSTRING("ENCODER=Mozilla" MOZ_APP_UA_VERSION));
 
-  nsCString vendor;
-  vendor.AppendASCII(opus_get_version_string());
+    SerializeOpusCommentHeader(vendor, comments, aOutput);
 
-  nsTArray<nsCString> comments;
-  comments.AppendElement(NS_LITERAL_CSTRING("ENCODER=Mozilla" MOZ_APP_UA_VERSION));
-
-  SerializeOpusCommentHeader(vendor, comments,
-                             &meta->mCommentHeader);
-
-  return meta;
+    mEncoderState = DATA;
+    break;
+  }
+  case DATA:
+    // No more headers.
+    break;
+  default:
+    MOZ_CRASH("Invalid state");
+  }
+  return NS_OK;
 }
 
 nsresult
-OpusTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
+OpusTrackEncoder::GetEncodedTrack(nsTArray<uint8_t>* aOutput,
+                                  int &aOutputDuration)
 {
   {
     // Move all the samples from mRawSegment to mSourceSegment. We only hold
@@ -281,8 +297,6 @@ OpusTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
     iter.Next();
   }
 
-  EncodedFrame* audiodata = new EncodedFrame();
-  audiodata->SetFrameType(EncodedFrame::AUDIO_FRAME);
   if (mResampler) {
     nsAutoTArray<AudioDataValue, 9600> resamplingDest;
     // We want to consume all the input data, so we slightly oversize the
@@ -307,10 +321,10 @@ OpusTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
 
     pcm = resamplingDest;
     // This is always at 48000Hz.
-    audiodata->SetDuration(outframes);
+    aOutputDuration = outframes;
   } else {
     // The ogg time stamping and pre-skip is always timed at 48000.
-    audiodata->SetDuration(frameCopied * (kOpusSamplingRate / mSamplingRate));
+    aOutputDuration = frameCopied * (kOpusSamplingRate / mSamplingRate);
   }
 
   // Remove the raw data which has been pulled to pcm buffer.
@@ -334,28 +348,26 @@ OpusTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
     memset(pcm.Elements() + frameCopied * mChannels, 0,
            (GetPacketDuration()-frameCopied)*mChannels*sizeof(AudioDataValue));
   }
-  nsTArray<uint8_t> frameData;
+
   // Encode the data with Opus Encoder.
-  frameData.SetLength(MAX_DATA_BYTES);
+  aOutput->SetLength(MAX_DATA_BYTES);
   // result is returned as opus error code if it is negative.
   int result = 0;
 #ifdef MOZ_SAMPLE_TYPE_S16
   const opus_int16* pcmBuf = static_cast<opus_int16*>(pcm.Elements());
   result = opus_encode(mEncoder, pcmBuf, GetPacketDuration(),
-                       frameData.Elements(), MAX_DATA_BYTES);
+                       aOutput->Elements(), MAX_DATA_BYTES);
 #else
   const float* pcmBuf = static_cast<float*>(pcm.Elements());
   result = opus_encode_float(mEncoder, pcmBuf, GetPacketDuration(),
-                             frameData.Elements(), MAX_DATA_BYTES);
+                             aOutput->Elements(), MAX_DATA_BYTES);
 #endif
-  frameData.SetLength(result >= 0 ? result : 0);
+  aOutput->SetLength(result >= 0 ? result : 0);
 
   if (result < 0) {
     LOG("[Opus] Fail to encode data! Result: %s.", opus_strerror(result));
   }
 
-  audiodata->SetFrameData(&frameData);
-  aData.AppendEncodedFrame(audiodata);
   return result >= 0 ? NS_OK : NS_ERROR_FAILURE;
 }
 

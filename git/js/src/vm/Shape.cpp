@@ -12,6 +12,7 @@
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/PodOperations.h"
 
+#include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
 #include "jsobj.h"
@@ -1618,7 +1619,7 @@ EmptyShape::insertInitialShape(ExclusiveContext *cx, HandleShape shape, HandleOb
                                      shape->numFixedSlots(), shape->getObjectFlags());
 
     /* Bug 929547 - we do not rekey based on metadata object moves */
-    DebugOnly<JSObject *> metadata = shape->getObjectMetadata();
+    JSObject *metadata = shape->getObjectMetadata();
     JS_ASSERT_IF(metadata, !gc::IsInsideNursery(cx->compartment()->runtimeFromAnyThread(), metadata));
 
     InitialShapeSet::Ptr p = cx->compartment()->initialShapes.lookup(lookup);

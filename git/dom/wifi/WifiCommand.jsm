@@ -15,7 +15,7 @@ Cu.import("resource://gre/modules/systemlibs.js");
 const SUPP_PROP = "init.svc.wpa_supplicant";
 const WPA_SUPPLICANT = "wpa_supplicant";
 
-this.WifiCommand = function(aControlMessage, aInterface) {
+this.WifiCommand = function(controlMessage) {
   var command = {};
 
   //-------------------------------------------------
@@ -337,17 +337,16 @@ this.WifiCommand = function(aControlMessage, aInterface) {
   //--------------------------------------------------
 
   function voidControlMessage(cmd, callback) {
-    aControlMessage({ cmd: cmd, iface: aInterface }, function (data) {
+    controlMessage({ cmd: cmd }, function (data) {
       callback(data.status);
     });
   }
 
   function doCommand(request, callback) {
     var msg = { cmd:     "command",
-                request: request,
-                iface:   aInterface };
+                request: request };
 
-    aControlMessage(msg, callback);
+    controlMessage(msg, callback);
   }
 
   function doIntCommand(request, callback) {

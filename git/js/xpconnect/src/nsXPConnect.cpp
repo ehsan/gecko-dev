@@ -913,9 +913,10 @@ nsXPConnect::CreateSandbox(JSContext *cx, nsIPrincipal *principal,
 {
     *_retval = nullptr;
 
-    RootedValue rval(cx);
+    RootedValue rval(cx, JSVAL_VOID);
+
     SandboxOptions options;
-    nsresult rv = CreateSandboxObject(cx, &rval, principal, options);
+    nsresult rv = CreateSandboxObject(cx, rval.address(), principal, options);
     MOZ_ASSERT(NS_FAILED(rv) || !JSVAL_IS_PRIMITIVE(rval),
                "Bad return value from xpc_CreateSandboxObject()!");
 
@@ -1373,7 +1374,7 @@ Base64Encode(JSContext *cx, JS::Value val, JS::Value *out)
 
     JS::RootedValue root(cx, val);
     xpc_qsACString encodedString(cx, root, &root, false,
-                                 xpc_qsACString::eStringify,
+                                 xpc_qsACString::eNull,
                                  xpc_qsACString::eStringify);
     if (!encodedString.IsValid())
         return false;
@@ -1400,8 +1401,8 @@ Base64Decode(JSContext *cx, JS::Value val, JS::Value *out)
 
     JS::RootedValue root(cx, val);
     xpc_qsACString encodedString(cx, root, &root, false,
-                                 xpc_qsACString::eStringify,
-                                 xpc_qsACString::eStringify);
+                                 xpc_qsACString::eNull,
+                                 xpc_qsACString::eNull);
     if (!encodedString.IsValid())
         return false;
 

@@ -24,6 +24,7 @@
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
+#include "jsapi.h"
 
 #include "nsITimer.h"
 

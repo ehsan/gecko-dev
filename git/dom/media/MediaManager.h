@@ -204,17 +204,14 @@ class GetUserMediaNotificationEvent: public nsRunnable
       STOPPING
     };
     GetUserMediaNotificationEvent(GetUserMediaCallbackMediaStreamListener* aListener,
-                                  GetUserMediaStatus aStatus,
-                                  bool aIsAudio, bool aIsVideo, uint64_t aWindowID)
-    : mListener(aListener) , mStatus(aStatus) , mIsAudio(aIsAudio)
-    , mIsVideo(aIsVideo), mWindowID(aWindowID) {}
+                                  GetUserMediaStatus aStatus)
+    : mListener(aListener), mStatus(aStatus) {}
 
     GetUserMediaNotificationEvent(GetUserMediaStatus aStatus,
                                   already_AddRefed<DOMMediaStream> aStream,
-                                  DOMMediaStream::OnTracksAvailableCallback* aOnTracksAvailableCallback,
-                                  bool aIsAudio, bool aIsVideo, uint64_t aWindowID)
+                                  DOMMediaStream::OnTracksAvailableCallback* aOnTracksAvailableCallback)
     : mStream(aStream), mOnTracksAvailableCallback(aOnTracksAvailableCallback),
-      mStatus(aStatus), mIsAudio(aIsAudio), mIsVideo(aIsVideo), mWindowID(aWindowID) {}
+      mStatus(aStatus) {}
     virtual ~GetUserMediaNotificationEvent()
     {
 
@@ -227,9 +224,6 @@ class GetUserMediaNotificationEvent: public nsRunnable
     nsRefPtr<DOMMediaStream> mStream;
     nsAutoPtr<DOMMediaStream::OnTracksAvailableCallback> mOnTracksAvailableCallback;
     GetUserMediaStatus mStatus;
-    bool mIsAudio;
-    bool mIsVideo;
-    uint64_t mWindowID;
 };
 
 typedef enum {
@@ -250,8 +244,7 @@ public:
     DOMMediaStream::OnTracksAvailableCallback* aOnTracksAvailableCallback,
     MediaEngineSource* aAudioSource,
     MediaEngineSource* aVideoSource,
-    bool aNeedsFinish,
-    uint64_t aWindowID)
+    bool aNeedsFinish)
     : mType(aType)
     , mStream(aStream)
     , mOnTracksAvailableCallback(aOnTracksAvailableCallback)
@@ -259,7 +252,6 @@ public:
     , mVideoSource(aVideoSource)
     , mListener(aListener)
     , mFinish(aNeedsFinish)
-    , mWindowID(aWindowID)
     {}
 
   ~MediaOperationRunnable()
@@ -311,10 +303,7 @@ public:
           nsRefPtr<GetUserMediaNotificationEvent> event =
             new GetUserMediaNotificationEvent(GetUserMediaNotificationEvent::STARTING,
                                               mStream.forget(),
-                                              mOnTracksAvailableCallback.forget(),
-                                              mAudioSource != nullptr,
-                                              mVideoSource != nullptr,
-                                              mWindowID);
+                                              mOnTracksAvailableCallback.forget());
           NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
         }
         break;
@@ -335,11 +324,7 @@ public:
             source->Finish();
           }
           nsRefPtr<GetUserMediaNotificationEvent> event =
-            new GetUserMediaNotificationEvent(mListener,
-                                              GetUserMediaNotificationEvent::STOPPING,
-                                              mAudioSource != nullptr,
-                                              mVideoSource != nullptr,
-                                              mWindowID);
+            new GetUserMediaNotificationEvent(mListener, GetUserMediaNotificationEvent::STOPPING);
 
           NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
         }
@@ -360,7 +345,6 @@ private:
   nsRefPtr<MediaEngineSource> mVideoSource; // threadsafe
   nsRefPtr<GetUserMediaCallbackMediaStreamListener> mListener; // threadsafe
   bool mFinish;
-  uint64_t mWindowID;
 };
 
 typedef nsTArray<nsRefPtr<GetUserMediaCallbackMediaStreamListener> > StreamListeners;
@@ -405,7 +389,7 @@ public:
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIMEDIAMANAGERSERVICE
 
-  MediaEngine* GetBackend(uint64_t aWindowId = 0, bool aFake = false);
+  MediaEngine* GetBackend(uint64_t aWindowId = 0);
   StreamListeners *GetWindowListeners(uint64_t aWindowId) {
     NS_ASSERTION(NS_IsMainThread(), "Only access windowlist on main thread");
 
@@ -469,7 +453,7 @@ private:
 
   static StaticRefPtr<MediaManager> sSingleton;
 
-#ifdef MOZ_B2G_CAMERA
+#ifdef MOZ_WIDGET_GONK
   nsRefPtr<nsDOMCameraManager> mCameraManager;
 #endif
 };

@@ -36,12 +36,12 @@
 #include "PeerConnectionCtx.h"
 #include "PeerConnectionImpl.h"
 #include "PeerConnectionMedia.h"
+#include "nsPIDOMWindow.h"
 #include "nsDOMDataChannelDeclarations.h"
 #include "dtlsidentity.h"
 
 #ifdef MOZILLA_INTERNAL_API
 #include "nsPerformance.h"
-#include "nsGlobalWindow.h"
 #include "nsDOMDataChannel.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Telemetry.h"
@@ -60,6 +60,7 @@
 #include "MediaStreamList.h"
 #include "MediaStreamTrack.h"
 #include "nsIScriptGlobalObject.h"
+#include "jsapi.h"
 #include "DOMMediaStream.h"
 #endif
 
@@ -97,6 +98,43 @@ PRLogModuleInfo *signalingLogInfo() {
 
 
 namespace sipcc {
+
+// Convert constraints to C structures
+
+#ifdef MOZILLA_INTERNAL_API
+static void
+Apply(const Optional<bool> &aSrc, cc_boolean_constraint_t *aDst,
+      bool mandatory = false) {
+  if (aSrc.WasPassed() && (mandatory || !aDst->was_passed)) {
+    aDst->was_passed = true;
+    aDst->value = aSrc.Value();
+    aDst->mandatory = mandatory;
+  }
+}
+#endif
+
+static cc_media_constraints_t*
+ConvertConstraints(const MediaConstraintsInternal& aSrc) {
+  cc_media_constraints_t* c = (cc_media_constraints_t*)
+      cpr_malloc(sizeof(cc_media_constraints_t));
+  NS_ENSURE_TRUE(c,c);
+  memset(c, 0, sizeof(cc_media_constraints_t));
+#ifdef MOZILLA_INTERNAL_API
+  Apply(aSrc.mMandatory.mOfferToReceiveAudio, &c->offer_to_receive_audio, true);
+  Apply(aSrc.mMandatory.mOfferToReceiveVideo, &c->offer_to_receive_video, true);
+  Apply(aSrc.mMandatory.mMozDontOfferDataChannel, &c->moz_dont_offer_datachannel,
+        true);
+  if (aSrc.mOptional.WasPassed()) {
+    const Sequence<MediaConstraintSet> &array = aSrc.mOptional.Value();
+    for (uint32_t i = 0; i < array.Length(); i++) {
+      Apply(array[i].mOfferToReceiveAudio, &c->offer_to_receive_audio);
+      Apply(array[i].mOfferToReceiveVideo, &c->offer_to_receive_video);
+      Apply(array[i].mMozDontOfferDataChannel, &c->moz_dont_offer_datachannel);
+    }
+  }
+#endif
+  return c;
+}
 
 // Getting exceptions back down from PCObserver is generally not harmful.
 namespace {
@@ -622,7 +660,7 @@ PeerConnectionImpl::ConvertRTCConfiguration(const RTCConfiguration& aSrc,
 
 NS_IMETHODIMP
 PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
-                               nsGlobalWindow* aWindow,
+                               nsIDOMWindow* aWindow,
                                const IceConfiguration* aConfiguration,
                                const RTCConfiguration* aRTCConfiguration,
                                nsISupports* aThread)
@@ -651,7 +689,7 @@ PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
   // Currently no standalone unit tests for DataChannel,
   // which is the user of mWindow
   MOZ_ASSERT(aWindow);
-  mWindow = aWindow;
+  mWindow = do_QueryInterface(aWindow);
   NS_ENSURE_STATE(mWindow);
 #endif
 
@@ -1016,7 +1054,7 @@ PeerConnectionImpl::NotifyDataChannel(already_AddRefed<mozilla::DataChannel> aCh
 NS_IMETHODIMP
 PeerConnectionImpl::CreateOffer(const MediaConstraintsInternal& aConstraints)
 {
-  return CreateOffer(MediaConstraintsExternal (aConstraints));
+  return CreateOffer(MediaConstraintsExternal(ConvertConstraints(aConstraints)));
 }
 
 // Used by unit tests and the IDL CreateOffer.
@@ -1029,16 +1067,15 @@ PeerConnectionImpl::CreateOffer(const MediaConstraintsExternal& aConstraints)
   mTimeCard = nullptr;
   STAMP_TIMECARD(tc, "Create Offer");
 
-  cc_media_constraints_t* cc_constraints = aConstraints.build();
-  NS_ENSURE_TRUE(cc_constraints, NS_ERROR_UNEXPECTED);
-  mInternal->mCall->createOffer(cc_constraints, tc);
+  NS_ENSURE_TRUE(aConstraints.mConstraints, NS_ERROR_UNEXPECTED);
+  mInternal->mCall->createOffer(aConstraints.mConstraints, tc);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 PeerConnectionImpl::CreateAnswer(const MediaConstraintsInternal& aConstraints)
 {
-  return CreateAnswer(MediaConstraintsExternal (aConstraints));
+  return CreateAnswer(MediaConstraintsExternal(ConvertConstraints(aConstraints)));
 }
 
 NS_IMETHODIMP
@@ -1050,9 +1087,8 @@ PeerConnectionImpl::CreateAnswer(const MediaConstraintsExternal& aConstraints)
   mTimeCard = nullptr;
   STAMP_TIMECARD(tc, "Create Answer");
 
-  cc_media_constraints_t* cc_constraints = aConstraints.build();
-  NS_ENSURE_TRUE(cc_constraints, NS_ERROR_UNEXPECTED);
-  mInternal->mCall->createAnswer(cc_constraints, tc);
+  NS_ENSURE_TRUE(aConstraints.mConstraints, NS_ERROR_UNEXPECTED);
+  mInternal->mCall->createAnswer(aConstraints.mConstraints, tc);
   return NS_OK;
 }
 

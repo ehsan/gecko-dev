@@ -17,6 +17,7 @@
 
 #include "nsJSUtils.h"
 #include "nsJSON.h"
+#include "jsapi.h"
 #include "mozilla/Services.h"
 
 #define NS_RILCONTENTHELPER_CONTRACTID "@mozilla.org/ril/content-helper;1"

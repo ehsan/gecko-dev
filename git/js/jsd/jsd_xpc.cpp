@@ -2320,12 +2320,11 @@ jsdValue::GetWrappedValue(JSContext* aCx, JS::Value* aRetval)
 {
     ASSERT_VALID_EPHEMERAL;
 
-    JS::RootedValue value(aCx, JSD_GetValueWrappedJSVal(mCx, mValue));
-    if (!JS_WrapValue(aCx, &value)) {
+    *aRetval = JSD_GetValueWrappedJSVal(mCx, mValue);
+    if (!JS_WrapValue(aCx, aRetval)) {
         return NS_ERROR_FAILURE;
     }
 
-    *aRetval = value;
     return NS_OK;
 }
 

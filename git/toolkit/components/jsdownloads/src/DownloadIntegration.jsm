@@ -362,7 +362,7 @@ this.DownloadIntegration = {
 #else
       // For Metro mode on Windows 8,  we want searchability for documents
       // that the user chose to open with an external application.
-      if (Services.metro && Services.metro.immersive) {
+      if (this._isImmersiveProcess()) {
         directoryPath = yield this.getSystemDownloadsDirectory();
       } else {
         directoryPath = this._getDirectory("TmpD");
@@ -452,6 +452,14 @@ this.DownloadIntegration = {
                                      aDownload.source.isPrivate);
       this.downloadDoneCalled = true;
     }.bind(this));
+  },
+
+  /**
+   * Determines whether it's a Windows Metro app.
+   */
+  _isImmersiveProcess: function() {
+    // TODO: to be implemented
+    return false;
   },
 
   /*

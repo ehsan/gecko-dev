@@ -960,7 +960,9 @@ int32_t nsCSSProps::kDisplayKTable[] = {
   eCSSKeyword__moz_popup,         NS_STYLE_DISPLAY_POPUP,
   eCSSKeyword__moz_groupbox,      NS_STYLE_DISPLAY_GROUPBOX,
 #endif
-  // The next two entries are controlled by the layout.css.flexbox.enabled pref.
+  // XXXdholbert NOTE: These currently need to be the last entries in the
+  // table, because the "is flexbox enabled" pref that disables these will
+  // disable all the entries after them, too.
   eCSSKeyword_flex,               NS_STYLE_DISPLAY_FLEX,
   eCSSKeyword_inline_flex,        NS_STYLE_DISPLAY_INLINE_FLEX,
   eCSSKeyword_UNKNOWN,-1
@@ -1378,7 +1380,9 @@ int32_t nsCSSProps::kPositionKTable[] = {
   eCSSKeyword_relative, NS_STYLE_POSITION_RELATIVE,
   eCSSKeyword_absolute, NS_STYLE_POSITION_ABSOLUTE,
   eCSSKeyword_fixed, NS_STYLE_POSITION_FIXED,
-  // The next entry is controlled by the layout.css.sticky.enabled pref.
+  // NOTE: This currently needs to be the last entry in the table,
+  // because the "layout.css.sticky.enabled" pref that disables
+  // this will disable all the entries after it, too.
   eCSSKeyword_sticky, NS_STYLE_POSITION_STICKY,
   eCSSKeyword_UNKNOWN,-1
 };
@@ -1428,7 +1432,7 @@ const int32_t nsCSSProps::kTableLayoutKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-int32_t nsCSSProps::kTextAlignKTable[] = {
+const int32_t nsCSSProps::kTextAlignKTable[] = {
   eCSSKeyword_left, NS_STYLE_TEXT_ALIGN_LEFT,
   eCSSKeyword_right, NS_STYLE_TEXT_ALIGN_RIGHT,
   eCSSKeyword_center, NS_STYLE_TEXT_ALIGN_CENTER,
@@ -1438,11 +1442,10 @@ int32_t nsCSSProps::kTextAlignKTable[] = {
   eCSSKeyword__moz_left, NS_STYLE_TEXT_ALIGN_MOZ_LEFT,
   eCSSKeyword_start, NS_STYLE_TEXT_ALIGN_DEFAULT,
   eCSSKeyword_end, NS_STYLE_TEXT_ALIGN_END,
-  eCSSKeyword_true, NS_STYLE_TEXT_ALIGN_TRUE,
   eCSSKeyword_UNKNOWN,-1
 };
 
-int32_t nsCSSProps::kTextAlignLastKTable[] = {
+const int32_t nsCSSProps::kTextAlignLastKTable[] = {
   eCSSKeyword_auto, NS_STYLE_TEXT_ALIGN_AUTO,
   eCSSKeyword_left, NS_STYLE_TEXT_ALIGN_LEFT,
   eCSSKeyword_right, NS_STYLE_TEXT_ALIGN_RIGHT,
@@ -1450,7 +1453,6 @@ int32_t nsCSSProps::kTextAlignLastKTable[] = {
   eCSSKeyword_justify, NS_STYLE_TEXT_ALIGN_JUSTIFY,
   eCSSKeyword_start, NS_STYLE_TEXT_ALIGN_DEFAULT,
   eCSSKeyword_end, NS_STYLE_TEXT_ALIGN_END,
-  eCSSKeyword_true, NS_STYLE_TEXT_ALIGN_TRUE,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1786,33 +1788,15 @@ const int32_t nsCSSProps::kColumnFillKTable[] = {
   eCSSKeyword_UNKNOWN, -1
 };
 
-static bool IsKeyValSentinel(nsCSSKeyword aKey, int32_t aValue)
-{
-  return aKey == eCSSKeyword_UNKNOWN && aValue == -1;
-}
-
 int32_t
 nsCSSProps::FindIndexOfKeyword(nsCSSKeyword aKeyword, const int32_t aTable[])
 {
-  if (eCSSKeyword_UNKNOWN == aKeyword) {
-    // NOTE: we can have keyword tables where eCSSKeyword_UNKNOWN is used
-    // not only for the sentinel, but also in the middle of the table to
-    // knock out values that have been disabled by prefs, e.g. kDisplayKTable.
-    // So we deal with eCSSKeyword_UNKNOWN up front to avoid returning a valid
-    // index in the loop below.
-    return -1;
-  }
-  int32_t i = 0;
-  for (;;) {
-    nsCSSKeyword key = nsCSSKeyword(aTable[i]);
-    int32_t val = aTable[i + 1];
-    if (::IsKeyValSentinel(key, val)) {
-      break;
+  int32_t index = 0;
+  while (eCSSKeyword_UNKNOWN != nsCSSKeyword(aTable[index])) {
+    if (aKeyword == nsCSSKeyword(aTable[index])) {
+      return index;
     }
-    if (aKeyword == key) {
-      return i;
-    }
-    i += 2;
+    index += 2;
   }
   return -1;
 }
@@ -1834,13 +1818,11 @@ nsCSSProps::ValueToKeywordEnum(int32_t aValue, const int32_t aTable[])
 {
   int32_t i = 1;
   for (;;) {
-    int32_t val = aTable[i];
-    nsCSSKeyword key = nsCSSKeyword(aTable[i - 1]);
-    if (::IsKeyValSentinel(key, val)) {
+    if (aTable[i] == -1 && aTable[i-1] == eCSSKeyword_UNKNOWN) {
       break;
     }
-    if (aValue == val) {
-      return key;
+    if (aValue == aTable[i]) {
+      return nsCSSKeyword(aTable[i-1]);
     }
     i += 2;
   }

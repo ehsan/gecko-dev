@@ -17,29 +17,26 @@
 #include "CC_LineInfo.h"
 #include "CC_Observer.h"
 #include "CC_FeatureInfo.h"
-#include "cpr_stdlib.h"
 
 #include "StaticPtr.h"
 #include "PeerConnectionImpl.h"
 
 namespace mozilla {
 class PeerConnectionCtxShutdown;
-
-// Unit-test helper, because cc_media_constraints_t is hard to forward-declare
-
-class MediaConstraintsExternal {
-public:
-  MediaConstraintsExternal();
-  MediaConstraintsExternal(const dom::MediaConstraintsInternal &aOther);
-  cc_media_constraints_t* build() const;
-protected:
-  cc_media_constraints_t mConstraints;
-};
 }
 
 namespace sipcc {
 
 using namespace mozilla;
+
+// Unit-test helper, because cc_media_constraints_t is hard to forward-declare
+
+class MediaConstraintsExternal {
+public:
+  MediaConstraintsExternal(cc_media_constraints_t *aConstraints)
+  : mConstraints(aConstraints) {}
+  cc_media_constraints_t *mConstraints;
+};
 
 class OnCallEventArgs {
 public:

@@ -269,7 +269,7 @@ LocalDebuggerTransport.prototype = {
       // Remove the reference to the other endpoint before calling close(), to
       // avoid infinite recursion.
       let other = this.other;
-      this.other = null;
+      delete this.other;
       other.close();
     }
     if (this.hooks) {

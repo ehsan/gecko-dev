@@ -1132,7 +1132,7 @@ AccessibleWrap::HandleAccEvent(AccEvent* aEvent)
 
   if (eventType == nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED ||
       eventType == nsIAccessibleEvent::EVENT_FOCUS) {
-    UpdateSystemCaretFor(accessible);
+    UpdateSystemCaret();
   }
 
   int32_t childID = GetChildIDFor(accessible); // get the id for the accessible
@@ -1286,19 +1286,20 @@ AccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
 }
 
 void
-AccessibleWrap::UpdateSystemCaretFor(Accessible* aAccessible)
+AccessibleWrap::UpdateSystemCaret()
 {
   // Move the system caret so that Windows Tablet Edition and tradional ATs with 
   // off-screen model can follow the caret
   ::DestroyCaret();
 
-  HyperTextAccessible* text = aAccessible->AsHyperText();
-  if (!text)
+  a11y::RootAccessible* rootAccessible = RootAccessible();
+  if (!rootAccessible) {
     return;
+  }
 
   nsIWidget* widget = nullptr;
-  nsIntRect caretRect = text->GetCaretRect(&widget);
-  HWND caretWnd;
+  nsIntRect caretRect = SelectionMgr()->GetCaretRect(&widget);
+  HWND caretWnd; 
   if (caretRect.IsEmpty() || !(caretWnd = (HWND)widget->GetNativeData(NS_NATIVE_WINDOW))) {
     return;
   }

@@ -88,7 +88,6 @@
 #include "mozilla/dom/HTMLVideoElement.h"
 #include "mozilla/dom/TextMetrics.h"
 #include "mozilla/dom/UnionTypes.h"
-#include "nsGlobalWindow.h"
 
 #ifdef USE_SKIA_GPU
 #undef free // apparently defined by some windows header, clashing with a free()
@@ -2859,27 +2858,27 @@ CanvasRenderingContext2D::SetMozDashOffset(double mozDashOffset)
 }
 
 void
-CanvasRenderingContext2D::SetLineDash(const mozilla::dom::AutoSequence<double>& aSegments) {
+CanvasRenderingContext2D::SetLineDash(const mozilla::dom::AutoSequence<double>& mSegments) {
   FallibleTArray<mozilla::gfx::Float>& dash = CurrentState().dash;
   dash.Clear();
 
-  for (uint32_t x = 0; x < aSegments.Length(); x++) {
-    dash.AppendElement(aSegments[x]);
+  for(mozilla::dom::AutoSequence<double>::index_type x = 0; x < mSegments.Length(); x++) {
+    dash.AppendElement(mSegments[x]);
   }
-  if (aSegments.Length() % 2) { // If the number of elements is odd, concatenate again
-    for (uint32_t x = 0; x < aSegments.Length(); x++) {
-      dash.AppendElement(aSegments[x]);
+  if(mSegments.Length()%2) { // If the number of elements is odd, concatenate again
+    for(mozilla::dom::AutoSequence<double>::index_type x = 0; x < mSegments.Length(); x++) {
+      dash.AppendElement(mSegments[x]);
     }
   }
 }
 
 void
-CanvasRenderingContext2D::GetLineDash(nsTArray<double>& aSegments) const {
+CanvasRenderingContext2D::GetLineDash(nsTArray<double>& mSegments) const {
   const FallibleTArray<mozilla::gfx::Float>& dash = CurrentState().dash;
-  aSegments.Clear();
+  mSegments.Clear();
 
-  for (uint32_t x = 0; x < dash.Length(); x++) {
-    aSegments.AppendElement(dash[x]);
+  for(FallibleTArray<mozilla::gfx::Float>::index_type x = 0; x < dash.Length(); x++) {
+    mSegments.AppendElement(dash[x]);
   }
 }
 
@@ -3225,7 +3224,7 @@ CanvasRenderingContext2D::GetGlobalCompositeOperation(nsAString& op,
 }
 
 void
-CanvasRenderingContext2D::DrawWindow(nsGlobalWindow& window, double x,
+CanvasRenderingContext2D::DrawWindow(nsIDOMWindow* window, double x,
                                      double y, double w, double h,
                                      const nsAString& bgColor,
                                      uint32_t flags, ErrorResult& error)
@@ -3254,13 +3253,16 @@ CanvasRenderingContext2D::DrawWindow(nsGlobalWindow& window, double x,
 
   // Flush layout updates
   if (!(flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH)) {
-    nsContentUtils::FlushLayoutForTree(&window);
+    nsContentUtils::FlushLayoutForTree(window);
   }
 
   nsRefPtr<nsPresContext> presContext;
-  nsIDocShell* docshell = window.GetDocShell();
-  if (docshell) {
-    docshell->GetPresContext(getter_AddRefs(presContext));
+  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(window);
+  if (win) {
+    nsIDocShell* docshell = win->GetDocShell();
+    if (docshell) {
+      docshell->GetPresContext(getter_AddRefs(presContext));
+    }
   }
   if (!presContext) {
     error.Throw(NS_ERROR_FAILURE);

@@ -465,6 +465,8 @@ parent:
     // get nsIVolumeService to broadcast volume information
     async BroadcastVolume(nsString volumeName);
 
+    async RecordingDeviceEvents(nsString recordingStatus);
+
     // Notify the parent that the child has finished handling a system message.
     async SystemMessageHandled();
 

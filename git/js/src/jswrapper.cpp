@@ -6,6 +6,7 @@
 
 #include "jswrapper.h"
 
+#include "jsapi.h"
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsexn.h"
