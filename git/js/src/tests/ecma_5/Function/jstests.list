@@ -5,4 +5,3 @@ script function-caller.js
 script strict-arguments.js
 script arguments-property-attributes.js
 script function-bind.js
-script redefine-arguments-length.js
