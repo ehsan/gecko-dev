@@ -63,7 +63,8 @@ function do_test() {
   }
   else {
     do_check_eq(handlers_called, "nocache,partial,cached");
-    httpserv.stop(do_test_finished);
+    httpserv.stop();
+    do_test_finished();
   }
 }
 

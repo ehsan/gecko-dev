@@ -52,8 +52,9 @@ var updateListener = {
 
   onUpdateEnded: function onUpdateEnded()
   {
+    server.stop();
+    do_test_finished();
     do_check_eq(this._count, 2);
-    server.stop(do_test_finished);
   },
 
   onAddonUpdateStarted: function onAddonUpdateStarted(aAddon)

@@ -280,7 +280,8 @@ function run_test() {
           // cleanup
           prefBranch.clearUserPref("browser.privatebrowsing.keep_current_session");
           dm.removeListener(this);
-          httpserv.stop(do_test_finished);
+          httpserv.stop();
+          do_test_finished();
         }
         break;
 

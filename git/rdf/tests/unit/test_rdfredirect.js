@@ -69,9 +69,9 @@ rdfLoadObserver.prototype =
     gPending -= 1;
 
     if (gPending == 0) {
-      do_test_pending();
-      server1.stop(do_test_finished);
-      server2.stop(do_test_finished);
+      server1.stop();
+      server2.stop();
+      do_test_finished();
     }
   },
   onError : function() { }

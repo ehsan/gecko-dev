@@ -54,14 +54,7 @@ function run_test()
 
   srv.start(4444);
 
-  function done()
-  {
-    do_test_pending();
-    destroyTestDirectory();
-    srv.stop(function() { do_test_finished(); });
-  }
-
-  runHttpTests(tests, done);
+  runHttpTests(tests, function() { srv.stop(); destroyTestDirectory(); });
 }
 
 function createTestDirectory()

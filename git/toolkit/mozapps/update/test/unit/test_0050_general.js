@@ -64,7 +64,8 @@ function run_test() {
 }
 
 function end_test() {
-  stop_httpserver(do_test_finished);
+  stop_httpserver();
+  do_test_finished();
 }
 
 // Returns human readable status text from the updates.properties bundle

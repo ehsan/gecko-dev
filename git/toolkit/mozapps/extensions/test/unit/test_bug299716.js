@@ -451,6 +451,7 @@ function run_test_pt4() {
     var item = gEM.getItemForID(ADDONS[i].id);
     do_check_item(item, "0.2", ADDONS[i]);
   }
+  do_test_finished();
 
-  testserver.stop(do_test_finished);
+  testserver.stop();
 }

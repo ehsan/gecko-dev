@@ -526,5 +526,6 @@ function check_test_pt4() {
 }
 
 function finish() {
-  gTestserver.stop(do_test_finished);
+  gTestserver.stop();
+  do_test_finished();
 }
