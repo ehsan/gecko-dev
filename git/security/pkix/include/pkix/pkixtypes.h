@@ -18,7 +18,6 @@
 #ifndef mozilla_pkix__pkixtypes_h
 #define mozilla_pkix__pkixtypes_h
 
-#include "pkix/enumclass.h"
 #include "pkix/ScopedPtr.h"
 #include "plarena.h"
 #include "cert.h"
@@ -36,14 +35,7 @@ typedef ScopedPtr<SECKEYPublicKey, SECKEY_DestroyPublicKey>
 
 typedef unsigned int KeyUsages;
 
-MOZILLA_PKIX_ENUM_CLASS EndEntityOrCA { MustBeEndEntity = 0, MustBeCA = 1 };
-
-MOZILLA_PKIX_ENUM_CLASS TrustLevel {
-  TrustAnchor = 1,        // certificate is a trusted root CA certificate or
-                          // equivalent *for the given policy*.
-  ActivelyDistrusted = 2, // certificate is known to be bad
-  InheritsTrust = 3       // certificate must chain to a trust anchor
-};
+enum EndEntityOrCA { MustBeEndEntity, MustBeCA };
 
 // Applications control the behavior of path building and verification by
 // implementing the TrustDomain interface. The TrustDomain is used for all
@@ -53,6 +45,13 @@ class TrustDomain
 {
 public:
   virtual ~TrustDomain() { }
+
+  enum TrustLevel {
+    TrustAnchor = 1,        // certificate is a trusted root CA certificate or
+                            // equivalent *for the given policy*.
+    ActivelyDistrusted = 2, // certificate is known to be bad
+    InheritsTrust = 3       // certificate must chain to a trust anchor
+  };
 
   // Determine the level of trust in the given certificate for the given role.
   // This will be called for every certificate encountered during path

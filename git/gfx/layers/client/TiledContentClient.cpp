@@ -665,10 +665,6 @@ ClientTiledLayerBuffer::PaintThebes(const nsIntRegion& aNewValidRegion,
                        ceilf(bounds.height * mResolution)),
           gfx::ImageFormatToSurfaceFormat(format));
 
-      if (!mSinglePaintDrawTarget) {
-        return;
-      }
-
       ctxt = new gfxContext(mSinglePaintDrawTarget);
 
       mSinglePaintBufferOffset = nsIntPoint(bounds.x, bounds.y);

@@ -1372,9 +1372,6 @@ mozJSComponentLoader::Unload(const nsACString & aLocation)
         return NS_OK;
     }
 
-    MOZ_RELEASE_ASSERT(!mReuseLoaderGlobal, "Module unloading not supported when "
-                                            "compartment sharing is enabled");
-
     nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
