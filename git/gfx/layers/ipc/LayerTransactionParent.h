@@ -95,9 +95,8 @@ protected:
   virtual bool RecvForceComposite() MOZ_OVERRIDE;
   virtual bool RecvGetOpacity(PLayerParent* aParent,
                               float* aOpacity) MOZ_OVERRIDE;
-  virtual bool RecvGetAnimationTransform(PLayerParent* aParent,
-                                         MaybeTransform* aTransform)
-                                         MOZ_OVERRIDE;
+  virtual bool RecvGetTransform(PLayerParent* aParent,
+                                gfx3DMatrix* aTransform) MOZ_OVERRIDE;
 
   virtual PGrallocBufferParent*
   AllocPGrallocBufferParent(const IntSize& aSize,

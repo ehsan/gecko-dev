@@ -249,7 +249,6 @@ private:
   void ResumeComposition();
   void ResumeCompositionAndResize(int width, int height);
   void ForceComposition();
-  void CancelCurrentCompositeTask();
 
   inline static PlatformThreadId CompositorThreadID();
 
