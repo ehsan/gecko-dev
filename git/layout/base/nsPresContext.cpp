@@ -1787,9 +1787,16 @@ nsPresContext::FlushUserFontSet()
         NS_IF_RELEASE(mUserFontSet);
 
         if (rules.Length() > 0) {
-          gfxUserFontSet *fs = new nsUserFontSet(this);
-          if (!fs)
+          nsFontFaceLoaderContext *loaderCtx =
+            new nsFontFaceLoaderContext(this);
+          if (!loaderCtx)
             return;
+          gfxUserFontSet *fs = new gfxUserFontSet(loaderCtx);
+          // user font set owns loader context
+          if (!fs) {
+            delete loaderCtx;
+            return;
+          }
           mUserFontSet = fs;
           NS_ADDREF(mUserFontSet);
 

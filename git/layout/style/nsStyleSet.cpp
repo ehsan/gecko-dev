@@ -58,22 +58,6 @@
 #include "nsIFrame.h"
 #include "nsContentUtils.h"
 
-NS_IMPL_ISUPPORTS1(nsEmptyStyleRule, nsIStyleRule)
-
-NS_IMETHODIMP
-nsEmptyStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
-{
-  return NS_OK;
-}
-
-#ifdef DEBUG
-NS_IMETHODIMP
-nsEmptyStyleRule::List(FILE* out, PRInt32 aIndent) const
-{
-  return NS_OK;
-}
-#endif
-
 static const nsStyleSet::sheetType gCSSSheetTypes[] = {
   nsStyleSet::eAgentSheet,
   nsStyleSet::eUserSheet,
@@ -96,12 +80,6 @@ nsStyleSet::nsStyleSet()
 nsresult
 nsStyleSet::Init(nsPresContext *aPresContext)
 {
-  mFirstLineRule = new nsEmptyStyleRule;
-  mFirstLetterRule = new nsEmptyStyleRule;
-  if (!mFirstLineRule || !mFirstLetterRule) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
   if (!BuildDefaultStyleData(aPresContext)) {
     mDefaultStyleData.Destroy(0, aPresContext);
     return NS_ERROR_OUT_OF_MEMORY;
@@ -711,17 +689,6 @@ nsStyleSet::ResolveStyleForNonElement(nsStyleContext* aParentContext)
   return result;
 }
 
-void
-nsStyleSet::WalkRestrictionRule(nsIAtom* aPseudoType)
-{
-  // This needs to match GetPseudoRestriction in nsRuleNode.cpp.
-  if (aPseudoType) {
-    if (aPseudoType == nsCSSPseudoElements::firstLetter)
-      mRuleWalker->Forward(mFirstLetterRule);
-    else if (aPseudoType == nsCSSPseudoElements::firstLine)
-      mRuleWalker->Forward(mFirstLineRule);
-  }
-}
 
 static PRBool
 EnumPseudoRulesMatching(nsIStyleRuleProcessor* aProcessor, void* aData)
@@ -758,7 +725,6 @@ nsStyleSet::ResolvePseudoStyleFor(nsIContent* aParentContent,
   if (aPseudoTag && presContext) {
     PseudoRuleProcessorData data(presContext, aParentContent, aPseudoTag,
                                  aComparator, mRuleWalker);
-    WalkRestrictionRule(aPseudoTag);
     FileRules(EnumPseudoRulesMatching, &data);
 
     result = GetContext(presContext, aParentContext, aPseudoTag).get();
@@ -796,12 +762,9 @@ nsStyleSet::ProbePseudoStyleFor(nsIContent* aParentContent,
   if (aPseudoTag && presContext) {
     PseudoRuleProcessorData data(presContext, aParentContent, aPseudoTag,
                                  nsnull, mRuleWalker);
-    WalkRestrictionRule(aPseudoTag);
-    // not the root if there was a restriction rule
-    nsRuleNode *adjustedRoot = mRuleWalker->GetCurrentNode();
     FileRules(EnumPseudoRulesMatching, &data);
 
-    if (mRuleWalker->GetCurrentNode() != adjustedRoot)
+    if (!mRuleWalker->AtRoot())
       result = GetContext(presContext, aParentContext, aPseudoTag).get();
 
     // Now reset the walker back to the root of the tree.

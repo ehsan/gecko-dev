@@ -2933,7 +2933,7 @@ NSEvent* gLastDragEvent = nil;
 static const PRInt32 sShadowInvalidationInterval = 100;
 - (void)maybeInvalidateShadow
 {
-  if ([mWindow isOpaque] || ![mWindow hasShadow])
+  if (!mIsTransparent || ![mWindow hasShadow])
     return;
 
   PRIntervalTime now = PR_IntervalNow();
