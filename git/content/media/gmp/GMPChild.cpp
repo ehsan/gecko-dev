@@ -42,12 +42,6 @@ GMPChild::~GMPChild()
 {
 }
 
-void
-GMPChild::CheckThread()
-{
-  MOZ_ASSERT(mGMPMessageLoop == MessageLoop::current());
-}
-
 bool
 GMPChild::Init(const std::string& aPluginPath,
                base::ProcessHandle aParentProcessHandle,

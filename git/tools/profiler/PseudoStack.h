@@ -96,7 +96,7 @@ class ThreadProfile;
 class ProfilerMarker {
   friend class ProfilerLinkedList<ProfilerMarker>;
 public:
-  explicit ProfilerMarker(const char* aMarkerName,
+  ProfilerMarker(const char* aMarkerName,
          ProfilerMarkerPayload* aPayload = nullptr,
          float aTime = 0);
 

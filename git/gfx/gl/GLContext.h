@@ -412,7 +412,6 @@ public:
         EXT_frag_depth,
         OES_compressed_ETC1_RGB8_texture,
         EXT_draw_range_elements,
-        EXT_shader_texture_lod,
         Extensions_Max,
         Extensions_End
     };

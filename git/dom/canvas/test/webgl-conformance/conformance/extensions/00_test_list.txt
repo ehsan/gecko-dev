@@ -8,4 +8,3 @@ webgl-compressed-texture-etc1.html
 webgl-compressed-texture-s3tc.html
 --min-version 1.0.2 webgl-depth-texture.html
 ext-sRGB.html
-ext-shader-texture-lod.html

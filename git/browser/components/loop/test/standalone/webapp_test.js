@@ -5,7 +5,6 @@
 /* global loop, sinon */
 
 var expect = chai.expect;
-var TestUtils = React.addons.TestUtils;
 
 describe("loop.webapp", function() {
   "use strict";
@@ -77,7 +76,6 @@ describe("loop.webapp", function() {
         pendingCallTimeout: 1000
       });
       router = new loop.webapp.WebappRouter({
-        helper: {},
         conversation: conversation,
         notifier: notifier
       });
@@ -361,26 +359,6 @@ describe("loop.webapp", function() {
     });
   });
 
-  describe("PromoteFirefoxView", function() {
-    describe("#render", function() {
-      it("should not render when using Firefox", function() {
-        var comp = TestUtils.renderIntoDocument(loop.webapp.PromoteFirefoxView({
-          helper: {isFirefox: function() { return true; }}
-        }));
-
-        expect(comp.getDOMNode().querySelectorAll("h3").length).eql(0);
-      });
-
-      it("should render when not using Firefox", function() {
-        var comp = TestUtils.renderIntoDocument(loop.webapp.PromoteFirefoxView({
-          helper: {isFirefox: function() { return false; }}
-        }));
-
-        expect(comp.getDOMNode().querySelectorAll("h3").length).eql(1);
-      });
-    });
-  });
-
   describe("WebappHelper", function() {
     var helper;
 
@@ -398,19 +376,6 @@ describe("loop.webapp", function() {
 
       it("shouldn't detect iOS with other platforms", function() {
         expect(helper.isIOS("MacIntel")).eql(false);
-      });
-    });
-
-    describe("#isFirefox", function() {
-      it("should detect Firefox", function() {
-        expect(helper.isFirefox("Firefox")).eql(true);
-        expect(helper.isFirefox("Gecko/Firefox")).eql(true);
-        expect(helper.isFirefox("Firefox/Gecko")).eql(true);
-        expect(helper.isFirefox("Gecko/Firefox/Chuck Norris")).eql(true);
-      });
-
-      it("shouldn't detect Firefox with other platforms", function() {
-        expect(helper.isFirefox("Opera")).eql(false);
       });
     });
   });

@@ -6,18 +6,32 @@
 #ifndef nsNativeModuleLoader_h__
 #define nsNativeModuleLoader_h__
 
+#include "nsISupports.h"
+#include "mozilla/ModuleLoader.h"
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
+#include "mozilla/Module.h"
 #include "prlink.h"
 
+class nsNativeModuleLoader;
+
 namespace mozilla {
-class FileLocation;
+template<>
+struct HasDangerousPublicDestructor<nsNativeModuleLoader>
+{
+  static const bool value = true;
+};
 }
 
-class nsNativeModuleLoader MOZ_FINAL
+class nsNativeModuleLoader : public mozilla::ModuleLoader
 {
  public:
-    const mozilla::Module* LoadModule(mozilla::FileLocation &aFile);
+    NS_DECL_ISUPPORTS_INHERITED
+
+    nsNativeModuleLoader() {}
+    ~nsNativeModuleLoader() {}
+
+    virtual const mozilla::Module* LoadModule(mozilla::FileLocation &aFile) MOZ_OVERRIDE;
 
     nsresult Init();
 
@@ -27,12 +41,12 @@ class nsNativeModuleLoader MOZ_FINAL
     struct NativeLoadData
     {
         NativeLoadData()
-            : mModule(nullptr)
-            , mLibrary(nullptr)
+            : module(nullptr)
+            , library(nullptr)
         { }
 
-        const mozilla::Module* mModule;
-        PRLibrary* mLibrary;
+        const mozilla::Module* module;
+        PRLibrary* library;
     };
 
     static PLDHashOperator

@@ -84,10 +84,6 @@ public:
   }
 
 private:
-  ~SharedMemoryBasic()
-  {
-  }
-
   base::SharedMemory mSharedMemory;
 };
 

@@ -103,7 +103,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSICLASSINFO
 
-  explicit GenericClassInfo(const ClassInfoData* aData) : mData(aData) {}
+  GenericClassInfo(const ClassInfoData* aData) : mData(aData) {}
 
 private:
   const ClassInfoData* mData;

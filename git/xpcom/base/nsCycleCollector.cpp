@@ -433,7 +433,7 @@ public:
     Iterator() : mPointer(nullptr)
   {
   }
-    explicit Iterator(PtrInfoOrBlock* aPointer) : mPointer(aPointer)
+    Iterator(PtrInfoOrBlock* aPointer) : mPointer(aPointer)
   {
   }
     Iterator(const Iterator& aOther) : mPointer(aOther.mPointer)
@@ -483,7 +483,7 @@ public:
   class Builder
   {
   public:
-    explicit Builder(EdgePool& aPool)
+    Builder(EdgePool& aPool)
       : mCurrent(&aPool.mSentinelAndBlocks[0])
       , mBlockEnd(&aPool.mSentinelAndBlocks[0])
       , mNextBlockPtr(&aPool.Blocks())
@@ -697,7 +697,7 @@ public:
   class Builder
   {
   public:
-    explicit Builder(NodePool& aPool)
+    Builder(NodePool& aPool)
       : mNextBlock(&aPool.mBlocks)
       , mNext(aPool.mLast)
       , mBlockEnd(nullptr)
@@ -727,7 +727,7 @@ public:
   class Enumerator
   {
   public:
-    explicit Enumerator(NodePool& aPool)
+    Enumerator(NodePool& aPool)
       : mFirstBlock(aPool.mBlocks)
       , mCurBlock(nullptr)
       , mNext(nullptr)
@@ -1184,7 +1184,7 @@ AddPurpleRoot(CCGraphBuilder& aBuilder, void* aRoot,
 
 struct SelectPointersVisitor
 {
-  explicit SelectPointersVisitor(CCGraphBuilder& aBuilder)
+  SelectPointersVisitor(CCGraphBuilder& aBuilder)
     : mBuilder(aBuilder)
   {
   }
@@ -1378,7 +1378,7 @@ public:
   void WalkFromRoots(CCGraph& aGraph);
   // copy-constructing the visitor should be cheap, and less
   // indirection than using a reference
-  explicit GraphWalker(const Visitor aVisitor) : mVisitor(aVisitor)
+  GraphWalker(const Visitor aVisitor) : mVisitor(aVisitor)
   {
   }
 };
@@ -1595,7 +1595,7 @@ private:
     nsCOMPtr<nsIFile> mFile;
     FILE* mStream;
 
-    explicit FileInfo(const char* aPrefix) : mPrefix(aPrefix), mStream(nullptr) { }
+    FileInfo(const char* aPrefix) : mPrefix(aPrefix), mStream(nullptr) { }
   };
 
   /**
@@ -2113,7 +2113,7 @@ private:
     if (!mMergeZones) {
       return nullptr;
     }
-    JS::Zone* zone = JS::GetTenuredGCThingZone(aGcthing);
+    JS::Zone* zone = JS::GetGCThingZone(aGcthing);
     if (js::IsSystemZone(zone)) {
       return nullptr;
     }
@@ -2525,7 +2525,7 @@ class JSPurpleBuffer
   }
 
 public:
-  explicit JSPurpleBuffer(JSPurpleBuffer*& aReferenceToThis)
+  JSPurpleBuffer(JSPurpleBuffer*& aReferenceToThis)
     : mReferenceToThis(aReferenceToThis)
   {
     mReferenceToThis = this;

@@ -47,7 +47,7 @@ LOCAL_INCLUDES += [
 ]
 
 if CONFIG['ENABLE_TESTS']:
-    DIRS += [
+    PARALLEL_DIRS += [
         'tests',
     ]
 

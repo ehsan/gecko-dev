@@ -6269,7 +6269,7 @@ JS_SetGlobalJitCompilerOption(JSRuntime *rt, JSJitCompilerOption opt, uint32_t v
 JS_PUBLIC_API(int)
 JS_GetGlobalJitCompilerOption(JSRuntime *rt, JSJitCompilerOption opt)
 {
-#ifndef JS_CODEGEN_NONE
+#ifdef JS_ION
     switch (opt) {
       case JSJITCOMPILER_BASELINE_USECOUNT_TRIGGER:
         return jit::js_JitOptions.baselineUsesBeforeCompile;
@@ -6557,10 +6557,4 @@ JS::CaptureCurrentStack(JSContext *cx, JS::MutableHandleObject stackp, unsigned 
         return false;
     stackp.set(frame.get());
     return true;
-}
-
-JS_PUBLIC_API(Zone *)
-JS::GetObjectZone(JSObject *obj)
-{
-    return obj->zone();
 }

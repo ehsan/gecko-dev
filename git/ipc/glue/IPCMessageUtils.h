@@ -61,7 +61,7 @@ struct SerializedStructuredCloneBuffer
   : data(nullptr), dataLength(0)
   { }
 
-  explicit SerializedStructuredCloneBuffer(const JSAutoStructuredCloneBuffer& aOther)
+  SerializedStructuredCloneBuffer(const JSAutoStructuredCloneBuffer& aOther)
   {
     *this = aOther;
   }

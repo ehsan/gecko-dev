@@ -51,7 +51,7 @@ template<class SmartPtr>
 class PointerClearer : public ShutdownObserver
 {
 public:
-  explicit PointerClearer(SmartPtr* aPtr)
+  PointerClearer(SmartPtr* aPtr)
     : mPtr(aPtr)
   {
   }

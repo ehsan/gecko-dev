@@ -50,8 +50,11 @@ class FinalTargetValue(SandboxDerivedValue, unicode):
 # Tier says for which specific tier the variable has an effect.
 # Valid tiers are:
 # - 'export'
-# - 'libs': everything that is not built from C/C++/ObjC source and that has
+# - 'binaries': everything in relation with linking objects, producing
+#      programs and libraries.
+# - 'libs': everything that is not binaries and that has
 #      traditionally been in the libs tier.
+# - 'tools'
 # A value of None means the variable has no direct effect on any tier.
 
 VARIABLES = {
@@ -158,7 +161,7 @@ VARIABLES = {
 
         This variable contains a list of DLL files which the module being linked
         should load lazily.  This only has an effect when building with MSVC.
-        """, None),
+        """, 'binaries'),
 
     'DIRS': (list, list,
         """Child directories to descend into looking for build frontend files.
@@ -177,7 +180,7 @@ VARIABLES = {
     'DISABLE_STL_WRAPPING': (bool, bool,
         """Disable the wrappers for STL which allow it to work with C++ exceptions
         disabled.
-        """, None),
+        """, 'binaries'),
 
     'EXTRA_COMPONENTS': (StrictOrderingOnAppendList, list,
         """Additional component files to distribute.
@@ -227,7 +230,7 @@ VARIABLES = {
         This variable contains the name of a library, defined elsewhere with
         ``LIBRARY_NAME``, in which the objects of the current directory will be
         linked.
-        """, None),
+        """, 'binaries'),
 
     'CPP_UNIT_TESTS': (StrictOrderingOnAppendList, list,
         """Compile a list of C++ unit test names.
@@ -238,7 +241,7 @@ VARIABLES = {
         If the configuration token ``BIN_SUFFIX`` is set, its value will be
         automatically appended to each name. If a name already ends with
         ``BIN_SUFFIX``, the name will remain unchanged.
-        """, None),
+        """, 'binaries'),
 
     'FAIL_ON_WARNINGS': (bool, bool,
         """Whether to treat warnings as errors.
@@ -277,20 +280,25 @@ VARIABLES = {
         Implies FORCE_SHARED_LIB.
         """, None),
 
-    'PYTHON_UNIT_TESTS': (StrictOrderingOnAppendList, list,
-        """A list of python unit tests.
+    'PARALLEL_DIRS': (list, list,
+        """A parallel version of ``DIRS``.
+
+        Ideally this variable does not exist. It is provided so a transition
+        from recursive makefiles can be made. Once the build system has been
+        converted to not use Makefile's for the build frontend, this will
+        likely go away.
         """, None),
 
     'HOST_LIBRARY_NAME': (unicode, unicode,
         """Name of target library generated when cross compiling.
-        """, None),
+        """, 'binaries'),
 
     'JAVA_JAR_TARGETS': (dict, dict,
         """Defines Java JAR targets to be built.
 
         This variable should not be populated directly. Instead, it should
         populated by calling add_java_jar().
-        """, 'libs'),
+        """, 'binaries'),
 
     'JS_MODULES_PATH': (unicode, unicode,
         """Sub-directory of ``$(FINAL_TARGET)`` to install
@@ -312,7 +320,7 @@ VARIABLES = {
 
         would generate ``example/components/libxpcomsample.so`` on Linux, or
         ``example/components/xpcomsample.lib`` on Windows.
-        """, None),
+        """, 'binaries'),
 
     'SHARED_LIBRARY_NAME': (unicode, unicode,
         """The name of the static library generated for a directory, if it needs to
@@ -431,7 +439,7 @@ VARIABLES = {
         If the configuration token ``BIN_SUFFIX`` is set, its value will be
         automatically appended to each name. If a name already ends with
         ``BIN_SUFFIX``, the name will remain unchanged.
-        """, None),
+        """, 'binaries'),
 
     'SONAME': (unicode, unicode,
         """The soname of the shared object currently being linked
@@ -439,7 +447,7 @@ VARIABLES = {
         soname is the "logical name" of a shared object, often used to provide
         version backwards compatibility. This variable makes sense only for
         shared objects, and is supported only on some unix platforms.
-        """, None),
+        """, 'binaries'),
 
     'HOST_SIMPLE_PROGRAMS': (StrictOrderingOnAppendList, list,
         """Compile a list of host executable names.
@@ -450,6 +458,14 @@ VARIABLES = {
         If the configuration token ``HOST_BIN_SUFFIX`` is set, its value will
         be automatically appended to each name. If a name already ends with
         ``HOST_BIN_SUFFIX``, the name will remain unchanged.
+        """, 'binaries'),
+
+    'TOOL_DIRS': (list, list,
+        """Like DIRS but for tools.
+
+        Tools are for pieces of the build system that aren't required to
+        produce a working binary (in theory). They provide things like test
+        code and utilities.
         """, None),
 
     'TEST_DIRS': (list, list,
@@ -460,6 +476,11 @@ VARIABLES = {
         This variable may go away once the transition away from Makefiles is
         complete.
         """, None),
+
+    'TEST_TOOL_DIRS': (list, list,
+        """TOOL_DIRS that is only executed if tests are enabled.
+        """, None),
+
 
     'TIERS': (OrderedDict, dict,
         """Defines directories constituting the tier traversal mechanism.
@@ -518,7 +539,7 @@ VARIABLES = {
         If the configuration token ``BIN_SUFFIX`` is set, its value will be
         automatically appended to ``PROGRAM``. If ``PROGRAM`` already ends with
         ``BIN_SUFFIX``, ``PROGRAM`` will remain unchanged.
-        """, None),
+        """, 'binaries'),
 
     'HOST_PROGRAM' : (unicode, unicode,
         """Compiled host executable name.
@@ -526,7 +547,7 @@ VARIABLES = {
         If the configuration token ``HOST_BIN_SUFFIX`` is set, its value will be
         automatically appended to ``HOST_PROGRAM``. If ``HOST_PROGRAM`` already
         ends with ``HOST_BIN_SUFFIX``, ``HOST_PROGRAM`` will remain unchanged.
-        """, None),
+        """, 'binaries'),
 
     'NO_DIST_INSTALL': (bool, bool,
         """Disable installing certain files into the distribution directory.
@@ -736,7 +757,7 @@ VARIABLES = {
            Note that the ordering of flags matters here, these flags will be
            added to the compiler's command line in the same order as they
            appear in the moz.build file.
-        """, None),
+        """, 'binaries'),
 
     'CXXFLAGS': (list, list,
         """Flags passed to the C++ compiler for all of the C++ source files
@@ -745,7 +766,7 @@ VARIABLES = {
            Note that the ordering of flags matters here; these flags will be
            added to the compiler's command line in the same order as they
            appear in the moz.build file.
-        """, None),
+        """, 'binaries'),
 
     'CMFLAGS': (list, list,
         """Flags passed to the Objective-C compiler for all of the Objective-C
@@ -754,7 +775,7 @@ VARIABLES = {
            Note that the ordering of flags matters here; these flags will be
            added to the compiler's command line in the same order as they
            appear in the moz.build file.
-        """, None),
+        """, 'binaries'),
 
     'CMMFLAGS': (list, list,
         """Flags passed to the Objective-C++ compiler for all of the
@@ -763,7 +784,7 @@ VARIABLES = {
            Note that the ordering of flags matters here; these flags will be
            added to the compiler's command line in the same order as they
            appear in the moz.build file.
-        """, None),
+        """, 'binaries'),
 
     'LDFLAGS': (list, list,
         """Flags passed to the linker when linking all of the libraries and
@@ -918,9 +939,10 @@ FUNCTIONS = {
         """Make the specified variable available to all child directories.
 
         The variable specified by the argument string is added to the
-        environment of all directories specified in the DIRS and TEST_DIRS
-        variables. If those directories themselves have child directories,
-        the variable will be exported to all of them.
+        environment of all directories specified in the DIRS, PARALLEL_DIRS,
+        TOOL_DIRS, TEST_DIRS, and TEST_TOOL_DIRS variables. If those directories
+        themselves have child directories, the variable will be exported to all
+        of them.
 
         The value used for the variable is the final value at the end of the
         moz.build file, so it is possible (but not recommended style) to place
@@ -1016,11 +1038,4 @@ SPECIAL_VARIABLES = {
         - False
         - None
         """),
-}
-
-# Deprecation hints.
-DEPRECATION_HINTS = {
-    'TOOL_DIRS': 'Please use the DIRS variable instead.',
-    'TEST_TOOL_DIRS': 'Please use the TEST_DIRS variable instead.',
-    'PARALLEL_DIRS': 'Please use the DIRS variable instead.',
 }

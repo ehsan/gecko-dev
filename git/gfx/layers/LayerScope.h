@@ -7,7 +7,6 @@
 #define GFX_LAYERSCOPE_H
 
 #include <stdint.h>
-#include <mozilla/UniquePtr.h>
 
 struct nsIntSize;
 
@@ -16,8 +15,6 @@ namespace mozilla {
 namespace gl { class GLContext; }
 
 namespace layers {
-
-namespace layerscope { class Packet; }
 
 struct EffectChain;
 class LayerComposite;
@@ -33,7 +30,6 @@ public:
     static void SendLayer(LayerComposite* aLayer,
                           int aWidth,
                           int aHeight);
-    static void SendLayerDump(UniquePtr<layerscope::Packet> aPacket);
     static bool CheckSendable();
     static void CleanLayer();
 };

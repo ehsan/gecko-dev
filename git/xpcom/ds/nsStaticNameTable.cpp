@@ -19,13 +19,13 @@ using namespace mozilla;
 
 struct NameTableKey
 {
-  explicit NameTableKey(const nsAFlatCString* aKeyStr)
+  NameTableKey(const nsAFlatCString* aKeyStr)
     : mIsUnichar(false)
   {
     mKeyStr.m1b = aKeyStr;
   }
 
-  explicit NameTableKey(const nsAFlatString* aKeyStr)
+  NameTableKey(const nsAFlatString* aKeyStr)
     : mIsUnichar(true)
   {
     mKeyStr.m2b = aKeyStr;

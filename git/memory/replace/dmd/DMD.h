@@ -43,28 +43,22 @@ private:
 // reporters.  The following sequence should be used.
 // - ClearReports()
 // - run the memory reporters
-// - AnalyzeReports()
+// - Dump()
 // This sequence avoids spurious twice-reported warnings.
 MOZ_EXPORT void
 ClearReports();
 
-// Determines which heap blocks have been reported, and dumps a human-readable
+// Checks which heap blocks have been reported, and dumps a human-readable
 // summary (via |aWrite|).  If |aWrite| is nullptr it will dump to stderr.
-// Beware: this output may have very long lines.
+// Beware:  this output may have very long lines.
 MOZ_EXPORT void
-AnalyzeReports(const Writer& aWriter);
+Dump(Writer aWriter);
 
-// Measures all heap blocks, and dumps a human-readable summary (via |aWrite|).
-// If |aWrite| is nullptr it will dump to stderr.  Beware: this output may
-// have very long lines.
-MOZ_EXPORT void
-AnalyzeHeap(const Writer& aWriter);
-
-// A useful |WriterFun|.  For example, if |fp| is a FILE* you want
-// |AnalyzeReports|'s output to be written to, call:
+// A useful |WriterFun|.  If |fp| is a FILE* you want |Dump|'s output to be
+// written to, call:
 //
 //   dmd::Writer writer(FpWrite, fp);
-//   dmd::AnalyzeReports(writer);
+//   dmd::Dump(writer);
 MOZ_EXPORT void
 FpWrite(void* aFp, const char* aFmt, va_list aAp);
 

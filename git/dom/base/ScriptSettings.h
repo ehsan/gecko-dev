@@ -196,7 +196,7 @@ private:
 class AutoEntryScript : public AutoJSAPI,
                         protected ScriptSettingsStackEntry {
 public:
-  explicit AutoEntryScript(nsIGlobalObject* aGlobalObject,
+  AutoEntryScript(nsIGlobalObject* aGlobalObject,
                   bool aIsMainThread = NS_IsMainThread(),
                   // Note: aCx is mandatory off-main-thread.
                   JSContext* aCx = nullptr);
@@ -222,7 +222,7 @@ private:
  */
 class AutoIncumbentScript : protected ScriptSettingsStackEntry {
 public:
-  explicit AutoIncumbentScript(nsIGlobalObject* aGlobalObject);
+  AutoIncumbentScript(nsIGlobalObject* aGlobalObject);
 private:
   JS::AutoHideScriptedCaller mCallerOverride;
 };
@@ -237,7 +237,7 @@ private:
  */
 class AutoNoJSAPI : protected ScriptSettingsStackEntry {
 public:
-  explicit AutoNoJSAPI(bool aIsMainThread = NS_IsMainThread());
+  AutoNoJSAPI(bool aIsMainThread = NS_IsMainThread());
 private:
   mozilla::Maybe<AutoCxPusher> mCxPusher;
 };

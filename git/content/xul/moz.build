@@ -7,8 +7,8 @@
 # We need to build document even if XUL is disabled, for the nsIController[s]
 # interfaces and implementations.
 # Likewise for content, because of nsXULAtoms.
-DIRS += ['document', 'content']
+PARALLEL_DIRS += ['document', 'content']
 
 if CONFIG['MOZ_XUL']:
-    DIRS += ['templates']
+    PARALLEL_DIRS += ['templates']
 

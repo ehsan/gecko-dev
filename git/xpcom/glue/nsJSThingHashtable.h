@@ -28,7 +28,7 @@ template<class T>
 class nsHashKeyDisallowMemmove : public T
 {
 public:
-  explicit nsHashKeyDisallowMemmove(const typename T::KeyTypePointer aKey) : T(aKey) {}
+  nsHashKeyDisallowMemmove(const T& aKey) : T(aKey) {}
   enum { ALLOW_MEMMOVE = false };
 };
 

@@ -24,7 +24,7 @@ namespace mozilla {
 class NS_COM_GLUE Monitor
 {
 public:
-  explicit Monitor(const char* aName)
+  Monitor(const char* aName)
     : mMutex(aName)
     , mCondVar(mMutex, "[Monitor.mCondVar]")
   {
@@ -72,7 +72,7 @@ private:
 class NS_COM_GLUE MOZ_STACK_CLASS MonitorAutoLock
 {
 public:
-  explicit MonitorAutoLock(Monitor& aMonitor)
+  MonitorAutoLock(Monitor& aMonitor)
     : mMonitor(&aMonitor)
   {
     mMonitor->Lock();
@@ -111,7 +111,7 @@ private:
 class NS_COM_GLUE MOZ_STACK_CLASS MonitorAutoUnlock
 {
 public:
-  explicit MonitorAutoUnlock(Monitor& aMonitor)
+  MonitorAutoUnlock(Monitor& aMonitor)
     : mMonitor(&aMonitor)
   {
     mMonitor->Unlock();

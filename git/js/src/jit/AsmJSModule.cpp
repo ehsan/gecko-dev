@@ -1558,9 +1558,6 @@ AsmJSModule::setProfilingEnabled(bool enabled, JSContext *cx)
         BOffImm calleeOffset;
         callerInsn->as<InstBLImm>()->extractImm(&calleeOffset);
         void *callee = calleeOffset.getDest(callerInsn);
-#elif defined(JS_CODEGEN_NONE)
-        MOZ_CRASH();
-        void *callee = nullptr;
 #else
 # error "Missing architecture"
 #endif
@@ -1579,8 +1576,6 @@ AsmJSModule::setProfilingEnabled(bool enabled, JSContext *cx)
         JSC::X86Assembler::setRel32(callerRetAddr, newCallee);
 #elif defined(JS_CODEGEN_ARM)
         new (caller) InstBLImm(BOffImm(newCallee - caller), Assembler::Always);
-#elif defined(JS_CODEGEN_NONE)
-        MOZ_CRASH();
 #else
 # error "Missing architecture"
 #endif
@@ -1638,8 +1633,6 @@ AsmJSModule::setProfilingEnabled(bool enabled, JSContext *cx)
             JS_ASSERT(reinterpret_cast<Instruction*>(jump)->is<InstBImm>());
             new (jump) InstNOP();
         }
-#elif defined(JS_CODEGEN_NONE)
-        MOZ_CRASH();
 #else
 # error "Missing architecture"
 #endif

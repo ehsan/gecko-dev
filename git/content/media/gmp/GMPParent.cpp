@@ -52,8 +52,7 @@ namespace gmp {
 GMPParent::GMPParent()
   : mState(GMPStateNotLoaded)
   , mProcess(nullptr)
-  , mDeleteProcessOnlyOnUnload(false)
-  , mAbnormalShutdownInProgress(false)
+  , mDeleteProcessOnUnload(false)
 {
 }
 
@@ -63,28 +62,12 @@ GMPParent::~GMPParent()
   MOZ_ASSERT(NS_IsMainThread());
 }
 
-void
-GMPParent::CheckThread()
-{
-  MOZ_ASSERT(mGMPThread == NS_GetCurrentThread());
-}
-
 nsresult
-GMPParent::CloneFrom(const GMPParent* aOther)
-{
-  MOZ_ASSERT(GMPThread() == NS_GetCurrentThread());
-  MOZ_ASSERT(aOther->mDirectory && aOther->mService, "null plugin directory");
-  return Init(aOther->mService, aOther->mDirectory);
-}
-
-nsresult
-GMPParent::Init(GeckoMediaPluginService *aService, nsIFile* aPluginDir)
+GMPParent::Init(nsIFile* aPluginDir)
 {
   MOZ_ASSERT(aPluginDir);
-  MOZ_ASSERT(aService);
   MOZ_ASSERT(GMPThread() == NS_GetCurrentThread());
 
-  mService = aService;
   mDirectory = aPluginDir;
 
   nsAutoString leafname;
@@ -128,7 +111,6 @@ GMPParent::LoadProcess()
       mProcess = nullptr;
       return NS_ERROR_FAILURE;
     }
-    LOGD(("%s::%s: Created new process %p", __CLASS__, __FUNCTION__, (void *)mProcess));
   }
 
   mState = GMPStateLoaded;
@@ -141,7 +123,7 @@ GMPParent::CloseIfUnused()
 {
   MOZ_ASSERT(GMPThread() == NS_GetCurrentThread());
 
-  if ((mDeleteProcessOnlyOnUnload ||
+  if ((mDeleteProcessOnUnload ||
        mState == GMPStateLoaded ||
        mState == GMPStateUnloading) &&
       mVideoDecoders.IsEmpty() &&
@@ -156,7 +138,7 @@ GMPParent::CloseActive(bool aDieWhenUnloaded)
 {
   LOGD(("%s::%s: %p state %d", __CLASS__, __FUNCTION__, this, mState));
   if (aDieWhenUnloaded) {
-    mDeleteProcessOnlyOnUnload = true; // don't allow this to go back...
+    mDeleteProcessOnUnload = true; // don't allow this to go back...
   }
   if (mState == GMPStateLoaded) {
     mState = GMPStateUnloading;
@@ -189,23 +171,19 @@ GMPParent::Shutdown()
   LOGD(("%s::%s: %p", __CLASS__, __FUNCTION__, this));
   MOZ_ASSERT(GMPThread() == NS_GetCurrentThread());
 
-  if (mAbnormalShutdownInProgress) {
-    return;
-  }
   MOZ_ASSERT(mVideoDecoders.IsEmpty() && mVideoEncoders.IsEmpty());
   if (mState == GMPStateNotLoaded || mState == GMPStateClosing) {
     return;
   }
 
-  mState = GMPStateClosing;
-  DeleteProcess();
-  // XXX Get rid of mDeleteProcessOnlyOnUnload and this code when
-  // Bug 1043671 is fixed
-  if (!mDeleteProcessOnlyOnUnload) {
-    // Destroy ourselves and rise from the fire to save memory
-    nsRefPtr<GMPParent> self(this);
-    mService->ReAddOnGMPThread(self);
-  } // else we've been asked to die and stay dead
+  // XXX Get rid of mDeleteProcessOnUnload and do this on all Shutdowns once
+  // Bug 1043671 is fixed (backout this patch)
+  if (mDeleteProcessOnUnload) {
+    mState = GMPStateClosing;
+    DeleteProcess();
+  } else {
+    mState = GMPStateNotLoaded;
+  }
   MOZ_ASSERT(mState == GMPStateNotLoaded);
 }
 
@@ -213,12 +191,8 @@ void
 GMPParent::DeleteProcess()
 {
   LOGD(("%s::%s: %p", __CLASS__, __FUNCTION__, this));
-  // Don't Close() twice!
-  // Probably remove when bug 1043671 is resolved
-  MOZ_ASSERT(mState == GMPStateClosing);
   Close();
   mProcess->Delete();
-  LOGD(("%s::%s: Shut down process %p", __CLASS__, __FUNCTION__, (void *) mProcess));
   mProcess = nullptr;
   mState = GMPStateNotLoaded;
 }
@@ -302,7 +276,6 @@ GMPParent::State() const
 }
 
 #ifdef DEBUG
-// Not changing to use mService since we'll be removing it
 nsIThread*
 GMPParent::GMPThread()
 {
@@ -474,15 +447,11 @@ GMPParent::ActorDestroy(ActorDestroyReason aWhy)
 #endif
   // warn us off trying to close again
   mState = GMPStateClosing;
-  mAbnormalShutdownInProgress = true;
   CloseActive(false);
 
   // Normal Shutdown() will delete the process on unwind.
   if (AbnormalShutdown == aWhy) {
-    mState = GMPStateClosing;
-    nsRefPtr<GMPParent> self(this);
-    // Note: final destruction will be Dispatched to ourself
-    mService->ReAddOnGMPThread(self);
+    NS_DispatchToCurrentThread(NS_NewRunnableMethod(this, &GMPParent::DeleteProcess));
   }
 }
 

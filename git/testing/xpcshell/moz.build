@@ -6,6 +6,3 @@
 
 TEST_DIRS += ['example']
 
-PYTHON_UNIT_TESTS += [
-    'selftest.py',
-]

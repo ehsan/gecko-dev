@@ -26,7 +26,6 @@ using namespace js;
 using mozilla::ArrayLength;
 using mozilla::IsFinite;
 using mozilla::IsNaN;
-using mozilla::FloorLog2;
 
 namespace js {
 extern const JSFunctionSpec Float32x4Methods[];
@@ -437,125 +436,129 @@ template JSObject *js::Create<Float32x4>(JSContext *cx, Float32x4::Elem *data);
 template JSObject *js::Create<Int32x4>(JSContext *cx, Int32x4::Elem *data);
 
 namespace js {
-template<typename T>
+template<typename T, typename V>
 struct Abs {
-    static inline T apply(T x, T zero) { return x < 0 ? -1 * x : x; }
+    static inline T apply(T x, T zero) { return V::toType(x < 0 ? -1 * x : x); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Neg {
-    static inline T apply(T x, T zero) { return -1 * x; }
+    static inline T apply(T x, T zero) { return V::toType(-1 * x); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Not {
-    static inline T apply(T x, T zero) { return ~x; }
+    static inline T apply(T x, T zero) { return V::toType(~x); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Rec {
-    static inline T apply(T x, T zero) { return 1 / x; }
+    static inline T apply(T x, T zero) { return V::toType(1 / x); }
 };
-template<typename T>
+template<typename T, typename V>
 struct RecSqrt {
-    static inline T apply(T x, T zero) { return 1 / sqrt(x); }
+    static inline T apply(T x, T zero) { return V::toType(1 / sqrt(x)); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Sqrt {
-    static inline T apply(T x, T zero) { return sqrt(x); }
+    static inline T apply(T x, T zero) { return V::toType(sqrt(x)); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Add {
-    static inline T apply(T l, T r) { return l + r; }
+    static inline T apply(T l, T r) { return V::toType(l + r); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Sub {
-    static inline T apply(T l, T r) { return l - r; }
+    static inline T apply(T l, T r) { return V::toType(l - r); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Div {
-    static inline T apply(T l, T r) { return l / r; }
+    static inline T apply(T l, T r) { return V::toType(l / r); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Mul {
-    static inline T apply(T l, T r) { return l * r; }
+    static inline T apply(T l, T r) { return V::toType(l * r); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Minimum {
-    static inline T apply(T l, T r) { return l < r ? l : r; }
+    static inline T apply(T l, T r) { return V::toType(l < r ? l : r); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Maximum {
-    static inline T apply(T l, T r) { return l > r ? l : r; }
+    static inline T apply(T l, T r) { return V::toType(l > r ? l : r); }
 };
-template<typename T>
+template<typename T, typename V>
 struct LessThan {
-    static inline int32_t apply(T l, T r) { return l < r ? 0xFFFFFFFF : 0x0; }
+    static inline T apply(T l, T r) { return V::toType(l < r ? 0xFFFFFFFF : 0x0); }
 };
-template<typename T>
+template<typename T, typename V>
 struct LessThanOrEqual {
-    static inline int32_t apply(T l, T r) { return l <= r ? 0xFFFFFFFF : 0x0; }
+    static inline T apply(T l, T r) { return V::toType(l <= r ? 0xFFFFFFFF : 0x0); }
 };
-template<typename T>
+template<typename T, typename V>
 struct GreaterThan {
-    static inline int32_t apply(T l, T r) { return l > r ? 0xFFFFFFFF : 0x0; }
+    static inline T apply(T l, T r) { return V::toType(l > r ? 0xFFFFFFFF : 0x0); }
 };
-template<typename T>
+template<typename T, typename V>
 struct GreaterThanOrEqual {
-    static inline int32_t apply(T l, T r) { return l >= r ? 0xFFFFFFFF : 0x0; }
+    static inline T apply(T l, T r) { return V::toType(l >= r ? 0xFFFFFFFF : 0x0); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Equal {
-    static inline int32_t apply(T l, T r) { return l == r ? 0xFFFFFFFF : 0x0; }
+    static inline T apply(T l, T r) { return V::toType(l == r ? 0xFFFFFFFF : 0x0); }
 };
-template<typename T>
+template<typename T, typename V>
 struct NotEqual {
-    static inline int32_t apply(T l, T r) { return l != r ? 0xFFFFFFFF : 0x0; }
+    static inline T apply(T l, T r) { return V::toType(l != r ? 0xFFFFFFFF : 0x0); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Xor {
-    static inline T apply(T l, T r) { return l ^ r; }
+    static inline T apply(T l, T r) { return V::toType(l ^ r); }
 };
-template<typename T>
+template<typename T, typename V>
 struct And {
-    static inline T apply(T l, T r) { return l & r; }
+    static inline T apply(T l, T r) { return V::toType(l & r); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Or {
-    static inline T apply(T l, T r) { return l | r; }
+    static inline T apply(T l, T r) { return V::toType(l | r); }
 };
-template<typename T>
+template<typename T, typename V>
 struct Scale {
-    static inline T apply(int32_t lane, T scalar, T x) { return scalar * x; }
+    static inline T apply(int32_t lane, T scalar, T x) { return V::toType(scalar * x); }
 };
-template<typename T>
+template<typename T, typename V>
 struct WithX {
-    static inline T apply(int32_t lane, T scalar, T x) { return lane == 0 ? scalar : x; }
+    static inline T apply(int32_t lane, T scalar, T x) { return V::toType(lane == 0 ? scalar : x); }
 };
-template<typename T>
+template<typename T, typename V>
 struct WithY {
-    static inline T apply(int32_t lane, T scalar, T x) { return lane == 1 ? scalar : x; }
+    static inline T apply(int32_t lane, T scalar, T x) { return V::toType(lane == 1 ? scalar : x); }
 };
-template<typename T>
+template<typename T, typename V>
 struct WithZ {
-    static inline T apply(int32_t lane, T scalar, T x) { return lane == 2 ? scalar : x; }
+    static inline T apply(int32_t lane, T scalar, T x) { return V::toType(lane == 2 ? scalar : x); }
 };
-template<typename T>
+template<typename T, typename V>
 struct WithW {
-    static inline T apply(int32_t lane, T scalar, T x) { return lane == 3 ? scalar : x; }
+    static inline T apply(int32_t lane, T scalar, T x) { return V::toType(lane == 3 ? scalar : x); }
 };
-template<typename T>
+template<typename T, typename V>
 struct WithFlagX {
-    static inline T apply(T l, T f, T x) { return l == 0 ? (f ? 0xFFFFFFFF : 0x0) : x; }
+    static inline T apply(T l, T f, T x) { return V::toType(l == 0 ? (f ? 0xFFFFFFFF : 0x0) : x); }
 };
-template<typename T>
+template<typename T, typename V>
 struct WithFlagY {
-    static inline T apply(T l, T f, T x) { return l == 1 ? (f ? 0xFFFFFFFF : 0x0) : x; }
+    static inline T apply(T l, T f, T x) { return V::toType(l == 1 ? (f ? 0xFFFFFFFF : 0x0) : x); }
 };
-template<typename T>
+template<typename T, typename V>
 struct WithFlagZ {
-    static inline T apply(T l, T f, T x) { return l == 2 ? (f ? 0xFFFFFFFF : 0x0) : x; }
+    static inline T apply(T l, T f, T x) { return V::toType(l == 2 ? (f ? 0xFFFFFFFF : 0x0) : x); }
 };
-template<typename T>
+template<typename T, typename V>
 struct WithFlagW {
-    static inline T apply(T l, T f, T x) { return l == 3 ? (f ? 0xFFFFFFFF : 0x0) : x; }
+    static inline T apply(T l, T f, T x) { return V::toType(l == 3 ? (f ? 0xFFFFFFFF : 0x0) : x); }
+};
+template<typename T, typename V>
+struct Shuffle {
+    static inline int32_t apply(int32_t l, int32_t mask) { return V::toType((mask >> l) & 0x3); }
 };
 struct ShiftLeft {
     static inline int32_t apply(int32_t v, int32_t bits) { return v << bits; }
@@ -577,7 +580,7 @@ ErrorBadArgs(JSContext *cx)
 
 // Coerces the inputs of type In to the type Coercion, apply the operator Op
 // and converts the result to the type Out.
-template<typename In, typename Coercion, template<typename C> class Op, typename Out>
+template<typename In, typename Coercion, typename Op, typename Out>
 static bool
 CoercedFunc(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -595,7 +598,7 @@ CoercedFunc(JSContext *cx, unsigned argc, Value *vp)
 
         CoercionElem *val = TypedObjectMemory<CoercionElem *>(args[0]);
         for (unsigned i = 0; i < Coercion::lanes; i++)
-            result[i] = Op<CoercionElem>::apply(val[i], 0);
+            result[i] = Op::apply(val[i], 0);
     } else {
         JS_ASSERT(args.length() == 2);
         if (!IsVectorObject<In>(args[0]) || !IsVectorObject<In>(args[1]))
@@ -604,7 +607,7 @@ CoercedFunc(JSContext *cx, unsigned argc, Value *vp)
         CoercionElem *left = TypedObjectMemory<CoercionElem *>(args[0]);
         CoercionElem *right = TypedObjectMemory<CoercionElem *>(args[1]);
         for (unsigned i = 0; i < Coercion::lanes; i++)
-            result[i] = Op<CoercionElem>::apply(left[i], right[i]);
+            result[i] = Op::apply(left[i], right[i]);
     }
 
     RetElem *coercedResult = reinterpret_cast<RetElem *>(result);
@@ -617,18 +620,19 @@ CoercedFunc(JSContext *cx, unsigned argc, Value *vp)
 }
 
 // Same as above, with Coercion == Out
-template<typename In, template<typename C> class Op, typename Out>
+template<typename In, typename Op, typename Out>
 static bool
 Func(JSContext *cx, unsigned argc, Value *vp)
 {
     return CoercedFunc<In, Out, Op, Out>(cx, argc, vp);
 }
 
-template<typename V, template<typename T> class OpWith>
+template<typename V, typename OpWith, typename Vret>
 static bool
 FuncWith(JSContext *cx, unsigned argc, Value *vp)
 {
     typedef typename V::Elem Elem;
+    typedef typename Vret::Elem RetElem;
 
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() != 2 || !IsVectorObject<V>(args[0]) ||
@@ -638,22 +642,22 @@ FuncWith(JSContext *cx, unsigned argc, Value *vp)
     }
 
     Elem *val = TypedObjectMemory<Elem *>(args[0]);
-    Elem result[V::lanes];
+    RetElem result[Vret::lanes];
 
     if (args[1].isNumber()) {
         Elem withAsNumber;
-        if (!V::toType(cx, args[1], &withAsNumber))
+        if (!Vret::toType(cx, args[1], &withAsNumber))
             return false;
-        for (unsigned i = 0; i < V::lanes; i++)
-            result[i] = OpWith<Elem>::apply(i, withAsNumber, val[i]);
+        for (unsigned i = 0; i < Vret::lanes; i++)
+            result[i] = OpWith::apply(i, withAsNumber, val[i]);
     } else {
         JS_ASSERT(args[1].isBoolean());
         bool withAsBool = args[1].toBoolean();
-        for (unsigned i = 0; i < V::lanes; i++)
-            result[i] = OpWith<Elem>::apply(i, withAsBool, val[i]);
+        for (unsigned i = 0; i < Vret::lanes; i++)
+            result[i] = OpWith::apply(i, withAsBool, val[i]);
     }
 
-    RootedObject obj(cx, Create<V>(cx, result));
+    RootedObject obj(cx, Create<Vret>(cx, result));
     if (!obj)
         return false;
 
@@ -661,57 +665,48 @@ FuncWith(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-template<typename V>
+template<typename V, typename OpShuffle, typename Vret>
 static bool
 FuncShuffle(JSContext *cx, unsigned argc, Value *vp)
 {
     typedef typename V::Elem Elem;
+    typedef typename Vret::Elem RetElem;
 
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() != 2 && args.length() != 3)
         return ErrorBadArgs(cx);
 
-    // Let L be V::Lanes. Each lane can contain L lanes, so the log2(L) first
-    // bits select the first lane, the next log2(L) the second, and so on.
-    const uint32_t SELECT_SHIFT = FloorLog2(V::lanes);
-    const uint32_t SELECT_MASK  = V::lanes - 1;
-    const uint32_t MAX_MASK_VALUE = uint32_t(pow(double(V::lanes), double(V::lanes))) - 1;
-
-    Elem result[V::lanes];
+    RetElem result[Vret::lanes];
     if (args.length() == 2) {
-        if (!IsVectorObject<V>(args[0]) || !args[1].isInt32())
+        if (!IsVectorObject<V>(args[0]) || !args[1].isNumber())
             return ErrorBadArgs(cx);
 
         Elem *val = TypedObjectMemory<Elem *>(args[0]);;
-        int32_t maskArg;
-        if (!ToInt32(cx, args[1], &maskArg))
+        Elem arg1;
+        if (!Vret::toType(cx, args[1], &arg1))
             return false;
-        if (maskArg < 0 || maskArg > MAX_MASK_VALUE)
-            return ErrorBadArgs(cx);
 
-        for (unsigned i = 0; i < V::lanes; i++)
-            result[i] = val[(maskArg >> (i * SELECT_SHIFT)) & SELECT_MASK];
+        for (unsigned i = 0; i < Vret::lanes; i++)
+            result[i] = val[OpShuffle::apply(i * 2, arg1)];
     } else {
         JS_ASSERT(args.length() == 3);
-        if (!IsVectorObject<V>(args[0]) || !IsVectorObject<V>(args[1]) || !args[2].isInt32())
+        if (!IsVectorObject<V>(args[0]) || !IsVectorObject<V>(args[1]) || !args[2].isNumber())
             return ErrorBadArgs(cx);
 
         Elem *val1 = TypedObjectMemory<Elem *>(args[0]);
         Elem *val2 = TypedObjectMemory<Elem *>(args[1]);
-        int32_t maskArg;
-        if (!ToInt32(cx, args[2], &maskArg))
+        Elem arg2;
+        if (!Vret::toType(cx, args[2], &arg2))
             return false;
-        if (maskArg < 0 || maskArg > MAX_MASK_VALUE)
-            return ErrorBadArgs(cx);
 
         unsigned i = 0;
-        for (; i < V::lanes / 2; i++)
-            result[i] = val1[(maskArg >> (i * SELECT_SHIFT)) & SELECT_MASK];
-        for (; i < V::lanes; i++)
-            result[i] = val2[(maskArg >> (i * SELECT_SHIFT)) & SELECT_MASK];
+        for (; i < Vret::lanes / 2; i++)
+            result[i] = val1[OpShuffle::apply(i * 2, arg2)];
+        for (; i < Vret::lanes; i++)
+            result[i] = val2[OpShuffle::apply(i * 2, arg2)];
     }
 
-    RootedObject obj(cx, Create<V>(cx, result));
+    RootedObject obj(cx, Create<Vret>(cx, result));
     if (!obj)
         return false;
 
@@ -905,15 +900,15 @@ Int32x4Select(JSContext *cx, unsigned argc, Value *vp)
 
     int32_t tr[Int32x4::lanes];
     for (unsigned i = 0; i < Int32x4::lanes; i++)
-        tr[i] = And<int32_t>::apply(val[i], tv[i]);
+        tr[i] = And<int32_t, Int32x4>::apply(val[i], tv[i]);
 
     int32_t fr[Int32x4::lanes];
     for (unsigned i = 0; i < Int32x4::lanes; i++)
-        fr[i] = And<int32_t>::apply(Not<int32_t>::apply(val[i], 0), fv[i]);
+        fr[i] = And<int32_t, Int32x4>::apply(Not<int32_t, Int32x4>::apply(val[i], 0), fv[i]);
 
     int32_t orInt[Int32x4::lanes];
     for (unsigned i = 0; i < Int32x4::lanes; i++)
-        orInt[i] = Or<int32_t>::apply(tr[i], fr[i]);
+        orInt[i] = Or<int32_t, Int32x4>::apply(tr[i], fr[i]);
 
     float *result = reinterpret_cast<float *>(orInt);
     RootedObject obj(cx, Create<Float32x4>(cx, result));

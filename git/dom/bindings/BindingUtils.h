@@ -415,7 +415,7 @@ public:
     NonWindowLike
   };
 
-  explicit ProtoAndIfaceCache(Kind aKind) : mKind(aKind) {
+  ProtoAndIfaceCache(Kind aKind) : mKind(aKind) {
     MOZ_COUNT_CTOR(ProtoAndIfaceCache);
     if (aKind == WindowLike) {
       mArrayCache = new ArrayCache();
@@ -496,7 +496,7 @@ struct VerifyTraceProtoAndIfaceCacheCalledTracer : public JSTracer
 {
     bool ok;
 
-    explicit VerifyTraceProtoAndIfaceCacheCalledTracer(JSRuntime *rt)
+    VerifyTraceProtoAndIfaceCacheCalledTracer(JSRuntime *rt)
       : JSTracer(rt, VerifyTraceProtoAndIfaceCacheCalled), ok(false)
     {}
 };
@@ -749,7 +749,7 @@ MaybeWrapStringValue(JSContext* cx, JS::MutableHandle<JS::Value> rval)
 {
   MOZ_ASSERT(rval.isString());
   JSString* str = rval.toString();
-  if (JS::GetTenuredGCThingZone(str) != js::GetContextZone(cx)) {
+  if (JS::GetGCThingZone(str) != js::GetContextZone(cx)) {
     return JS_WrapValue(cx, rval);
   }
   return true;
@@ -2215,7 +2215,7 @@ class MOZ_STACK_CLASS RootedUnion : public T,
                                     private JS::CustomAutoRooter
 {
 public:
-  explicit RootedUnion(JSContext* cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM) :
+  RootedUnion(JSContext* cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM) :
     T(),
     JS::CustomAutoRooter(cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM_TO_PARENT)
   {
@@ -2232,7 +2232,7 @@ class MOZ_STACK_CLASS NullableRootedUnion : public Nullable<T>,
                                             private JS::CustomAutoRooter
 {
 public:
-  explicit NullableRootedUnion(JSContext* cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM) :
+  NullableRootedUnion(JSContext* cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM) :
     Nullable<T>(),
     JS::CustomAutoRooter(cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM_TO_PARENT)
   {

@@ -7,15 +7,13 @@
 #define GMPChild_h_
 
 #include "mozilla/gmp/PGMPChild.h"
-#include "GMPSharedMemManager.h"
 #include "gmp-entrypoints.h"
 #include "prlink.h"
 
 namespace mozilla {
 namespace gmp {
 
-class GMPChild : public PGMPChild,
-                 public GMPSharedMem
+class GMPChild : public PGMPChild
 {
 public:
   GMPChild();
@@ -27,9 +25,6 @@ public:
             IPC::Channel* aChannel);
   bool LoadPluginLibrary(const std::string& aPluginPath);
   MessageLoop* GMPMessageLoop();
-
-  // GMPSharedMem
-  virtual void CheckThread() MOZ_OVERRIDE;
 
 private:
   virtual PCrashReporterChild* AllocPCrashReporterChild(const NativeThreadId& aThread) MOZ_OVERRIDE;

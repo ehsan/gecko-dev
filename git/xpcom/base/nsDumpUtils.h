@@ -130,7 +130,7 @@ private:
 
   static mozilla::StaticRefPtr<FifoWatcher> sSingleton;
 
-  explicit FifoWatcher(nsCString aPath)
+  FifoWatcher(nsCString aPath)
     : mDirPath(aPath)
     , mFifoInfoLock("FifoWatcher.mFifoInfoLock")
   {
