@@ -110,7 +110,6 @@ nsBaseWidget::nsBaseWidget()
 , mClipRectCount(0)
 , mZIndex(0)
 , mSizeMode(nsSizeMode_Normal)
-, mPopupLevel(ePopupLevelTop)
 {
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets++;
@@ -130,11 +129,6 @@ nsBaseWidget::nsBaseWidget()
 //-------------------------------------------------------------------------
 nsBaseWidget::~nsBaseWidget()
 {
-  if (mLayerManager &&
-      mLayerManager->GetBackendType() == LayerManager::LAYERS_BASIC) {
-    static_cast<BasicLayerManager*>(mLayerManager.get())->ClearRetainerWidget();
-  }
-
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets--;
   printf("WIDGETS- = %d\n", gNumWidgets);
@@ -215,7 +209,6 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
   if (nsnull != aInitData) {
     mWindowType = aInitData->mWindowType;
     mBorderStyle = aInitData->mBorderStyle;
-    mPopupLevel = aInitData->mPopupLevel;
   }
 
   if (aParent) {
@@ -684,8 +677,7 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
 }
 
 nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
-    nsBaseWidget* aWidget, gfxContext* aTarget,
-    BasicLayerManager::BufferMode aDoubleBuffering)
+    nsBaseWidget* aWidget, gfxContext* aTarget)
   : mWidget(aWidget)
 {
   BasicLayerManager* manager =
@@ -693,7 +685,7 @@ nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
   if (manager) {
     NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
-    manager->SetDefaultTarget(aTarget, aDoubleBuffering);
+    manager->SetDefaultTarget(aTarget);
   }
 }
 
@@ -704,7 +696,7 @@ nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
   if (manager) {
     NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
-    manager->SetDefaultTarget(nsnull, BasicLayerManager::BUFFER_NONE);
+    manager->SetDefaultTarget(nsnull);
   }
 }
 
@@ -734,7 +726,7 @@ LayerManager* nsBaseWidget::GetLayerManager()
       }
     }
     if (!mLayerManager) {
-      mLayerManager = new BasicLayerManager(this);
+      mLayerManager = new BasicLayerManager(nsnull);
     }
   }
   return mLayerManager;
@@ -826,9 +818,10 @@ NS_METHOD nsBaseWidget::GetScreenBounds(nsIntRect &aRect)
   return GetBounds(aRect);
 }
 
-nsIntPoint nsBaseWidget::GetClientOffset()
+NS_METHOD nsBaseWidget::GetClientOffset(nsIntPoint &aPt)
 {
-  return nsIntPoint(0, 0);
+  aPt.x = aPt.y = 0;
+  return NS_OK;
 }
 
 NS_METHOD nsBaseWidget::SetBounds(const nsIntRect &aRect)
@@ -1039,12 +1032,6 @@ nsBaseWidget::ResolveIconName(const nsAString &aIconName,
 
 NS_IMETHODIMP 
 nsBaseWidget::BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsBaseWidget::BeginMoveDrag(nsMouseEvent* aEvent)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }

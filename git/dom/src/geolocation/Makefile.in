@@ -65,24 +65,26 @@ LOCAL_INCLUDES = \
 		$(NULL)
 
 ifdef WINCE_WINDOWS_MOBILE
-CPPSRCS         += nsGeoPosition.cpp
-LOCAL_INCLUDES  += -I$(topsrcdir)/dom/system/windows \
-                   $(NULL)
+CPPSRCS         += WinMobileLocationProvider.cpp nsGeoPosition.cpp
 endif
 
 ifdef MOZ_MAEMO_LIBLOCATION
-CPPSRCS         += nsGeoPosition.cpp
-LOCAL_INCLUDES  += $(MOZ_PLATFORM_MAEMO_CFLAGS) \
-                   -I$(topsrcdir)/dom/system/unix \
-                   $(NULL)
+CPPSRCS         += MaemoLocationProvider.cpp nsGeoPosition.cpp
+LOCAL_INCLUDES	+= $(MOZ_PLATFORM_MAEMO_CFLAGS)
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-CPPSRCS         += nsGeoPosition.cpp
+CPPSRCS         += AndroidLocationProvider.cpp nsGeoPosition.cpp
 EXPORTS         += nsGeoPosition.h
-LOCAL_INCLUDES  += -I$(topsrcdir)/dom/system/android \
-                   $(NULL)
 endif
+
+EXTRA_COMPONENTS = \
+                 NetworkGeolocationProvider.js \
+                 NetworkGeolocationProvider.manifest \
+                 GPSDGeolocationProvider.js \
+                 GPSDGeolocationProvider.manifest \
+                 $(NULL)
+
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk

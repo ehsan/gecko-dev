@@ -538,7 +538,7 @@ void
 AutoCompartment::leave()
 {
     JS_ASSERT(entered());
-    js_RestoreRegExpStatics(context, &statics);
+    js_RestoreRegExpStatics(context, &statics, &input);
     frame.destroy();
     context->compartment = origin;
     origin->wrapException(context);

@@ -141,19 +141,6 @@
              oncommand="PlacesCommandHook.showPlacesOrganizer('History');"/>
   </commandset>
 
-  <commandset id="inspectorCommands">
-    <command id="Inspector:Inspect"
-             oncommand="InspectorUI.toggleInspection();"/>
-    <command id="Inspector:Previous"
-             oncommand="InspectorUI.inspectPrevious();"
-             disabled="true"/>
-    <command id="Inspector:Next"
-             oncommand="InspectorUI.inspectNext();"
-             disabled="true"/>
-    <command id="Inspector:Style"
-             oncommand="InspectorUI.toggleStylePanel();"/>
-  </commandset>
-
   <broadcasterset id="mainBroadcasterSet">
     <broadcaster id="viewBookmarksSidebar" autoCheck="false" label="&bookmarksButton.label;"
                  type="checkbox" group="sidebar" sidebarurl="chrome://browser/content/bookmarks/bookmarksPanel.xul"
@@ -235,7 +222,7 @@
     <key id="key_openDownloads" key="&downloads.commandkey;" command="Tools:Downloads" modifiers="accel"/>
 #endif
     <key id="key_errorConsole" key="&errorConsoleCmd.commandkey;" oncommand="toJavaScriptConsole();" modifiers="accel,shift"/>
-    <key id="key_webConsole" key="&webConsoleCmd.commandkey;" oncommand="HUDConsoleUI.toggleHUD();" modifiers="accel,shift"/>
+    <key id="key_hudConsole" key="&hudConsoleCmd.commandkey;" oncommand="HUDConsoleUI.toggleHUD();" modifiers="accel,shift"/>
     <key id="key_inspect" key="&inspectMenu.commandkey;" command="Tools:Inspect" modifiers="accel,shift"/>
     <key id="openFileKb" key="&openFileCmd.commandkey;" command="Browser:OpenFile"  modifiers="accel"/>
     <key id="key_savePage" key="&savePageCmd.commandkey;" command="Browser:SavePage" modifiers="accel"/>

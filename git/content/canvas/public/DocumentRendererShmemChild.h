@@ -40,7 +40,7 @@
 #include "mozilla/ipc/PDocumentRendererShmemChild.h"
 
 class nsIDOMWindow;
-struct gfxMatrix;
+class gfxMatrix;
 
 namespace mozilla {
 namespace ipc {

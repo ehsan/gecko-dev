@@ -49,17 +49,6 @@
 #include "gfxColor.h"
 #include "gfxPattern.h"
 
-#if defined(DEBUG) || defined(PR_LOGGING)
-#  include <stdio.h>            // FILE
-#  include "prlog.h"
-#  define MOZ_LAYERS_HAVE_LOG
-#  define MOZ_LAYERS_LOG(_args)                             \
-  PR_LOG(LayerManager::GetLog(), PR_LOG_DEBUG, _args)
-#else
-struct PRLogModuleInfo;
-#  define MOZ_LAYERS_LOG(_args)
-#endif  // if defined(DEBUG) || defined(PR_LOGGING)
-
 class gfxContext;
 class nsPaintEvent;
 
@@ -77,11 +66,15 @@ class ImageLayer;
 class ColorLayer;
 class ImageContainer;
 class CanvasLayer;
-class SpecificLayerAttributes;
 
-#define MOZ_LAYER_DECL_NAME(n, e)                           \
-  virtual const char* Name() const { return n; }            \
-  virtual LayerType GetType() const { return e; }
+#if defined(DEBUG) || defined(PR_LOGGING)
+#define NS_LAYER_DECL_NAME(n, e) \
+  virtual const char* Name() { return n; } \
+  virtual LayerType GetType() { return e; }
+#else
+#define NS_LAYER_DECL_NAME(n, e) \
+  virtual LayerType GetType() { return e; }
+#endif
 
 /*
  * Motivation: For truly smooth animation and video playback, we need to
@@ -142,10 +135,7 @@ public:
     LAYERS_D3D9
   };
 
-  LayerManager() : mUserData(nsnull)
-  {
-    InitLog();
-  }
+  LayerManager() : mUserData(nsnull) {}
   virtual ~LayerManager() {}
 
   /**
@@ -170,24 +160,16 @@ public:
    * The callee must draw all of aRegionToDraw. Drawing outside
    * aRegionToDraw will be clipped out or ignored.
    * The callee must draw all of aRegionToDraw.
-   * This region is relative to 0,0 in the ThebesLayer.
    * 
    * aRegionToInvalidate contains a region whose contents have been
    * changed by the layer manager and which must therefore be invalidated.
-   * For example, this could be non-empty if a retained layer internally
-   * switches from RGBA to RGB or back ... we might want to repaint it to
+   * For example, this could be non-empty if the layer internally switched
+   * from RGBA to RGB or back ... we might want to repaint it to
    * consistently use subpixel-AA or not.
-   * This region is relative to 0,0 in the ThebesLayer.
-   * aRegionToInvalidate may contain areas that are outside
-   * aRegionToDraw; the callee must ensure that these areas are repainted
-   * in the current layer manager transaction or in a later layer
-   * manager transaction.
    * 
    * aContext must not be used after the call has returned.
    * We guarantee that buffered contents in the visible
    * region are valid once drawing is complete.
-   * 
-   * The origin of aContext is 0,0 in the ThebesLayer.
    */
   typedef void (* DrawThebesLayerCallback)(ThebesLayer* aLayer,
                                            gfxContext* aContext,
@@ -213,12 +195,6 @@ public:
    * Can be called anytime
    */
   Layer* GetRoot() { return mRoot; }
-
-  /**
-   * CONSTRUCTION PHASE ONLY
-   * Called when a managee has mutated.
-   */
-  virtual void Mutated(Layer* aLayer) { }
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -263,47 +239,9 @@ public:
   void SetUserData(void* aData) { mUserData = aData; }
   void* GetUserData() { return mUserData; }
 
-  // We always declare the following logging symbols, because it's
-  // extremely tricky to conditionally declare them.  However, for
-  // ifndef MOZ_LAYERS_HAVE_LOG builds, they only have trivial
-  // definitions in Layers.cpp.
-  virtual const char* Name() const { return "???"; }
-
-  /**
-   * Dump information about this layer manager and its managed tree to
-   * aFile, which defaults to stderr.
-   */
-  void Dump(FILE* aFile=NULL, const char* aPrefix="");
-  /**
-   * Dump information about just this layer manager itself to aFile,
-   * which defaults to stderr.
-   */
-  void DumpSelf(FILE* aFile=NULL, const char* aPrefix="");
-
-  /**
-   * Log information about this layer manager and its managed tree to
-   * the NSPR log (if enabled for "Layers").
-   */
-  void Log(const char* aPrefix="");
-  /**
-   * Log information about just this layer manager itself to the NSPR
-   * log (if enabled for "Layers").
-   */
-  void LogSelf(const char* aPrefix="");
-
-  static bool IsLogEnabled();
-  static PRLogModuleInfo* GetLog() { return sLog; }
-
 protected:
   nsRefPtr<Layer> mRoot;
   void* mUserData;
-
-  // Print interesting information about this into aTo.  Internally
-  // used to implement Dump*() and Log*().
-  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
-
-  static void InitLog();
-  static PRLogModuleInfo* sLog;
 };
 
 class ThebesLayer;
@@ -321,8 +259,7 @@ public:
     TYPE_CONTAINER,
     TYPE_IMAGE,
     TYPE_COLOR,
-    TYPE_CANVAS,
-    TYPE_SHADOW
+    TYPE_CANVAS
   };
 
   virtual ~Layer() {}
@@ -340,11 +277,7 @@ public:
    * content. This enables some internal quality and performance
    * optimizations.
    */
-  void SetIsOpaqueContent(PRBool aOpaque)
-  {
-    mIsOpaqueContent = aOpaque;
-    Mutated();
-  }
+  void SetIsOpaqueContent(PRBool aOpaque) { mIsOpaqueContent = aOpaque; }
   /**
    * CONSTRUCTION PHASE ONLY
    * Tell this layer which region will be visible. It is the responsibility
@@ -352,22 +285,14 @@ public:
    * contribute to the final visible window. This can be an
    * overapproximation to the true visible region.
    */
-  virtual void SetVisibleRegion(const nsIntRegion& aRegion)
-  {
-    mVisibleRegion = aRegion;
-    Mutated();
-  }
+  virtual void SetVisibleRegion(const nsIntRegion& aRegion) { mVisibleRegion = aRegion; }
 
   /**
    * CONSTRUCTION PHASE ONLY
    * Set the opacity which will be applied to this layer as it
    * is composited to the destination.
    */
-  void SetOpacity(float aOpacity)
-  {
-    mOpacity = aOpacity;
-    Mutated();
-  }
+  void SetOpacity(float aOpacity) { mOpacity = aOpacity; }
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -385,7 +310,6 @@ public:
     if (aRect) {
       mClipRect = *aRect;
     }
-    Mutated();
   }
   /**
    * CONSTRUCTION PHASE ONLY
@@ -405,7 +329,6 @@ public:
       mUseClipRect = PR_TRUE;
       mClipRect = aRect;
     }
-    Mutated();
   }
 
   /**
@@ -415,11 +338,7 @@ public:
    * XXX Currently only transformations corresponding to 2D affine transforms
    * are supported.
    */
-  void SetTransform(const gfx3DMatrix& aMatrix)
-  {
-    mTransform = aMatrix;
-    Mutated();
-  }
+  void SetTransform(const gfx3DMatrix& aMatrix) { mTransform = aMatrix; }
 
   // These getters can be used anytime.
   float GetOpacity() { return mOpacity; }
@@ -432,21 +351,6 @@ public:
   virtual Layer* GetFirstChild() { return nsnull; }
   const gfx3DMatrix& GetTransform() { return mTransform; }
 
-  /**
-   * DRAWING PHASE ONLY
-   *
-   * Write layer-subtype-specific attributes into aAttrs.  Used to
-   * synchronize layer attributes to their shadows'.
-   */
-  virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs) { }
-
-  // Returns true if it's OK to save the contents of aLayer in an
-  // opaque surface (a surface without an alpha channel).
-  // If we can use a surface without an alpha channel, we should, because
-  // it will often make painting of antialiased text faster and higher
-  // quality.
-  PRBool CanUseOpaqueSurface();
-
   // This setter and getter can be used anytime. The user data is initially
   // null.
   void SetUserData(void* aData) { mUserData = aData; }
@@ -458,8 +362,10 @@ public:
    */
   virtual ThebesLayer* AsThebesLayer() { return nsnull; }
 
-  virtual const char* Name() const =0;
-  virtual LayerType GetType() const =0;
+#ifdef DEBUG
+  virtual const char* Name() = 0;
+#endif
+  virtual LayerType GetType() = 0;
 
   /**
    * Only the implementation should call this. This is per-implementation
@@ -475,30 +381,6 @@ public:
   void SetNextSibling(Layer* aSibling) { mNextSibling = aSibling; }
   void SetPrevSibling(Layer* aSibling) { mPrevSibling = aSibling; }
 
-  /**
-   * Dump information about this layer manager and its managed tree to
-   * aFile, which defaults to stderr.
-   */
-  void Dump(FILE* aFile=NULL, const char* aPrefix="");
-  /**
-   * Dump information about just this layer manager itself to aFile,
-   * which defaults to stderr.
-   */
-  void DumpSelf(FILE* aFile=NULL, const char* aPrefix="");
-
-  /**
-   * Log information about this layer manager and its managed tree to
-   * the NSPR log (if enabled for "Layers").
-   */
-  void Log(const char* aPrefix="");
-  /**
-   * Log information about just this layer manager itself to the NSPR
-   * log (if enabled for "Layers").
-   */
-  void LogSelf(const char* aPrefix="");
-
-  static bool IsLogEnabled() { return LayerManager::IsLogEnabled(); }
-
 protected:
   Layer(LayerManager* aManager, void* aImplData) :
     mManager(aManager),
@@ -511,15 +393,6 @@ protected:
     mUseClipRect(PR_FALSE),
     mIsOpaqueContent(PR_FALSE)
     {}
-
-  void Mutated() { mManager->Mutated(this); }
-
-  // Print interesting information about this into aTo.  Internally
-  // used to implement Dump*() and Log*().  If subclasses have
-  // additional interesting properties, they should override this with
-  // an implementation that first calls the base implementation then
-  // appends additional info to aTo.
-  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   LayerManager* mManager;
   ContainerLayer* mParent;
@@ -563,13 +436,11 @@ public:
 
   virtual ThebesLayer* AsThebesLayer() { return this; }
 
-  MOZ_LAYER_DECL_NAME("ThebesLayer", TYPE_THEBES)
+  NS_LAYER_DECL_NAME("ThebesLayer", TYPE_THEBES)
 
 protected:
   ThebesLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData) {}
-
-  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   nsIntRegion mValidRegion;
 };
@@ -598,7 +469,7 @@ public:
   // This getter can be used anytime.
   virtual Layer* GetFirstChild() { return mFirstChild; }
 
-  MOZ_LAYER_DECL_NAME("ContainerLayer", TYPE_CONTAINER)
+  NS_LAYER_DECL_NAME("ContainerLayer", TYPE_CONTAINER)
 
 protected:
   ContainerLayer(LayerManager* aManager, void* aImplData)
@@ -628,15 +499,13 @@ public:
   // This getter can be used anytime.
   virtual const gfxRGBA& GetColor() { return mColor; }
 
-  MOZ_LAYER_DECL_NAME("ColorLayer", TYPE_COLOR)
+  NS_LAYER_DECL_NAME("ColorLayer", TYPE_COLOR)
 
 protected:
   ColorLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData),
       mColor(0.0, 0.0, 0.0, 0.0)
   {}
-
-  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   gfxRGBA mColor;
 };
@@ -698,13 +567,11 @@ public:
   void SetFilter(gfxPattern::GraphicsFilter aFilter) { mFilter = aFilter; }
   gfxPattern::GraphicsFilter GetFilter() const { return mFilter; }
 
-  MOZ_LAYER_DECL_NAME("CanvasLayer", TYPE_CANVAS)
+  NS_LAYER_DECL_NAME("CanvasLayer", TYPE_CANVAS)
 
 protected:
   CanvasLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData), mFilter(gfxPattern::FILTER_GOOD) {}
-
-  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   gfxPattern::GraphicsFilter mFilter;
 };

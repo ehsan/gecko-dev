@@ -86,6 +86,7 @@ using namespace mozilla::dom;
   } while (node);                                                 \
   PR_END_MACRO
 
+
 void
 nsNodeUtils::CharacterDataWillChange(nsIContent* aContent,
                                      CharacterDataChangeInfo* aInfo)
@@ -167,8 +168,7 @@ nsNodeUtils::ContentInserted(nsINode* aContainer,
 void
 nsNodeUtils::ContentRemoved(nsINode* aContainer,
                             nsIContent* aChild,
-                            PRInt32 aIndexInContainer,
-                            nsIContent* aPreviousSibling)
+                            PRInt32 aIndexInContainer)
 {
   NS_PRECONDITION(aContainer->IsNodeOfType(nsINode::eCONTENT) ||
                   aContainer->IsNodeOfType(nsINode::eDOCUMENT),
@@ -186,8 +186,7 @@ nsNodeUtils::ContentRemoved(nsINode* aContainer,
   }
 
   IMPL_MUTATION_NOTIFICATION(ContentRemoved, aContainer,
-                             (document, container, aChild, aIndexInContainer,
-                              aPreviousSibling));
+                             (document, container, aChild, aIndexInContainer));
 }
 
 void

@@ -172,8 +172,7 @@ private:
   /**
    * Call WillPaint() on all view observers under this vm root.
    */
-  void CallWillPaintOnObservers(PRBool aWillSendDidPaint);
-  void CallDidPaintOnObservers();
+  void CallWillPaintOnObservers();
   void ReparentChildWidgets(nsIView* aView, nsIWidget *aNewWidget);
   void ReparentWidgets(nsIView* aView, nsIView *aParent);
   void UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
@@ -184,14 +183,10 @@ private:
 
   void TriggerRefresh(PRUint32 aUpdateFlags);
 
-  // aView is the view for aWidget and aRegion is relative to aWidget.
   void Refresh(nsView *aView, nsIWidget *aWidget,
                const nsIntRegion& aRegion, PRUint32 aUpdateFlags);
-  // aRootView is the view for aWidget, aRegion is relative to aRootView, and
-  // aIntRegion is relative to aWidget.
   void RenderViews(nsView *aRootView, nsIWidget *aWidget,
-                   const nsRegion& aRegion, const nsIntRegion& aIntRegion,
-                   PRBool aPaintDefaultBackground, PRBool aWillSendDidPaint);
+                   const nsRegion& aRegion);
 
   void InvalidateRectDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut, PRUint32 aUpdateFlags);
   void InvalidateHorizontalBandDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut,
@@ -256,6 +251,11 @@ public: // NOT in nsIViewManager, so private to the view module
 
   nsEventStatus HandleEvent(nsView* aView, nsGUIEvent* aEvent);
 
+  virtual nsresult WillBitBlit(nsIView* aView, const nsRect& aRect,
+                               nsPoint aScrollAmount);
+  virtual void UpdateViewAfterScroll(nsIView *aView,
+                                     const nsRegion& aUpdateRegion);
+
   nsresult CreateRegion(nsIRegion* *result);
 
   PRBool IsRefreshEnabled() { return RootViewManager()->mUpdateBatchCnt == 0; }
@@ -274,8 +274,7 @@ public: // NOT in nsIViewManager, so private to the view module
 private:
   nsCOMPtr<nsIDeviceContext> mContext;
   nsIViewObserver   *mObserver;
-  // relative to mRootView and set only on the root view manager
-  nsPoint           mMouseLocation;
+  nsIntPoint        mMouseLocation; // device units, relative to mRootView
 
   // The size for a resize that we delayed until the root view becomes
   // visible again.
@@ -299,6 +298,7 @@ private:
   PRInt32           mUpdateCnt;
   PRInt32           mUpdateBatchCnt;
   PRUint32          mUpdateBatchFlags;
+  PRInt32           mScrollCnt;
   // Use IsPainting() and SetPainting() to access mPainting.
   PRPackedBool      mPainting;
   PRPackedBool      mRecursiveRefreshPending;

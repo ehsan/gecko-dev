@@ -1064,8 +1064,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                                      JSObject* scope,
                                      PRBool allowNativeWrapper,
                                      PRBool isGlobal,
-                                     nsresult* pErr,
-                                     qsObjectHelper* aHelper)
+                                     nsresult* pErr)
 {
     NS_ASSERTION(scope, "bad param");
     NS_ASSERTION(!Interface || iid,
@@ -1159,7 +1158,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                 return JS_FALSE;
 
             jsval slim;
-            if(ConstructSlimWrapper(ccx, src, aHelper, cache, xpcscope, &slim))
+            if(ConstructSlimWrapper(ccx, src, cache, xpcscope, &slim))
             {
                 *d = slim;
                 return JS_TRUE;

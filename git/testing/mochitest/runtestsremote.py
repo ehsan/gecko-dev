@@ -38,6 +38,7 @@
 import sys
 import os
 import time
+import socket
 import tempfile
 
 sys.path.insert(0, os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0]))))
@@ -113,7 +114,7 @@ class RemoteOptions(MochitestOptions):
 
        
         if options.remoteWebServer == None and os.name != "nt":
-            options.remoteWebServer = automation.getLanIp()
+            options.remoteWebServer = get_lan_ip()
         elif os.name == "nt":
             print "ERROR: you must specify a remoteWebServer ip address\n"
             return None
@@ -240,6 +241,23 @@ class MochiRemote(Mochitest):
         options.profilePath = self.remoteProfile
         return manifest
     
+    def runExtensionRegistration(self, options, browserEnv):
+        """ run once with -silent to let the extension manager do its thing
+            and then exit the app
+            We do this on every run because we need to work around bug 570027
+        """
+        self._automation.log.info("INFO | runtestsremote.py | Performing extension manager registration: start.\n")
+        # Don't care about this |status|: |runApp()| reporting it should be enough.
+        # Because process() doesn't return until fennec starts, we just give it a fudge
+        # factor of 20s before timing it out and killing it.
+        status = self._automation.runApp(None, browserEnv, options.app,
+                                options.profilePath, ["-silent"],
+                                utilityPath = options.utilityPath,
+                                xrePath = options.xrePath,
+                                symbolsPath=options.symbolsPath,
+                                maxTime = 20)
+        # We don't care to call |processLeakLog()| for this step.
+        self._automation.log.info("\nINFO | runtestsremote.py | Performing extension manager registration: end.")
     def buildURLOptions(self, options):
         self.localLog = options.logFile
         options.logFile = self.remoteLog
@@ -259,6 +277,33 @@ class MochiRemote(Mochitest):
 
     def getLogFilePath(self, logFile):             
         return logFile
+
+#
+# utilities to get the local ip address
+#
+if os.name != "nt":
+    import fcntl
+    import struct
+    def get_interface_ip(ifname):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        return socket.inet_ntoa(fcntl.ioctl(
+                                s.fileno(),
+                                0x8915,  # SIOCGIFADDR
+                                struct.pack('256s', ifname[:15])
+                                )[20:24])
+
+def get_lan_ip():
+    ip = socket.gethostbyname(socket.gethostname())
+    if ip.startswith("127.") and os.name != "nt":
+        interfaces = ["eth0","eth1","eth2","wlan0","wlan1","wifi0","ath0","ath1","ppp0"]
+        for ifname in interfaces:
+            try:
+                ip = get_interface_ip(ifname)
+                break;
+            except IOError:
+                pass
+    return ip
+
 
 def main():
     scriptdir = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))

@@ -633,7 +633,7 @@ PKIX_PL_Object_Alloc(
         object = NULL;
 
         /* Atomically increment object counter */
-        PR_ATOMIC_INCREMENT(&ctEntry->objCounter);
+        PR_AtomicIncrement(&ctEntry->objCounter);
 
 cleanup:
 
@@ -832,7 +832,7 @@ PKIX_PL_Object_IncRef(
                     PKIX_RECEIVEDCORRUPTEDOBJECTARGUMENT);
 
         /* This object should never have zero references */
-        refCount = PR_ATOMIC_INCREMENT(&objectHeader->references);
+        refCount = PR_AtomicIncrement(&objectHeader->references);
 
         if (refCount <= 1) {
                 PKIX_THROW(FATAL, PKIX_OBJECTWITHNONPOSITIVEREFERENCES);
@@ -878,7 +878,7 @@ PKIX_PL_Object_DecRef(
         PKIX_CHECK(pkix_pl_Object_GetHeader(object, &objectHeader, plContext),
                     PKIX_RECEIVEDCORRUPTEDOBJECTARGUMENT);
 
-        refCount = PR_ATOMIC_DECREMENT(&objectHeader->references);
+        refCount = PR_AtomicDecrement(&objectHeader->references);
 
         if (refCount == 0) {
             PKIX_PL_DestructorCallback destructor = NULL;
@@ -930,7 +930,7 @@ PKIX_PL_Object_DecRef(
             }
             
             /* Atomically decrement object counter */
-            PR_ATOMIC_DECREMENT(&ctEntry->objCounter);
+            PR_AtomicDecrement(&ctEntry->objCounter);
             
             /* pkix_pl_Object_Destroy assumes the lock is held */
             /* It will call unlock and destroy the object */

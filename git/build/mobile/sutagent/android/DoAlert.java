@@ -35,12 +35,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-package com.mozilla.SUTAgentAndroid.service;
+package com.mozilla.SUTAgentAndroid;
 
 import java.util.TimerTask;
 
 import android.content.Context;
-import android.content.ContextWrapper;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.widget.Toast;
@@ -51,9 +50,9 @@ class DoAlert extends TimerTask
 	Toast toast = null;
 	Ringtone rt = null;
 
-	DoAlert(ContextWrapper contextWrapper)
+	DoAlert()
 		{
-		Context	ctx = contextWrapper.getApplicationContext();
+		Context	ctx = SUTAgentAndroid.me.getApplication().getApplicationContext();
 		this.toast = Toast.makeText(ctx, "Help me!", Toast.LENGTH_LONG);
 		rt = RingtoneManager.getRingtone(ctx, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
 		}

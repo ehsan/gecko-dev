@@ -46,7 +46,6 @@
 #include "jsapi.h"
 
 #include "nsFrameManager.h"
-#include "nsDisplayList.h"
 #include "ImageLayers.h"
 #include "BasicLayers.h"
 
@@ -57,13 +56,12 @@ using namespace mozilla;
 using namespace mozilla::layers;
 
 nsGenericHTMLElement*
-NS_NewHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        PRUint32 aFromParser)
+NS_NewHTMLCanvasElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
 {
   return new nsHTMLCanvasElement(aNodeInfo);
 }
 
-nsHTMLCanvasElement::nsHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLCanvasElement::nsHTMLCanvasElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo), mWriteOnly(PR_FALSE)
 {
 }
@@ -81,7 +79,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 
-DOMCI_NODE_DATA(HTMLCanvasElement, nsHTMLCanvasElement)
+DOMCI_DATA(HTMLCanvasElement, nsHTMLCanvasElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLCanvasElement)
   NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLCanvasElement,
@@ -233,10 +231,6 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
   nsCOMPtr<nsICanvasRenderingContextInternal> context;
   nsresult rv = GetContext(NS_LITERAL_STRING("2d"), getter_AddRefs(context));
   NS_ENSURE_SUCCESS(rv, rv);
-  if (!context) {
-    // XXX bug 578349
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
 
   // get image bytes
   nsCOMPtr<nsIInputStream> imgStream;
@@ -359,10 +353,9 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
 
   if (mCurrentContextId.IsEmpty()) {
     rv = GetContextHelper(aContextId, getter_AddRefs(mCurrentContext));
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (!mCurrentContext) {
-      return NS_OK;
-    }
+    if (NS_FAILED(rv))
+      // XXX ERRMSG we need to report an error to developers here! (bug 329026)
+      return NS_ERROR_INVALID_ARG;
 
     // Ensure that the context participates in CC.  Note that returning a
     // CC participant from QI doesn't addref.
@@ -413,10 +406,8 @@ nsHTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
 
   if (mCurrentContextId.IsEmpty()) {
     rv = GetContextHelper(aContextId, getter_AddRefs(mCurrentContext));
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (!mCurrentContext) {
-      return NS_OK;
-    }
+    if (NS_FAILED(rv))
+      return rv;
 
     mCurrentContext->SetIsIPC(PR_TRUE);
 
@@ -504,10 +495,10 @@ nsHTMLCanvasElement::InvalidateFrame(const gfxRect* damageRect)
     // account for border/padding
     invalRect.MoveBy(contentArea.TopLeft() - frame->GetPosition());
 
-    frame->InvalidateLayer(invalRect, nsDisplayItem::TYPE_CANVAS);
+    frame->Invalidate(invalRect);
   } else {
     nsRect r(frame->GetContentRect() - frame->GetPosition());
-    frame->InvalidateLayer(r, nsDisplayItem::TYPE_CANVAS);
+    frame->Invalidate(r);
   }
 }
 
@@ -536,13 +527,12 @@ nsHTMLCanvasElement::GetIsOpaque()
 }
 
 already_AddRefed<CanvasLayer>
-nsHTMLCanvasElement::GetCanvasLayer(CanvasLayer *aOldLayer,
-                                    LayerManager *aManager)
+nsHTMLCanvasElement::GetCanvasLayer(LayerManager *aManager)
 {
   if (!mCurrentContext)
     return nsnull;
 
-  return mCurrentContext->GetCanvasLayer(aOldLayer, aManager);
+  return mCurrentContext->GetCanvasLayer(aManager);
 }
 
 void

@@ -1271,7 +1271,6 @@ static nsresult
 NativeInterface2JSObject(XPCLazyCallContext & lccx,
                          JSObject * aScope,
                          nsISupports *aCOMObj,
-                         nsWrapperCache *aCache,
                          const nsIID * aIID,
                          PRBool aAllowWrapping,
                          jsval *aVal,
@@ -1279,7 +1278,7 @@ NativeInterface2JSObject(XPCLazyCallContext & lccx,
 {
     nsresult rv;
     if(!XPCConvert::NativeInterface2JSObject(lccx, aVal, aHolder, aCOMObj, aIID,
-                                             nsnull, aCache, aScope,
+                                             nsnull, nsnull, aScope,
                                              aAllowWrapping, OBJ_IS_NOT_GLOBAL,
                                              &rv))
         return rv;
@@ -1311,8 +1310,8 @@ nsXPConnect::WrapNative(JSContext * aJSContext,
     XPCLazyCallContext lccx(ccx);
 
     jsval v;
-    return NativeInterface2JSObject(lccx, aScope, aCOMObj, nsnull, &aIID,
-                                    PR_FALSE, &v, aHolder);
+    return NativeInterface2JSObject(lccx, aScope, aCOMObj, &aIID, PR_FALSE, &v,
+                                    aHolder);
 }
 
 /* void wrapNativeToJSVal (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDPtr aIID, out jsval aVal, out nsIXPConnectJSObjectHolder aHolder); */
@@ -1320,7 +1319,6 @@ NS_IMETHODIMP
 nsXPConnect::WrapNativeToJSVal(JSContext * aJSContext,
                                JSObject * aScope,
                                nsISupports *aCOMObj,
-                               nsWrapperCache *aCache,
                                const nsIID * aIID,
                                PRBool aAllowWrapping,
                                jsval *aVal,
@@ -1335,8 +1333,8 @@ nsXPConnect::WrapNativeToJSVal(JSContext * aJSContext,
 
     XPCLazyCallContext lccx(NATIVE_CALLER, aJSContext);
 
-    return NativeInterface2JSObject(lccx, aScope, aCOMObj, aCache, aIID,
-                                    aAllowWrapping, aVal, aHolder);
+    return NativeInterface2JSObject(lccx, aScope, aCOMObj, aIID, aAllowWrapping,
+                                    aVal, aHolder);
 }
 
 /* void wrapJS (in JSContextPtr aJSContext, in JSObjectPtr aJSObj, in nsIIDRef aIID, [iid_is (aIID), retval] out nsQIResult result); */

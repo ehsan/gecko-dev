@@ -5,14 +5,6 @@
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
-gBrowser.selectedTab = gBrowser.addTab();
-
-function finishAndCleanUp()
-{
-  gBrowser.removeCurrentTab();
-  waitForClearHistory(finish);
-}
-
 /**
  * One-time observer callback.
  */
@@ -65,24 +57,6 @@ function getColumn(table, column, fromColumnName, fromColumnValue)
   }
 }
 
-/**
- * Clears history invoking callback when done.
- */
-function waitForClearHistory(aCallback) {
-  const TOPIC_EXPIRATION_FINISHED = "places-expiration-finished";
-  let observer = {
-    observe: function(aSubject, aTopic, aData) {
-      Services.obs.removeObserver(this, TOPIC_EXPIRATION_FINISHED);
-      aCallback();
-    }
-  };
-  Services.obs.addObserver(observer, TOPIC_EXPIRATION_FINISHED, false);
-
-  let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
-           getService(Ci.nsINavHistoryService);
-  hs.QueryInterface(Ci.nsIBrowserHistory).removeAllPages();
-}
-
 function test()
 {
   // Make sure places visit chains are saved correctly with a redirect
@@ -123,7 +97,7 @@ function test()
       waitForObserve("uri-visit-saved", arguments.callee);
     }
     else {
-      finishAndCleanUp();
+      finish();
     }
   });
 

@@ -40,13 +40,8 @@
 #include "nsSVGTextContentElement.h"
 #include "nsIDOMSVGAnimatedLengthList.h"
 #include "nsIDOMSVGAnimatedNumberList.h"
-#include "SVGAnimatedLengthList.h"
 
 class nsSVGElement;
-
-namespace mozilla {
-class SVGAnimatedLengthList;
-}
 
 typedef nsSVGTextContentElement nsSVGTextPositioningElementBase;
 
@@ -62,20 +57,17 @@ public:
 
 protected:
 
-  nsSVGTextPositioningElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+  nsSVGTextPositioningElement(nsINodeInfo *aNodeInfo)
     : nsSVGTextPositioningElementBase(aNodeInfo)
   {}
 
   nsresult Init();
 
-  virtual LengthListAttributesInfo GetLengthListInfo();
-
   // nsIDOMSVGTextPositioning properties:
-
-  enum { X, Y, DX, DY };
-  mozilla::SVGAnimatedLengthList mLengthListAttributes[4];
-  static LengthListInfo sLengthListInfo[4];
-
+  nsCOMPtr<nsIDOMSVGAnimatedLengthList> mX;
+  nsCOMPtr<nsIDOMSVGAnimatedLengthList> mY;
+  nsCOMPtr<nsIDOMSVGAnimatedLengthList> mdX;
+  nsCOMPtr<nsIDOMSVGAnimatedLengthList> mdY;
   nsCOMPtr<nsIDOMSVGAnimatedNumberList> mRotate;
 };
 

@@ -45,7 +45,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsIObserver.h"
-#include "nsXBLDocumentInfo.h"
+#include "nsIXBLDocumentInfo.h"
 #include "nsIXULPrototypeCache.h"
 #include "nsDataHashtable.h"
 #include "nsInterfaceHashtable.h"
@@ -116,10 +116,10 @@ public:
     void* GetScript(nsIURI* aURI, PRUint32* langID);
     nsresult PutScript(nsIURI* aURI, PRUint32 langID, void* aScriptObject);
 
-    nsXBLDocumentInfo* GetXBLDocumentInfo(nsIURI* aURL) {
+    nsIXBLDocumentInfo* GetXBLDocumentInfo(nsIURI* aURL) {
         return mXBLDocTable.GetWeak(aURL);
     }
-    nsresult PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo);
+    nsresult PutXBLDocumentInfo(nsIXBLDocumentInfo* aDocumentInfo);
 
     /**
      * Get a style sheet by URI. If the style sheet is not in the cache,
@@ -159,7 +159,7 @@ protected:
     nsRefPtrHashtable<nsURIHashKey,nsXULPrototypeDocument>  mPrototypeTable; // owns the prototypes
     nsRefPtrHashtable<nsURIHashKey,nsCSSStyleSheet>        mStyleSheetTable;
     nsDataHashtable<nsURIHashKey,CacheScriptEntry>         mScriptTable;
-    nsRefPtrHashtable<nsURIHashKey,nsXBLDocumentInfo>  mXBLDocTable;
+    nsInterfaceHashtable<nsURIHashKey,nsIXBLDocumentInfo>  mXBLDocTable;
 
     ///////////////////////////////////////////////////////////////////////////
     // FastLoad

@@ -101,9 +101,6 @@ class nsHashKey;
 #define NS_SVG_EVENT                      30
 #define NS_SVGZOOM_EVENT                  31
 #endif // MOZ_SVG
-#ifdef MOZ_SMIL
-#define NS_SMIL_TIME_EVENT                32
-#endif // MOZ_SMIL
 
 #define NS_QUERY_CONTENT_EVENT            33
 
@@ -176,9 +173,6 @@ class nsHashKey;
 #define NS_DEACTIVATE                   (NS_WINDOW_START + 8)
 // top-level window z-level change request
 #define NS_SETZLEVEL                    (NS_WINDOW_START + 9)
-// Widget was repainted (dispatched when it's safe to move widgets, but
-// only on some platforms (including GTK2 and Windows))
-#define NS_DID_PAINT                   (NS_WINDOW_START + 28)
 // Widget will need to be painted
 #define NS_WILL_PAINT                   (NS_WINDOW_START + 29)
 // Widget needs to be repainted
@@ -463,13 +457,6 @@ class nsHashKey;
 #define NS_TRANSITION_EVENT_START    4200
 #define NS_TRANSITION_END            (NS_TRANSITION_EVENT_START)
 
-#ifdef MOZ_SMIL
-#define NS_SMIL_TIME_EVENT_START     4300
-#define NS_SMIL_BEGIN                (NS_SMIL_TIME_EVENT_START)
-#define NS_SMIL_END                  (NS_SMIL_TIME_EVENT_START + 1)
-#define NS_SMIL_REPEAT               (NS_SMIL_TIME_EVENT_START + 2)
-#endif // MOZ_SMIL
-
 /**
  * Return status for event processors, nsEventStatus, is defined in
  * nsEvent.h.
@@ -651,14 +638,12 @@ class nsPaintEvent : public nsGUIEvent
 {
 public:
   nsPaintEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
-    : nsGUIEvent(isTrusted, msg, w, NS_PAINT_EVENT),
-      willSendDidPaint(PR_FALSE)
+    : nsGUIEvent(isTrusted, msg, w, NS_PAINT_EVENT)
   {
   }
 
   // area that needs repainting
   nsIntRegion region;
-  PRPackedBool willSendDidPaint;
 };
 
 /**

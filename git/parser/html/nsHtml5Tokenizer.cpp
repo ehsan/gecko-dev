@@ -42,7 +42,6 @@
 #include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
 #include "nsHtml5NamedCharacters.h"
-#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
@@ -1192,15 +1191,22 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
               adjustDoubleHyphenAndAppendToLongStrBufAndErr(c);
               continue;
             }
+            case ' ':
+            case '\t':
+            case '\f': {
+              adjustDoubleHyphenAndAppendToLongStrBufAndErr(c);
+              state = NS_HTML5TOKENIZER_COMMENT_END_SPACE;
+              NS_HTML5_BREAK(commentendloop);
+            }
             case '\r': {
               adjustDoubleHyphenAndAppendToLongStrBufCarriageReturn();
-              state = NS_HTML5TOKENIZER_COMMENT;
+              state = NS_HTML5TOKENIZER_COMMENT_END_SPACE;
               NS_HTML5_BREAK(stateloop);
             }
             case '\n': {
               adjustDoubleHyphenAndAppendToLongStrBufLineFeed();
-              state = NS_HTML5TOKENIZER_COMMENT;
-              NS_HTML5_CONTINUE(stateloop);
+              state = NS_HTML5TOKENIZER_COMMENT_END_SPACE;
+              NS_HTML5_BREAK(commentendloop);
             }
             case '!': {
 
@@ -1218,7 +1224,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
             }
           }
         }
-
+        commentendloop_end: ;
       }
       case NS_HTML5TOKENIZER_COMMENT_END_SPACE: {
         for (; ; ) {
@@ -2298,7 +2304,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
           }
           PRInt32 hilo = 0;
           if (c <= 'z') {
-            const PRInt32* row = nsHtml5NamedCharactersAccel::HILO_ACCEL[c];
+            const PRInt32* row = nsHtml5NamedCharacters::HILO_ACCEL[c];
             if (row) {
               hilo = row[firstCharKey];
             }

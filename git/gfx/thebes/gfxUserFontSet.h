@@ -172,13 +172,11 @@ public:
     // weight, stretch - 0 == unknown, [1, 9] otherwise
     // italic style = constants in gfxFontConstants.h, e.g. NS_FONT_STYLE_NORMAL
     // TODO: support for unicode ranges not yet implemented
-    void AddFontFace(const nsAString& aFamilyName,
-                     const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList,
-                     PRUint32 aWeight,
-                     PRUint32 aStretch,
-                     PRUint32 aItalicStyle,
-                     const nsString& aFeatureSettings,
-                     const nsString& aLanguageOverride,
+    void AddFontFace(const nsAString& aFamilyName, 
+                     const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList, 
+                     PRUint32 aWeight = 0, 
+                     PRUint32 aStretch = 0, 
+                     PRUint32 aItalicStyle = 0, 
                      gfxSparseBitSet *aUnicodeRanges = nsnull);
 
     // Whether there is a face with this family name
@@ -236,13 +234,11 @@ class gfxProxyFontEntry : public gfxFontEntry {
     friend class gfxUserFontSet;
 
 public:
-    gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList,
+    gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList, 
                       gfxMixedFontFamily *aFamily,
-                      PRUint32 aWeight,
-                      PRUint32 aStretch,
-                      PRUint32 aItalicStyle,
-                      const nsTArray<gfxFontFeature> *aFeatureSettings,
-                      PRUint32 aLanguageOverride,
+                      PRUint32 aWeight, 
+                      PRUint32 aStretch, 
+                      PRUint32 aItalicStyle, 
                       gfxSparseBitSet *aUnicodeRanges);
 
     virtual ~gfxProxyFontEntry();

@@ -97,12 +97,20 @@ public:
   virtual nsresult SetStart(nsINode* aParent, PRInt32 aOffset);
   virtual nsresult SetEnd(nsINode* aParent, PRInt32 aOffset);
   virtual nsresult CloneRange(nsIRange** aNewRange) const;
-
+  
   // nsIMutationObserver methods
-  NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
-  NS_DECL_NSIMUTATIONOBSERVER_PARENTCHAINCHANGED
+  virtual void CharacterDataChanged(nsIDocument* aDocument,
+                                    nsIContent* aContent,
+                                    CharacterDataChangeInfo* aChangeInfo);
+  virtual void ContentInserted(nsIDocument* aDocument,
+                               nsIContent* aContainer,
+                               nsIContent* aChild,
+                               PRInt32 aIndexInContainer);
+  virtual void ContentRemoved(nsIDocument* aDocument,
+                              nsIContent* aContainer,
+                              nsIContent* aChild,
+                              PRInt32 aIndexInContainer);
+  virtual void ParentChainChanged(nsIContent *aContent);
 
 private:
   // no copy's or assigns

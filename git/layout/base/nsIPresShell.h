@@ -133,8 +133,8 @@ typedef struct CapturingContentInfo {
 } CapturingContentInfo;
 
 #define NS_IPRESSHELL_IID     \
-  { 0x318f7b6c, 0x56be, 0x4256, \
-    { 0xa3, 0x09, 0xff, 0xdc, 0xde, 0x04, 0x63, 0xf6 } }
+  { 0x6b32e1ca, 0xb295, 0x406d, \
+    { 0xb2, 0x8b, 0x73, 0xda, 0xc3, 0x66, 0xc2, 0xa7 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -829,9 +829,6 @@ public:
    * instead of rendering using the appropriate scaling). It may also
    * slow everything down if the area rendered does not correspond to the
    * normal visible area of the window.
-   *   set RENDER_ASYNC_DECODE_IMAGES to avoid having images synchronously
-   * decoded during rendering.
-   * (by default images decode synchronously with RenderDocument)
    * @param aBackgroundColor a background color to render onto
    * @param aRenderedContext the gfxContext to render to. We render so that
    * one CSS pixel in the source document is rendered to one unit in the current
@@ -841,8 +838,7 @@ public:
     RENDER_IS_UNTRUSTED = 0x01,
     RENDER_IGNORE_VIEWPORT_SCROLLING = 0x02,
     RENDER_CARET = 0x04,
-    RENDER_USE_WIDGET_LAYERS = 0x08,
-    RENDER_ASYNC_DECODE_IMAGES = 0x10
+    RENDER_USE_WIDGET_LAYERS = 0x08
   };
   virtual NS_HIDDEN_(nsresult) RenderDocument(const nsRect& aRect, PRUint32 aFlags,
                                               nscolor aBackgroundColor,
@@ -935,13 +931,14 @@ public:
    * Add a solid color item to the bottom of aList with frame aFrame and
    * bounds aBounds. Checks first if this needs to be done by checking if
    * aFrame is a canvas frame (if aForceDraw is true then this check is
-   * skipped). aBackstopColor is composed behind the background color of
+   * skipped). If aBounds is null (the default) then the bounds will be derived
+   * from the frame. aBackstopColor is composed behind the background color of
    * the canvas, it is transparent by default.
    */
   virtual nsresult AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
                                                 nsDisplayList& aList,
                                                 nsIFrame* aFrame,
-                                                const nsRect& aBounds,
+                                                nsRect* aBounds = nsnull,
                                                 nscolor aBackstopColor = NS_RGBA(0,0,0,0),
                                                 PRBool aForceDraw = PR_FALSE) = 0;
 

@@ -80,12 +80,11 @@
   padding-bottom: 1px;
 }
 
-#nav-bar:not(:-moz-lwtheme),
-#navigator-toolbox[tabsontop="true"] > #nav-bar {
+#nav-bar:not(:-moz-lwtheme) {
   background-image: -moz-linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
 }
 
-#navigator-toolbox[tabsontop="false"] > #toolbar-menubar:not(:-moz-lwtheme) {
+#navigator-toolbox:not([tabsontop="true"]) > #toolbar-menubar:not(:-moz-lwtheme) {
   background-image: -moz-linear-gradient(@toolbarHighlight@, @toolbarHighlight@);
 }
 
@@ -421,8 +420,7 @@ toolbar[mode="full"] .toolbarbutton-menubutton-button {
 }
 
 #TabsToolbar > .toolbarbutton-1,
-#TabsToolbar > toolbarpaletteitem > .toolbarbutton-1,
-#TabsToolbar > #bookmarks-menu-button-container > #bookmarks-menu-button {
+#TabsToolbar > toolbarpaletteitem > .toolbarbutton-1 {
   -moz-appearance: toolbarbutton;
   margin: 0;
   padding: 0 3px;
@@ -1087,11 +1085,11 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
 #TabsToolbar {
   min-height: 0;
   padding: 0;
+  -moz-box-shadow: 0 -1px ThreeDShadow inset;
 }
 
 #TabsToolbar:not(:-moz-lwtheme),
-#TabsToolbar[tabsontop="false"] {
-  -moz-box-shadow: 0 -1px ThreeDShadow inset;
+#navigator-toolbox:not([tabsontop="true"]) > #TabsToolbar {
   background-image: -moz-linear-gradient(transparent, transparent 10%,
                                          rgba(0,0,0,.03) 50%, rgba(0,0,0,.1) 90%, rgba(0,0,0,.2));
 }
@@ -1140,26 +1138,21 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
 .tabbrowser-tab:-moz-lwtheme-darktext,
 .tabs-newtab-button:-moz-lwtheme-darktext {
   background-image: -moz-linear-gradient(left, transparent, transparent 1px,
-                                               rgba(60%,60%,60%,.5) 1px, rgba(60%,60%,60%,.5));
+                                               rgba(255,255,255,.4) 1px, rgba(255,255,255,.4));
 }
 
 .tabbrowser-tab:-moz-lwtheme-darktext:not([selected="true"]):hover,
 .tabs-newtab-button:-moz-lwtheme-darktext:hover {
   background-image: -moz-linear-gradient(left, transparent, transparent 1px,
-                                               rgba(80%,80%,80%,.5) 1px, rgba(80%,80%,80%,.5));
+                                               rgba(255,255,255,.6) 1px, rgba(255,255,255,.6));
 }
 
-.tabbrowser-tab[selected="true"]:-moz-lwtheme {
-  background-image: -moz-linear-gradient(left, transparent, transparent 1px,
-                                               @toolbarHighlight@ 1px, @toolbarHighlight@);
-}
-
-#tabbrowser-tabs[tabsontop="false"] > .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
+.tabbrowser-tab[selected="true"] {
   background-image: -moz-linear-gradient(left, transparent, transparent 1px, white 1px, white);
   color: black;
 }
 
-#tabbrowser-tabs[tabsontop="true"] > .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
+#navigator-toolbox[tabsontop="true"] > #TabsToolbar > #tabbrowser-tabs > .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
   background-image: -moz-radial-gradient(center top, white, rgba(255,255,255,0) 60%),
                     -moz-linear-gradient(left, transparent, transparent 1px,
                                                @toolbarHighlight@ 1px, @toolbarHighlight@),
@@ -1170,7 +1163,11 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
   color: -moz-dialogText;
 }
 
-.tabbrowser-tab:-moz-lwtheme {
+.tabbrowser-tab:-moz-lwtheme[selected="true"] {
+  text-shadow: none;
+}
+
+.tabbrowser-tab:-moz-lwtheme:not([selected="true"]) {
   color: inherit;
 }
 
@@ -1234,7 +1231,7 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
 /* Tab close button */
 .tab-close-button {
   -moz-appearance: none;
-  -moz-image-region: rect(0, 64px, 16px, 48px);
+  -moz-image-region: rect(0px, 56px, 14px, 42px);
   border: none;
   padding: 0px;
   list-style-image: url("chrome://global/skin/icons/close.png");
@@ -1246,16 +1243,16 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
 
 .tab-close-button:hover,
 .tabbrowser-tab[selected="true"] > .tab-close-button:hover {
-  -moz-image-region: rect(0, 32px, 16px, 16px);
+  -moz-image-region: rect(0px, 28px, 14px, 14px);
 }
 
 .tab-close-button:hover:active,
 .tabbrowser-tab[selected="true"] > .tab-close-button:hover:active {
-  -moz-image-region: rect(0, 48px, 16px, 32px);
+  -moz-image-region: rect(0px, 42px, 14px, 28px);
 }
 
 .tabbrowser-tab[selected="true"] > .tab-close-button {
-  -moz-image-region: rect(0, 16px, 16px, 0);
+  -moz-image-region: rect(0px, 14px, 14px, 0px);
   /* Make this button focusable so clicking on it will not focus the tab while
      it's getting closed */
   -moz-user-focus: normal;
@@ -1271,8 +1268,7 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
   .tabbrowser-arrowscrollbox > .scrollbutton-up,
   .tabbrowser-arrowscrollbox > .scrollbutton-down,
   #TabsToolbar > toolbarbutton,
-  #TabsToolbar > toolbarpaletteitem > toolbarbutton,
-  #TabsToolbar > #bookmarks-menu-button-container > #bookmarks-menu-button {
+  #TabsToolbar > toolbarpaletteitem > toolbarbutton {
     min-width: .81cm;
   }
 
@@ -1283,11 +1279,15 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
 
 .tabbrowser-arrowscrollbox > .scrollbutton-up,
 .tabbrowser-arrowscrollbox > .scrollbutton-down {
-  list-style-image: url("chrome://browser/skin/tabbrowser/tab-arrow-left.png");
   -moz-image-region: rect(0, 15px, 17px, 0);
   margin: 0;
   padding-top: 0;
   padding-bottom: 0;
+}
+
+.tabbrowser-arrowscrollbox > .scrollbutton-up:not([disabled="true"]):hover,
+.tabbrowser-arrowscrollbox > .scrollbutton-down:not([disabled="true"]):hover {
+  -moz-image-region: rect(0, 30px, 17px, 15px);
 }
 
 .tabbrowser-arrowscrollbox > .scrollbutton-up[disabled="true"],
@@ -1297,21 +1297,29 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
 
 .tabbrowser-arrowscrollbox > .scrollbutton-up:not([disabled="true"]):hover:active,
 .tabbrowser-arrowscrollbox > .scrollbutton-down:not([disabled="true"]):hover:active {
-  -moz-image-region: rect(0, 30px, 17px, 15px);
+  -moz-image-region: rect(0, 45px, 17px, 30px);
 }
 
-.tabbrowser-arrowscrollbox > .scrollbutton-up:-moz-locale-dir(rtl) > .toolbarbutton-icon,
-.tabbrowser-arrowscrollbox > .scrollbutton-down:-moz-locale-dir(ltr) > .toolbarbutton-icon {
-  -moz-transform: scaleX(-1);
+.tabbrowser-arrowscrollbox > .scrollbutton-up:-moz-locale-dir(ltr) {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-arrow-left.png");
+}
+
+.tabbrowser-arrowscrollbox > .scrollbutton-up:-moz-locale-dir(rtl) {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-arrow-right.png");
 }
 
 .tabbrowser-arrowscrollbox > .scrollbutton-down {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-arrow-right.png");
   -moz-transition: 1s background-color ease-out;
 }
 
 .tabbrowser-arrowscrollbox > .scrollbutton-down[notifybgtab] {
   background-color: Highlight;
   -moz-transition: none;
+}
+
+.tabbrowser-arrowscrollbox > .scrollbutton-down:-moz-locale-dir(rtl) {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-arrow-left.png");
 }
 
 .tabs-newtab-button > .toolbarbutton-icon,
@@ -1345,11 +1353,11 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
 
 #alltabs-button {
   list-style-image: url("chrome://browser/skin/tabbrowser/alltabs.png");
-  -moz-image-region: rect(0, 14px, 16px, 0);
+  -moz-image-region: rect(0, 14px, 17px, 0);
 }
 
 #alltabs-button:hover:active {
-  -moz-image-region: rect(0, 28px, 16px, 14px);
+  -moz-image-region: rect(0, 28px, 17px, 14px);
 }
 
 #alltabs-button[type="menu"] {
@@ -1388,7 +1396,7 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
 .tabs-closebutton {
   -moz-appearance: none;
   list-style-image: url("chrome://global/skin/icons/close.png");
-  -moz-image-region: rect(0, 16px, 16px, 0);
+  -moz-image-region: rect(0px, 14px, 14px, 0px);
   padding: 4px 2px;
   margin: 0px;
   border: none;
@@ -1401,11 +1409,15 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
 }
 
 .tabs-closebutton:hover {
-  -moz-image-region: rect(0, 32px, 16px, 16px);
+  -moz-image-region: rect(0px, 28px, 14px, 14px);
 }
 
 .tabs-closebutton:hover:active {
-  -moz-image-region: rect(0, 48px, 16px, 32px);
+  -moz-image-region: rect(0px, 42px, 14px, 28px);
+}
+
+#sidebar-header > .tabs-closebutton {
+  list-style-image: url("chrome://global/skin/icons/closeSidebar.png");
 }
 
 toolbarbutton.chevron {
@@ -1779,26 +1791,3 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 .allTabs-preview:focus > * > .allTabs-preview-inner {
   outline: 1px dotted -moz-dialogText;
 }
-
-/* Inspector / Highlighter */
-
-#highlighter-panel {
-  -moz-appearance: none;
-  -moz-window-shadow: none;
-}
-
-listitem.style-selector {
-  background-color: DarkGray;
-  color: white;
-}
-
-listitem.style-section {
-  background-color: LightGray;
-  color: black;
-  font-weight: bold;
-}
-
-panel[dimmed="true"] {
-  opacity: 0.5;
-}
-

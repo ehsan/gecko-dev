@@ -56,7 +56,7 @@ class nsHTMLOptGroupElement : public nsGenericHTMLElement,
                               public nsIDOMHTMLOptGroupElement
 {
 public:
-  nsHTMLOptGroupElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLOptGroupElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLOptGroupElement();
 
   // nsISupports
@@ -86,7 +86,6 @@ public:
  
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   /**
@@ -100,7 +99,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(OptGroup)
 
 
-nsHTMLOptGroupElement::nsHTMLOptGroupElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLOptGroupElement::nsHTMLOptGroupElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -114,7 +113,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLOptGroupElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLOptGroupElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLOptGroupElement, nsHTMLOptGroupElement)
+DOMCI_DATA(HTMLOptGroupElement, nsHTMLOptGroupElement)
 
 // QueryInterface implementation for nsHTMLOptGroupElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLOptGroupElement)

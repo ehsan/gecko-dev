@@ -170,11 +170,15 @@ nsFormContentList::nsFormContentList(nsIDOMHTMLFormElement *aForm,
   // move elements that belong to mForm into this content list
 
   PRUint32 i, length = 0;
+  nsCOMPtr<nsIDOMNode> item;
 
   aContentList.GetLength(&length);
 
   for (i = 0; i < length; i++) {
-    nsIContent *c = aContentList.GetNodeAt(i);
+    aContentList.Item(i, getter_AddRefs(item));
+
+    nsCOMPtr<nsIContent> c(do_QueryInterface(item));
+
     if (c && nsContentUtils::BelongsInForm(aForm, c)) {
       AppendElement(c);
     }
@@ -586,7 +590,7 @@ nsContentList::GetNodeAt(PRUint32 aIndex)
   return Item(aIndex, PR_TRUE);
 }
 
-nsIContent*
+nsISupports*
 nsContentList::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 {
   *aResult = NS_OK;
@@ -594,14 +598,10 @@ nsContentList::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 }
 
 nsISupports*
-nsContentList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache,
-                            nsresult* aResult)
+nsContentList::GetNamedItem(const nsAString& aName, nsresult* aResult)
 {
   *aResult = NS_OK;
-
-  nsIContent *item;
-  *aCache = item = NamedItem(aName, PR_TRUE);
-  return item;
+  return NamedItem(aName, PR_TRUE);
 }
 
 void
@@ -754,8 +754,7 @@ void
 nsContentList::ContentRemoved(nsIDocument *aDocument,
                               nsIContent* aContainer,
                               nsIContent* aChild,
-                              PRInt32 aIndexInContainer,
-                              nsIContent* aPreviousSibling)
+                              PRInt32 aIndexInContainer)
 {
   // Note that aContainer can be null here if we are removing from
   // the document itself; any attempted optimizations to this method

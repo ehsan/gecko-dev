@@ -441,13 +441,11 @@ nsPluginTag::RegisterWithCategoryManager(PRBool aOverrideInternalTypes,
   // plugins - without relying on implementation details such as prefs/category
   // manager entries.
   nsXPIDLCString overrideTypes;
+  psvc->GetCharPref("plugin.disable_full_page_plugin_for_types", getter_Copies(overrideTypes));
   nsCAutoString overrideTypesFormatted;
-  if (aType != ePluginUnregister) {
-    psvc->GetCharPref("plugin.disable_full_page_plugin_for_types", getter_Copies(overrideTypes));
-    overrideTypesFormatted.Assign(',');
-    overrideTypesFormatted += overrideTypes;
-    overrideTypesFormatted.Append(',');
-  }
+  overrideTypesFormatted.Assign(',');
+  overrideTypesFormatted += overrideTypes;
+  overrideTypesFormatted.Append(',');
   
   nsACString::const_iterator start, end;
   for (int i = 0; i < mVariants; i++) {
@@ -571,4 +569,34 @@ void nsPluginTag::TryUnloadPlugin()
   if (mPluginHost) {
     RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginUnregister);
   }
+}
+
+/* nsPluginInstanceTag */
+
+nsPluginInstanceTag::nsPluginInstanceTag(nsPluginTag* aPluginTag,
+                                         nsIPluginInstance* aInstance,
+                                         const char * url)
+{
+  NS_ASSERTION(aInstance, "Must have a valid plugin instance when creating an nsPluginInstanceTag");
+  NS_ADDREF(aInstance);
+  mInstance = static_cast<nsNPAPIPluginInstance*>(aInstance);
+
+  mPluginTag = aPluginTag;
+  
+  mURL = PL_strdup(url);
+}
+
+nsPluginInstanceTag::~nsPluginInstanceTag()
+{
+  mPluginTag = nsnull;
+
+  nsCOMPtr<nsIPluginInstanceOwner> owner;
+  mInstance->GetOwner(getter_AddRefs(owner));
+  if (owner)
+    owner->SetInstance(nsnull);
+  mInstance->InvalidateOwner();
+
+  NS_RELEASE(mInstance);
+
+  PL_strfree(mURL);
 }

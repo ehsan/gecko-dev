@@ -114,7 +114,7 @@
 #include "nsIParser.h"
 #include "nsIParserService.h"
 #include "nsCSSStyleSheet.h"
-#include "mozilla/css/Loader.h"
+#include "nsCSSLoader.h"
 #include "nsIScriptError.h"
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsEventDispatcher.h"
@@ -395,7 +395,7 @@ NS_IMPL_ADDREF_INHERITED(nsXULDocument, nsXMLDocument)
 NS_IMPL_RELEASE_INHERITED(nsXULDocument, nsXMLDocument)
 
 
-DOMCI_NODE_DATA(XULDocument, nsXULDocument)
+DOMCI_DATA(XULDocument, nsXULDocument)
 
 // QueryInterface implementation for nsXULDocument
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULDocument)
@@ -988,8 +988,6 @@ nsXULDocument::AttributeWillChange(nsIDocument* aDocument,
     // See if we need to update our ref map.
     if (aAttribute == nsGkAtoms::ref ||
         (aAttribute == nsGkAtoms::id && !aContent->GetIDAttributeName())) {
-        // Might not need this, but be safe for now.
-        nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
         RemoveElementFromRefMap(aContent->AsElement());
     }
 }
@@ -1000,9 +998,6 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
                                 nsIAtom* aAttribute, PRInt32 aModType)
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
-
-    // Might not need this, but be safe for now.
-    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
 
     // XXXbz once we change AttributeChanged to take Element, we can nix this line
     Element* aElement = aElementContent->AsElement();
@@ -1102,9 +1097,6 @@ nsXULDocument::ContentAppended(nsIDocument* aDocument,
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
     
-    // Might not need this, but be safe for now.
-    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-
     // Update our element map
     nsresult rv = NS_OK;
     for (nsIContent* cur = aFirstNewContent; cur && NS_SUCCEEDED(rv);
@@ -1121,9 +1113,6 @@ nsXULDocument::ContentInserted(nsIDocument* aDocument,
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
 
-    // Might not need this, but be safe for now.
-    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-
     AddSubtreeToDocument(aChild);
 }
 
@@ -1131,13 +1120,9 @@ void
 nsXULDocument::ContentRemoved(nsIDocument* aDocument,
                               nsIContent* aContainer,
                               nsIContent* aChild,
-                              PRInt32 aIndexInContainer,
-                              nsIContent* aPreviousSibling)
+                              PRInt32 aIndexInContainer)
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
-
-    // Might not need this, but be safe for now.
-    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
 
     RemoveSubtreeFromDocument(aChild);
 }
@@ -2439,7 +2424,7 @@ nsXULDocument::PrepareToWalk()
 
     // Do one-time initialization if we're preparing to walk the
     // master document's prototype.
-    nsRefPtr<Element> root;
+    nsCOMPtr<Element> root;
 
     if (mState == eState_Master) {
         // Add the root element
@@ -2930,7 +2915,7 @@ nsXULDocument::ResumeWalk()
                 nsXULPrototypeElement* protoele =
                     static_cast<nsXULPrototypeElement*>(childproto);
 
-                nsRefPtr<Element> child;
+                nsCOMPtr<Element> child;
 
                 if (!processingOverlayHookupNodes) {
                     rv = CreateElementFromPrototype(protoele,
@@ -3680,7 +3665,7 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
     }
 #endif
 
-    nsRefPtr<Element> result;
+    nsCOMPtr<Element> result;
 
     if (aPrototype->mNodeInfo->NamespaceEquals(kNameSpaceID_XUL)) {
         // If it's a XUL element, it'll be lightweight until somebody
@@ -3699,16 +3684,14 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
                                                     aPrototype->mNodeInfo->NamespaceID());
         if (!newNodeInfo) return NS_ERROR_OUT_OF_MEMORY;
         nsCOMPtr<nsIContent> content;
-        PRInt32 ns = newNodeInfo->NamespaceID();
-        nsCOMPtr<nsINodeInfo> xtfNi = newNodeInfo;
-        rv = NS_NewElement(getter_AddRefs(content), ns, newNodeInfo.forget(),
-                           PR_FALSE);
+        rv = NS_NewElement(getter_AddRefs(content), newNodeInfo->NamespaceID(),
+                           newNodeInfo, PR_FALSE);
         if (NS_FAILED(rv)) return rv;
 
         result = content->AsElement();
 
 #ifdef MOZ_XTF
-        if (result && xtfNi->NamespaceID() > kNameSpaceID_LastBuiltin) {
+        if (result && newNodeInfo->NamespaceID() > kNameSpaceID_LastBuiltin) {
             result->BeginAddingChildren();
         }
 #endif
@@ -3728,7 +3711,7 @@ nsXULDocument::CreateOverlayElement(nsXULPrototypeElement* aPrototype,
 {
     nsresult rv;
 
-    nsRefPtr<Element> element;
+    nsCOMPtr<Element> element;
     rv = CreateElementFromPrototype(aPrototype, getter_AddRefs(element));
     if (NS_FAILED(rv)) return rv;
 
@@ -3842,7 +3825,7 @@ nsXULDocument::CreateTemplateBuilder(nsIContent* aElement)
                                           getter_AddRefs(bodyContent));
 
         if (! bodyContent) {
-            nsresult rv = document->CreateElem(nsAtomString(nsGkAtoms::treechildren),
+            nsresult rv = document->CreateElem(nsGkAtoms::treechildren,
                                                nsnull, kNameSpaceID_XUL,
                                                PR_FALSE,
                                                getter_AddRefs(bodyContent));

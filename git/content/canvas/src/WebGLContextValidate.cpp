@@ -41,10 +41,6 @@
 
 #include "CheckedInt.h"
 
-#if !defined(USE_GLES2) && defined(USE_ANGLE)
-#include "angle/ShaderLang.h"
-#endif
-
 using namespace mozilla;
 
 /*
@@ -151,7 +147,7 @@ PRBool WebGLContext::ValidateCapabilityEnum(WebGLenum cap, const char *info)
         case LOCAL_GL_STENCIL_TEST:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, cap);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -164,7 +160,7 @@ PRBool WebGLContext::ValidateBlendEquationEnum(WebGLenum mode, const char *info)
         case LOCAL_GL_FUNC_REVERSE_SUBTRACT:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, mode);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -188,7 +184,7 @@ PRBool WebGLContext::ValidateBlendFuncDstEnum(WebGLenum factor, const char *info
         case LOCAL_GL_ONE_MINUS_CONSTANT_ALPHA:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, factor);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -208,7 +204,7 @@ PRBool WebGLContext::ValidateTextureTargetEnum(WebGLenum target, const char *inf
         case LOCAL_GL_TEXTURE_CUBE_MAP:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, target);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -226,7 +222,7 @@ PRBool WebGLContext::ValidateComparisonEnum(WebGLenum target, const char *info)
         case LOCAL_GL_ALWAYS:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, target);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -244,20 +240,20 @@ PRBool WebGLContext::ValidateStencilOpEnum(WebGLenum action, const char *info)
         case LOCAL_GL_INVERT:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, action);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
 
-PRBool WebGLContext::ValidateFaceEnum(WebGLenum face, const char *info)
+PRBool WebGLContext::ValidateFaceEnum(WebGLenum target, const char *info)
 {
-    switch (face) {
+    switch (target) {
         case LOCAL_GL_FRONT:
         case LOCAL_GL_BACK:
         case LOCAL_GL_FRONT_AND_BACK:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, face);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -270,24 +266,7 @@ PRBool WebGLContext::ValidateBufferUsageEnum(WebGLenum target, const char *info)
         case LOCAL_GL_DYNAMIC_DRAW:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, target);
-            return PR_FALSE;
-    }
-}
-
-PRBool WebGLContext::ValidateDrawModeEnum(WebGLenum mode, const char *info)
-{
-    switch (mode) {
-        case LOCAL_GL_TRIANGLES:
-        case LOCAL_GL_TRIANGLE_STRIP:
-        case LOCAL_GL_TRIANGLE_FAN:
-        case LOCAL_GL_POINTS:
-        case LOCAL_GL_LINE_STRIP:
-        case LOCAL_GL_LINE_LOOP:
-        case LOCAL_GL_LINES:
-            return PR_TRUE;
-        default:
-            ErrorInvalidEnumInfo(info, mode);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -315,7 +294,7 @@ PRBool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
                 *texelSize = 4;
                 return PR_TRUE;
             default:
-                ErrorInvalidEnum("%s: invalid format 0x%x", info, format);
+                ErrorInvalidEnum("%s: invalid format", info);
                 return PR_FALSE;
         }
     } else {
@@ -338,7 +317,7 @@ PRBool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
                     return PR_FALSE;
                 }
             default:
-                ErrorInvalidEnum("%s: invalid type 0x%x", info, type);
+                ErrorInvalidEnum("%s: invalid type", info);
                 return PR_FALSE;
         }
     }
@@ -379,81 +358,49 @@ WebGLContext::InitAndValidateGL()
     // make sure that the opengl stuff that we need is supported
     GLint val = 0;
 
-    MakeContextCurrent();
+    // XXX this exposes some strange latent bug; what's going on?
+    //MakeContextCurrent();
 
-    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_ATTRIBS, (GLint*) &mGLMaxVertexAttribs);
-    if (mGLMaxVertexAttribs < 8) {
-        LogMessage("GL_MAX_VERTEX_ATTRIBS: %d is < 8!", mGLMaxVertexAttribs);
+    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_ATTRIBS, &val);
+    if (val == 0) {
+        LogMessage("GL_MAX_VERTEX_ATTRIBS is 0!");
         return PR_FALSE;
     }
 
-    mAttribBuffers.SetLength(mGLMaxVertexAttribs);
+    mAttribBuffers.SetLength(val);
+
+    //fprintf(stderr, "GL_MAX_VERTEX_ATTRIBS: %d\n", val);
 
     // Note: GL_MAX_TEXTURE_UNITS is fixed at 4 for most desktop hardware,
     // even though the hardware supports much more.  The
-    // GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS value is the accurate value.
-    gl->fGetIntegerv(LOCAL_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxTextureUnits);
-    if (mGLMaxTextureUnits < 8) {
-        LogMessage("GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS: %d is < 8!", mGLMaxTextureUnits);
+    // GL_MAX_{COMBINED_}TEXTURE_IMAGE_UNITS value is the accurate
+    // value.  For GLES2, GL_MAX_TEXTURE_UNITS is still correct.
+    gl->fGetIntegerv(LOCAL_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &val);
+    if (val == 0) {
+        LogMessage("GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS is 0!");
         return PR_FALSE;
     }
 
-    mBound2DTextures.SetLength(mGLMaxTextureUnits);
-    mBoundCubeMapTextures.SetLength(mGLMaxTextureUnits);
+    mBound2DTextures.SetLength(val);
+    mBoundCubeMapTextures.SetLength(val);
 
-    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, (GLint*) &mGLMaxTextureSize);
-    gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, (GLint*) &mGLMaxCubeMapTextureSize);
+    //fprintf(stderr, "GL_MAX_TEXTURE_UNITS: %d\n", val);
 
-    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxTextureImageUnits);
-    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxVertexTextureImageUnits);
-
-    if (gl->IsGLES2()) {
-        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS, (GLint*) &mGLMaxFragmentUniformVectors);
-        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS, (GLint*) &mGLMaxVertexUniformVectors);
-        gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_VECTORS, (GLint*) &mGLMaxVaryingVectors);
-    } else {
-        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, (GLint*) &mGLMaxFragmentUniformVectors);
-        mGLMaxFragmentUniformVectors /= 4;
-        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_COMPONENTS, (GLint*) &mGLMaxVertexUniformVectors);
-        mGLMaxVertexUniformVectors /= 4;
-        gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_FLOATS, (GLint*) &mGLMaxVaryingVectors);
-        mGLMaxVaryingVectors /= 4;
-    }
-
-#if 0
-    // Leaving this code in here, even though it's ifdef'd out, for
-    // when we support more than 1 color attachment.
-    gl->fGetIntegerv(LOCAL_GL_MAX_COLOR_ATTACHMENTS, (GLint*) &val);
-#else
-    // Always 1 for GLES2
-    val = 1;
-#endif
+    gl->fGetIntegerv(LOCAL_GL_MAX_COLOR_ATTACHMENTS, &val);
     mFramebufferColorAttachments.SetLength(val);
 
 #if defined(DEBUG_vladimir) && defined(USE_GLES2)
-    gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_FORMAT, (GLint*) &val);
+    gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_FORMAT, &val);
     fprintf(stderr, "GL_IMPLEMENTATION_COLOR_READ_FORMAT: 0x%04x\n", val);
 
-    gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_TYPE, (GLint*) &val);
+    gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_TYPE, &val);
     fprintf(stderr, "GL_IMPLEMENTATION_COLOR_READ_TYPE: 0x%04x\n", val);
 #endif
 
-    if (!gl->IsGLES2()) {
-        // gl_PointSize is always available in ES2 GLSL, but has to be
-        // specifically enabled on desktop GLSL.
-        gl->fEnable(LOCAL_GL_VERTEX_PROGRAM_POINT_SIZE);
-    }
-
-#if !defined(USE_GLES2) && defined(USE_ANGLE)
-    // initialize shader translator
-    static bool didTranslatorInit = false;
-    if (!didTranslatorInit && mShaderValidation) {
-        if (!ShInitialize()) {
-            LogMessage("GLSL translator initialization failed!");
-            return PR_FALSE;
-        }
-        didTranslatorInit = true;
-    }
+#ifndef USE_GLES2
+    // gl_PointSize is always available in ES2 GLSL, but has to be
+    // specifically enabled on desktop GLSL.
+    gl->fEnable(LOCAL_GL_VERTEX_PROGRAM_POINT_SIZE);
 #endif
 
     return PR_TRUE;

@@ -41,7 +41,6 @@
 #include "mozilla/jsipc/ObjectWrapperParent.h"
 #include "mozilla/jsipc/ContextWrapperParent.h"
 #include "mozilla/jsipc/CPOWTypes.h"
-#include "mozilla/unused.h"
 
 #include "jsobj.h"
 #include "jsfun.h"
@@ -641,7 +640,7 @@ ObjectWrapperParent::CPOW_Finalize(JSContext* cx, JSObject* obj)
     ObjectWrapperParent* self = Unwrap(cx, obj);
     if (self) {
         self->mObj = NULL;
-        unused << ObjectWrapperParent::Send__delete__(self);
+        ObjectWrapperParent::Send__delete__(self);
     }
 }
 

@@ -1188,8 +1188,7 @@ statusbarpanel#statusbar-display {
 }
 
 #TabsToolbar > toolbarbutton,
-#TabsToolbar > toolbarpaletteitem > toolbarbutton,
-#TabsToolbar > #bookmarks-menu-button-container > #bookmarks-menu-button {
+#TabsToolbar > toolbarpaletteitem > toolbarbutton {
   margin-bottom: 1px;
 }
 
@@ -1253,6 +1252,15 @@ statusbarpanel#statusbar-display {
 }
 .tabbrowser-tab[busy][progress="8"] > .tab-icon-image {
   -moz-image-region: rect(0, 144px, 16px, 128px);
+}
+
+#context_newTab {
+  list-style-image: url("chrome://browser/skin/Toolbar-small.png");
+  -moz-image-region: rect(0px 64px 16px 48px);
+}
+
+#context_newTab[disabled] {
+  -moz-image-region: rect(16px 64px 32px 48px);
 }
 
 #context_reloadTab {
@@ -1496,26 +1504,3 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 .allTabs-preview-label {
   -moz-transform: translate(0, 2px);
 }
-
-/* Inspector / Highlighter */
-
-#highlighter-panel {
-  -moz-appearance: none;
-  -moz-window-shadow: none;
-}
-
-listitem.style-selector {
-  background-color: DarkGray;
-  color: white;
-}
-
-listitem.style-section {
-  background-color: LightGray;
-  color: black;
-  font-weight: bold;
-}
-
-panel[dimmed="true"] {
-  opacity: 0.5;
-}
-

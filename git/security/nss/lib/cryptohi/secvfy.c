@@ -37,7 +37,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: secvfy.c,v 1.24 2010/06/23 02:13:56 wtc%google.com Exp $ */
+/* $Id: secvfy.c,v 1.23 2010/02/10 00:49:43 wtc%google.com Exp $ */
 
 #include <stdio.h>
 #include "cryptohi.h"
@@ -237,7 +237,6 @@ sec_DecodeSigAlg(const SECKEYPublicKey *key, SECOidTag sigAlg,
         *hashalg = SEC_OID_SHA1;
 	break;
       case SEC_OID_PKCS1_RSA_ENCRYPTION:
-      case SEC_OID_PKCS1_RSA_PSS_SIGNATURE:
         *hashalg = SEC_OID_UNKNOWN; /* get it from the RSA signature */
 	break;
 
@@ -328,9 +327,6 @@ sec_DecodeSigAlg(const SECKEYPublicKey *key, SECOidTag sigAlg,
       case SEC_OID_PKCS1_SHA512_WITH_RSA_ENCRYPTION:
 	*encalg = SEC_OID_PKCS1_RSA_ENCRYPTION;
 	break;
-      case SEC_OID_PKCS1_RSA_PSS_SIGNATURE:
-	*encalg = SEC_OID_PKCS1_RSA_PSS_SIGNATURE;
-	break;
 
       /* what about normal DSA? */
       case SEC_OID_ANSIX9_DSA_SIGNATURE_WITH_SHA1_DIGEST:
@@ -382,10 +378,8 @@ vfy_CreateContext(const SECKEYPublicKey *key, const SECItem *sig,
     KeyType type;
 
     /* make sure the encryption algorithm matches the key type */
-    /* RSA-PSS algorithm can be used with both rsaKey and rsaPssKey */
     type = seckey_GetKeyType(encAlg);
-    if ((key->keyType != type) &&
-	((key->keyType != rsaKey) || (type != rsaPssKey))) {
+    if (key->keyType != type) {
 	PORT_SetError(SEC_ERROR_PKCS7_KEYALG_MISMATCH);
 	return NULL;
     }
@@ -402,7 +396,7 @@ vfy_CreateContext(const SECKEYPublicKey *key, const SECItem *sig,
     cx->key = SECKEY_CopyPublicKey(key);
     rv = SECSuccess;
     if (sig) {
-	switch (type) {
+	switch (key->keyType) {
 	case rsaKey:
 	    rv = DecryptSigBlock(&cx->hashAlg, cx->u.buffer, &cx->rsadigestlen,
 			HASH_LENGTH_MAX, cx->key, sig, (char*)wincx);

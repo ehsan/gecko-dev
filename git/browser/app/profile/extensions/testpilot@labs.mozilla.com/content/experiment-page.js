@@ -71,9 +71,6 @@ var stringBundle;
       }
     }
 
-    // Study web content must provide an element with id 'upload-status'.
-    // Fill it first with a message about data being uploaded; if there's
-    // an error, replace it with the error message.
     let uploadStatus = document.getElementById("upload-status");
     uploadStatus.innerHTML =
       stringBundle.GetStringFromName("testpilot.statusPage.uploadingData");
@@ -82,14 +79,10 @@ var stringBundle;
         window.location =
 	  "chrome://testpilot/content/status.html?eid=" + eid;
       } else {
-        // Replace 'now uploading' message
-        let errorParagraph = document.createElement("p");
-        errorParagraph.innerHTML = stringBundle.GetStringFromName("testpilot.statusPage.uploadErrorMsg");
-        let willRetryParagraph = document.createElement("p");
-        willRetryParagraph.innerHTML = stringBundle.GetStringFromName("testpilot.statusPage.willRetry");
-        uploadStatus.innerHTML = "";
-        uploadStatus.appendChild(errorParagraph);
-        uploadStatus.appendChild(willRetryParagraph);
+        uploadStatus.innerHTML =
+	  "<p>" +
+	  stringBundle.GetStringFromName("testpilot.statusPage.uploadError") +
+	  "</p>";
       }
     });
   }
@@ -243,7 +236,6 @@ var stringBundle;
 
   function showMetaData() {
     Components.utils.import("resource://testpilot/modules/metadata.js");
-    Components.utils.import("resource://gre/modules/PluralForm.jsm");
     MetadataCollector.getMetadata(function(md) {
       var mdLocale = document.getElementById("md-locale");
       if (mdLocale)
@@ -256,11 +248,15 @@ var stringBundle;
         mdOs.innerHTML = md.operatingSystem;
       var mdNumExt = document.getElementById("md-num-ext");
       if (mdNumExt) {
-        // This computes the correctly localized singular or plural string
-        // of the number of extensions, e.g. "1 extension", "2 extensions", etc.
-        let str = stringBundle.GetStringFromName("testpilot.statusPage.numExtensions");
         var numExt = md.extensions.length;
-        mdNumExt.innerHTML = PluralForm.get(numExt, str).replace("#1", numExt);
+        if (numExt == 1) {
+          mdNumExt.innerHTML =
+            stringBundle.GetStringFromName("testpilot.statusPage.extension");
+        } else {
+          mdNumExt.innerHTML =
+            stringBundle.formatStringFromName(
+            "testpilot.statusPage.extensions", [numExt], 1);
+        }
       }
     });
   }
@@ -367,8 +363,6 @@ var stringBundle;
     var contentDiv = document.getElementById("experiment-specific-text");
     var dataPrivacyDiv = document.getElementById("data-privacy-text");
     // Get experimentID from the GET args of page
-    // TODO no reason actually to do parseInt here -- all it accomplishes
-    // is preventing us from using non-numeric study IDs.
     var eid = parseInt(getUrlParam("eid"));
     var experiment = TestPilotSetup.getTaskById(eid);
     if (!experiment) {
@@ -379,22 +373,8 @@ var stringBundle;
       window.setTimeout(function() { loadExperimentPage(); }, 2000);
       return;
     }
-
-    // Let the experiment fill in its web content (asynchronous)
     experiment.getWebContent(function(webContent) {
       contentDiv.innerHTML = webContent;
-
-      // Metadata and start/end date should be filled in for every experiment:
-      showMetaData();
-      getTestEndingDate(eid);
-      if (experiment._recursAutomatically &&
-        experiment.status != TaskConstants.STATUS_FINISHED) {
-        showRecurControls(experiment);
-      }
-
-      // Do whatever the experiment's web content wants done on load
-      // (Usually drawing a graph) - must be done after innerHTML is set.
-      experiment.webContent.onPageLoad(experiment, document, jQuery);
     });
 
     experiment.getDataPrivacyContent(function(dataPrivacyContent) {
@@ -403,6 +383,17 @@ var stringBundle;
         dataPrivacyDiv.removeAttribute("hidden");
       }
     });
+
+    // Metadata and start/end date should be filled in for every experiment:
+    showMetaData();
+    getTestEndingDate(eid);
+    if (experiment._recursAutomatically &&
+        experiment.status != TaskConstants.STATUS_FINISHED) {
+      showRecurControls(experiment);
+    }
+
+    // Do whatever the experiment's web content wants done on load:
+    experiment.webContent.onPageLoad(experiment, document, jQuery);
   }
 
   function onStatusPageLoad() {
@@ -452,7 +443,7 @@ var stringBundle;
 	{ id: "recur-options",
 	  stringKey: "testpilot.quitPage.recurringStudy" },
 	{ id: "quit-forever-text",
-	  stringKey: "testpilot.quitPage.quitForever" },
+	  stringKey: "testpilot.quitPage.quitFoever" },
 	{ id: "quit-study-link",
 	  stringKey: "testpilot.quitPage.quitStudy" }
       ];

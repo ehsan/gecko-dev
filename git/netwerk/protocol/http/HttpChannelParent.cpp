@@ -53,7 +53,7 @@ namespace mozilla {
 namespace net {
 
 // C++ file contents
-HttpChannelParent::HttpChannelParent(PBrowserParent* iframeEmbedding)
+HttpChannelParent::HttpChannelParent(PIFrameEmbeddingParent* iframeEmbedding)
 : mIPCClosed(false)
 {
   // Ensure gHttpHandler is initialized: we need the atom table up and running.
@@ -188,6 +188,13 @@ HttpChannelParent::RecvSetCacheTokenCachedCharset(const nsCString& charset)
   if (mCacheDescriptor)
     mCacheDescriptor->SetMetaDataElement("charset",
                                          PromiseFlatCString(charset).get());
+  return true;
+}
+
+bool
+HttpChannelParent::RecvOnStopRequestCompleted()
+{
+  mCacheDescriptor = nsnull;
   return true;
 }
 

@@ -266,11 +266,7 @@ nsDOMWindowUtils::SendMouseEvent(const nsAString& aType,
   event.time = PR_IntervalNow();
   event.flags |= NS_EVENT_FLAG_SYNTHETIC_TEST_EVENT;
 
-  nsPresContext* presContext = GetPresContext();
-  if (!presContext)
-    return NS_ERROR_FAILURE;
-
-  PRInt32 appPerDev = presContext->AppUnitsPerDevPixel();
+  float appPerDev = float(widget->GetDeviceContext()->AppUnitsPerDevPixel());
   event.refPoint.x =
     NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aX) + offset.x,
                           appPerDev);
@@ -322,11 +318,7 @@ nsDOMWindowUtils::SendMouseScrollEvent(const nsAString& aType,
 
   event.time = PR_IntervalNow();
 
-  nsPresContext* presContext = GetPresContext();
-  if (!presContext)
-    return NS_ERROR_FAILURE;
-
-  PRInt32 appPerDev = presContext->AppUnitsPerDevPixel();
+  float appPerDev = float(widget->GetDeviceContext()->AppUnitsPerDevPixel());
   event.refPoint.x =
     NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aX) + offset.x,
                           appPerDev);
@@ -604,11 +596,7 @@ nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
   event.isMeta = (aModifiers & nsIDOMNSEvent::META_MASK) ? PR_TRUE : PR_FALSE;
   event.time = PR_IntervalNow();
 
-  nsPresContext* presContext = GetPresContext();
-  if (!presContext)
-    return NS_ERROR_FAILURE;
-
-  PRInt32 appPerDev = presContext->AppUnitsPerDevPixel();
+  float appPerDev = float(widget->GetDeviceContext()->AppUnitsPerDevPixel());
   event.refPoint.x =
     NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aX) + offset.x,
                           appPerDev);
@@ -1074,18 +1062,6 @@ nsDOMWindowUtils::SendQueryContentEvent(PRUint32 aType,
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  NS_ENSURE_TRUE(mWindow, NS_ERROR_FAILURE);
-
-  nsIDocShell *docShell = mWindow->GetDocShell();
-  NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsIPresShell> presShell;
-  docShell->GetPresShell(getter_AddRefs(presShell));
-  NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
-
-  nsPresContext* presContext = presShell->GetPresContext();
-  NS_ENSURE_TRUE(presContext, NS_ERROR_FAILURE);
-
   // get the widget to send the event to
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget) {
@@ -1109,7 +1085,7 @@ nsDOMWindowUtils::SendQueryContentEvent(PRUint32 aType,
     nsQueryContentEvent dummyEvent(PR_TRUE, NS_QUERY_CONTENT_STATE, widget);
     InitEvent(dummyEvent, &pt);
     nsIFrame* popupFrame =
-      nsLayoutUtils::GetPopupFrameForEventCoordinates(presContext->GetRootPresContext(), &dummyEvent);
+      nsLayoutUtils::GetPopupFrameForEventCoordinates(&dummyEvent);
 
     nsIntRect widgetBounds;
     nsresult rv = widget->GetClientBounds(widgetBounds);
@@ -1392,29 +1368,5 @@ nsDOMWindowUtils::GetCurrentInnerWindowID(PRUint64 *aWindowID)
     return NS_ERROR_NOT_AVAILABLE;
   }
   *aWindowID = inner->mWindowID;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::SuspendTimeouts()
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  mWindow->SuspendTimeouts();
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::ResumeTimeouts()
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  mWindow->ResumeTimeouts();
-
   return NS_OK;
 }

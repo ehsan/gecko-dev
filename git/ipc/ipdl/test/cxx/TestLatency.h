@@ -61,6 +61,9 @@ private:
 
     int mPPTrialsToGo;
     int mPP5TrialsToGo;
+
+    // FIXME/cjones: HACK ALERT: don't need this once IPDL exposes actor state
+    int mPongsToGo;
 };
 
 

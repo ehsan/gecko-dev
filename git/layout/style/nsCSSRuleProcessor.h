@@ -94,14 +94,14 @@ public:
                                     nsCSSSelectorList* aSelectorList);
 
   // nsIStyleRuleProcessor
-  virtual void RulesMatching(ElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
 
-  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(PseudoElementRuleProcessorData* aData);
 
-  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(AnonBoxRuleProcessorData* aData);
 
 #ifdef MOZ_XUL
-  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
 
   virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
@@ -111,7 +111,8 @@ public:
   virtual nsRestyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
 
-  virtual PRBool MediumFeaturesChanged(nsPresContext* aPresContext);
+  NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
+                                   PRBool* aRulesChanged);
 
   // Append all the currently-active font face rules to aArray.  Return
   // true for success and false for failure.

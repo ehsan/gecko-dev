@@ -60,11 +60,6 @@
 #include "nsIMutationObserver.h"
 #include "nsIFormProcessor.h"
 #include "nsIServiceManager.h"
-#include "nsEscape.h"
-
-#ifdef MOZ_SVG
-#include "nsHtml5SVGLoadDispatcher.h"
-#endif
 
 static NS_DEFINE_CID(kFormProcessorCID, NS_FORMPROCESSOR_CID);
 
@@ -384,7 +379,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsCOMPtr<nsINodeInfo> nodeInfo = aBuilder->GetNodeInfoManager()->GetNodeInfo(name, nsnull, ns);
       NS_ASSERTION(nodeInfo, "Got null nodeinfo.");
       NS_NewElement(getter_AddRefs(newContent),
-                    ns, nodeInfo.forget(),
+                    nodeInfo->NamespaceID(),
+                    nodeInfo,
                     (mOpCode == eTreeOpCreateElementNetwork ?
                      NS_FROM_PARSER_NETWORK
                      : (aBuilder->IsFragmentMode() ?
@@ -426,10 +422,9 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
                                                       
         for (PRUint32 i = 0; i < theContent.Length(); ++i) {
           nsCOMPtr<nsIContent> optionElt;
-          nsCOMPtr<nsINodeInfo> ni = optionNodeInfo;
           NS_NewElement(getter_AddRefs(optionElt), 
                         optionNodeInfo->NamespaceID(), 
-                        ni.forget(),
+                        optionNodeInfo, 
                         PR_TRUE);
           nsCOMPtr<nsIContent> optionText;
           NS_NewTextNode(getter_AddRefs(optionText), 
@@ -459,19 +454,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         // prefix doesn't need regetting. it is always null or a static atom
         // local name is never null
         nsCOMPtr<nsIAtom> localName = Reget(attributes->getLocalName(i));
-        if (ns == kNameSpaceID_XHTML &&
-            nsHtml5Atoms::a == name &&
-            nsHtml5Atoms::name == localName) {
-          // This is an HTML5-incompliant Geckoism.
-          // Remove when fixing bug 582361
-          NS_ConvertUTF16toUTF8 cname(*(attributes->getValue(i)));
-          NS_ConvertUTF8toUTF16 uv(nsUnescape(cname.BeginWriting()));
-          newContent->SetAttr(attributes->getURI(i), localName,
-              attributes->getPrefix(i), uv, PR_FALSE);
-        } else {
-          newContent->SetAttr(attributes->getURI(i), localName,
-              attributes->getPrefix(i), *(attributes->getValue(i)), PR_FALSE);
-        }
+        newContent->SetAttr(attributes->getURI(i), localName, attributes->getPrefix(i), *(attributes->getValue(i)), PR_FALSE);
+        // XXX what to do with nsresult?
       }
 
       return rv;
@@ -692,16 +676,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       sele->FreezeUriAsyncDefer();
       return rv;
     }
-#ifdef MOZ_SVG
-    case eTreeOpSvgLoad: {
-      nsIContent* node = *(mOne.node);
-      nsCOMPtr<nsIRunnable> event = new nsHtml5SVGLoadDispatcher(node);
-      if (NS_FAILED(NS_DispatchToMainThread(event))) {
-        NS_WARNING("failed to dispatch svg load dispatcher");
-      }
-      return rv;
-    }
-#endif
     default: {
       NS_NOTREACHED("Bogus tree op");
     }

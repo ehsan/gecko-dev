@@ -147,8 +147,6 @@ static FARPROC GetProcAddressA(HMODULE hMod, wchar_t *procName);
 #undef GetClassName
 #endif
 
-class qsObjectHelper;
-
 /***************************************************************************/
 // Compile time switches for instrumentation and stuff....
 
@@ -2240,10 +2238,8 @@ private:
 };
 
 
-extern JSBool ConstructSlimWrapper(XPCCallContext &ccx,
-                                   nsISupports *p,
-                                   qsObjectHelper* aHelper,
-                                   nsWrapperCache* aCache,
+extern JSBool ConstructSlimWrapper(XPCCallContext &ccx, nsISupports *p,
+                                   nsWrapperCache *cache,
                                    XPCWrappedNativeScope* xpcScope,
                                    jsval *rval);
 extern JSBool MorphSlimWrapper(JSContext *cx, JSObject *obj);
@@ -3087,8 +3083,6 @@ public:
      *        JSObject in an XPCNativeWrapper and return that, as needed.
      * @param isGlobal
      * @param pErr [out] relevant error code, if any.
-     * @param src_is_identity optional performance hint. Set to PR_TRUE only
-     *                        if src is the identity pointer.
      */
     static JSBool NativeInterface2JSObject(XPCCallContext& ccx,
                                            jsval* d,
@@ -3100,13 +3094,12 @@ public:
                                            JSObject* scope,
                                            PRBool allowNativeWrapper,
                                            PRBool isGlobal,
-                                           nsresult* pErr,
-                                           qsObjectHelper* aHelper = nsnull)
+                                           nsresult* pErr)
     {
         XPCLazyCallContext lccx(ccx);
         return NativeInterface2JSObject(lccx, d, dest, src, iid, Interface,
                                         cache, scope, allowNativeWrapper,
-                                        isGlobal, pErr, aHelper);
+                                        isGlobal, pErr);
     }
     static JSBool NativeInterface2JSObject(XPCLazyCallContext& lccx,
                                            jsval* d,
@@ -3118,8 +3111,7 @@ public:
                                            JSObject* scope,
                                            PRBool allowNativeWrapper,
                                            PRBool isGlobal,
-                                           nsresult* pErr,
-                                           qsObjectHelper* aHelper = nsnull);
+                                           nsresult* pErr);
 
     static JSBool GetNativeInterfaceFromJSObject(XPCCallContext& ccx,
                                                  void** dest, JSObject* src,
@@ -3203,9 +3195,7 @@ class XPCStringConvert
 {
 public:
 
-    static jsval ReadableToJSVal(JSContext *cx, const nsAString &readable,
-                                 PRBool dontAddrefShared = PR_FALSE,
-                                 PRBool* sharedBuffer = nsnull);
+    static jsval ReadableToJSVal(JSContext *cx, const nsAString &readable);
 
     static XPCReadableJSStringWrapper *JSStringToReadable(XPCCallContext& ccx,
                                                           JSString *str);

@@ -1000,11 +1000,6 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(nsGkAtoms::images_in_buttons);
   }
 
-  lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MenuBarDrag, metricResult);
-  if (metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::menubar_drag);
-  }
-
   rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsDefaultTheme, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::windows_default_theme);
@@ -2320,7 +2315,7 @@ static void ContentEnumFunc(nsICSSStyleRule* aRule, nsCSSSelector* aSelector,
   }
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSRuleProcessor::RulesMatching(ElementRuleProcessorData *aData)
 {
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
@@ -2333,9 +2328,10 @@ nsCSSRuleProcessor::RulesMatching(ElementRuleProcessorData *aData)
                                          ContentEnumFunc,
                                          aData);
   }
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSRuleProcessor::RulesMatching(PseudoElementRuleProcessorData* aData)
 {
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
@@ -2351,9 +2347,10 @@ nsCSSRuleProcessor::RulesMatching(PseudoElementRuleProcessorData* aData)
                                   aData);
     }
   }
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSRuleProcessor::RulesMatching(AnonBoxRuleProcessorData* aData)
 {
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
@@ -2379,10 +2376,11 @@ nsCSSRuleProcessor::RulesMatching(AnonBoxRuleProcessorData* aData)
       }
     }
   }
+  return NS_OK;
 }
 
 #ifdef MOZ_XUL
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSRuleProcessor::RulesMatching(XULTreeRuleProcessorData* aData)
 {
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
@@ -2395,13 +2393,17 @@ nsCSSRuleProcessor::RulesMatching(XULTreeRuleProcessorData* aData)
       nsTArray<RuleValue>& rules = entry->mRules;
       for (RuleValue *value = rules.Elements(), *end = value + rules.Length();
            value != end; ++value) {
-        if (aData->mComparator->PseudoMatches(value->mSelector)) {
+        PRBool matches = PR_TRUE;
+        aData->mComparator->PseudoMatches(aData->mPseudoTag, value->mSelector,
+                                          &matches);
+        if (matches) {
           ContentEnumFunc(value->mRule, value->mSelector->mNext,
                           static_cast<RuleProcessorData*>(aData));
         }
       }
     }
   }
+  return NS_OK;
 }
 #endif
 
@@ -2575,8 +2577,9 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
   return data.change;
 }
 
-/* virtual */ PRBool
-nsCSSRuleProcessor::MediumFeaturesChanged(nsPresContext* aPresContext)
+NS_IMETHODIMP
+nsCSSRuleProcessor::MediumFeaturesChanged(nsPresContext* aPresContext,
+                                          PRBool* aRulesChanged)
 {
   RuleCascadeData *old = mRuleCascades;
   // We don't want to do anything if there aren't any sets of rules
@@ -2588,7 +2591,8 @@ nsCSSRuleProcessor::MediumFeaturesChanged(nsPresContext* aPresContext)
   if (old) {
     RefreshRuleCascade(aPresContext);
   }
-  return (old != mRuleCascades);
+  *aRulesChanged = (old != mRuleCascades);
+  return NS_OK;
 }
 
 // Append all the currently-active font face rules to aArray.  Return
@@ -2906,7 +2910,8 @@ static PRBool
 CascadeRuleEnumFunc(nsICSSRule* aRule, void* aData)
 {
   CascadeEnumData* data = (CascadeEnumData*)aData;
-  PRInt32 type = aRule->GetType();
+  PRInt32 type = nsICSSRule::UNKNOWN_RULE;
+  aRule->GetType(type);
 
   if (nsICSSRule::STYLE_RULE == type) {
     nsICSSStyleRule* styleRule = (nsICSSStyleRule*)aRule;

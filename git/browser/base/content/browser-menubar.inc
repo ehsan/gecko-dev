@@ -42,16 +42,16 @@
             <menu id="file-menu" label="&fileMenu.label;"
                   accesskey="&fileMenu.accesskey;">
               <menupopup id="menu_FilePopup">
-                <menuitem id="menu_newNavigatorTab"
-                          label="&tabCmd.label;"
-                          command="cmd_newNavigatorTab"
-                          key="key_newNavigatorTab"
-                          accesskey="&tabCmd.accesskey;"/>
                 <menuitem id="menu_newNavigator"
                           label="&newNavigatorCmd.label;"
                           accesskey="&newNavigatorCmd.accesskey;"
                           key="key_newNavigator"
                           command="cmd_newNavigator"/>
+                <menuitem id="menu_newNavigatorTab"
+                          label="&tabCmd.label;"
+                          command="cmd_newNavigatorTab"
+                          key="key_newNavigatorTab"
+                          accesskey="&tabCmd.accesskey;"/>
                 <menuitem id="menu_openLocation"
                           label="&openLocationCmd.label;"
                           command="Browser:OpenLocation"
@@ -62,17 +62,17 @@
                           command="Browser:OpenFile"
                           key="openFileKb"
                           accesskey="&openFileCmd.accesskey;"/>
-                <menuitem id="menu_close"
-                          label="&closeCmd.label;"
-                          key="key_close"
-                          accesskey="&closeCmd.accesskey;"
-                          command="cmd_close"/>
                 <menuitem id="menu_closeWindow"
                           hidden="true"
                           command="cmd_closeWindow"
                           key="key_closeWindow"
                           label="&closeWindow.label;"
                           accesskey="&closeWindow.accesskey;"/>
+                <menuitem id="menu_close"
+                          label="&closeCmd.label;"
+                          key="key_close"
+                          accesskey="&closeCmd.accesskey;"
+                          command="cmd_close"/>
                 <menuseparator/>
                 <menuitem id="menu_savePage"
                           label="&savePageCmd.label;"
@@ -213,8 +213,7 @@
                       accesskey="&viewToolbarsMenu.accesskey;">
                   <menupopup onpopupshowing="onViewToolbarsPopupShowing(event);">
                     <menuseparator/>
-                    <menuitem id="menu_tabsOnTop"
-                              command="cmd_ToggleTabsOnTop"
+                    <menuitem command="cmd_ToggleTabsOnTop"
                               type="checkbox"
                               label="&viewTabsOnTop.label;"
                               accesskey="&viewTabsOnTop.accesskey;"/>
@@ -612,10 +611,10 @@
                         accesskey="&errorConsoleCmd.accesskey;"
                         key="key_errorConsole"
                         oncommand="toJavaScriptConsole();"/>
-              <menuitem id="webConsole"
-                        label="&webConsoleCmd.label;"
-                        accesskey="&webConsoleCmd.accesskey;"
-                        key="key_webConsole"
+              <menuitem id="headsUpDisplayConsole"
+                        label="&hudConsoleCmd.label;"
+                        accesskey="&hudConsoleCmd.accesskey;"
+                        key="key_hudConsole"
                         oncommand="HUDConsoleUI.toggleHUD();"/>
               <menuitem id="menu_pageInfo"
                         accesskey="&pageInfoCmd.accesskey;"

@@ -1031,8 +1031,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
     event.refPoint.y = r.y();
     event.region = nsIntRegion(rect);
     {
-      AutoLayerManagerSetup
-          setupLayerManager(this, ctx, BasicLayerManager::BUFFER_NONE);
+      AutoLayerManagerSetup setupLayerManager(this, ctx);
       status = DispatchEvent(&event);
     }
 
@@ -1311,11 +1310,10 @@ nsEventStatus
 nsWindow::OnFocusInEvent(QEvent *aEvent)
 {
     LOGFOCUS(("OnFocusInEvent [%p]\n", (void *)this));
-
     if (!mWidget)
         return nsEventStatus_eIgnore;
 
-    DispatchActivateEventOnTopLevelWindow();
+    DispatchActivateEvent();
 
     LOGFOCUS(("Events sent from focus in event [%p]\n", (void *)this));
     return nsEventStatus_eIgnore;
@@ -1326,10 +1324,8 @@ nsWindow::OnFocusOutEvent(QEvent *aEvent)
 {
     LOGFOCUS(("OnFocusOutEvent [%p]\n", (void *)this));
 
-    if (!mWidget)
-        return nsEventStatus_eIgnore;
-
-    DispatchDeactivateEventOnTopLevelWindow();
+    if (mWidget)
+        DispatchDeactivateEvent();
 
     LOGFOCUS(("Done with container focus out [%p]\n", (void *)this));
     return nsEventStatus_eIgnore;
@@ -1854,6 +1850,24 @@ nsWindow::GetHasTransparentBackground(PRBool& aTransparent)
     return NS_OK;
 }
 
+void
+nsWindow::GetToplevelWidget(MozQWidget **aWidget)
+{
+    MozQGraphicsView *view = static_cast<MozQGraphicsView*>(GetViewWidget());
+    if (view)
+        *aWidget = view->GetTopLevelWidget();
+}
+
+nsWindow *
+nsWindow::GetTopLevelNsWindow()
+{
+    MozQWidget *widget = nsnull;
+    GetToplevelWidget(&widget);
+    if (widget)
+        return widget->getReceiver();
+    return nsnull;
+}
+
 void *
 nsWindow::SetupPluginPort(void)
 {
@@ -1930,7 +1944,10 @@ NS_IMETHODIMP
 nsWindow::HideWindowChrome(PRBool aShouldHide)
 {
     if (!mWidget) {
-        // Nothing to hide
+        // Pass the request to the toplevel window
+        MozQWidget *topWidget = nsnull;
+        GetToplevelWidget(&topWidget);
+//        return topWindow->HideWindowChrome(aShouldHide);
         return NS_ERROR_FAILURE;
     }
 
@@ -2149,7 +2166,7 @@ nsWindow::SetAcceleratedRendering(PRBool aEnabled)
 mozilla::layers::LayerManager*
 nsWindow::GetLayerManager()
 {
-    nsWindow *topWindow = static_cast<nsWindow*>(GetTopLevelWidget());
+    nsWindow *topWindow = GetTopLevelNsWindow();
     if (!topWindow)
         return nsBaseWidget::GetLayerManager();
 
@@ -2248,22 +2265,6 @@ nsWindow::DispatchDeactivateEvent(void)
     nsGUIEvent event(PR_TRUE, NS_DEACTIVATE, this);
     nsEventStatus status;
     DispatchEvent(&event, status);
-}
-
-void
-nsWindow::DispatchActivateEventOnTopLevelWindow(void)
-{
-    nsWindow * topLevelWindow = static_cast<nsWindow*>(GetTopLevelWidget());
-    if (topLevelWindow != nsnull)
-         topLevelWindow->DispatchActivateEvent();
-}
-
-void
-nsWindow::DispatchDeactivateEventOnTopLevelWindow(void)
-{
-    nsWindow * topLevelWindow = static_cast<nsWindow*>(GetTopLevelWidget());
-    if (topLevelWindow != nsnull)
-         topLevelWindow->DispatchDeactivateEvent();
 }
 
 void

@@ -48,7 +48,7 @@ let wasCollapsed = toolbar.collapsed;
 function test() {
   // Uncollapse the personal toolbar if needed.
   if (wasCollapsed)
-    setToolbarVisibility(toolbar, true);
+    toolbar.collapsed = false;
 
   waitForExplicitFinish();
 
@@ -204,7 +204,7 @@ function finishTest() {
 
   // Collapse the personal toolbar if needed.
   if (wasCollapsed)
-    setToolbarVisibility(toolbar, false);
+    toolbar.collapsed = true;
 
   finish();
 }

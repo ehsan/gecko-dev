@@ -218,10 +218,20 @@ var AddonManagerInternal = {
       }
     }
 
+    let needsRestart = false;
     this.providers.forEach(function(provider) {
-      callProvider(provider, "startup", null, appChanged);
+      callProvider(provider, "startup");
+      if (callProvider(provider, "checkForChanges", false, appChanged))
+        needsRestart = true;
     });
     this.started = true;
+
+    // Flag to the platform that a restart is necessary
+    if (needsRestart) {
+      let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].
+                       getService(Ci.nsIAppStartup2);
+      appStartup.needsRestart = needsRestart;
+    }
   },
 
   /**
@@ -879,18 +889,6 @@ var AddonManager = {
   // Indicates that the Addon will be installed after the application restarts.
   PENDING_INSTALL: 8,
   PENDING_UPGRADE: 16,
-
-  // Constants for operations in Addon.operationsRequiringRestart
-  // Indicates that restart isn't required for any operation.
-  OP_NEEDS_RESTART_NONE: 0,
-  // Indicates that restart is required for enabling the addon.
-  OP_NEEDS_RESTART_ENABLE: 1,
-  // Indicates that restart is required for disabling the addon.
-  OP_NEEDS_RESTART_DISABLE: 2,
-  // Indicates that restart is required for uninstalling the addon.
-  OP_NEEDS_RESTART_UNINSTALL: 4,
-  // Indicates that restart is required for installing the addon.
-  OP_NEEDS_RESTART_INSTALL: 8,
 
   // Constants for permissions in Addon.permissions.
   // Indicates that the Addon can be uninstalled.

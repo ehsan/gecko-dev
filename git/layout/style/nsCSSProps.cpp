@@ -86,9 +86,7 @@ static const char* const kCSSRawFontDescs[] = {
   "font-weight",
   "font-stretch",
   "src",
-  "unicode-range",
-  "-moz-font-feature-settings",
-  "-moz-font-language-override"
+  "unicode-range"
 };
 
 struct PropertyAndCount {
@@ -417,10 +415,6 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword_toolbargripper,         NS_THEME_TOOLBAR_GRIPPER,
   eCSSKeyword_dualbutton,             NS_THEME_TOOLBAR_DUAL_BUTTON,
   eCSSKeyword_toolbarbutton_dropdown, NS_THEME_TOOLBAR_BUTTON_DROPDOWN,
-  eCSSKeyword_button_arrow_up,        NS_THEME_BUTTON_ARROW_UP,
-  eCSSKeyword_button_arrow_down,      NS_THEME_BUTTON_ARROW_DOWN,
-  eCSSKeyword_button_arrow_next,      NS_THEME_BUTTON_ARROW_NEXT,
-  eCSSKeyword_button_arrow_previous,  NS_THEME_BUTTON_ARROW_PREVIOUS,
   eCSSKeyword_separator,              NS_THEME_TOOLBAR_SEPARATOR,
   eCSSKeyword_splitter,               NS_THEME_SPLITTER,
   eCSSKeyword_statusbar,              NS_THEME_STATUSBAR,
@@ -1865,8 +1859,6 @@ static const nsCSSProperty gFontSubpropTable[] = {
   eCSSProperty_font_size_adjust, // XXX Added LDB.
   eCSSProperty_font_stretch, // XXX Added LDB.
   eCSSProperty__x_system_font,
-  eCSSProperty_font_feature_settings,
-  eCSSProperty_font_language_override,
   eCSSProperty_UNKNOWN
 };
 

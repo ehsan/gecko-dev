@@ -41,7 +41,7 @@
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/ipc/DocumentRendererShmemParent.h"
 #include "mozilla/ipc/DocumentRendererNativeIDParent.h"
-#include "mozilla/dom/ContentParent.h"
+#include "mozilla/dom/ContentProcessParent.h"
 
 #include "nsIURI.h"
 #include "nsFocusManager.h"
@@ -68,12 +68,10 @@
 #include "nsIPromptFactory.h"
 #include "nsIContent.h"
 
-#include "mozilla/unused.h"
-
 using mozilla::ipc::DocumentRendererParent;
 using mozilla::ipc::DocumentRendererShmemParent;
 using mozilla::ipc::DocumentRendererNativeIDParent;
-using mozilla::dom::ContentParent;
+using mozilla::dom::ContentProcessParent;
 
 // The flags passed by the webProgress notifications are 16 bits shifted
 // from the ones registered by webProgressListeners.
@@ -105,13 +103,13 @@ TabParent::ActorDestroy(ActorDestroyReason why)
 }
 
 bool
-TabParent::RecvMoveFocus(const bool& aForward)
+TabParent::RecvmoveFocus(const bool& aForward)
 {
   nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
   if (fm) {
     nsCOMPtr<nsIDOMElement> dummy;
-    PRUint32 type = aForward ? PRUint32(nsIFocusManager::MOVEFOCUS_FORWARD)
-                             : PRUint32(nsIFocusManager::MOVEFOCUS_BACKWARD);
+    PRUint32 type = aForward ? nsIFocusManager::MOVEFOCUS_FORWARD
+                             : nsIFocusManager::MOVEFOCUS_BACKWARD;
     fm->MoveFocus(nsnull, mFrameElement, type, nsIFocusManager::FLAG_BYKEY, 
                   getter_AddRefs(dummy));
   }
@@ -119,7 +117,7 @@ TabParent::RecvMoveFocus(const bool& aForward)
 }
 
 bool
-TabParent::RecvEvent(const RemoteDOMEvent& aEvent)
+TabParent::RecvsendEvent(const RemoteDOMEvent& aEvent)
 {
   nsCOMPtr<nsIDOMEvent> event = do_QueryInterface(aEvent.mEvent);
   NS_ENSURE_TRUE(event, true);
@@ -133,7 +131,7 @@ TabParent::RecvEvent(const RemoteDOMEvent& aEvent)
 }
 
 bool
-TabParent::RecvNotifyProgressChange(const PRInt64& aProgress,
+TabParent::RecvnotifyProgressChange(const PRInt64& aProgress,
                                     const PRInt64& aProgressMax,
                                     const PRInt64& aTotalProgress,
                                     const PRInt64& aMaxTotalProgress)
@@ -177,7 +175,7 @@ TabParent::RecvNotifyProgressChange(const PRInt64& aProgress,
 }
 
 bool
-TabParent::RecvNotifyStateChange(const PRUint32& aStateFlags,
+TabParent::RecvnotifyStateChange(const PRUint32& aStateFlags,
                                  const nsresult& aStatus)
 {
   /*                                                                           
@@ -217,7 +215,7 @@ TabParent::RecvNotifyStateChange(const PRUint32& aStateFlags,
  }
 
 bool
-TabParent::RecvNotifyLocationChange(const nsCString& aUri)
+TabParent::RecvnotifyLocationChange(const nsCString& aUri)
 {
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), aUri);
@@ -254,7 +252,7 @@ TabParent::RecvNotifyLocationChange(const nsCString& aUri)
 }
 
 bool
-TabParent::RecvNotifyStatusChange(const nsresult& status,
+TabParent::RecvnotifyStatusChange(const nsresult& status,
                                   const nsString& message)
 {
   /*                                                                           
@@ -286,7 +284,7 @@ TabParent::RecvNotifyStatusChange(const nsresult& status,
 }
 
 bool
-TabParent::RecvNotifySecurityChange(const PRUint32& aState)
+TabParent::RecvnotifySecurityChange(const PRUint32& aState)
 {
   /*                                                                           
    * First notify any listeners of the new state info...
@@ -318,7 +316,7 @@ TabParent::RecvNotifySecurityChange(const PRUint32& aState)
 }
 
 bool
-TabParent::RecvRefreshAttempted(const nsCString& aURI, const PRInt32& aMillis, 
+TabParent::RecvrefreshAttempted(const nsCString& aURI, const PRInt32& aMillis, 
                                 const bool& aSameURI, bool* refreshAllowed)
 {
   nsCOMPtr<nsIURI> uri;
@@ -367,7 +365,7 @@ TabParent::RecvRefreshAttempted(const nsCString& aURI, const PRInt32& aMillis,
 }
 
 bool
-TabParent::AnswerCreateWindow(PBrowserParent** retval)
+TabParent::AnswercreateWindow(PIFrameEmbeddingParent** retval)
 {
     if (!mBrowserDOMWindow) {
         return false;
@@ -389,7 +387,7 @@ TabParent::AnswerCreateWindow(PBrowserParent** retval)
         return false;
     }
 
-    *retval = frameLoader->GetRemoteBrowser();
+    *retval = frameLoader->GetChildProcess();
     return true;
 }
 
@@ -399,19 +397,19 @@ TabParent::LoadURL(nsIURI* aURI)
     nsCString spec;
     aURI->GetSpec(spec);
 
-    unused << SendLoadURL(spec);
+    SendloadURL(spec);
 }
 
 void
 TabParent::Move(PRUint32 x, PRUint32 y, PRUint32 width, PRUint32 height)
 {
-    unused << SendMove(x, y, width, height);
+    Sendmove(x, y, width, height);
 }
 
 void
 TabParent::Activate()
 {
-    unused << SendActivate();
+    Sendactivate();
 }
 
 mozilla::ipc::PDocumentRendererParent*
@@ -479,9 +477,8 @@ TabParent::SendMouseEvent(const nsAString& aType, float aX, float aY,
                           PRInt32 aButton, PRInt32 aClickCount,
                           PRInt32 aModifiers, PRBool aIgnoreRootScrollFrame)
 {
-  unused << PBrowserParent::SendMouseEvent(nsString(aType), aX, aY,
-                                           aButton, aClickCount,
-                                           aModifiers, aIgnoreRootScrollFrame);
+  SendsendMouseEvent(nsString(aType), aX, aY, aButton, aClickCount,
+                     aModifiers, aIgnoreRootScrollFrame);
 }
 
 void
@@ -491,21 +488,21 @@ TabParent::SendKeyEvent(const nsAString& aType,
                         PRInt32 aModifiers,
                         PRBool aPreventDefault)
 {
-  unused << PBrowserParent::SendKeyEvent(nsString(aType), aKeyCode, aCharCode,
-                                         aModifiers, aPreventDefault);
+    SendsendKeyEvent(nsString(aType), aKeyCode, aCharCode, aModifiers,
+                     aPreventDefault);
 }
 
 bool
-TabParent::RecvSyncMessage(const nsString& aMessage,
-                           const nsString& aJSON,
-                           nsTArray<nsString>* aJSONRetVal)
+TabParent::RecvsendSyncMessageToParent(const nsString& aMessage,
+                                       const nsString& aJSON,
+                                       nsTArray<nsString>* aJSONRetVal)
 {
   return ReceiveMessage(aMessage, PR_TRUE, aJSON, aJSONRetVal);
 }
 
 bool
-TabParent::RecvAsyncMessage(const nsString& aMessage,
-                            const nsString& aJSON)
+TabParent::RecvsendAsyncMessageToParent(const nsString& aMessage,
+                                        const nsString& aJSON)
 {
   return ReceiveMessage(aMessage, PR_FALSE, aJSON, nsnull);
 }
@@ -554,6 +551,8 @@ nsresult
 TabParent::AddProgressListener(nsIWebProgressListener* aListener,
                                PRUint32 aNotifyMask)
 {
+  nsresult rv;
+
   if (GetListenerInfo(aListener)) {
     // The listener is already registered!
     return NS_ERROR_FAILURE;
@@ -621,6 +620,9 @@ NS_IMETHODIMP
 TabParent::GetAuthPrompt(PRUint32 aPromptReason, const nsIID& iid,
                           void** aResult)
 {
+  // a priority prompt request will override a false mAllowAuth setting
+  PRBool priorityPrompt = (aPromptReason == PROMPT_PROXY);
+
   // we're either allowing auth, or it's a proxy request
   nsresult rv;
   nsCOMPtr<nsIPromptFactory> wwatch =
@@ -701,8 +703,7 @@ TabParent::HandleDelayedDialogs()
       nsTArray<PRInt32> intParams;
       nsTArray<nsString> stringParams;
       TabChild::ParamsToArrays(params, intParams, stringParams);
-      unused << PContentDialogParent::Send__delete__(dialog,
-                                                     intParams, stringParams);
+      PContentDialogParent::Send__delete__(dialog, intParams, stringParams);
     }
   }
   if (ShouldDelayDialogs() && mDelayedDialogs.Length()) {

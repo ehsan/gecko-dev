@@ -52,7 +52,7 @@ class nsHTMLTableRowElement : public nsGenericHTMLElement,
                               public nsIDOMHTMLTableRowElement
 {
 public:
-  nsHTMLTableRowElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLTableRowElement(nsINodeInfo *aNodeInfo);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -78,8 +78,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
-
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLTableRowElement,
                                                      nsGenericHTMLElement)
 
@@ -93,7 +91,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(TableRow)
 
 
-nsHTMLTableRowElement::nsHTMLTableRowElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLTableRowElement::nsHTMLTableRowElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -109,7 +107,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTableRowElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTableRowElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLTableRowElement, nsHTMLTableRowElement)
+DOMCI_DATA(HTMLTableRowElement, nsHTMLTableRowElement)
 
 // QueryInterface implementation for nsHTMLTableRowElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTableRowElement)
@@ -302,7 +300,7 @@ nsHTMLTableRowElement::InsertCell(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
   nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::td,
                               getter_AddRefs(nodeInfo));
 
-  nsCOMPtr<nsIContent> cellContent = NS_NewHTMLTableCellElement(nodeInfo.forget());
+  nsCOMPtr<nsIContent> cellContent = NS_NewHTMLTableCellElement(nodeInfo);
   if (!cellContent) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -392,7 +390,7 @@ nsHTMLTableRowElement::ParseAttribute(PRInt32 aNamespaceID,
       return ParseTableCellHAlignValue(aValue, aResult);
     }
     if (aAttribute == nsGkAtoms::bgcolor) {
-      return aResult.ParseColor(aValue);
+      return aResult.ParseColor(aValue, GetOwnerDoc());
     }
     if (aAttribute == nsGkAtoms::valign) {
       return ParseTableVAlignValue(aValue, aResult);
@@ -461,4 +459,3 @@ nsHTMLTableRowElement::GetAttributeMappingFunction() const
 {
   return &MapAttributesIntoRule;
 }
-

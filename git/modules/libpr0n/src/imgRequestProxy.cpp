@@ -53,23 +53,20 @@
 #include "ImageLogging.h"
 
 #include "nspr.h"
+#include "imgContainerRequest.h"
 
 NS_IMPL_ISUPPORTS4(imgRequestProxy, imgIRequest, nsIRequest,
                    nsISupportsPriority, nsISecurityInfoProvider)
 
 imgRequestProxy::imgRequestProxy() :
   mOwner(nsnull),
-  mURI(nsnull),
-  mImage(nsnull),
-  mPrincipal(nsnull),
   mListener(nsnull),
   mLoadFlags(nsIRequest::LOAD_NORMAL),
   mLocksHeld(0),
   mCanceled(PR_FALSE),
   mIsInLoadGroup(PR_FALSE),
   mListenerIsStrongRef(PR_FALSE),
-  mDecodeRequested(PR_FALSE),
-  mDeferNotifications(PR_FALSE)
+  mDecodeRequested(PR_FALSE)
 {
   /* member initializers and constructor code */
 
@@ -82,8 +79,10 @@ imgRequestProxy::~imgRequestProxy()
 
   // Unlock the image the proper number of times if we're holding locks on it.
   // Note that UnlockImage() decrements mLocksHeld each time it's called.
-  while (mLocksHeld)
-    UnlockImage();
+  if (mOwner) {
+    while (mLocksHeld)
+      UnlockImage();
+  }
 
   // Explicitly set mListener to null to ensure that the RemoveProxy
   // call below can't send |this| to an arbitrary listener while |this|
@@ -108,10 +107,12 @@ imgRequestProxy::~imgRequestProxy()
   }
 }
 
-nsresult imgRequestProxy::Init(imgRequest* request, nsILoadGroup* aLoadGroup, imgContainer* aImage,
-                               nsIURI* aURI, imgIDecoderObserver* aObserver)
+nsresult imgRequestProxy::Init(imgRequest *request, nsILoadGroup *aLoadGroup, imgIDecoderObserver *aObserver)
 {
   NS_PRECONDITION(!mOwner && !mListener, "imgRequestProxy is already initialized");
+  NS_PRECONDITION(request, "no request");
+  if (!request)
+    return NS_ERROR_NULL_POINTER;
 
   LOG_SCOPE_WITH_PARAM(gImgLog, "imgRequestProxy::Init", "request", request);
 
@@ -125,41 +126,28 @@ nsresult imgRequestProxy::Init(imgRequest* request, nsILoadGroup* aLoadGroup, im
     NS_ADDREF(mListener);
   }
   mLoadGroup = aLoadGroup;
-  mImage = aImage;
-  mURI = aURI;
 
   // Note: AddProxy won't send all the On* notifications immediately
-  if (mOwner)
-    mOwner->AddProxy(this);
+  request->AddProxy(this);
 
   return NS_OK;
 }
 
 nsresult imgRequestProxy::ChangeOwner(imgRequest *aNewOwner)
 {
-  NS_PRECONDITION(mOwner, "Cannot ChangeOwner on a proxy without an owner!");
+  if (mCanceled)
+    return NS_OK;
+
+  // Were we decoded before?
+  PRBool wasDecoded = PR_FALSE;
+  if (mOwner->GetImageStatus() & imgIRequest::STATUS_FRAME_COMPLETE)
+    wasDecoded = PR_TRUE;
 
   // If we're holding locks, unlock the old image.
   // Note that UnlockImage decrements mLocksHeld each time it's called.
   PRUint32 oldLockCount = mLocksHeld;
   while (mLocksHeld)
     UnlockImage();
-
-  // Even if we are cancelled, we MUST change our image, because the image
-  // holds our status, and the status must always be correct.
-  mImage = aNewOwner->mImage;
-
-  // If we were locked, apply the locks here
-  for (PRUint32 i = 0; i < oldLockCount; i++)
-    LockImage();
-
-  if (mCanceled)
-    return NS_OK;
-
-  // Were we decoded before?
-  PRBool wasDecoded = PR_FALSE;
-  if (mImage->GetStatusTracker().GetImageStatus() & imgIRequest::STATUS_FRAME_COMPLETE)
-    wasDecoded = PR_TRUE;
 
   // Passing false to aNotify means that mListener will still get
   // OnStopRequest, if needed.
@@ -173,6 +161,10 @@ nsresult imgRequestProxy::ChangeOwner(imgRequest *aNewOwner)
   // decode on the new image
   if (wasDecoded || mDecodeRequested)
     mOwner->RequestDecode();
+
+  // If we were locked, apply the locks here
+  for (PRUint32 i = 0; i < oldLockCount; i++)
+    LockImage();
 
   return NS_OK;
 }
@@ -215,10 +207,12 @@ void imgRequestProxy::RemoveFromLoadGroup(PRBool releaseLoadGroup)
 NS_IMETHODIMP imgRequestProxy::GetName(nsACString &aName)
 {
   aName.Truncate();
-
-  if (mURI)
-    mURI->GetSpec(aName);
-
+  if (mOwner) {
+    nsCOMPtr<nsIURI> uri;
+    mOwner->GetURI(getter_AddRefs(uri));
+    if (uri)
+      uri->GetSpec(aName);
+  }
   return NS_OK;
 }
 
@@ -237,7 +231,7 @@ NS_IMETHODIMP imgRequestProxy::GetStatus(nsresult *aStatus)
 /* void cancel (in nsresult status); */
 NS_IMETHODIMP imgRequestProxy::Cancel(nsresult status)
 {
-  if (mCanceled)
+  if (mCanceled || !mOwner)
     return NS_ERROR_FAILURE;
 
   LOG_SCOPE(gImgLog, "imgRequestProxy::Cancel");
@@ -253,8 +247,7 @@ imgRequestProxy::DoCancel(nsresult status)
 {
   // Passing false to aNotify means that mListener will still get
   // OnStopRequest, if needed.
-  if (mOwner)
-    mOwner->RemoveProxy(this, status, PR_FALSE);
+  mOwner->RemoveProxy(this, status, PR_FALSE);
 
   NullOutListener();
 }
@@ -262,7 +255,7 @@ imgRequestProxy::DoCancel(nsresult status)
 /* void cancelAndForgetObserver (in nsresult aStatus); */
 NS_IMETHODIMP imgRequestProxy::CancelAndForgetObserver(nsresult aStatus)
 {
-  if (mCanceled)
+  if (mCanceled || !mOwner)
     return NS_ERROR_FAILURE;
 
   LOG_SCOPE(gImgLog, "imgRequestProxy::CancelAndForgetObserver");
@@ -272,11 +265,10 @@ NS_IMETHODIMP imgRequestProxy::CancelAndForgetObserver(nsresult aStatus)
   // Now cheat and make sure our removal from loadgroup happens async
   PRBool oldIsInLoadGroup = mIsInLoadGroup;
   mIsInLoadGroup = PR_FALSE;
-
+  
   // Passing false to aNotify means that mListener will still get
   // OnStopRequest, if needed.
-  if (mOwner)
-    mOwner->RemoveProxy(this, aStatus, PR_FALSE);
+  mOwner->RemoveProxy(this, aStatus, PR_FALSE);
 
   mIsInLoadGroup = oldIsInLoadGroup;
 
@@ -309,20 +301,29 @@ imgRequestProxy::RequestDecode()
 NS_IMETHODIMP
 imgRequestProxy::LockImage()
 {
+  if (!mOwner)
+    return NS_ERROR_FAILURE;
+
+  // Increment our lock count
   mLocksHeld++;
 
-  return mImage->LockImage();
+  // Forward the request
+  return mOwner->LockImage();
 }
 
 /* void unlockImage (); */
 NS_IMETHODIMP
 imgRequestProxy::UnlockImage()
 {
-  NS_ABORT_IF_FALSE(mLocksHeld > 0, "calling unlock but no locks!");
+  if (!mOwner)
+    return NS_ERROR_FAILURE;
 
+  // Decrement our lock count
+  NS_ABORT_IF_FALSE(mLocksHeld > 0, "calling unlock but no locks!");
   mLocksHeld--;
 
-  return mImage->UnlockImage();
+  // Forward the request
+  return mOwner->UnlockImage();
 }
 
 /* void suspend (); */
@@ -366,31 +367,32 @@ NS_IMETHODIMP imgRequestProxy::SetLoadFlags(nsLoadFlags flags)
 /* attribute imgIContainer image; */
 NS_IMETHODIMP imgRequestProxy::GetImage(imgIContainer * *aImage)
 {
-  if (!mImage->IsInitialized())
+  if (!mOwner)
     return NS_ERROR_FAILURE;
 
-  NS_ADDREF(*aImage = mImage);
-
+  mOwner->GetImage(aImage);
   return NS_OK;
 }
 
 /* readonly attribute unsigned long imageStatus; */
 NS_IMETHODIMP imgRequestProxy::GetImageStatus(PRUint32 *aStatus)
 {
-  *aStatus = mImage->GetStatusTracker().GetImageStatus();
+  if (!mOwner) {
+    *aStatus = imgIRequest::STATUS_ERROR;
+    return NS_ERROR_FAILURE;
+  }
 
+  *aStatus = mOwner->GetImageStatus();
   return NS_OK;
 }
 
 /* readonly attribute nsIURI URI; */
 NS_IMETHODIMP imgRequestProxy::GetURI(nsIURI **aURI)
 {
-  if (!mURI)
+  if (!mOwner)
     return NS_ERROR_FAILURE;
 
-  NS_ADDREF(*aURI = mURI);
-
-  return NS_OK;
+  return mOwner->GetURI(aURI);
 }
 
 /* readonly attribute imgIDecoderObserver decoderObserver; */
@@ -420,11 +422,12 @@ NS_IMETHODIMP imgRequestProxy::Clone(imgIDecoderObserver* aObserver,
                                      imgIRequest** aClone)
 {
   NS_PRECONDITION(aClone, "Null out param");
-
-  LOG_SCOPE(gImgLog, "imgRequestProxy::Clone");
-
   *aClone = nsnull;
-  nsRefPtr<imgRequestProxy> clone = new imgRequestProxy();
+  imgRequestProxy* clone = new imgRequestProxy();
+  if (!clone) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  NS_ADDREF(clone);
 
   // It is important to call |SetLoadFlags()| before calling |Init()| because
   // |Init()| adds the request to the loadgroup.
@@ -433,20 +436,19 @@ NS_IMETHODIMP imgRequestProxy::Clone(imgIDecoderObserver* aObserver,
   // XXXldb That's not true anymore.  Stuff from imgLoader adds the
   // request to the loadgroup.
   clone->SetLoadFlags(mLoadFlags);
-  nsresult rv = clone->Init(mOwner, mLoadGroup, mImage, mURI, aObserver);
-  if (NS_FAILED(rv))
+  nsresult rv = clone->Init(mOwner, mLoadGroup, aObserver);
+  if (NS_FAILED(rv)) {
+    NS_RELEASE(clone);
     return rv;
+  }
 
-  clone->SetPrincipal(mPrincipal);
+  // Assign to *aClone before calling NotifyProxyListener so that if
+  // the caller expects to only be notified for requests it's already
+  // holding pointers to it won't be surprised.
+  *aClone = clone;
 
-  // Assign to *aClone before calling Notify so that if the caller expects to
-  // only be notified for requests it's already holding pointers to it won't be
-  // surprised.
-  NS_ADDREF(*aClone = clone);
-
-  // This is wrong!!! We need to notify asynchronously, but there's code that
-  // assumes that we don't. This will be fixed in bug 580466.
-  clone->SyncNotifyListener();
+  // Send the notifications to the clone's observer
+  mOwner->NotifyProxyListener(clone);
 
   return NS_OK;
 }
@@ -454,12 +456,10 @@ NS_IMETHODIMP imgRequestProxy::Clone(imgIDecoderObserver* aObserver,
 /* readonly attribute nsIPrincipal imagePrincipal; */
 NS_IMETHODIMP imgRequestProxy::GetImagePrincipal(nsIPrincipal **aPrincipal)
 {
-  if (!mPrincipal)
+  if (!mOwner)
     return NS_ERROR_FAILURE;
 
-  NS_ADDREF(*aPrincipal = mPrincipal);
-
-  return NS_OK;
+  return mOwner->GetPrincipal(aPrincipal);
 }
 
 /** nsISupportsPriority methods **/
@@ -610,7 +610,10 @@ void imgRequestProxy::OnDiscard()
   }
 }
 
-void imgRequestProxy::OnStartRequest()
+
+
+
+void imgRequestProxy::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
 {
 #ifdef PR_LOGGING
   nsCAutoString name;
@@ -627,7 +630,8 @@ void imgRequestProxy::OnStartRequest()
   }
 }
 
-void imgRequestProxy::OnStopRequest(PRBool lastPart)
+void imgRequestProxy::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
+                                    nsresult statusCode, PRBool lastPart)
 {
 #ifdef PR_LOGGING
   nsCAutoString name;
@@ -686,67 +690,42 @@ NS_IMETHODIMP
 imgRequestProxy::GetStaticRequest(imgIRequest** aReturn)
 {
   *aReturn = nsnull;
+  nsCOMPtr<imgIContainer> img, currentFrame;
+  GetImage(getter_AddRefs(img));
+  if (img) {
+    PRBool animated = PR_FALSE;
+    nsresult rv = img->GetAnimated(&animated);
+    if (NS_SUCCEEDED(rv) && !animated) {
+      NS_ADDREF(*aReturn = this);
+      return NS_OK;
+    }
 
-  PRBool animated;
-  if (NS_SUCCEEDED(mImage->GetAnimated(&animated)) && !animated) {
-    // Early exit - we're not animated, so we don't have to do anything.
-    NS_ADDREF(*aReturn = this);
-    return NS_OK;
+    PRInt32 w = 0;
+    PRInt32 h = 0;
+    img->GetWidth(&w);
+    img->GetHeight(&h);
+    nsIntRect rect(0, 0, w, h);
+    img->ExtractFrame(imgIContainer::FRAME_CURRENT, rect,
+                      imgIContainer::FLAG_SYNC_DECODE,
+                      getter_AddRefs(currentFrame));
   }
 
-  // We are animated. We need to extract the current frame from this image.
-  PRInt32 w = 0;
-  PRInt32 h = 0;
-  mImage->GetWidth(&w);
-  mImage->GetHeight(&h);
-  nsIntRect rect(0, 0, w, h);
-  nsCOMPtr<imgIContainer> currentFrame;
-  nsresult rv = mImage->ExtractFrame(imgIContainer::FRAME_CURRENT, rect,
-                                     imgIContainer::FLAG_SYNC_DECODE,
-                                     getter_AddRefs(currentFrame));
-  if (NS_FAILED(rv))
-    return rv;
+  nsCOMPtr<nsIURI> uri;
+  GetURI(getter_AddRefs(uri));
+  PRUint32 imageStatus = 0;
+  GetImageStatus(&imageStatus);
+  nsCOMPtr<nsIPrincipal> principal;
+  GetImagePrincipal(getter_AddRefs(principal));
 
-  nsRefPtr<imgContainer> frame = static_cast<imgContainer*>(currentFrame.get());
-
-  // Create a static imgRequestProxy with our new extracted frame.
-  nsRefPtr<imgRequestProxy> req = new imgRequestProxy();
-  req->Init(nsnull, nsnull, frame, mURI, nsnull);
-  req->SetPrincipal(mPrincipal);
+  imgContainerRequest* req =
+    new imgContainerRequest(currentFrame, uri, imageStatus,
+                            mOwner ? mOwner->GetState() : 0,
+                            principal);
+  if (!req) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   NS_ADDREF(*aReturn = req);
-
   return NS_OK;
 }
 
-void imgRequestProxy::SetPrincipal(nsIPrincipal *aPrincipal)
-{
-  mPrincipal = aPrincipal;
-}
-
-void imgRequestProxy::NotifyListener()
-{
-  // It would be nice to notify the observer directly in the status tracker
-  // instead of through the proxy, but there are several places we do extra
-  // processing when we receive notifications (like OnStopRequest()), and we
-  // need to check mCanceled everywhere too.
-
-  if (mOwner) {
-    // Send the notifications to our listener asynchronously.
-    mImage->GetStatusTracker().Notify(mOwner, this);
-  } else {
-    // We don't have an imgRequest, so we can only notify the clone of our
-    // current state, but we still have to do that asynchronously.
-    mImage->GetStatusTracker().NotifyCurrentState(this);
-  }
-}
-
-void imgRequestProxy::SyncNotifyListener()
-{
-  // It would be nice to notify the observer directly in the status tracker
-  // instead of through the proxy, but there are several places we do extra
-  // processing when we receive notifications (like OnStopRequest()), and we
-  // need to check mCanceled everywhere too.
-
-  mImage->GetStatusTracker().SyncNotify(this);
-}

@@ -67,6 +67,7 @@ public:
                    PRBool aExpandEntityReferences);
     virtual ~nsNodeIterator();
 
+    NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsNodeIterator, nsIDOMNodeIterator)
@@ -80,15 +81,22 @@ private:
         PRBool MoveToNext(nsINode *aRoot);
         PRBool MoveToPrevious(nsINode *aRoot);
 
-        PRBool MoveForward(nsINode *aRoot, nsINode *aNode);
-        void MoveBackward(nsINode *aParent, nsINode *aNode);
+        PRBool MoveForward(nsINode *aRoot, nsINode *aParent, PRInt32 aChildNum);
+        void MoveBackward(nsINode *aParent, PRInt32 aChildNum);
 
-        void AdjustAfterRemoval(nsINode *aRoot, nsINode *aContainer, nsIContent *aChild, nsIContent *aPreviousSibling);
+        void AdjustAfterInsertion(nsINode *aRoot, nsINode *aContainer, PRInt32 aIndexInContainer);
+        void AdjustAfterRemoval(nsINode *aRoot, nsINode *aContainer, nsIContent *aChild, PRInt32 aIndexInContainer);
 
         void Clear() { mNode = nsnull; }
 
         nsINode *mNode;
+        // pointer to the parent of mNode. Can be dangling if mNode is null or
+        // points to the root
+        nsINode *mNodeParent;
         PRBool mBeforeNode;
+        // mNode's index in mNodeParent. Uninitialized if mNodeParent is null
+        // or dangling (per above comment).
+        PRInt32 mIndexInParent;
     };
 
     inline nsresult

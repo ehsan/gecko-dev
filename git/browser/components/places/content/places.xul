@@ -204,8 +204,7 @@
       <menubar id="placesMenu">
         <menu accesskey="&organize.accesskey;" class="menu-iconic"
 #endif
-              id="organizeButton" label="&organize.label;"
-              tooltiptext="&organize.tooltip;">
+              id="organizeButton" label="&organize.label;">
           <menupopup id="organizeButtonPopup">
             <menuitem id="newbookmark"
                       command="placesCmd_new:bookmark"
@@ -288,8 +287,7 @@
         </menu>
         <menu accesskey="&views.accesskey;" class="menu-iconic"
 #endif
-              id="viewMenu" label="&views.label;"
-              tooltiptext="&views.tooltip;">
+              id="viewMenu" label="&views.label;">
           <menupopup id="viewMenuPopup">
 
             <menu id="viewColumns" 
@@ -322,8 +320,7 @@
         </menu>
         <menu accesskey="&maintenance.accesskey;" class="menu-iconic"
 #endif
-              id="maintenanceButton" label="&maintenance.label;"
-              tooltiptext="&maintenance.tooltip;">
+              id="maintenanceButton" label="&maintenance.label;">
           <menupopup id="maintenanceButtonPopup">
             <menuitem id="backupBookmarks"
                       command="OrganizerCommand_backup"

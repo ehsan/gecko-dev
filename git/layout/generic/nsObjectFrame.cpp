@@ -48,7 +48,6 @@
 
 #ifdef MOZ_WIDGET_QT
 #include <QWidget>
-#include <QKeyEvent>
 #ifdef MOZ_X11
 #include <QX11Info>
 #endif
@@ -770,7 +769,7 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
 
   if (mWidget) {
     rpc->RegisterPluginForGeometryUpdates(this);
-    rpc->RequestUpdatePluginGeometry(this);
+    rpc->UpdatePluginGeometry(this);
 
     // Here we set the background color for this widget because some plugins will use 
     // the child window background color when painting. If it's not set, it may default to gray
@@ -970,7 +969,9 @@ nsObjectFrame::InstantiatePlugin(nsIPluginHost* aPluginHost,
   nsresult rv;
   if (fullPageMode) {  /* full-page mode */
     nsCOMPtr<nsIStreamListener> stream;
-    rv = aPluginHost->InstantiateFullPagePlugin(aMimeType, aURI, mInstanceOwner, getter_AddRefs(stream));
+    rv = aPluginHost->InstantiateFullPagePlugin(aMimeType, aURI,
+          /* resulting stream listener */       *getter_AddRefs(stream),
+                                                mInstanceOwner);
     if (NS_SUCCEEDED(rv))
       pDoc->SetStreamListener(stream);
   } else {   /* embedded mode */
@@ -1192,7 +1193,8 @@ nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    nsRegion* aVisibleRegionBeforeMove)
 {
-  NS_ASSERTION(!aVisibleRegionBeforeMove, "not supported anymore");
+  NS_ASSERTION((aVisibleRegionBeforeMove != nsnull) == aBuilder->HasMovingFrames(),
+               "Should have aVisibleRegionBeforeMove when there are moving frames");
 
   mVisibleRegion.And(*aVisibleRegion, GetBounds(aBuilder));  
   return nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
@@ -1236,7 +1238,7 @@ nsObjectFrame::ComputeWidgetGeometry(const nsRegion& aRegion,
 
   PRInt32 appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
   nsIFrame* rootFrame = rootPC->PresShell()->FrameManager()->GetRootFrame();
-  nsRect bounds = GetContentRect() + GetParent()->GetOffsetToCrossDoc(rootFrame);
+  nsRect bounds = GetContentRect() + GetParent()->GetOffsetTo(rootFrame);
   configuration->mBounds = bounds.ToNearestPixels(appUnitsPerDevPixel);
 
   // This should produce basically the same rectangle (but not relative
@@ -1351,8 +1353,7 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // determine if we are printing
   if (type == nsPresContext::eContext_Print)
     return aLists.Content()->AppendNewToTop(new (aBuilder)
-        nsDisplayGeneric(this, PaintPrintPlugin, "PrintPlugin",
-                         nsDisplayItem::TYPE_PRINT_PLUGIN));
+        nsDisplayGeneric(this, PaintPrintPlugin, "PrintPlugin"));
 
   return aLists.Content()->AppendNewToTop(new (aBuilder)
       nsDisplayPlugin(this));
@@ -4345,43 +4346,6 @@ nsEventStatus nsPluginInstanceOwner::ProcessEventX11Composited(const nsGUIEvent&
               break;
             }
 #endif
-
-#ifdef MOZ_WIDGET_QT
-          const nsKeyEvent& keyEvent = static_cast<const nsKeyEvent&>(anEvent);
-
-          memset( &event, 0, sizeof(event) );
-          event.time = anEvent.time;
-
-          QWidget* qWidget = static_cast<QWidget*>(widget->GetNativeData(NS_NATIVE_WINDOW));
-          if (qWidget)
-            event.root = qWidget->x11Info().appRootWindow();
-
-          // deduce keycode from the information in the attached QKeyEvent
-          const QKeyEvent* qtEvent = static_cast<const QKeyEvent*>(anEvent.pluginEvent);
-          if (qtEvent) {
-
-            if (qtEvent->nativeModifiers())
-              event.state = qtEvent->nativeModifiers();
-            else // fallback
-              event.state = XInputEventState(keyEvent);
-
-            if (qtEvent->nativeScanCode())
-              event.keycode = qtEvent->nativeScanCode();
-            else // fallback
-              event.keycode = XKeysymToKeycode( (widget ? static_cast<Display*>(widget->GetNativeData(NS_NATIVE_DISPLAY)) : nsnull), qtEvent->key());
-          }
-
-          switch (anEvent.message)
-            {
-            case NS_KEY_DOWN:
-              event.type = XKeyPress;
-              break;
-            case NS_KEY_UP:
-              event.type = KeyRelease;
-              break;
-           }
-#endif
-
           // Information that could be obtained from pluginEvent but we may not
           // want to promise to provide:
           event.subwindow = None;
@@ -4881,42 +4845,6 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
               event.type = KeyRelease;
               break;
             }
-#endif
-
-#ifdef MOZ_WIDGET_QT
-          const nsKeyEvent& keyEvent = static_cast<const nsKeyEvent&>(anEvent);
-
-          memset( &event, 0, sizeof(event) );
-          event.time = anEvent.time;
-
-          QWidget* qWidget = static_cast<QWidget*>(widget->GetNativeData(NS_NATIVE_WINDOW));
-          if (qWidget)
-            event.root = qWidget->x11Info().appRootWindow();
-
-          // deduce keycode from the information in the attached QKeyEvent
-          const QKeyEvent* qtEvent = static_cast<const QKeyEvent*>(anEvent.pluginEvent);
-          if (qtEvent) {
-
-            if (qtEvent->nativeModifiers())
-              event.state = qtEvent->nativeModifiers();
-            else // fallback
-              event.state = XInputEventState(keyEvent);
-
-            if (qtEvent->nativeScanCode())
-              event.keycode = qtEvent->nativeScanCode();
-            else // fallback
-              event.keycode = XKeysymToKeycode( (widget ? static_cast<Display*>(widget->GetNativeData(NS_NATIVE_DISPLAY)) : nsnull), qtEvent->key());
-          }
-
-          switch (anEvent.message)
-            {
-            case NS_KEY_DOWN:
-              event.type = XKeyPress;
-              break;
-            case NS_KEY_UP:
-              event.type = KeyRelease;
-              break;
-           }
 #endif
           // Information that could be obtained from pluginEvent but we may not
           // want to promise to provide:
@@ -5570,22 +5498,16 @@ nsPluginInstanceOwner::Renderer::DrawWithXlib(gfxXlibSurface* xsurface,
     clipRect.y = clipRects[0].y;
     clipRect.width  = clipRects[0].width;
     clipRect.height = clipRects[0].height;
-    // NPRect members are unsigned, but clip rectangles should be contained by
-    // the surface.
-    NS_ASSERTION(clipRect.x >= 0 && clipRect.y >= 0,
-                 "Clip rectangle offsets are negative!");
   }
   else {
+    // NPRect members are unsigned, but
+    // we should have been given a clip if an offset is -ve.
+    NS_ASSERTION(offset.x >= 0 && offset.y >= 0,
+                 "Clip rectangle offsets are negative!");
     clipRect.x = offset.x;
     clipRect.y = offset.y;
     clipRect.width  = mWindow->width;
     clipRect.height = mWindow->height;
-    // Don't ask the plugin to draw outside the drawable.
-    // This also ensures that the unsigned clip rectangle offsets won't be -ve.
-    gfxIntSize surfaceSize = xsurface->GetSize();
-    clipRect.IntersectRect(clipRect,
-                           nsIntRect(0, 0,
-                                     surfaceSize.width, surfaceSize.height));
   }
 
   NPRect newClipRect;
@@ -5897,19 +5819,8 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
           mFlash10Quirks = StringBeginsWith(description, flash10Head);
 #endif
         } else if (mWidget) {
-          nsIWidget* parent = mWidget->GetParent();
-          NS_ASSERTION(parent, "Plugin windows must not be toplevel");
-          // Set the plugin window to have an empty cliprect. The cliprect
-          // will be reset when nsRootPresContext::UpdatePluginGeometry
-          // runs later. The plugin window does need to have the correct
-          // size here.
-          nsAutoTArray<nsIWidget::Configuration,1> configuration;
-          if (configuration.AppendElement()) {
-            configuration[0].mChild = mWidget;
-            configuration[0].mBounds =
-              nsIntRect(0, 0, mPluginWindow->width, mPluginWindow->height);
-            parent->ConfigureChildren(configuration);
-          }
+          mWidget->Resize(mPluginWindow->width, mPluginWindow->height,
+                          PR_FALSE);
 
           // mPluginWindow->type is used in |GetPluginPort| so it must
           // be initialized first

@@ -76,45 +76,15 @@ LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget)
 
 LayerManagerOGL::~LayerManagerOGL()
 {
-  mRoot = nsnull;
-  CleanupResources();
-}
+  if (mGLContext)
+    mGLContext->MakeCurrent();
 
-void
-LayerManagerOGL::CleanupResources()
-{
-  if (!mGLContext)
-    return;
-
-  nsRefPtr<GLContext> ctx = mGLContext->GetSharedContext();
-  if (!ctx) {
-    ctx = mGLContext;
-  }
-  
-  ctx->MakeCurrent();
+  mRoot = NULL;
 
   for (unsigned int i = 0; i < mPrograms.Length(); ++i)
     delete mPrograms[i];
+
   mPrograms.Clear();
-
-  ctx->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
-
-  if (mBackBufferFBO) {
-    ctx->fDeleteFramebuffers(1, &mBackBufferFBO);
-    mBackBufferFBO = 0;
-  }
-
-  if (mBackBufferTexture) {
-    ctx->fDeleteTextures(1, &mBackBufferTexture);
-    mBackBufferTexture = 0;
-  }
-
-  if (mQuadVBO) {
-    ctx->fDeleteBuffers(1, &mQuadVBO);
-    mQuadVBO = 0;
-  }
-
-  mGLContext = nsnull;
 }
 
 PRBool
@@ -123,9 +93,7 @@ LayerManagerOGL::Initialize(GLContext *aExistingContext)
   if (aExistingContext) {
     mGLContext = aExistingContext;
   } else {
-    if (mGLContext)
-      CleanupResources();
-    mGLContext = gl::GLContextProvider::CreateForWindow(mWidget);
+    mGLContext = sGLContextProvider.CreateForWindow(mWidget);
 
     if (!mGLContext) {
       NS_WARNING("Failed to create LayerManagerOGL context");
@@ -445,18 +413,12 @@ LayerManagerOGL::Render()
   DEBUG_GL_ERROR_CHECK(mGLContext);
 
   // Render our layers.
-  RootLayer()->RenderLayer(mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO,
-                           nsIntPoint(0, 0));
+  RootLayer()->RenderLayer(mBackBufferFBO, nsIntPoint(0, 0));
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 
   if (mTarget) {
     CopyToTarget();
-    return;
-  }
-
-  if (mGLContext->IsDoubleBuffered()) {
-    mGLContext->SwapBuffers();
     return;
   }
 
@@ -540,7 +502,13 @@ LayerManagerOGL::Render()
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 
-  mGLContext->fFlush();
+  // XXX this is an intermediate workaround for windows that are
+  // double-buffered by default on GLX systems.  The swap is a no-op
+  // everywhere else (and for non-double-buffered GLX windows).  If
+  // the swap is actually performed, it implicitly glFlush()s.
+  if (!mGLContext->SwapBuffers()) {
+    mGLContext->fFlush();
+  } 
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 }
@@ -554,20 +522,10 @@ LayerManagerOGL::SetupPipeline(int aWidth, int aHeight)
   // Matrix to transform to viewport space ( <-1.0, 1.0> topleft, 
   // <1.0, -1.0> bottomright)
   gfx3DMatrix viewMatrix;
-  if (mGLContext->IsDoubleBuffered()) {
-    /* If it's double buffered, we don't have a frontbuffer FBO,
-     * so put in a Y-flip in this transform.
-     */
-    viewMatrix._11 = 2.0f / float(aWidth);
-    viewMatrix._22 = -2.0f / float(aHeight);
-    viewMatrix._41 = -1.0f;
-    viewMatrix._42 = 1.0f;
-  } else {
-    viewMatrix._11 = 2.0f / float(aWidth);
-    viewMatrix._22 = 2.0f / float(aHeight);
-    viewMatrix._41 = -1.0f;
-    viewMatrix._42 = -1.0f;
-  }
+  viewMatrix._11 = 2.0f / float(aWidth);
+  viewMatrix._22 = 2.0f / float(aHeight);
+  viewMatrix._41 = -1.0f;
+  viewMatrix._42 = -1.0f;
 
   SetLayerProgramProjectionMatrix(viewMatrix);
 }
@@ -575,11 +533,6 @@ LayerManagerOGL::SetupPipeline(int aWidth, int aHeight)
 void
 LayerManagerOGL::SetupBackBuffer(int aWidth, int aHeight)
 {
-  if (mGLContext->IsDoubleBuffered()) {
-    mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
-    return;
-  }
-
   // Do we have a FBO of the right size already?
   if (mBackBufferSize.width == aWidth &&
       mBackBufferSize.height == aHeight)
@@ -632,8 +585,7 @@ LayerManagerOGL::CopyToTarget()
 #ifdef USE_GLES2
   // GLES2 promises that binding to any custom FBO will attach 
   // to GL_COLOR_ATTACHMENT0 attachment point.
-  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER,
-                               mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO);
+  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mBackBufferFBO);
 #else
   mGLContext->fReadBuffer(LOCAL_GL_COLOR_ATTACHMENT0);
 #endif

@@ -48,7 +48,6 @@
 #include "nsHttpTransaction.h"
 #include "nsInputStreamPump.h"
 #include "nsThreadUtils.h"
-#include "nsTArray.h"
 
 #include "nsIHttpEventSink.h"
 #include "nsICachingChannel.h"
@@ -65,7 +64,6 @@
 #include "nsIHttpAuthenticableChannel.h"
 #include "nsITraceableChannel.h"
 #include "nsIHttpChannelAuthProvider.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 class nsAHttpConnection;
 
@@ -86,7 +84,6 @@ class nsHttpChannel : public HttpBaseChannel
                     , public nsIHttpAuthenticableChannel
                     , public nsITraceableChannel
                     , public nsIApplicationCacheChannel
-                    , public nsIAsyncVerifyRedirectCallback
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
@@ -103,7 +100,6 @@ public:
     NS_DECL_NSITRACEABLECHANNEL
     NS_DECL_NSIAPPLICATIONCACHECONTAINER
     NS_DECL_NSIAPPLICATIONCACHECHANNEL
-    NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
 
     // nsIHttpAuthenticableChannel. We can't use
     // NS_DECL_NSIHTTPAUTHENTICABLECHANNEL because it duplicates cancel() and
@@ -164,8 +160,6 @@ public: /* internal necko use only */
     }
 
 private:
-    typedef nsresult (nsHttpChannel::*nsContinueRedirectionFunc)(nsresult result);
-
     // AsyncCall may be used to call a member function asynchronously.
     // retval isn't refcounted and is set only when event was successfully
     // posted, the event is returned for the purpose of cancelling when needed
@@ -182,38 +176,25 @@ private:
     nsresult ApplyContentConversions();
     nsresult CallOnStartRequest();
     nsresult ProcessResponse();
-    nsresult ContinueProcessResponse(nsresult);
     nsresult ProcessNormal();
-    nsresult ContinueProcessNormal(nsresult);
     nsresult ProcessNotModified();
-    nsresult AsyncProcessRedirection(PRUint32 httpStatus);
-    nsresult ContinueProcessRedirection(nsresult);
-    nsresult ContinueProcessRedirectionAfterFallback(nsresult);
+    nsresult ProcessRedirection(PRUint32 httpStatus);
     PRBool   ShouldSSLProxyResponseContinue(PRUint32 httpStatus);
     nsresult ProcessFailedSSLConnect(PRUint32 httpStatus);
-    nsresult ProcessFallback(PRBool *waitingForRedirectCallback);
-    nsresult ContinueProcessFallback(nsresult);
+    nsresult ProcessFallback(PRBool *fallingBack);
     PRBool   ResponseWouldVary();
-
-    nsresult ContinueOnStartRequest1(nsresult);
-    nsresult ContinueOnStartRequest2(nsresult);
-    nsresult ContinueOnStartRequest3(nsresult);
 
     // redirection specific methods
     void     HandleAsyncRedirect();
-    nsresult ContinueHandleAsyncRedirect(nsresult);
     void     HandleAsyncNotModified();
     void     HandleAsyncFallback();
-    nsresult ContinueHandleAsyncFallback(nsresult);
     nsresult PromptTempRedirect();
     nsresult SetupReplacementChannel(nsIURI *, nsIChannel *, PRBool preserveMethod);
 
     // proxy specific methods
     nsresult ProxyFailover();
-    nsresult AsyncDoReplaceWithProxy(nsIProxyInfo *);
-    nsresult ContinueDoReplaceWithProxy(nsresult);
+    nsresult DoReplaceWithProxy(nsIProxyInfo *);
     void HandleAsyncReplaceWithProxy();
-    nsresult ContinueHandleAsyncReplaceWithProxy(nsresult);
     nsresult ResolveProxy();
 
     // cache specific methods
@@ -295,14 +276,11 @@ private:
     // cache entry.
     nsCString                         mFallbackKey;
 
-    nsCOMPtr<nsIURI>                  mRedirectURI;
-    nsCOMPtr<nsIChannel>              mRedirectChannel;
-    PRUint32                          mRedirectType;
-
     // state flags
     PRUint32                          mApplyConversion          : 1;
     PRUint32                          mCachedContentIsValid     : 1;
     PRUint32                          mCachedContentIsPartial   : 1;
+    PRUint32                          mCanceled                 : 1;
     PRUint32                          mTransactionReplaced      : 1;
     PRUint32                          mAuthRetryPending         : 1;
     PRUint32                          mResuming                 : 1;
@@ -322,8 +300,6 @@ private:
     // headers. In such a case we must not override them in the cache code
     // and also we want to pass possible 304 code response through.
     PRUint32                          mCustomConditionalRequest : 1;
-    PRUint32                          mFallingBack              : 1;
-    PRUint32                          mWaitingForRedirectCallback : 1;
     // True iff this channel is servicing a remote HttpChannelChild
     PRUint32                          mRemoteChannel : 1;
 
@@ -350,12 +326,6 @@ private:
         
         PRPackedBool mReady;
     };
-
-    nsTArray<nsContinueRedirectionFunc> mRedirectFuncStack;
-
-    nsresult WaitForRedirectCallback();
-    void PushRedirectAsyncFunc(nsContinueRedirectionFunc func);
-    void PopRedirectAsyncFunc(nsContinueRedirectionFunc func);
 };
 
 #endif // nsHttpChannel_h__

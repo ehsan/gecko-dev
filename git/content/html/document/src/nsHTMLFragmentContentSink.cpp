@@ -68,14 +68,14 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsCSSParser.h"
 #include "nsCSSProperty.h"
-#include "mozilla/css/Declaration.h"
+#include "nsCSSDeclaration.h"
 #include "nsICSSStyleRule.h"
 #include "nsUnicharInputStream.h"
 #include "nsCSSStyleSheet.h"
 #include "nsICSSRuleList.h"
+#include "nsCSSDeclaration.h"
+#include "nsCSSProperty.h"
 #include "nsIDOMCSSRule.h"
-
-namespace css = mozilla::css;
 
 //
 // XXX THIS IS TEMPORARY CODE
@@ -390,7 +390,7 @@ nsHTMLFragmentContentSink::OpenContainer(const nsIParserNode& aNode)
       NS_ADDREF(mNodeInfoCache[nodeType] = nodeInfo);
     }
 
-    content = CreateHTMLElement(nodeType, nodeInfo.forget(), PR_FALSE).get();
+    content = CreateHTMLElement(nodeType, nodeInfo, PR_FALSE).get();
     NS_ENSURE_TRUE(content, NS_ERROR_OUT_OF_MEMORY);
 
     result = AddAttributes(aNode, content);
@@ -477,7 +477,7 @@ nsHTMLFragmentContentSink::AddLeaf(const nsIParserNode& aNode)
           NS_ADDREF(mNodeInfoCache[nodeType] = nodeInfo);
         }
 
-        content = CreateHTMLElement(nodeType, nodeInfo.forget(), PR_FALSE);
+        content = CreateHTMLElement(nodeType, nodeInfo, PR_FALSE);
         NS_ENSURE_TRUE(content, NS_ERROR_OUT_OF_MEMORY);
 
         result = AddAttributes(aNode, content);
@@ -1164,7 +1164,11 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
               if (NS_FAILED(rv))
                 continue;
               NS_ASSERTION(rule, "We should have a rule by now");
-              switch (rule->GetType()) {
+              PRInt32 type;
+              rv = rule->GetType(type);
+              if (NS_FAILED(rv))
+                continue;
+              switch (type) {
                 case nsICSSRule::UNKNOWN_RULE:
                 case nsICSSRule::CHARSET_RULE:
                 case nsICSSRule::IMPORT_RULE:
@@ -1215,7 +1219,7 @@ void
 nsHTMLParanoidFragmentSink::SanitizeStyleRule(nsICSSStyleRule *aRule, nsAutoString &aRuleText)
 {
   aRuleText.Truncate();
-  css::Declaration *style = aRule->GetDeclaration();
+  nsCSSDeclaration *style = aRule->GetDeclaration();
   if (style) {
     nsresult rv = style->RemoveProperty(eCSSProperty_binding);
     if (NS_SUCCEEDED(rv)) {

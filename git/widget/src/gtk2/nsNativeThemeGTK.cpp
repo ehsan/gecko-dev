@@ -179,19 +179,6 @@ static GtkTextDirection GetTextDirection(nsIFrame* aFrame)
   return GTK_TEXT_DIR_NONE;
 }
 
-// Returns positive for negative margins (otherwise 0).
-gint
-nsNativeThemeGTK::GetTabMarginPixels(nsIFrame* aFrame)
-{
-  nscoord margin =
-    IsBottomTab(aFrame) ? aFrame->GetUsedMargin().top
-    : aFrame->GetUsedMargin().bottom;
-
-  return PR_MIN(MOZ_GTK_TAB_MARGIN_MASK,
-                PR_MAX(0,
-                       aFrame->PresContext()->AppUnitsToDevPixels(-margin)));
-}
-
 PRBool
 nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
                                        GtkThemeWidgetType& aGtkWidgetType,
@@ -247,13 +234,8 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
           }
         }
       } else if (aWidgetType == NS_THEME_TOOLBAR_BUTTON_DROPDOWN ||
-                 aWidgetType == NS_THEME_TREEVIEW_HEADER_SORTARROW ||
-                 aWidgetType == NS_THEME_BUTTON_ARROW_PREVIOUS ||
-                 aWidgetType == NS_THEME_BUTTON_ARROW_NEXT ||
-                 aWidgetType == NS_THEME_BUTTON_ARROW_UP ||
-                 aWidgetType == NS_THEME_BUTTON_ARROW_DOWN) {
-        // The state of an arrow comes from its parent.
-        stateFrame = aFrame = aFrame->GetParent();
+                 aWidgetType == NS_THEME_TREEVIEW_HEADER_SORTARROW) {
+        stateFrame = aFrame->GetParent();
       }
 
       PRInt32 eventState = GetContentState(stateFrame, aWidgetType);
@@ -367,6 +349,9 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
             aWidgetType == NS_THEME_TOOLBAR_BUTTON_DROPDOWN ||
             aWidgetType == NS_THEME_DROPDOWN ||
             aWidgetType == NS_THEME_DROPDOWN_BUTTON) {
+          if (aWidgetType == NS_THEME_TOOLBAR_BUTTON_DROPDOWN)
+            aFrame = aFrame->GetParent();
+
           PRBool menuOpen = IsOpenButton(aFrame);
           aState->depressed = IsCheckedButton(aFrame) || menuOpen;
           // we must not highlight buttons with open drop down menus on hover.
@@ -523,21 +508,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
     aGtkWidgetType = MOZ_GTK_DROPDOWN_ARROW;
     break;
   case NS_THEME_TOOLBAR_BUTTON_DROPDOWN:
-  case NS_THEME_BUTTON_ARROW_DOWN:
-  case NS_THEME_BUTTON_ARROW_UP:
-  case NS_THEME_BUTTON_ARROW_NEXT:
-  case NS_THEME_BUTTON_ARROW_PREVIOUS:
     aGtkWidgetType = MOZ_GTK_TOOLBARBUTTON_ARROW;
-    if (aWidgetFlags) {
-      *aWidgetFlags = GTK_ARROW_DOWN;
-
-      if (aWidgetType == NS_THEME_BUTTON_ARROW_UP)
-        *aWidgetFlags = GTK_ARROW_UP;
-      else if (aWidgetType == NS_THEME_BUTTON_ARROW_NEXT)
-        *aWidgetFlags = GTK_ARROW_RIGHT;
-      else if (aWidgetType == NS_THEME_BUTTON_ARROW_PREVIOUS)
-        *aWidgetFlags = GTK_ARROW_LEFT;
-    }
     break;
   case NS_THEME_CHECKBOX_CONTAINER:
     aGtkWidgetType = MOZ_GTK_CHECKBUTTON_CONTAINER;
@@ -585,13 +556,18 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
         /* First bits will be used to store max(0,-bmargin) where bmargin
          * is the bottom margin of the tab in pixels  (resp. top margin,
          * for bottom tabs). */
+        nscoord margin;
         if (IsBottomTab(aFrame)) {
             *aWidgetFlags = MOZ_GTK_TAB_BOTTOM;
+            margin = aFrame->GetUsedMargin().top;
         } else {
             *aWidgetFlags = 0;
+            margin = aFrame->GetUsedMargin().bottom;
         }
 
-        *aWidgetFlags |= GetTabMarginPixels(aFrame);
+        *aWidgetFlags |= PR_MIN(MOZ_GTK_TAB_MARGIN_MASK,
+                                PR_MAX(0, aFrame->PresContext()->
+                                   AppUnitsToDevPixels(-margin) ));
 
         if (IsSelectedTab(aFrame))
           *aWidgetFlags |= MOZ_GTK_TAB_SELECTED;
@@ -671,12 +647,6 @@ ThemeRenderer::DrawWithGDK(GdkDrawable * drawable, gint offsetX,
   GdkRectangle gdk_clip = mGDKClip;
   gdk_clip.x += offsetX;
   gdk_clip.y += offsetY;
-
-  GdkRectangle surfaceRect;
-  surfaceRect.x = 0;
-  surfaceRect.y = 0;
-  gdk_drawable_get_size(drawable, &surfaceRect.width, &surfaceRect.height);
-  gdk_rectangle_intersect(&gdk_clip, &surfaceRect, &gdk_clip);
   
   NS_ASSERTION(numClipRects == 0, "We don't support clipping!!!");
   moz_gtk_widget_paint(mGTKWidgetType, drawable, &gdk_rect, &gdk_clip,
@@ -685,14 +655,14 @@ ThemeRenderer::DrawWithGDK(GdkDrawable * drawable, gint offsetX,
   return NS_OK;
 }
 
-PRBool
-nsNativeThemeGTK::GetExtraSizeForWidget(nsIFrame* aFrame, PRUint8 aWidgetType,
-                                        nsIntMargin* aExtra)
+static PRBool
+GetExtraSizeForWidget(PRUint8 aWidgetType, PRBool aWidgetIsDefault,
+                      nsIntMargin* aExtra)
 {
   *aExtra = nsIntMargin(0,0,0,0);
   // Allow an extra one pixel above and below the thumb for certain
   // GTK2 themes (Ximian Industrial, Bluecurve, Misty, at least);
-  // We modify the frame's overflow area.  See bug 297508.
+  // see moz_gtk_scrollbar_thumb_paint in gtk2drawing.c
   switch (aWidgetType) {
   case NS_THEME_SCROLLBAR_THUMB_VERTICAL:
     aExtra->top = aExtra->bottom = 1;
@@ -721,7 +691,7 @@ nsNativeThemeGTK::GetExtraSizeForWidget(nsIFrame* aFrame, PRUint8 aWidgetType,
     }
   case NS_THEME_BUTTON :
     {
-      if (IsDefaultButton(aFrame)) {
+      if (aWidgetIsDefault) {
         // Some themes draw a default indicator outside the widget,
         // include that in overflow
         gint top, left, bottom, right;
@@ -731,23 +701,6 @@ nsNativeThemeGTK::GetExtraSizeForWidget(nsIFrame* aFrame, PRUint8 aWidgetType,
         aExtra->bottom = bottom;
         aExtra->left = left;
         return PR_TRUE;
-      }
-    }
-  case NS_THEME_TAB :
-    {
-      if (!IsSelectedTab(aFrame))
-        return PR_FALSE;
-
-      gint gap_height = moz_gtk_get_tab_thickness();
-
-      PRInt32 extra = gap_height - GetTabMarginPixels(aFrame);
-      if (extra <= 0)
-        return PR_FALSE;
-
-      if (IsBottomTab(aFrame)) {
-        aExtra->top = extra;
-      } else {
-        aExtra->bottom = extra;
       }
     }
   default:
@@ -795,20 +748,22 @@ nsNativeThemeGTK::DrawWidgetBackground(nsIRenderingContext* aContext,
   // GTK themes can only draw an integer number of pixels
   // (even when not snapped).
   nsIntRect widgetRect(0, 0, NS_lround(rect.Width()), NS_lround(rect.Height()));
-  nsIntRect overflowRect(widgetRect);
-  nsIntMargin extraSize;
-  if (GetExtraSizeForWidget(aFrame, aWidgetType, &extraSize)) {
-    overflowRect.Inflate(extraSize);
-  }
 
   // This is the rectangle that will actually be drawn, in gdk pixels
   nsIntRect drawingRect(PRInt32(dirtyRect.X()),
                         PRInt32(dirtyRect.Y()),
                         PRInt32(dirtyRect.Width()),
                         PRInt32(dirtyRect.Height()));
-  if (widgetRect.IsEmpty()
-      || !drawingRect.IntersectRect(overflowRect, drawingRect))
+  if (!drawingRect.IntersectRect(widgetRect, drawingRect))
     return NS_OK;
+
+  nsIntMargin extraSize;
+  // The margin should be applied to the widget rect rather than the dirty
+  // rect but nsCSSRendering::PaintBackgroundWithSC has already intersected
+  // the dirty rect with the uninflated widget rect.
+  if (GetExtraSizeForWidget(aWidgetType, state.isDefault, &extraSize)) {
+    drawingRect.Inflate(extraSize);
+  }
 
   // gdk rectangles are wrt the drawing rect.
 
@@ -940,11 +895,6 @@ nsNativeThemeGTK::GetWidgetPadding(nsIDeviceContext* aContext,
     case NS_THEME_TAB_SCROLLARROW_BACK:
     case NS_THEME_TAB_SCROLLARROW_FORWARD:
     case NS_THEME_DROPDOWN_BUTTON:
-    case NS_THEME_TOOLBAR_BUTTON_DROPDOWN:
-    case NS_THEME_BUTTON_ARROW_UP:
-    case NS_THEME_BUTTON_ARROW_DOWN:
-    case NS_THEME_BUTTON_ARROW_NEXT:
-    case NS_THEME_BUTTON_ARROW_PREVIOUS:
     // Radios and checkboxes return a fixed size in GetMinimumWidgetSize
     // and have a meaningful baseline, so they can't have
     // author-specified padding.
@@ -964,15 +914,32 @@ nsNativeThemeGTK::GetWidgetOverflow(nsIDeviceContext* aContext,
 {
   nsMargin m;
   PRInt32 p2a;
-  nsIntMargin extraSize;
-  if (!GetExtraSizeForWidget(aFrame, aWidgetType, &extraSize))
-    return PR_FALSE;
+  if (aWidgetType == NS_THEME_TAB)
+  {
+    if (!IsSelectedTab(aFrame))
+      return PR_FALSE;
 
-  p2a = aContext->AppUnitsPerDevPixel();
-  m = nsMargin(NSIntPixelsToAppUnits(extraSize.left, p2a),
-               NSIntPixelsToAppUnits(extraSize.top, p2a),
-               NSIntPixelsToAppUnits(extraSize.right, p2a),
-               NSIntPixelsToAppUnits(extraSize.bottom, p2a));
+    p2a = aContext->AppUnitsPerDevPixel();
+
+    if (IsBottomTab(aFrame)) {
+      m = nsMargin(0, NSIntPixelsToAppUnits(moz_gtk_get_tab_thickness(), p2a)
+                      + PR_MIN(0, aFrame->GetUsedMargin().top), 0, 0);
+    } else {
+      m = nsMargin(0, 0, 0,
+                   NSIntPixelsToAppUnits(moz_gtk_get_tab_thickness(), p2a)
+                   + PR_MIN(0, aFrame->GetUsedMargin().bottom));
+    }
+  } else {
+    nsIntMargin extraSize;
+    if (!GetExtraSizeForWidget(aWidgetType, IsDefaultButton(aFrame), &extraSize))
+      return PR_FALSE;
+
+    p2a = aContext->AppUnitsPerDevPixel();
+    m = nsMargin(NSIntPixelsToAppUnits(extraSize.left, p2a),
+                 NSIntPixelsToAppUnits(extraSize.top, p2a),
+                 NSIntPixelsToAppUnits(extraSize.right, p2a),
+                 NSIntPixelsToAppUnits(extraSize.bottom, p2a));
+  }
 
   aOverflowRect->Inflate(m);
   return PR_TRUE;
@@ -1116,12 +1083,8 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsIRenderingContext* aContext,
     }
     break;
   case NS_THEME_TOOLBAR_BUTTON_DROPDOWN:
-  case NS_THEME_BUTTON_ARROW_UP:
-  case NS_THEME_BUTTON_ARROW_DOWN:
-  case NS_THEME_BUTTON_ARROW_NEXT:
-  case NS_THEME_BUTTON_ARROW_PREVIOUS:
     {
-        moz_gtk_get_arrow_size(&aResult->width, &aResult->height);
+        moz_gtk_get_downarrow_size(&aResult->width, &aResult->height);
         *aIsOverridable = PR_FALSE;
     }
     break;
@@ -1276,10 +1239,6 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
   case NS_THEME_TOOLBAR_BUTTON:
   case NS_THEME_TOOLBAR_DUAL_BUTTON: // so we can override the border with 0
   case NS_THEME_TOOLBAR_BUTTON_DROPDOWN:
-  case NS_THEME_BUTTON_ARROW_UP:
-  case NS_THEME_BUTTON_ARROW_DOWN:
-  case NS_THEME_BUTTON_ARROW_NEXT:
-  case NS_THEME_BUTTON_ARROW_PREVIOUS:
   case NS_THEME_TOOLBAR_SEPARATOR:
   case NS_THEME_TOOLBAR_GRIPPER:
   case NS_THEME_STATUSBAR:
@@ -1368,11 +1327,7 @@ nsNativeThemeGTK::WidgetIsContainer(PRUint8 aWidgetType)
       aWidgetType == NS_THEME_RADIO ||
       aWidgetType == NS_THEME_CHECKBOX ||
       aWidgetType == NS_THEME_TAB_SCROLLARROW_BACK ||
-      aWidgetType == NS_THEME_TAB_SCROLLARROW_FORWARD ||
-      aWidgetType == NS_THEME_BUTTON_ARROW_UP ||
-      aWidgetType == NS_THEME_BUTTON_ARROW_DOWN ||
-      aWidgetType == NS_THEME_BUTTON_ARROW_NEXT ||
-      aWidgetType == NS_THEME_BUTTON_ARROW_PREVIOUS)
+      aWidgetType == NS_THEME_TAB_SCROLLARROW_FORWARD)
     return PR_FALSE;
   return PR_TRUE;
 }

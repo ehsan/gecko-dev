@@ -40,7 +40,7 @@
 #define mozilla_tabs_TabChild_h
 
 #ifndef _IMPL_NS_LAYOUT
-#include "mozilla/dom/PBrowserChild.h"
+#include "mozilla/dom/PIFrameEmbeddingChild.h"
 #endif
 #include "nsIWebNavigation.h"
 #include "nsCOMPtr.h"
@@ -72,7 +72,7 @@
 #include "nsWeakReference.h"
 #include "nsITabChild.h"
 
-struct gfxMatrix;
+class gfxMatrix;
 
 namespace mozilla {
 namespace dom {
@@ -139,7 +139,7 @@ protected:
   TabChild* mTabChild;
 };
 
-class TabChild : public PBrowserChild,
+class TabChild : public PIFrameEmbeddingChild,
                  public nsIWebProgressListener2,
                  public nsIWebBrowserChrome2,
                  public nsIEmbeddingSiteWindow2,
@@ -151,9 +151,9 @@ class TabChild : public PBrowserChild,
                  public nsITabChild
 {
 public:
-    TabChild(PRUint32 aChromeFlags);
+    TabChild();
     virtual ~TabChild();
-    bool DestroyWidget();
+    bool destroyWidget();
     nsresult Init();
 
     NS_DECL_ISUPPORTS
@@ -168,29 +168,29 @@ public:
     NS_DECL_NSIWINDOWPROVIDER
     NS_DECL_NSIDIALOGCREATOR
 
-    virtual bool RecvCreateWidget(const MagicWindowHandle& parentWidget);
-    virtual bool RecvLoadURL(const nsCString& uri);
-    virtual bool RecvMove(const PRUint32& x,
+    virtual bool RecvcreateWidget(const MagicWindowHandle& parentWidget);
+    virtual bool RecvloadURL(const nsCString& uri);
+    virtual bool Recvmove(const PRUint32& x,
                           const PRUint32& y,
                           const PRUint32& width,
                           const PRUint32& height);
-    virtual bool RecvActivate();
-    virtual bool RecvMouseEvent(const nsString& aType,
-                                const float&    aX,
-                                const float&    aY,
-                                const PRInt32&  aButton,
-                                const PRInt32&  aClickCount,
-                                const PRInt32&  aModifiers,
-                                const bool&     aIgnoreRootScrollFrame);
-    virtual bool RecvKeyEvent(const nsString& aType,
-                              const PRInt32&  aKeyCode,
-                              const PRInt32&  aCharCode,
-                              const PRInt32&  aModifiers,
-                              const bool&     aPreventDefault);
-    virtual bool RecvActivateFrameEvent(const nsString& aType, const bool& capture);
-    virtual bool RecvLoadRemoteScript(const nsString& aURL);
-    virtual bool RecvAsyncMessage(const nsString& aMessage,
-                                  const nsString& aJSON);
+    virtual bool Recvactivate();
+    virtual bool RecvsendMouseEvent(const nsString& aType,
+                                    const PRInt32&  aX,
+                                    const PRInt32&  aY,
+                                    const PRInt32&  aButton,
+                                    const PRInt32&  aClickCount,
+                                    const PRInt32&  aModifiers,
+                                    const bool&     aIgnoreRootScrollFrame);
+    virtual bool RecvsendKeyEvent(const nsString& aType,
+                                  const PRInt32&  aKeyCode,
+                                  const PRInt32&  aCharCode,
+                                  const PRInt32&  aModifiers,
+                                  const bool&     aPreventDefault);
+    virtual bool RecvactivateFrameEvent(const nsString& aType, const bool& capture);
+    virtual bool RecvloadRemoteScript(const nsString& aURL);
+    virtual bool RecvsendAsyncMessageToChild(const nsString& aMessage,
+                                             const nsString& aJSON);
     virtual mozilla::ipc::PDocumentRendererChild* AllocPDocumentRenderer(
             const PRInt32& x,
             const PRInt32& y,
@@ -278,17 +278,19 @@ public:
     nsIPrincipal* GetPrincipal() { return mPrincipal; }
 
 private:
-    void ActorDestroy(ActorDestroyReason why);
-
     bool InitTabChildGlobal();
 
     nsCOMPtr<nsIWebNavigation> mWebNav;
+
     nsCOMPtr<nsIXPConnectJSObjectHolder> mRootGlobal;
+
     JSContext* mCx;
+
     nsCOMPtr<nsIChannel> mChannel;
+
     TabChildGlobal* mTabChildGlobal;
+
     nsCOMPtr<nsIPrincipal> mPrincipal;
-    PRUint32 mChromeFlags;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

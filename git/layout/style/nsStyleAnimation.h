@@ -50,6 +50,7 @@
 #include "nsCoord.h"
 #include "nsColor.h"
 
+class nsCSSDeclaration;
 class nsIContent;
 class nsPresContext;
 class nsStyleContext;

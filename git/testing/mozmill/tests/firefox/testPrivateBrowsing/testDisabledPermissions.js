@@ -43,6 +43,7 @@ const gTimeout = 5000;
 
 var websites = [
                 "https://litmus.mozilla.org/testcase_files/firefox/5918/index.html",
+                "http://www.google.com",
                 "https://litmus.mozilla.org/testcase_files/firefox/cookies/cookie_single.html"
                ];
 
@@ -92,11 +93,21 @@ var testPermissionsDisabled = function()
 
   controller.keypress(null, "VK_ESCAPE", {});
 
+  // There shouldn't be a block image entry in the context menu
+  controller.open(websites[1]);
+  controller.waitForPageLoad();
+
+  var image = new elementslib.ID(controller.tabs.activeTab, "logo");
+  var blockImages = new elementslib.ID(controller.window.document, "context-blockimage");
+
+  controller.rightClick(image);
+  controller.assertProperty(blockImages, "hidden", true);
+
   // Enable the "Ask me every time" cookie behavior
   PrefsAPI.openPreferencesDialog(prefCookieHandler);
 
   // No cookie dialog should show up
-  controller.open(websites[1]);
+  controller.open(websites[2]);
   controller.waitForPageLoad();
 }
 

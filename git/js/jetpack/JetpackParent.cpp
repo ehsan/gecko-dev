@@ -42,7 +42,6 @@
 #include "nsNetUtil.h"
 #include "nsIVariant.h"
 #include "nsIXPConnect.h"
-#include "nsIJSContextStack.h"
 
 namespace mozilla {
 namespace jetpack {
@@ -136,41 +135,19 @@ JetpackParent::EvalScript(const nsAString& aScript)
   return NS_OK;
 }
 
-class AutoCXPusher
-{
-public:
-  AutoCXPusher(JSContext* cx)
-    : mCXStack(do_GetService("@mozilla.org/js/xpc/ContextStack;1"))
-  {
-    if (mCXStack)
-      mCXStack->Push(cx);
-  }
-  ~AutoCXPusher()
-  {
-    if (mCXStack)
-      mCXStack->Pop(NULL);
-  }
-
-private:
-  nsCOMPtr<nsIJSContextStack> mCXStack;
-  JSContext* mCX;
-};
-
 bool
 JetpackParent::RecvSendMessage(const nsString& messageName,
                                const nsTArray<Variant>& data)
 {
-  AutoCXPusher cxp(mContext);
   JSAutoRequest request(mContext);
   return JetpackActorCommon::RecvMessage(mContext, messageName, data, NULL);
 }
 
 bool
-JetpackParent::AnswerCallMessage(const nsString& messageName,
-                                 const nsTArray<Variant>& data,
-                                 nsTArray<Variant>* results)
+JetpackParent::RecvCallMessage(const nsString& messageName,
+                               const nsTArray<Variant>& data,
+                               nsTArray<Variant>* results)
 {
-  AutoCXPusher cxp(mContext);
   JSAutoRequest request(mContext);
   return JetpackActorCommon::RecvMessage(mContext, messageName, data, results);
 }

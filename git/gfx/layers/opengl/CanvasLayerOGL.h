@@ -72,7 +72,6 @@ protected:
   nsRefPtr<gfxASurface> mCanvasSurface;
   nsRefPtr<GLContext> mCanvasGLContext;
 
-  void MakeTexture();
   GLuint mTexture;
 
   nsIntRect mBounds;
@@ -80,6 +79,7 @@ protected:
 
   PRPackedBool mGLBufferIsPremultiplied;
   PRPackedBool mNeedsYFlip;
+  nsRefPtr<GLContext> mCanvasSurfaceAsGLContext;
 };
 
 } /* layers */

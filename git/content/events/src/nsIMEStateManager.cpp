@@ -458,10 +458,9 @@ nsTextStateManager::ContentInserted(nsIDocument* aDocument,
 
 void
 nsTextStateManager::ContentRemoved(nsIDocument* aDocument,
-                                   nsIContent* aContainer,
-                                   nsIContent* aChild,
-                                   PRInt32 aIndexInContainer,
-                                   nsIContent* aPreviousSibling)
+                                    nsIContent* aContainer,
+                                    nsIContent* aChild,
+                                    PRInt32 aIndexInContainer)
 {
   PRUint32 offset = 0, childOffset = 1;
   if (NS_FAILED(nsContentEventHandler::GetFlatTextOffsetOfRange(

@@ -88,7 +88,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGGradientElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGGradientElement::nsSVGGradientElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGGradientElement::nsSVGGradientElement(nsINodeInfo* aNodeInfo)
   : nsSVGGradientElementBase(aNodeInfo)
 {
 }
@@ -226,7 +226,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(LinearGradient)
 NS_IMPL_ADDREF_INHERITED(nsSVGLinearGradientElement,nsSVGLinearGradientElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGLinearGradientElement,nsSVGLinearGradientElementBase)
 
-DOMCI_NODE_DATA(SVGLinearGradientElement, nsSVGLinearGradientElement)
+DOMCI_DATA(SVGLinearGradientElement, nsSVGLinearGradientElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGLinearGradientElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGLinearGradientElement, nsIDOMNode,
@@ -239,7 +239,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGLinearGradientElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGLinearGradientElement::nsSVGLinearGradientElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGLinearGradientElement::nsSVGLinearGradientElement(nsINodeInfo* aNodeInfo)
   : nsSVGLinearGradientElementBase(aNodeInfo)
 {
 }
@@ -306,7 +306,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(RadialGradient)
 NS_IMPL_ADDREF_INHERITED(nsSVGRadialGradientElement,nsSVGRadialGradientElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGRadialGradientElement,nsSVGRadialGradientElementBase)
 
-DOMCI_NODE_DATA(SVGRadialGradientElement, nsSVGRadialGradientElement)
+DOMCI_DATA(SVGRadialGradientElement, nsSVGRadialGradientElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGRadialGradientElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGRadialGradientElement, nsIDOMNode,
@@ -319,7 +319,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGRadialGradientElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGRadialGradientElement::nsSVGRadialGradientElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGRadialGradientElement::nsSVGRadialGradientElement(nsINodeInfo* aNodeInfo)
   : nsSVGRadialGradientElementBase(aNodeInfo)
 {
 }

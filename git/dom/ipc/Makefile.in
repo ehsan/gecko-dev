@@ -56,17 +56,17 @@ EXPORTS_mozilla = \
   $(NULL)
 
 EXPORTS_mozilla/dom = \
-  ContentChild.h \
-  ContentParent.h \
-  ContentProcess.h \
+  ContentProcessChild.h \
+  ContentProcessParent.h \
+  ContentProcessProcess.h \
   TabParent.h \
   TabChild.h \
   $(NULL)
 
 CPPSRCS = \
-  ContentProcess.cpp \
-  ContentParent.cpp \
-  ContentChild.cpp \
+  ContentProcessProcess.cpp \
+  ContentProcessParent.cpp \
+  ContentProcessChild.cpp \
   TabParent.cpp \
   TabChild.cpp \
   TabMessageUtils.cpp \
@@ -79,7 +79,6 @@ include $(topsrcdir)/config/rules.mk
 LOCAL_INCLUDES += \
 		-I$(srcdir)/../../content/base/src \
 		-I$(srcdir)/../../content/events/src \
-		-I$(srcdir)/../../toolkit/components/places/src \
 		-I$(srcdir)/../src/geolocation \
 		-I$(topsrcdir)/chrome/src \
 		$(NULL)

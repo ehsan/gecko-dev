@@ -74,7 +74,6 @@
 #include "nsQuickSort.h"
 #include "nsNetUtil.h"
 #include "nsIOService.h"
-#include "nsAsyncRedirectVerifyHelper.h"
 
 #include "nsIXULAppInfo.h"
 
@@ -271,6 +270,7 @@ nsHttpHandler::Init()
     LOG(("> app-version = %s\n", mAppVersion.get()));
     LOG(("> platform = %s\n", mPlatform.get()));
     LOG(("> oscpu = %s\n", mOscpu.get()));
+    LOG(("> device = %s\n", mDeviceType.get()));
     LOG(("> language = %s\n", mLanguage.get()));
     LOG(("> misc = %s\n", mMisc.get()));
     LOG(("> vendor = %s\n", mVendor.get()));
@@ -531,14 +531,22 @@ nsHttpHandler::NotifyObservers(nsIHttpChannel *chan, const char *event)
 }
 
 nsresult
-nsHttpHandler::AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
+nsHttpHandler::OnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
                                  PRUint32 flags)
 {
-    // TODO E10S This helper has to be initialized on the other process
-    nsRefPtr<nsAsyncRedirectVerifyHelper> redirectCallbackHelper =
-        new nsAsyncRedirectVerifyHelper();
+    // First, the global observer
+    NS_ASSERTION(gIOService, "Must have an IO service at this point");
+    nsresult rv = gIOService->OnChannelRedirect(oldChan, newChan, flags);
+    if (NS_FAILED(rv))
+        return rv;
 
-    return redirectCallbackHelper->Init(oldChan, newChan, flags);
+    // Now, the per-channel observers
+    nsCOMPtr<nsIChannelEventSink> sink;
+    NS_QueryNotificationCallbacks(oldChan, sink);
+    if (sink)
+        rv = sink->OnChannelRedirect(oldChan, newChan, flags);
+
+    return rv;
 }
 
 /* static */ nsresult
@@ -604,6 +612,8 @@ nsHttpHandler::BuildUserAgent()
                            mAppVersion.Length() + 
                            mPlatform.Length() + 
                            mOscpu.Length() +
+                           mDeviceType.Length() +
+                           mLanguage.Length() +
                            mMisc.Length() +
                            mProduct.Length() +
                            mProductSub.Length() +
@@ -625,6 +635,10 @@ nsHttpHandler::BuildUserAgent()
     mUserAgent += mPlatform;
     mUserAgent.AppendLiteral("; ");
     mUserAgent += mOscpu;
+    if (!mLanguage.IsEmpty()) {
+        mUserAgent.AppendLiteral("; ");
+        mUserAgent += mLanguage;
+    }
     if (!mMisc.IsEmpty()) {
         mUserAgent.AppendLiteral("; ");
         mUserAgent += mMisc;
@@ -785,6 +799,14 @@ nsHttpHandler::InitUserAgentComponents()
         mOscpu.Assign(buf);
     }
 #endif
+
+    nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
+    NS_ASSERTION(infoService, "Could not find a system info service");
+
+    nsCString deviceType;
+    nsresult rv = infoService->GetPropertyAsACString(NS_LITERAL_STRING("device"), deviceType);
+    if (NS_SUCCEEDED(rv))
+        mDeviceType = deviceType;
 
     mUserAgentIsDirty = PR_TRUE;
 }
@@ -1701,9 +1723,23 @@ nsHttpHandler::GetOscpu(nsACString &value)
 }
 
 NS_IMETHODIMP
+nsHttpHandler::GetDeviceType(nsACString &value)
+{
+    value = mDeviceType;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 nsHttpHandler::GetLanguage(nsACString &value)
 {
     value = mLanguage;
+    return NS_OK;
+}
+NS_IMETHODIMP
+nsHttpHandler::SetLanguage(const nsACString &value)
+{
+    mLanguage = value;
+    mUserAgentIsDirty = PR_TRUE;
     return NS_OK;
 }
 

@@ -100,13 +100,6 @@ image.study-canceled {
   margin-right: 8px;
 }
 
-image.study-missed {
-  list-style-image: url("chrome://testpilot/skin/status-missed.png");
-  height: 32px;
-  width: 64px;
-  margin-right: 8px;
-}
-
 image.new-study {
   list-style-image: url("chrome://testpilot/skin/tp-study-48x48.png");
   height: 48px;
@@ -138,6 +131,11 @@ image.study-result {
 /* All studies window */
 .pilot-largetext {
   font-size: 16px;
+}
+
+#test-pilot-all-studies-window {
+  min-width: 720px !important;
+  min-height: 500px !important;
 }
 
 #test-pilot-all-studies-window > .prefWindow-dlgbuttons {
@@ -176,12 +174,13 @@ image.study-result {
 }
 
 richlistbox.tp-study-list {
+    height: 522px;
+    width: 502px;
     overflow: auto;
     margin: 0px;
 }
 
 .tp-tab-panel {
-    background-color: -moz-dialog;
     padding: 0px;
 }
 

@@ -48,8 +48,6 @@
 #include "nsWrapperCache.h"
 #include "xpclog.h"
 #include "jstl.h"
-#include "nsINode.h"
-#include "xpcquickstubs.h"
 
 /***************************************************************************/
 
@@ -3920,26 +3918,13 @@ static PRUint32 sSlimWrappers;
 #endif
 
 JSBool
-ConstructSlimWrapper(XPCCallContext &ccx,
-                     nsISupports *p,
-                     qsObjectHelper* aHelper,
-                     nsWrapperCache* cache,
+ConstructSlimWrapper(XPCCallContext &ccx, nsISupports *p, nsWrapperCache *cache,
                      XPCWrappedNativeScope* xpcScope, jsval *rval)
 {
-    nsCOMPtr<nsISupports> strongIdentity;
-    nsISupports* identityObj = aHelper ? aHelper->GetCanonical() : nsnull;
-    if (!identityObj) {
-      strongIdentity = do_QueryInterface(p);
-      identityObj = strongIdentity.get();
-    }
+    nsCOMPtr<nsISupports> identityObj = do_QueryInterface(p);
 
     nsRefPtr<nsXPCClassInfo> classInfoHelper;
-    if (aHelper) {
-      classInfoHelper = aHelper->GetXPCClassInfo();
-    }
-    if (!classInfoHelper) {
-      CallQueryInterface(p, getter_AddRefs(classInfoHelper));
-    }
+    CallQueryInterface(p, getter_AddRefs(classInfoHelper));
 
     JSUint32 flagsInt;
     nsresult rv = classInfoHelper->GetScriptableFlags(&flagsInt);
@@ -4020,11 +4005,7 @@ ConstructSlimWrapper(XPCCallContext &ccx,
         return JS_FALSE;
 
     // Transfer ownership to the wrapper's private.
-    if (strongIdentity) {
-        strongIdentity.forget();
-    } else {
-      aHelper->TakeCanonical();
-    }
+    identityObj.forget();
 
     cache->SetWrapper(wrapper);
 

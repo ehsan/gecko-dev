@@ -108,7 +108,7 @@ function run_test() {
   dest.append("addon5@tests.mozilla.org");
   writeInstallRDFToDir(addon5, dest);
 
-  restartManager();
+  restartManager(1);
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
                                "addon3@tests.mozilla.org",

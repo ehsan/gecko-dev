@@ -210,7 +210,6 @@ var TestPilotXulWindow = {
     Components.utils.import("resource://testpilot/modules/tasks.js");
 
     this._stringBundle = document.getElementById("testpilot-stringbundle");
-    this.sizeWindow();
     this._init(false);
     Observers.add("testpilot:task:changed", this._onTaskStatusChanged, this);
   },
@@ -242,8 +241,8 @@ var TestPilotXulWindow = {
     }
 
     if (!ready) {
-      // If you opened the window before tasks are done loading, exit now
-      // but try again in a few seconds.
+      // If you opened the window before tasks are done loading, exit now but try
+      // again in a few seconds.
       window.setTimeout(
         function() { TestPilotXulWindow._init(aReload); }, 2000);
       return;
@@ -371,18 +370,7 @@ var TestPilotXulWindow = {
           }
         } else {
           if (task.status == TaskConstants.STATUS_MISSED) {
-            // Icon for missed studies
-            let hbox = document.createElement("hbox");
-            newRow.setAttribute("class", "tp-opted-out");
-            statusVbox.appendChild(this.makeSpacer());
-            statusVbox.appendChild(hbox);
-            this.addLabel(
-              statusVbox,
-              this._stringBundle.getString("testpilot.studiesWindow.missedStudy"));
-            statusVbox.appendChild(this.makeSpacer());
-            hbox.appendChild(this.makeSpacer());
-            this.addImg(hbox, "study-missed");
-            hbox.appendChild(this.makeSpacer());
+            // TODO use Sean's icon for missed studies
           } else {
             this.addThanksMessage(statusVbox);
             numFinishedStudies ++;
@@ -431,28 +419,7 @@ var TestPilotXulWindow = {
     // Show number of studies the user finished on badge:
     document.getElementById("num-finished-badge").setAttribute(
       "value", numFinishedStudies);
-  },
 
-  sizeWindow: function() {
-    // Size listboxes based on available screen size, then size window to fit
-    // list boxes.
-    let currList = document.getElementById("current-studies-listbox");
-    let finList = document.getElementById("finished-studies-listbox");
-    let resultsList = document.getElementById("study-results-listbox");
-
-    let screenWidth = window.screen.availWidth;
-    let screenHeight = window.screen.availHeight;
-    let width = screenWidth >= 800 ? 700 : screenWidth - 100;
-    let height = screenHeight >= 800 ? 700 : screenHeight - 100;
-
-    height -= 130; // Or whatever is height of title bar plus windowdragbox
-
-    currList.width = width;
-    currList.height = height;
-    finList.width = width;
-    finList.height = height;
-    resultsList.width = width;
-    resultsList.height = height;
     window.sizeToContent();
   },
 

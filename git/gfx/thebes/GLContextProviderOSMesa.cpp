@@ -153,9 +153,8 @@ OSMesaLibrary::EnsureInitialized()
 class GLContextOSMesa : public GLContext
 {
 public:
-    GLContextOSMesa(const ContextFormat& aFormat)
-        : GLContext(aFormat, PR_TRUE, nsnull),
-          mThebesSurface(nsnull),
+    GLContextOSMesa()
+        : mThebesSurface(nsnull),
           mContext(nsnull)
     {
     }
@@ -166,33 +165,24 @@ public:
             sOSMesaLibrary.fDestroyContext(mContext);
     }
 
-    GLContextType GetContextType() {
-        return ContextTypeOSMesa;
-    }
-
-    PRBool Init(const gfxIntSize &aSize)
+    PRBool Init(const gfxIntSize &aSize, const GLContextProvider::ContextFormat& aFormat)
     {
         int osmesa_format = -1;
         int gfxasurface_imageformat = -1;
         PRBool format_accepted = PR_FALSE;
 
-        if (mCreationFormat.red > 0 &&
-            mCreationFormat.green > 0 &&
-            mCreationFormat.blue > 0 &&
-            mCreationFormat.red <= 8 &&
-            mCreationFormat.green <= 8 &&
-            mCreationFormat.blue <= 8)
-        {
-            if (mCreationFormat.alpha == 0) {
+        if (aFormat.red == 8 && aFormat.green == 8 && aFormat.blue == 8) {
+            if (aFormat.alpha == 8) {
+                osmesa_format = OSMESA_BGRA;
+                gfxasurface_imageformat = gfxASurface::ImageFormatARGB32;
+                format_accepted = PR_TRUE;
+            }
+            else if (aFormat.alpha == 0) {
                 // we can't use OSMESA_BGR because it is packed 24 bits per pixel.
                 // So we use OSMESA_BGRA and have to use ImageFormatRGB24
                 // to make sure that the dummy alpha channel is ignored.
                 osmesa_format = OSMESA_BGRA;
                 gfxasurface_imageformat = gfxASurface::ImageFormatRGB24;
-                format_accepted = PR_TRUE;
-            } else if (mCreationFormat.alpha <= 8) {
-                osmesa_format = OSMESA_BGRA;
-                gfxasurface_imageformat = gfxASurface::ImageFormatARGB32;
                 format_accepted = PR_TRUE;
             }
         }
@@ -207,7 +197,7 @@ public:
             return PR_FALSE;
         }
 
-        mContext = sOSMesaLibrary.fCreateContextExt(osmesa_format, mCreationFormat.depth, mCreationFormat.stencil, 0, NULL);
+        mContext = sOSMesaLibrary.fCreateContextExt(osmesa_format, aFormat.depth, aFormat.stencil, 0, NULL);
         if (!mContext) {
             NS_WARNING("OSMesaCreateContextExt failed!");
             return PR_FALSE;
@@ -225,10 +215,10 @@ public:
     PRBool MakeCurrent()
     {
         PRBool succeeded
-          = sOSMesaLibrary.fMakeCurrent(mContext, mThebesSurface->Data(),
-                                        LOCAL_GL_UNSIGNED_BYTE,
-                                        mThebesSurface->Width(),
-                                        mThebesSurface->Height());
+          = sOSMesaLibrary.fMakeCurrent (mContext, mThebesSurface->Data(),
+                                         LOCAL_GL_UNSIGNED_BYTE,
+                                         mThebesSurface->Width(),
+                                         mThebesSurface->Height());
         NS_ASSERTION(succeeded, "Failed to make OSMesa context current!");
 
         return succeeded;
@@ -262,32 +252,25 @@ GLContextProviderOSMesa::CreateForWindow(nsIWidget *aWidget)
 }
 
 already_AddRefed<GLContext>
-GLContextProviderOSMesa::CreateOffscreen(const gfxIntSize& aSize,
-                                         const ContextFormat& aFormat)
+GLContextProviderOSMesa::CreateForNativePixmapSurface(gfxASurface *aSurface)
+{
+    return 0;
+}
+
+already_AddRefed<GLContext>
+GLContextProviderOSMesa::CreatePBuffer(const gfxIntSize &aSize, const ContextFormat& aFormat)
 {
     if (!sOSMesaLibrary.EnsureInitialized()) {
         return nsnull;
     }
 
-    nsRefPtr<GLContextOSMesa> glContext = new GLContextOSMesa(aFormat);
+    nsRefPtr<GLContextOSMesa> glContext = new GLContextOSMesa;
 
-    if (!glContext->Init(aSize))
-    {
+    if (!glContext->Init(aSize, aFormat)) {
         return nsnull;
     }
 
-    return glContext.forget();
-}
-
-GLContext *
-GLContextProviderOSMesa::GetGlobalContext()
-{
-    return nsnull;
-}
-
-void
-GLContextProviderOSMesa::Shutdown()
-{
+    return glContext.forget().get();
 }
 
 } /* namespace gl */

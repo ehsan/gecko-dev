@@ -44,11 +44,11 @@
 
 #include "nsString.h"
 
-gfxWindowsSurface::gfxWindowsSurface(HWND wnd, PRUint32 flags) :
+gfxWindowsSurface::gfxWindowsSurface(HWND wnd) :
     mOwnsDC(PR_TRUE), mForPrinting(PR_FALSE), mWnd(wnd)
 {
     mDC = ::GetDC(mWnd);
-    InitWithDC(flags);
+    Init(cairo_win32_surface_create(mDC));
 }
 
 gfxWindowsSurface::gfxWindowsSurface(HDC dc, PRUint32 flags) :
@@ -63,7 +63,7 @@ gfxWindowsSurface::gfxWindowsSurface(HDC dc, PRUint32 flags) :
         mForPrinting = PR_TRUE;
     } else
 #endif
-    InitWithDC(flags);
+        Init(cairo_win32_surface_create(mDC));
 }
 
 gfxWindowsSurface::gfxWindowsSurface(const gfxIntSize& size, gfxImageFormat imageFormat) :
@@ -106,6 +106,7 @@ gfxWindowsSurface::gfxWindowsSurface(HDC dc, const gfxIntSize& size, gfxImageFor
         mDC = nsnull;
 }
 
+
 gfxWindowsSurface::gfxWindowsSurface(cairo_surface_t *csurf) :
     mOwnsDC(PR_FALSE), mForPrinting(PR_FALSE), mWnd(nsnull)
 {
@@ -118,16 +119,6 @@ gfxWindowsSurface::gfxWindowsSurface(cairo_surface_t *csurf) :
         mForPrinting = PR_TRUE;
 
     Init(csurf, PR_TRUE);
-}
-
-void
-gfxWindowsSurface::InitWithDC(PRUint32 flags)
-{
-    if (flags & FLAG_IS_TRANSPARENT) {
-        Init(cairo_win32_surface_create_with_alpha(mDC));
-    } else {
-        Init(cairo_win32_surface_create(mDC));
-    }
 }
 
 gfxWindowsSurface::~gfxWindowsSurface()

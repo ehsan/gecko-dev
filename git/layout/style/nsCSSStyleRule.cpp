@@ -48,9 +48,9 @@
 #include "nsCSSRule.h"
 #include "nsICSSStyleRule.h"
 #include "nsICSSGroupRule.h"
-#include "mozilla/css/Declaration.h"
+#include "nsCSSDeclaration.h"
 #include "nsCSSStyleSheet.h"
-#include "mozilla/css/Loader.h"
+#include "nsCSSLoader.h"
 #include "nsIURL.h"
 #include "nsIDocument.h"
 #include "nsIDeviceContext.h"
@@ -81,8 +81,6 @@
 #include "mozAutoDocUpdate.h"
 
 #include "prlog.h"
-
-namespace css = mozilla::css;
 
 #define NS_IF_CLONE(member_)                                                  \
   PR_BEGIN_MACRO                                                              \
@@ -959,7 +957,7 @@ public:
 
   NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent);
   void DropReference(void);
-  virtual nsresult GetCSSDeclaration(css::Declaration **aDecl,
+  virtual nsresult GetCSSDeclaration(nsCSSDeclaration **aDecl,
                                      PRBool aAllocate);
   virtual nsresult GetCSSParsingEnvironment(nsIURI** aSheetURI,
                                             nsIURI** aBaseURI,
@@ -1049,7 +1047,7 @@ DOMCSSDeclarationImpl::DropReference(void)
 }
 
 nsresult
-DOMCSSDeclarationImpl::GetCSSDeclaration(css::Declaration **aDecl,
+DOMCSSDeclarationImpl::GetCSSDeclaration(nsCSSDeclaration **aDecl,
                                          PRBool aAllocate)
 {
   if (mRule) {
@@ -1081,7 +1079,7 @@ DOMCSSDeclarationImpl::GetCSSParsingEnvironment(nsIURI** aSheetURI,
 
   nsCOMPtr<nsIStyleSheet> sheet;
   if (mRule) {
-    sheet = mRule->GetStyleSheet();
+    mRule->GetStyleSheet(*getter_AddRefs(sheet));
     if (sheet) {
       NS_IF_ADDREF(*aSheetURI = sheet->GetSheetURI());
       NS_IF_ADDREF(*aBaseURI = sheet->GetBaseURI());
@@ -1127,7 +1125,8 @@ DOMCSSDeclarationImpl::DeclarationChanged()
          "can only be called when |GetCSSDeclaration| returned a declaration");
 
   nsCOMPtr<nsIDocument> owningDoc;
-  nsCOMPtr<nsIStyleSheet> sheet = mRule->GetStyleSheet();
+  nsCOMPtr<nsIStyleSheet> sheet;
+  mRule->GetStyleSheet(*getter_AddRefs(sheet));
   if (sheet) {
     owningDoc = sheet->GetOwningDocument();
   }
@@ -1277,13 +1276,13 @@ class CSSStyleRuleImpl : public nsCSSRule,
 {
 public:
   CSSStyleRuleImpl(nsCSSSelectorList* aSelector,
-                   css::Declaration *aDeclaration);
+                   nsCSSDeclaration *aDeclaration);
 private:
   // for |Clone|
   CSSStyleRuleImpl(const CSSStyleRuleImpl& aCopy); 
   // for |DeclarationChanged|
   CSSStyleRuleImpl(CSSStyleRuleImpl& aCopy,
-                   css::Declaration *aDeclaration); 
+                   nsCSSDeclaration *aDeclaration); 
 public:
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -1293,15 +1292,15 @@ public:
   virtual PRUint32 GetLineNumber(void) const;
   virtual void SetLineNumber(PRUint32 aLineNumber);
 
-  virtual css::Declaration* GetDeclaration(void) const;
+  virtual nsCSSDeclaration* GetDeclaration(void) const;
 
   virtual nsIStyleRule* GetImportantRule(void);
   virtual void RuleMatched();
 
-  virtual already_AddRefed<nsIStyleSheet> GetStyleSheet() const;
-  virtual void SetStyleSheet(nsCSSStyleSheet* aSheet);
+  NS_IMETHOD GetStyleSheet(nsIStyleSheet*& aSheet) const;
+  NS_IMETHOD SetStyleSheet(nsCSSStyleSheet* aSheet);
   
-  virtual void SetParentRule(nsICSSGroupRule* aRule);
+  NS_IMETHOD SetParentRule(nsICSSGroupRule* aRule);
 
   virtual nsresult GetCssText(nsAString& aCssText);
   virtual nsresult SetCssText(const nsAString& aCssText);
@@ -1310,8 +1309,8 @@ public:
   virtual nsresult GetSelectorText(nsAString& aSelectorText);
   virtual nsresult SetSelectorText(const nsAString& aSelectorText);
 
-  virtual PRInt32 GetType() const;
-  virtual nsresult Clone(nsICSSRule*& aClone) const;
+  NS_IMETHOD GetType(PRInt32& aType) const;
+  NS_IMETHOD Clone(nsICSSRule*& aClone) const;
 
   nsIDOMCSSRule* GetDOMRuleWeak(nsresult* aResult);
 
@@ -1334,18 +1333,18 @@ protected:
 
 protected:
   nsCSSSelectorList*      mSelector; // null for style attribute
-  css::Declaration*       mDeclaration;
+  nsCSSDeclaration*       mDeclaration;
   nsRefPtr<nsCSSCompressedDataBlock> mNormalBlock;
   CSSImportantRule*       mImportantRule;
-  DOMCSSStyleRuleImpl*    mDOMRule;
+  DOMCSSStyleRuleImpl*    mDOMRule;                          
   PRUint32                mLineNumber;
 };
 
 CSSStyleRuleImpl::CSSStyleRuleImpl(nsCSSSelectorList* aSelector,
-                                   css::Declaration* aDeclaration)
+                                   nsCSSDeclaration* aDeclaration)
   : nsCSSRule(),
     mSelector(aSelector),
-    mDeclaration(aDeclaration),
+    mDeclaration(aDeclaration), 
     mImportantRule(nsnull),
     mDOMRule(nsnull),
     mLineNumber(0)
@@ -1369,7 +1368,7 @@ CSSStyleRuleImpl::CSSStyleRuleImpl(const CSSStyleRuleImpl& aCopy)
 
 // for |DeclarationChanged|
 CSSStyleRuleImpl::CSSStyleRuleImpl(CSSStyleRuleImpl& aCopy,
-                                   css::Declaration* aDeclaration)
+                                   nsCSSDeclaration* aDeclaration)
   : nsCSSRule(aCopy),
     mSelector(aCopy.mSelector),
     mDeclaration(aDeclaration),
@@ -1443,7 +1442,7 @@ void CSSStyleRuleImpl::SetLineNumber(PRUint32 aLineNumber)
   mLineNumber = aLineNumber;
 }
 
-css::Declaration* CSSStyleRuleImpl::GetDeclaration(void) const
+nsCSSDeclaration* CSSStyleRuleImpl::GetDeclaration(void) const
 {
   return mDeclaration;
 }
@@ -1470,32 +1469,33 @@ CSSStyleRuleImpl::RuleMatched()
   }
 }
 
-/* virtual */ already_AddRefed<nsIStyleSheet>
-CSSStyleRuleImpl::GetStyleSheet() const
+NS_IMETHODIMP
+CSSStyleRuleImpl::GetStyleSheet(nsIStyleSheet*& aSheet) const
 {
 // XXX What about inner, etc.
-  return nsCSSRule::GetStyleSheet();
+  return nsCSSRule::GetStyleSheet(aSheet);
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 CSSStyleRuleImpl::SetStyleSheet(nsCSSStyleSheet* aSheet)
 {
-  nsCSSRule::SetStyleSheet(aSheet);
+  return nsCSSRule::SetStyleSheet(aSheet);
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 CSSStyleRuleImpl::SetParentRule(nsICSSGroupRule* aRule)
 {
-  nsCSSRule::SetParentRule(aRule);
+  return nsCSSRule::SetParentRule(aRule);
 }
 
-/* virtual */ PRInt32
-CSSStyleRuleImpl::GetType() const
+NS_IMETHODIMP
+CSSStyleRuleImpl::GetType(PRInt32& aType) const
 {
-  return nsICSSRule::STYLE_RULE;
+  aType = nsICSSRule::STYLE_RULE;
+  return NS_OK;
 }
 
-/* virtual */ nsresult
+NS_IMETHODIMP
 CSSStyleRuleImpl::Clone(nsICSSRule*& aClone) const
 {
   CSSStyleRuleImpl* clone = new CSSStyleRuleImpl(*this);
@@ -1504,8 +1504,7 @@ CSSStyleRuleImpl::Clone(nsICSSRule*& aClone) const
     aClone = nsnull;
     return NS_ERROR_OUT_OF_MEMORY;
   }
-  NS_ADDREF(aClone = clone);
-  return NS_OK;
+  return CallQueryInterface(clone, &aClone);
 }
 
 nsIDOMCSSRule*
@@ -1646,7 +1645,7 @@ CSSStyleRuleImpl::SetSelectorText(const nsAString& aSelectorText)
 nsresult
 NS_NewCSSStyleRule(nsICSSStyleRule** aInstancePtrResult,
                    nsCSSSelectorList* aSelector,
-                   css::Declaration* aDeclaration)
+                   nsCSSDeclaration* aDeclaration)
 {
   NS_PRECONDITION(aDeclaration, "must have a declaration");
   CSSStyleRuleImpl *it = new CSSStyleRuleImpl(aSelector, aDeclaration);
@@ -1654,6 +1653,5 @@ NS_NewCSSStyleRule(nsICSSStyleRule** aInstancePtrResult,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  NS_ADDREF(*aInstancePtrResult = it);
-  return NS_OK;
+  return CallQueryInterface(it, aInstancePtrResult);
 }

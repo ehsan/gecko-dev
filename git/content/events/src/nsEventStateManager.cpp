@@ -66,7 +66,7 @@
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMNSHTMLInputElement.h"
-#include "nsIDOMHTMLLabelElement.h"
+#include "nsIDOMNSHTMLLabelElement.h"
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIDOMHTMLAreaElement.h"
@@ -2703,27 +2703,6 @@ nsEventStateManager::DecideGestureEvent(nsGestureNotifyEvent* aEvent,
   aEvent->panDirection = panDirection;
 }
 
-static bool
-NodeAllowsClickThrough(nsINode* aNode)
-{
-  while (aNode) {
-    if (aNode->IsElement() && aNode->AsElement()->IsXUL()) {
-      mozilla::dom::Element* element = aNode->AsElement();
-      static nsIContent::AttrValuesArray strings[] =
-        {&nsGkAtoms::always, &nsGkAtoms::never, nsnull};
-      switch (element->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::clickthrough,
-                                       strings, eCaseMatters)) {
-        case 0:
-          return true;
-        case 1:
-          return false;
-      }
-    }
-    aNode = nsContentUtils::GetCrossDocParentNode(aNode);
-  }
-  return true;
-}
-
 NS_IMETHODIMP
 nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
                                      nsEvent *aEvent,
@@ -3187,19 +3166,6 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
       SetContentState(targetContent, NS_EVENT_STATE_HOVER);
     }
     break;
-
-#ifdef XP_MACOSX
-  case NS_MOUSE_ACTIVATE:
-    if (mCurrentTarget) {
-      nsCOMPtr<nsIContent> targetContent;
-      mCurrentTarget->GetContentForEvent(presContext, aEvent,
-                                         getter_AddRefs(targetContent));
-      if (!NodeAllowsClickThrough(targetContent)) {
-        *aStatus = nsEventStatus_eConsumeNoDefault;
-      }
-    }
-    break;
-#endif
   }
 
   //Reset target frame to null to avoid mistargeting after reentrant event
@@ -4019,7 +3985,7 @@ nsEventStateManager::GetEventTargetContent(nsEvent* aEvent,
 static already_AddRefed<nsIContent>
 GetLabelTarget(nsIContent* aLabel)
 {
-  nsCOMPtr<nsIDOMHTMLLabelElement> label = do_QueryInterface(aLabel);
+  nsCOMPtr<nsIDOMNSHTMLLabelElement> label = do_QueryInterface(aLabel);
   if (!label)
     return nsnull;
 

@@ -38,7 +38,7 @@
 //------------------------------------------------------------------------
 
 #include "nsIFile.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsDirectoryServiceDefs.h"

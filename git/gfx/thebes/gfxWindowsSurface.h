@@ -49,11 +49,10 @@ class THEBES_API gfxWindowsSurface : public gfxASurface {
 public:
     enum {
         FLAG_TAKE_DC = (1 << 0),
-        FLAG_FOR_PRINTING = (1 << 1),
-        FLAG_IS_TRANSPARENT = (1 << 2),
+        FLAG_FOR_PRINTING = (1 << 1)
     };
 
-    gfxWindowsSurface(HWND wnd, PRUint32 flags = 0);
+    gfxWindowsSurface(HWND wnd);
     gfxWindowsSurface(HDC dc, PRUint32 flags = 0);
 
     // Create a DIB surface
@@ -66,8 +65,6 @@ public:
                       gfxImageFormat imageFormat = ImageFormatRGB24);
 
     gfxWindowsSurface(cairo_surface_t *csurf);
-
-    void InitWithDC(PRUint32 flags);
 
     virtual ~gfxWindowsSurface();
 

@@ -68,7 +68,7 @@ NS_IMPL_ISUPPORTS2(nsHTMLCSSStyleSheet,
                    nsIStyleSheet,
                    nsIStyleRuleProcessor)
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 {
   Element* element = aData->mElement;
@@ -98,22 +98,27 @@ nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
     }
   }
 #endif // MOZ_SMIL
+
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::RulesMatching(PseudoElementRuleProcessorData* aData)
 {
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::RulesMatching(AnonBoxRuleProcessorData* aData)
 {
+  return NS_OK;
 }
 
 #ifdef MOZ_XUL
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::RulesMatching(XULTreeRuleProcessorData* aData)
 {
+  return NS_OK;
 }
 #endif
 
@@ -158,10 +163,12 @@ nsHTMLCSSStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aDat
   return nsRestyleHint(0);
 }
 
-/* virtual */ PRBool
-nsHTMLCSSStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
+NS_IMETHODIMP
+nsHTMLCSSStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext,
+                                           PRBool* aRulesChanged)
 {
-  return PR_FALSE;
+  *aRulesChanged = PR_FALSE;
+  return NS_OK;
 }
 
 

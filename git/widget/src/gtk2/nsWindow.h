@@ -193,8 +193,7 @@ public:
     NS_IMETHOD         MakeFullScreen(PRBool aFullScreen);
     NS_IMETHOD         HideWindowChrome(PRBool aShouldHide);
 
-    // utility method, -1 if no change should be made, otherwise returns a
-    // value that can be passed to gdk_window_set_decorations
+    // utility method
     gint               ConvertBorderStyles(nsBorderStyle aStyle);
 
     // event callbacks
@@ -303,8 +302,7 @@ public:
     static guint32     sLastButtonPressTime;
     static guint32     sLastButtonReleaseTime;
 
-    NS_IMETHOD         BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
-    NS_IMETHOD         BeginMoveDrag(nsMouseEvent* aEvent);
+    NS_IMETHOD         BeginResizeDrag   (nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
 
     MozContainer*      GetMozContainer() { return mContainer; }
     GdkWindow*         GetGdkWindow() { return mGdkWindow; }
@@ -378,9 +376,6 @@ private:
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);
     void               SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                            PRBool aIntersectWithExisting);
-    PRBool             GetDragInfo(nsMouseEvent* aMouseEvent,
-                                   GdkWindow** aWindow, gint* aButton,
-                                   gint* aRootX, gint* aRootY);
 
     GtkWidget          *mShell;
     MozContainer       *mContainer;

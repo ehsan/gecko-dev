@@ -111,9 +111,6 @@
 #include "mozAutoDocUpdate.h"
 #include "nsHtml5Module.h"
 #include "nsITextControlElement.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 #include "nsThreadUtils.h"
 
@@ -238,7 +235,7 @@ class nsGenericHTMLElementTearoff : public nsIDOMNSHTMLElement,
                                            nsIDOMNSHTMLElement)
 
 private:
-  nsRefPtr<nsGenericHTMLElement> mElement;
+  nsCOMPtr<nsGenericHTMLElement> mElement;
 };
 
 NS_IMPL_CYCLE_COLLECTION_1(nsGenericHTMLElementTearoff, mElement)
@@ -700,7 +697,7 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
 
   docEncoder->SetNativeContainerNode(this);
   rv = docEncoder->EncodeToString(aInnerHTML);
-  doc->SetCachedEncoder(docEncoder.forget());
+  doc->SetCachedEncoder(docEncoder);
   return rv;
 }
 
@@ -951,8 +948,6 @@ nsGenericHTMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 nsGenericHTMLElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  RemoveFromNameTable();
-
   if (GetContentEditableValue() == eTrue) {
     nsCOMPtr<nsIHTMLDocument> htmlDocument = do_QueryInterface(GetCurrentDoc());
     if (htmlDocument) {
@@ -1541,22 +1536,39 @@ nsGenericHTMLElement::ParseTableHAlignValue(const nsAString& aString,
 
 //----------------------------------------
 
-// This table is used for td, th, tr, col, thead, tbody and tfoot.
+// These tables are used for TD,TH,TR, etc (but not TABLE)
 static const nsAttrValue::EnumTable kTableCellHAlignTable[] = {
   { "left",   NS_STYLE_TEXT_ALIGN_MOZ_LEFT },
   { "right",  NS_STYLE_TEXT_ALIGN_MOZ_RIGHT },
   { "center", NS_STYLE_TEXT_ALIGN_MOZ_CENTER },
   { "char",   NS_STYLE_TEXT_ALIGN_CHAR },
   { "justify",NS_STYLE_TEXT_ALIGN_JUSTIFY },
+  { 0 }
+};
+
+static const nsAttrValue::EnumTable kCompatTableCellHAlignTable[] = {
+  { "left",   NS_STYLE_TEXT_ALIGN_MOZ_LEFT },
+  { "right",  NS_STYLE_TEXT_ALIGN_MOZ_RIGHT },
+  { "center", NS_STYLE_TEXT_ALIGN_MOZ_CENTER },
+  { "char",   NS_STYLE_TEXT_ALIGN_CHAR },
+  { "justify",NS_STYLE_TEXT_ALIGN_JUSTIFY },
+
+  // The following are non-standard but necessary for Nav4 compatibility
   { "middle", NS_STYLE_TEXT_ALIGN_MOZ_CENTER },
+  // allow center and absmiddle to map to NS_STYLE_TEXT_ALIGN_CENTER and
+  // NS_STYLE_TEXT_ALIGN_CENTER to map to center by using the following order
+  { "center", NS_STYLE_TEXT_ALIGN_CENTER },
   { "absmiddle", NS_STYLE_TEXT_ALIGN_CENTER },
   { 0 }
 };
 
 PRBool
 nsGenericHTMLElement::ParseTableCellHAlignValue(const nsAString& aString,
-                                                nsAttrValue& aResult)
+                                                nsAttrValue& aResult) const
 {
+  if (InNavQuirksMode(GetOwnerDoc())) {
+    return aResult.ParseEnumValue(aString, kCompatTableCellHAlignTable, PR_FALSE);
+  }
   return aResult.ParseEnumValue(aString, kTableCellHAlignTable, PR_FALSE);
 }
 
@@ -2295,7 +2307,7 @@ nsGenericHTMLElement::GetIsContentEditable(PRBool* aContentEditable)
 
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsGenericHTMLFrameElement, TabIndex, tabindex, 0)
 
-nsGenericHTMLFormElement::nsGenericHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsGenericHTMLFormElement::nsGenericHTMLFormElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mForm(nsnull)
 {
@@ -2367,13 +2379,7 @@ nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm,
   mForm = nsnull;
 }
 
-Element*
-nsGenericHTMLFormElement::GetFormElement()
-{
-  return mForm;
-}
-
-nsresult
+NS_IMETHODIMP
 nsGenericHTMLFormElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
   NS_ENSURE_ARG_POINTER(aForm);
@@ -2512,6 +2518,8 @@ nsGenericHTMLFormElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   // Save state before doing anything
   SaveState();
   
+  RemoveFromNameTable();
+
   if (mForm) {
     // Might need to unset mForm
     if (aNullParent) {

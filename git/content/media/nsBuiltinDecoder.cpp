@@ -303,9 +303,6 @@ void nsBuiltinDecoder::MetadataLoaded()
   {
     MonitorAutoEnter mon(mMonitor);
     mDuration = mDecoderStateMachine ? mDecoderStateMachine->GetDuration() : -1;
-    // Duration has changed so we should recompute playback rate
-    UpdatePlaybackRate();
-
     notifyElement = mNextState != PLAY_STATE_SEEKING;
   }
 
@@ -446,8 +443,7 @@ NS_IMETHODIMP nsBuiltinDecoder::Observe(nsISupports *aSubjet,
 nsMediaDecoder::Statistics
 nsBuiltinDecoder::GetStatistics()
 {
-  NS_ASSERTION(NS_IsMainThread() || OnStateMachineThread(),
-               "Should be on main or state machine thread.");
+  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   Statistics result;
 
   MonitorAutoEnter mon(mMonitor);
@@ -742,9 +738,6 @@ void nsBuiltinDecoder::DurationChanged()
   MonitorAutoEnter mon(mMonitor);
   PRInt64 oldDuration = mDuration;
   mDuration = mDecoderStateMachine ? mDecoderStateMachine->GetDuration() : -1;
-  // Duration has changed so we should recompute playback rate
-  UpdatePlaybackRate();
-
   if (mElement && oldDuration != mDuration) {
     LOG(PR_LOG_DEBUG, ("%p duration changed to %lldms", this, mDuration));
     mElement->DispatchSimpleEvent(NS_LITERAL_STRING("durationchange"));
@@ -755,14 +748,11 @@ void nsBuiltinDecoder::SetDuration(PRInt64 aDuration)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   mDuration = aDuration;
-
-  MonitorAutoEnter mon(mMonitor);
   if (mDecoderStateMachine) {
+    MonitorAutoEnter mon(mMonitor);
     mDecoderStateMachine->SetDuration(mDuration);
+    UpdatePlaybackRate();
   }
-
-  // Duration has changed so we should recompute playback rate
-  UpdatePlaybackRate();
 }
 
 void nsBuiltinDecoder::SetSeekable(PRBool aSeekable)
@@ -789,15 +779,11 @@ void nsBuiltinDecoder::Suspend()
   }
 }
 
-void nsBuiltinDecoder::Resume(PRBool aForceBuffering)
+void nsBuiltinDecoder::Resume()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   if (mStream) {
     mStream->Resume();
-  }
-  if (aForceBuffering) {
-    MonitorAutoEnter mon(mMonitor);
-    mDecoderStateMachine->StartBuffering();
   }
 }
 

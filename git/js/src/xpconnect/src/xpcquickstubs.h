@@ -40,8 +40,6 @@
 #ifndef xpcquickstubs_h___
 #define xpcquickstubs_h___
 
-#include "nsINode.h"
-
 /* xpcquickstubs.h - Support functions used only by quick stubs. */
 
 class XPCCallContext;
@@ -76,80 +74,6 @@ struct xpc_qsHashEntry {
     // XPC_QS_NULL_ENTRY indicates there are no more entries in the chain.
     size_t parentInterface;
     size_t chain;
-};
-
-class qsObjectHelper
-{
-public:
-  qsObjectHelper(nsISupports* aObject)
-  : mObject(aObject),
-    mCanonical(nsnull),
-    mCanonicalIsStrong(PR_FALSE),
-    mNode(nsnull)  {}
-
-  ~qsObjectHelper()
-  {
-    if (mCanonicalIsStrong) {
-      NS_RELEASE(mCanonical);
-    }
-  }
-
-  void SetCanonical(already_AddRefed<nsISupports> aCanonical)
-  {
-    mCanonical = aCanonical.get();
-    if (mCanonical) {
-      mCanonicalIsStrong = PR_TRUE;
-    }
-  }
-
-  void SetCanonical(nsISupports* aCanonical) { mCanonical = aCanonical; }
-
-  void SetNode(nsINode* aNode) { mNode = aNode; }
-
-  void SetNode(void* /*aDummy*/) { }
-  
-  nsISupports* Object() { return mObject; }
-
-  nsISupports* GetCanonical()
-  {
-    if (!mCanonical) {
-      CallQueryInterface(mObject, &mCanonical);
-      mCanonicalIsStrong = PR_TRUE;
-    }
-    return mCanonical;
-  }
-
-  already_AddRefed<nsISupports> TakeCanonical()
-  {
-    nsISupports* retval = mCanonical;
-    if (mCanonicalIsStrong) {
-      mCanonicalIsStrong = PR_FALSE;
-    } else {
-      NS_IF_ADDREF(mCanonical);
-    }
-    mCanonical = nsnull;
-    return retval;
-  }
-
-  already_AddRefed<nsXPCClassInfo> GetXPCClassInfo()
-  {
-    nsRefPtr<nsXPCClassInfo> ci;
-    if (mNode) {
-      ci = mNode->GetClassInfo();
-    } else {
-      CallQueryInterface(mObject, getter_AddRefs(ci));
-    }
-    return ci.forget();
-  }
-
-private:
-  qsObjectHelper(qsObjectHelper& aOther) {}
-  qsObjectHelper() {}
-
-  nsISupports*           mObject;
-  nsISupports*           mCanonical;
-  PRBool                 mCanonicalIsStrong;
-  nsINode*               mNode;
 };
 
 JSBool
@@ -423,12 +347,9 @@ JSBool
 xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr);
 
 
-/** Convert an nsString to jsval, returning JS_TRUE on success.
- *  Note, the ownership of the string buffer may be moved from str to rval.
- *  If that happens, str will point to an empty string after this call.
- */
+/** Convert an nsAString to jsval, returning JS_TRUE on success. */
 JSBool
-xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval);
+xpc_qsStringToJsval(JSContext *cx, const nsAString &str, jsval *rval);
 
 nsresult
 getWrapper(JSContext *cx,
@@ -625,13 +546,10 @@ xpc_qsGetWrapperCache(void *p)
     return nsnull;
 }
 
-/** Convert an XPCOM pointer to jsval. Return JS_TRUE on success. 
- * aIdentity is a performance optimization. Set it to PR_TRUE,
- * only if p is the identity pointer.
- */
+/** Convert an XPCOM pointer to jsval. Return JS_TRUE on success. */
 JSBool
 xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx,
-                         qsObjectHelper* aHelper,
+                         nsISupports *p,
                          nsWrapperCache *cache,
                          const nsIID *iid,
                          XPCNativeInterface **iface,
@@ -649,12 +567,6 @@ inline nsISupports*
 ToSupports(nsISupports *p)
 {
     return p;
-}
-
-inline nsISupports*
-ToCanonicalSupports(nsISupports* p)
-{
-  return nsnull;
 }
 
 #ifdef DEBUG

@@ -74,7 +74,6 @@
 
 #include "nsCSSParser.h"
 #include "nsICSSStyleRule.h"
-#include "mozilla/css/Declaration.h"
 #include "nsComputedDOMStyle.h"
 #include "nsStyleSet.h"
 
@@ -126,11 +125,11 @@
 
 #ifdef MOZ_IPC
 #  include <algorithm>
-#  include "mozilla/dom/ContentParent.h"
+#  include "mozilla/dom/ContentProcessParent.h"
 #  include "mozilla/ipc/PDocumentRendererParent.h"
 #  include "mozilla/ipc/PDocumentRendererShmemParent.h"
 #  include "mozilla/ipc/PDocumentRendererNativeIDParent.h"
-#  include "mozilla/dom/PBrowserParent.h"
+#  include "mozilla/dom/PIFrameEmbeddingParent.h"
 #  include "mozilla/ipc/DocumentRendererParent.h"
 #  include "mozilla/ipc/DocumentRendererShmemParent.h"
 #  include "mozilla/ipc/DocumentRendererNativeIDParent.h"
@@ -416,8 +415,7 @@ public:
                               nsIInputStream **aStream);
     NS_IMETHOD GetThebesSurface(gfxASurface **surface);
     NS_IMETHOD SetIsOpaque(PRBool isOpaque);
-    already_AddRefed<CanvasLayer> GetCanvasLayer(CanvasLayer *aOldLayer,
-                                                 LayerManager *aManager);
+    already_AddRefed<CanvasLayer> GetCanvasLayer(LayerManager *manager);
     void MarkContextClean();
     NS_IMETHOD SetIsIPC(PRBool isIPC);
     // this rect is in CSS pixels
@@ -507,7 +505,6 @@ protected:
     PRInt32 mWidth, mHeight;
     PRPackedBool mValid;
     PRPackedBool mOpaque;
-    PRPackedBool mResetLayer;
 
 #ifdef MOZ_IPC
     PRPackedBool mIPC;
@@ -825,7 +822,7 @@ NS_NewCanvasRenderingContext2D(nsIDOMCanvasRenderingContext2D** aResult)
 }
 
 nsCanvasRenderingContext2D::nsCanvasRenderingContext2D()
-    : mValid(PR_FALSE), mOpaque(PR_FALSE), mResetLayer(PR_TRUE)
+    : mValid(PR_FALSE), mOpaque(PR_FALSE)
 #ifdef MOZ_IPC
     , mIPC(PR_FALSE)
 #endif
@@ -841,7 +838,7 @@ nsCanvasRenderingContext2D::~nsCanvasRenderingContext2D()
     Destroy();
 
 #ifdef MOZ_IPC
-    ContentParent* allocator = ContentParent::GetSingleton(PR_FALSE);
+    ContentProcessParent* allocator = ContentProcessParent::GetSingleton(PR_FALSE);
     if (allocator && gfxSharedImageSurface::IsSharedImage(mBackSurface)) {
         Shmem mem = static_cast<gfxSharedImageSurface*>(mBackSurface.get())->GetShmem();
         allocator->DeallocShmem(mem);
@@ -862,7 +859,7 @@ void
 nsCanvasRenderingContext2D::Destroy()
 {
 #ifdef MOZ_IPC
-    ContentParent* allocator = ContentParent::GetSingleton(PR_FALSE);
+    ContentProcessParent* allocator = ContentProcessParent::GetSingleton(PR_FALSE);
     if (allocator && gfxSharedImageSurface::IsSharedImage(mSurface)) {
         Shmem &mem = static_cast<gfxSharedImageSurface*>(mSurface.get())->GetShmem();
         allocator->DeallocShmem(mem);
@@ -1111,7 +1108,7 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
 #ifdef MOZ_HAVE_SHAREDMEMORYSYSV
                 shmtype = SharedMemory::TYPE_SYSV;
 #endif
-                ContentParent* allocator = ContentParent::GetSingleton();
+                ContentProcessParent* allocator = ContentProcessParent::GetSingleton();
                 mBackSurface = new gfxSharedImageSurface();
                 static_cast<gfxSharedImageSurface*>(mBackSurface.get())->Init(allocator, size, format, shmtype);
             }
@@ -1142,7 +1139,6 @@ nsCanvasRenderingContext2D::InitializeWithSurface(nsIDocShell *docShell, gfxASur
 
     mSurface = surface;
     mThebes = surface ? new gfxContext(mSurface) : nsnull;
-    mResetLayer = PR_TRUE;
 
     /* Create dummy surfaces here */
     if (mSurface == nsnull || mSurface->CairoStatus() != 0 ||
@@ -1272,7 +1268,7 @@ nsCanvasRenderingContext2D::Swap(mozilla::ipc::Shmem& aBack,
     if (aBackImage->Data() != static_cast<gfxImageSurface*>(mBackSurface.get())->Data()) {
         NS_ERROR("Incoming back surface is not equal to our back surface");
         // Delete orphaned memory and return
-        ContentParent* allocator = ContentParent::GetSingleton(PR_FALSE);
+        ContentProcessParent* allocator = ContentProcessParent::GetSingleton(PR_FALSE);
         if (allocator)
             allocator->DeallocShmem(aBack);
         return NS_ERROR_FAILURE;
@@ -2244,36 +2240,28 @@ CreateFontStyleRule(const nsAString& aFont,
     nsCSSParser parser;
     NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);
 
-    nsCOMPtr<nsICSSStyleRule> rule;
-    PRBool changed;
+    // aFont is to be parsed as the value of a CSS 'font' shorthand,
+    // and then any line-height setting in that shorthand is to be
+    // overridden with "normal".  Because of the way style rules are
+    // stored, it is more efficient to fabricate a text string that
+    // can be processed in one go with ParseStyleAttribute than to
+    // make two calls to ParseDeclaration.
+
+    nsAutoString styleAttr(NS_LITERAL_STRING("font:"));
+    styleAttr.Append(aFont);
+    styleAttr.AppendLiteral(";line-height:normal");
 
     nsIPrincipal* principal = aNode->NodePrincipal();
     nsIDocument* document = aNode->GetOwnerDoc();
-
     nsIURI* docURL = document->GetDocumentURI();
     nsIURI* baseURL = document->GetDocBaseURI();
 
-    nsresult rv = parser.ParseStyleAttribute(EmptyString(), docURL, baseURL,
-                                             principal, getter_AddRefs(rule));
+    nsresult rv = parser.ParseStyleAttribute(styleAttr, docURL, baseURL,
+                                             principal, aResult);
     if (NS_FAILED(rv))
         return rv;
 
-    rv = parser.ParseProperty(eCSSProperty_font, aFont, docURL, baseURL,
-                              principal, rule->GetDeclaration(), &changed,
-                              PR_FALSE);
-    if (NS_FAILED(rv))
-        return rv;
-
-    rv = parser.ParseProperty(eCSSProperty_line_height,
-                              NS_LITERAL_STRING("normal"), docURL, baseURL,
-                              principal, rule->GetDeclaration(), &changed,
-                              PR_FALSE);
-    if (NS_FAILED(rv))
-        return rv;
-
-    rule->RuleMatched();
-
-    rule.forget(aResult);
+    (*aResult)->RuleMatched();
     return NS_OK;
 }
 
@@ -2307,23 +2295,6 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
     rv = CreateFontStyleRule(font, document, getter_AddRefs(rule));
     if (NS_FAILED(rv))
         return rv;
-
-    css::Declaration *declaration = rule->GetDeclaration();
-    // The easiest way to see whether we got a syntax error or whether
-    // we got 'inherit' or 'initial' is to look at font-size-adjust,
-    // which the shorthand resets to either 'none' or
-    // '-moz-system-font'.
-    // We know the declaration is not !important, so we can use
-    // GetNormalBlock().
-    const nsCSSValue *fsaVal =
-      declaration->GetNormalBlock()->
-        ValueStorageFor(eCSSProperty_font_size_adjust);
-    if (!fsaVal || (fsaVal->GetUnit() != eCSSUnit_None &&
-                    fsaVal->GetUnit() != eCSSUnit_System_Font)) {
-        // We got an all-property value or a syntax error.  The spec says
-        // this value must be ignored.
-        return NS_OK;
-    }
 
     rules.AppendObject(rule);
 
@@ -2384,22 +2355,14 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
                        fontStyle->mFont.sizeAdjust,
                        fontStyle->mFont.systemFont,
                        fontStyle->mFont.familyNameQuirks,
-                       printerFont,
-                       fontStyle->mFont.featureSettings,
-                       fontStyle->mFont.languageOverride);
+                       printerFont);
 
     CurrentState().fontGroup =
         gfxPlatform::GetPlatform()->CreateFontGroup(fontStyle->mFont.name,
                                                     &style,
                                                     presShell->GetPresContext()->GetUserFontSet());
     NS_ASSERTION(CurrentState().fontGroup, "Could not get font group");
-
-    // The font getter is required to be reserialized based on what we
-    // parsed (including having line-height removed).  (Older drafts of
-    // the spec required font sizes be converted to pixels, but that no
-    // longer seems to be required.)
-    declaration->GetValue(eCSSProperty_font, CurrentState().font);
-
+    CurrentState().font = font;
     return NS_OK;
 }
 
@@ -3519,16 +3482,11 @@ nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
         mThebes->SetPattern(pattern);
         DirtyAllStyles();
 
-        /* Direct2D isn't very good at clipping so use Fill() when we can */
-        if (CurrentState().globalAlpha == 1.0f && mThebes->CurrentOperator() == gfxContext::OPERATOR_OVER) {
-            mThebes->Rectangle(clip);
-            mThebes->Fill();
-        } else {
-            /* we need to use to clip instead of fill for globalAlpha */
-            mThebes->Clip(clip);
-            mThebes->Paint(CurrentState().globalAlpha);
-        }
+        mThebes->Clip(clip);
+
         dirty = mThebes->UserToDevice(clip);
+
+        mThebes->Paint(CurrentState().globalAlpha);
     }
 
 #if 1
@@ -3558,8 +3516,10 @@ nsCanvasRenderingContext2D::SetGlobalCompositeOperation(const nsAString& op)
     if (op.EqualsLiteral(cvsop))   \
         thebes_op = gfxContext::OPERATOR_##thebesop;
 
+    // XXX "darker" isn't really correct
     CANVAS_OP_TO_THEBES_OP("clear", CLEAR)
     else CANVAS_OP_TO_THEBES_OP("copy", SOURCE)
+    else CANVAS_OP_TO_THEBES_OP("darker", SATURATE)  // XXX
     else CANVAS_OP_TO_THEBES_OP("destination-atop", DEST_ATOP)
     else CANVAS_OP_TO_THEBES_OP("destination-in", DEST_IN)
     else CANVAS_OP_TO_THEBES_OP("destination-out", DEST_OUT)
@@ -3711,11 +3671,8 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
     if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_USE_WIDGET_LAYERS) {
         renderDocFlags |= nsIPresShell::RENDER_USE_WIDGET_LAYERS;
     }
-    if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_ASYNC_DECODE_IMAGES) {
-        renderDocFlags |= nsIPresShell::RENDER_ASYNC_DECODE_IMAGES;
-    }
 
-    rv = presShell->RenderDocument(r, renderDocFlags, bgColor, mThebes);
+    presShell->RenderDocument(r, renderDocFlags, bgColor, mThebes);
 
     // get rid of the pattern surface ref, just in case
     mThebes->SetColor(gfxRGBA(1,1,1,1));
@@ -3760,7 +3717,7 @@ nsCanvasRenderingContext2D::AsyncDrawXULElement(nsIDOMXULElement* aElem, float a
         return NS_ERROR_FAILURE;
 
 #ifdef MOZ_IPC
-    PBrowserParent *child = frameloader->GetRemoteBrowser();
+    PIFrameEmbeddingParent *child = frameloader->GetChildProcess();
     if (!child) {
         nsCOMPtr<nsIDOMWindow> window =
             do_GetInterface(frameloader->GetExistingDocShell());
@@ -4117,29 +4074,17 @@ nsCanvasRenderingContext2D::SetMozImageSmoothingEnabled(PRBool val)
     return NS_OK;
 }
 
-static PRUint8 g2DContextLayerUserData;
-
 already_AddRefed<CanvasLayer>
-nsCanvasRenderingContext2D::GetCanvasLayer(CanvasLayer *aOldLayer,
-                                           LayerManager *aManager)
+nsCanvasRenderingContext2D::GetCanvasLayer(LayerManager *manager)
 {
     if (!mValid)
         return nsnull;
 
-    if (!mResetLayer && aOldLayer &&
-        aOldLayer->GetUserData() == &g2DContextLayerUserData) {
-        NS_ADDREF(aOldLayer);
-        // XXX Need to just update the changed area here
-        aOldLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
-        return aOldLayer;
-    }
-
-    nsRefPtr<CanvasLayer> canvasLayer = aManager->CreateCanvasLayer();
+    nsRefPtr<CanvasLayer> canvasLayer = manager->CreateCanvasLayer();
     if (!canvasLayer) {
         NS_WARNING("CreateCanvasLayer returned null!");
         return nsnull;
     }
-    canvasLayer->SetUserData(&g2DContextLayerUserData);
 
     CanvasLayer::Data data;
 
@@ -4150,7 +4095,6 @@ nsCanvasRenderingContext2D::GetCanvasLayer(CanvasLayer *aOldLayer,
     canvasLayer->SetIsOpaqueContent(mOpaque);
     canvasLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
 
-    mResetLayer = PR_FALSE;
     return canvasLayer.forget().get();
 }
 

@@ -67,6 +67,24 @@ abstract public class GeckoApp
         // and then fire us up
         Intent i = getIntent();
         String env = i.getStringExtra("env0");
+        Log.i("GeckoApp", "env0: "+ env);
+        for (int c = 1; env != null; c++) {
+            GeckoAppShell.putenv(env);
+            env = i.getStringExtra("env" + c);
+            Log.i("GeckoApp", "env"+ c +": "+ env);
+        }
+        String tmpdir = System.getProperty("java.io.tmpdir");
+        if (tmpdir == null) {
+          try {
+            File f = Environment.getDownloadCacheDirectory();
+            dalvik.system.TemporaryDirectory.setUpDirectory(f);
+            tmpdir = f.getPath();
+          } catch (Exception e) {
+            Log.e("GeckoApp", "error setting up tmp dir" + e);
+          }
+        }
+        GeckoAppShell.putenv("TMPDIR=" + tmpdir);
+
         GeckoAppShell.runGecko(getApplication().getPackageResourcePath(),
                                i.getStringExtra("args"),
                                i.getDataString());
@@ -228,33 +246,16 @@ abstract public class GeckoApp
 
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         switch (keyCode) {
-            case KeyEvent.KEYCODE_BACK:
-                if (event.getRepeatCount() == 0) {
-                    event.startTracking();
-                    return true;
-                } else {
-                    return false;
-                }
             case KeyEvent.KEYCODE_VOLUME_UP:
             case KeyEvent.KEYCODE_VOLUME_DOWN:
-            case KeyEvent.KEYCODE_SEARCH:
                 return false;
             default:
-                break;
+                GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
+                return true;
         }
-        GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
-        return true;
     }
 
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        switch(keyCode) {
-            case KeyEvent.KEYCODE_BACK:
-                if (!event.isTracking() || event.isCanceled())
-                    return false;
-                break;
-            default:
-                break;
-        }
         GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
         return true;
     }

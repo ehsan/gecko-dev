@@ -41,14 +41,14 @@ void MozQWidget::activate()
 {
     // ensure that the keyboard is hidden when we activate the window
     hideVKB();
-    mReceiver->DispatchActivateEventOnTopLevelWindow();
+    mReceiver->DispatchActivateEvent();
 }
 
 void MozQWidget::deactivate()
 {
     // ensure that the keyboard is hidden when we deactivate the window
     hideVKB();
-    mReceiver->DispatchDeactivateEventOnTopLevelWindow();
+    mReceiver->DispatchDeactivateEvent();
 }
 
 void MozQWidget::resizeEvent(QGraphicsSceneResizeEvent* aEvent)

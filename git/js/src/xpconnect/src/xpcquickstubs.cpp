@@ -1058,7 +1058,7 @@ xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr)
 }
 
 JSBool
-xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval)
+xpc_qsStringToJsval(JSContext *cx, const nsAString &str, jsval *rval)
 {
     // From the T_DOMSTRING case in XPCConvert::NativeData2JS.
     if(str.IsVoid())
@@ -1067,26 +1067,17 @@ xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval)
         return JS_TRUE;
     }
 
-    PRBool isShared = PR_FALSE;
-    jsval jsstr =
-        XPCStringConvert::ReadableToJSVal(cx, str, PR_TRUE, &isShared);
+    jsval jsstr = XPCStringConvert::ReadableToJSVal(cx, str);
     if(!jsstr)
         return JS_FALSE;
     *rval = jsstr;
-    if (isShared)
-    {
-        // The string was shared but ReadableToJSVal didn't addref it.
-        // Move the ownership from str to jsstr.
-        str.ForgetSharedBuffer();
-    }
     return JS_TRUE;
 }
 
 JSBool
-xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, qsObjectHelper* aHelper,
-                         nsWrapperCache *cache,
-                         const nsIID *iid, XPCNativeInterface **iface,
-                         jsval *rval)
+xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, nsISupports *p,
+                         nsWrapperCache *cache, const nsIID *iid,
+                         XPCNativeInterface **iface, jsval *rval)
 {
     // From the T_INTERFACE case in XPCConvert::NativeData2JS.
     // This is one of the slowest things quick stubs do.
@@ -1102,13 +1093,10 @@ xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, qsObjectHelper* aHelper,
     // creating a new XPCNativeScriptableShared.
 
     nsresult rv;
-    if(!XPCConvert::NativeInterface2JSObject(lccx, rval, nsnull,
-                                             aHelper->Object(),
-                                             iid, iface,
-                                             cache,
+    if(!XPCConvert::NativeInterface2JSObject(lccx, rval, nsnull, p,
+                                             iid, iface, cache,
                                              lccx.GetCurrentJSObject(), PR_TRUE,
-                                             OBJ_IS_NOT_GLOBAL, &rv,
-                                             aHelper))
+                                             OBJ_IS_NOT_GLOBAL, &rv))
     {
         // I can't tell if NativeInterface2JSObject throws JS exceptions
         // or not.  This is a sloppy stab at the right semantics; the

@@ -61,26 +61,56 @@
 # ***** END LICENSE BLOCK *****
 
 function nsContextMenu(aXulMenu, aBrowser) {
-  this.shouldDisplay = true;
-  this.initMenu(aBrowser);
+  this.target            = null;
+  this.browser           = null;
+  this.menu              = null;
+  this.isFrameImage      = false;
+  this.onTextInput       = false;
+  this.onKeywordField    = false;
+  this.onImage           = false;
+  this.onLoadedImage     = false;
+  this.onCompletedImage  = false;
+  this.onCanvas          = false;
+  this.onVideo           = false;
+  this.onAudio           = false;
+  this.onLink            = false;
+  this.onMailtoLink      = false;
+  this.onSaveableLink    = false;
+  this.onMathML          = false;
+  this.link              = false;
+  this.linkURL           = "";
+  this.linkURI           = null;
+  this.linkProtocol      = null;
+  this.inFrame           = false;
+  this.hasBGImage        = false;
+  this.isTextSelected    = false;
+  this.isContentSelected = false;
+  this.shouldDisplay     = true;
+  this.isDesignMode      = false;
+  this.onEditableArea = false;
+  this.ellipsis = "\u2026";
+  try {
+    this.ellipsis = gPrefService.getComplexValue("intl.ellipsis",
+                                                 Ci.nsIPrefLocalizedString).data;
+  } catch (e) { }
+
+  // Initialize new menu.
+  this.initMenu(aXulMenu, aBrowser);
 }
 
 // Prototype for nsContextMenu "class."
 nsContextMenu.prototype = {
-  initMenu: function CM_initMenu(aBrowser) {
+  // Initialize context menu.
+  initMenu: function CM_initMenu(aPopup, aBrowser) {
+    this.menu = aPopup;
+    this.browser = aBrowser;
+
+    this.isFrameImage = document.getElementById("isFrameImage");
+
     // Get contextual info.
     this.setTarget(document.popupNode, document.popupRangeParent,
                    document.popupRangeOffset);
-    if (!this.shouldDisplay)
-      return;
 
-    this.browser = aBrowser;
-    this.isFrameImage = document.getElementById("isFrameImage");
-    this.ellipsis = "\u2026";
-    try {
-      this.ellipsis = gPrefService.getComplexValue("intl.ellipsis",
-                                                   Ci.nsIPrefLocalizedString).data;
-    } catch (e) { }
     this.isTextSelected = this.isTextSelection();
     this.isContentSelected = this.isContentSelection();
 
@@ -173,7 +203,7 @@ nsContextMenu.prototype = {
         onPlainTextLink = true;
       }
     }
-
+ 
     var shouldShow = this.onSaveableLink || isMailtoInternal || onPlainTextLink;
     this.showItem("context-openlink", shouldShow);
     this.showItem("context-openlinkintab", shouldShow);
@@ -275,7 +305,7 @@ nsContextMenu.prototype = {
 
   initMiscItems: function CM_initMiscItems() {
     var isTextSelected = this.isTextSelected;
-
+    
     // Use "Bookmark This Link" if on a link.
     this.showItem("context-bookmarkpage",
                   !(this.isContentSelected || this.onTextInput || this.onLink ||
@@ -301,6 +331,36 @@ nsContextMenu.prototype = {
                   this.onTextInput && top.gBidiUI);
     this.showItem("context-bidi-page-direction-toggle",
                   !this.onTextInput && top.gBidiUI);
+
+    var hostLabel = "";
+    if (this.onImage) {
+      var blockImage = document.getElementById("context-blockimage");
+
+      var uri = this.target
+                    .QueryInterface(Ci.nsIImageLoadingContent)
+                    .currentURI;
+
+      // this throws if the image URI doesn't have a host (eg, data: image URIs)
+      // see bug 293758 for details
+      try {
+        hostLabel = uri.host;
+      } catch (ex) { }
+
+      if (hostLabel) {
+        if (hostLabel.length > 15)
+          hostLabel = hostLabel.substr(0,15) + this.ellipsis;
+        blockImage.label = gNavigatorBundle.getFormattedString("blockImages", [hostLabel]);
+
+        if (this.isImageBlocked())
+          blockImage.setAttribute("checked", "true");
+        else
+          blockImage.removeAttribute("checked");
+      }
+    }
+
+    // Only show the block image item if the image can be blocked
+    this.showItem("context-blockimage", this.onImage && hostLabel &&
+      !gPrivateBrowsingUI.privateBrowsingEnabled);
   },
 
   initSpellingItems: function() {
@@ -318,11 +378,10 @@ nsContextMenu.prototype = {
     // suggestion list
     this.showItem("spell-suggestions-separator", onMisspelling);
     if (onMisspelling) {
+      var menu = document.getElementById("contentAreaContextMenu");
       var suggestionsSeparator =
         document.getElementById("spell-add-to-dictionary");
-      var numsug =
-        InlineSpellCheckerUI.addSuggestionsToMenu(suggestionsSeparator.parentNode,
-                                                  suggestionsSeparator, 5);
+      var numsug = InlineSpellCheckerUI.addSuggestionsToMenu(menu, suggestionsSeparator, 5);
       this.showItem("spell-no-suggestions", numsug == 0);
     }
     else
@@ -423,7 +482,6 @@ nsContextMenu.prototype = {
     if (aNode.namespaceURI == xulNS ||
         this.isTargetAFormControl(aNode)) {
       this.shouldDisplay = false;
-      return;
     }
 
     // Initialize contextual info.
@@ -438,9 +496,6 @@ nsContextMenu.prototype = {
     this.onKeywordField    = false;
     this.mediaURL          = "";
     this.onLink            = false;
-    this.onMailtoLink      = false;
-    this.onSaveableLink    = false;
-    this.link              = null;
     this.linkURL           = "";
     this.linkURI           = null;
     this.linkProtocol      = "";
@@ -448,8 +503,7 @@ nsContextMenu.prototype = {
     this.inFrame           = false;
     this.hasBGImage        = false;
     this.bgImageURL        = "";
-    this.onEditableArea    = false;
-    this.isDesignMode      = false;
+    this.onEditableArea = false;
 
     // Clear any old spellchecking items from the menu, this used to
     // be in the menu hiding code but wasn't getting called in all
@@ -470,7 +524,7 @@ nsContextMenu.prototype = {
       if (this.target instanceof Ci.nsIImageLoadingContent &&
           this.target.currentURI) {
         this.onImage = true;
-
+                
         var request =
           this.target.getRequest(Ci.nsIImageLoadingContent.CURRENT_REQUEST);
         if (request && (request.imageStatus & request.STATUS_SIZE_AVAILABLE))
@@ -543,7 +597,7 @@ nsContextMenu.prototype = {
               (elem instanceof HTMLAreaElement && elem.href) ||
               elem instanceof HTMLLinkElement ||
               elem.getAttributeNS("http://www.w3.org/1999/xlink", "type") == "simple")) {
-
+            
           // Target is a link or a descendant of a link.
           this.onLink = true;
 
@@ -562,7 +616,7 @@ nsContextMenu.prototype = {
                 realLink = parent;
             } catch (e) { }
           }
-
+          
           // Remember corresponding element.
           this.link = realLink;
           this.linkURL = this.getLinkURL();
@@ -594,7 +648,7 @@ nsContextMenu.prototype = {
 
       elem = elem.parentNode;
     }
-
+    
     // See if the user clicked on MathML
     const NS_MathML = "http://www.w3.org/1998/Math/MathML";
     if ((this.target.nodeType == Node.TEXT_NODE &&
@@ -884,7 +938,7 @@ nsContextMenu.prototype = {
   saveLink: function() {
     // canonical def in nsURILoader.h
     const NS_ERROR_SAVE_LINK_AS_TIMEOUT = 0x805d0020;
-
+    
     var doc =  this.target.ownerDocument;
     urlSecurityCheck(this.linkURL, doc.nodePrincipal);
     var linkText = this.linkText();
@@ -916,10 +970,10 @@ nsContextMenu.prototype = {
                         getService(Ci.nsIStringBundleService);
             const bundle = sbs.createBundle(
                     "chrome://mozapps/locale/downloads/downloads.properties");
-
+            
             const title = bundle.GetStringFromName("downloadErrorAlertTitle");
             const msg = bundle.GetStringFromName("downloadErrorGeneric");
-
+            
             const promptSvc = Cc["@mozilla.org/embedcomp/prompt-service;1"].
                               getService(Ci.nsIPromptService);
             promptSvc.alert(doc.defaultView, title, msg);
@@ -947,7 +1001,7 @@ nsContextMenu.prototype = {
         if (this.extListener)
           this.extListener.onStopRequest(aRequest, aContext, aStatusCode);
       },
-
+       
       onDataAvailable: function saveLinkAs_onDataAvailable(aRequest, aContext,
                                                            aInputStream,
                                                            aOffset, aCount) {
@@ -1044,6 +1098,53 @@ nsContextMenu.prototype = {
 
   sendMedia: function() {
     MailIntegration.sendMessage(this.mediaURL, "");
+  },
+
+  toggleImageBlocking: function(aBlock) {
+    var permissionmanager = Cc["@mozilla.org/permissionmanager;1"].
+                            getService(Ci.nsIPermissionManager);
+
+    var uri = this.target.QueryInterface(Ci.nsIImageLoadingContent).currentURI;
+
+    if (aBlock)
+      permissionmanager.add(uri, "image", Ci.nsIPermissionManager.DENY_ACTION);
+    else
+      permissionmanager.remove(uri.host, "image");
+
+    var brandBundle = document.getElementById("bundle_brand");
+    var app = brandBundle.getString("brandShortName");
+    var message = gNavigatorBundle.getFormattedString(aBlock ?
+     "imageBlockedWarning" : "imageAllowedWarning", [app, uri.host]);
+
+    var notificationBox = this.browser.getNotificationBox();
+    var notification = notificationBox.getNotificationWithValue("images-blocked");
+
+    if (notification)
+      notification.label = message;
+    else {
+      var self = this;
+      var buttons = [{
+        label: gNavigatorBundle.getString("undo"),
+        accessKey: gNavigatorBundle.getString("undo.accessKey"),
+        callback: function() { self.toggleImageBlocking(!aBlock); }
+      }];
+      const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
+      notificationBox.appendNotification(message, "images-blocked",
+                                         "chrome://browser/skin/Info.png",
+                                         priority, buttons);
+    }
+
+    // Reload the page to show the effect instantly
+    BrowserReload();
+  },
+
+  isImageBlocked: function() {
+    var permissionmanager = Cc["@mozilla.org/permissionmanager;1"].
+                            getService(Ci.nsIPermissionManager);
+
+    var uri = this.target.QueryInterface(Ci.nsIImageLoadingContent).currentURI;
+
+    return permissionmanager.testPermission(uri, "image") == Ci.nsIPermissionManager.DENY_ACTION;
   },
 
   // Generate email address and put it on clipboard.
@@ -1147,7 +1248,7 @@ nsContextMenu.prototype = {
 
     return makeURLAbsolute(this.link.baseURI, href);
   },
-
+  
   getLinkURI: function() {
     try {
       return makeURI(this.linkURL);
@@ -1158,7 +1259,7 @@ nsContextMenu.prototype = {
 
     return null;
   },
-
+  
   getLinkProtocol: function() {
     if (this.linkURI)
       return this.linkURI.scheme; // can be |undefined|

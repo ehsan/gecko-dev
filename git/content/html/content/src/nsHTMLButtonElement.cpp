@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLButtonElement.h"
+#include "nsIDOMNSHTMLButtonElement.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
@@ -76,10 +77,11 @@ static const nsAttrValue::EnumTable kButtonTypeTable[] = {
 static const nsAttrValue::EnumTable* kButtonDefaultType = &kButtonTypeTable[2];
 
 class nsHTMLButtonElement : public nsGenericHTMLFormElement,
-                            public nsIDOMHTMLButtonElement
+                            public nsIDOMHTMLButtonElement,
+                            public nsIDOMNSHTMLButtonElement
 {
 public:
-  nsHTMLButtonElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLButtonElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLButtonElement();
 
   // nsISupports
@@ -96,6 +98,16 @@ public:
 
   // nsIDOMHTMLButtonElement
   NS_DECL_NSIDOMHTMLBUTTONELEMENT
+
+  // nsIDOMNSHTMLButtonElement
+  // Can't just use the macro, since it shares GetType with
+  // nsIDOMHTMLButtonElement
+  NS_IMETHOD Blur();
+  NS_IMETHOD Focus();
+  NS_IMETHOD Click();
+  NS_IMETHOD SetType(const nsAString& aType);
+  NS_IMETHOD GetAutofocus(PRBool* aAutofocus);
+  NS_IMETHOD SetAutofocus(PRBool aAutofocus);
 
   // overriden nsIFormControl methods
   NS_IMETHOD_(PRUint32) GetType() const { return mType; }
@@ -127,7 +139,7 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual void DoneCreatingElement();
-  virtual nsXPCClassInfo* GetClassInfo();
+
 protected:
   virtual PRBool AcceptAutofocus() const
   {
@@ -152,7 +164,7 @@ private:
 NS_IMPL_NS_NEW_HTML_ELEMENT(Button)
 
 
-nsHTMLButtonElement::nsHTMLButtonElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLButtonElement::nsHTMLButtonElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo),
     mType(kButtonDefaultType->value),
     mHandlingClick(PR_FALSE),
@@ -171,12 +183,13 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLButtonElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLButtonElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLButtonElement, nsHTMLButtonElement)
+DOMCI_DATA(HTMLButtonElement, nsHTMLButtonElement)
 
 // QueryInterface implementation for nsHTMLButtonElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLButtonElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLButtonElement,
-                                   nsIDOMHTMLButtonElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLButtonElement,
+                                   nsIDOMHTMLButtonElement,
+                                   nsIDOMNSHTMLButtonElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLButtonElement,
                                                nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLButtonElement)

@@ -158,16 +158,8 @@ public:
   NS_IMETHOD Writeln(const nsAString & text);
   NS_IMETHOD GetElementsByName(const nsAString & elementName,
                                nsIDOMNodeList **_retval);
-
-  /**
-   * Returns the result of document.all[aID] which can either be a node
-   * or a nodelist depending on if there are multiple nodes with the same
-   * id.
-   */
-  nsISupports *GetDocumentAllResult(const nsAString& aID,
-                                    nsWrapperCache **aCache,
-                                    nsresult *aResult);
-
+  virtual nsresult GetDocumentAllResult(const nsAString& aID,
+                                        nsISupports** aResult);
   nsIContent *GetBody(nsresult *aResult);
   already_AddRefed<nsContentList> GetElementsByName(const nsAString & aName)
   {
@@ -180,8 +172,7 @@ public:
 
   virtual nsresult ResolveName(const nsAString& aName,
                                nsIDOMHTMLFormElement *aForm,
-                               nsISupports **aResult,
-                               nsWrapperCache **aCache);
+                               nsISupports **aResult);
 
   virtual void ScriptLoading(nsIScriptElement *aScript);
   virtual void ScriptExecuted(nsIScriptElement *aScript);
@@ -249,7 +240,6 @@ public:
     return nsDocument::GetElementById(aElementId);
   }
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsresult GetBodySize(PRInt32* aWidth,
                        PRInt32* aHeight);

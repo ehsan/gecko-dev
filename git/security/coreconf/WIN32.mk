@@ -131,7 +131,7 @@ else # !NS_USE_GCC
 		OPTIMIZER += -O2
 	endif
 	DEFINES    += -UDEBUG -U_DEBUG -DNDEBUG
-	DLLFLAGS   += -DYNAMICBASE -OUT:"$@"
+	DLLFLAGS   += -OUT:"$@"
 	ifdef MOZ_DEBUG_SYMBOLS
 		OPTIMIZER += -Zi -Fd$(OBJDIR)/
 		DLLFLAGS += -DEBUG -OPT:REF
@@ -143,7 +143,7 @@ else # !NS_USE_GCC
 	# (RTL) in the debug build
 	#
 	ifdef USE_DEBUG_RTL
-		OS_CFLAGS += -MDd -DUSE_DEBUG_RTL -D_CRTDBG_MAP_ALLOC
+		OS_CFLAGS += -MDd
 	else
 		OS_CFLAGS += -MD
 	endif
@@ -177,7 +177,7 @@ else
 DEFINES += -DWIN32
 endif
 
-ifeq (,$(filter-out x386 x86_64,$(CPU_ARCH)))
+ifeq ($(CPU_ARCH), x386)
 ifdef USE_64
 	DEFINES += -D_AMD64_
 else

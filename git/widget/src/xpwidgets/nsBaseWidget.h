@@ -46,7 +46,6 @@
 #include "nsCOMPtr.h"
 #include "nsGUIEvent.h"
 #include "nsAutoPtr.h"
-#include "BasicLayers.h"
 
 class nsIContent;
 class nsAutoRollup;
@@ -64,9 +63,6 @@ class gfxContext;
 class nsBaseWidget : public nsIWidget
 {
   friend class nsAutoRollup;
-
-protected:
-  typedef mozilla::layers::BasicLayerManager BasicLayerManager;
 
 public:
   nsBaseWidget();
@@ -120,7 +116,7 @@ public:
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
   NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
   NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
-  virtual nsIntPoint      GetClientOffset();
+  NS_IMETHOD              GetClientOffset(nsIntPoint &aPt);
   NS_IMETHOD              EnableDragDrop(PRBool aEnable);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual PRBool          HasPendingInputEvent();
@@ -132,7 +128,6 @@ public:
   virtual PRBool          ShowsResizeIndicator(nsIntRect* aResizerRect);
   virtual void            FreeNativeData(void * data, PRUint32 aDataType) {}
   NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
-  NS_IMETHOD              BeginMoveDrag(nsMouseEvent* aEvent);
   virtual nsresult        ActivateNativeMenuItemAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   virtual nsresult        ForceUpdateNativeMenuAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              ResetInputState() { return NS_OK; }
@@ -156,21 +151,6 @@ public:
   NS_IMETHOD              GetNonClientMargins(nsIntMargin &margins);
   NS_IMETHOD              SetNonClientMargins(nsIntMargin &margins);
 
-  nsPopupLevel PopupLevel() { return mPopupLevel; }
-
-  virtual nsIntSize       ClientToWindowSize(const nsIntSize& aClientSize)
-  {
-    return aClientSize;
-  }
-
-  // return true if this is a popup widget with a native titlebar
-  PRBool IsPopupWithTitleBar() const
-  {
-    return (mWindowType == eWindowType_popup && 
-            mBorderStyle != eBorderStyle_default &&
-            mBorderStyle & eBorderStyle_title);
-  }
-
   /**
    * Use this when GetLayerManager() returns a BasicLayerManager
    * (nsBaseWidget::GetLayerManager() does). This sets up the widget's
@@ -178,8 +158,7 @@ public:
    */
   class AutoLayerManagerSetup {
   public:
-    AutoLayerManagerSetup(nsBaseWidget* aWidget, gfxContext* aTarget,
-                          BasicLayerManager::BufferMode aDoubleBuffering);
+    AutoLayerManagerSetup(nsBaseWidget* aWidget, gfxContext* aTarget);
     ~AutoLayerManagerSetup();
   private:
     nsBaseWidget* mWidget;
@@ -243,7 +222,6 @@ protected:
   PRUint32          mClipRectCount;
   PRInt32           mZIndex;
   nsSizeMode        mSizeMode;
-  nsPopupLevel      mPopupLevel;
 
   // the last rolled up popup. Only set this when an nsAutoRollup is in scope,
   // so it can be cleared automatically.

@@ -122,7 +122,8 @@ nsWindow::DumpWindows(const nsTArray<nsWindow*>& wins, int indent)
 
 nsWindow::nsWindow() :
     mIsVisible(PR_FALSE),
-    mParent(nsnull)
+    mParent(nsnull),
+    mSpecialKeyTracking(0)
 {
 }
 
@@ -477,9 +478,6 @@ nsWindow::SetFocus(PRBool aRaise)
         ALOG("nsWindow::SetFocus: can't set focus without raising, ignoring aRaise = false!");
 
     gFocusedWindow = this;
-    if (!AndroidBridge::Bridge())
-        return NS_OK;
-
     FindTopLevel()->BringToFront();
 
     return NS_OK;
@@ -580,9 +578,6 @@ nsWindow::GetThebesSurface()
 void
 nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
 {
-    if (!AndroidBridge::Bridge())
-        return;
-
     switch (ae->Type()) {
         case AndroidGeckoEvent::SIZE_CHANGED: {
             int nw = ae->P0().x;
@@ -660,9 +655,6 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
 void
 nsWindow::OnAndroidEvent(AndroidGeckoEvent *ae)
 {
-    if (!AndroidBridge::Bridge())
-        return;
-
     switch (ae->Type()) {
         case AndroidGeckoEvent::DRAW:
             OnDraw(ae);
@@ -705,8 +697,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
                 nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
 
                 {
-                    AutoLayerManagerSetup
-                      setupLayerManager(this, ctx, BasicLayerManager::BUFFER_NONE);
+                    AutoLayerManagerSetup setupLayerManager(this, ctx);
                     status = DispatchEvent(&event);
                 }
 
@@ -1181,6 +1172,12 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
 
     if (isDown) {
         switch (keyCode) {
+            case AndroidKeyEvent::KEYCODE_BACK:
+            case AndroidKeyEvent::KEYCODE_MENU:
+            case AndroidKeyEvent::KEYCODE_SEARCH:
+                mSpecialKeyTracking = keyCode;
+                break;
+
             case AndroidKeyEvent::KEYCODE_VOLUME_UP:
                 command = nsWidgetAtoms::VolumeUp;
                 doCommand = PR_TRUE;
@@ -1191,6 +1188,11 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
                 break;
         }
     } else {
+        // Dispatch BACK, MENU, SEARCH key events only on key-up after the corresponding key-down
+        if (mSpecialKeyTracking != keyCode) {
+            mSpecialKeyTracking = 0;
+            return;
+        }
         switch (keyCode) {
             case AndroidKeyEvent::KEYCODE_BACK: {
                 nsKeyEvent pressEvent(PR_TRUE, NS_KEY_PRESS, this);
@@ -1215,6 +1217,7 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
         nsCommandEvent event(PR_TRUE, nsWidgetAtoms::onAppCommand, command, this);
         InitEvent(event);
         DispatchEvent(&event);
+        mSpecialKeyTracking = 0;
     }
 }
 
@@ -1266,6 +1269,8 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
         HandleSpecialKey(ae);
         return;
     }
+
+    mSpecialKeyTracking = 0;
 
     nsKeyEvent event(PR_TRUE, msg, this);
     InitKeyEvent(event, *ae);

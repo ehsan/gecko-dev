@@ -65,7 +65,6 @@
 #include "nsPIDOMWindow.h"
 
 #include "nsIGeolocationProvider.h"
-#include "nsIGeolocationPrompt.h"
 
 class nsGeolocationService;
 class nsGeolocation;

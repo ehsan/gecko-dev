@@ -1282,7 +1282,7 @@ public:
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("XULDebug", TYPE_XUL_DEBUG)
+  NS_DISPLAY_DECL_NAME("XULDebug")
 };
 
 void
@@ -2148,7 +2148,7 @@ public:
     : nsDisplayWrapList(aFrame, aList), mTargetFrame(aTargetFrame) {}
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
-  NS_DISPLAY_DECL_NAME("XULEventRedirector", TYPE_XUL_EVENT_REDIRECTOR)
+  NS_DISPLAY_DECL_NAME("XULEventRedirector")
 private:
   nsIFrame* mTargetFrame;
 };

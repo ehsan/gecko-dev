@@ -41,7 +41,6 @@
 #include "base/basictypes.h"
 
 #include "nsIGeolocationProvider.h"
-#include "nsIGeolocationPrompt.h"
 #include "nsString.h"
 #include "nsIDOMElement.h"
 

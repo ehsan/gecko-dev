@@ -214,8 +214,7 @@
     *ot_jstf = (FT_Bytes)jstf;
 
   Exit:
-    if ( error )
-    {
+    if ( error ) {
       FT_Memory  memory = FT_FACE_MEMORY( face );
 
 
@@ -225,7 +224,6 @@
       FT_FREE( gsub );
       FT_FREE( jstf );
     }
-
     {
       FT_Memory  memory = FT_FACE_MEMORY( face );
 

@@ -82,7 +82,7 @@ function run_test() {
     }]
   }, dest);
 
-  startupManager();
+  startupManager(1);
   // Make sure we only register once despite multiple calls
   AddonManager.addInstallListener(InstallListener);
   AddonManager.addAddonListener(AddonListener);
@@ -152,7 +152,7 @@ function run_test_1() {
 }
 
 function check_test_1() {
-  restartManager();
+  restartManager(0);
   do_check_eq(Services.prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN), "theme2/1.0");
 
   AddonManager.getAddonsByIDs(["theme1@tests.mozilla.org",
@@ -185,7 +185,7 @@ function run_test_2() {
   dest.append("theme2@tests.mozilla.org");
   dest.remove(true);
 
-  restartManager();
+  restartManager(1);
   do_check_eq(Services.prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN), "classic/1.0");
 
   AddonManager.getAddonsByIDs(["theme1@tests.mozilla.org",
@@ -221,7 +221,7 @@ function run_test_3() {
       maxVersion: "2"
     }]
   }, dest);
-  restartManager();
+  restartManager(1);
 
   prepare_test({
     "1@personas.mozilla.org": [
@@ -438,7 +438,7 @@ function run_test_5() {
 }
 
 function check_test_5() {
-  restartManager();
+  restartManager(0);
 
   AddonManager.getAddonsByIDs(["2@personas.mozilla.org",
                                "theme2@tests.mozilla.org"], function([p2, t2]) {
@@ -512,7 +512,7 @@ function run_test_6() {
 }
 
 function check_test_6() {
-  restartManager();
+  restartManager(0);
 
   AddonManager.getAddonsByIDs(["2@personas.mozilla.org",
                                "theme2@tests.mozilla.org"], function([p2, t2]) {
@@ -618,7 +618,7 @@ function run_test_10() {
 
     ensure_test_completed();
 
-    restartManager();
+    restartManager(0);
 
     AddonManager.getAddonsByIDs(["default@tests.mozilla.org",
                                  "theme2@tests.mozilla.org"], function([d, t2]) {
@@ -643,7 +643,7 @@ function run_test_10() {
       ensure_test_completed();
       do_check_false(gLWThemeChanged);
 
-      restartManager();
+      restartManager(0);
 
       run_test_11();
     });
@@ -745,7 +745,7 @@ function run_test_13() {
 
     t1.userDisabled = false;
     ensure_test_completed();
-    restartManager();
+    restartManager(0);
 
     prepare_test({ }, [
       "onNewInstall"
@@ -774,7 +774,7 @@ function run_test_13() {
 }
 
 function check_test_13() {
-  restartManager();
+  restartManager(1);
 
   AddonManager.getAddonByID("theme1@tests.mozilla.org", function(t1) {
     do_check_neq(t1, null);
@@ -852,7 +852,7 @@ function run_test_15() {
         do_check_false(t1.appDisabled);
         do_check_true(t1.isActive);
 
-        restartManager("2");
+        restartManager(1, "2");
 
         do_check_eq(Services.prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN), "theme1/1.0");
         AddonManager.getAddonsByIDs(["default@tests.mozilla.org",
@@ -875,7 +875,7 @@ function run_test_15() {
 // Upgrading the application with a custom theme in use should disable it if it
 // is no longer compatible
 function run_test_16() {
-  restartManager("3");
+  restartManager(1, "3");
 
   do_check_eq(Services.prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN), "classic/1.0");
   AddonManager.getAddonsByIDs(["default@tests.mozilla.org",
@@ -896,12 +896,12 @@ function run_test_16() {
 // of the application that we correctly reset it when it points to an
 // incompatible theme
 function run_test_17() {
-  restartManager("2");
+  restartManager(1, "2");
   shutdownManager();
 
   Services.prefs.setCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN, "theme1/1.0");
 
-  restartManager("3");
+  restartManager(1, "3");
 
   do_check_eq(Services.prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN), "classic/1.0");
   AddonManager.getAddonsByIDs(["default@tests.mozilla.org",
@@ -913,119 +913,6 @@ function run_test_17() {
     do_check_true(t1.userDisabled);
     do_check_true(t1.appDisabled);
     do_check_false(t1.isActive);
-
-    run_test_18();
-  });
-}
-
-// Disabling the active theme should switch back to the default theme
-function run_test_18() {
-  restartManager(2);
-
-  AddonManager.getAddonByID("theme1@tests.mozilla.org", function(t1) {
-    t1.userDisabled = false;
-
-    restartManager();
-
-    AddonManager.getAddonsByIDs(["default@tests.mozilla.org",
-                                 "theme1@tests.mozilla.org"], function([d, t1]) {
-      do_check_true(d.userDisabled);
-      do_check_false(d.appDisabled);
-      do_check_false(d.isActive);
-
-      do_check_false(t1.userDisabled);
-      do_check_false(t1.appDisabled);
-      do_check_true(t1.isActive);
-
-      prepare_test({
-        "theme1@tests.mozilla.org": [
-          "onDisabling",
-        ],
-        "default@tests.mozilla.org": [
-          "onEnabling",
-        ]
-      });
-      t1.userDisabled = true;
-      ensure_test_completed();
-
-      do_check_false(d.userDisabled);
-      do_check_false(d.appDisabled);
-      do_check_false(d.isActive);
-
-      do_check_true(t1.userDisabled);
-      do_check_false(t1.appDisabled);
-      do_check_true(t1.isActive);
-
-      restartManager();
-
-      AddonManager.getAddonsByIDs(["default@tests.mozilla.org",
-                                   "theme1@tests.mozilla.org"], function([d, t1]) {
-        do_check_false(d.userDisabled);
-        do_check_false(d.appDisabled);
-        do_check_true(d.isActive);
-
-        do_check_true(t1.userDisabled);
-        do_check_false(t1.appDisabled);
-        do_check_false(t1.isActive);
-
-        run_test_19();
-      });
-    });
-  });
-}
-
-// Disabling the active persona should switch back to the default theme
-function run_test_19() {
-  AddonManager.getAddonsByIDs(["default@tests.mozilla.org",
-                               "1@personas.mozilla.org"], function([d, p1]) {
-    p1.userDisabled = false;
-
-    do_check_true(d.userDisabled);
-    do_check_false(d.appDisabled);
-    do_check_false(d.isActive);
-
-    do_check_false(p1.userDisabled);
-    do_check_false(p1.appDisabled);
-    do_check_true(p1.isActive);
-
-    prepare_test({
-      "1@personas.mozilla.org": [
-        ["onDisabling", false],
-        "onDisabled"
-      ],
-      "default@tests.mozilla.org": [
-        ["onEnabling", false],
-        "onEnabled"
-      ]
-    });
-    p1.userDisabled = true;
-    ensure_test_completed();
-
-    do_check_false(d.userDisabled);
-    do_check_false(d.appDisabled);
-    do_check_true(d.isActive);
-
-    do_check_true(p1.userDisabled);
-    do_check_false(p1.appDisabled);
-    do_check_false(p1.isActive);
-
-    run_test_20();
-  });
-}
-
-// Tests that you cannot disable the default theme
-function run_test_20() {
-  AddonManager.getAddonByID("default@tests.mozilla.org", function(d) {
-    do_check_false(d.userDisabled);
-    do_check_false(d.appDisabled);
-    do_check_true(d.isActive);
-
-    try {
-      d.userDisabled = true;
-      do_throw("Disabling the default theme should throw an exception");
-    }
-    catch (e) {
-    }
 
     end_test();
   });

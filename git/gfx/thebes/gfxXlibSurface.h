@@ -74,16 +74,12 @@ public:
 
     virtual ~gfxXlibSurface();
 
-    virtual already_AddRefed<gfxASurface>
-    CreateSimilarSurface(gfxContentType aType, const gfxIntSize& aSize);
-
     const gfxIntSize& GetSize() { return mSize; }
 
     Display* XDisplay() { return mDisplay; }
     Drawable XDrawable() { return mDrawable; }
 
     static int DepthOfVisual(const Screen* screen, const Visual* visual);
-    static Visual* FindVisual(Screen* screen, gfxImageFormat format);
     static XRenderPictFormat *FindRenderFormat(Display *dpy, gfxImageFormat format);
 
     // take ownership of a passed-in Pixmap, calling XFreePixmap on it

@@ -125,7 +125,8 @@ template<class KeyClass,class T>
 T*
 nsClassHashtable<KeyClass,T>::Get(KeyType aKey) const
 {
-  typename base_type::EntryType* ent = this->GetEntry(aKey);
+  typename nsBaseHashtable<KeyClass,nsAutoPtr<T>,T*>::EntryType* ent =
+    GetEntry(aKey);
 
   if (!ent)
     return NULL;

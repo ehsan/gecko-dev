@@ -43,8 +43,6 @@
 #include "nsSVGPathElement.h"
 #include "nsSVGTextPathElement.h"
 
-using namespace mozilla;
-
 //----------------------------------------------------------------------
 // Implementation
 
@@ -85,20 +83,29 @@ nsSVGTextPathFrame::GetType() const
   return nsGkAtoms::svgTextPathFrame;
 }
 
-void
-nsSVGTextPathFrame::GetXY(SVGUserUnitList *aX, SVGUserUnitList *aY)
+
+already_AddRefed<nsIDOMSVGLengthList>
+nsSVGTextPathFrame::GetX()
 {
-  // 'x' and 'y' don't apply to 'textPath'
-  aX->Clear();
-  aY->Clear();
+  return nsnull;
 }
 
-void
-nsSVGTextPathFrame::GetDxDy(SVGUserUnitList *aDx, SVGUserUnitList *aDy)
+already_AddRefed<nsIDOMSVGLengthList>
+nsSVGTextPathFrame::GetY()
 {
-  // 'dx' and 'dy' don't apply to 'textPath'
-  aDx->Clear();
-  aDy->Clear();
+  return nsnull;
+}
+
+already_AddRefed<nsIDOMSVGLengthList>
+nsSVGTextPathFrame::GetDx()
+{
+  return nsnull;
+}
+
+already_AddRefed<nsIDOMSVGLengthList>
+nsSVGTextPathFrame::GetDy()
+{
+  return nsnull;
 }
 
 already_AddRefed<nsIDOMSVGNumberList>

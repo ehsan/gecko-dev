@@ -326,14 +326,7 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
     case eWindowType_invisible:
     case eWindowType_child:
     case eWindowType_plugin:
-      break;
     case eWindowType_popup:
-      if (aBorderStyle != eBorderStyle_default && mBorderStyle & eBorderStyle_title) {
-        features |= NSTitledWindowMask;
-        if (aBorderStyle & eBorderStyle_close) {
-          features |= NSClosableWindowMask;
-        }
-      }
       break;
     case eWindowType_toplevel:
     case eWindowType_dialog:
@@ -423,7 +416,7 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
   if (mWindowType == eWindowType_invisible) {
     [mWindow setLevel:kCGDesktopWindowLevelKey];
   } else if (mWindowType == eWindowType_popup) {
-    SetPopupWindowLevel();
+    [mWindow setLevel:NSPopUpMenuWindowLevel];
     [mWindow setHasShadow:YES];
   }
 
@@ -598,7 +591,7 @@ NS_IMETHODIMP nsCocoaWindow::SetModal(PRBool aState)
         delete saved; // "window" not ADDREFed
       }
       if (mWindowType == eWindowType_popup)
-        SetPopupWindowLevel();
+        [mWindow setLevel:NSPopUpMenuWindowLevel];
       else
         [mWindow setLevel:NSNormalWindowLevel];
     }
@@ -702,12 +695,11 @@ NS_IMETHODIMP nsCocoaWindow::Show(PRBool bState)
                         object:@"org.mozilla.gecko.PopupWindow"];
       }
 
-      // If a parent window was supplied and this is a popup at the parent
-      // level, set its child window. This will cause the child window to
-      // appear above the parent and move when the parent does. Setting this
-      // needs to happen after the _setWindowNumber calls above, otherwise the
-      // window doesn't focus properly.
-      if (nativeParentWindow && mPopupLevel == ePopupLevelParent)
+      // if a parent was supplied, set its child window. This will cause the
+      // child window to appear above the parent and move when the parent
+      // does. Setting this needs to happen after the _setWindowNumber calls
+      // above, otherwise the window doesn't focus properly.
+      if (nativeParentWindow)
         [nativeParentWindow addChildWindow:mWindow
                             ordered:NSWindowAbove];
     }
@@ -993,8 +985,6 @@ NS_IMETHODIMP nsCocoaWindow::Move(PRInt32 aX, PRInt32 aY)
   if (!mWindow || (mBounds.x == aX && mBounds.y == aY))
     return NS_OK;
 
-  mBounds.MoveTo(aX, aY);
-
   // The point we have is in Gecko coordinates (origin top-left). Convert
   // it to Cocoa ones (origin bottom-left).
   NSPoint coord = {aX, nsCocoaUtils::FlippedScreenY(aY)};
@@ -1141,8 +1131,8 @@ NS_IMETHODIMP nsCocoaWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRIn
   if (IsResizing() || !mWindow || (!isMoving && !isResizing))
     return NS_OK;
 
-  mBounds = nsIntRect(aX, aY, aWidth, aHeight);
-  NSRect newFrame = nsCocoaUtils::GeckoRectToCocoaRect(mBounds);
+  nsIntRect geckoRect(aX, aY, aWidth, aHeight);
+  NSRect newFrame = nsCocoaUtils::GeckoRectToCocoaRect(geckoRect);
 
   // We have to report the size event -first-, to make sure that content
   // repositions itself.  Cocoa views are anchored at the bottom left,
@@ -1344,21 +1334,6 @@ GetWindowSizeMode(NSWindow* aWindow) {
 }
 
 void
-nsCocoaWindow::ReportMoveEvent()
-{
-  // Dispatch the move event to Gecko
-  nsGUIEvent guiEvent(PR_TRUE, NS_MOVE, this);
-  nsIntRect rect;
-  GetScreenBounds(rect);
-  mBounds.MoveTo(rect.TopLeft());
-  guiEvent.refPoint.x = rect.x;
-  guiEvent.refPoint.y = rect.y;
-  guiEvent.time = PR_IntervalNow();
-  nsEventStatus status = nsEventStatus_eIgnore;
-  DispatchEvent(&guiEvent, status);
-}
-
-void
 nsCocoaWindow::DispatchSizeModeEvent()
 {
   nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
@@ -1378,9 +1353,6 @@ nsCocoaWindow::ReportSizeEvent(NSRect *r)
   if (!r)
     r = &windowFrame;
 
-  mBounds.width  = nscoord(r->size.width);
-  mBounds.height = nscoord(r->size.height);
-
   if ([mWindow isKindOfClass:[ToolbarWindow class]] &&
       [(ToolbarWindow*)mWindow drawsContentsIntoWindowFrame]) {
     // Report the frame rect instead of the content rect. This will make our
@@ -1391,11 +1363,13 @@ nsCocoaWindow::ReportSizeEvent(NSRect *r)
     windowFrame = [mWindow contentRectForFrameRect:(*r)];
   }
 
+  mBounds.width  = nscoord(windowFrame.size.width);
+  mBounds.height = nscoord(windowFrame.size.height);
+
   nsSizeEvent sizeEvent(PR_TRUE, NS_SIZE, this);
   sizeEvent.time = PR_IntervalNow();
 
-  nsIntRect rect = nsCocoaUtils::CocoaRectToGeckoRect(windowFrame);
-  sizeEvent.windowSize = &rect;
+  sizeEvent.windowSize = &mBounds;
   sizeEvent.mWinWidth  = mBounds.width;
   sizeEvent.mWinHeight = mBounds.height;
 
@@ -1446,36 +1420,6 @@ nsIntPoint nsCocoaWindow::WidgetToScreenOffset()
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0,0));
 }
 
-nsIntPoint nsCocoaWindow::GetClientOffset()
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  NSSize windowSize = [mWindow frame].size;
-  NSRect contentRect = [mWindow contentRectForFrameRect:[mWindow frame]];
-
-  return nsIntPoint(NSToIntRound(windowSize.width - contentRect.size.width),
-                    NSToIntRound(windowSize.height - contentRect.size.height));
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0, 0));
-}
-
-nsIntSize nsCocoaWindow::ClientToWindowSize(const nsIntSize& aClientSize)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  // this is only called for popups currently. If needed, expand this to support
-  // other types of windows
-  if (!IsPopupWithTitleBar())
-    return aClientSize;
-
-  NSRect rect(NSMakeRect(0.0, 0.0, aClientSize.width, aClientSize.height));
-
-  NSRect inflatedRect = [mWindow frameRectForContentRect:rect];
-  return nsCocoaUtils::CocoaRectToGeckoRect(inflatedRect).Size();
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntSize(0,0));
-}
-
 nsMenuBarX* nsCocoaWindow::GetMenuBar()
 {
   return mMenuBar;
@@ -1516,10 +1460,8 @@ NS_IMETHODIMP nsCocoaWindow::CaptureRollupEvents(nsIRollupListener * aListener,
     // "active" one is always above any other non-native popup windows that
     // may be visible.
     if (mWindow && (mWindowType == eWindowType_popup))
-      SetPopupWindowLevel();
+      [mWindow setLevel:NSPopUpMenuWindowLevel];
   } else {
-    // XXXndeakin this doesn't make sense.
-    // Why is the new window assumed to be a modal panel?
     if (mWindow && (mWindowType == eWindowType_popup))
       [mWindow setLevel:NSModalPanelWindowLevel];
   }
@@ -1678,22 +1620,6 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const CGFloat* aIn, CGFloat* aOut)
   aOut[3] = 1.0f;
 }
 
-void nsCocoaWindow::SetPopupWindowLevel()
-{
-  // Floating popups are at the floating level and hide when the window is
-  // deactivated.
-  if (mPopupLevel == ePopupLevelFloating) {
-    [mWindow setLevel:NSFloatingWindowLevel];
-    [mWindow setHidesOnDeactivate:YES];
-  }
-  else {
-    // Otherwise, this is a top-level or parent popup. Parent popups always
-    // appear just above their parent and essentially ignore the level.
-    [mWindow setLevel:NSPopUpMenuWindowLevel];
-    [mWindow setHidesOnDeactivate:NO];
-  }
-}
-
 @implementation WindowDelegate
 
 // We try to find a gecko menu bar to paint. If one does not exist, just paint
@@ -1844,8 +1770,15 @@ void nsCocoaWindow::SetPopupWindowLevel()
 
 - (void)windowDidMove:(NSNotification *)aNotification
 {
-  if (mGeckoWindow)
-    mGeckoWindow->ReportMoveEvent();
+  // Dispatch the move event to Gecko
+  nsGUIEvent guiEvent(PR_TRUE, NS_MOVE, mGeckoWindow);
+  nsIntRect rect;
+  mGeckoWindow->GetScreenBounds(rect);
+  guiEvent.refPoint.x = rect.x;
+  guiEvent.refPoint.y = rect.y;
+  guiEvent.time = PR_IntervalNow();
+  nsEventStatus status = nsEventStatus_eIgnore;
+  mGeckoWindow->DispatchEvent(&guiEvent, status);
 }
 
 - (BOOL)windowShouldClose:(id)sender
@@ -2062,12 +1995,10 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
 //
 // Drawing the unified gradient in the titlebar and the toolbar works like this:
 // 1) In the style sheet we set the toolbar's -moz-appearance to -moz-mac-unified-toolbar.
-// 2) When the toolbar is visible and we paint the application chrome
-//    window in nsChildView::drawRect, Gecko calls
-//    nsNativeThemeCocoa::RegisterWidgetGeometry for the widget type
-//    NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR.
-// 3) This finds the toolbar frame's ToolbarWindow and passes the toolbar
-//    frame's height to setUnifiedToolbarHeight.
+// 2) When the toolbar is drawn, Gecko calls nsNativeThemeCocoa::DrawWidgetBackground
+//    for the widget type NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR.
+// 3) This calls DrawUnifiedToolbar which finds the toolbar frame's ToolbarWindow
+//    and passes the toolbar frame's height to setUnifiedToolbarHeight.
 // 4) If the toolbar height has changed, a titlebar redraw is triggered by
 //    [self display] and the upper part of the unified gradient is drawn in the
 //    titlebar.
@@ -2094,7 +2025,7 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
     mBackgroundColor = [NSColor whiteColor];
 
     mUnifiedToolbarHeight = 0.0f;
-    mInUnifiedToolbarReset = NO;
+    mWaitingForUnifiedToolbarHeight = NO;
 
     // setBottomCornerRounded: is a private API call, so we check to make sure
     // we respond to it just in case.
@@ -2138,18 +2069,21 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
   return mBackgroundColor;
 }
 
-// This is called by nsNativeThemeCocoa.mm's RegisterWidgetGeometry.
+// This is called by nsNativeThemeCocoa.mm's DrawUnifiedToolbar.
 // We need to know the toolbar's height in order to draw the correct
 // unified gradient in the titlebar.
-- (void)notifyToolbarAt:(float)aY height:(float)aHeight
+- (void)setUnifiedToolbarHeight:(float)aToolbarHeight
 {
-  // Ignore unexpected notifications about the toolbar height
-  if (!mInUnifiedToolbarReset)
+  mWaitingForUnifiedToolbarHeight = NO;
+  if (mUnifiedToolbarHeight == aToolbarHeight)
     return;
+  mUnifiedToolbarHeight = aToolbarHeight;
 
-  if (aY <= 0.0 && aY + aHeight > mUnifiedToolbarHeight) {
-    mUnifiedToolbarHeight = aY + aHeight;
-  }
+  [self setContentBorderThickness:aToolbarHeight forEdge:NSMaxYEdge];
+
+  // Since this function is only called inside painting, the repaint needs to
+  // be synchronous.
+  [self setTitlebarNeedsDisplayInRect:[self titlebarRect] sync:YES];
 }
 
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect
@@ -2192,26 +2126,16 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
   return frameRect.size.height - [self contentRectForFrameRect:frameRect].size.height;
 }
 
-- (float)beginMaybeResetUnifiedToolbar
+- (void)beginMaybeResetUnifiedToolbar
 {
-  mInUnifiedToolbarReset = YES;
-  float old = mUnifiedToolbarHeight;
-  mUnifiedToolbarHeight = 0.0;
-  return old;
+  mWaitingForUnifiedToolbarHeight = YES;
 }
 
-- (void)endMaybeResetUnifiedToolbar:(float)aOldHeight
+- (void)endMaybeResetUnifiedToolbar
 {
-  if (mInUnifiedToolbarReset) {
-    mInUnifiedToolbarReset = NO;
-    if (mUnifiedToolbarHeight == aOldHeight)
-      return;
-
-    [self setContentBorderThickness:mUnifiedToolbarHeight forEdge:NSMaxYEdge];
-
-    // Since this function is only called inside painting, the repaint needs to
-    // be synchronous.
-    [self setTitlebarNeedsDisplayInRect:[self titlebarRect] sync:YES];
+  if (mWaitingForUnifiedToolbarHeight) {
+    // No toolbar was drawn, so set the height to zero.
+    [self setUnifiedToolbarHeight:0.0f];
   }
 }
 
@@ -2468,9 +2392,9 @@ ContentPatternDrawCallback(void* aInfo, CGContextRef aContext)
         windowLocation = nsCocoaUtils::EventLocationForWindow(anEvent, self);
         target = [contentView hitTest:[contentView convertPoint:windowLocation fromView:nil]];
         // If the hit test failed, the event is targeted here but is not over the window.
-        // Send it to our content view.
+        // Target it at the first responder.
         if (!target)
-          target = contentView;
+          target = (NSView*)[self firstResponder];
       }
       break;
     default:
@@ -2539,12 +2463,6 @@ ContentPatternDrawCallback(void* aInfo, CGContextRef aContext)
 - (void)setIsContextMenu:(BOOL)flag
 {
   mIsContextMenu = flag;
-}
-
-- (BOOL)canBecomeMainWindow
-{
-  // This is overriden because the default is 'yes' when a titlebar is present.
-  return NO;
 }
 
 @end

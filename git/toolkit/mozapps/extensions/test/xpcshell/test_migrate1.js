@@ -48,17 +48,6 @@ var addon4 = {
   }]
 };
 
-var addon5 = {
-  id: "addon5@tests.mozilla.org",
-  version: "2.0",
-  name: "Test 5",
-  targetApplications: [{
-    id: "toolkit@mozilla.org",
-    minVersion: "1",
-    maxVersion: "1"
-  }]
-};
-
 var theme1 = {
   id: "theme1@tests.mozilla.org",
   version: "1.0",
@@ -105,9 +94,6 @@ function run_test() {
   dest.append("addon4@tests.mozilla.org");
   writeInstallRDFToDir(addon4, dest);
   dest = profileDir.clone();
-  dest.append("addon5@tests.mozilla.org");
-  writeInstallRDFToDir(addon5, dest);
-  dest = profileDir.clone();
   dest.append("theme1@tests.mozilla.org");
   writeInstallRDFToDir(theme1, dest);
   dest = profileDir.clone();
@@ -120,15 +106,14 @@ function run_test() {
   // Theme state is determined by the selected theme pref
   Services.prefs.setCharPref("general.skins.selectedSkin", "theme1/1.0");
 
-  startupManager();
+  startupManager(1);
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
                                "addon3@tests.mozilla.org",
                                "addon4@tests.mozilla.org",
-                               "addon5@tests.mozilla.org",
                                "theme1@tests.mozilla.org",
                                "theme2@tests.mozilla.org"], function([a1, a2,
-                                                                      a3, a4, a5,
+                                                                      a3, a4,
                                                                       t1, t2]) {
     // addon1 was user and app enabled in the old extensions.rdf
     do_check_neq(a1, null);
@@ -149,12 +134,6 @@ function run_test() {
     do_check_neq(a4, null);
     do_check_false(a4.userDisabled);
     do_check_true(a4.appDisabled);
-
-    // addon5 was disabled and compatible but a new version has been installed
-    // since, it should still be disabled but should be incompatible
-    do_check_neq(a5, null);
-    do_check_true(a5.userDisabled);
-    do_check_true(a5.appDisabled);
 
     // Theme 1 was previously enabled
     do_check_neq(t1, null);

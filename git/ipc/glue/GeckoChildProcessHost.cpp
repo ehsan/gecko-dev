@@ -219,7 +219,7 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
   // we split the logic here.
 
   FilePath exePath;
-#if defined(OS_LINUX) || defined(OS_MACOSX)
+#ifdef OS_LINUX
   base::environment_map newEnvVars;
 #endif
 
@@ -235,8 +235,6 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
     path += "/lib";
 #endif
     newEnvVars["LD_LIBRARY_PATH"] = path.get();
-#elif OS_MACOSX
-    newEnvVars["DYLD_LIBRARY_PATH"] = path.get();
 #endif
 #ifdef MOZ_OMNIJAR
     // Make sure the child process can find the omnijar
@@ -251,13 +249,6 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
     exePath = FilePath(CommandLine::ForCurrentProcess()->argv()[0]);
     exePath = exePath.DirName();
   }
-
-#ifdef OS_MACOSX
-  // We need to use an App Bundle on OS X so that we can hide
-  // the dock icon. See Bug 557225
-  exePath = exePath.AppendASCII(MOZ_CHILD_PROCESS_BUNDLE);
-#endif
-
   exePath = exePath.AppendASCII(MOZ_CHILD_PROCESS_NAME);
 
 #ifdef ANDROID
@@ -306,7 +297,7 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
 #endif
 
   base::LaunchApp(childArgv, mFileMap,
-#if defined(OS_LINUX) || defined(OS_MACOSX)
+#ifdef OS_LINUX
                   newEnvVars,
 #endif
                   false, &process);

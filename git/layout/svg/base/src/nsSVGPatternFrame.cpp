@@ -574,7 +574,8 @@ nsSVGPatternFrame::ConstructCTM(const gfxRect &callerBBox,
                                                           viewportWidth, viewportHeight,
                                                           viewBox.x, viewBox.y,
                                                           viewBox.width, viewBox.height,
-                                                          GetPreserveAspectRatio());
+                                                          GetPreserveAspectRatio(),
+                                                          PR_TRUE);
 
     gfxPoint ref = viewBoxTM.Transform(gfxPoint(refX, refY));
 

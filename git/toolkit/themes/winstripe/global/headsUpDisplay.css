@@ -57,7 +57,6 @@
 
 .hud-output-node div {
     -moz-user-select: text;
-    white-space: pre-wrap;
 }
 
 .hud-output-node .hud-network {
@@ -146,6 +145,10 @@
 
 .jsterm-output-line {
     font-size: 1.2em;
+}
+
+.hud-filter-btn {
+    margin: 2px !important;
 }
 
 .hud-console-filter-toolbar {

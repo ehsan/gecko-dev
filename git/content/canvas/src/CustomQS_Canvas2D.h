@@ -109,25 +109,13 @@ Canvas2D_GetStyleHelper(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
         return xpc_qsStringToJsval(cx, resultString, vp);
 
     case nsIDOMCanvasRenderingContext2D::CMG_STYLE_PATTERN:
-    {
-        nsWrapperCache* cache = xpc_qsGetWrapperCache(resultInterface);
-        qsObjectHelper helper(ToSupports(resultInterface));
-        helper.SetNode(resultInterface);
-        helper.SetCanonical(ToCanonicalSupports(resultInterface));
-        return xpc_qsXPCOMObjectToJsval(lccx, &helper, cache,
-                                        &NS_GET_IID(nsIDOMCanvasPattern),
-                                        &interfaces[k_nsIDOMCanvasPattern], vp);
-    }
+        return xpc_qsXPCOMObjectToJsval(lccx, resultInterface, xpc_qsGetWrapperCache(resultInterface),
+                                        &NS_GET_IID(nsIDOMCanvasPattern), &interfaces[k_nsIDOMCanvasPattern], vp);
+
     case nsIDOMCanvasRenderingContext2D::CMG_STYLE_GRADIENT:
-    {
-        nsWrapperCache* cache = xpc_qsGetWrapperCache(resultInterface);
-        qsObjectHelper helper(ToSupports(resultInterface));
-        helper.SetNode(resultInterface);
-        helper.SetCanonical(ToCanonicalSupports(resultInterface));
-        return xpc_qsXPCOMObjectToJsval(lccx, &helper, cache,
-                                        &NS_GET_IID(nsIDOMCanvasGradient),
-                                        &interfaces[k_nsIDOMCanvasGradient], vp);
-    }
+        return xpc_qsXPCOMObjectToJsval(lccx, resultInterface, xpc_qsGetWrapperCache(resultInterface),
+                                        &NS_GET_IID(nsIDOMCanvasGradient), &interfaces[k_nsIDOMCanvasGradient], vp);
+
     default:
         return xpc_qsThrowGetterSetterFailed(cx, NS_ERROR_FAILURE, JSVAL_TO_OBJECT(*vp), id);
     }

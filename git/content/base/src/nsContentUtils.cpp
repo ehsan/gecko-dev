@@ -146,6 +146,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIMEStateManager.h"
 #include "nsContentErrors.h"
 #include "nsUnicharUtilCIID.h"
+#include "nsICaseConversion.h"
 #include "nsCompressedCharMap.h"
 #include "nsINativeKeyBindings.h"
 #include "nsIDOMNSUIEvent.h"
@@ -208,7 +209,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsHTMLMediaElement.h"
 
 using namespace mozilla::dom;
-using namespace mozilla::layers;
 
 const char kLoadAsData[] = "loadAsData";
 
@@ -240,6 +240,7 @@ nsIContentPolicy *nsContentUtils::sContentPolicyService;
 PRBool nsContentUtils::sTriedToGetContentPolicy = PR_FALSE;
 nsILineBreaker *nsContentUtils::sLineBreaker;
 nsIWordBreaker *nsContentUtils::sWordBreaker;
+nsICaseConversion *nsContentUtils::sCaseConv;
 nsIUGenCategory *nsContentUtils::sGenCat;
 nsTArray<nsISupports**> *nsContentUtils::sPtrsToPtrsToRelease;
 nsIScriptRuntime *nsContentUtils::sScriptRuntimes[NS_STID_ARRAY_UBOUND];
@@ -400,6 +401,9 @@ nsContentUtils::Init()
   NS_ENSURE_SUCCESS(rv, rv);
   
   rv = CallGetService(NS_WBRK_CONTRACTID, &sWordBreaker);
+  NS_ENSURE_SUCCESS(rv, rv);
+  
+  rv = CallGetService(NS_UNICHARUTIL_CONTRACTID, &sCaseConv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = CallGetService(NS_UNICHARCATEGORY_CONTRACTID, &sGenCat);
@@ -575,14 +579,6 @@ nsContentUtils::InitializeEventTable() {
     // This is a bit hackish, but SVG's event names are weird.
     { nsGkAtoms::onzoom,                        NS_SVG_ZOOM, EventNameType_SVGSVG, NS_EVENT_NULL },
 #endif // MOZ_SVG
-#ifdef MOZ_SMIL
-    { nsGkAtoms::onbegin,                       NS_SMIL_BEGIN, EventNameType_SMIL, NS_EVENT_NULL },
-    { nsGkAtoms::onbeginEvent,                  NS_SMIL_BEGIN, EventNameType_None, NS_SMIL_TIME_EVENT },
-    { nsGkAtoms::onend,                         NS_SMIL_END, EventNameType_SMIL, NS_EVENT_NULL },
-    { nsGkAtoms::onendEvent,                    NS_SMIL_END, EventNameType_None, NS_SMIL_TIME_EVENT },
-    { nsGkAtoms::onrepeat,                      NS_SMIL_REPEAT, EventNameType_SMIL, NS_EVENT_NULL },
-    { nsGkAtoms::onrepeatEvent,                 NS_SMIL_REPEAT, EventNameType_None, NS_SMIL_TIME_EVENT },
-#endif // MOZ_SMIL
 #ifdef MOZ_MEDIA
     { nsGkAtoms::onloadstart,                   NS_LOADSTART, EventNameType_HTML, NS_EVENT_NULL },
     { nsGkAtoms::onprogress,                    NS_PROGRESS, EventNameType_HTML, NS_EVENT_NULL },
@@ -1086,6 +1082,7 @@ nsContentUtils::Shutdown()
   NS_IF_RELEASE(sIOService);
   NS_IF_RELEASE(sLineBreaker);
   NS_IF_RELEASE(sWordBreaker);
+  NS_IF_RELEASE(sCaseConv);
   NS_IF_RELEASE(sGenCat);
 #ifdef MOZ_XTF
   NS_IF_RELEASE(sXTFService);
@@ -1524,21 +1521,6 @@ nsContentUtils::IsCallerTrustedForWrite()
 }
 
 // static
-nsINode*
-nsContentUtils::GetCrossDocParentNode(nsINode* aChild)
-{
-  NS_PRECONDITION(aChild, "The child is null!");
-
-  nsINode* parent = aChild->GetNodeParent();
-  if (parent || !aChild->IsNodeOfType(nsINode::eDOCUMENT))
-    return parent;
-
-  nsIDocument* doc = static_cast<nsIDocument*>(aChild);
-  nsIDocument* parentDoc = doc->GetParentDocument();
-  return parentDoc ? parentDoc->FindContentForSubDocument(doc) : nsnull;
-}
-
-// static
 PRBool
 nsContentUtils::ContentIsDescendantOf(const nsINode* aPossibleDescendant,
                                       const nsINode* aPossibleAncestor)
@@ -1566,7 +1548,16 @@ nsContentUtils::ContentIsCrossDocDescendantOf(nsINode* aPossibleDescendant,
   do {
     if (aPossibleDescendant == aPossibleAncestor)
       return PR_TRUE;
-    aPossibleDescendant = GetCrossDocParentNode(aPossibleDescendant);
+    nsINode* parent = aPossibleDescendant->GetNodeParent();
+    if (!parent && aPossibleDescendant->IsNodeOfType(nsINode::eDOCUMENT)) {
+      nsIDocument* doc = static_cast<nsIDocument*>(aPossibleDescendant);
+      nsIDocument* parentDoc = doc->GetParentDocument();
+      aPossibleDescendant = parentDoc ?
+                            parentDoc->FindContentForSubDocument(doc) : nsnull;
+    }
+    else {
+      aPossibleDescendant = parent;
+    }
   } while (aPossibleDescendant);
 
   return PR_FALSE;
@@ -1923,10 +1914,11 @@ static inline void KeyAppendAtom(nsIAtom* aAtom, nsACString& aKey)
   KeyAppendString(nsAtomCString(aAtom), aKey);
 }
 
-static inline PRBool IsAutocompleteOff(nsIContent* aElement)
+static inline PRBool IsAutocompleteOff(nsIDOMElement* aElement)
 {
-  return aElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::autocomplete,
-                               NS_LITERAL_STRING("off"), eIgnoreCase);
+  nsAutoString autocomplete;
+  aElement->GetAttribute(NS_LITERAL_STRING("autocomplete"), autocomplete);
+  return autocomplete.LowerCaseEqualsLiteral("off");
 }
 
 /*static*/ nsresult
@@ -1955,7 +1947,8 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
     return NS_OK;
   }
 
-  if (IsAutocompleteOff(aContent)) {
+  nsCOMPtr<nsIDOMElement> element(do_QueryInterface(aContent));
+  if (element && IsAutocompleteOff(element)) {
     return NS_OK;
   }
 
@@ -2001,8 +1994,10 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
 
       // If in a form, add form name / index of form / index in form
       PRInt32 index = -1;
-      Element *formElement = control->GetFormElement();
+      nsCOMPtr<nsIDOMHTMLFormElement> formElement;
+      control->GetForm(getter_AddRefs(formElement));
       if (formElement) {
+
         if (IsAutocompleteOff(formElement)) {
           aKey.Truncate();
           return NS_OK;
@@ -2011,7 +2006,8 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
         KeyAppendString(NS_LITERAL_CSTRING("f"), aKey);
 
         // Append the index of the form in the document
-        index = htmlForms->IndexOf(formElement, PR_FALSE);
+        nsCOMPtr<nsIContent> formContent(do_QueryInterface(formElement));
+        index = htmlForms->IndexOf(formContent, PR_FALSE);
         if (index <= -1) {
           //
           // XXX HACK this uses some state that was dumped into the document
@@ -2037,7 +2033,7 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
 
         // Append the form name
         nsAutoString formName;
-        formElement->GetAttr(kNameSpaceID_None, nsGkAtoms::name, formName);
+        formElement->GetName(formName);
         KeyAppendString(formName, aKey);
 
       } else {
@@ -3795,16 +3791,15 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
       }
     }
     
-    nsCOMPtr<nsIContent> fragment = do_QueryInterface(frag);
     if (contextAsContent) {
       parser->ParseFragment(aFragment, 
-                            fragment, 
+                            frag, 
                             contextAsContent->Tag(), 
                             contextAsContent->GetNameSpaceID(), 
                             (document->GetCompatibilityMode() == eCompatibility_NavQuirks));    
     } else {
       parser->ParseFragment(aFragment, 
-                            fragment,
+                            frag, 
                             nsGkAtoms::body, 
                             kNameSpaceID_XHTML, 
                             (document->GetCompatibilityMode() == eCompatibility_NavQuirks));
@@ -5355,7 +5350,7 @@ nsContentUtils::DispatchXULCommand(nsIContent* aTarget,
 // static
 nsresult
 nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
-                           nsWrapperCache *cache, const nsIID* aIID, jsval *vp,
+                           const nsIID* aIID, jsval *vp,
                            nsIXPConnectJSObjectHolder **aHolder,
                            PRBool aAllowWrapping)
 {
@@ -5392,7 +5387,7 @@ nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
       rv = sThreadJSContextStack->Push(cx);
     }
     if (NS_SUCCEEDED(rv)) {
-      rv = sXPConnect->WrapNativeToJSVal(cx, scope, native, cache, aIID,
+      rv = sXPConnect->WrapNativeToJSVal(cx, scope, native, aIID,
                                          aAllowWrapping, vp, aHolder);
       if (push) {
         sThreadJSContextStack->Pop(nsnull);
@@ -5969,7 +5964,6 @@ AllocClassMatchingInfo(nsINode* aRootNode,
   }
 
   info->mCaseTreatment =
-    aRootNode->GetOwnerDoc() &&
     aRootNode->GetOwnerDoc()->GetCompatibilityMode() == eCompatibility_NavQuirks ?
     eIgnoreCase : eCaseMatters;
   return info;
@@ -6134,7 +6128,7 @@ nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
   }
 }
 
-already_AddRefed<LayerManager>
+already_AddRefed<mozilla::layers::LayerManager>
 nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
 {
   nsIDocument* doc = aDoc;
@@ -6169,13 +6163,14 @@ nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
       nsIWidget* widget =
         nsLayoutUtils::GetDisplayRootFrame(rootFrame)->GetNearestWidget();
       if (widget) {
-        nsRefPtr<LayerManager> manager = widget->GetLayerManager();
+        nsRefPtr<mozilla::layers::LayerManager> manager = widget->GetLayerManager();
         return manager.forget();
       }
     }
   }
 
-  nsRefPtr<LayerManager> manager = new BasicLayerManager();
+  nsRefPtr<mozilla::layers::LayerManager> manager =
+    new mozilla::layers::BasicLayerManager(nsnull);
   return manager.forget();
 }
 

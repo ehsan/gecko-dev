@@ -48,7 +48,7 @@ class AccGroupInfo
 {
 public:
   AccGroupInfo(nsAccessible* aItem, PRUint32 aRole);
-  ~AccGroupInfo() { MOZ_COUNT_DTOR(AccGroupInfo); }
+  ~AccGroupInfo() { }
 
   PRInt32 PosInSet() const { return mPosInSet; }
   PRUint32 SetSize() const { return mSetSize; }

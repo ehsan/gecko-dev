@@ -619,14 +619,11 @@ TestPilotExperiment.prototype = {
       if (uuid.indexOf("{") == 0) {
         uuid = uuid.substring(1, (uuid.length - 1));
       }
-      Application.prefs.setValue(GUID_PREF_PREFIX + this._id, uuid);
       // clear the data before starting.
-      let self = this;
-      this._dataStore.wipeAllData(function() {
-        // Experiment is now in progress.
-        self.changeStatus(TaskConstants.STATUS_IN_PROGRESS, true);
-        self.onExperimentStartup();
-      });
+      this._dataStore.wipeAllData();
+      this.changeStatus(TaskConstants.STATUS_STARTING, true);
+      Application.prefs.setValue(GUID_PREF_PREFIX + this._id, uuid);
+      this.onExperimentStartup();
     }
 
     // What happens when a test finishes:
@@ -755,7 +752,7 @@ TestPilotExperiment.prototype = {
       req.setRequestHeader("Connection", "close");
       req.onreadystatechange = function(aEvt) {
         if (req.readyState == 4) {
-          if (req.status == 200 || req.status == 201 || req.status == 202) {
+          if (req.status == 201) {
             let location = req.getResponseHeader("Location");
   	    self._logger.info("DATA WAS POSTED SUCCESSFULLY " + location);
             if (self._uploadRetryTimer) {
@@ -825,7 +822,7 @@ TestPilotExperiment.prototype = {
       req.setRequestHeader("Connection", "close");
       req.onreadystatechange = function(aEvt) {
         if (req.readyState == 4) {
-          if (req.status == 200 || req.status == 201 || req.status == 202) {
+          if (req.status == 200) {
 	    logger.info("Quit reason posted successfully " + req.responseText);
     	    callback(true);
 	  } else {
@@ -939,9 +936,6 @@ TestPilotBuiltinSurvey.prototype = {
       // Include guid of the study that this survey is related to, so we
       // can match them up server-side.
       let guid = Application.prefs.getValue(GUID_PREF_PREFIX + self._studyId, "");
-      /* TODO if the guid for that study ID hasn't been set yet, set it!  And
-       * then use it on the study.  That way it won't matter whether the
-       * study or the survey gets run first.*/
       json.metadata.task_guid = guid;
       let pref = SURVEY_ANSWER_PREFIX + self._id;
       let surveyAnswers = JSON.parse(Application.prefs.getValue(pref, "{}"));
@@ -959,14 +953,14 @@ TestPilotBuiltinSurvey.prototype = {
         Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
           createInstance(Ci.nsIXMLHttpRequest);
       let url = self.uploadUrl;
+
       req.open("POST", url, true);
       req.setRequestHeader("Content-type", "application/json");
       req.setRequestHeader("Content-length", params.length);
       req.setRequestHeader("Connection", "close");
       req.onreadystatechange = function(aEvt) {
         if (req.readyState == 4) {
-          if (req.status == 200 || req.status == 201 ||
-             req.status == 202) {
+          if (req.status == 200) {
             self._logger.info(
 	    "DATA WAS POSTED SUCCESSFULLY " + req.responseText);
             if (self._uploadRetryTimer) {
@@ -975,7 +969,7 @@ TestPilotBuiltinSurvey.prototype = {
             self.changeStatus(TaskConstants.STATUS_SUBMITTED);
 	    callback(true);
 	  } else {
-	    self._logger.warn(req.status + " ERROR POSTING DATA: " + req.responseText);
+	    self._logger.warn("ERROR POSTING DATA: " + req.responseText);
 	    self._uploadRetryTimer =
 	      Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
 

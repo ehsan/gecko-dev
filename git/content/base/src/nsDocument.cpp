@@ -63,7 +63,7 @@
 #include "nsContentList.h"
 #include "nsIObserver.h"
 #include "nsIBaseWindow.h"
-#include "mozilla/css/Loader.h"
+#include "nsCSSLoader.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIScriptRuntime.h"
@@ -118,6 +118,7 @@
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
+#include "nsIPrivateDOMImplementation.h"
 
 #include "nsIDOMWindowInternal.h"
 #include "nsPIDOMWindow.h"
@@ -1223,7 +1224,8 @@ nsDOMStyleSheetSetList::GetSets(nsTArray<nsString>& aStyleSets)
 // =
 // ==================================================================
 
-class nsDOMImplementation : public nsIDOMDOMImplementation
+class nsDOMImplementation : public nsIDOMDOMImplementation,
+                            public nsIPrivateDOMImplementation
 {
 public:
   nsDOMImplementation(nsIScriptGlobalObject* aScriptObject,
@@ -1236,6 +1238,10 @@ public:
 
   // nsIDOMDOMImplementation
   NS_DECL_NSIDOMDOMIMPLEMENTATION
+
+  // nsIPrivateDOMImplementation
+  NS_IMETHOD Init(nsIURI* aDocumentURI, nsIURI* aBaseURI,
+                  nsIPrincipal* aPrincipal);
 
 protected:
   nsWeakPtr mScriptObject;
@@ -1278,6 +1284,7 @@ DOMCI_DATA(DOMImplementation, nsDOMImplementation)
 // QueryInterface implementation for nsDOMImplementation
 NS_INTERFACE_MAP_BEGIN(nsDOMImplementation)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDOMImplementation)
+  NS_INTERFACE_MAP_ENTRY(nsIPrivateDOMImplementation)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMDOMImplementation)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DOMImplementation)
 NS_INTERFACE_MAP_END
@@ -1362,6 +1369,18 @@ nsDOMImplementation::CreateDocument(const nsAString& aNamespaceURI,
   return nsContentUtils::CreateDocument(aNamespaceURI, aQualifiedName, aDoctype,
                                         mDocumentURI, mBaseURI, mPrincipal,
                                         scriptHandlingObject, aReturn);
+}
+
+NS_IMETHODIMP
+nsDOMImplementation::Init(nsIURI* aDocumentURI, nsIURI* aBaseURI,
+                          nsIPrincipal* aPrincipal)
+{
+  // Note: can't require that the args be non-null, since at least one
+  // caller (XMLHttpRequest) doesn't have decent args to pass in.
+  mDocumentURI = aDocumentURI;
+  mBaseURI = aBaseURI;
+  mPrincipal = aPrincipal;
+  return NS_OK;
 }
 
 // ==================================================================
@@ -1888,13 +1907,11 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
     for (PRInt32 i = PRInt32(count) - 1; i >= 0; i--) {
       nsCOMPtr<nsIContent> content = mChildren.ChildAt(i);
 
-      nsIContent* previousSibling = content->GetPreviousSibling();
-
       if (nsINode::GetFirstChild() == content) {
         mFirstChild = content->GetNextSibling();
       }
       mChildren.RemoveChildAt(i);
-      nsNodeUtils::ContentRemoved(this, content, i, previousSibling);
+      nsNodeUtils::ContentRemoved(this, content, i);
       content->UnbindFromTree();
     }
   }
@@ -2145,78 +2162,8 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
 
   mChannel = aChannel;
   
-  nsresult rv = CheckFrameOptions();
+  nsresult rv = InitCSP();
   NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = InitCSP();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-// Check if X-Frame-Options permits this document to be loaded as a subdocument.
-nsresult nsDocument::CheckFrameOptions()
-{
-  nsAutoString xfoHeaderValue;
-  this->GetHeaderData(nsGkAtoms::headerXFO, xfoHeaderValue);
-
-  // return early if header does not have one of the two values with meaning
-  if (!xfoHeaderValue.LowerCaseEqualsLiteral("deny") &&
-      !xfoHeaderValue.LowerCaseEqualsLiteral("sameorigin"))
-    return NS_OK;
-
-  nsCOMPtr<nsIDocShell> docShell = do_QueryReferent(mDocumentContainer);
-
-  if (docShell) {
-    PRBool framingAllowed = true;
-
-    // We need to check the location of this window and the location of the top
-    // window, if we're not the top.  X-F-O: SAMEORIGIN requires that the
-    // document must be same-origin with top window.  X-F-O: DENY requires that
-    // the document must never be framed.
-    nsCOMPtr<nsIDOMWindow> thisWindow = do_GetInterface(docShell);
-    nsCOMPtr<nsIDOMWindow> topWindow;
-    thisWindow->GetTop(getter_AddRefs(topWindow));
-
-    // if the document is in the top window, it's not in a frame.
-    if (thisWindow == topWindow)
-      return NS_OK;
-
-    // If the value of the header is DENY, then the document
-    // should never be permitted to load as a subdocument.
-    if (xfoHeaderValue.LowerCaseEqualsLiteral("deny")) {
-      framingAllowed = false;
-    }
-
-    else if (xfoHeaderValue.LowerCaseEqualsLiteral("sameorigin")) {
-      // If the X-Frame-Options value is SAMEORIGIN, then the top frame in the
-      // parent chain must be from the same origin as this document.
-      nsCOMPtr<nsIURI> uri = static_cast<nsIDocument*>(this)->GetDocumentURI();
-      nsCOMPtr<nsIDOMDocument> topDOMDoc;
-      topWindow->GetDocument(getter_AddRefs(topDOMDoc));
-      nsCOMPtr<nsIDocument> topDoc = do_QueryInterface(topDOMDoc);
-      if (topDoc) {
-        nsCOMPtr<nsIURI> topUri = topDoc->GetDocumentURI();
-        nsresult rv = nsContentUtils::GetSecurityManager()->
-          CheckSameOriginURI(uri, topUri, PR_TRUE);
-
-        if (NS_FAILED(rv)) {
-          framingAllowed = false;
-        }
-      }
-    }
-
-    if (!framingAllowed) {
-      // cancel the load and display about:blank
-      mChannel->Cancel(NS_BINDING_ABORTED);
-      nsCOMPtr<nsIWebNavigation> webNav(do_QueryInterface(docShell));
-      if (webNav) {
-        webNav->LoadURI(NS_LITERAL_STRING("about:blank").get(),
-                        0, nsnull, nsnull, nsnull);
-      }
-      return NS_ERROR_CONTENT_BLOCKED;
-    }
-  }
 
   return NS_OK;
 }
@@ -4073,43 +4020,23 @@ nsDocument::CreateElement(const nsAString& aTagName,
                           nsIDOMElement** aReturn)
 {
   *aReturn = nsnull;
-  nsCOMPtr<nsIContent> content;
-  nsresult rv = CreateElement(aTagName, getter_AddRefs(content));
-  NS_ENSURE_SUCCESS(rv, rv);
-  return CallQueryInterface(content, aReturn);
-}
-
-PRBool IsLowercaseASCII(const nsAString& aValue)
-{
-  PRInt32 len = aValue.Length();
-  for (PRInt32 i = 0; i < len; ++i) {
-    PRUnichar c = aValue[i];
-    if (!(0x0061 <= (c) && ((c) <= 0x007a))) {
-      return PR_FALSE;
-    }
-  }
-  return PR_TRUE;
-}
-
-nsresult
-nsDocument::CreateElement(const nsAString& aTagName,
-                          nsIContent** aReturn)
-{
-  *aReturn = nsnull;
 
   nsresult rv = nsContentUtils::CheckQName(aTagName, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRBool needsLowercase = IsHTML() && !IsLowercaseASCII(aTagName);
-  nsAutoString lcTagName;
-  if (needsLowercase) {
-    ToLowerCase(aTagName, lcTagName);
-  }
+  NS_ASSERTION(!IsHTML(),
+               "nsDocument::CreateElement() called on document that is not "
+               "case sensitive. Fix caller, or fix "
+               "nsDocument::CreateElement()!");
 
-  rv = CreateElem(needsLowercase ? lcTagName : aTagName, nsnull,
-                  IsHTML() ? kNameSpaceID_XHTML : GetDefaultNamespaceID(),
-                  PR_TRUE, aReturn);
-  return rv;
+  nsCOMPtr<nsIAtom> name = do_GetAtom(aTagName);
+
+  nsCOMPtr<nsIContent> content;
+  rv = CreateElem(name, nsnull, GetDefaultNamespaceID(), PR_TRUE,
+                  getter_AddRefs(content));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return CallQueryInterface(content, aReturn);
 }
 
 NS_IMETHODIMP
@@ -4127,8 +4054,8 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIContent> content;
-  PRInt32 ns = nodeInfo->NamespaceID();
-  NS_NewElement(getter_AddRefs(content), ns, nodeInfo.forget(), PR_FALSE);
+  NS_NewElement(getter_AddRefs(content), nodeInfo->NamespaceID(), nodeInfo,
+                PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return CallQueryInterface(content, aReturn);
@@ -4138,20 +4065,17 @@ NS_IMETHODIMP
 nsDocument::CreateTextNode(const nsAString& aData, nsIDOMText** aReturn)
 {
   *aReturn = nsnull;
-  nsCOMPtr<nsIContent> content;
-  nsresult rv = CreateTextNode(aData, getter_AddRefs(content));
-  NS_ENSURE_SUCCESS(rv, rv);
-  return CallQueryInterface(content, aReturn);
-}
 
-nsresult
-nsDocument::CreateTextNode(const nsAString& aData, nsIContent** aReturn)
-{
-  nsresult rv = NS_NewTextNode(aReturn, mNodeInfoManager);
+  nsCOMPtr<nsIContent> text;
+  nsresult rv = NS_NewTextNode(getter_AddRefs(text), mNodeInfoManager);
+
   if (NS_SUCCEEDED(rv)) {
     // Don't notify; this node is still being created.
-    (*aReturn)->SetText(aData, PR_FALSE);
+    text->SetText(aData, PR_FALSE);
+
+    rv = CallQueryInterface(text, aReturn);
   }
+
   return rv;
 }
 
@@ -4251,7 +4175,7 @@ nsDocument::CreateAttribute(const nsAString& aName,
                                      getter_AddRefs(nodeInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  attribute = new nsDOMAttribute(nsnull, nodeInfo.forget(), value);
+  attribute = new nsDOMAttribute(nsnull, nodeInfo, value);
   NS_ENSURE_TRUE(attribute, NS_ERROR_OUT_OF_MEMORY);
 
   return CallQueryInterface(attribute, aReturn);
@@ -4273,8 +4197,7 @@ nsDocument::CreateAttributeNS(const nsAString & aNamespaceURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsAutoString value;
-  nsDOMAttribute* attribute =
-    new nsDOMAttribute(nsnull, nodeInfo.forget(), value);
+  nsDOMAttribute* attribute = new nsDOMAttribute(nsnull, nodeInfo, value);
   NS_ENSURE_TRUE(attribute, NS_ERROR_OUT_OF_MEMORY);
 
   return CallQueryInterface(attribute, aResult);
@@ -4987,7 +4910,7 @@ nsDocument::SetTitle(const nsAString& aTitle)
                                                 kNameSpaceID_XHTML);
       if (!titleInfo)
         return NS_OK;
-      title = NS_NewHTMLTitleElement(titleInfo.forget());
+      title = NS_NewHTMLTitleElement(titleInfo);
       if (!title)
         return NS_OK;
     }
@@ -5545,9 +5468,13 @@ nsDocument::CloneNode(PRBool aDeep, nsIDOMNode** aReturn)
 NS_IMETHODIMP
 nsDocument::Normalize()
 {
-  for (PRInt32 i = 0; i < mChildren.ChildCount(); ++i) {
+  PRInt32 count = mChildren.ChildCount();
+  for (PRInt32 i = 0; i < count; ++i) {
     nsCOMPtr<nsIDOMNode> node(do_QueryInterface(mChildren.ChildAt(i)));
-    node->Normalize();
+
+    if (node) {
+      node->Normalize();
+    }
   }
 
   return NS_OK;
@@ -5692,12 +5619,12 @@ nsDocument::SetDocumentURI(const nsAString& aDocumentURI)
 static void BlastSubtreeToPieces(nsINode *aNode);
 
 PLDHashOperator
-BlastFunc(nsAttrHashKey::KeyType aKey, nsDOMAttribute *aData, void* aUserArg)
+BlastFunc(nsAttrHashKey::KeyType aKey, nsIDOMNode *aData, void* aUserArg)
 {
   nsCOMPtr<nsIAttribute> *attr =
     static_cast<nsCOMPtr<nsIAttribute>*>(aUserArg);
 
-  *attr = aData;
+  *attr = do_QueryInterface(aData);
 
   NS_ASSERTION(attr->get(),
                "non-nsIAttribute somehow made it into the hashmap?!");
@@ -6515,7 +6442,6 @@ nsDocument::RetrieveRelevantHeaders(nsIChannel *aChannel)
       "x-dns-prefetch-control",
       "x-content-security-policy",
       "x-content-security-policy-report-only",
-      "x-frame-options",
       // add more http headers if you need
       // XXXbz don't add content-location support without reading bug
       // 238654 and its dependencies/dups first.
@@ -6584,7 +6510,7 @@ nsDocument::RetrieveRelevantHeaders(nsIChannel *aChannel)
 }
 
 nsresult
-nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
+nsDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
                        PRBool aDocumentDefaultType, nsIContent **aResult)
 {
 #ifdef DEBUG
@@ -6593,7 +6519,7 @@ nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix, PRInt32 aNamesp
     aPrefix->ToString(qName);
     qName.Append(':');
   }
-  qName.Append(aName);
+  qName.Append(nsAtomString(aName));
 
   // Note: "a:b:c" is a valid name in non-namespaces XML, and
   // nsDocument::CreateElement can call us with such a name and no prefix,
@@ -6610,11 +6536,10 @@ nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix, PRInt32 aNamesp
     aNamespaceID;
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  mNodeInfoManager->GetNodeInfo(aName, aPrefix, aNamespaceID,
-                                getter_AddRefs(nodeInfo));
+  nodeInfo = mNodeInfoManager->GetNodeInfo(aName, aPrefix, aNamespaceID);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  return NS_NewElement(aResult, elementType, nodeInfo.forget(), PR_FALSE);
+  return NS_NewElement(aResult, elementType, nodeInfo, PR_FALSE);
 }
 
 PRBool

@@ -28,7 +28,7 @@ function run_test() {
   // the update makes the last modified time change.
   dest.lastModifiedTime -= 5000;
 
-  startupManager();
+  startupManager(1);
 
   AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a) {
     do_check_neq(a, null);
@@ -49,7 +49,7 @@ function run_test() {
       }]
     }, dest);
 
-    restartManager();
+    restartManager(1);
 
     AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a) {
       do_check_neq(a, null);

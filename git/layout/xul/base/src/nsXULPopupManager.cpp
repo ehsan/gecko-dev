@@ -260,95 +260,17 @@ nsXULPopupManager::GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain)
 }
 
 void
-nsXULPopupManager::AdjustPopupsOnWindowChange(nsPIDOMWindow* aWindow)
+nsXULPopupManager::AdjustPopupsOnWindowChange()
 {
-  // When the parent window is moved, adjust any child popups. Dismissable
-  // menus and panels are expected to roll up when a window is moved, so there
-  // is no need to check these popups, only the noautohide popups.
+  // Panels with noautohide="true" are moved and kept aligned with the anchor
+  // when the parent window moves. Dismissable menus and panels are expected
+  // to roll up when a window is moved, so there is no need to check these.
   nsMenuChainItem* item = mNoHidePanels;
   while (item) {
-    // only move popups that are within the same window and where auto
-    // positioning has not been disabled
-    nsMenuPopupFrame* frame= item->Frame();
-    if (frame->GetAutoPosition()) {
-      nsIContent* popup = frame->GetContent();
-      if (popup) {
-        nsIDocument* document = popup->GetCurrentDoc();
-        if (document) {
-          nsPIDOMWindow* window = document->GetWindow();
-          if (window) {
-            window = window->GetPrivateRoot();
-            if (window == aWindow) {
-              frame->SetPopupPosition(nsnull, PR_TRUE);
-            }
-          }
-        }
-      }
-    }
-
+    // if the auto positioning has been disabled, don't move the popup
+    if (item->Frame()->GetAutoPosition())
+      item->Frame()->SetPopupPosition(nsnull, PR_TRUE);
     item = item->GetParent();
-  }
-}
-
-static
-nsMenuPopupFrame* GetPopupToMoveOrResize(nsIView* aView)
-{
-  nsIFrame *frame = static_cast<nsIFrame *>(aView->GetClientData());
-  if (!frame || frame->GetType() != nsGkAtoms::menuPopupFrame)
-    return nsnull;
-
-  // no point moving or resizing hidden popups
-  nsMenuPopupFrame* menuPopupFrame = static_cast<nsMenuPopupFrame *>(frame);
-  if (menuPopupFrame->PopupState() != ePopupOpenAndVisible)
-    return nsnull;
-
-  return menuPopupFrame;
-}
-
-void
-nsXULPopupManager::PopupMoved(nsIView* aView, nsIntPoint aPnt)
-{
-  nsMenuPopupFrame* menuPopupFrame = GetPopupToMoveOrResize(aView);
-  if (!menuPopupFrame)
-    return;
-
-  // Don't do anything if the popup is already at the specified location. This
-  // prevents recursive calls when a popup is positioned.
-  nsIntPoint currentPnt = menuPopupFrame->ScreenPosition();
-  if (aPnt.x != currentPnt.x || aPnt.y != currentPnt.y) {
-    // Update the popup's position using SetPopupPosition if the popup is
-    // anchored and at the parent level as these maintain their position
-    // relative to the parent window. Otherwise, just update the popup to
-    // the specified screen coordinates.
-    if (menuPopupFrame->IsAnchored() &&
-        menuPopupFrame->PopupLevel() == ePopupLevelParent) {
-      menuPopupFrame->SetPopupPosition(nsnull, PR_TRUE);
-    }
-    else {
-      menuPopupFrame->MoveTo(aPnt.x, aPnt.y, PR_FALSE);
-    }
-  }
-}
-
-void
-nsXULPopupManager::PopupResized(nsIView* aView, nsIntSize aSize)
-{
-  nsMenuPopupFrame* menuPopupFrame = GetPopupToMoveOrResize(aView);
-  if (!menuPopupFrame)
-    return;
-
-  nsPresContext* presContext = menuPopupFrame->PresContext();
-
-  nsSize currentSize = menuPopupFrame->GetSize();
-  if (aSize.width != presContext->AppUnitsToDevPixels(currentSize.width) ||
-      aSize.height != presContext->AppUnitsToDevPixels(currentSize.height)) {
-    // for resizes, we just set the width and height attributes
-    nsIContent* popup = menuPopupFrame->GetContent();
-    nsAutoString width, height;
-    width.AppendInt(aSize.width);
-    height.AppendInt(aSize.height);
-    popup->SetAttr(kNameSpaceID_None, nsGkAtoms::width, width, PR_FALSE);
-    popup->SetAttr(kNameSpaceID_None, nsGkAtoms::height, height, PR_TRUE);
   }
 }
 
@@ -423,10 +345,9 @@ nsXULPopupManager::SetTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup)
         nsIDocument* doc = aPopup->GetCurrentDoc();
         if (doc) {
           nsIPresShell* presShell = doc->GetShell();
-          nsPresContext* presContext;
-          if (presShell && (presContext = presShell->GetPresContext())) {
+          if (presShell && presShell->GetPresContext()) {
             nsPresContext* rootDocPresContext =
-              presContext->GetRootPresContext();
+              presShell->GetPresContext()->GetRootPresContext();
             if (!rootDocPresContext)
               return;
             nsIFrame* rootDocumentRootFrame = rootDocPresContext->
@@ -441,12 +362,12 @@ nsXULPopupManager::SetTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup)
               mouseEvent->GetClientY(&clientPt.y);
 
               // XXX this doesn't handle IFRAMEs in transforms
-              nsPoint thisDocToRootDocOffset = presShell->FrameManager()->
-                GetRootFrame()->GetOffsetToCrossDoc(rootDocumentRootFrame);
+              nsPoint thisDocToRootDocOffset =
+                presShell->FrameManager()->GetRootFrame()->GetOffsetTo(rootDocumentRootFrame);
               // convert to device pixels
-              mCachedMousePoint.x = presContext->AppUnitsToDevPixels(
+              mCachedMousePoint.x = rootDocPresContext->AppUnitsToDevPixels(
                   nsPresContext::CSSPixelsToAppUnits(clientPt.x) + thisDocToRootDocOffset.x);
-              mCachedMousePoint.y = presContext->AppUnitsToDevPixels(
+              mCachedMousePoint.y = rootDocPresContext->AppUnitsToDevPixels(
                   nsPresContext::CSSPixelsToAppUnits(clientPt.y) + thisDocToRootDocOffset.y);
             }
             else if (rootDocumentRootFrame) {
@@ -907,16 +828,6 @@ nsXULPopupManager::HidePopupCallback(nsIContent* aPopup,
 }
 
 void
-nsXULPopupManager::HidePopup(nsIView* aView)
-{
-  nsIFrame *frame = static_cast<nsIFrame *>(aView->GetClientData());
-  if (!frame || frame->GetType() != nsGkAtoms::menuPopupFrame)
-    return;
-
-  HidePopup(frame->GetContent(), PR_FALSE, PR_TRUE, PR_FALSE);
-}
-
-void
 nsXULPopupManager::HidePopupAfterDelay(nsMenuPopupFrame* aPopup)
 {
   // Don't close up immediately.
@@ -1276,13 +1187,6 @@ nsXULPopupManager::GetVisiblePopups()
   nsTArray<nsIFrame *> popups;
 
   nsMenuChainItem* item = mPopups;
-  while (item) {
-    if (item->Frame()->PopupState() == ePopupOpenAndVisible)
-      popups.AppendElement(static_cast<nsIFrame*>(item->Frame()));
-    item = item->GetParent();
-  }
-
-  item = mNoHidePanels;
   while (item) {
     if (item->Frame()->PopupState() == ePopupOpenAndVisible)
       popups.AppendElement(static_cast<nsIFrame*>(item->Frame()));

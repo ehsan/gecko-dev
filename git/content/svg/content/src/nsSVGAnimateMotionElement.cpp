@@ -48,7 +48,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(AnimateMotion)
 NS_IMPL_ADDREF_INHERITED(nsSVGAnimateMotionElement,nsSVGAnimateMotionElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGAnimateMotionElement,nsSVGAnimateMotionElementBase)
 
-DOMCI_NODE_DATA(SVGAnimateMotionElement, nsSVGAnimateMotionElement)
+DOMCI_DATA(SVGAnimateMotionElement, nsSVGAnimateMotionElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGAnimateMotionElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGAnimateMotionElement, nsIDOMNode,
@@ -61,7 +61,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGAnimateMotionElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGAnimateMotionElement::nsSVGAnimateMotionElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGAnimateMotionElement::nsSVGAnimateMotionElement(nsINodeInfo *aNodeInfo)
   : nsSVGAnimateMotionElementBase(aNodeInfo)
 {
 }

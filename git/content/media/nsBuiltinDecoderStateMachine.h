@@ -168,7 +168,6 @@ public:
   virtual void ClearPositionChangeFlag();
   virtual void SetSeekable(PRBool aSeekable);
   virtual void UpdatePlaybackPosition(PRInt64 aTime);
-  virtual void StartBuffering();
 
 
   // Load metadata Called on the state machine thread. The decoder monitor must be held with

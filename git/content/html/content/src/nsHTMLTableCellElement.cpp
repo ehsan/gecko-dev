@@ -51,7 +51,7 @@ class nsHTMLTableCellElement : public nsGenericHTMLElement,
                                public nsIDOMHTMLTableCellElement
 {
 public:
-  nsHTMLTableCellElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLTableCellElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLTableCellElement();
 
   // nsISupports
@@ -79,7 +79,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   // This does not return a nsresult since all we care about is if we
   // found the row element that this cell is in or not.
@@ -91,7 +90,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(TableCell)
 
 
-nsHTMLTableCellElement::nsHTMLTableCellElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLTableCellElement::nsHTMLTableCellElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -105,7 +104,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTableCellElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTableCellElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLTableCellElement, nsHTMLTableCellElement)
+DOMCI_DATA(HTMLTableCellElement, nsHTMLTableCellElement)
 
 // QueryInterface implementation for nsHTMLTableCellElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLTableCellElement)
@@ -314,7 +313,7 @@ nsHTMLTableCellElement::ParseAttribute(PRInt32 aNamespaceID,
       return ParseTableCellHAlignValue(aValue, aResult);
     }
     if (aAttribute == nsGkAtoms::bgcolor) {
-      return aResult.ParseColor(aValue);
+      return aResult.ParseColor(aValue, GetOwnerDoc());
     }
     if (aAttribute == nsGkAtoms::scope) {
       return aResult.ParseEnumValue(aValue, kCellScopeTable, PR_FALSE);

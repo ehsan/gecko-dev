@@ -134,6 +134,7 @@ NS_NewTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsTreeBodyFrame)
 
 NS_QUERYFRAME_HEAD(nsTreeBodyFrame)
+  NS_QUERYFRAME_ENTRY(nsICSSPseudoComparator)
   NS_QUERYFRAME_ENTRY(nsIScrollbarMediator)
   NS_QUERYFRAME_ENTRY(nsTreeBodyFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsLeafBoxFrame)
@@ -2822,8 +2823,7 @@ nsTreeBodyFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
 
   return aLists.Content()->AppendNewToTop(new (aBuilder)
-      nsDisplayGeneric(this, ::PaintTreeBody, "XULTreeBody",
-                       nsDisplayItem::TYPE_XUL_TREE_BODY));
+      nsDisplayGeneric(this, ::PaintTreeBody, "XULTreeBody"));
 }
 
 void
@@ -4200,9 +4200,11 @@ nsTreeBodyFrame::GetPseudoStyleContext(nsIAtom* aPseudoElement)
 }
 
 // Our comparator for resolving our complex pseudos
-PRBool
-nsTreeBodyFrame::PseudoMatches(nsCSSSelector* aSelector)
+NS_IMETHODIMP
+nsTreeBodyFrame::PseudoMatches(nsIAtom* aTag, nsCSSSelector* aSelector, PRBool* aResult)
 {
+  NS_ABORT_IF_FALSE(aSelector->mLowercaseTag == aTag,
+                   "should not have been called");
   // Iterate the pseudoclass list.  For each item in the list, see if
   // it is contained in our scratch array.  If we have a miss, then
   // we aren't a match.  If all items in the pseudoclass list are
@@ -4212,11 +4214,13 @@ nsTreeBodyFrame::PseudoMatches(nsCSSSelector* aSelector)
     PRInt32 index;
     mScratchArray->GetIndexOf(curr->mAtom, &index);
     if (index == -1) {
-      return PR_FALSE;
+      *aResult = PR_FALSE;
+      return NS_OK;
     }
     curr = curr->mNext;
   }
-  return PR_TRUE;
+  *aResult = PR_TRUE;
+  return NS_OK;
 }
 
 nsIContent*

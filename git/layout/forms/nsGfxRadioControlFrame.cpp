@@ -120,6 +120,5 @@ nsGfxRadioControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
     
   return aLists.Content()->AppendNewToTop(new (aBuilder)
-    nsDisplayGeneric(this, PaintCheckedRadioButton, "CheckedRadioButton",
-                     nsDisplayItem::TYPE_CHECKED_RADIOBUTTON));
+    nsDisplayGeneric(this, PaintCheckedRadioButton, "CheckedRadioButton"));
 }

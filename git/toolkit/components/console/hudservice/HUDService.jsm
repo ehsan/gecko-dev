@@ -1,5 +1,4 @@
 /* -*- Mode: js2; js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
-/* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -24,7 +23,6 @@
  *   David Dahl <ddahl@mozilla.com> (original author)
  *   Rob Campbell <rcampbell@mozilla.com>
  *   Johnathan Nightingale <jnightingale@mozilla.com>
- *   Patrick Walton <pcwalton@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -759,6 +757,8 @@ HUD_SERVICE.prototype =
     switch (aMessage.origin) {
       case "network":
       case "HUDConsole":
+        this.logHUDMessage(aMessage, aConsoleNode, aMessageNode, filterState, filterString);
+        break;
       case "console-listener":
         this.logHUDMessage(aMessage, aConsoleNode, aMessageNode, filterState, filterString);
         break;
@@ -1124,14 +1124,8 @@ HUD_SERVICE.prototype =
     var _msgLogLevel = this.scriptMsgLogLevel[aActivityObject.flags];
     var msgLogLevel = this.getStr(_msgLogLevel);
 
-    var logLevel = "warn";
-
-    if (aActivityObject.flags in this.scriptErrorFlags) {
-      logLevel = this.scriptErrorFlags[aActivityObject.flags];
-    }
-
     // check if we should be logging this message:
-    var filterState = this.getFilterState(hudId, logLevel);
+    var filterState = this.getFilterState(hudId, msgLogLevel);
 
     if (!filterState) {
       // Ignore log message
@@ -1146,6 +1140,12 @@ HUD_SERVICE.prototype =
       hudId: hudId,
     };
 
+    try {
+      var logLevel = this.scriptErrorFlags[aActivityObject.flags];
+    }
+    catch (ex) {
+      var logLevel = "warn";
+    }
     var lineColSubs = [aActivityObject.columnNumber,
                        aActivityObject.lineNumber];
     var lineCol = this.getFormatStr("errLineCol", lineColSubs);
@@ -1408,18 +1408,10 @@ HUD_SERVICE.prototype =
   {
     var xulWindow = aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
       .getInterface(Ci.nsIWebNavigation)
-                      .QueryInterface(Ci.nsIDocShell)
-                      .chromeEventHandler.ownerDocument.defaultView;
-
-    let xulWindow = XPCNativeWrapper.unwrap(xulWindow);
-
-    let docElem = xulWindow.document.documentElement;
-    if (!docElem || docElem.getAttribute("windowtype") != "navigator:browser" ||
-        !xulWindow.gBrowser) {
-      // Do not do anything unless we have a browser window.
-      // This may be a view-source window or other type of non-browser window.
-      return;
-    }
+      .QueryInterface(Ci.nsIDocShellTreeItem)
+      .rootTreeItem
+      .QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIDOMWindow);
 
     if (aContentWindow.document.location.href == "about:blank" &&
         HUDWindowObserver.initialConsoleCreated == false) {
@@ -1428,6 +1420,7 @@ HUD_SERVICE.prototype =
       return;
     }
 
+    let xulWindow = XPCNativeWrapper.unwrap(xulWindow);
     let gBrowser = xulWindow.gBrowser;
 
 
@@ -1530,7 +1523,6 @@ function HeadsUpDisplay(aConfig)
     this.contentWindow = aConfig.contentWindow;
     this.uriSpec = aConfig.contentWindow.location.href;
     this.reattachConsole();
-    this.HUDBox.querySelectorAll(".jsterm-input-node")[0].focus();
     return;
   }
 
@@ -1620,10 +1612,14 @@ function HeadsUpDisplay(aConfig)
   let hudBox = this.createHUD();
 
   let splitter = this.chromeDocument.createElement("splitter");
+  splitter.setAttribute("collapse", "before");
+  splitter.setAttribute("resizeafter", "flex");
   splitter.setAttribute("class", "hud-splitter");
 
+  let grippy = this.chromeDocument.createElement("grippy");
   this.notificationBox.insertBefore(splitter,
                                     this.notificationBox.childNodes[1]);
+  splitter.appendChild(grippy);
 
   let console = this.createConsole();
 
@@ -1632,7 +1628,6 @@ function HeadsUpDisplay(aConfig)
   // create the JSTerm input element
   try {
     this.createConsoleInput(this.contentWindow, this.consoleWrap, this.outputNode);
-    this.HUDBox.querySelectorAll(".jsterm-input-node")[0].focus();
   }
   catch (ex) {
     Cu.reportError(ex);
@@ -1664,12 +1659,6 @@ HeadsUpDisplay.prototype = {
   },
 
   /**
-   * The JSTerm object that contains the console's inputNode
-   *
-   */
-  jsterm: null,
-
-  /**
    * creates and attaches the console input node
    *
    * @param nsIDOMWindow aWindow
@@ -1683,7 +1672,7 @@ HeadsUpDisplay.prototype = {
     if (appName() == "FIREFOX") {
       let outputCSSClassOverride = "hud-msg-node hud-console";
       let mixin = new JSTermFirefoxMixin(context, aParentNode, aExistingConsole, outputCSSClassOverride);
-      this.jsterm = new JSTerm(context, aParentNode, mixin);
+      let inputNode = new JSTerm(context, aParentNode, mixin);
     }
     else {
       throw new Error("Unsupported Gecko Application");
@@ -1736,19 +1725,15 @@ HeadsUpDisplay.prototype = {
   makeHTMLNode:
   function HUD_makeHTMLNode(aTag)
   {
-    var element;
-
-    if (this.HTMLFactory) {
-      element = this.HTMLFactory(aTag);
+    try {
+      return this.HTMLFactory(aTag);
     }
-    else {
+    catch (ex) {
       var ns = ELEMENT_NS;
       var nsUri = ELEMENT_NS_URI;
       var tag = ns + aTag;
-      element = this.chromeDocument.createElementNS(nsUri, tag);
+      return this.chromeDocument.createElementNS(nsUri, tag);
     }
-
-    return element;
   },
 
   /**
@@ -1807,13 +1792,9 @@ HeadsUpDisplay.prototype = {
     this.outputNode.setAttribute("class", "hud-output-node");
     this.outputNode.setAttribute("flex", "1");
 
-    this.filterSpacer = this.makeXULNode("spacer");
-    this.filterSpacer.setAttribute("flex", "1");
-
     this.filterBox = this.makeXULNode("textbox");
     this.filterBox.setAttribute("class", "hud-filter-box");
     this.filterBox.setAttribute("hudId", this.hudId);
-    this.filterBox.setAttribute("placeholder", this.getStr("stringFilter"));
 
     this.filterClearButton = this.makeXULNode("button");
     this.filterClearButton.setAttribute("class", "hud-filter-clear");
@@ -1891,7 +1872,6 @@ HeadsUpDisplay.prototype = {
       }
       toolbar.appendChild(btn);
     }
-    toolbar.appendChild(this.filterSpacer);
     toolbar.appendChild(this.filterBox);
     toolbar.appendChild(this.filterClearButton);
     return toolbar;
@@ -1901,15 +1881,11 @@ HeadsUpDisplay.prototype = {
   {
     var self = this;
     let prefKey = aName.toLowerCase();
+    let btn = this.makeXULNode("toolbarbutton");
 
-    let btn;
     if (aType == "checkbox") {
-      btn = this.makeXULNode("checkbox");
       btn.setAttribute("type", aType);
-    } else {
-      btn = this.makeXULNode("toolbarbutton");
     }
-
     btn.setAttribute("hudId", this.hudId);
     btn.setAttribute("buttonType", prefKey);
     btn.setAttribute("class", "hud-filter-btn");
@@ -1949,7 +1925,7 @@ HeadsUpDisplay.prototype = {
     }
   },
 
-  get console() { return this._console || this.createConsole(); },
+  get console() { this._console || this.createConsole(); },
 
   getLogCount: function HUD_getLogCount()
   {
@@ -1993,83 +1969,90 @@ HeadsUpDisplay.prototype = {
  */
 function HUDConsole(aHeadsUpDisplay)
 {
-  let hud = aHeadsUpDisplay;
-  let hudId = hud.hudId;
-  let outputNode = hud.outputNode;
-  let chromeDocument = hud.chromeDocument;
-  let makeHTMLNode = hud.makeHTMLNode;
+  this.hud = aHeadsUpDisplay;
+  this.hudId = this.hud.hudId;
+  this.outputNode = this.hud.outputNode;
+  this.chromeDocument = this.hud.chromeDocument;
+  this.makeHTMLNode = this.hud.makeHTMLNode;
+  this.created = new Date();
+  this.hud._console = this;
+  HUDService.updateLoadGroup(this.hudId, this.hud.loadGroup);
+};
 
-  aHeadsUpDisplay._console = this;
+HUDConsole.prototype = {
+  created: null,
 
-  HUDService.updateLoadGroup(hudId, hud.loadGroup);
+  log: function console_log(aMessage)
+  {
+    this.message = aMessage;
+    this.sendToHUDService("log");
+  },
 
-  let sendToHUDService = function console_send(aLevel, aArguments)
+  info: function console_info(aMessage)
+  {
+    this.message = aMessage;
+    this.sendToHUDService("info");
+  },
+
+  warn: function console_warn(aMessage)
+  {
+    this.message = aMessage;
+    this.sendToHUDService("warn");
+  },
+
+  error: function console_error(aMessage)
+  {
+    this.message = aMessage;
+    this.sendToHUDService("error");
+  },
+
+  exception: function console_exception(aMessage)
+  {
+    this.message = aMessage;
+    this.sendToHUDService("exception");
+  },
+
+  timeStamp: function Console_timeStamp()
+  {
+    return ConsoleUtils.timeStamp(new Date());
+  },
+
+  sendToHUDService: function console_send(aLevel)
   {
     // check to see if logging is on for this level before logging!
-    var filterState = HUDService.getFilterState(hudId, aLevel);
+    var filterState = HUDService.getFilterState(this.hudId, aLevel);
 
     if (!filterState) {
       // Ignoring log message
       return;
     }
 
-    let ts = ConsoleUtils.timestamp();
-    let messageNode = hud.makeHTMLNode("div");
+    let ts = this.timeStamp();
+    let messageNode =
+      this.hud.makeHTMLNode("div");
 
     let klass = "hud-msg-node hud-" + aLevel;
 
     messageNode.setAttribute("class", klass);
 
-    let argumentArray = [];
-    for (var i = 0; i < aArguments.length; i++) {
-      argumentArray.push(aArguments[i]);
-    }
+    let timestampedMessage =
+      this.chromeDocument.createTextNode(ts + ": " + this.message);
 
-    let message = argumentArray.join(' ');
-    let timestampedMessage = ConsoleUtils.timestampString(ts) + ": " +
-      message;
-
-    messageNode.appendChild(chromeDocument.createTextNode(timestampedMessage));
-
+    messageNode.appendChild(timestampedMessage);
     // need a constructor here to properly set all attrs
     let messageObject = {
       logLevel: aLevel,
-      hudId: hud.hudId,
-      message: message,
-      timestamp: ts,
+      hudId: this.hud.hudId,
+      message: this.hud.message,
+      timeStamp: ts,
       origin: "HUDConsole",
     };
 
-    HUDService.logMessage(messageObject, hud.outputNode, messageNode);
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Console API.
-  this.log = function console_log()
-  {
-    sendToHUDService("log", arguments);
-  },
-
-  this.info = function console_info()
-  {
-    sendToHUDService("info", arguments);
-  },
-
-  this.warn = function console_warn()
-  {
-    sendToHUDService("warn", arguments);
-  },
-
-  this.error = function console_error()
-  {
-    sendToHUDService("error", arguments);
-  },
-
-  this.exception = function console_exception()
-  {
-    sendToHUDService("exception", arguments);
+    HUDService.logMessage(messageObject, this.hud.outputNode, messageNode);
   }
 };
+
+
 
 /**
  * Creates a DOM Node factory for either XUL nodes or HTML nodes - as
@@ -2106,220 +2089,6 @@ function NodeFactory(aFactoryType, aNameSpace, aDocument)
       return factory;
     }
   }
-}
-
-//////////////////////////////////////////////////////////////////////////
-// JS Completer
-//////////////////////////////////////////////////////////////////////////
-
-const STATE_NORMAL = 0;
-const STATE_QUOTE = 2;
-const STATE_DQUOTE = 3;
-
-const OPEN_BODY = '{[('.split('');
-const CLOSE_BODY = '}])'.split('');
-const OPEN_CLOSE_BODY = {
-  '{': '}',
-  '[': ']',
-  '(': ')'
-};
-
-/**
- * Analyses a given string to find the last statement that is interesting for
- * later completion.
- *
- * @param   string aStr
- *          A string to analyse.
- *
- * @returns object
- *          If there was an error in the string detected, then a object like
- *
- *            { err: "ErrorMesssage" }
- *
- *          is returned, otherwise a object like
- *
- *            {
- *              state: STATE_NORMAL|STATE_QUOTE|STATE_DQUOTE,
- *              startPos: index of where the last statement begins
- *            }
- */
-function findCompletionBeginning(aStr)
-{
-  let bodyStack = [];
-
-  let state = STATE_NORMAL;
-  let start = 0;
-  let c;
-  for (let i = 0; i < aStr.length; i++) {
-    c = aStr[i];
-
-    switch (state) {
-      // Normal JS state.
-      case STATE_NORMAL:
-        if (c == '"') {
-          state = STATE_DQUOTE;
-        }
-        else if (c == '\'') {
-          state = STATE_QUOTE;
-        }
-        else if (c == ';') {
-          start = i + 1;
-        }
-        else if (c == ' ') {
-          start = i + 1;
-        }
-        else if (OPEN_BODY.indexOf(c) != -1) {
-          bodyStack.push({
-            token: c,
-            start: start
-          });
-          start = i + 1;
-        }
-        else if (CLOSE_BODY.indexOf(c) != -1) {
-          var last = bodyStack.pop();
-          if (OPEN_CLOSE_BODY[last.token] != c) {
-            return {
-              err: "syntax error"
-            };
-          }
-          if (c == '}') {
-            start = i + 1;
-          }
-          else {
-            start = last.start;
-          }
-        }
-        break;
-
-      // Double quote state > " <
-      case STATE_DQUOTE:
-        if (c == '\\') {
-          i ++;
-        }
-        else if (c == '\n') {
-          return {
-            err: "unterminated string literal"
-          };
-        }
-        else if (c == '"') {
-          state = STATE_NORMAL;
-        }
-        break;
-
-      // Single quoate state > ' <
-      case STATE_QUOTE:
-        if (c == '\\') {
-          i ++;
-        }
-        else if (c == '\n') {
-          return {
-            err: "unterminated string literal"
-          };
-          return;
-        }
-        else if (c == '\'') {
-          state = STATE_NORMAL;
-        }
-        break;
-    }
-  }
-
-  return {
-    state: state,
-    startPos: start
-  };
-}
-
-/**
- * Provides a list of properties, that are possible matches based on the passed
- * scope and inputValue.
- *
- * @param object aScope
- *        Scope to use for the completion.
- *
- * @param string aInputValue
- *        Value that should be completed.
- *
- * @returns null or object
- *          If no completion valued could be computed, null is returned,
- *          otherwise a object with the following form is returned:
- *            {
- *              matches: [ string, string, string ],
- *              matchProp: Last part of the inputValue that was used to find
- *                         the matches-strings.
- *            }
- */
-function JSPropertyProvider(aScope, aInputValue)
-{
-  let obj = aScope;
-
-  // Analyse the aInputValue and find the beginning of the last part that
-  // should be completed.
-  let beginning = findCompletionBeginning(aInputValue);
-
-  // There was an error analysing the string.
-  if (beginning.err) {
-    return null;
-  }
-
-  // If the current state is not STATE_NORMAL, then we are inside of an string
-  // which means that no completion is possible.
-  if (beginning.state != STATE_NORMAL) {
-    return null;
-  }
-
-  let completionPart = aInputValue.substring(beginning.startPos);
-
-  // Don't complete on just an empty string.
-  if (completionPart.trim() == "") {
-    return null;
-  }
-
-  let properties = completionPart.split('.');
-  let matchProp;
-  if (properties.length > 1) {
-      matchProp = properties[properties.length - 1].trimLeft();
-      properties.pop();
-      for each (var prop in properties) {
-        prop = prop.trim();
-
-        // If obj is undefined or null, then there is no change to run
-        // completion on it. Exit here.
-        if (typeof obj === "undefined" || obj === null) {
-          return null;
-        }
-
-        // Check if prop is a getter function on obj. Functions can change other
-        // stuff so we can't execute them to get the next object. Stop here.
-        if (obj.__lookupGetter__(prop)) {
-          return null;
-        }
-        obj = obj[prop];
-      }
-  }
-  else {
-    matchProp = properties[0].trimLeft();
-  }
-
-  // If obj is undefined or null, then there is no change to run
-  // completion on it. Exit here.
-  if (typeof obj === "undefined" || obj === null) {
-    return null;
-  }
-
-  let matches = [];
-  for (var prop in obj) {
-    matches.push(prop);
-  }
-
-  matches = matches.filter(function(item) {
-    return item.indexOf(matchProp) == 0;
-  }).sort();
-
-  return {
-    matchProp: matchProp,
-    matches: matches
-  };
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -2371,13 +2140,6 @@ function JSTerm(aContext, aParentNode, aMixin)
 }
 
 JSTerm.prototype = {
-
-  propertyProvider: JSPropertyProvider,
-
-  COMPLETE_FORWARD: 0,
-  COMPLETE_BACKWARD: 1,
-  COMPLETE_HINT_ONLY: 2,
-
   init: function JST_init()
   {
     this.createSandbox();
@@ -2424,30 +2186,21 @@ JSTerm.prototype = {
     return this.context.get().QueryInterface(Ci.nsIDOMWindowInternal);
   },
 
-  execute: function JST_execute(aExecuteString)
+  execute: function JST_execute()
   {
     // attempt to execute the content of the inputNode
-    var str = aExecuteString || this.inputNode.value;
+    var str = this.inputNode.value;
     if (!str) {
       this.console.log("no value to execute");
       return;
     }
-
-    this.writeOutput(str, true);
-
     try {
-      var execStr = "with(window) {" + str + "}";
       var result =
-        Cu.evalInSandbox(execStr,  this.sandbox, "default", "HUD Console", 1);
+      Cu.evalInSandbox(str, this.sandbox, "default", "HUD Console", 1);
+      this.writeOutput(str);
 
-      if (result || result === false || result === " ") {
-        this.writeOutput(result, false);
-      }
-      else if (result === undefined) {
-        this.writeOutput("undefined", false);
-      }
-      else if (result === null) {
-        this.writeOutput("null", false);
+      if (result !== undefined) {
+        this.writeOutput(result);
       }
     }
     catch (ex) {
@@ -2462,48 +2215,19 @@ JSTerm.prototype = {
     this.inputNode.value = "";
   },
 
-  /**
-   * Writes a message to the HUD that originates from the interactive
-   * JavaScript console.
-   *
-   * @param string aOutputMessage
-   *        The message to display.
-   * @param boolean aIsInput
-   *        True if the message is the user's input, false if the message is
-   *        the result of the expression the user typed.
-   * @returns void
-   */
-  writeOutput: function JST_writeOutput(aOutputMessage, aIsInput)
+  writeOutput: function JST_writeOutput(aOutputMessage)
   {
     var node = this.elementFactory("div");
-    if (aIsInput) {
-      node.setAttribute("class", "jsterm-input-line");
-      aOutputMessage = "> " + aOutputMessage;
+    if (this.cssClassOverride) {
+      node.setAttribute("class", this.cssClassOverride);
     }
     else {
       node.setAttribute("class", "jsterm-output-line");
     }
-
-    if (this.cssClassOverride) {
-      let classes = this.cssClassOverride.split(" ");
-      for (let i = 0; i < classes.length; i++) {
-        node.classList.add(classes[i]);
-      }
-    }
-
     var textNode = this.textFactory(aOutputMessage);
     node.appendChild(textNode);
     this.outputNode.appendChild(node);
     node.scrollIntoView(false);
-  },
-
-  clearOutput: function JST_clearOutput()
-  {
-    let outputNode = this.outputNode;
-
-    while (outputNode.firstChild) {
-      outputNode.removeChild(outputNode.firstChild);
-    }
   },
 
   keyDown: function JSTF_keyDown(aEvent)
@@ -2520,11 +2244,11 @@ JSTerm.prototype = {
           case 97:
             // control-a
             tmp = self.codeInputString;
-            setTimeout(function() {
-              self.inputNode.value = tmp;
-              self.inputNode.setSelectionRange(0, 0);
-            }, 0);
-            break;
+              setTimeout(function() {
+                self.inputNode.value = tmp;
+                self.inputNode.setSelectionRange(0, 0);
+              },0);
+              break;
           case 101:
             // control-e
             tmp = self.codeInputString;
@@ -2532,7 +2256,7 @@ JSTerm.prototype = {
             setTimeout(function(){
               var endPos = tmp.length + 1;
               self.inputNode.value = tmp;
-            }, 0);
+            },0);
             break;
           default:
             return;
@@ -2554,35 +2278,18 @@ JSTerm.prototype = {
             // up arrow: history previous
             if (self.caretInFirstLine()){
               self.historyPeruse(true);
-              if (aEvent.cancelable) {
-                let inputEnd = self.inputNode.value.length;
-                self.inputNode.setSelectionRange(inputEnd, inputEnd);
-                aEvent.preventDefault();
-              }
             }
             break;
           case 40:
             // down arrow: history next
             if (self.caretInLastLine()){
               self.historyPeruse(false);
-              if (aEvent.cancelable) {
-                let inputEnd = self.inputNode.value.length;
-                self.inputNode.setSelectionRange(inputEnd, inputEnd);
-                aEvent.preventDefault();
-              }
             }
             break;
           case 9:
             // tab key
-            // If there are more than one possible completion, pressing tab
-            // means taking the next completion, shift_tab means taking
-            // the previous completion.
-            if (aEvent.shiftKey) {
-              self.complete(self.COMPLETE_BACKWARD);
-            }
-            else {
-              self.complete(self.COMPLETE_FORWARD);
-            }
+            // TODO: this.tabComplete();
+            // see bug 568649
             var bool = aEvent.cancelable;
             if (bool) {
               aEvent.preventDefault();
@@ -2592,24 +2299,7 @@ JSTerm.prototype = {
             }
             aEvent.target.focus();
             break;
-          case 8:
-            // backspace key
-          case 46:
-            // delete key
-            // necessary so that default is not reached.
-            break;
           default:
-            // all not handled keys
-            // Store the current inputNode value. If the value is the same
-            // after keyDown event was handled (after 0ms) then the user
-            // moved the cursor. If the value changed, then call the complete
-            // function to show completion on new value.
-            var value = self.inputNode.value;
-            setTimeout(function() {
-              if (self.inputNode.value !== value) {
-                self.complete(self.COMPLETE_HINT_ONLY);
-              }
-            }, 0);
             break;
         }
         return;
@@ -2622,33 +2312,27 @@ JSTerm.prototype = {
     if (!this.history.length) {
       return;
     }
-
     // Up Arrow key
     if (aFlag) {
-      if (this.historyPlaceHolder <= 0) {
+      var idx = this.historyPlaceHolder--;
+      if (idx < - 1) {
         return;
       }
+      var inputVal = this.history[idx - 1];
 
-      let inputVal = this.history[--this.historyPlaceHolder];
       if (inputVal){
-        this.inputNode.value = inputVal;
+        this.inputNode.value = this.history[idx - 1];
       }
     }
-    // Down Arrow key
     else {
-      if (this.historyPlaceHolder == this.history.length - 1) {
-        this.historyPlaceHolder ++;
-        this.inputNode.value = "";
+      var idx = this.historyPlaceHolder++;
+      if (idx > (this.history.length + 1)) {
         return;
       }
-      else if (this.historyPlaceHolder >= (this.history.length)) {
-        return;
-      }
-      else {
-        let inputVal = this.history[++this.historyPlaceHolder];
-        if (inputVal){
-          this.inputNode.value = inputVal;
-        }
+      var inputVal = this.history[idx + 1];
+
+      if (inputVal){
+        this.inputNode.value = this.history[idx + 1];
       }
     }
   },
@@ -2674,120 +2358,9 @@ JSTerm.prototype = {
 
   history: [],
 
-  // Stores the data for the last completion.
-  lastCompletion: null,
-
-  /**
-   * Completes the current typed text in the inputNode. Completion is performed
-   * only if the selection/cursor is at the end of the string. If no completion
-   * is found, the current inputNode value and cursor/selection stay.
-   *
-   * @param int type possible values are
-   *    - this.COMPLETE_FORWARD: If there is more than one possible completion
-   *          and the input value stayed the same compared to the last time this
-   *          function was called, then the next completion of all possible
-   *          completions is used. If the value changed, then the first possible
-   *          completion is used and the selection is set from the current
-   *          cursor position to the end of the completed text.
-   *          If there is only one possible completion, then this completion
-   *          value is used and the cursor is put at the end of the completion.
-   *    - this.COMPLETE_BACKWARD: Same as this.COMPLETE_FORWARD but if the
-   *          value stayed the same as the last time the function was called,
-   *          then the previous completion of all possible completions is used.
-   *    - this.COMPLETE_HINT_ONLY: If there is more than one possible
-   *          completion and the input value stayed the same compared to the
-   *          last time this function was called, then the same completion is
-   *          used again. If there is only one possible completion, then
-   *          the inputNode.value is set to this value and the selection is set
-   *          from the current cursor position to the end of the completed text.
-   *
-   * @returns void
-   */
-  complete: function JSTF_complete(type)
-  {
-    let inputNode = this.inputNode;
-    let inputValue = inputNode.value;
-    let selStart = inputNode.selectionStart, selEnd = inputNode.selectionEnd;
-
-    // 'Normalize' the selection so that end is always after start.
-    if (selStart > selEnd) {
-      let newSelEnd = selStart;
-      selStart = selEnd;
-      selEnd = newSelEnd;
-    }
-
-    // Only complete if the selection is at the end of the input.
-    if (selEnd != inputValue.length) {
-      this.lastCompletion = null;
-      return;
-    }
-
-    // Remove the selected text from the inputValue.
-    inputValue = inputValue.substring(0, selStart);
-
-    let matches;
-    let matchIndexToUse;
-    let matchOffset;
-    let completionStr;
-
-    // If there is a saved completion from last time and the used value for
-    // completion stayed the same, then use the stored completion.
-    if (this.lastCompletion && inputValue == this.lastCompletion.value) {
-      matches = this.lastCompletion.matches;
-      matchOffset = this.lastCompletion.matchOffset;
-      if (type === this.COMPLETE_BACKWARD) {
-        this.lastCompletion.index --;
-      }
-      else if (type === this.COMPLETE_FORWARD) {
-        this.lastCompletion.index ++;
-      }
-      matchIndexToUse = this.lastCompletion.index;
-    }
-    else {
-      // Look up possible completion values.
-      let completion = this.propertyProvider(this.sandbox.window, inputValue);
-      if (!completion) {
-        return;
-      }
-      matches = completion.matches;
-      matchIndexToUse = 0;
-      matchOffset = completion.matchProp.length
-      // Store this match;
-      this.lastCompletion = {
-        index: 0,
-        value: inputValue,
-        matches: matches,
-        matchOffset: matchOffset
-      };
-    }
-
-    if (matches.length != 0) {
-      // Ensure that the matchIndexToUse is always a valid array index.
-      if (matchIndexToUse < 0) {
-        matchIndexToUse = matches.length + (matchIndexToUse % matches.length);
-        if (matchIndexToUse == matches.length) {
-          matchIndexToUse = 0;
-        }
-      }
-      else {
-        matchIndexToUse = matchIndexToUse % matches.length;
-      }
-
-      completionStr = matches[matchIndexToUse].substring(matchOffset);
-      this.inputNode.value = inputValue +  completionStr;
-
-      selEnd = inputValue.length + completionStr.length;
-
-      // If there is more than one possible completion or the completed part
-      // should get displayed only without moving the cursor at the end of the
-      // completion.
-      if (matches.length > 1 || type === this.COMPLETE_HINT_ONLY) {
-        inputNode.setSelectionRange(selStart, selEnd);
-      }
-      else {
-        inputNode.setSelectionRange(selEnd, selEnd);
-      }
-    }
+  tabComplete: function JSTF_tabComplete(aInputValue) {
+    // parse input value:
+    // TODO: see bug 568649
   }
 };
 
@@ -2924,9 +2497,8 @@ LogMessage.prototype = {
   {
     this.messageNode = this.elementFactory("div");
 
-    var ts = ConsoleUtils.timestamp();
-    var timestampedMessage = ConsoleUtils.timestampString(ts) + ": " +
-      this.message.message;
+    var ts = this.timestamp();
+    var timestampedMessage = ts + ": "  + this.message.message;
     var messageTxtNode = this.textFactory(timestampedMessage);
 
     this.messageNode.appendChild(messageTxtNode);
@@ -2946,6 +2518,28 @@ LogMessage.prototype = {
     };
 
     this.messageObject = messageObject;
+  },
+
+  timestamp: function LM_timestamp()
+  {
+    // TODO: L10N see bug 568656
+    // TODO: DUPLICATED CODE to be consolidated with the utils timestamping
+    // see bug 568657
+    function logDateString(d)
+    {
+      function pad(n, mil)
+      {
+        if (mil) {
+          return n < 100 ? '0' + n : n;
+        }
+        return n < 10 ? '0' + n : n;
+      }
+      return pad(d.getHours())+':'
+        + pad(d.getMinutes())+':'
+        + pad(d.getSeconds()) + ":"
+        + pad(d.getMilliseconds(), true);
+      }
+    return logDateString(new Date());
   }
 };
 
@@ -3018,41 +2612,26 @@ FirefoxApplicationHooks.prototype = {
 ConsoleUtils = {
 
   /**
-   * Generates a millisecond resolution timestamp.
+   * Generates a millisecond resolution timestamp for console messages
    *
-   * @returns integer
+   * @returns string
    */
-  timestamp: function ConsoleUtils_timestamp()
+  timeStamp: function ConsoleUtils_timeStamp()
   {
-    return Date.now();
-  },
-
-  /**
-   * Generates a formatted timestamp string for displaying in console messages.
-   *
-   * @param integer [ms] Optional, allows you to specify the timestamp in 
-   * milliseconds since the UNIX epoch.
-   * @returns string The timestamp formatted for display.
-   */
-  timestampString: function ConsoleUtils_timestampString(ms)
-  {
-    // TODO: L10N see bug 568656
-    var d = new Date(ms ? ms : null);
-
-    function pad(n, mil)
-    {
-      if (mil) {
-        return n < 100 ? "0" + n : n;
+    function logDateString(d){
+      function pad(n, mil){
+        if (mil) {
+          return n < 100 ? '0'+n : n;
+        }
+        return n < 10 ? '0'+n : n;
       }
-      else {
-        return n < 10 ? "0" + n : n;
-      }
+      return pad(d.getHours())+':'
+        + pad(d.getMinutes())+':'
+        + pad(d.getSeconds()) + ":"
+        + pad(d.getMilliseconds(), true);
     }
+    return logDateString(new Date());
 
-    return pad(d.getHours()) + ":"
-      + pad(d.getMinutes()) + ":"
-      + pad(d.getSeconds()) + ":"
-      + pad(d.getMilliseconds(), true);
   },
 
   /**

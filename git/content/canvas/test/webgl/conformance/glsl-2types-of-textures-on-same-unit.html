@@ -43,8 +43,9 @@ void main()
   <script>
 function init()
 {
-  if (window.initNonKhronosFramework) {
-      window.initNonKhronosFramework(false);
+  if (window.layoutTestController) {
+    layoutTestController.overridePreference("WebKitWebGLEnabled", "1");
+    layoutTestController.dumpAsText();
   }
 
   debug("Tests that using 2 types of textures on the same texture unit");
@@ -66,9 +67,8 @@ function init()
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexObject);
   gl.bufferData(
       gl.ARRAY_BUFFER,
-      new Float32Array([
-          -1, 1,0, 1,1,0, -1,-1,0,
-          -1,-1,0, 1,1,0,  1,-1,0]),
+      new WebGLFloatArray([-1, 1,0, 1,1,0, -1,-1,0,
+                           -1,-1,0, 1,1,0,  1,-1,0]),
       gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0);
   gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
@@ -77,9 +77,8 @@ function init()
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexObject);
   gl.bufferData(
       gl.ARRAY_BUFFER,
-      new Float32Array([
-          0,0, 1,0, 0,1,
-          0,1, 1,0, 1,1]),
+      new WebGLFloatArray([ 0,0, 1,0, 0,1,
+                            0,1, 1,0, 1,1]),
       gl.STATIC_DRAW);
   gl.enableVertexAttribArray(1);
   gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
@@ -92,7 +91,9 @@ function init()
   gl.bindTexture(gl.TEXTURE_2D, tex2d);
   ctx2d.fillStyle = "rgba(0, 0, 255, 255)";
   ctx2d.fillRect(0, 0, 1, 1);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas2d);
+  gl.texImage2D(gl.TEXTURE_2D,
+                0,             // level
+                canvas2d);     // internalFormat
 
   // make a cube texture
   var texCube = gl.createTexture();
@@ -106,7 +107,9 @@ function init()
     gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
     gl.TEXTURE_CUBE_MAP_NEGATIVE_Z];
   for (var ii = 0; ii < targets.length; ++ii) {
-    gl.texImage2D(targets[ii], 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas2d);
+    gl.texImage2D(targets[ii],
+                  0,             // level
+                  canvas2d);     // internalFormat
   }
 
   var tex2dLoc = gl.getUniformLocation(gl.program, "tex2d");

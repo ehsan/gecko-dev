@@ -111,8 +111,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-{ 0x34b6123e, 0x78d7, 0x4275, \
-  { 0xa2, 0xbf, 0x07, 0xd4, 0xbf, 0x3a, 0x34, 0x45 } }
+{ 0x271ac413, 0xa202, 0x46dc, \
+{ 0xbc, 0xd5, 0x67, 0xa1, 0xfb, 0x58, 0x89, 0x7f } }
 
 /*
  * Window shadow styles
@@ -561,10 +561,10 @@ class nsIWidget : public nsISupports {
     /**
      * Get the client offset from the window origin.
      *
-     * @return the x and y of the offset.
+     * @param aPt on return it holds the width and height of the offset.
      *
      */
-    virtual nsIntPoint GetClientOffset() = 0;
+    NS_IMETHOD GetClientOffset(nsIntPoint &aPt) = 0;
 
     /**
      * Get the foreground color for this widget
@@ -692,10 +692,6 @@ class nsIWidget : public nsISupports {
      * 
      * This will invalidate areas of the children that have changed, but
      * does not need to invalidate any part of this widget.
-     * 
-     * Children should be moved in the order given; the array is
-     * sorted so to minimize unnecessary invalidation if children are
-     * moved in that order.
      */
     virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations) = 0;
 
@@ -837,13 +833,6 @@ class nsIWidget : public nsISupports {
     virtual nsIntPoint WidgetToScreenOffset() = 0;
 
     /**
-     * Given the specified client size, return the corresponding window size,
-     * which includes the area for the borders and titlebar. This method
-     * should work even when the window is not yet visible.
-     */
-    virtual nsIntSize ClientToWindowSize(const nsIntSize& aClientSize) = 0;
-
-    /**
      * Dispatches an event to the widget
      *
      */
@@ -971,11 +960,6 @@ class nsIWidget : public nsISupports {
      * Begin a window resizing drag, based on the event passed in.
      */
     NS_IMETHOD BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical) = 0;
-
-    /**
-     * Begin a window moving drag, based on the event passed in.
-     */
-    NS_IMETHOD BeginMoveDrag(nsMouseEvent* aEvent) = 0;
 
     enum Modifiers {
         CAPS_LOCK = 0x01, // when CapsLock is active

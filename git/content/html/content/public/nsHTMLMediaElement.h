@@ -42,7 +42,6 @@
 #include "nsGenericHTMLElement.h"
 #include "nsMediaDecoder.h"
 #include "nsIChannel.h"
-#include "nsIHttpChannel.h"
 #include "nsThreadUtils.h"
 #include "nsIDOMRange.h"
 #include "nsCycleCollectionParticipant.h"
@@ -68,8 +67,7 @@ public:
     CANPLAY_YES
   };
 
-  nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                     PRUint32 aFromParser = 0);
+  nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser = 0);
   virtual ~nsHTMLMediaElement();
 
   /**
@@ -307,13 +305,6 @@ public:
   PRBool GetPlayedOrSeeked() const { return mHasPlayedOrSeeked; }
 
   nsresult CopyInnerTo(nsGenericElement* aDest) const;
-
-  /**
-   * Sets the Accept header on the HTTP channel to the required
-   * video or audio MIME types.
-   */
-  virtual nsresult SetAcceptHeader(nsIHttpChannel* aChannel) = 0;
-
 protected:
   class MediaLoadListener;
   class LoadNextSourceEvent;
