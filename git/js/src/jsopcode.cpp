@@ -4834,6 +4834,20 @@ DecompileCode(JSPrinter *jp, JSScript *script, jsbytecode *pc, uintN len,
 
     AutoScriptUntrapper untrapper(cx, script, &pc);
 
+    /* Print a strict mode code directive, if needed. */
+    if (script->strictModeCode && !jp->strict) {
+        if (jp->fun && (jp->fun->flags & JSFUN_EXPR_CLOSURE)) {
+            /*
+             * We have no syntax for strict function expressions;
+             * at least give a hint.
+             */
+            js_printf(jp, "\t/* use strict */ \n");
+        } else {
+            js_printf(jp, "\t\"use strict\";\n");
+        }
+        jp->strict = true;
+    }
+
     /* Initialize a sprinter for use with the offset stack. */
     mark = JS_ARENA_MARK(&cx->tempPool);
     ok = InitSprintStack(cx, &ss, jp, depth);
@@ -4879,36 +4893,10 @@ out:
     return ok;
 }
 
-/*
- * Decompile a function body, expression closure expression, or complete
- * script. Start at |pc|; go to the end of |script|. Include a directive
- * prologue, if appropriate.
- */
-static JSBool
-DecompileBody(JSPrinter *jp, JSScript *script, jsbytecode *pc)
-{
-    /* Print a strict mode code directive, if needed. */
-    if (script->strictModeCode && !jp->strict) {
-        if (jp->fun && (jp->fun->flags & JSFUN_EXPR_CLOSURE)) {
-            /*
-             * We have no syntax for strict function expressions;
-             * at least give a hint.
-             */
-            js_printf(jp, "\t/* use strict */ \n");
-        } else {
-            js_printf(jp, "\t\"use strict\";\n");
-        }
-        jp->strict = true;
-    }
-
-    jsbytecode *end = script->code + script->length;
-    return DecompileCode(jp, script, pc, end - pc, 0);
-}
-
 JSBool
 js_DecompileScript(JSPrinter *jp, JSScript *script)
 {
-    return DecompileBody(jp, script, script->code);
+    return DecompileCode(jp, script, script->code, (uintN)script->length, 0);
 }
 
 JSString *
@@ -4945,7 +4933,7 @@ js_DecompileFunctionBody(JSPrinter *jp)
     }
 
     script = jp->fun->u.i.script;
-    return DecompileBody(jp, script, script->code);
+    return DecompileCode(jp, script, script->code, (uintN)script->length, 0);
 }
 
 JSBool
@@ -4955,6 +4943,7 @@ js_DecompileFunction(JSPrinter *jp)
     uintN i;
     JSAtom *param;
     jsbytecode *pc, *endpc;
+    ptrdiff_t len;
     JSBool ok;
 
     fun = jp->fun;
@@ -5061,7 +5050,8 @@ js_DecompileFunction(JSPrinter *jp)
             jp->indent += 4;
         }
 
-        ok = DecompileBody(jp, script, pc);
+        len = script->code + script->length - pc;
+        ok = DecompileCode(jp, script, pc, (uintN)len, 0);
         if (!ok)
             return JS_FALSE;
 
