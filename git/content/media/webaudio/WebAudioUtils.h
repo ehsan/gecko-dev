@@ -56,15 +56,6 @@ namespace WebAudioUtils {
   }
 
   /**
-   * Convert a time in second relative to the destination stream to
-   * TrackTicks relative to the source stream.
-   */
-  TrackTicks
-  ConvertDestinationStreamTimeToSourceStreamTime(double aTime,
-                                                 AudioNodeStream* aSource,
-                                                 MediaStream* aDestination);
-
-  /**
    * Converts AudioParamTimeline floating point time values to tick values
    * with respect to a source and a destination AudioNodeStream.
    *
@@ -118,14 +109,6 @@ namespace WebAudioUtils {
   {
     return aTime >= 0 &&  aTime <= (MEDIA_TIME_MAX >> MEDIA_TIME_FRAC_BITS);
   }
-
-  /**
-   * Convert a stream position into the time coordinate of the destination
-   * stream.
-   */
-  double StreamPositionToDestinationTime(TrackTicks aSourcePosition,
-                                         AudioNodeStream* aSource,
-                                         AudioNodeStream* aDestination);
 
   /**
    * Converts a floating point value to an integral type in a safe and

@@ -801,7 +801,7 @@ nsSMILAnimationController::GetTargetIdentifierForAnimation(
       } else {
         nsCSSProperty prop =
           nsCSSProps::LookupProperty(nsDependentAtomString(attributeName),
-                                     nsCSSProps::eEnabled);
+                                     nsCSSProps::eEnabledForAllContent);
         isCSS = nsSMILCSSProperty::IsPropertyAnimatable(prop);
       }
     }
