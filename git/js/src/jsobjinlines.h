@@ -351,7 +351,7 @@ JSObject::clearType(JSContext *cx, js::HandleObject obj)
     JS_ASSERT(!obj->hasSingletonType());
     JS_ASSERT(cx->compartment() == obj->compartment());
 
-    js::types::TypeObject *type = cx->getNewType(obj->getClass(), nullptr);
+    js::types::TypeObject *type = cx->getNewType(obj->getClass(), NULL);
     if (!type)
         return false;
 
@@ -389,7 +389,7 @@ inline bool JSObject::isVarObj()
 /* static */ inline JSObject *
 JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap heap,
                  js::HandleShape shape, js::HandleTypeObject type,
-                 js::HeapSlot *extantSlots /* = nullptr */)
+                 js::HeapSlot *extantSlots /* = NULL */)
 {
     /*
      * Callers must use dynamicSlotsCount to size the initial slot array of the
@@ -410,7 +410,7 @@ JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::Initi
         if (nDynamicSlots) {
             slots = cx->pod_malloc<js::HeapSlot>(nDynamicSlots);
             if (!slots)
-                return nullptr;
+                return NULL;
             js::Debug_SetSlotRangeToCrashOnTouch(slots, nDynamicSlots);
         }
     }
@@ -418,7 +418,7 @@ JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::Initi
     JSObject *obj = js_NewGCObject<js::CanGC>(cx, kind, heap);
     if (!obj) {
         js_free(slots);
-        return nullptr;
+        return NULL;
     }
 
 #ifdef JSGC_GENERATIONAL
@@ -433,7 +433,7 @@ JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::Initi
 
     const js::Class *clasp = type->clasp;
     if (clasp->hasPrivate())
-        obj->privateRef(shape->numFixedSlots()) = nullptr;
+        obj->privateRef(shape->numFixedSlots()) = NULL;
 
     size_t span = shape->slotSpan();
     if (span && clasp != &js::ArrayBufferObject::class_)
@@ -469,11 +469,11 @@ JSObject::createArray(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::
 
     JSObject *obj = js_NewGCObject<js::CanGC>(cx, kind, heap);
     if (!obj)
-        return nullptr;
+        return NULL;
 
     obj->shape_.init(shape);
     obj->type_.init(type);
-    obj->slots = nullptr;
+    obj->slots = NULL;
     obj->setFixedElements();
     new (obj->getElementsHeader()) js::ObjectElements(capacity, length);
 
@@ -729,7 +729,7 @@ class AutoPropDescArrayRooter : private AutoGCRooter
 
     PropDesc *append() {
         if (!descriptors.append(PropDesc()))
-            return nullptr;
+            return NULL;
         return &descriptors.back();
     }
 
@@ -838,7 +838,7 @@ inline JSObject *
 NewBuiltinClassInstance(ExclusiveContext *cx, const Class *clasp, gc::AllocKind allocKind,
                         NewObjectKind newKind = GenericObject)
 {
-    return NewObjectWithClassProto(cx, clasp, nullptr, nullptr, allocKind, newKind);
+    return NewObjectWithClassProto(cx, clasp, NULL, NULL, allocKind, newKind);
 }
 
 inline JSObject *
@@ -865,14 +865,14 @@ CopyInitializerObject(JSContext *cx, HandleObject baseobj, NewObjectKind newKind
     RootedObject obj(cx);
     obj = NewBuiltinClassInstance(cx, &JSObject::class_, allocKind, newKind);
     if (!obj)
-        return nullptr;
+        return NULL;
 
     RootedObject metadata(cx, obj->getMetadata());
     RootedShape lastProp(cx, baseobj->lastProperty());
     if (!JSObject::setLastProperty(cx, obj, lastProp))
-        return nullptr;
+        return NULL;
     if (metadata && !JSObject::setMetadata(cx, obj, metadata))
-        return nullptr;
+        return NULL;
 
     return obj;
 }
@@ -975,7 +975,7 @@ DefineConstructorAndPrototype(JSContext *cx, HandleObject obj, JSProtoKey key, H
                               Native constructor, unsigned nargs,
                               const JSPropertySpec *ps, const JSFunctionSpec *fs,
                               const JSPropertySpec *static_ps, const JSFunctionSpec *static_fs,
-                              JSObject **ctorp = nullptr,
+                              JSObject **ctorp = NULL,
                               gc::AllocKind ctorKind = JSFunction::FinalizeKind);
 
 static JS_ALWAYS_INLINE bool
@@ -1041,7 +1041,7 @@ js_InitClass(JSContext *cx, js::HandleObject obj, JSObject *parent_proto,
              const js::Class *clasp, JSNative constructor, unsigned nargs,
              const JSPropertySpec *ps, const JSFunctionSpec *fs,
              const JSPropertySpec *static_ps, const JSFunctionSpec *static_fs,
-             JSObject **ctorp = nullptr,
+             JSObject **ctorp = NULL,
              js::gc::AllocKind ctorKind = JSFunction::FinalizeKind);
 
 #endif /* jsobjinlines_h */

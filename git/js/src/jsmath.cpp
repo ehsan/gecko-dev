@@ -1481,19 +1481,19 @@ static const JSFunctionSpec math_static_methods[] = {
 JSObject *
 js_InitMathClass(JSContext *cx, HandleObject obj)
 {
-    RootedObject Math(cx, NewObjectWithClassProto(cx, &MathClass, nullptr, obj, SingletonObject));
+    RootedObject Math(cx, NewObjectWithClassProto(cx, &MathClass, NULL, obj, SingletonObject));
     if (!Math)
-        return nullptr;
+        return NULL;
 
     if (!JS_DefineProperty(cx, obj, js_Math_str, OBJECT_TO_JSVAL(Math),
                            JS_PropertyStub, JS_StrictPropertyStub, 0)) {
-        return nullptr;
+        return NULL;
     }
 
     if (!JS_DefineFunctions(cx, Math, math_static_methods))
-        return nullptr;
+        return NULL;
     if (!JS_DefineConstDoubles(cx, Math, math_constants))
-        return nullptr;
+        return NULL;
 
     MarkStandardClassInitializedNoProto(obj, &MathClass);
 

@@ -21,7 +21,7 @@ namespace js {
 
 inline
 Bindings::Bindings()
-    : callObjShape_(nullptr), bindingArrayAndFlag_(TEMPORARY_STORAGE_BIT), numArgs_(0), numVars_(0)
+    : callObjShape_(NULL), bindingArrayAndFlag_(TEMPORARY_STORAGE_BIT), numArgs_(0), numVars_(0)
 {}
 
 inline
@@ -78,7 +78,7 @@ JSScript::functionOrCallerFunction()
         return function();
     if (savedCallerFun)
         return getCallerFunction();
-    return nullptr;
+    return NULL;
 }
 
 inline js::RegExpObject *
@@ -110,7 +110,7 @@ JSScript::principals()
 inline JSFunction *
 JSScript::originalFunction() const {
     if (!isCallsiteClone)
-        return nullptr;
+        return NULL;
     return &enclosingScopeOrOriginalFunction_->as<JSFunction>();
 }
 

@@ -18,7 +18,6 @@ import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.util.GeckoJarReader;
-import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
 import static org.mozilla.gecko.favicons.Favicons.sContext;
 
@@ -213,21 +212,8 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
     }
 
     static void closeHTTPClient() {
-        // This work must be done on a background thread because it shuts down
-        // the connection pool, which typically involves closing a connection --
-        // which counts as network activity.
-        if (ThreadUtils.isOnBackgroundThread()) {
-            if (sHttpClient != null) {
-                sHttpClient.close();
-            }
-            return;
+        if (sHttpClient != null) {
+            sHttpClient.close();
         }
-
-        ThreadUtils.postToBackgroundThread(new Runnable() {
-            @Override
-            public void run() {
-                LoadFaviconTask.closeHTTPClient();
-            }
-        });
     }
 }

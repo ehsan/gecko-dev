@@ -40,7 +40,7 @@ js::AtomToPrintableString(ExclusiveContext *cx, JSAtom *atom, JSAutoByteString *
 {
     JSString *str = js_QuoteString(cx, atom, 0);
     if (!str)
-        return nullptr;
+        return NULL;
     return bytes->encodeLatin1(cx, str);
 }
 
@@ -170,7 +170,7 @@ js::InitCommonNames(JSContext *cx)
 void
 js::FinishCommonNames(JSRuntime *rt)
 {
-    rt->emptyString = nullptr;
+    rt->emptyString = NULL;
 #ifdef DEBUG
     memset(&rt->atomState, JS_FREE_PATTERN, sizeof(JSAtomState));
 #endif
@@ -265,7 +265,7 @@ AtomizeAndTakeOwnership(ExclusiveContext *cx, jschar *tbchars, size_t length, In
     JSFlatString *flat = js_NewString<allowGC>(cx, tbchars, length);
     if (!flat) {
         js_free(tbchars);
-        return nullptr;
+        return NULL;
     }
 
     JSAtom *atom = flat->morphAtomizedStringIntoAtom();
@@ -273,7 +273,7 @@ AtomizeAndTakeOwnership(ExclusiveContext *cx, jschar *tbchars, size_t length, In
     if (!atoms.relookupOrAdd(p, AtomHasher::Lookup(tbchars, length),
                              AtomStateEntry(atom, bool(ib)))) {
         js_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
-        return nullptr;
+        return NULL;
     }
 
     return atom;
@@ -310,7 +310,7 @@ AtomizeAndCopyChars(ExclusiveContext *cx, const jschar *tbchars, size_t length, 
 
     JSFlatString *flat = js_NewStringCopyN<allowGC>(cx, tbchars, length);
     if (!flat)
-        return nullptr;
+        return NULL;
 
     JSAtom *atom = flat->morphAtomizedStringIntoAtom();
 
@@ -318,7 +318,7 @@ AtomizeAndCopyChars(ExclusiveContext *cx, const jschar *tbchars, size_t length, 
                              AtomStateEntry(atom, bool(ib)))) {
         if (allowGC)
             js_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
-        return nullptr;
+        return NULL;
     }
 
     return atom;
@@ -347,17 +347,17 @@ js::AtomizeString(ExclusiveContext *cx, JSString *str,
 
     const jschar *chars = str->getChars(cx);
     if (!chars)
-        return nullptr;
+        return NULL;
 
     if (JSAtom *atom = AtomizeAndCopyChars<NoGC>(cx, chars, str->length(), ib))
         return atom;
 
     if (!cx->isJSContext() || !allowGC)
-        return nullptr;
+        return NULL;
 
     JSLinearString *linear = str->ensureLinear(cx->asJSContext());
     if (!linear)
-        return nullptr;
+        return NULL;
 
     JS_ASSERT(linear->length() <= JSString::MAX_LENGTH);
     return AtomizeAndCopyChars<CanGC>(cx, linear->chars(), linear->length(), ib);
@@ -376,7 +376,7 @@ js::AtomizeMaybeGC(ExclusiveContext *cx, const char *bytes, size_t length, Inter
     CHECK_REQUEST(cx);
 
     if (!JSString::validateLength(cx, length))
-        return nullptr;
+        return NULL;
 
     static const unsigned ATOMIZE_BUF_MAX = 32;
     if (length < ATOMIZE_BUF_MAX) {
@@ -394,7 +394,7 @@ js::AtomizeMaybeGC(ExclusiveContext *cx, const char *bytes, size_t length, Inter
 
     jschar *tbcharsZ = InflateString(cx, bytes, &length);
     if (!tbcharsZ)
-        return nullptr;
+        return NULL;
     return AtomizeAndTakeOwnership<allowGC>(cx, tbcharsZ, length, ib);
 }
 
@@ -419,7 +419,7 @@ js::AtomizeChars(ExclusiveContext *cx, const jschar *chars, size_t length, Inter
     CHECK_REQUEST(cx);
 
     if (!JSString::validateLength(cx, length))
-        return nullptr;
+        return NULL;
 
     return AtomizeAndCopyChars<allowGC>(cx, chars, length, ib);
 }
@@ -466,10 +466,10 @@ ToAtomSlow(ExclusiveContext *cx, typename MaybeRooted<Value, allowGC>::HandleTyp
     Value v = arg;
     if (!v.isPrimitive()) {
         if (!cx->shouldBeJSContext() || !allowGC)
-            return nullptr;
+            return NULL;
         RootedValue v2(cx, v);
         if (!ToPrimitive(cx->asJSContext(), JSTYPE_STRING, &v2))
-            return nullptr;
+            return NULL;
         v = v2;
     }
 
