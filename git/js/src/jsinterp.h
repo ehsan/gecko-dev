@@ -102,10 +102,8 @@ typedef struct JSInlineFrame {
 } JSInlineFrame;
 
 typedef struct JSInterpreterState {
-    JSStackFrame    *fp;
-    JSScript        *script;
-    uintN           inlineCallCount;
     JSAtom          **atoms;
+    uintN           inlineCallCount;
     JSVersion       currentVersion,
                     originalVersion;
     void            *mark;
@@ -470,9 +468,6 @@ js_InvokeConstructor(JSContext *cx, uintN argc, jsval *vp);
 
 extern JSBool
 js_Interpret(JSContext *cx, JSInterpreterState *state);
-
-extern JSBool
-js_TracingInterpret(JSContext *cx, JSInterpreterState *state);
 
 #define JSPROP_INITIALIZER 0x100   /* NB: Not a valid property attribute. */
 
