@@ -51,7 +51,7 @@
 
 class nsIDOMEventListener;
 class nsIFrame;
-class nsIDOMMozNamedAttrMap;
+class nsIDOMNamedNodeMap;
 class nsIDOMCSSStyleDeclaration;
 class nsIURI;
 class nsINodeInfo;
@@ -419,7 +419,7 @@ public:
     return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
   }
 
-  NS_IMETHOD GetAttributes(nsIDOMMozNamedAttrMap** aAttributes);
+  NS_IMETHOD GetAttributes(nsIDOMNamedNodeMap** aAttributes);
 
   /**
    * Helper for SetAttr/SetParsedAttr. This method will return true if aNotify
@@ -548,9 +548,9 @@ public:
   }
 
   nsDOMTokenList* GetClassList();
-  nsDOMAttributeMap* Attributes()
+  nsDOMAttributeMap* GetAttributes()
   {
-    nsDOMSlots* slots = DOMSlots();
+    nsDOMSlots *slots = DOMSlots();
     if (!slots->mAttributeMap) {
       slots->mAttributeMap = new nsDOMAttributeMap(this);
     }

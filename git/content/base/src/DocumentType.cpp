@@ -8,6 +8,8 @@
  */
 
 #include "mozilla/dom/DocumentType.h"
+#include "nsDOMAttributeMap.h"
+#include "nsIDOMNamedNodeMap.h"
 #include "nsGkAtoms.h"
 #include "nsCOMPtr.h"
 #include "nsDOMString.h"

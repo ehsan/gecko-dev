@@ -40,6 +40,9 @@
 
 #include "nsGkAtoms.h"
 
+#include "nsIDOMAttr.h"
+#include "nsIDOMNamedNodeMap.h"
+
 #include "nsXBLPrototypeHandler.h"
 
 #include "nsXBLPrototypeBinding.h"

@@ -14,7 +14,7 @@
 #include "nsGkAtoms.h"
 #include "nsFrameManager.h"
 #include "nsIDOMNode.h"
-#include "nsIDOMMozNamedAttrMap.h"
+#include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMAttr.h"
 #include "nsITheme.h"
 #include "nsIServiceManager.h"
@@ -67,19 +67,20 @@ nsBox::ListBox(nsAutoString& aResult)
     // add on all the set attributes
     if (content) {
       nsCOMPtr<nsIDOMNode> node(do_QueryInterface(content));
-      nsCOMPtr<nsIDOMMozNamedAttrMap> namedMap;
+      nsCOMPtr<nsIDOMNamedNodeMap> namedMap;
 
       node->GetAttributes(getter_AddRefs(namedMap));
       uint32_t length;
       namedMap->GetLength(&length);
 
-      nsCOMPtr<nsIDOMAttr> attribute;
+      nsCOMPtr<nsIDOMNode> attribute;
       for (uint32_t i = 0; i < length; ++i)
       {
         namedMap->Item(i, getter_AddRefs(attribute));
-        attribute->GetName(name);
+        nsCOMPtr<nsIDOMAttr> attr(do_QueryInterface(attribute));
+        attr->GetName(name);
         nsAutoString value;
-        attribute->GetValue(value);
+        attr->GetValue(value);
         AppendAttribute(name, value, aResult);
       }
     }
