@@ -155,7 +155,6 @@ class HTMLReportingTestRunnerMixin(object):
             time.strftime(date_format, time.localtime(
                 int(version.get('gaia_date')))),
             'Device identifier': version.get('device_id'),
-            'Device firmware (base)': version.get('device_firmware_version_base'),
             'Device firmware (date)': version.get('device_firmware_date') and
             time.strftime(date_format, time.localtime(
                 int(version.get('device_firmware_date')))),

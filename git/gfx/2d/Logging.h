@@ -111,7 +111,7 @@ MOZ_END_ENUM_CLASS(LogOptions)
 
 template<typename T>
 struct Hexa {
-  explicit Hexa(T aVal) : mVal(aVal) {}
+  Hexa(T aVal) : mVal(aVal) {}
   T mVal;
 };
 template<typename T>

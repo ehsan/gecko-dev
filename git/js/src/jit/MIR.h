@@ -112,7 +112,6 @@ class MInstruction;
 class MBasicBlock;
 class MNode;
 class MUse;
-class MPhi;
 class MIRGraph;
 class MResumePoint;
 class MControlInstruction;
@@ -120,16 +119,18 @@ class MControlInstruction;
 // Represents a use of a node.
 class MUse : public TempObject, public InlineListNode<MUse>
 {
-    // Grant access to setProducerUnchecked.
     friend class MDefinition;
-    friend class MPhi;
 
     MDefinition *producer_; // MDefinition that is being used.
     MNode *consumer_;       // The node that is using this operand.
 
-    // Low-level unchecked edit method for replaceAllUsesWith and
-    // MPhi::removeOperand. This doesn't update use lists!
-    // replaceAllUsesWith and MPhi::removeOperand do that manually.
+    MUse(MDefinition *producer, MNode *consumer)
+      : producer_(producer),
+        consumer_(consumer)
+    { }
+
+    // Low-level unchecked edit method for replaceAllUsesWith. This doesn't
+    // update use lists! replaceAllUsesWith does that manually.
     void setProducerUnchecked(MDefinition *producer) {
         MOZ_ASSERT(consumer_);
         MOZ_ASSERT(producer_);
@@ -143,17 +144,11 @@ class MUse : public TempObject, public InlineListNode<MUse>
       : producer_(nullptr), consumer_(nullptr)
     { }
 
-    // Move constructor for use in vectors. When an MUse is moved, it stays
-    // in its containing use list.
-    MUse(MUse &&other)
-      : InlineListNode<MUse>(mozilla::Move(other)),
-        producer_(other.producer_), consumer_(other.consumer_)
-    { }
-
-    // Construct an MUse initialized with |producer| and |consumer|.
-    MUse(MDefinition *producer, MNode *consumer)
+    // MUses can only be copied when they are not in a use list.
+    explicit MUse(const MUse &other)
+      : producer_(other.producer_), consumer_(other.consumer_)
     {
-        initUnchecked(producer, consumer);
+        MOZ_ASSERT(!other.next && !other.prev);
     }
 
     // Set this use, which was previously clear.
@@ -347,9 +342,9 @@ class MDefinition : public MNode
     MIRType resultType_;           // Representation of result type.
     types::TemporaryTypeSet *resultTypeSet_; // Optional refinement of the result type.
     union {
-        MInstruction *dependency_; // Implicit dependency (store, call, etc.) of this instruction.
+        MDefinition *dependency_;  // Implicit dependency (store, call, etc.) of this instruction.
                                    // Used by alias analysis, GVN and LICM.
-        uint32_t virtualRegister_; // Used by lowering to map definitions to virtual registers.
+        uint32_t virtualRegister_;   // Used by lowering to map definitions to virtual registers.
     };
 
     // Track bailouts by storing the current pc in MIR instruction. Also used
@@ -668,16 +663,10 @@ class MDefinition : public MNode
     }
 
     void addUse(MUse *use) {
-        MOZ_ASSERT(use->producer() == this);
         uses_.pushFront(use);
     }
     void addUseUnchecked(MUse *use) {
-        MOZ_ASSERT(use->producer() == this);
         uses_.pushFrontUnchecked(use);
-    }
-    void replaceUse(MUse *old, MUse *now) {
-        MOZ_ASSERT(now->producer() == this);
-        uses_.replace(old, now);
     }
     void replaceAllUsesWith(MDefinition *dom);
 
@@ -746,10 +735,10 @@ class MDefinition : public MNode
         resultTypeSet_ = types;
     }
 
-    MInstruction *dependency() const {
+    MDefinition *dependency() const {
         return dependency_;
     }
-    void setDependency(MInstruction *dependency) {
+    void setDependency(MDefinition *dependency) {
         dependency_ = dependency;
     }
     virtual AliasSet getAliasSet() const {
@@ -825,7 +814,6 @@ class MUseDefIterator
 };
 
 typedef Vector<MDefinition *, 8, IonAllocPolicy> MDefinitionVector;
-typedef Vector<MInstruction *, 6, IonAllocPolicy> MInstructionVector;
 
 // An instruction is an SSA name that is inserted into a basic block's IR
 // stream.
@@ -5906,6 +5894,7 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineListNode<MPhi>
 
 #if DEBUG
     bool specialized_;
+    uint32_t capacity_;
 #endif
 
   protected:
@@ -5934,6 +5923,7 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineListNode<MPhi>
         canConsumeFloat32_(false)
 #if DEBUG
         , specialized_(false)
+        , capacity_(0)
 #endif
     {
         setResultType(resultType);
@@ -6003,36 +5993,14 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineListNode<MPhi>
 
     // Initializes the operands vector to the given capacity,
     // permitting use of addInput() instead of addInputSlow().
-    bool reserveLength(size_t length) {
-        return inputs_.reserve(length);
-    }
+    bool reserveLength(size_t length);
 
     // Use only if capacity has been reserved by reserveLength
-    void addInput(MDefinition *ins) {
-        // Use infallibleGrowByUninitialized and placement-new instead of just
-        // infallibleAppend to avoid creating a temporary MUse which will get
-        // linked into |ins|'s use list and then unlinked in favor of the
-        // MUse in the Vector. We'd ideally like to use an emplace method here,
-        // once Vector supports that.
-        inputs_.infallibleGrowByUninitialized(1);
-        new (&inputs_.back()) MUse(ins, this);
-    }
+    void addInput(MDefinition *ins);
 
-    // Appends a new input to the input vector. May perform reallocation.
+    // Appends a new input to the input vector. May call pod_realloc().
     // Prefer reserveLength() and addInput() instead, where possible.
-    bool addInputSlow(MDefinition *ins) {
-        // Use growByUninitialized and placement-new instead of just append,
-        // similar to what addInput does.
-        if (!inputs_.growByUninitialized(1))
-            return false;
-
-        new (&inputs_.back()) MUse(ins, this);
-        return true;
-    }
-
-    // Update the type of this phi after adding |ins| as an input. Set
-    // |*ptypeChange| to true if the type changed.
-    bool checkForTypeChange(MDefinition *ins, bool *ptypeChange);
+    bool addInputSlow(MDefinition *ins, bool *ptypeChange = nullptr);
 
     MDefinition *foldsTo(TempAllocator &alloc);
     MDefinition *foldsTernary();

@@ -2461,34 +2461,23 @@ ImplicitConvert(JSContext* cx,
       }
       break;
     } else if (val.isObject() && JS_IsArrayBufferObject(valObj)) {
-      // Convert ArrayBuffer to pointer without any copy. Just as with C
-      // arrays, we make no effort to keep the ArrayBuffer alive. This
-      // functionality will be removed for all but arguments in bug 1080262.
-      void* ptr;
-      {
-          JS::AutoCheckCannotGC nogc;
-          ptr = JS_GetArrayBufferData(valObj, nogc);
-      }
-      if (!ptr) {
-        return TypeError(cx, "arraybuffer pointer", val);
-      }
-      *static_cast<void**>(buffer) = ptr;
+      // Convert ArrayBuffer to pointer without any copy.
+      // Just as with C arrays, we make no effort to
+      // keep the ArrayBuffer alive.
+      void* p = JS_GetStableArrayBufferData(cx, valObj);
+      if (!p)
+          return false;
+      *static_cast<void**>(buffer) = p;
       break;
     } if (val.isObject() && JS_IsTypedArrayObject(valObj)) {
-      // Same as ArrayBuffer, above, though note that this will take the offset
-      // of the view into account.
       if(!CanConvertTypedArrayItemTo(baseType, valObj, cx)) {
         return TypeError(cx, "typed array with the appropriate type", val);
       }
-      void* ptr;
-      {
-          JS::AutoCheckCannotGC nogc;
-          ptr = JS_GetArrayBufferViewData(valObj, nogc);
-      }
-      if (!ptr) {
-        return TypeError(cx, "typed array pointer", val);
-      }
-      *static_cast<void**>(buffer) = ptr;
+
+      // Convert TypedArray to pointer without any copy.
+      // Just as with C arrays, we make no effort to
+      // keep the TypedArray alive.
+      *static_cast<void**>(buffer) = JS_GetArrayBufferViewData(valObj);
       break;
     }
     return TypeError(cx, "pointer", val);
@@ -2594,8 +2583,7 @@ ImplicitConvert(JSContext* cx,
         JS_ReportError(cx, "ArrayType length does not match source ArrayBuffer length");
         return false;
       }
-      JS::AutoCheckCannotGC nogc;
-      memcpy(buffer, JS_GetArrayBufferData(valObj, nogc), sourceLength);
+      memcpy(buffer, JS_GetArrayBufferData(valObj), sourceLength);
       break;
     } else if (val.isObject() && JS_IsTypedArrayObject(valObj)) {
       // Check that array is consistent with type, then
@@ -2611,8 +2599,7 @@ ImplicitConvert(JSContext* cx,
         JS_ReportError(cx, "typed array length does not match source TypedArray length");
         return false;
       }
-      JS::AutoCheckCannotGC nogc;
-      memcpy(buffer, JS_GetArrayBufferViewData(valObj, nogc), sourceLength);
+      memcpy(buffer, JS_GetArrayBufferViewData(valObj), sourceLength);
       break;
     } else {
       // Don't implicitly convert to string. Users can implicitly convert

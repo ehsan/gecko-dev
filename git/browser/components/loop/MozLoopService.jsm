@@ -77,27 +77,19 @@ XPCOMUtils.defineLazyGetter(this, "log", () => {
   return new ConsoleAPI(consoleOptions);
 });
 
-function setJSONPref(aName, aValue) {
-  let value = !!aValue ? JSON.stringify(aValue) : "";
-  Services.prefs.setCharPref(aName, value);
-}
-
-function getJSONPref(aName) {
-  let value = Services.prefs.getCharPref(aName);
-  return !!value ? JSON.parse(value) : null;
-}
-
 // The current deferred for the registration process. This is set if in progress
 // or the registration was successful. This is null if a registration attempt was
 // unsuccessful.
 let gRegisteredDeferred = null;
 let gPushHandler = null;
 let gHawkClient = null;
-let gLocalizedStrings = null;
+let gLocalizedStrings =  null;
 let gInitializeTimer = null;
 let gFxAEnabled = true;
 let gFxAOAuthClientPromise = null;
 let gFxAOAuthClient = null;
+let gFxAOAuthTokenData = null;
+let gFxAOAuthProfile = null;
 let gErrors = new Map();
 
  /**
@@ -315,38 +307,6 @@ let MozLoopServiceInternal = {
   },
 
   /**
-   * Retrieves MozLoopService Firefox Accounts OAuth token.
-   *
-   * @return {Object} OAuth token
-   */
-  get fxAOAuthTokenData() {
-    return getJSONPref("loop.fxa_oauth.tokendata");
-  },
-
-  /**
-   * Sets MozLoopService Firefox Accounts OAuth token.
-   * If the tokenData is being cleared, will also clear the
-   * profile since the profile is dependent on the token data.
-   *
-   * @param {Object} aTokenData OAuth token
-   */
-  set fxAOAuthTokenData(aTokenData) {
-    setJSONPref("loop.fxa_oauth.tokendata", aTokenData);
-    if (!aTokenData) {
-      this.fxAOAuthProfile = null;
-    }
-  },
-
-  /**
-   * Sets MozLoopService Firefox Accounts Profile data.
-   *
-   * @param {Object} aProfileData Profile data
-   */
-  set fxAOAuthProfile(aProfileData) {
-    setJSONPref("loop.fxa_oauth.profile", aProfileData);
-  },
-
-  /**
    * Retrieves MozLoopService "do not disturb" pref value.
    *
    * @return {Boolean} aFlag
@@ -460,8 +420,9 @@ let MozLoopServiceInternal = {
     let result = gRegisteredDeferred.promise;
 
     gPushHandler = mockPushHandler || MozLoopPushHandler;
+
     gPushHandler.initialize(this.onPushRegistered.bind(this),
-                            this.onHandleNotification.bind(this));
+      this.onHandleNotification.bind(this));
 
     return result;
   },
@@ -614,15 +575,12 @@ let MozLoopServiceInternal = {
       if (!gRegisteredDeferred) {
         return;
       }
-      gRegisteredDeferred.resolve("registered to guest status");
+      gRegisteredDeferred.resolve();
       // No need to clear the promise here, everything was good, so we don't need
       // to re-register.
-    }, error => {
+    }, (error) => {
       log.error("Failed to register with Loop server: ", error);
-      // registerWithLoopServer may have already made this null.
-      if (gRegisteredDeferred) {
-        gRegisteredDeferred.reject(error);
-      }
+      gRegisteredDeferred.reject(error.errno);
       gRegisteredDeferred = null;
     });
   },
@@ -658,8 +616,6 @@ let MozLoopServiceInternal = {
 
         log.error("Failed to register with the loop server. Error: ", error);
         this.setError("registration", error);
-        gRegisteredDeferred.reject(error);
-        gRegisteredDeferred = null;
         throw error;
       }
     );
@@ -1113,36 +1069,15 @@ let MozLoopServiceInternal = {
 };
 Object.freeze(MozLoopServiceInternal);
 
-let gInitializeTimerFunc = (deferredInitialization, mockPushHandler, mockWebSocket) => {
-  // Kick off the push notification service into registering after a timeout.
-  // This ensures we're not doing too much straight after the browser's finished
+let gInitializeTimerFunc = () => {
+  // Kick off the push notification service into registering after a timeout
+  // this ensures we're not doing too much straight after the browser's finished
   // starting up.
   gInitializeTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-  gInitializeTimer.initWithCallback(Task.async(function* initializationCallback() {
-    yield MozLoopService.register(mockPushHandler, mockWebSocket).then(Task.async(function*() {
-      if (!MozLoopServiceInternal.fxAOAuthTokenData) {
-        log.debug("MozLoopService: Initialized without an already logged-in account");
-        deferredInitialization.resolve("initialized to guest status");
-        return;
-      }
-
-      log.debug("MozLoopService: Initializing with already logged-in account");
-      let registeredPromise =
-            MozLoopServiceInternal.registerWithLoopServer(LOOP_SESSION_TYPE.FXA,
-                                                          gPushHandler.pushUrl);
-      registeredPromise.then(() => {
-        deferredInitialization.resolve("initialized to logged-in status");
-      }, error => {
-        log.debug("MozLoopService: error logging in using cached auth token");
-        MozLoopServiceInternal.setError("login", error);
-        deferredInitialization.reject("error logging in using cached auth token");
-      });
-    }), error => {
-      log.debug("MozLoopService: Failure of initial registration", error);
-      deferredInitialization.reject(error);
-    });
+  gInitializeTimer.initWithCallback(() => {
+    MozLoopService.register();
     gInitializeTimer = null;
-  }),
+  },
   MozLoopServiceInternal.initialRegistrationDelayMilliseconds, Ci.nsITimer.TYPE_ONE_SHOT);
 };
 
@@ -1159,10 +1094,9 @@ this.MozLoopService = {
   /**
    * Initialized the loop service, and starts registration with the
    * push and loop servers.
-   *
-   * @return {Promise}
    */
-  initialize: Task.async(function*(mockPushHandler, mockWebSocket) {
+  initialize: function() {
+
     // Do this here, rather than immediately after definition, so that we can
     // stub out API functions for unit testing
     Object.freeze(this);
@@ -1170,34 +1104,21 @@ this.MozLoopService = {
     // Don't do anything if loop is not enabled.
     if (!Services.prefs.getBoolPref("loop.enabled") ||
         Services.prefs.getBoolPref("loop.throttled")) {
-      return Promise.reject("loop is not enabled");
+      return;
     }
 
     if (Services.prefs.getPrefType("loop.fxa.enabled") == Services.prefs.PREF_BOOL) {
       gFxAEnabled = Services.prefs.getBoolPref("loop.fxa.enabled");
       if (!gFxAEnabled) {
-        yield this.logOutFromFxA();
+        this.logOutFromFxA();
       }
     }
 
-    // If expiresTime is not in the future and the user hasn't
-    // previously authenticated then skip registration.
-    if (!MozLoopServiceInternal.urlExpiryTimeIsInFuture() &&
-        !MozLoopServiceInternal.fxAOAuthTokenData) {
-      return Promise.resolve("registration not needed");
+    // If expiresTime is in the future then kick-off registration.
+    if (MozLoopServiceInternal.urlExpiryTimeIsInFuture()) {
+      gInitializeTimerFunc();
     }
-
-    let deferredInitialization = Promise.defer();
-    gInitializeTimerFunc(deferredInitialization, mockPushHandler, mockWebSocket);
-
-    return deferredInitialization.promise.catch(error => {
-      if (typeof(error) == "object") {
-        // This never gets cleared since there is no UI to recover. Only restarting will work.
-        MozLoopServiceInternal.setError("initialization", error);
-      }
-      throw error;
-    });
-  }),
+  },
 
   /**
    * If we're operating the service in "soft start" mode, and this browser
@@ -1327,7 +1248,7 @@ this.MozLoopService = {
    * sooner, this function is a no-op; this ensures we always have the latest
    * expiry time for a url.
    *
-   * This is used to determine whether or not we should be registering with the
+   * This is used to deterimine whether or not we should be registering with the
    * push server on start.
    *
    * @param {Integer} expiryTimeSeconds The seconds since epoch of the expiry time
@@ -1384,16 +1305,8 @@ this.MozLoopService = {
     return gFxAEnabled;
   },
 
-  /**
-   * Gets the user profile, but only if there is
-   * tokenData present. Without tokenData, the
-   * profile is meaningless.
-   *
-   * @return {Object}
-   */
   get userProfile() {
-    return getJSONPref("loop.fxa_oauth.tokendata") &&
-           getJSONPref("loop.fxa_oauth.profile");
+    return gFxAOAuthProfile;
   },
 
   get errors() {
@@ -1522,15 +1435,15 @@ this.MozLoopService = {
    * @return {Promise} that resolves when the FxA login flow is complete.
    */
   logInToFxA: function() {
-    log.debug("logInToFxA with fxAOAuthTokenData:", !!MozLoopServiceInternal.fxAOAuthTokenData);
-    if (MozLoopServiceInternal.fxAOAuthTokenData) {
-      return Promise.resolve(MozLoopServiceInternal.fxAOAuthTokenData);
+    log.debug("logInToFxA with gFxAOAuthTokenData:", !!gFxAOAuthTokenData);
+    if (gFxAOAuthTokenData) {
+      return Promise.resolve(gFxAOAuthTokenData);
     }
 
     return MozLoopServiceInternal.promiseFxAOAuthAuthorization().then(response => {
       return MozLoopServiceInternal.promiseFxAOAuthToken(response.code, response.state);
     }).then(tokenData => {
-      MozLoopServiceInternal.fxAOAuthTokenData = tokenData;
+      gFxAOAuthTokenData = tokenData;
       return tokenData;
     }).then(tokenData => {
       return gRegisteredDeferred.promise.then(Task.async(function*() {
@@ -1541,7 +1454,7 @@ this.MozLoopService = {
         }
         MozLoopServiceInternal.clearError("login");
         MozLoopServiceInternal.clearError("profile");
-        return MozLoopServiceInternal.fxAOAuthTokenData;
+        return gFxAOAuthTokenData;
       }));
     }).then(tokenData => {
       let client = new FxAccountsProfileClient({
@@ -1549,18 +1462,18 @@ this.MozLoopService = {
         token: tokenData.access_token
       });
       client.fetchProfile().then(result => {
-        MozLoopServiceInternal.fxAOAuthProfile = result;
+        gFxAOAuthProfile = result;
         MozLoopServiceInternal.notifyStatusChanged("login");
       }, error => {
         log.error("Failed to retrieve profile", error);
         this.setError("profile", error);
-        MozLoopServiceInternal.fxAOAuthProfile = null;
+        gFxAOAuthProfile = null;
         MozLoopServiceInternal.notifyStatusChanged();
       });
       return tokenData;
     }).catch(error => {
-      MozLoopServiceInternal.fxAOAuthTokenData = null;
-      MozLoopServiceInternal.fxAOAuthProfile = null;
+      gFxAOAuthTokenData = null;
+      gFxAOAuthProfile = null;
       throw error;
     }).catch((error) => {
       MozLoopServiceInternal.setError("login", error);
@@ -1585,8 +1498,8 @@ this.MozLoopService = {
       MozLoopServiceInternal.clearSessionToken(LOOP_SESSION_TYPE.FXA);
     }
 
-    MozLoopServiceInternal.fxAOAuthTokenData = null;
-    MozLoopServiceInternal.fxAOAuthProfile = null;
+    gFxAOAuthTokenData = null;
+    gFxAOAuthProfile = null;
 
     // Reset the client since the initial promiseFxAOAuthParameters() call is
     // what creates a new session.

@@ -14,7 +14,6 @@
 
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
-#include "jsfriendapi.h"
 
 #if defined(XP_WIN32)
 #ifdef WIN32_LEAN_AND_MEAN
@@ -359,12 +358,11 @@ static LPTOP_LEVEL_EXCEPTION_FILTER previousUnhandledExceptionFilter = nullptr;
 static WindowsDllInterceptor gKernel32Intercept;
 static bool gBlockUnhandledExceptionFilter = true;
 
-static LPTOP_LEVEL_EXCEPTION_FILTER GetUnhandledExceptionFilter()
+static void NotePreviousUnhandledExceptionFilter()
 {
-  // Set a dummy value to get the current filter, then restore
-  LPTOP_LEVEL_EXCEPTION_FILTER current = SetUnhandledExceptionFilter(nullptr);
-  SetUnhandledExceptionFilter(current);
-  return current;
+  // Set a dummy value to get the previous filter, then restore
+  previousUnhandledExceptionFilter = SetUnhandledExceptionFilter(nullptr);
+  SetUnhandledExceptionFilter(previousUnhandledExceptionFilter);
 }
 
 static LPTOP_LEVEL_EXCEPTION_FILTER WINAPI
@@ -384,18 +382,6 @@ patched_SetUnhandledExceptionFilter (LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelExce
 
   // intercept attempts to change the filter
   return nullptr;
-}
-
-static LPTOP_LEVEL_EXCEPTION_FILTER sUnhandledExceptionFilter = nullptr;
-
-static long
-JitExceptionHandler(void *exceptionRecord, void *context)
-{
-    EXCEPTION_POINTERS pointers = {
-        (PEXCEPTION_RECORD)exceptionRecord,
-        (PCONTEXT)context
-    };
-    return sUnhandledExceptionFilter(&pointers);
 }
 
 /**
@@ -821,7 +807,6 @@ bool MinidumpCallback(
   }
 
   if (!doReport) {
-    TerminateProcess(GetCurrentProcess(), 1);
     return returnValue;
   }
 
@@ -1241,7 +1226,7 @@ nsresult SetExceptionHandler(nsIFile* aXREDirectory,
 #endif
 
 #ifdef XP_WIN
-  previousUnhandledExceptionFilter = GetUnhandledExceptionFilter();
+  NotePreviousUnhandledExceptionFilter();
 #endif
 
   gExceptionHandler = new google_breakpad::
@@ -1281,13 +1266,6 @@ nsresult SetExceptionHandler(nsIFile* aXREDirectory,
 #ifdef XP_WIN
   gExceptionHandler->set_handle_debug_exceptions(true);
   
-#ifdef _WIN64
-  // Tell JS about the new filter before we disable SetUnhandledExceptionFilter
-  sUnhandledExceptionFilter = GetUnhandledExceptionFilter();
-  if (sUnhandledExceptionFilter)
-      js::SetJitExceptionHandler(JitExceptionHandler);
-#endif
-
   // protect the crash reporter from being unloaded
   gBlockUnhandledExceptionFilter = true;
   gKernel32Intercept.Init("kernel32.dll");

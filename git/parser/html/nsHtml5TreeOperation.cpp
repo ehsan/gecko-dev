@@ -100,7 +100,6 @@ nsHtml5TreeOperation::~nsHtml5TreeOperation()
     case eTreeOpAppendComment:
     case eTreeOpAppendCommentToDocument:
     case eTreeOpAddViewSourceHref:
-    case eTreeOpAddViewSourceBase:
       delete[] mTwo.unicharPtr;
       break;
     case eTreeOpSetDocumentCharset:
@@ -957,13 +956,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         node->SetAttr(kNameSpaceID_None, nsGkAtoms::title, message, true);
       }
       return rv;
-    }
-    case eTreeOpAddViewSourceBase: {
-      char16_t* buffer = mTwo.unicharPtr;
-      int32_t length = mFour.integer;
-      nsDependentString baseUrl(buffer, length);
-      aBuilder->AddBase(baseUrl);
-      return NS_OK;
     }
     default: {
       MOZ_CRASH("Bogus tree op");

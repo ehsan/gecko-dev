@@ -268,13 +268,13 @@ RangeAnalysis::removeBetaNodes()
     for (PostorderIterator i(graph_.poBegin()); i != graph_.poEnd(); i++) {
         MBasicBlock *block = *i;
         for (MDefinitionIterator iter(*i); iter; ) {
-            MDefinition *def = *iter++;
+            MDefinition *def = *iter;
             if (def->isBeta()) {
                 MDefinition *op = def->getOperand(0);
                 JitSpew(JitSpew_Range, "Removing beta node %d for %d",
                         def->id(), op->id());
                 def->justReplaceAllUsesWith(op);
-                block->discardDef(def);
+                iter = block->discardDefAt(iter);
             } else {
                 // We only place Beta nodes at the beginning of basic
                 // blocks, so if we see something else, we can move on
@@ -1602,11 +1602,7 @@ RangeAnalysis::analyzeLoop(MBasicBlock *header)
         return true;
 
     bool canOsr;
-    size_t numBlocks = MarkLoopBlocks(graph_, header, &canOsr);
-
-    // Ignore broken loops.
-    if (numBlocks == 0)
-        return true;
+    MarkLoopBlocks(graph_, header, &canOsr);
 
     LoopIterationBound *iterationBound = nullptr;
 

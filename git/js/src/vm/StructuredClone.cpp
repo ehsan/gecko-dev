@@ -1169,9 +1169,8 @@ JSStructuredCloneWriter::transferOwnership()
             // lend itself well to generic manipulation via proxies.
             Rooted<ArrayBufferObject *> arrayBuffer(context(), &CheckedUnwrap(obj)->as<ArrayBufferObject>());
             size_t nbytes = arrayBuffer->byteLength();
-            bool hasStealableContents = arrayBuffer->hasStealableContents();
             ArrayBufferObject::BufferContents bufContents =
-                ArrayBufferObject::stealContents(context(), arrayBuffer, hasStealableContents);
+                ArrayBufferObject::stealContents(context(), arrayBuffer);
             if (!bufContents)
                 return false; // Destructor will clean up the already-transferred data.
             content = bufContents.data();

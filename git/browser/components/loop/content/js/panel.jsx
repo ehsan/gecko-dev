@@ -14,7 +14,6 @@ loop.panel = (function(_, mozL10n) {
   var sharedViews = loop.shared.views;
   var sharedModels = loop.shared.models;
   var sharedMixins = loop.shared.mixins;
-  var sharedActions = loop.shared.actions;
   var Button = sharedViews.Button;
   var ButtonGroup = sharedViews.ButtonGroup;
   var ContactsList = loop.contacts.ContactsList;
@@ -22,21 +21,10 @@ loop.panel = (function(_, mozL10n) {
   var __ = mozL10n.get; // aliasing translation function as __ for concision
 
   var TabView = React.createClass({
-    propTypes: {
-      buttonsHidden: React.PropTypes.bool,
-      // The selectedTab prop is used by the UI showcase.
-      selectedTab: React.PropTypes.string
-    },
-
-    getDefaultProps: function() {
+    getInitialState: function() {
       return {
-        buttonsHidden: false,
         selectedTab: "call"
       };
-    },
-
-    getInitialState: function() {
-      return {selectedTab: this.props.selectedTab};
     },
 
     handleSelectTab: function(event) {
@@ -49,10 +37,6 @@ loop.panel = (function(_, mozL10n) {
       var tabButtons = [];
       var tabs = [];
       React.Children.forEach(this.props.children, function(tab, i) {
-        // Filter out null tabs (eg. rooms when the feature is disabled)
-        if (!tab) {
-          return;
-        }
         var tabName = tab.props.name;
         var isSelected = (this.state.selectedTab == tabName);
         if (!tab.props.hidden) {
@@ -459,121 +443,6 @@ loop.panel = (function(_, mozL10n) {
   });
 
   /**
-   * Room list entry.
-   */
-  var RoomEntry = React.createClass({
-    propTypes: {
-      openRoom: React.PropTypes.func.isRequired,
-      room:     React.PropTypes.instanceOf(loop.store.Room).isRequired
-    },
-
-    shouldComponentUpdate: function(nextProps, nextState) {
-      return nextProps.room.ctime > this.props.room.ctime;
-    },
-
-    handleClickRoom: function(event) {
-      event.preventDefault();
-      this.props.openRoom(this.props.room);
-    },
-
-    _isActive: function() {
-      // XXX bug 1074679 will implement this properly
-      return this.props.room.currSize > 0;
-    },
-
-    render: function() {
-      var room = this.props.room;
-      var roomClasses = React.addons.classSet({
-        "room-entry": true,
-        "room-active": this._isActive()
-      });
-
-      return (
-        <div className={roomClasses}>
-          <h2>
-            <span className="room-notification" />
-            {room.roomName}
-          </h2>
-          <p>
-            <a ref="room" href="#" onClick={this.handleClickRoom}>
-              {room.roomUrl}
-            </a>
-          </p>
-        </div>
-      );
-    }
-  });
-
-  /**
-   * Room list.
-   */
-  var RoomList = React.createClass({
-    mixins: [Backbone.Events],
-
-    propTypes: {
-      store: React.PropTypes.instanceOf(loop.store.RoomListStore).isRequired,
-      dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
-      rooms: React.PropTypes.array
-    },
-
-    getInitialState: function() {
-      var storeState = this.props.store.getStoreState();
-      return {
-        error: this.props.error || storeState.error,
-        rooms: this.props.rooms || storeState.rooms,
-      };
-    },
-
-    componentWillMount: function() {
-      this.listenTo(this.props.store, "change", this._onRoomListChanged);
-
-      this.props.dispatcher.dispatch(new sharedActions.GetAllRooms());
-    },
-
-    componentWillUnmount: function() {
-      this.stopListening(this.props.store);
-    },
-
-    _onRoomListChanged: function() {
-      var storeState = this.props.store.getStoreState();
-      this.setState({
-        error: storeState.error,
-        rooms: storeState.rooms
-      });
-    },
-
-    _getListHeading: function() {
-      var numRooms = this.state.rooms.length;
-      if (numRooms === 0) {
-        return mozL10n.get("rooms_list_no_current_conversations");
-      }
-      return mozL10n.get("rooms_list_current_conversations", {num: numRooms});
-    },
-
-    openRoom: function(room) {
-      // XXX implement me; see bug 1074678
-    },
-
-    render: function() {
-      if (this.state.error) {
-        // XXX Better end user reporting of errors.
-        console.error(this.state.error);
-      }
-
-      return (
-        <div className="room-list">
-          <h1>{this._getListHeading()}</h1>
-          {
-            this.state.rooms.map(function(room, i) {
-              return <RoomEntry key={i} room={room} openRoom={this.openRoom} />;
-            }, this)
-          }
-        </div>
-      );
-    }
-  });
-
-  /**
    * Panel view.
    */
   var PanelView = React.createClass({
@@ -584,10 +453,6 @@ loop.panel = (function(_, mozL10n) {
       callUrl: React.PropTypes.string,
       userProfile: React.PropTypes.object,
       showTabButtons: React.PropTypes.bool,
-      selectedTab: React.PropTypes.string,
-      dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
-      roomListStore:
-        React.PropTypes.instanceOf(loop.store.RoomListStore).isRequired
     },
 
     getInitialState: function() {
@@ -633,22 +498,6 @@ loop.panel = (function(_, mozL10n) {
       this.updateServiceErrors();
     },
 
-    /**
-     * The rooms feature is hidden by default for now. Once it gets mainstream,
-     * this method can be safely removed.
-     */
-    _renderRoomsTab: function() {
-      if (!navigator.mozLoop.getLoopBoolPref("rooms.enabled")) {
-        return null;
-      }
-      return (
-        <Tab name="rooms">
-          <RoomList dispatcher={this.props.dispatcher}
-                    store={this.props.roomListStore} />
-        </Tab>
-      );
-    },
-
     startForm: function(name, contact) {
       this.refs[name].initForm(contact);
       this.selectTab(name);
@@ -678,8 +527,7 @@ loop.panel = (function(_, mozL10n) {
         <div>
           <NotificationListView notifications={this.props.notifications}
                                 clearOnDocumentHidden={true} />
-          <TabView ref="tabView" selectedTab={this.props.selectedTab}
-            buttonsHidden={!this.state.userProfile && !this.props.showTabButtons}>
+          <TabView ref="tabView" buttonsHidden={!this.state.userProfile && !this.props.showTabButtons}>
             <Tab name="call">
               <div className="content-area">
                 <CallUrlResult client={this.props.client}
@@ -688,7 +536,6 @@ loop.panel = (function(_, mozL10n) {
                 <ToSView />
               </div>
             </Tab>
-            {this._renderRoomsTab()}
             <Tab name="contacts">
               <ContactsList selectTab={this.selectTab}
                             startForm={this.startForm} />
@@ -728,19 +575,11 @@ loop.panel = (function(_, mozL10n) {
     mozL10n.initialize(navigator.mozLoop);
 
     var client = new loop.Client();
-    var notifications = new sharedModels.NotificationCollection();
-    var dispatcher = new loop.Dispatcher();
-    var roomListStore = new loop.store.RoomListStore({
-      mozLoop: navigator.mozLoop,
-      dispatcher: dispatcher
-    });
+    var notifications = new sharedModels.NotificationCollection()
 
     React.renderComponent(<PanelView
       client={client}
-      notifications={notifications}
-      roomListStore={roomListStore}
-      dispatcher={dispatcher}
-    />, document.querySelector("#main"));
+      notifications={notifications} />, document.querySelector("#main"));
 
     document.body.classList.add(loop.shared.utils.getTargetPlatform());
     document.body.setAttribute("dir", mozL10n.getDirection());
@@ -758,7 +597,6 @@ loop.panel = (function(_, mozL10n) {
     AvailabilityDropdown: AvailabilityDropdown,
     CallUrlResult: CallUrlResult,
     PanelView: PanelView,
-    RoomList: RoomList,
     SettingsDropdown: SettingsDropdown,
     ToSView: ToSView
   };

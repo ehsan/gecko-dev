@@ -5848,11 +5848,6 @@ nsDocument::ProcessTopElementQueue(bool aIsBaseQueue)
 {
   MOZ_ASSERT(nsContentUtils::IsSafeToRunScript());
 
-  if (sProcessingStack.isNothing()) {
-    // If XPCOM shutdown has reset the processing stack, don't do anything.
-    return;
-  }
-
   nsTArray<CustomElementData*>& stack = *sProcessingStack;
   uint32_t firstQueue = stack.LastIndexOf((CustomElementData*) nullptr);
 

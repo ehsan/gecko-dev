@@ -194,8 +194,7 @@ public:
         return ots::TABLE_ACTION_DEFAULT;
     }
 
-    virtual void Message(int level, const char* format,
-                         ...) MSGFUNC_FMT_ATTR MOZ_OVERRIDE {
+    virtual void Message(const char* format, ...) MSGFUNC_FMT_ATTR MOZ_OVERRIDE {
         va_list va;
         va_start(va, format);
 

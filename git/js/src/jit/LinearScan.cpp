@@ -104,29 +104,33 @@ LinearScanAllocator::allocateRegisters()
             prevPosition = position;
 
             for (IntervalIterator i(active.begin()); i != active.end(); ) {
-                LiveInterval *it = *i++;
+                LiveInterval *it = *i;
                 MOZ_ASSERT(it->numRanges() > 0);
 
                 if (it->end() <= position) {
-                    active.remove(it);
+                    i = active.removeAt(i);
                     finishInterval(it);
                 } else if (!it->covers(position)) {
-                    active.remove(it);
+                    i = active.removeAt(i);
                     inactive.pushBack(it);
+                } else {
+                    i++;
                 }
             }
 
             // Shift inactive intervals to the active or handled sets as appropriate
             for (IntervalIterator i(inactive.begin()); i != inactive.end(); ) {
-                LiveInterval *it = *i++;
+                LiveInterval *it = *i;
                 MOZ_ASSERT(it->numRanges() > 0);
 
                 if (it->end() <= position) {
-                    inactive.remove(it);
+                    i = inactive.removeAt(i);
                     finishInterval(it);
                 } else if (it->covers(position)) {
-                    inactive.remove(it);
+                    i = inactive.removeAt(i);
                     active.pushBack(it);
+                } else {
+                    i++;
                 }
             }
         }
@@ -700,45 +704,48 @@ LinearScanAllocator::splitBlockingIntervals(AnyRegister allocatedReg)
     // Split the blocking interval if it exists.
 
     for (IntervalIterator i(active.begin()); i != active.end();) {
-        LiveInterval *it = *i++;
-        if (it->getAllocation()->isRegister() &&
-            it->getAllocation()->toRegister().aliases(allocatedReg))
+        if (i->getAllocation()->isRegister() &&
+            i->getAllocation()->toRegister().aliases(allocatedReg))
         {
             JitSpew(JitSpew_RegAlloc, " Splitting active interval %u = [%u, %u]",
-                    vregs[it->vreg()].ins()->id(), it->start().bits(), it->end().bits());
+                    vregs[i->vreg()].ins()->id(), i->start().bits(), i->end().bits());
 
-            MOZ_ASSERT(it->start() != current->start());
-            MOZ_ASSERT(it->covers(current->start()));
-            MOZ_ASSERT(it->start() != current->start());
+            MOZ_ASSERT(i->start() != current->start());
+            MOZ_ASSERT(i->covers(current->start()));
+            MOZ_ASSERT(i->start() != current->start());
 
-            if (!splitInterval(it, current->start()))
+            if (!splitInterval(*i, current->start()))
                 return false;
 
-            active.remove(it);
+            LiveInterval *it = *i;
+            i = active.removeAt(i);
             finishInterval(it);
             if (allocatedReg.numAliased() == 1)
                 break;
         } else {
             JitSpew(JitSpew_RegAlloc, " Not touching active interval %u = [%u, %u]",
-                    vregs[it->vreg()].ins()->id(), it->start().bits(), it->end().bits());
+                    vregs[i->vreg()].ins()->id(), i->start().bits(), i->end().bits());
+            i++;
         }
     }
     // Split any inactive intervals at the next live point.
     for (IntervalIterator i(inactive.begin()); i != inactive.end(); ) {
-        LiveInterval *it = *i++;
-        if (it->getAllocation()->isRegister() &&
-            it->getAllocation()->toRegister().aliases(allocatedReg))
+        if (i->getAllocation()->isRegister() &&
+            i->getAllocation()->toRegister().aliases(allocatedReg))
         {
             JitSpew(JitSpew_RegAlloc, " Splitting inactive interval %u = [%u, %u]",
-                    vregs[it->vreg()].ins()->id(), it->start().bits(), it->end().bits());
+                    vregs[i->vreg()].ins()->id(), i->start().bits(), i->end().bits());
 
+            LiveInterval *it = *i;
             CodePosition nextActive = it->nextCoveredAfter(current->start());
             MOZ_ASSERT(nextActive != CodePosition::MIN);
 
             if (!splitInterval(it, nextActive))
                 return false;
-            inactive.remove(it);
+            i = inactive.removeAt(i);
             finishInterval(it);
+        } else {
+            i++;
         }
     }
 

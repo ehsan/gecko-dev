@@ -843,16 +843,6 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
   return workerCx;
 }
 
-static bool
-PreserveWrapper(JSContext *cx, JSObject *obj)
-{
-    MOZ_ASSERT(cx);
-    MOZ_ASSERT(obj);
-    MOZ_ASSERT(mozilla::dom::IsDOMObject(obj));
-
-    return mozilla::dom::TryPreserveWrapper(obj);
-}
-
 class WorkerJSRuntime : public mozilla::CycleCollectedJSRuntime
 {
 public:
@@ -864,7 +854,6 @@ public:
                               WORKER_DEFAULT_NURSERY_SIZE),
     mWorkerPrivate(aWorkerPrivate)
   {
-    js::SetPreserveWrapperCallback(Runtime(), PreserveWrapper);
     JS_InitDestroyPrincipalsCallback(Runtime(), DestroyWorkerPrincipals);
   }
 

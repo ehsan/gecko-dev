@@ -1737,8 +1737,6 @@ bool TokenStream::getStringOrTemplateToken(int qc, Token **tp)
                     if (userbuf.peekRawChar() == '\n')
                         skipChars(1);
                 }
-                updateLineInfoForEOL();
-                updateFlagsForEOL();
             } else if (qc == '`' && c == '$') {
                 if ((nc = getCharIgnoreEOL()) == '{')
                     break;

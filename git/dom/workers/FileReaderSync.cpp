@@ -61,8 +61,17 @@ FileReaderSync::ReadAsArrayBuffer(JSContext* aCx,
     return;
   }
 
-  UniquePtr<char[], JS::FreePolicy> bufferData(js_pod_malloc<char>(blobSize));
-  if (!bufferData) {
+  JS::Rooted<JSObject*> jsArrayBuffer(aCx, JS_NewArrayBuffer(aCx, blobSize));
+  if (!jsArrayBuffer) {
+    // XXXkhuey we need a way to indicate to the bindings that the call failed
+    // but there's already a pending exception that we should not clobber.
+    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+    return;
+  }
+
+  uint32_t bufferLength = JS_GetArrayBufferByteLength(jsArrayBuffer);
+  uint8_t* arrayBuffer = JS_GetStableArrayBufferData(aCx, jsArrayBuffer);
+  if (!arrayBuffer) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
   }
@@ -75,21 +84,14 @@ FileReaderSync::ReadAsArrayBuffer(JSContext* aCx,
   }
 
   uint32_t numRead;
-  rv = stream->Read(bufferData.get(), blobSize, &numRead);
+  rv = stream->Read((char*)arrayBuffer, bufferLength, &numRead);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
   }
-  NS_ASSERTION(numRead == blobSize, "failed to read data");
+  NS_ASSERTION(numRead == bufferLength, "failed to read data");
 
-  JSObject* arrayBuffer = JS_NewArrayBufferWithContents(aCx, blobSize, bufferData.get());
-  if (!arrayBuffer) {
-    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return;
-  }
-  bufferData.release();
-
-  aRetval.set(arrayBuffer);
+  aRetval.set(jsArrayBuffer);
 }
 
 void

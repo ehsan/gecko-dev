@@ -10,9 +10,8 @@ var startTimerCalled = false;
 add_task(function test_initialize_no_expiry() {
   startTimerCalled = false;
 
-  let initializedPromise = yield MozLoopService.initialize();
-  Assert.equal(initializedPromise, "registration not needed",
-               "Promise should be fulfilled");
+  MozLoopService.initialize();
+
   Assert.equal(startTimerCalled, false,
     "should not register when no expiry time is set");
 });

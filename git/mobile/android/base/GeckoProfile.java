@@ -27,7 +27,6 @@ import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.support.v4.content.LocalBroadcastManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -693,9 +692,9 @@ public final class GeckoProfile {
             Log.w(LOGTAG, "Couldn't write times.json.", e);
         }
 
-        // Initialize pref flag for displaying the start pane for a new profile.
-        final SharedPreferences prefs = GeckoSharedPrefs.forProfile(mApplicationContext);
-        prefs.edit().putBoolean(BrowserApp.PREF_STARTPANE_ENABLED, true).apply();
+        LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(mApplicationContext);
+        final Intent intent = new Intent(BrowserApp.ACTION_NEW_PROFILE);
+        lbm.sendBroadcast(intent);
 
         return profileDir;
     }

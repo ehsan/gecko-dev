@@ -21,8 +21,7 @@ from remoteautomation import RemoteAutomation, fennecLogcatFilters
 
 class RemoteOptions(ReftestOptions):
     def __init__(self, automation):
-        ReftestOptions.__init__(self)
-        self.automation = automation
+        ReftestOptions.__init__(self, automation)
 
         defaults = {}
         defaults["logFile"] = "reftest.log"
@@ -256,8 +255,7 @@ class RemoteReftest(RefTest):
     remoteApp = ''
 
     def __init__(self, automation, devicemanager, options, scriptDir):
-        RefTest.__init__(self)
-        self.automation = automation
+        RefTest.__init__(self, automation)
         self._devicemanager = devicemanager
         self.scriptDir = scriptDir
         self.remoteApp = options.app
@@ -408,23 +406,6 @@ class RemoteReftest(RefTest):
             print "Test root: %s" % self._devicemanager.deviceRoot
         except devicemanager.DMError:
             print "WARNING: Error getting device information"
-
-    def environment(self, **kwargs):
-     return self.automation.environment(**kwargs)
-
-    def runApp(self, profile, binary, cmdargs, env,
-               timeout=None, debuggerInfo=None,
-               symbolsPath=None, options=None):
-        status = self.automation.runApp(None, env,
-                                        binary,
-                                        profile.profile,
-                                        cmdargs,
-                                        utilityPath=options.utilityPath,
-                                        xrePath=options.xrePath,
-                                        debuggerInfo=debuggerInfo,
-                                        symbolsPath=symbolsPath,
-                                        timeout=timeout)
-        return status
 
     def cleanup(self, profileDir):
         # Pull results back from device
