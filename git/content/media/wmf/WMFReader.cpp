@@ -120,18 +120,9 @@ WMFReader::InitializeDXVA()
   }
 
   mDXVA2Manager = DXVA2Manager::Create();
+  NS_ENSURE_TRUE(mDXVA2Manager, false);
 
-  return mDXVA2Manager != nullptr;
-}
-
-static bool
-IsVideoContentType(const nsCString& aContentType)
-{
-  NS_NAMED_LITERAL_CSTRING(video, "video");
-  if (FindInReadable(video, aContentType)) {
-    return true;
-  }
-  return false;
+  return true;
 }
 
 nsresult
@@ -154,11 +145,7 @@ WMFReader::Init(MediaDecoderReader* aCloneDonor)
   rv = mByteStream->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (IsVideoContentType(mDecoder->GetResource()->GetContentType())) {
-    mUseHwAccel = InitializeDXVA();
-  } else {
-    mUseHwAccel = false;
-  }
+  mUseHwAccel = InitializeDXVA();
 
   return NS_OK;
 }

@@ -576,7 +576,7 @@ PostWriteBarrier(JSRuntime *rt, JSObject *obj)
         return;
 #endif
     JS_ASSERT(!IsInsideNursery(rt, obj));
-    rt->gcStoreBuffer.putWholeCell(obj);
+    rt->gcStoreBuffer.putWholeObject(obj);
 }
 #endif
 

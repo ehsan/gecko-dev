@@ -99,6 +99,9 @@ const RIL_IPC_MOBILECONNECTION_MSG_NAMES = [
   "RIL:GetAvailableNetworks",
   "RIL:SelectNetwork",
   "RIL:SelectNetworkAuto",
+  "RIL:GetCardLock",
+  "RIL:UnlockCardLock",
+  "RIL:SetCardLock",
   "RIL:SendMMI",
   "RIL:CancelMMI",
   "RIL:RegisterMobileConnectionMsg",
@@ -115,9 +118,6 @@ const RIL_IPC_ICCMANAGER_MSG_NAMES = [
   "RIL:SendStkMenuSelection",
   "RIL:SendStkTimerExpiration",
   "RIL:SendStkEventDownload",
-  "RIL:GetCardLockState",
-  "RIL:UnlockCardLock",
-  "RIL:SetCardLock",
   "RIL:IccOpenChannel",
   "RIL:IccExchangeAPDU",
   "RIL:IccCloseChannel",
@@ -515,9 +515,9 @@ RadioInterfaceLayer.prototype = {
         this.saveRequestTarget(msg);
         this.selectNetworkAuto(msg.json.requestId);
         break;
-      case "RIL:GetCardLockState":
+      case "RIL:GetCardLock":
         this.saveRequestTarget(msg);
-        this.getCardLockState(msg.json);
+        this.getCardLock(msg.json);
         break;
       case "RIL:UnlockCardLock":
         this.saveRequestTarget(msg);
@@ -727,7 +727,7 @@ RadioInterfaceLayer.prototype = {
       case "iccimsi":
         this.rilContext.imsi = message.imsi;
         break;
-      case "iccGetCardLockState":
+      case "iccGetCardLock":
       case "iccSetCardLock":
       case "iccUnlockCardLock":
         this.handleIccCardLockResult(message);
@@ -3010,8 +3010,8 @@ RadioInterfaceLayer.prototype = {
     this.worker.postMessage({rilMessageType: "getDataCallList"});
   },
 
-  getCardLockState: function getCardLockState(message) {
-    message.rilMessageType = "iccGetCardLockState";
+  getCardLock: function getCardLock(message) {
+    message.rilMessageType = "iccGetCardLock";
     this.worker.postMessage(message);
   },
 

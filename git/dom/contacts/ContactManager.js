@@ -88,8 +88,7 @@ ContactAddress.prototype = {
                       locality: 'rw',
                       region: 'rw',
                       postalCode: 'rw',
-                      countryName: 'rw',
-                      pref: 'rw'
+                      countryName: 'rw'
                      },
 
   classID : CONTACTADDRESS_CID,
@@ -117,8 +116,7 @@ function ContactField(aType, aValue, aPref) {
 ContactField.prototype = {
   __exposedProps__: {
                       type: 'rw',
-                      value: 'rw',
-                      pref: 'rw'
+                      value: 'rw'
                      },
 
   classID : CONTACTFIELD_CID,
@@ -148,8 +146,7 @@ ContactTelField.prototype = {
   __exposedProps__: {
                       type: 'rw',
                       value: 'rw',
-                      carrier: 'rw',
-                      pref: 'rw'
+                      carrier: 'rw'
                      },
 
   classID : CONTACTTELFIELD_CID,
@@ -420,7 +417,7 @@ Contact.prototype = {
   },
 
   set bday(aBday) {
-    if (aBday && aBday.constructor.name === "Date") {
+    if (aBday instanceof Date) {
       this._bday = aBday;
     } else if (typeof aBday === "string" || typeof aBday === "number") {
       this._bday = new Date(aBday);
@@ -432,7 +429,7 @@ Contact.prototype = {
   },
 
   set anniversary(aAnniversary) {
-    if (aAnniversary && aAnniversary.constructor.name === "Date") {
+    if (aAnniversary instanceof Date) {
       this._anniversary = aAnniversary;
     } else if (typeof aAnniversary === "string" || typeof aAnniversary === "number") {
       this._anniversary = new Date(aAnniversary);

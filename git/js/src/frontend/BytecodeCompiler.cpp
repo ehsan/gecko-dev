@@ -399,7 +399,6 @@ frontend::CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, CompileO
     parser.sct = &sct;
 
     JS_ASSERT(fun);
-    JS_ASSERT(fun->isTenured());
 
     fun->setArgCount(formals.length());
 

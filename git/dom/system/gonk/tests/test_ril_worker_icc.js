@@ -507,9 +507,9 @@ add_test(function test_send_stk_terminal_profile() {
 });
 
 /**
- * Verify RIL.iccGetCardLockState("fdn")
+ * Verify RIL.iccGetCardLock("fdn")
  */
-add_test(function test_icc_get_card_lock_state_fdn() {
+add_test(function test_icc_get_card_lock_fdn() {
   let worker = newUint8Worker();
   let ril = worker.RIL;
   let buf = worker.Buf;
@@ -543,7 +543,7 @@ add_test(function test_icc_get_card_lock_state_fdn() {
     run_next_test();
   };
 
-  ril.iccGetCardLockState({lockType: "fdn"});
+  ril.iccGetCardLock({lockType: "fdn"});
 });
 
 /**

@@ -753,7 +753,6 @@ nsDocShell::nsDocShell():
     mAllowJavascript(true),
     mAllowMetaRedirects(true),
     mAllowImages(true),
-    mAllowMedia(true),
     mAllowDNSPrefetch(true),
     mAllowWindowControl(true),
     mCreatingDocument(false),
@@ -2284,18 +2283,6 @@ NS_IMETHODIMP nsDocShell::SetAllowImages(bool aAllowImages)
     return NS_OK;
 }
 
-NS_IMETHODIMP nsDocShell::GetAllowMedia(bool * aAllowMedia)
-{
-    *aAllowMedia = mAllowMedia;
-    return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShell::SetAllowMedia(bool aAllowMedia)
-{
-    mAllowMedia = aAllowMedia;
-    return NS_OK;
-}
-
 NS_IMETHODIMP nsDocShell::GetAllowDNSPrefetch(bool * aAllowDNSPrefetch)
 {
     *aAllowDNSPrefetch = mAllowDNSPrefetch;
@@ -2838,7 +2825,6 @@ nsDocShell::SetDocLoaderParent(nsDocLoader * aParent)
         {
             SetAllowImages(value);
         }
-        SetAllowMedia(parentAsDocShell->GetAllowMedia());
         if (NS_SUCCEEDED(parentAsDocShell->GetAllowWindowControl(&value)))
         {
             SetAllowWindowControl(value);
@@ -7742,8 +7728,6 @@ nsDocShell::RestoreFromHistory()
         bool allowImages;
         childShell->GetAllowImages(&allowImages);
 
-        bool allowMedia = childShell->GetAllowMedia();
-
         bool allowDNSPrefetch;
         childShell->GetAllowDNSPrefetch(&allowDNSPrefetch);
 
@@ -7758,7 +7742,6 @@ nsDocShell::RestoreFromHistory()
         childShell->SetAllowMetaRedirects(allowRedirects);
         childShell->SetAllowSubframes(allowSubframes);
         childShell->SetAllowImages(allowImages);
-        childShell->SetAllowMedia(allowMedia);
         childShell->SetAllowDNSPrefetch(allowDNSPrefetch);
 
         rv = childShell->BeginRestore(nullptr, false);
