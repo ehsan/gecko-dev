@@ -167,6 +167,8 @@ gfxQtPlatform::UpdateFontList()
         if (FcPatternGetString(fs->fonts[i], FC_FAMILY, 0, (FcChar8 **) &str) != FcResultMatch)
             continue;
 
+        printf("Family: %s\n", str);
+
         nsAutoString name(NS_ConvertUTF8toUTF16(nsDependentCString(str)).get());
         nsAutoString key(name);
         ToLowerCase(key);
@@ -181,10 +183,12 @@ gfxQtPlatform::UpdateFontList()
 
         if (FcPatternGetString(fs->fonts[i], FC_FILE, 0, (FcChar8 **) &str) == FcResultMatch) {
             fe->mFilename = nsDependentCString(str);
+            printf(" - file: %s\n", str);
         }
 
         int x;
         if (FcPatternGetInteger(fs->fonts[i], FC_INDEX, 0, &x) == FcResultMatch) {
+            printf(" - index: %d\n", x);
             fe->mFTFontIndex = x;
         } else {
             fe->mFTFontIndex = 0;
@@ -225,6 +229,7 @@ gfxQtPlatform::UpdateFontList()
                 fe->mWeight = (((x * 4) + 100) / 100) * 100;
                 break;
             }
+            printf(" - weight: %d\n", fe->mWeight);
         }
 
         fe->mItalic = PR_FALSE;
@@ -234,9 +239,12 @@ gfxQtPlatform::UpdateFontList()
             case FC_SLANT_OBLIQUE:
                 fe->mItalic = PR_TRUE;
             }
+            printf(" - slant: %d\n", x);
         }
 
-        // XXX deal with font-stretch (FC_WIDTH) stuff later
+        if (FcPatternGetInteger(fs->fonts[i], FC_WIDTH, 0, &x) == FcResultMatch)
+            printf(" - width: %d\n", x);
+        // XXX deal with font-stretch stuff later
     }
 
     if (pat)
@@ -280,6 +288,7 @@ gfxQtPlatform::ResolveFontName(const nsAString& aFontName,
         nsAutoString altName = NS_ConvertUTF8toUTF16(nsDependentCString(reinterpret_cast<char*>(str)));
         ToLowerCase(altName);
         if (gPlatformFonts->Get(altName, &ff)) {
+            printf("Adding alias: %s -> %s\n", utf8Name.get(), str);
             gPlatformFontAliases->Put(name, ff);
             aAborted = !(*aCallback)(NS_ConvertUTF8toUTF16(nsDependentCString(reinterpret_cast<char*>(str))), aClosure);
             goto DONE;
@@ -313,6 +322,7 @@ gfxQtPlatform::ResolveFontName(const nsAString& aFontName,
         nsAutoString altName = NS_ConvertUTF8toUTF16(nsDependentCString(reinterpret_cast<char*>(str)));
         ToLowerCase(altName);
         if (gPlatformFonts->Get(altName, &ff)) {
+            printf("Adding alias: %s -> %s\n", utf8Name.get(), str);
             gPlatformFontAliases->Put(name, ff);
             aAborted = !(*aCallback)(NS_ConvertUTF8toUTF16(nsDependentCString(reinterpret_cast<char*>(str))), aClosure);
             goto DONE;
