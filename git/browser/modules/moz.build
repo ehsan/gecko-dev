@@ -32,7 +32,6 @@ EXTRA_JS_MODULES += [
     'ProcessHangMonitor.jsm',
     'ReaderParent.jsm',
     'RemotePrompt.jsm',
-    'SelfSupportBackend.jsm',
     'SitePermissions.jsm',
     'Social.jsm',
     'TabCrashReporter.jsm',
