@@ -76,10 +76,6 @@ let gSearch = {
     }
   },
 
-  onFocusInput: function () {
-    this._nodes.text.focus();
-  },
-
   _nodeIDSuffixes: [
     "form",
     "logo",

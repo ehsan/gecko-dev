@@ -22,11 +22,9 @@ describe("loop.shared.models", function() {
       requests.push(xhr);
     };
     fakeSessionData = {
-      sessionId:      "sessionId",
-      sessionToken:   "sessionToken",
-      apiKey:         "apiKey",
-      callType:       "callType",
-      websocketToken: 123
+      sessionId:    "sessionId",
+      sessionToken: "sessionToken",
+      apiKey:       "apiKey"
     };
     fakeSession = _.extend({
       connect: function () {},
@@ -103,14 +101,13 @@ describe("loop.shared.models", function() {
       describe("#outgoing", function() {
         beforeEach(function() {
           sandbox.stub(conversation, "endSession");
-          sandbox.stub(conversation, "setOutgoingSessionData");
-          sandbox.stub(conversation, "setIncomingSessionData");
+          sandbox.stub(conversation, "setSessionData");
         });
 
-        it("should save the outgoing sessionData", function() {
+        it("should save the sessionData", function() {
           conversation.outgoing(fakeSessionData);
 
-          sinon.assert.calledOnce(conversation.setOutgoingSessionData);
+          sinon.assert.calledOnce(conversation.setSessionData);
         });
 
         it("should trigger a `call:outgoing` event", function(done) {
@@ -142,24 +139,13 @@ describe("loop.shared.models", function() {
       });
 
       describe("#setSessionData", function() {
-        it("should update outgoing conversation session information",
-           function() {
-             conversation.setOutgoingSessionData(fakeSessionData);
+        it("should update conversation session information", function() {
+          conversation.setSessionData(fakeSessionData);
 
-             expect(conversation.get("sessionId")).eql("sessionId");
-             expect(conversation.get("sessionToken")).eql("sessionToken");
-             expect(conversation.get("apiKey")).eql("apiKey");
-           });
-
-        it("should update incoming conversation session information",
-           function() {
-             conversation.setIncomingSessionData(fakeSessionData);
-
-             expect(conversation.get("sessionId")).eql("sessionId");
-             expect(conversation.get("sessionToken")).eql("sessionToken");
-             expect(conversation.get("apiKey")).eql("apiKey");
-             expect(conversation.get("callType")).eql("callType");
-           });
+          expect(conversation.get("sessionId")).eql("sessionId");
+          expect(conversation.get("sessionToken")).eql("sessionToken");
+          expect(conversation.get("apiKey")).eql("apiKey");
+        });
       });
 
       describe("#startSession", function() {
@@ -372,30 +358,6 @@ describe("loop.shared.models", function() {
 
             sinon.assert.calledOnce(model.stopListening);
           });
-      });
-
-      describe("#hasVideoStream", function() {
-        var model;
-
-        beforeEach(function() {
-          model = new sharedModels.ConversationModel(fakeSessionData, {
-            sdk: fakeSDK,
-            pendingCallTimeout: 1000
-          });
-          model.startSession();
-        });
-
-        it("should return true for incoming callType", function() {
-          model.set("callType", "audio-video");
-
-          expect(model.hasVideoStream("incoming")).to.eql(true);
-        });
-
-        it("should return true for outgoing callType", function() {
-          model.set("selectedCallType", "audio-video");
-
-          expect(model.hasVideoStream("outgoing")).to.eql(true);
-        });
       });
     });
   });

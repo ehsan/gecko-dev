@@ -2,12 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.gecko.home;
 
-import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.util.HardwareUtils;
 
 import org.json.JSONArray;
 
@@ -30,11 +28,7 @@ import java.util.ArrayList;
  */
 public class SuggestClient {
     private static final String LOGTAG = "GeckoSuggestClient";
-
-    // This should go through GeckoInterface to get the UA, but the search activity
-    // doesn't use a GeckoView yet. Until it does, get the UA directly.
-    private static final String USER_AGENT = HardwareUtils.isTablet() ?
-        AppConstants.USER_AGENT_FENNEC_TABLET : AppConstants.USER_AGENT_FENNEC_MOBILE;
+    private static final String USER_AGENT = GeckoAppShell.getGeckoInterface().getDefaultUAString();
 
     private final Context mContext;
     private final int mTimeout;
@@ -118,7 +112,7 @@ public class SuggestClient {
                  */
                 JSONArray results = new JSONArray(json);
                 JSONArray jsonSuggestions = results.getJSONArray(1);
-
+                
                 int added = 0;
                 for (int i = 0; (i < jsonSuggestions.length()) && (added < mMaxResults); i++) {
                     String suggestion = jsonSuggestions.getString(i);

@@ -32,13 +32,13 @@ loop.conversation = (function(OT, mozL10n) {
     },
 
     componentDidMount: function() {
-      window.addEventListener("click", this.clickHandler);
-      window.addEventListener("blur", this._hideDeclineMenu);
+      window.addEventListener('click', this.clickHandler);
+      window.addEventListener('blur', this._hideDeclineMenu);
     },
 
     componentWillUnmount: function() {
-      window.removeEventListener("click", this.clickHandler);
-      window.removeEventListener("blur", this._hideDeclineMenu);
+      window.removeEventListener('click', this.clickHandler);
+      window.removeEventListener('blur', this._hideDeclineMenu);
     },
 
     clickHandler: function(e) {
@@ -48,11 +48,8 @@ loop.conversation = (function(OT, mozL10n) {
       }
     },
 
-    _handleAccept: function(callType) {
-      return () => {
-        this.props.model.set("selectedCallType", callType);
-        this.props.model.trigger("accept");
-      };
+    _handleAccept: function() {
+      this.props.model.trigger("accept");
     },
 
     _handleDecline: function() {
@@ -77,15 +74,15 @@ loop.conversation = (function(OT, mozL10n) {
 
     render: function() {
       /* jshint ignore:start */
-      var btnClassAccept = "btn btn-success btn-accept call-audio-video";
+      var btnClassAccept = "btn btn-success btn-accept";
       var btnClassBlock = "btn btn-error btn-block";
       var btnClassDecline = "btn btn-error btn-decline";
       var conversationPanelClass = "incoming-call " +
                                   loop.shared.utils.getTargetPlatform();
       var cx = React.addons.classSet;
-      var dropdownMenuClassesDecline = cx({
+      var declineDropdownMenuClasses = cx({
         "native-dropdown-menu": true,
-        "conversation-window-dropdown": true,
+        "decline-block-menu": true,
         "visually-hidden": !this.state.showDeclineMenu
       });
       return (
@@ -95,37 +92,23 @@ loop.conversation = (function(OT, mozL10n) {
             <div className="button-chevron-menu-group">
               <div className="button-group-chevron">
                 <div className="button-group">
-
-                  <button className={btnClassDecline}
-                          onClick={this._handleDecline}>
+                  <button className={btnClassDecline} onClick={this._handleDecline}>
                     {__("incoming_call_decline_button")}
                   </button>
                   <div className="btn-chevron"
-                       onClick={this._toggleDeclineMenu}>
+                    onClick={this._toggleDeclineMenu}>
                   </div>
                 </div>
-
-                <ul className={dropdownMenuClassesDecline}>
+                <ul className={declineDropdownMenuClasses}>
                   <li className="btn-block" onClick={this._handleDeclineBlock}>
                     {__("incoming_call_decline_and_block_button")}
                   </li>
                 </ul>
-
               </div>
             </div>
-
-            <div className="button-chevron-menu-group">
-              <div className="button-group">
-                <button className={btnClassAccept}
-                        onClick={this._handleAccept("audio-video")}>
-                  {__("incoming_call_answer_button")}
-                </button>
-                <div className="call-audio-only"
-                     onClick={this._handleAccept("audio")}
-                     title={__("incoming_call_answer_audio_only_tooltip")} >
-                </div>
-              </div>
-            </div>
+            <button className={btnClassAccept} onClick={this._handleAccept}>
+              {__("incoming_call_answer_button")}
+            </button>
           </div>
         </div>
       );
@@ -189,41 +172,20 @@ loop.conversation = (function(OT, mozL10n) {
         if (err) {
           console.error("Failed to get the sessionData", err);
           // XXX Not the ideal response, but bug 1047410 will be replacing
-          // this by better "call failed" UI.
+          //this by better "call failed" UI.
           this._notifier.errorL10n("cannot_start_call_session_not_ready");
           return;
         }
-
         // XXX For incoming calls we might have more than one call queued.
         // For now, we'll just assume the first call is the right information.
         // We'll probably really want to be getting this data from the
         // background worker on the desktop client.
         // Bug 1032700 should fix this.
-        this._conversation.setIncomingSessionData(sessionData[0]);
-
-        this._setupWebSocketAndCallView();
-      });
-    },
-
-    /**
-     * Used to set up the web socket connection and navigate to the
-     * call view if appropriate.
-     */
-    _setupWebSocketAndCallView: function() {
-      this._websocket = new loop.CallConnectionWebSocket({
-        url: this._conversation.get("progressURL"),
-        websocketToken: this._conversation.get("websocketToken"),
-        callId: this._conversation.get("callId"),
-      });
-      this._websocket.promiseConnect().then(function() {
+        this._conversation.setSessionData(sessionData[0]);
         this.loadReactComponent(loop.conversation.IncomingCallView({
-          model: this._conversation,
-          video: {enabled: this._conversation.hasVideoStream("incoming")}
+          model: this._conversation
         }));
-      }.bind(this), function() {
-        this._handleSessionError();
-        return;
-      }.bind(this));
+      });
     },
 
     /**
@@ -235,24 +197,12 @@ loop.conversation = (function(OT, mozL10n) {
     },
 
     /**
-     * Declines a call and handles closing of the window.
-     */
-    _declineCall: function() {
-      this._websocket.decline();
-      // XXX Don't close the window straight away, but let any sends happen
-      // first. Ideally we'd wait to close the window until after we have a
-      // response from the server, to know that everything has completed
-      // successfully. However, that's quite difficult to ensure at the
-      // moment so we'll add it later.
-      setTimeout(window.close, 0);
-    },
-
-    /**
      * Declines an incoming call.
      */
     decline: function() {
       navigator.mozLoop.stopAlerting();
-      this._declineCall();
+      // XXX For now, we just close the window
+      window.close();
     },
 
     /**
@@ -263,14 +213,14 @@ loop.conversation = (function(OT, mozL10n) {
      */
     declineAndBlock: function() {
       navigator.mozLoop.stopAlerting();
-      var token = navigator.mozLoop.getLoopCharPref("loopToken");
+      var token = navigator.mozLoop.getLoopCharPref('loopToken');
       this._client.deleteCallUrl(token, function(error) {
         // XXX The conversation window will be closed when this cb is triggered
         // figure out if there is a better way to report the error to the user
         // (bug 1048909).
         console.log(error);
       });
-      this._declineCall();
+      window.close();
     },
 
     /**
@@ -281,28 +231,15 @@ loop.conversation = (function(OT, mozL10n) {
       if (!this._conversation.isSessionReady()) {
         console.error("Error: navigated to conversation route without " +
           "the start route to initialise the call first");
-        this._handleSessionError();
+        this._notifier.errorL10n("cannot_start_call_session_not_ready");
         return;
       }
-
-      var callType = this._conversation.get("selectedCallType");
-      var videoStream = callType === "audio" ? false : true;
 
       /*jshint newcap:false*/
       this.loadReactComponent(sharedViews.ConversationView({
         sdk: OT,
-        model: this._conversation,
-        video: {enabled: videoStream}
+        model: this._conversation
       }));
-    },
-
-    /**
-     * Handles a error starting the session
-     */
-    _handleSessionError: function() {
-      // XXX Not the ideal response, but bug 1047410 will be replacing
-      // this by better "call failed" UI.
-      this._notifier.errorL10n("cannot_start_call_session_not_ready");
     },
 
     /**

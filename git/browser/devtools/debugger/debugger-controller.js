@@ -1234,7 +1234,11 @@ SourceScripts.prototype = {
   _onBlackBoxChange: function (aEvent, { url, isBlackBoxed }) {
     const item = DebuggerView.Sources.getItemByValue(url);
     if (item) {
-      item.prebuiltNode.classList.toggle("black-boxed", isBlackBoxed);
+      if (isBlackBoxed) {
+        item.prebuiltNode.classList.add("black-boxed");
+      } else {
+        item.prebuiltNode.classList.remove("black-boxed");
+      }
     }
     DebuggerView.Sources.updateToolbarButtonsState();
     DebuggerView.maybeShowBlackBoxMessage();
@@ -1551,12 +1555,11 @@ Tracer.prototype = {
   /**
    * Callback for handling a new call frame.
    */
-  _onCall: function({ name, location, blackBoxed, parameterNames, depth, arguments: args }) {
+  _onCall: function({ name, location, parameterNames, depth, arguments: args }) {
     const item = {
       name: name,
       location: location,
-      id: this._idCounter++,
-      blackBoxed
+      id: this._idCounter++
     };
 
     this._stack.push(item);
@@ -1567,8 +1570,7 @@ Tracer.prototype = {
       depth: depth,
       parameterNames: parameterNames,
       arguments: args,
-      frameId: item.id,
-      blackBoxed
+      frameId: item.id
     });
   },
 
@@ -1580,15 +1582,14 @@ Tracer.prototype = {
       return;
     }
 
-    const { name, id, location, blackBoxed } = this._stack.pop();
+    const { name, id, location } = this._stack.pop();
     DebuggerView.Tracer.addTrace({
       type: aPacket.why,
       name: name,
       location: location,
       depth: aPacket.depth,
       frameId: id,
-      returnVal: aPacket.return || aPacket.throw || aPacket.yield,
-      blackBoxed
+      returnVal: aPacket.return || aPacket.throw || aPacket.yield
     });
   },
 
