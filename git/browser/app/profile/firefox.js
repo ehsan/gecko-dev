@@ -1742,11 +1742,7 @@ pref("ui.key.menuAccessKeyFocuses", true);
 #endif
 
 // Encrypted media extensions.
-#ifdef RELEASE_BUILD
 pref("media.eme.enabled", false);
-#else
-pref("media.eme.enabled", true);
-#endif
 
 // GMPInstallManager prefs
 

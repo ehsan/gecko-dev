@@ -3,18 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "WebGLExtensions.h"
-
-#include "GLContext.h"
-#include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "WebGLContext.h"
+#include "WebGLExtensions.h"
+#include "mozilla/dom/WebGLRenderingContextBinding.h"
+#include "GLContext.h"
 
-namespace mozilla {
+using namespace mozilla;
 
-WebGLExtensionFragDepth::WebGLExtensionFragDepth(WebGLContext* webgl)
-    : WebGLExtensionBase(webgl)
+WebGLExtensionFragDepth::WebGLExtensionFragDepth(WebGLContext* context)
+    : WebGLExtensionBase(context)
 {
-    MOZ_ASSERT(IsSupported(webgl), "Don't construct extension if unsupported.");
+    MOZ_ASSERT(IsSupported(context),
+               "Should not construct extension object if unsupported.");
 }
 
 WebGLExtensionFragDepth::~WebGLExtensionFragDepth()
@@ -22,13 +22,12 @@ WebGLExtensionFragDepth::~WebGLExtensionFragDepth()
 }
 
 bool
-WebGLExtensionFragDepth::IsSupported(const WebGLContext* webgl)
+WebGLExtensionFragDepth::IsSupported(const WebGLContext* context)
 {
-    gl::GLContext* gl = webgl->GL();
+    gl::GLContext* gl = context->GL();
+
     return gl->IsSupported(gl::GLFeature::frag_depth);
 }
 
 
 IMPL_WEBGL_EXTENSION_GOOP(WebGLExtensionFragDepth)
-
-} // namespace mozilla

@@ -38,8 +38,8 @@ class AudioNode;
  * Also extract the encoded data and create blobs on every timeslice passed from start function or RequestData function called by UA.
  */
 
-class MediaRecorder MOZ_FINAL : public DOMEventTargetHelper,
-                                public nsIDocumentActivity
+class MediaRecorder : public DOMEventTargetHelper,
+                      public nsIDocumentActivity
 {
   class Session;
 

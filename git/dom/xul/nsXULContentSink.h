@@ -22,8 +22,8 @@ class nsXULPrototypeDocument;
 class nsXULPrototypeElement;
 class nsXULPrototypeNode;
 
-class XULContentSinkImpl MOZ_FINAL : public nsIXMLContentSink,
-                                     public nsIExpatSink
+class XULContentSinkImpl : public nsIXMLContentSink,
+                           public nsIExpatSink
 {
 public:
     XULContentSinkImpl();

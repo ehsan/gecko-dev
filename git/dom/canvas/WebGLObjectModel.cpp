@@ -4,22 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLObjectModel.h"
-
 #include "WebGLContext.h"
 
-namespace mozilla {
+using namespace mozilla;
 
-WebGLContextBoundObject::WebGLContextBoundObject(WebGLContext* webgl)
-    : mContext(webgl)
-    , mContextGeneration(webgl->Generation())
-{
+WebGLContextBoundObject::WebGLContextBoundObject(WebGLContext *context) {
+    mContext = context;
+    mContextGeneration = context->Generation();
 }
-
 bool
-WebGLContextBoundObject::IsCompatibleWithContext(WebGLContext* other)
-{
-    return (mContext == other &&
-            mContextGeneration == other->Generation());
+WebGLContextBoundObject::IsCompatibleWithContext(WebGLContext *other) {
+    return mContext == other &&
+        mContextGeneration == other->Generation();
 }
-
-} // namespace mozilla

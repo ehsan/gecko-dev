@@ -26,7 +26,7 @@ function testConferenceTwoCallsTwice() {
     .then(() => gRemoteDial(inNumber))
     .then(call => { inCall = call; })
     .then(() => gCheckAll(outCall, [outCall, inCall], '', [],
-                          [outInfo.active, inInfo.waiting]))
+                          [outInfo.active, inInfo.incoming]))
     .then(() => gAnswer(inCall))
     .then(() => gCheckAll(inCall, [outCall, inCall], '', [],
                           [outInfo.held, inInfo.active]))

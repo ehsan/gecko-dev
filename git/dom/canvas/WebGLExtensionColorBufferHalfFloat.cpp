@@ -8,12 +8,12 @@
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "WebGLContext.h"
 
-namespace mozilla {
+using namespace mozilla;
 
-WebGLExtensionColorBufferHalfFloat::WebGLExtensionColorBufferHalfFloat(WebGLContext* webgl)
-    : WebGLExtensionBase(webgl)
+WebGLExtensionColorBufferHalfFloat::WebGLExtensionColorBufferHalfFloat(WebGLContext* context)
+    : WebGLExtensionBase(context)
 {
-    MOZ_ASSERT(IsSupported(webgl), "Don't construct extension if unsupported.");
+    MOZ_ASSERT(IsSupported(context));
 }
 
 WebGLExtensionColorBufferHalfFloat::~WebGLExtensionColorBufferHalfFloat()
@@ -21,14 +21,12 @@ WebGLExtensionColorBufferHalfFloat::~WebGLExtensionColorBufferHalfFloat()
 }
 
 bool
-WebGLExtensionColorBufferHalfFloat::IsSupported(const WebGLContext* webgl)
+WebGLExtensionColorBufferHalfFloat::IsSupported(const WebGLContext* context)
 {
-    gl::GLContext* gl = webgl->GL();
+    gl::GLContext* gl = context->GL();
 
     // ANGLE doesn't support ReadPixels from a RGBA16F with RGBA/FLOAT.
     return gl->IsSupported(gl::GLFeature::renderbuffer_color_half_float);
 }
 
 IMPL_WEBGL_EXTENSION_GOOP(WebGLExtensionColorBufferHalfFloat)
-
-} // namespace mozilla

@@ -27,7 +27,7 @@ class TimeRanges;
 
 } // namespace dom
 
-class SourceBufferDecoder MOZ_FINAL : public AbstractMediaDecoder
+class SourceBufferDecoder : public AbstractMediaDecoder
 {
 public:
   // This class holds a weak pointer to MediaResource.  It's the responsibility

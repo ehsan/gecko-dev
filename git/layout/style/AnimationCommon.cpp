@@ -445,22 +445,16 @@ AnimValuesStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 /* virtual */ void
 AnimValuesStyleRule::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString str;
-  for (int32_t index = aIndent; --index >= 0; ) {
-    str.AppendLiteral("  ");
-  }
-  str.AppendLiteral("[anim values] { ");
+  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
+  fputs("[anim values] { ", out);
   for (uint32_t i = 0, i_end = mPropertyValuePairs.Length(); i < i_end; ++i) {
     const PropertyValuePair &pair = mPropertyValuePairs[i];
-    str.Append(nsCSSProps::GetStringValue(pair.mProperty));
-    str.AppendLiteral(": ");
     nsAutoString value;
     StyleAnimationValue::UncomputeValue(pair.mProperty, pair.mValue, value);
-    AppendUTF16toUTF8(value, str);
-    str.AppendLiteral("; ");
+    fprintf(out, "%s: %s; ", nsCSSProps::GetStringValue(pair.mProperty).get(),
+                             NS_ConvertUTF16toUTF8(value).get());
   }
-  str.AppendLiteral("}\n");
-  fprintf_stderr(out, "%s", str.get());
+  fputs("}\n", out);
 }
 #endif
 

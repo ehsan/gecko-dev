@@ -3,17 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "WebGLShaderPrecisionFormat.h"
-
-#include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "WebGLContext.h"
+#include "WebGLShaderPrecisionFormat.h"
+#include "mozilla/dom/WebGLRenderingContextBinding.h"
 
-namespace mozilla {
+using namespace mozilla;
 
 JSObject*
-WebGLShaderPrecisionFormat::WrapObject(JSContext* cx)
+WebGLShaderPrecisionFormat::WrapObject(JSContext *cx)
 {
     return dom::WebGLShaderPrecisionFormatBinding::Wrap(cx, this);
 }
-
-} // namespace mozilla

@@ -1555,26 +1555,22 @@ CSSStyleSheet::List(FILE* out, int32_t aIndent) const
   int32_t index;
 
   // Indent
-  nsAutoCString str;
-  for (index = aIndent; --index >= 0; ) {
-    str.AppendLiteral("  ");
-  }
+  for (index = aIndent; --index >= 0; ) fputs("  ", out);
 
-  str.AppendLiteral("CSS Style Sheet: ");
+  fputs("CSS Style Sheet: ", out);
   nsAutoCString urlSpec;
   nsresult rv = mInner->mSheetURI->GetSpec(urlSpec);
   if (NS_SUCCEEDED(rv) && !urlSpec.IsEmpty()) {
-    str.Append(urlSpec);
+    fputs(urlSpec.get(), out);
   }
 
   if (mMedia) {
-    str.AppendLiteral(" media: ");
+    fputs(" media: ", out);
     nsAutoString  buffer;
     mMedia->GetText(buffer);
-    AppendUTF16toUTF8(buffer, str);
+    fputs(NS_ConvertUTF16toUTF8(buffer).get(), out);
   }
-  str.Append('\n');
-  fprintf_stderr(out, "%s", str.get());
+  fputs("\n", out);
 
   for (const CSSStyleSheet* child = mInner->mFirstChild;
        child;
@@ -1582,7 +1578,7 @@ CSSStyleSheet::List(FILE* out, int32_t aIndent) const
     child->List(out, aIndent + 1);
   }
 
-  fprintf_stderr(out, "%s", "Rules in source order:\n");
+  fputs("Rules in source order:\n", out);
   ListRules(mInner->mOrderedRules, out, aIndent);
 }
 #endif

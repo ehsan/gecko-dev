@@ -3,12 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef WEBGL_QUERY_H_
-#define WEBGL_QUERY_H_
+#ifndef WEBGLQUERY_H_
+#define WEBGLQUERY_H_
+
+#include "WebGLObjectModel.h"
+
+#include "nsWrapperCache.h"
 
 #include "mozilla/LinkedList.h"
-#include "nsWrapperCache.h"
-#include "WebGLObjectModel.h"
 
 namespace mozilla {
 
@@ -18,41 +20,62 @@ class WebGLQuery MOZ_FINAL
     , public LinkedListElement<WebGLQuery>
     , public WebGLContextBoundObject
 {
+// -----------------------------------------------------------------------------
+// PUBLIC
 public:
-    explicit WebGLQuery(WebGLContext* webgl);
+
+    // -------------------------------------------------------------------------
+    // CONSTRUCTOR
+
+    explicit WebGLQuery(WebGLContext* aContext);
+
+    // -------------------------------------------------------------------------
+    // MEMBER FUNCTIONS
 
     bool IsActive() const;
 
-    bool HasEverBeenActive() {
+    bool HasEverBeenActive()
+    {
         return mType != 0;
     }
 
-    // WebGLRefCountedObject
+
+    // -------------------------------------------------------------------------
+    // IMPLEMENT WebGLRefCountedObject and WebGLContextBoundObject
+
     void Delete();
 
-    // nsWrapperCache
-    WebGLContext* GetParentObject() const {
+    WebGLContext* GetParentObject() const
+    {
         return Context();
     }
 
-    // NS
-    virtual JSObject* WrapObject(JSContext* cx) MOZ_OVERRIDE;
+
+    // -------------------------------------------------------------------------
+    // IMPLEMENT NS
+    virtual JSObject* WrapObject(JSContext *cx) MOZ_OVERRIDE;
 
     NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLQuery)
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLQuery)
 
 
+// -----------------------------------------------------------------------------
+// PRIVATE
 private:
     ~WebGLQuery() {
         DeleteOnce();
     };
 
+    // -------------------------------------------------------------------------
+    // MEMBERS
     GLuint mGLName;
     GLenum mType;
 
+    // -------------------------------------------------------------------------
+    // FRIENDSHIPS
     friend class WebGL2Context;
 };
 
 } // namespace mozilla
 
-#endif // WEBGL_QUERY_H_
+#endif

@@ -1357,17 +1357,13 @@ Declaration::ToString(nsAString& aString) const
 void
 Declaration::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString str;
-  for (int32_t index = aIndent; --index >= 0; ) {
-    str.AppendLiteral("  ");
-  }
+  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
 
-  str.AppendLiteral("{ ");
+  fputs("{ ", out);
   nsAutoString s;
   ToString(s);
-  AppendUTF16toUTF8(s, str);
-  str.AppendLiteral("}\n");
-  fprintf_stderr(out, "%s", str.get());
+  fputs(NS_ConvertUTF16toUTF8(s).get(), out);
+  fputs("}", out);
 }
 #endif
 

@@ -148,8 +148,8 @@ protected:
   bool mIsDirty;
 };
 
-class PropertyNodeList MOZ_FINAL : public nsINodeList,
-                                   public nsStubMutationObserver
+class PropertyNodeList : public nsINodeList,
+                         public nsStubMutationObserver
 {
 public:
   PropertyNodeList(HTMLPropertiesCollection* aCollection,

@@ -239,16 +239,12 @@ IMPL_STYLE_RULE_INHERIT(CharsetRule, Rule)
 /* virtual */ void
 CharsetRule::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString str;
   // Indent
-  for (int32_t indent = aIndent; --indent >= 0; ) {
-    str.AppendLiteral("  ");
-  }
+  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
-  str.AppendLiteral("@charset \"");
-  AppendUTF16toUTF8(mEncoding, str);
-  str.AppendLiteral("\"\n");
-  fprintf_stderr(out, "%s", str.get());
+  fputs("@charset \"", out);
+  fputs(NS_LossyConvertUTF16toASCII(mEncoding).get(), out);
+  fputs("\"\n", out);
 }
 #endif
 
@@ -386,21 +382,17 @@ IMPL_STYLE_RULE_INHERIT(ImportRule, Rule)
 /* virtual */ void
 ImportRule::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString str;
   // Indent
-  for (int32_t indent = aIndent; --indent >= 0; ) {
-    str.AppendLiteral("  ");
-  }
+  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
-  str.AppendLiteral("@import \"");
-  AppendUTF16toUTF8(mURLSpec, str);
-  str.AppendLiteral("\" ");
+  fputs("@import \"", out);
+  fputs(NS_LossyConvertUTF16toASCII(mURLSpec).get(), out);
+  fputs("\" ", out);
 
   nsAutoString mediaText;
   mMedia->GetText(mediaText);
-  AppendUTF16toUTF8(mediaText, str);
-  str.AppendLiteral("\n");
-  fprintf_stderr(out, "%s", str.get());
+  fputs(NS_LossyConvertUTF16toASCII(mediaText).get(), out);
+  fputs("\n", out);
 }
 #endif
 
@@ -610,9 +602,14 @@ GroupRule::SetStyleSheet(CSSStyleSheet* aSheet)
 /* virtual */ void
 GroupRule::List(FILE* out, int32_t aIndent) const
 {
+  fputs(" {\n", out);
+
   for (int32_t index = 0, count = mRules.Count(); index < count; ++index) {
     mRules.ObjectAt(index)->List(out, aIndent + 1);
   }
+
+  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
+  fputs("}\n", out);
 }
 #endif
 
@@ -812,26 +809,19 @@ MediaRule::SetStyleSheet(CSSStyleSheet* aSheet)
 /* virtual */ void
 MediaRule::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString indentStr;
-  for (int32_t indent = aIndent; --indent >= 0; ) {
-    indentStr.AppendLiteral("  ");
-  }
+  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
-  nsAutoCString str(indentStr);
-  str.AppendLiteral("@media ");
+  nsAutoString  buffer;
+
+  fputs("@media ", out);
 
   if (mMedia) {
     nsAutoString mediaText;
     mMedia->GetText(mediaText);
-    AppendUTF16toUTF8(mediaText, str);
+    fputs(NS_LossyConvertUTF16toASCII(mediaText).get(), out);
   }
 
-  str.AppendLiteral(" {\n");
-  fprintf_stderr(out, "%s", str.get());
-
   GroupRule::List(out, aIndent);
-
-  fprintf_stderr(out, "%s}\n", indentStr.get());
 }
 #endif
 
@@ -1018,13 +1008,10 @@ NS_INTERFACE_MAP_END_INHERITING(GroupRule)
 /* virtual */ void
 DocumentRule::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString indentStr;
-  for (int32_t indent = aIndent; --indent >= 0; ) {
-    indentStr.AppendLiteral("  ");
-  }
+  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
   nsAutoCString str;
-  str.AppendLiteral("@-moz-document ");
+  str.AssignLiteral("@-moz-document ");
   for (URL *url = mURLs; url; url = url->next) {
     switch (url->func) {
       case eURL:
@@ -1046,11 +1033,9 @@ DocumentRule::List(FILE* out, int32_t aIndent) const
     str.AppendLiteral("\"), ");
   }
   str.Cut(str.Length() - 2, 1); // remove last ,
-  fprintf_stderr(out, "%s%s {\n", indentStr.get(), str.get());
+  fputs(str.get(), out);
 
   GroupRule::List(out, aIndent);
-
-  fprintf_stderr(out, "%s}\n", indentStr.get());
 }
 #endif
 
@@ -1280,25 +1265,21 @@ IMPL_STYLE_RULE_INHERIT(NameSpaceRule, Rule)
 /* virtual */ void
 NameSpaceRule::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString str;
-  for (int32_t indent = aIndent; --indent >= 0; ) {
-    str.AppendLiteral("  ");
-  }
+  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
   nsAutoString  buffer;
 
-  str.AppendLiteral("@namespace ");
+  fputs("@namespace ", out);
 
   if (mPrefix) {
     mPrefix->ToString(buffer);
-    AppendUTF16toUTF8(buffer, str);
-    str.Append(' ');
+    fputs(NS_LossyConvertUTF16toASCII(buffer).get(), out);
+    fputs(" ", out);
   }
 
-  str.AppendLiteral("url(\"");
-  AppendUTF16toUTF8(mURLSpec, str);
-  str.AppendLiteral("\")\n");
-  fprintf_stderr(out, "%s", str.get());
+  fputs("url(", out);
+  fputs(NS_LossyConvertUTF16toASCII(mURLSpec).get(), out);
+  fputs(")\n", out);
 }
 #endif
 
@@ -1732,7 +1713,7 @@ nsCSSFontFaceRule::List(FILE* out, int32_t aIndent) const
 
   nsString descStr;
 
-  fprintf_stderr(out, "%s@font-face {\n", baseInd.get());
+  fprintf(out, "%s@font-face {\n", baseInd.get());
   for (nsCSSFontDesc id = nsCSSFontDesc(eCSSFontDesc_UNKNOWN + 1);
        id < eCSSFontDesc_COUNT;
        id = nsCSSFontDesc(id + 1))
@@ -1741,11 +1722,11 @@ nsCSSFontFaceRule::List(FILE* out, int32_t aIndent) const
         descStr.AssignLiteral("#<serialization error>");
       else if (descStr.Length() == 0)
         descStr.AssignLiteral("#<serialization missing>");
-      fprintf_stderr(out, "%s%s: %s\n",
-                     descInd.get(), nsCSSProps::GetStringValue(id).get(),
-                     NS_ConvertUTF16toUTF8(descStr).get());
+      fprintf(out, "%s%s: %s\n",
+              descInd.get(), nsCSSProps::GetStringValue(id).get(),
+              NS_ConvertUTF16toUTF8(descStr).get());
     }
-  fprintf_stderr(out, "%s}\n", baseInd.get());
+  fprintf(out, "%s}\n", baseInd.get());
 }
 #endif
 
@@ -1938,11 +1919,8 @@ nsCSSFontFeatureValuesRule::List(FILE* out, int32_t aIndent) const
   utf8.ReplaceSubstring("\n", indent);
   delete [] indent;
 
-  nsAutoCString indentStr;
-  for (i = aIndent; --i >= 0; ) {
-    indentStr.AppendLiteral("  ");
-  }
-  fprintf_stderr(out, "%s%s\n", indentStr.get(), utf8.get());
+  for (i = aIndent; --i >= 0; ) fputs("  ", out);
+  fprintf(out, "%s\n", utf8.get());
 }
 #endif
 
@@ -2217,19 +2195,14 @@ nsCSSKeyframeRule::MapRuleInfoInto(nsRuleData* aRuleData)
 void
 nsCSSKeyframeRule::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString str;
-  for (int32_t index = aIndent; --index >= 0; ) {
-    str.AppendLiteral("  ");
-  }
+  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
 
   nsAutoString tmp;
   DoGetKeyText(tmp);
-  AppendUTF16toUTF8(tmp, str);
-  str.AppendLiteral(" { ");
-  mDeclaration->ToString(tmp);
-  AppendUTF16toUTF8(tmp, str);
-  str.AppendLiteral("}\n");
-  fprintf_stderr(out, "%s", str.get());
+  fputs(NS_ConvertUTF16toUTF8(tmp).get(), out);
+  fputs(" ", out);
+  mDeclaration->List(out, aIndent);
+  fputs("\n", out);
 }
 #endif
 
@@ -2423,17 +2396,10 @@ NS_INTERFACE_MAP_END_INHERITING(GroupRule)
 void
 nsCSSKeyframesRule::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString indentStr;
-  for (int32_t indent = aIndent; --indent >= 0; ) {
-    indentStr.AppendLiteral("  ");
-  }
+  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
-  fprintf_stderr(out, "%s@keyframes %s {\n",
-                 indentStr.get(), NS_ConvertUTF16toUTF8(mName).get());
-
+  fprintf(out, "@keyframes %s", NS_ConvertUTF16toUTF8(mName).get());
   GroupRule::List(out, aIndent);
-
-  fprintf_stderr(out, "%s}\n", indentStr.get());
 }
 #endif
 
@@ -2763,17 +2729,11 @@ IMPL_STYLE_RULE_INHERIT_GET_DOM_RULE_WEAK(nsCSSPageRule, Rule)
 void
 nsCSSPageRule::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString str;
-  for (int32_t indent = aIndent; --indent >= 0; ) {
-    str.AppendLiteral("  ");
-  }
+  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
-  str.AppendLiteral("@page { ");
-  nsAutoString tmp;
-  mDeclaration->ToString(tmp);
-  AppendUTF16toUTF8(tmp, str);
-  str.AppendLiteral("}\n");
-  fprintf_stderr(out, "%s", str.get());
+  fputs("@page ", out);
+  mDeclaration->List(out, aIndent);
+  fputs("\n", out);
 }
 #endif
 
@@ -2902,17 +2862,11 @@ CSSSupportsRule::CSSSupportsRule(const CSSSupportsRule& aCopy)
 /* virtual */ void
 CSSSupportsRule::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString indentStr;
-  for (int32_t indent = aIndent; --indent >= 0; ) {
-    indentStr.AppendLiteral("  ");
-  }
+  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
-  fprintf_stderr(out, "%s@supports %s {\n",
-                 indentStr.get(), NS_ConvertUTF16toUTF8(mCondition).get());
-
+  fputs("@supports ", out);
+  fputs(NS_ConvertUTF16toUTF8(mCondition).get(), out);
   css::GroupRule::List(out, aIndent);
-
-  fprintf_stderr(out, "%s}\n", indentStr.get());
 }
 #endif
 
@@ -3092,11 +3046,10 @@ nsCSSCounterStyleRule::List(FILE* out, int32_t aIndent) const
   descInd = baseInd;
   descInd.AppendLiteral("  ");
 
-  fprintf_stderr(out, "%s@counter-style %s (rev.%u) {\n",
-                 baseInd.get(), NS_ConvertUTF16toUTF8(mName).get(),
-                 mGeneration);
+  fprintf(out, "%s@counter-style %s (rev.%u) {\n",
+          baseInd.get(), NS_ConvertUTF16toUTF8(mName).get(), mGeneration);
   // TODO
-  fprintf_stderr(out, "%s}\n", baseInd.get());
+  fprintf(out, "%s}\n", baseInd.get());
 }
 #endif
 

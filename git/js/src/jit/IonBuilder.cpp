@@ -1662,7 +1662,6 @@ IonBuilder::inspectOpcode(JSOp op)
         return jsop_call(GET_ARGC(pc), (JSOp)*pc == JSOP_NEW);
 
       case JSOP_EVAL:
-      case JSOP_STRICTEVAL:
         return jsop_eval(GET_ARGC(pc));
 
       case JSOP_INT8:
@@ -1681,7 +1680,6 @@ IonBuilder::inspectOpcode(JSOp op)
         return pushConstant(ObjectValue(script()->global()));
 
       case JSOP_SETGNAME:
-      case JSOP_STRICTSETGNAME:
       {
         PropertyName *name = info().getAtom(pc)->asPropertyName();
         JSObject *obj = &script()->global();
@@ -1739,7 +1737,6 @@ IonBuilder::inspectOpcode(JSOp op)
         return jsop_getelem();
 
       case JSOP_SETELEM:
-      case JSOP_STRICTSETELEM:
         return jsop_setelem();
 
       case JSOP_LENGTH:
@@ -1765,23 +1762,19 @@ IonBuilder::inspectOpcode(JSOp op)
       }
 
       case JSOP_SETPROP:
-      case JSOP_STRICTSETPROP:
       case JSOP_SETNAME:
-      case JSOP_STRICTSETNAME:
       {
         PropertyName *name = info().getAtom(pc)->asPropertyName();
         return jsop_setprop(name);
       }
 
       case JSOP_DELPROP:
-      case JSOP_STRICTDELPROP:
       {
         PropertyName *name = info().getAtom(pc)->asPropertyName();
         return jsop_delprop(name);
       }
 
       case JSOP_DELELEM:
-      case JSOP_STRICTDELELEM:
         return jsop_delelem();
 
       case JSOP_REGEXP:
@@ -8540,8 +8533,7 @@ IonBuilder::setElemTryCache(bool *emitted, MDefinition *object,
         current->add(MPostWriteBarrier::New(alloc(), object, value));
 
     // Emit SetElementCache.
-    bool strict = JSOp(*pc) == JSOP_STRICTSETELEM;
-    MInstruction *ins = MSetElementCache::New(alloc(), object, index, value, strict, guardHoles);
+    MInstruction *ins = MSetElementCache::New(alloc(), object, index, value, script()->strict(), guardHoles);
     current->add(ins);
     current->push(value);
 
@@ -9080,21 +9072,18 @@ IonBuilder::freezePropertiesForCommonPrototype(types::TemporaryTypeSet *types, P
     }
 }
 
-inline bool
+inline MDefinition *
 IonBuilder::testCommonGetterSetter(types::TemporaryTypeSet *types, PropertyName *name,
                                    bool isGetter, JSObject *foundProto, Shape *lastProperty,
-                                   MDefinition **guard,
-                                   Shape *globalShape/* = nullptr*/,
-                                   MDefinition **globalGuard/* = nullptr */)
+                                   Shape *globalShape/* = nullptr*/)
 {
-    MOZ_ASSERT_IF(globalShape, globalGuard);
     bool guardGlobal;
 
     // Check if all objects being accessed will lookup the name through foundProto.
     if (!objectsHaveCommonPrototype(types, name, isGetter, foundProto, &guardGlobal) ||
         (guardGlobal && !globalShape))
     {
-        return false;
+        return nullptr;
     }
 
     // We can optimize the getter/setter, so freeze all involved properties to
@@ -9105,19 +9094,16 @@ IonBuilder::testCommonGetterSetter(types::TemporaryTypeSet *types, PropertyName 
     // Add a shape guard on the prototype we found the property on. The rest of
     // the prototype chain is guarded by TI freezes, except when name is a global
     // name. In this case, we also have to guard on the globals shape to be able
-    // to optimize, because the way global property sets are handled means
-    // freezing doesn't work for what we want here. Note that a shape guard is
-    // good enough here, even in the proxy case, because we have ensured there
-    // are no lookup hooks for this property.
+    // to optimize. Note that a shape guard is good enough here, even in the proxy
+    // case, because we have ensured there are no lookup hooks for this property.
     if (guardGlobal) {
         JSObject *obj = &script()->global();
         MDefinition *globalObj = constant(ObjectValue(*obj));
-        *globalGuard = addShapeGuard(globalObj, globalShape, Bailout_ShapeGuard);
+        addShapeGuard(globalObj, globalShape, Bailout_ShapeGuard);
     }
 
     MInstruction *wrapper = constant(ObjectValue(*foundProto));
-    *guard = addShapeGuard(wrapper, lastProperty, Bailout_ShapeGuard);
-    return true;
+    return addShapeGuard(wrapper, lastProperty, Bailout_ShapeGuard);
 }
 
 void
@@ -9675,13 +9661,9 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, MDefinition *obj, PropertyName
         return true;
 
     types::TemporaryTypeSet *objTypes = obj->resultTypeSet();
-    MDefinition *guard = nullptr;
-    MDefinition *globalGuard = nullptr;
-    bool canUseCommonGetter =
-        testCommonGetterSetter(objTypes, name, /* isGetter = */ true,
-                               foundProto, lastProperty, &guard, globalShape,
-                               &globalGuard);
-    if (!canUseCommonGetter)
+    MDefinition *guard = testCommonGetterSetter(objTypes, name, /* isGetter = */ true,
+                                                foundProto, lastProperty, globalShape);
+    if (!guard)
         return true;
 
     bool isDOM = objTypes->isDOMClass();
@@ -9692,12 +9674,9 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, MDefinition *obj, PropertyName
         if (jitinfo->isAlwaysInSlot) {
             // We can't use MLoadFixedSlot here because it might not have the
             // right aliasing behavior; we want to alias DOM setters as needed.
-            get = MGetDOMMember::New(alloc(), jitinfo, obj, guard, globalGuard);
+            get = MGetDOMMember::New(alloc(), jitinfo, obj, guard);
         } else {
-            get = MGetDOMProperty::New(alloc(), jitinfo, obj, guard, globalGuard);
-        }
-        if (!get) {
-            return false;
+            get = MGetDOMProperty::New(alloc(), jitinfo, obj, guard);
         }
         current->add(get);
         current->push(get);
@@ -10083,8 +10062,7 @@ IonBuilder::jsop_setprop(PropertyName *name)
     // Always use a call if we are doing the definite properties analysis and
     // not actually emitting code, to simplify later analysis.
     if (info().executionModeIsAnalysis()) {
-        bool strict = IsStrictSetPC(pc);
-        MInstruction *ins = MCallSetProperty::New(alloc(), obj, value, name, strict);
+        MInstruction *ins = MCallSetProperty::New(alloc(), obj, value, name, script()->strict());
         current->add(ins);
         current->push(value);
         return resumeAfter(ins);
@@ -10133,11 +10111,9 @@ IonBuilder::setPropTryCommonSetter(bool *emitted, MDefinition *obj,
         return true;
 
     types::TemporaryTypeSet *objTypes = obj->resultTypeSet();
-    MDefinition *guard = nullptr;
-    bool canUseCommonSetter =
-        testCommonGetterSetter(objTypes, name, /* isGetter = */ false,
-                               foundProto, lastProperty, &guard);
-    if (!canUseCommonSetter)
+    MDefinition *guard = testCommonGetterSetter(objTypes, name, /* isGetter = */ false,
+                                                foundProto, lastProperty);
+    if (!guard)
         return true;
 
     bool isDOM = objTypes->isDOMClass();
@@ -10467,9 +10443,8 @@ IonBuilder::setPropTryCache(bool *emitted, MDefinition *obj,
 {
     MOZ_ASSERT(*emitted == false);
 
-    bool strict = IsStrictSetPC(pc);
     // Emit SetPropertyCache.
-    MSetPropertyCache *ins = MSetPropertyCache::New(alloc(), obj, value, name, strict, barrier);
+    MSetPropertyCache *ins = MSetPropertyCache::New(alloc(), obj, value, name, script()->strict(), barrier);
 
     if (!objTypes || objTypes->propertyNeedsBarrier(constraints(), NameToId(name)))
         ins->setNeedsBarrier();
@@ -10489,8 +10464,7 @@ IonBuilder::jsop_delprop(PropertyName *name)
 {
     MDefinition *obj = current->pop();
 
-    bool strict = JSOp(*pc) == JSOP_STRICTDELPROP;
-    MInstruction *ins = MDeleteProperty::New(alloc(), obj, name, strict);
+    MInstruction *ins = MDeleteProperty::New(alloc(), obj, name);
 
     current->add(ins);
     current->push(ins);
@@ -10504,8 +10478,7 @@ IonBuilder::jsop_delelem()
     MDefinition *index = current->pop();
     MDefinition *obj = current->pop();
 
-    bool strict = JSOp(*pc) == JSOP_STRICTDELELEM;
-    MDeleteElement *ins = MDeleteElement::New(alloc(), obj, index, strict);
+    MDeleteElement *ins = MDeleteElement::New(alloc(), obj, index);
     current->add(ins);
     current->push(ins);
 

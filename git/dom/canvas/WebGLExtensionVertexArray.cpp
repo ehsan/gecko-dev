@@ -3,73 +3,67 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "WebGLExtensions.h"
-
-#include "GLContext.h"
-#include "mozilla/dom/WebGLRenderingContextBinding.h"
-#include "WebGLBuffer.h"
 #include "WebGLContext.h"
+#include "WebGLBuffer.h"
 #include "WebGLVertexArray.h"
+#include "WebGLExtensions.h"
+#include "mozilla/dom/WebGLRenderingContextBinding.h"
+#include "GLContext.h"
 
-namespace mozilla {
+using namespace mozilla;
 
-WebGLExtensionVertexArray::WebGLExtensionVertexArray(WebGLContext* webgl)
-  : WebGLExtensionBase(webgl)
+WebGLExtensionVertexArray::WebGLExtensionVertexArray(WebGLContext* context)
+  : WebGLExtensionBase(context)
 {
+    MOZ_ASSERT(IsSupported(context), "should not construct WebGLExtensionVertexArray :"
+                                     "OES_vertex_array_object unsuported.");
 }
 
 WebGLExtensionVertexArray::~WebGLExtensionVertexArray()
 {
 }
 
-already_AddRefed<WebGLVertexArray>
-WebGLExtensionVertexArray::CreateVertexArrayOES()
+already_AddRefed<WebGLVertexArray> WebGLExtensionVertexArray::CreateVertexArrayOES()
 {
     if (mIsLost) {
-        mContext->ErrorInvalidOperation("%s: Extension is lost.",
-                                        "createVertexArrayOES");
+        mContext->GenerateWarning("createVertexArrayOES: Extension is lost. Returning null.");
         return nullptr;
     }
 
     return mContext->CreateVertexArray();
 }
 
-void
-WebGLExtensionVertexArray::DeleteVertexArrayOES(WebGLVertexArray* array)
+void WebGLExtensionVertexArray::DeleteVertexArrayOES(WebGLVertexArray* array)
 {
-    if (mIsLost) {
-        mContext->ErrorInvalidOperation("%s: Extension is lost.",
-                                        "deleteVertexArrayOES");
-        return;
-    }
+    if (mIsLost)
+        return mContext->GenerateWarning("deleteVertexArrayOES: Extension is lost.");
 
     mContext->DeleteVertexArray(array);
 }
 
-bool
-WebGLExtensionVertexArray::IsVertexArrayOES(WebGLVertexArray* array)
+bool WebGLExtensionVertexArray::IsVertexArrayOES(WebGLVertexArray* array)
 {
     if (mIsLost) {
-        mContext->ErrorInvalidOperation("%s: Extension is lost.",
-                                        "isVertexArrayOES");
+        mContext->GenerateWarning("isVertexArrayOES: Extension is lost. Returning false.");
         return false;
     }
 
     return mContext->IsVertexArray(array);
 }
 
-void
-WebGLExtensionVertexArray::BindVertexArrayOES(WebGLVertexArray* array)
+void WebGLExtensionVertexArray::BindVertexArrayOES(WebGLVertexArray* array)
 {
-    if (mIsLost) {
-        mContext->ErrorInvalidOperation("%s: Extension is lost.",
-                                        "bindVertexArrayOES");
-        return;
-    }
+    if (mIsLost)
+        return mContext->GenerateWarning("bindVertexArrayOES: Extension is lost.");
 
     mContext->BindVertexArray(array);
 }
 
-IMPL_WEBGL_EXTENSION_GOOP(WebGLExtensionVertexArray)
+bool WebGLExtensionVertexArray::IsSupported(const WebGLContext* context)
+{
+    // If it is not supported then it's emulated, therefore it's always 'supported'
+    // See - WebGLVertexArrayFake.h/cpp for the emulation
+    return true;
+}
 
-} // namespace mozilla
+IMPL_WEBGL_EXTENSION_GOOP(WebGLExtensionVertexArray)
