@@ -19,7 +19,7 @@
 #include "jscntxt.h"
 #include "jslock.h"
 
-#include "jit/Ion.h"
+#include "ion/Ion.h"
 
 namespace js {
 

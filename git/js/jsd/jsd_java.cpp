@@ -109,9 +109,9 @@ _scriptObFromJSDScriptPtr( ExecEnv* ee, JSDScript* jsdscript )
 /***************************************************************************/
 
 void
-_scriptHook( JSDContext* jsdc,
+_scriptHook( JSDContext* jsdc, 
              JSDScript*  jsdscript,
-             bool        creating,
+             JSBool      creating,
              void*       callerdata )
 {
     Hnetscape_jsdebug_Script* script;
@@ -430,7 +430,7 @@ struct Hjava_lang_String *netscape_jsdebug_DebugController_executeScriptInStackF
     char* srcC;
     JSString* jsstr;
     jsval rval;
-    bool success;
+    JSBool success;
     int srclen;
 
     threadStateOb = (struct Hnetscape_jsdebug_JSThreadState*)unhand(frame)->threadState;

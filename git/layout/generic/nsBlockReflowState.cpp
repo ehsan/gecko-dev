@@ -818,7 +818,8 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
                  floatMargin.top + floatY);
 
   // If float is relatively positioned, factor that in as well
-  nsHTMLReflowState::ApplyRelativePositioning(aFloat, floatOffsets, &origin);
+  nsHTMLReflowState::ApplyRelativePositioning(floatDisplay, floatOffsets,
+                                              &origin);
 
   // Position the float and make sure and views are properly
   // positioned. We need to explicitly position its child views as

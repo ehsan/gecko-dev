@@ -200,11 +200,11 @@ class                                       JSStableString;  // long story
 class                                       JSString;
 
 #ifdef JS_THREADSAFE
-typedef struct PRCallOnceType   JSCallOnceType;
+typedef struct PRCallOnceType    JSCallOnceType;
 #else
-typedef bool                    JSCallOnceType;
+typedef JSBool                   JSCallOnceType;
 #endif
-typedef bool                    (*JSInitCallback)(void);
+typedef JSBool                 (*JSInitCallback)(void);
 
 namespace JS {
 namespace shadow {

@@ -30,7 +30,7 @@ funcTransition(const JSFunction *,
     }
 }
 
-static bool called2 = false;
+static JSBool called2 = false;
 
 static void
 funcTransition2(const JSFunction *, const JSScript*, const JSContext*, int)

@@ -169,7 +169,7 @@ DeflateStringToUTF8Buffer(JSContext *maybecx, const jschar *src, size_t srclen,
 *******************************************************************************/
 
 JS_ALWAYS_INLINE void
-ASSERT_OK(bool ok)
+ASSERT_OK(JSBool ok)
 {
   JS_ASSERT(ok);
 }
@@ -231,7 +231,7 @@ struct FieldHashPolicy
     return hash;
   }
 
-  static bool match(const Key &k, const Lookup &l) {
+  static JSBool match(const Key &k, const Lookup &l) {
     if (k == l)
       return true;
 
@@ -443,7 +443,7 @@ namespace ArrayType {
 }
 
 namespace StructType {
-  bool DefineInternal(JSContext* cx, JSObject* typeObj, JSObject* fieldsObj);
+  JSBool DefineInternal(JSContext* cx, JSObject* typeObj, JSObject* fieldsObj);
 
   const FieldInfoHash* GetFieldInfo(JSObject* obj);
   const FieldInfo* LookupField(JSContext* cx, JSObject* obj, JSFlatString *name);

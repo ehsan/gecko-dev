@@ -59,9 +59,8 @@ struct nsDOMClassInfoData
   uint32_t mScriptableFlags : 31; // flags must not use more than 31 bits!
   uint32_t mHasClassInterface : 1;
   uint32_t mInterfacesBitmap;
-  bool mChromeOnly : 1;
-  bool mAllowXBL : 1;
-  bool mDisabled : 1;
+  bool mChromeOnly;
+  bool mDisabled;
 #ifdef DEBUG
   uint32_t mDebugID;
 #endif
@@ -334,13 +333,13 @@ public:
   NS_IMETHOD OuterObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
                          JSObject * obj, JSObject * *_retval) MOZ_OVERRIDE;
 
-  static bool GlobalScopePolluterNewResolve(JSContext *cx, JS::Handle<JSObject*> obj,
-                                            JS::Handle<jsid> id, unsigned flags,
-                                            JS::MutableHandle<JSObject*> objp);
-  static bool GlobalScopePolluterGetProperty(JSContext *cx, JS::Handle<JSObject*> obj,
-                                             JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp);
-  static bool InvalidateGlobalScopePolluter(JSContext *cx,
-                                            JS::Handle<JSObject*> obj);
+  static JSBool GlobalScopePolluterNewResolve(JSContext *cx, JS::Handle<JSObject*> obj,
+                                              JS::Handle<jsid> id, unsigned flags,
+                                              JS::MutableHandle<JSObject*> objp);
+  static JSBool GlobalScopePolluterGetProperty(JSContext *cx, JS::Handle<JSObject*> obj,
+                                               JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp);
+  static JSBool InvalidateGlobalScopePolluter(JSContext *cx,
+                                              JS::Handle<JSObject*> obj);
   static nsresult InstallGlobalScopePolluter(JSContext *cx,
                                              JS::Handle<JSObject*> obj);
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
@@ -444,14 +443,14 @@ extern JSClass sHTMLDocumentAllClass;
 class nsHTMLDocumentSH
 {
 protected:
-  static bool GetDocumentAllNodeList(JSContext *cx, JS::Handle<JSObject*> obj,
-                                     nsDocument *doc,
-                                     nsContentList **nodeList);
+  static JSBool GetDocumentAllNodeList(JSContext *cx, JS::Handle<JSObject*> obj,
+                                       nsDocument *doc,
+                                       nsContentList **nodeList);
 public:
-  static bool DocumentAllGetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                                     JS::MutableHandle<JS::Value> vp);
-  static bool DocumentAllNewResolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                                    unsigned flags, JS::MutableHandle<JSObject*> objp);
+  static JSBool DocumentAllGetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
+                                       JS::MutableHandle<JS::Value> vp);
+  static JSBool DocumentAllNewResolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
+                                      unsigned flags, JS::MutableHandle<JSObject*> objp);
   static void ReleaseDocument(JSFreeOp *fop, JSObject *obj);
   static bool CallToGetPropMapper(JSContext *cx, unsigned argc, jsval *vp);
 };

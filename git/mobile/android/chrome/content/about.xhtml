@@ -145,17 +145,20 @@
       function checkForUpdates() {
         showCheckingMessage();
 
-        Services.androidBridge.handleGeckoMessage(JSON.stringify({ type: "Update:Check" }));
+        let bridge = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge);
+        bridge.handleGeckoMessage(JSON.stringify({ type: "Update:Check" }));
       }
 
       function downloadUpdate() {
-        Services.androidBridge.handleGeckoMessage(JSON.stringify({ type: "Update:Download" }));
+        let bridge = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge);
+        bridge.handleGeckoMessage(JSON.stringify({ type: "Update:Download" }));
       }
 
       function installUpdate() {
         showCheckAction();
 
-        Services.androidBridge.handleGeckoMessage(JSON.stringify({ type: "Update:Install" }));
+        let bridge = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge);
+        bridge.handleGeckoMessage(JSON.stringify({ type: "Update:Install" }));
       }
 
       let updateLink = document.getElementById("updateLink");

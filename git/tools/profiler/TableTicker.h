@@ -42,7 +42,7 @@ class BreakpadSampler;
 
 class TableTicker: public Sampler {
  public:
-  TableTicker(double aInterval, int aEntrySize,
+  TableTicker(int aInterval, int aEntrySize,
               const char** aFeatures, uint32_t aFeatureCount,
               const char** aThreadNameFilters, uint32_t aFilterCount)
     : Sampler(aInterval, true, aEntrySize)

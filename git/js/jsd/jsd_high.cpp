@@ -60,7 +60,7 @@ static JSClass global_class = {
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   global_finalize
 };
 
-static bool
+static JSBool
 _validateUserCallbacks(JSD_UserCallbacks* callbacks)
 {
     return !callbacks ||
@@ -236,7 +236,7 @@ jsd_DebuggerOff(JSDContext* jsdc)
 }
 
 void
-jsd_DebuggerPause(JSDContext* jsdc, bool forceAllHooksOff)
+jsd_DebuggerPause(JSDContext* jsdc, JSBool forceAllHooksOff)
 {
     JS_SetDebuggerHandler(jsdc->jsrt, NULL, NULL);
     if (forceAllHooksOff || !(jsdc->flags & JSD_COLLECT_PROFILE_DATA)) {
@@ -247,7 +247,7 @@ jsd_DebuggerPause(JSDContext* jsdc, bool forceAllHooksOff)
     JS_SetDebugErrorHook(jsdc->jsrt, NULL, NULL);
 }
 
-static bool
+static JSBool
 jsd_DebugErrorHook(JSContext *cx, const char *message,
                    JSErrorReport *report, void *closure);
 
@@ -328,7 +328,7 @@ jsd_JSDContextForJSContext(JSContext* context)
     return jsdc;
 }    
 
-static bool
+static JSBool
 jsd_DebugErrorHook(JSContext *cx, const char *message,
                    JSErrorReport *report, void *closure)
 {
@@ -387,7 +387,7 @@ jsd_DebugErrorHook(JSContext *cx, const char *message,
     return true;
 }
 
-bool
+JSBool
 jsd_SetErrorReporter(JSDContext*       jsdc, 
                      JSD_ErrorReporter reporter, 
                      void*             callerdata)
@@ -399,7 +399,7 @@ jsd_SetErrorReporter(JSDContext*       jsdc,
     return true;
 }
 
-bool
+JSBool
 jsd_GetErrorReporter(JSDContext*        jsdc, 
                      JSD_ErrorReporter* reporter, 
                      void**             callerdata)

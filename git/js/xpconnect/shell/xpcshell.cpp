@@ -140,14 +140,14 @@ FILE *gInFile = NULL;
 
 int gExitCode = 0;
 bool gIgnoreReportedErrors = false;
-bool gQuitting = false;
-static bool reportWarnings = true;
-static bool compileOnly = false;
+JSBool gQuitting = false;
+static JSBool reportWarnings = true;
+static JSBool compileOnly = false;
 
 JSPrincipals *gJSPrincipals = nullptr;
 nsAutoString *gWorkingDirectory = nullptr;
 
-static bool
+static JSBool
 GetLocationProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
 {
 #if !defined(XP_WIN) && !defined(XP_UNIX)
@@ -236,7 +236,7 @@ extern JS_EXPORT_API(void)     add_history(char *line);
 }
 #endif
 
-static bool
+static JSBool
 GetLine(JSContext *cx, char *bufp, FILE *file, const char *prompt) {
 #ifdef EDITLINE
     /*
@@ -497,7 +497,7 @@ DumpHeap(JSContext *cx, unsigned argc, jsval *vp)
     size_t maxDepth = (size_t)-1;
     void *thingToIgnore = NULL;
     FILE *dumpFile;
-    bool ok;
+    JSBool ok;
 
     jsval *argv = JS_ARGV(cx, vp);
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -654,7 +654,7 @@ Options(JSContext *cx, unsigned argc, jsval *vp)
     uint32_t optset, flag;
     JSString *str;
     char *names;
-    bool found;
+    JSBool found;
 
     optset = 0;
     jsval *argv = JS_ARGV(cx, vp);
@@ -814,7 +814,7 @@ File(JSContext *cx, unsigned argc, jsval *vp)
 
 Value sScriptedOperationCallback = UndefinedValue();
 
-static bool
+static JSBool
 XPCShellOperationCallback(JSContext *cx)
 {
     // If no operation callback was set by script, no-op.
@@ -909,8 +909,8 @@ JSClass global_class = {
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   nullptr
 };
 
-static bool
-env_setProperty(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHandleValue vp)
+static JSBool
+env_setProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp)
 {
 /* XXX porting may be easy, but these don't seem to supply setenv by default */
 #if !defined XP_OS2 && !defined SOLARIS
@@ -963,13 +963,13 @@ env_setProperty(JSContext *cx, HandleObject obj, HandleId id, bool strict, Mutab
     return true;
 }
 
-static bool
+static JSBool
 env_enumerate(JSContext *cx, HandleObject obj)
 {
-    static bool reflected;
+    static JSBool reflected;
     char **evp, *name, *value;
     JSString *valstr;
-    bool ok;
+    JSBool ok;
 
     if (reflected)
         return true;
@@ -995,7 +995,7 @@ env_enumerate(JSContext *cx, HandleObject obj)
     return true;
 }
 
-static bool
+static JSBool
 env_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             JS::MutableHandleObject objp)
 {
@@ -1061,12 +1061,12 @@ my_GetErrorMessage(void *userRef, const char *locale, const unsigned errorNumber
 
 static void
 ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, FILE *file,
-            bool forceTTY)
+            JSBool forceTTY)
 {
     JSScript *script;
     JS::Rooted<JS::Value> result(cx);
     int lineno, startline;
-    bool ok, hitEOF;
+    JSBool ok, hitEOF;
     char *bufp, buffer[4096];
     JSString *str;
 
@@ -1160,7 +1160,7 @@ ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, FILE
 }
 
 static void
-Process(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, bool forceTTY)
+Process(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, JSBool forceTTY)
 {
     FILE *file;
 
@@ -1231,8 +1231,8 @@ ProcessArgs(JSContext *cx, JS::Handle<JSObject*> obj, char **argv, int argc, XPC
     int i;
     JS::Rooted<JSObject*> argsObj(cx);
     char *filename = NULL;
-    bool isInteractive = true;
-    bool forceTTY = false;
+    JSBool isInteractive = true;
+    JSBool forceTTY = false;
 
     rcfile = fopen(rcfilename, "r");
     if (rcfile) {

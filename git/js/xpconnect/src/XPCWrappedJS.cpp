@@ -290,7 +290,7 @@ nsXPCWrappedJS::GetNewOrUsed(JS::HandleObject jsObj,
     nsXPCWrappedJS* wrapper = nullptr;
     nsXPCWrappedJSClass* clazz = nullptr;
     XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
-    bool release_root = false;
+    JSBool release_root = false;
 
     map = rt->GetWrappedJSMap();
     if (!map) {

@@ -112,7 +112,7 @@ Print(JSContext *cx,
     return true;
 }
 
-static bool
+static JSBool
 GetLine(char *bufp,
         FILE *file,
         const char *prompt)
@@ -289,7 +289,7 @@ DumpHeap(JSContext *cx,
     size_t maxDepth = (size_t)-1;
     void *thingToIgnore = NULL;
     FILE *dumpFile;
-    bool ok;
+    JSBool ok;
 
     JS::Value *argv = JS_ARGV(cx, vp);
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -401,14 +401,14 @@ XPCShellEnvironment::ProcessFile(JSContext *cx,
                                  JS::Handle<JSObject*> obj,
                                  const char *filename,
                                  FILE *file,
-                                 bool forceTTY)
+                                 JSBool forceTTY)
 {
     XPCShellEnvironment* env = this;
 
     JSScript *script;
     JS::Rooted<JS::Value> result(cx);
     int lineno, startline;
-    bool ok, hitEOF;
+    JSBool ok, hitEOF;
     char *bufp, buffer[4096];
     JSString *str;
 
@@ -702,7 +702,7 @@ XPCShellEnvironment::EvaluateString(const nsString& aString,
   }
 
   JS::Rooted<JS::Value> result(cx);
-  bool ok = JS_ExecuteScript(cx, global, script, result.address());
+  JSBool ok = JS_ExecuteScript(cx, global, script, result.address());
   if (ok && result != JSVAL_VOID) {
       JSErrorReporter old = JS_SetErrorReporter(cx, NULL);
       JSString* str = JS_ValueToString(cx, result);

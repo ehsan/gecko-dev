@@ -185,7 +185,7 @@ TimeZoneSettingObserver::Observe(nsISupports *aSubject,
       !key.isString()) {
     return NS_OK;
   }
-  bool match;
+  JSBool match;
   if (!JS_StringEqualsAscii(cx, key.toString(), TIME_TIMEZONE, &match) ||
       !match) {
     return NS_OK;

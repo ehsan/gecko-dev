@@ -62,13 +62,11 @@ class CPOWProxyHandler : public BaseProxyHandler
 
     virtual bool preventExtensions(JSContext *cx, HandleObject proxy) MOZ_OVERRIDE;
     virtual bool getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
-                                       MutableHandle<PropertyDescriptor> desc,
-                                       unsigned flags) MOZ_OVERRIDE;
+                                       PropertyDescriptor *desc, unsigned flags) MOZ_OVERRIDE;
     virtual bool getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy,
-                                          HandleId id, MutableHandle<PropertyDescriptor> desc,
-                                          unsigned flags) MOZ_OVERRIDE;
+                                          HandleId id, PropertyDescriptor *desc, unsigned flags) MOZ_OVERRIDE;
     virtual bool defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
-                                MutableHandle<PropertyDescriptor> desc) MOZ_OVERRIDE;
+                                PropertyDescriptor *desc) MOZ_OVERRIDE;
     virtual bool getOwnPropertyNames(JSContext *cx, HandleObject proxy,
                                      AutoIdVector &props) MOZ_OVERRIDE;
     virtual bool delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp) MOZ_OVERRIDE;
@@ -113,14 +111,14 @@ JavaScriptParent::preventExtensions(JSContext *cx, HandleObject proxy)
 
 bool
 CPOWProxyHandler::getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
-                                        MutableHandle<PropertyDescriptor> desc, unsigned flags)
+                                        PropertyDescriptor *desc, unsigned flags)
 {
     return ParentOf(proxy)->getPropertyDescriptor(cx, proxy, id, desc, flags);
 }
 
 bool
 JavaScriptParent::getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
-                                        MutableHandle<PropertyDescriptor> desc, unsigned flags)
+                                        PropertyDescriptor *desc, unsigned flags)
 {
     ObjectId objId = idOf(proxy);
 
@@ -140,15 +138,14 @@ JavaScriptParent::getPropertyDescriptor(JSContext *cx, HandleObject proxy, Handl
 
 bool
 CPOWProxyHandler::getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy,
-                                           HandleId id, MutableHandle<PropertyDescriptor> desc,
-                                           unsigned flags)
+                                           HandleId id, PropertyDescriptor *desc, unsigned flags)
 {
     return ParentOf(proxy)->getOwnPropertyDescriptor(cx, proxy, id, desc, flags);
 }
 
 bool
 JavaScriptParent::getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
-                                           MutableHandle<PropertyDescriptor> desc, unsigned flags)
+                                           PropertyDescriptor *desc, unsigned flags)
 {
     ObjectId objId = idOf(proxy);
 
@@ -168,14 +165,14 @@ JavaScriptParent::getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, Ha
 
 bool
 CPOWProxyHandler::defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
-                                 MutableHandle<PropertyDescriptor> desc)
+                                 PropertyDescriptor *desc)
 {
     return ParentOf(proxy)->defineProperty(cx, proxy, id, desc);
 }
 
 bool
 JavaScriptParent::defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
-                                 MutableHandle<PropertyDescriptor> desc)
+                                 PropertyDescriptor *desc)
 {
     ObjectId objId = idOf(proxy);
 
@@ -184,7 +181,7 @@ JavaScriptParent::defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
         return false;
 
     PPropertyDescriptor descriptor;
-    if (!fromDescriptor(cx, desc, &descriptor))
+    if (!fromDescriptor(cx, *desc, &descriptor))
         return false;
 
     ReturnStatus status;
@@ -397,7 +394,7 @@ JavaScriptParent::call(JSContext *cx, HandleObject proxy, const CallArgs &args)
             JSObject *obj = &v.toObject();
             if (xpc::IsOutObject(cx, obj)) {
                 // Make sure it is not an in-out object.
-                bool found;
+                JSBool found;
                 if (!JS_HasProperty(cx, obj, "value", &found))
                     return false;
                 if (found) {

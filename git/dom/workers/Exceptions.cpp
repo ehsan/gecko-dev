@@ -125,7 +125,7 @@ private:
     return true;
   }
 
-  static bool
+  static JSBool
   GetProperty(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
               JS::MutableHandle<JS::Value> aVp)
   {
@@ -146,7 +146,7 @@ private:
     return true;
   }
 
-  static bool
+  static JSBool
   GetConstant(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> idval,
               JS::MutableHandle<JS::Value> aVp)
   {

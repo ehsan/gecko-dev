@@ -17,7 +17,7 @@ using namespace mozilla;
 namespace XPCNativeWrapper {
 
 static inline
-bool
+JSBool
 ThrowException(nsresult ex, JSContext *cx)
 {
   XPCThrower::Throw(ex, cx);

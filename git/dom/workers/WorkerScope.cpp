@@ -144,7 +144,7 @@ protected:
   }
 
 private:
-  static bool
+  static JSBool
   GetEventListener(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
                    JS::MutableHandle<JS::Value> aVp)
   {
@@ -171,9 +171,9 @@ private:
     return true;
   }
 
-  static bool
+  static JSBool
   SetEventListener(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-                   bool aStrict, JS::MutableHandle<JS::Value> aVp)
+                   JSBool aStrict, JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
     JS_ASSERT(JSID_TO_INT(aIdval) >= 0 && JSID_TO_INT(aIdval) < STRING_COUNT);
@@ -212,7 +212,7 @@ private:
     return false;
   }
 
-  static bool
+  static JSBool
   GetSelf(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
           JS::MutableHandle<JS::Value> aVp)
   {
@@ -224,7 +224,7 @@ private:
     return true;
   }
 
-  static bool
+  static JSBool
   GetLocation(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
               JS::MutableHandle<JS::Value> aVp)
   {
@@ -289,7 +289,7 @@ private:
     return true;
   }
 
-  static bool
+  static JSBool
   GetOnErrorListener(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
                      JS::MutableHandle<JS::Value> aVp)
   {
@@ -321,9 +321,9 @@ private:
     return true;
   }
 
-  static bool
+  static JSBool
   SetOnErrorListener(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-                     bool aStrict, JS::MutableHandle<JS::Value> aVp)
+                     JSBool aStrict, JS::MutableHandle<JS::Value> aVp)
   {
     const char* name = sEventStrings[STRING_onerror];
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, aObj, name);
@@ -364,7 +364,7 @@ private:
     return true;
   }
 
-  static bool
+  static JSBool
   GetNavigator(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
                JS::MutableHandle<JS::Value> aVp)
   {
@@ -486,7 +486,7 @@ private:
     return scope->mWorker->SetTimeout(aCx, aArgc, aVp, true);
   }
 
-  static bool
+  static JSBool
   ClearInterval(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
@@ -679,7 +679,7 @@ public:
     return proto;
   }
 
-  static bool
+  static JSBool
   InitPrivate(JSContext* aCx, JSObject* aObj, WorkerPrivate* aWorkerPrivate)
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
@@ -714,7 +714,7 @@ private:
   using EventTarget::GetEventListener;
   using EventTarget::SetEventListener;
 
-  static bool
+  static JSBool
   GetEventListener(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
                    JS::MutableHandle<JS::Value> aVp)
   {
@@ -741,9 +741,9 @@ private:
     return true;
   }
 
-  static bool
+  static JSBool
   SetEventListener(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-                   bool aStrict, JS::MutableHandle<JS::Value> aVp)
+                   JSBool aStrict, JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
     JS_ASSERT(JSID_TO_INT(aIdval) >= 0 && JSID_TO_INT(aIdval) < STRING_COUNT);
@@ -795,11 +795,11 @@ private:
     return false;
   }
 
-  static bool
+  static JSBool
   Resolve(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aId, unsigned aFlags,
           JS::MutableHandle<JSObject*> aObjp)
   {
-    bool resolved;
+    JSBool resolved;
     if (!JS_ResolveStandardClass(aCx, aObj, aId, &resolved)) {
       return false;
     }

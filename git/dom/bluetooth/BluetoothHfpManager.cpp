@@ -547,7 +547,7 @@ BluetoothHfpManager::HandleVolumeChanged(const nsAString& aData)
     return;
   }
 
-  bool match;
+  JSBool match;
   if (!JS_StringEqualsAscii(cx, key.toString(), AUDIO_VOLUME_BT_SCO_ID, &match) ||
       !match) {
     return;

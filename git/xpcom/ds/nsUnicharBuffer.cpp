@@ -5,7 +5,6 @@
 
 #include "nsUnicharBuffer.h"
 #include "nsCRT.h"
-#include "nsAutoPtr.h"
 
 #define MIN_BUFFER_SIZE 32
 
@@ -20,9 +19,14 @@ UnicharBufferImpl::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
   if (aOuter)
     return NS_ERROR_NO_AGGREGATION;
 
-  nsRefPtr<UnicharBufferImpl> it = new UnicharBufferImpl();
+  UnicharBufferImpl* it = new UnicharBufferImpl();
+  if (it == nullptr) 
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  return it->QueryInterface(aIID, aResult);
+  NS_ADDREF(it);
+  nsresult rv = it->QueryInterface(aIID, aResult);
+  NS_RELEASE(it);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -34,7 +38,7 @@ UnicharBufferImpl::Init(uint32_t aBufferSize)
   mSpace = aBufferSize;
   mLength = 0;
   mBuffer = new PRUnichar[aBufferSize];
-  return NS_OK;
+  return mBuffer ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 NS_IMPL_ISUPPORTS1(UnicharBufferImpl, nsIUnicharBuffer)

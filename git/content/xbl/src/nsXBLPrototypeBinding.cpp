@@ -35,6 +35,7 @@
 #include "nsTextFragment.h"
 #include "nsTextNode.h"
 
+#include "nsIScriptContext.h"
 #include "nsIScriptError.h"
 
 #include "nsIStyleRuleProcessor.h"
@@ -945,10 +946,12 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
     mInterfaceTable.Put(iid, mBinding);
   }
 
-  AutoSafeJSContext cx;
-  JS::Rooted<JSObject*> compilationGlobal(cx, aDocInfo->GetCompilationGlobal());
-  NS_ENSURE_TRUE(compilationGlobal, NS_ERROR_UNEXPECTED);
-  JSAutoCompartment ac(cx, compilationGlobal);
+  nsCOMPtr<nsIScriptGlobalObjectOwner> globalOwner(do_QueryObject(aDocInfo));
+  nsIScriptGlobalObject* globalObject = globalOwner->GetScriptGlobalObject();
+  NS_ENSURE_TRUE(globalObject, NS_ERROR_UNEXPECTED);
+
+  nsIScriptContext *context = globalObject->GetContext();
+  NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
   bool isFirstBinding = aFlags & XBLBinding_Serialize_IsFirstBinding;
   rv = Init(id, aDocInfo, nullptr, isFirstBinding);
@@ -973,7 +976,7 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
     // retrieve the mapped bindings from within here. However, if an error
     // occurs, the mapping should be removed again so that we don't keep an
     // invalid binding around.
-    rv = mImplementation->Read(aStream, this);
+    rv = mImplementation->Read(context, aStream, this, globalObject);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -992,7 +995,7 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
                  "invalid handler type");
 
     nsXBLPrototypeHandler* handler = new nsXBLPrototypeHandler(this);
-    rv = handler->Read(aStream);
+    rv = handler->Read(context, aStream);
     if (NS_FAILED(rv)) {
       delete handler;
       return rv;
@@ -1051,10 +1054,12 @@ nsXBLPrototypeBinding::Write(nsIObjectOutputStream* aStream)
   // mKeyHandlersRegistered and mKeyHandlers are not serialized as they are
   // computed on demand.
 
-  AutoSafeJSContext cx;
-  JS::Rooted<JSObject*> compilationGlobal(cx, mXBLDocInfoWeak->GetCompilationGlobal());
-  NS_ENSURE_TRUE(compilationGlobal, NS_ERROR_UNEXPECTED);
-  JSAutoCompartment ac(cx, compilationGlobal);
+  nsCOMPtr<nsIScriptGlobalObjectOwner> globalOwner(do_QueryObject(mXBLDocInfoWeak));
+  nsIScriptGlobalObject* globalObject = globalOwner->GetScriptGlobalObject();
+  NS_ENSURE_TRUE(globalObject, NS_ERROR_UNEXPECTED);
+
+  nsIScriptContext *context = globalObject->GetContext();
+  NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
   uint8_t flags = mInheritStyle ? XBLBinding_Serialize_InheritStyle : 0;
 
@@ -1113,7 +1118,7 @@ nsXBLPrototypeBinding::Write(nsIObjectOutputStream* aStream)
 
   // Write out the implementation details.
   if (mImplementation) {
-    rv = mImplementation->Write(aStream, this);
+    rv = mImplementation->Write(context, aStream, this);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   else {
@@ -1126,7 +1131,7 @@ nsXBLPrototypeBinding::Write(nsIObjectOutputStream* aStream)
   // Write out the handlers.
   nsXBLPrototypeHandler* handler = mPrototypeHandler;
   while (handler) {
-    rv = handler->Write(aStream);
+    rv = handler->Write(context, aStream);
     NS_ENSURE_SUCCESS(rv, rv);
 
     handler = handler->GetNextHandler();

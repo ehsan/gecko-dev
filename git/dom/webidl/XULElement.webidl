@@ -11,7 +11,6 @@ interface MozRDFCompositeDataSource;
 interface MozRDFResource;
 interface MozXULTemplateBuilder;
 
-[Func="IsChromeOrXBL"]
 interface XULElement : Element {
   [SetterThrows]
   attribute DOMString className;

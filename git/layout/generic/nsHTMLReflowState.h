@@ -547,12 +547,12 @@ public:
                                      nsMargin& aComputedOffsets);
 
   // If a relatively positioned element, adjust the position appropriately.
-  static void ApplyRelativePositioning(nsIFrame* aFrame,
+  static void ApplyRelativePositioning(const nsStyleDisplay* aDisplay,
                                        const nsMargin& aComputedOffsets,
                                        nsPoint* aPosition);
 
   void ApplyRelativePositioning(nsPoint* aPosition) const {
-    ApplyRelativePositioning(frame, mComputedOffsets, aPosition);
+    ApplyRelativePositioning(mStyleDisplay, mComputedOffsets, aPosition);
   }
 
 #ifdef DEBUG

@@ -86,6 +86,7 @@ NS_NewDOMDataContainerEvent(nsIDOMEvent** aInstancePtrResult,
 {
   nsDOMDataContainerEvent* it =
     new nsDOMDataContainerEvent(aOwner, aPresContext, aEvent);
+  NS_ENSURE_TRUE(it, NS_ERROR_OUT_OF_MEMORY);
 
   return CallQueryInterface(it, aInstancePtrResult);
 }

@@ -345,7 +345,7 @@ RestyleManager::RecomputePosition(nsIFrame* aFrame)
 
     nsIFrame* cb = aFrame->GetContainingBlock();
     const nsSize size = cb->GetContentRectRelativeToSelf().Size();
-    nsPoint position = aFrame->GetNormalPosition();
+    const nsPoint oldOffsets = aFrame->GetRelativeOffset();
     nsMargin newOffsets;
 
     // Move the frame
@@ -355,8 +355,8 @@ RestyleManager::RecomputePosition(nsIFrame* aFrame)
     NS_ASSERTION(newOffsets.left == -newOffsets.right &&
                  newOffsets.top == -newOffsets.bottom,
                  "ComputeRelativeOffsets should return valid results");
-    nsHTMLReflowState::ApplyRelativePositioning(aFrame, newOffsets, &position);
-    aFrame->SetPosition(position);
+    aFrame->SetPosition(aFrame->GetPosition() - oldOffsets +
+                        nsPoint(newOffsets.left, newOffsets.top));
 
     return true;
   }

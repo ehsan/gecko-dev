@@ -233,10 +233,6 @@ var FullZoom = {
    *        (optional) browser object displaying the document
    */
   onLocationChange: function FullZoom_onLocationChange(aURI, aIsTabSwitch, aBrowser) {
-    // Bug 691614 - zooming support for electrolysis
-    if (gMultiProcessBrowser)
-      return;
-
     // Ignore all pending async zoom accesses in the browser.  Pending accesses
     // that started before the location change will be prevented from applying
     // to the new location.
@@ -439,9 +435,9 @@ var FullZoom = {
    * operations that access the given browser's zoom should use this method to
    * capture the token before starting and use token.isCurrent to determine if
    * it's safe to access the zoom when done.  If token.isCurrent is false, then
-   * after the async operation started, either the browser's zoom was changed or
-   * the browser was destroyed, and depending on what the operation is doing, it
-   * may no longer be safe to set and get its zoom.
+   * the zoom of the browser was changed after the async operation started, and
+   * depending on what the operation is doing, it may no longer be safe to set
+   * the zoom or get it to then use in some manner.
    *
    * @param browser  The token of this browser will be returned.
    * @return  An object with an "isCurrent" getter.
@@ -454,12 +450,7 @@ var FullZoom = {
     return {
       token: map.get(outerID),
       get isCurrent() {
-        // At this point, the browser may have been destructed and unbound but
-        // its outer ID not removed from the map because outer-window-destroyed
-        // hasn't been received yet.  In that case, the browser is unusable, it
-        // has no properties, so return false.  Check for this case by getting a
-        // property, say, docShell.
-        return map.get(outerID) === this.token && browser.docShell;
+        return map.get(outerID) === this.token;
       },
     };
   },

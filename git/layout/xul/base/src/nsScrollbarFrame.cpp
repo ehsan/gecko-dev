@@ -96,7 +96,6 @@ nsScrollbarFrame::AttributeChanged(int32_t aNameSpaceID,
   if (!scrollable)
     return rv;
 
-  nsCOMPtr<nsIContent> kungFuDeathGrip(mContent);
   scrollable->CurPosAttributeChanged(mContent);
   return rv;
 }

@@ -11,7 +11,7 @@
 #include "jsnum.h"
 #include "jsscript.h"
 
-#include "jit/BaselineJIT.h"
+#include "ion/BaselineJIT.h"
 #include "vm/StringBuffer.h"
 
 using namespace js;

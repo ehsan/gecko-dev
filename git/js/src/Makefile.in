@@ -74,18 +74,18 @@ endif
 
 # Ion
 ifdef ENABLE_ION
-VPATH +=	$(srcdir)/jit
-VPATH +=	$(srcdir)/jit/shared
+VPATH +=	$(srcdir)/ion
+VPATH +=	$(srcdir)/ion/shared
 
 ifeq (86, $(findstring 86,$(TARGET_CPU)))
 ifeq (x86_64, $(TARGET_CPU))
-VPATH +=	$(srcdir)/jit/x64
+VPATH +=	$(srcdir)/ion/x64
 else
-VPATH +=	$(srcdir)/jit/x86
+VPATH +=	$(srcdir)/ion/x86
 endif
 endif
 ifeq (arm, $(findstring arm, $(TARGET_CPU)))
-VPATH +=	$(srcdir)/jit/arm
+VPATH +=	$(srcdir)/ion/arm
 endif
 endif #ENABLE_ION
 

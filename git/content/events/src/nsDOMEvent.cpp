@@ -523,6 +523,7 @@ nsDOMEvent::DuplicatePrivateData()
     case NS_SCROLLBAR_EVENT:
     {
       newEvent = new nsScrollbarEvent(false, msg, nullptr);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       static_cast<nsScrollbarEvent*>(newEvent)->position =
         static_cast<nsScrollbarEvent*>(mEvent)->position;
       break;
@@ -536,6 +537,7 @@ nsDOMEvent::DuplicatePrivateData()
     case NS_KEY_EVENT:
     {
       nsKeyEvent* keyEvent = new nsKeyEvent(false, msg, nullptr);
+      NS_ENSURE_TRUE(keyEvent, NS_ERROR_OUT_OF_MEMORY);
       nsKeyEvent* oldKeyEvent = static_cast<nsKeyEvent*>(mEvent);
       isInputEvent = true;
       keyEvent->keyCode = oldKeyEvent->keyCode;
@@ -551,6 +553,7 @@ nsDOMEvent::DuplicatePrivateData()
       nsMouseEvent* oldMouseEvent = static_cast<nsMouseEvent*>(mEvent);
       nsMouseEvent* mouseEvent =
         new nsMouseEvent(false, msg, nullptr, oldMouseEvent->reason);
+      NS_ENSURE_TRUE(mouseEvent, NS_ERROR_OUT_OF_MEMORY);
       isInputEvent = true;
       mouseEvent->clickCount = oldMouseEvent->clickCount;
       mouseEvent->acceptActivation = oldMouseEvent->acceptActivation;
@@ -568,6 +571,7 @@ nsDOMEvent::DuplicatePrivateData()
       nsDragEvent* oldDragEvent = static_cast<nsDragEvent*>(mEvent);
       nsDragEvent* dragEvent =
         new nsDragEvent(false, msg, nullptr);
+      NS_ENSURE_TRUE(dragEvent, NS_ERROR_OUT_OF_MEMORY);
       isInputEvent = true;
       dragEvent->dataTransfer = oldDragEvent->dataTransfer;
       dragEvent->clickCount = oldDragEvent->clickCount;
@@ -591,6 +595,7 @@ nsDOMEvent::DuplicatePrivateData()
     case NS_SCRIPT_ERROR_EVENT:
     {
       newEvent = new nsScriptErrorEvent(false, msg);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       static_cast<nsScriptErrorEvent*>(newEvent)->lineNr =
         static_cast<nsScriptErrorEvent*>(mEvent)->lineNr;
       break;
@@ -658,6 +663,7 @@ nsDOMEvent::DuplicatePrivateData()
     case NS_SCROLLPORT_EVENT:
     {
       newEvent = new nsScrollPortEvent(false, msg, nullptr);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       static_cast<nsScrollPortEvent*>(newEvent)->orient =
         static_cast<nsScrollPortEvent*>(mEvent)->orient;
       break;
@@ -666,6 +672,7 @@ nsDOMEvent::DuplicatePrivateData()
     {
       nsScrollAreaEvent *newScrollAreaEvent = 
         new nsScrollAreaEvent(false, msg, nullptr);
+      NS_ENSURE_TRUE(newScrollAreaEvent, NS_ERROR_OUT_OF_MEMORY);
       newScrollAreaEvent->mArea =
         static_cast<nsScrollAreaEvent *>(mEvent)->mArea;
       newEvent = newScrollAreaEvent;
@@ -674,6 +681,7 @@ nsDOMEvent::DuplicatePrivateData()
     case NS_MUTATION_EVENT:
     {
       nsMutationEvent* mutationEvent = new nsMutationEvent(false, msg);
+      NS_ENSURE_TRUE(mutationEvent, NS_ERROR_OUT_OF_MEMORY);
       nsMutationEvent* oldMutationEvent =
         static_cast<nsMutationEvent*>(mEvent);
       mutationEvent->mRelatedNode = oldMutationEvent->mRelatedNode;
@@ -692,6 +700,7 @@ nsDOMEvent::DuplicatePrivateData()
     case NS_FOCUS_EVENT:
     {
       nsFocusEvent* newFocusEvent = new nsFocusEvent(false, msg);
+      NS_ENSURE_TRUE(newFocusEvent, NS_ERROR_OUT_OF_MEMORY);
       nsFocusEvent* oldFocusEvent = static_cast<nsFocusEvent*>(mEvent);
       newFocusEvent->fromRaise = oldFocusEvent->fromRaise;
       newFocusEvent->isRefocus = oldFocusEvent->isRefocus;
@@ -702,6 +711,7 @@ nsDOMEvent::DuplicatePrivateData()
     {
       newEvent = new nsCommandEvent(false, mEvent->userType,
         static_cast<nsCommandEvent*>(mEvent)->command, nullptr);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       break;
     }
     case NS_UI_EVENT:
@@ -713,12 +723,14 @@ nsDOMEvent::DuplicatePrivateData()
     case NS_SVGZOOM_EVENT:
     {
       newEvent = new nsGUIEvent(false, msg, nullptr);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       newEvent->eventStructType = NS_SVGZOOM_EVENT;
       break;
     }
     case NS_SMIL_TIME_EVENT:
     {
       newEvent = new nsUIEvent(false, msg, 0);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       newEvent->eventStructType = NS_SMIL_TIME_EVENT;
       break;
     }
@@ -727,6 +739,7 @@ nsDOMEvent::DuplicatePrivateData()
       nsSimpleGestureEvent* oldSimpleGestureEvent = static_cast<nsSimpleGestureEvent*>(mEvent);
       nsSimpleGestureEvent* simpleGestureEvent = 
         new nsSimpleGestureEvent(false, msg, nullptr, 0, 0.0);
+      NS_ENSURE_TRUE(simpleGestureEvent, NS_ERROR_OUT_OF_MEMORY);
       isInputEvent = true;
       simpleGestureEvent->direction = oldSimpleGestureEvent->direction;
       simpleGestureEvent->delta = oldSimpleGestureEvent->delta;
@@ -742,6 +755,7 @@ nsDOMEvent::DuplicatePrivateData()
                                        oldTransitionEvent->propertyName,
                                        oldTransitionEvent->elapsedTime,
                                        oldTransitionEvent->pseudoElement);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       break;
     }
     case NS_ANIMATION_EVENT:
@@ -752,12 +766,14 @@ nsDOMEvent::DuplicatePrivateData()
                                       oldAnimationEvent->animationName,
                                       oldAnimationEvent->elapsedTime,
                                       oldAnimationEvent->pseudoElement);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       break;
     }
     case NS_TOUCH_EVENT:
     {
       nsTouchEvent *oldTouchEvent = static_cast<nsTouchEvent*>(mEvent);
       newEvent = new nsTouchEvent(false, oldTouchEvent);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       isInputEvent = true;
       break;
     }
@@ -767,6 +783,8 @@ nsDOMEvent::DuplicatePrivateData()
       return NS_ERROR_FAILURE;
     }
   }
+
+  NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
 
   if (isInputEvent) {
     nsInputEvent* oldInputEvent = static_cast<nsInputEvent*>(mEvent);

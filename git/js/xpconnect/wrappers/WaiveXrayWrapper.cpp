@@ -18,20 +18,20 @@ using namespace JS;
 namespace xpc {
 
 static bool
-WaiveAccessors(JSContext *cx, JS::MutableHandle<js::PropertyDescriptor> desc)
+WaiveAccessors(JSContext *cx, js::PropertyDescriptor *desc)
 {
-    if (desc.hasGetterObject() && desc.getterObject()) {
-        RootedValue v(cx, JS::ObjectValue(*desc.getterObject()));
+    if ((desc->attrs & JSPROP_GETTER) && desc->getter) {
+        RootedValue v(cx, JS::ObjectValue(*JS_FUNC_TO_DATA_PTR(JSObject *, desc->getter)));
         if (!WrapperFactory::WaiveXrayAndWrap(cx, v.address()))
             return false;
-        desc.setGetterObject(&v.toObject());
+        desc->getter = js::CastAsJSPropertyOp(&v.toObject());
     }
 
-    if (desc.hasSetterObject() && desc.setterObject()) {
-        RootedValue v(cx, JS::ObjectValue(*desc.setterObject()));
+    if ((desc->attrs & JSPROP_SETTER) && desc->setter) {
+        RootedValue v(cx, JS::ObjectValue(*JS_FUNC_TO_DATA_PTR(JSObject *, desc->setter)));
         if (!WrapperFactory::WaiveXrayAndWrap(cx, v.address()))
             return false;
-        desc.setSetterObject(&v.toObject());
+        desc->setter = js::CastAsJSStrictPropertyOp(&v.toObject());
     }
     return true;
 }
@@ -46,20 +46,20 @@ WaiveXrayWrapper::~WaiveXrayWrapper()
 
 bool
 WaiveXrayWrapper::getPropertyDescriptor(JSContext *cx, HandleObject wrapper,
-                                        HandleId id, JS::MutableHandle<js::PropertyDescriptor> desc,
+                                        HandleId id, js::PropertyDescriptor *desc,
                                         unsigned flags)
 {
     return CrossCompartmentWrapper::getPropertyDescriptor(cx, wrapper, id, desc, flags) &&
-           WrapperFactory::WaiveXrayAndWrap(cx, desc.value().address()) && WaiveAccessors(cx, desc);
+           WrapperFactory::WaiveXrayAndWrap(cx, &desc->value) && WaiveAccessors(cx, desc);
 }
 
 bool
 WaiveXrayWrapper::getOwnPropertyDescriptor(JSContext *cx, HandleObject wrapper,
-                                           HandleId id, JS::MutableHandle<js::PropertyDescriptor> desc,
+                                           HandleId id, js::PropertyDescriptor *desc,
                                            unsigned flags)
 {
     return CrossCompartmentWrapper::getOwnPropertyDescriptor(cx, wrapper, id, desc, flags) &&
-           WrapperFactory::WaiveXrayAndWrap(cx, desc.value().address()) && WaiveAccessors(cx, desc);
+           WrapperFactory::WaiveXrayAndWrap(cx, &desc->value) && WaiveAccessors(cx, desc);
 }
 
 bool

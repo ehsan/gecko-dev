@@ -175,7 +175,7 @@ private:
   Worker();
   ~Worker();
 
-  static bool
+  static JSBool
   GetEventListener(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
                    JS::MutableHandle<JS::Value> aVp)
   {
@@ -200,9 +200,9 @@ private:
     return true;
   }
 
-  static bool
+  static JSBool
   SetEventListener(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-                   bool aStrict, JS::MutableHandle<JS::Value> aVp)
+                   JSBool aStrict, JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
     JS_ASSERT(JSID_TO_INT(aIdval) >= 0 && JSID_TO_INT(aIdval) < STRING_COUNT);
