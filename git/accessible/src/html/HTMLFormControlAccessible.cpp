@@ -328,10 +328,16 @@ HTMLTextFieldAccessible::NativeName(nsString& aName)
   if (!aName.IsEmpty())
     return nameFlag;
 
-  // If part of compound of XUL widget then grab a name from XUL widget element.
-  nsIContent* widgetElm = XULWidgetElm();
-  if (widgetElm)
-    XULElmName(mDoc, widgetElm, aName);
+  if (mContent->GetBindingParent()) {
+    // XXX: bug 459640
+    // There's a binding parent.
+    // This means we're part of another control, so use parent accessible for name.
+    // This ensures that a textbox inside of a XUL widget gets
+    // an accessible name.
+    Accessible* parent = Parent();
+    if (parent)
+      parent->GetName(aName);
+  }
 
   if (!aName.IsEmpty())
     return eNameOK;
@@ -363,13 +369,8 @@ void
 HTMLTextFieldAccessible::ApplyARIAState(uint64_t* aState) const
 {
   HyperTextAccessibleWrap::ApplyARIAState(aState);
-  aria::MapToState(aria::eARIAAutoComplete, mContent->AsElement(), aState);
 
-  // If part of compound of XUL widget then pick up ARIA stuff from XUL widget
-  // element.
-  nsIContent* widgetElm = XULWidgetElm();
-  if (widgetElm)
-    aria::MapToState(aria::eARIAAutoComplete, widgetElm->AsElement(), aState);
+  aria::MapToState(aria::eARIAAutoComplete, mContent->AsElement(), aState);
 }
 
 uint64_t
@@ -407,8 +408,9 @@ HTMLTextFieldAccessible::NativeState()
   if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::list))
     return state | states::SUPPORTS_AUTOCOMPLETION | states::HASPOPUP;
 
-  // Ordinal XUL textboxes don't support autocomplete.
-  if (!XULWidgetElm() && Preferences::GetBool("browser.formfill.enable")) {
+  // No parent can mean a fake widget created for XUL textbox. If accessible
+  // is unattached from tree then we don't care.
+  if (mParent && Preferences::GetBool("browser.formfill.enable")) {
     // Check to see if autocompletion is allowed on this input. We don't expose
     // it for password fields even though the entire password can be remembered
     // for a page if the user asks it to be. However, the kind of autocomplete

@@ -143,11 +143,6 @@ public:
 protected:
   // Accessible
   virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
-
-  /**
-   * Return a XUL widget element this input is part of.
-   */
-  nsIContent* XULWidgetElm() const { return mContent->GetBindingParent(); }
 };
 
 

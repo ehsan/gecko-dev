@@ -3835,10 +3835,11 @@ HTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       // the editor's handling of up/down keypress events. For that reason we
       // just ignore aVisitor.mEventStatus here and go ahead and handle the
       // event to increase/decrease the value of the number control.
-      if (!aVisitor.mEvent->mFlags.mDefaultPreventedByContent) {
-        StepNumberControlForUserEvent(keyEvent->keyCode == NS_VK_UP ? 1 : -1);
-        aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
-      }
+      // XXX we still need to allow script to call preventDefault() on the
+      // event, but right now we can't tell the difference between the editor
+      // on script doing that (bug 930374).
+      StepNumberControlForUserEvent(keyEvent->keyCode == NS_VK_UP ? 1 : -1);
+      aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
     } else if (nsEventStatus_eIgnore == aVisitor.mEventStatus) {
       switch (aVisitor.mEvent->message) {
 
@@ -5729,38 +5730,6 @@ HTMLInputElement::IntrinsicState() const
   }
 
   return state;
-}
-
-void
-HTMLInputElement::AddStates(nsEventStates aStates)
-{
-  if (mType == NS_FORM_INPUT_TEXT) {
-    nsEventStates focusStates(aStates & (NS_EVENT_STATE_FOCUS |
-                                         NS_EVENT_STATE_FOCUSRING));
-    if (!focusStates.IsEmpty()) {
-      HTMLInputElement* ownerNumberControl = GetOwnerNumberControl();
-      if (ownerNumberControl) {
-        ownerNumberControl->AddStates(focusStates);
-      }
-    }
-  }
-  nsGenericHTMLFormElementWithState::AddStates(aStates);                          
-}
-
-void
-HTMLInputElement::RemoveStates(nsEventStates aStates)
-{
-  if (mType == NS_FORM_INPUT_TEXT) {
-    nsEventStates focusStates(aStates & (NS_EVENT_STATE_FOCUS |
-                                         NS_EVENT_STATE_FOCUSRING));
-    if (!focusStates.IsEmpty()) {
-      HTMLInputElement* ownerNumberControl = GetOwnerNumberControl();
-      if (ownerNumberControl) {
-        ownerNumberControl->RemoveStates(focusStates);
-      }
-    }
-  }
-  nsGenericHTMLFormElementWithState::RemoveStates(aStates);
 }
 
 bool

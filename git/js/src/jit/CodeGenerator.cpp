@@ -201,8 +201,7 @@ CodeGenerator::visitValueToInt32(LValueToInt32 *lir)
         masm.bind(oolDouble->rejoin());
     } else {
         masm.convertValueToInt32(operand, input, temp, output, &fails,
-                                 lir->mirNormal()->canBeNegativeZero(),
-                                 lir->mirNormal()->conversion());
+                                 lir->mirNormal()->canBeNegativeZero());
     }
 
     return bailoutFrom(&fails, lir->snapshot());
@@ -3840,7 +3839,7 @@ CodeGenerator::visitAbsI(LAbsI *ins)
 
     JS_ASSERT(input == ToRegister(ins->output()));
     masm.test32(input, input);
-    masm.j(Assembler::NotSigned, &positive);
+    masm.j(Assembler::GreaterThanOrEqual, &positive);
     masm.neg32(input);
     if (ins->snapshot() && !bailoutIf(Assembler::Overflow, ins->snapshot()))
         return false;

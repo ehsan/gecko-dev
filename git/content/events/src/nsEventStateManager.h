@@ -481,17 +481,6 @@ protected:
     DELTA_DIRECTION_Y
   };
 
-  struct MOZ_STACK_CLASS EventState
-  {
-    bool mDefaultPrevented;
-    bool mDefaultPreventedByContent;
-
-    EventState() :
-      mDefaultPrevented(false), mDefaultPreventedByContent(false)
-    {
-    }
-  };
-
   /**
    * SendLineScrollEvent() dispatches a DOMMouseScroll event for the
    * WidgetWheelEvent.  This method shouldn't be called for non-trusted
@@ -499,15 +488,14 @@ protected:
    *
    * @param aTargetFrame        The event target of wheel event.
    * @param aEvent              The original Wheel event.
-   * @param aState              The event which should be set to the dispatching
-   *                            event.  This also returns the dispatched event
-   *                            state.
+   * @param aStatus             The event status, must not be
+   *                            nsEventStatus_eConsumeNoDefault.
    * @param aDelta              The delta value of the event.
    * @param aDeltaDirection     The X/Y direction of dispatching event.
    */
   void SendLineScrollEvent(nsIFrame* aTargetFrame,
                            mozilla::WidgetWheelEvent* aEvent,
-                           EventState& aState,
+                           nsEventStatus* aStatus,
                            int32_t aDelta,
                            DeltaDirection aDeltaDirection);
 
@@ -518,15 +506,14 @@ protected:
    *
    * @param aTargetFrame        The event target of wheel event.
    * @param aEvent              The original Wheel event.
-   * @param aState              The event which should be set to the dispatching
-   *                            event.  This also returns the dispatched event
-   *                            state.
+   * @param aStatus             The event status, must not be
+   *                            nsEventStatus_eConsumeNoDefault.
    * @param aPixelDelta         The delta value of the event.
    * @param aDeltaDirection     The X/Y direction of dispatching event.
    */
   void SendPixelScrollEvent(nsIFrame* aTargetFrame,
                             mozilla::WidgetWheelEvent* aEvent,
-                            EventState& aState,
+                            nsEventStatus* aStatus,
                             int32_t aPixelDelta,
                             DeltaDirection aDeltaDirection);
 

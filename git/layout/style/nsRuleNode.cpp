@@ -2504,7 +2504,7 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
   bool canStoreInRuleTree = aCanStoreInRuleTree;
 
 /**
- * End an nsRuleNode::Compute*Data function for an inherited struct.
+ * Begin an nsRuleNode::Compute*Data function for an inherited struct.
  *
  * @param type_ The nsStyle* type this function computes.
  * @param data_ Variable holding the result of this function.
@@ -2539,7 +2539,7 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
   return data_;
 
 /**
- * End an nsRuleNode::Compute*Data function for a reset struct.
+ * Begin an nsRuleNode::Compute*Data function for a reset struct.
  *
  * @param type_ The nsStyle* type this function computes.
  * @param data_ Variable holding the result of this function.
