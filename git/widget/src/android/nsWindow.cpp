@@ -1376,9 +1376,9 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
     case AndroidGeckoEvent::IME_DELETE_TEXT:
         {   
             ALOGIME("IME: IME_DELETE_TEXT");
-            nsKeyEvent event(PR_TRUE, NS_KEY_PRESS, this);
+            nsContentCommandEvent event(PR_TRUE,
+                                        NS_CONTENT_COMMAND_DELETE, this);
             InitEvent(event, nsnull);
-            event.keyCode = NS_VK_BACK;
             DispatchEvent(&event);
         }
         return;

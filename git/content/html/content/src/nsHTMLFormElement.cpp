@@ -65,7 +65,6 @@
 #include "nsIWebProgress.h"
 #include "nsIDocShell.h"
 #include "nsFormData.h"
-#include "nsFormSubmissionConstants.h"
 
 // radio buttons
 #include "nsIDOMHTMLInputElement.h"
@@ -80,6 +79,23 @@
 #include "nsIHTMLCollection.h"
 
 static const int NS_FORM_CONTROL_LIST_HASHTABLE_SIZE = 16;
+
+static const nsAttrValue::EnumTable kFormMethodTable[] = {
+  { "get", NS_FORM_METHOD_GET },
+  { "post", NS_FORM_METHOD_POST },
+  { 0 }
+};
+// Default method is 'get'.
+static const nsAttrValue::EnumTable* kFormDefaultMethod = &kFormMethodTable[0];
+
+static const nsAttrValue::EnumTable kFormEnctypeTable[] = {
+  { "multipart/form-data", NS_FORM_ENCTYPE_MULTIPART },
+  { "application/x-www-form-urlencoded", NS_FORM_ENCTYPE_URLENCODED },
+  { "text/plain", NS_FORM_ENCTYPE_TEXTPLAIN },
+  { 0 }
+};
+// Default method is 'application/x-www-form-urlencoded'.
+static const nsAttrValue::EnumTable* kFormDefaultEnctype = &kFormEnctypeTable[1];
 
 // nsHTMLFormElement
 
@@ -184,7 +200,6 @@ ShouldBeInElements(nsIFormControl* aFormControl)
   case NS_FORM_BUTTON_SUBMIT :
   case NS_FORM_INPUT_BUTTON :
   case NS_FORM_INPUT_CHECKBOX :
-  case NS_FORM_INPUT_EMAIL :
   case NS_FORM_INPUT_FILE :
   case NS_FORM_INPUT_HIDDEN :
   case NS_FORM_INPUT_RESET :
@@ -194,7 +209,6 @@ ShouldBeInElements(nsIFormControl* aFormControl)
   case NS_FORM_INPUT_SUBMIT :
   case NS_FORM_INPUT_TEXT :
   case NS_FORM_INPUT_TEL :
-  case NS_FORM_INPUT_URL :
   case NS_FORM_SELECT :
   case NS_FORM_TEXTAREA :
   case NS_FORM_FIELDSET :
@@ -359,7 +373,6 @@ nsHTMLFormElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 }
 
 NS_IMPL_STRING_ATTR(nsHTMLFormElement, AcceptCharset, acceptcharset)
-NS_IMPL_STRING_ATTR(nsHTMLFormElement, Action, action)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLFormElement, Enctype, enctype,
                                 kFormDefaultEnctype->tag)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLFormElement, Method, method,
@@ -368,7 +381,7 @@ NS_IMPL_STRING_ATTR(nsHTMLFormElement, Name, name)
 NS_IMPL_STRING_ATTR(nsHTMLFormElement, Target, target)
 
 NS_IMETHODIMP
-nsHTMLFormElement::GetMozActionUri(nsAString& aValue)
+nsHTMLFormElement::GetAction(nsAString& aValue)
 {
   GetAttr(kNameSpaceID_None, nsGkAtoms::action, aValue);
   if (aValue.IsEmpty()) {
@@ -376,6 +389,12 @@ nsHTMLFormElement::GetMozActionUri(nsAString& aValue)
     return NS_OK;
   }
   return GetURIAttr(nsGkAtoms::action, nsnull, aValue);
+}
+
+NS_IMETHODIMP
+nsHTMLFormElement::SetAction(const nsAString& aValue)
+{
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::action, aValue, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -688,11 +707,7 @@ nsHTMLFormElement::DoSubmit(nsEvent* aEvent)
   //
   // prepare the submission object
   //
-  nsresult rv = BuildSubmission(getter_Transfers(submission), aEvent);
-  if (NS_FAILED(rv)) {
-    mIsSubmitting = PR_FALSE;
-    return rv;
-  }
+  BuildSubmission(getter_Transfers(submission), aEvent); 
 
   // XXXbz if the script global is that for an sXBL/XBL2 doc, it won't
   // be a window...
@@ -729,17 +744,10 @@ nsHTMLFormElement::BuildSubmission(nsFormSubmission** aFormSubmission,
   NS_ASSERTION(!mPendingSubmission, "tried to build two submissions!");
 
   // Get the originating frame (failure is non-fatal)
-  nsGenericHTMLElement* originatingElement = nsnull;
+  nsIContent *originatingElement = nsnull;
   if (aEvent) {
     if (NS_FORM_EVENT == aEvent->eventStructType) {
-      nsIContent* originator = ((nsFormEvent *)aEvent)->originator;
-      if (originator) {
-        if (!originator->IsHTML()) {
-          return NS_ERROR_UNEXPECTED;
-        }
-        originatingElement =
-          static_cast<nsGenericHTMLElement*>(((nsFormEvent *)aEvent)->originator);
-      }
+      originatingElement = ((nsFormEvent *)aEvent)->originator;
     }
   }
 
@@ -748,13 +756,13 @@ nsHTMLFormElement::BuildSubmission(nsFormSubmission** aFormSubmission,
   //
   // Get the submission object
   //
-  rv = GetSubmissionFromForm(this, originatingElement, aFormSubmission);
+  rv = GetSubmissionFromForm(this, aFormSubmission);
   NS_ENSURE_SUBMIT_SUCCESS(rv);
 
   //
   // Dump the data into the submission object
   //
-  rv = WalkFormElements(*aFormSubmission);
+  rv = WalkFormElements(*aFormSubmission, originatingElement);
   NS_ENSURE_SUBMIT_SUCCESS(rv);
 
   return NS_OK;
@@ -764,13 +772,11 @@ nsresult
 nsHTMLFormElement::SubmitSubmission(nsFormSubmission* aFormSubmission)
 {
   nsresult rv;
-  nsIContent* originatingElement = aFormSubmission->GetOriginatingElement();
-
   //
   // Get the action and target
   //
   nsCOMPtr<nsIURI> actionURI;
-  rv = GetActionURL(getter_AddRefs(actionURI), originatingElement);
+  rv = GetActionURL(getter_AddRefs(actionURI));
   NS_ENSURE_SUBMIT_SUCCESS(rv);
 
   if (!actionURI) {
@@ -804,18 +810,8 @@ nsHTMLFormElement::SubmitSubmission(nsFormSubmission* aFormSubmission)
     mIsSubmitting = PR_FALSE;
   }
 
-  // The target is the originating element formtarget attribute if the element
-  // is a submit control and has such an attribute.
-  // Otherwise, the target is the form owner's target attribute,
-  // if it has such an attribute.
-  // Finally, if one of the child nodes of the head element is a base element
-  // with a target attribute, then the value of the target attribute of the
-  // first such base element; or, if there is no such element, the empty string.
   nsAutoString target;
-  if (!(originatingElement && originatingElement->GetAttr(kNameSpaceID_None,
-                                                          nsGkAtoms::formtarget,
-                                                          target)) &&
-      !GetAttr(kNameSpaceID_None, nsGkAtoms::target, target)) {
+  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::target, target)) {
     GetBaseTarget(target);
   }
 
@@ -951,7 +947,8 @@ nsHTMLFormElement::NotifySubmitObservers(nsIURI* aActionURL,
 
 
 nsresult
-nsHTMLFormElement::WalkFormElements(nsFormSubmission* aFormSubmission)
+nsHTMLFormElement::WalkFormElements(nsFormSubmission* aFormSubmission,
+                                    nsIContent* aSubmitElement)
 {
   nsTArray<nsGenericHTMLFormElement*> sortedControls;
   nsresult rv = mControls->GetSortedControls(sortedControls);
@@ -963,7 +960,7 @@ nsHTMLFormElement::WalkFormElements(nsFormSubmission* aFormSubmission)
   PRUint32 len = sortedControls.Length();
   for (PRUint32 i = 0; i < len; ++i) {
     // Tell the control to submit its name/value pairs to the submission
-    sortedControls[i]->SubmitNamesValues(aFormSubmission);
+    sortedControls[i]->SubmitNamesValues(aFormSubmission, aSubmitElement);
   }
 
   return NS_OK;
@@ -1294,7 +1291,7 @@ nsHTMLFormElement::DoResolveName(const nsAString& aName,
 }
 
 void
-nsHTMLFormElement::OnSubmitClickBegin(nsIContent* aOriginatingElement)
+nsHTMLFormElement::OnSubmitClickBegin()
 {
   mDeferSubmission = PR_TRUE;
 
@@ -1304,7 +1301,7 @@ nsHTMLFormElement::OnSubmitClickBegin(nsIContent* aOriginatingElement)
   nsCOMPtr<nsIURI> actionURI;
   nsresult rv;
 
-  rv = GetActionURL(getter_AddRefs(actionURI), aOriginatingElement);
+  rv = GetActionURL(getter_AddRefs(actionURI));
   if (NS_FAILED(rv) || !actionURI)
     return;
 
@@ -1338,8 +1335,7 @@ nsHTMLFormElement::FlushPendingSubmission()
 }
 
 nsresult
-nsHTMLFormElement::GetActionURL(nsIURI** aActionURL,
-                                nsIContent* aOriginatingElement)
+nsHTMLFormElement::GetActionURL(nsIURI** aActionURL)
 {
   nsresult rv = NS_OK;
 
@@ -1348,23 +1344,8 @@ nsHTMLFormElement::GetActionURL(nsIURI** aActionURL,
   //
   // Grab the URL string
   //
-  // If the originating element is a submit control and has the formaction
-  // attribute specified, it should be used. Otherwise, the action attribute
-  // from the form element should be used.
-  //
   nsAutoString action;
-  nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(aOriginatingElement);
-  if (formControl && formControl->IsSubmitControl() &&
-      aOriginatingElement->GetAttr(kNameSpaceID_None, nsGkAtoms::formaction,
-                                   action)) {
-    // Avoid resolving action="" to the base uri, bug 297761.
-    if (!action.IsEmpty()) {
-      static_cast<nsGenericHTMLElement*>(aOriginatingElement)->
-        GetURIAttr(nsGkAtoms::formaction, nsnull, action);
-    }
-  } else {
-    GetMozActionUri(action);
-  }
+  GetAction(action);
 
   //
   // Form the full action URL
@@ -1507,7 +1488,7 @@ nsHTMLFormElement::GetFormData(nsIDOMFormData** aFormData)
 {
   nsRefPtr<nsFormData> fd = new nsFormData();
 
-  nsresult rv = WalkFormElements(fd);
+  nsresult rv = WalkFormElements(fd, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aFormData = fd.forget().get();

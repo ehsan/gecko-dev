@@ -653,6 +653,7 @@ HistoryMenu.prototype = {
     m = undoPopup.appendChild(document.createElement("menuitem"));
     m.id = "menu_restoreAllTabs";
     m.setAttribute("label", strings.getString("menuRestoreAllTabs.label"));
+    m.setAttribute("accesskey", strings.getString("menuRestoreAllTabs.accesskey"));
     m.addEventListener("command", function() {
       for (var i = 0; i < undoItems.length; i++)
         undoCloseTab();
@@ -730,6 +731,7 @@ HistoryMenu.prototype = {
     let m = undoPopup.appendChild(document.createElement("menuitem"));
     m.id = "menu_restoreAllWindows";
     m.setAttribute("label", gNavigatorBundle.getString("menuRestoreAllWindows.label"));
+    m.setAttribute("accesskey", gNavigatorBundle.getString("menuRestoreAllWindows.accesskey"));
     m.setAttribute("oncommand",
       "for (var i = 0; i < " + undoItems.length + "; i++) undoCloseWindow();");
   },

@@ -337,13 +337,18 @@ public:
      */
     static qcms_transform* GetCMSRGBATransform();
 
-    virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
-
     /**
-     * Returns a 1x1 surface that can be used to create graphics contexts
-     * for measuring text etc as if they will be rendered to the screen
+     * Return display DPI
      */
-    gfxASurface* ScreenReferenceSurface() { return mScreenReferenceSurface; }
+    static PRInt32 GetDPI() {
+        if (sDPI < 0) {
+            gfxPlatform::GetPlatform()->InitDisplayCaps();
+        }
+        NS_ASSERTION(sDPI > 0, "Something is wrong");
+        return sDPI;
+    }
+
+    virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
 
 protected:
     gfxPlatform();
@@ -354,6 +359,12 @@ protected:
     void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
                             eFontPrefLang aCharLang, eFontPrefLang aPageLang);
                                                
+    /**
+     * Initialize any needed display metrics (such as DPI)
+     */
+    virtual void InitDisplayCaps();
+    static PRInt32 sDPI;
+
     PRBool  mAllowDownloadableFonts;
 
     // whether to use the HarfBuzz layout engine
@@ -362,8 +373,8 @@ protected:
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();
 
-    nsRefPtr<gfxASurface> mScreenReferenceSurface;
     nsTArray<PRUint32> mCJKPrefLangs;
+
     nsCOMPtr<nsIObserver> overrideObserver;
 };
 
