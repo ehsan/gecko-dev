@@ -752,9 +752,9 @@ Assembler::asm_call(LInsp ins)
     uint32_t atypes = call->_argtypes;
 
     // skip return type
-    ArgSize rsize = (ArgSize)(atypes & ARGSIZE_MASK_ANY);
+    ArgSize rsize = (ArgSize)(atypes & 3);
 
-    atypes >>= ARGSIZE_SHIFT;
+    atypes >>= 2;
 
     // if we're using VFP, and the return type is a double,
     // it'll come back in R0/R1.  We need to either place it

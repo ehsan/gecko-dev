@@ -77,6 +77,7 @@
 
 // No-ops for non-existent ce global apis.
 inline void FlashWindow(HWND window, BOOL ignore){}
+inline int  GetMessageTime() {return 0;}
 inline BOOL IsIconic(HWND inWnd){return false;}
 
 class nsWindowCE {
@@ -86,7 +87,7 @@ public:
 #if defined(WINCE_HAVE_SOFTKB)
   static void ToggleSoftKB(PRBool show);
   static void CreateSoftKeyMenuBar(HWND wnd);
-  static void NotifySoftKbObservers(LPRECT = NULL);
+  static void NotifySoftKbObservers();
   static TriStateBool sShowSIPButton;
 #endif
 };

@@ -26,7 +26,6 @@
  *  Robert Strong  <robert.bugzilla@gmail.com>
  *  Asaf Romano    <mano@mozilla.com>
  *  Ryan Jones     <sciguyryan@gmail.com>
- *  Paul O'Shannessy <paul@oshannessy.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -216,11 +215,9 @@ typedef struct {
 #define APP_REG_NAME L"Firefox"
 #define CLS_HTML "FirefoxHTML"
 #define CLS_URL "FirefoxURL"
-#define CPL_DESKTOP L"\\Control Panel\\Desktop"
 #define VAL_OPEN "\"%APPPATH%\" -requestPending -osint -url \"%1\""
 #define VAL_FILE_ICON "%APPPATH%,1"
 #else
-#define CPL_DESKTOP L"\\ControlPanel\\Desktop"
 #define VAL_OPEN "\"%APPPATH%\" -osint -url \"%1\""
 #define VAL_FILE_ICON "%APPPATH%,-2"
 #endif
@@ -659,12 +656,12 @@ nsWindowsShellService::SetDesktopBackground(nsIDOMElement* aElement,
      PRBool result = PR_FALSE;
      DWORD  dwDisp = 0;
      HKEY   key;
-     // Try to create/open a subkey under HKCU.
-     DWORD res = ::RegCreateKeyExW(HKEY_CURRENT_USER, CPL_DESKTOP,
+     // Try to create/open a subkey under HKLM.
+     DWORD res = ::RegCreateKeyExW(HKEY_CURRENT_USER,
+                                   L"Control Panel\\Desktop",
                                    0, NULL, REG_OPTION_NON_VOLATILE,
                                    KEY_WRITE, NULL, &key, &dwDisp);
     if (REG_SUCCEEDED(res)) {
-#ifndef WINCE
       PRUnichar tile[2], style[2];
       switch (aPosition) {
         case BACKGROUND_TILE:
@@ -691,25 +688,8 @@ nsWindowsShellService::SetDesktopBackground(nsIDOMElement* aElement,
                        0, REG_SZ, (const BYTE *)style, size);
       ::SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, (PVOID)path.get(),
                               SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
-#else
-      DWORD tile = (aPosition == BACKGROUND_TILE);
-      ::RegSetValueExW(key, L"Tile",
-                       0, REG_DWORD, (const BYTE *)&tile, sizeof(DWORD));
-      // On WinCE SPI_SETDESKWALLPAPER isn't available, so set the registry
-      // entry ourselves and then broadcast UI change
-      PRInt32 size = (path.Length() + 1) * sizeof(PRUnichar);
-      ::RegSetValueExW(key, L"Wallpaper",
-                       0, REG_SZ, (const BYTE *)path.get(), size);
-      ::SendMessage(HWND_BROADCAST, WM_SETTINGCHANGE, NULL, 0);
-#endif
-
       // Close the key we opened.
       ::RegCloseKey(key);
-
-#ifdef WINCE
-      // Ensure that the writes are flushed in case of hard reboot
-      ::RegFlushKey(HKEY_CURRENT_USER);
-#endif
     }
   }
   return rv;
@@ -835,13 +815,10 @@ nsWindowsShellService::SetDesktopBackgroundColor(PRUint32 aColor)
 
   ::SetSysColors(sizeof(aParameters) / sizeof(int), aParameters, colors);
 
-  // SetSysColors is persisting across sessions on Windows CE, so no need to
-  // write to registry
-#ifndef WINCE
   PRBool result = PR_FALSE;
   DWORD  dwDisp = 0;
   HKEY   key;
-  // Try to create/open a subkey under HKCU.
+  // Try to create/open a subkey under HKLM.
   DWORD rv = ::RegCreateKeyExW(HKEY_CURRENT_USER,
                                L"Control Panel\\Colors", 0, NULL,
                                REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL,
@@ -859,7 +836,6 @@ nsWindowsShellService::SetDesktopBackgroundColor(PRUint32 aColor)
   
   // Close the key we opened.
   ::RegCloseKey(key);
-#endif
   return NS_OK;
 }
 

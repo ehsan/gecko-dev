@@ -103,7 +103,6 @@ struct nsPoint;
 struct nsRect;
 struct nsSize;
 struct nsMargin;
-struct CharacterDataChangeInfo;
 
 typedef class nsIFrame nsIBox;
 
@@ -838,7 +837,7 @@ public:
    * Get the position of the frame's baseline, relative to the top of
    * the frame (its top border edge).  Only valid when Reflow is not
    * needed and when the frame returned nsHTMLReflowMetrics::
-   * ASK_FOR_BASELINE as ascent in its reflow metrics.
+   * ASK_FOR_ASCENT as ascent in its reflow metrics.
    */
   virtual nscoord GetBaseline() const = 0;
 
@@ -1121,10 +1120,17 @@ public:
   void RemoveStateBits(nsFrameState aBits) { mState &= ~aBits; }
 
   /**
-   * This call is invoked on the primary frame for a character data content
-   * node, when it is changed in the content tree.
+   * This call is invoked when content is changed in the content tree.
+   * The first frame that maps that content is asked to deal with the
+   * change by generating an incremental reflow command.
+   *
+   * @param aPresContext the presentation context
+   * @param aContent     the content node that was changed
+   * @param aAppend      a hint to the frame about the change
    */
-  NS_IMETHOD  CharacterDataChanged(CharacterDataChangeInfo* aInfo) = 0;
+  NS_IMETHOD  CharacterDataChanged(nsPresContext* aPresContext,
+                                   nsIContent*     aChild,
+                                   PRBool          aAppend) = 0;
 
   /**
    * This call is invoked when the value of a content objects's attribute

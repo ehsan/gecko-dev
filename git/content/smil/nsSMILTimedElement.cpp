@@ -234,8 +234,11 @@ nsSMILTimedElement::SampleAt(nsSMILTime aDocumentTime)
     {
     case STATE_STARTUP:
       {
+        nsSMILTimeValue beginAfter;
+        beginAfter.SetMillis(LL_MININT);
+
         mElementState =
-         (NS_SUCCEEDED(GetNextInterval(nsnull, mCurrentInterval)))
+         (NS_SUCCEEDED(GetNextInterval(beginAfter, PR_TRUE, mCurrentInterval)))
          ? STATE_WAITING
          : STATE_POSTACTIVE;
         stateChanged = PR_TRUE;
@@ -260,7 +263,9 @@ nsSMILTimedElement::SampleAt(nsSMILTime aDocumentTime)
         if (mCurrentInterval.mEnd.CompareTo(docTime) <= 0) {
           nsSMILInterval newInterval;
           mElementState =
-            (NS_SUCCEEDED(GetNextInterval(&mCurrentInterval, newInterval)))
+            (NS_SUCCEEDED(GetNextInterval(mCurrentInterval.mEnd,
+                                          PR_FALSE,
+                                          newInterval)))
             ? STATE_WAITING
             : STATE_POSTACTIVE;
           if (mClient) {
@@ -701,28 +706,30 @@ nsSMILTimedElement::SetBeginOrEndSpec(const nsAString& aSpec,
 // http://www.w3.org/TR/2001/REC-smil-animation-20010904/#Timing-BeginEnd-LC-Start
 //
 nsresult
-nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
+nsSMILTimedElement::GetNextInterval(const nsSMILTimeValue& aBeginAfter,
+                                    PRBool aFirstInterval,
                                     nsSMILInterval& aResult)
 {
   static nsSMILTimeValue zeroTime;
   zeroTime.SetMillis(0L);
 
-  if (mRestartMode == RESTART_NEVER && aPrevInterval)
-    return NS_ERROR_FAILURE;
-
-  // Calc starting point
-  nsSMILTimeValue beginAfter;
-  PRBool prevIntervalWasZeroDur = PR_FALSE;
-  if (aPrevInterval) {
-    beginAfter = aPrevInterval->mEnd;
-    prevIntervalWasZeroDur
-      = (aPrevInterval->mEnd.CompareTo(aPrevInterval->mBegin) == 0);
-  } else {
-    beginAfter.SetMillis(LL_MININT);
-  }
-
+  nsSMILTimeValue beginAfter = aBeginAfter;
   nsSMILTimeValue tempBegin;
   nsSMILTimeValue tempEnd;
+  PRInt32         beginPos = 0;
+  PRInt32         endPos = 0;
+
+  //
+  // This is to handle the special case when a we are calculating the first
+  // interval and we have a non-0-duration interval immediately after
+  // a 0-duration in which case but we have to be careful not to re-use an end
+  // that has already been used in another interval. See the pseudocode in
+  // SMILANIM 3.6.8 for getFirstInterval.
+  //
+  PRInt32 endMaxPos = 0;
+
+  if (mRestartMode == RESTART_NEVER && !aFirstInterval)
+    return NS_ERROR_FAILURE;
 
   nsSMILInstanceTime::Comparator comparator;
   mBeginInstances.Sort(comparator);
@@ -732,7 +739,6 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
     if (!mBeginSpecSet && beginAfter.CompareTo(zeroTime) <= 0) {
       tempBegin.SetMillis(0);
     } else {
-      PRInt32 beginPos = 0;
       PRBool beginFound = GetNextGreaterOrEqual(mBeginInstances, beginAfter,
                                                 beginPos, tempBegin);
       if (!beginFound)
@@ -745,15 +751,22 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
 
       tempEnd = CalcActiveEnd(tempBegin, indefiniteEnd);
     } else {
-      PRInt32 endPos = 0;
+      //
+      // Start searching from the beginning again.
+      //
+      endPos = 0;
+
       PRBool endFound = GetNextGreaterOrEqual(mEndInstances, tempBegin,
                                               endPos, tempEnd);
 
-      // If the last interval ended at the same point and was zero-duration and
-      // this one is too, look for another end to use instead
-      if (tempEnd.CompareTo(tempBegin) == 0 && prevIntervalWasZeroDur) {
-        endFound = GetNextGreater(mEndInstances, tempBegin, endPos, tempEnd);
+      if ((!aFirstInterval && tempEnd.CompareTo(aBeginAfter) == 0) ||
+          (aFirstInterval && tempEnd.CompareTo(tempBegin) == 0 &&
+           endPos <= endMaxPos)) {
+        endFound =
+          GetNextGreaterOrEqual(mEndInstances, tempBegin, endPos, tempEnd);
       }
+
+      endMaxPos = endPos;
 
       if (!endFound) {
         if (mEndHasEventConditions || mEndInstances.Length() == 0) {
@@ -772,25 +785,11 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
       tempEnd = CalcActiveEnd(tempBegin, tempEnd);
     }
 
-    // If we get two zero-length intervals in a row we will potentially have an
-    // infinite loop so we break it here by searching for the next begin time
-    // greater than tempEnd on the next time around.
-    if (tempEnd.IsResolved() && tempBegin.CompareTo(tempEnd) == 0) {
-      if (prevIntervalWasZeroDur) {
-        beginAfter.SetMillis(tempEnd.GetMillis()+1);
-        prevIntervalWasZeroDur = PR_FALSE;
-        continue;
-      }
-      prevIntervalWasZeroDur = PR_TRUE;
-    }
-
-    if (tempEnd.CompareTo(zeroTime) > 0 ||
-     (tempBegin.CompareTo(zeroTime) == 0 && tempEnd.CompareTo(zeroTime) == 0)) {
+    if (tempEnd.CompareTo(zeroTime) > 0) {
       aResult.mBegin = tempBegin;
       aResult.mEnd = tempEnd;
       return NS_OK;
     } else if (mRestartMode == RESTART_NEVER) {
-      // tempEnd <= 0 so we're going to loop which effectively means restarting
       return NS_ERROR_FAILURE;
     } else {
       beginAfter = tempEnd;
@@ -799,19 +798,6 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
   NS_NOTREACHED("Hmm... we really shouldn't be here");
 
   return NS_ERROR_FAILURE;
-}
-
-PRBool
-nsSMILTimedElement::GetNextGreater(
-    const nsTArray<nsSMILInstanceTime>& aList,
-    const nsSMILTimeValue& aBase,
-    PRInt32 &aPosition,
-    nsSMILTimeValue& aResult)
-{
-  PRBool found;
-  while ((found = GetNextGreaterOrEqual(aList, aBase, aPosition, aResult))
-         && aResult.CompareTo(aBase) == 0);
-  return found;
 }
 
 PRBool
@@ -971,7 +957,9 @@ nsSMILTimedElement::CheckForEarlyEnd(const nsSMILTimeValue& aDocumentTime)
   nsSMILTimeValue nextBegin;
   PRInt32 position = 0;
 
-  GetNextGreater(mBeginInstances, mCurrentInterval.mBegin, position, nextBegin);
+  while (GetNextGreaterOrEqual(mBeginInstances, mCurrentInterval.mBegin,
+                               position, nextBegin)
+         && nextBegin.CompareTo(mCurrentInterval.mBegin) == 0);
 
   if (nextBegin.IsResolved() &&
       nextBegin.CompareTo(mCurrentInterval.mBegin) > 0 &&
@@ -985,10 +973,16 @@ void
 nsSMILTimedElement::UpdateCurrentInterval()
 {
   nsSMILInterval updatedInterval;
-  nsSMILInterval* prevInterval = mOldIntervals.IsEmpty()
-                               ? nsnull
-                               : &mOldIntervals[mOldIntervals.Length() - 1];
-  nsresult rv = GetNextInterval(prevInterval, updatedInterval);
+  PRBool isFirstInterval = mOldIntervals.IsEmpty();
+
+  nsSMILTimeValue beginAfter;
+  if (!isFirstInterval) {
+    beginAfter = mOldIntervals[mOldIntervals.Length() - 1].mEnd;
+  } else {
+    beginAfter.SetMillis(LL_MININT);
+  }
+
+  nsresult rv = GetNextInterval(beginAfter, isFirstInterval, updatedInterval);
 
   if (NS_SUCCEEDED(rv)) {
 
@@ -1055,7 +1049,7 @@ nsSMILTimedElement::SampleFillValue()
   nsSMILTime simpleTime =
     ActiveTimeToSimpleTime(activeTime, repeatIteration);
 
-  if (simpleTime == 0L && repeatIteration) {
+  if (simpleTime == 0L) {
     mClient->SampleLastValue(--repeatIteration);
   } else {
     mClient->SampleAt(simpleTime, mSimpleDur, repeatIteration);

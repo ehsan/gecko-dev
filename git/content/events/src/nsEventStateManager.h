@@ -326,8 +326,6 @@ protected:
    */
   void FillInEventFromGestureDown(nsMouseEvent* aEvent);
 
-  nsresult DoContentCommandEvent(nsContentCommandEvent* aEvent);
-
   PRInt32     mLockCursor;
 
   nsWeakFrame mCurrentTarget;

@@ -203,7 +203,9 @@ NS_QUERYFRAME_TAIL_INHERITING(nsSVGGlyphFrameBase)
 // nsIFrame methods
 
 NS_IMETHODIMP
-nsSVGGlyphFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
+nsSVGGlyphFrame::CharacterDataChanged(nsPresContext*  aPresContext,
+                                      nsIContent*     aChild,
+                                      PRBool          aAppend)
 {
   ClearTextRun();
   NotifyGlyphMetricsChange();

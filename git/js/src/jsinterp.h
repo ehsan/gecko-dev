@@ -193,8 +193,9 @@ typedef struct JSInlineFrame {
 
 /*
  * Property cache with structurally typed capabilities for invalidation, for
- * polymorphic callsite method/get/set speedups.  For details, see
- * <https://developer.mozilla.org/en/SpiderMonkey/Internals/Property_cache>.
+ * polymorphic callsite method/get/set speedups.
+ *
+ * See bug https://bugzilla.mozilla.org/show_bug.cgi?id=365851.
  */
 #define PROPERTY_CACHE_LOG2     12
 #define PROPERTY_CACHE_SIZE     JS_BIT(PROPERTY_CACHE_LOG2)
@@ -212,7 +213,7 @@ typedef struct JSInlineFrame {
 #define PROPERTY_CACHE_HASH_PC(pc,kshape)                                     \
     PROPERTY_CACHE_HASH(pc, kshape)
 
-#define PROPERTY_CACHE_HASH_ATOM(atom,obj)                                    \
+#define PROPERTY_CACHE_HASH_ATOM(atom,obj,pobj)                               \
     PROPERTY_CACHE_HASH((jsuword)(atom) >> 2, OBJ_SHAPE(obj))
 
 /*

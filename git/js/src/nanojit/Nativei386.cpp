@@ -175,12 +175,6 @@ namespace nanojit
         uint32_t iargs = call->count_iargs();
         int32_t fargs = call->count_args() - iargs;
 
-        bool indirect = call->isIndirect();
-        if (indirect) {
-            // target arg isn't pushed, its consumed in the call
-            iargs --;
-        }
-
         uint32_t max_regs = max_abi_regs[call->_abi];
         if (max_regs > iargs)
             max_regs = iargs;
@@ -210,16 +204,7 @@ namespace nanojit
         }
 
         NanoAssert(ins->isop(LIR_call) || ins->isop(LIR_fcall));
-        if (!indirect) {
-            CALL(call);
-        }
-        else {
-            // indirect call.  x86 Calling conventions don't use EAX as an
-            // argument, and do use EAX as a return value.  We need a register
-            // for the address to call, so we use EAX since it will always be
-            // available
-            CALLr(call, EAX);
-        }
+        CALL(call);
 
         // make sure fpu stack is empty before call (restoreCallerSaved)
         NanoAssert(_allocator.isFree(FST0));
@@ -228,12 +213,8 @@ namespace nanojit
         // pre-assign registers to the first N 4B args based on the calling convention
         uint32_t n = 0;
 
-        ArgSize sizes[MAXARGS];
+        ArgSize sizes[2*MAXARGS];
         uint32_t argc = call->get_sizes(sizes);
-        if (indirect) {
-            argc--;
-            asm_arg(ARGSIZE_P, ins->arg(argc), EAX);
-        }
 
         for(uint32_t i=0; i < argc; i++)
         {
@@ -1302,7 +1283,7 @@ namespace nanojit
                 NanoAssert(0); // not supported
             }
         }
-        else if (sz == ARGSIZE_I || sz == ARGSIZE_U)
+        else if (sz == ARGSIZE_LO)
         {
             if (r != UnknownReg) {
                 // arg goes in specific register

@@ -1840,35 +1840,6 @@ function delayedOpenTab(aUrl, aReferrer, aCharset, aPostData, aAllowThirdPartyFi
   gBrowser.loadOneTab(aUrl, aReferrer, aCharset, aPostData, false, aAllowThirdPartyFixup);
 }
 
-var gLastOpenDirectory = {
-  _lastDir: null,
-  get path() {
-    if (!this._lastDir || !this._lastDir.exists()) {
-      try {
-        this._lastDir = gPrefService.getComplexValue("browser.open.lastDir",
-                                                     Ci.nsILocalFile);
-        if (!this._lastDir.exists())
-          this._lastDir = null;
-      }
-      catch(e) {}
-    }
-    return this._lastDir;
-  },
-  set path(val) {
-    if (!val || !val.exists() || !val.isDirectory())
-      return;
-    this._lastDir = val.clone();
-
-    // Don't save the last open directory pref inside the Private Browsing mode
-    if (!gPrivateBrowsingUI.privateBrowsingEnabled)
-      gPrefService.setComplexValue("browser.open.lastDir", Ci.nsILocalFile,
-                                   this._lastDir);
-  },
-  reset: function() {
-    this._lastDir = null;
-  }
-};
-
 function BrowserOpenFileWindow()
 {
   // Get filepicker component.
@@ -1878,13 +1849,9 @@ function BrowserOpenFileWindow()
     fp.init(window, gNavigatorBundle.getString("openFile"), nsIFilePicker.modeOpen);
     fp.appendFilters(nsIFilePicker.filterAll | nsIFilePicker.filterText | nsIFilePicker.filterImages |
                      nsIFilePicker.filterXML | nsIFilePicker.filterHTML);
-    fp.displayDirectory = gLastOpenDirectory.path;
 
-    if (fp.show() == nsIFilePicker.returnOK) {
-      if (fp.file && fp.file.exists())
-        gLastOpenDirectory.path = fp.file.parent.QueryInterface(Ci.nsILocalFile);
+    if (fp.show() == nsIFilePicker.returnOK)
       openTopWin(fp.fileURL.spec);
-    }
   } catch (ex) {
   }
 }
@@ -2591,6 +2558,7 @@ function onExitPrintPreview()
 {
   // restore chrome to original state
   gInPrintPreviewMode = false;
+  FullZoom.setSettingValue();
   toggleAffectedChrome(false);
 }
 
@@ -4261,7 +4229,7 @@ var XULBrowserWindow = {
   // simulate all change notifications after switching tabs
   onUpdateCurrentBrowser: function (aStateFlags, aStatus, aMessage, aTotalProgress) {
     if (FullZoom.updateBackgroundTabs)
-      FullZoom.onLocationChange(gBrowser.currentURI, true);
+      FullZoom.onLocationChange(gBrowser.currentURI);
     var nsIWebProgressListener = Components.interfaces.nsIWebProgressListener;
     var loadingDone = aStateFlags & nsIWebProgressListener.STATE_STOP;
     // use a pseudo-object instead of a (potentially non-existing) channel for getting
@@ -4328,7 +4296,7 @@ var TabsProgressListener = {
   onLocationChange: function (aBrowser, aWebProgress, aRequest, aLocationURI) {
     // Filter out any sub-frame loads
     if (aBrowser.contentWindow == aWebProgress.DOMWindow)
-      FullZoom.onLocationChange(aLocationURI, false, aBrowser);
+      FullZoom.onLocationChange(aLocationURI, aBrowser);
   },
   
   onStatusChange: function (aBrowser, aWebProgress, aRequest, aStatus, aMessage) {
@@ -6754,17 +6722,10 @@ let DownloadMonitorPanel = {
       gDownloadMgr.removeListener(this);
   },
 
-  inited: function DMP_inited() {
-    return this._panel != null;
-  },
-
   /**
    * Update status based on the number of active and paused downloads
    */
   updateStatus: function DMP_updateStatus() {
-    if (!this.inited())
-      return;
-
     let numActive = gDownloadMgr.activeDownloadCount;
 
     // Hide the panel and reset the "last time" if there's no downloads
@@ -6972,10 +6933,6 @@ let gPrivateBrowsingUI = {
         docElement.getAttribute("titlemodifier_privatebrowsing"));
       docElement.setAttribute("browsingmode", "private");
     }
-
-    setTimeout(function () {
-      DownloadMonitorPanel.updateStatus();
-    }, 0);
   },
 
   onExitPrivateBrowsing: function PBUI_onExitPrivateBrowsing() {
@@ -7010,12 +6967,6 @@ let gPrivateBrowsingUI = {
             .removeAttribute("disabled");
 
     this._privateBrowsingAutoStarted = false;
-
-    gLastOpenDirectory.reset();
-
-    setTimeout(function () {
-      DownloadMonitorPanel.updateStatus();
-    }, 0);
   },
 
   _setPBMenuTitle: function PBUI__setPBMenuTitle(aMode) {

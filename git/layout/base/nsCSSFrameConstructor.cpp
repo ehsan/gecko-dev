@@ -5541,7 +5541,7 @@ IsRootBoxFrame(nsIFrame *aFrame)
 nsresult
 nsCSSFrameConstructor::ReconstructDocElementHierarchy()
 {
-  return RecreateFramesForContent(mPresShell->GetDocument()->GetRootContent(), PR_FALSE);
+  return RecreateFramesForContent(mPresShell->GetDocument()->GetRootContent());
 }
 
 nsIFrame*
@@ -6242,7 +6242,7 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
       if (IsSpecialFramesetChild(aContainer->GetChildAt(i))) {
         // Just reframe the parent, since framesets are weird like that.
         LAYOUT_PHASE_TEMP_EXIT();
-        nsresult rv = RecreateFramesForContent(parentFrame->GetContent(), PR_FALSE);
+        nsresult rv = RecreateFramesForContent(parentFrame->GetContent());
         LAYOUT_PHASE_TEMP_REENTER();
         return rv;
       }
@@ -6257,7 +6257,7 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
 #ifdef MOZ_MATHML
   if (parentFrame->IsFrameOfType(nsIFrame::eMathML)) {
     LAYOUT_PHASE_TEMP_EXIT();
-    nsresult rv = RecreateFramesForContent(parentFrame->GetContent(), PR_FALSE);
+    nsresult rv = RecreateFramesForContent(parentFrame->GetContent());
     LAYOUT_PHASE_TEMP_REENTER();
     return rv;
   }
@@ -6588,7 +6588,7 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
       IsSpecialFramesetChild(aChild)) {
     // Just reframe the parent, since framesets are weird like that.
     LAYOUT_PHASE_TEMP_EXIT();
-    nsresult rv = RecreateFramesForContent(parentFrame->GetContent(), PR_FALSE);
+    nsresult rv = RecreateFramesForContent(parentFrame->GetContent());
     LAYOUT_PHASE_TEMP_REENTER();
     return rv;
   }
@@ -6602,7 +6602,7 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
     // and if so, proceed. But we'd have to extend nsFieldSetFrame
     // to locate this legend in the inserted frames and extract it.
     LAYOUT_PHASE_TEMP_EXIT();
-    nsresult rv = RecreateFramesForContent(parentFrame->GetContent(), PR_FALSE);
+    nsresult rv = RecreateFramesForContent(parentFrame->GetContent());
     LAYOUT_PHASE_TEMP_REENTER();
     return rv;
   }
@@ -6615,7 +6615,7 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
 #ifdef MOZ_MATHML
   if (parentFrame->IsFrameOfType(nsIFrame::eMathML)) {
     LAYOUT_PHASE_TEMP_EXIT();
-    nsresult rv = RecreateFramesForContent(parentFrame->GetContent(), PR_FALSE);
+    nsresult rv = RecreateFramesForContent(parentFrame->GetContent());
     LAYOUT_PHASE_TEMP_REENTER();
     return rv;
   }
@@ -7175,7 +7175,7 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
       // Just reframe the parent, since framesets are weird like that.
       *aDidReconstruct = PR_TRUE;
       LAYOUT_PHASE_TEMP_EXIT();
-      nsresult rv = RecreateFramesForContent(parentFrame->GetContent(), PR_FALSE);
+      nsresult rv = RecreateFramesForContent(parentFrame->GetContent());
       LAYOUT_PHASE_TEMP_REENTER();
       return rv;
     }
@@ -7189,7 +7189,7 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
     if (possibleMathMLAncestor->IsFrameOfType(nsIFrame::eMathML)) {
       *aDidReconstruct = PR_TRUE;
       LAYOUT_PHASE_TEMP_EXIT();
-      nsresult rv = RecreateFramesForContent(possibleMathMLAncestor->GetContent(), PR_FALSE);
+      nsresult rv = RecreateFramesForContent(possibleMathMLAncestor->GetContent());
       LAYOUT_PHASE_TEMP_REENTER();
       return rv;
     }
@@ -7206,7 +7206,7 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
         !AnyKidsNeedBlockParent(childFrame->GetNextSibling())) {
       *aDidReconstruct = PR_TRUE;
       LAYOUT_PHASE_TEMP_EXIT();
-      nsresult rv = RecreateFramesForContent(grandparentFrame->GetContent(), PR_TRUE);
+      nsresult rv = RecreateFramesForContent(grandparentFrame->GetContent());
       LAYOUT_PHASE_TEMP_REENTER();
       return rv;
     }
@@ -7571,8 +7571,7 @@ InvalidateCanvasIfNeeded(nsIPresShell* presShell, nsIContent* node)
 }
 
 nsresult
-nsCSSFrameConstructor::StyleChangeReflow(nsIFrame* aFrame,
-                                         nsChangeHint aHint)
+nsCSSFrameConstructor::StyleChangeReflow(nsIFrame* aFrame)
 {
   // If the frame hasn't even received an initial reflow, then don't
   // send it a style-change reflow!
@@ -7587,27 +7586,17 @@ nsCSSFrameConstructor::StyleChangeReflow(nsIFrame* aFrame,
   }
 #endif
 
-  nsIPresShell::IntrinsicDirty dirtyType;
-  if (aHint & nsChangeHint_ClearDescendantIntrinsics) {
-    NS_ASSERTION(aHint & nsChangeHint_ClearAncestorIntrinsics,
-                 "Please read the comments in nsChangeHint.h");
-    dirtyType = nsIPresShell::eStyleChange;
-  } else if (aHint & nsChangeHint_ClearAncestorIntrinsics) {
-    dirtyType = nsIPresShell::eTreeChange;
-  } else {
-    dirtyType = nsIPresShell::eResize;
-  }
-
-  nsFrameState dirtyBits;
-  if (aHint & nsChangeHint_NeedDirtyReflow) {
-    dirtyBits = NS_FRAME_IS_DIRTY;
-  } else {
-    dirtyBits = NS_FRAME_HAS_DIRTY_CHILDREN;
-  }
+  // If the frame is part of a split block-in-inline hierarchy, then
+  // target the style-change reflow at the first ``normal'' ancestor
+  // so we're sure that the style change will propagate to any
+  // anonymously created siblings.
+  if (IsFrameSpecial(aFrame))
+    aFrame = GetIBContainingBlockFor(aFrame);
 
   do {
-    mPresShell->FrameNeedsReflow(aFrame, dirtyType, dirtyBits);
-    aFrame = nsLayoutUtils::GetNextContinuationOrSpecialSibling(aFrame);
+    mPresShell->FrameNeedsReflow(aFrame, nsIPresShell::eStyleChange,
+                                 NS_FRAME_IS_DIRTY);
+    aFrame = aFrame->GetNextContinuation();
   } while (aFrame);
 
   return NS_OK;
@@ -7615,7 +7604,7 @@ nsCSSFrameConstructor::StyleChangeReflow(nsIFrame* aFrame,
 
 nsresult
 nsCSSFrameConstructor::CharacterDataChanged(nsIContent* aContent,
-                                            CharacterDataChangeInfo* aInfo)
+                                            PRBool aAppend)
 {
   AUTO_LAYOUT_PHASE_ENTRY_POINT(mPresShell->GetPresContext(), FrameC);
   nsresult      rv = NS_OK;
@@ -7630,7 +7619,7 @@ nsCSSFrameConstructor::CharacterDataChanged(nsIContent* aContent,
                  "Bit should never be set on generated content");
 #endif
     LAYOUT_PHASE_TEMP_EXIT();
-    nsresult rv = RecreateFramesForContent(aContent, PR_FALSE);
+    nsresult rv = RecreateFramesForContent(aContent);
     LAYOUT_PHASE_TEMP_REENTER();
     return rv;
   }
@@ -7675,7 +7664,8 @@ nsCSSFrameConstructor::CharacterDataChanged(nsIContent* aContent,
       }
     }
 
-    frame->CharacterDataChanged(aInfo);
+    frame->CharacterDataChanged(mPresShell->GetPresContext(), aContent,
+                                aAppend);
 
     if (haveFirstLetterStyle) {
       nsFrameConstructorState state(mPresShell, mFixedContainingBlock,
@@ -7728,11 +7718,6 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
     nsIContent* content;
     nsChangeHint hint;
     aChangeList.ChangeAt(index, frame, content, hint);
-
-    NS_ASSERTION(!(hint & nsChangeHint_ReflowFrame) ||
-                 (hint & nsChangeHint_NeedReflow),
-                 "Reflow hint bits set without actually asking for a reflow");
-
     if (frame && frame->GetContent() != content) {
       // XXXbz this is due to image maps messing with the primary frame map.
       // See bug 135040.  Remove this block once that's fixed.
@@ -7753,7 +7738,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
     }
 
     if (hint & nsChangeHint_ReconstructFrame) {
-      RecreateFramesForContent(content, PR_FALSE);
+      RecreateFramesForContent(content);
     } else {
       NS_ASSERTION(frame, "This shouldn't happen");
 #ifdef MOZ_SVG
@@ -7761,8 +7746,8 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
         nsSVGEffects::UpdateEffects(frame);
       }
 #endif
-      if (hint & nsChangeHint_NeedReflow) {
-        StyleChangeReflow(frame, hint);
+      if (hint & nsChangeHint_ReflowFrame) {
+        StyleChangeReflow(frame);
         didReflow = PR_TRUE;
       }
       if (hint & (nsChangeHint_RepaintFrame | nsChangeHint_SyncFrameView)) {
@@ -7832,7 +7817,7 @@ nsCSSFrameConstructor::RestyleElement(nsIContent     *aContent,
                "frame/content mismatch");
 
   if (aMinHint & nsChangeHint_ReconstructFrame) {
-    RecreateFramesForContent(aContent, PR_FALSE);
+    RecreateFramesForContent(aContent);
   } else if (aPrimaryFrame) {
     nsStyleChangeList changeList;
     mPresShell->FrameManager()->
@@ -8877,7 +8862,7 @@ nsCSSFrameConstructor::MaybeRecreateFramesForContent(nsIContent* aContent)
 
     frameManager->ChangeUndisplayedContent(aContent, newContext);
     if (newContext->GetStyleDisplay()->mDisplay != NS_STYLE_DISPLAY_NONE) {
-      result = RecreateFramesForContent(aContent, PR_FALSE);
+      result = RecreateFramesForContent(aContent);
     }
   }
   return result;
@@ -8935,7 +8920,7 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
       aFrame->GetParent()->GetType() == nsGkAtoms::fieldSetFrame) {
     // When we remove the legend for a fieldset, we should reframe
     // the fieldset to ensure another legend is used, if there is one
-    *aResult = RecreateFramesForContent(aFrame->GetParent()->GetContent(), PR_FALSE);
+    *aResult = RecreateFramesForContent(aFrame->GetParent()->GetContent());
     return PR_TRUE;
   }
 
@@ -8957,7 +8942,7 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
          parent->GetFirstChild(nsGkAtoms::captionList) == inFlowFrame)) {
       // We're the first or last frame in the pseudo.  Need to reframe.
       // Good enough to recreate frames for |parent|'s content
-      *aResult = RecreateFramesForContent(parent->GetContent(), PR_TRUE);
+      *aResult = RecreateFramesForContent(parent->GetContent());
       return PR_TRUE;
     }
   }
@@ -8981,7 +8966,7 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
 #endif
     // Good enough to recreate frames for aFrame's parent's content; even if
     // aFrame's parent is a table pseudo, that'll be the right content node.
-    *aResult = RecreateFramesForContent(parent->GetContent(), PR_TRUE);
+    *aResult = RecreateFramesForContent(parent->GetContent());
     return PR_TRUE;
   }
 
@@ -9021,8 +9006,7 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
 }
  
 nsresult
-nsCSSFrameConstructor::RecreateFramesForContent(nsIContent* aContent,
-                                                PRBool aAsyncInsert)
+nsCSSFrameConstructor::RecreateFramesForContent(nsIContent* aContent)
 {
   // If there is no document, we don't want to recreate frames for it.  (You
   // shouldn't generally be giving this method content without a document
@@ -9055,7 +9039,7 @@ nsCSSFrameConstructor::RecreateFramesForContent(nsIContent* aContent,
   if (frame) {
     nsIFrame* nonGeneratedAncestor = nsLayoutUtils::GetNonGeneratedAncestor(frame);
     if (nonGeneratedAncestor->GetContent() != aContent) {
-      return RecreateFramesForContent(nonGeneratedAncestor->GetContent(), aAsyncInsert);
+      return RecreateFramesForContent(nonGeneratedAncestor->GetContent());
     }
   }
 
@@ -9089,12 +9073,8 @@ nsCSSFrameConstructor::RecreateFramesForContent(nsIContent* aContent,
       // Now, recreate the frames associated with this content object. If
       // ContentRemoved triggered reconstruction, then we don't need to do this
       // because the frames will already have been built.
-      if (aAsyncInsert) {
-        PostRestyleEvent(aContent, nsReStyleHint(0), nsChangeHint_ReconstructFrame);
-      } else {
-        rv = ContentInserted(container, aContent,
-                             indexInContainer, mTempFrameTreeState);
-      }
+      rv = ContentInserted(container, aContent,
+                           indexInContainer, mTempFrameTreeState);
     }
   }
 
@@ -10937,7 +10917,7 @@ nsCSSFrameConstructor::WipeContainingBlock(nsFrameConstructorState& aState,
   if (aFrame->IsBoxFrame() &&
       !(aFrame->GetStateBits() & NS_STATE_BOX_WRAPS_KIDS_IN_BLOCK) &&
       aItems.AnyItemsNeedBlockParent()) {
-    RecreateFramesForContent(aFrame->GetContent(), PR_TRUE);
+    RecreateFramesForContent(aFrame->GetContent());
     return PR_TRUE;
   }
 
@@ -11106,7 +11086,7 @@ nsCSSFrameConstructor::WipeContainingBlock(nsFrameConstructorState& aState,
     if (!aItems.AllWantParentType(parentType)) {
       // Reframing aFrame->GetContent() is good enough, since the content of
       // table pseudo-frames is the ancestor content.
-      RecreateFramesForContent(aFrame->GetContent(), PR_TRUE);
+      RecreateFramesForContent(aFrame->GetContent());
       return PR_TRUE;
     }
   }
@@ -11210,7 +11190,7 @@ nsCSSFrameConstructor::WipeContainingBlock(nsFrameConstructorState& aState,
            static_cast<void*>(blockContent));
   }
 #endif
-  RecreateFramesForContent(blockContent, PR_TRUE);
+  RecreateFramesForContent(blockContent);
   return PR_TRUE;
 }
 
@@ -11260,12 +11240,12 @@ nsCSSFrameConstructor::ReframeContainingBlock(nsIFrame* aFrame)
         printf("  ==> blockContent=%p\n", static_cast<void*>(blockContent));
       }
 #endif
-      return RecreateFramesForContent(blockContent, PR_TRUE);
+      return RecreateFramesForContent(blockContent);
     }
   }
 
   // If we get here, we're screwed!
-  return RecreateFramesForContent(mPresShell->GetDocument()->GetRootContent(), PR_TRUE);
+  return RecreateFramesForContent(mPresShell->GetDocument()->GetRootContent());
 }
 
 void
@@ -11602,12 +11582,7 @@ nsCSSFrameConstructor::ProcessPendingRestyles()
 
   PRUint32 count = mPendingRestyles.Count();
 
-  // Make sure to not rebuild quote or counter lists while we're
-  // processing restyles
-  BeginUpdate();
-
-  // loop so that we process any restyle events generated by processing
-  while (count) {
+  if (count) {
     // Use the stack if we can, otherwise fall back on heap-allocation.
     nsAutoTArray<RestyleEnumerateData, RESTYLE_ARRAY_STACKSIZE> restyleArr;
     RestyleEnumerateData* restylesToProcess = restyleArr.AppendElements(count);
@@ -11626,6 +11601,10 @@ nsCSSFrameConstructor::ProcessPendingRestyles()
     // already processing, sending us into an infinite loop.
     mPendingRestyles.Clear();
 
+    // Make sure to not rebuild quote or counter lists while we're
+    // processing restyles
+    BeginUpdate();
+
     for (RestyleEnumerateData* currentRestyle = restylesToProcess;
          currentRestyle != lastRestyle;
          ++currentRestyle) {
@@ -11634,14 +11613,12 @@ nsCSSFrameConstructor::ProcessPendingRestyles()
                         currentRestyle->mChangeHint);
     }
 
-    count = mPendingRestyles.Count();
-  }
-
-  EndUpdate();
+    EndUpdate();
 
 #ifdef DEBUG
-  mPresShell->VerifyStyleTree();
+    mPresShell->VerifyStyleTree();
 #endif
+  }
 
   if (mRebuildAllStyleData) {
     // We probably wasted a lot of work up above, but this seems safest

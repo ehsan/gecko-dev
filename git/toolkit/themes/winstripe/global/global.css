@@ -236,7 +236,6 @@ separator.groove[orient="vertical"] {
 }
     
 .plain {
-  -moz-appearance: none;
   margin: 0 !important;
   border: none;
   padding: 0;

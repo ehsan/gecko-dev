@@ -88,7 +88,6 @@ class nsReconversionEvent;
 class nsTooltipEvent;
 class nsMenuEvent;
 class nsSimpleGestureEvent;
-class nsContentCommandEvent;
 
 struct nsTextEventReply;
 

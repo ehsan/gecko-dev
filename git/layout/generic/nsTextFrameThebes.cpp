@@ -3789,14 +3789,16 @@ ClearTextRunsInFlowChain(nsTextFrame* aFrame)
 }
 
 NS_IMETHODIMP
-nsTextFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
+nsTextFrame::CharacterDataChanged(nsPresContext* aPresContext,
+                                  nsIContent*     aChild,
+                                  PRBool          aAppend)
 {
   ClearTextRunsInFlowChain(this);
 
   nsTextFrame* targetTextFrame;
   PRInt32 nodeLength = mContent->GetText()->GetLength();
 
-  if (aInfo->mAppend) {
+  if (aAppend) {
     targetTextFrame = static_cast<nsTextFrame*>(GetLastContinuation());
     targetTextFrame->mState &= ~TEXT_WHITESPACE_FLAGS;
   } else {
@@ -3822,9 +3824,9 @@ nsTextFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
   }
 
   // Ask the parent frame to reflow me.
-  PresContext()->GetPresShell()->FrameNeedsReflow(targetTextFrame,
-                                                  nsIPresShell::eStyleChange,
-                                                  NS_FRAME_IS_DIRTY);
+  aPresContext->GetPresShell()->FrameNeedsReflow(targetTextFrame,
+                                                 nsIPresShell::eStyleChange,
+                                                 NS_FRAME_IS_DIRTY);
 
   return NS_OK;
 }

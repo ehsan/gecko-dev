@@ -3408,7 +3408,9 @@ nsFrame::Reflow(nsPresContext*          aPresContext,
 }
 
 NS_IMETHODIMP
-nsFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
+nsFrame::CharacterDataChanged(nsPresContext* aPresContext,
+                              nsIContent*     aChild,
+                              PRBool          aAppend)
 {
   NS_NOTREACHED("should only be called for text frames");
   return NS_OK;
