@@ -178,7 +178,7 @@
 
 #if !defined(WINCE)
 #include "nsUXThemeConstants.h"
-#include "nsKeyboardLayout.h"
+#include "KeyboardLayout.h"
 #include "nsNativeDragTarget.h"
 #include <mmsystem.h> // needed for WIN32_LEAN_AND_MEAN
 #include <zmouse.h>
@@ -219,6 +219,8 @@
 #endif
 
 #include "mozilla/FunctionTimer.h"
+
+using namespace mozilla::widget;
 
 /**************************************************************
  **************************************************************
@@ -554,11 +556,7 @@ nsWindow::Create(nsIWidget *aParent,
   }
 
   if (mWindowType == eWindowType_popup) {
-    // if a parent was specified, don't use WS_EX_TOPMOST so that the popup
-    // only appears above the parent, instead of all windows
-    if (aParent)
-      extendedStyle = WS_EX_TOOLWINDOW;
-    else
+    if (!aParent)
       parent = NULL;
   } else if (mWindowType == eWindowType_invisible) {
     // Make sure CreateWindowEx succeeds at creating a toplevel window
@@ -875,7 +873,15 @@ DWORD nsWindow::WindowStyle()
 
     if (mBorderStyle == eBorderStyle_none || !(mBorderStyle & eBorderStyle_maximize))
       style &= ~WS_MAXIMIZEBOX;
+
+    if (IsPopupWithTitleBar()) {
+      style |= WS_CAPTION;
+      if (mBorderStyle & eBorderStyle_close) {
+        style |= WS_SYSMENU;
+      }
+    }
   }
+
   VERIFY_WINDOW_STYLE(style);
   return style;
 }
@@ -894,12 +900,16 @@ DWORD nsWindow::WindowExStyle()
       return WS_EX_WINDOWEDGE | WS_EX_DLGMODALFRAME;
 
     case eWindowType_popup:
-      return
+    {
+      DWORD extendedStyle =
 #if defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE)
         WS_EX_NOACTIVATE |
 #endif
-        WS_EX_TOPMOST | WS_EX_TOOLWINDOW;
-
+        WS_EX_TOOLWINDOW;
+      if (mPopupLevel == ePopupLevelTop)
+        extendedStyle |= WS_EX_TOPMOST;
+      return extendedStyle;
+    }
     default:
       NS_ERROR("unknown border style");
       // fall through
@@ -1791,8 +1801,7 @@ NS_METHOD nsWindow::GetBounds(nsIntRect &aRect)
       // adjust for chrome
       nsWindow* pWidget = static_cast<nsWindow*>(GetParent());
       if (pWidget && pWidget->IsTopLevelWidget()) {
-        nsIntPoint clientOffset;
-        pWidget->GetClientOffset(clientOffset);
+        nsIntPoint clientOffset = pWidget->GetClientOffset();
         r.left -= clientOffset.x;
         r.top  -= clientOffset.y;
       }
@@ -1844,19 +1853,16 @@ NS_METHOD nsWindow::GetScreenBounds(nsIntRect &aRect)
 
 // return the x,y offset of the client area from the origin
 // of the window. If the window is borderless returns (0,0).
-NS_METHOD nsWindow::GetClientOffset(nsIntPoint &aPt)
+nsIntPoint nsWindow::GetClientOffset()
 {
   if (!mWnd) {
-    aPt.x = aPt.y = 0;
-    return NS_OK;
+    return nsIntPoint(0, 0);
   }
 
   RECT r1;
   GetWindowRect(mWnd, &r1);
   nsIntPoint pt = WidgetToScreenOffset();
-  aPt.x = pt.x - r1.left; 
-  aPt.y = pt.y - r1.top; 
-  return NS_OK;  
+  return nsIntPoint(pt.x - r1.left, pt.y - r1.top);
 }
 
 void
@@ -2326,8 +2332,7 @@ void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
 
   ::EnumChildWindows(mWnd, AddClientAreaToRegion, reinterpret_cast<LPARAM>(&childWindowRegion));
 
-  nsIntPoint clientOffset;
-  GetClientOffset(clientOffset);
+  nsIntPoint clientOffset = GetClientOffset();
   childWindowRegion.MoveBy(-clientOffset);
 
   RECT r;
@@ -3003,6 +3008,22 @@ nsIntPoint nsWindow::WidgetToScreenOffset()
   point.y = 0;
   ::ClientToScreen(mWnd, &point);
   return nsIntPoint(point.x, point.y);
+}
+
+nsIntSize nsWindow::ClientToWindowSize(const nsIntSize& aClientSize)
+{
+  if (!IsPopupWithTitleBar())
+    return aClientSize;
+
+  // just use (200, 200) as the position
+  RECT r;
+  r.left = 200;
+  r.top = 200;
+  r.right = 200 + aClientSize.width;
+  r.bottom = 200 + aClientSize.height;
+  ::AdjustWindowRectEx(&r, WindowStyle(), PR_FALSE, WindowExStyle());
+
+  return nsIntSize(r.right - r.left, r.bottom - r.top);
 }
 
 /**************************************************************
@@ -4657,9 +4678,9 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 
     case WM_MOVE: // Window moved
     {
-      PRInt32 x = GET_X_LPARAM(lParam); // horizontal position in screen coordinates
-      PRInt32 y = GET_Y_LPARAM(lParam); // vertical position in screen coordinates
-      result = OnMove(x, y);
+      RECT rect;
+      ::GetWindowRect(mWnd, &rect);
+      result = OnMove(rect.left, rect.top);
     }
     break;
 

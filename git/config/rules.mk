@@ -467,7 +467,7 @@ UPDATE_TITLE = sed -e "s!Y!$(1) in $(shell $(BUILD_TOOLS)/print-depth-path.sh)/$
 endif
 
 define SUBMAKE # $(call SUBMAKE,target,directory)
-@$(UPDATE_TITLE)
++@$(UPDATE_TITLE)
 +@$(MAKE) $(if $(2),-C $(2)) $(1)
 
 endef # The extra line is important here! don't delete it
@@ -934,7 +934,7 @@ endif # !NO_DIST_INSTALL
 
 ifndef NO_PROFILE_GUIDED_OPTIMIZE
 ifdef MOZ_PROFILE_USE
-ifeq ($(OS_ARCH)_$(GNU_CC)$(INTERNAL_TOOLS), WINNT_)
+ifeq ($(OS_ARCH)_$(GNU_CC), WINNT_)
 # When building with PGO, we have to make sure to re-link
 # in the MOZ_PROFILE_USE phase if we linked in the
 # MOZ_PROFILE_GENERATE phase. We'll touch this pgo.relink

@@ -3092,7 +3092,8 @@ const DOMLinkHandler = {
             type = type.replace(/^\s+|\s*(?:;.*)?$/g, "");
 
             if (type == "application/opensearchdescription+xml" && link.title &&
-                /^(?:https?|ftp):/i.test(link.href)) {
+                /^(?:https?|ftp):/i.test(link.href) &&
+                !gPrivateBrowsingUI.privateBrowsingEnabled) {
               var engine = { title: link.title, href: link.href };
               BrowserSearch.addEngine(engine, link.ownerDocument);
               searchAdded = true;
@@ -7033,7 +7034,7 @@ var gIdentityHandler = {
     this._identityIconLabel.crop = icon_country_label ? "end" : "center";
     this._identityIconLabel.parentNode.style.direction = icon_labels_dir;
     // Hide completely if the organization label is empty
-    this._identityIconLabel.parentNode.hidden = icon_label ? false : true;
+    this._identityIconLabel.parentNode.collapsed = icon_label ? false : true;
   },
 
   /**
@@ -7768,13 +7769,11 @@ var TabContextMenu = {
       menuItems[i].disabled = disabled;
 
     // Session store
-    // XXXzeniko should't we just disable this item as we disable
-    // the tabbrowser-multiple items above - for consistency?
-    document.getElementById("context_undoCloseTab").hidden =
+    document.getElementById("context_undoCloseTab").disabled =
       Cc["@mozilla.org/browser/sessionstore;1"].
       getService(Ci.nsISessionStore).
       getClosedTabCount(window) == 0;
-      
+
     // Only one of pin/unpin should be visible
     document.getElementById("context_pinTab").hidden = this.contextTab.pinned;
     document.getElementById("context_unpinTab").hidden = !this.contextTab.pinned;
