@@ -1600,6 +1600,8 @@ nsCSSFrameConstructor::CreateGeneratedContent(nsFrameConstructorState& aState,
       nsCounterUseNode* node =
         new nsCounterUseNode(counters, aContentIndex,
                              type == eStyleContentType_Counters);
+      if (!node)
+        return nsnull;
 
       nsGenConInitializer* initializer =
         new nsGenConInitializer(node, counterList,
@@ -1619,6 +1621,8 @@ nsCSSFrameConstructor::CreateGeneratedContent(nsFrameConstructorState& aState,
     {
       nsQuoteNode* node =
         new nsQuoteNode(type, aContentIndex);
+      if (!node)
+        return nsnull;
 
       nsGenConInitializer* initializer =
         new nsGenConInitializer(node, &mQuoteList,
@@ -5068,7 +5072,9 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
     PRBool resolveStyle;
 
     nsAutoPtr<PendingBinding> newPendingBinding(new PendingBinding());
-
+    if (!newPendingBinding) {
+      return;
+    }
     nsresult rv = xblService->LoadBindings(aContent, display->mBinding->GetURI(),
                                            display->mBinding->mOriginPrincipal,
                                            PR_FALSE,
@@ -9398,6 +9404,10 @@ nsCSSFrameConstructor::CreateNeededTablePseudos(nsFrameConstructorState& aState,
                                 nsnull,
                                 wrapperStyle.forget(),
                                 PR_TRUE);
+
+    if (!newItem) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     // Here we're cheating a tad... technically, table-internal items should be
     // inline if aParentFrame is inline, but they'll get wrapped in an

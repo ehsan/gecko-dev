@@ -225,7 +225,7 @@ nsXULLinkAccessible::DoAction(PRUint8 aIndex)
 // nsXULLinkAccessible: HyperLinkAccessible
 
 bool
-nsXULLinkAccessible::IsLink()
+nsXULLinkAccessible::IsHyperLink()
 {
   // Expose HyperLinkAccessible unconditionally.
   return true;
@@ -239,21 +239,21 @@ nsXULLinkAccessible::StartOffset()
   // a text.
   // XXX: accessible parent of XUL link accessible should be a hypertext
   // accessible.
-  if (nsAccessible::IsLink())
+  if (nsAccessible::IsHyperLink())
     return nsAccessible::StartOffset();
-  return IndexInParent();
+  return GetIndexInParent();
 }
 
 PRUint32
 nsXULLinkAccessible::EndOffset()
 {
-  if (nsAccessible::IsLink())
+  if (nsAccessible::IsHyperLink())
     return nsAccessible::EndOffset();
-  return IndexInParent() + 1;
+  return GetIndexInParent() + 1;
 }
 
 already_AddRefed<nsIURI>
-nsXULLinkAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
+nsXULLinkAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
 {
   if (aAnchorIndex != 0)
     return nsnull;

@@ -1090,7 +1090,8 @@ nsHttpTransaction::HandleContent(char *buf,
         // NOT persistent, we simply accept everything in |buf|.
         if (mConnection->IsPersistent() || mPreserveStream) {
             PRInt64 remaining = mContentLength - mContentRead;
-            *contentRead = PRUint32(NS_MIN<PRInt64>(count, remaining));
+            PRInt64 count64 = count;
+            *contentRead = PR_MIN(count64, remaining);
             *contentRemaining = count - *contentRead;
         }
         else {
@@ -1112,7 +1113,7 @@ nsHttpTransaction::HandleContent(char *buf,
     if (*contentRead) {
         // update count of content bytes read and report progress...
         mContentRead += *contentRead;
-        /* when uncommenting, take care of 64-bit integers w/ NS_MAX...
+        /* when uncommenting, take care of 64-bit integers w/ PR_MAX...
         if (mProgressSink)
             mProgressSink->OnProgress(nsnull, nsnull, mContentRead, NS_MAX(0, mContentLength));
         */

@@ -77,6 +77,7 @@ class nsXULTreeGridRowAccessible : public nsXULTreeItemAccessibleBase
 public:
   using nsAccessible::GetChildCount;
   using nsAccessible::GetChildAt;
+  using nsAccessible::GetChildAtPoint;
 
   nsXULTreeGridRowAccessible(nsIContent *aContent, nsIWeakReference *aShell,
                              nsAccessible *aParent, nsITreeBoxObject *aTree,
@@ -93,8 +94,8 @@ public:
   // nsAccessible
   virtual PRUint32 NativeRole();
   NS_IMETHOD GetName(nsAString& aName);
-  virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                     EWhichChildAtPoint aWhichChild);
+  virtual nsAccessible* GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                        EWhichChildAtPoint aWhichChild);
 
   virtual nsAccessible* GetChildAt(PRUint32 aIndex);
   virtual PRInt32 GetChildCount();
@@ -165,7 +166,7 @@ public:
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
-  virtual PRInt32 IndexInParent() const;
+  virtual PRInt32 GetIndexInParent() const;
 
   // nsXULTreeGridCellAccessible
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_XULTREEGRIDCELLACCESSIBLE_IMPL_CID)

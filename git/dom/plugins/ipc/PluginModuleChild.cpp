@@ -74,7 +74,7 @@
 #include "mozilla/widget/AudioSession.h"
 #endif
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
 #include "PluginInterposeOSX.h"
 #include "PluginUtilsOSX.h"
 #endif
@@ -1665,7 +1665,7 @@ _popupcontextmenu(NPP instance, NPMenu* menu)
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
     double pluginX, pluginY; 
     double screenX, screenY;
 
@@ -2329,7 +2329,7 @@ PluginModuleChild::RecvProcessNativeEventsInRPCCall()
 #endif
 }
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
 void
 PluginModuleChild::ProcessNativeEvents() {
     CallProcessSomeEvents();    

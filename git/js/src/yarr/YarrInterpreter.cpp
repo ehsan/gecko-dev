@@ -1791,9 +1791,9 @@ public:
             }
 
             unsigned minimumSize = alternative->m_minimumSize;
-            ASSERT(minimumSize >= parenthesesInputCountAlreadyChecked);
-            unsigned countToCheck = minimumSize - parenthesesInputCountAlreadyChecked;
+            int countToCheck = minimumSize - parenthesesInputCountAlreadyChecked;
 
+            ASSERT(countToCheck >= 0);
             if (countToCheck) {
                 checkInput(countToCheck);
                 currentCountAlreadyChecked += countToCheck;
@@ -1861,13 +1861,14 @@ public:
                     unsigned alternativeFrameLocation = term.frameLocation + YarrStackSpaceForBackTrackInfoParentheticalAssertion;
 
                     ASSERT(currentCountAlreadyChecked >= static_cast<unsigned>(term.inputPosition));
-                    unsigned positiveInputOffset = currentCountAlreadyChecked - static_cast<unsigned>(term.inputPosition);
-                    unsigned uncheckAmount = 0;
-                    if (positiveInputOffset > term.parentheses.disjunction->m_minimumSize) {
-                        uncheckAmount = positiveInputOffset - term.parentheses.disjunction->m_minimumSize;
+                    int positiveInputOffset = currentCountAlreadyChecked - term.inputPosition;
+                    int uncheckAmount = positiveInputOffset - term.parentheses.disjunction->m_minimumSize;
+
+                    if (uncheckAmount > 0) {
                         uncheckInput(uncheckAmount);
                         currentCountAlreadyChecked -= uncheckAmount;
-                    }
+                    } else
+                        uncheckAmount = 0;
 
                     atomParentheticalAssertionBegin(term.parentheses.subpatternId, term.invert(), term.frameLocation, alternativeFrameLocation);
                     emitDisjunction(term.parentheses.disjunction, currentCountAlreadyChecked, positiveInputOffset - uncheckAmount);

@@ -47,6 +47,8 @@ function test() {
 
   // Set up the browser in a blank state. Popup windows in previous tests result
   // in different states on different platforms.
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+           getService(Ci.nsISessionStore);
   let blankState = JSON.stringify({
     windows: [{
       tabs: [{ entries: [{ url: "about:blank" }] }],
@@ -85,6 +87,8 @@ function continue_test() {
            getService(Ci.nsIPrivateBrowsingService);
   // Ensure Private Browsing mode is disabled.
   ok(!pb.privateBrowsingEnabled, "Private Browsing is disabled");
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+           getService(Ci.nsISessionStore);
 
   let closedWindowCount = ss.getClosedWindowCount();
   is(closedWindowCount, 0, "Correctly set window count");

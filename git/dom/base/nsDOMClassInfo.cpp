@@ -131,6 +131,7 @@
 #include "nsDOMError.h"
 #include "nsIDOMDOMException.h"
 #include "nsIDOMNode.h"
+#include "nsIDOM3Attr.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMDOMStringList.h"
@@ -2553,6 +2554,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(Attr, nsIDOMAttr)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMAttr)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Attr)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 

@@ -2090,9 +2090,11 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
              * the bytecode at pc, so we don't decompile more than the error
              * expression.
              */
-            StackFrame *fp = js_GetScriptedCaller(cx, NULL);
+            FrameRegsIter iter(cx);
+            while (!iter.done() && !iter.fp()->isScriptFrame())
+                ++iter;
             uint32 format = cs->format;
-            if (((fp && pc == fp->pcQuadratic(cx)) ||
+            if (((!iter.done() && pc == iter.pc()) ||
                  (pc == startpc && nuses != 0)) &&
                 format & (JOF_SET|JOF_DEL|JOF_INCDEC|JOF_FOR|JOF_VARPROP)) {
                 uint32 mode = JOF_MODE(format);

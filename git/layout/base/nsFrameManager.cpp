@@ -380,12 +380,14 @@ nsFrameManager::SetUndisplayedContent(nsIContent* aContent,
   if (! mUndisplayedMap) {
     mUndisplayedMap = new UndisplayedMap;
   }
-  nsIContent* parent = aContent->GetParent();
-  NS_ASSERTION(parent || (mPresShell && mPresShell->GetDocument() &&
-               mPresShell->GetDocument()->GetRootElement() == aContent),
-               "undisplayed content must have a parent, unless it's the root "
-               "element");
-  mUndisplayedMap->AddNodeFor(parent, aContent, aStyleContext);
+  if (mUndisplayedMap) {
+    nsIContent* parent = aContent->GetParent();
+    NS_ASSERTION(parent || (mPresShell && mPresShell->GetDocument() &&
+                 mPresShell->GetDocument()->GetRootElement() == aContent),
+                 "undisplayed content must have a parent, unless it's the root "
+                 "element");
+    mUndisplayedMap->AddNodeFor(parent, aContent, aStyleContext);
+  }
 }
 
 void
@@ -1898,6 +1900,9 @@ nsFrameManagerBase::UndisplayedMap::AddNodeFor(nsIContent* aParentContent,
                                                nsStyleContext* aStyle)
 {
   UndisplayedNode*  node = new UndisplayedNode(aChild, aStyle);
+  if (! node) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   AppendNodeFor(node, aParentContent);
   return NS_OK;
