@@ -54,6 +54,7 @@
 #include "nsIEventListener.h"
 #include "nsString.h"
 
+#include "nsVoidArray.h"
 #include "nsTArray.h"
 
 class nsNativeDragTarget;

@@ -203,7 +203,6 @@ typedef    pthread_rwlock_t      LCMS_RWLOCK_T;
 
 #if defined(__GNUC__) || defined(__FreeBSD__)
 #   include <unistd.h>
-#   include <limits.h>
 #endif
 
 #ifndef LCMS_WIN_TYPES_ALREADY_DEFINED
@@ -238,11 +237,7 @@ typedef void *LPVOID;
 #define HIWORD(l)    ((WORD)((DWORD)(l) >> 16))
 
 #ifndef MAX_PATH
-#  ifdef PATH_MAX
-#    define MAX_PATH     PATH_MAX
-#  else
-#    define MAX_PATH     (256)
-#  endif
+#       define MAX_PATH     (256)
 #endif
 
 #define cdecl

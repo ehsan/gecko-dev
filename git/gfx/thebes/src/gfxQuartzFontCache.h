@@ -50,6 +50,7 @@
 #include <Carbon/Carbon.h>
 
 #include "nsUnicharUtils.h"
+#include "nsVoidArray.h"
 #include "nsTArray.h"
 
 // used when picking fallback font

@@ -58,10 +58,7 @@ public:
 
 protected:
   PRUint8 mState;
-  // to store an odd byte left over between runs
-  PRUint8 mOddByte;
-  // to store an odd high surrogate left over between runs
-  PRUnichar mOddHighSurrogate;
+  PRUint8 mData;
 };
 
 // UTF-16 big endian

@@ -1299,7 +1299,6 @@ nsOggDecoder::nsOggDecoder() :
   mCurrentTime(0.0),
   mInitialVolume(0.0),
   mRequestedSeekTime(-1.0),
-  mDuration(-1),
   mNotifyOnShutdown(PR_FALSE),
   mSeekable(PR_TRUE),
   mReader(0),

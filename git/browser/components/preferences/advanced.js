@@ -216,24 +216,10 @@ var gAdvancedPane = {
   },
 
   // XXX: duplicated in browser.js
-  _getOfflineAppUsage: function (host, groups)
+  _getOfflineAppUsage: function (host)
   {
-    var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
-                       getService(Components.interfaces.nsIApplicationCacheService);
-    if (!groups) {
-      groups = cacheService.getGroups({});
-    }
-    var ios = Components.classes["@mozilla.org/network/io-service;1"].
-              getService(Components.interfaces.nsIIOService);
-
+    // XXX Bug 442710: include offline cache usage.
     var usage = 0;
-    for (var i = 0; i < groups.length; i++) {
-      var uri = ios.newURI(groups[i], null, null);
-      if (uri.asciiHost == host) {
-        var cache = cacheService.getActiveCache(groups[i]);
-        usage += cache.usage;
-      }
-    }
 
     var storageManager = Components.classes["@mozilla.org/dom/storagemanager;1"].
                          getService(Components.interfaces.nsIDOMStorageManager);
@@ -255,10 +241,6 @@ var gAdvancedPane = {
       list.removeChild(list.firstChild);
     }
 
-    var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
-                       getService(Components.interfaces.nsIApplicationCacheService);
-    var groups = cacheService.getGroups({});
-
     var bundle = document.getElementById("bundlePreferences");
 
     var enumerator = pm.enumerator;
@@ -272,7 +254,7 @@ var gAdvancedPane = {
         row.className = "offlineapp";
         row.setAttribute("host", perm.host);
         var converted = DownloadUtils.
-                        convertByteUnits(this._getOfflineAppUsage(perm.host, groups));
+                        convertByteUnits(this._getOfflineAppUsage(perm.host));
         row.setAttribute("usage",
                          bundle.getFormattedString("offlineAppUsage",
                                                    converted));
@@ -313,18 +295,14 @@ var gAdvancedPane = {
       return;
 
     // clear offline cache entries
-    var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
-                       getService(Components.interfaces.nsIApplicationCacheService);
-    var ios = Components.classes["@mozilla.org/network/io-service;1"].
-              getService(Components.interfaces.nsIIOService);
-    var groups = cacheService.getGroups({});
-    for (var i = 0; i < groups.length; i++) {
-        var uri = ios.newURI(groups[i], null, null);
-        if (uri.asciiHost == host) {
-            var cache = cacheService.getActiveCache(groups[i]);
-            cache.discard();
-        }
-    }
+    var cacheService = Components.classes["@mozilla.org/network/cache-service;1"]
+                       .getService(Components.interfaces.nsICacheService);
+    var cacheSession = cacheService.createSession("HTTP-offline",
+                                                  Components.interfaces.nsICache.STORE_OFFLINE,
+                                                  true)
+                       .QueryInterface(Components.interfaces.nsIOfflineCacheSession);
+    cacheSession.clearKeysOwnedByDomain(host);
+    cacheSession.evictUnownedEntries();
 
     // send out an offline-app-removed signal.  The nsDOMStorage
     // service will clear DOM storage for this host.

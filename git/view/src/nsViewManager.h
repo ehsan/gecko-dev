@@ -176,6 +176,8 @@ public:
   NS_IMETHOD ForceUpdate();
  
   NS_IMETHOD IsPainting(PRBool& aIsPainting);
+  NS_IMETHOD SetDefaultBackgroundColor(nscolor aColor);
+  NS_IMETHOD GetDefaultBackgroundColor(nscolor* aColor);
   NS_IMETHOD GetLastUserEventTime(PRUint32& aTime);
   void ProcessInvalidateEvent();
   static PRUint32 gLastUserEventTime;
@@ -260,6 +262,10 @@ private:
 
   void Refresh(nsView *aView, nsIRenderingContext *aContext,
                nsIRegion *region, PRUint32 aUpdateFlags);
+  /**
+   * Refresh aView (which must be non-null) with our default background color
+   */
+  void DefaultRefresh(nsView* aView, nsIRenderingContext *aContext, const nsRect* aRect);
   void RenderViews(nsView *aRootView, nsIRenderingContext& aRC,
                    const nsRegion& aRegion);
 
@@ -421,6 +427,7 @@ private:
   nsIDeviceContext  *mContext;
   nsIViewObserver   *mObserver;
   nsIScrollableView *mRootScrollable;
+  nscolor           mDefaultBackgroundColor;
   nsIntPoint        mMouseLocation; // device units, relative to mRootView
 
   // The size for a resize that we delayed until the root view becomes

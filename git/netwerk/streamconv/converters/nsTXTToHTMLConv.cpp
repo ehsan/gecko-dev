@@ -227,9 +227,15 @@ nsTXTToHTMLConv::nsTXTToHTMLConv()
     mPreFormatHTML = PR_FALSE;
 }
 
+static PRBool CleanupTokens(void *aElement, void *aData)
+{
+    if (aElement) delete (convToken*)aElement;
+    return PR_TRUE;
+}
+
 nsTXTToHTMLConv::~nsTXTToHTMLConv()
 {
-    mTokens.Clear();
+    mTokens.EnumerateForwards((nsVoidArrayEnumFunc)CleanupTokens, nsnull);
 }
 
 nsresult
@@ -280,8 +286,8 @@ nsTXTToHTMLConv::FindToken(PRInt32 cursor, convToken* *_retval)
 {
     PRInt32 loc = -1, firstToken = mBuffer.Length();
     PRInt8 token = -1;
-    for (PRUint8 i=0; i < mTokens.Length(); i++) {
-        loc = mBuffer.Find(mTokens[i]->token, cursor);
+    for (PRInt8 i=0; i < mTokens.Count(); i++) {
+        loc = mBuffer.Find(((convToken*)mTokens[i])->token, cursor);
         if (loc != -1)
             if (loc < firstToken) {
                 firstToken = loc;
@@ -291,7 +297,7 @@ nsTXTToHTMLConv::FindToken(PRInt32 cursor, convToken* *_retval)
     if (token == -1)
         return -1;
 
-    *_retval = mTokens[token];
+    *_retval = (convToken*)mTokens[token];
     return firstToken;
 }
 
