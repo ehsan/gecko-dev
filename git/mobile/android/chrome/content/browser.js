@@ -7363,7 +7363,9 @@ let Reader = {
         type: "Reader:LongClick",
       });
 
-      UITelemetry.addEvent("save.1", "pageaction", null, "reader");
+      // Create a relative timestamp for telemetry
+      let uptime = Date.now() - Services.startup.getStartupInfo().linkerInitialized;
+      UITelemetry.addEvent("save.1", "pageaction", uptime, "reader");
     },
   },
 
@@ -7372,6 +7374,9 @@ let Reader = {
       NativeWindow.pageactions.remove(this.pageAction.id);
       delete this.pageAction.id;
     }
+
+    // Create a relative timestamp for telemetry
+    let uptime = Date.now() - Services.startup.getStartupInfo().linkerInitialized;
 
     if (tab.readerActive) {
       this.pageAction.id = NativeWindow.pageactions.add({
@@ -7383,12 +7388,12 @@ let Reader = {
 
       // Only start a reader session if the viewer is in the foreground. We do
       // not track background reader viewers.
-      UITelemetry.startSession("reader.1", null);
+      UITelemetry.startSession("reader.1", uptime);
       return;
     }
 
     // Only stop a reader session if the foreground viewer is not visible.
-    UITelemetry.stopSession("reader.1", "", null);
+    UITelemetry.stopSession("reader.1", "", uptime);
 
     if (tab.readerEnabled) {
       this.pageAction.id = NativeWindow.pageactions.add({
@@ -7962,7 +7967,9 @@ var ExternalApps = {
       icon: "drawable://icon_openinapp",
 
       clickCallback: () => {
-        UITelemetry.addEvent("launch.1", "pageaction", null, "helper");
+        // Create a relative timestamp for telemetry
+        let uptime = Date.now() - Services.startup.getStartupInfo().linkerInitialized;
+        UITelemetry.addEvent("launch.1", "pageaction", uptime, "helper");
 
         if (apps.length > 1) {
           // Use the HelperApps prompt here to filter out any Http handlers
