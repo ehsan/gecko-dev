@@ -529,8 +529,6 @@ UIClass.prototype = {
   // ----------
   init: function() {
     try {
-      Utils.log('TabCandy init --------------------');
-      
       // Variable: navBar
       // A reference to the <Navbar>, for manipulating the browser's nav bar. 
       this.navBar = Navbar;
@@ -619,8 +617,9 @@ UIClass.prototype = {
           box.inset(10, 10);
           let options = {padding: 10};
           Items.arrange(items, box, options);
-        } 
-        
+        } else
+          TabItems.reconstitute();
+
         // ___ resizing
         if(data.pageBounds) {
           self.pageBounds = data.pageBounds;

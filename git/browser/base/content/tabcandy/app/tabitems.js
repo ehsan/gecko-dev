@@ -650,6 +650,16 @@ window.TabItems = {
   },
   
   // ----------
+  reconstitute: function() {
+    var items = this.getItems();
+    var self = this;
+    iQ.each(items, function(index, item) {
+      if(!self.reconnect(item))
+        Groups.newTab(item);
+    });
+  },
+  
+  // ----------
   storageSanity: function(data) {
     // TODO: check everything 
     var sane = true;
@@ -675,7 +685,7 @@ window.TabItems = {
       if(!item.tab.raw)
         return false;
         
-      var tab = Storage.getTabData(item.tab.raw);       
+      var tab = Storage.getTabData(item.tab.raw);
       if (tab && this.storageSanity(tab)) {
         if(item.parent)
           item.parent.remove(item);
