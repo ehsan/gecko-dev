@@ -871,16 +871,8 @@ net.gg
 sch.gg
 gov.gg
 
-// gh : http://en.wikipedia.org/wiki/.gh
-// see also: http://www.nic.gh/reg_now.php
-// Although domains directly at second level are not possible at the moment,
-// they have been possible for some time and may come back.
-gh
-com.gh
-edu.gh
-gov.gh
-org.gh
-mil.gh
+// gh : http://www.ghana.com/domain.htm
+*.gh
 
 // gi : http://www.nic.gi/rules.html
 gi
@@ -1387,6 +1379,7 @@ sch.jo
 gov.jo
 mil.jo
 name.jo
+myname.jo
 
 // jobs : http://en.wikipedia.org/wiki/.jobs
 jobs
@@ -1627,7 +1620,6 @@ org.ky
 net.ky
 
 // kz : http://en.wikipedia.org/wiki/.kz
-// see also: http://www.nic.kz/rules/index.jsp
 kz
 org.kz
 edu.kz
@@ -2418,14 +2410,7 @@ edu.mx
 net.mx
 
 // my : http://www.mynic.net.my/
-my
-com.my
-net.my
-org.my
-gov.my
-edu.my
-mil.my
-name.my
+*.my
 
 // mz : http://www.gobin.info/domainname/mz-template.doc
 *.mz
@@ -3371,6 +3356,7 @@ gok.pk
 gon.pk
 gop.pk
 gos.pk
+goa.pk
 info.pk
 
 // pl : http://www.dns.pl/english/
@@ -3848,7 +3834,6 @@ info.sd
 
 // se : http://en.wikipedia.org/wiki/.se
 // Submitted by registry <Patrik.Wallstrom@iis.se> 2008-06-24
-se
 a.se
 ac.se
 b.se
@@ -3951,15 +3936,8 @@ su
 // sv : http://www.svnet.org.sv/svpolicy.html
 *.sv
 
-// sy : http://en.wikipedia.org/wiki/.sy
-// see also: http://www.gobin.info/domainname/sy.doc
-sy
-edu.sy
-gov.sy
-net.sy
-mil.sy
-com.sy
-org.sy
+// sy : http://www.gobin.info/domainname/sy.doc
+*.sy
 
 // sz : http://en.wikipedia.org/wiki/.sz
 // http://www.sispa.org.sz/
