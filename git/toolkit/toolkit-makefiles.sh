@@ -763,6 +763,7 @@ add_makefiles "
   $MAKEFILES_uriloader
   $MAKEFILES_profile
   $MAKEFILES_rdf
+  $MAKEFILES_sun_java
   $MAKEFILES_caps
   $MAKEFILES_chrome
   $MAKEFILES_view

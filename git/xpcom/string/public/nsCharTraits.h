@@ -77,6 +77,12 @@
 #endif
 #endif
 
+#ifdef HAVE_CPP_BOOL
+  typedef bool nsCharTraits_bool;
+#else
+  typedef PRBool nsCharTraits_bool;
+#endif
+
 /*
  * Some macros for converting PRUnichar (UTF-16) to and from Unicode scalar
  * values.
@@ -178,7 +184,7 @@ struct nsCharTraits<PRUnichar>
       }
 
     static
-    bool
+    nsCharTraits_bool
     eq_int_type( int_type lhs, int_type rhs )
       {
         return lhs == rhs;
@@ -188,14 +194,14 @@ struct nsCharTraits<PRUnichar>
       // |char_type| comparisons:
 
     static
-    bool
+    nsCharTraits_bool
     eq( char_type lhs, char_type rhs )
       {
         return lhs == rhs;
       }
 
     static
-    bool
+    nsCharTraits_bool
     lt( char_type lhs, char_type rhs )
       {
         return lhs < rhs;
@@ -464,7 +470,7 @@ struct nsCharTraits<char>
       }
 
     static
-    bool
+    nsCharTraits_bool
     eq_int_type( int_type lhs, int_type rhs )
       {
         return lhs == rhs;
@@ -474,14 +480,14 @@ struct nsCharTraits<char>
       // |char_type| comparisons:
 
     static
-    bool
+    nsCharTraits_bool
     eq( char_type lhs, char_type rhs )
       {
         return lhs == rhs;
       }
 
     static
-    bool
+    nsCharTraits_bool
     lt( char_type lhs, char_type rhs )
       {
         return lhs < rhs;
