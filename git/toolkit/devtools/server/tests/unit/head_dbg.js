@@ -178,10 +178,7 @@ function attachTestThread(aClient, aTitle, aCallback) {
     function onAttach(aResponse, aThreadClient) {
       aCallback(aResponse, aTabClient, aThreadClient);
     }
-    aTabClient.attachThread({
-      useSourceMaps: true,
-      autoBlackBox: true
-    }, onAttach);
+    aTabClient.attachThread({ useSourceMaps: true }, onAttach);
   });
 }
 

@@ -14,7 +14,6 @@ import org.mozilla.gecko.ThumbnailHelper;
 import org.mozilla.gecko.db.BrowserContract.TopSites;
 import org.mozilla.gecko.db.TopSitesCursorWrapper;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
-import org.mozilla.gecko.util.StringUtils;
 
 import android.content.Context;
 import android.content.res.TypedArray;
@@ -107,7 +106,7 @@ public class TopSitesGridView extends GridView {
                 TopSitesGridItemView item = (TopSitesGridItemView) view;
 
                 // Decode "user-entered" URLs before loading them.
-                String url = StringUtils.decodeUserEnteredUrl(item.getUrl());
+                String url = HomeFragment.decodeUserEnteredUrl(item.getUrl());
                 int type = item.getType();
 
                 // If the url is empty, the user can pin a site.

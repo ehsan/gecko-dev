@@ -154,16 +154,10 @@ public final class ThreadUtils {
             return;
         }
 
-        final String message;
-        if (expected) {
-            message = "Expected thread " + expectedThreadId +
-                      " (\"" + expectedThread.getName() + "\"), but running on thread " +
-                      currentThreadId + " (\"" + currentThread.getName() + "\")";
-        } else {
-            message = "Expected anything but " + expectedThreadId +
-                      " (\"" + expectedThread.getName() + "\"), but running there.";
-        }
-
+        final String message = "Expected thread " +
+                               expectedThreadId + " (\"" + expectedThread.getName() +
+                               "\"), but running on thread " +
+                               currentThreadId + " (\"" + currentThread.getName() + ")";
         final IllegalThreadStateException e = new IllegalThreadStateException(message);
 
         switch (behavior) {
