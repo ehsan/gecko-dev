@@ -1037,7 +1037,8 @@ nsContextMenu.prototype = {
 
     var brandBundle = document.getElementById("bundle_brand");
     var app = brandBundle.getString("brandShortName");
-    var message = gNavigatorBundle.getFormattedString(aBlock ?
+    var bundle_browser = document.getElementById("bundle_browser");
+    var message = bundle_browser.getFormattedString(aBlock ?
      "imageBlockedWarning" : "imageAllowedWarning", [app, uri.host]);
 
     var notificationBox = this.browser.getNotificationBox();
@@ -1048,8 +1049,8 @@ nsContextMenu.prototype = {
     else {
       var self = this;
       var buttons = [{
-        label: gNavigatorBundle.getString("undo"),
-        accessKey: gNavigatorBundle.getString("undo.accessKey"),
+        label: bundle_browser.getString("undo"),
+        accessKey: bundle_browser.getString("undo.accessKey"),
         callback: function() { self.toggleImageBlocking(!aBlock); }
       }];
       const priority = notificationBox.PRIORITY_WARNING_MEDIUM;

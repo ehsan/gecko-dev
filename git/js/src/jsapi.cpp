@@ -92,8 +92,6 @@
 #include "jsxml.h"
 #endif
 
-#include "jsatominlines.h"
-
 #ifdef HAVE_VA_LIST_AS_ARRAY
 #define JS_ADDRESSOF_VA_LIST(ap) ((va_list *)(ap))
 #else
@@ -2585,7 +2583,7 @@ JS_SetGCParameter(JSRuntime *rt, JSGCParamKey key, uint32 value)
       default:
         JS_ASSERT(key == JSGC_TRIGGER_FACTOR);
         JS_ASSERT(value >= 100);
-        rt->SetGCTriggerFactor(value);
+        rt->gcTriggerFactor = value;
         return;
     }
 }

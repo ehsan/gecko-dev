@@ -531,7 +531,7 @@ nsPluginInstanceTag * nsPluginInstanceTagList::find(const char * mimetype)
     if (!p->mInstance)
       continue;
 
-    const char* mt;
+    char* mt;
     nsresult rv = p->mInstance->GetMIMEType(&mt);
     if (NS_FAILED(rv))
       continue;
