@@ -157,13 +157,11 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         return true;
     }
 
-    uint8_t opacity = std::min(0xFF, (int)(aLayer->GetEffectiveOpacity() * 256.0));
-#if ANDROID_VERSION < 18
-    if (opacity < 0xFF) {
+    float opacity = aLayer->GetEffectiveOpacity();
+    if (opacity < 1) {
         LOGD("%s Layer has planar semitransparency which is unsupported", aLayer->Name());
         return false;
     }
-#endif
 
     nsIntRect clip;
     if (!HwcUtils::CalculateClipRect(aParentTransform * aGLWorldTransform,
@@ -278,7 +276,7 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
 
     hwcLayer.acquireFenceFd = -1;
     hwcLayer.releaseFenceFd = -1;
-    hwcLayer.planeAlpha = opacity;
+    hwcLayer.planeAlpha = 0xFF; // Until plane alpha is enabled
 #else
     hwcLayer.compositionType = HwcUtils::HWC_USE_COPYBIT;
 #endif
@@ -436,7 +434,6 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         hwcLayer.transform = colorLayer->GetColor().Packed();
     }
 
-    mHwcLayerMap.AppendElement(static_cast<LayerComposite*>(aLayer->ImplData()));
     mList->numHwLayers++;
     return true;
 }
@@ -464,27 +461,11 @@ HwcComposer2D::TryHwComposition()
 
     Prepare(fbsurface->lastHandle, -1);
 
-    bool fullHwcComposite = true;
     for (int j = 0; j < idx; j++) {
         if (mList->hwLayers[j].compositionType == HWC_FRAMEBUFFER) {
-            // After prepare, if there is an HWC_FRAMEBUFFER layer,
-            // it means full HWC Composition is not possible this time
             LOGD("GPU or Partial HWC Composition");
-            fullHwcComposite = false;
-            break;
+            return false;
         }
-    }
-
-    if (!fullHwcComposite) {
-        for (int k=0; k < idx; k++) {
-            if (mList->hwLayers[k].compositionType == HWC_OVERLAY) {
-                // HWC will compose HWC_OVERLAY layers in partial
-                // HWC Composition, so set layer composition flag
-                // on mapped LayerComposite to skip GPU composition
-                mHwcLayerMap[k]->SetLayerComposited(true);
-            }
-        }
-        return false;
     }
 
     // Full HWC Composition
@@ -573,26 +554,28 @@ HwcComposer2D::Commit()
 
     int err = mHwc->set(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
 
-    if (!mPrevReleaseFds.IsEmpty()) {
-        // Wait for previous retire Fence to signal.
-        // Denotes contents on display have been replaced.
-        // For buffer-sync, framework should not over-write
-        // prev buffers until we close prev releaseFenceFds
-        sp<Fence> fence = new Fence(mPrevReleaseFds[0]);
-        if (fence->wait(1000) == -ETIME) {
-            LOGE("Wait timed-out for retireFenceFd %d", mPrevReleaseFds[0]);
+    for (int i = 0; i <= MAX_HWC_LAYERS; i++) {
+        if (mPrevRelFd[i] <= 0) {
+            break;
         }
-
-        for (int i = 0; i < mPrevReleaseFds.Length(); i++) {
-            close(mPrevReleaseFds[i]);
+        if (!i) {
+            // Wait for previous retire Fence to signal.
+            // Denotes contents on display have been replaced.
+            // For buffer-sync, framework should not over-write
+            // prev buffers until we close prev releaseFenceFds
+            sp<Fence> fence = new Fence(mPrevRelFd[i]);
+            if (fence->wait(1000) == -ETIME) {
+                LOGE("Wait timed-out for retireFenceFd %d", mPrevRelFd[i]);
+            }
         }
-        mPrevReleaseFds.Clear();
+        close(mPrevRelFd[i]);
+        mPrevRelFd[i] = -1;
     }
 
-    mPrevReleaseFds.AppendElement(mList->retireFenceFd);
-    for (uint32_t j=0; j < (mList->numHwLayers - 1); j++) {
+    mPrevRelFd[0] = mList->retireFenceFd;
+    for (uint32_t j = 0; j < (mList->numHwLayers - 1); j++) {
         if (mList->hwLayers[j].compositionType == HWC_OVERLAY) {
-            mPrevReleaseFds.AppendElement(mList->hwLayers[j].releaseFenceFd);
+            mPrevRelFd[j + 1] = mList->hwLayers[j].releaseFenceFd;
             mList->hwLayers[j].releaseFenceFd = -1;
         }
     }
@@ -626,14 +609,12 @@ HwcComposer2D::TryRender(Layer* aRoot,
     MOZ_ASSERT(Initialized());
     if (mList) {
         mList->numHwLayers = 0;
-        mHwcLayerMap.Clear();
     }
 
     // XXX: The clear() below means all rect vectors will be have to be
     // reallocated. We may want to avoid this if possible
     mVisibleRegions.clear();
 
-    MOZ_ASSERT(mHwcLayerMap.IsEmpty());
     if (!PrepareLayerList(aRoot,
                           mScreenRect,
                           gfxMatrix(),

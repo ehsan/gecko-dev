@@ -381,18 +381,12 @@ public:
     mShadowTransformSetByAnimation = aSetByAnimation;
   }
 
-  void SetLayerComposited(bool value)
-  {
-    mLayerComposited = value;
-  }
-
   // These getters can be used anytime.
   float GetShadowOpacity() { return mShadowOpacity; }
   const nsIntRect* GetShadowClipRect() { return mUseShadowClipRect ? &mShadowClipRect : nullptr; }
   const nsIntRegion& GetShadowVisibleRegion() { return mShadowVisibleRegion; }
   const gfx3DMatrix& GetShadowTransform() { return mShadowTransform; }
   bool GetShadowTransformSetByAnimation() { return mShadowTransformSetByAnimation; }
-  bool HasLayerBeenComposited() { return mLayerComposited; }
 
 protected:
   gfx3DMatrix mShadowTransform;
@@ -404,7 +398,6 @@ protected:
   bool mUseShadowClipRect;
   bool mShadowTransformSetByAnimation;
   bool mDestroyed;
-  bool mLayerComposited;
 };
 
 

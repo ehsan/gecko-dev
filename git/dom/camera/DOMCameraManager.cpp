@@ -66,9 +66,7 @@ nsDOMCameraManager::~nsDOMCameraManager()
   /* destructor code */
   DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-  if (obs) {
-    obs->RemoveObserver(this, "xpcom-shutdown");
-  }
+  obs->RemoveObserver(this, "xpcom-shutdown");
 }
 
 bool

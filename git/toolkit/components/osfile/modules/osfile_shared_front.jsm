@@ -14,11 +14,10 @@ if (typeof Components != "undefined") {
 }
 (function(exports) {
 
-let SharedAll =
-  require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm");
+exports.OS = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm").OS;
 
-let LOG = SharedAll.LOG.bind(SharedAll, "Shared front-end");
-let clone = SharedAll.clone;
+let LOG = exports.OS.Shared.LOG.bind(OS.Shared, "Shared front-end");
+let clone = exports.OS.Shared.clone;
 
 /**
  * Code shared by implementations of File.
@@ -90,7 +89,7 @@ AbstractFile.prototype = {
         break;
       }
       pos += chunkSize;
-      ptr = SharedAll.offsetBy(ptr, chunkSize);
+      ptr = exports.OS.Shared.offsetBy(ptr, chunkSize);
     }
 
     return pos;
@@ -122,67 +121,9 @@ AbstractFile.prototype = {
     while (pos < bytes) {
       let chunkSize = this._write(ptr, bytes - pos, options);
       pos += chunkSize;
-      ptr = SharedAll.offsetBy(ptr, chunkSize);
+      ptr = exports.OS.Shared.offsetBy(ptr, chunkSize);
     }
     return pos;
-  }
-};
-
-/**
- * Creates and opens a file with a unique name. By default, generate a random HEX number and use it to create a unique new file name.
- *
- * @param {string} path The path to the file.
- * @param {*=} options Additional options for file opening. This
- * implementation interprets the following fields:
- *
- * - {number} humanReadable If |true|, create a new filename appending a decimal number. ie: filename-1.ext, filename-2.ext.
- *  If |false| use HEX numbers ie: filename-A65BC0.ext
- * - {number} maxReadableNumber Used to limit the amount of tries after a failed
- *  file creation. Default is 20.
- *
- * @return {Object} contains A file object{file} and the path{path}.
- * @throws {OS.File.Error} If the file could not be opened.
- */
-AbstractFile.openUnique = function openUnique(path, options = {}) {
-  let mode = {
-    create : true
-  };
-
-  let dirName = OS.Path.dirname(path);
-  let leafName = OS.Path.basename(path);
-  let lastDotCharacter = leafName.lastIndexOf('.');
-  let fileName = leafName.substring(0, lastDotCharacter != -1 ? lastDotCharacter : leafName.length);
-  let suffix = (lastDotCharacter != -1 ? leafName.substring(lastDotCharacter) : "");
-  let uniquePath = "";
-  let maxAttempts = options.maxAttempts || 99;
-  let humanReadable = !!options.humanReadable;
-  const HEX_RADIX = 16;
-  // We produce HEX numbers between 0 and 2^24 - 1.
-  const MAX_HEX_NUMBER = 16777215;
-
-  try {
-    return {
-      path: path,
-      file: OS.File.open(path, mode)
-    };
-  } catch (ex if ex instanceof OS.File.Error && ex.becauseExists) {
-    for (let i = 0; i < maxAttempts; ++i) {
-      try {
-        if (humanReadable) {
-          uniquePath = OS.Path.join(dirName, fileName + "-" + (i + 1) + suffix);
-        } else {
-          let hexNumber = Math.floor(Math.random() * MAX_HEX_NUMBER).toString(HEX_RADIX);
-          uniquePath = OS.Path.join(dirName, fileName + "-" + hexNumber + suffix);
-        }
-        return {
-          path: uniquePath,
-          file: OS.File.open(uniquePath, mode)
-        };
-      } catch (ex if ex instanceof OS.File.Error && ex.becauseExists) {
-        // keep trying ...
-      }
-    }
-    throw OS.File.Error.exists("could not find an unused file name.");
   }
 };
 
@@ -209,13 +150,13 @@ AbstractFile.normalizeToPointer = function normalizeToPointer(candidate, bytes) 
     if (candidate.isNull()) {
       throw new TypeError("Expecting a non-null pointer");
     }
-    ptr = SharedAll.Type.uint8_t.out_ptr.cast(candidate);
+    ptr = exports.OS.Shared.Type.uint8_t.out_ptr.cast(candidate);
     if (bytes == null) {
       throw new TypeError("C pointer missing bytes indication.");
     }
-  } else if (SharedAll.isTypedArray(candidate)) {
+  } else if (exports.OS.Shared.isTypedArray(candidate)) {
     // Typed Array
-    ptr = SharedAll.Type.uint8_t.out_ptr.implementation(candidate.buffer);
+    ptr = exports.OS.Shared.Type.uint8_t.out_ptr.implementation(candidate.buffer);
     if (bytes == null) {
       bytes = candidate.byteLength;
     } else if (candidate.byteLength < bytes) {
@@ -489,8 +430,5 @@ AbstractFile.removeDir = function(path, options = {}) {
   OS.File.removeEmptyDir(path);
 };
 
-if (!exports.OS.Shared) {
-  exports.OS.Shared = {};
-}
-exports.OS.Shared.AbstractFile = AbstractFile;
+   exports.OS.Shared.AbstractFile = AbstractFile;
 })(this);
