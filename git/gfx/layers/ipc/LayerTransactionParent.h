@@ -75,8 +75,6 @@ public:
     PLayerTransactionParent::DeallocShmem(aShmem);
   }
 
-  virtual LayersBackend GetCompositorBackendType() const MOZ_OVERRIDE;
-
   virtual bool IsSameProcess() const MOZ_OVERRIDE;
 
 protected:

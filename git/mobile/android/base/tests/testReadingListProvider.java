@@ -74,9 +74,6 @@ public class testReadingListProvider extends ContentProviderTest {
             ensureEmptyDatabase();
             test.run();
         }
-        // Ensure browser initialization is complete before completing test,
-        // so that the minidumps directory is consistently created.
-        blockForGeckoReady();
     }
 
     /**

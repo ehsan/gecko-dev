@@ -104,8 +104,7 @@ GrallocTextureSourceOGL::~GrallocTextureSourceOGL()
   mCompositor = nullptr;
 }
 
-void
-GrallocTextureSourceOGL::BindTexture(GLenum aTextureUnit)
+void GrallocTextureSourceOGL::BindTexture(GLenum aTextureUnit)
 {
   /*
    * The job of this function is to ensure that the texture is tied to the
@@ -126,46 +125,17 @@ GrallocTextureSourceOGL::BindTexture(GLenum aTextureUnit)
 
   gl()->fActiveTexture(aTextureUnit);
   gl()->fBindTexture(textureTarget, tex);
-
-  if (mCompositableBackendData) {
-    // There are two paths for locking/unlocking - if mCompositableBackendData is
-    // set, we use the texture on there, otherwise we use
-    // CompositorBackendSpecificData from the compositor and bind the EGLImage
-    // only in Lock().
-    if (!mEGLImage) {
-      mEGLImage = EGLImageCreateFromNativeBuffer(gl(), mGraphicBuffer->getNativeBuffer());
-    }
-    gl()->fEGLImageTargetTexture2D(textureTarget, mEGLImage);
-  }
-
-  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
-}
-
-void GrallocTextureSourceOGL::Lock()
-{
-  if (mCompositableBackendData) return;
-
-  MOZ_ASSERT(IsValid());
-
-  CompositorOGLGonkBackendSpecificData* backendData =
-    static_cast<CompositorOGLGonkBackendSpecificData*>(mCompositor->GetCompositorBackendSpecificData());
-  mTexture = backendData->GetTexture();
-
-  GLuint textureTarget = GetTextureTarget();
-
-  gl()->MakeCurrent();
-  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
-  gl()->fBindTexture(textureTarget, mTexture);
   if (!mEGLImage) {
     mEGLImage = EGLImageCreateFromNativeBuffer(gl(), mGraphicBuffer->getNativeBuffer());
   }
   gl()->fEGLImageTargetTexture2D(textureTarget, mEGLImage);
+  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 }
 
 bool
 GrallocTextureSourceOGL::IsValid() const
 {
-  return !!gl() && !!mGraphicBuffer.get() && (!!mCompositor || !!mCompositableBackendData);
+  return !!gl() && !!mGraphicBuffer.get();
 }
 
 gl::GLContext*
@@ -208,7 +178,7 @@ GrallocTextureSourceOGL::GetFormat() const {
 void
 GrallocTextureSourceOGL::SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData)
 {
-  if (!aBackendData) {
+  if (!aBackendData || !mGraphicBuffer.get()) {
     mCompositableBackendData = nullptr;
     DeallocateDeviceData();
     return;
@@ -315,11 +285,7 @@ GrallocTextureHostOGL::SetCompositor(Compositor* aCompositor)
 bool
 GrallocTextureHostOGL::Lock()
 {
-  if (IsValid()) {
-    mTextureSource->Lock();
-    return true;
-  }
-  return false;
+  return IsValid();
 }
 
 void
@@ -418,12 +384,8 @@ GrallocTextureSourceOGL::GetAsSurface() {
 GLuint
 GrallocTextureSourceOGL::GetGLTexture()
 {
-  if (mCompositableBackendData) {
-    mCompositableBackendData->SetCompositor(mCompositor);
-    return static_cast<CompositableDataGonkOGL*>(mCompositableBackendData.get())->GetTexture();
-  }
-
-  return mTexture;
+  mCompositableBackendData->SetCompositor(mCompositor);
+  return static_cast<CompositableDataGonkOGL*>(mCompositableBackendData.get())->GetTexture();
 }
 
 void

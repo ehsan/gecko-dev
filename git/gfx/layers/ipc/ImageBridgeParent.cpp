@@ -58,12 +58,6 @@ ImageBridgeParent::~ImageBridgeParent()
   }
 }
 
-LayersBackend
-ImageBridgeParent::GetCompositorBackendType() const
-{
-  return Compositor::GetBackend();
-}
-
 void
 ImageBridgeParent::ActorDestroy(ActorDestroyReason aWhy)
 {

@@ -244,6 +244,10 @@ public:
     // Calls ForceClearFramebufferWithDefaultValues() for the Context's 'screen'.
     void ClearScreen();
 
+    // checks for GL errors, clears any pending GL error, stores the current GL error in currentGLError (if not nullptr),
+    // and copies it into mWebGLError if it doesn't already have an error set
+    void UpdateWebGLErrorAndClearGLError(GLenum *currentGLError = nullptr);
+
     bool MinCapabilityMode() const { return mMinCapability; }
 
     void RobustnessTimerCallback(nsITimer* timer);
@@ -848,12 +852,7 @@ protected:
     void DeleteWebGLObjectsArray(nsTArray<WebGLObjectType>& array);
 
     GLuint mActiveTexture;
-
-    // glGetError sources:
-    bool mEmitContextLostErrorOnce;
     GLenum mWebGLError;
-    GLenum mUnderlyingGLError;
-    GLenum GetAndFlushUnderlyingGLErrors();
 
     // whether shader validation is supported
     bool mShaderValidation;
@@ -896,7 +895,6 @@ protected:
     // -------------------------------------------------------------------------
     // WebGL extensions (implemented in WebGLContextExtensions.cpp)
     enum WebGLExtensionID {
-        EXT_color_buffer_half_float,
         EXT_frag_depth,
         EXT_sRGB,
         EXT_texture_filter_anisotropic,
@@ -907,7 +905,6 @@ protected:
         OES_texture_half_float,
         OES_texture_half_float_linear,
         OES_vertex_array_object,
-        WEBGL_color_buffer_float,
         WEBGL_compressed_texture_atc,
         WEBGL_compressed_texture_pvrtc,
         WEBGL_compressed_texture_s3tc,
@@ -935,6 +932,7 @@ protected:
     static const char* GetExtensionString(WebGLExtensionID ext);
 
     nsTArray<GLenum> mCompressedTextureFormats;
+
 
     // -------------------------------------------------------------------------
     // WebGL 2 specifics (implemented in WebGL2Context.cpp)
