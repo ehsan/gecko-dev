@@ -64,11 +64,6 @@ public:
     aUuids = mUuids;
   }
 
-  BluetoothDeviceType Type() const
-  {
-    return mType;
-  }
-
   /****************************************************************************
    * Event Handlers
    ***************************************************************************/
@@ -128,13 +123,6 @@ private:
   void DispatchAttributeEvent(const nsTArray<nsString>& aTypes);
 
   /**
-   * Convert uint32_t to BluetoothDeviceType.
-   *
-   * @param aValue [in] uint32_t to convert
-   */
-  BluetoothDeviceType ConvertUint32ToDeviceType(const uint32_t aValue);
-
-  /**
    * Convert string to BluetoothDeviceAttribute.
    *
    * @param aString [in] String to convert
@@ -178,11 +166,6 @@ private:
    * Cached UUID list of services which this device provides.
    */
   nsTArray<nsString> mUuids;
-
-  /**
-   * Type of this device. Can be unknown/classic/le/dual.
-   */
-  BluetoothDeviceType mType;
 };
 
 END_BLUETOOTH_NAMESPACE

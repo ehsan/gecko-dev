@@ -13,6 +13,16 @@
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
 
+#if MOZ_IS_GCC && MOZ_GCC_VERSION_AT_LEAST(4, 7, 0)
+/* use designated array initializers if supported */
+#define CONVERT(in_, out_) \
+  [in_] = out_
+#else
+/* otherwise init array element by position */
+#define CONVERT(in_, out_) \
+  out_
+#endif
+
 #define MAX_UUID_SIZE 16
 
 BEGIN_BLUETOOTH_NAMESPACE
@@ -413,18 +423,18 @@ Convert(bt_acl_state_t aIn, bool& aOut)
 }
 
 static nsresult
-Convert(bt_device_type_t aIn, BluetoothTypeOfDevice& aOut)
+Convert(bt_device_type_t aIn, BluetoothDeviceType& aOut)
 {
-  static const BluetoothTypeOfDevice sTypeOfDevice[] = {
-    CONVERT(0, static_cast<BluetoothTypeOfDevice>(0)), // invalid, required by gcc
-    CONVERT(BT_DEVICE_DEVTYPE_BREDR, TYPE_OF_DEVICE_BREDR),
-    CONVERT(BT_DEVICE_DEVTYPE_BLE, TYPE_OF_DEVICE_BLE),
-    CONVERT(BT_DEVICE_DEVTYPE_DUAL, TYPE_OF_DEVICE_DUAL)
+  static const BluetoothDeviceType sDeviceType[] = {
+    CONVERT(0, static_cast<BluetoothDeviceType>(0)), // invalid, required by gcc
+    CONVERT(BT_DEVICE_DEVTYPE_BREDR, DEVICE_TYPE_BREDR),
+    CONVERT(BT_DEVICE_DEVTYPE_BLE, DEVICE_TYPE_BLE),
+    CONVERT(BT_DEVICE_DEVTYPE_DUAL, DEVICE_TYPE_DUAL)
   };
-  if (!aIn || aIn >= MOZ_ARRAY_LENGTH(sTypeOfDevice)) {
+  if (!aIn || aIn >= MOZ_ARRAY_LENGTH(sDeviceType)) {
     return NS_ERROR_ILLEGAL_VALUE;
   }
-  aOut = sTypeOfDevice[aIn];
+  aOut = sDeviceType[aIn];
   return NS_OK;
 }
 
@@ -1035,7 +1045,7 @@ Convert(const bt_property_t& aIn, BluetoothProperty& aOut)
       break;
     case PROPERTY_TYPE_OF_DEVICE:
       rv = Convert(*static_cast<bt_device_type_t*>(aIn.val),
-                   aOut.mTypeOfDevice);
+                   aOut.mDeviceType);
       break;
     case PROPERTY_SERVICE_RECORD:
       rv = Convert(*static_cast<bt_service_record_t*>(aIn.val),
