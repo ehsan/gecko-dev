@@ -860,6 +860,14 @@ const gFormSubmitObserver = {
     function inputHandler(e) {
       if (e.originalTarget.validity.valid) {
         gFormSubmitObserver.panel.hidePopup();
+      } else {
+        // If the element is now invalid for a new reason, we should update the
+        // error message.
+        if (gFormSubmitObserver.panel.firstChild.textContent !=
+            e.originalTarget.validationMessage) {
+          gFormSubmitObserver.panel.firstChild.textContent =
+            e.originalTarget.validationMessage;
+        }
       }
     };
     element.addEventListener("input", inputHandler, false);
@@ -883,12 +891,18 @@ const gFormSubmitObserver = {
         (element.type == 'radio' || element.type == 'checkbox')) {
       position = "bottomcenter topleft";
     } else {
-      let style = element.ownerDocument.defaultView.getComputedStyle(element, null);
+      let win = element.ownerDocument.defaultView;
+      let style = win.getComputedStyle(element, null);
+      let utils = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                     .getInterface(Components.interfaces.nsIDOMWindowUtils);
+
       if (style.direction == 'rtl') {
         offset = parseInt(style.paddingRight) + parseInt(style.borderRightWidth);
       } else {
         offset = parseInt(style.paddingLeft) + parseInt(style.borderLeftWidth);
       }
+
+      offset = Math.round(offset * utils.screenPixelsPerCSSPixel);
 
       position = "after_start";
     }
@@ -1313,6 +1327,8 @@ function BrowserStartup() {
 
   gPrivateBrowsingUI.init();
 
+  retrieveToolbarIconsizesFromTheme();
+
   setTimeout(delayedStartup, 0, isLoadingBlank, mustLoadSidebar);
 }
 
@@ -1354,6 +1370,9 @@ function prepareForStartup() {
   gBrowser.addEventListener("PluginOutdated",     gPluginHandler, true);
   gBrowser.addEventListener("PluginDisabled",     gPluginHandler, true);
   gBrowser.addEventListener("NewPluginInstalled", gPluginHandler.newPluginInstalled, true);
+#ifdef XP_MACOSX
+  gBrowser.addEventListener("npapi-carbon-event-model-failure", gPluginHandler, true);
+#endif 
 
   Services.obs.addObserver(gPluginHandler.pluginCrashed, "plugin-crashed", false);
 
@@ -1658,6 +1677,7 @@ function BrowserShutdown()
   gPrefService.removeObserver(allTabs.prefName, allTabs);
   ctrlTab.uninit();
   allTabs.uninit();
+  TabView.uninit();
 
   CombinedStopReload.uninit();
 
@@ -3602,10 +3622,43 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   window.content.focus();
 }
 
-function BrowserToolboxCustomizeChange() {
-  gHomeButton.updatePersonalToolbarStyle();
-  BookmarksMenuButton.customizeChange();
-  allTabs.readPref();
+function BrowserToolboxCustomizeChange(aType) {
+  switch (aType) {
+    case "iconsize":
+    case "mode":
+      retrieveToolbarIconsizesFromTheme();
+      break;
+    default:
+      gHomeButton.updatePersonalToolbarStyle();
+      BookmarksMenuButton.customizeChange();
+      allTabs.readPref();
+  }
+}
+
+/**
+ * Allows themes to override the "iconsize" attribute on toolbars.
+ */
+function retrieveToolbarIconsizesFromTheme() {
+  function retrieveToolbarIconsize(aToolbar) {
+    if (aToolbar.localName != "toolbar")
+      return;
+
+    // The theme indicates that it wants to override the "iconsize" attribute
+    // by specifying a special value for the "counter-reset" property on the
+    // toolbar. A custom property cannot be used because getComputedStyle can
+    // only return the values of standard CSS properties.
+    let counterReset = getComputedStyle(aToolbar).counterReset;
+    if (counterReset == "smallicons 0") {
+      aToolbar.setAttribute("iconsize", "small");
+      document.persist(aToolbar.id, "iconsize");
+    } else if (counterReset == "largeicons 0") {
+      aToolbar.setAttribute("iconsize", "large");
+      document.persist(aToolbar.id, "iconsize");
+    }
+  }
+
+  Array.forEach(gNavToolbox.childNodes, retrieveToolbarIconsize);
+  gNavToolbox.externalToolbars.forEach(retrieveToolbarIconsize);
 }
 
 /**
@@ -4099,8 +4152,7 @@ var XULBrowserWindow = {
     // Encode bidirectional formatting characters.
     // (RFC 3987 sections 3.2 and 4.1 paragraph 6)
     this.overLink = url.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
-                                encodeURIComponent)
-                       .replace(/^http:\/\//, "");
+                                encodeURIComponent);
     LinkTargetDisplay.update();
   },
 
@@ -4354,11 +4406,7 @@ var XULBrowserWindow = {
       }
 
       // Show or hide browser chrome based on the whitelist
-      var disableChrome = this.inContentWhitelist.some(function(aSpec) {
-        return aSpec == location;
-      });
-
-      if (disableChrome)
+      if (this.hideChromeForLocation(location))
         document.documentElement.setAttribute("disablechrome", "true");
       else
         document.documentElement.removeAttribute("disablechrome");
@@ -4403,6 +4451,12 @@ var XULBrowserWindow = {
 
   asyncUpdateUI: function () {
     FeedHandler.updateFeeds();
+  },
+
+  hideChromeForLocation: function(aLocation) {
+    return this.inContentWhitelist.some(function(aSpec) {
+      return aSpec == aLocation;
+    });
   },
 
   onStatusChange: function (aWebProgress, aRequest, aStatus, aMessage) {
@@ -6568,6 +6622,7 @@ var gPluginHandler = {
   handleEvent : function(event) {
     let self = gPluginHandler;
     let plugin = event.target;
+    let hideBarPrefName;
 
     // We're expecting the target to be a plugin.
     if (!(plugin instanceof Ci.nsIObjectLoadingContent))
@@ -6587,7 +6642,7 @@ var gPluginHandler = {
         /* FALLTHRU */
       case "PluginBlocklisted":
       case "PluginOutdated":
-        let hideBarPrefName = event.type == "PluginOutdated" ?
+        hideBarPrefName = event.type == "PluginOutdated" ?
                                 "plugins.hide_infobar_for_outdated_plugin" :
                                 "plugins.hide_infobar_for_missing_plugin";
         if (gPrefService.getBoolPref(hideBarPrefName))
@@ -6595,7 +6650,15 @@ var gPluginHandler = {
 
         self.pluginUnavailable(plugin, event.type);
         break;
+#ifdef XP_MACOSX
+      case "npapi-carbon-event-model-failure":
+        hideBarPrefName = "plugins.hide_infobar_for_carbon_failure_plugin";
+        if (gPrefService.getBoolPref(hideBarPrefName))
+          return;
 
+        self.pluginUnavailable(plugin, event.type);
+        break;
+#endif
       case "PluginDisabled":
         self.addLinkClickCallback(plugin, "managePlugins");
         break;
@@ -6653,8 +6716,7 @@ var gPluginHandler = {
     openHelpLink("plugin-crashed", false);
   },
 
-
-  // event listener for missing/blocklisted/outdated plugins.
+  // event listener for missing/blocklisted/outdated/carbonFailure plugins.
   pluginUnavailable: function (plugin, eventType) {
     let browser = gBrowser.getBrowserForDocument(plugin.ownerDocument
                                                        .defaultView.top.document);
@@ -6699,6 +6761,23 @@ var gPluginHandler = {
       }
     }
 
+#ifdef XP_MACOSX
+    function carbonFailurePluginsRestartBrowser()
+    {
+      // Notify all windows that an application quit has been requested.
+      let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"].
+                         createInstance(Ci.nsISupportsPRBool);
+      Services.obs.notifyObservers(cancelQuit, "quit-application-requested", null);
+ 
+      // Something aborted the quit process.
+      if (cancelQuit.data)
+        return;
+
+      let as = Cc["@mozilla.org/toolkit/app-startup;1"].getService(Ci.nsIAppStartup);
+      as.quit(Ci.nsIAppStartup.eRestarti386 | Ci.nsIAppStartup.eRestart | Ci.nsIAppStartup.eAttemptQuit);
+    }
+#endif
+
     let notifications = {
       PluginBlocklisted : {
                             barID   : "blocked-plugins",
@@ -6738,9 +6817,36 @@ var gPluginHandler = {
                                          popup     : null,
                                          callback  : showPluginsMissing
                                       }],
-                          }
+                            },
+#ifdef XP_MACOSX
+      "npapi-carbon-event-model-failure" : {
+                                             barID    : "carbon-failure-plugins",
+                                             iconURL  : "chrome://mozapps/skin/plugins/notifyPluginGeneric.png",
+                                             message  : gNavigatorBundle.getString("carbonFailurePluginsMessage.title"),
+                                             buttons: [{
+                                                         label     : gNavigatorBundle.getString("carbonFailurePluginsMessage.restartButton.label"),
+                                                         accessKey : gNavigatorBundle.getString("carbonFailurePluginsMessage.restartButton.accesskey"),
+                                                         popup     : null,
+                                                         callback  : carbonFailurePluginsRestartBrowser
+                                                      }],
+                            }
+#endif
     };
+#ifdef XP_MACOSX
+    if (eventType == "npapi-carbon-event-model-failure") {
 
+      let carbonFailureNotification = 
+        notificationBox.getNotificationWithValue("carbon-failure-plugins");
+
+      if (carbonFailureNotification)
+         carbonFailureNotification.close();
+
+      let macutils = Cc["@mozilla.org/xpcom/mac-utils;1"].getService(Ci.nsIMacUtils);
+      // if this is not a Universal build, just follow PluginNotFound path
+      if (!macutils.isUniversalBinary)
+        eventType = "PluginNotFound";
+    }
+#endif
     if (eventType == "PluginBlocklisted") {
       if (blockedNotification || missingNotification)
         return;
@@ -7183,7 +7289,7 @@ function undoCloseTab(aIndex) {
   var ss = Cc["@mozilla.org/browser/sessionstore;1"].
            getService(Ci.nsISessionStore);
   if (ss.getClosedTabCount(window) > (aIndex || 0)) {
-    TabView.prepareUndoCloseTab();
+    TabView.prepareUndoCloseTab(blankTabToRemove);
     tab = ss.undoCloseTab(window, aIndex || 0);
     TabView.afterUndoCloseTab();
 
@@ -8357,7 +8463,8 @@ var TabContextMenu = {
       PlacesCommandHook.updateBookmarkAllTabsCommand();
 
     // Hide "Move to Group" if it's a pinned tab.
-    document.getElementById("context_tabViewMenu").hidden = this.contextTab.pinned;
+    document.getElementById("context_tabViewMenu").hidden =
+      (this.contextTab.pinned || !TabView.firstRunExperienced);
   }
 };
 
