@@ -61,10 +61,6 @@ var ContentAreaObserver = {
     return this._getContentHeightForWindow(this.height);
   },
 
-  get contentTop () {
-    return Elements.toolbar.getBoundingClientRect().bottom;
-  },
-
   get viewableHeight() {
     return this._getViewableHeightForContent(this.contentHeight);
   },
@@ -99,7 +95,7 @@ var ContentAreaObserver = {
     Services.obs.addObserver(this, "metro_softkeyboard_hidden", false);
 
     // setup initial values for browser form repositioning
-    this._shiftBrowserDeck(0);
+    this.shiftBrowserDeck(0);
 
     // initialize our custom width and height styles
     this._initStyles();
@@ -132,16 +128,10 @@ var ContentAreaObserver = {
     this._updateViewState();
 
     this.updateContentArea(newWidth, this._getContentHeightForWindow(newHeight));
-    this._disatchBrowserEvent("SizeChanged");
+    this._dispatchBrowserEvent("SizeChanged");
   },
 
   updateContentArea: function cao_updateContentArea (width, height) {
-    let oldHeight = parseInt(this.styles["content-height"].height);
-    let oldWidth = parseInt(this.styles["content-width"].width);
-
-    let newWidth = width || this.width;
-    let newHeight = height || this.contentHeight;
-
     if (Browser.selectedBrowser) {
       let notificationBox = Browser.getNotificationBox();
 
@@ -149,9 +139,18 @@ var ContentAreaObserver = {
       // make the notification appear above the navbar.
       if (ContextUI.navbarVisible && !notificationBox.notificationsHidden &&
           notificationBox.allNotifications.length != 0) {
-        newHeight -= Elements.navbar.getBoundingClientRect().height;
+        let navbarHeight = Elements.navbar.getBoundingClientRect().height;
+        notificationBox.style.paddingBottom = navbarHeight + "px";
+      } else {
+        notificationBox.style.paddingBottom = "";
       }
     }
+
+    let oldHeight = parseInt(this.styles["content-height"].height);
+    let oldWidth = parseInt(this.styles["content-width"].width);
+
+    let newWidth = width || this.width;
+    let newHeight = height || this.contentHeight;
 
     if (newHeight == oldHeight && newWidth == oldWidth)
       return;
@@ -162,7 +161,7 @@ var ContentAreaObserver = {
     this.styles["content-width"].maxWidth = newWidth + "px";
 
     this.updateViewableArea(newWidth, this._getViewableHeightForContent(newHeight));
-    this._disatchBrowserEvent("ContentSizeChanged");
+    this._dispatchBrowserEvent("ContentSizeChanged");
   },
 
   updateViewableArea: function cao_updateViewableArea (width, height) {
@@ -186,7 +185,7 @@ var ContentAreaObserver = {
     // these are hidden.
     BrowserUI._updateButtons();
 
-    this._disatchBrowserEvent("ViewableSizeChanged");
+    this._dispatchBrowserEvent("ViewableSizeChanged");
   },
 
   updateAppBarPosition: function updateAppBarPosition(aForceDown) {
@@ -226,7 +225,7 @@ var ContentAreaObserver = {
     this.updateViewableArea();
 
     if (!aNewState) {
-      this._shiftBrowserDeck(0);
+      this.shiftBrowserDeck(0);
       return;
     }
 
@@ -241,10 +240,10 @@ var ContentAreaObserver = {
 
   _onRepositionResponse: function _onRepositionResponse(aJsonMsg) {
     if (!aJsonMsg.reposition || !this.isKeyboardOpened) {
-      this._shiftBrowserDeck(0);
+      this.shiftBrowserDeck(0);
       return;
     }
-    this._shiftBrowserDeck(aJsonMsg.raiseContent);
+    this.shiftBrowserDeck(aJsonMsg.raiseContent);
   },
 
   observe: function cao_observe(aSubject, aTopic, aData) {
@@ -300,7 +299,7 @@ var ContentAreaObserver = {
     }
   },
 
-  _shiftBrowserDeck: function _shiftBrowserDeck(aAmount) {
+  shiftBrowserDeck: function (aAmount) {
     if (aAmount == 0) {
       this._deckTransitioning = false;
       this._dispatchWindowEvent("KeyboardChanged", this.isKeyboardOpened);
@@ -332,7 +331,7 @@ var ContentAreaObserver = {
     window.dispatchEvent(event);
   },
 
-  _disatchBrowserEvent: function (aName, aDetail) {
+  _dispatchBrowserEvent: function (aName, aDetail) {
     setTimeout(function() {
       let event = document.createEvent("Events");
       event.initEvent(aName, true, false);

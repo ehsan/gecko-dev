@@ -594,6 +594,12 @@ SocialShare = {
       return this.panel.lastChild;
   },
 
+  uninit: function () {
+    if (this.iframe) {
+      this.iframe.remove();
+    }
+  },
+
   _createFrame: function() {
     let panel = this.panel;
     if (!SocialUI.enabled || this.iframe)
@@ -1281,6 +1287,10 @@ SocialSidebar = {
     sbrowser.stop();
     sbrowser.removeAttribute("origin");
     sbrowser.setAttribute("src", "about:blank");
+    // We need to explicitly create a new content viewer because the old one
+    // doesn't get destroyed until about:blank has loaded (which does not happen
+    // as long as the element is hidden).
+    sbrowser.docShell.createAboutBlankContentViewer(null);
     SocialFlyout.unload();
   },
 
@@ -1516,6 +1526,7 @@ SocialStatus = {
           "class": "social-panel-frame",
           "id": notificationFrameId,
           "tooltip": "aHTMLTooltip",
+          "context": "contentAreaContextMenu",
 
           // work around bug 793057 - by making the panel roughly the final size
           // we are more likely to have the anchor in the correct position.

@@ -65,12 +65,12 @@ public:
   MOZ_ALWAYS_INLINE void Update();
 
   MOZ_ALWAYS_INLINE void Unset(Modifiers aRemovingModifiers);
-  MOZ_ALWAYS_INLINE void Set(Modifiers aAddingModifiers);
+  void Set(Modifiers aAddingModifiers);
 
   void InitInputEvent(WidgetInputEvent& aInputEvent) const;
 
-  MOZ_ALWAYS_INLINE bool IsShift() const;
-  MOZ_ALWAYS_INLINE bool IsControl() const;
+  bool IsShift() const;
+  bool IsControl() const;
   MOZ_ALWAYS_INLINE bool IsAlt() const;
   MOZ_ALWAYS_INLINE bool IsAltGr() const;
   MOZ_ALWAYS_INLINE bool IsWin() const;
@@ -296,6 +296,24 @@ private:
   NativeKey()
   {
     MOZ_CRASH("The default constructor of NativeKey isn't available");
+  }
+
+  /**
+   * Returns true if the key event is caused by auto repeat.
+   */
+  bool IsRepeat() const
+  {
+    switch (mMsg.message) {
+      case WM_KEYDOWN:
+      case WM_SYSKEYDOWN:
+      case WM_CHAR:
+      case WM_SYSCHAR:
+      case WM_DEADCHAR:
+      case WM_SYSDEADCHAR:
+        return ((mMsg.lParam & (1 << 30)) != 0);
+      default:
+        return false;
+    }
   }
 
   UINT GetScanCodeWithExtendedFlag() const;
