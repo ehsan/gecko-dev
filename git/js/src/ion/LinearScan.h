@@ -267,7 +267,6 @@ class VirtualRegister : public TempObject
     Vector<LOperand, 0, IonAllocPolicy> uses_;
     LMoveGroup *inputMoves_;
     LMoveGroup *outputMoves_;
-    LAllocation *canonicalSpill_;
 
   public:
     VirtualRegister()
@@ -276,8 +275,7 @@ class VirtualRegister : public TempObject
         ins_(NULL),
         intervals_(),
         inputMoves_(NULL),
-        outputMoves_(NULL),
-        canonicalSpill_(NULL)
+        outputMoves_(NULL)
     { }
 
     bool init(uint32 reg, LBlock *block, LInstruction *ins, LDefinition *def) {
@@ -345,16 +343,9 @@ class VirtualRegister : public TempObject
     LMoveGroup *outputMoves() {
         return outputMoves_;
     }
-    void setCanonicalSpill(LAllocation *alloc) {
-        canonicalSpill_ = alloc;
-    }
-    LAllocation *canonicalSpill() {
-        return canonicalSpill_;
-    }
 
     LiveInterval *intervalFor(CodePosition pos);
-    LOperand *nextUseAfter(CodePosition pos);
-    CodePosition nextUsePosAfter(CodePosition pos);
+    CodePosition nextUseAfter(CodePosition pos);
     CodePosition nextIncompatibleUseAfter(CodePosition after, LAllocation alloc);
     LiveInterval *getFirstInterval();
 };
@@ -438,11 +429,10 @@ class LinearScanAllocator
     InlineList<LiveInterval> active;
     InlineList<LiveInterval> inactive;
     InlineList<LiveInterval> handled;
+    RegisterSet freeRegs;
     CodePosition *freeUntilPos;
     CodePosition *nextUsePos;
     LiveInterval *current;
-    LOperand *firstUse;
-    CodePosition firstUsePos;
 
     bool createDataStructures();
     bool buildLivenessInfo();
@@ -484,8 +474,7 @@ class LinearScanAllocator
   public:
     LinearScanAllocator(LIRGenerator *lir, LIRGraph &graph)
       : lir(lir),
-        graph(graph),
-        firstUsePos(CodePosition::MAX)
+        graph(graph)
     { }
 
     bool go();

@@ -54,18 +54,13 @@ using namespace JSC;
 IonCode *
 IonCompartment::generateEnterJIT(JSContext *cx)
 {
-    const Register reg_code = ArgReg1;
-    const Register reg_argc = ArgReg2;
-    const Register reg_argv = ArgReg3;
-    const Register reg_vp   = ArgReg4;
-
     MacroAssembler masm;
 
     // Save old stack frame pointer, set new stack frame pointer.
     masm.push(rbp);
     masm.mov(rsp, rbp);
 
-    // Save non-volatile registers.
+    // Save nonvolatile registers
     masm.push(rbx);
     masm.push(r12);
     masm.push(r13);
@@ -76,66 +71,64 @@ IonCompartment::generateEnterJIT(JSContext *cx)
     masm.push(rsi);
 #endif
 
-    // Save arguments passed in registers needed after function call.
-    masm.push(reg_vp);
+    // Save arguments passed in registers that we'll need after the function call
+    masm.push(ArgReg4); // return value pointer
 
-    // Remember stack depth without padding and arguments.
-    masm.mov(rsp, r14);
+    // We need the stack to be 16 byte alligned when we jump into JIT code
+    // We know that the stack is 8 byte alligned now (odd # of pushes so far),
+    // so if we push an odd number of 8 byte words onto the stack we need to push
+    // a word of padding so the stack will 16 byte alligned after the return address
+    // is pushed. We push all args, then the number of bytes we pushed,
+    // so if argc+1 is odd, then we need a word of padding
+    masm.mov(ArgReg2, r12); // rsi has argc
+    masm.andl(Imm32(1), r12); //r12 has parity of argc
+    masm.xorl(Imm32(1), r12); //now r12 has inverse parity of argc (1 if argc is even)
+    masm.shll(Imm32(3), r12); // final padding amount (either 8 or 0)
 
-    // Remember number of bytes occupied by argument vector
-    masm.mov(reg_argc, r13);
-    masm.shll(Imm32(3), r13);
-
-    // Guarantee 16-byte alignment.
-    // We push argc, frame size, and return address.
-    // The latter two are 16 bytes together, so we only consider argc.
-    masm.mov(rsp, r12);
-    masm.subq(r13, r12);
-    masm.andl(Imm32(0xf), r12);
-    masm.subq(r12, rsp);
+    masm.subq(r12, rsp); // put padding on the stack
 
     /***************************************************************
     Loop over argv vector, push arguments onto stack in reverse order
     ***************************************************************/
+    masm.mov(ArgReg2, r13); // r13 = argc
+    masm.subq(Imm32(1), r13);
+    masm.shll(Imm32(3), r13); // r13 = 8(argc-1)
+    masm.addq(ArgReg3, r13); // r13 now points to the last argument
 
-    // r13 still stores the number of bytes in the argument vector.
-    masm.addq(reg_argv, r13); // r13 points above last argument.
+    Label loopHeader, loopEnd;
 
-    // while r13 > rdx, push arguments.
-    {
-        Label header, footer;
-        masm.bind(&header);
+    //while r13 >= rdx  -- while we are still pointing to arguments
+    masm.bind(&loopHeader);
 
-        masm.cmpq(r13, reg_argv);
-        masm.j(AssemblerX86Shared::BelowOrEqual, &footer);
+    masm.cmpq(r13, ArgReg3);
+    masm.j(AssemblerX86Shared::LessThan, &loopEnd);
 
-        masm.subq(Imm32(8), r13);
-        masm.push(Operand(r13, 0));
-        masm.jmp(&header);
+    masm.push(Operand(r13, 0)); // Push what r13 points to on the stack
 
-        masm.bind(&footer);
-    }
+    masm.subq(Imm32(8), r13); // Decrement r13 so that it points to the previous arg
+
+    masm.jmp(&loopHeader); // loop footer
+    masm.bind(&loopEnd);
 
     /*****************************************************************
     Push the number of bytes we've pushed so far on the stack and call
     *****************************************************************/
-    masm.subq(rsp, r14);
-    masm.push(r14);
+    masm.shll(Imm32(3), ArgReg2);
+    masm.addq(ArgReg2, r12); // r12 = sizeof(padding) + sizeof(Value)*argc
+    masm.push(r12); // Push on stack
 
-    // Call function.
-    masm.call(reg_code);
+    masm.call(ArgReg1); // Call function
 
-    // Pop arguments and padding from stack.
-    masm.pop(r14);
-    masm.addq(r14, rsp);
+    masm.pop(r12); // Get the size of all args + padding we pushed on the stack
+    masm.addq(r12, rsp); // Pop all those args and padding off of the stack
 
     /*****************************************************************
     Place return value where it belongs, pop all saved registers
     *****************************************************************/
-    masm.pop(r12); // vp
-    masm.movq(JSReturnReg, Operand(r12, 0));
+    masm.pop(r12); // r12 is now a pointer to return value pointer vp
+    masm.movq(JSReturnReg, Operand(r12, 0)); // Move the return value to memory
 
-    // Restore non-volatile registers.
+    // Restore nonvolatile registers
 #if defined(_WIN64)
     masm.pop(rsi);
     masm.pop(rdi);
@@ -146,7 +139,7 @@ IonCompartment::generateEnterJIT(JSContext *cx)
     masm.pop(r12);
     masm.pop(rbx);
 
-    // Restore frame pointer and return.
+    // Restore frame pointer and return
     masm.pop(rbp);
     masm.ret();
 

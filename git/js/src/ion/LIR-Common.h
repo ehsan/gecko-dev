@@ -91,6 +91,7 @@ class LMove
 
 class LMoveGroup : public LInstructionHelper<0, 0, 0>
 {
+    RegisterSet freeRegs_;
     js::Vector<LMove, 2, IonAllocPolicy> moves_;
 
   public:
@@ -105,6 +106,12 @@ class LMoveGroup : public LInstructionHelper<0, 0, 0>
     }
     const LMove &getMove(size_t i) const {
         return moves_[i];
+    }
+    void setFreeRegisters(const RegisterSet &freeRegs) {
+        freeRegs_ = freeRegs;
+    }
+    const RegisterSet &freeRegs() const {
+        return freeRegs_;
     }
 };
 

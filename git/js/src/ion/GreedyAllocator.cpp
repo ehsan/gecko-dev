@@ -691,6 +691,10 @@ GreedyAllocator::prepareBackedge(LBlock *block)
         phi->getDef(0)->setOutput(result);
     }
 
+    // At the loop edge we could need to emit mem->mem moves, so tell it which
+    // registers are free (if any).
+    blockInfo(block)->freeOnExit = state.free;
+
     return true;
 }
 
@@ -717,6 +721,7 @@ GreedyAllocator::mergeBackedgeState(LBlock *header, LBlock *backedge)
     }
 
     if (info->phis.moves) {
+        info->phis.moves->setFreeRegisters(info->freeOnExit);
         LInstruction *ins = *backedge->instructions().rbegin();
         backedge->insertBefore(ins, info->phis.moves);
     }
@@ -793,8 +798,10 @@ GreedyAllocator::mergePhiState(LBlock *block)
     LInstruction *before = *block->instructions().rbegin();
     if (restores)
         block->insertBefore(before, restores);
-    if (info->phis.moves)
+    if (info->phis.moves) {
+        info->phis.moves->setFreeRegisters(state.free);
         block->insertBefore(before, info->phis.moves);
+    }
 
     return true;
 }

@@ -214,21 +214,6 @@ VirtualRegister::getFirstInterval()
     return intervals_[0];
 }
 
-LOperand *
-VirtualRegister::nextUseAfter(CodePosition after)
-{
-    LOperand *min = NULL;
-    CodePosition minPos = CodePosition::MAX;
-    for (LOperand *i = uses_.begin(); i != uses_.end(); i++) {
-        CodePosition ip(i->ins->id(), CodePosition::INPUT);
-        if (i->use->policy() != LUse::KEEPALIVE && ip >= after && ip < minPos) {
-            min = i;
-            minPos = ip;
-        }
-    }
-    return min;
-}
-
 /*
  * This function locates the first "real" use of the callee virtual register
  * that follows the given code position. Non-"real" uses are currently just
@@ -236,12 +221,15 @@ VirtualRegister::nextUseAfter(CodePosition after)
  * generation of code that use them.
  */
 CodePosition
-VirtualRegister::nextUsePosAfter(CodePosition after)
+VirtualRegister::nextUseAfter(CodePosition after)
 {
-    LOperand *min = nextUseAfter(after);
-    if (min)
-        return CodePosition(min->ins->id(), CodePosition::INPUT);
-    return CodePosition::MAX;
+    CodePosition min = CodePosition::MAX;
+    for (LOperand *i = uses_.begin(); i != uses_.end(); i++) {
+        CodePosition ip(i->ins->id(), CodePosition::INPUT);
+        if (i->use->policy() != LUse::KEEPALIVE && ip >= after && ip < min)
+            min = ip;
+    }
+    return min;
 }
 
 /*
@@ -564,7 +552,7 @@ LinearScanAllocator::allocateRegisters()
                 mustHaveRegister = !current->reg()->ins()->isPhi();
             else
                 JS_ASSERT(policy == LDefinition::REDEFINED);
-        } else if (position.subpos() == CodePosition::INPUT) {
+        } else {
             // Scan uses for any at the current instruction
             LOperand *fixedOp = NULL;
             for (size_t i = 0; i < current->reg()->numUses(); i++) {
@@ -591,20 +579,6 @@ LinearScanAllocator::allocateRegisters()
                     return false;
                 continue;
             }
-        }
-
-        // Find the first use of this register
-        firstUse = current->reg()->nextUseAfter(position);
-        if (firstUse)
-            firstUsePos = inputOf(firstUse->ins);
-        else
-            firstUsePos = CodePosition::MAX;
-
-        // If we really don't need this in a register, don't allocate one
-        if (!mustHaveRegister && !firstUse && current->reg()->canonicalSpill()) {
-            if (!spill())
-                return false;
-            continue;
         }
 
         // Try to allocate a free register
@@ -635,17 +609,18 @@ LinearScanAllocator::allocateRegisters()
         best = findBestBlockedRegister();
 
         // Figure out whether to spill the blocker or ourselves
-        IonSpew(IonSpew_LSRA, "  Current interval next used at %u", firstUsePos.pos());
+        CodePosition firstUse = current->reg()->nextUseAfter(position);
+        IonSpew(IonSpew_LSRA, "  Current interval next used at %u", firstUse.pos());
 
         // Deal with constraints
         if (mustHaveRegister) {
             IonSpew(IonSpew_LSRA, "   But this interval needs a register.");
-            firstUsePos = position;
+            firstUse = position;
         }
 
         // We only spill the blocking interval if it is a strict improvement
         // to do so, otherwise we will continuously re-spill intervals.
-        if (firstUsePos >= nextUsePos[best.code()]) {
+        if (firstUse >= nextUsePos[best.code()]) {
             if (!spill())
                 return false;
         } else {
@@ -775,12 +750,55 @@ LinearScanAllocator::reifyAllocations()
     }
 
     // Handle each interval in sequence
+    uint32 last = 1;
+    RegisterSet freeRegs(RegisterSet::All());
     LiveInterval *interval;
     while ((interval = unhandled.dequeue()) != NULL) {
         VirtualRegister *reg = interval->reg();
 
         IonSpew(IonSpew_LSRA, " Reifying interval %u = [%u,%u]", reg->reg(), interval->start(),
                 interval->end());
+
+        // Set free registers on all moves up to this point
+        for (; last < interval->start().ins(); last++) {
+            if (vregs[last].inputMoves())
+                vregs[last].inputMoves()->setFreeRegisters(freeRegs);
+            if (vregs[last].outputMoves())
+                vregs[last].outputMoves()->setFreeRegisters(freeRegs);
+        }
+
+        // Bookkeeping for active intervals
+        for (IntervalIterator i(active.begin()); i != active.end(); ) {
+            if (i->end() < interval->start()) {
+                if (i->getAllocation()->isRegister())
+                    freeRegs.add(i->getAllocation()->toRegister());
+                i = active.removeAt(i);
+            } else if (i->covers(interval->start())) {
+                i++;
+            } else {
+                if (i->getAllocation()->isRegister())
+                    freeRegs.add(i->getAllocation()->toRegister());
+                LiveInterval *save = *i;
+                i = active.removeAt(i);
+                inactive.insert(save);
+            }
+        }
+        for (IntervalIterator i(inactive.begin()); i != inactive.end(); ) {
+            if (i->end() < interval->start()) {
+                i = inactive.removeAt(i);
+            } else if (i->covers(interval->start())) {
+                if (i->getAllocation()->isRegister())
+                    freeRegs.take(i->getAllocation()->toRegister());
+                LiveInterval *save = *i;
+                i = inactive.removeAt(i);
+                active.insert(save);
+            } else {
+                i++;
+            }
+        }
+        active.insert(interval);
+        if (interval->getAllocation()->isRegister())
+            freeRegs.take(interval->getAllocation()->toRegister());
 
         // Erase all uses of this interval
         for (size_t i = 0; i < reg->numUses(); i++) {
@@ -791,18 +809,11 @@ LinearScanAllocator::reifyAllocations()
                 *alloc = *interval->getAllocation();
         }
 
-        if (interval->index() == 0)
-        {
+        if (interval->index() == 0) {
             // Erase the def of this interval if it's the first one
             reg->def()->setOutput(*interval->getAllocation());
-        }
-        else if (!interval->reg()->canonicalSpill() ||
-                 interval->reg()->canonicalSpill() == interval->getAllocation() ||
-                 *interval->reg()->canonicalSpill() != *interval->getAllocation())
-        {
-            // If this virtual register has no canonical spill location, this
-            // is the first spill to that location, or this is a move to somewhere
-            // completely different, we have to emit a move for this interval.
+        } else {
+            // Insert moves for this interval otherwise
             LiveInterval *from = reg->getInterval(interval->index() - 1);
             if (!moveBefore(interval->start(), from, interval))
                 return false;
@@ -939,11 +950,6 @@ LinearScanAllocator::assign(LAllocation allocation)
                 i++;
             }
         }
-    } else if (allocation.isMemory()) {
-        if (current->reg()->canonicalSpill())
-            JS_ASSERT(allocation == *current->reg()->canonicalSpill());
-        else
-            current->reg()->setCanonicalSpill(current->getAllocation());
     }
 
     active.insert(current);
@@ -955,12 +961,6 @@ bool
 LinearScanAllocator::spill()
 {
     IonSpew(IonSpew_LSRA, "  Decided to spill current interval");
-
-    if (current->reg()->canonicalSpill()) {
-        IonSpew(IonSpew_LSRA, "  Allocating canonical spill location");
-
-        return assign(*current->reg()->canonicalSpill());
-    }
 
     uint32 stackSlot;
     if (!stackAssignment.allocateSlot(&stackSlot))
@@ -977,8 +977,7 @@ LinearScanAllocator::finishInterval(LiveInterval *interval)
     LAllocation *alloc = interval->getAllocation();
     JS_ASSERT(!alloc->isUse());
 
-    bool lastInterval = interval->index() == (interval->reg()->numIntervals() - 1);
-    if (alloc->isStackSlot() && (alloc != interval->reg()->canonicalSpill() || lastInterval)) {
+    if (alloc->isStackSlot()) {
         if (alloc->toStackSlot()->isDouble())
             stackAssignment.freeDoubleSlot(alloc->toStackSlot()->slot());
         else
@@ -1023,30 +1022,14 @@ LinearScanAllocator::findBestFreeRegister()
         }
     }
 
-    // Search freeUntilPos for largest value
+    // Search freeUntilPos for largest value, and update freeRegs
+    freeRegs.clear();
     Register best = Register::FromCode(0);
     for (uint32 i = 0; i < Registers::Total; i++) {
         Register reg = Register::FromCode(i);
+        freeRegs.add(reg);
         if (freeUntilPos[i] > freeUntilPos[best.code()])
             best = reg;
-    }
-
-    // As an optimization, use the allocation from the previous interval if it
-    // is available.
-    if (current->index()) {
-        LiveInterval *previous = current->reg()->getInterval(current->index() - 1);
-        if (previous->getAllocation()->isGeneralReg()) {
-            Register prevReg = previous->getAllocation()->toGeneralReg()->reg();
-            if (freeUntilPos[prevReg.code()] != CodePosition::MIN)
-                best = prevReg;
-        }
-    }
-
-    // Alternately, use the upcoming fixed register if it is available.
-    if (firstUse && firstUse->use->policy() == LUse::FIXED) {
-        uint32 fixedReg = firstUse->use->registerCode();
-        if (freeUntilPos[fixedReg] != CodePosition::MIN)
-            best = Register::FromCode(fixedReg);
     }
 
     return best;
@@ -1072,7 +1055,7 @@ LinearScanAllocator::findBestBlockedRegister()
     for (IntervalIterator i(active.begin()); i != active.end(); i++) {
         if (i->getAllocation()->isGeneralReg()) {
             Register reg = i->getAllocation()->toGeneralReg()->reg();
-            CodePosition nextUse = i->reg()->nextUsePosAfter(current->start());
+            CodePosition nextUse = i->reg()->nextUseAfter(current->start());
             IonSpew(IonSpew_LSRA, "   Register %u next used %u", reg.code(), nextUse.pos());
 
             if (i->start() == current->start()) {
@@ -1086,7 +1069,7 @@ LinearScanAllocator::findBestBlockedRegister()
     for (IntervalIterator i(inactive.begin()); i != inactive.end(); i++) {
         if (i->getAllocation()->isGeneralReg()) {
             Register reg = i->getAllocation()->toGeneralReg()->reg();
-            CodePosition pos = i->reg()->nextUsePosAfter(current->start());
+            CodePosition pos = i->reg()->nextUseAfter(current->start());
             JS_ASSERT(i->covers(pos) || i->end() == pos);
             if (pos < nextUsePos[reg.code()]) {
                 nextUsePos[reg.code()] = pos;
@@ -1168,8 +1151,6 @@ bool
 LinearScanAllocator::moveBefore(CodePosition pos, LiveInterval *from, LiveInterval *to)
 {
     LMoveGroup *moves = getMoveGroupBefore(pos);
-    if (*from->getAllocation() == *to->getAllocation())
-        return true;
     return moves->add(from->getAllocation(), to->getAllocation());
 }
 

@@ -62,9 +62,7 @@ LICM::analyze()
     // In reverse post order, look for loops:
     for (size_t i = 0; i < graph.numBlocks(); i ++) {
         MBasicBlock *header = graph.getBlock(i);
-        // If we find a loop, make sure that it's actually a loop and not one with an empty body.
-        // Loops with empty bodies aren't worth it, obviously.
-        if (header->isLoopHeader() && header->numPredecessors() > 1) {
+        if (header->isLoopHeader()) {
             // The loop footer is the last predecessor of the loop header.
             MBasicBlock *footer = header->getPredecessor(header->numPredecessors() - 1);
 
@@ -100,8 +98,6 @@ Loop::init()
         JS_ASSERT(header_->id() <= header_->getPredecessor(i)->id());
     }
 #endif
-
-    IonSpew(IonSpew_LICM, "footer is block %d", footer_->id());
 
     if (!iterateLoopBlocks(footer_))
         return false;
@@ -274,4 +270,3 @@ Loop::popFromWorklist()
     toReturn->setNotInWorklist();
     return toReturn;
 }
-
