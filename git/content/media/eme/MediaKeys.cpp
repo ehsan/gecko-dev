@@ -55,12 +55,6 @@ RejectPromises(const uint32_t& aKey,
 
 MediaKeys::~MediaKeys()
 {
-  Shutdown();
-}
-
-void
-MediaKeys::Shutdown()
-{
   if (mProxy) {
     mProxy->Shutdown();
     mProxy = nullptr;
