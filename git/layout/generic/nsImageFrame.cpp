@@ -609,8 +609,7 @@ nsImageFrame::OnStopDecode(imgIRequest *aRequest,
 }
 
 nsresult
-nsImageFrame::FrameChanged(imgIContainer *aContainer,
-                           const nsIntRect *aDirtyRect)
+nsImageFrame::FrameChanged(imgIContainer *aContainer, nsIntRect *aDirtyRect)
 {
   if (!GetStyleVisibility()->IsVisible()) {
     return NS_OK;
@@ -1880,7 +1879,7 @@ nsImageFrame::IconLoad::OnDiscard(imgIRequest *aRequest)
 
 NS_IMETHODIMP
 nsImageFrame::IconLoad::FrameChanged(imgIContainer *aContainer,
-                                     const nsIntRect *aDirtyRect)
+                                     nsIntRect * aDirtyRect)
 {
   nsTObserverArray<nsImageFrame*>::ForwardIterator iter(mIconObservers);
   nsImageFrame *frame;
@@ -1935,12 +1934,12 @@ NS_IMETHODIMP nsImageListener::OnStopDecode(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsImageListener::FrameChanged(imgIContainer *aContainer,
-                                            const nsIntRect *aDirtyRect)
+                                            nsIntRect * dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->FrameChanged(aContainer, aDirtyRect);
+  return mFrame->FrameChanged(aContainer, dirtyRect);
 }
 
 static PRBool

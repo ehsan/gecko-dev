@@ -966,7 +966,7 @@ namespace nanojit
             else if (ty == ARGTYPE_D && fr < XMM8) {
                 // double goes in next available XMM register
                 asm_regarg(ty, arg, fr);
-                fr = Register(fr + 1);
+                fr = nextreg(fr);
             }
         #endif
             else {
@@ -1901,6 +1901,7 @@ namespace nanojit
 #else
         a.free = 0xffffffff & ~(1<<RSP | 1<<RBP);
 #endif
+        debug_only( a.managed = a.free; )
     }
 
     void Assembler::nPatchBranch(NIns *patch, NIns *target) {

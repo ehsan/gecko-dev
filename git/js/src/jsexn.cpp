@@ -293,13 +293,13 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
     stackDepth = 0;
     valueCount = 0;
     for (fp = js_GetTopStackFrame(cx); fp; fp = fp->down) {
-        if (fp->hasFunction() && fp->argv) {
+        if (fp->fun && fp->argv) {
             Value v = NullValue();
             if (checkAccess &&
                 !checkAccess(cx, fp->callee(), callerid, JSACC_READ, &v)) {
                 break;
             }
-            valueCount += fp->numActualArgs();
+            valueCount += fp->argc;
         }
         ++stackDepth;
     }
@@ -334,21 +334,21 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
     values = GetStackTraceValueBuffer(priv);
     elem = priv->stackElems;
     for (fp = js_GetTopStackFrame(cx); fp != fpstop; fp = fp->down) {
-        if (!fp->hasFunction()) {
+        if (!fp->fun) {
             elem->funName = NULL;
             elem->argc = 0;
         } else {
-            elem->funName = fp->getFunction()->atom
-                            ? ATOM_TO_STRING(fp->getFunction()->atom)
+            elem->funName = fp->fun->atom
+                            ? ATOM_TO_STRING(fp->fun->atom)
                             : cx->runtime->emptyString;
-            elem->argc = fp->numActualArgs();
-            memcpy(values, fp->argv, elem->argc * sizeof(jsval));
-            values += elem->argc;
+            elem->argc = fp->argc;
+            memcpy(values, fp->argv, fp->argc * sizeof(jsval));
+            values += fp->argc;
         }
         elem->ulineno = 0;
         elem->filename = NULL;
-        if (fp->hasScript()) {
-            elem->filename = fp->getScript()->filename;
+        if (fp->script) {
+            elem->filename = fp->script->filename;
             if (fp->pc(cx))
                 elem->ulineno = js_FramePCToLineNumber(cx, fp);
         }
@@ -749,7 +749,7 @@ Exception(JSContext *cx, JSObject *obj, uintN argc, Value *argv, Value *rval)
     } else {
         fp = js_GetScriptedCaller(cx, NULL);
         if (fp) {
-            filename = FilenameToString(cx, fp->getScript()->filename);
+            filename = FilenameToString(cx, fp->script->filename);
             if (!filename)
                 return JS_FALSE;
         } else {
@@ -990,11 +990,11 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
      * If lazy class initialization occurs for any Error subclass, then all
      * classes are initialized, starting with Error.  To avoid reentry and
      * redundant initialization, we must not pass a null proto parameter to
-     * NewNonFunction below, when called for the Error superclass.  We need to
+     * NewObject below, when called for the Error superclass.  We need to
      * ensure that Object.prototype is the proto of Error.prototype.
      *
      * See the equivalent code to ensure that parent_proto is non-null when
-     * js_InitClass calls NewObject, in jsobj.cpp.
+     * JS_InitClass calls NewObject, in jsapi.c.
      */
     if (!js_GetClassPrototype(cx, obj, JSProto_Object, &obj_proto))
         return NULL;
@@ -1012,7 +1012,7 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
     for (intN i = JSEXN_ERR; i != JSEXN_LIMIT; i++) {
         /* Make the prototype for the current constructor name. */
         JSObject *proto =
-            NewNonFunction<WithProto::Class>(cx, &js_ErrorClass, (i != JSEXN_ERR) ? error_proto : obj_proto, obj);
+            NewObject(cx, &js_ErrorClass, (i != JSEXN_ERR) ? error_proto : obj_proto, obj);
         if (!proto)
             return NULL;
         if (i == JSEXN_ERR) {

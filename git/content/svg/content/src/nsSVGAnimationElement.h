@@ -84,16 +84,14 @@ public:
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
-  virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAString* aValue, PRBool aNotify);
 
   // nsISMILAnimationElement interface
-  virtual const Element& AsElement() const;
-  virtual Element& AsElement();
+  virtual const nsIContent& Content() const;
+  virtual nsIContent& Content();
   virtual const nsAttrValue* GetAnimAttr(nsIAtom* aName) const;
   virtual PRBool GetAnimAttr(nsIAtom* aAttName, nsAString& aResult) const;
   virtual PRBool HasAnimAttr(nsIAtom* aAttName) const;
-  virtual Element* GetTargetElementContent();
+  virtual mozilla::dom::Element* GetTargetElementContent();
   virtual nsIAtom* GetTargetAttributeName() const;
   virtual nsSMILTargetAttrType GetTargetAttributeType() const;
   virtual nsSMILTimedElement& TimedElement();
@@ -105,7 +103,6 @@ protected:
 
   void UpdateHrefTarget(nsIContent* aNodeForContext,
                         const nsAString& aHrefStr);
-  void AnimationTargetChanged();
 
   class TargetReference : public nsReferencedElement {
   public:
@@ -114,10 +111,10 @@ protected:
   protected:
     // We need to be notified when target changes, in order to request a
     // sample (which will clear animation effects from old target and apply
-    // them to the new target) and update any event registrations.
+    // them to the new target).
     virtual void ElementChanged(Element* aFrom, Element* aTo) {
       nsReferencedElement::ElementChanged(aFrom, aTo);
-      mAnimationElement->AnimationTargetChanged();
+      mAnimationElement->AnimationNeedsResample();
     }
 
     // We need to override IsPersistent to get persistent tracking (beyond the

@@ -130,11 +130,6 @@ public:
   IDirect3DDevice9 *device() const { return mDeviceManager->device(); }
   DeviceManagerD3D9 *deviceManager() const { return mDeviceManager; }
 
-  static void OnDeviceManagerDestroy(DeviceManagerD3D9 *aDeviceManager) {
-    if(aDeviceManager == mDeviceManager)
-      mDeviceManager = nsnull;
-  }
-
 private:
   /* Device manager instance */
   static DeviceManagerD3D9 *mDeviceManager;

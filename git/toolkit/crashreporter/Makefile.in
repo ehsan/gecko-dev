@@ -61,7 +61,6 @@ DIRS += \
   google-breakpad/src/common \
   google-breakpad/src/common/mac \
   google-breakpad/src/client \
-  google-breakpad/src/client/mac/crash_generation \
   google-breakpad/src/client/mac/handler \
   google-breakpad/src/tools/mac/dump_syms \
   $(NULL)
@@ -113,10 +112,7 @@ EXTRA_JS_MODULES = \
   $(NULL)
 
 ifdef ENABLE_TESTS
-# Temporarily disable the tests on Linux, see bug 573290 and bug 583591
-ifneq ($(OS_ARCH),Linux)
 TOOL_DIRS = test
-endif
 endif
 
 include $(topsrcdir)/config/rules.mk

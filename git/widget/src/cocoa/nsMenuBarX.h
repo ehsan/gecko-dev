@@ -62,11 +62,13 @@ public:
   NS_IMETHOD CreateNativeMenuBar(nsIWidget* aParent, nsIContent* aMenuBarNode);
 };
 
-// Objective-C class used to allow us to intervene with keyboard event handling.
+// Objective-C class used to allow us to have keyboard commands
+// look like they are doing something but actually do nothing.
 // We allow mouse actions to work normally.
 @interface GeckoNSMenu : NSMenu
 {
 }
+- (BOOL)performKeyEquivalent:(NSEvent*)theEvent;
 @end
 
 // Objective-C class used as action target for menu items

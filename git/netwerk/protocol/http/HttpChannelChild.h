@@ -60,12 +60,20 @@
 #include "nsIProxiedChannel.h"
 #include "nsITraceableChannel.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
-#include "nsIAssociatedContentSecurity.h"
 
 namespace mozilla {
 namespace net {
 
 class ChildChannelEvent;
+
+// TODO: replace with IPDL states: bug 536319
+enum HttpChannelChildState {
+  HCC_NEW,
+  HCC_OPENED,
+  HCC_ONSTART,
+  HCC_ONDATA,
+  HCC_ONSTOP
+};
 
 class HttpChannelChild : public PHttpChannelChild
                        , public HttpBaseChannel
@@ -75,7 +83,6 @@ class HttpChannelChild : public PHttpChannelChild
                        , public nsITraceableChannel
                        , public nsIApplicationCacheChannel
                        , public nsIAsyncVerifyRedirectCallback
-                       , public nsIAssociatedContentSecurity
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -86,7 +93,6 @@ public:
   NS_DECL_NSIAPPLICATIONCACHECONTAINER
   NS_DECL_NSIAPPLICATIONCACHECHANNEL
   NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
-  NS_DECL_NSIASSOCIATEDCONTENTSECURITY
 
   HttpChannelChild();
   virtual ~HttpChannelChild();
@@ -127,28 +133,23 @@ protected:
                           const PRBool& isFromCache,
                           const PRBool& cacheEntryAvailable,
                           const PRUint32& cacheExpirationTime,
-                          const nsCString& cachedCharset,
-                          const nsCString& securityInfoSerialization);
+                          const nsCString& cachedCharset);
   bool RecvOnDataAvailable(const nsCString& data, 
                            const PRUint32& offset,
                            const PRUint32& count);
   bool RecvOnStopRequest(const nsresult& statusCode);
   bool RecvOnProgress(const PRUint64& progress, const PRUint64& progressMax);
   bool RecvOnStatus(const nsresult& status, const nsString& statusArg);
-  bool RecvCancelEarly(const nsresult& status);
   bool RecvRedirect1Begin(PHttpChannelChild* newChannel,
                           const URI& newURI,
                           const PRUint32& redirectFlags,
                           const nsHttpResponseHead& responseHead);
   bool RecvRedirect3Complete();
 
-  bool GetAssociatedContentSecurity(nsIAssociatedContentSecurity** res = nsnull);
-
 private:
   RequestHeaderTuples mRequestHeaders;
   nsRefPtr<HttpChannelChild> mRedirectChannelChild;
   nsCOMPtr<nsIURI> mRedirectOriginalURI;
-  nsCOMPtr<nsISupports> mSecurityInfo;
 
   PRPackedBool mIsFromCache;
   PRPackedBool mCacheEntryAvailable;
@@ -160,8 +161,9 @@ private:
   // Current suspension depth for this channel object
   PRUint32 mSuspendCount;
 
+  // FIXME: replace with IPDL states (bug 536319) 
+  enum HttpChannelChildState mState;
   bool mIPCOpen;
-  bool mKeptAlive;
 
   // Workaround for Necko re-entrancy dangers. We buffer IPDL messages in a
   // queue if still dispatching previous one(s) to listeners/observers.
@@ -187,15 +189,13 @@ private:
                           const PRBool& isFromCache,
                           const PRBool& cacheEntryAvailable,
                           const PRUint32& cacheExpirationTime,
-                          const nsCString& cachedCharset,
-                          const nsCString& securityInfoSerialization);
+                          const nsCString& cachedCharset);
   void OnDataAvailable(const nsCString& data, 
                        const PRUint32& offset,
                        const PRUint32& count);
   void OnStopRequest(const nsresult& statusCode);
   void OnProgress(const PRUint64& progress, const PRUint64& progressMax);
   void OnStatus(const nsresult& status, const nsString& statusArg);
-  void OnCancel(const nsresult& status);
   void Redirect1Begin(PHttpChannelChild* newChannel, const URI& newURI,
                       const PRUint32& redirectFlags,
                       const nsHttpResponseHead& responseHead);
@@ -207,7 +207,6 @@ private:
   friend class DataAvailableEvent;
   friend class ProgressEvent;
   friend class StatusEvent;
-  friend class CancelEvent;
   friend class Redirect1Event;
   friend class Redirect3Event;
 };

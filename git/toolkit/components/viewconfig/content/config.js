@@ -254,8 +254,6 @@ var gPrefListener =
       }
       if (gPrefView == gPrefArray)
         view.treebox.rowCountChanged(index, 1);
-      else
-        FilterPrefs();
     }
   }
 };

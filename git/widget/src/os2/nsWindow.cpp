@@ -222,7 +222,6 @@ nsWindow::nsWindow() : nsBaseWidget()
   mOnDestroyCalled    = PR_FALSE;
   mIsDestroying       = PR_FALSE;
   mInSetFocus         = PR_FALSE;
-  mNoPaint            = PR_FALSE;
   mDragHps            = 0;
   mDragStatus         = 0;
   mClipWnd            = 0;
@@ -400,15 +399,6 @@ NS_METHOD nsWindow::Create(nsIWidget* aParent,
   if (aInitData) {
     mWindowType = aInitData->mWindowType;
     mBorderStyle = aInitData->mBorderStyle;
-
-    // Suppress creation of a Thebes surface for windows that will never
-    // be painted because they're always covered by another window.
-    if (mWindowType == eWindowType_toplevel ||
-        mWindowType == eWindowType_invisible ||
-        (mWindowType == eWindowType_child &&
-         aInitData->mContentType == eContentTypeContent)) {
-      mNoPaint = PR_TRUE;
-    }
   }
 
   // For toplevel windows, create an instance of our helper class,
@@ -706,19 +696,6 @@ NS_IMETHODIMP nsWindow::Update()
 gfxASurface* nsWindow::GetThebesSurface()
 {
   if (mWnd && !mThebesSurface) {
-    mThebesSurface = new gfxOS2Surface(mWnd);
-  }
-  return mThebesSurface;
-}
-
-//-----------------------------------------------------------------------------
-// Internal-only method that suppresses creation of a Thebes surface
-// for windows that aren't supposed to be visible.  If one was created
-// by an external call to GetThebesSurface(), it will be returned.
-
-gfxASurface* nsWindow::ConfirmThebesSurface()
-{
-  if (!mThebesSurface && !mNoPaint && mWnd) {
     mThebesSurface = new gfxOS2Surface(mWnd);
   }
   return mThebesSurface;
@@ -1993,10 +1970,12 @@ PRBool nsWindow::OnReposition(PSWP pSwp)
     mBounds.width  = pSwp->cx;
     mBounds.height = pSwp->cy;
 
-    // If the window is supposed to have a thebes surface, resize it.
-    if (ConfirmThebesSurface()) {
-        mThebesSurface->Resize(gfxIntSize(mBounds.width, mBounds.height));
+    // Resize the thebes surface to the new size.  The first time we do
+    // a resize, we may need to create a thebes surface for the window.
+    if (!mThebesSurface) {
+      mThebesSurface = new gfxOS2Surface(mWnd);
     }
+    mThebesSurface->Resize(gfxIntSize(mBounds.width, mBounds.height));
 
     result = DispatchResizeEvent(mBounds.width, mBounds.height);
   }
@@ -2047,16 +2026,8 @@ do {
   WinQueryUpdateRegion(mWnd, hrgn);
   WinBeginPaint(mWnd, hPS, &rcl);
 
-  // Exit if the update rect is empty.
-  if (WinIsRectEmpty(0, &rcl)) {
-    break;
-  }
-
-  // Exit if a thebes surface can not/should not be created,
-  // but first fill the area with the default background color
-  // to erase any visual artifacts.
-  if (!ConfirmThebesSurface()) {
-    WinDrawBorder(hPS, &rcl, 0, 0, 0, 0, DB_INTERIOR | DB_AREAATTRS);
+  // Exit if the update rect is empty or mThebesSurface is null.
+  if (WinIsRectEmpty(0, &rcl) || !GetThebesSurface()) {
     break;
   }
 
@@ -2072,15 +2043,6 @@ do {
   InitEvent(event);
   nsRefPtr<gfxContext> thebesContext = new gfxContext(mThebesSurface);
   thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
-
-  // Intersect the update region with the paint rectangle to clip areas
-  // that aren't visible (e.g. offscreen or covered by another window).
-  HRGN hrgnPaint;
-  hrgnPaint = GpiCreateRegion(hPS, 1, &rcl);
-  if (hrgnPaint) {
-    GpiCombineRegion(hPS, hrgn, hrgn, hrgnPaint, CRGN_AND);
-    GpiDestroyRegion(hPS, hrgnPaint);
-  }
 
   // See how many rects comprise the update region.  If there are 8
   // or fewer, update them individually.  If there are more or the call
@@ -2884,46 +2846,15 @@ PRBool nsWindow::DispatchResizeEvent(PRInt32 aX, PRInt32 aY)
 PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, MPARAM mp1, MPARAM mp2,
                                     PRBool aIsContextMenuKey, PRInt16 aButton)
 {
-  NS_ENSURE_TRUE(aEventType, PR_FALSE);
-
   nsMouseEvent event(PR_TRUE, aEventType, this, nsMouseEvent::eReal,
                      aIsContextMenuKey
                      ? nsMouseEvent::eContextMenuKey
                      : nsMouseEvent::eNormal);
   event.button = aButton;
 
-  if (aEventType == NS_MOUSE_ENTER || aEventType == NS_MOUSE_EXIT) {
-    // Ignore enter/leave msgs forwarded from the frame to FID_CLIENT
-    // because we're only interested msgs involving the content area.
-    if (HWNDFROMMP(mp1) != mWnd) {
-      return FALSE;
-    }
-
-    // If the mouse has exited the content area and entered either an
-    // unrelated window or what Windows would call the nonclient area
-    // (i.e. frame, titlebar, etc.), mark this as a toplevel exit.
-    // Note: exits to and from menus will also be marked toplevel.
-    if (aEventType == NS_MOUSE_EXIT) {
-      HWND  hTop;
-      HWND  hCur = mWnd;
-      HWND  hDesk = WinQueryDesktopWindow(0, 0);
-      while (hCur && hCur != hDesk) {
-        hTop = hCur;
-        hCur = WinQueryWindow(hCur, QW_PARENT);
-      }
-
-      // event.exit was init'ed to eChild, so we don't need an 'else'
-      hTop = WinWindowFromID(hTop, FID_CLIENT);
-      if (!hTop || !WinIsChild(HWNDFROMMP(mp2), hTop)) {
-        event.exit = nsMouseEvent::eTopLevel;
-      }
-    }
-
-    InitEvent(event, nsnull);
-    event.isShift   = isKeyDown(VK_SHIFT);
-    event.isControl = isKeyDown(VK_CTRL);
-    event.isAlt     = isKeyDown(VK_ALT) || isKeyDown(VK_ALTGRAF);
-  } else {
+  // Mouse leave & enter messages don't seem to have position built in.
+  if (aEventType &&
+      aEventType != NS_MOUSE_ENTER && aEventType != NS_MOUSE_EXIT) {
     POINTL ptl;
     if (aEventType == NS_CONTEXTMENU && aIsContextMenuKey) {
       WinQueryPointerPos(HWND_DESKTOP, &ptl);
@@ -2940,6 +2871,11 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, MPARAM mp1, MPARAM mp2,
     event.isShift   = (usFlags & KC_SHIFT) ? PR_TRUE : PR_FALSE;
     event.isControl = (usFlags & KC_CTRL) ? PR_TRUE : PR_FALSE;
     event.isAlt     = (usFlags & KC_ALT) ? PR_TRUE : PR_FALSE;
+  } else {
+    InitEvent(event, nsnull);
+    event.isShift   = isKeyDown(VK_SHIFT);
+    event.isControl = isKeyDown(VK_CTRL);
+    event.isAlt     = isKeyDown(VK_ALT) || isKeyDown(VK_ALTGRAF);
   }
   event.isMeta = PR_FALSE;
 

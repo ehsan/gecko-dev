@@ -658,8 +658,8 @@ nsresult nsMenuBarX::CreateApplicationMenu(nsMenuX* inMenu)
     BOOL addHideShowSeparator = FALSE;
     
     // Add menu item to hide this application
-    itemBeingAdded = CreateNativeAppMenuItem(inMenu, NS_LITERAL_STRING("menu_mac_hide_app"), @selector(menuItemHit:),
-                                             eCommand_ID_HideApp, nsMenuBarX::sNativeEventTarget);
+    itemBeingAdded = CreateNativeAppMenuItem(inMenu, NS_LITERAL_STRING("menu_mac_hide_app"), @selector(hide:),
+                                             0, NSApp);
     if (itemBeingAdded) {
       [sApplicationMenu addItem:itemBeingAdded];
       [itemBeingAdded release];
@@ -669,8 +669,8 @@ nsresult nsMenuBarX::CreateApplicationMenu(nsMenuX* inMenu)
     }
     
     // Add menu item to hide other applications
-    itemBeingAdded = CreateNativeAppMenuItem(inMenu, NS_LITERAL_STRING("menu_mac_hide_others"), @selector(menuItemHit:),
-                                             eCommand_ID_HideOthers, nsMenuBarX::sNativeEventTarget);
+    itemBeingAdded = CreateNativeAppMenuItem(inMenu, NS_LITERAL_STRING("menu_mac_hide_others"), @selector(hideOtherApplications:),
+                                             0, NSApp);
     if (itemBeingAdded) {
       [sApplicationMenu addItem:itemBeingAdded];
       [itemBeingAdded release];
@@ -680,8 +680,8 @@ nsresult nsMenuBarX::CreateApplicationMenu(nsMenuX* inMenu)
     }
     
     // Add menu item to show all applications
-    itemBeingAdded = CreateNativeAppMenuItem(inMenu, NS_LITERAL_STRING("menu_mac_show_all"), @selector(menuItemHit:),
-                                             eCommand_ID_ShowAll, nsMenuBarX::sNativeEventTarget);
+    itemBeingAdded = CreateNativeAppMenuItem(inMenu, NS_LITERAL_STRING("menu_mac_show_all"), @selector(unhideAllApplications:),
+                                             0, NSApp);
     if (itemBeingAdded) {
       [sApplicationMenu addItem:itemBeingAdded];
       [itemBeingAdded release];
@@ -735,39 +735,28 @@ static BOOL gMenuItemsExecuteCommands = YES;
 
 @implementation GeckoNSMenu
 
-// Keyboard commands should not cause menu items to invoke their
-// commands when there is a key window because we'd rather send
-// the keyboard command to the window. We still have the menus
-// go through the mechanics so they'll give the proper visual
-// feedback.
 - (BOOL)performKeyEquivalent:(NSEvent *)theEvent
 {
-  // We've noticed that Mac OS X expects this check in subclasses before
-  // calling NSMenu's "performKeyEquivalent:".
-  //
-  // There is no case in which we'd need to do anything or return YES
-  // when we have no items so we can just do this check first.
-  if ([self numberOfItems] <= 0) {
-    return NO;
-  }
+  // If there is no window open we will act on the menu item here.
+  if (![NSApp mainWindow]) {
+    // We've noticed that Mac OS X expects this check in subclasses.
+    // Do it before any actual interaction with this menu.
+    if ([self numberOfItems] <= 0) {
+      return YES;
+    }
 
-  NSWindow *keyWindow = [NSApp keyWindow];
-
-  // If there is no key window then just behave normally. This
-  // probably means that this menu is associated with Gecko's
-  // hidden window.
-  if (!keyWindow) {
     return [super performKeyEquivalent:theEvent];
   }
 
-  // Plugins normally eat all keyboard commands, this hack mitigates
-  // the problem.
-  BOOL handleForPluginHack = NO;
-  NSResponder *firstResponder = [keyWindow firstResponder];
+  BOOL invokeMenuItemCommand = NO;
+
+  // Plugins normally eat all keyboard commands, this hack
+  // mitigates the problem.
+  NSResponder *firstResponder = [[NSApp keyWindow] firstResponder];
   if (firstResponder &&
       [firstResponder isKindOfClass:[ChildView class]] &&
       [(ChildView*)firstResponder isPluginView]) {
-    handleForPluginHack = YES;
+    invokeMenuItemCommand = YES;
     // Maintain a list of cmd+key combinations that we never act on (in the
     // browser) when the keyboard focus is in a plugin.  What a particular
     // cmd+key combo means here (to the browser) is governed by browser.dtd,
@@ -777,23 +766,20 @@ static BOOL gMenuItemsExecuteCommands = YES;
       NSString *unmodchars = [theEvent charactersIgnoringModifiers];
       if ([unmodchars length] == 1) {
         if ([unmodchars characterAtIndex:0] == nsMenuBarX::GetLocalizedAccelKey("key_selectAll")) {
-          handleForPluginHack = NO;
+          invokeMenuItemCommand = NO;
         }
       }
     }
   }
 
-  gMenuItemsExecuteCommands = handleForPluginHack;
-  [super performKeyEquivalent:theEvent];
-  gMenuItemsExecuteCommands = YES; // return to default
-
-  // Return YES if we invoked a command and there is now no key window or we changed
-  // the first responder. In this case we do not want to propagate the event because
-  // we don't want it handled again.
-  if (handleForPluginHack) {
-    if (![NSApp keyWindow] || [[NSApp keyWindow] firstResponder] != firstResponder) {
-      return YES;
-    }
+  if (invokeMenuItemCommand) {
+    [super performKeyEquivalent:theEvent];
+  } else {
+    // Show menu interface effects by invoking the native menu
+    // but not actually invoking the XUL command.
+    gMenuItemsExecuteCommands = NO;
+    [super performKeyEquivalent:theEvent];
+    gMenuItemsExecuteCommands = YES;
   }
 
   // Return NO so that we can handle the event via NSView's "keyDown:".
@@ -837,26 +823,12 @@ static BOOL gMenuItemsExecuteCommands = YES;
     if (menuBar && menuBar->mAboutItemContent)
       mostSpecificContent = menuBar->mAboutItemContent;
     nsMenuUtilsX::DispatchCommandTo(mostSpecificContent);
-    return;
   }
   else if (tag == eCommand_ID_Prefs) {
     nsIContent* mostSpecificContent = sPrefItemContent;
     if (menuBar && menuBar->mPrefItemContent)
       mostSpecificContent = menuBar->mPrefItemContent;
     nsMenuUtilsX::DispatchCommandTo(mostSpecificContent);
-    return;
-  }
-  else if (tag == eCommand_ID_HideApp) {
-    [NSApp hide:sender];
-    return;
-  }
-  else if (tag == eCommand_ID_HideOthers) {
-    [NSApp hideOtherApplications:sender];
-    return;
-  }
-  else if (tag == eCommand_ID_ShowAll) {
-    [NSApp unhideAllApplications:sender];
-    return;
   }
   else if (tag == eCommand_ID_Quit) {
     nsIContent* mostSpecificContent = sQuitItemContent;
@@ -870,9 +842,14 @@ static BOOL gMenuItemsExecuteCommands = YES;
     }
     else {
       [NSApp terminate:nil];
+      return;
     }
-    return;
   }
+  // Quit now if the "active" menu bar has changed (as the result of
+  // processing an app-global command above).  This resolves bmo bug
+  // 430506.
+  if (menuBar && menuBar != nsMenuBarX::sLastGeckoMenuBarPainted)
+    return;
 
   // given the commandID, look it up in our hashtable and dispatch to
   // that menu item.

@@ -233,7 +233,8 @@ static hb_face_t _hb_face_nil = {
   NULL, /* destroy */
   NULL, /* user_data */
 
-  0,    /* units_per_em */
+  NULL, /* head_blob */
+  NULL, /* head_table */
 
   NULL  /* ot_layout */
 };
@@ -245,8 +246,6 @@ hb_face_create_for_tables (hb_get_table_func_t  get_table,
 			   void                *user_data)
 {
   hb_face_t *face;
-  hb_blob_t *head_blob;
-  const struct head *head_table;
 
   if (!HB_OBJECT_DO_CREATE (hb_face_t, face)) {
     if (destroy)
@@ -260,16 +259,8 @@ hb_face_create_for_tables (hb_get_table_func_t  get_table,
 
   face->ot_layout = _hb_ot_layout_new (face);
 
-  head_blob = Sanitizer<head>::sanitize (hb_face_get_table (face, HB_OT_TAG_head));
-  if (unlikely (hb_blob_get_length(head_blob) < head::min_size)) {
-    hb_face_destroy (face);
-    return &_hb_face_nil;
-  }
-
-  head_table = Sanitizer<head>::lock_instance (head_blob);
-  face->units_per_em = head_table->unitsPerEm;
-  hb_blob_unlock (head_blob);
-  hb_blob_destroy (head_blob);
+  face->head_blob = Sanitizer<head>::sanitize (hb_face_get_table (face, HB_OT_TAG_head));
+  face->head_table = Sanitizer<head>::lock_instance (face->head_blob);
 
   return face;
 }
@@ -354,6 +345,9 @@ hb_face_destroy (hb_face_t *face)
   HB_OBJECT_DO_DESTROY (face);
 
   _hb_ot_layout_free (face->ot_layout);
+
+  hb_blob_unlock (face->head_blob);
+  hb_blob_destroy (face->head_blob);
 
   if (face->destroy)
     face->destroy (face->user_data);

@@ -104,17 +104,17 @@ FreeContext(JSContext *cx);
 
 #ifdef DEBUG
 JS_REQUIRES_STACK bool
-StackSegment::contains(const JSStackFrame *fp) const
+CallStackSegment::contains(const JSStackFrame *fp) const
 {
     JS_ASSERT(inContext());
     JSStackFrame *start;
     JSStackFrame *stop;
-    if (isActive()) {
-        start = cx->fp;
-        stop = cx->activeSegment()->initialFrame->down;
-    } else {
+    if (isSuspended()) {
         start = suspendedFrame;
         stop = initialFrame->down;
+    } else {
+        start = cx->fp;
+        stop = cx->activeSegment()->initialFrame->down;
     }
     for (JSStackFrame *f = start; f != stop; f = f->down) {
         if (f == fp)
@@ -202,21 +202,21 @@ StackSpace::mark(JSTracer *trc)
 {
     /*
      * The correctness/completeness of marking depends on the continuity
-     * invariants described by the StackSegment and StackSpace definitions.
+     * invariants described by the CallStackSegment and StackSpace definitions.
      */
     Value *end = firstUnused();
-    for (StackSegment *seg = currentSegment; seg; seg = seg->getPreviousInMemory()) {
-        if (seg->inContext()) {
+    for (CallStackSegment *css = currentSegment; css; css = css->getPreviousInMemory()) {
+        if (css->inContext()) {
             /* This may be the only pointer to the initialVarObj. */
-            if (JSObject *varobj = seg->getInitialVarObj())
+            if (JSObject *varobj = css->getInitialVarObj())
                 JS_CALL_OBJECT_TRACER(trc, varobj, "varobj");
 
             /* Mark slots/args trailing off of the last stack frame. */
-            JSStackFrame *fp = seg->getCurrentFrame();
+            JSStackFrame *fp = css->getCurrentFrame();
             MarkValueRange(trc, fp->slots(), end, "stack");
 
             /* Mark stack frames and slots/args between stack frames. */
-            JSStackFrame *initialFrame = seg->getInitialFrame();
+            JSStackFrame *initialFrame = css->getInitialFrame();
             for (JSStackFrame *f = fp; f != initialFrame; f = f->down) {
                 js_TraceStackFrame(trc, f);
                 MarkValueRange(trc, f->down->slots(), f->argEnd(), "stack");
@@ -224,64 +224,139 @@ StackSpace::mark(JSTracer *trc)
 
             /* Mark initialFrame stack frame and leading args. */
             js_TraceStackFrame(trc, initialFrame);
-            MarkValueRange(trc, seg->getInitialArgBegin(), initialFrame->argEnd(), "stack");
+            MarkValueRange(trc, css->getInitialArgBegin(), initialFrame->argEnd(), "stack");
         } else {
             /* Mark slots/args trailing off segment. */
-            MarkValueRange(trc, seg->getInitialArgBegin(), end, "stack");
+            JS_ASSERT(end == css->getInitialArgEnd());
+            MarkValueRange(trc, css->getInitialArgBegin(), css->getInitialArgEnd(), "stack");
         }
-        end = seg->previousSegmentEnd();
+        end = css->previousSegmentEnd();
     }
 }
 
 JS_REQUIRES_STACK bool
-StackSpace::pushSegmentForInvoke(JSContext *cx, uintN argc, InvokeArgsGuard &ag)
+StackSpace::pushInvokeArgs(JSContext *cx, uintN argc, InvokeArgsGuard &ag)
 {
     Value *start = firstUnused();
-    ptrdiff_t nvals = VALUES_PER_STACK_SEGMENT + 2 + argc;
+    uintN vplen = 2 + argc;
+    ptrdiff_t nvals = VALUES_PER_CALL_STACK + vplen;
     if (!ensureSpace(cx, start, nvals))
         return false;
+    Value *vp = start + VALUES_PER_CALL_STACK;
+    Value *vpend = vp + vplen;
+    memset(vp, 0, vplen * sizeof(Value)); /* Init so GC-safe on exit. */
 
-    StackSegment *seg = new(start) StackSegment;
-    seg->setPreviousInMemory(currentSegment);
-    currentSegment = seg;
+    CallStackSegment *css = new(start) CallStackSegment;
+    css->setInitialArgEnd(vpend);
+    css->setPreviousInThread(currentSegment);
+    currentSegment = css;
 
     ag.cx = cx;
-    ag.seg = seg;
-    ag.argv_ = seg->getInitialArgBegin() + 2;
-    ag.argc_ = argc;
+    ag.css = css;
+    ag.argc = argc;
+    ag.vp = vp;
+    return true;
+}
 
-    /* Use invokeArgEnd to root [vp, vpend) until the frame is pushed. */
-#ifdef DEBUG
-    ag.prevInvokeSegment = invokeSegment;
-    invokeSegment = seg;
-    ag.prevInvokeFrame = invokeFrame;
-    invokeFrame = NULL;
-#endif
-    ag.prevInvokeArgEnd = invokeArgEnd;
-    invokeArgEnd = ag.argv() + ag.argc();
+JS_REQUIRES_STACK JS_FRIEND_API(bool)
+StackSpace::pushInvokeArgsFriendAPI(JSContext *cx, uintN argc,
+                                    InvokeArgsGuard &ag)
+{
+    return cx->stack().pushInvokeArgs(cx, argc, ag);
+}
+
+InvokeFrameGuard::InvokeFrameGuard()
+  : cx(NULL), css(NULL), fp(NULL)
+{}
+
+/*
+ * To maintain the 1 to 0..1 relationship between CallStackSegments and
+ * js_Interpret activations, a callstack is pushed if one was not pushed for
+ * the arguments (viz., if the ternary InvokeArgsGuard constructor was used
+ * instead of the nullary constructor + pushInvokeArgs).
+ */
+bool
+StackSpace::getInvokeFrame(JSContext *cx, const InvokeArgsGuard &ag,
+                           uintN nmissing, uintN nfixed,
+                           InvokeFrameGuard &fg) const
+{
+    if (ag.css) {
+        JS_ASSERT(ag.css == currentSegment && !ag.css->inContext());
+        Value *start = ag.css->getInitialArgEnd();
+        ptrdiff_t nvals = nmissing + VALUES_PER_STACK_FRAME + nfixed;
+        if (!ensureSpace(cx, start, nvals))
+            return false;
+        fg.fp = reinterpret_cast<JSStackFrame *>(start + nmissing);
+        return true;
+    }
+
+    assertIsCurrent(cx);
+    JS_ASSERT(currentSegment->isActive());
+    Value *start = cx->regs->sp;
+    ptrdiff_t nvals = nmissing + VALUES_PER_CALL_STACK + VALUES_PER_STACK_FRAME + nfixed;
+    if (!ensureSpace(cx, start, nvals))
+        return false;
+    fg.css = new(start + nmissing) CallStackSegment;
+    fg.fp = reinterpret_cast<JSStackFrame *>(fg.css + 1);
     return true;
 }
 
 JS_REQUIRES_STACK void
-StackSpace::popSegmentForInvoke(const InvokeArgsGuard &ag)
+StackSpace::pushInvokeFrame(JSContext *cx, const InvokeArgsGuard &ag,
+                            InvokeFrameGuard &fg, JSFrameRegs &regs)
 {
-    JS_ASSERT(!currentSegment->inContext());
-    JS_ASSERT(ag.seg == currentSegment);
-    JS_ASSERT(invokeSegment == currentSegment);
-    JS_ASSERT(invokeArgEnd == ag.argv() + ag.argc());
+    JS_ASSERT(!!ag.css ^ !!fg.css);
+    JS_ASSERT_IF(ag.css, ag.css == currentSegment && !ag.css->inContext());
+    if (CallStackSegment *css = fg.css) {
+        css->setPreviousInThread(currentSegment);
+        currentSegment = css;
+    }
+    JSStackFrame *fp = fg.fp;
+    fp->down = cx->fp;
+    cx->pushSegmentAndFrame(currentSegment, fp, regs);
+    currentSegment->setInitialVarObj(NULL);
+    fg.cx = cx;
+}
 
-    currentSegment = currentSegment->getPreviousInMemory();
+JS_REQUIRES_STACK
+InvokeFrameGuard::~InvokeFrameGuard()
+{
+    if (!cx)
+        return;
+    JS_ASSERT(fp && fp == cx->fp);
+    JS_ASSERT_IF(css, css == cx->stack().getCurrentSegment());
+    cx->stack().popInvokeFrame(cx, css);
+}
 
-#ifdef DEBUG
-    invokeSegment = ag.prevInvokeSegment;
-    invokeFrame = ag.prevInvokeFrame;
-#endif
-    invokeArgEnd = ag.prevInvokeArgEnd;
+JS_REQUIRES_STACK void
+StackSpace::popInvokeFrame(JSContext *cx, CallStackSegment *maybecs)
+{
+    assertIsCurrent(cx);
+    JS_ASSERT(currentSegment->getInitialFrame() == cx->fp);
+    JS_ASSERT_IF(maybecs, maybecs == currentSegment);
+    cx->popSegmentAndFrame();
+    if (maybecs)
+        currentSegment = currentSegment->getPreviousInMemory();
+}
+
+ExecuteFrameGuard::ExecuteFrameGuard()
+  : cx(NULL), vp(NULL), fp(NULL)
+{}
+
+JS_REQUIRES_STACK
+ExecuteFrameGuard::~ExecuteFrameGuard()
+{
+    if (!cx)
+        return;
+    JS_ASSERT(cx->activeSegment() == css);
+    JS_ASSERT(cx->fp == fp);
+    cx->stack().popExecuteFrame(cx);
 }
 
 /*
- * Always push a segment when starting a new execute frame since segments
- * provide initialVarObj, which may change.
+ * To maintain a 1 to 0..1 relationship between CallStackSegments and
+ * js_Interpret activations, we push a segment even if it wasn't otherwise
+ * necessary.
  */
 JS_REQUIRES_STACK bool
 StackSpace::getExecuteFrame(JSContext *cx, JSStackFrame *down,
@@ -289,12 +364,12 @@ StackSpace::getExecuteFrame(JSContext *cx, JSStackFrame *down,
                             ExecuteFrameGuard &fg) const
 {
     Value *start = firstUnused();
-    ptrdiff_t nvals = VALUES_PER_STACK_SEGMENT + vplen + VALUES_PER_STACK_FRAME + nfixed;
+    ptrdiff_t nvals = VALUES_PER_CALL_STACK + vplen + VALUES_PER_STACK_FRAME + nfixed;
     if (!ensureSpace(cx, start, nvals))
         return false;
 
-    fg.seg = new(start) StackSegment;
-    fg.vp = start + VALUES_PER_STACK_SEGMENT;
+    fg.css = new(start) CallStackSegment;
+    fg.vp = start + VALUES_PER_CALL_STACK;
     fg.fp = reinterpret_cast<JSStackFrame *>(fg.vp + vplen);
     fg.down = down;
     return true;
@@ -305,93 +380,110 @@ StackSpace::pushExecuteFrame(JSContext *cx, ExecuteFrameGuard &fg,
                              JSFrameRegs &regs, JSObject *initialVarObj)
 {
     fg.fp->down = fg.down;
-    StackSegment *seg = fg.seg;
-    seg->setPreviousInMemory(currentSegment);
-    currentSegment = seg;
-    cx->pushSegmentAndFrame(seg, fg.fp, regs);
-    seg->setInitialVarObj(initialVarObj);
+    CallStackSegment *css = fg.css;
+    css->setPreviousInThread(currentSegment);
+    currentSegment = css;
+    cx->pushSegmentAndFrame(css, fg.fp, regs);
+    css->setInitialVarObj(initialVarObj);
     fg.cx = cx;
 }
 
 JS_REQUIRES_STACK void
 StackSpace::popExecuteFrame(JSContext *cx)
 {
-    JS_ASSERT(isCurrentAndActive(cx));
+    assertIsCurrent(cx);
     JS_ASSERT(cx->hasActiveSegment());
     cx->popSegmentAndFrame();
     currentSegment = currentSegment->getPreviousInMemory();
 }
 
-JS_REQUIRES_STACK
-ExecuteFrameGuard::~ExecuteFrameGuard()
-{
-    if (!pushed())
-        return;
-    JS_ASSERT(cx->activeSegment() == seg);
-    JS_ASSERT(cx->fp == fp);
-    cx->stack().popExecuteFrame(cx);
-}
-
 JS_REQUIRES_STACK void
-StackSpace::getSynthesizedSlowNativeFrame(JSContext *cx, StackSegment *&seg, JSStackFrame *&fp)
+StackSpace::getSynthesizedSlowNativeFrame(JSContext *cx, CallStackSegment *&css, JSStackFrame *&fp)
 {
     Value *start = firstUnused();
-    JS_ASSERT(size_t(end - start) >= VALUES_PER_STACK_SEGMENT + VALUES_PER_STACK_FRAME);
-    seg = new(start) StackSegment;
-    fp = reinterpret_cast<JSStackFrame *>(seg + 1);
+    JS_ASSERT(size_t(end - start) >= VALUES_PER_CALL_STACK + VALUES_PER_STACK_FRAME);
+    css = new(start) CallStackSegment;
+    fp = reinterpret_cast<JSStackFrame *>(css + 1);
 }
 
 JS_REQUIRES_STACK void
-StackSpace::pushSynthesizedSlowNativeFrame(JSContext *cx, StackSegment *seg, JSStackFrame *fp,
+StackSpace::pushSynthesizedSlowNativeFrame(JSContext *cx, CallStackSegment *css, JSStackFrame *fp,
                                            JSFrameRegs &regs)
 {
-    JS_ASSERT(!fp->hasScript() && FUN_SLOW_NATIVE(fp->getFunction()));
+    JS_ASSERT(!fp->script && FUN_SLOW_NATIVE(fp->fun));
     fp->down = cx->fp;
-    seg->setPreviousInMemory(currentSegment);
-    currentSegment = seg;
-    cx->pushSegmentAndFrame(seg, fp, regs);
-    seg->setInitialVarObj(NULL);
+    css->setPreviousInThread(currentSegment);
+    currentSegment = css;
+    cx->pushSegmentAndFrame(css, fp, regs);
+    css->setInitialVarObj(NULL);
 }
 
 JS_REQUIRES_STACK void
 StackSpace::popSynthesizedSlowNativeFrame(JSContext *cx)
 {
-    JS_ASSERT(isCurrentAndActive(cx));
+    assertIsCurrent(cx);
     JS_ASSERT(cx->hasActiveSegment());
     JS_ASSERT(currentSegment->getInitialFrame() == cx->fp);
-    JS_ASSERT(!cx->fp->hasScript() && FUN_SLOW_NATIVE(cx->fp->getFunction()));
+    JS_ASSERT(!cx->fp->script && FUN_SLOW_NATIVE(cx->fp->fun));
     cx->popSegmentAndFrame();
     currentSegment = currentSegment->getPreviousInMemory();
 }
 
-void
-FrameRegsIter::initSlow()
-{
-    if (!curseg) {
-        curfp = NULL;
-        cursp = NULL;
-        curpc = NULL;
-        return;
-    }
-
-    JS_ASSERT(curseg->isSuspended());
-    curfp = curseg->getSuspendedFrame();
-    cursp = curseg->getSuspendedRegs()->sp;
-    curpc = curseg->getSuspendedRegs()->pc;
-}
-
 /*
- * Using the invariant described in the js::StackSegment comment, we know that,
- * when a pair of down-linked stack frames are in the same segment, the
+ * When a pair of down-linked stack frames are in the same segment, the
  * up-frame's address is the top of the down-frame's stack, modulo missing
  * arguments.
  */
-void
-FrameRegsIter::incSlow(JSStackFrame *up, JSStackFrame *down)
+static inline Value *
+InlineDownFrameSP(JSStackFrame *up)
 {
-    JS_ASSERT(down);
-    JS_ASSERT(curpc == down->savedPC);
-    JS_ASSERT(up == curseg->getInitialFrame());
+    JS_ASSERT(up->fun && up->script);
+    Value *sp = up->argv + up->argc;
+#ifdef DEBUG
+    uint16 nargs = up->fun->nargs;
+    uintN argc = up->argc;
+    uintN missing = argc < nargs ? nargs - argc : 0;
+    JS_ASSERT(sp == (Value *)up - missing);
+#endif
+    return sp;
+}
+
+JS_REQUIRES_STACK
+FrameRegsIter::FrameRegsIter(JSContext *cx)
+{
+    curcs = cx->getCurrentSegment();
+    if (!curcs) {
+        curfp = NULL;
+        return;
+    }
+    if (curcs->isSuspended()) {
+        curfp = curcs->getSuspendedFrame();
+        cursp = curcs->getSuspendedRegs()->sp;
+        curpc = curcs->getSuspendedRegs()->pc;
+        return;
+    }
+    JS_ASSERT(cx->fp);
+    curfp = cx->fp;
+    cursp = cx->regs->sp;
+    curpc = cx->regs->pc;
+    return;
+}
+
+FrameRegsIter &
+FrameRegsIter::operator++()
+{
+    JSStackFrame *up = curfp;
+    JSStackFrame *down = curfp = curfp->down;
+    if (!down)
+        return *this;
+
+    curpc = down->savedPC;
+
+    /* For a contiguous down and up, compute sp from up. */
+    if (up != curcs->getInitialFrame()) {
+        cursp = InlineDownFrameSP(up);
+        return *this;
+    }
 
     /*
      * If the up-frame is in csup and the down-frame is in csdown, it is not
@@ -400,19 +492,20 @@ FrameRegsIter::incSlow(JSStackFrame *up, JSStackFrame *down)
      * JS_EvaluateInStackFrame). To compute down's sp, we need to do a linear
      * scan, keeping track of what is immediately after down in memory.
      */
-    curseg = curseg->getPreviousInContext();
-    cursp = curseg->getSuspendedRegs()->sp;
-    JSStackFrame *f = curseg->getSuspendedFrame();
+    curcs = curcs->getPreviousInContext();
+    cursp = curcs->getSuspendedRegs()->sp;
+    JSStackFrame *f = curcs->getSuspendedFrame();
     while (f != down) {
-        if (f == curseg->getInitialFrame()) {
-            curseg = curseg->getPreviousInContext();
-            cursp = curseg->getSuspendedRegs()->sp;
-            f = curseg->getSuspendedFrame();
+        if (f == curcs->getInitialFrame()) {
+            curcs = curcs->getPreviousInContext();
+            cursp = curcs->getSuspendedRegs()->sp;
+            f = curcs->getSuspendedFrame();
         } else {
-            cursp = contiguousDownFrameSP(f);
+            cursp = InlineDownFrameSP(f);
             f = f->down;
         }
     }
+    return *this;
 }
 
 bool
@@ -735,9 +828,8 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
 
     JS_InitArenaPool(&cx->tempPool, "temp", TEMP_POOL_CHUNK_SIZE, sizeof(jsdouble),
                      &cx->scriptStackQuota);
-    JS_InitArenaPool(&cx->regExpPool, "regExp", TEMP_POOL_CHUNK_SIZE, sizeof(int),
-                     &cx->scriptStackQuota);
 
+    js_InitRegExpStatics(cx);
     JS_ASSERT(cx->resolveFlags == 0);
 
 #ifdef JS_THREADSAFE
@@ -1098,10 +1190,9 @@ FreeContext(JSContext *cx)
 #endif
 
     /* Free the stuff hanging off of cx. */
-    cx->regExpStatics.clear();
+    js_FreeRegExpStatics(cx);
     VOUCH_DOES_NOT_REQUIRE_STACK();
     JS_FinishArenaPool(&cx->tempPool);
-    JS_FinishArenaPool(&cx->regExpPool);
 
     if (cx->lastMessage)
         js_free(cx->lastMessage);
@@ -1312,7 +1403,7 @@ PopulateReportBlame(JSContext *cx, JSErrorReport *report)
      */
     for (JSStackFrame *fp = js_GetTopStackFrame(cx); fp; fp = fp->down) {
         if (fp->pc(cx)) {
-            report->filename = fp->getScript()->filename;
+            report->filename = fp->script->filename;
             report->lineno = js_FramePCToLineNumber(cx, fp);
             break;
         }
@@ -1406,7 +1497,7 @@ checkReportFlags(JSContext *cx, uintN *flags)
          * the nearest scripted frame is strict, see bug 536306.
          */
         JSStackFrame *fp = js_GetScriptedCaller(cx, NULL);
-        if (fp && fp->getScript()->strictModeCode)
+        if (fp && fp->script->strictModeCode)
             *flags &= ~JSREPORT_WARNING;
         else if (JS_HAS_STRICT_OPTION(cx))
             *flags |= JSREPORT_WARNING;
@@ -1870,7 +1961,7 @@ js_GetScriptedCaller(JSContext *cx, JSStackFrame *fp)
     if (!fp)
         fp = js_GetTopStackFrame(cx);
     while (fp) {
-        if (fp->hasScript())
+        if (fp->script)
             return fp;
         fp = fp->down;
     }
@@ -1893,7 +1984,7 @@ js_GetCurrentBytecodePC(JSContext* cx)
         pc = cx->regs ? cx->regs->pc : NULL;
         if (!pc)
             return NULL;
-        imacpc = cx->fp->maybeIMacroPC();
+        imacpc = cx->fp->imacpc;
     }
 
     /*
@@ -1909,9 +2000,7 @@ js_CurrentPCIsInImacro(JSContext *cx)
 {
 #ifdef JS_TRACER
     VOUCH_DOES_NOT_REQUIRE_STACK();
-    if (JS_ON_TRACE(cx))
-        return cx->bailExit->imacpc != NULL;
-    return cx->fp->hasIMacroPC();
+    return (JS_ON_TRACE(cx) ? cx->bailExit->imacpc : cx->fp->imacpc) != NULL;
 #else
     return false;
 #endif
@@ -1927,8 +2016,6 @@ DSTOffsetCache::purge()
      */
     offsetMilliseconds = 0;
     rangeStartSeconds = rangeEndSeconds = INT64_MIN;
-    oldOffsetMilliseconds = 0;
-    oldRangeStartSeconds = oldRangeEndSeconds = INT64_MIN;
 
 #ifdef JS_METER_DST_OFFSET_CACHING
     totalCalculations = 0;
@@ -1963,7 +2050,7 @@ JSContext::JSContext(JSRuntime *rt)
 {}
 
 void
-JSContext::pushSegmentAndFrame(js::StackSegment *newseg, JSStackFrame *newfp,
+JSContext::pushSegmentAndFrame(js::CallStackSegment *newcs, JSStackFrame *newfp,
                                JSFrameRegs &newregs)
 {
     if (hasActiveSegment()) {
@@ -1971,14 +2058,14 @@ JSContext::pushSegmentAndFrame(js::StackSegment *newseg, JSStackFrame *newfp,
         fp->savedPC = regs->pc;
         currentSegment->suspend(fp, regs);
     }
-    newseg->setPreviousInContext(currentSegment);
-    currentSegment = newseg;
+    newcs->setPreviousInContext(currentSegment);
+    currentSegment = newcs;
 #ifdef DEBUG
     newfp->savedPC = JSStackFrame::sInvalidPC;
 #endif
     setCurrentFrame(newfp);
     setCurrentRegs(&newregs);
-    newseg->joinContext(this, newfp);
+    newcs->joinContext(this, newfp);
 }
 
 void
@@ -2022,7 +2109,7 @@ JSContext::saveActiveSegment()
 void
 JSContext::restoreSegment()
 {
-    js::StackSegment *ccs = currentSegment;
+    js::CallStackSegment *ccs = currentSegment;
     setCurrentFrame(ccs->getSuspendedFrame());
     setCurrentRegs(ccs->getSuspendedRegs());
     ccs->restore();
@@ -2050,33 +2137,33 @@ JSContext::generatorFor(JSStackFrame *fp) const
     return NULL;
 }
 
-StackSegment *
+CallStackSegment *
 JSContext::containingSegment(const JSStackFrame *target)
 {
     /* The context may have nothing running. */
-    StackSegment *seg = currentSegment;
-    if (!seg)
+    CallStackSegment *css = currentSegment;
+    if (!css)
         return NULL;
 
     /* The active segments's top frame is cx->fp. */
     if (fp) {
-        JS_ASSERT(activeSegment() == seg);
+        JS_ASSERT(activeSegment() == css);
         JSStackFrame *f = fp;
-        JSStackFrame *stop = seg->getInitialFrame()->down;
+        JSStackFrame *stop = css->getInitialFrame()->down;
         for (; f != stop; f = f->down) {
             if (f == target)
-                return seg;
+                return css;
         }
-        seg = seg->getPreviousInContext();
+        css = css->getPreviousInContext();
     }
 
     /* A suspended segment's top frame is its suspended frame. */
-    for (; seg; seg = seg->getPreviousInContext()) {
-        JSStackFrame *f = seg->getSuspendedFrame();
-        JSStackFrame *stop = seg->getInitialFrame()->down;
+    for (; css; css = css->getPreviousInContext()) {
+        JSStackFrame *f = css->getSuspendedFrame();
+        JSStackFrame *stop = css->getInitialFrame()->down;
         for (; f != stop; f = f->down) {
             if (f == target)
-                return seg;
+                return css;
         }
     }
 
@@ -2156,7 +2243,7 @@ FreeOldArenas(JSRuntime *rt, JSArenaPool *pool)
 void
 JSContext::purge()
 {
-    FreeOldArenas(runtime, &regExpPool);
+    FreeOldArenas(runtime, &regexpPool);
 }
 
 

@@ -60,15 +60,6 @@
 #include "nsITransferable.h"
 #include "nsIVariant.h"
 
-#ifdef MOZ_IPC
-namespace mozilla {
-namespace dom {
-  class PBrowserParent;
-  class PBrowserChild;
-}
-}
-#endif // MOZ_IPC
-
 #ifdef ACCESSIBILITY
 class nsAccessible;
 #endif
@@ -271,7 +262,6 @@ class nsHashKey;
 #define NS_FORM_CHANGE                  (NS_FORM_EVENT_START + 2)
 #define NS_FORM_SELECTED                (NS_FORM_EVENT_START + 3)
 #define NS_FORM_INPUT                   (NS_FORM_EVENT_START + 4)
-#define NS_FORM_INVALID                 (NS_FORM_EVENT_START + 5)
 
 //Need separate focus/blur notifications for non-native widgets
 #define NS_FOCUS_EVENT_START            1300
@@ -519,12 +509,6 @@ protected:
     MOZ_COUNT_CTOR(nsEvent);
   }
 
-#ifdef MOZ_IPC
-  nsEvent()
-  {
-  }
-#endif // MOZ_IPC
-
 public:
   nsEvent(PRBool isTrusted, PRUint32 msg)
     : eventStructType(NS_EVENT),
@@ -575,13 +559,6 @@ protected:
       widget(w), pluginEvent(nsnull)
   {
   }
-
-#ifdef MOZ_IPC
-  nsGUIEvent()
-    : pluginEvent(nsnull)
-  {
-  }
-#endif // MOZ_IPC
 
 public:
   nsGUIEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -746,12 +723,6 @@ protected:
       isShift(PR_FALSE), isControl(PR_FALSE), isAlt(PR_FALSE), isMeta(PR_FALSE)
   {
   }
-
-#ifdef MOZ_IPC
-  nsInputEvent()
-  {
-  }
-#endif // MOZ_IPC
 
 public:
   nsInputEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -1049,16 +1020,6 @@ typedef nsTextRange* nsTextRangeArray;
 
 class nsTextEvent : public nsInputEvent
 {
-#ifdef MOZ_IPC
-private:
-  friend class mozilla::dom::PBrowserParent;
-  friend class mozilla::dom::PBrowserChild;
-
-  nsTextEvent()
-  {
-  }
-#endif // MOZ_IPC
-
 public:
   nsTextEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_TEXT_EVENT),
@@ -1077,16 +1038,6 @@ public:
 
 class nsCompositionEvent : public nsInputEvent
 {
-#ifdef MOZ_IPC
-private:
-  friend class mozilla::dom::PBrowserParent;
-  friend class mozilla::dom::PBrowserChild;
-
-  nsCompositionEvent()
-  {
-  }
-#endif // MOZ_IPC
-
 public:
   nsCompositionEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_COMPOSITION_EVENT)
@@ -1201,22 +1152,10 @@ public:
 
 class nsQueryContentEvent : public nsGUIEvent
 {
-#ifdef MOZ_IPC
-private:
-  friend class mozilla::dom::PBrowserParent;
-  friend class mozilla::dom::PBrowserChild;
-
-  nsQueryContentEvent()
-  {
-    mReply.mContentsRoot = nsnull;
-    mReply.mFocusedWidget = nsnull;
-  }
-#endif // MOZ_IPC
-
 public:
   nsQueryContentEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :
     nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_QUERY_CONTENT_EVENT),
-    mSucceeded(PR_FALSE), mWasAsync(PR_FALSE)
+    mSucceeded(PR_FALSE)
   {
   }
 
@@ -1243,22 +1182,7 @@ public:
     mInput.mLength = aLength;
   }
 
-  PRUint32 GetSelectionStart(void) const
-  {
-    NS_ASSERTION(message == NS_QUERY_SELECTED_TEXT,
-                 "not querying selection");
-    return mReply.mOffset + (mReply.mReversed ? mReply.mString.Length() : 0);
-  }
-
-  PRUint32 GetSelectionEnd(void) const
-  {
-    NS_ASSERTION(message == NS_QUERY_SELECTED_TEXT,
-                 "not querying selection");
-    return mReply.mOffset + (mReply.mReversed ? 0 : mReply.mString.Length());
-  }
-
   PRBool mSucceeded;
-  PRPackedBool mWasAsync;
   struct {
     PRUint32 mOffset;
     PRUint32 mLength;
@@ -1295,16 +1219,6 @@ public:
 
 class nsSelectionEvent : public nsGUIEvent
 {
-#ifdef MOZ_IPC
-private:
-  friend class mozilla::dom::PBrowserParent;
-  friend class mozilla::dom::PBrowserChild;
-
-  nsSelectionEvent()
-  {
-  }
-#endif // MOZ_IPC
-
 public:
   nsSelectionEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :
     nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_SELECTION_EVENT),

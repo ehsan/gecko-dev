@@ -53,7 +53,6 @@
 #include "zipstruct.h"
 #include "nsAutoPtr.h"
 #include "nsILocalFile.h"
-#include "mozilla/FileUtils.h"
 
 class nsZipFind;
 
@@ -196,8 +195,6 @@ public:
    */
   PRUint8* GetData(nsZipItem* aItem);
 
-  PRBool CheckCRC(nsZipItem* aItem, PRUint8* aData);
-
 private:
   //--- private members ---
 
@@ -209,10 +206,6 @@ private:
 
   // file handle
   nsRefPtr<nsZipHandle> mFd;
-
-  // logging handle
-  mozilla::AutoFDClose mLog;
-
   //--- private methods ---
   
   nsZipArchive& operator=(const nsZipArchive& rhs); // prevent assignments

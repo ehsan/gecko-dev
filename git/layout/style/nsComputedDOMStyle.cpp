@@ -1614,17 +1614,6 @@ nsComputedDOMStyle::SetValueToStyleImage(const nsStyleImage& aStyleImage,
       aValue->SetString(gradientString);
       break;
     }
-    case eStyleImageType_Element:
-    {
-      nsAutoString elementId;
-      nsStyleUtil::AppendEscapedCSSIdent(
-        nsDependentString(aStyleImage.GetElementId()), elementId);
-      nsAutoString elementString = NS_LITERAL_STRING("-moz-element(#") +
-                                   elementId +
-                                   NS_LITERAL_STRING(")");
-      aValue->SetString(elementString);
-      break;
-    }
     case eStyleImageType_Null:
       aValue->SetIdent(eCSSKeyword_none);
       break;
@@ -2771,7 +2760,7 @@ nsComputedDOMStyle::DoGetCursor(nsIDOMCSSValue** aValue)
     }
 
     nsCOMPtr<nsIURI> uri;
-    item->GetImage()->GetURI(getter_AddRefs(uri));
+    item->mImage->GetURI(getter_AddRefs(uri));
 
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
     if (!val || !itemList->AppendCSSValue(val)) {

@@ -240,14 +240,16 @@ public:
         if (gapValue.value().isString()) {
             if (!js_ValueToCharBuffer(cx, gapValue.value(), gap))
                 return false;
-            if (gap.length() > 10)
-                gap.resize(10);
-        } else if (gapValue.value().isNumber()) {
+            if (cb.length() > 10)
+                cb.resize(10);
+        }
+
+        if (gapValue.value().isNumber()) {
             jsdouble d = gapValue.value().isInt32()
                          ? gapValue.value().toInt32()
                          : js_DoubleToInteger(gapValue.value().toDouble());
             d = JS_MIN(10, d);
-            if (d >= 1 && !gap.appendN(' ', uint32(d)))
+            if (d >= 1 && !cb.appendN(' ', uint32(d)))
                 return false;
         }
 
@@ -344,23 +346,23 @@ JO(JSContext *cx, Value *vp, StringifyContext *scx)
     }
 
     JSBool memberWritten = JS_FALSE;
-    AutoIdVector props(cx);
-    if (!GetPropertyNames(cx, &keySource->toObject(), JSITER_OWNONLY, props))
+    AutoIdArray ida(cx, JS_Enumerate(cx, &keySource->toObject()));
+    if (!ida)
         return JS_FALSE;
 
-    for (size_t i = 0, len = props.length(); i < len; i++) {
+    for (jsint i = 0, len = ida.length(); i < len; i++) {
         outputValue.setUndefined();
 
         if (!usingWhitelist) {
-            if (!js_ValueToStringId(cx, IdToValue(props[i]), &id))
+            if (!js_ValueToStringId(cx, IdToValue(ida[i]), &id))
                 return JS_FALSE;
         } else {
             // skip non-index properties
             jsuint index = 0;
-            if (!js_IdIsIndex(props[i], &index))
+            if (!js_IdIsIndex(ida[i], &index))
                 continue;
 
-            if (!scx->replacer->getProperty(cx, props[i], &whitelistElement))
+            if (!scx->replacer->getProperty(cx, ida[i], &whitelistElement))
                 return JS_FALSE;
 
             if (!js_ValueToStringId(cx, whitelistElement, &id))
@@ -407,7 +409,6 @@ JO(JSContext *cx, Value *vp, StringifyContext *scx)
         s->getCharsAndLength(chars, length);
         if (!write_string(cx, scx->cb, chars, length) ||
             !scx->cb.append(':') ||
-            !(scx->gap.empty() || scx->cb.append(' ')) ||
             !Str(cx, id, obj, scx, &outputValue, true)) {
             return JS_FALSE;
         }
@@ -617,12 +618,12 @@ Walk(JSContext *cx, jsid id, JSObject *holder, const Value &reviver, Value *vp)
                     return false;
             }
         } else {
-            AutoIdVector props(cx);
-            if (!GetPropertyNames(cx, obj, JSITER_OWNONLY, props))
+            AutoIdArray ida(cx, JS_Enumerate(cx, obj));
+            if (!ida)
                 return false;
 
-            for (size_t i = 0, len = props.length(); i < len; i++) {
-                jsid idName = props[i];
+            for (jsint i = 0, len = ida.length(); i < len; i++) {
+                jsid idName = ida[i];
                 if (!Walk(cx, idName, obj, reviver, propValue.addr()))
                     return false;
                 if (propValue.value().isUndefined()) {
@@ -1251,7 +1252,7 @@ js_InitJSONClass(JSContext *cx, JSObject *obj)
 {
     JSObject *JSON;
 
-    JSON = NewNonFunction<WithProto::Class>(cx, &js_JSONClass, NULL, obj);
+    JSON = NewObject(cx, &js_JSONClass, NULL, obj);
     if (!JSON)
         return NULL;
     if (!JS_DefineProperty(cx, obj, js_JSON_str, OBJECT_TO_JSVAL(JSON),

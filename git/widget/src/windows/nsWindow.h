@@ -278,8 +278,6 @@ protected:
    * Callbacks
    */
   static LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-  static LRESULT CALLBACK WindowProcInternal(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
   static BOOL CALLBACK    BroadcastMsgToChildren(HWND aWnd, LPARAM aMsg);
   static BOOL CALLBACK    BroadcastMsg(HWND aTopWindow, LPARAM aMsg);
   static BOOL CALLBACK    DispatchStarvedPaints(HWND aTopWindow, LPARAM aMsg);
@@ -291,7 +289,6 @@ protected:
   static LRESULT CALLBACK MozSpecialWndProc(int code, WPARAM wParam, LPARAM lParam);
   static LRESULT CALLBACK MozSpecialMouseProc(int code, WPARAM wParam, LPARAM lParam);
   static VOID    CALLBACK HookTimerForPopups( HWND hwnd, UINT uMsg, UINT idEvent, DWORD dwTime );
-  static BOOL    CALLBACK ClearResourcesCallback(HWND aChild, LPARAM aParam);
 
   /**
    * Window utilities
@@ -308,10 +305,6 @@ protected:
 #if !defined(WINCE)
   static void             InitTrackPointHack();
 #endif
-  PRBool                  HasGlass() const {
-    return mTransparencyMode == eTransparencyGlass ||
-           mTransparencyMode == eTransparencyBorderlessGlass;
-  }
 
   /**
    * Event processing helpers
@@ -453,7 +446,6 @@ protected:
 #ifdef ACCESSIBILITY
   static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
 #endif // ACCESSIBILITY
-  void                    ClearCachedResources();
 
 protected:
   nsCOMPtr<nsIWidget>   mParent;
@@ -507,8 +499,6 @@ protected:
   nsIntMargin           mNonClientMargins;
   // Indicates custom frames are enabled
   PRPackedBool          mCustomNonClient;
-  // Disable non client margins on non-comsitor desktops
-  PRPackedBool          mCompositorFlag;
   // Cached copy of L&F's resize border  
   PRInt32               mHorResizeMargin;
   PRInt32               mVertResizeMargin;

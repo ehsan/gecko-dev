@@ -627,15 +627,93 @@ js_watch_set(JSContext *cx, JSObject *obj, jsid id, Value *vp)
             }
 
             /*
-             * Pass the output of the handler to the setter. Security wrappers
-             * prevent any funny business between watchpoints and setters.
+             * Create a pseudo-frame for the setter invocation so that any
+             * stack-walking security code under the setter will correctly
+             * identify the guilty party.  So that the watcher appears to
+             * be active to obj_eval and other such code, point frame.pc
+             * at the JSOP_STOP at the end of the script.
+             *
+             * The pseudo-frame is not created for fast natives as they
+             * are treated as interpreter frame extensions and always
+             * trusted.
              */
+            JSObject *closure = wp->closure;
+            Class *clasp = closure->getClass();
+            JSFunction *fun;
+            JSScript *script;
+            if (clasp == &js_FunctionClass) {
+                fun = GET_FUNCTION_PRIVATE(cx, closure);
+                script = FUN_SCRIPT(fun);
+            } else if (clasp == &js_ScriptClass) {
+                fun = NULL;
+                script = (JSScript *) closure->getPrivate();
+            } else {
+                fun = NULL;
+                script = NULL;
+            }
+
+            uintN vplen = 2;
+            if (fun)
+                vplen += fun->minArgs() + (fun->isInterpreted() ? 0 : fun->u.n.extra);
+            uintN nfixed = script ? script->nfixed : 0;
+
+            /* Destructor pops frame. */
+            JSFrameRegs regs;
+            ExecuteFrameGuard frame;
+
+            if (fun && !fun->isFastNative()) {
+                /*
+                 * Get a pointer to new frame/slots. This memory is not
+                 * "claimed", so the code before pushExecuteFrame must not
+                 * reenter the interpreter.
+                 */
+                JSStackFrame *down = js_GetTopStackFrame(cx);
+                if (!cx->stack().getExecuteFrame(cx, down, vplen, nfixed, frame)) {
+                    DBG_LOCK(rt);
+                    DropWatchPointAndUnlock(cx, wp, JSWP_HELD);
+                    return JS_FALSE;
+                }
+
+                /* Initialize slots/frame. */
+                Value *vp = frame.getvp();
+                MakeValueRangeGCSafe(vp, vplen);
+                vp[0].setObject(*closure);
+                vp[1].setNull();  // satisfy LeaveTree assert
+                JSStackFrame *fp = frame.getFrame();
+                PodZero(fp);
+                MakeValueRangeGCSafe(fp->slots(), nfixed);
+                fp->script = script;
+                fp->fun = fun;
+                fp->argv = vp + 2;
+                fp->scopeChain = closure->getParent();
+                fp->argsobj = NULL;
+
+                /* Initialize regs. */
+                regs.pc = script ? script->code : NULL;
+                regs.sp = fp->slots() + nfixed;
+
+                /* Officially push |fp|. |frame|'s destructor pops. */
+                cx->stack().pushExecuteFrame(cx, frame, regs, NULL);
+
+                /* Now that fp has been pushed, get the call object. */
+                if (script && fun && fun->isHeavyweight() &&
+                    !js_GetCallObject(cx, fp)) {
+                    DBG_LOCK(rt);
+                    DropWatchPointAndUnlock(cx, wp, JSWP_HELD);
+                    return JS_FALSE;
+                }
+            }
+
             JSBool ok = !wp->setter ||
                         (sprop->hasSetterValue()
                          ? InternalCall(cx, obj,
                                         ObjectValue(*CastAsObject(wp->setter)),
                                         1, vp, vp)
                          : callJSPropertyOpSetter(cx, wp->setter, obj, userid, vp));
+
+            /* Evil code can cause us to have an arguments object. */
+            if (frame.getFrame())
+                frame.getFrame()->putActivationObjects(cx);
 
             DBG_LOCK(rt);
             return DropWatchPointAndUnlock(cx, wp, JSWP_HELD) && ok;
@@ -702,7 +780,7 @@ js_WrapWatchedSetter(JSContext *cx, jsid id, uintN attrs, PropertyOp setter)
 
 JS_PUBLIC_API(JSBool)
 JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsid id,
-                 JSWatchPointHandler handler, JSObject *closure)
+                 JSWatchPointHandler handler, void *closure)
 {
     JSObject *origobj;
     Value v;
@@ -856,7 +934,7 @@ out:
 
 JS_PUBLIC_API(JSBool)
 JS_ClearWatchPoint(JSContext *cx, JSObject *obj, jsid id,
-                   JSWatchPointHandler *handlerp, JSObject **closurep)
+                   JSWatchPointHandler *handlerp, void **closurep)
 {
     JSRuntime *rt;
     JSWatchPoint *wp;
@@ -1022,7 +1100,7 @@ JS_FrameIterator(JSContext *cx, JSStackFrame **iteratorp)
 JS_PUBLIC_API(JSScript *)
 JS_GetFrameScript(JSContext *cx, JSStackFrame *fp)
 {
-    return fp->maybeScript();
+    return fp->script;
 }
 
 JS_PUBLIC_API(jsbytecode *)
@@ -1042,16 +1120,16 @@ JS_StackFramePrincipals(JSContext *cx, JSStackFrame *fp)
 {
     JSSecurityCallbacks *callbacks;
 
-    if (fp->hasFunction()) {
+    if (fp->fun) {
         callbacks = JS_GetSecurityCallbacks(cx);
         if (callbacks && callbacks->findObjectPrincipals) {
-            if (FUN_OBJECT(fp->getFunction()) != fp->callee())
+            if (FUN_OBJECT(fp->fun) != fp->callee())
                 return callbacks->findObjectPrincipals(cx, fp->callee());
             /* FALL THROUGH */
         }
     }
-    if (fp->hasScript())
-        return fp->getScript()->principals;
+    if (fp->script)
+        return fp->script->principals;
     return NULL;
 }
 
@@ -1084,7 +1162,7 @@ JS_EvalFramePrincipals(JSContext *cx, JSStackFrame *fp, JSStackFrame *caller)
 JS_PUBLIC_API(void *)
 JS_GetFrameAnnotation(JSContext *cx, JSStackFrame *fp)
 {
-    if (fp->hasAnnotation() && fp->hasScript()) {
+    if (fp->annotation && fp->script) {
         JSPrincipals *principals = JS_StackFramePrincipals(cx, fp);
 
         if (principals && principals->globalPrivilegesEnabled(cx, principals)) {
@@ -1092,7 +1170,7 @@ JS_GetFrameAnnotation(JSContext *cx, JSStackFrame *fp)
              * Give out an annotation only if privileges have not been revoked
              * or disabled globally.
              */
-            return fp->getAnnotation();
+            return fp->annotation;
         }
     }
 
@@ -1102,7 +1180,7 @@ JS_GetFrameAnnotation(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(void)
 JS_SetFrameAnnotation(JSContext *cx, JSStackFrame *fp, void *annotation)
 {
-    fp->setAnnotation(annotation);
+    fp->annotation = annotation;
 }
 
 JS_PUBLIC_API(void *)
@@ -1119,14 +1197,14 @@ JS_GetFramePrincipalArray(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(JSBool)
 JS_IsNativeFrame(JSContext *cx, JSStackFrame *fp)
 {
-    return !fp->hasScript();
+    return !fp->script;
 }
 
 /* this is deprecated, use JS_GetFrameScopeChain instead */
 JS_PUBLIC_API(JSObject *)
 JS_GetFrameObject(JSContext *cx, JSStackFrame *fp)
 {
-    return fp->maybeScopeChain();
+    return fp->scopeChain;
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -1144,7 +1222,7 @@ JS_GetFrameCallObject(JSContext *cx, JSStackFrame *fp)
 {
     JS_ASSERT(cx->stack().contains(fp));
 
-    if (!fp->hasFunction())
+    if (! fp->fun)
         return NULL;
 
     /* Force creation of argument object if not yet created */
@@ -1160,26 +1238,23 @@ JS_GetFrameCallObject(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(JSObject *)
 JS_GetFrameThis(JSContext *cx, JSStackFrame *fp)
 {
-    if (fp->isDummyFrame())
-        return NULL;
-    else
-        return fp->getThisObject(cx);
+    return fp->getThisObject(cx);
 }
 
 JS_PUBLIC_API(JSFunction *)
 JS_GetFrameFunction(JSContext *cx, JSStackFrame *fp)
 {
-    return fp->maybeFunction();
+    return fp->fun;
 }
 
 JS_PUBLIC_API(JSObject *)
 JS_GetFrameFunctionObject(JSContext *cx, JSStackFrame *fp)
 {
-    if (!fp->hasFunction())
+    if (!fp->fun)
         return NULL;
 
     JS_ASSERT(fp->callee()->isFunction());
-    JS_ASSERT(fp->callee()->getPrivate() == fp->getFunction());
+    JS_ASSERT(fp->callee()->getPrivate() == fp->fun);
     return fp->callee();
 }
 
@@ -1215,13 +1290,13 @@ JS_IsDebuggerFrame(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(jsval)
 JS_GetFrameReturnValue(JSContext *cx, JSStackFrame *fp)
 {
-    return Jsvalify(fp->getReturnValue());
+    return Jsvalify(fp->rval);
 }
 
 JS_PUBLIC_API(void)
 JS_SetFrameReturnValue(JSContext *cx, JSStackFrame *fp, jsval rval)
 {
-    fp->setReturnValue(Valueify(rval));
+    fp->rval = Valueify(rval);
 }
 
 /************************************************************************/
@@ -1484,9 +1559,9 @@ SetupFakeFrame(JSContext *cx, ExecuteFrameGuard &frame, JSFrameRegs &regs, JSObj
 
     JSStackFrame *fp = frame.getFrame();
     PodZero(fp);
-    fp->setFunction(fun);
+    fp->fun = fun;
     fp->argv = vp + 2;
-    fp->setScopeChain(scopeobj->getGlobal());
+    fp->scopeChain = scopeobj->getGlobal();
 
     regs.pc = NULL;
     regs.sp = fp->slots();
@@ -1718,8 +1793,8 @@ JS_GetTopScriptFilenameFlags(JSContext *cx, JSStackFrame *fp)
     if (!fp)
         fp = js_GetTopStackFrame(cx);
     while (fp) {
-        if (fp->hasScript())
-            return JS_GetScriptFilenameFlags(fp->getScript());
+        if (fp->script)
+            return JS_GetScriptFilenameFlags(fp->script);
         fp = fp->down;
     }
     return 0;

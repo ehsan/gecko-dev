@@ -42,11 +42,7 @@
 #include "imgRequest.h"
 #include "imgIContainer.h"
 #include "imgRequestProxy.h"
-#include "Image.h"
 #include "ImageLogging.h"
-#include "RasterImage.h"
-
-using namespace mozilla::imagelib;
 
 static nsresult
 GetResultFromImageStatus(PRUint32 aStatus)
@@ -58,7 +54,7 @@ GetResultFromImageStatus(PRUint32 aStatus)
   return NS_OK;
 }
 
-imgStatusTracker::imgStatusTracker(Image* aImage)
+imgStatusTracker::imgStatusTracker(imgIContainer* aImage)
   : mImage(aImage),
     mState(0),
     mImageStatus(imgIRequest::STATUS_NONE),
@@ -74,14 +70,6 @@ imgStatusTracker::imgStatusTracker(const imgStatusTracker& aOther)
     // nulled out when the mRequestRunnable's Run function eventually gets
     // called.
 {}
-
-void
-imgStatusTracker::SetImage(Image* aImage)
-{
-  NS_ABORT_IF_FALSE(aImage, "Setting null image");
-  NS_ABORT_IF_FALSE(!mImage, "Setting image when we already have one");
-  mImage = aImage;
-}
 
 PRBool
 imgStatusTracker::IsLoading() const
@@ -110,14 +98,12 @@ class imgRequestNotifyRunnable : public nsRunnable
 
     NS_IMETHOD Run()
     {
-      imgStatusTracker& statusTracker = mRequest->GetStatusTracker();
-
       for (PRUint32 i = 0; i < mProxies.Length(); ++i) {
         mProxies[i]->SetNotificationsDeferred(PR_FALSE);
-        statusTracker.SyncNotify(mProxies[i]);
+        mRequest->mImage->GetStatusTracker().SyncNotify(mProxies[i]);
       }
 
-      statusTracker.mRequestRunnable = nsnull;
+      mRequest->mImage->GetStatusTracker().mRequestRunnable = nsnull;
       return NS_OK;
     }
 
@@ -183,7 +169,7 @@ class imgStatusNotifyRunnable : public nsRunnable
     imgStatusTracker mStatus;
     // We have to hold on to a reference to the tracker's image, just in case
     // it goes away while we're in the event queue.
-    nsRefPtr<Image> mImage;
+    nsRefPtr<imgIContainer> mImage;
     nsRefPtr<imgRequestProxy> mProxy;
 };
 
@@ -233,36 +219,31 @@ imgStatusTracker::SyncNotify(imgRequestProxy* proxy)
   if (mState & stateDecodeStarted)
     proxy->OnStartDecode();
 
-  if (mImage) {
-    PRInt16 imageType = mImage->GetType();
-    // Send frame messages (OnStartFrame, OnDataAvailable, OnStopFrame)
-    if (imageType == imgIContainer::TYPE_VECTOR ||
-        static_cast<RasterImage*>(mImage)->GetNumFrames() > 0) {
+  // Send frame messages (OnStartFrame, OnDataAvailable, OnStopFrame)
+  PRUint32 nframes = 0;
+  mImage->GetNumFrames(&nframes);
 
-      PRUint32 frame = (imageType == imgIContainer::TYPE_VECTOR) ?
-        0 : static_cast<RasterImage*>(mImage)->GetCurrentFrameIndex();
+  if (nframes > 0) {
+    PRUint32 frame;
+    mImage->GetCurrentFrameIndex(&frame);
+    proxy->OnStartFrame(frame);
 
-      proxy->OnStartFrame(frame);
+    // OnDataAvailable
+    // XXX - Should only send partial rects here, but that needs to
+    // wait until we fix up the observer interface
+    nsIntRect r;
+    mImage->GetCurrentFrameRect(r);
+    proxy->OnDataAvailable(frame, &r);
 
-      // OnDataAvailable
-      // XXX - Should only send partial rects here, but that needs to
-      // wait until we fix up the observer interface
-      nsIntRect r;
-      mImage->GetCurrentFrameRect(r);
-      proxy->OnDataAvailable(frame, &r);
-
-      if (mState & stateFrameStopped)
-        proxy->OnStopFrame(frame);
-    }
+    if (mState & stateFrameStopped)
+      proxy->OnStopFrame(frame);
   }
 
   // See bug 505385 and imgRequest::OnStopDecode for more information on why we
   // call OnStopContainer based on stateDecodeStopped, and why OnStopDecode is
   // called with OnStopRequest.
-  if (mState & stateDecodeStopped) {
-    NS_ABORT_IF_FALSE(mImage, "stopped decoding without ever having an image?");
+  if (mState & stateDecodeStopped)
     proxy->OnStopContainer(mImage);
-  }
 
   if (mState & stateRequestStopped) {
     proxy->OnStopDecode(GetResultFromImageStatus(mImageStatus), nsnull);
@@ -302,7 +283,6 @@ imgStatusTracker::RecordCancel()
 void
 imgStatusTracker::RecordLoaded()
 {
-  NS_ABORT_IF_FALSE(mImage, "RecordLoaded called before we have an Image");
   mState |= stateRequestStarted | stateHasSize | stateRequestStopped;
   mImageStatus |= imgIRequest::STATUS_SIZE_AVAILABLE | imgIRequest::STATUS_LOAD_COMPLETE;
   mHadLastPart = PR_TRUE;
@@ -311,7 +291,6 @@ imgStatusTracker::RecordLoaded()
 void
 imgStatusTracker::RecordDecoded()
 {
-  NS_ABORT_IF_FALSE(mImage, "RecordDecoded called before we have an Image");
   mState |= stateDecodeStarted | stateDecodeStopped | stateFrameStopped;
   mImageStatus |= imgIRequest::STATUS_FRAME_COMPLETE | imgIRequest::STATUS_DECODE_COMPLETE;
 }
@@ -320,7 +299,6 @@ imgStatusTracker::RecordDecoded()
 void
 imgStatusTracker::RecordStartDecode()
 {
-  NS_ABORT_IF_FALSE(mImage, "RecordStartDecode without an Image");
   mState |= stateDecodeStarted;
 }
 
@@ -334,10 +312,6 @@ imgStatusTracker::SendStartDecode(imgRequestProxy* aProxy)
 void
 imgStatusTracker::RecordStartContainer(imgIContainer* aContainer)
 {
-  NS_ABORT_IF_FALSE(mImage,
-                    "RecordStartContainer called before we have an Image");
-  NS_ABORT_IF_FALSE(mImage == aContainer,
-                    "RecordStartContainer called with wrong Image");
   mState |= stateHasSize;
   mImageStatus |= imgIRequest::STATUS_SIZE_AVAILABLE;
 }
@@ -352,7 +326,6 @@ imgStatusTracker::SendStartContainer(imgRequestProxy* aProxy, imgIContainer* aCo
 void
 imgStatusTracker::RecordStartFrame(PRUint32 aFrame)
 {
-  NS_ABORT_IF_FALSE(mImage, "RecordStartFrame called before we have an Image");
   // no bookkeeping necessary here - this is implied by imgIContainer's number
   // of frames
 }
@@ -367,8 +340,6 @@ imgStatusTracker::SendStartFrame(imgRequestProxy* aProxy, PRUint32 aFrame)
 void
 imgStatusTracker::RecordDataAvailable(PRBool aCurrentFrame, const nsIntRect* aRect)
 {
-  NS_ABORT_IF_FALSE(mImage,
-                    "RecordDataAvailable called before we have an Image");
   // no bookkeeping necessary here - this is implied by imgIContainer's
   // number of frames and frame rect
 }
@@ -385,7 +356,6 @@ imgStatusTracker::SendDataAvailable(imgRequestProxy* aProxy, PRBool aCurrentFram
 void
 imgStatusTracker::RecordStopFrame(PRUint32 aFrame)
 {
-  NS_ABORT_IF_FALSE(mImage, "RecordStopFrame called before we have an Image");
   mState |= stateFrameStopped;
   mImageStatus |= imgIRequest::STATUS_FRAME_COMPLETE;
 }
@@ -400,8 +370,6 @@ imgStatusTracker::SendStopFrame(imgRequestProxy* aProxy, PRUint32 aFrame)
 void
 imgStatusTracker::RecordStopContainer(imgIContainer* aContainer)
 {
-  NS_ABORT_IF_FALSE(mImage,
-                    "RecordStopContainer called before we have an Image");
   // No-op: see imgRequest::OnStopDecode for more information
 }
 
@@ -414,8 +382,6 @@ imgStatusTracker::SendStopContainer(imgRequestProxy* aProxy, imgIContainer* aCon
 void
 imgStatusTracker::RecordStopDecode(nsresult aStatus, const PRUnichar* statusArg)
 {
-  NS_ABORT_IF_FALSE(mImage,
-                    "RecordStopDecode called before we have an Image");
   mState |= stateDecodeStopped;
 
   if (NS_SUCCEEDED(aStatus))
@@ -439,8 +405,6 @@ imgStatusTracker::SendStopDecode(imgRequestProxy* aProxy, nsresult aStatus,
 void
 imgStatusTracker::RecordDiscard()
 {
-  NS_ABORT_IF_FALSE(mImage,
-                    "RecordDiscard called before we have an Image");
   // Clear the state bits we no longer deserve.
   PRUint32 stateBitsToClear = stateDecodeStarted | stateDecodeStopped;
   mState &= ~stateBitsToClear;
@@ -460,18 +424,15 @@ imgStatusTracker::SendDiscard(imgRequestProxy* aProxy)
 
 /* non-virtual imgIContainerObserver methods */
 void
-imgStatusTracker::RecordFrameChanged(imgIContainer* aContainer,
-                                     const nsIntRect* aDirtyRect)
+imgStatusTracker::RecordFrameChanged(imgIContainer* aContainer, nsIntRect* aDirtyRect)
 {
-  NS_ABORT_IF_FALSE(mImage,
-                    "RecordFrameChanged called before we have an Image");
   // no bookkeeping necessary here - this is only for in-frame updates, which we
   // don't fire while we're recording
 }
 
 void
 imgStatusTracker::SendFrameChanged(imgRequestProxy* aProxy, imgIContainer* aContainer,
-                                   const nsIntRect* aDirtyRect)
+                                   nsIntRect* aDirtyRect)
 {
   if (!aProxy->NotificationsDeferred())
     aProxy->FrameChanged(aContainer, aDirtyRect);

@@ -41,6 +41,8 @@
 #ifndef imgRequest_h__
 #define imgRequest_h__
 
+#include "imgContainer.h"
+#include "imgIDecoder.h"
 #include "imgIDecoderObserver.h"
 
 #include "nsIChannelEventSink.h"
@@ -59,7 +61,7 @@
 #include "nsWeakReference.h"
 #include "ImageErrors.h"
 #include "imgIRequest.h"
-#include "imgStatusTracker.h"
+#include "imgContainer.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 
 class imgCacheValidator;
@@ -68,12 +70,6 @@ class imgRequestProxy;
 class imgCacheEntry;
 class imgMemoryReporter;
 class imgRequestNotifyRunnable;
-
-namespace mozilla {
-namespace imagelib {
-class Image;
-} // namespace imagelib
-} // namespace mozilla
 
 class imgRequest : public imgIDecoderObserver,
                    public nsIStreamListener,
@@ -107,14 +103,17 @@ public:
   // a request is "reusable" if it has already been loaded, or it is
   // currently being loaded on the same event queue as the new request
   // being made...
-  PRBool IsReusable(void *aCacheId);
+  PRBool IsReusable(void *aCacheId) {
+    return (mImage && mImage->GetStatusTracker().IsLoading()) ||
+           (aCacheId == mCacheId);
+  }
 
   // Cancel, but also ensure that all work done in Init() is undone. Call this
   // only when the channel has failed to open, and so calling Cancel() on it
   // won't be sufficient.
   void CancelAndAbort(nsresult aStatus);
 
-  // Methods that get forwarded to the Image, or deferred until it's
+  // Methods that get forwarded to the imgContainer, or deferred until it's
   // instantiated.
   nsresult LockImage();
   nsresult UnlockImage();
@@ -147,11 +146,6 @@ private:
     return mProperties;
   }
 
-  // Return the imgStatusTracker associated with this imgRequest.  It may live
-  // in |mStatusTracker| or in |mImage.mStatusTracker|, depending on whether
-  // mImage has been instantiated yet..
-  imgStatusTracker& GetStatusTracker();
-    
   // Reset the cache entry after we've dropped our reference to it. Used by the
   // imgLoader when our cache entry is re-requested after we've dropped our
   // reference to it.
@@ -201,9 +195,7 @@ private:
   // The URI we are keyed on in the cache.
   nsCOMPtr<nsIURI> mKeyURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  // Status-tracker -- transferred to mImage, when it gets instantiated
-  nsAutoPtr<imgStatusTracker> mStatusTracker;
-  nsRefPtr<mozilla::imagelib::Image> mImage;
+  nsRefPtr<imgContainer> mImage;
   nsCOMPtr<nsIProperties> mProperties;
   nsCOMPtr<nsISupports> mSecurityInfo;
   nsCOMPtr<nsIChannel> mChannel;

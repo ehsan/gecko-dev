@@ -120,10 +120,6 @@ public:
   static void Teardown();
   static void Invalidate();
   static HANDLE GetTheme(nsUXThemeClass cls);
-  static HMODULE GetThemeDLL();
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  static HMODULE GetDwmDLL();
-#endif
 
   // nsWindow calls this to update desktop settings info
   static void InitTitlebarInfo();

@@ -23,7 +23,6 @@
  *   Roger B. Sidje <rbs@maths.uq.edu.au>
  *   Shyjan Mahamud <mahamud@cs.cmu.edu>
  *   Karl Tomlinson <karlt+@karlt.net>, Mozilla Corporation
- *   Frederic Wang <fred.wang@free.fr>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -59,11 +58,9 @@ enum {
   NS_STRETCH_LARGER   = 0x08, // don't stretch less than requested size
   // A largeop in displaystyle
   NS_STRETCH_LARGEOP  = 0x10,
-  NS_STRETCH_INTEGRAL  = 0x20,
-
   // Intended for internal use:
   // Find the widest metrics that might be returned from a vertical stretch
-  NS_STRETCH_MAXWIDTH = 0x40
+  NS_STRETCH_MAXWIDTH = 0x20
 };
 
 // A single glyph in our internal representation is characterized by a 'code@font' 
@@ -107,9 +104,6 @@ public:
     mStyleContext = nsnull;
     mSibling = nsnull;
     mParent = aParent;
-    mUnscaledAscent = 0;
-    mScaleX = mScaleY = 1.0;
-    mDrawNormal = PR_TRUE;
   }
 
   ~nsMathMLChar() { // not a virtual destructor: this class is not intended to be subclassed
@@ -242,6 +236,7 @@ protected:
 
 private:
   nsRect             mRect;
+  PRInt32            mOperator;
   nsStretchDirection mDirection;
   nsBoundingMetrics  mBoundingMetrics;
   nsStyleContext*    mStyleContext;
@@ -250,12 +245,6 @@ private:
   // mFamily is non-empty when the family for the current size is different
   // from the family in the nsStyleContext.
   nsString           mFamily;
-  // mUnscaledAscent is the actual ascent of the char.
-  nscoord            mUnscaledAscent;
-  // mScaleX, mScaleY are the factors by which we scale the char.
-  float              mScaleX, mScaleY;
-  // mDrawNormal indicates whether we use special glyphs or not.
-  PRPackedBool       mDrawNormal;
 
   class StretchEnumContext;
   friend class StretchEnumContext;
@@ -294,9 +283,6 @@ private:
                     nsStyleContext*      aStyleContext,
                     nsGlyphTable*        aGlyphTable,
                     nsRect&              aRect);
-
-  void
-  ApplyTransforms(nsIRenderingContext& aRenderingContext, nsRect &r);
 };
 
 #endif /* nsMathMLChar_h___ */

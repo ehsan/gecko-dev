@@ -104,7 +104,8 @@ public:
   }
 
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission *aFormSubmission);
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission *aFormSubmission,
+                               nsIContent *aSubmitElement);
 
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
   virtual PRBool IsDoneAddingChildren();
@@ -150,7 +151,6 @@ nsHTMLObjectElement::nsHTMLObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo
     mIsDoneAddingChildren(!aFromParser)
 {
   RegisterFreezableElement();
-  SetIsNetworkCreated(aFromParser == NS_FROM_PARSER_NETWORK);
 }
 
 nsHTMLObjectElement::~nsHTMLObjectElement()
@@ -320,7 +320,8 @@ nsHTMLObjectElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLObjectElement::SubmitNamesValues(nsFormSubmission *aFormSubmission)
+nsHTMLObjectElement::SubmitNamesValues(nsFormSubmission *aFormSubmission,
+                                       nsIContent *aSubmitElement)
 {
   nsAutoString name;
   if (!GetAttr(kNameSpaceID_None, nsGkAtoms::name, name)) {
@@ -463,7 +464,6 @@ nsHTMLObjectElement::StartObjectLoad(PRBool aNotify)
     // get interpreted as the page itself, instead of absence of URI.
     LoadObject(nsnull, aNotify, ctype);
   }
-  SetIsNetworkCreated(PR_FALSE);
 }
 
 PRInt32

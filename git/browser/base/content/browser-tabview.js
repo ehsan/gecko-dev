@@ -46,7 +46,7 @@ let TabView = {
     delete this.windowTitle;
     let brandBundle = document.getElementById("bundle_brand");
     let brandShortName = brandBundle.getString("brandShortName");
-    let title = gNavigatorBundle.getFormattedString("tabView2.title", [brandShortName]);
+    let title = gNavigatorBundle.getFormattedString("tabView.title", [brandShortName]);
     return this.windowTitle = title;
   },
 
@@ -139,32 +139,32 @@ let TabView = {
 
   // ----------
   updateContextMenu: function(tab, popup) {
-    let separator = document.getElementById("context_tabViewNamedGroups");
     let isEmpty = true;
 
-    while (popup.firstChild && popup.firstChild != separator)
-      popup.removeChild(popup.firstChild);
+    while(popup.lastChild && popup.lastChild.id != "context_namedGroups")
+      popup.removeChild(popup.lastChild);
 
     let self = this;
     this._initFrame(function() {
       let activeGroup = tab.tabItem.parent;
       let groupItems = self._window.GroupItems.groupItems;
-
+  
       groupItems.forEach(function(groupItem) { 
         if (groupItem.getTitle().length > 0 && 
             (!activeGroup || activeGroup.id != groupItem.id)) {
           let menuItem = self._createGroupMenuItem(groupItem);
-          popup.insertBefore(menuItem, separator);
+          popup.appendChild(menuItem);
           isEmpty = false;
         }
       });
-      separator.hidden = isEmpty;
+      document.getElementById("context_namedGroups").hidden = isEmpty;
     });
   },
 
   // ----------
   _createGroupMenuItem : function(groupItem) {
     let menuItem = document.createElement("menuitem")
+    menuItem.setAttribute("class", "group");
     menuItem.setAttribute("label", groupItem.getTitle());
     menuItem.setAttribute(
       "oncommand", 
@@ -197,34 +197,8 @@ let TabView = {
           charCode == 160) { // alt + space
 #else
       if (event.ctrlKey && !event.metaKey && !event.shiftKey &&
-          !event.altKey && charCode == 32) { // ctrl + space
+          event.altKey && charCode == 32) { // ctrl + alt + space
 #endif
-
-        // Don't handle this event if it's coming from a node that might allow
-        // multiple keyboard selection like selects or trees
-        let node = event.target;
-        switch (node.namespaceURI) {
-          case "http://www.w3.org/1999/xhtml":
-            // xhtml:select only allows multiple when the attr is set
-            if (node.localName == "select" && node.hasAttribute("multiple"))
-              return;
-            break;
-
-          case "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul":
-            switch (node.localName) {
-              case "listbox":
-                // xul:listbox is by default single
-                if (node.getAttribute("seltype") == "multiple")
-                  return;
-                break;
-              case "tree":
-                // xul:tree is by default multiple
-                if (node.getAttribute("seltype") != "single")
-                  return;
-                break;
-            }
-        }
-
         event.stopPropagation();
         event.preventDefault();
         self.show();

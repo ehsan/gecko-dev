@@ -56,10 +56,6 @@
 
 #include "GLContextProvider.h"
 
-#ifdef MOZ_SVG
-#include "nsSVGEffects.h"
-#endif
-
 #include "prenv.h"
 
 using namespace mozilla;
@@ -92,7 +88,8 @@ WebGLContext::WebGLContext()
     mPixelStoreFlipY = PR_FALSE;
     mPixelStorePremultiplyAlpha = PR_FALSE;
 
-    mShaderValidation = PR_TRUE;
+    // eventually true
+    mShaderValidation = PR_FALSE;
 
     mMapBuffers.Init();
     mMapTextures.Init();
@@ -211,10 +208,6 @@ WebGLContext::Invalidate()
 {
     if (!mCanvasElement)
         return;
-
-#ifdef MOZ_SVG
-    nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
-#endif
 
     if (mInvalidated)
         return;

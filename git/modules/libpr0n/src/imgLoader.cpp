@@ -39,16 +39,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "imgLoader.h"
-#include "imgRequestProxy.h"
+#include "imgContainer.h"
 
-#include "RasterImage.h"
-/* We end up pulling in windows.h because we eventually hit gfxWindowsSurface;
- * windows.h defines LoadImage, so we have to #undef it or imgLoader::LoadImage
- * gets changed.
- * This #undef needs to be in multiple places because we don't always pull
- * headers in in the same order.
- */
-#undef LoadImage
 
 #include "nsCOMPtr.h"
 
@@ -70,6 +62,9 @@
 
 #include "netCore.h"
 
+#include "imgRequest.h"
+#include "imgRequestProxy.h"
+
 #include "nsURILoader.h"
 #include "ImageLogging.h"
 
@@ -90,15 +85,12 @@
 
 #include "mozilla/FunctionTimer.h"
 
-using namespace mozilla::imagelib;
-
 #if defined(DEBUG_pavlov) || defined(DEBUG_timeless)
 #include "nsISimpleEnumerator.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsXPIDLString.h"
 #include "nsComponentManagerUtils.h"
-
 
 static void PrintImageDecoders()
 {
@@ -225,14 +217,14 @@ public:
     }
 
     nsRefPtr<imgRequest> req = entry->GetRequest();
-    RasterImage *image = static_cast<RasterImage*>(req->mImage.get());
-    if (!image)
+    imgContainer *container = (imgContainer*) req->mImage.get();
+    if (!container)
       return PL_DHASH_NEXT;
 
     if (rtype & RAW_BIT) {
-      arg->value += image->GetSourceDataSize();
+      arg->value += container->GetSourceDataSize();
     } else {
-      arg->value += image->GetDecodedDataSize();
+      arg->value += container->GetDecodedDataSize();
     }
 
     return PL_DHASH_NEXT;
@@ -1853,11 +1845,14 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
 NS_IMETHODIMP imgLoader::SupportImageWithMimeType(const char* aMimeType, PRBool *_retval)
 {
   *_retval = PR_FALSE;
+  nsCOMPtr<nsIComponentRegistrar> reg;
+  nsresult rv = NS_GetComponentRegistrar(getter_AddRefs(reg));
+  if (NS_FAILED(rv))
+    return rv;
   nsCAutoString mimeType(aMimeType);
   ToLowerCase(mimeType);
-  *_retval = (Image::GetDecoderType(mimeType.get()) == Image::eDecoderType_unknown)
-    ? PR_FALSE : PR_TRUE;
-  return NS_OK;
+  nsCAutoString decoderId(NS_LITERAL_CSTRING("@mozilla.org/image/decoder;3?type=") + mimeType);
+  return reg->IsContractIDRegistered(decoderId.get(),  _retval);
 }
 
 NS_IMETHODIMP imgLoader::GetMIMETypeFromContent(nsIRequest* aRequest,

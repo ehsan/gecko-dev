@@ -235,7 +235,10 @@ typedef PRUint64 nsFrameState;
 // to its coordinate system (e.g. CSS transform, SVG foreignObject).
 // This is used primarily in GetTransformMatrix to optimize for the
 // common case.
-#define  NS_FRAME_MAY_BE_TRANSFORMED                NS_FRAME_STATE_BIT(16)
+// ALSO, if this bit is set, the frame's first-continuation may
+// have an associated nsSVGRenderingObserverList.
+#define  NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS \
+                                                    NS_FRAME_STATE_BIT(16)
 
 #ifdef IBMBIDI
 // If this bit is set, the frame itself is a bidi continuation,
@@ -258,9 +261,6 @@ typedef PRUint64 nsFrameState;
 // split, and this piece is the continuation, or (2) the entire float
 // didn't fit on the page.
 #define NS_FRAME_IS_PUSHED_FLOAT                    NS_FRAME_STATE_BIT(32)
-
-// This bit acts as a loop flag for recursive paint server drawing.
-#define NS_FRAME_DRAWING_AS_PAINTSERVER             NS_FRAME_STATE_BIT(33)
 
 // The lower 20 bits and upper 32 bits of the frame state are reserved
 // by this API.
@@ -746,6 +746,10 @@ public:
 
   virtual void SetAdditionalStyleContext(PRInt32 aIndex,
                                          nsStyleContext* aStyleContext) = 0;
+
+  // returns GetStyleBorder()->mBoxShadow unless this frame is using
+  // -moz-appearance and is not chrome
+  nsCSSShadowArray* GetEffectiveBoxShadows();
 
   /**
    * @return PR_FALSE if this frame definitely has no borders at all

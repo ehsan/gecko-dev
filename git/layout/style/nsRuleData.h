@@ -104,11 +104,10 @@ struct nsRuleData
   ~nsRuleData() {}
 
   /**
-   * Return a pointer to the value object within |this| corresponding
-   * to property |aProperty|, or null if storage for that property has
-   * not been allocated.
+   * Non-typesafe worker routine for the above five value retrieval
+   * functions.  Avoid using.
    */
-  nsCSSValue* ValueFor(nsCSSProperty aProperty);
+  void* StorageFor(nsCSSProperty aProperty);
 };
 
 #endif
