@@ -1,6 +1,6 @@
 /******************************************************************************
 ** This file is an amalgamation of many separate C source files from SQLite
-** version 3.7.14.  By combining all the individual C code files into this 
+** version 3.7.14.1.  By combining all the individual C code files into this 
 ** single large file, the entire code can be compiled as a single translation
 ** unit.  This allows many compilers to do optimizations that would not be
 ** possible if the files were compiled separately.  Performance improvements
@@ -673,9 +673,9 @@ extern "C" {
 ** [sqlite3_libversion_number()], [sqlite3_sourceid()],
 ** [sqlite_version()] and [sqlite_source_id()].
 */
-#define SQLITE_VERSION        "3.7.14"
+#define SQLITE_VERSION        "3.7.14.1"
 #define SQLITE_VERSION_NUMBER 3007014
-#define SQLITE_SOURCE_ID      "2012-09-03 15:42:36 c0d89d4a9752922f9e367362366efde4f1b06f2a"
+#define SQLITE_SOURCE_ID      "2012-10-04 19:37:12 091570e46d04e84b67228e0bdbcd6e1fb60c6bdb"
 
 /*
 ** CAPI3REF: Run-Time Library Version Numbers
@@ -53849,6 +53849,9 @@ static void copyNodeContent(MemPage *pFrom, MemPage *pTo, int *pRC){
 ** If aOvflSpace is set to a null pointer, this function returns 
 ** SQLITE_NOMEM.
 */
+#if defined(_MSC_VER) && _MSC_VER >= 1700 && defined(_M_ARM)
+#pragma optimize("", off)
+#endif
 static int balance_nonroot(
   MemPage *pParent,               /* Parent page of siblings being balanced */
   int iParentIdx,                 /* Index of "the page" in pParent */
@@ -54479,6 +54482,9 @@ balance_cleanup:
 
   return rc;
 }
+#if defined(_MSC_VER) && _MSC_VER >= 1700 && defined(_M_ARM)
+#pragma optimize("", on)
+#endif
 
 
 /*
@@ -106086,7 +106092,7 @@ static Bitmask codeOneLoopStart(
       }
     }
     pLevel->u.pCovidx = pCov;
-    pLevel->iIdxCur = iCovCur;
+    if( pCov ) pLevel->iIdxCur = iCovCur;
     if( pAndExpr ){
       pAndExpr->pLeft = 0;
       sqlite3ExprDelete(pParse->db, pAndExpr);
