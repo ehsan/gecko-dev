@@ -4919,10 +4919,9 @@ var contentAreaDNDObserver = {
         if (dragData instanceof XULElement && dragData.localName == "tab" &&
             dragData.ownerDocument.defaultView == window) {
           // Detach only if the mouse pointer was released a little
-          // bit down in the content area (to be precise, by half the height
-          // of a tab)
+          // bit down in the content area (to be precise, by tab-height)
           if (aEvent.screenY > gBrowser.mPanelContainer.boxObject.screenY +
-                               dragData.boxObject.height / 2) {
+                               dragData.boxObject.height) {
             gBrowser.replaceTabWithWindow(dragData);
             aEvent.dataTransfer.dropEffect = "move";
             return;
