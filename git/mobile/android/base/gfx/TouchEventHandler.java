@@ -60,6 +60,7 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     private final GestureDetector mGestureDetector;
     private final SimpleScaleGestureDetector mScaleGestureDetector;
     private final PanZoomController mPanZoomController;
+    private final GestureDetector.OnDoubleTapListener mDoubleTapListener;
 
     // the queue of events that we are holding on to while waiting for a preventDefault
     // notification
@@ -134,7 +135,8 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
         mListenerTimeoutProcessor = new ListenerTimeoutProcessor();
         mDispatchEvents = true;
 
-        mGestureDetector.setOnDoubleTapListener(controller.getDoubleTapListener());
+        mDoubleTapListener = controller.getDoubleTapListener();
+        setDoubleTapEnabled(true);
 
         Tabs.registerOnTabsChangedListener(this);
     }
@@ -212,6 +214,11 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
             processEventBlock(allowDefaultAction);
         }
         mProcessingBalance--;
+    }
+
+    /* This function MUST be called on the UI thread. */
+    public void setDoubleTapEnabled(boolean aValue) {
+        mGestureDetector.setOnDoubleTapListener(aValue ? mDoubleTapListener : null);
     }
 
     /* This function MUST be called on the UI thread. */

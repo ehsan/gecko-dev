@@ -176,7 +176,6 @@ public:
   PRUint32 FullScreenOrientation() { return mFullScreenOrientation; }
   void SetFullScreenOrientation(PRUint32 orientation);
 
-  void SetWakeLock(bool aLock);
 #endif
   nsresult NewStreamListener(const char* aURL, void* notifyData,
                              nsIPluginStreamListener** listener);
@@ -262,7 +261,6 @@ protected:
   void PopPostedEvent(PluginEventRunnable* r);
 
   PRUint32 mFullScreenOrientation;
-  bool mWakeLocked;
   bool mFullScreen;
 #endif
 
