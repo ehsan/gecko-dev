@@ -42,8 +42,6 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE		= gfx
-
 MOZILLA_INTERNAL_API = 1
 
 REQUIRES	= xpcom \
@@ -65,8 +63,6 @@ LIBS		= \
 		$(TK_LIBS) \
 		$(NSPR_LIBS) \
 		$(NULL)
-
-XPCSHELL_TESTS = unit
 
 include $(topsrcdir)/config/rules.mk
 

@@ -25,7 +25,6 @@ Tests of DOM Worker Threads (Bug 437152)
     switch (event.data) {
       case "done":
         if (++doneThreads == numThreads) {
-          ok(true, "All messages received from workers");
           SimpleTest.finish();
         }
         break;

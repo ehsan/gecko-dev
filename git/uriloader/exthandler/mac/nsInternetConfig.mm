@@ -41,8 +41,7 @@
 #include "nsReadableUtils.h"
 #include "nsDebug.h"
 
-#include <Carbon/Carbon.h>
-
+#include <Processes.h>
 ICInstance nsInternetConfig::sInstance = NULL;
 long nsInternetConfig::sSeed = 0;
 PRInt32  nsInternetConfig::sRefCount = 0;

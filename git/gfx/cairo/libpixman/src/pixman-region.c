@@ -1330,8 +1330,6 @@ validate (region_type_t * badreg,
 	int	    curBand;
     } RegionInfo;
 
-    RegionInfo stack_regions[64];
-
 	     int	numRects;   /* Original numRects for badreg	    */
 	     RegionInfo *ri;	    /* Array of current regions		    */
     	     int	numRI;      /* Number of entries used in ri	    */
@@ -1381,8 +1379,10 @@ validate (region_type_t * badreg,
 
     /* Set up the first region to be the first rectangle in badreg */
     /* Note that step 2 code will never overflow the ri[0].reg rects array */
-    ri = stack_regions;
-    sizeRI = sizeof (stack_regions) / sizeof (stack_regions[0]);
+    ri = (RegionInfo *) pixman_malloc_ab (4, sizeof(RegionInfo));
+    if (!ri)
+	return pixman_break (badreg);
+    sizeRI = 4;
     numRI = 1;
     ri[0].prevBand = 0;
     ri[0].curBand = 0;
@@ -1451,16 +1451,9 @@ validate (region_type_t * badreg,
             data_size = sizeRI * sizeof(RegionInfo);
             if (data_size / sizeRI != sizeof(RegionInfo))
                 goto bail;
-	    if (ri == stack_regions) {
-		rit = malloc (data_size);
-		if (!rit)
-		    goto bail;
-		memcpy (rit, ri, numRI * sizeof (RegionInfo));
-	    } else {
-		rit = (RegionInfo *) realloc(ri, data_size);
-		if (!rit)
-		    goto bail;
-	    }
+            rit = (RegionInfo *) realloc(ri, data_size);
+	    if (!rit)
+		goto bail;
 	    ri = rit;
 	    rit = &ri[numRI];
 	}
@@ -1516,15 +1509,13 @@ NextRect: ;
 	    goto bail;
     }
     *badreg = ri[0].reg;
-    if (ri != stack_regions)
-	free(ri);
+    free(ri);
     good(badreg);
     return ret;
 bail:
     for (i = 0; i < numRI; i++)
 	freeData(&ri[i].reg);
-    if (ri != stack_regions)
-	free (ri);
+    free (ri);
 
     return pixman_break (badreg);
 }

@@ -41,7 +41,7 @@
 
 #include "nsIDeviceContextSpec.h"
 
-#include <Carbon/Carbon.h>
+#include <PMApplication.h>
 
 class nsDeviceContextSpecX : public nsIDeviceContextSpec
 {

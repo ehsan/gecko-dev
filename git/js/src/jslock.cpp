@@ -47,7 +47,6 @@
 #include "jspubtd.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsbit.h"
 #include "jscntxt.h"
 #include "jsdtoa.h"

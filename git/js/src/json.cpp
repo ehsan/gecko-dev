@@ -51,7 +51,6 @@
 #include "jsscan.h"
 #include "jsstr.h"
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsutil.h"
 
 #include "json.h"

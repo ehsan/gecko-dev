@@ -83,7 +83,7 @@
 
 #ifdef XP_MACOSX
 #include "nsAutoPtr.h"
-#include <Carbon/Carbon.h>
+#include <Scrap.h>
 #endif
 
 

@@ -45,8 +45,8 @@
 #include "nsCOMPtr.h"
 
 #if defined(XP_MACOSX)
-#include <Carbon/Carbon.h>
-#include <CoreFoundation/CoreFoundation.h>
+#include <Processes.h>
+#include <CFBundle.h>
 #endif
 
 #ifdef XP_UNIX

@@ -154,7 +154,7 @@
 #endif
 
 #ifdef XP_MACOSX
-#include <Carbon/Carbon.h>
+#include <Events.h>
 #endif
 
 //#define DEBUG_DOCSHELL_FOCUS

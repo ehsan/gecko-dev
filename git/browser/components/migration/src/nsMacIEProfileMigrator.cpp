@@ -48,7 +48,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIProperties.h"
-#include <Carbon/Carbon.h>
+#include <InternetConfig.h>
 
 #define MACIE_BOOKMARKS_FILE_NAME NS_LITERAL_STRING("Favorites.html")
 #define MACIE_PREFERENCES_FOLDER_NAME NS_LITERAL_STRING("Explorer")

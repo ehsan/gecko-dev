@@ -39,7 +39,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "jsstdint.h"
 #include "jsbit.h"              // low-level (NSPR-based) headers next
 #include "jsprf.h"
 #include <math.h>               // standard headers next
@@ -635,16 +634,22 @@ static LIns* demote(LirWriter *out, LInsp i)
 
 static bool isPromoteInt(LIns* i)
 {
-    jsdouble d;
-    return isi2f(i) || i->isconst() ||
-        (i->isconstq() && (d = i->constvalf()) == jsdouble(jsint(d)) && !JSDOUBLE_IS_NEGZERO(d));
+    if (isi2f(i) || i->isconst())
+        return true;
+    if (!i->isconstq())
+        return false;
+    jsdouble d = i->constvalf();
+    return d == jsdouble(jsint(d)) && !JSDOUBLE_IS_NEGZERO(d);
 }
 
 static bool isPromoteUint(LIns* i)
 {
-    jsdouble d;
-    return isu2f(i) || i->isconst() ||
-        (i->isconstq() && (d = i->constvalf()) == (jsdouble)(jsuint)d && !JSDOUBLE_IS_NEGZERO(d));
+    if (isu2f(i) || i->isconst())
+        return true;
+    if (!i->isconstq())
+        return false;
+    jsdouble d = i->constvalf();
+    return d == jsdouble(jsuint(d)) && !JSDOUBLE_IS_NEGZERO(d);
 }
 
 static bool isPromote(LIns* i)
