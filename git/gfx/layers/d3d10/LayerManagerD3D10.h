@@ -49,8 +49,6 @@
 namespace mozilla {
 namespace layers {
 
-class Nv3DVUtils;
-
 /**
  * This structure is used to pass rectangles to our shader constant. We can use
  * this for passing rectangular areas to SetVertexShaderConstant. In the format
@@ -143,13 +141,6 @@ public:
   void SetViewport(const nsIntSize &aViewport);
   const nsIntSize &GetViewport() { return mViewport; }
 
-  /**
-   * Return pointer to the Nv3DVUtils instance
-   */
-  Nv3DVUtils *GetNv3DVUtils()  { return mNv3DVUtils; }
-
-  static void LayerManagerD3D10::ReportFailure(const nsACString &aMsg, HRESULT aCode);
-
 private:
   void SetupPipeline();
   void UpdateRenderTarget();
@@ -172,9 +163,6 @@ private:
   CallbackInfo mCurrentCallbackInfo;
 
   nsIntSize mViewport;
-
-  /* Nv3DVUtils instance */ 
-  nsAutoPtr<Nv3DVUtils> mNv3DVUtils; 
 
   /*
    * Context target, NULL when drawing directly to our swap chain.
@@ -213,12 +201,6 @@ public:
 
   /* Called by the layer manager when it's destroyed */
   virtual void LayerManagerDestroyed() {}
-
-  /**
-   * Return pointer to the Nv3DVUtils instance. Calls equivalent method in LayerManager.
-   */
-  Nv3DVUtils *GetNv3DVUtils()  { return mD3DManager->GetNv3DVUtils(); }
-
 
   void SetEffectTransformAndOpacity()
   {

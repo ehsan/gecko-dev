@@ -510,6 +510,10 @@
   -moz-border-bottom-colors: rgba(0, 0, 0, 0.1) rgba(255, 255, 255, 0.1);
 }
 
+.addon[status="installing"] {
+  -moz-box-align: center;
+}
+
 .details {
   cursor: pointer;
   margin: 0;
@@ -545,7 +549,8 @@
   list-style-image: url("chrome://mozapps/skin/plugins/pluginGeneric.png");
 }
 
-.name-container {
+.name-container,
+.addon[status="installing"] .name {
   font-size: 150%;
   font-weight: bold;
   color: #3F3F3F;
@@ -755,6 +760,10 @@
   opacity: 0;
 }
 
+#detail-view:not([loading]) .alert-container {
+  visibility: collapse;
+}
+
 #detail-view[loading-extended] .loading {
   opacity: 1;
   -moz-transition-property: opacity;
@@ -794,8 +803,6 @@
 
 #detail-screenshot {
   -moz-margin-end: 2em;
-  max-width: 300px;
-  max-height: 300px;
 }
 
 #detail-desc-container {
@@ -808,7 +815,7 @@
      bug 592712*/
   outline: solid transparent;
   white-space: pre-wrap;
-  min-width: 10em;
+  min-width: 8em;
 }
 
 #detail-contributions {
@@ -1003,6 +1010,7 @@
   border-radius: 0 3px 3px 0;
 }
 
+.download-progress .pause,
 .download-progress .cancel {
   -moz-appearance: none;
   background-color: rgba(255, 255, 255, 0.4);
@@ -1013,26 +1021,35 @@
   margin: 3px;
 }
 
+.download-progress .pause:hover,
 .download-progress .cancel:hover {
   background-color: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(0, 0, 0, 0.8);
 }
 
+.download-progress .pause:active:hover,
 .download-progress .cancel:active:hover {
   box-shadow: inset rgba(0, 0, 0, 0.5) 1px 1px 2px;
 }
 
+.download-progress .pause .button-box,
 .download-progress .cancel .button-box {
   padding: 0;
   border: none;
 }
 
+.download-progress .pause .button-text,
 .download-progress .cancel .button-text {
   display: none;
 }
 
+.download-progress .pause .button-icon,
 .download-progress .cancel .button-icon {
   -moz-margin-start: 0;
+}
+
+.download-progress .pause {
+  list-style-image: url('chrome://mozapps/skin/extensions/pause.png');
 }
 
 .download-progress .cancel {

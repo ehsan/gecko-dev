@@ -49,55 +49,40 @@ let Keys = { meta: false };
 // Class: UI
 // Singleton top-level UI manager.
 let UI = {
-  // Constant: DBLCLICK_INTERVAL
-  // Defines the maximum time (in ms) between two clicks for it to count as
-  // a double click.
-  DBLCLICK_INTERVAL: 500,
-
-  // Constant: DBLCLICK_OFFSET
-  // Defines the maximum offset (in pixels) between two clicks for it to count as
-  // a double click.
-  DBLCLICK_OFFSET: 5,
-
   // Variable: _frameInitialized
   // True if the Tab View UI frame has been initialized.
   _frameInitialized: false,
 
   // Variable: _pageBounds
   // Stores the page bounds.
-  _pageBounds: null,
+  _pageBounds : null,
 
   // Variable: _closedLastVisibleTab
   // If true, the last visible tab has just been closed in the tab strip.
-  _closedLastVisibleTab: false,
+  _closedLastVisibleTab : false,
 
   // Variable: _closedSelectedTabInTabView
   // If true, a select tab has just been closed in TabView.
-  _closedSelectedTabInTabView: false,
+  _closedSelectedTabInTabView : false,
 
   // Variable: restoredClosedTab
   // If true, a closed tab has just been restored.
-  restoredClosedTab: false,
+  restoredClosedTab : false,
 
   // Variable: _reorderTabItemsOnShow
   // Keeps track of the <GroupItem>s which their tab items' tabs have been moved
   // and re-orders the tab items when switching to TabView.
-  _reorderTabItemsOnShow: [],
+  _reorderTabItemsOnShow : [],
 
   // Variable: _reorderTabsOnHide
   // Keeps track of the <GroupItem>s which their tab items have been moved in
   // TabView UI and re-orders the tabs when switcing back to main browser.
-  _reorderTabsOnHide: [],
+  _reorderTabsOnHide : [],
 
   // Variable: _currentTab
   // Keeps track of which xul:tab we are currently on.
   // Used to facilitate zooming down from a previous tab.
-  _currentTab: null,
-
-  // Variable: _lastClick
-  // Keeps track of the time of last click event to detect double click.
-  // Used to create tabs on double-click since we cannot attach 'dblclick'
-  _lastClick: 0,
+  _currentTab : null,
 
   // Variable: _eventListeners
   // Keeps track of event listeners added to the AllTabs object.
@@ -166,38 +151,8 @@ let UI = {
               element.blur();
           });
         }
-        if (e.originalTarget.id == "content") {
-          // Create an orphan tab on double click
-          if (Date.now() - self._lastClick <= self.DBLCLICK_INTERVAL && 
-              (self._lastClickPositions.x - self.DBLCLICK_OFFSET) <= e.clientX &&
-              (self._lastClickPositions.x + self.DBLCLICK_OFFSET) >= e.clientX &&
-              (self._lastClickPositions.y - self.DBLCLICK_OFFSET) <= e.clientY &&
-              (self._lastClickPositions.y + self.DBLCLICK_OFFSET) >= e.clientY) {
-            GroupItems.setActiveGroupItem(null);
-            TabItems.creatingNewOrphanTab = true;
-
-            let newTab = 
-              gBrowser.loadOneTab("about:blank", { inBackground: true });
-
-            let box = 
-              new Rect(e.clientX - Math.floor(TabItems.tabWidth/2),
-                       e.clientY - Math.floor(TabItems.tabHeight/2),
-                       TabItems.tabWidth, TabItems.tabHeight);
-            newTab._tabViewTabItem.setBounds(box, true);
-            newTab._tabViewTabItem.pushAway(true);
-            GroupItems.setActiveOrphanTab(newTab._tabViewTabItem);
-
-            TabItems.creatingNewOrphanTab = false;
-            newTab._tabViewTabItem.zoomIn(true);
-
-            self._lastClick = 0;
-            self._lastClickPositions = null;
-          } else {
-            self._lastClick = Date.now();
-            self._lastClickPositions = new Point(e.clientX, e.clientY);
-            self._createGroupItemOnDrag(e);
-          }
-        }
+        if (e.originalTarget.id == "content")
+          self._createGroupItemOnDrag(e)
       });
 
       iQ(window).bind("beforeunload", function() {
@@ -340,7 +295,7 @@ let UI = {
     items.forEach(function(item) {
       if (item.parent)
         item.parent.remove(item);
-      groupItem.add(item, {immediately: true});
+      groupItem.add(item, null, {immediately: true});
     });
     
     if (firstTime) {
@@ -348,7 +303,7 @@ let UI = {
 
       let url = gPrefBranch.getCharPref("welcome_url");
       let newTab = gBrowser.loadOneTab(url, {inBackground: true});
-      let newTabItem = newTab._tabViewTabItem;
+      let newTabItem = newTab.tabItem;
       let parent = newTabItem.parent;
       Utils.assert(parent, "should have a parent");
 
@@ -399,21 +354,20 @@ let UI = {
   //
   // Parameters:
   //  - Takes a <TabItem>
-  setActiveTab: function UI_setActiveTab(tabItem) {
-    if (tabItem == this._activeTab)
+  setActiveTab: function UI_setActiveTab(tab) {
+    if (tab == this._activeTab)
       return;
 
     if (this._activeTab) {
       this._activeTab.makeDeactive();
       this._activeTab.removeSubscriber(this, "close");
     }
-    this._activeTab = tabItem;
+    this._activeTab = tab;
 
     if (this._activeTab) {
-      let self = this;
-      this._activeTab.addSubscriber(this, "close", function(closedTabItem) {
-        if (self._activeTab == closedTabItem)
-          self._activeTab = null;
+      var self = this;
+      this._activeTab.addSubscriber(this, "close", function() {
+        self._activeTab = null;
       });
 
       this._activeTab.makeActive();
@@ -464,7 +418,6 @@ let UI = {
     gTabViewFrame.style.marginTop = "";
 #endif
     gTabViewDeck.selectedIndex = 1;
-    gWindow.TabsInTitlebar.allowedBy("tabview-open", false);
     gTabViewFrame.contentWindow.focus();
 
     gBrowser.updateTitlebar();
@@ -474,15 +427,15 @@ let UI = {
     let event = document.createEvent("Events");
     event.initEvent("tabviewshown", true, false);
 
-    if (zoomOut && currentTab && currentTab._tabViewTabItem) {
-      item = currentTab._tabViewTabItem;
+    if (zoomOut && currentTab && currentTab.tabItem) {
+      item = currentTab.tabItem;
       // If there was a previous currentTab we want to animate
       // its thumbnail (canvas) for the zoom out.
       // Note that we start the animation on the chrome thread.
 
       // Zoom out!
       item.zoomOut(function() {
-        if (!currentTab._tabViewTabItem) // if the tab's been destroyed
+        if (!currentTab.tabItem) // if the tab's been destroyed
           item = null;
 
         self.setActiveTab(item);
@@ -497,8 +450,8 @@ let UI = {
         dispatchEvent(event);
       });
     } else {
-      if (currentTab && currentTab._tabViewTabItem)
-        currentTab._tabViewTabItem.setZoomPrep(false);
+      if (currentTab && currentTab.tabItem)
+        currentTab.tabItem.setZoomPrep(false);
 
       self.setActiveTab(null);
       dispatchEvent(event);
@@ -531,7 +484,6 @@ let UI = {
     gTabViewFrame.style.marginTop = gBrowser.boxObject.y + "px";
 #endif
     gTabViewDeck.selectedIndex = 0;
-    gWindow.TabsInTitlebar.allowedBy("tabview-open", true);
     gBrowser.contentWindow.focus();
 
     gBrowser.updateTitlebar();
@@ -584,7 +536,6 @@ let UI = {
         this.reset(false);
   
       TabItems.resumeReconnecting();
-      GroupItems._updateTabBar();
     }
   },
 
@@ -630,6 +581,7 @@ let UI = {
       } else if (aTopic == "private-browsing-change-granted") {
         if (aData == "enter" || aData == "exit") {
           self._privateBrowsing.transitionMode = aData;
+          GroupItems.pauseUpdatingTabBar();
           self.storageBusy();
         }
       } else if (aTopic == "private-browsing-transition-complete") {
@@ -640,6 +592,7 @@ let UI = {
 
         self._privateBrowsing.transitionMode = "";
         self.storageReady();
+        GroupItems.resumeUpdatingTabBar();
       }
     }
 
@@ -709,8 +662,8 @@ let UI = {
             // for the tab focus event to pick up.
             self._closedLastVisibleTab = true;
             // remove the zoom prep.
-            if (tab && tab._tabViewTabItem)
-              tab._tabViewTabItem.setZoomPrep(false);
+            if (tab && tab.tabItem)
+              tab.tabItem.setZoomPrep(false);
             self.showTabView();
           }
         }
@@ -819,15 +772,13 @@ let UI = {
     let oldItem = null;
     let newItem = null;
 
-    if (currentTab && currentTab._tabViewTabItem)
-      oldItem = currentTab._tabViewTabItem;
+    if (currentTab && currentTab.tabItem)
+      oldItem = currentTab.tabItem;
 
     // update the tab bar for the new tab's group
-    if (tab && tab._tabViewTabItem) {
-      if (!TabItems.reconnectingPaused()) {
-        newItem = tab._tabViewTabItem;
-        GroupItems.updateActiveGroupItemAndTabBar(newItem);
-      }
+    if (tab && tab.tabItem) {
+      newItem = tab.tabItem;
+      GroupItems.updateActiveGroupItemAndTabBar(newItem);
     } else {
       // No tabItem; must be an app tab. Base the tab bar on the current group.
       // If no current group or orphan tab, figure it out based on what's
@@ -836,7 +787,7 @@ let UI = {
         for (let a = 0; a < gBrowser.tabs.length; a++) {
           let theTab = gBrowser.tabs[a]; 
           if (!theTab.pinned) {
-            let tabItem = theTab._tabViewTabItem; 
+            let tabItem = theTab.tabItem; 
             if (tabItem.parent) 
               GroupItems.setActiveGroupItem(tabItem.parent);
             else 
@@ -905,15 +856,16 @@ let UI = {
   getClosestTab: function UI_getClosestTab(tabCenter) {
     let cl = null;
     let clDist;
-    TabItems.getItems().forEach(function (item) {
-      if (item.parent && item.parent.hidden)
-        return;
+    for each(item in TabItems.getItems()) {
+      if (item.parent && item.parent.hidden) {
+        continue;
+      }
       let testDist = tabCenter.distance(item.bounds.center());
       if (cl==null || testDist < clDist) {
         cl = item;
         clDist = testDist;
       }
-    });
+    }
     return cl;
   },
 
@@ -1144,9 +1096,9 @@ let UI = {
       iQ(window).unbind("mousemove", updateSize);
       item.container.removeClass("dragRegion");
       dragOutInfo.stop();
-      box = item.getBounds();
-      if (box.width > minMinSize && box.height > minMinSize &&
-         (box.width > minSize || box.height > minSize)) {
+      if (phantom.css("opacity") != 1)
+        collapse();
+      else {
         var bounds = item.getBounds();
 
         // Add all of the orphaned tabs that are contained inside the new groupItem
@@ -1162,8 +1114,6 @@ let UI = {
         GroupItems.setActiveGroupItem(groupItem);
         phantom.remove();
         dragOutInfo = null;
-      } else {
-        collapse();
       }
     }
 
@@ -1300,7 +1250,7 @@ let UI = {
       // selected tab is an app tab), just go there.
       let activeTabItem = this.getActiveTab();
       if (!activeTabItem) {
-        let tabItem = gBrowser.selectedTab._tabViewTabItem;
+        let tabItem = gBrowser.selectedTab.tabItem;
         if (tabItem) {
           if (!tabItem.parent || !tabItem.parent.hidden) {
             activeTabItem = tabItem;

@@ -1060,7 +1060,7 @@ protected:
   PRInt32               mAutoQualityMinFontSizePixelsPref;
 
 #ifdef IBMBIDI
-  nsAutoPtr<nsBidiPresUtils> mBidiUtils;
+  nsBidiPresUtils*      mBidiUtils;
 #endif
 
   nsCOMPtr<nsITheme> mTheme;

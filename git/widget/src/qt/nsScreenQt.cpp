@@ -72,7 +72,7 @@ nsScreenQt::GetRect(PRInt32 *outLeft,PRInt32 *outTop,
                     PRInt32 *outWidth,PRInt32 *outHeight)
 {
     QRect r;
-#if defined MOZ_IPC && defined MOZ_ENABLE_MEEGOTOUCH
+#ifdef MOZ_ENABLE_MEEGOTOUCH
     if (XRE_GetProcessType() == GeckoProcessType_Default) {
         MWindow *window = MApplication::activeWindow();
         if (window) {

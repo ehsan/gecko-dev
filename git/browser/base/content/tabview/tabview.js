@@ -3,12 +3,16 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 Cu.import("resource:///modules/tabview/AllTabs.jsm");
+Cu.import("resource:///modules/tabview/groups.jsm");
 Cu.import("resource:///modules/tabview/utils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "gWindow", function() {
-  return window.parent;
+  return window.QueryInterface(Ci.nsIInterfaceRequestor).
+    getInterface(Ci.nsIWebNavigation).
+    QueryInterface(Ci.nsIDocShell).
+    chromeEventHandler.ownerDocument.defaultView;
 });
 
 XPCOMUtils.defineLazyGetter(this, "gBrowser", function() gWindow.gBrowser);
@@ -29,7 +33,9 @@ XPCOMUtils.defineLazyGetter(this, "tabviewBundle", function() {
 function tabviewString(name) tabviewBundle.GetStringFromName('tabview.' + name);
 
 XPCOMUtils.defineLazyGetter(this, "gPrefBranch", function() {
-  return Services.prefs.getBranch("browser.panorama.");
+  return Cc["@mozilla.org/preferences-service;1"].
+    getService(Ci.nsIPrefService).
+    getBranch("browser.panorama.");
 });
 
 XPCOMUtils.defineLazyGetter(this, "gPrivateBrowsing", function() {

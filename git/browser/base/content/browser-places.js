@@ -991,11 +991,12 @@ var PlacesStarButton = {
       return;
     }
 
-    if (this._itemIds.length > 0) {
+    let starred = this._starIcon.hasAttribute("starred");
+    if (this._itemIds.length > 0 && !starred) {
       this._starIcon.setAttribute("starred", "true");
       this._starIcon.setAttribute("tooltiptext", this._starredTooltip);
     }
-    else {
+    else if (this._itemIds.length == 0 && starred) {
       this._starIcon.removeAttribute("starred");
       this._starIcon.setAttribute("tooltiptext", this._unstarredTooltip);
     }

@@ -47,26 +47,16 @@ MODULE = crashreporter_test
 XPCSHELL_TESTS = unit
 
 LIBRARY_NAME = testcrasher
+IS_COMPONENT    = 1
 NO_DIST_INSTALL = 1
 
-VPATH += \
-  $(srcdir)/../google-breakpad/src/processor/ \
-  $(srcdir)/../google-breakpad/src/common/ \
-  $(NULL)
+XPIDLSRCS = nsITestCrasher.idl
 
 CPPSRCS = \
   nsTestCrasher.cpp \
-  dumputils.cpp \
-  basic_code_modules.cc \
-  logging.cc \
-  minidump.cc \
-  pathname_stripper.cc \
   $(NULL)
 
-LOCAL_INCLUDES += \
-  -I$(XPIDL_GEN_DIR) \
-  -I$(srcdir)/../google-breakpad/src/ \
-  $(NULL)
+LOCAL_INCLUDES += -I$(XPIDL_GEN_DIR)
 EXTRA_DSO_LIBS += xpcom
 EXTRA_DSO_LDOPTS += $(LIBS_DIR) $(MOZ_COMPONENT_LIBS)
 
@@ -86,11 +76,11 @@ EXTRA_DSO_LDOPTS += $(EXTRA_DSO_LIBS) $(XPCOM_LIBS)
 
 endif
 
-EXTRA_JS_MODULES = CrashTestUtils.jsm
+EXTRA_PP_COMPONENTS = testcrasher.manifest
 
 include $(topsrcdir)/config/rules.mk
 
-DEFINES += -DSHARED_LIBRARY=$(SHARED_LIBRARY) -DNOMINMAX
+DEFINES += -DSHARED_LIBRARY=$(SHARED_LIBRARY)
 
 ifneq (mobile,$(MOZ_BUILD_APP))
 _BROWSER_FILES = \
@@ -105,6 +95,7 @@ libs::  $(_BROWSER_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)/browser
 endif
 
-libs:: $(SHARED_LIBRARY) $(EXTRA_JS_MODULES)
-	$(INSTALL) $^ $(DEPTH)/_tests/xpcshell/$(relativesrcdir)/unit/
-
+libs:: $(SHARED_LIBRARY) $(XPIDL_GEN_DIR)/$(XPIDL_MODULE).xpt
+	$(NSINSTALL) -D $(DEPTH)/_tests/xpcshell/$(relativesrcdir)/unit/components
+	$(INSTALL) $^ $(DEPTH)/_tests/xpcshell/$(relativesrcdir)/unit/components
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $(srcdir)/testcrasher.manifest > $(DEPTH)/_tests/xpcshell/$(relativesrcdir)/unit/components/testcrasher.manifest

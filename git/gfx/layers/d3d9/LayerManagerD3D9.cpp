@@ -45,8 +45,6 @@
 #include "gfxWindowsPlatform.h"
 #include "nsIGfxInfo.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIPrefService.h"
-#include "nsIPrefBranch2.h"
 
 namespace mozilla {
 namespace layers {
@@ -68,20 +66,11 @@ LayerManagerD3D9::~LayerManagerD3D9()
 PRBool
 LayerManagerD3D9::Initialize()
 {
-  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-
-  PRBool forceAccelerate = PR_FALSE;
-  if (prefs) {
-    // we should use AddBoolPrefVarCache
-    prefs->GetBoolPref("layers.acceleration.force-enabled",
-                       &forceAccelerate);
-  }
-
   nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
   if (gfxInfo) {
     PRInt32 status;
     if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS, &status))) {
-      if (status != nsIGfxInfo::FEATURE_NO_INFO && !forceAccelerate)
+      if (status != nsIGfxInfo::FEATURE_NO_INFO)
       {
         NS_WARNING("Direct3D 9-accelerated layers are not supported on this system.");
         return PR_FALSE;

@@ -41,7 +41,7 @@ html|input.empty {
   color: graytext;
 }
 
-:root:not(.winxp) html|input.empty:-moz-system-metric(windows-default-theme) {
+html|input.empty:-moz-system-metric(windows-default-theme) {
   font-style: italic;
 }
 

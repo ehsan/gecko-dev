@@ -422,8 +422,7 @@ JPAKE_Round2(PLArenaPool * arena,
         SECITEM_TO_MPINT(*x2, &X2);
         
         SECITEM_TO_MPINT(*s, &S);
-        /* S must be in [1, Q-1] */
-        if (mp_cmp_z(&S) <= 0 || mp_cmp(&S, &Q) >= 0) {
+        if (mp_cmp(&S, &Q) >= 0) {
             err = MP_BADARG;
             goto cleanup;
         }

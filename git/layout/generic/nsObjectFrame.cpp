@@ -1477,7 +1477,7 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     NPWindow* window = nsnull;
     mInstanceOwner->GetWindow(window);
     PRBool isVisible = window && window->width > 0 && window->height > 0;
-    if (isVisible && aBuilder->ShouldSyncDecodeImages()) {
+    if (isVisible) {
   #ifndef XP_MACOSX
       mInstanceOwner->UpdateWindowVisibility(PR_TRUE);
   #endif

@@ -52,8 +52,6 @@
 %filter substitution
 %define toolbarHighlight rgba(255,255,255,.5)
 %define navbarTextboxCustomBorder border-color: rgba(0,0,0,.25) rgba(0,0,0,.32) rgba(0,0,0,.37);
-%define genericBgTabTexture -moz-linear-gradient(transparent, hsla(0,0%,36%,.15) 1px, hsla(0,0%,0%,.3) 60%)
-%define genericBgTabTextureHover -moz-linear-gradient(transparent, hsla(0,0%,70%,.15) 1px, hsla(0,0%,20%,.3) 60%)
 
 #menubar-items {
   -moz-box-orient: vertical; /* for flex hack */
@@ -75,31 +73,6 @@
   border-style: none;
   background-color: -moz-Dialog;
 }
-
-%ifdef WINSTRIPE_AERO
-@media not all and (-moz-windows-compositor) {
-%endif
-  #main-window[tabsintitlebar] #titlebar-content:not(:-moz-lwtheme),
-  #main-window[tabsintitlebar]:not([inFullscreen]) #TabsToolbar:not(:-moz-lwtheme) {
-    background-color: ActiveCaption;
-    color: CaptionText;
-  }
-  #main-window[tabsintitlebar] #titlebar-content:not(:-moz-lwtheme):-moz-window-inactive,
-  #main-window[tabsintitlebar]:not([inFullscreen]) #TabsToolbar:not(:-moz-lwtheme):-moz-window-inactive {
-    background-color: InactiveCaption;
-    color: InactiveCaptionText;
-  }
-
-  #main-window[tabsintitlebar] #titlebar:-moz-lwtheme {
-    visibility: hidden;
-  }
-  #main-window[tabsintitlebar] #titlebar-content:-moz-lwtheme {
-    -moz-binding: url("chrome://global/content/bindings/general.xml#windowdragbox");
-    visibility: visible;
-  }
-%ifdef WINSTRIPE_AERO
-}
-%endif
 
 #navigator-toolbox > toolbar:not(#toolbar-menubar):not(#TabsToolbar)[iconsize="small"],
 #navigator-toolbox > toolbar:not(#toolbar-menubar):not(#TabsToolbar)[defaulticonsize="small"]:not([iconsize]) {
@@ -158,14 +131,6 @@
     margin-bottom: 1px;
   }
 }
-
-%ifndef WINSTRIPE_AERO
-@media all and (-moz-windows-default-theme) {
-  #main-window[sizemode="normal"] #appmenu-button {
-    margin-bottom: 5px;
-  }
-}
-%endif
 
 #main-window[privatebrowsingmode=temporary] #appmenu-button {
   background-image: -moz-linear-gradient(rgb(153,38,211), rgb(105,19,163) 95%);
@@ -411,14 +376,6 @@
   -moz-appearance: -moz-window-button-box-maximized;
 }
 
-.titlebar-placeholder[type="appmenu-button"] {
-  margin-left: 4px;
-}
-
-.titlebar-placeholder[type="caption-buttons"] {
-  margin-left: 10px;
-}
-
 /* titlebar command buttons */
 
 #titlebar-min {
@@ -488,7 +445,7 @@ toolbarbutton.bookmark-item[open="true"] {
 menu.bookmark-item,
 menuitem.bookmark-item {
   min-width: 0;
-  max-width: 32em;
+  max-width: 26em;
 }
 
 .bookmark-item > .menu-iconic-left {
@@ -979,10 +936,6 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
 }
 
 /* ::::: fullscreen window controls ::::: */
-
-#TabsToolbar > #window-controls {
-  -moz-margin-start: 4px;
-}
 
 #minimize-button,
 #restore-button,
@@ -1512,7 +1465,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 .tabbrowser-tab,
 .tabs-newtab-button {
   -moz-appearance: none;
-  background: @genericBgTabTexture@, -moz-linear-gradient(-moz-dialog, -moz-dialog);
+  background: -moz-linear-gradient(hsla(0,0%,50%,.1), hsla(0,0%,37%,.1) 50%);
   background-position: -5px -2px;
   background-repeat: no-repeat;
   background-size: 200%;
@@ -1524,22 +1477,8 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 .tabbrowser-tab:hover,
 .tabs-newtab-button:hover {
-  background-image: @genericBgTabTextureHover@, -moz-linear-gradient(-moz-dialog, -moz-dialog);
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.4), hsla(0,0%,75%,.4) 50%);
 }
-
-%ifndef WINSTRIPE_AERO
-@media all and (-moz-windows-theme: luna-blue) {
-  .tabbrowser-tab,
-  .tabs-newtab-button {
-    background-image: -moz-linear-gradient(hsla(51,34%,89%,.9), hsla(51,15%,79%,.9) 1px, hsla(51,9%,68%,.9) 60%);
-  }
-
-  .tabbrowser-tab:hover,
-  .tabs-newtab-button:hover {
-    background-image: -moz-linear-gradient(hsla(51,34%,100%,.9), hsla(51,15%,94%,.9) 1px, hsla(51,9%,83%,.9) 60%);
-  }
-}
-%endif
 
 .tabbrowser-tab[selected="true"] {
   background-image: -moz-linear-gradient(rgba(255,255,255,.7), @toolbarHighlight@ 30%),
@@ -2211,26 +2150,28 @@ panel[dimmed="true"] {
   opacity: 0.5;
 }
 
-/* Add-on bar */
-
-#addon-bar {
-  min-height: 20px;
-}
-
+/* Vertically-center the statusbar compatibility shim, because
+   toolbars, even in small-icon mode, are a bit taller than
+   statusbars. Also turn off the statusbar border. On Windows
+   we have to disable borders on statusbar *and* child statusbar
+   elements. */
 #status-bar {
-  border: none;
+  margin-top: .3em;
+  border-width: 0;
   -moz-appearance: none;
-  min-height: 0;
 }
 
+/* Remove all borders from statusbarpanel children of
+   the statusbar. */
 #status-bar > statusbarpanel {
   border-width: 0;
   -moz-appearance: none;
 }
 
+/* Add-on bar close button */
 #addonbar-closebutton {
   border: none;
-  padding: 0 5px;
+  padding: 3px 5px;
   list-style-image: url("chrome://global/skin/icons/close.png");
   -moz-appearance: none;
   -moz-image-region: rect(0, 16px, 16px, 0);

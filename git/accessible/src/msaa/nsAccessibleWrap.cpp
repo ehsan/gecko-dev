@@ -1737,8 +1737,7 @@ nsAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
   if (nsAccUtils::MustPrune(this))
     return nsnull;
 
-  // Gecko child indices are 0-based in contrast to indices used in MSAA.
-  return GetChildAt(aVarChild.lVal - 1);
+  return GetChildAt(aVarChild.lVal);
 }
 
 void nsAccessibleWrap::UpdateSystemCaret()

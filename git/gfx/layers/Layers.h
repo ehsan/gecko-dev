@@ -86,30 +86,19 @@ class SpecificLayerAttributes;
  * useful for shadow layers, because the metrics values are updated
  * atomically with new pixels.
  */
-struct THEBES_API FrameMetrics {
-public:
-  // We use IDs to identify frames across processes.
-  typedef PRUint64 ViewID;
-  static const ViewID NULL_SCROLL_ID;   // This container layer does not scroll.
-  static const ViewID ROOT_SCROLL_ID;   // This is the root scroll frame.
-  static const ViewID START_SCROLL_ID;  // This is the ID that scrolling subframes
-                                        // will begin at.
-
+struct FrameMetrics {
   FrameMetrics()
-    : mViewport(0, 0, 0, 0)
-    , mContentSize(0, 0)
+    : mViewportSize(0, 0)
     , mViewportScrollOffset(0, 0)
-    , mScrollId(NULL_SCROLL_ID)
   {}
 
   // Default copy ctor and operator= are fine
 
   PRBool operator==(const FrameMetrics& aOther) const
   {
-    return (mViewport == aOther.mViewport &&
+    return (mViewportSize == aOther.mViewportSize &&
             mViewportScrollOffset == aOther.mViewportScrollOffset &&
-            mDisplayPort == aOther.mDisplayPort &&
-            mScrollId == aOther.mScrollId);
+            mDisplayPort == aOther.mDisplayPort);
   }
 
   PRBool IsDefault() const
@@ -117,21 +106,9 @@ public:
     return (FrameMetrics() == *this);
   }
 
-  PRBool IsRootScrollable() const
-  {
-    return mScrollId == ROOT_SCROLL_ID;
-  }
-
-  PRBool IsScrollable() const
-  {
-    return mScrollId != NULL_SCROLL_ID;
-  }
-
-  nsIntRect mViewport;
-  nsIntSize mContentSize;
+  nsIntSize mViewportSize;
   nsIntPoint mViewportScrollOffset;
   nsIntRect mDisplayPort;
-  ViewID mScrollId;
 };
 
 #define MOZ_LAYER_DECL_NAME(n, e)                           \

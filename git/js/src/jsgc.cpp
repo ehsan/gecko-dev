@@ -497,7 +497,7 @@ IsAboutToBeFinalized(JSContext *cx, void *thing)
 
     JSCompartment *thingCompartment = reinterpret_cast<Cell *>(thing)->compartment();
     JSRuntime *rt = cx->runtime;
-    JS_ASSERT(rt == thingCompartment->rt);
+
     if (rt->gcCurrentCompartment != NULL && rt->gcCurrentCompartment != thingCompartment)
         return false;
 
@@ -2156,9 +2156,17 @@ GCHelperThread::doSweep()
 #endif /* JS_THREADSAFE */
 
 static void
-SweepCrossCompartmentWrappers(JSContext *cx)
+SweepCompartments(JSContext *cx, JSGCInvocationKind gckind)
 {
     JSRuntime *rt = cx->runtime;
+    JSCompartmentCallback callback = rt->compartmentCallback;
+    JSCompartment **read = rt->compartments.begin();
+    JSCompartment **end = rt->compartments.end();
+    JSCompartment **write = read;
+
+    /* Delete defaultCompartment only during runtime shutdown */
+    rt->defaultCompartment->marked = true;
+
     /*
      * Figure out how much JIT code should be released from inactive compartments.
      * If multiple eighth-lifes have passed, compound the release interval linearly;
@@ -2175,30 +2183,13 @@ SweepCrossCompartmentWrappers(JSContext *cx)
         }
     }
 
-    /* Remove dead wrappers from the compartment map. */
-    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
-        (*c)->sweep(cx, releaseInterval);
-    }
-    
-}
-
-static void
-SweepCompartments(JSContext *cx, JSGCInvocationKind gckind)
-{
-    JSRuntime *rt = cx->runtime;
-    JSCompartmentCallback callback = rt->compartmentCallback;
-    JSCompartment **read = rt->compartments.begin();
-    JSCompartment **end = rt->compartments.end();
-    JSCompartment **write = read;
-
-    /* Delete defaultCompartment only during runtime shutdown */
-    rt->defaultCompartment->marked = true;
-
     while (read < end) {
         JSCompartment *compartment = (*read++);
         if (compartment->marked) {
             compartment->marked = false;
             *write++ = compartment;
+            /* Remove dead wrappers from the compartment map. */
+            compartment->sweep(cx, releaseInterval);
         } else {
             JS_ASSERT(compartment->freeLists.isEmpty());
             if (compartment->arenaListsAreEmpty() || gckind == GC_LAST_CONTEXT) {
@@ -2210,6 +2201,7 @@ SweepCompartments(JSContext *cx, JSGCInvocationKind gckind)
             } else {
                 compartment->marked = false;
                 *write++ = compartment;
+                compartment->sweep(cx, releaseInterval);
             }
         }
     }
@@ -2354,13 +2346,13 @@ MarkAndSweepCompartment(JSContext *cx, JSCompartment *comp, JSGCInvocationKind g
      * object's finalizer can access them even if they will be freed.
      */
 
-    comp->sweep(cx, 0);
-
     comp->finalizeObjectArenaLists(cx);
     TIMESTAMP(sweepObjectEnd);
 
     comp->finalizeStringArenaLists(cx);
     TIMESTAMP(sweepStringEnd);
+
+    comp->sweep(cx, 0);
 
     /*
      * Unmark the runtime's property trees because we don't
@@ -2454,8 +2446,6 @@ MarkAndSweep(JSContext *cx, JSGCInvocationKind gckind GCTIMER_PARAM)
     /* Save the pre-sweep count of scope-mapped properties. */
     rt->liveObjectPropsPreSweep = rt->liveObjectProps;
 #endif
-
-    SweepCrossCompartmentWrappers(cx);
 
     /*
      * We finalize iterators before other objects so the iterator can use the

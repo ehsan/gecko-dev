@@ -66,7 +66,6 @@ public:
     nsresult    GetOutputStream(PRUint32 offset, nsIOutputStream ** outputStream);
 
     nsresult    CloseOutputStream(nsDiskCacheOutputStream * outputStream);
-    nsresult    CloseOutputStreamInternal(nsDiskCacheOutputStream * outputStream);
         
     nsresult    Write( const char * buffer,
                        PRUint32     count,

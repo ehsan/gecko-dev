@@ -2966,7 +2966,19 @@ nsDocument::SetBaseURI(nsIURI* aURI)
 void
 nsDocument::GetBaseTarget(nsAString &aBaseTarget)
 {
-  aBaseTarget = mBaseTarget;
+  aBaseTarget.Truncate();
+  Element* head = GetHeadElement();
+  if (!head) {
+    return;
+  }
+  
+  for (ChildIterator iter(head); !iter.IsDone(); iter.Next()) {
+    nsIContent* child = iter;
+    if (child->NodeInfo()->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
+        child->GetAttr(kNameSpaceID_None, nsGkAtoms::target, aBaseTarget)) {
+      return;
+    }
+  }
 }
 
 void

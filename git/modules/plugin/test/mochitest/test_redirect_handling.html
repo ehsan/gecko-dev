@@ -16,12 +16,8 @@
     var redirectTargetURL = "http://example.org/tests/modules/plugin/test/loremipsum.txt";
 
     var expectedWriteURL = "";
+    var expectedNotifyURL = "";
     var expectedNotifyStatus = -1;
-
-    function redirectCallback(url, httpStatus) {
-      is(url, redirectTargetURL, "Test for expected redirect notify URL.");
-      is(httpStatus, 307, "Test for expected http redirect status.");
-    }
 
     function writeCallback(url) {
       is(url, expectedWriteURL, "Test for expected stream write URL.");
@@ -34,16 +30,18 @@
 
     function test1() {
       expectedWriteURL = "";
+      expectedNotifyURL = redirectingURL;
       expectedNotifyStatus = 1;
 
-      p.streamTest(redirectingURL, false, null, writeCallback, notifyCallback, redirectCallback, false);
+      p.streamTest(redirectingURL, false, null, writeCallback, notifyCallback, false);
     }
 
     function test2() {
       expectedWriteURL = redirectTargetURL;
+      expectedNotifyURL = redirectingURL;
       expectedNotifyStatus = 0;
 
-      p.streamTest(redirectingURL, false, null, writeCallback, notifyCallback, redirectCallback, true);
+      p.streamTest(redirectingURL, false, null, writeCallback, notifyCallback, true);
     }
 
     var tests = [test1, test2];

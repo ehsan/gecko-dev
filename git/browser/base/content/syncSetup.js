@@ -131,15 +131,11 @@ var gSyncSetup = {
   },
 
   startNewAccountSetup: function () {
-    if (!Weave.Utils.ensureMPUnlocked())
-      return false;
     this._settingUpNew = true;
     this.wizard.pageIndex = NEW_ACCOUNT_START_PAGE;
   },
 
   useExistingAccount: function () {
-    if (!Weave.Utils.ensureMPUnlocked())
-      return false;
     this._settingUpNew = false;
     this.wizard.pageIndex = EXISTING_ACCOUNT_CONNECT_PAGE;
   },
@@ -211,7 +207,7 @@ var gSyncSetup = {
       case INTRO_PAGE:
         return false;
       case NEW_ACCOUNT_START_PAGE:
-        for (let i in this.status) {
+        for (i in this.status) {
           if (!this.status[i])
             return false;
         }
@@ -380,13 +376,6 @@ var gSyncSetup = {
   },
 
   onWizardAdvance: function () {
-    // Check pageIndex so we don't prompt before the Sync setup wizard appears.
-    // This is a fallback in case the Master Password gets locked mid-wizard.
-    if ((this.wizard.pageIndex >= 0) &&
-        !Weave.Utils.ensureMPUnlocked()) {
-      return false;
-    }
-      
     if (!this.wizard.pageIndex)
       return true;
 

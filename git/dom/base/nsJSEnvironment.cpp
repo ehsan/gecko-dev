@@ -2138,8 +2138,9 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
   // xxxmarkh - this comment is no longer true - principals are not used at
   // all now, and never were in some cases.
 
-  nsCxPusher pusher;
-  if (!pusher.Push(mContext, PR_TRUE))
+  nsCOMPtr<nsIJSContextStack> stack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
+  if (NS_FAILED(rv) || NS_FAILED(stack->Push(mContext)))
     return NS_ERROR_FAILURE;
 
   // check if the event handler can be run on the object in question
@@ -2162,24 +2163,15 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
     // in the same scope as aTarget.
     rv = ConvertSupportsTojsvals(aargv, target, &argc,
                                  &argv, poolRelease, tvr);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) {
+      stack->Pop(nsnull);
+      return rv;
+    }
 
-    JSObject *funobj = static_cast<JSObject *>(aHandler);
-    nsCOMPtr<nsIPrincipal> principal;
-    rv = sSecurityManager->GetObjectPrincipal(mContext, funobj,
-                                              getter_AddRefs(principal));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    JSStackFrame *currentfp = nsnull;
-    rv = sSecurityManager->PushContextPrincipal(mContext,
-                                                JS_FrameIterator(mContext, &currentfp),
-                                                principal);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    jsval funval = OBJECT_TO_JSVAL(funobj);
+    jsval funval = OBJECT_TO_JSVAL(static_cast<JSObject *>(aHandler));
     JSAutoEnterCompartment ac;
     if (!ac.enter(mContext, target)) {
-      sSecurityManager->PopContextPrincipal(mContext);
+      stack->Pop(nsnull);
       return NS_ERROR_FAILURE;
     }
 
@@ -2201,11 +2193,10 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
       // Tell the caller that the handler threw an error.
       rv = NS_ERROR_FAILURE;
     }
-
-    sSecurityManager->PopContextPrincipal(mContext);
   }
 
-  pusher.Pop();
+  if (NS_FAILED(stack->Pop(nsnull)))
+    return NS_ERROR_FAILURE;
 
   // Convert to variant before calling ScriptEvaluated, as it may GC, meaning
   // we would need to root rval.
@@ -4009,10 +4000,14 @@ SetMemoryHighWaterMarkPrefChangedCallback(const char* aPrefName, void* aClosure)
 static int
 SetMemoryMaxPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  PRInt32 pref = nsContentUtils::GetIntPref(aPrefName, -1);
-  // handle overflow and negative pref values
-  PRUint32 max = (pref <= 0 || pref >= 0x1000) ? -1 : (PRUint32)pref * 1024 * 1024;
-  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_BYTES, max);
+  PRUint32 max = nsContentUtils::GetIntPref(aPrefName, -1);
+  if (max == -1UL)
+    max = 0xffffffff;
+  else
+    max = max * 1024L * 1024L;
+
+  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_BYTES,
+                    max);
   return 0;
 }
 

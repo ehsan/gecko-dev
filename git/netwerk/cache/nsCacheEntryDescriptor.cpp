@@ -54,8 +54,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsCacheEntryDescriptor,
 nsCacheEntryDescriptor::nsCacheEntryDescriptor(nsCacheEntry * entry,
                                                nsCacheAccessMode accessGranted)
     : mCacheEntry(entry),
-      mAccessGranted(accessGranted),
-      mOutput(nsnull)
+      mAccessGranted(accessGranted)
 {
     PR_INIT_CLIST(this);
     NS_ADDREF(nsCacheService::GlobalInstance());  // ensure it lives for the lifetime of the descriptor
@@ -612,8 +611,6 @@ nsOutputStreamWrapper::LazyInit()
     rv = nsCacheService::OpenOutputStreamForEntry(cacheEntry, mode, mStartOffset,
                                                   getter_AddRefs(mOutput));
     if (NS_FAILED(rv)) return rv;
-
-    mDescriptor->mOutput = mOutput;
 
     nsCacheDevice* device = cacheEntry->CacheDevice();
     if (!device) return NS_ERROR_NOT_AVAILABLE;

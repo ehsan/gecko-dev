@@ -1165,6 +1165,8 @@ protected:
 
   nsCOMPtr<nsIScriptEventManager> mScriptEventManager;
 
+  nsString mBaseTarget;
+
   // Our update nesting level
   PRUint32 mUpdateNestLevel;
 

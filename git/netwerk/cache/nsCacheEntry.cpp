@@ -273,7 +273,6 @@ nsCacheEntry::DetachDescriptors(void)
         nsCacheEntryDescriptor * nextDescriptor =
             (nsCacheEntryDescriptor *)PR_NEXT_LINK(descriptor);
         
-        descriptor->CloseOutput();
         descriptor->ClearCacheEntry();
         PR_REMOVE_AND_INIT_LINK(descriptor);
         descriptor = nextDescriptor;

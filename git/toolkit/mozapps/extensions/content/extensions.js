@@ -548,19 +548,6 @@ var gViewController = {
     this.loadViewInternal(aViewId, this.currentViewId);
   },
 
-  // Replaces the existing view with a new one, rewriting the current history
-  // entry to match.
-  replaceView: function(aViewId) {
-    if (aViewId == this.currentViewId)
-      return;
-
-    gHistory.replaceState({
-      view: aViewId,
-      previousView: null
-    }, document.title);
-    this.loadViewInternal(aViewId, null);
-  },
-
   loadInitialView: function(aViewId) {
     gHistory.replaceState({
       view: aViewId,
@@ -948,16 +935,6 @@ var gViewController = {
       }
     },
 
-    cmd_purchaseItem: {
-      isEnabled: function(aAddon) {
-        if (!aAddon)
-          return false;
-        return !!aAddon.purchaseURL;
-      },
-      doCommand: function(aAddon) {
-        openURL(aAddon.purchaseURL);
-      }
-    },
 
     cmd_uninstallItem: {
       isEnabled: function(aAddon) {
@@ -1191,7 +1168,7 @@ function createItem(aObj, aIsInstall, aIsRemote) {
 
 function sortElements(aElements, aSortBy, aAscending) {
   const DATE_FIELDS = ["updateDate"];
-  const NUMERIC_FIELDS = ["size", "relevancescore", "purchaseAmount"];
+  const INTEGER_FIELDS = ["size", "relevancescore"];
 
   function dateCompare(a, b) {
     var aTime = a.getTime();
@@ -1203,7 +1180,7 @@ function sortElements(aElements, aSortBy, aAscending) {
     return 0;
   }
 
-  function numberCompare(a, b) {
+  function intCompare(a, b) {
     return a - b;
   }
 
@@ -1228,8 +1205,8 @@ function sortElements(aElements, aSortBy, aAscending) {
   var sortFunc = stringCompare;
   if (DATE_FIELDS.indexOf(aSortBy) != -1)
     sortFunc = dateCompare;
-  else if (NUMERIC_FIELDS.indexOf(aSortBy) != -1)
-    sortFunc = numberCompare;
+  else if (INTEGER_FIELDS.indexOf(aSortBy) != -1)
+    sortFunc = intCompare;
 
   aElements.sort(function(a, b) {
     if (!aAscending)
@@ -1387,13 +1364,9 @@ var gCategories = {
     });
   },
 
-  get selected() {
-    return this.node.selectedItem ? this.node.selectedItem.value : null;
-  },
-
   select: function(aId, aPreviousView) {
     var view = gViewController.parseViewId(aId);
-    if (view.type == "detail" && aPreviousView) {
+    if (view.type == "detail") {
       aId = aPreviousView;
       view = gViewController.parseViewId(aPreviousView);
     }
@@ -1746,7 +1719,6 @@ var gSearchView = {
     this.showEmptyNotice(false);
     this.showAllResultsLink(0);
     this.showLoading(true);
-    this._sorters.showprice = false;
 
     gHeader.searchQuery = aQuery;
     aQuery = aQuery.trim().toLocaleLowerCase();
@@ -1781,11 +1753,8 @@ var gSearchView = {
 
         let item = createItem(aObj, aIsInstall, aIsRemote);
         item.setAttribute("relevancescore", score);
-        if (aIsRemote) {
+        if (aIsRemote)
           gCachedAddons[aObj.id] = aObj;
-          if (aObj.purchaseURL)
-            self._sorters.showprice = true;
-        }
 
         elements.push(item);
       });
@@ -2129,9 +2098,6 @@ var gListView = {
     if (aObj.type != this._type)
       return;
 
-    if (aIsInstall && aObj.existingAddon)
-      return;
-
     let prop = aIsInstall ? "mInstall" : "mAddon";
     for (let i = 0; i < this._listBox.itemCount; i++) {
       let item = this._listBox.childNodes[i];
@@ -2217,11 +2183,6 @@ var gDetailView = {
 
     this.node.setAttribute("type", aAddon.type);
 
-    // If the search category isn't selected then make sure to select the
-    // correct category
-    if (gCategories.selected != "addons://search/")
-      gCategories.select("addons://list/" + aAddon.type);
-
     document.getElementById("detail-name").textContent = aAddon.name;
     var icon = aAddon.icon64URL ? aAddon.icon64URL : aAddon.iconURL;
     document.getElementById("detail-icon").src = icon ? icon : null;
@@ -2254,24 +2215,11 @@ var gDetailView = {
     if ("contributionURL" in aAddon && aAddon.contributionURL) {
       contributions.hidden = false;
       var amount = document.getElementById("detail-contrib-suggested");
-      if (aAddon.contributionAmount) {
-        amount.value = gStrings.ext.formatStringFromName("contributionAmount2",
-                                                         [aAddon.contributionAmount],
-                                                         1);
-        amount.hidden = false;
-      } else {
-        amount.hidden = true;
-      }
+      amount.value = gStrings.ext.formatStringFromName("contributionAmount2",
+                                                       [aAddon.contributionAmount],
+                                                       1);
     } else {
       contributions.hidden = true;
-    }
-
-    if ("purchaseURL" in aAddon && aAddon.purchaseURL) {
-      var purchase = document.getElementById("detail-purchase-btn");
-      purchase.label = gStrings.ext.formatStringFromName("cmd.purchaseAddon.label",
-                                                         [aAddon.purchaseDisplayAmount],
-                                                         1);
-      purchase.accesskey = gStrings.ext.GetStringFromName("cmd.purchaseAddon.accesskey");
     }
 
     var updateDateRow = document.getElementById("detail-dateUpdated");
@@ -2404,10 +2352,7 @@ var gDetailView = {
           return;
         }
 
-        // This might happen due to session restore restoring us back to an
-        // add-on that doesn't exist but otherwise shouldn't normally happen.
-        // Either way just revert to the default view.
-        gViewController.replaceView(VIEW_DEFAULT);
+        // This case should never happen in normal operation
       });
     });
   },
@@ -2415,11 +2360,9 @@ var gDetailView = {
   hide: function() {
     this._updatePrefs.removeObserver("", this);
     this.clearLoading();
-    if (this._addon) {
-      gEventManager.unregisterAddonListener(this, this._addon.id);
-      gEventManager.unregisterInstallListener(this);
-      this._addon = null;
-    }
+    gEventManager.unregisterAddonListener(this, this._addon.id);
+    gEventManager.unregisterInstallListener(this);
+    this._addon = null;
   },
 
   updateState: function() {

@@ -48,11 +48,8 @@ function tabReload(aEvent) {
   let scrollBox = hud.outputNode.scrollBoxObject.element;
   ok(scrollBox.scrollTop > 0, "scroll location is not at the top");
 
-  // Make sure the Web Console output is scrolled as near as possible to the
-  // bottom.
-  let nodeHeight = hud.outputNode.querySelector(".hud-log").clientHeight;
-  ok(scrollBox.scrollTop >= scrollBox.scrollHeight - scrollBox.clientHeight -
-     nodeHeight * 2, "scroll location is correct");
+  is(scrollBox.scrollTop, scrollBox.scrollHeight - scrollBox.clientHeight,
+    "scroll location is correct");
 
   executeSoon(finishTest);
 }

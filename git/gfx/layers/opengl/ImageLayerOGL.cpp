@@ -681,9 +681,11 @@ CairoImageOGL::SetData(const CairoImage::Data &aData)
 
   GLuint tex = mTexture.GetTextureID();
 
-  gl->fActiveTexture(LOCAL_GL_TEXTURE0);
-  InitTexture(gl, tex, LOCAL_GL_RGBA, aData.mSize);
-  mSize = aData.mSize;
+  if (mSize != aData.mSize) {
+    gl->fActiveTexture(LOCAL_GL_TEXTURE0);
+    InitTexture(gl, tex, LOCAL_GL_RGBA, aData.mSize);
+    mSize = aData.mSize;
+  }
 
   if (!mASurfaceAsGLContext) {
     mASurfaceAsGLContext = GLContextProvider::CreateForNativePixmapSurface(aData.mSurface);

@@ -1524,7 +1524,7 @@ nsObjectLoadingContent::RemovedFromDocument()
 void
 nsObjectLoadingContent::Traverse(nsCycleCollectionTraversalCallback &cb)
 {
-  cb.NoteXPCOMChild(static_cast<nsIFrameLoader*>(mFrameLoader));
+  cb.NoteXPCOMChild(mFrameLoader);
 }
 
 // <private>

@@ -11,14 +11,16 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla.
+ * The Original Code is TabView Groups.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Michal Novotny <michal.novotny@gmail.com>
+ * Edward Lee <edilee@mozilla.com>
+ * Ian Gilman <ian@iangilman.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,14 +36,35 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsISupports.idl"
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
 
-[scriptable, uuid(61ff88f7-516e-4924-93af-42e7c412d18b)]
-interface nsIDiskCacheStreamInternal : nsISupports
-{
-    /**
-     * We use this method internally to close nsDiskCacheOutputStream under
-     * the cache service lock.
-     */
-    void closeInternal();
-};
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
+let EXPORTED_SYMBOLS = ["Groups"];
+
+let Groups = let (T = {
+  //////////////////////////////////////////////////////////////////////////////
+  //// Public
+  //////////////////////////////////////////////////////////////////////////////
+
+  //////////////////////////////////////////////////////////////////////////////
+  //// Private
+  //////////////////////////////////////////////////////////////////////////////
+
+  init: function init() {
+    // Only allow calling init once
+    T.init = function() T;
+    
+    // load all groups data
+    // presumably we can load from app global, not a window
+    // how do we know which window has which group?
+    // load tab data to figure out which go into which group
+    // set up interface for subscribing to our data
+
+    return T;
+  }
+}) T.init();

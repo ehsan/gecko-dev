@@ -395,16 +395,17 @@ input.name {
   margin-top: 3px;
   -moz-margin-end: 0;
   margin-bottom: 0;
-  -moz-margin-start: 3px;
+  -moz-margin-begin: 3px;
   padding: 1px;
+  background-image: url(chrome://browser/skin/tabview/edit-light.png);
+  -moz-padding-start: 20px;
 }
 
 html[dir=rtl] input.name {
   background-position: right top;
 }
 
-.title-container:hover input.name,
-.title-container input.name:focus {
+.title-container:hover input.name {
   border: 1px solid #ddd;
 }
 
@@ -417,17 +418,13 @@ input.name:focus {
   color: #555;
 }
 
-input.name:-moz-placeholder {
+input.defaultName {
   font-style: italic !important;
-  color: transparent;	
-  background-image: url(chrome://browser/skin/tabview/edit-light.png);
   background-image-opacity: .1;
-  background-repeat: no-repeat;
-  -moz-padding-start: 20px;
-  -moz-margin-end: -20px;
+  color: transparent;
 }
 
-.title-container:hover input.name:-moz-placeholder {
+.title-container:hover input.defaultName {
   color: #CCC;
 }
 
@@ -439,7 +436,7 @@ input.name:-moz-placeholder {
   margin-top: 3px;
   -moz-margin-end: 0;
   margin-bottom: 0;
-  -moz-margin-start: 3px;
+  -moz-margin-begin: 3px;
   padding: 1px;
   left: 0;
   top: 0;
@@ -506,14 +503,16 @@ html[dir=rtl] .iq-resizable-se {
 /* Exit button
 +----------------------------------*/
 #exit-button {
+  cursor: default;
+  top: 0;
+  right: 1px;
   width: 20px;
   height: 20px;
-  -moz-margin-end: 3px;
-  margin-top: 0px;
+  -moz-margin-end: 2px;
+  margin-top: 2px;
   background-image: -moz-image-rect(url(chrome://browser/skin/tabview/tabview.png), 0, 100, 20, 80);
   background-attachment: scroll;
   background-repeat: no-repeat;
-  border: none;
 }
 
 #exit-button[groups="0"] {
@@ -530,6 +529,11 @@ html[dir=rtl] .iq-resizable-se {
 
 #exit-button[groups="3"] {
   background-image: -moz-image-rect(url(chrome://browser/skin/tabview/tabview.png), 0, 80, 20, 60);
+}
+
+html[dir=rtl] #exit-button {
+  right: auto;
+  left: 1px;
 }
 
 /* Search
@@ -559,12 +563,10 @@ html[dir=rtl] .iq-resizable-se {
 }
 
 #actions {
-  width: 29px;
+  width: 26px;
+  height: 26px;
+  border: none;
   text-align: center;
-  background-color: #EBEBEB;
-  border-radius: 0.4em;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
 #actions #searchbutton {
@@ -573,7 +575,6 @@ html[dir=rtl] .iq-resizable-se {
   width: 20px;
   height: 20px;
   margin-top: 3px;
-  -moz-margin-end: 1px;
 }
 
 .notMainMatch {

@@ -44,8 +44,8 @@
     datasources="rdf:charset-menu"
     ref="NC:BrowserCharsetMenuRoot"
     oncommand="MultiplexHandler(event)"
-    onpopupshowing="CreateMenu('browser'); CreateMenu('more-menu');"
-    onpopupshown="UpdateMenus(event);"
+    onpopupshowing="CreateMenu('browser');UpdateMenus(event)"
+    onpopupshown="CreateMenu('more-menu');"
     observes="isImage">
   <template>
     <rule rdf:type="http://home.netscape.com/NC-rdf#BookmarkSeparator">

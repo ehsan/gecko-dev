@@ -58,7 +58,7 @@
 #include "nsXPCOMCID.h"
 #include "plstr.h"
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 #include <CoreFoundation/CoreFoundation.h>
 #include "nsILocalFileMac.h"
 #elif defined(XP_WIN)
@@ -287,7 +287,7 @@ nsCommandLine::ResolveFile(const nsAString& aArgument, nsIFile* *aResult)
 
   nsresult rv;
 
-#if defined(MOZ_WIDGET_COCOA)
+#if defined(XP_MACOSX)
   nsCOMPtr<nsILocalFileMac> lfm (do_QueryInterface(mWorkingDir));
   NS_ENSURE_TRUE(lfm, NS_ERROR_NO_INTERFACE);
 

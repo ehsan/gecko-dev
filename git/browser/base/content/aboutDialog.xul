@@ -125,10 +125,7 @@
       </hbox>
       <description id="trademark">
         <label class="trademark-label">&trademarkInfo.part1;</label>
-#ifdef MOZ_OFFICIAL_BRANDING
-        <!-- DO NOT REMOVE without consulting people involved with bug 616193 -->
-        <label id="extra-trademark" class="trademark-label">Some of the trademarks used under license from The Charlton Company.</label>
-#endif
+        <label class="trademark-label">&trademarkInfo.part2;</label>
       </description>
     </vbox>
   </vbox>

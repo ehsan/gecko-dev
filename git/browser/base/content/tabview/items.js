@@ -179,9 +179,6 @@ Item.prototype = {
       start: function(e, ui) {
         if (this.isAGroupItem)
           GroupItems.setActiveGroupItem(this);
-        // if we start dragging a tab within a group, start with dropSpace on.
-        else if (this.parent != null)
-          this.parent._dropSpaceActive = true;
         drag.info = new Drag(this, e);
       },
       drag: function(e) {
@@ -200,9 +197,10 @@ Item.prototype = {
     this.dropOptions = {
       over: function() {},
       out: function() {
-        let groupItem = drag.info.item.parent;
+        var groupItem = drag.info.item.parent;
         if (groupItem)
           groupItem.remove(drag.info.$el, {dontClose: true});
+
         iQ(this.container).removeClass("acceptsDrop");
       },
       drop: function(event) {
@@ -347,7 +345,7 @@ Item.prototype = {
     var itemsToPush = [this];
     this.pushAwayData.generation = 0;
 
-    var pushOne = function Item_pushAway_pushOne(baseItem) {
+    var pushOne = function(baseItem) {
       // the baseItem is an n-generation pushed item. (n could be 0)
       var baseData = baseItem.pushAwayData;
       var bb = new Rect(baseData.bounds);
@@ -357,7 +355,7 @@ Item.prototype = {
       // bbc = center of the base's bounds
       var bbc = bb.center();
 
-      items.forEach(function Item_pushAway_pushOne_pushEach(item) {
+      items.forEach(function(item) {
         if (item == baseItem || item.locked.bounds)
           return;
 
@@ -419,12 +417,12 @@ Item.prototype = {
 
     // ___ Squish!
     var pageBounds = Items.getSafeWindowBounds();
-    items.forEach(function Item_pushAway_squish(item) {
+    items.forEach(function(item) {
       var data = item.pushAwayData;
       if (data.generation == 0 || item.locked.bounds)
         return;
 
-      let apply = function Item_pushAway_squish_apply(item, posStep, posStep2, sizeStep) {
+      function apply(item, posStep, posStep2, sizeStep) {
         var data = item.pushAwayData;
         if (data.generation == 0)
           return;
@@ -434,11 +432,8 @@ Item.prototype = {
         bounds.height -= sizeStep.y;
         bounds.left += posStep.x;
         bounds.top += posStep.y;
-        
-        if (item.isAGroupItem) {
-          GroupItems.enforceMinSize(bounds);
-        } else {
-          TabItems.enforceMinSize(bounds);
+
+        if (!item.isAGroupItem) {
           if (sizeStep.y > sizeStep.x) {
             var newWidth = bounds.height * (TabItems.tabWidth / TabItems.tabHeight);
             bounds.left += (bounds.width - newWidth) / 2;
@@ -466,7 +461,7 @@ Item.prototype = {
         posStep.x = pageBounds.left - bounds.left;
         sizeStep.x = posStep.x / data.generation;
         posStep2.x = -sizeStep.x;
-      } else if (bounds.right > pageBounds.right) { // this may be less of a problem post-601534
+      } else if (bounds.right > pageBounds.right) {
         posStep.x = pageBounds.right - bounds.right;
         sizeStep.x = -posStep.x / data.generation;
         posStep.x += sizeStep.x;
@@ -477,7 +472,7 @@ Item.prototype = {
         posStep.y = pageBounds.top - bounds.top;
         sizeStep.y = posStep.y / data.generation;
         posStep2.y = -sizeStep.y;
-      } else if (bounds.bottom > pageBounds.bottom) { // this may be less of a problem post-601534
+      } else if (bounds.bottom > pageBounds.bottom) {
         posStep.y = pageBounds.bottom - bounds.bottom;
         sizeStep.y = -posStep.y / data.generation;
         posStep.y += sizeStep.y;
@@ -490,7 +485,7 @@ Item.prototype = {
 
     // ___ Unsquish
     var pairs = [];
-    items.forEach(function Item_pushAway_setupUnsquish(item) {
+    items.forEach(function(item) {
       var data = item.pushAwayData;
       pairs.push({
         item: item,
@@ -501,7 +496,7 @@ Item.prototype = {
     Items.unsquish(pairs);
 
     // ___ Apply changes
-    items.forEach(function Item_pushAway_setBounds(item) {
+    items.forEach(function(item) {
       var data = item.pushAwayData;
       var bounds = data.bounds;
       if (!bounds.equals(data.startBounds)) {
@@ -516,7 +511,7 @@ Item.prototype = {
   // This functionality is enabled only by the debug property.
   _updateDebugBounds: function Item__updateDebugBounds() {
     if (this.$debug) {
-      this.$debug.css(this.bounds);
+      this.$debug.css(this.bounds.css());
     }
   },
 
@@ -622,6 +617,7 @@ Item.prototype = {
           var box = self.getBounds();
           box.left = startPos.x + (mouse.x - startMouse.x);
           box.top = startPos.y + (mouse.y - startMouse.y);
+
           self.setBounds(box, true);
 
           if (typeof self.dragOptions.drag == "function")
@@ -666,11 +662,6 @@ Item.prototype = {
               if (dropOptions && typeof dropOptions.over == "function")
                 dropOptions.over.apply(dropTarget, [e]);
             }
-          }
-          if (dropTarget) {
-            dropOptions = dropTarget.dropOptions;
-            if (dropOptions && typeof dropOptions.move == "function")
-              dropOptions.move.apply(dropTarget, [e]);
           }
         }
 
@@ -928,16 +919,10 @@ let Items = {
   //     default: the actual item count
   //   padding - pixels between each item
   //   columns - (int) a preset number of columns to use
-  //   dropPos - a <Point> which should have a one-tab space left open, used
-  //             when a tab is dragged over.
   //
   // Returns:
-  //   By default, an object with two properties: `rects`, the list of <Rect>s,
-  //   and `dropIndex`, the index which a dragged tab should have if dropped
-  //   (null if no `dropPos` was specified);
-  //   If the `return` option is set to 'widthAndColumns', an object with the
-  //   width value of the child items (`childWidth`) and the number of columns
-  //   (`columns`) is returned.
+  //   an object with the width value of the child items and the number of columns, 
+  //   if the return option is set to 'widthAndColumns'; otherwise the list of <Rect>s
   arrange: function Items_arrange(items, bounds, options) {
     if (typeof options == 'undefined')
       options = {};
@@ -951,12 +936,8 @@ let Items = {
 
     var tabAspect = TabItems.tabHeight / TabItems.tabWidth;
     var count = options.count || (items ? items.length : 0);
-    if (options.addTab)
-      count++;
-    if (!count) {
-      let dropIndex = (Utils.isPoint(options.dropPos)) ? 0 : null;
-      return {rects: rects, dropIndex: dropIndex};
-    }
+    if (!count)
+      return rects;
 
     var columns = options.columns || 1;
     // We'll assume for the time being that all the items have the same styling
@@ -1000,23 +981,17 @@ let Items = {
 
     var column = 0;
 
-    var dropIndex = false;
-    var dropRect = false;
-    if (Utils.isPoint(options.dropPos))
-      dropRect = new Rect(options.dropPos.x, options.dropPos.y, 1, 1);
     for (let a = 0; a < count; a++) {
-      // If we had a dropPos, see if this is where we should place it
-      if (dropRect) {
-        let activeBox = new Rect(box);
-        activeBox.inset(-itemMargin - 1, -itemMargin - 1);
-        // if the designated position (dropRect) is within the active box,
-        // this is where, if we drop the tab being dragged, it should land!
-        if (activeBox.contains(dropRect))
-          dropIndex = a;
-      }
-      
-      // record the box.
       rects.push(new Rect(box));
+      if (items && a < items.length) {
+        let item = items[a];
+        if (!item.locked.bounds) {
+          item.setBounds(box, immediately);
+          item.setRotation(0);
+          if (options.z)
+            item.setZ(options.z);
+        }
+      }
 
       box.left += (UI.rtl ? -1 : 1) * (box.width + padding);
       column++;
@@ -1027,7 +1002,7 @@ let Items = {
       }
     }
 
-    return {rects: rects, dropIndex: dropIndex};
+    return rects;
   },
 
   // ----------

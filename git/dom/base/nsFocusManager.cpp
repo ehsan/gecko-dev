@@ -2878,15 +2878,8 @@ nsFocusManager::GetRootForFocus(nsPIDOMWindow* aWindow,
   if (aIsForDocNavigation) {
     nsCOMPtr<nsIContent> docContent =
       do_QueryInterface(aWindow->GetFrameElementInternal());
-    // document navigation skips iframes and frames that are specifically non-focusable
-    if (docContent) {
-      if (docContent->Tag() == nsGkAtoms::iframe)
-        return nsnull;
-
-      nsIFrame* frame = docContent->GetPrimaryFrame();
-      if (!frame || !frame->IsFocusable(nsnull, 0))
-        return nsnull;
-    }
+    if (docContent && docContent->Tag() == nsGkAtoms::iframe)
+      return nsnull;
   }
   else  {
     PRInt32 itemType;

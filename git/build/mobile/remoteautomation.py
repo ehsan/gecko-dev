@@ -142,7 +142,7 @@ class RemoteAutomation(Automation):
         @property
         def pid(self):
             hexpid = self.dm.processExist(self.procName)
-            if (hexpid == None):
+            if (hexpid == '' or hexpid == None):
                 hexpid = "0x0"
             return int(hexpid, 0)
     

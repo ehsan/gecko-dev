@@ -48,8 +48,6 @@
 #include "CanvasLayerD3D10.h"
 #include "ImageLayerD3D10.h"
 
-#include "../d3d9/Nv3DVUtils.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -89,44 +87,14 @@ LayerManagerD3D10::~LayerManagerD3D10()
   Destroy();
 }
 
-static bool
-IsOptimus()
-{
-  return GetModuleHandleA("nvumdshim.dll");
-}
-
 bool
 LayerManagerD3D10::Initialize()
 {
   HRESULT hr;
 
-  /* Create an Nv3DVUtils instance */
-  if (!mNv3DVUtils) {
-    mNv3DVUtils = new Nv3DVUtils();
-    if (!mNv3DVUtils) {
-      NS_WARNING("Could not create a new instance of Nv3DVUtils.\n");
-    }
-  }
-
-  /* Initialize the Nv3DVUtils object */
-  if (mNv3DVUtils) {
-    mNv3DVUtils->Initialize();
-  }
-
   mDevice = gfxWindowsPlatform::GetPlatform()->GetD3D10Device();
   if (!mDevice) {
       return false;
-  }
-
-  /*
-   * Do some post device creation setup
-   */
-  if (mNv3DVUtils) {
-    IUnknown* devUnknown = NULL;
-    if (mDevice) {
-      mDevice->QueryInterface(IID_IUnknown, (void **)&devUnknown);
-    }
-    mNv3DVUtils->SetDeviceInfo(devUnknown);
   }
 
   UINT size = sizeof(ID3D10Effect*);
@@ -214,15 +182,8 @@ LayerManagerD3D10::Initialize()
   swapDesc.BufferCount = 1;
   // We don't really need this flag, however it seems on some NVidia hardware
   // smaller area windows do not present properly without this flag. This flag
-  // should have no negative consequences by itself. See bug 613790. This flag
-  // is broken on optimus devices. As a temporary solution we don't set it
-  // there, the only way of reliably detecting we're on optimus is looking for
-  // the DLL. See Bug 623807.
-  if (IsOptimus()) {
-    swapDesc.Flags = 0;
-  } else {
-    swapDesc.Flags = DXGI_SWAP_CHAIN_FLAG_GDI_COMPATIBLE;
-  }
+  // should have no negative consequences by itself. See bug 613790.
+  swapDesc.Flags = DXGI_SWAP_CHAIN_FLAG_GDI_COMPATIBLE;
   swapDesc.OutputWindow = (HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW);
   swapDesc.Windowed = TRUE;
 
@@ -473,15 +434,9 @@ LayerManagerD3D10::VerifyBufferSize()
   }
 
   mRTView = nsnull;
-  if (IsOptimus()) {
-    mSwapChain->ResizeBuffers(1, rect.width, rect.height,
-                              DXGI_FORMAT_B8G8R8A8_UNORM,
-                              0);
-  } else {
-    mSwapChain->ResizeBuffers(1, rect.width, rect.height,
-                              DXGI_FORMAT_B8G8R8A8_UNORM,
-                              DXGI_SWAP_CHAIN_FLAG_GDI_COMPATIBLE);
-  }
+  mSwapChain->ResizeBuffers(1, rect.width, rect.height,
+                            DXGI_FORMAT_B8G8R8A8_UNORM,
+                            DXGI_SWAP_CHAIN_FLAG_GDI_COMPATIBLE);
 
 }
 
@@ -561,17 +516,6 @@ LayerManagerD3D10::PaintToTarget()
   mTarget->Paint();
 
   readTexture->Unmap(0);
-}
-
-void
-LayerManagerD3D10::ReportFailure(const nsACString &aMsg, HRESULT aCode)
-{
-  // We could choose to abort here when hr == E_OUTOFMEMORY.
-  nsCString msg;
-  msg.Append(aMsg);
-  msg.AppendLiteral(" Error code: ");
-  msg.AppendInt(PRUint32(aCode));
-  NS_WARNING(msg.BeginReading());
 }
 
 LayerD3D10::LayerD3D10(LayerManagerD3D10 *aManager)

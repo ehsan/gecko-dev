@@ -466,13 +466,18 @@ SyncEngine.prototype = {
       try {
         try {
           item.decrypt();
-        } catch (ex if (Utils.isHMACMismatch(ex) &&
-                        this.handleHMACMismatch())) {
-          // Let's try handling it.
-          // If the callback returns true, try decrypting again, because
-          // we've got new keys.
-          this._log.info("Trying decrypt again...");
-          item.decrypt();
+        } catch (ex) {
+          if (Utils.isHMACMismatch(ex) &&
+              this.handleHMACMismatch()) {
+            // Let's try handling it.
+            // If the callback returns true, try decrypting again, because
+            // we've got new keys.
+            this._log.info("Trying decrypt again...");
+            item.decrypt();
+          }
+          else {
+            throw ex;
+          }
         }
        
         if (this._reconcile(item)) {
@@ -483,7 +488,14 @@ SyncEngine.prototype = {
           count.reconciled++;
           this._log.trace("Skipping reconciled incoming item " + item.id);
         }
-      } catch (ex if (Utils.isHMACMismatch(ex))) {
+      }
+      catch(ex) {
+
+        if (!Utils.isHMACMismatch(ex)) {
+          // Rethrow anything we shouldn't handle.
+          throw ex;
+        }
+
         this._log.warn("Error processing record: " + Utils.exceptionStr(ex));
 
         // Upload a new record to replace the bad one if we have it

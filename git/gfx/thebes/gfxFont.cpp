@@ -1435,12 +1435,13 @@ gfxFont::Measure(gfxTextRun *aTextRun,
                               // behavior on long runs with no whitespace.
 
 PRBool
-gfxFont::SplitAndInitTextRun(gfxContext *aContext,
-                             gfxTextRun *aTextRun,
-                             const PRUnichar *aString,
-                             PRUint32 aRunStart,
-                             PRUint32 aRunLength,
-                             PRInt32 aRunScript)
+gfxFont::InitTextRun(gfxContext *aContext,
+                     gfxTextRun *aTextRun,
+                     const PRUnichar *aString,
+                     PRUint32 aRunStart,
+                     PRUint32 aRunLength,
+                     PRInt32 aRunScript,
+                     PRBool aPreferPlatformShaping)
 {
     PRBool ok;
 
@@ -1491,49 +1492,32 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
             }
         }
 
-        ok = InitTextRun(aContext, aTextRun, aString,
-                         aRunStart, thisRunLength, aRunScript);
+        if (mHarfBuzzShaper && !aPreferPlatformShaping) {
+            if (gfxPlatform::GetPlatform()->UseHarfBuzzLevel() >=
+                gfxUnicodeProperties::ScriptShapingLevel(aRunScript)) {
+                ok = mHarfBuzzShaper->InitTextRun(aContext, aTextRun, aString,
+                                                  aRunStart, thisRunLength,
+                                                  aRunScript);
+            }
+        }
 
+        if (!ok) {
+            if (!mPlatformShaper) {
+                CreatePlatformShaper();
+                NS_ASSERTION(mPlatformShaper, "no platform shaper available!");
+            }
+            if (mPlatformShaper) {
+                ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
+                                                  aRunStart, thisRunLength,
+                                                  aRunScript);
+            }
+        }
+        
         aRunStart += thisRunLength;
         aRunLength -= thisRunLength;
     } while (ok && aRunLength > 0);
 
     NS_WARN_IF_FALSE(ok, "shaper failed, expect scrambled or missing text");
-    return ok;
-}
-
-PRBool
-gfxFont::InitTextRun(gfxContext *aContext,
-                     gfxTextRun *aTextRun,
-                     const PRUnichar *aString,
-                     PRUint32 aRunStart,
-                     PRUint32 aRunLength,
-                     PRInt32 aRunScript,
-                     PRBool aPreferPlatformShaping)
-{
-    PRBool ok = PR_FALSE;
-
-    if (mHarfBuzzShaper && !aPreferPlatformShaping) {
-        if (gfxPlatform::GetPlatform()->UseHarfBuzzLevel() >=
-            gfxUnicodeProperties::ScriptShapingLevel(aRunScript)) {
-            ok = mHarfBuzzShaper->InitTextRun(aContext, aTextRun, aString,
-                                              aRunStart, aRunLength,
-                                              aRunScript);
-        }
-    }
-
-    if (!ok) {
-        if (!mPlatformShaper) {
-            CreatePlatformShaper();
-            NS_ASSERTION(mPlatformShaper, "no platform shaper available!");
-        }
-        if (mPlatformShaper) {
-            ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
-                                              aRunStart, aRunLength,
-                                              aRunScript);
-        }
-    }
-
     return ok;
 }
 
@@ -2375,6 +2359,10 @@ gfxFontGroup::MakeTextRun(const PRUnichar *aString, PRUint32 aLength,
     return textRun;
 }
 
+#define SMALL_GLYPH_RUN 128 // preallocated size of our auto arrays for per-glyph data;
+                            // some testing indicates that 90%+ of glyph runs will fit
+                            // without requiring a separate allocation
+
 void
 gfxFontGroup::InitTextRun(gfxContext *aContext,
                           gfxTextRun *aTextRun,
@@ -2388,21 +2376,23 @@ gfxFontGroup::InitTextRun(gfxContext *aContext,
     PRUint32 runStart = 0, runLimit = aLength;
     PRInt32 runScript = HB_SCRIPT_LATIN;
     while (scriptRuns.Next(runStart, runLimit, runScript)) {
-        InitScriptRun(aContext, aTextRun, aString, aLength,
-                      runStart, runLimit, runScript);
+        InitTextRun(aContext, aTextRun, aString, aLength,
+                    runStart, runLimit, runScript);
     }
 
+    // Is this actually necessary? Without it, gfxTextRun::CopyGlyphDataFrom may assert
+    // "Glyphruns not coalesced", but does that matter?
     aTextRun->SortGlyphRuns();
 }
 
 void
-gfxFontGroup::InitScriptRun(gfxContext *aContext,
-                            gfxTextRun *aTextRun,
-                            const PRUnichar *aString,
-                            PRUint32 aTotalLength,
-                            PRUint32 aScriptRunStart,
-                            PRUint32 aScriptRunEnd,
-                            PRInt32 aRunScript)
+gfxFontGroup::InitTextRun(gfxContext *aContext,
+                          gfxTextRun *aTextRun,
+                          const PRUnichar *aString,
+                          PRUint32 aTotalLength,
+                          PRUint32 aScriptRunStart,
+                          PRUint32 aScriptRunEnd,
+                          PRInt32 aRunScript)
 {
     gfxFont *mainFont = mFonts[0].get();
 
@@ -2422,9 +2412,9 @@ gfxFontGroup::InitScriptRun(gfxContext *aContext,
                               runStart, (matchedLength > 0));
         if (matchedFont) {
             // do glyph layout and record the resulting positioned glyphs
-            if (!matchedFont->SplitAndInitTextRun(aContext, aTextRun, aString,
-                                                  runStart, matchedLength,
-                                                  aRunScript)) {
+            if (!matchedFont->InitTextRun(aContext, aTextRun, aString,
+                                          runStart, matchedLength,
+                                          aRunScript)) {
                 // glyph layout failed! treat as missing glyphs
                 matchedFont = nsnull;
             }
@@ -2544,8 +2534,6 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
     }
 
     PRUint32 prevCh = 0;
-    gfxFont *prevFont = nsnull;
-
     for (PRUint32 i = 0; i < len; i++) {
 
         const PRUint32 origI = i; // save off in case we increase for surrogate
@@ -2559,7 +2547,9 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
 
         // find the font for this char
         nsRefPtr<gfxFont> font =
-            FindFontForChar(ch, prevCh, aRunScript, prevFont);
+            FindFontForChar(ch, prevCh, aRunScript,
+                            (aRanges.Length() == 0) ?
+                            nsnull : aRanges[aRanges.Length() - 1].font.get());
 
         prevCh = ch;
 
@@ -2568,7 +2558,6 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
             gfxTextRange r(0,1);
             r.font = font;
             aRanges.AppendElement(r);
-            prevFont = font;
         } else {
             // if font has changed, make a new range
             gfxTextRange& prevRange = aRanges[aRanges.Length() - 1];
@@ -2579,13 +2568,6 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
                 gfxTextRange r(origI, i+1);
                 r.font = font;
                 aRanges.AppendElement(r);
-
-                // update prevFont for the next match, *unless* we switched
-                // fonts on a ZWJ, in which case propagating the changed font
-                // is probably not a good idea (see bug 619511)
-                if (!gfxFontUtils::IsJoinCauser(ch)) {
-                    prevFont = font;
-                }
             }
         }
     }
@@ -3255,24 +3237,22 @@ ClipPartialLigature(gfxTextRun *aTextRun, gfxFloat *aLeft, gfxFloat *aRight,
 }
 
 void
-gfxTextRun::DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx,
-                                PRUint32 aStart, PRUint32 aEnd,
-                                gfxPoint *aPt,
+gfxTextRun::DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx, PRUint32 aStart,
+                                PRUint32 aEnd,
+                                const gfxRect *aDirtyRect, gfxPoint *aPt,
                                 PropertyProvider *aProvider)
 {
     if (aStart >= aEnd)
         return;
-
-    // Need to preserve the path, otherwise this can break canvas text-on-path;
-    // in general it seems like a good thing, as naive callers probably won't
-    // expect gfxTextRun::Draw to implicitly destroy the current path.
-    gfxContextPathAutoSaveRestore savePath(aCtx);
+    if (!aDirtyRect) {
+        NS_ERROR("Cannot draw partial ligatures without a dirty rect");
+        return;
+    }
 
     // Draw partial ligature. We hack this by clipping the ligature.
     LigatureData data = ComputeLigatureData(aStart, aEnd, aProvider);
-    gfxRect clipExtents = aCtx->GetClipExtents();
-    gfxFloat left = clipExtents.X()*mAppUnitsPerDevUnit;
-    gfxFloat right = clipExtents.XMost()*mAppUnitsPerDevUnit;
+    gfxFloat left = aDirtyRect->X();
+    gfxFloat right = aDirtyRect->XMost();
     ClipPartialLigature(this, &left, &right, aPt->x, &data);
 
     aCtx->Save();
@@ -3281,9 +3261,9 @@ gfxTextRun::DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx,
     // of mAppUnitsPerDevUnit, we clip to true device unit boundaries.
     // Also, make sure we snap the rectangle to device pixels.
     aCtx->Rectangle(gfxRect(left/mAppUnitsPerDevUnit,
-                            clipExtents.Y(),
+                            aDirtyRect->Y()/mAppUnitsPerDevUnit,
                             (right - left)/mAppUnitsPerDevUnit,
-                            clipExtents.Height()), PR_TRUE);
+                            aDirtyRect->Height()/mAppUnitsPerDevUnit), PR_TRUE);
     aCtx->Clip();
     gfxFloat direction = GetDirection();
     gfxPoint pt(aPt->x - direction*data.mPartAdvance, aPt->y);
@@ -3410,7 +3390,7 @@ gfxTextRun::AdjustAdvancesForSyntheticBold(PRUint32 aStart, PRUint32 aLength)
 
 void
 gfxTextRun::Draw(gfxContext *aContext, gfxPoint aPt,
-                 PRUint32 aStart, PRUint32 aLength,
+                 PRUint32 aStart, PRUint32 aLength, const gfxRect *aDirtyRect,
                  PropertyProvider *aProvider, gfxFloat *aAdvanceWidth)
 {
     NS_ASSERTION(aStart + aLength <= mCharacterCount, "Substring out of range");
@@ -3441,10 +3421,10 @@ gfxTextRun::Draw(gfxContext *aContext, gfxPoint aPt,
         PRUint32 ligatureRunEnd = end;
         ShrinkToLigatureBoundaries(&ligatureRunStart, &ligatureRunEnd);
         
-        DrawPartialLigature(font, aContext, start, ligatureRunStart, &pt, aProvider);
+        DrawPartialLigature(font, aContext, start, ligatureRunStart, aDirtyRect, &pt, aProvider);
         DrawGlyphs(font, aContext, PR_FALSE, &pt, ligatureRunStart,
                    ligatureRunEnd, aProvider, ligatureRunStart, ligatureRunEnd);
-        DrawPartialLigature(font, aContext, ligatureRunEnd, end, &pt, aProvider);
+        DrawPartialLigature(font, aContext, ligatureRunEnd, end, aDirtyRect, &pt, aProvider);
     }
 
     // composite result when synthetic bolding used

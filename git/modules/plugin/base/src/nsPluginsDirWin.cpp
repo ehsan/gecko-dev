@@ -59,56 +59,21 @@
 
 /* Local helper functions */
 
-static char* GetKeyValue(void* verbuf, const WCHAR* key,
-                         UINT language, UINT codepage)
+static char* GetKeyValue(WCHAR* verbuf, WCHAR* key)
 {
-  WCHAR keybuf[64]; // plenty for the template below, with the longest key
-                    // we use (currently "FileDescription")
-  const WCHAR keyFormat[] = L"\\StringFileInfo\\%04X%04X\\%s";
   WCHAR *buf = NULL;
   UINT blen;
 
-  if (_snwprintf_s(keybuf, NS_ARRAY_LENGTH(keybuf), _TRUNCATE,
-                   keyFormat, language, codepage, key) < 0)
-  {
-    NS_NOTREACHED("plugin info key too long for buffer!");
-    return nsnull;
+  ::VerQueryValueW(verbuf, key, (void **)&buf, &blen);
+
+  if (buf) {
+    return PL_strdup(NS_ConvertUTF16toUTF8(buf).get());
   }
 
-  if (::VerQueryValueW(verbuf, keybuf, (void **)&buf, &blen) == 0 ||
-      buf == nsnull || blen == 0)
-  {
-    return nsnull;
-  }
-
-  // copy the WCHAR cp1252 output from VerQueryValueW into a
-  // byte buffer so that we can use MultiByteToWideChar on it
-  nsCString bstr;
-  for (UINT i = 0; i < blen; ++i) {
-    bstr.Append((char)buf[i]);
-  }
-
-  // determine number of Unicode character to be generated
-  int ulen = ::MultiByteToWideChar(codepage, MB_PRECOMPOSED,
-                                   bstr.BeginReading(), bstr.Length(),
-                                   nsnull, 0);
-  if (ulen == 0) {
-    return nsnull;
-  }
-
-  nsString ustr;
-  ustr.SetLength(ulen);
-  if (ustr.Length() < (unsigned)ulen) {
-    return nsnull;
-  }
-
-  (void)::MultiByteToWideChar(codepage, MB_PRECOMPOSED,
-                              bstr.BeginReading(), bstr.Length(),
-                              ustr.BeginWriting(), ustr.Length());
-  return PL_strdup(NS_ConvertUTF16toUTF8(ustr).get());
+  return nsnull;
 }
 
-static char* GetVersion(void* verbuf)
+static char* GetVersion(WCHAR* verbuf)
 {
   VS_FIXEDFILEINFO *fileInfo;
   UINT fileInfoLen;
@@ -355,7 +320,7 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
 
   nsresult rv = NS_OK;
   DWORD zerome, versionsize;
-  void* verbuf = nsnull;
+  WCHAR* verbuf = nsnull;
 
   if (!mPlugin)
     return NS_ERROR_NULL_POINTER;
@@ -381,21 +346,18 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
   versionsize = ::GetFileVersionInfoSizeW(lpFilepath, &zerome);
 
   if (versionsize > 0)
-    verbuf = PR_Malloc(versionsize);
+    verbuf = (WCHAR*)PR_Malloc(versionsize);
   if (!verbuf)
     return NS_ERROR_OUT_OF_MEMORY;
 
   if (::GetFileVersionInfoW(lpFilepath, NULL, versionsize, verbuf))
   {
-    // TODO: get appropriately-localized info from plugin file
-    UINT lang = 1033; // language = English
-    UINT cp = 1252;   // codepage = Western
-    info.fName = GetKeyValue(verbuf, L"ProductName", lang, cp);
-    info.fDescription = GetKeyValue(verbuf, L"FileDescription", lang, cp);
- 
-    char *mimeType = GetKeyValue(verbuf, L"MIMEType", lang, cp);
-    char *mimeDescription = GetKeyValue(verbuf, L"FileOpenName", lang, cp);
-    char *extensions = GetKeyValue(verbuf, L"FileExtents", lang, cp);
+    info.fName = GetKeyValue(verbuf, L"\\StringFileInfo\\040904E4\\ProductName");
+    info.fDescription = GetKeyValue(verbuf, L"\\StringFileInfo\\040904E4\\FileDescription");
+
+    char *mimeType = GetKeyValue(verbuf, L"\\StringFileInfo\\040904E4\\MIMEType");
+    char *mimeDescription = GetKeyValue(verbuf, L"\\StringFileInfo\\040904E4\\FileOpenName");
+    char *extensions = GetKeyValue(verbuf, L"\\StringFileInfo\\040904E4\\FileExtents");
 
     info.fVariantCount = CalculateVariantCount(mimeType);
     info.fMimeTypeArray = MakeStringArray(info.fVariantCount, mimeType);

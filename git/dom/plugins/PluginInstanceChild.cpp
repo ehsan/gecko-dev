@@ -624,9 +624,6 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
     return true;
 #endif
 
-    // XXX A previous call to mPluginIface->event might block, e.g. right click
-    // for context menu. Still, we might get here again, calling into the plugin
-    // a second time while it's in the previous call.
     if (!mPluginIface->event)
         *handled = false;
     else
@@ -2090,7 +2087,7 @@ StreamNotifyChild::RecvRedirectNotify(const nsCString& url, const int32_t& statu
 
     PluginInstanceChild* instance = static_cast<PluginInstanceChild*>(Manager());
     if (instance->mPluginIface->urlredirectnotify)
-      instance->mPluginIface->urlredirectnotify(instance->GetNPP(), url.get(), status, mClosure);
+      instance->mPluginIface->urlredirectnotify(instance->GetNPP(), mURL.get(), status, mClosure);
 
     return true;
 }
@@ -2544,6 +2541,7 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
     if (mMaemoImageRendering &&
         aSurface->GetType() == gfxASurface::SurfaceTypeImage) {
         aSurface->Flush();
+        mPendingPluginCall = PR_TRUE;
         gfxImageSurface* image = static_cast<gfxImageSurface*>(aSurface);
         NPImageExpose imgExp;
         imgExp.depth = gfxUtils::ImageFormatToDepth(image->Format());
@@ -2576,12 +2574,14 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
         exposeEvent.major_code = 0;
         exposeEvent.minor_code = 0;
         mPluginIface->event(&mData, reinterpret_cast<void*>(&exposeEvent));
+        mPendingPluginCall = PR_FALSE;
         return;
     }
 #endif
     NS_ASSERTION(aSurface->GetType() == gfxASurface::SurfaceTypeXlib,
                  "Non supported platform surface type");
 
+    mPendingPluginCall = true;
     NPEvent pluginEvent;
     XGraphicsExposeEvent& exposeEvent = pluginEvent.xgraphicsexpose;
     exposeEvent.type = GraphicsExpose;
@@ -2598,12 +2598,15 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
     exposeEvent.major_code = 0;
     exposeEvent.minor_code = 0;
     mPluginIface->event(&mData, reinterpret_cast<void*>(&exposeEvent));
+    mPendingPluginCall = false;
     return;
 #endif
 
 #ifdef XP_WIN
     NS_ASSERTION(SharedDIBSurface::IsSharedDIBSurface(aSurface),
                  "Expected (SharedDIB) image surface.");
+
+    mPendingPluginCall = true;
 
     // This rect is in the window coordinate space. aRect is in the plugin
     // coordinate space.
@@ -2621,6 +2624,7 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
     ::SetViewportOrgEx((HDC) mWindow.window, -mWindow.x, -mWindow.y, NULL);
 
     mPluginIface->event(&mData, reinterpret_cast<void*>(&paintEvent));
+    mPendingPluginCall = false;
     return;
 #endif
 
@@ -2729,9 +2733,6 @@ PluginInstanceChild::ShowPluginFrame()
     if (mPendingPluginCall) {
         return false;
     }
-
-    AutoRestore<bool> pending(mPendingPluginCall);
-    mPendingPluginCall = true;
 
     if (!EnsureCurrentBuffer()) {
         return false;

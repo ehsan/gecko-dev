@@ -41,7 +41,6 @@ const EXPORTED_SYMBOLS = ['HistoryEngine'];
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
-const Cr = Components.results;
 
 const GUID_ANNO = "sync/guid";
 
@@ -429,13 +428,7 @@ HistoryStore.prototype = {
         Svc.History.addVisit(uri, date, null, type, type == 5 || type == 6, 0);
 
     if (record.title) {
-      try {
-        this._hsvc.setPageTitle(uri, record.title);
-      } catch (ex if ex.result == Cr.NS_ERROR_NOT_AVAILABLE) {
-        // There's no entry for the given URI, either because it's a
-        // URI that Places ignores (e.g. javascript:) or there were no
-        // visits.  We can just ignore those cases.
-      }
+      this._hsvc.setPageTitle(uri, record.title);
     }
   },
 
