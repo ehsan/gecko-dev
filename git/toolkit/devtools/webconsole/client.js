@@ -154,11 +154,7 @@ WebConsoleClient.prototype = {
     };
 
     this._client.request(packet, response => {
-      // Null check this in case the client has been detached while waiting
-      // for a response.
-      if (this.pendingEvaluationResults) {
-        this.pendingEvaluationResults.set(response.resultID, aOnResponse);
-      }
+      this.pendingEvaluationResults.set(response.resultID, aOnResponse);
     });
   },
 

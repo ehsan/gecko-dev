@@ -13,29 +13,7 @@ add_task(function*() {
   let root = [...projecteditor.project.allStores()][0].root;
   is(root.path, TEMP_PATH, "The root store is set to the correct temp path.");
   for (let child of root.children) {
-    yield renameWithContextMenu(projecteditor,
-                                projecteditor.projectTree.getViewContainer(child),
-                                ".renamed");
-  }
-});
-
-add_task(function*() {
-  let projecteditor = yield addProjectEditorTabForTempDirectory();
-  ok(true, "ProjectEditor has loaded");
-
-  let root = [...projecteditor.project.allStores()][0].root;
-  is(root.path, TEMP_PATH, "The root store is set to the correct temp path.");
-
-  let childrenList = new Array();
-  for (let child of root.children) {
-    yield renameWithContextMenu(projecteditor,
-                                projecteditor.projectTree.getViewContainer(child),
-                                ".ren\u0061\u0308med");
-    childrenList.push(child.basename + ".ren\u0061\u0308med");
-  }
-  for (let child of root.children) {
-    is (childrenList.indexOf(child.basename) == -1, false,
-        "Failed to update tree with non-ascii character");
+    yield renameWithContextMenu(projecteditor, projecteditor.projectTree.getViewContainer(child));
   }
 });
 
@@ -47,7 +25,7 @@ function openContextMenuOn(node) {
   );
 }
 
-function renameWithContextMenu(projecteditor, container, newName) {
+function renameWithContextMenu(projecteditor, container) {
   let defer = promise.defer();
   let popup = projecteditor.contextMenuPopup;
   let resource = container.resource;
@@ -61,7 +39,7 @@ function renameWithContextMenu(projecteditor, container, newName) {
 
     projecteditor.project.on("refresh-complete", function refreshComplete() {
       projecteditor.project.off("refresh-complete", refreshComplete);
-      OS.File.stat(resource.path + newName).then(() => {
+      OS.File.stat(resource.path + ".renamed").then(() => {
         ok (true, "File is renamed");
         defer.resolve();
       }, (ex) => {
@@ -72,8 +50,7 @@ function renameWithContextMenu(projecteditor, container, newName) {
 
     renameCommand.click();
     popup.hidePopup();
-    let input = container.elt.previousElementSibling;
-    input.value = resource.basename + newName;
+    EventUtils.sendString(resource.basename + ".renamed", projecteditor.window);
     EventUtils.synthesizeKey("VK_RETURN", {}, projecteditor.window);
   });
 
