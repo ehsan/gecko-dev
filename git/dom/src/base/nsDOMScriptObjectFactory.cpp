@@ -287,6 +287,14 @@ nsDOMScriptObjectFactory::Observe(nsISupports *aSubject,
     nsGlobalWindow::ShutDown();
     nsDOMClassInfo::ShutDown();
 
+    PRUint32 i;
+    NS_STID_FOR_INDEX(i) {
+      if (mLanguageArray[i] != nsnull) {
+        mLanguageArray[i]->ShutDown();
+        mLanguageArray[i] = nsnull;
+      }
+    }
+
     nsCOMPtr<nsIExceptionService> xs =
       do_GetService(NS_EXCEPTIONSERVICE_CONTRACTID);
 
@@ -368,6 +376,16 @@ nsDOMScriptObjectFactory::RegisterDOMClassInfo(const char *aName,
                                              aScriptableFlags,
                                              aHasClassInterface,
                                              aConstructorCID);
+}
+
+/* static */ nsresult
+nsDOMScriptObjectFactory::Startup()
+{
+  nsJSRuntime::Startup();
+  // nsDOMScriptObjectFactory is a service - assuming that reinitialzing
+  // xpcom also recreates all services, then everything else should
+  // reinitialize correctly.
+  return NS_OK;
 }
 
 // Factories

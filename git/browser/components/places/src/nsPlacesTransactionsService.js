@@ -296,11 +296,8 @@ placesAggregateTransactions.prototype = {
   },
 
   commit: function PAT_commit(aUndo) {
-    var transactions = this._transactions;
-    if (aUndo)
-      transactions.reverse();
-    for (var i = 0; i < transactions.length; i++) {
-      var txn = transactions[i];
+    for (var i=0; i < this._transactions.length; ++i) {
+      var txn = this._transactions[i];
       if (this.container > -1) 
         txn.wrappedJSObject.container = this.container;
       if (aUndo)
@@ -400,7 +397,6 @@ function placesCreateSeparatorTransactions(aContainer, aIndex) {
   this._container = aContainer;
   this._index = typeof(aIndex) == "number" ? aIndex : -1;
   this._id = null;
-  this.redoTransaction = this.doTransaction;
 }
 
 placesCreateSeparatorTransactions.prototype = {
@@ -454,6 +450,7 @@ placesCreateLivemarkTransactions.prototype = {
 function placesMoveItemTransactions(aItemId, aNewContainer, aNewIndex) {
   this._id = aItemId;
   this._oldContainer = PlacesUtils.bookmarks.getFolderIdForItem(this._id);
+  this._oldIndex = PlacesUtils.bookmarks.getItemIndex(this._id);
   this._newContainer = aNewContainer;
   this._newIndex = aNewIndex;
   this.redoTransaction = this.doTransaction;
@@ -463,16 +460,17 @@ placesMoveItemTransactions.prototype = {
   __proto__: placesBaseTransaction.prototype,
 
   doTransaction: function PMIT_doTransaction() {
-    this._oldIndex = PlacesUtils.bookmarks.getItemIndex(this._id);
     PlacesUtils.bookmarks.moveItem(this._id, this._newContainer, this._newIndex);
-    this._undoIndex = PlacesUtils.bookmarks.getItemIndex(this._id);
+    // if newIndex == DEFAULT_INDEX we append, so get correct index for undo
+    if (this._newIndex == PlacesUtils.bookmarks.DEFAULT_INDEX)
+      this._newIndex = PlacesUtils.bookmarks.getItemIndex(this._id);
   },
 
   undoTransaction: function PMIT_undoTransaction() {
     // moving down in the same container takes in count removal of the item
     // so to revert positions we must move to oldIndex + 1
     if (this._newContainer == this._oldContainer &&
-        this._oldIndex > this._undoIndex)
+        this._oldIndex > this._newIndex)
       PlacesUtils.bookmarks.moveItem(this._id, this._oldContainer, this._oldIndex + 1);
     else
       PlacesUtils.bookmarks.moveItem(this._id, this._oldContainer, this._oldIndex);
@@ -543,7 +541,7 @@ placesRemoveItemTransaction.prototype = {
         this._transactions[i].undoTransaction();
     }
     else // TYPE_SEPARATOR
-      this._id = PlacesUtils.bookmarks.insertSeparator(this._oldContainer, this._oldIndex);
+      PlacesUtils.bookmarks.insertSeparator(this._oldContainer, this._oldIndex);
 
     if (this._annotations.length > 0)
       PlacesUtils.setAnnotationsForItem(this._id, this._annotations);

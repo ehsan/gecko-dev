@@ -61,7 +61,7 @@ function test() {
         "populate added data to the test root");
       is(PlacesControllerDragHelper.canMoveContainer(this.id),
          true, "can move regular folder id");
-      is(PlacesControllerDragHelper.canMoveNode(rootNode.getChild(0)),
+      is(PlacesControllerDragHelper.canMoveContainerNode(rootNode.getChild(0)),
          true, "can move regular folder node");
     }
   });
@@ -92,7 +92,7 @@ function test() {
       is(PlacesControllerDragHelper.canMoveContainer(this.shortcutId),
          true, "can move folder shortcut id");
 
-      is(PlacesControllerDragHelper.canMoveNode(shortcutNode),
+      is(PlacesControllerDragHelper.canMoveContainerNode(shortcutNode),
          true, "can move folder shortcut node");
     }
   });
@@ -118,7 +118,7 @@ function test() {
       is(PlacesControllerDragHelper.canMoveContainer(this.queryId),
          true, "can move query id");
 
-      is(PlacesControllerDragHelper.canMoveNode(queryNode),
+      is(PlacesControllerDragHelper.canMoveContainerNode(queryNode),
          true, "can move query node");
     }
   });
@@ -159,7 +159,7 @@ function test() {
 
         //var node = PlacesUtils.getFolderContents(id, false, true).root;
         var node = getRootChildNode(id);
-        is(PlacesControllerDragHelper.canMoveNode(node),
+        is(PlacesControllerDragHelper.canMoveContainerNode(node),
            false, "shouldn't be able to move special folder node");
 
         var shortcutId = this.shortcuts[id];
@@ -172,7 +172,7 @@ function test() {
            true, "should be able to move special folder shortcut id");
 
         LOG("can move shortcut node?");
-        is(PlacesControllerDragHelper.canMoveNode(shortcutNode),
+        is(PlacesControllerDragHelper.canMoveContainerNode(shortcutNode),
            true, "should be able to move special folder shortcut node");
       }
     }
@@ -197,7 +197,7 @@ function test() {
 
       var tagNode = tagsNode.getChild(0);
       
-      is(PlacesControllerDragHelper.canMoveNode(tagNode),
+      is(PlacesControllerDragHelper.canMoveContainerNode(tagNode),
          false, "should not be able to move tag container node");
     }
   });
@@ -218,7 +218,7 @@ function test() {
       // test that we can move the read-only folder
       is(PlacesControllerDragHelper.canMoveContainer(this.id),
          true, "can move read-only folder id");
-      is(PlacesControllerDragHelper.canMoveNode(readOnlyFolder),
+      is(PlacesControllerDragHelper.canMoveContainerNode(readOnlyFolder),
          true, "can move read-only folder node");
 
       // test that we cannot move the child of a read-only folder
@@ -228,7 +228,7 @@ function test() {
 
       is(PlacesControllerDragHelper.canMoveContainer(childFolder.itemId),
          false, "cannot move a child of a read-only folder");
-      is(PlacesControllerDragHelper.canMoveNode(childFolder),
+      is(PlacesControllerDragHelper.canMoveContainerNode(childFolder),
          false, "cannot move a child node of a read-only folder node");
     }
   });

@@ -130,9 +130,8 @@ function isInaccessible(wnd, message) {
 
 function xpcEnumerateContentWindows(callback) {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var Ci = Components.interfaces;
   var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
-                     .getService(Ci.nsIWindowWatcher);
+                     .getService(Components.interfaces.nsIWindowWatcher);
   var enumerator = ww.getWindowEnumerator();
 
   var contentWindows = [];
@@ -140,19 +139,10 @@ function xpcEnumerateContentWindows(callback) {
   while (enumerator.hasMoreElements()) {
     var win = enumerator.getNext();
     if (typeof ChromeWindow != "undefined" && win instanceof ChromeWindow) {
-      var docshellTreeNode = win.QueryInterface(Ci.nsIInterfaceRequestor)
-                                .getInterface(Ci.nsIWebNavigation)
-                                .QueryInterface(Ci.nsIDocShellTreeNode);
-      var childCount = docshellTreeNode.childCount;
-      for (var i = 0; i < childCount; ++i) {
-        var childTreeNode = docshellTreeNode.getChildAt(i);
-
-        // we're only interested in content docshells
-        if (childTreeNode.itemType != Ci.nsIDocShellTreeItem.typeContent)
-          continue;
-
-        var webNav = childTreeNode.QueryInterface(Ci.nsIWebNavigation);
-        contentWindows.push(webNav.document.defaultView);
+      if (win.gBrowser) {
+        var tabs = win.gBrowser.browsers;
+        for (var i = 0; i < tabs.length; i++)
+          contentWindows.push(tabs[i].docShell.document.defaultView);
       }
     } else {
       contentWindows.push(win);

@@ -234,17 +234,11 @@ nsNativeThemeQt::DrawWidgetBackground(nsIRenderingContext* aContext,
         style->drawComplexControl(QStyle::CC_ComboBox, &comboOpt, qPainter);
         break;
     }
-    case NS_THEME_DROPDOWN_BUTTON: {
-        QStyleOptionComboBox option;
-
-        InitComboStyle(aWidgetType, aFrame, r, option);
-
-        style->drawPrimitive(QStyle::PE_FrameDefaultButton, &option, qPainter);
-        style->drawPrimitive(QStyle::PE_IndicatorSpinDown, &option, qPainter);
+    case NS_THEME_DROPDOWN_BUTTON:
         break;
-    }
     case NS_THEME_DROPDOWN_TEXT:
     case NS_THEME_DROPDOWN_TEXTFIELD:
+        break;
     case NS_THEME_TEXTFIELD:
     case NS_THEME_TEXTFIELD_MULTILINE:
     case NS_THEME_LISTBOX: {
@@ -266,12 +260,6 @@ nsNativeThemeQt::DrawWidgetBackground(nsIRenderingContext* aContext,
         style->drawPrimitive(QStyle::PE_FrameLineEdit, &frameOpt, qPainter, NULL);
         break;
     }
-    case NS_THEME_MENUPOPUP: {
-        QStyleOptionMenuItem option;
-        InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)option, extraFlags);
-        style->drawPrimitive(QStyle::PE_FrameMenu, &option, qPainter, NULL);
-        break;
-    }
     default:
         break;
     }
@@ -288,17 +276,12 @@ nsNativeThemeQt::GetWidgetBorder(nsIDeviceContext* aContext,
 {
     (*aResult).top = (*aResult).bottom = (*aResult).left = (*aResult).right = 0;
 
-    QStyle* style = qApp->style();
-    switch(aWidgetType) {
+//     switch(aWidgetType) {
 //     case NS_THEME_TEXTFIELD:
 //     case NS_THEME_LISTBOX:
-    case NS_THEME_MENUPOPUP: {
-       (*aResult).top = (*aResult).bottom = (*aResult).left = (*aResult).right = style->pixelMetric(QStyle::PM_MenuPanelWidth);
-       break;
-    }
-    default:
-        break;
-    }
+//         (*aResult).top = (*aResult).bottom = (*aResult).left = (*aResult).right =
+//                          frameWidth;
+//     }
 
     return NS_OK;
 }
@@ -532,7 +515,6 @@ nsNativeThemeQt::ThemeSupportsWidget(nsPresContext* aPresContext,
     case NS_THEME_TEXTFIELD:
     case NS_THEME_TEXTFIELD_MULTILINE:
     case NS_THEME_LISTBOX:
-    case NS_THEME_MENUPOPUP:
         return !IsWidgetStyled(aPresContext, aFrame, aWidgetType);
     default:
         break;

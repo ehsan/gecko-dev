@@ -1,16 +1,28 @@
-// Mapping needed state flags for easier handling.
-const state_focusable = nsIAccessibleStates.STATE_FOCUSABLE;
-const state_focused = nsIAccessibleStates.STATE_FOCUSED;
-const state_readonly = nsIAccessibleStates.STATE_READONLY;
+const nsIAccessibleRetrieval = Components.interfaces.nsIAccessibleRetrieval;
 
-const ext_state_multi_line = nsIAccessibleStates.EXT_STATE_MULTI_LINE;
-const ext_state_editable = nsIAccessibleStates.EXT_STATE_EDITABLE;
-const ext_state_required = nsIAccessibleStates.STATE_REQUIRED;
-const ext_state_invalid = nsIAccessibleStates.STATE_INVALID;
+// Mapping needed state flags for easier handling.
+const state_focusable = 
+      Components.interfaces.nsIAccessibleStates.STATE_FOCUSABLE;
+const state_focused = 
+      Components.interfaces.nsIAccessibleStates.STATE_FOCUSED;
+const state_readonly = 
+      Components.interfaces.nsIAccessibleStates.STATE_READONLY;
+
+const ext_state_multi_line = 
+      Components.interfaces.nsIAccessibleStates.EXT_STATE_MULTI_LINE;
+const ext_state_editable = 
+      Components.interfaces.nsIAccessibleStates.EXT_STATE_EDITABLE;
+const ext_state_required = 
+      Components.interfaces.nsIAccessibleStates.STATE_REQUIRED;
+const ext_state_invalid = 
+      Components.interfaces.nsIAccessibleStates.STATE_INVALID;
 
 // Mapping needed final roles
-const role_entry = nsIAccessibleRole.ROLE_ENTRY;
-const role_password_text = nsIAccessibleRole.ROLE_PASSWORD_TEXT;
+const role_entry = Components.interfaces.nsIAccessibleRole.ROLE_ENTRY;
+const role_password_text =
+      Components.interfaces.nsIAccessibleRole.ROLE_PASSWORD_TEXT;
+
+var gAccRetrieval = null;
 
 function testValue(aID, aAcc, aValue, aRole)
 {

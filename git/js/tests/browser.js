@@ -568,19 +568,11 @@ function gczeal(z)
   javascriptoptions.setIntPref('gczeal', Number(z));
 }
 
-function jit(on)
+function jit()
 {
   var javascriptoptions = new Preferences('javascript.options.jit.');
-  if (on)
-  {
-    javascriptoptions.setBoolPref('content', true);
-    javascriptoptions.setBoolPref('chrome', true);
-  }
-  else
-  {
-    javascriptoptions.setBoolPref('content', false);
-    javascriptoptions.setBoolPref('chrome', false);
-  }
+  javascriptoptions.setBoolPref('content', true);
+  javascriptoptions.setBoolPref('chrome', true);
 }
 
 var gVersion = 150;
@@ -628,7 +620,7 @@ function jsTestDriverBrowserInit()
 
   if (jitmatches)
   {
-    jit(true);
+    jit();
   }
 
   var versionmatches = /version=([.0-9]*)/.exec(value);

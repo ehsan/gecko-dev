@@ -946,7 +946,8 @@ nsXBLContentSink::AddAttributesToXULPrototype(const PRUnichar **aAtts,
     }
     else {
       nsCOMPtr<nsINodeInfo> ni;
-      ni = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID);
+      mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
+                                    getter_AddRefs(ni));
       attrs[i].mName.SetTo(ni);
     }
     

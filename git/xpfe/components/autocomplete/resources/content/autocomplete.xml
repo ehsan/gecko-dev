@@ -158,10 +158,6 @@
                 onset="this.setAttribute('autofillaftermatch', val); return val;"
                 onget="return this.getAttribute('autofillaftermatch') == 'true';"/>
 
-      <property name="completeDefaultIndex"
-                onset="this.setAttribute('completedefaultindex', val); return val;"
-                onget="return this.getAttribute('completedefaultindex') == 'true';"/>
-
       <!--  if this attribute is set, allow different style for 
             non auto-completed lines -->
       <property name="highlightNonMatches"
@@ -1122,8 +1118,7 @@
               this.mDefaultMatchFilled)
             return;
 
-          if (!this.mFinishAfterSearch &&
-              (this.autoFill || this.completeDefaultIndex) && 
+          if (!this.mFinishAfterSearch && this.autoFill && 
               this.mLastKeyCode != KeyEvent.DOM_VK_BACK_SPACE &&
               this.mLastKeyCode != KeyEvent.DOM_VK_DELETE) {
             var indexToUse = aResults.defaultItemIndex;
@@ -1140,7 +1135,7 @@
                 this.setTextValue(this.value + resultValue.substr(endPoint));
                 this.mInputElt.setSelectionRange(endPoint, this.value.length);
               } else {
-                if (this.autoFillAfterMatch || this.completeDefaultIndex) {
+                if (this.autoFillAfterMatch) {
                   this.setTextValue(this.value + " >> " + resultValue);
                   this.mInputElt.setSelectionRange(entry.length, this.value.length);
                 } else {

@@ -31,28 +31,6 @@ const nsIObserverService = Components.interfaces.nsIObserverService;
 const nsIDOMNode = Components.interfaces.nsIDOMNode;
 
 ////////////////////////////////////////////////////////////////////////////////
-// Roles
-const ROLE_COMBOBOX = nsIAccessibleRole.ROLE_COMBOBOX;
-const ROLE_COMBOBOX_LIST = nsIAccessibleRole.ROLE_COMBOBOX_LIST;
-const ROLE_COMBOBOX_OPTION = nsIAccessibleRole.ROLE_COMBOBOX_OPTION;
-const ROLE_LABEL = nsIAccessibleRole.ROLE_LABEL;
-const ROLE_LIST = nsIAccessibleRole.ROLE_LIST;
-const ROLE_OPTION = nsIAccessibleRole.ROLE_OPTION;
-const ROLE_TEXT_LEAF = nsIAccessibleRole.ROLE_TEXT_LEAF;
-
-////////////////////////////////////////////////////////////////////////////////
-// States
-const STATE_COLLAPSED = nsIAccessibleStates.STATE_COLLAPSED;
-const STATE_EXPANDED = nsIAccessibleStates.STATE_EXPANDED;
-const STATE_EXTSELECTABLE = nsIAccessibleStates.STATE_EXTSELECTABLE;
-const STATE_FOCUSABLE = nsIAccessibleStates.STATE_FOCUSABLE;
-const STATE_FOCUSED = nsIAccessibleStates.STATE_FOCUSED;
-const STATE_HASPOPUP = nsIAccessibleStates.STATE_HASPOPUP;
-const STATE_MULTISELECTABLE = nsIAccessibleStates.STATE_MULTISELECTABLE;
-const STATE_SELECTABLE = nsIAccessibleStates.STATE_SELECTABLE;
-const STATE_SELECTED = nsIAccessibleStates.STATE_SELECTED;
-
-////////////////////////////////////////////////////////////////////////////////
 // Accessible general
 
 /**
@@ -99,16 +77,16 @@ function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj)
       acc = gAccRetrieval.getAccessibleFor(elm);
     } catch (e) {
     }
-
+    
     if (!acc) {
-      ok(false, "Can't get accessible for " + aAccOrElmOrID);
+      ok(false, "Can't get accessible for " + aID);
       return null;
     }
   }
-
+  
   if (!aInterfaces)
     return acc;
-
+  
   if (aInterfaces instanceof Array) {
     for (var index = 0; index < aInterfaces.length; index++) {
       try {

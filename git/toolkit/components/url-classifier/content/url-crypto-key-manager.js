@@ -260,7 +260,7 @@ PROT_UrlCryptoKeyManager.prototype.hasKey = function() {
 
 PROT_UrlCryptoKeyManager.prototype.unUrlSafe = function(key)
 {
-    return key ? key.replace("-", "+").replace("_", "/") : "";
+    return key.replace("-", "+").replace("_", "/");
 }
 
 /**

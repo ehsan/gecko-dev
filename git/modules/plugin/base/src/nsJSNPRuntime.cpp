@@ -36,8 +36,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsJSNPRuntime.h"
-#include "nsNPAPIPlugin.h"
-#include "nsNPAPIPluginInstance.h"
+#include "ns4xPlugin.h"
+#include "ns4xPluginInstance.h"
 #include "nsIPluginInstancePeer2.h"
 #include "nsPIPluginInstancePeer.h"
 #include "nsIScriptGlobalObject.h"
@@ -292,7 +292,7 @@ GetJSContext(NPP npp)
 {
   NS_ENSURE_TRUE(npp, nsnull);
 
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)npp->ndata;
+  ns4xPluginInstance *inst = (ns4xPluginInstance *)npp->ndata;
   NS_ENSURE_TRUE(inst, nsnull);
 
   nsCOMPtr<nsPIPluginInstancePeer> pp(do_QueryInterface(inst->Peer()));
@@ -1875,7 +1875,7 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
 
   // Find the plugin instance so that we can (eventually) get to the
   // DOM element
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)npp->ndata;
+  ns4xPluginInstance *inst = (ns4xPluginInstance *)npp->ndata;
   if (!inst) {
     return;
   }

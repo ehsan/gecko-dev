@@ -271,8 +271,6 @@ private:
   nsresult GetOverflowY(nsIDOMCSSValue** aValue);
   nsresult GetPageBreakAfter(nsIDOMCSSValue** aValue);
   nsresult GetPageBreakBefore(nsIDOMCSSValue** aValue);
-  nsresult GetMozTransform(nsIDOMCSSValue** aValue);
-  nsresult GetMozTransformOrigin(nsIDOMCSSValue **aValue);
 
   /* User interface properties */
   nsresult GetCursor(nsIDOMCSSValue** aValue);
@@ -376,8 +374,6 @@ private:
 
   PRBool GetCBContentWidth(nscoord& aWidth);
   PRBool GetCBContentHeight(nscoord& aWidth);
-  PRBool GetFrameBoundsWidthForTransform(nscoord &aWidth);
-  PRBool GetFrameBoundsHeightForTransform(nscoord &aHeight);
   PRBool GetFrameBorderRectWidth(nscoord& aWidth);
 
   struct ComputedStyleMapEntry

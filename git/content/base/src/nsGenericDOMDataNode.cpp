@@ -1217,9 +1217,8 @@ nsGenericDOMDataNode::GetID() const
 }
 
 const nsAttrValue*
-nsGenericDOMDataNode::DoGetClasses() const
+nsGenericDOMDataNode::GetClasses() const
 {
-  NS_NOTREACHED("Shouldn't ever be called");
   return nsnull;
 }
 

@@ -105,13 +105,13 @@
                                        "nsITreeBoxObject::rowCountChanged");
           break;
         case 2:
-// XXX see bug 454647          TreeInvalidatedHandlerHelper(aEvent, null, null, 0, 0,
-//                                       "nsITreeBoxObject::invalidateColumn");
+          TreeInvalidatedHandlerHelper(aEvent, null, null, 0, 0,
+                                       "nsITreeBoxObject::invalidateColumn");
           gTreeColumnInvalidated = true;
           break;
         case 3:
-// XXX see bug 454647          TreeInvalidatedHandlerHelper(aEvent, 1, 1, null, null,
-//                                       "nsITreeBoxObject::invalidateRow");
+          TreeInvalidatedHandlerHelper(aEvent, 1, 1, null, null,
+                                       "nsITreeBoxObject::invalidateRow");
           gTreeRowInvalidated = true;
           break;
         }
