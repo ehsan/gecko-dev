@@ -36,6 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/**
+ * A class which manages pending restyles.  This handles keeping track
+ * of what nodes restyles need to happen on and so forth.
+ */
+
 #include "RestyleTracker.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsStyleChangeList.h"
@@ -139,7 +144,8 @@ RestyleTracker::ProcessOneRestyle(Element* aElement,
 {
   NS_PRECONDITION((aRestyleHint & eRestyle_LaterSiblings) == 0,
                   "Someone should have handled this before calling us");
-  NS_PRECONDITION(aElement->GetCurrentDoc() == mFrameConstructor->mDocument,
+  NS_PRECONDITION(Document(), "Must have a document");
+  NS_PRECONDITION(aElement->GetCurrentDoc() == Document(),
                   "Element has unexpected document");
 
   nsIFrame* primaryFrame = aElement->GetPrimaryFrame();
@@ -217,7 +223,7 @@ RestyleTracker::ProcessRestyles()
       // Do the document check before calling GetRestyleData, since we
       // don't want to do the sibling-processing GetRestyleData does if
       // the node is no longer relevant.
-      if (element->GetCurrentDoc() != mFrameConstructor->mDocument) {
+      if (element->GetCurrentDoc() != Document()) {
         // Content node has been removed from our document; nothing else
         // to do here
         continue;
@@ -276,7 +282,7 @@ RestyleTracker::ProcessRestyles()
 PRBool
 RestyleTracker::GetRestyleData(Element* aElement, RestyleData* aData)
 {
-  NS_PRECONDITION(aElement->GetCurrentDoc() == mFrameConstructor->mDocument,
+  NS_PRECONDITION(aElement->GetCurrentDoc() == Document(),
                   "Unexpected document; this will lead to incorrect behavior!");
 
   if (!aElement->HasFlag(RestyleBit())) {
