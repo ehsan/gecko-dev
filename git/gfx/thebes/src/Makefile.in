@@ -38,7 +38,6 @@ CPPSRCS	= \
 	gfxSkipChars.cpp \
 	gfxTextRunCache.cpp \
 	gfxTextRunWordCache.cpp \
-	gfxUserFontSet.cpp \
 	$(NULL)
 
 EXTRA_DSO_LDOPTS += \

@@ -267,10 +267,9 @@ gfxPlatformGtk::GetStandardFamilyName(const nsAString& aFontName, nsAString& aFa
 
 gfxFontGroup *
 gfxPlatformGtk::CreateFontGroup(const nsAString &aFamilies,
-                                const gfxFontStyle *aStyle,
-                                gfxUserFontSet *aUserFontSet)
+                                const gfxFontStyle *aStyle)
 {
-    return new gfxPangoFontGroup(aFamilies, aStyle, aUserFontSet);
+    return new gfxPangoFontGroup(aFamilies, aStyle);
 }
 
 #else

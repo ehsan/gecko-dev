@@ -113,7 +113,6 @@ protected:
         PRUint32     mLength;
         PRUint32     mAppUnitsPerDevUnit;
         PRUint32     mStringHash;
-        PRUint64     mUserFontSetGeneration;
         PRPackedBool mIsDoubleByteText;
         PRPackedBool mIsRTL;
         PRPackedBool mEnabledOptionalLigatures;
@@ -125,7 +124,6 @@ protected:
               mLength(aLength),
               mAppUnitsPerDevUnit(aBaseTextRun->GetAppUnitsPerDevUnit()),
               mStringHash(aHash),
-              mUserFontSetGeneration(aBaseTextRun->GetUserFontSetGeneration()),
               mIsDoubleByteText((aBaseTextRun->GetFlags() & gfxTextRunFactory::TEXT_IS_8BIT) == 0),
               mIsRTL(aBaseTextRun->IsRightToLeft()),
               mEnabledOptionalLigatures((aBaseTextRun->GetFlags() & gfxTextRunFactory::TEXT_DISABLE_OPTIONAL_LIGATURES) == 0),
@@ -199,17 +197,14 @@ HashMix(PRUint32 aHash, PRUnichar aCh)
 
 // If the substring of the textrun is rendered entirely in the first font
 // of the textrun's fontgroup, then return that font. Otherwise return the
-// fontgroup.  When a user font set is in use, always return the font group.
+// fontgroup.
 static void *GetWordFontOrGroup(gfxTextRun *aTextRun, PRUint32 aOffset,
                                 PRUint32 aLength)
 {
-    gfxFontGroup *fontGroup = aTextRun->GetFontGroup();
-    if (fontGroup->GetUserFontSet() != nsnull)
-        return fontGroup;
-        
     PRUint32 glyphRunCount;
     const gfxTextRun::GlyphRun *glyphRuns = aTextRun->GetGlyphRuns(&glyphRunCount);
     PRUint32 glyphRunIndex = aTextRun->FindFirstGlyphRunContaining(aOffset);
+    gfxFontGroup *fontGroup = aTextRun->GetFontGroup();
     gfxFont *firstFont = fontGroup->GetFontAt(0);
     if (glyphRuns[glyphRunIndex].mFont != firstFont)
         return fontGroup;
@@ -265,11 +260,8 @@ TextRunWordCache::LookupWord(gfxTextRun *aTextRun, gfxFont *aFirstFont,
 {
     if (aEnd <= aStart)
         return PR_TRUE;
-        
-    gfxFontGroup *fontGroup = aTextRun->GetFontGroup();
 
-    PRBool useFontGroup = (fontGroup->GetUserFontSet() != nsnull);
-    CacheHashKey key(aTextRun, (useFontGroup ? (void*)fontGroup : (void*)aFirstFont), aStart, aEnd - aStart, aHash);
+    CacheHashKey key(aTextRun, aFirstFont, aStart, aEnd - aStart, aHash);
     CacheHashEntry *fontEntry = mCache.PutEntry(key);
     if (!fontEntry)
         return PR_FALSE;
@@ -277,10 +269,7 @@ TextRunWordCache::LookupWord(gfxTextRun *aTextRun, gfxFont *aFirstFont,
 
     if (fontEntry->mTextRun) {
         existingEntry = fontEntry;
-    } else if (useFontGroup) {
-        PR_LOG(gWordCacheLog, PR_LOG_DEBUG, ("%p(%d-%d,%d): added using font group", aTextRun, aStart, aEnd - aStart, aHash));
     } else {
-        // test to see if this can be found using the font group instead
         PR_LOG(gWordCacheLog, PR_LOG_DEBUG, ("%p(%d-%d,%d): added using font", aTextRun, aStart, aEnd - aStart, aHash));
         key.mFontOrGroup = aTextRun->GetFontGroup();
         CacheHashEntry *groupEntry = mCache.GetEntry(key);
@@ -315,8 +304,7 @@ TextRunWordCache::LookupWord(gfxTextRun *aTextRun, gfxFont *aFirstFont,
     // entry, we'll copy within our own textrun
     fontEntry->mTextRun = aTextRun;
     fontEntry->mWordOffset = aStart;
-    if (!useFontGroup)
-        fontEntry->mHashedByFont = PR_TRUE;
+    fontEntry->mHashedByFont = PR_TRUE;
     return PR_FALSE;
 }
 
@@ -343,11 +331,6 @@ TextRunWordCache::FinishTextRun(gfxTextRun *aTextRun, gfxTextRun *aNewRun,
     PRUint32 i;
     gfxFontGroup *fontGroup = aTextRun->GetFontGroup();
     gfxFont *font = fontGroup->GetFontAt(0);
-    
-    // need to use the font group when user font set is around, since
-    // the first font may change as the result of a font download
-    PRBool useFontGroup = (fontGroup->GetUserFontSet() != nsnull);
-
     // copy deferred words from various sources into destination textrun
     for (i = 0; i < aDeferredWords.Length(); ++i) {
         const DeferredWord *word = &aDeferredWords[i];
@@ -367,11 +350,11 @@ TextRunWordCache::FinishTextRun(gfxTextRun *aTextRun, gfxTextRun *aNewRun,
             // we need to remove that cache entry and replace it with an entry
             // keyed off the fontgroup.
             PRBool rekeyWithFontGroup =
-                GetWordFontOrGroup(aNewRun, word->mSourceOffset, word->mLength) != font && !useFontGroup;
+                GetWordFontOrGroup(aNewRun, word->mSourceOffset, word->mLength) != font;
             if (!aSuccessful || rekeyWithFontGroup ||
                 wordStartsInsideCluster || wordStartsInsideLigature) {
                 // We need to remove the current placeholder cache entry
-                CacheHashKey key(aTextRun, (useFontGroup ? (void*)fontGroup : (void*)font), word->mDestOffset, word->mLength,
+                CacheHashKey key(aTextRun, font, word->mDestOffset, word->mLength,
                                  word->mHash);
                 NS_ASSERTION(mCache.GetEntry(key),
                              "This entry should have been added previously!");
@@ -476,9 +459,6 @@ TextRunWordCache::MakeTextRun(const PRUnichar *aText, PRUint32 aLength,
                               const gfxFontGroup::Parameters *aParams,
                               PRUint32 aFlags)
 {
-    // update font list when using user fonts (assures generation is current)
-    aFontGroup->UpdateFontList();
-
     if (aFontGroup->GetStyle()->size == 0) {
         // Short-circuit for size-0 fonts, as Windows and ATSUI can't handle
         // them, and always create at least size 1 fonts, i.e. they still
@@ -550,7 +530,7 @@ TextRunWordCache::MakeTextRun(const PRUnichar *aText, PRUint32 aLength,
     nsAutoPtr<gfxTextRun> newRun;
     newRun = aFontGroup->MakeTextRun(tempString.Elements(), tempString.Length(),
                                      &params, aFlags | gfxTextRunFactory::TEXT_IS_PERSISTENT);
-    
+
     FinishTextRun(textRun, newRun, aParams, deferredWords, newRun != nsnull);
     return textRun.forget();
 }
@@ -561,9 +541,6 @@ TextRunWordCache::MakeTextRun(const PRUint8 *aText, PRUint32 aLength,
                               const gfxFontGroup::Parameters *aParams,
                               PRUint32 aFlags)
 {
-    // update font list when using user fonts (assures generation is current)
-    aFontGroup->UpdateFontList();
-
     if (aFontGroup->GetStyle()->size == 0) {
         // Short-circuit for size-0 fonts, as Windows and ATSUI can't handle
         // them, and always create at least size 1 fonts, i.e. they still
@@ -651,7 +628,6 @@ TextRunWordCache::RemoveWord(gfxTextRun *aTextRun, PRUint32 aStart,
     PRUint32 length = aEnd - aStart;
     CacheHashKey key(aTextRun, GetWordFontOrGroup(aTextRun, aStart, length),
                      aStart, length, aHash);
-                     
     CacheHashEntry *entry = mCache.GetEntry(key);
     if (entry && entry->mTextRun == aTextRun) {
         // XXX would like to use RawRemoveEntry here plus some extra method
@@ -734,8 +710,7 @@ TextRunWordCache::CacheHashEntry::KeyEquals(const KeyTypePointer aKey) const
         aKey->mAppUnitsPerDevUnit != mTextRun->GetAppUnitsPerDevUnit() ||
         aKey->mIsRTL != mTextRun->IsRightToLeft() ||
         aKey->mEnabledOptionalLigatures != ((mTextRun->GetFlags() & gfxTextRunFactory::TEXT_DISABLE_OPTIONAL_LIGATURES) == 0) ||
-        aKey->mOptimizeSpeed != ((mTextRun->GetFlags() & gfxTextRunFactory::TEXT_OPTIMIZE_SPEED) != 0) ||
-        aKey->mUserFontSetGeneration != (mTextRun->GetUserFontSetGeneration()))
+        aKey->mOptimizeSpeed != ((mTextRun->GetFlags() & gfxTextRunFactory::TEXT_OPTIMIZE_SPEED) != 0))
         return PR_FALSE;
 
     if (mTextRun->GetFlags() & gfxFontGroup::TEXT_IS_8BIT) {
@@ -756,12 +731,7 @@ TextRunWordCache::CacheHashEntry::KeyEquals(const KeyTypePointer aKey) const
 PLDHashNumber
 TextRunWordCache::CacheHashEntry::HashKey(const KeyTypePointer aKey)
 {
-    // only use lower 32 bits of generation counter in hash key, 
-    // since these vary the most
-    PRUint32 fontSetGen;
-    LL_L2UI(fontSetGen, aKey->mUserFontSetGeneration);
-
-    return aKey->mStringHash + fontSetGen + (long)aKey->mFontOrGroup + aKey->mAppUnitsPerDevUnit +
+    return aKey->mStringHash + (long)aKey->mFontOrGroup + aKey->mAppUnitsPerDevUnit +
         aKey->mIsDoubleByteText + aKey->mIsRTL*2 + aKey->mEnabledOptionalLigatures*4 +
         aKey->mOptimizeSpeed*8;
 }
