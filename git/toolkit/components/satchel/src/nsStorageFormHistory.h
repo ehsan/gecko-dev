@@ -111,12 +111,9 @@ public:
   nsresult CreateTable();
   nsresult CreateStatements();
 
-  static nsresult InitPrefs();
-  static PRBool SaveHttpsForms();
   static PRBool FormHistoryEnabled();
   static nsFormHistory *gFormHistory;
   static PRBool gFormHistoryEnabled;
-  static PRBool gSaveHttpsForms;
   static PRBool gPrefsInitialized;
 
   nsresult ExpireOldEntries();

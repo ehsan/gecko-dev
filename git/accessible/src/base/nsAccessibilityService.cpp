@@ -87,8 +87,6 @@
 #include "nsNetError.h"
 #include "nsDocShellLoadTypes.h"
 
-#include "nsImageMapUtils.h"
-
 #ifdef MOZ_XUL
 #include "nsXULAlertAccessible.h"
 #include "nsXULColorPickerAccessible.h"
@@ -655,12 +653,21 @@ nsAccessibilityService::CreateHTMLImageAccessible(nsIFrame *aFrame,
   nsCOMPtr<nsIContent> content = do_QueryInterface(node);
   NS_ENSURE_STATE(content);
 
-  nsAutoString mapElmName;
-  content->GetAttr(kNameSpaceID_None,
-                   nsAccessibilityAtoms::usemap,
-                   mapElmName);
-  nsCOMPtr<nsIDOMHTMLMapElement> mapElm =
-    nsImageMapUtils::FindImageMap(content->GetCurrentDoc(), mapElmName);
+  nsCOMPtr<nsIHTMLDocument> htmlDoc =
+    do_QueryInterface(content->GetCurrentDoc());
+
+  nsCOMPtr<nsIDOMHTMLMapElement> mapElm;
+  if (htmlDoc) {
+    nsAutoString mapElmName;
+    content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::usemap,
+                     mapElmName);
+
+    if (!mapElmName.IsEmpty()) {
+      if (mapElmName.CharAt(0) == '#')
+        mapElmName.Cut(0,1);
+      mapElm = htmlDoc->GetImageMap(mapElmName);
+    }
+  }
 
   if (mapElm)
     *aAccessible = new nsHTMLImageMapAccessible(node, weakShell, mapElm);
@@ -1397,11 +1404,33 @@ nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
   }
 
   if (weakFrame.GetFrame()->GetContent() != content) {
-    // Not the main content for this frame. This happens because <area>
-    // elements return the image frame as their primary frame. The main content
-    // for the image frame is the image content. If the frame is not an image
-    // frame or the node is not an area element then null is returned.
-    return GetAreaAccessible(weakFrame.GetFrame(), aNode, aWeakShell);
+    // Not the main content for this frame!
+    // For example, this happens because <area> elements return the
+    // image frame as their primary frame. The main content for the 
+    // image frame is the image content.
+
+    // Check if frame is an image frame, and content is <area>.
+    nsIImageFrame *imageFrame = do_QueryFrame(weakFrame.GetFrame());
+    nsCOMPtr<nsIDOMHTMLAreaElement> areaElmt = do_QueryInterface(content);
+    if (imageFrame && areaElmt) {
+      // XXX: it's a hack we should try the cache before or if failed cache
+      // the image accessible.
+      nsCOMPtr<nsIAccessible> imageAcc;
+      CreateHTMLImageAccessible(weakFrame.GetFrame(), getter_AddRefs(imageAcc));
+      if (imageAcc) {
+        // Cache children.
+        PRInt32 childCount;
+        imageAcc->GetChildCount(&childCount);
+        // <area> accessible should be in cache now.
+        nsAccessNode* cachedAreaAcc = GetCachedAccessNode(aNode, aWeakShell);
+        if (cachedAreaAcc) {
+          newAcc = nsAccUtils::QueryObject<nsAccessible>(cachedAreaAcc);
+          return newAcc.forget();
+        }
+      }
+    }
+
+    return nsnull;
   }
 
   // Attempt to create an accessible based on what we know.
@@ -1738,52 +1767,6 @@ nsAccessibilityService::GetRelevantContentNodeFor(nsIDOMNode *aNode,
 
   NS_ADDREF(*aRelevantNode = aNode);
   return NS_OK;
-}
-
-already_AddRefed<nsAccessible>
-nsAccessibilityService::GetAreaAccessible(nsIFrame *aImageFrame,
-                                          nsIDOMNode *aAreaNode,
-                                          nsIWeakReference *aWeakShell)
-{
-  // Check if frame is an image frame, and content is <area>.
-  nsIImageFrame *imageFrame = do_QueryFrame(aImageFrame);
-  if (!imageFrame)
-    return nsnull;
-
-  nsCOMPtr<nsIDOMHTMLAreaElement> areaElmt = do_QueryInterface(aAreaNode);
-  if (!areaElmt)
-    return nsnull;
-
-  // Try to get image map accessible from the global cache or create it
-  // if failed.
-  nsRefPtr<nsAccessible> imageAcc;
-
-  nsCOMPtr<nsIDOMNode> imageNode(do_QueryInterface(aImageFrame->GetContent()));
-  nsAccessNode *cachedImgAcc = GetCachedAccessNode(imageNode, aWeakShell);
-  if (cachedImgAcc)
-    imageAcc = nsAccUtils::QueryObject<nsAccessible>(cachedImgAcc);
-
-  if (!imageAcc) {
-    nsCOMPtr<nsIAccessible> imageAccessible;
-    CreateHTMLImageAccessible(aImageFrame,
-                              getter_AddRefs(imageAccessible));
-
-    imageAcc = nsAccUtils::QueryObject<nsAccessible>(imageAccessible);
-    if (!InitAccessible(imageAcc, nsnull))
-      return nsnull;
-  }
-
-  // Make sure <area> accessible children of the image map are cached so
-  // that they should be available in global cache.
-  imageAcc->EnsureChildren();
-
-  nsAccessNode *cachedAreaAcc = GetCachedAccessNode(aAreaNode, aWeakShell);
-  if (!cachedAreaAcc)
-    return nsnull;
-
-  nsRefPtr<nsAccessible> areaAcc =
-    nsAccUtils::QueryObject<nsAccessible>(cachedAreaAcc);
-  return areaAcc.forget();
 }
 
 already_AddRefed<nsAccessible>

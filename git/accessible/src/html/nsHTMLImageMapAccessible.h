@@ -57,6 +57,9 @@ public:
   // nsISupports and cycle collector
   NS_DECL_ISUPPORTS_INHERITED
 
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLImageMapAccessible,
+                                           nsAccessible)
+
   // nsIAccessibleHyperLink
   NS_IMETHOD GetAnchorCount(PRInt32 *aAnchorCount);
   NS_IMETHOD GetURI(PRInt32 aIndex, nsIURI **aURI);
@@ -66,13 +69,32 @@ public:
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
 
 protected:
+  // nsAccessNode
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual void CacheChildren();
 
+  // nsHTMLImageAccessible
+  /**
+   * Return collection of HTML area elements associated with the image map.
+   */
+  already_AddRefed<nsIDOMHTMLCollection> GetAreaCollection();
+
+  /**
+   * Return an accessible for HTML area element at the given index.
+   */
+  already_AddRefed<nsAccessible>
+    GetAreaAccessible(nsIDOMHTMLCollection* aAreaNodes, PRInt32 aAreaNum);
+
 private:
   // Reference on linked map element if any.
   nsCOMPtr<nsIDOMHTMLMapElement> mMapElement;
+
+  // Cache of area accessibles. We do not use common cache because images can
+  // share area elements but we need to have separate area accessibles for
+  // each image accessible.
+  nsAccessibleHashtable mAreaAccCache;
 };
 
 
@@ -83,7 +105,8 @@ class nsHTMLAreaAccessible : public nsHTMLLinkAccessible
 {
 
 public:
-  nsHTMLAreaAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
+  nsHTMLAreaAccessible(nsIDOMNode *domNode, nsIAccessible *accParent,
+                       nsIWeakReference* aShell);
 
   // nsIAccessible
   NS_IMETHOD GetDescription(nsAString& aDescription);

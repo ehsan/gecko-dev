@@ -150,13 +150,6 @@ private:
                         nsRoleMapEntry *aRoleMapEntry);
 
   /**
-   * Return accessible for HTML area element associated with an image map.
-   */
-  already_AddRefed<nsAccessible>
-    GetAreaAccessible(nsIFrame *aImageFrame, nsIDOMNode *aAreaNode,
-                      nsIWeakReference *aWeakShell);
-
-  /**
    * Create accessible for the element implementing nsIAccessibleProvider
    * interface.
    */
