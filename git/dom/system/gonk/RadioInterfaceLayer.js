@@ -305,7 +305,7 @@ RadioInterfaceLayer.prototype = {
         break;
       case "cardstatechange":
         this.radioState.cardState = message.cardState;
-        ppmm.sendAsyncMessage("RIL:CardStateChanged", message);
+        ppmm.sendAsyncMessage("RIL:CardStateChange", message);
         break;
       case "sms-received":
         this.handleSmsReceived(message);
@@ -361,7 +361,7 @@ RadioInterfaceLayer.prototype = {
                             voiceInfo);
       return;
     }
-    voiceInfo.emergencyCallsOnly = state.emergencyCallsOnly;
+    //TODO emergency calls
     voiceInfo.connected =
       (state.regState == RIL.NETWORK_CREG_STATE_REGISTERED_HOME) ||
       (state.regState == RIL.NETWORK_CREG_STATE_REGISTERED_ROAMING);

@@ -35,6 +35,36 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+function provideWindow(aCallback, aURL, aFeatures) {
+  function callback() {
+    executeSoon(function () {
+      aCallback(win);
+    });
+  }
+
+  let win = openDialog(getBrowserURL(), "", aFeatures || "chrome,all,dialog=no", aURL);
+
+  whenWindowLoaded(win, function () {
+    if (!aURL) {
+      callback();
+      return;
+    }
+    win.gBrowser.selectedBrowser.addEventListener("load", function() {
+      win.gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
+      callback();
+    }, true);
+  });
+}
+
+function whenWindowLoaded(aWin, aCallback) {
+  aWin.addEventListener("load", function () {
+    aWin.removeEventListener("load", arguments.callee, false);
+    executeSoon(function () {
+      aCallback(aWin);
+    });
+  }, false);
+}
+
 function test() {
   waitForExplicitFinish();
 

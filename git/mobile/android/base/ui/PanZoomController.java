@@ -597,14 +597,14 @@ public class PanZoomController
         return getVelocity() < STOPPED_THRESHOLD;
     }
 
-    PointF resetDisplacement() {
+    PointF getDisplacement() {
         return new PointF(mX.resetDisplacement(), mY.resetDisplacement());
     }
 
     private void updatePosition() {
         mX.displace();
         mY.displace();
-        PointF displacement = resetDisplacement();
+        PointF displacement = getDisplacement();
         if (FloatUtils.fuzzyEquals(displacement.x, 0.0f) && FloatUtils.fuzzyEquals(displacement.y, 0.0f)) {
             return;
         }
@@ -945,6 +945,12 @@ public class PanZoomController
     @Override
     public void onLongPress(MotionEvent motionEvent) {
         sendPointToGecko("Gesture:LongPress", motionEvent);
+    }
+
+    @Override
+    public boolean onDown(MotionEvent motionEvent) {
+        sendPointToGecko("Gesture:ShowPress", motionEvent);
+        return false;
     }
 
     @Override

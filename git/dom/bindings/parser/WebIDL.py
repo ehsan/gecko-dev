@@ -1659,7 +1659,7 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
 class Tokenizer(object):
     tokens = [
         "INTEGER",
-        "FLOATLITERAL",
+        "FLOAT",
         "IDENTIFIER",
         "STRING",
         "WHITESPACE",
@@ -1679,7 +1679,7 @@ class Tokenizer(object):
                                        filename=self._filename))
         return t
 
-    def t_FLOATLITERAL(self, t):
+    def t_FLOAT(self, t):
         r'-?(([0-9]+\.[0-9]*|[0-9]*\.[0-9]+)([Ee][+-]?[0-9]+)?|[0-9]+[Ee][+-]?[0-9]+)'
         assert False
         return t
@@ -1741,7 +1741,7 @@ class Tokenizer(object):
         "boolean": "BOOLEAN",
         "byte": "BYTE",
         "double": "DOUBLE",
-        "float": "FLOAT",
+        "float": "FLOAT_",
         "long": "LONG",
         "object": "OBJECT",
         "octet": "OCTET",
@@ -2043,7 +2043,7 @@ class Parser(Tokenizer):
 
     def p_ConstValueFloat(self, p):
         """
-            ConstValue : FLOATLITERAL
+            ConstValue : FLOAT
         """
         assert False
         pass
@@ -2464,7 +2464,7 @@ class Parser(Tokenizer):
     def p_Other(self, p):
         """
             Other : INTEGER
-                  | FLOATLITERAL
+                  | FLOAT
                   | IDENTIFIER
                   | STRING
                   | OTHER
@@ -2489,7 +2489,7 @@ class Parser(Tokenizer):
                   | DOUBLE
                   | EXCEPTION
                   | FALSE
-                  | FLOAT
+                  | FLOAT_
                   | GETTER
                   | IMPLEMENTS
                   | INHERIT

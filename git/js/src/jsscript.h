@@ -110,13 +110,6 @@ struct Shape;
 
 enum BindingKind { NONE, ARGUMENT, VARIABLE, CONSTANT };
 
-struct BindingName {
-    JSAtom *maybeAtom;
-    BindingKind kind;
-};
-
-typedef Vector<BindingName, 32> BindingNames;
-
 /*
  * Formal parameters and local variables are stored in a shape tree
  * path encapsulated within this class.  This class represents bindings for
@@ -245,7 +238,7 @@ class Bindings
      * The name at an element will be null when the element is for an argument
      * corresponding to a destructuring pattern.
      */
-    bool getLocalNameArray(JSContext *cx, BindingNames *namesp);
+    bool getLocalNameArray(JSContext *cx, Vector<JSAtom *> *namesp);
 
     /*
      * Protect stored bindings from mutation.  Subsequent attempts to add
@@ -591,8 +584,6 @@ struct JSScript : public js::gc::Cell
                                uint16_t nClosedArgs, uint16_t nClosedVars, uint32_t nTypeSets,
                                JSVersion version);
     static JSScript *NewScriptFromEmitter(JSContext *cx, js::BytecodeEmitter *bce);
-
-    void setVersion(JSVersion v) { version = v; }
 
     /* See TCF_ARGUMENTS_HAS_LOCAL_BINDING comment. */
     bool argumentsHasLocalBinding() const { return argsHasLocalBinding_; }
