@@ -45,7 +45,6 @@ class nsAHttpSegmentReader;
 class nsAHttpSegmentWriter;
 class nsIInterfaceRequestor;
 class nsIEventTarget;
-class nsITransport;
 class nsHttpRequestHead;
 
 //----------------------------------------------------------------------------
@@ -63,14 +62,13 @@ public:
     // called by the connection when it takes ownership of the transaction.
     virtual void SetConnection(nsAHttpConnection *) = 0;
 
-    // called by the connection to get security callbacks to set on the
+    // called by the connection to get security callbacks to set on the 
     // socket transport.
     virtual void GetSecurityCallbacks(nsIInterfaceRequestor **,
                                       nsIEventTarget **) = 0;
 
     // called to report socket status (see nsITransportEventSink)
-    virtual void OnTransportStatus(nsITransport* transport,
-                                   nsresult status, PRUint64 progress) = 0;
+    virtual void OnTransportStatus(nsresult status, PRUint64 progress) = 0;
 
     // called to check the transaction status.
     virtual PRBool   IsDone() = 0;
@@ -101,8 +99,7 @@ public:
     void SetConnection(nsAHttpConnection *); \
     void GetSecurityCallbacks(nsIInterfaceRequestor **, \
                               nsIEventTarget **);       \
-    void OnTransportStatus(nsITransport* transport, \
-                           nsresult status, PRUint64 progress); \
+    void OnTransportStatus(nsresult status, PRUint64 progress); \
     PRBool   IsDone(); \
     nsresult Status(); \
     PRUint32 Available(); \
