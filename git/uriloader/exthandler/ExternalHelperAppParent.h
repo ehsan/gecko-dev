@@ -1,4 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
+/****** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -11,15 +13,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is tabbrowser hide removing tab test.
+ * The Original Code is IPC External Helper App module.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Foundation.
+ * Brian Crowder <crowderbt@gmail.com>.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- * Edward Lee <edilee@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,34 +36,47 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Bug 587922: tabs don't get removed if they're hidden
+#include "mozilla/dom/PExternalHelperAppParent.h"
+#include "nsIChannel.h"
+#include "nsICancelable.h"
+#include "nsHashPropertyBag.h"
 
-function test() {
-  waitForExplicitFinish();
-
-  // Add a tab that will get removed and hidden
-  let testTab = gBrowser.addTab("about:blank", {skipAnimation: true});
-  is(gBrowser.visibleTabs.length, 2, "just added a tab, so 2 tabs");
-  gBrowser.selectedTab = testTab;
-
-  let numVisBeforeHide, numVisAfterHide;
-  gBrowser.tabContainer.addEventListener("TabSelect", function() {
-    gBrowser.tabContainer.removeEventListener("TabSelect", arguments.callee, false);
-
-    // While the next tab is being selected, hide the removing tab
-    numVisBeforeHide = gBrowser.visibleTabs.length;
-    gBrowser.hideTab(testTab);
-    numVisAfterHide = gBrowser.visibleTabs.length;
-  }, false);
-  gBrowser.removeTab(testTab, {animate: true});
-
-  // Make sure the tab gets removed at the end of the animation by polling
-  (function checkRemoved() setTimeout(function() {
-    if (gBrowser.tabs.length != 1)
-      return checkRemoved();
-
-    is(numVisBeforeHide, 1, "animated remove has in 1 tab left");
-    is(numVisAfterHide, 1, "hiding a removing tab is also has 1 tab");
-    finish();
-  }, 50))();
+namespace IPC {
+class URI;
 }
+
+namespace mozilla {
+namespace dom {
+
+class TabParent;
+
+class ExternalHelperAppParent : public PExternalHelperAppParent
+                              , public nsHashPropertyBag
+                              , public nsIChannel
+{
+public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIREQUEST
+    NS_DECL_NSICHANNEL
+
+    bool RecvOnStartRequest();
+    bool RecvOnDataAvailable(const nsCString& data, const PRUint32& offset, const PRUint32& count);
+    bool RecvOnStopRequest(const nsresult& code);
+    
+    ExternalHelperAppParent(const IPC::URI& uri, const PRInt64& contentLength);
+    void Init(TabParent *parent,
+              const nsCString& aMimeContentType,
+              const PRBool& aForceSave);
+    virtual ~ExternalHelperAppParent();
+
+private:
+  nsCOMPtr<nsIStreamListener> mListener;
+  nsCOMPtr<nsIURI> mURI;
+  PRBool mPending;
+  nsLoadFlags mLoadFlags;
+  nsresult mStatus;
+  PRInt64 mContentLength;
+};
+
+} // namespace dom
+} // namespace mozilla

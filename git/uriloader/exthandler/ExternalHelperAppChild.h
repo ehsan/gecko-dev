@@ -1,4 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
+/****** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -11,19 +13,18 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the Extension Manager.
+ * The Original Code is IPC External Helper App module.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Brian Crowder <crowderbt@gmail.com>.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Dave Townsend <dtownsend@oxymoronical.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -35,31 +36,33 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "jscntxt.h"
-#include "amIInstallTrigger.h"
-#include "nsIDOMWindowInternal.h"
-#include "nsIURI.h"
-#include "amIWebInstaller.h"
-#include "nsCOMPtr.h"
 
-#define AM_InstallTrigger_CID \
- {0xfcfcdf1e, 0xe9ef, 0x4141, {0x90, 0xd8, 0xd5, 0xff, 0x84, 0xc1, 0x7c, 0xce}}
-#define AM_INSTALLTRIGGER_CONTRACTID "@mozilla.org/addons/installtrigger;1"
+#include "mozilla/dom/PExternalHelperAppChild.h"
+#include "nsIStreamListener.h"
 
-class amInstallTrigger : public amIInstallTrigger
+namespace mozilla {
+namespace dom {
+
+class ExternalHelperAppChild : public PExternalHelperAppChild
+                             , public nsIStreamListener
 {
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_AMIINSTALLTRIGGER
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSISTREAMLISTENER
+    NS_DECL_NSIREQUESTOBSERVER
 
-  amInstallTrigger();
+    ExternalHelperAppChild();
+    virtual ~ExternalHelperAppChild();
 
+    // Give the listener a real nsExternalAppHandler to complete processing on
+    // the child.
+    void SetHandler(nsIStreamListener *handler) { mHandler = handler; }
+
+    virtual bool RecvCancel(const nsresult& aStatus);
 private:
-  ~amInstallTrigger();
-
-  JSContext* GetJSContext();
-  already_AddRefed<nsIDOMWindowInternal> GetOriginatingWindow(JSContext* aCx);
-  already_AddRefed<nsIURI> GetOriginatingURI(nsIDOMWindowInternal* aWindow);
-
-  nsCOMPtr<amIWebInstaller> mManager;
+    nsCOMPtr<nsIStreamListener> mHandler;
+    nsresult mStatus;
 };
+
+} // namespace dom
+} // namespace mozilla
