@@ -41,7 +41,6 @@
 #include "assembler/jit/ExecutableAllocator.h"
 #include "jstracer.h"
 #include "BaseAssembler.h"
-#include "Compiler.h"
 #include "MonoIC.h"
 #include "PolyIC.h"
 #include "TrampolineCompiler.h"
@@ -55,11 +54,6 @@ using namespace js;
 using namespace js::mjit;
 
 
-js::mjit::CompilerAllocPolicy::CompilerAllocPolicy(JSContext *cx, Compiler &compiler)
-: ContextAllocPolicy(cx),
-  oomFlag(&compiler.oomInVector)
-{
-}
 void
 JSStackFrame::methodjitStaticAsserts()
 {

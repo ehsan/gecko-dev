@@ -67,12 +67,12 @@ using namespace js::mjit::ic;
 
 #define ADD_CALLSITE(stub) if (debugMode) addCallSite(__LINE__, (stub))
 
-#define RETURN_IF_OOM(retval)                                   \
-    JS_BEGIN_MACRO                                              \
-        if (oomInVector || masm.oom() || stubcc.masm.oom()) {   \
-            js_ReportOutOfMemory(cx);                           \
-            return retval;                                      \
-        }                                                       \
+#define RETURN_IF_OOM(retval)                    \
+    JS_BEGIN_MACRO                               \
+        if (masm.oom() || stubcc.masm.oom()) {   \
+            js_ReportOutOfMemory(cx);            \
+            return retval;                       \
+        }                                        \
     JS_END_MACRO
 
 #if defined(JS_METHODJIT_SPEW)
@@ -94,22 +94,21 @@ mjit::Compiler::Compiler(JSContext *cx, JSStackFrame *fp)
         : NULL),
     isConstructing(fp->isConstructing()),
     analysis(NULL), jumpMap(NULL), frame(cx, script, masm),
-    branchPatches(CompilerAllocPolicy(cx, *thisFromCtor())),
+    branchPatches(ContextAllocPolicy(cx)),
 #if defined JS_MONOIC
-    mics(CompilerAllocPolicy(cx, *thisFromCtor())),
-    callICs(CompilerAllocPolicy(cx, *thisFromCtor())),
-    equalityICs(CompilerAllocPolicy(cx, *thisFromCtor())),
-    traceICs(CompilerAllocPolicy(cx, *thisFromCtor())),
+    mics(ContextAllocPolicy(cx)),
+    callICs(ContextAllocPolicy(cx)),
+    equalityICs(ContextAllocPolicy(cx)),
+    traceICs(ContextAllocPolicy(cx)),
 #endif
 #if defined JS_POLYIC
-    pics(CompilerAllocPolicy(cx, *thisFromCtor())), 
-    getElemICs(CompilerAllocPolicy(cx, *thisFromCtor())),
-    setElemICs(CompilerAllocPolicy(cx, *thisFromCtor())),
+    pics(ContextAllocPolicy(cx)), 
+    getElemICs(ContextAllocPolicy(cx)),
+    setElemICs(ContextAllocPolicy(cx)),
 #endif
-    callPatches(CompilerAllocPolicy(cx, *thisFromCtor())),
-    callSites(CompilerAllocPolicy(cx, *thisFromCtor())), 
-    doubleList(CompilerAllocPolicy(cx, *thisFromCtor())),
-    oomInVector(false),
+    callPatches(ContextAllocPolicy(cx)),
+    callSites(ContextAllocPolicy(cx)), 
+    doubleList(ContextAllocPolicy(cx)),
     stubcc(cx, *thisFromCtor(), frame, script),
     debugMode(cx->compartment->debugMode)
 #if defined JS_TRACER
@@ -4438,8 +4437,7 @@ mjit::Compiler::jumpAndTrace(Jump j, jsbytecode *target, Jump *slow)
 
     uint16 index = GET_UINT16(target);
     if (traceICs.length() <= index)
-        if (!traceICs.resize(index+1))
-            return false;
+        traceICs.resize(index+1);
 # endif
 
     Label traceStart = stubcc.masm.label();

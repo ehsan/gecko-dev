@@ -55,6 +55,7 @@ namespace mjit {
 
 class Compiler : public BaseCompiler
 {
+
     struct BranchPatch {
         BranchPatch(const Jump &j, jsbytecode *pc)
           : jump(j), pc(pc)
@@ -268,31 +269,28 @@ class Compiler : public BaseCompiler
     jsbytecode *PC;
     Assembler masm;
     FrameState frame;
-    js::Vector<BranchPatch, 64, CompilerAllocPolicy> branchPatches;
+    js::Vector<BranchPatch, 64> branchPatches;
 #if defined JS_MONOIC
-    js::Vector<MICGenInfo, 64, CompilerAllocPolicy> mics;
-    js::Vector<CallGenInfo, 64, CompilerAllocPolicy> callICs;
-    js::Vector<EqualityGenInfo, 64, CompilerAllocPolicy> equalityICs;
-    js::Vector<TraceGenInfo, 64, CompilerAllocPolicy> traceICs;
+    js::Vector<MICGenInfo, 64> mics;
+    js::Vector<CallGenInfo, 64> callICs;
+    js::Vector<EqualityGenInfo, 64> equalityICs;
+    js::Vector<TraceGenInfo, 64> traceICs;
 #endif
 #if defined JS_POLYIC
-    js::Vector<PICGenInfo, 16, CompilerAllocPolicy> pics;
-    js::Vector<GetElementICInfo, 16, CompilerAllocPolicy> getElemICs;
-    js::Vector<SetElementICInfo, 16, CompilerAllocPolicy> setElemICs;
+    js::Vector<PICGenInfo, 16> pics;
+    js::Vector<GetElementICInfo> getElemICs;
+    js::Vector<SetElementICInfo> setElemICs;
 #endif
-    js::Vector<CallPatchInfo, 64, CompilerAllocPolicy> callPatches;
-    js::Vector<InternalCallSite, 64, CompilerAllocPolicy> callSites;
-    js::Vector<DoublePatch, 16, CompilerAllocPolicy> doubleList;
+    js::Vector<CallPatchInfo, 64> callPatches;
+    js::Vector<InternalCallSite, 64> callSites;
+    js::Vector<DoublePatch, 16> doubleList;
     StubCompiler stubcc;
     Label invokeLabel;
     Label arityLabel;
     bool debugMode;
     bool addTraceHints;
-    bool oomInVector;       // True if we have OOM'd appending to a vector. 
 
     Compiler *thisFromCtor() { return this; }
-
-    friend class CompilerAllocPolicy;
   public:
     // Special atom index used to indicate that the atom is 'length'. This
     // follows interpreter usage in JSOP_LENGTH.

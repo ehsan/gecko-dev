@@ -5356,10 +5356,9 @@ TraceRecorder::emitIf(jsbytecode* pc, bool cond, LIns* x)
      * already.  This lets us detect if the comparison is optimized to 0 or 1,
      * in which case we avoid the guard() call below.
      */
-    if (!x->isImmI()) {
-        ensureCond(&x, &cond);
+    ensureCond(&x, &cond);
+    if (!x->isImmI())
         guard(cond, x, exitType);
-    }
 }
 
 /* Emit code for a fused IFEQ/IFNE. */
@@ -11139,14 +11138,21 @@ TraceRecorder::callNative(uintN argc, JSOp mode)
                          pc[JSOP_CALL_LENGTH + JSOP_TRACE_LENGTH + JSOP_NOT_LENGTH] == JSOP_IFEQ))
                     {
                         JSObject* proto;
-                        jsid id = ATOM_TO_JSID(cx->runtime->atomState.testAtom);
+                        Value test;
+                        jsid testId = ATOM_TO_JSID(cx->runtime->atomState.testAtom);
                         /* Get RegExp.prototype.test() and check it hasn't been changed. */
-                        if (js_GetClassPrototype(cx, NULL, JSProto_RegExp, &proto)) {
-                            if (JSObject *tmp = HasNativeMethod(proto, id, js_regexp_test)) {
-                                vp[0] = ObjectValue(*tmp);
-                                funobj = tmp;
-                                fun = tmp->getFunctionPrivate();
-                                native = js_regexp_test;
+                        if (js_GetClassPrototype(cx, funobj->getParent(), JSProto_RegExp, &proto) &&
+                            js_GetProperty(cx, proto, testId, &test) &&
+                            IsFunctionObject(test))
+                        {
+                            JSObject* tmpfunobj = &test.toObject();
+                            JSFunction* tmpfun = GET_FUNCTION_PRIVATE(cx, tmpfunobj);
+                            Native tmpnative = tmpfun->maybeNative();
+                            if (tmpnative == js_regexp_test) {
+                                vp[0] = test;
+                                funobj = tmpfunobj;
+                                fun = tmpfun;
+                                native = tmpnative;
                             }
                         }
                     }

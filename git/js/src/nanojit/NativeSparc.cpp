@@ -240,10 +240,10 @@ namespace nanojit
 
     inline void Assembler::LDDF32(Register rs1, int32_t immI, Register rd) {
         if (isIMM13(immI+4)) {
-            LDFI(rs1, immI+4, rd + 1);
+            LDFI(rs1, immI+4, REGINC(rd));
             LDFI(rs1, immI, rd);
         } else {
-            LDF(rs1, L0, rd + 1);
+            LDF(rs1, L0, REGINC(rd));
             SET32(immI+4, L0);
             LDF(rs1, L0, rd);
             SET32(immI, L0);
@@ -449,10 +449,10 @@ namespace nanojit
 
     inline void Assembler::STDF32(Register rd, int32_t immI, Register rs1) {
         if (isIMM13(immI+4)) {
-            STFI(rd + 1, immI+4, rs1);
+            STFI(REGINC(rd), immI+4, rs1);;
             STFI(rd, immI, rs1);
         } else {
-            STF(rd + 1, L0, rs1);
+            STF(REGINC(rd), L0, rs1);
             SET32(immI+4, L0);
             STF(rd, L0, rs1);
             SET32(immI, L0);
@@ -667,25 +667,25 @@ namespace nanojit
                     // We might be calling a varargs function.
                     // So, make sure the GPR's are also loaded with
                     // the value, or the stack contains it.
-                    if (GPRIndex <= O5) {
+                    if (REGNUM(GPRIndex) <= REGNUM(O5)) {
                         LDSW32(SP, offset, GPRIndex);
                     }
-                    GPRIndex = GPRIndex + 1;
-                    if (GPRIndex <= O5) {
+                    GPRIndex = REGINC(GPRIndex);
+                    if (REGNUM(GPRIndex) <= REGNUM(O5)) {
                         LDSW32(SP, offset+4, GPRIndex);
                     }
-                    GPRIndex = GPRIndex + 1;
+                    GPRIndex = REGINC(GPRIndex);
                     STDF32(r, offset, SP);
                     offset += 8;
                 } else {
-                    if (GPRIndex > O5) {
+                    if (REGNUM(GPRIndex) > REGNUM(O5)) {
                         underrunProtect(12);
                         Register r = findRegFor(ins->arg(j), GpRegs);
                         STW32(r, offset, SP);
                     } else {
                         Register r = findSpecificRegFor(ins->arg(j), GPRIndex);
                     }
-                    GPRIndex = GPRIndex + 1;
+                    GPRIndex = REGINC(GPRIndex);
                     offset += 4;
                 }
             }
@@ -696,7 +696,7 @@ namespace nanojit
         // need to implement faster way
         Register i = G0;
         while (!(set & rmask(i)))
-            i = i + 1;
+            i = REGINC(i);
         _allocator.free &= ~rmask(i);
         return i;
     }
@@ -1572,10 +1572,6 @@ namespace nanojit
         SWAP(NIns*, codeStart, exitStart);
         SWAP(NIns*, codeEnd, exitEnd);
         verbose_only( SWAP(size_t, codeBytes, exitBytes); )
-    }
-
-    void Assembler::asm_insert_random_nop() {
-        NanoAssert(0); // not supported
     }
 
 #endif /* FEATURE_NANOJIT */

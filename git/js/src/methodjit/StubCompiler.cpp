@@ -48,16 +48,8 @@ using namespace js;
 using namespace mjit;
 
 StubCompiler::StubCompiler(JSContext *cx, mjit::Compiler &cc, FrameState &frame, JSScript *script)
-: cx(cx),
-  cc(cc),
-  frame(frame),
-  script(script),
-  generation(1),
-  lastGeneration(0),
-  exits(CompilerAllocPolicy(cx, cc)),
-  joins(CompilerAllocPolicy(cx, cc)),
-  scriptJoins(CompilerAllocPolicy(cx, cc)),
-  jumpList(SystemAllocPolicy())
+  : cx(cx), cc(cc), frame(frame), script(script), generation(1), lastGeneration(0),
+    exits(SystemAllocPolicy()), joins(SystemAllocPolicy()), jumpList(SystemAllocPolicy())
 {
 #ifdef DEBUG
     masm.setSpewPath(true);

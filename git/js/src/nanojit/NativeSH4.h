@@ -167,7 +167,6 @@ namespace nanojit
     void nativePageReset();                                             \
     void nativePageSetup();                                             \
     void underrunProtect(int);                                          \
-    bool hardenNopInsertion(const Config& /*c*/) { return false; }      \
     bool simplifyOpcode(LOpcode &);                                     \
                                                                         \
     NIns *asm_immi(int, Register, bool force = false);                  \
