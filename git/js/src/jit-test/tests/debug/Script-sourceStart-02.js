@@ -3,7 +3,7 @@
  * Script.prototype.sourceLength should comprise both the opening '(' and the
  * closing '}'.
  */
-let g = newGlobal();
+let g = newGlobal('new-compartment');
 let dbg = new Debugger(g);
 
 function test(string, ranges) {

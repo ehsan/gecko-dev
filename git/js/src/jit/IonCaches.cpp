@@ -1621,8 +1621,8 @@ GetPropertyIC::tryAttachArgumentsLength(JSContext *cx, IonScript *ion, HandleObj
     }
     JS_ASSERT(object() != tmpReg);
 
-    const Class *clasp = obj->is<StrictArgumentsObject>() ? &StrictArgumentsObject::class_
-                                                          : &NormalArgumentsObject::class_;
+    Class *clasp = obj->is<StrictArgumentsObject>() ? &StrictArgumentsObject::class_
+                                                    : &NormalArgumentsObject::class_;
 
     Label fail;
     Label pass;
@@ -2024,8 +2024,7 @@ IsCacheableSetPropCallNative(HandleObject obj, HandleObject holder, HandleShape 
     if (!shape || !IsCacheableProtoChain(obj, holder))
         return false;
 
-    return shape->hasSetterValue() && shape->setterObject() &&
-           shape->setterObject()->is<JSFunction>() &&
+    return shape->hasSetterValue() && shape->setterObject()->is<JSFunction>() &&
            shape->setterObject()->as<JSFunction>().isNative();
 }
 
@@ -3068,8 +3067,8 @@ GetElementIC::attachArgumentsElement(JSContext *cx, IonScript *ion, JSObject *ob
     Register tmpReg = output().scratchReg().gpr();
     JS_ASSERT(tmpReg != InvalidReg);
 
-    const Class *clasp = obj->is<StrictArgumentsObject>() ? &StrictArgumentsObject::class_
-                                                          : &NormalArgumentsObject::class_;
+    Class *clasp = obj->is<StrictArgumentsObject>() ? &StrictArgumentsObject::class_
+                                                    : &NormalArgumentsObject::class_;
 
     Label fail;
     Label pass;

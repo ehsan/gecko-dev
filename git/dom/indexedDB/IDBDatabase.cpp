@@ -197,8 +197,6 @@ IDBDatabase::Create(IDBWrapperCache* aOwnerCache,
   db->mDatabaseId = databaseInfo->id;
   db->mName = databaseInfo->name;
   db->mFilePath = databaseInfo->filePath;
-  db->mPersistenceType = databaseInfo->persistenceType;
-  db->mGroup = databaseInfo->group;
   databaseInfo.swap(db->mDatabaseInfo);
   db->mASCIIOrigin = aASCIIOrigin;
   db->mFileManager = aFileManager;
@@ -229,7 +227,8 @@ IDBDatabase::FromStorage(nsIOfflineStorage* aStorage)
 }
 
 IDBDatabase::IDBDatabase()
-: mActorChild(nullptr),
+: mDatabaseId(0),
+  mActorChild(nullptr),
   mActorParent(nullptr),
   mContentParent(nullptr),
   mInvalidated(false),

@@ -248,16 +248,13 @@ protected:
 
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
-    virtual PIndexedDBParent* AllocPIndexedDBParent(
-                                                  const nsCString& aGroup,
-                                                  const nsCString& aASCIIOrigin,
-                                                  bool* /* aAllowed */);
+    virtual PIndexedDBParent* AllocPIndexedDBParent(const nsCString& aASCIIOrigin,
+                                                    bool* /* aAllowed */);
 
     virtual bool DeallocPIndexedDBParent(PIndexedDBParent* aActor);
 
     virtual bool
     RecvPIndexedDBConstructor(PIndexedDBParent* aActor,
-                              const nsCString& aGroup,
                               const nsCString& aASCIIOrigin,
                               bool* aAllowed);
 

@@ -2004,7 +2004,7 @@ nsScriptSecurityManager::old_doGetObjectPrincipal(JS::Handle<JSObject*> aObj,
         }
     }
 
-    const js::Class *jsClass = js::GetObjectClass(obj);
+    js::Class *jsClass = js::GetObjectClass(obj);
 
     do {
         // Note: jsClass is set before this loop, and also at the
@@ -2778,26 +2778,32 @@ nsScriptSecurityManager::InitPrefs()
 namespace mozilla {
 
 void
-GetJarPrefix(uint32_t aAppId, bool aInMozBrowser, nsACString& aJarPrefix)
+GetExtendedOrigin(nsIURI* aURI, uint32_t aAppId, bool aInMozBrowser,
+                  nsACString& aExtendedOrigin)
 {
+  MOZ_ASSERT(aURI);
   MOZ_ASSERT(aAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
 
   if (aAppId == nsIScriptSecurityManager::UNKNOWN_APP_ID) {
     aAppId = nsIScriptSecurityManager::NO_APP_ID;
   }
 
-  aJarPrefix.Truncate();
+  nsAutoCString origin;
+  nsPrincipal::GetOriginForURI(aURI, getter_Copies(origin));
 
   // Fallback.
   if (aAppId == nsIScriptSecurityManager::NO_APP_ID && !aInMozBrowser) {
+    aExtendedOrigin.Assign(origin);
     return;
   }
 
-  // aJarPrefix = appId + "+" + { 't', 'f' } + "+";
-  aJarPrefix.AppendInt(aAppId);
-  aJarPrefix.Append('+');
-  aJarPrefix.Append(aInMozBrowser ? 't' : 'f');
-  aJarPrefix.Append('+');
+  // aExtendedOrigin = appId + "+" + { 't', 'f' } "+" + origin;
+  aExtendedOrigin.Truncate();
+  aExtendedOrigin.AppendInt(aAppId);
+  aExtendedOrigin.Append('+');
+  aExtendedOrigin.Append(aInMozBrowser ? 't' : 'f');
+  aExtendedOrigin.Append('+');
+  aExtendedOrigin.Append(origin);
 
   return;
 }
@@ -2805,12 +2811,13 @@ GetJarPrefix(uint32_t aAppId, bool aInMozBrowser, nsACString& aJarPrefix)
 } // namespace mozilla
 
 NS_IMETHODIMP
-nsScriptSecurityManager::GetJarPrefix(uint32_t aAppId,
-                                      bool aInMozBrowser,
-                                      nsACString& aJarPrefix)
+nsScriptSecurityManager::GetExtendedOrigin(nsIURI* aURI,
+                                           uint32_t aAppId,
+                                           bool aInMozBrowser,
+                                           nsACString& aExtendedOrigin)
 {
   MOZ_ASSERT(aAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
 
-  mozilla::GetJarPrefix(aAppId, aInMozBrowser, aJarPrefix);
+  mozilla::GetExtendedOrigin(aURI, aAppId, aInMozBrowser, aExtendedOrigin);
   return NS_OK;
 }

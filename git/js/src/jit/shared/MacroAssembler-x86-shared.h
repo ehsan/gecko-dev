@@ -423,15 +423,26 @@ class MacroAssemblerX86Shared : public Assembler
         }
     }
 
-    void clampIntToUint8(Register reg) {
-        Label inRange;
-        branchTest32(Assembler::Zero, reg, Imm32(0xffffff00), &inRange);
+    void clampIntToUint8(Register src, Register dest) {
+        Label inRange, done;
+        branchTest32(Assembler::Zero, src, Imm32(0xffffff00), &inRange);
         {
-            sarl(Imm32(31), reg);
-            notl(reg);
-            andl(Imm32(255), reg);
+            Label negative;
+            branchTest32(Assembler::Signed, src, src, &negative);
+            {
+                movl(Imm32(255), dest);
+                jump(&done);
+            }
+            bind(&negative);
+            {
+                xorl(dest, dest);
+                jump(&done);
+            }
         }
         bind(&inRange);
+        if (src != dest)
+            movl(src, dest);
+        bind(&done);
     }
 
     bool maybeInlineDouble(double d, const FloatRegister &dest) {

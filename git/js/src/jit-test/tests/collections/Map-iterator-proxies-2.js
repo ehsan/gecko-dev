@@ -2,7 +2,7 @@
 
 load(libdir + "asserts.js");
 load(libdir + "eqArrayHelper.js");
-var g = newGlobal();
+var g = newGlobal('new-compartment');
 
 var iterator_fn = Map.prototype.iterator;
 assertThrowsInstanceOf(function () { iterator_fn.call({}); }, TypeError);

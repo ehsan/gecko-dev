@@ -210,10 +210,8 @@ IndexedDBChild::ActorDestroy(ActorDestroyReason aWhy)
 }
 
 PIndexedDBDatabaseChild*
-IndexedDBChild::AllocPIndexedDBDatabaseChild(
-                                        const nsString& aName,
-                                        const uint64_t& aVersion,
-                                        const PersistenceType& aPersistenceType)
+IndexedDBChild::AllocPIndexedDBDatabaseChild(const nsString& aName,
+                                             const uint64_t& aVersion)
 {
   return new IndexedDBDatabaseChild(aName, aVersion);
 }
@@ -226,9 +224,7 @@ IndexedDBChild::DeallocPIndexedDBDatabaseChild(PIndexedDBDatabaseChild* aActor)
 }
 
 PIndexedDBDeleteDatabaseRequestChild*
-IndexedDBChild::AllocPIndexedDBDeleteDatabaseRequestChild(
-                                        const nsString& aName,
-                                        const PersistenceType& aPersistenceType)
+IndexedDBChild::AllocPIndexedDBDeleteDatabaseRequestChild(const nsString& aName)
 {
   MOZ_CRASH("Caller is supposed to manually construct a request!");
 }
@@ -289,8 +285,7 @@ IndexedDBDatabaseChild::EnsureDatabase(
     databaseId = mDatabase->Id();
   }
   else {
-    databaseId = QuotaManager::GetStorageId(aDBInfo.persistenceType,
-                                            aDBInfo.origin, aDBInfo.name);
+    databaseId = QuotaManager::GetStorageId(aDBInfo.origin, aDBInfo.name);
   }
   NS_ENSURE_TRUE(databaseId, false);
 

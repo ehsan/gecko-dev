@@ -511,7 +511,7 @@ CycleCollectedJSRuntime::DescribeGCThing(bool aIsMarked, void* aThing,
   char name[72];
   if (aTraceKind == JSTRACE_OBJECT) {
     JSObject* obj = static_cast<JSObject*>(aThing);
-    const js::Class* clasp = js::GetObjectClass(obj);
+    js::Class* clasp = js::GetObjectClass(obj);
 
     // Give the subclass a chance to do something
     if (DescribeCustomObjects(obj, clasp, name)) {
@@ -562,7 +562,7 @@ CycleCollectedJSRuntime::NoteGCThingJSChildren(void* aThing,
 }
 
 void
-CycleCollectedJSRuntime::NoteGCThingXPCOMChildren(const js::Class* aClasp, JSObject* aObj,
+CycleCollectedJSRuntime::NoteGCThingXPCOMChildren(js::Class* aClasp, JSObject* aObj,
                                                   nsCycleCollectionTraversalCallback& aCb) const
 {
   MOZ_ASSERT(aClasp);

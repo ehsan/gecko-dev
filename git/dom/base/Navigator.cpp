@@ -1100,7 +1100,7 @@ Navigator::GetBattery(ErrorResult& aRv)
   return mBatteryManager;
 }
 
-power::PowerManager*
+nsIDOMMozPowerManager*
 Navigator::GetMozPower(ErrorResult& aRv)
 {
   if (!mPowerManager) {

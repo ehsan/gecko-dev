@@ -123,7 +123,7 @@ SafeFinalize(JSFreeOp *fop, JSObject* obj)
     DestroyProtoAndIfaceCache(obj);
 }
 
-const JSClass xpc::SafeJSContextGlobalClass = {
+JSClass xpc::SafeJSContextGlobalClass = {
     "global_for_XPCJSContextStack_SafeJSContext",
     XPCONNECT_GLOBAL_FLAGS,
     JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,

@@ -52,7 +52,7 @@ ThreadSafeContext::allocator()
 namespace gc {
 
 static inline AllocKind
-GetGCObjectKind(const Class *clasp)
+GetGCObjectKind(Class *clasp)
 {
     if (clasp == FunctionClassPtr)
         return JSFunction::FinalizeKind;

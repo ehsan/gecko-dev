@@ -225,8 +225,8 @@ class JSAPITest
 
     JSAPITestString messages() const { return msgs; }
 
-    static const JSClass * basicGlobalClass() {
-        static const JSClass c = {
+    static JSClass * basicGlobalClass() {
+        static JSClass c = {
             "global", JSCLASS_GLOBAL_FLAGS,
             JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
             JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
@@ -306,7 +306,7 @@ class JSAPITest
         return cx;
     }
 
-    virtual const JSClass * getGlobalClass() {
+    virtual JSClass * getGlobalClass() {
         return basicGlobalClass();
     }
 

@@ -1,4 +1,4 @@
-var otherGlobal = newGlobal();
+var otherGlobal = newGlobal('new-compartment');
 
 function test(str, arg, result)
 {

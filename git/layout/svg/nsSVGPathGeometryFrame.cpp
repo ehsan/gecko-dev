@@ -188,15 +188,14 @@ nsSVGPathGeometryFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 NS_IMETHODIMP
 nsSVGPathGeometryFrame::PaintSVG(nsRenderingContext *aContext,
-                                 const nsIntRect *aDirtyRect,
-                                 nsIFrame* aTransformRoot)
+                                 const nsIntRect *aDirtyRect)
 {
   if (!StyleVisibility()->IsVisible())
     return NS_OK;
 
   uint32_t paintOrder = StyleSVG()->mPaintOrder;
   if (paintOrder == NS_STYLE_PAINT_ORDER_NORMAL) {
-    Render(aContext, eRenderFill | eRenderStroke, aTransformRoot);
+    Render(aContext, eRenderFill | eRenderStroke);
     PaintMarkers(aContext);
   } else {
     while (paintOrder) {
@@ -204,10 +203,10 @@ nsSVGPathGeometryFrame::PaintSVG(nsRenderingContext *aContext,
         paintOrder & ((1 << NS_STYLE_PAINT_ORDER_BITWIDTH) - 1);
       switch (component) {
         case NS_STYLE_PAINT_ORDER_FILL:
-          Render(aContext, eRenderFill, aTransformRoot);
+          Render(aContext, eRenderFill);
           break;
         case NS_STYLE_PAINT_ORDER_STROKE:
-          Render(aContext, eRenderStroke, aTransformRoot);
+          Render(aContext, eRenderStroke);
           break;
         case NS_STYLE_PAINT_ORDER_MARKERS:
           PaintMarkers(aContext);
@@ -498,9 +497,9 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 // nsSVGGeometryFrame methods:
 
 gfxMatrix
-nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
+nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor)
 {
-  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY) && !aTransformRoot) {
+  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
         (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
@@ -512,9 +511,7 @@ nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
   nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
   dom::SVGGraphicsElement *content = static_cast<dom::SVGGraphicsElement*>(mContent);
 
-  return content->PrependLocalTransformsTo(
-      this == aTransformRoot ? gfxMatrix() :
-                               parent->GetCanvasTM(aFor, aTransformRoot));
+  return content->PrependLocalTransformsTo(parent->GetCanvasTM(aFor));
 }
 
 //----------------------------------------------------------------------
@@ -568,8 +565,7 @@ nsSVGPathGeometryFrame::MarkerProperties::GetMarkerEndFrame()
 
 void
 nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
-                               uint32_t aRenderComponents,
-                               nsIFrame* aTransformRoot)
+                               uint32_t aRenderComponents)
 {
   gfxContext *gfx = aContext->ThebesContext();
 
@@ -588,7 +584,7 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
   /* save/restore the state so we don't screw up the xform */
   gfx->Save();
 
-  GeneratePath(gfx, GetCanvasTM(FOR_PAINTING, aTransformRoot));
+  GeneratePath(gfx, GetCanvasTM(FOR_PAINTING));
 
   if (renderMode != SVGAutoRenderState::NORMAL) {
     NS_ABORT_IF_FALSE(renderMode == SVGAutoRenderState::CLIP ||

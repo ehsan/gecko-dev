@@ -12,9 +12,9 @@ var gPluginHandler = {
   PREF_SESSION_PERSIST_MINUTES: "plugin.sessionPermissionNow.intervalInMinutes",
   PREF_PERSISTENT_DAYS: "plugin.persistentPermissionAlways.intervalInDays",
 
-  getPluginUI: function (plugin, anonid) {
+  getPluginUI: function (plugin, className) {
     return plugin.ownerDocument.
-           getAnonymousElementByAttribute(plugin, "anonid", anonid);
+           getAnonymousElementByAttribute(plugin, "class", className);
   },
 
 #ifdef MOZ_CRASHREPORTER
@@ -236,7 +236,7 @@ var gPluginHandler = {
       // The plugin binding fires this event when it is created.
       // As an untrusted event, ensure that this object actually has a binding
       // and make sure we don't handle it twice
-      let overlay = this.getPluginUI(plugin, "main");
+      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
       if (!overlay || overlay._bindingHandled) {
         return;
       }
@@ -264,12 +264,12 @@ var gPluginHandler = {
         // plugin. Object tags can, and often do, deal with that themselves,
         // so don't stomp on the page developers toes.
         if (installable && !(plugin instanceof HTMLObjectElement)) {
-          let installStatus = this.getPluginUI(plugin, "installStatus");
+          let installStatus = doc.getAnonymousElementByAttribute(plugin, "class", "installStatus");
           installStatus.setAttribute("installable", "true");
-          let iconStatus = this.getPluginUI(plugin, "icon");
+          let iconStatus = doc.getAnonymousElementByAttribute(plugin, "class", "icon");
           iconStatus.setAttribute("installable", "true");
 
-          let installLink = this.getPluginUI(plugin, "installPluginLink");
+          let installLink = doc.getAnonymousElementByAttribute(plugin, "anonid", "installPluginLink");
           this.addLinkClickCallback(installLink, "installSinglePlugin", plugin);
         }
         break;
@@ -280,22 +280,22 @@ var gPluginHandler = {
         break;
 
       case "PluginVulnerableUpdatable":
-        let updateLink = this.getPluginUI(plugin, "checkForUpdatesLink");
+        let updateLink = doc.getAnonymousElementByAttribute(plugin, "anonid", "checkForUpdatesLink");
         this.addLinkClickCallback(updateLink, "openPluginUpdatePage");
         /* FALLTHRU */
 
       case "PluginVulnerableNoUpdate":
       case "PluginClickToPlay":
         this._handleClickToPlayEvent(plugin);
-        let overlay = this.getPluginUI(plugin, "main");
+        let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
         let pluginName = this._getPluginInfo(plugin).pluginName;
         let messageString = gNavigatorBundle.getFormattedString("PluginClickToActivate", [pluginName]);
-        let overlayText = this.getPluginUI(plugin, "clickToPlay");
+        let overlayText = doc.getAnonymousElementByAttribute(plugin, "class", "msg msgClickToPlay");
         overlayText.textContent = messageString;
         if (eventType == "PluginVulnerableUpdatable" ||
             eventType == "PluginVulnerableNoUpdate") {
           let vulnerabilityString = gNavigatorBundle.getString(eventType);
-          let vulnerabilityText = this.getPluginUI(plugin, "vulnerabilityStatus");
+          let vulnerabilityText = doc.getAnonymousElementByAttribute(plugin, "anonid", "vulnerabilityStatus");
           vulnerabilityText.textContent = vulnerabilityString;
         }
         shouldShowNotification = true;
@@ -306,7 +306,7 @@ var gPluginHandler = {
         break;
 
       case "PluginDisabled":
-        let manageLink = this.getPluginUI(plugin, "managePluginsLink");
+        let manageLink = doc.getAnonymousElementByAttribute(plugin, "anonid", "managePluginsLink");
         this.addLinkClickCallback(manageLink, "managePlugins");
         shouldShowNotification = true;
         break;
@@ -319,7 +319,7 @@ var gPluginHandler = {
 
     // Hide the in-content UI if it's too big. The crashed plugin handler already did this.
     if (eventType != "PluginCrashed" && eventType != "PluginRemoved") {
-      let overlay = this.getPluginUI(plugin, "main");
+      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
       if (overlay != null && this.isTooSmall(plugin, overlay))
         overlay.style.visibility = "hidden";
     }
@@ -364,7 +364,7 @@ var gPluginHandler = {
   },
 
   hideClickToPlayOverlay: function(aPlugin) {
-    let overlay = this.getPluginUI(aPlugin, "main");
+    let overlay = aPlugin.ownerDocument.getAnonymousElementByAttribute(aPlugin, "class", "mainBox");
     if (overlay)
       overlay.style.visibility = "hidden";
   },
@@ -514,7 +514,7 @@ var gPluginHandler = {
     let principal = doc.defaultView.top.document.nodePrincipal;
     let pluginPermission = Services.perms.testPermissionFromPrincipal(principal, permissionString);
 
-    let overlay = this.getPluginUI(aPlugin, "main");
+    let overlay = doc.getAnonymousElementByAttribute(aPlugin, "class", "mainBox");
 
     if (pluginPermission == Ci.nsIPermissionManager.DENY_ACTION) {
       if (overlay)
@@ -524,7 +524,7 @@ var gPluginHandler = {
 
     if (overlay) {
       overlay.addEventListener("click", gPluginHandler._overlayClickListener, true);
-      let closeIcon = this.getPluginUI(aPlugin, "closeIcon");
+      let closeIcon = doc.getAnonymousElementByAttribute(aPlugin, "anonid", "closeIcon");
       closeIcon.addEventListener("click", function(aEvent) {
         if (aEvent.button == 0 && aEvent.isTrusted)
           gPluginHandler.hideClickToPlayOverlay(aPlugin);
@@ -567,7 +567,7 @@ var gPluginHandler = {
     let pluginInfo = this._getPluginInfo(aPlugin);
     let playPreviewInfo = pluginHost.getPlayPreviewInfo(pluginInfo.mimetype);
 
-    let previewContent = this.getPluginUI(aPlugin, "previewPluginContent");
+    let previewContent = doc.getAnonymousElementByAttribute(aPlugin, "class", "previewPluginContent");
     let iframe = previewContent.getElementsByClassName("previewPluginContentFrame")[0];
     if (!iframe) {
       // lazy initialization of the iframe
@@ -607,9 +607,10 @@ var gPluginHandler = {
     let contentWindow = browser.contentWindow;
     let cwu = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIDOMWindowUtils);
+    let doc = contentWindow.document;
     let plugins = cwu.plugins;
     for (let plugin of plugins) {
-      let overlay = this.getPluginUI(plugin, "main");
+      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
       if (overlay)
         overlay.removeEventListener("click", gPluginHandler._overlayClickListener, true);
       let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
@@ -813,7 +814,7 @@ var gPluginHandler = {
         break;
       }
       if (fallbackType == plugin.PLUGIN_CLICK_TO_PLAY) {
-        let overlay = this.getPluginUI(plugin, "main");
+        let overlay = contentDoc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
         if (!overlay || overlay.style.visibility == 'hidden') {
           icon = 'alert-plugins-notification-icon';
         }
@@ -887,9 +888,9 @@ var gPluginHandler = {
 
     // Force a layout flush so the binding is attached.
     plugin.clientTop;
-    let overlay = this.getPluginUI(plugin, "main");
-    let statusDiv = this.getPluginUI(plugin, "submitStatus");
     let doc = plugin.ownerDocument;
+    let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+    let statusDiv = doc.getAnonymousElementByAttribute(plugin, "class", "submitStatus");
 #ifdef MOZ_CRASHREPORTER
     let status;
 
@@ -922,7 +923,7 @@ var gPluginHandler = {
 
     statusDiv.setAttribute("status", status);
 
-    let helpIcon = this.getPluginUI(plugin, "helpIcon");
+    let helpIcon = doc.getAnonymousElementByAttribute(plugin, "class", "helpIcon");
     this.addLinkClickCallback(helpIcon, "openHelpPage");
 
     // If we're showing the link to manually trigger report submission, we'll
@@ -958,12 +959,12 @@ var gPluginHandler = {
     }
 #endif
 
-    let crashText = this.getPluginUI(plugin, "crashedText");
+    let crashText = doc.getAnonymousElementByAttribute(plugin, "class", "msgCrashedText");
     crashText.textContent = messageString;
 
     let browser = gBrowser.getBrowserForDocument(doc.defaultView.top.document);
 
-    let link = this.getPluginUI(plugin, "reloadLink");
+    let link = doc.getAnonymousElementByAttribute(plugin, "class", "reloadLink");
     this.addLinkClickCallback(link, "reloadPage", browser);
 
     let notificationBox = gBrowser.getNotificationBox(browser);

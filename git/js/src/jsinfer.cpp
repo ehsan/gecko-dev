@@ -35,9 +35,11 @@
 #include "js/MemoryMetrics.h"
 #include "vm/Shape.h"
 
+#include "jsanalyzeinlines.h"
 #include "jsatominlines.h"
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
+#include "jsopcodeinlines.h"
 #include "jsscriptinlines.h"
 
 using namespace js;
@@ -1045,17 +1047,17 @@ HeapTypeSet::knownSubset(JSContext *cx, TypeSet *other)
     return true;
 }
 
-const Class *
+Class *
 StackTypeSet::getKnownClass()
 {
     if (unknownObject())
         return NULL;
 
-    const Class *clasp = NULL;
+    Class *clasp = NULL;
     unsigned count = getObjectCount();
 
     for (unsigned i = 0; i < count; i++) {
-        const Class *nclasp;
+        Class *nclasp;
         if (JSObject *object = getSingleObject(i))
             nclasp = object->getClass();
         else if (TypeObject *object = getTypeObject(i))
@@ -1074,7 +1076,7 @@ StackTypeSet::getKnownClass()
 int
 StackTypeSet::getTypedArrayType()
 {
-    const Class *clasp = getKnownClass();
+    Class *clasp = getKnownClass();
 
     if (clasp && IsTypedArrayClass(clasp))
         return clasp - &TypedArrayObject::classes[0];
@@ -1089,7 +1091,7 @@ StackTypeSet::isDOMClass()
 
     unsigned count = getObjectCount();
     for (unsigned i = 0; i < count; i++) {
-        const Class *clasp;
+        Class *clasp;
         if (JSObject *object = getSingleObject(i))
             clasp = object->getClass();
         else if (TypeObject *object = getTypeObject(i))
@@ -1115,7 +1117,7 @@ StackTypeSet::maybeCallable()
 
     unsigned count = getObjectCount();
     for (unsigned i = 0; i < count; i++) {
-        const Class *clasp;
+        Class *clasp;
         if (JSObject *object = getSingleObject(i))
             clasp = object->getClass();
         else if (TypeObject *object = getTypeObject(i))
@@ -1285,7 +1287,7 @@ TypeZone::init(JSContext *cx)
 }
 
 TypeObject *
-TypeCompartment::newTypeObject(ExclusiveContext *cx, const Class *clasp, Handle<TaggedProto> proto, bool unknown)
+TypeCompartment::newTypeObject(ExclusiveContext *cx, Class *clasp, Handle<TaggedProto> proto, bool unknown)
 {
     JS_ASSERT_IF(proto.isObject(), cx->isInsideCurrentCompartment(proto.toObject()));
 
@@ -1530,13 +1532,13 @@ types::UseNewTypeForInitializer(JSContext *cx, JSScript *script, jsbytecode *pc,
 }
 
 NewObjectKind
-types::UseNewTypeForInitializer(JSContext *cx, JSScript *script, jsbytecode *pc, const Class *clasp)
+types::UseNewTypeForInitializer(JSContext *cx, JSScript *script, jsbytecode *pc, Class *clasp)
 {
     return UseNewTypeForInitializer(cx, script, pc, JSCLASS_CACHED_PROTO_KEY(clasp));
 }
 
 static inline bool
-ClassCanHaveExtraProperties(const Class *clasp)
+ClassCanHaveExtraProperties(Class *clasp)
 {
     JS_ASSERT(clasp->resolve);
     return clasp->resolve != JS_ResolveStub || clasp->ops.lookupGeneric || clasp->ops.getGeneric;
@@ -1578,7 +1580,7 @@ types::ArrayPrototypeHasIndexedProperty(JSContext *cx, HandleScript script)
 bool
 types::TypeCanHaveExtraIndexedProperties(JSContext *cx, StackTypeSet *types)
 {
-    const Class *clasp = types->getKnownClass();
+    Class *clasp = types->getKnownClass();
 
     // Note: typed arrays have indexed properties not accounted for by type
     // information, though these are all in bounds and will be accounted for
@@ -2276,8 +2278,13 @@ TypeObject::getFromPrototypes(JSContext *cx, jsid id, HeapTypeSet *types, bool f
     }
 
     types::TypeObject *protoType = proto->getType(cx);
-    if (!protoType || protoType->unknownProperties()) {
-        types->addType(cx, Type::UnknownType());
+    if (!protoType)
+        return;
+    if (protoType->unknownProperties()) {
+        // Type information only describes normal native properties, not those
+        // found or inherited from non-native classes.
+        if (protoType->clasp->isNative())
+            types->addType(cx, Type::UnknownType());
         return;
     }
 
@@ -2877,7 +2884,7 @@ types::AddClearDefiniteFunctionUsesInScript(JSContext *cx, TypeObject *type,
 
     for (unsigned i = 0; i < count; i++) {
         TypeSet *types = &typeArray[i];
-        if (!types->unknownObject() && types->getObjectCount() == 1) {
+        if (types->getObjectCount() == 1) {
             if (calleeKey != types->getObject(0)) {
                 // Also check if the object is the Function.call or
                 // Function.apply native. IonBuilder uses the presence of these
@@ -3477,7 +3484,7 @@ JSObject::shouldSplicePrototype(JSContext *cx)
 }
 
 bool
-JSObject::splicePrototype(JSContext *cx, const Class *clasp, Handle<TaggedProto> proto)
+JSObject::splicePrototype(JSContext *cx, Class *clasp, Handle<TaggedProto> proto)
 {
     JS_ASSERT(cx->compartment() == compartment());
 
@@ -3522,7 +3529,10 @@ JSObject::splicePrototype(JSContext *cx, const Class *clasp, Handle<TaggedProto>
     AutoEnterAnalysis enter(cx);
 
     if (protoType && protoType->unknownProperties() && !type->unknownProperties()) {
-        type->markUnknown(cx);
+        // As in getFromPrototypes, property types do not need to be propagated
+        // from non-native prototypes.
+        if (protoType->clasp->isNative())
+            type->markUnknown(cx);
         return true;
     }
 
@@ -3603,7 +3613,7 @@ JSObject::makeLazyType(JSContext *cx, HandleObject obj)
 TypeObjectEntry::hash(const Lookup &lookup)
 {
     return PointerHasher<JSObject *, 3>::hash(lookup.proto.raw()) ^
-           PointerHasher<const Class *, 3>::hash(lookup.clasp);
+           PointerHasher<Class *, 3>::hash(lookup.clasp);
 }
 
 /* static */ inline bool
@@ -3614,7 +3624,7 @@ TypeObjectEntry::match(TypeObject *key, const Lookup &lookup)
 
 #ifdef DEBUG
 bool
-JSObject::hasNewType(const Class *clasp, TypeObject *type)
+JSObject::hasNewType(Class *clasp, TypeObject *type)
 {
     TypeObjectSet &table = compartment()->newTypeObjects;
 
@@ -3627,7 +3637,7 @@ JSObject::hasNewType(const Class *clasp, TypeObject *type)
 #endif /* DEBUG */
 
 /* static */ bool
-JSObject::setNewTypeUnknown(JSContext *cx, const Class *clasp, HandleObject obj)
+JSObject::setNewTypeUnknown(JSContext *cx, Class *clasp, HandleObject obj)
 {
     if (!obj->setFlag(cx, js::BaseShape::NEW_TYPE_UNKNOWN))
         return false;
@@ -3647,7 +3657,7 @@ JSObject::setNewTypeUnknown(JSContext *cx, const Class *clasp, HandleObject obj)
 }
 
 TypeObject *
-ExclusiveContext::getNewType(const Class *clasp, TaggedProto proto_, JSFunction *fun_)
+ExclusiveContext::getNewType(Class *clasp, TaggedProto proto_, JSFunction *fun_)
 {
     JS_ASSERT_IF(fun_, proto_.isObject());
     JS_ASSERT_IF(proto_.isObject(), isInsideCurrentCompartment(proto_.toObject()));
@@ -3750,7 +3760,7 @@ ExclusiveContext::getNewType(const Class *clasp, TaggedProto proto_, JSFunction 
 }
 
 TypeObject *
-ExclusiveContext::getLazyType(const Class *clasp, TaggedProto proto)
+ExclusiveContext::getLazyType(Class *clasp, TaggedProto proto)
 {
     JS_ASSERT_IF(proto.isObject(), compartment() == proto.toObject()->compartment());
 

@@ -4,21 +4,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef GFXTEXTURESREPORTER_H_
-#define GFXTEXTURESREPORTER_H_
-
 #include "nsIMemoryReporter.h"
 #include "GLTypes.h"
 
 namespace mozilla {
 namespace gl {
 
-class GfxTexturesReporter MOZ_FINAL : public MemoryUniReporter
+class GfxTexturesReporter MOZ_FINAL : public MemoryReporterBase
 {
 public:
     GfxTexturesReporter()
-      : MemoryUniReporter("gfx-textures", KIND_OTHER, UNITS_BYTES,
-                          "Memory used for storing GL textures.")
+      : MemoryReporterBase("gfx-textures", KIND_OTHER, UNITS_BYTES,
+                           "Memory used for storing GL textures.")
     {
 #ifdef DEBUG
         // There must be only one instance of this class, due to |sAmount|
@@ -49,5 +46,3 @@ private:
 
 }
 }
-
-#endif // GFXTEXTURESREPORTER_H_

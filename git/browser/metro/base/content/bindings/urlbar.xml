@@ -67,6 +67,9 @@
       <method name="_clearFormatting">
         <body>
           <![CDATA[
+            if (!this._mayFormat)
+              return;
+
             let controller = this.editor.selectionController;
             let selection = controller.getSelection(controller.SELECTION_URLSECONDARY);
             selection.removeAllRanges();
@@ -414,7 +417,6 @@
             switch (aData) {
               case "browser.urlbar.formatting.enabled":
                 this._mayFormat = Services.prefs.getBoolPref(aData);
-                if (!this._mayFormat) this._clearFormatting();
                 break;
               case "browser.urlbar.trimURLs":
                 this._mayTrimURLs = Services.prefs.getBoolPref(aData);
@@ -430,12 +432,6 @@
 
     <handlers>
       <!-- Entering editing mode -->
-
-      <handler event="focus" phase="capturing">
-        <![CDATA[
-          this.beginEditing();
-        ]]>
-      </handler>
 
       <handler event="input" phase="capturing">
         <![CDATA[

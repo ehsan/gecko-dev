@@ -68,7 +68,7 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
             return;
         }
     } else {
-        const js::Class *clasp = js::GetObjectClass(unwrapped);
+        js::Class *clasp = js::GetObjectClass(unwrapped);
         if (IS_WN_CLASS(clasp)) {
             mWrapper = XPCWrappedNative::Get(unwrapped);
         } else if (IS_TEAROFF_CLASS(clasp)) {

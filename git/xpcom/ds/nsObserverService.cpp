@@ -48,18 +48,18 @@ GetObserverServiceLog()
 
 namespace mozilla {
 
-class ObserverServiceReporter MOZ_FINAL : public nsIMemoryReporter
+class ObserverServiceReporter MOZ_FINAL : public nsIMemoryMultiReporter
 {
 public:
     NS_DECL_ISUPPORTS
-    NS_DECL_NSIMEMORYREPORTER
+    NS_DECL_NSIMEMORYMULTIREPORTER
 protected:
     static const size_t kSuspectReferentCount = 1000;
     static PLDHashOperator CountReferents(nsObserverList* aObserverList,
                                           void* aClosure);
 };
 
-NS_IMPL_ISUPPORTS1(ObserverServiceReporter, nsIMemoryReporter)
+NS_IMPL_ISUPPORTS1(ObserverServiceReporter, nsIMemoryMultiReporter)
 
 NS_IMETHODIMP
 ObserverServiceReporter::GetName(nsACString& aName)
@@ -75,9 +75,8 @@ struct SuspectObserver {
     size_t referentCount;
 };
 
-struct ObserverServiceReferentCount {
-    ObserverServiceReferentCount()
-        : numStrong(0), numWeakAlive(0), numWeakDead(0) {}
+struct ReferentCount {
+    ReferentCount() : numStrong(0), numWeakAlive(0), numWeakDead(0) {}
     size_t numStrong;
     size_t numWeakAlive;
     size_t numWeakDead;
@@ -92,8 +91,7 @@ ObserverServiceReporter::CountReferents(nsObserverList* aObserverList,
         return PL_DHASH_NEXT;
     }
 
-    ObserverServiceReferentCount* referentCount =
-        static_cast<ObserverServiceReferentCount*>(aClosure);
+    ReferentCount* referentCount = static_cast<ReferentCount*>(aClosure);
 
     size_t numStrong = 0;
     size_t numWeakAlive = 0;
@@ -130,7 +128,7 @@ ObserverServiceReporter::CountReferents(nsObserverList* aObserverList,
 }
 
 NS_IMETHODIMP
-ObserverServiceReporter::CollectReports(nsIMemoryReporterCallback* cb,
+ObserverServiceReporter::CollectReports(nsIMemoryMultiReporterCallback* cb,
                                         nsISupports* aClosure)
 {
     nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
@@ -139,7 +137,7 @@ ObserverServiceReporter::CollectReports(nsIMemoryReporterCallback* cb,
         return NS_OK;
     }
 
-    ObserverServiceReferentCount referentCount;
+    ReferentCount referentCount;
     service->mObserverTopicTable.EnumerateEntries(CountReferents,
                                                   &referentCount);
 
@@ -221,14 +219,14 @@ void
 nsObserverService::RegisterReporter()
 {
     mReporter = new ObserverServiceReporter();
-    NS_RegisterMemoryReporter(mReporter);
+    NS_RegisterMemoryMultiReporter(mReporter);
 }
 
 void
 nsObserverService::Shutdown()
 {
     if (mReporter) {
-        NS_UnregisterMemoryReporter(mReporter);
+        NS_UnregisterMemoryMultiReporter(mReporter);
     }
 
     mShuttingDown = true;

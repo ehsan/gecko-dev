@@ -254,8 +254,7 @@ nsSVGDisplayContainerFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
 
 NS_IMETHODIMP
 nsSVGDisplayContainerFrame::PaintSVG(nsRenderingContext* aContext,
-                                     const nsIntRect *aDirtyRect,
-                                     nsIFrame* aTransformRoot)
+                                     const nsIntRect *aDirtyRect)
 {
   NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
                (mState & NS_FRAME_IS_NONDISPLAY) ||
@@ -269,7 +268,7 @@ nsSVGDisplayContainerFrame::PaintSVG(nsRenderingContext* aContext,
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsSVGUtils::PaintFrameWithEffects(aContext, aDirtyRect, kid, aTransformRoot);
+    nsSVGUtils::PaintFrameWithEffects(aContext, aDirtyRect, kid);
   }
 
   return NS_OK;

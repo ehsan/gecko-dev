@@ -1,6 +1,6 @@
 
 gczeal(11);
-var otherGlobal = newGlobal();
+var otherGlobal = newGlobal('new-compartment');
 function test(str, arg, result)
 {
         var fun = new Function('x', str);

@@ -8,7 +8,7 @@
 if (typeof gcPreserveCode != "function")
   throw('AllDone');
 
-var g = newGlobal();
+var g = newGlobal('new-compartment');
 var dbg = new Debugger;
 
 g.eval("" +

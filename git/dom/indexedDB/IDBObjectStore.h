@@ -244,7 +244,7 @@ public:
   void
   SetInfo(ObjectStoreInfo* aInfo);
 
-  static const JSClass sDummyPropJSClass;
+  static JSClass sDummyPropJSClass;
 
   // nsWrapperCache
   virtual JSObject*

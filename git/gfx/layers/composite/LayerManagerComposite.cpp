@@ -51,7 +51,6 @@
 #ifdef MOZ_WIDGET_ANDROID
 #include <android/log.h>
 #endif
-#include "GeckoProfiler.h"
 
 class gfxASurface;
 class gfxContext;
@@ -324,10 +323,8 @@ LayerManagerComposite::Render()
     return;
   }
 
-  {
-    PROFILER_LABEL("LayerManagerComposite", "PreRender");
-    mCompositor->GetWidget()->PreRender(this);
-  }
+  
+  mCompositor->GetWidget()->PreRender(this);
 
   nsIntRect clipRect;
   Rect bounds(mRenderBounds.x, mRenderBounds.y, mRenderBounds.width, mRenderBounds.height);
@@ -365,10 +362,7 @@ LayerManagerComposite::Render()
   // Debugging
   RenderDebugOverlay(actualBounds);
 
-  {
-    PROFILER_LABEL("LayerManagerComposite", "EndFrame");
-    mCompositor->EndFrame();
-  }
+  mCompositor->EndFrame();
 }
 
 void

@@ -245,8 +245,7 @@ public:
   // nsISVGChildFrame interface:
   virtual void NotifySVGChanged(uint32_t aFlags) MOZ_OVERRIDE;
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
-                      const nsIntRect* aDirtyRect,
-                      nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+                      const nsIntRect* aDirtyRect) MOZ_OVERRIDE;
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint& aPoint) MOZ_OVERRIDE;
   virtual void ReflowSVG() MOZ_OVERRIDE;
   NS_IMETHOD_(nsRect) GetCoveredRegion() MOZ_OVERRIDE;
@@ -254,8 +253,7 @@ public:
                                       uint32_t aFlags) MOZ_OVERRIDE;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
-                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor) MOZ_OVERRIDE;
   
   // SVG DOM text methods:
   uint32_t GetNumberOfChars(nsIContent* aContent);

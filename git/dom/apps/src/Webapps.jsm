@@ -459,7 +459,7 @@ this.DOMApplicationRegistry = {
     debug("Fixing indexedDb folder names");
     let idbDir = FileUtils.getDir("indexedDBPDir", ["indexedDB"]);
 
-    if (!idbDir.exists() || !idbDir.isDirectory()) {
+    if (!idbDir.isDirectory()) {
       return;
     }
 

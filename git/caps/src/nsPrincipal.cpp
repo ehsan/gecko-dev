@@ -424,11 +424,11 @@ nsPrincipal::SetDomain(nsIURI* aDomain)
 }
 
 NS_IMETHODIMP
-nsPrincipal::GetJarPrefix(nsACString& aJarPrefix)
+nsPrincipal::GetExtendedOrigin(nsACString& aExtendedOrigin)
 {
   MOZ_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
 
-  mozilla::GetJarPrefix(mAppId, mInMozBrowser, aJarPrefix);
+  mozilla::GetExtendedOrigin(mCodebase, mAppId, mInMozBrowser, aExtendedOrigin);
   return NS_OK;
 }
 
@@ -773,10 +773,9 @@ nsExpandedPrincipal::GetWhiteList(nsTArray<nsCOMPtr<nsIPrincipal> >** aWhiteList
 }
 
 NS_IMETHODIMP
-nsExpandedPrincipal::GetJarPrefix(nsACString& aJarPrefix)
+nsExpandedPrincipal::GetExtendedOrigin(nsACString& aExtendedOrigin)
 {
-  aJarPrefix.Truncate();
-  return NS_OK;
+  return GetOrigin(getter_Copies(aExtendedOrigin));
 }
 
 NS_IMETHODIMP

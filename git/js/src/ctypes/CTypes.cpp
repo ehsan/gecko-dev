@@ -447,14 +447,14 @@ namespace UInt64 {
 
 // Class representing the 'ctypes' object itself. This exists to contain the
 // JSCTypesCallbacks set of function pointers.
-static const JSClass sCTypesGlobalClass = {
+static JSClass sCTypesGlobalClass = {
   "ctypes",
   JSCLASS_HAS_RESERVED_SLOTS(CTYPESGLOBAL_SLOTS),
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
 };
 
-static const JSClass sCABIClass = {
+static JSClass sCABIClass = {
   "CABI",
   JSCLASS_HAS_RESERVED_SLOTS(CABI_SLOTS),
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
@@ -464,7 +464,7 @@ static const JSClass sCABIClass = {
 // Class representing ctypes.{C,Pointer,Array,Struct,Function}Type.prototype.
 // This exists to give said prototypes a class of "CType", and to provide
 // reserved slots for stashing various other prototype objects.
-static const JSClass sCTypeProtoClass = {
+static JSClass sCTypeProtoClass = {
   "CType",
   JSCLASS_HAS_RESERVED_SLOTS(CTYPEPROTO_SLOTS),
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
@@ -474,14 +474,14 @@ static const JSClass sCTypeProtoClass = {
 
 // Class representing ctypes.CData.prototype and the 'prototype' properties
 // of CTypes. This exists to give said prototypes a class of "CData".
-static const JSClass sCDataProtoClass = {
+static JSClass sCDataProtoClass = {
   "CData",
   0,
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
 };
 
-static const JSClass sCTypeClass = {
+static JSClass sCTypeClass = {
   "CType",
   JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(CTYPE_SLOTS),
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
@@ -490,7 +490,7 @@ static const JSClass sCTypeClass = {
   CType::Trace
 };
 
-static const JSClass sCDataClass = {
+static JSClass sCDataClass = {
   "CData",
   JSCLASS_HAS_RESERVED_SLOTS(CDATA_SLOTS),
   JS_PropertyStub, JS_DeletePropertyStub, ArrayType::Getter, ArrayType::Setter,
@@ -498,7 +498,7 @@ static const JSClass sCDataClass = {
   NULL, FunctionType::Call, NULL, FunctionType::Call
 };
 
-static const JSClass sCClosureClass = {
+static JSClass sCClosureClass = {
   "CClosure",
   JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(CCLOSURE_SLOTS),
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
@@ -509,7 +509,7 @@ static const JSClass sCClosureClass = {
 /*
  * Class representing the prototype of CDataFinalizer.
  */
-static const JSClass sCDataFinalizerProtoClass = {
+static JSClass sCDataFinalizerProtoClass = {
   "CDataFinalizer",
   0,
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
@@ -522,7 +522,7 @@ static const JSClass sCDataFinalizerProtoClass = {
  * Instances of CDataFinalizer have both private data (with type
  * |CDataFinalizer::Private|) and slots (see |CDataFinalizerSlots|).
  */
-static const JSClass sCDataFinalizerClass = {
+static JSClass sCDataFinalizerClass = {
   "CDataFinalizer",
   JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(CDATAFINALIZER_SLOTS),
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
@@ -682,28 +682,28 @@ static const JSFunctionSpec sFunctionInstanceFunctions[] = {
   JS_FS_END
 };
 
-static const JSClass sInt64ProtoClass = {
+static JSClass sInt64ProtoClass = {
   "Int64",
   0,
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
 };
 
-static const JSClass sUInt64ProtoClass = {
+static JSClass sUInt64ProtoClass = {
   "UInt64",
   0,
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
 };
 
-static const JSClass sInt64Class = {
+static JSClass sInt64Class = {
   "Int64",
   JSCLASS_HAS_RESERVED_SLOTS(INT64_SLOTS),
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Int64Base::Finalize
 };
 
-static const JSClass sUInt64Class = {
+static JSClass sUInt64Class = {
   "UInt64",
   JSCLASS_HAS_RESERVED_SLOTS(INT64_SLOTS),
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
@@ -1013,7 +1013,7 @@ InitTypeConstructor(JSContext* cx,
 static JSObject*
 InitInt64Class(JSContext* cx,
                HandleObject parent,
-               const JSClass* clasp,
+               JSClass* clasp,
                JSNative construct,
                const JSFunctionSpec* fs,
                const JSFunctionSpec* static_fs)
@@ -7287,7 +7287,7 @@ Int64Base::Construct(JSContext* cx,
                      uint64_t data,
                      bool isUnsigned)
 {
-  const JSClass* clasp = isUnsigned ? &sUInt64Class : &sInt64Class;
+  JSClass* clasp = isUnsigned ? &sUInt64Class : &sInt64Class;
   RootedObject parent(cx, JS_GetParent(proto));
   RootedObject result(cx, JS_NewObject(cx, clasp, proto, parent));
   if (!result)

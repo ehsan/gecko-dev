@@ -58,7 +58,7 @@ extern JS_FRIEND_API(bool)
 JS_SplicePrototype(JSContext *cx, JSObject *obj, JSObject *proto);
 
 extern JS_FRIEND_API(JSObject *)
-JS_NewObjectWithUniqueType(JSContext *cx, const JSClass *clasp, JSObject *proto, JSObject *parent);
+JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent);
 
 extern JS_FRIEND_API(uint32_t)
 JS_ObjectCountDynamicSlots(JS::HandleObject obj);
@@ -337,12 +337,12 @@ GetAnyCompartmentInZone(JS::Zone *zone);
 namespace shadow {
 
 struct TypeObject {
-    const Class *clasp;
+    Class       *clasp;
     JSObject    *proto;
 };
 
 struct BaseShape {
-    const js::Class *clasp;
+    js::Class *clasp;
     JSObject *parent;
     JSObject *_1;
     JSCompartment *compartment;
@@ -396,15 +396,15 @@ struct Atom {
 
 // This is equal to |&JSObject::class_|.  Use it in places where you don't want
 // to #include jsobj.h.
-extern JS_FRIEND_DATA(const js::Class* const) ObjectClassPtr;
+extern JS_FRIEND_DATA(js::Class* const) ObjectClassPtr;
 
-inline const js::Class *
+inline js::Class *
 GetObjectClass(JSObject *obj)
 {
     return reinterpret_cast<const shadow::Object*>(obj)->type->clasp;
 }
 
-inline const JSClass *
+inline JSClass *
 GetObjectJSClass(JSObject *obj)
 {
     return js::Jsvalify(GetObjectClass(obj));
@@ -487,7 +487,7 @@ NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsi
 
 JS_FRIEND_API(JSObject *)
 InitClassWithReserved(JSContext *cx, JSObject *obj, JSObject *parent_proto,
-                      const JSClass *clasp, JSNative constructor, unsigned nargs,
+                      JSClass *clasp, JSNative constructor, unsigned nargs,
                       const JSPropertySpec *ps, const JSFunctionSpec *fs,
                       const JSPropertySpec *static_ps, const JSFunctionSpec *static_fs);
 

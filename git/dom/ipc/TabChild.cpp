@@ -1694,12 +1694,9 @@ TabChild::RecvHandleSingleTap(const CSSIntPoint& aPoint)
     return true;
   }
 
-  DispatchMouseEvent(NS_LITERAL_STRING("mousemove"), aPoint, 0, 1, 0, false,
-                     nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
-  DispatchMouseEvent(NS_LITERAL_STRING("mousedown"), aPoint, 0, 1, 0, false,
-                     nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
-  DispatchMouseEvent(NS_LITERAL_STRING("mouseup"), aPoint, 0, 1, 0, false,
-                     nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
+  RecvMouseEvent(NS_LITERAL_STRING("mousemove"), aPoint.x, aPoint.y, 0, 1, 0, false);
+  RecvMouseEvent(NS_LITERAL_STRING("mousedown"), aPoint.x, aPoint.y, 0, 1, 0, false);
+  RecvMouseEvent(NS_LITERAL_STRING("mouseup"), aPoint.x, aPoint.y, 0, 1, 0, false);
 
   return true;
 }
@@ -1711,8 +1708,11 @@ TabChild::RecvHandleLongTap(const CSSIntPoint& aPoint)
     return true;
   }
 
-  DispatchMouseEvent(NS_LITERAL_STRING("contextmenu"), aPoint, 2, 1, 0, false,
-                     nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
+  RecvMouseEvent(NS_LITERAL_STRING("contextmenu"), aPoint.x, aPoint.y,
+                 2 /* Right button */,
+                 1 /* Click count */,
+                 0 /* Modifiers */,
+                 false /* Ignore root scroll frame */);
 
   return true;
 }
@@ -1742,7 +1742,7 @@ TabChild::RecvMouseEvent(const nsString& aType,
                          const bool&     aIgnoreRootScrollFrame)
 {
   DispatchMouseEvent(aType, CSSPoint(aX, aY), aButton, aClickCount, aModifiers,
-                     aIgnoreRootScrollFrame, nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN);
+                     aIgnoreRootScrollFrame);
   return true;
 }
 
@@ -1890,8 +1890,7 @@ TabChild::FireContextMenuEvent()
                                              2 /* Right button */,
                                              1 /* Click count */,
                                              0 /* Modifiers */,
-                                             false /* Ignore root scroll frame */,
-                                             nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
+                                             false /* Ignore root scroll frame */);
 
   // Fire a click event if someone didn't call preventDefault() on the context
   // menu event.
@@ -2396,20 +2395,19 @@ TabChild::IsAsyncPanZoomEnabled()
 }
 
 bool
-TabChild::DispatchMouseEvent(const nsString&       aType,
-                             const CSSPoint&       aPoint,
-                             const int32_t&        aButton,
-                             const int32_t&        aClickCount,
-                             const int32_t&        aModifiers,
-                             const bool&           aIgnoreRootScrollFrame,
-                             const unsigned short& aInputSourceArg)
+TabChild::DispatchMouseEvent(const nsString& aType,
+                             const CSSPoint& aPoint,
+                             const int32_t&  aButton,
+                             const int32_t&  aClickCount,
+                             const int32_t&  aModifiers,
+                             const bool&     aIgnoreRootScrollFrame)
 {
   nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
   NS_ENSURE_TRUE(utils, true);
   
   bool defaultPrevented = false;
   utils->SendMouseEvent(aType, aPoint.x, aPoint.y, aButton, aClickCount, aModifiers,
-                        aIgnoreRootScrollFrame, 0, aInputSourceArg, &defaultPrevented);
+                        aIgnoreRootScrollFrame, 0, 0, &defaultPrevented);
   return defaultPrevented;
 }
 
@@ -2447,9 +2445,7 @@ TabChild::GetMessageManager(nsIContentFrameMessageManager** aResult)
 }
 
 PIndexedDBChild*
-TabChild::AllocPIndexedDBChild(
-                            const nsCString& aGroup,
-                            const nsCString& aASCIIOrigin, bool* /* aAllowed */)
+TabChild::AllocPIndexedDBChild(const nsCString& aASCIIOrigin, bool* /* aAllowed */)
 {
   NS_NOTREACHED("Should never get here!");
   return NULL;

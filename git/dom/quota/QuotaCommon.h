@@ -24,14 +24,14 @@
 
 BEGIN_QUOTA_NAMESPACE
 
+#ifdef DEBUG
 void
 AssertIsOnIOThread();
-
-void
-AssertCurrentThreadOwnsQuotaMutex();
-
-bool
-IsOnIOThread();
+#else
+inline void
+AssertIsOnIOThread()
+{ }
+#endif
 
 END_QUOTA_NAMESPACE
 

@@ -402,7 +402,7 @@ class ScriptSourceHolder
 class ScriptSourceObject : public JSObject
 {
   public:
-    static const Class class_;
+    static Class class_;
 
     static void finalize(FreeOp *fop, JSObject *obj);
     static ScriptSourceObject *create(ExclusiveContext *cx, ScriptSource *source);

@@ -16,6 +16,7 @@
 
 #include "jsobjinlines.h"
 
+#include "gc/Barrier-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace js;
@@ -176,7 +177,7 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
         return NULL;
 
     bool strict = callee->strict();
-    const Class *clasp = strict ? &StrictArgumentsObject::class_ : &NormalArgumentsObject::class_;
+    Class *clasp = strict ? &StrictArgumentsObject::class_ : &NormalArgumentsObject::class_;
 
     RootedTypeObject type(cx, cx->getNewType(clasp, proto.get()));
     if (!type)
@@ -578,7 +579,7 @@ ArgumentsObject::trace(JSTracer *trc, JSObject *obj)
  * StackFrame with their corresponding property values in the frame's
  * arguments object.
  */
-const Class NormalArgumentsObject::class_ = {
+Class NormalArgumentsObject::class_ = {
     "Arguments",
     JSCLASS_NEW_RESOLVE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(NormalArgumentsObject::RESERVED_SLOTS) |
@@ -609,7 +610,7 @@ const Class NormalArgumentsObject::class_ = {
  * arguments, so it is represented by a different class while sharing some
  * functionality.
  */
-const Class StrictArgumentsObject::class_ = {
+Class StrictArgumentsObject::class_ = {
     "Arguments",
     JSCLASS_NEW_RESOLVE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(StrictArgumentsObject::RESERVED_SLOTS) |

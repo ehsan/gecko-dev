@@ -1463,7 +1463,7 @@ GCMarker::processMarkStackTop(SliceBudget &budget)
         PushMarkStack(this, shape);
 
         /* Call the trace hook if necessary. */
-        const Class *clasp = type->clasp;
+        Class *clasp = type->clasp;
         if (clasp->trace) {
             JS_ASSERT_IF(runtime->gcMode == JSGC_MODE_INCREMENTAL &&
                          runtime->gcIncrementalEnabled,

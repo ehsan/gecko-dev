@@ -7672,7 +7672,7 @@ IonBuilder::jsop_not()
 }
 
 inline bool
-TestClassHasAccessorHook(const Class *clasp, bool isGetter)
+TestClassHasAccessorHook(Class *clasp, bool isGetter)
 {
     if (isGetter && clasp->ops.getGeneric)
         return true;
