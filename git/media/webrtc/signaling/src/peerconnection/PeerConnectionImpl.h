@@ -73,6 +73,7 @@ namespace dom {
 class RTCConfiguration;
 class MediaConstraintsInternal;
 class MediaStreamTrack;
+class RTCStatsReportInternal;
 
 #ifdef USE_FAKE_PCOBSERVER
 typedef test::AFakePCObserver PeerConnectionObserver;

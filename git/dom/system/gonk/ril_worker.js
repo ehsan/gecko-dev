@@ -96,7 +96,7 @@ let RILQUIRKS_SEND_STK_PROFILE_DOWNLOAD;
 // Ril quirk to attach data registration on demand.
 let RILQUIRKS_DATA_REGISTRATION_ON_DEMAND;
 
-// Ril quirk to control the uicc/data subscription.
+// Ril quirk to control the uicc subscription.
 let RILQUIRKS_SUBSCRIPTION_CONTROL;
 
 function BufObject(aContext) {
@@ -2143,15 +2143,10 @@ RilObject.prototype = {
    *        Boolean value indicating attach or detach.
    */
   setDataRegistration: function(options) {
+    let request = options.attach ? RIL_REQUEST_GPRS_ATTACH :
+                                   RIL_REQUEST_GPRS_DETACH;
     this._attachDataRegistration = options.attach;
-
-    if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND) {
-      let request = options.attach ? RIL_REQUEST_GPRS_ATTACH :
-                                     RIL_REQUEST_GPRS_DETACH;
-      this.context.Buf.simpleRequest(request);
-    } else if (RILQUIRKS_SUBSCRIPTION_CONTROL && options.attach) {
-      this.context.Buf.simpleRequest(REQUEST_SET_DATA_SUBSCRIPTION, options);
-    }
+    this.context.Buf.simpleRequest(request);
   },
 
   /**
@@ -6418,9 +6413,7 @@ RilObject.prototype[REQUEST_VOICE_RADIO_TECH] = function REQUEST_VOICE_RADIO_TEC
   this._processRadioTech(radioTech[0]);
 };
 RilObject.prototype[REQUEST_SET_UICC_SUBSCRIPTION] = null;
-RilObject.prototype[REQUEST_SET_DATA_SUBSCRIPTION] = null;
 RilObject.prototype[REQUEST_GET_UICC_SUBSCRIPTION] = null;
-RilObject.prototype[REQUEST_GET_DATA_SUBSCRIPTION] = null;
 RilObject.prototype[REQUEST_GET_UNLOCK_RETRY_COUNT] = function REQUEST_GET_UNLOCK_RETRY_COUNT(length, options) {
   options.success = (options.rilRequestError === 0);
   if (!options.success) {
@@ -6490,9 +6483,7 @@ RilObject.prototype[UNSOLICITED_RESPONSE_RADIO_STATE_CHANGED] = function UNSOLIC
     this.updateCellBroadcastConfig();
     this.setPreferredNetworkType();
     this.setCLIR();
-    if ((RILQUIRKS_DATA_REGISTRATION_ON_DEMAND ||
-         RILQUIRKS_SUBSCRIPTION_CONTROL) &&
-        this._attachDataRegistration) {
+    if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND && this._attachDataRegistration) {
       this.setDataRegistration({attach: true});
     }
   }

@@ -48,36 +48,6 @@ let emulator = (function() {
   };
 }());
 
-// Delay 1s before each telephony.dial()
-// The workaround here should be removed after bug 1005816.
-
-let originalDial;
-
-function delayTelephonyDial() {
-  originalDial = telephony.dial;
-  telephony.dial = function(number, serviceId) {
-    let deferred = Promise.defer();
-
-    let startTime = Date.now();
-    waitFor(function() {
-      originalDial.call(telephony, number, serviceId).then(call => {
-        deferred.resolve(call);
-      }, cause => {
-        deferred.reject(cause);
-      });
-    }, function() {
-      duration = Date.now() - startTime;
-      return (duration >= 1000);
-    });
-
-    return deferred.promise;
-  };
-}
-
-function restoreTelephonyDial() {
-  telephony.dial = originalDial;
-}
-
 /**
  * Telephony related helper functions.
  */
@@ -922,7 +892,7 @@ function restoreTelephonyDial() {
   }
 
   /**
-   * Create a conference with an outgoing call and an incoming call.
+   * Setup a conference with an outgoing call and an incoming call.
    *
    * @param outNumber
    *        Number of an outgoing call.
@@ -930,7 +900,9 @@ function restoreTelephonyDial() {
    *        Number of an incoming call.
    * @return Promise<[outCall, inCall]>
    */
-  function createConferenceWithTwoCalls(outNumber, inNumber) {
+  function setupConferenceTwoCalls(outNumber, inNumber) {
+    log('Create conference with two calls.');
+
     let outCall;
     let inCall;
     let outInfo = outCallStrPool(outNumber);
@@ -961,82 +933,131 @@ function restoreTelephonyDial() {
   }
 
   /**
-   * Create a new incoming call and add it into the conference.
+   * Setup a conference with an outgoing call and two incoming calls.
    *
+   * @param outNumber
+   *        Number of an outgoing call.
    * @param inNumber
    *        Number of an incoming call.
-   * @param conferenceCalls
-   *        Calls already in conference.
-   * @return Promise<[calls in the conference]>
+   * @param inNumber2
+   *        Number of an incoming call.
+   * @return Promise<[outCall, inCall, inCall2]>
    */
-  function createCallAndAddToConference(inNumber, conferenceCalls) {
-    // Create an info array. allInfo = [info1, info2, ...].
-    let allInfo = conferenceCalls.map(function(call, i) {
-      return (i === 0) ? outCallStrPool(call.number)
-                       : inCallStrPool(call.number);
-    });
+  function setupConferenceThreeCalls(outNumber, inNumber, inNumber2) {
+    log('Create conference with three calls.');
 
-    // Define state property of the info array.
-    // Ex: allInfo.active = [info1.active, info2.active, ...].
-    function addInfoState(allInfo, state) {
-      Object.defineProperty(allInfo, state, {
-        get: function() {
-          return allInfo.map(function(info) { return info[state]; });
-        }
-      });
-    }
+    let outCall;
+    let inCall;
+    let inCall2;
+    let outInfo = outCallStrPool(outNumber);
+    let inInfo = inCallStrPool(inNumber);
+    let inInfo2 = inCallStrPool(inNumber2);
 
-    for (let state of ['ringing', 'incoming', 'active', 'held']) {
-      addInfoState(allInfo, state);
-    }
-
-    let newCall;
-    let newInfo = inCallStrPool(inNumber);
-
-    return remoteDial(inNumber)
-      .then(call => { newCall = call; })
-      .then(() => checkAll(conference, [newCall], 'connected', conferenceCalls,
-                           allInfo.active.concat(newInfo.incoming)))
-      .then(() => answer(newCall, function() {
-        checkState(newCall, [newCall], 'held', conferenceCalls);
-      }))
-      .then(() => checkAll(newCall, [newCall], 'held', conferenceCalls,
-                           allInfo.held.concat(newInfo.active)))
-      .then(() => {
-        // We are going to add the new call into the conference.
-        conferenceCalls.push(newCall);
-        allInfo.push(newInfo);
+    return Promise.resolve()
+      .then(() => setupConferenceTwoCalls(outNumber, inNumber))
+      .then(calls => {
+          outCall = calls[0];
+          inCall = calls[1];
       })
-      .then(() => addCallsToConference([newCall], function() {
-        checkState(conference, [], 'connected', conferenceCalls);
+      .then(() => remoteDial(inNumber2))
+      .then(call => { inCall2 = call; })
+      .then(() => checkAll(conference, [inCall2], 'connected', [outCall, inCall],
+                           [outInfo.active, inInfo.active, inInfo2.incoming]))
+      .then(() => answer(inCall2, function() {
+        checkState(inCall2, [inCall2], 'held', [outCall, inCall]);
       }))
-      .then(() => checkAll(conference, [], 'connected', conferenceCalls,
-                           allInfo.active))
+      .then(() => checkAll(inCall2, [inCall2], 'held', [outCall, inCall],
+                           [outInfo.held, inInfo.held, inInfo2.active]))
+      .then(() => addCallsToConference([inCall2], function() {
+        checkState(conference, [], 'connected', [outCall, inCall, inCall2]);
+      }))
+      .then(() => checkAll(conference, [],
+                           'connected', [outCall, inCall, inCall2],
+                           [outInfo.active, inInfo.active, inInfo2.active]))
       .then(() => {
-        return conferenceCalls;
+        return [outCall, inCall, inCall2];
       });
   }
 
   /**
-   * Setup a conference with an outgoing call and N incoming calls.
+   * Setup a conference with an outgoing call and four incoming calls.
    *
-   * @param callNumbers
-   *        Array of numbers, the first number is for outgoing call and the
-   *        remaining numbers are for incoming calls.
-   * @return Promise<[calls in the conference]>
+   * @param outNumber
+   *        Number of an outgoing call.
+   * @param inNumber
+   *        Number of an incoming call.
+   * @param inNumber2
+   *        Number of an incoming call.
+   * @param inNumber3
+   *        Number of an incoming call.
+   * @param inNumber4
+   *        Number of an incoming call.
+   * @return Promise<[outCall, inCall, inCall2, inCall3, inCall4]>
    */
-  function setupConference(callNumbers) {
-    log("Create a conference with " + callNumbers.length + " calls.");
+  function setupConferenceFiveCalls(outNumber, inNumber, inNumber2, inNumber3,
+                                    inNumber4) {
+    log('Create conference with five calls.');
 
-    let promise = createConferenceWithTwoCalls(callNumbers[0], callNumbers[1]);
+    let outCall;
+    let inCall;
+    let inCall2;
+    let inCall3;
+    let inCall4;
+    let outInfo = outCallStrPool(outNumber);
+    let inInfo = inCallStrPool(inNumber);
+    let inInfo2 = inCallStrPool(inNumber2);
+    let inInfo3 = inCallStrPool(inNumber3);
+    let inInfo4 = inCallStrPool(inNumber4);
 
-    callNumbers.shift();
-    callNumbers.shift();
-    for (let number of callNumbers) {
-      promise = promise.then(createCallAndAddToConference.bind(null, number));
-    }
-
-    return promise;
+    return Promise.resolve()
+      .then(() => setupConferenceThreeCalls(outNumber, inNumber, inNumber2))
+      .then(calls => {
+        [outCall, inCall, inCall2] = calls;
+      })
+      .then(() => remoteDial(inNumber3))
+      .then(call => {inCall3 = call;})
+      .then(() => checkAll(conference, [inCall3], 'connected',
+                           [outCall, inCall, inCall2],
+                           [outInfo.active, inInfo.active, inInfo2.active,
+                           inInfo3.incoming]))
+      .then(() => answer(inCall3, function() {
+        checkState(inCall3, [inCall3], 'held', [outCall, inCall, inCall2]);
+      }))
+      .then(() => checkAll(inCall3, [inCall3], 'held',
+                           [outCall, inCall, inCall2],
+                           [outInfo.held, inInfo.held, inInfo2.held,
+                            inInfo3.active]))
+      .then(() => addCallsToConference([inCall3], function() {
+        checkState(conference, [], 'connected', [outCall, inCall, inCall2, inCall3]);
+      }))
+      .then(() => checkAll(conference, [], 'connected',
+                           [outCall, inCall, inCall2, inCall3],
+                           [outInfo.active, inInfo.active, inInfo2.active,
+                            inInfo3.active]))
+      .then(() => remoteDial(inNumber4))
+      .then(call => {inCall4 = call;})
+      .then(() => checkAll(conference, [inCall4], 'connected',
+                           [outCall, inCall, inCall2, inCall3],
+                           [outInfo.active, inInfo.active, inInfo2.active,
+                            inInfo3.active, inInfo4.incoming]))
+      .then(() => answer(inCall4, function() {
+        checkState(inCall4, [inCall4], 'held', [outCall, inCall, inCall2, inCall3]);
+      }))
+      .then(() => checkAll(inCall4, [inCall4], 'held',
+                           [outCall, inCall, inCall2, inCall3],
+                           [outInfo.held, inInfo.held, inInfo2.held,
+                            inInfo3.held, inInfo4.active]))
+      .then(() => addCallsToConference([inCall4], function() {
+        checkState(conference, [], 'connected', [outCall, inCall, inCall2,
+                                                 inCall3, inCall4]);
+      }))
+      .then(() => checkAll(conference, [], 'connected',
+                           [outCall, inCall, inCall2, inCall3, inCall4],
+                           [outInfo.active, inInfo.active, inInfo2.active,
+                            inInfo3.active, inInfo4.active]))
+      .then(() => {
+        return [outCall, inCall, inCall2, inCall3, inCall4];
+      });
   }
 
   /**
@@ -1061,7 +1082,9 @@ function restoreTelephonyDial() {
   this.gResumeConference = resumeConference;
   this.gRemoveCallInConference = removeCallInConference;
   this.gHangUpCallInConference = hangUpCallInConference;
-  this.gSetupConference = setupConference;
+  this.gSetupConferenceTwoCalls = setupConferenceTwoCalls;
+  this.gSetupConferenceThreeCalls = setupConferenceThreeCalls;
+  this.gSetupConferenceFiveCalls = setupConferenceFiveCalls;
   this.gReceivedPending = receivedPending;
 }());
 
@@ -1086,7 +1109,6 @@ function _startTest(permissions, test) {
     // Make sure that we get the telephony after adding permission.
     telephony = window.navigator.mozTelephony;
     ok(telephony);
-    delayTelephonyDial();
     conference = telephony.conferenceGroup;
     ok(conference);
     return gClearCalls().then(gCheckInitialState);
@@ -1098,7 +1120,6 @@ function _startTest(permissions, test) {
 
     function tearDown() {
       log("== Test TearDown ==");
-      restoreTelephonyDial();
       emulator.waitFinish()
         .then(permissionTearDown)
         .then(function() {

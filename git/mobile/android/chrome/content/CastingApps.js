@@ -89,8 +89,7 @@ var CastingApps = {
       case "ended": {
         let video = aEvent.target;
         if (video instanceof HTMLVideoElement) {
-          // If playing, send the <video>, but if ended we send nothing to shutdown the pageaction
-          this._updatePageActionForVideo(aEvent.type === "playing" ? video : null);
+          this._updatePageActionForVideo(video);
         }
         break;
       }
@@ -290,7 +289,8 @@ var CastingApps = {
   },
 
   _updatePageActionForVideo: function _updatePageActionForVideo(aVideo) {
-    this._updatePageAction(aVideo);
+    // If playing, send the <video>, but if ended we send nothing to shutdown the pageaction
+    this._updatePageAction(aEvent.type == "playing" ? video : null);
   },
 
   _updatePageAction: function _updatePageAction(aVideo) {
