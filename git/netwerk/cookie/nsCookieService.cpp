@@ -1257,9 +1257,7 @@ nsCookieService::HandleCorruptDB(DBState* aDBState)
   case DBState::REBUILDING: {
     // We had an error while rebuilding the DB. Game over. Close the database
     // and let the close handler do nothing; then we'll move it out of the way.
-    if (mDefaultDBState->dbConn) {
-      mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
-    }
+    mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
     CloseDefaultDBConnection();
     break;
   }

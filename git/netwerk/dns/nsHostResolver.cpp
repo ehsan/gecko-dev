@@ -355,7 +355,7 @@ nsHostResolver::~nsHostResolver()
         PR_DestroyCondVar(mIdleThreadCV);
 
     if (mLock)
-        nsAutoLock::DestroyLock(mLock);
+        PR_DestroyLock(mLock);
 
     PL_DHashTableFinish(&mDB);
 }
@@ -365,7 +365,7 @@ nsHostResolver::Init()
 {
     NS_TIME_FUNCTION;
 
-    mLock = nsAutoLock::NewLock("nsHostResolver::mLock");
+    mLock = PR_NewLock();
     if (!mLock)
         return NS_ERROR_OUT_OF_MEMORY;
 

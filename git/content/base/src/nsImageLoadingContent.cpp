@@ -829,7 +829,7 @@ nsImageLoadingContent::UpdateImageState(PRBool aNotify)
       nsEventStates changedBits = oldState ^ ImageState();
       if (!changedBits.IsEmpty()) {
         mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-        doc->ContentStateChanged(thisContent, changedBits);
+        doc->ContentStatesChanged(thisContent, nsnull, changedBits);
       }
     }
   }

@@ -2766,9 +2766,7 @@ nsPluginHost::WritePluginInfo()
   if (NS_FAILED(rv))
     return rv;
 
-  nsCAutoString filename(kPluginRegistryFilename);
-  filename.Append(".tmp");
-  rv = pluginReg->AppendNative(filename);
+  rv = pluginReg->AppendNative(kPluginRegistryFilename);
   if (NS_FAILED(rv))
     return rv;
 
@@ -2892,12 +2890,11 @@ nsPluginHost::WritePluginInfo()
     invalidPlugins = invalidPlugins->mNext;
   }
 
-  PR_Close(fd);
-  nsCOMPtr<nsIFile> parent;
-  rv = localFile->GetParent(getter_AddRefs(parent));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = localFile->MoveToNative(parent, kPluginRegistryFilename);
-  return rv;
+  if (fd) {
+    PR_Sync(fd);
+    PR_Close(fd);
+  }
+  return NS_OK;
 }
 
 #define PLUGIN_REG_MIMETYPES_ARRAY_SIZE 12

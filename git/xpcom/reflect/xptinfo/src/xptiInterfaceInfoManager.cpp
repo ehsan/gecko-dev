@@ -77,13 +77,10 @@ xptiInterfaceInfoManager::FreeInterfaceInfoManager()
 
 xptiInterfaceInfoManager::xptiInterfaceInfoManager()
     :   mWorkingSet(),
-        mResolveLock(nsAutoLock::NewLock(
-            "xptiInterfaceInfoManager::mResolveLock")),
-        mAutoRegLock(nsAutoLock::NewLock(
-            "xptiInterfaceInfoManager::mAutoRegLock")), // FIXME: unused!
+        mResolveLock(PR_NewLock()),
+        mAutoRegLock(PR_NewLock()),
         mInfoMonitor(nsAutoMonitor::NewMonitor("xptiInfoMonitor")),
-        mAdditionalManagersLock(nsAutoLock::NewLock(
-            "xptiInterfaceInfoManager::mAdditionalManagersLock"))
+        mAdditionalManagersLock(PR_NewLock())
 {
 }
 
@@ -93,13 +90,13 @@ xptiInterfaceInfoManager::~xptiInterfaceInfoManager()
     mWorkingSet.InvalidateInterfaceInfos();
 
     if (mResolveLock)
-        nsAutoLock::DestroyLock(mResolveLock);
+        PR_DestroyLock(mResolveLock);
     if (mAutoRegLock)
-        nsAutoLock::DestroyLock(mAutoRegLock);
+        PR_DestroyLock(mAutoRegLock);
     if (mInfoMonitor)
         nsAutoMonitor::DestroyMonitor(mInfoMonitor);
     if (mAdditionalManagersLock)
-        nsAutoLock::DestroyLock(mAdditionalManagersLock);
+        PR_DestroyLock(mAdditionalManagersLock);
 
     gInterfaceInfoManager = nsnull;
 #ifdef DEBUG

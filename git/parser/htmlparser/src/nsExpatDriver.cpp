@@ -799,17 +799,14 @@ nsExpatDriver::OpenInputStreamFromExternalDTD(const PRUnichar* aFPIStr,
     return NS_ERROR_CONTENT_BLOCKED;
   }
 
+  rv = NS_OpenURI(aStream, uri);
+
   nsCAutoString absURL;
   uri->GetSpec(absURL);
 
   CopyUTF8toUTF16(absURL, aAbsURL);
 
-  nsCOMPtr<nsIChannel> channel;
-  rv = NS_NewChannel(getter_AddRefs(channel), uri);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  channel->SetContentType(NS_LITERAL_CSTRING("application/xml"));
-  return channel->Open(aStream);
+  return rv;
 }
 
 static nsresult

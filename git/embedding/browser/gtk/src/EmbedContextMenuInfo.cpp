@@ -1,6 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 tw=80 et cindent: */
-/* ***** BEGIN LICENSE BLOCK *****
+/*
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -60,6 +61,7 @@
 #include "nsIDOMWindow.h"
 #include "nsIDOMWindowCollection.h"
 #include "nsIWebBrowser.h"
+#include "nsIDOM3Document.h"
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsIFormControl.h"
@@ -553,7 +555,8 @@ EmbedContextMenuInfo::UpdateContextData(nsIDOMEvent *aDOMEvent)
   if (NS_SUCCEEDED(rv) && domDoc && mCtxDocument != domDoc) {
     mCtxDocument = domDoc;
     mNSHHTMLElementSc = nsnull;
-    mCtxDocument->GetDocumentURI(mCtxURI);
+    nsCOMPtr<nsIDOM3Document> docuri = do_QueryInterface(mCtxDocument);
+    docuri->GetDocumentURI(mCtxURI);
     NS_ENSURE_ARG_POINTER(mOwner);
     nsCOMPtr<nsIWebBrowser> webBrowser;
     mOwner->mWindow->GetWebBrowser(getter_AddRefs(webBrowser));

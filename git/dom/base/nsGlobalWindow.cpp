@@ -108,6 +108,7 @@
 #include "nsIDOMCrypto.h"
 #endif
 #include "nsIDOMDocument.h"
+#include "nsIDOM3Document.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMDocumentView.h"
 #include "nsIDOMElement.h"
@@ -232,7 +233,6 @@
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 
 #include "nsRefreshDriver.h"
-#include "mozAutoDocUpdate.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDOMLeakPRLog;
@@ -7602,11 +7602,15 @@ nsGlobalWindow::SetKeyboardIndicators(UIStateChangeType aShowAccelerators,
     }
   }
 
-  if (mHasFocus && mFocusedNode) { // send content state notifications
-    nsIDocument *doc = mFocusedNode->GetCurrentDoc();
-    if (doc) {
-      MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(mFocusedNode, NS_EVENT_STATE_FOCUSRING);
+  if (mHasFocus) {
+    // send content state notifications
+    nsCOMPtr<nsPresContext> presContext;
+    if (mDocShell) {
+      mDocShell->GetPresContext(getter_AddRefs(presContext));
+      if (presContext) {
+        presContext->EventStateManager()->
+          SetContentState(mFocusedNode, NS_EVENT_STATE_FOCUS);
+      }
     }
   }
 }
@@ -7952,7 +7956,9 @@ nsGlobalWindow::GetSessionStorage(nsIDOMStorage ** aSessionStorage)
     *aSessionStorage = nsnull;
 
     nsString documentURI;
-    mDocument->GetDocumentURI(documentURI);
+    nsCOMPtr<nsIDOM3Document> document3 = do_QueryInterface(mDoc);
+    if (document3)
+        document3->GetDocumentURI(documentURI);
 
     nsresult rv = docShell->GetSessionStorageForPrincipal(principal,
                                                           documentURI,
@@ -8036,7 +8042,9 @@ nsGlobalWindow::GetLocalStorage(nsIDOMStorage ** aLocalStorage)
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsString documentURI;
-    mDocument->GetDocumentURI(documentURI);
+    nsCOMPtr<nsIDOM3Document> document3 = do_QueryInterface(mDoc);
+    if (document3)
+        document3->GetDocumentURI(documentURI);
 
     rv = storageManager->GetLocalStorageForPrincipal(principal,
                                                      documentURI,

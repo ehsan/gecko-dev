@@ -974,11 +974,11 @@ nsresult nsHTMLMediaElement::LoadResource(nsIURI* aURI)
   nsCOMPtr<nsIStreamListener> listener;
   if (ShouldCheckAllowOrigin()) {
     listener =
-      new nsCORSListenerProxy(loadListener,
-                              NodePrincipal(),
-                              channel,
-                              PR_FALSE,
-                              &rv);
+      new nsCrossSiteListenerProxy(loadListener,
+                                   NodePrincipal(),
+                                   channel,
+                                   PR_FALSE,
+                                   &rv);
   } else {
     rv = nsContentUtils::GetSecurityManager()->
            CheckLoadURIWithPrincipal(NodePrincipal(),

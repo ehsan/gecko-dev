@@ -395,13 +395,8 @@ jsds_FilterHook (JSDContext *jsdc, JSDThreadState *state)
     FilterRecord *currentFilter = gFilters;
     do {
         PRUint32 flags = 0;
-
-#ifdef DEBUG
-        nsresult rv =
-#endif
-            currentFilter->filterObject->GetFlags(&flags);
+        nsresult rv = currentFilter->filterObject->GetFlags(&flags);
         NS_ASSERTION(NS_SUCCEEDED(rv), "Error getting flags for filter");
-
         if (flags & jsdIFilter::FLAG_ENABLED) {
             /* if there is no glob, or the globs match */
             if ((!currentFilter->glob || currentFilter->glob == glob) &&

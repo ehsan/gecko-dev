@@ -60,8 +60,9 @@ extern const char* const kCSSRawProperties[];
 
 // define an array of all CSS properties
 const char* const kCSSRawProperties[] = {
-#define CSS_PROP(name_, id_, method_, flags_, parsevariant_, kwtable_,       \
-                 stylestruct_, stylestructoffset_, animtype_)                \
+#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,            \
+                 parsevariant_, kwtable_, stylestruct_, stylestructoffset_,    \
+                 animtype_)                                                    \
   #name_,
 #include "nsCSSPropList.h"
 #undef CSS_PROP
@@ -1515,8 +1516,9 @@ nsCSSProps::ValueToKeyword(PRInt32 aValue, const PRInt32 aTable[])
 
 /* static */ const PRInt32* const
 nsCSSProps::kKeywordTableTable[eCSSProperty_COUNT_no_shorthands] = {
-  #define CSS_PROP(name_, id_, method_, flags_, parsevariant_, kwtable_,     \
-                   stylestruct_, stylestructoffset_, animtype_)              \
+  #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,          \
+                   parsevariant_, kwtable_, stylestruct_, stylestructoffset_,  \
+                   animtype_)                                                  \
     kwtable_,
   #include "nsCSSPropList.h"
   #undef CSS_PROP
@@ -1560,8 +1562,9 @@ const nsStyleStructID nsCSSProps::kSIDTable[eCSSProperty_COUNT_no_shorthands] = 
     // Note that this uses the special BackendOnly style struct ID
     // (which does need to be valid for storing in the
     // nsCSSCompressedDataBlock::mStyleBits bitfield).
-    #define CSS_PROP(name_, id_, method_, flags_, parsevariant_, kwtable_,   \
-                     stylestruct_, stylestructoffset_, animtype_)            \
+    #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,        \
+                     parsevariant_, kwtable_, stylestruct_, stylestructoffset_,\
+                     animtype_)                                                \
         eStyleStruct_##stylestruct_,
 
     #include "nsCSSPropList.h"
@@ -1571,8 +1574,9 @@ const nsStyleStructID nsCSSProps::kSIDTable[eCSSProperty_COUNT_no_shorthands] = 
 
 const nsStyleAnimType
 nsCSSProps::kAnimTypeTable[eCSSProperty_COUNT_no_shorthands] = {
-#define CSS_PROP(name_, id_, method_, flags_, parsevariant_, kwtable_,       \
-                 stylestruct_, stylestructoffset_, animtype_)                \
+#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,            \
+                 parsevariant_, kwtable_, stylestruct_, stylestructoffset_,    \
+                 animtype_)                                                    \
   animtype_,
 #include "nsCSSPropList.h"
 #undef CSS_PROP
@@ -1580,16 +1584,18 @@ nsCSSProps::kAnimTypeTable[eCSSProperty_COUNT_no_shorthands] = {
 
 const ptrdiff_t
 nsCSSProps::kStyleStructOffsetTable[eCSSProperty_COUNT_no_shorthands] = {
-#define CSS_PROP(name_, id_, method_, flags_, parsevariant_, kwtable_,       \
-                 stylestruct_, stylestructoffset_, animtype_)                \
+#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,            \
+                 parsevariant_, kwtable_, stylestruct_, stylestructoffset_,    \
+                 animtype_)                                                    \
   stylestructoffset_,
 #include "nsCSSPropList.h"
 #undef CSS_PROP
 };
 
 const PRUint32 nsCSSProps::kFlagsTable[eCSSProperty_COUNT] = {
-#define CSS_PROP(name_, id_, method_, flags_, parsevariant_, kwtable_,       \
-                 stylestruct_, stylestructoffset_, animtype_)                \
+#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,            \
+                 parsevariant_, kwtable_, stylestruct_, stylestructoffset_,    \
+                 animtype_)                                                    \
   flags_,
 #include "nsCSSPropList.h"
 #undef CSS_PROP
@@ -2068,8 +2074,9 @@ nsCSSProps::kSubpropertyTable[eCSSProperty_COUNT - eCSSProperty_COUNT_no_shortha
 };
 
 
-#define ENUM_DATA_FOR_PROPERTY(name_, id_, method_, flags_, parsevariant_,   \
-                               kwtable_, stylestructoffset_, animtype_)      \
+#define ENUM_DATA_FOR_PROPERTY(name_, id_, method_, flags_, datastruct_,     \
+                                member_, parsevariant_, kwtable_,             \
+                                stylestructoffset_, animtype_)                \
   ePropertyIndex_for_##id_,
 
 // The order of these enums must match the g*Flags arrays in nsRuleNode.cpp.
@@ -2248,11 +2255,12 @@ nsCSSProps::gPropertyCountInStruct[nsStyleStructID_Length] = {
 /* static */ const size_t
 nsCSSProps::gPropertyIndexInStruct[eCSSProperty_COUNT_no_shorthands] = {
 
-  #define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, parsevariant_,    \
-                               kwtable_)                                      \
+  #define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, datastruct_,      \
+                               member_, parsevariant_, kwtable_)              \
       size_t(-1),
-  #define CSS_PROP(name_, id_, method_, flags_, parsevariant_, kwtable_,      \
-                   stylestruct_, stylestructoffset_, animtype_)               \
+  #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,         \
+                   parsevariant_, kwtable_, stylestruct_,                     \
+                   stylestructoffset_, animtype_)                             \
     ePropertyIndex_for_##id_,
   #include "nsCSSPropList.h"
   #undef CSS_PROP

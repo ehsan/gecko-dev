@@ -4266,10 +4266,11 @@ nsDocument::EndLoad()
 }
 
 void
-nsDocument::ContentStateChanged(nsIContent* aContent, nsEventStates aStateMask)
+nsDocument::ContentStatesChanged(nsIContent* aContent1, nsIContent* aContent2,
+                                 nsEventStates aStateMask)
 {
-  NS_DOCUMENT_NOTIFY_OBSERVERS(ContentStateChanged,
-                               (this, aContent, aStateMask));
+  NS_DOCUMENT_NOTIFY_OBSERVERS(ContentStatesChanged,
+                               (this, aContent1, aContent2, aStateMask));
 }
 
 void
