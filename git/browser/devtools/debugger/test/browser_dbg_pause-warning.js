@@ -7,12 +7,13 @@
 
 const TAB_URL = EXAMPLE_URL + "doc_inline-script.html";
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gTarget, gToolbox;
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gTarget = gPanel.target;
@@ -89,6 +90,7 @@ function testResume() {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gTarget = null;

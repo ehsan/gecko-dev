@@ -127,7 +127,7 @@ public:
   virtual void            SetShowsFullScreenButton(bool aShow) {}
   virtual void            SetWindowAnimationType(WindowAnimationType aType) {}
   NS_IMETHOD              HideWindowChrome(bool aShouldHide);
-  NS_IMETHOD              MakeFullScreen(bool aFullScreen, nsIScreen* aScreen = nullptr);
+  NS_IMETHOD              MakeFullScreen(bool aFullScreen);
   virtual nsDeviceContext* GetDeviceContext();
   virtual LayerManager*   GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
                                           LayersBackend aBackendHint = mozilla::layers::LayersBackend::LAYERS_NONE,

@@ -129,28 +129,20 @@ class ResultsSink:
                 dev_label = 'TIMEOUTS'
             self.groups.setdefault(dev_label, []).append(result.test.path)
 
-            if dev_label == 'REGRESSIONS':
-                show_output = self.options.show_output or not self.options.no_show_failed
-            elif dev_label == 'TIMEOUTS':
-                show_output = self.options.show_output
-            else:
-                show_output = self.options.show_output and not self.options.failed_only
-
-            if dev_label in ('REGRESSIONS', 'TIMEOUTS'):
-                show_cmd = self.options.show_cmd
-            else:
-                show_cmd = self.options.show_cmd and not self.options.failed_only
-
-            if show_output or show_cmd:
+            show = self.options.show
+            if self.options.failed_only and dev_label not in ('REGRESSIONS', 'TIMEOUTS'):
+                show = False
+            if show:
                 self.pb.beginline()
 
-                if show_output:
+            if show:
+                if self.options.show_output:
                     print('## %s: rc = %d, run time = %f' % (output.test.path, output.rc, output.dt), file=self.fp)
 
-                if show_cmd:
+                if self.options.show_cmd:
                     print(escape_cmdline(output.cmd), file=self.fp)
 
-                if show_output:
+                if self.options.show_output:
                     self.fp.write(output.out)
                     self.fp.write(output.err)
 

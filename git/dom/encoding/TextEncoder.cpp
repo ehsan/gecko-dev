@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -39,7 +38,8 @@ void
 TextEncoder::Encode(JSContext* aCx,
                     JS::Handle<JSObject*> aObj,
                     const nsAString& aString,
-                    JS::MutableHandle<JSObject*> aRetval,
+                    const bool aStream,
+		    JS::MutableHandle<JSObject*> aRetval,
                     ErrorResult& aRv)
 {
   // Run the steps of the encoding algorithm.
@@ -63,11 +63,14 @@ TextEncoder::Encode(JSContext* aCx,
   int32_t dstLen = maxLen;
   rv = mEncoder->Convert(data, &srcLen, buf, &dstLen);
 
-  // Now reset the encoding algorithm state to the default values for encoding.
-  int32_t finishLen = maxLen - dstLen;
-  rv = mEncoder->Finish(buf + dstLen, &finishLen);
-  if (NS_SUCCEEDED(rv)) {
-    dstLen += finishLen;
+  // If the internal streaming flag is not set, then reset
+  // the encoding algorithm state to the default values for encoding.
+  if (!aStream) {
+    int32_t finishLen = maxLen - dstLen;
+    rv = mEncoder->Finish(buf + dstLen, &finishLen);
+    if (NS_SUCCEEDED(rv)) {
+      dstLen += finishLen;
+    }
   }
 
   JSObject* outView = nullptr;

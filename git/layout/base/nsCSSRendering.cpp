@@ -632,8 +632,6 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
                                            nsStyleContext* aStyleContext,
                                            Sides aSkipSides)
 {
-  DrawTarget& aDrawTarget = *aRenderingContext.GetDrawTarget();
-
   PrintAsStringNewline("++ PaintBorder");
 
   // Check to see if we have an appearance defined.  If so, we let the theme
@@ -694,7 +692,7 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
       aRenderingContext.ThebesContext()->
         Clip(NSRectToSnappedRect(aBorderArea,
                                  aForFrame->PresContext()->AppUnitsPerDevPixel(),
-                                 aDrawTarget));
+                                 *aRenderingContext.GetDrawTarget()));
     }
   } else {
     MOZ_ASSERT(joinedBorderArea.IsEqualEdges(aBorderArea),
@@ -733,11 +731,14 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
 
 #if 0
   // this will draw a transparent red backround underneath the border area
-  ColorPattern color(ToDeviceColor(Color(1.f, 0.f, 0.f, 0.5f)));
-  aDrawTarget.FillRect(joinedBorderAreaPx, color);
+  ctx->Save();
+  ctx->Rectangle(ThebesRect(joinedBorderAreaPx));
+  ctx->SetColor(gfxRGBA(1.0, 0.0, 0.0, 0.5));
+  ctx->Fill();
+  ctx->Restore();
 #endif
 
-  nsCSSBorderRenderer br(&aDrawTarget,
+  nsCSSBorderRenderer br(ctx->GetDrawTarget(),
                          joinedBorderAreaPx,
                          borderStyles,
                          borderWidths,

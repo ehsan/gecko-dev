@@ -24,7 +24,7 @@ public:
 
   SharedDecoderManager();
 
-  already_AddRefed<MediaDataDecoder> CreateVideoDecoder(
+  already_AddRefed<MediaDataDecoder> CreateH264Decoder(
     const mp4_demuxer::VideoDecoderConfig& aConfig,
     layers::LayersBackend aLayersBackend,
     layers::ImageContainer* aImageContainer, MediaTaskQueue* aVideoTaskQueue,

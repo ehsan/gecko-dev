@@ -24,6 +24,8 @@ class LayerComposite;
 
 class LayerScope {
 public:
+    static void Init();
+    static void DeInit();
     static void SendEffectChain(gl::GLContext* aGLContext,
                                 const EffectChain& aEffectChain,
                                 int aWidth,
@@ -34,9 +36,6 @@ public:
     static void SendLayerDump(UniquePtr<layerscope::Packet> aPacket);
     static bool CheckSendable();
     static void CleanLayer();
-
-private:
-    static void Init();
 };
 
 // Perform BeginFrame and EndFrame automatically

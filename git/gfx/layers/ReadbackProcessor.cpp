@@ -9,9 +9,7 @@
 #include "ReadbackLayer.h"              // for ReadbackLayer, ReadbackSink
 #include "gfxColor.h"                   // for gfxRGBA
 #include "gfxContext.h"                 // for gfxContext
-#include "gfxUtils.h"
 #include "gfxRect.h"                    // for gfxRect
-#include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/BasePoint.h"      // for BasePoint
 #include "mozilla/gfx/BaseRect.h"       // for BaseRect
 #include "nsAutoPtr.h"                  // for nsRefPtr, nsAutoPtr
@@ -20,8 +18,6 @@
 #include "nsPoint.h"                    // for nsIntPoint
 #include "nsRegion.h"                   // for nsIntRegion
 #include "nsSize.h"                     // for nsIntSize
-
-using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace layers {
@@ -115,10 +111,10 @@ ReadbackProcessor::BuildUpdatesForLayer(ReadbackLayer* aLayer)
           aLayer->mSink->BeginUpdate(aLayer->GetRect(),
                                      aLayer->AllocateSequenceNumber());
       if (ctx) {
-        ColorPattern color(ToDeviceColor(aLayer->mBackgroundColor));
+        ctx->SetColor(aLayer->mBackgroundColor);
         nsIntSize size = aLayer->GetSize();
-        ctx->GetDrawTarget()->FillRect(Rect(0, 0, size.width, size.height),
-                                       color);
+        ctx->Rectangle(gfxRect(0, 0, size.width, size.height));
+        ctx->Fill();
         aLayer->mSink->EndUpdate(ctx, aLayer->GetRect());
       }
     }

@@ -318,7 +318,8 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
                   padding.top + aPt.y,
                   mRect.width - (padding.left + padding.right),
                   mRect.height - (padding.top + padding.bottom));
-      Rect devPxRect = NSRectToRect(rect, appUnitsPerDevPixel);
+      Rect devPxRect =
+        NSRectToSnappedRect(rect, appUnitsPerDevPixel, *drawTarget);
       RefPtr<PathBuilder> builder = drawTarget->CreatePathBuilder();
       AppendEllipseToPath(builder, devPxRect.Center(), devPxRect.Size());
       RefPtr<Path> ellipse = builder->Finish();

@@ -246,7 +246,6 @@ public:
 #ifdef MOZ_GAMEPAD
   void GetGamepads(nsTArray<nsRefPtr<Gamepad> >& aGamepads, ErrorResult& aRv);
 #endif // MOZ_GAMEPAD
-  already_AddRefed<Promise> GetVRDevices(ErrorResult& aRv);
 #ifdef MOZ_B2G_FM
   FMRadio* GetMozFMRadio(ErrorResult& aRv);
 #endif

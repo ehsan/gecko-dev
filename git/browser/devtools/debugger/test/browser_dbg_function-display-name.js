@@ -8,11 +8,12 @@
 
 const TAB_URL = EXAMPLE_URL + "doc_function-display-name.html";
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
 
@@ -34,7 +35,7 @@ function testAnonCall() {
     testInferredName();
   });
 
-  callInTab(gTab, "evalCall");
+  gDebuggee.evalCall();
 }
 
 function testInferredName() {
@@ -56,6 +57,7 @@ function testInferredName() {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
 });

@@ -45,7 +45,6 @@
 #include "nscore.h"                     // for nsACString, nsAString
 #include "prlog.h"                      // for PRLogModuleInfo
 #include "gfx2DGlue.h"
-#include "gfxVR.h"
 
 class gfxContext;
 
@@ -1894,12 +1893,6 @@ public:
     mChildrenChanged = aVal;
   }
 
-  /**
-   * VR
-   */
-  void SetVRHMDInfo(gfx::VRHMDInfo* aHMD) { mHMDInfo = aHMD; }
-  gfx::VRHMDInfo* GetVRHMDInfo() { return mHMDInfo; }
-
 protected:
   friend class ReadbackProcessor;
 
@@ -1945,7 +1938,6 @@ protected:
   // This is updated by ComputeDifferences. This will be true if we need to invalidate
   // the intermediate surface.
   bool mChildrenChanged;
-  nsRefPtr<gfx::VRHMDInfo> mHMDInfo;
 };
 
 /**

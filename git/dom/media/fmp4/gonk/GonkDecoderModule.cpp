@@ -35,11 +35,11 @@ GonkDecoderModule::Shutdown()
 }
 
 already_AddRefed<MediaDataDecoder>
-GonkDecoderModule::CreateVideoDecoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
-                                     mozilla::layers::LayersBackend aLayersBackend,
-                                     mozilla::layers::ImageContainer* aImageContainer,
-                                     MediaTaskQueue* aVideoTaskQueue,
-                                     MediaDataDecoderCallback* aCallback)
+GonkDecoderModule::CreateH264Decoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
+                                    mozilla::layers::LayersBackend aLayersBackend,
+                                    mozilla::layers::ImageContainer* aImageContainer,
+                                    MediaTaskQueue* aVideoTaskQueue,
+                                    MediaDataDecoderCallback* aCallback)
 {
   nsRefPtr<MediaDataDecoder> decoder =
   new GonkMediaDataDecoder(new GonkVideoDecoderManager(aImageContainer,aConfig),

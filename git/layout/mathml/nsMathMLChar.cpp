@@ -2119,9 +2119,9 @@ nsMathMLChar::PaintForeground(nsPresContext* aPresContext,
     case DRAW_PARTS: {
       // paint by parts
       if (NS_STRETCH_DIRECTION_VERTICAL == mDirection)
-        PaintVertically(aPresContext, thebesContext, r, fgColor);
+        PaintVertically(aPresContext, thebesContext, r);
       else if (NS_STRETCH_DIRECTION_HORIZONTAL == mDirection)
-        PaintHorizontally(aPresContext, thebesContext, r, fgColor);
+        PaintHorizontally(aPresContext, thebesContext, r);
       break;
     }
     default:
@@ -2167,25 +2167,22 @@ SnapToDevPixels(const gfxContext* aThebesContext, int32_t aAppUnitsPerGfxUnit,
 }
 
 static void
-PaintRule(DrawTarget& aDrawTarget,
+PaintRule(gfxContext* aThebesContext,
           int32_t     aAppUnitsPerGfxUnit,
-          nsRect&     aRect,
-          nscolor     aColor)
+          nsRect&     aRect)
 {
-  Rect rect = NSRectToSnappedRect(aRect, aAppUnitsPerGfxUnit, aDrawTarget);
-  ColorPattern color(ToDeviceColor(aColor));
-  aDrawTarget.FillRect(rect, color);
+  aThebesContext->NewPath();
+  gfxRect rect = nsLayoutUtils::RectToGfxRect(aRect, aAppUnitsPerGfxUnit);
+  aThebesContext->SnappedRectangle(rect);
+  aThebesContext->Fill();
 }
 
 // paint a stretchy char by assembling glyphs vertically
 nsresult
 nsMathMLChar::PaintVertically(nsPresContext* aPresContext,
                               gfxContext*    aThebesContext,
-                              nsRect&        aRect,
-                              nscolor        aColor)
+                              nsRect&        aRect)
 {
-  DrawTarget& aDrawTarget = *aThebesContext->GetDrawTarget();
-
   // Get the device pixel size in the vertical direction.
   // (This makes no effort to optimize for non-translation transformations.)
   nscoord oneDevPixel = aPresContext->AppUnitsPerDevPixel();
@@ -2309,7 +2306,7 @@ nsMathMLChar::PaintVertically(nsPresContext* aPresContext,
       // paint the rule between the parts
       nsRect rule(aRect.x + lbearing, end[first],
                   rbearing - lbearing, start[last] - end[first]);
-      PaintRule(aDrawTarget, oneDevPixel, rule, aColor);
+      PaintRule(aThebesContext, oneDevPixel, rule);
       first = last;
       last++;
     }
@@ -2358,11 +2355,8 @@ nsMathMLChar::PaintVertically(nsPresContext* aPresContext,
 nsresult
 nsMathMLChar::PaintHorizontally(nsPresContext* aPresContext,
                                 gfxContext*    aThebesContext,
-                                nsRect&        aRect,
-                                nscolor        aColor)
+                                nsRect&        aRect)
 {
-  DrawTarget& aDrawTarget = *aThebesContext->GetDrawTarget();
-
   // Get the device pixel size in the horizontal direction.
   // (This makes no effort to optimize for non-translation transformations.)
   nscoord oneDevPixel = aPresContext->AppUnitsPerDevPixel();
@@ -2479,7 +2473,7 @@ nsMathMLChar::PaintHorizontally(nsPresContext* aPresContext,
       // paint the rule between the parts
       nsRect rule(end[first], dy - ascent,
                   start[last] - end[first], ascent + descent);
-      PaintRule(aDrawTarget, oneDevPixel, rule, aColor);
+      PaintRule(aThebesContext, oneDevPixel, rule);
       first = last;
       last++;
     }

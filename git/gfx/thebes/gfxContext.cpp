@@ -265,6 +265,20 @@ gfxContext::LineTo(const gfxPoint& pt)
 }
 
 void
+gfxContext::CurveTo(const gfxPoint& pt1, const gfxPoint& pt2, const gfxPoint& pt3)
+{
+  EnsurePathBuilder();
+  mPathBuilder->BezierTo(ToPoint(pt1), ToPoint(pt2), ToPoint(pt3));
+}
+
+void
+gfxContext::QuadraticCurveTo(const gfxPoint& pt1, const gfxPoint& pt2)
+{
+  EnsurePathBuilder();
+  mPathBuilder->QuadraticBezierTo(ToPoint(pt1), ToPoint(pt2));
+}
+
+void
 gfxContext::Line(const gfxPoint& start, const gfxPoint& end)
 {
   EnsurePathBuilder();
@@ -540,6 +554,11 @@ gfxContext::CurrentLineWidth() const
 void
 gfxContext::SetOperator(GraphicsOperator op)
 {
+  if (op == OPERATOR_CLEAR) {
+    CurrentState().opIsClear = true;
+    return;
+  }
+  CurrentState().opIsClear = false;
   CurrentState().op = CompositionOpForOp(op);
 }
 
@@ -657,15 +676,6 @@ gfxContext::ResetClip()
 void
 gfxContext::UpdateSurfaceClip()
 {
-}
-
-void
-gfxContext::PopClip()
-{
-  MOZ_ASSERT(CurrentState().pushedClips.Length() > 0);
-
-  CurrentState().pushedClips.RemoveElementAt(CurrentState().pushedClips.Length() - 1);
-  mDT->PopClip();
 }
 
 gfxRect
@@ -855,7 +865,7 @@ gfxContext::Paint(gfxFloat alpha)
   AzureState &state = CurrentState();
 
   if (state.sourceSurface && !state.sourceSurfCairo &&
-      !state.patternTransformChanged)
+      !state.patternTransformChanged && !state.opIsClear)
   {
     // This is the case where a PopGroupToSource has been done and this
     // paint is executed without changing the transform or the source.
@@ -878,8 +888,12 @@ gfxContext::Paint(gfxFloat alpha)
   mat.Invert();
   Rect paintRect = mat.TransformBounds(Rect(Point(0, 0), Size(mDT->GetSize())));
 
-  mDT->FillRect(paintRect, PatternFromState(this),
-                DrawOptions(Float(alpha), GetOp()));
+  if (state.opIsClear) {
+    mDT->ClearRect(paintRect);
+  } else {
+    mDT->FillRect(paintRect, PatternFromState(this),
+                  DrawOptions(Float(alpha), GetOp()));
+  }
 }
 
 // groups
@@ -1138,7 +1152,9 @@ gfxContext::FillAzure(const Pattern& aPattern, Float aOpacity)
   if (mPathIsRect) {
     MOZ_ASSERT(!mTransformChanged);
 
-    if (op == CompositionOp::OP_SOURCE) {
+    if (state.opIsClear) {
+      mDT->ClearRect(mRect);
+    } else if (op == CompositionOp::OP_SOURCE) {
       // Emulate cairo operator source which is bound by mask!
       mDT->ClearRect(mRect);
       mDT->FillRect(mRect, aPattern, DrawOptions(aOpacity));
@@ -1147,6 +1163,9 @@ gfxContext::FillAzure(const Pattern& aPattern, Float aOpacity)
     }
   } else {
     EnsurePath();
+
+    NS_ASSERTION(!state.opIsClear, "We shouldn't be clearing complex paths!");
+
     mDT->Fill(mPath, aPattern, DrawOptions(aOpacity, op, state.aaMode));
   }
 }

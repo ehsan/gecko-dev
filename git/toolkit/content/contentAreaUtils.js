@@ -423,8 +423,7 @@ function internalPersist(persistArgs)
                                     .getInterface(Components.interfaces.nsIWebNavigation)
                                     .QueryInterface(Components.interfaces.nsILoadContext);
     persist.saveURI(persistArgs.sourceURI,
-                    persistArgs.sourceCacheKey, persistArgs.sourceReferrer,
-                    Ci.nsIHttpChannel.REFERRER_POLICY_NO_REFERRER_WHEN_DOWNGRADE,
+                    persistArgs.sourceCacheKey, persistArgs.sourceReferrer, Ci.nsIHttpChannel.REFERRER_POLICY_DEFAULT,
                     persistArgs.sourcePostData, null, targetFileURL, privacyContext);
   }
 }

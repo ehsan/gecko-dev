@@ -199,20 +199,14 @@ LIRGeneratorARM::lowerForFPU(LInstructionHelper<1, 1, 0> *ins, MDefinition *mir,
 
 }
 
-template<size_t Temps>
 bool
-LIRGeneratorARM::lowerForFPU(LInstructionHelper<1, 2, Temps> *ins, MDefinition *mir, MDefinition *lhs, MDefinition *rhs)
+LIRGeneratorARM::lowerForFPU(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir, MDefinition *lhs, MDefinition *rhs)
 {
     ins->setOperand(0, useRegisterAtStart(lhs));
     ins->setOperand(1, useRegisterAtStart(rhs));
     return define(ins, mir,
                   LDefinition(LDefinition::TypeFrom(mir->type()), LDefinition::REGISTER));
 }
-
-template bool LIRGeneratorARM::lowerForFPU(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir,
-                                           MDefinition *lhs, MDefinition *rhs);
-template bool LIRGeneratorARM::lowerForFPU(LInstructionHelper<1, 2, 1> *ins, MDefinition *mir,
-                                           MDefinition *lhs, MDefinition *rhs);
 
 bool
 LIRGeneratorARM::lowerForBitAndAndBranch(LBitAndAndBranch *baab, MInstruction *mir,
@@ -646,7 +640,9 @@ LIRGeneratorARM::visitCompareExchangeTypedArrayElement(MCompareExchangeTypedArra
 bool
 LIRGeneratorARM::visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap *ins)
 {
-    MOZ_ASSERT(ins->viewType() < AsmJSHeapAccess::Float32);
+    MOZ_ASSERT(ins->viewType() != Scalar::Uint8Clamped);
+    MOZ_ASSERT(ins->viewType() != Scalar::Float32);
+    MOZ_ASSERT(ins->viewType() != Scalar::Float64);
 
     MDefinition *ptr = ins->ptr();
     MOZ_ASSERT(ptr->type() == MIRType_Int32);
@@ -662,7 +658,9 @@ LIRGeneratorARM::visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap *ins)
 bool
 LIRGeneratorARM::visitAsmJSAtomicBinopHeap(MAsmJSAtomicBinopHeap *ins)
 {
-    MOZ_ASSERT(ins->viewType() < AsmJSHeapAccess::Float32);
+    MOZ_ASSERT(ins->viewType() != Scalar::Uint8Clamped);
+    MOZ_ASSERT(ins->viewType() != Scalar::Float32);
+    MOZ_ASSERT(ins->viewType() != Scalar::Float64);
 
     MDefinition *ptr = ins->ptr();
     MOZ_ASSERT(ptr->type() == MIRType_Int32);

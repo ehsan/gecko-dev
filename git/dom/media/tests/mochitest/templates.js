@@ -67,7 +67,6 @@ var commandsPeerConnection = [
     'PC_SETUP_SIGNALING_CLIENT',
     function (test) {
       if (test.steeplechase) {
-        test.setTimeout(30000);
         test.setupSignalingClient();
         test.registerSignalingCallback("ice_candidate", function (message) {
           var pc = test.pcRemote ? test.pcRemote : test.pcLocal;
