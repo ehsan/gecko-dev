@@ -932,8 +932,8 @@ WriteToFile(nsIFile* aPath,
 
 static nsresult
 ReadFromFile(nsIFile* aPath,
-             const nsACString& aFileName,
-             nsACString& aOutData,
+             const nsCString& aFileName,
+             nsCString& aOutData,
              int32_t aMaxLength)
 {
   nsCOMPtr<nsIFile> path;
@@ -970,8 +970,8 @@ ReadFromFile(nsIFile* aPath,
   return NS_OK;
 }
 
-nsresult
-ReadSalt(nsIFile* aPath, nsACString& aOutData)
+static nsresult
+ReadSalt(nsIFile* aPath, nsCString& aOutData)
 {
   return ReadFromFile(aPath, NS_LITERAL_CSTRING("salt"),
                       aOutData, NodeIdSaltLength);
@@ -1141,7 +1141,7 @@ GeckoMediaPluginService::GetNodeId(const nsAString& aOrigin,
   return NS_OK;
 }
 
-bool
+static bool
 MatchOrigin(nsIFile* aPath, const nsACString& aOrigin)
 {
   // http://en.wikipedia.org/wiki/Domain_Name_System#Domain_name_syntax

@@ -11,6 +11,7 @@
 #include "jsobj.h"
 #include "jsscript.h"
 
+#include "gc/ForkJoinNursery.h"
 #include "gc/Marking.h"
 #include "jit/BaselineDebugModeOSR.h"
 #include "jit/BaselineFrame.h"
@@ -1117,6 +1118,7 @@ MarkBailoutFrame(JSTracer *trc, const JitFrameIterator &frame)
 
 }
 
+template <typename T>
 void
 UpdateIonJSFrameForMinorGC(JSTracer *trc, const JitFrameIterator &frame)
 {
@@ -1134,8 +1136,6 @@ UpdateIonJSFrameForMinorGC(JSTracer *trc, const JitFrameIterator &frame)
         ionScript = frame.ionScriptFromCalleeToken();
     }
 
-    Nursery &nursery = trc->runtime()->gc.nursery;
-
     const SafepointIndex *si = ionScript->getSafepointIndex(frame.returnAddressToFp());
     SafepointReader safepoint(ionScript, si);
 
@@ -1144,7 +1144,7 @@ UpdateIonJSFrameForMinorGC(JSTracer *trc, const JitFrameIterator &frame)
     for (GeneralRegisterBackwardIterator iter(safepoint.allGprSpills()); iter.more(); iter++) {
         --spill;
         if (slotsRegs.has(*iter))
-            nursery.forwardBufferPointer(reinterpret_cast<HeapSlot **>(spill));
+            T::forwardBufferPointer(trc, reinterpret_cast<HeapSlot **>(spill));
     }
 
     // Skip to the right place in the safepoint
@@ -1158,7 +1158,13 @@ UpdateIonJSFrameForMinorGC(JSTracer *trc, const JitFrameIterator &frame)
 
     while (safepoint.getSlotsOrElementsSlot(&slot)) {
         HeapSlot **slots = reinterpret_cast<HeapSlot **>(layout->slotRef(slot));
-        nursery.forwardBufferPointer(slots);
+#ifdef JSGC_FJGENERATIONAL
+        if (trc->callback == gc::ForkJoinNursery::MinorGCCallback) {
+            gc::ForkJoinNursery::forwardBufferPointer(trc, slots);
+            continue;
+        }
+#endif
+        trc->runtime()->gc.nursery.forwardBufferPointer(slots);
     }
 }
 
@@ -1480,16 +1486,29 @@ TopmostIonActivationCompartment(JSRuntime *rt)
     return nullptr;
 }
 
+template <typename T>
 void UpdateJitActivationsForMinorGC(PerThreadData *ptd, JSTracer *trc)
 {
+#ifdef JSGC_FJGENERATIONAL
+    MOZ_ASSERT(trc->runtime()->isHeapMinorCollecting() || trc->runtime()->isFJMinorCollecting());
+#else
     MOZ_ASSERT(trc->runtime()->isHeapMinorCollecting());
+#endif
     for (JitActivationIterator activations(ptd); !activations.done(); ++activations) {
         for (JitFrameIterator frames(activations); !frames.done(); ++frames) {
             if (frames.type() == JitFrame_IonJS)
-                UpdateIonJSFrameForMinorGC(trc, frames);
+                UpdateIonJSFrameForMinorGC<T>(trc, frames);
         }
     }
 }
+
+template
+void UpdateJitActivationsForMinorGC<Nursery>(PerThreadData *ptd, JSTracer *trc);
+
+#ifdef JSGC_FJGENERATIONAL
+template
+void UpdateJitActivationsForMinorGC<gc::ForkJoinNursery>(PerThreadData *ptd, JSTracer *trc);
+#endif
 
 void
 GetPcScript(JSContext *cx, JSScript **scriptRes, jsbytecode **pcRes)

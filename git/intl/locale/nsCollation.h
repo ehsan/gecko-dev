@@ -23,7 +23,7 @@ class nsCollationFactory MOZ_FINAL : public nsICollationFactory {
 public: 
   NS_DECL_ISUPPORTS 
 
-  NS_IMETHOD CreateCollation(nsILocale* locale, nsICollation** instancePtr) MOZ_OVERRIDE;
+  NS_IMETHOD CreateCollation(nsILocale* locale, nsICollation** instancePtr);
 
   nsCollationFactory() {}
 };

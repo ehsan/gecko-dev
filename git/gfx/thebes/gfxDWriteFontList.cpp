@@ -896,6 +896,11 @@ gfxDWriteFontList::InitFontList()
     QueryPerformanceCounter(&t1);
 
     HRESULT hr;
+    gfxFontCache *fc = gfxFontCache::GetCache();
+    if (fc) {
+        fc->AgeAllGenerations();
+    }
+
     mGDIFontTableAccess = Preferences::GetBool("gfx.font_rendering.directwrite.use_gdi_table_loading", false);
 
     gfxPlatformFontList::InitFontList();
