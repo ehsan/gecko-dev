@@ -206,6 +206,19 @@ MOZ_ARG_ENABLE_BOOL(compile-environment,
     COMPILE_ENVIRONMENT=1,
     COMPILE_ENVIRONMENT= )
 
+MOZ_ARG_ENABLE_BOOL(shared-js,
+[  --disable-shared-js
+                          Do not create a shared library.],
+    DISABLE_SHARED_JS=0,
+    DISABLE_SHARED_JS=1)
+
+if test "$DISABLE_SHARED_JS" = "1" ; then
+  AC_DEFINE(STATIC_EXPORTABLE_JS_API)
+else
+  JS_SHARED_LIBRARY=1
+fi
+AC_SUBST(JS_SHARED_LIBRARY)
+
 dnl ========================================================
 dnl = Android uses a very custom (hacky) toolchain; we need to do this
 dnl = here, so that the compiler checks can succeed
@@ -4349,6 +4362,17 @@ if test "$JS_HAS_CTYPES"; then
     AC_MSG_ERROR([No suitable assembler found. An assembler is required to build js-ctypes. If you are building with MS Visual Studio 8 Express, you may download the MASM 8.0 package, upgrade to Visual Studio 9 Express, or install the Vista SDK.])
   fi
   AC_DEFINE(JS_HAS_CTYPES)
+fi
+
+dnl ========================================================
+dnl = Use JS Call tracing
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(trace-jscalls,
+[  --enable-trace-jscalls  Enable JS call enter/exit callback (default=no)],
+    MOZ_TRACE_JSCALLS=1,
+    MOZ_TRACE_JSCALLS= )
+if test -n "$MOZ_TRACE_JSCALLS"; then
+    AC_DEFINE(MOZ_TRACE_JSCALLS)
 fi
 
 dnl ========================================================
