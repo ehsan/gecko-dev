@@ -9,7 +9,6 @@
 
 #include "nsIDOMScriptObjectFactory.h"
 #include "nsIFile.h"
-#include "nsIFileStorage.h"
 #include "nsILocalFile.h"
 #include "nsIObserverService.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -18,7 +17,6 @@
 #include "nsISimpleEnumerator.h"
 #include "nsITimer.h"
 
-#include "mozilla/dom/file/FileService.h"
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -58,7 +56,6 @@
 USING_INDEXEDDB_NAMESPACE
 using namespace mozilla::services;
 using mozilla::Preferences;
-using mozilla::dom::file::FileService;
 
 static NS_DEFINE_CID(kDOMSOF_CID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
@@ -116,7 +113,6 @@ public:
 NS_IMPL_THREADSAFE_ISUPPORTS1(QuotaCallback, mozIStorageQuotaCallback)
 
 // Adds all databases in the hash to the given array.
-template <class T>
 PLDHashOperator
 EnumerateToTArray(const nsACString& aKey,
                   nsTArray<IDBDatabase*>* aValue,
@@ -127,8 +123,8 @@ EnumerateToTArray(const nsACString& aKey,
   NS_ASSERTION(aValue, "Null pointer!");
   NS_ASSERTION(aUserArg, "Null pointer!");
 
-  nsTArray<T>* array =
-    static_cast<nsTArray<T>*>(aUserArg);
+  nsTArray<IDBDatabase*>* array =
+    static_cast<nsTArray<IDBDatabase*>*>(aUserArg);
 
   if (!array->AppendElements(*aValue)) {
     NS_WARNING("Out of memory!");
@@ -522,10 +518,8 @@ IndexedDatabaseManager::AbortCloseDatabasesForWindow(nsPIDOMWindow* aWindow)
   NS_ASSERTION(aWindow, "Null pointer!");
 
   nsAutoTArray<IDBDatabase*, 50> liveDatabases;
-  mLiveDatabases.EnumerateRead(EnumerateToTArray<IDBDatabase*>,
-                               &liveDatabases);
+  mLiveDatabases.EnumerateRead(EnumerateToTArray, &liveDatabases);
 
-  FileService* service = FileService::Get();
   TransactionThreadPool* pool = TransactionThreadPool::Get();
 
   for (PRUint32 index = 0; index < liveDatabases.Length(); index++) {
@@ -533,10 +527,6 @@ IndexedDatabaseManager::AbortCloseDatabasesForWindow(nsPIDOMWindow* aWindow)
     if (database->GetOwner() == aWindow) {
       if (NS_FAILED(database->Close())) {
         NS_WARNING("Failed to close database for dying window!");
-      }
-
-      if (service) {
-        service->AbortLockedFilesForStorage(database);
       }
 
       if (pool) {
@@ -553,20 +543,17 @@ IndexedDatabaseManager::HasOpenTransactions(nsPIDOMWindow* aWindow)
   NS_ASSERTION(aWindow, "Null pointer!");
 
   nsAutoTArray<IDBDatabase*, 50> liveDatabases;
-  mLiveDatabases.EnumerateRead(EnumerateToTArray<IDBDatabase*>,
-                               &liveDatabases);
-  
-  FileService* service = FileService::Get();
+  mLiveDatabases.EnumerateRead(EnumerateToTArray, &liveDatabases);
+
   TransactionThreadPool* pool = TransactionThreadPool::Get();
-  if (!service && !pool) {
+  if (!pool) {
     return false;
   }
 
   for (PRUint32 index = 0; index < liveDatabases.Length(); index++) {
     IDBDatabase*& database = liveDatabases[index];
     if (database->GetOwner() == aWindow &&
-        ((service && service->HasLockedFilesForStorage(database)) ||
-         (pool && pool->HasTransactionsForDatabase(database)))) {
+        pool->HasTransactionsForDatabase(database)) {
       return true;
     }
   }
@@ -600,38 +587,21 @@ IndexedDatabaseManager::OnDatabaseClosed(IDBDatabase* aDatabase)
           // transactions that have not completed.  We need to wait for those
           // before we dispatch the helper.
 
-          FileService* service = FileService::Get();
-          TransactionThreadPool* pool = TransactionThreadPool::Get();
-
-          PRUint32 count = !!service + !!pool;
-
-          nsRefPtr<WaitForTransactionsToFinishRunnable> runnable =
-            new WaitForTransactionsToFinishRunnable(op,
-                                                    NS_MAX<PRUint32>(count, 1));
-
-          if (!count) {
-            runnable->Run();
+          TransactionThreadPool* pool = TransactionThreadPool::GetOrCreate();
+          if (!pool) {
+            NS_ERROR("IndexedDB is totally broken.");
+            return;
           }
-          else {
-            // Use the WaitForTransactionsToxFinishRunnable as the callback.
 
-            if (service) {
-              nsTArray<nsCOMPtr<nsIFileStorage> > array;
-              array.AppendElement(aDatabase);
+          nsRefPtr<WaitForTransactionsToFinishRunnable> waitRunnable =
+            new WaitForTransactionsToFinishRunnable(op);
 
-              if (!service->WaitForAllStoragesToComplete(array, runnable)) {
-                NS_WARNING("Failed to wait for storages to complete!");
-              }
-            }
+          nsAutoTArray<nsRefPtr<IDBDatabase>, 1> array;
+          array.AppendElement(aDatabase);
 
-            if (pool) {
-              nsTArray<nsRefPtr<IDBDatabase> > array;
-              array.AppendElement(aDatabase);
-
-              if (!pool->WaitForAllDatabasesToComplete(array, runnable)) {
-                NS_WARNING("Failed to wait for databases to complete!");
-              }
-            }
+          // Use the WaitForTransactionsToFinishRunnable as the callback.
+          if (!pool->WaitForAllDatabasesToComplete(array, waitRunnable)) {
+            NS_WARNING("Failed to wait for transaction to complete!");
           }
         }
         break;
@@ -1279,39 +1249,6 @@ IndexedDatabaseManager::Observe(nsISupports* aSubject,
     }
 
     if (sIsMainProcess) {
-      FileService* service = FileService::Get();
-      if (service) {
-        // This should only wait for IDB databases (file storages) to complete.
-        // Other file storages may still have running locked files.
-        // If the necko service (thread pool) gets the shutdown notification
-        // first then the sync loop won't be processed at all, otherwise it will
-        // lock the main thread until all IDB file storages are finished.
-
-        nsTArray<nsCOMPtr<nsIFileStorage> >
-          liveDatabases(mLiveDatabases.Count());
-        mLiveDatabases.EnumerateRead(
-                                  EnumerateToTArray<nsCOMPtr<nsIFileStorage> >,
-                                  &liveDatabases);
-
-        if (!liveDatabases.IsEmpty()) {
-          nsRefPtr<WaitForLockedFilesToFinishRunnable> runnable =
-            new WaitForLockedFilesToFinishRunnable();
-
-          if (!service->WaitForAllStoragesToComplete(liveDatabases,
-                                                     runnable)) {
-            NS_WARNING("Failed to wait for databases to complete!");
-          }
-
-          nsIThread* thread = NS_GetCurrentThread();
-          while (runnable->IsBusy()) {
-            if (!NS_ProcessNextEvent(thread)) {
-              NS_ERROR("Failed to process next event!");
-              break;
-            }
-          }
-        }
-      }
-
       // Make sure to join with our IO thread.
       if (NS_FAILED(mIOThread->Shutdown())) {
         NS_WARNING("Failed to shutdown IO thread!");
@@ -1350,8 +1287,7 @@ IndexedDatabaseManager::Observe(nsISupports* aSubject,
 
     // Grab all live databases, for all origins.
     nsAutoTArray<IDBDatabase*, 50> liveDatabases;
-    mLiveDatabases.EnumerateRead(EnumerateToTArray<IDBDatabase*>,
-                                 &liveDatabases);
+    mLiveDatabases.EnumerateRead(EnumerateToTArray, &liveDatabases);
 
     // Invalidate them all.
     if (!liveDatabases.IsEmpty()) {
@@ -1557,7 +1493,7 @@ IndexedDatabaseManager::AsyncUsageRunnable::GetUsageForDirectory(
     rv = file->GetFileSize(&fileSize);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    NS_ASSERTION(fileSize >= 0, "Negative size?!");
+    NS_ASSERTION(fileSize > 0, "Negative size?!");
 
     IncrementUsage(aUsage, PRUint64(fileSize));
   }
@@ -1596,11 +1532,6 @@ IndexedDatabaseManager::WaitForTransactionsToFinishRunnable::Run()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(mOp && mOp->mHelper, "What?");
-  NS_ASSERTION(mCountdown, "Wrong countdown!");
-
-  if (--mCountdown) {
-    return NS_OK;
-  }
 
   // Don't hold the callback alive longer than necessary.
   nsRefPtr<AsyncConnectionHelper> helper;
@@ -1616,18 +1547,6 @@ IndexedDatabaseManager::WaitForTransactionsToFinishRunnable::Run()
   return NS_OK;
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(IndexedDatabaseManager::WaitForLockedFilesToFinishRunnable,
-                              nsIRunnable)
-
-NS_IMETHODIMP
-IndexedDatabaseManager::WaitForLockedFilesToFinishRunnable::Run()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  mBusy = false;
-
-  return NS_OK;
-}
 
 IndexedDatabaseManager::SynchronizedOp::SynchronizedOp(const nsACString& aOrigin,
                                                        nsIAtom* aId)

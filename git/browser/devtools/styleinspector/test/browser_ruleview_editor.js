@@ -50,7 +50,7 @@ function testReturnCommit()
     },
     done: expectDone("Test Value", true, testBlurCommit)
   });
-  span.click();
+  span.focus();
 }
 
 function testBlurCommit()
@@ -66,7 +66,7 @@ function testBlurCommit()
     },
     done: expectDone("Test Value", true, testAdvanceCharCommit)
   });
-  span.click();
+  span.focus();
 }
 
 function testAdvanceCharCommit()
@@ -84,7 +84,7 @@ function testAdvanceCharCommit()
     },
     done: expectDone("Test", true, testEscapeCancel)
   });
-  span.click();
+  span.focus();
 }
 
 function testEscapeCancel()
@@ -100,7 +100,7 @@ function testEscapeCancel()
     },
     done: expectDone("initial text", false, finishTest)
   });
-  span.click();
+  span.focus();
 }
 
 

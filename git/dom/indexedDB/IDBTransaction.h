@@ -152,8 +152,7 @@ public:
                          ObjectStoreInfo* aObjectStoreInfo,
                          bool aCreating);
 
-  already_AddRefed<FileInfo> GetFileInfo(nsIDOMBlob* aBlob);
-  void AddFileInfo(nsIDOMBlob* aBlob, FileInfo* aFileInfo);
+  void OnNewFileInfo(FileInfo* aFileInfo);
 
   void ClearCreatedFileInfos();
 
@@ -231,7 +230,7 @@ private:
   nsTArray<nsRefPtr<IDBObjectStore> > mCreatedObjectStores;
 
   nsRefPtr<UpdateRefcountFunction> mUpdateFileRefcountFunction;
-  nsRefPtrHashtable<nsISupportsHashKey, FileInfo> mCreatedFileInfos;
+  nsTArray<nsRefPtr<FileInfo> > mCreatedFileInfos;
 
   IndexedDBTransactionChild* mActorChild;
   IndexedDBTransactionParent* mActorParent;

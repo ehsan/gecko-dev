@@ -5,7 +5,6 @@
 DOM_SRCDIRS = \
   dom/base \
   dom/battery \
-  dom/file \
   dom/power \
   dom/network/src \
   dom/settings \

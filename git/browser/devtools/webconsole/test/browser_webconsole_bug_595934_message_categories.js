@@ -89,13 +89,12 @@ const TESTS = [
     category: "Image",
     matchString: "corrupt",
   },
-  // TODO: disabled due to Bug 760837 - intermittent failures.
-  //{ // #15
-  //  file: "test-bug-595934-workers.html",
-  //  category: "Web Worker",
-  //  matchString: "fooBarWorker",
-  //  expectError: true,
-  //},
+  { // #15
+    file: "test-bug-595934-workers.html",
+    category: "Web Worker",
+    matchString: "fooBarWorker",
+    expectError: true,
+  },
 ];
 
 let pos = -1;
