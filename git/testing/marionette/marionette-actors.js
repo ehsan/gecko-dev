@@ -48,11 +48,9 @@ try {
     return libcutils;
   });
   if (libcutils) {
-    let qemu = libcutils.property_get("ro.kernel.qemu");
-    logger.info("B2G emulator: " + (qemu == "1" ? "yes" : "no"));
     let platform = libcutils.property_get("ro.product.device");
     logger.info("Platform detected is " + platform);
-    bypassOffline = (qemu == "1" || platform == "panda");
+    bypassOffline = (platform == "generic" || platform == "panda");
   }
 }
 catch(e) {}
