@@ -332,10 +332,11 @@ nsresult
 nsChromeRegistryChrome::SelectLocaleFromPref(nsIPrefBranch* prefs)
 {
   nsresult rv;
-  PRBool matchOSLocale = PR_FALSE;
+  PRBool matchOSLocale = PR_FALSE, userLocaleOverride = PR_FALSE;
+  prefs->PrefHasUserValue(SELECTED_LOCALE_PREF, &userLocaleOverride);
   rv = prefs->GetBoolPref(MATCH_OS_LOCALE_PREF, &matchOSLocale);
 
-  if (NS_SUCCEEDED(rv) && matchOSLocale) {
+  if (NS_SUCCEEDED(rv) && matchOSLocale && !userLocaleOverride) {
     // compute lang and region code only when needed!
     nsCAutoString uiLocale;
     rv = getUILangCountry(uiLocale);
@@ -349,9 +350,6 @@ nsChromeRegistryChrome::SelectLocaleFromPref(nsIPrefBranch* prefs)
       mSelectedLocale = provider;
     }
   }
-
-  if (NS_FAILED(rv))
-    NS_ERROR("Couldn't select locale from pref!");
 
   return rv;
 }
@@ -370,18 +368,15 @@ nsChromeRegistryChrome::Observe(nsISupports *aSubject, const char *aTopic,
 
     if (pref.EqualsLiteral(MATCH_OS_LOCALE_PREF) ||
         pref.EqualsLiteral(SELECTED_LOCALE_PREF)) {
-      if (!mProfileLoaded) {
-        rv = SelectLocaleFromPref(prefs);
-        if (NS_FAILED(rv))
-          return rv;
-      }
-      FlushAllCaches();
+      rv = SelectLocaleFromPref(prefs);
+      if (NS_SUCCEEDED(rv) && mProfileLoaded)
+        FlushAllCaches();
     }
     else if (pref.EqualsLiteral(SELECTED_SKIN_PREF)) {
       nsXPIDLCString provider;
       rv = prefs->GetCharPref(pref.get(), getter_Copies(provider));
       if (NS_FAILED(rv)) {
-        NS_ERROR("Couldn't get new skin pref!");
+        NS_ERROR("Couldn't get new locale pref!");
         return rv;
       }
 
@@ -428,21 +423,6 @@ nsChromeRegistryChrome::CheckForNewChrome()
   return NS_OK;
 }
 
-void nsChromeRegistryChrome::UpdateSelectedLocale()
-{
-  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-  if (prefs) {
-    nsresult rv = SelectLocaleFromPref(prefs);
-    if (NS_SUCCEEDED(rv)) {
-      nsCOMPtr<nsIObserverService> obsSvc =
-        mozilla::services::GetObserverService();
-      NS_ASSERTION(obsSvc, "Couldn't get observer service.");
-      obsSvc->NotifyObservers((nsIChromeRegistry*) this,
-                              "selected-locale-has-changed", nsnull);
-    }
-  }
-}
-
 #ifdef MOZ_IPC
 static void
 SerializeURI(nsIURI* aURI,
@@ -477,7 +457,7 @@ EnumerateOverride(nsIURI* aURIKey,
 
 struct EnumerationArgs
 {
-  InfallibleTArray<ChromePackage>& packages;
+  nsTArray<ChromePackage>& packages;
   const nsCString& selectedLocale;
   const nsCString& selectedSkin;
 };
@@ -486,9 +466,9 @@ void
 nsChromeRegistryChrome::SendRegisteredChrome(
     mozilla::dom::PContentParent* aParent)
 {
-  InfallibleTArray<ChromePackage> packages;
-  InfallibleTArray<ResourceMapping> resources;
-  InfallibleTArray<OverrideMapping> overrides;
+  nsTArray<ChromePackage> packages;
+  nsTArray<ResourceMapping> resources;
+  nsTArray<OverrideMapping> overrides;
 
   EnumerationArgs args = {
     packages, mSelectedLocale, mSelectedSkin
@@ -552,10 +532,11 @@ CanLoadResource(nsIURI* aResourceURI)
   return isLocalResource;
 }
 
-nsIURI*
+nsresult
 nsChromeRegistryChrome::GetBaseURIFromPackage(const nsCString& aPackage,
                                               const nsCString& aProvider,
-                                              const nsCString& aPath)
+                                              const nsCString& aPath,
+                                              nsIURI* *aResult)
 {
   PackageEntry* entry =
       static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
@@ -564,24 +545,25 @@ nsChromeRegistryChrome::GetBaseURIFromPackage(const nsCString& aPackage,
 
   if (PL_DHASH_ENTRY_IS_FREE(entry)) {
     if (!mInitialized)
-      return nsnull;
+      return NS_ERROR_NOT_INITIALIZED;
 
     LogMessage("No chrome package registered for chrome://%s/%s/%s",
                aPackage.get(), aProvider.get(), aPath.get());
 
-    return nsnull;
+    return NS_ERROR_FAILURE;
   }
 
+  *aResult = nsnull;
   if (aProvider.EqualsLiteral("locale")) {
-    return entry->locales.GetBase(mSelectedLocale, nsProviderArray::LOCALE);
+    *aResult = entry->locales.GetBase(mSelectedLocale, nsProviderArray::LOCALE);
   }
   else if (aProvider.EqualsLiteral("skin")) {
-    return entry->skins.GetBase(mSelectedSkin, nsProviderArray::ANY);
+    *aResult = entry->skins.GetBase(mSelectedSkin, nsProviderArray::ANY);
   }
   else if (aProvider.EqualsLiteral("content")) {
-    return entry->baseURI;
+    *aResult = entry->baseURI;
   }
-  return nsnull;
+  return NS_OK;
 }
 
 nsresult

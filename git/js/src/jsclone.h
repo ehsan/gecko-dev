@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -118,7 +118,6 @@ struct JSStructuredCloneReader {
   private:
     JSContext *context() { return in.context(); }
 
-    bool checkDouble(jsdouble d);
     JSString *readString(uint32_t nchars);
     bool readTypedArray(uint32_t tag, uint32_t nelems, js::Value *vp);
     bool readArrayBuffer(uint32_t nbytes, js::Value *vp);
@@ -146,7 +145,7 @@ struct JSStructuredCloneWriter {
   private:
     JSContext *context() { return out.context(); }
 
-    bool writeString(uint32_t tag, JSString *str);
+    bool writeString(JSString *str);
     bool writeId(jsid id);
     bool writeArrayBuffer(JSObject *obj);
     bool writeTypedArray(JSObject *obj);

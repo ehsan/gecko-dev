@@ -68,7 +68,7 @@ add_test(function() {
 add_test(function() {
   var updatesList = gManagerWindow.document.getElementById("updates-list");
   var items = updatesList.getElementsByTagName("richlistitem");
-  var possible = ["addon1@tests.mozilla.org", "addon2@tests.mozilla.org", "addon3@tests.mozilla.org"];
+  var possible = ["addon1@tests.mozilla.org", "addon2@tests.mozilla.org", "addon2@tests.mozilla.org"];
   var expected = ["addon2@tests.mozilla.org", "addon1@tests.mozilla.org"];
   for (let i = 0; i < items.length; i++) {
     let item = items[i];
@@ -76,26 +76,11 @@ add_test(function() {
     if (possible.indexOf(itemId) == -1)
       continue; // skip over any other addons, such as shipped addons that would update on every build
     isnot(expected.length, 0, "Should be expecting more items");
-    is(itemId, expected.shift(), "Should get expected item based on recentness of update");
+    is(itemId, expected.shift(), "Should get expected item based on recenty of update");
     if (itemId == "addon1@tests.mozilla.org")
       is_element_visible(item._relNotesToggle, "Release notes toggle should be visible for addon with release notes");
     else
       is_element_hidden(item._relNotesToggle, "Release notes toggle should be hidden for addon with no release notes");
   }
   run_next_test();
-});
-
-
-add_test(function() {
-  close_manager(gManagerWindow, function() {
-    open_manager(null, function(aWindow) {
-      gManagerWindow = aWindow;
-      gCategoryUtilities = new CategoryUtilities(gManagerWindow);
-
-      var recentCat = gManagerWindow.gCategories.get("addons://updates/recent");
-      is(gCategoryUtilities.isVisible(recentCat), true, "Recent Updates category should still be visible");
-
-      run_next_test();
-    });
-  });
 });

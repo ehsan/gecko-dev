@@ -95,7 +95,7 @@ gfxFontconfigUtils *gfxPlatformGtk::sFontconfigUtils = nsnull;
 
 #ifndef MOZ_PANGO
 typedef nsDataHashtable<nsStringHashKey, nsRefPtr<FontFamily> > FontTable;
-typedef nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<gfxFontEntry> > > PrefFontTable;
+typedef nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<FontEntry> > > PrefFontTable;
 static FontTable *gPlatformFonts = NULL;
 static FontTable *gPlatformFontAliases = NULL;
 static PrefFontTable *gPrefFonts = NULL;
@@ -163,7 +163,7 @@ already_AddRefed<gfxASurface>
 gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
                                        gfxASurface::gfxContentType contentType)
 {
-    nsRefPtr<gfxASurface> newSurface;
+    nsRefPtr<gfxASurface> newSurface = nsnull;
     PRBool needsClear = PR_TRUE;
     gfxASurface::gfxImageFormat imageFormat = gfxASurface::FormatFromContent(contentType);
 #ifdef MOZ_X11
@@ -173,9 +173,9 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
     GdkScreen *gdkScreen = gdk_screen_get_default();
     if (gdkScreen) {
         // try to optimize it for 16bpp default screen
-        if (gfxASurface::CONTENT_COLOR == contentType) {
-            imageFormat = GetOffscreenFormat();
-        }
+        if (gfxASurface::CONTENT_COLOR == contentType
+            && 16 == gdk_visual_get_system()->depth)
+            imageFormat = gfxASurface::ImageFormatRGB16_565;
 
         if (UseClientSideRendering()) {
             // We're not going to use XRender, so we don't need to
@@ -209,10 +209,6 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
         // e.g., no display, no RENDER, bad size, etc.
         // Fall back to image surface for the data.
         newSurface = new gfxImageSurface(size, imageFormat);
-    }
-
-    if (newSurface->CairoStatus()) {
-        newSurface = nsnull; // surface isn't valid for some reason
     }
 
     if (newSurface && needsClear) {
@@ -310,7 +306,7 @@ gfxPlatformGtk::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
 #else
 
 nsresult
-gfxPlatformGtk::GetFontList(nsIAtom *aLangGroup,
+gfxPlatformGtk::GetFontList(const nsACString& aLangGroup,
                             const nsACString& aGenericFamily,
                             nsTArray<nsString>& aListOfFonts)
 {
@@ -481,10 +477,10 @@ gfxPlatformGtk::GetStandardFamilyName(const nsAString& aFontName, nsAString& aFa
 
 gfxFontGroup *
 gfxPlatformGtk::CreateFontGroup(const nsAString &aFamilies,
-                                const gfxFontStyle *aStyle,
-                                gfxUserFontSet *aUserFontSet)
+                               const gfxFontStyle *aStyle,
+                                gfxUserFontSet * /*aUserFontSet*/)
 {
-    return new gfxFT2FontGroup(aFamilies, aStyle, aUserFontSet);
+    return new gfxFT2FontGroup(aFamilies, aStyle);
 }
 
 #endif
@@ -505,16 +501,6 @@ gfxPlatformGtk::GetDPI()
         }
     }
     return sDPI;
-}
-
-gfxImageFormat
-gfxPlatformGtk::GetOffscreenFormat()
-{
-    if (gdk_visual_get_system()->depth == 16) {
-        return gfxASurface::ImageFormatRGB16_565;
-    }
-
-    return gfxASurface::ImageFormatRGB24;
 }
 
 qcms_profile *
@@ -712,13 +698,13 @@ gfxPlatformGtk::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
 }
 
 PRBool
-gfxPlatformGtk::GetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<gfxFontEntry> > *aFontEntryList)
+gfxPlatformGtk::GetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<FontEntry> > *aFontEntryList)
 {
     return gPrefFonts->Get(aKey, aFontEntryList);
 }
 
 void
-gfxPlatformGtk::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList)
+gfxPlatformGtk::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<FontEntry> >& aFontEntryList)
 {
     gPrefFonts->Put(aKey, aFontEntryList);
 }

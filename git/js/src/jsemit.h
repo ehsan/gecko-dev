@@ -252,14 +252,6 @@ struct JSStmtInfo {
 #define TCF_COMPILE_FOR_EVAL     0x2000000
 
 /*
- * The function has broken or incorrect def-use information, and it cannot
- * safely optimize free variables to global names. This can happen because
- * of a named function statement not at the top level (emitting a DEFFUN),
- * or a variable declaration inside a "with".
- */
-#define TCF_FUN_MIGHT_ALIAS_LOCALS  0x4000000
-
-/*
  * Flags to check for return; vs. return expr; in a function.
  */
 #define TCF_RETURN_FLAGS        (TCF_RETURN_EXPR | TCF_RETURN_VOID)
@@ -275,7 +267,6 @@ struct JSStmtInfo {
                                  TCF_FUN_USES_OWN_NAME   |                    \
                                  TCF_HAS_SHARPS          |                    \
                                  TCF_FUN_CALLS_EVAL      |                    \
-                                 TCF_FUN_MIGHT_ALIAS_LOCALS |                 \
                                  TCF_FUN_MUTATES_PARAMETER |                  \
                                  TCF_STRICT_MODE_CODE)
 
@@ -293,30 +284,11 @@ struct JSTreeContext {              /* tree context for semantic checks */
     JSAtomList      decls;          /* function, const, and var declarations */
     js::Parser      *parser;        /* ptr to common parsing and lexing data */
 
-  private:
     union {
-        JSFunction  *fun_;          /* function to store argument and variable
+        JSFunction  *fun;           /* function to store argument and variable
                                        names when flags & TCF_IN_FUNCTION */
-        JSObject    *scopeChain_;   /* scope chain object for the script */
+        JSObject    *scopeChain;    /* scope chain object for the script */
     };
-
-  public:
-    JSFunction *fun() const {
-        JS_ASSERT(inFunction());
-        return fun_;
-    }
-    void setFunction(JSFunction *fun) {
-        JS_ASSERT(inFunction());
-        fun_ = fun;
-    }
-    JSObject *scopeChain() const {
-        JS_ASSERT(!inFunction());
-        return scopeChain_;
-    }
-    void setScopeChain(JSObject *scopeChain) {
-        JS_ASSERT(!inFunction());
-        scopeChain_ = scopeChain;
-    }
 
     JSAtomList      lexdeps;        /* unresolved lexical name dependencies */
     JSTreeContext   *parent;        /* enclosing function or global context */
@@ -337,7 +309,7 @@ struct JSTreeContext {              /* tree context for semantic checks */
     JSTreeContext(js::Parser *prs)
       : flags(0), bodyid(0), blockidGen(0),
         topStmt(NULL), topScopeStmt(NULL), blockChainBox(NULL), blockNode(NULL),
-        parser(prs), scopeChain_(NULL), parent(prs->tc), staticLevel(0),
+        parser(prs), scopeChain(NULL), parent(prs->tc), staticLevel(0),
         funbox(NULL), functionList(NULL), innermostWith(NULL), sharpSlotBase(-1)
     {
         prs->tc = this;
@@ -364,16 +336,8 @@ struct JSTreeContext {              /* tree context for semantic checks */
     JSObject *blockChain() {
         return blockChainBox ? blockChainBox->object : NULL;
     }
-
-    /*
-     * True if we are at the topmost level of a entire script or function body.
-     * For example, while parsing this code we would encounter f1 and f2 at
-     * body level, but we would not encounter f3 or f4 at body level:
-     *
-     *   function f1() { function f2() { } }
-     *   if (cond) { function f3() { if (cond) { function f4() { } } } }
-     */
-    bool atBodyLevel() { return !topStmt || (topStmt->flags & SIF_BODY_BLOCK); }
+    
+    bool atTopLevel() { return !topStmt || (topStmt->flags & SIF_BODY_BLOCK); }
 
     /* Test whether we're in a statement of given type. */
     bool inStatement(JSStmtType type);
@@ -400,9 +364,7 @@ struct JSTreeContext {              /* tree context for semantic checks */
 
     bool compileAndGo() const { return flags & TCF_COMPILE_N_GO; }
     bool inFunction() const { return flags & TCF_IN_FUNCTION; }
-
     bool compiling() const { return flags & TCF_COMPILING; }
-    inline JSCodeGenerator *asCodeGenerator();
 
     bool usesArguments() const {
         return flags & TCF_FUN_USES_ARGUMENTS;
@@ -414,14 +376,6 @@ struct JSTreeContext {              /* tree context for semantic checks */
 
     bool callsEval() const {
         return flags & TCF_FUN_CALLS_EVAL;
-    }
-
-    void noteMightAliasLocals() {
-        flags |= TCF_FUN_MIGHT_ALIAS_LOCALS;
-    }
-
-    bool mightAliasLocals() const {
-        return flags & TCF_FUN_MIGHT_ALIAS_LOCALS;
     }
 
     void noteParameterMutation() {
@@ -603,8 +557,6 @@ struct JSCodeGenerator : public JSTreeContext
     SlotVector      closedArgs;
     SlotVector      closedVars;
 
-    uint16          traceIndex;     /* index for the next JSOP_TRACE instruction */
-
     /*
      * Initialize cg to allocate bytecode space from codePool, source note
      * space from notePool, and all other arena-allocated temporaries from
@@ -677,13 +629,6 @@ struct JSCodeGenerator : public JSTreeContext
 
 #define CG_SWITCH_TO_MAIN(cg)   ((cg)->current = &(cg)->main)
 #define CG_SWITCH_TO_PROLOG(cg) ((cg)->current = &(cg)->prolog)
-
-inline JSCodeGenerator *
-JSTreeContext::asCodeGenerator()
-{
-    JS_ASSERT(compiling());
-    return static_cast<JSCodeGenerator *>(this);
-}
 
 /*
  * Emit one bytecode.
@@ -863,7 +808,6 @@ typedef enum JSSrcNoteType {
     SRC_WHILE       = 4,        /* JSOP_GOTO to for or while loop condition
                                    from before loop, else JSOP_NOP at top of
                                    do-while loop */
-    SRC_TRACE       = 4,        /* For JSOP_TRACE; includes distance to loop end */
     SRC_CONTINUE    = 5,        /* JSOP_GOTO is a continue, not a break;
                                    also used on JSOP_ENDINIT if extra comma
                                    at end of array literal: [1,2,,];

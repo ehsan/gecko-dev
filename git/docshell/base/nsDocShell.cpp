@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: ft=cpp tw=78 sw=4 et ts=8 sts=4 cin */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: ft=cpp tw=78 sw=4 et ts=4 sts=4 cin
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -159,7 +159,7 @@
 #include "nsIController.h"
 #include "nsPICommandUpdater.h"
 #include "nsIDOMHTMLAnchorElement.h"
-#include "nsIWebBrowserChrome3.h"
+#include "nsIWebBrowserChrome2.h"
 #include "nsITabChild.h"
 #include "nsIStrictTransportSecurityService.h"
 
@@ -229,10 +229,6 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include "nsContentErrors.h"
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
-
-#ifdef MOZ_IPC
-#include "nsXULAppAPI.h"
-#endif
 
 using namespace mozilla;
 
@@ -711,7 +707,6 @@ nsDocShell::nsDocShell():
     mAllowKeywordFixup(PR_FALSE),
     mIsOffScreenBrowser(PR_FALSE),
     mIsActive(PR_TRUE),
-    mIsAppTab(PR_FALSE),
     mFiredUnloadEvent(PR_FALSE),
     mEODForCurrentDocument(PR_FALSE),
     mURIResultedInDocument(PR_FALSE),
@@ -754,12 +749,6 @@ nsDocShell::nsDocShell():
 nsDocShell::~nsDocShell()
 {
     Destroy();
-
-    nsCOMPtr<nsISHistoryInternal>
-        shPrivate(do_QueryInterface(mSessionHistory));
-    if (shPrivate) {
-        shPrivate->SetRootDocShell(nsnull);
-    }
 
     if (--gDocShellCount == 0) {
         NS_IF_RELEASE(sURIFixup);
@@ -863,7 +852,6 @@ NS_INTERFACE_MAP_BEGIN(nsDocShell)
     NS_INTERFACE_MAP_ENTRY(nsIWebShellServices)
     NS_INTERFACE_MAP_ENTRY(nsILinkHandler)
     NS_INTERFACE_MAP_ENTRY(nsIClipboardCommands)
-    NS_INTERFACE_MAP_ENTRY(nsIDocShell_MOZILLA_2_0_BRANCH)
 NS_INTERFACE_MAP_END_INHERITING(nsDocLoader)
 
 ///*****************************************************************************
@@ -4072,40 +4060,33 @@ nsDocShell::LoadErrorPage(nsIURI *aURI, const PRUnichar *aURL,
 
     // Create a URL to pass all the error information through to the page.
 
-#undef SAFE_ESCAPE
-#define SAFE_ESCAPE(cstring, escArg1, escArg2)  \
-    {                                           \
-        char* s = nsEscape(escArg1, escArg2);   \
-        if (!s)                                 \
-            return NS_ERROR_OUT_OF_MEMORY;      \
-        cstring.Adopt(s);                       \
-    }
-    nsCString escapedUrl, escapedCharset, escapedError, escapedDescription,
-              escapedCSSClass;
-    SAFE_ESCAPE(escapedUrl, url.get(), url_Path);
-    SAFE_ESCAPE(escapedCharset, charset.get(), url_Path);
-    SAFE_ESCAPE(escapedError,
-                NS_ConvertUTF16toUTF8(aErrorType).get(), url_Path);
-    SAFE_ESCAPE(escapedDescription,
-                NS_ConvertUTF16toUTF8(aDescription).get(), url_Path);
-    if (aCSSClass) {
-        SAFE_ESCAPE(escapedCSSClass, aCSSClass, url_Path);
-    }
+    char *escapedUrl = nsEscape(url.get(), url_Path);
+    char *escapedCharset = nsEscape(charset.get(), url_Path);
+    char *escapedError = nsEscape(NS_ConvertUTF16toUTF8(aErrorType).get(), url_Path);
+    char *escapedDescription = nsEscape(NS_ConvertUTF16toUTF8(aDescription).get(), url_Path);
+    char *escapedCSSClass = nsEscape(aCSSClass, url_Path);
+
     nsCString errorPageUrl("about:");
     errorPageUrl.AppendASCII(aErrorPage);
     errorPageUrl.AppendLiteral("?e=");
 
-    errorPageUrl.AppendASCII(escapedError.get());
+    errorPageUrl.AppendASCII(escapedError);
     errorPageUrl.AppendLiteral("&u=");
-    errorPageUrl.AppendASCII(escapedUrl.get());
-    if (!escapedCSSClass.IsEmpty()) {
+    errorPageUrl.AppendASCII(escapedUrl);
+    if (escapedCSSClass && escapedCSSClass[0]) {
         errorPageUrl.AppendASCII("&s=");
-        errorPageUrl.AppendASCII(escapedCSSClass.get());
+        errorPageUrl.AppendASCII(escapedCSSClass);
     }
     errorPageUrl.AppendLiteral("&c=");
-    errorPageUrl.AppendASCII(escapedCharset.get());
+    errorPageUrl.AppendASCII(escapedCharset);
     errorPageUrl.AppendLiteral("&d=");
-    errorPageUrl.AppendASCII(escapedDescription.get());
+    errorPageUrl.AppendASCII(escapedDescription);
+
+    nsMemory::Free(escapedDescription);
+    nsMemory::Free(escapedError);
+    nsMemory::Free(escapedUrl);
+    nsMemory::Free(escapedCharset);
+    nsMemory::Free(escapedCSSClass);
 
     nsCOMPtr<nsIURI> errorPageURI;
     nsresult rv = NS_NewURI(getter_AddRefs(errorPageURI), errorPageUrl);
@@ -4306,7 +4287,7 @@ nsDocShell::GetSessionHistory(nsISHistory ** aSessionHistory)
 
 //*****************************************************************************
 // nsDocShell::nsIWebPageDescriptor
-//*****************************************************************************
+//*****************************************************************************   
 NS_IMETHODIMP
 nsDocShell::LoadPage(nsISupports *aPageDescriptor, PRUint32 aDisplayType)
 {
@@ -4322,13 +4303,7 @@ nsDocShell::LoadPage(nsISupports *aPageDescriptor, PRUint32 aDisplayType)
     nsCOMPtr<nsISHEntry> shEntry;
     nsresult rv = shEntryIn->Clone(getter_AddRefs(shEntry));
     NS_ENSURE_SUCCESS(rv, rv);
-
-    // Give our cloned shEntry a new document identifier so this load is
-    // independent of all other loads.  (This is important, in particular,
-    // for bugs 582795 and 585298.)
-    rv = shEntry->SetUniqueDocIdentifier();
-    NS_ENSURE_SUCCESS(rv, rv);
-
+    
     //
     // load the page as view-source
     //
@@ -4819,20 +4794,6 @@ NS_IMETHODIMP
 nsDocShell::GetIsActive(PRBool *aIsActive)
 {
   *aIsActive = mIsActive;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::SetIsAppTab(PRBool aIsAppTab)
-{
-  mIsAppTab = aIsAppTab;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::GetIsAppTab(PRBool *aIsAppTab)
-{
-  *aIsAppTab = mIsAppTab;
   return NS_OK;
 }
 
@@ -5966,13 +5927,7 @@ nsDocShell::OnRedirectStateChange(nsIChannel* aOldChannel,
     nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
         do_QueryInterface(aNewChannel);
     if (appCacheChannel) {
-#ifdef MOZ_IPC
-        // Permission will be checked in the parent process.
-        if (GeckoProcessType_Default != XRE_GetProcessType())
-            appCacheChannel->SetChooseApplicationCache(PR_TRUE);
-        else
-#endif
-            appCacheChannel->SetChooseApplicationCache(ShouldCheckAppCache(newURI));
+        appCacheChannel->SetChooseApplicationCache(ShouldCheckAppCache(newURI));
     }
 
     if (!(aRedirectFlags & nsIChannelEventSink::REDIRECT_INTERNAL) && 
@@ -6508,12 +6463,6 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
   return rv;
 }
 
-NS_IMETHODIMP
-nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal *aPrincipal)
-{
-    return CreateAboutBlankContentViewer(aPrincipal, nsnull);
-}
-
 PRBool
 nsDocShell::CanSavePresentation(PRUint32 aLoadType,
                                 nsIRequest *aNewRequest,
@@ -6583,15 +6532,12 @@ nsDocShell::ReattachEditorToWindow(nsISHEntry *aSHEntry)
                  "Reattaching when there's not a detached editor.");
 
     if (mEditorData || !aSHEntry)
-        return;
+      return;
 
     mEditorData = aSHEntry->ForgetEditorData();
     if (mEditorData) {
-#ifdef DEBUG
-        nsresult rv =
-#endif
-        mEditorData->ReattachToWindow(this);
-        NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to reattach editing session");
+        nsresult res = mEditorData->ReattachToWindow(this);
+        NS_ASSERTION(NS_SUCCEEDED(res), "Failed to reattach editing session");
     }
 }
 
@@ -8347,7 +8293,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 window->DispatchSyncPopState();
 
                 if (doHashchange)
-                  window->DispatchAsyncHashchange();
+                  window->DispatchSyncHashchange();
             }
 
             return NS_OK;
@@ -8628,14 +8574,7 @@ nsDocShell::DoURILoad(nsIURI * aURI,
 
         // Loads with the correct permissions should check for a matching
         // application cache.
-#ifdef MOZ_IPC
-        // Permission will be checked in the parent process
-        if (GeckoProcessType_Default != XRE_GetProcessType())
-            appCacheChannel->SetChooseApplicationCache(PR_TRUE);
-        else
-#endif
-            appCacheChannel->SetChooseApplicationCache(
-                ShouldCheckAppCache(aURI));
+        appCacheChannel->SetChooseApplicationCache(ShouldCheckAppCache(aURI));
     }
 
     // Make sure to give the caller a channel if we managed to create one
@@ -10460,7 +10399,7 @@ nsDocShell::ExtractLastVisit(nsIChannel* aChannel,
       );
 
       NS_WARN_IF_FALSE(
-          NS_SUCCEEDED(rv),
+          NS_FAILED(rv),
           "Could not fetch previous flags, URI will be treated like referrer"
       );
     }
@@ -11348,22 +11287,8 @@ nsDocShell::OnLinkClick(nsIContent* aContent,
     return NS_OK;
   }
 
-  nsresult rv = NS_ERROR_FAILURE;
-  nsAutoString target;
-
-  nsCOMPtr<nsIWebBrowserChrome3> browserChrome3 = do_GetInterface(mTreeOwner);
-  if (browserChrome3) {
-    nsCOMPtr<nsIDOMNode> linkNode = do_QueryInterface(aContent);
-    nsAutoString oldTarget(aTargetSpec);
-    rv = browserChrome3->OnBeforeLinkTraversal(oldTarget, aURI,
-                                               linkNode, mIsAppTab, target);
-  }
-  
-  if (NS_FAILED(rv))
-    target = aTargetSpec;  
-
   nsCOMPtr<nsIRunnable> ev =
-      new OnLinkClickEvent(this, aContent, aURI, target.get(),
+      new OnLinkClickEvent(this, aContent, aURI, aTargetSpec,
                            aPostDataStream, aHeadersDataStream);
   return NS_DispatchToCurrentThread(ev);
 }

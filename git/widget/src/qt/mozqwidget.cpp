@@ -80,7 +80,9 @@ MozQWidget::MozQWidget(nsWindow* aReceiver, QGraphicsItem* aParent)
 {
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
      setFlag(QGraphicsItem::ItemAcceptsInputMethod);
+
      setAcceptTouchEvents(true);
+     grabGesture(Qt::PinchGesture);
 #endif
 }
 
@@ -92,7 +94,7 @@ MozQWidget::~MozQWidget()
 
 void MozQWidget::paint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, QWidget* aWidget /*= 0*/)
 {
-    mReceiver->DoPaint(aPainter, aOption, aWidget);
+    mReceiver->DoPaint(aPainter, aOption);
 }
 
 void MozQWidget::activate()
@@ -236,12 +238,6 @@ bool MozQWidget::event ( QEvent * event )
     {
         PRBool handled = PR_FALSE;
         mReceiver->OnGestureEvent(static_cast<QGestureEvent*>(event),handled);
-        return handled;
-    }
-    case QEvent::InputMethod:
-    {
-        PRBool handled = PR_FALSE;
-        mReceiver->imComposeEvent(static_cast<QInputMethodEvent*>(event),handled);
         return handled;
     }
 

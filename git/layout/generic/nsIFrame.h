@@ -41,10 +41,6 @@
 #ifndef nsIFrame_h___
 #define nsIFrame_h___
 
-#ifndef MOZILLA_INTERNAL_API
-#error This header/class should only be used within Mozilla code. It should not be used by extensions.
-#endif
-
 /* nsIFrame is in the process of being deCOMtaminated, i.e., this file is eventually
    going to be eliminated, and all callers will use nsFrame instead.  At the moment
    we're midway through this process, so you will see inlined functions and member
@@ -976,19 +972,10 @@ public:
   /**
    * Get the position of the frame's baseline, relative to the top of
    * the frame (its top border edge).  Only valid when Reflow is not
-   * needed.
+   * needed and when the frame returned nsHTMLReflowMetrics::
+   * ASK_FOR_BASELINE as ascent in its reflow metrics.
    */
   virtual nscoord GetBaseline() const = 0;
-
-  /**
-   * Get the position of the baseline on which the caret needs to be placed,
-   * relative to the top of the frame.  This is mostly needed for frames
-   * which return a baseline from GetBaseline which is not useful for
-   * caret positioning.
-   */
-  virtual nscoord GetCaretBaseline() const {
-    return GetBaseline();
-  }
 
   /**
    * Used to iterate the list of additional child list names. Returns the atom
@@ -1981,14 +1968,6 @@ public:
   void Invalidate(const nsRect& aDamageRect)
   { return InvalidateWithFlags(aDamageRect, 0); }
 
-#ifndef MOZ_ENABLE_LIBXUL
-  /**
-   * Same as InvalidateOverflowRect, just for non-libxul builds.
-   */
-  virtual void InvalidateOverflowRectExternal()
-  { return InvalidateOverflowRect(); }
-#endif
-
   /**
    * As Invalidate above, except that this should be called when the
    * rendering that has changed is performed using layers so we can avoid
@@ -2025,8 +2004,6 @@ public:
    * @param aFlags INVALIDATE_NO_THEBES_LAYERS: don't invalidate the
    * ThebesLayers of any container layer owned by an ancestor. Set this
    * only if ThebesLayers definitely don't need to be updated.
-   * @param aFlags INVALIDATE_ONLY_THEBES_LAYERS: invalidate only in the
-   * ThebesLayers of the nearest container layer.
    * @param aFlags INVALIDATE_EXCLUDE_CURRENT_PAINT: if the invalidation
    * occurs while we're painting (to be precise, while
    * BeginDeferringInvalidatesForDisplayRoot is active on the display root),
@@ -2047,8 +2024,7 @@ public:
     INVALIDATE_REASON_MASK = INVALIDATE_REASON_SCROLL_BLIT |
                              INVALIDATE_REASON_SCROLL_REPAINT,
     INVALIDATE_NO_THEBES_LAYERS = 0x10,
-    INVALIDATE_ONLY_THEBES_LAYERS = 0x20,
-    INVALIDATE_EXCLUDE_CURRENT_PAINT = 0x40
+    INVALIDATE_EXCLUDE_CURRENT_PAINT = 0x20
   };
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aOffsetX, nscoord aOffsetY,
@@ -2554,8 +2530,7 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
 
   NS_HIDDEN_(nsresult) Redraw(nsBoxLayoutState& aState, const nsRect* aRect = nsnull);
   NS_IMETHOD RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIBox* aChild)=0;
-  // XXX take this out after we've branched
-  virtual PRBool GetMouseThrough() const { return PR_FALSE; };
+  virtual PRBool GetMouseThrough() const = 0;
 
 #ifdef DEBUG_LAYOUT
   NS_IMETHOD SetDebug(nsBoxLayoutState& aState, PRBool aDebug)=0;

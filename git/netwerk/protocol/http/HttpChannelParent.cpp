@@ -42,7 +42,6 @@
 #include "mozilla/net/HttpChannelParent.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/net/NeckoParent.h"
-#include "mozilla/unused.h"
 #include "HttpChannelParentListener.h"
 #include "nsHttpChannel.h"
 #include "nsHttpHandler.h"
@@ -55,9 +54,6 @@
 #include "nsSerializationHelper.h"
 #include "nsISerializable.h"
 #include "nsIAssociatedContentSecurity.h"
-#include "nsIApplicationCacheService.h"
-#include "nsIOfflineCacheUpdate.h"
-#include "nsIRedirectChannelRegistrar.h"
 
 namespace mozilla {
 namespace net {
@@ -91,31 +87,8 @@ HttpChannelParent::ActorDestroy(ActorDestroyReason why)
 // HttpChannelParent::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS6(HttpChannelParent,
-                   nsIInterfaceRequestor,
-                   nsIProgressEventSink,
-                   nsIRequestObserver,
-                   nsIStreamListener,
-                   nsIParentChannel,
-                   nsIParentRedirectingChannel)
-
-//-----------------------------------------------------------------------------
-// HttpChannelParent::nsIInterfaceRequestor
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-HttpChannelParent::GetInterface(const nsIID& aIID, void **result)
-{
-  if (aIID.Equals(NS_GET_IID(nsIAuthPromptProvider)) ||
-      aIID.Equals(NS_GET_IID(nsISecureBrowserUI))) {
-    if (!mTabParent)
-      return NS_NOINTERFACE;
-
-    return mTabParent->QueryInterface(aIID, result);
-  }
-
-  return QueryInterface(aIID, result);
-}
+NS_IMPL_ISUPPORTS1(HttpChannelParent,
+                   nsIProgressEventSink)
 
 //-----------------------------------------------------------------------------
 // HttpChannelParent::PHttpChannelParent
@@ -129,17 +102,15 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
                                  const PRUint32&            loadFlags,
                                  const RequestHeaderTuples& requestHeaders,
                                  const nsHttpAtom&          requestMethod,
-                                 const IPC::InputStream&    uploadStream,
-                                 const PRBool&              uploadStreamHasHeaders,
+                                 const nsCString&           uploadStreamData,
+                                 const PRInt32&             uploadStreamInfo,
                                  const PRUint16&            priority,
                                  const PRUint8&             redirectionLimit,
                                  const PRBool&              allowPipelining,
                                  const PRBool&              forceAllowThirdPartyCookie,
                                  const bool&                doResumeAt,
                                  const PRUint64&            startPos,
-                                 const nsCString&           entityID,
-                                 const bool&                chooseApplicationCache,
-                                 const nsCString&           appCacheClientID)
+                                 const nsCString&           entityID)
 {
   nsCOMPtr<nsIURI> uri(aURI);
   nsCOMPtr<nsIURI> originalUri(aOriginalURI);
@@ -181,17 +152,22 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
                                requestHeaders[i].mMerge);
   }
 
-  nsRefPtr<HttpChannelParentListener> channelListener =
-      new HttpChannelParentListener(this);
+  mChannelListener = new HttpChannelParentListener(this);
 
-  httpChan->SetNotificationCallbacks(channelListener);
+  httpChan->SetNotificationCallbacks(mChannelListener);
 
   httpChan->SetRequestMethod(nsDependentCString(requestMethod.get()));
 
-  nsCOMPtr<nsIInputStream> stream(uploadStream);
-  if (stream) {
+  if (uploadStreamInfo != eUploadStream_null) {
+    nsCOMPtr<nsIInputStream> stream;
+    rv = NS_NewPostDataStream(getter_AddRefs(stream), false, uploadStreamData, 0);
+    if (NS_FAILED(rv))
+      return SendCancelEarly(rv);
+
     httpChan->InternalSetUploadStream(stream);
-    httpChan->SetUploadStreamHasHeaders(uploadStreamHasHeaders);
+    // We're casting uploadStreamInfo into PRBool here on purpose because
+    // we know possible values are either 0 or 1. See uploadStreamInfoType.
+    httpChan->SetUploadStreamHasHeaders((PRBool) uploadStreamInfo);
   }
 
   if (priority != nsISupportsPriority::PRIORITY_NORMAL)
@@ -200,56 +176,9 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
   httpChan->SetAllowPipelining(allowPipelining);
   httpChan->SetForceAllowThirdPartyCookie(forceAllowThirdPartyCookie);
 
-  nsCOMPtr<nsIApplicationCacheChannel> appCacheChan =
-    do_QueryInterface(mChannel);
-  nsCOMPtr<nsIApplicationCacheService> appCacheService =
-    do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID);
-
-  PRBool setChooseApplicationCache = chooseApplicationCache;
-  if (appCacheChan && appCacheService) {
-    // We might potentially want to drop this flag (that is TRUE by default)
-    // after we succefully associate the channel with an application cache
-    // reported by the channel child.  Dropping it here may be too early.
-    appCacheChan->SetInheritApplicationCache(PR_FALSE);
-    if (!appCacheClientID.IsEmpty()) {
-      nsCOMPtr<nsIApplicationCache> appCache;
-      rv = appCacheService->GetApplicationCache(appCacheClientID,
-                                                getter_AddRefs(appCache));
-      if (NS_SUCCEEDED(rv)) {
-        appCacheChan->SetApplicationCache(appCache);
-        setChooseApplicationCache = PR_FALSE;
-      }
-    }
-
-    if (setChooseApplicationCache) {
-      nsCOMPtr<nsIOfflineCacheUpdateService> offlineUpdateService =
-        do_GetService("@mozilla.org/offlinecacheupdate-service;1", &rv);
-      if (NS_SUCCEEDED(rv)) {
-        rv = offlineUpdateService->OfflineAppAllowedForURI(uri,
-                                                           nsnull,
-                                                           &setChooseApplicationCache);
-
-        if (setChooseApplicationCache && NS_SUCCEEDED(rv))
-          appCacheChan->SetChooseApplicationCache(PR_TRUE);
-      }
-    }
-  }
-
-  rv = httpChan->AsyncOpen(channelListener, nsnull);
+  rv = httpChan->AsyncOpen(mChannelListener, nsnull);
   if (NS_FAILED(rv))
     return SendCancelEarly(rv);
-
-  return true;
-}
-
-bool
-HttpChannelParent::RecvConnectChannel(const PRUint32& channelId)
-{
-  nsresult rv;
-
-  LOG(("Looking for a registered channel [this=%p, id=%d]", this, channelId));
-  rv = NS_LinkRedirectChannels(channelId, this, getter_AddRefs(mChannel));
-  LOG(("  found channel %p, rv=%08x", mChannel.get(), rv));
 
   return true;
 }
@@ -259,12 +188,6 @@ HttpChannelParent::RecvSetPriority(const PRUint16& priority)
 {
   nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
   httpChan->SetPriority(priority);
-
-  nsCOMPtr<nsISupportsPriority> priorityRedirectChannel =
-      do_QueryInterface(mRedirectChannel);
-  if (priorityRedirectChannel)
-    priorityRedirectChannel->SetPriority(priority);
-
   return true;
 }
 
@@ -327,24 +250,11 @@ HttpChannelParent::RecvUpdateAssociatedContentSecurity(const PRInt32& high,
 }
 
 bool
-HttpChannelParent::RecvRedirect2Verify(const nsresult& result, 
+HttpChannelParent::RecvRedirect2Result(const nsresult& result, 
                                        const RequestHeaderTuples& changedHeaders)
 {
-  if (NS_SUCCEEDED(result)) {
-    nsCOMPtr<nsIHttpChannel> newHttpChannel =
-        do_QueryInterface(mRedirectChannel);
-
-    if (newHttpChannel) {
-      for (PRUint32 i = 0; i < changedHeaders.Length(); i++) {
-        newHttpChannel->SetRequestHeader(changedHeaders[i].mHeader,
-                                         changedHeaders[i].mValue,
-                                         changedHeaders[i].mMerge);
-      }
-    }
-  }
-
-  mRedirectCallback->OnRedirectVerifyCallback(result);
-  mRedirectCallback = nsnull;
+  if (mChannelListener)
+    mChannelListener->OnContentRedirectResultReceived(result, changedHeaders);
   return true;
 }
 
@@ -358,22 +268,18 @@ HttpChannelParent::RecvDocumentChannelCleanup()
   return true;
 }
 
-bool 
-HttpChannelParent::RecvMarkOfflineCacheEntryAsForeign()
-{
-  nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
-  httpChan->MarkOfflineCacheEntryAsForeign();
-  return true;
-}
-
 //-----------------------------------------------------------------------------
-// HttpChannelParent::nsIRequestObserver
+// nsIRequestObserver and nsIStreamListener methods equivalents
 //-----------------------------------------------------------------------------
 
-NS_IMETHODIMP
+nsresult
 HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
 {
   LOG(("HttpChannelParent::OnStartRequest [this=%x]\n", this));
+
+  // We need this member only to call OnContentRedirectResultReceived on it, 
+  // that will for sure not happen when we get here.  Throw it away ASAP.
+  mChannelListener = nsnull;
 
   nsHttpChannel *chan = static_cast<nsHttpChannel *>(aRequest);
   nsHttpResponseHead *responseHead = chan->GetResponseHead();
@@ -384,22 +290,6 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
   chan->GetCacheTokenExpirationTime(&expirationTime);
   nsCString cachedCharset;
   chan->GetCacheTokenCachedCharset(cachedCharset);
-
-  PRBool loadedFromApplicationCache;
-  chan->GetLoadedFromApplicationCache(&loadedFromApplicationCache);
-  if (loadedFromApplicationCache) {
-    nsCOMPtr<nsIApplicationCache> appCache;
-    chan->GetApplicationCache(getter_AddRefs(appCache));
-    nsCString appCacheGroupId;
-    nsCString appCacheClientId;
-    appCache->GetGroupID(appCacheGroupId);
-    appCache->GetClientID(appCacheClientId);
-    if (mIPCClosed || 
-        !SendAssociateApplicationCache(appCacheGroupId, appCacheClientId))
-    {
-      return NS_ERROR_UNEXPECTED;
-    }
-  }
 
   nsCOMPtr<nsIEncodedChannel> encodedChannel = do_QueryInterface(aRequest);
   if (encodedChannel)
@@ -441,7 +331,7 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 HttpChannelParent::OnStopRequest(nsIRequest *aRequest, 
                                  nsISupports *aContext, 
                                  nsresult aStatusCode)
@@ -454,11 +344,7 @@ HttpChannelParent::OnStopRequest(nsIRequest *aRequest,
   return NS_OK;
 }
 
-//-----------------------------------------------------------------------------
-// HttpChannelParent::nsIStreamListener
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
+nsresult
 HttpChannelParent::OnDataAvailable(nsIRequest *aRequest, 
                                    nsISupports *aContext, 
                                    nsIInputStream *aInputStream, 
@@ -504,62 +390,5 @@ HttpChannelParent::OnStatus(nsIRequest *aRequest,
   return NS_OK;
 }
 
-//-----------------------------------------------------------------------------
-// HttpChannelParent::nsIParentChannel
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-HttpChannelParent::Delete()
-{
-  if (!mIPCClosed)
-    SendDeleteSelf();
-
-  return NS_OK;
-}
-
-//-----------------------------------------------------------------------------
-// HttpChannelParent::nsIParentRedirectingChannel
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-HttpChannelParent::StartRedirect(PRUint32 newChannelId,
-                                 nsIChannel* newChannel,
-                                 PRUint32 redirectFlags,
-                                 nsIAsyncVerifyRedirectCallback* callback)
-{
-  if (mIPCClosed)
-    return NS_BINDING_ABORTED;
-
-  nsCOMPtr<nsIURI> newURI;
-  newChannel->GetURI(getter_AddRefs(newURI));
-
-  nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(mChannel.get());
-  nsHttpResponseHead *responseHead = httpChan->GetResponseHead();
-  bool result = SendRedirect1Begin(newChannelId,
-                                   IPC::URI(newURI),
-                                   redirectFlags,
-                                   responseHead ? *responseHead
-                                                : nsHttpResponseHead());
-  if (!result)
-    return NS_BINDING_ABORTED;
-
-  // Result is handled in RecvRedirect2Verify above
-
-  mRedirectChannel = newChannel;
-  mRedirectCallback = callback;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpChannelParent::CompleteRedirect(PRBool succeeded)
-{
-  if (succeeded && !mIPCClosed) {
-    // TODO: check return value: assume child dead if failed
-    unused << SendRedirect3Complete();
-  }
-
-  mRedirectChannel = nsnull;
-  return NS_OK;
-}
-
 }} // mozilla::net
+

@@ -45,78 +45,13 @@
 #include "jstl.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "assembler/assembler/MacroAssembler.h"
-#include "assembler/assembler/LinkBuffer.h"
+#include "assembler/assembler/RepatchBuffer.h"
 #include "assembler/moco/MocoStubs.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/MachineRegs.h"
-#include "CodeGenIncludes.h"
-#include "jsobjinlines.h"
-#include "jsscopeinlines.h"
 
 namespace js {
 namespace mjit {
-
-class MaybeRegisterID {
-    typedef JSC::MacroAssembler::RegisterID RegisterID;
-
-  public:
-    MaybeRegisterID()
-      : reg_(Registers::ReturnReg), set(false)
-    { }
-
-    MaybeRegisterID(RegisterID reg)
-      : reg_(reg), set(true)
-    { }
-
-    inline RegisterID reg() const { JS_ASSERT(set); return reg_; }
-    inline void setReg(const RegisterID r) { reg_ = r; set = true; }
-    inline bool isSet() const { return set; }
-
-    MaybeRegisterID & operator =(const MaybeRegisterID &other) {
-        set = other.set;
-        reg_ = other.reg_;
-        return *this;
-    }
-
-    MaybeRegisterID & operator =(RegisterID r) {
-        setReg(r);
-        return *this;
-    }
-
-  private:
-    RegisterID reg_;
-    bool set;
-};
-
-// Represents an int32 property name in generated code, which must be either
-// a RegisterID or a constant value.
-struct Int32Key {
-    typedef JSC::MacroAssembler::RegisterID RegisterID;
-
-    MaybeRegisterID reg_;
-    int32 index_;
-
-    Int32Key() : index_(0) { }
-
-    static Int32Key FromRegister(RegisterID reg) {
-        Int32Key key;
-        key.reg_ = reg;
-        return key;
-    }
-    static Int32Key FromConstant(int32 index) {
-        Int32Key key;
-        key.index_ = index;
-        return key;
-    }
-
-    int32 index() const {
-        JS_ASSERT(!reg_.isSet());
-        return index_;
-    }
-
-    RegisterID reg() const { return reg_.reg(); }
-    bool isConstant() const { return !reg_.isSet(); }
-};
 
 class MaybeJump {
     typedef JSC::MacroAssembler::Jump Jump;
@@ -137,6 +72,8 @@ class MaybeJump {
     bool set;
 };
 
+//#define JS_METHODJIT_PROFILE_STUBS
+
 struct FrameAddress : JSC::MacroAssembler::Address
 {
     FrameAddress(int32 offset)
@@ -151,14 +88,14 @@ struct ImmIntPtr : public JSC::MacroAssembler::ImmPtr
     { }
 };
 
-class Assembler : public ValueAssembler
+class BaseAssembler : public JSC::MacroAssembler
 {
     struct CallPatch {
-        CallPatch(Call cl, void *fun)
-          : call(cl), fun(fun)
+        CallPatch(ptrdiff_t distance, void *fun)
+          : distance(distance), fun(fun)
         { }
 
-        Call call;
+        ptrdiff_t distance;
         JSC::FunctionPtr fun;
     };
 
@@ -173,35 +110,29 @@ class Assembler : public ValueAssembler
     Label startLabel;
     Vector<CallPatch, 64, SystemAllocPolicy> callPatches;
 
-    // List and count of registers that will be saved and restored across a call.
-    uint32      saveCount;
-    RegisterID  savedRegs[TotalRegisters];
-
-    // Calling convention used by the currently in-progress call.
-    Registers::CallConvention callConvention;
-
-    // Amount of stack space reserved for the currently in-progress call. This
-    // includes alignment and parameters.
-    uint32      stackAdjust;
-
-    // Debug flag to make sure calls do not nest.
-#ifdef DEBUG
-    bool        callIsAligned;
-#endif
-
   public:
-    Assembler()
-      : callPatches(SystemAllocPolicy()),
-        saveCount(0)
-#ifdef DEBUG
-        , callIsAligned(false)
+#if (defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)) || defined(_WIN64)
+    // If there is no fast call, we need to add esp by 8 after the call.
+    // This callLabel is to record the Label exactly after the call.
+    Label callLabel;
 #endif
+    BaseAssembler()
+      : callPatches(SystemAllocPolicy())
     {
         startLabel = label();
     }
 
     /* Total number of floating-point registers. */
     static const uint32 TotalFPRegisters = FPRegisters::TotalFPRegisters;
+
+    /*
+     * JSFrameReg is used to home the current JSStackFrame*.
+     */
+#if defined(JS_CPU_X86) || defined(JS_CPU_X64)
+    static const RegisterID JSFrameReg = JSC::X86Registers::ebx;
+#elif defined(JS_CPU_ARM)
+    static const RegisterID JSFrameReg = JSC::ARMRegisters::r11;
+#endif
 
     /* Register pair storing returned type/data for calls. */
 #if defined(JS_CPU_X86) || defined(JS_CPU_X64)
@@ -213,6 +144,14 @@ static const JSC::MacroAssembler::RegisterID JSReturnReg_Type  = JSC::ARMRegiste
 static const JSC::MacroAssembler::RegisterID JSReturnReg_Data  = JSC::ARMRegisters::r1;
 static const JSC::MacroAssembler::RegisterID JSParamReg_Argc   = JSC::ARMRegisters::r1;
 #endif
+
+    bool addressUsesRegister(Address address, RegisterID reg) {
+        return address.base == reg;
+    }
+
+    bool addressUsesRegister(BaseIndex address, RegisterID reg) {
+        return (address.base == reg) || (address.index == reg);
+    }
 
     size_t distanceOf(Label l) {
         return differenceBetween(startLabel, l);
@@ -226,9 +165,9 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc   = JSC::ARMRegiste
         load32(Address(obj, offsetof(JSObject, objShape)), shape);
     }
 
-    Jump guardShape(RegisterID objReg, JSObject *obj) {
-        return branch32(NotEqual, Address(objReg, offsetof(JSObject, objShape)),
-                        Imm32(obj->shape()));
+    Jump guardShape(RegisterID obj, uint32 shape) {
+        return branch32(NotEqual, Address(obj, offsetof(JSObject, objShape)),
+                        Imm32(shape));
     }
 
     Jump testFunction(Condition cond, RegisterID fun) {
@@ -240,9 +179,14 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc   = JSC::ARMRegiste
      * Finds and returns the address of a known object and slot.
      */
     Address objSlotRef(JSObject *obj, RegisterID reg, uint32 slot) {
-        move(ImmPtr(&obj->slots), reg);
+        if (slot < JS_INITIAL_NSLOTS) {
+            void *vp = &obj->getSlotRef(slot);
+            move(ImmPtr(vp), reg);
+            return Address(reg, 0);
+        }
+        move(ImmPtr(&obj->dslots), reg);
         loadPtr(reg, reg);
-        return Address(reg, slot * sizeof(Value));
+        return Address(reg, (slot - JS_INITIAL_NSLOTS) * sizeof(Value));
     }
 
 #ifdef JS_CPU_X86
@@ -263,8 +207,10 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc   = JSC::ARMRegiste
     }
 #endif
 
-    // Prepares for a stub call.
-    void *getCallTarget(void *fun) {
+    /*
+     * Prepares for a stub call.
+     */
+    void * getCallTarget(void *fun) {
 #ifdef JS_CPU_ARM
         /*
          * Insert a veneer for ARM to allow it to catch exceptions. There is no
@@ -296,168 +242,11 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc   = JSC::ARMRegiste
         return pfun;
     }
 
-    // Save all registers in the given mask.
-    void saveRegs(uint32 volatileMask) {
-        // Only one use per call.
-        JS_ASSERT(saveCount == 0);
-        // Must save registers before pushing arguments or setting up calls.
-        JS_ASSERT(!callIsAligned);
 
-        Registers set(volatileMask);
-        while (!set.empty()) {
-            JS_ASSERT(saveCount < TotalRegisters);
-
-            RegisterID reg = set.takeAnyReg();
-            savedRegs[saveCount++] = reg;
-            push(reg);
-        }
-    }
-
-    static const uint32 StackAlignment = 16;
-
-    static inline uint32 alignForCall(uint32 stackBytes) {
-#if defined(JS_CPU_X86) || defined(JS_CPU_X64)
-        // If StackAlignment is a power of two, % is just two shifts.
-        // 16 - (x % 16) gives alignment, extra % 16 handles total == 0.
-        return (StackAlignment - (stackBytes % StackAlignment)) % StackAlignment;
-#else
-        return 0;
-#endif
-    }
-
-    // Some platforms require stack manipulation before making stub calls.
-    // When using THROW/V, the return address is replaced, meaning the
-    // stack de-adjustment will not have occured. JaegerThrowpoline accounts
-    // for this. For stub calls, which are always invoked as if they use
-    // two parameters, the stack adjustment is constant.
-    //
-    // When using callWithABI() manually, for example via an IC, it might
-    // be necessary to jump directly to JaegerThrowpoline. In this case,
-    // the constant is provided here in order to appropriately adjust the
-    // stack.
-#ifdef _WIN64
-    static const uint32 ReturnStackAdjustment = 32;
-#elif defined(JS_CPU_X86) && defined(JS_NO_FASTCALL)
-    static const uint32 ReturnStackAdjustment = 16;
-#else
-    static const uint32 ReturnStackAdjustment = 0;
-#endif
-
-    void throwInJIT() {
-        if (ReturnStackAdjustment)
-            subPtr(Imm32(ReturnStackAdjustment), stackPointerRegister);
-        move(ImmPtr(JS_FUNC_TO_DATA_PTR(void *, JaegerThrowpoline)), Registers::ReturnReg);
-        jump(Registers::ReturnReg);
-    }
-
-    // Windows x64 requires extra space in between calls.
-#ifdef _WIN64
-    static const uint32 ShadowStackSpace = 32;
-#else
-    static const uint32 ShadowStackSpace = 0;
-#endif
-
-    // Prepare the stack for a call sequence. This must be called AFTER all
-    // volatile regs have been saved, and BEFORE pushArg() is used. The stack
-    // is assumed to be aligned to 16-bytes plus any pushes that occured via
-    // saveVolatileRegs().
-    void setupABICall(Registers::CallConvention convention, uint32 generalArgs) {
-        JS_ASSERT(!callIsAligned);
-
-        uint32 numArgRegs = Registers::numArgRegs(convention);
-        uint32 pushCount = (generalArgs > numArgRegs)
-                           ? generalArgs - numArgRegs
-                           : 0;
-
-        // Adjust the stack for alignment and parameters all at once.
-        stackAdjust = (pushCount + saveCount) * sizeof(void *);
-        stackAdjust += alignForCall(stackAdjust);
-
-#ifdef _WIN64
-        // Windows x64 ABI requires 32 bytes of "shadow space" for the callee
-        // to spill its parameters.
-        stackAdjust += ShadowStackSpace;
-#endif
-
-        if (stackAdjust)
-            subPtr(Imm32(stackAdjust), stackPointerRegister);
-
-        callConvention = convention;
-#ifdef DEBUG
-        callIsAligned = true;
-#endif
-    }
-
-    // This is an internal function only for use inside a startABICall(),
-    // callWithABI() sequence, and only for arguments known to fit in
-    // registers.
-    Address addressOfArg(uint32 i) {
-        uint32 numArgRegs = Registers::numArgRegs(callConvention);
-        JS_ASSERT(i >= numArgRegs);
-
-        // Note that shadow space is for the callee to spill, and thus it must
-        // be skipped when writing its arguments.
-        int32 spOffset = ((i - numArgRegs) * sizeof(void *)) + ShadowStackSpace;
-        return Address(stackPointerRegister, spOffset);
-    }
-
-    // Push an argument for a call.
-    void storeArg(uint32 i, RegisterID reg) {
-        JS_ASSERT(callIsAligned);
-        RegisterID to;
-        if (Registers::regForArg(callConvention, i, &to)) {
-            if (reg != to)
-                move(reg, to);
-        } else {
-            storePtr(reg, addressOfArg(i));
-        }
-    }
-
-    void storeArg(uint32 i, Imm32 imm) {
-        JS_ASSERT(callIsAligned);
-        RegisterID to;
-        if (Registers::regForArg(callConvention, i, &to))
-            move(imm, to);
-        else
-            store32(imm, addressOfArg(i));
-    }
-
-    // High-level call helper, given an optional function pointer and a
-    // calling convention. setupABICall() must have been called beforehand,
-    // as well as each numbered argument stored with storeArg().
-    //
-    // After callWithABI(), the call state is reset, so a new call may begin.
-    Call callWithABI(void *fun) {
-        JS_ASSERT(callIsAligned);
-
-        Call cl = call();
-        callPatches.append(CallPatch(cl, fun));
-
-        if (stackAdjust)
-            addPtr(Imm32(stackAdjust), stackPointerRegister);
-
-#ifdef DEBUG
-        callIsAligned = false;
-#endif
-        return cl;
-    }
-
-    // Restore registers after a call.
-    void restoreRegs() {
-        // Note that saveCount will safely decrement back to 0.
-        while (saveCount)
-            pop(savedRegs[--saveCount]);
-    }
-
-    // Wrap AbstractMacroAssembler::getLinkerCallReturnOffset which is protected.
-    unsigned callReturnOffset(Call call) {
-        return getLinkerCallReturnOffset(call);
-    }
-
-
-#define STUB_CALL_TYPE(type)                                                \
-    Call callWithVMFrame(type stub, jsbytecode *pc, uint32 fd) {            \
-        return fallibleVMCall(JS_FUNC_TO_DATA_PTR(void *, stub), pc, fd);   \
+#define STUB_CALL_TYPE(type)                                    \
+    Call stubCall(type stub, jsbytecode *pc, uint32 fd) {       \
+        return stubCall(JS_FUNC_TO_DATA_PTR(void *, stub),      \
+                        pc, fd);                                \
     }
 
     STUB_CALL_TYPE(JSObjStub);
@@ -467,159 +256,102 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc   = JSC::ARMRegiste
 
 #undef STUB_CALL_TYPE
 
-    void setupInfallibleVMFrame(int32 frameDepth) {
-        // |frameDepth < 0| implies ic::SplatApplyArgs has been called which
-        // means regs.sp has already been set in the VMFrame.
-        if (frameDepth >= 0) {
-            // sp = fp->slots() + frameDepth
-            // regs->sp = sp
-            addPtr(Imm32(sizeof(JSStackFrame) + frameDepth * sizeof(jsval)),
-                   JSFrameReg,
-                   ClobberInCall);
-            storePtr(ClobberInCall, FrameAddress(offsetof(VMFrame, regs.sp)));
-        }
+    Call stubCall(void *ptr, jsbytecode *pc, uint32 frameDepth) {
+        JS_STATIC_ASSERT(ClobberInCall != Registers::ArgReg1);
 
-        // The JIT has moved Arg1 already, and we've guaranteed to not clobber
-        // it. Move ArgReg0 into place now. setupFallibleVMFrame will not
-        // clobber it either.
-        move(MacroAssembler::stackPointerRegister, Registers::ArgReg0);
-    }
-
-    void setupFallibleVMFrame(jsbytecode *pc, int32 frameDepth) {
-        setupInfallibleVMFrame(frameDepth);
-
-        /* regs->fp = fp */
-        storePtr(JSFrameReg, FrameAddress(offsetof(VMFrame, regs.fp)));
+        void *pfun = getCallTarget(ptr);
 
         /* PC -> regs->pc :( */
         storePtr(ImmPtr(pc),
                  FrameAddress(offsetof(VMFrame, regs) + offsetof(JSFrameRegs, pc)));
+
+        /* Store sp */
+        fixScriptStack(frameDepth);
+
+        /* VMFrame -> ArgReg0 */
+        setupVMFrame();
+
+        return wrapCall(pfun);
     }
 
-    // An infallible VM call is a stub call (taking a VMFrame & and one
-    // optional parameter) that does not need |pc| and |fp| updated, since
-    // the call is guaranteed to not fail. However, |sp| is always coherent.
-    Call infallibleVMCall(void *ptr, int32 frameDepth) {
-        setupInfallibleVMFrame(frameDepth);
-        return wrapVMCall(ptr);
+    Call wrapCall(void *pfun) {
+#ifdef JS_METHODJIT_PROFILE_STUBS
+        push(Registers::ArgReg0);
+        push(Registers::ArgReg1);
+        call(JS_FUNC_TO_DATA_PTR(void *, mjit::ProfileStubCall));
+        pop(Registers::ArgReg1);
+        pop(Registers::ArgReg0);
+#endif
+#if defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)
+        push(Registers::ArgReg1);
+        push(Registers::ArgReg0);
+#elif defined(_WIN64)
+        subPtr(JSC::MacroAssembler::Imm32(32),
+               JSC::MacroAssembler::stackPointerRegister);
+#endif
+        Call cl = call(pfun);
+#if defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)
+        callLabel = label();
+        addPtr(JSC::MacroAssembler::Imm32(8),
+               JSC::MacroAssembler::stackPointerRegister);
+#elif defined(_WIN64)
+        callLabel = label();
+        addPtr(JSC::MacroAssembler::Imm32(32),
+               JSC::MacroAssembler::stackPointerRegister);
+#endif
+        return cl;
     }
 
-    // A fallible VM call is a stub call (taking a VMFrame & and one optional
-    // parameter) that needs the entire VMFrame to be coherent, meaning that
-    // |pc| and |fp| are guaranteed to be up-to-date.
-    Call fallibleVMCall(void *ptr, jsbytecode *pc, int32 frameDepth) {
-        setupFallibleVMFrame(pc, frameDepth);
-        return wrapVMCall(ptr);
+    void fixScriptStack(uint32 frameDepth) {
+        /* sp = fp + slots() + stackDepth */
+        addPtr(Imm32(sizeof(JSStackFrame) + frameDepth * sizeof(jsval)),
+               JSFrameReg,
+               ClobberInCall);
+
+        /* regs->sp = sp */
+        storePtr(ClobberInCall,
+                 FrameAddress(offsetof(VMFrame, regs.sp)));
+
+        /* regs->fp = fp */
+        storePtr(JSFrameReg, FrameAddress(offsetof(VMFrame, regs.fp)));
     }
 
-    Call wrapVMCall(void *ptr) {
-        JS_ASSERT(!saveCount);
-        JS_ASSERT(!callIsAligned);
-
-        // Every stub call has at most two arguments.
-        setupABICall(Registers::FastCall, 2);
-
-        // On x86, if JS_NO_FASTCALL is present, these will result in actual
-        // pushes to the stack, which the caller will clean up. Otherwise,
-        // they'll be ignored because the registers fit into the calling
-        // sequence.
-        storeArg(0, Registers::ArgReg0);
-        storeArg(1, Registers::ArgReg1);
-
-        return callWithABI(getCallTarget(ptr));
+    void setupVMFrame() {
+        move(MacroAssembler::stackPointerRegister, Registers::ArgReg0);
     }
 
-    void finalize(JSC::LinkBuffer &linker) {
+    Call call() {
+        return JSC::MacroAssembler::call();
+    }
+
+    Call call(void *fun) {
+        Call cl = JSC::MacroAssembler::call();
+
+        callPatches.append(CallPatch(differenceBetween(startLabel, cl), fun));
+        return cl;
+    }
+
+    Call call(RegisterID reg) {
+        return MacroAssembler::call(reg);
+    }
+
+    void finalize(uint8 *ncode) {
+        JSC::JITCode jc(ncode, size());
+        JSC::CodeBlock cb(jc);
+        JSC::RepatchBuffer repatchBuffer(&cb);
+
         for (size_t i = 0; i < callPatches.length(); i++) {
-            CallPatch &patch = callPatches[i];
-            linker.link(patch.call, JSC::FunctionPtr(patch.fun));
+            JSC::MacroAssemblerCodePtr cp(ncode + callPatches[i].distance);
+            repatchBuffer.relink(JSC::CodeLocationCall(cp), callPatches[i].fun);
         }
-    }
-
-    struct FastArrayLoadFails {
-        Jump rangeCheck;
-        Jump holeCheck;
-    };
-
-    Jump guardArrayCapacity(RegisterID objReg, const Int32Key &key) {
-        Address capacity(objReg, offsetof(JSObject, capacity));
-        if (key.isConstant()) {
-            JS_ASSERT(key.index() >= 0);
-            return branch32(BelowOrEqual, payloadOf(capacity), Imm32(key.index()));
-        }
-        return branch32(BelowOrEqual, payloadOf(capacity), key.reg());
-    }
-
-    // Load a jsval from an array slot, given a key. |objReg| is clobbered.
-    FastArrayLoadFails fastArrayLoad(RegisterID objReg, const Int32Key &key,
-                                     RegisterID typeReg, RegisterID dataReg) {
-        JS_ASSERT(objReg != typeReg);
-
-        FastArrayLoadFails fails;
-        fails.rangeCheck = guardArrayCapacity(objReg, key);
-
-        RegisterID dslotsReg = objReg;
-        loadPtr(Address(objReg, offsetof(JSObject, slots)), dslotsReg);
-
-        // Load the slot out of the array.
-        if (key.isConstant()) {
-            Address slot(objReg, key.index() * sizeof(Value));
-            fails.holeCheck = fastArrayLoadSlot(slot, typeReg, dataReg);
-        } else {
-            BaseIndex slot(objReg, key.reg(), JSVAL_SCALE);
-            fails.holeCheck = fastArrayLoadSlot(slot, typeReg, dataReg);
-        }
-
-        return fails;
-    }
-
-    void loadObjClass(RegisterID objReg, RegisterID destReg) {
-        loadPtr(Address(objReg, offsetof(JSObject, clasp)), destReg);
-    }
-
-    Jump testClass(Condition cond, RegisterID claspReg, js::Class *clasp) {
-        return branchPtr(cond, claspReg, ImmPtr(clasp));
-    }
-
-    Jump testObjClass(Condition cond, RegisterID objReg, js::Class *clasp) {
-        return branchPtr(cond, Address(objReg, offsetof(JSObject, clasp)), ImmPtr(clasp));
-    }
-
-    void rematPayload(const StateRemat &remat, RegisterID reg) {
-        if (remat.inMemory())
-            loadPayload(remat.address(), reg);
-        else
-            move(remat.reg(), reg);
-    }
-
-    void loadDynamicSlot(RegisterID objReg, uint32 slot,
-                         RegisterID typeReg, RegisterID dataReg) {
-        loadPtr(Address(objReg, offsetof(JSObject, slots)), dataReg);
-        loadValueAsComponents(Address(dataReg, slot * sizeof(Value)), typeReg, dataReg);
-    }
-
-    void loadObjProp(JSObject *obj, RegisterID objReg,
-                     const js::Shape *shape,
-                     RegisterID typeReg, RegisterID dataReg)
-    {
-        if (shape->isMethod())
-            loadValueAsComponents(ObjectValue(shape->methodObject()), typeReg, dataReg);
-        else if (obj->hasSlotsArray())
-            loadDynamicSlot(objReg, shape->slot, typeReg, dataReg);
-        else
-            loadInlineSlot(objReg, shape->slot, typeReg, dataReg);
     }
 };
 
-/* Return f<true> if the script is strict mode code, f<false> otherwise. */
-#define STRICT_VARIANT(f)                                                     \
-    (FunctionTemplateConditional(script->strictModeCode,                      \
-                                 f<true>, f<false>))
-
 /* Save some typing. */
-static const JSC::MacroAssembler::RegisterID JSReturnReg_Type = Assembler::JSReturnReg_Type;
-static const JSC::MacroAssembler::RegisterID JSReturnReg_Data = Assembler::JSReturnReg_Data;
-static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = Assembler::JSParamReg_Argc;
+static const JSC::MacroAssembler::RegisterID JSFrameReg = BaseAssembler::JSFrameReg;
+static const JSC::MacroAssembler::RegisterID JSReturnReg_Type = BaseAssembler::JSReturnReg_Type;
+static const JSC::MacroAssembler::RegisterID JSReturnReg_Data = BaseAssembler::JSReturnReg_Data;
+static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = BaseAssembler::JSParamReg_Argc;
 
 struct FrameFlagsAddress : JSC::MacroAssembler::Address
 {

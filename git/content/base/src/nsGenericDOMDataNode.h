@@ -194,7 +194,7 @@ public:
   virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
                               PRBool aNullParent = PR_TRUE);
 
-  virtual already_AddRefed<nsINodeList> GetChildren(PRUint32 aFilter);
+  virtual already_AddRefed<nsINodeList> GetChildren(PRInt32 aChildType);
 
   virtual nsIAtom *GetIDAttributeName() const;
   virtual already_AddRefed<nsINodeInfo> GetExistingAttrNameFromQName(const nsAString& aStr) const;
@@ -230,7 +230,7 @@ public:
   virtual void SaveSubtreeState();
 
 #ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(PRInt32 /*aNamespaceID*/, nsIAtom* /*aName*/)
+  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* /*aName*/)
   {
     return nsnull;
   }
@@ -485,7 +485,7 @@ private:
     return nsGenericDOMDataNode::IsSupported(aFeature, aVersion, aReturn);  \
   }                                                                         \
   NS_IMETHOD CloneNode(PRBool aDeep, nsIDOMNode** aReturn) {                \
-    return nsNodeUtils::CloneNodeImpl(this, aDeep, PR_TRUE, aReturn);       \
+    return nsNodeUtils::CloneNodeImpl(this, aDeep, aReturn);                \
   }                                                                         \
   virtual nsGenericDOMDataNode *CloneDataNode(nsINodeInfo *aNodeInfo,       \
                                               PRBool aCloneText) const;

@@ -30,14 +30,6 @@ var error = function(msg) {
 };
 
 /**
- * Turn off all logging.
- */
-var loggingOff = function() {
-  log = function() {};
-  error = function() {};
-};
-
-/**
  * Converts a WebGL enum to a string
  * @param {!WebGLContext} gl The WebGLContext to use.
  * @param {number} value The enum value.
@@ -284,7 +276,7 @@ var fillTexture = function(gl, tex, width, height, color, opt_level) {
  */
 var createColoredTexture = function(gl, width, height, color) {
   var tex = gl.createTexture();
-  fillTexture(gl, tex, width, height, color);
+  fillTexture(gl, text, width, height, color);
   return tex;
 };
 
@@ -378,15 +370,20 @@ var loadTexture = function(gl, url, callback) {
  *     passed in one will be created.
  * @return {!WebGLContext} The created context.
  */
-var create3DContext = function(opt_canvas, opt_attributes) {
+var create3DContext = function(opt_canvas) {
   opt_canvas = opt_canvas || document.createElement("canvas");
   var context = null;
   try {
-    context = opt_canvas.getContext("webgl", opt_attributes);
+    context = opt_canvas.getContext("experimental-webgl");
   } catch(e) {}
   if (!context) {
     try {
-      context = opt_canvas.getContext("experimental-webgl", opt_attributes);
+      context = opt_canvas.getContext("webkit-3d");
+    } catch(e) {}
+  }
+  if (!context) {
+    try {
+      context = opt_canvas.getContext("moz-webgl");
     } catch(e) {}
   }
   if (!context) {
@@ -848,7 +845,6 @@ return {
   loadStandardFragmentShader: loadStandardFragmentShader,
   loadTexture: loadTexture,
   log: log,
-  loggingOff: loggingOff,
   error: error,
   setupProgram: setupProgram,
   setupSimpleTextureFragmentShader: setupSimpleTextureFragmentShader,

@@ -56,14 +56,6 @@ JS_BEGIN_EXTERN_C
 extern JS_PUBLIC_API(void)
 JS_Assert(const char *s, const char *file, JSIntn ln);
 
-#define JS_CRASH_UNLESS(__cond)                                                 \
-    JS_BEGIN_MACRO                                                              \
-        if (!(__cond)) {                                                        \
-            *(int *)(uintptr_t)0xccadbeef = 0;                                  \
-            ((void(*)())0)(); /* More reliable, but doesn't say CCADBEEF */     \
-        }                                                                       \
-    JS_END_MACRO
-
 #ifdef DEBUG
 
 #define JS_ASSERT(expr)                                                       \
@@ -77,19 +69,12 @@ JS_Assert(const char *s, const char *file, JSIntn ln);
 
 #define JS_ALWAYS_TRUE(expr) JS_ASSERT(expr)
 
-# ifdef JS_THREADSAFE
-# define JS_THREADSAFE_ASSERT(expr) JS_ASSERT(expr) 
-# else
-# define JS_THREADSAFE_ASSERT(expr) ((void) 0)
-# endif
-
 #else
 
 #define JS_ASSERT(expr)         ((void) 0)
 #define JS_ASSERT_IF(cond,expr) ((void) 0)
 #define JS_NOT_REACHED(reason)
 #define JS_ALWAYS_TRUE(expr)    ((void) (expr))
-#define JS_THREADSAFE_ASSERT(expr) ((void) 0)
 
 #endif /* defined(DEBUG) */
 
@@ -99,15 +84,14 @@ JS_Assert(const char *s, const char *file, JSIntn ln);
  * allowed.
  */
 
-#ifdef __SUNPRO_CC
 /*
  * Sun Studio C++ compiler has a bug
  * "sizeof expression not accepted as size of array parameter"
- * It happens when js_static_assert() function is declared inside functions.
  * The bug number is 6688515. It is not public yet.
- * Therefore, for Sun Studio, declare js_static_assert as an array instead.
+ * Turn off this assert for Sun Studio until this bug is fixed.
  */
-#define JS_STATIC_ASSERT(cond) extern char js_static_assert[(cond) ? 1 : -1]
+#ifdef __SUNPRO_CC
+#define JS_STATIC_ASSERT(cond)
 #else
 #ifdef __COUNTER__
     #define JS_STATIC_ASSERT_GLUE1(x,y) x##y
@@ -308,8 +292,6 @@ public:
     JSGuardObjectNotificationReceiver _mCheckNotUsedAsTemporary;
 #define JS_GUARD_OBJECT_NOTIFIER_PARAM \
     , const JSGuardObjectNotifier& _notifier = JSGuardObjectNotifier()
-#define JS_GUARD_OBJECT_NOTIFIER_PARAM0 \
-    const JSGuardObjectNotifier& _notifier = JSGuardObjectNotifier()
 #define JS_GUARD_OBJECT_NOTIFIER_INIT \
     JS_BEGIN_MACRO _mCheckNotUsedAsTemporary.Init(_notifier); JS_END_MACRO
 
@@ -317,7 +299,6 @@ public:
 
 #define JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 #define JS_GUARD_OBJECT_NOTIFIER_PARAM
-#define JS_GUARD_OBJECT_NOTIFIER_PARAM0
 #define JS_GUARD_OBJECT_NOTIFIER_INIT JS_BEGIN_MACRO JS_END_MACRO
 
 #endif /* !defined(DEBUG) */
@@ -353,18 +334,6 @@ JS_ALWAYS_INLINE static void
 PodArrayZero(T (&t)[N])
 {
     memset(t, 0, N * sizeof(T));
-}
-
-template <class T>
-JS_ALWAYS_INLINE static void
-PodCopy(T *dst, T *src, size_t nelem)
-{
-    if (nelem < 128) {
-        for (T *srcend = src + nelem; src != srcend; ++src, ++dst)
-            *dst = *src;
-    } else {
-        memcpy(dst, src, nelem * sizeof(T));
-    }
 }
 
 } /* namespace js */

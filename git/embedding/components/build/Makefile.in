@@ -82,7 +82,7 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 LOCAL_INCLUDES += -I$(srcdir)/../printingui/src/os2 
 endif
 
-ifdef MOZ_PDF_PRINTING
+ifneq (,$(filter qt gtk2 beos photon, $(MOZ_WIDGET_TOOLKIT)))
 LOCAL_INCLUDES += -I$(srcdir)/../printingui/src/unixshared 
 endif
 

@@ -43,7 +43,6 @@
 
 #include <QKeyEvent>
 #include <qgraphicswidget.h>
-#include <QTime>
 
 #include "nsAutoPtr.h"
 
@@ -111,7 +110,7 @@ public:
     nsWindow();
     virtual ~nsWindow();
 
-    nsEventStatus DoPaint( QPainter* aPainter, const QStyleOptionGraphicsItem * aOption, QWidget* aWidget);
+    nsEventStatus DoPaint( QPainter* aPainter, const QStyleOptionGraphicsItem * aOption );
 
     static void ReleaseGlobals();
 
@@ -199,8 +198,8 @@ public:
     NS_IMETHOD         GetAttention(PRInt32 aCycleCount);
     NS_IMETHOD         BeginResizeDrag   (nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
 
-    NS_IMETHODIMP      SetInputMode(const IMEContext& aContext);
-    NS_IMETHODIMP      GetInputMode(IMEContext& aContext);
+    NS_IMETHODIMP      SetIMEEnabled(PRUint32 aState);
+    NS_IMETHODIMP      GetIMEEnabled(PRUint32* aState);
 
     //
     // utility methods
@@ -252,8 +251,6 @@ protected:
     // leaving fullscreen
     nsSizeMode         mLastSizeMode;
 
-    IMEContext          mIMEContext;
-
     /**
      * Event handlers (proxied from the actual qwidget).
      * They follow normal Qt widget semantics.
@@ -279,7 +276,9 @@ protected:
     virtual nsEventStatus OnScrollEvent(QGraphicsSceneWheelEvent *);
 
     virtual nsEventStatus contextMenuEvent(QGraphicsSceneContextMenuEvent *);
-    virtual nsEventStatus imComposeEvent(QInputMethodEvent *, PRBool &handled);
+    virtual nsEventStatus imStartEvent(QEvent *);
+    virtual nsEventStatus imComposeEvent(QEvent *);
+    virtual nsEventStatus imEndEvent(QEvent *);
     virtual nsEventStatus OnDragEnter (QGraphicsSceneDragDropEvent *);
     virtual nsEventStatus OnDragMotionEvent(QGraphicsSceneDragDropEvent *);
     virtual nsEventStatus OnDragLeaveEvent(QGraphicsSceneDragDropEvent *);
@@ -290,11 +289,7 @@ protected:
 //Gestures are only supported in qt > 4.6
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
     virtual nsEventStatus OnTouchEvent(QTouchEvent *event, PRBool &handled);
-
     virtual nsEventStatus OnGestureEvent(QGestureEvent *event, PRBool &handled);
-    nsEventStatus DispatchGestureEvent(PRUint32 aMsg, PRUint32 aDirection,
-                                       double aDelta, const nsIntPoint& aRefPoint);
-
     double DistanceBetweenPoints(const QPointF &aFirstPoint, const QPointF &aSecondPoint);
 #endif
 
@@ -393,15 +388,13 @@ private:
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
     double mTouchPointDistance;
     double mLastPinchDistance;
-    double mPinchStartDistance;
-    QTime mLastMultiTouchTime;
+    PRBool mMouseEventsDisabled;
 #endif
 
     PRPackedBool mNeedsResize;
     PRPackedBool mNeedsMove;
     PRPackedBool mListenForResizes;
     PRPackedBool mNeedsShow;
-    PRPackedBool mGesturesCancelled;
 };
 
 class nsChildWindow : public nsWindow

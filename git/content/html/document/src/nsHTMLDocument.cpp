@@ -134,8 +134,7 @@
 #include "nsIEditingSession.h"
 #include "nsIEditor.h"
 #include "nsNodeInfoManager.h"
-#include "nsIPlaintextEditor.h"
-#include "nsIHTMLEditor.h"
+#include "nsIEditor.h"
 #include "nsIEditorDocShell.h"
 #include "nsIEditorStyleSheets.h"
 #include "nsIInlineSpellChecker.h"
@@ -218,27 +217,6 @@ ReportUseOfDeprecatedMethod(nsHTMLDocument* aDoc, const char* aWarning)
                                   EmptyString(), 0, 0,
                                   nsIScriptError::warningFlag,
                                   "DOM Events");
-}
-
-static nsresult
-RemoveFromAgentSheets(nsCOMArray<nsIStyleSheet> &aAgentSheets, const nsAString& url)
-{
-  nsCOMPtr<nsIURI> uri;
-  nsresult rv = NS_NewURI(getter_AddRefs(uri), url);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  for (PRInt32 i = aAgentSheets.Count() - 1; i >= 0; --i) {
-    nsIStyleSheet* sheet = aAgentSheets[i];
-    nsIURI* sheetURI = sheet->GetSheetURI();
-
-    PRBool equals = PR_FALSE;
-    uri->Equals(sheetURI, &equals);
-    if (equals) {
-      aAgentSheets.RemoveObjectAt(i);
-    }
-  }
-
-  return NS_OK;
 }
 
 nsresult
@@ -483,6 +461,48 @@ nsHTMLDocument::TryCacheCharset(nsICachingChannel* aCachingChannel,
     aCharset = cachedCharset;
     aCharsetSource = kCharsetFromCache;
 
+    return PR_TRUE;
+  }
+
+  return PR_FALSE;
+}
+
+PRBool
+nsHTMLDocument::TryBookmarkCharset(nsIDocShell* aDocShell,
+                                   nsIChannel* aChannel,
+                                   PRInt32& aCharsetSource,
+                                   nsACString& aCharset)
+{
+  if (kCharsetFromBookmarks <= aCharsetSource) {
+    return PR_TRUE;
+  }
+
+  if (!aChannel) {
+    return PR_FALSE;
+  }
+
+  nsCOMPtr<nsICharsetResolver> bookmarksResolver =
+    do_GetService("@mozilla.org/embeddor.implemented/bookmark-charset-resolver;1");
+
+  if (!bookmarksResolver) {
+    return PR_FALSE;
+  }
+
+  PRBool wantCharset;         // ignored for now
+  nsCAutoString charset;
+  nsCOMPtr<nsIWebNavigation> webNav(do_QueryInterface(aDocShell));
+  nsCOMPtr<nsISupports> closure;
+  nsresult rv = bookmarksResolver->RequestCharset(webNav,
+                                                  aChannel,
+                                                  &wantCharset,
+                                                  getter_AddRefs(closure),
+                                                  charset);
+  // FIXME: Bug 337970
+  NS_ASSERTION(!wantCharset, "resolved charset notification not implemented!");
+
+  if (NS_SUCCEEDED(rv) && !charset.IsEmpty()) {
+    aCharset = charset;
+    aCharsetSource = kCharsetFromBookmarks;
     return PR_TRUE;
   }
 
@@ -860,6 +880,10 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
         // Use the channel's charset (e.g., charset from HTTP
         // "Content-Type" header).
       }
+      else if (!scheme.EqualsLiteral("about") &&          // don't try to access bookmarks for about:blank
+               TryBookmarkCharset(docShell, aChannel, charsetSource, charset)) {
+        // Use the bookmark's charset.
+      }
       else if (cachingChan && !urlSpec.IsEmpty() &&
                TryCacheCharset(cachingChan, charsetSource, charset)) {
         // Use the cache's charset.
@@ -1003,29 +1027,6 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 void
 nsHTMLDocument::StopDocumentLoad()
 {
-  if (nsHtml5Module::sEnabled) {
-    BlockOnload();
-    if (mWriteState == eDocumentOpened) {
-      NS_ASSERTION(IsHTML(), "document.open()ed doc is not HTML?");
-
-      // Marking the document as closed, since pending scripts will be
-      // stopped by nsDocument::StopDocumentLoad() below
-      mWriteState = eDocumentClosed;
-
-      // Remove the wyciwyg channel request from the document load group
-      // that we added in OpenCommon().
-      NS_ASSERTION(mWyciwygChannel, "nsHTMLDocument::StopDocumentLoad(): "
-                   "Trying to remove nonexistent wyciwyg channel!");
-      RemoveWyciwygChannel();
-      NS_ASSERTION(!mWyciwygChannel, "nsHTMLDocument::StopDocumentLoad(): "
-                   "nsIWyciwygChannel could not be removed!");
-    }
-    nsDocument::StopDocumentLoad();
-    UnblockOnload(PR_FALSE);
-    return;
-  }
-  // Code for the old parser:
-
   // If we're writing (i.e., there's been a document.open call), then
   // nsDocument::StopDocumentLoad will do the wrong thing and simply terminate
   // our parser.
@@ -1831,6 +1832,7 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
     // change the principals of a document for security reasons we'll have to
     // refuse to go ahead with this call.
 
+    NS_WARNING("No caller doc for open call.");
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -1850,21 +1852,7 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
   PRBool equals = PR_FALSE;
   if (NS_FAILED(callerPrincipal->Equals(NodePrincipal(), &equals)) ||
       !equals) {
-
-#ifdef DEBUG
-    nsCOMPtr<nsIURI> callerDocURI = callerDoc->GetDocumentURI();
-    nsCOMPtr<nsIURI> thisURI = nsIDocument::GetDocumentURI();
-    nsCAutoString callerSpec;
-    nsCAutoString thisSpec;
-    if (callerDocURI) {
-      callerDocURI->GetSpec(callerSpec);
-    }
-    if (thisURI) {
-      thisURI->GetSpec(thisSpec);
-    }
-    printf("nsHTMLDocument::OpenCommon callerDoc %s this %s\n", callerSpec.get(), thisSpec.get());
-#endif
-
+    NS_WARNING("Principals unequal for open call.");
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -2914,7 +2902,7 @@ nsHTMLDocument::GenerateParserKey(void)
   // The script loader provides us with the currently executing script element,
   // which is guaranteed to be unique per script.
   if (nsHtml5Module::sEnabled) {
-    nsIScriptElement* script = mScriptLoader->GetCurrentParserInsertedScript();
+    nsIScriptElement* script = mScriptLoader->GetCurrentScript();
     if (script && mParser && mParser->IsScriptCreated()) {
       nsCOMPtr<nsIParser> creatorParser = script->GetCreatorParser();
       if (creatorParser != mParser) {
@@ -2977,7 +2965,7 @@ public:
   }
 
   NS_IMETHOD Run() {
-    if (mElement && mElement->GetOwnerDoc() == mDoc) {
+    if (mElement->GetOwnerDoc() == mDoc) {
       mDoc->DeferredContentEditableCountChange(mElement);
     }
     return NS_OK;
@@ -3160,20 +3148,12 @@ nsHTMLDocument::TearingDownEditor(nsIEditor *aEditor)
     EditingState oldState = mEditingState;
     mEditingState = eTearingDown;
 
-    nsCOMPtr<nsIPresShell> presShell = GetShell();
-    if (!presShell)
-      return;
-
-    nsCOMArray<nsIStyleSheet> agentSheets;
-    presShell->GetAgentStyleSheets(agentSheets);
-
-    RemoveFromAgentSheets(agentSheets, NS_LITERAL_STRING("resource://gre/res/contenteditable.css"));
-    if (oldState == eDesignMode)
-      RemoveFromAgentSheets(agentSheets, NS_LITERAL_STRING("resource://gre/res/designmode.css"));
-
-    presShell->SetAgentStyleSheets(agentSheets);
-
-    presShell->ReconstructStyleData();
+    nsCOMPtr<nsIEditorStyleSheets> editorss = do_QueryInterface(aEditor);
+    if (editorss) {
+      editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/contenteditable.css"));
+      if (oldState == eDesignMode)
+        editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/designmode.css"));
+    }
   }
 }
 
@@ -3251,9 +3231,8 @@ nsHTMLDocument::EditingStateChanged()
     mParentDocument->FlushPendingNotifications(Flush_Style);
   }
 
-  // get editing session, make sure this is a strong reference so the
-  // window can't get deleted during the rest of this call.
-  nsCOMPtr<nsPIDOMWindow> window = GetWindow();
+  // get editing session
+  nsPIDOMWindow *window = GetWindow();
   if (!window)
     return NS_ERROR_FAILURE;
 
@@ -3264,22 +3243,6 @@ nsHTMLDocument::EditingStateChanged()
   nsresult rv;
   nsCOMPtr<nsIEditingSession> editSession = do_GetInterface(docshell, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIEditor> existingEditor;
-  editSession->GetEditorForWindow(window, getter_AddRefs(existingEditor));
-  if (existingEditor) {
-    // We might already have an editor if it was set up for mail, let's see
-    // if this is actually the case.
-    nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(existingEditor);
-    NS_ABORT_IF_FALSE(htmlEditor, "If we have an editor, it must be an HTML editor");
-    PRUint32 flags = 0;
-    existingEditor->GetFlags(&flags);
-    if (flags & nsIPlaintextEditor::eEditorMailMask) {
-      // We already have a mail editor, then we should not attempt to create
-      // another one.
-      return NS_OK;
-    }
-  }
 
   if (!HasPresShell(window)) {
     // We should not make the window editable or setup its editor.
@@ -3315,44 +3278,21 @@ nsHTMLDocument::EditingStateChanged()
     if (!editor)
       return NS_ERROR_FAILURE;
 
-    nsCOMPtr<nsIPresShell> presShell = GetShell();
-    NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
-
-    // If we're entering the design mode, put the selection at the beginning of
-    // the document for compatibility reasons.
-    if (designMode) {
-      rv = editor->BeginningOfDocument();
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    nsCOMArray<nsIStyleSheet> agentSheets;
-    rv = presShell->GetAgentStyleSheets(agentSheets);
+    nsCOMPtr<nsIEditorStyleSheets> editorss = do_QueryInterface(editor, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIURI> uri;
-    rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_STRING("resource://gre/res/contenteditable.css"));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsRefPtr<nsCSSStyleSheet> sheet;
-    rv = LoadChromeSheetSync(uri, PR_TRUE, getter_AddRefs(sheet));
-    NS_ENSURE_TRUE(sheet, rv);
-
-    rv = agentSheets.AppendObject(sheet);
-    NS_ENSURE_SUCCESS(rv, rv);
+    editorss->AddOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/contenteditable.css"));
 
     // Should we update the editable state of all the nodes in the document? We
     // need to do this when the designMode value changes, as that overrides
     // specific states on the elements.
     if (designMode) {
       // designMode is being turned on (overrides contentEditable).
-      rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_STRING("resource://gre/res/designmode.css"));
-      NS_ENSURE_SUCCESS(rv, rv);
+      editorss->AddOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/designmode.css"));
 
-      rv = LoadChromeSheetSync(uri, PR_TRUE, getter_AddRefs(sheet));
-      NS_ENSURE_TRUE(sheet, rv);
-
-      rv = agentSheets.AppendObject(sheet);
-      NS_ENSURE_SUCCESS(rv, rv);
+      // We need to flush styles here because we're setting an XBL binding in
+      // designmode.css.
+      FlushPendingNotifications(Flush_Style);
 
       // Disable scripting and plugins.
       rv = editSession->DisableJSAndPlugins(window);
@@ -3363,7 +3303,7 @@ nsHTMLDocument::EditingStateChanged()
     }
     else if (oldState == eDesignMode) {
       // designMode is being turned off (contentEditable is still on).
-      RemoveFromAgentSheets(agentSheets, NS_LITERAL_STRING("resource://gre/res/designmode.css"));
+      editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/designmode.css"));
 
       rv = editSession->RestoreJSAndPlugins(window);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -3373,17 +3313,6 @@ nsHTMLDocument::EditingStateChanged()
     else {
       // contentEditable is being turned on (and designMode is off).
       updateState = PR_FALSE;
-    }
-
-    rv = presShell->SetAgentStyleSheets(agentSheets);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    presShell->ReconstructStyleData();
-
-    if (designMode) {
-      // We need to flush styles here because we're setting an XBL binding in
-      // designmode.css.
-      FlushPendingNotifications(Flush_Style);
     }
   }
 

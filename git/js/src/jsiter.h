@@ -43,7 +43,6 @@
 /*
  * JavaScript iterators.
  */
-#include "jscntxt.h"
 #include "jsprvtd.h"
 #include "jspubtd.h"
 #include "jsversion.h"
@@ -64,8 +63,6 @@
  * Not serialized by XDR.
  */
 #define JSITER_ACTIVE     0x1000
-
-namespace js {
 
 struct NativeIterator {
     JSObject  *obj;
@@ -140,7 +137,7 @@ struct NativeIterator {
 bool
 VectorToIdArray(JSContext *cx, js::AutoIdVector &props, JSIdArray **idap);
 
-JS_FRIEND_API(bool)
+bool
 GetPropertyNames(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVector *props);
 
 bool
@@ -159,8 +156,6 @@ VectorToValueIterator(JSContext *cx, JSObject *obj, uintN flags, js::AutoValueVe
 bool
 EnumeratedIdVectorToIterator(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVector &props, js::Value *vp);
 
-}
-
 /*
  * Convert the value stored in *vp to its iteration object. The flags should
  * contain JSITER_ENUMERATE if js_ValueToIterator is called when enumerating
@@ -175,9 +170,6 @@ js_CloseIterator(JSContext *cx, JSObject *iterObj);
 
 bool
 js_SuppressDeletedProperty(JSContext *cx, JSObject *obj, jsid id);
-
-bool
-js_SuppressDeletedIndexProperties(JSContext *cx, JSObject *obj, jsint begin, jsint end);
 
 /*
  * IteratorMore() indicates whether another value is available. It might

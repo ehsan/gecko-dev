@@ -50,7 +50,7 @@
 #include "jsbit.h"
 #include "jsclist.h"
 #include "jsdhash.h"
-#include "jsutil.h"
+#include "jsutil.h" /* Added by JSIFY */
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
@@ -63,7 +63,6 @@
 #include "jsstr.h"
 #include "jstracer.h"
 
-#include "jsdbgapiinlines.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
 
@@ -139,7 +138,7 @@ JS_FRIEND_DATA(JSScopeStats) js_scope_stats = {0};
 #endif
 
 bool
-PropertyTable::init(Shape *lastProp, JSContext *cx)
+PropertyTable::init(JSContext *cx, Shape *lastProp)
 {
     int sizeLog2;
 
@@ -157,15 +156,12 @@ PropertyTable::init(Shape *lastProp, JSContext *cx)
         sizeLog2 = MIN_SIZE_LOG2;
     }
 
-    /*
-     * Use cx->runtime->calloc for memory accounting and overpressure handling
-     * without OOM reporting. See PropertyTable::change.
-     */
-    entries = (Shape **) cx->runtime->calloc(JS_BIT(sizeLog2) * sizeof(Shape *));
+    entries = (Shape **) js_calloc(JS_BIT(sizeLog2) * sizeof(Shape *));
     if (!entries) {
         METER(tableAllocFails);
         return false;
     }
+    cx->runtime->updateMallocCounter(JS_BIT(sizeLog2) * sizeof(Shape *));
 
     hashShift = JS_DHASH_BITS - sizeLog2;
     for (Shape::Range r = lastProp->all(); !r.empty(); r.popFront()) {
@@ -191,7 +187,7 @@ Shape::maybeHash(JSContext *cx)
     uint32 nentries = entryCount();
     if (nentries >= PropertyTable::HASH_THRESHOLD) {
         table = cx->create<PropertyTable>(nentries);
-        return table && table->init(this, cx);
+        return table && table->init(cx, this);
     }
     return true;
 }
@@ -203,21 +199,26 @@ Shape::maybeHash(JSContext *cx)
 # define LIVE_SCOPE_METER(cx,expr) /* nothing */
 #endif
 
-static inline bool
-InitField(JSContext *cx, EmptyShape *JSRuntime:: *field, Class *clasp, uint32 shape)
-{
-    if (EmptyShape *emptyShape = EmptyShape::create(cx, clasp)) {
-        cx->runtime->*field = emptyShape;
-        JS_ASSERT(emptyShape->shape == shape);
-        return true;
-    }
-    return false;
-}
-
 /* static */
 bool
 Shape::initRuntimeState(JSContext *cx)
 {
+    JSRuntime *rt = cx->runtime;
+
+#define SHAPE(Name) rt->empty##Name##Shape
+#define CLASP(Name) &js_##Name##Class
+
+#define INIT_EMPTY_SHAPE(Name,NAME)                                           \
+    INIT_EMPTY_SHAPE_WITH_CLASS(Name, NAME, CLASP(Name))
+
+#define INIT_EMPTY_SHAPE_WITH_CLASS(Name,NAME,clasp)                          \
+    JS_BEGIN_MACRO                                                            \
+        SHAPE(Name) = EmptyShape::create(cx, clasp);                          \
+        if (!SHAPE(Name))                                                     \
+            return false;                                                     \
+        JS_ASSERT(SHAPE(Name)->shape == Shape::EMPTY_##NAME##_SHAPE);         \
+    JS_END_MACRO
+
     /*
      * NewArguments allocates dslots to have enough room for the argc of the
      * particular arguments object being created.
@@ -228,37 +229,30 @@ Shape::initRuntimeState(JSContext *cx)
      * arguments objects. This helps ensure that any arguments object needing
      * its own mutable scope (with unique shape) is a rare event.
      */
-    if (!InitField(cx, &JSRuntime::emptyArgumentsShape, &js_ArgumentsClass,
-                   Shape::EMPTY_ARGUMENTS_SHAPE)) {
-        return false;
-    }
+    INIT_EMPTY_SHAPE(Arguments, ARGUMENTS);
 
-    if (!InitField(cx, &JSRuntime::emptyBlockShape, &js_BlockClass, Shape::EMPTY_BLOCK_SHAPE))
-        return false;
+    INIT_EMPTY_SHAPE(Block, BLOCK);
 
     /*
      * Initialize the shared scope for all empty Call objects so gets for args
      * and vars do not force the creation of a mutable scope for the particular
      * call object being accessed.
      */
-    if (!InitField(cx, &JSRuntime::emptyCallShape, &js_CallClass, Shape::EMPTY_CALL_SHAPE))
-        return false;
+    INIT_EMPTY_SHAPE(Call, CALL);
 
     /* A DeclEnv object holds the name binding for a named function expression. */
-    if (!InitField(cx, &JSRuntime::emptyDeclEnvShape, &js_DeclEnvClass,
-                   Shape::EMPTY_DECL_ENV_SHAPE)) {
-        return false;
-    }
+    INIT_EMPTY_SHAPE(DeclEnv, DECL_ENV);
 
     /* Non-escaping native enumerator objects share this empty scope. */
-    if (!InitField(cx, &JSRuntime::emptyEnumeratorShape, &js_IteratorClass,
-                   Shape::EMPTY_ENUMERATOR_SHAPE)) {
-        return false;
-    }
+    INIT_EMPTY_SHAPE_WITH_CLASS(Enumerator, ENUMERATOR, &js_IteratorClass);
 
     /* Same drill for With objects. */
-    if (!InitField(cx, &JSRuntime::emptyWithShape, &js_WithClass, Shape::EMPTY_WITH_SHAPE))
-        return false;
+    INIT_EMPTY_SHAPE(With, WITH);
+
+#undef SHAPE
+#undef CLASP
+#undef INIT_EMPTY_SHAPE
+#undef INIT_EMPTY_SHAPE_WITH_CLASS
 
     return true;
 }
@@ -390,7 +384,7 @@ PropertyTable::search(jsid id, bool adding)
 }
 
 bool
-PropertyTable::change(int log2Delta, JSContext *cx)
+PropertyTable::change(JSContext *cx, int change)
 {
     int oldlog2, newlog2;
     uint32 oldsize, newsize, nbytes;
@@ -398,18 +392,13 @@ PropertyTable::change(int log2Delta, JSContext *cx)
 
     JS_ASSERT(entries);
 
-    /*
-     * Grow, shrink, or compress by changing this->entries. Here, we prefer
-     * cx->runtime->calloc to js_calloc, which on OOM waits for a background
-     * thread to finish sweeping and retry, if appropriate. Avoid cx->calloc
-     * so our caller can be in charge of whether to JS_ReportOutOfMemory.
-     */
+    /* Grow, shrink, or compress by changing this->entries. */
     oldlog2 = JS_DHASH_BITS - hashShift;
-    newlog2 = oldlog2 + log2Delta;
+    newlog2 = oldlog2 + change;
     oldsize = JS_BIT(oldlog2);
     newsize = JS_BIT(newlog2);
     nbytes = PROPERTY_TABLE_NBYTES(newsize);
-    newTable = (Shape **) cx->runtime->calloc(nbytes);
+    newTable = (Shape **) cx->calloc(nbytes);
     if (!newTable) {
         METER(tableAllocFails);
         return false;
@@ -420,6 +409,9 @@ PropertyTable::change(int log2Delta, JSContext *cx)
     removedCount = 0;
     oldTable = entries;
     entries = newTable;
+
+    /* Treat the above calloc as a JS_malloc, to match CreateScopeTable. */
+    cx->runtime->updateMallocCounter(nbytes);
 
     /* Copy only live entries, leaving removed and free ones behind. */
     for (oldspp = oldTable; oldsize != 0; oldspp++) {
@@ -434,31 +426,8 @@ PropertyTable::change(int log2Delta, JSContext *cx)
         oldsize--;
     }
 
-    /*
-     * Finally, free the old entries storage. Note that cx->runtime->free just
-     * calls js_free. Use js_free here to match PropertyTable::~PropertyTable,
-     * which cannot have a cx or rt parameter.
-     */
-    js_free(oldTable);
-    return true;
-}
-
-bool
-PropertyTable::grow(JSContext *cx)
-{
-    JS_ASSERT(needsToGrow());
-
-    uint32 size = capacity();
-    int delta = removedCount < size >> 2;
-    if (!delta)
-        METER(compresses);
-    else
-        METER(grows);
-
-    if (!change(delta, cx) && entryCount + removedCount == size - 1) {
-        JS_ReportOutOfMemory(cx);
-        return false;
-    }
+    /* Finally, free the old entries storage. */
+    cx->free(oldTable);
     return true;
 }
 
@@ -469,47 +438,8 @@ Shape::getChild(JSContext *cx, const js::Shape &child, Shape **listp)
     JS_ASSERT(!child.inDictionary());
 
     if (inDictionary()) {
-        Shape *oldShape = *listp;
-        PropertyTable *table = oldShape ? oldShape->table : NULL;
-
-        /*
-         * Attempt to grow table if needed before extending *listp, rather than
-         * risking OOM under table->grow after newDictionaryShape succeeds, and
-         * then have to fix up *listp.
-         */
-        if (table && table->needsToGrow() && !table->grow(cx))
-            return NULL;
-
-        if (newDictionaryShape(cx, child, listp)) {
-            Shape *newShape = *listp;
-
-            JS_ASSERT(oldShape == newShape->parent);
-            if (table) {
-                /* Add newShape to the property table. */
-                METER(searches);
-                Shape **spp = table->search(newShape->id, true);
-
-                /*
-                 * Beware duplicate formal parameters, allowed by ECMA-262 in
-                 * non-strict mode. Otherwise we know that JSFunction::addLocal
-                 * (our caller) won't pass an id already in the table to us. In
-                 * the case of duplicate formals, the last one wins, so while
-                 * we must not overcount entries, we must store newShape.
-                 */
-                if (!SHAPE_FETCH(spp))
-                    ++table->entryCount;
-                SHAPE_STORE_PRESERVING_COLLISION(spp, newShape);
-
-                /* Hand the table off from oldShape to newShape. */
-                oldShape->setTable(NULL);
-                newShape->setTable(table);
-            } else {
-                if (!newShape->table)
-                    newShape->maybeHash(cx);
-            }
-            return newShape;
-        }
-
+        if (newDictionaryShape(cx, child, listp))
+            return *listp;
         return NULL;
     }
 
@@ -675,6 +605,19 @@ NormalizeGetterAndSetter(JSContext *cx, JSObject *obj,
         }
     }
 
+    /*
+     * Check for a watchpoint on a deleted property; if one exists, change
+     * setter to js_watch_set or js_watch_set_wrapper.
+     * XXXbe this could get expensive with lots of watchpoints...
+     */
+    if (!JS_CLIST_IS_EMPTY(&cx->runtime->watchPointList) &&
+        js_FindWatchPoint(cx->runtime, obj, id)) {
+        setter = js_WrapWatchedSetter(cx, id, attrs, setter);
+        if (!setter) {
+            METER(wrapWatchFails);
+            return false;
+        }
+    }
     return true;
 }
 
@@ -779,18 +722,7 @@ JSObject::addProperty(JSContext *cx, jsid id,
     /* Search for id with adding = true in order to claim its entry. */
     Shape **spp = nativeSearch(id, true);
     JS_ASSERT(!SHAPE_FETCH(spp));
-    const Shape *shape = addPropertyInternal(cx, id, getter, setter, slot, attrs, 
-                                             flags, shortid, spp);
-    if (!shape)
-        return NULL;
-
-    /* Update any watchpoints referring to this property. */
-    if (!js_UpdateWatchpointsForShape(cx, this, shape)) {
-        METER(wrapWatchFails);
-        return NULL;
-    }
-
-    return shape;
+    return addPropertyInternal(cx, id, getter, setter, slot, attrs, flags, shortid, spp);
 }
 
 const Shape *
@@ -811,10 +743,16 @@ JSObject::addPropertyInternal(JSContext *cx, jsid id,
             table = lastProp->table;
         }
     } else if ((table = lastProp->table) != NULL) {
-        if (table->needsToGrow()) {
-            if (!table->grow(cx))
+        /* Check whether we need to grow, if the load factor is >= .75. */
+        uint32 size = table->capacity();
+        if (table->entryCount + table->removedCount >= size - (size >> 2)) {
+            int change = table->removedCount < size >> 2;
+            if (!change)
+                METER(compresses);
+            else
+                METER(grows);
+            if (!table->change(cx, change) && table->entryCount + table->removedCount == size - 1)
                 return NULL;
-
             METER(searches);
             METER(changeSearches);
             spp = table->search(id, true);
@@ -901,13 +839,7 @@ JSObject::putProperty(JSContext *cx, jsid id,
             return NULL;
         }
 
-        const Shape *new_shape =
-            addPropertyInternal(cx, id, getter, setter, slot, attrs, flags, shortid, spp);
-        if (!js_UpdateWatchpointsForShape(cx, this, new_shape)) {
-            METER(wrapWatchFails);
-            return NULL;
-        }
-        return new_shape;
+        return addPropertyInternal(cx, id, getter, setter, slot, attrs, flags, shortid, spp);
     }
 
     /* Property exists: search must have returned a valid *spp. */
@@ -939,7 +871,7 @@ JSObject::putProperty(JSContext *cx, jsid id,
      */
     if (shape != lastProp && !inDictionaryMode()) {
         if (!toDictionaryMode(cx))
-            return NULL;
+            return false;
         spp = nativeSearch(shape->id);
         shape = SHAPE_FETCH(spp);
     }
@@ -952,9 +884,6 @@ JSObject::putProperty(JSContext *cx, jsid id,
      * Optimize the case of a non-frozen dictionary-mode object based on the
      * property that dictionaries exclusively own their mutable shape structs,
      * each of which has a unique shape number (not shared via a shape tree).
-     *
-     * This is more than an optimization: it is required to preserve for-in
-     * enumeration order (see bug 601399).
      */
     if (inDictionaryMode()) {
         /* FIXME bug 593129 -- slot allocation and JSObject *this must move out of here! */
@@ -963,38 +892,43 @@ JSObject::putProperty(JSContext *cx, jsid id,
                 return NULL;
         }
 
-        shape->slot = slot;
-        if (slot != SHAPE_INVALID_SLOT && slot >= shape->slotSpan) {
-            shape->slotSpan = slot + 1;
+        /*
+         * We are going to mutate shape and move it to be lastProp if it isn't
+         * already, so we must regenerate its shape.
+         */
+        shape->shape = js_GenerateShape(cx, false);
 
-            for (Shape *temp = lastProp; temp != shape; temp = temp->parent) {
-                if (temp->slotSpan <= slot)
-                    temp->slotSpan = slot + 1;
+        /*
+         * Set shape->slot before calling shape->insertIntoDictionary, which
+         * uses it under shape->setParent.
+         */
+        shape->slot = slot;
+
+        if (shape != lastProp) {
+            if (PropertyTable *table = lastProp->table) {
+                shape->table = table;
+                lastProp->table = NULL;
             }
+            shape->removeFromDictionary(this);
+            shape->insertIntoDictionary(&lastProp);
+        } else {
+            if (slot != SHAPE_INVALID_SLOT && slot >= shape->slotSpan)
+                shape->slotSpan = slot + 1;
         }
 
         shape->rawGetter = getter;
         shape->rawSetter = setter;
-        shape->attrs = uint8(attrs);
+        shape->attrs = attrs;
         shape->flags = flags | Shape::IN_DICTIONARY;
-        shape->shortid = int16(shortid);
+        shape->shortid = shortid;
 
         /*
          * We are done updating shape and lastProp. Now we may need to update
-         * flags and we will need to update objShape, which is no longer "own".
-         * In the last non-dictionary property case in the else clause just
-         * below, getChildProperty handles this for us. First update flags.
+         * flags and objShape. In the last non-dictionary property case in the
+         * else clause just below, getChildProperty handles this for us.
          */
         updateFlags(shape);
-
-        /*
-         * We have just mutated shape in place, but nothing caches it based on
-         * shape->shape unless shape is lastProp and !hasOwnShape()). Therefore
-         * we regenerate only lastProp->shape. We will clearOwnShape(), which
-         * sets objShape to lastProp->shape.
-         */
-        lastProp->shape = js_GenerateShape(cx, false);
-        clearOwnShape();
+        updateShape(cx);
     } else {
         /*
          * Updating lastProp in a non-dictionary-mode object. Such objects
@@ -1019,11 +953,13 @@ JSObject::putProperty(JSContext *cx, jsid id,
         }
 
         shape = newShape;
+    }
 
-        if (!shape->table) {
-            /* See JSObject::addPropertyInternal comment about ignoring OOM. */
-            shape->maybeHash(cx);
-        }
+    JS_ASSERT(shape == lastProp);
+
+    if (!shape->table) {
+        /* See JSObject::addPropertyInternal comment about ignoring OOM. */
+        shape->maybeHash(cx);
     }
 
     /*
@@ -1044,12 +980,6 @@ JSObject::putProperty(JSContext *cx, jsid id,
 
     CHECK_SHAPE_CONSISTENCY(this);
     METER(puts);
-
-    if (!js_UpdateWatchpointsForShape(cx, this, shape)) {
-        METER(wrapWatchFails);
-        return NULL;
-    }
-
     return shape;
 }
 
@@ -1077,50 +1007,36 @@ JSObject::changeProperty(JSContext *cx, const Shape *shape, uintN attrs, uintN m
     if (shape->attrs == attrs && shape->getter() == getter && shape->setter() == setter)
         return shape;
 
+    Shape child(shape->id, getter, setter, shape->slot, attrs, shape->flags, shape->shortid);
+
     const Shape *newShape;
 
-    /*
-     * Dictionary-mode objects exclusively own their mutable shape structs, so
-     * we simply modify in place.
-     */
     if (inDictionaryMode()) {
-        /* FIXME bug 593129 -- slot allocation and JSObject *this must move out of here! */
-        uint32 slot = shape->slot;
-        if (slot == SHAPE_INVALID_SLOT && !(attrs & JSPROP_SHARED) && !(flags & Shape::ALIAS)) {
-            if (!allocSlot(cx, &slot))
-                return NULL;
-        }
+        shape->removeFromDictionary(this);
+        newShape = Shape::newDictionaryShape(cx, child, &lastProp);
+        if (newShape) {
+            JS_ASSERT(newShape == lastProp);
 
-        Shape *mutableShape = const_cast<Shape *>(shape);
-        mutableShape->slot = slot;
-        if (slot != SHAPE_INVALID_SLOT && slot >= shape->slotSpan) {
-            mutableShape->slotSpan = slot + 1;
+            /*
+             * Let tableShape be the shape with non-null table, either the one
+             * we removed or the parent of lastProp.
+             */
+            const Shape *tableShape = shape->table ? shape : lastProp->parent;
 
-            for (Shape *temp = lastProp; temp != shape; temp = temp->parent) {
-                if (temp->slotSpan <= slot)
-                    temp->slotSpan = slot + 1;
+            if (PropertyTable *table = tableShape->table) {
+                /* Overwrite shape with newShape in the property table. */
+                Shape **spp = table->search(shape->id, true);
+                SHAPE_STORE_PRESERVING_COLLISION(spp, newShape);
+
+                /* Hand the table off from tableShape to newShape. */
+                tableShape->setTable(NULL);
+                newShape->setTable(table);
             }
+
+            updateFlags(newShape);
+            updateShape(cx);
         }
-
-        mutableShape->rawGetter = getter;
-        mutableShape->rawSetter = setter;
-        mutableShape->attrs = uint8(attrs);
-
-        updateFlags(shape);
-
-        /* See the corresponding code in putProperty. */
-        lastProp->shape = js_GenerateShape(cx, false);
-        clearOwnShape();
-
-        if (!js_UpdateWatchpointsForShape(cx, this, shape)) {
-            METER(wrapWatchFails);
-            return NULL;
-        }
-
-        newShape = mutableShape;
     } else if (shape == lastProp) {
-        Shape child(shape->id, getter, setter, shape->slot, attrs, shape->flags, shape->shortid);
-
         newShape = getChildProperty(cx, shape->parent, child);
 #ifdef DEBUG
         if (newShape) {
@@ -1138,7 +1054,6 @@ JSObject::changeProperty(JSContext *cx, const Shape *shape, uintN attrs, uintN m
          * removeProperty because it will free an allocated shape->slot, and
          * putProperty won't re-allocate it.
          */
-        Shape child(shape->id, getter, setter, shape->slot, attrs, shape->flags, shape->shortid);
         newShape = putProperty(cx, child.id, child.rawGetter, child.rawSetter, child.slot,
                                child.attrs, child.flags, child.shortid);
 #ifdef DEBUG
@@ -1168,10 +1083,9 @@ JSObject::removeProperty(JSContext *cx, jsid id)
     }
 
     /* First, if shape is unshared and not has a slot, free its slot number. */
-    bool addedToFreelist = false;
     bool hadSlot = !shape->isAlias() && shape->hasSlot();
     if (hadSlot) {
-        addedToFreelist = freeSlot(cx, shape->slot);
+        freeSlot(cx, shape->slot);
         JS_ATOMIC_INCREMENT(&cx->runtime->propertyRemovals);
     }
 
@@ -1236,20 +1150,12 @@ JSObject::removeProperty(JSContext *cx, jsid id)
                 JS_ASSERT_IF(hadSlot, shape->slot + 1 <= shape->slotSpan);
 
                 /*
-                 * Maintain slot freelist consistency. The only constraint we
-                 * have is that slot numbers on the freelist are less than 
-                 * lastProp->slotSpan. Thus, if the freelist is non-empty,
-                 * then lastProp->slotSpan may not decrease.
-                 */ 
-                if (table->freelist != SHAPE_INVALID_SLOT) {
+                 * If the dictionary table's freelist is non-empty, we must
+                 * preserve lastProp->slotSpan. We can't reduce slotSpan even
+                 * by one or we might lose non-decreasing slotSpan order.
+                 */
+                if (table->freelist != SHAPE_INVALID_SLOT)
                     lastProp->slotSpan = shape->slotSpan;
-                    
-                    /* Add the slot to the freelist if it wasn't added in freeSlot. */
-                    if (hadSlot && !addedToFreelist) {
-                        getSlotRef(shape->slot).setPrivateUint32(table->freelist);
-                        table->freelist = shape->slot;
-                    }
-                }
             }
 
             /* Hand off table from old to new lastProp. */
@@ -1264,18 +1170,6 @@ JSObject::removeProperty(JSContext *cx, jsid id)
          */
         JS_ASSERT(shape == lastProp);
         removeLastProperty();
-
-        /*
-         * Revert to fixed slots if this was the first dynamically allocated slot,
-         * preserving invariant that objects with the same shape use the fixed
-         * slots in the same way.
-         */
-        size_t fixed = numFixedSlots();
-        if (shape->slot == fixed) {
-            JS_ASSERT_IF(!lastProp->isEmptyShape() && lastProp->hasSlot(),
-                         lastProp->slot == fixed - 1);
-            revertToFixedSlots(cx);
-        }
     }
     updateShape(cx);
 
@@ -1284,7 +1178,7 @@ JSObject::removeProperty(JSContext *cx, jsid id)
         uint32 size = table->capacity();
         if (size > PropertyTable::MIN_SIZE && table->entryCount <= size >> 2) {
             METER(shrinks);
-            (void) table->change(-1, cx);
+            (void) table->change(cx, -1);
         }
     }
 
@@ -1310,14 +1204,6 @@ JSObject::clear(JSContext *cx)
 
     if (inDictionaryMode())
         shape->listp = &lastProp;
-
-    /*
-     * Revert to fixed slots if we have cleared below the first dynamically
-     * allocated slot, preserving invariant that objects with the same shape
-     * use the fixed slots in the same way.
-     */
-    if (hasSlotsArray() && JSSLOT_FREE(getClass()) <= numFixedSlots())
-        revertToFixedSlots(cx);
 
     /*
      * We have rewound to a uniquely-shaped empty scope, so we don't need an
@@ -1364,7 +1250,7 @@ JSObject::methodShapeChange(JSContext *cx, const Shape &shape)
     JS_ASSERT(!JSID_IS_VOID(shape.id));
     if (shape.isMethod()) {
 #ifdef DEBUG
-        const Value &prev = nativeGetSlot(shape.slot);
+        const Value &prev = lockedGetSlot(shape.slot);
         JS_ASSERT(&shape.methodObject() == &prev.toObject());
         JS_ASSERT(canHaveMethodBarrier());
         JS_ASSERT(hasMethodBarrier());
@@ -1382,18 +1268,6 @@ JSObject::methodShapeChange(JSContext *cx, const Shape &shape)
                          shape.getFlags() & ~Shape::METHOD,
                          shape.shortid)) {
             return false;
-        }
-    }
-
-    if (branded()) {
-        uintN thrashCount = getMethodThrashCount();
-        if (thrashCount < JSObject::METHOD_THRASH_COUNT_MAX) {
-            ++thrashCount;
-            setMethodThrashCount(thrashCount);
-            if (thrashCount == JSObject::METHOD_THRASH_COUNT_MAX) {
-                unbrand(cx);
-                return true;
-            }
         }
     }
 
@@ -1453,7 +1327,8 @@ PrintPropertyGetterOrSetter(JSTracer *trc, char *buf, size_t bufsize)
     name = trc->debugPrintIndex ? js_setter_str : js_getter_str;
 
     if (JSID_IS_ATOM(id)) {
-        n = PutEscapedString(buf, bufsize - 1, JSID_TO_STRING(id), 0);
+        n = js_PutEscapedString(buf, bufsize - 1,
+                                JSID_TO_STRING(id), 0);
         if (n < bufsize - 1)
             JS_snprintf(buf + n, bufsize - n, " %s", name);
     } else if (JSID_IS_INT(shape->id)) {
@@ -1476,7 +1351,7 @@ PrintPropertyMethod(JSTracer *trc, char *buf, size_t bufsize)
     JS_ASSERT(!JSID_IS_VOID(id));
 
     JS_ASSERT(JSID_IS_ATOM(id));
-    n = PutEscapedString(buf, bufsize - 1, JSID_TO_STRING(id), 0);
+    n = js_PutEscapedString(buf, bufsize - 1, JSID_TO_STRING(id), 0);
     if (n < bufsize - 1)
         JS_snprintf(buf + n, bufsize - n, " method");
 }

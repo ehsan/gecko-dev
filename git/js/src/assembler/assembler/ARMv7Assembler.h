@@ -1628,11 +1628,6 @@ public:
 
         ExecutableAllocator::cacheFlush(reinterpret_cast<uint16_t*>(from) - 5, 5 * sizeof(uint16_t));
     }
-
-    static bool canRelinkJump(void* from, void* to)
-    {
-        return true;
-    }
     
     static void relinkCall(void* from, void* to)
     {
@@ -1910,7 +1905,6 @@ private:
         bool isAligned(int alignment) const { return m_buffer.isAligned(alignment); }
         void* data() const { return m_buffer.data(); }
         void* executableCopy(ExecutablePool* allocator) { return m_buffer.executableCopy(allocator); }
-        bool oom() const { return m_buffer.oom(); }
 
     private:
         AssemblerBuffer m_buffer;

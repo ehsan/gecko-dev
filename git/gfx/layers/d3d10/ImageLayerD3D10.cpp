@@ -37,8 +37,6 @@
 
 #include "ImageLayerD3D10.h"
 #include "gfxImageSurface.h"
-#include "gfxD2DSurface.h"
-#include "gfxWindowsSurface.h"
 #include "yuv_convert.h"
 
 namespace mozilla {
@@ -46,70 +44,24 @@ namespace layers {
 
 using mozilla::MutexAutoLock;
 
-static already_AddRefed<ID3D10Texture2D>
-SurfaceToTexture(ID3D10Device *aDevice,
-                 gfxASurface *aSurface,
-                 const gfxIntSize &aSize)
-{
-  if (aSurface && aSurface->GetType() == gfxASurface::SurfaceTypeD2D) {
-    void *data = aSurface->GetData(&gKeyD3D10Texture);
-    if (data) {
-      nsRefPtr<ID3D10Texture2D> texture = static_cast<ID3D10Texture2D*>(data);
-      ID3D10Device *dev;
-      texture->GetDevice(&dev);
-      if (dev == aDevice) {
-        return texture.forget();
-      }
-    }
-  }
-
-  nsRefPtr<gfxImageSurface> imageSurface = aSurface->GetAsImageSurface();
-
-  if (!imageSurface) {
-    imageSurface = new gfxImageSurface(aSize,
-                                       gfxASurface::ImageFormatARGB32);
-    
-    nsRefPtr<gfxContext> context = new gfxContext(imageSurface);
-    context->SetSource(aSurface);
-    context->SetOperator(gfxContext::OPERATOR_SOURCE);
-    context->Paint();
-  }
-
-  D3D10_SUBRESOURCE_DATA data;
-  
-  CD3D10_TEXTURE2D_DESC desc(DXGI_FORMAT_B8G8R8A8_UNORM,
-                             imageSurface->GetSize().width,
-                             imageSurface->GetSize().height,
-                             1, 1);
-  desc.Usage = D3D10_USAGE_IMMUTABLE;
-  
-  data.pSysMem = imageSurface->Data();
-  data.SysMemPitch = imageSurface->Stride();
-
-  nsRefPtr<ID3D10Texture2D> texture;
-  aDevice->CreateTexture2D(&desc, &data, getter_AddRefs(texture));
-  return texture.forget();
-}
-
 ImageContainerD3D10::ImageContainerD3D10(LayerManagerD3D10 *aManager)
   : ImageContainer(aManager)
-  , mDevice(aManager->device())
   , mActiveImageLock("mozilla.layers.ImageContainerD3D10.mActiveImageLock")
 {
 }
 
 already_AddRefed<Image>
 ImageContainerD3D10::CreateImage(const Image::Format *aFormats,
-                                 PRUint32 aNumFormats)
+                               PRUint32 aNumFormats)
 {
   if (!aNumFormats) {
     return nsnull;
   }
   nsRefPtr<Image> img;
   if (aFormats[0] == Image::PLANAR_YCBCR) {
-    img = new PlanarYCbCrImageD3D10(mDevice);
+    img = new PlanarYCbCrImageD3D10(static_cast<LayerManagerD3D10*>(mManager));
   } else if (aFormats[0] == Image::CAIRO_SURFACE) {
-    img = new CairoImageD3D10(mDevice);
+    img = new CairoImageD3D10(static_cast<LayerManagerD3D10*>(mManager));
   }
   return img.forget();
 }
@@ -181,10 +133,7 @@ ImageContainerD3D10::GetCurrentSize()
 PRBool
 ImageContainerD3D10::SetLayerManager(LayerManager *aManager)
 {
-  if (aManager->GetBackendType() == LayerManager::LAYERS_D3D10) {
-    mManager = aManager;
-    return PR_TRUE;
-  }
+  // we can't do anything here for now
   return PR_FALSE;
 }
 
@@ -195,7 +144,7 @@ ImageLayerD3D10::GetLayer()
 }
 
 void
-ImageLayerD3D10::RenderLayer()
+ImageLayerD3D10::RenderLayer(float aOpacity, const gfx3DMatrix &aTransform)
 {
   if (!GetContainer()) {
     return;
@@ -203,64 +152,14 @@ ImageLayerD3D10::RenderLayer()
 
   nsRefPtr<Image> image = GetContainer()->GetCurrentImage();
 
-  SetEffectTransformAndOpacity();
+
+  gfx3DMatrix transform = mTransform * aTransform;
+  effect()->GetVariableByName("mLayerTransform")->SetRawValue(&transform._11, 0, 64);
+  effect()->GetVariableByName("fLayerOpacity")->AsScalar()->SetFloat(GetOpacity() * aOpacity);
 
   ID3D10EffectTechnique *technique;
 
-  if (GetContainer()->Manager() != Manager()) {
-    GetContainer()->SetLayerManager(Manager());
-  }
-
-  if (GetContainer()->Manager() != Manager() ||
-      image->GetFormat() == Image::CAIRO_SURFACE)
-  {
-    gfxIntSize size;
-    bool hasAlpha;
-    nsRefPtr<ID3D10ShaderResourceView> srView;
-
-    if (GetContainer()->Manager() != Manager()) {
-      nsRefPtr<gfxASurface> surf = GetContainer()->GetCurrentAsSurface(&size);
-      
-      nsRefPtr<ID3D10Texture2D> texture = SurfaceToTexture(device(), surf, size);
-      
-      hasAlpha = surf->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA;
-      
-      device()->CreateShaderResourceView(texture, NULL, getter_AddRefs(srView));
-    } else {
-      // image->GetFormat() == Image::CAIRO_SURFACE
-      CairoImageD3D10 *cairoImage =
-        static_cast<CairoImageD3D10*>(image.get());
-      srView = cairoImage->mSRView;
-      hasAlpha = cairoImage->mHasAlpha;
-      size = cairoImage->mSize;
-    }
-
-    if (hasAlpha) {
-      if (mFilter == gfxPattern::FILTER_NEAREST) {
-        technique = effect()->GetTechniqueByName("RenderRGBALayerPremulPoint");
-      } else {
-        technique = effect()->GetTechniqueByName("RenderRGBALayerPremul");
-      }
-    } else {
-      if (mFilter == gfxPattern::FILTER_NEAREST) {
-        technique = effect()->GetTechniqueByName("RenderRGBLayerPremulPoint");
-      } else {
-        technique = effect()->GetTechniqueByName("RenderRGBLayerPremul");
-      }
-    }
-
-    if (srView) {
-      effect()->GetVariableByName("tRGB")->AsShaderResource()->SetResource(srView);
-    }
-
-    effect()->GetVariableByName("vLayerQuad")->AsVector()->SetFloatVector(
-      ShaderConstantRectD3D10(
-        (float)0,
-        (float)0,
-        (float)size.width,
-        (float)size.height)
-      );
-  } else if (image->GetFormat() == Image::PLANAR_YCBCR) {
+  if (image->GetFormat() == Image::PLANAR_YCBCR) {
     PlanarYCbCrImageD3D10 *yuvImage =
       static_cast<PlanarYCbCrImageD3D10*>(image.get());
 
@@ -286,15 +185,36 @@ ImageLayerD3D10::RenderLayer()
         (float)yuvImage->mSize.width,
         (float)yuvImage->mSize.height)
       );
+  } else if (image->GetFormat() == Image::CAIRO_SURFACE) {
+    CairoImageD3D10 *cairoImage =
+      static_cast<CairoImageD3D10*>(image.get());
+
+    if (mFilter == gfxPattern::FILTER_NEAREST) {
+      technique = effect()->GetTechniqueByName("RenderRGBALayerPremulPoint");
+    } else {
+      technique = effect()->GetTechniqueByName("RenderRGBALayerPremul");
+    }
+
+    if (cairoImage->mSRView) {
+      effect()->GetVariableByName("tRGB")->AsShaderResource()->SetResource(cairoImage->mSRView);
+    }
+
+    effect()->GetVariableByName("vLayerQuad")->AsVector()->SetFloatVector(
+      ShaderConstantRectD3D10(
+        (float)0,
+        (float)0,
+        (float)cairoImage->mSize.width,
+        (float)cairoImage->mSize.height)
+      );
   }
 
   technique->GetPassByIndex(0)->Apply(0);
   device()->Draw(4, 0);
 }
 
-PlanarYCbCrImageD3D10::PlanarYCbCrImageD3D10(ID3D10Device1 *aDevice)
+PlanarYCbCrImageD3D10::PlanarYCbCrImageD3D10(mozilla::layers::LayerManagerD3D10* aManager)
   : PlanarYCbCrImage(static_cast<ImageD3D10*>(this))
-  , mDevice(aDevice)
+  , mManager(aManager)
   , mHasData(PR_FALSE)
 {
 }
@@ -399,12 +319,12 @@ PlanarYCbCrImageD3D10::AllocateTextures()
   dataCr.pSysMem = mData.mCrChannel;
   dataCr.SysMemPitch = mData.mCbCrStride;
 
-  mDevice->CreateTexture2D(&descY, &dataY, getter_AddRefs(mYTexture));
-  mDevice->CreateTexture2D(&descCbCr, &dataCb, getter_AddRefs(mCbTexture));
-  mDevice->CreateTexture2D(&descCbCr, &dataCr, getter_AddRefs(mCrTexture));
-  mDevice->CreateShaderResourceView(mYTexture, NULL, getter_AddRefs(mYView));
-  mDevice->CreateShaderResourceView(mCbTexture, NULL, getter_AddRefs(mCbView));
-  mDevice->CreateShaderResourceView(mCrTexture, NULL, getter_AddRefs(mCrView));
+  mManager->device()->CreateTexture2D(&descY, &dataY, getter_AddRefs(mYTexture));
+  mManager->device()->CreateTexture2D(&descCbCr, &dataCb, getter_AddRefs(mCbTexture));
+  mManager->device()->CreateTexture2D(&descCbCr, &dataCr, getter_AddRefs(mCrTexture));
+  mManager->device()->CreateShaderResourceView(mYTexture, NULL, getter_AddRefs(mYView));
+  mManager->device()->CreateShaderResourceView(mCbTexture, NULL, getter_AddRefs(mCbView));
+  mManager->device()->CreateShaderResourceView(mCrTexture, NULL, getter_AddRefs(mCrView));
 }
 
 already_AddRefed<gfxASurface>
@@ -438,27 +358,37 @@ void
 CairoImageD3D10::SetData(const CairoImage::Data &aData)
 {
   mSize = aData.mSize;
-  NS_ASSERTION(aData.mSurface->GetContentType() != gfxASurface::CONTENT_ALPHA,
-               "Invalid content type passed to CairoImageD3D10.");
 
-  mTexture = SurfaceToTexture(mDevice, aData.mSurface, mSize);
+  nsRefPtr<gfxImageSurface> imageSurface;
 
-  if (aData.mSurface->GetContentType() == gfxASurface::CONTENT_COLOR) {
-    mHasAlpha = false;
+  if (aData.mSurface->GetType() == gfxASurface::SurfaceTypeImage) {
+    imageSurface = static_cast<gfxImageSurface*>(aData.mSurface);
   } else {
-    mHasAlpha = true;
+    imageSurface = new gfxImageSurface(aData.mSize,
+                                       gfxASurface::ImageFormatARGB32);
+    
+    nsRefPtr<gfxContext> context = new gfxContext(imageSurface);
+    context->SetSource(aData.mSurface);
+    context->SetOperator(gfxContext::OPERATOR_SOURCE);
+    context->Paint();
   }
 
-  mDevice->CreateShaderResourceView(mTexture, NULL, getter_AddRefs(mSRView));
+  D3D10_SUBRESOURCE_DATA data;
+  
+  CD3D10_TEXTURE2D_DESC desc(DXGI_FORMAT_B8G8R8A8_UNORM, mSize.width, mSize.height, 1, 1);
+  desc.Usage = D3D10_USAGE_IMMUTABLE;
+  
+  data.pSysMem = imageSurface->Data();
+  data.SysMemPitch = imageSurface->Stride();
+
+  mManager->device()->CreateTexture2D(&desc, &data, getter_AddRefs(mTexture));
+  mManager->device()->CreateShaderResourceView(mTexture, NULL, getter_AddRefs(mSRView));
 }
 
 already_AddRefed<gfxASurface>
 CairoImageD3D10::GetAsSurface()
 {
-  nsRefPtr<gfxASurface> surf =
-    new gfxD2DSurface(mTexture, mHasAlpha ? gfxASurface::CONTENT_COLOR_ALPHA :
-                                            gfxASurface::CONTENT_COLOR);
-  return surf.forget();
+  return nsnull;
 }
 
 } /* layers */

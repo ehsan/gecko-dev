@@ -119,28 +119,6 @@ function do_get_addon(aName) {
   return do_get_file("addons/" + aName + ".xpi");
 }
 
-function do_get_addon_hash(aName, aAlgorithm) {
-  if (!aAlgorithm)
-    aAlgorithm = "sha1";
-
-  let file = do_get_addon(aName);
-
-  let crypto = AM_Cc["@mozilla.org/security/hash;1"].
-               createInstance(AM_Ci.nsICryptoHash);
-  crypto.initWithString(aAlgorithm);
-  let fis = AM_Cc["@mozilla.org/network/file-input-stream;1"].
-            createInstance(AM_Ci.nsIFileInputStream);
-  fis.init(file, -1, -1, false);
-  crypto.updateFromStream(fis, file.fileSize);
-
-  // return the two-digit hexadecimal code for a byte
-  function toHexString(charCode)
-    ("0" + charCode.toString(16)).slice(-2);
-
-  let binary = crypto.finish(false);
-  return aAlgorithm + ":" + [toHexString(binary.charCodeAt(i)) for (i in binary)].join("")
-}
-
 /**
  * Returns an extension uri spec
  *
@@ -468,7 +446,7 @@ function createInstallRDF(aData) {
 
   ["id", "version", "type", "internalName", "updateURL", "updateKey",
    "optionsURL", "aboutURL", "iconURL", "icon64URL",
-   "skinnable", "bootstrap"].forEach(function(aProp) {
+   "skinnable"].forEach(function(aProp) {
     if (aProp in aData)
       rdf += "<em:" + aProp + ">" + escapeXML(aData[aProp]) + "</em:" + aProp + ">\n";
   });
@@ -592,23 +570,6 @@ function writeInstallRDFForExtension(aData, aDir, aId, aExtraFile) {
                         stream, false);
   zipW.close();
   return dir;
-}
-
-/**
- * Sets the last modified time of the extension, usually to trigger an update
- * of its metadata. If the extension is unpacked, this function assumes that
- * the extension contains only the install.rdf file.
- *
- * @param aExt   a file pointing to either the packed extension or its unpacked directory.
- * @param aTime  the time to which we set the lastModifiedTime of the extension
- */
-function setExtensionModifiedTime(aExt, aTime) {
-  aExt.lastModifiedTime = aTime;
-  if (aExt.isDirectory()) {
-    aExt = aExt.clone();
-    aExt.append("install.rdf");
-    aExt.lastModifiedTime = aTime;
-  }
 }
 
 function registerDirectory(aKey, aDir) {
@@ -1070,17 +1031,6 @@ do_register_cleanup(function() {
   while (entry = dirEntries.nextFile) {
     do_throw("Found unexpected file in temporary directory: " + entry.leafName);
   }
-
-  var testDir = gProfD.clone();
-  testDir.append("extensions");
-  testDir.append("trash");
-  do_check_false(testDir.exists());
-
-  testDir.leafName = "staged";
-  do_check_false(testDir.exists());
-
-  testDir.leafName = "staged-xpis";
-  do_check_false(testDir.exists());
 
   shutdownManager();
 });

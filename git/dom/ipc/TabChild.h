@@ -108,7 +108,6 @@ public:
   {
     return mMessageManager ? mMessageManager->Dump(aStr) : NS_OK;
   }
-  NS_IMETHOD PrivateNoteIntentionalCrash();
 
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
@@ -198,42 +197,85 @@ public:
     virtual bool RecvLoadRemoteScript(const nsString& aURL);
     virtual bool RecvAsyncMessage(const nsString& aMessage,
                                   const nsString& aJSON);
-
-    virtual PDocumentRendererChild*
-    AllocPDocumentRenderer(const nsRect& documentRect, const gfxMatrix& transform,
-                           const nsString& bgcolor,
-                           const PRUint32& renderFlags, const bool& flushLayout,
-                           const nsIntSize& renderSize);
+    virtual mozilla::ipc::PDocumentRendererChild* AllocPDocumentRenderer(
+            const PRInt32& x,
+            const PRInt32& y,
+            const PRInt32& w,
+            const PRInt32& h,
+            const nsString& bgcolor,
+            const PRUint32& flags,
+            const bool& flush);
     virtual bool DeallocPDocumentRenderer(PDocumentRendererChild* actor);
-    virtual bool RecvPDocumentRendererConstructor(PDocumentRendererChild* actor,
-                                                  const nsRect& documentRect,
-                                                  const gfxMatrix& transform,
-                                                  const nsString& bgcolor,
-                                                  const PRUint32& renderFlags,
-                                                  const bool& flushLayout,
-                                                  const nsIntSize& renderSize);
-
+    virtual bool RecvPDocumentRendererConstructor(
+            mozilla::ipc::PDocumentRendererChild *__a,
+            const PRInt32& x,
+            const PRInt32& y,
+            const PRInt32& w,
+            const PRInt32& h,
+            const nsString& bgcolor,
+            const PRUint32& flags,
+            const bool& flush);
     virtual PContentDialogChild* AllocPContentDialog(const PRUint32&,
                                                      const nsCString&,
                                                      const nsCString&,
-                                                     const InfallibleTArray<int>&,
-                                                     const InfallibleTArray<nsString>&);
+                                                     const nsTArray<int>&,
+                                                     const nsTArray<nsString>&);
     virtual bool DeallocPContentDialog(PContentDialogChild* aDialog);
     static void ParamsToArrays(nsIDialogParamBlock* aParams,
-                               InfallibleTArray<int>& aIntParams,
-                               InfallibleTArray<nsString>& aStringParams);
-    static void ArraysToParams(const InfallibleTArray<int>& aIntParams,
-                               const InfallibleTArray<nsString>& aStringParams,
+                               nsTArray<int>& aIntParams,
+                               nsTArray<nsString>& aStringParams);
+    static void ArraysToParams(const nsTArray<int>& aIntParams,
+                               const nsTArray<nsString>& aStringParams,
                                nsIDialogParamBlock* aParams);
+
+    virtual PDocumentRendererShmemChild* AllocPDocumentRendererShmem(
+            const PRInt32& x,
+            const PRInt32& y,
+            const PRInt32& w,
+            const PRInt32& h,
+            const nsString& bgcolor,
+            const PRUint32& flags,
+            const bool& flush,
+            const gfxMatrix& aMatrix,
+            Shmem& buf);
+    virtual bool DeallocPDocumentRendererShmem(PDocumentRendererShmemChild* actor);
+    virtual bool RecvPDocumentRendererShmemConstructor(
+            PDocumentRendererShmemChild *__a,
+            const PRInt32& aX,
+            const PRInt32& aY,
+            const PRInt32& aW,
+            const PRInt32& aH,
+            const nsString& bgcolor,
+            const PRUint32& flags,
+            const bool& flush,
+            const gfxMatrix& aMatrix,
+            Shmem& aBuf);
+
+    virtual PDocumentRendererNativeIDChild* AllocPDocumentRendererNativeID(
+            const PRInt32& x,
+            const PRInt32& y,
+            const PRInt32& w,
+            const PRInt32& h,
+            const nsString& bgcolor,
+            const PRUint32& flags,
+            const bool& flush,
+            const gfxMatrix& aMatrix,
+            const PRUint32& nativeID);
+    virtual bool DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDChild* actor);
+    virtual bool RecvPDocumentRendererNativeIDConstructor(
+            PDocumentRendererNativeIDChild *__a,
+            const PRInt32& aX,
+            const PRInt32& aY,
+            const PRInt32& aW,
+            const PRInt32& aH,
+            const nsString& bgcolor,
+            const PRUint32& flags,
+            const bool& flush,
+            const gfxMatrix& aMatrix,
+            const PRUint32& aNativeID);
 
     virtual PContentPermissionRequestChild* AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI& uri);
     virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestChild* actor);
-
-    virtual POfflineCacheUpdateChild* AllocPOfflineCacheUpdate(const URI& manifestURI,
-            const URI& documentURI,
-            const nsCString& clientID,
-            const bool& stickDocument);
-    virtual bool DeallocPOfflineCacheUpdate(POfflineCacheUpdateChild* offlineCacheUpdate);
 
     nsIWebNavigation* WebNavigation() { return mWebNav; }
 

@@ -316,7 +316,7 @@ public:
 
   nsPIDOMWindow *GetOuterWindow()
   {
-    return mIsInnerWindow ? mOuterWindow.get() : this;
+    return mIsInnerWindow ? mOuterWindow : this;
   }
 
   nsPIDOMWindow *GetCurrentInnerWindow() const
@@ -524,10 +524,9 @@ public:
   virtual void PageHidden() = 0;
 
   /**
-   * Instructs this window to asynchronously dispatch a hashchange event.  This
-   * method must be called on an inner window.
+   * Instructs this window to synchronously dispatch a hashchange event.
    */
-  virtual nsresult DispatchAsyncHashchange() = 0;
+  virtual nsresult DispatchSyncHashchange() = 0;
 
   /**
    * Instructs this window to synchronously dispatch a popState event.
@@ -554,11 +553,6 @@ public:
    * mutate internal state.
    */
   virtual PRUint32 GetSerial() = 0;
-
-  /**
-   * Return the window id of this window
-   */
-  PRUint64 WindowID() const { return mWindowID; }
 
 protected:
   // The nsPIDOMWindow constructor. The aOuterWindow argument should
@@ -612,19 +606,11 @@ protected:
 
   // And these are the references between inner and outer windows.
   nsPIDOMWindow         *mInnerWindow;
-  nsCOMPtr<nsPIDOMWindow> mOuterWindow;
+  nsPIDOMWindow         *mOuterWindow;
 
   // the element within the document that is currently focused when this
   // window is active
   nsCOMPtr<nsIContent> mFocusedNode;
-
-  // A unique (as long as our 64-bit counter doesn't roll over) id for
-  // this window.
-  PRUint64 mWindowID;
-
-  // This is only used by the inner window. Set to true once we've sent
-  // the (chrome|content)-document-global-created notification.
-  PRPackedBool mHasNotifiedGlobalCreated;
 };
 
 

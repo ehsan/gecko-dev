@@ -40,8 +40,9 @@
 
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
+#include "mozilla/ipc/DocumentRendererShmemParent.h"
+#include "mozilla/ipc/DocumentRendererNativeIDParent.h"
 #include "mozilla/layout/RenderFrameParent.h"
-#include "mozilla/docshell/OfflineCacheUpdateParent.h"
 
 #include "nsIURI.h"
 #include "nsFocusManager.h"
@@ -69,7 +70,6 @@
 #include "nsIPromptFactory.h"
 #include "nsIContent.h"
 #include "mozilla/unused.h"
-#include "nsDebug.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
@@ -84,30 +84,17 @@ namespace dom {
 
 TabParent *TabParent::mIMETabParent = nsnull;
 
-NS_IMPL_ISUPPORTS3(TabParent, nsITabParent, nsIAuthPromptProvider, nsISecureBrowserUI)
+NS_IMPL_ISUPPORTS4(TabParent, nsITabParent, nsIAuthPromptProvider, nsISSLStatusProvider, nsISecureBrowserUI)
 
 TabParent::TabParent()
-  : mIMEComposing(PR_FALSE)
+  : mSecurityState(0)
   , mIMECompositionEnding(PR_FALSE)
-  , mDPI(0)
+  , mIMEComposing(PR_FALSE)
 {
 }
 
 TabParent::~TabParent()
 {
-}
-
-void
-TabParent::SetOwnerElement(nsIDOMElement* aElement)
-{
-  mFrameElement = aElement;
-
-  // Cache the DPI of the screen, since we may lose the element/widget later
-  if (aElement) {
-    nsCOMPtr<nsIWidget> widget = GetWidget();
-    NS_ABORT_IF_FALSE(widget, "Non-null OwnerElement must provide a widget!");
-    mDPI = widget->GetDPI();
-  }
 }
 
 void
@@ -213,30 +200,67 @@ TabParent::GetState(PRUint32 *aState)
 {
   NS_ENSURE_ARG(aState);
   NS_WARNING("SecurityState not valid here");
-  *aState = 0;
+  *aState = mSecurityState;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 TabParent::GetTooltipText(nsAString & aTooltipText)
 {
-  aTooltipText.Truncate();
+  aTooltipText = mSecurityTooltipText;
   return NS_OK;
 }
 
-PDocumentRendererParent*
-TabParent::AllocPDocumentRenderer(const nsRect& documentRect,
-                                  const gfxMatrix& transform,
-                                  const nsString& bgcolor,
-                                  const PRUint32& renderFlags,
-                                  const bool& flushLayout,
-                                  const nsIntSize& renderSize)
+NS_IMETHODIMP
+TabParent::GetSSLStatus(nsISupports ** aStatus)
+{
+  NS_IF_ADDREF(*aStatus = mSecurityStatusObject);
+  return NS_OK;
+}
+
+
+mozilla::ipc::PDocumentRendererParent*
+TabParent::AllocPDocumentRenderer(const PRInt32& x,
+        const PRInt32& y, const PRInt32& w, const PRInt32& h, const nsString& bgcolor,
+        const PRUint32& flags, const bool& flush)
 {
     return new DocumentRendererParent();
 }
 
 bool
 TabParent::DeallocPDocumentRenderer(PDocumentRendererParent* actor)
+{
+    delete actor;
+    return true;
+}
+
+mozilla::ipc::PDocumentRendererShmemParent*
+TabParent::AllocPDocumentRendererShmem(const PRInt32& x,
+        const PRInt32& y, const PRInt32& w, const PRInt32& h, const nsString& bgcolor,
+        const PRUint32& flags, const bool& flush, const gfxMatrix& aMatrix,
+        Shmem& buf)
+{
+    return new DocumentRendererShmemParent();
+}
+
+bool
+TabParent::DeallocPDocumentRendererShmem(PDocumentRendererShmemParent* actor)
+{
+    delete actor;
+    return true;
+}
+
+mozilla::ipc::PDocumentRendererNativeIDParent*
+TabParent::AllocPDocumentRendererNativeID(const PRInt32& x,
+        const PRInt32& y, const PRInt32& w, const PRInt32& h, const nsString& bgcolor,
+        const PRUint32& flags, const bool& flush, const gfxMatrix& aMatrix,
+        const PRUint32& nativeID)
+{
+    return new DocumentRendererNativeIDParent();
+}
+
+bool
+TabParent::DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDParent* actor)
 {
     delete actor;
     return true;
@@ -279,7 +303,7 @@ TabParent::SendKeyEvent(const nsAString& aType,
 bool
 TabParent::RecvSyncMessage(const nsString& aMessage,
                            const nsString& aJSON,
-                           InfallibleTArray<nsString>* aJSONRetVal)
+                           nsTArray<nsString>* aJSONRetVal)
 {
   return ReceiveMessage(aMessage, PR_TRUE, aJSON, aJSONRetVal);
 }
@@ -497,41 +521,17 @@ bool
 TabParent::RecvGetIMEEnabled(PRUint32* aValue)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return true;
-
-  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
-  IMEContext context;
-  if (widget2) {
-    widget2->GetInputMode(context);
-    *aValue = context.mStatus;
-  }
+  if (widget)
+    widget->GetIMEEnabled(aValue);
   return true;
 }
 
 bool
-TabParent::RecvSetInputMode(const PRUint32& aValue, const nsString& aType, const nsString& aAction)
+TabParent::RecvSetIMEEnabled(const PRUint32& aValue)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget || !AllowContentIME())
-    return true;
-
-  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
-
-  IMEContext context;
-  context.mStatus = aValue;
-  context.mHTMLInputType.Assign(aType);
-  context.mActionHint.Assign(aAction);
-  widget2->SetInputMode(context);
-
-  nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
-  if (!observerService)
-    return true;
-
-  nsAutoString state;
-  state.AppendInt(aValue);
-  observerService->NotifyObservers(nsnull, "ime-enabled-state-changed", state.get());
-
+  if (widget)
+    widget->SetIMEEnabled(aValue);
   return true;
 }
 
@@ -548,17 +548,8 @@ bool
 TabParent::RecvSetIMEOpenState(const PRBool& aValue)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget && AllowContentIME())
+  if (widget)
     widget->SetIMEOpenState(aValue);
-  return true;
-}
-
-bool
-TabParent::RecvGetDPI(float* aValue)
-{
-  NS_ABORT_IF_FALSE(mDPI > 0, 
-                    "Must not ask for DPI before OwnerElement is received!");
-  *aValue = mDPI;
   return true;
 }
 
@@ -566,7 +557,7 @@ bool
 TabParent::ReceiveMessage(const nsString& aMessage,
                           PRBool aSync,
                           const nsString& aJSON,
-                          InfallibleTArray<nsString>* aJSONRetVal)
+                          nsTArray<nsString>* aJSONRetVal)
 {
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
   if (frameLoader && frameLoader->GetFrameMessageManager()) {
@@ -619,8 +610,8 @@ PContentDialogParent*
 TabParent::AllocPContentDialog(const PRUint32& aType,
                                const nsCString& aName,
                                const nsCString& aFeatures,
-                               const InfallibleTArray<int>& aIntParams,
-                               const InfallibleTArray<nsString>& aStringParams)
+                               const nsTArray<int>& aIntParams,
+                               const nsTArray<nsString>& aStringParams)
 {
   ContentDialogParent* parent = new ContentDialogParent();
   nsCOMPtr<nsIDialogParamBlock> params =
@@ -675,8 +666,8 @@ TabParent::HandleDelayedDialogs()
 
     delete data;
     if (dialog) {
-      InfallibleTArray<PRInt32> intParams;
-      InfallibleTArray<nsString> stringParams;
+      nsTArray<PRInt32> intParams;
+      nsTArray<nsString> stringParams;
       TabChild::ParamsToArrays(params, intParams, stringParams);
       unused << PContentDialogParent::Send__delete__(dialog,
                                                      intParams, stringParams);
@@ -693,43 +684,13 @@ PRenderFrameParent*
 TabParent::AllocPRenderFrame()
 {
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  NS_WARN_IF_FALSE(frameLoader, "'message sent to unknown actor ID' coming up");
-  return frameLoader ? new RenderFrameParent(frameLoader) : nsnull;
+  return new RenderFrameParent(frameLoader);
 }
 
 bool
 TabParent::DeallocPRenderFrame(PRenderFrameParent* aFrame)
 {
   delete aFrame;
-  return true;
-}
-
-mozilla::docshell::POfflineCacheUpdateParent*
-TabParent::AllocPOfflineCacheUpdate(const URI& aManifestURI,
-                                    const URI& aDocumentURI,
-                                    const nsCString& aClientID,
-                                    const bool& stickDocument)
-{
-  nsRefPtr<mozilla::docshell::OfflineCacheUpdateParent> update =
-    new mozilla::docshell::OfflineCacheUpdateParent();
-
-  nsresult rv = update->Schedule(aManifestURI, aDocumentURI, aClientID,
-                                 stickDocument);
-  if (NS_FAILED(rv))
-    return nsnull;
-
-  POfflineCacheUpdateParent* result = update.get();
-  update.forget();
-  return result;
-}
-
-bool
-TabParent::DeallocPOfflineCacheUpdate(mozilla::docshell::POfflineCacheUpdateParent* actor)
-{
-  mozilla::docshell::OfflineCacheUpdateParent* update =
-    static_cast<mozilla::docshell::OfflineCacheUpdateParent*>(actor);
-
-  update->Release();
   return true;
 }
 
@@ -741,19 +702,6 @@ TabParent::ShouldDelayDialogs()
   PRBool delay = PR_FALSE;
   frameLoader->GetDelayRemoteDialogs(&delay);
   return delay;
-}
-
-PRBool
-TabParent::AllowContentIME()
-{
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  NS_ENSURE_TRUE(fm, PR_FALSE);
-
-  nsCOMPtr<nsIContent> focusedContent = fm->GetFocusedContent();
-  if (focusedContent && focusedContent->IsEditable())
-    return PR_FALSE;
-
-  return PR_TRUE;
 }
 
 already_AddRefed<nsFrameLoader>

@@ -213,7 +213,6 @@
 @BINPATH@/components/necko_strconv.xpt
 @BINPATH@/components/necko_viewsource.xpt
 @BINPATH@/components/necko_wifi.xpt
-@BINPATH@/components/necko_wyciwyg.xpt
 @BINPATH@/components/necko.xpt
 @BINPATH@/components/loginmgr.xpt
 @BINPATH@/components/parentalcontrols.xpt
@@ -271,8 +270,6 @@
 @BINPATH@/components/zipwriter.xpt
 
 ; JavaScript components
-@BINPATH@/components/ConsoleAPI.manifest
-@BINPATH@/components/ConsoleAPI.js
 @BINPATH@/components/FeedProcessor.manifest
 @BINPATH@/components/FeedProcessor.js
 @BINPATH@/components/BrowserFeeds.manifest
@@ -353,7 +350,6 @@
 @BINPATH@/components/nsPlacesAutoComplete.js
 @BINPATH@/components/nsPlacesExpiration.js
 @BINPATH@/components/PlacesProtocolHandler.js
-@BINPATH@/components/PlacesCategoriesStarter.js
 @BINPATH@/components/nsDefaultCLH.manifest
 @BINPATH@/components/nsDefaultCLH.js
 @BINPATH@/components/nsContentPrefService.manifest
@@ -387,6 +383,8 @@
 #ifdef MOZ_SERVICES_SYNC
 @BINPATH@/components/SyncComponents.manifest
 @BINPATH@/components/Weave.js
+@BINPATH@/components/WeaveCrypto.manifest
+@BINPATH@/components/WeaveCrypto.js
 #endif
 
 ; Modules
@@ -403,14 +401,6 @@
 ; GNOME hooks
 #ifdef MOZ_ENABLE_GNOME_COMPONENT
 @BINPATH@/components/@DLL_PREFIX@mozgnome@DLL_SUFFIX@
-#endif
-
-; ANGLE on Win32
-#ifdef XP_WIN32
-#ifndef HAVE_64BIT_OS
-@BINPATH@/libEGL.dll
-@BINPATH@/libGLESv2.dll
-#endif
 #endif
 
 ; [Browser Chrome Files]

@@ -106,8 +106,6 @@
 #include "nsIHttpAuthManager.h"
 #include "nsICookieService.h"
 
-#include "nsNetUtil.h"
-
 #include "mozilla/PluginLibrary.h"
 using mozilla::PluginLibrary;
 
@@ -180,10 +178,7 @@ static NPNetscapeFuncs sBrowserFuncs = {
   _scheduletimer,
   _unscheduletimer,
   _popupcontextmenu,
-  _convertpoint,
-  NULL, // handleevent, unimplemented
-  NULL, // unfocusinstance, unimplemented
-  NULL  // urlredirectresponse, unimplemented
+  _convertpoint
 };
 
 static PRLock *sPluginThreadAsyncCallLock = nsnull;
@@ -242,13 +237,14 @@ nsNPAPIPlugin::nsNPAPIPlugin()
 
   memset((void*)&mPluginFuncs, 0, sizeof(mPluginFuncs));
   mPluginFuncs.size = sizeof(mPluginFuncs);
-  mPluginFuncs.version = (NP_VERSION_MAJOR << 8) | NP_VERSION_MINOR;
 
   mLibrary = nsnull;
 }
 
 nsNPAPIPlugin::~nsNPAPIPlugin()
 {
+  // reset the callbacks list
+  memset((void*) &mPluginFuncs, 0, sizeof(mPluginFuncs));
   delete mLibrary;
   mLibrary = nsnull;
 }
@@ -320,10 +316,6 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
     return PR_FALSE;
   }
 
-  if (!aPluginTag) {
-    return PR_FALSE;
-  }
-
 #ifdef XP_MACOSX
   // Only allow on Mac OS X 10.6 or higher.
   if (OSXVersion() < 0x00001060) {
@@ -332,7 +324,8 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   // Blacklist Flash 10.0 or lower since it may try to negotiate Carbon/Quickdraw
   // which are not supported out of process. Also blacklist Flash 10.1 if this
   // machine has an Intel GMA9XX GPU because Flash will negotiate Quickdraw graphics.
-  if (aPluginTag->mFileName.EqualsIgnoreCase("flash player.plugin")) {
+  if (aPluginTag && 
+      aPluginTag->mFileName.EqualsIgnoreCase("flash player.plugin")) {
     // If the first '.' is before position 2 or the version 
     // starts with 10.0 then we are dealing with Flash 10 or less.
     if (aPluginTag->mVersion.FindChar('.') < 2) {
@@ -391,15 +384,6 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
 #else
   nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.");
 #endif
-
-  // Java plugins include a number of different file names,
-  // so use the mime type (mIsJavaPlugin) and a special pref.
-  PRBool javaIsEnabled;
-  if (aPluginTag->mIsJavaPlugin &&
-      NS_SUCCEEDED(prefs->GetBoolPref("dom.ipc.plugins.java.enabled", &javaIsEnabled)) &&
-      !javaIsEnabled) {
-    return PR_FALSE;
-  }
 
   PRUint32 prefCount;
   char** prefNames;
@@ -609,15 +593,10 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
   if (!pluginHost) return NPERR_GENERIC_ERROR;
 
   nsCOMPtr<nsIPluginStreamListener> listener;
-  // Set aCallNotify here to false.  If pluginHost->GetURL or PostURL fail,
-  // the listener's destructor will do the notification while we are about to
-  // return a failure code.
-  // Call SetCallNotify(true) bellow after we are sure we cannot return a failure 
-  // code.
   if (!target)
     ((nsNPAPIPluginInstance*)inst)->NewNotifyStream(getter_AddRefs(listener),
                                                     notifyData,
-                                                    PR_FALSE, relativeURL);
+                                                    bDoNotify, relativeURL);
 
   switch (type) {
   case eNPPStreamTypeInternal_Get:
@@ -635,15 +614,6 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
     }
   default:
     NS_ERROR("how'd I get here");
-  }
-
-  if (listener) {
-    // SetCallNotify(bDoNotify) here, see comment above.
-    // XXX Not sure of this cast here, we should probably have an interface API
-    // for this.
-    nsNPAPIPluginStreamListener* npAPIPluginStreamListener = 
-      static_cast<nsNPAPIPluginStreamListener*>(listener.get());
-    npAPIPluginStreamListener->SetCallNotify(bDoNotify);
   }
 
   return NPERR_NO_ERROR;
@@ -870,7 +840,7 @@ nsPluginThreadRunnable::Run()
   if (mFunc) {
     PluginDestructionGuard guard(mInstance);
 
-    NS_TRY_SAFE_CALL_VOID(mFunc(mUserData), nsnull);
+    NS_TRY_SAFE_CALL_VOID(mFunc(mUserData), nsnull, nsnull);
   }
 
   return NS_OK;
@@ -1707,92 +1677,7 @@ _getproperty(NPP npp, NPObject* npobj, NPIdentifier property,
                  ("NPN_GetProperty(npp %p, npobj %p, property %p) called\n",
                   npp, npobj, property));
 
-  if (!npobj->_class->getProperty(npobj, property, result))
-    return false;
-
-  // If a Java plugin tries to get the document.URL or document.documentURI
-  // property from us, don't pass back a value that Java won't be able to
-  // understand -- one that will make the URL(String) constructor throw a
-  // MalformedURL exception.  Passing such a value causes Java Plugin2 to
-  // crash (to throw a RuntimeException in Plugin2Manager.getDocumentBase()).
-  // Also don't pass back a value that Java is likely to mishandle.
-
-  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*) npp->ndata;
-  if (!inst)
-    return false;
-  nsNPAPIPlugin* plugin = inst->GetPlugin();
-  if (!plugin)
-    return false;
-  nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
-  nsPluginTag* pluginTag = host->TagForPlugin(plugin);
-  if (!pluginTag->mIsJavaPlugin)
-    return true;
-
-  if (!NPVARIANT_IS_STRING(*result))
-    return true;
-
-  NPUTF8* propertyName = _utf8fromidentifier(property);
-  if (!propertyName)
-    return true;
-  bool notURL =
-    (PL_strcasecmp(propertyName, "URL") &&
-     PL_strcasecmp(propertyName, "documentURI"));
-  _memfree(propertyName);
-  if (notURL)
-    return true;
-
-  NPObject* window_obj = _getwindowobject(npp);
-  if (!window_obj)
-    return true;
-
-  NPVariant doc_v;
-  NPObject* document_obj = nsnull;
-  NPIdentifier doc_id = _getstringidentifier("document");
-  bool ok = npobj->_class->getProperty(window_obj, doc_id, &doc_v);
-  _releaseobject(window_obj);
-  if (ok) {
-    if (NPVARIANT_IS_OBJECT(doc_v)) {
-      document_obj = NPVARIANT_TO_OBJECT(doc_v);
-    } else {
-      _releasevariantvalue(&doc_v);
-      return true;
-    }
-  } else {
-    return true;
-  }
-  _releaseobject(document_obj);
-  if (document_obj != npobj)
-    return true;
-
-  NPString urlnp = NPVARIANT_TO_STRING(*result);
-  nsXPIDLCString url;
-  url.Assign(urlnp.UTF8Characters, urlnp.UTF8Length);
-
-  PRBool javaCompatible = PR_FALSE;
-  if (NS_FAILED(NS_CheckIsJavaCompatibleURLString(url, &javaCompatible)))
-    javaCompatible = PR_FALSE;
-  if (javaCompatible)
-    return true;
-
-  // If Java won't be able to interpret the original value of document.URL or
-  // document.documentURI, or is likely to mishandle it, pass back something
-  // that Java will understand but won't be able to use to access the network,
-  // and for which same-origin checks will always fail.
-
-  if (inst->mFakeURL.IsVoid()) {
-    // Abort (do an error return) if NS_MakeRandomInvalidURLString() fails.
-    if (NS_FAILED(NS_MakeRandomInvalidURLString(inst->mFakeURL))) {
-      _releasevariantvalue(result);
-      return false;
-    }
-  }
-
-  _releasevariantvalue(result);
-  char* fakeurl = (char *) _memalloc(inst->mFakeURL.Length() + 1);
-  strcpy(fakeurl, inst->mFakeURL);
-  STRINGZ_TO_NPVARIANT(fakeurl, *result);
-
-  return true;
+  return npobj->_class->getProperty(npobj, property, result);
 }
 
 bool NP_CALLBACK

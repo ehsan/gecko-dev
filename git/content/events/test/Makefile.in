@@ -91,12 +91,9 @@ _TEST_FILES = \
 		test_bug547996-1.html \
 		test_bug547996-2.xhtml \
 		test_bug556493.html \
-		test_bug574663.html \
 		test_bug586961.xul \
 		test_clickevent_on_input.html \
 		test_bug593959.html \
-		test_bug591815.html \
-		test_bug605242.html \
 		$(NULL)
 
 #bug 585630
@@ -110,8 +107,6 @@ _CHROME_FILES = \
 		test_bug415498.xul \
 		bug415498-doc1.html \
 		bug415498-doc2.html \
-		bug602962.xul \
-		test_bug602962.xul \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

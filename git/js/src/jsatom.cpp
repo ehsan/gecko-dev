@@ -44,8 +44,8 @@
 #include <string.h>
 #include "jstypes.h"
 #include "jsstdint.h"
-#include "jsutil.h"
-#include "jshash.h"
+#include "jsutil.h" /* Added by JSIFY */
+#include "jshash.h" /* Added by JSIFY */
 #include "jsprf.h"
 #include "jsapi.h"
 #include "jsatom.h"
@@ -90,9 +90,9 @@ JS_STATIC_ASSERT((1 + 2) * sizeof(JSAtom *) ==
                  offsetof(JSAtomState, typeAtoms) - ATOM_OFFSET_START);
 
 const char *
-js_AtomToPrintableString(JSContext *cx, JSAtom *atom, JSAutoByteString *bytes)
+js_AtomToPrintableString(JSContext *cx, JSAtom *atom)
 {
-    return js_ValueToPrintable(cx, StringValue(ATOM_TO_STRING(atom)), bytes);
+    return js_ValueToPrintableString(cx, StringValue(ATOM_TO_STRING(atom)));
 }
 
 #define JS_PROTO(name,code,init) const char js_##name##_str[] = #name;
@@ -158,8 +158,6 @@ const char *const js_common_atom_names[] = {
     js_name_str,                /* nameAtom                     */
     js_next_str,                /* nextAtom                     */
     js_noSuchMethod_str,        /* noSuchMethodAtom             */
-    "[object Null]",            /* objectNullAtom               */
-    "[object Undefined]",       /* objectUndefinedAtom          */
     js_proto_str,               /* protoAtom                    */
     js_set_str,                 /* setAtom                      */
     js_source_str,              /* sourceAtom                   */
@@ -179,10 +177,6 @@ const char *const js_common_atom_names[] = {
     js_value_str,               /* valueAtom                    */
     js_test_str,                /* testAtom                     */
     "use strict",               /* useStrictAtom                */
-    "loc",                      /* locAtom                      */
-    "line",                     /* lineAtom                     */
-    "Infinity",                 /* InfinityAtom                 */
-    "NaN",                      /* NaNAtom                      */
 
 #if JS_HAS_XML_SUPPORT
     js_etago_str,               /* etagoAtom                    */
@@ -465,13 +459,42 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
     if (str->isAtomized())
         return STRING_TO_ATOM(str);
 
-    const jschar *chars;
-    size_t length;
-    str->getCharsAndLength(chars, length);
+    size_t length = str->length();
+    if (length == 1) {
+        jschar c = str->chars()[0];
+        if (c < UNIT_STRING_LIMIT)
+            return STRING_TO_ATOM(JSString::unitString(c));
+    }
 
-    JSString *staticStr = JSString::lookupStaticString(chars, length);
-    if (staticStr)
-        return STRING_TO_ATOM(staticStr);
+    if (length == 2) {
+        jschar *chars = str->chars();
+        if (JSString::fitsInSmallChar(chars[0]) &&
+            JSString::fitsInSmallChar(chars[1])) {
+            return STRING_TO_ATOM(JSString::length2String(chars[0], chars[1]));
+        }
+    }
+
+    /*
+     * Here we know that JSString::intStringTable covers only 256 (or at least
+     * not 1000 or more) chars. We rely on order here to resolve the unit vs.
+     * int string/length-2 string atom identity issue by giving priority to unit
+     * strings for "0" through "9" and length-2 strings for "10" through "99".
+     */
+    JS_STATIC_ASSERT(INT_STRING_LIMIT <= 999);
+    if (length == 3) {
+        const jschar *chars = str->chars();
+
+        if ('1' <= chars[0] && chars[0] <= '9' &&
+            '0' <= chars[1] && chars[1] <= '9' &&
+            '0' <= chars[2] && chars[2] <= '9') {
+            jsint i = (chars[0] - '0') * 100 +
+                      (chars[1] - '0') * 10 +
+                      (chars[2] - '0');
+
+            if (jsuint(i) < INT_STRING_LIMIT)
+                return STRING_TO_ATOM(JSString::intString(i));
+        }
+    }
 
     JSAtomState *state = &cx->runtime->atomState;
     AtomSet &atoms = state->atoms;
@@ -500,7 +523,7 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
          * compartment lock.
          */
         if (!needNewString && str->isFlat()) {
-            str->flatClearExtensible();
+            str->flatClearMutable();
             key = str;
             atoms.add(p, StringToInitialAtomEntry(key));
         } else {
@@ -587,7 +610,7 @@ js_AtomizeChars(JSContext *cx, const jschar *chars, size_t length, uintN flags)
     JSString str;
 
     CHECK_REQUEST(cx);
-    str.initFlatNotTerminated((jschar *)chars, length);
+    str.initFlat((jschar *)chars, length);
     return js_AtomizeString(cx, &str, ATOM_TMPSTR | flags);
 }
 
@@ -603,7 +626,7 @@ js_GetExistingStringAtom(JSContext *cx, const jschar *chars, size_t length)
             return STRING_TO_ATOM(JSString::unitString(c));
     }
 
-    str.initFlatNotTerminated((jschar *)chars, length);
+    str.initFlat((jschar *)chars, length);
     state = &cx->runtime->atomState;
 
     JS_LOCK(cx, &state->lock);
@@ -629,7 +652,7 @@ js_DumpAtoms(JSContext *cx, FILE *fp)
             fputs("<uninitialized>", fp);
         } else {
             JSString *key = AtomEntryToKey(entry);
-            FileEscapedString(fp, key, '"');
+            js_FileEscapedString(fp, key, '"');
             uintN flags = AtomEntryFlags(entry);
             if (flags != 0) {
                 fputs((flags & (ATOM_PINNED | ATOM_INTERNED))

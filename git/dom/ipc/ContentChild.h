@@ -56,7 +56,6 @@ namespace dom {
 class AlertObserver;
 class PrefObserver;
 class ConsoleListener;
-class PStorageChild;
 
 class ContentChild : public PContentChild
 {
@@ -80,17 +79,9 @@ public:
     virtual PBrowserChild* AllocPBrowser(const PRUint32& aChromeFlags);
     virtual bool DeallocPBrowser(PBrowserChild*);
 
-    virtual PCrashReporterChild* AllocPCrashReporter();
-    virtual bool DeallocPCrashReporter(PCrashReporterChild*);
-
     virtual PTestShellChild* AllocPTestShell();
     virtual bool DeallocPTestShell(PTestShellChild*);
     virtual bool RecvPTestShellConstructor(PTestShellChild*);
-
-    virtual PAudioChild* AllocPAudio(const PRInt32&,
-                                     const PRInt32&,
-                                     const PRInt32&);
-    virtual bool DeallocPAudio(PAudioChild*);
 
     virtual PNeckoChild* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoChild*);
@@ -100,16 +91,12 @@ public:
             const nsCString& aMimeContentType,
             const nsCString& aContentDisposition,
             const bool& aForceSave,
-            const PRInt64& aContentLength,
-            const IPC::URI& aReferrer);
+            const PRInt64& aContentLength);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
 
-    virtual PStorageChild* AllocPStorage(const StorageConstructData& aData);
-    virtual bool DeallocPStorage(PStorageChild* aActor);
-
-    virtual bool RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
-                                    const InfallibleTArray<ResourceMapping>& resources,
-                                    const InfallibleTArray<OverrideMapping>& overrides);
+    virtual bool RecvRegisterChrome(const nsTArray<ChromePackage>& packages,
+                                    const nsTArray<ResourceMapping>& resources,
+                                    const nsTArray<OverrideMapping>& overrides);
 
     virtual bool RecvSetOffline(const PRBool& offline);
 
@@ -117,26 +104,13 @@ public:
     // auto remove when alertfinished is received.
     nsresult AddRemoteAlertObserver(const nsString& aData, nsIObserver* aObserver);
 
-    virtual bool RecvPreferenceUpdate(const PrefTuple& aPref);
-
+    virtual bool RecvPreferenceUpdate(const nsCString& aDomain);
+    
     virtual bool RecvNotifyAlertsObserver(const nsCString& aType, const nsString& aData);
 
     virtual bool RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON);
 
     virtual bool RecvGeolocationUpdate(const GeoPosition& somewhere);
-
-    virtual bool RecvAddPermission(const IPC::Permission& permission);
-
-    virtual bool RecvAccelerationChanged(const double& x, const double& y,
-                                         const double& z);
-
-    virtual bool RecvScreenSizeChanged(const gfxIntSize &size);
-
-    virtual bool RecvFlushMemory(const nsString& reason);
-
-#ifdef ANDROID
-    gfxIntSize GetScreenSize() { return mScreenSize; }
-#endif
 
 private:
     NS_OVERRIDE
@@ -151,11 +125,10 @@ private:
      */
     NS_NORETURN void QuickExit();
 
-    InfallibleTArray<nsAutoPtr<AlertObserver> > mAlertObservers;
+    nsTArray<nsAutoPtr<AlertObserver> > mAlertObservers;
+    nsTArray<nsAutoPtr<PrefObserver> > mPrefObservers;
     nsRefPtr<ConsoleListener> mConsoleListener;
-#ifdef ANDROID
-    gfxIntSize mScreenSize;
-#endif
+    bool mDead;
 
     static ContentChild* sSingleton;
 

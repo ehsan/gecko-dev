@@ -48,11 +48,6 @@
 #include "nsDOMError.h"
 #include "nsIGfxInfo.h"
 
-#include "nsIPropertyBag.h"
-#include "nsIVariant.h"
-
-#include "imgIEncoder.h"
-
 #include "gfxContext.h"
 #include "gfxPattern.h"
 #include "gfxUtils.h"
@@ -71,12 +66,12 @@ using namespace mozilla;
 using namespace mozilla::gl;
 using namespace mozilla::layers;
 
-nsresult NS_NewCanvasRenderingContextWebGL(nsIDOMWebGLRenderingContext** aResult);
+nsresult NS_NewCanvasRenderingContextWebGL(nsICanvasRenderingContextWebGL** aResult);
 
 nsresult
-NS_NewCanvasRenderingContextWebGL(nsIDOMWebGLRenderingContext** aResult)
+NS_NewCanvasRenderingContextWebGL(nsICanvasRenderingContextWebGL** aResult)
 {
-    nsIDOMWebGLRenderingContext* ctx = new WebGLContext();
+    nsICanvasRenderingContextWebGL* ctx = new WebGLContext();
     if (!ctx)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -93,13 +88,11 @@ WebGLContext::WebGLContext()
     mInvalidated = PR_FALSE;
     mResetLayer = PR_TRUE;
     mVerbose = PR_FALSE;
-    mOptionsFrozen = PR_FALSE;
 
     mActiveTexture = 0;
     mSynthesizedGLError = LOCAL_GL_NO_ERROR;
     mPixelStoreFlipY = PR_FALSE;
     mPixelStorePremultiplyAlpha = PR_FALSE;
-    mPixelStoreColorspaceConversion = BROWSER_DEFAULT_WEBGL;
 
     mShaderValidation = PR_TRUE;
 
@@ -273,69 +266,6 @@ WebGLContext::SetCanvasElement(nsHTMLCanvasElement* aParentCanvas)
     return NS_OK;
 }
 
-static bool
-GetBoolFromPropertyBag(nsIPropertyBag *bag, const char *propName, bool *boolResult)
-{
-    nsCOMPtr<nsIVariant> vv;
-    PRBool bv;
-
-    nsresult rv = bag->GetProperty(NS_ConvertASCIItoUTF16(propName), getter_AddRefs(vv));
-    if (NS_FAILED(rv) || !vv)
-        return false;
-
-    rv = vv->GetAsBool(&bv);
-    if (NS_FAILED(rv))
-        return false;
-
-    *boolResult = bv ? true : false;
-    return true;
-}
-
-NS_IMETHODIMP
-WebGLContext::SetContextOptions(nsIPropertyBag *aOptions)
-{
-    if (!aOptions)
-        return NS_OK;
-
-    WebGLContextOptions newOpts;
-
-    // defaults are: yes: depth, alpha, premultipliedAlpha; no: stencil
-    if (!GetBoolFromPropertyBag(aOptions, "stencil", &newOpts.stencil))
-        newOpts.stencil = false;
-
-    if (!GetBoolFromPropertyBag(aOptions, "depth", &newOpts.depth))
-        newOpts.depth = true;
-
-    if (!GetBoolFromPropertyBag(aOptions, "alpha", &newOpts.alpha))
-        newOpts.alpha = true;
-
-    if (!GetBoolFromPropertyBag(aOptions, "premultipliedAlpha", &newOpts.premultipliedAlpha))
-        newOpts.premultipliedAlpha = true;
-
-    GetBoolFromPropertyBag(aOptions, "antialiasHint", &newOpts.antialiasHint);
-
-    // enforce that if stencil is specified, we also give back depth
-    newOpts.depth |= newOpts.stencil;
-
-#if 0
-    LogMessage("aaHint: %d stencil: %d depth: %d alpha: %d premult: %d\n",
-               newOpts.antialiasHint ? 1 : 0,
-               newOpts.stencil ? 1 : 0,
-               newOpts.depth ? 1 : 0,
-               newOpts.alpha ? 1 : 0,
-               newOpts.premultipliedAlpha ? 1 : 0);
-#endif
-
-    if (mOptionsFrozen && newOpts != mOptions) {
-        // Error if the options are already frozen, and the ones that were asked for
-        // aren't the same as what they were originally.
-        return NS_ERROR_FAILURE;
-    }
-
-    mOptions = newOpts;
-    return NS_OK;
-}
-
 NS_IMETHODIMP
 WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 {
@@ -370,26 +300,8 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     DestroyResourcesAndContext();
 
     gl::ContextFormat format(gl::ContextFormat::BasicRGBA32);
-    if (mOptions.depth) {
-        format.depth = 24;
-        format.minDepth = 16;
-    }
-
-    if (mOptions.stencil) {
-        format.stencil = 8;
-        format.minStencil = 8;
-    }
-
-    if (!mOptions.alpha) {
-        // Select 565; we won't/shouldn't hit this on the desktop,
-        // but let mobile know we're ok with it.
-        format.red = 5;
-        format.green = 6;
-        format.blue = 5;
-
-        format.alpha = 0;
-        format.minAlpha = 0;
-    }
+    format.depth = 16;
+    format.minDepth = 1;
 
     nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
     NS_ENSURE_TRUE(prefService != nsnull, NS_ERROR_FAILURE);
@@ -398,19 +310,11 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     prefService->GetBoolPref("webgl.verbose", &verbose);
     mVerbose = verbose;
 
-    // Get some prefs for some preferred/overriden things
     PRBool forceOSMesa = PR_FALSE;
-    PRBool preferEGL = PR_FALSE;
-    PRBool preferOpenGL = PR_FALSE;
     prefService->GetBoolPref("webgl.force_osmesa", &forceOSMesa);
-    prefService->GetBoolPref("webgl.prefer_egl", &preferEGL);
-    prefService->GetBoolPref("webgl.prefer_gl", &preferOpenGL);
 
-    if (PR_GetEnv("MOZ_WEBGL_PREFER_EGL")) {
-        preferEGL = PR_TRUE;
-    }
+    if (!forceOSMesa) {
 
-    // Ask GfxInfo about what we should use
     PRBool useOpenGL = PR_TRUE;
     PRBool useANGLE = PR_TRUE;
 
@@ -433,69 +337,73 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         }
     }
 
-    // allow forcing GL and not EGL/ANGLE
-    if (PR_GetEnv("MOZ_WEBGL_FORCE_OPENGL")) {
-        preferEGL = PR_FALSE;
-        useANGLE = PR_FALSE;
-        useOpenGL = PR_TRUE;
+    #ifdef XP_WIN
+        // On Windows, we may have a choice of backends, including straight
+        // OpenGL, D3D through ANGLE via EGL, or straight EGL/GLES2.
+        // We don't differentiate the latter two yet, but we allow for
+        // a env var to try EGL first, instead of last.
+        bool preferEGL = PR_GetEnv("MOZ_WEBGL_PREFER_EGL") != nsnull;
+
+        // if we want EGL, try it first
+        if (!gl && preferEGL && useANGLE) {
+            gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
+            if (gl && !InitAndValidateGL()) {
+                gl = nsnull;
+            }
+        }
+
+        // if it failed, then try the default provider, whatever that is
+        if (!gl && useOpenGL) {
+            gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
+            if (gl && !InitAndValidateGL()) {
+                gl = nsnull;
+            }
+        }
+
+        // if that failed, and we weren't already preferring EGL, try it now.
+        if (!gl && !preferEGL && useANGLE) {
+            gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
+            if (gl && !InitAndValidateGL()) {
+                gl = nsnull;
+            }
+        }
+    #else
+        // other platforms just use whatever the default is
+        if (!gl && useOpenGL) {
+            gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
+            if (gl && !InitAndValidateGL()) {
+                gl = nsnull;
+            }
+        }
+    #endif
     }
 
-    // if we're forcing osmesa, do it first
-    if (forceOSMesa) {
-        gl = gl::GLContextProviderOSMesa::CreateOffscreen(gfxIntSize(width, height), format);
-        if (!gl || !InitAndValidateGL()) {
-            LogMessage("OSMesa forced, but creating context failed -- aborting!");
-            return NS_ERROR_FAILURE;
-        }
-        LogMessage("Using software rendering via OSMesa (THIS WILL BE SLOW)");
-    }
-
-#ifdef XP_WIN
-    // if we want EGL, try it now
-    if (!gl && (preferEGL || useANGLE) && !preferOpenGL) {
-        gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl && !InitAndValidateGL()) {
-            gl = nsnull;
-        }
-    }
-
-    // if it failed, then try the default provider, whatever that is
-    if (!gl && useOpenGL) {
-        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl && !InitAndValidateGL()) {
-            gl = nsnull;
-        }
-    }
-
-    // if that failed, and we weren't already preferring EGL, try it now.
-    if (!gl && !(preferEGL || useANGLE)) {
-        gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl && !InitAndValidateGL()) {
-            gl = nsnull;
-        }
-    }
-#else
-    // other platforms just use whatever the default is
-    if (!gl && useOpenGL) {
-        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl && !InitAndValidateGL()) {
-            gl = nsnull;
-        }
-    }
-#endif
-
-    // finally, try OSMesa
+    // last chance, try OSMesa
     if (!gl) {
         gl = gl::GLContextProviderOSMesa::CreateOffscreen(gfxIntSize(width, height), format);
-        if (!gl || !InitAndValidateGL()) {
-            gl = nsnull;
+        if (gl) {
+            if (!InitAndValidateGL()) {
+                gl = nsnull;
+            } else {
+                // make sure we notify always in this case, because it's likely going to be
+                // painfully slow
+                LogMessage("WebGL: Using software rendering via OSMesa");
+            }
+        }
+    }
+
+    if (!gl) {
+        if (forceOSMesa) {
+            LogMessage("WebGL: You set the webgl.force_osmesa preference to true, but OSMesa can't be found. "
+                       "Either install OSMesa and let webgl.osmesalib point to it, "
+                       "or set webgl.force_osmesa back to false.");
         } else {
-            LogMessage("Using software rendering via OSMesa (THIS WILL BE SLOW)");
+            #ifdef XP_WIN
+                LogMessage("WebGL: Can't get a usable OpenGL context (also tried Direct3D via ANGLE)");
+            #else
+                LogMessage("WebGL: Can't get a usable OpenGL context");
+            #endif
         }
-    }
-
-    if (!gl) {
-        LogMessage("Can't get a usable WebGL context");
         return NS_ERROR_FAILURE;
     }
 
@@ -506,7 +414,6 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     mWidth = width;
     mHeight = height;
     mResetLayer = PR_TRUE;
-    mOptionsFrozen = PR_TRUE;
 
     // increment the generation number
     ++mGeneration;
@@ -542,19 +449,16 @@ WebGLContext::Render(gfxContext *ctx, gfxPattern::GraphicsFilter f)
     if (surf->CairoStatus() != 0)
         return NS_ERROR_FAILURE;
 
-    gl->ReadPixelsIntoImageSurface(0, 0, mWidth, mHeight, surf);
+    MakeContextCurrent();
+    gl->fReadPixels(0, 0, mWidth, mHeight,
+                    LOCAL_GL_BGRA,
+                    LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV,
+                    surf->Data());
+
     gfxUtils::PremultiplyImageSurface(surf);
 
     nsRefPtr<gfxPattern> pat = new gfxPattern(surf);
     pat->SetFilter(f);
-
-    // Pixels from ReadPixels will be "upside down" compared to
-    // what cairo wants, so draw with a y-flip and a translte to
-    // flip them.
-    gfxMatrix m;
-    m.Translate(gfxPoint(0.0, mHeight));
-    m.Scale(1.0, -1.0);
-    pat->SetMatrix(m);
 
     ctx->NewPath();
     ctx->PixelSnappedRectangleAndSetPattern(gfxRect(0, 0, mWidth, mHeight), pat);
@@ -568,20 +472,17 @@ WebGLContext::GetInputStream(const char* aMimeType,
                              const PRUnichar* aEncoderOptions,
                              nsIInputStream **aStream)
 {
-    NS_ASSERTION(gl, "GetInputStream on invalid context?");
-    if (!gl)
-        return NS_ERROR_FAILURE;
+    return NS_ERROR_FAILURE;
 
-    nsRefPtr<gfxImageSurface> surf = new gfxImageSurface(gfxIntSize(mWidth, mHeight),
-                                                         gfxASurface::ImageFormatARGB32);
-    if (surf->CairoStatus() != 0)
+    // XXX fix this
+#if 0
+    if (!mGLPbuffer ||
+        !mGLPbuffer->ThebesSurface())
         return NS_ERROR_FAILURE;
-
-    gl->ReadPixelsIntoImageSurface(0, 0, mWidth, mHeight, surf);
 
     nsresult rv;
     const char encoderPrefix[] = "@mozilla.org/image/encoder;2?type=";
-    nsAutoArrayPtr<char> conid(new char[strlen(encoderPrefix) + strlen(aMimeType) + 1]);
+    nsAutoArrayPtr<char> conid(new (std::nothrow) char[strlen(encoderPrefix) + strlen(aMimeType) + 1]);
 
     if (!conid)
         return NS_ERROR_OUT_OF_MEMORY;
@@ -593,15 +494,45 @@ WebGLContext::GetInputStream(const char* aMimeType,
     if (!encoder)
         return NS_ERROR_FAILURE;
 
-    rv = encoder->InitFromData(surf->Data(),
-                               mWidth * mHeight * 4,
-                               mWidth, mHeight,
-                               surf->Stride(),
+    nsAutoArrayPtr<PRUint8> imageBuffer(new (std::nothrow) PRUint8[mWidth * mHeight * 4]);
+    if (!imageBuffer)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    nsRefPtr<gfxImageSurface> imgsurf = new gfxImageSurface(imageBuffer.get(),
+                                                            gfxIntSize(mWidth, mHeight),
+                                                            mWidth * 4,
+                                                            gfxASurface::ImageFormatARGB32);
+
+    if (!imgsurf || imgsurf->CairoStatus())
+        return NS_ERROR_FAILURE;
+
+    nsRefPtr<gfxContext> ctx = new gfxContext(imgsurf);
+
+    if (!ctx || ctx->HasError())
+        return NS_ERROR_FAILURE;
+
+    nsRefPtr<gfxASurface> surf = mGLPbuffer->ThebesSurface();
+    nsRefPtr<gfxPattern> pat = CanvasGLThebes::CreatePattern(surf);
+    gfxMatrix m;
+    m.Translate(gfxPoint(0.0, mGLPbuffer->Height()));
+    m.Scale(1.0, -1.0);
+    pat->SetMatrix(m);
+
+    // XXX I don't want to use PixelSnapped here, but layout doesn't guarantee
+    // pixel alignment for this stuff!
+    ctx->NewPath();
+    ctx->PixelSnappedRectangleAndSetPattern(gfxRect(0, 0, mWidth, mHeight), pat);
+    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+    ctx->Fill();
+
+    rv = encoder->InitFromData(imageBuffer.get(),
+                               mWidth * mHeight * 4, mWidth, mHeight, mWidth * 4,
                                imgIEncoder::INPUT_FORMAT_HOSTARGB,
                                nsDependentString(aEncoderOptions));
     NS_ENSURE_SUCCESS(rv, rv);
 
     return CallQueryInterface(encoder, aStream);
+#endif
 }
 
 NS_IMETHODIMP
@@ -648,7 +579,7 @@ WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
     }
 
     data.mSize = nsIntSize(mWidth, mHeight);
-    data.mGLBufferIsPremultiplied = mOptions.premultipliedAlpha ? PR_TRUE : PR_FALSE;
+    data.mGLBufferIsPremultiplied = PR_FALSE;
 
     canvasLayer->Initialize(data);
     PRUint32 flags = gl->CreationFormat().alpha == 0 ? Layer::CONTENT_OPAQUE : 0;
@@ -661,46 +592,12 @@ WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
     return canvasLayer.forget().get();
 }
 
-NS_IMETHODIMP
-WebGLContext::GetContextAttributes(jsval *aResult)
-{
-    JSContext *cx = nsContentUtils::GetCurrentJSContext();
-    if (!cx)
-        return NS_ERROR_FAILURE;
-
-    JSObject *obj = JS_NewObject(cx, NULL, NULL, NULL);
-    if (!obj)
-        return NS_ERROR_FAILURE;
-
-    *aResult = OBJECT_TO_JSVAL(obj);
-
-    gl::ContextFormat cf = gl->ActualFormat();
-
-    if (!JS_DefineProperty(cx, obj, "alpha", cf.alpha > 0 ? JSVAL_TRUE : JSVAL_FALSE,
-                           NULL, NULL, JSPROP_ENUMERATE) ||
-        !JS_DefineProperty(cx, obj, "depth", cf.depth > 0 ? JSVAL_TRUE : JSVAL_FALSE,
-                           NULL, NULL, JSPROP_ENUMERATE) ||
-        !JS_DefineProperty(cx, obj, "stencil", cf.stencil > 0 ? JSVAL_TRUE : JSVAL_FALSE,
-                           NULL, NULL, JSPROP_ENUMERATE) ||
-        !JS_DefineProperty(cx, obj, "antialias", JSVAL_FALSE,
-                           NULL, NULL, JSPROP_ENUMERATE) ||
-        !JS_DefineProperty(cx, obj, "premultipliedAlpha",
-                           mOptions.premultipliedAlpha ? JSVAL_TRUE : JSVAL_FALSE,
-                           NULL, NULL, JSPROP_ENUMERATE))
-    {
-        *aResult = JSVAL_VOID;
-        return NS_ERROR_FAILURE;
-    }
-
-    return NS_OK;
-}
-
 //
 // XPCOM goop
 //
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(WebGLContext, nsIDOMWebGLRenderingContext)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(WebGLContext, nsIDOMWebGLRenderingContext)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(WebGLContext, nsICanvasRenderingContextWebGL)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(WebGLContext, nsICanvasRenderingContextWebGL)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(WebGLContext)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(WebGLContext)
@@ -710,14 +607,14 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(WebGLContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCanvasElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-DOMCI_DATA(WebGLRenderingContext, WebGLContext)
+DOMCI_DATA(CanvasRenderingContextWebGL, WebGLContext)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLContext)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMWebGLRenderingContext)
+  NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextWebGL)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMWebGLRenderingContext)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLRenderingContext)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsICanvasRenderingContextWebGL)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CanvasRenderingContextWebGL)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(WebGLBuffer)

@@ -179,6 +179,7 @@ RasterImage::RasterImage(imgStatusTracker* aStatusTracker) :
   Image(aStatusTracker), // invoke superclass's constructor
   mSize(0,0),
   mAnim(nsnull),
+  mAnimationMode(kNormalAnimMode),
   mLoopCount(-1),
   mObserver(nsnull),
   mLockCount(0),
@@ -420,16 +421,8 @@ RasterImage::GetType(PRUint16 *aType)
 {
   NS_ENSURE_ARG_POINTER(aType);
 
-  *aType = GetType();
+  *aType = imgIContainer::TYPE_RASTER;
   return NS_OK;
-}
-
-//******************************************************************************
-/* [noscript, notxpcom] PRUint16 GetType(); */
-NS_IMETHODIMP_(PRUint16)
-RasterImage::GetType()
-{
-  return imgIContainer::TYPE_RASTER;
 }
 
 imgFrame*
@@ -918,21 +911,21 @@ RasterImage::EnsureCleanFrame(PRUint32 aFrameNum, PRInt32 aX, PRInt32 aY,
 
   // See if we can re-use the frame that already exists.
   nsIntRect rect = frame->GetRect();
-  if (rect.x == aX && rect.y == aY && rect.width == aWidth &&
-      rect.height == aHeight && frame->GetFormat() == aFormat) {
-    // We can re-use the frame if it has image data.
-    frame->GetImageData(imageData, imageLength);
-    if (*imageData) {
-      return NS_OK;
-    }
+  if (rect.x != aX || rect.y != aY || rect.width != aWidth || rect.height != aHeight ||
+      frame->GetFormat() != aFormat) {
+    DeleteImgFrame(aFrameNum);
+    return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat, 
+                            /* aPaletteDepth = */ 0, imageData, imageLength,
+                            /* aPaletteData = */ nsnull, 
+                            /* aPaletteLength = */ nsnull);
   }
 
-  DeleteImgFrame(aFrameNum);
-  return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat, 
-                          /* aPaletteDepth = */ 0, imageData, imageLength,
-                          /* aPaletteData = */ nsnull, 
-                          /* aPaletteLength = */ nsnull);
+  // We can re-use the frame.
+  frame->GetImageData(imageData, imageLength);
+
+  return NS_OK;
 }
+
 
 void
 RasterImage::FrameUpdated(PRUint32 aFrameNum, nsIntRect &aUpdatedRect)
@@ -1054,6 +1047,40 @@ RasterImage::DecodingComplete()
     rv = mFrames[0]->Optimize();
     NS_ENSURE_SUCCESS(rv, rv);
   }
+
+  return NS_OK;
+}
+
+//******************************************************************************
+/* attribute unsigned short animationMode; */
+NS_IMETHODIMP
+RasterImage::GetAnimationMode(PRUint16 *aAnimationMode)
+{
+  if (mError)
+    return NS_ERROR_FAILURE;
+
+  NS_ENSURE_ARG_POINTER(aAnimationMode);
+  
+  *aAnimationMode = mAnimationMode;
+  return NS_OK;
+}
+
+//******************************************************************************
+/* attribute unsigned short animationMode; */
+NS_IMETHODIMP
+RasterImage::SetAnimationMode(PRUint16 aAnimationMode)
+{
+  if (mError)
+    return NS_ERROR_FAILURE;
+
+  NS_ASSERTION(aAnimationMode == kNormalAnimMode ||
+               aAnimationMode == kDontAnimMode ||
+               aAnimationMode == kLoopOnceAnimMode,
+               "Wrong Animation Mode is being set!");
+  
+  mAnimationMode = aAnimationMode;
+
+  EvaluateAnimation();
 
   return NS_OK;
 }
@@ -2680,7 +2707,7 @@ PRBool
 RasterImage::ShouldAnimate()
 {
   return Image::ShouldAnimate() && mFrames.Length() >= 2 &&
-         !mAnimationFinished;
+         mAnimationMode != kDontAnimMode && !mAnimationFinished;
 }
 
 //******************************************************************************

@@ -466,18 +466,16 @@ var Trenches = {
   //   nextId - (integer) a counter for the next <Trench>'s <Trench.id> value.
   //   showDebug - (boolean) whether to draw the <Trench>es or not.
   //   defaultRadius - (integer) the default radius for new <Trench>es.
-  //   disabled - (boolean) whether trench-snapping is disabled or not.
   nextId: 0,
   showDebug: false,
   defaultRadius: 10,
-  disabled: false,
 
   // ---------
   // Variables: snapping preferences; used to break ties in snapping.
   //   preferTop - (boolean) prefer snapping to the top to the bottom
   //   preferLeft - (boolean) prefer snapping to the left to the right
   preferTop: true,
-  get preferLeft() { return !UI.rtl; },
+  preferLeft: true,
 
   trenches: [],
 

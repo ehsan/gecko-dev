@@ -21,7 +21,6 @@
  * Contributor(s):
  *  David Dahl <ddahl@mozilla.com>
  *  Mihai Șucan <mihai.sucan@gmail.com>
- *  Patrick Walton <pcwalton@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,37 +36,74 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource:///modules/HUDService.jsm");
+
 const TEST_REPLACED_API_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-console-replaced-api.html";
 
-function test() {
-  waitForExplicitFinish();
-
-  // First test that the warning does not appear on a normal page (about:blank)
-  addTab("about:blank");
-  browser.addEventListener("load", function() {
-    browser.removeEventListener("load", arguments.callee, true);
-    testOpenWebConsole(false);
-    executeSoon(testWarningPresent);
-  }, true);
+function log(aMsg)
+{
+  dump("*** WebConsoleTest: " + aMsg + "\n");
 }
 
-function testWarningPresent() {
-  // Then test that the warning does appear on a page that replaces the API
-  browser.addEventListener("load", function() {
-    browser.removeEventListener("load", arguments.callee, true);
-    testOpenWebConsole(true);
-    finishTest();
-  }, true);
-  browser.contentWindow.location = TEST_REPLACED_API_URI;
-}
-
-function testOpenWebConsole(shouldWarn) {
-  openConsole();
+function testOpenWebConsole()
+{
+  HUDService.activateHUDForContext(gBrowser.selectedTab);
   is(HUDService.displaysIndex().length, 1, "WebConsole was opened");
 
   hudId = HUDService.displaysIndex()[0];
   hud = HUDService.getHeadsUpDisplay(hudId);
 
-  let msg = (shouldWarn ? "found" : "didn't find") + " API replacement warning";
-  testLogEntry(hud, "disabled", msg, false, !shouldWarn);
+  HUDService.logWarningAboutReplacedAPI(hudId);
+  testWarning();
+}
+
+function testWarning()
+{
+  const successMsg = "Found the warning message";
+  const errMsg = "Could not find the warning message about the replaced API";
+
+  var display = HUDService.getDisplayByURISpec(content.location.href);
+  var outputNode = display.querySelectorAll(".hud-output-node")[0];
+
+  testLogEntry(outputNode, "disabled", { success: successMsg, err: errMsg });
+
+  HUDService.deactivateHUDForContext(gBrowser.selectedTab);
+  executeSoon(finishTest);
+}
+
+function testLogEntry(aOutputNode, aMatchString, aSuccessErrObj)
+{
+  var message = aOutputNode.textContent.indexOf(aMatchString);
+  if (message > -1) {
+    ok(true, aSuccessErrObj.success);
+    return;
+  }
+  ok(false, aSuccessErrObj.err);
+}
+
+function finishTest()
+{
+  hud = null;
+  hudId = null;
+
+  finish();
+}
+
+let hud, hudId;
+
+content.location = TEST_REPLACED_API_URI;
+
+function test()
+{
+  waitForExplicitFinish();
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee,
+      true);
+    testOpenWebConsole();
+  }, true);
 }

@@ -78,7 +78,6 @@ NS_IMPL_ISUPPORTS_INHERITED1(PuppetWidget, nsBaseWidget,
 
 PuppetWidget::PuppetWidget(PBrowserChild *aTabChild)
   : mTabChild(aTabChild)
-  , mDPI(-1)
 {
   MOZ_COUNT_CTOR(PuppetWidget);
 }
@@ -112,9 +111,8 @@ PuppetWidget::Create(nsIWidget        *aParent,
                                       gfxASurface::ContentFromFormat(gfxASurface::ImageFormatARGB32));
 
   mIMEComposing = PR_FALSE;
-  PRUint32 chromeSeqno;
-  mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
-  mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
+  mIMELastReceivedSeqno = 0;
+  mIMELastBlurSeqno = 0;
 
   PuppetWidget* parent = static_cast<PuppetWidget*>(aParent);
   if (parent) {
@@ -154,9 +152,6 @@ PuppetWidget::Destroy()
   Base::Destroy();
   mPaintTask.Revoke();
   mChild = nsnull;
-  if (mLayerManager) {
-    mLayerManager->Destroy();
-  }
   mLayerManager = nsnull;
   mTabChild = nsnull;
   return NS_OK;
@@ -315,13 +310,10 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 }
 
 LayerManager*
-PuppetWidget::GetLayerManager(LayerManagerPersistence, bool* aAllowRetaining)
+PuppetWidget::GetLayerManager()
 {
   if (!mLayerManager) {
     mLayerManager = new BasicShadowLayerManager(this);
-  }
-  if (aAllowRetaining) {
-    *aAllowRetaining = true;
   }
   return mLayerManager;
 }
@@ -335,19 +327,16 @@ PuppetWidget::GetThebesSurface()
 nsresult
 PuppetWidget::IMEEndComposition(PRBool aCancel)
 {
+  if (!mIMEComposing)
+    return NS_OK;
+
   nsEventStatus status;
   nsTextEvent textEvent(PR_TRUE, NS_TEXT_TEXT, this);
   InitEvent(textEvent, nsnull);
-  // SendEndIMEComposition is always called since ResetInputState
-  // should always be called even if we aren't composing something.
   if (!mTabChild ||
       !mTabChild->SendEndIMEComposition(aCancel, &textEvent.theText)) {
     return NS_ERROR_FAILURE;
   }
-
-  if (!mIMEComposing)
-    return NS_OK;
-
   DispatchEvent(&textEvent, status);
 
   nsCompositionEvent compEvent(PR_TRUE, NS_COMPOSITION_END, this);
@@ -378,10 +367,10 @@ PuppetWidget::SetIMEOpenState(PRBool aState)
 }
 
 NS_IMETHODIMP
-PuppetWidget::SetInputMode(const IMEContext& aContext)
+PuppetWidget::SetIMEEnabled(PRUint32 aState)
 {
   if (mTabChild &&
-      mTabChild->SendSetInputMode(aContext.mStatus, aContext.mHTMLInputType, aContext.mActionHint))
+      mTabChild->SendSetIMEEnabled(aState))
     return NS_OK;
   return NS_ERROR_FAILURE;
 }
@@ -396,10 +385,10 @@ PuppetWidget::GetIMEOpenState(PRBool *aState)
 }
 
 NS_IMETHODIMP
-PuppetWidget::GetInputMode(IMEContext& aContext)
+PuppetWidget::GetIMEEnabled(PRUint32 *aState)
 {
   if (mTabChild &&
-      mTabChild->SendGetIMEEnabled(&aContext.mStatus))
+      mTabChild->SendGetIMEEnabled(aState))
     return NS_OK;
   return NS_ERROR_FAILURE;
 }
@@ -555,17 +544,6 @@ PuppetWidget::PaintTask::Run()
     mWidget->DispatchPaintEvent();
   }
   return NS_OK;
-}
-
-float
-PuppetWidget::GetDPI()
-{
-  if (mDPI < 0) {
-    NS_ABORT_IF_FALSE(mTabChild, "Need TabChild to get the DPI from!");
-    mTabChild->SendGetDPI(&mDPI);
-  }
-
-  return mDPI;
 }
 
 }  // namespace widget

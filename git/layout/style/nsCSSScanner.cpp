@@ -263,7 +263,9 @@ nsCSSScanner::nsCSSScanner()
   : mInputStream(nsnull)
   , mReadPointer(nsnull)
   , mLowLevelError(NS_OK)
+#ifdef MOZ_SVG
   , mSVGMode(PR_FALSE)
+#endif
 #ifdef CSS_REPORT_PARSE_ERRORS
   , mError(mErrorBuf, NS_ARRAY_LENGTH(mErrorBuf), 0)
 #endif
@@ -781,7 +783,7 @@ nsCSSScanner::Next(nsCSSToken& aToken)
       EatWhiteSpace();
       return PR_TRUE;
     }
-    if (ch == '/' && !IsSVGMode()) {
+    if (ch == '/') {
       PRInt32 nextChar = Peek();
       if (nextChar == '*') {
         (void) Read();
@@ -1161,6 +1163,7 @@ nsCSSScanner::ParseNumber(PRInt32 c, nsCSSToken& aToken)
   }
 
   PRBool gotE = PR_FALSE;
+#ifdef MOZ_SVG
   if (IsSVGMode() && (c == 'e' || c == 'E')) {
     PRInt32 nextChar = Peek();
     PRInt32 expSignChar = 0;
@@ -1187,6 +1190,7 @@ nsCSSScanner::ParseNumber(PRInt32 c, nsCSSToken& aToken)
       }
     }
   }
+#endif
 
   nsCSSTokenType type = eCSSToken_Number;
 
@@ -1202,12 +1206,11 @@ nsCSSScanner::ParseNumber(PRInt32 c, nsCSSToken& aToken)
     // overloaded pow() on Windows.
     value *= pow(10.0, double(expSign * exponent));
   } else if (!gotDot) {
-    // Clamp values outside of integer range.
-    if (sign > 0) {
-      aToken.mInteger = PRInt32(NS_MIN(intPart, double(PR_INT32_MAX)));
-    } else {
-      aToken.mInteger = PRInt32(NS_MAX(-intPart, double(PR_INT32_MIN)));
+    if (intPart > PR_INT32_MAX) {
+      // Just clamp it.
+      intPart = PR_INT32_MAX;
     }
+    aToken.mInteger = PRInt32(sign * intPart);
     aToken.mIntegerValid = PR_TRUE;
   }
 

@@ -211,13 +211,11 @@ public:
 };
 
 class nsOfflineCacheUpdate : public nsIOfflineCacheUpdate
-                           , public nsIOfflineCacheUpdateObserver
                            , public nsOfflineCacheUpdateOwner
 {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOFFLINECACHEUPDATE
-    NS_DECL_NSIOFFLINECACHEUPDATEOBSERVER
 
     nsOfflineCacheUpdate();
     ~nsOfflineCacheUpdate();
@@ -232,7 +230,7 @@ public:
     void LoadCompleted();
     void ManifestCheckCompleted(nsresult aStatus,
                                 const nsCString &aManifestHash);
-    void StickDocument(nsIURI *aDocumentURI);
+    void AddDocument(nsIDOMDocument *aDocument);
 
     void SetOwner(nsOfflineCacheUpdateOwner *aOwner);
 
@@ -249,13 +247,19 @@ private:
     // specified namespaces will be added.
     nsresult AddExistingItems(PRUint32 aType,
                               nsTArray<nsCString>* namespaceFilter = nsnull);
-    nsresult ScheduleImplicit();
-    nsresult AssociateDocuments(nsIApplicationCache* cache);
 
     nsresult GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers);
-    nsresult NotifyState(PRUint32 state);
+    nsresult NotifyError();
+    nsresult NotifyChecking();
+    nsresult NotifyNoUpdate();
+    nsresult NotifyObsolete();
+    nsresult NotifyDownloading();
+    nsresult NotifyStarted(nsOfflineCacheUpdateItem *aItem);
+    nsresult NotifyCompleted(nsOfflineCacheUpdateItem *aItem);
+    nsresult AssociateDocument(nsIDOMDocument *aDocument,
+                               nsIApplicationCache *aApplicationCache);
+    nsresult ScheduleImplicit();
     nsresult Finish();
-    nsresult FinishNoNotify();
 
     enum {
         STATE_UNINITIALIZED,
@@ -275,6 +279,7 @@ private:
 
     nsCString mUpdateDomain;
     nsCOMPtr<nsIURI> mManifestURI;
+
     nsCOMPtr<nsIURI> mDocumentURI;
 
     nsCString mClientID;
@@ -294,7 +299,7 @@ private:
     nsCOMArray<nsIOfflineCacheUpdateObserver> mObservers;
 
     /* Documents that requested this update */
-    nsCOMArray<nsIURI> mDocumentURIs;
+    nsCOMArray<nsIDOMDocument> mDocuments;
 
     /* Reschedule count.  When an update is rescheduled due to
      * mismatched manifests, the reschedule count will be increased. */
@@ -318,15 +323,10 @@ public:
 
     nsresult Init();
 
-    nsresult ScheduleUpdate(nsOfflineCacheUpdate *aUpdate);
-    nsresult FindUpdate(nsIURI *aManifestURI,
-                        nsIURI *aDocumentURI,
-                        nsOfflineCacheUpdate **aUpdate);
-
+    nsresult Schedule(nsOfflineCacheUpdate *aUpdate);
     nsresult Schedule(nsIURI *aManifestURI,
                       nsIURI *aDocumentURI,
                       nsIDOMDocument *aDocument,
-                      nsIDOMWindow* aWindow,
                       nsIOfflineCacheUpdate **aUpdate);
 
     virtual nsresult UpdateFinished(nsOfflineCacheUpdate *aUpdate);

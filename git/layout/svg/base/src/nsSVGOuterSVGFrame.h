@@ -43,7 +43,6 @@
 #include "nsISVGSVGFrame.h"
 #include "nsIDOMSVGPoint.h"
 #include "nsIDOMSVGNumber.h"
-#include "nsSVGFeatures.h"
 #include "gfxMatrix.h"
 
 class nsSVGForeignObjectFrame;
@@ -93,6 +92,8 @@ public:
                         const nsHTMLReflowState*  aReflowState,
                         nsDidReflowStatus aStatus);
 
+  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint& aPoint);
+
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
@@ -110,8 +111,7 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
-  void Paint(const nsDisplayListBuilder* aBuilder,
-             nsIRenderingContext& aRenderingContext,
+  void Paint(nsIRenderingContext& aRenderingContext,
              const nsRect& aDirtyRect, nsPoint aPt);
 
 #ifdef DEBUG

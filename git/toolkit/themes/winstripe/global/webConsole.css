@@ -37,196 +37,168 @@
  * ***** END LICENSE BLOCK ***** */
 
 .hud-box {
-  border-bottom: 1px solid #aaa;
-  text-shadow: none;
+    border-bottom: 1px solid #aaa;
+    text-shadow: none;
 }
 
-.hud-box.animated {
-  -moz-transition: height 100ms;
-}
-
-.hud-splitter {
-  border-top: none;
+.hud-group label {
+    padding-left: 1em;
 }
 
 .hud-outer-wrapper {
-  width: 100%;
-  height: 100%;
+    width: 100%; 
+    height: 100%;
 }
 
 .hud-console-wrapper {
-  width: 100%;
-  overflow: auto;
+    width: 100%; 
+    overflow: auto; 
 }
 
 .hud-main-label {
-  font-size: 1em;
-  padding-top: 0.33em;
-  font-weight: bold;
+    font-size: 1em;
+    padding-top: 0.33em;
+    font-weight: bold;
+}
+
+.hud-output-node * {
+    -moz-user-select: text;
+    white-space: pre-wrap;
+    -moz-user-focus: normal;
 }
 
 .hud-clickable {
-  cursor: pointer;
-  text-decoration: underline;
+    cursor: pointer !important;
+    text-decoration: underline;
 }
 
-.hud-network {
-  color: blue;
+.hud-output-node .hud-network {
+    color: blue;
 }
 
-.hud-error {
-  color: red;
+.hud-output-node .hud-error {
+    color: red;
 }
 
-.hud-log {
-  color: black;
+.hud-output-node .hud-log {
+    color: black;
 }
 
-.hud-warn {
-  color: orange;
+.hud-output-node .hud-warn {
+    color: orange;
 }
 
-.hud-info {
-  color: green;
+.hud-output-node .hud-info {
+    color: green;
 }
 
-.hud-exception {
-  color: red;
-  font-weight: bold;
+.hud-output-node .hud-exception {
+    color: red; font-weight: bold;
 }
 
 .hud-msg-node {    
-  width: 100%;
-  margin-top: 0.3em;
-  margin-bottom: 0.3em;
-  padding-left: 1em;
-  -moz-user-select: text;
-  white-space: pre-wrap;
-  -moz-user-focus: normal;
+    width: 100%;
+    margin-top: 0.3em; 
+    margin-bottom: 0.3em; 
+    padding-left: 0.3em;
+    /* border-bottom: 1px solid #eee; */
 }
 
 .hud-output-node {
-  border-bottom: 1px solid #ddd;
-  border-top: 1px solid #ddd;
-  overflow-x: auto;
-  overflow: auto;
-  font: 1em monospace;
-  background-color: white;
-  width: 100%;
+    border-bottom: 1px solid #ddd; 
+    border-top: 1px solid #ddd; 
+    overflow-x: auto; overflow: auto;
+    font: 1em monospace; background-color: white;
+    width: 100%;
 }
 
-.hud-filtered-by-type,
-.hud-filtered-by-string {
-  display: none;
+.hud-filtered-by-type, .hud-filtered-by-string {
+    display: none;
 }
 
-.webconsole-clear-console-button > .toolbarbutton-icon {
-  display: none;
+.hud-filter-cat:-moz-system-metric(windows-default-theme) {
+    color: GrayText;
 }
 
-.webconsole-filter-button > .toolbarbutton-menubutton-button {
-  -moz-box-orient: horizontal;
-  list-style-image: url("chrome://global/skin/icons/webconsole.png");
-}
-
-/* Network button */
-.webconsole-filter-button[category="net"] {
-  -moz-image-region: rect(0, 40px, 10px, 30px);
-}
-
-/* CSS button */
-.webconsole-filter-button[category="css"] {
-  -moz-image-region: rect(10px, 40px, 20px, 30px);
-}
-
-/* JS button */
-.webconsole-filter-button[category="js"] {
-  -moz-image-region: rect(20px, 40px, 30px, 30px);
-}
-
-/* Web Developer button */
-.webconsole-filter-button[category="webdev"] {
-  -moz-image-region: rect(30px, 40px, 40px, 30px);
-}
-
-.webconsole-close-button {
-  border: none;
-  padding: 3px;
-  list-style-image: url("chrome://global/skin/icons/close.png");
-  -moz-image-region: rect(0, 16px, 16px, 0);
-  -moz-appearance: none;
-}
-
-.webconsole-close-button:hover {
-  -moz-image-region: rect(0, 32px, 16px, 16px);
-}
-
-.webconsole-close-button:hover:active {
-  -moz-image-region: rect(0, 48px, 16px, 32px);
+.hud-group:first-child .hud-divider {
+    display: none;
 }
 
 /* JSTerm Styles */
 
 .jsterm-wrapper-node {
-  font-family: monospace;
-  font-size: 1em;
-  background-color: #000;
-  border: 1px solid #333;
-  padding: 0.1em;
-  width: 100%;
-  height: 400px;
+    font-family: monospace; 
+    font-size: 1em;
+    background-color: #000; 
+    border: 1px solid #333; 
+    padding: 0.1em;
+    width: 100%;
+    height: 400px;
 }
 
 .jsterm-output-node {
-  width: 100%;
-  height: 400px;
-  color: white;
-  background-color: black;
-  overflow: auto;
-  overflow-x: auto;
-  position: absolute;
-  -moz-box-direction: reverse;
+    width: 100%; 
+    height: 400px; 
+    color: white; 
+    background-color: black; 
+    overflow: auto; 
+    overflow-x: auto; 
+    position: absolute; 
+    -moz-box-direction: reverse;
+}
+
+.jsterm-output-node div {
+    -moz-user-select: text;
 }
 
 .jsterm-scroll-to-node {
-  height: 1px;
-  width: 1px;
-  position: relative;
-  top: 92%;
-  display: block;
-}
-
-.jsterm-input-node,
-.jsterm-complete-node {
-  font-family: monospace;
-  font-size: 9pt;
-  border: none;
-  padding: 0 0 0 16px;
-  -moz-appearance: none;
+    height: 1px; width: 1px; position: relative; top: 92%; display: block;
 }
 
 .jsterm-input-node {
-  background: url("chrome://global/skin/icons/commandline.png") 4px 3px no-repeat;
+    font-family: monospace;
+    font-size: 9pt;
+    background: url("chrome://global/skin/icons/commandline.png") 4px 3px
+        no-repeat !important;
+    border: none !important;
+    padding: 0px 0px 0px 16px !important;
+    -moz-appearance: none !important;
 }
 
-:-moz-any(.jsterm-input-node,
-          .jsterm-complete-node) > .textbox-input-box > .textbox-textarea {
-  overflow-x: hidden;
-}
-
-.jsterm-complete-node > .textbox-input-box > .textbox-textarea {
-  color: GrayText;
+.jsterm-input-node textarea {
+    overflow-x: hidden;
 }
 
 .jsterm-output-line {
-  font-size: 1em;
+    font-size: 1em;
 }
 
 .hud-console-filter-toolbar {
-  padding: 1px 0px;
-  -moz-box-align: center;
-  -moz-appearance: none;
-  background-color: -moz-dialog;
-  border-top: none;
+    padding: 1px 0px;
+    -moz-box-align: center;
+    -moz-appearance: none !important;
+    background-color: -moz-dialog;
+    border-top: none;
+}
+
+
+.jsterm-close-button {
+    background: none !important;
+    border: none !important;
+    list-style-image: url("chrome://global/skin/icons/close.png");
+    margin: 0px !important;
+    min-width: 0px !important;
+    padding: 1px 3px 1px 7px !important;
+    -moz-appearance: none !important;
+    -moz-image-region: rect(0, 16px, 16px, 0);
+    -moz-user-focus: ignore;
+}
+
+.jsterm-close-button:hover {
+    -moz-image-region: rect(0, 32px, 16px, 16px);
+}
+
+.jsterm-close-button:hover:active {
+    -moz-image-region: rect(0, 48px, 16px, 32px);
 }
 

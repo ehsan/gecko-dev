@@ -184,7 +184,6 @@ public:
                           nsIFrame*       aOldFrame);
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
   virtual nscoord GetBaseline() const;
-  virtual nscoord GetCaretBaseline() const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
   virtual nsSplittableType GetSplittableType() const;
@@ -250,11 +249,6 @@ public:
   // do we have either a 'list-style-type' or 'list-style-image' that is
   // not 'none'?
   PRBool BulletIsEmpty() const;
-  virtual PRBool BulletIsEmptyExternal() const
-  {
-    return BulletIsEmpty();
-  }
-  virtual void GetBulletText(nsAString& aText) const;
 
   virtual void MarkIntrinsicWidthsDirty();
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
@@ -345,7 +339,6 @@ protected:
   virtual ~nsBlockFrame();
 
 #ifdef DEBUG
-#ifdef _IMPL_NS_LAYOUT
   already_AddRefed<nsStyleContext> GetFirstLetterStyle(nsPresContext* aPresContext)
   {
     return aPresContext->StyleSet()->
@@ -353,7 +346,6 @@ protected:
                               nsCSSPseudoElements::ePseudo_firstLetter,
                               mStyleContext);
   }
-#endif
 #endif
 
   /*
@@ -378,7 +370,7 @@ protected:
                    nsLineList::iterator* aEndIterator,
                    PRBool* aInOverflowLines);
 
-  void SetFlags(nsFrameState aFlags) {
+  void SetFlags(PRUint32 aFlags) {
     mState &= ~NS_BLOCK_FLAGS_MASK;
     mState |= aFlags;
   }

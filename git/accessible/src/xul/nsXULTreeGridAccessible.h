@@ -141,6 +141,9 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
+  // nsIAccessNode
+  NS_IMETHOD GetUniqueID(void **aUniqueID);
+
   // nsIAccessible
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
 
@@ -158,7 +161,6 @@ public:
   // nsAccessNode
   virtual PRBool IsDefunct();
   virtual PRBool Init();
-  virtual bool IsPrimaryForNode() const;
 
   // nsAccessible
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);

@@ -41,7 +41,6 @@
 #include "mozilla/layers/ShadowLayersParent.h"
 
 #include "BasicLayers.h"
-#include "LayerManagerOGL.h"
 #include "RenderFrameParent.h"
 
 #include "gfx3DMatrix.h"
@@ -65,37 +64,23 @@ AssertInTopLevelChromeDoc(ContainerLayer* aContainer,
     "Expected frame to be in top-level chrome document");
 }
 
+// Update the translation from |aContainedFrame| space to widget
+// space.  We translate because the subprocess layer manager thinks
+// it's rendering to top-left=<0, 0> (which is good!).
 static void
-AssertValidContainerOfShadowTree(ContainerLayer* aContainer,
-                                 Layer* aShadowRoot)
+SetTransformFor(ContainerLayer* aContainer, nsIFrame* aContainedFrame,
+                const FrameMetrics& aMetrics, const ViewportConfig& aConfig,
+                nsDisplayListBuilder* aBuilder)
 {
-  NS_ABORT_IF_FALSE(
-    !aContainer || (aShadowRoot &&
-                    aShadowRoot == aContainer->GetFirstChild() &&
-                    nsnull == aShadowRoot->GetNextSibling()),
-    "container of shadow tree may only be null or have 1 child that is the shadow root");
-}
+  NS_ABORT_IF_FALSE(aContainer && aContainedFrame, "args must be nonnull");
+  AssertInTopLevelChromeDoc(aContainer, aContainedFrame);
 
-// Compute the transform of the shadow tree contained by
-// |aContainerFrame| to widget space.  We transform because the
-// subprocess layer manager renders to a different top-left than where
-// the shadow tree is drawn here and because a scale can be set on the
-// shadow tree.
-static void
-ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
-                           const FrameMetrics& aMetrics,
-                           const ViewportConfig& aConfig,
-                           nsDisplayListBuilder* aBuilder,
-                           nsIntPoint* aShadowTranslation,
-                           float* aShadowXScale,
-                           float* aShadowYScale)
-{
-  nscoord auPerDevPixel = aContainerFrame->PresContext()->AppUnitsPerDevPixel();
+  nscoord auPerDevPixel = aContainedFrame->PresContext()->AppUnitsPerDevPixel();
   // Offset to the content rect in case we have borders or padding
   nsPoint frameOffset =
-    (aBuilder->ToReferenceFrame(aContainerFrame->GetParent()) +
-     aContainerFrame->GetContentRect().TopLeft());
-  *aShadowTranslation = frameOffset.ToNearestPixels(auPerDevPixel);
+    (aBuilder->ToReferenceFrame(aContainedFrame->GetParent()) +
+     aContainedFrame->GetContentRect().TopLeft());
+  nsIntPoint translation = frameOffset.ToNearestPixels(auPerDevPixel);
 
   // |aMetrics.mViewportScrollOffset| was the content document's
   // scroll offset when it was painted (the document pixel at CSS
@@ -107,47 +92,23 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
     (aConfig.mScrollOffset.ToNearestPixels(auPerDevPixel));
   scrollCompensation.x -= aMetrics.mViewportScrollOffset.x * aConfig.mXScale;
   scrollCompensation.y -= aMetrics.mViewportScrollOffset.y * aConfig.mYScale;
-  *aShadowTranslation -= scrollCompensation;
+  translation -= scrollCompensation;
 
-  *aShadowXScale = aConfig.mXScale;
-  *aShadowYScale = aConfig.mYScale;
+  gfxMatrix transform;
+  transform.Translate(gfxPoint(translation.x, translation.y));
+  transform.Scale(aConfig.mXScale, aConfig.mYScale);
+  aContainer->SetTransform(gfx3DMatrix::From2D(transform));
 }
 
 static void
-UpdateShadowSubtree(Layer* aSubtreeRoot)
+AssertValidContainerOfShadowTree(ContainerLayer* aContainer,
+                                 Layer* aShadowRoot)
 {
-  ShadowLayer* shadow = aSubtreeRoot->AsShadowLayer();
-
-  shadow->SetShadowClipRect(aSubtreeRoot->GetClipRect());
-  shadow->SetShadowTransform(aSubtreeRoot->GetTransform());
-  shadow->SetShadowVisibleRegion(aSubtreeRoot->GetVisibleRegion());
-
-  for (Layer* child = aSubtreeRoot->GetFirstChild(); child;
-       child = child->GetNextSibling()) {
-    UpdateShadowSubtree(child);
-  }
-}
-
-static void
-TransformShadowTreeTo(ContainerLayer* aRoot,
-                      const nsIntRect& aVisibleRect,
-                      const nsIntPoint& aTranslation,
-                      float aXScale, float aYScale)
-{
-  UpdateShadowSubtree(aRoot);
-
-  ShadowLayer* shadow = aRoot->AsShadowLayer();
-  NS_ABORT_IF_FALSE(aRoot->GetTransform() == shadow->GetShadowTransform(),
-                    "transforms should be the same now");
-  NS_ABORT_IF_FALSE(aRoot->GetTransform().Is2D(),
-                    "only 2D transforms expected currently");
-  gfxMatrix shadowTransform;
-  shadow->GetShadowTransform().Is2D(&shadowTransform);
-  // Pre-multiply this transform into the shadow's transform, so that
-  // it occurs before any transform set by the child
-  shadowTransform.Translate(gfxPoint(aTranslation.x, aTranslation.y));
-  shadowTransform.Scale(aXScale, aYScale);
-  shadow->SetShadowTransform(gfx3DMatrix::From2D(shadowTransform));
+  NS_ABORT_IF_FALSE(
+    !aContainer || (aShadowRoot &&
+                    aShadowRoot == aContainer->GetFirstChild() &&
+                    nsnull == aShadowRoot->GetNextSibling()),
+    "container of shadow tree may only be null or have 1 child that is the shadow root");
 }
 
 static Layer*
@@ -174,9 +135,7 @@ IsTempLayerManager(LayerManager* aManager)
 
 RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader)
   : mFrameLoader(aFrameLoader)
-{
-  NS_ABORT_IF_FALSE(aFrameLoader, "Need a frameloader here");
-}
+{}
 
 RenderFrameParent::~RenderFrameParent()
 {}
@@ -212,8 +171,7 @@ RenderFrameParent::ShadowLayersUpdated()
 already_AddRefed<Layer>
 RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
                               nsIFrame* aFrame,
-                              LayerManager* aManager,
-                              const nsIntRect& aVisibleRect)
+                              LayerManager* aManager)
 {
   NS_ABORT_IF_FALSE(aFrame,
                     "makes no sense to have a shadow tree without a frame");
@@ -260,17 +218,10 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
   }
 
   if (mContainer) {
-    AssertInTopLevelChromeDoc(mContainer, aFrame);
-    nsIntPoint shadowTranslation;
-    float shadowXScale, shadowYScale;
-    ComputeShadowTreeTransform(aFrame,
-                               shadowRoot->GetFrameMetrics(),
-                               mFrameLoader->GetViewportConfig(),
-                               aBuilder,
-                               &shadowTranslation,
-                               &shadowXScale, &shadowYScale);
-    TransformShadowTreeTo(shadowRoot, aVisibleRect,
-                          shadowTranslation, shadowXScale, shadowYScale);
+    SetTransformFor(mContainer, aFrame,
+                    shadowRoot->GetFrameMetrics(),
+                    mFrameLoader->GetViewportConfig(),
+                    aBuilder);
     mContainer->SetClipRect(nsnull);
   }
 
@@ -297,20 +248,13 @@ PLayersParent*
 RenderFrameParent::AllocPLayers()
 {
   LayerManager* lm = GetLayerManager();
-  switch (lm->GetBackendType()) {
-  case LayerManager::LAYERS_BASIC: {
-    BasicShadowLayerManager* bslm = static_cast<BasicShadowLayerManager*>(lm);
-    return new ShadowLayersParent(bslm);
-  }
-  case LayerManager::LAYERS_OPENGL: {
-    LayerManagerOGL* lmo = static_cast<LayerManagerOGL*>(lm);
-    return new ShadowLayersParent(lmo);
-  }
-  default: {
-    NS_WARNING("shadow layers no sprechen D3D backend yet");
+  if (LayerManager::LAYERS_BASIC != lm->GetBackendType()) {
+    NS_WARNING("shadow layers no sprechen GL backend yet");
     return nsnull;
-  }
-  }
+  }    
+
+  BasicShadowLayerManager* bslm = static_cast<BasicShadowLayerManager*>(lm);
+  return new ShadowLayersParent(bslm);
 }
 
 bool
@@ -351,8 +295,6 @@ already_AddRefed<Layer>
 nsDisplayRemote::BuildLayer(nsDisplayListBuilder* aBuilder,
                             LayerManager* aManager)
 {
-  PRInt32 appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
-  nsIntRect visibleRect = GetVisibleRect().ToNearestPixels(appUnitsPerDevPixel);
-  nsRefPtr<Layer> layer = mRemoteFrame->BuildLayer(aBuilder, mFrame, aManager, visibleRect);
+  nsRefPtr<Layer> layer = mRemoteFrame->BuildLayer(aBuilder, mFrame, aManager);
   return layer.forget();
 }

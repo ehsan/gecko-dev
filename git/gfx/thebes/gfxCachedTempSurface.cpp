@@ -104,7 +104,8 @@ gfxCachedTempSurface::Get(gfxASurface::gfxContentType aContentType,
   if (mSurface) {
     /* Verify the current buffer is valid for this purpose */
     if (mSize.width < aSize.width || mSize.height < aSize.height
-        || mSurface->GetContentType() != aContentType) {
+        || (mSurface->GetContentType() != aContentType
+            && mSurface->AreSimilarSurfacesSensitiveToContentType())) {
       mSurface = nsnull;
     } else {
       NS_ASSERTION(mType == aSimilarTo->GetType(),
@@ -126,8 +127,6 @@ gfxCachedTempSurface::Get(gfxASurface::gfxContentType aContentType,
   }
 
   nsRefPtr<gfxContext> ctx = new gfxContext(mSurface);
-  ctx->Rectangle(gfxRect(0, 0, aSize.width, aSize.height));
-  ctx->Clip();
   if (!cleared && aContentType != gfxASurface::CONTENT_COLOR) {
     ctx->SetOperator(gfxContext::OPERATOR_CLEAR);
     ctx->Paint();

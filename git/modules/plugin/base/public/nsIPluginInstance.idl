@@ -47,7 +47,7 @@ interface nsIOutputStream;
 #include "gfxASurface.h"
 struct JSContext;
 struct JSObject;
-class gfxASurface;
+struct gfxASurface;
 
 #define NPRUNTIME_JSCLASS_NAME "NPObject JS wrapper class"
 %}

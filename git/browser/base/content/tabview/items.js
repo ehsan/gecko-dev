@@ -187,10 +187,7 @@ Item.prototype = {
       stop: function() {
         drag.info.stop();
         drag.info = null;
-      },
-      // The minimum the mouse must move after mouseDown in order to move an 
-      // item
-      minDragDistance: 3
+      }
     };
 
     // ___ drop
@@ -216,6 +213,7 @@ Item.prototype = {
 
     // ___ resize
     var self = this;
+    var resizeInfo = null;
     this.resizeOptions = {
       aspectRatio: self.keepProportional,
       minWidth: 90,
@@ -223,16 +221,17 @@ Item.prototype = {
       start: function(e,ui) {
         if (this.isAGroupItem)
           GroupItems.setActiveGroupItem(this);
-        resize.info = new Drag(this, e);
+        resizeInfo = new Drag(this, e, true); // true = isResizing
       },
       resize: function(e,ui) {
-        resize.info.snap(UI.rtl ? 'topright' : 'topleft', false, self.keepProportional);
+        // TODO: maybe the stationaryCorner should be topright for rtl langs?
+        resizeInfo.snap('topleft', false, self.keepProportional);
       },
       stop: function() {
         self.setUserSize();
         self.pushAway();
-        resize.info.stop();
-        resize.info = null;
+        resizeInfo.stop();
+        resizeInfo = null;
       }
     };
   },
@@ -324,10 +323,7 @@ Item.prototype = {
   // ----------
   // Function: pushAway
   // Pushes all other items away so none overlap this Item.
-  //
-  // Parameters:
-  //  immediately - boolean for doing the pushAway without animation
-  pushAway: function Item_pushAway(immediately) {
+  pushAway: function Item_pushAway() {
     var buffer = Math.floor(Items.defaultGutter / 2);
 
     var items = Items.getTopLevelItems();
@@ -500,7 +496,7 @@ Item.prototype = {
       var data = item.pushAwayData;
       var bounds = data.bounds;
       if (!bounds.equals(data.startBounds)) {
-        item.setBounds(bounds, immediately);
+        item.setBounds(bounds);
       }
     });
   },
@@ -559,19 +555,16 @@ Item.prototype = {
   // ----------
   // Function: snap
   // The snap function used during groupItem creation via drag-out
-  //
-  // Parameters:
-  //  immediately - bool for having the drag do the final positioning without animation
-  snap: function Item_snap(immediately) {
+  snap: function Item_snap() {
     // make the snapping work with a wider range!
     var defaultRadius = Trenches.defaultRadius;
     Trenches.defaultRadius = 2 * defaultRadius; // bump up from 10 to 20!
 
     var event = {startPosition:{}}; // faux event
-    var FauxDragInfo = new Drag(this, event, true);
-    // true == isFauxDrag
-    FauxDragInfo.snap('none', false);
-    FauxDragInfo.stop(immediately);
+    var FauxDragInfo = new Drag(this,event,false,true);
+    // false == isDragging, true == isFauxDrag
+    FauxDragInfo.snap('none',false);
+    FauxDragInfo.stop();
 
     Trenches.defaultRadius = defaultRadius;
   },
@@ -598,70 +591,64 @@ Item.prototype = {
 
       // ___ mousemove
       var handleMouseMove = function(e) {
-        // global drag tracking
-        drag.lastMoveTime = Date.now();
-
         // positioning
         var mouse = new Point(e.pageX, e.pageY);
+        var box = self.getBounds();
+        box.left = startPos.x + (mouse.x - startMouse.x);
+        box.top = startPos.y + (mouse.y - startMouse.y);
+
+        self.setBounds(box, true);
+
+        // drag events
         if (!startSent) {
-          if(Math.abs(mouse.x - startMouse.x) > self.dragOptions.minDragDistance ||
-             Math.abs(mouse.y - startMouse.y) > self.dragOptions.minDragDistance) {
-            if (typeof self.dragOptions.start == "function")
-              self.dragOptions.start.apply(self,
-                  [startEvent, {position: {left: startPos.x, top: startPos.y}}]);
-            startSent = true;
-          }
+          if (typeof self.dragOptions.start == "function")
+            self.dragOptions.start.apply(self,
+                [startEvent, {position: {left: startPos.x, top: startPos.y}}]);
+
+          startSent = true;
         }
-        if (startSent) {
-          // drag events
-          var box = self.getBounds();
-          box.left = startPos.x + (mouse.x - startMouse.x);
-          box.top = startPos.y + (mouse.y - startMouse.y);
 
-          self.setBounds(box, true);
+        if (typeof self.dragOptions.drag == "function")
+          self.dragOptions.drag.apply(self, [e]);
 
-          if (typeof self.dragOptions.drag == "function")
-            self.dragOptions.drag.apply(self, [e]);
+        // drop events
+        var best = {
+          dropTarget: null,
+          score: 0
+        };
 
-          // drop events
-          var best = {
-            dropTarget: null,
-            score: 0
-          };
-
-          droppables.forEach(function(droppable) {
-            var intersection = box.intersection(droppable.bounds);
-            if (intersection && intersection.area() > best.score) {
-              var possibleDropTarget = droppable.item;
-              var accept = true;
-              if (possibleDropTarget != dropTarget) {
-                var dropOptions = possibleDropTarget.dropOptions;
-                if (dropOptions && typeof dropOptions.accept == "function")
-                  accept = dropOptions.accept.apply(possibleDropTarget, [self]);
-              }
-
-              if (accept) {
-                best.dropTarget = possibleDropTarget;
-                best.score = intersection.area();
-              }
-            }
-          });
-
-          if (best.dropTarget != dropTarget) {
-            var dropOptions;
-            if (dropTarget) {
-              dropOptions = dropTarget.dropOptions;
-              if (dropOptions && typeof dropOptions.out == "function")
-                dropOptions.out.apply(dropTarget, [e]);
+        droppables.forEach(function(droppable) {
+          var intersection = box.intersection(droppable.bounds);
+          if (intersection && intersection.area() > best.score) {
+            var possibleDropTarget = droppable.item;
+            var accept = true;
+            if (possibleDropTarget != dropTarget) {
+              var dropOptions = possibleDropTarget.dropOptions;
+              if (dropOptions && typeof dropOptions.accept == "function")
+                accept = dropOptions.accept.apply(possibleDropTarget, [self]);
             }
 
-            dropTarget = best.dropTarget;
-
-            if (dropTarget) {
-              dropOptions = dropTarget.dropOptions;
-              if (dropOptions && typeof dropOptions.over == "function")
-                dropOptions.over.apply(dropTarget, [e]);
+            if (accept) {
+              best.dropTarget = possibleDropTarget;
+              best.score = intersection.area();
             }
+          }
+        });
+
+        if (best.dropTarget != dropTarget) {
+          var dropOptions;
+          if (dropTarget) {
+            dropOptions = dropTarget.dropOptions;
+            if (dropOptions && typeof dropOptions.out == "function")
+              dropOptions.out.apply(dropTarget, [e]);
+          }
+
+          dropTarget = best.dropTarget;
+
+          if (dropTarget) {
+            dropOptions = dropTarget.dropOptions;
+            if (dropOptions && typeof dropOptions.over == "function")
+              dropOptions.over.apply(dropTarget, [e]);
           }
         }
 
@@ -737,11 +724,13 @@ Item.prototype = {
   droppable: function Item_droppable(value) {
     try {
       var $container = iQ(this.container);
-      if (value) {
-        Utils.assert(this.dropOptions, 'dropOptions');
+      if (value)
         $container.addClass('iq-droppable');
-      } else
+      else {
+        Utils.assert(this.dropOptions, 'dropOptions');
+
         $container.removeClass('iq-droppable');
+      }
     } catch(e) {
       Utils.log(e);
     }
@@ -768,21 +757,9 @@ Item.prototype = {
 
         // ___ mousemove
         var handleMouseMove = function(e) {
-          // global resize tracking
-          resize.lastMoveTime = Date.now();
-
           var mouse = new Point(e.pageX, e.pageY);
           var box = self.getBounds();
-          if (UI.rtl) {
-            var minWidth = (self.resizeOptions.minWidth || 0);
-            var oldWidth = box.width;
-            if (minWidth != oldWidth || mouse.x < startMouse.x) {
-              box.width = Math.max(minWidth, startSize.x - (mouse.x - startMouse.x));
-              box.left -= box.width - oldWidth;
-            }
-          } else {
-            box.width = Math.max(self.resizeOptions.minWidth || 0, startSize.x + (mouse.x - startMouse.x));
-          }
+          box.width = Math.max(self.resizeOptions.minWidth || 0, startSize.x + (mouse.x - startMouse.x));
           box.height = Math.max(self.resizeOptions.minHeight || 0, startSize.y + (mouse.y - startMouse.y));
 
           if (self.resizeOptions.aspectRatio) {
@@ -905,41 +882,39 @@ let Items = {
   // maximizing item size but maintaining standard tab aspect ratio for each
   //
   // Parameters:
-  //   items - an array of <Item>s. Can be null, in which case we won't
-  //     actually move anything.
+  //   items - an array of <Item>s. Can be null if the pretend and count options are set.
   //   bounds - a <Rect> defining the space to arrange within
   //   options - an object with various properites (see below)
   //
   // Possible "options" properties:
   //   animate - whether to animate; default: true.
   //   z - the z index to set all the items; default: don't change z.
-  //   return - if set to 'widthAndColumns', it'll return an object with the
-  //     width of children and the columns.
-  //   count - overrides the item count for layout purposes;
-  //     default: the actual item count
+  //   pretend - whether to collect and return the rectangle rather than moving the items; default: false
+  //   count - overrides the item count for layout purposes; default: the actual item count
   //   padding - pixels between each item
-  //   columns - (int) a preset number of columns to use
   //
   // Returns:
-  //   an object with the width value of the child items and the number of columns, 
-  //   if the return option is set to 'widthAndColumns'; otherwise the list of <Rect>s
+  //   the list of rectangles if the pretend option is set; otherwise null
   arrange: function Items_arrange(items, bounds, options) {
+    var animate;
+    if (!options || typeof options.animate == 'undefined')
+      animate = true;
+    else
+      animate = options.animate;
+
     if (typeof options == 'undefined')
       options = {};
 
-    var animate = true;
-    if (typeof options.animate != 'undefined')
-      animate = options.animate;
-    var immediately = !animate;
-
-    var rects = [];
+    var rects = null;
+    if (options.pretend)
+      rects = [];
 
     var tabAspect = TabItems.tabHeight / TabItems.tabWidth;
     var count = options.count || (items ? items.length : 0);
     if (!count)
       return rects;
 
-    var columns = options.columns || 1;
+    var columns = 1;
     // We'll assume for the time being that all the items have the same styling
     // and that the margin is the same width around.
     var itemMargin = items && items.length ?
@@ -969,22 +944,20 @@ let Items = {
       tabWidth = Math.min(tabWidth, (bounds.height - 2 * itemMargin) / tabAspect);
       tabHeight = tabWidth * tabAspect;
     }
-    
-    if (options.return == 'widthAndColumns')
-      return {childWidth: tabWidth, columns: columns};
 
-    let initialOffset = 0;
-    if (UI.rtl) {
-      initialOffset = bounds.width - tabWidth - padding;
-    }
-    var box = new Rect(bounds.left + initialOffset, bounds.top, tabWidth, tabHeight);
-
+    var box = new Rect(bounds.left, bounds.top, tabWidth, tabHeight);
+    var row = 0;
     var column = 0;
+    var immediately;
 
-    for (let a = 0; a < count; a++) {
-      rects.push(new Rect(box));
-      if (items && a < items.length) {
-        let item = items[a];
+    var a;
+    for (a = 0; a < count; a++) {
+      immediately = !animate;
+
+      if (rects)
+        rects.push(new Rect(box));
+      else if (items && a < items.length) {
+        var item = items[a];
         if (!item.locked.bounds) {
           item.setBounds(box, immediately);
           item.setRotation(0);
@@ -993,12 +966,13 @@ let Items = {
         }
       }
 
-      box.left += (UI.rtl ? -1 : 1) * (box.width + padding);
+      box.left += box.width + padding;
       column++;
       if (column == columns) {
-        box.left = bounds.left + initialOffset;
+        box.left = bounds.left;
         box.top += (box.height * yScale) + padding;
         column = 0;
+        row++;
       }
     }
 

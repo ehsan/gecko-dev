@@ -46,7 +46,6 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef ANDROID
-# include <android/log.h>
 # include <fstream>
 # include <string>
 #endif  // ANDROID
@@ -54,8 +53,8 @@
 #include "jsstdint.h"
 
 #include "jstypes.h"
-#include "jsarena.h"
-#include "jsutil.h"
+#include "jsarena.h" /* Added by JSIFY */
+#include "jsutil.h" /* Added by JSIFY */
 #include "jsclist.h"
 #include "jsprf.h"
 #include "jsatom.h"
@@ -226,7 +225,6 @@ StackSpace::mark(JSTracer *trc)
      */
     Value *end = firstUnused();
     for (StackSegment *seg = currentSegment; seg; seg = seg->getPreviousInMemory()) {
-        STATIC_ASSERT(ubound(end) >= 0);
         if (seg->inContext()) {
             /* This may be the only pointer to the initialVarObj. */
             if (seg->hasInitialVarObj())
@@ -398,7 +396,7 @@ StackSpace::pushGeneratorFrame(JSContext *cx, JSFrameRegs *regs, GeneratorFrameG
 bool
 StackSpace::bumpCommitAndLimit(JSStackFrame *base, Value *sp, uintN nvals, Value **limit) const
 {
-    JS_ASSERT(sp >= firstUnused());
+    JS_ASSERT(sp == firstUnused());
     JS_ASSERT(sp + nvals >= *limit);
 #ifdef XP_WIN
     if (commitEnd <= *limit) {
@@ -495,10 +493,10 @@ JSThreadData::init()
     if (!stackSpace.init())
         return false;
 #ifdef JS_TRACER
-    if (!InitJIT(&traceMonitor)) {
-        finish();
-        return false;
-    }
+    InitJIT(&traceMonitor);
+#endif
+#ifdef JS_METHODJIT
+    jmData.Initialize();
 #endif
     dtoaState = js_NewDtoaState();
     if (!dtoaState) {
@@ -507,16 +505,6 @@ JSThreadData::init()
     }
     nativeStackBase = GetNativeStackBase();
     return true;
-}
-
-MathCache *
-JSThreadData::allocMathCache(JSContext *cx)
-{
-    JS_ASSERT(!mathCache);
-    mathCache = new MathCache;
-    if (!mathCache)
-        js_ReportOutOfMemory(cx);
-    return mathCache;
 }
 
 void
@@ -535,8 +523,10 @@ JSThreadData::finish()
 #if defined JS_TRACER
     FinishJIT(&traceMonitor);
 #endif
+#if defined JS_METHODJIT
+    jmData.Finish();
+#endif
     stackSpace.finish();
-    delete mathCache;
 }
 
 void
@@ -595,6 +585,7 @@ DestroyThread(JSThread *thread)
 {
     /* The thread must have zero contexts. */
     JS_ASSERT(JS_CLIST_IS_EMPTY(&thread->contextList));
+    JS_ASSERT(!thread->titleToShare);
 
     /*
      * The conservative GC scanner should be disabled when the thread leaves
@@ -622,13 +613,6 @@ js_CurrentThread(JSRuntime *rt)
     JSThread::Map::AddPtr p = rt->threads.lookupForAdd(id);
     if (p) {
         thread = p->value;
-
-        /*
-         * If thread has no contexts, it might be left over from a previous
-         * thread with the same id but a different stack address.
-         */
-        if (JS_CLIST_IS_EMPTY(&thread->contextList))
-            thread->data.nativeStackBase = GetNativeStackBase();
     } else {
         JS_UNLOCK_GC(rt);
         thread = NewThread(id);
@@ -646,15 +630,6 @@ js_CurrentThread(JSRuntime *rt)
         JS_ASSERT(p->value == thread);
     }
     JS_ASSERT(thread->id == id);
-
-#ifdef DEBUG
-    char* gnsb = (char*) GetNativeStackBase();
-    JS_ASSERT(gnsb + 0      == (char*) thread->data.nativeStackBase ||
-              /* Work around apparent glibc bug; see bug 608526. */
-              gnsb + 0x1000 == (char*) thread->data.nativeStackBase ||
-              gnsb + 0x2000 == (char*) thread->data.nativeStackBase ||
-              gnsb + 0x3000 == (char*) thread->data.nativeStackBase);
-#endif
 
     return thread;
 }
@@ -747,6 +722,22 @@ js_PurgeThreads(JSContext *cx)
 #else
     cx->runtime->threadData.purge(cx);
 #endif
+}
+
+bool
+js::SyncOptionsToVersion(JSContext* cx)
+{
+    JSVersion version = cx->findVersion();
+    uint32 options = cx->options;
+    if (OptionsHasXML(options) == VersionHasXML(version) &&
+        OptionsHasAnonFunFix(options) == VersionHasAnonFunFix(version)) {
+        /* No need to override. */
+        return false;
+    }
+    VersionSetXML(&version, OptionsHasXML(options));
+    VersionSetAnonFunFix(&version, OptionsHasAnonFunFix(options));
+    cx->maybeOverrideVersion(version);
+    return true;
 }
 
 JSContext *
@@ -1171,6 +1162,19 @@ FreeContext(JSContext *cx)
     /* Finally, free cx itself. */
     cx->~JSContext();
     js_free(cx);
+}
+
+JSBool
+js_ValidContextPointer(JSRuntime *rt, JSContext *cx)
+{
+    JSCList *cl;
+
+    for (cl = rt->contextList.next; cl != &rt->contextList; cl = cl->next) {
+        if (cl == &cx->link)
+            return JS_TRUE;
+    }
+    JS_RUNTIME_METER(rt, deadContexts);
+    return JS_FALSE;
 }
 
 JSContext *
@@ -1816,8 +1820,8 @@ js_ReportValueErrorFlags(JSContext *cx, uintN flags, const uintN errorNumber,
 
 #if defined DEBUG && defined XP_UNIX
 /* For gdb usage. */
-void js_logon(JSContext *cx)  { cx->logfp = stderr; cx->logPrevPc = NULL; }
-void js_logoff(JSContext *cx) { cx->logfp = NULL; }
+void js_traceon(JSContext *cx)  { cx->tracefp = stderr; cx->tracePrevPc = NULL; }
+void js_traceoff(JSContext *cx) { cx->tracefp = NULL; }
 #endif
 
 JSErrorFormatString js_ErrorFormatString[JSErr_Limit] = {
@@ -1845,9 +1849,9 @@ js_InvokeOperationCallback(JSContext *cx)
     JS_ASSERT(td->interruptFlags != 0);
 
     /*
-     * Reset the callback counter first, then run GC and yield. If another
-     * thread is racing us here we will accumulate another callback request
-     * which will be serviced at the next opportunity.
+     * Reset the callback counter first, then yield. If another thread is racing
+     * us here we will accumulate another callback request which will be
+     * serviced at the next opportunity.
      */
     JS_LOCK_GC(rt);
     td->interruptFlags = 0;
@@ -1856,6 +1860,13 @@ js_InvokeOperationCallback(JSContext *cx)
 #endif
     JS_UNLOCK_GC(rt);
 
+    /*
+     * Unless we are going to run the GC, we automatically yield the current
+     * context every time the operation callback is hit since we might be
+     * called as a result of an impending GC, which would deadlock if we do
+     * not yield. Operation callbacks are supposed to happen rarely (seconds,
+     * not milliseconds) so it is acceptable to yield at every callback.
+     */
     if (rt->gcIsNeeded) {
         js_GC(cx, GC_NORMAL);
 
@@ -1872,19 +1883,10 @@ js_InvokeOperationCallback(JSContext *cx)
             return false;
         }
     }
-    
 #ifdef JS_THREADSAFE
-    /*
-     * We automatically yield the current context every time the operation
-     * callback is hit since we might be called as a result of an impending
-     * GC on another thread, which would deadlock if we do not yield.
-     * Operation callbacks are supposed to happen rarely (seconds, not
-     * milliseconds) so it is acceptable to yield at every callback.
-     *
-     * As the GC can be canceled before it does any request checks we yield
-     * even if rt->gcIsNeeded was true above. See bug 590533.
-     */
-    JS_YieldRequest(cx);
+    else {
+        JS_YieldRequest(cx);
+    }
 #endif
 
     JSOperationCallback cb = cx->operationCallback;
@@ -2030,39 +2032,8 @@ JSContext::JSContext(JSRuntime *rt)
   : runtime(rt),
     compartment(rt->defaultCompartment),
     regs(NULL),
-    busyArrays(thisInInitializer())
+    busyArrays(this)
 {}
-
-void
-JSContext::resetCompartment()
-{
-    JSObject *scopeobj;
-    if (hasfp()) {
-        scopeobj = &fp()->scopeChain();
-    } else {
-        scopeobj = globalObject;
-        if (!scopeobj) {
-            compartment = runtime->defaultCompartment;
-            return;
-        }
-
-        /*
-         * Innerize. Assert, but check anyway, that this succeeds. (It
-         * can only fail due to bugs in the engine or embedding.)
-         */
-        OBJ_TO_INNER_OBJECT(this, scopeobj);
-        if (!scopeobj) {
-            /*
-             * Bug. Return NULL, not defaultCompartment, to crash rather
-             * than open a security hole.
-             */
-            JS_ASSERT(0);
-            compartment = NULL;
-            return;
-        }
-    }
-    compartment = scopeobj->getCompartment();
-}
 
 void
 JSContext::pushSegmentAndFrame(js::StackSegment *newseg, JSFrameRegs &newregs)
@@ -2230,23 +2201,8 @@ ComputeIsJITBroken()
         return false;
     }
 
-    std::string line;
-
-    // Check for the known-bad kernel version (2.6.29).
-    std::ifstream osrelease("/proc/sys/kernel/osrelease");
-    std::getline(osrelease, line);
-    __android_log_print(ANDROID_LOG_INFO, "Gecko", "Detected osrelease `%s'",
-                        line.c_str());
-
-    if (line.npos == line.find("2.6.29")) {
-        // We're using something other than 2.6.29, so the JITs should work.
-        __android_log_print(ANDROID_LOG_INFO, "Gecko", "JITs are not broken");
-        return false;
-    }
-
-    // We're using 2.6.29, and this causes trouble with the JITs on i9000.
-    line = "";
     bool broken = false;
+    std::string line;
     std::ifstream cpuinfo("/proc/cpuinfo");
     do {
         if (0 == line.find("Hardware")) {
@@ -2255,13 +2211,10 @@ ComputeIsJITBroken()
                 "SGH-I897",     // Samsung i9000, Captivate device
                 "SCH-I500",     // Samsung i9000, Fascinate device
                 "SPH-D700",     // Samsung i9000, Epic device
-                "GT-I9000",     // Samsung i9000, UK/Europe device
                 NULL
             };
             for (const char** hw = &blacklist[0]; *hw; ++hw) {
                 if (line.npos != line.find(*hw)) {
-                    __android_log_print(ANDROID_LOG_INFO, "Gecko",
-                                        "Blacklisted device `%s'", *hw);
                     broken = true;
                     break;
                 }
@@ -2270,10 +2223,6 @@ ComputeIsJITBroken()
         }
         std::getline(cpuinfo, line);
     } while(!cpuinfo.fail() && !cpuinfo.eof());
-
-    __android_log_print(ANDROID_LOG_INFO, "Gecko", "JITs are %sbroken",
-                        broken ? "" : "not ");
-
     return broken;
 #endif  // ifndef ANDROID
 }
@@ -2308,9 +2257,6 @@ JSContext::updateJITEnabled()
                           JSC::MacroAssemblerX86Common::HasSSE2
 # endif
                         ;
-#ifdef JS_TRACER
-    profilingEnabled = (options & JSOPTION_PROFILING) && traceJitEnabled && methodJitEnabled;
-#endif
 #endif
 }
 

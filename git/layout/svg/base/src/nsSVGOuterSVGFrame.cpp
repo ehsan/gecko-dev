@@ -44,8 +44,6 @@
 #include "nsDisplayList.h"
 #include "nsStubMutationObserver.h"
 #include "gfxContext.h"
-#include "gfxMatrix.h"
-#include "gfxRect.h"
 #include "nsIContentViewer.h"
 #include "nsIDocShell.h"
 #include "nsIDOMDocument.h"
@@ -162,13 +160,6 @@ nsSVGOuterSVGFrame::Init(nsIContent* aContent,
 #endif
 
   AddStateBits(NS_STATE_IS_OUTER_SVG);
-
-  // Check for conditional processing attributes here rather than in
-  // nsCSSFrameConstructor::FindSVGData because we want to avoid
-  // simply giving failing outer <svg> elements an nsSVGContainerFrame.
-  if (!nsSVGFeatures::PassesConditionalProcessingTests(aContent)) {
-    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
 
   nsresult rv = nsSVGOuterSVGFrameBase::Init(aContent, aParent, aPrevInFlow);
 
@@ -475,7 +466,7 @@ nsDisplaySVG::Paint(nsDisplayListBuilder* aBuilder,
                     nsIRenderingContext* aCtx)
 {
   static_cast<nsSVGOuterSVGFrame*>(mFrame)->
-    Paint(aBuilder, *aCtx, mVisibleRect, ToReferenceFrame());
+    Paint(*aCtx, mVisibleRect, ToReferenceFrame());
 }
 
 // helper
@@ -522,6 +513,18 @@ nsSVGOuterSVGFrame::AttributeChanged(PRInt32  aNameSpaceID,
   return NS_OK;
 }
 
+nsIFrame*
+nsSVGOuterSVGFrame::GetFrameForPoint(const nsPoint& aPoint)
+{
+  nsRect thisRect(nsPoint(0,0), GetSize());
+  if (!thisRect.Contains(aPoint)) {
+    return nsnull;
+  }
+
+  return nsSVGUtils::HitTestChildren(
+    this, aPoint + GetPosition() - GetContentRect().TopLeft());
+}
+
 //----------------------------------------------------------------------
 // painting
 
@@ -538,8 +541,7 @@ nsSVGOuterSVGFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 void
-nsSVGOuterSVGFrame::Paint(const nsDisplayListBuilder* aBuilder,
-                          nsIRenderingContext& aRenderingContext,
+nsSVGOuterSVGFrame::Paint(nsIRenderingContext& aRenderingContext,
                           const nsRect& aDirtyRect, nsPoint aPt)
 {
   // initialize Mozilla rendering context
@@ -562,10 +564,6 @@ nsSVGOuterSVGFrame::Paint(const nsDisplayListBuilder* aBuilder,
   nsIntRect dirtyPxRect = dirtyRect.ToOutsidePixels(PresContext()->AppUnitsPerDevPixel());
 
   nsSVGRenderState ctx(&aRenderingContext);
-
-  if (aBuilder->IsPaintingToWindow()) {
-    ctx.SetPaintingToWindow(PR_TRUE);
-  }
 
 #ifdef XP_MACOSX
   if (mEnableBitmapFallback) {

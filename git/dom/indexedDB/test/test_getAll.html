@@ -25,12 +25,12 @@
 
       let db = event.result;
 
-      request = db.setVersion("1");
+      request = db.createObjectStore("foo", "", true);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let objectStore = db.createObjectStore("foo", "", true);
+      let objectStore = event.result;
 
       request = objectStore.getAll();
       request.onerror = errorHandler;
@@ -53,7 +53,7 @@
       }
       yield;
 
-      request = db.transaction("foo").objectStore("foo").getAll();
+      request = db.objectStore("foo").getAll();
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
@@ -65,7 +65,7 @@
         is(event.result[i], values[i], "Same value");
       }
 
-      request = db.transaction("foo").objectStore("foo").getAll(null, 5);
+      request = db.objectStore("foo").getAll(null, 5);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
@@ -77,9 +77,9 @@
         is(event.result[i], values[i], "Same value");
       }
 
-      let keyRange = IDBKeyRange.bound(1, 9);
+      let keyRange = moz_indexedDB.makeBoundKeyRange(1, 9);
 
-      request = db.transaction("foo").objectStore("foo").getAll(keyRange);
+      request = db.objectStore("foo").getAll(keyRange);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
@@ -91,9 +91,9 @@
         is(event.result[i], values[i], "Same value");
       }
 
-      keyRange = IDBKeyRange.bound(4, 7);
+      keyRange = moz_indexedDB.makeBoundKeyRange(4, 7);
 
-      request = db.transaction("foo").objectStore("foo").getAll(keyRange);
+      request = db.objectStore("foo").getAll(keyRange);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
@@ -105,22 +105,9 @@
         is(event.result[i], values[parseInt(i) + 3], "Same value");
       }
 
-      // Get should take a key range also.
-      request = db.transaction("foo").objectStore("foo").get(keyRange);
-      request.onerror = errorHandler;
-      request.onsuccess = grabEventAndContinueHandler;
-      event = yield;
+      keyRange = moz_indexedDB.makeBoundKeyRange(4, 7);
 
-      is(event.result instanceof Array, true, "Got an array object");
-      is(event.result.length, 4, "Correct length");
-
-      for (let i in event.result) {
-        is(event.result[i], values[parseInt(i) + 3], "Same value");
-      }
-
-      keyRange = IDBKeyRange.bound(4, 7);
-
-      request = db.transaction("foo").objectStore("foo").getAll(keyRange, 2);
+      request = db.objectStore("foo").getAll(keyRange, 2);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
@@ -132,9 +119,9 @@
         is(event.result[i], values[parseInt(i) + 3], "Same value");
       }
 
-      keyRange = IDBKeyRange.bound(4, 7);
+      keyRange = moz_indexedDB.makeBoundKeyRange(4, 7);
 
-      request = db.transaction("foo").objectStore("foo").getAll(keyRange, 50);
+      request = db.objectStore("foo").getAll(keyRange, 50);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
@@ -146,9 +133,9 @@
         is(event.result[i], values[parseInt(i) + 3], "Same value");
       }
 
-      keyRange = IDBKeyRange.bound(4, 7);
+      keyRange = moz_indexedDB.makeBoundKeyRange(4, 7);
 
-      request = db.transaction("foo").objectStore("foo").getAll(keyRange, 0);
+      request = db.objectStore("foo").getAll(keyRange, 0);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
@@ -156,9 +143,9 @@
       is(event.result instanceof Array, true, "Got an array object");
       is(event.result.length, 0, "Correct length");
 
-      keyRange = IDBKeyRange.bound(4, 7, true, true);
+      keyRange = moz_indexedDB.makeBoundKeyRange(4, 7, true, true);
 
-      request = db.transaction("foo").objectStore("foo").getAll(keyRange);
+      request = db.objectStore("foo").getAll(keyRange);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;

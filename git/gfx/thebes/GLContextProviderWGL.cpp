@@ -274,7 +274,7 @@ public:
         return InitWithPrefix("gl", PR_TRUE);
     }
 
-    PRBool MakeCurrentImpl(PRBool aForce = PR_FALSE)
+    PRBool MakeCurrent(PRBool aForce = PR_FALSE)
     {
         BOOL succeeded = PR_TRUE;
 
@@ -330,7 +330,6 @@ public:
     virtual already_AddRefed<TextureImage>
     CreateBasicTextureImage(GLuint aTexture,
                             const nsIntSize& aSize,
-                            GLenum aWrapMode,
                             TextureImage::ContentType aContentType,
                             GLContext* aContext);
 
@@ -450,7 +449,6 @@ class TextureImageWGL : public BasicTextureImage
     friend already_AddRefed<TextureImage>
     GLContextWGL::CreateBasicTextureImage(GLuint,
                                           const nsIntSize&,
-                                          GLenum,
                                           TextureImage::ContentType,
                                           GLContext*);
 
@@ -470,7 +468,8 @@ protected:
         nsRefPtr<gfxImageSurface> uploadImage;
 
         if (aUpdateSurface->GetType() == gfxASurface::SurfaceTypeWin32) {
-            uploadImage = aUpdateSurface->GetAsImageSurface();
+            gfxWindowsSurface* ws = static_cast<gfxWindowsSurface*>(aUpdateSurface);
+            uploadImage = ws->GetImageSurface();
         } else {
             uploadImage = new gfxImageSurface(mUpdateSize, mUpdateFormat);
             nsRefPtr<gfxContext> cx(new gfxContext(uploadImage));
@@ -485,10 +484,9 @@ protected:
 private:
     TextureImageWGL(GLuint aTexture,
                     const nsIntSize& aSize,
-                    GLenum aWrapMode,
                     ContentType aContentType,
                     GLContext* aContext)
-        : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext)
+        : BasicTextureImage(aTexture, aSize, aContentType, aContext)
     {}
 
     gfxIntSize mUpdateSize;
@@ -498,12 +496,11 @@ private:
 already_AddRefed<TextureImage>
 GLContextWGL::CreateBasicTextureImage(GLuint aTexture,
                                       const nsIntSize& aSize,
-                                      GLenum aWrapMode,
                                       TextureImage::ContentType aContentType,
                                       GLContext* aContext)
 {
-    nsRefPtr<TextureImageWGL> teximage
-        (new TextureImageWGL(aTexture, aSize, aWrapMode, aContentType, aContext));
+    nsRefPtr<TextureImageWGL> teximage(
+        new TextureImageWGL(aTexture, aSize, aContentType, aContext));
     return teximage.forget();
 }
 
@@ -568,7 +565,6 @@ CreatePBufferOffscreenContext(const gfxIntSize& aSize,
     A2(attrs, LOCAL_WGL_ALPHA_BITS_ARB, aFormat.alpha);
 
     A2(attrs, LOCAL_WGL_DEPTH_BITS_ARB, aFormat.depth);
-    A2(attrs, LOCAL_WGL_STENCIL_BITS_ARB, aFormat.stencil);
 
     if (aFormat.alpha > 0) {
         A2(attrs, LOCAL_WGL_BIND_TO_TEXTURE_RGBA_ARB, LOCAL_GL_TRUE);

@@ -80,7 +80,7 @@ function test() {
             // mark the window with some unique data to be restored later on
             ss.setWindowValue(newWin, uniqueKey, uniqueValue);
             let textbox = newWin.content.document.getElementById("textbox");
-            textbox.value = uniqueText;
+            textbox.wrappedJSObject.value = uniqueText;
 
             newWin.close();
 
@@ -98,13 +98,8 @@ function test() {
             is(ss.getClosedWindowCount(), closedWindowCount,
                "The reopened window was removed from Recently Closed Windows");
 
-            // SSTabRestored will fire more than once, so we need to make sure we count them
-            let restoredTabs = 0;
-            let expectedTabs = data.tabs.length;
             newWin2.addEventListener("load", function(aEvent) {
               newWin2.gBrowser.tabContainer.addEventListener("SSTabRestored", function(aEvent) {
-                if (++restoredTabs < expectedTabs)
-                  return;
                 newWin2.gBrowser.tabContainer.removeEventListener("SSTabRestored", arguments.callee, true);
 
                 is(newWin2.gBrowser.tabs.length, 2,
@@ -113,7 +108,7 @@ function test() {
                    "The window correctly restored the URL");
 
                 let textbox = newWin2.content.document.getElementById("textbox");
-                is(textbox.value, uniqueText,
+                is(textbox.wrappedJSObject.value, uniqueText,
                    "The window correctly restored the form");
                 is(ss.getWindowValue(newWin2, uniqueKey), uniqueValue,
                    "The window correctly restored the data associated with it");

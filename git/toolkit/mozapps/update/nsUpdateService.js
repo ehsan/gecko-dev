@@ -91,17 +91,10 @@ const CATEGORY_UPDATE_TIMER               = "update-timer";
 
 const KEY_APPDIR          = "XCurProcD";
 const KEY_GRED            = "GreD";
-
 #ifdef XP_WIN
 #ifndef WINCE
-#define USE_UPDROOT
-#endif
-#elifdef ANDROID
-#define USE_UPDROOT
-#endif
-
-#ifdef USE_UPDROOT
 const KEY_UPDROOT         = "UpdRootD";
+#endif
 #endif
 
 const DIR_UPDATES         = "updates";
@@ -380,12 +373,14 @@ function binaryToHex(input) {
 #  @return  nsIFile object for the location specified.
  */
 function getUpdateDirCreate(pathArray) {
-#ifdef USE_UPDROOT
+#ifdef XP_WIN
+#ifndef WINCE
   try {
     let dir = FileUtils.getDir(KEY_UPDROOT, pathArray, true);
     return dir;
   } catch (e) {
   }
+#endif
 #endif
   return FileUtils.getDir(KEY_APPDIR, pathArray, true);
 }
@@ -856,18 +851,6 @@ function Update(update) {
   if (0 == this._patches.length)
     throw Cr.NS_ERROR_ILLEGAL_VALUE;
 
-  // Fallback to the behavior prior to bug 530872 if the update does not have an
-  // appVersion attribute.
-  if (!update.hasAttribute("appVersion")) {
-    if (update.getAttribute("type") == "major") {
-      if (update.hasAttribute("detailsURL")) {
-        this.billboardURL = update.getAttribute("detailsURL");
-        this.showPrompt = true;
-        this.showNeverForVersion = true;
-      }
-    }
-  }
-
   for (var i = 0; i < update.attributes.length; ++i) {
     var attr = update.attributes.item(i);
     attr.QueryInterface(Ci.nsIDOMAttr);
@@ -1032,9 +1015,9 @@ Update.prototype = {
     update.setAttribute("showSurvey", this.showSurvey);
     update.setAttribute("type", this.type);
     // for backwards compatibility in case the user downgrades
-    update.setAttribute("version", this.displayVersion);
 
     // Optional attributes
+    update.setAttribute("version", this.displayVersion);
     if (this.billboardURL)
       update.setAttribute("billboardURL", this.billboardURL);
     if (this.detailsURL)
@@ -1445,24 +1428,16 @@ UpdateService.prototype = {
 #
 #      Notes:
 #      a) if the app.update.auto preference is false then automatic download and
-#         install is disabled and the user will be notified.
-#      b) if the update has a showPrompt attribute the user will be notified.
-#      c) Mode is determined by the value of the app.update.mode preference.
+#         install is disabled and the user will always be notified.
+#      b) Mode is determined by the value of the app.update.mode preference.
 #
-#      If the update when it is first read has an appVersion attribute the
-#      following behavior implemented in bug 530872 will occur:
-#      Mode   Incompatible Add-ons   Outcome
-#      0      N/A                    Auto Install
-#      1      Yes                    Notify
-#      1      No                     Auto Install
+#      The outcome is determined as follows:
 #
-#      If the update when it is first read does not have an appVersion attribute
-#      the following deprecated behavior will occur:
-#      Update Type   Mode   Incompatible Add-ons   Outcome
-#      Major         all    N/A                    Notify
-#      Minor         0      N/A                    Auto Install
-#      Minor         1      Yes                    Notify
-#      Minor         1      No                     Auto Install
+#      Update Type      Mode        Incompatible Add-ons   Outcome
+#      Major            all         N/A                    Notify
+#      Minor            0           N/A                    Auto Install
+#      Minor            1 or 2      Yes                    Notify
+#      Minor            1 or 2      No                     Auto Install
      */
     if (update.showPrompt) {
       LOG("Checker:_selectAndInstallUpdate - prompting because the update " +
@@ -2643,6 +2618,14 @@ Downloader.prototype = {
         // that UI will notify.
         if (this.background)
           shouldShowPrompt = true;
+
+#ifdef ANDROID
+        // Give read permissions to everyone so the .APK file is accessible by
+        // the system installer (bug 596662).
+        let patchFile = getUpdatesDir().QueryInterface(Ci.nsILocalFile);
+        patchFile.append(FILE_UPDATE_ARCHIVE);
+        patchFile.permissions = FileUtils.PERMS_FILE;
+#endif
 
         // Tell the updater.exe we're ready to apply.
         writeStatusFile(getUpdatesDir(), state);

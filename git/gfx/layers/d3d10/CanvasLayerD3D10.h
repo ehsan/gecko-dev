@@ -53,6 +53,7 @@ public:
   CanvasLayerD3D10(LayerManagerD3D10 *aManager)
     : CanvasLayer(aManager, NULL),
       LayerD3D10(aManager),
+      mTexture(0),
       mDataIsPremultiplied(PR_FALSE),
       mNeedsYFlip(PR_FALSE)
   {
@@ -67,17 +68,20 @@ public:
 
   // LayerD3D10 implementation
   virtual Layer* GetLayer();
-  virtual void RenderLayer();
+  virtual void RenderLayer(float aOpacity, const gfx3DMatrix &aTransform);
 
 private:
   typedef mozilla::gl::GLContext GLContext;
 
   nsRefPtr<gfxASurface> mSurface;
   nsRefPtr<GLContext> mGLContext;
+
+  PRUint32 mCanvasFramebuffer;
+
   nsRefPtr<ID3D10Texture2D> mTexture;
   nsRefPtr<ID3D10ShaderResourceView> mSRView;
 
-  PRUint32 mCanvasFramebuffer;
+  nsIntRect mBounds;
 
   PRPackedBool mDataIsPremultiplied;
   PRPackedBool mNeedsYFlip;

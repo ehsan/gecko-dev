@@ -46,7 +46,6 @@
 #include "nsWeakPtr.h"
 #include "nsIParser.h"
 #include "nsContentCreatorFunctions.h"
-#include "nsIDOMHTMLScriptElement.h"
 
 #define NS_ISCRIPTELEMENT_IID \
 { 0x6d625b30, 0xfac4, 0x11de, \
@@ -59,22 +58,15 @@ class nsIScriptElement : public nsIScriptLoaderObserver {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISCRIPTELEMENT_IID)
 
-  nsIScriptElement(mozilla::dom::FromParser aFromParser)
+  nsIScriptElement(PRUint32 aFromParser)
     : mLineNumber(0),
       mAlreadyStarted(PR_FALSE),
       mMalformed(PR_FALSE),
-      mDoneAddingChildren(aFromParser == mozilla::dom::NOT_FROM_PARSER ||
-                          aFromParser == mozilla::dom::FROM_PARSER_FRAGMENT),
-      mForceAsync(aFromParser == mozilla::dom::NOT_FROM_PARSER ||
-                  aFromParser == mozilla::dom::FROM_PARSER_FRAGMENT),
+      mDoneAddingChildren(PR_TRUE),
       mFrozen(PR_FALSE),
       mDefer(PR_FALSE),
       mAsync(PR_FALSE),
-      mExternal(PR_FALSE),
-      mParserCreated(aFromParser == mozilla::dom::FROM_PARSER_FRAGMENT ?
-                     mozilla::dom::NOT_FROM_PARSER : aFromParser),
-                     // Fragment parser-created scripts (if executable)
-                     // behave like script-created scripts.
+      mParserCreated((PRUint8)aFromParser),
       mCreatorParser(nsnull)
   {
   }
@@ -128,18 +120,10 @@ public:
   }
 
   /**
-   * Is the script an external script?
+   * Returns a constant defined in nsContentCreatorFunctions.h. Non-zero
+   * values mean parser-created and zero means not parser-created.
    */
-  PRBool GetScriptExternal()
-  {
-    NS_PRECONDITION(mFrozen, "Not ready for this call yet!");
-    return mExternal;
-  }
-
-  /**
-   * Returns how the element was created.
-   */
-  mozilla::dom::FromParser GetParserCreated()
+  PRUint32 GetParserCreated()
   {
     return mParserCreated;
   }
@@ -172,13 +156,7 @@ public:
     mFrozen = PR_FALSE;
     mUri = nsnull;
     mCreatorParser = nsnull;
-    mParserCreated = mozilla::dom::NOT_FROM_PARSER;
-    PRBool async = PR_FALSE;
-    nsCOMPtr<nsIDOMHTMLScriptElement> htmlScript = do_QueryInterface(this);
-    if (htmlScript) {
-      htmlScript->GetAsync(&async);
-    }
-    mForceAsync = !async;
+    mParserCreated = NS_NOT_FROM_PARSER;
   }
 
   void SetCreatorParser(nsIParser* aParser)
@@ -239,12 +217,6 @@ protected:
   PRPackedBool mDoneAddingChildren;
 
   /**
-   * If true, the .async property returns true instead of reflecting the
-   * content attribute.
-   */
-  PRPackedBool mForceAsync;
-
-  /**
    * Whether src, defer and async are frozen.
    */
   PRPackedBool mFrozen;
@@ -260,15 +232,9 @@ protected:
   PRPackedBool mAsync;
   
   /**
-   * The effective externalness. A script can be external with mUri being null
-   * if the src attribute contained an invalid URL string.
-   */
-  PRPackedBool mExternal;
-
-  /**
    * Whether this element was parser-created.
    */
-  mozilla::dom::FromParser mParserCreated;
+  PRUint8 mParserCreated;
 
   /**
    * The effective src (or null if no src).

@@ -81,7 +81,7 @@ function safeCall(aCallback) {
     aCallback.apply(null, args);
   }
   catch (e) {
-    WARN("Exception calling callback", e);
+    WARN("Exception calling callback: " + e);
   }
 }
 
@@ -107,9 +107,8 @@ function callProvider(aProvider, aMethod, aDefault) {
 
   try {
     return aProvider[aMethod].apply(aProvider, args);
-  }
-  catch (e) {
-    ERROR("Exception calling provider" + aMethod, e);
+  } catch (e) {
+    ERROR("Exception calling provider." + aMethod + ": " + e);
     return aDefault;
   }
 }
@@ -210,24 +209,26 @@ AddonScreenshot.prototype = {
   }
 }
 
-var gStarted = false;
-
 /**
  * This is the real manager, kept here rather than in AddonManager to keep its
  * contents hidden from API users.
  */
 var AddonManagerInternal = {
-  installListeners: [],
-  addonListeners: [],
+  installListeners: null,
+  addonListeners: null,
   providers: [],
+  started: false,
 
   /**
    * Initializes the AddonManager, loading any known providers and initializing
    * them.
    */
   startup: function AMI_startup() {
-    if (gStarted)
+    if (this.started)
       return;
+
+    this.installListeners = [];
+    this.addonListeners = [];
 
     let appChanged = undefined;
 
@@ -251,7 +252,7 @@ var AddonManagerInternal = {
         Components.utils.import(url, {});
       }
       catch (e) {
-        ERROR("Exception loading default provider \"" + url + "\"", e);
+        ERROR("Exception loading default provider \"" + url + "\": " + e);
       }
     });
 
@@ -268,14 +269,14 @@ var AddonManagerInternal = {
       }
       catch (e) {
         ERROR("Exception loading provider " + entry + " from category \"" +
-              url + "\"", e);
+              url + "\": " + e);
       }
     }
 
     this.providers.forEach(function(provider) {
       callProvider(provider, "startup", null, appChanged);
     });
-    gStarted = true;
+    this.started = true;
   },
 
   /**
@@ -288,7 +289,7 @@ var AddonManagerInternal = {
     this.providers.push(aProvider);
 
     // If we're registering after startup call this provider's startup.
-    if (gStarted)
+    if (this.started)
       callProvider(aProvider, "startup");
   },
 
@@ -299,16 +300,12 @@ var AddonManagerInternal = {
    *         The provider to unregister
    */
   unregisterProvider: function AMI_unregisterProvider(aProvider) {
-    let pos = 0;
-    while (pos < this.providers.length) {
-      if (this.providers[pos] == aProvider)
-        this.providers.splice(pos, 1);
-      else
-        pos++;
-    }
+    this.providers = this.providers.filter(function(p) {
+      return p != aProvider;
+    });
 
     // If we're unregistering after startup call this provider's shutdown.
-    if (gStarted)
+    if (this.started)
       callProvider(aProvider, "shutdown");
   },
 
@@ -321,9 +318,9 @@ var AddonManagerInternal = {
       callProvider(provider, "shutdown");
     });
 
-    this.installListeners.splice(0);
-    this.addonListeners.splice(0);
-    gStarted = false;
+    this.installListeners = null;
+    this.addonListeners = null;
+    this.started = false;
   },
 
   /**
@@ -413,7 +410,7 @@ var AddonManagerInternal = {
         }
       }
       catch (e) {
-        WARN("InstallListener threw exception when calling " + aMethod, e);
+        WARN("InstallListener threw exception when calling " + aMethod + ": " + e);
       }
     });
     return result;
@@ -434,7 +431,7 @@ var AddonManagerInternal = {
           listener[aMethod].apply(listener, args);
       }
       catch (e) {
-        WARN("AddonListener threw exception when calling " + aMethod, e);
+        WARN("AddonListener threw exception when calling " + aMethod + ": " + e);
       }
     });
   },
@@ -646,11 +643,7 @@ var AddonManagerInternal = {
       let weblistener = Cc["@mozilla.org/addons/web-install-listener;1"].
                         getService(Ci.amIWebInstallListener);
 
-      if (!this.isInstallEnabled(aMimetype, aURI)) {
-        weblistener.onWebInstallDisabled(aSource, aURI, aInstalls,
-                                         aInstalls.length);
-      }
-      else if (!this.isInstallAllowed(aMimetype, aURI)) {
+      if (!this.isInstallAllowed(aMimetype, aURI)) {
         if (weblistener.onWebInstallBlocked(aSource, aURI, aInstalls,
                                             aInstalls.length)) {
           aInstalls.forEach(function(aInstall) {
@@ -669,7 +662,7 @@ var AddonManagerInternal = {
       // In the event that the weblistener throws during instatiation or when
       // calling onWebInstallBlocked or onWebInstallRequested all of the
       // installs should get cancelled.
-      WARN("Failure calling web installer", e);
+      WARN("Failure calling web installer: " + e);
       aInstalls.forEach(function(aInstall) {
         aInstall.cancel();
       });
@@ -694,13 +687,9 @@ var AddonManagerInternal = {
    *         The InstallListener to remove
    */
   removeInstallListener: function AMI_removeInstallListener(aListener) {
-    let pos = 0;
-    while (pos < this.installListeners.length) {
-      if (this.installListeners[pos] == aListener)
-        this.installListeners.splice(pos, 1);
-      else
-        pos++;
-    }
+    this.installListeners = this.installListeners.filter(function(i) {
+      return i != aListener;
+    });
   },
 
   /**
@@ -851,13 +840,9 @@ var AddonManagerInternal = {
    *         The listener to remove
    */
   removeAddonListener: function AMI_removeAddonListener(aListener) {
-    let pos = 0;
-    while (pos < this.addonListeners.length) {
-      if (this.addonListeners[pos] == aListener)
-        this.addonListeners.splice(pos, 1);
-      else
-        pos++;
-    }
+    this.addonListeners = this.addonListeners.filter(function(i) {
+      return i != aListener;
+    });
   },
   
   get autoUpdateDefault() {
@@ -1109,7 +1094,3 @@ var AddonManager = {
     return AddonManagerInternal.autoUpdateDefault;
   }
 };
-
-Object.freeze(AddonManagerInternal);
-Object.freeze(AddonManagerPrivate);
-Object.freeze(AddonManager);

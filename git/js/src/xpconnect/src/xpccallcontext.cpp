@@ -196,7 +196,7 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
     {
         DEBUG_CheckWrapperThreadSafety(mWrapper);
 
-        mFlattenedJSObject = mWrapper->GetFlatJSObjectAndMark();
+        mFlattenedJSObject = mWrapper->GetFlatJSObject();
 
         if(mTearOff)
         {
@@ -449,7 +449,7 @@ XPCCallContext::~XPCCallContext()
 }
 
 XPCReadableJSStringWrapper *
-XPCCallContext::NewStringWrapper(const PRUnichar *str, PRUint32 len)
+XPCCallContext::NewStringWrapper(PRUnichar *str, PRUint32 len)
 {
     StringWrapperEntry *se =
         reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);

@@ -56,7 +56,15 @@
 // Temporarily go directly to the kernel interface until we can
 // interact better with libcutils.
 //
-#include <linux/ashmem.h>
+#define ASHMEM_DEVICE  		"/dev/ashmem"
+#define ASHMEM_NAME_LEN		256
+#define __ASHMEMIOC 0x77
+#define ASHMEM_SET_NAME		_IOW(__ASHMEMIOC, 1, char[ASHMEM_NAME_LEN])
+#define ASHMEM_GET_NAME		_IOR(__ASHMEMIOC, 2, char[ASHMEM_NAME_LEN])
+#define ASHMEM_SET_SIZE		_IOW(__ASHMEMIOC, 3, size_t)
+#define ASHMEM_GET_SIZE		_IO(__ASHMEMIOC, 4)
+#define ASHMEM_SET_PROT_MASK	_IOW(__ASHMEMIOC, 5, unsigned long)
+#define ASHMEM_GET_PROT_MASK	_IO(__ASHMEMIOC, 6)
 
 namespace mozilla {
 namespace ipc {
@@ -70,18 +78,22 @@ LogError(const char* what)
 
 SharedMemoryBasic::SharedMemoryBasic()
   : mShmFd(-1)
+  , mSize(0)
   , mMemory(nsnull)
 { }
 
 SharedMemoryBasic::SharedMemoryBasic(const Handle& aHandle)
   : mShmFd(aHandle.fd)
+  , mSize(0)
   , mMemory(nsnull)
 { }
 
 SharedMemoryBasic::~SharedMemoryBasic()
 {
   Unmap();
-  Destroy();
+  if (mShmFd > 0) {
+    close(mShmFd);
+  }
 }
 
 bool
@@ -90,7 +102,7 @@ SharedMemoryBasic::Create(size_t aNbytes)
   NS_ABORT_IF_FALSE(-1 == mShmFd, "Already Create()d");
 
   // Carve a new instance off of /dev/ashmem
-  int shmfd = open("/" ASHMEM_NAME_DEF, O_RDWR, 0600);
+  int shmfd = open(ASHMEM_DEVICE, O_RDWR, 0600);
   if (-1 == shmfd) {
     LogError("ShmemAndroid::Create():open");
     return false;
@@ -103,7 +115,6 @@ SharedMemoryBasic::Create(size_t aNbytes)
   }
 
   mShmFd = shmfd;
-  Created(aNbytes);
   return true;
 }
 
@@ -123,7 +134,7 @@ SharedMemoryBasic::Map(size_t nBytes)
     return false;
   }
 
-  Mapped(nBytes);
+  mSize = nBytes;
   return true;
 }
 
@@ -151,18 +162,11 @@ SharedMemoryBasic::Unmap()
     return;
   }
 
-  if (munmap(mMemory, Size())) {
+  if (munmap(mMemory, mSize)) {
     LogError("ShmemAndroid::Unmap()");
   }
   mMemory = nsnull;
-}
-
-void
-SharedMemoryBasic::Destroy()
-{
-  if (mShmFd > 0) {
-    close(mShmFd);
-  }
+  mSize = 0;
 }
 
 } // namespace ipc

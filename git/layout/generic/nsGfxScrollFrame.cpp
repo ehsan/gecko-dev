@@ -76,10 +76,10 @@
 #ifdef ACCESSIBILITY
 #include "nsIAccessibilityService.h"
 #endif
+#include "nsDisplayList.h"
 #include "nsBidiUtils.h"
 #include "nsFrameManager.h"
 #include "nsIPrefService.h"
-#include "nsILookAndFeel.h"
 #include "mozilla/dom/Element.h"
 
 using namespace mozilla::dom;
@@ -109,10 +109,9 @@ nsHTMLScrollFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsHTMLScrollFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                            PRUint32 aFilter)
+nsHTMLScrollFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
-  mInner.AppendAnonymousContentTo(aElements, aFilter);
+  mInner.AppendAnonymousContentTo(aElements);
 }
 
 void
@@ -198,16 +197,8 @@ nsHTMLScrollFrame::InvalidateInternal(const nsRect& aDamageRect,
       // the layer system wants us to invalidate.
       damage += GetScrollPosition() - mInner.mScrollPosAtLastPaint;
       nsRect r;
-      r.IntersectRect(damage, mInner.mScrollPort);
-      PRBool seperateThebes = IsScrollingActive() &&
-        !(aFlags & INVALIDATE_NO_THEBES_LAYERS) && r != damage;
-      if (seperateThebes) {
-        nsHTMLContainerFrame::InvalidateInternal(damage, 0, 0, aForChild,
-          aFlags | INVALIDATE_ONLY_THEBES_LAYERS);
-      }
-      if (!r.IsEmpty()) {
-        nsHTMLContainerFrame::InvalidateInternal(r, 0, 0, aForChild,
-          aFlags | (seperateThebes ? INVALIDATE_NO_THEBES_LAYERS : 0));
+      if (r.IntersectRect(damage, mInner.mScrollPort)) {
+        nsHTMLContainerFrame::InvalidateInternal(r, 0, 0, aForChild, aFlags);
       }
       if (mInner.mIsRoot && r != damage) {
         // Make sure we notify our prescontext about invalidations outside
@@ -490,7 +481,13 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
 
   nsPresContext* presContext = PresContext();
 
-  // Pass PR_FALSE for aInit so we can pass in the correct padding.
+  // We're forcing the padding on our scrolled frame, so let it know what that
+  // padding is.
+  presContext->PropertyTable()->
+    Set(mInner.mScrolledFrame, UsedPaddingProperty(),
+        new nsMargin(aState->mReflowState.mComputedPadding));
+
+  // Pass PR_FALSE for aInit so we can pass in the correct padding
   nsHTMLReflowState kidReflowState(presContext, aState->mReflowState,
                                    mInner.mScrolledFrame,
                                    nsSize(availWidth, NS_UNCONSTRAINEDSIZE),
@@ -968,10 +965,9 @@ nsXULScrollFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsXULScrollFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                           PRUint32 aFilter)
+nsXULScrollFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
-  mInner.AppendAnonymousContentTo(aElements, aFilter);
+  mInner.AppendAnonymousContentTo(aElements);
 }
 
 void
@@ -1054,16 +1050,8 @@ nsXULScrollFrame::InvalidateInternal(const nsRect& aDamageRect,
     nsRect damage = aDamageRect + nsPoint(aX, aY) +
       GetScrollPosition() - mInner.mScrollPosAtLastPaint;
     nsRect r;
-    r.IntersectRect(damage, mInner.mScrollPort);
-    PRBool seperateThebes = IsScrollingActive() &&
-      !(aFlags & INVALIDATE_NO_THEBES_LAYERS) && r != damage;
-    if (seperateThebes) {
-      nsBoxFrame::InvalidateInternal(damage, 0, 0, aForChild,
-        aFlags | INVALIDATE_ONLY_THEBES_LAYERS);
-    }
-    if (!r.IsEmpty()) {
-      nsBoxFrame::InvalidateInternal(r, 0, 0, aForChild,
-        aFlags | (seperateThebes ? INVALIDATE_NO_THEBES_LAYERS : 0));
+    if (r.IntersectRect(damage, mInner.mScrollPort)) {
+      nsBoxFrame::InvalidateInternal(r, 0, 0, aForChild, aFlags);
     }
     return;
   }
@@ -1313,12 +1301,6 @@ nsGfxScrollFrameInner::nsGfxScrollFrameInner(nsContainerFrame* aOuter,
     mUpdateScrollbarAttributes(PR_FALSE),
     mScrollingActive(PR_FALSE)
 {
-  // lookup if we're allowed to overlap the content from the look&feel object
-  PRBool canOverlap;
-  nsPresContext* presContext = mOuter->PresContext();
-  presContext->LookAndFeel()->
-    GetMetric(nsILookAndFeel::eMetric_ScrollbarsCanOverlapContent, canOverlap);
-  mScrollbarsCanOverlapContent = canOverlap;
 }
 
 nsGfxScrollFrameInner::~nsGfxScrollFrameInner()
@@ -1454,9 +1436,36 @@ nsGfxScrollFrameInner::ScrollTo(nsPoint aScrollPosition,
   }
 }
 
+static void InvalidateWidgets(nsIView* aView)
+{
+  if (aView->HasWidget()) {
+    nsIWidget* widget = aView->GetWidget();
+    nsWindowType type;
+    widget->GetWindowType(type);
+    if (type != eWindowType_popup) {
+      // Force the widget and everything in it to repaint. We can't
+      // just use Invalidate because the widget might have child
+      // widgets and they wouldn't get updated. We can't call
+      // UpdateView(aView) because the area to be repainted might be
+      // outside aView's clipped bounds. This isn't the greatest way
+      // to achieve this, perhaps, but it works.
+      widget->Show(PR_FALSE);
+      widget->Show(PR_TRUE);
+    }
+    return;
+  }
+
+  for (nsIView* v = aView->GetFirstChild(); v; v = v->GetNextSibling()) {
+    InvalidateWidgets(v);
+  }
+}
+
 // We can't use nsContainerFrame::PositionChildViews here because
 // we don't want to invalidate views that have moved.
-static void AdjustViews(nsIFrame* aFrame)
+// aInvalidateWidgets is set to true if we should invalidate the area
+// covered by every widget in the subtree.
+static void AdjustViewsAndWidgets(nsIFrame* aFrame,
+                                  PRBool aInvalidateWidgets)
 {
   nsIView* view = aFrame->GetView();
   if (view) {
@@ -1465,6 +1474,9 @@ static void AdjustViews(nsIFrame* aFrame)
     pt += aFrame->GetPosition();
     view->SetPosition(pt.x, pt.y);
 
+    if (aInvalidateWidgets) {
+      InvalidateWidgets(view);
+    }
     return;
   }
 
@@ -1478,7 +1490,7 @@ static void AdjustViews(nsIFrame* aFrame)
     // Recursively walk aFrame's child frames
     nsIFrame* childFrame = aFrame->GetFirstChild(childListName);
     while (childFrame) {
-      AdjustViews(childFrame);
+      AdjustViewsAndWidgets(childFrame, aInvalidateWidgets);
 
       // Get the next sibling child frame
       childFrame = childFrame->GetNextSibling();
@@ -1547,7 +1559,7 @@ InvalidateFixedBackgroundFrames(nsIFrame* aRootFrame,
                "The root frame shouldn't be the one that's moving, that makes no sense");
 
   // Build the 'after' display list over the whole area of interest.
-  nsDisplayListBuilder builder(aRootFrame, nsDisplayListBuilder::OTHER, PR_TRUE);
+  nsDisplayListBuilder builder(aRootFrame, PR_FALSE, PR_TRUE);
   builder.EnterPresShell(aRootFrame, aUpdateRect);
   nsDisplayList list;
   nsresult rv =
@@ -1593,7 +1605,7 @@ void nsGfxScrollFrameInner::MarkActive()
   }
 }
 
-void nsGfxScrollFrameInner::ScrollVisual()
+void nsGfxScrollFrameInner::ScrollVisual(nsIntPoint aPixDelta)
 {
   nsRootPresContext* rootPresContext = mOuter->PresContext()->GetRootPresContext();
   if (!rootPresContext) {
@@ -1602,9 +1614,9 @@ void nsGfxScrollFrameInner::ScrollVisual()
 
   rootPresContext->RequestUpdatePluginGeometry(mOuter);
 
-  AdjustViews(mScrolledFrame);
-  // We need to call this after fixing up the view positions
-  // to be consistent with the frame hierarchy.
+  AdjustViewsAndWidgets(mScrolledFrame, PR_FALSE);
+  // We need to call this after fixing up the widget and view positions
+  // to be consistent with the view and frame hierarchy.
   PRUint32 flags = nsIFrame::INVALIDATE_REASON_SCROLL_REPAINT;
   nsIFrame* displayRoot = nsLayoutUtils::GetDisplayRootFrame(mOuter);
   if (IsScrollingActive() && CanScrollWithBlitting(mOuter, displayRoot)) {
@@ -1683,7 +1695,7 @@ nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
   mScrolledFrame->SetPosition(mScrollPort.TopLeft() - pt);
 
   // We pass in the amount to move visually
-  ScrollVisual();
+  ScrollVisual(curPosDevPx - ptDevPx);
 
   presContext->PresShell()->SynthesizeMouseMove(PR_TRUE);
   UpdateScrollbarPosition();
@@ -1708,34 +1720,6 @@ AppendToTop(nsDisplayListBuilder* aBuilder, nsDisplayList* aDest,
 }
 
 nsresult
-nsGfxScrollFrameInner::AppendScrollPartsTo(nsDisplayListBuilder*          aBuilder,
-                                           const nsRect&                  aDirtyRect,
-                                           const nsDisplayListSet&        aLists,
-                                           const nsDisplayListCollection& aDest,
-                                           PRBool&                        aCreateLayer)
-{
-  nsresult rv = NS_OK;
-  PRBool hasResizer = HasResizer();
-  for (nsIFrame* kid = mOuter->GetFirstChild(nsnull); kid; kid = kid->GetNextSibling()) {
-    if (kid != mScrolledFrame) {
-      if (kid == mScrollCornerBox && hasResizer) {
-        // skip the resizer as this will be drawn later on top of the scrolled content
-        continue;
-      }
-      rv = mOuter->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aDest,
-                                            nsIFrame::DISPLAY_CHILD_FORCE_STACKING_CONTEXT);
-      NS_ENSURE_SUCCESS(rv, rv);
-      // DISPLAY_CHILD_FORCE_STACKING_CONTEXT put everything into the
-      // PositionedDescendants list.
-      ::AppendToTop(aBuilder, aLists.BorderBackground(),
-                    aDest.PositionedDescendants(), kid,
-                    aCreateLayer);
-    }
-  }
-  return rv;
-}
-
-nsresult
 nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                         const nsRect&           aDirtyRect,
                                         const nsDisplayListSet& aLists)
@@ -1755,6 +1739,12 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                             aDirtyRect, aLists);
   }
 
+  // Now display the scrollbars and scrollcorner. These parts are drawn
+  // in the border-background layer, on top of our own background and
+  // borders and underneath borders and backgrounds of later elements
+  // in the tree.
+  PRBool hasResizer = HasResizer();
+  nsDisplayListCollection scrollParts;
   // We put scrollbars in their own layers when this is the root scroll
   // frame and we are a toplevel content document. In this situation, the
   // scrollbar(s) would normally be assigned their own layer anyway, since
@@ -1765,16 +1755,23 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // scrollbar works around the problem.
   PRBool createLayersForScrollbars = mIsRoot &&
     mOuter->PresContext()->IsRootContentDocument();
-
-  nsDisplayListCollection scrollParts;
-  if (!mScrollbarsCanOverlapContent) {
-    // Now display the scrollbars and scrollcorner. These parts are drawn
-    // in the border-background layer, on top of our own background and
-    // borders and underneath borders and backgrounds of later elements
-    // in the tree.
-    AppendScrollPartsTo(aBuilder, aDirtyRect, aLists,
-                        scrollParts, createLayersForScrollbars);
+  for (nsIFrame* kid = mOuter->GetFirstChild(nsnull); kid; kid = kid->GetNextSibling()) {
+    if (kid != mScrolledFrame) {
+      if (kid == mScrollCornerBox && hasResizer) {
+        // skip the resizer as this will be drawn later on top of the scrolled content
+        continue;
+      }
+      rv = mOuter->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, scrollParts,
+                                            nsIFrame::DISPLAY_CHILD_FORCE_STACKING_CONTEXT);
+      NS_ENSURE_SUCCESS(rv, rv);
+      // DISPLAY_CHILD_FORCE_STACKING_CONTEXT put everything into the
+      // PositionedDescendants list.
+      ::AppendToTop(aBuilder, aLists.BorderBackground(),
+                    scrollParts.PositionedDescendants(), kid,
+                    createLayersForScrollbars);
+    }
   }
+
 
   // Overflow clipping can never clip frames outside our subtree, so there
   // is no need to worry about whether we are a moving frame that might clip
@@ -1786,7 +1783,7 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // MarkOutOfFlowChildrenForDisplayList, so it's safe to restrict our
   // dirty rect here.
   dirtyRect.IntersectRect(aDirtyRect, mScrollPort);
-
+  
   nsDisplayListCollection set;
   rv = mOuter->BuildDisplayListForChild(aBuilder, mScrolledFrame, dirtyRect, set);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1804,16 +1801,11 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                             PR_TRUE, mIsRoot);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (mScrollbarsCanOverlapContent) {
-    AppendScrollPartsTo(aBuilder, aDirtyRect, aLists,
-                       scrollParts, createLayersForScrollbars);
-  }
-
   // Place the resizer in the display list in our Content() list above
   // scrolled content in the Content() list.
   // This ensures that the resizer appears above the content and the mouse can
   // still target the resizer even when scrollbars are hidden.
-  if (HasResizer() && mScrollCornerBox) {
+  if (hasResizer && mScrollCornerBox) {
     rv = mOuter->BuildDisplayListForChild(aBuilder, mScrollCornerBox, aDirtyRect, scrollParts,
                                           nsIFrame::DISPLAY_CHILD_FORCE_STACKING_CONTEXT);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2129,16 +2121,15 @@ nsGfxScrollFrameInner::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nsPresContext* presContext = mOuter->PresContext();
   nsIFrame* parent = mOuter->GetParent();
 
-  // Don't create scrollbars if we're an SVG document being used as an image,
-  // or if we're printing/print previewing.
-  // (In the printing case, we allow scrollbars if this is the child of the
-  // viewport & paginated scrolling is enabled, because then we must be the
-  // scroll frame for the print preview window, & that does need scrollbars.)
-  if (presContext->Document()->IsBeingUsedAsImage() ||
-      (!presContext->IsDynamic() &&
-       !(mIsRoot && presContext->HasPaginatedScrolling()))) {
-    mNeverHasVerticalScrollbar = mNeverHasHorizontalScrollbar = PR_TRUE;
-    return NS_OK;
+  // Don't create scrollbars if we're printing/print previewing
+  // Get rid of this code when printing moves to its own presentation
+  if (!presContext->IsDynamic()) {
+    // allow scrollbars if this is the child of the viewport, because
+    // we must be the scrollbars for the print preview window
+    if (!(mIsRoot && presContext->HasPaginatedScrolling())) {
+      mNeverHasVerticalScrollbar = mNeverHasHorizontalScrollbar = PR_TRUE;
+      return NS_OK;
+    }
   }
 
   // Check if the frame is resizable.
@@ -2255,8 +2246,7 @@ nsGfxScrollFrameInner::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsGfxScrollFrameInner::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                                PRUint32 aFilter)
+nsGfxScrollFrameInner::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   aElements.MaybeAppendElement(mHScrollbarContent);
   aElements.MaybeAppendElement(mVScrollbarContent);

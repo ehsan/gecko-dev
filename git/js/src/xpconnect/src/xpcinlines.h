@@ -44,35 +44,22 @@
 #define xpcinlines_h___
 
 /***************************************************************************/
-PRBool
-xpc::PtrAndPrincipalHashKey::KeyEquals(const PtrAndPrincipalHashKey* aKey) const
-{
-  if(aKey->mPtr != mPtr)
-    return PR_FALSE;
-
-  if(!mURI || !aKey->mURI)
-      return mURI == aKey->mURI;
-
-  nsIScriptSecurityManager *ssm = nsXPConnect::gScriptSecurityManager;
-  return !ssm || NS_SUCCEEDED(ssm->CheckSameOriginURI(mURI, aKey->mURI, PR_FALSE));
-}
-
 inline void
 XPCJSRuntime::AddVariantRoot(XPCTraceableVariant* variant)
 {
-    variant->AddToRootSet(GetMapLock(), &mVariantRoots);
+    variant->AddToRootSet(GetJSRuntime(), &mVariantRoots);
 }
 
 inline void
 XPCJSRuntime::AddWrappedJSRoot(nsXPCWrappedJS* wrappedJS)
 {
-    wrappedJS->AddToRootSet(GetMapLock(), &mWrappedJSRoots);
+    wrappedJS->AddToRootSet(GetJSRuntime(), &mWrappedJSRoots);
 }
 
 inline void
 XPCJSRuntime::AddObjectHolderRoot(XPCJSObjectHolder* holder)
 {
-    holder->AddToRootSet(GetMapLock(), &mObjectHolderRoots);
+    holder->AddToRootSet(GetJSRuntime(), &mObjectHolderRoots);
 }
 
 /***************************************************************************/

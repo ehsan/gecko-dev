@@ -307,7 +307,7 @@ private:
     class X86InstructionFormatter;
 public:
 
-#ifdef JS_METHODJIT_SPEW
+#ifdef DEBUG
     bool isOOLPath;
 #endif
 
@@ -355,7 +355,7 @@ public:
     };
 
     X86Assembler()
-#ifdef JS_METHODJIT_SPEW
+#ifdef DEBUG
       : isOOLPath(false)
 #endif
     {
@@ -363,7 +363,6 @@ public:
 
     size_t size() const { return m_formatter.size(); }
     unsigned char *buffer() const { return m_formatter.buffer(); }
-    bool oom() const { return m_formatter.oom(); }
 
     // Stack operations:
 
@@ -383,9 +382,7 @@ public:
 
     void push_i32(int imm)
     {
-        js::JaegerSpew(js::JSpew_Insns,
-                       IPFX "pushl      %s$0x%x\n", MAYBE_PAD,
-                       PRETTY_PRINT_OFFSET(imm));
+        FIXME_INSN_PRINTING;
         m_formatter.oneByteOp(OP_PUSH_Iz);
         m_formatter.immediate32(imm);
     }
@@ -854,7 +851,7 @@ public:
     {
         js::JaegerSpew(js::JSpew_Insns,
                        IPFX "xorq       %s, %s\n", MAYBE_PAD,
-                       nameIReg(8,src), nameIReg(8, dst));
+                       nameIReg(4,src), nameIReg(4, dst));
         m_formatter.oneByteOp64(OP_XOR_EvGv, src, dst);
     }
 
@@ -2140,12 +2137,6 @@ public:
         FIXME_INSN_PRINTING;
         setRel32(from, to);
     }
-
-    static bool canRelinkJump(void* from, void* to)
-    {
-        intptr_t offset = reinterpret_cast<intptr_t>(to) - reinterpret_cast<intptr_t>(from);
-        return (offset == static_cast<int32_t>(offset));
-    }
     
     static void relinkCall(void* from, void* to)
     {
@@ -2231,13 +2222,12 @@ public:
     void* executableCopy(ExecutablePool* allocator)
     {
         void* copy = m_formatter.executableCopy(allocator);
+        ASSERT(copy);
         return copy;
     }
 
     void* executableCopy(void* buffer)
     {
-        if (m_formatter.oom())
-            return NULL;
         return memcpy(buffer, m_formatter.buffer(), size());
     }
 
@@ -2259,10 +2249,6 @@ private:
     {
         intptr_t offset = reinterpret_cast<intptr_t>(to) - reinterpret_cast<intptr_t>(from);
         ASSERT(offset == static_cast<int32_t>(offset));
-#define JS_CRASH(x) *(int *)x = 0
-        if (offset != static_cast<int32_t>(offset))
-            JS_CRASH(0xC0DE);
-#undef JS_CRASH
 
         js::JaegerSpew(js::JSpew_Insns,
                        ISPFX "##setRel32 ((from=%p)) ((to=%p))\n", from, to);
@@ -2555,7 +2541,6 @@ private:
 
         size_t size() const { return m_buffer.size(); }
         unsigned char *buffer() const { return m_buffer.buffer(); }
-        bool oom() const { return m_buffer.oom(); }
         bool isAligned(int alignment) const { return m_buffer.isAligned(alignment); }
         void* data() const { return m_buffer.data(); }
         void* executableCopy(ExecutablePool* allocator) { return m_buffer.executableCopy(allocator); }

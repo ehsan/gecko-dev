@@ -494,8 +494,9 @@ static int CPPifdef(int defined, yystypepp * yylvalpp)
         Symbol *s = LookUpSymbol(macros, name);
         token = cpp->currentInput->scan(cpp->currentInput, yylvalpp);
         if (token != '\n') {
-            CPPErrorToInfoLog("unexpected tokens following #ifdef preprocessor directive - expected a newline");
-            return 0;
+            CPPWarningToInfoLog("unexpected tokens following #ifdef preprocessor directive - expected a newline");
+            while (token != '\n')
+                token = cpp->currentInput->scan(cpp->currentInput, yylvalpp);
         }
         if (((s && !s->details.mac.undef) ? 1 : 0) != defined)
             token = CPPelse(1, yylvalpp);
@@ -669,7 +670,7 @@ static int CPPextension(yystypepp * yylvalpp)
 {
 
     int token = cpp->currentInput->scan(cpp->currentInput, yylvalpp);
-    char extensionName[MAX_SYMBOL_NAME_LEN + 1];
+    char extensionName[80];
 
     if(token=='\n'){
 		DecLineNumber();
@@ -681,8 +682,7 @@ static int CPPextension(yystypepp * yylvalpp)
     if (token != CPP_IDENTIFIER)
         CPPErrorToInfoLog("#extension");
     
-    strncpy(extensionName, GetAtomString(atable, yylvalpp->sc_ident), MAX_SYMBOL_NAME_LEN);
-    extensionName[MAX_SYMBOL_NAME_LEN] = '\0';
+    strcpy(extensionName, GetAtomString(atable, yylvalpp->sc_ident));
 	    
     token = cpp->currentInput->scan(cpp->currentInput, yylvalpp);
     if (token != ':') {

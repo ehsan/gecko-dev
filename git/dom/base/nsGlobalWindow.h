@@ -110,10 +110,6 @@
 #include "nsFrameMessageManager.h"
 #include "mozilla/TimeStamp.h"
 
-// JS includes
-#include "jsapi.h"
-#include "jswrapper.h"
-
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
 #define PREF_BROWSER_STARTUP_HOMEPAGE "browser.startup.homepage"
 
@@ -147,8 +143,6 @@ class nsRunnable;
 
 class nsDOMOfflineResourceList;
 class nsGeolocation;
-class nsDesktopNotificationCenter;
-class nsDOMMozURLProperty;
 
 #ifdef MOZ_DISABLE_DOMCRYPTO
 class nsIDOMCrypto;
@@ -233,25 +227,6 @@ private:
 };
 
 //*****************************************************************************
-// nsOuterWindow: Outer Window Proxy
-//*****************************************************************************
-
-class nsOuterWindowProxy : public JSWrapper
-{
-public:
-  nsOuterWindowProxy() : JSWrapper((uintN)0) {}
-
-  virtual bool isOuterWindow() {
-    return true;
-  }
-  JSString *obj_toString(JSContext *cx, JSObject *wrapper);
-
-  static nsOuterWindowProxy singleton;
-};
-
-JSObject *NS_NewOuterWindowProxy(JSContext *cx, JSObject *parent);
-
-//*****************************************************************************
 // nsGlobalWindow: Global Object for Scripting
 //*****************************************************************************
 // Beware that all scriptable interfaces implemented by
@@ -282,13 +257,9 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public nsIDOMStorageWindow,
                        public nsSupportsWeakReference,
                        public nsIInterfaceRequestor,
-                       public nsIDOMWindow_2_0_BRANCH,
-                       public nsWrapperCache,
                        public PRCListStr
 {
 public:
-  friend class nsDOMMozURLProperty;
-
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
 
@@ -344,9 +315,6 @@ public:
 
   // nsIDOMNSEventTarget
   NS_DECL_NSIDOMNSEVENTTARGET
-  
-  // nsIDOMWindow_2_0_BRANCH
-  NS_DECL_NSIDOMWINDOW_2_0_BRANCH
 
   // nsPIDOMWindow
   virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();
@@ -381,8 +349,7 @@ public:
   }
   virtual NS_HIDDEN_(nsPIDOMEventTarget*) GetTargetForEventTargetChain()
   {
-    return IsInnerWindow() ?
-      this : static_cast<nsPIDOMEventTarget*>(GetCurrentInnerWindowInternal());
+    return static_cast<nsPIDOMEventTarget*>(GetCurrentInnerWindowInternal());
   }
   virtual NS_HIDDEN_(nsresult) PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual NS_HIDDEN_(nsresult) PostHandleEvent(nsEventChainPostVisitor& aVisitor);
@@ -546,7 +513,7 @@ public:
   virtual PRBool TakeFocus(PRBool aFocus, PRUint32 aFocusMethod);
   virtual void SetReadyForFocus();
   virtual void PageHidden();
-  virtual nsresult DispatchAsyncHashchange();
+  virtual nsresult DispatchSyncHashchange();
   virtual nsresult DispatchSyncPopState();
 
   virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin);
@@ -568,10 +535,6 @@ public:
 
   virtual PRUint32 GetSerial() {
     return mSerial;
-  }
-
-  static nsGlobalWindow* GetOuterWindowWithId(PRUint64 aWindowID) {
-    return sOuterWindowsById ? sOuterWindowsById->Get(aWindowID) : nsnull;
   }
 
 protected:
@@ -701,7 +664,6 @@ protected:
                            const nsAString &aPopupWindowName,
                            const nsAString &aPopupWindowFeatures);
   void FireOfflineStatusEvent();
-  nsresult FireHashchange();
 
   void FlushPendingNotifications(mozFlushType aType);
   void EnsureReflowFlushAndPaint();
@@ -943,6 +905,10 @@ protected:
 
   nsCOMPtr<nsIIDBFactory> mIndexedDB;
 
+  // A unique (as long as our 64-bit counter doesn't roll over) id for
+  // this window.
+  PRUint64 mWindowID;
+
   // In the case of a "trusted" dialog (@see PopupControlState), we
   // set this counter to ensure a max of MAX_DIALOG_LIMIT
   PRUint32                      mDialogAbuseCount;
@@ -955,15 +921,10 @@ protected:
   TimeStamp                     mLastDialogQuitTime;
   PRPackedBool                  mDialogDisabled;
 
-  nsRefPtr<nsDOMMozURLProperty> mURLProperty;
-
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
   friend class PostMessageEvent;
   static nsIDOMStorageList* sGlobalStorageList;
-
-  typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindow*> WindowByIdTable;
-  static WindowByIdTable* sOuterWindowsById;
 };
 
 /*
@@ -1054,7 +1015,6 @@ protected:
   nsRefPtr<nsMimeTypeArray> mMimeTypes;
   nsRefPtr<nsPluginArray> mPlugins;
   nsRefPtr<nsGeolocation> mGeolocation;
-  nsRefPtr<nsDesktopNotificationCenter> mNotification;
   nsIDocShell* mDocShell; // weak reference
 };
 

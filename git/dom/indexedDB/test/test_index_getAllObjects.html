@@ -65,12 +65,12 @@
 
       let db = event.result;
 
-      request = db.setVersion("1");
+      request = db.createObjectStore(objectStoreName, "");
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let objectStore = db.createObjectStore(objectStoreName, "");
+      let objectStore = event.result;
 
       // First, add all our data to the object store.
       let addedData = 0;
@@ -86,20 +86,25 @@
       }
       event = yield;
 
-      // Now create the indexes.
+      // Now create the index.
+      addedData = 0;
       for (let i in indexData) {
-        objectStore.createIndex(indexData[i].name, indexData[i].keyPath,
-                                indexData[i].unique);
+        request = objectStore.createIndex(indexData[i].name,
+                                          indexData[i].keyPath,
+                                          indexData[i].unique);
+        request.onerror = errorHandler;
+        request.onsuccess = function(event) {
+          if (++addedData == indexData.length) {
+            is(objectStore.indexNames.length, addedData, "Good index count");
+            SimpleTest.executeSoon(function() { testGenerator.next() });
+          }
+        }
       }
-
-      is(objectStore.indexNames.length, indexData.length, "Good index count");
-      continueToNextStep();
       yield;
 
-      objectStore = db.transaction(objectStoreName)
-                      .objectStore(objectStoreName);
+      objectStore = db.objectStore(objectStoreName);
 
-      request = objectStore.index("height").getAll(65);
+      request = objectStore.index("height").getAllObjects(65);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
@@ -119,7 +124,7 @@
         }
       }
 
-      request = objectStore.index("height").getAll();
+      request = objectStore.index("height").getAllObjects();
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
@@ -140,7 +145,7 @@
         }
       }
 
-      request = objectStore.index("height").getAll(null, 4);
+      request = objectStore.index("height").getAllObjects(null, 4);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
@@ -160,7 +165,7 @@
         }
       }
 
-      request = objectStore.index("height").getAll(65, 1);
+      request = objectStore.index("height").getAllObjects(65, 1);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;

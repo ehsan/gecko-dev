@@ -46,7 +46,6 @@
 #include "nsCSSValue.h"
 #include "nsIDocShell.h"
 #include "nsLayoutUtils.h"
-#include "nsILookAndFeel.h"
 #include "nsCSSRuleProcessor.h"
 
 static const PRInt32 kOrientationKeywords[] = {
@@ -60,24 +59,6 @@ static const PRInt32 kScanKeywords[] = {
   eCSSKeyword_interlace,                NS_STYLE_SCAN_INTERLACE,
   eCSSKeyword_UNKNOWN,                  -1
 };
-
-#ifdef XP_WIN
-struct WindowsThemeName {
-    nsILookAndFeel::WindowsThemeIdentifier id;
-    const wchar_t* name;
-};
-
-// Windows theme identities used in the -moz-windows-theme media query.
-const WindowsThemeName themeStrings[] = {
-    { nsILookAndFeel::eWindowsTheme_Aero,       L"aero" },
-    { nsILookAndFeel::eWindowsTheme_LunaBlue,   L"luna-blue" },
-    { nsILookAndFeel::eWindowsTheme_LunaOlive,  L"luna-olive" },
-    { nsILookAndFeel::eWindowsTheme_LunaSilver, L"luna-silver" },
-    { nsILookAndFeel::eWindowsTheme_Royale,     L"royale" },
-    { nsILookAndFeel::eWindowsTheme_Zune,       L"zune" },
-    { nsILookAndFeel::eWindowsTheme_Generic,    L"generic" }
-};
-#endif
 
 // A helper for four features below
 static nsSize
@@ -164,23 +145,6 @@ GetOrientation(nsPresContext* aPresContext, const nsMediaFeature*,
                nsCSSValue& aResult)
 {
     nsSize size = GetSize(aPresContext);
-    PRInt32 orientation;
-    if (size.width > size.height) {
-        orientation = NS_STYLE_ORIENTATION_LANDSCAPE;
-    } else {
-        // Per spec, square viewports should be 'portrait'
-        orientation = NS_STYLE_ORIENTATION_PORTRAIT;
-    }
-
-    aResult.SetIntValue(orientation, eCSSUnit_Enumerated);
-    return NS_OK;
-}
-
-static nsresult
-GetDeviceOrientation(nsPresContext* aPresContext, const nsMediaFeature*,
-                     nsCSSValue& aResult)
-{
-    nsSize size = GetDeviceSize(aPresContext);
     PRInt32 orientation;
     if (size.width > size.height) {
         orientation = NS_STYLE_ORIENTATION_LANDSCAPE;
@@ -316,31 +280,6 @@ GetSystemMetric(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
     return NS_OK;
 }
 
-static nsresult
-GetWindowsTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
-                nsCSSValue& aResult)
-{
-    aResult.Reset();
-#ifdef XP_WIN
-    PRUint8 windowsThemeId =
-        nsCSSRuleProcessor::GetWindowsThemeIdentifier();
-
-    // Classic mode should fail to match.
-    if (windowsThemeId == nsILookAndFeel::eWindowsTheme_Classic)
-        return NS_OK;
-
-    // Look up the appropriate theme string
-    for (size_t i = 0; i < NS_ARRAY_LENGTH(themeStrings); ++i) {
-        if (windowsThemeId == themeStrings[i].id) {
-            aResult.SetStringValue(nsDependentString(themeStrings[i].name),
-                                   eCSSUnit_Ident);
-            break;
-        }
-    }
-#endif
-    return NS_OK;
-}
-
 /*
  * Adding new media features requires (1) adding the new feature to this
  * array, with appropriate entries (and potentially any new code needed
@@ -453,13 +392,6 @@ nsMediaFeatures::features[] = {
         GetDevicePixelRatio
     },
     {
-        &nsGkAtoms::_moz_device_orientation,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eEnumerated,
-        { kOrientationKeywords },
-        GetDeviceOrientation
-    },
-    {
         &nsGkAtoms::_moz_scrollbar_start_backward,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
@@ -557,13 +489,7 @@ nsMediaFeatures::features[] = {
         { &nsGkAtoms::menubar_drag },
         GetSystemMetric
     },
-    {
-        &nsGkAtoms::_moz_windows_theme,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eIdent,
-        { nsnull },
-        GetWindowsTheme
-    },
+
     // Null-mName terminator:
     {
         nsnull,

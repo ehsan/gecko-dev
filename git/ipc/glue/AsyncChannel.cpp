@@ -465,14 +465,6 @@ AsyncChannel::OnChannelOpened()
 }
 
 void
-AsyncChannel::DispatchOnChannelConnected(int32 peer_pid)
-{
-    AssertWorkerThread();
-    if (mListener)
-        mListener->OnChannelConnected(peer_pid);
-}
-
-void
 AsyncChannel::OnChannelConnected(int32 peer_pid)
 {
     AssertIOThread();
@@ -485,10 +477,6 @@ AsyncChannel::OnChannelConnected(int32 peer_pid)
 
     if(mExistingListener)
         mExistingListener->OnChannelConnected(peer_pid);
-
-    mWorkerLoop->PostTask(FROM_HERE, NewRunnableMethod(this, 
-                                                       &AsyncChannel::DispatchOnChannelConnected, 
-                                                       peer_pid));
 }
 
 void

@@ -24,10 +24,7 @@
         { name: "3", keyPath: "", autoIncrement: false },
         { name: "4", keyPath: "" },
         { name: "5", keyPath: null },
-        { name: "6", keyPath: "foo" },
-        { name: "7" },
-        { name: "8", autoIncrement: true },
-        { name: "9", autoIncrement: false }
+        { name: "6", keyPath: "foo" }
       ];
 
       let request = moz_indexedDB.open(name, description);
@@ -41,15 +38,8 @@
       let count = db.objectStoreNames.length;
       is(count, 0, "correct objectStoreNames length");
 
-      request = db.setVersion("1");
-      request.onerror = errorHandler;
-      request.onsuccess = grabEventAndContinueHandler;
-      event = yield;
-
-      ok(event.source === db, "event.source is correct");
-
       try {
-        db.createObjectStore(null);
+        request = db.createObjectStore(null, null);
         ok(false, "createObjectStore with null name should throw");
       }
       catch(e) {
@@ -57,36 +47,33 @@
       }
 
       try {
-        db.createObjectStore("");
+        request = db.createObjectStore("", "");
         ok(false, "createObjectStore with empty name should throw");
       }
       catch(e) {
         ok(true, "createObjectStore with empty name should throw");
       }
 
+      try {
+        request = db.createObjectStore("Hi");
+        ok(false, "createObjectStore with no keyPath should throw");
+      }
+      catch(e) {
+        ok(true, "createObjectStore with no keyPath should throw");
+      }
+
       for (let index in objectStoreInfo) {
         index = parseInt(index);
-        const info = objectStoreInfo[index];
+        let info = objectStoreInfo[index];
+        request = info.hasOwnProperty("autoIncrement") ?
+                  db.createObjectStore(info.name, info.keyPath,
+                                       info.autoIncrement) :
+                  db.createObjectStore(info.name, info.keyPath);
+        request.onerror = errorHandler;
+        request.onsuccess = grabEventAndContinueHandler;
+        event = yield;
 
-        let objectStore;
-        if (info.hasOwnProperty("keyPath")) {
-          if (info.hasOwnProperty("autoIncrement")) {
-            objectStore = db.createObjectStore(info.name, info.keyPath,
-                                               info.autoIncrement);
-          }
-          else {
-            objectStore = db.createObjectStore(info.name, info.keyPath);
-          }
-        }
-        else {
-          if (info.hasOwnProperty("autoIncrement")) {
-            objectStore = db.createObjectStore(info.name, null,
-                                               info.autoIncrement);
-          }
-          else {
-            objectStore = db.createObjectStore(info.name);
-          }
-        }
+        ok(event.source === db, "event.source is correct");
 
         is(db.objectStoreNames.length, index + 1,
            "updated objectStoreNames list");
@@ -100,6 +87,7 @@
         }
         is(found, true, "objectStoreNames contains name");
 
+        let objectStore = event.result;
         is(objectStore.name, info.name, "Bad name");
         is(objectStore.keyPath, info.keyPath ? info.keyPath : "",
            "Bad keyPath");
@@ -109,18 +97,12 @@
         ok(event.transaction.db === db, "transaction has the right db");
         is(event.transaction.readyState, nsIIDBTransaction.LOADING,
            "transaction has the correct readyState");
-        is(event.transaction.mode, nsIIDBTransaction.VERSION_CHANGE,
+        is(event.transaction.mode, nsIIDBTransaction.READ_WRITE,
            "transaction has the correct mode");
-        is(event.transaction.objectStoreNames.length, index + 1,
+        is(event.transaction.objectStoreNames.length, 1,
            "transaction has correct objectStoreNames list");
-        found = false;
-        for (let j = 0; j < event.transaction.objectStoreNames.length; j++) {
-          if (event.transaction.objectStoreNames.item(j) == info.name) {
-            found = true;
-            break;
-          }
-        }
-        is(found, true, "transaction has correct objectStoreNames list");
+        is(event.transaction.objectStoreNames.item(0), info.name,
+           "transaction has correct objectStoreNames list");
       }
 
       finishTest();

@@ -154,13 +154,15 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, uintN protoI
                  */
                 JS_ASSERT(pobj->hasMethodBarrier());
                 JSObject &funobj = shape->methodObject();
-                JS_ASSERT(&funobj == &pobj->nativeGetSlot(shape->slot).toObject());
+                JS_ASSERT(&funobj == &pobj->lockedGetSlot(shape->slot).toObject());
                 vword.setFunObj(funobj);
                 break;
             }
 
-            if (!pobj->generic() && shape->hasDefaultGetter() && pobj->containsSlot(shape->slot)) {
-                const Value &v = pobj->nativeGetSlot(shape->slot);
+            if (!pobj->generic() &&
+                shape->hasDefaultGetter() &&
+                pobj->containsSlot(shape->slot)) {
+                const Value &v = pobj->lockedGetSlot(shape->slot);
                 JSObject *funobj;
 
                 if (IsFunctionObject(v, &funobj)) {
@@ -179,16 +181,14 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, uintN protoI
                     if (!pobj->branded()) {
                         PCMETER(brandfills++);
 #ifdef DEBUG_notme
-                        JSFunction *fun = GET_FUNCTION_PRIVATE(cx, JSVAL_TO_OBJECT(v));
-                        JSAutoByteString funNameBytes;
-                        if (const char *funName = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
-                            fprintf(stderr,
-                                    "branding %p (%s) for funobj %p (%s), shape %lu\n",
-                                    pobj, pobj->getClass()->name, JSVAL_TO_OBJECT(v), funName,
-                                    obj->shape());
-                        }
+                        fprintf(stderr,
+                                "branding %p (%s) for funobj %p (%s), shape %lu\n",
+                                pobj, pobj->getClass()->name,
+                                JSVAL_TO_OBJECT(v),
+                                JS_GetFunctionName(GET_FUNCTION_PRIVATE(cx, JSVAL_TO_OBJECT(v))),
+                                obj->shape());
 #endif
-                        if (!pobj->brand(cx))
+                        if (!pobj->brand(cx, shape->slot, v))
                             return JS_NO_PROP_CACHE_FILL;
                     }
                     vword.setFunObj(*funobj);
@@ -202,7 +202,7 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, uintN protoI
          * with stub getters and setters, we can cache the slot.
          */
         if (!(cs->format & (JOF_SET | JOF_FOR)) &&
-            (!(cs->format & JOF_INCDEC) || (shape->hasDefaultSetter() && shape->writable())) &&
+            (!(cs->format & JOF_INCDEC) || shape->hasDefaultSetter()) &&
             shape->hasDefaultGetter() &&
             pobj->containsSlot(shape->slot)) {
             /* Great, let's cache shape's slot and use it on cache hit. */
@@ -342,11 +342,10 @@ PropertyCache::fullTest(JSContext *cx, jsbytecode *pc, JSObject **objp, JSObject
         JSAtom *atom = GetAtomFromBytecode(cx, pc, op, cs);
 #ifdef DEBUG_notme
         JSScript *script = cx->fp()->getScript();
-        JSAutoByteString printable;
         fprintf(stderr,
                 "id miss for %s from %s:%u"
                 " (pc %u, kpc %u, kshape %u, shape %u)\n",
-                js_AtomToPrintableString(cx, atom, &printable),
+                js_AtomToPrintableString(cx, atom),
                 script->filename,
                 js_PCToLineNumber(cx, script, pc),
                 pc - script->code,

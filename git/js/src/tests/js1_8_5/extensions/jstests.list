@@ -12,15 +12,11 @@ script scripted-proxies.js
 script array-length-protochange.js
 script parseInt-octal.js
 script proxy-enumerateOwn-duplicates.js
-skip-if(!xulRuntime.shell) script proxy-proto-setter.js
 skip-if(!xulRuntime.shell) script reflect-parse.js
 script destructure-accessor.js
 script censor-strict-caller.js
 skip-if(!xulRuntime.shell) script clone-simple.js
 skip-if(!xulRuntime.shell) script clone-regexp.js
-skip-if(!xulRuntime.shell) script clone-leaf-object.js
 skip-if(!xulRuntime.shell) script clone-object.js
 skip-if(!xulRuntime.shell) script clone-typed-array.js
 skip-if(!xulRuntime.shell) script clone-errors.js
-skip-if(!xulRuntime.shell) script clone-forge.js
-script set-property-non-extensible.js

@@ -235,9 +235,9 @@ public:
   nsresult CharacterDataChanged(nsIContent* aContent,
                                 CharacterDataChangeInfo* aInfo);
 
-  nsresult ContentStatesChanged(nsIContent*   aContent1,
-                                nsIContent*   aContent2,
-                                nsEventStates aStateMask);
+  nsresult ContentStatesChanged(nsIContent*     aContent1,
+                                nsIContent*     aContent2,
+                                PRInt32         aStateMask);
 
   // generate the child frames and process bindings
   nsresult GenerateChildFrames(nsIFrame* aFrame);
@@ -416,7 +416,7 @@ private:
                               nsIFrame*&     aCanvasFrame);
 
   void DoContentStateChanged(Element* aElement,
-                             nsEventStates aStateMask);
+                             PRInt32 aStateMask);
 
   /* aMinHint is the minimal change that should be made to the element */
   // XXXbz do we really need the aPrimaryFrame argument here?
@@ -728,10 +728,6 @@ private:
      This can be used with or without FCDATA_FUNC_IS_FULL_CTOR.
      The child items might still need table pseudo processing. */
 #define FCDATA_USE_CHILD_ITEMS 0x20000
-  /* If FCDATA_FORCED_NON_SCROLLABLE_BLOCK is set, then this block
-     would have been scrollable but has been forced to be
-     non-scrollable due to being in a paginated context. */
-#define FCDATA_FORCED_NON_SCROLLABLE_BLOCK 0x40000
 
   /* Structure representing information about how a frame should be
      constructed.  */

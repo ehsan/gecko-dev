@@ -82,10 +82,10 @@
 #include "nsIStorageStream.h"
 #include "nsIStringStream.h"
 #include "prmem.h"
+#include "plbase64.h"
 #if defined(XP_WIN)
 #include "nsILocalFileWin.h"
 #endif
-#include "xpcprivate.h"
 
 #ifdef MOZ_ENABLE_LIBXUL
 #include "mozilla/scache/StartupCache.h"
@@ -101,7 +101,6 @@
 static const char kJSRuntimeServiceContractID[] = "@mozilla.org/js/xpc/RuntimeService;1";
 static const char kXPConnectServiceContractID[] = "@mozilla.org/js/xpc/XPConnect;1";
 static const char kObserverServiceContractID[] = "@mozilla.org/observer-service;1";
-static const char kCacheKeyPrefix[] = "jsloader:";
 
 /* Some platforms don't have an implementation of PR_MemMap(). */
 #if !defined(XP_BEOS) && !defined(XP_OS2)
@@ -218,19 +217,65 @@ Debug(JSContext *cx, uintN argc, jsval *vp)
 static JSBool
 Atob(JSContext *cx, uintN argc, jsval *vp)
 {
+    JSString *str;
     if (!argc)
         return JS_TRUE;
 
-    return nsXPConnect::Base64Decode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
+    str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
+    if (!str)
+        return JS_FALSE;
+
+    size_t base64StrLength = JS_GetStringLength(str);
+    char *base64Str = JS_GetStringBytes(str);
+
+    PRUint32 bin_dataLength = (PRUint32)base64StrLength;
+    if (base64StrLength >= 1 && base64Str[base64StrLength - 1] == '=') {
+        if (base64StrLength >= 2 && base64Str[base64StrLength - 2] == '=')
+            bin_dataLength -= 2;
+        else
+            --bin_dataLength;
+    }
+    bin_dataLength = (PRUint32)((PRUint64)bin_dataLength * 3) / 4;
+
+    char *bin_data = PL_Base64Decode(base64Str, base64StrLength, nsnull);
+    if (!bin_data)
+        return JS_FALSE;
+
+    str = JS_NewStringCopyN(cx, bin_data, bin_dataLength);
+    PR_Free(bin_data);
+    if (!str)
+        return JS_FALSE;
+
+    JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(str));
+    return JS_TRUE;
 }
 
 static JSBool
 Btoa(JSContext *cx, uintN argc, jsval *vp)
 {
+    JSString *str;
     if (!argc)
         return JS_TRUE;
 
-    return nsXPConnect::Base64Encode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
+    str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
+    if (!str)
+        return JS_FALSE;
+
+    char *bin_data = JS_GetStringBytes(str);
+    size_t bin_dataLength = JS_GetStringLength(str);
+
+    char *base64 = PL_Base64Encode(bin_data, bin_dataLength, nsnull);
+    if (!base64)
+        return JS_FALSE;
+
+    PRUint32 base64Length = ((bin_dataLength + 2) / 3) * 4;
+    str = JS_NewStringCopyN(cx, base64, base64Length);
+    PR_Free(base64);
+    if (!str)
+        return JS_FALSE;
+
+    JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(str));
+    return JS_TRUE;
 }
 
 static JSFunctionSpec gGlobalFun[] = {
@@ -837,8 +882,6 @@ mozJSComponentLoader::ReadScript(StartupCache* cache, nsIURI *uri,
     nsCAutoString spec;
     rv = uri->GetSpec(spec);
     NS_ENSURE_SUCCESS(rv, rv);
-    spec.Insert(kCacheKeyPrefix, 0);
-    
     nsAutoArrayPtr<char> buf;   
     PRUint32 len;
     rv = cache->GetBuffer(spec.get(), getter_Transfers(buf), 
@@ -865,8 +908,6 @@ mozJSComponentLoader::WriteScript(StartupCache* cache, JSScript *script,
     nsCAutoString spec;
     rv = uri->GetSpec(spec);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    spec.Insert(kCacheKeyPrefix, 0);
 
     LOG(("Writing %s to startupcache\n", spec.get()));
     nsCOMPtr<nsIObjectOutputStream> oos;
@@ -930,7 +971,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     rv = xpc->InitClassesWithNewWrappedGlobal(cx, backstagePass,
                                               NS_GET_IID(nsISupports),
                                               mSystemPrincipal,
-                                              nsnull,
+                                              EmptyCString(),
                                               nsIXPConnect::
                                                   FLAG_SYSTEM_GLOBAL_OBJECT,
                                               getter_AddRefs(holder));
@@ -1072,10 +1113,10 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
                 return NS_ERROR_FAILURE;
             }
 
-            script = JS_CompileScriptForPrincipalsVersion(
-              cx, global, jsPrincipals, buf, fileSize32, nativePath.get(), 1,
-              JSVERSION_LATEST);
-
+            script = JS_CompileScriptForPrincipals(cx, global,
+                                                   jsPrincipals,
+                                                   buf, fileSize32,
+                                                   nativePath.get(), 1);
             PR_MemUnmap(buf, fileSize32);
 
 #else  /* HAVE_PR_MEMMAP */
@@ -1092,8 +1133,9 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
                 return NS_ERROR_FILE_NOT_FOUND;
             }
 
-            script = JS_CompileFileHandleForPrincipalsVersion(
-              cx, global, nativePath.get(), fileHandle, jsPrincipals, JSVERSION_LATEST);
+            script = JS_CompileFileHandleForPrincipals(cx, global,
+                                                       nativePath.get(),
+                                                       fileHandle, jsPrincipals);
 
             /* JS will close the filehandle after compilation is complete. */
 #endif /* HAVE_PR_MEMMAP */
@@ -1128,9 +1170,10 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
 
             buf[len] = '\0';
 
-            script = JS_CompileScriptForPrincipalsVersion(
-              cx, global, jsPrincipals, buf, bytesRead, nativePath.get(), 1,
-              JSVERSION_LATEST);
+            script = JS_CompileScriptForPrincipals(cx, global,
+                                                   jsPrincipals,
+                                                   buf, bytesRead,
+                                                   nativePath.get(), 1);
         }
         // Propagate the exception, if one exists. Also, don't leave the stale
         // exception on this context.
@@ -1189,7 +1232,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     *aGlobal = global;
 
     jsval retval;
-    if (!JS_ExecuteScriptVersion(cx, global, script, &retval, JSVERSION_LATEST)) {
+    if (!JS_ExecuteScript(cx, global, script, &retval)) {
 #ifdef DEBUG_shaver_off
         fprintf(stderr, "mJCL: failed to execute %s\n", nativePath.get());
 #endif
@@ -1315,19 +1358,8 @@ mozJSComponentLoader::Import(const nsACString & registryLocation)
         targetObject = JS_GetGlobalForObject(cx, targetObject);
     }
  
-    JSAutoEnterCompartment ac;
-    if (targetObject && !ac.enter(cx, targetObject)) {
-        NS_ERROR("can't enter compartment");
-        return NS_ERROR_FAILURE;
-    }
-
     JSObject *globalObj = nsnull;
     rv = ImportInto(registryLocation, targetObject, cc, &globalObj);
-
-    if (globalObj && !JS_WrapObject(cx, &globalObj)) {
-        NS_ERROR("can't wrap return value");
-        return NS_ERROR_FAILURE;
-    }
 
     jsval *retval = nsnull;
     cc->GetRetValPtr(&retval);
@@ -1477,43 +1509,33 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
 
         for (jsuint i = 0; i < symbolCount; ++i) {
             jsval val;
-            jsid symbolId;
+            JSString *symbolName;
 
             if (!JS_GetElement(mContext, symbolsObj, i, &val) ||
-                !JSVAL_IS_STRING(val) ||
-                !JS_ValueToId(mContext, val, &symbolId)) {
+                !JSVAL_IS_STRING(val)) {
                 return ReportOnCaller(cxhelper, ERROR_ARRAY_ELEMENT,
                                       PromiseFlatCString(aLocation).get(), i);
             }
 
-            if (!JS_GetPropertyById(mContext, mod->global, symbolId, &val)) {
-                JSAutoByteString bytes(mContext, JSID_TO_STRING(symbolId));
-                if (!bytes)
-                    return NS_ERROR_FAILURE;
+            symbolName = JSVAL_TO_STRING(val);
+            if (!JS_GetProperty(mContext, mod->global,
+                                JS_GetStringBytes(symbolName), &val)) {
                 return ReportOnCaller(cxhelper, ERROR_GETTING_SYMBOL,
                                       PromiseFlatCString(aLocation).get(),
-                                      bytes.ptr());
+                                      JS_GetStringBytes(symbolName));
             }
 
-            JSAutoEnterCompartment target_ac;
-
-            if (!target_ac.enter(mContext, targetObj) ||
-                !JS_WrapValue(mContext, &val) ||
-                !JS_SetPropertyById(mContext, targetObj, symbolId, &val)) {
-                JSAutoByteString bytes(mContext, JSID_TO_STRING(symbolId));
-                if (!bytes)
-                    return NS_ERROR_FAILURE;
+            if (!JS_SetProperty(mContext, targetObj,
+                                JS_GetStringBytes(symbolName), &val)) {
                 return ReportOnCaller(cxhelper, ERROR_SETTING_SYMBOL,
                                       PromiseFlatCString(aLocation).get(),
-                                      bytes.ptr());
+                                      JS_GetStringBytes(symbolName));
             }
 #ifdef DEBUG
             if (i == 0) {
                 logBuffer.AssignLiteral("Installing symbols [ ");
             }
-            JSAutoByteString bytes(mContext, JSID_TO_STRING(symbolId));
-            if (!!bytes)
-                logBuffer.Append(bytes.ptr());
+            logBuffer.Append(JS_GetStringBytes(symbolName));
             logBuffer.AppendLiteral(" ");
             if (i == symbolCount - 1) {
                 LOG(("%s] from %s\n", PromiseFlatCString(logBuffer).get(),

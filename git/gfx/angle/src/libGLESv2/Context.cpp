@@ -19,7 +19,6 @@
 #include "libGLESv2/Blit.h"
 #include "libGLESv2/ResourceManager.h"
 #include "libGLESv2/Buffer.h"
-#include "libGLESv2/Fence.h"
 #include "libGLESv2/FrameBuffer.h"
 #include "libGLESv2/Program.h"
 #include "libGLESv2/RenderBuffer.h"
@@ -84,7 +83,6 @@ Context::Context(const egl::Config *config, const gl::Context *shareContext)
     mState.scissorTest = false;
     mState.dither = true;
     mState.generateMipmapHint = GL_DONT_CARE;
-    mState.fragmentShaderDerivativeHint = GL_DONT_CARE;
 
     mState.lineWidth = 1.0f;
 
@@ -122,17 +120,24 @@ Context::Context(const egl::Config *config, const gl::Context *shareContext)
     // In order that access to these initial textures not be lost, they are treated as texture
     // objects all of whose names are 0.
 
-    mTexture2DZero.set(new Texture2D(0));
-    mTextureCubeMapZero.set(new TextureCubeMap(0));
+    mTexture2DZero = new Texture2D(0);
+    mTextureCubeMapZero = new TextureCubeMap(0);
+
+    mColorbufferZero = NULL;
+    mDepthStencilbufferZero = NULL;
 
     mState.activeSampler = 0;
     bindArrayBuffer(0);
     bindElementArrayBuffer(0);
     bindTextureCubeMap(0);
     bindTexture2D(0);
-    bindReadFramebuffer(0);
-    bindDrawFramebuffer(0);
+    bindFramebuffer(0);
     bindRenderbuffer(0);
+
+    for (int type = 0; type < SAMPLER_TYPE_COUNT; type++)
+    {
+        mIncompleteTextures[type] = NULL;
+    }
 
     mState.currentProgram = 0;
 
@@ -152,9 +157,6 @@ Context::Context(const egl::Config *config, const gl::Context *shareContext)
 
     mHasBeenCurrent = false;
 
-    mSupportsCompressedTextures = false;
-    mSupportsEventQueries = false;
-    mMaxSupportedSamples = 0;
     mMaskedClearSavedState = NULL;
     markAllStateDirty();
 }
@@ -176,17 +178,6 @@ Context::~Context()
         deleteFramebuffer(mFramebufferMap.begin()->first);
     }
 
-    while (!mFenceMap.empty())
-    {
-        deleteFence(mFenceMap.begin()->first);
-    }
-
-    while (!mMultiSampleSupport.empty())
-    {
-        delete [] mMultiSampleSupport.begin()->second;
-        mMultiSampleSupport.erase(mMultiSampleSupport.begin());
-    }
-
     for (int type = 0; type < SAMPLER_TYPE_COUNT; type++)
     {
         for (int sampler = 0; sampler < MAX_TEXTURE_IMAGE_UNITS; sampler++)
@@ -197,7 +188,7 @@ Context::~Context()
 
     for (int type = 0; type < SAMPLER_TYPE_COUNT; type++)
     {
-        mIncompleteTextures[type].set(NULL);
+        delete mIncompleteTextures[type];
     }
 
     for (int i = 0; i < MAX_VERTEX_ATTRIBS; i++)
@@ -207,10 +198,12 @@ Context::~Context()
 
     mState.arrayBuffer.set(NULL);
     mState.elementArrayBuffer.set(NULL);
+    mState.texture2D.set(NULL);
+    mState.textureCubeMap.set(NULL);
     mState.renderbuffer.set(NULL);
 
-    mTexture2DZero.set(NULL);
-    mTextureCubeMapZero.set(NULL);
+    delete mTexture2DZero;
+    delete mTextureCubeMapZero;
 
     delete mBufferBackEnd;
     delete mVertexDataManager;
@@ -238,49 +231,6 @@ void Context::makeCurrent(egl::Display *display, egl::Surface *surface)
         mIndexDataManager = new IndexDataManager(this, mBufferBackEnd);
         mBlit = new Blit(this);
 
-        mSupportsShaderModel3 = mDeviceCaps.PixelShaderVersion == D3DPS_VERSION(3, 0);
-
-        mMaxTextureDimension = std::min(std::min((int)mDeviceCaps.MaxTextureWidth, (int)mDeviceCaps.MaxTextureHeight),
-                                        (int)gl::IMPLEMENTATION_MAX_TEXTURE_SIZE);
-        mMaxCubeTextureDimension = std::min(mMaxTextureDimension, (int)gl::IMPLEMENTATION_MAX_CUBE_MAP_TEXTURE_SIZE);
-        mMaxRenderbufferDimension = mMaxTextureDimension;
-        mMaxTextureLevel = log2(mMaxTextureDimension) + 1;
-        TRACE("MaxTextureDimension=%d, MaxCubeTextureDimension=%d, MaxRenderbufferDimension=%d, MaxTextureLevel=%d",
-              mMaxTextureDimension, mMaxCubeTextureDimension, mMaxRenderbufferDimension, mMaxTextureLevel);
-
-        const D3DFORMAT renderBufferFormats[] =
-        {
-            D3DFMT_A8R8G8B8,
-            D3DFMT_X8R8G8B8,
-            D3DFMT_R5G6B5,
-            D3DFMT_D24S8
-        };
-
-        int max = 0;
-        for (int i = 0; i < sizeof(renderBufferFormats) / sizeof(D3DFORMAT); ++i)
-        {
-            bool *multisampleArray = new bool[D3DMULTISAMPLE_16_SAMPLES + 1];
-            display->getMultiSampleSupport(renderBufferFormats[i], multisampleArray);
-            mMultiSampleSupport[renderBufferFormats[i]] = multisampleArray;
-
-            for (int j = D3DMULTISAMPLE_16_SAMPLES; j >= 0; --j)
-            {
-                if (multisampleArray[j] && j != D3DMULTISAMPLE_NONMASKABLE && j > max)
-                {
-                    max = j;
-                }
-            }
-        }
-
-        mMaxSupportedSamples = max;
-
-        mSupportsEventQueries = display->getEventQuerySupport();
-        mSupportsCompressedTextures = display->getCompressedTextureSupport();
-        mSupportsFloatTextures = display->getFloatTextureSupport(&mSupportsFloatLinearFilter, &mSupportsFloatRenderableTextures);
-        mSupportsHalfFloatTextures = display->getHalfFloatTextureSupport(&mSupportsHalfFloatLinearFilter, &mSupportsHalfFloatRenderableTextures);
-        mSupportsLuminanceTextures = display->getLuminanceTextureSupport();
-        mSupportsLuminanceAlphaTextures = display->getLuminanceAlphaTextureSupport();
-
         initExtensionString();
 
         mState.viewportX = 0;
@@ -306,16 +256,15 @@ void Context::makeCurrent(egl::Display *display, egl::Surface *surface)
 
     setFramebufferZero(framebufferZero);
 
-    if (defaultRenderTarget)
-    {
-        defaultRenderTarget->Release();
-    }
+    defaultRenderTarget->Release();
 
     if (depthStencil)
     {
         depthStencil->Release();
     }
     
+    mSupportsShaderModel3 = mDeviceCaps.PixelShaderVersion == D3DPS_VERSION(3, 0);
+
     markAllStateDirty();
 }
 
@@ -324,8 +273,6 @@ void Context::markAllStateDirty()
 {
     mAppliedRenderTargetSerial = 0;
     mAppliedDepthbufferSerial = 0;
-    mAppliedStencilbufferSerial = 0;
-    mDepthStencilInitialized = false;
     mAppliedProgram = 0;
 
     mClearStateDirty = true;
@@ -667,14 +614,6 @@ void Context::setGenerateMipmapHint(GLenum hint)
     mState.generateMipmapHint = hint;
 }
 
-void Context::setFragmentShaderDerivativeHint(GLenum hint)
-{
-    mState.fragmentShaderDerivativeHint = hint;
-    // TODO: Propagate the hint to shader translator so we can write
-    // ddx, ddx_coarse, or ddx_fine depending on the hint.
-    // Ignore for now. It is valid for implementations to ignore hint.
-}
-
 void Context::setViewportParams(GLint x, GLint y, GLsizei width, GLsizei height)
 {
     mState.viewportX = x;
@@ -723,14 +662,9 @@ void Context::setActiveSampler(int active)
     mState.activeSampler = active;
 }
 
-GLuint Context::getReadFramebufferHandle() const
+GLuint Context::getFramebufferHandle() const
 {
-    return mState.readFramebuffer;
-}
-
-GLuint Context::getDrawFramebufferHandle() const
-{
-    return mState.drawFramebuffer;
+    return mState.framebuffer;
 }
 
 GLuint Context::getRenderbufferHandle() const
@@ -835,20 +769,6 @@ GLuint Context::createFramebuffer()
     return handle;
 }
 
-GLuint Context::createFence()
-{
-    unsigned int handle = 0;
-
-    while (mFenceMap.find(handle) != mFenceMap.end())
-    {
-        handle++;
-    }
-
-    mFenceMap[handle] = new Fence;
-
-    return handle;
-}
-
 void Context::deleteBuffer(GLuint buffer)
 {
     if (mResourceManager->getBuffer(buffer))
@@ -902,17 +822,6 @@ void Context::deleteFramebuffer(GLuint framebuffer)
     }
 }
 
-void Context::deleteFence(GLuint fence)
-{
-    FenceMap::iterator fenceObject = mFenceMap.find(fence);
-
-    if (fenceObject != mFenceMap.end())
-    {
-        delete fenceObject->second;
-        mFenceMap.erase(fenceObject);
-    }
-}
-
 Buffer *Context::getBuffer(GLuint handle)
 {
     return mResourceManager->getBuffer(handle);
@@ -938,14 +847,9 @@ Renderbuffer *Context::getRenderbuffer(GLuint handle)
     return mResourceManager->getRenderbuffer(handle);
 }
 
-Framebuffer *Context::getReadFramebuffer()
+Framebuffer *Context::getFramebuffer()
 {
-    return getFramebuffer(mState.readFramebuffer);
-}
-
-Framebuffer *Context::getDrawFramebuffer()
-{
-    return getFramebuffer(mState.drawFramebuffer);
+    return getFramebuffer(mState.framebuffer);
 }
 
 void Context::bindArrayBuffer(unsigned int buffer)
@@ -966,34 +870,28 @@ void Context::bindTexture2D(GLuint texture)
 {
     mResourceManager->checkTextureAllocation(texture, SAMPLER_2D);
 
-    mState.samplerTexture[SAMPLER_2D][mState.activeSampler].set(getTexture(texture));
+    mState.texture2D.set(getTexture(texture));
+
+    mState.samplerTexture[SAMPLER_2D][mState.activeSampler].set(mState.texture2D.get());
 }
 
 void Context::bindTextureCubeMap(GLuint texture)
 {
     mResourceManager->checkTextureAllocation(texture, SAMPLER_CUBE);
 
-    mState.samplerTexture[SAMPLER_CUBE][mState.activeSampler].set(getTexture(texture));
+    mState.textureCubeMap.set(getTexture(texture));
+
+    mState.samplerTexture[SAMPLER_CUBE][mState.activeSampler].set(mState.textureCubeMap.get());
 }
 
-void Context::bindReadFramebuffer(GLuint framebuffer)
+void Context::bindFramebuffer(GLuint framebuffer)
 {
     if (!getFramebuffer(framebuffer))
     {
         mFramebufferMap[framebuffer] = new Framebuffer();
     }
 
-    mState.readFramebuffer = framebuffer;
-}
-
-void Context::bindDrawFramebuffer(GLuint framebuffer)
-{
-    if (!getFramebuffer(framebuffer))
-    {
-        mFramebufferMap[framebuffer] = new Framebuffer();
-    }
-
-    mState.drawFramebuffer = framebuffer;
+    mState.framebuffer = framebuffer;
 }
 
 void Context::bindRenderbuffer(GLuint renderbuffer)
@@ -1051,20 +949,6 @@ Framebuffer *Context::getFramebuffer(unsigned int handle)
     }
 }
 
-Fence *Context::getFence(unsigned int handle)
-{
-    FenceMap::iterator fence = mFenceMap.find(handle);
-
-    if (fence == mFenceMap.end())
-    {
-        return NULL;
-    }
-    else
-    {
-        return fence->second;
-    }
-}
-
 Buffer *Context::getArrayBuffer()
 {
     return mState.arrayBuffer.get();
@@ -1082,25 +966,35 @@ Program *Context::getCurrentProgram()
 
 Texture2D *Context::getTexture2D()
 {
-    return static_cast<Texture2D*>(getSamplerTexture(mState.activeSampler, SAMPLER_2D));
+    if (mState.texture2D.id() == 0)   // Special case: 0 refers to different initial textures based on the target
+    {
+        return mTexture2DZero;
+    }
+
+    return static_cast<Texture2D*>(mState.texture2D.get());
 }
 
 TextureCubeMap *Context::getTextureCubeMap()
 {
-    return static_cast<TextureCubeMap*>(getSamplerTexture(mState.activeSampler, SAMPLER_CUBE));
+    if (mState.textureCubeMap.id() == 0)   // Special case: 0 refers to different initial textures based on the target
+    {
+        return mTextureCubeMapZero;
+    }
+
+    return static_cast<TextureCubeMap*>(mState.textureCubeMap.get());
 }
 
 Texture *Context::getSamplerTexture(unsigned int sampler, SamplerType type)
 {
     GLuint texid = mState.samplerTexture[type][sampler].id();
 
-    if (texid == 0)   // Special case: 0 refers to different initial textures based on the target
+    if (texid == 0)
     {
         switch (type)
         {
           default: UNREACHABLE();
-          case SAMPLER_2D: return mTexture2DZero.get();
-          case SAMPLER_CUBE: return mTextureCubeMapZero.get();
+          case SAMPLER_2D: return mTexture2DZero;
+          case SAMPLER_CUBE: return mTextureCubeMapZero;
         }
     }
 
@@ -1120,15 +1014,15 @@ bool Context::getBooleanv(GLenum pname, GLboolean *params)
         params[2] = mState.colorMaskBlue;
         params[3] = mState.colorMaskAlpha;
         break;
-      case GL_CULL_FACE:                *params = mState.cullFace;                  break;
-      case GL_POLYGON_OFFSET_FILL:      *params = mState.polygonOffsetFill;         break;
-      case GL_SAMPLE_ALPHA_TO_COVERAGE: *params = mState.sampleAlphaToCoverage;     break;
-      case GL_SAMPLE_COVERAGE:          *params = mState.sampleCoverage;            break;
-      case GL_SCISSOR_TEST:             *params = mState.scissorTest;               break;
-      case GL_STENCIL_TEST:             *params = mState.stencilTest;               break;
-      case GL_DEPTH_TEST:               *params = mState.depthTest;                 break;
-      case GL_BLEND:                    *params = mState.blend;                     break;
-      case GL_DITHER:                   *params = mState.dither;                    break;
+      case GL_CULL_FACE:                *params = mState.cullFace;
+      case GL_POLYGON_OFFSET_FILL:      *params = mState.polygonOffsetFill;
+      case GL_SAMPLE_ALPHA_TO_COVERAGE: *params = mState.sampleAlphaToCoverage;
+      case GL_SAMPLE_COVERAGE:          *params = mState.sampleCoverage;
+      case GL_SCISSOR_TEST:             *params = mState.scissorTest;
+      case GL_STENCIL_TEST:             *params = mState.stencilTest;
+      case GL_DEPTH_TEST:               *params = mState.depthTest;
+      case GL_BLEND:                    *params = mState.blend;
+      case GL_DITHER:                   *params = mState.dither;
       default:
         return false;
     }
@@ -1191,25 +1085,24 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
     {
       case GL_MAX_VERTEX_ATTRIBS:               *params = gl::MAX_VERTEX_ATTRIBS;               break;
       case GL_MAX_VERTEX_UNIFORM_VECTORS:       *params = gl::MAX_VERTEX_UNIFORM_VECTORS;       break;
-      case GL_MAX_VARYING_VECTORS:              *params = getMaximumVaryingVectors();           break;
+      case GL_MAX_VARYING_VECTORS:              *params = gl::MAX_VARYING_VECTORS;              break;
       case GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS: *params = gl::MAX_COMBINED_TEXTURE_IMAGE_UNITS; break;
       case GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS:   *params = gl::MAX_VERTEX_TEXTURE_IMAGE_UNITS;   break;
       case GL_MAX_TEXTURE_IMAGE_UNITS:          *params = gl::MAX_TEXTURE_IMAGE_UNITS;          break;
-      case GL_MAX_FRAGMENT_UNIFORM_VECTORS:     *params = getMaximumFragmentUniformVectors();   break;
-      case GL_MAX_RENDERBUFFER_SIZE:            *params = getMaximumRenderbufferDimension();    break;
+      case GL_MAX_FRAGMENT_UNIFORM_VECTORS:     *params = gl::MAX_FRAGMENT_UNIFORM_VECTORS;     break;
+      case GL_MAX_RENDERBUFFER_SIZE:            *params = gl::MAX_RENDERBUFFER_SIZE;            break;
       case GL_NUM_SHADER_BINARY_FORMATS:        *params = 0;                                    break;
+      case GL_NUM_COMPRESSED_TEXTURE_FORMATS:   *params = 0;                                    break;
+      case GL_COMPRESSED_TEXTURE_FORMATS: /* no compressed texture formats are supported */     break;
       case GL_SHADER_BINARY_FORMATS:      /* no shader binary formats are supported */          break;
       case GL_ARRAY_BUFFER_BINDING:             *params = mState.arrayBuffer.id();              break;
       case GL_ELEMENT_ARRAY_BUFFER_BINDING:     *params = mState.elementArrayBuffer.id();       break;
-      //case GL_FRAMEBUFFER_BINDING:            // now equivalent to GL_DRAW_FRAMEBUFFER_BINDING_ANGLE
-      case GL_DRAW_FRAMEBUFFER_BINDING_ANGLE:   *params = mState.drawFramebuffer;               break;
-      case GL_READ_FRAMEBUFFER_BINDING_ANGLE:   *params = mState.readFramebuffer;               break;
+      case GL_FRAMEBUFFER_BINDING:              *params = mState.framebuffer;                   break;
       case GL_RENDERBUFFER_BINDING:             *params = mState.renderbuffer.id();             break;
       case GL_CURRENT_PROGRAM:                  *params = mState.currentProgram;                break;
       case GL_PACK_ALIGNMENT:                   *params = mState.packAlignment;                 break;
       case GL_UNPACK_ALIGNMENT:                 *params = mState.unpackAlignment;               break;
       case GL_GENERATE_MIPMAP_HINT:             *params = mState.generateMipmapHint;            break;
-      case GL_FRAGMENT_SHADER_DERIVATIVE_HINT_OES: *params = mState.fragmentShaderDerivativeHint; break;
       case GL_ACTIVE_TEXTURE:                   *params = (mState.activeSampler + GL_TEXTURE0); break;
       case GL_STENCIL_FUNC:                     *params = mState.stencilFunc;                   break;
       case GL_STENCIL_REF:                      *params = mState.stencilRef;                    break;
@@ -1234,81 +1127,17 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
       case GL_STENCIL_BACK_WRITEMASK:           *params = mState.stencilBackWritemask;          break;
       case GL_STENCIL_CLEAR_VALUE:              *params = mState.stencilClearValue;             break;
       case GL_SUBPIXEL_BITS:                    *params = 4;                                    break;
-      case GL_MAX_TEXTURE_SIZE:                 *params = getMaximumTextureDimension();         break;
-      case GL_MAX_CUBE_MAP_TEXTURE_SIZE:        *params = getMaximumCubeTextureDimension();     break;
-      case GL_NUM_COMPRESSED_TEXTURE_FORMATS:   
-        {
-            if (supportsCompressedTextures())
-            {
-                // at current, only GL_COMPRESSED_RGB_S3TC_DXT1_EXT and 
-                // GL_COMPRESSED_RGBA_S3TC_DXT1_EXT are supported
-                *params = 2;
-            }
-            else
-            {
-                *params = 0;
-            }
-        }
-        break;
-      case GL_MAX_SAMPLES_ANGLE:
-        {
-            GLsizei maxSamples = getMaxSupportedSamples();
-            if (maxSamples != 0)
-            {
-                *params = maxSamples;
-            }
-            else
-            {
-                return false;
-            }
-
-            break;
-        }
-      case GL_SAMPLE_BUFFERS:                   
-      case GL_SAMPLES:
-        {
-            gl::Framebuffer *framebuffer = getDrawFramebuffer();
-            if (framebuffer->completeness() == GL_FRAMEBUFFER_COMPLETE)
-            {
-                switch (pname)
-                {
-                  case GL_SAMPLE_BUFFERS:
-                    if (framebuffer->getSamples() != 0)
-                    {
-                        *params = 1;
-                    }
-                    else
-                    {
-                        *params = 0;
-                    }
-                    break;
-                  case GL_SAMPLES:
-                    *params = framebuffer->getSamples();
-                    break;
-                }
-            }
-            else 
-            {
-                *params = 0;
-            }
-        }
-        break;
+      case GL_MAX_TEXTURE_SIZE:                 *params = gl::MAX_TEXTURE_SIZE;                 break;
+      case GL_MAX_CUBE_MAP_TEXTURE_SIZE:        *params = gl::MAX_CUBE_MAP_TEXTURE_SIZE;        break;
+      case GL_SAMPLE_BUFFERS:                   *params = 0;                                    break;
+      case GL_SAMPLES:                          *params = 0;                                    break;
       case GL_IMPLEMENTATION_COLOR_READ_TYPE:   *params = gl::IMPLEMENTATION_COLOR_READ_TYPE;   break;
       case GL_IMPLEMENTATION_COLOR_READ_FORMAT: *params = gl::IMPLEMENTATION_COLOR_READ_FORMAT; break;
       case GL_MAX_VIEWPORT_DIMS:
         {
-            int maxDimension = std::max(getMaximumRenderbufferDimension(), getMaximumTextureDimension());
+            int maxDimension = std::max((int)gl::MAX_RENDERBUFFER_SIZE, (int)gl::MAX_TEXTURE_SIZE);
             params[0] = maxDimension;
             params[1] = maxDimension;
-        }
-        break;
-      case GL_COMPRESSED_TEXTURE_FORMATS:
-        {
-            if (supportsCompressedTextures())
-            {
-                params[0] = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
-                params[1] = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
-            }
         }
         break;
       case GL_VIEWPORT:
@@ -1330,7 +1159,7 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
       case GL_BLUE_BITS:
       case GL_ALPHA_BITS:
         {
-            gl::Framebuffer *framebuffer = getDrawFramebuffer();
+            gl::Framebuffer *framebuffer = getFramebuffer();
             gl::Colorbuffer *colorbuffer = framebuffer->getColorbuffer();
 
             if (colorbuffer)
@@ -1351,7 +1180,7 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
         break;
       case GL_DEPTH_BITS:
         {
-            gl::Framebuffer *framebuffer = getDrawFramebuffer();
+            gl::Framebuffer *framebuffer = getFramebuffer();
             gl::DepthStencilbuffer *depthbuffer = framebuffer->getDepthbuffer();
 
             if (depthbuffer)
@@ -1366,7 +1195,7 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
         break;
       case GL_STENCIL_BITS:
         {
-            gl::Framebuffer *framebuffer = getDrawFramebuffer();
+            gl::Framebuffer *framebuffer = getFramebuffer();
             gl::DepthStencilbuffer *stencilbuffer = framebuffer->getStencilbuffer();
 
             if (stencilbuffer)
@@ -1443,7 +1272,6 @@ bool Context::getQueryParameterInfo(GLenum pname, GLenum *type, unsigned int *nu
       case GL_PACK_ALIGNMENT:
       case GL_UNPACK_ALIGNMENT:
       case GL_GENERATE_MIPMAP_HINT:
-      case GL_FRAGMENT_SHADER_DERIVATIVE_HINT_OES:
       case GL_RED_BITS:
       case GL_GREEN_BITS:
       case GL_BLUE_BITS:
@@ -1488,19 +1316,6 @@ bool Context::getQueryParameterInfo(GLenum pname, GLenum *type, unsigned int *nu
         {
             *type = GL_INT;
             *numParams = 1;
-        }
-        break;
-      case GL_MAX_SAMPLES_ANGLE:
-        {
-            if (getMaxSupportedSamples() != 0)
-            {
-                *type = GL_INT;
-                *numParams = 1;
-            }
-            else
-            {
-                return false;
-            }
         }
         break;
       case GL_MAX_VIEWPORT_DIMS:
@@ -1577,7 +1392,7 @@ bool Context::applyRenderTarget(bool ignoreViewport)
 {
     IDirect3DDevice9 *device = getDevice();
 
-    Framebuffer *framebufferObject = getDrawFramebuffer();
+    Framebuffer *framebufferObject = getFramebuffer();
 
     if (!framebufferObject || framebufferObject->completeness() != GL_FRAMEBUFFER_COMPLETE)
     {
@@ -1587,12 +1402,6 @@ bool Context::applyRenderTarget(bool ignoreViewport)
     }
 
     IDirect3DSurface9 *renderTarget = framebufferObject->getRenderTarget();
-
-    if (!renderTarget)
-    {
-        return false;   // Context must be lost
-    }
-
     IDirect3DSurface9 *depthStencil = NULL;
 
     unsigned int renderTargetSerial = framebufferObject->getRenderTargetSerial();
@@ -1608,42 +1417,25 @@ bool Context::applyRenderTarget(bool ignoreViewport)
     if (framebufferObject->getDepthbufferType() != GL_NONE)
     {
         depthStencil = framebufferObject->getDepthbuffer()->getDepthStencil();
-        if (!depthStencil)
-        {
-            ERR("Depth stencil pointer unexpectedly null.");
-            return false;
-        }
-        
         depthbufferSerial = framebufferObject->getDepthbuffer()->getSerial();
     }
     else if (framebufferObject->getStencilbufferType() != GL_NONE)
     {
         depthStencil = framebufferObject->getStencilbuffer()->getDepthStencil();
-        if (!depthStencil)
-        {
-            ERR("Depth stencil pointer unexpectedly null.");
-            return false;
-        }
-        
         stencilbufferSerial = framebufferObject->getStencilbuffer()->getSerial();
     }
 
     if (depthbufferSerial != mAppliedDepthbufferSerial ||
-        stencilbufferSerial != mAppliedStencilbufferSerial ||
-        !mDepthStencilInitialized)
+        stencilbufferSerial != mAppliedStencilbufferSerial)
     {
         device->SetDepthStencilSurface(depthStencil);
         mAppliedDepthbufferSerial = depthbufferSerial;
         mAppliedStencilbufferSerial = stencilbufferSerial;
-        mDepthStencilInitialized = true;
     }
 
     D3DVIEWPORT9 viewport;
     D3DSURFACE_DESC desc;
     renderTarget->GetDesc(&desc);
-
-    float zNear = clamp01(mState.zNear);
-    float zFar = clamp01(mState.zFar);
 
     if (ignoreViewport)
     {
@@ -1660,8 +1452,8 @@ bool Context::applyRenderTarget(bool ignoreViewport)
         viewport.Y = std::max(mState.viewportY, 0);
         viewport.Width = std::min(mState.viewportWidth, (int)desc.Width - (int)viewport.X);
         viewport.Height = std::min(mState.viewportHeight, (int)desc.Height - (int)viewport.Y);
-        viewport.MinZ = zNear;
-        viewport.MaxZ = zFar;
+        viewport.MinZ = clamp01(mState.zNear);
+        viewport.MaxZ = clamp01(mState.zFar);
     }
 
     if (viewport.Width <= 0 || viewport.Height <= 0)
@@ -1698,21 +1490,27 @@ bool Context::applyRenderTarget(bool ignoreViewport)
 
         GLint halfPixelSize = programObject->getDxHalfPixelSizeLocation();
         GLfloat xy[2] = {1.0f / viewport.Width, 1.0f / viewport.Height};
-        programObject->setUniform2fv(halfPixelSize, 1, xy);
+        programObject->setUniform2fv(halfPixelSize, 1, (GLfloat*)&xy);
 
-        GLint viewport = programObject->getDxViewportLocation();
+        GLint window = programObject->getDxViewportLocation();
         GLfloat whxy[4] = {mState.viewportWidth / 2.0f, mState.viewportHeight / 2.0f, 
                           (float)mState.viewportX + mState.viewportWidth / 2.0f, 
                           (float)mState.viewportY + mState.viewportHeight / 2.0f};
-        programObject->setUniform4fv(viewport, 1, whxy);
+        programObject->setUniform4fv(window, 1, (GLfloat*)&whxy);
 
         GLint depth = programObject->getDxDepthLocation();
-        GLfloat dz[2] = {(zFar - zNear) / 2.0f, (zNear + zFar) / 2.0f};
-        programObject->setUniform2fv(depth, 1, dz);
+        GLfloat dz[2] = {(mState.zFar - mState.zNear) / 2.0f, (mState.zNear + mState.zFar) / 2.0f};
+        programObject->setUniform2fv(depth, 1, (GLfloat*)&dz);
 
-        GLint depthRange = programObject->getDxDepthRangeLocation();
-        GLfloat nearFarDiff[3] = {zNear, zFar, zFar - zNear};
-        programObject->setUniform3fv(depthRange, 1, nearFarDiff);
+        GLint near = programObject->getDepthRangeNearLocation();
+        programObject->setUniform1fv(near, 1, &mState.zNear);
+
+        GLint far = programObject->getDepthRangeFarLocation();
+        programObject->setUniform1fv(far, 1, &mState.zFar);
+
+        GLint diff = programObject->getDepthRangeDiffLocation();
+        GLfloat zDiff = mState.zFar - mState.zNear;
+        programObject->setUniform1fv(diff, 1, &zDiff);
     }
 
     return true;
@@ -1732,7 +1530,7 @@ void Context::applyState(GLenum drawMode)
     GLint alwaysFront = !isTriangleMode(drawMode);
     programObject->setUniform1iv(pointsOrLines, 1, &alwaysFront);
 
-    Framebuffer *framebufferObject = getDrawFramebuffer();
+    Framebuffer *framebufferObject = getFramebuffer();
 
     if (mCullStateDirty || mFrontFaceDirty)
     {
@@ -1812,7 +1610,7 @@ void Context::applyState(GLenum drawMode)
 
     if (mStencilStateDirty || mFrontFaceDirty)
     {
-        if (mState.stencilTest && framebufferObject->hasStencil())
+        if (mState.stencilTest && hasStencil())
         {
             device->SetRenderState(D3DRS_STENCILENABLE, TRUE);
             device->SetRenderState(D3DRS_TWOSIDEDSTENCILMODE, TRUE);
@@ -1830,7 +1628,8 @@ void Context::applyState(GLenum drawMode)
             }
 
             // get the maximum size of the stencil ref
-            gl::DepthStencilbuffer *stencilbuffer = framebufferObject->getStencilbuffer();
+            gl::Framebuffer *framebuffer = getFramebuffer();
+            gl::DepthStencilbuffer *stencilbuffer = framebuffer->getStencilbuffer();
             GLuint maxStencil = (1 << stencilbuffer->getStencilSize()) - 1;
 
             device->SetRenderState(mState.frontFace == GL_CCW ? D3DRS_STENCILWRITEMASK : D3DRS_CCW_STENCILWRITEMASK, mState.stencilWritemask);
@@ -1882,7 +1681,7 @@ void Context::applyState(GLenum drawMode)
     {
         if (mState.polygonOffsetFill)
         {
-            gl::DepthStencilbuffer *depthbuffer = framebufferObject->getDepthbuffer();
+            gl::DepthStencilbuffer *depthbuffer = getFramebuffer()->getDepthbuffer();
             if (depthbuffer)
             {
                 device->SetRenderState(D3DRS_SLOPESCALEDEPTHBIAS, *((DWORD*)&mState.polygonOffsetFactor));
@@ -1899,50 +1698,16 @@ void Context::applyState(GLenum drawMode)
         mPolygonOffsetStateDirty = false;
     }
 
-    if (mSampleStateDirty)
+    if (mConfig->mMultiSample != 0 && mSampleStateDirty)
     {
-        if (framebufferObject->isMultisample())
+        if (mState.sampleAlphaToCoverage)
         {
-            if (mState.sampleAlphaToCoverage)
-            {
-                FIXME("Sample alpha to coverage is unimplemented.");
-            }
-
-            device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, TRUE);
-            if (mState.sampleCoverage)
-            {
-                unsigned int mask = 0;
-                if (mState.sampleCoverageValue != 0)
-                {
-                    float threshold = 0.5f;
-
-                    for (int i = 0; i < framebufferObject->getSamples(); ++i)
-                    {
-                        mask <<= 1;
-
-                        if ((i + 1) * mState.sampleCoverageValue >= threshold)
-                        {
-                            threshold += 1.0f;
-                            mask |= 1;
-                        }
-                    }
-                }
-                
-                if (mState.sampleCoverageInvert)
-                {
-                    mask = ~mask;
-                }
-
-                device->SetRenderState(D3DRS_MULTISAMPLEMASK, mask);
-            }
-            else
-            {
-                device->SetRenderState(D3DRS_MULTISAMPLEMASK, 0xFFFFFFFF);
-            }
+            FIXME("Sample alpha to coverage is unimplemented.");
         }
-        else
+
+        if (mState.sampleCoverage)
         {
-            device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, FALSE);
+            FIXME("Sample coverage is unimplemented.");
         }
 
         mSampleStateDirty = false;
@@ -2111,25 +1876,14 @@ void Context::applyTextures()
 
 void Context::readPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* pixels)
 {
-    Framebuffer *framebuffer = getReadFramebuffer();
+    Framebuffer *framebuffer = getFramebuffer();
 
     if (framebuffer->completeness() != GL_FRAMEBUFFER_COMPLETE)
     {
         return error(GL_INVALID_FRAMEBUFFER_OPERATION);
     }
 
-    if (getReadFramebufferHandle() != 0 && framebuffer->getSamples() != 0)
-    {
-        return error(GL_INVALID_OPERATION);
-    }
-
     IDirect3DSurface9 *renderTarget = framebuffer->getRenderTarget();
-
-    if (!renderTarget)
-    {
-        return;   // Context must be lost, return silently
-    }
-
     IDirect3DDevice9 *device = getDevice();
 
     D3DSURFACE_DESC desc;
@@ -2223,6 +1977,16 @@ void Context::readPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
                     r = (rgb & 0xF800) * (1.0f / 0xF800);
                 }
                 break;
+              case D3DFMT_X1R5G5B5:
+                {
+                    unsigned short xrgb = *(unsigned short*)(source + 2 * i + j * lock.Pitch);
+
+                    a = 1.0f;
+                    b = (xrgb & 0x001F) * (1.0f / 0x001F);
+                    g = (xrgb & 0x03E0) * (1.0f / 0x03E0);
+                    r = (xrgb & 0x7C00) * (1.0f / 0x7C00);
+                }
+                break;
               case D3DFMT_A1R5G5B5:
                 {
                     unsigned short argb = *(unsigned short*)(source + 2 * i + j * lock.Pitch);
@@ -2261,28 +2025,6 @@ void Context::readPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
                     b = (argb & 0x000003FF) * (1.0f / 0x000003FF);
                     g = (argb & 0x000FFC00) * (1.0f / 0x000FFC00);
                     r = (argb & 0x3FF00000) * (1.0f / 0x3FF00000);
-                }
-                break;
-              case D3DFMT_A32B32G32R32F:
-                {
-                    // float formats in D3D are stored rgba, rather than the other way round
-                    r = *((float*)(source + 16 * i + j * lock.Pitch) + 0);
-                    g = *((float*)(source + 16 * i + j * lock.Pitch) + 1);
-                    b = *((float*)(source + 16 * i + j * lock.Pitch) + 2);
-                    a = *((float*)(source + 16 * i + j * lock.Pitch) + 3);
-                }
-                break;
-              case D3DFMT_A16B16G16R16F:
-                {
-                    // float formats in D3D are stored rgba, rather than the other way round
-                    float abgr[4];
-
-                    D3DXFloat16To32Array(abgr, (D3DXFLOAT16*)(source + 8 * i + j * lock.Pitch), 4);
-
-                    a = abgr[3];
-                    b = abgr[2];
-                    g = abgr[1];
-                    r = abgr[0];
                 }
                 break;
               default:
@@ -2368,7 +2110,7 @@ void Context::readPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
 
 void Context::clear(GLbitfield mask)
 {
-    Framebuffer *framebufferObject = getDrawFramebuffer();
+    Framebuffer *framebufferObject = getFramebuffer();
 
     if (!framebufferObject || framebufferObject->completeness() != GL_FRAMEBUFFER_COMPLETE)
     {
@@ -2408,12 +2150,6 @@ void Context::clear(GLbitfield mask)
         if (framebufferObject->getStencilbufferType() != GL_NONE)
         {
             IDirect3DSurface9 *depthStencil = framebufferObject->getStencilbuffer()->getDepthStencil();
-            if (!depthStencil)
-            {
-                ERR("Depth stencil pointer unexpectedly null.");
-                return;
-            }
-            
             D3DSURFACE_DESC desc;
             depthStencil->GetDesc(&desc);
 
@@ -2445,11 +2181,6 @@ void Context::clear(GLbitfield mask)
     int stencil = mState.stencilClearValue & 0x000000FF;
 
     IDirect3DSurface9 *renderTarget = framebufferObject->getRenderTarget();
-
-    if (!renderTarget)
-    {
-        return;   // Context must be lost, return silently
-    }
 
     D3DSURFACE_DESC desc;
     renderTarget->GetDesc(&desc);
@@ -2487,7 +2218,6 @@ void Context::clear(GLbitfield mask)
             device->SetVertexShader(NULL);
             device->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
             device->SetStreamSourceFreq(0, 1);
-            device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_DISABLE);
 
             hr = device->EndStateBlock(&mMaskedClearSavedState);
             ASSERT(SUCCEEDED(hr) || hr == D3DERR_OUTOFVIDEOMEMORY || hr == E_OUTOFMEMORY);
@@ -2543,7 +2273,6 @@ void Context::clear(GLbitfield mask)
         device->SetVertexShader(NULL);
         device->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
         device->SetStreamSourceFreq(0, 1);
-        device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_DISABLE);
 
         struct Vertex
         {
@@ -2734,8 +2463,7 @@ void Context::finish()
         IDirect3DStateBlock9 *savedState = NULL;
         device->CreateStateBlock(D3DSBT_ALL, &savedState);
 
-        HRESULT result = occlusionQuery->Issue(D3DISSUE_BEGIN);
-        ASSERT(SUCCEEDED(result));
+        occlusionQuery->Issue(D3DISSUE_BEGIN);
 
         // Render something outside the render target
         device->SetStreamSourceFreq(0, 1);
@@ -2746,8 +2474,7 @@ void Context::finish()
         display->startScene();
         device->DrawPrimitiveUP(D3DPT_POINTLIST, 1, data, sizeof(data));
 
-        result = occlusionQuery->Issue(D3DISSUE_END);
-        ASSERT(SUCCEEDED(result));
+        occlusionQuery->Issue(D3DISSUE_END);
 
         while (occlusionQuery->GetData(NULL, 0, D3DGETDATA_FLUSH) == S_FALSE)
         {
@@ -2781,16 +2508,15 @@ void Context::flush()
 
     if (eventQuery)
     {
-        HRESULT result = eventQuery->Issue(D3DISSUE_END);
-        ASSERT(SUCCEEDED(result));
+        eventQuery->Issue(D3DISSUE_END);
 
-        result = eventQuery->GetData(NULL, 0, D3DGETDATA_FLUSH);
-        eventQuery->Release();
-
-        if (result == D3DERR_DEVICELOST)
+        while (eventQuery->GetData(NULL, 0, D3DGETDATA_FLUSH) == S_FALSE)
         {
-            error(GL_OUT_OF_MEMORY);
+            // Keep polling, but allow other threads to do something useful first
+            Sleep(0);
         }
+
+        eventQuery->Release();
     }
 }
 
@@ -2866,115 +2592,6 @@ bool Context::supportsShaderModel3() const
     return mSupportsShaderModel3;
 }
 
-int Context::getMaximumVaryingVectors() const
-{
-    return mSupportsShaderModel3 ? MAX_VARYING_VECTORS_SM3 : MAX_VARYING_VECTORS_SM2;
-}
-
-int Context::getMaximumFragmentUniformVectors() const
-{
-    return mSupportsShaderModel3 ? MAX_FRAGMENT_UNIFORM_VECTORS_SM3 : MAX_FRAGMENT_UNIFORM_VECTORS_SM2;
-}
-
-int Context::getMaxSupportedSamples() const
-{
-    return mMaxSupportedSamples;
-}
-
-int Context::getNearestSupportedSamples(D3DFORMAT format, int requested) const
-{
-    if (requested == 0)
-    {
-        return requested;
-    }
-
-    std::map<D3DFORMAT, bool *>::const_iterator itr = mMultiSampleSupport.find(format);
-    if (itr == mMultiSampleSupport.end())
-    {
-        return -1;
-    }
-
-    for (int i = requested; i <= D3DMULTISAMPLE_16_SAMPLES; ++i)
-    {
-        if (itr->second[i] && i != D3DMULTISAMPLE_NONMASKABLE)
-        {
-            return i;
-        }
-    }
-
-    return -1;
-}
-
-bool Context::supportsEventQueries() const
-{
-    return mSupportsEventQueries;
-}
-
-bool Context::supportsCompressedTextures() const
-{
-    return mSupportsCompressedTextures;
-}
-
-bool Context::supportsFloatTextures() const
-{
-    return mSupportsFloatTextures;
-}
-
-bool Context::supportsFloatLinearFilter() const
-{
-    return mSupportsFloatLinearFilter;
-}
-
-bool Context::supportsFloatRenderableTextures() const
-{
-    return mSupportsFloatRenderableTextures;
-}
-
-bool Context::supportsHalfFloatTextures() const
-{
-    return mSupportsHalfFloatTextures;
-}
-
-bool Context::supportsHalfFloatLinearFilter() const
-{
-    return mSupportsHalfFloatLinearFilter;
-}
-
-bool Context::supportsHalfFloatRenderableTextures() const
-{
-    return mSupportsHalfFloatRenderableTextures;
-}
-
-int Context::getMaximumRenderbufferDimension() const
-{
-    return mMaxRenderbufferDimension;
-}
-
-int Context::getMaximumTextureDimension() const
-{
-    return mMaxTextureDimension;
-}
-
-int Context::getMaximumCubeTextureDimension() const
-{
-    return mMaxCubeTextureDimension;
-}
-
-int Context::getMaximumTextureLevel() const
-{
-    return mMaxTextureLevel;
-}
-
-bool Context::supportsLuminanceTextures() const
-{
-    return mSupportsLuminanceTextures;
-}
-
-bool Context::supportsLuminanceAlphaTextures() const
-{
-    return mSupportsLuminanceAlphaTextures;
-}
-
 void Context::detachBuffer(GLuint buffer)
 {
     // [OpenGL ES 2.0.24] section 2.9 page 22:
@@ -3022,17 +2639,11 @@ void Context::detachTexture(GLuint texture)
     // as if FramebufferTexture2D had been called, with a texture of 0, for each attachment point to which this
     // image was attached in the currently bound framebuffer.
 
-    Framebuffer *readFramebuffer = getReadFramebuffer();
-    Framebuffer *drawFramebuffer = getDrawFramebuffer();
+    Framebuffer *framebuffer = getFramebuffer();
 
-    if (readFramebuffer)
+    if (framebuffer)
     {
-        readFramebuffer->detachTexture(texture);
-    }
-
-    if (drawFramebuffer && drawFramebuffer != readFramebuffer)
-    {
-        drawFramebuffer->detachTexture(texture);
+        framebuffer->detachTexture(texture);
     }
 }
 
@@ -3042,14 +2653,9 @@ void Context::detachFramebuffer(GLuint framebuffer)
     // If a framebuffer that is currently bound to the target FRAMEBUFFER is deleted, it is as though
     // BindFramebuffer had been executed with the target of FRAMEBUFFER and framebuffer of zero.
 
-    if (mState.readFramebuffer == framebuffer)
+    if (mState.framebuffer == framebuffer)
     {
-        bindReadFramebuffer(0);
-    }
-
-    if (mState.drawFramebuffer == framebuffer)
-    {
-        bindDrawFramebuffer(0);
+        bindFramebuffer(0);
     }
 }
 
@@ -3069,23 +2675,17 @@ void Context::detachRenderbuffer(GLuint renderbuffer)
     // then it is as if FramebufferRenderbuffer had been called, with a renderbuffer of 0, for each attachment
     // point to which this image was attached in the currently bound framebuffer.
 
-    Framebuffer *readFramebuffer = getReadFramebuffer();
-    Framebuffer *drawFramebuffer = getDrawFramebuffer();
+    Framebuffer *framebuffer = getFramebuffer();
 
-    if (readFramebuffer)
+    if (framebuffer)
     {
-        readFramebuffer->detachRenderbuffer(renderbuffer);
-    }
-
-    if (drawFramebuffer && drawFramebuffer != readFramebuffer)
-    {
-        drawFramebuffer->detachRenderbuffer(renderbuffer);
+        framebuffer->detachRenderbuffer(renderbuffer);
     }
 }
 
 Texture *Context::getIncompleteTexture(SamplerType type)
 {
-    Texture *t = mIncompleteTextures[type].get();
+    Texture *t = mIncompleteTextures[type];
 
     if (t == NULL)
     {
@@ -3121,7 +2721,7 @@ Texture *Context::getIncompleteTexture(SamplerType type)
             break;
         }
 
-        mIncompleteTextures[type].set(t);
+        mIncompleteTextures[type] = t;
     }
 
     return t;
@@ -3151,6 +2751,23 @@ bool Context::isTriangleMode(GLenum drawMode)
     return false;
 }
 
+bool Context::hasStencil()
+{
+    Framebuffer *framebufferObject = getFramebuffer();
+
+    if (framebufferObject && framebufferObject->getStencilbufferType() != GL_NONE)
+    {
+        DepthStencilbuffer *stencilbufferObject = framebufferObject->getStencilbuffer();
+
+        if (stencilbufferObject)
+        {
+            return stencilbufferObject->getStencilSize() > 0;
+        }
+    }
+
+    return false;
+}
+
 void Context::setVertexAttrib(GLuint index, const GLfloat *values)
 {
     ASSERT(index < gl::MAX_VERTEX_ATTRIBS);
@@ -3168,44 +2785,6 @@ void Context::initExtensionString()
     mExtensionString += "GL_OES_packed_depth_stencil ";
     mExtensionString += "GL_EXT_texture_format_BGRA8888 ";
     mExtensionString += "GL_EXT_read_format_bgra ";
-    mExtensionString += "GL_ANGLE_framebuffer_blit ";
-    mExtensionString += "GL_OES_rgb8_rgba8 ";
-    mExtensionString += "GL_OES_standard_derivatives ";
-
-    if (supportsEventQueries())
-    {
-        mExtensionString += "GL_NV_fence ";
-    }
-
-    if (supportsCompressedTextures())
-    {
-        mExtensionString += "GL_EXT_texture_compression_dxt1 ";
-    }
-
-    if (supportsFloatTextures())
-    {
-        mExtensionString += "GL_OES_texture_float ";
-    }
-
-    if (supportsHalfFloatTextures())
-    {
-        mExtensionString += "GL_OES_texture_half_float ";
-    }
-
-    if (supportsFloatLinearFilter())
-    {
-        mExtensionString += "GL_OES_texture_float_linear ";
-    }
-
-    if (supportsHalfFloatLinearFilter())
-    {
-        mExtensionString += "GL_OES_texture_half_float_linear ";
-    }
-
-    if (getMaxSupportedSamples() != 0)
-    {
-        mExtensionString += "GL_ANGLE_framebuffer_multisample ";
-    }
 
     if (mBufferBackEnd->supportIntIndices())
     {
@@ -3222,282 +2801,6 @@ void Context::initExtensionString()
 const char *Context::getExtensionString() const
 {
     return mExtensionString.c_str();
-}
-
-void Context::blitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, 
-                              GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
-                              GLbitfield mask)
-{
-    IDirect3DDevice9 *device = getDevice();
-
-    Framebuffer *readFramebuffer = getReadFramebuffer();
-    Framebuffer *drawFramebuffer = getDrawFramebuffer();
-
-    if (!readFramebuffer || readFramebuffer->completeness() != GL_FRAMEBUFFER_COMPLETE ||
-        !drawFramebuffer || drawFramebuffer->completeness() != GL_FRAMEBUFFER_COMPLETE)
-    {
-        return error(GL_INVALID_FRAMEBUFFER_OPERATION);
-    }
-
-    if (drawFramebuffer->getSamples() != 0)
-    {
-        return error(GL_INVALID_OPERATION);
-    }
-
-    RECT sourceRect;
-    RECT destRect;
-
-    if (srcX0 < srcX1)
-    {
-        sourceRect.left = srcX0;
-        sourceRect.right = srcX1;
-        destRect.left = dstX0;
-        destRect.right = dstX1;
-    }
-    else
-    {
-        sourceRect.left = srcX1;
-        destRect.left = dstX1;
-        sourceRect.right = srcX0;
-        destRect.right = dstX0;
-    }
-
-    // Arguments to StretchRect must be in D3D-style (0-top) coordinates, so we must 
-    // flip our Y-values here
-    if (srcY0 < srcY1)
-    {
-        sourceRect.bottom = srcY1;
-        destRect.bottom = dstY1;
-        sourceRect.top = srcY0;
-        destRect.top = dstY0;
-    }
-    else
-    {
-        sourceRect.bottom = srcY0;
-        destRect.bottom = dstY0;
-        sourceRect.top = srcY1;
-        destRect.top = dstY1;
-    }
-
-    RECT sourceScissoredRect = sourceRect;
-    RECT destScissoredRect = destRect;
-
-    if (mState.scissorTest)
-    {
-        // Only write to parts of the destination framebuffer which pass the scissor test
-        // Please note: the destRect is now in D3D-style coordinates, so the *top* of the
-        // rect will be checked against scissorY, rather than the bottom.
-        if (destRect.left < mState.scissorX)
-        {
-            int xDiff = mState.scissorX - destRect.left;
-            destScissoredRect.left = mState.scissorX;
-            sourceScissoredRect.left += xDiff;
-        }
-
-        if (destRect.right > mState.scissorX + mState.scissorWidth)
-        {
-            int xDiff = destRect.right - (mState.scissorX + mState.scissorWidth);
-            destScissoredRect.right = mState.scissorX + mState.scissorWidth;
-            sourceScissoredRect.right -= xDiff;
-        }
-
-        if (destRect.top < mState.scissorY)
-        {
-            int yDiff = mState.scissorY - destRect.top;
-            destScissoredRect.top = mState.scissorY;
-            sourceScissoredRect.top += yDiff;
-        }
-
-        if (destRect.bottom > mState.scissorY + mState.scissorHeight)
-        {
-            int yDiff = destRect.bottom - (mState.scissorY + mState.scissorHeight);
-            destScissoredRect.bottom = mState.scissorY + mState.scissorHeight;
-            sourceScissoredRect.bottom -= yDiff;
-        }
-    }
-
-    bool blitRenderTarget = false;
-    bool blitDepthStencil = false;
-
-    RECT sourceTrimmedRect = sourceScissoredRect;
-    RECT destTrimmedRect = destScissoredRect;
-
-    // The source & destination rectangles also may need to be trimmed if they fall out of the bounds of 
-    // the actual draw and read surfaces.
-    if (sourceTrimmedRect.left < 0)
-    {
-        int xDiff = 0 - sourceTrimmedRect.left;
-        sourceTrimmedRect.left = 0;
-        destTrimmedRect.left += xDiff;
-    }
-
-    int readBufferWidth = readFramebuffer->getColorbuffer()->getWidth();
-    int readBufferHeight = readFramebuffer->getColorbuffer()->getHeight();
-    int drawBufferWidth = drawFramebuffer->getColorbuffer()->getWidth();
-    int drawBufferHeight = drawFramebuffer->getColorbuffer()->getHeight();
-
-    if (sourceTrimmedRect.right > readBufferWidth)
-    {
-        int xDiff = sourceTrimmedRect.right - readBufferWidth;
-        sourceTrimmedRect.right = readBufferWidth;
-        destTrimmedRect.right -= xDiff;
-    }
-
-    if (sourceTrimmedRect.top < 0)
-    {
-        int yDiff = 0 - sourceTrimmedRect.top;
-        sourceTrimmedRect.top = 0;
-        destTrimmedRect.top += yDiff;
-    }
-
-    if (sourceTrimmedRect.bottom > readBufferHeight)
-    {
-        int yDiff = sourceTrimmedRect.bottom - readBufferHeight;
-        sourceTrimmedRect.bottom = readBufferHeight;
-        destTrimmedRect.bottom -= yDiff;
-    }
-
-    if (destTrimmedRect.left < 0)
-    {
-        int xDiff = 0 - destTrimmedRect.left;
-        destTrimmedRect.left = 0;
-        sourceTrimmedRect.left += xDiff;
-    }
-
-    if (destTrimmedRect.right > drawBufferWidth)
-    {
-        int xDiff = destTrimmedRect.right - drawBufferWidth;
-        destTrimmedRect.right = drawBufferWidth;
-        sourceTrimmedRect.right -= xDiff;
-    }
-
-    if (destTrimmedRect.top < 0)
-    {
-        int yDiff = 0 - destTrimmedRect.top;
-        destTrimmedRect.top = 0;
-        sourceTrimmedRect.top += yDiff;
-    }
-
-    if (destTrimmedRect.bottom > drawBufferHeight)
-    {
-        int yDiff = destTrimmedRect.bottom - drawBufferHeight;
-        destTrimmedRect.bottom = drawBufferHeight;
-        sourceTrimmedRect.bottom -= yDiff;
-    }
-
-    bool partialBufferCopy = false;
-    if (sourceTrimmedRect.bottom - sourceTrimmedRect.top < readFramebuffer->getColorbuffer()->getHeight() ||
-        sourceTrimmedRect.right - sourceTrimmedRect.left < readFramebuffer->getColorbuffer()->getWidth() || 
-        destTrimmedRect.bottom - destTrimmedRect.top < drawFramebuffer->getColorbuffer()->getHeight() ||
-        destTrimmedRect.right - destTrimmedRect.left < drawFramebuffer->getColorbuffer()->getWidth() ||
-        sourceTrimmedRect.top != 0 || destTrimmedRect.top != 0 || sourceTrimmedRect.left != 0 || destTrimmedRect.left != 0)
-    {
-        partialBufferCopy = true;
-    }
-
-    if (mask & GL_COLOR_BUFFER_BIT)
-    {
-        const bool validReadType = readFramebuffer->getColorbufferType() == GL_TEXTURE_2D ||
-            readFramebuffer->getColorbufferType() == GL_RENDERBUFFER;
-        const bool validDrawType = drawFramebuffer->getColorbufferType() == GL_TEXTURE_2D ||
-            drawFramebuffer->getColorbufferType() == GL_RENDERBUFFER;
-        if (!validReadType || !validDrawType ||
-            readFramebuffer->getColorbuffer()->getD3DFormat() != drawFramebuffer->getColorbuffer()->getD3DFormat())
-        {
-            ERR("Color buffer format conversion in BlitFramebufferANGLE not supported by this implementation");
-            return error(GL_INVALID_OPERATION);
-        }
-        
-        if (partialBufferCopy && readFramebuffer->getSamples() != 0)
-        {
-            return error(GL_INVALID_OPERATION);
-        }
-
-        blitRenderTarget = true;
-
-    }
-
-    if (mask & (GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT))
-    {
-        DepthStencilbuffer *readDSBuffer = NULL;
-        DepthStencilbuffer *drawDSBuffer = NULL;
-
-        // We support OES_packed_depth_stencil, and do not support a separately attached depth and stencil buffer, so if we have
-        // both a depth and stencil buffer, it will be the same buffer.
-
-        if (mask & GL_DEPTH_BUFFER_BIT)
-        {
-            if (readFramebuffer->getDepthbuffer() && drawFramebuffer->getDepthbuffer())
-            {
-                if (readFramebuffer->getDepthbufferType() != drawFramebuffer->getDepthbufferType() ||
-                    readFramebuffer->getDepthbuffer()->getD3DFormat() != drawFramebuffer->getDepthbuffer()->getD3DFormat())
-                {
-                    return error(GL_INVALID_OPERATION);
-                }
-
-                blitDepthStencil = true;
-                readDSBuffer = readFramebuffer->getDepthbuffer();
-                drawDSBuffer = drawFramebuffer->getDepthbuffer();
-            }
-        }
-
-        if (mask & GL_STENCIL_BUFFER_BIT)
-        {
-            if (readFramebuffer->getStencilbuffer() && drawFramebuffer->getStencilbuffer())
-            {
-                if (readFramebuffer->getStencilbufferType() != drawFramebuffer->getStencilbufferType() ||
-                    readFramebuffer->getStencilbuffer()->getD3DFormat() != drawFramebuffer->getStencilbuffer()->getD3DFormat())
-                {
-                    return error(GL_INVALID_OPERATION);
-                }
-
-                blitDepthStencil = true;
-                readDSBuffer = readFramebuffer->getStencilbuffer();
-                drawDSBuffer = drawFramebuffer->getStencilbuffer();
-            }
-        }
-
-        if (partialBufferCopy)
-        {
-            ERR("Only whole-buffer depth and stencil blits are supported by this implementation.");
-            return error(GL_INVALID_OPERATION); // only whole-buffer copies are permitted
-        }
-
-        if ((drawDSBuffer && drawDSBuffer->getSamples() != 0) || 
-            (readDSBuffer && readDSBuffer->getSamples() != 0))
-        {
-            return error(GL_INVALID_OPERATION);
-        }
-    }
-
-    if (blitRenderTarget || blitDepthStencil)
-    {
-        egl::Display *display = getDisplay();
-        display->endScene();
-
-        if (blitRenderTarget)
-        {
-            HRESULT result = device->StretchRect(readFramebuffer->getRenderTarget(), &sourceTrimmedRect, 
-                                                 drawFramebuffer->getRenderTarget(), &destTrimmedRect, D3DTEXF_NONE);
-
-            if (FAILED(result))
-            {
-                ERR("BlitFramebufferANGLE failed: StretchRect returned %x.", result);
-                return;
-            }
-        }
-
-        if (blitDepthStencil)
-        {
-            HRESULT result = device->StretchRect(readFramebuffer->getDepthStencil(), NULL, drawFramebuffer->getDepthStencil(), NULL, D3DTEXF_NONE);
-
-            if (FAILED(result))
-            {
-                ERR("BlitFramebufferANGLE failed: StretchRect returned %x.", result);
-                return;
-            }
-        }
-    }
 }
 
 }

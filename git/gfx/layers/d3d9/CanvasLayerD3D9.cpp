@@ -183,7 +183,7 @@ CanvasLayerD3D9::Updated(const nsIntRect& aRect)
     nsRefPtr<gfxImageSurface> sourceSurface;
 
     if (mSurface->GetType() == gfxASurface::SurfaceTypeWin32) {
-      sourceSurface = mSurface->GetAsImageSurface();
+      sourceSurface = static_cast<gfxWindowsSurface*>(mSurface.get())->GetImageSurface();
       startBits = sourceSurface->Data() + sourceSurface->Stride() * aRect.y +
                   aRect.x * 4;
       sourceStride = sourceSurface->Stride();
@@ -246,7 +246,15 @@ CanvasLayerD3D9::RenderLayer()
 
   device()->SetVertexShaderConstantF(CBvLayerQuad, quad, 1);
 
-  SetShaderTransformAndOpacity();
+  device()->SetVertexShaderConstantF(CBmLayerTransform, &mTransform._11, 4);
+
+  float opacity[4];
+  /*
+   * We always upload a 4 component float, but the shader will use only the
+   * first component since it's declared as a 'float'.
+   */
+  opacity[0] = GetOpacity();
+  device()->SetPixelShaderConstantF(CBfLayerOpacity, opacity, 1);
 
   mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER);
 

@@ -155,11 +155,6 @@ LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
 {
   mCurrentCallbackInfo.Callback = aCallback;
   mCurrentCallbackInfo.CallbackData = aCallbackData;
-
-  // The results of our drawing always go directly into a pixel buffer,
-  // so we don't need to pass any global transform here.
-  mRoot->ComputeEffectiveTransforms(gfx3DMatrix());
-
   Render();
   /* Clean this out for sanity */
   mCurrentCallbackInfo.Callback = NULL;
@@ -259,17 +254,6 @@ LayerManagerD3D9::CreateOptimalSurface(const gfxIntSize &aSize,
 #else
   return LayerManager::CreateOptimalSurface(aSize, aFormat);
 #endif
-}
-
-void
-LayerManagerD3D9::ReportFailure(const nsACString &aMsg, HRESULT aCode)
-{
-  // We could choose to abort here when hr == E_OUTOFMEMORY.
-  nsCString msg;
-  msg.Append(aMsg);
-  msg.AppendLiteral(" Error code: ");
-  msg.AppendInt(PRUint32(aCode));
-  NS_WARNING(msg.BeginReading());
 }
 
 void

@@ -117,9 +117,13 @@ Class js::regexp_statics_class = {
 static void
 SwapObjectRegExp(JSContext *cx, JSObject *obj, RegExp &newRegExp)
 {
-    RegExp *oldRegExp = RegExp::extractFrom(obj);
-    obj->setPrivate(&newRegExp);
-    obj->zeroRegExpLastIndex();
+    RegExp *oldRegExp;
+    {
+        AutoObjectLocker lock(cx, obj);
+        oldRegExp = RegExp::extractFrom(obj);
+        obj->setPrivate(&newRegExp);
+        obj->zeroRegExpLastIndex();
+    }
     if (oldRegExp)
         oldRegExp->decref(cx);
 }
@@ -298,6 +302,7 @@ RegExp::createFlagged(JSContext *cx, JSString *str, JSString *opt)
             if (!obj)                                                          \
                 return true;                                                   \
         }                                                                      \
+        AutoObjectLocker(cx, obj);                                             \
         RegExp *re = RegExp::extractFrom(obj);                                 \
         code;                                                                  \
         return true;                                                           \
@@ -393,7 +398,7 @@ regexp_resolve(JSContext *cx, JSObject *obj, jsid id, uint32 flags, JSObject **o
         code;                                                                   \
     }
 
-DEFINE_STATIC_GETTER(static_input_getter,        return res->createPendingInput(cx, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_input_getter,        return res->createInput(cx, Valueify(vp)))
 DEFINE_STATIC_GETTER(static_multiline_getter,    *vp = BOOLEAN_TO_JSVAL(res->multiline());
                                                  return true)
 DEFINE_STATIC_GETTER(static_lastMatch_getter,    return res->createLastMatch(cx, Valueify(vp)))
@@ -401,15 +406,15 @@ DEFINE_STATIC_GETTER(static_lastParen_getter,    return res->createLastParen(cx,
 DEFINE_STATIC_GETTER(static_leftContext_getter,  return res->createLeftContext(cx, Valueify(vp)))
 DEFINE_STATIC_GETTER(static_rightContext_getter, return res->createRightContext(cx, Valueify(vp)))
 
-DEFINE_STATIC_GETTER(static_paren1_getter,       return res->createParen(cx, 1, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren2_getter,       return res->createParen(cx, 2, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren3_getter,       return res->createParen(cx, 3, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren4_getter,       return res->createParen(cx, 4, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren5_getter,       return res->createParen(cx, 5, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren6_getter,       return res->createParen(cx, 6, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren7_getter,       return res->createParen(cx, 7, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren8_getter,       return res->createParen(cx, 8, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren9_getter,       return res->createParen(cx, 9, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren1_getter,       return res->createParen(cx, 0, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren2_getter,       return res->createParen(cx, 1, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren3_getter,       return res->createParen(cx, 2, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren4_getter,       return res->createParen(cx, 3, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren5_getter,       return res->createParen(cx, 4, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren6_getter,       return res->createParen(cx, 5, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren7_getter,       return res->createParen(cx, 6, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren8_getter,       return res->createParen(cx, 7, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren9_getter,       return res->createParen(cx, 8, Valueify(vp)))
 
 #define DEFINE_STATIC_SETTER(name, code)                                        \
     static JSBool                                                               \
@@ -423,7 +428,7 @@ DEFINE_STATIC_GETTER(static_paren9_getter,       return res->createParen(cx, 9, 
 DEFINE_STATIC_SETTER(static_input_setter,
                      if (!JSVAL_IS_STRING(*vp) && !JS_ConvertValue(cx, *vp, JSTYPE_STRING, vp))
                          return false;
-                     res->setPendingInput(JSVAL_TO_STRING(*vp)))
+                     res->setInput(JSVAL_TO_STRING(*vp)))
 DEFINE_STATIC_SETTER(static_multiline_setter,
                      if (!JSVAL_IS_BOOLEAN(*vp) && !JS_ConvertValue(cx, *vp, JSTYPE_BOOLEAN, vp))
                          return false;
@@ -572,8 +577,10 @@ js_regexp_toString(JSContext *cx, JSObject *obj, Value *vp)
     static const jschar empty_regexp_ucstr[] = {'(', '?', ':', ')', 0};
     if (!InstanceOf(cx, obj, &js_RegExpClass, vp + 2))
         return false;
+    JS_LOCK_OBJ(cx, obj);
     RegExp *re = RegExp::extractFrom(obj);
     if (!re) {
+        JS_UNLOCK_OBJ(cx, obj);
         *vp = StringValue(cx->runtime->emptyString);
         return true;
     }
@@ -589,6 +596,7 @@ js_regexp_toString(JSContext *cx, JSObject *obj, Value *vp)
     uint32 nflags = re->flagCount();
     jschar *chars = (jschar*) cx->malloc((length + nflags + 1) * sizeof(jschar));
     if (!chars) {
+        JS_UNLOCK_OBJ(cx, obj);
         return false;
     }
 
@@ -605,6 +613,7 @@ js_regexp_toString(JSContext *cx, JSObject *obj, Value *vp)
         if (re->sticky())
             chars[length++] = 'y';
     }
+    JS_UNLOCK_OBJ(cx, obj);
     chars[length] = 0;
 
     JSString *str = js_NewString(cx, chars, length);
@@ -652,9 +661,9 @@ EscapeNakedForwardSlashes(JSContext *cx, JSString *unescaped)
 
     if (newChars.length()) {
         size_t len = newChars.length();
-        if (!newChars.append('\0'))
-            return NULL;
         jschar *chars = newChars.extractRawBuffer();
+        if (!chars)
+            return NULL;
         JSString *escaped = js_NewString(cx, chars, len);
         if (!escaped)
             cx->free(chars);
@@ -700,6 +709,7 @@ regexp_compile_sub(JSContext *cx, JSObject *obj, uintN argc, Value *argv, Value 
         }
         RegExp *clone;
         {
+            AutoObjectLocker lock(cx, &sourceObj);
             RegExp *re = RegExp::extractFrom(&sourceObj);
             if (!re)
                 return false;
@@ -748,10 +758,12 @@ regexp_exec_sub(JSContext *cx, JSObject *obj, uintN argc, Value *argv, JSBool te
     bool ok = InstanceOf(cx, obj, &js_RegExpClass, argv);
     if (!ok)
         return JS_FALSE;
-
+    JS_LOCK_OBJ(cx, obj);
     RegExp *re = RegExp::extractFrom(obj);
-    if (!re)
+    if (!re) {
+        JS_UNLOCK_OBJ(cx, obj);
         return JS_TRUE;
+    }
 
     /* NB: we must reach out: after this paragraph, in order to drop re. */
     re->incref(cx);
@@ -770,6 +782,7 @@ regexp_exec_sub(JSContext *cx, JSObject *obj, uintN argc, Value *argv, JSBool te
     } else {
         lastIndex = 0;
     }
+    JS_UNLOCK_OBJ(cx, obj);
 
     /* Now that obj is unlocked, it's safe to (potentially) grab the GC lock. */
     RegExpStatics *res = cx->regExpStatics();
@@ -783,12 +796,11 @@ regexp_exec_sub(JSContext *cx, JSObject *obj, uintN argc, Value *argv, JSBool te
         argv[0] = StringValue(str);
     } else {
         /* Need to grab input from statics. */
-        str = res->getPendingInput();
+        str = res->getInput();
         if (!str) {
-            JSAutoByteString sourceBytes(cx, re->getSource());
-            if (!!sourceBytes) {
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NO_INPUT,
-                                     sourceBytes.ptr(),
+            const char *sourceBytes = js_GetStringBytes(cx, re->getSource());
+            if (sourceBytes) {
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NO_INPUT, sourceBytes,
                                      re->global() ? "g" : "",
                                      re->ignoreCase() ? "i" : "",
                                      re->multiline() ? "m" : "",
@@ -885,7 +897,7 @@ InitRegExpClassCompile(JSContext *cx, JSObject *obj)
 JSObject *
 js_InitRegExpClass(JSContext *cx, JSObject *obj)
 {
-    JSObject *proto = js_InitClass(cx, obj, NULL, &js_RegExpClass, regexp_construct, 2,
+    JSObject *proto = js_InitClass(cx, obj, NULL, &js_RegExpClass, regexp_construct, 1,
                                    NULL, regexp_methods, regexp_static_props, NULL);
     if (!proto)
         return NULL;

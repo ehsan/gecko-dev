@@ -41,7 +41,6 @@
 #include "nsAccCache.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "nsDocAccessible.h"
 #include "nsEventShell.h"
 
 #include "nsITreeSelection.h"
@@ -730,23 +729,25 @@ nsXULTreeGridRowAccessible::GetCellAccessible(nsITreeColumn* aColumn)
   NS_PRECONDITION(aColumn, "No tree column!");
 
   void* key = static_cast<void*>(aColumn);
-  nsAccessible* cachedCell = mAccessibleCache.GetWeak(key);
-  if (cachedCell)
-    return cachedCell;
+  nsRefPtr<nsAccessible> accessible = mAccessibleCache.GetWeak(key);
 
-  nsRefPtr<nsAccessible> cell =
-    new nsXULTreeGridCellAccessibleWrap(mContent, mWeakShell, this, mTree,
-                                        mTreeView, mRow, aColumn);
-  if (cell) {
-    if (mAccessibleCache.Put(key, cell)) {
-      if (GetDocAccessible()->BindToDocument(cell, nsnull))
-        return cell;
+  if (!accessible) {
+    accessible =
+      new nsXULTreeGridCellAccessibleWrap(mContent, mWeakShell, this, mTree,
+                                          mTreeView, mRow, aColumn);
+    if (!accessible)
+      return nsnull;
 
-      mAccessibleCache.Remove(key);
+    if (!accessible->Init()) {
+      accessible->Shutdown();
+      return nsnull;
     }
+
+    if (!mAccessibleCache.Put(key, accessible))
+      return nsnull;
   }
 
-  return nsnull;
+  return accessible;
 }
 
 void
@@ -802,6 +803,18 @@ NS_IMPL_ISUPPORTS_INHERITED2(nsXULTreeGridCellAccessible,
                              nsLeafAccessible,
                              nsIAccessibleTableCell,
                              nsXULTreeGridCellAccessible)
+
+////////////////////////////////////////////////////////////////////////////////
+// nsXULTreeGridCellAccessible: nsIAccessNode implementation
+
+NS_IMETHODIMP
+nsXULTreeGridCellAccessible::GetUniqueID(void **aUniqueID)
+{
+  NS_ENSURE_ARG_POINTER(aUniqueID);
+  *aUniqueID = static_cast<void*>(this);
+
+  return NS_OK;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridCellAccessible: nsIAccessible implementation
@@ -1109,12 +1122,6 @@ nsXULTreeGridCellAccessible::Init()
     mTreeView->GetCellText(mRow, mColumn, mCachedTextEquiv);
 
   return PR_TRUE;
-}
-
-bool
-nsXULTreeGridCellAccessible::IsPrimaryForNode() const
-{
-  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

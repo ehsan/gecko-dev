@@ -1052,3 +1052,12 @@ nsBox::GetDebug(PRBool& aDebug)
 }
 
 #endif
+
+PRBool
+nsBox::GetMouseThrough() const
+{
+  if (mParent && mParent->IsBoxFrame())
+    return mParent->GetMouseThrough();
+
+  return PR_FALSE;
+}

@@ -44,6 +44,7 @@
 #include "AccGroupInfo.h"
 #include "AccIterator.h"
 #include "nsAccUtils.h"
+#include "nsARIAMap.h"
 #include "nsDocAccessible.h"
 #include "nsEventShell.h"
 
@@ -98,7 +99,6 @@
 #include "nsWhitespaceTokenizer.h"
 #include "nsAttrName.h"
 #include "nsNetUtil.h"
-#include "nsIEventStateManager.h"
 
 #ifdef NS_DEBUG
 #include "nsIDOMCharacterData.h"
@@ -293,11 +293,15 @@ NS_IMETHODIMP nsAccessible::GetDescription(nsAString& aDescription)
       PRBool isXUL = mContent->IsXUL();
       if (isXUL) {
         // Try XUL <description control="[id]">description text</description>
-        XULDescriptionIterator iter(GetDocAccessible(), mContent);
-        nsAccessible* descr = nsnull;
-        while ((descr = iter.Next())) {
+        nsIContent *descriptionContent =
+          nsCoreUtils::FindNeighbourPointingToNode(mContent,
+                                                   nsAccessibilityAtoms::control,
+                                                   nsAccessibilityAtoms::description);
+
+        if (descriptionContent) {
+          // We have a description content node
           nsTextEquivUtils::
-            AppendTextEquivFromContent(this, descr->GetContent(), &description);
+            AppendTextEquivFromContent(this, descriptionContent, &description);
         }
       }
       if (description.IsEmpty()) {
@@ -388,23 +392,11 @@ nsAccessible::GetKeyboardShortcut(nsAString& aAccessKey)
 
   PRUint32 key = nsCoreUtils::GetAccessKeyFor(mContent);
   if (!key && mContent->IsElement()) {
-    nsAccessible* label = nsnull;
-
-    // Copy access key from label node.
-    if (mContent->IsHTML()) {
-      // Unless it is labeled via an ancestor <label>, in which case that would
-      // be redundant.
-      HTMLLabelIterator iter(GetDocAccessible(), mContent,
-                             HTMLLabelIterator::eSkipAncestorLabel);
-      label = iter.Next();
-
-    } else if (mContent->IsXUL()) {
-      XULLabelIterator iter(GetDocAccessible(), mContent);
-      label = iter.Next();
-    }
-
-    if (label)
-      key = nsCoreUtils::GetAccessKeyFor(label->GetContent());
+    // Copy access key from label node unless it is labeled
+    // via an ancestor <label>, in which case that would be redundant
+    nsCOMPtr<nsIContent> labelContent(nsCoreUtils::GetLabelContent(mContent));
+    if (labelContent && !nsCoreUtils::IsAncestorOf(labelContent, mContent))
+      key = nsCoreUtils::GetAccessKeyFor(labelContent);
   }
 
   if (!key)
@@ -473,6 +465,9 @@ nsAccessible::GetFirstChild(nsIAccessible **aFirstChild)
 {
   NS_ENSURE_ARG_POINTER(aFirstChild);
   *aFirstChild = nsnull;
+
+  if (gIsCacheDisabled)
+    InvalidateChildren();
 
   PRInt32 childCount = GetChildCount();
   NS_ENSURE_TRUE(childCount != -1, NS_ERROR_FAILURE);
@@ -690,23 +685,24 @@ nsAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   if (aExtraState)
     *aExtraState = 0;
 
-  nsEventStates intrinsicState = mContent->IntrinsicState();
-
-  if (intrinsicState.HasState(NS_EVENT_STATE_INVALID))
-    *aState |= nsIAccessibleStates::STATE_INVALID;
-
-  if (intrinsicState.HasState(NS_EVENT_STATE_REQUIRED))
-    *aState |= nsIAccessibleStates::STATE_REQUIRED;
-
-  PRBool disabled = mContent->IsHTML() ? 
-    (intrinsicState.HasState(NS_EVENT_STATE_DISABLED)) :
-    (mContent->AttrValueIs(kNameSpaceID_None,
-                           nsAccessibilityAtoms::disabled,
-                           nsAccessibilityAtoms::_true,
-                           eCaseMatters));
-
-  // Set unavailable state based on disabled state, otherwise set focus states
-  if (disabled) {
+  // Set STATE_UNAVAILABLE state based on disabled attribute
+  // The disabled attribute is mostly used in XUL elements and HTML forms, but
+  // if someone sets it on another attribute, 
+  // it seems reasonable to consider it unavailable
+  PRBool isDisabled;
+  if (mContent->IsHTML()) {
+    // In HTML, just the presence of the disabled attribute means it is disabled,
+    // therefore disabled="false" indicates disabled!
+    isDisabled = mContent->HasAttr(kNameSpaceID_None,
+                                   nsAccessibilityAtoms::disabled);
+  }
+  else {
+    isDisabled = mContent->AttrValueIs(kNameSpaceID_None,
+                                       nsAccessibilityAtoms::disabled,
+                                       nsAccessibilityAtoms::_true,
+                                       eCaseMatters);
+  }
+  if (isDisabled) {
     *aState |= nsIAccessibleStates::STATE_UNAVAILABLE;
   }
   else if (mContent->IsElement()) {
@@ -989,49 +985,39 @@ void nsAccessible::GetBoundsRect(nsRect& aTotalBounds, nsIFrame** aBoundingFrame
 
 
 /* void getBounds (out long x, out long y, out long width, out long height); */
-NS_IMETHODIMP
-nsAccessible::GetBounds(PRInt32* aX, PRInt32* aY,
-                        PRInt32* aWidth, PRInt32* aHeight)
+NS_IMETHODIMP nsAccessible::GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height)
 {
-  NS_ENSURE_ARG_POINTER(aX);
-  *aX = 0;
-  NS_ENSURE_ARG_POINTER(aY);
-  *aY = 0;
-  NS_ENSURE_ARG_POINTER(aWidth);
-  *aWidth = 0;
-  NS_ENSURE_ARG_POINTER(aHeight);
-  *aHeight = 0;
-
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
-  // Flush layout so that all the frame construction, reflow, and styles are
-  // up-to-date since we rely on frames, and styles when calculating state.
-  // We don't flush the display because we don't care about painting.
-  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  presShell->FlushPendingNotifications(Flush_Layout);
-
-  // This routine will get the entire rectangle for all the frames in this node.
+  // This routine will get the entire rectange for all the frames in this node
   // -------------------------------------------------------------------------
   //      Primary Frame for node
   //  Another frame, same node                <- Example
   //  Another frame, same node
 
-  nsRect unionRectTwips;
-  nsIFrame* boundingFrame = nsnull;
-  GetBoundsRect(unionRectTwips, &boundingFrame);   // Unions up all primary frames for this node and all siblings after it
-  NS_ENSURE_STATE(boundingFrame);
+  nsPresContext *presContext = GetPresContext();
+  if (!presContext)
+  {
+    *x = *y = *width = *height = 0;
+    return NS_ERROR_FAILURE;
+  }
 
-  nsPresContext* presContext = presShell->GetPresContext();
-  *aX = presContext->AppUnitsToDevPixels(unionRectTwips.x);
-  *aY = presContext->AppUnitsToDevPixels(unionRectTwips.y);
-  *aWidth = presContext->AppUnitsToDevPixels(unionRectTwips.width);
-  *aHeight = presContext->AppUnitsToDevPixels(unionRectTwips.height);
+  nsRect unionRectTwips;
+  nsIFrame* aBoundingFrame = nsnull;
+  GetBoundsRect(unionRectTwips, &aBoundingFrame);   // Unions up all primary frames for this node and all siblings after it
+  if (!aBoundingFrame) {
+    *x = *y = *width = *height = 0;
+    return NS_ERROR_FAILURE;
+  }
+
+  *x      = presContext->AppUnitsToDevPixels(unionRectTwips.x); 
+  *y      = presContext->AppUnitsToDevPixels(unionRectTwips.y);
+  *width  = presContext->AppUnitsToDevPixels(unionRectTwips.width);
+  *height = presContext->AppUnitsToDevPixels(unionRectTwips.height);
 
   // We have the union of the rectangle, now we need to put it in absolute screen coords
-  nsIntRect orgRectPixels = boundingFrame->GetScreenRectExternal();
-  *aX += orgRectPixels.x;
-  *aY += orgRectPixels.y;
+
+  nsIntRect orgRectPixels = aBoundingFrame->GetScreenRectExternal();
+  *x += orgRectPixels.x;
+  *y += orgRectPixels.y;
 
   return NS_OK;
 }
@@ -1144,23 +1130,21 @@ nsAccessible::TakeFocus()
 nsresult
 nsAccessible::GetHTMLName(nsAString& aLabel)
 {
-  nsAutoString label;
-
-  nsAccessible* labelAcc = nsnull;
-  HTMLLabelIterator iter(GetDocAccessible(), mContent);
-  while ((labelAcc = iter.Next())) {
-    nsresult rv = nsTextEquivUtils::
-      AppendTextEquivFromContent(this, labelAcc->GetContent(), &label);
+  nsIContent *labelContent = nsCoreUtils::GetHTMLLabelContent(mContent);
+  if (labelContent) {
+    nsAutoString label;
+    nsresult rv =
+      nsTextEquivUtils::AppendTextEquivFromContent(this, labelContent, &label);
     NS_ENSURE_SUCCESS(rv, rv);
 
     label.CompressWhitespace();
+    if (!label.IsEmpty()) {
+      aLabel = label;
+      return NS_OK;
+    }
   }
 
-  if (label.IsEmpty())
-    return nsTextEquivUtils::GetNameFromSubtree(this, aLabel);
-
-  aLabel = label;
-  return NS_OK;
+  return nsTextEquivUtils::GetNameFromSubtree(this, aLabel);
 }
 
 /**
@@ -1207,19 +1191,17 @@ nsAccessible::GetXULName(nsAString& aLabel)
   // CASES #2 and #3 ------ label as a child or <label control="id" ... > </label>
   if (NS_FAILED(rv) || label.IsEmpty()) {
     label.Truncate();
+    nsIContent *labelContent =
+      nsCoreUtils::FindNeighbourPointingToNode(mContent,
+                                               nsAccessibilityAtoms::control,
+                                               nsAccessibilityAtoms::label);
 
-    nsAccessible* labelAcc = nsnull;
-    XULLabelIterator iter(GetDocAccessible(), mContent);
-    while ((labelAcc = iter.Next())) {
-      nsCOMPtr<nsIDOMXULLabelElement> xulLabel =
-        do_QueryInterface(labelAcc->GetContent());
-      // Check if label's value attribute is used
-      if (xulLabel && NS_SUCCEEDED(xulLabel->GetValue(label)) && label.IsEmpty()) {
-        // If no value attribute, a non-empty label must contain
-        // children that define its text -- possibly using HTML
-        nsTextEquivUtils::
-          AppendTextEquivFromContent(this, labelAcc->GetContent(), &label);
-      }
+    nsCOMPtr<nsIDOMXULLabelElement> xulLabel(do_QueryInterface(labelContent));
+    // Check if label's value attribute is used
+    if (xulLabel && NS_SUCCEEDED(xulLabel->GetValue(label)) && label.IsEmpty()) {
+      // If no value attribute, a non-empty label must contain
+      // children that define its text -- possibly using HTML
+      nsTextEquivUtils::AppendTextEquivFromContent(this, labelContent, &label);
     }
   }
 
@@ -1823,10 +1805,11 @@ nsAccessible::GetKeyBindings(PRUint8 aActionIndex,
 }
 
 PRUint32
-nsAccessible::ARIARoleInternal()
+nsAccessible::Role()
 {
-  NS_PRECONDITION(mRoleMapEntry && mRoleMapEntry->roleRule == kUseMapRole,
-                  "ARIARoleInternal should only be called when ARIA role overrides!");
+  // No ARIA role or it doesn't suppress role from native markup.
+  if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
+    return NativeRole();
 
   // XXX: these unfortunate exceptions don't fit into the ARIA table. This is
   // where the accessible role depends on both the role and ARIA state.
@@ -2047,28 +2030,25 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
 
   // Relationships are defined on the same content node that the role would be
   // defined on.
-  nsresult rv = NS_OK_NO_RELATION_TARGET;
+  nsresult rv;
   switch (aRelationType)
   {
   case nsIAccessibleRelation::RELATION_LABEL_FOR:
     {
-      RelatedAccIterator iter(GetDocAccessible(), mContent,
-                              nsAccessibilityAtoms::aria_labelledby);
-
-      nsAccessible* related = nsnull;
-      while ((related = iter.Next())) {
-        rv = nsRelUtils::AddTarget(aRelationType, aRelation, related);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-
       if (mContent->Tag() == nsAccessibilityAtoms::label) {
         nsIAtom *IDAttr = mContent->IsHTML() ?
           nsAccessibilityAtoms::_for : nsAccessibilityAtoms::control;
         rv = nsRelUtils::
           AddTargetFromIDRefAttr(aRelationType, aRelation, mContent, IDAttr);
         NS_ENSURE_SUCCESS(rv, rv);
+
+        if (rv != NS_OK_NO_RELATION_TARGET)
+          return NS_OK; // XXX bug 381599, avoid performance problems
       }
-      return rv;
+
+      return nsRelUtils::
+        AddTargetFromNeighbour(aRelationType, aRelation, mContent,
+                               nsAccessibilityAtoms::aria_labelledby);
     }
 
   case nsIAccessibleRelation::RELATION_LABELLED_BY:
@@ -2078,24 +2058,12 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
                                 nsAccessibilityAtoms::aria_labelledby);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      nsAccessible* label = nsnull;
-      if (mContent->IsHTML()) {
-        HTMLLabelIterator iter(GetDocAccessible(), mContent);
-        while ((label = iter.Next())) {
-          rv = nsRelUtils::AddTarget(aRelationType, aRelation, label);
-          NS_ENSURE_SUCCESS(rv, rv);
-        }
-        return rv;
-      }
+      if (rv != NS_OK_NO_RELATION_TARGET)
+        return NS_OK; // XXX bug 381599, avoid performance problems
 
-      if (mContent->IsXUL()) {
-        XULLabelIterator iter(GetDocAccessible(), mContent);
-        while ((label = iter.Next())) {
-          rv = nsRelUtils::AddTarget(aRelationType, aRelation, label);
-          NS_ENSURE_SUCCESS(rv, rv);
-        }
-      }
-      return rv;
+      return nsRelUtils::
+        AddTargetFromContent(aRelationType, aRelation,
+                             nsCoreUtils::GetLabelContent(mContent));
     }
 
   case nsIAccessibleRelation::RELATION_DESCRIBED_BY:
@@ -2105,28 +2073,24 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
                                 nsAccessibilityAtoms::aria_describedby);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      if (mContent->IsXUL()) {
-        XULDescriptionIterator iter(GetDocAccessible(), mContent);
-        nsAccessible* descr = nsnull;
-        while ((descr = iter.Next())) {
-          rv = nsRelUtils::AddTarget(aRelationType, aRelation, descr);
-          NS_ENSURE_SUCCESS(rv, rv);
-        }
-      }
+      if (rv != NS_OK_NO_RELATION_TARGET)
+        return NS_OK; // XXX bug 381599, avoid performance problems
 
-      return rv;
+      return nsRelUtils::
+        AddTargetFromNeighbour(aRelationType, aRelation, mContent,
+                               nsAccessibilityAtoms::control,
+                               nsAccessibilityAtoms::description);
     }
 
   case nsIAccessibleRelation::RELATION_DESCRIPTION_FOR:
     {
-      RelatedAccIterator iter(GetDocAccessible(), mContent,
-                              nsAccessibilityAtoms::aria_describedby);
+      rv = nsRelUtils::
+        AddTargetFromNeighbour(aRelationType, aRelation, mContent,
+                               nsAccessibilityAtoms::aria_describedby);
+      NS_ENSURE_SUCCESS(rv, rv);
 
-      nsAccessible* related = nsnull;
-      while ((related = iter.Next())) {
-        rv = nsRelUtils::AddTarget(aRelationType, aRelation, related);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
+      if (rv != NS_OK_NO_RELATION_TARGET)
+        return NS_OK; // XXX bug 381599, avoid performance problems
 
       if (mContent->Tag() == nsAccessibilityAtoms::description &&
           mContent->IsXUL()) {
@@ -2138,23 +2102,18 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
                                  nsAccessibilityAtoms::control);
       }
 
-      return rv;
+      return NS_OK;
     }
 
   case nsIAccessibleRelation::RELATION_NODE_CHILD_OF:
     {
-      RelatedAccIterator iter(GetDocAccessible(), mContent,
-                              nsAccessibilityAtoms::aria_owns);
+      rv = nsRelUtils::
+        AddTargetFromNeighbour(aRelationType, aRelation, mContent,
+                               nsAccessibilityAtoms::aria_owns);
+      NS_ENSURE_SUCCESS(rv, rv);
 
-      nsAccessible* related = nsnull;
-      while ((related = iter.Next())) {
-        rv = nsRelUtils::AddTarget(aRelationType, aRelation, related);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-
-      // Got relation from aria-owns, don't calculate it from native markup.
       if (rv != NS_OK_NO_RELATION_TARGET)
-        return NS_OK;
+        return NS_OK; // XXX bug 381599, avoid performance problems
 
       // This is an ARIA tree or treegrid that doesn't use owns, so we need to
       // get the parent the hard way.
@@ -2187,20 +2146,14 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
         }
       }
 
-      return rv;
+      return NS_OK;
     }
 
   case nsIAccessibleRelation::RELATION_CONTROLLED_BY:
     {
-      RelatedAccIterator iter(GetDocAccessible(), mContent,
-                              nsAccessibilityAtoms::aria_controls);
-
-      nsAccessible* related = nsnull;
-      while ((related = iter.Next())) {
-        rv = nsRelUtils::AddTarget(aRelationType, aRelation, related);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-      return rv;
+      return nsRelUtils::
+        AddTargetFromNeighbour(aRelationType, aRelation, mContent,
+                               nsAccessibilityAtoms::aria_controls);
     }
 
   case nsIAccessibleRelation::RELATION_CONTROLLER_FOR:
@@ -2210,14 +2163,13 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
                                 nsAccessibilityAtoms::aria_controls);
       NS_ENSURE_SUCCESS(rv,rv);
 
-      HTMLOutputIterator iter(GetDocAccessible(), mContent);
-      nsAccessible* related = nsnull;
-      while ((related = iter.Next())) {
-        rv = nsRelUtils::AddTarget(aRelationType, aRelation, related);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
+      if (rv != NS_OK_NO_RELATION_TARGET)
+        return NS_OK; // XXX bug 381599, avoid performance problems      
 
-      return rv;
+      return nsRelUtils::
+        AddTargetFromNeighbour(aRelationType, aRelation, mContent,
+                               nsAccessibilityAtoms::_for,
+                               nsAccessibilityAtoms::output);
     }
 
   case nsIAccessibleRelation::RELATION_FLOWS_TO:
@@ -2229,15 +2181,9 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
 
   case nsIAccessibleRelation::RELATION_FLOWS_FROM:
     {
-      RelatedAccIterator iter(GetDocAccessible(), mContent,
-                              nsAccessibilityAtoms::aria_flowto);
-
-      nsAccessible* related = nsnull;
-      while ((related = iter.Next())) {
-        rv = nsRelUtils::AddTarget(aRelationType, aRelation, related);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-      return rv;
+      return nsRelUtils::
+        AddTargetFromNeighbour(aRelationType, aRelation, mContent,
+                               nsAccessibilityAtoms::aria_flowto);
     }
 
   case nsIAccessibleRelation::RELATION_DEFAULT_BUTTON:
@@ -2412,8 +2358,7 @@ nsAccessible::DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex)
 
   // Scroll into view.
   presShell->ScrollContentIntoView(aContent, NS_PRESSHELL_SCROLL_ANYWHERE,
-                                   NS_PRESSHELL_SCROLL_ANYWHERE,
-                                   nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
+                                   NS_PRESSHELL_SCROLL_ANYWHERE);
 
   // Fire mouse down and mouse up events.
   PRBool res = nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, presShell,
@@ -2668,14 +2613,34 @@ nsAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset, PRUint32 aLe
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public methods
 
+PRBool
+nsAccessible::Init()
+{
+  if (!nsAccessNodeWrap::Init())
+    return PR_FALSE;
+
+  nsDocAccessible *docAcc =
+    GetAccService()->GetDocAccessible(mContent->GetOwnerDoc());
+  NS_ASSERTION(docAcc, "Cannot cache new nsAccessible!");
+  if (!docAcc)
+    return PR_FALSE;
+
+  void *uniqueID = nsnull;
+  GetUniqueID(&uniqueID);
+
+  return docAcc->CacheAccessible(uniqueID, this);
+}
+
 void
 nsAccessible::Shutdown()
 {
   // Invalidate the child count and pointers to other accessibles, also make
   // sure none of its children point to this parent
   InvalidateChildren();
-  if (mParent)
-    mParent->RemoveChild(this);
+  if (mParent) {
+    mParent->InvalidateChildren();
+    UnbindFromParent();
+  }
 
   nsAccessNodeWrap::Shutdown();
 }
@@ -2724,14 +2689,14 @@ nsAccessible::BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent)
 {
   NS_PRECONDITION(aParent, "This method isn't used to set null parent!");
 
-  if (mParent) {
-    if (mParent != aParent) {
-      NS_ERROR("Adopting child!");
+  if (mParent && mParent != aParent) {
+    // Adopt a child -- we allow this now. the new parent
+    // may be a dom node which wasn't previously accessible but now is.
+    // The old parent's children now need to be invalidated, since 
+    // it no longer owns the child, the new parent does
+    NS_ASSERTION(PR_FALSE, "Adopting child!");
+    if (mParent)
       mParent->InvalidateChildren();
-    } else {
-      NS_ERROR("Binding to the same parent!");
-      return;
-    }
   }
 
   mParent = aParent;
@@ -2764,9 +2729,6 @@ nsAccessible::InvalidateChildren()
 PRBool
 nsAccessible::AppendChild(nsAccessible* aChild)
 {
-  if (!aChild)
-    return PR_FALSE;
-
   if (!mChildren.AppendElement(aChild))
     return PR_FALSE;
 
@@ -2780,16 +2742,11 @@ nsAccessible::AppendChild(nsAccessible* aChild)
 PRBool
 nsAccessible::InsertChildAt(PRUint32 aIndex, nsAccessible* aChild)
 {
-  if (!aChild)
-    return PR_FALSE;
-
   if (!mChildren.InsertElementAt(aIndex, aChild))
     return PR_FALSE;
 
-  for (PRUint32 idx = aIndex + 1; idx < mChildren.Length(); idx++) {
-    NS_ASSERTION(mChildren[idx]->mIndexInParent == idx - 1, "Accessible child index doesn't match");
-    mChildren[idx]->mIndexInParent = idx;
-  }
+  for (PRUint32 idx = aIndex + 1; idx < mChildren.Length(); idx++)
+    mChildren[idx]->mIndexInParent++;
 
   if (nsAccUtils::IsText(aChild))
     mChildrenFlags = eMixedChildren;
@@ -2803,28 +2760,16 @@ nsAccessible::InsertChildAt(PRUint32 aIndex, nsAccessible* aChild)
 PRBool
 nsAccessible::RemoveChild(nsAccessible* aChild)
 {
-  if (!aChild)
+  if (aChild->mParent != this || aChild->mIndexInParent == -1)
     return PR_FALSE;
 
-  PRInt32 index = aChild->mIndexInParent;
-  if (aChild->mParent != this || index == -1)
-    return PR_FALSE;
+  for (PRUint32 idx = aChild->mIndexInParent + 1; idx < mChildren.Length(); idx++)
+    mChildren[idx]->mIndexInParent--;
 
-  if (index >= mChildren.Length() || mChildren[index] != aChild) {
-    NS_ERROR("Child is bound to parent but parent hasn't this child at its index!");
-    aChild->UnbindFromParent();
-    return PR_FALSE;
-  }
-
-  for (PRUint32 idx = index + 1; idx < mChildren.Length(); idx++) {
-    NS_ASSERTION(mChildren[idx]->mIndexInParent == idx, "Accessible child index doesn't match");
-    mChildren[idx]->mIndexInParent = idx - 1;
-  }
-
-  aChild->UnbindFromParent();
-  mChildren.RemoveElementAt(index);
+  mChildren.RemoveElementAt(aChild->mIndexInParent);
   mEmbeddedObjCollector = nsnull;
 
+  aChild->UnbindFromParent();
   return PR_TRUE;
 }
 
@@ -2945,6 +2890,23 @@ nsAccessible::GetIndexOfEmbeddedChild(nsAccessible* aChild)
 
   return GetIndexOf(aChild);
 }
+
+#ifdef DEBUG
+PRBool
+nsAccessible::IsInCache()
+{
+  nsDocAccessible *docAccessible =
+    GetAccService()->GetDocAccessible(mContent->GetOwnerDoc());
+  if (!docAccessible)
+    return nsnull;
+
+  void *uniqueID = nsnull;
+  GetUniqueID(&uniqueID);
+
+  return docAccessible->GetCachedAccessible(uniqueID) ? PR_TRUE : PR_FALSE;
+}
+#endif
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // HyperLinkAccessible methods
@@ -3216,16 +3178,7 @@ nsAccessible::EnsureChildren()
 
   // State is embedded children until text leaf accessible is appended.
   mChildrenFlags = eEmbeddedChildren; // Prevent reentry
-
-  // Notify the document about caching status.
-  nsDocAccessible* document = GetDocAccessible();
-  if (document)
-    document->NotifyOfCachingStart(this);
-
   CacheChildren();
-
-  if (document)
-    document->NotifyOfCachingEnd(this);
 
   return PR_FALSE;
 }

@@ -1101,10 +1101,6 @@ nsDownloadManager::GetActiveDownloads(nsISimpleEnumerator **aResult)
   return NS_NewArrayEnumerator(aResult, mCurrentDownloads);
 }
 
-/**
- * For platforms where helper apps use the downloads directory (i.e. mobile),
- * this should be kept in sync with nsExternalHelperAppService.cpp
- */
 NS_IMETHODIMP
 nsDownloadManager::GetDefaultDownloadsDirectory(nsILocalFile **aResult)
 {
@@ -1188,7 +1184,7 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsILocalFile **aResult)
       rv = NS_NewNativeLocalFile(nsDependentCString(sdcard),
                                  PR_TRUE, getter_AddRefs(downloadDir));
       NS_ENSURE_SUCCESS(rv, rv);
-      rv = downloadDir->Append(NS_LITERAL_STRING("downloads"));
+      rv = downloadDir->Append(NS_LITERAL_STRING("download"));
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
@@ -1514,15 +1510,6 @@ nsDownloadManager::CancelDownload(PRUint32 aID)
     dl->mTempFile->Exists(&exists);
     if (exists)
       dl->mTempFile->Remove(PR_FALSE);
-  }
-
-  nsCOMPtr<nsILocalFile> file;
-  if (NS_SUCCEEDED(dl->GetTargetFile(getter_AddRefs(file))))
-  {
-    PRBool exists;
-    file->Exists(&exists);
-    if (exists)
-      file->Remove(PR_FALSE);
   }
 
   nsresult rv = dl->SetState(nsIDownloadManager::DOWNLOAD_CANCELED);
@@ -2782,6 +2769,12 @@ nsDownload::OpenWithApplication()
   // First move the temporary file to the target location
   nsCOMPtr<nsILocalFile> target;
   nsresult rv = GetTargetFile(getter_AddRefs(target));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Make sure the suggested name is unique since in this case we don't
+  // have a file name that was guaranteed to be unique by going through
+  // the File Save dialog
+  rv = target->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Move the temporary file to the target location

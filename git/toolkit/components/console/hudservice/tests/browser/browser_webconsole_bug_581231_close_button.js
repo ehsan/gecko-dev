@@ -10,35 +10,39 @@
 
 // Tests that the Web Console close button functions.
 
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource:///modules/HUDService.jsm");
+
 const TEST_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-console.html";
 
 function test() {
-  addTab(TEST_URI);
-  browser.addEventListener("DOMContentLoaded", testCloseButton, false);
+  waitForExplicitFinish();
+  content.location.href = TEST_URI;
+  waitForFocus(onFocus);
+}
+
+function onFocus() {
+  let tabBrowser = gBrowser.getBrowserForTab(gBrowser.selectedTab);
+  tabBrowser.addEventListener("DOMContentLoaded", testCloseButton, false);
 }
 
 function testCloseButton() {
-  browser.removeEventListener("DOMContentLoaded", testCloseButton, false);
+  let tabBrowser = gBrowser.getBrowserForTab(gBrowser.selectedTab);
+  tabBrowser.removeEventListener("DOMContentLoaded", testCloseButton, false);
 
-  openConsole();
+  HUDService.activateHUDForContext(gBrowser.selectedTab);
 
-  hudId = HUDService.displaysIndex()[0];
-  hudBox = HUDService.getHeadsUpDisplay(hudId);
+  let hudId = HUDService.displaysIndex()[0];
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
 
-  HUDService.disableAnimation(hudId);
-  executeSoon(function() {
-    let closeButton = hudBox.querySelector(".webconsole-close-button");
-    ok(closeButton != null, "we have the close button");
+  let closeButton = hudBox.querySelector(".jsterm-close-button");
+  ok(closeButton != null, "we have the close button");
 
-    // XXX: ASSERTION: ###!!! ASSERTION: XPConnect is being called on a scope without a 'Components' property!: 'Error', file /home/ddahl/code/moz/mozilla-central/mozilla-central/js/src/xpconnect/src/xpcwrappednativescope.cpp, line 795
+  EventUtils.synthesizeMouse(closeButton, 0, 0, {});
 
-    EventUtils.synthesizeMouse(closeButton, 0, 0, {});
+  ok(!(hudId in HUDService.windowRegistry), "the console is closed when the " +
+     "close button is pressed");
 
-    executeSoon(function (){
-      ok(!(hudId in HUDService.windowRegistry), "the console is closed when " +
-         "the close button is pressed");
-      closeButton = null;
-      finishTest();
-    });
-  });
+  finish();
 }
+

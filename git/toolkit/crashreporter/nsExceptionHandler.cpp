@@ -78,8 +78,6 @@
 #  include "client/linux/crash_generation/crash_generation_server.h"
 #endif
 #include "client/linux/handler/exception_handler.h"
-#include "client/linux/minidump_writer/linux_dumper.h"
-#include "client/linux/minidump_writer/minidump_writer.h"
 #include <fcntl.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -105,8 +103,6 @@
 #include "nsInterfaceHashtable.h"
 #include "prprf.h"
 #include "nsIXULAppInfo.h"
-#include <map>
-#include <vector>
 
 #if defined(XP_MACOSX)
 CFStringRef reporterClientAppID = CFSTR("org.mozilla.crashreporter");
@@ -211,7 +207,7 @@ static char* childCrashNotifyPipe;
 #  elif defined(XP_LINUX)
 static int serverSocketFd = -1;
 static int clientSocketFd = -1;
-static const int kMagicChildCrashReportFd = 4;
+static const int kMagicChildCrashReportFd = 42;
 
 #  endif
 
@@ -244,39 +240,6 @@ static cpu_type_t pref_cpu_types[2] = {
                                  CPU_TYPE_ANY };
 
 static posix_spawnattr_t spawnattr;
-#endif
-
-#if defined(__ANDROID__)
-// Android builds use a custom library loader,
-// so the embedding will provide a list of shared
-// libraries that are mapped into anonymous mappings.
-typedef struct {
-  std::string name;
-  std::string debug_id;
-  uintptr_t   start_address;
-  size_t      length;
-  size_t      file_offset;
-} mapping_info;
-static std::vector<mapping_info> library_mappings;
-typedef std::map<PRUint32,google_breakpad::MappingList> MappingMap;
-static MappingMap child_library_mappings;
-
-void FileIDToGUID(const char* file_id, u_int8_t guid[sizeof(MDGUID)])
-{
-  for (int i = 0; i < sizeof(MDGUID); i++) {
-    int c;
-    sscanf(file_id, "%02X", &c);
-    guid[i] = (u_int8_t)(c & 0xFF);
-    file_id += 2;
-  }
-  // GUIDs are stored in network byte order.
-  uint32_t* data1 = reinterpret_cast<uint32_t*>(guid);
-  *data1 = htonl(*data1);
-  uint16_t* data2 = reinterpret_cast<uint16_t*>(guid + 4);
-  *data2 = htons(*data2);
-  uint16_t* data3 = reinterpret_cast<uint16_t*>(guid + 6);
-  *data3 = htons(*data3);
-}
 #endif
 
 #ifdef XP_LINUX
@@ -497,22 +460,11 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
   if (pid == -1)
     return false;
   else if (pid == 0) {
-#if !defined(__ANDROID__)
     // need to clobber this, as libcurl might load NSS,
     // and we want it to load the system NSS.
     unsetenv("LD_LIBRARY_PATH");
     (void) execl(crashReporterPath,
                  crashReporterPath, minidumpPath, (char*)0);
-#else
-    // Invoke the reportCrash activity using am
-    (void) execlp("/system/bin/am",
-                 "/system/bin/am",
-                 "start",
-                 "-a", "org.mozilla.gecko.reportCrash",
-                 "-n", crashReporterPath,
-                 "--es", "minidumpPath", minidumpPath,
-                 (char*)0);
-#endif
     _exit(1);
   }
 #endif // XP_MACOSX
@@ -605,18 +557,11 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
   exePath->GetPath(crashReporterPath_temp);
 
   crashReporterPath = ToNewUnicode(crashReporterPath_temp);
-#elif !defined(__ANDROID__)
+#else
   nsCString crashReporterPath_temp;
   exePath->GetNativePath(crashReporterPath_temp);
 
   crashReporterPath = ToNewCString(crashReporterPath_temp);
-#else
-  // On Android, we launch using the application package name
-  // instead of a filename, so use MOZ_APP_NAME to do that here.
-  //TODO: don't hardcode org.mozilla here, so other vendors can
-  // ship XUL apps with different package names on Android?
-  nsCString package("org.mozilla." MOZ_APP_NAME "/.CrashReporter");
-  crashReporterPath = ToNewCString(package);
 #endif
 
   // get temp path to use for minidump path
@@ -644,13 +589,6 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
     return NS_ERROR_FAILURE;
 
   tempPath = path;
-
-#elif defined(__ANDROID__)
-  // GeckoAppShell sets this in the environment
-  const char *tempenv = PR_GetEnv("TMPDIR");
-  if (!tempenv)
-    return NS_ERROR_FAILURE;
-  nsCString tempPath(tempenv);
 
 #elif defined(XP_UNIX)
   // we assume it's always /tmp on unix systems
@@ -718,18 +656,6 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
                                                         &keyExistsAndHasValidFormat);
   if (keyExistsAndHasValidFormat)
     showOSCrashReporter = prefValue;
-#endif
-
-#if defined(__ANDROID__)
-  for (unsigned int i = 0; i < library_mappings.size(); i++) {
-    u_int8_t guid[sizeof(MDGUID)];
-    FileIDToGUID(library_mappings[i].debug_id.c_str(), guid);
-    gExceptionHandler->AddMappingInfo(library_mappings[i].name,
-                                      guid,
-                                      library_mappings[i].start_address,
-                                      library_mappings[i].length,
-                                      library_mappings[i].file_offset);
-  }
 #endif
 
   return NS_OK;
@@ -1035,7 +961,7 @@ static PLDHashOperator EnumerateEntries(const nsACString& key,
 
 nsresult AnnotateCrashReport(const nsACString& key, const nsACString& data)
 {
-  if (!GetEnabled())
+  if (!gExceptionHandler)
     return NS_ERROR_NOT_INITIALIZED;
 
   if (DoFindInReadable(key, NS_LITERAL_CSTRING("=")) ||
@@ -1067,7 +993,7 @@ nsresult AnnotateCrashReport(const nsACString& key, const nsACString& data)
 
 nsresult AppendAppNotesToCrashReport(const nsACString& data)
 {
-  if (!GetEnabled())
+  if (!gExceptionHandler)
     return NS_ERROR_NOT_INITIALIZED;
 
   if (DoFindInReadable(data, NS_LITERAL_CSTRING("\0")))
@@ -1624,24 +1550,6 @@ OnChildProcessDumpRequested(void* aContext,
 #endif
                      getter_AddRefs(minidump));
 
-#if defined(__ANDROID__)
-  // Do dump generation here since the CrashGenerationServer doesn't
-  // have access to the library mappings.
-  MappingMap::const_iterator iter = 
-    child_library_mappings.find(aClientInfo->pid_);
-  if (iter == child_library_mappings.end()) {
-    NS_WARNING("No library mappings found for child, can't write minidump!");
-    return;
-  }
-
-  if (!google_breakpad::WriteMinidump(aFilePath->c_str(),
-                                      aClientInfo->pid_,
-                                      aClientInfo->crash_context,
-                                      aClientInfo->crash_context_size,
-                                      iter->second))
-    return;
-#endif
-
   if (!WriteExtraForMinidump(minidump,
                              Blacklist(kSubprocessBlacklist,
                                        NS_ARRAY_LENGTH(kSubprocessBlacklist)),
@@ -1699,17 +1607,11 @@ OOPInit()
     NS_RUNTIMEABORT("can't create crash reporter socketpair()");
 
   const std::string dumpPath = gExceptionHandler->dump_path();
-  bool generateDumps = true;
-#if defined(__ANDROID__)
-  // On Android, the callback will do dump generation, since it needs
-  // to pass the library mappings.
-  generateDumps = false;
-#endif
   crashServer = new CrashGenerationServer(
     serverSocketFd,
     OnChildProcessDumpRequested, NULL,
     NULL, NULL,                 // we don't care about process exit here
-    generateDumps,
+    true,                       // automatically generate dumps
     &dumpPath);
 
 #elif defined(XP_MACOSX)
@@ -2033,65 +1935,5 @@ UnsetRemoteExceptionHandler()
 }
 
 #endif  // MOZ_IPC
-
-#if defined(__ANDROID__)
-void AddLibraryMapping(const char* library_name,
-                       const char* file_id,
-                       uintptr_t   start_address,
-                       size_t      mapping_length,
-                       size_t      file_offset)
-{
-  if (!gExceptionHandler) {
-    mapping_info info;
-    info.name = library_name;
-    info.debug_id = file_id;
-    info.start_address = start_address;
-    info.length = mapping_length;
-    info.file_offset = file_offset;
-    library_mappings.push_back(info);
-  }
-  else {
-    u_int8_t guid[sizeof(MDGUID)];
-    FileIDToGUID(file_id, guid);
-    gExceptionHandler->AddMappingInfo(library_name,
-                                      guid,
-                                      start_address,
-                                      mapping_length,
-                                      file_offset);
-  }
-}
-
-#ifdef MOZ_IPC
-void AddLibraryMappingForChild(PRUint32    childPid,
-                               const char* library_name,
-                               const char* file_id,
-                               uintptr_t   start_address,
-                               size_t      mapping_length,
-                               size_t      file_offset)
-{
-  if (child_library_mappings.find(childPid) == child_library_mappings.end())
-    child_library_mappings[childPid] = google_breakpad::MappingList();
-  google_breakpad::MappingInfo info;
-  info.start_addr = start_address;
-  info.size = mapping_length;
-  info.offset = file_offset;
-  strcpy(info.name, library_name);
- 
-  std::pair<google_breakpad::MappingInfo, u_int8_t[sizeof(MDGUID)]> mapping;
-  mapping.first = info;
-  u_int8_t guid[sizeof(MDGUID)];
-  FileIDToGUID(file_id, guid);
-  memcpy(mapping.second, guid, sizeof(MDGUID));
-  child_library_mappings[childPid].push_back(mapping);
-}
-
-void RemoveLibraryMappingsForChild(PRUint32 childPid)
-{
-  MappingMap::iterator iter = child_library_mappings.find(childPid);
-  if (iter != child_library_mappings.end())
-    child_library_mappings.erase(iter);
-}
-#endif
-#endif
 
 } // namespace CrashReporter

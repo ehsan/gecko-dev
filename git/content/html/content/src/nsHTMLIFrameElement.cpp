@@ -48,17 +48,15 @@
 #include "nsRuleData.h"
 #include "nsStyleConsts.h"
 
-using namespace mozilla::dom;
-
-class nsHTMLIFrameElement : public nsGenericHTMLFrameElement
-                          , public nsIDOMHTMLIFrameElement
+class nsHTMLIFrameElement : public nsGenericHTMLFrameElement,
+                            public nsIDOMHTMLIFrameElement
 #ifdef MOZ_SVG
-                          , public nsIDOMGetSVGDocument
+                            , public nsIDOMGetSVGDocument
 #endif
 {
 public:
   nsHTMLIFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                      PRUint32 aFromParser = NS_NOT_FROM_PARSER);
   virtual ~nsHTMLIFrameElement();
 
   // nsISupports
@@ -98,7 +96,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(IFrame)
 
 
 nsHTMLIFrameElement::nsHTMLIFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                         FromParser aFromParser)
+                                         PRUint32 aFromParser)
   : nsGenericHTMLFrameElement(aNodeInfo, aFromParser)
 {
 }

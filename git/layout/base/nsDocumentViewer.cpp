@@ -109,6 +109,7 @@
 #include "nsIImageLoadingContent.h"
 #include "nsCopySupport.h"
 #include "nsIDOMHTMLFrameSetElement.h"
+#include "nsIXULWindow.h"
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
 #include "nsXULPopupManager.h"
@@ -1539,7 +1540,6 @@ DocumentViewerImpl::Destroy()
       nsresult rv = mDocument->Sanitize();
       if (NS_FAILED(rv)) {
         // If we failed to sanitize, don't save presentation.
-        // XXX Shouldn't we run all the stuff after the |if (mSHEntry)| then?
         savePresentation = PR_FALSE;
       }
     }
@@ -1561,9 +1561,8 @@ DocumentViewerImpl::Destroy()
     // When the presentation is restored, Open() and InitInternal() will reset
     // these pointers to their original values.
 
-    if (mDocument) {
+    if (mDocument)
       mDocument->SetContainer(nsnull);
-    }
     if (mPresContext) {
       mPresContext->SetLinkHandler(nsnull);
       mPresContext->SetContainer(nsnull);
@@ -1582,8 +1581,6 @@ DocumentViewerImpl::Destroy()
 
     return NS_OK;
   }
-
-  // The document was not put in the bfcache
 
   if (mDocument) {
     mDocument->Destroy();
@@ -1628,8 +1625,6 @@ DocumentViewerImpl::Destroy()
     mPresContext = nsnull;
   }
 
-  mWindow = nsnull;
-  mViewManager = nsnull;
   mContainer = nsnull;
 
   return NS_OK;
@@ -1903,6 +1898,28 @@ DocumentViewerImpl::Move(PRInt32 aX, PRInt32 aY)
   return NS_OK;
 }
 
+static PRBool
+SetVisibilityOnXULWindow(nsIDocShellTreeItem* aTreeItem)
+{
+  if (!aTreeItem)
+    return PR_FALSE;
+  nsCOMPtr<nsIDocShellTreeOwner> owner;
+  aTreeItem->GetTreeOwner(getter_AddRefs(owner));
+  if (owner) {
+    // We need the base win interface of the parent xul window, not
+    // the doc shell of owner, which would recurse here when we call
+    // SetVisibility.
+    nsCOMPtr<nsIXULWindow> xulWin = do_GetInterface(owner);
+    nsCOMPtr<nsIBaseWindow> baseWin = do_GetInterface(xulWin);
+    if (baseWin) {
+      baseWin->SetVisibility(PR_TRUE);
+      return PR_TRUE;
+    }
+  }
+  NS_WARNING("Doc viewer attached to a parent that isn't a xul window??");
+  return PR_FALSE;
+}
+
 NS_IMETHODIMP
 DocumentViewerImpl::Show(void)
 {
@@ -1943,10 +1960,13 @@ DocumentViewerImpl::Show(void)
   }
 
   if (mWindow) {
-    // When attached to a top level xul window, we do not need to call
-    // Show on the widget. Underlying window management code handles
-    // this when the window is initialized.
-    if (!mAttachedToParent) {
+    // When attached to a top level xul window, use SetVisibility instead
+    // of calling Show directly on the widget. SetVisibility will insure
+    // the show is delayed until after the chrome document has loaded and
+    // the proper window dimensions are set.
+    nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryReferent(mContainer));
+    if (!mAttachedToParent ||
+        (mAttachedToParent && !SetVisibilityOnXULWindow(treeItem))) {
       mWindow->Show(PR_TRUE);
     }
   }
@@ -2017,7 +2037,7 @@ DocumentViewerImpl::Show(void)
 NS_IMETHODIMP
 DocumentViewerImpl::Hide(void)
 {
-  if (!mAttachedToParent && mWindow) {
+  if (mWindow) {
     mWindow->Show(PR_FALSE);
   }
 
@@ -2060,7 +2080,7 @@ DocumentViewerImpl::Hide(void)
 
   nsCOMPtr<nsIBaseWindow> base_win(do_QueryReferent(mContainer));
 
-  if (base_win && !mAttachedToParent) {
+  if (base_win) {
     base_win->SetParentWidget(nsnull);
   }
 
@@ -2685,8 +2705,7 @@ NS_IMETHODIMP DocumentViewerImpl::ScrollToNode(nsIDOMNode* aNode)
    // Tell the PresShell to scroll to the primary frame of the content.
    NS_ENSURE_SUCCESS(presShell->ScrollContentIntoView(content,
                                                       NS_PRESSHELL_SCROLL_TOP,
-                                                      NS_PRESSHELL_SCROLL_ANYWHERE,
-                                                      nsIPresShell::SCROLL_OVERFLOW_HIDDEN),
+                                                      NS_PRESSHELL_SCROLL_ANYWHERE),
                      NS_ERROR_FAILURE);
    return NS_OK;
 }
@@ -3891,6 +3910,8 @@ DocumentViewerImpl::Cancel()
 NS_IMETHODIMP
 DocumentViewerImpl::ExitPrintPreview()
 {
+  printf("TEST-INFO ExitPrintPreview: mPrintEngine=%p, GetIsPrinting()=%d\n",
+         static_cast<void*>(mPrintEngine.get()), GetIsPrinting());
   if (GetIsPrinting())
     return NS_ERROR_FAILURE;
   NS_ENSURE_TRUE(mPrintEngine, NS_ERROR_FAILURE);

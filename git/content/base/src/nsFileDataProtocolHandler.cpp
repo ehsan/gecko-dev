@@ -55,7 +55,7 @@ static NS_DEFINE_CID(kSimpleURICID, NS_SIMPLEURI_CID);
 // Hash table
 struct FileDataInfo
 {
-  nsCOMPtr<nsIDOMBlob> mFile;
+  nsCOMPtr<nsIDOMFile> mFile;
   nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
@@ -63,7 +63,7 @@ static nsClassHashtable<nsCStringHashKey, FileDataInfo>* gFileDataTable;
 
 void
 nsFileDataProtocolHandler::AddFileDataEntry(nsACString& aUri,
-					    nsIDOMBlob* aFile,
+					    nsIDOMFile* aFile,
                                             nsIPrincipal* aPrincipal)
 {
   if (!gFileDataTable) {
@@ -89,22 +89,6 @@ nsFileDataProtocolHandler::RemoveFileDataEntry(nsACString& aUri)
       gFileDataTable = nsnull;
     }
   }
-}
-
-nsIPrincipal*
-nsFileDataProtocolHandler::GetFileDataEntryPrincipal(nsACString& aUri)
-{
-  if (!gFileDataTable) {
-    return nsnull;
-  }
-  
-  FileDataInfo* res;
-  gFileDataTable->Get(aUri, &res);
-  if (!res) {
-    return nsnull;
-  }
-
-  return res->mPrincipal;
 }
 
 static FileDataInfo*

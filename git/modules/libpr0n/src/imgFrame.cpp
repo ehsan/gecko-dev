@@ -48,7 +48,12 @@
 
 static PRBool gDisableOptimize = PR_FALSE;
 
+/*XXX get CAIRO_HAS_DDRAW_SURFACE */
 #include "cairo.h"
+
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+#include "gfxDDrawSurface.h"
+#endif
 
 #if defined(XP_WIN) || defined(WINCE)
 #include "gfxWindowsPlatform.h"
@@ -212,7 +217,7 @@ nsresult imgFrame::Init(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
       mWinSurface = new gfxWindowsSurface(gfxIntSize(mSize.width, mSize.height), mFormat);
       if (mWinSurface && mWinSurface->CairoStatus() == 0) {
         // no error
-        mImageSurface = mWinSurface->GetAsImageSurface();
+        mImageSurface = mWinSurface->GetImageSurface();
       } else {
         mWinSurface = nsnull;
       }

@@ -62,8 +62,6 @@
 #include "jsapi.h"
 #include "jsdbgapi.h"
 #include "jsobj.h"
-#include "jsscript.h"
-#include "jscntxt.h"
 
 #include "mozilla/FunctionTimer.h"
 
@@ -161,19 +159,13 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
 
     JSAutoRequest ar(cx);
 
-    JSString *url;
+    char     *url;
     JSObject *target_obj = nsnull;
     jschar   *charset = nsnull;
-    ok = JS_ConvertArguments (cx, argc, argv, "S / o W", &url, &target_obj, &charset);
+    ok = JS_ConvertArguments (cx, argc, argv, "s / o W", &url, &target_obj, &charset);
     if (!ok)
     {
         /* let the exception raised by JS_ConvertArguments show through */
-        return NS_OK;
-    }
-
-    JSAutoByteString urlbytes(cx, url);
-    if (!urlbytes)
-    {
         return NS_OK;
     }
 
@@ -215,10 +207,6 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
 #endif  
     }
 
-    // Remember an object out of the calling compartment so that we
-    // can properly wrap the result later.
-    JSObject *result_obj = target_obj;
-
     // Innerize the target_obj so that we compile the loaded script in the
     // correct (inner) scope.
     if (JSObjectOp op = target_obj->getClass()->ext.innerObject)
@@ -229,14 +217,6 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
         fprintf (stderr, "Final global: %p\n", target_obj);
 #endif
     }
-    else if (target_obj->isWrapper())
-    {
-        target_obj = target_obj->unwrap();
-    }
-
-    JSAutoEnterCompartment ac;
-    if (!ac.enter(cx, target_obj))
-        return NS_ERROR_UNEXPECTED;
 
     /* load up the url.  From here on, failures are reflected as ``custom''
      * js exceptions */
@@ -283,7 +263,7 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
 
     // Make sure to explicitly create the URI, since we'll need the
     // canonicalized spec.
-    rv = NS_NewURI(getter_AddRefs(uri), urlbytes.ptr(), nsnull, serv);
+    rv = NS_NewURI(getter_AddRefs(uri), url, nsnull, serv);
     if (NS_FAILED(rv)) {
         errmsg = JS_NewStringCopyZ (cx, LOAD_ERROR_NOURI);
         goto return_exception;
@@ -373,42 +353,28 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
      * exceptions, including the source/line number */
     er = JS_SetErrorReporter (cx, mozJSLoaderErrorReporter);
 
+    if (charset)
     {
-        JSVersion version = cx->findVersion();
-
-        if (charset)
+        nsString script;
+        rv = nsScriptLoader::ConvertToUTF16 (nsnull,
+                                             reinterpret_cast<PRUint8*>(buf.get()), len,
+                                             nsDependentString(
+                                                 reinterpret_cast<PRUnichar*>(charset)),
+                                             nsnull, script);
+        if (NS_FAILED(rv))
         {
-            nsString script;
-            rv = nsScriptLoader::ConvertToUTF16(
-                    nsnull, reinterpret_cast<PRUint8*>(buf.get()), len,
-                    nsDependentString(reinterpret_cast<PRUnichar*>(charset)), nsnull, script);
-
-            if (NS_FAILED(rv))
-            {
-                errmsg = JS_NewStringCopyZ (cx, LOAD_ERROR_BADCHARSET);
-                goto return_exception;
-            }
-            ok = JS_EvaluateUCScriptForPrincipalsVersion(cx, target_obj, jsPrincipals,
-                                                         reinterpret_cast<const jschar*>(script.get()),
-                                                         script.Length(), uriStr.get(), 1, rval,
-                                                         version);
+            errmsg = JS_NewStringCopyZ (cx, LOAD_ERROR_BADCHARSET);
+            goto return_exception;
         }
-        else
-        {
-            ok = JS_EvaluateScriptForPrincipalsVersion(cx, target_obj, jsPrincipals,
-                                                       buf, len, uriStr.get(), 1, rval,
-                                                       version);
-        }
+        ok = JS_EvaluateUCScriptForPrincipals (cx, target_obj, jsPrincipals,
+                                               reinterpret_cast<const jschar*>(script.get()),
+                                               script.Length(), uriStr.get(), 1, rval);
     }
-
-    if (ok)
+    else
     {
-        JSAutoEnterCompartment rac;
-
-        if (!rac.enter(cx, result_obj) || !JS_WrapValue(cx, rval))
-            return NS_ERROR_UNEXPECTED; 
+        ok = JS_EvaluateScriptForPrincipals (cx, target_obj, jsPrincipals,
+                                             buf, len, uriStr.get(), 1, rval);
     }
-
     /* repent for our evil deeds */
     JS_SetErrorReporter (cx, er);
 

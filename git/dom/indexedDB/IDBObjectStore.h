@@ -42,35 +42,187 @@
 
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
 #include "mozilla/dom/indexedDB/IDBTransaction.h"
-#include "mozilla/dom/indexedDB/Key.h"
 
 #include "nsIIDBObjectStore.h"
-#include "nsIIDBTransaction.h"
 
-#include "nsCycleCollectionParticipant.h"
-
-class nsIScriptContext;
-class nsPIDOMWindow;
+#include "nsDOMEventTargetHelper.h"
 
 BEGIN_INDEXEDDB_NAMESPACE
-
-class AsyncConnectionHelper;
 
 struct ObjectStoreInfo;
 struct IndexInfo;
 struct IndexUpdateInfo;
 
-class IDBObjectStore : public nsIIDBObjectStore
+class Key
 {
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  enum Type { UNSETKEY, NULLKEY, STRINGKEY, INTKEY };
+
+  Key()
+  : mType(UNSETKEY), mInt(0)
+  { }
+
+  Key(const Key& aOther)
+  {
+    *this = aOther;
+  }
+
+  Key& operator=(const Key& aOther)
+  {
+    if (this != &aOther) {
+      mType = aOther.mType;
+      mString = aOther.mString;
+      mInt = aOther.mInt;
+    }
+    return *this;
+  }
+
+  Key& operator=(Type aType)
+  {
+    NS_ASSERTION(aType == UNSETKEY || aType == NULLKEY,
+                 "Use one of the other operators to assign your value!");
+    mType = aType;
+    mString.Truncate();
+    mInt = 0;
+    return *this;
+  }
+
+  Key& operator=(const nsAString& aString)
+  {
+    mType = STRINGKEY;
+    mString = aString;
+    mInt = 0;
+    return *this;
+  }
+
+  Key& operator=(PRInt64 aInt)
+  {
+    mType = INTKEY;
+    mString.Truncate();
+    mInt = aInt;
+    return *this;
+  }
+
+  bool operator==(const Key& aOther) const
+  {
+    if (mType == aOther.mType) {
+      switch (mType) {
+        case UNSETKEY:
+        case NULLKEY:
+          return true;
+
+        case STRINGKEY:
+          return mString == aOther.mString;
+
+        case INTKEY:
+          return mInt == aOther.mInt;
+
+        default:
+          NS_NOTREACHED("Unknown type!");
+      }
+    }
+    return false;
+  }
+
+  bool operator!=(const Key& aOther) const
+  {
+    return !(*this == aOther);
+  }
+
+  bool operator<(const Key& aOther) const
+  {
+    switch (mType) {
+      case UNSETKEY:
+        if (aOther.mType == UNSETKEY) {
+          return false;
+        }
+        return true;
+
+      case NULLKEY:
+        if (aOther.mType == UNSETKEY ||
+            aOther.mType == NULLKEY) {
+          return false;
+        }
+        return true;
+
+      case STRINGKEY:
+        if (aOther.mType == UNSETKEY ||
+            aOther.mType == NULLKEY ||
+            aOther.mType == INTKEY) {
+          return false;
+        }
+        NS_ASSERTION(aOther.mType == STRINGKEY, "Unknown type!");
+        return mString < aOther.mString;
+
+      case INTKEY:
+        if (aOther.mType == UNSETKEY ||
+            aOther.mType == NULLKEY) {
+          return false;
+        }
+        if (aOther.mType == STRINGKEY) {
+          return true;
+        }
+        NS_ASSERTION(aOther.mType == INTKEY, "Unknown type!");
+        return mInt < aOther.mInt;
+
+      default:
+        NS_NOTREACHED("Unknown type!");
+    }
+    return false;
+  }
+
+  bool operator>(const Key& aOther) const
+  {
+    return !(*this == aOther || *this < aOther);
+  }
+
+  bool IsUnset() const { return mType == UNSETKEY; }
+  bool IsNull() const { return mType == NULLKEY; }
+  bool IsString() const { return mType == STRINGKEY; }
+  bool IsInt() const { return mType == INTKEY; }
+
+  const nsString& StringValue() const {
+    NS_ASSERTION(IsString(), "Wrong type!");
+    return mString;
+  }
+
+  PRInt64 IntValue() const {
+    NS_ASSERTION(IsInt(), "Wrong type!");
+    return mInt;
+  }
+
+  nsAString& ToString() {
+    mType = STRINGKEY;
+    mInt = 0;
+    return mString;
+  }
+
+  PRInt64* ToIntPtr() {
+    mType = INTKEY;
+    mString.Truncate();
+    return &mInt;
+  }
+
+private:
+  Type mType;
+  nsString mString;
+  PRInt64 mInt;
+};
+
+class IDBObjectStore : public nsDOMEventTargetHelper,
+                       public nsIIDBObjectStore
+{
+public:
+  NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIIDBOBJECTSTORE
 
-  NS_DECL_CYCLE_COLLECTION_CLASS(IDBObjectStore)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBObjectStore,
+                                           nsDOMEventTargetHelper)
 
   static already_AddRefed<IDBObjectStore>
   Create(IDBTransaction* aTransaction,
-         const ObjectStoreInfo* aInfo);
+         const ObjectStoreInfo* aInfo,
+         PRUint16 aMode);
 
   static nsresult
   GetKeyFromVariant(nsIVariant* aKeyVariant,
@@ -84,6 +236,10 @@ public:
   GetJSValFromKey(const Key& aKey,
                   JSContext* aCx,
                   jsval* aKeyVal);
+
+  static nsresult
+  GetJSONFromArg0(/* jsval arg0, */
+                  nsAString& aJSON);
 
   static nsresult
   GetKeyPathValueFromJSON(const nsAString& aJSON,
@@ -106,9 +262,10 @@ public:
                 PRInt64 aObjectDataId,
                 const nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
 
-  const nsString& Name() const
+
+  bool TransactionIsOpen() const
   {
-    return mName;
+    return mTransaction->TransactionIsOpen();
   }
 
   bool IsAutoIncrement() const
@@ -123,7 +280,6 @@ public:
 
   PRInt64 Id() const
   {
-    NS_ASSERTION(mId != LL_MININT, "Don't ask for this yet!");
     return mId;
   }
 
@@ -137,6 +293,8 @@ public:
     return mTransaction;
   }
 
+  ObjectStoreInfo* GetObjectStoreInfo();
+
 protected:
   IDBObjectStore();
   ~IDBObjectStore();
@@ -148,27 +306,18 @@ protected:
                       Key& aKey,
                       nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
 
-  nsresult AddOrPut(const jsval& aValue,
-                    const jsval& aKey,
-                    JSContext* aCx,
-                    PRUint8 aOptionalArgCount,
-                    nsIIDBRequest** _retval,
-                    bool aOverwrite);
-
 private:
   nsRefPtr<IDBTransaction> mTransaction;
-
-  nsCOMPtr<nsIScriptContext> mScriptContext;
-  nsCOMPtr<nsPIDOMWindow> mOwner;
 
   PRInt64 mId;
   nsString mName;
   nsString mKeyPath;
   PRBool mAutoIncrement;
   PRUint32 mDatabaseId;
+  PRUint16 mMode;
 
-  nsTArray<nsRefPtr<IDBIndex> > mCreatedIndexes;
-
+  // Only touched on the main thread.
+  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 };
 
 END_INDEXEDDB_NAMESPACE

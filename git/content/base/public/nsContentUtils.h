@@ -309,7 +309,7 @@ public:
    *  Returns -1 if point1 < point2, 1, if point1 > point2,
    *  0 if error or if point1 == point2.
    *  NOTE! If the two nodes aren't in the same connected subtree,
-   *  the result is 1, and the optional aDisconnected parameter
+   *  the result is undefined, but the optional aDisconnected parameter
    *  is set to PR_TRUE.
    */
   static PRInt32 ComparePoints(nsINode* aParent1, PRInt32 aOffset1,
@@ -340,7 +340,7 @@ public:
   /**
    * Similar to above, but to be used if one already has an atom for the ID
    */
-  static Element* MatchElementId(nsIContent *aContent, const nsIAtom* aId);
+  static Element* MatchElementId(nsIContent *aContent, nsIAtom* aId);
 
   /**
    * Given a URI containing an element reference (#whatever),
@@ -530,7 +530,7 @@ public:
   }
 
   static nsresult GenerateStateKey(nsIContent* aContent,
-                                   const nsIDocument* aDocument,
+                                   nsIDocument* aDocument,
                                    nsIStatefulFrame::SpecialStateID aID,
                                    nsACString& aKey);
 
@@ -580,9 +580,13 @@ public:
   static nsresult CheckQName(const nsAString& aQualifiedName,
                              PRBool aNamespaceAware = PR_TRUE);
 
-  static nsresult SplitQName(const nsIContent* aNamespaceResolver,
+  static nsresult SplitQName(nsIContent* aNamespaceResolver,
                              const nsAFlatString& aQName,
                              PRInt32 *aNamespace, nsIAtom **aLocalName);
+
+  static nsresult LookupNamespaceURI(nsIContent* aNamespaceResolver,
+                                     const nsAString& aNamespacePrefix,
+                                     nsAString& aNamespaceURI);
 
   static nsresult GetNodeInfoFromQName(const nsAString& aNamespaceURI,
                                        const nsAString& aQualifiedName,
@@ -644,7 +648,7 @@ public:
    * @return PR_TRUE if aContent has an attribute aName in namespace aNameSpaceID,
    * and the attribute value is non-empty.
    */
-  static PRBool HasNonEmptyAttr(const nsIContent* aContent, PRInt32 aNameSpaceID,
+  static PRBool HasNonEmptyAttr(nsIContent* aContent, PRInt32 aNameSpaceID,
                                 nsIAtom* aName);
 
   /**
@@ -654,7 +658,7 @@ public:
    * @return the presContext, or nsnull if the content is not in a document
    *         (if GetCurrentDoc returns nsnull)
    */
-  static nsPresContext* GetContextForContent(const nsIContent* aContent);
+  static nsPresContext* GetContextForContent(nsIContent* aContent);
 
   /**
    * Method to do security and content policy checks on the image URI
@@ -739,7 +743,7 @@ public:
    * @param aContent The content node to test.
    * @return whether it's a draggable link
    */
-  static PRBool IsDraggableLink(const nsIContent* aContent);
+  static PRBool IsDraggableLink(nsIContent* aContent);
 
   /**
    * Convenience method to create a new nodeinfo that differs only by name
@@ -792,7 +796,7 @@ public:
    *
    * Both arguments to this method must be non-null.
    */
-  static PRBool IsInSameAnonymousTree(const nsINode* aNode, const nsIContent* aContent);
+  static PRBool IsInSameAnonymousTree(nsINode* aNode, nsIContent* aContent);
 
   /**
    * Return the nsIXPConnect service.
@@ -1520,8 +1524,6 @@ public:
   static void ASCIIToUpper(nsAString& aStr);
   static void ASCIIToUpper(const nsAString& aSource, nsAString& aDest);
 
-  // Returns NS_OK for same origin, error (NS_ERROR_DOM_BAD_URI) if not.
-  static nsresult CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel);
   static nsIInterfaceRequestor* GetSameOriginChecker();
 
   static nsIThreadJSContextStack* ThreadJSContextStack()
@@ -1685,55 +1687,15 @@ public:
   LayerManagerForDocument(nsIDocument *aDoc);
 
   /**
-   * Returns a layer manager to use for the given document. Basically we
-   * look up the document hierarchy for the first document which has
-   * a presentation with an associated widget, and use that widget's
-   * layer manager. In addition to the normal layer manager lookup this will
-   * specifically request a persistent layer manager. This means that the layer
-   * manager is expected to remain the layer manager for the document in the
-   * forseeable future. This function should be used carefully as it may change
-   * the document's layer manager.
-   *
-   * If one can't be found, a BasicLayerManager is created and returned.
-   *
-   * @param aDoc the document for which to return a layer manager.
-   */
-  static already_AddRefed<mozilla::layers::LayerManager>
-  PersistentLayerManagerForDocument(nsIDocument *aDoc);
-
-  /**
    * Determine whether a content node is focused or not,
    *
    * @param aContent the content node to check
    * @return true if the content node is focused, false otherwise.
    */
-  static PRBool IsFocusedContent(const nsIContent *aContent);
-
-  /**
-   * Returns if aContent has a tabbable subdocument.
-   * A sub document isn't tabbable when it's a zombie document.
-   *
-   * @param aElement element to test.
-   *
-   * @return Whether the subdocument is tabbable.
-   */
-  static bool IsSubDocumentTabbable(nsIContent* aContent);
-
-  /**
-   * Flushes the layout tree (recursively)
-   *
-   * @param aWindow the window the flush should start at
-   *
-   */
-  static void FlushLayoutForTree(nsIDOMWindow* aWindow);
-
-  /**
-   * Returns true if content with the given principal is allowed to use XUL
-   * and XBL and false otherwise.
-   */
-  static bool AllowXULXBLForPrincipal(nsIPrincipal* aPrincipal);
+  static PRBool IsFocusedContent(nsIContent *aContent);
 
 private:
+
   static PRBool InitializeEventTable();
 
   static nsresult EnsureStringBundle(PropertiesFile aFile);
@@ -1821,7 +1783,6 @@ private:
   static nsIInterfaceRequestor* sSameOriginChecker;
 
   static PRBool sIsHandlingKeyBoardEvent;
-  static PRBool sAllowXULXBL_for_file;
 };
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \
@@ -1865,6 +1826,48 @@ private:
 #endif
 };
 
+class NS_STACK_CLASS nsAutoGCRoot {
+public:
+  // aPtr should be the pointer to the jsval we want to protect
+  nsAutoGCRoot(jsval* aPtr, nsresult* aResult
+               MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
+    mPtr(aPtr), mRootType(RootType_JSVal)
+  {
+    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+    mResult = *aResult = AddJSGCRoot(aPtr, RootType_JSVal, "nsAutoGCRoot");
+  }
+
+  // aPtr should be the pointer to the JSObject* we want to protect
+  nsAutoGCRoot(JSObject** aPtr, nsresult* aResult
+               MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
+    mPtr(aPtr), mRootType(RootType_Object)
+  {
+    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+    mResult = *aResult = AddJSGCRoot(aPtr, RootType_Object, "nsAutoGCRoot");
+  }
+
+  ~nsAutoGCRoot() {
+    if (NS_SUCCEEDED(mResult)) {
+      RemoveJSGCRoot((jsval *)mPtr, mRootType);
+    }
+  }
+
+  static void Shutdown();
+
+private:
+  enum RootType { RootType_JSVal, RootType_Object };
+  static nsresult AddJSGCRoot(void *aPtr, RootType aRootType, const char* aName);
+  static nsresult RemoveJSGCRoot(void *aPtr, RootType aRootType);
+
+  static nsIJSRuntimeService* sJSRuntimeService;
+  static JSRuntime* sJSScriptRuntime;
+
+  void* mPtr;
+  RootType mRootType;
+  nsresult mResult;
+  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
 class NS_STACK_CLASS nsAutoScriptBlocker {
 public:
   nsAutoScriptBlocker(MOZILLA_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
@@ -1891,6 +1894,13 @@ private:
   nsCOMPtr<nsIDocumentObserver> mObserver;
   MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
+
+#define NS_AUTO_GCROOT_PASTE2(tok,line) tok##line
+#define NS_AUTO_GCROOT_PASTE(tok,line) \
+  NS_AUTO_GCROOT_PASTE2(tok,line)
+#define NS_AUTO_GCROOT(ptr, result) \ \
+  nsAutoGCRoot NS_AUTO_GCROOT_PASTE(_autoGCRoot_, __LINE__) \
+  (ptr, result)
 
 #define NS_INTERFACE_MAP_ENTRY_TEAROFF(_interface, _allocator)                \
   if (aIID.Equals(NS_GET_IID(_interface))) {                                  \

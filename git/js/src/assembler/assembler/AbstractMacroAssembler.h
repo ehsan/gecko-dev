@@ -81,8 +81,6 @@ public:
     //
     // Describes a simple base-offset address.
     struct Address {
-        explicit Address() {}
-
         explicit Address(RegisterID base, int32_t offset = 0)
             : base(base)
             , offset(offset)
@@ -448,11 +446,6 @@ public:
         return m_assembler.buffer();
     }
 
-    bool oom()
-    {
-        return m_assembler.oom();
-    }
-
     void* executableCopy(void* buffer)
     {
         return m_assembler.executableCopy(buffer);
@@ -548,11 +541,6 @@ protected:
     static void repatchJump(CodeLocationJump jump, CodeLocationLabel destination)
     {
         AssemblerType::relinkJump(jump.dataLocation(), destination.dataLocation());
-    }
-
-    static bool canRepatchJump(CodeLocationJump jump, CodeLocationLabel destination)
-    {
-        return AssemblerType::canRelinkJump(jump.dataLocation(), destination.dataLocation());
     }
 
     static void repatchNearCall(CodeLocationNearCall nearCall, CodeLocationLabel destination)

@@ -61,7 +61,6 @@ CPPSRCS += dlldeps-zlib.cpp
 endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/windows
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 endif
 
 ifneq (,$(filter WINNT OS2,$(OS_ARCH)))
@@ -87,7 +86,6 @@ RCFLAGS += -i $(topsrcdir)/widget/src/os2
 endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/os2
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 endif
 
 # dependent libraries
@@ -245,7 +243,7 @@ COMPONENT_LIBS += \
 	$(NULL)
 endif
 
-ifeq (,$(filter android qt beos os2 cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (,$(filter qt beos os2 cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
 ifdef MOZ_XUL
 COMPONENT_LIBS += fileview
 DEFINES += -DMOZ_FILEVIEW
@@ -263,13 +261,13 @@ STATIC_LIBS += morkreader_s
 COMPONENT_LIBS += \
 	places \
 	$(NULL)
-endif
-
+else
 ifdef MOZ_MORK
 ifdef MOZ_XUL
 COMPONENT_LIBS += \
 	mork \
 	$(NULL)
+endif
 endif
 endif
 
@@ -306,12 +304,8 @@ endif
 
 STATIC_LIBS += thebes ycbcr
 
-ifneq ($(OS_ARCH),Linux)
+ifneq ($(OS_ARCH)_$(OS_TEST),Linux_x86_64)
 STATIC_LIBS += angle
-else
-ifdef FORCE_BUILD_ANGLE
-STATIC_LIBS += angle
-endif
 endif
 
 COMPONENT_LIBS += gkgfxthebes
@@ -348,10 +342,6 @@ endif
 ifdef MOZ_ZIPWRITER
 DEFINES += -DMOZ_ZIPWRITER
 COMPONENT_LIBS += zipwriter
-endif
-
-ifdef MOZ_SERVICES_SYNC
-COMPONENT_LIBS += services-crypto
 endif
 
 ifdef MOZ_DEBUG
@@ -393,10 +383,6 @@ endif
 
 ifdef MOZ_NATIVE_LIBEVENT
 EXTRA_DSO_LDOPTS += $(MOZ_LIBEVENT_LIBS)
-endif
-
-ifdef MOZ_NATIVE_LIBVPX
-EXTRA_DSO_LDOPTS += $(MOZ_LIBVPX_LIBS)
 endif
 
 ifdef MOZ_SYDNEYAUDIO

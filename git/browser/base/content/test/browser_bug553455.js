@@ -21,33 +21,33 @@ var gApp = document.getElementById("bundle_brand").getString("brandShortName");
 var gVersion = Services.appinfo.version;
 
 function wait_for_notification(aCallback) {
-  info("Waiting for notification");
   PopupNotifications.panel.addEventListener("popupshown", function() {
     PopupNotifications.panel.removeEventListener("popupshown", arguments.callee, false);
-    info("Saw notification");
     aCallback(PopupNotifications.panel);
   }, false);
 }
 
 function wait_for_install_dialog(aCallback) {
-  info("Waiting for install dialog");
   Services.wm.addListener({
     onOpenWindow: function(aXULWindow) {
-      info("Install dialog opened, waiting for focus");
       Services.wm.removeListener(this);
 
       var domwindow = aXULWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                                 .getInterface(Ci.nsIDOMWindowInternal);
-      waitForFocus(function() {
-        info("Saw install dialog");
+      domwindow.addEventListener("load", function() {
+        domwindow.removeEventListener("load", arguments.callee, false);
+
         is(domwindow.document.location.href, XPINSTALL_URL, "Should have seen the right window open");
 
-        // Override the countdown timer on the accept button
-        var button = domwindow.document.documentElement.getButton("accept");
-        button.disabled = false;
+        // Allow other window load listeners to execute before passing to callback
+        executeSoon(function() {
+          // Override the countdown timer on the accept button
+          var button = domwindow.document.documentElement.getButton("accept");
+          button.disabled = false;
 
-        aCallback(domwindow);
-      }, domwindow);
+          aCallback(domwindow);
+        });
+      }, false);
     },
 
     onCloseWindow: function(aXULWindow) {
@@ -59,46 +59,13 @@ function wait_for_install_dialog(aCallback) {
 }
 
 var TESTS = [
-function test_disabled_install() {
-  Services.prefs.setBoolPref("xpinstall.enabled", false);
-
-  // Wait for the disabled notification
-  wait_for_notification(function(aPanel) {
-    let notification = aPanel.childNodes[0];
-    is(notification.id, "xpinstall-disabled-notification", "Should have seen installs disabled");
-    is(notification.button.label, "Enable", "Should have seen the right button");
-    is(notification.getAttribute("label"),
-       "Software installation is currently disabled. Click Enable and try again.");
-
-    // Click on Enable
-    EventUtils.synthesizeMouseAtCenter(notification.button, {});
-
-    try {
-      Services.prefs.getBoolPref("xpinstall.disabled");
-      ok(false, "xpinstall.disabled should not be set");
-    }
-    catch (e) {
-      ok(true, "xpinstall.disabled should not be set");
-    }
-
-    gBrowser.removeTab(gBrowser.selectedTab);
-
-    AddonManager.getAllInstalls(function(aInstalls) {
-      is(aInstalls.length, 1, "Should have been one install created");
-      aInstalls[0].cancel();
-
-      runNextTest();
-    });
-  });
-
+function test_blocked_install() {
   var triggers = encodeURIComponent(JSON.stringify({
     "XPI": "unsigned.xpi"
   }));
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
-},
 
-function test_blocked_install() {
   // Wait for the blocked notification
   wait_for_notification(function(aPanel) {
     let notification = aPanel.childNodes[0];
@@ -114,6 +81,8 @@ function test_blocked_install() {
 
     // Wait for the install confirmation dialog
     wait_for_install_dialog(function(aWindow) {
+      aWindow.document.documentElement.acceptDialog();
+
       // Wait for the complete notification
       wait_for_notification(function(aPanel) {
         let notification = aPanel.childNodes[0];
@@ -131,21 +100,24 @@ function test_blocked_install() {
           runNextTest();
         });
       });
-
-      aWindow.document.documentElement.acceptDialog();
     });
   });
+},
+
+function test_whitelisted_install() {
+  var pm = Services.perms;
+  pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
 
   var triggers = encodeURIComponent(JSON.stringify({
     "XPI": "unsigned.xpi"
   }));
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
-},
 
-function test_whitelisted_install() {
   // Wait for the install confirmation dialog
   wait_for_install_dialog(function(aWindow) {
+    aWindow.document.documentElement.acceptDialog();
+
     // Wait for the complete notification
     wait_for_notification(function(aPanel) {
       let notification = aPanel.childNodes[0];
@@ -164,21 +136,19 @@ function test_whitelisted_install() {
         runNextTest();
       });
     });
-
-    aWindow.document.documentElement.acceptDialog();
   });
+},
 
+function test_failed_download() {
   var pm = Services.perms;
   pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
 
   var triggers = encodeURIComponent(JSON.stringify({
-    "XPI": "unsigned.xpi"
+    "XPI": "missing.xpi"
   }));
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
-},
 
-function test_failed_download() {
   // Wait for the failed notification
   wait_for_notification(function(aPanel) {
     let notification = aPanel.childNodes[0];
@@ -192,18 +162,18 @@ function test_failed_download() {
     Services.perms.remove("example.com", "install");
     runNextTest();
   });
+},
 
+function test_corrupt_file() {
   var pm = Services.perms;
   pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
 
   var triggers = encodeURIComponent(JSON.stringify({
-    "XPI": "missing.xpi"
+    "XPI": "corrupt.xpi"
   }));
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
-},
 
-function test_corrupt_file() {
   // Wait for the failed notification
   wait_for_notification(function(aPanel) {
     let notification = aPanel.childNodes[0];
@@ -217,18 +187,18 @@ function test_corrupt_file() {
     Services.perms.remove("example.com", "install");
     runNextTest();
   });
+},
 
+function test_incompatible() {
   var pm = Services.perms;
   pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
 
   var triggers = encodeURIComponent(JSON.stringify({
-    "XPI": "corrupt.xpi"
+    "XPI": "incompatible.xpi"
   }));
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
-},
 
-function test_incompatible() {
   // Wait for the failed notification
   wait_for_notification(function(aPanel) {
     let notification = aPanel.childNodes[0];
@@ -242,20 +212,22 @@ function test_incompatible() {
     Services.perms.remove("example.com", "install");
     runNextTest();
   });
+},
 
+function test_restartless() {
   var pm = Services.perms;
   pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
 
   var triggers = encodeURIComponent(JSON.stringify({
-    "XPI": "incompatible.xpi"
+    "XPI": "restartless.xpi"
   }));
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
-},
 
-function test_restartless() {
   // Wait for the install confirmation dialog
   wait_for_install_dialog(function(aWindow) {
+    aWindow.document.documentElement.acceptDialog();
+
     // Wait for the complete notification
     wait_for_notification(function(aPanel) {
       let notification = aPanel.childNodes[0];
@@ -277,23 +249,24 @@ function test_restartless() {
         });
       });
     });
-
-    aWindow.document.documentElement.acceptDialog();
   });
+},
 
+function test_multiple() {
   var pm = Services.perms;
   pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
 
   var triggers = encodeURIComponent(JSON.stringify({
-    "XPI": "restartless.xpi"
+    "Unsigned XPI": "unsigned.xpi",
+    "Restartless XPI": "restartless.xpi"
   }));
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
-},
 
-function test_multiple() {
   // Wait for the install confirmation dialog
   wait_for_install_dialog(function(aWindow) {
+    aWindow.document.documentElement.acceptDialog();
+
     // Wait for the complete notification
     wait_for_notification(function(aPanel) {
       let notification = aPanel.childNodes[0];
@@ -316,24 +289,17 @@ function test_multiple() {
         });
       });
     });
-
-    aWindow.document.documentElement.acceptDialog();
   });
-
-  var pm = Services.perms;
-  pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
-
-  var triggers = encodeURIComponent(JSON.stringify({
-    "Unsigned XPI": "unsigned.xpi",
-    "Restartless XPI": "restartless.xpi"
-  }));
-  gBrowser.selectedTab = gBrowser.addTab();
-  gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
 },
 
 function test_url() {
+  gBrowser.selectedTab = gBrowser.addTab();
+  gBrowser.loadURI(TESTROOT + "unsigned.xpi");
+
   // Wait for the install confirmation dialog
   wait_for_install_dialog(function(aWindow) {
+    aWindow.document.documentElement.acceptDialog();
+
     // Wait for the complete notification
     wait_for_notification(function(aPanel) {
       let notification = aPanel.childNodes[0];
@@ -351,15 +317,20 @@ function test_url() {
         runNextTest();
       });
     });
-
-    aWindow.document.documentElement.acceptDialog();
   });
-
-  gBrowser.selectedTab = gBrowser.addTab();
-  gBrowser.loadURI(TESTROOT + "unsigned.xpi");
 },
 
 function test_localfile() {
+  var cr = Components.classes["@mozilla.org/chrome/chrome-registry;1"]
+                     .getService(Components.interfaces.nsIChromeRegistry);
+  try {
+    var path = cr.convertChromeURL(makeURI(CHROMEROOT + "corrupt.xpi")).spec;
+  } catch (ex) {
+    var path = CHROMEROOT + "corrupt.xpi";
+  }
+  gBrowser.selectedTab = gBrowser.addTab();
+  gBrowser.loadURI(path);
+
   // Wait for the complete notification
   wait_for_notification(function(aPanel) {
     let notification = aPanel.childNodes[0];
@@ -371,16 +342,6 @@ function test_localfile() {
     gBrowser.removeTab(gBrowser.selectedTab);
     runNextTest();
   });
-
-  var cr = Components.classes["@mozilla.org/chrome/chrome-registry;1"]
-                     .getService(Components.interfaces.nsIChromeRegistry);
-  try {
-    var path = cr.convertChromeURL(makeURI(CHROMEROOT + "corrupt.xpi")).spec;
-  } catch (ex) {
-    var path = CHROMEROOT + "corrupt.xpi";
-  }
-  gBrowser.selectedTab = gBrowser.addTab();
-  gBrowser.loadURI(path);
 },
 
 function test_wronghost() {
@@ -390,6 +351,8 @@ function test_wronghost() {
       return;
 
     gBrowser.removeEventListener("load", arguments.callee, true);
+
+    gBrowser.loadURI(TESTROOT + "corrupt.xpi");
 
     // Wait for the complete notification
     wait_for_notification(function(aPanel) {
@@ -403,15 +366,24 @@ function test_wronghost() {
       gBrowser.removeTab(gBrowser.selectedTab);
       runNextTest();
     });
-
-    gBrowser.loadURI(TESTROOT + "corrupt.xpi");
   }, true);
   gBrowser.loadURI(TESTROOT2 + "enabled.html");
 },
 
 function test_reload() {
+  var pm = Services.perms;
+  pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
+
+  var triggers = encodeURIComponent(JSON.stringify({
+    "Unsigned XPI": "unsigned.xpi"
+  }));
+  gBrowser.selectedTab = gBrowser.addTab();
+  gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
+
   // Wait for the install confirmation dialog
   wait_for_install_dialog(function(aWindow) {
+    aWindow.document.documentElement.acceptDialog();
+
     // Wait for the complete notification
     wait_for_notification(function(aPanel) {
       let notification = aPanel.childNodes[0];
@@ -446,23 +418,23 @@ function test_reload() {
       }, true);
       gBrowser.loadURI(TESTROOT2 + "enabled.html");
     });
-
-    aWindow.document.documentElement.acceptDialog();
   });
+},
 
+function test_theme() {
   var pm = Services.perms;
   pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
 
   var triggers = encodeURIComponent(JSON.stringify({
-    "Unsigned XPI": "unsigned.xpi"
+    "Theme XPI": "theme.xpi"
   }));
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
-},
 
-function test_theme() {
   // Wait for the install confirmation dialog
   wait_for_install_dialog(function(aWindow) {
+    aWindow.document.documentElement.acceptDialog();
+
     // Wait for the complete notification
     wait_for_notification(function(aPanel) {
       let notification = aPanel.childNodes[0];
@@ -488,21 +460,16 @@ function test_theme() {
         });
       });
     });
-
-    aWindow.document.documentElement.acceptDialog();
   });
-
-  var pm = Services.perms;
-  pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
-
-  var triggers = encodeURIComponent(JSON.stringify({
-    "Theme XPI": "theme.xpi"
-  }));
-  gBrowser.selectedTab = gBrowser.addTab();
-  gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
 },
 
 function test_renotify_blocked() {
+  var triggers = encodeURIComponent(JSON.stringify({
+    "XPI": "unsigned.xpi"
+  }));
+  gBrowser.selectedTab = gBrowser.addTab();
+  gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
+
   // Wait for the blocked notification
   wait_for_notification(function(aPanel) {
     let notification = aPanel.childNodes[0];
@@ -512,6 +479,8 @@ function test_renotify_blocked() {
       aPanel.removeEventListener("popuphidden", arguments.callee, false);
       info("Timeouts after this probably mean bug 589954 regressed");
       executeSoon(function () {
+        gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
+
         wait_for_notification(function(aPanel) {
           let notification = aPanel.childNodes[0];
           is(notification.id, "addon-install-blocked-notification",
@@ -528,24 +497,28 @@ function test_renotify_blocked() {
           });
         });
 
-        gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
       });
     }, false);
 
     // hide the panel (this simulates the user dismissing it)
     aPanel.hidePopup();
   });
+},
+
+function test_renotify_installed() {
+  var pm = Services.perms;
+  pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
 
   var triggers = encodeURIComponent(JSON.stringify({
     "XPI": "unsigned.xpi"
   }));
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
-},
 
-function test_renotify_installed() {
   // Wait for the install confirmation dialog
   wait_for_install_dialog(function(aWindow) {
+    aWindow.document.documentElement.acceptDialog();
+
     // Wait for the complete notification
     wait_for_notification(function(aPanel) {
       let notification = aPanel.childNodes[0];
@@ -557,8 +530,11 @@ function test_renotify_installed() {
 
         // Install another
         executeSoon(function () {
+          gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
+
           // Wait for the install confirmation dialog
           wait_for_install_dialog(function(aWindow) {
+            aWindow.document.documentElement.acceptDialog();
             info("Timeouts after this probably mean bug 589954 regressed");
 
             // Wait for the complete notification
@@ -567,97 +543,46 @@ function test_renotify_installed() {
               is(notification.id, "addon-install-complete-notification", "Should have seen the second install complete");
 
               AddonManager.getAllInstalls(function(aInstalls) {
-              is(aInstalls.length, 1, "Should be one pending installs");
+              is(aInstalls.length, 2, "Should be two pending installs");
                 aInstalls[0].cancel();
+                aInstalls[1].cancel();
 
                 gBrowser.removeTab(gBrowser.selectedTab);
                 runNextTest();
               });
             });
-
-            aWindow.document.documentElement.acceptDialog();
           });
 
-          gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
         });
       }, false);
   
       // hide the panel (this simulates the user dismissing it)
       aPanel.hidePopup();
     });
-
-    aWindow.document.documentElement.acceptDialog();
   });
-
-  var pm = Services.perms;
-  pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
-
-  var triggers = encodeURIComponent(JSON.stringify({
-    "XPI": "unsigned.xpi"
-  }));
-  gBrowser.selectedTab = gBrowser.addTab();
-  gBrowser.loadURI(TESTROOT + "installtrigger.html?" + triggers);
 }
 ];
 
-var gTestStart = null;
-
 function runNextTest() {
-  if (gTestStart)
-    info("Test part took " + (Date.now() - gTestStart) + "ms");
-
   AddonManager.getAllInstalls(function(aInstalls) {
     is(aInstalls.length, 0, "Should be no active installs");
 
     if (TESTS.length == 0) {
+      Services.prefs.setBoolPref("extensions.logging.enabled", false);
+
       finish();
       return;
     }
 
     info("Running " + TESTS[0].name);
-    gTestStart = Date.now();
     TESTS.shift()();
   });
 };
 
-var XPInstallObserver = {
-  observe: function (aSubject, aTopic, aData) {
-    var installInfo = aSubject.QueryInterface(Components.interfaces.amIWebInstallInfo);
-    info("Observed " + aTopic + " for " + installInfo.installs.length + " installs");
-    installInfo.installs.forEach(function(aInstall) {
-      info("Install of " + aInstall.sourceURI.spec + " was in state " + aInstall.state);
-    });
-  }
-};
-
 function test() {
-  requestLongerTimeout(4);
   waitForExplicitFinish();
 
   Services.prefs.setBoolPref("extensions.logging.enabled", true);
-
-  Services.obs.addObserver(XPInstallObserver, "addon-install-started", false);
-  Services.obs.addObserver(XPInstallObserver, "addon-install-blocked", false);
-  Services.obs.addObserver(XPInstallObserver, "addon-install-failed", false);
-  Services.obs.addObserver(XPInstallObserver, "addon-install-complete", false);
-
-  registerCleanupFunction(function() {
-    // Make sure no more test parts run in case we were timed out
-    TESTS = [];
-
-    AddonManager.getAllInstalls(function(aInstalls) {
-      aInstalls.forEach(function(aInstall) {
-        aInstall.cancel();
-      });
-    });
-
-    Services.prefs.clearUserPref("extensions.logging.enabled");
-
-    Services.obs.removeObserver(XPInstallObserver, "addon-install-started");
-    Services.obs.removeObserver(XPInstallObserver, "addon-install-blocked");
-    Services.obs.removeObserver(XPInstallObserver, "addon-install-failed");
-    Services.obs.removeObserver(XPInstallObserver, "addon-install-complete");
-  });
 
   runNextTest();
 }

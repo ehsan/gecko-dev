@@ -42,7 +42,6 @@
 
 #include "mozilla/jetpack/JetpackChild.h"
 #include "mozilla/jetpack/Handle.h"
-#include "mozilla/IntentionalCrash.h"
 
 #include "jsarray.h"
 
@@ -76,8 +75,6 @@ JetpackChild::sImplMethods[] = {
 #ifdef JS_GC_ZEAL
   JS_FN("gczeal", GCZeal, 1, IMPL_METHOD_FLAGS),
 #endif
-  JS_FN("_noteIntentionalCrash", NoteIntentionalCrash, 0,
-        IMPL_METHOD_FLAGS),
   JS_FS_END
 };
 
@@ -179,7 +176,7 @@ JetpackChild::ActorDestroy(ActorDestroyReason why)
 
 bool
 JetpackChild::RecvSendMessage(const nsString& messageName,
-                              const InfallibleTArray<Variant>& data)
+                              const nsTArray<Variant>& data)
 {
   JSAutoRequest request(mCx);
 
@@ -231,7 +228,7 @@ JetpackChild::GetThis(JSContext* cx)
 
 struct MessageResult {
   nsString msgName;
-  InfallibleTArray<Variant> data;
+  nsTArray<Variant> data;
 };
 
 static JSBool
@@ -294,7 +291,7 @@ JetpackChild::CallMessage(JSContext* cx, uintN argc, jsval* vp)
   if (!MessageCommon(cx, argc, vp, &smr))
     return JS_FALSE;
 
-  InfallibleTArray<Variant> results;
+  nsTArray<Variant> results;
   if (!GetThis(cx)->CallCallMessage(smr.msgName, smr.data, &results)) {
     JS_ReportError(cx, "Failed to callMessage");
     return JS_FALSE;
@@ -361,7 +358,9 @@ ReceiverCommon(JSContext* cx, uintN argc, jsval* vp,
   if (arity < 2)
     return JS_TRUE;
 
-  if (JS_TypeOfValue(cx, argv[1]) != JSTYPE_FUNCTION) {
+  if (!JSVAL_IS_OBJECT(argv[1]) ||
+      !JS_ObjectIsFunction(cx, JSVAL_TO_OBJECT(argv[1])))
+  {
     JS_ReportError(cx, "%s expects a function as its second argument",
                    methodName);
     return JS_FALSE;
@@ -449,15 +448,11 @@ JetpackChild::CreateSandbox(JSContext* cx, uintN argc, jsval* vp)
   if (!obj)
     return JS_FALSE;
 
-  jsval rval = OBJECT_TO_JSVAL(obj);
-  if (!JS_WrapValue(cx, &rval))
-    return JS_FALSE;
-
   JSAutoEnterCompartment ac;
   if (!ac.enter(cx, obj))
     return JS_FALSE;
 
-  JS_SET_RVAL(cx, vp, rval);
+  JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(obj));
   return JS_InitStandardClasses(cx, obj);
 }
 
@@ -471,31 +466,22 @@ JetpackChild::EvalInSandbox(JSContext* cx, uintN argc, jsval* vp)
 
   jsval* argv = JS_ARGV(cx, vp);
 
+  JSObject* obj;
+  if (!JSVAL_IS_OBJECT(argv[0]) ||
+      !(obj = JSVAL_TO_OBJECT(argv[0])) ||
+      &sGlobalClass != JS_GetClass(cx, obj) ||
+      obj == JS_GetGlobalObject(cx)) {
+    JS_ReportError(cx, "The first argument to evalInSandbox must be a global object created using createSandbox.");
+    return JS_FALSE;
+  }
+
   JSString* str = JS_ValueToString(cx, argv[1]);
   if (!str)
     return JS_FALSE;
 
-  JSObject* obj;
-  if (!JSVAL_IS_OBJECT(argv[0]) ||
-      !(obj = JSVAL_TO_OBJECT(argv[0]))) {
-    JS_ReportError(cx, "The first argument to evalInSandbox must be a global object created using createSandbox.");
-    JS_ASSERT(JS_FALSE);
-    return JS_FALSE;
-  }
-
-  // Unwrap, and switch compartments
-  obj = obj->unwrap();
-
   JSAutoEnterCompartment ac;
   if (!ac.enter(cx, obj))
     return JS_FALSE;
-
-  if (&sGlobalClass != JS_GetClass(cx, obj) ||
-      obj == JS_GetGlobalObject(cx)) {
-    JS_ReportError(cx, "The first argument to evalInSandbox must be a global object created using createSandbox.");
-    JS_ASSERT(JS_FALSE);
-    return JS_FALSE;
-  }
 
   js::AutoValueRooter ignored(cx);
   return JS_EvaluateUCScript(cx, obj, JS_GetStringChars(str), JS_GetStringLength(str), "", 1,
@@ -563,13 +549,6 @@ JetpackChild::GCZeal(JSContext* cx, uintN argc, jsval *vp)
   return JS_TRUE;
 }
 #endif
-
-JSBool
-JetpackChild::NoteIntentionalCrash(JSContext* cx, uintN argc, jsval *vp)
-{
-  mozilla::NoteIntentionalCrash("jetpack");
-  return JS_TRUE;
-}
 
 } // namespace jetpack
 } // namespace mozilla

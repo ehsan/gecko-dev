@@ -47,7 +47,7 @@
 #include "nsFormSubmission.h"
 #include "nsFormSubmissionConstants.h"
 #include "nsIURL.h"
-#include "nsEventStateManager.h"
+
 #include "nsIFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIEventStateManager.h"
@@ -110,9 +110,9 @@ public:
   NS_IMETHOD SaveState();
   PRBool RestoreState(nsPresState* aState);
 
-  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
+  virtual void FieldSetDisabledChanged(PRInt32 aStates);
 
-  nsEventStates IntrinsicState() const;
+  PRInt32 IntrinsicState() const;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                nsIContent* aBindingParent,
@@ -218,7 +218,7 @@ nsHTMLButtonElement::GetForm(nsIDOMHTMLFormElement** aForm)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, AccessKey, accesskey)
 NS_IMPL_BOOL_ATTR(nsHTMLButtonElement, Autofocus, autofocus)
 NS_IMPL_BOOL_ATTR(nsHTMLButtonElement, Disabled, disabled)
-NS_IMPL_ACTION_ATTR(nsHTMLButtonElement, FormAction, formaction)
+NS_IMPL_STRING_ATTR(nsHTMLButtonElement, FormAction, formaction)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, FormEnctype, formenctype,
                                 kFormDefaultEnctype->tag)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, FormMethod, formmethod,
@@ -226,7 +226,7 @@ NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, FormMethod, formmethod,
 NS_IMPL_BOOL_ATTR(nsHTMLButtonElement, FormNoValidate, formnovalidate)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, FormTarget, formtarget)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, Name, name)
-NS_IMPL_INT_ATTR(nsHTMLButtonElement, TabIndex, tabindex)
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, Value, value)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, Type, type,
                                 kButtonDefaultType->tag)
@@ -436,12 +436,8 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           if (aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT) {
             if (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
                   nsMouseEvent::eLeftButton) {
-              if (NS_IS_TRUSTED_EVENT(aVisitor.mEvent)) {
-                nsIEventStateManager* esm =
-                  aVisitor.mPresContext->EventStateManager();
-                nsEventStateManager::SetActiveManager(
-                  static_cast<nsEventStateManager*>(esm), this);
-              }
+              aVisitor.mPresContext->EventStateManager()->
+                SetContentState(this, NS_EVENT_STATE_ACTIVE);
               nsIFocusManager* fm = nsFocusManager::GetFocusManager();
               if (fm)
                 fm->SetFocus(this, nsIFocusManager::FLAG_BYMOUSE |
@@ -643,7 +639,7 @@ nsresult
 nsHTMLButtonElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                   const nsAString* aValue, PRBool aNotify)
 {
-  nsEventStates states;
+  PRInt32 states = 0;
 
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::type) {
@@ -653,15 +649,13 @@ nsHTMLButtonElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
       UpdateBarredFromConstraintValidation();
       states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
-                NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID |
                 NS_EVENT_STATE_MOZ_SUBMITINVALID;
     } else if (aName == nsGkAtoms::disabled) {
       UpdateBarredFromConstraintValidation();
-      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
-                NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID;
+      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
     }
 
-    if (aNotify && !states.IsEmpty()) {
+    if (aNotify && states) {
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
@@ -702,21 +696,20 @@ nsHTMLButtonElement::RestoreState(nsPresState* aState)
   return PR_FALSE;
 }
 
-nsEventStates
+PRInt32
 nsHTMLButtonElement::IntrinsicState() const
 {
-  nsEventStates state = nsGenericHTMLFormElement::IntrinsicState();
+  PRInt32 state = nsGenericHTMLFormElement::IntrinsicState();
 
   if (IsCandidateForConstraintValidation()) {
-    state |= IsValid() ? NS_EVENT_STATE_VALID | NS_EVENT_STATE_MOZ_UI_VALID
-                       : NS_EVENT_STATE_INVALID | NS_EVENT_STATE_MOZ_UI_INVALID;
+    state |= IsValid() ? NS_EVENT_STATE_VALID : NS_EVENT_STATE_INVALID;
   }
 
   if (mForm && !mForm->GetValidity() && IsSubmitControl()) {
     state |= NS_EVENT_STATE_MOZ_SUBMITINVALID;
   }
 
-  return state;
+  return state | NS_EVENT_STATE_OPTIONAL;
 }
 
 // nsIConstraintValidation
@@ -730,9 +723,7 @@ nsHTMLButtonElement::SetCustomValidity(const nsAString& aError)
   if (doc) {
     MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
     doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
-                                            NS_EVENT_STATE_VALID |
-                                            NS_EVENT_STATE_MOZ_UI_INVALID |
-                                            NS_EVENT_STATE_MOZ_UI_VALID);
+                                            NS_EVENT_STATE_VALID);
   }
 
   return NS_OK;
@@ -747,12 +738,11 @@ nsHTMLButtonElement::UpdateBarredFromConstraintValidation()
 }
 
 void
-nsHTMLButtonElement::FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify)
+nsHTMLButtonElement::FieldSetDisabledChanged(PRInt32 aStates)
 {
   UpdateBarredFromConstraintValidation();
 
-  aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
-             NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID;
-  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates, aNotify);
+  aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
+  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates);
 }
 

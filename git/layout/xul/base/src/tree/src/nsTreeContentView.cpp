@@ -823,11 +823,11 @@ void
 nsTreeContentView::ContentStatesChanged(nsIDocument* aDocument,
                                         nsIContent* aContent1,
                                         nsIContent* aContent2,
-                                        nsEventStates aStateMask)
+                                        PRInt32 aStateMask)
 {
   if (!aContent1 || !mSelection ||
       !aContent1->IsHTML() ||
-      !aStateMask.HasState(NS_EVENT_STATE_CHECKED))
+      !(aStateMask & NS_EVENT_STATE_CHECKED))
     return;
 
   if (aContent1->Tag() == nsGkAtoms::option) {
@@ -1091,14 +1091,11 @@ nsTreeContentView::ContentInserted(nsIDocument *aDocument,
   }
   else if (childTag == nsGkAtoms::option) {
     PRInt32 parentIndex = FindContent(aContainer);
-
-    if (parentIndex >= 0) {
-      PRInt32 index = 0;
-      GetIndexInSubtree(aContainer, aChild, &index);
-      PRInt32 count = InsertRow(parentIndex, index, aChild);
-      if (mBoxObject)
-        mBoxObject->RowCountChanged(parentIndex + index + 1, count);
-    }
+    PRInt32 index = 0;
+    GetIndexInSubtree(aContainer, aChild, &index);
+    PRInt32 count = InsertRow(parentIndex, index, aChild);
+    if (mBoxObject)
+      mBoxObject->RowCountChanged(parentIndex + index + 1, count);
   }
 }
 

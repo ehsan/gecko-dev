@@ -64,9 +64,7 @@
 #define VISTA_VERSION                     0x600
 #define WIN7_VERSION                      0x601
 
-#ifndef WM_THEMECHANGED
-#define WM_THEMECHANGED                   0x031A
-#endif
+#define WM_XP_THEMECHANGED                0x031A
 
 #ifndef WM_GETOBJECT
 #define WM_GETOBJECT                      0x03d
@@ -96,10 +94,6 @@
 
 // ConstrainPosition window positioning slop value
 #define kWindowPositionSlop               20
-
-// Origin of the system context menu when displayed in full screen mode
-#define MOZ_SYSCONTEXT_X_POS              20
-#define MOZ_SYSCONTEXT_Y_POS              20
 
 // Drop shadow window style
 #define CS_XP_DROPSHADOW                  0x00020000
@@ -216,11 +210,11 @@ typedef enum
  * touchpad scrolling or screen readers.
  */
 const PRUint32 kMaxClassNameLength   = 40;
-const char kClassNameHidden[]        = "MozillaHiddenWindowClass";
-const char kClassNameGeneral[]       = "MozillaWindowClass";
-const char kClassNameDialog[]        = "MozillaDialogClass";
-const char kClassNameDropShadow[]    = "MozillaDropShadowWindowClass";
-const char kClassNameTemp[]          = "MozillaTempWindowClass";
+const LPCWSTR kClassNameHidden       = L"MozillaHiddenWindowClass";
+const LPCWSTR kClassNameGeneral      = L"MozillaWindowClass";
+const LPCWSTR kClassNameDialog       = L"MozillaDialogClass";
+const LPCWSTR kClassNameDropShadow   = L"MozillaDropShadowWindowClass";
+const LPCWSTR kClassNameTemp         = L"MozillaTempWindowClass";
 
 static const PRUint32 sModifierKeyMap[][3] = {
   { nsIWidget::CAPS_LOCK, VK_CAPITAL, 0 },

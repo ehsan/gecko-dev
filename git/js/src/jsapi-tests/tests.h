@@ -48,7 +48,7 @@
 
 class jsvalRoot
 {
-  public:
+public:
     explicit jsvalRoot(JSContext *context, jsval value = JSVAL_NULL)
         : cx(context), v(value)
     {
@@ -70,7 +70,7 @@ class jsvalRoot
     jsval * addr() { return &v; }
     jsval value() const { return v; }
 
-  private:
+private:
     JSContext *cx;
     jsval v;
 };
@@ -78,7 +78,7 @@ class jsvalRoot
 /* Note: Aborts on OOM. */
 class JSAPITestString {
     js::Vector<char, 0, js::SystemAllocPolicy> chars;
-  public:
+public:
     JSAPITestString() {}
     JSAPITestString(const char *s) { *this += s; }
     JSAPITestString(const JSAPITestString &s) { *this += s; }
@@ -105,7 +105,7 @@ inline JSAPITestString operator+(JSAPITestString a, const JSAPITestString &b) { 
 
 class JSAPITest
 {
-  public:
+public:
     static JSAPITest *list;
     JSAPITest *next;
 
@@ -174,11 +174,8 @@ class JSAPITest
 
     JSAPITestString toSource(jsval v) {
         JSString *str = JS_ValueToSource(cx, v);
-        if (str) {
-            JSAutoByteString bytes(cx, str);
-            if (!!bytes)
-                return JSAPITestString(bytes.ptr());
-        }
+        if (str)
+            return JSAPITestString(JS_GetStringBytes(str));
         JS_ClearPendingException(cx);
         return JSAPITestString("<<error converting value to string>>");
     }
@@ -210,11 +207,8 @@ class JSAPITest
             JS_GetPendingException(cx, v.addr());
             JS_ClearPendingException(cx);
             JSString *s = JS_ValueToString(cx, v);
-            if (s) {
-                JSAutoByteString bytes(cx, s);
-                if (!!bytes)
-                    msg += bytes.ptr();
-            }
+            if (s)
+                msg += JS_GetStringBytes(s);
         }
         fprintf(stderr, "%s:%d:%.*s\n", filename, lineno, (int) msg.length(), msg.begin());
         msgs += msg;
@@ -223,17 +217,7 @@ class JSAPITest
 
     JSAPITestString messages() const { return msgs; }
 
-    static JSClass * basicGlobalClass() {
-        static JSClass c = {
-            "global", JSCLASS_GLOBAL_FLAGS,
-            JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
-            JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub,
-            JSCLASS_NO_OPTIONAL_MEMBERS
-        };
-        return &c;
-    }
-
-  protected:
+protected:
     static JSBool
     print(JSContext *cx, uintN argc, jsval *vp)
     {
@@ -287,7 +271,13 @@ class JSAPITest
     }
 
     virtual JSClass * getGlobalClass() {
-        return basicGlobalClass();
+        static JSClass basicGlobalClass = {
+            "global", JSCLASS_GLOBAL_FLAGS,
+            JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
+            JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub,
+            JSCLASS_NO_OPTIONAL_MEMBERS
+        };
+        return &basicGlobalClass;
     }
 
     virtual JSObject * createGlobal() {
@@ -310,7 +300,7 @@ class JSAPITest
 
 #define BEGIN_TEST(testname)                                            \
     class cls_##testname : public JSAPITest {                           \
-      public:                                                           \
+    public:                                                             \
         virtual const char * name() { return #testname; }               \
         virtual bool run()
 
@@ -328,7 +318,7 @@ class JSAPITest
 
 #define BEGIN_FIXTURE_TEST(fixture, testname)                           \
     class cls_##testname : public fixture {                             \
-      public:                                                           \
+    public:                                                             \
         virtual const char * name() { return #testname; }               \
         virtual bool run()
 

@@ -49,13 +49,11 @@ import android.text.style.*;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.content.*;
-import android.R;
 
 import android.util.*;
 
 public class GeckoInputConnection
     extends BaseInputConnection
-    implements TextWatcher
 {
     public GeckoInputConnection (View targetView) {
         super(targetView, true);
@@ -64,14 +62,14 @@ public class GeckoInputConnection
 
     @Override
     public boolean beginBatchEdit() {
-        //Log.d("GeckoAppJava", "IME: beginBatchEdit");
+        Log.d("GeckoAppJava", "IME: beginBatchEdit");
 
         return true;
     }
 
     @Override
     public boolean commitCompletion(CompletionInfo text) {
-        //Log.d("GeckoAppJava", "IME: commitCompletion");
+        Log.d("GeckoAppJava", "IME: commitCompletion");
 
         return commitText(text.getText(), 1);
     }
@@ -88,7 +86,7 @@ public class GeckoInputConnection
 
     @Override
     public boolean deleteSurroundingText(int leftLength, int rightLength) {
-        //Log.d("GeckoAppJava", "IME: deleteSurroundingText");
+        Log.d("GeckoAppJava", "IME: deleteSurroundingText");
 
         /* deleteSurroundingText is supposed to ignore the composing text,
             so we cancel any pending composition, delete the text, and then
@@ -139,7 +137,7 @@ public class GeckoInputConnection
 
     @Override
     public boolean endBatchEdit() {
-        //Log.d("GeckoAppJava", "IME: endBatchEdit");
+        Log.d("GeckoAppJava", "IME: endBatchEdit");
 
         return true;
     }
@@ -180,58 +178,6 @@ public class GeckoInputConnection
             Thread.currentThread().getStackTrace()[0].toString());
 
         return null;
-    }
-
-    @Override
-    public boolean performContextMenuAction(int id) {
-        //Log.d("GeckoAppJava", "IME: performContextMenuAction");
-
-        // First we need to ask Gecko to tell us the full contents of the
-        // text field we're about to operate on.
-        String text;
-        GeckoAppShell.sendEventToGecko(
-            new GeckoEvent(GeckoEvent.IME_GET_TEXT, 0, Integer.MAX_VALUE));
-        try {
-            text = mQueryResult.take();
-        } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: performContextMenuAction interrupted");
-            return false;
-        }
-
-        switch (id) {
-            case R.id.selectAll:
-                setSelection(0, text.length());
-                break;
-            case R.id.cut:
-                // Fill the clipboard
-                GeckoAppShell.setClipboardText(text);
-                // If GET_TEXT returned an empty selection, we'll select everything
-                if (mSelectionLength <= 0)
-                    GeckoAppShell.sendEventToGecko(
-                        new GeckoEvent(GeckoEvent.IME_SET_SELECTION, 0, text.length()));
-                GeckoAppShell.sendEventToGecko(
-                    new GeckoEvent(GeckoEvent.IME_DELETE_TEXT, 0, 0));
-                break;
-            case R.id.paste:
-                commitText(GeckoAppShell.getClipboardText(), 1);
-                break;
-            case R.id.copy:
-                // If there is no selection set, we must be doing "Copy All",
-                // otherwise, we need to get the selection from Gecko
-                if (mSelectionLength > 0) {
-                    GeckoAppShell.sendEventToGecko(
-                        new GeckoEvent(GeckoEvent.IME_GET_SELECTION, 0, 0));
-                    try {
-                        text = mQueryResult.take();
-                    } catch (InterruptedException e) {
-                        Log.e("GeckoAppJava", "IME: performContextMenuAction interrupted");
-                        return false;
-                    }
-                }
-                GeckoAppShell.setClipboardText(text);
-                break;
-        }
-        return true;
     }
 
     @Override
@@ -487,16 +433,10 @@ public class GeckoInputConnection
                                  int start, int oldEnd, int newEnd) {
         //Log.d("GeckoAppJava", "IME: notifyTextChange");
 
-        if (!text.contentEquals(GeckoApp.surfaceView.mEditable))
-            GeckoApp.surfaceView.setupEditable(text);
-
         if (mUpdateRequest == null)
             return;
 
         mUpdateExtract.flags = 0;
-
-        // We update from (0, oldEnd) to (0, newEnd) because some Android IMEs
-        // assume that updates start at zero, according to jchen.
         mUpdateExtract.partialStartOffset = 0;
         mUpdateExtract.partialEndOffset = oldEnd;
 
@@ -504,7 +444,7 @@ public class GeckoInputConnection
         mUpdateExtract.selectionStart = newEnd;
         mUpdateExtract.selectionEnd = newEnd;
 
-        mUpdateExtract.text = text.substring(0, newEnd);
+        mUpdateExtract.text = text;
         mUpdateExtract.startOffset = 0;
 
         imm.updateExtractedText(GeckoApp.surfaceView,
@@ -523,50 +463,12 @@ public class GeckoInputConnection
                 mCompositionStart + mComposingText.length());
         else
             imm.updateSelection(GeckoApp.surfaceView, start, end, -1, -1);
-
-        int maxLen = GeckoApp.surfaceView.mEditable.length();
-        Selection.setSelection(GeckoApp.surfaceView.mEditable, 
-                               Math.min(start, maxLen),
-                               Math.min(end, maxLen));
     }
 
     public void reset() {
         mComposing = false;
         mComposingText = null;
         mUpdateRequest = null;
-    }
-
-    // TextWatcher
-    public void onTextChanged(CharSequence s, int start, int before, int count)
-    {
-        GeckoAppShell.sendEventToGecko(
-            new GeckoEvent(GeckoEvent.IME_SET_SELECTION, start, before));
-
-        if (count == 0) {
-            GeckoAppShell.sendEventToGecko(
-                new GeckoEvent(GeckoEvent.IME_DELETE_TEXT, 0, 0));
-        } else {
-            // Start and stop composition to force UI updates.
-            finishComposingText();
-            GeckoAppShell.sendEventToGecko(
-                new GeckoEvent(GeckoEvent.IME_COMPOSITION_BEGIN, 0, 0));
-
-            GeckoAppShell.sendEventToGecko(
-                new GeckoEvent(0, count,
-                               GeckoEvent.IME_RANGE_RAWINPUT, 0, 0, 0,
-                               s.subSequence(start, start + count).toString()));
-
-            GeckoAppShell.sendEventToGecko(
-                new GeckoEvent(GeckoEvent.IME_COMPOSITION_END, 0, 0));
-        }
-    }
-
-    public void afterTextChanged(Editable s)
-    {
-    }
-
-    public void beforeTextChanged(CharSequence s, int start, int count, int after)
-    {
     }
 
     // Is a composition active?

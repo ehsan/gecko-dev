@@ -78,11 +78,8 @@
 #include "nsISupportsPrimitives.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsIConstraintValidation.h"
-#include "nsHTMLFormElement.h"
 
 #include "nsTextEditorState.h"
-
-using namespace mozilla::dom;
 
 static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
 
@@ -100,7 +97,7 @@ public:
   using nsIConstraintValidation::GetValidationMessage;
 
   nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                        PRUint32 aFromParser = 0);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -134,9 +131,9 @@ public:
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
 
-  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
+  virtual void FieldSetDisabledChanged(PRInt32 aStates);
 
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
 
   // nsITextControlElemet
   NS_IMETHOD SetValueChanged(PRBool aValueChanged);
@@ -158,7 +155,6 @@ public:
   NS_IMETHOD_(void) UnbindFromFrame(nsTextControlFrame* aFrame);
   NS_IMETHOD CreateEditor();
   NS_IMETHOD_(nsIContent*) GetRootEditorNode();
-  NS_IMETHOD_(nsIContent*) CreatePlaceholderNode();
   NS_IMETHOD_(nsIContent*) GetPlaceholderNode();
   NS_IMETHOD_(void) UpdatePlaceholderText(PRBool aNotify);
   NS_IMETHOD_(void) SetPlaceholderClass(PRBool aVisible, PRBool aNotify);
@@ -238,14 +234,9 @@ protected:
   PRPackedBool             mInhibitStateRestoration;
   /** Whether our disabled state has changed from the default **/
   PRPackedBool             mDisabledChanged;
-  /** Whether we should make :-moz-ui-invalid apply on the element. **/
-  PRPackedBool             mCanShowInvalidUI;
-  /** Whether we should make :-moz-ui-valid apply on the element. **/
-  PRPackedBool             mCanShowValidUI;
-
   /** The state of the text editor (selection controller and the editor) **/
   nsRefPtr<nsTextEditorState> mState;
-
+  
   NS_IMETHOD SelectAll(nsPresContext* aPresContext);
   /**
    * Get the value, whether it is from the content or the frame.
@@ -276,39 +267,6 @@ protected:
                                 const nsAString* aValue, PRBool aNotify);
 
   /**
-   * Return if an invalid element should have a specific UI for being invalid
-   * (with :-moz-ui-invalid pseudo-class.
-   *
-   * @return Whether the invalid elemnet should have a UI for being invalid.
-   * @note The caller has to be sure the element is invalid before calling.
-   */
-  bool ShouldShowInvalidUI() const {
-    NS_ASSERTION(!IsValid(), "You should not call ShouldShowInvalidUI if the "
-                             "element is valid!");
-
-    /**
-     * Always show the invalid UI if:
-     * - the form has already tried to be submitted but was invalid;
-     * - the element is suffering from a custom error;
-     *
-     * Otherwise, show the invalid UI if the element's value has been changed.
-     */
-
-    return (mForm && mForm->HasEverTriedInvalidSubmit()) ||
-           mValueChanged || GetValidityState(VALIDITY_STATE_CUSTOM_ERROR);
-  }
-
-  /**
-   * Return whether an element should show the valid UI.
-   *
-   * @return Whether the valid UI should be shown.
-   * @note This doesn't take into account the validity of the element.
-   */
-  bool ShouldShowValidUI() const {
-    return (mForm && mForm->HasEverTriedInvalidSubmit()) || mValueChanged;
-  }
-
-  /**
    * Get the mutable state of the element.
    */
   PRBool IsMutable() const;
@@ -319,15 +277,13 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(TextArea)
 
 
 nsHTMLTextAreaElement::nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                             FromParser aFromParser)
+                                             PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mValueChanged(PR_FALSE),
     mHandlingSelect(PR_FALSE),
     mDoneAddingChildren(!aFromParser),
-    mInhibitStateRestoration(!!(aFromParser & FROM_PARSER_FRAGMENT)),
+    mInhibitStateRestoration(!!(aFromParser & NS_FROM_PARSER_FRAGMENT)),
     mDisabledChanged(PR_FALSE),
-    mCanShowInvalidUI(PR_TRUE),
-    mCanShowValidUI(PR_TRUE),
     mState(new nsTextEditorState(this))
 {
   AddMutationObserver(this);
@@ -468,14 +424,14 @@ nsHTMLTextAreaElement::IsHTMLFocusable(PRBool aWithMouse,
 
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, AccessKey, accesskey)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Autofocus, autofocus)
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLTextAreaElement, Cols, cols, 20)
+NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, Cols, cols)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Disabled, disabled)
 NS_IMPL_NON_NEGATIVE_INT_ATTR(nsHTMLTextAreaElement, MaxLength, maxlength)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Name, name)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, ReadOnly, readonly)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Required, required)
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLTextAreaElement, Rows, rows, 2)
-NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, TabIndex, tabindex)
+NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, Rows, rows)
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLTextAreaElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Wrap, wrap)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Placeholder, placeholder)
   
@@ -546,13 +502,6 @@ nsHTMLTextAreaElement::GetRootEditorNode()
 }
 
 NS_IMETHODIMP_(nsIContent*)
-nsHTMLTextAreaElement::CreatePlaceholderNode()
-{
-  NS_ENSURE_SUCCESS(mState->CreatePlaceholderNode(), nsnull);
-  return mState->GetPlaceholderNode();
-}
-
-NS_IMETHODIMP_(nsIContent*)
 nsHTMLTextAreaElement::GetPlaceholderNode()
 {
   return mState->GetPlaceholderNode();
@@ -602,25 +551,16 @@ nsHTMLTextAreaElement::SetUserInput(const nsAString& aValue)
 NS_IMETHODIMP
 nsHTMLTextAreaElement::SetValueChanged(PRBool aValueChanged)
 {
-  PRBool previousValue = mValueChanged;
-
   mValueChanged = aValueChanged;
   if (!aValueChanged && !mState->IsEmpty()) {
     mState->EmptyValue();
   }
 
-  if (mValueChanged != previousValue) {
-    nsEventStates states = NS_EVENT_STATE_MOZ_UI_VALID |
-                           NS_EVENT_STATE_MOZ_UI_INVALID;
-
-    if (HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder)) {
-      states |= NS_EVENT_STATE_MOZ_PLACEHOLDER;
-    }
-
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder)) {
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStatesChanged(this, nsnull, states);
+      doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_MOZ_PLACEHOLDER);
     }
   }
 
@@ -684,8 +624,6 @@ nsHTMLTextAreaElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
     NS_UpdateHint(retval, NS_STYLE_HINT_REFLOW);
   } else if (aAttribute == nsGkAtoms::wrap) {
     NS_UpdateHint(retval, nsChangeHint_ReconstructFrame);
-  } else if (aAttribute == nsGkAtoms::placeholder) {
-    NS_UpdateHint(retval, NS_STYLE_HINT_FRAMECHANGE);
   }
   return retval;
 }
@@ -771,37 +709,15 @@ nsHTMLTextAreaElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     mHandlingSelect = PR_FALSE;
   }
 
-  if (aVisitor.mEvent->message == NS_FOCUS_CONTENT ||
-      aVisitor.mEvent->message == NS_BLUR_CONTENT) {
-    nsEventStates states;
-
-    if (aVisitor.mEvent->message == NS_FOCUS_CONTENT) {
-      // If the invalid UI is shown, we should show it while focusing (and
-      // update). Otherwise, we should not.
-      mCanShowInvalidUI = !IsValid() && ShouldShowInvalidUI();
-
-      // If neither invalid UI nor valid UI is shown, we shouldn't show the valid
-      // UI while typing.
-      mCanShowValidUI = ShouldShowValidUI();
-
-      // We don't have to update NS_EVENT_STATE_MOZ_UI_INVALID nor
-      // NS_EVENT_STATE_MOZ_UI_VALID given that the states should not change.
-    } else { // NS_BLUR_CONTENT
-      mCanShowInvalidUI = PR_TRUE;
-      mCanShowValidUI = PR_TRUE;
-      states |= NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID;
-    }
-
-    if (HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder)) {
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder) &&
       // TODO: checking if the value is empty could be a good idea but we do not
       // have a simple way to do that, see bug 585100
-      states |= NS_EVENT_STATE_MOZ_PLACEHOLDER;
-    }
-
+      (aVisitor.mEvent->message == NS_FOCUS_CONTENT ||
+       aVisitor.mEvent->message == NS_BLUR_CONTENT)) {
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStatesChanged(this, nsnull, states);
+      doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_MOZ_PLACEHOLDER);
     }
   }
 
@@ -984,8 +900,7 @@ nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
   // Get the name (if no name, no submit)
   //
   nsAutoString name;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
-  if (name.IsEmpty()) {
+  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::name, name)) {
     return NS_OK;
   }
 
@@ -1064,10 +979,10 @@ nsHTMLTextAreaElement::RestoreState(nsPresState* aState)
   return PR_FALSE;
 }
 
-nsEventStates
+PRInt32
 nsHTMLTextAreaElement::IntrinsicState() const
 {
-  nsEventStates state = nsGenericHTMLFormElement::IntrinsicState();
+  PRInt32 state = nsGenericHTMLFormElement::IntrinsicState();
 
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::required)) {
     state |= NS_EVENT_STATE_REQUIRED;
@@ -1076,32 +991,7 @@ nsHTMLTextAreaElement::IntrinsicState() const
   }
 
   if (IsCandidateForConstraintValidation()) {
-    if (IsValid()) {
-      state |= NS_EVENT_STATE_VALID;
-    } else {
-      state |= NS_EVENT_STATE_INVALID;
-      // NS_EVENT_STATE_MOZ_UI_INVALID always apply if the element suffers from
-      // VALIDITY_STATE_CUSTOM_ERROR.
-      // Otherwise, it applies if the value has been modified.
-      // NS_EVENT_STATE_MOZ_UI_INVALID always applies if the form submission has
-      // been tried while invalid.
-      if (mCanShowInvalidUI && ShouldShowInvalidUI()) {
-        state |= NS_EVENT_STATE_MOZ_UI_INVALID;
-      }
-    }
-
-    // :-moz-ui-valid applies if all the following are true:
-    // 1. The element is not focused, or had either :-moz-ui-valid or
-    //    :-moz-ui-invalid applying before it was focused ;
-    // 2. The element is either valid or isn't allowed to have
-    //    :-moz-ui-invalid applying ;
-    // 3. The rules to have :-moz-ui-valid applying are fulfilled
-    //    (see ShouldShowValidUI()).
-    if (mCanShowValidUI &&
-        (IsValid() || !mCanShowInvalidUI) &&
-        ShouldShowValidUI()) {
-      state |= NS_EVENT_STATE_MOZ_UI_VALID;
-    }
+    state |= IsValid() ? NS_EVENT_STATE_VALID : NS_EVENT_STATE_INVALID;
   }
 
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder) &&
@@ -1209,7 +1099,7 @@ nsresult
 nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                     const nsAString* aValue, PRBool aNotify)
 {
-  nsEventStates states;
+  PRInt32 states = 0;
 
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::required || aName == nsGkAtoms::disabled ||
@@ -1222,12 +1112,10 @@ nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       }
 
       states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
-                NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID |
                 NS_EVENT_STATE_MOZ_SUBMITINVALID;
     } else if (aName == nsGkAtoms::maxlength) {
       UpdateTooLongValidityState();
-      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
-                NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID;
+      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
     }
 
     if (aNotify) {
@@ -1238,7 +1126,7 @@ nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
         states |= NS_EVENT_STATE_MOZ_READONLY | NS_EVENT_STATE_MOZ_READWRITE;
       }
 
-      if (doc && !states.IsEmpty()) {
+      if (doc && states) {
         MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
         doc->ContentStatesChanged(this, nsnull, states);
       }
@@ -1280,9 +1168,7 @@ nsHTMLTextAreaElement::SetCustomValidity(const nsAString& aError)
   if (doc) {
     MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
     doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
-                                            NS_EVENT_STATE_VALID |
-                                            NS_EVENT_STATE_MOZ_UI_INVALID |
-                                            NS_EVENT_STATE_MOZ_UI_VALID);
+                                            NS_EVENT_STATE_VALID);
   }
 
   return NS_OK;
@@ -1325,10 +1211,7 @@ nsHTMLTextAreaElement::IsValueMissing() const
 void
 nsHTMLTextAreaElement::UpdateTooLongValidityState()
 {
-  // TODO: this code will be re-enabled with bug 613016 and bug 613019.
-#if 0
   SetValidityState(VALIDITY_STATE_TOO_LONG, IsTooLong());
-#endif
 }
 
 void
@@ -1493,40 +1376,31 @@ NS_IMETHODIMP_(void)
 nsHTMLTextAreaElement::OnValueChanged(PRBool aNotify)
 {
   // Update the validity state
-  PRBool validBefore = IsValid();
   UpdateTooLongValidityState();
   UpdateValueMissingValidityState();
 
   if (aNotify) {
-    nsEventStates states;
-    if (validBefore != IsValid()) {
-      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
-                NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID;
-    }
-
-    if (HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder)
-        && !nsContentUtils::IsFocusedContent((nsIContent*)(this))) {
-      states |= NS_EVENT_STATE_MOZ_PLACEHOLDER;
-    }
-
-    if (!states.IsEmpty()) {
-      nsIDocument* doc = GetCurrentDoc();
-      if (doc) {
-        MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-        doc->ContentStatesChanged(this, nsnull, states);
-      }
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
+      doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_VALID |
+                                              NS_EVENT_STATE_INVALID |
+                                              // We could check if that is
+                                              // really needed but considering
+                                              // we are already updating the
+                                              // state for valid/invalid...
+                                              NS_EVENT_STATE_MOZ_PLACEHOLDER);
     }
   }
 }
 
 void
-nsHTMLTextAreaElement::FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify)
+nsHTMLTextAreaElement::FieldSetDisabledChanged(PRInt32 aStates)
 {
   UpdateValueMissingValidityState();
   UpdateBarredFromConstraintValidation();
 
-  aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
-             NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID;
-  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates, aNotify);
+  aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
+  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates);
 }
 

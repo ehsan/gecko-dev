@@ -41,7 +41,6 @@
 #include "assembler/jit/ExecutableAllocator.h"
 #include "jstracer.h"
 #include "BaseAssembler.h"
-#include "Compiler.h"
 #include "MonoIC.h"
 #include "PolyIC.h"
 #include "TrampolineCompiler.h"
@@ -55,11 +54,6 @@ using namespace js;
 using namespace js::mjit;
 
 
-js::mjit::CompilerAllocPolicy::CompilerAllocPolicy(JSContext *cx, Compiler &compiler)
-: ContextAllocPolicy(cx),
-  oomFlag(&compiler.oomInVector)
-{
-}
 void
 JSStackFrame::methodjitStaticAsserts()
 {
@@ -122,14 +116,17 @@ extern "C" void JaegerTrampolineReturn();
 extern "C" void JS_FASTCALL
 PushActiveVMFrame(VMFrame &f)
 {
-    f.entryfp->script()->compartment->jaegerCompartment->pushActiveFrame(&f);
+    f.previous = JS_METHODJIT_DATA(f.cx).activeFrame;
+    JS_METHODJIT_DATA(f.cx).activeFrame = &f;
+
     f.regs.fp->setNativeReturnAddress(JS_FUNC_TO_DATA_PTR(void*, JaegerTrampolineReturn));
 }
 
 extern "C" void JS_FASTCALL
 PopActiveVMFrame(VMFrame &f)
 {
-    f.entryfp->script()->compartment->jaegerCompartment->popActiveFrame();
+    JS_ASSERT(JS_METHODJIT_DATA(f.cx).activeFrame);
+    JS_METHODJIT_DATA(f.cx).activeFrame = JS_METHODJIT_DATA(f.cx).activeFrame->previous;    
 }
 
 extern "C" void JS_FASTCALL
@@ -138,7 +135,7 @@ SetVMFrameRegs(VMFrame &f)
     f.cx->setCurrentRegs(&f.regs);
 }
 
-#if defined(__APPLE__) || defined(XP_WIN) || defined(XP_OS2)
+#if defined(__APPLE__) || defined(XP_WIN)
 # define SYMBOL_STRING(name) "_" #name
 #else
 # define SYMBOL_STRING(name) #name
@@ -152,7 +149,7 @@ JS_STATIC_ASSERT(offsetof(JSFrameRegs, sp) == 0);
 # define SYMBOL_STRING_RELOC(name) SYMBOL_STRING(name)
 #endif
 
-#if (defined(XP_WIN) || defined(XP_OS2)) && defined(JS_CPU_X86)
+#if defined(XP_WIN) && defined(JS_CPU_X86)
 # define SYMBOL_STRING_VMFRAME(name) "@" #name "@4"
 #else
 # define SYMBOL_STRING_VMFRAME(name) SYMBOL_STRING_RELOC(name)
@@ -212,7 +209,7 @@ SYMBOL_STRING(JaegerTrampoline) ":"       "\n"
      * rcx = inlineCallCount
      * fp must go into rbx
      */
-    "pushq %rsi"                         "\n" /* entryfp */
+    "pushq %rsi"                         "\n" /* entryFp */
     "pushq %rcx"                         "\n" /* inlineCallCount */
     "pushq %rdi"                         "\n" /* cx */
     "pushq %rsi"                         "\n" /* fp */
@@ -323,7 +320,7 @@ SYMBOL_STRING(JaegerTrampoline) ":"       "\n"
     /* Build the JIT frame. Push fields in order, 
      * then align the stack to form esp == VMFrame. */
     "movl  12(%ebp), %ebx"               "\n"   /* load fp */
-    "pushl %ebx"                         "\n"   /* entryfp */
+    "pushl %ebx"                         "\n"   /* entryFp */
     "pushl 20(%ebp)"                     "\n"   /* stackLimit */
     "pushl 8(%ebp)"                      "\n"   /* cx */
     "pushl %ebx"                         "\n"   /* fp */
@@ -402,7 +399,7 @@ SYMBOL_STRING(InjectJaegerReturn) ":"         "\n"
 
 JS_STATIC_ASSERT(sizeof(VMFrame) == 80);
 JS_STATIC_ASSERT(offsetof(VMFrame, savedLR) ==          (4*19));
-JS_STATIC_ASSERT(offsetof(VMFrame, entryfp) ==          (4*10));
+JS_STATIC_ASSERT(offsetof(VMFrame, entryFp) ==          (4*10));
 JS_STATIC_ASSERT(offsetof(VMFrame, stackLimit) ==       (4*9));
 JS_STATIC_ASSERT(offsetof(VMFrame, cx) ==               (4*8));
 JS_STATIC_ASSERT(offsetof(VMFrame, regs.fp) ==          (4*7));
@@ -457,7 +454,7 @@ SYMBOL_STRING(JaegerTrampoline) ":"         "\n"
      *  [ r6        ]   | considering that we might not use them anyway.
      *  [ r5        ]   |
      *  [ r4        ]   /
-     *  [ entryfp   ]
+     *  [ entryFp   ]
      *  [ stkLimit  ]
      *  [ cx        ]
      *  [ regs.fp   ]
@@ -473,7 +470,7 @@ SYMBOL_STRING(JaegerTrampoline) ":"         "\n"
     /* Push callee-saved registers. */
 "   push    {r4-r11,lr}"                        "\n"
     /* Push interesting VMFrame content. */
-"   push    {r1}"                               "\n"    /* entryfp */
+"   push    {r1}"                               "\n"    /* entryFp */
 "   push    {r3}"                               "\n"    /* stackLimit */
 "   push    {r0}"                               "\n"    /* cx */
 "   push    {r1}"                               "\n"    /* regs.fp */
@@ -686,15 +683,15 @@ JS_STATIC_ASSERT(JSVAL_PAYLOAD_MASK == 0x00007FFFFFFFFFFFLL);
 #endif                   /* _MSC_VER */
 
 bool
-JaegerCompartment::Initialize()
+ThreadData::Initialize()
 {
-    execAlloc = JSC::ExecutableAllocator::create();
-    if (!execAlloc)
+    execPool = new JSC::ExecutableAllocator();
+    if (!execPool)
         return false;
     
-    TrampolineCompiler tc(execAlloc, &trampolines);
+    TrampolineCompiler tc(execPool, &trampolines);
     if (!tc.compile()) {
-        delete execAlloc;
+        delete execPool;
         return false;
     }
 
@@ -703,16 +700,16 @@ JaegerCompartment::Initialize()
         StubCallsForOp[i] = 0;
 #endif
 
-    activeFrame_ = NULL;
+    activeFrame = NULL;
 
     return true;
 }
 
 void
-JaegerCompartment::Finish()
+ThreadData::Finish()
 {
     TrampolineCompiler::release(&trampolines);
-    delete execAlloc;
+    delete execPool;
 #ifdef JS_METHODJIT_PROFILE_STUBS
     FILE *fp = fopen("/tmp/stub-profiling", "wt");
 # define OPDEF(op,val,name,image,length,nuses,ndefs,prec,format) \
@@ -723,12 +720,15 @@ JaegerCompartment::Finish()
 #endif
 }
 
-extern "C" JSBool
-JaegerTrampoline(JSContext *cx, JSStackFrame *fp, void *code, Value *stackLimit);
+extern "C" JSBool JaegerTrampoline(JSContext *cx, JSStackFrame *fp, void *code,
+                                   Value *stackLimit);
 
-JSBool
-mjit::EnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code, Value *stackLimit)
+static inline JSBool
+EnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code)
 {
+    JS_ASSERT(cx->regs);
+    JS_CHECK_RECURSION(cx, return JS_FALSE;);
+
 #ifdef JS_METHODJIT_SPEW
     Profiler prof;
     JSScript *script = fp->script();
@@ -738,17 +738,22 @@ mjit::EnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code, Value *stackLi
     prof.start();
 #endif
 
-    JS_ASSERT(cx->regs->fp  == fp);
+#ifdef DEBUG
+    JSStackFrame *checkFp = fp;
+#endif
+
+    Value *stackLimit = cx->stack().getStackLimit(cx);
+    if (!stackLimit)
+        return false;
+
     JSFrameRegs *oldRegs = cx->regs;
 
     JSAutoResolveFlags rf(cx, JSRESOLVE_INFER);
     JSBool ok = JaegerTrampoline(cx, fp, code, stackLimit);
 
     cx->setCurrentRegs(oldRegs);
-    JS_ASSERT(fp == cx->fp());
 
-    /* The trampoline wrote the return value but did not set the HAS_RVAL flag. */
-    fp->markReturnValue();
+    JS_ASSERT(checkFp == cx->fp());
 
 #ifdef JS_METHODJIT_SPEW
     prof.stop();
@@ -758,24 +763,12 @@ mjit::EnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code, Value *stackLi
     return ok;
 }
 
-static inline JSBool
-CheckStackAndEnterMethodJIT(JSContext *cx, JSStackFrame *fp, void *code)
-{
-    JS_CHECK_RECURSION(cx, return JS_FALSE;);
-
-    Value *stackLimit = cx->stack().getStackLimit(cx);
-    if (!stackLimit)
-        return false;
-
-    return EnterMethodJIT(cx, fp, code, stackLimit);
-}
-
 JSBool
 mjit::JaegerShot(JSContext *cx)
 {
-    JSStackFrame *fp = cx->fp();
-    JSScript *script = fp->script();
-    JITScript *jit = script->getJIT(fp->isConstructing());
+    JSScript *script = cx->fp()->script();
+
+    JS_ASSERT(script->ncode && script->ncode != JS_UNJITTABLE_METHOD);
 
 #ifdef JS_TRACER
     if (TRACE_RECORDER(cx))
@@ -784,7 +777,7 @@ mjit::JaegerShot(JSContext *cx)
 
     JS_ASSERT(cx->regs->pc == script->code);
 
-    return CheckStackAndEnterMethodJIT(cx, cx->fp(), jit->invokeEntry);
+    return EnterMethodJIT(cx, cx->fp(), script->jit->invoke);
 }
 
 JSBool
@@ -794,7 +787,7 @@ js::mjit::JaegerShotAtSafePoint(JSContext *cx, void *safePoint)
     JS_ASSERT(!TRACE_RECORDER(cx));
 #endif
 
-    return CheckStackAndEnterMethodJIT(cx, cx->fp(), safePoint);
+    return EnterMethodJIT(cx, cx->fp(), safePoint);
 }
 
 template <typename T>
@@ -803,56 +796,38 @@ static inline void Destroy(T &t)
     t.~T();
 }
 
-mjit::JITScript::~JITScript()
-{
-#if defined DEBUG && (defined JS_CPU_X86 || defined JS_CPU_X64) 
-    void *addr = code.m_code.executableAddress();
-    memset(addr, 0xcc, code.m_size);
-#endif
-
-    code.m_executablePool->release();
-
-#if defined JS_POLYIC
-    for (uint32 i = 0; i < nPICs; i++)
-        Destroy(pics[i]);
-    for (uint32 i = 0; i < nGetElems; i++)
-        Destroy(getElems[i]);
-    for (uint32 i = 0; i < nSetElems; i++)
-        Destroy(setElems[i]);
-#endif
-
-#if defined JS_MONOIC
-    for (JSC::ExecutablePool **pExecPool = execPools.begin();
-         pExecPool != execPools.end();
-         ++pExecPool)
-    {
-        (*pExecPool)->release();
-    }
-    
-    for (uint32 i = 0; i < nCallICs; i++)
-        callICs[i].releasePools();
-#endif
-}
-
 void
 mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
 {
-    // NB: The recompiler may call ReleaseScriptCode, in which case it
-    // will get called again when the script is destroyed, so we
-    // must protect against calling ReleaseScriptCode twice.
+    if (script->jit) {
+#if defined DEBUG && (defined JS_CPU_X86 || defined JS_CPU_X64) 
+        memset(script->jit->invoke, 0xcc, script->jit->inlineLength +
+               script->jit->outOfLineLength);
+#endif
+        script->jit->execPool->release();
+        script->jit->execPool = NULL;
 
-    if (script->jitNormal) {
-        script->jitNormal->~JITScript();
-        cx->free(script->jitNormal);
-        script->jitNormal = NULL;
-        script->jitArityCheckNormal = NULL;
-    }
+        // Releasing the execPool takes care of releasing the code.
+        script->ncode = NULL;
 
-    if (script->jitCtor) {
-        script->jitCtor->~JITScript();
-        cx->free(script->jitCtor);
-        script->jitCtor = NULL;
-        script->jitArityCheckCtor = NULL;
+#if defined JS_POLYIC
+        for (uint32 i = 0; i < script->jit->nPICs; i++) {
+            script->pics[i].releasePools();
+            Destroy(script->pics[i].execPools);
+        }
+#endif
+
+#if defined JS_MONOIC
+        for (uint32 i = 0; i < script->jit->nCallICs; i++)
+            script->callICs[i].releasePools();
+#endif
+
+        cx->free(script->jit);
+
+        // The recompiler may call ReleaseScriptCode, in which case it
+        // will get called again when the script is destroyed, so we
+        // must protect against calling ReleaseScriptCode twice.
+        script->jit = NULL;
     }
 }
 
@@ -865,56 +840,3 @@ mjit::ProfileStubCall(VMFrame &f)
 }
 #endif
 
-#ifdef JS_POLYIC
-static int
-PICPCComparator(const void *key, const void *entry)
-{
-    const jsbytecode *pc = (const jsbytecode *)key;
-    const ic::PICInfo *pic = (const ic::PICInfo *)entry;
-
-    if (ic::PICInfo::CALL != pic->kind)
-        return ic::PICInfo::CALL - pic->kind;
-
-    /*
-     * We can't just return |pc - pic->pc| because the pointers may be
-     * far apart and an int (or even a ptrdiff_t) may not be large
-     * enough to hold the difference. C says that pointer subtraction
-     * is only guaranteed to work for two pointers into the same array.
-     */
-    if (pc < pic->pc)
-        return -1;
-    else if (pc == pic->pc)
-        return 0;
-    else
-        return 1;
-}
-
-uintN
-mjit::GetCallTargetCount(JSScript *script, jsbytecode *pc)
-{
-    ic::PICInfo *pic;
-    
-    if (mjit::JITScript *jit = script->getJIT(false)) {
-        pic = (ic::PICInfo *)bsearch(pc, jit->pics, jit->nPICs, sizeof(jit->pics[0]),
-                                     PICPCComparator);
-        if (pic)
-            return pic->stubsGenerated + 1; /* Add 1 for the inline path. */
-    }
-    
-    if (mjit::JITScript *jit = script->getJIT(true)) {
-        pic = (ic::PICInfo *)bsearch(pc, jit->pics,
-                                     jit->nPICs, sizeof(jit->pics[0]),
-                                     PICPCComparator);
-        if (pic)
-            return pic->stubsGenerated + 1; /* Add 1 for the inline path. */
-    }
-
-    return 1;
-}
-#else
-uintN
-mjit::GetCallTargetCount(JSScript *script, jsbytecode *pc)
-{
-    return 1;
-}
-#endif

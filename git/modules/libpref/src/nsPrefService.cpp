@@ -68,7 +68,6 @@
 #include "prefapi.h"
 #include "prefread.h"
 #include "prefapi_private_data.h"
-#include "PrefTuple.h"
 
 #include "nsITimelineService.h"
 
@@ -144,15 +143,12 @@ nsresult nsPrefService::Init()
 #ifdef MOZ_IPC
   using mozilla::dom::ContentChild;
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    InfallibleTArray<PrefTuple> array;
-    ContentChild::GetSingleton()->SendReadPrefsArray(&array);
 
-    // Store the array
-    nsTArray<PrefTuple>::size_type index = array.Length();
-    while (index-- > 0) {
-      pref_SetPrefTuple(array[index], PR_TRUE);
-    }
-    return NS_OK;
+    ContentChild* cpc = ContentChild::GetSingleton();
+    nsCAutoString prefs;
+    cpc->SendReadPrefs(&prefs);
+
+    return ReadPrefBuffer(prefs);
   }
 #endif
 
@@ -332,31 +328,58 @@ NS_IMETHODIMP nsPrefService::ReadExtensionPrefs(nsILocalFile *aFile)
   return rv;
 }
 
-NS_IMETHODIMP nsPrefService::SetPreference(const PrefTuple *aPref)
+NS_IMETHODIMP nsPrefService::SerializePreferences(nsACString& prefs)
 {
-  return pref_SetPrefTuple(*aPref, PR_TRUE);
+  char** valueArray = (char **)PR_Calloc(sizeof(char *), gHashTable.entryCount);
+  if (!valueArray)
+    return NS_ERROR_OUT_OF_MEMORY;
+  
+  pref_saveArgs saveArgs;
+  saveArgs.prefArray = valueArray;
+  saveArgs.saveTypes = SAVE_ALL_AND_DEFAULTS;
+  
+  // get the lines that we're supposed to be writing
+  PL_DHashTableEnumerate(&gHashTable, pref_savePref, &saveArgs);
+    
+  char** walker = valueArray;
+  for (PRUint32 valueIdx = 0; valueIdx < gHashTable.entryCount; valueIdx++, walker++) {
+    if (*walker) {
+      prefs.Append(*walker);
+      prefs.Append(NS_LINEBREAK);
+      NS_Free(*walker);
+    }
+  }
+  PR_Free(valueArray);
+
+  return NS_OK;
 }
 
-NS_IMETHODIMP nsPrefService::MirrorPreference(const nsACString& aPrefName,
-                                              PrefTuple *aPref)
+NS_IMETHODIMP nsPrefService::SerializePreference(const nsACString& aPrefName, nsACString& aBuffer)
 {
   PrefHashEntry *pref = pref_HashTableLookup(nsDependentCString(aPrefName).get());
-
   if (!pref)
     return NS_ERROR_NOT_AVAILABLE;
 
-  pref_GetTupleFromEntry(pref, aPref);
+  char* prefArray = nsnull;
+
+  pref_saveArgs saveArgs;
+  saveArgs.prefArray = &prefArray;
+  saveArgs.saveTypes = SAVE_ALL_AND_DEFAULTS;
+
+  pref_savePref(&gHashTable, pref, 0, &saveArgs);
+  aBuffer = prefArray;
+  PR_Free(prefArray);
 
   return NS_OK;
 }
 
-NS_IMETHODIMP nsPrefService::MirrorPreferences(nsTArray<PrefTuple, nsTArrayInfallibleAllocator> *aArray)
+NS_IMETHODIMP nsPrefService::ReadPrefBuffer(const nsACString& aBuffer)
 {
-  aArray->SetCapacity(PL_DHASH_TABLE_SIZE(&gHashTable));
-
-  PL_DHashTableEnumerate(&gHashTable, pref_MirrorPrefs, aArray);
-
-  return NS_OK;
+  PrefParseState ps;
+  PREF_InitParseState(&ps, PREF_ReaderCallback, NULL);
+  nsresult rv = PREF_ParseBuf(&ps, nsDependentCString(aBuffer).get(), aBuffer.Length());
+  PREF_FinalizeParseState(&ps);
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefService::GetBranch(const char *aPrefRoot, nsIPrefBranch **_retval)
@@ -870,16 +893,12 @@ static nsresult pref_InitAppDefaultsFromOmnijar()
 
   nsAutoPtr<nsZipFind> find(findPtr);
 
-  nsTArray<nsCString> prefEntries;
+  nsCAutoString prefName;
   const char *entryName;
   PRUint16 entryNameLen;
   while (NS_SUCCEEDED(find->FindNext(&entryName, &entryNameLen))) {
-    prefEntries.AppendElement(Substring(entryName, entryName + entryNameLen));
-  }
-
-  prefEntries.Sort();
-  for (PRUint32 i = prefEntries.Length(); i--; ) {
-    rv = pref_ReadPrefFromJar(jarReader, prefEntries[i].get());
+    prefName = nsDependentCSubstring(entryName, entryName + entryNameLen);
+    rv = pref_ReadPrefFromJar(jarReader, prefName.get());
     if (NS_FAILED(rv))
       NS_WARNING("Error parsing preferences.");
   }

@@ -753,7 +753,8 @@ nsJSCID::CreateInstance(nsISupports **_retval)
                         nsIXPCSecurityManager::HOOK_CREATE_INSTANCE);
     if(sm && NS_FAILED(sm->CanCreateInstance(cx, mDetails.ID())))
     {
-        NS_ERROR("how are we not being called from chrome here?");
+        NS_ASSERTION(JS_IsExceptionPending(cx),
+                     "security manager vetoed CreateInstance without setting exception");
         return NS_OK;
     }
 
@@ -774,9 +775,13 @@ nsJSCID::CreateInstance(nsISupports **_retval)
     if(NS_FAILED(rv) || !inst)
         return NS_ERROR_XPC_CI_RETURNED_FAILURE;
 
-    rv = xpc->WrapNativeToJSVal(cx, obj, inst, nsnull, iid, PR_TRUE, vp, nsnull);
-    if(NS_FAILED(rv) || JSVAL_IS_PRIMITIVE(*vp))
+    JSObject* instJSObj;
+    nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+    rv = xpc->WrapNative(cx, obj, inst, *iid, getter_AddRefs(holder));
+    if(NS_FAILED(rv) || !holder || NS_FAILED(holder->GetJSObject(&instJSObj)))
         return NS_ERROR_XPC_CANT_CREATE_WN;
+
+    *vp = OBJECT_TO_JSVAL(instJSObj);
     ccxp->SetReturnValueWasSet(JS_TRUE);
     return NS_OK;
 }
@@ -894,7 +899,7 @@ nsJSCID::HasInstance(nsIXPConnectWrappedNative *wrapper,
         XPCWrappedNative* other_wrapper =
            XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj, nsnull, &obj2);
 
-        if(!other_wrapper && !obj2)
+        if(!other_wrapper || !obj2)
             return NS_OK;
 
         nsIClassInfo* ci = other_wrapper ?

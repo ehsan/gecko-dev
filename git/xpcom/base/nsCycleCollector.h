@@ -54,7 +54,6 @@ struct nsCycleCollectionLanguageRuntime
 {
     virtual nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
                                           bool explainLiveExpectedGarbage) = 0;
-    virtual nsresult FinishTraverse() = 0;
     virtual nsresult FinishCycleCollection() = 0;
     virtual nsCycleCollectionParticipant *ToParticipant(void *p) = 0;
 #ifdef DEBUG_CC
@@ -66,7 +65,6 @@ nsresult nsCycleCollector_startup();
 // Returns the number of collected nodes.
 NS_COM PRUint32 nsCycleCollector_collect(nsICycleCollectorListener *aListener);
 NS_COM PRUint32 nsCycleCollector_suspectedCount();
-void nsCycleCollector_shutdownThreads();
 void nsCycleCollector_shutdown();
 
 // The JS runtime is special, it needs to call cycle collection during its GC.

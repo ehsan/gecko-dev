@@ -45,7 +45,6 @@
 
 #include "nsIIDBTransaction.h"
 #include "nsIRunnable.h"
-#include "nsIThreadInternal.h"
 
 #include "nsDOMEventTargetHelper.h"
 #include "nsCycleCollectionParticipant.h"
@@ -54,7 +53,6 @@
 #include "nsHashKeys.h"
 #include "nsInterfaceHashtable.h"
 
-class mozIStorageConnection;
 class mozIStorageStatement;
 class nsIThread;
 
@@ -66,18 +64,15 @@ struct ObjectStoreInfo;
 class TransactionThreadPool;
 
 class IDBTransaction : public nsDOMEventTargetHelper,
-                       public nsIIDBTransaction,
-                       public nsIThreadObserver
+                       public nsIIDBTransaction
 {
   friend class AsyncConnectionHelper;
   friend class CommitHelper;
-  friend class ThreadObserver;
   friend class TransactionThreadPool;
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIIDBTRANSACTION
-  NS_DECL_NSITHREADOBSERVER
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBTransaction,
                                            nsDOMEventTargetHelper)
@@ -86,11 +81,7 @@ public:
   Create(IDBDatabase* aDatabase,
          nsTArray<nsString>& aObjectStoreNames,
          PRUint16 aMode,
-         PRUint32 aTimeout,
-         bool aDispatchDelayed = false);
-
-  // nsPIDOMEventTarget
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+         PRUint32 aTimeout);
 
   void OnNewRequest();
   void OnRequestFinished();
@@ -99,16 +90,13 @@ public:
   nsresult ReleaseSavepoint();
   void RollbackSavepoint();
 
-  // Only meant to be called on mStorageThread!
-  nsresult GetOrCreateConnection(mozIStorageConnection** aConnection);
-
   already_AddRefed<mozIStorageStatement>
   AddStatement(bool aCreate,
                bool aOverwrite,
                bool aAutoIncrement);
 
   already_AddRefed<mozIStorageStatement>
-  DeleteStatement(bool aAutoIncrement);
+  RemoveStatement(bool aAutoIncrement);
 
   already_AddRefed<mozIStorageStatement>
   GetStatement(bool aAutoIncrement);
@@ -138,23 +126,23 @@ public:
     return GetCachedStatement(query);
   }
 
-  bool IsOpen() const;
+#ifdef DEBUG
+  bool TransactionIsOpen() const;
+  bool IsWriteAllowed() const;
+#else
+  bool TransactionIsOpen() const
+  {
+    return mReadyState == nsIIDBTransaction::INITIAL ||
+           mReadyState == nsIIDBTransaction::LOADING;
+  }
 
   bool IsWriteAllowed() const
   {
-    return mMode == nsIIDBTransaction::READ_WRITE ||
-           mMode == nsIIDBTransaction::VERSION_CHANGE;
+    return mMode == nsIIDBTransaction::READ_WRITE;
   }
+#endif
 
-  bool IsAborted() const
-  {
-    return mAborted;
-  }
-
-  PRUint16 Mode()
-  {
-    return mMode;
-  }
+  enum { FULL_LOCK = nsIIDBTransaction::SNAPSHOT_READ + 1 };
 
   IDBDatabase* Database()
   {
@@ -162,13 +150,12 @@ public:
     return mDatabase;
   }
 
-  already_AddRefed<IDBObjectStore>
-  GetOrCreateObjectStore(const nsAString& aName,
-                         ObjectStoreInfo* aObjectStoreInfo);
-
 private:
   IDBTransaction();
   ~IDBTransaction();
+
+  // Only meant to be called on mStorageThread!
+  nsresult GetOrCreateConnection(mozIStorageConnection** aConnection);
 
   nsresult CommitOrRollback();
 
@@ -178,13 +165,12 @@ private:
   PRUint16 mMode;
   PRUint32 mTimeout;
   PRUint32 mPendingRequests;
-  PRUint32 mCreatedRecursionDepth;
 
   // Only touched on the main thread.
-  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnCompleteListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnTimeoutListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 
   nsInterfaceHashtable<nsCStringHashKey, mozIStorageStatement>
     mCachedStatements;
@@ -195,14 +181,8 @@ private:
   // Only touched on the database thread.
   PRUint32 mSavepointCount;
 
-  nsTArray<nsRefPtr<IDBObjectStore> > mCreatedObjectStores;
-
+  bool mHasInitialSavepoint;
   bool mAborted;
-  bool mCreating;
-
-#ifdef DEBUG
-  bool mFiredCompleteOrAbort;
-#endif
 };
 
 class CommitHelper : public nsIRunnable
@@ -212,7 +192,6 @@ public:
   NS_DECL_NSIRUNNABLE
 
   CommitHelper(IDBTransaction* aTransaction);
-  ~CommitHelper();
 
   template<class T>
   bool AddDoomedObject(nsCOMPtr<T>& aCOMPtr)
@@ -231,12 +210,8 @@ private:
   nsRefPtr<IDBTransaction> mTransaction;
   nsCOMPtr<mozIStorageConnection> mConnection;
   nsAutoTArray<nsCOMPtr<nsISupports>, 10> mDoomedObjects;
-
-  nsString mOldVersion;
-  nsTArray<nsAutoPtr<ObjectStoreInfo> > mOldObjectStores;
-
   bool mAborted;
-  bool mHaveMetadata;
+  bool mHasInitialSavepoint;
 };
 
 END_INDEXEDDB_NAMESPACE

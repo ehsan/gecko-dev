@@ -157,29 +157,6 @@ bool SetRemoteExceptionHandler();
 
 bool UnsetRemoteExceptionHandler();
 #endif // MOZ_IPC
-
-#if defined(__ANDROID__)
-// Android builds use a custom library loader, so /proc/<pid>/maps
-// will just show anonymous mappings for all the non-system
-// shared libraries. This API is to work around that by providing
-// info about the shared libraries that are mapped into these anonymous
-// mappings.
-void AddLibraryMapping(const char* library_name,
-                       const char* file_id,
-                       uintptr_t   start_address,
-                       size_t      mapping_length,
-                       size_t      file_offset);
-
-#if defined(MOZ_IPC)
-void AddLibraryMappingForChild(PRUint32    childPid,
-                               const char* library_name,
-                               const char* file_id,
-                               uintptr_t   start_address,
-                               size_t      mapping_length,
-                               size_t      file_offset);
-void RemoveLibraryMappingsForChild(PRUint32 childPid);
-#endif
-#endif
 }
 
 #endif /* nsExceptionHandler_h__ */

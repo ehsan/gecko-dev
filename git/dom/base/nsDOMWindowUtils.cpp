@@ -69,8 +69,6 @@
 #include "nsComputedDOMStyle.h"
 #include "nsIViewObserver.h"
 #include "nsIPresShell.h"
-#include "nsStyleAnimation.h"
-#include "nsCSSProps.h"
 
 #if defined(MOZ_X11) && defined(MOZ_WIDGET_GTK2)
 #include <gdk/gdk.h>
@@ -97,7 +95,6 @@ DOMCI_DATA(WindowUtils, nsDOMWindowUtils)
 NS_INTERFACE_MAP_BEGIN(nsDOMWindowUtils)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMWindowUtils)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWindowUtils)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMWindowUtils_MOZILLA_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WindowUtils)
 NS_INTERFACE_MAP_END
@@ -403,7 +400,7 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
       return NS_ERROR_FAILURE;
 
     status = nsEventStatus_eIgnore;
-    rv = vo->HandleEvent(view, &event, PR_FALSE, &status);
+    rv = vo->HandleEvent(view, &event, &status);
   } else {
     rv = widget->DispatchEvent(&event, status);
   }
@@ -945,11 +942,10 @@ nsDOMWindowUtils::GetIMEIsOpen(PRBool *aState)
     return NS_ERROR_FAILURE;
 
   // Open state should not be available when IME is not enabled.
-  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
-  IMEContext context;
-  nsresult rv = widget2->GetInputMode(context);
+  PRUint32 enabled;
+  nsresult rv = widget->GetIMEEnabled(&enabled);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (context.mStatus != nsIWidget::IME_STATUS_ENABLED)
+  if (enabled != nsIWidget::IME_STATUS_ENABLED)
     return NS_ERROR_NOT_AVAILABLE;
 
   return widget->GetIMEOpenState(aState);
@@ -964,32 +960,7 @@ nsDOMWindowUtils::GetIMEStatus(PRUint32 *aState)
   if (!widget)
     return NS_ERROR_FAILURE;
 
-  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
-  IMEContext context;
-  nsresult rv = widget2->GetInputMode(context);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *aState = context.mStatus;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetFocusedInputType(char** aType)
-{
-  NS_ENSURE_ARG_POINTER(aType);
-
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
-  IMEContext context;
-  nsresult rv = widget2->GetInputMode(context);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *aType = ToNewCString(context.mHTMLInputType);
-  return NS_OK;
+  return widget->GetIMEEnabled(aState);
 }
 
 NS_IMETHODIMP
@@ -1005,6 +976,64 @@ nsDOMWindowUtils::GetScreenPixelsPerCSSPixel(float* aScreenPixels)
 
   *aScreenPixels = float(nsPresContext::AppUnitsPerCSSPixel())/
       presContext->AppUnitsPerDevPixel();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::GetCOWForObject()
+{
+  if (!IsUniversalXPConnectCapable()) {
+    return NS_ERROR_DOM_SECURITY_ERR;
+  }
+
+  nsCOMPtr<nsIXPConnect> xpc = nsContentUtils::XPConnect();
+
+  // get the xpconnect native call context
+  nsAXPCNativeCallContext *cc = nsnull;
+  xpc->GetCurrentNativeCallContext(&cc);
+  if(!cc)
+    return NS_ERROR_FAILURE;
+
+  // Get JSContext of current call
+  JSContext* cx;
+  nsresult rv = cc->GetJSContext(&cx);
+  if(NS_FAILED(rv) || !cx)
+    return NS_ERROR_FAILURE;
+
+  // get place for return value
+  jsval *rval = nsnull;
+  rv = cc->GetRetValPtr(&rval);
+  if(NS_FAILED(rv) || !rval)
+    return NS_ERROR_FAILURE;
+
+  // get argc and argv and verify arg count
+  PRUint32 argc;
+  rv = cc->GetArgc(&argc);
+  if(NS_FAILED(rv))
+    return NS_ERROR_FAILURE;
+
+  if(argc < 2)
+    return NS_ERROR_XPC_NOT_ENOUGH_ARGS;
+
+  jsval* argv;
+  rv = cc->GetArgvPtr(&argv);
+  if(NS_FAILED(rv) || !argv)
+    return NS_ERROR_FAILURE;
+
+  // first and second params must be JSObjects
+  if(JSVAL_IS_PRIMITIVE(argv[0]) ||
+     JSVAL_IS_PRIMITIVE(argv[1]))
+    return NS_ERROR_XPC_BAD_CONVERT_JS;
+
+  JSObject *scope = JSVAL_TO_OBJECT(argv[0]);
+  JSObject *object = JSVAL_TO_OBJECT(argv[1]);
+  rv = xpc->GetCOWForObject(cx, JS_GetGlobalForObject(cx, scope),
+                            object, rval);
+
+  if (NS_FAILED(rv))
+    return rv;
+
+  cc->SetReturnValueWasSet(PR_TRUE);
   return NS_OK;
 }
 
@@ -1468,7 +1497,7 @@ NS_IMETHODIMP
 nsDOMWindowUtils::GetOuterWindowID(PRUint64 *aWindowID)
 {
   NS_ASSERTION(mWindow->IsOuterWindow(), "How did that happen?");
-  *aWindowID = mWindow->WindowID();
+  *aWindowID = mWindow->mWindowID;
   return NS_OK;
 }
 
@@ -1480,7 +1509,7 @@ nsDOMWindowUtils::GetCurrentInnerWindowID(PRUint64 *aWindowID)
   if (!inner) {
     return NS_ERROR_NOT_AVAILABLE;
   }
-  *aWindowID = inner->WindowID();
+  *aWindowID = inner->mWindowID;
   return NS_OK;
 }
 
@@ -1520,74 +1549,6 @@ nsDOMWindowUtils::GetLayerManagerType(nsAString& aType)
     return NS_ERROR_FAILURE;
 
   mgr->GetBackendName(aType);
-
-  return NS_OK;
-}
-
-static PRBool
-ComputeAnimationValue(nsCSSProperty aProperty, nsIContent* aContent,
-                      const nsAString& aInput,
-                      nsStyleAnimation::Value& aOutput)
-{
-
-  if (!nsStyleAnimation::ComputeValue(aProperty, aContent, aInput,
-                                      PR_FALSE, aOutput)) {
-    return PR_FALSE;
-  }
-
-  // This matches TransExtractComputedValue in nsTransitionManager.cpp.
-  if (aProperty == eCSSProperty_visibility) {
-    NS_ABORT_IF_FALSE(aOutput.GetUnit() == nsStyleAnimation::eUnit_Enumerated,
-                      "unexpected unit");
-    aOutput.SetIntValue(aOutput.GetIntValue(),
-                        nsStyleAnimation::eUnit_Visibility);
-  }
-
-  return PR_TRUE;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::ComputeAnimationDistance(nsIDOMElement* aElement,
-                                           const nsAString& aProperty,
-                                           const nsAString& aValue1,
-                                           const nsAString& aValue2,
-                                           double* aResult)
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  nsresult rv;
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aElement, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Convert direction-dependent properties as appropriate, e.g.,
-  // border-left to border-left-value.
-  nsCSSProperty property = nsCSSProps::LookupProperty(aProperty);
-  if (property != eCSSProperty_UNKNOWN && nsCSSProps::IsShorthand(property)) {
-    nsCSSProperty subprop0 = *nsCSSProps::SubpropertyEntryFor(property);
-    if (nsCSSProps::PropHasFlags(subprop0, CSS_PROPERTY_REPORT_OTHER_NAME) &&
-        nsCSSProps::OtherNameFor(subprop0) == property) {
-      property = subprop0;
-    } else {
-      property = eCSSProperty_UNKNOWN;
-    }
-  }
-
-  NS_ABORT_IF_FALSE(property == eCSSProperty_UNKNOWN ||
-                    !nsCSSProps::IsShorthand(property),
-                    "should not have shorthand");
-
-  nsStyleAnimation::Value v1, v2;
-  if (property == eCSSProperty_UNKNOWN ||
-      !ComputeAnimationValue(property, content, aValue1, v1) ||
-      !ComputeAnimationValue(property, content, aValue2, v2)) {
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
-
-  if (!nsStyleAnimation::ComputeDistance(property, v1, v2, *aResult)) {
-    return NS_ERROR_FAILURE;
-  }
 
   return NS_OK;
 }
@@ -1645,31 +1606,5 @@ nsDOMWindowUtils::GetCursorType(PRInt16 *aCursor)
   // fetch cursor value from window's widget
   *aCursor = widget->GetCursor();
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetDisplayDPI(float *aDPI)
-{
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return NS_ERROR_FAILURE;
-
-  *aDPI = widget->GetDPI();
-
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetOuterWindowWithId(PRUint64 aWindowID,
-                                       nsIDOMWindow** aWindow)
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  *aWindow = nsGlobalWindow::GetOuterWindowWithId(aWindowID);
-  NS_IF_ADDREF(*aWindow);
   return NS_OK;
 }

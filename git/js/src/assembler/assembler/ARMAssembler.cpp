@@ -201,11 +201,6 @@ int ARMAssembler::genInt(int reg, ARMWord imm, bool positive)
     return 1;
 }
 
-#ifdef __GNUC__
-// If the result of this function isn't used, the caller should probably be
-// using movImm.
-__attribute__((warn_unused_result))
-#endif
 ARMWord ARMAssembler::getImm(ARMWord imm, int tmpReg, bool invert)
 {
     ARMWord tmp;
@@ -421,8 +416,7 @@ void* ARMAssembler::executableCopy(ExecutablePool* allocator)
         bkpt(0);
 
     void * data = m_buffer.executableCopy(allocator);
-    if (data)
-        fixUpOffsets(data);
+    fixUpOffsets(data);
     return data;
 }
 
@@ -432,9 +426,6 @@ void* ARMAssembler::executableCopy(ExecutablePool* allocator)
 // have been flushed.
 void* ARMAssembler::executableCopy(void * buffer)
 {
-    if (m_buffer.oom())
-        return NULL;
-
     ASSERT(m_buffer.sizeOfConstantPool() == 0);
 
     memcpy(buffer, m_buffer.data(), m_buffer.size());

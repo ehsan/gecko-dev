@@ -15,7 +15,7 @@
  * The Original Code is Mozilla Code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
@@ -46,7 +46,6 @@
 #include "nsIParser.h"
 #include "nsAutoPtr.h"
 #include "nsGkAtoms.h"
-#include "nsContentSink.h"
 
 using namespace mozilla::dom;
 
@@ -147,6 +146,29 @@ nsScriptElement::ContentInserted(nsIDocument *aDocument,
   MaybeProcessScript();
 }
 
+static PRBool
+InNonScriptingContainer(nsIContent* aNode)
+{
+  aNode = aNode->GetParent();
+  while (aNode) {
+    // XXX noframes and noembed are currently unconditionally not
+    // displayed and processed. This might change if we support either
+    // prefs or per-document container settings for not allowing
+    // frames or plugins.
+    if (aNode->IsHTML()) {
+      nsIAtom *localName = aNode->Tag();
+      if (localName == nsGkAtoms::iframe ||
+          localName == nsGkAtoms::noframes ||
+          localName == nsGkAtoms::noembed) {
+        return PR_TRUE;
+      }
+    }
+    aNode = aNode->GetParent();
+  }
+
+  return PR_FALSE;
+}
+
 nsresult
 nsScriptElement::MaybeProcessScript()
 {
@@ -163,21 +185,16 @@ nsScriptElement::MaybeProcessScript()
 
   FreezeUriAsyncDefer();
 
-  mAlreadyStarted = PR_TRUE;
-
-  nsIDocument* ownerDoc = cont->GetOwnerDoc();
-  nsCOMPtr<nsIParser> parser = ((nsIScriptElement*)this)->GetCreatorParser();
-  if (parser) {
-    nsCOMPtr<nsIDocument> parserDoc =
-        do_QueryInterface(parser->GetContentSink()->GetTarget());
-    if (ownerDoc != parserDoc) {
-      // Willful violation of HTML5 as of 2010-12-01
-      return NS_OK;
-    }
+  if (InNonScriptingContainer(cont)) {
+    // Make sure to flag ourselves as evaluated
+    mAlreadyStarted = PR_TRUE;
+    return NS_OK;
   }
 
-  nsRefPtr<nsScriptLoader> loader = ownerDoc->ScriptLoader();
-  nsresult scriptresult = loader->ProcessScriptElement(this);
+  nsresult scriptresult = NS_OK;
+  nsRefPtr<nsScriptLoader> loader = cont->GetOwnerDoc()->ScriptLoader();
+  mAlreadyStarted = PR_TRUE;
+  scriptresult = loader->ProcessScriptElement(this);
 
   // The only error we don't ignore is NS_ERROR_HTMLPARSER_BLOCK
   // However we don't want to override other success values

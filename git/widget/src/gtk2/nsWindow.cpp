@@ -44,6 +44,7 @@
 #endif
 
 #include "prlink.h"
+
 #include "nsWindow.h"
 #include "nsGTKToolkit.h"
 #include "nsIDeviceContext.h"
@@ -134,8 +135,6 @@ extern "C" {
 #ifdef MOZ_X11
 #include "gfxXlibSurface.h"
 #endif
-
-#include "nsShmImage.h"
 
 #ifdef MOZ_DFB
 extern "C" {
@@ -288,6 +287,14 @@ UpdateLastInputEventTime()
   }
 }
 
+// If XShm isn't available to our client, we'll try XShm once, fail,
+// set this to false and then never try again.
+static PRBool gShmAvailable = PR_TRUE;
+static PRBool UseShm()
+{
+    return gfxPlatformGtk::UseClientSideRendering() && gShmAvailable;
+}
+
 // this is the last window that had a drag event happen on it.
 nsWindow *nsWindow::mLastDragMotionWindow = NULL;
 PRBool nsWindow::sIsDraggingOutOf = PR_FALSE;
@@ -380,6 +387,159 @@ protected:
 
     pixman_region32& get() { return *this; }
 };
+
+
+#ifdef MOZ_HAVE_SHMIMAGE
+
+using mozilla::ipc::SharedMemorySysV;
+
+class nsShmImage {
+    NS_INLINE_DECL_REFCOUNTING(nsShmImage)
+
+public:
+    typedef gfxASurface::gfxImageFormat Format;
+
+    static already_AddRefed<nsShmImage>
+    Create(const gfxIntSize& aSize, Visual* aVisual, unsigned int aDepth);
+
+    ~nsShmImage() {
+        if (mImage) {
+            if (mXAttached) {
+                XShmDetach(gdk_x11_get_default_xdisplay(), &mInfo);
+            }
+            XDestroyImage(mImage);
+        }
+    }
+
+    already_AddRefed<gfxASurface> AsSurface();
+
+    void Put(GdkWindow* aWindow, GdkRectangle* aRects, GdkRectangle* aEnd);
+
+    gfxIntSize Size() const { return mSize; }
+
+private:
+    nsShmImage()
+        : mImage(nsnull)
+        , mXAttached(PR_FALSE)
+    { mInfo.shmid = SharedMemorySysV::NULLHandle(); }
+
+    nsRefPtr<SharedMemorySysV>   mSegment;
+    XImage*                      mImage;
+    XShmSegmentInfo              mInfo;
+    gfxIntSize                   mSize;
+    Format                       mFormat;
+    PRPackedBool                 mXAttached;
+};
+
+already_AddRefed<nsShmImage>
+nsShmImage::Create(const gfxIntSize& aSize,
+                   Visual* aVisual, unsigned int aDepth)
+{
+    Display* dpy = gdk_x11_get_default_xdisplay();
+
+    nsRefPtr<nsShmImage> shm = new nsShmImage();
+    shm->mImage = XShmCreateImage(dpy, aVisual, aDepth,
+                                  ZPixmap, nsnull,
+                                  &(shm->mInfo),
+                                  aSize.width, aSize.height);
+    if (!shm->mImage) {
+        return nsnull;
+    }
+
+    size_t size = shm->mImage->bytes_per_line * shm->mImage->height;
+    shm->mSegment = new SharedMemorySysV();
+    if (!shm->mSegment->Create(size) || !shm->mSegment->Map(size)) {
+        return nsnull;
+    }
+
+    shm->mInfo.shmid = shm->mSegment->GetHandle();
+    shm->mInfo.shmaddr =
+        shm->mImage->data = static_cast<char*>(shm->mSegment->memory());
+    shm->mInfo.readOnly = False;
+
+    gdk_error_trap_push();
+    Status attachOk = XShmAttach(dpy, &shm->mInfo);
+    gint xerror = gdk_error_trap_pop();
+
+    if (!attachOk || xerror) {
+        // Assume XShm isn't available, and don't attempt to use it
+        // again.
+        gShmAvailable = PR_FALSE;
+        return nsnull;
+    }
+
+    shm->mXAttached = PR_TRUE;
+    shm->mSize = aSize;
+    switch (shm->mImage->depth) {
+    case 24:
+        shm->mFormat = gfxASurface::ImageFormatRGB24; break;
+    case 16:
+        shm->mFormat = gfxASurface::ImageFormatRGB16_565; break;
+    default:
+        NS_WARNING("Unsupported XShm Image depth!");
+        gShmAvailable = PR_FALSE;
+        return nsnull;
+    }
+    return shm.forget();
+}
+
+already_AddRefed<gfxASurface>
+nsShmImage::AsSurface()
+{
+    return nsRefPtr<gfxASurface>(
+        new gfxImageSurface(static_cast<unsigned char*>(mSegment->memory()),
+                            mSize,
+                            mImage->bytes_per_line,
+                            mFormat)
+        ).forget();
+}
+
+void
+nsShmImage::Put(GdkWindow* aWindow, GdkRectangle* aRects, GdkRectangle* aEnd)
+{
+    GdkDrawable* gd;
+    gint dx, dy;
+    gdk_window_get_internal_paint_info(aWindow, &gd, &dx, &dy);
+
+    Display* dpy = gdk_x11_get_default_xdisplay();
+    Drawable d = GDK_DRAWABLE_XID(gd);
+
+    GC gc = XCreateGC(dpy, d, 0, nsnull);
+    for (GdkRectangle* r = aRects; r < aEnd; r++) {
+        XShmPutImage(dpy, d, gc, mImage,
+                     r->x, r->y,
+                     r->x - dx, r->y - dy,
+                     r->width, r->height,
+                     False);
+    }
+    XFreeGC(dpy, gc);
+
+    // FIXME/bug 597336: we need to ensure that the shm image isn't
+    // scribbled over before all its pending XShmPutImage()s complete.
+    // However, XSync() is an unnecessarily heavyweight
+    // synchronization mechanism; other options are possible.  If this
+    // XSync is shown to hurt responsiveness, we need to explore the
+    // other options.
+    XSync(dpy, False);
+}
+
+static already_AddRefed<gfxASurface>
+EnsureShmImage(const gfxIntSize& aSize, Visual* aVisual, unsigned int aDepth,
+               nsRefPtr<nsShmImage>& aImage)
+{
+    if (!aImage || aImage->Size() != aSize) {
+        // Because we XSync() after XShmAttach() to trap errors, we
+        // know that the X server has the old image's memory mapped
+        // into its address space, so it's OK to destroy the old image
+        // here even if there are outstanding Puts.  The Detach is
+        // ordered after the Puts.
+        aImage = nsShmImage::Create(aSize, aVisual, aDepth);
+    }
+    return !aImage ? nsnull : aImage->AsSurface();
+}
+
+#endif  // defined(MOZ_X11) && defined(MOZ_HAVE_SHAREDMEMORYSYSV)
+
 
 nsWindow::nsWindow()
 {
@@ -825,29 +985,6 @@ nsWindow::GetParent(void)
 float
 nsWindow::GetDPI()
 {
-
-#ifdef MOZ_PLATFORM_MAEMO
-    static float sDPI = 0;
-
-    if (!sDPI) {
-        // X on Maemo does not report true DPI: https://bugs.maemo.org/show_bug.cgi?id=4825
-        nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
-        NS_ASSERTION(infoService, "Could not find a system info service");
-
-        nsCString deviceType;
-        infoService->GetPropertyAsACString(NS_LITERAL_STRING("device"), deviceType);
-        if (deviceType.EqualsLiteral("Nokia N900")) {
-            sDPI = 265.0f;
-        } else if (deviceType.EqualsLiteral("Nokia N8xx")) {
-            sDPI = 225.0f;
-        } else {
-            // Fall back to something sane.
-            NS_WARNING("Unknown device - using default DPI");
-            sDPI = 96.0f;
-        }
-    }
-    return sDPI;
-#else
     Display *dpy = GDK_DISPLAY();
     int defaultScreen = DefaultScreen(dpy);
     double heightInches = DisplayHeightMM(dpy, defaultScreen)/MM_PER_INCH_FLOAT;
@@ -856,7 +993,6 @@ nsWindow::GetDPI()
         return 96.0f;
     }
     return float(DisplayHeight(dpy, defaultScreen)/heightInches);
-#endif
 }
 
 NS_IMETHODIMP
@@ -2154,9 +2290,9 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         return TRUE;
     }
 
-    if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL)
+    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL)
     {
-        LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager(nsnull));
+        LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager());
         manager->SetClippingRegion(event.region);
 
         nsEventStatus status;
@@ -2209,7 +2345,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         layerBuffering = BasicLayerManager::BUFFER_NONE;
         ctx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
 #ifdef MOZ_HAVE_SHMIMAGE
-    } else if (nsShmImage::UseShm()) {
+    } else if (UseShm()) {
         // We're using an xshm mapping as a back buffer.
         layerBuffering = BasicLayerManager::BUFFER_NONE;
 #endif // MOZ_HAVE_SHMIMAGE
@@ -2268,7 +2404,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         }
     }
 #  ifdef MOZ_HAVE_SHMIMAGE
-    if (nsShmImage::UseShm() && NS_LIKELY(!mIsDestroyed)) {
+    if (UseShm() && NS_LIKELY(!mIsDestroyed)) {
         mShmImage->Put(mGdkWindow, rects, r_end);
     }
 #  endif  // MOZ_HAVE_SHMIMAGE
@@ -2983,6 +3119,8 @@ nsWindow::DispatchKeyDownEvent(GdkEventKey *aEvent, PRBool *aCancelled)
     if (IsCtrlAltTab(aEvent)) {
         return PR_FALSE;
     }
+
+    PRUint32 domVirtualKeyCode = GdkKeyCodeToDOMKeyCode(aEvent->keyval);
 
     // send the key down event
     nsEventStatus status;
@@ -4597,12 +4735,8 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
         pixman_region32_intersect(&intersectRegion,
                                   &newRegion, &existingRegion);
 
-        // If mClipRects is null we haven't set a clip rect yet, so we
-        // need to set the clip even if it is equal.
-        if (mClipRects &&
-            pixman_region32_equal(&intersectRegion, &existingRegion)) {
+        if (pixman_region32_equal(&intersectRegion, &existingRegion))
             return;
-        }
 
         if (!pixman_region32_equal(&intersectRegion, &newRegion)) {
             GetIntRects(intersectRegion, &intersectRects);
@@ -6445,19 +6579,20 @@ nsWindow::ResetInputState()
 }
 
 NS_IMETHODIMP
-nsWindow::SetInputMode(const IMEContext& aContext)
+nsWindow::SetIMEEnabled(PRUint32 aState)
 {
-    return mIMModule ? mIMModule->SetInputMode(this, &aContext) : NS_OK;
+    return mIMModule ? mIMModule->SetIMEEnabled(this, aState) : NS_OK;
 }
 
 NS_IMETHODIMP
-nsWindow::GetInputMode(IMEContext& aContext)
+nsWindow::GetIMEEnabled(PRUint32* aState)
 {
+  NS_ENSURE_ARG_POINTER(aState);
   if (!mIMModule) {
-      aContext.mStatus = nsIWidget::IME_STATUS_DISABLED;
+      *aState = nsIWidget::IME_STATUS_DISABLED;
       return NS_OK;
   }
-  return mIMModule->GetInputMode(&aContext);
+  return mIMModule->GetIMEEnabled(aState);
 }
 
 NS_IMETHODIMP
@@ -6572,14 +6707,13 @@ nsWindow::GetThebesSurface()
 
 #  ifdef MOZ_HAVE_SHMIMAGE
     PRBool usingShm = PR_FALSE;
-    if (nsShmImage::UseShm()) {
+    if (UseShm()) {
         // EnsureShmImage() is a dangerous interface, but we guarantee
         // that the thebes surface and the shmimage have the same
         // lifetime
-        mThebesSurface =
-            nsShmImage::EnsureShmImage(size,
-                                       visual, gdk_drawable_get_depth(d),
-                                       mShmImage);
+        mThebesSurface = EnsureShmImage(size,
+                                        visual, gdk_drawable_get_depth(d),
+                                        mShmImage);
         usingShm = mThebesSurface != nsnull;
     }
     if (!usingShm)

@@ -44,7 +44,6 @@
 #include "nsRect.h"
 #include "nsPoint.h"
 #include "nsRegion.h"
-#include "nsStringGlue.h"
 
 #include "prthread.h"
 #include "nsEvent.h"
@@ -118,15 +117,10 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #define NS_NATIVE_TSF_DISPLAY_ATTR_MGR 102
 #endif
 
-// cc443f0b-af39-415d-9c4b-7e06eaa8b13b
+// 8bd36c8c-8218-4859-bfbc-ca5d78b52f7d
 #define NS_IWIDGET_IID \
-  { 0xcc443f0b, 0xaf39, 0x415d, \
-    { 0x9c, 0x4b, 0x7e, 0x06, 0xea, 0xa8, 0xb1, 0x3b } }
-
-// d64532e0-03d6-421c-8e63-da2cff624825
-#define NS_IWIDGET_MOZILLA_2_0_BRANCH_IID \
-  { 0xd64532e0, 0x03d6, 0x421c, \
-    { 0x8e, 0x63, 0xda, 0x2c, 0xff, 0x62, 0x48, 0x25 } }
+  { 0x8bd36c8c, 0x8218, 0x4859, \
+    { 0xbf, 0xbc, 0xca, 0x5d, 0x78, 0xb5, 0x2f, 0x7d } }
 
 /*
  * Window shadow styles
@@ -231,21 +225,6 @@ struct nsIMEUpdatePreference {
   }
   PRPackedBool mWantUpdates;
   PRPackedBool mWantHints;
-};
-
-
-/* 
- * Contains IMEStatus plus information about the current 
- * input context that the IME can use as hints if desired.
- */
-struct IMEContext {
-  PRUint32 mStatus;
-
-  /* The type of the input if the input is a html input field */
-  nsString mHTMLInputType;
-
-  /* A hint for the action that is performed when the input is submitted */
-  nsString mActionHint;
 };
 
 
@@ -876,11 +855,10 @@ class nsIWidget : public nsISupports {
     /**
      * Return the widget's LayerManager. The layer tree for that
      * LayerManager is what gets rendered to the widget.
-     *
-     * @param aAllowRetaining an outparam that states whether the returned
-     * layer manager should be used for retained layers
+     * The layer manager is guaranteed to be the same for the lifetime
+     * of the widget.
      */
-    virtual LayerManager* GetLayerManager(bool* aAllowRetaining = nsnull) = 0;
+    virtual LayerManager* GetLayerManager() = 0;
 
     /** 
      * Internal methods
@@ -1364,40 +1342,5 @@ protected:
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIWidget, NS_IWIDGET_IID)
-
-class nsIWidget_MOZILLA_2_0_BRANCH : public nsIWidget {
-  public:
-    NS_DECLARE_STATIC_IID_ACCESSOR(NS_IWIDGET_MOZILLA_2_0_BRANCH_IID)
-
-    typedef mozilla::layers::LayerManager LayerManager;
-
-    /*
-     * Notifies the IME if the input context changes.
-     *
-     * aContext cannot be null.
-     * Set mStatus to 'Enabled' or 'Disabled' or 'Password'.
-     */
-    NS_IMETHOD SetInputMode(const IMEContext& aContext) = 0;
-
-    /*
-     * Get IME is 'Enabled' or 'Disabled' or 'Password' and other input context
-     */
-    NS_IMETHOD GetInputMode(IMEContext& aContext) = 0;
-
-    enum LayerManagerPersistence
-    {
-      LAYER_MANAGER_CURRENT = 0,
-      LAYER_MANAGER_PERSISTENT
-    };
-
-    virtual LayerManager *GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
-                                          bool* aAllowRetaining = nsnull) = 0;
-
-    // Hide build warnings about nsIWidget::GetLayerManager being hidden by
-    // our GetLayerManager method above.
-    using nsIWidget::GetLayerManager;
-};
-
-NS_DEFINE_STATIC_IID_ACCESSOR(nsIWidget_MOZILLA_2_0_BRANCH, NS_IWIDGET_MOZILLA_2_0_BRANCH_IID)
 
 #endif // nsIWidget_h__

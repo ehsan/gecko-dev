@@ -74,10 +74,6 @@ CPPSRCS		= \
 	GfxInfo.cpp \
 	$(NULL)
 
-ifdef MOZ_CRASHREPORTER
-CPPSRCS += LSPAnnotator.cpp
-endif
-
 ifdef NS_PRINTING
 CPPSRCS		+= \
 	nsPrintOptionsWin.cpp \
@@ -138,6 +134,10 @@ FORCE_STATIC_LIB = 1
 
 ifdef WINCE
 EXTRA_DSO_LDOPTS += ddraw.lib
+endif
+
+ifndef WINCE
+ENABLE_CXX_EXCEPTIONS = 1
 endif
 
 ifdef MOZ_IPC

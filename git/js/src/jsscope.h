@@ -55,7 +55,6 @@
 #include "jsprvtd.h"
 #include "jspubtd.h"
 #include "jspropertytree.h"
-#include "jsstrinlines.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -209,6 +208,8 @@
 
 #define SHAPE_INVALID_SLOT              0xffffffff
 
+JS_STATIC_ASSERT(uint32(SHAPE_INVALID_SLOT + 1) == uint32(0));
+
 namespace js {
 
 /*
@@ -248,32 +249,32 @@ struct PropertyTable {
     /* By definition, hashShift = JS_DHASH_BITS - log2(capacity). */
     uint32 capacity() const { return JS_BIT(JS_DHASH_BITS - hashShift); }
 
-    /* Whether we need to grow.  We want to do this if the load factor is >= 0.75 */
-    bool needsToGrow() const {
-        uint32 size = capacity();
-        return entryCount + removedCount >= size - (size >> 2);
-    }
-
-    /*
-     * Try to grow the table.  On failure, reports out of memory on cx
-     * and returns false.  This will make any extant pointers into the
-     * table invalid.  Don't call this unless needsToGrow() is true.
-     */
-    bool grow(JSContext *cx);
-
     /*
      * NB: init and change are fallible but do not report OOM, so callers can
-     * cope or ignore. They do however use JSRuntime's calloc method in order
-     * to update the malloc counter on success.
+     * cope or ignore. They do update the malloc counter on success.
      */
-    bool            init(js::Shape *lastProp, JSContext *cx);
-    bool            change(int log2Delta, JSContext *cx);
+    bool            init(JSContext *cx, js::Shape *lastProp);
+    bool            change(JSContext *cx, int change);
     js::Shape       **search(jsid id, bool adding);
 };
 
 } /* namespace js */
 
 struct JSObject;
+
+inline const js::Value &
+JSObject::lockedGetSlot(uintN slot) const
+{
+    OBJ_CHECK_SLOT(this, slot);
+    return this->getSlot(slot);
+}
+
+inline void
+JSObject::lockedSetSlot(uintN slot, const js::Value &value)
+{
+    OBJ_CHECK_SLOT(this, slot);
+    this->setSlot(slot, value);
+}
 
 namespace js {
 
@@ -375,9 +376,9 @@ struct Shape : public JSObjectMap
      *
      * Any child shape, whether in a shape tree or in a dictionary list, must
      * have a slotSpan either one greater than its slot value (if the child's
-     * slot is SHAPE_INVALID_SLOT, this will yield 0; the static assertion
-     * below enforces this), or equal to its parent p's slotSpan, whichever is
-     * greater. This is the inductive step.
+     * slot is SHAPE_INVALID_SLOT, this will yield 0; the static assertion just
+     * after the SHAPE_INVALID_SLOT definition enforces this), or equal to its
+     * parent p's slotSpan, whichever is greater. This is the inductive step.
      *
      * If we maintained shape paths such that parent slot was always one less
      * than child slot, possibly with an exception for SHAPE_INVALID_SLOT slot
@@ -407,7 +408,6 @@ struct Shape : public JSObjectMap
      * with an auxiliary mechanism based on table.
      */
     void setParent(js::Shape *p) {
-        JS_STATIC_ASSERT(uint32(SHAPE_INVALID_SLOT) == ~uint32(0));
         if (p)
             slotSpan = JS_MAX(p->slotSpan, slot + 1);
         JS_ASSERT(slotSpan < JSObject::NSLOTS_LIMIT);
@@ -565,7 +565,7 @@ struct Shape : public JSObjectMap
                                      uint32 aslot, uintN aattrs, uintN aflags,
                                      intN ashortid) const;
 
-    bool get(JSContext* cx, JSObject *receiver, JSObject *obj, JSObject *pobj, js::Value* vp) const;
+    bool get(JSContext* cx, JSObject *obj, JSObject *pobj, js::Value* vp) const;
     bool set(JSContext* cx, JSObject *obj, js::Value* vp) const;
 
     inline bool isSharedPermanent() const;
@@ -656,7 +656,6 @@ JSObject::nativeSearch(jsid id, bool adding)
 inline const js::Shape *
 JSObject::nativeLookup(jsid id)
 {
-    JS_ASSERT(isNative());
     return SHAPE_FETCH(nativeSearch(id));
 }
 
@@ -862,6 +861,18 @@ Shape::isSharedPermanent() const
 {
     return (~attrs & (JSPROP_SHARED | JSPROP_PERMANENT)) == 0;
 }
+
+class AutoObjectLocker {
+    JSContext   * const cx;
+    JSObject    * const obj;
+  public:
+    AutoObjectLocker(JSContext *cx, JSObject *obj)
+      : cx(cx), obj(obj) {
+        JS_LOCK_OBJ(cx, obj);
+    }
+
+    ~AutoObjectLocker() { JS_UNLOCK_OBJ(cx, obj); }
+};
 
 }
 

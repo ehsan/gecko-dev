@@ -145,14 +145,13 @@ let Storage = {
   // Returns the data for all groupItems associated with the given window.
   readGroupItemData: function Storage_readGroupItemData(win) {
     var existingData = {};
-    let data;
     try {
-      data = this._sessionStore.getWindowValue(win, this.GROUP_DATA_IDENTIFIER);
-      if (data)
-        existingData = JSON.parse(data);
+      existingData = JSON.parse(
+        this._sessionStore.getWindowValue(win, this.GROUP_DATA_IDENTIFIER)
+      );
     } catch (e) {
       // getWindowValue will fail if the property doesn't exist
-      Utils.log("Error in readGroupItemData: "+e, data);
+      Utils.log("Error in readGroupItemData: "+e);
     }
     return existingData;
   },

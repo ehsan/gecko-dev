@@ -37,8 +37,6 @@
 
 #include "ContainerLayerD3D10.h"
 #include "nsAlgorithm.h"
-#include "gfxUtils.h"
-#include "nsRect.h"
 
 namespace mozilla {
 namespace layers {
@@ -68,8 +66,6 @@ ContainerLayerD3D10::InsertAfter(Layer* aChild, Layer* aAfter)
     aChild->SetPrevSibling(nsnull);
     if (oldFirstChild) {
       oldFirstChild->SetPrevSibling(aChild);
-    } else {
-      mLastChild = aChild;
     }
     NS_ADDREF(aChild);
     return;
@@ -82,8 +78,6 @@ ContainerLayerD3D10::InsertAfter(Layer* aChild, Layer* aAfter)
       aChild->SetNextSibling(oldNextSibling);
       if (oldNextSibling) {
         oldNextSibling->SetPrevSibling(aChild);
-      } else {
-        mLastChild = aChild;
       }
       aChild->SetPrevSibling(child);
       NS_ADDREF(aChild);
@@ -100,8 +94,6 @@ ContainerLayerD3D10::RemoveChild(Layer *aChild)
     mFirstChild = GetFirstChild()->GetNextSibling();
     if (mFirstChild) {
       mFirstChild->SetPrevSibling(nsnull);
-    } else {
-      mLastChild = nsnull;
     }
     aChild->SetNextSibling(nsnull);
     aChild->SetPrevSibling(nsnull);
@@ -117,8 +109,6 @@ ContainerLayerD3D10::RemoveChild(Layer *aChild)
       lastChild->SetNextSibling(child->GetNextSibling());
       if (child->GetNextSibling()) {
         child->GetNextSibling()->SetPrevSibling(lastChild);
-      } else {
-        mLastChild = lastChild;
       }
       child->SetNextSibling(nsnull);
       child->SetPrevSibling(nsnull);
@@ -145,23 +135,15 @@ ContainerLayerD3D10::GetFirstChildD3D10()
   return static_cast<LayerD3D10*>(mFirstChild->ImplData());
 }
 
-static inline LayerD3D10*
-GetNextSiblingD3D10(LayerD3D10* aLayer)
-{
-   Layer* layer = aLayer->GetLayer()->GetNextSibling();
-   return layer ? static_cast<LayerD3D10*>(layer->
-                                           ImplData())
-                : nsnull;
-}
-
 void
-ContainerLayerD3D10::RenderLayer()
+ContainerLayerD3D10::RenderLayer(float aOpacity, const gfx3DMatrix &aTransform)
 {
   float renderTargetOffset[] = { 0, 0 };
 
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
-  float opacity = GetEffectiveOpacity();
-  PRBool useIntermediate = UseIntermediateSurface();
+  float opacity = GetOpacity() * aOpacity;
+  gfx3DMatrix transform = mTransform * aTransform;
+  PRBool useIntermediate = ShouldUseIntermediate(aOpacity, transform);
 
   nsRefPtr<ID3D10RenderTargetView> previousRTView;
   nsRefPtr<ID3D10Texture2D> renderTexture;
@@ -208,15 +190,9 @@ ContainerLayerD3D10::RenderLayer()
   /*
    * Render this container's contents.
    */
-  for (LayerD3D10* layerToRender = GetFirstChildD3D10();
-       layerToRender != nsnull;
-       layerToRender = GetNextSiblingD3D10(layerToRender)) {
-
-    const nsIntRect* clipRect = layerToRender->GetLayer()->GetClipRect();
-    if ((clipRect && clipRect->IsEmpty()) ||
-        layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty()) {
-      continue;
-    }
+  LayerD3D10 *layerToRender = GetFirstChildD3D10();
+  while (layerToRender) {
+    const nsIntRect *clipRect = layerToRender->GetLayer()->GetClipRect();
 
     D3D10_RECT oldScissor;
     if (clipRect || useIntermediate) {
@@ -248,6 +224,10 @@ ContainerLayerD3D10::RenderLayer()
 
       if (r.left >= r.right || r.top >= r.bottom) {
         // Entire layer's clipped out, don't bother drawing.
+        Layer *nextSibling = layerToRender->GetLayer()->GetNextSibling();
+        layerToRender = nextSibling ? static_cast<LayerD3D10*>(nextSibling->
+                                                              ImplData())
+                                    : nsnull;
         continue;
       }
 
@@ -260,11 +240,20 @@ ContainerLayerD3D10::RenderLayer()
     }
 
     // SetScissorRect
-    layerToRender->RenderLayer();
+    if (!useIntermediate) {
+      layerToRender->RenderLayer(opacity, transform);
+    } else {
+      layerToRender->RenderLayer(1.0f, gfx3DMatrix());
+    }
 
     if (clipRect || useIntermediate) {
       device()->RSSetScissorRects(1, &oldScissor);
     }
+
+    Layer *nextSibling = layerToRender->GetLayer()->GetNextSibling();
+    layerToRender = nextSibling ? static_cast<LayerD3D10*>(nextSibling->
+                                                          ImplData())
+                                : nsnull;
   }
 
   if (useIntermediate) {
@@ -274,7 +263,8 @@ ContainerLayerD3D10::RenderLayer()
     effect()->GetVariableByName("vRenderTargetOffset")->
       SetRawValue(previousRenderTargetOffset, 0, 8);
 
-    SetEffectTransformAndOpacity();
+    effect()->GetVariableByName("mLayerTransform")->SetRawValue(&transform._11, 0, 64);
+    effect()->GetVariableByName("fLayerOpacity")->AsScalar()->SetFloat(opacity);
 
     ID3D10EffectTechnique *technique;
     technique = effect()->GetTechniqueByName("RenderRGBALayerPremul");
@@ -314,6 +304,33 @@ ContainerLayerD3D10::Validate()
     static_cast<LayerD3D10*>(layer->ImplData())->Validate();
     layer = layer->GetNextSibling();
   }
+}
+
+bool
+ContainerLayerD3D10::ShouldUseIntermediate(float aOpacity,
+                                           const gfx3DMatrix &aMatrix)
+{
+  if (aOpacity == 1.0f && aMatrix.IsIdentity()) {
+    return false;
+  }
+
+  Layer *firstChild = GetFirstChild();
+
+  if (!firstChild || (!firstChild->GetNextSibling() &&
+      !firstChild->GetClipRect())) {
+    // If we forward our transform to a child without using an intermediate, we
+    // need to be sure that child does not have a clip rect since the clip rect
+    // needs to be applied after its transform.
+    return false;
+  }
+
+  if (aMatrix.IsIdentity() && (!firstChild || !firstChild->GetNextSibling())) {
+    // If there's no transforms applied and a single child, opacity can always
+    // be forwarded to our only child.
+    return false;
+  }
+
+  return true;
 }
 
 } /* layers */

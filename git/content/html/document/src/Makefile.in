@@ -54,6 +54,8 @@ CPPSRCS		= \
 		nsImageDocument.cpp \
 		nsMediaDocument.cpp \
 		nsPluginDocument.cpp \
+		nsWyciwygChannel.cpp \
+		nsWyciwygProtocolHandler.cpp \
 		$(NULL)
 
 ifdef MOZ_MEDIA
@@ -76,7 +78,6 @@ INCLUDES	+= \
 		-I$(srcdir)/../../../../layout/style \
 		-I$(srcdir)/../../../../dom/base \
 		-I$(srcdir)/../../../../xpcom/io \
-		-I$(srcdir)/../../../../caps/include \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

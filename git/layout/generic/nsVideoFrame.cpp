@@ -136,8 +136,7 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsVideoFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                       PRUint32 aFliter)
+nsVideoFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   aElements.MaybeAppendElement(mPosterImage);
   aElements.MaybeAppendElement(mVideoControls);
@@ -251,10 +250,6 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
                       presContext->AppUnitsToGfxUnits(area.width),
                       presContext->AppUnitsToGfxUnits(area.height));
   r = CorrectForAspectRatio(r, videoSize);
-  r.Round();
-  gfxIntSize scaleHint(static_cast<PRInt32>(r.Width()),
-                       static_cast<PRInt32>(r.Height()));
-  container->SetScaleHint(scaleHint);
 
   nsRefPtr<ImageLayer> layer = static_cast<ImageLayer*>
     (aBuilder->LayerBuilder()->GetLeafLayerFor(aBuilder, aManager, aItem));

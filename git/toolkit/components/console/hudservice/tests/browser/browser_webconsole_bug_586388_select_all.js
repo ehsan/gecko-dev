@@ -8,21 +8,29 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+const Cu = Components.utils;
+
+Cu.import("resource:///modules/HUDService.jsm");
+
 const TEST_URI = "http://example.com/";
 
 function test() {
-  addTab(TEST_URI);
-  browser.addEventListener("DOMContentLoaded",
-                           testSelectionWhenMovingBetweenBoxes, false);
+  waitForExplicitFinish();
+  gBrowser.selectedTab = gBrowser.addTab(TEST_URI);
+  gBrowser.selectedBrowser.addEventListener("DOMContentLoaded", onLoad, false);
+}
+
+function onLoad() {
+  gBrowser.selectedBrowser.removeEventListener("DOMContentLoaded", onLoad,
+                                               false);
+  executeSoon(testSelectionWhenMovingBetweenBoxes);
 }
 
 function testSelectionWhenMovingBetweenBoxes() {
-  browser.removeEventListener("DOMContentLoaded",
-                              testSelectionWhenMovingBetweenBoxes, false);
-  openConsole();
+  HUDService.activateHUDForContext(gBrowser.selectedTab);
 
   let hudId = HUDService.displaysIndex()[0];
-  let jsterm = HUDService.hudReferences[hudId].jsterm;
+  let jsterm = HUDService.hudWeakReferences[hudId].get().jsterm;
 
   // Fill the console with some output.
   jsterm.clearOutput();
@@ -30,7 +38,7 @@ function testSelectionWhenMovingBetweenBoxes() {
   jsterm.execute("3 + 4");
   jsterm.execute("5 + 6");
 
-  outputNode = jsterm.outputNode;
+  let outputNode = jsterm.outputNode;
   let groupNode = outputNode.querySelector(".hud-group");
 
   ok(groupNode.childNodes.length >= 3, "the output node has children after " +
@@ -79,8 +87,9 @@ function testSelectionWhenMovingBetweenBoxes() {
   }
 
   selection.removeAllRanges();
-  selection = commandEvent = contextMenu = groupNode = range = null;
 
-  finishTest();
+  HUDService.deactivateHUDForContext(gBrowser.selectedTab);
+  gBrowser.removeCurrentTab();
+  finish();
 }
 

@@ -43,7 +43,6 @@
 #include "nsDiskCacheDevice.h"
 #include "nsDiskCacheStreams.h"
 #include "nsCacheService.h"
-#include "mozilla/FileUtils.h"
 
 
 
@@ -459,8 +458,7 @@ nsDiskCacheStreamIO::CloseOutputStream(nsDiskCacheOutputStream *  outputStream)
     }
 
     rv = Flush();
-    if (NS_FAILED(rv))
-        NS_WARNING("Flush() failed");
+    NS_ASSERTION(NS_SUCCEEDED(rv), "Flush() failed");
 
     mOutStream = nsnull;
     return rv;
@@ -510,9 +508,7 @@ nsDiskCacheStreamIO::Flush()
 
     } else {
         // store data (if any) in cache block files
-
-        mBufDirty = PR_FALSE;
-
+        
         // delete existing storage
         nsDiskCacheRecord * record = &mBinding->mRecord;
         if (record->DataLocationInitialized()) {
@@ -529,10 +525,12 @@ nsDiskCacheStreamIO::Flush()
             rv = cacheMap->WriteDataCacheBlocks(mBinding, mBuffer, mBufEnd);
             if (NS_FAILED(rv)) {
                 NS_WARNING("WriteDataCacheBlocks() failed.");
-                nsCacheService::DoomEntry(mBinding->mCacheEntry);
-                return rv;
+                return rv;   // XXX doom cache entry?
+                
             }
         }
+
+        mBufDirty = PR_FALSE;
     }
     
     // XXX do we need this here?  WriteDataCacheBlocks() calls UpdateRecord()
@@ -668,7 +666,6 @@ nsDiskCacheStreamIO::OpenCacheFile(PRIntn flags, PRFileDesc ** fd)
     
     rv = cacheMap->GetLocalFileForDiskCacheRecord(&mBinding->mRecord,
                                                   nsDiskCache::kData,
-                                                  !!(flags & PR_CREATE_FILE),
                                                   getter_AddRefs(mLocalFile));
     if (NS_FAILED(rv))  return rv;
     
@@ -731,13 +728,6 @@ nsDiskCacheStreamIO::FlushBufferToFile()
         // allocate file
         rv = OpenCacheFile(PR_RDWR | PR_CREATE_FILE, &mFD);
         if (NS_FAILED(rv))  return rv;
-
-        PRInt64 dataSize = mBinding->mCacheEntry->PredictedDataSize();
-// Appears to cause bug 617123?  Disabled for now.
-#if 0
-        if (dataSize != -1)
-            mozilla::fallocate(mFD, PR_MIN(dataSize, kPreallocateLimit));
-#endif
     }
     
     // write buffer

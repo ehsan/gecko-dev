@@ -58,9 +58,7 @@ public:
   
     eLinebreakMac,          // CR
     eLinebreakUnix,         // LF
-    eLinebreakWindows,      // CRLF
-
-    eLinebreakSpace         // space characters. Only valid as destination type
+    eLinebreakWindows       // CRLF
   
   } ELinebreakType;
 

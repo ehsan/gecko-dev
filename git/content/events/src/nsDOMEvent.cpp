@@ -93,7 +93,6 @@ static const char* const sEventNames[] = {
 #endif // MOZ_MEDIA
   "MozAfterPaint",
   "MozBeforePaint",
-  "MozBeforeResize",
   "MozSwipeGesture",
   "MozMagnifyGestureStart",
   "MozMagnifyGestureUpdate",
@@ -740,12 +739,10 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
     }
     case NS_FOCUS_EVENT:
     {
-      nsFocusEvent* newFocusEvent = new nsFocusEvent(PR_FALSE, msg);
-      NS_ENSURE_TRUE(newFocusEvent, NS_ERROR_OUT_OF_MEMORY);
-      nsFocusEvent* oldFocusEvent = static_cast<nsFocusEvent*>(mEvent);
-      newFocusEvent->fromRaise = oldFocusEvent->fromRaise;
-      newFocusEvent->isRefocus = oldFocusEvent->isRefocus;
-      newEvent = newFocusEvent;
+      newEvent = new nsFocusEvent(PR_FALSE, msg);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
+      static_cast<nsFocusEvent*>(newEvent)->fromRaise =
+        static_cast<nsFocusEvent*>(mEvent)->fromRaise;
       break;
     }
 
@@ -1317,8 +1314,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_afterpaint];
   case NS_BEFOREPAINT:
     return sEventNames[eDOMEvents_beforepaint];
-  case NS_BEFORERESIZE_EVENT:
-    return sEventNames[eDOMEvents_beforeresize];
   case NS_SIMPLE_GESTURE_SWIPE:
     return sEventNames[eDOMEvents_MozSwipeGesture];
   case NS_SIMPLE_GESTURE_MAGNIFY_START:
@@ -1356,6 +1351,25 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
   // arrays in nsEventListenerManager too, since the events for which
   // this is a problem generally *are* created by nsDOMEvent.)
   return nsnull;
+}
+
+nsresult
+nsDOMEvent::ReportWrongPropertyAccessWarning(const char* aPropertyName)
+{
+  nsCOMPtr<nsIDocument> doc(GetDocumentForReport(mEvent));
+
+  nsAutoString propertyName, type;
+  GetType(type);
+  propertyName.AssignASCII(aPropertyName);
+  const PRUnichar *strings[] = { propertyName.get(), type.get() };
+
+  return nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
+                                         "WrongEventPropertyAccessWarning",
+                                         strings, NS_ARRAY_LENGTH(strings),
+                                         doc ? doc->GetDocumentURI() : nsnull,
+                                         EmptyString(), 0, 0,
+                                         nsIScriptError::warningFlag,
+                                         "DOM Events");
 }
 
 NS_IMETHODIMP

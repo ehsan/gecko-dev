@@ -104,15 +104,12 @@ function run_test_1() {
     do_check_eq(uri.spec, rootUri);
     uri = a1.getResourceURI("install.rdf");
     do_check_eq(uri.spec, rootUri + "install.rdf");
-    
-    // Check that upgrade is disabled for addons installed by file-pointers.
-    do_check_eq(a1.permissions & AddonManager.PERM_CAN_UPGRADE, 0);
+
     run_test_2();
   });
 }
 
-// Tests that installing the addon from some other source doesn't clobber
-// the original sources
+// Tests that installing an upgrade doesn't clobber the original sources
 function run_test_2() {
   prepare_test({}, [
     "onNewInstall",
@@ -212,9 +209,7 @@ function run_test_4() {
 
 // Tests that changing the ID of an existing add-on doesn't clobber the sources
 function run_test_5() {
-  var dest = writeInstallRDFForExtension(addon1, sourceDir);
-  // Make sure the modification time changes enough to be detected.
-  setExtensionModifiedTime(dest, dest.lastModifiedTime - 5000);
+  writeInstallRDFForExtension(addon1, sourceDir);
   writePointer(addon1.id);
 
   restartManager();
@@ -223,7 +218,9 @@ function run_test_5() {
     do_check_neq(a1, null);
     do_check_eq(a1.version, "1.0");
 
-    writeInstallRDFForExtension(addon2, sourceDir, addon1.id);
+    var dest = writeInstallRDFForExtension(addon2, sourceDir, addon1.id);
+    // Make sure the modification time changes enough to be detected.
+    dest.lastModifiedTime -= 5000;
 
     restartManager();
 
@@ -247,9 +244,7 @@ function run_test_5() {
 
 // Removing the pointer file should uninstall the add-on
 function run_test_6() {
-  var dest = writeInstallRDFForExtension(addon1, sourceDir);
-  // Make sure the modification time changes enough to be detected in run_test_8.
-  setExtensionModifiedTime(dest, dest.lastModifiedTime - 5000);
+  writeInstallRDFForExtension(addon1, sourceDir);
   writePointer(addon1.id);
 
   restartManager();
@@ -313,7 +308,9 @@ function run_test_8() {
     do_check_neq(a1, null);
     do_check_eq(a1.version, "1.0");
 
-    writeInstallRDFForExtension(addon1_2, sourceDir);
+    var dest = writeInstallRDFForExtension(addon1_2, sourceDir);
+    // Make sure the modification time changes enough to be detected.
+    dest.lastModifiedTime -= 5000;
 
     restartManager();
 

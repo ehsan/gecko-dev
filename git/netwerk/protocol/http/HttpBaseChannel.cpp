@@ -52,7 +52,6 @@
 #include "nsIResumableChannel.h"
 #include "nsIApplicationCacheChannel.h"
 #include "nsEscape.h"
-#include "nsPrintfCString.h"
 
 namespace mozilla {
 namespace net {
@@ -513,7 +512,7 @@ HttpBaseChannel::ApplyContentConversions()
   if (!mResponseHead)
     return NS_OK;
 
-  LOG(("HttpBaseChannel::ApplyContentConversions [this=%p]\n", this));
+  LOG(("nsHttpChannel::ApplyContentConversions [this=%p]\n", this));
 
   if (!mApplyConversion) {
     LOG(("not applying conversion per mApplyConversion\n"));

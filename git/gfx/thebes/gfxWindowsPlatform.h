@@ -45,7 +45,7 @@
 
 
 /**
- * XXX to get CAIRO_HAS_D2D_SURFACE and
+ * XXX to get CAIRO_HAS_DDRAW_SURFACE, CAIRO_HAS_D2D_SURFACE and
  * CAIRO_HAS_DWRITE_FONT
  */
 #include "cairo.h"
@@ -230,14 +230,13 @@ public:
     virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
 
 #ifdef CAIRO_HAS_DWRITE_FONT
-    IDWriteFactory *GetDWriteFactory() { return mDWriteFactory; }
+    IDWriteFactory *GetDWriteFactory() { return mUseDirectWrite ? mDWriteFactory : nsnull; }
     inline PRBool DWriteEnabled() { return mUseDirectWrite; }
 #else
     inline PRBool DWriteEnabled() { return PR_FALSE; }
 #endif
 #ifdef CAIRO_HAS_D2D_SURFACE
     cairo_device_t *GetD2DDevice() { return mD2DDevice; }
-    ID3D10Device1 *GetD3D10Device() { return mD2DDevice ? cairo_d2d_device_get_device(mD2DDevice) : nsnull; }
 #endif
 
 #ifdef MOZ_FT2_FONTS
@@ -255,7 +254,6 @@ private:
     void Init();
 
     PRBool mUseDirectWrite;
-    PRBool mUsingGDIFonts;
 
 #ifdef CAIRO_HAS_DWRITE_FONT
     nsRefPtr<IDWriteFactory> mDWriteFactory;

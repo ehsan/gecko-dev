@@ -109,7 +109,7 @@
 
 #include "nsIServiceManager.h"
 #include "nsIDOMEventListener.h"
-#include "nsEventStateManager.h"
+
 #include "nsIWebNavigation.h"
 #include "nsIBaseWindow.h"
 
@@ -139,6 +139,11 @@
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
 #endif /* MOZ_XUL */
+
+#ifdef ACCESSIBILITY
+#include "nsIAccessibilityService.h"
+#include "nsIAccessibleEvent.h"
+#endif /* ACCESSIBILITY */
 
 #include "nsCycleCollectionParticipant.h"
 #include "nsCCUncollectableMarker.h"
@@ -766,7 +771,7 @@ nsINode::LookupNamespaceURI(const nsAString& aNamespacePrefix,
 
 //----------------------------------------------------------------------
 
-nsEventStates
+PRInt32
 nsIContent::IntrinsicState() const
 {
   return IsEditable() ? NS_EVENT_STATE_MOZ_READWRITE :
@@ -1095,6 +1100,19 @@ nsIContent::IsEqual(nsIContent* aOther)
         return PR_FALSE;
       }
     }
+
+    // Child nodes count.
+    PRUint32 childCount = GetChildCount();
+    if (childCount != element2->GetChildCount()) {
+      return PR_FALSE;
+    }
+
+    // Iterate over child nodes.
+    for (PRUint32 i = 0; i < childCount; ++i) {
+      if (!GetChildAt(i)->IsEqual(element2->GetChildAt(i))) {
+        return PR_FALSE;
+      }
+    }
   } else {
     // Node value check.
     nsCOMPtr<nsIDOMNode> domNode1 = do_QueryInterface(this);
@@ -1107,18 +1125,6 @@ nsIContent::IsEqual(nsIContent* aOther)
     }
   }
 
-  // Child nodes count.
-  PRUint32 childCount = GetChildCount();
-  if (childCount != aOther->GetChildCount()) {
-    return PR_FALSE;
-  }
-
-  // Iterate over child nodes.
-  for (PRUint32 i = 0; i < childCount; ++i) {
-    if (!GetChildAt(i)->IsEqual(aOther->GetChildAt(i))) {
-      return PR_FALSE;
-    }
-  }
   return PR_TRUE;
 }
 
@@ -3045,7 +3051,7 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 }
 
 already_AddRefed<nsINodeList>
-nsGenericElement::GetChildren(PRUint32 aFilter)
+nsGenericElement::GetChildren(PRInt32 aChildType)
 {
   nsRefPtr<nsBaseContentList> list = new nsBaseContentList();
   if (!list) {
@@ -3070,7 +3076,7 @@ nsGenericElement::GetChildren(PRUint32 aFilter)
 
   nsIDocument* document = GetOwnerDoc();
   if (document) {
-    if (!(aFilter & eAllButXBL)) {
+    if (aChildType != eAllButXBL) {
       childList = document->BindingManager()->GetXBLChildNodesFor(this);
       if (!childList) {
         childList = GetChildNodesList();
@@ -3096,7 +3102,7 @@ nsGenericElement::GetChildren(PRUint32 aFilter)
     // Append native anonymous content to the end.
     nsIAnonymousContentCreator* creator = do_QueryFrame(frame);
     if (creator) {
-      creator->AppendAnonymousContentTo(*list, aFilter);
+      creator->AppendAnonymousContentTo(*list);
     }
 
     // Append :after generated content.
@@ -3567,17 +3573,17 @@ nsINode::doInsertChildAt(nsIContent* aKid, PRUint32 aIndex,
     }
   }
 
+  PRUint32 childCount = aChildArray.ChildCount();
+  NS_ENSURE_TRUE(aIndex <= childCount, NS_ERROR_ILLEGAL_VALUE);
+
   // The id-handling code, and in the future possibly other code, need to
   // react to unexpected attribute changes.
   nsMutationGuard::DidMutate();
 
-  // Do this before checking the child-count since this could cause mutations
+  PRBool isAppend = (aIndex == childCount);
+
   nsIDocument* doc = GetCurrentDoc();
   mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, aNotify);
-
-  PRUint32 childCount = aChildArray.ChildCount();
-  NS_ENSURE_TRUE(aIndex <= childCount, NS_ERROR_ILLEGAL_VALUE);
-  PRBool isAppend = (aIndex == childCount);
 
   rv = aChildArray.InsertChildAt(aKid, aIndex);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -3645,6 +3651,21 @@ nsINode::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
                          PRBool aMutationEvent)
 {
   nsIDocument* doc = GetCurrentDoc();
+#ifdef ACCESSIBILITY
+  // A11y needs to be notified of content removals first, so accessibility
+  // events can be fired before any changes occur
+  if (aNotify && doc) {
+    nsIPresShell *presShell = doc->GetShell();
+    if (presShell && presShell->IsAccessibilityActive()) {
+      nsCOMPtr<nsIAccessibilityService> accService = 
+        do_GetService("@mozilla.org/accessibilityService;1");
+      if (accService) {
+        accService->InvalidateSubtreeFor(presShell, aKid,
+                                         nsIAccessibilityService::NODE_REMOVE);
+      }
+    }
+  }
+#endif
 
   nsMutationGuard::DidMutate();
 
@@ -4006,17 +4027,17 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
     return NS_ERROR_NULL_POINTER;
   }
 
-  if (!IsNodeOfType(eDOCUMENT) &&
-      !IsNodeOfType(eDOCUMENT_FRAGMENT) &&
-      !IsElement()) {
+  if (IsNodeOfType(eDATA_NODE)) {
     return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
+  }
+
+  if (IsNodeOfType(eATTRIBUTE)) {
+    return NS_ERROR_NOT_IMPLEMENTED;
   }
 
   nsIContent* refContent;
   nsresult res = NS_OK;
   PRInt32 insPos;
-
-  mozAutoDocConditionalContentUpdateBatch batch(GetCurrentDoc(), PR_TRUE);
 
   // Figure out which index to insert at
   if (aRefChild) {
@@ -4078,6 +4099,11 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
                    "ownerDocument changed again after adopting!");
     }
   }
+
+  // We want an update batch when we expect several mutations to be performed,
+  // which is when we're replacing a node, or when we're inserting a fragment.
+  mozAutoDocConditionalContentUpdateBatch batch(GetCurrentDoc(),
+    aReplace || nodeType == nsIDOMNode::DOCUMENT_FRAGMENT_NODE);
 
   // If we're replacing
   if (aReplace) {
@@ -4578,10 +4604,6 @@ nsGenericElement::SetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
   NS_ASSERTION(aNamespaceID != kNameSpaceID_Unknown,
                "Don't call SetAttr with unknown namespace");
 
-  if (!mAttrsAndChildren.CanFitMoreAttrs()) {
-    return NS_ERROR_FAILURE;
-  }
-
   nsAutoString oldValue;
   PRBool modification = PR_FALSE;
   PRBool hasListeners = aNotify &&
@@ -4653,9 +4675,9 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
 
   // When notifying, make sure to keep track of states whose value
   // depends solely on the value of an attribute.
-  nsEventStates stateMask;
+  PRUint32 stateMask;
   if (aNotify) {
-    stateMask = IntrinsicState();
+    stateMask = PRUint32(IntrinsicState());
   }
 
   nsMutationGuard::DidMutate();
@@ -4690,8 +4712,8 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
   }
 
   if (aNotify) {
-    stateMask ^= IntrinsicState();
-    if (document && !stateMask.IsEmpty()) {
+    stateMask = stateMask ^ PRUint32(IntrinsicState());
+    if (stateMask && document) {
       MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, aNotify);
       document->ContentStatesChanged(this, nsnull, stateMask);
     }
@@ -4892,10 +4914,10 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
   // When notifying, make sure to keep track of states whose value
   // depends solely on the value of an attribute.
-  nsEventStates stateMask;
+  PRUint32 stateMask;
   if (aNotify) {
-    stateMask = IntrinsicState();
-  }
+    stateMask = PRUint32(IntrinsicState());
+  }    
 
   PRBool hasMutationListeners = aNotify &&
     nsContentUtils::HasMutationListeners(this,
@@ -4937,8 +4959,8 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   }
 
   if (aNotify) {
-    stateMask ^= IntrinsicState();
-    if (document && !stateMask.IsEmpty()) {
+    stateMask = stateMask ^ PRUint32(IntrinsicState());
+    if (stateMask && document) {
       MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, aNotify);
       document->ContentStatesChanged(this, nsnull, stateMask);
     }
@@ -5076,7 +5098,7 @@ nsGenericElement::List(FILE* out, PRInt32 aIndent,
 
   ListAttributes(out);
 
-  fprintf(out, " intrinsicstate=[%llx]", IntrinsicState().GetInternalValue());
+  fprintf(out, " intrinsicstate=[%08x]", IntrinsicState());
   fprintf(out, " flags=[%08x]", static_cast<unsigned int>(GetFlags()));
   fprintf(out, " primaryframe=%p", static_cast<void*>(GetPrimaryFrame()));
   fprintf(out, " refcount=%d<", mRefCnt.get());
@@ -5254,13 +5276,12 @@ nsGenericElement::PreHandleEventForLinks(nsEventChainPreVisitor& aVisitor)
   // We do the status bar updates in PreHandleEvent so that the status bar gets
   // updated even if the event is consumed before we have a chance to set it.
   switch (aVisitor.mEvent->message) {
-  // Set the status bar similarly for mouseover and focus
+  // Set the status bar the same for focus and mouseover
   case NS_MOUSE_ENTER_SYNTH:
     aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
     // FALL THROUGH
   case NS_FOCUS_CONTENT:
-    if (aVisitor.mEvent->eventStructType != NS_FOCUS_EVENT ||
-        !static_cast<nsFocusEvent*>(aVisitor.mEvent)->isRefocus) {
+    {
       nsAutoString target;
       GetLinkTarget(target);
       nsContentUtils::TriggerLink(this, aVisitor.mPresContext, absURI, target,
@@ -5324,10 +5345,8 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
                                nsIFocusManager::FLAG_NOSCROLL);
           }
 
-          nsIEventStateManager* esm =
-            aVisitor.mPresContext->EventStateManager();
-          nsEventStateManager::SetActiveManager(
-            static_cast<nsEventStateManager*>(esm), this);
+          aVisitor.mPresContext->EventStateManager()->
+            SetContentState(this, NS_EVENT_STATE_ACTIVE);
         }
       }
     }
@@ -5599,16 +5618,16 @@ nsGenericElement::doQuerySelectorAll(nsINode* aRoot,
 
 
 PRBool
-nsGenericElement::MozMatchesSelector(const nsAString& aSelector, nsresult* aResult)
+nsGenericElement::MozMatchesSelector(const nsAString& aSelector)
 {
   nsAutoPtr<nsCSSSelectorList> selectorList;
   nsPresContext* presContext;
   PRBool matches = PR_FALSE;
 
-  *aResult = ParseSelectorList(this, aSelector, getter_Transfers(selectorList),
-                               &presContext);
-
-  if (NS_SUCCEEDED(*aResult)) {
+  if (NS_SUCCEEDED(ParseSelectorList(this, aSelector,
+                                     getter_Transfers(selectorList),
+                                     &presContext)))
+  {
     RuleProcessorData data(presContext, this, nsnull);
     matches = nsCSSRuleProcessor::SelectorListMatches(data, selectorList);
   }
@@ -5620,9 +5639,6 @@ NS_IMETHODIMP
 nsNSElementTearoff::MozMatchesSelector(const nsAString& aSelector, PRBool* aReturn)
 {
   NS_PRECONDITION(aReturn, "Null out param?");
-
-  nsresult rv;
-  *aReturn = mContent->MozMatchesSelector(aSelector, &rv);
-
-  return rv;
+  *aReturn = mContent->MozMatchesSelector(aSelector);
+  return NS_OK;
 }

@@ -76,8 +76,6 @@
 
 #include "nsLayoutUtils.h"
 
-using namespace mozilla::dom;
-
 // XXX nav attrs: suppress
 
 class nsHTMLImageElement : public nsGenericHTMLElement,
@@ -142,7 +140,7 @@ public:
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
 
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   nsresult CopyInnerTo(nsGenericElement* aDest) const;
@@ -156,7 +154,7 @@ protected:
 
 nsGenericHTMLElement*
 NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                       FromParser aFromParser)
+                       PRUint32 aFromParser)
 {
   /*
    * nsHTMLImageElement's will be created without a nsINodeInfo passed in
@@ -585,7 +583,7 @@ nsHTMLImageElement::MaybeLoadImage()
   }
 }
 
-nsEventStates
+PRInt32
 nsHTMLImageElement::IntrinsicState() const
 {
   return nsGenericHTMLElement::IntrinsicState() |

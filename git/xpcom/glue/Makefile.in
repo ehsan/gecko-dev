@@ -52,6 +52,7 @@ LIBRARY_NAME	= xpcomglue_s
 SUPPRESS_FAKELIB = 1
 DIST_INSTALL	= 1
 
+
 LOCAL_INCLUDES	= \
 		-I$(srcdir)/../build \
 		$(NULL)
@@ -80,7 +81,6 @@ SDK_HEADERS = \
 		nsClassHashtable.h \
 		nsComponentManagerUtils.h \
 		nsCycleCollectionParticipant.h \
-		nsCycleCollectorUtils.h \
 		nsDataHashtable.h \
 		nsDebug.h \
 		nsDeque.h \
@@ -101,7 +101,6 @@ SDK_HEADERS = \
 		nsStringAPI.h \
 		nsStringGlue.h \
 		nsTArray.h \
-		nsTArray-inl.h \
 		nsTHashtable.h \
 		nsTObserverArray.h \
 		nsTPtrArray.h \
@@ -114,14 +113,13 @@ SDK_HEADERS = \
 		pldhash.h \
 		$(NULL)
 
-EXPORTS_NAMESPACES = mozilla mozilla/threads
+EXPORTS_NAMESPACES = mozilla
 
 EXPORTS = \
 		nsThreadUtils.h \
 		nsTPriorityQueue.h \
 		nsProxyRelease.h \
 		nsXPTCUtils.h \
-		nsCycleCollectorUtils.h \
 		$(NULL)
 
 EXPORTS_mozilla = \
@@ -129,17 +127,12 @@ EXPORTS_mozilla = \
   BlockingResourceBase.h \
   CondVar.h \
   DeadlockDetector.h \
-  FileUtils.h \
   GenericFactory.h \
-  IntentionalCrash.h \
   Monitor.h \
   Mutex.h \
   SSE.h \
   unused.h \
-  $(NULL)
-
-EXPORTS_mozilla/threads = \
-  nsThreadIDs.h \
+  FileUtils.h \
   $(NULL)
 
 SDK_LIBRARY     =                        \

@@ -134,15 +134,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSScriptTimeoutHandler)
     else if (tmp->mFunObj) {
       JSFunction* fun = (JSFunction*)tmp->mFunObj->getPrivate();
       if (fun->atom) {
-        size_t size = 1 + JS_PutEscapedString(NULL, 0, ATOM_TO_STRING(fun->atom), 0);
-        char *name = new char[size];
-        if (name) {
-          JS_PutEscapedString(name, size, ATOM_TO_STRING(fun->atom), 0);
-          foo.AppendLiteral(" [");
-          foo.Append(name);
-          delete[] name;
-          foo.AppendLiteral("]");
-        }
+        JSString* name = ATOM_TO_STRING(fun->atom);
+        foo.AppendLiteral(" [");
+        foo.Append(JS_GetStringBytes(name));
+        foo.AppendLiteral("]");
       }
     }
     cb.DescribeNode(RefCounted, tmp->mRefCnt.get(),

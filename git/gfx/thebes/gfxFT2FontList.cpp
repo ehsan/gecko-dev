@@ -235,15 +235,13 @@ gfxFT2FontList::FindFonts()
 #endif // XP_WIN && ANDROID
 }
 
-nsresult
+void
 gfxFT2FontList::InitFontList()
 {
     // reset font lists
     gfxPlatformFontList::InitFontList();
     
     FindFonts();
-
-    return NS_OK;
 }
 
 struct FullFontNameSearch {

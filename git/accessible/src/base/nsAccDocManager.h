@@ -73,22 +73,21 @@ public:
    * Search through all document accessibles for an accessible with the given
    * unique id.
    */
-  nsAccessible* FindAccessibleInCache(nsINode* aNode) const;
+  nsAccessible *FindAccessibleInCache(void *aUniqueID) const;
+
+  /**
+   * Shutdown document accessibles in the tree starting from the given one.
+   *
+   * @param  aDocument  [in] the DOM document of start document accessible
+   */
+  void ShutdownDocAccessiblesInTree(nsIDocument *aDocument);
 
   /**
    * Return document accessible from the cache. Convenient method for testing.
    */
   inline nsDocAccessible* GetDocAccessibleFromCache(nsIDocument* aDocument) const
   {
-    return mDocAccessibleCache.GetWeak(aDocument);
-  }
-
-  /**
-   * Called by document accessible when it gets shutdown.
-   */
-  inline void NotifyOfDocumentShutdown(nsIDocument* aDocument)
-  {
-    mDocAccessibleCache.Remove(aDocument);
+    return mDocAccessibleCache.GetWeak(static_cast<void*>(aDocument));
   }
 
 protected:
@@ -104,6 +103,11 @@ protected:
    */
   void Shutdown();
 
+  /**
+   * Shutdown the document accessible.
+   */
+  void ShutdownDocAccessible(nsIDocument* aDocument);
+
 private:
   nsAccDocManager(const nsAccDocManager&);
   nsAccDocManager& operator =(const nsAccDocManager&);
@@ -116,9 +120,13 @@ private:
    * @param  aDocument       [in] loaded DOM document
    * @param  aLoadEventType  [in] specifies the event type to fire load event,
    *                           if 0 then no event is fired
+   * @param  aMarkAsLoaded   [in] indicates whether we should mark forcedly
+   *                           an accessible document as loaded (used for error
+   *                           pages only which do not get 'pageshow' event)
    */
   void HandleDOMDocumentLoad(nsIDocument *aDocument,
-                             PRUint32 aLoadEventType);
+                             PRUint32 aLoadEventType,
+                             PRBool aMarkAsLoaded = PR_FALSE);
 
   /**
    * Return true if accessibility events accompanying document accessible
@@ -148,30 +156,39 @@ private:
    */
   nsDocAccessible *CreateDocOrRootAccessible(nsIDocument *aDocument);
 
-  typedef nsRefPtrHashtable<nsPtrHashKey<const nsIDocument>, nsDocAccessible>
+  /**
+   * Shutdown document accessibles in the tree starting from given tree item.
+   */
+  void ShutdownDocAccessiblesInTree(nsIDocShellTreeItem *aTreeItem,
+                                    nsIDocument *aDocument);
+
+  typedef nsRefPtrHashtable<nsVoidPtrHashKey, nsDocAccessible>
     nsDocAccessibleHashtable;
 
   /**
-   * Get first entry of the document accessible from cache.
+   * Shutdown and remove the document accessible from cache.
    */
   static PLDHashOperator
-    GetFirstEntryInDocCache(const nsIDocument* aKey,
-                            nsDocAccessible* aDocAccessible,
-                            void* aUserArg);
+    ClearDocCacheEntry(const void* aKey,
+                       nsRefPtr<nsDocAccessible>& aDocAccessible,
+                       void* aUserArg);
 
   /**
    * Clear the cache and shutdown the document accessibles.
    */
-  void ClearDocCache();
+  void ClearDocCache()
+  {
+    mDocAccessibleCache.Enumerate(ClearDocCacheEntry, static_cast<void*>(this));
+  }
 
   struct nsSearchAccessibleInCacheArg
   {
     nsAccessible *mAccessible;
-    nsINode* mNode;
+    void *mUniqueID;
   };
 
   static PLDHashOperator
-    SearchAccessibleInDocCache(const nsIDocument* aKey,
+    SearchAccessibleInDocCache(const void* aKey,
                                nsDocAccessible* aDocAccessible,
                                void* aUserArg);
 

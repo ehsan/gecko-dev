@@ -28,35 +28,25 @@ function test() {
 
 function end_test() {
   Services.prefs.clearUserPref(PREF_GETADDONS_GETSEARCHRESULTS);
-
-  // Test generates a lot of available installs so just cancel them all
-  AddonManager.getAllInstalls(function(aInstalls) {
-    aInstalls.forEach(function(aInstall) {
-      aInstall.cancel();
-    });
-
-    close_manager(gManagerWindow, finish);
-  });
+  close_manager(gManagerWindow, finish);
 }
 
 function search(aRemoteSearch, aCallback) {
-  waitForFocus(function() {
-    var searchBox = gManagerWindow.document.getElementById("header-search");
-    searchBox.value = SEARCH_QUERY;
+  var searchBox = gManagerWindow.document.getElementById("header-search");
+  searchBox.value = SEARCH_QUERY;
 
-    EventUtils.synthesizeMouseAtCenter(searchBox, { }, gManagerWindow);
-    EventUtils.synthesizeKey("VK_RETURN", { }, gManagerWindow);
+  EventUtils.synthesizeMouse(searchBox, 2, 2, { }, gManagerWindow);
+  EventUtils.synthesizeKey("VK_RETURN", { }, gManagerWindow);
 
-    wait_for_view_load(gManagerWindow, function() {
-      if (aRemoteSearch)
-        var filter = gManagerWindow.document.getElementById("search-filter-remote");
-      else
-        var filter = gManagerWindow.document.getElementById("search-filter-local");
-      EventUtils.synthesizeMouseAtCenter(filter, { }, gManagerWindow);
+  wait_for_view_load(gManagerWindow, function() {
+    if (aRemoteSearch)
+      var filter = gManagerWindow.document.getElementById("search-filter-remote");
+    else
+      var filter = gManagerWindow.document.getElementById("search-filter-local");
+    EventUtils.synthesizeMouse(filter, 2, 2, { }, gManagerWindow);
 
-      executeSoon(aCallback);
-    });
-  }, gManagerWindow);
+    executeSoon(aCallback);
+  });
 }
 
 function check_allresultslink(aShouldShow) {

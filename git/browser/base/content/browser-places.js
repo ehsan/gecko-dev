@@ -96,33 +96,13 @@ var StarUI = {
         if (aEvent.originalTarget == this.panel) {
           if (!this._element("editBookmarkPanelContent").hidden)
             this.quitEditMode();
-
           this._restoreCommandsState();
           this._itemId = -1;
+          this._uri = null;
           if (this._batching) {
             PlacesUIUtils.ptm.endBatch();
             this._batching = false;
           }
-
-          switch (this._actionOnHide) {
-            case "cancel": {
-              PlacesUIUtils.ptm.undoTransaction();
-              break;
-            }
-            case "remove": {
-              // Remove all bookmarks for the bookmark's url, this also removes
-              // the tags for the url.
-              PlacesUIUtils.ptm.beginBatch();
-              let itemIds = PlacesUtils.getBookmarksForURI(this._uriForRemoval);
-              for (let i = 0; i < itemIds.length; i++) {
-                let txn = PlacesUIUtils.ptm.removeItem(itemIds[i]);
-                PlacesUIUtils.ptm.doTransaction(txn);
-              }
-              PlacesUIUtils.ptm.endBatch();
-              break;
-            }
-          }
-          this._actionOnHide = "";
         }
         break;
       case "keypress":
@@ -205,9 +185,12 @@ var StarUI = {
         gNavigatorBundle.getString("editBookmarkPanel.editBookmarkTitle");
 
     // No description; show the Done, Cancel;
+    // hide the Edit, Undo buttons
     this._element("editBookmarkPanelDescription").textContent = "";
     this._element("editBookmarkPanelBottomButtons").hidden = false;
     this._element("editBookmarkPanelContent").hidden = false;
+    this._element("editBookmarkPanelEditButton").hidden = true;
+    this._element("editBookmarkPanelUndoRemoveButton").hidden = true;
 
     // The remove button is shown only if we're not already batching, i.e.
     // if the cancel button/ESC does not remove the bookmark.
@@ -229,7 +212,7 @@ var StarUI = {
     // Consume dismiss clicks, see bug 400924
     this.panel.popupBoxObject
         .setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
-    this.panel.openPopup(aAnchorElement, aPosition);
+    this.panel.openPopup(aAnchorElement, aPosition, -1, -1);
 
     gEditItemOverlay.initPanel(this._itemId,
                                { hiddenRows: ["description", "location",
@@ -254,6 +237,42 @@ var StarUI = {
     }
   },
 
+  showPageBookmarkedNotification:
+  function PCH_showPageBookmarkedNotification(aItemId, aAnchorElement, aPosition) {
+    this._blockCommands(); // un-done in the popuphiding handler
+
+    var brandBundle = this._element("bundle_brand");
+    var brandShortName = brandBundle.getString("brandShortName");
+
+    // "Page Bookmarked" title
+    this._element("editBookmarkPanelTitle").value =
+      gNavigatorBundle.getString("editBookmarkPanel.pageBookmarkedTitle");
+
+    // description
+    this._element("editBookmarkPanelDescription").textContent =
+      gNavigatorBundle.getFormattedString("editBookmarkPanel.pageBookmarkedDescription",
+                                          [brandShortName]);
+
+    // show the "Edit.." button and the Remove Bookmark button, hide the
+    // undo-remove-bookmark button.
+    this._element("editBookmarkPanelEditButton").hidden = false;
+    this._element("editBookmarkPanelRemoveButton").hidden = false;
+    this._element("editBookmarkPanelUndoRemoveButton").hidden = true;
+
+    // unset the unstarred state, if set
+    this._element("editBookmarkPanelStarIcon").removeAttribute("unstarred");
+
+    this._itemId = aItemId !== undefined ? aItemId : this._itemId;
+    if (this.panel.state == "closed") {
+      // Consume dismiss clicks, see bug 400924
+      this.panel.popupBoxObject
+          .setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
+      this.panel.openPopup(aAnchorElement, aPosition, -1, -1);
+    }
+    else
+      this.panel.focus();
+  },
+
   quitEditMode: function SU_quitEditMode() {
     this._element("editBookmarkPanelContent").hidden = true;
     this._element("editBookmarkPanelBottomButtons").hidden = true;
@@ -265,20 +284,80 @@ var StarUI = {
   },
 
   cancelButtonOnCommand: function SU_cancelButtonOnCommand() {
-    this._actionOnHide = "cancel";
+    // The order here is important! We have to hide the panel first, otherwise
+    // changes done as part of Undo may change the panel contents and by
+    // that force it to commit more transactions
     this.panel.hidePopup();
+    this.endBatch();
+    PlacesUIUtils.ptm.undoTransaction();
   },
 
   removeBookmarkButtonCommand: function SU_removeBookmarkButtonCommand() {
-    this._uriForRemoval = PlacesUtils.bookmarks.getBookmarkURI(this._itemId);
-    this._actionOnHide = "remove";
-    this.panel.hidePopup();
+#ifdef ADVANCED_STARRING_UI
+    // In minimal mode ("page bookmarked" notification), the bookmark
+    // is removed and the panel is hidden immediately. In full edit mode,
+    // a "Bookmark Removed" notification along with an Undo button is
+    // shown
+    if (this._batching) {
+      PlacesUIUtils.ptm.endBatch();
+      PlacesUIUtils.ptm.beginBatch(); // allow undo from within the notification
+
+      // "Bookmark Removed" title (the description field is already empty in
+      // this mode)
+      this._element("editBookmarkPanelTitle").value =
+        gNavigatorBundle.getString("editBookmarkPanel.bookmarkedRemovedTitle");
+
+      // hide the edit panel
+      this.quitEditMode();
+
+      // Hide the remove bookmark button, show the undo-remove-bookmark
+      // button.
+      this._element("editBookmarkPanelUndoRemoveButton").hidden = false;
+      this._element("editBookmarkPanelRemoveButton").hidden = true;
+      this._element("editBookmarkPanelStarIcon").setAttribute("unstarred", "true");
+      this.panel.focus();
+    }
+#endif
+
+    // cache its uri so we can get the new itemId in the case of undo
+    this._uri = PlacesUtils.bookmarks.getBookmarkURI(this._itemId);
+
+    // remove all bookmarks for the bookmark's url, this also removes
+    // the tags for the url
+    var itemIds = PlacesUtils.getBookmarksForURI(this._uri);
+    for (var i=0; i < itemIds.length; i++) {
+      var txn = PlacesUIUtils.ptm.removeItem(itemIds[i]);
+      PlacesUIUtils.ptm.doTransaction(txn);
+    }
+
+#ifdef ADVANCED_STARRING_UI
+    // hidePopup resets our itemId, thus we call it only after removing
+    // the bookmark
+    if (!this._batching)
+#endif
+      this.panel.hidePopup();
+  },
+
+  undoRemoveBookmarkCommand: function SU_undoRemoveBookmarkCommand() {
+    // restore the bookmark by undoing the last transaction and go back
+    // to the edit state
+    this.endBatch();
+    PlacesUIUtils.ptm.undoTransaction();
+    this._itemId = PlacesUtils.getMostRecentBookmarkForURI(this._uri);
+    this.showEditBookmarkPopup();
   },
 
   beginBatch: function SU_beginBatch() {
     if (!this._batching) {
       PlacesUIUtils.ptm.beginBatch();
       this._batching = true;
+    }
+  },
+
+  endBatch: function SU_endBatch() {
+    if (this._batching) {
+      PlacesUIUtils.ptm.endBatch();
+      this._batching = false;
     }
   }
 }
@@ -347,10 +426,13 @@ var PlacesCommandHook = {
       if (starIcon && isElementVisible(starIcon)) {
         // Make sure the bookmark properties dialog hangs toward the middle of
         // the location bar in RTL builds
-        var position = (getComputedStyle(gNavToolbox, "").direction == "rtl") ?
-          'bottomcenter topleft' : 'bottomcenter topright';
+        var position = (getComputedStyle(gNavToolbox, "").direction == "rtl") ? 'after_start' : 'after_end';
         if (aShowEditUI)
           StarUI.showEditBookmarkPopup(itemId, starIcon, position);
+#ifdef ADVANCED_STARRING_UI
+        else
+          StarUI.showPageBookmarkedNotification(itemId, starIcon, position);
+#endif
         return;
       }
     }
@@ -468,6 +550,15 @@ var PlacesCommandHook = {
       organizer.PlacesOrganizer.selectLeftPaneQuery(aLeftPaneRoot);
       organizer.focus();
     }
+  },
+
+  deleteButtonOnCommand: function PCH_deleteButtonCommand() {
+    PlacesUtils.bookmarks.removeItem(gEditItemOverlay.itemId);
+
+    // remove all tags for the associated url
+    PlacesUtils.tagging.untagURI(gEditItemOverlay._uri, null);
+
+    this.panel.hidePopup();
   }
 };
 
@@ -845,11 +936,11 @@ var PlacesMenuDNDHandler = {
   },
 
   /**
-   * Handles dragexit on the <menu> element.
+   * Handles dragleave on the <menu> element.
    * @returns true if the element is a container element (menu or 
    *          menu-toolbarbutton), false otherwise.
    */
-  onDragExit: function PMDH_onDragExit(event) {
+  onDragLeave: function PMDH_onDragLeave(event) {
     // Closing menus in a Places popup is handled by the view itself.
     if (!this._isStaticContainer(event.target))
       return;
@@ -973,9 +1064,8 @@ var PlacesStarButton = {
     this.updateState();
     this._batching = false;
   },
-
-  onItemAdded: function PSB_onItemAdded(aItemId, aFolder, aIndex, aItemType,
-                                        aURI) {
+  
+  onItemAdded: function PSB_onItemAdded(aItemId, aFolder, aIndex, aItemType) {
     if (!this._batching && !this._starred)
       this.updateState();
   },

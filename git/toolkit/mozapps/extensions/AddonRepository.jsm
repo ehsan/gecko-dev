@@ -533,26 +533,7 @@ var AddonRepository = {
       return;
     }
 
-    let enabledIds = aIds.filter(function(aId) {
-      let preference = "extensions." + aId + ".getAddons.cache.enabled";
-      let enabled = true;
-      try {
-        enabled = Services.prefs.getBoolPref(preference);
-      } catch(e) {
-        // If pref doesn't exist, default to enabled = true
-      }
-      return enabled;
-    });
-
-    // Completely remove cache if there are no add-ons to cache
-    if (enabledIds.length == 0) {
-      this._addons = null;
-      this._pendingCallbacks = null;
-      AddonDatabase.delete(aCallback);
-      return;
-    }
-
-    this.getAddonsByIDs(enabledIds, {
+    this.getAddonsByIDs(aIds, {
       searchSucceeded: function(aAddons) {
         self._addons = {};
         aAddons.forEach(function(aAddon) { self._addons[aAddon.id] = aAddon; });
@@ -583,26 +564,8 @@ var AddonRepository = {
       return;
     }
 
-    let enabledIds = aIds.filter(function(aId) {
-      let preference = "extensions." + aId + ".getAddons.cache.enabled";
-      let enabled = true;
-      try {
-        enabled = Services.prefs.getBoolPref(preference);
-      } catch(e) {
-        // If pref doesn't exist, default to enabled = true
-      }
-      return enabled;
-    });
-
-    // If there are no add-ons to cache, act as if caching is disabled
-    if (enabledIds.length == 0) {
-      if (aCallback)
-        aCallback();
-      return;
-    }
-
     let self = this;
-    this.getAddonsByIDs(enabledIds, {
+    this.getAddonsByIDs(aIds, {
       searchSucceeded: function(aAddons) {
         aAddons.forEach(function(aAddon) { self._addons[aAddon.id] = aAddon; });
         AddonDatabase.insertAddons(aAddons, aCallback);
@@ -1227,7 +1190,7 @@ var AddonDatabase = {
       this.connection = Services.storage.openUnsharedDatabase(dbfile);
     } catch (e) {
       this.initialized = false;
-      ERROR("Failed to open database", e);
+      ERROR("Failed to open database: " + e);
       if (aSecondAttempt || dbMissing) {
         this.databaseOk = false;
         throw e;
@@ -1778,7 +1741,7 @@ var AddonDatabase = {
       this.connection.schemaVersion = DB_SCHEMA;
       this.connection.commitTransaction();
     } catch (e) {
-      ERROR("Failed to create database schema", e);
+      ERROR("Failed to create database schema");
       this.logSQLError(this.connection.lastError, this.connection.lastErrorString);
       this.connection.rollbackTransaction();
       throw e;

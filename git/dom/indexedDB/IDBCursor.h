@@ -45,11 +45,9 @@
 
 #include "nsIIDBCursor.h"
 
-#include "nsCycleCollectionParticipant.h"
+#include "nsDOMEventTargetHelper.h"
 
 class nsIRunnable;
-class nsIScriptContext;
-class nsPIDOMWindow;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
@@ -57,68 +55,60 @@ class IDBIndex;
 class IDBRequest;
 class IDBTransaction;
 
-class ContinueHelper;
-class ContinueObjectStoreHelper;
-class ContinueIndexHelper;
-class ContinueIndexObjectHelper;
-
-class IDBCursor : public nsIIDBCursor
+struct KeyValuePair
 {
-  friend class ContinueHelper;
-  friend class ContinueObjectStoreHelper;
-  friend class ContinueIndexHelper;
-  friend class ContinueIndexObjectHelper;
+  Key key;
+  nsString value;
+};
+
+struct KeyKeyPair
+{
+  Key key;
+  Key value;
+};
+
+class ContinueRunnable;
+
+class IDBCursor : public nsDOMEventTargetHelper,
+                  public nsIIDBCursor
+{
+  friend class ContinueRunnable;
 
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIIDBCURSOR
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBCursor)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(IDBCursor,
+                                                         nsDOMEventTargetHelper)
 
-  // For OBJECTSTORE cursors.
   static
   already_AddRefed<IDBCursor>
   Create(IDBRequest* aRequest,
          IDBTransaction* aTransaction,
          IDBObjectStore* aObjectStore,
          PRUint16 aDirection,
-         const Key& aRangeKey,
-         const nsACString& aContinueQuery,
-         const nsACString& aContinueToQuery,
-         const Key& aKey,
-         const nsAString& aValue);
+         nsTArray<KeyValuePair>& aData);
 
-  // For INDEX cursors.
   static
   already_AddRefed<IDBCursor>
   Create(IDBRequest* aRequest,
          IDBTransaction* aTransaction,
          IDBIndex* aIndex,
          PRUint16 aDirection,
-         const Key& aRangeKey,
-         const nsACString& aContinueQuery,
-         const nsACString& aContinueToQuery,
-         const Key& aKey,
-         const Key& aObjectKey);
+         nsTArray<KeyKeyPair>& aData);
 
-  // For INDEXOBJECT cursors.
   static
   already_AddRefed<IDBCursor>
   Create(IDBRequest* aRequest,
          IDBTransaction* aTransaction,
          IDBIndex* aIndex,
          PRUint16 aDirection,
-         const Key& aRangeKey,
-         const nsACString& aContinueQuery,
-         const nsACString& aContinueToQuery,
-         const Key& aKey,
-         const Key& aObjectKey,
-         const nsAString& aValue);
+         nsTArray<KeyValuePair>& aData);
 
   enum Type
   {
     OBJECTSTORE = 0,
-    INDEXKEY,
+    INDEX,
     INDEXOBJECT
   };
 
@@ -135,40 +125,29 @@ protected:
   already_AddRefed<IDBCursor>
   CreateCommon(IDBRequest* aRequest,
                IDBTransaction* aTransaction,
-               IDBObjectStore* aObjectStore,
-               PRUint16 aDirection,
-               const Key& aRangeKey,
-               const nsACString& aContinueQuery,
-               const nsACString& aContinueToQuery);
+               PRUint16 aDirection);
 
   nsRefPtr<IDBRequest> mRequest;
   nsRefPtr<IDBTransaction> mTransaction;
   nsRefPtr<IDBObjectStore> mObjectStore;
   nsRefPtr<IDBIndex> mIndex;
 
-  nsCOMPtr<nsIScriptContext> mScriptContext;
-  nsCOMPtr<nsPIDOMWindow> mOwner;
+  PRUint16 mDirection;
 
   nsCOMPtr<nsIVariant> mCachedKey;
-  nsCOMPtr<nsIVariant> mCachedObjectKey;
-
-  Type mType;
-  PRUint16 mDirection;
-  nsCString mContinueQuery;
-  nsCString mContinueToQuery;
-
   jsval mCachedValue;
-
-  Key mRangeKey;
-
-  Key mKey;
-  Key mObjectKey;
-  nsString mValue;
-  Key mContinueToKey;
-
   bool mHaveCachedValue;
   bool mValueRooted;
+
   bool mContinueCalled;
+  PRUint32 mDataIndex;
+
+  Type mType;
+  nsTArray<KeyValuePair> mData;
+  nsTArray<KeyKeyPair> mKeyData;
+
+  // Only touched on the main thread.
+  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -283,27 +283,12 @@ nsTokenEventRunnable::Run()
   return nssComponent->DispatchEvent(mType, mTokenName);
 }
 
-PRBool nsPSMInitPanic::isPanic = PR_FALSE;
-
 // We must ensure that the nsNSSComponent has been loaded before
 // creating any other components.
 PRBool EnsureNSSInitialized(EnsureNSSOperator op)
 {
-  if (nsPSMInitPanic::GetPanic())
-    return PR_FALSE;
-
 #ifdef MOZ_IPC
-  if (GeckoProcessType_Default != XRE_GetProcessType())
-  {
-    if (op == nssEnsureOnChromeOnly)
-    {
-      // If the component needs PSM/NSS initialized only on the chrome process,
-      // pretend we successfully initiated it but in reality we bypass it.
-      // It's up to the programmer to check for process type in such components
-      // and take care not to call anything that needs NSS/PSM initiated.
-      return PR_TRUE;
-    }
-
+  if (GeckoProcessType_Default != XRE_GetProcessType()) {
     NS_ERROR("Trying to initialize PSM/NSS in a non-chrome process!");
     return PR_FALSE;
   }
@@ -317,7 +302,7 @@ PRBool EnsureNSSInitialized(EnsureNSSOperator op)
     // In following 4 cases we are protected by monitor of XPCOM component
     // manager - we are inside of do_GetService call for nss component, so it is
     // safe to move with the flags here.
-  case nssLoadingComponent:
+  case nssLoading:
     if (loading)
       return PR_FALSE; // We are reentered during nss component creation
     loading = PR_TRUE;
@@ -342,7 +327,6 @@ PRBool EnsureNSSInitialized(EnsureNSSOperator op)
     // If the component has not yet been loaded and is not currently loading
     // call do_GetService for nss component to ensure it.
   case nssEnsure:
-  case nssEnsureOnChromeOnly:
     // We are reentered during nss component creation or nss component is already up
     if (PR_AtomicAdd(&haveLoaded, 0) || loading)
       return PR_TRUE;
@@ -1582,10 +1566,8 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
       PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to get profile directory\n"));
       ConfigureInternalPKCS11Token();
       SECStatus init_rv = NSS_NoDB_Init(NULL);
-      if (init_rv != SECSuccess) {
-        nsPSMInitPanic::SetPanic();
+      if (init_rv != SECSuccess)
         return NS_ERROR_NOT_AVAILABLE;
-      }
     }
     else
     {
@@ -1614,10 +1596,8 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
     // and therefore need separate nsIFile instances.
     // Keep cfmSecurityPath instance, obtain new instance for MachO profilePath.
     rv = cfmSecurityPath->GetParent(getter_AddRefs(profilePath));
-    if (NS_FAILED(rv)) {
-      nsPSMInitPanic::SetPanic();
+    if (NS_FAILED(rv))
       return rv;
-    }
   #endif
 
     const char *dbdir_override = getenv("MOZPSM_NSSDBDIR_OVERRIDE");
@@ -1634,10 +1614,8 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
   #else
       rv = profilePath->GetNativePath(profileStr);
   #endif
-      if (NS_FAILED(rv)) {
-        nsPSMInitPanic::SetPanic();
+      if (NS_FAILED(rv)) 
         return rv;
-      }
     }
 
     hashTableCerts = PL_NewHashTable( 0, certHashtable_keyHash, certHashtable_keyCompare,
@@ -1697,10 +1675,8 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
         which_nss_problem = problem_no_security_at_all;
 
         init_rv = NSS_NoDB_Init(profileStr.get());
-        if (init_rv != SECSuccess) {
-          nsPSMInitPanic::SetPanic();
+        if (init_rv != SECSuccess)
           return NS_ERROR_NOT_AVAILABLE;
-        }
       }
     } // have profile dir
     } // lock
@@ -1790,7 +1766,7 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
   }
 
   if (problem_none != which_nss_problem) {
-    nsPSMInitPanic::SetPanic();
+    nsString message;
 
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS problem, trying to bring up GUI error message\n"));
 
@@ -1966,13 +1942,14 @@ nsNSSComponent::Init()
 }
 
 /* nsISupports Implementation for the class */
-NS_IMPL_THREADSAFE_ISUPPORTS6(nsNSSComponent,
+NS_IMPL_THREADSAFE_ISUPPORTS7(nsNSSComponent,
                               nsISignatureVerifier,
                               nsIEntropyCollector,
                               nsINSSComponent,
                               nsIObserver,
                               nsISupportsWeakReference,
-                              nsITimerCallback)
+                              nsITimerCallback,
+                              nsINSSErrorsService)
 
 
 /* Callback functions for decoder. For now, use empty/default functions. */
@@ -2067,7 +2044,7 @@ nsNSSComponent::VerifySignature(const char* aRSABuf, PRUint32 aRSABufLen,
     // this way we don't have to worry about goto across variable
     // declarations.  We have no loops in this code, so it's OK.
     do {
-      nsCOMPtr<nsIX509Cert> pCert = nsNSSCertificate::Create(cert);
+      nsCOMPtr<nsIX509Cert> pCert = new nsNSSCertificate(cert);
       if (!pCert) {
         rv2 = NS_ERROR_OUT_OF_MEMORY;
         break;
@@ -2363,10 +2340,12 @@ nsresult nsNSSComponent::LogoutAuthenticatedPK11()
 {
   nsCOMPtr<nsICertOverrideService> icos = 
     do_GetService("@mozilla.org/security/certoverride;1");
-  if (icos) {
-    icos->ClearValidityOverride(
-            NS_LITERAL_CSTRING("all:temporary-certificates"),
-            0);
+    
+  nsCertOverrideService *cos = 
+    reinterpret_cast<nsCertOverrideService*>(icos.get());
+
+  if (cos) {
+    cos->RemoveAllTemporaryOverrides();
   }
 
   if (mClientAuthRememberService) {
@@ -2461,6 +2440,112 @@ nsNSSComponent::RememberCert(CERTCertificate *cert)
   }
   
   return NS_OK;
+}
+
+#define EXPECTED_SEC_ERROR_BASE (-0x2000)
+#define EXPECTED_SSL_ERROR_BASE (-0x3000)
+
+#if SEC_ERROR_BASE != EXPECTED_SEC_ERROR_BASE || SSL_ERROR_BASE != EXPECTED_SSL_ERROR_BASE
+#error "Unexpected change of error code numbers in lib NSS, please adjust the mapping code"
+/*
+ * Please ensure the NSS error codes are mapped into the positive range 0x1000 to 0xf000
+ * Search for NS_ERROR_MODULE_SECURITY to ensure there are no conflicts.
+ * The current code also assumes that NSS library error codes are negative.
+ */
+#endif
+
+NS_IMETHODIMP
+nsNSSComponent::IsNSSErrorCode(PRInt32 aNSPRCode, PRBool *_retval)
+{
+  if (!_retval)
+    return NS_ERROR_FAILURE;
+
+  *_retval = IS_SEC_ERROR(aNSPRCode) || IS_SSL_ERROR(aNSPRCode);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNSSComponent::GetXPCOMFromNSSError(PRInt32 aNSPRCode, nsresult *aXPCOMErrorCode)
+{
+  if (!IS_SEC_ERROR(aNSPRCode) && !IS_SSL_ERROR(aNSPRCode))
+    return NS_ERROR_FAILURE;
+
+  if (!aXPCOMErrorCode)
+    return NS_ERROR_INVALID_ARG;
+
+  // The error codes within each module may be a 16 bit value.
+  // For simplicity let's use the positive value of the NSS code.
+
+  *aXPCOMErrorCode =
+    NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_SECURITY,
+                              -1 * aNSPRCode);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNSSComponent::GetErrorClass(nsresult aXPCOMErrorCode, PRUint32 *aErrorClass)
+{
+  NS_ENSURE_ARG(aErrorClass);
+
+  if (NS_ERROR_GET_MODULE(aXPCOMErrorCode) != NS_ERROR_MODULE_SECURITY
+      || NS_ERROR_GET_SEVERITY(aXPCOMErrorCode) != NS_ERROR_SEVERITY_ERROR)
+    return NS_ERROR_FAILURE;
+  
+  PRInt32 aNSPRCode = -1 * NS_ERROR_GET_CODE(aXPCOMErrorCode);
+
+  if (!IS_SEC_ERROR(aNSPRCode) && !IS_SSL_ERROR(aNSPRCode))
+    return NS_ERROR_FAILURE;
+
+  switch (aNSPRCode)
+  {
+    case SEC_ERROR_UNKNOWN_ISSUER:
+    case SEC_ERROR_CA_CERT_INVALID:
+    case SEC_ERROR_UNTRUSTED_ISSUER:
+    case SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE:
+    case SEC_ERROR_UNTRUSTED_CERT:
+    case SEC_ERROR_INADEQUATE_KEY_USAGE:
+    case SSL_ERROR_BAD_CERT_DOMAIN:
+    case SEC_ERROR_EXPIRED_CERTIFICATE:
+      *aErrorClass = ERROR_CLASS_BAD_CERT;
+      break;
+    default:
+      *aErrorClass = ERROR_CLASS_SSL_PROTOCOL;
+      break;
+  }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNSSComponent::GetErrorMessage(nsresult aXPCOMErrorCode, nsAString &aErrorMessage)
+{
+  if (NS_ERROR_GET_MODULE(aXPCOMErrorCode) != NS_ERROR_MODULE_SECURITY
+      || NS_ERROR_GET_SEVERITY(aXPCOMErrorCode) != NS_ERROR_SEVERITY_ERROR)
+    return NS_ERROR_FAILURE;
+  
+  PRInt32 aNSPRCode = -1 * NS_ERROR_GET_CODE(aXPCOMErrorCode);
+
+  if (!IS_SEC_ERROR(aNSPRCode) && !IS_SSL_ERROR(aNSPRCode))
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIStringBundle> theBundle = mPIPNSSBundle;
+  const char *id_str = nsNSSErrors::getOverrideErrorStringName(aNSPRCode);
+
+  if (!id_str) {
+    id_str = nsNSSErrors::getDefaultErrorStringName(aNSPRCode);
+    theBundle = mNSSErrorsBundle;
+  }
+
+  if (!id_str || !theBundle)
+    return NS_ERROR_FAILURE;
+
+  nsAutoString msg;
+  nsresult rv =
+    theBundle->GetStringFromName(NS_ConvertASCIItoUTF16(id_str).get(),
+                                 getter_Copies(msg));
+  if (NS_SUCCEEDED(rv)) {
+    aErrorMessage = msg;
+  }
+  return rv;
 }
 
 void

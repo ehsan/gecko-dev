@@ -499,10 +499,10 @@ PlacesViewBase.prototype = {
       // Many users consider toolbars as shortcuts containers, so explicitly
       // allow empty labels on toolbarbuttons.  For any other element try to be
       // smarter, guessing a title from the uri.
-      elt.setAttribute("label", PlacesUIUtils.getBestTitle(aPlacesNode));
+      elt.label = PlacesUIUtils.getBestTitle(aPlacesNode);
     }
     else {
-      elt.setAttribute("label", aNewTitle);
+      elt.label = aNewTitle;
     }
   },
 
@@ -567,7 +567,6 @@ PlacesViewBase.prototype = {
   nodeLastModifiedChanged: function() { },
   nodeKeywordChanged: function() { },
   sortingChanged: function() { },
-  batching: function() { },
   // Replaced by containerStateChanged.
   containerOpened: function() { },
   containerClosed: function() { },
@@ -659,9 +658,8 @@ PlacesViewBase.prototype = {
     if ("_isRTL" in this)
       return this._isRTL;
 
-    return this._isRTL = document.defaultView
-                                 .getComputedStyle(this.viewElt, "")
-                                 .direction == "rtl";
+    return this._isRTL = document.defaultView.getComputedStyle(this, "")
+                                 .direction == "rtl"
   },
 
   /**
@@ -819,7 +817,7 @@ function PlacesToolbar(aPlace) {
 PlacesToolbar.prototype = {
   __proto__: PlacesViewBase.prototype,
 
-  _cbEvents: ["dragstart", "dragover", "dragexit", "dragend", "drop",
+  _cbEvents: ["dragstart", "dragover", "dragleave", "dragend", "drop",
 #ifdef XP_UNIX
 #ifndef XP_MACOSX
               "mousedown", "mouseup",
@@ -991,8 +989,8 @@ PlacesToolbar.prototype = {
       case "dragover":
         this._onDragOver(aEvent);
         break;
-      case "dragexit":
-        this._onDragExit(aEvent);
+      case "dragleave":
+        this._onDragLeave(aEvent);
         break;
       case "dragend":
         this._onDragEnd(aEvent);
@@ -1037,7 +1035,7 @@ PlacesToolbar.prototype = {
 
     // XXX (bug 508816) Scrollbox does not handle correctly RTL mode.
     // This workarounds the issue scrolling the box to the right.
-    if (this.isRTL)
+    if (this._isRTL)
       this._rootElt.scrollLeft = this._rootElt.scrollWidth;
 
     // Update the chevron on a timer.  This will avoid repeated work when
@@ -1056,9 +1054,8 @@ PlacesToolbar.prototype = {
       // Once a child overflows, all the next ones will.
       if (!childOverflowed) {
         let childRect = child.getBoundingClientRect();
-        childOverflowed = this.isRTL ? (childRect.left < scrollRect.left)
-                                     : (childRect.right > scrollRect.right);
-                                      
+        childOverflowed = this._isRTL ? (childRect.left < scrollRect.left)
+                                      : (childRect.right > scrollRect.right);
       }
       child.style.visibility = childOverflowed ? "hidden" : "visible";
     }
@@ -1263,16 +1260,16 @@ PlacesToolbar.prototype = {
         // If we are in the middle of it, drop inside it.
         // Otherwise, drop before it, with regards to RTL mode.
         let threshold = eltRect.width * 0.25;
-        if (this.isRTL ? (aEvent.clientX > eltRect.right - threshold)
-                       : (aEvent.clientX < eltRect.left + threshold)) {
+        if (this._isRTL ? (aEvent.clientX > eltRect.right - threshold)
+                        : (aEvent.clientX < eltRect.left + threshold)) {
           // Drop before this folder.
           dropPoint.ip =
             new InsertionPoint(PlacesUtils.getConcreteItemId(this._resultNode),
                                eltIndex, Ci.nsITreeView.DROP_BEFORE);
           dropPoint.beforeIndex = eltIndex;
         }
-        else if (this.isRTL ? (aEvent.clientX > eltRect.left + threshold)
-                            : (aEvent.clientX < eltRect.right - threshold)) {
+        else if (this._isRTL ? (aEvent.clientX > eltRect.left + threshold)
+                             : (aEvent.clientX < eltRect.right - threshold)) {
           // Drop inside this folder.
           dropPoint.ip =
             new InsertionPoint(PlacesUtils.getConcreteItemId(elt._placesNode),
@@ -1297,8 +1294,8 @@ PlacesToolbar.prototype = {
         // This is a non-folder node or a read-only folder.
         // Drop before it with regards to RTL mode.
         let threshold = eltRect.width * 0.5;
-        if (this.isRTL ? (aEvent.clientX > eltRect.left + threshold)
-                       : (aEvent.clientX < eltRect.left + threshold)) {
+        if (this._isRTL ? (aEvent.clientX > eltRect.left + threshold)
+                        : (aEvent.clientX < eltRect.left + threshold)) {
           // Drop before this bookmark.
           dropPoint.ip =
             new InsertionPoint(PlacesUtils.getConcreteItemId(this._resultNode),
@@ -1482,7 +1479,7 @@ PlacesToolbar.prototype = {
       let ind = this._dropIndicator;
       let halfInd = ind.clientWidth / 2;
       let translateX;
-      if (this.isRTL) {
+      if (this._isRTL) {
         halfInd = Math.ceil(halfInd);
         translateX = 0 - this._rootElt.getBoundingClientRect().right - halfInd;
         if (this._rootElt.firstChild) {
@@ -1533,7 +1530,7 @@ PlacesToolbar.prototype = {
     aEvent.stopPropagation();
   },
 
-  _onDragExit: function PT__onDragExit(aEvent) {
+  _onDragLeave: function PT__onDragLeave(aEvent) {
     PlacesControllerDragHelper.currentDropTarget = null;
 
     // Set timer to turn off indicator bar (if we turn it off

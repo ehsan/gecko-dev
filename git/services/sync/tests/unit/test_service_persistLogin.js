@@ -3,12 +3,9 @@ Cu.import("resource://services-sync/constants.js");
 
 function run_test() {
   try {
-    // Ensure we have a blank slate to start.
-    Weave.Svc.Login.removeAllLogins();
-    
     Weave.Service.username = "johndoe";
     Weave.Service.password = "ilovejane";
-    Weave.Service.passphrase = "abbbbbcccccdddddeeeeefffff";
+    Weave.Service.passphrase = "my preciousss";
 
     _("Confirm initial environment is empty.");
     let logins = Weave.Svc.Login.findLogins({}, PWDMGR_HOST, null,
@@ -33,7 +30,7 @@ function run_test() {
                                         PWDMGR_PASSPHRASE_REALM);
     do_check_eq(logins.length, 1);
     do_check_eq(logins[0].username, "johndoe");
-    do_check_eq(logins[0].password, "abbbbbcccccdddddeeeeefffff");
+    do_check_eq(logins[0].password, "my preciousss");
 
   } finally {
     Weave.Svc.Prefs.resetBranch("");

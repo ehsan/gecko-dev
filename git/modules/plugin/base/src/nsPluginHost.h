@@ -71,22 +71,6 @@ class nsIChannel;
 #define MAC_CARBON_PLUGINS
 #endif
 
-class nsInvalidPluginTag : public nsISupports
-{
-public:
-  nsInvalidPluginTag(const char* aFullPath, PRInt64 aLastModifiedTime = 0);
-  virtual ~nsInvalidPluginTag();
-  
-  NS_DECL_ISUPPORTS
-  
-  nsCString   mFullPath;
-  PRInt64     mLastModifiedTime;
-  bool        mSeen;
-  
-  nsRefPtr<nsInvalidPluginTag> mPrev;
-  nsRefPtr<nsInvalidPluginTag> mNext;
-};
-
 class nsPluginHost : public nsIPluginHost,
                      public nsIObserver,
                      public nsITimerCallback,
@@ -190,16 +174,6 @@ public:
   // Return the tag for |aLibrary| if found, nsnull if not.
   nsPluginTag* FindTagForLibrary(PRLibrary* aLibrary);
 
-  // The guts of InstantiateEmbeddedPlugin.  The last argument should
-  // be false if we already have an in-flight stream and don't need to
-  // set up a new stream.
-  nsresult DoInstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
-                                       nsIPluginInstanceOwner* aOwner,
-                                       PRBool aAllowOpeningStreams);
-
-  // Does not accept NULL and should never fail.
-  nsPluginTag* TagForPlugin(nsNPAPIPlugin* aPlugin);
-
 private:
   nsresult
   TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
@@ -224,6 +198,9 @@ private:
 
   nsPluginTag*
   FindPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
+
+  // Does not accept NULL and should never fail.
+  nsPluginTag* TagForPlugin(nsNPAPIPlugin* aPlugin);
 
   nsresult
   FindStoppedPluginForURL(nsIURI* aURL, nsIPluginInstanceOwner *aOwner);
@@ -271,7 +248,6 @@ private:
 
   nsRefPtr<nsPluginTag> mPlugins;
   nsRefPtr<nsPluginTag> mCachedPlugins;
-  nsRefPtr<nsInvalidPluginTag> mInvalidPlugins;
   PRPackedBool mPluginsLoaded;
   PRPackedBool mDontShowBadPluginMessage;
   PRPackedBool mIsDestroyed;

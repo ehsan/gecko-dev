@@ -46,7 +46,7 @@ class nsHTMLVideoElement : public nsHTMLMediaElement,
 {
 public:
   nsHTMLVideoElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                     mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                     PRUint32 aFromParser = 0);
   virtual ~nsHTMLVideoElement();
 
   // nsISupports

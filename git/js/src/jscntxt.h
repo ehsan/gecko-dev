@@ -53,7 +53,7 @@
 #endif
 
 #include "jsprvtd.h"
-#include "jsarena.h"
+#include "jsarena.h" /* Added by JSIFY */
 #include "jsclist.h"
 #include "jslong.h"
 #include "jsatom.h"
@@ -64,7 +64,6 @@
 #include "jsgcchunk.h"
 #include "jshashtable.h"
 #include "jsinterp.h"
-#include "jsmath.h"
 #include "jsobj.h"
 #include "jspropertycache.h"
 #include "jspropertytree.h"
@@ -128,6 +127,10 @@ namespace JSC {
 
 namespace js {
 
+#ifdef JS_METHODJIT
+struct VMFrame;
+#endif
+
 /* Tracer constants. */
 static const size_t MONITOR_N_GLOBAL_STATES = 4;
 static const size_t FRAGMENT_TABLE_SIZE = 512;
@@ -151,7 +154,6 @@ typedef Queue<uint16> SlotList;
 class TypeMap;
 struct REFragment;
 typedef nanojit::HashMap<REHashKey, REFragment*, REHashFn> REHashMap;
-class LoopProfile;
 
 #if defined(JS_JIT_SPEW) || defined(DEBUG)
 struct FragPI;
@@ -159,7 +161,7 @@ typedef nanojit::HashMap<uint32, FragPI, nanojit::DefaultHash<uint32> > FragStat
 #endif
 
 namespace mjit {
-class JaegerCompartment;
+class CallStackIterator;
 }
 
 /*
@@ -218,10 +220,42 @@ struct TracerState
     uintN          nativeVpLen;
     js::Value*     nativeVp;
 
+    // The regs pointed to by cx->regs while a deep-bailed slow native
+    // completes execution.
+    JSFrameRegs    bailedSlowNativeRegs;
+
     TracerState(JSContext *cx, TraceMonitor *tm, TreeFragment *ti,
                 uintN &inlineCallCountp, VMSideExit** innermostNestedGuardp);
     ~TracerState();
 };
+
+#ifdef JS_METHODJIT
+namespace mjit {
+    struct Trampolines
+    {
+        typedef void (*TrampolinePtr)();
+        TrampolinePtr forceReturn;
+        JSC::ExecutablePool *forceReturnPool;
+#if (defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)) || defined(_WIN64)
+        TrampolinePtr forceReturnFast;
+        JSC::ExecutablePool *forceReturnFastPool;
+#endif
+    };
+
+    struct ThreadData
+    {
+        JSC::ExecutableAllocator *execPool;
+
+        // Trampolines for JIT code.
+        Trampolines trampolines;
+
+        VMFrame *activeFrame;
+
+        bool Initialize();
+        void Finish();
+    };
+}
+#endif /* JS_METHODJIT */
 
 /*
  * Storage for the execution state and store during trace execution. Generated
@@ -507,8 +541,9 @@ class InvokeArgsGuard : public CallArgs
     JSStackFrame     *prevInvokeFrame;
 #endif
   public:
-    InvokeArgsGuard() : cx(NULL), seg(NULL) {}
-    ~InvokeArgsGuard();
+    inline InvokeArgsGuard() : cx(NULL), seg(NULL) {}
+    inline InvokeArgsGuard(JSContext *cx, Value *vp, uintN argc);
+    inline ~InvokeArgsGuard();
     bool pushed() const { return cx != NULL; }
 };
 
@@ -530,9 +565,8 @@ class InvokeFrameGuard
     JSFrameRegs      *prevRegs_;
   public:
     InvokeFrameGuard() : cx_(NULL) {}
-    ~InvokeFrameGuard() { if (pushed()) pop(); }
+    JS_REQUIRES_STACK ~InvokeFrameGuard();
     bool pushed() const { return cx_ != NULL; }
-    void pop();
     JSStackFrame *fp() const { return regs_.fp; }
 };
 
@@ -701,6 +735,12 @@ class StackSpace
     friend class AllFramesIter;
     StackSegment *getCurrentSegment() const { return currentSegment; }
 
+    /*
+     * Allocate nvals on the top of the stack, report error on failure.
+     * N.B. the caller must ensure |from == firstUnused()|.
+     */
+    inline bool ensureSpace(JSContext *maybecx, Value *from, ptrdiff_t nvals) const;
+
 #ifdef XP_WIN
     /* Commit more memory from the reserved stack space. */
     JS_FRIEND_API(bool) bumpCommit(Value *from, ptrdiff_t nvals) const;
@@ -745,6 +785,9 @@ class StackSpace
      * TraceNativeStorage as a conservative upper bound.
      */
     inline bool ensureEnoughSpaceToEnterTrace();
+
+    /* See stubs::HitStackQuota. */
+    inline bool bumpCommitEnd(Value *from, uintN nslots);
 
     /* +1 for slow native's stack frame. */
     static const ptrdiff_t MAX_TRACE_SPACE_VALS =
@@ -824,12 +867,6 @@ class StackSpace
      * if fully committed or if 'limit' exceeds 'base' + STACK_QUOTA.
      */
     bool bumpCommitAndLimit(JSStackFrame *base, Value *from, uintN nvals, Value **limit) const;
-
-    /*
-     * Allocate nvals on the top of the stack, report error on failure.
-     * N.B. the caller must ensure |from >= firstUnused()|.
-     */
-    inline bool ensureSpace(JSContext *maybecx, Value *from, ptrdiff_t nvals) const;
 };
 
 JS_STATIC_ASSERT(StackSpace::CAPACITY_VALS % StackSpace::COMMIT_VALS == 0);
@@ -890,17 +927,7 @@ typedef HashMap<jsbytecode*,
                 DefaultHasher<jsbytecode*>,
                 SystemAllocPolicy> RecordAttemptMap;
 
-/* Holds the profile data for loops. */
-typedef HashMap<jsbytecode*,
-                LoopProfile*,
-                DefaultHasher<jsbytecode*>,
-                SystemAllocPolicy> LoopProfileMap;
-
 class Oracle;
-
-typedef HashSet<JSScript *,
-                DefaultHasher<JSScript *>,
-                SystemAllocPolicy> TracedScriptSet;
 
 /*
  * Trace monitor. Every JSThread (if JS_THREADSAFE) or JSRuntime (if not
@@ -928,7 +955,7 @@ struct TraceMonitor {
     TraceNativeStorage      *storage;
 
     /*
-     * There are 4 allocators here.  This might seem like overkill, but they
+     * There are 5 allocators here.  This might seem like overkill, but they
      * have different lifecycles, and by keeping them separate we keep the
      * amount of retained memory down significantly.  They are flushed (ie.
      * all the allocated memory is freed) periodically.
@@ -946,6 +973,10 @@ struct TraceMonitor {
      *   used to store LIR code and for all other elements in the LIR
      *   pipeline.
      *
+     * - reTempAlloc is just like tempAlloc, but is used for regexp
+     *   compilation in RegExpNativeCompiler rather than normal compilation in
+     *   TraceRecorder.
+     *
      * - codeAlloc has the same lifetime as dataAlloc, but its API is
      *   different (CodeAlloc vs. VMAllocator).  It's used for native code.
      *   It's also a good idea to keep code and data separate to avoid I-cache
@@ -954,25 +985,17 @@ struct TraceMonitor {
     VMAllocator*            dataAlloc;
     VMAllocator*            traceAlloc;
     VMAllocator*            tempAlloc;
+    VMAllocator*            reTempAlloc;
     nanojit::CodeAlloc*     codeAlloc;
     nanojit::Assembler*     assembler;
     FrameInfoCache*         frameCache;
 
-    /* This gets incremented every time the monitor is flushed. */
-    uintN                   flushEpoch;
-
     Oracle*                 oracle;
     TraceRecorder*          recorder;
-
-    /* If we are profiling a loop, this tracks the current profile. Otherwise NULL. */
-    LoopProfile*            profile;
 
     GlobalState             globalStates[MONITOR_N_GLOBAL_STATES];
     TreeFragment*           vmfragments[FRAGMENT_TABLE_SIZE];
     RecordAttemptMap*       recordAttempts;
-
-    /* A hashtable mapping PC values to loop profiles for those loops. */
-    LoopProfileMap*         loopProfiles;
 
     /*
      * Maximum size of the code cache before we start flushing. 1/16 of this
@@ -996,9 +1019,6 @@ struct TraceMonitor {
     // This must be used in only one place at a given time. It must be cleared
     // before use.
     TypeMap*                cachedTempTypeMap;
-
-    /* Scripts with recorded fragments. */
-    TracedScriptSet         tracedScripts;
 
 #ifdef DEBUG
     /* Fields needed for fragment/guard profiling. */
@@ -1104,7 +1124,8 @@ struct JSThreadData {
 
     /*
      * Flag indicating that we are waiving any soft limits on the GC heap
-     * because we want allocations to be infallible (except when we hit OOM).
+     * because we want allocations to be infallible (except when we hit
+     * a hard quota).
      */
     bool                waiveGCQuota;
 
@@ -1123,6 +1144,10 @@ struct JSThreadData {
 
     /* Counts the number of iterations run by a trace. */
     unsigned            iterationCounter;
+#endif
+
+#ifdef JS_METHODJIT
+    js::mjit::ThreadData jmData;
 #endif
 
     /* Lock-free hashed lists of scripts created by eval to garbage-collect. */
@@ -1163,16 +1188,6 @@ struct JSThreadData {
 
     js::ConservativeGCThreadData conservativeGC;
 
-  private:
-    js::MathCache       *mathCache;
-
-    js::MathCache *allocMathCache(JSContext *cx);
-  public:
-
-    js::MathCache *getMathCache(JSContext *cx) {
-        return mathCache ? mathCache : allocMathCache(cx);
-    }
-
     bool init();
     void finish();
     void mark(JSTracer *trc);
@@ -1200,12 +1215,27 @@ struct JSThread {
     /* Opaque thread-id, from NSPR's PR_GetCurrentThread(). */
     void                *id;
 
+    /* Indicates that the thread is waiting in ClaimTitle from jslock.cpp. */
+    JSTitle             *titleToShare;
+
+    /*
+     * This thread is inside js_GC, either waiting until it can start GC, or
+     * waiting for GC to finish on another thread. This thread holds no locks;
+     * other threads may steal titles from it.
+     *
+     * Protected by rt->gcLock.
+     */
+    bool                gcWaiting;
+
     /* Number of JS_SuspendRequest calls withot JS_ResumeRequest. */
     unsigned            suspendCount;
 
 # ifdef DEBUG
     unsigned            checkRequestDepth;
 # endif
+
+    /* Weak ref, for low-cost sealed title locking */
+    JSTitle             *lockedSealedTitle;
 
     /* Factored out of JSThread for !JS_THREADSAFE embedding in JSRuntime. */
     JSThreadData        data;
@@ -1254,12 +1284,6 @@ typedef struct JSPropertyTreeEntry {
 typedef void
 (* JSActivityCallback)(void *arg, JSBool active);
 
-namespace js {
-
-typedef js::Vector<JSCompartment *, 0, js::SystemAllocPolicy> WrapperVector;
-
-}
-
 struct JSRuntime {
     /* Default compartment. */
     JSCompartment       *defaultCompartment;
@@ -1268,7 +1292,7 @@ struct JSRuntime {
 #endif
 
     /* List of compartments (protected by the GC lock). */
-    js::WrapperVector compartments;
+    js::Vector<JSCompartment *, 0, js::SystemAllocPolicy> compartments;
 
     /* Runtime state, synchronized by the stateChange/gcLock condvar/lock. */
     JSRuntimeState      state;
@@ -1314,21 +1338,22 @@ struct JSRuntime {
     js::GCLocks         gcLocksHash;
     jsrefcount          gcKeepAtoms;
     size_t              gcBytes;
-    size_t              gcTriggerBytes;
     size_t              gcLastBytes;
     size_t              gcMaxBytes;
     size_t              gcMaxMallocBytes;
+    size_t              gcNewArenaTriggerBytes;
     uint32              gcEmptyArenaPoolLifespan;
     uint32              gcNumber;
     js::GCMarker        *gcMarkingTracer;
     uint32              gcTriggerFactor;
+    size_t              gcTriggerBytes;
     volatile JSBool     gcIsNeeded;
 
     /*
-     * We can pack these flags as only the GC thread writes to them. Atomic
-     * updates to packed bytes are not guaranteed, so stores issued by one
-     * thread may be lost due to unsynchronized read-modify-write cycles on
-     * other threads.
+     * NB: do not pack another flag here by claiming gcPadding unless the new
+     * flag is written only by the GC thread.  Atomic updates to packed bytes
+     * are not guaranteed, so stores issued by one thread may be lost due to
+     * unsynchronized read-modify-write cycles on other threads.
      */
     bool                gcPoke;
     bool                gcMarkAndSweep;
@@ -1369,6 +1394,8 @@ struct JSRuntime {
     js::Value           negativeInfinityValue;
     js::Value           positiveInfinityValue;
 
+    js::DeflatedStringCache *deflatedStringCache;
+
     JSString            *emptyString;
 
     /* List of active contexts sharing this runtime; protected by gcLock. */
@@ -1376,11 +1403,6 @@ struct JSRuntime {
 
     /* Per runtime debug hooks -- see jsprvtd.h and jsdbgapi.h. */
     JSDebugHooks        globalDebugHooks;
-
-    /*
-     * Right now, we only support runtime-wide debugging.
-     */
-    JSBool              debugMode;
 
 #ifdef JS_TRACER
     /* True if any debug hooks not supported by the JIT are enabled. */
@@ -1415,6 +1437,28 @@ struct JSRuntime {
 
     /* Used to synchronize down/up state change; protected by gcLock. */
     PRCondVar           *stateChange;
+
+    /*
+     * State for sharing single-threaded titles, once a second thread tries to
+     * lock a title.  The titleSharingDone condvar is protected by rt->gcLock
+     * to minimize number of locks taken in JS_EndRequest.
+     *
+     * The titleSharingTodo linked list is likewise "global" per runtime, not
+     * one-list-per-context, to conserve space over all contexts, optimizing
+     * for the likely case that titles become shared rarely, and among a very
+     * small set of threads (contexts).
+     */
+    PRCondVar           *titleSharingDone;
+    JSTitle             *titleSharingTodo;
+
+/*
+ * Magic terminator for the rt->titleSharingTodo linked list, threaded through
+ * title->u.link.  This hack allows us to test whether a title is on the list
+ * by asking whether title->u.link is non-null.  We use a large, likely bogus
+ * pointer here to distinguish this value from any valid u.count (small int)
+ * value.
+ */
+#define NO_TITLE_SHARING_TODO   ((JSTitle *) 0xfeedbeef)
 
     /*
      * Lock serializing trapList and watchPointList accesses, and count of all
@@ -1538,7 +1582,14 @@ struct JSRuntime {
     jsrefcount          nonInlineCalls;
     jsrefcount          constructs;
 
-    /* Property metering. */
+    /* Title lock and scope property metering. */
+    jsrefcount          claimAttempts;
+    jsrefcount          claimedTitles;
+    jsrefcount          deadContexts;
+    jsrefcount          deadlocksAvoided;
+    jsrefcount          liveShapes;
+    jsrefcount          sharedTitles;
+    jsrefcount          totalShapes;
     jsrefcount          liveObjectProps;
     jsrefcount          liveObjectPropsPreSweep;
     jsrefcount          totalObjectProps;
@@ -1581,7 +1632,6 @@ struct JSRuntime {
     jsrefcount          totalScripts;
     jsrefcount          liveEmptyScripts;
     jsrefcount          totalEmptyScripts;
-    jsrefcount          highWaterLiveScripts;
 #endif /* DEBUG */
 
 #ifdef JS_SCOPE_DEPTH_METER
@@ -1624,7 +1674,6 @@ struct JSRuntime {
 #endif
 
     JSWrapObjectCallback wrapObjectCallback;
-    JSPreWrapCallback    preWrapObjectCallback;
 
     JSC::ExecutableAllocator *regExpAllocator;
 
@@ -1654,13 +1703,6 @@ struct JSRuntime {
         updateMallocCounter(bytes);
         void *p = ::js_calloc(bytes);
         return JS_LIKELY(!!p) ? p : onOutOfMemory(reinterpret_cast<void *>(1), bytes, cx);
-    }
-
-    void* realloc(void* p, size_t oldBytes, size_t newBytes, JSContext *cx = NULL) {
-        JS_ASSERT(oldBytes < newBytes);
-        updateMallocCounter(newBytes - oldBytes);
-        void *p2 = ::js_realloc(p, newBytes);
-        return JS_LIKELY(!!p2) ? p2 : onOutOfMemory(p, newBytes, cx);
     }
 
     void* realloc(void* p, size_t bytes, JSContext *cx = NULL) {
@@ -1726,6 +1768,7 @@ struct JSRuntime {
 #define JS_GSN_CACHE(cx)        (JS_THREAD_DATA(cx)->gsnCache)
 #define JS_PROPERTY_CACHE(cx)   (JS_THREAD_DATA(cx)->propertyCache)
 #define JS_TRACE_MONITOR(cx)    (JS_THREAD_DATA(cx)->traceMonitor)
+#define JS_METHODJIT_DATA(cx)   (JS_THREAD_DATA(cx)->jmData)
 #define JS_SCRIPTS_TO_GC(cx)    (JS_THREAD_DATA(cx)->scriptsToGC)
 
 #ifdef DEBUG
@@ -1811,18 +1854,10 @@ OptionsSameVersionFlags(uint32 self, uint32 other)
     return !((self & mask) ^ (other & mask));
 }
 
-/*
- * Flags accompany script version data so that a) dynamically created scripts
- * can inherit their caller's compile-time properties and b) scripts can be
- * appropriately compared in the eval cache across global option changes. An
- * example of the latter is enabling the top-level-anonymous-function-is-error
- * option: subsequent evals of the same, previously-valid script text may have
- * become invalid.
- */
 namespace VersionFlags {
-static const uint32 MASK        = 0x0FFF; /* see JSVersion in jspubtd.h */
-static const uint32 HAS_XML     = 0x1000; /* flag induced by XML option */
-static const uint32 ANONFUNFIX  = 0x2000; /* see jsapi.h comment on JSOPTION_ANONFUNFIX */
+static const uint32 MASK =        0x0FFF; /* see JSVersion in jspubtd.h */
+static const uint32 HAS_XML =     0x1000; /* flag induced by XML option */
+static const uint32 ANONFUNFIX =  0x2000; /* see jsapi.h comment on JSOPTION_ANONFUNFIX */
 }
 
 static inline JSVersion
@@ -1884,6 +1919,12 @@ static inline bool
 VersionIsKnown(JSVersion version)
 {
     return VersionNumber(version) != JSVERSION_UNKNOWN;
+}
+
+static inline void
+VersionCloneFlags(JSVersion src, JSVersion *dst)
+{
+    *dst = JSVersion(uint32(VersionNumber(*dst)) | uint32(VersionExtractFlags(src)));
 }
 
 } /* namespace js */
@@ -1961,16 +2002,11 @@ struct JSContext
 
   public:
     friend class js::StackSpace;
-    friend bool js::Interpret(JSContext *, JSStackFrame *, uintN, JSInterpMode);
-
-    void resetCompartment();
+    friend bool js::Interpret(JSContext *, JSStackFrame *, uintN, uintN);
 
     /* 'regs' must only be changed by calling this function. */
     void setCurrentRegs(JSFrameRegs *regs) {
-        JS_ASSERT_IF(regs, regs->fp);
         this->regs = regs;
-        if (!regs)
-            resetCompartment();
     }
 
     /* Temporary arena pool used while compiling and decompiling. */
@@ -1989,11 +2025,11 @@ struct JSContext
     /* Argument formatter support for JS_{Convert,Push}Arguments{,VA}. */
     JSArgumentFormatMap *argumentFormatMap;
 
-    /* Last message string and log file for debugging. */
+    /* Last message string and trace file for debugging. */
     char                *lastMessage;
 #ifdef DEBUG
-    void                *logfp;
-    jsbytecode          *logPrevPc;
+    void                *tracefp;
+    jsbytecode          *tracePrevPc;
 #endif
 
     /* Per-context optional error reporter. */
@@ -2084,9 +2120,7 @@ struct JSContext
      * The default script compilation version can be set iff there is no code running.
      * This typically occurs via the JSAPI right after a context is constructed.
      */
-    bool canSetDefaultVersion() const {
-        return !regs && !hasVersionOverride;
-    }
+    bool canSetDefaultVersion() const { return !regs && !hasVersionOverride; }
 
     /* Force a version for future script compilation. */
     void overrideVersion(JSVersion newVersion) {
@@ -2096,18 +2130,11 @@ struct JSContext
     }
 
   public:
-    void clearVersionOverride() {
-        hasVersionOverride = false;
-    }
-    
-    bool isVersionOverridden() const {
-        return hasVersionOverride;
-    }
+    void clearVersionOverride() { hasVersionOverride = false; }
+    bool isVersionOverridden() const { return hasVersionOverride; }
 
     /* Set the default script compilation version. */
-    void setDefaultVersion(JSVersion version) {
-        defaultVersion = version;
-    }
+    void setDefaultVersion(JSVersion version) { defaultVersion = version; }
 
     /*
      * Set the default version if possible; otherwise, force the version.
@@ -2144,30 +2171,6 @@ struct JSContext
         }
 
         return defaultVersion;
-    }
-
-    void optionFlagsToVersion(JSVersion *version) const {
-        js::VersionSetXML(version, js::OptionsHasXML(options));
-        js::VersionSetAnonFunFix(version, js::OptionsHasAnonFunFix(options));
-    }
-
-    void checkOptionVersionSync() const {
-#ifdef DEBUG
-        JSVersion version = findVersion();
-        JS_ASSERT(js::VersionHasXML(version) == js::OptionsHasXML(options));
-        JS_ASSERT(js::VersionHasAnonFunFix(version) == js::OptionsHasAnonFunFix(options));
-#endif
-    }
-
-    /* Note: may override the version. */
-    void syncOptionsToVersion() {
-        JSVersion version = findVersion();
-        if (js::OptionsHasXML(options) == js::VersionHasXML(version) &&
-            js::OptionsHasAnonFunFix(options) == js::VersionHasAnonFunFix(version))
-            return;
-        js::VersionSetXML(&version, js::OptionsHasXML(options));
-        js::VersionSetAnonFunFix(&version, js::OptionsHasAnonFunFix(options));
-        maybeOverrideVersion(version);
     }
 
 #ifdef JS_THREADSAFE
@@ -2223,7 +2226,6 @@ struct JSContext
 
 #ifdef JS_METHODJIT
     bool                 methodJitEnabled;
-    bool                 profilingEnabled;
 #endif
 
     /* Caller must be holding runtime->gcLock. */
@@ -2235,7 +2237,7 @@ struct JSContext
 
     void doFunctionCallback(const JSFunction *fun,
                             const JSScript *scr,
-                            int entering) const
+                            JSBool entering) const
     {
         if (functionCallback)
             functionCallback(fun, scr, this, entering);
@@ -2257,10 +2259,6 @@ struct JSContext
     js::Vector<JSGenerator *, 2, js::SystemAllocPolicy> genStack;
 
   public:
-#ifdef JS_METHODJIT
-    inline js::mjit::JaegerCompartment *jaegerCompartment();
-#endif
-
     /* Return the generator object for the given generator frame. */
     JSGenerator *generatorFor(JSStackFrame *fp) const;
 
@@ -2300,10 +2298,6 @@ struct JSContext
 
     inline void* realloc(void* p, size_t bytes) {
         return runtime->realloc(p, bytes, this);
-    }
-
-    inline void* realloc(void* p, size_t oldBytes, size_t newBytes) {
-        return runtime->realloc(p, oldBytes, newBytes, this);
     }
 
     inline void free(void* p) {
@@ -2378,10 +2372,7 @@ private:
      * a boolean flag to minimize the amount of code in its inlined callers.
      */
     JS_FRIEND_API(void) checkMallocGCPressure(void *p);
-
-    /* To silence MSVC warning about using 'this' in a member initializer. */
-    JSContext *thisInInitializer() { return this; }
-}; /* struct JSContext */
+};
 
 #ifdef JS_THREADSAFE
 # define JS_THREAD_ID(cx)       ((cx)->thread ? (cx)->thread->id : 0)
@@ -2902,23 +2893,6 @@ class AutoReleasePtr {
     ~AutoReleasePtr() { cx->free(ptr); }
 };
 
-/*
- * FIXME: bug 602774: cleaner API for AutoReleaseNullablePtr
- */
-class AutoReleaseNullablePtr {
-    JSContext   *cx;
-    void        *ptr;
-    AutoReleaseNullablePtr operator=(const AutoReleaseNullablePtr &other);
-  public:
-    explicit AutoReleaseNullablePtr(JSContext *cx, void *ptr) : cx(cx), ptr(ptr) {}
-    void reset(void *ptr2) {
-        if (ptr)
-            cx->free(ptr);
-        ptr = ptr2;
-    }
-    ~AutoReleaseNullablePtr() { if (ptr) cx->free(ptr); }
-};
-
 class AutoLocalNameArray {
   public:
     explicit AutoLocalNameArray(JSContext *cx, JSFunction *fun
@@ -3024,6 +2998,14 @@ class ThreadDataIter
 
 #endif  /* !JS_THREADSAFE */
 
+/*
+ * If necessary, push the option flags that affect script compilation to the current version.
+ * Note this may cause a version override -- see JSContext::overrideVersion.
+ * Return whether a version change occurred.
+ */
+extern bool
+SyncOptionsToVersion(JSContext *cx);
+
 } /* namespace js */
 
 /*
@@ -3035,6 +3017,13 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize);
 
 extern void
 js_DestroyContext(JSContext *cx, JSDestroyContextMode mode);
+
+/*
+ * Return true if cx points to a context in rt->contextList, else return false.
+ * NB: the caller (see jslock.c:ClaimTitle) must hold rt->gcLock.
+ */
+extern JSBool
+js_ValidContextPointer(JSRuntime *rt, JSContext *cx);
 
 static JS_INLINE JSContext *
 js_ContextFromLinkField(JSCList *link)

@@ -600,6 +600,7 @@ nsViewManager::UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
       if (view && visible && type != eWindowType_popup) {
         NS_ASSERTION(type == eWindowType_plugin,
                      "Only plugin or popup widgets can be children!");
+        nsViewManager* viewManager = view->GetViewManager();
 
         // We do not need to invalidate in plugin widgets, but we should
         // exclude them from the invalidation region IF we're not on
@@ -980,7 +981,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
         // destruction in, say, some JavaScript event handler.
         nsCOMPtr<nsIViewObserver> obs = GetViewObserver();
         if (obs) {
-          obs->HandleEvent(aView, aEvent, PR_FALSE, aStatus);
+          obs->HandleEvent(aView, aEvent, aStatus);
         }
       }
       break; 
@@ -1089,7 +1090,7 @@ nsEventStatus nsViewManager::HandleEvent(nsView* aView, nsGUIEvent* aEvent)
   nsCOMPtr<nsIViewObserver> obs = aView->GetViewManager()->GetViewObserver();
   nsEventStatus status = nsEventStatus_eIgnore;
   if (obs) {
-     obs->HandleEvent(aView, aEvent, PR_FALSE, &status);
+     obs->HandleEvent(aView, aEvent, &status);
   }
 
   return status;

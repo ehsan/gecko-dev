@@ -75,9 +75,6 @@ using mozilla::plugins::PluginInstanceParent;
 #ifdef MOZ_ENABLE_D3D9_LAYER
 #include "LayerManagerD3D9.h"
 #endif
-#ifdef MOZ_ENABLE_D3D10_LAYER
-#include "LayerManagerD3D10.h"
-#endif
 
 #ifndef WINCE
 #include "nsUXThemeData.h"
@@ -114,6 +111,16 @@ static gfxIntSize          sSharedSurfaceSize;
  * SECTION: global variables.
  *
  **************************************************************/
+
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+// XXX Still need to handle clean-up!!
+static LPDIRECTDRAW glpDD                         = NULL;
+static LPDIRECTDRAWSURFACE glpDDPrimary           = NULL;
+static LPDIRECTDRAWCLIPPER glpDDClipper           = NULL;
+static LPDIRECTDRAWSURFACE glpDDSecondary         = NULL;
+static nsAutoPtr<gfxDDrawSurface> gpDDSurf        = NULL;
+static DDSURFACEDESC gDDSDSecondary;
+#endif
 
 static NS_DEFINE_CID(kRegionCID,                  NS_REGION_CID);
 static NS_DEFINE_IID(kRenderingContextCID,        NS_RENDERING_CONTEXT_CID);
@@ -164,6 +171,50 @@ nsWindowGfx::ConvertHRGNToRegion(HRGN aRgn)
   return rgn;
 }
 
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+PRBool
+nsWindowGfx::InitDDraw()
+{
+  HRESULT hr;
+
+  hr = DirectDrawCreate(NULL, &glpDD, NULL);
+  NS_ENSURE_SUCCESS(hr, PR_FALSE);
+
+  hr = glpDD->SetCooperativeLevel(NULL, DDSCL_NORMAL);
+  NS_ENSURE_SUCCESS(hr, PR_FALSE);
+
+  DDSURFACEDESC ddsd;
+  memset(&ddsd, 0, sizeof(ddsd));
+  ddsd.dwSize = sizeof(ddsd);
+  ddsd.dwFlags = DDSD_CAPS;
+  ddsd.ddpfPixelFormat.dwSize = sizeof(ddsd.ddpfPixelFormat);
+  ddsd.ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE;
+
+  hr = glpDD->CreateSurface(&ddsd, &glpDDPrimary, NULL);
+  NS_ENSURE_SUCCESS(hr, PR_FALSE);
+
+  hr = glpDD->CreateClipper(0, &glpDDClipper, NULL);
+  NS_ENSURE_SUCCESS(hr, PR_FALSE);
+
+  hr = glpDDPrimary->SetClipper(glpDDClipper);
+  NS_ENSURE_SUCCESS(hr, PR_FALSE);
+
+  // We do not use the cairo ddraw surface for IMAGE_DDRAW16.  Instead, we
+  // use an 24bpp image surface, convert that to 565, then blit using ddraw.
+  if (!IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_DDRAW16)) {
+    gfxIntSize screen_size(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+    gpDDSurf = new gfxDDrawSurface(glpDD, screen_size, gfxASurface::ImageFormatRGB24);
+    if (!gpDDSurf) {
+      /*XXX*/
+      fprintf(stderr, "couldn't create ddsurf\n");
+      return PR_FALSE;
+    }
+  }
+
+  return PR_TRUE;
+}
+#endif
+
 /**************************************************************
  **************************************************************
  **
@@ -199,7 +250,11 @@ nsIntRegion nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
   if (aForceFullRepaint) {
     RECT paintRect;
     ::GetClientRect(mWnd, &paintRect);
-    return nsIntRegion(nsWindowGfx::ToIntRect(paintRect));
+    nsIntRegion region(nsWindowGfx::ToIntRect(paintRect));
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+    region.Sub(region, mCaptionButtonsRoundedRegion);
+#endif
+    return region;
   }
 
 #if defined(WINCE_WINDOWS_MOBILE) || !defined(WINCE)
@@ -219,11 +274,21 @@ nsIntRegion nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
     ::DeleteObject(paintRgn);
 # ifdef WINCE
     if (!rgn.IsEmpty())
-# endif
       return rgn;
+# elif MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+    rgn.Sub(rgn, mCaptionButtonsRoundedRegion);
+    return rgn;
+# else
+    return rgn;
+# endif
   }
 #endif
-  return nsIntRegion(nsWindowGfx::ToIntRect(ps.rcPaint));
+
+  nsIntRegion region(nsWindowGfx::ToIntRect(ps.rcPaint));
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  region.Sub(region, mCaptionButtonsRoundedRegion);
+#endif
+  return region;
 }
 
 #define WORDSSIZE(x) ((x).width * (x).height)
@@ -299,6 +364,12 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
   nsPaintEvent willPaintEvent(PR_TRUE, NS_WILL_PAINT, this);
   willPaintEvent.willSendDidPaint = PR_TRUE;
   DispatchWindowEvent(&willPaintEvent);
+
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+  if (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_DDRAW16)) {
+    return OnPaintImageDDraw16();
+  }
+#endif
 
   PRBool result = PR_TRUE;
   PAINTSTRUCT ps;
@@ -405,6 +476,32 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
             targetSurface = mD2DWindowSurface;
           }
 #endif
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+          nsRefPtr<gfxDDrawSurface> targetSurfaceDDraw;
+          if (!targetSurface &&
+              (IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW) ||
+               IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW_GL)))
+          {
+            if (!glpDD) {
+              if (!nsWindowGfx::InitDDraw()) {
+                NS_WARNING("DirectDraw init failed; falling back to RENDER_IMAGE_STRETCH24");
+                gfxWindowsPlatform::GetPlatform()->SetRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24);
+                goto DDRAW_FAILED;
+              }
+            }
+
+            // create a rect that maps the window in screen space
+            // create a new sub-surface that aliases this one
+            RECT winrect;
+            GetClientRect(mWnd, &winrect);
+            MapWindowPoints(mWnd, NULL, (LPPOINT)&winrect, 2);
+
+            targetSurfaceDDraw = new gfxDDrawSurface(gpDDSurf.get(), winrect);
+            targetSurface = targetSurfaceDDraw;
+          }
+
+DDRAW_FAILED:
+#endif
           nsRefPtr<gfxImageSurface> targetSurfaceImage;
           if (!targetSurface &&
               (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32) ||
@@ -437,6 +534,7 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
           }
 
           nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
+          thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
           if (IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) {
             const nsIntRect* r;
             for (nsIntRegionRectIterator iter(event.region);
@@ -477,6 +575,28 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
 #endif
           }
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) &&
+              mTransparencyMode != eTransparencyTransparent &&
+              !mCaptionButtons.IsEmpty()) {
+            // The area behind the caption buttons need to have a
+            // black background first to make the clipping work.
+            RECT rect;
+            rect.top = mCaptionButtons.y;
+            rect.left = mCaptionButtons.x;
+            rect.right = mCaptionButtons.x + mCaptionButtons.width;
+            rect.bottom = mCaptionButtons.y + mCaptionButtons.height;
+            FillRect(hDC, &rect, (HBRUSH)GetStockObject(BLACK_BRUSH));
+
+            const nsIntRect* r;
+            for (nsIntRegionRectIterator iter(event.region);
+                 (r = iter.Next()) != nsnull;) {
+              thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), PR_TRUE);
+            }
+            thebesContext->Clip();
+          }
+#endif
+
           {
             AutoLayerManagerSetup
                 setupLayerManager(this, thebesContext, doubleBuffering);
@@ -504,6 +624,29 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
             if (IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW) ||
                        IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW_GL))
             {
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+              // blit with direct draw
+              HRESULT hr = glpDDClipper->SetHWnd(0, mWnd);
+
+#ifdef DEBUG
+              if (FAILED(hr))
+                DDError("SetHWnd", hr);
+#endif
+
+              // blt from the affected area from the window back-buffer to the
+              // screen-relative coordinates of the window paint area
+              RECT dst_rect = ps.rcPaint;
+              MapWindowPoints(mWnd, NULL, (LPPOINT)&dst_rect, 2);
+              hr = glpDDPrimary->Blt(&dst_rect,
+                                     gpDDSurf->GetDDSurface(),
+                                     &dst_rect,
+                                     DDBLT_WAITNOTBUSY,
+                                     NULL);
+#ifdef DEBUG
+              if (FAILED(hr))
+                DDError("SetHWnd", hr);
+#endif
+#endif
             } else if (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24) ||
                        IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32)) 
             {
@@ -608,7 +751,6 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
           layerManagerD3D9->SetClippingRegion(event.region);
           result = DispatchWindowEvent(&event, eventStatus);
           if (layerManagerD3D9->DeviceWasRemoved()) {
-            mLayerManager->Destroy();
             mLayerManager = nsnull;
             // When our device was removed, we should have gfxWindowsPlatform
             // check if its render mode is up to date!
@@ -620,15 +762,7 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
 #endif
 #ifdef MOZ_ENABLE_D3D10_LAYER
       case LayerManager::LAYERS_D3D10:
-        {
-          gfxWindowsPlatform::GetPlatform()->UpdateRenderMode();
-          LayerManagerD3D10 *layerManagerD3D10 = static_cast<mozilla::layers::LayerManagerD3D10*>(GetLayerManager());
-          if (layerManagerD3D10->device() != gfxWindowsPlatform::GetPlatform()->GetD3D10Device()) {
-            Invalidate(PR_FALSE);
-          } else {
-            result = DispatchWindowEvent(&event, eventStatus);
-          }
-        }
+        result = DispatchWindowEvent(&event, eventStatus);
         break;
 #endif
       default:
@@ -636,6 +770,23 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
         break;
     }
   }
+
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  if(event.region.Intersects(mCaptionButtons)) {
+    // Temporary workaround to make the captions buttons visible for D3D9
+    const nsIntRect* r;
+    RECT rect;
+    HBRUSH blackBrush = (HBRUSH)GetStockObject(BLACK_BRUSH);
+    for (nsIntRegionRectIterator iter(mCaptionButtonsRoundedRegion);
+         (r = iter.Next()) != nsnull;) {
+      rect.top = r->y;
+      rect.left = r->x;
+      rect.right = r->XMost();
+      rect.bottom = r->YMost();
+      FillRect(hDC, &rect, blackBrush);
+    }
+  }
+#endif
 
   if (!aDC) {
     ::EndPaint(mWnd, &ps);
@@ -851,3 +1002,160 @@ HBITMAP nsWindowGfx::DataToBitmap(PRUint8* aImageData,
   return nsnull;
 #endif
 }
+
+
+// Windows Mobile Special image/direct draw painting fun
+#if defined(CAIRO_HAS_DDRAW_SURFACE)
+PRBool nsWindow::OnPaintImageDDraw16()
+{
+  PRBool result = PR_FALSE;
+  PAINTSTRUCT ps;
+  nsPaintEvent event(PR_TRUE, NS_PAINT, this);
+  gfxIntSize surfaceSize;
+  nsRefPtr<gfxImageSurface> targetSurfaceImage;
+  nsRefPtr<gfxContext> thebesContext;
+  nsEventStatus eventStatus = nsEventStatus_eIgnore;
+  gfxIntSize newSize;
+  newSize.height = GetSystemMetrics(SM_CYSCREEN);
+  newSize.width = GetSystemMetrics(SM_CXSCREEN);
+  mPainting = PR_TRUE;
+
+  HDC hDC = ::BeginPaint(mWnd, &ps);
+  mPaintDC = hDC;
+  nsIntRegion paintRgn = GetRegionToPaint(PR_FALSE, ps, hDC);
+
+  if (paintRgn.IsEmpty() || !mEventCallback) {
+    result = PR_TRUE;
+    goto cleanup;
+  }
+
+  InitEvent(event);
+  
+  if (!glpDD) {
+    if (!nsWindowGfx::InitDDraw()) {
+      NS_WARNING("DirectDraw init failed.  Giving up.");
+      goto cleanup;
+    }
+  }
+
+  if (!glpDDSecondary) {
+
+    memset(&gDDSDSecondary, 0, sizeof (gDDSDSecondary));
+    memset(&gDDSDSecondary.ddpfPixelFormat, 0, sizeof(gDDSDSecondary.ddpfPixelFormat));
+    
+    gDDSDSecondary.dwSize = sizeof (gDDSDSecondary);
+    gDDSDSecondary.ddpfPixelFormat.dwSize = sizeof(gDDSDSecondary.ddpfPixelFormat);
+    
+    gDDSDSecondary.dwFlags = DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT;
+
+    gDDSDSecondary.dwHeight = newSize.height;
+    gDDSDSecondary.dwWidth  = newSize.width;
+
+    gDDSDSecondary.ddpfPixelFormat.dwFlags = DDPF_RGB;
+    gDDSDSecondary.ddpfPixelFormat.dwRGBBitCount = 16;
+    gDDSDSecondary.ddpfPixelFormat.dwRBitMask = 0xf800;
+    gDDSDSecondary.ddpfPixelFormat.dwGBitMask = 0x07e0;
+    gDDSDSecondary.ddpfPixelFormat.dwBBitMask = 0x001f;
+    
+    HRESULT hr = glpDD->CreateSurface(&gDDSDSecondary, &glpDDSecondary, 0);
+    if (FAILED(hr)) {
+#ifdef DEBUG
+      DDError("CreateSurface renderer", hr);
+#endif
+      goto cleanup;
+    }
+  }
+
+  PRInt32 brx = paintRgn.GetBounds().x;
+  PRInt32 bry = paintRgn.GetBounds().y;
+  PRInt32 brw = paintRgn.GetBounds().width;
+  PRInt32 brh = paintRgn.GetBounds().height;
+  surfaceSize = gfxIntSize(brw, brh);
+  
+  if (!EnsureSharedSurfaceSize(surfaceSize))
+    goto cleanup;
+
+  targetSurfaceImage = new gfxImageSurface(sSharedSurfaceData.get(),
+                                           surfaceSize,
+                                           surfaceSize.width * 4,
+                                           gfxASurface::ImageFormatRGB24);
+    
+  if (!targetSurfaceImage || targetSurfaceImage->CairoStatus())
+    goto cleanup;
+    
+  targetSurfaceImage->SetDeviceOffset(gfxPoint(-brx, -bry));
+  
+  thebesContext = new gfxContext(targetSurfaceImage);
+  thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
+  thebesContext->SetFlag(gfxContext::FLAG_SIMPLIFY_OPERATORS);
+    
+  {
+    AutoLayerManagerSetup setupLayerManager(this, thebesContext);
+    event.region = paintRgn;
+    result = DispatchWindowEvent(&event, eventStatus);
+  }
+  
+  if (!result && eventStatus  == nsEventStatus_eConsumeNoDefault)
+    goto cleanup;
+
+  HRESULT hr = glpDDSecondary->Lock(0, &gDDSDSecondary, DDLOCK_WAITNOTBUSY | DDLOCK_DISCARD, 0); 
+  if (FAILED(hr))
+    goto cleanup;
+
+  pixman_image_t *srcPixmanImage = 
+    pixman_image_create_bits(PIXMAN_x8r8g8b8, surfaceSize.width,
+                             surfaceSize.height, 
+                             (uint32_t*) sSharedSurfaceData.get(),
+                             surfaceSize.width * 4);
+  
+  pixman_image_t *dstPixmanImage = 
+    pixman_image_create_bits(PIXMAN_r5g6b5, gDDSDSecondary.dwWidth,
+                             gDDSDSecondary.dwHeight,
+                             (uint32_t*) gDDSDSecondary.lpSurface,
+                             gDDSDSecondary.dwWidth * 2);
+  
+
+  const nsIntRect* r;
+  for (nsIntRegionRectIterator iter(paintRgn);
+       (r = iter.Next()) != nsnull;) {
+    pixman_image_composite(PIXMAN_OP_SRC, srcPixmanImage, NULL, dstPixmanImage,
+                           r->x - brx, r->y - bry,
+                           0, 0,
+                           r->x, r->y,
+                           r->width, r->height);
+  }
+  
+  pixman_image_unref(dstPixmanImage);
+  pixman_image_unref(srcPixmanImage);
+
+  hr = glpDDSecondary->Unlock(0);
+  if (FAILED(hr))
+    goto cleanup;
+  
+  hr = glpDDClipper->SetHWnd(0, mWnd);
+  if (FAILED(hr))
+    goto cleanup;
+  
+  for (nsIntRegionRectIterator iter(paintRgn);
+       (r = iter.Next()) != nsnull;) {
+    RECT wr = { r->x, r->y, r->XMost(), r->YMost() };
+    RECT renderRect = wr;
+    SetLastError(0); // See http://msdn.microsoft.com/en-us/library/dd145046%28VS.85%29.aspx
+    MapWindowPoints(mWnd, 0, (LPPOINT)&renderRect, 2);
+    hr = glpDDPrimary->Blt(&renderRect, glpDDSecondary, &wr, 0, NULL);
+    if (FAILED(hr)) {
+      NS_ERROR("this blt should never fail!");
+      printf("#### %s blt failed: %08lx", __FUNCTION__, hr);
+    }
+  }
+  result = PR_TRUE;
+
+cleanup:
+  NS_ASSERTION(result == PR_TRUE, "fatal drawing error");
+  ::EndPaint(mWnd, &ps);
+  mPaintDC = nsnull;
+  mPainting = PR_FALSE;
+  return result;
+
+}
+#endif // defined(CAIRO_HAS_DDRAW_SURFACE)

@@ -167,6 +167,7 @@ namespace nanojit
         // clear the stats, etc
         _unused = 0;
         _limit = 0;
+        _bytesAllocated = 0;
         _stats.lir = 0;
         for (int i = 0; i < NumSavedRegs; ++i)
             savedRegs[i] = NULL;
@@ -183,6 +184,11 @@ namespace nanojit
     int32_t LirBuffer::insCount()
     {
         return _stats.lir;
+    }
+
+    size_t LirBuffer::byteCount()
+    {
+        return _bytesAllocated - (_limit - _unused);
     }
 
     // Allocate a new page, and write the first instruction to it -- a skip
@@ -374,15 +380,6 @@ namespace nanojit
         return ins;
     }
 #endif
-
-    LIns* LirBufWriter::insComment(const char* str)
-    {
-        // Allocate space for and copy the string.  We use the same allocator
-        // as the normal LIR buffers so it has the same lifetime.
-        char* str2 = (char*)_buf->_allocator.alloc(VMPI_strlen(str) + 1);
-        VMPI_strcpy(str2, str);
-        return ins1(LIR_comment, (LIns*)str);
-    }
 
     LIns* LirBufWriter::insImmD(double d)
     {
@@ -635,9 +632,6 @@ namespace nanojit
     {
         NanoAssert(oprnd1 && oprnd2);
 
-        //-------------------------------------------------------------------
-        // Folding where the two operands are equal
-        //-------------------------------------------------------------------
         if (oprnd1 == oprnd2) {
             // The operands are equal.
             switch (v) {
@@ -664,11 +658,8 @@ namespace nanojit
             }
         }
 
-        //-------------------------------------------------------------------
-        // Folding where both operands are immediates, grouped by type
-        //-------------------------------------------------------------------
         if (oprnd1->isImmI() && oprnd2->isImmI()) {
-            // The operands are both int immediates.
+            // The operands are both 32-bit integer immediates.
             int32_t c1 = oprnd1->immI();
             int32_t c2 = oprnd2->immI();
             double d;
@@ -688,9 +679,9 @@ namespace nanojit
             case LIR_leui:  return insImmI(uint32_t(c1) <= uint32_t(c2));
             case LIR_geui:  return insImmI(uint32_t(c1) >= uint32_t(c2));
 
-            case LIR_lshi:  return insImmI(c1 << (c2 & 0x1f));
-            case LIR_rshi:  return insImmI(c1 >> (c2 & 0x1f));
-            case LIR_rshui: return insImmI(uint32_t(c1) >> (c2 & 0x1f));
+            case LIR_rshi:  return insImmI(c1 >> c2);
+            case LIR_lshi:  return insImmI(c1 << c2);
+            case LIR_rshui: return insImmI(uint32_t(c1) >> c2);
 
             case LIR_ori:   return insImmI(c1 | c2);
             case LIR_andi:  return insImmI(c1 & c2);
@@ -723,7 +714,7 @@ namespace nanojit
 
 #ifdef NANOJIT_64BIT
         } else if (oprnd1->isImmQ() && oprnd2->isImmQ()) {
-            // The operands are both quad immediates.
+            // The operands are both 64-bit integer immediates.
             int64_t c1 = oprnd1->immQ();
             int64_t c2 = oprnd2->immQ();
             static const int64_t MIN_INT64 = int64_t(0x8000000000000000LL);
@@ -745,7 +736,7 @@ namespace nanojit
             case LIR_xorq:  return insImmQ(c1 ^ c2);
 
             // Nb: LIR_rshq, LIR_lshq and LIR_rshuq aren't here because their
-            // RHS is an int.  They are below.
+            // second arg is a 32-bit int.
 
             case LIR_addq:
                 // Overflow is only possible if both values are positive or
@@ -785,24 +776,9 @@ namespace nanojit
             default:
                 break;
             }
-
-        } else if (oprnd1->isImmQ() && oprnd2->isImmI()) {
-            // The first operand is a quad immediate, the second is an int
-            // immediate.
-            int64_t c1 = oprnd1->immQ();
-            int32_t c2 = oprnd2->immI();
-
-            switch (v) {
-            case LIR_lshq:  return insImmQ(c1 << (c2 & 0x3f));
-            case LIR_rshq:  return insImmQ(c1 >> (c2 & 0x3f));
-            case LIR_rshuq: return insImmQ(uint64_t(c1) >> (c2 & 0x3f));
-
-            default:        break;
-            }
-#endif  // NANOJIT_64BIT
-
+#endif
         } else if (oprnd1->isImmD() && oprnd2->isImmD()) {
-            // The operands are both double immediates.
+            // The operands are both 64-bit double immediates.
             double c1 = oprnd1->immD();
             double c2 = oprnd2->immD();
             switch (v) {
@@ -819,50 +795,39 @@ namespace nanojit
 
             default:        break;
             }
-        }
 
-        //-------------------------------------------------------------------
-        // If only one operand is an immediate, make sure it's on the RHS, if possible
-        //-------------------------------------------------------------------
-        if (oprnd1->isImmAny() && !oprnd2->isImmAny()) {
+        } else if (oprnd1->isImmI() && !oprnd2->isImmI()) {
+            // The first operand is a 32-bit integer immediate;  move it to
+            // the right if possible.
             switch (v) {
-            case LIR_eqi:
-            CASE64(LIR_eqq:)
-            case LIR_eqd:
             case LIR_addi:
-            CASE64(LIR_addq:)
-            case LIR_addd:
             case LIR_muli:
+            case LIR_addd:
             case LIR_muld:
-            case LIR_andi:
-            CASE64(LIR_andq:)
-            case LIR_ori:
-            CASE64(LIR_orq:)
             case LIR_xori:
-            CASE64(LIR_xorq:) {
-                // move immediate to RHS
+            case LIR_ori:
+            case LIR_andi:
+            case LIR_eqi: {
+                // move const to rhs
                 LIns* t = oprnd2;
                 oprnd2 = oprnd1;
                 oprnd1 = t;
                 break;
             }
             default:
-                if (isCmpOpcode(v)) {
-                    // move immediate to RHS, swap the operator
+                if (isCmpIOpcode(v)) {
+                    // move const to rhs, swap the operator
                     LIns *t = oprnd2;
                     oprnd2 = oprnd1;
                     oprnd1 = t;
-                    v = invertCmpOpcode(v);
+                    v = invertCmpIOpcode(v);
                 }
                 break;
             }
         }
 
-        //-------------------------------------------------------------------
-        // Folding where the RHS is an immediate
-        //-------------------------------------------------------------------
         if (oprnd2->isImmI()) {
-            // The second operand is an int immediate.
+            // The second operand is a 32-bit integer immediate.
             int c = oprnd2->immI();
             switch (v) {
             case LIR_addi:
@@ -907,9 +872,6 @@ namespace nanojit
                 case LIR_lshi:
                 case LIR_rshi:
                 case LIR_rshui:
-                CASE64(LIR_lshq:)   // These are here because their RHS is an int
-                CASE64(LIR_rshq:)
-                CASE64(LIR_rshuq:)
                     return oprnd1;
 
                 case LIR_andi:
@@ -937,7 +899,7 @@ namespace nanojit
                 switch (v) {
                 case LIR_ori:  return oprnd2;       // x | -1 = -1
                 case LIR_andi: return oprnd1;       // x & -1 = x
-                case LIR_gtui: return insImmI(0);   // u32 >  0xffffffff -> always false
+                case LIR_gtui: return insImmI(0);   // u32 > 0xffffffff -> always false
                 case LIR_leui: return insImmI(1);   // u32 <= 0xffffffff -> always true
                 default:       break;
                 }
@@ -945,79 +907,26 @@ namespace nanojit
             } else if (c == 1) {
                 if (oprnd1->isCmp()) {
                     switch (v) {
-                    case LIR_ori:   return oprnd2;      // 0or1 | 1 = 1   (and oprnd2 == 1)
-                    case LIR_andi:  return oprnd1;      // 0or1 & 1 = 0or1
-                    case LIR_gtui:  return insImmI(0);  // 0or1 > 1 -> always false
+                    case LIR_ori:   return oprnd2;      // cmp | 1 = 1   (and oprnd2 == 1)
+                    case LIR_andi:  return oprnd1;      // cmp & 1 = cmp
+                    case LIR_gtui:  return insImmI(0);  // (0|1) > 1 -> always false
                     default:        break;
                     }
                 } else if (v == LIR_muli) {
                     return oprnd1;          // x * 1 = x
                 }
             }
-
-#ifdef NANOJIT_64BIT
-        } else if (oprnd2->isImmQ()) {
-            // The second operand is a quad immediate.
-            int64_t c = oprnd2->immQ();
-            if (c == 0) {
-                switch (v) {
-                case LIR_addq:
-                case LIR_orq:
-                case LIR_xorq:
-                case LIR_subq:
-                    return oprnd1;
-
-                case LIR_andq:
-                    return oprnd2;
-
-                case LIR_ltuq: // unsigned < 0 -> always false
-                    return insImmI(0);
-
-                case LIR_geuq: // unsigned >= 0 -> always true
-                    return insImmI(1);
-
-                default:
-                    break;
-                }
-
-            } else if (c == -1) {
-                switch (v) {
-                case LIR_orq:  return oprnd2;       // x | -1 = -1
-                case LIR_andq: return oprnd1;       // x & -1 = x
-                case LIR_gtuq: return insImmI(0);   // u64 >  0xffffffffffffffff -> always false
-                case LIR_leuq: return insImmI(1);   // u64 <= 0xffffffffffffffff -> always true
-                default:       break;
-                }
-
-            } else if (c == 1) {
-                if (oprnd1->isCmp()) {
-                    switch (v) {
-                    case LIR_orq:   return oprnd2;      // 0or1 | 1 = 1   (and oprnd2 == 1)
-                    case LIR_andq:  return oprnd1;      // 0or1 & 1 = 0or1
-                    case LIR_gtuq:  return insImmI(0);  // 0or1 > 1 -> always false
-                    default:        break;
-                    }
-                }
-            }
-#endif  // NANOJIT_64BIT
         }
 
 #if NJ_SOFTFLOAT_SUPPORTED
-        //-------------------------------------------------------------------
-        // SoftFloat-specific folding
-        //-------------------------------------------------------------------
         LIns* ins;
         if (v == LIR_ii2d && oprnd1->isop(LIR_dlo2i) && oprnd2->isop(LIR_dhi2i) &&
-            (ins = oprnd1->oprnd1()) == oprnd2->oprnd1())
-        {
+            (ins = oprnd1->oprnd1()) == oprnd2->oprnd1()) {
             // qjoin(qlo(x),qhi(x)) == x
             return ins;
         }
 #endif
 
-        //-------------------------------------------------------------------
-        // No folding possible
-        //-------------------------------------------------------------------
         return out->ins2(v, oprnd1, oprnd2);
     }
 
@@ -1030,7 +939,7 @@ namespace nanojit
             return oprnd2;
         }
         if (oprnd1->isImmI()) {
-            // immediate ? x : y => return x or y depending on immediate
+            // const ? x : y => return x or y depending on const
             return oprnd1->immI() ? oprnd2 : oprnd3;
         }
         if (oprnd1->isop(LIR_eqi) &&
@@ -1107,7 +1016,7 @@ namespace nanojit
             case LIR_addxovi:
             case LIR_muljovi:
             case LIR_mulxovi: {
-                // swap operands, moving immediate to RHS
+                // swap operands, moving const to rhs
                 LIns* t = oprnd2;
                 oprnd2 = oprnd1;
                 oprnd1 = t;
@@ -1459,7 +1368,6 @@ namespace nanojit
                 CASE64(LIR_immq:)
                 case LIR_immd:
                 case LIR_allocp:
-                case LIR_comment:
                     // No operands, do nothing.
                     break;
 
@@ -1635,24 +1543,6 @@ namespace nanojit
 
     void LirNameMap::addNameWithSuffix(LIns* ins, const char *name, int suffix,
                                        bool ignoreOneSuffix) {
-        NanoAssert(!names.containsKey(ins));
-        const int N = 100;
-        char name2[N];
-        if (suffix == 1 && ignoreOneSuffix) {
-            VMPI_snprintf(name2, N, "%s", name);                // don't add '1' suffix
-        } else if (VMPI_isdigit(name[VMPI_strlen(name)-1])) {
-            VMPI_snprintf(name2, N, "%s_%d", name, suffix);     // use '_' to avoid confusion
-        } else {
-            VMPI_snprintf(name2, N, "%s%d", name, suffix);      // normal case
-        }
-
-        char *copy = new (alloc) char[VMPI_strlen(name2)+1];
-        VMPI_strcpy(copy, name2);
-        Entry *e = new (alloc) Entry(copy);
-        names.put(ins, e);
-    }
-
-    void LirNameMap::addName(LIns* ins, const char* name) {
         // The lookup may succeed, ie. we may already have a name for this
         // instruction.  This can happen because of CSE.  Eg. if we have this:
         //
@@ -1667,10 +1557,25 @@ namespace nanojit
         // name "foo2".
         //
         if (!names.containsKey(ins)) {
-            Str* str = new (alloc) Str(alloc, name);
-            int suffix = namecounts.add(*str);
-            addNameWithSuffix(ins, name, suffix, /*ignoreOneSuffix*/true);
+            const int N = 100;
+            char name2[N];
+            if (suffix == 1 && ignoreOneSuffix) {
+                VMPI_snprintf(name2, N, "%s", name);                // don't add '1' suffix
+            } else if (VMPI_isdigit(name[VMPI_strlen(name)-1])) {
+                VMPI_snprintf(name2, N, "%s_%d", name, suffix);     // use '_' to avoid confusion
+            } else {
+                VMPI_snprintf(name2, N, "%s%d", name, suffix);      // normal case
+            }
+
+            char *copy = new (alloc) char[VMPI_strlen(name2)+1];
+            VMPI_strcpy(copy, name2);
+            Entry *e = new (alloc) Entry(copy);
+            names.put(ins, e);
         }
+    }
+
+    void LirNameMap::addName(LIns* ins, const char* name) {
+        addNameWithSuffix(ins, name, namecounts.add(name), /*ignoreOneSuffix*/true);
     }
 
     const char* LirNameMap::createName(LIns* ins) {
@@ -1681,14 +1586,12 @@ namespace nanojit
             } else
 #endif
             {
-                if (!names.containsKey(ins))
-                    addNameWithSuffix(ins, ins->callInfo()->_name, funccounts.add(ins->callInfo()),
-                                      /*ignoreOneSuffix*/false);
+                addNameWithSuffix(ins, ins->callInfo()->_name, funccounts.add(ins->callInfo()),
+                                  /*ignoreOneSuffix*/false);
             }
         } else {
-            if (!names.containsKey(ins))
-                addNameWithSuffix(ins, lirNames[ins->opcode()], lircounts.add(ins->opcode()),
-                                  /*ignoreOneSuffix*/false);
+            addNameWithSuffix(ins, lirNames[ins->opcode()], lircounts.add(ins->opcode()),
+                              /*ignoreOneSuffix*/false);
 
         }
         return names.get(ins)->name;
@@ -2040,10 +1943,6 @@ namespace nanojit
                     formatRef(&b3, i->oprnd1()));
                 break;
 
-            case LIR_comment:
-                VMPI_snprintf(s, n, "------------------------------ # %s", (char*)i->oprnd1());
-                break;
-
             default:
                 NanoAssertMsgf(0, "Can't handle opcode %s\n", lirNames[op]);
                 break;
@@ -2060,29 +1959,26 @@ namespace nanojit
           CSE_ACC_MULTIPLE( EMB_NUM_USED_ACCS + 1),
           storesSinceLastLoad(ACCSET_NONE),
           alloc(alloc),
-          knownCmpValues(alloc),
           suspended(false)
     {
 
-        m_findNL[NLImmISmall] = &CseFilter::findImmISmall;
-        m_findNL[NLImmILarge] = &CseFilter::findImmILarge;
-        m_findNL[NLImmQ]      = PTR_SIZE(NULL, &CseFilter::findImmQ);
-        m_findNL[NLImmD]      = &CseFilter::findImmD;
-        m_findNL[NL1]         = &CseFilter::find1;
-        m_findNL[NL2]         = &CseFilter::find2;
-        m_findNL[NL3]         = &CseFilter::find3;
-        m_findNL[NLCall]      = &CseFilter::findCall;
+        m_findNL[LInsImmI] = &CseFilter::findImmI;
+        m_findNL[LInsImmQ] = PTR_SIZE(NULL, &CseFilter::findImmQ);
+        m_findNL[LInsImmD] = &CseFilter::findImmD;
+        m_findNL[LIns1]    = &CseFilter::find1;
+        m_findNL[LIns2]    = &CseFilter::find2;
+        m_findNL[LIns3]    = &CseFilter::find3;
+        m_findNL[LInsCall] = &CseFilter::findCall;
 
-        m_capNL[NLImmISmall]  = 17;   // covers 0..16, which is over half the cases for TraceMonkey
-        m_capNL[NLImmILarge]  = 64;
-        m_capNL[NLImmQ]       = PTR_SIZE(0, 16);
-        m_capNL[NLImmD]       = 16;
-        m_capNL[NL1]          = 256;
-        m_capNL[NL2]          = 512;
-        m_capNL[NL3]          = 16;
-        m_capNL[NLCall]       = 64;
+        m_capNL[LInsImmI]  = 128;
+        m_capNL[LInsImmQ]  = PTR_SIZE(0, 16);
+        m_capNL[LInsImmD]  = 16;
+        m_capNL[LIns1]     = 256;
+        m_capNL[LIns2]     = 512;
+        m_capNL[LIns3]     = 16;
+        m_capNL[LInsCall]  = 64;
 
-        for (NLKind nlkind = NLFirst; nlkind <= NLLast; nlkind = nextNLKind(nlkind)) {
+        for (NLKind nlkind = LInsFirst; nlkind <= LInsLast; nlkind = nextNLKind(nlkind)) {
             m_listNL[nlkind] = new (alloc) LIns*[m_capNL[nlkind]];
             m_usedNL[nlkind] = 1; // Force memset in clearAll().
         }
@@ -2158,14 +2054,12 @@ namespace nanojit
     }
 
     void CseFilter::clearAll() {
-        for (NLKind nlkind = NLFirst; nlkind <= NLLast; nlkind = nextNLKind(nlkind))
+        for (NLKind nlkind = LInsFirst; nlkind <= LInsLast; nlkind = nextNLKind(nlkind))
             clearNL(nlkind);
 
         // Note that this clears the CONST and MULTIPLE load tables as well.
         for (CseAcc a = 0; a < CSE_NUM_USED_ACCS; a++)
             clearL(a);
-
-        knownCmpValues.clear();
     }
 
     inline uint32_t CseFilter::hashImmI(int32_t a) {
@@ -2212,7 +2106,6 @@ namespace nanojit
 
     void CseFilter::growNL(NLKind nlkind)
     {
-        NanoAssert(nlkind != NLImmISmall);
         const uint32_t oldcap = m_capNL[nlkind];
         m_capNL[nlkind] <<= 1;
         LIns** oldlist = m_listNL[nlkind];
@@ -2245,16 +2138,6 @@ namespace nanojit
         }
     }
 
-    void CseFilter::addNLImmISmall(LIns* ins, uint32_t k)
-    {
-        if (suspended) return;
-        NLKind nlkind = NLImmISmall;
-        NanoAssert(k < m_capNL[nlkind]);
-        NanoAssert(!m_listNL[nlkind][k]);
-        m_usedNL[nlkind]++;
-        m_listNL[nlkind][k] = ins;
-    }
-
     void CseFilter::addNL(NLKind nlkind, LIns* ins, uint32_t k)
     {
         if (suspended) return;
@@ -2278,26 +2161,9 @@ namespace nanojit
         }
     }
 
-    inline LIns* CseFilter::findImmISmall(int32_t a, uint32_t &k)
+    inline LIns* CseFilter::findImmI(int32_t a, uint32_t &k)
     {
-        // This one is a direct array lookup rather than a hashtable lookup.
-        NLKind nlkind = NLImmISmall;
-        k = a;
-        LIns* ins = m_listNL[nlkind][k];
-        NanoAssert(!ins || ins->isImmI(a));
-        return ins;
-    }
-
-    uint32_t CseFilter::findImmISmall(LIns* ins)
-    {
-        uint32_t k;
-        findImmISmall(ins->immI(), k);
-        return k;
-    }
-
-    inline LIns* CseFilter::findImmILarge(int32_t a, uint32_t &k)
-    {
-        NLKind nlkind = NLImmILarge;
+        NLKind nlkind = LInsImmI;
         const uint32_t bitmask = m_capNL[nlkind] - 1;
         k = hashImmI(a) & bitmask;
         uint32_t n = 1;
@@ -2320,17 +2186,17 @@ namespace nanojit
         }
     }
 
-    uint32_t CseFilter::findImmILarge(LIns* ins)
+    uint32_t CseFilter::findImmI(LIns* ins)
     {
         uint32_t k;
-        findImmILarge(ins->immI(), k);
+        findImmI(ins->immI(), k);
         return k;
     }
 
 #ifdef NANOJIT_64BIT
     inline LIns* CseFilter::findImmQ(uint64_t a, uint32_t &k)
     {
-        NLKind nlkind = NLImmQ;
+        NLKind nlkind = LInsImmQ;
         const uint32_t bitmask = m_capNL[nlkind] - 1;
         k = hashImmQorD(a) & bitmask;
         uint32_t n = 1;
@@ -2356,7 +2222,7 @@ namespace nanojit
 
     inline LIns* CseFilter::findImmD(uint64_t a, uint32_t &k)
     {
-        NLKind nlkind = NLImmD;
+        NLKind nlkind = LInsImmD;
         const uint32_t bitmask = m_capNL[nlkind] - 1;
         k = hashImmQorD(a) & bitmask;
         uint32_t n = 1;
@@ -2381,7 +2247,7 @@ namespace nanojit
 
     inline LIns* CseFilter::find1(LOpcode op, LIns* a, uint32_t &k)
     {
-        NLKind nlkind = NL1;
+        NLKind nlkind = LIns1;
         const uint32_t bitmask = m_capNL[nlkind] - 1;
         k = hash1(op, a) & bitmask;
         uint32_t n = 1;
@@ -2405,7 +2271,7 @@ namespace nanojit
 
     inline LIns* CseFilter::find2(LOpcode op, LIns* a, LIns* b, uint32_t &k)
     {
-        NLKind nlkind = NL2;
+        NLKind nlkind = LIns2;
         const uint32_t bitmask = m_capNL[nlkind] - 1;
         k = hash2(op, a, b) & bitmask;
         uint32_t n = 1;
@@ -2429,7 +2295,7 @@ namespace nanojit
 
     inline LIns* CseFilter::find3(LOpcode op, LIns* a, LIns* b, LIns* c, uint32_t &k)
     {
-        NLKind nlkind = NL3;
+        NLKind nlkind = LIns3;
         const uint32_t bitmask = m_capNL[nlkind] - 1;
         k = hash3(op, a, b, c) & bitmask;
         uint32_t n = 1;
@@ -2490,7 +2356,7 @@ namespace nanojit
 
     inline LIns* CseFilter::findCall(const CallInfo *ci, uint32_t argc, LIns* args[], uint32_t &k)
     {
-        NLKind nlkind = NLCall;
+        NLKind nlkind = LInsCall;
         const uint32_t bitmask = m_capNL[nlkind] - 1;
         k = hashCall(ci, argc, args) & bitmask;
         uint32_t n = 1;
@@ -2520,19 +2386,10 @@ namespace nanojit
     LIns* CseFilter::insImmI(int32_t imm)
     {
         uint32_t k;
-        LIns* ins;
-        if (0 <= imm && imm < int32_t(m_capNL[NLImmISmall])) {
-            ins = findImmISmall(imm, k);
-            if (!ins) {
-                ins = out->insImmI(imm);
-                addNLImmISmall(ins, k);
-            }
-        } else {
-            ins = findImmILarge(imm, k);
-            if (!ins) {
-                ins = out->insImmI(imm);
-                addNL(NLImmILarge, ins, k);
-            }
+        LIns* ins = findImmI(imm, k);
+        if (!ins) {
+            ins = out->insImmI(imm);
+            addNL(LInsImmI, ins, k);
         }
         // We assume that downstream stages do not modify the instruction, so
         // that we can insert 'ins' into slot 'k'.  Check this.
@@ -2547,7 +2404,7 @@ namespace nanojit
         LIns* ins = findImmQ(q, k);
         if (!ins) {
             ins = out->insImmQ(q);
-            addNL(NLImmQ, ins, k);
+            addNL(LInsImmQ, ins, k);
         }
         NanoAssert(ins->isop(LIR_immq) && ins->immQ() == q);
         return ins;
@@ -2567,7 +2424,7 @@ namespace nanojit
         LIns* ins = findImmD(u.u64, k);
         if (!ins) {
             ins = out->insImmD(d);
-            addNL(NLImmD, ins, k);
+            addNL(LInsImmD, ins, k);
         }
         NanoAssert(ins->isop(LIR_immd) && ins->immDasQ() == u.u64);
         return ins;
@@ -2588,7 +2445,7 @@ namespace nanojit
             ins = find1(op, a, k);
             if (!ins) {
                 ins = out->ins1(op, a);
-                addNL(NL1, ins, k);
+                addNL(LIns1, ins, k);
             }
         } else {
             ins = out->ins1(op, a);
@@ -2605,16 +2462,7 @@ namespace nanojit
         ins = find2(op, a, b, k);
         if (!ins) {
             ins = out->ins2(op, a, b);
-            addNL(NL2, ins, k);
-        } else if (ins->isCmp()) {
-            if (knownCmpValues.containsKey(ins)) {
-                // We've seen this comparison before, and it was previously
-                // used in a guard, so we know what its value must be at this
-                // point.  Replace it with a constant.
-                NanoAssert(ins->isCmp());
-                bool cmpValue = knownCmpValues.get(ins);
-                return insImmI(cmpValue ? 1 : 0);
-            }
+            addNL(LIns2, ins, k);
         }
         NanoAssert(ins->isop(op) && ins->oprnd1() == a && ins->oprnd2() == b);
         return ins;
@@ -2627,7 +2475,7 @@ namespace nanojit
         LIns* ins = find3(op, a, b, c, k);
         if (!ins) {
             ins = out->ins3(op, a, b, c);
-            addNL(NL3, ins, k);
+            addNL(LIns3, ins, k);
         }
         NanoAssert(ins->isop(op) && ins->oprnd1() == a && ins->oprnd2() == b && ins->oprnd3() == c);
         return ins;
@@ -2727,14 +2575,7 @@ namespace nanojit
             ins = find1(op, c, k);
             if (!ins) {
                 ins = out->insGuard(op, c, gr);
-                addNL(NL1, ins, k);
-            }
-            // After this guard, we know that 'c's result was true (if
-            // op==LIR_xf) or false (if op==LIR_xt), else we would have
-            // exited.  Record this fact in case 'c' occurs again.
-            if (!suspended) {
-                bool c_value = (op == LIR_xt ? false : true);
-                knownCmpValues.put(c, c_value);
+                addNL(LIns1, ins, k);
             }
         } else {
             ins = out->insGuard(op, c, gr);
@@ -2752,7 +2593,7 @@ namespace nanojit
         LIns* ins = find2(op, a, b, k);
         if (!ins) {
             ins = out->insGuardXov(op, a, b, gr);
-            addNL(NL2, ins, k);
+            addNL(LIns2, ins, k);
         }
         NanoAssert(ins->isop(op) && ins->oprnd1() == a && ins->oprnd2() == b);
         return ins;
@@ -2770,7 +2611,7 @@ namespace nanojit
             ins = findCall(ci, argc, args, k);
             if (!ins) {
                 ins = out->insCall(ci, args);
-                addNL(NLCall, ins, k);
+                addNL(LInsCall, ins, k);
             }
         } else {
             // We only need to worry about aliasing if !ci->_isPure.
@@ -2822,7 +2663,7 @@ namespace nanojit
 
         case LIR_negi:
             if (lim > 0)
-                return sub(Interval(0, 0), of(ins->oprnd1(), lim-1));
+                return sub(Interval(0, 0), of(ins->oprnd2(), lim-1));
             goto overflow;
 
         case LIR_muli:
@@ -2976,7 +2817,6 @@ namespace nanojit
     }
 
 #if NJ_SOFTFLOAT_SUPPORTED
-    static int32_t FASTCALL d2i(double d)           { return (int32_t) d; }
     static double FASTCALL i2d(int32_t i)           { return i; }
     static double FASTCALL ui2d(uint32_t u)         { return u; }
     static double FASTCALL negd(double a)           { return -a; }
@@ -2990,7 +2830,6 @@ namespace nanojit
     static int32_t FASTCALL led(double a, double b) { return a <= b; }
     static int32_t FASTCALL ged(double a, double b) { return a >= b; }
 
-    #define SIG_I_D     CallInfo::typeSig1(ARGTYPE_I, ARGTYPE_D)
     #define SIG_D_I     CallInfo::typeSig1(ARGTYPE_D, ARGTYPE_I)
     #define SIG_D_UI    CallInfo::typeSig1(ARGTYPE_D, ARGTYPE_UI)
     #define SIG_D_D     CallInfo::typeSig1(ARGTYPE_D, ARGTYPE_D)
@@ -3001,7 +2840,6 @@ namespace nanojit
         static const CallInfo name##_ci = \
             { (intptr_t)&name, typesig, ABI_FASTCALL, /*isPure*/1, ACCSET_NONE verbose_only(, #name) }
 
-    SF_CALLINFO(d2i,  SIG_I_D);
     SF_CALLINFO(i2d,  SIG_D_I);
     SF_CALLINFO(ui2d, SIG_D_UI);
     SF_CALLINFO(negd, SIG_D_D);
@@ -3018,7 +2856,6 @@ namespace nanojit
     SoftFloatOps::SoftFloatOps()
     {
         memset(opmap, 0, sizeof(opmap));
-        opmap[LIR_d2i] = &d2i_ci;
         opmap[LIR_i2d] = &i2d_ci;
         opmap[LIR_ui2d] = &ui2d_ci;
         opmap[LIR_negd] = &negd_ci;
@@ -3057,11 +2894,6 @@ namespace nanojit
         return split(call, args);
     }
 
-    LIns* SoftFloatFilter::callI1(const CallInfo *call, LIns *a) {
-        LIns *args[] = { split(a) };
-        return out->insCall(call, args);
-    }
-    
     LIns* SoftFloatFilter::callD2(const CallInfo *call, LIns *a, LIns *b) {
         LIns *args[] = { split(b), split(a) };
         return split(call, args);
@@ -3074,12 +2906,8 @@ namespace nanojit
 
     LIns* SoftFloatFilter::ins1(LOpcode op, LIns *a) {
         const CallInfo *ci = softFloatOps.opmap[op];
-        if (ci) {
-            if (ci->returnType() == ARGTYPE_D)            
-                return callD1(ci, a);
-            else
-                return callI1(ci, a);
-        }
+        if (ci)
+            return callD1(ci, a);
         if (op == LIR_retd)
             return out->ins1(op, split(a));
         return out->ins1(op, a);
@@ -3175,11 +3003,11 @@ namespace nanojit
     {
         switch (type) {
         case LTy_V:                     return "void";
-        case LTy_I:                     return "int";
+        case LTy_I:                     return "int32";
 #ifdef NANOJIT_64BIT
-        case LTy_Q:                     return "quad";
+        case LTy_Q:                     return "int64";
 #endif
-        case LTy_D:                     return "double";
+        case LTy_D:                     return "float64";
         default:       NanoAssert(0);   return "???";
         }
     }

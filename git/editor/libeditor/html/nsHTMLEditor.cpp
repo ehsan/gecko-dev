@@ -144,7 +144,9 @@ nsresult NS_NewHTMLEditRules(nsIEditRules** aInstancePtrResult);
 nsHTMLEditor::nsHTMLEditor()
 : nsPlaintextEditor()
 , mIgnoreSpuriousDragEvent(PR_FALSE)
+, mTypeInState(nsnull)
 , mCRInParagraphCreatesParagraph(PR_FALSE)
+, mHTMLCSSUtils(nsnull)
 , mSelectedCellIndex(0)
 , mIsObjectResizingEnabled(PR_TRUE)
 , mIsResizing(PR_FALSE)
@@ -199,8 +201,10 @@ nsHTMLEditor::~nsHTMLEditor()
     }
   }
 
-  mTypeInState = nsnull;
+  NS_IF_RELEASE(mTypeInState);
   mSelectionListenerP = nsnull;
+
+  delete mHTMLCSSUtils;
 
   // free any default style propItems
   RemoveAllDefaultProperties();
@@ -235,7 +239,6 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLEditor, nsEditor)
 
 NS_INTERFACE_MAP_BEGIN(nsHTMLEditor)
   NS_INTERFACE_MAP_ENTRY(nsIHTMLEditor)
-  NS_INTERFACE_MAP_ENTRY(nsIHTMLEditor_MOZILLA_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY(nsIHTMLObjectResizer)
   NS_INTERFACE_MAP_ENTRY(nsIHTMLAbsPosEditor)
   NS_INTERFACE_MAP_ENTRY(nsIHTMLInlineTableEditor)
@@ -274,7 +277,7 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
 
     // Init mutation observer
     nsCOMPtr<nsINode> document = do_QueryInterface(aDoc);
-    document->AddMutationObserverUnlessExists(this);
+    document->AddMutationObserver(this);
 
     // disable Composer-only features
     if (IsMailEditor())
@@ -284,7 +287,9 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
     }
 
     // Init the HTML-CSS utils
-    result = NS_NewHTMLCSSUtils(getter_Transfers(mHTMLCSSUtils));
+    if (mHTMLCSSUtils)
+      delete mHTMLCSSUtils;
+    result = NS_NewHTMLCSSUtils(&mHTMLCSSUtils);
     if (NS_FAILED(result)) { return result; }
     mHTMLCSSUtils->Init(this);
 
@@ -300,6 +305,7 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
     // init the type-in state
     mTypeInState = new TypeInState();
     if (!mTypeInState) {return NS_ERROR_NULL_POINTER;}
+    NS_ADDREF(mTypeInState);
 
     // init the selection listener for image resizing
     mSelectionListenerP = new ResizerSelectionListener(this);
@@ -427,9 +433,7 @@ nsHTMLEditor::FindSelectionRoot(nsINode *aNode)
 nsresult
 nsHTMLEditor::CreateEventListeners()
 {
-  // Don't create the handler twice
-  if (mEventListener)
-    return NS_OK;
+  NS_ENSURE_TRUE(!mEventListener, NS_ERROR_ALREADY_INITIALIZED);
   mEventListener = do_QueryInterface(
     static_cast<nsIDOMKeyListener*>(new nsHTMLEditorEventListener()));
   NS_ENSURE_TRUE(mEventListener, NS_ERROR_OUT_OF_MEMORY);
@@ -1336,16 +1340,6 @@ PRBool nsHTMLEditor::IsVisBreak(nsIDOMNode *aNode)
     return PR_FALSE;
   
   return PR_TRUE;
-}
-
-NS_IMETHODIMP
-nsHTMLEditor::BreakIsVisible(nsIDOMNode *aNode, PRBool *aIsVisible)
-{
-  NS_ENSURE_ARG_POINTER(aNode && aIsVisible);
-
-  *aIsVisible = IsVisBreak(aNode);
-
-  return NS_OK;
 }
 
 
@@ -3653,7 +3647,7 @@ nsHTMLEditor::AddNewStyleSheetToList(const nsAString &aURL,
   PRUint32 countSS = mStyleSheets.Length();
   PRUint32 countU = mStyleSheetURLs.Length();
 
-  if (countSS != countU)
+  if (countU < 0 || countSS != countU)
     return NS_ERROR_UNEXPECTED;
 
   if (!mStyleSheetURLs.AppendElement(aURL))
@@ -3789,7 +3783,7 @@ nsHTMLEditor::GetEmbeddedObjects(nsISupportsArray** aNodeList)
 NS_IMETHODIMP nsHTMLEditor::DeleteNode(nsIDOMNode * aNode)
 {
   // do nothing if the node is read-only
-  if (!IsModifiableNode(aNode) && !IsMozEditorBogusNode(aNode)) {
+  if (!IsModifiableNode(aNode)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -3851,23 +3845,12 @@ void
 nsHTMLEditor::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
                               nsIContent* aChild, PRInt32 /* unused */)
 {
-  if (!aChild) {
+  if (!aChild || !aChild->IsElement()) {
     return;
   }
 
-  nsCOMPtr<nsIHTMLEditor> kungFuDeathGrip(this);
-
   if (ShouldReplaceRootElement()) {
     ResetRootElementAndEventTarget();
-  }
-  // We don't need to handle our own modifications
-  else if (!mAction && (aContainer ? aContainer->IsEditable() : aDocument->IsEditable())) {
-    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aChild);
-    if (node && IsMozEditorBogusNode(node)) {
-      // Ignore insertion of the bogus node
-      return;
-    }
-    mRules->DocumentModified();
   }
 }
 
@@ -3876,19 +3859,8 @@ nsHTMLEditor::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
                              nsIContent* aChild, PRInt32 aIndexInContainer,
                              nsIContent* aPreviousSibling)
 {
-  nsCOMPtr<nsIHTMLEditor> kungFuDeathGrip(this);
-
   if (SameCOMIdentity(aChild, mRootElement)) {
     ResetRootElementAndEventTarget();
-  }
-  // We don't need to handle our own modifications
-  else if (!mAction && (aContainer ? aContainer->IsEditable() : aDocument->IsEditable())) {
-    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aChild);
-    if (node && IsMozEditorBogusNode(node)) {
-      // Ignore removal of the bogus node
-      return;
-    }
-    mRules->DocumentModified();
   }
 }
 
@@ -3937,7 +3909,7 @@ nsHTMLEditor::IsModifiableNode(nsIDOMNode *aNode)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
 
-  return !content || !content->IntrinsicState().HasState(NS_EVENT_STATE_MOZ_READONLY);
+  return !content || !(content->IntrinsicState() & NS_EVENT_STATE_MOZ_READONLY);
 }
 
 static nsresult SetSelectionAroundHeadChildren(nsCOMPtr<nsISelection> aSelection, nsWeakPtr aDocWeak)
@@ -5791,13 +5763,13 @@ nsHTMLEditor::GetReturnInParagraphCreatesNewParagraph(PRBool *aCreatesNewParagra
   return NS_OK;
 }
 
-already_AddRefed<nsIContent>
-nsHTMLEditor::GetFocusedContent()
+PRBool
+nsHTMLEditor::HasFocus()
 {
-  NS_ENSURE_TRUE(mDocWeak, nsnull);
+  NS_ENSURE_TRUE(mDocWeak, PR_FALSE);
 
   nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  NS_ENSURE_TRUE(fm, nsnull);
+  NS_ENSURE_TRUE(fm, PR_FALSE);
 
   nsCOMPtr<nsIContent> focusedContent = fm->GetFocusedContent();
 
@@ -5805,17 +5777,12 @@ nsHTMLEditor::GetFocusedContent()
   PRBool inDesignMode = doc->HasFlag(NODE_IS_EDITABLE);
   if (!focusedContent) {
     // in designMode, nobody gets focus in most cases.
-    if (inDesignMode && OurWindowHasFocus()) {
-      nsCOMPtr<nsIContent> docRoot = doc->GetRootElement();
-      return docRoot.forget();
-    }
-    return nsnull;
+    return inDesignMode ? OurWindowHasFocus() : PR_FALSE;
   }
 
   if (inDesignMode) {
-    return OurWindowHasFocus() &&
-      nsContentUtils::ContentIsDescendantOf(focusedContent, doc) ?
-      focusedContent.forget() : nsnull;
+    return OurWindowHasFocus() ?
+      nsContentUtils::ContentIsDescendantOf(focusedContent, doc) : PR_FALSE;
   }
 
   // We're HTML editor for contenteditable
@@ -5824,10 +5791,10 @@ nsHTMLEditor::GetFocusedContent()
   // we don't have focus.
   if (!focusedContent->HasFlag(NODE_IS_EDITABLE) ||
       focusedContent->HasIndependentSelection()) {
-    return nsnull;
+    return PR_FALSE;
   }
   // If our window is focused, we're focused.
-  return OurWindowHasFocus() ? focusedContent.forget() : nsnull;
+  return OurWindowHasFocus();
 }
 
 PRBool
@@ -5940,8 +5907,7 @@ nsHTMLEditor::GetBodyElement(nsIDOMHTMLElement** aBody)
 already_AddRefed<nsINode>
 nsHTMLEditor::GetFocusedNode()
 {
-  nsCOMPtr<nsIContent> focusedContent = GetFocusedContent();
-  if (!focusedContent) {
+  if (!HasFocus()) {
     return nsnull;
   }
 

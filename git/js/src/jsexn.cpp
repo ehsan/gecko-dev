@@ -46,7 +46,7 @@
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsbit.h"
-#include "jsutil.h"
+#include "jsutil.h" /* Added by JSIFY */
 #include "jsprf.h"
 #include "jsapi.h"
 #include "jscntxt.h"
@@ -61,7 +61,6 @@
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstaticcheck.h"
-#include "jswrapper.h"
 
 #include "jscntxtinlines.h"
 #include "jsinterpinlines.h"
@@ -102,7 +101,7 @@ Class js_ErrorClass = {
     NULL,           /* reserved0   */
     NULL,           /* checkAccess */
     NULL,           /* call        */
-    NULL,           /* construct   */
+    Exception,      /* construct   */
     NULL,           /* xdrObject   */
     NULL,           /* hasInstance */
     JS_CLASS_TRACE(exn_trace)
@@ -260,6 +259,19 @@ GetStackTraceValueBuffer(JSExnPrivate *priv)
     return (jsval *)(priv->stackElems + priv->stackDepth);
 }
 
+namespace {
+
+struct CopyTo
+{
+    Value *dst;
+    CopyTo(jsval *dst) : dst(Valueify(dst)) {}
+    void operator()(uintN, Value *src) {
+        *dst++ = *src;
+    }
+};
+
+}
+
 static JSBool
 InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
                JSString *filename, uintN lineno, JSErrorReport *report)
@@ -345,7 +357,7 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
                             ? ATOM_TO_STRING(fp->fun()->atom)
                             : cx->runtime->emptyString;
             elem->argc = fp->numActualArgs();
-            fp->forEachCanonicalActualArg(CopyTo(Valueify(values)));
+            fp->forEachCanonicalActualArg(CopyTo(values));
             values += elem->argc;
         }
         elem->ulineno = 0;
@@ -451,6 +463,8 @@ exn_enumerate(JSContext *cx, JSObject *obj)
         atom = *(JSAtom **)((uint8 *)atomState + offsets[i]);
         if (!js_LookupProperty(cx, obj, ATOM_TO_JSID(atom), &pobj, &prop))
             return JS_FALSE;
+        if (prop)
+            pobj->dropProperty(cx, prop);
     }
     return JS_TRUE;
 }
@@ -537,14 +551,9 @@ ValueToShortSource(JSContext *cx, jsval v)
     JSString *str;
 
     /* Avoid toSource bloat and fallibility for object types. */
-    if (JSVAL_IS_PRIMITIVE(v))
-        return js_ValueToSource(cx, Valueify(v));
-
-    AutoCompartment ac(cx, JSVAL_TO_OBJECT(v));
-    if (!ac.enter())
-        return NULL;
-
-    if (VALUE_IS_FUNCTION(cx, v)) {
+    if (JSVAL_IS_PRIMITIVE(v)) {
+        str = js_ValueToSource(cx, Valueify(v));
+    } else if (VALUE_IS_FUNCTION(cx, v)) {
         /*
          * XXX Avoid function decompilation bloat for now.
          */
@@ -567,11 +576,6 @@ ValueToShortSource(JSContext *cx, jsval v)
                     JSVAL_TO_OBJECT(v)->getClass()->name);
         str = JS_NewStringCopyZ(cx, buf);
     }
-
-    ac.leave();
-
-    if (!str || !cx->compartment->wrap(cx, &str))
-        return NULL;
     return str;
 }
 
@@ -696,6 +700,12 @@ static JSString *
 FilenameToString(JSContext *cx, const char *filename)
 {
     return JS_NewStringCopyZ(cx, filename);
+}
+
+static const char *
+StringToFilename(JSContext *cx, JSString *str)
+{
+    return js_GetStringBytes(cx, str);
 }
 
 static JSBool
@@ -1034,9 +1044,8 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
 
         /* Make a constructor function for the current name. */
         JSProtoKey protoKey = GetExceptionProtoKey(i);
-        
-        jsid id = ATOM_TO_JSID(cx->runtime->atomState.classAtoms[protoKey]);
-        JSFunction *fun = js_DefineFunction(cx, obj, id, Exception, 1, JSFUN_CONSTRUCTOR);
+        JSAtom *atom = cx->runtime->atomState.classAtoms[protoKey];
+        JSFunction *fun = js_DefineFunction(cx, obj, atom, Exception, 3, JSFUN_CONSTRUCTOR);
         if (!fun)
             return NULL;
         roots[2] = OBJECT_TO_JSVAL(FUN_OBJECT(fun));
@@ -1051,7 +1060,8 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
         }
 
         /* Add the name property to the prototype. */
-        if (!JS_DefineProperty(cx, proto, js_name_str, STRING_TO_JSVAL(JSID_TO_STRING(id)),
+        if (!JS_DefineProperty(cx, proto, js_name_str,
+                               STRING_TO_JSVAL(ATOM_TO_STRING(atom)),
                                NULL, NULL, JSPROP_ENUMERATE)) {
             return NULL;
         }
@@ -1241,42 +1251,44 @@ js_ReportUncaughtException(JSContext *cx)
 
     /* XXX L10N angels cry once again (see also jsemit.c, /L10N gaffes/) */
     str = js_ValueToString(cx, Valueify(exn));
-    JSAutoByteString bytesStorage;
     if (!str) {
         bytes = "unknown (can't convert to string)";
     } else {
         roots[1] = STRING_TO_JSVAL(str);
-        if (!bytesStorage.encode(cx, str))
+        bytes = js_GetStringBytes(cx, str);
+        if (!bytes)
             return false;
-        bytes = bytesStorage.ptr();
     }
 
-    JSAutoByteString filename;
     if (!reportp && exnObject && exnObject->getClass() == &js_ErrorClass) {
+        const char *filename;
+
         if (!JS_GetProperty(cx, exnObject, js_message_str, &roots[2]))
             return false;
         if (JSVAL_IS_STRING(roots[2])) {
-            bytesStorage.clear();
-            if (!bytesStorage.encode(cx, str))
+            bytes = js_GetStringBytes(cx, JSVAL_TO_STRING(roots[2]));
+            if (!bytes)
                 return false;
-            bytes = bytesStorage.ptr();
         }
 
         if (!JS_GetProperty(cx, exnObject, js_fileName_str, &roots[3]))
             return false;
         str = js_ValueToString(cx, Valueify(roots[3]));
-        if (!str || !filename.encode(cx, str))
+        if (!str)
+            return false;
+        filename = StringToFilename(cx, str);
+        if (!filename)
             return false;
 
         if (!JS_GetProperty(cx, exnObject, js_lineNumber_str, &roots[4]))
             return false;
         uint32_t lineno;
-        if (!ValueToECMAUint32(cx, Valueify(roots[4]), &lineno))
+        if (!ValueToECMAUint32 (cx, Valueify(roots[4]), &lineno))
             return false;
 
         reportp = &report;
         PodZero(&report);
-        report.filename = filename.ptr();
+        report.filename = filename;
         report.lineno = (uintN) lineno;
         if (JSVAL_IS_STRING(roots[2])) {
             report.ucmessage = js_GetStringChars(cx, JSVAL_TO_STRING(roots[2]));

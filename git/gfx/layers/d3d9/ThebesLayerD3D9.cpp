@@ -225,7 +225,15 @@ ThebesLayerD3D9::RenderLayer()
     mValidRegion = mVisibleRegion;
   }
 
-  SetShaderTransformAndOpacity();
+  device()->SetVertexShaderConstantF(CBmLayerTransform, &mTransform._11, 4);
+
+  float opacity[4];
+  /*
+   * We always upload a 4 component float, but the shader will use only the
+   * first component since it's declared as a 'float'.
+   */
+  opacity[0] = GetOpacity();
+  device()->SetPixelShaderConstantF(0, opacity, 1);
 
 #ifdef CAIRO_HAS_D2D_SURFACE
   if (mD2DSurface && CanUseOpaqueSurface()) {
@@ -353,14 +361,9 @@ ThebesLayerD3D9::DrawRegion(const nsIntRegion &aRegion)
   nsRefPtr<gfxASurface> destinationSurface;
 
   nsRefPtr<IDirect3DTexture9> tmpTexture;
-  hr = device()->CreateTexture(bounds.width, bounds.height, 1,
-                               0, fmt,
-                               D3DPOOL_SYSTEMMEM, getter_AddRefs(tmpTexture), NULL);
-
-  if (FAILED(hr)) {
-    ReportFailure(NS_LITERAL_CSTRING("Failed to create temporary texture in system memory."), hr);
-    return;
-  }
+  device()->CreateTexture(bounds.width, bounds.height, 1,
+                          0, fmt,
+                          D3DPOOL_SYSTEMMEM, getter_AddRefs(tmpTexture), NULL);
 
   nsRefPtr<IDirect3DSurface9> surf;
   HDC dc;

@@ -59,19 +59,17 @@ public:
   virtual void RemoveChild(Layer* aChild);
 
   /* LayerD3D10 implementation */
-  virtual Layer* GetLayer();
+  Layer* GetLayer();
 
-  virtual LayerD3D10* GetFirstChildD3D10();
+  LayerD3D10* GetFirstChildD3D10();
 
-  virtual void RenderLayer();
-  virtual void Validate();
+  void RenderLayer(float aOpacity, const gfx3DMatrix &aTransform);
+  void Validate();
 
   virtual void LayerManagerDestroyed();
 
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
-  {
-    DefaultComputeEffectiveTransforms(aTransformToSurface);
-  }
+private:
+  bool ShouldUseIntermediate(float aOpacity, const gfx3DMatrix &aTransform);
 };
 
 } /* layers */

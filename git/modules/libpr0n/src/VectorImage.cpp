@@ -210,9 +210,9 @@ VectorImage::VectorImage(imgStatusTracker* aStatusTracker) :
   Image(aStatusTracker), // invoke superclass's constructor
   mRestrictedRegion(0, 0, 0, 0),
   mLastRenderedSize(0, 0),
+  mAnimationMode(kNormalAnimMode),
   mIsInitialized(PR_FALSE),
   mIsFullyLoaded(PR_FALSE),
-  mIsDrawing(PR_FALSE),
   mHaveAnimations(PR_FALSE),
   mHaveRestrictedRegion(PR_FALSE)
 {
@@ -275,9 +275,14 @@ VectorImage::StartAnimation()
   if (mError)
     return NS_ERROR_FAILURE;
 
-  NS_ABORT_IF_FALSE(ShouldAnimate(), "Should not animate!");
+  if (mAnimationMode == kDontAnimMode ||
+      !mIsFullyLoaded || !mHaveAnimations) {
+    // Animation disabled, or helper-document not finished or lacks animations.
+    return NS_OK;
+  }
 
   mSVGDocumentWrapper->StartAnimation();
+
   return NS_OK;
 }
 
@@ -287,17 +292,13 @@ VectorImage::StopAnimation()
   if (mError)
     return NS_ERROR_FAILURE;
 
-  NS_ABORT_IF_FALSE(mIsFullyLoaded && mHaveAnimations,
-                    "Should not have been animating!");
+  if (!mIsFullyLoaded || !mHaveAnimations) {
+    return NS_OK;
+  }
 
   mSVGDocumentWrapper->StopAnimation();
-  return NS_OK;
-}
 
-PRBool
-VectorImage::ShouldAnimate()
-{
-  return Image::ShouldAnimate() && mIsFullyLoaded && mHaveAnimations;
+  return NS_OK;
 }
 
 //------------------------------------------------------------------------------
@@ -346,18 +347,8 @@ VectorImage::GetHeight(PRInt32* aHeight)
 NS_IMETHODIMP
 VectorImage::GetType(PRUint16* aType)
 {
-  NS_ENSURE_ARG_POINTER(aType);
-
-  *aType = GetType();
+  *aType = imgIContainer::TYPE_VECTOR;
   return NS_OK;
-}
-
-//******************************************************************************
-/* [noscript, notxpcom] PRUint16 GetType(); */
-NS_IMETHODIMP_(PRUint16)
-VectorImage::GetType()
-{
-  return imgIContainer::TYPE_VECTOR;
 }
 
 //******************************************************************************
@@ -390,13 +381,8 @@ VectorImage::GetFrame(PRUint32 aWhichFrame,
                       PRUint32 aFlags,
                       gfxASurface** _retval)
 {
-  NS_ENSURE_ARG_POINTER(_retval);
-  nsRefPtr<gfxImageSurface> surface;
-  nsresult rv = CopyFrame(aWhichFrame, aFlags, getter_AddRefs(surface));
-  if (NS_SUCCEEDED(rv)) {
-    *_retval = surface.forget().get();
-  }
-  return rv;
+  NS_NOTYETIMPLEMENTED("VectorImage::GetFrame");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 //******************************************************************************
@@ -407,56 +393,14 @@ VectorImage::CopyFrame(PRUint32 aWhichFrame,
                        PRUint32 aFlags,
                        gfxImageSurface** _retval)
 {
-  NS_ENSURE_ARG_POINTER(_retval);
-  // XXXdholbert NOTE: Currently assuming FRAME_CURRENT for simplicity.
-  // Could handle FRAME_FIRST by saving helper-doc current time, seeking
-  // to time 0, rendering, and then seeking to saved time.
   if (aWhichFrame > FRAME_MAX_VALUE)
     return NS_ERROR_INVALID_ARG;
 
   if (mError)
     return NS_ERROR_FAILURE;
 
-  // Look up height & width
-  // ----------------------
-  nsIntSize imageIntSize;
-  if (!mSVGDocumentWrapper->GetWidthOrHeight(SVGDocumentWrapper::eWidth,
-                                             imageIntSize.width) ||
-      !mSVGDocumentWrapper->GetWidthOrHeight(SVGDocumentWrapper::eHeight,
-                                             imageIntSize.height)) {
-    // We'll get here if our SVG doc has a percent-valued width or height.
-    return NS_ERROR_FAILURE;
-  }
-
-  // Create a surface that we'll ultimately return
-  // ---------------------------------------------
-  // Make our surface the size of what will ultimately be drawn to it.
-  // (either the full image size, or the restricted region)
-  gfxIntSize surfaceSize;
-  if (mHaveRestrictedRegion) {
-    surfaceSize.width = mRestrictedRegion.width;
-    surfaceSize.height = mRestrictedRegion.height;
-  } else {
-    surfaceSize.width = imageIntSize.width;
-    surfaceSize.height = imageIntSize.height;
-  }
-
-  nsRefPtr<gfxImageSurface> surface =
-    new gfxImageSurface(surfaceSize, gfxASurface::ImageFormatARGB32);
-  nsRefPtr<gfxContext> context = new gfxContext(surface);
-
-  // Draw to our surface!
-  // --------------------
-  nsresult rv = Draw(context, gfxPattern::FILTER_NEAREST, gfxMatrix(),
-                     gfxRect(gfxPoint(0,0), gfxIntSize(imageIntSize.width,
-                                                       imageIntSize.height)),
-                     nsIntRect(nsIntPoint(0,0), imageIntSize),
-                     imageIntSize, aFlags);
-  if (NS_SUCCEEDED(rv)) {
-    *_retval = surface.forget().get();
-  }
-
-  return rv;
+  NS_NOTYETIMPLEMENTED("VectorImage::CopyFrame");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 //******************************************************************************
@@ -525,15 +469,10 @@ VectorImage::Draw(gfxContext* aContext,
                   const nsIntSize& aViewportSize,
                   PRUint32 aFlags)
 {
-  NS_ENSURE_ARG_POINTER(aContext);
   if (mError || !mIsFullyLoaded)
     return NS_ERROR_FAILURE;
 
-  if (mIsDrawing) {
-    NS_WARNING("Refusing to make re-entrant call to VectorImage::Draw");
-    return NS_ERROR_FAILURE;
-  }
-  mIsDrawing = PR_TRUE;
+  NS_ENSURE_ARG_POINTER(aContext);
 
   if (aViewportSize != mLastRenderedSize) {
     mSVGDocumentWrapper->UpdateViewportBounds(aViewportSize);
@@ -568,7 +507,6 @@ VectorImage::Draw(gfxContext* aContext,
                              subimage, sourceRect, imageRect, aFill,
                              gfxASurface::ImageFormatARGB32, aFilter);
 
-  mIsDrawing = PR_FALSE;
   return NS_OK;
 }
 
@@ -604,6 +542,46 @@ NS_IMETHODIMP
 VectorImage::UnlockImage()
 {
   // This method is for image-discarding, which only applies to RasterImages.
+  return NS_OK;
+}
+
+//******************************************************************************
+/* attribute unsigned short animationMode; */
+NS_IMETHODIMP
+VectorImage::GetAnimationMode(PRUint16* aAnimationMode)
+{
+  if (mError)
+    return NS_ERROR_FAILURE;
+
+  NS_ENSURE_ARG_POINTER(aAnimationMode);
+  
+  *aAnimationMode = mAnimationMode;
+  return NS_OK;
+}
+
+//******************************************************************************
+/* attribute unsigned short animationMode; */
+NS_IMETHODIMP
+VectorImage::SetAnimationMode(PRUint16 aAnimationMode)
+{
+  // NOTE: This is just a simpler form of RasterImage::SetAnimationMode.
+  // (Simpler because SVG animations don't have a concept of "loop once" mode)
+  if (mError)
+    return NS_ERROR_FAILURE;
+
+  NS_ASSERTION(aAnimationMode == kNormalAnimMode ||
+               aAnimationMode == kDontAnimMode ||
+               aAnimationMode == kLoopOnceAnimMode,
+               "An unrecognized Animation Mode is being set!");
+
+  mAnimationMode = aAnimationMode;
+
+  if (mAnimationMode == kDontAnimMode) {
+    StopAnimation();
+  } else { // kNormalAnimMode or kLoopOnceAnimMode (treated the same here)
+    StartAnimation();
+  }
+
   return NS_OK;
 }
 
@@ -670,6 +648,12 @@ VectorImage::OnStopRequest(nsIRequest* aRequest, nsISupports* aCtxt,
 
   mIsFullyLoaded = PR_TRUE;
   mHaveAnimations = mSVGDocumentWrapper->IsAnimated();
+
+  if (mHaveAnimations && mAnimationMode == kDontAnimMode) {
+    // We're not supposed to be animating -- stop any animation before our
+    // SVG document's timeline gets a chance to progress.
+    mSVGDocumentWrapper->StopAnimation();
+  }
 
 #ifdef MOZ_ENABLE_LIBXUL
   // Start listening to our image for rendering updates

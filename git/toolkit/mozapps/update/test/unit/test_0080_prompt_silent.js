@@ -8,12 +8,11 @@
  * preference is true.
  */
 
-function run_test() {
-  do_test_pending();
-  do_register_cleanup(end_test);
+var gCheckFunc;
 
-  logTestInfo("testing nsIUpdatePrompt notifications should not be seen " +
-              "when the " + PREF_APP_UPDATE_SILENT + " preference is true");
+function run_test() {
+  dump("Testing: nsIUpdatePrompt notifications should not be seen when the " +
+       PREF_APP_UPDATE_SILENT + " preference is true\n");
 
   removeUpdateDirsAndFiles();
   setUpdateChannel();
@@ -28,7 +27,7 @@ function run_test() {
 
   standardInit();
 
-  logTestInfo("testing showUpdateInstalled should not call openWindow");
+  dump("showUpdateInstalled should not call openWindow\n");
   Services.prefs.setBoolPref(PREF_APP_UPDATE_SHOW_INSTALLED_UI, true);
 
   gCheckFunc = check_showUpdateInstalled;
@@ -37,7 +36,7 @@ function run_test() {
   // didn't throw and otherwise it would report no tests run.
   do_check_true(true);
 
-  logTestInfo("testing showUpdateAvailable should not call openWindow");
+  dump("showUpdateAvailable should not call openWindow\n");
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(""), false);
   let patches = getLocalPatchString(null, null, null, null, null, null,
                                     STATE_FAILED);
@@ -53,7 +52,7 @@ function run_test() {
   // didn't throw and otherwise it would report no tests run.
   do_check_true(true);
 
-  logTestInfo("testing showUpdateError should not call getNewPrompter");
+  dump("showUpdateError should not call getNewPrompter\n");
   gCheckFunc = check_showUpdateError;
   update.errorCode = WRITE_ERROR;
   gUP.showUpdateError(update);
@@ -64,11 +63,6 @@ function run_test() {
   let registrar = Components.manager.QueryInterface(AUS_Ci.nsIComponentRegistrar);
   registrar.unregisterFactory(Components.ID("{1dfeb90a-2193-45d5-9cb8-864928b2af55}"),
                               WindowWatcherFactory);
-
-  do_test_finished();
-}
-
-function end_test() {
   cleanUp();
 }
 

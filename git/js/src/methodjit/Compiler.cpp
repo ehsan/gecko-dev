@@ -23,7 +23,6 @@
  * Contributor(s):
  *   David Anderson <danderson@mozilla.com>
  *   David Mandelin <dmandelin@mozilla.com>
- *   Jan de Mooij <jandemooij@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -51,7 +50,6 @@
 #include "assembler/jit/ExecutableAllocator.h"
 #include "assembler/assembler/LinkBuffer.h"
 #include "FrameState-inl.h"
-#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 #include "InlineFrameAssembler.h"
 #include "jscompartment.h"
@@ -62,17 +60,11 @@
 
 using namespace js;
 using namespace js::mjit;
-#if defined(JS_POLYIC) || defined(JS_MONOIC)
+#if defined JS_POLYIC
 using namespace js::mjit::ic;
 #endif
 
-#define RETURN_IF_OOM(retval)                                   \
-    JS_BEGIN_MACRO                                              \
-        if (oomInVector || masm.oom() || stubcc.masm.oom()) {   \
-            js_ReportOutOfMemory(cx);                           \
-            return retval;                                      \
-        }                                                       \
-    JS_END_MACRO
+#define ADD_CALLSITE(stub) addCallSite(__LINE__, (stub))
 
 #if defined(JS_METHODJIT_SPEW)
 static const char *OpcodeNames[] = {
@@ -82,68 +74,25 @@ static const char *OpcodeNames[] = {
 };
 #endif
 
-mjit::Compiler::Compiler(JSContext *cx, JSStackFrame *fp)
-  : BaseCompiler(cx),
-    fp(fp),
-    script(fp->script()),
-    scopeChain(&fp->scopeChain()),
-    globalObj(scopeChain->getGlobal()),
-    fun(fp->isFunctionFrame() && !fp->isEvalFrame()
-        ? fp->fun()
-        : NULL),
-    isConstructing(fp->isConstructing()),
-    analysis(NULL), jumpMap(NULL), savedTraps(NULL),
-    frame(cx, script, fun, masm),
-    branchPatches(CompilerAllocPolicy(cx, *thisFromCtor())),
+mjit::Compiler::Compiler(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain)
+  : cx(cx), script(script), scopeChain(scopeChain), globalObj(scopeChain->getGlobal()), fun(fun),
+    analysis(cx, script), jumpMap(NULL), frame(cx, script, masm),
+    branchPatches(ContextAllocPolicy(cx)),
 #if defined JS_MONOIC
-    mics(CompilerAllocPolicy(cx, *thisFromCtor())),
-    callICs(CompilerAllocPolicy(cx, *thisFromCtor())),
-    equalityICs(CompilerAllocPolicy(cx, *thisFromCtor())),
-    traceICs(CompilerAllocPolicy(cx, *thisFromCtor())),
+    mics(ContextAllocPolicy(cx)),
+    callICs(ContextAllocPolicy(cx)),
 #endif
 #if defined JS_POLYIC
-    pics(CompilerAllocPolicy(cx, *thisFromCtor())), 
-    getElemICs(CompilerAllocPolicy(cx, *thisFromCtor())),
-    setElemICs(CompilerAllocPolicy(cx, *thisFromCtor())),
+    pics(ContextAllocPolicy(cx)), 
 #endif
-    callPatches(CompilerAllocPolicy(cx, *thisFromCtor())),
-    callSites(CompilerAllocPolicy(cx, *thisFromCtor())), 
-    doubleList(CompilerAllocPolicy(cx, *thisFromCtor())),
-    stubcc(cx, *thisFromCtor(), frame, script),
-    debugMode_(cx->compartment->debugMode),
+    callPatches(ContextAllocPolicy(cx)),
+    callSites(ContextAllocPolicy(cx)), 
+    doubleList(ContextAllocPolicy(cx)),
+    stubcc(cx, *this, frame, script)
 #if defined JS_TRACER
-    addTraceHints(cx->traceJitEnabled),
+    ,addTraceHints(cx->traceJitEnabled)
 #endif
-    oomInVector(false),
-    applyTricks(NoApplyTricks)
 {
-}
-
-CompileStatus
-mjit::Compiler::compile()
-{
-    JS_ASSERT_IF(isConstructing, !script->jitCtor);
-    JS_ASSERT_IF(!isConstructing, !script->jitNormal);
-
-    JITScript **jit = isConstructing ? &script->jitCtor : &script->jitNormal;
-    void **checkAddr = isConstructing
-                       ? &script->jitArityCheckCtor
-                       : &script->jitArityCheckNormal;
-
-    CompileStatus status = performCompilation(jit);
-    if (status == Compile_Okay) {
-        // Global scripts don't have an arity check entry. That's okay, we
-        // just need a pointer so the VM can quickly decide whether this
-        // method can be JIT'd or not. Global scripts cannot be IC'd, since
-        // they have no functions, so there is no danger.
-        *checkAddr = (*jit)->arityCheckEntry
-                     ? (*jit)->arityCheckEntry
-                     : (*jit)->invokeEntry;
-    } else {
-        *checkAddr = JS_UNJITTABLE_SCRIPT;
-    }
-
-    return status;
 }
 
 #define CHECK_STATUS(expr)              \
@@ -154,26 +103,23 @@ mjit::Compiler::compile()
     JS_END_MACRO
 
 CompileStatus
-mjit::Compiler::performCompilation(JITScript **jitp)
+mjit::Compiler::Compile()
 {
+    JS_ASSERT(!script->ncode);
+
     JaegerSpew(JSpew_Scripts, "compiling script (file \"%s\") (line \"%d\") (length \"%d\")\n",
                script->filename, script->lineno, script->length);
 
-    analyze::Script analysis;
-    PodZero(&analysis);
-
-    analysis.analyze(cx, script);
-
-    if (analysis.OOM())
-        return Compile_Error;
-    if (analysis.failed()) {
+    /* Perform bytecode analysis. */
+    if (!analysis.analyze()) {
+        if (analysis.OOM())
+            return Compile_Error;
         JaegerSpew(JSpew_Abort, "couldn't analyze bytecode; probably switchX or OOM\n");
         return Compile_Abort;
     }
 
-    this->analysis = &analysis;
-
-    if (!frame.init())
+    uint32 nargs = fun ? fun->nargs : 0;
+    if (!frame.init(nargs) || !stubcc.init(nargs))
         return Compile_Abort;
 
     jumpMap = (Label *)cx->malloc(sizeof(Label) * script->length);
@@ -193,18 +139,16 @@ mjit::Compiler::performCompilation(JITScript **jitp)
     PC = script->code;
 
 #ifdef JS_METHODJIT
-    script->debugMode = debugMode();
+    script->debugMode = cx->compartment->debugMode;
 #endif
 
     for (uint32 i = 0; i < script->nClosedVars; i++)
         frame.setClosedVar(script->getClosedVar(i));
-    for (uint32 i = 0; i < script->nClosedArgs; i++)
-        frame.setClosedArg(script->getClosedArg(i));
 
     CHECK_STATUS(generatePrologue());
     CHECK_STATUS(generateMethod());
     CHECK_STATUS(generateEpilogue());
-    CHECK_STATUS(finishThisUp(jitp));
+    CHECK_STATUS(finishThisUp());
 
 #ifdef JS_METHODJIT_SPEW
     prof.stop();
@@ -212,7 +156,7 @@ mjit::Compiler::performCompilation(JITScript **jitp)
 #endif
 
     JaegerSpew(JSpew_Scripts, "successfully compiled (code \"%p\") (size \"%ld\")\n",
-               (*jitp)->code.m_code.executableAddress(), (*jitp)->code.m_size);
+               (void*)script->ncode, masm.size() + stubcc.size());
 
     return Compile_Okay;
 }
@@ -222,42 +166,21 @@ mjit::Compiler::performCompilation(JITScript **jitp)
 mjit::Compiler::~Compiler()
 {
     cx->free(jumpMap);
-    cx->free(savedTraps);
 }
 
 CompileStatus JS_NEVER_INLINE
-mjit::TryCompile(JSContext *cx, JSStackFrame *fp)
+mjit::TryCompile(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain)
 {
-    JS_ASSERT(cx->fp() == fp);
+    Compiler cc(cx, script, fun, scopeChain);
 
-#if JS_HAS_SHARP_VARS
-    if (fp->script()->hasSharps)
-        return Compile_Abort;
-#endif
+    JS_ASSERT(!script->ncode);
+    JS_ASSERT(!script->isEmpty());
 
-    // Ensure that constructors have at least one slot.
-    if (fp->isConstructing() && !fp->script()->nslots)
-        fp->script()->nslots++;
+    CompileStatus status = cc.Compile();
+    if (status != Compile_Okay)
+        script->ncode = JS_UNJITTABLE_METHOD;
 
-    Compiler cc(cx, fp);
-
-    return cc.compile();
-}
-
-bool
-mjit::Compiler::loadOldTraps(const Vector<CallSite> &sites)
-{
-    savedTraps = (bool *)cx->calloc(sizeof(bool) * script->length);
-    if (!savedTraps)
-        return false;
-    
-    for (size_t i = 0; i < sites.length(); i++) {
-        const CallSite &site = sites[i];
-        if (site.isTrap())
-            savedTraps[site.pcOffset] = true;
-    }
-
-    return true;
+    return status;
 }
 
 CompileStatus
@@ -301,7 +224,7 @@ mjit::Compiler::generatePrologue()
             /* Slow path - call the arity check function. Returns new fp. */
             stubcc.masm.storePtr(ImmPtr(fun), Address(JSFrameReg, JSStackFrame::offsetOfExec()));
             stubcc.masm.storePtr(JSFrameReg, FrameAddress(offsetof(VMFrame, regs.fp)));
-            OOL_STUBCALL(stubs::FixupArity);
+            stubcc.call(stubs::FixupArity);
             stubcc.masm.move(Registers::ReturnReg, JSFrameReg);
             stubcc.crossJump(stubcc.masm.jump(), fastPath);
         }
@@ -319,51 +242,30 @@ mjit::Compiler::generatePrologue()
         /* If the stack check fails... */
         {
             stubcc.linkExitDirect(stackCheck, stubcc.masm.label());
-            OOL_STUBCALL(stubs::HitStackQuota);
+            stubcc.call(stubs::HitStackQuota);
             stubcc.crossJump(stubcc.masm.jump(), masm.label());
         }
 
-        /*
-         * Set locals to undefined, as in initCallFrameLatePrologue.
-         * Skip locals which aren't closed and are known to be defined before used,
-         * :FIXME: bug 604541: write undefined if we might be using the tracer, so it works.
-         */
+        /* Fill in the members that initCallFrameLatePrologue does. */
+        masm.storeValue(UndefinedValue(), Address(JSFrameReg, JSStackFrame::offsetOfReturnValue()));
+
+        /* Set cx->fp */
+        masm.loadPtr(FrameAddress(offsetof(VMFrame, cx)), Registers::ReturnReg);
+
+        /* Set locals to undefined. */
         for (uint32 i = 0; i < script->nfixed; i++) {
-            if (analysis->localHasUseBeforeDef(i) || addTraceHints) {
-                Address local(JSFrameReg, sizeof(JSStackFrame) + i * sizeof(Value));
-                masm.storeValue(UndefinedValue(), local);
-            }
+            Address local(JSFrameReg, sizeof(JSStackFrame) + i * sizeof(Value));
+            masm.storeValue(UndefinedValue(), local);
         }
 
         /* Create the call object. */
         if (fun->isHeavyweight()) {
             prepareStubCall(Uses(0));
-            INLINE_STUBCALL(stubs::GetCallObject);
+            stubCall(stubs::GetCallObject);
         }
 
         j.linkTo(masm.label(), &masm);
-
-        if (analysis->usesScopeChain() && !fun->isHeavyweight()) {
-            /*
-             * Load the scope chain into the frame if necessary.  The scope chain
-             * is always set for global and eval frames, and will have been set by
-             * GetCallObject for heavyweight function frames.
-             */
-            RegisterID t0 = Registers::ReturnReg;
-            Jump hasScope = masm.branchTest32(Assembler::NonZero,
-                                              FrameFlagsAddress(), Imm32(JSFRAME_HAS_SCOPECHAIN));
-            masm.loadPayload(Address(JSFrameReg, JSStackFrame::offsetOfCallee(fun)), t0);
-            masm.loadPtr(Address(t0, offsetof(JSObject, parent)), t0);
-            masm.storePtr(t0, Address(JSFrameReg, JSStackFrame::offsetOfScopeChain()));
-            hasScope.linkTo(masm.label(), &masm);
-        }
     }
-
-    if (isConstructing)
-        constructThis();
-
-    if (debugMode() || Probes::callTrackingActive(cx))
-        INLINE_STUBCALL(stubs::EnterScript);
 
     return Compile_Okay;
 }
@@ -375,10 +277,8 @@ mjit::Compiler::generateEpilogue()
 }
 
 CompileStatus
-mjit::Compiler::finishThisUp(JITScript **jitp)
+mjit::Compiler::finishThisUp()
 {
-    RETURN_IF_OOM(Compile_Error);
-
     for (size_t i = 0; i < branchPatches.length(); i++) {
         Label label = labelOf(branchPatches[i].pc);
         branchPatches[i].jump.linkTo(label, &masm);
@@ -394,7 +294,7 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
                        stubcc.size() +
                        doubleList.length() * sizeof(double);
 
-    JSC::ExecutablePool *execPool = getExecPool(script, totalSize);
+    JSC::ExecutablePool *execPool = getExecPool(totalSize);
     if (!execPool)
         return Compile_Abort;
 
@@ -402,29 +302,18 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     JSC::ExecutableAllocator::makeWritable(result, totalSize);
     masm.executableCopy(result);
     stubcc.masm.executableCopy(result + masm.size());
-    
+
     JSC::LinkBuffer fullCode(result, totalSize);
     JSC::LinkBuffer stubCode(result + masm.size(), stubcc.size());
 
-    size_t nNmapLive = 0;
-    for (size_t i = 0; i < script->length; i++) {
-        analyze::Bytecode *opinfo = analysis->maybeCode(i);
-        if (opinfo && opinfo->safePoint)
-            nNmapLive++;
-    }
-
     size_t totalBytes = sizeof(JITScript) +
-                        sizeof(NativeMapEntry) * nNmapLive +
+                        sizeof(void *) * script->length +
 #if defined JS_MONOIC
                         sizeof(ic::MICInfo) * mics.length() +
                         sizeof(ic::CallICInfo) * callICs.length() +
-                        sizeof(ic::EqualityICInfo) * equalityICs.length() +
-                        sizeof(ic::TraceICInfo) * traceICs.length() +
 #endif
 #if defined JS_POLYIC
                         sizeof(ic::PICInfo) * pics.length() +
-                        sizeof(ic::GetElementIC) * getElemICs.length() +
-                        sizeof(ic::SetElementIC) * setElemICs.length() +
 #endif
                         sizeof(CallSite) * callSites.length();
 
@@ -434,311 +323,189 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
         return Compile_Error;
     }
 
-    JITScript *jit = new(cursor) JITScript;
+    script->jit = (JITScript *)cursor;
     cursor += sizeof(JITScript);
 
-    jit->code = JSC::MacroAssemblerCodeRef(result, execPool, masm.size() + stubcc.size());
-    jit->nCallSites = callSites.length();
-    jit->invokeEntry = result;
+    script->jit->execPool = execPool;
+    script->jit->inlineLength = masm.size();
+    script->jit->outOfLineLength = stubcc.size();
+    script->jit->nCallSites = callSites.length();
+    script->jit->invoke = result;
 
     /* Build the pc -> ncode mapping. */
-    NativeMapEntry *nmap = (NativeMapEntry *)cursor;
-    cursor += sizeof(NativeMapEntry) * nNmapLive;
+    void **nmap = (void **)cursor;
+    script->nmap = nmap;
+    cursor += sizeof(void *) * script->length;
 
-    size_t ix = 0;
-    if (nNmapLive > 0) {
-        for (size_t i = 0; i < script->length; i++) {
-            analyze::Bytecode *opinfo = analysis->maybeCode(i);
-            if (opinfo && opinfo->safePoint) {
-                Label L = jumpMap[i];
-                JS_ASSERT(L.isValid());
-                nmap[ix].bcOff = i;
-                nmap[ix].ncode = (uint8 *)(result + masm.distanceOf(L));
-                ix++;
-            }
+    for (size_t i = 0; i < script->length; i++) {
+        Label L = jumpMap[i];
+        if (analysis[i].safePoint) {
+            JS_ASSERT(L.isValid());
+            nmap[i] = (uint8 *)(result + masm.distanceOf(L));
         }
     }
-    JS_ASSERT(ix == nNmapLive);
 
-    if (fun) {
-        jit->arityCheckEntry = stubCode.locationOf(arityLabel).executableAddress();
-        jit->fastEntry = fullCode.locationOf(invokeLabel).executableAddress();
-    }
+    if (fun)
+        script->jit->arityCheck = stubCode.locationOf(arityLabel).executableAddress();
 
 #if defined JS_MONOIC
-    jit->nMICs = mics.length();
+    script->jit->nMICs = mics.length();
     if (mics.length()) {
-        jit->mics = (ic::MICInfo *)cursor;
+        script->mics = (ic::MICInfo *)cursor;
         cursor += sizeof(ic::MICInfo) * mics.length();
     } else {
-        jit->mics = NULL;
+        script->mics = NULL;
     }
 
-    if (ic::MICInfo *scriptMICs = jit->mics) {
-        for (size_t i = 0; i < mics.length(); i++) {
-            scriptMICs[i].kind = mics[i].kind;
-            scriptMICs[i].entry = fullCode.locationOf(mics[i].entry);
-            switch (mics[i].kind) {
-              case ic::MICInfo::GET:
-              case ic::MICInfo::SET:
-                scriptMICs[i].load = fullCode.locationOf(mics[i].load);
-                scriptMICs[i].shape = fullCode.locationOf(mics[i].shape);
-                scriptMICs[i].stubCall = stubCode.locationOf(mics[i].call);
-                scriptMICs[i].stubEntry = stubCode.locationOf(mics[i].stubEntry);
-                scriptMICs[i].u.name.typeConst = mics[i].u.name.typeConst;
-                scriptMICs[i].u.name.dataConst = mics[i].u.name.dataConst;
-                scriptMICs[i].u.name.usePropertyCache = mics[i].u.name.usePropertyCache;
+    for (size_t i = 0; i < mics.length(); i++) {
+        script->mics[i].kind = mics[i].kind;
+        script->mics[i].entry = fullCode.locationOf(mics[i].entry);
+        switch (mics[i].kind) {
+          case ic::MICInfo::GET:
+          case ic::MICInfo::SET:
+            script->mics[i].load = fullCode.locationOf(mics[i].load);
+            script->mics[i].shape = fullCode.locationOf(mics[i].shape);
+            script->mics[i].stubCall = stubCode.locationOf(mics[i].call);
+            script->mics[i].stubEntry = stubCode.locationOf(mics[i].stubEntry);
+            script->mics[i].u.name.typeConst = mics[i].u.name.typeConst;
+            script->mics[i].u.name.dataConst = mics[i].u.name.dataConst;
 #if defined JS_PUNBOX64
-                scriptMICs[i].patchValueOffset = mics[i].patchValueOffset;
+            script->mics[i].patchValueOffset = mics[i].patchValueOffset;
 #endif
-                break;
-              default:
-                JS_NOT_REACHED("Bad MIC kind");
-            }
-            stubCode.patch(mics[i].addrLabel, &scriptMICs[i]);
+            break;
+          case ic::MICInfo::TRACER: {
+            uint32 offs = uint32(mics[i].jumpTarget - script->code);
+            JS_ASSERT(jumpMap[offs].isValid());
+            script->mics[i].traceHint = fullCode.locationOf(mics[i].traceHint);
+            script->mics[i].load = fullCode.locationOf(jumpMap[offs]);
+            script->mics[i].u.hints.hasSlowTraceHintOne = mics[i].slowTraceHintOne.isSet();
+            if (mics[i].slowTraceHintOne.isSet())
+                script->mics[i].slowTraceHintOne = stubCode.locationOf(mics[i].slowTraceHintOne.get());
+            script->mics[i].u.hints.hasSlowTraceHintTwo = mics[i].slowTraceHintTwo.isSet();
+            if (mics[i].slowTraceHintTwo.isSet())
+                script->mics[i].slowTraceHintTwo = stubCode.locationOf(mics[i].slowTraceHintTwo.get());
+            break;
+          }
+          default:
+            JS_NOT_REACHED("Bad MIC kind");
         }
     }
 
-    jit->nCallICs = callICs.length();
+    script->jit->nCallICs = callICs.length();
     if (callICs.length()) {
-        jit->callICs = (ic::CallICInfo *)cursor;
+        script->callICs = (ic::CallICInfo *)cursor;
         cursor += sizeof(ic::CallICInfo) * callICs.length();
     } else {
-        jit->callICs = NULL;
+        script->callICs = NULL;
     }
 
-    if (ic::CallICInfo *cics = jit->callICs) {
-        for (size_t i = 0; i < callICs.length(); i++) {
-            cics[i].reset();
-            cics[i].funGuard = fullCode.locationOf(callICs[i].funGuard);
-            cics[i].funJump = fullCode.locationOf(callICs[i].funJump);
-            cics[i].slowPathStart = stubCode.locationOf(callICs[i].slowPathStart);
+    for (size_t i = 0; i < callICs.length(); i++) {
+        script->callICs[i].reset();
+        script->callICs[i].funGuard = fullCode.locationOf(callICs[i].funGuard);
+        script->callICs[i].funJump = fullCode.locationOf(callICs[i].funJump);
+        script->callICs[i].slowPathStart = stubCode.locationOf(callICs[i].slowPathStart);
 
-            /* Compute the hot call offset. */
-            uint32 offset = fullCode.locationOf(callICs[i].hotJump) -
-                            fullCode.locationOf(callICs[i].funGuard);
-            cics[i].hotJumpOffset = offset;
-            JS_ASSERT(cics[i].hotJumpOffset == offset);
+        /* Compute the hot call offset. */
+        uint32 offset = fullCode.locationOf(callICs[i].hotJump) -
+                        fullCode.locationOf(callICs[i].funGuard);
+        script->callICs[i].hotJumpOffset = offset;
+        JS_ASSERT(script->callICs[i].hotJumpOffset == offset);
 
-            /* Compute the join point offset. */
-            offset = fullCode.locationOf(callICs[i].joinPoint) -
-                     fullCode.locationOf(callICs[i].funGuard);
-            cics[i].joinPointOffset = offset;
-            JS_ASSERT(cics[i].joinPointOffset == offset);
-                                            
-            /* Compute the OOL call offset. */
-            offset = stubCode.locationOf(callICs[i].oolCall) -
-                     stubCode.locationOf(callICs[i].slowPathStart);
-            cics[i].oolCallOffset = offset;
-            JS_ASSERT(cics[i].oolCallOffset == offset);
+        /* Compute the join point offset. */
+        offset = fullCode.locationOf(callICs[i].joinPoint) -
+                 fullCode.locationOf(callICs[i].funGuard);
+        script->callICs[i].joinPointOffset = offset;
+        JS_ASSERT(script->callICs[i].joinPointOffset == offset);
+                                        
+        /* Compute the OOL call offset. */
+        offset = stubCode.locationOf(callICs[i].oolCall) -
+                 stubCode.locationOf(callICs[i].slowPathStart);
+        script->callICs[i].oolCallOffset = offset;
+        JS_ASSERT(script->callICs[i].oolCallOffset == offset);
 
-            /* Compute the OOL jump offset. */
-            offset = stubCode.locationOf(callICs[i].oolJump) -
-                     stubCode.locationOf(callICs[i].slowPathStart);
-            cics[i].oolJumpOffset = offset;
-            JS_ASSERT(cics[i].oolJumpOffset == offset);
+        /* Compute the OOL jump offset. */
+        offset = stubCode.locationOf(callICs[i].oolJump) -
+                 stubCode.locationOf(callICs[i].slowPathStart);
+        script->callICs[i].oolJumpOffset = offset;
+        JS_ASSERT(script->callICs[i].oolJumpOffset == offset);
 
-            /* Compute the slow join point offset. */
-            offset = stubCode.locationOf(callICs[i].slowJoinPoint) -
-                     stubCode.locationOf(callICs[i].slowPathStart);
-            cics[i].slowJoinOffset = offset;
-            JS_ASSERT(cics[i].slowJoinOffset == offset);
+        /* Compute the slow join point offset. */
+        offset = stubCode.locationOf(callICs[i].slowJoinPoint) -
+                 stubCode.locationOf(callICs[i].slowPathStart);
+        script->callICs[i].slowJoinOffset = offset;
+        JS_ASSERT(script->callICs[i].slowJoinOffset == offset);
 
-            /* Compute the join point offset for continuing on the hot path. */
-            offset = stubCode.locationOf(callICs[i].hotPathLabel) -
-                     stubCode.locationOf(callICs[i].funGuard);
-            cics[i].hotPathOffset = offset;
-            JS_ASSERT(cics[i].hotPathOffset == offset);
+        /* Compute the join point offset for continuing on the hot path. */
+        offset = stubCode.locationOf(callICs[i].hotPathLabel) -
+                 stubCode.locationOf(callICs[i].funGuard);
+        script->callICs[i].hotPathOffset = offset;
+        JS_ASSERT(script->callICs[i].hotPathOffset == offset);
 
-            cics[i].pc = callICs[i].pc;
-            cics[i].frameSize = callICs[i].frameSize;
-            cics[i].funObjReg = callICs[i].funObjReg;
-            cics[i].funPtrReg = callICs[i].funPtrReg;
-            stubCode.patch(callICs[i].addrLabel1, &cics[i]);
-            stubCode.patch(callICs[i].addrLabel2, &cics[i]);
-        } 
-    }
-
-    jit->nEqualityICs = equalityICs.length();
-    if (equalityICs.length()) {
-        jit->equalityICs = (ic::EqualityICInfo *)cursor;
-        cursor += sizeof(ic::EqualityICInfo) * equalityICs.length();
-    } else {
-        jit->equalityICs = NULL;
-    }
-
-    if (ic::EqualityICInfo *scriptEICs = jit->equalityICs) {
-        for (size_t i = 0; i < equalityICs.length(); i++) {
-            uint32 offs = uint32(equalityICs[i].jumpTarget - script->code);
-            JS_ASSERT(jumpMap[offs].isValid());
-            scriptEICs[i].target = fullCode.locationOf(jumpMap[offs]);
-            scriptEICs[i].stubEntry = stubCode.locationOf(equalityICs[i].stubEntry);
-            scriptEICs[i].stubCall = stubCode.locationOf(equalityICs[i].stubCall);
-            scriptEICs[i].stub = equalityICs[i].stub;
-            scriptEICs[i].lvr = equalityICs[i].lvr;
-            scriptEICs[i].rvr = equalityICs[i].rvr;
-            scriptEICs[i].tempReg = equalityICs[i].tempReg;
-            scriptEICs[i].cond = equalityICs[i].cond;
-            if (equalityICs[i].jumpToStub.isSet())
-                scriptEICs[i].jumpToStub = fullCode.locationOf(equalityICs[i].jumpToStub.get());
-            scriptEICs[i].fallThrough = fullCode.locationOf(equalityICs[i].fallThrough);
-            
-            stubCode.patch(equalityICs[i].addrLabel, &scriptEICs[i]);
-        }
-    }
-
-    jit->nTraceICs = traceICs.length();
-    if (traceICs.length()) {
-        jit->traceICs = (ic::TraceICInfo *)cursor;
-        cursor += sizeof(ic::TraceICInfo) * traceICs.length();
-    } else {
-        jit->traceICs = NULL;
-    }
-
-    if (ic::TraceICInfo *scriptTICs = jit->traceICs) {
-        for (size_t i = 0; i < traceICs.length(); i++) {
-            if (!traceICs[i].initialized)
-                continue;
-
-            uint32 offs = uint32(traceICs[i].jumpTarget - script->code);
-            JS_ASSERT(jumpMap[offs].isValid());
-            scriptTICs[i].traceHint = fullCode.locationOf(traceICs[i].traceHint);
-            scriptTICs[i].jumpTarget = fullCode.locationOf(jumpMap[offs]);
-            scriptTICs[i].stubEntry = stubCode.locationOf(traceICs[i].stubEntry);
-            scriptTICs[i].traceData = NULL;
-#ifdef DEBUG
-            scriptTICs[i].jumpTargetPC = traceICs[i].jumpTarget;
-#endif
-            scriptTICs[i].hasSlowTraceHint = traceICs[i].slowTraceHint.isSet();
-            if (traceICs[i].slowTraceHint.isSet())
-                scriptTICs[i].slowTraceHint = stubCode.locationOf(traceICs[i].slowTraceHint.get());
-            
-            stubCode.patch(traceICs[i].addrLabel, &scriptTICs[i]);
-        }
+        script->callICs[i].pc = callICs[i].pc;
+        script->callICs[i].argc = callICs[i].argc;
+        script->callICs[i].funObjReg = callICs[i].funObjReg;
+        script->callICs[i].funPtrReg = callICs[i].funPtrReg;
+        script->callICs[i].frameDepth = callICs[i].frameDepth;
     }
 #endif /* JS_MONOIC */
 
     for (size_t i = 0; i < callPatches.length(); i++) {
-        CallPatchInfo &patch = callPatches[i];
+        void *joinPoint = fullCode.locationOf(callPatches[i].joinPoint).executableAddress();
 
-        if (patch.hasFastNcode)
-            fullCode.patch(patch.fastNcodePatch, fullCode.locationOf(patch.joinPoint));
-        if (patch.hasSlowNcode)
-            stubCode.patch(patch.slowNcodePatch, fullCode.locationOf(patch.joinPoint));
+        /* Patch the write of ncode in the hot path. */
+        JSC::CodeLocationDataLabelPtr fastNcode =
+            fullCode.locationOf(callPatches[i].fastNcodePatch);
+        JSC::RepatchBuffer fastRepatch((uint8*)fastNcode.executableAddress() - 32, 64, false);
+        fastRepatch.repatch(fastNcode, joinPoint);
+
+        /* Patch the write of ncode in the slow path. */
+        if (callPatches[i].hasSlowNcode) {
+            JSC::CodeLocationDataLabelPtr slowNcode =
+                stubCode.locationOf(callPatches[i].slowNcodePatch);
+            JSC::RepatchBuffer slowRepatch((uint8*)slowNcode.executableAddress() - 32, 64, false);
+            slowRepatch.repatch(slowNcode, joinPoint);
+        }
     }
 
 #if defined JS_POLYIC
-    jit->nGetElems = getElemICs.length();
-    if (getElemICs.length()) {
-        jit->getElems = (ic::GetElementIC *)cursor;
-        cursor += sizeof(ic::GetElementIC) * getElemICs.length();
-    } else {
-        jit->getElems = NULL;
-    }
-
-    for (size_t i = 0; i < getElemICs.length(); i++) {
-        ic::GetElementIC &to = jit->getElems[i];
-        GetElementICInfo &from = getElemICs[i];
-
-        new (&to) ic::GetElementIC();
-        from.copyTo(to, fullCode, stubCode);
-
-        to.typeReg = from.typeReg;
-        to.objReg = from.objReg;
-        to.idRemat = from.id;
-
-        if (from.typeGuard.isSet()) {
-            int inlineTypeGuard = fullCode.locationOf(from.typeGuard.get()) -
-                                  fullCode.locationOf(from.fastPathStart);
-            to.inlineTypeGuard = inlineTypeGuard;
-            JS_ASSERT(to.inlineTypeGuard == inlineTypeGuard);
-        }
-        int inlineClaspGuard = fullCode.locationOf(from.claspGuard) -
-                               fullCode.locationOf(from.fastPathStart);
-        to.inlineClaspGuard = inlineClaspGuard;
-        JS_ASSERT(to.inlineClaspGuard == inlineClaspGuard);
-
-        stubCode.patch(from.paramAddr, &to);
-    }
-
-    jit->nSetElems = setElemICs.length();
-    if (setElemICs.length()) {
-        jit->setElems = (ic::SetElementIC *)cursor;
-        cursor += sizeof(ic::SetElementIC) * setElemICs.length();
-    } else {
-        jit->setElems = NULL;
-    }
-
-    for (size_t i = 0; i < setElemICs.length(); i++) {
-        ic::SetElementIC &to = jit->setElems[i];
-        SetElementICInfo &from = setElemICs[i];
-
-        new (&to) ic::SetElementIC();
-        from.copyTo(to, fullCode, stubCode);
-
-        to.strictMode = script->strictModeCode;
-        to.vr = from.vr;
-        to.objReg = from.objReg;
-        to.objRemat = from.objRemat.toInt32();
-        JS_ASSERT(to.objRemat == from.objRemat.toInt32());
-
-        to.hasConstantKey = from.key.isConstant();
-        if (from.key.isConstant())
-            to.keyValue = from.key.index();
-        else
-            to.keyReg = from.key.reg();
-
-        int inlineClaspGuard = fullCode.locationOf(from.claspGuard) -
-                               fullCode.locationOf(from.fastPathStart);
-        to.inlineClaspGuard = inlineClaspGuard;
-        JS_ASSERT(to.inlineClaspGuard == inlineClaspGuard);
-
-        int inlineHoleGuard = fullCode.locationOf(from.holeGuard) -
-                               fullCode.locationOf(from.fastPathStart);
-        to.inlineHoleGuard = inlineHoleGuard;
-        JS_ASSERT(to.inlineHoleGuard == inlineHoleGuard);
-
-        stubCode.patch(from.paramAddr, &to);
-    }
-
-    jit->nPICs = pics.length();
+    script->jit->nPICs = pics.length();
     if (pics.length()) {
-        jit->pics = (ic::PICInfo *)cursor;
+        script->pics = (ic::PICInfo *)cursor;
         cursor += sizeof(ic::PICInfo) * pics.length();
     } else {
-        jit->pics = NULL;
+        script->pics = NULL;
     }
 
-    if (ic::PICInfo *scriptPICs = jit->pics) {
-        for (size_t i = 0; i < pics.length(); i++) {
-            new (&scriptPICs[i]) ic::PICInfo();
-            pics[i].copyTo(scriptPICs[i], fullCode, stubCode);
-            pics[i].copySimpleMembersTo(scriptPICs[i]);
-
-            scriptPICs[i].shapeGuard = masm.distanceOf(pics[i].shapeGuard) -
-                                         masm.distanceOf(pics[i].fastPathStart);
-            JS_ASSERT(scriptPICs[i].shapeGuard == masm.distanceOf(pics[i].shapeGuard) -
-                                         masm.distanceOf(pics[i].fastPathStart));
-            scriptPICs[i].shapeRegHasBaseShape = true;
-            scriptPICs[i].pc = pics[i].pc;
+    for (size_t i = 0; i < pics.length(); i++) {
+        pics[i].copySimpleMembersTo(script->pics[i]);
+        script->pics[i].fastPathStart = fullCode.locationOf(pics[i].fastPathStart);
+        script->pics[i].storeBack = fullCode.locationOf(pics[i].storeBack);
+        script->pics[i].slowPathStart = stubCode.locationOf(pics[i].slowPathStart);
+        script->pics[i].callReturn = uint16((uint8*)stubCode.locationOf(pics[i].callReturn).executableAddress() -
+                                           (uint8*)script->pics[i].slowPathStart.executableAddress());
+        script->pics[i].shapeGuard = masm.distanceOf(pics[i].shapeGuard) -
+                                     masm.distanceOf(pics[i].fastPathStart);
+        JS_ASSERT(script->pics[i].shapeGuard == masm.distanceOf(pics[i].shapeGuard) -
+                                     masm.distanceOf(pics[i].fastPathStart));
+        script->pics[i].shapeRegHasBaseShape = true;
 
 # if defined JS_CPU_X64
-            memcpy(&scriptPICs[i].labels, &pics[i].labels, sizeof(PICLabels));
+        memcpy(&script->pics[i].labels, &pics[i].labels, sizeof(PICLabels));
 # endif
 
-            if (pics[i].kind == ic::PICInfo::SET ||
-                pics[i].kind == ic::PICInfo::SETMETHOD) {
-                scriptPICs[i].u.vr = pics[i].vr;
-            } else if (pics[i].kind != ic::PICInfo::NAME) {
-                if (pics[i].hasTypeCheck) {
-                    int32 distance = stubcc.masm.distanceOf(pics[i].typeCheck) -
-                                     stubcc.masm.distanceOf(pics[i].slowPathStart);
-                    JS_ASSERT(distance <= 0);
-                    scriptPICs[i].u.get.typeCheckOffset = distance;
-                }
+        if (pics[i].kind == ic::PICInfo::SET ||
+            pics[i].kind == ic::PICInfo::SETMETHOD) {
+            script->pics[i].u.vr = pics[i].vr;
+        } else if (pics[i].kind != ic::PICInfo::NAME) {
+            if (pics[i].hasTypeCheck) {
+                int32 distance = stubcc.masm.distanceOf(pics[i].typeCheck) -
+                                 stubcc.masm.distanceOf(pics[i].slowPathStart);
+                JS_ASSERT(distance <= 0);
+                script->pics[i].u.get.typeCheckOffset = distance;
             }
-            stubCode.patch(pics[i].paramAddr, &scriptPICs[i]);
         }
+        new (&script->pics[i].execPools) ic::PICInfo::ExecPoolVector(SystemAllocPolicy());
+        script->pics[i].reset();
     }
 #endif /* JS_POLYIC */
 
@@ -758,35 +525,33 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     }
 
     /* Patch all outgoing calls. */
-    masm.finalize(fullCode);
-    stubcc.masm.finalize(stubCode);
+    masm.finalize(result);
+    stubcc.finalize(result + masm.size());
 
     JSC::ExecutableAllocator::makeExecutable(result, masm.size() + stubcc.size());
     JSC::ExecutableAllocator::cacheFlush(result, masm.size() + stubcc.size());
 
+    script->ncode = (uint8 *)(result + masm.distanceOf(invokeLabel));
+
     /* Build the table of call sites. */
-    jit->nCallSites = callSites.length();
     if (callSites.length()) {
-        jit->callSites = (CallSite *)cursor;
+        CallSite *callSiteList = (CallSite *)cursor;
         cursor += sizeof(CallSite) * callSites.length();
 
         for (size_t i = 0; i < callSites.length(); i++) {
-            CallSite &to = jit->callSites[i];
-            InternalCallSite &from = callSites[i];
-            uint32 codeOffset = from.ool
-                                ? masm.size() + from.returnOffset
-                                : from.returnOffset;
-            to.initialize(codeOffset, from.pc - script->code, from.id);
+            if (callSites[i].stub)
+                callSiteList[i].codeOffset = masm.size() + stubcc.masm.distanceOf(callSites[i].location);
+            else
+                callSiteList[i].codeOffset = masm.distanceOf(callSites[i].location);
+            callSiteList[i].pcOffset = callSites[i].pc - script->code;
+            callSiteList[i].id = callSites[i].id;
         }
+        script->jit->callSites = callSiteList;
     } else {
-        jit->callSites = NULL;
+        script->jit->callSites = NULL;
     }
 
-    JS_ASSERT(size_t(cursor - (uint8*)jit) == totalBytes);
-
-    jit->nmap = nmap;
-    jit->nNmapPairs = nNmapLive;
-    *jitp = jit;
+    JS_ASSERT(size_t(cursor - (uint8*)script->jit) == totalBytes);
 
     return Compile_Okay;
 }
@@ -818,17 +583,22 @@ mjit::Compiler::generateMethod()
 
     for (;;) {
         JSOp op = JSOp(*PC);
-        bool trap = (op == JSOP_TRAP);
 
-        if (trap) {
+        OpcodeStatus &opinfo = analysis[PC];
+        frame.setInTryBlock(opinfo.inTryBlock);
+        if (opinfo.nincoming || opinfo.trap) {
+            frame.syncAndForgetEverything(opinfo.stackDepth);
+            opinfo.safePoint = true;
+        }
+        jumpMap[uint32(PC - script->code)] = masm.label();
+
+        if (opinfo.trap) {
             if (!trapper.untrap(PC))
                 return Compile_Error;
             op = JSOp(*PC);
         }
 
-        analyze::Bytecode *opinfo = analysis->maybeCode(PC);
-
-        if (!opinfo) {
+        if (!opinfo.visited) {
             if (op == JSOP_STOP)
                 break;
             if (js_CodeSpec[op].length != -1)
@@ -838,58 +608,32 @@ mjit::Compiler::generateMethod()
             continue;
         }
 
-        frame.setInTryBlock(opinfo->inTryBlock);
-        if (opinfo->jumpTarget || trap) {
-            frame.syncAndForgetEverything(opinfo->stackDepth);
-            opinfo->safePoint = true;
-        }
-        jumpMap[uint32(PC - script->code)] = masm.label();
-
         SPEW_OPCODE();
-        JS_ASSERT(frame.stackDepth() == opinfo->stackDepth);
+        JS_ASSERT(frame.stackDepth() == opinfo.stackDepth);
 
-        if (trap) {
+        if (opinfo.trap) {
             prepareStubCall(Uses(0));
             masm.move(ImmPtr(PC), Registers::ArgReg1);
-            Call cl = emitStubCall(JS_FUNC_TO_DATA_PTR(void *, stubs::Trap));
-            InternalCallSite site(masm.callReturnOffset(cl), PC,
-                                  CallSite::MAGIC_TRAP_ID, true, false);
-            addCallSite(site);
-        } else if (savedTraps && savedTraps[PC - script->code]) {
-            // Normally when we patch return addresses, we have generated the
-            // same exact code at that site. For example, patching a stub call's
-            // return address will resume at the same stub call.
-            //
-            // In the case we're handling here, we could potentially be
-            // recompiling to remove a trap, and therefore we won't generate
-            // a call to the trap. However, we could be re-entering from that
-            // trap. The callsite will be missing, and fixing the stack will
-            // fail! Worse, we can't just put a label here, because on some
-            // platforms the stack needs to be adjusted when returning from
-            // the old trap call.
-            //
-            // To deal with this, we add a small bit of code in the OOL path
-            // that will adjust the stack and jump back into the script.
-            // Note that this uses MAGIC_TRAP_ID, which is necessary for
-            // repatching to detect the callsite as identical to the return
-            // address.
-            //
-            // Unfortunately, this means that if a bytecode is ever trapped,
-            // we will always generate a CallSite (either Trapped or not) for
-            // every debug recompilation of the script thereafter. The reason
-            // is that MAGIC_TRAP_ID callsites always propagate to the next
-            // recompilation. That's okay, and not worth fixing - it's a small
-            // amount of memory.
-            uint32 offset = stubcc.masm.distanceOf(stubcc.masm.label());
-            if (Assembler::ReturnStackAdjustment) {
-                stubcc.masm.addPtr(Imm32(Assembler::ReturnStackAdjustment),
-                                   Assembler::stackPointerRegister);
-            }
-            stubcc.crossJump(stubcc.masm.jump(), masm.label());
-
-            InternalCallSite site(offset, PC, CallSite::MAGIC_TRAP_ID, false, true);
-            addCallSite(site);
+            stubCall(stubs::Trap);
         }
+#if defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)
+        // In case of no fast call, when we change the return address,
+        // we need to make sure add esp by 8. For normal call, we need
+        // to make sure the esp is not changed.
+        else {
+            masm.subPtr(Imm32(8), Registers::StackPointer);
+            masm.callLabel = masm.label();
+            masm.addPtr(Imm32(8), Registers::StackPointer);
+        }
+#elif defined(_WIN64)
+        // In case of Win64 ABI, stub caller make 32-bytes spcae on stack
+        else {
+            masm.subPtr(Imm32(32), Registers::StackPointer);
+            masm.callLabel = masm.label();
+            masm.addPtr(Imm32(32), Registers::StackPointer);
+        }
+#endif
+        ADD_CALLSITE(false);
 
     /**********************
      * BEGIN COMPILER OPS *
@@ -908,7 +652,7 @@ mjit::Compiler::generateMethod()
           {
             RegisterID reg = frame.allocReg();
             masm.load32(FrameFlagsAddress(), reg);
-            masm.or32(Imm32(JSFRAME_HAS_RVAL), reg);
+            masm.or32(Imm32(JSFRAME_RVAL_ASSIGNED), reg);
             masm.store32(reg, FrameFlagsAddress());
             frame.freeReg(reg);
 
@@ -927,37 +671,20 @@ mjit::Compiler::generateMethod()
             /* :XXX: this isn't really necessary if we follow the branch. */
             frame.syncAndForgetEverything();
             Jump j = masm.jump();
-            if (!jumpAndTrace(j, PC + GET_JUMP_OFFSET(PC)))
-                return Compile_Error;
+            jumpAndTrace(j, PC + GET_JUMP_OFFSET(PC));
           }
           END_CASE(JSOP_GOTO)
 
           BEGIN_CASE(JSOP_IFEQ)
           BEGIN_CASE(JSOP_IFNE)
-            if (!jsop_ifneq(op, PC + GET_JUMP_OFFSET(PC)))
-                return Compile_Error;
+            jsop_ifneq(op, PC + GET_JUMP_OFFSET(PC));
           END_CASE(JSOP_IFNE)
 
           BEGIN_CASE(JSOP_ARGUMENTS)
-            /*
-             * For calls of the form 'f.apply(x, arguments)' we can avoid
-             * creating an args object by having ic::SplatApplyArgs pull
-             * directly from the stack. To do this, we speculate here that
-             * 'apply' actually refers to js_fun_apply. If this is not true,
-             * the slow path in JSOP_FUNAPPLY will create the args object.
-             */
-            if (canUseApplyTricks())
-                applyTricks = LazyArgsObj;
-            else
-                jsop_arguments();
+            prepareStubCall(Uses(0));
+            stubCall(stubs::Arguments);
             frame.pushSynced();
           END_CASE(JSOP_ARGUMENTS)
-
-          BEGIN_CASE(JSOP_FORARG)
-            iterNext();
-            frame.storeArg(GET_SLOTNO(PC), true);
-            frame.pop();
-          END_CASE(JSOP_FORARG)
 
           BEGIN_CASE(JSOP_FORLOCAL)
             iterNext();
@@ -989,7 +716,7 @@ mjit::Compiler::generateMethod()
             /* Detect fusions. */
             jsbytecode *next = &PC[JSOP_GE_LENGTH];
             JSOp fused = JSOp(*next);
-            if ((fused != JSOP_IFEQ && fused != JSOP_IFNE) || analysis->jumpTarget(next))
+            if ((fused != JSOP_IFEQ && fused != JSOP_IFNE) || analysis[next].nincoming)
                 fused = JSOP_NOP;
 
             /* Get jump target, if any. */
@@ -1047,18 +774,15 @@ mjit::Compiler::generateMethod()
                         if (result) {
                             frame.syncAndForgetEverything();
                             Jump j = masm.jump();
-                            if (!jumpAndTrace(j, target))
-                                return Compile_Error;
+                            jumpAndTrace(j, target);
                         }
                     }
                 } else {
-                    if (!emitStubCmpOp(stub, target, fused))
-                        return Compile_Error;
+                    emitStubCmpOp(stub, target, fused);
                 }
             } else {
                 /* Anything else should go through the fast path generator. */
-                if (!jsop_relational(op, stub, target, fused))
-                    return Compile_Error;
+                jsop_relational(op, stub, target, fused);
             }
 
             /* Advance PC manually. */
@@ -1154,7 +878,7 @@ mjit::Compiler::generateMethod()
 
             prepareStubCall(Uses(0));
             masm.move(ImmPtr(atom), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::DelName);
+            stubCall(stubs::DelName);
             frame.pushSynced();
           }
           END_CASE(JSOP_DELNAME)
@@ -1166,7 +890,7 @@ mjit::Compiler::generateMethod()
 
             prepareStubCall(Uses(1));
             masm.move(ImmPtr(atom), Registers::ArgReg1);
-            INLINE_STUBCALL(STRICT_VARIANT(stubs::DelProp));
+            stubCall(STRICT_VARIANT(stubs::DelProp));
             frame.pop();
             frame.pushSynced();
           }
@@ -1174,7 +898,7 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_DELELEM)
             prepareStubCall(Uses(2));
-            INLINE_STUBCALL(STRICT_VARIANT(stubs::DelElem));
+            stubCall(STRICT_VARIANT(stubs::DelElem));
             frame.popn(2);
             frame.pushSynced();
           END_CASE(JSOP_DELELEM)
@@ -1190,8 +914,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_VOID)
 
           BEGIN_CASE(JSOP_INCNAME)
-            if (!jsop_nameinc(op, STRICT_VARIANT(stubs::IncName), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_nameinc(op, STRICT_VARIANT(stubs::IncName), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_INCNAME)
 
@@ -1201,8 +924,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_INCGNAME)
 
           BEGIN_CASE(JSOP_INCPROP)
-            if (!jsop_propinc(op, STRICT_VARIANT(stubs::IncProp), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_propinc(op, STRICT_VARIANT(stubs::IncProp), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_INCPROP)
 
@@ -1211,8 +933,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_INCELEM)
 
           BEGIN_CASE(JSOP_DECNAME)
-            if (!jsop_nameinc(op, STRICT_VARIANT(stubs::DecName), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_nameinc(op, STRICT_VARIANT(stubs::DecName), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_DECNAME)
 
@@ -1222,8 +943,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_DECGNAME)
 
           BEGIN_CASE(JSOP_DECPROP)
-            if (!jsop_propinc(op, STRICT_VARIANT(stubs::DecProp), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_propinc(op, STRICT_VARIANT(stubs::DecProp), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_DECPROP)
 
@@ -1232,8 +952,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_DECELEM)
 
           BEGIN_CASE(JSOP_NAMEINC)
-            if (!jsop_nameinc(op, STRICT_VARIANT(stubs::NameInc), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_nameinc(op, STRICT_VARIANT(stubs::NameInc), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_NAMEINC)
 
@@ -1243,8 +962,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_GNAMEINC)
 
           BEGIN_CASE(JSOP_PROPINC)
-            if (!jsop_propinc(op, STRICT_VARIANT(stubs::PropInc), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_propinc(op, STRICT_VARIANT(stubs::PropInc), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_PROPINC)
 
@@ -1253,8 +971,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_ELEMINC)
 
           BEGIN_CASE(JSOP_NAMEDEC)
-            if (!jsop_nameinc(op, STRICT_VARIANT(stubs::NameDec), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_nameinc(op, STRICT_VARIANT(stubs::NameDec), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_NAMEDEC)
 
@@ -1264,8 +981,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_GNAMEDEC)
 
           BEGIN_CASE(JSOP_PROPDEC)
-            if (!jsop_propinc(op, STRICT_VARIANT(stubs::PropDec), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_propinc(op, STRICT_VARIANT(stubs::PropDec), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_PROPDEC)
 
@@ -1276,62 +992,47 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_GETTHISPROP)
             /* Push thisv onto stack. */
             jsop_this();
-            if (!jsop_getprop(script->getAtom(fullAtomIndex(PC))))
-                return Compile_Error;
+            jsop_getprop(script->getAtom(fullAtomIndex(PC)));
           END_CASE(JSOP_GETTHISPROP);
 
           BEGIN_CASE(JSOP_GETARGPROP)
             /* Push arg onto stack. */
-            frame.pushArg(GET_SLOTNO(PC));
-            if (!jsop_getprop(script->getAtom(fullAtomIndex(&PC[ARGNO_LEN]))))
-                return Compile_Error;
+            jsop_getarg(GET_SLOTNO(PC));
+            jsop_getprop(script->getAtom(fullAtomIndex(&PC[ARGNO_LEN])));
           END_CASE(JSOP_GETARGPROP)
 
           BEGIN_CASE(JSOP_GETLOCALPROP)
             frame.pushLocal(GET_SLOTNO(PC));
-            if (!jsop_getprop(script->getAtom(fullAtomIndex(&PC[SLOTNO_LEN]))))
-                return Compile_Error;
+            jsop_getprop(script->getAtom(fullAtomIndex(&PC[SLOTNO_LEN])));
           END_CASE(JSOP_GETLOCALPROP)
 
           BEGIN_CASE(JSOP_GETPROP)
-            if (!jsop_getprop(script->getAtom(fullAtomIndex(PC))))
-                return Compile_Error;
+            jsop_getprop(script->getAtom(fullAtomIndex(PC)));
           END_CASE(JSOP_GETPROP)
 
           BEGIN_CASE(JSOP_LENGTH)
-            if (!jsop_length())
-                return Compile_Error;
+            jsop_length();
           END_CASE(JSOP_LENGTH)
 
           BEGIN_CASE(JSOP_GETELEM)
-            if (!jsop_getelem(false))
-                return Compile_Error;
+            jsop_getelem();
           END_CASE(JSOP_GETELEM)
 
           BEGIN_CASE(JSOP_SETELEM)
-            if (!jsop_setelem())
-                return Compile_Error;
+            jsop_setelem();
           END_CASE(JSOP_SETELEM);
 
           BEGIN_CASE(JSOP_CALLNAME)
             prepareStubCall(Uses(0));
             masm.move(Imm32(fullAtomIndex(PC)), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::CallName);
+            stubCall(stubs::CallName);
             frame.pushSynced();
             frame.pushSynced();
           END_CASE(JSOP_CALLNAME)
 
-          BEGIN_CASE(JSOP_EVAL)
-          {
-            JaegerSpew(JSpew_Insns, " --- EVAL --- \n");
-            emitEval(GET_ARGC(PC));
-            JaegerSpew(JSpew_Insns, " --- END EVAL --- \n");
-          }
-          END_CASE(JSOP_EVAL)
-
           BEGIN_CASE(JSOP_CALL)
-          BEGIN_CASE(JSOP_FUNAPPLY)
-          BEGIN_CASE(JSOP_FUNCALL)
+          BEGIN_CASE(JSOP_EVAL)
+          BEGIN_CASE(JSOP_APPLY)
           {
             JaegerSpew(JSpew_Insns, " --- SCRIPTED CALL --- \n");
             inlineCallHelper(GET_ARGC(PC), false);
@@ -1385,8 +1086,7 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_OR)
           BEGIN_CASE(JSOP_AND)
-            if (!jsop_andor(op, PC + GET_JUMP_OFFSET(PC)))
-                return Compile_Error;
+            jsop_andor(op, PC + GET_JUMP_OFFSET(PC));
           END_CASE(JSOP_AND)
 
           BEGIN_CASE(JSOP_TABLESWITCH)
@@ -1394,7 +1094,7 @@ mjit::Compiler::generateMethod()
             masm.move(ImmPtr(PC), Registers::ArgReg1);
 
             /* prepareStubCall() is not needed due to syncAndForgetEverything() */
-            INLINE_STUBCALL(stubs::TableSwitch);
+            stubCall(stubs::TableSwitch);
             frame.pop();
 
             masm.jump(Registers::ReturnReg);
@@ -1407,7 +1107,7 @@ mjit::Compiler::generateMethod()
             masm.move(ImmPtr(PC), Registers::ArgReg1);
 
             /* prepareStubCall() is not needed due to syncAndForgetEverything() */
-            INLINE_STUBCALL(stubs::LookupSwitch);
+            stubCall(stubs::LookupSwitch);
             frame.pop();
 
             masm.jump(Registers::ReturnReg);
@@ -1427,7 +1127,7 @@ mjit::Compiler::generateMethod()
 # if defined JS_CPU_X64
             prepareStubCall(Uses(1));
             masm.move(Imm32(PC[1]), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::Iter);
+            stubCall(stubs::Iter);
             frame.pop();
             frame.pushSynced();
 #else
@@ -1444,7 +1144,7 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_ENDITER)
 # if defined JS_CPU_X64
             prepareStubCall(Uses(1));
-            INLINE_STUBCALL(stubs::EndIter);
+            stubCall(stubs::EndIter);
             frame.pop();
 #else
             iterEnd();
@@ -1466,9 +1166,9 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_GETARG)
           BEGIN_CASE(JSOP_CALLARG)
           {
-            frame.pushArg(GET_SLOTNO(PC));
+            jsop_getarg(GET_SLOTNO(PC));
             if (op == JSOP_CALLARG)
-                frame.push(UndefinedValue());
+                frame.push(NullValue());
           }
           END_CASE(JSOP_GETARG)
 
@@ -1478,14 +1178,15 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_SETARG)
           {
-            jsbytecode *next = &PC[JSOP_SETLOCAL_LENGTH];
-            bool pop = JSOp(*next) == JSOP_POP && !analysis->jumpTarget(next);
-            frame.storeArg(GET_SLOTNO(PC), pop);
-            if (pop) {
-                frame.pop();
-                PC += JSOP_SETARG_LENGTH + JSOP_POP_LENGTH;
-                break;
-            }
+            uint32 slot = GET_SLOTNO(PC);
+            FrameEntry *top = frame.peek(-1);
+
+            bool popped = PC[JSOP_SETARG_LENGTH] == JSOP_POP;
+
+            RegisterID reg = frame.allocReg();
+            Address address = Address(JSFrameReg, JSStackFrame::offsetOfFormalArg(fun, slot));
+            frame.storeTo(top, address, popped);
+            frame.freeReg(reg);
           }
           END_CASE(JSOP_SETARG)
 
@@ -1499,7 +1200,7 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_SETLOCAL)
           {
             jsbytecode *next = &PC[JSOP_SETLOCAL_LENGTH];
-            bool pop = JSOp(*next) == JSOP_POP && !analysis->jumpTarget(next);
+            bool pop = JSOp(*next) == JSOP_POP && !analysis[next].nincoming;
             frame.storeLocal(GET_SLOTNO(PC), pop);
             if (pop) {
                 frame.pop();
@@ -1519,33 +1220,41 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_UINT16)
 
           BEGIN_CASE(JSOP_NEWINIT)
-            jsop_newinit();
+          {
+            jsint i = GET_INT8(PC);
+            JS_ASSERT(i == JSProto_Array || i == JSProto_Object);
+
+            prepareStubCall(Uses(0));
+            if (i == JSProto_Array)
+                stubCall(stubs::NewInitArray);
+            else
+                stubCall(stubs::NewInitObject);
+            frame.takeReg(Registers::ReturnReg);
+            frame.pushTypedPayload(JSVAL_TYPE_OBJECT, Registers::ReturnReg);
+          }
           END_CASE(JSOP_NEWINIT)
-
-          BEGIN_CASE(JSOP_NEWARRAY)
-            jsop_newinit();
-          END_CASE(JSOP_NEWARRAY)
-
-          BEGIN_CASE(JSOP_NEWOBJECT)
-            jsop_newinit();
-          END_CASE(JSOP_NEWOBJECT)
 
           BEGIN_CASE(JSOP_ENDINIT)
           END_CASE(JSOP_ENDINIT)
 
-          BEGIN_CASE(JSOP_INITMETHOD)
-            jsop_initmethod();
-            frame.pop();
-          END_CASE(JSOP_INITMETHOD)
-
           BEGIN_CASE(JSOP_INITPROP)
-            jsop_initprop();
+          {
+            JSAtom *atom = script->getAtom(fullAtomIndex(PC));
+            prepareStubCall(Uses(2));
+            masm.move(ImmPtr(atom), Registers::ArgReg1);
+            stubCall(stubs::InitProp);
             frame.pop();
+          }
           END_CASE(JSOP_INITPROP)
 
           BEGIN_CASE(JSOP_INITELEM)
-            jsop_initelem();
+          {
+            JSOp next = JSOp(PC[JSOP_INITELEM_LENGTH]);
+            prepareStubCall(Uses(3));
+            masm.move(Imm32(next == JSOP_ENDINIT ? 1 : 0), Registers::ArgReg1);
+            stubCall(stubs::InitElem);
             frame.popn(2);
+          }
           END_CASE(JSOP_INITELEM)
 
           BEGIN_CASE(JSOP_INCARG)
@@ -1555,7 +1264,7 @@ mjit::Compiler::generateMethod()
           {
             jsbytecode *next = &PC[JSOP_ARGINC_LENGTH];
             bool popped = false;
-            if (JSOp(*next) == JSOP_POP && !analysis->jumpTarget(next))
+            if (JSOp(*next) == JSOP_POP && !analysis[next].nincoming)
                 popped = true;
             jsop_arginc(op, GET_SLOTNO(PC), popped);
             PC += JSOP_ARGINC_LENGTH;
@@ -1565,6 +1274,12 @@ mjit::Compiler::generateMethod()
           }
           END_CASE(JSOP_ARGDEC)
 
+          BEGIN_CASE(JSOP_FORNAME)
+            prepareStubCall(Uses(1));
+            masm.move(ImmPtr(script->getAtom(fullAtomIndex(PC))), Registers::ArgReg1);
+            stubCall(STRICT_VARIANT(stubs::ForName));
+          END_CASE(JSOP_FORNAME)
+
           BEGIN_CASE(JSOP_INCLOCAL)
           BEGIN_CASE(JSOP_DECLOCAL)
           BEGIN_CASE(JSOP_LOCALINC)
@@ -1572,7 +1287,7 @@ mjit::Compiler::generateMethod()
           {
             jsbytecode *next = &PC[JSOP_LOCALINC_LENGTH];
             bool popped = false;
-            if (JSOp(*next) == JSOP_POP && !analysis->jumpTarget(next))
+            if (JSOp(*next) == JSOP_POP && !analysis[next].nincoming)
                 popped = true;
             /* These manually advance the PC. */
             jsop_localinc(op, GET_SLOTNO(PC), popped);
@@ -1583,73 +1298,35 @@ mjit::Compiler::generateMethod()
           }
           END_CASE(JSOP_LOCALDEC)
 
-          BEGIN_CASE(JSOP_FORNAME)
-            // Before: ITER
-            // After:  ITER SCOPEOBJ
-            jsop_bindname(fullAtomIndex(PC), false);
-
-            // Fall through to FORPROP.
-
-          BEGIN_CASE(JSOP_FORPROP)
-            // Before: ITER OBJ
-            // After:  ITER OBJ ITER
-            frame.dupAt(-2);
-
-            // Before: ITER OBJ ITER 
-            // After:  ITER OBJ ITER VALUE
-            iterNext();
-
-            // Before: ITER OBJ ITER VALUE
-            // After:  ITER OBJ VALUE
-            frame.shimmy(1);
-
-            // Before: ITER OBJ VALUE
-            // After:  ITER VALUE
-            jsop_setprop(script->getAtom(fullAtomIndex(PC)), false);
-
-            // Before: ITER VALUE
-            // After:  ITER
-            frame.pop();
-          END_CASE(JSOP_FORPROP)
-
-          BEGIN_CASE(JSOP_FORELEM)
-            // This opcode is for the decompiler; it is succeeded by an
-            // ENUMELEM, which performs the actual array store.
-            iterNext();
-          END_CASE(JSOP_FORELEM)
-
           BEGIN_CASE(JSOP_BINDNAME)
-            jsop_bindname(fullAtomIndex(PC), true);
+            jsop_bindname(fullAtomIndex(PC));
           END_CASE(JSOP_BINDNAME)
 
           BEGIN_CASE(JSOP_SETPROP)
-            if (!jsop_setprop(script->getAtom(fullAtomIndex(PC)), true))
-                return Compile_Error;
+            jsop_setprop(script->getAtom(fullAtomIndex(PC)));
           END_CASE(JSOP_SETPROP)
 
           BEGIN_CASE(JSOP_SETNAME)
           BEGIN_CASE(JSOP_SETMETHOD)
-            if (!jsop_setprop(script->getAtom(fullAtomIndex(PC)), true))
-                return Compile_Error;
+            jsop_setprop(script->getAtom(fullAtomIndex(PC)));
           END_CASE(JSOP_SETNAME)
 
           BEGIN_CASE(JSOP_THROW)
             prepareStubCall(Uses(1));
-            INLINE_STUBCALL(stubs::Throw);
+            stubCall(stubs::Throw);
             frame.pop();
           END_CASE(JSOP_THROW)
 
           BEGIN_CASE(JSOP_IN)
             prepareStubCall(Uses(2));
-            INLINE_STUBCALL(stubs::In);
+            stubCall(stubs::In);
             frame.popn(2);
             frame.takeReg(Registers::ReturnReg);
             frame.pushTypedPayload(JSVAL_TYPE_BOOLEAN, Registers::ReturnReg);
           END_CASE(JSOP_IN)
 
           BEGIN_CASE(JSOP_INSTANCEOF)
-            if (!jsop_instanceof())
-                return Compile_Error;
+            jsop_instanceof();
           END_CASE(JSOP_INSTANCEOF)
 
           BEGIN_CASE(JSOP_EXCEPTION)
@@ -1667,30 +1344,6 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_LINENO)
           END_CASE(JSOP_LINENO)
-
-          BEGIN_CASE(JSOP_ENUMELEM)
-            // Normally, SETELEM transforms the stack
-            //  from: OBJ ID VALUE
-            //  to:   VALUE
-            //
-            // Here, the stack transition is
-            //  from: VALUE OBJ ID
-            //  to:
-            // So we make the stack look like a SETELEM, and re-use it.
-
-            // Before: VALUE OBJ ID
-            // After:  VALUE OBJ ID VALUE
-            frame.dupAt(-3);
-
-            // Before: VALUE OBJ ID VALUE
-            // After:  VALUE VALUE
-            if (!jsop_setelem())
-                return Compile_Error;
-
-            // Before: VALUE VALUE
-            // After:
-            frame.popn(2);
-          END_CASE(JSOP_ENUMELEM)
 
           BEGIN_CASE(JSOP_BLOCKCHAIN)
           END_CASE(JSOP_BLOCKCHAIN)
@@ -1715,46 +1368,28 @@ mjit::Compiler::generateMethod()
 
             prepareStubCall(Uses(0));
             masm.move(ImmPtr(inner), Registers::ArgReg1);
-            INLINE_STUBCALL(STRICT_VARIANT(stubs::DefFun));
+            stubCall(STRICT_VARIANT(stubs::DefFun));
           }
           END_CASE(JSOP_DEFFUN)
 
           BEGIN_CASE(JSOP_DEFVAR)
-          BEGIN_CASE(JSOP_DEFCONST)
           {
             uint32 index = fullAtomIndex(PC);
             JSAtom *atom = script->getAtom(index);
 
             prepareStubCall(Uses(0));
             masm.move(ImmPtr(atom), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::DefVarOrConst);
+            stubCall(stubs::DefVar);
           }
           END_CASE(JSOP_DEFVAR)
-
-          BEGIN_CASE(JSOP_SETCONST)
-          {
-            uint32 index = fullAtomIndex(PC);
-            JSAtom *atom = script->getAtom(index);
-
-            if (fun) {
-                JSLocalKind localKind = fun->lookupLocal(cx, atom, NULL);
-                if (localKind != JSLOCAL_NONE)
-                    frame.syncAndForgetEverything();
-            }
-
-            prepareStubCall(Uses(1));
-            masm.move(ImmPtr(atom), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::SetConst);
-          }
-          END_CASE(JSOP_SETCONST)
 
           BEGIN_CASE(JSOP_DEFLOCALFUN_FC)
           {
             uint32 slot = GET_SLOTNO(PC);
             JSFunction *fun = script->getFunction(fullAtomIndex(&PC[SLOTNO_LEN]));
-            prepareStubCall(Uses(frame.frameSlots()));
+            prepareStubCall(Uses(frame.frameDepth()));
             masm.move(ImmPtr(fun), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::DefLocalFun_FC);
+            stubCall(stubs::DefLocalFun_FC);
             frame.takeReg(Registers::ReturnReg);
             frame.pushTypedPayload(JSVAL_TYPE_OBJECT, Registers::ReturnReg);
             frame.storeLocal(slot, true);
@@ -1769,7 +1404,7 @@ mjit::Compiler::generateMethod()
             JSObjStubFun stub = stubs::Lambda;
             uint32 uses = 0;
 
-            jsbytecode *pc2 = AdvanceOverBlockchainOp(PC + JSOP_LAMBDA_LENGTH);
+            jsbytecode *pc2 = js_AdvanceOverBlockchain(PC + JSOP_LAMBDA_LENGTH);
             JSOp next = JSOp(*pc2);
             
             if (next == JSOP_INITMETHOD) {
@@ -1780,7 +1415,7 @@ mjit::Compiler::generateMethod()
             } else if (fun->joinable()) {
                 if (next == JSOP_CALL) {
                     stub = stubs::LambdaJoinableForCall;
-                    uses = frame.frameSlots();
+                    uses = frame.frameDepth();
                 } else if (next == JSOP_NULL) {
                     stub = stubs::LambdaJoinableForNull;
                 }
@@ -1790,11 +1425,11 @@ mjit::Compiler::generateMethod()
             masm.move(ImmPtr(fun), Registers::ArgReg1);
 
             if (stub == stubs::Lambda) {
-                INLINE_STUBCALL(stub);
+                stubCall(stub);
             } else {
                 jsbytecode *savedPC = PC;
                 PC = pc2;
-                INLINE_STUBCALL(stub);
+                stubCall(stub);
                 PC = savedPC;
             }
 
@@ -1811,34 +1446,31 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_CALLFCSLOT)
           {
             uintN index = GET_UINT16(PC);
-
-            // Load the callee's payload into a register.
-            frame.pushCallee();
-            RegisterID reg = frame.copyDataIntoReg(frame.peek(-1));
-            frame.pop();
-
+            // JSObject *obj = &fp->argv[-2].toObject();
+            RegisterID reg = frame.allocReg();
+            masm.loadPayload(Address(JSFrameReg, JSStackFrame::offsetOfCallee(fun)), reg);
             // obj->getFlatClosureUpvars()
-            masm.loadPtr(Address(reg, offsetof(JSObject, slots)), reg);
-            Address upvarAddress(reg, JSObject::JSSLOT_FLAT_CLOSURE_UPVARS * sizeof(Value));
+            Address upvarAddress(reg, offsetof(JSObject, fslots) + 
+                                      JSObject::JSSLOT_FLAT_CLOSURE_UPVARS * sizeof(Value));
             masm.loadPrivate(upvarAddress, reg);
             // push ((Value *) reg)[index]
             frame.freeReg(reg);
             frame.push(Address(reg, index * sizeof(Value)));
             if (op == JSOP_CALLFCSLOT)
-                frame.push(UndefinedValue());
+                frame.push(NullValue());
           }
           END_CASE(JSOP_CALLFCSLOT)
 
           BEGIN_CASE(JSOP_ARGSUB)
             prepareStubCall(Uses(0));
             masm.move(Imm32(GET_ARGNO(PC)), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::ArgSub);
+            stubCall(stubs::ArgSub);
             frame.pushSynced();
           END_CASE(JSOP_ARGSUB)
 
           BEGIN_CASE(JSOP_ARGCNT)
             prepareStubCall(Uses(0));
-            INLINE_STUBCALL(stubs::ArgCnt);
+            stubCall(stubs::ArgCnt);
             frame.pushSynced();
           END_CASE(JSOP_ARGCNT)
 
@@ -1848,7 +1480,7 @@ mjit::Compiler::generateMethod()
             JSFunction *fun = script->getFunction(fullAtomIndex(&PC[SLOTNO_LEN]));
             prepareStubCall(Uses(0));
             masm.move(ImmPtr(fun), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::DefLocalFun);
+            stubCall(stubs::DefLocalFun);
             frame.takeReg(Registers::ReturnReg);
             frame.pushTypedPayload(JSVAL_TYPE_OBJECT, Registers::ReturnReg);
             frame.storeLocal(slot, true);
@@ -1864,11 +1496,11 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_CALLGNAME)
             jsop_getgname(fullAtomIndex(PC));
             if (op == JSOP_CALLGNAME)
-                frame.push(UndefinedValue());
+                frame.push(NullValue());
           END_CASE(JSOP_GETGNAME)
 
           BEGIN_CASE(JSOP_SETGNAME)
-            jsop_setgname(fullAtomIndex(PC), true);
+            jsop_setgname(fullAtomIndex(PC));
           END_CASE(JSOP_SETGNAME)
 
           BEGIN_CASE(JSOP_REGEXP)
@@ -1876,7 +1508,7 @@ mjit::Compiler::generateMethod()
             JSObject *regex = script->getRegExp(fullAtomIndex(PC));
             prepareStubCall(Uses(0));
             masm.move(ImmPtr(regex), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::RegExp);
+            stubCall(stubs::RegExp);
             frame.takeReg(Registers::ReturnReg);
             frame.pushTypedPayload(JSVAL_TYPE_OBJECT, Registers::ReturnReg);
           }
@@ -1896,10 +1528,10 @@ mjit::Compiler::generateMethod()
 
             prepareStubCall(Uses(0));
             masm.move(Imm32(uva->vector[index].asInteger()), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::GetUpvar);
+            stubCall(stubs::GetUpvar);
             frame.pushSynced();
             if (op == JSOP_CALLUPVAR)
-                frame.push(UndefinedValue());
+                frame.push(NullValue());
           }
           END_CASE(JSOP_CALLUPVAR)
 
@@ -1908,7 +1540,11 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_UINT24)
 
           BEGIN_CASE(JSOP_CALLELEM)
-            jsop_getelem(true);
+            prepareStubCall(Uses(2));
+            stubCall(stubs::CallElem);
+            frame.popn(2);
+            frame.pushSynced();
+            frame.pushSynced();
           END_CASE(JSOP_CALLELEM)
 
           BEGIN_CASE(JSOP_STOP)
@@ -1918,8 +1554,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_STOP)
 
           BEGIN_CASE(JSOP_GETXPROP)
-            if (!jsop_xname(script->getAtom(fullAtomIndex(PC))))
-                return Compile_Error;
+            jsop_xname(script->getAtom(fullAtomIndex(PC)));
           END_CASE(JSOP_GETXPROP)
 
           BEGIN_CASE(JSOP_ENTERBLOCK)
@@ -1932,7 +1567,7 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_CALLLOCAL)
             frame.pushLocal(GET_SLOTNO(PC));
-            frame.push(UndefinedValue());
+            frame.push(NullValue());
           END_CASE(JSOP_CALLLOCAL)
 
           BEGIN_CASE(JSOP_INT8)
@@ -1943,6 +1578,18 @@ mjit::Compiler::generateMethod()
             frame.push(Value(Int32Value(GET_INT32(PC))));
           END_CASE(JSOP_INT32)
 
+          BEGIN_CASE(JSOP_NEWARRAY)
+          {
+            uint32 len = GET_UINT16(PC);
+            prepareStubCall(Uses(len));
+            masm.move(Imm32(len), Registers::ArgReg1);
+            stubCall(stubs::NewArray);
+            frame.popn(len);
+            frame.takeReg(Registers::ReturnReg);
+            frame.pushTypedPayload(JSVAL_TYPE_OBJECT, Registers::ReturnReg);
+          }
+          END_CASE(JSOP_NEWARRAY)
+
           BEGIN_CASE(JSOP_HOLE)
             frame.push(MagicValue(JS_ARRAY_HOLE));
           END_CASE(JSOP_HOLE)
@@ -1950,18 +1597,17 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_LAMBDA_FC)
           {
             JSFunction *fun = script->getFunction(fullAtomIndex(PC));
-            prepareStubCall(Uses(frame.frameSlots()));
+            prepareStubCall(Uses(frame.frameDepth()));
             masm.move(ImmPtr(fun), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::FlatLambda);
+            stubCall(stubs::FlatLambda);
             frame.takeReg(Registers::ReturnReg);
             frame.pushTypedPayload(JSVAL_TYPE_OBJECT, Registers::ReturnReg);
           }
           END_CASE(JSOP_LAMBDA_FC)
 
           BEGIN_CASE(JSOP_TRACE)
-          BEGIN_CASE(JSOP_NOTRACE)
           {
-            if (analysis->jumpTarget(PC))
+            if (analysis[PC].nincoming > 0)
                 interruptCheckHelper();
           }
           END_CASE(JSOP_TRACE)
@@ -1969,8 +1615,18 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_DEBUGGER)
             prepareStubCall(Uses(0));
             masm.move(ImmPtr(PC), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::Debugger);
+            stubCall(stubs::Debugger);
           END_CASE(JSOP_DEBUGGER)
+
+          BEGIN_CASE(JSOP_INITMETHOD)
+          {
+            JSAtom *atom = script->getAtom(fullAtomIndex(PC));
+            prepareStubCall(Uses(2));
+            masm.move(ImmPtr(atom), Registers::ArgReg1);
+            stubCall(stubs::InitMethod);
+            frame.pop();
+          }
+          END_CASE(JSOP_INITMETHOD)
 
           BEGIN_CASE(JSOP_UNBRAND)
             jsop_unbrand();
@@ -1986,7 +1642,7 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_CALLGLOBAL)
             jsop_getglobal(GET_SLOTNO(PC));
             if (op == JSOP_CALLGLOBAL)
-                frame.push(UndefinedValue());
+                frame.push(NullValue());
           END_CASE(JSOP_GETGLOBAL)
 
           BEGIN_CASE(JSOP_SETGLOBAL)
@@ -2001,12 +1657,6 @@ mjit::Compiler::generateMethod()
             jsop_globalinc(op, GET_SLOTNO(PC));
             break;
           END_CASE(JSOP_GLOBALINC)
-
-          BEGIN_CASE(JSOP_FORGLOBAL)
-            iterNext();
-            jsop_setglobal(GET_SLOTNO(PC));
-            frame.pop();
-          END_CASE(JSOP_FORGLOBAL)
 
           default:
            /* Sorry, this opcode isn't implemented yet. */
@@ -2041,6 +1691,13 @@ mjit::Compiler::labelOf(jsbytecode *pc)
     return jumpMap[offs];
 }
 
+JSC::ExecutablePool *
+mjit::Compiler::getExecPool(size_t size)
+{
+    ThreadData *jaegerData = &JS_METHODJIT_DATA(cx);
+    return jaegerData->execPool->poolForSize(size);
+}
+
 uint32
 mjit::Compiler::fullAtomIndex(jsbytecode *pc)
 {
@@ -2063,16 +1720,15 @@ mjit::Compiler::findCallSite(const CallSite &callSite)
 {
     JS_ASSERT(callSite.pcOffset < script->length);
 
-    JITScript *jit = script->getJIT(fp->isConstructing());
-    uint8* ilPath = (uint8 *)jit->code.m_code.executableAddress();
-    uint8* oolPath = ilPath + masm.size();
-
     for (uint32 i = 0; i < callSites.length(); i++) {
-        InternalCallSite &cs = callSites[i];
-        if (cs.pc == script->code + callSite.pcOffset && cs.id == callSite.id) {
-            if (cs.ool)
-                return oolPath + cs.returnOffset;
-            return ilPath + cs.returnOffset;
+        if (callSites[i].pc == script->code + callSite.pcOffset &&
+            callSites[i].id == callSite.id) {
+            if (callSites[i].stub) {
+                return (uint8*)script->jit->invoke + masm.size() +
+                       stubcc.masm.distanceOf(callSites[i].location);
+            }
+            return (uint8*)script->jit->invoke +
+                stubcc.masm.distanceOf(callSites[i].location);
         }
     }
 
@@ -2081,16 +1737,17 @@ mjit::Compiler::findCallSite(const CallSite &callSite)
     return NULL;
 }
 
-bool
+void
 mjit::Compiler::jumpInScript(Jump j, jsbytecode *pc)
 {
     JS_ASSERT(pc >= script->code && uint32(pc - script->code) < script->length);
 
-    if (pc < PC) {
+    /* :TODO: OOM failure possible here. */
+
+    if (pc < PC)
         j.linkTo(jumpMap[uint32(pc - script->code)], &masm);
-        return true;
-    }
-    return branchPatches.append(BranchPatch(j, pc));
+    else
+        branchPatches.append(BranchPatch(j, pc));
 }
 
 void
@@ -2127,106 +1784,23 @@ mjit::Compiler::emitFinalReturn(Assembler &masm)
     masm.jump(Registers::ReturnReg);
 }
 
-// Emits code to load a return value of the frame into the scripted-ABI
-// type & data register pair. If the return value is in fp->rval, then |fe|
-// is NULL. Otherwise, |fe| contains the return value.
-//
-// If reading from fp->rval, |undefined| is loaded optimistically, before
-// checking if fp->rval is set in the frame flags and loading that instead.
-//
-// Otherwise, if |masm| is the inline path, it is loaded as efficiently as
-// the FrameState can manage. If |masm| is the OOL path, the value is simply
-// loaded from its slot in the frame, since the caller has guaranteed it's
-// been synced.
-//
 void
-mjit::Compiler::loadReturnValue(Assembler *masm, FrameEntry *fe)
+mjit::Compiler::loadReturnValue(Assembler &masm)
 {
-    RegisterID typeReg = JSReturnReg_Type;
-    RegisterID dataReg = JSReturnReg_Data;
-
-    if (fe) {
-        // If using the OOL assembler, the caller signifies that the |fe| is
-        // synced, but not to rely on its register state.
-        if (masm != &this->masm) {
-            if (fe->isConstant()) {
-                stubcc.masm.loadValueAsComponents(fe->getValue(), typeReg, dataReg);
-            } else {
-                Address rval(frame.addressOf(fe));
-                if (fe->isTypeKnown()) {
-                    stubcc.masm.loadPayload(rval, dataReg);
-                    stubcc.masm.move(ImmType(fe->getKnownType()), typeReg);
-                } else {
-                    stubcc.masm.loadValueAsComponents(rval, typeReg, dataReg);
-                }
-            }
-        } else {
-            frame.loadForReturn(fe, typeReg, dataReg, Registers::ReturnReg);
-        }
-    } else {
-         // Load a return value from POPV or SETRVAL into the return registers,
-         // otherwise return undefined.
-        masm->loadValueAsComponents(UndefinedValue(), typeReg, dataReg);
-        if (analysis->usesReturnValue()) {
-            Jump rvalClear = masm->branchTest32(Assembler::Zero,
-                                               FrameFlagsAddress(),
-                                               Imm32(JSFRAME_HAS_RVAL));
-            Address rvalAddress(JSFrameReg, JSStackFrame::offsetOfReturnValue());
-            masm->loadValueAsComponents(rvalAddress, typeReg, dataReg);
-            rvalClear.linkTo(masm->label(), masm);
-        }
+    /*
+     * Load a return value from POPV or SETRVAL into the return registers,
+     * otherwise return undefined.
+     */
+    masm.loadValueAsComponents(UndefinedValue(), JSReturnReg_Type, JSReturnReg_Data);
+    if (analysis.usesReturnValue()) {
+        Jump rvalClear = masm.branchTest32(Assembler::Zero,
+                                           FrameFlagsAddress(),
+                                           Imm32(JSFRAME_RVAL_ASSIGNED));
+        Address rvalAddress(JSFrameReg, JSStackFrame::offsetOfReturnValue());
+        masm.loadValueAsComponents(rvalAddress,
+                                   JSReturnReg_Type, JSReturnReg_Data);
+        rvalClear.linkTo(masm.label(), &masm);
     }
-}
-
-// This ensures that constructor return values are an object. If a non-object
-// is returned, either explicitly or implicitly, the newly created object is
-// loaded out of the frame. Otherwise, the explicitly returned object is kept.
-//
-void
-mjit::Compiler::fixPrimitiveReturn(Assembler *masm, FrameEntry *fe)
-{
-    JS_ASSERT(isConstructing);
-
-    bool ool = (masm != &this->masm);
-    Address thisv(JSFrameReg, JSStackFrame::offsetOfThis(fun));
-
-    // We can just load |thisv| if either of the following is true:
-    //  (1) There is no explicit return value, AND fp->rval is not used.
-    //  (2) There is an explicit return value, and it's known to be primitive.
-    if ((!fe && !analysis->usesReturnValue()) ||
-        (fe && fe->isTypeKnown() && fe->getKnownType() != JSVAL_TYPE_OBJECT))
-    {
-        if (ool)
-            masm->loadValueAsComponents(thisv, JSReturnReg_Type, JSReturnReg_Data);
-        else
-            frame.loadThisForReturn(JSReturnReg_Type, JSReturnReg_Data, Registers::ReturnReg);
-        return;
-    }
-
-    // If the type is known to be an object, just load the return value as normal.
-    if (fe && fe->isTypeKnown() && fe->getKnownType() == JSVAL_TYPE_OBJECT) {
-        loadReturnValue(masm, fe);
-        return;
-    }
-
-    // There's a return value, and its type is unknown. Test the type and load
-    // |thisv| if necessary.
-    loadReturnValue(masm, fe);
-    Jump j = masm->testObject(Assembler::Equal, JSReturnReg_Type);
-    masm->loadValueAsComponents(thisv, JSReturnReg_Type, JSReturnReg_Data);
-    j.linkTo(masm->label(), masm);
-}
-
-// Loads the return value into the scripted ABI register pair, such that JS
-// semantics in constructors are preserved.
-//
-void
-mjit::Compiler::emitReturnValue(Assembler *masm, FrameEntry *fe)
-{
-    if (isConstructing)
-        fixPrimitiveReturn(masm, fe);
-    else
-        loadReturnValue(masm, fe);
 }
 
 void
@@ -2236,11 +1810,6 @@ mjit::Compiler::emitReturn(FrameEntry *fe)
 
     /* Only the top of the stack can be returned. */
     JS_ASSERT_IF(fe, fe == frame.peek(-1));
-
-    if (debugMode() || Probes::callTrackingActive(cx)) {
-        prepareStubCall(Uses(0));
-        INLINE_STUBCALL(stubs::LeaveScript);
-    }
 
     /*
      * If there's a function object, deal with the fact that it can escape.
@@ -2255,23 +1824,41 @@ mjit::Compiler::emitReturn(FrameEntry *fe)
         if (fun->isHeavyweight()) {
             /* There will always be a call object. */
             prepareStubCall(Uses(fe ? 1 : 0));
-            INLINE_STUBCALL(stubs::PutActivationObjects);
+            stubCall(stubs::PutActivationObjects);
+
+            if (fe) {
+                masm.loadValueAsComponents(frame.addressOf(fe),
+                                           JSReturnReg_Type, JSReturnReg_Data);
+                emitFinalReturn(masm);
+                frame.discardFrame();
+                return;
+            }
         } else {
             /* if (hasCallObj() || hasArgsObj()) stubs::PutActivationObjects() */
             Jump putObjs = masm.branchTest32(Assembler::NonZero,
                                              Address(JSFrameReg, JSStackFrame::offsetOfFlags()),
                                              Imm32(JSFRAME_HAS_CALL_OBJ | JSFRAME_HAS_ARGS_OBJ));
-            stubcc.linkExit(putObjs, Uses(frame.frameSlots()));
+            stubcc.linkExit(putObjs, Uses(frame.frameDepth()));
 
             stubcc.leave();
-            OOL_STUBCALL(stubs::PutActivationObjects);
+            stubcc.call(stubs::PutActivationObjects);
 
-            emitReturnValue(&stubcc.masm, fe);
+            if (fe) {
+                stubcc.masm.loadValueAsComponents(frame.addressOf(fe),
+                                                  JSReturnReg_Type, JSReturnReg_Data);
+            } else {
+                loadReturnValue(stubcc.masm);
+            }
+
             emitFinalReturn(stubcc.masm);
         }
     }
 
-    emitReturnValue(&masm, fe);
+    if (fe)
+        frame.storeTo(fe, JSReturnReg_Data, JSReturnReg_Type, Registers::ReturnReg);
+    else
+        loadReturnValue(masm);
+
     emitFinalReturn(masm);
     frame.discardFrame();
 }
@@ -2285,10 +1872,10 @@ mjit::Compiler::prepareStubCall(Uses uses)
 }
 
 JSC::MacroAssembler::Call
-mjit::Compiler::emitStubCall(void *ptr)
+mjit::Compiler::stubCall(void *ptr)
 {
     JaegerSpew(JSpew_Insns, " ---- CALLING STUB ---- \n");
-    Call cl = masm.fallibleVMCall(ptr, PC, frame.stackDepth() + script->nfixed);
+    Call cl = masm.stubCall(ptr, PC, frame.stackDepth() + script->nfixed);
     JaegerSpew(JSpew_Insns, " ---- END STUB CALL ---- \n");
     return cl;
 }
@@ -2333,29 +1920,36 @@ mjit::Compiler::interruptCheckHelper()
     Jump noInterrupt = stubcc.masm.branchTest32(Assembler::Zero, flag);
 #endif
 
+    frame.freeReg(reg);
+
     frame.sync(stubcc.masm, Uses(0));
     stubcc.masm.move(ImmPtr(PC), Registers::ArgReg1);
-    OOL_STUBCALL(stubs::Interrupt);
+    stubcc.call(stubs::Interrupt);
+    ADD_CALLSITE(true);
     stubcc.rejoin(Changes(0));
 
 #ifdef JS_THREADSAFE
     stubcc.linkRejoin(noInterrupt);
 #endif
-
-    frame.freeReg(reg);
 }
 
 void
-mjit::Compiler::addReturnSite(Label joinPoint, uint32 id)
+mjit::Compiler::emitPrimitiveTestForNew(uint32 argc)
 {
-    InternalCallSite site(masm.distanceOf(joinPoint), PC, id, false, false);
-    addCallSite(site);
+    Jump primitive = masm.testPrimitive(Assembler::Equal, JSReturnReg_Type);
+    stubcc.linkExitDirect(primitive, stubcc.masm.label());
+    FrameEntry *fe = frame.peek(-int(argc + 1));
+    Address thisv(frame.addressOf(fe));
+    stubcc.masm.loadValueAsComponents(thisv, JSReturnReg_Type, JSReturnReg_Data);
+    Jump primFix = stubcc.masm.jump();
+    stubcc.crossJump(primFix, masm.label());
 }
 
 void
 mjit::Compiler::emitUncachedCall(uint32 argc, bool callingNew)
 {
     CallPatchInfo callPatch;
+    callPatch.hasSlowNcode = false;
 
     RegisterID r0 = Registers::ReturnReg;
     VoidPtrStubUInt32 stub = callingNew ? stubs::UncachedNew : stubs::UncachedCall;
@@ -2363,20 +1957,28 @@ mjit::Compiler::emitUncachedCall(uint32 argc, bool callingNew)
     frame.syncAndKill(Registers(Registers::AvailRegs), Uses(argc + 2));
     prepareStubCall(Uses(argc + 2));
     masm.move(Imm32(argc), Registers::ArgReg1);
-    INLINE_STUBCALL(stub);
+    stubCall(stub);
+    ADD_CALLSITE(false);
 
     Jump notCompiled = masm.branchTestPtr(Assembler::Zero, r0, r0);
 
     masm.loadPtr(FrameAddress(offsetof(VMFrame, regs.fp)), JSFrameReg);
-    callPatch.hasFastNcode = true;
     callPatch.fastNcodePatch =
         masm.storePtrWithPatch(ImmPtr(NULL),
                                Address(JSFrameReg, JSStackFrame::offsetOfncode()));
 
     masm.jump(r0);
+
+#if (defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)) || defined(_WIN64)
+    masm.callLabel = masm.label();
+#endif
+    ADD_CALLSITE(false);
+
     callPatch.joinPoint = masm.label();
-    addReturnSite(callPatch.joinPoint, __LINE__);
     masm.loadPtr(Address(JSFrameReg, JSStackFrame::offsetOfPrev()), JSFrameReg);
+
+    if (callingNew)
+        emitPrimitiveTestForNew(argc);
 
     frame.popn(argc + 2);
     frame.takeReg(JSReturnReg_Type);
@@ -2388,253 +1990,84 @@ mjit::Compiler::emitUncachedCall(uint32 argc, bool callingNew)
     callPatches.append(callPatch);
 }
 
-static bool
-IsLowerableFunCallOrApply(jsbytecode *pc)
-{
-#ifdef JS_MONOIC
-    return (*pc == JSOP_FUNCALL && GET_ARGC(pc) >= 1) ||
-           (*pc == JSOP_FUNAPPLY && GET_ARGC(pc) == 2);
-#else
-    return false;
-#endif
-}
-
-void
-mjit::Compiler::checkCallApplySpeculation(uint32 callImmArgc, uint32 speculatedArgc,
-                                          FrameEntry *origCallee, FrameEntry *origThis,
-                                          MaybeRegisterID origCalleeType, RegisterID origCalleeData,
-                                          MaybeRegisterID origThisType, RegisterID origThisData,
-                                          Jump *uncachedCallSlowRejoin, CallPatchInfo *uncachedCallPatch)
-{
-    JS_ASSERT(IsLowerableFunCallOrApply(PC));
-
-    /*
-     * if (origCallee.isObject() &&
-     *     origCallee.toObject().isFunction &&
-     *     origCallee.toObject().getFunctionPrivate() == js_fun_{call,apply})
-     */
-    MaybeJump isObj;
-    if (origCalleeType.isSet())
-        isObj = masm.testObject(Assembler::NotEqual, origCalleeType.reg());
-    Jump isFun = masm.testFunction(Assembler::NotEqual, origCalleeData);
-    masm.loadFunctionPrivate(origCalleeData, origCalleeData);
-    Native native = *PC == JSOP_FUNCALL ? js_fun_call : js_fun_apply;
-    Jump isNative = masm.branchPtr(Assembler::NotEqual,
-                                   Address(origCalleeData, JSFunction::offsetOfNativeOrScript()),
-                                   ImmPtr(JS_FUNC_TO_DATA_PTR(void *, native)));
-
-    /*
-     * If speculation fails, we can't use the ic, since it is compiled on the
-     * assumption that speculation succeeds. Instead, just do an uncached call.
-     */
-    {
-        if (isObj.isSet())
-            stubcc.linkExitDirect(isObj.getJump(), stubcc.masm.label());
-        stubcc.linkExitDirect(isFun, stubcc.masm.label());
-        stubcc.linkExitDirect(isNative, stubcc.masm.label());
-
-        int32 frameDepthAdjust;
-        if (applyTricks == LazyArgsObj) {
-            OOL_STUBCALL(stubs::Arguments);
-            frameDepthAdjust = +1;
-        } else {
-            frameDepthAdjust = 0;
-        }
-
-        stubcc.masm.move(Imm32(callImmArgc), Registers::ArgReg1);
-        JaegerSpew(JSpew_Insns, " ---- BEGIN SLOW CALL CODE ---- \n");
-        OOL_STUBCALL_LOCAL_SLOTS(JS_FUNC_TO_DATA_PTR(void *, stubs::UncachedCall),
-                           frame.localSlots() + frameDepthAdjust);
-        JaegerSpew(JSpew_Insns, " ---- END SLOW CALL CODE ---- \n");
-
-        RegisterID r0 = Registers::ReturnReg;
-        Jump notCompiled = stubcc.masm.branchTestPtr(Assembler::Zero, r0, r0);
-
-        stubcc.masm.loadPtr(FrameAddress(offsetof(VMFrame, regs.fp)), JSFrameReg);
-        Address ncodeAddr(JSFrameReg, JSStackFrame::offsetOfncode());
-        uncachedCallPatch->hasSlowNcode = true;
-        uncachedCallPatch->slowNcodePatch = stubcc.masm.storePtrWithPatch(ImmPtr(NULL), ncodeAddr);
-
-        stubcc.masm.jump(r0);
-        addReturnSite(masm.label(), __LINE__);
-
-        notCompiled.linkTo(stubcc.masm.label(), &stubcc.masm);
-
-        /*
-         * inlineCallHelper will link uncachedCallSlowRejoin to the join point
-         * at the end of the ic. At that join point, the return value of the
-         * call is assumed to be in registers, so load them before jumping.
-         */
-        JaegerSpew(JSpew_Insns, " ---- BEGIN SLOW RESTORE CODE ---- \n");
-        Address rval = frame.addressOf(origCallee);  /* vp[0] == rval */
-        stubcc.masm.loadValueAsComponents(rval, JSReturnReg_Type, JSReturnReg_Data);
-        *uncachedCallSlowRejoin = stubcc.masm.jump();
-        JaegerSpew(JSpew_Insns, " ---- END SLOW RESTORE CODE ---- \n");
-    }
-
-    /*
-     * For simplicity, we don't statically specialize calls to
-     * ic::SplatApplyArgs based on applyTricks. Rather, this state is
-     * communicated dynamically through the VMFrame.
-     */
-    if (*PC == JSOP_FUNAPPLY) {
-        masm.store32(Imm32(applyTricks == LazyArgsObj),
-                     FrameAddress(offsetof(VMFrame, u.call.lazyArgsObj)));
-    }
-}
-
-/* This predicate must be called before the current op mutates the FrameState. */
-bool
-mjit::Compiler::canUseApplyTricks()
-{
-    JS_ASSERT(*PC == JSOP_ARGUMENTS);
-    jsbytecode *nextpc = PC + JSOP_ARGUMENTS_LENGTH;
-    return *nextpc == JSOP_FUNAPPLY &&
-           IsLowerableFunCallOrApply(nextpc) &&
-           !analysis->jumpTarget(nextpc) &&
-           !debugMode();
-}
-
 /* See MonoIC.cpp, CallCompiler for more information on call ICs. */
 void
-mjit::Compiler::inlineCallHelper(uint32 callImmArgc, bool callingNew)
+mjit::Compiler::inlineCallHelper(uint32 argc, bool callingNew)
 {
     /* Check for interrupts on function call */
     interruptCheckHelper();
 
-    int32 speculatedArgc;
-    if (applyTricks == LazyArgsObj) {
-        frame.pop();
-        speculatedArgc = 1;
-    } else {
-        speculatedArgc = callImmArgc;
-    }
+    FrameEntry *fe = frame.peek(-int(argc + 2));
 
-    FrameEntry *origCallee = frame.peek(-(speculatedArgc + 2));
-    FrameEntry *origThis = frame.peek(-(speculatedArgc + 1));
-
-    /* 'this' does not need to be synced for constructing. */
-    if (callingNew)
-        frame.discardFe(origThis);
-
-    /*
-     * From the presence of JSOP_FUN{CALL,APPLY}, we speculate that we are
-     * going to call js_fun_{call,apply}. Normally, this call would go through
-     * js::Invoke to ultimately call 'this'. We can do much better by having
-     * the callIC cache and call 'this' directly. However, if it turns out that
-     * we are not actually calling js_fun_call, the callIC must act as normal.
-     */
-    bool lowerFunCallOrApply = IsLowerableFunCallOrApply(PC);
-
-    /*
-     * Currently, constant values are not functions, so don't even try to
-     * optimize. This lets us assume that callee/this have regs below.
-     */
-#ifdef JS_MONOIC
-    if (debugMode() ||
-        origCallee->isConstant() || origCallee->isNotType(JSVAL_TYPE_OBJECT) ||
-        (lowerFunCallOrApply &&
-         (origThis->isConstant() || origThis->isNotType(JSVAL_TYPE_OBJECT)))) {
-#endif
-        if (applyTricks == LazyArgsObj) {
-            /* frame.pop() above reset us to pre-JSOP_ARGUMENTS state */
-            jsop_arguments();
-            frame.pushSynced();
-        }
-        emitUncachedCall(callImmArgc, callingNew);
+    /* Currently, we don't support constant functions. */
+    if (fe->isConstant() || fe->isNotType(JSVAL_TYPE_OBJECT) || script->debugMode) {
+        emitUncachedCall(argc, callingNew);
         return;
+    }
+
 #ifdef JS_MONOIC
+    FrameEntry *thisvFe = frame.peek(-int(argc + 1));
+    Address thisvAddr = frame.addressOf(thisvFe);
+
+    CallGenInfo callIC(argc);
+    uint32 callICIndex = callICs.length();
+
+    CallPatchInfo callPatch;
+
+    /*
+     * Save constant |this| to optimize thisv stores for common call cases
+     * like CALL[LOCAL, GLOBAL, ARG] which push NULL.
+     */
+    callIC.pc = PC;
+    callIC.frameDepth = frame.frameDepth();
+
+    /* Grab type and data registers up-front. */
+    MaybeRegisterID typeReg;
+    frame.ensureFullRegs(fe);
+
+    if (!fe->isTypeKnown()) {
+        typeReg = frame.tempRegForType(fe);
+        frame.pinReg(typeReg.reg());
     }
+    RegisterID dataReg = frame.tempRegForData(fe);
+    frame.pinReg(dataReg);
 
-    /* Initialized by both branches below. */
-    CallGenInfo     callIC(PC);
-    CallPatchInfo   callPatch;
-    MaybeRegisterID icCalleeType; /* type to test for function-ness */
-    RegisterID      icCalleeData; /* data to call */
-    Address         icRvalAddr;   /* return slot on slow-path rejoin */
+    /*
+     * We rely on the fact that syncAndKill() is not allowed to touch the
+     * registers we've preserved.
+     */
+    frame.syncAndKill(Registers(Registers::AvailRegs), Uses(argc + 2));
+    frame.unpinKilledReg(dataReg);
+    if (typeReg.isSet())
+        frame.unpinKilledReg(typeReg.reg());
 
-    /* Initialized only on lowerFunCallOrApply branch. */
-    Jump            uncachedCallSlowRejoin;
-    CallPatchInfo   uncachedCallPatch;
-
-    {
-        MaybeRegisterID origCalleeType, maybeOrigCalleeData;
-        RegisterID origCalleeData;
-
-        /* Get the callee in registers. */
-        frame.ensureFullRegs(origCallee, &origCalleeType, &maybeOrigCalleeData);
-        origCalleeData = maybeOrigCalleeData.reg();
-        PinRegAcrossSyncAndKill p1(frame, origCalleeData), p2(frame, origCalleeType);
-
-        if (lowerFunCallOrApply) {
-            MaybeRegisterID origThisType, maybeOrigThisData;
-            RegisterID origThisData;
-            {
-                /* Get thisv in registers. */
-                frame.ensureFullRegs(origThis, &origThisType, &maybeOrigThisData);
-                origThisData = maybeOrigThisData.reg();
-                PinRegAcrossSyncAndKill p3(frame, origThisData), p4(frame, origThisType);
-
-                /* Leaves pinned regs untouched. */
-                frame.syncAndKill(Registers(Registers::AvailRegs), Uses(speculatedArgc + 2));
-            }
-
-            checkCallApplySpeculation(callImmArgc, speculatedArgc,
-                                      origCallee, origThis,
-                                      origCalleeType, origCalleeData,
-                                      origThisType, origThisData,
-                                      &uncachedCallSlowRejoin, &uncachedCallPatch);
-
-            icCalleeType = origThisType;
-            icCalleeData = origThisData;
-            icRvalAddr = frame.addressOf(origThis);
-
-            /*
-             * For f.call(), since we compile the ic under the (checked)
-             * assumption that call == js_fun_call, we still have a static
-             * frame size. For f.apply(), the frame size depends on the dynamic
-             * length of the array passed to apply.
-             */
-            if (*PC == JSOP_FUNCALL)
-                callIC.frameSize.initStatic(frame.localSlots(), speculatedArgc - 1);
-            else
-                callIC.frameSize.initDynamic();
-        } else {
-            /* Leaves pinned regs untouched. */
-            frame.syncAndKill(Registers(Registers::AvailRegs), Uses(speculatedArgc + 2));
-
-            icCalleeType = origCalleeType;
-            icCalleeData = origCalleeData;
-            icRvalAddr = frame.addressOf(origCallee);
-            callIC.frameSize.initStatic(frame.localSlots(), speculatedArgc);
-        }
-    }
+    Registers tempRegs;
 
     /* Test the type if necessary. Failing this always takes a really slow path. */
     MaybeJump notObjectJump;
-    if (icCalleeType.isSet())
-        notObjectJump = masm.testObject(Assembler::NotEqual, icCalleeType.reg());
+    if (typeReg.isSet())
+        notObjectJump = masm.testObject(Assembler::NotEqual, typeReg.reg());
 
     /*
-     * For an optimized apply, keep icCalleeData and funPtrReg in a
-     * callee-saved registers for the subsequent ic::SplatApplyArgs call.
+     * Ensure that dataReg stays in a register which won't be clobbered
+     * by the intervening call to NewObject.
      */
-    Registers tempRegs;
-    if (callIC.frameSize.isDynamic() && !Registers::isSaved(icCalleeData)) {
-        RegisterID x = tempRegs.takeRegInMask(Registers::SavedRegs);
-        masm.move(icCalleeData, x);
-        icCalleeData = x;
-    } else {
-        tempRegs.takeReg(icCalleeData);
+    if (callingNew && !(Registers::maskReg(dataReg) & Registers::SavedRegs)) {
+        RegisterID reg = Registers(Registers::SavedRegs).takeAnyReg();
+        masm.move(dataReg, reg);
+        dataReg = reg;
     }
-    RegisterID funPtrReg = tempRegs.takeRegInMask(Registers::SavedRegs);
+
+    tempRegs.takeReg(dataReg);
+    RegisterID t0 = tempRegs.takeAnyReg();
+    RegisterID t1 = tempRegs.takeAnyReg();
 
     /*
      * Guard on the callee identity. This misses on the first run. If the
      * callee is scripted, compiled/compilable, and argc == nargs, then this
      * guard is patched, and the compiled code address is baked in.
      */
-    Jump j = masm.branchPtrWithPatch(Assembler::NotEqual, icCalleeData, callIC.funGuard);
+    Jump j = masm.branchPtrWithPatch(Assembler::NotEqual, dataReg, callIC.funGuard);
     callIC.funJump = j;
 
     Jump rejoin1, rejoin2;
@@ -2646,58 +2079,63 @@ mjit::Compiler::inlineCallHelper(uint32 callImmArgc, bool callingNew)
          * Test if the callee is even a function. If this doesn't match, we
          * take a _really_ slow path later.
          */
-        Jump notFunction = stubcc.masm.testFunction(Assembler::NotEqual, icCalleeData);
+        Jump notFunction = stubcc.masm.testFunction(Assembler::NotEqual, dataReg);
 
         /* Test if the function is scripted. */
-        RegisterID tmp = tempRegs.takeAnyReg();
-        stubcc.masm.loadFunctionPrivate(icCalleeData, funPtrReg);
-        stubcc.masm.load16(Address(funPtrReg, offsetof(JSFunction, flags)), tmp);
-        stubcc.masm.and32(Imm32(JSFUN_KINDMASK), tmp);
-        Jump isNative = stubcc.masm.branch32(Assembler::Below, tmp, Imm32(JSFUN_INTERPRETED));
-        tempRegs.putReg(tmp);
+        stubcc.masm.loadFunctionPrivate(dataReg, t0);
+        stubcc.masm.load16(Address(t0, offsetof(JSFunction, flags)), t1);
+        stubcc.masm.and32(Imm32(JSFUN_KINDMASK), t1);
+        Jump isNative = stubcc.masm.branch32(Assembler::Below, t1, Imm32(JSFUN_INTERPRETED));
+
+        /* Create the new object. This requires some fiddling to save the two values. */
+        if (callingNew) {
+            void *pfun = stubcc.masm.getCallTarget(JS_FUNC_TO_DATA_PTR(void *, stubs::NewObject));
+            stubcc.masm.storePtr(ImmPtr(PC),
+                             FrameAddress(offsetof(VMFrame, regs) + offsetof(JSFrameRegs, pc)));
+            stubcc.masm.fixScriptStack(frame.frameDepth());
+            stubcc.masm.setupVMFrame();
+#if defined(JS_CPU_X86)
+            /* Need to stay 16-byte aligned on x86. */
+            stubcc.masm.subPtr(Imm32(8), JSC::MacroAssembler::stackPointerRegister);
+#endif
+            stubcc.masm.push(dataReg);
+            stubcc.masm.push(t0);
+            stubcc.masm.move(Imm32(argc), Registers::ArgReg1);
+            stubcc.masm.wrapCall(pfun);
+            stubcc.masm.pop(t0);
+            stubcc.masm.pop(dataReg);
+#if defined(JS_CPU_X86)
+            stubcc.masm.addPtr(Imm32(8), JSC::MacroAssembler::stackPointerRegister);
+#endif
+        }
 
         /*
-         * N.B. After this call, the frame will have a dynamic frame size.
-         * Check after the function is known not to be a native so that the
-         * catch-all/native path has a static depth.
-         */
-        if (callIC.frameSize.isDynamic())
-            OOL_STUBCALL(ic::SplatApplyArgs);
-
-        /*
-         * No-op jump that gets patched by ic::New/Call to the stub generated
-         * by generateFullCallStub.
+         * No-op jump that gets re-patched. This is so ArgReg1 won't be
+         * clobbered, with the added bonus that the generated stub doesn't
+         * need to pop its own return address.
          */
         Jump toPatch = stubcc.masm.jump();
         toPatch.linkTo(stubcc.masm.label(), &stubcc.masm);
         callIC.oolJump = toPatch;
 
-        /*
-         * At this point the function is definitely scripted, so we try to
-         * compile it and patch either funGuard/funJump or oolJump. This code
-         * is only executed once.
-         */
-        callIC.addrLabel1 = stubcc.masm.moveWithPatch(ImmPtr(NULL), Registers::ArgReg1);
-        void *icFunPtr = JS_FUNC_TO_DATA_PTR(void *, callingNew ? ic::New : ic::Call);
-        if (callIC.frameSize.isStatic())
-            callIC.oolCall = OOL_STUBCALL_LOCAL_SLOTS(icFunPtr, frame.localSlots());
-        else
-            callIC.oolCall = OOL_STUBCALL_LOCAL_SLOTS(icFunPtr, -1);
+        /* At this point the function is definitely scripted. Call the link routine. */
+        stubcc.masm.move(Imm32(callICIndex), Registers::ArgReg1);
+        callIC.oolCall = stubcc.call(callingNew ? ic::New : ic::Call);
 
-        callIC.funObjReg = icCalleeData;
-        callIC.funPtrReg = funPtrReg;
+        callIC.funObjReg = dataReg;
+        callIC.funPtrReg = t0;
 
         /*
          * The IC call either returns NULL, meaning call completed, or a
          * function pointer to jump to. Caveat: Must restore JSFrameReg
          * because a new frame has been pushed.
+         *
+         * This function only executes once. If hit, it will generate a stub
+         * to compile and execute calls on demand.
          */
         rejoin1 = stubcc.masm.branchTestPtr(Assembler::Zero, Registers::ReturnReg,
                                             Registers::ReturnReg);
-        if (callIC.frameSize.isStatic())
-            stubcc.masm.move(Imm32(callIC.frameSize.staticArgc()), JSParamReg_Argc);
-        else
-            stubcc.masm.load32(FrameAddress(offsetof(VMFrame, u.call.dynamicArgc)), JSParamReg_Argc);
+        stubcc.masm.move(Imm32(argc), JSParamReg_Argc);
         stubcc.masm.loadPtr(FrameAddress(offsetof(VMFrame, regs.fp)), JSFrameReg);
         callPatch.hasSlowNcode = true;
         callPatch.slowNcodePatch =
@@ -2705,20 +2143,14 @@ mjit::Compiler::inlineCallHelper(uint32 callImmArgc, bool callingNew)
                                           Address(JSFrameReg, JSStackFrame::offsetOfncode()));
         stubcc.masm.jump(Registers::ReturnReg);
 
-        /*
-         * This ool path is the catch-all for everything but scripted function
-         * callees. For native functions, ic::NativeNew/NativeCall will repatch
-         * funGaurd/funJump with a fast call stub. All other cases
-         * (non-function callable objects and invalid callees) take the slow
-         * path through js::Invoke.
-         */
+        /* Catch-all case, for natives this will turn into a MIC. */
         if (notObjectJump.isSet())
             stubcc.linkExitDirect(notObjectJump.get(), stubcc.masm.label());
         notFunction.linkTo(stubcc.masm.label(), &stubcc.masm);
         isNative.linkTo(stubcc.masm.label(), &stubcc.masm);
 
-        callIC.addrLabel2 = stubcc.masm.moveWithPatch(ImmPtr(NULL), Registers::ArgReg1);
-        OOL_STUBCALL(callingNew ? ic::NativeNew : ic::NativeCall);
+        stubcc.masm.move(Imm32(callICIndex), Registers::ArgReg1);
+        stubcc.call(callingNew ? ic::NativeNew : ic::NativeCall);
 
         rejoin2 = stubcc.masm.jump();
     }
@@ -2729,49 +2161,45 @@ mjit::Compiler::inlineCallHelper(uint32 callImmArgc, bool callingNew)
      */
     callIC.hotPathLabel = masm.label();
 
+    /* If calling |new|, make sure to allocate a new object. */
+    if (callingNew) {
+        prepareStubCall(Uses(argc + 2));
+        masm.move(Imm32(argc), Registers::ArgReg1);
+        stubCall(stubs::NewObject);
+    }
+
     uint32 flags = 0;
     if (callingNew)
         flags |= JSFRAME_CONSTRUCTING;
 
     InlineFrameAssembler inlFrame(masm, callIC, flags);
-    callPatch.hasFastNcode = true;
     callPatch.fastNcodePatch = inlFrame.assemble(NULL);
 
     callIC.hotJump = masm.jump();
     callIC.joinPoint = callPatch.joinPoint = masm.label();
-    addReturnSite(callPatch.joinPoint, __LINE__);
-    if (lowerFunCallOrApply)
-        uncachedCallPatch.joinPoint = callIC.joinPoint;
     masm.loadPtr(Address(JSFrameReg, JSStackFrame::offsetOfPrev()), JSFrameReg);
 
-    frame.popn(speculatedArgc + 2);
+    /*
+     * Functions invoked with |new| can return primitive values.
+     * Just deal with this here.
+     */
+    if (callingNew)
+        emitPrimitiveTestForNew(argc);
+
+    frame.popn(argc + 2);
     frame.takeReg(JSReturnReg_Type);
     frame.takeReg(JSReturnReg_Data);
     frame.pushRegs(JSReturnReg_Type, JSReturnReg_Data);
 
-    /*
-     * Now that the frame state is set, generate the rejoin path. Note that, if
-     * lowerFunCallOrApply, we cannot just call 'stubcc.rejoin' since the return
-     * value has been placed at vp[1] which is not the stack address associated
-     * with frame.peek(-1).
-     */
     callIC.slowJoinPoint = stubcc.masm.label();
     rejoin1.linkTo(callIC.slowJoinPoint, &stubcc.masm);
     rejoin2.linkTo(callIC.slowJoinPoint, &stubcc.masm);
-    JaegerSpew(JSpew_Insns, " ---- BEGIN SLOW RESTORE CODE ---- \n");
-    stubcc.masm.loadValueAsComponents(icRvalAddr, JSReturnReg_Type, JSReturnReg_Data);
-    stubcc.crossJump(stubcc.masm.jump(), masm.label());
-    JaegerSpew(JSpew_Insns, " ---- END SLOW RESTORE CODE ---- \n");
-
-    if (lowerFunCallOrApply)
-        stubcc.crossJump(uncachedCallSlowRejoin, masm.label());
+    stubcc.rejoin(Changes(0));
 
     callICs.append(callIC);
     callPatches.append(callPatch);
-    if (lowerFunCallOrApply)
-        callPatches.append(uncachedCallPatch);
-
-    applyTricks = NoApplyTricks;
+#else
+    emitUncachedCall(argc, callingNew);
 #endif
 }
 
@@ -2781,8 +2209,18 @@ mjit::Compiler::inlineCallHelper(uint32 callImmArgc, bool callingNew)
  * being set. This includes any API callbacks and any scripted or native call.
  */
 void
-mjit::Compiler::addCallSite(const InternalCallSite &site)
+mjit::Compiler::addCallSite(uint32 id, bool stub)
 {
+    InternalCallSite site;
+    site.stub = stub;
+#if (defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)) || defined(_WIN64)
+    site.location = stub ? stubcc.masm.callLabel : masm.callLabel;
+#else
+    site.location = stub ? stubcc.masm.label() : masm.label();
+#endif
+
+    site.pc = PC;
+    site.id = id;
     callSites.append(site);
 }
 
@@ -2853,53 +2291,45 @@ mjit::Compiler::compareTwoValues(JSContext *cx, JSOp op, const Value &lhs, const
     return false;
 }
 
-bool
+void
 mjit::Compiler::emitStubCmpOp(BoolStub stub, jsbytecode *target, JSOp fused)
 {
     prepareStubCall(Uses(2));
-    INLINE_STUBCALL(stub);
+    stubCall(stub);
     frame.pop();
     frame.pop();
 
     if (!target) {
         frame.takeReg(Registers::ReturnReg);
         frame.pushTypedPayload(JSVAL_TYPE_BOOLEAN, Registers::ReturnReg);
-        return true;
-    }
+    } else {
+        JS_ASSERT(fused == JSOP_IFEQ || fused == JSOP_IFNE);
 
-    JS_ASSERT(fused == JSOP_IFEQ || fused == JSOP_IFNE);
-    frame.syncAndForgetEverything();
-    Assembler::Condition cond = (fused == JSOP_IFEQ)
-                                ? Assembler::Zero
-                                : Assembler::NonZero;
-    Jump j = masm.branchTest32(cond, Registers::ReturnReg,
-                               Registers::ReturnReg);
-    return jumpAndTrace(j, target);
+        frame.syncAndForgetEverything();
+        Assembler::Condition cond = (fused == JSOP_IFEQ)
+                                    ? Assembler::Zero
+                                    : Assembler::NonZero;
+        Jump j = masm.branchTest32(cond, Registers::ReturnReg,
+                                   Registers::ReturnReg);
+        jumpAndTrace(j, target);
+    }
 }
 
 void
-mjit::Compiler::jsop_setprop_slow(JSAtom *atom, bool usePropCache)
+mjit::Compiler::jsop_setprop_slow(JSAtom *atom)
 {
     prepareStubCall(Uses(2));
     masm.move(ImmPtr(atom), Registers::ArgReg1);
-    if (usePropCache)
-        INLINE_STUBCALL(STRICT_VARIANT(stubs::SetName));
-    else
-        INLINE_STUBCALL(STRICT_VARIANT(stubs::SetPropNoCache));
+    stubCall(STRICT_VARIANT(stubs::SetName));
     JS_STATIC_ASSERT(JSOP_SETNAME_LENGTH == JSOP_SETPROP_LENGTH);
     frame.shimmy(1);
 }
 
 void
-mjit::Compiler::jsop_getprop_slow(JSAtom *atom, bool usePropCache)
+mjit::Compiler::jsop_getprop_slow()
 {
     prepareStubCall(Uses(1));
-    if (usePropCache) {
-        INLINE_STUBCALL(stubs::GetProp);
-    } else {
-        masm.move(ImmPtr(atom), Registers::ArgReg1);
-        INLINE_STUBCALL(stubs::GetPropNoCache);
-    }
+    stubCall(stubs::GetProp);
     frame.pop();
     frame.pushSynced();
 }
@@ -2909,14 +2339,14 @@ mjit::Compiler::jsop_callprop_slow(JSAtom *atom)
 {
     prepareStubCall(Uses(1));
     masm.move(ImmPtr(atom), Registers::ArgReg1);
-    INLINE_STUBCALL(stubs::CallProp);
+    stubCall(stubs::CallProp);
     frame.pop();
     frame.pushSynced();
     frame.pushSynced();
     return true;
 }
 
-bool
+void
 mjit::Compiler::jsop_length()
 {
     FrameEntry *top = frame.peek(-1);
@@ -2935,37 +2365,22 @@ mjit::Compiler::jsop_length()
             frame.pop();
             frame.pushTypedPayload(JSVAL_TYPE_INT32, str);
         }
-        return true;
+        return;
     }
 
 #if defined JS_POLYIC
-    return jsop_getprop(cx->runtime->atomState.lengthAtom);
+    jsop_getprop(cx->runtime->atomState.lengthAtom);
 #else
     prepareStubCall(Uses(1));
-    INLINE_STUBCALL(stubs::Length);
+    stubCall(stubs::Length);
     frame.pop();
     frame.pushSynced();
-    return true;
 #endif
 }
-
-#ifdef JS_MONOIC
-void
-mjit::Compiler::passMICAddress(MICGenInfo &mic)
-{
-    mic.addrLabel = stubcc.masm.moveWithPatch(ImmPtr(NULL), Registers::ArgReg1);
-}
-#endif
 
 #if defined JS_POLYIC
 void
-mjit::Compiler::passICAddress(BaseICInfo *ic)
-{
-    ic->paramAddr = stubcc.masm.moveWithPatch(ImmPtr(NULL), Registers::ArgReg1);
-}
-
-bool
-mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck, bool usePropCache)
+mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
 {
     FrameEntry *top = frame.peek(-1);
 
@@ -2973,8 +2388,8 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck, bool usePropCache)
     if (top->isTypeKnown() && top->getKnownType() != JSVAL_TYPE_OBJECT) {
         JS_ASSERT_IF(atom == cx->runtime->atomState.lengthAtom,
                      top->getKnownType() != JSVAL_TYPE_STRING);
-        jsop_getprop_slow(atom, usePropCache);
-        return true;
+        jsop_getprop_slow();
+        return;
     }
 
     /*
@@ -2989,7 +2404,7 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck, bool usePropCache)
         shapeReg = frame.allocReg();
     }
 
-    PICGenInfo pic(ic::PICInfo::GET, JSOp(*PC), usePropCache);
+    PICGenInfo pic(ic::PICInfo::GET);
 
     /* Guard that the type is an object. */
     Jump typeCheck;
@@ -3002,7 +2417,6 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck, bool usePropCache)
         Jump j = masm.testObject(Assembler::NotEqual, reg);
 
         /* GETPROP_INLINE_TYPE_GUARD is used to patch the jmp, not cmp. */
-        RETURN_IF_OOM(false);
         JS_ASSERT(masm.differenceBetween(pic.fastPathStart, masm.label()) == GETPROP_INLINE_TYPE_GUARD);
 
         pic.typeCheck = stubcc.linkExit(j, Uses(1));
@@ -3020,6 +2434,7 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck, bool usePropCache)
 
     pic.shapeReg = shapeReg;
     pic.atom = atom;
+    pic.objRemat = frame.dataRematInfo(top);
 
     /* Guard on shape. */
     masm.loadShape(objReg, shapeReg);
@@ -3034,8 +2449,8 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck, bool usePropCache)
     pic.slowPathStart = stubcc.linkExit(j, Uses(1));
 
     stubcc.leave();
-    passICAddress(&pic);
-    pic.slowPathCall = OOL_STUBCALL(ic::GetProp);
+    stubcc.masm.move(Imm32(pics.length()), Registers::ArgReg1);
+    pic.callReturn = stubcc.call(ic::GetProp);
 
     /* Load dslots. */
 #if defined JS_NUNBOX32
@@ -3043,7 +2458,7 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck, bool usePropCache)
 #elif defined JS_PUNBOX64
     Label dslotsLoadLabel = masm.label();
 #endif
-    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
 
     /* Copy the slot value to the expression stack. */
     Address slot(objReg, 1 << 24);
@@ -3059,25 +2474,25 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck, bool usePropCache)
     Label inlineValueLoadLabel =
         masm.loadValueAsComponents(slot, shapeReg, objReg);
 #endif
-    pic.fastPathRejoin = masm.label();
+    pic.storeBack = masm.label();
+
 
     /* Assert correctness of hardcoded offsets. */
-    RETURN_IF_OOM(false);
 #if defined JS_NUNBOX32
-    JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgDslotsLoad) == GETPROP_DSLOTS_LOAD);
-    JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgTypeLoad) == GETPROP_TYPE_LOAD);
-    JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgDataLoad) == GETPROP_DATA_LOAD);
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDslotsLoad) == GETPROP_DSLOTS_LOAD);
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgTypeLoad) == GETPROP_TYPE_LOAD);
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDataLoad) == GETPROP_DATA_LOAD);
     JS_ASSERT(masm.differenceBetween(pic.shapeGuard, inlineShapeLabel) == GETPROP_INLINE_SHAPE_OFFSET);
     JS_ASSERT(masm.differenceBetween(pic.shapeGuard, dbgInlineShapeJump) == GETPROP_INLINE_SHAPE_JUMP);
 #elif defined JS_PUNBOX64
-    pic.labels.getprop.dslotsLoadOffset = masm.differenceBetween(pic.fastPathRejoin, dslotsLoadLabel);
-    JS_ASSERT(pic.labels.getprop.dslotsLoadOffset == masm.differenceBetween(pic.fastPathRejoin, dslotsLoadLabel));
+    pic.labels.getprop.dslotsLoadOffset = masm.differenceBetween(pic.storeBack, dslotsLoadLabel);
+    JS_ASSERT(pic.labels.getprop.dslotsLoadOffset == masm.differenceBetween(pic.storeBack, dslotsLoadLabel));
 
     pic.labels.getprop.inlineShapeOffset = masm.differenceBetween(pic.shapeGuard, inlineShapeLabel);
     JS_ASSERT(pic.labels.getprop.inlineShapeOffset == masm.differenceBetween(pic.shapeGuard, inlineShapeLabel));
 
-    pic.labels.getprop.inlineValueOffset = masm.differenceBetween(pic.fastPathRejoin, inlineValueLoadLabel);
-    JS_ASSERT(pic.labels.getprop.inlineValueOffset == masm.differenceBetween(pic.fastPathRejoin, inlineValueLoadLabel));
+    pic.labels.getprop.inlineValueOffset = masm.differenceBetween(pic.storeBack, inlineValueLoadLabel);
+    JS_ASSERT(pic.labels.getprop.inlineValueOffset == masm.differenceBetween(pic.storeBack, inlineValueLoadLabel));
 
     JS_ASSERT(masm.differenceBetween(inlineShapeLabel, dbgInlineShapeJump) == GETPROP_INLINE_SHAPE_JUMP);
 #endif
@@ -3089,8 +2504,112 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck, bool usePropCache)
     stubcc.rejoin(Changes(1));
 
     pics.append(pic);
-    return true;
 }
+
+#ifdef JS_POLYIC
+void
+mjit::Compiler::jsop_getelem_pic(FrameEntry *obj, FrameEntry *id, RegisterID objReg,
+                                 RegisterID idReg, RegisterID shapeReg)
+{
+    PICGenInfo pic(ic::PICInfo::GETELEM);
+
+    pic.objRemat = frame.dataRematInfo(obj);
+    pic.idRemat = frame.dataRematInfo(id);
+    pic.shapeReg = shapeReg;
+    pic.hasTypeCheck = false;
+
+    pic.fastPathStart = masm.label();
+
+    /* Guard on shape. */
+    masm.loadShape(objReg, shapeReg);
+    pic.shapeGuard = masm.label();
+
+    DataLabel32 inlineShapeOffsetLabel;
+    Jump jmpShapeGuard = masm.branch32WithPatch(Assembler::NotEqual, shapeReg,
+                                 Imm32(int32(JSObjectMap::INVALID_SHAPE)),
+                                 inlineShapeOffsetLabel);
+    DBGLABEL(dbgInlineShapeJump);
+
+    /* Guard on id identity. */
+#if defined JS_NUNBOX32
+    static const void *BOGUS_ATOM = (void *)0xdeadbeef;
+#elif defined JS_PUNBOX64
+    static const void *BOGUS_ATOM = (void *)0xfeedfacedeadbeef;
+#endif
+
+    DataLabelPtr inlineAtomOffsetLabel;
+    Jump idGuard = masm.branchPtrWithPatch(Assembler::NotEqual, idReg,
+                                 inlineAtomOffsetLabel, ImmPtr(BOGUS_ATOM));
+    DBGLABEL(dbgInlineAtomJump);
+
+    /*
+     * The state between these two exits is identical, so this safe. The
+     * GETELEM PIC repatches both jumps to the slowPathStart on reset.
+     */
+    stubcc.linkExit(idGuard, Uses(2));
+    pic.slowPathStart = stubcc.linkExit(jmpShapeGuard, Uses(2));
+
+    stubcc.leave();
+    stubcc.masm.move(Imm32(pics.length()), Registers::ArgReg1);
+    pic.callReturn = stubcc.call(ic::GetElem);
+
+    /* Load dslots. */
+#if defined JS_NUNBOX32
+    DBGLABEL(dbgDslotsLoad);
+#elif defined JS_PUNBOX64
+    Label dslotsLoadLabel = masm.label();
+#endif
+    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
+
+    /* Copy the slot value to the expression stack. */
+    Address slot(objReg, 1 << 24);
+#if defined JS_NUNBOX32
+    masm.loadTypeTag(slot, shapeReg);
+    DBGLABEL(dbgTypeLoad);
+    masm.loadPayload(slot, objReg);
+    DBGLABEL(dbgDataLoad);
+#elif defined JS_PUNBOX64
+    Label inlineValueOffsetLabel =
+        masm.loadValueAsComponents(slot, shapeReg, objReg);
+#endif
+    pic.storeBack = masm.label();
+
+    pic.objReg = objReg;
+    pic.idReg = idReg;
+
+#if defined JS_NUNBOX32
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDslotsLoad) == GETELEM_DSLOTS_LOAD);
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgTypeLoad) == GETELEM_TYPE_LOAD);
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDataLoad) == GETELEM_DATA_LOAD);
+    JS_ASSERT(masm.differenceBetween(pic.shapeGuard, inlineAtomOffsetLabel) == GETELEM_INLINE_ATOM_OFFSET);
+    JS_ASSERT(masm.differenceBetween(pic.shapeGuard, dbgInlineAtomJump) == GETELEM_INLINE_ATOM_JUMP);
+    JS_ASSERT(masm.differenceBetween(pic.shapeGuard, inlineShapeOffsetLabel) == GETELEM_INLINE_SHAPE_OFFSET);
+    JS_ASSERT(masm.differenceBetween(pic.shapeGuard, dbgInlineShapeJump) == GETELEM_INLINE_SHAPE_JUMP);
+#elif defined JS_PUNBOX64
+    pic.labels.getelem.dslotsLoadOffset = masm.differenceBetween(pic.storeBack, dslotsLoadLabel);
+    JS_ASSERT(pic.labels.getelem.dslotsLoadOffset == masm.differenceBetween(pic.storeBack, dslotsLoadLabel));
+
+    pic.labels.getelem.inlineShapeOffset = masm.differenceBetween(pic.shapeGuard, inlineShapeOffsetLabel);
+    JS_ASSERT(pic.labels.getelem.inlineShapeOffset == masm.differenceBetween(pic.shapeGuard, inlineShapeOffsetLabel));
+
+    pic.labels.getelem.inlineAtomOffset = masm.differenceBetween(pic.shapeGuard, inlineAtomOffsetLabel);
+    JS_ASSERT(pic.labels.getelem.inlineAtomOffset == masm.differenceBetween(pic.shapeGuard, inlineAtomOffsetLabel));
+
+    pic.labels.getelem.inlineValueOffset = masm.differenceBetween(pic.storeBack, inlineValueOffsetLabel);
+    JS_ASSERT(pic.labels.getelem.inlineValueOffset == masm.differenceBetween(pic.storeBack, inlineValueOffsetLabel));
+
+    JS_ASSERT(masm.differenceBetween(inlineShapeOffsetLabel, dbgInlineShapeJump) == GETELEM_INLINE_SHAPE_JUMP);
+    JS_ASSERT(masm.differenceBetween(pic.shapeGuard, dbgInlineAtomJump) ==
+              pic.labels.getelem.inlineAtomOffset + GETELEM_INLINE_ATOM_JUMP);
+#endif
+
+    JS_ASSERT(pic.idReg != pic.objReg);
+    JS_ASSERT(pic.idReg != pic.shapeReg);
+    JS_ASSERT(pic.objReg != pic.shapeReg);
+
+    pics.append(pic);
+}
+#endif
 
 bool
 mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
@@ -3105,9 +2624,7 @@ mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
     RegisterID objReg = frame.copyDataIntoReg(top);
     RegisterID shapeReg = frame.allocReg();
 
-    PICGenInfo pic(ic::PICInfo::CALL, JSOp(*PC), true);
-
-    pic.pc = PC;
+    PICGenInfo pic(ic::PICInfo::CALL);
 
     /* Guard that the type is an object. */
     pic.typeReg = frame.copyTypeIntoReg(top);
@@ -3129,12 +2646,13 @@ mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
     pic.objReg = objReg;
     pic.shapeReg = shapeReg;
     pic.atom = atom;
+    pic.objRemat = frame.dataRematInfo(top);
 
     /*
      * Store the type and object back. Don't bother keeping them in registers,
      * since a sync will be needed for the upcoming call.
      */
-    uint32 thisvSlot = frame.localSlots();
+    uint32 thisvSlot = frame.frameDepth();
     Address thisv = Address(JSFrameReg, sizeof(JSStackFrame) + thisvSlot * sizeof(Value));
 #if defined JS_NUNBOX32
     masm.storeValueFromComponents(pic.typeReg, pic.objReg, thisv);
@@ -3158,8 +2676,8 @@ mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
 
     /* Slow path. */
     stubcc.leave();
-    passICAddress(&pic);
-    pic.slowPathCall = OOL_STUBCALL(ic::CallProp);
+    stubcc.masm.move(Imm32(pics.length()), Registers::ArgReg1);
+    pic.callReturn = stubcc.call(ic::CallProp);
 
     /* Adjust the frame. None of this will generate code. */
     frame.pop();
@@ -3172,7 +2690,7 @@ mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
 #elif defined JS_PUNBOX64
     Label dslotsLoadLabel = masm.label();
 #endif
-    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
 
     /* Copy the slot value to the expression stack. */
     Address slot(objReg, 1 << 24);
@@ -3187,26 +2705,25 @@ mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
     Label inlineValueLoadLabel =
         masm.loadValueAsComponents(slot, shapeReg, objReg);
 #endif
-    pic.fastPathRejoin = masm.label();
+    pic.storeBack = masm.label();
 
     /* Assert correctness of hardcoded offsets. */
-    RETURN_IF_OOM(false);
     JS_ASSERT(masm.differenceBetween(pic.fastPathStart, dbgInlineTypeGuard) == GETPROP_INLINE_TYPE_GUARD);
 #if defined JS_NUNBOX32
-    JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgDslotsLoad) == GETPROP_DSLOTS_LOAD);
-    JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgTypeLoad) == GETPROP_TYPE_LOAD);
-    JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgDataLoad) == GETPROP_DATA_LOAD);
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDslotsLoad) == GETPROP_DSLOTS_LOAD);
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgTypeLoad) == GETPROP_TYPE_LOAD);
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDataLoad) == GETPROP_DATA_LOAD);
     JS_ASSERT(masm.differenceBetween(pic.shapeGuard, inlineShapeLabel) == GETPROP_INLINE_SHAPE_OFFSET);
     JS_ASSERT(masm.differenceBetween(pic.shapeGuard, dbgInlineShapeJump) == GETPROP_INLINE_SHAPE_JUMP);
 #elif defined JS_PUNBOX64
-    pic.labels.getprop.dslotsLoadOffset = masm.differenceBetween(pic.fastPathRejoin, dslotsLoadLabel);
-    JS_ASSERT(pic.labels.getprop.dslotsLoadOffset == masm.differenceBetween(pic.fastPathRejoin, dslotsLoadLabel));
+    pic.labels.getprop.dslotsLoadOffset = masm.differenceBetween(pic.storeBack, dslotsLoadLabel);
+    JS_ASSERT(pic.labels.getprop.dslotsLoadOffset == masm.differenceBetween(pic.storeBack, dslotsLoadLabel));
 
     pic.labels.getprop.inlineShapeOffset = masm.differenceBetween(pic.shapeGuard, inlineShapeLabel);
     JS_ASSERT(pic.labels.getprop.inlineShapeOffset == masm.differenceBetween(pic.shapeGuard, inlineShapeLabel));
 
-    pic.labels.getprop.inlineValueOffset = masm.differenceBetween(pic.fastPathRejoin, inlineValueLoadLabel);
-    JS_ASSERT(pic.labels.getprop.inlineValueOffset == masm.differenceBetween(pic.fastPathRejoin, inlineValueLoadLabel));
+    pic.labels.getprop.inlineValueOffset = masm.differenceBetween(pic.storeBack, inlineValueLoadLabel);
+    JS_ASSERT(pic.labels.getprop.inlineValueOffset == masm.differenceBetween(pic.storeBack, inlineValueLoadLabel));
 
     JS_ASSERT(masm.differenceBetween(inlineShapeLabel, dbgInlineShapeJump) == GETPROP_INLINE_SHAPE_JUMP);
 #endif
@@ -3237,8 +2754,7 @@ mjit::Compiler::jsop_callprop_str(JSAtom *atom)
     frame.pushTypedPayload(JSVAL_TYPE_OBJECT, reg);
 
     /* Get the property. */
-    if (!jsop_getprop(atom))
-        return false;
+    jsop_getprop(atom);
 
     /* Perform a swap. */
     frame.dup2();
@@ -3246,9 +2762,7 @@ mjit::Compiler::jsop_callprop_str(JSAtom *atom)
     frame.shift(-1);
 
     /* 4) Test if the function can take a primitive. */
-#ifdef DEBUG
     FrameEntry *funFe = frame.peek(-2);
-#endif
     JS_ASSERT(!funFe->isTypeKnown());
 
     /*
@@ -3268,6 +2782,27 @@ mjit::Compiler::jsop_callprop_str(JSAtom *atom)
     frame.pushTypedPayload(JSVAL_TYPE_STRING, strReg);
     frame.forgetType(frame.peek(-1));
 
+    RegisterID temp = frame.allocReg();
+    RegisterID funReg = frame.copyDataIntoReg(funFe);
+    Jump notFun1 = frame.testObject(Assembler::NotEqual, funFe);
+    Jump notFun2 = masm.testFunction(Assembler::NotEqual, funReg);
+
+    masm.loadFunctionPrivate(funReg, temp);
+    masm.load16(Address(temp, offsetof(JSFunction, flags)), temp);
+    Jump noPrim = masm.branchTest32(Assembler::Zero, temp, Imm32(JSFUN_THISP_STRING));
+    {
+        stubcc.linkExit(noPrim, Uses(2));
+        stubcc.leave();
+        stubcc.call(stubs::WrapPrimitiveThis);
+    }
+
+    frame.freeReg(funReg);
+    frame.freeReg(temp);
+    notFun2.linkTo(masm.label(), &masm);
+    notFun1.linkTo(masm.label(), &masm);
+    
+    stubcc.rejoin(Changes(1));
+
     return true;
 }
 
@@ -3276,12 +2811,11 @@ mjit::Compiler::jsop_callprop_obj(JSAtom *atom)
 {
     FrameEntry *top = frame.peek(-1);
 
-    PICGenInfo pic(ic::PICInfo::CALL, JSOp(*PC), true);
+    PICGenInfo pic(ic::PICInfo::CALL);
 
     JS_ASSERT(top->isTypeKnown());
     JS_ASSERT(top->getKnownType() == JSVAL_TYPE_OBJECT);
 
-    pic.pc = PC;
     pic.fastPathStart = masm.label();
     pic.hasTypeCheck = false;
     pic.typeReg = Registers::ReturnReg;
@@ -3291,6 +2825,7 @@ mjit::Compiler::jsop_callprop_obj(JSAtom *atom)
 
     pic.shapeReg = shapeReg;
     pic.atom = atom;
+    pic.objRemat = frame.dataRematInfo(top);
 
     /* Guard on shape. */
     masm.loadShape(objReg, shapeReg);
@@ -3305,8 +2840,8 @@ mjit::Compiler::jsop_callprop_obj(JSAtom *atom)
     pic.slowPathStart = stubcc.linkExit(j, Uses(1));
 
     stubcc.leave();
-    passICAddress(&pic);
-    pic.slowPathCall = OOL_STUBCALL(ic::CallProp);
+    stubcc.masm.move(Imm32(pics.length()), Registers::ArgReg1);
+    pic.callReturn = stubcc.call(ic::CallProp);
 
     /* Load dslots. */
 #if defined JS_NUNBOX32
@@ -3314,7 +2849,7 @@ mjit::Compiler::jsop_callprop_obj(JSAtom *atom)
 #elif defined JS_PUNBOX64
     Label dslotsLoadLabel = masm.label();
 #endif
-    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
 
     /* Copy the slot value to the expression stack. */
     Address slot(objReg, 1 << 24);
@@ -3330,14 +2865,14 @@ mjit::Compiler::jsop_callprop_obj(JSAtom *atom)
         masm.loadValueAsComponents(slot, shapeReg, objReg);
 #endif
 
-    pic.fastPathRejoin = masm.label();
+    pic.storeBack = masm.label();
     pic.objReg = objReg;
 
     /*
      * 1) Dup the |this| object.
      * 2) Push the property value onto the stack.
      * 3) Move the value below the dup'd |this|, uncopying it. This could
-     * generate code, thus the fastPathRejoin label being prior. This is safe
+     * generate code, thus the storeBack label being prior. This is safe
      * as a stack transition, because JSOP_CALLPROP has JOF_TMPSLOT. It is
      * also safe for correctness, because if we know the LHS is an object, it
      * is the resulting vp[1].
@@ -3350,22 +2885,21 @@ mjit::Compiler::jsop_callprop_obj(JSAtom *atom)
      * Assert correctness of hardcoded offsets.
      * No type guard: type is asserted.
      */
-    RETURN_IF_OOM(false);
 #if defined JS_NUNBOX32
-    JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgDslotsLoad) == GETPROP_DSLOTS_LOAD);
-    JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgTypeLoad) == GETPROP_TYPE_LOAD);
-    JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgDataLoad) == GETPROP_DATA_LOAD);
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDslotsLoad) == GETPROP_DSLOTS_LOAD);
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgTypeLoad) == GETPROP_TYPE_LOAD);
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDataLoad) == GETPROP_DATA_LOAD);
     JS_ASSERT(masm.differenceBetween(pic.shapeGuard, inlineShapeLabel) == GETPROP_INLINE_SHAPE_OFFSET);
     JS_ASSERT(masm.differenceBetween(pic.shapeGuard, dbgInlineShapeJump) == GETPROP_INLINE_SHAPE_JUMP);
 #elif defined JS_PUNBOX64
-    pic.labels.getprop.dslotsLoadOffset = masm.differenceBetween(pic.fastPathRejoin, dslotsLoadLabel);
-    JS_ASSERT(pic.labels.getprop.dslotsLoadOffset == masm.differenceBetween(pic.fastPathRejoin, dslotsLoadLabel));
+    pic.labels.getprop.dslotsLoadOffset = masm.differenceBetween(pic.storeBack, dslotsLoadLabel);
+    JS_ASSERT(pic.labels.getprop.dslotsLoadOffset == masm.differenceBetween(pic.storeBack, dslotsLoadLabel));
 
     pic.labels.getprop.inlineShapeOffset = masm.differenceBetween(pic.shapeGuard, inlineShapeLabel);
     JS_ASSERT(pic.labels.getprop.inlineShapeOffset == masm.differenceBetween(pic.shapeGuard, inlineShapeLabel));
 
-    pic.labels.getprop.inlineValueOffset = masm.differenceBetween(pic.fastPathRejoin, inlineValueLoadLabel);
-    JS_ASSERT(pic.labels.getprop.inlineValueOffset == masm.differenceBetween(pic.fastPathRejoin, inlineValueLoadLabel));
+    pic.labels.getprop.inlineValueOffset = masm.differenceBetween(pic.storeBack, inlineValueLoadLabel);
+    JS_ASSERT(pic.labels.getprop.inlineValueOffset == masm.differenceBetween(pic.storeBack, inlineValueLoadLabel));
 
     JS_ASSERT(masm.differenceBetween(inlineShapeLabel, dbgInlineShapeJump) == GETPROP_INLINE_SHAPE_JUMP);
 #endif
@@ -3393,24 +2927,21 @@ mjit::Compiler::jsop_callprop(JSAtom *atom)
     return jsop_callprop_generic(atom);
 }
 
-bool
-mjit::Compiler::jsop_setprop(JSAtom *atom, bool usePropCache)
+void
+mjit::Compiler::jsop_setprop(JSAtom *atom)
 {
     FrameEntry *lhs = frame.peek(-2);
     FrameEntry *rhs = frame.peek(-1);
 
     /* If the incoming type will never PIC, take slow path. */
     if (lhs->isTypeKnown() && lhs->getKnownType() != JSVAL_TYPE_OBJECT) {
-        jsop_setprop_slow(atom, usePropCache);
-        return true;
+        jsop_setprop_slow(atom);
+        return;
     }
 
     JSOp op = JSOp(*PC);
 
-    ic::PICInfo::Kind kind = (op == JSOP_SETMETHOD)
-                             ? ic::PICInfo::SETMETHOD
-                             : ic::PICInfo::SET;
-    PICGenInfo pic(kind, op, usePropCache);
+    PICGenInfo pic(op == JSOP_SETMETHOD ? ic::PICInfo::SETMETHOD : ic::PICInfo::SET);
     pic.atom = atom;
 
     /* Guard that the type is an object. */
@@ -3426,11 +2957,20 @@ mjit::Compiler::jsop_setprop(JSAtom *atom, bool usePropCache)
         pic.typeCheck = stubcc.linkExit(j, Uses(2));
         stubcc.leave();
 
-        stubcc.masm.move(ImmPtr(atom), Registers::ArgReg1);
-        if (usePropCache)
-            OOL_STUBCALL(STRICT_VARIANT(stubs::SetName));
-        else
-            OOL_STUBCALL(STRICT_VARIANT(stubs::SetPropNoCache));
+        /*
+         * This gets called from PROPINC/PROPDEC which aren't compatible with
+         * the normal SETNAME property cache logic.
+         */
+        JSOp op = JSOp(*PC);
+        if (op == JSOP_SETNAME || op == JSOP_SETPROP || op == JSOP_SETGNAME || op ==
+            JSOP_SETMETHOD) {
+            stubcc.masm.move(ImmPtr(atom), Registers::ArgReg1);
+            stubcc.call(STRICT_VARIANT(stubs::SetName));
+        } else {
+            stubcc.masm.move(Imm32(pics.length()), Registers::ArgReg1);
+            stubcc.call(ic::SetPropDumb);
+        }
+
         typeCheck = stubcc.masm.jump();
         pic.hasTypeCheck = true;
     } else {
@@ -3450,6 +2990,7 @@ mjit::Compiler::jsop_setprop(JSAtom *atom, bool usePropCache)
 
     RegisterID shapeReg = frame.allocReg();
     pic.shapeReg = shapeReg;
+    pic.objRemat = frame.dataRematInfo(lhs);
 
     frame.unpinEntry(vr);
 
@@ -3467,8 +3008,8 @@ mjit::Compiler::jsop_setprop(JSAtom *atom, bool usePropCache)
         pic.slowPathStart = stubcc.linkExit(j, Uses(2));
 
         stubcc.leave();
-        passICAddress(&pic);
-        pic.slowPathCall = OOL_STUBCALL(ic::SetProp);
+        stubcc.masm.move(Imm32(pics.length()), Registers::ArgReg1);
+        pic.callReturn = stubcc.call(ic::SetProp);
     }
 
     /* Load dslots. */
@@ -3477,7 +3018,7 @@ mjit::Compiler::jsop_setprop(JSAtom *atom, bool usePropCache)
 #elif defined JS_PUNBOX64
     Label dslotsLoadLabel = masm.label();
 #endif
-    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
 
     /* Store RHS into object slot. */
     Address slot(objReg, 1 << 24);
@@ -3487,7 +3028,7 @@ mjit::Compiler::jsop_setprop(JSAtom *atom, bool usePropCache)
     masm.storeValue(vr, slot);
 #endif
     DBGLABEL(dbgAfterValueStore);
-    pic.fastPathRejoin = masm.label();
+    pic.storeBack = masm.label();
 
     frame.freeReg(objReg);
     frame.freeReg(shapeReg);
@@ -3502,39 +3043,37 @@ mjit::Compiler::jsop_setprop(JSAtom *atom, bool usePropCache)
         stubcc.rejoin(Changes(1));
     }
 
-    RETURN_IF_OOM(false);
 #if defined JS_PUNBOX64
-    pic.labels.setprop.dslotsLoadOffset = masm.differenceBetween(pic.fastPathRejoin, dslotsLoadLabel);
+    pic.labels.setprop.dslotsLoadOffset = masm.differenceBetween(pic.storeBack, dslotsLoadLabel);
     pic.labels.setprop.inlineShapeOffset = masm.differenceBetween(pic.shapeGuard, inlineShapeOffsetLabel);
     JS_ASSERT(masm.differenceBetween(inlineShapeOffsetLabel, dbgInlineShapeJump) == SETPROP_INLINE_SHAPE_JUMP);
-    JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgAfterValueStore) == SETPROP_INLINE_STORE_VALUE);
+    JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgAfterValueStore) == SETPROP_INLINE_STORE_VALUE);
 #elif defined JS_NUNBOX32
     JS_ASSERT(masm.differenceBetween(pic.shapeGuard, inlineShapeOffsetLabel) == SETPROP_INLINE_SHAPE_OFFSET);
     JS_ASSERT(masm.differenceBetween(pic.shapeGuard, dbgInlineShapeJump) == SETPROP_INLINE_SHAPE_JUMP);
-    if (vr.isConstant()) {
+    if (vr.isConstant) {
         /* Constants are offset inside the opcode by 4. */
-        JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgInlineStoreType)-4 == SETPROP_INLINE_STORE_CONST_TYPE);
-        JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgAfterValueStore)-4 == SETPROP_INLINE_STORE_CONST_DATA);
-        JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgDslots) == SETPROP_DSLOTS_BEFORE_CONSTANT);
-    } else if (vr.isTypeKnown()) {
-        JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgInlineStoreType)-4 == SETPROP_INLINE_STORE_KTYPE_TYPE);
-        JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgAfterValueStore) == SETPROP_INLINE_STORE_KTYPE_DATA);
-        JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgDslots) == SETPROP_DSLOTS_BEFORE_KTYPE);
+        JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgInlineStoreType)-4 == SETPROP_INLINE_STORE_CONST_TYPE);
+        JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgAfterValueStore)-4 == SETPROP_INLINE_STORE_CONST_DATA);
+        JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDslots) == SETPROP_DSLOTS_BEFORE_CONSTANT);
+    } else if (vr.u.s.isTypeKnown) {
+        JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgInlineStoreType)-4 == SETPROP_INLINE_STORE_KTYPE_TYPE);
+        JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgAfterValueStore) == SETPROP_INLINE_STORE_KTYPE_DATA);
+        JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDslots) == SETPROP_DSLOTS_BEFORE_KTYPE);
     } else {
-        JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgInlineStoreType) == SETPROP_INLINE_STORE_DYN_TYPE);
-        JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgAfterValueStore) == SETPROP_INLINE_STORE_DYN_DATA);
-        JS_ASSERT(masm.differenceBetween(pic.fastPathRejoin, dbgDslots) == SETPROP_DSLOTS_BEFORE_DYNAMIC);
+        JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgInlineStoreType) == SETPROP_INLINE_STORE_DYN_TYPE);
+        JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgAfterValueStore) == SETPROP_INLINE_STORE_DYN_DATA);
+        JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDslots) == SETPROP_DSLOTS_BEFORE_DYNAMIC);
     }
 #endif
 
     pics.append(pic);
-    return true;
 }
 
 void
 mjit::Compiler::jsop_name(JSAtom *atom)
 {
-    PICGenInfo pic(ic::PICInfo::NAME, JSOp(*PC), true);
+    PICGenInfo pic(ic::PICInfo::NAME);
 
     pic.shapeReg = frame.allocReg();
     pic.objReg = frame.allocReg();
@@ -3549,11 +3088,11 @@ mjit::Compiler::jsop_name(JSAtom *atom)
     {
         pic.slowPathStart = stubcc.linkExit(j, Uses(0));
         stubcc.leave();
-        passICAddress(&pic);
-        pic.slowPathCall = OOL_STUBCALL(ic::Name);
+        stubcc.masm.move(Imm32(pics.length()), Registers::ArgReg1);
+        pic.callReturn = stubcc.call(ic::Name);
     }
 
-    pic.fastPathRejoin = masm.label();
+    pic.storeBack = masm.label();
     frame.pushRegs(pic.shapeReg, pic.objReg);
 
     JS_ASSERT(masm.differenceBetween(pic.fastPathStart, dbgJumpOffset) == SCOPENAME_JUMP_OFFSET);
@@ -3563,14 +3102,15 @@ mjit::Compiler::jsop_name(JSAtom *atom)
     pics.append(pic);
 }
 
-bool
+void
 mjit::Compiler::jsop_xname(JSAtom *atom)
 {
-    PICGenInfo pic(ic::PICInfo::XNAME, JSOp(*PC), true);
+    PICGenInfo pic(ic::PICInfo::XNAME);
 
     FrameEntry *fe = frame.peek(-1);
     if (fe->isNotType(JSVAL_TYPE_OBJECT)) {
-        return jsop_getprop(atom);
+        jsop_getprop(atom);
+        return;
     }
 
     if (!fe->isTypeKnown()) {
@@ -3591,11 +3131,11 @@ mjit::Compiler::jsop_xname(JSAtom *atom)
     {
         pic.slowPathStart = stubcc.linkExit(j, Uses(1));
         stubcc.leave();
-        passICAddress(&pic);
-        pic.slowPathCall = OOL_STUBCALL(ic::XName);
+        stubcc.masm.move(Imm32(pics.length()), Registers::ArgReg1);
+        pic.callReturn = stubcc.call(ic::XName);
     }
 
-    pic.fastPathRejoin = masm.label();
+    pic.storeBack = masm.label();
     frame.pop();
     frame.pushRegs(pic.shapeReg, pic.objReg);
 
@@ -3604,19 +3144,12 @@ mjit::Compiler::jsop_xname(JSAtom *atom)
     stubcc.rejoin(Changes(1));
 
     pics.append(pic);
-    return true;
 }
 
 void
-mjit::Compiler::jsop_bindname(uint32 index, bool usePropCache)
+mjit::Compiler::jsop_bindname(uint32 index)
 {
-    PICGenInfo pic(ic::PICInfo::BIND, JSOp(*PC), usePropCache);
-
-    // This code does not check the frame flags to see if scopeChain has been
-    // set. Rather, it relies on the up-front analysis statically determining
-    // whether BINDNAME can be used, which reifies the scope chain at the
-    // prologue.
-    JS_ASSERT(analysis->usesScopeChain());
+    PICGenInfo pic(ic::PICInfo::BIND);
 
     pic.shapeReg = frame.allocReg();
     pic.objReg = frame.allocReg();
@@ -3640,11 +3173,11 @@ mjit::Compiler::jsop_bindname(uint32 index, bool usePropCache)
     {
         pic.slowPathStart = stubcc.linkExit(j, Uses(0));
         stubcc.leave();
-        passICAddress(&pic);
-        pic.slowPathCall = OOL_STUBCALL(ic::BindName);
+        stubcc.masm.move(Imm32(pics.length()), Registers::ArgReg1);
+        pic.callReturn = stubcc.call(ic::BindName);
     }
 
-    pic.fastPathRejoin = masm.label();
+    pic.storeBack = masm.label();
     frame.pushTypedPayload(JSVAL_TYPE_OBJECT, pic.objReg);
     frame.freeReg(pic.shapeReg);
 
@@ -3666,21 +3199,20 @@ void
 mjit::Compiler::jsop_name(JSAtom *atom)
 {
     prepareStubCall(Uses(0));
-    INLINE_STUBCALL(stubs::Name);
+    stubCall(stubs::Name);
     frame.pushSynced();
 }
 
-bool
+void
 mjit::Compiler::jsop_xname(JSAtom *atom)
 {
-    return jsop_getprop(atom);
+    jsop_getprop(atom);
 }
 
-bool
-mjit::Compiler::jsop_getprop(JSAtom *atom, bool typecheck, bool usePropCache)
+void
+mjit::Compiler::jsop_getprop(JSAtom *atom, bool typecheck)
 {
-    jsop_getprop_slow(atom, usePropCache);
-    return true;
+    jsop_getprop_slow();
 }
 
 bool
@@ -3689,15 +3221,14 @@ mjit::Compiler::jsop_callprop(JSAtom *atom)
     return jsop_callprop_slow(atom);
 }
 
-bool
-mjit::Compiler::jsop_setprop(JSAtom *atom, bool usePropCache)
+void
+mjit::Compiler::jsop_setprop(JSAtom *atom)
 {
-    jsop_setprop_slow(atom, usePropCache);
-    return true;
+    jsop_setprop_slow(atom);
 }
 
 void
-mjit::Compiler::jsop_bindname(uint32 index, bool usePropCache)
+mjit::Compiler::jsop_bindname(uint32 index)
 {
     RegisterID reg = frame.allocReg();
     Address scopeChain(JSFrameReg, JSStackFrame::offsetOfScopeChain());
@@ -3709,12 +3240,7 @@ mjit::Compiler::jsop_bindname(uint32 index, bool usePropCache)
 
     stubcc.linkExit(j, Uses(0));
     stubcc.leave();
-    if (usePropCache) {
-        OOL_STUBCALL(stubs::BindName);
-    } else {
-        stubcc.masm.move(ImmPtr(script->getAtom(index)), Registers::ArgReg1);
-        OOL_STUBCALL(stubs::BindNameNoCache);
-    }
+    stubcc.call(stubs::BindName);
 
     frame.pushTypedPayload(JSVAL_TYPE_OBJECT, reg);
 
@@ -3723,31 +3249,32 @@ mjit::Compiler::jsop_bindname(uint32 index, bool usePropCache)
 #endif
 
 void
+mjit::Compiler::jsop_getarg(uint32 index)
+{
+    frame.push(Address(JSFrameReg, JSStackFrame::offsetOfFormalArg(fun, index)));
+}
+
+void
 mjit::Compiler::jsop_this()
 {
-    frame.pushThis();
+    Address thisvAddr(JSFrameReg, JSStackFrame::offsetOfThis(fun));
+    if (0 && !script->strictModeCode) {
+        Jump null = masm.testNull(Assembler::Equal, thisvAddr);
+        stubcc.linkExit(null, Uses(1));
+        stubcc.leave();
+        stubcc.call(stubs::ComputeThis);
+        stubcc.rejoin(Changes(1));
 
-    /* 
-     * In strict mode code, we don't wrap 'this'.
-     * In direct-call eval code, we wrapped 'this' before entering the eval.
-     * In global code, 'this' is always an object.
-     */
-    if (fun && !script->strictModeCode) {
-        FrameEntry *thisFe = frame.peek(-1);
-        if (!thisFe->isTypeKnown()) {
-            Jump notObj = frame.testObject(Assembler::NotEqual, thisFe);
-            stubcc.linkExit(notObj, Uses(1));
-            stubcc.leave();
-            OOL_STUBCALL(stubs::This);
-            stubcc.rejoin(Changes(1));
-
-            // Now we know that |this| is an object.
-            frame.pop();
-            frame.learnThisIsObject();
-            frame.pushThis();
-        }
-
-        JS_ASSERT(thisFe->isType(JSVAL_TYPE_OBJECT));
+        RegisterID reg = frame.allocReg();
+        masm.loadPayload(thisvAddr, reg);
+        frame.pushTypedPayload(JSVAL_TYPE_OBJECT, reg);
+    } else {
+        frame.push(thisvAddr);
+        Jump null = frame.testNull(Assembler::Equal, frame.peek(-1));
+        stubcc.linkExit(null, Uses(1));
+        stubcc.leave();
+        stubcc.call(stubs::This);
+        stubcc.rejoin(Changes(1));
     }
 }
 
@@ -3756,7 +3283,7 @@ mjit::Compiler::jsop_gnameinc(JSOp op, VoidStubAtom stub, uint32 index)
 {
 #if defined JS_MONOIC
     jsbytecode *next = &PC[JSOP_GNAMEINC_LENGTH];
-    bool pop = (JSOp(*next) == JSOP_POP) && !analysis->jumpTarget(next);
+    bool pop = (JSOp(*next) == JSOP_POP) && !analysis[next].nincoming;
     int amt = (op == JSOP_GNAMEINC || op == JSOP_INCGNAME) ? -1 : 1;
 
     if (pop || (op == JSOP_INCGNAME || op == JSOP_DECGNAME)) {
@@ -3784,7 +3311,7 @@ mjit::Compiler::jsop_gnameinc(JSOp op, VoidStubAtom stub, uint32 index)
         frame.shift(-1);
         // OBJ V+1
 
-        jsop_setgname(index, false);
+        jsop_setgname(index);
         // V+1
 
         if (pop)
@@ -3819,7 +3346,7 @@ mjit::Compiler::jsop_gnameinc(JSOp op, VoidStubAtom stub, uint32 index)
         frame.shift(-1);
         // N OBJ N+1
 
-        jsop_setgname(index, false);
+        jsop_setgname(index);
         // N N+1
 
         frame.pop();
@@ -3832,20 +3359,20 @@ mjit::Compiler::jsop_gnameinc(JSOp op, VoidStubAtom stub, uint32 index)
     JSAtom *atom = script->getAtom(index);
     prepareStubCall(Uses(0));
     masm.move(ImmPtr(atom), Registers::ArgReg1);
-    INLINE_STUBCALL(stub);
+    stubCall(stub);
     frame.pushSynced();
 #endif
 
     PC += JSOP_GNAMEINC_LENGTH;
 }
 
-bool
+void
 mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
 {
     JSAtom *atom = script->getAtom(index);
 #if defined JS_POLYIC
     jsbytecode *next = &PC[JSOP_NAMEINC_LENGTH];
-    bool pop = (JSOp(*next) == JSOP_POP) && !analysis->jumpTarget(next);
+    bool pop = (JSOp(*next) == JSOP_POP) && !analysis[next].nincoming;
     int amt = (op == JSOP_NAMEINC || op == JSOP_INCNAME) ? -1 : 1;
 
     if (pop || (op == JSOP_INCNAME || op == JSOP_DECNAME)) {
@@ -3861,7 +3388,7 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
         jsop_binary(JSOP_SUB, stubs::Sub);
         // N+1
 
-        jsop_bindname(index, false);
+        jsop_bindname(index);
         // V+1 OBJ
 
         frame.dup2();
@@ -3873,8 +3400,7 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
         frame.shift(-1);
         // OBJ V+1
 
-        if (!jsop_setprop(atom, false))
-            return false;
+        jsop_setprop(atom);
         // V+1
 
         if (pop)
@@ -3897,7 +3423,7 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
         jsop_binary(JSOP_ADD, stubs::Add);
         // N N+1
 
-        jsop_bindname(index, false);
+        jsop_bindname(index);
         // N N+1 OBJ
 
         frame.dup2();
@@ -3909,8 +3435,7 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
         frame.shift(-1);
         // N OBJ N+1
 
-        if (!jsop_setprop(atom, false))
-            return false;
+        jsop_setprop(atom);
         // N N+1
 
         frame.pop();
@@ -3922,15 +3447,14 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
 #else
     prepareStubCall(Uses(0));
     masm.move(ImmPtr(atom), Registers::ArgReg1);
-    INLINE_STUBCALL(stub);
+    stubCall(stub);
     frame.pushSynced();
 #endif
 
     PC += JSOP_NAMEINC_LENGTH;
-    return true;
 }
 
-bool
+void
 mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
 {
     JSAtom *atom = script->getAtom(index);
@@ -3938,7 +3462,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
     FrameEntry *objFe = frame.peek(-1);
     if (!objFe->isTypeKnown() || objFe->getKnownType() == JSVAL_TYPE_OBJECT) {
         jsbytecode *next = &PC[JSOP_PROPINC_LENGTH];
-        bool pop = (JSOp(*next) == JSOP_POP) && !analysis->jumpTarget(next);
+        bool pop = (JSOp(*next) == JSOP_POP) && !analysis[next].nincoming;
         int amt = (op == JSOP_PROPINC || op == JSOP_INCPROP) ? -1 : 1;
 
         if (pop || (op == JSOP_INCPROP || op == JSOP_DECPROP)) {
@@ -3947,8 +3471,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
             frame.dup();
             // OBJ OBJ
 
-            if (!jsop_getprop(atom))
-                return false;
+            jsop_getprop(atom);
             // OBJ V
 
             frame.push(Int32Value(amt));
@@ -3958,8 +3481,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
             jsop_binary(JSOP_SUB, stubs::Sub);
             // OBJ V+1
 
-            if (!jsop_setprop(atom, false))
-                return false;
+            jsop_setprop(atom);
             // V+1
 
             if (pop)
@@ -3970,8 +3492,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
             frame.dup();
             // OBJ OBJ 
 
-            if (!jsop_getprop(atom))
-                return false;
+            jsop_getprop(atom);
             // OBJ V
 
             jsop_pos();
@@ -3992,8 +3513,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
             frame.dupAt(-2);
             // OBJ N N+1 OBJ N+1
 
-            if (!jsop_setprop(atom, false))
-                return false;
+            jsop_setprop(atom);
             // OBJ N N+1 N+1
 
             frame.popn(2);
@@ -4009,13 +3529,12 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
     {
         prepareStubCall(Uses(1));
         masm.move(ImmPtr(atom), Registers::ArgReg1);
-        INLINE_STUBCALL(stub);
+        stubCall(stub);
         frame.pop();
         frame.pushSynced();
     }
 
     PC += JSOP_PROPINC_LENGTH;
-    return true;
 }
 
 void
@@ -4030,7 +3549,7 @@ mjit::Compiler::iter(uintN flags)
     if ((flags != JSITER_ENUMERATE) || fe->isNotType(JSVAL_TYPE_OBJECT)) {
         prepareStubCall(Uses(1));
         masm.move(Imm32(flags), Registers::ArgReg1);
-        INLINE_STUBCALL(stubs::Iter);
+        stubCall(stubs::Iter);
         frame.pop();
         frame.pushSynced();
         return;
@@ -4068,7 +3587,8 @@ mjit::Compiler::iter(uintN flags)
     stubcc.linkExit(nullIterator, Uses(1));
 
     /* Get NativeIterator from iter obj. :FIXME: X64, also most of this function */
-    masm.loadPtr(Address(ioreg, offsetof(JSObject, privateData)), nireg);
+    Address privSlot(ioreg, offsetof(JSObject, fslots) + sizeof(Value) * JSSLOT_PRIVATE);
+    masm.loadPtr(privSlot, nireg);
 
     /* Test for active iterator. */
     Address flagsAddr(nireg, offsetof(NativeIterator, flags));
@@ -4121,7 +3641,7 @@ mjit::Compiler::iter(uintN flags)
 
     stubcc.leave();
     stubcc.masm.move(Imm32(flags), Registers::ArgReg1);
-    OOL_STUBCALL(stubs::Iter);
+    stubcc.call(stubs::Iter);
 
     /* Push the iterator object. */
     frame.pop();
@@ -4146,7 +3666,8 @@ mjit::Compiler::iterNext()
     frame.unpinReg(reg);
 
     /* Test clasp */
-    Jump notFast = masm.testObjClass(Assembler::NotEqual, reg, &js_IteratorClass);
+    masm.loadPtr(Address(reg, offsetof(JSObject, clasp)), T1);
+    Jump notFast = masm.branchPtr(Assembler::NotEqual, T1, ImmPtr(&js_IteratorClass));
     stubcc.linkExit(notFast, Uses(1));
 
     /* Get private from iter obj. */
@@ -4181,7 +3702,7 @@ mjit::Compiler::iterNext()
     frame.freeReg(T2);
 
     stubcc.leave();
-    OOL_STUBCALL(stubs::IterNext);
+    stubcc.call(stubs::IterNext);
 
     frame.pushUntypedPayload(JSVAL_TYPE_STRING, T3);
 
@@ -4189,7 +3710,7 @@ mjit::Compiler::iterNext()
     stubcc.rejoin(Changes(1));
 }
 
-bool
+void
 mjit::Compiler::iterMore()
 {
     FrameEntry *fe= frame.peek(-1);
@@ -4200,7 +3721,8 @@ mjit::Compiler::iterMore()
     frame.unpinReg(reg);
 
     /* Test clasp */
-    Jump notFast = masm.testObjClass(Assembler::NotEqual, reg, &js_IteratorClass);
+    masm.loadPtr(Address(reg, offsetof(JSObject, clasp)), T1);
+    Jump notFast = masm.branchPtr(Assembler::NotEqual, T1, ImmPtr(&js_IteratorClass));
     stubcc.linkExitForBranch(notFast);
 
     /* Get private from iter obj. */
@@ -4222,7 +3744,7 @@ mjit::Compiler::iterMore()
               : GET_JUMPX_OFFSET(target);
 
     stubcc.leave();
-    OOL_STUBCALL(stubs::IterMore);
+    stubcc.call(stubs::IterMore);
     Jump j = stubcc.masm.branchTest32(Assembler::NonZero, Registers::ReturnReg,
                                       Registers::ReturnReg);
 
@@ -4231,7 +3753,7 @@ mjit::Compiler::iterMore()
 
     stubcc.rejoin(Changes(1));
 
-    return jumpAndTrace(jFast, target, &j);
+    jumpAndTrace(jFast, target, &j);
 }
 
 void
@@ -4245,11 +3767,13 @@ mjit::Compiler::iterEnd()
     frame.unpinReg(reg);
 
     /* Test clasp */
-    Jump notIterator = masm.testObjClass(Assembler::NotEqual, reg, &js_IteratorClass);
+    masm.loadPtr(Address(reg, offsetof(JSObject, clasp)), T1);
+    Jump notIterator = masm.branchPtr(Assembler::NotEqual, T1, ImmPtr(&js_IteratorClass));
     stubcc.linkExit(notIterator, Uses(1));
 
     /* Get private from iter obj. :FIXME: X64 */
-    masm.loadPtr(Address(reg, offsetof(JSObject, privateData)), T1);
+    Address privSlot(reg, offsetof(JSObject, fslots) + sizeof(Value) * JSSLOT_PRIVATE);
+    masm.loadPtr(privSlot, T1);
 
     RegisterID T2 = frame.allocReg();
 
@@ -4279,7 +3803,7 @@ mjit::Compiler::iterEnd()
     frame.freeReg(T2);
 
     stubcc.leave();
-    OOL_STUBCALL(stubs::EndIter);
+    stubcc.call(stubs::EndIter);
 
     frame.pop();
 
@@ -4290,7 +3814,7 @@ void
 mjit::Compiler::jsop_eleminc(JSOp op, VoidStub stub)
 {
     prepareStubCall(Uses(2));
-    INLINE_STUBCALL(stub);
+    stubCall(stub);
     frame.popn(2);
     frame.pushSynced();
 }
@@ -4299,7 +3823,7 @@ void
 mjit::Compiler::jsop_getgname_slow(uint32 index)
 {
     prepareStubCall(Uses(0));
-    INLINE_STUBCALL(stubs::GetGlobalName);
+    stubCall(stubs::GetGlobalName);
     frame.pushSynced();
 }
 
@@ -4313,7 +3837,7 @@ mjit::Compiler::jsop_bindgname()
 
     /* :TODO: this is slower than it needs to be. */
     prepareStubCall(Uses(0));
-    INLINE_STUBCALL(stubs::BindGlobalName);
+    stubCall(stubs::BindGlobalName);
     frame.takeReg(Registers::ReturnReg);
     frame.pushTypedPayload(JSVAL_TYPE_OBJECT, Registers::ReturnReg);
 }
@@ -4321,20 +3845,6 @@ mjit::Compiler::jsop_bindgname()
 void
 mjit::Compiler::jsop_getgname(uint32 index)
 {
-    /* Optimize undefined, NaN and Infinity. */
-    JSAtom *atom = script->getAtom(index);
-    if (atom == cx->runtime->atomState.typeAtoms[JSTYPE_VOID]) {
-        frame.push(UndefinedValue());
-        return;
-    }
-    if (atom == cx->runtime->atomState.NaNAtom) {
-        frame.push(cx->runtime->NaNValue);
-        return;
-    }
-    if (atom == cx->runtime->atomState.InfinityAtom) {
-        frame.push(cx->runtime->positiveInfinityValue);
-        return;
-    }
 #if defined JS_MONOIC
     jsop_bindgname();
 
@@ -4342,7 +3852,6 @@ mjit::Compiler::jsop_getgname(uint32 index)
     JS_ASSERT(fe->isTypeKnown() && fe->getKnownType() == JSVAL_TYPE_OBJECT);
 
     MICGenInfo mic(ic::MICInfo::GET);
-    RESERVE_IC_SPACE(masm);
     RegisterID objReg;
     Jump shapeGuard;
 
@@ -4371,14 +3880,14 @@ mjit::Compiler::jsop_getgname(uint32 index)
     stubcc.linkExit(shapeGuard, Uses(0));
 
     stubcc.leave();
-    passMICAddress(mic);
+    stubcc.masm.move(Imm32(mics.length()), Registers::ArgReg1);
     mic.stubEntry = stubcc.masm.label();
-    mic.call = OOL_STUBCALL(ic::GetGlobalName);
+    mic.call = stubcc.call(ic::GetGlobalName);
 
     /* Garbage value. */
     uint32 slot = 1 << 24;
 
-    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
     Address address(objReg, slot);
     
     /*
@@ -4424,28 +3933,24 @@ mjit::Compiler::jsop_getgname(uint32 index)
 }
 
 void
-mjit::Compiler::jsop_setgname_slow(uint32 index, bool usePropertyCache)
+mjit::Compiler::jsop_setgname_slow(uint32 index)
 {
     JSAtom *atom = script->getAtom(index);
     prepareStubCall(Uses(2));
     masm.move(ImmPtr(atom), Registers::ArgReg1);
-    if (usePropertyCache)
-        INLINE_STUBCALL(STRICT_VARIANT(stubs::SetGlobalName));
-    else
-        INLINE_STUBCALL(STRICT_VARIANT(stubs::SetGlobalNameNoCache));
+    stubCall(STRICT_VARIANT(stubs::SetGlobalName));
     frame.popn(2);
     frame.pushSynced();
 }
 
 void
-mjit::Compiler::jsop_setgname(uint32 index, bool usePropertyCache)
+mjit::Compiler::jsop_setgname(uint32 index)
 {
 #if defined JS_MONOIC
     FrameEntry *objFe = frame.peek(-2);
     JS_ASSERT_IF(objFe->isTypeKnown(), objFe->getKnownType() == JSVAL_TYPE_OBJECT);
 
     MICGenInfo mic(ic::MICInfo::SET);
-    RESERVE_IC_SPACE(masm);
     RegisterID objReg;
     Jump shapeGuard;
 
@@ -4474,9 +3979,9 @@ mjit::Compiler::jsop_setgname(uint32 index, bool usePropertyCache)
     stubcc.linkExit(shapeGuard, Uses(2));
 
     stubcc.leave();
-    passMICAddress(mic);
+    stubcc.masm.move(Imm32(mics.length()), Registers::ArgReg1);
     mic.stubEntry = stubcc.masm.label();
-    mic.call = OOL_STUBCALL(ic::SetGlobalName);
+    mic.call = stubcc.call(ic::SetGlobalName);
 
     /* Garbage value. */
     uint32 slot = 1 << 24;
@@ -4491,7 +3996,6 @@ mjit::Compiler::jsop_setgname(uint32 index, bool usePropertyCache)
 
     mic.u.name.typeConst = fe->isTypeKnown();
     mic.u.name.dataConst = fe->isConstant();
-    mic.u.name.usePropertyCache = usePropertyCache;
 
     if (!mic.u.name.dataConst) {
         dataReg = frame.ownRegForData(fe);
@@ -4503,7 +4007,7 @@ mjit::Compiler::jsop_setgname(uint32 index, bool usePropertyCache)
         v = fe->getValue();
     }
 
-    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
     Address address(objReg, slot);
 
     mic.load = masm.label();
@@ -4558,7 +4062,7 @@ mjit::Compiler::jsop_setgname(uint32 index, bool usePropertyCache)
 
     mics.append(mic);
 #else
-    jsop_setgname_slow(index, usePropertyCache);
+    jsop_setgname_slow(index);
 #endif
 }
 
@@ -4566,7 +4070,7 @@ void
 mjit::Compiler::jsop_setelem_slow()
 {
     prepareStubCall(Uses(3));
-    INLINE_STUBCALL(STRICT_VARIANT(stubs::SetElem));
+    stubCall(STRICT_VARIANT(stubs::SetElem));
     frame.popn(3);
     frame.pushSynced();
 }
@@ -4575,7 +4079,7 @@ void
 mjit::Compiler::jsop_getelem_slow()
 {
     prepareStubCall(Uses(2));
-    INLINE_STUBCALL(stubs::GetElem);
+    stubCall(stubs::GetElem);
     frame.popn(2);
     frame.pushSynced();
 }
@@ -4584,10 +4088,10 @@ void
 mjit::Compiler::jsop_unbrand()
 {
     prepareStubCall(Uses(1));
-    INLINE_STUBCALL(stubs::Unbrand);
+    stubCall(stubs::Unbrand);
 }
 
-bool
+void
 mjit::Compiler::jsop_instanceof()
 {
     FrameEntry *lhs = frame.peek(-2);
@@ -4596,11 +4100,11 @@ mjit::Compiler::jsop_instanceof()
     // The fast path applies only when both operands are objects.
     if (rhs->isNotType(JSVAL_TYPE_OBJECT) || lhs->isNotType(JSVAL_TYPE_OBJECT)) {
         prepareStubCall(Uses(2));
-        INLINE_STUBCALL(stubs::InstanceOf);
+        stubCall(stubs::InstanceOf);
         frame.popn(2);
         frame.takeReg(Registers::ReturnReg);
         frame.pushTypedPayload(JSVAL_TYPE_BOOLEAN, Registers::ReturnReg);
-        return true;
+        return;
     }
 
     MaybeJump firstSlow;
@@ -4619,7 +4123,7 @@ mjit::Compiler::jsop_instanceof()
     {
         stubcc.linkExit(isBound, Uses(2));
         stubcc.leave();
-        OOL_STUBCALL(stubs::InstanceOf);
+        stubcc.call(stubs::InstanceOf);
         firstSlow = stubcc.masm.jump();
     }
     
@@ -4627,8 +4131,7 @@ mjit::Compiler::jsop_instanceof()
     /* This is sadly necessary because the error case needs the object. */
     frame.dup();
 
-    if (!jsop_getprop(cx->runtime->atomState.classPrototypeAtom, false))
-        return false;
+    jsop_getprop(cx->runtime->atomState.classPrototypeAtom, false);
 
     /* Primitive prototypes are invalid. */
     rhs = frame.peek(-1);
@@ -4643,6 +4146,13 @@ mjit::Compiler::jsop_instanceof()
     MaybeJump isFalse;
     if (!lhs->isTypeKnown())
         isFalse = frame.testPrimitive(Assembler::Equal, lhs);
+
+    /* Quick test to avoid wrapped objects. */
+    masm.loadPtr(Address(obj, offsetof(JSObject, clasp)), temp);
+    masm.loadPtr(Address(temp, offsetof(Class, ext) +
+                              offsetof(ClassExtension, wrappedObject)), temp);
+    j = masm.branchTestPtr(Assembler::NonZero, temp, temp);
+    stubcc.linkExit(j, Uses(3));
 
     Address protoAddr(obj, offsetof(JSObject, proto));
     Label loop = masm.label();
@@ -4665,7 +4175,7 @@ mjit::Compiler::jsop_instanceof()
     frame.freeReg(obj);
 
     stubcc.leave();
-    OOL_STUBCALL(stubs::FastInstanceOf);
+    stubcc.call(stubs::FastInstanceOf);
 
     frame.popn(3);
     frame.pushTypedPayload(JSVAL_TYPE_BOOLEAN, temp);
@@ -4673,63 +4183,6 @@ mjit::Compiler::jsop_instanceof()
     if (firstSlow.isSet())
         firstSlow.getJump().linkTo(stubcc.masm.label(), &stubcc.masm);
     stubcc.rejoin(Changes(1));
-    return true;
-}
-
-void
-mjit::Compiler::emitEval(uint32 argc)
-{
-    /* Check for interrupts on function call */
-    interruptCheckHelper();
-
-    frame.syncAndKill(Registers(Registers::AvailRegs), Uses(argc + 2));
-    prepareStubCall(Uses(argc + 2));
-    masm.move(Imm32(argc), Registers::ArgReg1);
-    INLINE_STUBCALL(stubs::Eval);
-    frame.popn(argc + 2);
-    frame.pushSynced();
-}
-
-void
-mjit::Compiler::jsop_arguments()
-{
-    prepareStubCall(Uses(0));
-    INLINE_STUBCALL(stubs::Arguments);
-}
-
-void
-mjit::Compiler::jsop_newinit()
-{
-    bool isArray;
-    unsigned count = 0;
-    JSObject *baseobj = NULL;
-    switch (*PC) {
-      case JSOP_NEWINIT:
-        isArray = (PC[1] == JSProto_Array);
-        break;
-      case JSOP_NEWARRAY:
-        isArray = true;
-        count = GET_UINT24(PC);
-        break;
-      case JSOP_NEWOBJECT:
-        isArray = false;
-        baseobj = script->getObject(fullAtomIndex(PC));
-        break;
-      default:
-        JS_NOT_REACHED("Bad op");
-        return;
-    }
-
-    prepareStubCall(Uses(0));
-    if (isArray) {
-        masm.move(Imm32(count), Registers::ArgReg1);
-        INLINE_STUBCALL(stubs::NewInitArray);
-    } else {
-        masm.move(ImmPtr(baseobj), Registers::ArgReg1);
-        INLINE_STUBCALL(stubs::NewInitObject);
-    }
-    frame.takeReg(Registers::ReturnReg);
-    frame.pushInitializerObject(Registers::ReturnReg, *PC == JSOP_NEWARRAY, baseobj);
 }
 
 /*
@@ -4738,58 +4191,44 @@ mjit::Compiler::jsop_newinit()
  * hopelessly corrupted. Take care to only call this before linkExits() and
  * after rejoin()s.
  */
-bool
-mjit::Compiler::jumpAndTrace(Jump j, jsbytecode *target, Jump *slow)
+void
+mjit::Compiler::jumpAndTrace(Jump j, jsbytecode *target, Jump *slowOne, Jump *slowTwo)
 {
-    // XXX refactor this little bit
 #ifndef JS_TRACER
-    if (!jumpInScript(j, target))
-        return false;
-
-    if (slow) {
-        if (!stubcc.jumpInScript(*slow, target))
-            return false;
-    }
+    jumpInScript(j, target);
+    if (slow)
+        stubcc.jumpInScript(*slow, target);
 #else
-    if (!addTraceHints || target >= PC || JSOp(*target) != JSOP_TRACE
-#ifdef JS_MONOIC
-        || GET_UINT16(target) == BAD_TRACEIC_INDEX
-#endif
-        )
-    {
-        if (!jumpInScript(j, target))
-            return false;
-        if (slow) {
-            if (!stubcc.jumpInScript(*slow, target))
-                stubcc.jumpInScript(*slow, target);
-        }
-        return true;
+    if (!addTraceHints || target >= PC || JSOp(*target) != JSOP_TRACE) {
+        jumpInScript(j, target);
+        if (slowOne)
+            stubcc.jumpInScript(*slowOne, target);
+        if (slowTwo)
+            stubcc.jumpInScript(*slowTwo, target);
+        return;
     }
 
 # if JS_MONOIC
-    TraceGenInfo ic;
+    MICGenInfo mic(ic::MICInfo::TRACER);
 
-    ic.initialized = true;
-    ic.stubEntry = stubcc.masm.label();
-    ic.jumpTarget = target;
-    ic.traceHint = j;
-    if (slow)
-        ic.slowTraceHint = *slow;
-
-    uint16 index = GET_UINT16(target);
-    if (traceICs.length() <= index)
-        if (!traceICs.resize(index+1))
-            return false;
+    mic.entry = masm.label();
+    mic.jumpTarget = target;
+    mic.traceHint = j;
+    if (slowOne)
+        mic.slowTraceHintOne = *slowOne;
+    if (slowTwo)
+        mic.slowTraceHintTwo = *slowTwo;
 # endif
 
     Label traceStart = stubcc.masm.label();
 
     stubcc.linkExitDirect(j, traceStart);
-    if (slow)
-        slow->linkTo(traceStart, &stubcc.masm);
+    if (slowOne)
+        slowOne->linkTo(traceStart, &stubcc.masm);
+    if (slowTwo)
+        slowTwo->linkTo(traceStart, &stubcc.masm);
 # if JS_MONOIC
-    ic.addrLabel = stubcc.masm.moveWithPatch(ImmPtr(NULL), Registers::ArgReg1);
-    traceICs[index] = ic;
+    stubcc.masm.move(Imm32(mics.length()), Registers::ArgReg1);
 # endif
 
     /* Save and restore compiler-tracked PC, so cx->regs is right in InvokeTracer. */
@@ -4797,7 +4236,7 @@ mjit::Compiler::jumpAndTrace(Jump j, jsbytecode *target, Jump *slow)
         jsbytecode* pc = PC;
         PC = target;
 
-        OOL_STUBCALL(stubs::InvokeTracer);
+        stubcc.call(stubs::InvokeTracer);
 
         PC = pc;
     }
@@ -4807,10 +4246,12 @@ mjit::Compiler::jumpAndTrace(Jump j, jsbytecode *target, Jump *slow)
     restoreFrameRegs(stubcc.masm);
     stubcc.masm.jump(Registers::ReturnReg);
     no.linkTo(stubcc.masm.label(), &stubcc.masm);
-    if (!stubcc.jumpInScript(stubcc.masm.jump(), target))
-        return false;
+    stubcc.jumpInScript(stubcc.masm.jump(), target);
+
+# if JS_MONOIC
+    mics.append(mic);
+# endif
 #endif
-    return true;
 }
 
 void
@@ -4820,16 +4261,16 @@ mjit::Compiler::enterBlock(JSObject *obj)
     // VMFrame::fp to the correct fp for the entry point. We need to copy
     // that value here to FpReg so that FpReg also has the correct sp.
     // Otherwise, we would simply be using a stale FpReg value.
-    if (analysis->getCode(PC).exceptionEntry)
+    if (analysis[PC].exceptionEntry)
         restoreFrameRegs(masm);
 
-    uint32 oldFrameDepth = frame.localSlots();
+    uint32 oldFrameDepth = frame.frameDepth();
 
     /* For now, don't bother doing anything for this opcode. */
     frame.syncAndForgetEverything();
     masm.move(ImmPtr(obj), Registers::ArgReg1);
     uint32 n = js_GetEnterBlockStackDefs(cx, script, PC);
-    INLINE_STUBCALL(stubs::EnterBlock);
+    stubCall(stubs::EnterBlock);
     frame.enterBlock(n);
 
     uintN base = JSSLOT_FREE(&js_BlockClass);
@@ -4853,58 +4294,7 @@ mjit::Compiler::leaveBlock()
     JSObject *obj = script->getObject(fullAtomIndex(PC + UINT16_LEN));
     prepareStubCall(Uses(n));
     masm.move(ImmPtr(obj), Registers::ArgReg1);
-    INLINE_STUBCALL(stubs::LeaveBlock);
+    stubCall(stubs::LeaveBlock);
     frame.leaveBlock(n);
-}
-
-// Creates the new object expected for constructors, and places it in |thisv|.
-// It is broken down into the following operations:
-//   CALLEE
-//   GETPROP "prototype"
-//   IFPRIMTOP:
-//       NULL
-//   call js_CreateThisFromFunctionWithProto(...)
-//
-bool
-mjit::Compiler::constructThis()
-{
-    JS_ASSERT(isConstructing);
-
-    // Load the callee.
-    frame.pushCallee();
-
-    // Get callee.prototype.
-    if (!jsop_getprop(cx->runtime->atomState.classPrototypeAtom, false, false))
-        return false;
-
-    // Reach into the proto Value and grab a register for its data.
-    FrameEntry *protoFe = frame.peek(-1);
-    RegisterID protoReg = frame.ownRegForData(protoFe);
-
-    // Now, get the type. If it's not an object, set protoReg to NULL.
-    Jump isNotObject = frame.testObject(Assembler::NotEqual, protoFe);
-    stubcc.linkExitDirect(isNotObject, stubcc.masm.label());
-    stubcc.masm.move(ImmPtr(NULL), protoReg);
-    stubcc.crossJump(stubcc.masm.jump(), masm.label());
-
-    // Done with the protoFe.
-    frame.pop();
-
-    prepareStubCall(Uses(0));
-    if (protoReg != Registers::ArgReg1)
-        masm.move(protoReg, Registers::ArgReg1);
-    INLINE_STUBCALL(stubs::CreateThis);
-    frame.freeReg(protoReg);
-    return true;
-}
-
-void
-mjit::Compiler::jsop_callelem_slow()
-{
-    prepareStubCall(Uses(2));
-    INLINE_STUBCALL(stubs::CallElem);
-    frame.popn(2);
-    frame.pushSynced();
-    frame.pushSynced();
 }
 

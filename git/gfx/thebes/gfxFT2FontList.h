@@ -65,7 +65,7 @@ public:
                                            PRUint32 aLength);
 
 protected:
-    virtual nsresult InitFontList();
+    virtual void InitFontList();
 
     void AppendFacesFromFontFile(const PRUnichar *aFileName);
     void AppendFacesFromFontFile(const char *aFileName);

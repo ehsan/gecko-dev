@@ -346,7 +346,8 @@ JSBool XPCDispInterface::Member::GetValue(XPCCallContext& ccx,
             callback = XPC_IDispatch_GetterSetter;
         }
 
-        JSFunction *fun = JS_NewFunctionById(cx, callback, argc, 0, nsnull, mName);
+        JSFunction *fun = JS_NewFunction(cx, callback, argc, 0, nsnull,
+                                         JS_GetStringBytes(JSID_TO_STRING(mName)));
         if(!fun)
             return JS_FALSE;
 

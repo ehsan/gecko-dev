@@ -48,9 +48,8 @@ NVIDIA HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #if !defined(__SCANNER_H)
 #define __SCANNER_H 1
 
-// These lengths do not include the NULL terminator.
-#define MAX_SYMBOL_NAME_LEN 127
-#define MAX_STRING_LEN 511
+#define MAX_SYMBOL_NAME_LEN 128
+#define MAX_STRING_LEN 512
 
 #include "compiler/preprocessor/parser.h"
 
@@ -59,6 +58,8 @@ NVIDIA HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 typedef struct SourceLoc_Rec {
     unsigned short file, line;
 } SourceLoc;
+
+int yyparse (void);
 
 int yylex_CPP(char* buf, int maxSize);
 
@@ -72,7 +73,7 @@ typedef struct InputSrc {
 } InputSrc;
 
 int InitScanner(CPPStruct *cpp);   // Intialise the cpp scanner. 
-int ScanFromString(const char *);      // Start scanning the input from the string mentioned.
+int ScanFromString(char *);      // Start scanning the input from the string mentioned.
 int check_EOF(int);              // check if we hit a EOF abruptly 
 void CPPErrorToInfoLog(char *);   // sticking the msg,line into the Shader's.Info.log
 void SetLineNumber(int);

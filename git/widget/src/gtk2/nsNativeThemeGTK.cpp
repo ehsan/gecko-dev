@@ -69,8 +69,7 @@
 #include "gfxPlatformGtk.h"
 #include "gfxGdkNativeRenderer.h"
 
-NS_IMPL_ISUPPORTS_INHERITED2(nsNativeThemeGTK, nsNativeTheme, nsITheme,
-                                                              nsIObserver)
+NS_IMPL_ISUPPORTS2(nsNativeThemeGTK, nsITheme, nsIObserver)
 
 static int gLastGdkError;
 
@@ -256,12 +255,12 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
         stateFrame = aFrame = aFrame->GetParent();
       }
 
-      nsEventStates eventState = GetContentState(stateFrame, aWidgetType);
+      PRInt32 eventState = GetContentState(stateFrame, aWidgetType);
 
       aState->disabled = IsDisabled(aFrame, eventState) || IsReadOnly(aFrame);
-      aState->active  = eventState.HasState(NS_EVENT_STATE_ACTIVE);
-      aState->focused = eventState.HasState(NS_EVENT_STATE_FOCUS);
-      aState->inHover = eventState.HasState(NS_EVENT_STATE_HOVER);
+      aState->active  = (eventState & NS_EVENT_STATE_ACTIVE) == NS_EVENT_STATE_ACTIVE;
+      aState->focused = (eventState & NS_EVENT_STATE_FOCUS) == NS_EVENT_STATE_FOCUS;
+      aState->inHover = (eventState & NS_EVENT_STATE_HOVER) == NS_EVENT_STATE_HOVER;
       aState->isDefault = IsDefaultButton(aFrame);
       aState->canDefault = FALSE; // XXX fix me
       aState->depressed = FALSE;

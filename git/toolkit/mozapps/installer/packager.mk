@@ -55,11 +55,7 @@ else
    ifeq (,$(filter-out gtk2 qt, $(MOZ_WIDGET_TOOLKIT)))
       MOZ_PKG_FORMAT  = BZ2
    else
-      ifeq (Android,$(OS_TARGET))
-          MOZ_PKG_FORMAT = APK
-      else
-          MOZ_PKG_FORMAT = TGZ
-      endif
+      MOZ_PKG_FORMAT  = TGZ
    endif
 endif
 endif
@@ -151,81 +147,6 @@ INNER_MAKE_PACKAGE	= rm -f app.7z && \
 INNER_UNMAKE_PACKAGE	= $(CYGWIN_WRAPPER) 7z x $(UNPACKAGE) && \
   mv core $(MOZ_PKG_DIR)
 endif
-ifeq ($(MOZ_PKG_FORMAT),APK)
-
-# we have custom stuff for Android
-MOZ_OMNIJAR =
-
-JAVA_CLASSPATH = $(ANDROID_SDK)/android.jar
-include $(topsrcdir)/config/android-common.mk
-
-JARSIGNER ?= echo
-
-DIST_FILES = \
-  resources.arsc \
-  AndroidManifest.xml \
-  chrome \
-  components \
-  defaults \
-  modules \
-  res \
-  lib \
-  lib.id \
-  extensions \
-  application.ini \
-  platform.ini \
-  greprefs.js \
-  browserconfig.properties \
-  blocklist.xml \
-  chrome.manifest \
-  update.locale \
-  $(NULL)
-
-NON_DIST_FILES = \
-  classes.dex \
-  $(NULL)
-
-UPLOAD_EXTRA_FILES += gecko-unsigned-unaligned.apk
-
-include $(topsrcdir)/ipc/app/defs.mk
-
-ifdef MOZ_IPC
-DIST_FILES += $(MOZ_CHILD_PROCESS_NAME)
-endif
-
-ifdef MOZ_THUMB2
-ABI_DIR = armeabi-v7a
-else
-ABI_DIR = armeabi
-endif
-
-PKG_SUFFIX      = .apk
-INNER_MAKE_PACKAGE	= \
-  rm -f $(_ABS_DIST)/gecko.ap_ && \
-  ( cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && \
-    rm -rf lib && \
-    mkdir -p lib/$(ABI_DIR) && \
-    cp lib*.so lib && \
-    mv lib/libmozutils.so lib/$(ABI_DIR) && \
-    rm -f lib.id && \
-    for SOMELIB in lib/*.so ; \
-    do \
-      printf "`basename $$SOMELIB`:`$(_ABS_DIST)/host/bin/file_id $$SOMELIB`\n" >> lib.id ; \
-    done && \
-    $(ZIP) -r9D $(_ABS_DIST)/gecko.ap_ $(DIST_FILES) -x $(NON_DIST_FILES) ) && \
-  rm -f $(_ABS_DIST)/gecko.apk && \
-  $(APKBUILDER) $(_ABS_DIST)/gecko.apk -v $(APKBUILDER_FLAGS) -z $(_ABS_DIST)/gecko.ap_ -f $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/classes.dex && \
-  cp $(_ABS_DIST)/gecko.apk $(_ABS_DIST)/gecko-unsigned-unaligned.apk && \
-  $(JARSIGNER) $(_ABS_DIST)/gecko.apk && \
-  $(ZIPALIGN) -f -v 4 $(_ABS_DIST)/gecko.apk $(PACKAGE)
-INNER_UNMAKE_PACKAGE	= \
-  mkdir $(MOZ_PKG_DIR) && \
-  cd $(MOZ_PKG_DIR) && \
-  $(UNZIP) $(UNPACKAGE) && \
-  mv lib/$(ABI_DIR)/*.so . && \
-  mv lib/*.so . && \
-  rm -rf lib
-endif
 ifeq ($(MOZ_PKG_FORMAT),DMG)
 ifndef _APPNAME
 ifdef MOZ_DEBUG
@@ -306,7 +227,7 @@ OMNIJAR_FILES	= \
   greprefs.js \
   $(NULL)
 
-NON_OMNIJAR_FILES += \
+NON_OMNIJAR_FILES = \
   chrome/icons/\* \
   defaults/pref/channel-prefs.js \
   res/cursors/\* \
@@ -389,6 +310,7 @@ NO_PKG_FILES += \
 	nsinstall \
 	viewer \
 	TestGtkEmbed \
+	bloaturls.txt \
 	codesighs* \
 	elf-dynstr-gc \
 	mangle* \
@@ -599,9 +521,6 @@ endif
 ifeq (bundle,$(MOZ_FS_LAYOUT))
 	$(error "make install" is not supported on this platform. Use "make package" instead.)
 endif
-ifdef MOZ_OMNIJAR
-	cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR)
-endif
 	$(NSINSTALL) -D $(DESTDIR)$(installdir)
 	(cd $(DIST)/$(MOZ_PKG_DIR) && tar $(TAR_CREATE_FLAGS) - .) | \
 	  (cd $(DESTDIR)$(installdir) && tar -xf -)
@@ -668,39 +587,17 @@ empty :=
 space = $(empty) $(empty)
 QUOTED_WILDCARD = $(if $(wildcard $(subst $(space),?,$(1))),"$(1)")
 
-# This variable defines which OpenSSL algorithm to use to 
-# generate checksums for files that we upload
-CHECKSUM_ALGORITHM = 'sha512'
-
-# This variable defines where the checksum file will be located
-CHECKSUM_FILE = "$(DIST)/$(PKG_PATH)/$(PKG_BASENAME).checksums"
-
-UPLOAD_FILES= \
-  $(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE)) \
-  $(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE)) \
-  $(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR)) \
-  $(call QUOTED_WILDCARD,$(wildcard $(DIST)/$(PARTIAL_MAR))) \
-  $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)) \
-  $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip) \
-  $(call QUOTED_WILDCARD,$(DIST)/$(SDK)) \
-  $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)/$(PKG_BASENAME).txt) \
-  $(if $(UPLOAD_EXTRA_FILES), $(foreach f, $(UPLOAD_EXTRA_FILES), $(wildcard $(DIST)/$(f))))
-
-checksum:
-	@$(PYTHON) $(MOZILLA_DIR)/build/checksums.py \
-		-o $(CHECKSUM_FILE) \
-		-d $(CHECKSUM_ALGORITHM) \
-		-s $(call QUOTED_WILDCARD,$(DIST)) \
-		$(UPLOAD_FILES)
-	@echo "CHECKSUM FILE START"
-	@cat $(CHECKSUM_FILE)
-	@echo "CHECKSUM FILE END"
-
-
-upload: checksum
+upload:
 	$(PYTHON) $(MOZILLA_DIR)/build/upload.py --base-path $(DIST) \
-		$(UPLOAD_FILES) \
-		$(CHECKSUM_FILE)
+		$(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE)) \
+		$(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE)) \
+		$(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR)) \
+		$(call QUOTED_WILDCARD,$(wildcard $(DIST)/$(PARTIAL_MAR))) \
+		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)) \
+		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip) \
+		$(call QUOTED_WILDCARD,$(DIST)/$(SDK)) \
+		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)/$(PKG_BASENAME).txt) \
+		$(if $(UPLOAD_EXTRA_FILES), $(foreach f, $(UPLOAD_EXTRA_FILES), $(wildcard $(DIST)/$(f))))
 
 ifndef MOZ_PKG_SRCDIR
 MOZ_PKG_SRCDIR = $(topsrcdir)

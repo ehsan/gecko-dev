@@ -17,13 +17,13 @@ function getChromeRoot(path) {
 }
 
 function extractChromeRoot(path) {
-  var chromeRootPath = getChromeRoot(path);
-  var jar = getJar(chromeRootPath);
+  var path = getChromeRoot(path);
+  var jar = getJar(path);
   if (jar) {
     var tmpdir = extractJarToTmp(jar);
     return "file://" + tmpdir.path + "/";
   }
-  return chromeRootPath;
+  return path;
 }
 
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
@@ -36,12 +36,8 @@ Components.utils.import("resource://gre/modules/Services.jsm");
  * Before use setup must be called and finish must be called afterwards.
  */
 var Harness = {
-  // If set then the callback is called when an install is attempted and
-  // software installation is disabled.
-  installDisabledCallback: null,
-  // If set then the callback will be called when an install is blocked by the
-  // whitelist. The callback should return true to continue with the install
-  // anyway.
+  // If set then the install is expected to be blocked by the whitelist. The
+  // callback should return true to continue with the install anyway.
   installBlockedCallback: null,
   // If set will be called in the event of authentication being needed to get
   // the xpi. Should return a 2 element array of username and password, or
@@ -76,55 +72,39 @@ var Harness = {
   installCount: null,
   runningInstalls: null,
 
-  waitingForFinish: false,
-
   // Setup and tear down functions
   setup: function() {
-    if (!this.waitingForFinish) {
-      waitForExplicitFinish();
-      this.waitingForFinish = true;
+    waitForExplicitFinish();
+    Services.prefs.setBoolPref(PREF_LOGGING_ENABLED, true);
+    Services.obs.addObserver(this, "addon-install-started", false);
+    Services.obs.addObserver(this, "addon-install-blocked", false);
+    Services.obs.addObserver(this, "addon-install-failed", false);
+    Services.obs.addObserver(this, "addon-install-complete", false);
+    Services.wm.addListener(this);
 
-      Services.prefs.setBoolPref(PREF_LOGGING_ENABLED, true);
-      Services.obs.addObserver(this, "addon-install-started", false);
-      Services.obs.addObserver(this, "addon-install-disabled", false);
-      Services.obs.addObserver(this, "addon-install-blocked", false);
-      Services.obs.addObserver(this, "addon-install-failed", false);
-      Services.obs.addObserver(this, "addon-install-complete", false);
-
-      AddonManager.addInstallListener(this);
-
-      Services.wm.addListener(this);
-
-      var self = this;
-      registerCleanupFunction(function() {
-        Services.prefs.clearUserPref(PREF_LOGGING_ENABLED);
-        Services.obs.removeObserver(self, "addon-install-started");
-        Services.obs.removeObserver(self, "addon-install-disabled");
-        Services.obs.removeObserver(self, "addon-install-blocked");
-        Services.obs.removeObserver(self, "addon-install-failed");
-        Services.obs.removeObserver(self, "addon-install-complete");
-
-        AddonManager.removeInstallListener(self);
-
-        Services.wm.removeListener(self);
-
-        AddonManager.getAllInstalls(function(aInstalls) {
-          is(aInstalls.length, 0, "Should be no active installs at the end of the test");
-          aInstalls.forEach(function(aInstall) {
-            info("Install for " + aInstall.sourceURI + " is in state " + aInstall.state);
-            aInstall.cancel();
-          });
-        });
-      });
-    }
-
+    AddonManager.addInstallListener(this);
     this.installCount = 0;
     this.pendingCount = 0;
     this.runningInstalls = [];
+
+    var self = this;
+    registerCleanupFunction(function() {
+      Services.prefs.clearUserPref(PREF_LOGGING_ENABLED);
+      Services.obs.removeObserver(self, "addon-install-started");
+      Services.obs.removeObserver(self, "addon-install-blocked");
+      Services.obs.removeObserver(self, "addon-install-failed");
+      Services.obs.removeObserver(self, "addon-install-complete");
+      Services.wm.removeListener(self);
+
+      AddonManager.removeInstallListener(self);
+    });
   },
 
   finish: function() {
-    finish();
+    AddonManager.getAllInstalls(function(installs) {
+      is(installs.length, 0, "Should be no active installs at the end of the test");
+      finish();
+    });
   },
 
   endTest: function() {
@@ -159,6 +139,12 @@ var Harness = {
   },
 
   // Window open handling
+  windowLoad: function(window) {
+    // Allow any other load handlers to execute
+    var self = this;
+    executeSoon(function() { self.windowReady(window); } );
+  },
+
   windowReady: function(window) {
     if (window.document.location.href == XPINSTALL_URL) {
       if (this.installBlockedCallback)
@@ -179,7 +165,7 @@ var Harness = {
       }
     }
     else if (window.document.location.href == PROMPT_URL) {
-        var promptType = window.args.promptType;
+        var promptType = window.gArgs.getProperty("promptType");
         switch (promptType) {
           case "alert":
           case "alertCheck":
@@ -215,16 +201,6 @@ var Harness = {
 
   // Install blocked handling
 
-  installDisabled: function(installInfo) {
-    ok(!!this.installDisabledCallback, "Installation shouldn't have been disabled");
-    if (this.installDisabledCallback)
-      this.installDisabledCallback(installInfo);
-    installInfo.installs.forEach(function(install) {
-      install.cancel();
-    });
-    this.endTest();
-  },
-
   installBlocked: function(installInfo) {
     ok(!!this.installBlockedCallback, "Shouldn't have been blocked by the whitelist");
     if (this.installBlockedCallback && this.installBlockedCallback(installInfo)) {
@@ -248,9 +224,10 @@ var Harness = {
     var domwindow = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                           .getInterface(Components.interfaces.nsIDOMWindowInternal);
     var self = this;
-    waitForFocus(function() {
-      self.windowReady(domwindow);
-    }, domwindow);
+    domwindow.addEventListener("load", function() {
+      domwindow.removeEventListener("load", arguments.callee, false);
+      self.windowLoad(domwindow);
+    }, false);
   },
 
   onCloseWindow: function(window) {
@@ -325,9 +302,6 @@ var Harness = {
     case "addon-install-started":
       is(this.runningInstalls.length, installInfo.installs.length,
          "Should have seen the expected number of installs started");
-      break;
-    case "addon-install-disabled":
-      this.installDisabled(installInfo);
       break;
     case "addon-install-blocked":
       this.installBlocked(installInfo);

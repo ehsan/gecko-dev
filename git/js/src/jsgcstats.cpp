@@ -72,7 +72,6 @@ ConservativeGCStats::dump(FILE *fp)
     fprintf(fp, "        excluded, wrong tag: %lu\n", ULSTAT(counter[CGCT_WRONGTAG]));
     fprintf(fp, "         excluded, not live: %lu\n", ULSTAT(counter[CGCT_NOTLIVE]));
     fprintf(fp, "            valid GC things: %lu\n", ULSTAT(counter[CGCT_VALID]));
-    fprintf(fp, "      valid but not aligned: %lu\n", ULSTAT(counter[CGCT_VALIDWITHOFFSET]));
 #undef ULSTAT
 }
 #endif
@@ -112,101 +111,55 @@ UpdateCompartmentStats(JSCompartment *comp, unsigned thingKind, uint32 nlivearen
 }
 
 static const char *const GC_ARENA_NAMES[] = {
-    "object_0",
-    "object_2",
-    "object_4",
-    "object_8",
-    "object_12",
-    "object_16",
+    "object",
     "function",
 #if JS_HAS_XML_SUPPORT
     "xml",
 #endif
     "short string",
     "string",
-    "external_string",
+    "external_string_0",
+    "external_string_1",
+    "external_string_2",
+    "external_string_3",
+    "external_string_4",
+    "external_string_5",
+    "external_string_6",
+    "external_string_7",
 };
 JS_STATIC_ASSERT(JS_ARRAY_LENGTH(GC_ARENA_NAMES) == FINALIZE_LIMIT);
-
-template <typename T>
-static inline void
-GetSizeAndThings(size_t &thingSize, size_t &thingsPerArena)
-{
-    thingSize = sizeof(T);
-    thingsPerArena = Arena<T>::ThingsPerArena;
-}
-
-#if defined JS_DUMP_CONSERVATIVE_GC_ROOTS
-void *
-GetAlignedThing(void *thing, int thingKind)
-{
-    Cell *cell = (Cell *)thing;
-    switch (thingKind) {
-        case FINALIZE_OBJECT0:
-            return (void *)GetArena<JSObject>(cell)->getAlignedThing(thing);
-        case FINALIZE_OBJECT2:
-            return (void *)GetArena<JSObject_Slots2>(cell)->getAlignedThing(thing);
-        case FINALIZE_OBJECT4:
-            return (void *)GetArena<JSObject_Slots4>(cell)->getAlignedThing(thing);
-        case FINALIZE_OBJECT8:
-            return (void *)GetArena<JSObject_Slots8>(cell)->getAlignedThing(thing);
-        case FINALIZE_OBJECT12:
-            return (void *)GetArena<JSObject_Slots12>(cell)->getAlignedThing(thing);
-        case FINALIZE_OBJECT16:
-            return (void *)GetArena<JSObject_Slots16>(cell)->getAlignedThing(thing);
-        case FINALIZE_STRING:
-            return (void *)GetArena<JSString>(cell)->getAlignedThing(thing);
-        case FINALIZE_EXTERNAL_STRING:
-            return (void *)GetArena<JSExternalString>(cell)->getAlignedThing(thing);
-        case FINALIZE_SHORT_STRING:
-            return (void *)GetArena<JSShortString>(cell)->getAlignedThing(thing);
-        case FINALIZE_FUNCTION:
-            return (void *)GetArena<JSFunction>(cell)->getAlignedThing(thing);
-#if JS_HAS_XML_SUPPORT
-        case FINALIZE_XML:
-            return (void *)GetArena<JSXML>(cell)->getAlignedThing(thing);
-#endif
-        default:
-            JS_ASSERT(false);
-            return NULL;
-    }
-}
-#endif
 
 void GetSizeAndThingsPerArena(int thingKind, size_t &thingSize, size_t &thingsPerArena)
 {
     switch (thingKind) {
-        case FINALIZE_OBJECT0:
-            GetSizeAndThings<JSObject>(thingSize, thingsPerArena);
+        case FINALIZE_OBJECT:
+            thingSize = sizeof(JSObject);
+            thingsPerArena = Arena<JSObject>::ThingsPerArena;
             break;
-        case FINALIZE_OBJECT2:
-            GetSizeAndThings<JSObject_Slots2>(thingSize, thingsPerArena);
-            break;
-        case FINALIZE_OBJECT4:
-            GetSizeAndThings<JSObject_Slots4>(thingSize, thingsPerArena);
-            break;
-        case FINALIZE_OBJECT8:
-            GetSizeAndThings<JSObject_Slots8>(thingSize, thingsPerArena);
-            break;
-        case FINALIZE_OBJECT12:
-            GetSizeAndThings<JSObject_Slots12>(thingSize, thingsPerArena);
-            break;
-        case FINALIZE_OBJECT16:
-            GetSizeAndThings<JSObject_Slots16>(thingSize, thingsPerArena);
-            break;
-        case FINALIZE_EXTERNAL_STRING:
         case FINALIZE_STRING:
-            GetSizeAndThings<JSString>(thingSize, thingsPerArena);
+        case FINALIZE_EXTERNAL_STRING0:
+        case FINALIZE_EXTERNAL_STRING1:
+        case FINALIZE_EXTERNAL_STRING2:
+        case FINALIZE_EXTERNAL_STRING3:
+        case FINALIZE_EXTERNAL_STRING4:
+        case FINALIZE_EXTERNAL_STRING5:
+        case FINALIZE_EXTERNAL_STRING6:
+        case FINALIZE_EXTERNAL_STRING7:
+            thingSize = sizeof(JSString);
+             thingsPerArena = Arena<JSString>::ThingsPerArena;
             break;
         case FINALIZE_SHORT_STRING:
-            GetSizeAndThings<JSShortString>(thingSize, thingsPerArena);
+            thingSize = sizeof(JSShortString);
+            thingsPerArena = Arena<JSShortString>::ThingsPerArena;
             break;
         case FINALIZE_FUNCTION:
-            GetSizeAndThings<JSFunction>(thingSize, thingsPerArena);
+            thingSize = sizeof(JSFunction);
+            thingsPerArena = Arena<JSFunction>::ThingsPerArena;
             break;
 #if JS_HAS_XML_SUPPORT
         case FINALIZE_XML:
-            GetSizeAndThings<JSXML>(thingSize, thingsPerArena);
+            thingSize = sizeof(JSXML);
+            thingsPerArena = Arena<JSXML>::ThingsPerArena;
             break;
 #endif
         default:
@@ -303,7 +256,7 @@ js_DumpGCStats(JSRuntime *rt, FILE *fp)
         DumpArenaStats(&rt->globalArenaStats[0], fp);
         fprintf(fp, "            bytes allocated: %lu\n", UL(rt->gcBytes));
         fprintf(fp, "        allocation failures: %lu\n", ULSTAT(fail));
-        fprintf(fp, "         last ditch GC runs: %lu\n", ULSTAT(lastditch));
+        fprintf(fp, "allocation retries after GC: %lu\n", ULSTAT(retry));
         fprintf(fp, "           valid lock calls: %lu\n", ULSTAT(lock));
         fprintf(fp, "         valid unlock calls: %lu\n", ULSTAT(unlock));
         fprintf(fp, "      delayed tracing calls: %lu\n", ULSTAT(unmarked));
@@ -351,7 +304,7 @@ GCMarker::dumpConservativeRoots()
          i != conservativeRoots.end();
          ++i) {
         fprintf(fp, "  %p: ", i->thing);
-        switch (GetFinalizableTraceKind(i->thingKind)) {
+        switch (i->traceKind) {
           default:
             JS_NOT_REACHED("Unknown trace kind");
 
@@ -363,7 +316,7 @@ GCMarker::dumpConservativeRoots()
           case JSTRACE_STRING: {
             JSString *str = (JSString *) i->thing;
             char buf[50];
-            PutEscapedString(buf, sizeof buf, str, '"');
+            js_PutEscapedString(buf, sizeof buf, str, '"');
             fprintf(fp, "string %s", buf);
             break;
           }
@@ -418,7 +371,7 @@ GCTimer::finish(bool lastGC) {
                 gcFile = fopen("gcTimer.dat", "a");
 
                 fprintf(gcFile, "     AppTime,  Total,   Mark,  Sweep, FinObj,");
-                fprintf(gcFile, " FinStr,  Destroy,  newChunks, destroyChunks\n");
+                fprintf(gcFile, " FinStr,  Destroy,  newChunks, destoyChunks\n");
             }
             JS_ASSERT(gcFile);
             fprintf(gcFile, "%12.1f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f,  %7.1f, ",

@@ -474,14 +474,12 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
     if (window) {
       window->SetHasPaintEventListeners();
     }
-#ifdef MOZ_MEDIA
   } else if (aType == NS_MOZAUDIOAVAILABLE) {
     mMayHaveAudioAvailableEventListener = PR_TRUE;
     nsPIDOMWindow* window = GetInnerWindowForTarget();
     if (window) {
       window->SetHasAudioAvailableEventListeners();
     }
-#endif // MOZ_MEDIA
   } else if (aType >= NS_MUTATION_START && aType <= NS_MUTATION_END) {
     // For mutation listeners, we need to update the global bit on the DOM window.
     // Otherwise we won't actually fire the mutation event.
@@ -1206,11 +1204,8 @@ found:
                                   dispData->method, *typeData->iid);
             } else if (useGenericInterface &&
                        aPusher->RePush(aCurrentTarget)) {
-              if (NS_FAILED(HandleEventSubType(ls, ls->mListener, *aDOMEvent,
-                                               aCurrentTarget, aFlags,
-                                               aPusher))) {
-                aEvent->flags |= NS_EVENT_FLAG_EXCEPTION_THROWN;
-              }
+              HandleEventSubType(ls, ls->mListener, *aDOMEvent,
+                                 aCurrentTarget, aFlags, aPusher);
             }
           }
         }

@@ -264,20 +264,20 @@ nsDOMFileReader::GetError(nsIDOMFileError** aError)
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::ReadAsBinaryString(nsIDOMBlob* aFile)
+nsDOMFileReader::ReadAsBinaryString(nsIDOMFile* aFile)
 {
   return ReadFileContent(aFile, EmptyString(), FILE_AS_BINARY);
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::ReadAsText(nsIDOMBlob* aFile,
+nsDOMFileReader::ReadAsText(nsIDOMFile* aFile,
                             const nsAString &aCharset)
 {
   return ReadFileContent(aFile, aCharset, FILE_AS_TEXT);
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::ReadAsDataURL(nsIDOMBlob* aFile)
+nsDOMFileReader::ReadAsDataURL(nsIDOMFile* aFile)
 {
   return ReadFileContent(aFile, EmptyString(), FILE_AS_DATAURL);
 }
@@ -483,7 +483,7 @@ nsDOMFileReader::OnStopRequest(nsIRequest *aRequest,
 // Helper methods
 
 nsresult
-nsDOMFileReader::ReadFileContent(nsIDOMBlob* aFile,
+nsDOMFileReader::ReadFileContent(nsIDOMFile* aFile,
                                  const nsAString &aCharset,
                                  eDataFormat aDataFormat)
 {
@@ -609,7 +609,7 @@ nsDOMFileReader::GetAsText(const nsACString &aCharset,
 }
 
 nsresult
-nsDOMFileReader::GetAsDataURL(nsIDOMBlob *aFile,
+nsDOMFileReader::GetAsDataURL(nsIDOMFile *aFile,
                               const char *aFileData,
                               PRUint32 aDataLen,
                               nsAString& aResult)

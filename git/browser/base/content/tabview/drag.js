@@ -43,17 +43,9 @@
 // The Drag that's currently in process.
 var drag = {
   info: null,
-  zIndex: 100,
-  lastMoveTime: 0
+  zIndex: 100
 };
 
-//----------
-//Variable: resize
-//The resize (actually a Drag) that is currently in process
-var resize = {
-  info: null,
-  lastMoveTime: 0
-};
 
 // ##########
 // Class: Drag (formerly DragInfo)
@@ -67,11 +59,13 @@ var resize = {
 // Parameters:
 //   item - The <Item> being dragged
 //   event - The DOM event that kicks off the drag
+//   isResizing - (boolean) is this a resizing instance? or (if false) dragging?
 //   isFauxDrag - (boolean) true if a faux drag, which is used when simply snapping.
-function Drag(item, event, isFauxDrag) {
+function Drag(item, event, isResizing, isFauxDrag) {
   Utils.assert(item && (item.isAnItem || item.isAFauxItem), 
       'must be an item, or at least a faux item');
 
+  this.isResizing = isResizing || false;
   this.item = item;
   this.el = item.container;
   this.$el = iQ(this.el);
@@ -107,8 +101,7 @@ Drag.prototype = {
   //
   // Parameters:
   //   bounds             - (<Rect>) bounds
-  //   stationaryCorner   - which corner is stationary? by default, the top left in LTR mode,
-  //                        and top right in RTL mode.
+  //   stationaryCorner   - which corner is stationary? by default, the top left.
   //                        "topleft", "bottomleft", "topright", "bottomright"
   //   assumeConstantSize - (boolean) whether the bounds' dimensions are sacred or not.
   //   keepProportional   - (boolean) if assumeConstantSize is false, whether we should resize
@@ -116,7 +109,7 @@ Drag.prototype = {
   //   checkItemStatus    - (boolean) make sure this is a valid item which should be snapped
   snapBounds: function Drag_snapBounds(bounds, stationaryCorner, assumeConstantSize, keepProportional, checkItemStatus) {
     if (!stationaryCorner)
-      stationaryCorner = UI.rtl ? 'topright' : 'topleft';
+      stationaryCorner = 'topleft';
     var update = false; // need to update
     var updateX = false;
     var updateY = false;
@@ -125,8 +118,8 @@ Drag.prototype = {
 
     // OH SNAP!
 
-    // if we aren't holding down the meta key or have trenches disabled...
-    if (!Keys.meta && !Trenches.disabled) {
+    // if we aren't holding down the meta key...
+    if (!Keys.meta) {
       // snappable = true if we aren't a tab on top of something else, and
       // there's no active drop site...
       let snappable = !(this.item.isATabItem &&
@@ -171,8 +164,7 @@ Drag.prototype = {
   // trenches that it snapped to.
   //
   // Parameters:
-  //   stationaryCorner   - which corner is stationary? by default, the top left in LTR mode,
-  //                        and top right in RTL mode.
+  //   stationaryCorner   - which corner is stationary? by default, the top left.
   //                        "topleft", "bottomleft", "topright", "bottomright"
   //   assumeConstantSize - (boolean) whether the bounds' dimensions are sacred or not.
   //   keepProportional   - (boolean) if assumeConstantSize is false, whether we should resize
@@ -195,8 +187,7 @@ Drag.prototype = {
   //
   // Parameters:
   //   rect - (<Rect>) current bounds of the object
-  //   stationaryCorner   - which corner is stationary? by default, the top left in LTR mode,
-  //                        and top right in RTL mode.
+  //   stationaryCorner   - which corner is stationary? by default, the top left.
   //                        "topleft", "bottomleft", "topright", "bottomright"
   //   assumeConstantSize - (boolean) whether the rect's dimensions are sacred or not
   //   keepProportional   - (boolean) if we are allowed to change the rect's size, whether the
@@ -211,7 +202,7 @@ Drag.prototype = {
 
     var snapRadius = (Keys.meta ? 0 : Trenches.defaultRadius);
     if (rect.left < swb.left + snapRadius ) {
-      if (stationaryCorner.indexOf('right') > -1 && !assumeConstantSize)
+      if (stationaryCorner.indexOf('right') > -1)
         rect.width = rect.right - swb.left;
       rect.left = swb.left;
       update = true;
@@ -234,7 +225,7 @@ Drag.prototype = {
       delete snappedTrenches.left;
     }
     if (rect.top < swb.top + snapRadius) {
-      if (stationaryCorner.indexOf('bottom') > -1 && !assumeConstantSize)
+      if (stationaryCorner.indexOf('bottom') > -1)
         rect.height = rect.bottom - swb.top;
       rect.top = swb.top;
       update = true;
@@ -267,7 +258,7 @@ Drag.prototype = {
   // Function: drag
   // Called in response to an <Item> draggable "drag" event.
   drag: function Drag_drag(event) {
-    this.snap(UI.rtl ? 'topright' : 'topleft', true);
+    this.snap('topleft', true);
 
     if (this.parent && this.parent.expanded) {
       var distance = this.startPosition.distance(new Point(event.clientX, event.clientY));
@@ -281,10 +272,7 @@ Drag.prototype = {
   // ----------
   // Function: stop
   // Called in response to an <Item> draggable "stop" event.
-  //
-  // Parameters:
-  //  immediately - bool for doing the pushAway immediately, without animation
-  stop: function Drag_stop(immediately) {
+  stop: function Drag_stop() {
     Trenches.hideGuides();
     this.item.isDragging = false;
 
@@ -300,7 +288,7 @@ Drag.prototype = {
       this.item.setZ(drag.zIndex);
       drag.zIndex++;
 
-      this.item.pushAway(immediately);
+      this.item.pushAway();
     }
 
     Trenches.disactivate();

@@ -70,18 +70,17 @@ namespace nanojit
      *    - merging paths ( build a graph? ), possibly use external rep to drive codegen
      */
     Assembler::Assembler(CodeAlloc& codeAlloc, Allocator& dataAlloc, Allocator& alloc, AvmCore* core, LogControl* logc, const Config& config)
-        : alloc(alloc)
+        : codeList(NULL)
+        , alloc(alloc)
         , _codeAlloc(codeAlloc)
         , _dataAlloc(dataAlloc)
         , _thisfrag(NULL)
         , _branchStateMap(alloc)
         , _patches(alloc)
         , _labels(alloc)
-        , _noise(NULL)
     #if NJ_USES_IMMD_POOL
         , _immDPool(alloc)
     #endif
-        , codeList(NULL)
         , _epilogue(NULL)
         , _err(None)
     #if PEDANTIC
@@ -289,18 +288,14 @@ namespace nanojit
         eip = end;
     }
 
-    void Assembler::clearNInsPtrs()
+    void Assembler::reset()
     {
         _nIns = 0;
         _nExitIns = 0;
         codeStart = codeEnd = 0;
         exitStart = exitEnd = 0;
         codeList = 0;
-    }
 
-    void Assembler::reset()
-    {
-        clearNInsPtrs();
         nativePageReset();
         registerResetAll();
         arReset();
@@ -367,8 +362,8 @@ namespace nanojit
         // we enforce this condition between all pairs of instructions, but this is
         // overly restrictive, and would fail if we did not generate unreachable x87
         // stack pops following unconditional branches.
-        NanoAssert((_allocator.active[REGNUM(FST0)] && _fpuStkDepth == -1) ||
-                   (!_allocator.active[REGNUM(FST0)] && _fpuStkDepth == 0));
+        NanoAssert((_allocator.active[FST0] && _fpuStkDepth == -1) ||
+                   (!_allocator.active[FST0] && _fpuStkDepth == 0));
 #endif
         _activation.checkForResourceConsistency(_allocator);
         registerConsistencyCheck();
@@ -396,7 +391,7 @@ namespace nanojit
         for (Register r = lsReg(not_managed); not_managed; r = nextLsReg(not_managed, r)) {
             // A register not managed by register allocation must be
             // neither free nor active.
-            if (REGNUM(r) <= LastRegNum) {
+            if (r <= LastReg) {
                 NanoAssert(!_allocator.isFree(r));
                 NanoAssert(!_allocator.getActive(r));
             }
@@ -519,7 +514,7 @@ namespace nanojit
                 evict(ins);
                 r = registerAlloc(ins, allow, hint(ins));
             } else
-#elif defined(NANOJIT_PPC) || defined(NANOJIT_MIPS) || defined(NANOJIT_SPARC)
+#elif defined(NANOJIT_PPC) || defined(NANOJIT_MIPS)
             if (((rmask(r)&GpRegs) && !(allow&GpRegs)) ||
                 ((rmask(r)&FpRegs) && !(allow&FpRegs)))
             {
@@ -761,36 +756,6 @@ namespace nanojit
         // slot (if not).
     }
 
-    // If we have this:
-    //
-    //   W = ld(addp(B, lshp(I, k)))[d] , where int(1) <= k <= int(3)
-    //
-    // then we set base=B, index=I, scale=k.
-    //
-    // Otherwise, we must have this:
-    //
-    //   W = ld(addp(B, I))[d]
-    //
-    // and we set base=B, index=I, scale=0.
-    //
-    void Assembler::getBaseIndexScale(LIns* addp, LIns** base, LIns** index, int* scale)
-    {
-        NanoAssert(addp->isop(LIR_addp));
-
-        *base = addp->oprnd1();
-        LIns* rhs = addp->oprnd2();
-        int k;
-
-        if (rhs->opcode() == LIR_lshp && rhs->oprnd2()->isImmI() &&
-            (k = rhs->oprnd2()->immI(), (1 <= k && k <= 3)))
-        {
-            *index = rhs->oprnd1();
-            *scale = k;
-        } else {
-            *index = rhs;
-            *scale = 0;
-        }
-    }
     void Assembler::patch(GuardRecord *lr)
     {
         if (!lr->jmp) // the guard might have been eliminated as redundant
@@ -1118,23 +1083,17 @@ namespace nanojit
         }
     }
 
-    void Assembler::cleanupAfterError()
-    {
-        _codeAlloc.freeAll(codeList);
-        if (_nExitIns)
-            _codeAlloc.free(exitStart, exitEnd);
-        _codeAlloc.free(codeStart, codeEnd);
-        codeList = NULL;
-        _codeAlloc.markAllExec(); // expensive but safe, we mark all code pages R-X
-    }
-
     void Assembler::endAssembly(Fragment* frag)
     {
         // don't try to patch code if we are in an error state since we might have partially
         // overwritten the code cache already
         if (error()) {
             // something went wrong, release all allocated code memory
-            cleanupAfterError();
+            _codeAlloc.freeAll(codeList);
+            if (_nExitIns)
+                _codeAlloc.free(exitStart, exitEnd);
+            _codeAlloc.free(codeStart, codeEnd);
+            codeList = NULL;
             return;
         }
 
@@ -1162,9 +1121,6 @@ namespace nanojit
         _codeAlloc.addRemainder(codeList, codeStart, codeEnd, codeStart, _nIns);
         verbose_only( codeBytes -= (_nIns - codeStart) * sizeof(NIns); )
 #endif
-
-        // note: the code pages are no longer writable from this point onwards
-        _codeAlloc.markExec(codeList);
 
         // at this point all our new code is in the d-cache and not the i-cache,
         // so flush the i-cache on cpu's that need it.
@@ -1406,12 +1362,6 @@ namespace nanojit
         asm_branch(ins->opcode() == LIR_xf, cond, exit);
     }
 
-    // helper function for nop insertion feature that results in no more
-    // than 1 no-op instruction insertion every 128-1151 Bytes
-    static inline uint32_t noiseForNopInsertion(Noise* n) {
-        return n->getValue(1023) + 128;
-    }
-
     void Assembler::gen(LirFilter* reader)
     {
         NanoAssert(_thisfrag->nStaticExits == 0);
@@ -1419,10 +1369,6 @@ namespace nanojit
         InsList pending_lives(alloc);
 
         NanoAssert(!error());
-
-        // compiler hardening setup
-        NIns* priorIns = _nIns;
-        int32_t nopInsertTrigger = hardenNopInsertion(_config) ? noiseForNopInsertion(_noise): 0;
 
         // What's going on here: we're visiting all the LIR instructions in
         // the buffer, working strictly backwards in buffer-order, and
@@ -1486,25 +1432,6 @@ namespace nanojit
             if ((_logc->lcbits & LC_Native) && (_logc->lcbits & LC_RegAlloc))
                 printRegState();
 #endif
-
-            // compiler hardening technique that inserts no-op instructions in the compiled method when nopInsertTrigger < 0
-            if (hardenNopInsertion(_config))
-            {
-                size_t delta = (uintptr_t)priorIns - (uintptr_t)_nIns; // # bytes that have been emitted since last go-around
-
-                // if no codeList then we know priorIns and _nIns are on same page, otherwise make sure priorIns was not in the previous code block
-                if (!codeList || !codeList->isInBlock(priorIns)) {
-                    NanoAssert(delta < VMPI_getVMPageSize()); // sanity check
-                    nopInsertTrigger -= (int32_t) delta;
-                    if (nopInsertTrigger < 0)
-                    {
-                        nopInsertTrigger = noiseForNopInsertion(_noise);
-                        asm_insert_random_nop();
-                        PERFM_NVPROF("hardening:nop-insert", 1);
-                    }
-                }
-                priorIns = _nIns;
-            }
 
             LOpcode op = ins->opcode();
             switch (op)
@@ -2066,9 +1993,6 @@ namespace nanojit
                 }
                #endif // VMCFG_VTUNE
 
-                case LIR_comment:
-                    // Do nothing.
-                    break;
             }
 
 #ifdef NJ_VERBOSE
@@ -2081,10 +2005,7 @@ namespace nanojit
             if (_logc->lcbits & LC_AfterDCE) {
                 InsBuf b;
                 LInsPrinter* printer = _thisfrag->lirbuf->printer;
-                if (ins->isop(LIR_comment))
-                    outputf("%s", printer->formatIns(&b, ins));
-                else
-                    outputf("    %s", printer->formatIns(&b, ins));
+                outputf("    %s", printer->formatIns(&b, ins));
             }
 #endif
 
@@ -2351,7 +2272,7 @@ namespace nanojit
         // 'tosave' is a binary heap stored in an array.  The root is tosave[0],
         // left child is at i+1, right child is at i+2.
 
-        Register tosave[LastRegNum - FirstRegNum + 1];
+        Register tosave[LastReg-FirstReg+1];
         int len=0;
         RegAlloc *regs = &_allocator;
         RegisterMask evict_set = regs->activeMask() & GpRegs & ~ignore;
@@ -2433,17 +2354,17 @@ namespace nanojit
      */
     void Assembler::intersectRegisterState(RegAlloc& saved)
     {
-        Register regsTodo[LastRegNum + 1];
-        LIns* insTodo[LastRegNum + 1];
+        Register regsTodo[LastReg + 1];
+        LIns* insTodo[LastReg + 1];
         int nTodo = 0;
 
         // Do evictions and pops first.
         verbose_only(bool shouldMention=false; )
-        // The obvious thing to do here is to iterate from FirstRegNum to
-        // LastRegNum.  However, on ARM that causes lower-numbered integer
-        // registers to be be saved at higher addresses, which inhibits the
-        // formation of load/store multiple instructions.  Hence iterate the
-        // loop the other way.
+        // The obvious thing to do here is to iterate from FirstReg to LastReg.
+        // However, on ARM that causes lower-numbered integer registers
+        // to be be saved at higher addresses, which inhibits the formation
+        // of load/store multiple instructions.  Hence iterate the loop the
+        // other way.
         RegisterMask reg_set = _allocator.activeMask() | saved.activeMask();
         for (Register r = msReg(reg_set); reg_set; r = nextMsReg(reg_set, r))
         {
@@ -2494,8 +2415,8 @@ namespace nanojit
      */
     void Assembler::unionRegisterState(RegAlloc& saved)
     {
-        Register regsTodo[LastRegNum + 1];
-        LIns* insTodo[LastRegNum + 1];
+        Register regsTodo[LastReg + 1];
+        LIns* insTodo[LastReg + 1];
         int nTodo = 0;
 
         // Do evictions and pops first.

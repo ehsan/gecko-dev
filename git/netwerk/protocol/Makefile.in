@@ -51,7 +51,6 @@ PARALLEL_DIRS = \
   http \
   res \
   viewsource \
-  wyciwyg \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk

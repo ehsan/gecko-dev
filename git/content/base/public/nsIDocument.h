@@ -65,7 +65,6 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIDocumentEncoder.h"
 #include "nsIAnimationFrameListener.h"
-#include "nsEventStates.h"
 
 class nsIContent;
 class nsPresContext;
@@ -107,7 +106,6 @@ struct JSObject;
 class nsFrameLoader;
 class nsIBoxObject;
 class imgIRequest;
-class nsISHEntry;
 
 namespace mozilla {
 namespace css {
@@ -122,8 +120,8 @@ class Element;
 
 
 #define NS_IDOCUMENT_IID      \
-{ 0xc38a7935, 0xc854, 0x4df7, \
-  { 0x8f, 0xd4, 0xa2, 0x6f, 0x0d, 0x27, 0x9f, 0x31 } }
+{ 0x73d79167, 0xacba, 0x46eb, \
+  { 0xad, 0x45, 0xa3, 0x4b, 0x92, 0xf6, 0x01, 0x5b } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -131,9 +129,9 @@ class Element;
 // Document states
 
 // RTL locale: specific to the XUL localedir attribute
-#define NS_DOCUMENT_STATE_RTL_LOCALE              NS_DEFINE_EVENT_STATE_MACRO(0)
+#define NS_DOCUMENT_STATE_RTL_LOCALE              (1 << 0)
 // Window activation status
-#define NS_DOCUMENT_STATE_WINDOW_INACTIVE         NS_DEFINE_EVENT_STATE_MACRO(1)
+#define NS_DOCUMENT_STATE_WINDOW_INACTIVE         (1 << 1)
 
 //----------------------------------------------------------------------
 
@@ -214,13 +212,9 @@ public:
    * has just been bound to the document.
    */
   virtual void NotifyPossibleTitleChange(PRBool aBoundTitleElement) = 0;
-
+  
   /**
    * Return the URI for the document. May return null.
-   *
-   * The value returned corresponds to the "document's current address" in
-   * HTML5.  As such, it may change over the lifetime of the document, for
-   * instance as a result of a call to pushState() or replaceState().
    */
   nsIURI* GetDocumentURI() const
   {
@@ -228,21 +222,7 @@ public:
   }
 
   /**
-   * Return the original URI of the document.  This is the same as the
-   * document's URI unless history.pushState() or replaceState() is invoked on
-   * the document.
-   *
-   * This method corresponds to the "document's address" in HTML5 and, once
-   * set, doesn't change over the lifetime of the document.
-   */
-  nsIURI* GetOriginalURI() const
-  {
-    return mOriginalURI;
-  }
-
-  /**
-   * Set the URI for the document.  This also sets the document's original URI,
-   * if it's null.
+   * Set the URI for the document.
    */
   virtual void SetDocumentURI(nsIURI* aURI) = 0;
 
@@ -469,16 +449,11 @@ public:
 
   nsIPresShell* GetShell() const
   {
-    return GetBFCacheEntry() ? nsnull : mPresShell;
+    return mShellIsHidden ? nsnull : mPresShell;
   }
 
-  void SetBFCacheEntry(nsISHEntry* aSHEntry) {
-    mSHEntry = aSHEntry;
-    // Doing this just to keep binary compat for the gecko 2.0 release
-    mShellIsHidden = !!aSHEntry;
-  }
-
-  nsISHEntry* GetBFCacheEntry() const { return mSHEntry; }
+  void SetShellHidden(PRBool aHide) { mShellIsHidden = aHide; }
+  PRBool ShellIsHidden() const { return mShellIsHidden; }
 
   /**
    * Return the parent document of this document. Will return null
@@ -748,12 +723,12 @@ public:
   // either may be nsnull, but not both
   virtual void ContentStatesChanged(nsIContent* aContent1,
                                     nsIContent* aContent2,
-                                    nsEventStates aStateMask) = 0;
+                                    PRInt32 aStateMask) = 0;
 
   // Notify that a document state has changed.
   // This should only be called by callers whose state is also reflected in the
   // implementation of nsDocument::GetDocumentState.
-  virtual void DocumentStatesChanged(nsEventStates aStateMask) = 0;
+  virtual void DocumentStatesChanged(PRInt32 aStateMask) = 0;
 
   // Observation hooks for style data to propagate notifications
   // to document observers
@@ -1304,11 +1279,6 @@ public:
   virtual nsSMILAnimationController* GetAnimationController() = 0;
 #endif // MOZ_SMIL
 
-  // Makes the images on this document capable of having their animation
-  // active or suspended. An Image will animate as long as at least one of its
-  // owning Documents needs it to animate; otherwise it can suspend.
-  virtual void SetImagesNeedAnimating(PRBool aAnimating) = 0;
-
   /**
    * Prevents user initiated events from being dispatched to the document and
    * subdocuments.
@@ -1445,7 +1415,7 @@ public:
    * Document state bits have the form NS_DOCUMENT_STATE_* and are declared in
    * nsIDocument.h.
    */
-  virtual nsEventStates GetDocumentState() = 0;
+  virtual PRInt32 GetDocumentState() = 0;
 
   virtual nsISupports* GetCurrentContentSink() = 0;
 
@@ -1566,7 +1536,6 @@ protected:
   }
 
   nsCOMPtr<nsIURI> mDocumentURI;
-  nsCOMPtr<nsIURI> mOriginalURI;
   nsCOMPtr<nsIURI> mDocumentBaseURI;
 
   nsWeakPtr mDocumentLoadGroup;
@@ -1619,8 +1588,6 @@ protected:
   // document in it.
   PRPackedBool mIsInitialDocumentInWindow;
 
-  // True if we're currently bfcached. This is only here for binary compat.
-  // Remove once the gecko 2.0 has branched and just use mSHEntry instead.
   PRPackedBool mShellIsHidden;
 
   PRPackedBool mIsRegularHTML;
@@ -1733,10 +1700,6 @@ protected:
   nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
 
   AnimationListenerList mAnimationFrameListeners;
-
-  // The session history entry in which we're currently bf-cached. Non-null
-  // if and only if we're currently in the bfcache.
-  nsISHEntry* mSHEntry;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

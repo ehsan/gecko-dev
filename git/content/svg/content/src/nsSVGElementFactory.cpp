@@ -47,8 +47,6 @@
 #include "nsSVGUtils.h"
 #include "nsDebug.h"
 
-using namespace mozilla::dom;
-
 nsresult
 NS_NewSVGAElement(nsIContent **aResult,
                   already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -79,7 +77,7 @@ NS_NewSVGGElement(nsIContent **aResult,
 nsresult
 NS_NewSVGSVGElement(nsIContent **aResult,
                     already_AddRefed<nsINodeInfo> aNodeInfo,
-                    FromParser aFromParser);
+                    PRUint32 aFromParser);
 nsresult
 NS_NewSVGForeignObjectElement(nsIContent **aResult,
                               already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -119,7 +117,7 @@ NS_NewSVGDescElement(nsIContent **aResult,
 nsresult
 NS_NewSVGScriptElement(nsIContent **aResult,
                        already_AddRefed<nsINodeInfo> aNodeInfo,
-                       FromParser aFromParser);
+                       PRUint32 aFromParser);
 nsresult
 NS_NewSVGUseElement(nsIContent **aResult,
                     already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -243,8 +241,11 @@ NS_NewSVGSetElement(nsIContent **aResult,
 
 nsresult
 NS_NewSVGElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
-                 FromParser aFromParser)
+                 PRUint32 aFromParser)
 {
+  NS_PRECONDITION(NS_SVGEnabled(),
+                  "creating an SVG element while SVG disabled");
+
   static const char kSVGStyleSheetURI[] = "resource://gre/res/svg.css";
 
   // this bit of code is to load svg.css on demand

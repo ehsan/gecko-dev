@@ -94,9 +94,6 @@ struct nsDiskCacheEntry;
 #define kMaxDataFileSize   5 * 1024 * 1024  // 5 MB (in bytes) 
 #define kBuckets           (1 << 5)    // must be a power of 2!
 
-// preallocate up to 1MB of separate cache file
-#define kPreallocateLimit  1 * 1024 * 1024
-
 class nsDiskCacheRecord {
 
 private:
@@ -441,12 +438,10 @@ public:
 
     nsresult    GetFileForDiskCacheRecord( nsDiskCacheRecord * record,
                                            PRBool              meta,
-                                           PRBool              createPath,
                                            nsIFile **          result);
                                           
     nsresult    GetLocalFileForDiskCacheRecord( nsDiskCacheRecord *  record,
                                                 PRBool               meta,
-                                                PRBool               createPath,
                                                 nsILocalFile **      result);
 
     // On success, this returns the buffer owned by nsDiskCacheMap,
@@ -500,8 +495,6 @@ private:
     nsresult    OpenBlockFiles();
     nsresult    CloseBlockFiles(PRBool flush);
     PRBool      CacheFilesExist();
-
-    nsresult    CreateCacheSubDirectories();
 
     PRUint32    CalculateFileIndex(PRUint32 size);
 

@@ -43,7 +43,6 @@
 #include <stdio.h>
 
 #include "prlink.h"
-#include "prenv.h"
 
 #include "nsThreadUtils.h"
 
@@ -53,11 +52,6 @@
 
 namespace mozilla {
 namespace gl {
-
-#ifdef DEBUG
-// see comment near declaration in GLContext.h. Should be thread-local.
-GLContext* GLContext::sCurrentGLContext = nsnull;
-#endif
 
 // define this here since it's global to GLContextProvider, not any
 // specific implementation
@@ -167,149 +161,149 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
     }
 
     SymLoadStruct symbols[] = {
-        { (PRFuncPtr*) &mSymbols.fActiveTexture, { "ActiveTexture", "ActiveTextureARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fAttachShader, { "AttachShader", "AttachShaderARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fBindAttribLocation, { "BindAttribLocation", "BindAttribLocationARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fBindBuffer, { "BindBuffer", "BindBufferARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fBindTexture, { "BindTexture", "BindTextureARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fBlendColor, { "BlendColor", NULL } },
-        { (PRFuncPtr*) &mSymbols.fBlendEquation, { "BlendEquation", NULL } },
-        { (PRFuncPtr*) &mSymbols.fBlendEquationSeparate, { "BlendEquationSeparate", "BlendEquationSeparateEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fBlendFunc, { "BlendFunc", NULL } },
-        { (PRFuncPtr*) &mSymbols.fBlendFuncSeparate, { "BlendFuncSeparate", "BlendFuncSeparateEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fBufferData, { "BufferData", NULL } },
-        { (PRFuncPtr*) &mSymbols.fBufferSubData, { "BufferSubData", NULL } },
-        { (PRFuncPtr*) &mSymbols.fClear, { "Clear", NULL } },
-        { (PRFuncPtr*) &mSymbols.fClearColor, { "ClearColor", NULL } },
-        { (PRFuncPtr*) &mSymbols.fClearStencil, { "ClearStencil", NULL } },
-        { (PRFuncPtr*) &mSymbols.fColorMask, { "ColorMask", NULL } },
-        { (PRFuncPtr*) &mSymbols.fCullFace, { "CullFace", NULL } },
-        { (PRFuncPtr*) &mSymbols.fDetachShader, { "DetachShader", "DetachShaderARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fDepthFunc, { "DepthFunc", NULL } },
-        { (PRFuncPtr*) &mSymbols.fDepthMask, { "DepthMask", NULL } },
-        { (PRFuncPtr*) &mSymbols.fDisable, { "Disable", NULL } },
-        { (PRFuncPtr*) &mSymbols.fDisableVertexAttribArray, { "DisableVertexAttribArray", "DisableVertexAttribArrayARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fDrawArrays, { "DrawArrays", NULL } },
-        { (PRFuncPtr*) &mSymbols.fDrawElements, { "DrawElements", NULL } },
-        { (PRFuncPtr*) &mSymbols.fEnable, { "Enable", NULL } },
-        { (PRFuncPtr*) &mSymbols.fEnableVertexAttribArray, { "EnableVertexAttribArray", "EnableVertexAttribArrayARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fFinish, { "Finish", NULL } },
-        { (PRFuncPtr*) &mSymbols.fFlush, { "Flush", NULL } },
-        { (PRFuncPtr*) &mSymbols.fFrontFace, { "FrontFace", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetActiveAttrib, { "GetActiveAttrib", "GetActiveAttribARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetActiveUniform, { "GetActiveUniform", "GetActiveUniformARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetAttachedShaders, { "GetAttachedShaders", "GetAttachedShadersARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetAttribLocation, { "GetAttribLocation", "GetAttribLocationARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetIntegerv, { "GetIntegerv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetFloatv, { "GetFloatv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetBooleanv, { "GetBooleanv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetBufferParameteriv, { "GetBufferParameteriv", "GetBufferParameterivARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetError, { "GetError", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetProgramiv, { "GetProgramiv", "GetProgramivARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetProgramInfoLog, { "GetProgramInfoLog", "GetProgramInfoLogARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fTexParameteri, { "TexParameteri", NULL } },
-        { (PRFuncPtr*) &mSymbols.fTexParameterf, { "TexParameterf", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetString, { "GetString", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetTexParameterfv, { "GetTexParameterfv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetTexParameteriv, { "GetTexParameteriv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetUniformfv, { "GetUniformfv", "GetUniformfvARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetUniformiv, { "GetUniformiv", "GetUniformivARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetUniformLocation, { "GetUniformLocation", "GetUniformLocationARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetVertexAttribfv, { "GetVertexAttribfv", "GetVertexAttribfvARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetVertexAttribiv, { "GetVertexAttribiv", "GetVertexAttribivARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fHint, { "Hint", NULL } },
-        { (PRFuncPtr*) &mSymbols.fIsBuffer, { "IsBuffer", "IsBufferARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fIsEnabled, { "IsEnabled", NULL } },
-        { (PRFuncPtr*) &mSymbols.fIsProgram, { "IsProgram", "IsProgramARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fIsShader, { "IsShader", "IsShaderARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fIsTexture, { "IsTexture", "IsTextureARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fLineWidth, { "LineWidth", NULL } },
-        { (PRFuncPtr*) &mSymbols.fLinkProgram, { "LinkProgram", "LinkProgramARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fPixelStorei, { "PixelStorei", NULL } },
-        { (PRFuncPtr*) &mSymbols.fPolygonOffset, { "PolygonOffset", NULL } },
-        { (PRFuncPtr*) &mSymbols.fReadPixels, { "ReadPixels", NULL } },
-        { (PRFuncPtr*) &mSymbols.fSampleCoverage, { "SampleCoverage", NULL } },
-        { (PRFuncPtr*) &mSymbols.fScissor, { "Scissor", NULL } },
-        { (PRFuncPtr*) &mSymbols.fStencilFunc, { "StencilFunc", NULL } },
-        { (PRFuncPtr*) &mSymbols.fStencilFuncSeparate, { "StencilFuncSeparate", "StencilFuncSeparateEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fStencilMask, { "StencilMask", NULL } },
-        { (PRFuncPtr*) &mSymbols.fStencilMaskSeparate, { "StencilMaskSeparate", "StencilMaskSeparateEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fStencilOp, { "StencilOp", NULL } },
-        { (PRFuncPtr*) &mSymbols.fStencilOpSeparate, { "StencilOpSeparate", "StencilOpSeparateEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fTexImage2D, { "TexImage2D", NULL } },
-        { (PRFuncPtr*) &mSymbols.fTexSubImage2D, { "TexSubImage2D", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform1f, { "Uniform1f", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform1fv, { "Uniform1fv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform1i, { "Uniform1i", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform1iv, { "Uniform1iv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform2f, { "Uniform2f", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform2fv, { "Uniform2fv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform2i, { "Uniform2i", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform2iv, { "Uniform2iv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform3f, { "Uniform3f", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform3fv, { "Uniform3fv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform3i, { "Uniform3i", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform3iv, { "Uniform3iv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform4f, { "Uniform4f", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform4fv, { "Uniform4fv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform4i, { "Uniform4i", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniform4iv, { "Uniform4iv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniformMatrix2fv, { "UniformMatrix2fv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniformMatrix3fv, { "UniformMatrix3fv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUniformMatrix4fv, { "UniformMatrix4fv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fUseProgram, { "UseProgram", NULL } },
-        { (PRFuncPtr*) &mSymbols.fValidateProgram, { "ValidateProgram", NULL } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttribPointer, { "VertexAttribPointer", NULL } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib1f, { "VertexAttrib1f", NULL } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib2f, { "VertexAttrib2f", NULL } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib3f, { "VertexAttrib3f", NULL } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib4f, { "VertexAttrib4f", NULL } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib1fv, { "VertexAttrib1fv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib2fv, { "VertexAttrib2fv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib3fv, { "VertexAttrib3fv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib4fv, { "VertexAttrib4fv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fViewport, { "Viewport", NULL } },
-        { (PRFuncPtr*) &mSymbols.fCompileShader, { "CompileShader", NULL } },
-        { (PRFuncPtr*) &mSymbols.fCopyTexImage2D, { "CopyTexImage2D", NULL } },
-        { (PRFuncPtr*) &mSymbols.fCopyTexSubImage2D, { "CopyTexSubImage2D", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetShaderiv, { "GetShaderiv", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetShaderInfoLog, { "GetShaderInfoLog", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetShaderSource, { "GetShaderSource", NULL } },
-        { (PRFuncPtr*) &mSymbols.fShaderSource, { "ShaderSource", NULL } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttribPointer, { "VertexAttribPointer", NULL } },
-        { (PRFuncPtr*) &mSymbols.fBindFramebuffer, { "BindFramebuffer", "BindFramebufferEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fBindRenderbuffer, { "BindRenderbuffer", "BindRenderbufferEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fCheckFramebufferStatus, { "CheckFramebufferStatus", "CheckFramebufferStatusEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fFramebufferRenderbuffer, { "FramebufferRenderbuffer", "FramebufferRenderbufferEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fFramebufferTexture2D, { "FramebufferTexture2D", "FramebufferTexture2DEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGenerateMipmap, { "GenerateMipmap", "GenerateMipmapEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetFramebufferAttachmentParameteriv, { "GetFramebufferAttachmentParameteriv", "GetFramebufferAttachmentParameterivEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGetRenderbufferParameteriv, { "GetRenderbufferParameteriv", "GetRenderbufferParameterivEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fIsFramebuffer, { "IsFramebuffer", "IsFramebufferEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fIsRenderbuffer, { "IsRenderbuffer", "IsRenderbufferEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fRenderbufferStorage, { "RenderbufferStorage", "RenderbufferStorageEXT", NULL } },
+        { (PRFuncPtr*) &fActiveTexture, { "ActiveTexture", "ActiveTextureARB", NULL } },
+        { (PRFuncPtr*) &fAttachShader, { "AttachShader", "AttachShaderARB", NULL } },
+        { (PRFuncPtr*) &fBindAttribLocation, { "BindAttribLocation", "BindAttribLocationARB", NULL } },
+        { (PRFuncPtr*) &fBindBuffer, { "BindBuffer", "BindBufferARB", NULL } },
+        { (PRFuncPtr*) &fBindTexture, { "BindTexture", "BindTextureARB", NULL } },
+        { (PRFuncPtr*) &fBlendColor, { "BlendColor", NULL } },
+        { (PRFuncPtr*) &fBlendEquation, { "BlendEquation", NULL } },
+        { (PRFuncPtr*) &fBlendEquationSeparate, { "BlendEquationSeparate", "BlendEquationSeparateEXT", NULL } },
+        { (PRFuncPtr*) &fBlendFunc, { "BlendFunc", NULL } },
+        { (PRFuncPtr*) &fBlendFuncSeparate, { "BlendFuncSeparate", "BlendFuncSeparateEXT", NULL } },
+        { (PRFuncPtr*) &fBufferData, { "BufferData", NULL } },
+        { (PRFuncPtr*) &fBufferSubData, { "BufferSubData", NULL } },
+        { (PRFuncPtr*) &fClear, { "Clear", NULL } },
+        { (PRFuncPtr*) &fClearColor, { "ClearColor", NULL } },
+        { (PRFuncPtr*) &fClearStencil, { "ClearStencil", NULL } },
+        { (PRFuncPtr*) &fColorMask, { "ColorMask", NULL } },
+        { (PRFuncPtr*) &fCullFace, { "CullFace", NULL } },
+        { (PRFuncPtr*) &fDetachShader, { "DetachShader", "DetachShaderARB", NULL } },
+        { (PRFuncPtr*) &fDepthFunc, { "DepthFunc", NULL } },
+        { (PRFuncPtr*) &fDepthMask, { "DepthMask", NULL } },
+        { (PRFuncPtr*) &fDisable, { "Disable", NULL } },
+        { (PRFuncPtr*) &fDisableVertexAttribArray, { "DisableVertexAttribArray", "DisableVertexAttribArrayARB", NULL } },
+        { (PRFuncPtr*) &fDrawArrays, { "DrawArrays", NULL } },
+        { (PRFuncPtr*) &fDrawElements, { "DrawElements", NULL } },
+        { (PRFuncPtr*) &fEnable, { "Enable", NULL } },
+        { (PRFuncPtr*) &fEnableVertexAttribArray, { "EnableVertexAttribArray", "EnableVertexAttribArrayARB", NULL } },
+        { (PRFuncPtr*) &fFinish, { "Finish", NULL } },
+        { (PRFuncPtr*) &fFlush, { "Flush", NULL } },
+        { (PRFuncPtr*) &fFrontFace, { "FrontFace", NULL } },
+        { (PRFuncPtr*) &fGetActiveAttrib, { "GetActiveAttrib", "GetActiveAttribARB", NULL } },
+        { (PRFuncPtr*) &fGetActiveUniform, { "GetActiveUniform", "GetActiveUniformARB", NULL } },
+        { (PRFuncPtr*) &fGetAttachedShaders, { "GetAttachedShaders", "GetAttachedShadersARB", NULL } },
+        { (PRFuncPtr*) &fGetAttribLocation, { "GetAttribLocation", "GetAttribLocationARB", NULL } },
+        { (PRFuncPtr*) &fGetIntegerv, { "GetIntegerv", NULL } },
+        { (PRFuncPtr*) &fGetFloatv, { "GetFloatv", NULL } },
+        { (PRFuncPtr*) &fGetBooleanv, { "GetBooleanv", NULL } },
+        { (PRFuncPtr*) &fGetBufferParameteriv, { "GetBufferParameteriv", "GetBufferParameterivARB", NULL } },
+        { (PRFuncPtr*) &fGetError, { "GetError", NULL } },
+        { (PRFuncPtr*) &fGetProgramiv, { "GetProgramiv", "GetProgramivARB", NULL } },
+        { (PRFuncPtr*) &fGetProgramInfoLog, { "GetProgramInfoLog", "GetProgramInfoLogARB", NULL } },
+        { (PRFuncPtr*) &fTexParameteri, { "TexParameteri", NULL } },
+        { (PRFuncPtr*) &fTexParameterf, { "TexParameterf", NULL } },
+        { (PRFuncPtr*) &fGetString, { "GetString", NULL } },
+        { (PRFuncPtr*) &fGetTexParameterfv, { "GetTexParameterfv", NULL } },
+        { (PRFuncPtr*) &fGetTexParameteriv, { "GetTexParameteriv", NULL } },
+        { (PRFuncPtr*) &fGetUniformfv, { "GetUniformfv", "GetUniformfvARB", NULL } },
+        { (PRFuncPtr*) &fGetUniformiv, { "GetUniformiv", "GetUniformivARB", NULL } },
+        { (PRFuncPtr*) &fGetUniformLocation, { "GetUniformLocation", "GetUniformLocationARB", NULL } },
+        { (PRFuncPtr*) &fGetVertexAttribfv, { "GetVertexAttribfv", "GetVertexAttribfvARB", NULL } },
+        { (PRFuncPtr*) &fGetVertexAttribiv, { "GetVertexAttribiv", "GetVertexAttribivARB", NULL } },
+        { (PRFuncPtr*) &fHint, { "Hint", NULL } },
+        { (PRFuncPtr*) &fIsBuffer, { "IsBuffer", "IsBufferARB", NULL } },
+        { (PRFuncPtr*) &fIsEnabled, { "IsEnabled", NULL } },
+        { (PRFuncPtr*) &fIsProgram, { "IsProgram", "IsProgramARB", NULL } },
+        { (PRFuncPtr*) &fIsShader, { "IsShader", "IsShaderARB", NULL } },
+        { (PRFuncPtr*) &fIsTexture, { "IsTexture", "IsTextureARB", NULL } },
+        { (PRFuncPtr*) &fLineWidth, { "LineWidth", NULL } },
+        { (PRFuncPtr*) &fLinkProgram, { "LinkProgram", "LinkProgramARB", NULL } },
+        { (PRFuncPtr*) &fPixelStorei, { "PixelStorei", NULL } },
+        { (PRFuncPtr*) &fPolygonOffset, { "PolygonOffset", NULL } },
+        { (PRFuncPtr*) &fReadPixels, { "ReadPixels", NULL } },
+        { (PRFuncPtr*) &fSampleCoverage, { "SampleCoverage", NULL } },
+        { (PRFuncPtr*) &priv_fScissor, { "Scissor", NULL } },
+        { (PRFuncPtr*) &fStencilFunc, { "StencilFunc", NULL } },
+        { (PRFuncPtr*) &fStencilFuncSeparate, { "StencilFuncSeparate", "StencilFuncSeparateEXT", NULL } },
+        { (PRFuncPtr*) &fStencilMask, { "StencilMask", NULL } },
+        { (PRFuncPtr*) &fStencilMaskSeparate, { "StencilMaskSeparate", "StencilMaskSeparateEXT", NULL } },
+        { (PRFuncPtr*) &fStencilOp, { "StencilOp", NULL } },
+        { (PRFuncPtr*) &fStencilOpSeparate, { "StencilOpSeparate", "StencilOpSeparateEXT", NULL } },
+        { (PRFuncPtr*) &fTexImage2D, { "TexImage2D", NULL } },
+        { (PRFuncPtr*) &fTexSubImage2D, { "TexSubImage2D", NULL } },
+        { (PRFuncPtr*) &fUniform1f, { "Uniform1f", NULL } },
+        { (PRFuncPtr*) &fUniform1fv, { "Uniform1fv", NULL } },
+        { (PRFuncPtr*) &fUniform1i, { "Uniform1i", NULL } },
+        { (PRFuncPtr*) &fUniform1iv, { "Uniform1iv", NULL } },
+        { (PRFuncPtr*) &fUniform2f, { "Uniform2f", NULL } },
+        { (PRFuncPtr*) &fUniform2fv, { "Uniform2fv", NULL } },
+        { (PRFuncPtr*) &fUniform2i, { "Uniform2i", NULL } },
+        { (PRFuncPtr*) &fUniform2iv, { "Uniform2iv", NULL } },
+        { (PRFuncPtr*) &fUniform3f, { "Uniform3f", NULL } },
+        { (PRFuncPtr*) &fUniform3fv, { "Uniform3fv", NULL } },
+        { (PRFuncPtr*) &fUniform3i, { "Uniform3i", NULL } },
+        { (PRFuncPtr*) &fUniform3iv, { "Uniform3iv", NULL } },
+        { (PRFuncPtr*) &fUniform4f, { "Uniform4f", NULL } },
+        { (PRFuncPtr*) &fUniform4fv, { "Uniform4fv", NULL } },
+        { (PRFuncPtr*) &fUniform4i, { "Uniform4i", NULL } },
+        { (PRFuncPtr*) &fUniform4iv, { "Uniform4iv", NULL } },
+        { (PRFuncPtr*) &fUniformMatrix2fv, { "UniformMatrix2fv", NULL } },
+        { (PRFuncPtr*) &fUniformMatrix3fv, { "UniformMatrix3fv", NULL } },
+        { (PRFuncPtr*) &fUniformMatrix4fv, { "UniformMatrix4fv", NULL } },
+        { (PRFuncPtr*) &fUseProgram, { "UseProgram", NULL } },
+        { (PRFuncPtr*) &fValidateProgram, { "ValidateProgram", NULL } },
+        { (PRFuncPtr*) &fVertexAttribPointer, { "VertexAttribPointer", NULL } },
+        { (PRFuncPtr*) &fVertexAttrib1f, { "VertexAttrib1f", NULL } },
+        { (PRFuncPtr*) &fVertexAttrib2f, { "VertexAttrib2f", NULL } },
+        { (PRFuncPtr*) &fVertexAttrib3f, { "VertexAttrib3f", NULL } },
+        { (PRFuncPtr*) &fVertexAttrib4f, { "VertexAttrib4f", NULL } },
+        { (PRFuncPtr*) &fVertexAttrib1fv, { "VertexAttrib1fv", NULL } },
+        { (PRFuncPtr*) &fVertexAttrib2fv, { "VertexAttrib2fv", NULL } },
+        { (PRFuncPtr*) &fVertexAttrib3fv, { "VertexAttrib3fv", NULL } },
+        { (PRFuncPtr*) &fVertexAttrib4fv, { "VertexAttrib4fv", NULL } },
+        { (PRFuncPtr*) &priv_fViewport, { "Viewport", NULL } },
+        { (PRFuncPtr*) &fCompileShader, { "CompileShader", NULL } },
+        { (PRFuncPtr*) &fCopyTexImage2D, { "CopyTexImage2D", NULL } },
+        { (PRFuncPtr*) &fCopyTexSubImage2D, { "CopyTexSubImage2D", NULL } },
+        { (PRFuncPtr*) &fGetShaderiv, { "GetShaderiv", NULL } },
+        { (PRFuncPtr*) &fGetShaderInfoLog, { "GetShaderInfoLog", NULL } },
+        { (PRFuncPtr*) &fGetShaderSource, { "GetShaderSource", NULL } },
+        { (PRFuncPtr*) &fShaderSource, { "ShaderSource", NULL } },
+        { (PRFuncPtr*) &fVertexAttribPointer, { "VertexAttribPointer", NULL } },
+        { (PRFuncPtr*) &fBindFramebuffer, { "BindFramebuffer", "BindFramebufferEXT", NULL } },
+        { (PRFuncPtr*) &fBindRenderbuffer, { "BindRenderbuffer", "BindRenderbufferEXT", NULL } },
+        { (PRFuncPtr*) &fCheckFramebufferStatus, { "CheckFramebufferStatus", "CheckFramebufferStatusEXT", NULL } },
+        { (PRFuncPtr*) &fFramebufferRenderbuffer, { "FramebufferRenderbuffer", "FramebufferRenderbufferEXT", NULL } },
+        { (PRFuncPtr*) &fFramebufferTexture2D, { "FramebufferTexture2D", "FramebufferTexture2DEXT", NULL } },
+        { (PRFuncPtr*) &fGenerateMipmap, { "GenerateMipmap", "GenerateMipmapEXT", NULL } },
+        { (PRFuncPtr*) &fGetFramebufferAttachmentParameteriv, { "GetFramebufferAttachmentParameteriv", "GetFramebufferAttachmentParameterivEXT", NULL } },
+        { (PRFuncPtr*) &fGetRenderbufferParameteriv, { "GetRenderbufferParameteriv", "GetRenderbufferParameterivEXT", NULL } },
+        { (PRFuncPtr*) &fIsFramebuffer, { "IsFramebuffer", "IsFramebufferEXT", NULL } },
+        { (PRFuncPtr*) &fIsRenderbuffer, { "IsRenderbuffer", "IsRenderbufferEXT", NULL } },
+        { (PRFuncPtr*) &fRenderbufferStorage, { "RenderbufferStorage", "RenderbufferStorageEXT", NULL } },
 
-        { (PRFuncPtr*) &mSymbols.fGenBuffers, { "GenBuffers", "GenBuffersARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGenTextures, { "GenTextures", NULL } },
-        { (PRFuncPtr*) &mSymbols.fCreateProgram, { "CreateProgram", "CreateProgramARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fCreateShader, { "CreateShader", "CreateShaderARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGenFramebuffers, { "GenFramebuffers", "GenFramebuffersEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fGenRenderbuffers, { "GenRenderbuffers", "GenRenderbuffersEXT", NULL } },
+        { (PRFuncPtr*) &priv_fGenBuffers, { "GenBuffers", "GenBuffersARB", NULL } },
+        { (PRFuncPtr*) &priv_fGenTextures, { "GenTextures", NULL } },
+        { (PRFuncPtr*) &priv_fCreateProgram, { "CreateProgram", "CreateProgramARB", NULL } },
+        { (PRFuncPtr*) &priv_fCreateShader, { "CreateShader", "CreateShaderARB", NULL } },
+        { (PRFuncPtr*) &priv_fGenFramebuffers, { "GenFramebuffers", "GenFramebuffersEXT", NULL } },
+        { (PRFuncPtr*) &priv_fGenRenderbuffers, { "GenRenderbuffers", "GenRenderbuffersEXT", NULL } },
 
-        { (PRFuncPtr*) &mSymbols.fDeleteBuffers, { "DeleteBuffers", "DeleteBuffersARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fDeleteTextures, { "DeleteTextures", "DeleteTexturesARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fDeleteProgram, { "DeleteProgram", "DeleteProgramARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fDeleteShader, { "DeleteShader", "DeleteShaderARB", NULL } },
-        { (PRFuncPtr*) &mSymbols.fDeleteFramebuffers, { "DeleteFramebuffers", "DeleteFramebuffersEXT", NULL } },
-        { (PRFuncPtr*) &mSymbols.fDeleteRenderbuffers, { "DeleteRenderbuffers", "DeleteRenderbuffersEXT", NULL } },
+        { (PRFuncPtr*) &priv_fDeleteBuffers, { "DeleteBuffers", "DeleteBuffersARB", NULL } },
+        { (PRFuncPtr*) &priv_fDeleteTextures, { "DeleteTextures", "DeleteTexturesARB", NULL } },
+        { (PRFuncPtr*) &priv_fDeleteProgram, { "DeleteProgram", "DeleteProgramARB", NULL } },
+        { (PRFuncPtr*) &priv_fDeleteShader, { "DeleteShader", "DeleteShaderARB", NULL } },
+        { (PRFuncPtr*) &priv_fDeleteFramebuffers, { "DeleteFramebuffers", "DeleteFramebuffersEXT", NULL } },
+        { (PRFuncPtr*) &priv_fDeleteRenderbuffers, { "DeleteRenderbuffers", "DeleteRenderbuffersEXT", NULL } },
 
-        { mIsGLES2 ? (PRFuncPtr*) &mSymbols.fClearDepthf : (PRFuncPtr*) &mSymbols.fClearDepth,
+        { mIsGLES2 ? (PRFuncPtr*) &priv_fClearDepthf : (PRFuncPtr*) &priv_fClearDepth,
           { mIsGLES2 ? "ClearDepthf" : "ClearDepth", NULL } },
-        { mIsGLES2 ? (PRFuncPtr*) &mSymbols.fDepthRangef : (PRFuncPtr*) &mSymbols.fDepthRange,
+        { mIsGLES2 ? (PRFuncPtr*) &priv_fDepthRangef : (PRFuncPtr*) &priv_fDepthRange,
           { mIsGLES2 ? "DepthRangef" : "DepthRange", NULL } },
 
         // XXX FIXME -- we shouldn't be using glReadBuffer!
-        { mIsGLES2 ? (PRFuncPtr*) NULL : (PRFuncPtr*) &mSymbols.fReadBuffer,
+        { mIsGLES2 ? (PRFuncPtr*) NULL : (PRFuncPtr*) &fReadBuffer,
           { mIsGLES2 ? NULL : "ReadBuffer", NULL } },
 
         { NULL, { NULL } },
@@ -330,57 +324,23 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
         mViewportStack.AppendElement(nsIntRect(v[0], v[1], v[2], v[3]));
 
         const char *glVendorString = (const char *)fGetString(LOCAL_GL_VENDOR);
-        const char *vendorMatchStrings[VendorOther] = {
-                "Intel",
-                "NVIDIA",
-                "ATI",
-                "Qualcomm"
-        };
-
-        mVendor = VendorOther;
-        for (int i = 0; i < VendorOther; ++i) {
-            if (DoesVendorStringMatch(glVendorString, vendorMatchStrings[i])) {
-                mVendor = i;
-                break;
-            }
-        }
+        mVendor = DoesVendorStringMatch(glVendorString, "Intel")  ? VendorIntel
+                : DoesVendorStringMatch(glVendorString, "NVIDIA") ? VendorNVIDIA
+                : DoesVendorStringMatch(glVendorString, "ATI")    ? VendorATI
+                : VendorOther;
 
 #ifdef DEBUG
         static bool once = false;
         if (!once) {
-            const char *vendors[VendorOther] = {
-                "Intel",
-                "NVIDIA",
-                "ATI",
-                "Qualcomm"
-            };
-
             once = true;
-            if (mVendor < VendorOther) {
-                printf_stderr("OpenGL vendor ('%s') recognized as: %s\n",
-                              glVendorString, vendors[mVendor]);
-            } else {
-                printf_stderr("OpenGL vendor ('%s') unrecognized\n", glVendorString);
-            }
+            printf_stderr("OpenGL vendor recognized as: %s\n", mVendor == VendorIntel ? "Intel"
+                                                             : mVendor == VendorNVIDIA ? "NVIDIA"
+                                                             : mVendor == VendorATI ? "ATI"
+                                                             : mVendor == VendorOther ? "<other>"
+                                                             : "!!! bad mVendor value !!!");
         }
 #endif
-
-        UpdateActualFormat();
     }
-
-#ifdef DEBUG
-    if (PR_GetEnv("MOZ_GL_DEBUG"))
-        mDebugMode |= DebugEnabled;
-
-    // enables extra verbose output, informing of the start and finish of every GL call.
-    // useful e.g. to record information to investigate graphics system crashes/lockups
-    if (PR_GetEnv("MOZ_GL_DEBUG_VERBOSE"))
-        mDebugMode |= DebugTrace;
-
-    // aborts on GL error. Can be useful to debug quicker code that is known not to generate any GL error in principle.
-    if (PR_GetEnv("MOZ_GL_DEBUG_ABORT_ON_ERROR"))
-        mDebugMode |= DebugAbortOnError;
-#endif
 
     return mInitialized;
 }
@@ -400,8 +360,6 @@ static const char *sExtensionNames[] = {
     "GL_OES_packed_depth_stencil",
     "GL_IMG_read_format",
     "GL_EXT_read_format_bgra",
-    "GL_APPLE_client_storage",
-    "GL_ARB_texture_non_power_of_two",
     NULL
 };
 
@@ -454,17 +412,7 @@ GLContext::InitExtensions()
 PRBool
 GLContext::IsExtensionSupported(const char *extension)
 {
-    return ListHasExtension(fGetString(LOCAL_GL_EXTENSIONS), extension);
-}
-
-// Common code for checking for both GL extensions and GLX extensions.
-PRBool
-GLContext::ListHasExtension(const GLubyte *extensions, const char *extension)
-{
-    // fix bug 612572 - we were crashing as we were calling this function with extensions==null
-    if (extensions == nsnull || extension == nsnull)
-        return PR_FALSE;
-
+    const GLubyte *extensions = NULL;
     const GLubyte *start;
     GLubyte *where, *terminator;
 
@@ -473,6 +421,7 @@ GLContext::ListHasExtension(const GLubyte *extensions, const char *extension)
     if (where || *extension == '\0')
         return PR_FALSE;
 
+    extensions = fGetString(LOCAL_GL_EXTENSIONS);
     /* 
      * It takes a bit of care to be fool-proof about parsing the
      * OpenGL extensions string. Don't be fooled by sub-strings,
@@ -498,7 +447,7 @@ GLContext::ListHasExtension(const GLubyte *extensions, const char *extension)
 already_AddRefed<TextureImage>
 GLContext::CreateTextureImage(const nsIntSize& aSize,
                               TextureImage::ContentType aContentType,
-                              GLenum aWrapMode,
+                              GLint aWrapMode,
                               PRBool aUseNearestFilter)
 {
   MakeCurrent();
@@ -516,7 +465,7 @@ GLContext::CreateTextureImage(const nsIntSize& aSize,
   fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, aWrapMode);
   DEBUG_GL_ERROR_CHECK(this);
 
-  return CreateBasicTextureImage(texture, aSize, aWrapMode, aContentType, this);
+  return CreateBasicTextureImage(texture, aSize, aContentType, this);
 }
 
 BasicTextureImage::~BasicTextureImage()
@@ -534,8 +483,6 @@ BasicTextureImage::~BasicTextureImage()
         mGLContext->MakeCurrent();
         mGLContext->fDeleteTextures(1, &mTexture);
     }
-
-    mBackingSurface = nsnull;
 }
 
 gfxContext*
@@ -544,36 +491,25 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
     NS_ASSERTION(!mUpdateContext, "BeginUpdate() without EndUpdate()?");
 
     // determine the region the client will need to repaint
-    ImageFormat format =
-        (GetContentType() == gfxASurface::CONTENT_COLOR) ?
-        gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
-    PRBool repaintEverything = PR_FALSE;
-    if (mGLContext->IsExtensionSupported(gl::GLContext::APPLE_client_storage)) {
-        repaintEverything =
-            !(mBackingSurface &&
-              mBackingSurface->GetSize() == gfxIntSize(mSize.width, mSize.height) &&
-              mBackingSurface->Format() == format);
-    }
-    if (!mTextureInited || repaintEverything)
-    {
-        // if the texture hasn't been initialized yet, or something important
-        // changed, we need to recreate our backing surface and force the
+    if (!mTextureInited)
+        // if the texture hasn't been initialized yet, force the
         // client to paint everything
         mUpdateRect = nsIntRect(nsIntPoint(0, 0), mSize);
-        mTextureInited = PR_FALSE;
-    } else {
+    else
         mUpdateRect = aRegion.GetBounds();
-    }
-
-    // the basic impl can only upload updates to rectangles
+    // the basic impl can't upload updates to disparate regions,
+    // only rects
     aRegion = nsIntRegion(mUpdateRect);
-
+        
     nsIntSize rgnSize = mUpdateRect.Size();
     if (!nsIntRect(nsIntPoint(0, 0), mSize).Contains(mUpdateRect)) {
         NS_ERROR("update outside of image");
         return NULL;
     }
 
+    ImageFormat format =
+        (GetContentType() == gfxASurface::CONTENT_COLOR) ?
+        gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
     nsRefPtr<gfxASurface> updateSurface =
         CreateUpdateSurface(gfxIntSize(rgnSize.width, rgnSize.height),
                             format);
@@ -603,24 +539,8 @@ BasicTextureImage::EndUpdate()
         return PR_FALSE;
 
     mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
-
-    // The images that come out of the cairo quartz surface are 16-byte aligned
-    // for performance. We know this is an RGBA surface, so we divide the
-    // stride by 4 to represent the number of elements long the row is.
-    mGLContext->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH,
-                             uploadImage->Stride() / 4);
-
-    DEBUG_GL_ERROR_CHECK(mGLContext);
-
     if (!mTextureInited)
     {
-        // If we can use the client storage extension, we should.
-        if (mGLContext->IsExtensionSupported(gl::GLContext::APPLE_client_storage)) {
-            mGLContext->fPixelStorei(LOCAL_GL_UNPACK_CLIENT_STORAGE_APPLE,
-                                     LOCAL_GL_TRUE);
-            DEBUG_GL_ERROR_CHECK(mGLContext);
-        }
-
         mGLContext->fTexImage2D(LOCAL_GL_TEXTURE_2D,
                                 0,
                                 LOCAL_GL_RGBA,
@@ -630,26 +550,8 @@ BasicTextureImage::EndUpdate()
                                 LOCAL_GL_RGBA,
                                 LOCAL_GL_UNSIGNED_BYTE,
                                 uploadImage->Data());
-
-        DEBUG_GL_ERROR_CHECK(mGLContext);
-
         mTextureInited = PR_TRUE;
-
-        // Reset the pixel store attribute, and hold on to the update surface
-        // because we're using the client storage extension.
-        if (mGLContext->IsExtensionSupported(gl::GLContext::APPLE_client_storage)) {
-            mBackingSurface = uploadImage;
-            mGLContext->fPixelStorei(LOCAL_GL_UNPACK_CLIENT_STORAGE_APPLE,
-                                     LOCAL_GL_FALSE);
-          DEBUG_GL_ERROR_CHECK(mGLContext);
-        }
     } else {
-        // By default, mUpdateOffset is initialized to (0, 0), so we will
-        // upload from the origin of the update surface. Subclasses can set
-        // mUpdateOffset in an overridden BeginUpdate or EndUpdate to change
-        // this.
-        unsigned char* data = uploadImage->Data() + mUpdateOffset.x * 4 +
-                                                    mUpdateOffset.y * uploadImage->Stride();
         mGLContext->fTexSubImage2D(LOCAL_GL_TEXTURE_2D,
                                    0,
                                    mUpdateRect.x,
@@ -658,13 +560,9 @@ BasicTextureImage::EndUpdate()
                                    mUpdateRect.height,
                                    LOCAL_GL_RGBA,
                                    LOCAL_GL_UNSIGNED_BYTE,
-                                   data);
+                                   uploadImage->Data());
     }
     mUpdateContext = NULL;
-
-    // Reset pixel store attributes to use the defaults.
-    mGLContext->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
-
     return PR_TRUE;         // mTexture is bound
 }
 
@@ -686,7 +584,6 @@ BasicTextureImage::Resize(const nsIntSize& aSize)
                             NULL);
 
     mTextureInited = PR_TRUE;
-    mSize = aSize;
 }
 
 PRBool
@@ -714,10 +611,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
     fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, (GLint*) &curBoundFramebuffer);
     fGetIntegerv(LOCAL_GL_RENDERBUFFER_BINDING, (GLint*) &curBoundRenderbuffer);
     fGetIntegerv(LOCAL_GL_VIEWPORT, viewport);
-
-    // the context format of what we're defining;
-    // for some reason, UpdateActualFormat isn't working with a bound FBO.
-    ContextFormat cf;
 
     // If this is the first time we're going through this, we need
     // to create the objects we'll use.  Otherwise, just bind them.
@@ -756,8 +649,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
                     LOCAL_GL_RGBA,
                     LOCAL_GL_UNSIGNED_BYTE,
                     NULL);
-
-        cf.red = cf.green = cf.blue = cf.alpha = 8;
     } else {
         fTexImage2D(LOCAL_GL_TEXTURE_2D,
                     0,
@@ -772,15 +663,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
                              : LOCAL_GL_UNSIGNED_BYTE,
 #endif
                     NULL);
-
-#ifdef XP_WIN
-        cf.red = cf.green = cf.blue = 8;
-#else
-        cf.red = 5;
-        cf.green = 6;
-        cf.blue = 5;
-#endif
-        cf.alpha = 0;
     }
 
     if (depth && stencil && useDepthStencil) {
@@ -788,8 +670,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
         fRenderbufferStorage(LOCAL_GL_RENDERBUFFER,
                              LOCAL_GL_DEPTH24_STENCIL8,
                              aSize.width, aSize.height);
-        cf.depth = 24;
-        cf.stencil = 8;
     } else {
         if (depth) {
             GLenum depthType;
@@ -810,7 +690,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
                                  mIsGLES2 ? LOCAL_GL_DEPTH_COMPONENT16
                                           : LOCAL_GL_DEPTH_COMPONENT24,
                                  aSize.width, aSize.height);
-            cf.depth = mIsGLES2 ? 16 : 24;
         }
 
         if (stencil) {
@@ -818,7 +697,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
             fRenderbufferStorage(LOCAL_GL_RENDERBUFFER,
                                  LOCAL_GL_STENCIL_INDEX8,
                                  aSize.width, aSize.height);
-            cf.stencil = 8;
         }
     }
 
@@ -868,10 +746,7 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
     mOffscreenActualSize = aSize;
 
     if (firstTime) {
-        // UpdateActualFormat() doesn't work for some reason, with a
-        // FBO bound, even though it should.
-        //UpdateActualFormat();
-        mActualFormat = cf;
+        UpdateActualFormat();
 
 #ifdef DEBUG
         printf_stderr("Created offscreen FBO: r: %d g: %d b: %d a: %d depth: %d stencil: %d\n",
@@ -967,7 +842,9 @@ GLContext::MarkDestroyed()
     fDeleteFramebuffers(1, &mBlitFramebuffer);
     mBlitFramebuffer = 0;
 
-    mSymbols.Zero();
+    // must be last!  casts are so we can get a byte size count
+    memset(&mFunctionListStartSentinel, 0,
+           (unsigned char*)&mFunctionListEndSentinel - (unsigned char*)&mFunctionListStartSentinel);
 }
 
 already_AddRefed<gfxImageSurface>
@@ -1169,13 +1046,6 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
     NS_ASSERTION(!aSrc->InUpdate(), "Source texture is in update!");
     NS_ASSERTION(!aDst->InUpdate(), "Destination texture is in update!");
 
-    // only save/restore this stuff on Qualcomm Adreno, to work
-    // around an apparent bug
-    int savedFb = 0;
-    if (mVendor == VendorQualcomm) {
-        fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &savedFb);
-    }
-
     fDisable(LOCAL_GL_SCISSOR_TEST);
     fDisable(LOCAL_GL_BLEND);
 
@@ -1192,47 +1062,44 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
 
     PushViewportRect(nsIntRect(0, 0, dstSize.width, dstSize.height));
 
+    float sx0 = float(aSrcRect.x) / float(srcSize.width);
+    float sy0 = float(aSrcRect.y) / float(srcSize.height);
+    float sx1 = float(aSrcRect.x + aSrcRect.width) / float(srcSize.width);
+    float sy1 = float(aSrcRect.y + aSrcRect.height) / float(srcSize.height);
+
     float dx0 = 2.0 * float(aDstRect.x) / float(dstSize.width) - 1.0;
     float dy0 = 2.0 * float(aDstRect.y) / float(dstSize.height) - 1.0;
     float dx1 = 2.0 * float(aDstRect.x + aDstRect.width) / float(dstSize.width) - 1.0;
     float dy1 = 2.0 * float(aDstRect.y + aDstRect.height) / float(dstSize.height) - 1.0;
 
-    RectTriangles rects;
-    if (aSrc->GetWrapMode() == LOCAL_GL_REPEAT) {
-        rects.addRect(/* dest rectangle */
-                      dx0, dy0, dx1, dy1,
-                      /* tex coords */
-                      aSrcRect.x / float(srcSize.width),
-                      aSrcRect.y / float(srcSize.height),
-                      aSrcRect.XMost() / float(srcSize.width),
-                      aSrcRect.YMost() / float(srcSize.height));
-    } else {
-        DecomposeIntoNoRepeatTriangles(aSrcRect, srcSize, rects);
+    float quadTriangleCoords[] = {
+        dx0, dy1,
+        dx0, dy0,
+        dx1, dy1,
+        dx1, dy0
+    };
 
-        // now put the coords into the d[xy]0 .. d[xy]1 coordinate space
-        // from the 0..1 that it comes out of decompose
-        GLfloat *v = rects.vertexCoords;
-        for (int i = 0; i < rects.numRects * 6; ++i) {
-            v[i*2] = (v[i*2] * (dx1 - dx0)) + dx0;
-            v[i*2+1] = (v[i*2+1] * (dy1 - dy0)) + dy0;
-        }
-    }
-
+    float texCoords[] = {
+        sx0, sy1,
+        sx0, sy0,
+        sx1, sy1,
+        sx1, sy0
+    };
 
     fActiveTexture(LOCAL_GL_TEXTURE0);
     fBindTexture(LOCAL_GL_TEXTURE_2D, aSrc->Texture());
 
     fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
 
-    fVertexAttribPointer(0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, rects.vertexCoords);
-    fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, rects.texCoords);
+    fVertexAttribPointer(0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, quadTriangleCoords);
+    fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, texCoords);
 
     fEnableVertexAttribArray(0);
     fEnableVertexAttribArray(1);
 
     DEBUG_GL_ERROR_CHECK(this);
 
-    fDrawArrays(LOCAL_GL_TRIANGLES, 0, rects.numRects * 6);
+    fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
 
     DEBUG_GL_ERROR_CHECK(this);
 
@@ -1242,178 +1109,12 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
     fVertexAttribPointer(0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, NULL);
     fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, NULL);
 
-    // unbind the previous texture from the framebuffer
     SetBlitFramebufferForDestTexture(0);
-
-    // then put back the previous framebuffer, and don't
-    // enable stencil if it wasn't enabled on entry to work
-    // around Adreno 200 bug that causes us to crash if
-    // we enable scissor test while the current FBO is invalid
-    // (which it will be, once we assign texture 0 to the color
-    // attachment)
-    if (mVendor == VendorQualcomm) {
-        fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, savedFb);
-    }
 
     fEnable(LOCAL_GL_SCISSOR_TEST);
     fEnable(LOCAL_GL_BLEND);
 
     PopViewportRect();
-}
-
-void
-GLContext::RectTriangles::addRect(GLfloat x0, GLfloat y0, GLfloat x1, GLfloat y1,
-                                  GLfloat tx0, GLfloat ty0, GLfloat tx1, GLfloat ty1)
-{
-    NS_ASSERTION(numRects < 4, "Overflow in number of rectangles, max 4!");
-
-    GLfloat *v = &vertexCoords[numRects*6*2];
-    GLfloat *t = &texCoords[numRects*6*2];
-
-    *v++ = x0; *v++ = y0;
-    *v++ = x1; *v++ = y0;
-    *v++ = x0; *v++ = y1;
-
-    *v++ = x0; *v++ = y1;
-    *v++ = x1; *v++ = y0;
-    *v++ = x1; *v++ = y1;
-
-    *t++ = tx0; *t++ = ty0;
-    *t++ = tx1; *t++ = ty0;
-    *t++ = tx0; *t++ = ty1;
-
-    *t++ = tx0; *t++ = ty1;
-    *t++ = tx1; *t++ = ty0;
-    *t++ = tx1; *t++ = ty1;
-
-    numRects++;
-}
-
-static GLfloat
-WrapTexCoord(GLfloat v)
-{
-    // fmodf gives negative results for negative numbers;
-    // that is, fmodf(0.75, 1.0) == 0.75, but
-    // fmodf(-0.75, 1.0) == -0.75.  For the negative case,
-    // the result we need is 0.25, so we add 1.0f.
-    if (v < 0.0f) {
-        return 1.0f + fmodf(v, 1.0f);
-    }
-
-    return fmodf(v, 1.0f);
-}
-
-void
-GLContext::DecomposeIntoNoRepeatTriangles(const nsIntRect& aTexCoordRect,
-                                          const nsIntSize& aTexSize,
-                                          RectTriangles& aRects)
-{
-    // normalize this
-    nsIntRect tcr(aTexCoordRect);
-    while (tcr.x > aTexSize.width)
-        tcr.x -= aTexSize.width;
-    while (tcr.y > aTexSize.height)
-        tcr.y -= aTexSize.height;
-
-    // Compute top left and bottom right tex coordinates
-    GLfloat tl[2] =
-        { GLfloat(tcr.x) / GLfloat(aTexSize.width),
-          GLfloat(tcr.y) / GLfloat(aTexSize.height) };
-    GLfloat br[2] =
-        { GLfloat(tcr.XMost()) / GLfloat(aTexSize.width),
-          GLfloat(tcr.YMost()) / GLfloat(aTexSize.height) };
-
-    // then check if we wrap in either the x or y axis; if we do,
-    // then also use fmod to figure out the "true" non-wrapping
-    // texture coordinates.
-
-    bool xwrap = false, ywrap = false;
-    if (tcr.x < 0 || tcr.x > aTexSize.width ||
-        tcr.XMost() < 0 || tcr.XMost() > aTexSize.width)
-    {
-        xwrap = true;
-        tl[0] = WrapTexCoord(tl[0]);
-        br[0] = WrapTexCoord(br[0]);
-    }
-
-    if (tcr.y < 0 || tcr.y > aTexSize.height ||
-        tcr.YMost() < 0 || tcr.YMost() > aTexSize.height)
-    {
-        ywrap = true;
-        tl[1] = WrapTexCoord(tl[1]);
-        br[1] = WrapTexCoord(br[1]);
-    }
-
-    NS_ASSERTION(tl[0] >= 0.0f && tl[0] <= 1.0f &&
-                 tl[1] >= 0.0f && tl[1] <= 1.0f &&
-                 br[0] >= 0.0f && br[0] <= 1.0f &&
-                 br[1] >= 0.0f && br[1] <= 1.0f,
-                 "Somehow generated invalid texture coordinates");
-
-    // If xwrap is false, the texture will be sampled from tl[0]
-    // .. br[0].  If xwrap is true, then it will be split into tl[0]
-    // .. 1.0, and 0.0 .. br[0].  Same for the Y axis.  The
-    // destination rectangle is also split appropriately, according
-    // to the calculated xmid/ymid values.
-
-    // There isn't a 1:1 mapping between tex coords and destination coords;
-    // when computing midpoints, we have to take that into account.  We
-    // need to map the texture coords, which are (in the wrap case):
-    // |tl->1| and |0->br| to the |0->1| range of the vertex coords.  So
-    // we have the length (1-tl)+(br) that needs to map into 0->1.
-    // These are only valid if there is wrap involved, they won't be used
-    // otherwise.
-    GLfloat xlen = (1.0f - tl[0]) + br[0];
-    GLfloat ylen = (1.0f - tl[1]) + br[1];
-
-    NS_ASSERTION(!xwrap || xlen > 0.0f, "xlen isn't > 0, what's going on?");
-    NS_ASSERTION(!ywrap || ylen > 0.0f, "ylen isn't > 0, what's going on?");
-    NS_ASSERTION(aTexCoordRect.width <= aTexSize.width &&
-                 aTexCoordRect.height <= aTexSize.height, "tex coord rect would cause tiling!");
-
-    if (!xwrap && !ywrap) {
-        aRects.addRect(0.0f, 0.0f, 1.0f, 1.0f,
-                       tl[0], tl[1], br[0], br[1]);
-    } else if (!xwrap && ywrap) {
-        GLfloat ymid = (1.0f - tl[1]) / ylen;
-        aRects.addRect(0.0f, 0.0f,
-                       1.0f, ymid,
-                       tl[0], tl[1],
-                       br[0], 1.0f);
-        aRects.addRect(0.0f, ymid,
-                       1.0f, 1.0f,
-                       tl[0], 0.0f,
-                       br[0], br[1]);
-    } else if (xwrap && !ywrap) {
-        GLfloat xmid = (1.0f - tl[0]) / xlen;
-        aRects.addRect(0.0f, 0.0f,
-                       xmid, 1.0f,
-                       tl[0], tl[1],
-                       1.0f, br[1]);
-        aRects.addRect(xmid, 0.0f,
-                       1.0f, 1.0f,
-                       0.0f, tl[1],
-                       br[0], br[1]);
-    } else {
-        GLfloat xmid = (1.0f - tl[0]) / xlen;
-        GLfloat ymid = (1.0f - tl[1]) / ylen;
-        aRects.addRect(0.0f, 0.0f,
-                       xmid, ymid,
-                       tl[0], tl[1],
-                       1.0f, 1.0f);
-        aRects.addRect(xmid, 0.0f,
-                       1.0f, ymid,
-                       0.0f, tl[1],
-                       br[0], 1.0f);
-        aRects.addRect(0.0f, ymid,
-                       xmid, 1.0f,
-                       tl[0], 0.0f,
-                       1.0f, br[1]);
-        aRects.addRect(xmid, ymid,
-                       1.0f, 1.0f,
-                       0.0f, 0.0f,
-                       br[0], br[1]);
-    }
 }
 
 void

@@ -93,7 +93,6 @@ nsBaseAppShell::Init()
   return NS_OK;
 }
 
-// Called by nsAppShell's native event callback
 void
 nsBaseAppShell::NativeEventCallback()
 {
@@ -130,28 +129,17 @@ nsBaseAppShell::NativeEventCallback()
   ++mEventloopNestingLevel;
   EventloopNestingState prevVal = mEventloopNestingState;
   NS_ProcessPendingEvents(thread, THREAD_EVENT_STARVATION_LIMIT);
-  mProcessedGeckoEvents = PR_TRUE;
   mEventloopNestingState = prevVal;
   mBlockNativeEvent = prevBlockNativeEvent;
 
   // Continue processing pending events later (we don't want to starve the
   // embedders event loop).
   if (NS_HasPendingEvents(thread))
-    DoProcessMoreGeckoEvents();
+    OnDispatchedEvent(nsnull);
 
   --mEventloopNestingLevel;
 }
 
-// Note, this is currently overidden on windows, see comments in nsAppShell for
-// details. 
-void
-nsBaseAppShell::DoProcessMoreGeckoEvents()
-{
-  OnDispatchedEvent(nsnull);
-}
-
-
-// Main thread via OnProcessNextEvent below
 PRBool
 nsBaseAppShell::DoProcessNextNativeEvent(PRBool mayWait)
 {
@@ -266,7 +254,6 @@ nsBaseAppShell::OnDispatchedEvent(nsIThreadInternal *thr)
   if (lastVal == 1)
     return NS_OK;
 
-  // Returns on the main thread in NativeEventCallback above
   ScheduleNativeEventCallback();
   return NS_OK;
 }
@@ -302,9 +289,6 @@ nsBaseAppShell::OnProcessNextEvent(nsIThreadInternal *thr, PRBool mayWait,
   // thread's event queue before we return.  Otherwise, the thread will block
   // on its event queue waiting for an event.
   PRBool needEvent = mayWait;
-  // Reset prior to invoking DoProcessNextNativeEvent which might cause
-  // NativeEventCallback to process gecko events.
-  mProcessedGeckoEvents = PR_FALSE;
 
   if (mFavorPerf <= 0 && start > mSwitchTime + mStarvationDelay) {
     // Favor pending native events
@@ -322,7 +306,7 @@ nsBaseAppShell::OnProcessNextEvent(nsIThreadInternal *thr, PRBool mayWait,
     }
   }
 
-  while (!NS_HasPendingEvents(thr) && !mProcessedGeckoEvents) {
+  while (!NS_HasPendingEvents(thr)) {
     // If we have been asked to exit from Run, then we should not wait for
     // events to process.  Note that an inner nested event loop causes
     // 'mayWait' to become false too, through 'mBlockedWait'.
@@ -339,7 +323,7 @@ nsBaseAppShell::OnProcessNextEvent(nsIThreadInternal *thr, PRBool mayWait,
   // Make sure that the thread event queue does not block on its monitor, as
   // it normally would do if it did not have any pending events.  To avoid
   // that, we simply insert a dummy event into its queue during shutdown.
-  if (needEvent && !mExiting && !NS_HasPendingEvents(thr)) {  
+  if (needEvent && !NS_HasPendingEvents(thr)) {  
     if (!mDummyEvent)
       mDummyEvent = new nsRunnable();
     thr->Dispatch(mDummyEvent, NS_DISPATCH_NORMAL);
@@ -362,7 +346,7 @@ nsBaseAppShell::RunSyncSections()
   // add another synchronous section, so we don't remove elements from
   // mSyncSections until all sections have been run, else we'll screw up
   // our iteration.
-  for (PRInt32 i = 0; i < mSyncSections.Count(); i++) {
+  for (PRUint32 i=0; i<mSyncSections.Count(); i++) {
     mSyncSections[i]->Run();
   }
   mSyncSections.Clear();

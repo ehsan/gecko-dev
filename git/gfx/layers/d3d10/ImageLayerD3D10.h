@@ -69,7 +69,6 @@ private:
   typedef mozilla::Mutex Mutex;
 
   nsRefPtr<Image> mActiveImage;
-  nsRefPtr<ID3D10Device1> mDevice;
 
   Mutex mActiveImageLock;
 };
@@ -88,7 +87,7 @@ public:
   // LayerD3D10 Implementation
   virtual Layer* GetLayer();
 
-  virtual void RenderLayer();
+  virtual void RenderLayer(float aOpacity, const gfx3DMatrix &aTransform);
 };
 
 class THEBES_API ImageD3D10
@@ -101,7 +100,7 @@ class THEBES_API PlanarYCbCrImageD3D10 : public PlanarYCbCrImage,
                                          public ImageD3D10
 {
 public:
-  PlanarYCbCrImageD3D10(ID3D10Device1 *aDevice);
+  PlanarYCbCrImageD3D10(LayerManagerD3D10 *aManager);
   ~PlanarYCbCrImageD3D10() {}
 
   virtual void SetData(const Data &aData);
@@ -117,7 +116,7 @@ public:
   virtual already_AddRefed<gfxASurface> GetAsSurface();
 
   nsAutoArrayPtr<PRUint8> mBuffer;
-  nsRefPtr<ID3D10Device1> mDevice;
+  LayerManagerD3D10 *mManager;
   Data mData;
   gfxIntSize mSize;
   nsRefPtr<ID3D10Texture2D> mYTexture;
@@ -135,10 +134,9 @@ class THEBES_API CairoImageD3D10 : public CairoImage,
                                    public ImageD3D10
 {
 public:
-  CairoImageD3D10(ID3D10Device1 *aDevice)
+  CairoImageD3D10(LayerManagerD3D10 *aManager)
     : CairoImage(static_cast<ImageD3D10*>(this))
-    , mDevice(aDevice)
-    , mHasAlpha(true)
+    , mManager(aManager)
   { }
   ~CairoImageD3D10();
 
@@ -146,11 +144,10 @@ public:
 
   virtual already_AddRefed<gfxASurface> GetAsSurface();
 
-  nsRefPtr<ID3D10Device1> mDevice;
   nsRefPtr<ID3D10Texture2D> mTexture;
   nsRefPtr<ID3D10ShaderResourceView> mSRView;
   gfxIntSize mSize;
-  bool mHasAlpha;
+  LayerManagerD3D10 *mManager;
 };
 
 } /* layers */

@@ -34,17 +34,20 @@
       let db = event.result;
 
       for (let i in objectStores) {
-        request = db.setVersion("1");
+        request = db.createObjectStore(objectStores[i].name, "id",
+                                       objectStores[i].autoIncrement);
         request.onerror = errorHandler;
         request.onsuccess = grabEventAndContinueHandler;
         let event = yield;
 
-        let objectStore =
-          db.createObjectStore(objectStores[i].name, "id",
-                              objectStores[i].autoIncrement);
+        let objectStore = event.result;
 
         for (let j in indexes) {
-          objectStore.createIndex(indexes[j].name, "name", indexes[j].unique);
+          request = objectStore.createIndex(indexes[j].name, "name",
+                                            indexes[j].unique);
+          request.onerror = errorHandler;
+          request.onsuccess = grabEventAndContinueHandler;
+          event = yield;
         }
 
         let data = { name: "Ben" };
@@ -67,11 +70,10 @@
 
       for (let i in objectStores) {
         for (let j in indexes) {
-          let objectStore = db.transaction(objectStores[i].name)
-                              .objectStore(objectStores[i].name);
+          let objectStore = db.objectStore(objectStores[i].name);
           let index = objectStore.index(indexes[j].name);
 
-          request = index.openCursor();
+          request = index.openObjectCursor();
           request.onerror = errorHandler;
           request.onsuccess = function (event) {
             is(event.result.value.name, "Ben", "Good object");

@@ -61,12 +61,8 @@ LIBXUL_LIBRARY	= 1
 ifndef MOZ_ENABLE_LIBXUL
 EXTRA_DSO_LIBS	= gkgfx
 
-ifneq ($(OS_ARCH),Linux)
+ifneq ($(OS_ARCH)_$(OS_TEST),Linux_x86_64)
 EXTRA_DSO_LIBS += angle
-else
-ifdef FORCE_BUILD_ANGLE
-EXTRA_DSO_LIBS += angle
-endif
 endif
 
 endif
@@ -168,13 +164,6 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(NULL)
 endif
 
-ifdef MOZ_TREMOR
-SHARED_LIBRARY_LIBS	+= \
-	$(DEPTH)/media/libtremor/lib/$(LIB_PREFIX)tremor.$(LIB_SUFFIX) \
-	$(DEPTH)/media/libogg/src/$(LIB_PREFIX)ogg.$(LIB_SUFFIX) \
-	$(NULL)
-endif
-
 ifdef MOZ_MEDIA
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/content/media/$(LIB_PREFIX)gkconmedia_s.$(LIB_SUFFIX) \
@@ -198,10 +187,8 @@ ifdef MOZ_WEBM
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/content/media/webm/$(LIB_PREFIX)gkconwebm_s.$(LIB_SUFFIX) \
 	$(DEPTH)/media/libnestegg/src/$(LIB_PREFIX)nestegg.$(LIB_SUFFIX) \
+	$(DEPTH)/media/libvpx/$(LIB_PREFIX)vpx.$(LIB_SUFFIX) \
 	$(NULL)
-ifndef MOZ_NATIVE_LIBVPX
-SHARED_LIBRARY_LIBS 	+= $(DEPTH)/media/libvpx/$(LIB_PREFIX)vpx.$(LIB_SUFFIX)
-endif
 endif
 
 ifdef MOZ_WAVE
@@ -309,10 +296,6 @@ endif
 ifeq ($(OS_ARCH),Darwin)
 OS_LIBS += -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon -framework IOKit
 endif
-endif
-
-ifdef MOZ_NATIVE_LIBVPX
-EXTRA_DSO_LDOPTS += $(MOZ_LIBVPX_LIBS)
 endif
 
 ifdef MOZ_IPC

@@ -65,16 +65,12 @@ public:
   JetpackParent(JSContext* cx);
   ~JetpackParent();
 
-  void OnChannelConnected(int32 pid);
-
 protected:
-  NS_OVERRIDE virtual void ActorDestroy(ActorDestroyReason why);
-
   NS_OVERRIDE virtual bool RecvSendMessage(const nsString& messageName,
-                                           const InfallibleTArray<Variant>& data);
+                                           const nsTArray<Variant>& data);
   NS_OVERRIDE virtual bool AnswerCallMessage(const nsString& messageName,
-                                             const InfallibleTArray<Variant>& data,
-                                             InfallibleTArray<Variant>* results);
+                                             const nsTArray<Variant>& data,
+                                             nsTArray<Variant>* results);
 
   NS_OVERRIDE virtual PHandleParent* AllocPHandle();
   NS_OVERRIDE virtual bool DeallocPHandle(PHandleParent* actor);
@@ -82,9 +78,6 @@ protected:
 private:
   JetpackProcessParent* mSubprocess;
   JSContext* mContext;
-  ScopedRunnableMethodFactory<JetpackParent> mTaskFactory;
-
-  void DispatchFailureMessage(const nsString& aDumpID);
 
   DISALLOW_EVIL_CONSTRUCTORS(JetpackParent);
 };

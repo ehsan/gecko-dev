@@ -41,24 +41,14 @@
 #include <gtk/gtk.h>
 #endif
 
-#ifdef MOZ_WIDGET_QT
-#include "nsQAppInstance.h"
-#endif
-
 #include "ContentChild.h"
-#include "CrashReporterChild.h"
 #include "TabChild.h"
-#include "AudioChild.h"
 
 #include "mozilla/ipc/TestShellChild.h"
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 #include "mozilla/jsipc/PContextWrapperChild.h"
 #include "mozilla/dom/ExternalHelperAppChild.h"
-#include "mozilla/dom/StorageChild.h"
-#include "mozilla/dom/PCrashReporterChild.h"
-
-#include "nsAudioStream.h"
 
 #include "nsIObserverService.h"
 #include "nsTObserverArray.h"
@@ -83,29 +73,9 @@
 
 #include "nsIGeolocationProvider.h"
 
-#ifdef MOZ_PERMISSIONS
-#include "nsPermission.h"
-#include "nsPermissionManager.h"
-#endif
-
-#if defined(ANDROID) || defined(LINUX)
-#include <sys/time.h>
-#include <sys/resource.h>
-// TODO: For other platforms that support setpriority, figure out
-//       appropriate values of niceness
-static const int kRelativeNiceness = 10;
-#endif
-
-#include "nsAccelerometer.h"
-
-#if defined(ANDROID)
-#include "APKOpen.h"
-#endif
-
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using namespace mozilla::places;
-using namespace mozilla::docshell;
 
 namespace mozilla {
 namespace dom {
@@ -114,8 +84,8 @@ class AlertObserver
 public:
 
     AlertObserver(nsIObserver *aObserver, const nsString& aData)
-        : mObserver(aObserver)
-        , mData(aData)
+        : mData(aData)
+        , mObserver(aObserver)
     {
     }
 
@@ -201,9 +171,6 @@ ConsoleListener::Observe(nsIConsoleMessage* aMessage)
 ContentChild* ContentChild::sSingleton;
 
 ContentChild::ContentChild()
-#ifdef ANDROID
- : mScreenSize(0, 0)
-#endif
 {
 }
 
@@ -221,47 +188,15 @@ ContentChild::Init(MessageLoop* aIOLoop,
     gtk_init(NULL, NULL);
 #endif
 
-#ifdef MOZ_WIDGET_QT
-    // sigh, seriously
-    nsQAppInstance::AddRef();
-#endif
-
 #ifdef MOZ_X11
     // Do this after initializing GDK, or GDK will install its own handler.
     XRE_InstallX11ErrorHandler();
 #endif
 
     NS_ASSERTION(!sSingleton, "only one ContentChild per child");
-
-#if defined(ANDROID) || defined(LINUX)
-    // XXX We change the behavior of Linux child processes here. That
-    // means that, not just in Fennec, but also in Firefox, once it has
-    // child processes, those will be niced. IOW, Firefox with child processes
-    // will have different performance profiles on Linux than other
-    // platforms. This may alter Talos results and so forth.
-    char* relativeNicenessStr = getenv("MOZ_CHILD_PROCESS_RELATIVE_NICENESS");
-    setpriority(PRIO_PROCESS, 0, getpriority(PRIO_PROCESS, 0) +
-            (relativeNicenessStr ? atoi(relativeNicenessStr) :
-             kRelativeNiceness));
-#endif
-
+  
     Open(aChannel, aParentHandle, aIOLoop);
     sSingleton = this;
-
-#if defined(ANDROID)
-    PCrashReporterChild* crashreporter = SendPCrashReporterConstructor();
-    InfallibleTArray<Mapping> mappings;
-    const struct mapping_info *info = getLibraryMapping();
-    while (info->name) {
-        mappings.AppendElement(Mapping(nsDependentCString(info->name),
-                                       nsDependentCString(info->file_id),
-                                       info->base,
-                                       info->len,
-                                       info->offset));
-        info++;
-    }
-    crashreporter->SendAddLibraryMappings(mappings);
-#endif
 
     return true;
 }
@@ -295,19 +230,6 @@ ContentChild::DeallocPBrowser(PBrowserChild* iframe)
     return true;
 }
 
-PCrashReporterChild*
-ContentChild::AllocPCrashReporter()
-{
-    return new CrashReporterChild();
-}
-
-bool
-ContentChild::DeallocPCrashReporter(PCrashReporterChild* crashreporter)
-{
-    delete crashreporter;
-    return true;
-}
-
 PTestShellChild*
 ContentChild::AllocPTestShell()
 {
@@ -325,24 +247,6 @@ bool
 ContentChild::RecvPTestShellConstructor(PTestShellChild* actor)
 {
     actor->SendPContextWrapperConstructor()->SendPObjectWrapperConstructor(true);
-    return true;
-}
-
-PAudioChild*
-ContentChild::AllocPAudio(const PRInt32& numChannels,
-                          const PRInt32& rate,
-                          const PRInt32& format)
-{
-    AudioChild *child = new AudioChild();
-    NS_ADDREF(child);
-    return child;
-}
-
-bool
-ContentChild::DeallocPAudio(PAudioChild* doomed)
-{
-    AudioChild *child = static_cast<AudioChild*>(doomed);
-    NS_RELEASE(child);
     return true;
 }
 
@@ -364,8 +268,7 @@ ContentChild::AllocPExternalHelperApp(const IPC::URI& uri,
                                       const nsCString& aMimeContentType,
                                       const nsCString& aContentDisposition,
                                       const bool& aForceSave,
-                                      const PRInt64& aContentLength,
-                                      const IPC::URI& aReferrer)
+                                      const PRInt64& aContentLength)
 {
     ExternalHelperAppChild *child = new ExternalHelperAppChild();
     child->AddRef();
@@ -380,25 +283,10 @@ ContentChild::DeallocPExternalHelperApp(PExternalHelperAppChild* aService)
     return true;
 }
 
-PStorageChild*
-ContentChild::AllocPStorage(const StorageConstructData& aData)
-{
-    NS_NOTREACHED("We should never be manually allocating PStorageChild actors");
-    return nsnull;
-}
-
 bool
-ContentChild::DeallocPStorage(PStorageChild* aActor)
-{
-    StorageChild* child = static_cast<StorageChild*>(aActor);
-    child->ReleaseIPDLReference();
-    return true;
-}
-
-bool
-ContentChild::RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
-                                 const InfallibleTArray<ResourceMapping>& resources,
-                                 const InfallibleTArray<OverrideMapping>& overrides)
+ContentChild::RecvRegisterChrome(const nsTArray<ChromePackage>& packages,
+                                 const nsTArray<ResourceMapping>& resources,
+                                 const nsTArray<OverrideMapping>& overrides)
 {
     nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
     nsChromeRegistryContent* chromeRegistry =
@@ -481,14 +369,10 @@ ContentChild::AddRemoteAlertObserver(const nsString& aData,
 }
 
 bool
-ContentChild::RecvPreferenceUpdate(const PrefTuple& aPref)
+ContentChild::RecvPreferenceUpdate(const nsCString& aPref)
 {
     nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
-    if (!prefs)
-        return false;
-
-    prefs->SetPreference(&aPref);
-
+    prefs->ReadPrefBuffer(aPref);
     return true;
 }
 
@@ -540,59 +424,6 @@ ContentChild::RecvGeolocationUpdate(const GeoPosition& somewhere)
   }
   nsCOMPtr<nsIDOMGeoPosition> position = somewhere;
   gs->Update(position);
-  return true;
-}
-
-bool
-ContentChild::RecvAddPermission(const IPC::Permission& permission)
-{
-#if MOZ_PERMISSIONS
-  nsRefPtr<nsPermissionManager> permissionManager =
-    nsPermissionManager::GetSingleton();
-  NS_ABORT_IF_FALSE(permissionManager, 
-                   "We have no permissionManager in the Content process !");
-
-  permissionManager->AddInternal(nsCString(permission.host),
-                                 nsCString(permission.type),
-                                 permission.capability,
-                                 0,
-                                 permission.expireType,
-                                 permission.expireTime,
-                                 nsPermissionManager::eNotify,
-                                 nsPermissionManager::eNoDBOperation);
-#endif
-
-  return true;
-}
-bool
-ContentChild::RecvAccelerationChanged(const double& x, const double& y,
-                                      const double& z)
-{
-    nsCOMPtr<nsIAccelerometerUpdate> acu = 
-        do_GetService(NS_ACCELEROMETER_CONTRACTID);
-    if (acu)
-        acu->AccelerationChanged(x, y, z);
-    return true;
-}
-
-bool
-ContentChild::RecvScreenSizeChanged(const gfxIntSize& size)
-{
-#ifdef ANDROID
-    mScreenSize = size;
-#else
-    NS_RUNTIMEABORT("Message currently only expected on android");
-#endif
-  return true;
-}
-
-bool
-ContentChild::RecvFlushMemory(const nsString& reason)
-{
-    nsCOMPtr<nsIObserverService> os =
-        mozilla::services::GetObserverService();
-    if (os)
-	os->NotifyObservers(nsnull, "memory-pressure", reason.get());
   return true;
 }
 

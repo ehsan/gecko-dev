@@ -439,14 +439,6 @@ protected:
     nsCSSValueList* mOrigin;
     nsCSSValuePairList* mPosition;
     nsCSSValuePairList* mSize;
-    BackgroundParseState(
-        nsCSSValue& aColor, nsCSSValueList* aImage, nsCSSValueList* aRepeat,
-        nsCSSValueList* aAttachment, nsCSSValueList* aClip,
-        nsCSSValueList* aOrigin, nsCSSValuePairList* aPosition,
-        nsCSSValuePairList* aSize) :
-        mColor(aColor), mImage(aImage), mRepeat(aRepeat),
-        mAttachment(aAttachment), mClip(aClip), mOrigin(aOrigin),
-        mPosition(aPosition), mSize(aSize) {};
   };
 
   PRBool ParseBackgroundItem(BackgroundParseState& aState);
@@ -1842,9 +1834,6 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
     case nsMediaFeature::eEnumerated:
       rv = ParseVariant(expr->mValue, VARIANT_KEYWORD,
                         feature->mData.mKeywordTable);
-      break;
-    case nsMediaFeature::eIdent:
-      rv = ParseVariant(expr->mValue, VARIANT_IDENTIFIER, nsnull);
       break;
   }
   if (!rv || !ExpectSymbol(')', PR_TRUE)) {
@@ -4653,16 +4642,15 @@ CSSParserImpl::SetValueToURL(nsCSSValue& aValue, const nsString& aURL)
   nsCOMPtr<nsIURI> uri;
   NS_NewURI(getter_AddRefs(uri), aURL, nsnull, mBaseURI);
 
-  nsRefPtr<nsStringBuffer> buffer(nsCSSValue::BufferFromString(aURL));
+  nsStringBuffer* buffer = nsCSSValue::BufferFromString(aURL);
   if (NS_UNLIKELY(!buffer)) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
     return PR_FALSE;
   }
-
-  // Note: urlVal retains its own reference to |buffer|.
   nsCSSValue::URL *urlVal =
     new nsCSSValue::URL(uri, buffer, mSheetURI, mSheetPrincipal);
 
+  buffer->Release();
   if (NS_UNLIKELY(!urlVal)) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
     return PR_FALSE;
@@ -6061,8 +6049,10 @@ CSSParserImpl::ParseFontDescriptorValue(nsCSSFontDesc aDescID,
 
   case eCSSFontDesc_Stretch:
     // property is VARIANT_HK|VARIANT_SYSFONT
-    return ParseVariant(aValue, VARIANT_KEYWORD,
-                        nsCSSProps::kFontStretchKTable);
+    return (ParseVariant(aValue, VARIANT_KEYWORD,
+                         nsCSSProps::kFontStretchKTable) &&
+            (aValue.GetIntValue() != NS_STYLE_FONT_STRETCH_WIDER &&
+             aValue.GetIntValue() != NS_STYLE_FONT_STRETCH_NARROWER));
 
     // These two are unique to @font-face and have their own special grammar.
   case eCSSFontDesc_Src:
@@ -6171,10 +6161,16 @@ CSSParserImpl::ParseBackground()
   }
 
   nsCSSValue image, repeat, attachment, clip, origin, position, size;
-  BackgroundParseState state(color, image.SetListValue(), repeat.SetListValue(),
-                             attachment.SetListValue(), clip.SetListValue(),
-                             origin.SetListValue(), position.SetPairListValue(),
-                             size.SetPairListValue());
+  BackgroundParseState state = {
+    color,
+    image.SetListValue(),
+    repeat.SetListValue(),
+    attachment.SetListValue(),
+    clip.SetListValue(),
+    origin.SetListValue(),
+    position.SetPairListValue(),
+    size.SetPairListValue()
+  };
 
   for (;;) {
     if (!ParseBackgroundItem(state)) {

@@ -186,9 +186,6 @@ PopupNotifications.prototype = {
    *                     dismiss for this many page loads.
    *        timeout:     A time in milliseconds. The notification will not
    *                     automatically dismiss before this time.
-   *        persistWhileVisible:
-   *                     A boolean. If true, a visible notification will always
-   *                     persist across location changes.
    *        dismissed:   Whether the notification should be added as a dismissed
    *                     notification. Dismissed notifications can be activated
    *                     by clicking on their anchorElement.
@@ -266,16 +263,6 @@ PopupNotifications.prototype = {
    */
   locationChange: function PopupNotifications_locationChange() {
     this._currentNotifications = this._currentNotifications.filter(function(notification) {
-      // The persistWhileVisible option allows an open notification to persist
-      // across location changes
-      if (notification.options.persistWhileVisible &&
-          this.isPanelOpen) {
-        if ("persistence" in notification.options &&
-          notification.options.persistence)
-          notification.options.persistence--;
-        return true;
-      }
-      
       // The persistence option allows a notification to persist across multiple
       // page loads
       if ("persistence" in notification.options &&
@@ -291,7 +278,7 @@ PopupNotifications.prototype = {
       }
 
       return false;
-    }, this);
+    });
 
     this._update();
   },
@@ -402,8 +389,7 @@ PopupNotifications.prototype = {
       return;
 
     // Make sure the identity popup hangs in the correct direction.
-    var position = (this.window.getComputedStyle(this.panel, "").direction == "rtl") ?
-      "bottomcenter topright" : "bottomcenter topleft";
+    var position = (this.window.getComputedStyle(this.panel, "").direction == "rtl") ? "after_end" : "after_start";
 
     this._currentAnchorElement = anchorElement;
 

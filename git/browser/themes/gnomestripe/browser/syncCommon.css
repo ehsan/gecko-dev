@@ -14,11 +14,11 @@
 }
 
 .statusIcon[status="error"] {
-  list-style-image: url("moz-icon://stock/gtk-dialog-error?size=menu");
+  list-style-image: url("chrome://global/skin/icons/error-16.png");
 }
 
 .statusIcon[status="success"] {
-  list-style-image: url("moz-icon://stock/gtk-dialog-info?size=menu");
+  list-style-image: url("chrome://global/skin/icons/information-16.png");
 }
 
 /* .data is only used by syncGenericChange.xul, but it seems unnecessary to have
@@ -40,6 +40,25 @@ image#syncIcon {
   margin-top: 2px;
 }
 
-#feedback {
-  height: 2em;
+#feedback,
+#passphraseFeedback {
+  height: 4em;
+}
+
+#passphraseStrength {
+  -moz-appearance: none;
+  height: 10px;
+  margin: 4px 0;
+}
+
+#passphraseStrength > .progress-bar {
+  background-color: #ff0000;
+}
+
+#passphraseStrength.medium > .progress-bar {
+  background-color: #ffcc33;
+}
+
+#passphraseStrength.strong > .progress-bar {
+  background-color: #00ff00;
 }

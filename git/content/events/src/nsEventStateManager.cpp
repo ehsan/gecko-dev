@@ -290,13 +290,8 @@ nsUITimerCallback::Notify(nsITimer* aTimer)
   if ((gMouseOrKeyboardEventCounter == mPreviousCount) || !aTimer) {
     gMouseOrKeyboardEventCounter = 0;
     obs->NotifyObservers(nsnull, "user-interaction-inactive", nsnull);
-    if (gUserInteractionTimer) {
-      gUserInteractionTimer->Cancel();
-      NS_RELEASE(gUserInteractionTimer);
-    }
   } else {
     obs->NotifyObservers(nsnull, "user-interaction-active", nsnull);
-    nsEventStateManager::UpdateUserActivityTimer();
   }
   mPreviousCount = gMouseOrKeyboardEventCounter;
   return NS_OK;
@@ -789,28 +784,17 @@ nsEventStateManager::nsEventStateManager()
 {
   if (sESMInstanceCount == 0) {
     gUserInteractionTimerCallback = new nsUITimerCallback();
-    if (gUserInteractionTimerCallback)
+    if (gUserInteractionTimerCallback) {
       NS_ADDREF(gUserInteractionTimerCallback);
-    UpdateUserActivityTimer();
+      CallCreateInstance("@mozilla.org/timer;1", &gUserInteractionTimer);
+      if (gUserInteractionTimer) {
+        gUserInteractionTimer->InitWithCallback(gUserInteractionTimerCallback,
+                                                NS_USER_INTERACTION_INTERVAL,
+                                                nsITimer::TYPE_REPEATING_SLACK);
+      }
+    }
   }
   ++sESMInstanceCount;
-}
-
-nsresult
-nsEventStateManager::UpdateUserActivityTimer(void)
-{
-  if (!gUserInteractionTimerCallback)
-    return NS_OK;
-
-  if (!gUserInteractionTimer)
-    CallCreateInstance("@mozilla.org/timer;1", &gUserInteractionTimer);
-
-  if (gUserInteractionTimer) {
-    gUserInteractionTimer->InitWithCallback(gUserInteractionTimerCallback,
-                                            NS_USER_INTERACTION_INTERVAL,
-                                            nsITimer::TYPE_ONE_SHOT);
-  }
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1087,7 +1071,6 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
         mozilla::services::GetObserverService();
       if (obs) {
         obs->NotifyObservers(nsnull, "user-interaction-active", nsnull);
-        UpdateUserActivityTimer();
       }
     }
     ++gMouseOrKeyboardEventCounter;
@@ -2091,7 +2074,6 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
         PRBool dragStarted = DoDefaultDragStart(aPresContext, event, dataTransfer,
                                                 targetContent, isSelection);
         if (dragStarted) {
-          sActiveESM = nsnull;
           aEvent->flags |= NS_EVENT_FLAG_STOP_DISPATCH;
         }
       }
@@ -2790,7 +2772,6 @@ nsEventStateManager::DecideGestureEvent(nsGestureNotifyEvent* aEvent,
   aEvent->panDirection = panDirection;
 }
 
-#ifdef XP_MACOSX
 static bool
 NodeAllowsClickThrough(nsINode* aNode)
 {
@@ -2811,7 +2792,6 @@ NodeAllowsClickThrough(nsINode* aNode)
   }
   return true;
 }
-#endif
 
 NS_IMETHODIMP
 nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
@@ -2828,8 +2808,8 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
 
   // Most of the events we handle below require a frame.
   // Add special cases here.
-  if (!mCurrentTarget && aEvent->message != NS_MOUSE_BUTTON_UP &&
-      aEvent->message != NS_MOUSE_BUTTON_DOWN) {
+  if (!mCurrentTarget &&
+      aEvent->message != NS_MOUSE_BUTTON_UP) {
     return NS_OK;
   }
 
@@ -2848,9 +2828,9 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         break;
       }
 
-      nsCOMPtr<nsIContent> activeContent;
       if (nsEventStatus_eConsumeNoDefault != *aStatus) {
-        nsCOMPtr<nsIContent> newFocus;      
+        nsCOMPtr<nsIContent> newFocus;
+        nsCOMPtr<nsIContent> activeContent;
         PRBool suppressBlur = PR_FALSE;
         if (mCurrentTarget) {
           mCurrentTarget->GetContentForEvent(mPresContext, aEvent, getter_AddRefs(newFocus));
@@ -2955,6 +2935,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
             if (par)
               activeContent = par;
           }
+          SetGlobalActiveContent(this, activeContent);
         }
       }
       else {
@@ -2962,12 +2943,11 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         // any of our own processing of a drag. Workaround for bug 43258.
         StopTrackingDragGesture();
       }
-      SetActiveManager(this, activeContent);
     }
     break;
   case NS_MOUSE_BUTTON_UP:
     {
-      ClearGlobalActiveContent(this);
+      SetGlobalActiveContent(this, nsnull);
       if (IsMouseEventReal(aEvent)) {
         if (!mCurrentTarget) {
           nsIFrame* targ;
@@ -3033,18 +3013,15 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         }
 
         if (aEvent->message == NS_MOUSE_PIXEL_SCROLL) {
-          if (action == MOUSE_SCROLL_N_LINES ||
-              (msEvent->scrollFlags & nsMouseScrollEvent::kIsMomentum)) {
+          if (action == MOUSE_SCROLL_N_LINES) {
              action = MOUSE_SCROLL_PIXELS;
           } else {
             // Do not scroll pixels when zooming
             action = -1;
           }
         } else if (msEvent->scrollFlags & nsMouseScrollEvent::kHasPixels) {
-          if (action == MOUSE_SCROLL_N_LINES ||
-              (msEvent->scrollFlags & nsMouseScrollEvent::kIsMomentum)) {
-            // Don't scroll lines when a pixel scroll event will follow.
-            // Also, don't do history scrolling or zooming for momentum scrolls.
+          if (action == MOUSE_SCROLL_N_LINES) {
+            // We shouldn't scroll lines when a pixel scroll event will follow.
             action = -1;
           }
         }
@@ -3229,7 +3206,6 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
                                            targetContent, &status);
         }
       }
-      ClearGlobalActiveContent(this);
       break;
     }
   case NS_DRAGDROP_EXIT:
@@ -3827,8 +3803,6 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
   switch(aEvent->message) {
   case NS_DRAGDROP_OVER:
     {
-      // when dragging from one frame to another, events are fired in the
-      // order: dragexit, dragenter, dragleave
       if (mLastDragOverFrame != mCurrentTarget) {
         //We'll need the content, too, to check if it changed separately from the frames.
         nsCOMPtr<nsIContent> lastContent;
@@ -3839,17 +3813,14 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
           //The frame has changed but the content may not have. Check before dispatching to content
           mLastDragOverFrame->GetContentForEvent(aPresContext, aEvent, getter_AddRefs(lastContent));
 
+          FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
+                              targetContent, lastContent, mLastDragOverFrame);
           FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_EXIT_SYNTH,
                               targetContent, lastContent, mLastDragOverFrame);
         }
 
         FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_ENTER,
                             lastContent, targetContent, mCurrentTarget);
-
-        if (mLastDragOverFrame) {
-          FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
-                              targetContent, lastContent, mLastDragOverFrame);
-        }
 
         mLastDragOverFrame = mCurrentTarget;
       }
@@ -3863,9 +3834,9 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
         nsCOMPtr<nsIContent> lastContent;
         mLastDragOverFrame->GetContentForEvent(aPresContext, aEvent, getter_AddRefs(lastContent));
 
-        FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_EXIT_SYNTH,
-                            nsnull, lastContent, mLastDragOverFrame);
         FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
+                            nsnull, lastContent, mLastDragOverFrame);
+        FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_EXIT_SYNTH,
                             nsnull, lastContent, mLastDragOverFrame);
 
         mLastDragOverFrame = nsnull;
@@ -4188,10 +4159,10 @@ IsAncestorOf(nsIContent* aPossibleAncestor, nsIContent* aPossibleDescendant,
   return false;
 }
 
-nsEventStates
+PRInt32
 nsEventStateManager::GetContentState(nsIContent *aContent, PRBool aFollowLabels)
 {
-  nsEventStates state = aContent->IntrinsicState();
+  PRInt32 state = aContent->IntrinsicState();
 
   if (IsAncestorOf(aContent, mActiveContent, aFollowLabels)) {
     state |= NS_EVENT_STATE_ACTIVE;
@@ -4268,7 +4239,7 @@ static nsIContent* FindCommonAncestor(nsIContent *aNode1, nsIContent *aNode2)
 
 static void
 NotifyAncestors(nsIDocument* aDocument, nsIContent* aStartNode,
-                nsIContent* aStopBefore, nsEventStates aState)
+                nsIContent* aStopBefore, PRInt32 aState)
 {
   while (aStartNode && aStartNode != aStopBefore) {
     aDocument->ContentStatesChanged(aStartNode, nsnull, aState);
@@ -4281,7 +4252,7 @@ NotifyAncestors(nsIDocument* aDocument, nsIContent* aStartNode,
 }
 
 PRBool
-nsEventStateManager::SetContentState(nsIContent *aContent, nsEventStates aState)
+nsEventStateManager::SetContentState(nsIContent *aContent, PRInt32 aState)
 {
   const PRInt32 maxNotify = 5;
   // We must initialize this array with memset for the sake of the boneheaded
@@ -4299,20 +4270,20 @@ nsEventStateManager::SetContentState(nsIContent *aContent, nsEventStates aState)
       return PR_FALSE;
   }
 
-  if (aState.HasState(NS_EVENT_STATE_DRAGOVER) && aContent != mDragOverContent) {
+  if ((aState & NS_EVENT_STATE_DRAGOVER) && (aContent != mDragOverContent)) {
     notifyContent[3] = mDragOverContent; // notify dragover first, since more common case
     NS_IF_ADDREF(notifyContent[3]);
     mDragOverContent = aContent;
   }
 
-  if (aState.HasState(NS_EVENT_STATE_URLTARGET) && aContent != mURLTargetContent) {
+  if ((aState & NS_EVENT_STATE_URLTARGET) && (aContent != mURLTargetContent)) {
     notifyContent[4] = mURLTargetContent;
     NS_IF_ADDREF(notifyContent[4]);
     mURLTargetContent = aContent;
   }
 
   nsCOMPtr<nsIContent> commonActiveAncestor, oldActive, newActive;
-  if (aState.HasState(NS_EVENT_STATE_ACTIVE) && aContent != mActiveContent) {
+  if ((aState & NS_EVENT_STATE_ACTIVE) && (aContent != mActiveContent)) {
     oldActive = mActiveContent;
     newActive = aContent;
     commonActiveAncestor = FindCommonAncestor(mActiveContent, aContent);
@@ -4320,7 +4291,7 @@ nsEventStateManager::SetContentState(nsIContent *aContent, nsEventStates aState)
   }
 
   nsCOMPtr<nsIContent> commonHoverAncestor, oldHover, newHover;
-  if (aState.HasState(NS_EVENT_STATE_HOVER) && aContent != mHoverContent) {
+  if ((aState & NS_EVENT_STATE_HOVER) && (aContent != mHoverContent)) {
     oldHover = mHoverContent;
 
     if (!mPresContext || mPresContext->IsDynamic()) {
@@ -4344,16 +4315,15 @@ nsEventStateManager::SetContentState(nsIContent *aContent, nsEventStates aState)
     mHoverContent = aContent;
   }
 
-  if (aState.HasState(NS_EVENT_STATE_FOCUS)) {
+  if (aState & NS_EVENT_STATE_FOCUS) {
     aState |= NS_EVENT_STATE_FOCUSRING;
     notifyContent[2] = aContent;
     NS_IF_ADDREF(notifyContent[2]);
   }
 
-  nsEventStates simpleStates = aState;
-  simpleStates &= ~(NS_EVENT_STATE_ACTIVE|NS_EVENT_STATE_HOVER);
+  PRInt32 simpleStates = aState & ~(NS_EVENT_STATE_ACTIVE|NS_EVENT_STATE_HOVER);
 
-  if (aContent && !simpleStates.IsEmpty()) {
+  if (aContent && simpleStates != 0) {
     // notify about new content too
     notifyContent[0] = aContent;
     NS_ADDREF(aContent);  // everything in notify array has a ref
@@ -4735,26 +4705,14 @@ nsEventStateManager::DoContentCommandScrollEvent(nsContentCommandEvent* aEvent)
 }
 
 void
-nsEventStateManager::SetActiveManager(nsEventStateManager* aNewESM,
-                                      nsIContent* aContent)
+nsEventStateManager::SetGlobalActiveContent(nsEventStateManager* aNewESM,
+                                            nsIContent* aContent)
 {
   if (sActiveESM && aNewESM != sActiveESM) {
     sActiveESM->SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
   }
   sActiveESM = aNewESM;
-  if (sActiveESM && aContent) {
+  if (sActiveESM) {
     sActiveESM->SetContentState(aContent, NS_EVENT_STATE_ACTIVE);
   }
-}
-
-void
-nsEventStateManager::ClearGlobalActiveContent(nsEventStateManager* aClearer)
-{
-  if (aClearer) {
-    aClearer->SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
-  }
-  if (sActiveESM && aClearer != sActiveESM) {
-    sActiveESM->SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
-  }
-  sActiveESM = nsnull;
 }

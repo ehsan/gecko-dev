@@ -37,11 +37,6 @@
 
 #include "nsIDOMHTMLElement.idl"
 
-%{C++
-// for jsval
-#include "jsapi.h"
-%}
-
 /**
  * The nsIDOMHTMLCanvasElement interface is the interface to a HTML
  * <canvas> element.
@@ -54,15 +49,14 @@
 
 interface nsIDOMFile;
 
-[scriptable, uuid(53ad994a-3cd0-48fa-8ffb-7f3d8cd19c50)]
+[scriptable, uuid(28945fd6-c4a0-44e3-8629-98358eab5d7b)]
 interface nsIDOMHTMLCanvasElement : nsIDOMHTMLElement
 {
   attribute long width;
   attribute long height;
   attribute boolean mozOpaque;
 
-  nsISupports getContext(in DOMString contextId,
-                         [optional] in jsval contextOptions);
+  nsISupports getContext(in DOMString contextId);
 
 
   // Valid calls are:

@@ -37,6 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 DOMCI_CLASS(Window)
+DOMCI_CLASS(InnerWindow)
 DOMCI_CLASS(Location)
 DOMCI_CLASS(Navigator)
 DOMCI_CLASS(Plugin)
@@ -188,6 +189,7 @@ DOMCI_CLASS(CSSRect)
 
 // DOM Chrome Window class, almost identical to Window
 DOMCI_CLASS(ChromeWindow)
+DOMCI_CLASS(InnerChromeWindow)
 
 // RGBColor object used by getComputedStyle
 DOMCI_CLASS(CSSRGBColor)
@@ -400,15 +402,14 @@ DOMCI_CLASS(CommandEvent)
 DOMCI_CLASS(OfflineResourceList)
 
 DOMCI_CLASS(FileList)
-DOMCI_CLASS(Blob)
 DOMCI_CLASS(File)
 DOMCI_CLASS(FileException)
 DOMCI_CLASS(FileError)
 DOMCI_CLASS(FileReader)
-DOMCI_CLASS(MozURLProperty)
 
 // DOM modal content window class, almost identical to Window
 DOMCI_CLASS(ModalContentWindow)
+DOMCI_CLASS(InnerModalContentWindow)
 
 // Data Events
 DOMCI_CLASS(DataContainerEvent)
@@ -462,7 +463,7 @@ DOMCI_CLASS(Worker)
 DOMCI_CLASS(ChromeWorker)
 
 // WebGL
-DOMCI_CLASS(WebGLRenderingContext)
+DOMCI_CLASS(CanvasRenderingContextWebGL)
 DOMCI_CLASS(WebGLBuffer)
 DOMCI_CLASS(WebGLTexture)
 DOMCI_CLASS(WebGLProgram)
@@ -504,6 +505,3 @@ DOMCI_CLASS(IDBTransaction)
 DOMCI_CLASS(IDBCursor)
 DOMCI_CLASS(IDBKeyRange)
 DOMCI_CLASS(IDBIndex)
-DOMCI_CLASS(IDBVersionChangeEvent)
-DOMCI_CLASS(IDBVersionChangeRequest)
-DOMCI_CLASS(IDBDatabaseException)

@@ -221,7 +221,7 @@ protected:
   /**
    * Sets up the plugin window and calls SetWindow on the plugin.
    */
-  nsresult CallSetWindow();
+  void CallSetWindow();
 
   PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE);
 
@@ -239,8 +239,7 @@ protected:
                                const nsRect& aDirtyRect, nsPoint aPt);
   void PrintPlugin(nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect);
-  void PaintPlugin(nsDisplayListBuilder* aBuilder,
-                   nsIRenderingContext& aRenderingContext,
+  void PaintPlugin(nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect, const nsRect& aPluginRect);
 
   /**
@@ -316,8 +315,7 @@ public:
 #endif
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder,
-                          PRBool* aForceTransparentSurface = nsnull);
+  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,

@@ -59,7 +59,6 @@
 #include "gfxWindowsSurface.h"
 #include "nsWindowDbg.h"
 #include "cairo.h"
-#include "nsITimer.h"
 #ifdef CAIRO_HAS_D2D_SURFACE
 #include "gfxD2DSurface.h"
 #endif
@@ -167,7 +166,7 @@ public:
                                               PRBool aDoCapture, PRBool aConsumeRollupEvent);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual PRBool          HasPendingInputEvent();
-  virtual LayerManager*   GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT, bool* aAllowRetaining = nsnull);
+  virtual LayerManager*   GetLayerManager();
   gfxASurface             *GetThebesSurface();
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect);
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta, PRBool aIsHorizontal, PRInt32 &aOverriddenDelta);
@@ -183,8 +182,8 @@ public:
   NS_IMETHOD              ResetInputState();
   NS_IMETHOD              SetIMEOpenState(PRBool aState);
   NS_IMETHOD              GetIMEOpenState(PRBool* aState);
-  NS_IMETHOD              SetInputMode(const IMEContext& aContext);
-  NS_IMETHOD              GetInputMode(IMEContext& aContext);
+  NS_IMETHOD              SetIMEEnabled(PRUint32 aState);
+  NS_IMETHOD              GetIMEEnabled(PRUint32* aState);
   NS_IMETHOD              CancelIMEComposition();
   NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState);
   NS_IMETHOD              RegisterTouchWindow();
@@ -248,27 +247,16 @@ public:
   static nsWindow*        GetNSWindowPtr(HWND aWnd);
   WindowHook&             GetWindowHook() { return mWindowHook; }
   nsWindow*               GetParentWindow(PRBool aIncludeOwner);
-  // Get an array of all nsWindow*s on the main thread.
-  typedef void            (WindowEnumCallback)(nsWindow*);
-  static void             EnumAllWindows(WindowEnumCallback aCallback);
 
   /**
    * Misc.
    */
   virtual PRBool          AutoErase(HDC dc);
   nsIntPoint*             GetLastPoint() { return &mLastPoint; }
+  PRBool                  GetIMEEnabled() { return mIMEEnabled; }
   // needed in nsIMM32Handler.cpp
-  PRBool                  PluginHasFocus() { return mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN; }
+  PRBool                  PluginHasFocus() { return mIMEEnabled == nsIWidget::IME_STATUS_PLUGIN; }
   PRBool                  IsTopLevelWidget() { return mIsTopWidgetWindow; }
-  /**
-   * Start allowing Direct3D9 to be used by widgets when GetLayerManager is
-   * called.
-   *
-   * @param aReinitialize Call GetLayerManager on widgets to ensure D3D9 is
-   *                      initialized, this is usually called when this function
-   *                      is triggered by timeout and not user/web interaction.
-   */
-  static void             StartAllowingD3D9(bool aReinitialize);
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   PRBool HasTaskbarIconBeenCreated() { return mHasTaskbarIconBeenCreated; }
@@ -305,10 +293,6 @@ protected:
   static LRESULT CALLBACK MozSpecialMouseProc(int code, WPARAM wParam, LPARAM lParam);
   static VOID    CALLBACK HookTimerForPopups( HWND hwnd, UINT uMsg, UINT idEvent, DWORD dwTime );
   static BOOL    CALLBACK ClearResourcesCallback(HWND aChild, LPARAM aParam);
-  static BOOL    CALLBACK EnumAllChildWindProc(HWND aWnd, LPARAM aParam);
-  static BOOL    CALLBACK EnumAllThreadWindowProc(HWND aWnd, LPARAM aParam);
-  static void             AllowD3D9Callback(nsWindow *aWindow);
-  static void             AllowD3D9WithReinitializeCallback(nsWindow *aWindow);
 
   /**
    * Window utilities
@@ -319,15 +303,12 @@ protected:
   virtual void            SubclassWindow(BOOL bState);
   PRBool                  CanTakeFocus();
   PRBool                  UpdateNonClientMargins(PRInt32 aSizeMode = -1, PRBool aReflowWindow = PR_TRUE);
-  void                    UpdateGetWindowInfoCaptionStatus(PRBool aActiveCaption);
   void                    ResetLayout();
   void                    InvalidateNonClientRegion();
   HRGN                    ExcludeNonClientFromPaintRegion(HRGN aRegion);
 #if !defined(WINCE)
-  static void             InitInputHackDefaults();
+  static void             InitTrackPointHack();
 #endif
-  static PRBool           UseTrackPointHack();
-  static void             GetMainWindowClass(nsAString& aClass);
   PRBool                  HasGlass() const {
     return mTransparencyMode == eTransparencyGlass ||
            mTransparencyMode == eTransparencyBorderlessGlass;
@@ -397,6 +378,9 @@ protected:
   void                    OnSettingsChange(WPARAM wParam, LPARAM lParam);
   PRBool                  OnPaint(HDC aDC, PRUint32 aNestingLevel);
   void                    OnWindowPosChanged(WINDOWPOS *wp, PRBool& aResult);
+#if defined(CAIRO_HAS_DDRAW_SURFACE)
+  PRBool                  OnPaintImageDDraw16();
+#endif // defined(CAIRO_HAS_DDRAW_SURFACE)
   PRBool                  OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, 
                                        PRBool& result, PRBool& getWheelInfo,
                                        LRESULT *aRetValue);
@@ -410,15 +394,14 @@ protected:
    */
   void                    UserActivity();
 
-  PRInt32                 GetHeight(PRInt32 aProposedHeight);
-  void                    GetWindowClass(nsString& aWindowClass);
-  void                    GetWindowPopupClass(nsString& aWindowClass);
+  /**
+   * Methods for derived classes 
+   */
+  virtual PRInt32         GetHeight(PRInt32 aProposedHeight);
+  virtual LPCWSTR         WindowClass();
+  virtual LPCWSTR         WindowPopupClass();
   virtual DWORD           WindowStyle();
-  DWORD                   WindowExStyle();
-
-  void                    RegisterWindowClass(const nsString& aClassName,
-                                              UINT aExtraStyle,
-                                              LPWSTR aIconID);
+  virtual DWORD           WindowExStyle();
 
   /**
    * XP and Vista theming support for windows with rounded edges
@@ -460,12 +443,6 @@ protected:
   void                    StopFlashing();
   static PRBool           IsTopLevelMouseExit(HWND aWnd);
   static void             SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray, PRUint32 aModifiers);
-  /*
-   * If aIntersectWithExisting is true then the stored clip region isn't
-   * updated (only the actual clip on the window) so this should be called
-   * again soon afterward with aIntersectWithExisting false so the stored clip
-   * region does get updated.
-   */
   nsresult                SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                               PRBool aIntersectWithExisting);
   nsIntRegion             GetRegionToPaint(PRBool aForceFullRepaint, 
@@ -478,8 +455,9 @@ protected:
   static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
 #endif // ACCESSIBILITY
   void                    ClearCachedResources();
-
-  nsPopupType PopupType() { return mPopupType; }
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  void                    UpdateCaptionButtonsClippingRect();
+#endif
 
 protected:
   nsCOMPtr<nsIWidget>   mParent;
@@ -500,12 +478,11 @@ protected:
   PRPackedBool          mHideChrome;
   PRPackedBool          mIsRTL;
   PRPackedBool          mFullscreenMode;
-  PRPackedBool          mMousePresent;
   PRUint32              mBlurSuppressLevel;
   DWORD_PTR             mOldStyle;
   DWORD_PTR             mOldExStyle;
   HIMC                  mOldIMC;
-  IMEContext            mIMEContext;
+  PRUint32              mIMEEnabled;
   nsNativeDragTarget*   mNativeDragTarget;
   HKL                   mLastKeyboardLayout;
   nsPopupType           mPopupType;
@@ -514,6 +491,8 @@ protected:
   static PRUint32       sInstanceCount;
   static TriStateBool   sCanQuit;
   static nsWindow*      sCurrentWindow;
+  static BOOL           sIsRegistered;
+  static BOOL           sIsPopupClassRegistered;
   static BOOL           sIsOleInitialized;
   static HCURSOR        sHCursor;
   static imgIContainer* sCursorImgContainer;
@@ -521,9 +500,7 @@ protected:
   static PRBool         sJustGotDeactivate;
   static PRBool         sJustGotActivate;
   static int            sTrimOnMinimize;
-  static PRBool         sDefaultTrackPointHack;
-  static const char*    sDefaultMainWindowClass;
-  static bool           sAllowD3D9;
+  static PRBool         sTrackPointHack;
 #ifdef MOZ_IPC
   static PRUint32       sOOPPPluginFocusEvent;
 #endif
@@ -533,6 +510,13 @@ protected:
   nsIntMargin           mNonClientOffset;
   // Margins set by the owner
   nsIntMargin           mNonClientMargins;
+
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  // Represents the area taken by the caption buttons
+  // on dwm-enabled systems
+  nsIntRect             mCaptionButtons;
+  nsIntRegion           mCaptionButtonsRoundedRegion;
+#endif
 
   // Indicates custom frames are enabled
   PRPackedBool          mCustomNonClient;

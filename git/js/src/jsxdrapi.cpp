@@ -44,7 +44,7 @@
 #include <string.h>
 #include "jstypes.h"
 #include "jsstdint.h"
-#include "jsutil.h"
+#include "jsutil.h" /* Added by JSIFY */
 #include "jsdhash.h"
 #include "jsprf.h"
 #include "jsapi.h"
@@ -669,12 +669,13 @@ js_XDRAtom(JSXDRState *xdr, JSAtom **atomp)
 JS_PUBLIC_API(JSBool)
 JS_XDRScript(JSXDRState *xdr, JSScript **scriptp)
 {
-    if (!js_XDRScript(xdr, scriptp, NULL))
+    if (!js_XDRScript(xdr, scriptp, true, NULL))
         return JS_FALSE;
 
     if (xdr->mode == JSXDR_DECODE) {
         js_CallNewScriptHook(xdr->cx, *scriptp, NULL);
-        if (!js_NewScriptObject(xdr->cx, *scriptp)) {
+        if (*scriptp != JSScript::emptyScript() &&
+            !js_NewScriptObject(xdr->cx, *scriptp)) {
             js_DestroyScript(xdr->cx, *scriptp);
             *scriptp = NULL;
             return JS_FALSE;

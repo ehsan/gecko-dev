@@ -223,7 +223,7 @@ var bookmarksObserver = {
 
   // nsINavBookmarkObserver
   onItemAdded: function PSB_onItemAdded(aItemId, aFolderId, aIndex,
-                                        aItemType, aURI) {
+                                        aItemType) {
     var views = getViewsForFolder(aFolderId);
     ok(views.length > 0, "Found affected views (" + views.length + "): " + views);
 
@@ -291,8 +291,8 @@ var bookmarksObserver = {
       }
       else {
         if (!aNewValue && aElementOrTreeIndex.localName != "toolbarbutton")
-          return aElementOrTreeIndex.getAttribute("label") == PlacesUIUtils.getBestTitle(aElementOrTreeIndex._placesNode);
-        return aElementOrTreeIndex.getAttribute("label") == aNewValue;
+          return aElementOrTreeIndex.label == PlacesUIUtils.getBestTitle(aElementOrTreeIndex._placesNode);
+        return aElementOrTreeIndex.label == aNewValue;
       }
     };
 

@@ -40,6 +40,7 @@
 #include "CheckPermissionsHelper.h"
 
 #include "nsIDOMWindow.h"
+#include "nsIIDBDatabaseException.h"
 #include "nsIObserverService.h"
 #include "nsIPermissionManager.h"
 #include "nsIPrincipal.h"
@@ -51,8 +52,6 @@
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Services.h"
-
-#include "IndexedDatabaseManager.h"
 
 #define PERMISSION_INDEXEDDB "indexedDB"
 #define PREF_INDEXEDDB_ENABLED "dom.indexedDB.enabled"
@@ -146,21 +145,21 @@ CheckPermissionsHelper::Run()
   nsRefPtr<AsyncConnectionHelper> helper;
   helper.swap(mHelper);
 
+  nsCOMPtr<nsIThread> thread;
+  thread.swap(mThread);
+
   nsCOMPtr<nsIDOMWindow> window;
   window.swap(mWindow);
 
   if (permission == nsIPermissionManager::ALLOW_ACTION) {
-    IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
-    NS_ASSERTION(mgr, "This should never be null!");
-
-    return helper->Dispatch(mgr->IOThread());
+    return helper->Dispatch(thread);
   }
 
   NS_ASSERTION(permission == nsIPermissionManager::UNKNOWN_ACTION ||
                permission == nsIPermissionManager::DENY_ACTION,
                "Unknown permission!");
 
-  helper->SetError(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
+  helper->SetError(nsIIDBDatabaseException::NOT_ALLOWED_ERR);
   return helper->Run();
 }
 
@@ -195,11 +194,5 @@ CheckPermissionsHelper::Observe(nsISupports* aSubject,
   mPromptResult = nsDependentString(aData).ToInteger(&rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
-  NS_ASSERTION(mgr, "This should never be null!");
-
-  rv = mgr->WaitForOpenAllowed(mName, mASCIIOrigin, this);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
+  return NS_DispatchToCurrentThread(this);
 }

@@ -54,10 +54,7 @@ CPPSRCS   = nsXULStub.cpp
 # for Mac OS X and 'xulrunner-stub' for all other platforms.
 PROGRAM   = $(XULRUNNER_STUB_NAME)$(BIN_SUFFIX)
 
-LOCAL_INCLUDES = \
-  -I$(topsrcdir)/xpcom/build \
-  -I$(topsrcdir)/xpcom/base \
-  $(NULL)
+LOCAL_INCLUDES = -I$(topsrcdir)/xpcom/build
 
 DEFINES  += -DXPCOM_GLUE
 STL_FLAGS=

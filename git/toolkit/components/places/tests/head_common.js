@@ -77,8 +77,6 @@ function LOG(aMsg) {
 
 let gTestDir = do_get_cwd();
 
-// Ensure history is enabled.
-Services.prefs.setBoolPref("places.history.enabled", true);
 
 // Initialize profile.
 let gProfD = do_get_profile();
@@ -302,8 +300,7 @@ function check_no_bookmarks() {
   options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS;
   let root = PlacesUtils.history.executeQuery(query, options).root;
   root.containerOpen = true;
-  if (root.childCount != 0)
-    do_throw("Unable to remove all bookmarks");
+  do_check_eq(root.childCount, 0);
   root.containerOpen = false;
 }
 

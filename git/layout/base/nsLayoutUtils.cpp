@@ -113,13 +113,6 @@ using namespace mozilla::layers;
 using namespace mozilla::dom;
 namespace css = mozilla::css;
 
-#ifdef DEBUG
-// TODO: remove, see bug 598468.
-bool nsLayoutUtils::gPreventAssertInCompareTreePosition = false;
-#endif // DEBUG
-
-typedef gfxPattern::GraphicsFilter GraphicsFilter;
-
 /**
  * A namespace class for static layout utilities.
  */
@@ -529,11 +522,7 @@ nsLayoutUtils::DoCompareTreePosition(nsIContent* aContent1,
 
   // content1Ancestor != content2Ancestor, so they must be siblings with the same parent
   nsINode* parent = content1Ancestor->GetNodeParent();
-#ifdef DEBUG
-  // TODO: remove the uglyness, see bug 598468.
-  NS_ASSERTION(gPreventAssertInCompareTreePosition || parent,
-               "no common ancestor at all???");
-#endif // DEBUG
+  NS_ASSERTION(parent, "no common ancestor at all???");
   if (!parent) { // different documents??
     return 0;
   }
@@ -985,6 +974,15 @@ nsLayoutUtils::InvertTransformsToRoot(nsIFrame *aFrame,
   return MatrixTransformPoint(aPoint, ctm.Invert(), aFrame->PresContext()->AppUnitsPerDevPixel());
 }
 
+nsresult
+nsLayoutUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
+{
+  *aOut = nsIntRect(PRInt32(aIn.X()), PRInt32(aIn.Y()),
+                    PRInt32(aIn.Width()), PRInt32(aIn.Height()));
+  return gfxRect(aOut->x, aOut->y, aOut->width, aOut->height) == aIn
+    ? NS_OK : NS_ERROR_FAILURE;
+}
+
 static nsIntPoint GetWidgetOffset(nsIWidget* aWidget, nsIWidget*& aRootWidget) {
   nsIntPoint offset(0, 0);
   nsIWidget* parent = aWidget->GetParent();
@@ -1061,7 +1059,7 @@ nsLayoutUtils::CombineBreakType(PRUint8 aOrigBreakType,
 #ifdef DEBUG
 #include <stdio.h>
 
-static PRBool gDumpPaintList = getenv("MOZ_DUMP_PAINT_LIST") != 0;
+static PRBool gDumpPaintList = PR_FALSE;
 static PRBool gDumpEventList = PR_FALSE;
 #endif
 
@@ -1084,8 +1082,7 @@ nsLayoutUtils::GetFramesForArea(nsIFrame* aFrame, const nsRect& aRect,
                                 PRBool aShouldIgnoreSuppression,
                                 PRBool aIgnoreRootScrollFrame)
 {
-  nsDisplayListBuilder builder(aFrame, nsDisplayListBuilder::EVENT_DELIVERY,
-		                       PR_FALSE);
+  nsDisplayListBuilder builder(aFrame, PR_TRUE, PR_FALSE);
   nsDisplayList list;
   nsRect target(aRect);
 
@@ -1258,8 +1255,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   // *and after* we draw.
   PRBool willFlushRetainedLayers = (aFlags & PAINT_HIDE_CARET) != 0;
 
-  nsDisplayListBuilder builder(aFrame, nsDisplayListBuilder::PAINTING,
-		                       !(aFlags & PAINT_HIDE_CARET));
+  nsDisplayListBuilder builder(aFrame, PR_FALSE, !(aFlags & PAINT_HIDE_CARET));
   nsDisplayList list;
   if (aFlags & PAINT_IN_TRANSFORM) {
     builder.SetInTransform(PR_TRUE);
@@ -1267,7 +1263,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   if (aFlags & PAINT_SYNC_DECODE_IMAGES) {
     builder.SetSyncDecodeImages(PR_TRUE);
   }
-  if (aFlags & PAINT_WIDGET_LAYERS || aFlags & PAINT_TO_WINDOW) {
+  if (aFlags & PAINT_WIDGET_LAYERS) {
     builder.SetPaintingToWindow(PR_TRUE);
   }
   if (aFlags & PAINT_IGNORE_SUPPRESSION) {
@@ -1643,7 +1639,7 @@ nsLayoutUtils::GetTextShadowRectsUnion(const nsRect& aTextAndDecorationsRect,
 }
 
 nsresult
-nsLayoutUtils::GetFontMetricsForFrame(const nsIFrame* aFrame,
+nsLayoutUtils::GetFontMetricsForFrame(nsIFrame* aFrame,
                                       nsIFontMetrics** aFontMetrics)
 {
   return nsLayoutUtils::GetFontMetricsForStyleContext(aFrame->GetStyleContext(),
@@ -2837,13 +2833,13 @@ nsLayoutUtils::GetClosestLayer(nsIFrame* aFrame)
   return aFrame->PresContext()->PresShell()->FrameManager()->GetRootFrame();
 }
 
-GraphicsFilter
+gfxPattern::GraphicsFilter
 nsLayoutUtils::GetGraphicsFilterForFrame(nsIFrame* aForFrame)
 {
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  GraphicsFilter defaultFilter = gfxPattern::FILTER_NEAREST;
+  gfxPattern::GraphicsFilter defaultFilter = gfxPattern::FILTER_NEAREST;
 #else
-  GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
+  gfxPattern::GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
 #endif
 #ifdef MOZ_SVG
   nsIFrame *frame = nsCSSRendering::IsCanvasFrame(aForFrame) ?
@@ -3042,7 +3038,7 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
 static nsresult
 DrawImageInternal(nsIRenderingContext* aRenderingContext,
                   imgIContainer*       aImage,
-                  GraphicsFilter       aGraphicsFilter,
+                  gfxPattern::GraphicsFilter aGraphicsFilter,
                   const nsRect&        aDest,
                   const nsRect&        aFill,
                   const nsPoint&       aAnchor,
@@ -3076,7 +3072,7 @@ DrawImageInternal(nsIRenderingContext* aRenderingContext,
 /* static */ void
 nsLayoutUtils::DrawPixelSnapped(nsIRenderingContext* aRenderingContext,
                                 gfxDrawable*         aDrawable,
-                                GraphicsFilter       aFilter,
+                                gfxPattern::GraphicsFilter aFilter,
                                 const nsRect&        aDest,
                                 const nsRect&        aFill,
                                 const nsPoint&       aAnchor,
@@ -3119,9 +3115,8 @@ nsLayoutUtils::DrawPixelSnapped(nsIRenderingContext* aRenderingContext,
 /* static */ nsresult
 nsLayoutUtils::DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
                                        imgIContainer*       aImage,
-                                       GraphicsFilter       aGraphicsFilter,
                                        const nsPoint&       aDest,
-                                       const nsRect*        aDirty,
+                                       const nsRect&        aDirty,
                                        PRUint32             aImageFlags,
                                        const nsRect*        aSourceArea)
 {
@@ -3147,15 +3142,14 @@ nsLayoutUtils::DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
   // outside the image bounds, we want to honor the aSourceArea-to-aDest
   // translation but we don't want to actually tile the image.
   fill.IntersectRect(fill, dest);
-  return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
-                           dest, fill, aDest, aDirty ? *aDirty : dest,
-                           imageSize, aImageFlags);
+  return DrawImageInternal(aRenderingContext, aImage, gfxPattern::FILTER_NEAREST,
+                           dest, fill, aDest, aDirty, imageSize, aImageFlags);
 }
 
 /* static */ nsresult
 nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                imgIContainer*       aImage,
-                               GraphicsFilter       aGraphicsFilter,
+                               gfxPattern::GraphicsFilter aGraphicsFilter,
                                const nsRect&        aDest,
                                const nsRect&        aDirty,
                                PRUint32             aImageFlags,
@@ -3237,7 +3231,7 @@ nsLayoutUtils::ComputeSizeForDrawing(imgIContainer *aImage,
 /* static */ nsresult
 nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
                          imgIContainer*       aImage,
-                         GraphicsFilter       aGraphicsFilter,
+                         gfxPattern::GraphicsFilter aGraphicsFilter,
                          const nsRect&        aDest,
                          const nsRect&        aFill,
                          const nsPoint&       aAnchor,
@@ -3355,17 +3349,17 @@ nsLayoutUtils::GetFrameTransparency(nsIFrame* aBackgroundFrame,
   if (HasNonZeroCorner(aCSSRootFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
     return eTransparencyTransparent;
 
-  if (aCSSRootFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
-    return eTransparencyGlass;
-
-  if (aCSSRootFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_BORDERLESS_GLASS)
-    return eTransparencyBorderlessGlass;
-
   nsITheme::Transparency transparency;
   if (aCSSRootFrame->IsThemed(&transparency))
     return transparency == nsITheme::eTransparent
          ? eTransparencyTransparent
          : eTransparencyOpaque;
+
+  if (aCSSRootFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
+    return eTransparencyGlass;
+
+  if (aCSSRootFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_BORDERLESS_GLASS)
+    return eTransparencyBorderlessGlass;
 
   // We need an uninitialized window to be treated as opaque because
   // doing otherwise breaks window display effects on some platforms,
@@ -3716,12 +3710,7 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
   result.mSurface = gfxsurf;
   result.mSize = gfxIntSize(imgWidth, imgHeight);
   result.mPrincipal = principal;
-
-  // SVG images could have <foreignObject> and/or <image> elements that load
-  // content from another domain.  For safety, they make the canvas write-only.
-  // XXXdholbert We could probably be more permissive here if we check that our
-  // helper SVG document has no elements that could load remote content.
-  result.mIsWriteOnly = (imgContainer->GetType() == imgIContainer::TYPE_VECTOR);
+  result.mIsWriteOnly = PR_FALSE;
 
   return result;
 }

@@ -90,6 +90,8 @@ gfxDWriteFont::gfxDWriteFont(gfxFontEntry *aFontEntry,
             // DWrite simulation.
             mNeedsOblique = PR_TRUE;
     }
+    PRInt8 baseWeight, weightDistance;
+    GetStyle()->ComputeWeightAndOffset(&baseWeight, &weightDistance);
     if (aNeedsBold) {
         sims |= DWRITE_FONT_SIMULATIONS_BOLD;
     }
@@ -197,7 +199,11 @@ gfxDWriteFont::ComputeMetrics()
         mFontFace->ReleaseFontTable(tableContext);
     }
 
-    mMetrics.internalLeading = NS_MAX(mMetrics.maxHeight - mMetrics.emHeight, 0.0);
+    mMetrics.internalLeading = 
+        ceil(((gfxFloat)(fontMetrics.ascent + 
+                    fontMetrics.descent - 
+                    fontMetrics.designUnitsPerEm) / 
+                    fontMetrics.designUnitsPerEm) * mAdjustedSize);
     mMetrics.externalLeading = 
         ceil(((gfxFloat)fontMetrics.lineGap /
                    fontMetrics.designUnitsPerEm) * mAdjustedSize);
@@ -419,10 +425,7 @@ gfxDWriteFont::GetFontTable(PRUint32 aTag)
     if (mFontEntry->IsUserFont() && !mFontEntry->IsLocalUserFont()) {
         // for downloaded fonts, there may be layout tables cached in the entry
         // even though they're absent from the sanitized platform font
-        hb_blob_t *blob;
-        if (mFontEntry->GetExistingFontTable(aTag, &blob)) {
-            return blob;
-        }
+        return mFontEntry->GetFontTable(aTag);
     }
 
     return nsnull;

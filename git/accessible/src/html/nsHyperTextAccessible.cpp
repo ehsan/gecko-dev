@@ -134,9 +134,8 @@ nsHyperTextAccessible::NativeRole()
   if (tag == nsAccessibilityAtoms::form)
     return nsIAccessibleRole::ROLE_FORM;
 
-  if (tag == nsAccessibilityAtoms::blockquote ||
-      tag == nsAccessibilityAtoms::div ||
-      tag == nsAccessibilityAtoms::nav)
+  if (tag == nsAccessibilityAtoms::div ||
+      tag == nsAccessibilityAtoms::blockquote)
     return nsIAccessibleRole::ROLE_SECTION;
 
   if (tag == nsAccessibilityAtoms::h1 ||
@@ -147,20 +146,6 @@ nsHyperTextAccessible::NativeRole()
       tag == nsAccessibilityAtoms::h6)
     return nsIAccessibleRole::ROLE_HEADING;
 
-  if (tag == nsAccessibilityAtoms::article)
-    return nsIAccessibleRole::ROLE_DOCUMENT;
-        
-  // Deal with html landmark elements
-  if (tag == nsAccessibilityAtoms::header)
-    return nsIAccessibleRole::ROLE_HEADER;
-
-  if (tag == nsAccessibilityAtoms::footer)
-    return nsIAccessibleRole::ROLE_FOOTER;
-
-  if (tag == nsAccessibilityAtoms::aside)
-    return nsIAccessibleRole::ROLE_NOTE;
-
-  // Treat block frames as paragraphs
   nsIFrame *frame = GetFrame();
   if (frame && frame->GetType() == nsAccessibilityAtoms::blockFrame &&
       frame->GetContent()->Tag() != nsAccessibilityAtoms::input) {
@@ -189,9 +174,6 @@ nsHyperTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
     if (0 == (flags & nsIPlaintextEditor::eEditorReadonlyMask)) {
       *aExtraState |= nsIAccessibleStates::EXT_STATE_EDITABLE;
     }
-  } else if (mContent->Tag() == nsAccessibilityAtoms::article) {
-    // We want <article> to behave like a document in terms of readonly state.
-    *aState |= nsIAccessibleStates::STATE_READONLY;
   }
 
   PRInt32 childCount;
@@ -1215,21 +1197,6 @@ nsHyperTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
     }
   }
 
-  // For the html landmark elements we expose them like we do aria landmarks to
-  // make AT navigation schemes "just work".
-  if (mContent->Tag() == nsAccessibilityAtoms::nav)
-    nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
-                           NS_LITERAL_STRING("navigation"));
-  else if (mContent->Tag() == nsAccessibilityAtoms::header) 
-    nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
-                           NS_LITERAL_STRING("banner"));
-  else if (mContent->Tag() == nsAccessibilityAtoms::footer) 
-    nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
-                           NS_LITERAL_STRING("contentinfo"));
-  else if (mContent->Tag() == nsAccessibilityAtoms::aside) 
-    nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
-                           NS_LITERAL_STRING("note"));
-
   return  NS_OK;
 }
 
@@ -1571,7 +1538,7 @@ nsHyperTextAccessible::SetSelectionRange(PRInt32 aStartPos, PRInt32 aEndPos)
     // XXX I'm not sure this can do synchronous scrolling. If the last param is
     // set to true, this calling might flush the pending reflow. See bug 418470.
     selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
-      nsISelectionController::SELECTION_FOCUS_REGION, 0);
+      nsISelectionController::SELECTION_FOCUS_REGION, PR_FALSE);
   }
 
   return NS_OK;

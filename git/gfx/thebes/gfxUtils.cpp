@@ -210,27 +210,6 @@ IsSafeImageTransformComponent(gfxFloat aValue)
   return aValue >= -32768 && aValue <= 32767;
 }
 
-/**
- * This returns the fastest operator to use for solid surfaces which have no
- * alpha channel or their alpha channel is uniformly opaque.
- * This differs per render mode.
- */
-static gfxContext::GraphicsOperator
-OptimalFillOperator()
-{
-#ifdef XP_WIN
-    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-        gfxWindowsPlatform::RENDER_DIRECT2D) {
-        // D2D -really- hates operator source.
-        return gfxContext::OPERATOR_OVER;
-    } else {
-#endif
-        return gfxContext::OPERATOR_SOURCE;
-#ifdef XP_WIN
-    }
-#endif
-}
-
 // EXTEND_PAD won't help us here; we have to create a temporary surface to hold
 // the subimage of pixels we're allowed to sample.
 static already_AddRefed<gfxDrawable>
@@ -270,9 +249,9 @@ CreateSamplingRestrictedDrawable(gfxDrawable* aDrawable,
     if (!temp || temp->CairoStatus())
         return nsnull;
 
-    nsRefPtr<gfxContext> tmpCtx = new gfxContext(temp);
-    tmpCtx->SetOperator(OptimalFillOperator());
-    aDrawable->Draw(tmpCtx, needed - needed.pos, PR_TRUE,
+    gfxContext tmpCtx(temp);
+    tmpCtx.SetOperator(gfxContext::OPERATOR_SOURCE);
+    aDrawable->Draw(&tmpCtx, needed - needed.pos, PR_TRUE,
                     gfxPattern::FILTER_FAST, gfxMatrix().Translate(needed.pos));
 
     nsRefPtr<gfxPattern> resultPattern = new gfxPattern(temp);
@@ -347,6 +326,27 @@ private:
     PRPackedBool mSucceeded;
     PRPackedBool mPushedGroup;
 };
+
+/**
+ * This returns the fastest operator to use for solid surfaces which have no
+ * alpha channel or their alpha channel is uniformly opaque.
+ * This differs per render mode.
+ */
+static gfxContext::GraphicsOperator
+OptimalFillOperator()
+{
+#ifdef XP_WIN
+    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
+        gfxWindowsPlatform::RENDER_DIRECT2D) {
+        // D2D -really- hates operator source.
+        return gfxContext::OPERATOR_OVER;
+    } else {
+#endif
+        return gfxContext::OPERATOR_SOURCE;
+#ifdef XP_WIN
+    }
+#endif
+}
 
 static gfxMatrix
 DeviceToImageTransform(gfxContext* aContext,
@@ -458,12 +458,3 @@ gfxUtils::ClipToRegionSnapped(gfxContext* aContext, const nsIntRegion& aRegion)
 {
   ClipToRegionInternal(aContext, aRegion, PR_TRUE);
 }
-
-PRBool
-gfxUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
-{
-  *aOut = nsIntRect(PRInt32(aIn.X()), PRInt32(aIn.Y()),
-  PRInt32(aIn.Width()), PRInt32(aIn.Height()));
-  return gfxRect(aOut->x, aOut->y, aOut->width, aOut->height) == aIn;
-}
-

@@ -45,8 +45,6 @@
 #include "nsHTMLFormElement.h"
 
 
-const PRUint16 nsIConstraintValidation::sContentSpecifiedMaxLengthMessage = 256;
-
 nsIConstraintValidation::nsIConstraintValidation()
   : mValidityBitField(0)
   , mValidity(nsnull)
@@ -89,14 +87,8 @@ nsIConstraintValidation::GetValidationMessage(nsAString& aValidationMessage)
 
     if (!authorMessage.IsEmpty()) {
       aValidationMessage.Assign(authorMessage);
-      if (aValidationMessage.Length() > sContentSpecifiedMaxLengthMessage) {
-        aValidationMessage.Truncate(sContentSpecifiedMaxLengthMessage);
-      }
     } else if (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR)) {
       aValidationMessage.Assign(mCustomValidity);
-      if (aValidationMessage.Length() > sContentSpecifiedMaxLengthMessage) {
-        aValidationMessage.Truncate(sContentSpecifiedMaxLengthMessage);
-      }
     } else if (GetValidityState(VALIDITY_STATE_TOO_LONG)) {
       GetValidationMessage(aValidationMessage, VALIDITY_STATE_TOO_LONG);
     } else if (GetValidityState(VALIDITY_STATE_VALUE_MISSING)) {

@@ -36,8 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "ContainerLayerD3D9.h"
-#include "gfxUtils.h"
-#include "nsRect.h"
 
 namespace mozilla {
 namespace layers {
@@ -67,8 +65,6 @@ ContainerLayerD3D9::InsertAfter(Layer* aChild, Layer* aAfter)
     aChild->SetPrevSibling(nsnull);
     if (oldFirstChild) {
       oldFirstChild->SetPrevSibling(aChild);
-    } else {
-      mLastChild = aChild;
     }
     NS_ADDREF(aChild);
     return;
@@ -81,8 +77,6 @@ ContainerLayerD3D9::InsertAfter(Layer* aChild, Layer* aAfter)
       aChild->SetNextSibling(oldNextSibling);
       if (oldNextSibling) {
         oldNextSibling->SetPrevSibling(aChild);
-      } else {
-        mLastChild = aChild;
       }
       aChild->SetPrevSibling(child);
       NS_ADDREF(aChild);
@@ -99,8 +93,6 @@ ContainerLayerD3D9::RemoveChild(Layer *aChild)
     mFirstChild = GetFirstChild()->GetNextSibling();
     if (mFirstChild) {
       mFirstChild->SetPrevSibling(nsnull);
-    } else {
-      mLastChild = nsnull;
     }
     aChild->SetNextSibling(nsnull);
     aChild->SetPrevSibling(nsnull);
@@ -116,8 +108,6 @@ ContainerLayerD3D9::RemoveChild(Layer *aChild)
       lastChild->SetNextSibling(child->GetNextSibling());
       if (child->GetNextSibling()) {
         child->GetNextSibling()->SetPrevSibling(lastChild);
-      } else {
-        mLastChild = lastChild;
       }
       child->SetNextSibling(nsnull);
       child->SetPrevSibling(nsnull);
@@ -144,18 +134,10 @@ ContainerLayerD3D9::GetFirstChildD3D9()
   return static_cast<LayerD3D9*>(mFirstChild->ImplData());
 }
 
-static inline LayerD3D9*
-GetNextSiblingD3D9(LayerD3D9* aLayer)
-{
-   Layer* layer = aLayer->GetLayer()->GetNextSibling();
-   return layer ? static_cast<LayerD3D9*>(layer->
-                                          ImplData())
-                 : nsnull;
-}
-
 void
 ContainerLayerD3D9::RenderLayer()
 {
+  float opacity = GetOpacity();
   nsRefPtr<IDirect3DSurface9> previousRenderTarget;
   nsRefPtr<IDirect3DTexture9> renderTexture;
   float previousRenderTargetOffset[4];
@@ -164,10 +146,11 @@ ContainerLayerD3D9::RenderLayer()
   float oldViewMatrix[4][4];
 
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
-  PRBool useIntermediate = UseIntermediateSurface();
+  PRBool useIntermediate = (opacity != 1.0 || !mTransform.IsIdentity());
 
   if (useIntermediate) {
     device()->GetRenderTarget(0, getter_AddRefs(previousRenderTarget));
+    device()->GetScissorRect(&oldClipRect);
     device()->CreateTexture(visibleRect.width, visibleRect.height, 1,
                             D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8,
                             D3DPOOL_DEFAULT, getter_AddRefs(renderTexture),
@@ -198,63 +181,50 @@ ContainerLayerD3D9::RenderLayer()
   /*
    * Render this container's contents.
    */
-  for (LayerD3D9* layerToRender = GetFirstChildD3D9();
-       layerToRender != nsnull;
-       layerToRender = GetNextSiblingD3D9(layerToRender)) {
-
-    const nsIntRect* clipRect = layerToRender->GetLayer()->GetClipRect();
-    if ((clipRect && clipRect->IsEmpty()) ||
-        layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty()) {
-      continue;
-    }
-
-    if (clipRect || useIntermediate) {
-      RECT r;
-      device()->GetScissorRect(&oldClipRect);
-      if (clipRect) {
-        r.left = (LONG)(clipRect->x - renderTargetOffset[0]);
-        r.top = (LONG)(clipRect->y - renderTargetOffset[1]);
-        r.right = (LONG)(clipRect->x - renderTargetOffset[0] + clipRect->width);
-        r.bottom = (LONG)(clipRect->y - renderTargetOffset[1] + clipRect->height);
-      } else {
+  LayerD3D9 *layerToRender = GetFirstChildD3D9();
+  while (layerToRender) {
+    const nsIntRect *clipRect = layerToRender->GetLayer()->GetClipRect();
+    RECT r;
+    if (clipRect) {
+      r.left = (LONG)(clipRect->x - renderTargetOffset[0]);
+      r.top = (LONG)(clipRect->y - renderTargetOffset[1]);
+      r.right = (LONG)(clipRect->x - renderTargetOffset[0] + clipRect->width);
+      r.bottom = (LONG)(clipRect->y - renderTargetOffset[1] + clipRect->height);
+    } else {
+      if (useIntermediate) {
         r.left = 0;
         r.top = 0;
-        r.right = visibleRect.width;
-        r.bottom = visibleRect.height;
-      }
-
-      nsRefPtr<IDirect3DSurface9> renderSurface;
-      device()->GetRenderTarget(0, getter_AddRefs(renderSurface));
-
-      D3DSURFACE_DESC desc;
-      renderSurface->GetDesc(&desc);
-
-      if (!useIntermediate) {
-        // Intersect with current clip rect.
-        r.left = NS_MAX<PRInt32>(oldClipRect.left, r.left);
-        r.right = NS_MIN<PRInt32>(oldClipRect.right, r.right);
-        r.top = NS_MAX<PRInt32>(oldClipRect.top, r.top);
-        r.bottom = NS_MIN<PRInt32>(oldClipRect.bottom, r.bottom);
       } else {
-        // > 0 is implied during the intersection when useIntermediate == true;
-        r.left = NS_MAX<LONG>(0, r.left);
-        r.top = NS_MAX<LONG>(0, r.top);
+        r.left = visibleRect.x;
+        r.top = visibleRect.y;
       }
-      r.bottom = NS_MIN<LONG>(r.bottom, desc.Height);
-      r.right = NS_MIN<LONG>(r.right, desc.Width);
-
-      device()->SetScissorRect(&r);
+      r.right = r.left + visibleRect.width;
+      r.bottom = r.top + visibleRect.height;
     }
+
+    nsRefPtr<IDirect3DSurface9> renderSurface;
+    device()->GetRenderTarget(0, getter_AddRefs(renderSurface));
+
+    D3DSURFACE_DESC desc;
+    renderSurface->GetDesc(&desc);
+
+    r.left = NS_MAX<LONG>(0, r.left);
+    r.top = NS_MAX<LONG>(0, r.top);
+    r.bottom = NS_MIN<LONG>(r.bottom, desc.Height);
+    r.right = NS_MIN<LONG>(r.right, desc.Width);
+
+    device()->SetScissorRect(&r);
 
     layerToRender->RenderLayer();
-
-    if (clipRect || useIntermediate) {
-      device()->SetScissorRect(&oldClipRect);
-    }
+    Layer *nextSibling = layerToRender->GetLayer()->GetNextSibling();
+    layerToRender = nextSibling ? static_cast<LayerD3D9*>(nextSibling->
+                                                          ImplData())
+                                : nsnull;
   }
 
   if (useIntermediate) {
     device()->SetRenderTarget(0, previousRenderTarget);
+    device()->SetScissorRect(&oldClipRect);
     device()->SetVertexShaderConstantF(CBvRenderTargetOffset, previousRenderTargetOffset, 1);
     device()->SetVertexShaderConstantF(CBmProjection, &oldViewMatrix[0][0], 4);
 
@@ -265,7 +235,15 @@ ContainerLayerD3D9::RenderLayer()
                                                           visibleRect.height),
                                        1);
 
-    SetShaderTransformAndOpacity();
+    device()->SetVertexShaderConstantF(CBmLayerTransform, &mTransform._11, 4);
+
+    float opacityVector[4];
+    /*
+     * We always upload a 4 component float, but the shader will use only the
+     * first component since it's declared as a 'float'.
+     */
+    opacityVector[0] = opacity;
+    device()->SetPixelShaderConstantF(CBfLayerOpacity, opacityVector, 1);
 
     mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER);
 

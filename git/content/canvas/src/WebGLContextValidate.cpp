@@ -111,7 +111,7 @@ WebGLContext::ValidateBuffers(PRUint32 count)
             continue;
 
         if (vd.buf == nsnull) {
-            LogMessageIfVerbose("No VBO bound to enabled attrib index %d!", i);
+            LogMessage(mVerbose, "No VBO bound to enabled attrib index %d!", i);
             return PR_FALSE;
         }
 
@@ -126,12 +126,12 @@ WebGLContext::ValidateBuffers(PRUint32 count)
             CheckedUint32(vd.componentSize()) * vd.size;   // and the number of bytes needed for these components
 
         if (!checked_needed.valid()) {
-            LogMessageIfVerbose("Integer overflow computing the size of bound vertex attrib buffer at index %d", i);
+            LogMessage(mVerbose, "Integer overflow computing the size of bound vertex attrib buffer at index %d", i);
             return PR_FALSE;
         }
 
         if (vd.buf->ByteLength() < checked_needed.value()) {
-            LogMessageIfVerbose("VBO too small for bound attrib index %d: need at least %d bytes, but have only %d",
+            LogMessage(mVerbose, "VBO too small for bound attrib index %d: need at least %d bytes, but have only %d",
                        i, checked_needed.value(), vd.buf->ByteLength());
             return PR_FALSE;
         }
@@ -202,25 +202,6 @@ PRBool WebGLContext::ValidateBlendFuncSrcEnum(WebGLenum factor, const char *info
         return PR_TRUE;
     else
         return ValidateBlendFuncDstEnum(factor, info);
-}
-
-PRBool WebGLContext::ValidateBlendFuncEnumsCompatibility(WebGLenum sfactor, WebGLenum dfactor, const char *info)
-{
-    PRBool sfactorIsConstantColor = sfactor == LOCAL_GL_CONSTANT_COLOR ||
-                                    sfactor == LOCAL_GL_ONE_MINUS_CONSTANT_COLOR;
-    PRBool sfactorIsConstantAlpha = sfactor == LOCAL_GL_CONSTANT_ALPHA ||
-                                    sfactor == LOCAL_GL_ONE_MINUS_CONSTANT_ALPHA;
-    PRBool dfactorIsConstantColor = dfactor == LOCAL_GL_CONSTANT_COLOR ||
-                                    dfactor == LOCAL_GL_ONE_MINUS_CONSTANT_COLOR;
-    PRBool dfactorIsConstantAlpha = dfactor == LOCAL_GL_CONSTANT_ALPHA ||
-                                    dfactor == LOCAL_GL_ONE_MINUS_CONSTANT_ALPHA;
-    if ( (sfactorIsConstantColor && dfactorIsConstantAlpha) ||
-         (dfactorIsConstantColor && sfactorIsConstantAlpha) ) {
-        ErrorInvalidOperation("%s are mutually incompatible, see section 6.8 in the WebGL 1.0 spec", info);
-        return PR_FALSE;
-    } else {
-        return PR_TRUE;
-    }
 }
 
 PRBool WebGLContext::ValidateTextureTargetEnum(WebGLenum target, const char *info)
@@ -320,6 +301,9 @@ PRBool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
     if (type == LOCAL_GL_UNSIGNED_BYTE)
     {
         switch (format) {
+            case LOCAL_GL_RED:
+            case LOCAL_GL_GREEN:
+            case LOCAL_GL_BLUE:
             case LOCAL_GL_ALPHA:
             case LOCAL_GL_LUMINANCE:
                 *texelSize = 1;
@@ -380,6 +364,10 @@ WebGLContext::InitAndValidateGL()
     mBoundArrayBuffer = nsnull;
     mBoundElementArrayBuffer = nsnull;
     mCurrentProgram = nsnull;
+
+    mFramebufferColorAttachments.Clear();
+    mFramebufferDepthAttachment = nsnull;
+    mFramebufferStencilAttachment = nsnull;
 
     mBoundFramebuffer = nsnull;
     mBoundRenderbuffer = nsnull;
@@ -448,7 +436,7 @@ WebGLContext::InitAndValidateGL()
     // Always 1 for GLES2
     val = 1;
 #endif
-    mMaxFramebufferColorAttachments = val;
+    mFramebufferColorAttachments.SetLength(val);
 
 #if defined(DEBUG_vladimir) && defined(USE_GLES2)
     gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_FORMAT, (GLint*) &val);
@@ -479,13 +467,6 @@ WebGLContext::InitAndValidateGL()
             gl->fEnable(LOCAL_GL_POINT_SPRITE);
         }
     }
-
-    gl->fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT,   (GLint*) &mPixelStorePackAlignment);
-    gl->fGetIntegerv(LOCAL_GL_UNPACK_ALIGNMENT, (GLint*) &mPixelStoreUnpackAlignment);
-
-    gl->fGetIntegerv(LOCAL_GL_STENCIL_WRITEMASK, (GLint*) &mStencilWriteMask);
-    gl->fGetIntegerv(LOCAL_GL_STENCIL_VALUE_MASK, (GLint*) &mStencilValueMask);
-    gl->fGetIntegerv(LOCAL_GL_STENCIL_REF, (GLint*) &mStencilRef);
 
     // Check the shader validator pref
     nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);

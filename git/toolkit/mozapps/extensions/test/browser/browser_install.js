@@ -11,7 +11,6 @@ var gApp = document.getElementById("bundle_brand").getString("brandShortName");
 var gSearchCount = 0;
 
 function test() {
-  requestLongerTimeout(2);
   waitForExplicitFinish();
 
   // Turn on searching for this test
@@ -34,8 +33,8 @@ function end_test() {
 
     AddonManager.getAddonByID("addon1@tests.mozilla.org", function(aAddon) {
       aAddon.uninstall();
-      finish();
     });
+    finish();
   });
 }
 
@@ -94,18 +93,18 @@ function installSearchResult(aCallback) {
   searchBox.value = "foo" + gSearchCount;
   gSearchCount++;
 
-  EventUtils.synthesizeMouseAtCenter(searchBox, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(searchBox, 2, 2, { }, gManagerWindow);
   EventUtils.synthesizeKey("VK_RETURN", { }, gManagerWindow);
 
   wait_for_view_load(gManagerWindow, function() {
     let remote = gManagerWindow.document.getElementById("search-filter-remote")
-    EventUtils.synthesizeMouseAtCenter(remote, { }, gManagerWindow);
+    EventUtils.synthesizeMouse(remote, 2, 2, { }, gManagerWindow);
 
     let item = get_addon_element(gManagerWindow, "addon1@tests.mozilla.org");
     ok(!!item, "Should see the search result in the list");
 
     let status = get_node(item, "install-status");
-    EventUtils.synthesizeMouseAtCenter(get_node(status, "install-remote-btn"), {}, gManagerWindow);
+    EventUtils.synthesizeMouse(get_node(status, "install-remote"), 2, 2, {}, gManagerWindow);
 
     item.mInstall.addListener({
       onInstallEnded: function() {
@@ -116,7 +115,24 @@ function installSearchResult(aCallback) {
 }
 
 function get_list_item_count() {
-  return get_test_items_in_list(gManagerWindow).length;
+  var tests = "@tests.mozilla.org";
+
+  let view = gManagerWindow.document.getElementById("view-port").selectedPanel;
+  let listid = view.id == "search-view" ? "search-list" : "addon-list";
+  let item = gManagerWindow.document.getElementById(listid).firstChild;
+  let count = 0;
+
+  while (item) {
+    if (!item.mAddon || item.mAddon.id.substring(item.mAddon.id.length - tests.length) == tests)
+      count++;
+    item = item.nextSibling;
+  }
+
+  // Remove the show all results item
+  if (view.id == "search-view")
+    count--;
+
+  return count;
 }
 
 function check_undo_install() {
@@ -129,7 +145,7 @@ function check_undo_install() {
   is_element_visible(get_node(item, "pending"), "Pending message should be visible");
   is(get_node(item, "pending").textContent, "Install Tests will be installed after you restart " + gApp + ".", "Pending message should be correct");
 
-  EventUtils.synthesizeMouseAtCenter(get_node(item, "undo-btn"), {}, gManagerWindow);
+  EventUtils.synthesizeMouse(get_node(item, "undo"), 2, 2, {}, gManagerWindow);
 
   is(get_list_item_count(), 0, "Should be no items in the list");
 
@@ -147,7 +163,7 @@ function check_undo_upgrade() {
   is_element_visible(get_node(item, "pending"), "Pending message should be visible");
   is(get_node(item, "pending").textContent, "Install Tests will be updated after you restart " + gApp + ".", "Pending message should be correct");
 
-  EventUtils.synthesizeMouseAtCenter(get_node(item, "undo-btn"), {}, gManagerWindow);
+  EventUtils.synthesizeMouse(get_node(item, "undo"), 2, 2, {}, gManagerWindow);
 
   is(get_list_item_count(), 1, "Should be only one item in the list");
 
@@ -204,7 +220,7 @@ add_test(function() {
 add_test(function() {
   installSearchResult(function() {
     close_manager(gManagerWindow, function() {
-        open_manager("addons://list/extension", function(aWindow) {
+      open_manager(null, function(aWindow) {
         gManagerWindow = aWindow;
         gCategoryUtilities = new CategoryUtilities(gManagerWindow);
         check_undo_install();

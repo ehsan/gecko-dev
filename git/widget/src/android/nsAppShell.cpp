@@ -74,6 +74,7 @@ nsAccelerometerSystem *gAccel = nsnull;
 nsIGeolocationUpdate *gLocationCallback = nsnull;
 
 nsAppShell *nsAppShell::gAppShell = nsnull;
+AndroidGeckoEvent *nsAppShell::gEarlyEvent = nsnull;
 
 nsAppShell::nsAppShell()
     : mQueueLock(nsnull),
@@ -82,6 +83,10 @@ nsAppShell::nsAppShell()
       mNumDraws(0)
 {
     gAppShell = this;
+    if (gEarlyEvent) {
+        mEventQueue.AppendElement(gEarlyEvent);
+        gEarlyEvent = nsnull;
+    }
 }
 
 nsAppShell::~nsAppShell()
@@ -111,10 +116,7 @@ nsAppShell::Init()
 
     mObserversHash.Init();
 
-    nsresult rv = nsBaseAppShell::Init();
-    if (AndroidBridge::Bridge())
-        AndroidBridge::Bridge()->NotifyAppShellReady();
-    return rv;
+    return nsBaseAppShell::Init();
 }
 
 
@@ -126,6 +128,7 @@ nsAppShell::ScheduleNativeEventCallback()
     // this is valid to be called from any thread, so do so.
     PostEvent(new AndroidGeckoEvent(AndroidGeckoEvent::NATIVE_POKE));
 }
+
 
 PRBool
 nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
@@ -234,15 +237,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         break;
 
     case AndroidGeckoEvent::ACTIVITY_STOPPING: {
-        nsCOMPtr<nsIObserverService> obsServ =
-          mozilla::services::GetObserverService();
-        NS_NAMED_LITERAL_STRING(minimize, "heap-minimize");
-        obsServ->NotifyObservers(nsnull, "memory-pressure", minimize.get());
-
-        break;
-    }
-
-    case AndroidGeckoEvent::ACTIVITY_SHUTDOWN: {
         nsCOMPtr<nsIObserverService> obsServ =
           mozilla::services::GetObserverService();
         NS_NAMED_LITERAL_STRING(context, "shutdown-persist");

@@ -173,7 +173,7 @@ nsSecureBrowserUIImpl::nsSecureBrowserUIImpl()
   , mOnStateLocationChangeReentranceDetection(0)
 #endif
 {
-  mMonitor = nsAutoMonitor::NewMonitor("security.secureBrowserUIImplMonitor");
+  mMonitor = PR_NewMonitor();
   mTransferringRequests.ops = nsnull;
   ResetStateTracking();
   
@@ -190,7 +190,7 @@ nsSecureBrowserUIImpl::~nsSecureBrowserUIImpl()
     mTransferringRequests.ops = nsnull;
   }
   if (mMonitor)
-    nsAutoMonitor::DestroyMonitor(mMonitor);
+    PR_DestroyMonitor(mMonitor);
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS6(nsSecureBrowserUIImpl,
@@ -223,13 +223,8 @@ nsSecureBrowserUIImpl::Init(nsIDOMWindow *aWindow)
     return NS_ERROR_ALREADY_INITIALIZED;
   }
 
-  nsCOMPtr<nsPIDOMWindow> pwin(do_QueryInterface(aWindow));
-  if (pwin->IsInnerWindow()) {
-    pwin = pwin->GetOuterWindow();
-  }
-
   nsresult rv;
-  mWindow = do_GetWeakReference(pwin, &rv);
+  mWindow = do_GetWeakReference(aWindow, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIStringBundleService> service(do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv));

@@ -45,7 +45,6 @@
 #include "nsArrayEnumerator.h"
 #include "nsWrapperCache.h"
 #include "XPCWrapper.h"
-#include "AccessCheck.h"
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsXPCWrappedJSClass, nsIXPCWrappedJSClass)
 
@@ -248,8 +247,8 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(XPCCallContext& ccx,
     JSBool success = JS_FALSE;
     jsid funid;
     jsval fun;
-    JSAutoEnterCompartment ac;
 
+    JSAutoEnterCompartment ac;
     if(!ac.enter(cx, jsobj))
         return nsnull;
 
@@ -258,9 +257,22 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(XPCCallContext& ccx,
     // interface (i.e. whether the interface is scriptable) and most content
     // objects don't have QI implementations anyway. Also see bug 503926.
     if(XPCPerThreadData::IsMainThread(ccx) &&
-       !xpc::AccessCheck::isChrome(jsobj->getCompartment()))
+       !JS_GetGlobalForObject(ccx, jsobj)->isSystem())
     {
-        return nsnull;
+        nsCOMPtr<nsIPrincipal> objprin;
+        nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
+        if(ssm)
+        {
+            nsresult rv = ssm->GetObjectPrincipal(ccx, jsobj, getter_AddRefs(objprin));
+            NS_ENSURE_SUCCESS(rv, nsnull);
+
+            PRBool isSystem;
+            rv = ssm->IsSystemPrincipal(objprin, &isSystem);
+            NS_ENSURE_SUCCESS(rv, nsnull);
+
+            if(!isSystem)
+                return nsnull;
+        }
     }
 
     // check upfront for the existence of the function property
@@ -554,10 +566,6 @@ GetContextFromObject(JSObject *obj)
     // In order to get a context, we need a context.
     XPCCallContext ccx(NATIVE_CALLER);
     if(!ccx.IsValid())
-        return nsnull;
-
-    JSAutoEnterCompartment ac;
-    if(!ac.enter(ccx, obj))
         return nsnull;
     XPCWrappedNativeScope* scope =
         XPCWrappedNativeScope::FindInJSObjectScope(ccx, obj);
@@ -1304,7 +1312,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     obj = thisObj = wrapper->GetJSObject();
 
     JSAutoEnterCompartment ac;
-    if (!ac.enter(ccx, obj))
+    if(!ac.enter(ccx, obj))
         goto pre_call_clean_up;
 
     // XXX ASSUMES that retval is last arg. The xpidl compiler ensures this.
@@ -1323,12 +1331,11 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
 
     if(XPCPerThreadData::IsMainThread(ccx))
     {
-        // TODO Remove me in favor of security wrappers.
         nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
         if(ssm)
         {
-            nsIPrincipal *objPrincipal =
-                xpc::AccessCheck::getPrincipal(obj->getCompartment());
+            nsCOMPtr<nsIPrincipal> objPrincipal;
+            ssm->GetObjectPrincipal(ccx, obj, getter_AddRefs(objPrincipal));
             if(objPrincipal)
             {
                 JSStackFrame* fp = nsnull;
@@ -1349,6 +1356,8 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
 
     // We use js_Invoke so that the gcthings we use as args will be rooted by
     // the engine as we do conversions and prepare to do the function call.
+    // This adds a fair amount of complexity, but it's a good optimization
+    // compared to calling JS_AddRoot for each item.
 
     js::LeaveTrace(cx);
 
@@ -1440,8 +1449,6 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
                                     goto pre_call_clean_up;
                                 }
                                 thisObj = JSVAL_TO_OBJECT(v);
-                                if(!JS_WrapObject(cx, &thisObj))
-                                    goto pre_call_clean_up;
                             }
                         }
                     }
@@ -1504,11 +1511,6 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     }
 
     // build the args
-    // NB: This assignment *looks* wrong because we haven't yet called our
-    // function. However, we *have* already entered the compartmen that we're
-    // about to call, and that's the global that we want here. In other words:
-    // we're trusting the JS engine to come up with a good global to use for
-    // our object (whatever it was).
     for(i = 0; i < argc; i++)
     {
         const nsXPTParamInfo& param = info->params[i];

@@ -129,7 +129,7 @@ ClientEngine.prototype = {
 
     // Generate a client name if we don't have a useful one yet
     let user = Svc.Env.get("USER") || Svc.Env.get("USERNAME") ||
-               Svc.Prefs.get("account") || Svc.Prefs.get("username");
+               Svc.Prefs.get("username");
     let brand = new StringBundle("chrome://branding/locale/brand.properties");
     let app = brand.get("brandShortName");
 
@@ -180,17 +180,17 @@ ClientStore.prototype = {
       this._remoteClients[record.id] = record.cleartext;
   },
 
-  createRecord: function createRecord(id, collection) {
-    let record = new ClientsRec(collection, id);
+  createRecord: function createRecord(guid, uri) {
+    let record = new ClientsRec(uri);
 
     // Package the individual components into a record for the local client
-    if (id == Clients.localID) {
+    if (guid == Clients.localID) {
       record.name = Clients.localName;
       record.type = Clients.localType;
       record.commands = Clients.localCommands;
     }
     else
-      record.cleartext = this._remoteClients[id];
+      record.cleartext = this._remoteClients[guid];
 
     return record;
   },

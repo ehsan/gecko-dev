@@ -805,7 +805,7 @@ nsStyleSet::ResolveStyleFor(Element* aElement,
 
   return GetContext(aParentContext, ruleNode, visitedRuleNode,
                     data.IsLink(),
-                    data.ContentState().HasState(NS_EVENT_STATE_VISITED),
+                    (data.ContentState() & NS_EVENT_STATE_VISITED) != 0,
                     nsnull, nsCSSPseudoElements::ePseudo_NotPseudoElement);
 }
 
@@ -1212,7 +1212,7 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
 
 struct StatefulData : public StateRuleProcessorData {
   StatefulData(nsPresContext* aPresContext,
-               Element* aElement, nsEventStates aStateMask)
+               Element* aElement, PRInt32 aStateMask)
     : StateRuleProcessorData(aPresContext, aElement, aStateMask),
       mHint(nsRestyleHint(0))
   {}
@@ -1234,7 +1234,7 @@ static PRBool SheetHasDocumentStateStyle(nsIStyleRuleProcessor* aProcessor,
 PRBool
 nsStyleSet::HasDocumentStateDependentStyle(nsPresContext* aPresContext,
                                            nsIContent*    aContent,
-                                           nsEventStates  aStateMask)
+                                           PRInt32        aStateMask)
 {
   if (!aContent || !aContent->IsElement())
     return PR_FALSE;
@@ -1255,9 +1255,9 @@ static PRBool SheetHasStatefulStyle(nsIStyleRuleProcessor* aProcessor,
 
 // Test if style is dependent on content state
 nsRestyleHint
-nsStyleSet::HasStateDependentStyle(nsPresContext*       aPresContext,
-                                   Element*             aElement,
-                                   nsEventStates        aStateMask)
+nsStyleSet::HasStateDependentStyle(nsPresContext* aPresContext,
+                                   Element*       aElement,
+                                   PRInt32        aStateMask)
 {
   StatefulData data(aPresContext, aElement, aStateMask);
   WalkRuleProcessors(SheetHasStatefulStyle, &data, PR_FALSE);

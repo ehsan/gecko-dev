@@ -395,9 +395,3 @@ nsFirstLetterFrame::DrainOverflowFrames(nsPresContext* aPresContext)
     }
   }
 }
-
-nscoord
-nsFirstLetterFrame::GetBaseline() const
-{
-  return mBaseline;
-}

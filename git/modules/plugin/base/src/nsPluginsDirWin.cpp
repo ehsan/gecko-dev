@@ -54,8 +54,6 @@
 
 #include "nsString.h"
 #include "nsILocalFile.h"
-#include "nsUnicharUtils.h"
-#include "nsSetDllDirectory.h"
 
 /* Local helper functions */
 
@@ -235,7 +233,9 @@ PRBool nsPluginsDir::IsPluginFile(nsIFile* file)
       if (!PL_strncasecmp(filename, "npoji", 5) ||
           !PL_strncasecmp(filename, "npjava", 6))
         return PR_FALSE;
-      return PR_TRUE;
+
+      // Check this last since it involves opening the file.
+      return CanLoadPlugin(cPath);
     }
   }
 
@@ -266,8 +266,6 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
   if (!plugin)
     return NS_ERROR_NULL_POINTER;
 
-  PRBool protectCurrentDirectory = PR_TRUE;
-
 #ifndef WINCE
   nsAutoString pluginFolderPath;
   plugin->GetPath(pluginFolderPath);
@@ -275,10 +273,6 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
   PRInt32 idx = pluginFolderPath.RFindChar('\\');
   if (kNotFound == idx)
     return NS_ERROR_FILE_INVALID_PATH;
-
-  if (Substring(pluginFolderPath, idx).LowerCaseEqualsLiteral("\\np32dsw.dll")) {
-    protectCurrentDirectory = PR_FALSE;
-  }
 
   pluginFolderPath.SetLength(idx);
 
@@ -293,17 +287,9 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
   }
 #endif
 
-  if (protectCurrentDirectory) {
-    mozilla::NS_SetDllDirectory(NULL);
-  }
-
   nsresult rv = plugin->Load(outLibrary);
   if (NS_FAILED(rv))
       *outLibrary = NULL;
-
-  if (protectCurrentDirectory) {
-    mozilla::NS_SetDllDirectory(L"");
-  }
 
 #ifndef WINCE    
   if (restoreOrigDir) {
@@ -328,13 +314,6 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
 
   if (!mPlugin)
     return NS_ERROR_NULL_POINTER;
-
-  nsCAutoString fullPathUTF8;
-  if (NS_FAILED(rv = mPlugin->GetNativePath(fullPathUTF8)))
-    return rv;
-  
-  if (!CanLoadPlugin(fullPathUTF8.get()))
-    return NS_ERROR_FAILURE;
 
   nsAutoString fullPath;
   if (NS_FAILED(rv = mPlugin->GetPath(fullPath)))
@@ -371,7 +350,7 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
     info.fMimeTypeArray = MakeStringArray(info.fVariantCount, mimeType);
     info.fMimeDescriptionArray = MakeStringArray(info.fVariantCount, mimeDescription);
     info.fExtensionArray = MakeStringArray(info.fVariantCount, extensions);
-    info.fFullPath = PL_strdup(fullPathUTF8.get());
+    info.fFullPath = PL_strdup(NS_ConvertUTF16toUTF8(fullPath).get());
     info.fFileName = PL_strdup(NS_ConvertUTF16toUTF8(fileName).get());
     info.fVersion = GetVersion(verbuf);
 

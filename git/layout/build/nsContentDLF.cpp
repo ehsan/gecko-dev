@@ -75,7 +75,9 @@ static NS_DEFINE_CID(kPluginDocumentCID, NS_PLUGINDOCUMENT_CID);
 
 static NS_DEFINE_IID(kHTMLDocumentCID, NS_HTMLDOCUMENT_CID);
 static NS_DEFINE_IID(kXMLDocumentCID, NS_XMLDOCUMENT_CID);
+#ifdef MOZ_SVG
 static NS_DEFINE_IID(kSVGDocumentCID, NS_SVGDOCUMENT_CID);
+#endif
 #ifdef MOZ_MEDIA
 static NS_DEFINE_IID(kVideoDocumentCID, NS_VIDEODOCUMENT_CID);
 #endif
@@ -114,10 +116,14 @@ static const char* const gXMLTypes[] = {
   0
 };
 
+#ifdef MOZ_SVG
 static const char* const gSVGTypes[] = {
   IMAGE_SVG_XML,
   0
 };
+
+PRBool NS_SVGEnabled();
+#endif
 
 static const char* const gXULTypes[] = {
   TEXT_XUL,
@@ -164,7 +170,15 @@ MayUseXULXBL(nsIChannel* aChannel)
   securityManager->GetChannelPrincipal(aChannel, getter_AddRefs(principal));
   NS_ENSURE_TRUE(principal, PR_FALSE);
 
-  return nsContentUtils::AllowXULXBLForPrincipal(principal);
+  if (nsContentUtils::IsSystemPrincipal(principal)) {
+    return PR_TRUE;
+  }
+
+  nsCOMPtr<nsIURI> uri;
+  principal->GetURI(getter_AddRefs(uri));
+  NS_ENSURE_TRUE(uri, PR_FALSE);
+
+  return nsContentUtils::IsSitePermAllow(uri, "allowXULXBL");
 }
 
 NS_IMETHODIMP
@@ -219,11 +233,15 @@ nsContentDLF::CreateInstance(const char* aCommand,
       }
     }
 
-    for (typeIndex = 0; gSVGTypes[typeIndex] && !knownType; ++typeIndex) {
-      if (type.Equals(gSVGTypes[typeIndex])) {
-        knownType = PR_TRUE;
+#ifdef MOZ_SVG
+    if (NS_SVGEnabled()) {
+      for (typeIndex = 0; gSVGTypes[typeIndex] && !knownType; ++typeIndex) {
+        if (type.Equals(gSVGTypes[typeIndex])) {
+          knownType = PR_TRUE;
+        }
       }
     }
+#endif // MOZ_SVG
 
     for (typeIndex = 0; gXULTypes[typeIndex] && !knownType; ++typeIndex) {
       if (type.Equals(gXULTypes[typeIndex])) {
@@ -267,16 +285,20 @@ nsContentDLF::CreateInstance(const char* aCommand,
     }
   }
 
-  // Try SVG
-  typeIndex = 0;
-  while(gSVGTypes[typeIndex]) {
-    if (!PL_strcmp(gSVGTypes[typeIndex++], aContentType)) {
-      return CreateDocument(aCommand,
-                            aChannel, aLoadGroup,
-                            aContainer, kSVGDocumentCID,
-                            aDocListener, aDocViewer);
+#ifdef MOZ_SVG
+  if (NS_SVGEnabled()) {
+    // Try SVG
+    typeIndex = 0;
+    while(gSVGTypes[typeIndex]) {
+      if (!PL_strcmp(gSVGTypes[typeIndex++], aContentType)) {
+        return CreateDocument(aCommand,
+                              aChannel, aLoadGroup,
+                              aContainer, kSVGDocumentCID,
+                              aDocListener, aDocViewer);
+      }
     }
   }
+#endif
 
   // Try XUL
   typeIndex = 0;

@@ -54,7 +54,7 @@
 bool SendSyncMessageToParent(void* aCallbackData,
                              const nsAString& aMessage,
                              const nsAString& aJSON,
-                             InfallibleTArray<nsString>* aJSONRetVal)
+                             nsTArray<nsString>* aJSONRetVal)
 {
   nsInProcessTabChildGlobal* tabChild =
     static_cast<nsInProcessTabChildGlobal*>(aCallbackData);
@@ -180,12 +180,6 @@ nsInProcessTabChildGlobal::GetDocShell(nsIDocShell** aDocShell)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsInProcessTabChildGlobal::PrivateNoteIntentionalCrash()
-{
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
-
 void
 nsInProcessTabChildGlobal::Disconnect()
 {
@@ -286,8 +280,24 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
   nsContentUtils::XPConnect()->SetSecurityManagerForJSContext(cx, nsContentUtils::GetSecurityManager(), 0);
   nsContentUtils::GetSecurityManager()->GetSystemPrincipal(getter_AddRefs(mPrincipal));
 
-  JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
-  JS_SetScriptStackQuota(cx, 25 * sizeof(size_t) * 1024 * 1024);
+  PRUint32 stackDummy;
+  jsuword stackLimit, currentStackAddr = (jsuword)&stackDummy;
+
+  // 256k stack space.
+  const jsuword kStackSize = 0x40000;
+
+#if JS_STACK_GROWTH_DIRECTION < 0
+  stackLimit = (currentStackAddr > kStackSize) ?
+               currentStackAddr - kStackSize :
+               0;
+#else
+  stackLimit = (currentStackAddr + kStackSize > currentStackAddr) ?
+               currentStackAddr + kStackSize :
+               (jsuword) -1;
+#endif
+
+  JS_SetThreadStackLimit(cx, stackLimit);
+  JS_SetScriptStackQuota(cx, 100*1024*1024);
 
   JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_ANONFUNFIX | JSOPTION_PRIVATE_IS_NSISUPPORTS);
   JS_SetVersion(cx, JSVERSION_LATEST);
@@ -305,7 +315,7 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
   nsresult rv =
     xpc->InitClassesWithNewWrappedGlobal(cx, scopeSupports,
                                          NS_GET_IID(nsISupports),
-                                         GetPrincipal(), nsnull,
+                                         GetPrincipal(), EmptyCString(),
                                          flags, getter_AddRefs(mGlobal));
   NS_ENSURE_SUCCESS(rv, false);
 

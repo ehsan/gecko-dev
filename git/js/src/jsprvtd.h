@@ -55,7 +55,6 @@
  */
 
 #include "jspubtd.h"
-#include "jsstaticcheck.h"
 #include "jsutil.h"
 
 JS_BEGIN_EXTERN_C
@@ -128,7 +127,6 @@ class AutoStringRooter;
 class ExecuteArgsGuard;
 class InvokeFrameGuard;
 class InvokeArgsGuard;
-class InvokeSessionGuard;
 class TraceRecorder;
 struct TraceMonitor;
 class StackSpace;
@@ -163,6 +161,8 @@ template <class T,
           class HashPolicy = DefaultHasher<T>,
           class AllocPolicy = ContextAllocPolicy>
 class HashSet;
+
+class DeflatedStringCache;
 
 class PropertyCache;
 struct PropertyCacheEntry;
@@ -291,7 +291,8 @@ typedef struct JSDebugHooks {
  *
  * If JSLookupPropOp succeeds and returns with *propp non-null, that pointer
  * may be passed as the prop parameter to a JSAttributesOp, as a short-cut
- * that bypasses id re-lookup.
+ * that bypasses id re-lookup.  In any case, a non-null *propp result after a
+ * successful lookup must be dropped via JSObject::dropProperty.
  *
  * NB: successful return with non-null *propp means the implementation may
  * have locked *objp and added a reference count associated with *propp, so

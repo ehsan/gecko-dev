@@ -1231,13 +1231,20 @@ static inline PRBool ApplyOverflowHiddenClipping(nsIFrame* aFrame,
 static inline PRBool ApplyPaginatedOverflowClipping(nsIFrame* aFrame,
                                                     const nsStyleDisplay* aDisp)
 {
-  // If we're paginated and aFrame is a block, and it has
-  // NS_BLOCK_CLIP_PAGINATED_OVERFLOW set, then we want to clip our
-  // overflow.
+  // These conditions on aDisp need to match the conditions for which in
+  // non-paginated contexts we'd create a scrollframe for a block but in a
+  // paginated context we don't.  See nsCSSFrameConstructor::FindDisplayData
+  // for the relevant conditions.  These conditions must also match those in
+  // nsCSSFrameConstructor::ConstructNonScrollableBlock for creating block
+  // formatting context roots for forced-to-be-no-longer scrollable blocks in
+  // paginated contexts.
   return
     aFrame->PresContext()->IsPaginated() &&
+    aDisp->IsBlockInside() &&
+    aDisp->IsScrollableOverflow() &&
+    aDisp->IsBlockOutside() &&
     aFrame->GetType() == nsGkAtoms::blockFrame &&
-    (aFrame->GetStateBits() & NS_BLOCK_CLIP_PAGINATED_OVERFLOW) != 0;
+    !aFrame->GetContent()->IsInNativeAnonymousSubtree();
 }
 
 static PRBool ApplyOverflowClipping(nsDisplayListBuilder* aBuilder,
@@ -1644,7 +1651,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
   }
 
-  if (aBuilder->GetIncludeAllOutOfFlows() &&
+  if (aBuilder->GetSelectedFramesOnly() &&
       (aChild->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
     dirty = aChild->GetVisualOverflowRect();
   } else if (!(aChild->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO)) {
@@ -1919,11 +1926,6 @@ nsFrame::GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
 
   // Get the limiting node to stop parent frame search
   nsIContent* limiter = aFrameSelection->GetLimiter();
-
-  // If our content node is an ancestor of the limiting node,
-  // we should stop the search right now.
-  if (limiter && nsContentUtils::ContentIsDescendantOf(limiter, GetContent()))
-    return NS_OK;
 
   //We don't initiate row/col selection from here now,
   //  but we may in future
@@ -4097,9 +4099,6 @@ nsIFrame::InvalidateInternalAfterResize(const nsRect& aDamageRect, nscoord aX,
         aDamageRect + nsPoint(aX, aY));
     // Don't need to invalidate any more Thebes layers
     aFlags |= INVALIDATE_NO_THEBES_LAYERS;
-    if (aFlags & INVALIDATE_ONLY_THEBES_LAYERS) {
-      return;
-    }
   }
   if (IsTransformed()) {
     nsRect newDamageRect;
@@ -4233,9 +4232,6 @@ nsIFrame::InvalidateRoot(const nsRect& aDamageRect, PRUint32 aFlags)
   if ((mState & NS_FRAME_HAS_CONTAINER_LAYER) &&
       !(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
     FrameLayerBuilder::InvalidateThebesLayerContents(this, aDamageRect);
-    if (aFlags & INVALIDATE_ONLY_THEBES_LAYERS) {
-      return;
-    }
   }
 
   PRUint32 flags =
@@ -6517,12 +6513,8 @@ nsIFrame::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
         // will be enough to make them keyboard scrollable.
         nsIScrollableFrame *scrollFrame = do_QueryFrame(this);
         if (scrollFrame) {
-          nsIScrollableFrame::ScrollbarStyles styles =
-            scrollFrame->GetScrollbarStyles();
-          if (styles.mVertical == NS_STYLE_OVERFLOW_SCROLL ||
-              styles.mVertical == NS_STYLE_OVERFLOW_AUTO ||
-              styles.mHorizontal == NS_STYLE_OVERFLOW_SCROLL ||
-              styles.mHorizontal == NS_STYLE_OVERFLOW_AUTO) {
+          nsMargin margin = scrollFrame->GetActualScrollbarSizes();
+          if (margin.top || margin.right || margin.bottom || margin.left) {
             // Scroll bars will be used for overflow
             isFocusable = PR_TRUE;
             tabIndex = 0;

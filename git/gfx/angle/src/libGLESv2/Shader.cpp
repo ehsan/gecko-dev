@@ -34,22 +34,18 @@ Shader::Shader(ResourceManager *manager, GLuint handle) : mHandle(handle), mReso
 
         if (result)
         {
-            ShBuiltInResources resources;
-            ShInitBuiltInResources(&resources);
-            Context *context = getContext();            
+            TBuiltInResource resources;
+            resources.maxVertexAttribs = MAX_VERTEX_ATTRIBS;
+            resources.maxVertexUniformVectors = MAX_VERTEX_UNIFORM_VECTORS;
+            resources.maxVaryingVectors = MAX_VARYING_VECTORS;
+            resources.maxVertexTextureImageUnits = MAX_VERTEX_TEXTURE_IMAGE_UNITS;
+            resources.maxCombinedTextureImageUnits = MAX_COMBINED_TEXTURE_IMAGE_UNITS;
+            resources.maxTextureImageUnits = MAX_TEXTURE_IMAGE_UNITS;
+            resources.maxFragmentUniformVectors = MAX_FRAGMENT_UNIFORM_VECTORS;
+            resources.maxDrawBuffers = MAX_DRAW_BUFFERS;
 
-            resources.MaxVertexAttribs = MAX_VERTEX_ATTRIBS;
-            resources.MaxVertexUniformVectors = MAX_VERTEX_UNIFORM_VECTORS;
-            resources.MaxVaryingVectors = context->getMaximumVaryingVectors();
-            resources.MaxVertexTextureImageUnits = MAX_VERTEX_TEXTURE_IMAGE_UNITS;
-            resources.MaxCombinedTextureImageUnits = MAX_COMBINED_TEXTURE_IMAGE_UNITS;
-            resources.MaxTextureImageUnits = MAX_TEXTURE_IMAGE_UNITS;
-            resources.MaxFragmentUniformVectors = context->getMaximumFragmentUniformVectors();
-            resources.MaxDrawBuffers = MAX_DRAW_BUFFERS;
-            resources.OES_standard_derivatives = 1;
-
-            mFragmentCompiler = ShConstructCompiler(SH_FRAGMENT_SHADER, SH_GLES2_SPEC, &resources);
-            mVertexCompiler = ShConstructCompiler(SH_VERTEX_SHADER, SH_GLES2_SPEC, &resources);
+            mFragmentCompiler = ShConstructCompiler(EShLangFragment, EShSpecGLES2, &resources);
+            mVertexCompiler = ShConstructCompiler(EShLangVertex, EShSpecGLES2, &resources);
         }
     }
 
@@ -283,23 +279,21 @@ void Shader::compileToHLSL(void *compiler)
     delete[] mInfoLog;
     mInfoLog = NULL;
 
-    int result = ShCompile(compiler, &mSource, 1, SH_OBJECT_CODE);
+    int result = ShCompile(compiler, &mSource, 1, EShOptNone, EDebugOpNone);
+    const char *obj = ShGetObjectCode(compiler);
+    const char *info = ShGetInfoLog(compiler);
 
     if (result)
     {
-        int objCodeLen = 0;
-        ShGetInfo(compiler, SH_OBJECT_CODE_LENGTH, &objCodeLen);
-        mHlsl = new char[objCodeLen];
-        ShGetObjectCode(compiler, mHlsl);
+        mHlsl = new char[strlen(obj) + 1];
+        strcpy(mHlsl, obj);
 
         TRACE("\n%s", mHlsl);
     }
     else
     {
-        int infoLogLen = 0;
-        ShGetInfo(compiler, SH_INFO_LOG_LENGTH, &infoLogLen);
-        mInfoLog = new char[infoLogLen];
-        ShGetInfoLog(compiler, mInfoLog);
+        mInfoLog = new char[strlen(info) + 1];
+        strcpy(mInfoLog, info);
 
         TRACE("\n%s", mInfoLog);
     }

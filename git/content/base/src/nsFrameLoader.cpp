@@ -87,8 +87,6 @@
 #include "nsIDocShellHistory.h"
 #include "nsIDOMNSHTMLDocument.h"
 #include "nsIXULWindow.h"
-#include "nsIEditor.h"
-#include "nsIEditorDocShell.h"
 
 #include "nsLayoutUtils.h"
 #include "nsIView.h"
@@ -296,11 +294,11 @@ nsFrameLoader::ReallyStartLoadingInternal()
   if (mRemoteFrame) {
     if (!mRemoteBrowser) {
       TryRemoteBrowser();
+    }
 
-      if (!mRemoteBrowser) {
-        NS_WARNING("Couldn't create child process for iframe.");
-        return NS_ERROR_FAILURE;
-      }
+    if (!mRemoteBrowser) {
+      NS_WARNING("Couldn't create child process for iframe.");
+      return NS_ERROR_FAILURE;
     }
 
     // FIXME get error codes from child
@@ -625,11 +623,11 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
 #endif
   {
     if (!mDocShell)
-      return PR_FALSE;
+      return false;
     nsCOMPtr<nsIPresShell> presShell;
     mDocShell->GetPresShell(getter_AddRefs(presShell));
     if (presShell)
-      return PR_TRUE;
+      return true;
 
     mDocShell->SetMarginWidth(marginWidth);
     mDocShell->SetMarginHeight(marginHeight);
@@ -655,18 +653,7 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
 
   nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mDocShell);
   NS_ASSERTION(baseWindow, "Found a nsIDocShell that isn't a nsIBaseWindow.");
-  nsIntSize size;
-  if (!(frame->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    // We have a useful size already; use it, since we might get no
-    // more size updates.
-    size = GetSubDocumentSize(frame);
-  } else {
-    // Pick some default size for now.  Using 10x10 because that's what the
-    // code here used to do.
-    size.SizeTo(10, 10);
-  }
-  baseWindow->InitWindow(nsnull, view->GetWidget(), 0, 0,
-                         size.width, size.height);
+  baseWindow->InitWindow(nsnull, view->GetWidget(), 0, 0, 10, 10);
   // This is kinda whacky, this "Create()" call doesn't really
   // create anything, one starts to wonder why this was named
   // "Create"...
@@ -688,13 +675,6 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
       doc->GetDesignMode(designMode);
 
       if (designMode.EqualsLiteral("on")) {
-        // Hold on to the editor object to let the document reattach to the
-        // same editor object, instead of creating a new one.
-        nsCOMPtr<nsIEditorDocShell> editorDocshell = do_QueryInterface(mDocShell);
-        nsCOMPtr<nsIEditor> editor;
-        nsresult rv = editorDocshell->GetEditor(getter_AddRefs(editor));
-        NS_ENSURE_SUCCESS(rv, PR_FALSE);
-
         doc->SetDesignMode(NS_LITERAL_STRING("off"));
         doc->SetDesignMode(NS_LITERAL_STRING("on"));
       }
@@ -718,11 +698,11 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size)
 
   if (!mRemoteBrowser) {
     TryRemoteBrowser();
+  }
 
-    if (!mRemoteBrowser) {
-      NS_ERROR("Couldn't create child process.");
-      return false;
-    }
+  if (!mRemoteBrowser) {
+    NS_ERROR("Couldn't create child process.");
+    return false;
   }
 
   // FIXME/bug 589337: Show()/Hide() is pretty expensive for
@@ -732,7 +712,8 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size)
     mRemoteBrowser->Show(size);
     mRemoteBrowserShown = PR_TRUE;
 
-    EnsureMessageManager();
+    nsCOMPtr<nsIChromeFrameMessageManager> dummy;
+    GetMessageManager(getter_AddRefs(dummy)); // Initialize message manager.
   } else {
     mRemoteBrowser->Move(size);
   }
@@ -1559,10 +1540,8 @@ nsFrameLoader::UpdateViewportConfig(const ViewportConfig& aNewConfig)
   // it if found.
   nsIFrame* frame = GetPrimaryFrameOfOwningContent();
   if (!frame) {
-    // Oops, don't have a frame right now.  That's OK; the viewport
-    // config persists and will apply to the next frame we get, if we
-    // ever get one.
-    return NS_OK;
+    // XXX should this be a silent failure?
+    return NS_ERROR_NOT_AVAILABLE;
   }
 
   // XXX could be clever here and compute a smaller invalidation

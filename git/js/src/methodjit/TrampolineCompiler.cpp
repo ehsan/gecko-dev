@@ -100,8 +100,8 @@ TrampolineCompiler::compileTrampoline(Trampolines::TrampolinePtr *where, JSC::Ex
         return false;
 
     JSC::LinkBuffer buffer(&masm, *pool);
-    masm.finalize(buffer);
     uint8 *result = (uint8*)buffer.finalizeCodeAddendum().dataLocation();
+    masm.finalize(result);
     *where = JS_DATA_TO_FUNC_PTR(Trampolines::TrampolinePtr, result + masm.distanceOf(entry));
 
     return true;
@@ -120,13 +120,13 @@ TrampolineCompiler::generateForceReturn(Assembler &masm)
     /* if (hasArgsObj() || hasCallObj()) stubs::PutActivationObjects() */
     Jump noActObjs = masm.branchTest32(Assembler::Zero, FrameFlagsAddress(),
                                        Imm32(JSFRAME_HAS_CALL_OBJ | JSFRAME_HAS_ARGS_OBJ));
-    masm.fallibleVMCall(JS_FUNC_TO_DATA_PTR(void *, stubs::PutActivationObjects), NULL, 0);
+    masm.stubCall(stubs::PutActivationObjects, NULL, 0);
     noActObjs.linkTo(masm.label(), &masm);
 
     /* Store any known return value */
     masm.loadValueAsComponents(UndefinedValue(), JSReturnReg_Type, JSReturnReg_Data);
     Jump rvalClear = masm.branchTest32(Assembler::Zero,
-                                       FrameFlagsAddress(), Imm32(JSFRAME_HAS_RVAL));
+                                       FrameFlagsAddress(), Imm32(JSFRAME_RVAL_ASSIGNED));
     Address rvalAddress(JSFrameReg, JSStackFrame::offsetOfReturnValue());
     masm.loadValueAsComponents(rvalAddress, JSReturnReg_Type, JSReturnReg_Data);
     rvalClear.linkTo(masm.label(), &masm);
@@ -146,7 +146,7 @@ TrampolineCompiler::generateForceReturnFast(Assembler &masm)
 #else
     // In case of no fast call, when we change the return address,
     // we need to make sure add esp by 8.
-    masm.addPtr(Imm32(16), Registers::StackPointer);
+    masm.addPtr(Imm32(8), Registers::StackPointer);
 #endif
     return generateForceReturn(masm);
 }

@@ -48,46 +48,6 @@
 
 namespace js {
 namespace mjit {
-
-class FrameSize
-{
-    uint32 frameDepth_ : 16;
-    uint32 argc_;
-  public:
-    void initStatic(uint32 frameDepth, uint32 argc) {
-        JS_ASSERT(frameDepth > 0);
-        frameDepth_ = frameDepth;
-        argc_ = argc;
-    }
-
-    void initDynamic() {
-        frameDepth_ = 0;
-        argc_ = -1;  /* quiet gcc */
-    }
-
-    bool isStatic() const {
-        return frameDepth_ > 0;
-    }
-
-    bool isDynamic() const {
-        return frameDepth_ == 0;
-    }
-
-    uint32 staticLocalSlots() const {
-        JS_ASSERT(isStatic());
-        return frameDepth_;
-    }
-
-    uint32 staticArgc() const {
-        JS_ASSERT(isStatic());
-        return argc_;
-    }
-
-    uint32 getArgc(VMFrame &f) const {
-        return isStatic() ? staticArgc() : f.u.call.dynamicArgc;
-    }
-};
-
 namespace ic {
 
 struct MICInfo {
@@ -109,7 +69,8 @@ struct MICInfo {
 #endif
     {
         GET,
-        SET
+        SET,
+        TRACER
     };
 
     /* Used by multiple MICs. */
@@ -126,6 +87,11 @@ struct MICInfo {
     uint32 patchValueOffset;
 #endif
 
+    /* Used by TRACER. */
+    JSC::CodeLocationJump traceHint;
+    JSC::CodeLocationJump slowTraceHintOne;
+    JSC::CodeLocationJump slowTraceHintTwo;
+
     /* Used by all MICs. */
     Kind kind : 3;
     union {
@@ -134,52 +100,17 @@ struct MICInfo {
             bool touched : 1;
             bool typeConst : 1;
             bool dataConst : 1;
-            bool usePropertyCache : 1;
         } name;
+        /* Used by TRACER. */
+        struct {
+            bool hasSlowTraceHintOne : 1;
+            bool hasSlowTraceHintTwo : 1;
+        } hints;
     } u;
 };
 
-struct TraceICInfo {
-    TraceICInfo() {}
-
-    JSC::CodeLocationLabel stubEntry;
-    JSC::CodeLocationLabel jumpTarget;
-    JSC::CodeLocationJump traceHint;
-    JSC::CodeLocationJump slowTraceHint;
-#ifdef DEBUG
-    jsbytecode *jumpTargetPC;
-#endif
-    
-    /* This data is used by the tracing JIT. */
-    void *traceData;
-    uintN traceEpoch;
-
-    bool hasSlowTraceHint : 1;
-};
-
-static const uint16 BAD_TRACEIC_INDEX = (uint16)0xffff;
-
-void JS_FASTCALL GetGlobalName(VMFrame &f, ic::MICInfo *ic);
-void JS_FASTCALL SetGlobalName(VMFrame &f, ic::MICInfo *ic);
-
-struct EqualityICInfo {
-    typedef JSC::MacroAssembler::RegisterID RegisterID;
-
-    JSC::CodeLocationLabel stubEntry;
-    JSC::CodeLocationCall stubCall;
-    BoolStub stub;
-    JSC::CodeLocationLabel target;
-    JSC::CodeLocationLabel fallThrough;
-    JSC::CodeLocationJump jumpToStub;
-
-    ValueRemat lvr, rvr;
-
-    bool generated : 1;
-    JSC::MacroAssembler::RegisterID tempReg : 5;
-    Assembler::Condition cond;
-};
-
-JSBool JS_FASTCALL Equality(VMFrame &f, ic::EqualityICInfo *ic);
+void JS_FASTCALL GetGlobalName(VMFrame &f, uint32 index);
+void JS_FASTCALL SetGlobalName(VMFrame &f, uint32 index);
 
 /* See MonoIC.cpp, CallCompiler for more information on call ICs. */
 struct CallICInfo {
@@ -201,7 +132,8 @@ struct CallICInfo {
     /* PC at the call site. */
     jsbytecode *pc;
 
-    FrameSize frameSize;
+    uint32 argc : 16;
+    uint32 frameDepth : 16;
 
     /* Function object identity guard. */
     JSC::CodeLocationDataLabelPtr funGuard;
@@ -255,11 +187,10 @@ struct CallICInfo {
     }
 };
 
-void * JS_FASTCALL New(VMFrame &f, ic::CallICInfo *ic);
-void * JS_FASTCALL Call(VMFrame &f, ic::CallICInfo *ic);
-void JS_FASTCALL NativeNew(VMFrame &f, ic::CallICInfo *ic);
-void JS_FASTCALL NativeCall(VMFrame &f, ic::CallICInfo *ic);
-JSBool JS_FASTCALL SplatApplyArgs(VMFrame &f);
+void * JS_FASTCALL New(VMFrame &f, uint32 index);
+void * JS_FASTCALL Call(VMFrame &f, uint32 index);
+void JS_FASTCALL NativeNew(VMFrame &f, uint32 index);
+void JS_FASTCALL NativeCall(VMFrame &f, uint32 index);
 
 void PurgeMICs(JSContext *cx, JSScript *script);
 void SweepCallICs(JSScript *script);

@@ -132,7 +132,7 @@ namespace JSC {
     class ARMAssembler {
     public:
         
-#ifdef JS_METHODJIT_SPEW
+#ifdef DEBUG
         bool isOOLPath;
         // Assign a default value to keep Valgrind quiet.
         ARMAssembler() : isOOLPath(false) { }
@@ -146,7 +146,6 @@ namespace JSC {
         typedef SegmentedVector<int, 64> Jumps;
 
         unsigned char *buffer() const { return m_buffer.buffer(); }
-        bool oom() const { return m_buffer.oom(); }
 
         // ARM conditional constants
         typedef enum {
@@ -214,7 +213,7 @@ namespace JSC {
             FMSTAT = 0x0ef1fa10
 #if WTF_ARM_ARCH_VERSION >= 5
            ,CLZ = 0x016f0f10,
-            BKPT = 0xe1200070,
+            BKPT = 0xe120070,
             BLX = 0x012fff30
 #endif
 #if WTF_ARM_ARCH_VERSION >= 7
@@ -253,9 +252,9 @@ namespace JSC {
         };
 
         enum {
-            padForAlign8  = (int)0x00,
-            padForAlign16 = (int)0x0000,
-            padForAlign32 = (int)0xe12fff7f  // 'bkpt 0xffff'
+            padForAlign8  = 0x00,
+            padForAlign16 = 0x0000,
+            padForAlign32 = 0xee120070
         };
 
         typedef enum {
@@ -307,7 +306,7 @@ namespace JSC {
             }
 
             int m_offset : 31;
-            bool m_used : 1;
+            int m_used : 1;
         };
 
         // Instruction formating
@@ -922,28 +921,14 @@ namespace JSC {
             m_buffer.ensureSpace(insnSpace, constSpace);
         }
 
-        void ensureSpace(int space)
-        {
-            m_buffer.ensureSpace(space);
-        }
-
         int sizeOfConstantPool()
         {
             return m_buffer.sizeOfConstantPool();
         }
 
-#ifdef DEBUG
-        void allowPoolFlush(bool allowFlush)
-        {
-            m_buffer.allowPoolFlush(allowFlush);
-        }
-#endif
-
         JmpDst label()
         {
-            JmpDst label(m_buffer.size());
-            js::JaegerSpew(js::JSpew_Insns, IPFX "#label     ((%d))\n", MAYBE_PAD, label.m_offset);
-            return label;
+            return JmpDst(m_buffer.size());
         }
 
         JmpDst align(int alignment)
@@ -1064,11 +1049,10 @@ namespace JSC {
 	    // Like repatchLoadPtrToLEA, this is specialized for our purpose.
             ARMWord* insn = reinterpret_cast<ARMWord*>(from);
 	    if ((*insn & 0x0ff00f00) == 0x05900000)
-		return; // Valid ldr instruction
-            ASSERT((*insn & 0x0ff00000) == 0x02800000); // Valid add instruction
-            ASSERT((*insn & 0x00000f00) == 0x00000000); // Simple-to-handle immediates (no rotate)
+		return;
+            ASSERT((*insn & 0xf00ff0ff) == 0x02800000);
 
-            *insn = (*insn &  0xf00ff0ff) | 0x05900000;
+            *insn = (*insn &  0x0ff00f00) | 0x05900000;
             ExecutableAllocator::cacheFlush(insn, sizeof(ARMWord));
         }
 
@@ -1102,12 +1086,7 @@ namespace JSC {
                            ISPFX "##relinkJump      ((%p)) jumps to ((%p))\n",
                            from, to);
 
-            patchPointerInternal(reinterpret_cast<intptr_t>(from), to);
-        }
-
-        static bool canRelinkJump(void* from, void* to)
-        {
-            return true;
+            patchPointerInternal(reinterpret_cast<intptr_t>(from) - sizeof(ARMWord), to);
         }
 
         static void linkCall(void* code, JmpSrc from, void* to)
@@ -1125,14 +1104,14 @@ namespace JSC {
                            ISPFX "##relinkCall      ((%p)) jumps to ((%p))\n",
                            from, to);
 
-            patchPointerInternal(reinterpret_cast<intptr_t>(from), to);
+            patchPointerInternal(reinterpret_cast<intptr_t>(from) - sizeof(ARMWord), to);
         }
 
         // Address operations
 
         static void* getRelocatedAddress(void* code, JmpSrc jump)
         {
-            return reinterpret_cast<void*>(reinterpret_cast<ARMWord*>(code) + jump.m_offset / sizeof(ARMWord));
+            return reinterpret_cast<void*>(reinterpret_cast<ARMWord*>(code) + jump.m_offset / sizeof(ARMWord) + 1);
         }
 
         static void* getRelocatedAddress(void* code, JmpDst label)
@@ -1144,7 +1123,7 @@ namespace JSC {
 
         static int getDifferenceBetweenLabels(JmpDst from, JmpSrc to)
         {
-            return to.m_offset - from.m_offset;
+            return (to.m_offset + sizeof(ARMWord)) - from.m_offset;
         }
 
         static int getDifferenceBetweenLabels(JmpDst from, JmpDst to)
@@ -1304,7 +1283,7 @@ namespace JSC {
                     // Deal with special encodings.
                     if ((type == LSL) && (imm == 0)) {
                         // "LSL #0" doesn't shift at all (and is the default).
-                        sprintf(out, "%s", rm);
+                        sprintf(out, rm);
                         return;
                     }
 

@@ -169,20 +169,21 @@ struct GlobalSlotArray {
 namespace JSC {
     class ExecutablePool;
 }
-
-#define JS_UNJITTABLE_SCRIPT (reinterpret_cast<void*>(1))
-
-enum JITScriptStatus {
-    JITScript_None,
-    JITScript_Invalid,
-    JITScript_Valid
-};
-
 namespace js {
 namespace mjit {
 
 struct JITScript;
 
+namespace ic {
+# if defined JS_POLYIC
+    struct PICInfo;
+# endif
+# if defined JS_MONOIC
+    struct MICInfo;
+    struct CallICInfo;
+# endif
+}
+struct CallSite;
 }
 }
 #endif
@@ -198,11 +199,17 @@ struct JSScript {
      * to the newly made script's function, if any -- so callers of NewScript
      * are responsible for notifying the debugger after successfully creating any
      * kind (function or other) of new JSScript.
+     *
+     * NB: NewScript always creates a new script; it never returns the empty
+     * script singleton (JSScript::emptyScript()). Callers who know they can use
+     * that read-only singleton are responsible for choosing it instead of calling
+     * NewScript with length and nsrcnotes equal to 1 and other parameters save
+     * cx all zero.
      */
     static JSScript *NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natoms,
                                uint32 nobjects, uint32 nupvars, uint32 nregexps,
                                uint32 ntrynotes, uint32 nconsts, uint32 nglobals,
-                               uint16 nClosedArgs, uint16 nClosedVars);
+                               uint32 nClosedArgs, uint32 nClosedVars);
 
     static JSScript *NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg);
 
@@ -213,22 +220,19 @@ struct JSScript {
     uint16          version;    /* JS version under which script was compiled */
     uint16          nfixed;     /* number of slots besides stack operands in
                                    slot array */
-
-    /*
-     * Offsets to various array structures from the end of this script, or
-     * JSScript::INVALID_OFFSET if the array has length 0.
-     */
     uint8           objectsOffset;  /* offset to the array of nested function,
                                        block, scope, xml and one-time regexps
-                                       objects */
+                                       objects or 0 if none */
     uint8           upvarsOffset;   /* offset of the array of display ("up")
-                                       closure vars */
+                                       closure vars or 0 if none */
     uint8           regexpsOffset;  /* offset to the array of to-be-cloned
-                                       regexps  */
-    uint8           trynotesOffset; /* offset to the array of try notes */
-    uint8           globalsOffset;  /* offset to the array of global slots */
-    uint8           constOffset;    /* offset to the array of constants */
-
+                                       regexps or 0 if none. */
+    uint8           trynotesOffset; /* offset to the array of try notes or
+                                       0 if none */
+    uint8           globalsOffset;  /* offset to the array of global slots or
+                                       0 if none */
+    uint8           constOffset;    /* offset to the array of constants or
+                                       0 if none */
     bool            noScriptRval:1; /* no need for result value of last
                                        expression statement */
     bool            savedCallerFun:1; /* object 0 is caller function */
@@ -246,7 +250,6 @@ struct JSScript {
 
     jsbytecode      *main;      /* main entry point, after predef'ing prolog */
     JSAtomMap       atomMap;    /* maps immediate index to literal struct */
-    JSCompartment   *compartment; /* compartment the script was compiled for */
     const char      *filename;  /* source filename or null */
     uint32          lineno;     /* base line number of script */
     uint16          nslots;     /* vars plus maximum stack depth */
@@ -274,7 +277,6 @@ struct JSScript {
         JSObject    *object;
         JSScript    *nextToGC;  /* next to GC in rt->scriptsToGC list */
     } u;
-
 #ifdef CHECK_SCRIPT_OWNER
     JSThread        *owner;     /* for thread-safe life-cycle assertions */
 #endif
@@ -283,73 +285,53 @@ struct JSScript {
 
   public:
 #ifdef JS_METHODJIT
-    // Fast-cached pointers to make calls faster. These are also used to
-    // quickly test whether there is JIT code; a NULL value means no
-    // compilation has been attempted. A JS_UNJITTABLE_SCRIPT value means
-    // compilation failed. Any value is the arity-check entry point.
-    void *jitArityCheckNormal;
-    void *jitArityCheckCtor;
+    // Note: the other pointers in this group may be non-NULL only if 
+    // |execPool| is non-NULL.
+    void            *ncode;     /* native code compiled by the method JIT */
+    void            **nmap;     /* maps PCs to native code */
+    js::mjit::JITScript *jit;   /* Extra JIT info */
+# if defined JS_POLYIC
+    js::mjit::ic::PICInfo *pics; /* PICs in this script */
+# endif
+# if defined JS_MONOIC
+    js::mjit::ic::MICInfo *mics; /* MICs in this script. */
+    js::mjit::ic::CallICInfo *callICs; /* CallICs in this script. */
+# endif
 
-    js::mjit::JITScript *jitNormal;   /* Extra JIT info for normal scripts */
-    js::mjit::JITScript *jitCtor;     /* Extra JIT info for constructors */
-
-    bool hasJITCode() {
-        return jitNormal || jitCtor;
-    }
-
-    // These methods are implemented in MethodJIT.h.
-    inline void **nativeMap(bool constructing);
-    inline void *maybeNativeCodeForPC(bool constructing, jsbytecode *pc);
-    inline void *nativeCodeForPC(bool constructing, jsbytecode *pc);
-
-    js::mjit::JITScript *getJIT(bool constructing) {
-        return constructing ? jitCtor : jitNormal;
-    }
-
-    JITScriptStatus getJITStatus(bool constructing) {
-        void *addr = constructing ? jitArityCheckCtor : jitArityCheckNormal;
-        if (addr == NULL)
-            return JITScript_None;
-        if (addr == JS_UNJITTABLE_SCRIPT)
-            return JITScript_Invalid;
-        return JITScript_Valid;
-    }
+    bool isValidJitCode(void *jcode);
 #endif
 
     /* Script notes are allocated right after the code. */
     jssrcnote *notes() { return (jssrcnote *)(code + length); }
 
-    static const uint8 INVALID_OFFSET = 0xFF;
-    static bool isValidOffset(uint8 offset) { return offset != INVALID_OFFSET; }
-
     JSObjectArray *objects() {
-        JS_ASSERT(isValidOffset(objectsOffset));
-        return (JSObjectArray *)((uint8 *) (this + 1) + objectsOffset);
+        JS_ASSERT(objectsOffset != 0);
+        return (JSObjectArray *)((uint8 *) this + objectsOffset);
     }
 
     JSUpvarArray *upvars() {
-        JS_ASSERT(isValidOffset(upvarsOffset));
-        return (JSUpvarArray *) ((uint8 *) (this + 1) + upvarsOffset);
+        JS_ASSERT(upvarsOffset != 0);
+        return (JSUpvarArray *) ((uint8 *) this + upvarsOffset);
     }
 
     JSObjectArray *regexps() {
-        JS_ASSERT(isValidOffset(regexpsOffset));
-        return (JSObjectArray *) ((uint8 *) (this + 1) + regexpsOffset);
+        JS_ASSERT(regexpsOffset != 0);
+        return (JSObjectArray *) ((uint8 *) this + regexpsOffset);
     }
 
     JSTryNoteArray *trynotes() {
-        JS_ASSERT(isValidOffset(trynotesOffset));
-        return (JSTryNoteArray *) ((uint8 *) (this + 1) + trynotesOffset);
+        JS_ASSERT(trynotesOffset != 0);
+        return (JSTryNoteArray *) ((uint8 *) this + trynotesOffset);
     }
 
     js::GlobalSlotArray *globals() {
-        JS_ASSERT(isValidOffset(globalsOffset));
-        return (js::GlobalSlotArray *) ((uint8 *) (this + 1) + globalsOffset);
+        JS_ASSERT(globalsOffset != 0);
+        return (js::GlobalSlotArray *) ((uint8 *)this + globalsOffset);
     }
 
     JSConstArray *consts() {
-        JS_ASSERT(isValidOffset(constOffset));
-        return (JSConstArray *) ((uint8 *) (this + 1) + constOffset);
+        JS_ASSERT(constOffset != 0);
+        return (JSConstArray *) ((uint8 *) this + constOffset);
     }
 
     JSAtom *getAtom(size_t index) {
@@ -397,9 +379,30 @@ struct JSScript {
     /*
      * The isEmpty method tells whether this script has code that computes any
      * result (not return value, result AKA normal completion value) other than
-     * JSVAL_VOID, or any other effects.
+     * JSVAL_VOID, or any other effects. It has a fast path for the case where
+     * |this| is the emptyScript singleton, but it also checks this->length and
+     * this->code, to handle debugger-generated mutable empty scripts.
      */
     inline bool isEmpty() const;
+
+    /*
+     * Accessor for the emptyScriptConst singleton, to consolidate const_cast.
+     * See the private member declaration.
+     */
+    static JSScript *emptyScript() {
+        return const_cast<JSScript *>(&emptyScriptConst);
+    }
+
+#ifdef JS_METHODJIT
+    /*
+     * Map the given PC to the corresponding native code address.
+     */
+    void *pcToNative(jsbytecode *pc) {
+        JS_ASSERT(nmap);
+        JS_ASSERT(nmap[pc - code]);
+        return nmap[pc - code];
+    }
+#endif
 
     uint32 getClosedArg(uint32 index) {
         JS_ASSERT(index < nClosedArgs);
@@ -412,6 +415,16 @@ struct JSScript {
     }
 
     void copyClosedSlotsTo(JSScript *other);
+
+  private:
+    /*
+     * Use const to put this in read-only memory if possible. We are stuck with
+     * non-const JSScript * and jsbytecode * by legacy code (back in the 1990s,
+     * const wasn't supported correctly on all target platforms). The debugger
+     * does mutate bytecode, and script->u.object may be set after construction
+     * in some cases, so making JSScript pointers const will be "hard".
+     */
+    static const JSScript emptyScriptConst;
 };
 
 #define SHARP_NSLOTS            2       /* [#array, #depth] slots if the script
@@ -490,19 +503,8 @@ js_CallNewScriptHook(JSContext *cx, JSScript *script, JSFunction *fun);
 extern JS_FRIEND_API(void)
 js_CallDestroyScriptHook(JSContext *cx, JSScript *script);
 
-/*
- * The function must be used only outside the GC for a script that was run
- * only on the current thread.
- */
 extern void
 js_DestroyScript(JSContext *cx, JSScript *script);
-
-/*
- * If data is not null, it indicates that the script could been accessed only
- * from that thread.
- */
-extern void
-js_DestroyScriptFromGC(JSContext *cx, JSScript *script, JSThreadData *data);
 
 extern void
 js_TraceScript(JSTracer *trc, JSScript *script);
@@ -546,20 +548,24 @@ js_GetOpcode(JSContext *cx, JSScript *script, jsbytecode *pc)
     return op;
 }
 
-extern JSScript *
-js_CloneScript(JSContext *cx, JSScript *script);
-
 /*
  * If magic is non-null, js_XDRScript succeeds on magic number mismatch but
  * returns false in *magic; it reflects a match via a true *magic out param.
  * If magic is null, js_XDRScript returns false on bad magic number errors,
  * which it reports.
  *
- * NB: after a successful JSXDR_DECODE, js_XDRScript callers must do any
- * required subsequent set-up of owning function or script object and then call
- * js_CallNewScriptHook.
+ * NB: after a successful JSXDR_DECODE, and provided that *scriptp is not the
+ * JSScript::emptyScript() immutable singleton, js_XDRScript callers must do
+ * any required subsequent set-up of owning function or script object and then
+ * call js_CallNewScriptHook.
+ *
+ * If the caller requires a mutable empty script (for debugging or u.object
+ * ownership setting), pass true for needMutableScript. Otherwise pass false.
+ * Call js_CallNewScriptHook only with a mutable script, i.e. never with the
+ * JSScript::emptyScript() singleton.
  */
 extern JSBool
-js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic);
+js_XDRScript(JSXDRState *xdr, JSScript **scriptp, bool needMutableScript,
+             JSBool *hasMagic);
 
 #endif /* jsscript_h___ */

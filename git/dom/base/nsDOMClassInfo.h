@@ -48,7 +48,6 @@
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 #include "nsIScriptGlobalObject.h"
 #include "nsContentUtils.h"
-#include "xpcpublic.h"
 
 class nsIDOMWindow;
 class nsIDOMNSHTMLOptionCollection;
@@ -141,8 +140,8 @@ public:
                              // while there's a ref to it
                              nsIXPConnectJSObjectHolder** aHolder = nsnull)
   {
-    return WrapNative(cx, scope, native, nsnull, aIID, vp, aHolder,
-                      aAllowWrapping);
+    return nsContentUtils::WrapNative(cx, scope, native, aIID, vp, aHolder,
+                                      aAllowWrapping);
   }
 
   // Used for cases where PreCreate needs to wrap the native parent, and the
@@ -162,8 +161,8 @@ public:
                              // while there's a ref to it
                              nsIXPConnectJSObjectHolder** aHolder = nsnull)
   {
-    return WrapNative(cx, scope, native, nsnull, nsnull, vp, aHolder,
-                      aAllowWrapping);
+    return nsContentUtils::WrapNative(cx, scope, native, vp, aHolder,
+                                      aAllowWrapping);
   }
   static nsresult WrapNative(JSContext *cx, JSObject *scope,
                              nsISupports *native, nsWrapperCache *cache,
@@ -172,11 +171,29 @@ public:
                              // while there's a ref to it
                              nsIXPConnectJSObjectHolder** aHolder = nsnull)
   {
-    return WrapNative(cx, scope, native, cache, nsnull, vp, aHolder,
-                      aAllowWrapping);
+    return nsContentUtils::WrapNative(cx, scope, native, cache, vp, aHolder,
+                                      aAllowWrapping);
   }
 
   static nsresult ThrowJSException(JSContext *cx, nsresult aResult);
+
+  static JSPropertyOp GetXPCNativeWrapperGetPropertyOp() {
+    return sXPCNativeWrapperGetPropertyOp;
+  }
+
+  static void SetXPCNativeWrapperGetPropertyOp(JSPropertyOp getPropertyOp) {
+    NS_ASSERTION(!sXPCNativeWrapperGetPropertyOp,
+                 "Double set of sXPCNativeWrapperGetPropertyOp");
+    sXPCNativeWrapperGetPropertyOp = getPropertyOp;
+  }
+
+  static JSPropertyOp GetXrayWrapperPropertyHolderGetPropertyOp() {
+    return sXrayWrapperPropertyHolderGetPropertyOp;
+  }
+
+  static void SetXrayWrapperPropertyHolderGetPropertyOp(JSPropertyOp getPropertyOp) {
+    sXrayWrapperPropertyHolderGetPropertyOp = getPropertyOp;
+  }
 
   static PRBool ObjectIsNativeWrapper(JSContext* cx, JSObject* obj);
 
@@ -232,8 +249,7 @@ protected:
             id == sScrollMaxY_id   ||
             id == sLength_id       ||
             id == sFrames_id       ||
-            id == sSelf_id         ||
-            id == sURL_id);
+            id == sSelf_id);
   }
 
   static inline PRBool IsWritableReplaceable(jsid id)
@@ -247,29 +263,6 @@ protected:
             id == sScreenY_id      ||
             id == sStatus_id       ||
             id == sName_id);
-  }
-
-  static nsresult WrapNative(JSContext *cx, JSObject *scope,
-                             nsISupports *native, nsWrapperCache *cache,
-                             const nsIID* aIID, jsval *vp,
-                             nsIXPConnectJSObjectHolder** aHolder,
-                             PRBool aAllowWrapping)
-  {
-    if (!native) {
-      NS_ASSERTION(!aHolder || !*aHolder, "*aHolder should be null!");
-
-      *vp = JSVAL_NULL;
-
-      return NS_OK;
-    }
-
-    JSObject *wrapper = xpc_GetCachedSlimWrapper(cache, scope, vp);
-    if (wrapper) {
-      return NS_OK;
-    }
-
-    return sXPConnect->WrapNativeToJSVal(cx, scope, native, cache, aIID,
-                                         aAllowWrapping, vp, aHolder);
   }
 
   static nsIXPConnect *sXPConnect;
@@ -352,6 +345,7 @@ protected:
   static jsid sEnumerate_id;
   static jsid sNavigator_id;
   static jsid sDocument_id;
+  static jsid sWindow_id;
   static jsid sFrames_id;
   static jsid sSelf_id;
   static jsid sOpener_id;
@@ -389,8 +383,6 @@ protected:
   static jsid sOnmessage_id;
   static jsid sOnbeforescriptexecute_id;
   static jsid sOnafterscriptexecute_id;
-  static jsid sWrappedJSObject_id;
-  static jsid sURL_id;
 
   static JSPropertyOp sXPCNativeWrapperGetPropertyOp;
   static JSPropertyOp sXrayWrapperPropertyHolderGetPropertyOp;
@@ -509,14 +501,14 @@ public:
 
 // Window scriptable helper
 
-class nsWindowSH : public nsEventReceiverSH
+class nsCommonWindowSH : public nsEventReceiverSH
 {
 protected:
-  nsWindowSH(nsDOMClassInfoData *aData) : nsEventReceiverSH(aData)
+  nsCommonWindowSH(nsDOMClassInfoData *aData) : nsEventReceiverSH(aData)
   {
   }
 
-  virtual ~nsWindowSH()
+  virtual ~nsCommonWindowSH()
   {
   }
 
@@ -525,8 +517,6 @@ protected:
                                 PRBool *did_resolve);
 
 public:
-  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
-                       JSObject *globalObj, JSObject **parentObj);
 #ifdef DEBUG
   NS_IMETHOD PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj)
@@ -562,8 +552,6 @@ public:
                       JSObject *obj);
   NS_IMETHOD Equality(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
                       JSObject * obj, const jsval &val, PRBool *bp);
-  NS_IMETHOD OuterObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
-                         JSObject * obj, JSObject * *_retval);
 
   static JSBool GlobalScopePolluterNewResolve(JSContext *cx, JSObject *obj,
                                               jsid id, uintN flags,
@@ -575,11 +563,65 @@ public:
   static void InvalidateGlobalScopePolluter(JSContext *cx, JSObject *obj);
   static nsresult InstallGlobalScopePolluter(JSContext *cx, JSObject *obj,
                                              nsIHTMLDocument *doc);
+};
+
+class nsOuterWindowSH : public nsCommonWindowSH
+{
+protected:
+  nsOuterWindowSH(nsDOMClassInfoData* aData) : nsCommonWindowSH(aData)
+  {
+  }
+
+  virtual ~nsOuterWindowSH()
+  {
+  }
+
+  static PRBool sResolving;
+
+public:
+  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
+                       JSObject *globalObj, JSObject **parentObj);
+  NS_IMETHOD AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                         JSObject *obj, jsid id, jsval *vp, PRBool *_retval);
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsid id, PRUint32 flags,
+                        JSObject **objp, PRBool *_retval);
+  NS_IMETHOD NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                          JSObject *obj, PRUint32 enum_op, jsval *statep,
+                          jsid *idp, PRBool *_retval);
+  NS_IMETHOD InnerObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
+                         JSObject * obj, JSObject * *_retval);
+
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
-    return new nsWindowSH(aData);
+    return new nsOuterWindowSH(aData);
   }
 };
+
+class nsInnerWindowSH : public nsCommonWindowSH
+{
+protected:
+  nsInnerWindowSH(nsDOMClassInfoData* aData) : nsCommonWindowSH(aData)
+  {
+  }
+
+  virtual ~nsInnerWindowSH()
+  {
+  }
+
+public:
+  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
+                       JSObject *globalObj, JSObject **parentObj);
+  // We WANT_ADDPROPERTY, but are content to inherit it from nsEventReceiverSH.
+  NS_IMETHOD OuterObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
+                         JSObject * obj, JSObject * *_retval);
+
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsInnerWindowSH(aData);
+  }
+};
+
 
 // Location scriptable helper
 
@@ -1296,8 +1338,6 @@ protected:
                                nsAString& aResult);
 
 public:
-  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
-                       JSObject *globalObj, JSObject **parentObj);
   NS_IMETHOD GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsid id, jsval *vp, PRBool *_retval);
 

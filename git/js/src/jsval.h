@@ -283,7 +283,6 @@ typedef union jsval_layout
             JSObject       *obj;
             void           *ptr;
             JSWhyMagic     why;
-            jsuword        word;
         } payload;
         JSValueTag tag;
     } s;
@@ -306,7 +305,6 @@ typedef union jsval_layout
             int32          i32;
             uint32         u32;
             JSWhyMagic     why;
-            jsuword        word;
         } payload;
     } s;
     double asDouble;
@@ -328,7 +326,6 @@ typedef union jsval_layout
             JSObject       *obj;
             void           *ptr;
             JSWhyMagic     why;
-            jsuword        word;
         } payload;
     } s;
     double asDouble;
@@ -408,7 +405,6 @@ static JS_ALWAYS_INLINE jsval_layout
 STRING_TO_JSVAL_IMPL(JSString *str)
 {
     jsval_layout l;
-    JS_ASSERT(str);
     l.s.tag = JSVAL_TAG_STRING;
     l.s.payload.str = str;
     return l;
@@ -600,7 +596,6 @@ STRING_TO_JSVAL_IMPL(JSString *str)
 {
     jsval_layout l;
     uint64 strBits = (uint64)str;
-    JS_ASSERT(str);
     JS_ASSERT((strBits >> JSVAL_TAG_SHIFT) == 0);
     l.asBits = strBits | JSVAL_SHIFTED_TAG_STRING;
     return l;
@@ -789,10 +784,10 @@ extern "C++"
 # endif /* defined(__cplusplus) */
 
 /* Internal helper macros */
-#define JSVAL_BITS(v)    ((v).asBits)
+#define JSVAL_BITS(v)    (v.asBits)
 #define JSVAL_FROM_LAYOUT(l) (l)
 #define IMPL_TO_JSVAL(v) (v)
-#define JSID_BITS(id)    ((id).asBits)
+#define JSID_BITS(id)    (id.asBits)
 
 #else /* defined(JS_USE_JSVAL_JSID_STRUCT_TYPES) */
 

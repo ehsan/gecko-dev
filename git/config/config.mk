@@ -162,11 +162,6 @@ MOZ_WIDGET_SUPPORT_LIBS    = $(DIST)/lib/$(LIB_PREFIX)widgetsupport_s.$(LIB_SUFF
 ifdef MOZ_MEMORY
 ifneq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
 JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_MOZLIBNAME,jemalloc) $(MKSHLIB_UNFORCE_ALL)
-# If we are linking jemalloc into a program, we want the jemalloc symbols
-# to be exported
-ifneq (,$(SIMPLE_PROGRAMS)$(PROGRAM))
-JEMALLOC_LIBS += $(MOZ_JEMALLOC_STANDALONE_GLUE_LDOPTS)
-endif
 endif
 endif
 
@@ -239,7 +234,7 @@ endif
 #
 ifdef NS_TRACE_MALLOC
 MOZ_OPTIMIZE_FLAGS=-Zi -Od -UDEBUG -DNDEBUG
-OS_LDFLAGS = -DEBUG -PDB:NONE -OPT:REF
+OS_LDFLAGS = -DEBUG -PDB:NONE -OPT:REF -OPT:nowin98
 endif # NS_TRACE_MALLOC
 
 endif # MOZ_DEBUG

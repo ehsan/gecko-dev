@@ -53,7 +53,7 @@
 #include <string.h>
 #include "jstypes.h"
 #include "jsstdint.h"
-#include "jsutil.h"
+#include "jsutil.h" /* Added by JSIFY */
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jsbuiltins.h"
@@ -71,7 +71,6 @@
 #include "jstracer.h"
 #include "jsvector.h"
 
-#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsstrinlines.h"
 
@@ -104,12 +103,14 @@ JS_STATIC_ASSERT(uintptr_t(PTRDIFF_MAX) + uintptr_t(1) == uintptr_t(PTRDIFF_MIN)
 
 #endif /* JS_HAVE_STDINT_H */
 
+namespace {
+
 /*
  * If we're accumulating a decimal number and the number is >= 2^53, then the
  * fast result from the loop in GetPrefixInteger may be inaccurate. Call
  * js_strtod_harder to get the correct answer.
  */
-static bool
+bool
 ComputeAccurateDecimalInteger(JSContext *cx, const jschar *start, const jschar *end, jsdouble *dp)
 {
     size_t length = end - start;
@@ -184,7 +185,7 @@ class BinaryDigitReader
  * down.  An example occurs when reading the number 0x1000000000000081, which
  * rounds to 0x1000000000000000 instead of 0x1000000000000100.
  */
-static jsdouble
+jsdouble
 ComputeAccurateBinaryBaseInteger(JSContext *cx, const jschar *start, const jschar *end, int base)
 {
     BinaryDigitReader bdr(base, start, end);
@@ -223,6 +224,8 @@ ComputeAccurateBinaryBaseInteger(JSContext *cx, const jschar *start, const jscha
 
     return value;
 }
+
+} // namespace
 
 namespace js {
 
@@ -342,7 +345,9 @@ ParseFloat(JSContext* cx, JSString* str)
 }
 #endif
 
-static bool
+namespace {
+
+bool
 ParseIntStringHelper(JSContext *cx, const jschar *ws, const jschar *end, int maybeRadix,
                      bool stripPrefix, jsdouble *dp)
 {
@@ -395,7 +400,7 @@ ParseIntStringHelper(JSContext *cx, const jschar *ws, const jschar *end, int may
     return true;
 }
 
-static jsdouble
+jsdouble
 ParseIntDoubleHelper(jsdouble d)
 {
     if (!JSDOUBLE_IS_FINITE(d))
@@ -406,6 +411,8 @@ ParseIntDoubleHelper(jsdouble d)
         return -floor(-d);
     return 0;
 }
+
+} // namespace
 
 /* See ECMA 15.1.2.2. */
 static JSBool
@@ -552,24 +559,25 @@ Number(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 num_toSource(JSContext *cx, uintN argc, Value *vp)
 {
-    double d;
-    if (!GetPrimitiveThis(cx, vp, &d))
-        return false;
+    char buf[64];
+    JSString *str;
 
+    const Value *primp;
+    if (!js_GetPrimitiveThis(cx, vp, &js_NumberClass, &primp))
+        return JS_FALSE;
+    double d = primp->toNumber();
     ToCStringBuf cbuf;
     char *numStr = NumberToCString(cx, &cbuf, d);
     if (!numStr) {
         JS_ReportOutOfMemory(cx);
-        return false;
+        return JS_FALSE;
     }
-
-    char buf[64];
     JS_snprintf(buf, sizeof buf, "(new %s(%s))", js_NumberClass.name, numStr);
-    JSString *str = js_NewStringCopyZ(cx, buf);
+    str = js_NewStringCopyZ(cx, buf);
     if (!str)
-        return false;
+        return JS_FALSE;
     vp->setString(str);
-    return true;
+    return JS_TRUE;
 }
 #endif
 
@@ -582,54 +590,6 @@ ToCStringBuf::~ToCStringBuf()
 {
     if (dbuf)
         js_free(dbuf);
-}
-
-JSString * JS_FASTCALL
-js_IntToString(JSContext *cx, int32 si)
-{
-    uint32 ui;
-    if (si >= 0) {
-        if (si < INT_STRING_LIMIT)
-            return JSString::intString(si);
-        if (si < 100)
-            return JSString::length2String(si);
-        ui = si;
-    } else {
-        ui = uint32(-si);
-        JS_ASSERT_IF(si == INT32_MIN, ui == uint32(INT32_MAX) + 1);
-    }
-
-    JSThreadData *data = JS_THREAD_DATA(cx);
-    if (data->dtoaCache.s && data->dtoaCache.base == 10 && data->dtoaCache.d == si)
-        return data->dtoaCache.s;
-
-    JSShortString *str = js_NewGCShortString(cx);
-    if (!str)
-        return NULL;
-
-    /* +1, since MAX_SHORT_STRING_LENGTH does not count the null char. */
-    JS_STATIC_ASSERT(JSShortString::MAX_SHORT_STRING_LENGTH + 1 >= sizeof("-2147483648"));
-
-    jschar *end = str->getInlineStorageBeforeInit() + JSShortString::MAX_SHORT_STRING_LENGTH;
-    jschar *cp = end;
-    *cp = 0;
-
-    do {
-        jsuint newui = ui / 10, digit = ui % 10;  /* optimizers are our friends */
-        *--cp = '0' + digit;
-        ui = newui;
-    } while (ui != 0);
-
-    if (si < 0)
-        *--cp = '-';
-
-    str->initAtOffsetInBuffer(cp, end - cp);
-
-    JSString *ret = str->header();
-    data->dtoaCache.base = 10;
-    data->dtoaCache.d = si;
-    data->dtoaCache.s = ret;
-    return ret;
 }
 
 /* Returns a non-NULL pointer to inside cbuf.  */
@@ -685,10 +645,10 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base);
 static JSBool
 num_toString(JSContext *cx, uintN argc, Value *vp)
 {
-    double d;
-    if (!GetPrimitiveThis(cx, vp, &d))
-        return false;
-
+    const Value *primp;
+    if (!js_GetPrimitiveThis(cx, vp, &js_NumberClass, &primp))
+        return JS_FALSE;
+    double d = primp->toNumber();
     int32_t base = 10;
     if (argc != 0 && !vp[2].isUndefined()) {
         if (!ValueToECMAInt32(cx, vp[2], &base))
@@ -731,10 +691,7 @@ num_toLocaleString(JSContext *cx, uintN argc, Value *vp)
     if (!num_toString(cx, 0, vp))
         return JS_FALSE;
     JS_ASSERT(vp->isString());
-    JSAutoByteString numBytes(cx, vp->toString());
-    if (!numBytes)
-        return JS_FALSE;
-    num = numBytes.ptr();
+    num = js_GetStringBytes(cx, vp->toString());
     if (!num)
         return JS_FALSE;
 
@@ -809,30 +766,31 @@ num_toLocaleString(JSContext *cx, uintN argc, Value *vp)
         strcpy(tmpDest, nint);
     }
 
-    if (cx->localeCallbacks && cx->localeCallbacks->localeToUnicode) {
-        JSBool ok = cx->localeCallbacks->localeToUnicode(cx, buf, Jsvalify(vp));
-        cx->free(buf);
-        return ok;
-    }
+    if (cx->localeCallbacks && cx->localeCallbacks->localeToUnicode)
+        return cx->localeCallbacks->localeToUnicode(cx, buf, Jsvalify(vp));
 
-    str = js_NewStringCopyN(cx, buf, size);
-    cx->free(buf);
-    if (!str)
+    str = JS_NewString(cx, buf, size);
+    if (!str) {
+        cx->free(buf);
         return JS_FALSE;
+    }
 
     vp->setString(str);
     return JS_TRUE;
 }
 
-JSBool
-js_num_valueOf(JSContext *cx, uintN argc, Value *vp)
+static JSBool
+num_valueOf(JSContext *cx, uintN argc, Value *vp)
 {
-    double d;
-    if (!GetPrimitiveThis(cx, vp, &d))
-        return false;
-
-    vp->setNumber(d);
-    return true;
+    if (vp[1].isNumber()) {
+        *vp = vp[1];
+        return JS_TRUE;
+    }
+    JSObject *obj = ComputeThisFromVp(cx, vp);
+    if (!InstanceOf(cx, obj, &js_NumberClass, vp + 2))
+        return JS_FALSE;
+    *vp = obj->getPrimitiveThis();
+    return JS_TRUE;
 }
 
 
@@ -847,9 +805,10 @@ num_to(JSContext *cx, JSDToStrMode zeroArgMode, JSDToStrMode oneArgMode,
     char buf[DTOSTR_VARIABLE_BUFFER_SIZE(MAX_PRECISION+1)];
     char *numStr;
 
-    double d;
-    if (!GetPrimitiveThis(cx, vp, &d))
-        return false;
+    const Value *primp;
+    if (!js_GetPrimitiveThis(cx, vp, &js_NumberClass, &primp))
+        return JS_FALSE;
+    double d = primp->toNumber();
 
     double precision;
     if (argc == 0) {
@@ -920,15 +879,15 @@ JS_DEFINE_TRCINFO_2(num_toString,
 
 static JSFunctionSpec number_methods[] = {
 #if JS_HAS_TOSOURCE
-    JS_FN(js_toSource_str,       num_toSource,          0, JSFUN_PRIMITIVE_THIS),
+    JS_FN(js_toSource_str,       num_toSource,          0,JSFUN_THISP_NUMBER),
 #endif
-    JS_TN(js_toString_str,       num_toString,          1, JSFUN_PRIMITIVE_THIS, &num_toString_trcinfo),
-    JS_FN(js_toLocaleString_str, num_toLocaleString,    0, JSFUN_PRIMITIVE_THIS),
-    JS_FN(js_valueOf_str,        js_num_valueOf,        0, JSFUN_PRIMITIVE_THIS),
-    JS_FN(js_toJSON_str,         js_num_valueOf,        0, JSFUN_PRIMITIVE_THIS),
-    JS_FN("toFixed",             num_toFixed,           1, JSFUN_PRIMITIVE_THIS),
-    JS_FN("toExponential",       num_toExponential,     1, JSFUN_PRIMITIVE_THIS),
-    JS_FN("toPrecision",         num_toPrecision,       1, JSFUN_PRIMITIVE_THIS),
+    JS_TN(js_toString_str,       num_toString,          1,JSFUN_THISP_NUMBER, &num_toString_trcinfo),
+    JS_FN(js_toLocaleString_str, num_toLocaleString,    0,JSFUN_THISP_NUMBER),
+    JS_FN(js_valueOf_str,        num_valueOf,           0,JSFUN_THISP_NUMBER),
+    JS_FN(js_toJSON_str,         num_valueOf,           0,JSFUN_THISP_NUMBER),
+    JS_FN("toFixed",             num_toFixed,           1,JSFUN_THISP_NUMBER),
+    JS_FN("toExponential",       num_toExponential,     1,JSFUN_THISP_NUMBER),
+    JS_FN("toPrecision",         num_toPrecision,       1,JSFUN_THISP_NUMBER),
     JS_FS_END
 };
 
@@ -1122,6 +1081,16 @@ NumberToCString(JSContext *cx, ToCStringBuf *cbuf, jsdouble d, jsint base/* = 10
            : FracNumberToCString(cx, cbuf, d, base);
 }
 
+}
+
+JSString * JS_FASTCALL
+js_IntToString(JSContext *cx, jsint i)
+{
+    if (jsuint(i) < INT_STRING_LIMIT)
+        return JSString::intString(i);
+
+    ToCStringBuf cbuf;
+    return js_NewStringCopyZ(cx, IntToCString(&cbuf, i));
 }
 
 static JSString * JS_FASTCALL

@@ -290,9 +290,9 @@ nsGeolocationRequest::Notify(nsITimer* aTimer)
   // provider yet, cancel the request.  Same logic as
   // ::Cancel, just a different error
   
+  NotifyError(nsIDOMGeoPositionError::TIMEOUT);
   // remove ourselves from the locator's callback lists.
   mLocator->RemoveRequest(this);
-  NotifyError(nsIDOMGeoPositionError::TIMEOUT);
 
   mTimeoutTimer = nsnull;
   return NS_OK;
@@ -338,10 +338,10 @@ nsGeolocationRequest::GetElement(nsIDOMElement * *aRequestingElement)
 NS_IMETHODIMP
 nsGeolocationRequest::Cancel()
 {
+  NotifyError(nsIDOMGeoPositionError::PERMISSION_DENIED);
+
   // remove ourselves from the locators callback lists.
   mLocator->RemoveRequest(this);
-
-  NotifyError(nsIDOMGeoPositionError::PERMISSION_DENIED);
   return NS_OK;
 }
 
@@ -455,10 +455,6 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
 void
 nsGeolocationRequest::Shutdown()
 {
-  if (mTimeoutTimer) {
-    mTimeoutTimer->Cancel();
-    mTimeoutTimer = nsnull;
-  }
   mCleared = PR_TRUE;
   mCallback = nsnull;
   mErrorCallback = nsnull;
@@ -753,7 +749,7 @@ nsGeolocationService::StartDevice()
 #ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendAddGeolocationListener();
+    cpc->SendGeolocationStart();
     return NS_OK;
   }
 #endif
@@ -763,14 +759,14 @@ nsGeolocationService::StartDevice()
   if (!obs)
     return NS_ERROR_FAILURE;
 
-  for (PRInt32 i = 0; i < mProviders.Count(); i++) {
+  for (PRUint32 i = 0; i < mProviders.Count(); i++) {
     mProviders[i]->Startup();
     mProviders[i]->Watch(this);
     obs->NotifyObservers(mProviders[i],
                          "geolocation-device-events",
                          NS_LITERAL_STRING("starting").get());
   }
-
+  
   return NS_OK;
 }
 
@@ -798,7 +794,7 @@ nsGeolocationService::StopDevice()
 #ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendRemoveGeolocationListener();
+    cpc->SendGeolocationStop();
     return; // bail early
   }
 #endif
@@ -807,7 +803,7 @@ nsGeolocationService::StopDevice()
   if (!obs)
     return;
 
-  for (PRInt32 i = 0; i < mProviders.Count(); i++) {
+  for (PRUint32 i = 0; i <mProviders.Count(); i++) {
     mProviders[i]->Shutdown();
     obs->NotifyObservers(mProviders[i],
                          "geolocation-device-events",
@@ -1078,7 +1074,7 @@ NS_IMETHODIMP
 nsGeolocation::ClearWatch(PRInt32 aWatchId)
 {
   PRUint32 count = mWatchingCallbacks.Length();
-  if (aWatchId < 0 || count == 0 || PRUint32(aWatchId) >= count)
+  if (aWatchId < 0 || count == 0 || PRUint32(aWatchId) > count)
     return NS_OK;
 
   mWatchingCallbacks[aWatchId]->MarkCleared();

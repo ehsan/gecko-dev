@@ -99,10 +99,6 @@
 
 static const int MIN_LINES_NEEDING_CURSOR = 20;
 
-static const PRUnichar kDiscCharacter = 0x2022;
-static const PRUnichar kCircleCharacter = 0x25e6;
-static const PRUnichar kSquareCharacter = 0x25aa;
-
 #define DISABLE_FLOAT_BREAKING_IN_COLUMNS
 
 using namespace mozilla;
@@ -550,30 +546,11 @@ nsBlockFrame::InvalidateInternal(const nsRect& aDamageRect,
 nscoord
 nsBlockFrame::GetBaseline() const
 {
+  NS_ASSERTION(!NS_SUBTREE_DIRTY(this), "frame must not be dirty");
   nscoord result;
   if (nsLayoutUtils::GetLastLineBaseline(this, &result))
     return result;
   return nsFrame::GetBaseline();
-}
-
-nscoord
-nsBlockFrame::GetCaretBaseline() const
-{
-  nsRect contentRect = GetContentRect();
-  nsMargin bp = GetUsedBorderAndPadding();
-
-  if (!mLines.empty()) {
-    const_line_iterator line = begin_lines();
-    const nsLineBox* firstLine = line;
-    if (firstLine->GetChildCount()) {
-      return bp.top + firstLine->mFirstChild->GetCaretBaseline();
-    }
-  }
-  nsCOMPtr<nsIFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  return nsLayoutUtils::GetCenteredFontBaseline(fm, nsHTMLReflowState::
-      CalcLineHeight(GetStyleContext(), contentRect.height)) +
-    bp.top;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -6102,11 +6079,8 @@ DisplayLine(nsDisplayListBuilder* aBuilder, const nsRect& aLineArea,
   // The line might contain a placeholder for a visible out-of-flow, in which
   // case we need to descend into it. If there is such a placeholder, we will
   // have NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO set.
-  // In particular, we really want to check ShouldDescendIntoFrame()
-  // on all the frames on the line, but that might be expensive.  So
-  // we approximate it by checking it on aFrame; if it's true for any
-  // frame in the line, it's also true for aFrame.
-  if (!intersect && !aBuilder->ShouldDescendIntoFrame(aFrame))
+  if (!intersect &&
+      !(aFrame->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO))
     return NS_OK;
 
   nsresult rv;
@@ -6180,12 +6154,8 @@ nsBlockFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // Don't use the line cursor if we might have a descendant placeholder ...
   // it might skip lines that contain placeholders but don't themselves
   // intersect with the dirty area.
-  // In particular, we really want to check ShouldDescendIntoFrame()
-  // on all our child frames, but that might be expensive.  So we
-  // approximate it by checking it on |this|; if it's true for any
-  // frame in our child list, it's also true for |this|.
-  nsLineBox* cursor = aBuilder->ShouldDescendIntoFrame(this) ?
-    nsnull : GetFirstLineContaining(aDirtyRect.y);
+  nsLineBox* cursor = GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO
+    ? nsnull : GetFirstLineContaining(aDirtyRect.y);
   line_iterator line_end = end_lines();
   nsresult rv = NS_OK;
   
@@ -6307,7 +6277,20 @@ nsBlockFrame::CreateAccessible()
   }
 
   // Create special list bullet accessible
-  return accService->CreateHTMLLIAccessible(mContent, presContext->PresShell());
+  const nsStyleList* myList = GetStyleList();
+  nsAutoString bulletText;
+  if (myList->GetListStyleImage() ||
+      myList->mListStyleType == NS_STYLE_LIST_STYLE_DISC ||
+      myList->mListStyleType == NS_STYLE_LIST_STYLE_CIRCLE ||
+      myList->mListStyleType == NS_STYLE_LIST_STYLE_SQUARE) {
+    bulletText.Assign(PRUnichar(0x2022));; // Unicode bullet character
+  }
+  else if (myList->mListStyleType != NS_STYLE_LIST_STYLE_NONE) {
+    mBullet->GetListItemText(*myList, bulletText);
+  }
+
+  return accService->CreateHTMLLIAccessible(mContent, presContext->PresShell(),
+                                            bulletText);
 }
 #endif
 
@@ -6550,29 +6533,6 @@ nsBlockFrame::BulletIsEmpty() const
   const nsStyleList* list = GetStyleList();
   return list->mListStyleType == NS_STYLE_LIST_STYLE_NONE &&
          !list->GetListStyleImage();
-}
-
-void
-nsBlockFrame::GetBulletText(nsAString& aText) const
-{
-  aText.Truncate();
-
-  const nsStyleList* myList = GetStyleList();
-  if (myList->GetListStyleImage() ||
-      myList->mListStyleType == NS_STYLE_LIST_STYLE_DISC) {
-    aText.Assign(kDiscCharacter);
-  }
-  else if (myList->mListStyleType == NS_STYLE_LIST_STYLE_CIRCLE) {
-    aText.Assign(kCircleCharacter);
-  }
-  else if (myList->mListStyleType == NS_STYLE_LIST_STYLE_SQUARE) {
-    aText.Assign(kSquareCharacter);
-  }
-  else if (myList->mListStyleType != NS_STYLE_LIST_STYLE_NONE) {
-    nsAutoString text;
-    mBullet->GetListItemText(*myList, text);
-    aText = text;
-  }
 }
 
 // static

@@ -60,9 +60,9 @@ namespace js {
 extern Class regexp_statics_class;
 
 static inline JSObject *
-regexp_statics_construct(JSContext *cx, JSObject *parent)
+regexp_statics_construct(JSContext *cx)
 {
-    JSObject *obj = NewObject<WithProto::Given>(cx, &regexp_statics_class, NULL, parent);
+    JSObject *obj = NewObject<WithProto::Given>(cx, &regexp_statics_class, NULL, NULL);
     if (!obj)
         return NULL;
     RegExpStatics *res = cx->create<RegExpStatics>();
@@ -86,15 +86,16 @@ class RegExp
     uint32                      flags;
 
     RegExp(JSString *source, uint32 flags)
-      : refCount(1), source(source), compiled(), parenCount(0), flags(flags) {}
+      : refCount(1), source(source), compiled(), parenCount(), flags(flags) {}
     bool compileHelper(JSContext *cx, UString &pattern);
     bool compile(JSContext *cx);
     static const uint32 allFlags = JSREG_FOLD | JSREG_GLOB | JSREG_MULTILINE | JSREG_STICKY;
     void handlePCREError(JSContext *cx, int error);
     void handleYarrError(JSContext *cx, int error);
     static inline bool initArena(JSContext *cx);
-    static inline void checkMatchPairs(JSString *input, int *buf, size_t matchItemCount);
-    static JSObject *createResult(JSContext *cx, JSString *input, int *buf, size_t matchItemCount);
+    static inline void checkMatchPairs(int *buf, size_t matchItemCount);
+    JSObject *createResult(JSContext *cx, JSString *input, int *buf, size_t matchItemCount,
+                           size_t inputOffset);
     inline bool executeInternal(JSContext *cx, RegExpStatics *res, JSString *input,
                                 size_t *lastIndex, bool test, Value *rval);
 
@@ -160,12 +161,7 @@ class RegExp
     bool global() const { return flags & JSREG_GLOB; }
     bool multiline() const { return flags & JSREG_MULTILINE; }
     bool sticky() const { return flags & JSREG_STICKY; }
-
-    const uint32 &getFlags() const {
-        JS_ASSERT((flags & allFlags) == flags);
-        return flags;
-    }
-
+    const uint32 &getFlags() const { JS_ASSERT((flags & allFlags) == flags); return flags; }
     uint32 flagCount() const;
 };
 
@@ -222,59 +218,55 @@ RegExp::initArena(JSContext *cx)
 }
 
 inline void
-RegExp::checkMatchPairs(JSString *input, int *buf, size_t matchItemCount)
+RegExp::checkMatchPairs(int *buf, size_t matchItemCount)
 {
 #if DEBUG
-    size_t inputLength = input->length();
-    for (size_t i = 0; i < matchItemCount; i += 2) {
-        int start = buf[i];
-        int limit = buf[i + 1];
-        JS_ASSERT(limit >= start); /* Limit index must be larger than the start index. */
-        if (start == -1)
-            continue;
-        JS_ASSERT(start >= 0);
-        JS_ASSERT(size_t(limit) <= inputLength);
-    }
+    for (size_t i = 0; i < matchItemCount; i += 2)
+        JS_ASSERT(buf[i + 1] >= buf[i]); /* Limit index must be larger than the start index. */
 #endif
 }
 
 inline JSObject *
-RegExp::createResult(JSContext *cx, JSString *input, int *buf, size_t matchItemCount)
+RegExp::createResult(JSContext *cx, JSString *input, int *buf, size_t matchItemCount,
+                     size_t inputOffset)
 {
+#define MATCH_VALUE(__index) (buf[(__index)] + inputOffset)
     /*
      * Create the result array for a match. Array contents:
      *  0:              matched string
-     *  1..pairCount-1: paren matches
+     *  1..parenCount:  paren matches
      */
-    JSObject *array = NewSlowEmptyArray(cx);
+    JSObject *array = js_NewSlowArrayObject(cx);
     if (!array)
         return NULL;
 
     RegExpMatchBuilder builder(cx, array);
     for (size_t i = 0; i < matchItemCount; i += 2) {
-        int start = buf[i];
-        int end = buf[i + 1];
+        int start = MATCH_VALUE(i);
+        int end = MATCH_VALUE(i + 1);
 
         JSString *captured;
         if (start >= 0) {
             JS_ASSERT(start <= end);
-            JS_ASSERT(unsigned(end) <= input->length());
+            JS_ASSERT((unsigned) end <= input->length());
             captured = js_NewDependentString(cx, input, start, end - start);
             if (!(captured && builder.append(i / 2, captured)))
                 return NULL;
         } else {
             /* Missing parenthesized match. */
             JS_ASSERT(i != 0); /* Since we had a match, first pair must be present. */
+            JS_ASSERT(start == end && end == -1);
             if (!builder.append(INT_TO_JSID(i / 2), UndefinedValue()))
                 return NULL;
         }
     }
 
-    if (!builder.appendIndex(buf[0]) ||
+    if (!builder.appendIndex(MATCH_VALUE(0)) ||
         !builder.appendInput(input))
         return NULL;
 
     return array;
+#undef MATCH_VALUE
 }
 
 inline bool
@@ -305,11 +297,6 @@ RegExp::executeInternal(JSContext *cx, RegExpStatics *res, JSString *input,
 
     const jschar *chars = input->chars();
     size_t len = input->length();
-
-    /* 
-     * inputOffset emulates sticky mode by matching from this offset into the char buf and
-     * subtracting the delta off at the end.
-     */
     size_t inputOffset = 0;
 
     if (sticky()) {
@@ -331,29 +318,25 @@ RegExp::executeInternal(JSContext *cx, RegExpStatics *res, JSString *input,
         return true;
     }
 
-    /* 
-     * Adjust buf for the inputOffset. Use of sticky is rare and the matchItemCount is small, so
-     * just do another pass.
-     */
-    if (JS_UNLIKELY(inputOffset)) {
+    checkMatchPairs(buf, matchItemCount);
+
+    if (res) {
+        res->input = input;
+        res->matchPairs.clear();
+        if (!res->matchPairs.reserve(matchItemCount))
+            return false;
         for (size_t i = 0; i < matchItemCount; ++i)
-            buf[i] = buf[i] < 0 ? -1 : buf[i] + inputOffset;
+            JS_ALWAYS_TRUE(res->matchPairs.append(buf[i] + inputOffset));
     }
 
-    /* Make sure the populated contents of |buf| are sane values against |input|. */
-    checkMatchPairs(input, buf, matchItemCount);
-
-    if (res)
-        res->updateFromMatch(cx, input, buf, matchItemCount);
-
-    *lastIndex = buf[1];
+    *lastIndex = buf[1] + inputOffset;
 
     if (test) {
         *rval = BooleanValue(true);
         return true;
     }
 
-    JSObject *array = createResult(cx, input, buf, matchItemCount);
+    JSObject *array = createResult(cx, input, buf, matchItemCount, inputOffset);
     if (!array)
         return false;
 
@@ -404,35 +387,13 @@ RegExp::createObjectNoStatics(JSContext *cx, const jschar *chars, size_t length,
     return obj;
 }
 
-#ifdef ANDROID
-static bool
-YarrJITIsBroken(JSContext *cx)
-{
-#if defined(JS_TRACER) && defined(JS_METHODJIT)
-    /* FIXME/bug 604774: dead code walking.
-     *
-     * If both JITs are disabled, assume they were disabled because
-     * we're running on a blacklisted device.
-     */
-    return !cx->traceJitEnabled && !cx->methodJitEnabled;
-#else
-    return false;
-#endif
-}
-#endif  /* ANDROID */
-
 inline bool
 RegExp::compileHelper(JSContext *cx, UString &pattern)
 {
 #if ENABLE_YARR_JIT
     bool fellBack = false;
     int error = 0;
-    jitCompileRegex(*cx->runtime->regExpAllocator, compiled, pattern, parenCount, error, fellBack, ignoreCase(), multiline()
-#ifdef ANDROID
-                    /* Temporary gross hack to work around buggy kernels. */
-                    , YarrJITIsBroken(cx)
-#endif
-);
+    jitCompileRegex(*cx->runtime->regExpAllocator, compiled, pattern, parenCount, error, fellBack, ignoreCase(), multiline());
     if (!error)
         return true;
     if (fellBack)
@@ -533,6 +494,7 @@ RegExp::clone(JSContext *cx, const RegExp &other)
 
 /* RegExpStatics inlines. */
 
+
 inline RegExpStatics *
 RegExpStatics::extractFrom(JSObject *global)
 {
@@ -541,12 +503,23 @@ RegExpStatics::extractFrom(JSObject *global)
     return res;
 }
 
+inline void
+RegExpStatics::clone(const RegExpStatics &other)
+{
+    JS_ASSERT(this != &other);
+    clear();
+    input = other.input;
+    flags = other.flags;
+    JS_ASSERT((flags & allFlags) == flags);
+    matchPairs.append(other.matchPairs);
+}
+
 inline bool
 RegExpStatics::createDependent(JSContext *cx, size_t start, size_t end, Value *out) const 
 {
     JS_ASSERT(start <= end);
-    JS_ASSERT(end <= matchPairsInput->length());
-    JSString *str = js_NewDependentString(cx, matchPairsInput, start, end - start);
+    JS_ASSERT(end <= input->length());
+    JSString *str = js_NewDependentString(cx, input, start, end - start);
     if (!str)
         return false;
     *out = StringValue(str);
@@ -554,9 +527,9 @@ RegExpStatics::createDependent(JSContext *cx, size_t start, size_t end, Value *o
 }
 
 inline bool
-RegExpStatics::createPendingInput(JSContext *cx, Value *out) const
+RegExpStatics::createInput(JSContext *cx, Value *out) const
 {
-    out->setString(pendingInput ? pendingInput : cx->runtime->emptyString);
+    *out = input ? StringValue(input) : Valueify(JS_GetEmptyStringValue(cx));
     return true;
 }
 
@@ -564,7 +537,7 @@ inline bool
 RegExpStatics::makeMatch(JSContext *cx, size_t checkValidIndex, size_t pairNum, Value *out) const
 {
     if (checkValidIndex / 2 >= pairCount() || matchPairs[checkValidIndex] < 0) {
-        out->setString(cx->runtime->emptyString);
+        *out = Valueify(JS_GetEmptyStringValue(cx));
         return true;
     }
     return createDependent(cx, get(pairNum, 0), get(pairNum, 1), out);
@@ -574,18 +547,18 @@ inline bool
 RegExpStatics::createLastParen(JSContext *cx, Value *out) const
 {
     if (pairCount() <= 1) {
-        out->setString(cx->runtime->emptyString);
+        *out = Valueify(JS_GetEmptyStringValue(cx));
         return true;
     }
     size_t num = pairCount() - 1;
     int start = get(num, 0);
     int end = get(num, 1);
     if (start == -1) {
-        out->setString(cx->runtime->emptyString);
+        JS_ASSERT(end == -1);
+        *out = Valueify(JS_GetEmptyStringValue(cx));
         return true;
     }
     JS_ASSERT(start >= 0 && end >= 0);
-    JS_ASSERT(end >= start);
     return createDependent(cx, start, end, out);
 }
 
@@ -593,7 +566,7 @@ inline bool
 RegExpStatics::createLeftContext(JSContext *cx, Value *out) const
 {
     if (!pairCount()) {
-        out->setString(cx->runtime->emptyString);
+        *out = Valueify(JS_GetEmptyStringValue(cx));
         return true;
     }
     if (matchPairs[0] < 0) {
@@ -607,26 +580,21 @@ inline bool
 RegExpStatics::createRightContext(JSContext *cx, Value *out) const
 {
     if (!pairCount()) {
-        out->setString(cx->runtime->emptyString);
+        *out = Valueify(JS_GetEmptyStringValue(cx));
         return true;
     }
     if (matchPairs[1] < 0) {
         *out = UndefinedValue();
         return true;
     }
-    return createDependent(cx, matchPairs[1], matchPairsInput->length(), out);
+    return createDependent(cx, matchPairs[1], input->length(), out);
 }
 
 inline void
-RegExpStatics::getParen(size_t pairNum, JSSubString *out) const
+RegExpStatics::getParen(size_t num, JSSubString *out) const
 {
-    checkParenNum(pairNum);
-    if (!pairIsPresent(pairNum)) {
-        *out = js_EmptySubString;
-        return;
-    }
-    out->chars = matchPairsInput->chars() + get(pairNum, 0);
-    out->length = getParenLength(pairNum);
+    out->chars = input->chars() + get(num + 1, 0);
+    out->length = getParenLength(num);
 }
 
 inline void
@@ -636,8 +604,8 @@ RegExpStatics::getLastMatch(JSSubString *out) const
         *out = js_EmptySubString;
         return;
     }
-    JS_ASSERT(matchPairsInput);
-    out->chars = matchPairsInput->chars() + get(0, 0);
+    JS_ASSERT(input);
+    out->chars = input->chars() + get(0, 0);
     JS_ASSERT(get(0, 1) >= get(0, 0));
     out->length = get(0, 1) - get(0, 0);
 }
@@ -645,13 +613,14 @@ RegExpStatics::getLastMatch(JSSubString *out) const
 inline void
 RegExpStatics::getLastParen(JSSubString *out) const
 {
-    size_t pc = pairCount();
-    /* Note: the first pair is the whole match. */
-    if (pc <= 1) {
+    if (!pairCount()) {
         *out = js_EmptySubString;
         return;
     }
-    getParen(pc - 1, out);
+    size_t num = pairCount() - 1;
+    out->chars = input->chars() + get(num, 0);
+    JS_ASSERT(get(num, 1) >= get(num, 0));
+    out->length = get(num, 1) - get(num, 0);
 }
 
 inline void
@@ -661,7 +630,7 @@ RegExpStatics::getLeftContext(JSSubString *out) const
         *out = js_EmptySubString;
         return;
     }
-    out->chars = matchPairsInput->chars();
+    out->chars = input->chars();
     out->length = get(0, 0);
 }
 
@@ -672,9 +641,9 @@ RegExpStatics::getRightContext(JSSubString *out) const
         *out = js_EmptySubString;
         return;
     }
-    out->chars = matchPairsInput->chars() + get(0, 1);
-    JS_ASSERT(get(0, 1) <= int(matchPairsInput->length()));
-    out->length = matchPairsInput->length() - get(0, 1);
+    out->chars = input->chars() + get(0, 1);
+    JS_ASSERT(get(0, 1) <= int(input->length()));
+    out->length = input->length() - get(0, 1);
 }
 
 }

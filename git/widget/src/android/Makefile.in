@@ -63,10 +63,6 @@ CPPSRCS	= \
 	nsScreenManagerAndroid.cpp \
 	nsIdleServiceAndroid.cpp \
 	nsClipboard.cpp \
-	nsFilePicker.cpp \
-	nsIMEPicker.cpp \
-	nsDeviceContextAndroid.cpp \
-	nsPrintOptionsAndroid.cpp \
 	$(NULL)
 
 NOT_THERE_YET_CPPSRCS = \
@@ -76,6 +72,7 @@ NOT_THERE_YET_CPPSRCS = \
 	nsNativeThemeQt.cpp \
 	mozqwidget.cpp \
 	nsSound.cpp \
+	nsFilePicker.cpp \
 	$(NULL)
 
 SHARED_LIBRARY_LIBS = ../xpwidgets/libxpwidgets_s.a
@@ -104,4 +101,3 @@ LOCAL_INCLUDES += \
 	-I$(srcdir) \
 	$(NULL)
 
-include $(topsrcdir)/ipc/chromium/chromium-config.mk

@@ -123,8 +123,6 @@ const PRUint32 kMaxLenPrefLangList = 32;
 
 #define UNINITIALIZED_VALUE  (-1)
 
-typedef gfxASurface::gfxImageFormat gfxImageFormat;
-
 class THEBES_API gfxPlatform {
 public:
     /**
@@ -176,9 +174,7 @@ public:
     virtual nsresult UpdateFontList();
 
     /**
-     * Create the platform font-list object (gfxPlatformFontList concrete subclass).
-     * This function is responsible to create the appropriate subclass of
-     * gfxPlatformFontList *and* to call its InitFontList() method.
+     * Create the platform font-list object (gfxPlatformFontList concrete subclass)
      */
     virtual gfxPlatformFontList *CreatePlatformFontList() {
         NS_NOTREACHED("oops, this platform doesn't have a gfxPlatformFontList implementation");
@@ -358,9 +354,6 @@ public:
      * for measuring text etc as if they will be rendered to the screen
      */
     gfxASurface* ScreenReferenceSurface() { return mScreenReferenceSurface; }
-
-    virtual gfxImageFormat GetOffscreenFormat()
-    { return gfxASurface::FormatFromContent(gfxASurface::CONTENT_COLOR); }
 
 protected:
     gfxPlatform();

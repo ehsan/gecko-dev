@@ -77,7 +77,6 @@
 #include "nsDOMError.h"
 #include "nsScriptLoader.h"
 #include "nsRuleData.h"
-#include "nsAHtml5FragmentParser.h"
 
 #include "nsPresState.h"
 #include "nsILayoutHistoryState.h"
@@ -265,7 +264,7 @@ NS_INTERFACE_TABLE_HEAD(nsGenericHTMLElementTearoff)
 NS_INTERFACE_MAP_END_AGGREGATED(mElement)
 
 
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsGenericHTMLElement, TabIndex, tabindex, -1)
+NS_IMPL_INT_ATTR(nsGenericHTMLElement, TabIndex, tabindex)
 NS_IMPL_BOOL_ATTR(nsGenericHTMLElement, Hidden, hidden)
 
 nsresult
@@ -746,15 +745,8 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
     }
 
     PRInt32 oldChildCount = GetChildCount();
-    nsAHtml5FragmentParser* asFragmentParser =
-        static_cast<nsAHtml5FragmentParser*> (parser.get());
-    asFragmentParser->ParseHtml5Fragment(aInnerHTML,
-                                         this,
-                                         Tag(),
-                                         GetNameSpaceID(),
-                                         doc->GetCompatibilityMode() ==
-                                             eCompatibility_NavQuirks,
-                                         PR_TRUE);
+    parser->ParseFragment(aInnerHTML, this, Tag(), GetNameSpaceID(),
+                          doc->GetCompatibilityMode() == eCompatibility_NavQuirks);
     doc->SetFragmentParser(parser);
 
     // HTML5 parser has notified, but not fired mutation events.
@@ -816,8 +808,7 @@ nsGenericHTMLElement::ScrollIntoView(PRBool aTop, PRUint8 optional_argc)
     NS_PRESSHELL_SCROLL_BOTTOM;
 
   presShell->ScrollContentIntoView(this, vpercent,
-                                   NS_PRESSHELL_SCROLL_ANYWHERE,
-                                   nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
+                                   NS_PRESSHELL_SCROLL_ANYWHERE);
 
   return NS_OK;
 }
@@ -1629,8 +1620,8 @@ nsGenericHTMLElement::ParseScrollingValue(const nsAString& aString,
  * Handle attributes common to all html elements
  */
 void
-nsGenericHTMLElement::MapCommonAttributesExceptHiddenInto(const nsMappedAttributes* aAttributes,
-                                                          nsRuleData* aData)
+nsGenericHTMLElement::MapCommonAttributesInto(const nsMappedAttributes* aAttributes,
+                                              nsRuleData* aData)
 {
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(UserInterface)) {
     nsRuleDataUserInterface *ui = aData->mUserInterfaceData;
@@ -1658,13 +1649,6 @@ nsGenericHTMLElement::MapCommonAttributesExceptHiddenInto(const nsMappedAttribut
                                                 eCSSUnit_Ident);
     }
   }
-}
-
-void
-nsGenericHTMLElement::MapCommonAttributesInto(const nsMappedAttributes* aAttributes,
-                                              nsRuleData* aData)
-{
-  nsGenericHTMLElement::MapCommonAttributesExceptHiddenInto(aAttributes, aData);
 
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Display)) {
     nsRuleDataDisplay* disp = aData->mDisplayData;
@@ -1957,15 +1941,16 @@ nsGenericHTMLElement::MapBackgroundInto(const nsMappedAttributes* aAttributes,
           // Note that this should generally succeed here, due to the way
           // |spec| is created.  Maybe we should just add an nsStringBuffer
           // accessor on nsAttrValue?
-          nsRefPtr<nsStringBuffer> buffer = nsCSSValue::BufferFromString(spec);
-          if (NS_LIKELY(buffer)) {
+          nsStringBuffer* buffer = nsCSSValue::BufferFromString(spec);
+          if (NS_LIKELY(buffer != 0)) {
             // XXXbz it would be nice to assert that doc->NodePrincipal() is
             // the same as the principal of the node (which we'd need to store
             // in the mapped attrs or something?)
             nsCSSValue::Image *img =
               new nsCSSValue::Image(uri, buffer, doc->GetDocumentURI(),
                                     doc->NodePrincipal(), doc);
-            if (NS_LIKELY(img)) {
+            buffer->Release();
+            if (NS_LIKELY(img != 0)) {
               nsCSSValueList* list =
                 aData->mColorData->mBackImage.SetListValue();
               list->mValue.SetImageValue(img);
@@ -2111,29 +2096,6 @@ nsGenericHTMLElement::GetIntAttr(nsIAtom* aAttr, PRInt32 aDefault, PRInt32* aRes
 
 nsresult
 nsGenericHTMLElement::SetIntAttr(nsIAtom* aAttr, PRInt32 aValue)
-{
-  nsAutoString value;
-  value.AppendInt(aValue);
-
-  return SetAttr(kNameSpaceID_None, aAttr, value, PR_TRUE);
-}
-
-nsresult
-nsGenericHTMLElement::GetUnsignedIntAttr(nsIAtom* aAttr, PRUint32 aDefault,
-                                         PRUint32* aResult)
-{
-  const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(aAttr);
-  if (attrVal && attrVal->Type() == nsAttrValue::eInteger) {
-    *aResult = attrVal->GetIntegerValue();
-  }
-  else {
-    *aResult = aDefault;
-  }
-  return NS_OK;
-}
-
-nsresult
-nsGenericHTMLElement::SetUnsignedIntAttr(nsIAtom* aAttr, PRUint32 aValue)
 {
   nsAutoString value;
   value.AppendInt(aValue);
@@ -2348,7 +2310,7 @@ nsGenericHTMLElement::GetIsContentEditable(PRBool* aContentEditable)
 
 //----------------------------------------------------------------------
 
-NS_IMPL_INT_ATTR(nsGenericHTMLFrameElement, TabIndex, tabindex)
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsGenericHTMLFrameElement, TabIndex, tabindex, 0)
 
 nsGenericHTMLFormElement::nsGenericHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
@@ -2359,10 +2321,6 @@ nsGenericHTMLFormElement::nsGenericHTMLFormElement(already_AddRefed<nsINodeInfo>
 
 nsGenericHTMLFormElement::~nsGenericHTMLFormElement()
 {
-  if (mFieldSet) {
-    static_cast<nsHTMLFieldSetElement*>(mFieldSet)->RemoveElement(this);
-  }
-
   // Check that this element doesn't know anything about its form at this point.
   NS_ASSERTION(!mForm, "mForm should be null at this point!");
 }
@@ -2397,7 +2355,8 @@ nsGenericHTMLFormElement::SetForm(nsIDOMHTMLFormElement* aForm)
 }
 
 void
-nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm)
+nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm,
+                                    PRBool aNotify)
 {
   NS_ASSERTION((mForm != nsnull) == HasFlag(ADDED_TO_FORM),
                "Form control should have had flag set correctly");
@@ -2411,7 +2370,7 @@ nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm)
     GetAttr(kNameSpaceID_None, nsGkAtoms::name, nameVal);
     GetAttr(kNameSpaceID_None, nsGkAtoms::id, idVal);
 
-    mForm->RemoveElement(this, true);
+    mForm->RemoveElement(this, aNotify);
 
     if (!nameVal.IsEmpty()) {
       mForm->RemoveElementFromTable(this, nameVal);
@@ -2466,9 +2425,36 @@ nsGenericHTMLFrameElement::IsHTMLFocusable(PRBool aWithMouse,
     return PR_TRUE;
   }
 
-  *aIsFocusable = nsContentUtils::IsSubDocumentTabbable(this);
+  // If there is no subdocument, docshell or content viewer, it's not tabbable
+  PRBool isFocusable = PR_FALSE;
+  nsIDocument *doc = GetCurrentDoc();
+  if (doc) {
+    // XXXbz should this use GetOwnerDoc() for GetSubDocumentFor?
+    // sXBL/XBL2 issue!
+    nsIDocument *subDoc = doc->GetSubDocumentFor(this);
+    if (subDoc) {
+      nsCOMPtr<nsISupports> container = subDoc->GetContainer();
+      nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(container));
+      if (docShell) {
+        nsCOMPtr<nsIContentViewer> contentViewer;
+        docShell->GetContentViewer(getter_AddRefs(contentViewer));
+        if (contentViewer) {
+          isFocusable = PR_TRUE;
+          nsCOMPtr<nsIContentViewer> zombieViewer;
+          contentViewer->GetPreviousViewer(getter_AddRefs(zombieViewer));
+          if (zombieViewer) {
+            // If there are 2 viewers for the current docshell, that 
+            // means the current document is a zombie document.
+            // Only navigate into the frame/iframe if it's not a zombie.
+            isFocusable = PR_FALSE;
+          }
+        }
+      }
+    }
+  }
 
-  if (!*aIsFocusable && aTabIndex) {
+  *aIsFocusable = isFocusable;
+  if (!isFocusable && aTabIndex) {
     *aTabIndex = -1;
   }
 
@@ -2526,12 +2512,12 @@ nsGenericHTMLFormElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     // Might need to unset mForm
     if (aNullParent) {
       // No more parent means no more form
-      ClearForm(PR_TRUE);
+      ClearForm(PR_TRUE, PR_TRUE);
     } else {
       // Recheck whether we should still have an mForm.
       if (HasAttr(kNameSpaceID_None, nsGkAtoms::form) ||
           !FindAncestorForm(mForm)) {
-        ClearForm(PR_TRUE);
+        ClearForm(PR_TRUE, PR_TRUE);
       } else {
         UnsetFlags(MAYBE_ORPHAN_FORM_ELEMENT);
       }
@@ -2583,7 +2569,7 @@ nsGenericHTMLFormElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
         mForm->RemoveElementFromTable(this, tmp);
       }
 
-      mForm->RemoveElement(this, false);
+      mForm->RemoveElement(this, aNotify);
 
       // Removing the element from the form can make it not be the default
       // control anymore.  Go ahead and notify on that change, though we might
@@ -2641,7 +2627,7 @@ nsGenericHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
         mForm->AddElementToTable(this, tmp);
       }
 
-      mForm->AddElement(this, false, aNotify);
+      mForm->AddElement(this, aNotify);
 
       // Adding the element to the form can make it be the default control .
       // Go ahead and notify on that change.
@@ -2771,13 +2757,13 @@ nsGenericHTMLFormElement::IsSubmittableControl() const
          type & NS_FORM_INPUT_ELEMENT;
 }
 
-nsEventStates
+PRInt32
 nsGenericHTMLFormElement::IntrinsicState() const
 {
   // If you add attribute-dependent states here, you need to add them them to
   // AfterSetAttr too.  And add them to AfterSetAttr for all subclasses that
   // implement IntrinsicState() and are affected by that attribute.
-  nsEventStates state = nsGenericHTMLElement::IntrinsicState();
+  PRInt32 state = nsGenericHTMLElement::IntrinsicState();
 
   if (CanBeDisabled()) {
     // :enabled/:disabled
@@ -2905,7 +2891,8 @@ nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
   bool hadForm = mForm;
 
   if (!aBindToTree) {
-    ClearForm(PR_TRUE);
+    // TODO: we should get ride of this aNotify parameter, bug 589977.
+    ClearForm(PR_TRUE, PR_TRUE);
   }
 
   if (!mForm) {
@@ -2953,7 +2940,7 @@ nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
     SetFlags(ADDED_TO_FORM);
 
     // Notify only if we just found this mForm.
-    mForm->AddElement(this, true, !hadForm);
+    mForm->AddElement(this, !hadForm);
 
     if (!nameVal.IsEmpty()) {
       mForm->AddElementToTable(this, nameVal);
@@ -2978,33 +2965,23 @@ nsGenericHTMLFormElement::UpdateFieldSet()
         static_cast<nsHTMLFieldSetElement*>(parent);
 
       if (!prev || fieldset->GetFirstLegend() != prev) {
-        if (mFieldSet) {
-          static_cast<nsHTMLFieldSetElement*>(mFieldSet)->RemoveElement(this);
-        }
         mFieldSet = fieldset;
-        fieldset->AddElement(this);
         return;
       }
     }
   }
 
   // No fieldset found.
-  if (mFieldSet) {
-    static_cast<nsHTMLFieldSetElement*>(mFieldSet)->RemoveElement(this);
-  }
   mFieldSet = nsnull;
 }
 
 void
-nsGenericHTMLFormElement::FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify)
+nsGenericHTMLFormElement::FieldSetDisabledChanged(PRInt32 aStates)
 {
-  if (!aNotify) {
-    return;
-  }
-
   aStates |= NS_EVENT_STATE_DISABLED | NS_EVENT_STATE_ENABLED;
 
   nsIDocument* doc = GetCurrentDoc();
+  // TODO: should we use aNotify ?!
   if (doc) {
     MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
     doc->ContentStatesChanged(this, nsnull, aStates);
@@ -3504,7 +3481,7 @@ nsGenericHTMLElement::IsEditableRoot() const
 static void
 MakeContentDescendantsEditable(nsIContent *aContent, nsIDocument *aDocument)
 {
-  nsEventStates stateBefore = aContent->IntrinsicState();
+  PRInt32 stateBefore = aContent->IntrinsicState();
 
   aContent->UpdateEditableState();
 

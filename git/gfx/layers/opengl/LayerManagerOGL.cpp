@@ -37,10 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_IPC
-# include "mozilla/layers/PLayers.h"
-#endif  // MOZ_IPC
-
 #include "LayerManagerOGL.h"
 #include "ThebesLayerOGL.h"
 #include "ContainerLayerOGL.h"
@@ -73,7 +69,6 @@ int LayerManagerOGLProgram::sCurrentProgramKey = 0;
  */
 LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget)
   : mWidget(aWidget)
-  , mWidgetSize(-1, -1)
   , mBackBufferFBO(0)
   , mBackBufferTexture(0)
   , mBackBufferSize(-1, -1)
@@ -212,9 +207,7 @@ LayerManagerOGL::Initialize(GLContext *aExistingContext)
 
   // NOTE: Order matters here, and should be in the same order as the
   // ProgramType enum!
-#ifdef DEBUG
   GLint programIndex = 0;
-#endif
 
   /* Layer programs */
   SHADER_PROGRAM(RGBALayerProgramType, ColorTextureLayerProgram,
@@ -379,11 +372,6 @@ LayerManagerOGL::BeginTransaction()
 void
 LayerManagerOGL::BeginTransactionWithTarget(gfxContext *aTarget)
 {
-#ifdef MOZ_LAYERS_HAVE_LOG
-  MOZ_LAYERS_LOG(("[----- BeginTransaction"));
-  Log();
-#endif
-
   if (mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
     return;
@@ -396,37 +384,20 @@ void
 LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
                                 void* aCallbackData)
 {
-#ifdef MOZ_LAYERS_HAVE_LOG
-  MOZ_LAYERS_LOG(("  ----- (beginning paint)"));
-  Log();
-#endif
-
   if (mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
     return;
   }
 
-  // The results of our drawing always go directly into a pixel buffer,
-  // so we don't need to pass any global transform here.
-  mRoot->ComputeEffectiveTransforms(gfx3DMatrix());
-
   mThebesLayerCallback = aCallback;
   mThebesLayerCallbackData = aCallbackData;
 
-  // NULL callback means "non-painting transaction"
-  if (aCallback) {
-    Render();
-  }
+  Render();
 
   mThebesLayerCallback = nsnull;
   mThebesLayerCallbackData = nsnull;
 
   mTarget = NULL;
-
-#ifdef MOZ_LAYERS_HAVE_LOG
-  Log();
-  MOZ_LAYERS_LOG(("]----- EndTransaction"));
-#endif
 }
 
 already_AddRefed<ThebesLayer>
@@ -581,7 +552,7 @@ LayerManagerOGL::Render()
 
   if (clipRect) {
     nsIntRect r = *clipRect;
-    if (!mGLContext->IsDoubleBuffered() && !mTarget)
+    if (!mGLContext->IsDoubleBuffered())
       mGLContext->FixWindowCoordinateRect(r, mWidgetSize.height);
     mGLContext->fScissor(r.x, r.y, r.width, r.height);
   } else {
@@ -596,7 +567,7 @@ LayerManagerOGL::Render()
   mGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
 
   // Render our layers.
-  RootLayer()->RenderLayer(mGLContext->IsDoubleBuffered() && !mTarget ? 0 : mBackBufferFBO,
+  RootLayer()->RenderLayer(mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO,
                            nsIntPoint(0, 0));
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
@@ -720,7 +691,7 @@ LayerManagerOGL::SetupPipeline(int aWidth, int aHeight)
   // XXX we keep track of whether the window size changed, so we can
   // skip this update if it hadn't since the last call.
   gfx3DMatrix viewMatrix;
-  if (mGLContext->IsDoubleBuffered() && !mTarget) {
+  if (mGLContext->IsDoubleBuffered()) {
     /* If it's double buffered, we don't have a frontbuffer FBO,
      * so put in a Y-flip in this transform.
      */
@@ -741,7 +712,7 @@ LayerManagerOGL::SetupPipeline(int aWidth, int aHeight)
 void
 LayerManagerOGL::SetupBackBuffer(int aWidth, int aHeight)
 {
-  if (mGLContext->IsDoubleBuffered() && !mTarget) {
+  if (mGLContext->IsDoubleBuffered()) {
     mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
     return;
   }
@@ -798,12 +769,13 @@ LayerManagerOGL::CopyToTarget()
     new gfxImageSurface(gfxIntSize(width, height),
                         gfxASurface::ImageFormatARGB32);
 
-  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER,
-                               mBackBufferFBO);
-#ifndef USE_GLES2
-  // GLES2 promises that binding to any custom FBO will attach
+#ifdef USE_GLES2
+  // GLES2 promises that binding to any custom FBO will attach 
   // to GL_COLOR_ATTACHMENT0 attachment point.
-    mGLContext->fReadBuffer(LOCAL_GL_COLOR_ATTACHMENT0);
+  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER,
+                               mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO);
+#else
+  mGLContext->fReadBuffer(LOCAL_GL_COLOR_ATTACHMENT0);
 #endif
 
   GLenum format = LOCAL_GL_RGBA;
@@ -818,8 +790,6 @@ LayerManagerOGL::CopyToTarget()
   if (currentPackAlignment != 4) {
     mGLContext->fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, 4);
   }
-
-  mGLContext->fFinish();
 
   mGLContext->fReadPixels(0, 0,
                           width, height,
@@ -932,73 +902,6 @@ void LayerOGL::ApplyFilter(gfxPattern::GraphicsFilter aFilter)
     gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
   }
 }
-
-#ifdef MOZ_IPC
-
-already_AddRefed<ShadowThebesLayer>
-LayerManagerOGL::CreateShadowThebesLayer()
-{
-  if (LayerManagerOGL::mDestroyed) {
-    NS_WARNING("Call on destroyed layer manager");
-    return nsnull;
-  }
-  return nsRefPtr<ShadowThebesLayerOGL>(new ShadowThebesLayerOGL(this)).forget();
-}
-
-already_AddRefed<ShadowContainerLayer>
-LayerManagerOGL::CreateShadowContainerLayer()
-{
-  if (LayerManagerOGL::mDestroyed) {
-    NS_WARNING("Call on destroyed layer manager");
-    return nsnull;
-  }
-  return nsRefPtr<ShadowContainerLayerOGL>(new ShadowContainerLayerOGL(this)).forget();
-}
-
-already_AddRefed<ShadowImageLayer>
-LayerManagerOGL::CreateShadowImageLayer()
-{
-  if (LayerManagerOGL::mDestroyed) {
-    NS_WARNING("Call on destroyed layer manager");
-    return nsnull;
-  }
-  return nsRefPtr<ShadowImageLayerOGL>(new ShadowImageLayerOGL(this)).forget();
-}
-
-already_AddRefed<ShadowColorLayer>
-LayerManagerOGL::CreateShadowColorLayer()
-{
-  if (LayerManagerOGL::mDestroyed) {
-    NS_WARNING("Call on destroyed layer manager");
-    return nsnull;
-  }
-  return nsRefPtr<ShadowColorLayerOGL>(new ShadowColorLayerOGL(this)).forget();
-}
-
-already_AddRefed<ShadowCanvasLayer>
-LayerManagerOGL::CreateShadowCanvasLayer()
-{
-  if (LayerManagerOGL::mDestroyed) {
-    NS_WARNING("Call on destroyed layer manager");
-    return nsnull;
-  }
-  return nsRefPtr<ShadowCanvasLayerOGL>(new ShadowCanvasLayerOGL(this)).forget();
-}
-
-#else
-
-already_AddRefed<ShadowThebesLayer>
-LayerManagerOGL::CreateShadowThebesLayer() { return nsnull; }
-already_AddRefed<ShadowContainerLayer>
-LayerManagerOGL::CreateShadowContainerLayer() { return nsnull; }
-already_AddRefed<ShadowImageLayer>
-LayerManagerOGL::CreateShadowImageLayer() { return nsnull; }
-already_AddRefed<ShadowColorLayer>
-LayerManagerOGL::CreateShadowColorLayer() { return nsnull; }
-already_AddRefed<ShadowCanvasLayer>
-LayerManagerOGL::CreateShadowCanvasLayer() { return nsnull; }
-
-#endif  // MOZ_IPC
 
 } /* layers */
 } /* mozilla */

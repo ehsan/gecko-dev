@@ -52,7 +52,6 @@
 #include "nsIAsyncInputStream.h"
 #include "nsIAsyncOutputStream.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsITimer.h"
 
 //-----------------------------------------------------------------------------
 // nsHttpConnection - represents a connection to a HTTP server (or proxy)
@@ -100,10 +99,6 @@ public:
     PRBool   SupportsPipelining() { return mSupportsPipelining; }
     PRBool   IsKeepAlive() { return mKeepAliveMask && mKeepAlive; }
     PRBool   CanReuse();   // can this connection be reused?
-
-    // Returns time in seconds for how long connection can be reused.
-    PRUint32 TimeToLive();
-
     void     DontReuse()   { mKeepAliveMask = PR_FALSE;
                              mKeepAlive = PR_FALSE;
                              mIdleTimeout = 0; }
@@ -131,11 +126,6 @@ private:
     nsresult ProxyStartSSL();
 
     nsresult CreateTransport(PRUint8 caps);
-    nsresult CreateTransport(PRUint8 caps,
-                             nsISocketTransport **sock,
-                             nsIAsyncInputStream **instream,
-                             nsIAsyncOutputStream **outstream);
-
     nsresult OnTransactionDone(nsresult reason);
     nsresult OnSocketWritable();
     nsresult OnSocketReadable();
@@ -145,11 +135,6 @@ private:
     PRBool   IsAlive();
     PRBool   SupportsPipelining(nsHttpResponseHead *);
     
-    static void  IdleSynTimeout(nsITimer *, void *);
-    nsresult     SelectPrimaryTransport(nsIAsyncOutputStream *out);
-    nsresult     ReleaseBackupTransport(nsISocketTransport *sock,
-                                        nsIAsyncOutputStream *outs,
-                                        nsIAsyncInputStream *ins);
 private:
     nsCOMPtr<nsISocketTransport>    mSocketTransport;
     nsCOMPtr<nsIAsyncInputStream>   mSocketIn;
@@ -175,21 +160,6 @@ private:
     PRPackedBool                    mSupportsPipelining;
     PRPackedBool                    mIsReused;
     PRPackedBool                    mCompletedSSLConnect;
-
-    PRUint32                        mActivationCount;
-
-    // These items are used to implement a parallel connection opening
-    // attempt when network.http.connection-retry-timeout has expired
-    PRUint8                         mSocketCaps;
-    nsCOMPtr<nsITimer>              mIdleSynTimer;
-
-    nsCOMPtr<nsISocketTransport>    mSocketTransport1;
-    nsCOMPtr<nsIAsyncInputStream>   mSocketIn1;
-    nsCOMPtr<nsIAsyncOutputStream>  mSocketOut1;
-
-    nsCOMPtr<nsISocketTransport>    mSocketTransport2;
-    nsCOMPtr<nsIAsyncInputStream>   mSocketIn2;
-    nsCOMPtr<nsIAsyncOutputStream>  mSocketOut2;
 };
 
 #endif // nsHttpConnection_h__

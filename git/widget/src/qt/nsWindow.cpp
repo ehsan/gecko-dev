@@ -63,17 +63,7 @@
 #include <QtCore/QVariant>
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
 #include <QPinchGesture>
-#include <QGestureRecognizer>
-#include "mozSwipeGesture.h"
-static Qt::GestureType gSwipeGestureId = Qt::CustomGesture;
-
-// How many milliseconds mouseevents are blocked after receiving
-// multitouch.
-static const float GESTURES_BLOCK_MOUSE_FOR = 200;
 #endif // QT version check
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-#include <MApplication>
-#endif
 
 #ifdef MOZ_X11
 #include <QX11Info>
@@ -131,22 +121,11 @@ static const float GESTURES_BLOCK_MOUSE_FOR = 200;
 #include "Layers.h"
 #include "LayerManagerOGL.h"
 
-#include "nsShmImage.h"
-extern "C" {
-#include "pixman.h"
-}
-
-using namespace mozilla;
-
 // imported in nsWidgetFactory.cpp
 PRBool gDisableNativeTheme = PR_FALSE;
 
 // Cached offscreen surface
 static nsRefPtr<gfxASurface> gBufferSurface;
-#ifdef MOZ_HAVE_SHMIMAGE
-// If we're using xshm rendering, mThebesSurface wraps gShmImage
-nsRefPtr<nsShmImage> gShmImage;
-#endif
 
 static int gBufferPixmapUsageCount = 0;
 static gfxIntSize gBufferMaxSize(0, 0);
@@ -213,6 +192,9 @@ nsWindow::nsWindow()
     mIsDestroyed      = PR_FALSE;
     mIsShown          = PR_FALSE;
     mEnabled          = PR_TRUE;
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+    mMouseEventsDisabled = PR_FALSE;
+#endif // qt version check
     mWidget              = nsnull;
     mIsVisible           = PR_FALSE;
     mActivatePending     = PR_FALSE;
@@ -225,7 +207,6 @@ nsWindow::nsWindow()
     mNeedsMove           = PR_FALSE;
     mListenForResizes    = PR_FALSE;
     mNeedsShow           = PR_FALSE;
-    mGesturesCancelled   = PR_FALSE;
     
     if (!gGlobalsInitialized) {
         gGlobalsInitialized = PR_TRUE;
@@ -241,14 +222,6 @@ nsWindow::nsWindow()
     mCursor = eCursor_standard;
 
     gBufferPixmapUsageCount++;
-
-#if (QT_VERSION > QT_VERSION_CHECK(4,6,0))
-    if (gSwipeGestureId == Qt::CustomGesture) {
-        // QGestureRecognizer takes ownership
-        MozSwipeGestureRecognizer* swipeRecognizer = new MozSwipeGestureRecognizer;
-        gSwipeGestureId = QGestureRecognizer::registerRecognizer(swipeRecognizer);
-    }
-#endif
 }
 
 static inline gfxASurface::gfxImageFormat
@@ -282,7 +255,7 @@ _gfximage_to_qformat(gfxASurface::gfxImageFormat aFormat)
 }
 
 static bool
-UpdateOffScreenBuffers(int aDepth, QSize aSize, QWidget* aWidget = nsnull)
+UpdateOffScreenBuffers(int aDepth, QSize aSize)
 {
     gfxIntSize size(aSize.width(), aSize.height());
     if (gBufferSurface) {
@@ -304,22 +277,8 @@ UpdateOffScreenBuffers(int aDepth, QSize aSize, QWidget* aWidget = nsnull)
     if (format == gfxASurface::ImageFormatUnknown)
         format = gfxASurface::ImageFormatRGB24;
 
-#ifdef MOZ_HAVE_SHMIMAGE
-    if (aWidget) {
-        if (gfxPlatform::GetPlatform()->ScreenReferenceSurface()->GetType() ==
-            gfxASurface::SurfaceTypeImage) {
-            gShmImage = nsShmImage::Create(gBufferMaxSize,
-                                           (Visual*)aWidget->x11Info().visual(),
-                                           aDepth);
-            gBufferSurface = gShmImage->AsSurface();
-            return true;
-        }
-    }
-#endif
-
     gBufferSurface = gfxPlatform::GetPlatform()->
         CreateOffscreenSurface(gBufferMaxSize, gfxASurface::ContentFromFormat(format));
-
     return true;
 }
 
@@ -371,9 +330,6 @@ nsWindow::Destroy(void)
         --gBufferPixmapUsageCount == 0) {
 
         gBufferSurface = nsnull;
-#ifdef MOZ_HAVE_SHMIMAGE
-        gShmImage = nsnull;
-#endif
     }
 
     nsCOMPtr<nsIWidget> rollupWidget = do_QueryReferent(gRollupWindow);
@@ -972,23 +928,8 @@ nsWindow::GetAttention(PRInt32 aCycleCount)
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-#ifdef MOZ_X11
-static already_AddRefed<gfxASurface>
-GetSurfaceForQWidget(QWidget* aDrawable)
-{
-    gfxASurface* result =
-        new gfxXlibSurface(aDrawable->x11Info().display(),
-                           aDrawable->handle(),
-                           (Visual*)aDrawable->x11Info().visual(),
-                           gfxIntSize(aDrawable->size().width(),
-                           aDrawable->size().height()));
-    NS_IF_ADDREF(result);
-    return result;
-}
-#endif
-
 nsEventStatus
-nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, QWidget* aWidget)
+nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
 {
     if (mIsDestroyed) {
         LOG(("Expose event on destroyed window [%p] window %p\n",
@@ -1014,12 +955,12 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     nsEventStatus status;
     nsIntRect rect(r.x(), r.y(), r.width(), r.height());
 
-    if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL) {
         nsPaintEvent event(PR_TRUE, NS_PAINT, this);
         event.refPoint.x = r.x();
         event.refPoint.y = r.y();
         event.region = nsIntRegion(rect);
-        static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nsnull))->
+        static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager())->
             SetClippingRegion(event.region);
         return DispatchEvent(&event);
     }
@@ -1039,11 +980,6 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     } else if (renderMode == gfxQtPlatform::RENDER_QPAINTER) {
         targetSurface = new gfxQPainterSurface(aPainter);
 #endif
-    } else if (renderMode == gfxQtPlatform::RENDER_DIRECT) {
-        if (!UpdateOffScreenBuffers(depth, aWidget->size(), aWidget)) {
-            return nsEventStatus_eIgnore;
-        }
-        targetSurface = gBufferSurface;
     }
 
     if (NS_UNLIKELY(!targetSurface))
@@ -1052,33 +988,17 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
 
     // We will paint to 0, 0 position in offscrenn buffer
-    if (renderMode == gfxQtPlatform::RENDER_BUFFERED) {
+    if (renderMode == gfxQtPlatform::RENDER_BUFFERED)
         ctx->Translate(gfxPoint(-r.x(), -r.y()));
-    }
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-    else if (renderMode == gfxQtPlatform::RENDER_DIRECT) {
-      MWindow* window = MApplication::activeWindow();
-      if (window) {
-        // This is needed for rotate transformation on MeeGo
-        // This will work very slow if pixman does not handle rotation very well
-        gfxMatrix matr;
-        M::OrientationAngle angle = window->orientationAngle();
-        matr.Translate(gfxPoint(aPainter->transform().dx(), aPainter->transform().dy()));
-        matr.Rotate((M_PI/180)*angle);
-        ctx->SetMatrix(matr);
-        NS_ASSERTION(PIXMAN_VERSION > PIXMAN_VERSION_ENCODE(0, 21, 2) || !angle, "Old pixman and rotate transform, it is going to be slow");
-      }
-    }
-#endif
 
     nsPaintEvent event(PR_TRUE, NS_PAINT, this);
-    event.refPoint.x = rect.x;
-    event.refPoint.y = rect.y;
+    event.refPoint.x = r.x();
+    event.refPoint.y = r.y();
     event.region = nsIntRegion(rect);
     {
-        AutoLayerManagerSetup
-            setupLayerManager(this, ctx, BasicLayerManager::BUFFER_NONE);
-        status = DispatchEvent(&event);
+      AutoLayerManagerSetup
+          setupLayerManager(this, ctx, BasicLayerManager::BUFFER_NONE);
+      status = DispatchEvent(&event);
     }
 
     // DispatchEvent can Destroy us (bug 378273), avoid doing any paint
@@ -1113,30 +1033,6 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
                        _gfximage_to_qformat(imgs->Format()));
             aPainter->drawImage(QPoint(rect.x, rect.y), img,
                                 QRect(0, 0, rect.width, rect.height));
-        }
-    } else if (renderMode == gfxQtPlatform::RENDER_DIRECT) {
-        QRect trans = aPainter->transform().mapRect(r).toRect();
-        if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
-            nsRefPtr<gfxASurface> widgetSurface = GetSurfaceForQWidget(aWidget);
-            nsRefPtr<gfxContext> ctx = new gfxContext(widgetSurface);
-            ctx->SetSource(gBufferSurface);
-            ctx->Rectangle(gfxRect(trans.x(), trans.y(), trans.width(), trans.height()), PR_TRUE);
-            ctx->Clip();
-            ctx->Fill();
-        } else if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeImage) {
-#ifdef MOZ_HAVE_SHMIMAGE
-            if (gShmImage) {
-                gShmImage->Put(aWidget, trans);
-            } else
-#endif
-            if (gBufferSurface) {
-                nsRefPtr<gfxASurface> widgetSurface = GetSurfaceForQWidget(aWidget);
-                nsRefPtr<gfxContext> ctx = new gfxContext(widgetSurface);
-                ctx->SetSource(gBufferSurface);
-                ctx->Rectangle(gfxRect(trans.x(), trans.y(), trans.width(), trans.height()), PR_TRUE);
-                ctx->Clip();
-                ctx->Fill();
-            }
         }
     }
 
@@ -1229,27 +1125,16 @@ nsWindow::OnLeaveNotifyEvent(QGraphicsSceneHoverEvent *aEvent)
     return DispatchEvent(&event);
 }
 
-// Block the mouse events if user was recently executing gestures;
-// otherwise there will be also some panning during/after gesture
-#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
-#define CHECK_MOUSE_BLOCKED { \
-if (mLastMultiTouchTime.isValid()) { \
-    if (mLastMultiTouchTime.elapsed() < GESTURES_BLOCK_MOUSE_FOR) \
-        return nsEventStatus_eIgnore; \
-    else \
-        mLastMultiTouchTime = QTime(); \
-   } \
-}
-#else
-define CHECK_MOUSE_BLOCKED {}
-#endif
-
 nsEventStatus
 nsWindow::OnMotionNotifyEvent(QGraphicsSceneMouseEvent *aEvent)
 {
-    UserActivity();
-
-    CHECK_MOUSE_BLOCKED
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+    if (mMouseEventsDisabled) {
+        // Block the mouse events if currently executing pinch gesture; otherwise there
+        // will be also some panning during the zooming
+        return nsEventStatus_eIgnore;
+    }
+#endif
 
     nsMouseEvent event(PR_TRUE, NS_MOUSE_MOVE, this, nsMouseEvent::eReal);
 
@@ -1286,8 +1171,6 @@ nsWindow::OnButtonPressEvent(QGraphicsSceneMouseEvent *aEvent)
 {
     // The user has done something.
     UserActivity();
-
-    CHECK_MOUSE_BLOCKED
 
     QPointF pos = aEvent->pos();
 
@@ -1336,9 +1219,6 @@ nsWindow::OnButtonPressEvent(QGraphicsSceneMouseEvent *aEvent)
 nsEventStatus
 nsWindow::OnButtonReleaseEvent(QGraphicsSceneMouseEvent *aEvent)
 {
-    UserActivity();
-    CHECK_MOUSE_BLOCKED
-
     // The user has done something.
     UserActivity();
 
@@ -1482,15 +1362,8 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     int x_min_keycode = 0, x_max_keycode = 0, xkeysyms_per_keycode;
     XDisplayKeycodes(display, &x_min_keycode, &x_max_keycode);
     XModifierKeymap *xmodmap = XGetModifierMapping(display);
-    if (!xmodmap)
-        return nsEventStatus_eIgnore;
-
     KeySym *xkeymap = XGetKeyboardMapping(display, x_min_keycode, x_max_keycode - x_min_keycode,
                                           &xkeysyms_per_keycode);
-    if (!xkeymap) {
-        XFreeModifiermap(xmodmap);
-        return nsEventStatus_eIgnore;
-    }
 
     // create modifier masks
     qint32 shift_mask = 0, shift_lock_mask = 0, caps_lock_mask = 0, num_lock_mask = 0;
@@ -1899,10 +1772,6 @@ nsEventStatus nsWindow::OnTouchEvent(QTouchEvent *event, PRBool &handled)
             DispatchEvent(&gestureNotifyEvent);
         }
     }
-    else if (event->type() == QEvent::TouchEnd) {
-        mGesturesCancelled = PR_FALSE;
-    }
-
     if (touchPoints.count() == 2) {
         mTouchPointDistance = DistanceBetweenPoints(touchPoints.at(0).scenePos(),
                                                     touchPoints.at(1).scenePos());
@@ -1913,105 +1782,58 @@ nsEventStatus nsWindow::OnTouchEvent(QTouchEvent *event, PRBool &handled)
 
     //Disable mouse events when gestures are used, because they cause problems with
     //Fennec
-    if (touchPoints.count() > 1) {
-        mLastMultiTouchTime.start();
-    }
+    mMouseEventsDisabled = touchPoints.count() >= 2;
 
     return nsEventStatus_eIgnore;
 }
 
-nsEventStatus
-nsWindow::OnGestureEvent(QGestureEvent* event, PRBool &handled) {
-
+nsEventStatus nsWindow::OnGestureEvent(QGestureEvent *event, PRBool &handled)
+{
     handled = PR_FALSE;
-    if (mGesturesCancelled) {
-        return nsEventStatus_eIgnore;
-    }
+    nsSimpleGestureEvent mozGesture(PR_TRUE, 0, this, 0, 0.0);
 
-    nsEventStatus result = nsEventStatus_eIgnore;
-
-    QGesture* gesture = event->gesture(Qt::PinchGesture);
-
-    if (gesture) {
-        QPinchGesture* pinch = static_cast<QPinchGesture*>(gesture);
+    if (QGesture *gesture = event->gesture(Qt::PinchGesture)) {
+        QPinchGesture *pinch = static_cast<QPinchGesture*>(gesture);
         handled = PR_TRUE;
 
-        QPointF mappedCenterPoint =
-            mWidget->mapFromScene(event->mapToGraphicsScene(pinch->centerPoint()));
-        nsIntPoint centerPoint(mappedCenterPoint.x(), mappedCenterPoint.y());
+        QPointF centerPoint = pinch->centerPoint();
+        mozGesture.refPoint.x = nscoord(centerPoint.x());
+        mozGesture.refPoint.y = nscoord(centerPoint.y());
 
         if (pinch->state() == Qt::GestureStarted) {
+            mozGesture.message = NS_SIMPLE_GESTURE_MAGNIFY_START;
+            mozGesture.delta = 0.0;
             event->accept();
-            mPinchStartDistance = mTouchPointDistance;
-            result = DispatchGestureEvent(NS_SIMPLE_GESTURE_MAGNIFY_START,
-                                          0, 0, centerPoint);
         }
         else if (pinch->state() == Qt::GestureUpdated) {
-            double delta = mTouchPointDistance - mLastPinchDistance;
-
-            result = DispatchGestureEvent(NS_SIMPLE_GESTURE_MAGNIFY_UPDATE,
-                                          0, delta, centerPoint);
+            mozGesture.message = NS_SIMPLE_GESTURE_MAGNIFY_UPDATE;
+            mozGesture.delta = mTouchPointDistance - mLastPinchDistance;
         }
         else if (pinch->state() == Qt::GestureFinished) {
-            double delta =mTouchPointDistance - mPinchStartDistance;
-            result = DispatchGestureEvent(NS_SIMPLE_GESTURE_MAGNIFY,
-                                          0, delta, centerPoint);
+            mozGesture.message = NS_SIMPLE_GESTURE_MAGNIFY;
+            mozGesture.delta = 0.0;
         }
         else {
-            handled = false;
+            handled = PR_FALSE;
         }
 
         mLastPinchDistance = mTouchPointDistance;
     }
 
-    gesture = event->gesture(gSwipeGestureId);
-    if (gesture) {
-        if (gesture->state() == Qt::GestureStarted) {
-            event->accept();
-        }
-        if (gesture->state() == Qt::GestureFinished) {
-            event->accept();
-            handled = PR_TRUE;
+    if (handled) {
+        Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
 
-            MozSwipeGesture* swipe = static_cast<MozSwipeGesture*>(gesture);
-            nsIntPoint hotspot;
-            hotspot.x = swipe->hotSpot().x();
-            hotspot.y = swipe->hotSpot().y();
+        mozGesture.isShift   = (modifiers & Qt::ShiftModifier) ? PR_TRUE : PR_FALSE;
+        mozGesture.isControl = (modifiers & Qt::ControlModifier) ? PR_TRUE : PR_FALSE;
+        mozGesture.isMeta    = PR_FALSE;
+        mozGesture.isAlt     = (modifiers & Qt::AltModifier) ? PR_TRUE : PR_FALSE;
+        mozGesture.button    = 0;
+        mozGesture.time      = 0;
 
-            // Cancel pinch gesture
-            mGesturesCancelled = PR_TRUE;
-            PRFloat64 delta = mTouchPointDistance - mPinchStartDistance;
-            DispatchGestureEvent(NS_SIMPLE_GESTURE_MAGNIFY, 0, delta/2, hotspot);
-
-            result = DispatchGestureEvent(NS_SIMPLE_GESTURE_SWIPE,
-                                          swipe->Direction(), 0, hotspot);
-        }
+        return DispatchEvent(&mozGesture);
     }
-
-    return result;
+    return nsEventStatus_eIgnore;
 }
-
-nsEventStatus
-nsWindow::DispatchGestureEvent(PRUint32 aMsg, PRUint32 aDirection,
-                               double aDelta, const nsIntPoint& aRefPoint)
-{
-    nsSimpleGestureEvent mozGesture(PR_TRUE, aMsg, this, 0, 0.0);
-    mozGesture.direction = aDirection;
-    mozGesture.delta = aDelta;
-    mozGesture.refPoint = aRefPoint;
-
-    Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
-
-    mozGesture.isShift   = (modifiers & Qt::ShiftModifier) ? PR_TRUE : PR_FALSE;
-    mozGesture.isControl = (modifiers & Qt::ControlModifier) ? PR_TRUE : PR_FALSE;
-    mozGesture.isMeta    = PR_FALSE;
-    mozGesture.isAlt     = (modifiers & Qt::AltModifier) ? PR_TRUE : PR_FALSE;
-    mozGesture.button    = 0;
-    mozGesture.time      = 0;
-
-    return DispatchEvent(&mozGesture);
-}
-
 
 double
 nsWindow::DistanceBetweenPoints(const QPointF &aFirstPoint, const QPointF &aSecondPoint)
@@ -2573,15 +2395,10 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
             newView->setViewport(new QGLWidget());
         }
 
-        if (gfxQtPlatform::GetPlatform()->GetRenderMode() == gfxQtPlatform::RENDER_DIRECT) {
-            // Disable double buffer and system background rendering
-            newView->viewport()->setAttribute(Qt::WA_PaintOnScreen, true);
-            newView->viewport()->setAttribute(Qt::WA_NoSystemBackground, true);
-        }
         // Enable gestures:
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+        newView->grabGesture(Qt::PinchGesture);
         newView->viewport()->grabGesture(Qt::PinchGesture);
-        newView->viewport()->grabGesture(gSwipeGestureId);
 #endif
         newView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         newView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -2603,10 +2420,6 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
     } else if (mIsTopLevel) {
         SetDefaultIcon();
     }
-#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
-    widget->grabGesture(Qt::PinchGesture);
-    widget->grabGesture(gSwipeGestureId);
-#endif
 
     return widget;
 }
@@ -2631,8 +2444,8 @@ nsWindow::GetThebesSurface()
     if (mThebesSurface)
         return mThebesSurface;
 
-#ifdef CAIRO_HAS_QT_SURFACE
     gfxQtPlatform::RenderMode renderMode = gfxQtPlatform::GetPlatform()->GetRenderMode();
+#ifdef CAIRO_HAS_QT_SURFACE
     if (renderMode == gfxQtPlatform::RENDER_QPAINTER) {
         mThebesSurface = new gfxQPainterSurface(gfxIntSize(1, 1), gfxASurface::CONTENT_COLOR);
     }
@@ -2672,18 +2485,20 @@ nsWindow::contextMenuEvent(QGraphicsSceneContextMenuEvent *)
 }
 
 nsEventStatus
-nsWindow::imComposeEvent(QInputMethodEvent *event, PRBool &handled)
+nsWindow::imStartEvent(QEvent *)
 {
-    nsCompositionEvent start(PR_TRUE, NS_COMPOSITION_START, this);
-    DispatchEvent(&start);
+    return nsEventStatus_eIgnore;
+}
 
-    nsTextEvent text(PR_TRUE, NS_TEXT_TEXT, this);
-    text.theText.Assign(event->commitString().utf16());
-    DispatchEvent(&text);
+nsEventStatus
+nsWindow::imComposeEvent(QEvent *)
+{
+    return nsEventStatus_eIgnore;
+}
 
-    nsCompositionEvent end(PR_TRUE, NS_COMPOSITION_END, this);
-    DispatchEvent(&end);
-
+nsEventStatus
+nsWindow::imEndEvent(QEvent * )
+{
     return nsEventStatus_eIgnore;
 }
 
@@ -2965,12 +2780,11 @@ nsWindow::AreBoundsSane(void)
 }
 
 NS_IMETHODIMP
-nsWindow::SetInputMode(const IMEContext& aContext)
+nsWindow::SetIMEEnabled(PRUint32 aState)
 {
     NS_ENSURE_TRUE(mWidget, NS_ERROR_FAILURE);
 
-    mIMEContext = aContext;
-    switch (aContext.mStatus) {
+    switch (aState) {
         case nsIWidget::IME_STATUS_ENABLED:
         case nsIWidget::IME_STATUS_PASSWORD:
             {
@@ -2991,9 +2805,12 @@ nsWindow::SetInputMode(const IMEContext& aContext)
 }
 
 NS_IMETHODIMP
-nsWindow::GetInputMode(IMEContext& aContext)
+nsWindow::GetIMEEnabled(PRUint32* aState)
 {
-    aContext = mIMEContext;
+    NS_ENSURE_ARG_POINTER(aState);
+    NS_ENSURE_TRUE(mWidget, NS_ERROR_FAILURE);
+
+    *aState = mWidget->isVKBOpen() ? IME_STATUS_ENABLED : IME_STATUS_DISABLED;
     return NS_OK;
 }
 

@@ -711,16 +711,8 @@ LoginManager.prototype = {
         // username. We might not find a username field if the user is
         // already logged in to the site. 
         for (var i = pwFields[0].index - 1; i >= 0; i--) {
-            var element = form.elements[i];
-            var fieldType = (element.hasAttribute("type") ?
-                             element.getAttribute("type").toLowerCase() :
-                             element.type);
-            if (fieldType == "text"  ||
-                fieldType == "email" ||
-                fieldType == "url"   ||
-                fieldType == "tel"   ||
-                fieldType == "number") {
-                usernameField = element;
+            if (form.elements[i].type == "text") {
+                usernameField = form.elements[i];
                 break;
             }
         }
@@ -986,9 +978,9 @@ LoginManager.prototype = {
     },
 
     _getActionOrigin : function (form) {
-        var uriString = form.action;
+        var uriString = form.mozActionUri;
 
-        // A blank or missing action submits to where it came from.
+        // A blank or mission action submits to where it came from.
         if (uriString == "")
             uriString = form.baseURI; // ala bug 297761
 

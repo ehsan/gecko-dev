@@ -141,17 +141,7 @@ XPIDLSRCS	= \
 		nsIURIWithPrincipal.idl \
 		nsIURIClassifier.idl \
 		nsIRedirectResultListener.idl \
-		mozIThirdPartyUtil.idl \
-		nsISerializationHelper.idl \
 		$(NULL)
-
-ifdef MOZ_IPC
-XPIDLSRCS	+= \
-		nsIChildChannel.idl \
-		nsIParentChannel.idl \
-		nsIParentRedirectingChannel.idl \
-		nsIRedirectChannelRegistrar.idl
-endif
 
 ifdef MOZ_TOOLKIT_SEARCH
 XPIDLSRCS	+= nsIBrowserSearchService.idl

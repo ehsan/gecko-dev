@@ -50,16 +50,18 @@ class Probes {
     static const char *FunctionClassname(const JSFunction *fun);
     static const char *ScriptFilename(JSScript *script);
     static int FunctionLineNumber(JSContext *cx, const JSFunction *fun);
-    static const char *FunctionName(JSContext *cx, const JSFunction *fun, JSAutoByteString *bytes);
+    static const char *FunctionName(JSContext *cx, const JSFunction *fun);
 
-    static void enterJSFunImpl(JSContext *cx, JSFunction *fun, JSScript *script);
-    static void handleFunctionReturn(JSContext *cx, JSFunction *fun, JSScript *script);
+    static void enterJSFunImpl(JSContext *cx, const JSFunction *fun);
+    static void handleFunctionReturn(JSContext *cx, JSFunction *fun);
     static void finalizeObjectImpl(JSObject *obj);
   public:
-    static bool callTrackingActive(JSContext *);
-
-    static void enterJSFun(JSContext *, JSFunction *, JSScript *, int counter = 1);
-    static void exitJSFun(JSContext *, JSFunction *, JSScript *, int counter = 0);
+    /*
+     * If |lval| is provided to the enter/exit methods, it is tested to see if
+     * it is a function as a predicate to the dtrace event emission.
+     */
+    static void enterJSFun(JSContext *cx, JSFunction *fun, js::Value *lval = NULL);
+    static void exitJSFun(JSContext *cx, JSFunction *fun, js::Value *lval = NULL);
 
     static void startExecution(JSContext *cx, JSScript *script);
     static void stopExecution(JSContext *cx, JSScript *script);
@@ -111,47 +113,31 @@ class Probes {
     static JSBool CustomMark(int marker);
 };
 
-inline bool
-Probes::callTrackingActive(JSContext *cx)
-{
-#ifdef INCLUDE_MOZILLA_DTRACE
-    if (JAVASCRIPT_FUNCTION_ENTRY_ENABLED() || JAVASCRIPT_FUNCTION_RETURN_ENABLED())
-        return true;
-#endif
-#ifdef MOZ_TRACE_JSCALLS
-    if (cx->functionCallback)
-        return true;
-#endif
-#ifdef MOZ_ETW
-    if (ProfilingActive && MCGEN_ENABLE_CHECK(MozillaSpiderMonkey_Context, EvtFunctionEntry))
-        return true;
-#endif
-    return false;
-}
-
 inline void
-Probes::enterJSFun(JSContext *cx, JSFunction *fun, JSScript *script, int counter)
+Probes::enterJSFun(JSContext *cx, JSFunction *fun, js::Value *lval)
 {
 #ifdef INCLUDE_MOZILLA_DTRACE
-    if (JAVASCRIPT_FUNCTION_ENTRY_ENABLED())
-        enterJSFunImpl(cx, fun, script);
+    if (!lval || IsFunctionObject(*lval)) {
+        if (JAVASCRIPT_FUNCTION_ENTRY_ENABLED())
+            enterJSFunImpl(cx, fun);
+    }
 #endif
 #ifdef MOZ_TRACE_JSCALLS
-    cx->doFunctionCallback(fun, script, counter);
+    cx->doFunctionCallback(fun, fun ? FUN_SCRIPT(fun) : NULL, true);
 #endif
 }
 
 inline void
-Probes::exitJSFun(JSContext *cx, JSFunction *fun, JSScript *script, int counter)
+Probes::exitJSFun(JSContext *cx, JSFunction *fun, js::Value *lval)
 {
 #ifdef INCLUDE_MOZILLA_DTRACE
-    if (JAVASCRIPT_FUNCTION_RETURN_ENABLED())
-        handleFunctionReturn(cx, fun, script);
+    if (!lval || IsFunctionObject(*lval)) {
+        if (JAVASCRIPT_FUNCTION_RETURN_ENABLED())
+            handleFunctionReturn(cx, fun);
+    }
 #endif
 #ifdef MOZ_TRACE_JSCALLS
-    if (counter > 0)
-        counter = -counter;
-    cx->doFunctionCallback(fun, script, counter);
+    cx->doFunctionCallback(fun, fun ? FUN_SCRIPT(fun) : NULL, false);
 #endif
 }
 
@@ -184,11 +170,11 @@ Probes::startExecution(JSContext *cx, JSScript *script)
 {
 #ifdef INCLUDE_MOZILLA_DTRACE
     if (JAVASCRIPT_EXECUTE_START_ENABLED())
-        JAVASCRIPT_EXECUTE_START((script->filename ? (char *)script->filename : nullName),
+        JAVASCRIPT_EXECUTE_START(script->filename ? (char *)script->filename : nullName,
                                  script->lineno);
 #endif
 #ifdef MOZ_TRACE_JSCALLS
-    cx->doFunctionCallback(NULL, script, 1);
+    cx->doFunctionCallback(NULL, script, true);
 #endif
 }
 
@@ -197,11 +183,11 @@ Probes::stopExecution(JSContext *cx, JSScript *script)
 {
 #ifdef INCLUDE_MOZILLA_DTRACE
     if (JAVASCRIPT_EXECUTE_DONE_ENABLED())
-        JAVASCRIPT_EXECUTE_DONE((script->filename ? (char *)script->filename : nullName),
+        JAVASCRIPT_EXECUTE_DONE(script->filename ? (char *)script->filename : nullName,
                                 script->lineno);
 #endif
 #ifdef MOZ_TRACE_JSCALLS
-    cx->doFunctionCallback(NULL, script, 0);
+    cx->doFunctionCallback(NULL, script, false);
 #endif
 }
 
@@ -229,25 +215,6 @@ inline void Probes::GCEndSweepPhase(JSCompartment *compartment) {}
 inline JSBool Probes::CustomMark(JSString *string) { return JS_TRUE; }
 inline JSBool Probes::CustomMark(const char *string) { return JS_TRUE; }
 inline JSBool Probes::CustomMark(int marker) { return JS_TRUE; }
-
-struct AutoFunctionCallProbe {
-    JSContext * const cx;
-    JSFunction *fun;
-    JSScript *script;
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-
-    AutoFunctionCallProbe(JSContext *cx, JSFunction *fun, JSScript *script
-                          JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : cx(cx), fun(fun), script(script)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-        Probes::enterJSFun(cx, fun, script);
-    }
-
-    ~AutoFunctionCallProbe() {
-        Probes::exitJSFun(cx, fun, script);
-    }
-};
 
 } /* namespace js */
     

@@ -1,25 +1,3 @@
-/*
- * Copyright (c) 2008-2010 Mozilla Foundation
- *
- * Permission is hereby granted, free of charge, to any person obtaining a 
- * copy of this software and associated documentation files (the "Software"), 
- * to deal in the Software without restriction, including without limitation 
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, 
- * and/or sell copies of the Software, and to permit persons to whom the 
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in 
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
- * DEALINGS IN THE SOFTWARE.
- */
-
 #define nsHtml5NamedCharacters_cpp_
 #include "prtypes.h"
 #include "jArray.h"
@@ -29,6 +7,8 @@
 #include "nsMemory.h"
 
 #include "nsHtml5NamedCharacters.h"
+
+jArray<jArray<PRInt8,PRInt32>,PRInt32> nsHtml5NamedCharacters::NAMES;
 
 const PRUnichar nsHtml5NamedCharacters::VALUES[][2] = {
 #define NAMED_CHARACTER_REFERENCE(N, CHARS, LEN, FLAG, VALUE) \
@@ -100,10 +80,20 @@ NAME_##N##_END = NAME_##N##_START + LEN + FLAG,
   DUMMY_FINAL_NAME_VALUE
 };
 
+#define NAMED_CHARACTERS_COUNT 2138
+
 /* check that the start positions will fit in 16 bits */
 PR_STATIC_ASSERT(NS_ARRAY_LENGTH(ALL_NAMES) < 0x10000);
 
-const nsHtml5CharacterName nsHtml5NamedCharacters::NAMES[] = {
+struct NamedCharacterData {
+  PRUint16 nameStart;
+  PRUint16 nameLen;
+#ifdef DEBUG
+  PRInt32 n;
+#endif
+};
+
+static const NamedCharacterData charData[NAMED_CHARACTERS_COUNT] = {
 #ifdef DEBUG
   #define NAMED_CHARACTER_REFERENCE(N, CHARS, LEN, FLAG, VALUE) \
 { NAME_##N##_START, LEN, N },
@@ -115,21 +105,18 @@ const nsHtml5CharacterName nsHtml5NamedCharacters::NAMES[] = {
 #undef NAMED_CHARACTER_REFERENCE
 };
 
-PRInt32
-nsHtml5CharacterName::length() const
-{
-  return nameLen;
-}
-
-PRUnichar
-nsHtml5CharacterName::charAt(PRInt32 index) const
-{
-  return static_cast<PRUnichar> (ALL_NAMES[nameStart + index]);
-}
-
 void
 nsHtml5NamedCharacters::initializeStatics()
 {
+  NAMES = jArray<jArray<PRInt8,PRInt32>,PRInt32>(NAMED_CHARACTERS_COUNT);
+  PRInt8* allNames = const_cast<PRInt8*>(ALL_NAMES);
+  for (PRInt32 i = 0; i < NAMED_CHARACTERS_COUNT; ++i) {
+    const NamedCharacterData &data = charData[i];
+    NS_ABORT_IF_FALSE(data.n == i,
+                      "index error in nsHtml5NamedCharactersInclude.h");
+    NAMES[i] = jArray<PRInt8,PRInt32>(allNames + data.nameStart, data.nameLen);
+  }
+
   WINDOWS_1252 = new PRUnichar*[32];
   for (PRInt32 i = 0; i < 32; ++i) {
     WINDOWS_1252[i] = (PRUnichar*)&(WINDOWS_1252_DATA[i]);
@@ -139,5 +126,6 @@ nsHtml5NamedCharacters::initializeStatics()
 void
 nsHtml5NamedCharacters::releaseStatics()
 {
+  NAMES.release();
   delete[] WINDOWS_1252;
 }

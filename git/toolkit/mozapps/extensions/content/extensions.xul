@@ -49,7 +49,7 @@
 <page xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
       xmlns:xhtml="http://www.w3.org/1999/xhtml"
       id="addons-page" title="&addons.windowTitle;" disablechrome="true"
-      role="application" windowtype="Addons:Manager"
+      role="application"
       ondragenter="gDragDrop.onDragOver(event)"
       ondragover="gDragDrop.onDragOver(event)"
       ondrop="gDragDrop.onDrop(event)">
@@ -86,7 +86,7 @@
       <menuitem id="menuitem_uninstallItem" command="cmd_uninstallItem"
                 label="&cmd.uninstallAddon.label;"
                 accesskey="&cmd.uninstallAddon.accesskey;"/>
-      <menuseparator id="addonitem-menuseparator" />
+      <menuseparator/>
       <menuitem id="menuitem_preferences" command="cmd_showItemPreferences"
 #ifdef XP_WIN
                 label="&cmd.preferencesWin.label;"
@@ -114,8 +114,6 @@
     <command id="cmd_goToRecentUpdates"/>
     <command id="cmd_goToAvailableUpdates"/>
     <command id="cmd_installFromFile"/>
-    <command id="cmd_back"/>
-    <command id="cmd_forward"/>
     <command id="cmd_enableCheckCompatibility"/>
     <command id="cmd_enableUpdateSecurity"/>
     <command id="cmd_toggleAutoUpdateDefault"/>
@@ -141,17 +139,12 @@
   </commandset>
 
   <!-- main header -->
-  <hbox id="header" align="center">
-    <toolbarbutton id="back-btn" class="nav-button header-button" command="cmd_back"
-            tooltiptext="&cmd.back.tooltip;" hidden="true" disabled="true"/>
-    <toolbarbutton id="forward-btn" class="nav-button header-button" command="cmd_forward"
-            tooltiptext="&cmd.forward.tooltip;" hidden="true" disabled="true"/>
-    <spacer flex="1"/>
+  <hbox id="header" align="center" pack="end">
     <hbox id="updates-container" align="center">
       <image class="spinner"/>
       <label id="updates-noneFound" hidden="true"
              value="&updates.noneFound.label;"/>
-      <button id="updates-manualUpdatesFound-btn" class="button-link"
+      <button id="updates-manualUpdatesFound" class="button-link"
               hidden="true" label="&updates.manualUpdatesFound.label;"
               command="cmd_goToAvailableUpdates"/>
       <label id="updates-progress" hidden="true"
@@ -160,12 +153,11 @@
              value="&updates.installed.label;"/>
       <label id="updates-downloaded" hidden="true"
              value="&updates.downloaded.label;"/>
-      <button id="updates-restart-btn" class="button-link" hidden="true"
+      <button id="updates-restart" class="button-link" hidden="true"
               label="&updates.restart.label;"
               command="cmd_restartApp"/>
     </hbox>
-    <toolbarbutton id="header-utils-btn" class="header-button" type="menu"
-            tooltiptext="&toolsMenu.tooltip;">
+    <button id="header-utils-btn" type="menu" tooltiptext="&toolsMenu.tooltip;">
       <menupopup id="utils-menu">
         <menuitem id="utils-updateNow"
                   label="&updates.checkForUpdates.label;"
@@ -195,58 +187,47 @@
                   accesskey="&updates.resetUpdatesToManual.accesskey;"
                   command="cmd_resetAddonAutoUpdate"/>
       </menupopup>
-    </toolbarbutton>
+    </button>
     <textbox id="header-search" type="search" searchbutton="true"
              placeholder="&search.placeholder;"/>
+    <image id="header-searching"/>
   </hbox>
 
   <hbox flex="1">
 
-    <!-- category list -->
-    <richlistbox id="categories" persist="last-selected">
-      <richlistitem id="category-search" value="addons://search/"
-                    class="category"
-                    name="&view.search.label;"
-                    tooltiptext="&view.search.label;" disabled="true"/>
-      <richlistitem id="category-discover" value="addons://discover/"
-                    class="category"
-                    name="&view.discover.label;"
-                    tooltiptext="&view.discover.label;"/>
-      <richlistitem id="category-languages" value="addons://list/locale"
-                    class="category"
-                    name="&view.locales.label;"
-                    tooltiptext="&view.locales.label;"
-                    hidden="true" persist="hidden"/>
-      <richlistitem id="category-searchengines"
-                    value="addons://list/searchengine"
-                    class="category"
-                    name="&view.searchengines.label;"
-                    tooltiptext="&view.searchengines.label;"
-                    hidden="true" persist="hidden"/>
-      <richlistitem id="category-extensions" value="addons://list/extension"
-                    class="category"
-                    name="&view.features.label;"
-                    tooltiptext="&view.features.label;"/>
-      <richlistitem id="category-themes" value="addons://list/theme"
-                    class="category"
-                    name="&view.appearance2.label;"
-                    tooltiptext="&view.appearance2.label;"/>
-      <richlistitem id="category-plugins" value="addons://list/plugin"
-                    class="category"
-                    name="&view.plugins.label;"
-                    tooltiptext="&view.plugins.label;"/>
-      <richlistitem id="category-availableUpdates" value="addons://updates/available"
-                    class="category"
-                    name="&view.availableUpdates.label;"
-                    tooltiptext="&view.availableUpdates.label;"
-                    disabled="true"/>
-      <richlistitem id="category-recentUpdates" value="addons://updates/recent"
-                    class="category"
-                    name="&view.recentUpdates.label;"
-                    tooltiptext="&view.recentUpdates.label;" disabled="true"/>
-    </richlistbox>
-
-    <box id="view-port-container" flex="1">
+      <!-- category list -->
+      <richlistbox id="categories" persist="last-selected">
+        <richlistitem id="category-search" value="addons://search/"
+                      class="category"
+                      name="&view.search.label;" disabled="true"/>
+        <richlistitem id="category-discover" value="addons://discover/"
+                      class="category"
+                      name="&view.discover.label;"/>
+        <richlistitem id="category-languages" value="addons://list/locale"
+                      class="category"
+                      name="&view.locales.label;"
+                      hidden="true" persist="hidden"/>
+        <richlistitem id="category-searchengines"
+                      value="addons://list/searchengine"
+                      class="category"
+                      name="&view.searchengines.label;"
+                      hidden="true" persist="hidden"/>
+        <richlistitem id="category-extensions" value="addons://list/extension"
+                      class="category"
+                      name="&view.features.label;"/>
+        <richlistitem id="category-themes" value="addons://list/theme"
+                      class="category"
+                      name="&view.appearance2.label;"/>
+        <richlistitem id="category-plugins" value="addons://list/plugin"
+                      class="category"
+                      name="&view.plugins.label;"/>
+        <richlistitem id="category-availableUpdates" value="addons://updates/available"
+                      class="category"
+                      name="&view.availableUpdates.label;" disabled="true"/>
+        <richlistitem id="category-recentUpdates" value="addons://updates/recent"
+                      class="category"
+                      name="&view.recentUpdates.label;" disabled="true"/>
+      </richlistbox>
 
       <!-- view port -->
       <deck id="view-port" flex="1">
@@ -259,41 +240,6 @@
 
         <!-- search view -->
         <vbox id="search-view" flex="1" class="view-pane">
-          <hbox class="view-header global-warning-container" align="center">
-            <!-- global warnings -->
-            <hbox class="global-warning" flex="1">
-              <hbox class="global-warning-safemode" flex="1" align="center"
-                    tooltiptext="&warning.safemode.label;">
-                <image class="warning-icon"/>
-                <label class="global-warning-text" flex="1" crop="end"
-                       value="&warning.safemode.label;"/>
-              </hbox>
-              <hbox class="global-warning-checkcompatibility" flex="1" align="center"
-                    tooltiptext="&warning.checkcompatibility.label;">
-                <image class="warning-icon"/>
-                <label class="global-warning-text" flex="1" crop="end"
-                       value="&warning.checkcompatibility.label;"/>
-              </hbox>
-              <button class="button-link global-warning-checkcompatibility"
-                      label="&warning.checkcompatibility.enable.label;"
-                      tooltiptext="&warning.checkcompatibility.enable.tooltip;"
-                      command="cmd_enableCheckCompatibility"/>
-              <hbox class="global-warning-updatesecurity" flex="1" align="center"
-                    tooltiptext="&warning.updatesecurity.label;">
-                <image class="warning-icon"/>
-                <label class="global-warning-text" flex="1" crop="end"
-                       value="&warning.updatesecurity.label;"/>
-              </hbox>
-              <button class="button-link global-warning-updatesecurity"
-                      label="&warning.updatesecurity.enable.label;"
-                      tooltiptext="&warning.updatesecurity.enable.tooltip;"
-                      command="cmd_enableUpdateSecurity"/>
-              <spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
-            </hbox>
-            <spacer flex="1"/>
-            <hbox id="search-sorters" class="sort-controls"
-                  showrelevance="true" sortby="relevancescore" ascending="false"/>
-          </hbox>
           <hbox id="search-filter" align="center">
             <label id="search-filter-label" value="&search.filter2.label;"/>
             <radiogroup id="search-filter-radiogroup" orient="horizontal"
@@ -306,24 +252,40 @@
                      tooltiptext="&search.filter2.available.tooltip;"/>
             </radiogroup>
           </hbox>
-          <vbox id="search-loading" class="alert-container"
-                flex="1" hidden="true">
-            <spacer class="alert-spacer-before"/>
-            <hbox class="alert loading" align="center">
-              <image/>
-              <label value="&loading.label;"/>
+          <hbox class="view-header global-warning-container" align="center">
+            <!-- global warnings -->
+            <hbox class="global-warning" flex="1">
+              <image class="warning-icon"/>
+              <label class="global-warning-safemode" flex="1">
+                &warning.safemode.label;
+              </label>
+              <label class="global-warning-checkcompatibility" flex="1">
+                &warning.checkcompatibility.label;
+              </label>
+              <button class="button-link global-warning-checkcompatibility"
+                      label="&warning.checkcompatibility.enable.label;"
+                      tooltiptext="&warning.checkcompatibility.enable.tooltip;"
+                      command="cmd_enableCheckCompatibility"/>
+              <label class="global-warning-updatesecurity" flex="1">
+                &warning.updatesecurity.label;
+              </label>
+              <button class="button-link global-warning-updatesecurity"
+                      label="&warning.updatesecurity.enable.label;"
+                      tooltiptext="&warning.updatesecurity.enable.tooltip;"
+                      command="cmd_enableUpdateSecurity"/>
+              <spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
             </hbox>
-            <spacer class="alert-spacer-after"/>
-          </vbox>
-          <vbox id="search-list-empty" class="alert-container"
+            <spacer flex="1"/>
+            <hbox id="search-sorters" class="sort-controls"
+                  showrelevance="true" sortby="relevancescore" ascending="false"/>
+          </hbox>
+          <vbox id="search-list-empty" class="empty-list-notice"
                 flex="1" hidden="true">
-            <spacer class="alert-spacer-before"/>
-            <vbox class="alert">
-              <label value="&listEmpty.search.label;"/>
-              <button label="&listEmpty.button.label;" class="addon-control"
-                      command="cmd_goToDiscoverPane"/>
-            </vbox>
-            <spacer class="alert-spacer-after"/>
+            <spacer flex="1"/>
+            <label value="&listEmpty.search.label;"/>
+            <button label="&listEmpty.button.label;" class="addon-control"
+                    command="cmd_goToDiscoverPane"/>
+            <spacer flex="3"/>
           </vbox>
           <richlistbox id="search-list" class="list" flex="1">
             <hbox pack="center">
@@ -333,32 +295,24 @@
         </vbox>
 
         <!-- list view -->
-        <vbox id="list-view" flex="1" class="view-pane" align="stretch">
-          <hbox class="view-header global-warning-container">
+        <vbox id="list-view" flex="1" class="view-pane">
+          <hbox class="view-header global-warning-container" align="center">
             <!-- global warnings -->
             <hbox class="global-warning" flex="1">
-              <hbox class="global-warning-safemode" flex="1" align="center"
-                    tooltiptext="&warning.safemode.label;">
-                <image class="warning-icon"/>
-                <label class="global-warning-text" flex="1" crop="end"
-                       value="&warning.safemode.label;"/>
-              </hbox>
-              <hbox class="global-warning-checkcompatibility" flex="1" align="center"
-                    tooltiptext="&warning.checkcompatibility.label;">
-                <image class="warning-icon"/>
-                <label class="global-warning-text" flex="1" crop="end"
-                       value="&warning.checkcompatibility.label;"/>
-              </hbox>
+              <image class="warning-icon"/>
+              <label class="global-warning-safemode" flex="1">
+                &warning.safemode.label;
+              </label>
+              <label class="global-warning-checkcompatibility" flex="1">
+                &warning.checkcompatibility.label;
+              </label>
               <button class="button-link global-warning-checkcompatibility"
                       label="&warning.checkcompatibility.enable.label;"
                       tooltiptext="&warning.checkcompatibility.enable.tooltip;"
                       command="cmd_enableCheckCompatibility"/>
-              <hbox class="global-warning-updatesecurity" flex="1" align="center"
-                    tooltiptext="&warning.updatesecurity.label;">
-                <image class="warning-icon"/>
-                <label class="global-warning-text" flex="1" crop="end"
-                       value="&warning.updatesecurity.label;"/>
-              </hbox>
+              <label class="global-warning-updatesecurity" flex="1">
+                &warning.updatesecurity.label;
+              </label>
               <button class="button-link global-warning-updatesecurity"
                       label="&warning.updatesecurity.enable.label;"
                       tooltiptext="&warning.updatesecurity.enable.tooltip;"
@@ -369,15 +323,13 @@
             <hbox id="list-sorters" class="sort-controls" sortby="name"
                   ascending="true"/>
           </hbox>
-          <vbox id="addon-list-empty" class="alert-container"
+          <vbox id="addon-list-empty" class="empty-list-notice"
                 flex="1" hidden="true">
-            <spacer class="alert-spacer-before"/>
-            <vbox class="alert">
-              <label value="&listEmpty.installed.label;"/>
-              <button label="&listEmpty.button.label;" class="addon-control"
-                      command="cmd_goToDiscoverPane"/>
-            </vbox>
-            <spacer class="alert-spacer-after"/>
+            <spacer flex="1"/>
+            <label value="&listEmpty.installed.label;"/>
+            <button label="&listEmpty.button.label;" class="addon-control"
+                    command="cmd_goToDiscoverPane"/>
+            <spacer flex="3"/>
           </vbox>
           <richlistbox id="addon-list" class="list" flex="1"/>
         </vbox>
@@ -387,28 +339,20 @@
           <hbox class="view-header global-warning-container" align="center">
             <!-- global warnings -->
             <hbox class="global-warning" flex="1">
-              <hbox class="global-warning-safemode" flex="1" align="center"
-                    tooltiptext="&warning.safemode.label;">
-                <image class="warning-icon"/>
-                <label class="global-warning-text" flex="1" crop="end"
-                       value="&warning.safemode.label;"/>
-              </hbox>
-              <hbox class="global-warning-checkcompatibility" flex="1" align="center"
-                    tooltiptext="&warning.checkcompatibility.label;">
-                <image class="warning-icon"/>
-                <label class="global-warning-text" flex="1" crop="end"
-                       value="&warning.checkcompatibility.label;"/>
-              </hbox>
+              <image class="warning-icon"/>
+              <label class="global-warning-safemode" flex="1">
+                &warning.safemode.label;
+              </label>
+              <label class="global-warning-checkcompatibility" flex="1">
+                &warning.checkcompatibility.label;
+              </label>
               <button class="button-link global-warning-checkcompatibility"
                       label="&warning.checkcompatibility.enable.label;"
                       tooltiptext="&warning.checkcompatibility.enable.tooltip;"
                       command="cmd_enableCheckCompatibility"/>
-              <hbox class="global-warning-updatesecurity" flex="1" align="center"
-                    tooltiptext="&warning.updatesecurity.label;">
-                <image class="warning-icon"/>
-                <label class="global-warning-text" flex="1" crop="end"
-                       value="&warning.updatesecurity.label;"/>
-              </hbox>
+              <label class="global-warning-updatesecurity" flex="1">
+                &warning.updatesecurity.label;
+              </label>
               <button class="button-link global-warning-updatesecurity"
                       label="&warning.updatesecurity.enable.label;"
                       tooltiptext="&warning.updatesecurity.enable.tooltip;"
@@ -416,22 +360,20 @@
               <spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
             </hbox>
             <spacer flex="1"/>
-            <hbox id="updates-sorters" class="sort-controls" sortby="updateDate"
+            <hbox id="updates-sorters" class="sort-controls" sortby="dateUpdated"
                   ascending="false"/>
           </hbox>
-          <vbox id="updates-list-empty" class="alert-container"
+          <vbox id="updates-list-empty" class="empty-list-notice"
                 flex="1" hidden="true">
-            <spacer class="alert-spacer-before"/>
-            <vbox class="alert">
-              <label id="empty-availableUpdates-msg" value="&listEmpty.availableUpdates.label;"/>
-              <label id="empty-recentUpdates-msg" value="&listEmpty.recentUpdates.label;"/>
-              <button label="&listEmpty.findUpdates.label;" class="addon-control"
-                      command="cmd_findAllUpdates"/>
-            </vbox>
-            <spacer class="alert-spacer-after"/>
+            <spacer flex="1"/>
+            <label id="empty-availableUpdates-msg" value="&listEmpty.availableUpdates.label;"/>
+            <label id="empty-recentUpdates-msg" value="&listEmpty.recentUpdates.label;"/>
+            <button label="&listEmpty.findUpdates.label;" class="addon-control"
+                    command="cmd_findAllUpdates"/>
+            <spacer flex="3"/>
           </vbox>
           <hbox id="update-actions" pack="center">
-            <button id="update-selected-btn" hidden="true"
+            <button id="update-selected" hidden="true"
                     label="&updates.updateSelected.label;"
                     tooltiptext="&updates.updateSelected.tooltip;"/>
           </hbox>
@@ -442,28 +384,20 @@
         <scrollbox id="detail-view" flex="1" class="view-pane addon-view" orient="vertical">
           <!-- global warnings -->
           <hbox class="global-warning-container global-warning">
-            <hbox class="global-warning-safemode" flex="1" align="center"
-                  tooltiptext="&warning.safemode.label;">
-              <image class="warning-icon"/>
-              <label class="global-warning-text" flex="1" crop="end"
-                     value="&warning.safemode.label;"/>
-            </hbox>
-            <hbox class="global-warning-checkcompatibility" flex="1" align="center"
-                  tooltiptext="&warning.checkcompatibility.label;">
-              <image class="warning-icon"/>
-              <label class="global-warning-text" flex="1" crop="end"
-                     value="&warning.checkcompatibility.label;"/>
-            </hbox>
+            <image class="warning-icon"/>
+            <label class="global-warning-safemode" flex="1">
+              &warning.safemode.label;
+            </label>
+            <label class="global-warning-checkcompatibility" flex="1">
+              &warning.checkcompatibility.label;
+            </label>
             <button class="button-link global-warning-checkcompatibility"
                     label="&warning.checkcompatibility.enable.label;"
                     tooltiptext="&warning.checkcompatibility.enable.tooltip;"
                     command="cmd_enableCheckCompatibility"/>
-            <hbox class="global-warning-updatesecurity" flex="1" align="center"
-                  tooltiptext="&warning.updatesecurity.label;">
-              <image class="warning-icon"/>
-              <label class="global-warning-text" flex="1" crop="end"
-                     value="&warning.updatesecurity.label;"/>
-            </hbox>
+            <label class="global-warning-updatesecurity" flex="1">
+              &warning.updatesecurity.label;
+            </label>
             <button class="button-link global-warning-updatesecurity"
                     label="&warning.updatesecurity.enable.label;"
                     tooltiptext="&warning.updatesecurity.enable.tooltip;"
@@ -473,14 +407,10 @@
           <hbox flex="1">
             <spacer flex="1"/>
             <!-- "loading" splash screen -->
-            <vbox class="alert-container">
-              <spacer class="alert-spacer-before"/>
-              <hbox class="alert loading">
-                <image/>
-                <label value="&loading.label;"/>
-              </hbox>
-              <spacer class="alert-spacer-after"/>
-            </vbox>
+            <hbox class="loading" flex="1">
+              <image/>
+              <label value="&loading.label;"/>
+            </hbox>
             <!-- actual detail view -->
             <vbox class="detail-view-container" flex="3" contextmenu="addonitem-popup">
               <vbox id="detail-notifications">
@@ -499,13 +429,13 @@
                 <hbox id="pending-container" align="center" class="pending">
                   <image class="pending-icon"/>
                   <label id="detail-pending" flex="1"/>
-                  <button id="detail-restart-btn" class="button-link"
-                          label="&addon.restartNow.label;"
-                          command="cmd_restartApp"/>
-                  <button id="detail-undo-btn" class="button-link"
-                          label="&addon.undoAction.label;"
-                          tooltipText="&addon.undoAction.tooltip;"
-                          command="cmd_cancelOperation"/>
+                  <button class="button-link"
+                              label="&addon.restartNow.label;"
+                              command="cmd_restartApp"/>
+                  <button id="detail-undo" class="button-link"
+                              label="&addon.undoAction.label;"
+                              tooltipText="&addon.undoAction.tooltip;"
+                              command="cmd_cancelOperation"/>
                   <spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
                 </hbox>
               </vbox>
@@ -513,8 +443,7 @@
                 <image id="detail-icon" class="icon"/>
                 <vbox flex="1">
                   <vbox id="detail-summary">
-                    <hbox id="detail-name-container" class="name-container"
-                          align="start">
+                    <hbox id="detail-name-container" align="start">
                       <label id="detail-name" flex="1"/>
                       <label id="detail-version"/>
                       <label class="disabled-postfix" value="&addon.disabled.postfix;"/>
@@ -523,7 +452,7 @@
                     </hbox>
                     <label id="detail-creator" class="creator"/>
                   </vbox>
-                  <hbox id="detail-desc-container" align="start">
+                  <hbox id="detail-desc-container" align="end">
                     <image id="detail-screenshot" hidden="true"/>
                     <description id="detail-desc" flex="1"/>
                   </hbox>
@@ -534,7 +463,7 @@
                     <hbox align="center">
                       <label id="detail-contrib-suggested"/>
                       <spacer flex="1"/>
-                      <button id="detail-contrib-btn"
+                      <button id="detail-contrib-button" class="addon-control"
                               label="&cmd.contribute.label;"
                               accesskey="&cmd.contribute.accesskey;"
                               tooltiptext="&cmd.contribute.tooltip;"
@@ -564,7 +493,7 @@
                                    tooltiptext="&detail.updateManual.tooltip;"
                                    value="0"/>
                           </radiogroup>
-                          <button id="detail-findUpdates-btn" class="button-link"
+                          <button id="detail-findUpdates" class="button-link"
                                   label="&detail.checkForUpdates.label;"
                                   accesskey="&detail.checkForUpdates.accesskey;"
                                   tooltiptext="&detail.checkForUpdates.tooltip;"
@@ -573,7 +502,7 @@
                       </row>
                       <row class="detail-row-complex" id="detail-homepage-row" label="&detail.home;">
                         <label class="detail-row-label" value="&detail.home;"/>
-                        <label id="detail-homepage" class="detail-row-value text-link" crop="end"/>
+                        <label id="detail-homepage" class="detail-row-value text-link"/>
                       </row>
                       <row class="detail-row-complex" id="detail-repository-row" label="&detail.repository;">
                         <label class="detail-row-label" value="&detail.repository;"/>
@@ -592,7 +521,7 @@
                     </rows>
                   </grid>
                   <hbox id="detail-controls">
-                    <button id="detail-prefs-btn" class="addon-control preferences"
+                    <button id="detail-prefs" class="addon-control"
 #ifdef XP_WIN
                             label="&detail.showPreferencesWin.label;"
                             accesskey="&detail.showPreferencesWin.accesskey;"
@@ -604,19 +533,19 @@
 #endif
                             command="cmd_showItemPreferences"/>
                     <spacer flex="1"/>
-                    <button id="detail-uninstall-btn" class="addon-control remove"
+                    <button id="detail-uninstall" class="addon-control remove"
                             label="&cmd.uninstallAddon.label;"
                             accesskey="&cmd.uninstallAddon.accesskey;"
                             command="cmd_uninstallItem"/>
-                    <button id="detail-enable-btn" class="addon-control enable"
+                    <button id="detail-enable" class="addon-control enable"
                             label="&cmd.enableAddon.label;"
                             accesskey="&cmd.enableAddon.accesskey;"
                             command="cmd_enableItem"/>
-                    <button id="detail-disable-btn" class="addon-control disable"
+                    <button id="detail-disable" class="addon-control disable"
                             label="&cmd.disableAddon.label;"
                             accesskey="&cmd.disableAddon.accesskey;"
                             command="cmd_disableItem"/>
-                    <button id="detail-install-btn" class="addon-control install"
+                    <button id="detail-install" class="addon-control install"
                             label="&cmd.installAddon.label;"
                             accesskey="&cmd.installAddon.accesskey;"
                             command="cmd_installItem"/>
@@ -630,7 +559,6 @@
 
       </deck>
 
-    </box>
   </hbox>
 
 </page>

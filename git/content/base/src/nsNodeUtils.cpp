@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=99: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -42,7 +41,6 @@
 #include "nsIContent.h"
 #include "mozilla/dom/Element.h"
 #include "nsIMutationObserver.h"
-#include "nsIMutationObserver2.h"
 #include "nsIDocument.h"
 #include "nsIDOMUserDataHandler.h"
 #include "nsIEventListenerManager.h"
@@ -63,16 +61,11 @@
 #include "nsHTMLMediaElement.h"
 #endif // MOZ_MEDIA
 #include "nsImageLoadingContent.h"
-#include "jsobj.h"
-#include "jsgc.h"
-#include "xpcpublic.h"
 
 using namespace mozilla::dom;
 
 // This macro expects the ownerDocument of content_ to be in scope as
 // |nsIDocument* doc|
-// NOTE: AttributeChildRemoved doesn't use this macro but has a very similar use.
-// If you change how this macro behave please update AttributeChildRemoved.
 #define IMPL_MUTATION_NOTIFICATION(func_, content_, params_)      \
   PR_BEGIN_MACRO                                                  \
   nsINode* node = content_;                                       \
@@ -199,32 +192,6 @@ nsNodeUtils::ContentRemoved(nsINode* aContainer,
 }
 
 void
-nsNodeUtils::AttributeChildRemoved(nsINode* aAttribute,
-                                   nsIContent* aChild)
-{
-  NS_PRECONDITION(aAttribute->IsNodeOfType(nsINode::eATTRIBUTE),
-                  "container must be a nsIAttribute");
-
-  // This is a variant of IMPL_MUTATION_NOTIFICATION.
-  do {
-    nsINode::nsSlots* slots = aAttribute->GetExistingSlots();
-    if (slots && !slots->mMutationObservers.IsEmpty()) {
-      // This is a variant of NS_OBSERVER_ARRAY_NOTIFY_OBSERVERS.
-      nsTObserverArray<nsIMutationObserver*>::ForwardIterator iter_ =
-        slots->mMutationObservers;
-      nsCOMPtr<nsIMutationObserver2> obs_;
-      while (iter_.HasMore()) {
-        obs_ = do_QueryInterface(iter_.GetNext());
-        if (obs_) {
-          obs_->AttributeChildRemoved(aAttribute, aChild);
-        }
-      }
-    }
-    aAttribute = aAttribute->GetNodeParent();
-  } while (aAttribute);
-}
-
-void
 nsNodeUtils::ParentChainChanged(nsIContent *aContent)
 {
   // No need to notify observers on the parents since their parent
@@ -280,7 +247,8 @@ nsNodeUtils::LastRelease(nsINode* aNode)
         aNode->HasFlag(ADDED_TO_FORM)) {
       // Tell the form (if any) this node is going away.  Don't
       // notify, since we're being destroyed in any case.
-      static_cast<nsGenericHTMLFormElement*>(aNode)->ClearForm(PR_TRUE);
+      static_cast<nsGenericHTMLFormElement*>(aNode)->ClearForm(PR_TRUE,
+                                                               PR_FALSE);
     }
   }
   aNode->UnsetFlags(NODE_HAS_PROPERTIES);
@@ -418,9 +386,7 @@ nsNodeUtils::TraverseUserData(nsINode* aNode,
 
 /* static */
 nsresult
-nsNodeUtils::CloneNodeImpl(nsINode *aNode, PRBool aDeep,
-                           PRBool aCallUserDataHandlers,
-                           nsIDOMNode **aResult)
+nsNodeUtils::CloneNodeImpl(nsINode *aNode, PRBool aDeep, nsIDOMNode **aResult)
 {
   *aResult = nsnull;
 
@@ -431,7 +397,7 @@ nsNodeUtils::CloneNodeImpl(nsINode *aNode, PRBool aDeep,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsIDocument *ownerDoc = aNode->GetOwnerDoc();
-  if (ownerDoc && aCallUserDataHandlers) {
+  if (ownerDoc) {
     rv = CallUserDataHandlers(nodesWithProperties, ownerDoc,
                               nsIDOMUserDataHandler::NODE_CLONED, PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -465,11 +431,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
   // attributes and children).
 
   nsresult rv;
-  if (aCx) {
-      rv = xpc_MorphSlimWrapper(aCx, aNode);
-      NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   nsNodeInfoManager *nodeInfoManager = aNewNodeInfoManager;
 
   // aNode.
@@ -587,28 +548,9 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     if (aCx) {
       nsIXPConnect *xpc = nsContentUtils::XPConnect();
       if (xpc) {
-        nsWrapperCache *cache;
-        CallQueryInterface(aNode, &cache);
-        JSObject *preservedWrapper = nsnull;
-
-        // If reparenting moves us to a new compartment, preserving causes
-        // problems. In that case, we release ourselves and re-preserve after
-        // reparenting so we're sure to have the right JS object preserved.
-        // We use a JSObject stack copy of the wrapper to protect it from GC
-        // under ReparentWrappedNativeIfFound.
-        if (cache && cache->PreservingWrapper()) {
-          preservedWrapper = cache->GetWrapper();
-          nsContentUtils::ReleaseWrapper(aNode, cache);
-        }
-
         nsCOMPtr<nsIXPConnectJSObjectHolder> oldWrapper;
         rv = xpc->ReparentWrappedNativeIfFound(aCx, aOldScope, aNewScope, aNode,
                                                getter_AddRefs(oldWrapper));
-
-        if (preservedWrapper) {
-          nsContentUtils::PreserveWrapper(aNode, cache);
-        }
-
         if (NS_FAILED(rv)) {
           aNode->mNodeInfo.swap(nodeInfo);
 

@@ -199,11 +199,7 @@ nsresult nsMenuX::Create(nsMenuObjectX* aParent, nsMenuGroupOwnerX* aMenuGroupOw
 
   mParent = aParent;
   // our parent could be either a menu bar (if we're toplevel) or a menu (if we're a submenu)
-
-#ifdef DEBUG
-  nsMenuObjectTypeX parentType =
-#endif
-    mParent->MenuObjectType();
+  nsMenuObjectTypeX parentType = mParent->MenuObjectType();
   NS_ASSERTION((parentType == eMenuBarObjectType || parentType == eSubmenuObjectType || parentType == eStandaloneNativeMenuObjectType),
                "Menu parent not a menu bar, menu, or native menu!");
 

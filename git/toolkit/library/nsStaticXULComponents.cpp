@@ -178,15 +178,13 @@
 #define PLACES_MODULES \
     MODULE(nsPlacesModule)
 #else
-#define PLACES_MODULES
-#endif
-
 #if (defined(MOZ_MORK) && defined(MOZ_XUL))
-#define MORK_MODULES \
+#define PLACES_MODULES \
     MODULE(nsMorkModule)
 #else
-#define MORK_MODULES
+#define PLACES_MODULES
 #endif
+#endif    
 
 #ifdef MOZ_XUL
 #define XULENABLED_MODULES                   \
@@ -233,12 +231,6 @@
 #define JSCTYPES_MODULE
 #endif
 
-#ifdef MOZ_SERVICES_SYNC
-#define SERVICES_CRYPTO_MODULE MODULE(nsServicesCryptoModule)
-#else
-#define SERVICES_CRYPTO_MODULE
-#endif
-
 #if defined(MOZ_APP_COMPONENT_INCLUDE)
 #include MOZ_APP_COMPONENT_INCLUDE
 #else
@@ -279,7 +271,6 @@
     FILEVIEW_MODULE                          \
     STORAGE_MODULE                           \
     PLACES_MODULES                           \
-    MORK_MODULES                             \
     XULENABLED_MODULES                       \
     MODULE(nsToolkitCompsModule)             \
     XREMOTE_MODULES                          \
@@ -294,7 +285,6 @@
     WINDOWSPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
     MODULE(jsperf)                           \
-    SERVICES_CRYPTO_MODULE                   \
     APP_COMPONENT_MODULES                    \
     /* end of list */
 
@@ -306,11 +296,13 @@ XUL_MODULES
 #undef MODULE
 
 #define MODULE(_name) \
-    &NSMODULE_NAME(_name),
+    NSMODULE_NAME(_name),
 
-const mozilla::Module *const *const kPStaticModules[] = {
+static const mozilla::Module *const kStaticModules[] = {
   XUL_MODULES
   NULL
 };
 
 #undef MODULE
+
+mozilla::Module const *const *const kPStaticModules = kStaticModules;

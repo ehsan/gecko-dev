@@ -45,7 +45,6 @@
 #include "nsSubDocumentFrame.h"
 #include "nsCSSRendering.h"
 #include "nsCSSFrameConstructor.h"
-#include "gfxUtils.h"
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -62,10 +61,9 @@ namespace {
  */
 class LayerManagerData : public LayerUserData {
 public:
-  LayerManagerData(LayerManager *aManager) :
+  LayerManagerData() :
     mInvalidateAllThebesContent(PR_FALSE),
-    mInvalidateAllLayers(PR_FALSE),
-    mLayerManager(aManager)
+    mInvalidateAllLayers(PR_FALSE)
   {
     MOZ_COUNT_CTOR(LayerManagerData);
     mFramesWithLayers.Init();
@@ -84,8 +82,6 @@ public:
   nsTHashtable<nsPtrHashKey<nsIFrame> > mFramesWithLayers;
   PRPackedBool mInvalidateAllThebesContent;
   PRPackedBool mInvalidateAllLayers;
-  /** Layer manager we belong to, we hold a reference to this object. */
-  nsRefPtr<LayerManager> mLayerManager;
 };
 
 static void DestroyRegion(void* aPropertyValue)
@@ -166,8 +162,7 @@ protected:
     ThebesLayerData() :
       mActiveScrolledRoot(nsnull), mLayer(nsnull),
       mIsSolidColorInVisibleRegion(PR_FALSE),
-      mHasText(PR_FALSE), mHasTextOverTransparent(PR_FALSE),
-      mForceTransparentSurface(PR_FALSE) {}
+      mHasText(PR_FALSE), mHasTextOverTransparent(PR_FALSE) {}
     /**
      * Record that an item has been added to the ThebesLayer, so we
      * need to update our regions.
@@ -245,13 +240,6 @@ protected:
      * transparent pixels in the layer.
      */
     PRPackedBool mHasTextOverTransparent;
-    /**
-     * Set if the layer should be treated as transparent, even if its entire
-     * area is covered by opaque display items. For example, this needs to
-     * be set if something is going to "punch holes" in the layer by clearing
-     * part of its surface.
-     */
-    PRPackedBool mForceTransparentSurface;
   };
 
   /**
@@ -331,8 +319,7 @@ protected:
    * the layers in this array either have mContainerLayer as their parent,
    * or no parent.
    */
-  typedef nsAutoTArray<nsRefPtr<Layer>,1> AutoLayersArray;
-  AutoLayersArray                  mNewChildLayers;
+  nsAutoTArray<nsRefPtr<Layer>,1>  mNewChildLayers;
   nsTArray<nsRefPtr<ThebesLayer> > mRecycledThebesLayers;
   nsTArray<nsRefPtr<ColorLayer> >  mRecycledColorLayers;
   PRUint32                         mNextFreeRecycledThebesLayer;
@@ -410,11 +397,12 @@ FrameLayerBuilder::InternalDestroyDisplayItemData(nsIFrame* aFrame,
     NS_ASSERTION(data, "Frame with layer should have been recorded");
     data->mFramesWithLayers.RemoveEntry(aFrame);
     if (data->mFramesWithLayers.Count() == 0) {
-      // Destroying our user data will consume a reference from the layer
-      // manager. But don't actually release until we've released all the layers
-      // in the DisplayItemData array below!
-      managerRef = manager;
       manager->RemoveUserData(&gLayerManagerUserData);
+      // Consume the reference we added when we set the user data
+      // in DidEndTransaction. But don't actually release until we've
+      // released all the layers in the DisplayItemData array below!
+      managerRef = manager;
+      NS_RELEASE(manager);
     }
   }
 
@@ -487,8 +475,11 @@ FrameLayerBuilder::WillEndTransaction(LayerManager* aManager)
     // Update all the frames that used to have layers.
     data->mFramesWithLayers.EnumerateEntries(UpdateDisplayItemDataForFrame, this);
   } else {
-    data = new LayerManagerData(mRetainingManager);
+    data = new LayerManagerData();
     mRetainingManager->SetUserData(&gLayerManagerUserData, data);
+    // Addref mRetainingManager. We'll release it when 'data' is
+    // removed.
+    NS_ADDREF(mRetainingManager);
   }
   // Now go through all the frames that didn't have any retained
   // display items before, and record those retained display items.
@@ -747,7 +738,7 @@ SetVisibleRectForLayer(Layer* aLayer, const nsIntRect& aRect)
         gfxRect(aRect.x, aRect.y, aRect.width, aRect.height));
     layerVisible.RoundOut();
     nsIntRect visibleRect;
-    if (!gfxUtils::GfxRectToIntRect(layerVisible, &visibleRect)) {
+    if (NS_FAILED(nsLayoutUtils::GfxRectToIntRect(layerVisible, &visibleRect))) {
       visibleRect = nsIntRect(0, 0, 0, 0);
       NS_WARNING("Visible rect transformed out of bounds");
     }
@@ -804,8 +795,8 @@ ContainerState::PopThebesLayerData()
     colorLayer->SetColor(data->mSolidColor);
 
     NS_ASSERTION(!mNewChildLayers.Contains(colorLayer), "Layer already in list???");
-    AutoLayersArray::index_type index = mNewChildLayers.IndexOf(data->mLayer);
-    NS_ASSERTION(index != AutoLayersArray::NoIndex, "Thebes layer not found?");
+    nsTArray_base::index_type index = mNewChildLayers.IndexOf(data->mLayer);
+    NS_ASSERTION(index != nsTArray_base::NoIndex, "Thebes layer not found?");
     mNewChildLayers.InsertElementAt(index + 1, colorLayer);
 
     // Copy transform and clip rect
@@ -870,7 +861,7 @@ ContainerState::PopThebesLayerData()
     userData->mForcedBackgroundColor = backgroundColor;
   }
   PRUint32 flags =
-    ((isOpaque && !data->mForceTransparentSurface) ? Layer::CONTENT_OPAQUE : 0) |
+    (isOpaque ? Layer::CONTENT_OPAQUE : 0) |
     (data->mHasText ? 0 : Layer::CONTENT_NO_TEXT) |
     (data->mHasTextOverTransparent ? 0 : Layer::CONTENT_NO_TEXT_OVER_TRANSPARENT);
   layer->SetContentFlags(flags);
@@ -891,6 +882,24 @@ ContainerState::PopThebesLayerData()
   }
 
   mThebesLayerDataStack.RemoveElementAt(lastIndex);
+}
+
+static PRBool
+IsText(nsDisplayItem* aItem) {
+  switch (aItem->GetType()) {
+  case nsDisplayItem::TYPE_TEXT:
+  case nsDisplayItem::TYPE_BULLET:
+  case nsDisplayItem::TYPE_HEADER_FOOTER:
+#ifdef MOZ_MATHML
+  case nsDisplayItem::TYPE_MATHML_CHAR_FOREGROUND:
+#endif
+#ifdef MOZ_XUL
+  case nsDisplayItem::TYPE_XUL_TEXT_BOX:
+#endif
+    return PR_TRUE;
+  default:
+    return PR_FALSE;
+  }
 }
 
 void
@@ -921,8 +930,7 @@ ContainerState::ThebesLayerData::Accumulate(nsDisplayListBuilder* aBuilder,
   mDrawRegion.Or(mDrawRegion, aDrawRect);
   mDrawRegion.SimplifyOutward(4);
 
-  PRBool forceTransparentSurface = PR_FALSE;
-  if (aItem->IsOpaque(aBuilder, &forceTransparentSurface)) {
+  if (aItem->IsOpaque(aBuilder)) {
     // We don't use SimplifyInward here since it's not defined exactly
     // what it will discard. For our purposes the most important case
     // is a large opaque background at the bottom of z-order (e.g.,
@@ -933,13 +941,12 @@ ContainerState::ThebesLayerData::Accumulate(nsDisplayListBuilder* aBuilder,
     if (tmp.GetNumRects() <= 4) {
       mOpaqueRegion = tmp;
     }
-  } else if (aItem->HasText()) {
+  } else if (IsText(aItem)) {
     mHasText = PR_TRUE;
     if (!mOpaqueRegion.Contains(aVisibleRect)) {
       mHasTextOverTransparent = PR_TRUE;
     }
   }
-  mForceTransparentSurface = mForceTransparentSurface || forceTransparentSurface;
 }
 
 already_AddRefed<ThebesLayer>
@@ -1403,8 +1410,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
   state.ProcessDisplayItems(aChildren, clip);
   state.Finish();
 
-  PRUint32 flags = aChildren.IsOpaque() && 
-                   !aChildren.NeedsTransparentSurface() ? Layer::CONTENT_OPAQUE : 0;
+  PRUint32 flags = aChildren.IsOpaque() ? Layer::CONTENT_OPAQUE : 0;
   containerLayer->SetContentFlags(flags);
   return containerLayer.forget();
 }

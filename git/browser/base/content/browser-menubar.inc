@@ -439,17 +439,11 @@
                 command="Browser:AddBookmarkAs"
                 key="addBookmarkAsKb"/>
       <menuitem id="subscribeToPageMenuitem"
-#ifndef XP_MACOSX
-                class="menuitem-iconic"
-#endif
                 label="&subscribeToPageMenuitem.label;"
                 oncommand="return FeedHandler.subscribeToFeed(null, event);"
                 onclick="checkForMiddleClick(this, event);"
                 observes="singleFeedMenuitemState"/>
       <menu id="subscribeToPageMenupopup"
-#ifndef XP_MACOSX
-            class="menu-iconic"
-#endif
             label="&subscribeToPageMenupopup.label;"
             observes="multipleFeedsMenuState">
         <menupopup id="subscribeToPageSubmenuMenupopup"
@@ -462,7 +456,7 @@
                 command="Browser:BookmarkAllTabs"
                 key="bookmarkAllTabsKb"/>
       <menuitem id="bookmarksShowAll"
-                label="&showAllBookmarks2.label;"
+                label="&showAllBookmarks.label;"
                 command="Browser:ShowAllBookmarks"
                 key="manBookmarkKb"/>
       <menuseparator id="organizeBookmarksSeparator"/>
@@ -563,8 +557,8 @@
 #ifndef XP_UNIX
               <menuseparator id="prefSep"/>
               <menuitem id="menu_preferences"
-                        label="&preferencesCmd2.label;"
-                        accesskey="&preferencesCmd2.accesskey;"
+                        label="&preferencesCmd.label;"
+                        accesskey="&preferencesCmd.accesskey;"
                         oncommand="openPreferences();"/>
 #endif
               </menupopup>

@@ -39,7 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsGkAtoms.h"
-#include "DOMSVGNumber.h"
 #include "DOMSVGLength.h"
 #include "nsSVGAngle.h"
 #include "nsCOMPtr.h"
@@ -48,11 +47,12 @@
 #include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsSVGMatrix.h"
-#include "DOMSVGPoint.h"
+#include "nsSVGPoint.h"
 #include "nsSVGTransform.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIFrame.h"
 #include "nsISVGSVGFrame.h" //XXX
+#include "nsSVGNumber.h"
 #include "nsSVGRect.h"
 #include "nsISVGValueUtils.h"
 #include "nsDOMError.h"
@@ -60,7 +60,6 @@
 #include "nsGUIEvent.h"
 #include "nsSVGUtils.h"
 #include "nsSVGSVGElement.h"
-#include "nsSVGEffects.h" // For nsSVGEffects::RemoveAllRenderingObservers
 
 #ifdef MOZ_SMIL
 #include "nsEventDispatcher.h"
@@ -73,7 +72,6 @@ nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
 #endif // MOZ_SMIL
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGTranslatePoint::DOMVal, mElement)
 
@@ -130,9 +128,8 @@ nsSVGTranslatePoint::DOMVal::MatrixTransform(nsIDOMSVGMatrix *matrix,
 
   float x = mVal->GetX();
   float y = mVal->GetY();
-
-  NS_ADDREF(*_retval = new DOMSVGPoint(a*x + c*y + e, b*x + d*y + f));
-  return NS_OK;
+  
+  return NS_NewSVGPoint(_retval, a*x + c*y + e, b*x + d*y + f);
 }
 
 nsSVGElement::LengthInfo nsSVGSVGElement::sLengthInfo[4] =
@@ -199,7 +196,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGSVGElementBase)
 // Implementation
 
 nsSVGSVGElement::nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                 FromParser aFromParser)
+                                 PRUint32 aFromParser)
   : nsSVGSVGElementBase(aNodeInfo),
     mCoordCtx(nsnull),
     mViewportWidth(0),
@@ -210,7 +207,7 @@ nsSVGSVGElement::nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     mPreviousScale(1.0f),
     mRedrawSuspendCount(0)
 #ifdef MOZ_SMIL
-  , mStartAnimationOnBindToTree(!aFromParser)
+    ,mStartAnimationOnBindToTree(!aFromParser)
 #endif // MOZ_SMIL
 {
 }
@@ -224,7 +221,10 @@ nsSVGSVGElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsSVGSVGElement *it = new nsSVGSVGElement(ni.forget(), NOT_FROM_PARSER);
+  nsSVGSVGElement *it = new nsSVGSVGElement(ni.forget(), PR_FALSE);
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = it->Init();
@@ -633,8 +633,7 @@ nsSVGSVGElement::DeSelectAll()
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGNumber(nsIDOMSVGNumber **_retval)
 {
-  NS_ADDREF(*_retval = new DOMSVGNumber());
-  return NS_OK;
+  return NS_NewSVGNumber(_retval);
 }
 
 /* nsIDOMSVGLength createSVGLength (); */
@@ -656,8 +655,7 @@ nsSVGSVGElement::CreateSVGAngle(nsIDOMSVGAngle **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGPoint(nsIDOMSVGPoint **_retval)
 {
-  NS_ADDREF(*_retval = new DOMSVGPoint(0, 0));
-  return NS_OK;
+  return NS_NewSVGPoint(_retval);
 }
 
 /* nsIDOMSVGMatrix createSVGMatrix (); */
@@ -1039,7 +1037,6 @@ nsSVGSVGElement::BindToTree(nsIDocument* aDocument,
     rv = mTimedDocumentRoot->SetParent(smilController);
     if (mStartAnimationOnBindToTree) {
       mTimedDocumentRoot->Begin();
-      mStartAnimationOnBindToTree = PR_FALSE;
     }
   }
 
@@ -1233,12 +1230,3 @@ nsSVGSVGElement::GetPreserveAspectRatio()
 {
   return &mPreserveAspectRatio;
 }
-
-#ifndef MOZ_ENABLE_LIBXUL
-// XXXdholbert HACK -- see comment w/ this method's declaration in header file.
-void
-nsSVGSVGElement::RemoveAllRenderingObservers()
-{
-  nsSVGEffects::RemoveAllRenderingObservers(this);
-}
-#endif // !MOZ_LIBXUL

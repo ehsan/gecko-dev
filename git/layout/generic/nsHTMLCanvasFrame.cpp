@@ -77,11 +77,7 @@ public:
 
   NS_DISPLAY_DECL_NAME("nsDisplayCanvas", TYPE_CANVAS)
 
-  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder,
-                          PRBool* aForceTransparentSurface = nsnull) {
-    if (aForceTransparentSurface) {
-      *aForceTransparentSurface = PR_FALSE;
-    }
+  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder) {
     nsIFrame* f = GetUnderlyingFrame();
     nsHTMLCanvasElement *canvas = CanvasElementFromContent(f->GetContent());
     return canvas->GetIsOpaque();

@@ -56,27 +56,18 @@
 #include "nsContentUtils.h"
 #include "nsGkAtoms.h"
 
-using namespace mozilla::dom;
-
 txMozillaTextOutput::txMozillaTextOutput(nsIDOMDocument* aSourceDocument,
                                          nsIDOMDocument* aResultDocument,
                                          nsITransformObserver* aObserver)
 {
-    MOZ_COUNT_CTOR(txMozillaTextOutput);
     mObserver = do_GetWeakReference(aObserver);
     createResultDocument(aSourceDocument, aResultDocument);
 }
 
 txMozillaTextOutput::txMozillaTextOutput(nsIDOMDocumentFragment* aDest)
 {
-    MOZ_COUNT_CTOR(txMozillaTextOutput);
     mTextParent = do_QueryInterface(aDest);
     mDocument = mTextParent->GetOwnerDoc();
-}
-
-txMozillaTextOutput::~txMozillaTextOutput()
-{
-    MOZ_COUNT_DTOR(txMozillaTextOutput);
 }
 
 nsresult
@@ -302,5 +293,6 @@ txMozillaTextOutput::createXHTMLElement(nsIAtom* aName,
         GetNodeInfo(aName, nsnull, kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
-    return NS_NewHTMLElement(aResult, ni.forget(), NOT_FROM_PARSER);
+    return NS_NewHTMLElement(aResult, ni.forget(), PR_FALSE);
 }
+

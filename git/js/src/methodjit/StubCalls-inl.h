@@ -65,9 +65,9 @@ ValueToObject(JSContext *cx, Value *vp)
 static inline void
 ReportAtomNotDefined(JSContext *cx, JSAtom *atom)
 {
-    JSAutoByteString printable;
-    if (js_AtomToPrintableString(cx, atom, &printable))
-        js_ReportIsNotDefined(cx, printable.ptr());
+    const char *printable = js_AtomToPrintableString(cx, atom);
+    if (printable)
+        js_ReportIsNotDefined(cx, printable);
 }
 
 #define NATIVE_SET(cx,obj,shape,entry,vp)                                     \
@@ -76,7 +76,7 @@ ReportAtomNotDefined(JSContext *cx, JSAtom *atom)
             (shape)->slot != SHAPE_INVALID_SLOT &&                            \
             !(obj)->brandedOrHasMethodBarrier()) {                            \
             /* Fast path for, e.g., plain Object instance properties. */      \
-            (obj)->nativeSetSlot((shape)->slot, *vp);                         \
+            (obj)->lockedSetSlot((shape)->slot, *vp);                         \
         } else {                                                              \
             if (!js_NativeSet(cx, obj, shape, false, vp))                     \
                 THROW();                                                      \
@@ -90,7 +90,7 @@ ReportAtomNotDefined(JSContext *cx, JSAtom *atom)
             JS_ASSERT((shape)->slot != SHAPE_INVALID_SLOT ||                  \
                       !shape->hasDefaultSetter());                            \
             if (((shape)->slot != SHAPE_INVALID_SLOT))                        \
-                *(vp) = (pobj)->nativeGetSlot((shape)->slot);                 \
+                *(vp) = (pobj)->lockedGetSlot((shape)->slot);                 \
             else                                                              \
                 (vp)->setUndefined();                                         \
         } else {                                                              \
@@ -98,6 +98,7 @@ ReportAtomNotDefined(JSContext *cx, JSAtom *atom)
                 onerr;                                                        \
         }                                                                     \
     JS_END_MACRO
+
 
 }}
 

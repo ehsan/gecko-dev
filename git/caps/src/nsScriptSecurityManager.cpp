@@ -106,6 +106,12 @@ nsIStringBundle *nsScriptSecurityManager::sStrBundle = nsnull;
 JSRuntime       *nsScriptSecurityManager::sRuntime   = 0;
 PRBool nsScriptSecurityManager::sStrictFileOriginPolicy = PR_TRUE;
 
+// Info we need about the JSClasses used by XPConnects wrapped
+// natives, to avoid having to QI to nsIXPConnectWrappedNative all the
+// time when doing security checks.
+static JSEqualityOp sXPCWrappedNativeEqualityOps;
+
+
 ///////////////////////////
 // Convenience Functions //
 ///////////////////////////
@@ -2408,8 +2414,11 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
     do {
         // Note: jsClass is set before this loop, and also at the
         // *end* of this loop.
+
+        // NOTE: These class and equality hook checks better match
+        // what IS_WRAPPER_CLASS() does in xpconnect!
         
-        if (IS_WRAPPER_CLASS(jsClass)) {
+        if (jsClass->ext.equality == js::Valueify(sXPCWrappedNativeEqualityOps)) {
             result = sXPConnect->GetPrincipal(aObj,
 #ifdef DEBUG
                                               aAllowShortCircuit
@@ -2456,19 +2465,10 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
         jsClass = aObj->getClass();
     } while (1);
 
-#ifdef DEBUG
-    if (aAllowShortCircuit) {
-        nsIPrincipal *principal = doGetObjectPrincipal(origObj, PR_FALSE);
-
-        // Location is always wrapped (even for same-compartment), so we can
-        // loosen the check to same-origin instead of same-principal.
-        NS_ASSERTION(strcmp(jsClass->name, "Location") == 0 ?
-                     NS_SUCCEEDED(CheckSameOriginPrincipal(result, principal)) :
-                     result == principal,
-                     "Principal mismatch.  Not good");
-    }
-#endif
-
+    NS_ASSERTION(!aAllowShortCircuit ||
+                 result == doGetObjectPrincipal(origObj, PR_FALSE),
+                 "Principal mismatch.  Not good");
+    
     return result;
 }
 
@@ -3414,6 +3414,7 @@ nsresult nsScriptSecurityManager::Init()
     JS_SetRuntimeSecurityCallbacks(sRuntime, &securityCallbacks);
     NS_ASSERTION(!oldcallbacks, "Someone else set security callbacks!");
 
+    sXPConnect->GetXPCWrappedNativeJSClassInfo(&sXPCWrappedNativeEqualityOps);
     return NS_OK;
 }
 

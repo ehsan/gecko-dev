@@ -55,14 +55,7 @@ extern "C" __declspec(dllimport) void CacheRangeFlush(LPVOID pAddr, DWORD dwLeng
 #endif
 
 #define JIT_ALLOCATOR_PAGE_SIZE (ExecutableAllocator::pageSize)
-/*
- * On Windows, VirtualAlloc effectively allocates in 64K chunks. (Technically,
- * it allocates in page chunks, but the starting address is always a multiple
- * of 64K, so each allocation uses up 64K of address space.)  So a size less
- * than that would be pointless.  But it turns out that 64KB is a reasonable
- * size for all platforms.
- */
-#define JIT_ALLOCATOR_LARGE_ALLOC_SIZE (ExecutableAllocator::pageSize * 16)
+#define JIT_ALLOCATOR_LARGE_ALLOC_SIZE (ExecutableAllocator::pageSize * 4)
 
 #if ENABLE_ASSEMBLER_WX_EXCLUSIVE
 #define PROTECTION_FLAGS_RW (PROT_READ | PROT_WRITE)
@@ -80,12 +73,10 @@ namespace JSC {
 # undef max
 #endif
 
-const size_t OVERSIZE_ALLOCATION = size_t(-1);
-
 inline size_t roundUpAllocationSize(size_t request, size_t granularity)
 {
     if ((std::numeric_limits<size_t>::max() - granularity) <= request)
-        return OVERSIZE_ALLOCATION;
+        CRASH(); // Allocation is too large
     
     // Round up to next page boundary
     size_t size = request + (granularity - 1);
@@ -97,8 +88,6 @@ inline size_t roundUpAllocationSize(size_t request, size_t granularity)
 }
 
 #if ENABLE_ASSEMBLER
-
-//#define DEBUG_STRESS_JSC_ALLOCATOR
 
 namespace JSC {
 
@@ -132,12 +121,7 @@ public:
     //static PassRefPtr<ExecutablePool> create(size_t n)
     static ExecutablePool* create(size_t n)
     {
-        ExecutablePool *pool = new ExecutablePool(n);
-        if (!pool->m_freePtr) {
-            delete pool;
-            return NULL;
-        }
-        return pool;
+        return new ExecutablePool(n);
     }
 
     void* alloc(size_t n)
@@ -147,8 +131,6 @@ public:
         // Round 'n' up to a multiple of word size; if all allocations are of
         // word sized quantities, then all subsequent allocations will be aligned.
         n = roundUpAllocationSize(n, sizeof(void*));
-        if (n == OVERSIZE_ALLOCATION)
-            return NULL;
 
         if (static_cast<ptrdiff_t>(n) < (m_end - m_freePtr)) {
             void* result = m_freePtr;
@@ -171,7 +153,6 @@ public:
     size_t available() const { return (m_pools.length() > 1) ? 0 : m_end - m_freePtr; }
 
 private:
-    // On OOM, this will return an Allocation where pages is NULL.
     static Allocation systemAlloc(size_t n);
     static void systemRelease(const Allocation& alloc);
 
@@ -187,35 +168,16 @@ private:
 class ExecutableAllocator {
     enum ProtectionSeting { Writable, Executable };
 
-    // Initialization can fail so we use a create method instead.
-    ExecutableAllocator() {}
 public:
     static size_t pageSize;
-
-    // Returns NULL on OOM.
-    static ExecutableAllocator *create()
+    ExecutableAllocator()
     {
-        ExecutableAllocator *allocator = new ExecutableAllocator();
-        if (!allocator)
-            return allocator;
-
         if (!pageSize)
             intializePageSize();
-        ExecutablePool *pool = ExecutablePool::create(JIT_ALLOCATOR_LARGE_ALLOC_SIZE);
-        if (!pool) {
-            delete allocator;
-            return NULL;
-        }
-        JS_ASSERT(allocator->m_smallAllocationPools.empty());
-        allocator->m_smallAllocationPools.append(pool);
-        return allocator;
+        m_smallAllocationPool = ExecutablePool::create(JIT_ALLOCATOR_LARGE_ALLOC_SIZE);
     }
 
-    ~ExecutableAllocator()
-    {
-        for (size_t i = 0; i < m_smallAllocationPools.length(); i++)
-            delete m_smallAllocationPools[i];
-    }
+    ~ExecutableAllocator() { delete m_smallAllocationPool; }
 
     // poolForSize returns reference-counted objects. The caller owns a reference
     // to the object; i.e., poolForSize increments the count before returning the
@@ -223,23 +185,11 @@ public:
 
     ExecutablePool* poolForSize(size_t n)
     {
-#ifndef DEBUG_STRESS_JSC_ALLOCATOR
-        // Try to fit in an existing small allocator.  Use the pool with the
-        // least available space that is big enough (best-fit).  This is the
-        // best strategy because (a) it maximizes the chance of the next
-        // allocation fitting in a small pool, and (b) it minimizes the
-        // potential waste when a small pool is next abandoned.
-        ExecutablePool *minPool = NULL;
-        for (size_t i = 0; i < m_smallAllocationPools.length(); i++) {
-            ExecutablePool *pool = m_smallAllocationPools[i];
-            if (n <= pool->available() && (!minPool || pool->available() < minPool->available()))
-                minPool = pool;
-        }
-        if (minPool) {
-            minPool->addRef();
-            return minPool;
-        }
-#endif
+        // Try to fit in the existing small allocator
+        if (n < m_smallAllocationPool->available()) {
+	    m_smallAllocationPool->addRef();
+            return m_smallAllocationPool;
+	}
 
         // If the request is large, we just provide a unshared allocator
         if (n > JIT_ALLOCATOR_LARGE_ALLOC_SIZE)
@@ -247,33 +197,15 @@ public:
 
         // Create a new allocator
         ExecutablePool* pool = ExecutablePool::create(JIT_ALLOCATOR_LARGE_ALLOC_SIZE);
-        if (!pool)
-            return NULL;
   	    // At this point, local |pool| is the owner.
 
-        if (m_smallAllocationPools.length() < maxSmallPools) {
-            // We haven't hit the maximum number of live pools;  add the new pool.
-            m_smallAllocationPools.append(pool);
-            pool->addRef();
-        } else {
-            // Find the pool with the least space.
-            int iMin = 0;
-            for (size_t i = 1; i < m_smallAllocationPools.length(); i++)
-                if (m_smallAllocationPools[i]->available() <
-                    m_smallAllocationPools[iMin]->available())
-                {
-                    iMin = i;
-                }
-
-            // If the new allocator will result in more free space than the small
-            // pool with the least space, then we will use it instead
-            ExecutablePool *minPool = m_smallAllocationPools[iMin];
-            if ((pool->available() - n) > minPool->available()) {
-                minPool->release();
-                m_smallAllocationPools[iMin] = pool;
-                pool->addRef();
-            }
-        }
+        // If the new allocator will result in more free space than in
+        // the current small allocator, then we will use it instead
+        if ((pool->available() - n) > m_smallAllocationPool->available()) {
+	        m_smallAllocationPool->release();
+            m_smallAllocationPool = pool;
+	        pool->addRef();
+	    }
 
    	    // Pass ownership to the caller.
         return pool;
@@ -385,52 +317,28 @@ private:
     static void reprotectRegion(void*, size_t, ProtectionSeting);
 #endif
 
-    static const size_t maxSmallPools = 4;
-    typedef js::Vector<ExecutablePool *, maxSmallPools, js::SystemAllocPolicy > SmallExecPoolVector;
-    SmallExecPoolVector m_smallAllocationPools;
+    ExecutablePool* m_smallAllocationPool;
     static void intializePageSize();
 };
 
-// This constructor can fail due to OOM. If it does, m_freePtr will be
-// set to NULL. 
 inline ExecutablePool::ExecutablePool(size_t n) : m_refCount(1)
 {
     size_t allocSize = roundUpAllocationSize(n, JIT_ALLOCATOR_PAGE_SIZE);
-    if (allocSize == OVERSIZE_ALLOCATION) {
-        m_freePtr = NULL;
-        return;
-    }
-#ifdef DEBUG_STRESS_JSC_ALLOCATOR
-    Allocation mem = systemAlloc(size_t(4294967291));
-#else
     Allocation mem = systemAlloc(allocSize);
-#endif
-    if (!mem.pages) {
-        m_freePtr = NULL;
-        return;
-    }
-    if (!m_pools.append(mem)) {
-        systemRelease(mem);
-        m_freePtr = NULL;
-        return;
-    }
+    m_pools.append(mem);
     m_freePtr = mem.pages;
+    if (!m_freePtr)
+        CRASH(); // Failed to allocate
     m_end = m_freePtr + allocSize;
 }
 
 inline void* ExecutablePool::poolAllocate(size_t n)
 {
     size_t allocSize = roundUpAllocationSize(n, JIT_ALLOCATOR_PAGE_SIZE);
-    if (allocSize == OVERSIZE_ALLOCATION)
-        return NULL;
     
-#ifdef DEBUG_STRESS_JSC_ALLOCATOR
-    Allocation result = systemAlloc(size_t(4294967291));
-#else
     Allocation result = systemAlloc(allocSize);
-#endif
     if (!result.pages)
-        return NULL;
+        CRASH(); // Failed to allocate
     
     JS_ASSERT(m_end >= m_freePtr);
     if ((allocSize - n) > static_cast<size_t>(m_end - m_freePtr)) {

@@ -53,15 +53,12 @@ namespace layers {
 
 struct Edit;
 struct EditReply;
-class OptionalThebesBuffer;
 class PLayerChild;
 class PLayersChild;
 class PLayersParent;
 class ShadowableLayer;
 class ShadowThebesLayer;
-class ShadowContainerLayer;
 class ShadowImageLayer;
-class ShadowColorLayer;
 class ShadowCanvasLayer;
 class SurfaceDescriptor;
 class ThebesBuffer;
@@ -232,7 +229,7 @@ public:
    * |aReplies| are directions from the ShadowLayerManager to the
    * caller of EndTransaction().
    */
-  PRBool EndTransaction(InfallibleTArray<EditReply>* aReplies);
+  PRBool EndTransaction(nsTArray<EditReply>* aReplies);
 
   /**
    * True if this is forwarding to a ShadowLayerManager.
@@ -343,11 +340,7 @@ public:
   /** CONSTRUCTION PHASE ONLY */
   virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer() = 0;
   /** CONSTRUCTION PHASE ONLY */
-  virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer() = 0;
-  /** CONSTRUCTION PHASE ONLY */
   virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer() = 0;
-  /** CONSTRUCTION PHASE ONLY */
-  virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer() = 0;
   /** CONSTRUCTION PHASE ONLY */
   virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer() = 0;
 
@@ -392,76 +385,18 @@ protected:
 };
 
 
-/**
- * A ShadowLayer is the representation of a child-context's Layer in a
- * parent context.  They can be transformed, clipped,
- * etc. independently of their origin Layers.
- *
- * Note that ShadowLayers can themselves have a shadow in a parent
- * context.
- */
-class ShadowLayer
+class ShadowThebesLayer : public ThebesLayer
 {
 public:
-  virtual ~ShadowLayer() {}
-
   /**
    * CONSTRUCTION PHASE ONLY
    */
-  void SetAllocator(PLayersParent* aAllocator)
+  void SetParent(PLayersParent* aParent)
   {
-    NS_ABORT_IF_FALSE(!mAllocator, "Stomping allocator?");
-    mAllocator = aAllocator;
+    NS_ABORT_IF_FALSE(!mAllocator, "Stomping parent?");
+    mAllocator = aParent;
   }
 
-  /**
-   * The following methods are
-   *
-   * CONSTRUCTION PHASE ONLY
-   *
-   * They are analogous to the Layer interface.
-   */
-  void SetShadowVisibleRegion(const nsIntRegion& aRegion)
-  {
-    mShadowVisibleRegion = aRegion;
-  }
-
-  void SetShadowClipRect(const nsIntRect* aRect)
-  {
-    mUseShadowClipRect = aRect != nsnull;
-    if (aRect) {
-      mShadowClipRect = *aRect;
-    }
-  }
-
-  void SetShadowTransform(const gfx3DMatrix& aMatrix)
-  {
-    mShadowTransform = aMatrix;
-  }
-
-  // These getters can be used anytime.
-  const nsIntRect* GetShadowClipRect() { return mUseShadowClipRect ? &mShadowClipRect : nsnull; }
-  const nsIntRegion& GetShadowVisibleRegion() { return mShadowVisibleRegion; }
-  const gfx3DMatrix& GetShadowTransform() { return mShadowTransform; }
-
-protected:
-  ShadowLayer()
-    : mAllocator(nsnull)
-    , mUseShadowClipRect(PR_FALSE)
-  {}
-
-  PLayersParent* mAllocator;
-  nsIntRegion mShadowVisibleRegion;
-  gfx3DMatrix mShadowTransform;
-  nsIntRect mShadowClipRect;
-  PRPackedBool mUseShadowClipRect;
-};
-
-
-class ShadowThebesLayer : public ShadowLayer,
-                          public ThebesLayer
-{
-public:
   /**
    * CONSTRUCTION PHASE ONLY
    *
@@ -506,8 +441,7 @@ public:
   virtual void
   Swap(const ThebesBuffer& aNewFront, const nsIntRegion& aUpdatedRegion,
        ThebesBuffer* aNewBack, nsIntRegion* aNewBackValidRegion,
-       float* aNewXResolution, float* aNewYResolution,
-       OptionalThebesBuffer* aReadOnlyFront, nsIntRegion* aFrontUpdatedRegion) = 0;
+       float* aNewXResolution, float* aNewYResolution) = 0;
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -516,36 +450,30 @@ public:
    */
   virtual void DestroyFrontBuffer() = 0;
 
-  virtual ShadowLayer* AsShadowLayer() { return this; }
-
   MOZ_LAYER_DECL_NAME("ShadowThebesLayer", TYPE_SHADOW)
 
 protected:
   ShadowThebesLayer(LayerManager* aManager, void* aImplData)
     : ThebesLayer(aManager, aImplData)
+    , mAllocator(nsnull)
   {}
+
+  PLayersParent* mAllocator;
 };
 
 
-class ShadowContainerLayer : public ShadowLayer,
-                             public ContainerLayer
+class ShadowCanvasLayer : public CanvasLayer
 {
 public:
-  virtual ShadowLayer* AsShadowLayer() { return this; }
+  /**
+   * CONSTRUCTION PHASE ONLY
+   */
+  void SetParent(PLayersParent* aParent)
+  {
+    NS_ABORT_IF_FALSE(!mAllocator, "Stomping parent?");
+    mAllocator = aParent;
+  }
 
-  MOZ_LAYER_DECL_NAME("ShadowContainerLayer", TYPE_SHADOW)
-
-protected:
-  ShadowContainerLayer(LayerManager* aManager, void* aImplData)
-    : ContainerLayer(aManager, aImplData)
-  {}
-};
-
-
-class ShadowCanvasLayer : public ShadowLayer,
-                          public CanvasLayer
-{
-public:
   /**
    * CONSTRUCTION PHASE ONLY
    *
@@ -563,21 +491,30 @@ public:
    */
   virtual void DestroyFrontBuffer() = 0;
 
-  virtual ShadowLayer* AsShadowLayer() { return this; }
-
   MOZ_LAYER_DECL_NAME("ShadowCanvasLayer", TYPE_SHADOW)
 
 protected:
   ShadowCanvasLayer(LayerManager* aManager, void* aImplData)
     : CanvasLayer(aManager, aImplData)
+    , mAllocator(nsnull)
   {}
+
+  PLayersParent* mAllocator;
 };
 
 
-class ShadowImageLayer : public ShadowLayer,
-                         public ImageLayer
+class ShadowImageLayer : public ImageLayer
 {
 public:
+  /**
+   * CONSTRUCTION PHASE ONLY
+   */
+  void SetParent(PLayersParent* aParent)
+  {
+    NS_ABORT_IF_FALSE(!mAllocator, "Stomping parent?");
+    mAllocator = aParent;
+  }
+
   /**
    * CONSTRUCTION PHASE ONLY
    *
@@ -602,29 +539,15 @@ public:
    */
   virtual void DestroyFrontBuffer() = 0;
 
-  virtual ShadowLayer* AsShadowLayer() { return this; }
-
   MOZ_LAYER_DECL_NAME("ShadowImageLayer", TYPE_SHADOW)
 
 protected:
   ShadowImageLayer(LayerManager* aManager, void* aImplData)
     : ImageLayer(aManager, aImplData)
+    , mAllocator(nsnull)
   {}
-};
 
-
-class ShadowColorLayer : public ShadowLayer,
-                         public ColorLayer
-{
-public:
-  virtual ShadowLayer* AsShadowLayer() { return this; }
-
-  MOZ_LAYER_DECL_NAME("ShadowColorLayer", TYPE_SHADOW)
-
-protected:
-  ShadowColorLayer(LayerManager* aManager, void* aImplData)
-    : ColorLayer(aManager, aImplData)
-  {}
+  PLayersParent* mAllocator;
 };
 
 
