@@ -179,7 +179,7 @@ function PluginWrapper(aId, aName, aDescription, aTags) {
   this.__defineGetter__("id", function() aId);
   this.__defineGetter__("type", function() "plugin");
   this.__defineGetter__("name", function() aName);
-  this.__defineGetter__("creator", function() null);
+  this.__defineGetter__("creator", function() "");
   this.__defineGetter__("description", function() safedesc);
   this.__defineGetter__("version", function() aTags[0].version);
   this.__defineGetter__("homepageURL", function() homepageURL);
@@ -264,11 +264,7 @@ function PluginWrapper(aId, aName, aDescription, aTags) {
   });
 
   this.__defineGetter__("pendingOperations", function() {
-    return AddonManager.PENDING_NONE;
-  });
-
-  this.__defineGetter__("operationsRequiringRestart", function() {
-    return AddonManager.OP_NEEDS_RESTART_NONE;
+    return 0;
   });
 
   this.__defineGetter__("permissions", function() {

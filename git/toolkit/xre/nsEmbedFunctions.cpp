@@ -73,11 +73,7 @@
 #include "nsWidgetsCID.h"
 #include "nsXREDirProvider.h"
 
-#include "mozilla/Omnijar.h"
 #ifdef MOZ_IPC
-#if defined(XP_MACOSX)
-#include "chrome/common/mach_ipc_mac.h"
-#endif
 #include "nsX11ErrorHandler.h"
 #include "base/at_exit.h"
 #include "base/command_line.h"
@@ -94,9 +90,9 @@
 
 #include "mozilla/jetpack/JetpackProcessChild.h"
 #include "mozilla/plugins/PluginProcessChild.h"
-#include "mozilla/dom/ContentProcess.h"
-#include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/ContentProcessProcess.h"
+#include "mozilla/dom/ContentProcessParent.h"
+#include "mozilla/dom/ContentProcessChild.h"
 
 #include "mozilla/jsipc/ContextWrapperParent.h"
 
@@ -118,9 +114,9 @@ using mozilla::ipc::ScopedXREEmbed;
 
 using mozilla::jetpack::JetpackProcessChild;
 using mozilla::plugins::PluginProcessChild;
-using mozilla::dom::ContentProcess;
-using mozilla::dom::ContentParent;
-using mozilla::dom::ContentChild;
+using mozilla::dom::ContentProcessProcess;
+using mozilla::dom::ContentProcessParent;
+using mozilla::dom::ContentProcessChild;
 
 using mozilla::jsipc::PContextWrapperParent;
 using mozilla::jsipc::ContextWrapperParent;
@@ -261,10 +257,11 @@ XRE_TakeMinidumpForChild(PRUint32 aChildPid, nsILocalFile** aDump)
   return CrashReporter::TakeMinidumpForChild(aChildPid, aDump);
 }
 
+#if !defined(XP_MACOSX)
 PRBool
 XRE_SetRemoteExceptionHandler(const char* aPipe/*= 0*/)
 {
-#if defined(XP_WIN) || defined(XP_MACOSX)
+#if defined(XP_WIN)
   return CrashReporter::SetRemoteExceptionHandler(nsDependentCString(aPipe));
 #elif defined(OS_LINUX)
   return CrashReporter::SetRemoteExceptionHandler();
@@ -272,6 +269,7 @@ XRE_SetRemoteExceptionHandler(const char* aPipe/*= 0*/)
 #  error "OOP crash reporter unsupported on this platform"
 #endif
 }
+#endif // !XP_MACOSX
 #endif // if defined(MOZ_CRASHREPORTER)
 
 #if defined(XP_WIN)
@@ -311,77 +309,6 @@ XRE_InitChildProcess(int aArgc,
   NS_ENSURE_ARG_POINTER(aArgv[0]);
 
   sChildProcessType = aProcess;
-
-  // Complete 'task_t' exchange for Mac OS X. This structure has the same size
-  // regardless of architecture so we don't have any cross-arch issues here.
-#ifdef XP_MACOSX
-  if (aArgc < 1)
-    return 1;
-  const char* const mach_port_name = aArgv[--aArgc];
-
-  const int kTimeoutMs = 1000;
-
-  MachSendMessage child_message(0);
-  if (!child_message.AddDescriptor(mach_task_self())) {
-    NS_WARNING("child AddDescriptor(mach_task_self()) failed.");
-    return 1;
-  }
-
-  ReceivePort child_recv_port;
-  mach_port_t raw_child_recv_port = child_recv_port.GetPort();
-  if (!child_message.AddDescriptor(raw_child_recv_port)) {
-    NS_WARNING("Adding descriptor to message failed");
-    return 1;
-  }
-
-  MachPortSender child_sender(mach_port_name);
-  kern_return_t err = child_sender.SendMessage(child_message, kTimeoutMs);
-  if (err != KERN_SUCCESS) {
-    NS_WARNING("child SendMessage() failed");
-    return 1;
-  }
-
-  MachReceiveMessage parent_message;
-  err = child_recv_port.WaitForMessage(&parent_message, kTimeoutMs);
-  if (err != KERN_SUCCESS) {
-    NS_WARNING("child WaitForMessage() failed");
-    return 1;
-  }
-
-  if (parent_message.GetTranslatedPort(0) == MACH_PORT_NULL) {
-    NS_WARNING("child GetTranslatedPort(0) failed");
-    return 1;
-  }
-  err = task_set_bootstrap_port(mach_task_self(),
-                                parent_message.GetTranslatedPort(0));
-  if (err != KERN_SUCCESS) {
-    NS_WARNING("child task_set_bootstrap_port() failed");
-    return 1;
-  }
-#endif
-  
-#if defined(MOZ_CRASHREPORTER)
-  if (aArgc < 1)
-    return 1;
-  const char* const crashReporterArg = aArgv[--aArgc];
-  
-#  if defined(XP_WIN) || defined(XP_MACOSX)
-  // on windows and mac, |crashReporterArg| is the named pipe on which the
-  // server is listening for requests, or "-" if crash reporting is
-  // disabled.
-  if (0 != strcmp("-", crashReporterArg)
-      && !XRE_SetRemoteExceptionHandler(crashReporterArg))
-    return 1;
-#  elif defined(OS_LINUX)
-  // on POSIX, |crashReporterArg| is "true" if crash reporting is
-  // enabled, false otherwise
-  if (0 != strcmp("false", crashReporterArg)
-      && !XRE_SetRemoteExceptionHandler(NULL))
-    return 1;
-#  else
-#    error "OOP crash reporting unsupported on this platform"
-#  endif   
-#endif // if defined(MOZ_CRASHREPORTER)
 
   gArgv = aArgv;
   gArgc = aArgc;
@@ -457,61 +384,51 @@ XRE_InitChildProcess(int aArgc,
       break;
   }
 
+  // Associate this thread with a UI MessageLoop
+  MessageLoop uiMessageLoop(uiLoopType);
   {
-    // This is a lexical scope for the MessageLoop below.  We want it
-    // to go out of scope before NS_LogTerm() so that we don't get
-    // spurious warnings about XPCOM objects being destroyed from a
-    // static context.
+    nsAutoPtr<ProcessChild> process;
 
-    // Associate this thread with a UI MessageLoop
-    MessageLoop uiMessageLoop(uiLoopType);
-    {
-      nsAutoPtr<ProcessChild> process;
+    switch (aProcess) {
+    case GeckoProcessType_Default:
+      NS_RUNTIMEABORT("This makes no sense");
+      break;
 
-      switch (aProcess) {
-      case GeckoProcessType_Default:
-        NS_RUNTIMEABORT("This makes no sense");
-        break;
+    case GeckoProcessType_Plugin:
+      process = new PluginProcessChild(parentHandle);
+      break;
 
-      case GeckoProcessType_Plugin:
-        process = new PluginProcessChild(parentHandle);
-        break;
+    case GeckoProcessType_Content:
+      process = new ContentProcessProcess(parentHandle);
+      break;
 
-      case GeckoProcessType_Content:
-        process = new ContentProcess(parentHandle);
-        break;
+    case GeckoProcessType_Jetpack:
+      process = new JetpackProcessChild(parentHandle);
+      break;
 
-      case GeckoProcessType_Jetpack:
-        process = new JetpackProcessChild(parentHandle);
-        break;
-
-      case GeckoProcessType_IPDLUnitTest:
+    case GeckoProcessType_IPDLUnitTest:
 #ifdef MOZ_IPDL_TESTS
-        process = new IPDLUnitTestProcessChild(parentHandle);
+      process = new IPDLUnitTestProcessChild(parentHandle);
 #else 
-        NS_RUNTIMEABORT("rebuild with --enable-ipdl-tests");
+      NS_RUNTIMEABORT("rebuild with --enable-ipdl-tests");
 #endif
-        break;
+      break;
 
-      default:
-        NS_RUNTIMEABORT("Unknown main thread class");
-      }
-
-      if (!process->Init()) {
-        NS_LogTerm();
-        return NS_ERROR_FAILURE;
-      }
-
-      // Run the UI event loop on the main thread.
-      uiMessageLoop.MessageLoop::Run();
-
-      // Allow ProcessChild to clean up after itself before going out of
-      // scope and being deleted
-      process->CleanUp();
-#ifdef MOZ_OMNIJAR
-      mozilla::SetOmnijar(nsnull);
-#endif
+    default:
+      NS_RUNTIMEABORT("Unknown main thread class");
     }
+
+    if (!process->Init()) {
+      NS_LogTerm();
+      return NS_ERROR_FAILURE;
+    }
+
+    // Run the UI event loop on the main thread.
+    uiMessageLoop.MessageLoop::Run();
+
+    // Allow ProcessChild to clean up after itself before going out of
+    // scope and being deleted
+    process->CleanUp();
   }
 
   NS_LogTerm();
@@ -566,9 +483,7 @@ XRE_InitParentProcess(int aArgc,
   NS_ENSURE_ARG_POINTER(aArgv);
   NS_ENSURE_ARG_POINTER(aArgv[0]);
 
-  gArgc = aArgc;
-  gArgv = aArgv;
-  int rv = XRE_InitCommandLine(gArgc, gArgv);
+  int rv = XRE_InitCommandLine(aArgc, aArgv);
   if (NS_FAILED(rv))
       return NS_ERROR_FAILURE;
 
@@ -632,10 +547,10 @@ XRE_RunAppShell()
 }
 
 template<>
-struct RunnableMethodTraits<ContentChild>
+struct RunnableMethodTraits<ContentProcessChild>
 {
-    static void RetainCallee(ContentChild* obj) { }
-    static void ReleaseCallee(ContentChild* obj) { }
+    static void RetainCallee(ContentProcessChild* obj) { }
+    static void ReleaseCallee(ContentProcessChild* obj) { }
 };
 
 void
@@ -660,7 +575,7 @@ TestShellParent* gTestShellParent = nsnull;
 TestShellParent* GetOrCreateTestShellParent()
 {
     if (!gTestShellParent) {
-        ContentParent* parent = ContentParent::GetSingleton();
+        ContentProcessParent* parent = ContentProcessParent::GetSingleton();
         NS_ENSURE_TRUE(parent, nsnull);
         gTestShellParent = parent->CreateTestShell();
         NS_ENSURE_TRUE(gTestShellParent, nsnull);
@@ -705,7 +620,7 @@ XRE_ShutdownTestShell()
 {
   if (!gTestShellParent)
     return true;
-  return ContentParent::GetSingleton()->DestroyTestShell(gTestShellParent);
+  return ContentProcessParent::GetSingleton()->DestroyTestShell(gTestShellParent);
 }
 
 #ifdef MOZ_X11

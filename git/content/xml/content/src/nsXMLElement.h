@@ -46,7 +46,7 @@ class nsXMLElement : public nsGenericElement,
                      public nsIDOMElement
 {
 public:
-  nsXMLElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+  nsXMLElement(nsINodeInfo *aNodeInfo)
     : nsGenericElement(aNodeInfo)
   {
   }
@@ -63,8 +63,6 @@ public:
   // nsINode interface methods
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
-
   // nsIContent interface methods
   virtual nsIAtom *GetIDAttributeName() const;
   virtual nsIAtom* DoGetID() const;
@@ -78,11 +76,6 @@ public:
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
-
-  // nsGenericElement overrides
-  virtual void NodeInfoChanged(nsINodeInfo* aOldNodeInfo);
-
-
 };
 
 #endif // nsXMLElement_h___

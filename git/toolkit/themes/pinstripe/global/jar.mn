@@ -23,6 +23,7 @@ toolkit.jar:
 * skin/classic/global/findBar.css
 * skin/classic/global/global.css
   skin/classic/global/groupbox.css
+* skin/classic/global/headsUpDisplay.css
   skin/classic/global/linkTree.css
   skin/classic/global/listbox.css
   skin/classic/global/menu.css
@@ -49,8 +50,6 @@ toolkit.jar:
   skin/classic/global/toolbarbutton.css
   skin/classic/global/tree.css
 * skin/classic/global/viewbuttons.css
-* skin/classic/global/webConsole.css
-* skin/classic/global/webConsole_networkPanel.css
   skin/classic/global/wizard.css
   skin/classic/global/arrow/arrow-dn-dis.gif                         (arrow/arrow-dn-dis.gif)
   skin/classic/global/arrow/arrow-dn-dis.png                         (arrow/arrow-dn-dis.png)
@@ -70,9 +69,6 @@ toolkit.jar:
   skin/classic/global/arrow/arrow-up-dis.gif                         (arrow/arrow-up-dis.gif)
   skin/classic/global/arrow/arrow-up-sharp.gif                       (arrow/arrow-up-sharp.gif)
   skin/classic/global/arrow/arrow-up.gif                             (arrow/arrow-up.gif)
-  skin/classic/global/arrow/panelarrow-up.png                        (arrow/panelarrow-up.png)
-  skin/classic/global/arrow/panelarrow-down.png                      (arrow/panelarrow-down.png)
-  skin/classic/global/arrow/panelarrow-horiz.png                     (arrow/panelarrow-horiz.png)
   skin/classic/global/checkbox/cbox-check.gif                        (checkbox/cbox-check.gif)
   skin/classic/global/checkbox/cbox-check-dis.gif                    (checkbox/cbox-check-dis.gif)
   skin/classic/global/console/console-error-caret.gif                (console/console-error-caret.gif)
@@ -92,8 +88,6 @@ toolkit.jar:
   skin/classic/global/icons/closetab-active.png                      (icons/closetab-active.png)
   skin/classic/global/icons/closetab-hover.png                       (icons/closetab-hover.png)
   skin/classic/global/icons/closetab.png                             (icons/closetab.png)
-  skin/classic/global/icons/commandline.png                          (icons/commandline.png)
-  skin/classic/global/icons/console-close.png                        (icons/console-close.png)
   skin/classic/global/icons/information-16.png                       (icons/information-16.png)
   skin/classic/global/icons/information-24.png                       (icons/information-24.png)
   skin/classic/global/icons/information-32.png                       (icons/information-32.png)

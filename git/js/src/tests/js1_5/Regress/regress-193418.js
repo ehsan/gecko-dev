@@ -45,6 +45,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-193418.js';
 var UBound = 0;
 var BUGNUMBER = 193418;
 var summary = 'Testing empty blocks';

@@ -8,11 +8,14 @@
 
 #include "compiler/OutputGLSL.h"
 
-TranslatorGLSL::TranslatorGLSL(ShShaderType type, ShShaderSpec spec)
-    : TCompiler(type, spec) {
+TranslatorGLSL::TranslatorGLSL(EShLanguage l, int dOptions)
+        : TCompiler(l),
+          debugOptions(dOptions) {
 }
 
-void TranslatorGLSL::translate(TIntermNode* root) {
-    TOutputGLSL outputGLSL(getInfoSink().obj);
+bool TranslatorGLSL::compile(TIntermNode* root) {
+    TOutputGLSL outputGLSL(infoSink.obj);
     root->traverse(&outputGLSL);
+
+    return true;
 }

@@ -35,4 +35,3 @@
 # ***** END LICENSE BLOCK *****
 
 MOZ_CHILD_PROCESS_NAME := plugin-container$(BIN_SUFFIX)
-MOZ_CHILD_PROCESS_BUNDLE := plugin-container.app/Contents/MacOS/

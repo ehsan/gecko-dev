@@ -337,7 +337,7 @@ SyncEngine.prototype = {
 
   // Create a new record using the store and add in crypto fields
   _createRecord: function SyncEngine__createRecord(id) {
-    let record = this._store.createRecord(id, this.engineURL + "/" + id);
+    let record = this._store.createRecord(id);
     record.id = id;
     record.encryption = this.cryptoMetaURL;
     return record;
@@ -406,7 +406,8 @@ SyncEngine.prototype = {
 
     // Delete any existing data and reupload on bad version or missing meta
     if (meta == null) {
-      this.wipeServer(true);
+      new Resource(this.engineURL).delete();
+      this._resetClient();
 
       // Generate a new crypto record
       let symkey = Svc.Crypto.generateRandomKey();
@@ -447,14 +448,13 @@ SyncEngine.prototype = {
     // 50 is hardcoded here because of URL length restrictions.
     // (GUIDs can be up to 64 chars long)
     let fetchNum = Infinity;
+    if (Svc.Prefs.get("client.type") == "mobile")
+      fetchNum = 50;
 
     let newitems = new Collection(this.engineURL, this._recordObj);
-    if (Svc.Prefs.get("client.type") == "mobile") {
-      fetchNum = 50;
-      newitems.sort = "index";
-    }
     newitems.newer = this.lastSync;
     newitems.full = true;
+    newitems.sort = "index";
     newitems.limit = fetchNum;
 
     let count = {applied: 0, reconciled: 0};
@@ -468,13 +468,7 @@ SyncEngine.prototype = {
       handled.push(item.id);
 
       try {
-        // Short-circuit the key URI to the engine's one in case the WBO's
-        // might be wrong due to relative URI confusions (bug 600995).
-        try {
-          item.decrypt(ID.get("WeaveCryptoID"), this.cryptoMetaURL);
-        } catch (ex) {
-          item.decrypt(ID.get("WeaveCryptoID"), item.encryption);
-        }
+        item.decrypt(ID.get("WeaveCryptoID"));
         if (this._reconcile(item)) {
           count.applied++;
           this._tracker.ignoreAll = true;
@@ -644,7 +638,6 @@ SyncEngine.prototype = {
 
   // Upload outgoing records
   _uploadOutgoing: function SyncEngine__uploadOutgoing() {
-    let failed = {};
     let outnum = [i for (i in this._tracker.changedIDs)].length;
     if (outnum) {
       this._log.trace("Preparing " + outnum + " outgoing records");
@@ -667,18 +660,6 @@ SyncEngine.prototype = {
         let modified = resp.headers["x-weave-timestamp"];
         if (modified > this.lastSync)
           this.lastSync = modified;
-
-        // Remember changed IDs and timestamp of failed items so we
-        // can mark them changed again.
-        let failed_ids = [];
-        for (let id in resp.obj.failed) {
-          failed[id] = this._tracker.changedIDs[id];
-          failed_ids.push(id);
-        }
-        if (failed_ids.length)
-          this._log.debug("Records that will be uploaded again because "
-                          + "the server couldn't store them: "
-                          + failed_ids.join(", "));
 
         up.clearRecords();
       });
@@ -708,11 +689,6 @@ SyncEngine.prototype = {
         doUpload(count >= MAX_UPLOAD_RECORDS ? "last batch" : "all");
     }
     this._tracker.clearChangedIDs();
-
-    // Mark failed WBOs as changed again so they are reuploaded next time.
-    for (let id in failed) {
-      this._tracker.addChangedID(id, failed[id]);
-    }
   },
 
   // Any cleanup necessary.
@@ -759,7 +735,7 @@ SyncEngine.prototype = {
     }
   },
 
-  canDecrypt: function canDecrypt() {
+  _testDecrypt: function _testDecrypt() {
     // Report failure even if there's nothing to decrypt
     let canDecrypt = false;
 
@@ -768,9 +744,8 @@ SyncEngine.prototype = {
     test.limit = 1;
     test.sort = "newest";
     test.full = true;
-    let self = this;
     test.recordHandler = function(record) {
-      record.decrypt(ID.get("WeaveCryptoID"), self.cryptoMetaURL);
+      record.decrypt(ID.get("WeaveCryptoID"));
       canDecrypt = true;
     };
 
@@ -789,12 +764,5 @@ SyncEngine.prototype = {
   _resetClient: function SyncEngine__resetClient() {
     this.resetLastSync();
     this.toFetch = [];
-  },
-
-  wipeServer: function wipeServer(ignoreCrypto) {
-    new Resource(this.engineURL).delete();
-    if (!ignoreCrypto)
-      new Resource(this.cryptoMetaURL).delete();
-    this._resetClient();
   }
 };

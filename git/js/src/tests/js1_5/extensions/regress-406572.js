@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-406572.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 406572;
 var summary = 'JSOP_CLOSURE unconditionally replaces properties of the variable object - Browser only';

@@ -50,10 +50,11 @@ nsXULAlertAccessible::
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsXULAlertAccessible, nsAccessible)
 
-PRUint32
-nsXULAlertAccessible::NativeRole()
+nsresult
+nsXULAlertAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_ALERT;
+  *aRole = nsIAccessibleRole::ROLE_ALERT;
+  return NS_OK;
 }
 
 nsresult

@@ -64,7 +64,6 @@
 #endif // MOZ_SMIL
 #include "nsIScriptGlobalObject.h"
 #include "nsIDocumentEncoder.h"
-#include "nsIAnimationFrameListener.h"
 
 class nsIContent;
 class nsPresContext;
@@ -105,7 +104,6 @@ class mozAutoSubtreeModified;
 struct JSObject;
 class nsFrameLoader;
 class nsIBoxObject;
-class imgIRequest;
 
 namespace mozilla {
 namespace css {
@@ -120,8 +118,8 @@ class Element;
 
 
 #define NS_IDOCUMENT_IID      \
-{ 0x73d79167, 0xacba, 0x46eb, \
-  { 0xad, 0x45, 0xa3, 0x4b, 0x92, 0xf6, 0x01, 0x5b } }
+{ 0x1d8bd3d4, 0x6f6d, 0x49fe, \
+  { 0xaf, 0xda, 0xc9, 0x4a, 0xef, 0x8f, 0xcf, 0x1f } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -160,7 +158,6 @@ public:
       // unless we get a window, and in that case the docshell value will get
       // &&-ed in, this is safe.
       mAllowDNSPrefetch(PR_TRUE),
-      mIsBeingUsedAsImage(PR_FALSE),
       mPartID(0)
   {
     mParentPtrBits |= PARENT_BIT_INDOCUMENT;
@@ -316,22 +313,17 @@ public:
   /**
    * Add an IDTargetObserver for a specific ID. The IDTargetObserver
    * will be fired whenever the content associated with the ID changes
-   * in the future. If aForImage is true, mozSetImageElement can override
-   * what content is associated with the ID. In that case the IDTargetObserver
-   * will be notified at those times when the result of LookupImageElement
-   * changes.
-   * At most one (aObserver, aData, aForImage) triple can be
-   * registered for each ID.
+   * in the future. At most one (aObserver, aData) pair can be registered
+   * for each ID.
    * @return the content currently associated with the ID.
    */
   virtual Element* AddIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
-                                       void* aData, PRBool aForImage) = 0;
+                                       void* aData) = 0;
   /**
-   * Remove the (aObserver, aData, aForImage) triple for a specific ID, if
-   * registered.
+   * Remove the (aObserver, aData) pair for a specific ID, if registered.
    */
-  virtual void RemoveIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
-                                      void* aData, PRBool aForImage) = 0;
+  virtual void RemoveIDTargetObserver(nsIAtom* aID,
+                                      IDTargetObserver aObserver, void* aData) = 0;
 
   /**
    * Get the Content-Type of this document.
@@ -445,7 +437,7 @@ public:
                                nsIViewManager* aViewManager,
                                nsStyleSet* aStyleSet,
                                nsIPresShell** aInstancePtrResult) = 0;
-  virtual void DeleteShell() = 0;
+  void DeleteShell() { mPresShell = nsnull; }
 
   nsIPresShell* GetShell() const
   {
@@ -683,10 +675,13 @@ public:
   /**
    * Add/Remove an element to the document's id and name hashes
    */
-  virtual void AddToIdTable(Element* aElement, nsIAtom* aId) = 0;
-  virtual void RemoveFromIdTable(Element* aElement, nsIAtom* aId) = 0;
-  virtual void AddToNameTable(Element* aElement, nsIAtom* aName) = 0;
-  virtual void RemoveFromNameTable(Element* aElement, nsIAtom* aName) = 0;
+  virtual void AddToIdTable(mozilla::dom::Element* aElement, nsIAtom* aId) = 0;
+  virtual void RemoveFromIdTable(mozilla::dom::Element* aElement,
+                                 nsIAtom* aId) = 0;
+  virtual void AddToNameTable(mozilla::dom::Element* aElement,
+                              nsIAtom* aName) = 0;
+  virtual void RemoveFromNameTable(mozilla::dom::Element* aElement,
+                                   nsIAtom* aName) = 0;
 
   //----------------------------------------------------------------------
 
@@ -835,7 +830,7 @@ public:
    * for that document (currently XHTML in HTML documents and XUL in XUL
    * documents), otherwise we use the type specified by the namespace ID.
    */
-  virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
+  virtual nsresult CreateElem(nsIAtom *aName, nsIAtom *aPrefix,
                               PRInt32 aNamespaceID,
                               PRBool aDocumentDefaultType,
                               nsIContent** aResult) = 0;
@@ -1125,7 +1120,7 @@ public:
     return mCachedEncoder.forget();
   }
 
-  void SetCachedEncoder(already_AddRefed<nsIDocumentEncoder> aEncoder)
+  void SetCachedEncoder(nsIDocumentEncoder* aEncoder)
   {
     mCachedEncoder = aEncoder;
   }
@@ -1147,19 +1142,6 @@ public:
   PRBool IsRootDisplayDocument() const
   {
     return !mParentDocument && !mDisplayDocument;
-  }
-
-  PRBool IsBeingUsedAsImage() const {
-    return mIsBeingUsedAsImage;
-  }
-
-  void SetIsBeingUsedAsImage() {
-    mIsBeingUsedAsImage = PR_TRUE;
-  }
-
-  PRBool IsResourceDoc() const {
-    return IsBeingUsedAsImage() || // Are we a helper-doc for an SVG image?
-      !!mDisplayDocument;          // Are we an external resource doc?
   }
 
   /**
@@ -1307,20 +1289,6 @@ public:
   PRBool IsDNSPrefetchAllowed() const { return mAllowDNSPrefetch; }
 
   /**
-   * Returns PR_TRUE if this document is allowed to contain XUL element and
-   * use non-builtin XBL bindings.
-   */
-  PRBool AllowXULXBL() {
-    return mAllowXULXBL == eTriTrue ? PR_TRUE :
-           mAllowXULXBL == eTriFalse ? PR_FALSE :
-           InternalAllowXULXBL();
-  }
-
-  void ForceEnableXULXBL() {
-    mAllowXULXBL = eTriTrue;
-  }
-
-  /**
    * PR_TRUE when this document is a static clone of a normal document.
    * For example print preview and printing use static documents.
    */
@@ -1420,13 +1388,12 @@ public:
   virtual nsISupports* GetCurrentContentSink() = 0;
 
   /**
-   * Register/Unregister a filedata uri as being "owned" by this document. 
-   * I.e. that its lifetime is connected with this document. When the document
-   * goes away it should "kill" the uri by calling
+   * Register a filedata uri as being "owned" by this document. I.e. that its
+   * lifetime is connected with this document. When the document goes away it
+   * should "kill" the uri by calling
    * nsFileDataProtocolHandler::RemoveFileDataEntry
    */
-  virtual void RegisterFileDataUri(const nsACString& aUri) = 0;
-  virtual void UnregisterFileDataUri(const nsACString& aUri) = 0;
+  virtual void RegisterFileDataUri(nsACString& aUri) = 0;
 
   virtual void SetScrollToRef(nsIURI *aDocumentURI) = 0;
   virtual void ScrollToRef() = 0;
@@ -1439,53 +1406,7 @@ public:
    * It prevents converting nsIDOMElement to mozill:dom::Element which is
    * already converted from mozilla::dom::Element.
    */
-  virtual Element* GetElementById(const nsAString& aElementId) = 0;
-
-  /**
-   * Lookup an image element using its associated ID, which is usually provided
-   * by |-moz-element()|. Similar to GetElementById, with the difference that
-   * elements set using mozSetImageElement have higher priority.
-   * @param aId the ID associated the element we want to lookup
-   * @return the element associated with |aId|
-   */
-  virtual Element* LookupImageElement(const nsAString& aElementId) = 0;
-
-  void ScheduleBeforePaintEvent(nsIAnimationFrameListener* aListener);
-  void BeforePaintEventFiring()
-  {
-    mHavePendingPaint = PR_FALSE;
-  }
-
-  typedef nsTArray< nsCOMPtr<nsIAnimationFrameListener> > AnimationListenerList;
-  /**
-   * Put this documents animation frame listeners into the provided
-   * list, and forget about them.
-   */
-  void TakeAnimationFrameListeners(AnimationListenerList& aListeners);
-
-  // This returns true when the document tree is being teared down.
-  PRBool InUnlinkOrDeletion() { return mInUnlinkOrDeletion; }
-
-  /*
-   * Image Tracking
-   *
-   * Style and content images register their imgIRequests with their document
-   * so that the document can efficiently tell all descendant images when they
-   * are and are not visible. When an image is on-screen, we want to call
-   * LockImage() on it so that it doesn't do things like discarding frame data
-   * to save memory. The PresShell informs the document whether its images
-   * should be locked or not via SetImageLockingState().
-   *
-   * See bug 512260.
-   */
-
-  // Add/Remove images from the document image tracker
-  virtual nsresult AddImage(imgIRequest* aImage) = 0;
-  virtual nsresult RemoveImage(imgIRequest* aImage) = 0;
-
-  // Makes the images on this document locked/unlocked. By default, the locking
-  // state is unlocked/false.
-  virtual nsresult SetImageLockingState(PRBool aLocked) = 0;
+  virtual mozilla::dom::Element* GetElementById(const nsAString& aElementId) = 0;
 
 protected:
   ~nsIDocument()
@@ -1506,9 +1427,6 @@ protected:
 
   // Never ever call this. Only call GetScriptHandlingObject!
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const = 0;
-
-  // Never ever call this. Only call AllowXULXBL!
-  virtual PRBool InternalAllowXULXBL() = 0;
 
   /**
    * These methods should be called before and after dispatching
@@ -1593,12 +1511,6 @@ protected:
   PRPackedBool mIsRegularHTML;
   PRPackedBool mIsXUL;
 
-  enum {
-    eTriUnset = 0,
-    eTriFalse,
-    eTriTrue
-  } mAllowXULXBL;
-
   // True if we're loaded as data and therefor has any dangerous stuff, such
   // as scripts and plugins, disabled.
   PRPackedBool mLoadedAsData;
@@ -1632,17 +1544,8 @@ protected:
   // True while this document is being cloned to a static document.
   PRPackedBool mCreatingStaticClone;
 
-  // True iff the document is being unlinked or deleted.
-  PRPackedBool mInUnlinkOrDeletion;
-
   // True if document has ever had script handling object.
   PRPackedBool mHasHadScriptHandlingObject;
-
-  // True if we're waiting for a before-paint event.
-  PRPackedBool mHavePendingPaint;
-
-  // True if we're an SVG document being used as an image.
-  PRPackedBool mIsBeingUsedAsImage;
 
   // The document's script global object, the object from which the
   // document can get its script context and scope. This is the
@@ -1698,8 +1601,6 @@ protected:
   nsPIDOMWindow *mWindow;
 
   nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
-
-  AnimationListenerList mAnimationFrameListeners;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

@@ -215,14 +215,17 @@ ChannelListener.prototype = {
     // chain, but this is good, since it will test a special path.
     ghist3.addURI(uri(FOUND_URL), false, true, uri(PERMA_REDIR_URL));
 
+    // This forces a CommitLazyMessages, so we don't have to wait for LAZY_ADD.
+    // Actually trying to delete visits in future.
+    hs.removeVisitsByTimeframe((Date.now() * 1000) + 1, (Date.now() * 1000) + 2);
+
     continue_test();
   },
 
   // nsIChannelEventSink
-  asyncOnChannelRedirect: function (aOldChannel, aNewChannel, aFlags, callback) {
+  onChannelRedirect: function (aOldChannel, aNewChannel, aFlags) {
     print("onChannelRedirect");
     this._got_onchannelredirect = true;
     ghist3.addDocumentRedirect(aOldChannel, aNewChannel, aFlags, true);
-    callback.onRedirectVerifyCallback(Components.results.NS_OK);
   },
 };

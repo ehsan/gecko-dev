@@ -40,8 +40,6 @@
 #include "plbase64.h"
 #include "nsNetUtil.h"
 #include "prmem.h"
-#include "nsDOMFile.h"
-#include "CheckedInt.h"
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
@@ -59,13 +57,12 @@ using namespace mozilla;
 using namespace mozilla::layers;
 
 nsGenericHTMLElement*
-NS_NewHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        PRUint32 aFromParser)
+NS_NewHTMLCanvasElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
 {
   return new nsHTMLCanvasElement(aNodeInfo);
 }
 
-nsHTMLCanvasElement::nsHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLCanvasElement::nsHTMLCanvasElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo), mWriteOnly(PR_FALSE)
 {
 }
@@ -83,7 +80,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 
-DOMCI_NODE_DATA(HTMLCanvasElement, nsHTMLCanvasElement)
+DOMCI_DATA(HTMLCanvasElement, nsHTMLCanvasElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLCanvasElement)
   NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLCanvasElement,
@@ -223,12 +220,12 @@ nsHTMLCanvasElement::ToDataURLAs(const nsAString& aMimeType,
 }
 
 nsresult
-nsHTMLCanvasElement::ExtractData(const nsAString& aType,
-                                 const nsAString& aOptions,
-                                 char*& aResult,
-                                 PRUint32& aSize,
-                                 bool& aFellBackToPNG)
+nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
+                                   const nsAString& aEncoderOptions,
+                                   nsAString& aDataURL)
 {
+  bool fallbackToPNG = false;
+  
   // We get an input stream from the context. If more than one context type
   // is supported in the future, this will have to be changed to do the right
   // thing. For now, just assume that the 2D context has all the goods.
@@ -242,16 +239,16 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
 
   // get image bytes
   nsCOMPtr<nsIInputStream> imgStream;
-  NS_ConvertUTF16toUTF8 aMimeType8(aType);
+  NS_ConvertUTF16toUTF8 aMimeType8(aMimeType);
   rv = context->GetInputStream(nsPromiseFlatCString(aMimeType8).get(),
-                               nsPromiseFlatString(aOptions).get(),
+                               nsPromiseFlatString(aEncoderOptions).get(),
                                getter_AddRefs(imgStream));
   if (NS_FAILED(rv)) {
     // Use image/png instead.
     // XXX ERRMSG we need to report an error to developers here! (bug 329026)
-    aFellBackToPNG = true;
+    fallbackToPNG = true;
     rv = context->GetInputStream("image/png",
-                                 nsPromiseFlatString(aOptions).get(),
+                                 nsPromiseFlatString(aEncoderOptions).get(),
                                  getter_AddRefs(imgStream));
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -260,52 +257,30 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
   // for us to read right away, so optimize this case.
   PRUint32 bufSize;
   rv = imgStream->Available(&bufSize);
-  CheckedInt32 safeBufSize(bufSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // ...leave a little extra room so we can call read again and make sure we
   // got everything. 16 bytes for better padding (maybe)
-  safeBufSize += 16;
-  NS_ENSURE_TRUE(safeBufSize.valid(), NS_ERROR_FAILURE);
-  aSize = 0;
-  aResult = (char*)PR_Malloc(safeBufSize.value());
-  if (!aResult)
+  bufSize += 16;
+  PRUint32 imgSize = 0;
+  char* imgData = (char*)PR_Malloc(bufSize);
+  if (! imgData)
     return NS_ERROR_OUT_OF_MEMORY;
   PRUint32 numReadThisTime = 0;
-  while ((rv = imgStream->Read(&aResult[aSize], safeBufSize.value() - aSize,
+  while ((rv = imgStream->Read(&imgData[imgSize], bufSize - imgSize,
                          &numReadThisTime)) == NS_OK && numReadThisTime > 0) {
-    aSize += numReadThisTime;
-    if (aSize == safeBufSize.value()) {
+    imgSize += numReadThisTime;
+    if (imgSize == bufSize) {
       // need a bigger buffer, just double
-      safeBufSize *= 2;
-      if (!safeBufSize.valid()) {
-        PR_Free(aResult);
-        return NS_ERROR_FAILURE;
-      }
-      char* newImgData = (char*)PR_Realloc(aResult, safeBufSize.value());
+      bufSize *= 2;
+      char* newImgData = (char*)PR_Realloc(imgData, bufSize);
       if (! newImgData) {
-        PR_Free(aResult);
+        PR_Free(imgData);
         return NS_ERROR_OUT_OF_MEMORY;
       }
-      aResult = newImgData;
+      imgData = newImgData;
     }
   }
-
-  return NS_OK;
-}
-
-nsresult
-nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
-                                   const nsAString& aEncoderOptions,
-                                   nsAString& aDataURL)
-{
-  bool fallbackToPNG = false;
-  PRUint32 imgSize = 0;
-  char* imgData;
-
-  nsresult rv = ExtractData(aMimeType, aEncoderOptions, imgData,
-                            imgSize, fallbackToPNG);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   // base 64, result will be NULL terminated
   char* encodedImg = PL_Base64Encode(imgData, imgSize, nsnull);
@@ -324,46 +299,6 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
   PR_Free(encodedImg);
 
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHTMLCanvasElement::MozGetAsFile(const nsAString& aName,
-                                  const nsAString& aType,
-                                  PRUint8 optional_argc,
-                                  nsIDOMFile** aResult)
-{
-  // do a trust check if this is a write-only canvas
-  if ((mWriteOnly) &&
-      !nsContentUtils::IsCallerTrustedForRead()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  return MozGetAsFileImpl(aName, aType, aResult);
-}
-
-nsresult
-nsHTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
-                                      const nsAString& aType,
-                                      nsIDOMFile** aResult)
-{
-  bool fallbackToPNG = false;
-  PRUint32 imgSize = 0;
-  char* imgData;
-
-  nsresult rv = ExtractData(aType, EmptyString(), imgData,
-                            imgSize, fallbackToPNG);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoString type(aType);
-  if (fallbackToPNG) {
-    type.AssignLiteral("image/png");
-  }
-
-  // The DOMFile takes ownership of the buffer
-  nsRefPtr<nsDOMMemoryFile> file =
-    new nsDOMMemoryFile((void*)imgData, imgSize, aName, type);
-
-  return CallQueryInterface(file, aResult);
 }
 
 nsresult

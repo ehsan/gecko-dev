@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-140852.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 140852;
 var summary = 'String(number) = xxxx:0000 for some numbers';

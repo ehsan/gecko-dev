@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-422269.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 422269;
 var summary = 'Compile-time let block should not capture runtime references';
@@ -44,7 +45,6 @@ var expect = 'No leak';
 
 //-----------------------------------------------------------------------------
 test();
-
 //-----------------------------------------------------------------------------
 
 function test()
@@ -68,14 +68,9 @@ function test()
   else
   {
     var x = f();
-    f(); // overwrite the machine stack with new objects
     gc();
     var n = countHeap();
     x = null;
-    // When running with the method JIT, null may not get stored to memory right away.
-    // Calling eval ensures that all values are stored out so that the old x is no
-    // longer rooted from the stack.
-    eval("");
     gc();
 
     var n2 = countHeap();

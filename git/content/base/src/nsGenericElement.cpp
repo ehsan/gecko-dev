@@ -72,6 +72,8 @@
 #include "nsDOMCID.h"
 #include "nsIServiceManager.h"
 #include "nsIDOMCSSStyleDeclaration.h"
+#include "nsCSSDeclaration.h"
+#include "nsDOMCSSDeclaration.h"
 #include "nsDOMCSSAttrDeclaration.h"
 #include "nsINameSpaceManager.h"
 #include "nsContentList.h"
@@ -91,6 +93,7 @@
 
 #include "nsBindingManager.h"
 #include "nsXBLBinding.h"
+#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMViewCSS.h"
 #include "nsIXBLService.h"
 #include "nsPIDOMWindow.h"
@@ -152,7 +155,6 @@
 
 #include "nsCSSParser.h"
 #include "nsTPtrArray.h"
-#include "prprf.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGFeatures.h"
@@ -367,7 +369,8 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
     return nsnull;
   }
 
-  if (static_cast<nsIContent*>(this)->HasIndependentSelection()) {
+  nsIFrame* frame = static_cast<nsIContent*>(this)->GetPrimaryFrame();
+  if (frame && frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION) {
     // This node should be a descendant of input/textarea editor.
     nsIContent* content = GetTextEditorRootContent();
     if (content)
@@ -388,9 +391,15 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
                  editorRoot :
                  GetRootForContentSubtree(static_cast<nsIContent*>(this));
       }
-      // If the document isn't editable but this is editable, this is in
-      // contenteditable.  Use the editing host element for selection root.
-      return static_cast<nsIContent*>(this)->GetEditingHost();
+      // If the current document is not editable, but current content is
+      // editable, we should assume that the child of the nearest non-editable
+      // ancestor is selection root.
+      nsIContent* content = static_cast<nsIContent*>(this);
+      for (nsIContent* parent = GetParent();
+           parent && parent->HasFlag(NODE_IS_EDITABLE);
+           parent = content->GetParent())
+        content = parent;
+      return content;
     }
   }
 
@@ -824,13 +833,14 @@ nsIContent::GetDesiredIMEState()
   if (!IsEditableInternal()) {
     return IME_STATUS_DISABLE;
   }
-  // NOTE: The content for independent editors (e.g., input[type=text],
-  // textarea) must override this method, so, we don't need to worry about
-  // that here.
-  nsIContent *editableAncestor = GetEditingHost();
-
+  nsIContent *editableAncestor = nsnull;
+  for (nsIContent* parent = GetParent();
+       parent && parent->HasFlag(NODE_IS_EDITABLE);
+       parent = parent->GetParent()) {
+    editableAncestor = parent;
+  }
   // This is in another editable content, use the result of it.
-  if (editableAncestor && editableAncestor != this) {
+  if (editableAncestor) {
     return editableAncestor->GetDesiredIMEState();
   }
   nsIDocument* doc = GetCurrentDoc();
@@ -856,35 +866,6 @@ nsIContent::GetDesiredIMEState()
   nsresult rv = imeEditor->GetPreferredIMEState(&state);
   NS_ENSURE_SUCCESS(rv, IME_STATUS_ENABLE);
   return state;
-}
-
-PRBool
-nsIContent::HasIndependentSelection()
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  return (frame && frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION);
-}
-
-nsIContent*
-nsIContent::GetEditingHost()
-{
-  // If this isn't editable, return NULL.
-  NS_ENSURE_TRUE(HasFlag(NODE_IS_EDITABLE), nsnull);
-
-  nsIDocument* doc = GetCurrentDoc();
-  NS_ENSURE_TRUE(doc, nsnull);
-  // If this is in designMode, we should return <body>
-  if (doc->HasFlag(NODE_IS_EDITABLE)) {
-    return doc->GetBodyElement();
-  }
-
-  nsIContent* content = this;
-  for (nsIContent* parent = GetParent();
-       parent && parent->HasFlag(NODE_IS_EDITABLE);
-       parent = content->GetParent()) {
-    content = parent;
-  }
-  return content;
 }
 
 nsresult
@@ -1365,9 +1346,8 @@ nsGenericElement::GetChildrenList()
   NS_ENSURE_TRUE(slots, nsnull);
 
   if (!slots->mChildrenList) {
-    slots->mChildrenList = new nsContentList(this, kNameSpaceID_Wildcard, 
-                                             nsGkAtoms::_asterix, nsGkAtoms::_asterix,
-                                             PR_FALSE);
+    slots->mChildrenList = new nsContentList(this, nsGkAtoms::_asterix,
+                                             kNameSpaceID_Wildcard, PR_FALSE);
   }
 
   return slots->mChildrenList;
@@ -2090,7 +2070,7 @@ nsGenericElement::nsDOMSlots::~nsDOMSlots()
   }
 }
 
-nsGenericElement::nsGenericElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsGenericElement::nsGenericElement(nsINodeInfo *aNodeInfo)
   : Element(aNodeInfo)
 {
   // Set the default scriptID to JS - but skip SetScriptTypeID as it
@@ -2177,12 +2157,7 @@ nsGenericElement::SetPrefix(const nsAString& aPrefix)
                                               getter_AddRefs(newNodeInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mNodeInfo.swap(newNodeInfo);
-  NodeInfoChanged(newNodeInfo);
-
-  // The id-handling code need to react to unexpected changes to an elements
-  // nodeinfo as that can change the elements id-attribute.
-  nsMutationGuard::DidMutate();
+  mNodeInfo = newNodeInfo;
 
   return NS_OK;
 }
@@ -2496,13 +2471,12 @@ nsresult
 nsGenericElement::GetElementsByTagName(const nsAString& aTagname,
                                        nsIDOMNodeList** aReturn)
 {
-  nsAutoString lowercaseName;
-  nsContentUtils::ASCIIToLower(aTagname, lowercaseName);
-  nsCOMPtr<nsIAtom> XMLAtom = do_GetAtom(aTagname);
-  nsCOMPtr<nsIAtom> HTMLAtom = do_GetAtom(lowercaseName);
+  nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(aTagname);
+  NS_ENSURE_TRUE(nameAtom, NS_ERROR_OUT_OF_MEMORY);
 
-  nsContentList *list = NS_GetContentList(this, kNameSpaceID_Unknown, 
-                                          HTMLAtom, XMLAtom).get();
+  nsContentList *list = NS_GetContentList(this, nameAtom,
+                                          kNameSpaceID_Unknown).get();
+  NS_ENSURE_TRUE(list, NS_ERROR_OUT_OF_MEMORY);
 
   // transfer ref to aReturn
   *aReturn = list;
@@ -2629,8 +2603,10 @@ nsGenericElement::GetElementsByTagNameNS(const nsAString& aNamespaceURI,
   }
 
   nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(aLocalName);
+  NS_ENSURE_TRUE(nameAtom, NS_ERROR_OUT_OF_MEMORY);
 
-  nsContentList *list = NS_GetContentList(this, nameSpaceId, nameAtom).get();
+  nsContentList *list = NS_GetContentList(this, nameAtom, nameSpaceId).get();
+  NS_ENSURE_TRUE(list, NS_ERROR_OUT_OF_MEMORY);
 
   // transfer ref to aReturn
   *aReturn = list;
@@ -2966,8 +2942,13 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   UpdateEditableState();
 
   // Now recurse into our kids
-  for (nsIContent* child = GetFirstChild(); child;
-       child = child->GetNextSibling()) {
+  PRUint32 i;
+  // Don't call GetChildCount() here since that'll make XUL generate
+  // template children, which we're not in a consistent enough state for.
+  // Additionally, there's not really a need to generate the children here.
+  for (i = 0; i < mAttrsAndChildren.ChildCount(); ++i) {
+    // The child can remove itself from the parent in BindToTree.
+    nsCOMPtr<nsIContent> child = mAttrsAndChildren.ChildAt(i);
     rv = child->BindToTree(aDocument, this, aBindingParent,
                            aCompileEventHandlers);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -3527,7 +3508,7 @@ nsGenericElement::SetScriptTypeID(PRUint32 aLang)
     }
     /* SetFlags will just mask in the specific flags set, leaving existing
        ones alone.  So we must clear all the bits first */
-    UnsetFlags(NODE_SCRIPT_TYPE_MASK << NODE_SCRIPT_TYPE_OFFSET);
+    UnsetFlags(0x000FU << NODE_SCRIPT_TYPE_OFFSET);
     SetFlags(aLang << NODE_SCRIPT_TYPE_OFFSET);
     return NS_OK;
 }
@@ -3576,8 +3557,6 @@ nsINode::doInsertChildAt(nsIContent* aKid, PRUint32 aIndex,
   PRUint32 childCount = aChildArray.ChildCount();
   NS_ENSURE_TRUE(aIndex <= childCount, NS_ERROR_ILLEGAL_VALUE);
 
-  // The id-handling code, and in the future possibly other code, need to
-  // react to unexpected attribute changes.
   nsMutationGuard::DidMutate();
 
   PRBool isAppend = (aIndex == childCount);
@@ -3700,8 +3679,6 @@ nsINode::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
     }
   }
 
-  nsIContent* previousSibling = aKid->GetPreviousSibling();
-
   if (GetFirstChild() == aKid) {
     mFirstChild = aKid->GetNextSibling();
   }
@@ -3709,7 +3686,7 @@ nsINode::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
   aChildArray.RemoveChildAt(aIndex);
 
   if (aNotify) {
-    nsNodeUtils::ContentRemoved(this, aKid, aIndex, previousSibling);
+    nsNodeUtils::ContentRemoved(this, aKid, aIndex);
   }
 
   aKid->UnbindFromTree();
@@ -4372,41 +4349,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGenericElement)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-static const char* kNSURIs[] = {
-  " ([none])",
-  " (xmlns)",
-  " (xml)",
-  " (xhtml)",
-  " (XLink)",
-  " (XSLT)",
-  " (XBL)",
-  " (MathML)",
-  " (RDF)",
-  " (XUL)",
-  " (SVG)",
-  " (XML Events)"
-};
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGenericElement)
-  if (NS_UNLIKELY(cb.WantDebugInfo())) {
-    char name[72];
-    PRUint32 nsid = tmp->GetNameSpaceID();
-    nsAtomCString localName(tmp->NodeInfo()->NameAtom());
-    if (nsid < NS_ARRAY_LENGTH(kNSURIs)) {
-      PR_snprintf(name, sizeof(name), "nsGenericElement%s %s", kNSURIs[nsid],
-                  localName.get());
-    }
-    else {
-      PR_snprintf(name, sizeof(name), "nsGenericElement %s", localName.get());
-    }
-    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(nsGenericElement),
-                    name);
-  }
-  else {
-    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(nsGenericElement),
-                    "nsGenericElement");
-  }
-
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericElement)
   // Always need to traverse script objects, so do that before we check
   // if we're uncollectable.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
@@ -4680,8 +4623,6 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
     stateMask = PRUint32(IntrinsicState());
   }
 
-  nsMutationGuard::DidMutate();
-
   if (aNamespaceID == kNameSpaceID_None) {
     // XXXbz Perhaps we should push up the attribute mapping function
     // stuff to nsGenericElement?
@@ -4938,10 +4879,6 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   if (slots && slots->mAttributeMap) {
     slots->mAttributeMap->DropAttribute(aNameSpaceID, aName);
   }
-
-  // The id-handling code, and in the future possibly other code, need to
-  // react to unexpected attribute changes.
-  nsMutationGuard::DidMutate();
 
   nsAttrValue oldValue;
   rv = mAttrsAndChildren.RemoveAttrAt(index, oldValue);

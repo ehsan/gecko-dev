@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-452491.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 452491;
 var summary = 'Do not crash with JIT: with new';

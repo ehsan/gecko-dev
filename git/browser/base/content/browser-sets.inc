@@ -69,6 +69,7 @@
     <command id="cmd_printPreview" oncommand="PrintUtils.printPreview(PrintPreviewListener);"/>
     <command id="cmd_close" oncommand="BrowserCloseTabOrWindow()"/>
     <command id="cmd_closeWindow" oncommand="BrowserTryToCloseWindow()"/>
+    <command id="cmd_toggleTaskbar" oncommand="goToggleToolbar('status-bar','toggle_taskbar');"/>
     <command id="cmd_ToggleTabsOnTop" oncommand="TabsOnTop.toggle()"/>
     <command id="cmd_CustomizeToolbars" oncommand="BrowserCustomizeToolbar()"/>
     <command id="cmd_quitApplication" oncommand="goQuitApplication()"/>
@@ -116,9 +117,6 @@
     <command id="Browser:NextTab" oncommand="gBrowser.tabContainer.advanceSelectedTab(1, true);"/>
     <command id="Browser:PrevTab" oncommand="gBrowser.tabContainer.advanceSelectedTab(-1, true);"/>
     <command id="Browser:ShowAllTabs" oncommand="allTabs.open();"/>
-    <command id="Browser:ToggleTabView" oncommand="TabView.toggle();"/>
-    <command id="Browser:ShowTabView" oncommand="TabView.show();"/>
-    <command id="Browser:HideTabView" oncommand="TabView.hide();"/>    
     <command id="cmd_fullZoomReduce"  oncommand="FullZoom.reduce()"/>
     <command id="cmd_fullZoomEnlarge" oncommand="FullZoom.enlarge()"/>
     <command id="cmd_fullZoomReset"   oncommand="FullZoom.reset()"/>
@@ -127,7 +125,7 @@
 
     <command id="Tools:Search" oncommand="BrowserSearch.webSearch();"/>
     <command id="Tools:Downloads" oncommand="BrowserDownloadsUI();"/>
-    <command id="Tools:Inspect" oncommand="InspectorUI.toggleInspectorUI();" disabled="true"/>
+    <command id="Tools:Inspect" oncommand="InspectorUI.toggleInspectorUI();"/>
     <command id="Tools:Addons" oncommand="BrowserOpenAddonsMgr();"/>
     <command id="Tools:Sanitize"
      oncommand="Cc['@mozilla.org/browser/browserglue;1'].getService(Ci.nsIBrowserGlue).sanitize(window);"/>
@@ -141,17 +139,6 @@
              oncommand="PlacesCommandHook.showPlacesOrganizer('AllBookmarks');"/>
     <command id="Browser:ShowAllHistory"
              oncommand="PlacesCommandHook.showPlacesOrganizer('History');"/>
-  </commandset>
-
-  <commandset id="inspectorCommands">
-    <command id="Inspector:Inspect"
-             oncommand="InspectorUI.toggleInspection();"/>
-    <command id="Inspector:Previous"
-             oncommand="InspectorUI.inspectPrevious();"
-             disabled="true"/>
-    <command id="Inspector:Next"
-             oncommand="InspectorUI.inspectNext();"
-             disabled="true"/>
   </commandset>
 
   <broadcasterset id="mainBroadcasterSet">
@@ -190,14 +177,6 @@
     <broadcaster id="blockedPopupsSeparator"/>
     <broadcaster id="isImage"/>
     <broadcaster id="isFrameImage"/>
-    <broadcaster id="singleFeedMenuitemState" disabled="true"/>
-    <broadcaster id="multipleFeedsMenuState" hidden="true"/>
-    <broadcaster id="tabviewGroupsNumber" groups="0"/>
-#ifdef MOZ_SERVICES_SYNC
-    <broadcaster id="sync-setup-state"/>
-    <broadcaster id="sync-syncnow-state"/>
-#endif
-    <broadcaster id="workOfflineMenuitemState"/>
   </broadcasterset>
 
   <keyset id="mainKeyset">
@@ -218,9 +197,9 @@
 # 
 # Unix: Ctrl+K (cross platform binding)
 #       Ctrl+J (in case of emacs Ctrl-K conflict)
-# Mac:  Cmd+K (cross platform binding)
-#       Cmd+Opt+F (platform convention)
+# Mac:  Ctrl+K (cross platform binding)
 # Win:  Ctrl+K (cross platform binding)
+#       Ctrl+E (IE compat)
 #
 # We support Ctrl+K on all platforms now and advertise it in the menu since it is
 # our standard - it is a "safe" choice since it is near no harmful keys like "W" as
@@ -233,15 +212,17 @@
 #ifdef XP_MACOSX
     <key id="key_search2" key="&findOnCmd.commandkey;" command="Tools:Search" modifiers="accel,alt"/>
 #endif
+#ifdef XP_WIN
+    <key id="key_search2" key="&searchFocus.commandkey2;" command="Tools:Search" modifiers="accel"/>
+#endif
 #ifdef XP_GNOME
     <key id="key_search2" key="&searchFocusUnix.commandkey;" command="Tools:Search" modifiers="accel"/>
     <key id="key_openDownloads" key="&downloadsUnix.commandkey;" command="Tools:Downloads" modifiers="accel,shift"/>
 #else
     <key id="key_openDownloads" key="&downloads.commandkey;" command="Tools:Downloads" modifiers="accel"/>
 #endif
-    <key id="key_openAddons" key="&addons.commandkey;" command="Tools:Addons" modifiers="accel,shift"/>
-    <key id="key_errorConsole" key="&errorConsoleCmd.commandkey;" oncommand="toJavaScriptConsole();" modifiers="accel,shift" disabled="true"/>
-    <key id="key_webConsole" key="&webConsoleCmd.commandkey;" oncommand="HUDConsoleUI.toggleHUD();" modifiers="accel,shift"/>
+    <key id="key_errorConsole" key="&errorConsoleCmd.commandkey;" oncommand="toJavaScriptConsole();" modifiers="accel,shift"/>
+    <key id="key_hudConsole" key="&hudConsoleCmd.commandkey;" oncommand="HUDConsoleUI.toggleHUD();" modifiers="accel,shift"/>
     <key id="key_inspect" key="&inspectMenu.commandkey;" command="Tools:Inspect" modifiers="accel,shift"/>
     <key id="openFileKb" key="&openFileCmd.commandkey;" command="Browser:OpenFile"  modifiers="accel"/>
     <key id="key_savePage" key="&savePageCmd.commandkey;" command="Browser:SavePage" modifiers="accel"/>
@@ -346,8 +327,6 @@
     <key id="key_showAllTabs" command="Browser:ShowAllTabs" keycode="VK_TAB" modifiers="control,shift"/>
 
     <key id="key_switchTextDirection" key="&bidiSwitchTextDirectionItem.commandkey;" command="cmd_switchTextDirection" modifiers="accel,shift" />
-
-    <key id="key_tabview" key="&tabView.commandkey;" command="Browser:ToggleTabView" modifiers="accel"/>
 
     <key id="key_privatebrowsing" command="Tools:PrivateBrowsing" key="&privateBrowsingCmd.commandkey;" modifiers="accel,shift"/>
     <key id="key_sanitize" command="Tools:Sanitize" keycode="VK_DELETE" modifiers="accel,shift"/>

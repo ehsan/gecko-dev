@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-349634.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 349634;
 var summary = 'decompilation of {} and let';

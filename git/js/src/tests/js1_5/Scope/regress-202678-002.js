@@ -45,6 +45,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-202678-002.js';
 var UBound = 0;
 var BUGNUMBER = 202678;
 var summary = 'Testing nested function scope capture';

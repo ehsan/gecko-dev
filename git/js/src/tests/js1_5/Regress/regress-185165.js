@@ -44,6 +44,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-185165.js';
 var UBound = 0;
 var BUGNUMBER = 185165;
 var summary = 'Decompilation of "\\\\" should give "\\\\"';

@@ -39,7 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef MOZ_IPC
-#include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/ContentProcessChild.h"
 #include "nsXULAppAPI.h"
 #endif
 
@@ -69,19 +69,30 @@ struct EnumerateData {
   nsTArray<nsCString> *pref_list;
 };
 
+struct PrefCallbackData {
+  nsPrefBranch     *pBranch;
+  nsISupports      *pCanonical;
+  nsIObserver      *pObserver;
+  nsIWeakReference *pWeakRef;
+  char pDomain[1];
+};
+
+
 // Prototypes
 static PLDHashOperator
   pref_enumChild(PLDHashTable *table, PLDHashEntryHdr *heh,
                  PRUint32 i, void *arg);
+static nsresult
+  NotifyObserver(const char *newpref, void *data);
 
 #ifdef MOZ_IPC
-using mozilla::dom::ContentChild;
+using mozilla::dom::ContentProcessChild;
 
-static ContentChild*
-GetContentChild()
+static ContentProcessChild*
+GetContentProcessChild()
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    ContentChild* cpc = ContentChild::GetSingleton();
+    ContentProcessChild* cpc = ContentProcessChild::GetSingleton();
     if (!cpc) {
       NS_RUNTIMEABORT("Content Protocol is NULL!  We're going to crash!");
     }
@@ -96,12 +107,11 @@ GetContentChild()
  */
 
 nsPrefBranch::nsPrefBranch(const char *aPrefRoot, PRBool aDefaultBranch)
+  : mObservers(nsnull)
 {
   mPrefRoot = aPrefRoot;
   mPrefRootLength = mPrefRoot.Length();
   mIsDefault = aDefaultBranch;
-  mFreeingObserverList = PR_FALSE;
-  mObservers.Init();
 
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
@@ -143,6 +153,7 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP nsPrefBranch::GetRoot(char **aRoot)
 {
   NS_ENSURE_ARG_POINTER(aRoot);
+
   mPrefRoot.Truncate(mPrefRootLength);
   *aRoot = ToNewCString(mPrefRoot);
   return NS_OK;
@@ -150,7 +161,17 @@ NS_IMETHODIMP nsPrefBranch::GetRoot(char **aRoot)
 
 NS_IMETHODIMP nsPrefBranch::GetPrefType(const char *aPrefName, PRInt32 *_retval)
 {
-  NS_ENSURE_ARG(aPrefName);
+#ifdef MOZ_IPC
+  if (ContentProcessChild* cpc = GetContentProcessChild()) {
+    nsresult rv = NS_ERROR_NOT_AVAILABLE;
+    PRInt32 retval;
+    cpc->SendGetPrefType(nsDependentCString(getPrefName(aPrefName)), &retval, &rv);
+    if (NS_SUCCEEDED(rv))
+      *_retval = retval;
+    return rv;
+  }
+#endif
+
   const char *pref = getPrefName(aPrefName);
   *_retval = PREF_GetPrefType(pref);
   return NS_OK;
@@ -158,7 +179,17 @@ NS_IMETHODIMP nsPrefBranch::GetPrefType(const char *aPrefName, PRInt32 *_retval)
 
 NS_IMETHODIMP nsPrefBranch::GetBoolPref(const char *aPrefName, PRBool *_retval)
 {
-  NS_ENSURE_ARG(aPrefName);
+#ifdef MOZ_IPC
+  if (ContentProcessChild* cpc = GetContentProcessChild()) {
+    nsresult rv = NS_ERROR_NOT_AVAILABLE;
+    PRBool retval;
+    cpc->SendGetBoolPref(nsDependentCString(getPrefName(aPrefName)), &retval, &rv);
+    if (NS_SUCCEEDED(rv))
+      *_retval = retval;
+    return rv;
+  }
+#endif
+
   const char *pref = getPrefName(aPrefName);
   return PREF_GetBoolPref(pref, _retval, mIsDefault);
 }
@@ -166,20 +197,31 @@ NS_IMETHODIMP nsPrefBranch::GetBoolPref(const char *aPrefName, PRBool *_retval)
 NS_IMETHODIMP nsPrefBranch::SetBoolPref(const char *aPrefName, PRInt32 aValue)
 {
 #ifdef MOZ_IPC
-  if (GetContentChild()) {
+  if (GetContentProcessChild()) {
     NS_ERROR("cannot set pref from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
 #endif
 
-  NS_ENSURE_ARG(aPrefName);
   const char *pref = getPrefName(aPrefName);
   return PREF_SetBoolPref(pref, aValue, mIsDefault);
 }
 
 NS_IMETHODIMP nsPrefBranch::GetCharPref(const char *aPrefName, char **_retval)
 {
-  NS_ENSURE_ARG(aPrefName);
+#ifdef MOZ_IPC
+  if (ContentProcessChild* cpc = GetContentProcessChild()) {
+    nsresult rv = NS_ERROR_NOT_AVAILABLE;
+    nsCAutoString prefValue;
+    cpc->SendGetCharPref(nsDependentCString(getPrefName(aPrefName)), 
+                         &prefValue, &rv);
+    if (NS_SUCCEEDED(rv)) {
+      *_retval = strdup(prefValue.get());
+    }
+    return rv;
+  }
+#endif
+
   const char *pref = getPrefName(aPrefName);
   return PREF_CopyCharPref(pref, _retval, mIsDefault);
 }
@@ -187,21 +229,29 @@ NS_IMETHODIMP nsPrefBranch::GetCharPref(const char *aPrefName, char **_retval)
 NS_IMETHODIMP nsPrefBranch::SetCharPref(const char *aPrefName, const char *aValue)
 {
 #ifdef MOZ_IPC
-  if (GetContentChild()) {
+  if (GetContentProcessChild()) {
     NS_ERROR("cannot set pref from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
 #endif
 
-  NS_ENSURE_ARG(aPrefName);
-  NS_ENSURE_ARG(aValue);
   const char *pref = getPrefName(aPrefName);
   return PREF_SetCharPref(pref, aValue, mIsDefault);
 }
 
 NS_IMETHODIMP nsPrefBranch::GetIntPref(const char *aPrefName, PRInt32 *_retval)
 {
-  NS_ENSURE_ARG(aPrefName);
+#ifdef MOZ_IPC
+  if (ContentProcessChild* cpc = GetContentProcessChild()) {
+    nsresult rv = NS_ERROR_NOT_AVAILABLE;
+    PRInt32 retval;
+    cpc->SendGetIntPref(nsDependentCString(getPrefName(aPrefName)), &retval, &rv);
+    if (NS_SUCCEEDED(rv))
+      *_retval = retval;
+    return rv;
+  }
+#endif
+
   const char *pref = getPrefName(aPrefName);
   return PREF_GetIntPref(pref, _retval, mIsDefault);
 }
@@ -209,21 +259,18 @@ NS_IMETHODIMP nsPrefBranch::GetIntPref(const char *aPrefName, PRInt32 *_retval)
 NS_IMETHODIMP nsPrefBranch::SetIntPref(const char *aPrefName, PRInt32 aValue)
 {
 #ifdef MOZ_IPC
-  if (GetContentChild()) {
+  if (GetContentProcessChild()) {
     NS_ERROR("cannot set pref from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
 #endif
 
-  NS_ENSURE_ARG(aPrefName);
   const char *pref = getPrefName(aPrefName);
   return PREF_SetIntPref(pref, aValue, mIsDefault);
 }
 
 NS_IMETHODIMP nsPrefBranch::GetComplexValue(const char *aPrefName, const nsIID & aType, void **_retval)
 {
-  NS_ENSURE_ARG(aPrefName);
-
   nsresult       rv;
   nsXPIDLCString utf8String;
 
@@ -231,6 +278,21 @@ NS_IMETHODIMP nsPrefBranch::GetComplexValue(const char *aPrefName, const nsIID &
   if (aType.Equals(NS_GET_IID(nsIPrefLocalizedString))) {
     nsCOMPtr<nsIPrefLocalizedString> theString(do_CreateInstance(NS_PREFLOCALIZEDSTRING_CONTRACTID, &rv));
     if (NS_FAILED(rv)) return rv;
+
+#ifdef MOZ_IPC
+    if (ContentProcessChild* cpc = GetContentProcessChild()) {
+      nsAutoString prefValue;
+
+      rv = NS_ERROR_NOT_AVAILABLE;
+      cpc->SendGetPrefLocalizedString(nsDependentCString(getPrefName(aPrefName)), 
+                                      &prefValue, &rv);
+      if (NS_FAILED(rv)) return rv;
+
+      theString->SetData(prefValue.get());
+      theString.forget(reinterpret_cast<nsIPrefLocalizedString**>(_retval));
+      return rv;
+    }
+#endif
 
     const char *pref = getPrefName(aPrefName);
     PRBool  bNeedDefault = PR_FALSE;
@@ -305,7 +367,7 @@ NS_IMETHODIMP nsPrefBranch::GetComplexValue(const char *aPrefName, const nsIID &
 
   if (aType.Equals(NS_GET_IID(nsILocalFile))) {
 #ifdef MOZ_IPC
-    if (GetContentChild()) {
+    if (GetContentProcessChild()) {
       NS_ERROR("cannot get nsILocalFile pref from content process");
       return NS_ERROR_NOT_AVAILABLE;
     }
@@ -325,7 +387,7 @@ NS_IMETHODIMP nsPrefBranch::GetComplexValue(const char *aPrefName, const nsIID &
 
   if (aType.Equals(NS_GET_IID(nsIRelativeFilePref))) {
 #ifdef MOZ_IPC
-    if (GetContentChild()) {
+    if (GetContentProcessChild()) {
       NS_ERROR("cannot get nsIRelativeFilePref from content process");
       return NS_ERROR_NOT_AVAILABLE;
     }
@@ -384,13 +446,11 @@ NS_IMETHODIMP nsPrefBranch::GetComplexValue(const char *aPrefName, const nsIID &
 NS_IMETHODIMP nsPrefBranch::SetComplexValue(const char *aPrefName, const nsIID & aType, nsISupports *aValue)
 {
 #ifdef MOZ_IPC
-  if (GetContentChild()) {
+  if (GetContentProcessChild()) {
     NS_ERROR("cannot set pref from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
 #endif
-
-  NS_ENSURE_ARG(aPrefName);
 
   nsresult   rv = NS_NOINTERFACE;
 
@@ -475,13 +535,12 @@ NS_IMETHODIMP nsPrefBranch::SetComplexValue(const char *aPrefName, const nsIID &
 NS_IMETHODIMP nsPrefBranch::ClearUserPref(const char *aPrefName)
 {
 #ifdef MOZ_IPC
-  if (GetContentChild()) {
+  if (GetContentProcessChild()) {
     NS_ERROR("cannot set pref from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
 #endif
 
-  NS_ENSURE_ARG(aPrefName);
   const char *pref = getPrefName(aPrefName);
   return PREF_ClearUserPref(pref);
 }
@@ -489,7 +548,18 @@ NS_IMETHODIMP nsPrefBranch::ClearUserPref(const char *aPrefName)
 NS_IMETHODIMP nsPrefBranch::PrefHasUserValue(const char *aPrefName, PRBool *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
-  NS_ENSURE_ARG(aPrefName);
+
+#ifdef MOZ_IPC
+  if (ContentProcessChild* cpc = GetContentProcessChild()) {
+    nsresult rv = NS_ERROR_NOT_AVAILABLE;
+    PRBool retval;
+    cpc->SendPrefHasUserValue(nsDependentCString(getPrefName(aPrefName)), &retval, &rv);
+    if (NS_SUCCEEDED(rv))
+      *_retval = retval;
+    return rv;
+  }
+#endif
+
   const char *pref = getPrefName(aPrefName);
   *_retval = PREF_HasUserPref(pref);
   return NS_OK;
@@ -498,28 +568,31 @@ NS_IMETHODIMP nsPrefBranch::PrefHasUserValue(const char *aPrefName, PRBool *_ret
 NS_IMETHODIMP nsPrefBranch::LockPref(const char *aPrefName)
 {
 #ifdef MOZ_IPC
-  if (GetContentChild()) {
+  if (GetContentProcessChild()) {
     NS_ERROR("cannot lock pref from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
 #endif
 
-  NS_ENSURE_ARG(aPrefName);
   const char *pref = getPrefName(aPrefName);
   return PREF_LockPref(pref, PR_TRUE);
 }
 
 NS_IMETHODIMP nsPrefBranch::PrefIsLocked(const char *aPrefName, PRBool *_retval)
 {
+  NS_ENSURE_ARG_POINTER(_retval);
+
 #ifdef MOZ_IPC
-  if (GetContentChild()) {
-    NS_ERROR("cannot check lock pref from content process");
-    return NS_ERROR_NOT_AVAILABLE;
+  if (ContentProcessChild* cpc = GetContentProcessChild()) {
+    nsresult rv = NS_ERROR_NOT_AVAILABLE;
+    PRBool retval;
+    cpc->SendPrefIsLocked(nsDependentCString(getPrefName(aPrefName)), &retval, &rv);
+    if (NS_SUCCEEDED(rv))
+      *_retval = retval;
+    return rv;
   }
 #endif
 
-  NS_ENSURE_ARG_POINTER(_retval);
-  NS_ENSURE_ARG(aPrefName);
   const char *pref = getPrefName(aPrefName);
   *_retval = PREF_PrefIsLocked(pref);
   return NS_OK;
@@ -528,13 +601,12 @@ NS_IMETHODIMP nsPrefBranch::PrefIsLocked(const char *aPrefName, PRBool *_retval)
 NS_IMETHODIMP nsPrefBranch::UnlockPref(const char *aPrefName)
 {
 #ifdef MOZ_IPC
-  if (GetContentChild()) {
+  if (GetContentProcessChild()) {
     NS_ERROR("cannot unlock pref from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
 #endif
 
-  NS_ENSURE_ARG(aPrefName);
   const char *pref = getPrefName(aPrefName);
   return PREF_LockPref(pref, PR_FALSE);
 }
@@ -548,13 +620,12 @@ NS_IMETHODIMP nsPrefBranch::ResetBranch(const char *aStartingAt)
 NS_IMETHODIMP nsPrefBranch::DeleteBranch(const char *aStartingAt)
 {
 #ifdef MOZ_IPC
-  if (GetContentChild()) {
+  if (GetContentProcessChild()) {
     NS_ERROR("cannot set pref from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
 #endif
 
-  NS_ENSURE_ARG(aStartingAt);
   const char *pref = getPrefName(aStartingAt);
   return PREF_DeleteBranch(pref);
 }
@@ -567,22 +638,33 @@ NS_IMETHODIMP nsPrefBranch::GetChildList(const char *aStartingAt, PRUint32 *aCou
   EnumerateData   ed;
   nsAutoTArray<nsCString, 32> prefArray;
 
-  NS_ENSURE_ARG(aStartingAt);
+  NS_ENSURE_ARG_POINTER(aStartingAt);
   NS_ENSURE_ARG_POINTER(aCount);
   NS_ENSURE_ARG_POINTER(aChildArray);
 
   *aChildArray = nsnull;
   *aCount = 0;
 
-  if (!gHashTable.ops)
-    return NS_ERROR_NOT_INITIALIZED;
+#ifdef MOZ_IPC
+  if (ContentProcessChild* cpc = GetContentProcessChild()) {
+    nsresult rv = NS_ERROR_NOT_AVAILABLE;
+    cpc->SendGetChildList(nsDependentCString(getPrefName(aStartingAt)),
+                          &prefArray, &rv);
+    if (NS_FAILED(rv)) return rv;
 
-  // this will contain a list of all the pref name strings
-  // allocate on the stack for speed
-  
-  ed.parent = getPrefName(aStartingAt);
-  ed.pref_list = &prefArray;
-  PL_DHashTableEnumerate(&gHashTable, pref_enumChild, &ed);
+  } else
+#endif
+  {
+    if (!gHashTable.ops)
+      return NS_ERROR_NOT_INITIALIZED;
+
+    // this will contain a list of all the pref name strings
+    // allocate on the stack for speed
+
+    ed.parent = getPrefName(aStartingAt);
+    ed.pref_list = &prefArray;
+    PL_DHashTableEnumerate(&gHashTable, pref_enumChild, &ed);
+  }
 
   // now that we've built up the list, run the callback on
   // all the matching elements
@@ -620,79 +702,92 @@ NS_IMETHODIMP nsPrefBranch::GetChildList(const char *aStartingAt, PRUint32 *aCou
 
 NS_IMETHODIMP nsPrefBranch::AddObserver(const char *aDomain, nsIObserver *aObserver, PRBool aHoldWeak)
 {
-  PrefCallback *pCallback;
+  PrefCallbackData *pCallback;
   const char *pref;
 
-  NS_ENSURE_ARG(aDomain);
-  NS_ENSURE_ARG(aObserver);
+  NS_ENSURE_ARG_POINTER(aDomain);
+  NS_ENSURE_ARG_POINTER(aObserver);
+
+#ifdef MOZ_IPC
+  if (ContentProcessChild* cpc = GetContentProcessChild()) {
+    return cpc->AddRemotePrefObserver(nsDependentCString(aDomain), mPrefRoot, aObserver, aHoldWeak);
+  }
+#endif
+
+  if (!mObservers) {
+    mObservers = new nsAutoVoidArray();
+    if (nsnull == mObservers)
+      return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  pCallback = (PrefCallbackData *)NS_Alloc(sizeof(PrefCallbackData) + strlen(aDomain));
+  if (nsnull == pCallback)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  pCallback->pBranch = this;
+  pCallback->pObserver = aObserver;
 
   // hold a weak reference to the observer if so requested
   if (aHoldWeak) {
     nsCOMPtr<nsISupportsWeakReference> weakRefFactory = do_QueryInterface(aObserver);
     if (!weakRefFactory) {
       // the caller didn't give us a object that supports weak reference... tell them
+      nsMemory::Free(pCallback);
       return NS_ERROR_INVALID_ARG;
     }
-
-    // Construct a PrefCallback with a weak reference to the observer.
-    pCallback = new PrefCallback(aDomain, weakRefFactory, this);
-
+    nsCOMPtr<nsIWeakReference> tmp = do_GetWeakReference(weakRefFactory);
+    NS_ADDREF(pCallback->pWeakRef = tmp);
   } else {
-    // Construct a PrefCallback with a strong reference to the observer.
-    pCallback = new PrefCallback(aDomain, aObserver, this);
+    pCallback->pWeakRef = nsnull;
+    NS_ADDREF(pCallback->pObserver);
   }
 
-  if (mObservers.Get(pCallback)) {
-    NS_WARNING("Ignoring duplicate observer.");
-    delete pCallback;
-    return NS_OK;
-  }
+  // In RemoveObserver, we need a canonical pointer to compare the removed
+  // observer to. In order to avoid having to call QI every time through the
+  // loop, we call QI here. There are two cases:
+  // 1. We hold a strong reference to the nsIObserver. This must hold
+  //    pCanonical alive.
+  // 2. We hold a weak reference: either the object stays alive and eventually
+  //    we QI the nsIObserver to nsISupports and compare successfully. Or the
+  //    object dies and we have a dangling (but unused) pointer to the
+  //    canonical supports pointer until we remove this entry.
+  CallQueryInterface(aObserver, &pCallback->pCanonical);
+  pCallback->pCanonical->Release();
 
-  PRBool putSucceeded = mObservers.Put(pCallback, pCallback);
-
-  if (!putSucceeded) {
-    delete pCallback;
-    return NS_ERROR_FAILURE;
-  }
+  strcpy(pCallback->pDomain, aDomain);
+  mObservers->AppendElement(pCallback);
 
   // We must pass a fully qualified preference name to the callback
-  // aDomain == nsnull is the only possible failure, and we trapped it with
-  // NS_ENSURE_ARG above.
-  pref = getPrefName(aDomain);
+  pref = getPrefName(aDomain); // aDomain == nsnull only possible failure, trapped above
   PREF_RegisterCallback(pref, NotifyObserver, pCallback);
   return NS_OK;
 }
 
 NS_IMETHODIMP nsPrefBranch::RemoveObserver(const char *aDomain, nsIObserver *aObserver)
 {
-  NS_ENSURE_ARG(aDomain);
-  NS_ENSURE_ARG(aObserver);
+  NS_ENSURE_ARG_POINTER(aDomain);
+  NS_ENSURE_ARG_POINTER(aObserver);
 
-  nsresult rv = NS_OK;
+#ifdef MOZ_IPC
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    nsresult rv = NS_OK;
+    ContentProcessChild *cpc = ContentProcessChild::GetSingleton();
+    // In case cpc doesn't exist here, we're silently returning (instead of
+    // asserting), because the child process is likely to be null
+    // when this is called during xpcom-shutdown.
+    if (cpc)
+      rv = cpc->RemoveRemotePrefObserver(nsDependentCString(aDomain), 
+                                         mPrefRoot, 
+                                         aObserver);
+    return rv;
+  }
+#endif
 
-  // If we're in the middle of a call to freeObserverList, don't process this
-  // RemoveObserver call -- the observer in question will be removed soon, if
-  // it hasn't been already.
-  //
-  // It's important that we don't touch mObservers in any way -- even a Get()
-  // which retuns null might cause the hashtable to resize itself, which will
-  // break the Enumerator in freeObserverList.
-  if (mFreeingObserverList)
+  if (!mObservers)
     return NS_OK;
 
-  // Remove the relevant PrefCallback from mObservers and get an owning
-  // pointer to it.  Unregister the callback first, and then let the owning
-  // pointer go out of scope and destroy the callback.
-  PrefCallback key(aDomain, aObserver, this);
-  nsAutoPtr<PrefCallback> pCallback;
-  mObservers.RemoveAndForget(&key, pCallback);
-  if (pCallback) {
-    // aDomain == nsnull is the only possible failure, trapped above
-    const char *pref = getPrefName(aDomain);
-    rv = PREF_UnregisterCallback(pref, NotifyObserver, pCallback);
-  }
-
-  return rv;
+  nsCOMPtr<nsISupports> canonical(do_QueryInterface(aObserver));
+  return RemoveObserverFromList(aDomain, canonical);
 }
 
 NS_IMETHODIMP nsPrefBranch::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
@@ -704,65 +799,126 @@ NS_IMETHODIMP nsPrefBranch::Observe(nsISupports *aSubject, const char *aTopic, c
   return NS_OK;
 }
 
-/* static */
-nsresult nsPrefBranch::NotifyObserver(const char *newpref, void *data)
+static nsresult NotifyObserver(const char *newpref, void *data)
 {
-  PrefCallback *pCallback = (PrefCallback *)data;
-
-  nsCOMPtr<nsIObserver> observer = pCallback->GetObserver();
-  if (!observer) {
-    // The observer has expired.  Let's remove this callback.
-    pCallback->GetPrefBranch()->RemoveExpiredCallback(pCallback);
+#ifdef MOZ_IPC
+  if (GetContentProcessChild()) {
+    // We shouldn't ever get here, since we never register NotifyObserver in the 
+    // content process
+    NS_NOTREACHED("Remote prefs observation should be done from the \
+                  chrome process!");
     return NS_OK;
   }
+#endif
+
+  PrefCallbackData *pData = (PrefCallbackData *)data;
 
   // remove any root this string may contain so as to not confuse the observer
   // by passing them something other than what they passed us as a topic
-  PRUint32 len = pCallback->GetPrefBranch()->GetRootLength();
-  nsCAutoString suffix(newpref + len);
+  PRUint32 len = pData->pBranch->GetRootLength();
+  nsCAutoString suffix(newpref + len);  
 
-  observer->Observe(static_cast<nsIPrefBranch *>(pCallback->GetPrefBranch()),
+  nsCOMPtr<nsIObserver> observer;
+  if (pData->pWeakRef) {
+    observer = do_QueryReferent(pData->pWeakRef);
+    if (!observer) {
+      // this weak referenced observer went away, remove them from the list
+      pData->pBranch->RemoveObserverFromList(pData->pDomain, pData->pCanonical);
+      return NS_OK;
+    }
+  } else {
+    observer = pData->pObserver;
+  }
+
+  observer->Observe(static_cast<nsIPrefBranch *>(pData->pBranch),
                     NS_PREFBRANCH_PREFCHANGE_TOPIC_ID,
                     NS_ConvertASCIItoUTF16(suffix).get());
   return NS_OK;
 }
 
-PLDHashOperator
-FreeObserverFunc(PrefCallback *aKey,
-                 nsAutoPtr<PrefCallback> &aCallback,
-                 void *aArgs)
-{
-  // Calling NS_RELEASE below might trigger a call to
-  // nsPrefBranch::RemoveObserver, since some classes remove themselves from
-  // the pref branch on destruction.  We don't need to worry about this causing
-  // double-frees, however, because freeObserverList sets mFreeingObserverList
-  // to true, which prevents RemoveObserver calls from doing anything.
-
-  nsPrefBranch *prefBranch = aCallback->GetPrefBranch();
-  const char *pref = prefBranch->getPrefName(aCallback->GetDomain().get());
-  PREF_UnregisterCallback(pref, nsPrefBranch::NotifyObserver, aCallback);
-
-  return PL_DHASH_REMOVE;
-}
 
 void nsPrefBranch::freeObserverList(void)
 {
-  // We need to prevent anyone from modifying mObservers while we're
-  // enumerating over it.  In particular, some clients will call
-  // RemoveObserver() when they're destructed; we need to keep those calls from
-  // touching mObservers.
-  mFreeingObserverList = PR_TRUE;
-  mObservers.Enumerate(&FreeObserverFunc, nsnull);
-  mFreeingObserverList = PR_FALSE;
+  const char *pref;
+  PrefCallbackData *pCallback;
+
+  if (mObservers) {
+    // unregister the observers
+
+    PRInt32 i;
+    nsCAutoString domain;
+    for (i = 0; i < mObservers->Count(); ++i) {
+      pCallback = (PrefCallbackData *)mObservers->ElementAt(i);
+      if (pCallback) {
+        // We must pass a fully qualified preference name to remove the callback
+        pref = getPrefName(pCallback->pDomain);
+        // Remove this observer from our array so that nobody else can remove
+        // what we're trying to remove right now.
+        mObservers->ReplaceElementAt(nsnull, i);
+        PREF_UnregisterCallback(pref, NotifyObserver, pCallback);
+        if (pCallback->pWeakRef) {
+          NS_RELEASE(pCallback->pWeakRef);
+        } else {
+          NS_RELEASE(pCallback->pObserver);
+        }
+        nsMemory::Free(pCallback);
+      }
+    }
+
+    delete mObservers;
+    mObservers = 0;
+  }
 }
 
-void
-nsPrefBranch::RemoveExpiredCallback(PrefCallback *aCallback)
+nsresult
+nsPrefBranch::RemoveObserverFromList(const char *aDomain, nsISupports *aObserver)
 {
-  NS_PRECONDITION(aCallback->IsExpired(), "Callback should be expired.");
-  mObservers.Remove(aCallback);
-}
+  PRInt32 count = mObservers->Count();
+  if (!count) {
+    return NS_OK;
+  }
 
+#ifdef DEBUG
+  PRBool alreadyRemoved = PR_FALSE;
+#endif
+
+  for (PRInt32 i = 0; i < count; i++) {
+    PrefCallbackData *pCallback = (PrefCallbackData *)mObservers->ElementAt(i);
+
+#ifdef DEBUG
+    if (!pCallback) {
+      // Have to assume that the callback we're looking for was already
+      // removed in freeObserverList below.
+      alreadyRemoved = PR_TRUE;
+    }
+#endif
+
+    if (pCallback &&
+        pCallback->pCanonical == aObserver &&
+        !strcmp(pCallback->pDomain, aDomain)) {
+      // We must pass a fully qualified preference name to remove the callback
+      const char *pref = getPrefName(aDomain); // aDomain == nsnull only possible failure, trapped above
+      nsresult rv = PREF_UnregisterCallback(pref, NotifyObserver, pCallback);
+      if (NS_SUCCEEDED(rv)) {
+        // Remove this observer from our array so that nobody else can remove
+        // what we're trying to remove ourselves right now.
+        mObservers->RemoveElementAt(i);
+        if (pCallback->pWeakRef) {
+          NS_RELEASE(pCallback->pWeakRef);
+        } else {
+          NS_RELEASE(pCallback->pObserver);
+        }
+        NS_Free(pCallback);
+      }
+      return rv;
+    }
+  }
+
+  NS_WARN_IF_FALSE(alreadyRemoved,
+                   "Failed attempt to remove a pref observer, probably leaking");
+  return NS_OK;
+}
+ 
 nsresult nsPrefBranch::GetDefaultFromPropertiesFile(const char *aPrefName, PRUnichar **return_buf)
 {
   nsresult rv;
@@ -794,15 +950,17 @@ nsresult nsPrefBranch::GetDefaultFromPropertiesFile(const char *aPrefName, PRUni
 
 const char *nsPrefBranch::getPrefName(const char *aPrefName)
 {
-  NS_ASSERTION(aPrefName, "null pref name!");
-
   // for speed, avoid strcpy if we can:
   if (mPrefRoot.IsEmpty())
     return aPrefName;
 
   // isn't there a better way to do this? this is really kind of gross.
   mPrefRoot.Truncate(mPrefRootLength);
-  mPrefRoot.Append(aPrefName);
+
+  // only append if anything to append
+  if ((nsnull != aPrefName) && (*aPrefName != '\0'))
+    mPrefRoot.Append(aPrefName);
+
   return mPrefRoot.get();
 }
 

@@ -67,13 +67,10 @@ function InitWithToolbox(aToolbox)
   gToolboxDocument = gToolbox.ownerDocument;
   gToolbox.customizing = true;
 
-  var elts = getRootElements();
-  for (let i=0; i < elts.length; i++) {
-    elts[i].addEventListener("dragstart", onToolbarDragStart, true);
-    elts[i].addEventListener("dragover", onToolbarDragOver, true);
-    elts[i].addEventListener("dragleave", onToolbarDragLeave, true);
-    elts[i].addEventListener("drop", onToolbarDrop, true);
-  }
+  gToolbox.addEventListener("dragstart", onToolbarDragStart, true);
+  gToolbox.addEventListener("dragover", onToolbarDragOver, true);
+  gToolbox.addEventListener("dragleave", onToolbarDragLeave, true);
+  gToolbox.addEventListener("drop", onToolbarDrop, true);
 
   initDialog();
 }
@@ -141,13 +138,10 @@ function repositionDialog(aWindow)
 
 function removeToolboxListeners()
 {
-  var elts = getRootElements();
-  for (let i=0; i < elts.length; i++) {
-    elts[i].removeEventListener("dragstart", onToolbarDragStart, true);
-    elts[i].removeEventListener("dragover", onToolbarDragOver, true);
-    elts[i].removeEventListener("dragleave", onToolbarDragLeave, true);
-    elts[i].removeEventListener("drop", onToolbarDrop, true);
-  }
+  gToolbox.removeEventListener("dragstart", onToolbarDragStart, true);
+  gToolbox.removeEventListener("dragover", onToolbarDragOver, true);
+  gToolbox.removeEventListener("dragleave", onToolbarDragLeave, true);
+  gToolbox.removeEventListener("drop", onToolbarDrop, true);
 }
 
 /**
@@ -227,6 +221,7 @@ function wrapToolbarItems()
       if (item.firstChild && item.firstChild.localName == "menubar")
         return;
 #endif
+
       if (isToolbarItem(item)) {
         let wrapper = wrapToolbarItem(item);
         cleanupItemForToolbar(item, wrapper);
@@ -235,25 +230,28 @@ function wrapToolbarItems()
   });
 }
 
-function getRootElements()
-{
-  return [gToolbox].concat(gToolbox.externalToolbars);
-}
-
 /**
  * Unwraps all items in all customizable toolbars in a toolbox.
  */
 function unwrapToolbarItems()
 {
-  let elts = getRootElements();
-  for (let i=0; i < elts.length; i++) {
-    let paletteItems = elts[i].getElementsByTagName("toolbarpaletteitem");
-    let paletteItem;
-    while ((paletteItem = paletteItems.item(0)) != null) {
-      let toolbarItem = paletteItem.firstChild;
-      restoreItemForToolbar(toolbarItem, paletteItem);
-      paletteItem.parentNode.replaceChild(toolbarItem, paletteItem);
+  var paletteItems = gToolbox.getElementsByTagName("toolbarpaletteitem");
+  var paletteItem;
+  while ((paletteItem = paletteItems.item(0)) != null) {
+    var toolbarItem = paletteItem.firstChild;
+
+    if (paletteItem.hasAttribute("itemdisabled"))
+      toolbarItem.disabled = true;
+
+    if (paletteItem.hasAttribute("itemcommand")) {
+      let commandID = paletteItem.getAttribute("itemcommand");
+      toolbarItem.setAttribute("command", commandID);
+
+      //XXX Bug 309953 - toolbarbuttons aren't in sync with their commands after customizing
+      toolbarItem.disabled = gToolboxDocument.getElementById(commandID).disabled;
     }
+
+    paletteItem.parentNode.replaceChild(toolbarItem, paletteItem);
   }
 }
 
@@ -493,36 +491,9 @@ function cleanupItemForToolbar(aItem, aWrapper)
     aItem.removeAttribute("command");
   }
 
-  if (aItem.checked) {
-    aWrapper.setAttribute("itemchecked", "true");
-    aItem.checked = false;
-  }
-
   if (aItem.disabled) {
     aWrapper.setAttribute("itemdisabled", "true");
     aItem.disabled = false;
-  }
-}
-
-/**
- * Restore all the properties that we stripped off above.
- */
-function restoreItemForToolbar(aItem, aWrapper)
-{
-  if (aWrapper.hasAttribute("itemdisabled"))
-    aItem.disabled = true;
-
-  if (aWrapper.hasAttribute("itemchecked"))
-    aItem.checked = true;
-
-  if (aWrapper.hasAttribute("itemcommand")) {
-    let commandID = aWrapper.getAttribute("itemcommand");
-    aItem.setAttribute("command", commandID);
-
-    //XXX Bug 309953 - toolbarbuttons aren't in sync with their commands after customizing
-    let command = gToolboxDocument.getElementById(commandID);
-    if (command && command.hasAttribute("disabled"))
-      aItem.setAttribute("disabled", command.getAttribute("disabled"));
   }
 }
 
@@ -695,7 +666,6 @@ function updateToolboxProperty(aProp, aValue, aToolkitDefault) {
 
 function forEachCustomizableToolbar(callback) {
   Array.filter(gToolbox.childNodes, isCustomizableToolbar).forEach(callback);
-  Array.filter(gToolbox.externalToolbars, isCustomizableToolbar).forEach(callback);
 }
 
 function isCustomizableToolbar(aElt)
@@ -926,7 +896,6 @@ function onPaletteDrop(aEvent)
     if (wrapperType != "separator" &&
         wrapperType != "spacer" &&
         wrapperType != "spring") {
-      restoreItemForToolbar(wrapper.firstChild, wrapper);
       appendPaletteItem(document.importNode(wrapper.firstChild, true));
       gToolbox.palette.appendChild(wrapper.firstChild);
     }

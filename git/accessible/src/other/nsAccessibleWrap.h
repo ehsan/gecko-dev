@@ -53,8 +53,7 @@ public: // construction, destruction
   virtual ~nsAccessibleWrap();
 
   protected:
-    virtual nsresult FirePlatformEvent(AccEvent* aEvent)
-    {
+    virtual nsresult FirePlatformEvent(nsAccEvent *aEvent) {
       return NS_OK;
     }
 };

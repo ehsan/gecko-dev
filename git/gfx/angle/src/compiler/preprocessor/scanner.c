@@ -1,3 +1,8 @@
+//
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+//
 /****************************************************************************\
 Copyright (c) 2002, NVIDIA Corporation.
 
@@ -78,15 +83,15 @@ static int byte_scan(InputSrc *, yystypepp * yylvalpp);
 
 #define EOL_SY '\n'
 
-#if defined(_MSC_VER)
+#if defined(_WIN32)
     #define DBG_BREAKPOINT() __asm int 3
-#elif defined(_M_AMD64)
+    #elif defined(_M_AMD64)
     #define DBG_BREAKPOINT() assert(!"Dbg_Breakpoint");
-#else
+    #else
     #define DBG_BREAKPOINT()
-#endif
+    #endif
 
-#if defined(_MSC_VER) && !defined(_M_AMD64)
+    #if defined(_WIN32) && !defined(_M_AMD64)
     __int64 RDTSC ( void ) {
 
         __int64 v;
@@ -170,7 +175,7 @@ static void str_ungetch(StringInputSrc *in, int ch, yystypepp *type) {
     }
 } // str_ungetch
 
-int ScanFromString(const char *s)
+int ScanFromString(char *s)
 {
     
 	StringInputSrc *in = malloc(sizeof(StringInputSrc));

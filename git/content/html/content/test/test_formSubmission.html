@@ -608,7 +608,7 @@ function runTest() {
   xhr = new XMLHttpRequest();
   xhr.onload = function() { gen.next(); };
   xhr.open("POST", "form_submit_server.sjs");
-  xhr.send(new FormData(form));
+  xhr.send(form.getFormData());
   yield; // Wait for XHR load
   checkMPSubmission(JSON.parse(xhr.responseText), expectedSub);
   
@@ -616,7 +616,7 @@ function runTest() {
   setDisabled(document.getElementsByTagName("input"), true);
   setDisabled(document.getElementsByTagName("select"), true);
   xhr.open("POST", "form_submit_server.sjs");
-  xhr.send(new FormData(form));
+  xhr.send(form.getFormData());
   yield;
   checkMPSubmission(JSON.parse(xhr.responseText), []);
   setDisabled(document.getElementsByTagName("input"), false);
@@ -637,7 +637,7 @@ function runTest() {
   checkMPSubmission(JSON.parse(xhr.responseText), expectedAugment);
 
   // Augment <form> using FormData
-  fd = new FormData(form);
+  fd = form.getFormData();
   addToFormData(fd);
   xhr.open("POST", "form_submit_server.sjs");
   xhr.send(fd);

@@ -36,7 +36,7 @@
 #
 # ***** END LICENSE BLOCK ***** */
 
-import glob, logging, os, platform, shutil, subprocess, sys
+import glob, logging, os, shutil, subprocess, sys
 import re
 from urlparse import urlparse
 
@@ -49,7 +49,6 @@ __all__ = [
   "getDebuggerInfo",
   "DEBUGGER_INFO",
   "replaceBackSlashes",
-  "wrapCommand",
   ]
 
 # Map of debugging programs to information about them, like default arguments
@@ -360,16 +359,3 @@ def processLeakLog(leakLogFile, leakThreshold = 0):
 
 def replaceBackSlashes(input):
   return input.replace('\\', '/')
-
-def wrapCommand(cmd):
-  """
-  If running on OS X 10.5 or older, wrap |cmd| so that it will
-  be executed as an i386 binary, in case it's a 32-bit/64-bit universal
-  binary.
-  """
-  if platform.system() == "Darwin" and \
-     hasattr(platform, 'mac_ver') and \
-     platform.mac_ver()[0][:4] < '10.6':
-    return ["arch", "-arch", "i386"] + cmd
-  # otherwise just execute the command normally
-  return cmd

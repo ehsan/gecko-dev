@@ -42,9 +42,7 @@ function test() {
   var activeWin = Application.activeWindow;
   testPage = activeWin.open(url("about:blank"));
   testPage.events.addListener("load", afterOpen);
-  
-  var rootDir = getRootDirectory(gTestPath);
-  testPage.load(url(rootDir + "test-form_sjis.html"));
+  testPage.load(url("chrome://mochikit/content/browser/docshell/test/browser/test-form_sjis.html"));
   testPage.focus();
 
   waitForExplicitFinish();

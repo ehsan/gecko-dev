@@ -1,4 +1,3 @@
-setDebug(true);
 var a = new Array();
 
 function i(save) {

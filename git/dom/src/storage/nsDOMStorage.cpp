@@ -183,20 +183,16 @@ IsOfflineAllowed(const nsACString &aDomain)
 // Returns two quotas - A hard limit for which adding data will be an error,
 // and a limit after which a warning event will be sent to the observer
 // service.  The warn limit may be -1, in which case there will be no warning.
-// If aOverrideQuota is set, the larger offline apps quota is used and no
-// warning is sent.
 static PRUint32
-GetQuota(const nsACString &aDomain, PRInt32 *aQuota, PRInt32 *aWarnQuota,
-         bool aOverrideQuota)
+GetQuota(const nsACString &aDomain, PRInt32 *aQuota, PRInt32 *aWarnQuota)
 {
   PRUint32 perm = GetOfflinePermission(aDomain);
-  if (IS_PERMISSION_ALLOWED(perm) || aOverrideQuota) {
+  if (IS_PERMISSION_ALLOWED(perm)) {
     // This is an offline app, give more space by default.
     *aQuota = ((PRInt32)nsContentUtils::GetIntPref(kOfflineAppQuota,
                                                    DEFAULT_OFFLINE_APP_QUOTA) * 1024);
 
-    if (perm == nsIOfflineCacheUpdateService::ALLOW_NO_WARN ||
-        aOverrideQuota) {
+    if (perm == nsIOfflineCacheUpdateService::ALLOW_NO_WARN) {
       *aWarnQuota = -1;
     } else {
       *aWarnQuota = ((PRInt32)nsContentUtils::GetIntPref(kOfflineAppWarnQuota,
@@ -562,7 +558,6 @@ nsDOMStorage::nsDOMStorage()
   , mStorageType(nsPIDOMStorage::Unknown)
   , mItemsCached(PR_FALSE)
   , mEventBroadcaster(nsnull)
-  , mCanUseChromePersist(false)
 {
   mSecurityChecker = this;
   mItems.Init(8);
@@ -580,7 +575,6 @@ nsDOMStorage::nsDOMStorage(nsDOMStorage& aThat)
   , mScopeDBKey(aThat.mScopeDBKey)
 #endif
   , mEventBroadcaster(nsnull)
-  , mCanUseChromePersist(aThat.mCanUseChromePersist)
 {
   mSecurityChecker = this;
   mItems.Init(8);
@@ -683,12 +677,6 @@ nsDOMStorage::InitAsLocalStorage(nsIPrincipal *aPrincipal, const nsSubstring &aD
 #endif
 
   mStorageType = LocalStorage;
-
-  nsCOMPtr<nsIURI> URI;
-  if (NS_SUCCEEDED(aPrincipal->GetURI(getter_AddRefs(URI))) && URI) {
-    mCanUseChromePersist = URICanUseChromePersist(URI);
-  }
-
   return NS_OK;
 }
 
@@ -791,10 +779,8 @@ nsDOMStorage::CanUseStorage(PRPackedBool* aSessionOnly)
     PRUint32 cookieBehavior = nsContentUtils::GetIntPref(kCookiesBehavior);
     PRUint32 lifetimePolicy = nsContentUtils::GetIntPref(kCookiesLifetimePolicy);
 
-    // Treat "ask every time" as "reject always".
-    // Chrome persistent pages can bypass this check.
-    if ((cookieBehavior == BEHAVIOR_REJECT || lifetimePolicy == ASK_BEFORE_ACCEPT) &&
-        !URICanUseChromePersist(subjectURI))
+    // treat ask as reject always
+    if (cookieBehavior == BEHAVIOR_REJECT || lifetimePolicy == ASK_BEFORE_ACCEPT)
       return PR_FALSE;
 
     if (lifetimePolicy == ACCEPT_SESSION)
@@ -824,20 +810,6 @@ nsDOMStorage::CacheStoragePermissions()
   return mSecurityChecker->CanAccess(subjectPrincipal);
 }
 
-// static
-PRBool
-nsDOMStorage::URICanUseChromePersist(nsIURI* aURI) {
-  PRBool isAbout;
-  return
-    (NS_SUCCEEDED(aURI->SchemeIs("moz-safe-about", &isAbout)) && isAbout) ||
-    (NS_SUCCEEDED(aURI->SchemeIs("about", &isAbout)) && isAbout);
-}
-
-bool
-nsDOMStorage::CanUseChromePersist()
-{
-  return mCanUseChromePersist;
-}
 
 class ItemCounterState
 {
@@ -1280,8 +1252,7 @@ nsDOMStorage::SetDBValue(const nsAString& aKey,
   PRInt32 offlineAppPermission;
   PRInt32 quota;
   PRInt32 warnQuota;
-  offlineAppPermission = GetQuota(mDomain, &quota, &warnQuota,
-                                  CanUseChromePersist());
+  offlineAppPermission = GetQuota(mDomain, &quota, &warnQuota);
 
   PRInt32 usage;
   rv = gStorageDB->SetKey(this, aKey, aValue, aSecure, quota,

@@ -100,7 +100,7 @@ nsCanvasFrame::ScrollPositionWillChange(nscoord aX, nscoord aY)
 {
   if (mDoPaintFocus) {
     mDoPaintFocus = PR_FALSE;
-    PresContext()->FrameManager()->GetRootFrame()->InvalidateFrameSubtree();
+    PresContext()->FrameManager()->GetRootFrame()->InvalidateOverflowRect();
   }
 }
 
@@ -109,7 +109,7 @@ nsCanvasFrame::SetHasFocus(PRBool aHasFocus)
 {
   if (mDoPaintFocus != aHasFocus) {
     mDoPaintFocus = aHasFocus;
-    PresContext()->FrameManager()->GetRootFrame()->InvalidateFrameSubtree();
+    PresContext()->FrameManager()->GetRootFrame()->InvalidateOverflowRect();
 
     if (!mAddedScrollPositionListener) {
       nsIScrollableFrame* sf =
@@ -208,7 +208,7 @@ nsCanvasFrame::RemoveFrame(nsIAtom*        aListName,
   // Damage the area occupied by the deleted frame
   // The child of the canvas probably can't have an outline, but why bother
   // thinking about that?
-  Invalidate(aOldFrame->GetVisualOverflowRect() + aOldFrame->GetPosition());
+  Invalidate(aOldFrame->GetOverflowRect() + aOldFrame->GetPosition());
 
   // Remove the frame and destroy it
   mFrames.DestroyFrame(aOldFrame);
@@ -239,9 +239,7 @@ nsCanvasFrame::GetChildList(nsIAtom* aListName) const
 
 nsRect nsCanvasFrame::CanvasArea() const
 {
-  // Not clear which overflow rect we want here, but it probably doesn't
-  // matter.
-  nsRect result(GetVisualOverflowRect());
+  nsRect result(GetOverflowRect());
 
   nsIScrollableFrame *scrollableFrame = do_QueryFrame(GetParent());
   if (scrollableFrame) {
@@ -256,7 +254,7 @@ nsDisplayCanvasBackground::Paint(nsDisplayListBuilder* aBuilder,
                                  nsIRenderingContext* aCtx)
 {
   nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-  nsPoint offset = ToReferenceFrame();
+  nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
   nsRect bgClipRect = frame->CanvasArea() + offset;
 
   if (NS_GET_A(mExtraBackgroundColor) > 0) {
@@ -278,8 +276,8 @@ nsDisplayCanvasBackground::Paint(nsDisplayListBuilder* aBuilder,
  */
 class nsDisplayCanvasFocus : public nsDisplayItem {
 public:
-  nsDisplayCanvasFocus(nsDisplayListBuilder* aBuilder, nsCanvasFrame *aFrame)
-    : nsDisplayItem(aBuilder, aFrame)
+  nsDisplayCanvasFocus(nsCanvasFrame *aFrame)
+    : nsDisplayItem(aFrame)
   {
     MOZ_COUNT_CTOR(nsDisplayCanvasFocus);
   }
@@ -291,14 +289,14 @@ public:
   {
     // This is an overestimate, but that's not a problem.
     nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-    return frame->CanvasArea() + ToReferenceFrame();
+    return frame->CanvasArea() + aBuilder->ToReferenceFrame(mFrame);
   }
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx)
   {
     nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-    frame->PaintFocus(*aCtx, ToReferenceFrame());
+    frame->PaintFocus(*aCtx, aBuilder->ToReferenceFrame(mFrame));
   }
 
   NS_DISPLAY_DECL_NAME("CanvasFocus", TYPE_CANVAS_FOCUS)
@@ -327,7 +325,7 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // calling DisplayBorderBackgroundOutline.
   if (IsVisibleForPainting(aBuilder)) { 
     rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-           nsDisplayCanvasBackground(aBuilder, this));
+           nsDisplayCanvasBackground(this));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -364,7 +362,7 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
   
   return aLists.Outlines()->AppendNewToTop(new (aBuilder)
-      nsDisplayCanvasFocus(aBuilder, this));
+      nsDisplayCanvasFocus(this));
 }
 
 void
@@ -448,11 +446,6 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
     }
   }
 
-  // Set our size up front, since some parts of reflow depend on it
-  // being already set.  Note that the computed height may be
-  // unconstrained; that's ok.  Consumers should watch out for that.
-  SetSize(nsSize(aReflowState.ComputedWidth(), aReflowState.ComputedHeight())); 
-
   // Reflow our one and only normal child frame. It's either the root
   // element's frame or a placeholder for that frame, if the root element
   // is abs-pos or fixed-pos. We may have additional children which
@@ -524,7 +517,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
       // Note: Even though we request to be sized to our child's size, our
       // scroll frame ensures that we are always the size of the viewport.
       // Also note: GetPosition() on a CanvasFrame is always going to return
-      // (0, 0). We only want to invalidate GetRect() since Get*OverflowRect()
+      // (0, 0). We only want to invalidate GetRect() since GetOverflowRect()
       // could also include overflow to our top and left (out of the viewport)
       // which doesn't need to be painted.
       nsIFrame* viewport = PresContext()->GetPresShell()->GetRootFrame();
@@ -550,17 +543,19 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
       aDesiredSize.height = aReflowState.ComputedHeight();
     }
 
-    aDesiredSize.SetOverflowAreasToDesiredBounds();
-    aDesiredSize.mOverflowAreas.UnionWith(
-      kidDesiredSize.mOverflowAreas + kidPt);
+    aDesiredSize.mOverflowArea.UnionRect(
+      nsRect(0, 0, aDesiredSize.width, aDesiredSize.height),
+      kidDesiredSize.mOverflowArea + kidPt);
 
     if (mAbsoluteContainer.HasAbsoluteFrames()) {
       PRBool widthChanged = aDesiredSize.width != mRect.width;
       PRBool heightChanged = aDesiredSize.height != mRect.height;
+      nsRect absPosBounds;
       mAbsoluteContainer.Reflow(this, aPresContext, aReflowState, aStatus,
                                 aDesiredSize.width, aDesiredSize.height,
                                 PR_TRUE, widthChanged, heightChanged,
-                                &aDesiredSize.mOverflowAreas);
+                                &absPosBounds);
+      aDesiredSize.mOverflowArea.UnionRect(aDesiredSize.mOverflowArea, absPosBounds);
     }
 
     // Handle invalidating fixed-attachment backgrounds propagated to the
@@ -599,7 +594,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
 
   if (prevCanvasFrame) {
     ReflowOverflowContainerChildren(aPresContext, aReflowState,
-                                    aDesiredSize.mOverflowAreas, 0,
+                                    aDesiredSize.mOverflowArea, 0,
                                     aStatus);
   }
 

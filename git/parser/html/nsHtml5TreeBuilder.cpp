@@ -42,6 +42,7 @@
 #include "jArray.h"
 #include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
+#include "nsHtml5NamedCharacters.h"
 #include "nsHtml5Parser.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
@@ -79,8 +80,6 @@ nsHtml5TreeBuilder::startTokenization(nsHtml5Tokenizer* self)
   formPointer = nsnull;
   ;
   headPointer = nsnull;
-  ;
-  deepTreeSurrogateParent = nsnull;
   start(fragment);
   charBufferLen = 0;
   charBuffer = jArray<PRUnichar,PRInt32>(1024);
@@ -191,22 +190,18 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
     }
     needToDropLF = PR_FALSE;
   }
+  if (inForeign) {
+    accumulateCharacters(buf, start, length);
+    return;
+  }
   switch(mode) {
     case NS_HTML5TREE_BUILDER_IN_BODY:
     case NS_HTML5TREE_BUILDER_IN_CELL:
     case NS_HTML5TREE_BUILDER_IN_CAPTION: {
-      if (!inForeign) {
-        reconstructTheActiveFormattingElements();
-      }
+      reconstructTheActiveFormattingElements();
     }
     case NS_HTML5TREE_BUILDER_TEXT: {
       accumulateCharacters(buf, start, length);
-      return;
-    }
-    case NS_HTML5TREE_BUILDER_IN_TABLE:
-    case NS_HTML5TREE_BUILDER_IN_TABLE_BODY:
-    case NS_HTML5TREE_BUILDER_IN_ROW: {
-      accumulateCharactersForced(buf, start, length);
       return;
     }
     default: {
@@ -225,6 +220,7 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                 start = i + 1;
                 continue;
               }
+              case NS_HTML5TREE_BUILDER_FRAMESET_OK:
               case NS_HTML5TREE_BUILDER_IN_HEAD:
               case NS_HTML5TREE_BUILDER_IN_HEAD_NOSCRIPT:
               case NS_HTML5TREE_BUILDER_AFTER_HEAD:
@@ -233,7 +229,6 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
               case NS_HTML5TREE_BUILDER_AFTER_FRAMESET: {
                 continue;
               }
-              case NS_HTML5TREE_BUILDER_FRAMESET_OK:
               case NS_HTML5TREE_BUILDER_IN_BODY:
               case NS_HTML5TREE_BUILDER_IN_CELL:
               case NS_HTML5TREE_BUILDER_IN_CAPTION: {
@@ -241,10 +236,7 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   accumulateCharacters(buf, start, i - start);
                   start = i;
                 }
-                if (!inForeign) {
-                  flushCharacters();
-                  reconstructTheActiveFormattingElements();
-                }
+                reconstructTheActiveFormattingElements();
                 NS_HTML5_BREAK(charactersloop);
               }
               case NS_HTML5TREE_BUILDER_IN_SELECT:
@@ -254,18 +246,25 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
               case NS_HTML5TREE_BUILDER_IN_TABLE:
               case NS_HTML5TREE_BUILDER_IN_TABLE_BODY:
               case NS_HTML5TREE_BUILDER_IN_ROW: {
-                accumulateCharactersForced(buf, i, 1);
+                reconstructTheActiveFormattingElements();
+                accumulateCharacter(buf[i]);
                 start = i + 1;
                 continue;
               }
-              case NS_HTML5TREE_BUILDER_AFTER_BODY:
+              case NS_HTML5TREE_BUILDER_AFTER_BODY: {
+                if (start < i) {
+                  accumulateCharacters(buf, start, i - start);
+                  start = i;
+                }
+                reconstructTheActiveFormattingElements();
+                continue;
+              }
               case NS_HTML5TREE_BUILDER_AFTER_AFTER_BODY:
               case NS_HTML5TREE_BUILDER_AFTER_AFTER_FRAMESET: {
                 if (start < i) {
                   accumulateCharacters(buf, start, i - start);
                   start = i;
                 }
-                flushCharacters();
                 reconstructTheActiveFormattingElements();
                 continue;
               }
@@ -290,7 +289,6 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   accumulateCharacters(buf, start, i - start);
                   start = i;
                 }
-                flushCharacters();
                 appendToCurrentNodeAndPushHeadElement(nsHtml5HtmlAttributes::EMPTY_ATTRIBUTES);
                 mode = NS_HTML5TREE_BUILDER_IN_HEAD;
                 i--;
@@ -301,7 +299,6 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   accumulateCharacters(buf, start, i - start);
                   start = i;
                 }
-                flushCharacters();
                 pop();
                 mode = NS_HTML5TREE_BUILDER_AFTER_HEAD;
                 i--;
@@ -313,7 +310,6 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   start = i;
                 }
 
-                flushCharacters();
                 pop();
                 mode = NS_HTML5TREE_BUILDER_IN_HEAD;
                 i--;
@@ -324,7 +320,6 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   accumulateCharacters(buf, start, i - start);
                   start = i;
                 }
-                flushCharacters();
                 appendToCurrentNodeAndPushBodyElement();
                 mode = NS_HTML5TREE_BUILDER_FRAMESET_OK;
                 i--;
@@ -343,16 +338,14 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   accumulateCharacters(buf, start, i - start);
                   start = i;
                 }
-                if (!inForeign) {
-                  flushCharacters();
-                  reconstructTheActiveFormattingElements();
-                }
+                reconstructTheActiveFormattingElements();
                 NS_HTML5_BREAK(charactersloop);
               }
               case NS_HTML5TREE_BUILDER_IN_TABLE:
               case NS_HTML5TREE_BUILDER_IN_TABLE_BODY:
               case NS_HTML5TREE_BUILDER_IN_ROW: {
-                accumulateCharactersForced(buf, i, 1);
+                reconstructTheActiveFormattingElements();
+                accumulateCharacter(buf[i]);
                 start = i + 1;
                 continue;
               }
@@ -366,7 +359,6 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   start = i + 1;
                   continue;
                 }
-                flushCharacters();
                 pop();
                 mode = NS_HTML5TREE_BUILDER_IN_TABLE;
                 i--;
@@ -437,11 +429,14 @@ void
 nsHtml5TreeBuilder::eof()
 {
   flushCharacters();
-  for (; ; ) {
-    if (inForeign) {
+  if (inForeign) {
 
-      NS_HTML5_BREAK(eofloop);
+    while (stack[currentPtr]->ns != kNameSpaceID_XHTML) {
+      popOnEof();
     }
+    inForeign = PR_FALSE;
+  }
+  for (; ; ) {
     switch(mode) {
       case NS_HTML5TREE_BUILDER_INITIAL: {
         documentModeInternal(QUIRKS_MODE, nsnull, nsnull, PR_FALSE);
@@ -538,8 +533,6 @@ nsHtml5TreeBuilder::endTokenization()
   formPointer = nsnull;
   ;
   headPointer = nsnull;
-  ;
-  deepTreeSurrogateParent = nsnull;
   if (stack) {
     while (currentPtr > -1) {
       stack[currentPtr]->release();
@@ -568,7 +561,6 @@ nsHtml5TreeBuilder::endTokenization()
 void 
 nsHtml5TreeBuilder::startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes, PRBool selfClosing)
 {
-  flushCharacters();
   PRInt32 eltPos;
   needToDropLF = PR_FALSE;
   PRBool needsPostProcessing = PR_FALSE;
@@ -601,23 +593,19 @@ nsHtml5TreeBuilder::startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttribu
           case NS_HTML5TREE_BUILDER_PRE_OR_LISTING:
           case NS_HTML5TREE_BUILDER_TABLE: {
 
-            while (!isSpecialParentInForeign(stack[currentPtr])) {
+            while (stack[currentPtr]->ns != kNameSpaceID_XHTML) {
               pop();
             }
-            if (!hasForeignInScope()) {
-              inForeign = PR_FALSE;
-            }
+            inForeign = PR_FALSE;
             NS_HTML5_CONTINUE(starttagloop);
           }
           case NS_HTML5TREE_BUILDER_FONT: {
             if (attributes->contains(nsHtml5AttributeName::ATTR_COLOR) || attributes->contains(nsHtml5AttributeName::ATTR_FACE) || attributes->contains(nsHtml5AttributeName::ATTR_SIZE)) {
 
-              while (!isSpecialParentInForeign(stack[currentPtr])) {
+              while (stack[currentPtr]->ns != kNameSpaceID_XHTML) {
                 pop();
               }
-              if (!hasForeignInScope()) {
-                inForeign = PR_FALSE;
-              }
+              inForeign = PR_FALSE;
               NS_HTML5_CONTINUE(starttagloop);
             }
           }
@@ -888,7 +876,7 @@ nsHtml5TreeBuilder::startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttribu
           case NS_HTML5TREE_BUILDER_MARQUEE_OR_APPLET:
           case NS_HTML5TREE_BUILDER_OBJECT:
           case NS_HTML5TREE_BUILDER_TABLE:
-          case NS_HTML5TREE_BUILDER_AREA_OR_WBR:
+          case NS_HTML5TREE_BUILDER_AREA_OR_SPACER_OR_WBR:
           case NS_HTML5TREE_BUILDER_BR:
           case NS_HTML5TREE_BUILDER_EMBED_OR_IMG:
           case NS_HTML5TREE_BUILDER_INPUT:
@@ -1084,7 +1072,7 @@ nsHtml5TreeBuilder::startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttribu
             }
             case NS_HTML5TREE_BUILDER_BR:
             case NS_HTML5TREE_BUILDER_EMBED_OR_IMG:
-            case NS_HTML5TREE_BUILDER_AREA_OR_WBR: {
+            case NS_HTML5TREE_BUILDER_AREA_OR_SPACER_OR_WBR: {
               reconstructTheActiveFormattingElements();
             }
             case NS_HTML5TREE_BUILDER_PARAM_OR_SOURCE: {
@@ -1776,14 +1764,6 @@ nsHtml5TreeBuilder::startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttribu
       }
       case NS_HTML5TREE_BUILDER_AFTER_AFTER_FRAMESET: {
         switch(group) {
-          case NS_HTML5TREE_BUILDER_HTML: {
-
-            if (!fragment) {
-              addAttributesToHtml(attributes);
-              attributes = nsnull;
-            }
-            NS_HTML5_BREAK(starttagloop);
-          }
           case NS_HTML5TREE_BUILDER_NOFRAMES: {
             appendToCurrentNodeAndPushElementMayFoster(kNameSpaceID_XHTML, elementName, attributes);
             originalMode = mode;
@@ -1812,20 +1792,6 @@ nsHtml5TreeBuilder::startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttribu
   if (attributes != nsHtml5HtmlAttributes::EMPTY_ATTRIBUTES) {
     delete attributes;
   }
-}
-
-PRBool 
-nsHtml5TreeBuilder::isSpecialParentInForeign(nsHtml5StackNode* stackNode)
-{
-  PRInt32 ns = stackNode->ns;
-  if (kNameSpaceID_XHTML == ns) {
-    return PR_TRUE;
-  }
-  if (ns == kNameSpaceID_SVG) {
-    return stackNode->group == NS_HTML5TREE_BUILDER_FOREIGNOBJECT_OR_DESC || stackNode->group == NS_HTML5TREE_BUILDER_TITLE;
-  }
-
-  return stackNode->group == NS_HTML5TREE_BUILDER_MI_MO_MN_MS_MTEXT;
 }
 
 nsString* 
@@ -2048,297 +2014,378 @@ nsHtml5TreeBuilder::checkMetaCharset(nsHtml5HtmlAttributes* attributes)
 void 
 nsHtml5TreeBuilder::endTag(nsHtml5ElementName* elementName)
 {
-  flushCharacters();
   needToDropLF = PR_FALSE;
   PRInt32 eltPos;
+  PRInt32 eltPosForeign;
   PRInt32 group = elementName->group;
   nsIAtom* name = elementName->name;
-  for (; ; ) {
 
-    if (inForeign && stack[currentPtr]->ns != kNameSpaceID_XHTML) {
-
-      eltPos = currentPtr;
-      for (; ; ) {
-        if (stack[eltPos]->name == name) {
-          while (currentPtr >= eltPos) {
-            pop();
-          }
-          NS_HTML5_BREAK(endtagloop);
+  if (inForeign && stack[currentPtr]->ns != kNameSpaceID_XHTML) {
+    eltPosForeign = currentPtr;
+  } else {
+    eltPosForeign = -1;
+  }
+  inforeignloop: for (; ; ) {
+    if (eltPosForeign != -1) {
+      if (currentPtr >= eltPosForeign && stack[eltPosForeign]->name == name) {
+        while (currentPtr >= eltPosForeign) {
+          pop();
         }
-        if (stack[--eltPos]->ns == kNameSpaceID_XHTML) {
-          break;
-        }
+        return;
+      }
+      if (--eltPosForeign > currentPtr) {
+        NS_HTML5_CONTINUE(inforeignloop);
+      }
+      if (eltPosForeign == -1) {
+        return;
+      }
+      if (stack[eltPosForeign]->ns != kNameSpaceID_XHTML) {
+        NS_HTML5_CONTINUE(inforeignloop);
       }
     }
-    switch(mode) {
-      case NS_HTML5TREE_BUILDER_IN_ROW: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_TR: {
-            eltPos = findLastOrRoot(NS_HTML5TREE_BUILDER_TR);
-            if (!eltPos) {
+    for (; ; ) {
+      switch(mode) {
+        case NS_HTML5TREE_BUILDER_IN_ROW: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_TR: {
+              eltPos = findLastOrRoot(NS_HTML5TREE_BUILDER_TR);
+              if (!eltPos) {
 
 
-              NS_HTML5_BREAK(endtagloop);
-            }
-            clearStackBackTo(eltPos);
-            pop();
-            mode = NS_HTML5TREE_BUILDER_IN_TABLE_BODY;
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_TABLE: {
-            eltPos = findLastOrRoot(NS_HTML5TREE_BUILDER_TR);
-            if (!eltPos) {
-
-
-              NS_HTML5_BREAK(endtagloop);
-            }
-            clearStackBackTo(eltPos);
-            pop();
-            mode = NS_HTML5TREE_BUILDER_IN_TABLE_BODY;
-            continue;
-          }
-          case NS_HTML5TREE_BUILDER_TBODY_OR_THEAD_OR_TFOOT: {
-            if (findLastInTableScope(name) == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
-
-              NS_HTML5_BREAK(endtagloop);
-            }
-            eltPos = findLastOrRoot(NS_HTML5TREE_BUILDER_TR);
-            if (!eltPos) {
-
-
-              NS_HTML5_BREAK(endtagloop);
-            }
-            clearStackBackTo(eltPos);
-            pop();
-            mode = NS_HTML5TREE_BUILDER_IN_TABLE_BODY;
-            continue;
-          }
-          case NS_HTML5TREE_BUILDER_BODY:
-          case NS_HTML5TREE_BUILDER_CAPTION:
-          case NS_HTML5TREE_BUILDER_COL:
-          case NS_HTML5TREE_BUILDER_COLGROUP:
-          case NS_HTML5TREE_BUILDER_HTML:
-          case NS_HTML5TREE_BUILDER_TD_OR_TH: {
-
-            NS_HTML5_BREAK(endtagloop);
-          }
-          default:
-            ; // fall through
-        }
-      }
-      case NS_HTML5TREE_BUILDER_IN_TABLE_BODY: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_TBODY_OR_THEAD_OR_TFOOT: {
-            eltPos = findLastOrRoot(name);
-            if (!eltPos) {
-
-              NS_HTML5_BREAK(endtagloop);
-            }
-            clearStackBackTo(eltPos);
-            pop();
-            mode = NS_HTML5TREE_BUILDER_IN_TABLE;
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_TABLE: {
-            eltPos = findLastInTableScopeOrRootTbodyTheadTfoot();
-            if (!eltPos) {
-
-
-              NS_HTML5_BREAK(endtagloop);
-            }
-            clearStackBackTo(eltPos);
-            pop();
-            mode = NS_HTML5TREE_BUILDER_IN_TABLE;
-            continue;
-          }
-          case NS_HTML5TREE_BUILDER_BODY:
-          case NS_HTML5TREE_BUILDER_CAPTION:
-          case NS_HTML5TREE_BUILDER_COL:
-          case NS_HTML5TREE_BUILDER_COLGROUP:
-          case NS_HTML5TREE_BUILDER_HTML:
-          case NS_HTML5TREE_BUILDER_TD_OR_TH:
-          case NS_HTML5TREE_BUILDER_TR: {
-
-            NS_HTML5_BREAK(endtagloop);
-          }
-          default:
-            ; // fall through
-        }
-      }
-      case NS_HTML5TREE_BUILDER_IN_TABLE: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_TABLE: {
-            eltPos = findLast(nsHtml5Atoms::table);
-            if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
-
-
-              NS_HTML5_BREAK(endtagloop);
-            }
-            while (currentPtr >= eltPos) {
+                NS_HTML5_BREAK(endtagloop);
+              }
+              clearStackBackTo(eltPos);
               pop();
-            }
-            resetTheInsertionMode();
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_BODY:
-          case NS_HTML5TREE_BUILDER_CAPTION:
-          case NS_HTML5TREE_BUILDER_COL:
-          case NS_HTML5TREE_BUILDER_COLGROUP:
-          case NS_HTML5TREE_BUILDER_HTML:
-          case NS_HTML5TREE_BUILDER_TBODY_OR_THEAD_OR_TFOOT:
-          case NS_HTML5TREE_BUILDER_TD_OR_TH:
-          case NS_HTML5TREE_BUILDER_TR: {
-
-            NS_HTML5_BREAK(endtagloop);
-          }
-          default:
-            ; // fall through
-        }
-      }
-      case NS_HTML5TREE_BUILDER_IN_CAPTION: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_CAPTION: {
-            eltPos = findLastInTableScope(nsHtml5Atoms::caption);
-            if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+              mode = NS_HTML5TREE_BUILDER_IN_TABLE_BODY;
               NS_HTML5_BREAK(endtagloop);
             }
-            generateImpliedEndTags();
+            case NS_HTML5TREE_BUILDER_TABLE: {
+              eltPos = findLastOrRoot(NS_HTML5TREE_BUILDER_TR);
+              if (!eltPos) {
 
-            while (currentPtr >= eltPos) {
+
+                NS_HTML5_BREAK(endtagloop);
+              }
+              clearStackBackTo(eltPos);
               pop();
+              mode = NS_HTML5TREE_BUILDER_IN_TABLE_BODY;
+              continue;
             }
-            clearTheListOfActiveFormattingElementsUpToTheLastMarker();
-            mode = NS_HTML5TREE_BUILDER_IN_TABLE;
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_TABLE: {
+            case NS_HTML5TREE_BUILDER_TBODY_OR_THEAD_OR_TFOOT: {
+              if (findLastInTableScope(name) == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
 
-            eltPos = findLastInTableScope(nsHtml5Atoms::caption);
-            if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
-              NS_HTML5_BREAK(endtagloop);
-            }
-            generateImpliedEndTags();
+                NS_HTML5_BREAK(endtagloop);
+              }
+              eltPos = findLastOrRoot(NS_HTML5TREE_BUILDER_TR);
+              if (!eltPos) {
 
-            while (currentPtr >= eltPos) {
+
+                NS_HTML5_BREAK(endtagloop);
+              }
+              clearStackBackTo(eltPos);
               pop();
+              mode = NS_HTML5TREE_BUILDER_IN_TABLE_BODY;
+              continue;
             }
-            clearTheListOfActiveFormattingElementsUpToTheLastMarker();
-            mode = NS_HTML5TREE_BUILDER_IN_TABLE;
-            continue;
-          }
-          case NS_HTML5TREE_BUILDER_BODY:
-          case NS_HTML5TREE_BUILDER_COL:
-          case NS_HTML5TREE_BUILDER_COLGROUP:
-          case NS_HTML5TREE_BUILDER_HTML:
-          case NS_HTML5TREE_BUILDER_TBODY_OR_THEAD_OR_TFOOT:
-          case NS_HTML5TREE_BUILDER_TD_OR_TH:
-          case NS_HTML5TREE_BUILDER_TR: {
-
-            NS_HTML5_BREAK(endtagloop);
-          }
-          default:
-            ; // fall through
-        }
-      }
-      case NS_HTML5TREE_BUILDER_IN_CELL: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_TD_OR_TH: {
-            eltPos = findLastInTableScope(name);
-            if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+            case NS_HTML5TREE_BUILDER_BODY:
+            case NS_HTML5TREE_BUILDER_CAPTION:
+            case NS_HTML5TREE_BUILDER_COL:
+            case NS_HTML5TREE_BUILDER_COLGROUP:
+            case NS_HTML5TREE_BUILDER_HTML:
+            case NS_HTML5TREE_BUILDER_TD_OR_TH: {
 
               NS_HTML5_BREAK(endtagloop);
             }
-            generateImpliedEndTags();
+            default:
+              ; // fall through
+          }
+        }
+        case NS_HTML5TREE_BUILDER_IN_TABLE_BODY: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_TBODY_OR_THEAD_OR_TFOOT: {
+              eltPos = findLastOrRoot(name);
+              if (!eltPos) {
 
-            while (currentPtr >= eltPos) {
+                NS_HTML5_BREAK(endtagloop);
+              }
+              clearStackBackTo(eltPos);
               pop();
+              mode = NS_HTML5TREE_BUILDER_IN_TABLE;
+              NS_HTML5_BREAK(endtagloop);
             }
-            clearTheListOfActiveFormattingElementsUpToTheLastMarker();
-            mode = NS_HTML5TREE_BUILDER_IN_ROW;
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_TABLE:
-          case NS_HTML5TREE_BUILDER_TBODY_OR_THEAD_OR_TFOOT:
-          case NS_HTML5TREE_BUILDER_TR: {
-            if (findLastInTableScope(name) == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+            case NS_HTML5TREE_BUILDER_TABLE: {
+              eltPos = findLastInTableScopeOrRootTbodyTheadTfoot();
+              if (!eltPos) {
+
+
+                NS_HTML5_BREAK(endtagloop);
+              }
+              clearStackBackTo(eltPos);
+              pop();
+              mode = NS_HTML5TREE_BUILDER_IN_TABLE;
+              continue;
+            }
+            case NS_HTML5TREE_BUILDER_BODY:
+            case NS_HTML5TREE_BUILDER_CAPTION:
+            case NS_HTML5TREE_BUILDER_COL:
+            case NS_HTML5TREE_BUILDER_COLGROUP:
+            case NS_HTML5TREE_BUILDER_HTML:
+            case NS_HTML5TREE_BUILDER_TD_OR_TH:
+            case NS_HTML5TREE_BUILDER_TR: {
 
               NS_HTML5_BREAK(endtagloop);
             }
-            closeTheCell(findLastInTableScopeTdTh());
-            continue;
+            default:
+              ; // fall through
           }
-          case NS_HTML5TREE_BUILDER_BODY:
-          case NS_HTML5TREE_BUILDER_CAPTION:
-          case NS_HTML5TREE_BUILDER_COL:
-          case NS_HTML5TREE_BUILDER_COLGROUP:
-          case NS_HTML5TREE_BUILDER_HTML: {
-
-            NS_HTML5_BREAK(endtagloop);
-          }
-          default:
-            ; // fall through
         }
-      }
-      case NS_HTML5TREE_BUILDER_FRAMESET_OK:
-      case NS_HTML5TREE_BUILDER_IN_BODY: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_BODY: {
-            if (!isSecondOnStackBody()) {
+        case NS_HTML5TREE_BUILDER_IN_TABLE: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_TABLE: {
+              eltPos = findLast(nsHtml5Atoms::table);
+              if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
 
+
+                NS_HTML5_BREAK(endtagloop);
+              }
+              while (currentPtr >= eltPos) {
+                pop();
+              }
+              resetTheInsertionMode();
+              NS_HTML5_BREAK(endtagloop);
+            }
+            case NS_HTML5TREE_BUILDER_BODY:
+            case NS_HTML5TREE_BUILDER_CAPTION:
+            case NS_HTML5TREE_BUILDER_COL:
+            case NS_HTML5TREE_BUILDER_COLGROUP:
+            case NS_HTML5TREE_BUILDER_HTML:
+            case NS_HTML5TREE_BUILDER_TBODY_OR_THEAD_OR_TFOOT:
+            case NS_HTML5TREE_BUILDER_TD_OR_TH:
+            case NS_HTML5TREE_BUILDER_TR: {
 
               NS_HTML5_BREAK(endtagloop);
             }
-
-
-            mode = NS_HTML5TREE_BUILDER_AFTER_BODY;
-            NS_HTML5_BREAK(endtagloop);
+            default:
+              ; // fall through
           }
-          case NS_HTML5TREE_BUILDER_HTML: {
-            if (!isSecondOnStackBody()) {
-
-
-              NS_HTML5_BREAK(endtagloop);
-            }
-
-            mode = NS_HTML5TREE_BUILDER_AFTER_BODY;
-            continue;
-          }
-          case NS_HTML5TREE_BUILDER_DIV_OR_BLOCKQUOTE_OR_CENTER_OR_MENU:
-          case NS_HTML5TREE_BUILDER_UL_OR_OL_OR_DL:
-          case NS_HTML5TREE_BUILDER_PRE_OR_LISTING:
-          case NS_HTML5TREE_BUILDER_FIELDSET:
-          case NS_HTML5TREE_BUILDER_BUTTON:
-          case NS_HTML5TREE_BUILDER_ADDRESS_OR_DIR_OR_ARTICLE_OR_ASIDE_OR_DATAGRID_OR_DETAILS_OR_HGROUP_OR_FIGURE_OR_FOOTER_OR_HEADER_OR_NAV_OR_SECTION: {
-            eltPos = findLastInScope(name);
-            if (eltPos != NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+        }
+        case NS_HTML5TREE_BUILDER_IN_CAPTION: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_CAPTION: {
+              eltPos = findLastInTableScope(nsHtml5Atoms::caption);
+              if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+                NS_HTML5_BREAK(endtagloop);
+              }
               generateImpliedEndTags();
 
               while (currentPtr >= eltPos) {
                 pop();
               }
+              clearTheListOfActiveFormattingElementsUpToTheLastMarker();
+              mode = NS_HTML5TREE_BUILDER_IN_TABLE;
+              NS_HTML5_BREAK(endtagloop);
             }
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_FORM: {
-            if (!formPointer) {
+            case NS_HTML5TREE_BUILDER_TABLE: {
+
+              eltPos = findLastInTableScope(nsHtml5Atoms::caption);
+              if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+                NS_HTML5_BREAK(endtagloop);
+              }
+              generateImpliedEndTags();
+
+              while (currentPtr >= eltPos) {
+                pop();
+              }
+              clearTheListOfActiveFormattingElementsUpToTheLastMarker();
+              mode = NS_HTML5TREE_BUILDER_IN_TABLE;
+              continue;
+            }
+            case NS_HTML5TREE_BUILDER_BODY:
+            case NS_HTML5TREE_BUILDER_COL:
+            case NS_HTML5TREE_BUILDER_COLGROUP:
+            case NS_HTML5TREE_BUILDER_HTML:
+            case NS_HTML5TREE_BUILDER_TBODY_OR_THEAD_OR_TFOOT:
+            case NS_HTML5TREE_BUILDER_TD_OR_TH:
+            case NS_HTML5TREE_BUILDER_TR: {
 
               NS_HTML5_BREAK(endtagloop);
             }
-            ;
-            formPointer = nsnull;
-            eltPos = findLastInScope(name);
-            if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+            default:
+              ; // fall through
+          }
+        }
+        case NS_HTML5TREE_BUILDER_IN_CELL: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_TD_OR_TH: {
+              eltPos = findLastInTableScope(name);
+              if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+
+                NS_HTML5_BREAK(endtagloop);
+              }
+              generateImpliedEndTags();
+
+              while (currentPtr >= eltPos) {
+                pop();
+              }
+              clearTheListOfActiveFormattingElementsUpToTheLastMarker();
+              mode = NS_HTML5TREE_BUILDER_IN_ROW;
+              NS_HTML5_BREAK(endtagloop);
+            }
+            case NS_HTML5TREE_BUILDER_TABLE:
+            case NS_HTML5TREE_BUILDER_TBODY_OR_THEAD_OR_TFOOT:
+            case NS_HTML5TREE_BUILDER_TR: {
+              if (findLastInTableScope(name) == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+
+                NS_HTML5_BREAK(endtagloop);
+              }
+              closeTheCell(findLastInTableScopeTdTh());
+              continue;
+            }
+            case NS_HTML5TREE_BUILDER_BODY:
+            case NS_HTML5TREE_BUILDER_CAPTION:
+            case NS_HTML5TREE_BUILDER_COL:
+            case NS_HTML5TREE_BUILDER_COLGROUP:
+            case NS_HTML5TREE_BUILDER_HTML: {
 
               NS_HTML5_BREAK(endtagloop);
             }
-            generateImpliedEndTags();
-
-            removeFromStack(eltPos);
-            NS_HTML5_BREAK(endtagloop);
+            default:
+              ; // fall through
           }
-          case NS_HTML5TREE_BUILDER_P: {
-            eltPos = findLastInButtonScope(nsHtml5Atoms::p);
-            if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+        }
+        case NS_HTML5TREE_BUILDER_FRAMESET_OK:
+        case NS_HTML5TREE_BUILDER_IN_BODY: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_BODY: {
+              if (!isSecondOnStackBody()) {
+
+
+                NS_HTML5_BREAK(endtagloop);
+              }
+
+
+              mode = NS_HTML5TREE_BUILDER_AFTER_BODY;
+              NS_HTML5_BREAK(endtagloop);
+            }
+            case NS_HTML5TREE_BUILDER_HTML: {
+              if (!isSecondOnStackBody()) {
+
+
+                NS_HTML5_BREAK(endtagloop);
+              }
+
+              mode = NS_HTML5TREE_BUILDER_AFTER_BODY;
+              continue;
+            }
+            case NS_HTML5TREE_BUILDER_DIV_OR_BLOCKQUOTE_OR_CENTER_OR_MENU:
+            case NS_HTML5TREE_BUILDER_UL_OR_OL_OR_DL:
+            case NS_HTML5TREE_BUILDER_PRE_OR_LISTING:
+            case NS_HTML5TREE_BUILDER_FIELDSET:
+            case NS_HTML5TREE_BUILDER_BUTTON:
+            case NS_HTML5TREE_BUILDER_ADDRESS_OR_DIR_OR_ARTICLE_OR_ASIDE_OR_DATAGRID_OR_DETAILS_OR_HGROUP_OR_FIGURE_OR_FOOTER_OR_HEADER_OR_NAV_OR_SECTION: {
+              eltPos = findLastInScope(name);
+              if (eltPos != NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+                generateImpliedEndTags();
+
+                while (currentPtr >= eltPos) {
+                  pop();
+                }
+              }
+              NS_HTML5_BREAK(endtagloop);
+            }
+            case NS_HTML5TREE_BUILDER_FORM: {
+              if (!formPointer) {
+
+                NS_HTML5_BREAK(endtagloop);
+              }
+              ;
+              formPointer = nsnull;
+              eltPos = findLastInScope(name);
+              if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+
+                NS_HTML5_BREAK(endtagloop);
+              }
+              generateImpliedEndTags();
+
+              removeFromStack(eltPos);
+              NS_HTML5_BREAK(endtagloop);
+            }
+            case NS_HTML5TREE_BUILDER_P: {
+              eltPos = findLastInScope(nsHtml5Atoms::p);
+              if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+
+                if (inForeign) {
+
+                  while (stack[currentPtr]->ns != kNameSpaceID_XHTML) {
+                    pop();
+                  }
+                  inForeign = PR_FALSE;
+                }
+                appendVoidElementToCurrentMayFoster(kNameSpaceID_XHTML, elementName, nsHtml5HtmlAttributes::EMPTY_ATTRIBUTES);
+                NS_HTML5_BREAK(endtagloop);
+              }
+              generateImpliedEndTagsExceptFor(nsHtml5Atoms::p);
+
+
+              while (currentPtr >= eltPos) {
+                pop();
+              }
+              NS_HTML5_BREAK(endtagloop);
+            }
+            case NS_HTML5TREE_BUILDER_LI: {
+              eltPos = findLastInListScope(name);
+              if (eltPos != NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+                generateImpliedEndTagsExceptFor(name);
+
+                while (currentPtr >= eltPos) {
+                  pop();
+                }
+              }
+              NS_HTML5_BREAK(endtagloop);
+            }
+            case NS_HTML5TREE_BUILDER_DD_OR_DT: {
+              eltPos = findLastInScope(name);
+              if (eltPos != NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+                generateImpliedEndTagsExceptFor(name);
+
+                while (currentPtr >= eltPos) {
+                  pop();
+                }
+              }
+              NS_HTML5_BREAK(endtagloop);
+            }
+            case NS_HTML5TREE_BUILDER_H1_OR_H2_OR_H3_OR_H4_OR_H5_OR_H6: {
+              eltPos = findLastInScopeHn();
+              if (eltPos != NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+                generateImpliedEndTags();
+
+                while (currentPtr >= eltPos) {
+                  pop();
+                }
+              }
+              NS_HTML5_BREAK(endtagloop);
+            }
+            case NS_HTML5TREE_BUILDER_A:
+            case NS_HTML5TREE_BUILDER_B_OR_BIG_OR_CODE_OR_EM_OR_I_OR_S_OR_SMALL_OR_STRIKE_OR_STRONG_OR_TT_OR_U:
+            case NS_HTML5TREE_BUILDER_FONT:
+            case NS_HTML5TREE_BUILDER_NOBR: {
+              adoptionAgencyEndTag(name);
+              NS_HTML5_BREAK(endtagloop);
+            }
+            case NS_HTML5TREE_BUILDER_OBJECT:
+            case NS_HTML5TREE_BUILDER_MARQUEE_OR_APPLET: {
+              eltPos = findLastInScope(name);
+              if (eltPos != NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+                generateImpliedEndTags();
+
+                while (currentPtr >= eltPos) {
+                  pop();
+                }
+                clearTheListOfActiveFormattingElementsUpToTheLastMarker();
+              }
+              NS_HTML5_BREAK(endtagloop);
+            }
+            case NS_HTML5TREE_BUILDER_BR: {
 
               if (inForeign) {
 
@@ -2347,170 +2394,137 @@ nsHtml5TreeBuilder::endTag(nsHtml5ElementName* elementName)
                 }
                 inForeign = PR_FALSE;
               }
+              reconstructTheActiveFormattingElements();
               appendVoidElementToCurrentMayFoster(kNameSpaceID_XHTML, elementName, nsHtml5HtmlAttributes::EMPTY_ATTRIBUTES);
               NS_HTML5_BREAK(endtagloop);
             }
-            generateImpliedEndTagsExceptFor(nsHtml5Atoms::p);
-
-
-            while (currentPtr >= eltPos) {
-              pop();
-            }
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_LI: {
-            eltPos = findLastInListScope(name);
-            if (eltPos != NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
-              generateImpliedEndTagsExceptFor(name);
-
-              while (currentPtr >= eltPos) {
-                pop();
-              }
-            }
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_DD_OR_DT: {
-            eltPos = findLastInScope(name);
-            if (eltPos != NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
-              generateImpliedEndTagsExceptFor(name);
-
-              while (currentPtr >= eltPos) {
-                pop();
-              }
-            }
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_H1_OR_H2_OR_H3_OR_H4_OR_H5_OR_H6: {
-            eltPos = findLastInScopeHn();
-            if (eltPos != NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
-              generateImpliedEndTags();
-
-              while (currentPtr >= eltPos) {
-                pop();
-              }
-            }
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_A:
-          case NS_HTML5TREE_BUILDER_B_OR_BIG_OR_CODE_OR_EM_OR_I_OR_S_OR_SMALL_OR_STRIKE_OR_STRONG_OR_TT_OR_U:
-          case NS_HTML5TREE_BUILDER_FONT:
-          case NS_HTML5TREE_BUILDER_NOBR: {
-            adoptionAgencyEndTag(name);
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_OBJECT:
-          case NS_HTML5TREE_BUILDER_MARQUEE_OR_APPLET: {
-            eltPos = findLastInScope(name);
-            if (eltPos != NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
-              generateImpliedEndTags();
-
-              while (currentPtr >= eltPos) {
-                pop();
-              }
-              clearTheListOfActiveFormattingElementsUpToTheLastMarker();
-            }
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_BR: {
-
-            if (inForeign) {
-
-              while (stack[currentPtr]->ns != kNameSpaceID_XHTML) {
-                pop();
-              }
-              inForeign = PR_FALSE;
-            }
-            reconstructTheActiveFormattingElements();
-            appendVoidElementToCurrentMayFoster(kNameSpaceID_XHTML, elementName, nsHtml5HtmlAttributes::EMPTY_ATTRIBUTES);
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_AREA_OR_WBR:
-          case NS_HTML5TREE_BUILDER_PARAM_OR_SOURCE:
-          case NS_HTML5TREE_BUILDER_EMBED_OR_IMG:
-          case NS_HTML5TREE_BUILDER_IMAGE:
-          case NS_HTML5TREE_BUILDER_INPUT:
-          case NS_HTML5TREE_BUILDER_KEYGEN:
-          case NS_HTML5TREE_BUILDER_HR:
-          case NS_HTML5TREE_BUILDER_ISINDEX:
-          case NS_HTML5TREE_BUILDER_IFRAME:
-          case NS_HTML5TREE_BUILDER_NOEMBED:
-          case NS_HTML5TREE_BUILDER_NOFRAMES:
-          case NS_HTML5TREE_BUILDER_SELECT:
-          case NS_HTML5TREE_BUILDER_TABLE:
-          case NS_HTML5TREE_BUILDER_TEXTAREA: {
-
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_NOSCRIPT: {
-            if (scriptingEnabled) {
+            case NS_HTML5TREE_BUILDER_AREA_OR_SPACER_OR_WBR:
+            case NS_HTML5TREE_BUILDER_PARAM_OR_SOURCE:
+            case NS_HTML5TREE_BUILDER_EMBED_OR_IMG:
+            case NS_HTML5TREE_BUILDER_IMAGE:
+            case NS_HTML5TREE_BUILDER_INPUT:
+            case NS_HTML5TREE_BUILDER_KEYGEN:
+            case NS_HTML5TREE_BUILDER_HR:
+            case NS_HTML5TREE_BUILDER_ISINDEX:
+            case NS_HTML5TREE_BUILDER_IFRAME:
+            case NS_HTML5TREE_BUILDER_NOEMBED:
+            case NS_HTML5TREE_BUILDER_NOFRAMES:
+            case NS_HTML5TREE_BUILDER_SELECT:
+            case NS_HTML5TREE_BUILDER_TABLE:
+            case NS_HTML5TREE_BUILDER_TEXTAREA: {
 
               NS_HTML5_BREAK(endtagloop);
-            } else {
+            }
+            case NS_HTML5TREE_BUILDER_NOSCRIPT: {
+              if (scriptingEnabled) {
+
+                NS_HTML5_BREAK(endtagloop);
+              } else {
+              }
+            }
+            default: {
+              if (isCurrent(name)) {
+                pop();
+                NS_HTML5_BREAK(endtagloop);
+              }
+              eltPos = currentPtr;
+              for (; ; ) {
+                nsHtml5StackNode* node = stack[eltPos];
+                if (node->name == name) {
+                  generateImpliedEndTags();
+
+                  while (currentPtr >= eltPos) {
+                    pop();
+                  }
+                  NS_HTML5_BREAK(endtagloop);
+                } else if (node->scoping || node->special) {
+
+                  NS_HTML5_BREAK(endtagloop);
+                }
+                eltPos--;
+              }
             }
           }
-          default: {
-            if (isCurrent(name)) {
+        }
+        case NS_HTML5TREE_BUILDER_IN_COLUMN_GROUP: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_COLGROUP: {
+              if (!currentPtr) {
+
+
+                NS_HTML5_BREAK(endtagloop);
+              }
               pop();
+              mode = NS_HTML5TREE_BUILDER_IN_TABLE;
               NS_HTML5_BREAK(endtagloop);
             }
-            eltPos = currentPtr;
-            for (; ; ) {
-              nsHtml5StackNode* node = stack[eltPos];
-              if (node->name == name) {
-                generateImpliedEndTags();
+            case NS_HTML5TREE_BUILDER_COL: {
 
+              NS_HTML5_BREAK(endtagloop);
+            }
+            default: {
+              if (!currentPtr) {
+
+
+                NS_HTML5_BREAK(endtagloop);
+              }
+              pop();
+              mode = NS_HTML5TREE_BUILDER_IN_TABLE;
+              continue;
+            }
+          }
+        }
+        case NS_HTML5TREE_BUILDER_IN_SELECT_IN_TABLE: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_CAPTION:
+            case NS_HTML5TREE_BUILDER_TABLE:
+            case NS_HTML5TREE_BUILDER_TBODY_OR_THEAD_OR_TFOOT:
+            case NS_HTML5TREE_BUILDER_TR:
+            case NS_HTML5TREE_BUILDER_TD_OR_TH: {
+
+              if (findLastInTableScope(name) != NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+                eltPos = findLastInTableScope(nsHtml5Atoms::select);
+                if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+
+                  NS_HTML5_BREAK(endtagloop);
+                }
                 while (currentPtr >= eltPos) {
                   pop();
                 }
+                resetTheInsertionMode();
+                continue;
+              } else {
                 NS_HTML5_BREAK(endtagloop);
-              } else if (node->scoping || node->special) {
+              }
+            }
+            default:
+              ; // fall through
+          }
+        }
+        case NS_HTML5TREE_BUILDER_IN_SELECT: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_OPTION: {
+              if (isCurrent(nsHtml5Atoms::option)) {
+                pop();
+                NS_HTML5_BREAK(endtagloop);
+              } else {
 
                 NS_HTML5_BREAK(endtagloop);
               }
-              eltPos--;
             }
-          }
-        }
-      }
-      case NS_HTML5TREE_BUILDER_IN_COLUMN_GROUP: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_COLGROUP: {
-            if (!currentPtr) {
-
-
+            case NS_HTML5TREE_BUILDER_OPTGROUP: {
+              if (isCurrent(nsHtml5Atoms::option) && nsHtml5Atoms::optgroup == stack[currentPtr - 1]->name) {
+                pop();
+              }
+              if (isCurrent(nsHtml5Atoms::optgroup)) {
+                pop();
+              }
               NS_HTML5_BREAK(endtagloop);
             }
-            pop();
-            mode = NS_HTML5TREE_BUILDER_IN_TABLE;
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_COL: {
-
-            NS_HTML5_BREAK(endtagloop);
-          }
-          default: {
-            if (!currentPtr) {
-
-
-              NS_HTML5_BREAK(endtagloop);
-            }
-            pop();
-            mode = NS_HTML5TREE_BUILDER_IN_TABLE;
-            continue;
-          }
-        }
-      }
-      case NS_HTML5TREE_BUILDER_IN_SELECT_IN_TABLE: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_CAPTION:
-          case NS_HTML5TREE_BUILDER_TABLE:
-          case NS_HTML5TREE_BUILDER_TBODY_OR_THEAD_OR_TFOOT:
-          case NS_HTML5TREE_BUILDER_TR:
-          case NS_HTML5TREE_BUILDER_TD_OR_TH: {
-
-            if (findLastInTableScope(name) != NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+            case NS_HTML5TREE_BUILDER_SELECT: {
               eltPos = findLastInTableScope(nsHtml5Atoms::select);
               if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
+
 
                 NS_HTML5_BREAK(endtagloop);
               }
@@ -2518,219 +2532,185 @@ nsHtml5TreeBuilder::endTag(nsHtml5ElementName* elementName)
                 pop();
               }
               resetTheInsertionMode();
+              NS_HTML5_BREAK(endtagloop);
+            }
+            default: {
+
+              NS_HTML5_BREAK(endtagloop);
+            }
+          }
+        }
+        case NS_HTML5TREE_BUILDER_AFTER_BODY: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_HTML: {
+              if (fragment) {
+
+                NS_HTML5_BREAK(endtagloop);
+              } else {
+                mode = NS_HTML5TREE_BUILDER_AFTER_AFTER_BODY;
+                NS_HTML5_BREAK(endtagloop);
+              }
+            }
+            default: {
+
+              mode = framesetOk ? NS_HTML5TREE_BUILDER_FRAMESET_OK : NS_HTML5TREE_BUILDER_IN_BODY;
               continue;
-            } else {
-              NS_HTML5_BREAK(endtagloop);
             }
           }
-          default:
-            ; // fall through
         }
-      }
-      case NS_HTML5TREE_BUILDER_IN_SELECT: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_OPTION: {
-            if (isCurrent(nsHtml5Atoms::option)) {
+        case NS_HTML5TREE_BUILDER_IN_FRAMESET: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_FRAMESET: {
+              if (!currentPtr) {
+
+
+                NS_HTML5_BREAK(endtagloop);
+              }
               pop();
+              if ((!fragment) && !isCurrent(nsHtml5Atoms::frameset)) {
+                mode = NS_HTML5TREE_BUILDER_AFTER_FRAMESET;
+              }
               NS_HTML5_BREAK(endtagloop);
-            } else {
+            }
+            default: {
 
               NS_HTML5_BREAK(endtagloop);
             }
           }
-          case NS_HTML5TREE_BUILDER_OPTGROUP: {
-            if (isCurrent(nsHtml5Atoms::option) && nsHtml5Atoms::optgroup == stack[currentPtr - 1]->name) {
+        }
+        case NS_HTML5TREE_BUILDER_AFTER_FRAMESET: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_HTML: {
+              mode = NS_HTML5TREE_BUILDER_AFTER_AFTER_FRAMESET;
+              NS_HTML5_BREAK(endtagloop);
+            }
+            default: {
+
+              NS_HTML5_BREAK(endtagloop);
+            }
+          }
+        }
+        case NS_HTML5TREE_BUILDER_INITIAL: {
+          documentModeInternal(QUIRKS_MODE, nsnull, nsnull, PR_FALSE);
+          mode = NS_HTML5TREE_BUILDER_BEFORE_HTML;
+          continue;
+        }
+        case NS_HTML5TREE_BUILDER_BEFORE_HTML: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_HEAD:
+            case NS_HTML5TREE_BUILDER_BR:
+            case NS_HTML5TREE_BUILDER_HTML:
+            case NS_HTML5TREE_BUILDER_BODY: {
+              appendHtmlElementToDocumentAndPush();
+              mode = NS_HTML5TREE_BUILDER_BEFORE_HEAD;
+              continue;
+            }
+            default: {
+
+              NS_HTML5_BREAK(endtagloop);
+            }
+          }
+        }
+        case NS_HTML5TREE_BUILDER_BEFORE_HEAD: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_HEAD:
+            case NS_HTML5TREE_BUILDER_BR:
+            case NS_HTML5TREE_BUILDER_HTML:
+            case NS_HTML5TREE_BUILDER_BODY: {
+              appendToCurrentNodeAndPushHeadElement(nsHtml5HtmlAttributes::EMPTY_ATTRIBUTES);
+              mode = NS_HTML5TREE_BUILDER_IN_HEAD;
+              continue;
+            }
+            default: {
+
+              NS_HTML5_BREAK(endtagloop);
+            }
+          }
+        }
+        case NS_HTML5TREE_BUILDER_IN_HEAD: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_HEAD: {
               pop();
+              mode = NS_HTML5TREE_BUILDER_AFTER_HEAD;
+              NS_HTML5_BREAK(endtagloop);
             }
-            if (isCurrent(nsHtml5Atoms::optgroup)) {
+            case NS_HTML5TREE_BUILDER_BR:
+            case NS_HTML5TREE_BUILDER_HTML:
+            case NS_HTML5TREE_BUILDER_BODY: {
               pop();
+              mode = NS_HTML5TREE_BUILDER_AFTER_HEAD;
+              continue;
             }
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_SELECT: {
-            eltPos = findLastInTableScope(nsHtml5Atoms::select);
-            if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
-
+            default: {
 
               NS_HTML5_BREAK(endtagloop);
             }
-            while (currentPtr >= eltPos) {
+          }
+        }
+        case NS_HTML5TREE_BUILDER_IN_HEAD_NOSCRIPT: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_NOSCRIPT: {
               pop();
-            }
-            resetTheInsertionMode();
-            NS_HTML5_BREAK(endtagloop);
-          }
-          default: {
-
-            NS_HTML5_BREAK(endtagloop);
-          }
-        }
-      }
-      case NS_HTML5TREE_BUILDER_AFTER_BODY: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_HTML: {
-            if (fragment) {
-
+              mode = NS_HTML5TREE_BUILDER_IN_HEAD;
               NS_HTML5_BREAK(endtagloop);
-            } else {
-              mode = NS_HTML5TREE_BUILDER_AFTER_AFTER_BODY;
+            }
+            case NS_HTML5TREE_BUILDER_BR: {
+
+              pop();
+              mode = NS_HTML5TREE_BUILDER_IN_HEAD;
+              continue;
+            }
+            default: {
+
               NS_HTML5_BREAK(endtagloop);
             }
           }
-          default: {
-
-            mode = framesetOk ? NS_HTML5TREE_BUILDER_FRAMESET_OK : NS_HTML5TREE_BUILDER_IN_BODY;
-            continue;
-          }
         }
-      }
-      case NS_HTML5TREE_BUILDER_IN_FRAMESET: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_FRAMESET: {
-            if (!currentPtr) {
-
+        case NS_HTML5TREE_BUILDER_AFTER_HEAD: {
+          switch(group) {
+            case NS_HTML5TREE_BUILDER_HTML:
+            case NS_HTML5TREE_BUILDER_BODY:
+            case NS_HTML5TREE_BUILDER_BR: {
+              appendToCurrentNodeAndPushBodyElement();
+              mode = NS_HTML5TREE_BUILDER_FRAMESET_OK;
+              continue;
+            }
+            default: {
 
               NS_HTML5_BREAK(endtagloop);
             }
-            pop();
-            if ((!fragment) && !isCurrent(nsHtml5Atoms::frameset)) {
-              mode = NS_HTML5TREE_BUILDER_AFTER_FRAMESET;
-            }
-            NS_HTML5_BREAK(endtagloop);
-          }
-          default: {
-
-            NS_HTML5_BREAK(endtagloop);
           }
         }
-      }
-      case NS_HTML5TREE_BUILDER_AFTER_FRAMESET: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_HTML: {
-            mode = NS_HTML5TREE_BUILDER_AFTER_AFTER_FRAMESET;
-            NS_HTML5_BREAK(endtagloop);
-          }
-          default: {
+        case NS_HTML5TREE_BUILDER_AFTER_AFTER_BODY: {
 
-            NS_HTML5_BREAK(endtagloop);
-          }
+          mode = framesetOk ? NS_HTML5TREE_BUILDER_FRAMESET_OK : NS_HTML5TREE_BUILDER_IN_BODY;
+          continue;
         }
-      }
-      case NS_HTML5TREE_BUILDER_INITIAL: {
-        documentModeInternal(QUIRKS_MODE, nsnull, nsnull, PR_FALSE);
-        mode = NS_HTML5TREE_BUILDER_BEFORE_HTML;
-        continue;
-      }
-      case NS_HTML5TREE_BUILDER_BEFORE_HTML: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_HEAD:
-          case NS_HTML5TREE_BUILDER_BR:
-          case NS_HTML5TREE_BUILDER_HTML:
-          case NS_HTML5TREE_BUILDER_BODY: {
-            appendHtmlElementToDocumentAndPush();
-            mode = NS_HTML5TREE_BUILDER_BEFORE_HEAD;
-            continue;
-          }
-          default: {
+        case NS_HTML5TREE_BUILDER_AFTER_AFTER_FRAMESET: {
 
-            NS_HTML5_BREAK(endtagloop);
-          }
+          mode = NS_HTML5TREE_BUILDER_IN_FRAMESET;
+          continue;
         }
-      }
-      case NS_HTML5TREE_BUILDER_BEFORE_HEAD: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_HEAD:
-          case NS_HTML5TREE_BUILDER_BR:
-          case NS_HTML5TREE_BUILDER_HTML:
-          case NS_HTML5TREE_BUILDER_BODY: {
-            appendToCurrentNodeAndPushHeadElement(nsHtml5HtmlAttributes::EMPTY_ATTRIBUTES);
-            mode = NS_HTML5TREE_BUILDER_IN_HEAD;
-            continue;
+        case NS_HTML5TREE_BUILDER_TEXT: {
+          pop();
+          if (originalMode == NS_HTML5TREE_BUILDER_AFTER_HEAD) {
+            silentPop();
           }
-          default: {
-
-            NS_HTML5_BREAK(endtagloop);
-          }
+          mode = originalMode;
+          NS_HTML5_BREAK(endtagloop);
         }
-      }
-      case NS_HTML5TREE_BUILDER_IN_HEAD: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_HEAD: {
-            pop();
-            mode = NS_HTML5TREE_BUILDER_AFTER_HEAD;
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_BR:
-          case NS_HTML5TREE_BUILDER_HTML:
-          case NS_HTML5TREE_BUILDER_BODY: {
-            pop();
-            mode = NS_HTML5TREE_BUILDER_AFTER_HEAD;
-            continue;
-          }
-          default: {
-
-            NS_HTML5_BREAK(endtagloop);
-          }
-        }
-      }
-      case NS_HTML5TREE_BUILDER_IN_HEAD_NOSCRIPT: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_NOSCRIPT: {
-            pop();
-            mode = NS_HTML5TREE_BUILDER_IN_HEAD;
-            NS_HTML5_BREAK(endtagloop);
-          }
-          case NS_HTML5TREE_BUILDER_BR: {
-
-            pop();
-            mode = NS_HTML5TREE_BUILDER_IN_HEAD;
-            continue;
-          }
-          default: {
-
-            NS_HTML5_BREAK(endtagloop);
-          }
-        }
-      }
-      case NS_HTML5TREE_BUILDER_AFTER_HEAD: {
-        switch(group) {
-          case NS_HTML5TREE_BUILDER_HTML:
-          case NS_HTML5TREE_BUILDER_BODY:
-          case NS_HTML5TREE_BUILDER_BR: {
-            appendToCurrentNodeAndPushBodyElement();
-            mode = NS_HTML5TREE_BUILDER_FRAMESET_OK;
-            continue;
-          }
-          default: {
-
-            NS_HTML5_BREAK(endtagloop);
-          }
-        }
-      }
-      case NS_HTML5TREE_BUILDER_AFTER_AFTER_BODY: {
-
-        mode = framesetOk ? NS_HTML5TREE_BUILDER_FRAMESET_OK : NS_HTML5TREE_BUILDER_IN_BODY;
-        continue;
-      }
-      case NS_HTML5TREE_BUILDER_AFTER_AFTER_FRAMESET: {
-
-        mode = NS_HTML5TREE_BUILDER_IN_FRAMESET;
-        continue;
-      }
-      case NS_HTML5TREE_BUILDER_TEXT: {
-        pop();
-        if (originalMode == NS_HTML5TREE_BUILDER_AFTER_HEAD) {
-          silentPop();
-        }
-        mode = originalMode;
-        NS_HTML5_BREAK(endtagloop);
       }
     }
+    endtagloop_end: ;
+    if (inForeign && !hasForeignInScope()) {
+      inForeign = PR_FALSE;
+    }
+    if (eltPosForeign != -1) {
+      NS_HTML5_CONTINUE(inforeignloop);
+    }
+    return;
   }
-  endtagloop_end: ;
-  if (inForeign && !hasForeignInScope()) {
-    inForeign = PR_FALSE;
-  }
+
 }
 
 PRInt32 
@@ -2762,19 +2742,6 @@ nsHtml5TreeBuilder::findLastInTableScope(nsIAtom* name)
     if (stack[i]->name == name) {
       return i;
     } else if (stack[i]->name == nsHtml5Atoms::table) {
-      return NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK;
-    }
-  }
-  return NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK;
-}
-
-PRInt32 
-nsHtml5TreeBuilder::findLastInButtonScope(nsIAtom* name)
-{
-  for (PRInt32 i = currentPtr; i > 0; i--) {
-    if (stack[i]->name == name) {
-      return i;
-    } else if (stack[i]->scoping || stack[i]->name == nsHtml5Atoms::button) {
       return NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK;
     }
   }
@@ -3051,7 +3018,7 @@ nsHtml5TreeBuilder::resetTheInsertionMode()
 void 
 nsHtml5TreeBuilder::implicitlyCloseP()
 {
-  PRInt32 eltPos = findLastInButtonScope(nsHtml5Atoms::p);
+  PRInt32 eltPos = findLastInScope(nsHtml5Atoms::p);
   if (eltPos == NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK) {
     return;
   }
@@ -3182,7 +3149,8 @@ nsHtml5TreeBuilder::removeFromListOfActiveFormattingElements(PRInt32 pos)
 void 
 nsHtml5TreeBuilder::adoptionAgencyEndTag(nsIAtom* name)
 {
-  for (PRInt32 i = 0; i < NS_HTML5TREE_BUILDER_AAA_MAX_ITERATIONS; ++i) {
+  flushCharacters();
+  for (; ; ) {
     PRInt32 formattingEltListPos = listPtr;
     while (formattingEltListPos > -1) {
       nsHtml5StackNode* listNode = listOfActiveFormattingElements[formattingEltListPos];
@@ -3240,7 +3208,7 @@ nsHtml5TreeBuilder::adoptionAgencyEndTag(nsIAtom* name)
     PRInt32 bookmark = formattingEltListPos;
     PRInt32 nodePos = furthestBlockPos;
     nsHtml5StackNode* lastNode = furthestBlock;
-    for (PRInt32 j = 0; j < NS_HTML5TREE_BUILDER_AAA_MAX_ITERATIONS; ++j) {
+    for (; ; ) {
       nodePos--;
       nsHtml5StackNode* node = stack[nodePos];
       PRInt32 nodeListPos = findInListOfActiveFormattingElements(node);
@@ -3302,6 +3270,7 @@ nsHtml5TreeBuilder::insertIntoStack(nsHtml5StackNode* node, PRInt32 position)
 
 
   if (position == currentPtr + 1) {
+    flushCharacters();
     push(node);
   } else {
     nsHtml5ArrayCopy::arraycopy(stack, position, position + 1, (currentPtr - position) + 1);
@@ -3394,6 +3363,7 @@ nsHtml5TreeBuilder::pushHeadPointerOntoStack()
 
 
 
+  flushCharacters();
 
   silentPush(new nsHtml5StackNode(kNameSpaceID_XHTML, nsHtml5ElementName::ELT_HEAD, headPointer));
 }
@@ -3420,6 +3390,9 @@ nsHtml5TreeBuilder::reconstructTheActiveFormattingElements()
     if (isInStack(listOfActiveFormattingElements[entryPos])) {
       break;
     }
+  }
+  if (entryPos < listPtr) {
+    flushCharacters();
   }
   while (entryPos < listPtr) {
     entryPos++;
@@ -3467,6 +3440,7 @@ nsHtml5TreeBuilder::isInStack(nsHtml5StackNode* node)
 void 
 nsHtml5TreeBuilder::pop()
 {
+  flushCharacters();
   nsHtml5StackNode* node = stack[currentPtr];
 
   currentPtr--;
@@ -3477,6 +3451,7 @@ nsHtml5TreeBuilder::pop()
 void 
 nsHtml5TreeBuilder::silentPop()
 {
+  flushCharacters();
   nsHtml5StackNode* node = stack[currentPtr];
 
   currentPtr--;
@@ -3486,6 +3461,7 @@ nsHtml5TreeBuilder::silentPop()
 void 
 nsHtml5TreeBuilder::popOnEof()
 {
+  flushCharacters();
   nsHtml5StackNode* node = stack[currentPtr];
 
   currentPtr--;
@@ -3512,6 +3488,7 @@ nsHtml5TreeBuilder::appendHtmlElementToDocumentAndPush()
 void 
 nsHtml5TreeBuilder::appendToCurrentNodeAndPushHeadElement(nsHtml5HtmlAttributes* attributes)
 {
+  flushCharacters();
   nsIContent** elt = createElement(kNameSpaceID_XHTML, nsHtml5Atoms::head, attributes);
   appendElement(elt, stack[currentPtr]->node);
   headPointer = elt;
@@ -3536,6 +3513,7 @@ nsHtml5TreeBuilder::appendToCurrentNodeAndPushBodyElement()
 void 
 nsHtml5TreeBuilder::appendToCurrentNodeAndPushFormElementMayFoster(nsHtml5HtmlAttributes* attributes)
 {
+  flushCharacters();
   nsIContent** elt = createElement(kNameSpaceID_XHTML, nsHtml5Atoms::form, attributes);
   formPointer = elt;
   ;
@@ -3554,6 +3532,7 @@ nsHtml5TreeBuilder::appendToCurrentNodeAndPushFormElementMayFoster(nsHtml5HtmlAt
 void 
 nsHtml5TreeBuilder::appendToCurrentNodeAndPushFormattingElementMayFoster(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes)
 {
+  flushCharacters();
   nsIContent** elt = createElement(ns, elementName->name, attributes);
   nsHtml5StackNode* current = stack[currentPtr];
   if (current->fosterParenting) {
@@ -3572,6 +3551,7 @@ nsHtml5TreeBuilder::appendToCurrentNodeAndPushFormattingElementMayFoster(PRInt32
 void 
 nsHtml5TreeBuilder::appendToCurrentNodeAndPushElement(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes)
 {
+  flushCharacters();
   nsIContent** elt = createElement(ns, elementName->name, attributes);
   appendElement(elt, stack[currentPtr]->node);
   nsHtml5StackNode* node = new nsHtml5StackNode(ns, elementName, elt);
@@ -3582,6 +3562,7 @@ nsHtml5TreeBuilder::appendToCurrentNodeAndPushElement(PRInt32 ns, nsHtml5Element
 void 
 nsHtml5TreeBuilder::appendToCurrentNodeAndPushElementMayFoster(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes)
 {
+  flushCharacters();
   nsIAtom* popName = elementName->name;
   nsIContent** elt = createElement(ns, popName, attributes);
   nsHtml5StackNode* current = stack[currentPtr];
@@ -3599,6 +3580,7 @@ nsHtml5TreeBuilder::appendToCurrentNodeAndPushElementMayFoster(PRInt32 ns, nsHtm
 void 
 nsHtml5TreeBuilder::appendToCurrentNodeAndPushElementMayFosterNoScoping(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes)
 {
+  flushCharacters();
   nsIAtom* popName = elementName->name;
   nsIContent** elt = createElement(ns, popName, attributes);
   nsHtml5StackNode* current = stack[currentPtr];
@@ -3616,6 +3598,7 @@ nsHtml5TreeBuilder::appendToCurrentNodeAndPushElementMayFosterNoScoping(PRInt32 
 void 
 nsHtml5TreeBuilder::appendToCurrentNodeAndPushElementMayFosterCamelCase(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes)
 {
+  flushCharacters();
   nsIAtom* popName = elementName->camelCaseName;
   nsIContent** elt = createElement(ns, popName, attributes);
   nsHtml5StackNode* current = stack[currentPtr];
@@ -3633,6 +3616,7 @@ nsHtml5TreeBuilder::appendToCurrentNodeAndPushElementMayFosterCamelCase(PRInt32 
 void 
 nsHtml5TreeBuilder::appendToCurrentNodeAndPushElementMayFoster(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes, nsIContent** form)
 {
+  flushCharacters();
   nsIContent** elt = createElement(ns, elementName->name, attributes, fragment ? nsnull : form);
   nsHtml5StackNode* current = stack[currentPtr];
   if (current->fosterParenting) {
@@ -3649,6 +3633,7 @@ nsHtml5TreeBuilder::appendToCurrentNodeAndPushElementMayFoster(PRInt32 ns, nsHtm
 void 
 nsHtml5TreeBuilder::appendVoidElementToCurrentMayFoster(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent** form)
 {
+  flushCharacters();
   nsIContent** elt = createElement(ns, name, attributes, fragment ? nsnull : form);
   nsHtml5StackNode* current = stack[currentPtr];
   if (current->fosterParenting) {
@@ -3665,6 +3650,7 @@ nsHtml5TreeBuilder::appendVoidElementToCurrentMayFoster(PRInt32 ns, nsIAtom* nam
 void 
 nsHtml5TreeBuilder::appendVoidElementToCurrentMayFoster(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes)
 {
+  flushCharacters();
   nsIAtom* popName = elementName->name;
   nsIContent** elt = createElement(ns, popName, attributes);
   nsHtml5StackNode* current = stack[currentPtr];
@@ -3682,6 +3668,7 @@ nsHtml5TreeBuilder::appendVoidElementToCurrentMayFoster(PRInt32 ns, nsHtml5Eleme
 void 
 nsHtml5TreeBuilder::appendVoidElementToCurrentMayFosterCamelCase(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes)
 {
+  flushCharacters();
   nsIAtom* popName = elementName->camelCaseName;
   nsIContent** elt = createElement(ns, popName, attributes);
   nsHtml5StackNode* current = stack[currentPtr];
@@ -3699,6 +3686,7 @@ nsHtml5TreeBuilder::appendVoidElementToCurrentMayFosterCamelCase(PRInt32 ns, nsH
 void 
 nsHtml5TreeBuilder::appendVoidElementToCurrent(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent** form)
 {
+  flushCharacters();
   nsIContent** elt = createElement(ns, name, attributes, fragment ? nsnull : form);
   nsHtml5StackNode* current = stack[currentPtr];
   appendElement(elt, current->node);
@@ -3710,6 +3698,7 @@ nsHtml5TreeBuilder::appendVoidElementToCurrent(PRInt32 ns, nsIAtom* name, nsHtml
 void 
 nsHtml5TreeBuilder::appendVoidFormToCurrent(nsHtml5HtmlAttributes* attributes)
 {
+  flushCharacters();
   nsIContent** elt = createElement(kNameSpaceID_XHTML, nsHtml5Atoms::form, attributes);
   formPointer = elt;
   nsHtml5StackNode* current = stack[currentPtr];
@@ -3719,15 +3708,23 @@ nsHtml5TreeBuilder::appendVoidFormToCurrent(nsHtml5HtmlAttributes* attributes)
 }
 
 void 
+nsHtml5TreeBuilder::accumulateCharacter(PRUnichar c)
+{
+  PRInt32 newLen = charBufferLen + 1;
+  if (newLen > charBuffer.length) {
+    jArray<PRUnichar,PRInt32> newBuf = jArray<PRUnichar,PRInt32>(newLen);
+    nsHtml5ArrayCopy::arraycopy(charBuffer, newBuf, charBufferLen);
+    charBuffer.release();
+    charBuffer = newBuf;
+  }
+  charBuffer[charBufferLen] = c;
+  charBufferLen = newLen;
+}
+
+void 
 nsHtml5TreeBuilder::requestSuspension()
 {
   tokenizer->requestSuspension();
-}
-
-PRBool 
-nsHtml5TreeBuilder::cdataSectionAllowed()
-{
-  return inForeign && currentPtr >= 0 && stack[currentPtr]->ns != kNameSpaceID_XHTML;
 }
 
 void 
@@ -3764,14 +3761,9 @@ void
 nsHtml5TreeBuilder::flushCharacters()
 {
   if (charBufferLen > 0) {
-    if ((mode == NS_HTML5TREE_BUILDER_IN_TABLE || mode == NS_HTML5TREE_BUILDER_IN_TABLE_BODY || mode == NS_HTML5TREE_BUILDER_IN_ROW) && charBufferContainsNonWhitespace()) {
+    nsHtml5StackNode* current = stack[currentPtr];
+    if (current->fosterParenting && charBufferContainsNonWhitespace()) {
 
-      reconstructTheActiveFormattingElements();
-      if (!stack[currentPtr]->fosterParenting) {
-        appendCharacters(currentNode(), charBuffer, 0, charBufferLen);
-        charBufferLen = 0;
-        return;
-      }
       PRInt32 eltPos = findLastOrRoot(NS_HTML5TREE_BUILDER_TABLE);
       nsHtml5StackNode* node = stack[eltPos];
       nsIContent** elt = node->node;
@@ -3835,7 +3827,7 @@ nsHtml5TreeBuilder::newSnapshot()
     }
   }
   ;
-  return new nsHtml5StateSnapshot(stackCopy, listCopy, formPointer, headPointer, deepTreeSurrogateParent, mode, originalMode, framesetOk, inForeign, needToDropLF, quirks);
+  return new nsHtml5StateSnapshot(stackCopy, listCopy, formPointer, headPointer, mode, originalMode, framesetOk, inForeign, needToDropLF, quirks);
 }
 
 PRBool 
@@ -3845,7 +3837,7 @@ nsHtml5TreeBuilder::snapshotMatches(nsAHtml5TreeBuilderState* snapshot)
   PRInt32 stackLen = snapshot->getStackLength();
   jArray<nsHtml5StackNode*,PRInt32> listCopy = snapshot->getListOfActiveFormattingElements();
   PRInt32 listLen = snapshot->getListOfActiveFormattingElementsLength();
-  if (stackLen != currentPtr + 1 || listLen != listPtr + 1 || formPointer != snapshot->getFormPointer() || headPointer != snapshot->getHeadPointer() || deepTreeSurrogateParent != snapshot->getDeepTreeSurrogateParent() || mode != snapshot->getMode() || originalMode != snapshot->getOriginalMode() || framesetOk != snapshot->isFramesetOk() || inForeign != snapshot->isInForeign() || needToDropLF != snapshot->isNeedToDropLF() || quirks != snapshot->isQuirks()) {
+  if (stackLen != currentPtr + 1 || listLen != listPtr + 1 || formPointer != snapshot->getFormPointer() || headPointer != snapshot->getHeadPointer() || mode != snapshot->getMode() || originalMode != snapshot->getOriginalMode() || framesetOk != snapshot->isFramesetOk() || inForeign != snapshot->isInForeign() || needToDropLF != snapshot->isNeedToDropLF() || quirks != snapshot->isQuirks()) {
     return PR_FALSE;
   }
   for (PRInt32 i = listLen - 1; i >= 0; i--) {
@@ -3917,9 +3909,6 @@ nsHtml5TreeBuilder::loadState(nsAHtml5TreeBuilderState* snapshot, nsHtml5AtomTab
   ;
   headPointer = snapshot->getHeadPointer();
   ;
-  ;
-  deepTreeSurrogateParent = snapshot->getDeepTreeSurrogateParent();
-  ;
   mode = snapshot->getMode();
   originalMode = snapshot->getOriginalMode();
   framesetOk = snapshot->isFramesetOk();
@@ -3949,12 +3938,6 @@ nsIContent**
 nsHtml5TreeBuilder::getHeadPointer()
 {
   return headPointer;
-}
-
-nsIContent** 
-nsHtml5TreeBuilder::getDeepTreeSurrogateParent()
-{
-  return deepTreeSurrogateParent;
 }
 
 jArray<nsHtml5StackNode*,PRInt32> 

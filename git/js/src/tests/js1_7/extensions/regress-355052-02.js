@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-355052-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 355052;
 var summary = 'Do not crash with valueOf:gc and __iterator__';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = '12.6.3.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 292731;
 var summary = 'for-in should not call valueOf method';

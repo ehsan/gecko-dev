@@ -216,9 +216,7 @@ static const char sMagic[] =
 
 
 struct Header {
-  // Don't use size_t here because the data type's length depends
-  // on the architecture.
-  uint32 mSize;
+  size_t mSize;
   char mMagic[sizeof(sMagic)];
 };
 
@@ -330,7 +328,7 @@ Shmem::Shmem(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   Header* header = reinterpret_cast<Header*>(frontSentinel);
   NS_ABORT_IF_FALSE(!strncmp(header->mMagic, sMagic, sizeof(sMagic)),
                       "invalid segment");
-  mSize = static_cast<size_t>(header->mSize);
+  mSize = header->mSize;
 
   size_t pageSize = SharedMemory::SystemPageSize();
   // transition into the "mapped" state by protecting the front and
@@ -370,8 +368,6 @@ Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
              SharedMemoryType aType,
              bool aProtect)
 {
-  NS_ASSERTION(aNBytes <= PR_UINT32_MAX, "Will truncate shmem segment size!");
-
   size_t pageSize = SharedMemory::SystemPageSize();
   SharedMemory* segment = nsnull;
   // |2*pageSize| is for the front and back sentinel
@@ -397,7 +393,7 @@ Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   // initialize the segment with Shmem-internal information
   Header* header = reinterpret_cast<Header*>(frontSentinel);
   memcpy(header->mMagic, sMagic, sizeof(sMagic));
-  header->mSize = static_cast<uint32>(aNBytes);
+  header->mSize = aNBytes;
 
   if (aProtect)
     Protect(segment);
@@ -494,11 +490,11 @@ Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   SharedMemory *segment = nsnull;
 
   if (aType == SharedMemory::TYPE_BASIC)
-    segment = CreateSegment(PageAlignedSize(aNBytes + sizeof(uint32)),
+    segment = CreateSegment(PageAlignedSize(aNBytes + sizeof(size_t)),
                             SharedMemoryBasic::NULLHandle());
 #ifdef MOZ_HAVE_SHAREDMEMORYSYSV
   else if (aType == SharedMemory::TYPE_SYSV)
-    segment = CreateSegment(PageAlignedSize(aNBytes + sizeof(uint32)),
+    segment = CreateSegment(PageAlignedSize(aNBytes + sizeof(size_t)),
                             SharedMemorySysV::NULLHandle());
 #endif
   else
@@ -508,7 +504,7 @@ Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   if (!segment)
     return 0;
 
-  *PtrToSize(segment) = static_cast<uint32>(aNBytes);
+  *PtrToSize(segment) = aNBytes;
 
   return segment;
 }
@@ -561,7 +557,7 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
     return 0;
 
   // this is the only validity check done OPT builds
-  if (size != static_cast<size_t>(*PtrToSize(segment)))
+  if (size != *PtrToSize(segment))
     NS_RUNTIMEABORT("Alloc() segment size disagrees with OpenExisting()'s");
 
   return segment;

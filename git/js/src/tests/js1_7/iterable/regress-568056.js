@@ -1,6 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/licenses/publicdomain/
 
+var gTestfile = 'regress-568056.js';
 var BUGNUMBER = 568056;
 var summary = "Iterator(obj) must not go up obj's prototype chain";
 

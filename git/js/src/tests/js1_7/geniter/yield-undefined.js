@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'yield-undefined.js';
 //-----------------------------------------------------------------------------
 // Note that this syntax isn't in the most recently posted ES4 TG1 wiki export,
 // either in the specification parts or in the grammar, so this test might be

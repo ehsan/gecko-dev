@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-465347.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 465347;
 var summary = 'Test integer to id in js_Int32ToId';

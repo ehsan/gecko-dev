@@ -48,8 +48,8 @@ class nsSVGTSpanElement : public nsSVGTSpanElementBase, // = nsIDOMSVGTextPositi
 {
 protected:
   friend nsresult NS_NewSVGTSpanElement(nsIContent **aResult,
-                                        already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGTSpanElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                        nsINodeInfo *aNodeInfo);
+  nsSVGTSpanElement(nsINodeInfo* aNodeInfo);
   
 public:
   // interfaces:
@@ -70,7 +70,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   // nsSVGElement overrides
@@ -87,7 +86,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(TSpan)
 NS_IMPL_ADDREF_INHERITED(nsSVGTSpanElement,nsSVGTSpanElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGTSpanElement,nsSVGTSpanElementBase)
 
-DOMCI_NODE_DATA(SVGTSpanElement, nsSVGTSpanElement)
+DOMCI_DATA(SVGTSpanElement, nsSVGTSpanElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGTSpanElement)
   NS_NODE_INTERFACE_TABLE6(nsSVGTSpanElement, nsIDOMNode, nsIDOMElement,
@@ -100,7 +99,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGTSpanElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGTSpanElement::nsSVGTSpanElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGTSpanElement::nsSVGTSpanElement(nsINodeInfo *aNodeInfo)
   : nsSVGTSpanElementBase(aNodeInfo)
 {
 

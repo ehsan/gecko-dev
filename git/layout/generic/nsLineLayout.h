@@ -139,7 +139,7 @@ public:
    * combined area (== overflow area) for the line, and handle view
    * sizing/positioning and the setting of the overflow rect.
    */
-  void RelativePositionFrames(nsOverflowAreas& aOverflowAreas);
+  void RelativePositionFrames(nsRect& aCombinedArea);
 
   //----------------------------------------
 
@@ -221,9 +221,11 @@ public:
   //----------------------------------------
   // Inform the line-layout about the presence of a floating frame
   // XXX get rid of this: use get-frame-type?
-  PRBool AddFloat(nsIFrame* aFloat, nscoord aAvailableWidth)
+  PRBool AddFloat(nsIFrame*       aFloat,
+                  nscoord         aAvailableWidth,
+                  nsReflowStatus& aReflowStatus)
   {
-    return mBlockRS->AddFloat(this, aFloat, aAvailableWidth);
+    return mBlockRS->AddFloat(this, aFloat, aAvailableWidth, aReflowStatus);
   }
 
   void SetTrimmableWidth(nscoord aTrimmableWidth) {
@@ -370,9 +372,6 @@ public:
   const nsLineList::iterator* GetLine() const {
     return GetFlag(LL_GOTLINEBOX) ? &mLineBox : nsnull;
   }
-  nsLineList::iterator* GetLine() {
-    return GetFlag(LL_GOTLINEBOX) ? &mLineBox : nsnull;
-  }
   
   /**
    * Returns the accumulated advance width of frames before the current frame
@@ -425,7 +424,7 @@ protected:
     // From metrics
     nscoord mAscent;
     nsRect mBounds;
-    nsOverflowAreas mOverflowAreas;
+    nsRect mCombinedArea;
 
     // From reflow-state
     nsMargin mMargin;
@@ -578,7 +577,7 @@ protected:
                         nsHTMLReflowState& aReflowState);
 
   PRBool CanPlaceFrame(PerFrameData* pfd,
-                       PRUint8 aFrameDirection,
+                       const nsHTMLReflowState& aReflowState,
                        PRBool aNotSafeToBreak,
                        PRBool aFrameCanContinueTextRun,
                        PRBool aCanRollBackBeforeFrame,
@@ -595,7 +594,7 @@ protected:
                             nscoord aDistanceFromTop,
                             nscoord aLineHeight);
 
-  void RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflowAreas);
+  void RelativePositionFrames(PerSpanData* psd, nsRect& aCombinedArea);
 
   PRBool TrimTrailingWhiteSpaceIn(PerSpanData* psd, nscoord* aDeltaWidth);
 

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-355145.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 355145;
 var summary = 'JS_GetMethodById() on XML Objects';

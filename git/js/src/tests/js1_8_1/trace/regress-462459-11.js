@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-462459-11.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 462459;
 var summary = 'TM: trace [1, 2]';
@@ -64,7 +65,7 @@ else
   var traceCompletedStart  = this.tracemonkey.traceCompleted;
 
 
-  for (var i = 0; i < RUNLOOP; i++)
+  for (var i = 0; i < 5; i++)
   {
     [1, 2];
   }

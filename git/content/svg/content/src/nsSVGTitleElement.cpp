@@ -47,8 +47,8 @@ class nsSVGTitleElement : public nsSVGTitleElementBase,
 {
 protected:
   friend nsresult NS_NewSVGTitleElement(nsIContent **aResult,
-                                        already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGTitleElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                        nsINodeInfo *aNodeInfo);
+  nsSVGTitleElement(nsINodeInfo *aNodeInfo);
   nsresult Init();
 
 public:
@@ -79,7 +79,6 @@ public:
 
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
 
-  virtual nsXPCClassInfo* GetClassInfo();
 private:
   void SendTitleChangeEvent(PRBool aBound);
 };
@@ -93,7 +92,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Title)
 NS_IMPL_ADDREF_INHERITED(nsSVGTitleElement, nsSVGTitleElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGTitleElement, nsSVGTitleElementBase)
 
-DOMCI_NODE_DATA(SVGTitleElement, nsSVGTitleElement)
+DOMCI_DATA(SVGTitleElement, nsSVGTitleElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGTitleElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGTitleElement, nsIDOMNode, nsIDOMElement,
@@ -106,7 +105,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGTitleElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGTitleElement::nsSVGTitleElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGTitleElement::nsSVGTitleElement(nsINodeInfo *aNodeInfo)
   : nsSVGTitleElementBase(aNodeInfo)
 {
   AddMutationObserver(this);
@@ -148,8 +147,7 @@ void
 nsSVGTitleElement::ContentRemoved(nsIDocument *aDocument,
                                   nsIContent *aContainer,
                                   nsIContent *aChild,
-                                  PRInt32 aIndexInContainer,
-                                  nsIContent *aPreviousSibling)
+                                  PRInt32 aIndexInContainer)
 {
   SendTitleChangeEvent(PR_FALSE);
 }

@@ -64,8 +64,6 @@
 #include "NativeSparc.h"
 #elif defined(NANOJIT_X64)
 #include "NativeX64.h"
-#elif defined(NANOJIT_SH4)
-#include "NativeSH4.h"
 #elif defined(NANOJIT_MIPS)
 #include "NativeMIPS.h"
 #else
@@ -100,6 +98,15 @@
 #endif
 
 namespace nanojit {
+
+    inline Register nextreg(Register r) {
+        return Register(r+1);
+    }
+
+    inline Register prevreg(Register r) {
+        return Register(r-1);
+    }
+
 
     class Fragment;
     struct SideExit;
@@ -137,7 +144,7 @@ namespace nanojit {
 
     #ifdef NJ_NO_VARIADIC_MACROS
         static void asm_output(const char *f, ...) {}
-        #define gpn(r)                    regNames[(REGNUM(n))]
+        #define gpn(r)                    regNames[(r)]
     #elif defined(NJ_VERBOSE)
         // Used for printing native instructions.  Like Assembler::outputf(),
         // but only outputs if LC_Native is set.  Also prepends the output
@@ -145,12 +152,12 @@ namespace nanojit {
         #define asm_output(...) do { \
             if (_logc->lcbits & LC_Native) { \
                 outline[0]='\0'; \
-                VMPI_sprintf(outline, "%p   ", _nIns);  \
-                VMPI_sprintf(outline+VMPI_strlen(outline), ##__VA_ARGS__);   \
-                output();                               \
+               VMPI_sprintf(outline, "%010lx   ", (unsigned long)_nIns); \
+                sprintf(&outline[13], ##__VA_ARGS__); \
+                output(); \
             } \
         } while (0) /* no semi */
-        #define gpn(r)                  regNames[(REGNUM(r))]
+        #define gpn(r)                  regNames[(r)]
     #else
         #define asm_output(...)
         #define gpn(r)

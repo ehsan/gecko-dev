@@ -63,7 +63,6 @@
 #include "nsIStyleSheet.h"
 #include "nsCSSStyleSheet.h"
 #include "nsIFrame.h"
-#include "nsSubDocumentFrame.h"
 
 #include "nsILinkHandler.h"
 #include "nsIDOMDocument.h"
@@ -80,6 +79,7 @@
 #include "nsLayoutStylesheetCache.h"
 
 #include "nsViewsCID.h"
+#include "nsWidgetsCID.h"
 #include "nsIDeviceContext.h"
 #include "nsIDeviceContextSpec.h"
 #include "nsIViewManager.h"
@@ -90,7 +90,7 @@
 #include "nsNetUtil.h"
 #include "nsIContentViewerEdit.h"
 #include "nsIContentViewerFile.h"
-#include "mozilla/css/Loader.h"
+#include "nsCSSLoader.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -109,7 +109,6 @@
 #include "nsIImageLoadingContent.h"
 #include "nsCopySupport.h"
 #include "nsIDOMHTMLFrameSetElement.h"
-#include "nsIXULWindow.h"
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
 #include "nsXULPopupManager.h"
@@ -326,15 +325,6 @@ public:
   // nsIDocumentViewer interface...
   NS_IMETHOD GetPresShell(nsIPresShell** aResult);
   NS_IMETHOD GetPresContext(nsPresContext** aResult);
-  NS_IMETHOD SetDocumentInternal(nsIDocument* aDocument,
-                                 PRBool aForceReuseInnerWindow);
-  /**
-   * Find the view to use as the container view for MakeWindow. Returns
-   * null if this will be the root of a view manager hierarchy. In that
-   * case, if mParentWidget is null then this document should not even
-   * be displayed.
-   */
-  virtual nsIView* FindContainerView();
 
   // nsIContentViewerEdit
   NS_DECL_NSICONTENTVIEWEREDIT
@@ -371,6 +361,14 @@ private:
   nsresult MakeWindow(const nsSize& aSize, nsIView* aContainerView);
 
   /**
+   * Find the view to use as the container view for MakeWindow. Returns
+   * null if this will be the root of a view manager hierarchy. In that
+   * case, if mParentWidget is null then this document should not even
+   * be displayed.
+   */
+  nsIView* FindContainerView();
+
+  /**
    * Create our device context
    */
   nsresult CreateDeviceContext(nsIView* aContainerView);
@@ -383,6 +381,7 @@ private:
                         nsISupports *aState,
                         const nsIntRect& aBounds,
                         PRBool aDoCreation,
+                        PRBool aInPrintPreview,
                         PRBool aNeedMakeCX = PR_TRUE);
   /**
    * @param aDoInitialReflow set to true if you want to kick off the initial
@@ -503,6 +502,7 @@ protected:
 //------------------------------------------------------------------
 // Class IDs
 static NS_DEFINE_CID(kViewManagerCID,       NS_VIEW_MANAGER_CID);
+static NS_DEFINE_CID(kWidgetCID,            NS_CHILD_CID);
 static NS_DEFINE_CID(kDeviceContextCID,     NS_DEVICE_CONTEXT_CID);
 
 //------------------------------------------------------------------
@@ -691,7 +691,7 @@ NS_IMETHODIMP
 DocumentViewerImpl::Init(nsIWidget* aParentWidget,
                          const nsIntRect& aBounds)
 {
-  return InitInternal(aParentWidget, nsnull, aBounds, PR_TRUE);
+  return InitInternal(aParentWidget, nsnull, aBounds, PR_TRUE, PR_FALSE);
 }
 
 nsresult
@@ -833,6 +833,7 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
                                  nsISupports *aState,
                                  const nsIntRect& aBounds,
                                  PRBool aDoCreation,
+                                 PRBool aInPrintPreview,
                                  PRBool aNeedMakeCX /*= PR_TRUE*/)
 {
   // We don't want any scripts to run here. That can cause flushing,
@@ -858,9 +859,7 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
     // it in one place (Show()) and require that callers call init(), open(),
     // show() in that order or something.
     if (!mPresContext &&
-        (aParentWidget || containerView || mDocument->IsBeingUsedAsImage() ||
-         (mDocument->GetDisplayDocument() &&
-          mDocument->GetDisplayDocument()->GetShell()))) {
+        (aParentWidget || containerView || mDocument->GetDisplayDocument())) {
       // Create presentation context
       if (mIsPageMode) {
         //Presentation context already created in SetPageMode which is calling this method
@@ -924,8 +923,8 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
         mPresContext->GetPrintSettings()->GetEffectivePageSize(&pageWidth,
                                                                &pageHeight);
         mPresContext->SetPageSize(
-          nsSize(mPresContext->CSSTwipsToAppUnits(NSToIntFloor(pageWidth)),
-                 mPresContext->CSSTwipsToAppUnits(NSToIntFloor(pageHeight))));
+          nsSize(mPresContext->TwipsToAppUnits(NSToIntFloor(pageWidth)),
+                 mPresContext->TwipsToAppUnits(NSToIntFloor(pageHeight))));
         mPresContext->SetIsRootPaginatedDocument(PR_TRUE);
         mPresContext->SetPageScale(1.0f);
       }
@@ -944,18 +943,20 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
       mPresContext->SetLinkHandler(linkHandler);
     }
 
-    // Set script-context-owner in the document
+    if (!aInPrintPreview) {
+      // Set script-context-owner in the document
 
-    nsCOMPtr<nsPIDOMWindow> window;
-    requestor->GetInterface(NS_GET_IID(nsPIDOMWindow),
-                            getter_AddRefs(window));
+      nsCOMPtr<nsPIDOMWindow> window;
+      requestor->GetInterface(NS_GET_IID(nsPIDOMWindow),
+                              getter_AddRefs(window));
 
-    if (window) {
-      nsCOMPtr<nsIDocument> curDoc =
-        do_QueryInterface(window->GetExtantDocument());
-      if (!mIsPageMode || curDoc != mDocument) {
-        window->SetNewDocument(mDocument, aState, PR_FALSE);
-        nsJSContext::LoadStart();
+      if (window) {
+        nsCOMPtr<nsIDocument> curDoc =
+          do_QueryInterface(window->GetExtantDocument());
+        if (!mIsPageMode || curDoc != mDocument) {
+          window->SetNewDocument(mDocument, aState);
+          nsJSContext::LoadStart();
+        }
       }
     }
   }
@@ -1159,43 +1160,47 @@ DocumentViewerImpl::PermitUnload(PRBool aCallerClosesWindow, PRBool *aPermitUnlo
   beforeUnload->GetReturnValue(text);
   if (pEvent->GetInternalNSEvent()->flags & NS_EVENT_FLAG_NO_DEFAULT ||
       !text.IsEmpty()) {
+    nsAutoString tmp;
+    nsContentUtils::StripNullChars(text, tmp);
+    text = tmp;
     // Ask the user if it's ok to unload the current page
 
     nsCOMPtr<nsIPrompt> prompt = do_GetInterface(docShellNode);
 
     if (prompt) {
-      nsXPIDLString title, message, stayLabel, leaveLabel;
-      rv  = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                               "OnBeforeUnloadTitle",
-                                               title);
+      nsXPIDLString preMsg, postMsg;
+      rv = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
+                                              "OnBeforeUnloadPreMessage",
+                                              preMsg);
       rv |= nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                               "OnBeforeUnloadMessage",
-                                               message);
-      rv |= nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                               "OnBeforeUnloadLeaveButton",
-                                               leaveLabel);
-      rv |= nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                               "OnBeforeUnloadStayButton",
-                                               stayLabel);
+                                               "OnBeforeUnloadPostMessage",
+                                               postMsg);
 
-      if (NS_FAILED(rv) || !title || !message || !stayLabel || !leaveLabel) {
+      // GetStringFromName can succeed, yet give NULL strings back.
+      if (NS_FAILED(rv) || preMsg.IsEmpty() || postMsg.IsEmpty()) {
         NS_ERROR("Failed to get strings from dom.properties!");
         return NS_OK;
       }
 
-      PRBool dummy;
-      PRInt32 buttonPressed = 0;
-      PRUint32 buttonFlags = (nsIPrompt::BUTTON_POS_0_DEFAULT |
-                             (nsIPrompt::BUTTON_TITLE_IS_STRING * nsIPrompt::BUTTON_POS_0) |
-                             (nsIPrompt::BUTTON_TITLE_IS_STRING * nsIPrompt::BUTTON_POS_1));
+      // Limit the length of the text the page can inject into this
+      // dialogue to 1024 characters.
+      PRInt32 len = NS_MIN(text.Length(), 1024U);
 
-      rv = prompt->ConfirmEx(title, message, buttonFlags,
-                             leaveLabel, stayLabel, nsnull, nsnull,
-                             &dummy, &buttonPressed);
-      NS_ENSURE_SUCCESS(rv, rv);
+      nsAutoString msg;
+      if (len == 0) {
+        msg = preMsg + NS_LITERAL_STRING("\n\n") + postMsg;
+      } else {
+        msg = preMsg + NS_LITERAL_STRING("\n\n") +
+              StringHead(text, len) +
+              NS_LITERAL_STRING("\n\n") + postMsg;
+      } 
 
-      // Button 0 == leave, button 1 == stay
-      *aPermitUnload = (buttonPressed == 0);
+      // This doesn't pass a title, which makes the title be
+      // "Confirm", is that ok, or do we want a localizable title for
+      // this dialogue?
+      if (NS_FAILED(prompt->Confirm(nsnull, msg.get(), aPermitUnload))) {
+        *aPermitUnload = PR_TRUE;
+      }
     }
   }
 
@@ -1353,7 +1358,7 @@ DocumentViewerImpl::Open(nsISupports *aState, nsISHEntry *aSHEntry)
   if (mDocument)
     mDocument->SetContainer(nsCOMPtr<nsISupports>(do_QueryReferent(mContainer)));
 
-  nsresult rv = InitInternal(mParentWidget, aState, mBounds, PR_FALSE);
+  nsresult rv = InitInternal(mParentWidget, aState, mBounds, PR_FALSE, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (mPresShell)
@@ -1680,38 +1685,31 @@ DocumentViewerImpl::SetDOMDocument(nsIDOMDocument *aDocument)
   // occurred for the current document.
   // That work can happen when and if it is needed.
 
+  nsresult rv;
   if (!aDocument)
     return NS_ERROR_NULL_POINTER;
 
-  nsCOMPtr<nsIDocument> newDoc = do_QueryInterface(aDocument);
-  NS_ENSURE_TRUE(newDoc, NS_ERROR_UNEXPECTED);
-
-  return SetDocumentInternal(newDoc, PR_FALSE);
-}
-
-NS_IMETHODIMP
-DocumentViewerImpl::SetDocumentInternal(nsIDocument* aDocument,
-                                        PRBool aForceReuseInnerWindow)
-{
+  nsCOMPtr<nsIDocument> newDoc = do_QueryInterface(aDocument, &rv);
+  if (NS_FAILED(rv)) return rv;
 
   // Set new container
   nsCOMPtr<nsISupports> container = do_QueryReferent(mContainer);
-  aDocument->SetContainer(container);
+  newDoc->SetContainer(container);
 
-  if (mDocument != aDocument) {
+  if (mDocument != newDoc) {
     // Replace the old document with the new one. Do this only when
     // the new document really is a new document.
-    mDocument = aDocument;
+    mDocument = newDoc;
 
     // Set the script global object on the new document
     nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(container);
     if (window) {
-      window->SetNewDocument(aDocument, nsnull, aForceReuseInnerWindow);
+      window->SetNewDocument(newDoc, nsnull);
     }
 
     // Clear the list of old child docshells. CChild docshells for the new
     // document will be constructed as frames are created.
-    if (!aDocument->IsStaticDocument()) {
+    if (!newDoc->IsStaticDocument()) {
       nsCOMPtr<nsIDocShellTreeNode> node = do_QueryInterface(container);
       if (node) {
         PRInt32 count;
@@ -1725,7 +1723,7 @@ DocumentViewerImpl::SetDocumentInternal(nsIDocument* aDocument,
     }
   }
 
-  nsresult rv = SyncParentSubDocMap();
+  rv = SyncParentSubDocMap();
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Replace the current pres shell with a new shell for the new document
@@ -1884,6 +1882,13 @@ DocumentViewerImpl::SetBounds(const nsIntRect& aBounds)
   if (mPreviousViewer)
     mPreviousViewer->SetBounds(aBounds);
 
+#if defined(NS_PRINTING) && defined(NS_PRINT_PREVIEW)
+  if (GetIsPrintPreview() && !mPrintEngine->GetIsCreatingPrintPreview()) {
+    mPrintEngine->GetPrintPreviewWindow()->Resize(aBounds.x, aBounds.y,
+                                                  aBounds.width, aBounds.height,
+                                                  PR_FALSE);
+  }
+#endif
   return NS_OK;
 }
 
@@ -1896,28 +1901,6 @@ DocumentViewerImpl::Move(PRInt32 aX, PRInt32 aY)
     mWindow->Move(aX, aY);
   }
   return NS_OK;
-}
-
-static PRBool
-SetVisibilityOnXULWindow(nsIDocShellTreeItem* aTreeItem)
-{
-  if (!aTreeItem)
-    return PR_FALSE;
-  nsCOMPtr<nsIDocShellTreeOwner> owner;
-  aTreeItem->GetTreeOwner(getter_AddRefs(owner));
-  if (owner) {
-    // We need the base win interface of the parent xul window, not
-    // the doc shell of owner, which would recurse here when we call
-    // SetVisibility.
-    nsCOMPtr<nsIXULWindow> xulWin = do_GetInterface(owner);
-    nsCOMPtr<nsIBaseWindow> baseWin = do_GetInterface(xulWin);
-    if (baseWin) {
-      baseWin->SetVisibility(PR_TRUE);
-      return PR_TRUE;
-    }
-  }
-  NS_WARNING("Doc viewer attached to a parent that isn't a xul window??");
-  return PR_FALSE;
 }
 
 NS_IMETHODIMP
@@ -1960,15 +1943,7 @@ DocumentViewerImpl::Show(void)
   }
 
   if (mWindow) {
-    // When attached to a top level xul window, use SetVisibility instead
-    // of calling Show directly on the widget. SetVisibility will insure
-    // the show is delayed until after the chrome document has loaded and
-    // the proper window dimensions are set.
-    nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryReferent(mContainer));
-    if (!mAttachedToParent ||
-        (mAttachedToParent && !SetVisibilityOnXULWindow(treeItem))) {
-      mWindow->Show(PR_TRUE);
-    }
+    mWindow->Show(PR_TRUE);
   }
 
   if (mDocument && !mPresShell) {
@@ -2284,9 +2259,7 @@ DocumentViewerImpl::MakeWindow(const nsSize& aSize, nsIView* aContainerView)
     nsWindowType winType;
     containerItem->GetItemType(&docType);
     mParentWidget->GetWindowType(winType);
-    if ((winType == eWindowType_toplevel ||
-         winType == eWindowType_dialog ||
-         winType == eWindowType_invisible) &&
+    if (winType == eWindowType_toplevel &&
         docType == nsIDocShellTreeItem::typeChrome) {
       // If the old view is already attached to our parent, detach
       DetachFromTopLevelWidget();
@@ -2314,13 +2287,9 @@ DocumentViewerImpl::MakeWindow(const nsSize& aSize, nsIView* aContainerView)
   if (!view)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  // Create a widget if we were given a parent widget or don't have a
-  // container view that we can hook up to without a widget.
-  // Don't create widgets for ResourceDocs (external resources & svg images),
-  // because when they're displayed, they're painted into *another* document's
-  // widget.
-  if (!mDocument->IsResourceDoc() &&
-      (mParentWidget || !aContainerView)) {
+  // Don't create a widget if we weren't given a parent widget but we
+  // have a container view we can hook up to without a widget
+  if (mParentWidget || !aContainerView) {
     // pass in a native widget to be the parent widget ONLY if the view hierarchy will stand alone.
     // otherwise the view will find its own parent widget and "do the right thing" to
     // establish a parent/child widget relationship
@@ -2329,6 +2298,10 @@ DocumentViewerImpl::MakeWindow(const nsSize& aSize, nsIView* aContainerView)
     if (!mParentWidget) {
       initDataPtr = &initData;
       initData.mWindowType = eWindowType_invisible;
+
+      initData.mContentType =
+        nsContentUtils::IsInChromeDocshell(mDocument) ?
+          eContentTypeUI : eContentTypeContent;
     } else {
       initDataPtr = nsnull;
     }
@@ -2337,12 +2310,11 @@ DocumentViewerImpl::MakeWindow(const nsSize& aSize, nsIView* aContainerView)
       // Reuse the top level parent widget.
       rv = view->AttachToTopLevelWidget(mParentWidget);
     }
-    else if (!aContainerView && mParentWidget) {
-      rv = view->CreateWidgetForParent(mParentWidget, initDataPtr,
-                                       PR_TRUE, PR_FALSE);
-    }
     else {
-      rv = view->CreateWidget(initDataPtr, PR_TRUE, PR_FALSE);
+      nsNativeWidget nw = (aContainerView != nsnull || !mParentWidget) ?
+                 nsnull : mParentWidget->GetNativeData(NS_NATIVE_WIDGET);
+      rv = view->CreateWidget(kWidgetCID, initDataPtr,
+                              nw, PR_TRUE, PR_FALSE);
     }
     if (NS_FAILED(rv))
       return rv;
@@ -2379,11 +2351,17 @@ DocumentViewerImpl::FindContainerView()
 {
   nsIView* containerView = nsnull;
 
-  if (mContainer) {
-    nsCOMPtr<nsIDocShellTreeItem> docShellItem = do_QueryReferent(mContainer);
-    nsCOMPtr<nsPIDOMWindow> pwin(do_GetInterface(docShellItem));
-    if (pwin) {
-      nsCOMPtr<nsIContent> containerElement = do_QueryInterface(pwin->GetFrameElementInternal());
+  nsCOMPtr<nsIContent> containerElement;
+  nsCOMPtr<nsIDocShellTreeItem> docShellItem = do_QueryReferent(mContainer);
+  nsCOMPtr<nsPIDOMWindow> pwin(do_GetInterface(docShellItem));
+  if (pwin) {
+    containerElement = do_QueryInterface(pwin->GetFrameElementInternal());
+  }
+        
+  if (mParentWidget) {
+    containerView = nsIView::GetViewFor(mParentWidget);
+  } else {
+    if (mContainer) {
       nsCOMPtr<nsIPresShell> parentPresShell;
       if (docShellItem) {
         nsCOMPtr<nsIDocShellTreeItem> parentDocShellItem;
@@ -2391,12 +2369,6 @@ DocumentViewerImpl::FindContainerView()
         if (parentDocShellItem) {
           nsCOMPtr<nsIDocShell> parentDocShell = do_QueryInterface(parentDocShellItem);
           parentDocShell->GetPresShell(getter_AddRefs(parentPresShell));
-        }
-      }
-      if (!parentPresShell && containerElement) {
-        nsCOMPtr<nsIDocument> parentDoc = containerElement->GetCurrentDoc();
-        if (parentDoc) {
-          parentPresShell = parentDoc->GetShell();
         }
       }
       if (!containerElement) {
@@ -2412,9 +2384,10 @@ DocumentViewerImpl::FindContainerView()
           // cases. Treat that as display:none, the document is not
           // displayed.
           if (subdocFrame->GetType() == nsGkAtoms::subDocumentFrame) {
-            NS_ASSERTION(subdocFrame->GetView(), "Subdoc frames must have views");
-            nsIView* innerView =
-              static_cast<nsSubDocumentFrame*>(subdocFrame)->EnsureInnerView();
+            nsIView* subdocFrameView = subdocFrame->GetView();
+            NS_ASSERTION(subdocFrameView, "Subdoc frames must have views");
+            nsIView* innerView = subdocFrameView->GetFirstChild();
+            NS_ASSERTION(innerView, "Subdoc frames must have an inner view too");
             containerView = innerView;
           } else {
             NS_WARNING("Subdocument container has non-subdocument frame");
@@ -2426,7 +2399,32 @@ DocumentViewerImpl::FindContainerView()
     }
   }
 
-  return containerView;
+  if (!containerView)
+    return nsnull;
+
+  if (containerElement &&
+      containerElement->HasAttr(kNameSpaceID_None, nsGkAtoms::transparent))
+    return containerView;
+
+  nsIWidget* outerWidget = containerView->GetNearestWidget(nsnull);
+  if (outerWidget &&
+      outerWidget->GetTransparencyMode() == eTransparencyTransparent)
+    return containerView;
+
+  // If the parent container is a chrome shell and we are a content shell
+  // then we won't hook into its view
+  // tree. This will improve performance a little bit (especially given scrolling/painting perf bugs)
+  // but is really just for peace of mind. This check can be removed if we want to support fancy
+  // chrome effects like transparent controls floating over content, transparent Web browsers, and
+  // things like that, and the perf bugs are fixed.
+  nsCOMPtr<nsIDocShellTreeItem> container(do_QueryReferent(mContainer));
+  if (container) {
+    nsCOMPtr<nsIDocShellTreeItem> sameTypeParent;
+    container->GetSameTypeParent(getter_AddRefs(sameTypeParent));
+    if (sameTypeParent)
+      return containerView;
+  }
+  return nsnull;
 }
 
 nsresult
@@ -3233,8 +3231,8 @@ NS_IMETHODIMP DocumentViewerImpl::SizeToContent()
 
   nscoord prefWidth;
   {
-    nsCOMPtr<nsIRenderingContext> rcx =
-      presShell->GetReferenceRenderingContext();
+    nsCOMPtr<nsIRenderingContext> rcx;
+    presShell->CreateRenderingContext(root, getter_AddRefs(rcx));
     NS_ENSURE_TRUE(rcx, NS_ERROR_FAILURE);
     prefWidth = root->GetPrefWidth(rcx);
   }
@@ -3299,8 +3297,6 @@ DocumentViewerImpl::GetPopupNode(nsIDOMNode** aNode)
 {
   NS_ENSURE_ARG_POINTER(aNode);
 
-  *aNode = nsnull;
-
   // get the document
   nsIDocument* document = GetDocument();
   NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
@@ -3313,22 +3309,7 @@ DocumentViewerImpl::GetPopupNode(nsIDOMNode** aNode)
     NS_ENSURE_TRUE(root, NS_ERROR_FAILURE);
 
     // get the popup node
-    nsCOMPtr<nsIDOMNode> node = root->GetPopupNode();
-#ifdef MOZ_XUL
-    if (!node) {
-      nsPIDOMWindow* rootWindow = root->GetWindow();
-      if (rootWindow) {
-        nsCOMPtr<nsIDocument> rootDoc = do_QueryInterface(rootWindow->GetExtantDocument());
-        if (rootDoc) {
-          nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-          if (pm) {
-            node = pm->GetLastTriggerPopupNode(rootDoc);
-          }
-        }
-      }
-    }
-#endif
-    node.swap(*aNode);
+    root->GetPopupNode(aNode); // addref happens here
   }
 
   return NS_OK;
@@ -3644,9 +3625,10 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
     NS_ENSURE_TRUE(mPrintEngine, NS_ERROR_OUT_OF_MEMORY);
 
     rv = mPrintEngine->Initialize(this, docShell, mDocument, 
-                                  float(mDeviceContext->AppUnitsPerCSSInch()) /
+                                  float(mDeviceContext->AppUnitsPerInch()) /
                                   float(mDeviceContext->AppUnitsPerDevPixel()) /
                                   mPageZoom,
+                                  mParentWidget,
 #ifdef NS_DEBUG
                                   mDebugFile
 #else
@@ -3696,8 +3678,8 @@ DocumentViewerImpl::PrintPreview(nsIPrintSettings* aPrintSettings,
 
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
   NS_ASSERTION(docShell, "This has to be a docshell");
-  if (!docShell || !mDeviceContext) {
-    PR_PL(("Can't Print Preview without device context and docshell"));
+  if (!docShell ||! mDeviceContext || !mParentWidget) {
+    PR_PL(("Can't Print Preview without device context, docshell etc"));
     return NS_ERROR_FAILURE;
   }
 
@@ -3711,9 +3693,10 @@ DocumentViewerImpl::PrintPreview(nsIPrintSettings* aPrintSettings,
     NS_ENSURE_TRUE(mPrintEngine, NS_ERROR_OUT_OF_MEMORY);
 
     rv = mPrintEngine->Initialize(this, docShell, doc,
-                                  float(mDeviceContext->AppUnitsPerCSSInch()) /
+                                  float(mDeviceContext->AppUnitsPerInch()) /
                                   float(mDeviceContext->AppUnitsPerDevPixel()) /
                                   mPageZoom,
+                                  mParentWidget,
 #ifdef NS_DEBUG
                                   mDebugFile
 #else
@@ -3830,8 +3813,13 @@ DocumentViewerImpl::PrintPreviewNavigate(PRInt16 aType, PRInt32 aPageNum)
       sqf->GetDeadSpaceValue(&deadSpaceGapTwips);
     }
 
-    nscoord deadSpaceGap = nsPresContext::CSSTwipsToAppUnits(deadSpaceGapTwips);
-    nscoord newYPosn =
+    // To compute deadSpaceGap, use the same presContext as was used
+    // to layout the seqFrame. (That presContext may have different
+    // TwipsToAppUnits conversion from this->mPresContext)
+    nscoord deadSpaceGap = 
+      seqFrame->PresContext()->TwipsToAppUnits(deadSpaceGapTwips);
+
+    nscoord newYPosn = 
       nscoord(mPrintEngine->GetPrintPreviewScale() * 
               float(fndPageFrame->GetPosition().y - deadSpaceGap));
     sf->ScrollTo(nsPoint(pt.x, newYPosn), nsIScrollableFrame::INSTANT);
@@ -4271,7 +4259,7 @@ NS_IMETHODIMP DocumentViewerImpl::SetPageMode(PRBool aPageMode, nsIPrintSettings
     nsresult rv = mPresContext->Init(mDeviceContext);
     NS_ENSURE_SUCCESS(rv, rv);
   }
-  InitInternal(mParentWidget, nsnull, mBounds, PR_TRUE, PR_FALSE);
+  InitInternal(mParentWidget, nsnull, mBounds, PR_TRUE, PR_FALSE, PR_FALSE);
 
   Show();
   return NS_OK;
@@ -4314,7 +4302,8 @@ DocumentViewerImpl::InitializeForPrintPreview()
 }
 
 void
-DocumentViewerImpl::SetPrintPreviewPresentation(nsIViewManager* aViewManager,
+DocumentViewerImpl::SetPrintPreviewPresentation(nsIWidget* aWidget,
+                                                nsIViewManager* aViewManager,
                                                 nsPresContext* aPresContext,
                                                 nsIPresShell* aPresShell)
 {
@@ -4322,7 +4311,7 @@ DocumentViewerImpl::SetPrintPreviewPresentation(nsIViewManager* aViewManager,
     DestroyPresShell();
   }
 
-  mWindow = nsnull;
+  mWindow = aWidget;
   mViewManager = aViewManager;
   mPresContext = aPresContext;
   mPresShell = aPresShell;

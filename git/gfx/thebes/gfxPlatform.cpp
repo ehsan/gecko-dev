@@ -79,14 +79,12 @@
 #include "nsIPrefBranch2.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsCRT.h"
-#include "GLContext.h"
-#include "GLContextProvider.h"
 
 #include "mozilla/FunctionTimer.h"
 
-#include "nsIGfxInfo.h"
-
 gfxPlatform *gPlatform = nsnull;
+
+PRInt32 gfxPlatform::sDPI = -1;
 
 // These two may point to the same profile
 static qcms_profile *gCMSOutputProfile = nsnull;
@@ -134,9 +132,6 @@ SRGBOverrideObserver::Observe(nsISupports *aSubject,
 }
 
 #define GFX_DOWNLOADABLE_FONTS_ENABLED "gfx.downloadable_fonts.enabled"
-#define GFX_DOWNLOADABLE_FONTS_SANITIZE "gfx.downloadable_fonts.sanitize"
-#define GFX_DOWNLOADABLE_FONTS_SANITIZE_PRESERVE_OTL \
-            "gfx.downloadable_fonts.sanitize.preserve_otl_tables"
 
 #define GFX_PREF_HARFBUZZ_LEVEL "gfx.font_rendering.harfbuzz.level"
 #define HARFBUZZ_LEVEL_DEFAULT  0
@@ -210,8 +205,6 @@ gfxPlatform::gfxPlatform()
 {
     mUseHarfBuzzLevel = UNINITIALIZED_VALUE;
     mAllowDownloadableFonts = UNINITIALIZED_VALUE;
-    mDownloadableFontsSanitize = UNINITIALIZED_VALUE;
-    mSanitizePreserveOTLTables = UNINITIALIZED_VALUE;
 }
 
 gfxPlatform*
@@ -226,17 +219,6 @@ gfxPlatform::Init()
     NS_ASSERTION(!gPlatform, "Already started???");
 
     gfxAtoms::RegisterAtoms();
-
-    /* Initialize the GfxInfo service.
-     * Note: we can't call functions on GfxInfo that depend
-     * on gPlatform until after it has been initialized
-     * below. GfxInfo initialization annotates our
-     * crash reports so we want to do it before
-     * we try to load any drivers and do device detection
-     * incase that code crashes. See bug #591561. */
-    nsCOMPtr<nsIGfxInfo> gfxInfo;
-    /* this currently will only succeed on Windows */
-    gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
 
 #if defined(XP_WIN)
     gPlatform = new gfxWindowsPlatform;
@@ -256,18 +238,9 @@ gfxPlatform::Init()
     if (!gPlatform)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    gPlatform->mScreenReferenceSurface =
-      gPlatform->CreateOffscreenSurface(gfxIntSize(1,1),
-                                        gfxASurface::CONTENT_COLOR_ALPHA);
-    if (!gPlatform->mScreenReferenceSurface) {
-      NS_ERROR("Could not initialize mScreenReferenceSurface");
-      Shutdown();
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-
     nsresult rv;
 
-#if defined(XP_MACOSX) || defined(XP_WIN) || defined(ANDROID) // temporary, until this is implemented on others
+#if defined(XP_MACOSX) || defined(XP_WIN) // temporary, until this is implemented on others
     rv = gfxPlatformFontList::Init();
     if (NS_FAILED(rv)) {
         NS_ERROR("Could not initialize gfxPlatformFontList");
@@ -307,7 +280,7 @@ gfxPlatform::Init()
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefs) {
         prefs->AddObserver(CMForceSRGBPrefName, gPlatform->overrideObserver, PR_TRUE);
-        prefs->AddObserver("gfx.downloadable_fonts.", fontPrefObserver, PR_FALSE);
+        prefs->AddObserver(GFX_DOWNLOADABLE_FONTS_ENABLED, fontPrefObserver, PR_FALSE);
         prefs->AddObserver("gfx.font_rendering.", fontPrefObserver, PR_FALSE);
     }
 
@@ -334,8 +307,6 @@ gfxPlatform::Shutdown()
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefs)
         prefs->RemoveObserver(CMForceSRGBPrefName, gPlatform->overrideObserver);
-
-    mozilla::gl::GLContextProvider::Shutdown();
 
     delete gPlatform;
     gPlatform = nsnull;
@@ -374,7 +345,7 @@ gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
         return nsnull;
     }
 #endif
-    nsRefPtr<gfxASurface> optSurface = CreateOffscreenSurface(surfaceSize, gfxASurface::ContentFromFormat(format));
+    nsRefPtr<gfxASurface> optSurface = CreateOffscreenSurface(surfaceSize, format);
     if (!optSurface || optSurface->CairoStatus() != 0)
         return nsnull;
 
@@ -420,33 +391,10 @@ PRBool
 gfxPlatform::DownloadableFontsEnabled()
 {
     if (mAllowDownloadableFonts == UNINITIALIZED_VALUE) {
-        mAllowDownloadableFonts =
-            GetBoolPref(GFX_DOWNLOADABLE_FONTS_ENABLED, PR_FALSE);
+        mAllowDownloadableFonts = GetBoolPref(GFX_DOWNLOADABLE_FONTS_ENABLED, PR_FALSE);
     }
 
     return mAllowDownloadableFonts;
-}
-
-PRBool
-gfxPlatform::SanitizeDownloadedFonts()
-{
-    if (mDownloadableFontsSanitize == UNINITIALIZED_VALUE) {
-        mDownloadableFontsSanitize =
-            GetBoolPref(GFX_DOWNLOADABLE_FONTS_SANITIZE, PR_TRUE);
-    }
-
-    return mDownloadableFontsSanitize;
-}
-
-PRBool
-gfxPlatform::PreserveOTLTablesWhenSanitizing()
-{
-    if (mSanitizePreserveOTLTables == UNINITIALIZED_VALUE) {
-        mSanitizePreserveOTLTables =
-            GetBoolPref(GFX_DOWNLOADABLE_FONTS_SANITIZE_PRESERVE_OTL, PR_FALSE);
-    }
-
-    return mSanitizePreserveOTLTables;
 }
 
 PRInt8
@@ -1111,6 +1059,13 @@ static void MigratePrefs()
 
 }
 
+void
+gfxPlatform::InitDisplayCaps()
+{
+    // Fall back to something sane
+    gfxPlatform::sDPI = 96;
+}
+
 // default SetupClusterBoundaries, based on Unicode properties;
 // platform subclasses may override if they wish
 static nsIUGenCategory* gGenCategory = nsnull;
@@ -1172,10 +1127,6 @@ gfxPlatform::FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref)
     NS_ASSERTION(aPref != nsnull, "null preference");
     if (!strcmp(GFX_DOWNLOADABLE_FONTS_ENABLED, aPref)) {
         mAllowDownloadableFonts = UNINITIALIZED_VALUE;
-    } else if (!strcmp(GFX_DOWNLOADABLE_FONTS_SANITIZE, aPref)) {
-        mDownloadableFontsSanitize = UNINITIALIZED_VALUE;
-    } else if (!strcmp(GFX_DOWNLOADABLE_FONTS_SANITIZE_PRESERVE_OTL, aPref)) {
-        mSanitizePreserveOTLTables = UNINITIALIZED_VALUE;
     } else if (!strcmp(GFX_PREF_HARFBUZZ_LEVEL, aPref)) {
         mUseHarfBuzzLevel = UNINITIALIZED_VALUE;
         gfxTextRunWordCache::Flush();

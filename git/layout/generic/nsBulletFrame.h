@@ -88,7 +88,7 @@ public:
                           nsresult aStatus,
                           const PRUnichar *aStatusArg);
   NS_IMETHOD FrameChanged(imgIContainer *aContainer,
-                          const nsIntRect *aDirtyRect);
+                          nsIntRect *aDirtyRect);
 
   /* get list item text, without '.' */
   static PRBool AppendCounterText(PRInt32 aListStyleType,

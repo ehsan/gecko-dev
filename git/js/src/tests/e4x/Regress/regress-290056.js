@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-290056.js';
 
 var summary = 'Dont crash when serializing an XML object where the name ' +
     'of an attribute was changed with setName';

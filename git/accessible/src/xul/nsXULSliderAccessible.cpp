@@ -62,10 +62,11 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsXULSliderAccessible,
 
 // nsAccessible
 
-PRUint32
-nsXULSliderAccessible::NativeRole()
+nsresult
+nsXULSliderAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_SLIDER;
+  *aRole = nsIAccessibleRole::ROLE_SLIDER;
+  return NS_OK;
 }
 
 nsresult
@@ -299,12 +300,12 @@ nsXULThumbAccessible::
 {
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULThumbAccessible: nsAccessible
+// nsIAccessible
 
-PRUint32
-nsXULThumbAccessible::NativeRole()
+nsresult
+nsXULThumbAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_INDICATOR;
+  *aRole = nsIAccessibleRole::ROLE_INDICATOR;
+  return NS_OK;
 }
 

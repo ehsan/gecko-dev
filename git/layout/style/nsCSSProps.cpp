@@ -60,7 +60,7 @@ extern const char* const kCSSRawProperties[];
 
 // define an array of all CSS properties
 const char* const kCSSRawProperties[] = {
-#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,            \
+#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_,     \
                  kwtable_, stylestruct_, stylestructoffset_, animtype_)        \
   #name_,
 #include "nsCSSPropList.h"
@@ -112,8 +112,8 @@ void
 nsCSSProps::AddRefTable(void)
 {
   if (0 == gTableRefCount++) {
-    NS_ABORT_IF_FALSE(!gPropertyTable, "pre existing array!");
-    NS_ABORT_IF_FALSE(!gFontDescTable, "pre existing array!");
+    NS_ASSERTION(!gPropertyTable, "pre existing array!");
+    NS_ASSERTION(!gFontDescTable, "pre existing array!");
 
     gPropertyTable = new nsStaticCaseInsensitiveNameTable();
     if (gPropertyTable) {
@@ -124,9 +124,8 @@ nsCSSProps::AddRefTable(void)
         nsCAutoString temp1(kCSSRawProperties[index]);
         nsCAutoString temp2(kCSSRawProperties[index]);
         ToLowerCase(temp1);
-        NS_ABORT_IF_FALSE(temp1.Equals(temp2), "upper case char in prop table");
-        NS_ABORT_IF_FALSE(-1 == temp1.FindChar('_'),
-                          "underscore char in prop table");
+        NS_ASSERTION(temp1.Equals(temp2), "upper case char in prop table");
+        NS_ASSERTION(-1 == temp1.FindChar('_'), "underscore char in prop table");
       }
     }
 #endif
@@ -142,9 +141,8 @@ nsCSSProps::AddRefTable(void)
         nsCAutoString temp1(kCSSRawFontDescs[index]);
         nsCAutoString temp2(kCSSRawFontDescs[index]);
         ToLowerCase(temp1);
-        NS_ABORT_IF_FALSE(temp1.Equals(temp2), "upper case char in desc table");
-        NS_ABORT_IF_FALSE(-1 == temp1.FindChar('_'),
-                          "underscore char in desc table");
+        NS_ASSERTION(temp1.Equals(temp2), "upper case char in desc table");
+        NS_ASSERTION(-1 == temp1.FindChar('_'), "underscore char in desc table");
       }
     }
 #endif
@@ -178,9 +176,9 @@ nsCSSProps::BuildShorthandsContainingTable()
     for (const nsCSSProperty* subprops = SubpropertyEntryFor(shorthand);
          *subprops != eCSSProperty_UNKNOWN;
          ++subprops) {
-      NS_ABORT_IF_FALSE(0 < *subprops &&
-                        *subprops < eCSSProperty_COUNT_no_shorthands,
-                        "subproperty must be a longhand");
+      NS_ASSERTION(0 < *subprops &&
+                   *subprops < eCSSProperty_COUNT_no_shorthands,
+                   "subproperty must be a longhand");
       ++occurrenceCounts[*subprops];
       ++subpropCountsEntry.count;
     }
@@ -217,7 +215,7 @@ nsCSSProps::BuildShorthandsContainingTable()
         gShorthandsContainingTable[longhand] = lastTerminator;
       }
     }
-    NS_ABORT_IF_FALSE(poolCursor == lastTerminator, "miscalculation");
+    NS_ASSERTION(poolCursor == lastTerminator, "miscalculation");
   }
 
   // Sort with lowest count at the start and highest at the end, and
@@ -274,9 +272,8 @@ nsCSSProps::BuildShorthandsContainingTable()
         if (*shcont == shorthand)
           ++count;
       }
-      NS_ABORT_IF_FALSE(count == 1,
-                        "subproperty of shorthand should have shorthand"
-                        " in its ShorthandsContaining() table");
+      NS_ASSERTION(count == 1, "subproperty of shorthand should have shorthand"
+                               " in its ShorthandsContaining() table");
     }
   }
 
@@ -294,9 +291,8 @@ nsCSSProps::BuildShorthandsContainingTable()
         if (*subprops == longhand)
           ++count;
       }
-      NS_ABORT_IF_FALSE(count == 1,
-                        "longhand should be in subproperty table of "
-                        "property in its ShorthandsContaining() table");
+      NS_ASSERTION(count == 1, "longhand should be in subproperty table of "
+                               "property in its ShorthandsContaining() table");
     }
   }
 #endif
@@ -319,38 +315,12 @@ nsCSSProps::ReleaseTable(void)
   }
 }
 
-struct CSSPropertyAlias {
-  char name[sizeof("-moz-border-radius-bottomright")];
-  nsCSSProperty id;
-};
-
-static const CSSPropertyAlias gAliases[] = {
-  { "-moz-border-radius", eCSSProperty_border_radius },
-  { "-moz-border-radius-bottomleft", eCSSProperty_border_bottom_left_radius },
-  { "-moz-border-radius-bottomright", eCSSProperty_border_bottom_right_radius },
-  { "-moz-border-radius-topleft", eCSSProperty_border_top_left_radius },
-  { "-moz-border-radius-topright", eCSSProperty_border_top_right_radius },
-  { "-moz-box-shadow", eCSSProperty_box_shadow },
-  // Don't forget to update the sizeof in CSSPropertyAlias above with the
-  // longest string when you add stuff here.
-};
-
 nsCSSProperty
 nsCSSProps::LookupProperty(const nsACString& aProperty)
 {
-  NS_ABORT_IF_FALSE(gPropertyTable, "no lookup table, needs addref");
+  NS_ASSERTION(gPropertyTable, "no lookup table, needs addref");
 
   nsCSSProperty res = nsCSSProperty(gPropertyTable->Lookup(aProperty));
-  if (res == eCSSProperty_UNKNOWN) {
-    for (const CSSPropertyAlias *alias = gAliases,
-                            *alias_end = gAliases + NS_ARRAY_LENGTH(gAliases);
-         alias < alias_end; ++alias) {
-      if (aProperty.LowerCaseEqualsASCII(alias->name)) {
-        res = alias->id;
-        break;
-      }
-    }
-  }
   return res;
 }
 
@@ -360,39 +330,29 @@ nsCSSProps::LookupProperty(const nsAString& aProperty)
   // This is faster than converting and calling
   // LookupProperty(nsACString&).  The table will do its own
   // converting and avoid a PromiseFlatCString() call.
-  NS_ABORT_IF_FALSE(gPropertyTable, "no lookup table, needs addref");
+  NS_ASSERTION(gPropertyTable, "no lookup table, needs addref");
   nsCSSProperty res = nsCSSProperty(gPropertyTable->Lookup(aProperty));
-  if (res == eCSSProperty_UNKNOWN) {
-    for (const CSSPropertyAlias *alias = gAliases,
-                            *alias_end = gAliases + NS_ARRAY_LENGTH(gAliases);
-         alias < alias_end; ++alias) {
-      if (aProperty.LowerCaseEqualsASCII(alias->name)) {
-        res = alias->id;
-        break;
-      }
-    }
-  }
   return res;
 }
 
 nsCSSFontDesc
 nsCSSProps::LookupFontDesc(const nsACString& aFontDesc)
 {
-  NS_ABORT_IF_FALSE(gFontDescTable, "no lookup table, needs addref");
+  NS_ASSERTION(gFontDescTable, "no lookup table, needs addref");
   return nsCSSFontDesc(gFontDescTable->Lookup(aFontDesc));
 }
 
 nsCSSFontDesc
 nsCSSProps::LookupFontDesc(const nsAString& aFontDesc)
 {
-  NS_ABORT_IF_FALSE(gFontDescTable, "no lookup table, needs addref");
+  NS_ASSERTION(gFontDescTable, "no lookup table, needs addref");
   return nsCSSFontDesc(gFontDescTable->Lookup(aFontDesc));
 }
 
 const nsAFlatCString&
 nsCSSProps::GetStringValue(nsCSSProperty aProperty)
 {
-  NS_ABORT_IF_FALSE(gPropertyTable, "no lookup table, needs addref");
+  NS_ASSERTION(gPropertyTable, "no lookup table, needs addref");
   if (gPropertyTable) {
     return gPropertyTable->GetStringValue(PRInt32(aProperty));
   } else {
@@ -404,7 +364,7 @@ nsCSSProps::GetStringValue(nsCSSProperty aProperty)
 const nsAFlatCString&
 nsCSSProps::GetStringValue(nsCSSFontDesc aFontDescID)
 {
-  NS_ABORT_IF_FALSE(gFontDescTable, "no lookup table, needs addref");
+  NS_ASSERTION(gFontDescTable, "no lookup table, needs addref");
   if (gFontDescTable) {
     return gFontDescTable->GetStringValue(PRInt32(aFontDescID));
   } else {
@@ -457,10 +417,6 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword_toolbargripper,         NS_THEME_TOOLBAR_GRIPPER,
   eCSSKeyword_dualbutton,             NS_THEME_TOOLBAR_DUAL_BUTTON,
   eCSSKeyword_toolbarbutton_dropdown, NS_THEME_TOOLBAR_BUTTON_DROPDOWN,
-  eCSSKeyword_button_arrow_up,        NS_THEME_BUTTON_ARROW_UP,
-  eCSSKeyword_button_arrow_down,      NS_THEME_BUTTON_ARROW_DOWN,
-  eCSSKeyword_button_arrow_next,      NS_THEME_BUTTON_ARROW_NEXT,
-  eCSSKeyword_button_arrow_previous,  NS_THEME_BUTTON_ARROW_PREVIOUS,
   eCSSKeyword_separator,              NS_THEME_TOOLBAR_SEPARATOR,
   eCSSKeyword_splitter,               NS_THEME_SPLITTER,
   eCSSKeyword_statusbar,              NS_THEME_STATUSBAR,
@@ -539,19 +495,7 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword__moz_win_communications_toolbox, NS_THEME_WIN_COMMUNICATIONS_TOOLBOX,
   eCSSKeyword__moz_win_browsertabbar_toolbox,  NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX,
   eCSSKeyword__moz_win_glass,         NS_THEME_WIN_GLASS,
-  eCSSKeyword__moz_win_borderless_glass,      NS_THEME_WIN_BORDERLESS_GLASS,
-  eCSSKeyword__moz_mac_unified_toolbar,       NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR,
-  eCSSKeyword__moz_window_titlebar,           NS_THEME_WINDOW_TITLEBAR,
-  eCSSKeyword__moz_window_titlebar_maximized, NS_THEME_WINDOW_TITLEBAR_MAXIMIZED,
-  eCSSKeyword__moz_window_frame_left,         NS_THEME_WINDOW_FRAME_LEFT,
-  eCSSKeyword__moz_window_frame_right,        NS_THEME_WINDOW_FRAME_RIGHT,
-  eCSSKeyword__moz_window_frame_bottom,       NS_THEME_WINDOW_FRAME_BOTTOM,
-  eCSSKeyword__moz_window_button_close,       NS_THEME_WINDOW_BUTTON_CLOSE,
-  eCSSKeyword__moz_window_button_minimize,    NS_THEME_WINDOW_BUTTON_MINIMIZE,
-  eCSSKeyword__moz_window_button_maximize,    NS_THEME_WINDOW_BUTTON_MAXIMIZE,
-  eCSSKeyword__moz_window_button_restore,     NS_THEME_WINDOW_BUTTON_RESTORE,
-  eCSSKeyword__moz_window_button_box,         NS_THEME_WINDOW_BUTTON_BOX,
-  eCSSKeyword__moz_window_button_box_maximized, NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED,
+  eCSSKeyword__moz_mac_unified_toolbar,        NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1520,7 +1464,7 @@ nsCSSProps::ValueToKeyword(PRInt32 aValue, const PRInt32 aTable[])
 
 /* static */ const PRInt32* const
 nsCSSProps::kKeywordTableTable[eCSSProperty_COUNT_no_shorthands] = {
-  #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,          \
+  #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_,   \
                    kwtable_, stylestruct_, stylestructoffset_, animtype_)      \
     kwtable_,
   #include "nsCSSPropList.h"
@@ -1530,8 +1474,7 @@ nsCSSProps::kKeywordTableTable[eCSSProperty_COUNT_no_shorthands] = {
 const nsAFlatCString&
 nsCSSProps::LookupPropertyValue(nsCSSProperty aProp, PRInt32 aValue)
 {
-  NS_ABORT_IF_FALSE(aProp >= 0 && aProp < eCSSProperty_COUNT,
-                    "property out of range");
+  NS_ASSERTION(aProp >= 0 && aProp < eCSSProperty_COUNT, "property out of range");
 
   const PRInt32* kwtable = nsnull;
   if (aProp < eCSSProperty_COUNT_no_shorthands)
@@ -1561,11 +1504,20 @@ PRBool nsCSSProps::GetColorName(PRInt32 aPropValue, nsCString &aStr)
   return rv;
 }
 
+// define array of all CSS property types
+const nsCSSType nsCSSProps::kTypeTable[eCSSProperty_COUNT_no_shorthands] = {
+    #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, \
+                     kwtable_, stylestruct_, stylestructoffset_, animtype_)    \
+        type_,
+    #include "nsCSSPropList.h"
+    #undef CSS_PROP
+};
+
 const nsStyleStructID nsCSSProps::kSIDTable[eCSSProperty_COUNT_no_shorthands] = {
     // Note that this uses the special BackendOnly style struct ID
     // (which does need to be valid for storing in the
     // nsCSSCompressedDataBlock::mStyleBits bitfield).
-    #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,        \
+    #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, \
                      kwtable_, stylestruct_, stylestructoffset_, animtype_)    \
         eStyleStruct_##stylestruct_,
 
@@ -1576,7 +1528,7 @@ const nsStyleStructID nsCSSProps::kSIDTable[eCSSProperty_COUNT_no_shorthands] = 
 
 const nsStyleAnimType
 nsCSSProps::kAnimTypeTable[eCSSProperty_COUNT_no_shorthands] = {
-#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,            \
+#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_,     \
                  kwtable_, stylestruct_, stylestructoffset_, animtype_)        \
   animtype_,
 #include "nsCSSPropList.h"
@@ -1585,7 +1537,7 @@ nsCSSProps::kAnimTypeTable[eCSSProperty_COUNT_no_shorthands] = {
 
 const ptrdiff_t
 nsCSSProps::kStyleStructOffsetTable[eCSSProperty_COUNT_no_shorthands] = {
-#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,            \
+#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_,     \
                  kwtable_, stylestruct_, stylestructoffset_, animtype_)        \
   stylestructoffset_,
 #include "nsCSSPropList.h"
@@ -1593,7 +1545,7 @@ nsCSSProps::kStyleStructOffsetTable[eCSSProperty_COUNT_no_shorthands] = {
 };
 
 const PRUint32 nsCSSProps::kFlagsTable[eCSSProperty_COUNT] = {
-#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,            \
+#define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_,     \
                  kwtable_, stylestruct_, stylestructoffset_, animtype_)        \
   flags_,
 #include "nsCSSPropList.h"
@@ -1603,13 +1555,13 @@ const PRUint32 nsCSSProps::kFlagsTable[eCSSProperty_COUNT] = {
 #undef CSS_PROP_SHORTHAND
 };
 
-static const nsCSSProperty gBorderRadiusSubpropTable[] = {
+static const nsCSSProperty gMozBorderRadiusSubpropTable[] = {
   // Code relies on these being in topleft-topright-bottomright-bottomleft
   // order.
-  eCSSProperty_border_top_left_radius,
-  eCSSProperty_border_top_right_radius,
-  eCSSProperty_border_bottom_right_radius,
-  eCSSProperty_border_bottom_left_radius,
+  eCSSProperty__moz_border_radius_topLeft,
+  eCSSProperty__moz_border_radius_topRight,
+  eCSSProperty__moz_border_radius_bottomRight,
+  eCSSProperty__moz_border_radius_bottomLeft,
   eCSSProperty_UNKNOWN
 };
 

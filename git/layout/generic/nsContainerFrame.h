@@ -128,7 +128,7 @@ public:
   static void SyncFrameViewAfterReflow(nsPresContext* aPresContext,
                                        nsIFrame*       aFrame,
                                        nsIView*        aView,
-                                       const nsRect&   aVisualOverflowArea,
+                                       const nsRect*   aCombinedArea,
                                        PRUint32        aFlags = 0);
 
   // Syncs properties to the top level view and window, like transparency and
@@ -277,7 +277,7 @@ public:
    */
   nsresult ReflowOverflowContainerChildren(nsPresContext*           aPresContext,
                                            const nsHTMLReflowState& aReflowState,
-                                           nsOverflowAreas&         aOverflowRects,
+                                           nsRect&                  aOverflowRect,
                                            PRUint32                 aFlags,
                                            nsReflowStatus&          aStatus);
 
@@ -390,12 +390,10 @@ protected:
                              const nsFrameList& aOverflowFrames);
 
   /**
-   * Destroy the overflow list and any frames that are on it.
-   * Calls DestructFrom() insead of Destruct() on the frames if
-   * aDestructRoot is non-null.
+   * Destroy the overflow list and any frames that are on  it.
    */
   void DestroyOverflowList(nsPresContext* aPresContext,
-                           nsIFrame*      aDestructRoot);
+                           nsIFrame*      aDestructRoot = nsnull);
 
   /**
    * Moves any frames on both the prev-in-flow's overflow list and the

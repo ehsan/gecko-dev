@@ -60,7 +60,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -73,7 +73,7 @@ public:
   nsHTMLHRAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 /**
@@ -86,7 +86,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -102,26 +102,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
-};
-
-/**
- * Used for HTML output element.
- */
-class nsHTMLOutputAccessible : public nsHyperTextAccessibleWrap
-{
-public:
-  nsHTMLOutputAccessible(nsIContent* aContent, nsIWeakReference* aShell);
-
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIAccessible
-  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                               nsIAccessibleRelation** aRelation);
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetAttributesInternal(nsIPersistentProperties* aAttributes);
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 /**
@@ -130,7 +111,8 @@ public:
 class nsHTMLListBulletAccessible : public nsLeafAccessible
 {
 public:
-  nsHTMLListBulletAccessible(nsIContent* aContent, nsIWeakReference* aShell);
+  nsHTMLListBulletAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                             const nsAString& aBulletText);
 
   // nsIAccessNode
   NS_IMETHOD GetUniqueID(void **aUniqueID);
@@ -142,7 +124,7 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
                                 PRUint32 aLength);
@@ -169,7 +151,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -179,7 +161,8 @@ public:
 class nsHTMLLIAccessible : public nsHyperTextAccessibleWrap
 {
 public:
-  nsHTMLLIAccessible(nsIContent* aContent, nsIWeakReference* aShell);
+  nsHTMLLIAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                     const nsAString& aBulletText);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -191,7 +174,7 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:

@@ -157,12 +157,11 @@ protected:
     
     struct tHeader {
         tHeader(tHeader* nextPage, size_t pageCount) :
-            nextPage(nextPage),
-            pageCount(pageCount)
 #ifdef GUARD_BLOCKS
-          , lastAllocation(0)
+            lastAllocation(0),
 #endif
-            { }
+            nextPage(nextPage),
+            pageCount(pageCount) { }
 
         ~tHeader() {
 #ifdef GUARD_BLOCKS
@@ -264,22 +263,12 @@ public:
     template<class Other>
     pool_allocator(const pool_allocator<Other>& p) : allocator(p.getAllocator()) { }
 
-#if defined(__SUNPRO_CC) && !defined( _RWSTD_ALLOCATOR)
-    // libCStd on Solaris has a differenet interface of allocate()
-    void* allocate(size_type n) { 
-        return getAllocator().allocate(n);
-    }
-    void* allocate(size_type n, const void*) { 
-        return getAllocator().allocate(n);
-    }
-#else
     pointer allocate(size_type n) { 
         return reinterpret_cast<pointer>(getAllocator().allocate(n * sizeof(T)));
     }
     pointer allocate(size_type n, const void*) { 
         return reinterpret_cast<pointer>(getAllocator().allocate(n * sizeof(T)));
     }
-#endif
 
     void deallocate(void*, size_type) { }
     void deallocate(pointer, size_type) { }

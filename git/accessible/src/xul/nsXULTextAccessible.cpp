@@ -71,10 +71,11 @@ nsXULTextAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-PRUint32
-nsXULTextAccessible::NativeRole()
+nsresult
+nsXULTextAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_LABEL;
+  *aRole = nsIAccessibleRole::ROLE_LABEL;
+  return NS_OK;
 }
 
 nsresult
@@ -102,9 +103,11 @@ nsXULTextAccessible::GetRelationByType(PRUint32 aRelationType,
     // Caption is the label for groupbox
     nsIContent *parent = mContent->GetParent();
     if (parent && parent->Tag() == nsAccessibilityAtoms::caption) {
-      nsAccessible* parent = GetParent();
-      if (parent && parent->Role() == nsIAccessibleRole::ROLE_GROUPING)
-        return nsRelUtils::AddTarget(aRelationType, aRelation, parent);
+      nsCOMPtr<nsIAccessible> parentAccessible;
+      GetParent(getter_AddRefs(parentAccessible));
+      if (nsAccUtils::Role(parentAccessible) == nsIAccessibleRole::ROLE_GROUPING)
+        return nsRelUtils::
+          AddTarget(aRelationType, aRelation, parentAccessible);
     }
   }
 
@@ -134,10 +137,11 @@ nsXULTooltipAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-PRUint32
-nsXULTooltipAccessible::NativeRole()
+nsresult
+nsXULTooltipAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_TOOLTIP;
+  *aRole = nsIAccessibleRole::ROLE_TOOLTIP;
+  return NS_OK;
 }
 
 
@@ -180,10 +184,11 @@ nsXULLinkAccessible::GetNameInternal(nsAString& aName)
   return nsTextEquivUtils::GetNameFromSubtree(this, aName);
 }
 
-PRUint32
-nsXULLinkAccessible::NativeRole()
+nsresult
+nsXULLinkAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_LINK;
+  *aRole = nsIAccessibleRole::ROLE_LINK;
+  return NS_OK;
 }
 
 
@@ -233,52 +238,26 @@ nsXULLinkAccessible::DoAction(PRUint8 aIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULLinkAccessible: HyperLinkAccessible
+// nsXULLinkAccessible. nsIAccessibleHyperLink
 
-bool
-nsXULLinkAccessible::IsHyperLink()
+NS_IMETHODIMP
+nsXULLinkAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
 {
-  // Expose HyperLinkAccessible unconditionally.
-  return true;
-}
+  NS_ENSURE_ARG_POINTER(aURI);
+  *aURI = nsnull;
 
-PRUint32
-nsXULLinkAccessible::StartOffset()
-{
-  // If XUL link accessible is not contained by hypertext accessible then
-  // start offset matches index in parent because the parent doesn't contains
-  // a text.
-  // XXX: accessible parent of XUL link accessible should be a hypertext
-  // accessible.
-  if (nsAccessible::IsHyperLink())
-    return nsAccessible::StartOffset();
-  return GetIndexInParent();
-}
+  if (aIndex != 0)
+    return NS_ERROR_INVALID_ARG;
 
-PRUint32
-nsXULLinkAccessible::EndOffset()
-{
-  if (nsAccessible::IsHyperLink())
-    return nsAccessible::EndOffset();
-  return GetIndexInParent() + 1;
-}
-
-already_AddRefed<nsIURI>
-nsXULLinkAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
-{
-  if (aAnchorIndex != 0)
-    return nsnull;
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
   nsAutoString href;
   mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::href, href);
 
   nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
   nsIDocument* document = mContent->GetOwnerDoc();
-
-  nsIURI* anchorURI = nsnull;
-  NS_NewURI(&anchorURI, href,
-            document ? document->GetDocumentCharacterSet().get() : nsnull,
-            baseURI);
-
-  return anchorURI;
+  return NS_NewURI(aURI, href,
+                   document ? document->GetDocumentCharacterSet().get() : nsnull,
+                   baseURI);
 }

@@ -40,7 +40,6 @@
 #include "nsICategoryManager.h"
 #include "nsICommandLineHandler.h"
 #include "nsICommandLineValidator.h"
-#include "nsIConsoleService.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIDOMWindow.h"
 #include "nsIFile.h"
@@ -54,7 +53,6 @@
 #include "nsNetUtil.h"
 #include "nsUnicharUtils.h"
 #include "nsTArray.h"
-#include "nsTextFormatter.h"
 #include "nsXPCOMCID.h"
 #include "plstr.h"
 
@@ -573,21 +571,6 @@ nsCommandLine::Init(PRInt32 argc, char** argv, nsIFile* aWorkingDir,
   return NS_OK;
 }
 
-static void
-LogConsoleMessage(const nsString& fmt, ...)
-{
-  va_list args;
-  va_start(args, fmt);
-  PRUnichar* msg = nsTextFormatter::vsmprintf(fmt.get(), args);
-  va_end(args);
-
-  nsCOMPtr<nsIConsoleService> cs = do_GetService("@mozilla.org/consoleservice;1");
-  if (cs)
-    cs->LogStringMessage(msg);
-
-  NS_Free(msg);
-}
-
 nsresult
 nsCommandLine::EnumerateHandlers(EnumerateHandlersCallback aCallback, void *aClosure)
 {
@@ -610,19 +593,16 @@ nsCommandLine::EnumerateHandlers(EnumerateHandlersCallback aCallback, void *aClo
   while (NS_SUCCEEDED(strenum->HasMore(&hasMore)) && hasMore) {
     strenum->GetNext(entry);
 
-    nsCString contractID;
+    nsXPIDLCString contractID;
     rv = catman->GetCategoryEntry("command-line-handler",
 				  entry.get(),
 				  getter_Copies(contractID));
-    if (NS_FAILED(rv))
+    if (!contractID)
       continue;
 
     nsCOMPtr<nsICommandLineHandler> clh(do_GetService(contractID.get()));
-    if (!clh) {
-      LogConsoleMessage(NS_LITERAL_STRING("Contract ID '%s' was registered as a command line handler for entry '%s', but could not be created."),
-                        contractID.get(), entry.get());
+    if (!clh)
       continue;
-    }
 
     rv = (aCallback)(clh, this, aClosure);
     if (rv == NS_ERROR_ABORT)

@@ -223,13 +223,8 @@ nsSecureBrowserUIImpl::Init(nsIDOMWindow *aWindow)
     return NS_ERROR_ALREADY_INITIALIZED;
   }
 
-  nsCOMPtr<nsPIDOMWindow> pwin(do_QueryInterface(aWindow));
-  if (pwin->IsInnerWindow()) {
-    pwin = pwin->GetOuterWindow();
-  }
-
   nsresult rv;
-  mWindow = do_GetWeakReference(pwin, &rv);
+  mWindow = do_GetWeakReference(aWindow, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIStringBundleService> service(do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv));
@@ -572,12 +567,7 @@ nsSecureBrowserUIImpl::EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsIS
     PR_LOG(gSecureDocLog, PR_LOG_DEBUG,
            ("SecureUI:%p: remember securityInfo %p\n", this,
             info));
-    nsCOMPtr<nsIAssociatedContentSecurity> associatedContentSecurityFromRequest =
-        do_QueryInterface(aRequest);
-    if (associatedContentSecurityFromRequest)
-        mCurrentToplevelSecurityInfo = aRequest;
-    else
-        mCurrentToplevelSecurityInfo = info;
+    mCurrentToplevelSecurityInfo = info;
   }
 
   return UpdateSecurityState(aRequest, withNewLocation, 
@@ -1116,7 +1106,6 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
         prevContentSecurity->SetCountSubRequestsLowSecurity(saveSubLow);
         prevContentSecurity->SetCountSubRequestsBrokenSecurity(saveSubBroken);
         prevContentSecurity->SetCountSubRequestsNoSecurity(saveSubNo);
-        prevContentSecurity->Flush();
       }
 
       PRBool retrieveAssociatedState = PR_FALSE;

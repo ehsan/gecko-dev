@@ -59,7 +59,6 @@
 #include "nsReadableUtils.h"
 #include "nsITextServicesFilter.h"
 #include "mozilla/Services.h"
-#include "nsIPrefLocalizedString.h"
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsEditorSpellCheck)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsEditorSpellCheck)
@@ -187,18 +186,18 @@ nsEditorSpellCheck::InitSpellChecker(nsIEditor* aEditor, PRBool aEnableSelection
 
   // Tell the spellchecker what dictionary to use:
 
-  nsString dictName;
+  nsXPIDLString dictName;
 
   nsCOMPtr<nsIPrefBranch> prefBranch =
     do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
 
   if (NS_SUCCEEDED(rv) && prefBranch) {
-    nsCOMPtr<nsIPrefLocalizedString> prefString;
+    nsCOMPtr<nsISupportsString> prefString;
     rv = prefBranch->GetComplexValue("spellchecker.dictionary",
-                                     NS_GET_IID(nsIPrefLocalizedString),
+                                     NS_GET_IID(nsISupportsString),
                                      getter_AddRefs(prefString));
     if (NS_SUCCEEDED(rv) && prefString)
-      prefString->ToString(getter_Copies(dictName));
+      prefString->GetData(dictName);
   }
 
   if (dictName.IsEmpty())

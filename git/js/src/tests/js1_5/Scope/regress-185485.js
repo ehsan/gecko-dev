@@ -67,6 +67,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-185485.js';
 var UBound = 0;
 var BUGNUMBER = 185485;
 var summary = 'Testing |with (x) {function f() {}}| when |x.f| already exists';

@@ -20,7 +20,6 @@
  * Contributor(s):
  *   Anthony Hughes <ahughes@mozilla.com>
  *   Henrik Skupin <hskupin@mozilla.com>
- *   Aaron Train <atrain@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,28 +36,24 @@
  * ***** END LICENSE BLOCK ***** */
 
 // Include necessary modules
-const RELATIVE_ROOT = '../../shared-modules';
-const MODULE_REQUIRES = ['ToolbarAPI', 'UtilsAPI'];
+var RELATIVE_ROOT = '../../shared-modules';
+var MODULE_REQUIRES = ['ToolbarAPI', 'UtilsAPI'];
 
-const LOCAL_TEST_FOLDER = collector.addHttpResource('../test-files/');
-const LOCAL_TEST_PAGES = [
-  LOCAL_TEST_FOLDER + 'layout/mozilla.html',
-  LOCAL_TEST_FOLDER + 'layout/mozilla_mission.html'
-];
+const gDelay = 0;
 
-var setupModule = function() {
-  controller = mozmill.getBrowserController();
-  locationBar = new ToolbarAPI.locationBar(controller);
+var setupModule = function(module) {
+  module.controller = mozmill.getBrowserController();
+  module.locationBar = new ToolbarAPI.locationBar(controller);
 
-  goButton = locationBar.getElement({type: "goButton"});
+  module.goButton = locationBar.getElement({type: "goButton"});
 }
 
 /**
  * Test to make sure the GO button only appears while typing.
  */
 var testGoButtonOnTypeOnly = function() {
-  // Start from a local page
-  controller.open(LOCAL_TEST_PAGES[0]);
+  // Start from a web page
+  controller.open("http://www.mozilla.org");
   controller.waitForPageLoad();
 
   // Verify GO button is hidden
@@ -80,26 +75,26 @@ var testGoButtonOnTypeOnly = function() {
  */
 var testClickLocationBarAndGo = function()
 {
+  var url = "http://www.google.com/webhp?complete=1&hl=en";
 
-  // Start from a local page
-  controller.open(LOCAL_TEST_PAGES[0]);
+  // Start from a web page
+  controller.open("http://www.mozilla.org");
   controller.waitForPageLoad();
 
-  // Focus and type a URL; a second local page into the location bar
+  // Focus and type a URL into the location bar
   locationBar.focus({type: "shortcut"});
-  locationBar.type(LOCAL_TEST_PAGES[1]);
+  locationBar.type(url);
 
   // Click the GO button
   controller.click(goButton);
   controller.waitForPageLoad();
 
-  // Check if an element with an id of 'organization' exists and the Go button is hidden
-  var pageElement = new elementslib.ID(controller.tabs.activeTab, "organization");
-  controller.assertNode(pageElement);
+  // Check if the Google logo exists and the Go button is hidden
+  controller.assertNode(new elementslib.Name(controller.tabs.activeTab, "q"));
   UtilsAPI.assertElementVisible(controller, goButton, false);
 
   // Check if the URL bar matches the expected domain name
-  controller.assertValue(locationBar.urlbar, LOCAL_TEST_PAGES[1]);
+  controller.assertValue(locationBar.urlbar, url);
 }
 
 /**

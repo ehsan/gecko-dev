@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Ms2ger <ms2ger@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -39,33 +38,33 @@
 /* DOM object for element.style */
 
 #include "nsDOMCSSAttrDeclaration.h"
-
-#include "mozilla/css/Declaration.h"
-#include "mozilla/css/Loader.h"
-#include "mozilla/dom/Element.h"
-#include "nsICSSStyleRule.h"
+#include "nsCSSDeclaration.h"
 #include "nsIDocument.h"
 #include "nsIDOMMutationEvent.h"
-#include "nsIPrincipal.h"
+#include "nsICSSStyleRule.h"
+#include "nsCSSLoader.h"
 #include "nsIURI.h"
+#include "nsINameSpaceManager.h"
+#include "nsStyleConsts.h"
+#include "nsContentUtils.h"
+#include "nsIContent.h"
+#include "nsIPrincipal.h"
 #include "nsNodeUtils.h"
 
-namespace css = mozilla::css;
-namespace dom = mozilla::dom;
-
-nsDOMCSSAttributeDeclaration::nsDOMCSSAttributeDeclaration(dom::Element* aElement
+nsDOMCSSAttributeDeclaration::nsDOMCSSAttributeDeclaration(nsIContent *aContent
 #ifdef MOZ_SMIL
                                                            , PRBool aIsSMILOverride
 #endif // MOZ_SMIL
                                                            )
-  : mElement(aElement)
+  : mContent(aContent)
 #ifdef MOZ_SMIL
   , mIsSMILOverride(aIsSMILOverride)
 #endif // MOZ_SMIL
 {
   MOZ_COUNT_CTOR(nsDOMCSSAttributeDeclaration);
 
-  NS_ASSERTION(aElement, "Inline style for a NULL element?");
+  NS_ASSERTION(aContent && aContent->IsElement(),
+               "Inline style for non-element content?");
 }
 
 nsDOMCSSAttributeDeclaration::~nsDOMCSSAttributeDeclaration()
@@ -73,7 +72,7 @@ nsDOMCSSAttributeDeclaration::~nsDOMCSSAttributeDeclaration()
   MOZ_COUNT_DTOR(nsDOMCSSAttributeDeclaration);
 }
 
-NS_IMPL_CYCLE_COLLECTION_1(nsDOMCSSAttributeDeclaration, mElement)
+NS_IMPL_CYCLE_COLLECTION_1(nsDOMCSSAttributeDeclaration, mContent)
 
 NS_INTERFACE_MAP_BEGIN(nsDOMCSSAttributeDeclaration)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
@@ -84,27 +83,26 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMCSSAttributeDeclaration)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMCSSAttributeDeclaration)
 
 nsresult
-nsDOMCSSAttributeDeclaration::SetCSSDeclaration(css::Declaration* aDecl)
+nsDOMCSSAttributeDeclaration::DeclarationChanged()
 {
-  NS_ASSERTION(mElement, "Must have Element to set the declaration!");
+  NS_ASSERTION(mContent, "Must have content node to set the decl!");
   nsICSSStyleRule* oldRule =
 #ifdef MOZ_SMIL
-    mIsSMILOverride ? mElement->GetSMILOverrideStyleRule() :
+    mIsSMILOverride ? mContent->GetSMILOverrideStyleRule() :
 #endif // MOZ_SMIL
-    mElement->GetInlineStyleRule();
-  NS_ASSERTION(oldRule, "Element must have rule");
+    mContent->GetInlineStyleRule();
+  NS_ASSERTION(oldRule, "content must have rule");
 
-  nsCOMPtr<nsICSSStyleRule> newRule =
-    oldRule->DeclarationChanged(aDecl, PR_FALSE);
+  nsCOMPtr<nsICSSStyleRule> newRule = oldRule->DeclarationChanged(PR_FALSE);
   if (!newRule) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-
+    
   return
 #ifdef MOZ_SMIL
-    mIsSMILOverride ? mElement->SetSMILOverrideStyleRule(newRule, PR_TRUE) :
+    mIsSMILOverride ? mContent->SetSMILOverrideStyleRule(newRule, PR_TRUE) :
 #endif // MOZ_SMIL
-    mElement->SetInlineStyleRule(newRule, PR_TRUE);
+    mContent->SetInlineStyleRule(newRule, PR_TRUE);
 }
 
 nsIDocument*
@@ -118,56 +116,61 @@ nsDOMCSSAttributeDeclaration::DocToUpdate()
   if (!mIsSMILOverride)
 #endif
   {
-    nsNodeUtils::AttributeWillChange(mElement, kNameSpaceID_None,
+    nsNodeUtils::AttributeWillChange(mContent, kNameSpaceID_None,
                                      nsGkAtoms::style,
                                      nsIDOMMutationEvent::MODIFICATION);
   }
- 
+  
   // We need GetOwnerDoc() rather than GetCurrentDoc() because it might
-  // be the BeginUpdate call that inserts mElement into the document.
-  return mElement->GetOwnerDoc();
+  // be the BeginUpdate call that inserts mContent into the document.
+  return mContent->GetOwnerDoc();
 }
 
-css::Declaration*
-nsDOMCSSAttributeDeclaration::GetCSSDeclaration(PRBool aAllocate)
+nsresult
+nsDOMCSSAttributeDeclaration::GetCSSDeclaration(nsCSSDeclaration **aDecl,
+                                                PRBool aAllocate)
 {
-  if (!mElement)
-    return nsnull;
+  nsresult result = NS_OK;
 
-  nsICSSStyleRule* cssRule;
+  *aDecl = nsnull;
+  if (mContent) {
+    nsICSSStyleRule* cssRule =
 #ifdef MOZ_SMIL
-  if (mIsSMILOverride)
-    cssRule = mElement->GetSMILOverrideStyleRule();
-  else
+      mIsSMILOverride ? mContent->GetSMILOverrideStyleRule() :
 #endif // MOZ_SMIL
-    cssRule = mElement->GetInlineStyleRule();
-
-  if (cssRule) {
-    return cssRule->GetDeclaration();
-  }
-  if (!aAllocate) {
-    return nsnull;
-  }
-
-  // cannot fail
-  css::Declaration *decl = new css::Declaration();
-  decl->InitializeEmpty();
-  nsCOMPtr<nsICSSStyleRule> newRule = NS_NewCSSStyleRule(nsnull, decl);
-
-  // this *can* fail (inside SetAttrAndNotify, at least).
-  nsresult rv;
+      mContent->GetInlineStyleRule();
+    if (cssRule) {
+      *aDecl = cssRule->GetDeclaration();
+    }
+    else if (aAllocate) {
+      nsCSSDeclaration *decl = new nsCSSDeclaration();
+      if (!decl)
+        return NS_ERROR_OUT_OF_MEMORY;
+      if (!decl->InitializeEmpty()) {
+        decl->RuleAbort();
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+      
+      nsCOMPtr<nsICSSStyleRule> newRule;
+      result = NS_NewCSSStyleRule(getter_AddRefs(newRule), nsnull, decl);
+      if (NS_FAILED(result)) {
+        decl->RuleAbort();
+        return result;
+      }
+        
+      result =
 #ifdef MOZ_SMIL
-  if (mIsSMILOverride)
-    rv = mElement->SetSMILOverrideStyleRule(newRule, PR_FALSE);
-  else
+        mIsSMILOverride ?
+          mContent->SetSMILOverrideStyleRule(newRule, PR_FALSE) :
 #endif // MOZ_SMIL
-    rv = mElement->SetInlineStyleRule(newRule, PR_FALSE);
-
-  if (NS_FAILED(rv)) {
-    return nsnull; // the decl will be destroyed along with the style rule
+          mContent->SetInlineStyleRule(newRule, PR_FALSE);
+      if (NS_SUCCEEDED(result)) {
+        *aDecl = decl;
+      }
+    }
   }
 
-  return decl;
+  return result;
 }
 
 /*
@@ -181,27 +184,27 @@ nsDOMCSSAttributeDeclaration::GetCSSParsingEnvironment(nsIURI** aSheetURI,
                                                        nsIPrincipal** aSheetPrincipal,
                                                        mozilla::css::Loader** aCSSLoader)
 {
-  NS_ASSERTION(mElement, "Something is severely broken -- there should be an Element here!");
+  NS_ASSERTION(mContent, "Something is severely broken -- there should be an nsIContent here!");
   // null out the out params since some of them may not get initialized below
   *aSheetURI = nsnull;
   *aBaseURI = nsnull;
   *aSheetPrincipal = nsnull;
   *aCSSLoader = nsnull;
 
-  nsIDocument* doc = mElement->GetOwnerDoc();
+  nsIDocument* doc = mContent->GetOwnerDoc();
   if (!doc) {
     // document has been destroyed
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  nsCOMPtr<nsIURI> baseURI = mElement->GetBaseURI();
+  nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
   nsCOMPtr<nsIURI> sheetURI = doc->GetDocumentURI();
 
   NS_ADDREF(*aCSSLoader = doc->CSSLoader());
 
   baseURI.swap(*aBaseURI);
   sheetURI.swap(*aSheetURI);
-  NS_ADDREF(*aSheetPrincipal = mElement->NodePrincipal());
+  NS_ADDREF(*aSheetPrincipal = mContent->NodePrincipal());
 
   return NS_OK;
 }
@@ -215,8 +218,3 @@ nsDOMCSSAttributeDeclaration::GetParentRule(nsIDOMCSSRule **aParent)
   return NS_OK;
 }
 
-/* virtual */ nsINode*
-nsDOMCSSAttributeDeclaration::GetParentObject()
-{
-  return mElement;
-}

@@ -43,7 +43,7 @@
 
 namespace mozilla {
 namespace dom {
-class PContentParent;
+class PContentProcessParent;
 }
 }
 
@@ -76,7 +76,7 @@ class nsChromeRegistryChrome : public nsChromeRegistry
 #endif
   
 #ifdef MOZ_IPC
-  void SendRegisteredChrome(mozilla::dom::PContentParent* aChild);
+  void SendRegisteredChrome(mozilla::dom::PContentProcessParent* aChild);
 #endif
 
  private:

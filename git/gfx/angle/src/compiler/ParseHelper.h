@@ -6,10 +6,9 @@
 #ifndef _PARSER_HELPER_INCLUDED_
 #define _PARSER_HELPER_INCLUDED_
 
-#include "compiler/ExtensionBehavior.h"
-#include "compiler/localintermediate.h"
 #include "compiler/ShHandle.h"
 #include "compiler/SymbolTable.h"
+#include "compiler/localintermediate.h"
 
 struct TMatrixFields {
     bool wholeRow;
@@ -17,6 +16,13 @@ struct TMatrixFields {
     int row;
     int col;
 };
+
+typedef enum {
+    EBhRequire,
+    EBhEnable,
+    EBhWarn,
+    EBhDisable
+} TBehavior;
 
 struct TPragma {
     TPragma(bool o, bool d) : optimize(o), debug(d) { }
@@ -30,16 +36,14 @@ struct TPragma {
 // they can be passed to the parser without needing a global.
 //
 struct TParseContext {
-    TParseContext(TSymbolTable& symt, const TExtensionBehavior& ext, TIntermediate& interm, ShShaderType type, ShShaderSpec spec, TInfoSink& is) :
-            intermediate(interm), symbolTable(symt), extensionBehavior(ext), infoSink(is), shaderType(type), shaderSpec(spec), treeRoot(0),
+    TParseContext(TSymbolTable& symt, TIntermediate& interm, EShLanguage L, TInfoSink& is) :
+            intermediate(interm), symbolTable(symt), infoSink(is), language(L), treeRoot(0),
             recoveredFromError(false), numErrors(0), lexAfterType(false), loopNestingLevel(0),
             inTypeParen(false), contextPragma(true, false) {  }
     TIntermediate& intermediate; // to hold and build a parse tree
     TSymbolTable& symbolTable;   // symbol table that goes with the language currently being parsed
-    TExtensionBehavior extensionBehavior;  // mapping between supported extensions and current behavior.
     TInfoSink& infoSink;
-    ShShaderType shaderType;              // vertex or fragment language (future: pack or unpack)
-    ShShaderSpec shaderSpec;              // The language specification compiler conforms to - GLES2 or WebGL.
+    EShLanguage language;        // vertex or fragment language (future: pack or unpack)
     TIntermNode* treeRoot;       // root of parse tree being created
     bool recoveredFromError;     // true if a parse error has occurred, but we continue to parse
     int numErrors;
@@ -48,9 +52,11 @@ struct TParseContext {
     bool inTypeParen;            // true if in parentheses, looking only for an identifier
     const TType* currentFunctionType;  // the return type of the function that's currently being parsed
     bool functionReturnsValue;   // true if a non-void function has a return
+    TMap<TString, TBehavior> extensionBehavior;
+    void initializeExtensionBehavior();
 
-    void error(TSourceLoc, const char *szReason, const char *szToken,
-               const char *szExtraInfoFormat, ...);
+    void C_DECL error(TSourceLoc, const char *szReason, const char *szToken,
+                      const char *szExtraInfoFormat, ...);
     bool reservedErrorCheck(int line, const TString& identifier);
     void recover();
 
@@ -79,7 +85,7 @@ struct TParseContext {
     bool nonInitConstErrorCheck(int line, TString& identifier, TPublicType& type);
     bool nonInitErrorCheck(int line, TString& identifier, TPublicType& type);
     bool paramErrorCheck(int line, TQualifier qualifier, TQualifier paramQualifier, TType* type);
-    bool extensionErrorCheck(int line, const TString&);
+    bool extensionErrorCheck(int line, const char*);
     const TFunction* findFunction(int line, TFunction* pfnCall, bool *builtIn = 0);
     bool executeInitializer(TSourceLoc line, TString& identifier, TPublicType& pType,
                             TIntermTyped* initializer, TIntermNode*& intermNode, TVariable* variable = 0);
@@ -98,7 +104,7 @@ struct TParseContext {
     bool AfterEOF;
 };
 
-int PaParseStrings(const char* const argv[], const int strLen[], int argc, TParseContext&);
+int PaParseStrings(char* argv[], int strLen[], int argc, TParseContext&);
 void PaReservedWord();
 int PaIdentOrType(TString& id, TParseContext&, TSymbol*&);
 int PaParseComment(int &lineno, TParseContext&);

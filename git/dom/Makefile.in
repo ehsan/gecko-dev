@@ -64,7 +64,6 @@ DIRS = \
   interfaces/offline \
   interfaces/geolocation \
   interfaces/threads \
-  interfaces/notification \
   $(NULL)
 
 ifdef MOZ_SVG

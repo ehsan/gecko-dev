@@ -2,13 +2,21 @@
 <html>
   <head>
     <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
-    <script type="application/javascript" src="/tests/SimpleTest/mockObjects.js"></script>
   </head>
 <body>
 <input id="target" type="file" />
 <script type="text/javascript">
 
 netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cm = Components.manager;
+
+Cc["@mozilla.org/moz/jssubscript-loader;1"]
+  .getService(Ci.mozIJSSubScriptLoader)
+  .loadSubScript("chrome://mochikit/content/browser/toolkit/content/tests/browser/common/mockObjects.js", this);
+
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 function MockFilePicker() { };
@@ -22,7 +30,6 @@ MockFilePicker.prototype = {
   filterIndex: 0,
   displayDirectory: null,
   get file() {
-    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     var f = window.parent.dirs[window.parent.index].clone();
     f.append("aFile.txt");
     return f;
@@ -34,12 +41,10 @@ MockFilePicker.prototype = {
     throw Cr.NS_ERROR_NOT_IMPLEMENTED;
   },
   show: function MFP_show() {
-    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     if (this.displayDirectory)
       window.parent.postMessage(this.displayDirectory.path, "*");
     else
       window.parent.postMessage("", "*");
-    mockFilePickerRegisterer.unregister();  
     return Ci.nsIFilePicker.returnOK;
   }
 };
@@ -62,6 +67,7 @@ function test() {
   } catch (e) {
     Cu.reportError(e);
   } finally {
+    mockFilePickerRegisterer.unregister();
   }
 }
 

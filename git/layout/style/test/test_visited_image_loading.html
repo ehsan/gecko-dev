@@ -57,9 +57,8 @@ function check_link_styled()
 
 function paint_listener(event)
 {
-  subwin.removeEventListener("MozAfterPaint", paint_listener, false);
   var s = document.createElement("script");
-  s.src = "visited_image_loading.sjs?waitforresult";
+  s.src = "visited_image_loading.sjs?result";
   document.body.appendChild(s);
 }
 

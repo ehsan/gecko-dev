@@ -76,7 +76,6 @@
 #include "nsIDOM3Node.h"
 #include "nsContentPolicyUtils.h"
 #include "nsTArray.h"
-#include "nsContentErrors.h"
 
 #include "nsIPresShell.h"
 #include "nsIDocumentObserver.h"
@@ -1065,21 +1064,6 @@ static PRBool SchemeIs(nsIURI* aURI, const char* aScheme)
   return NS_SUCCEEDED(baseURI->SchemeIs(aScheme, &isScheme)) && isScheme;
 }
 
-static PRBool
-IsSystemOrChromeURLPrincipal(nsIPrincipal* aPrincipal)
-{
-  if (nsContentUtils::IsSystemPrincipal(aPrincipal)) {
-    return PR_TRUE;
-  }
-  
-  nsCOMPtr<nsIURI> uri;
-  aPrincipal->GetURI(getter_AddRefs(uri));
-  NS_ENSURE_TRUE(uri, PR_FALSE);
-  
-  PRBool isChrome = PR_FALSE;
-  return NS_SUCCEEDED(uri->SchemeIs("chrome", &isChrome)) && isChrome;
-}
-
 NS_IMETHODIMP
 nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
                                       nsIDocument* aBoundDocument,
@@ -1108,21 +1092,21 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
                               gAllowDataURIs,
                               nsIContentPolicy::TYPE_XBL,
                               aBoundDocument);
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_XBL_BLOCKED);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    if (!IsSystemOrChromeURLPrincipal(aOriginPrincipal)) {
-      // Also make sure that we're same-origin with the bound document
-      // except if the stylesheet has the system principal.
-      if (!(gAllowDataURIs && SchemeIs(aBindingURI, "data")) &&
-          !SchemeIs(aBindingURI, "chrome")) {
-        rv = aBoundDocument->NodePrincipal()->CheckMayLoad(aBindingURI,
-                                                           PR_TRUE);
-        NS_ENSURE_SUCCESS(rv, NS_ERROR_XBL_BLOCKED);
-      }
+    // Also make sure that we're same-origin with the bound document
+    // except if the stylesheet has the system principal.
+    PRBool isSystem;
+    rv = nsContentUtils::GetSecurityManager()->
+      IsSystemPrincipal(aOriginPrincipal, &isSystem);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-      // Finally check if this document is allowed to use XBL at all.
-      NS_ENSURE_TRUE(aBoundDocument->AllowXULXBL(),
-                     NS_ERROR_XBL_BLOCKED);
+    if (!isSystem &&
+        !(gAllowDataURIs && SchemeIs(aBindingURI, "data")) &&
+        !SchemeIs(aBindingURI, "chrome")) {
+      rv = aBoundDocument->NodePrincipal()->CheckMayLoad(aBindingURI,
+                                                         PR_TRUE);
+      NS_ENSURE_SUCCESS(rv, rv);
     }
   }
 

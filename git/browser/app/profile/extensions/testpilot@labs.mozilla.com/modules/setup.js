@@ -561,7 +561,7 @@ let TestPilotSetup = {
 	    this._showNotification(
 	      task, false,
 	      this._stringBundle.formatStringFromName(
-		"testpilot.notification.newTestPilotStudy.pre.message",
+		"testpilot.notification.newTestPilotStudy.message",
 		[task.title], 1),
 	      this._stringBundle.GetStringFromName(
 		"testpilot.notification.newTestPilotStudy"),
@@ -570,7 +570,7 @@ let TestPilotSetup = {
 	      task.defaultUrl, false, function() {
                 /* on close callback (Bug 575767) -- when the "new study
                  * starting" popup is dismissed, then the study can start. */
-                task.changeStatus(TaskConstants.STATUS_STARTING, true);
+                task.changeStatus(TaskConstants.STATUS_IN_PROGRESS, true);
                 TestPilotSetup.reloadRemoteExperiments();
               });
             return;
@@ -678,7 +678,7 @@ let TestPilotSetup = {
   _isNewerThanFirefox: function TPS__isNewerThanFirefox(versionString) {
     let result = Cc["@mozilla.org/xpcom/version-comparator;1"]
                    .getService(Ci.nsIVersionComparator)
-                   .compare(this._application.version, versionString);
+                   .compare(self._application.version, versionString);
     if (result < 0) {
       return true; // versionString is newer than Firefox
     } else {
@@ -729,7 +729,7 @@ let TestPilotSetup = {
         return false;
       }
     } catch (e) {
-      logger.warn("Error in requirements check " +  e);
+      logger.warn("Error in requirements check " + expName + ": " +  e);
     }
     return true;
   },

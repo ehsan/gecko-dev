@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-355512.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 355512;
 var summary = 'Do not crash with generator arguments';

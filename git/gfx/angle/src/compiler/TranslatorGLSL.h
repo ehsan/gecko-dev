@@ -11,10 +11,9 @@
 
 class TranslatorGLSL : public TCompiler {
 public:
-    TranslatorGLSL(ShShaderType type, ShShaderSpec spec);
-
-protected:
-    virtual void translate(TIntermNode* root);
+    TranslatorGLSL(EShLanguage l, int dOptions);
+    virtual bool compile(TIntermNode* root);
+    int debugOptions;
 };
 
 #endif  // COMPILER_TRANSLATORGLSL_H_

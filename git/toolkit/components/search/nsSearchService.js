@@ -375,10 +375,9 @@ loadListener.prototype = {
   },
 
   // nsIChannelEventSink
-  asyncOnChannelRedirect: function SRCH_loadCRedirect(aOldChannel, aNewChannel,
-                                                      aFlags, callback) {
+  onChannelRedirect: function SRCH_loadCRedirect(aOldChannel, aNewChannel,
+                                                 aFlags) {
     this._channel = aNewChannel;
-    callback.onRedirectVerifyCallback(Components.results.NS_OK);
   },
 
   // nsIInterfaceRequestor
@@ -3356,16 +3355,14 @@ SearchService.prototype = {
     }
   },
 
-  get originalDefaultEngine() {
-    const defPref = BROWSER_SEARCH_PREF + "defaultenginename";
-    return this.getEngineByName(getLocalizedPref(defPref, ""));
-  },
-
   get defaultEngine() {
-    let defaultEngine = this.originalDefaultEngine;
-    if (!defaultEngine || defaultEngine.hidden)
-      defaultEngine = this._getSortedEngines(false)[0] || null;
-    return defaultEngine;
+    const defPref = BROWSER_SEARCH_PREF + "defaultenginename";
+    // Get the default engine - this pref should always exist, but the engine
+    // might be hidden
+    this._defaultEngine = this.getEngineByName(getLocalizedPref(defPref, ""));
+    if (!this._defaultEngine || this._defaultEngine.hidden)
+      this._defaultEngine = this._getSortedEngines(false)[0] || null;
+    return this._defaultEngine;
   },
 
   get currentEngine() {

@@ -63,7 +63,7 @@ class TestTask:
             parts += debugger_prefix
         parts.append(js_path)
         if js_args:
-            parts += js_args
+            parts.append(js_args)
         self.js_cmd_prefix = parts
 
 class ResultsSink:
@@ -215,7 +215,7 @@ if __name__ == '__main__':
                   help='run only skipped tests')
     op.add_option('--tinderbox', dest='tinderbox', action='store_true',
                   help='Tinderbox-parseable output format')
-    op.add_option('--args', dest='shell_args', default='',
+    op.add_option('--args', dest='shell_args',
                   help='extra args to pass to the JS shell')
     op.add_option('-g', '--debug', dest='debug', action='store_true',
                   help='run test in debugger')
@@ -227,8 +227,6 @@ if __name__ == '__main__':
                   help='check for test files not listed in the manifest')
     op.add_option('--failure-file', dest='failure_file',
                   help='write tests that have not passed to the given file')
-    op.add_option('--run-slow-tests', dest='run_slow_tests', action='store_true',
-                  help='run particularly slow tests as well as average-speed tests')
     (OPTIONS, args) = op.parse_args()
     if len(args) < 1:
         if not OPTIONS.check_manifest:
@@ -256,7 +254,7 @@ if __name__ == '__main__':
     else:
         debugger_prefix = []
     
-    TestTask.set_js_cmd_prefix(JS, OPTIONS.shell_args.split(), debugger_prefix)
+    TestTask.set_js_cmd_prefix(JS, OPTIONS.shell_args, debugger_prefix)
 
     output_file = sys.stdout
     if OPTIONS.output_file and (OPTIONS.show_cmd or OPTIONS.show_output):
@@ -311,9 +309,6 @@ if __name__ == '__main__':
     if OPTIONS.run_only_skipped:
         OPTIONS.run_skipped = True
         test_list = [ _ for _ in test_list if not _.enable ]
-
-    if not OPTIONS.run_slow_tests:
-        test_list = [ _ for _ in test_list if not _.slow ]
 
     if OPTIONS.debug and test_list:
         if len(test_list) > 1:

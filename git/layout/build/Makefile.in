@@ -82,17 +82,10 @@ EXPORTS		= \
 		nsLayoutStatics.h \
 		$(NULL)
 
-ifdef MOZ_IPC
-GKIPCLIB=../ipc/$(LIB_PREFIX)gkipc_s.$(LIB_SUFFIX)
-else
-GKIPCLIB=$(NULL)
-endif
-
 SHARED_LIBRARY_LIBS = \
 	../base/$(LIB_PREFIX)gkbase_s.$(LIB_SUFFIX) \
-	../forms/$(LIB_PREFIX)gkforms_s.$(LIB_SUFFIX) \
 	../generic/$(LIB_PREFIX)gkgeneric_s.$(LIB_SUFFIX) \
-	$(GKIPCLIB) \
+	../forms/$(LIB_PREFIX)gkforms_s.$(LIB_SUFFIX) \
 	../style/$(LIB_PREFIX)gkstyle_s.$(LIB_SUFFIX) \
 	../tables/$(LIB_PREFIX)gktable_s.$(LIB_SUFFIX) \
 	../xul/base/src/$(LIB_PREFIX)gkxulbase_s.$(LIB_SUFFIX) \
@@ -117,7 +110,6 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/dom/src/storage/$(LIB_PREFIX)jsdomstorage_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/offline/$(LIB_PREFIX)jsdomoffline_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/geolocation/$(LIB_PREFIX)jsdomgeolocation_s.$(LIB_SUFFIX) \
-	$(DEPTH)/dom/src/notification/$(LIB_PREFIX)jsdomnotification_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/system/$(LIB_PREFIX)domsystem_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/threads/$(LIB_PREFIX)domthreads_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/indexedDB/$(LIB_PREFIX)dom_indexeddb_s.$(LIB_SUFFIX) \
@@ -144,14 +136,14 @@ LOCAL_INCLUDES	+= \
 else ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
 SHARED_LIBRARY_LIBS += \
 	$(DEPTH)/dom/system/cocoa/$(LIB_PREFIX)domsystemcocoa_s.$(LIB_SUFFIX) \
-	$(NULL)
+ 	$(NULL)
 LOCAL_INCLUDES	+= \
 	-I$(topsrcdir)/dom/system/cocoa \
 	$(NULL)
 else ifneq (,$(filter android,$(MOZ_WIDGET_TOOLKIT)))
 SHARED_LIBRARY_LIBS += \
 	$(DEPTH)/dom/system/android/$(LIB_PREFIX)domsystemandroid_s.$(LIB_SUFFIX) \
-	$(NULL)
+ 	$(NULL)
 LOCAL_INCLUDES	+= \
 	-I$(topsrcdir)/dom/system/android \
 	$(NULL)
@@ -175,12 +167,6 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/media/libtheora/lib/$(LIB_PREFIX)theora.$(LIB_SUFFIX) \
 	$(DEPTH)/content/media/ogg/$(LIB_PREFIX)gkconogg_s.$(LIB_SUFFIX) \
 	$(NULL)
-endif
-
-ifdef MOZ_RAW
-SHARED_LIBRARY_LIBS     += \
-       $(DEPTH)/content/media/raw/$(LIB_PREFIX)gkconraw_s.$(LIB_SUFFIX)\
-       $(NULL)
 endif
 
 ifdef MOZ_WEBM
@@ -219,10 +205,14 @@ SHARED_LIBRARY_LIBS += \
 		$(NULL)
 endif
 
+ifndef MOZ_NO_INSPECTOR_APIS
 LOCAL_INCLUDES  += \
       -I$(srcdir)/../inspector/src \
       $(NULL)
 SHARED_LIBRARY_LIBS += ../inspector/src/$(LIB_PREFIX)inspector_s.$(LIB_SUFFIX)
+else
+DEFINES += -DMOZ_NO_INSPECTOR_APIS
+endif
 
 ifdef MOZ_MATHML
 SHARED_LIBRARY_LIBS += \

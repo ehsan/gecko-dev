@@ -149,10 +149,8 @@ public:
   NS_IMETHODIMP BeginningOfDocument();
   virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
   virtual PRBool HasFocus();
-  virtual PRBool IsActiveInDOMWindow();
   virtual already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget();
   virtual already_AddRefed<nsIContent> FindSelectionRoot(nsINode *aNode);
-  virtual PRBool IsAcceptableInputEvent(nsIDOMEvent* aEvent);
 
   /* ------------ nsStubMutationObserver overrides --------- */
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
@@ -453,9 +451,6 @@ protected:
   PRBool ShouldReplaceRootElement();
   void ResetRootElementAndEventTarget();
   nsresult GetBodyElement(nsIDOMHTMLElement** aBody);
-  // Get the focused node of this editor.
-  // @return    If the editor has focus, this returns the focused node.
-  //            Otherwise, returns null.
   already_AddRefed<nsINode> GetFocusedNode();
 
   // Return TRUE if aElement is a table-related elemet and caret was set
@@ -622,12 +617,10 @@ protected:
                                         nsCOMPtr<nsIDOMNode> *outStartNode,
                                         nsCOMPtr<nsIDOMNode> *outEndNode,
                                         PRInt32 *outStartOffset,
-                                        PRInt32 *outEndOffset,
-                                        PRBool aTrustedInput);
+                                        PRInt32 *outEndOffset);
   nsresult   ParseFragment(const nsAString & aStr, nsTArray<nsString> &aTagStack,
                            nsIDocument* aTargetDoc,
-                           nsCOMPtr<nsIDOMNode> *outNode,
-                           PRBool aTrustedInput);
+                           nsCOMPtr<nsIDOMNode> *outNode);
   nsresult   CreateListOfNodesToPaste(nsIDOMNode  *aFragmentAsNode,
                                       nsCOMArray<nsIDOMNode>& outNodeList,
                                       nsIDOMNode *aStartNode,
@@ -752,23 +745,9 @@ protected:
 
   // Whether the outer window of the DOM event target has focus or not.
   PRBool   OurWindowHasFocus();
-
-  // This function is used to insert a string of HTML input optionally with some
-  // context information into the editable field.  The HTML input either comes
-  // from a transferable object created as part of a drop/paste operation, or from
-  // the InsertHTML method.  We may want the HTML input to be sanitized (for example,
-  // if it's coming from a transferable object), in which case aTrustedInput should
-  // be set to false, otherwise, the caller should set it to true, which means that
-  // the HTML will be inserted in the DOM verbatim.
-  nsresult DoInsertHTMLWithContext(const nsAString& aInputString,
-                                   const nsAString& aContextStr,
-                                   const nsAString& aInfoStr,
-                                   const nsAString& aFlavor,
-                                   nsIDOMDocument* aSourceDoc,
-                                   nsIDOMNode* aDestNode,
-                                   PRInt32 aDestOffset,
-                                   PRBool aDeleteSelection,
-                                   PRBool aTrustedInput);
+  // Whether the content has independent selection or not.  E.g., input field,
+  // password field and textarea element.  At that time, this returns TRUE.
+  PRBool IsIndependentSelectionContent(nsIContent* aContent);
 
 // Data members
 protected:

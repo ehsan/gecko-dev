@@ -48,9 +48,6 @@
 #include "nsFrame.h"
 #include "nsRegion.h"
 #include "nsDisplayList.h"
-#include "nsIReflowCallback.h"
-#include "Layers.h"
-#include "ImageLayers.h"
 
 #ifdef ACCESSIBILITY
 class nsIAccessible;
@@ -65,15 +62,8 @@ class nsIDOMElement;
 
 #define nsObjectFrameSuper nsFrame
 
-class nsObjectFrame : public nsObjectFrameSuper,
-                      public nsIObjectFrame,
-                      public nsIReflowCallback {
+class nsObjectFrame : public nsObjectFrameSuper, public nsIObjectFrame {
 public:
-  typedef mozilla::LayerState LayerState;
-  typedef mozilla::layers::Layer Layer;
-  typedef mozilla::layers::LayerManager LayerManager;
-  typedef mozilla::layers::ImageContainer ImageContainer;
-
   NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewObjectFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
@@ -172,32 +162,6 @@ public:
   static nsIObjectFrame* GetNextObjectFrame(nsPresContext* aPresContext,
                                             nsIFrame* aRoot);
 
-  // nsIReflowCallback
-  virtual PRBool ReflowFinished();
-  virtual void ReflowCallbackCanceled();
-
-  already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                     LayerManager* aManager,
-                                     nsDisplayItem* aItem);
-
-  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
-                                   LayerManager* aManager);
-
-  ImageContainer* GetImageContainer();
-
-  /**
-   * If aContent has a nsObjectFrame, then prepare it for a DocShell swap.
-   * @see nsSubDocumentFrame::BeginSwapDocShells.
-   * There will be a call to EndSwapDocShells after we were moved to the
-   * new view tree.
-   */
-  static void BeginSwapDocShells(nsIContent* aContent, void*);
-  /**
-   * If aContent has a nsObjectFrame, then set it up after a DocShell swap.
-   * @see nsSubDocumentFrame::EndSwapDocShells.
-   */
-  static void EndSwapDocShells(nsIContent* aContent, void*);
-
 protected:
   nsObjectFrame(nsStyleContext* aContext);
   virtual ~nsObjectFrame();
@@ -288,23 +252,20 @@ private:
   nsIView*                        mInnerView;
   nsCOMPtr<nsIWidget>             mWidget;
   nsIntRect                       mWindowlessRect;
+#ifdef XP_WIN
+  PRUint32                        mDoublePassEvent;
+#endif
 
   // For assertions that make it easier to determine if a crash is due
   // to the underlying problem described in bug 136927, and to prevent
   // reentry into instantiation.
   PRBool mPreventInstantiation;
-
-  PRPackedBool mReflowCallbackPosted;
-
-  // A reference to the ImageContainer which contains the current frame
-  // of plugin to display.
-  nsRefPtr<ImageContainer> mImageContainer;
 };
 
 class nsDisplayPlugin : public nsDisplayItem {
 public:
-  nsDisplayPlugin(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
-    : nsDisplayItem(aBuilder, aFrame)
+  nsDisplayPlugin(nsIFrame* aFrame)
+    : nsDisplayItem(aFrame)
   {
     MOZ_COUNT_CTOR(nsDisplayPlugin);
   }
@@ -319,7 +280,8 @@ public:
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion);
+                                   nsRegion* aVisibleRegion,
+                                   nsRegion* aVisibleRegionBeforeMove);
 
   NS_DISPLAY_DECL_NAME("Plugin", TYPE_PLUGIN)
 
@@ -332,18 +294,6 @@ public:
   // simply does nothing.
   void GetWidgetConfiguration(nsDisplayListBuilder* aBuilder,
                               nsTArray<nsIWidget::Configuration>* aConfigurations);
-
-  virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager)
-  {
-    return static_cast<nsObjectFrame*>(mFrame)->BuildLayer(aBuilder, aManager, this);
-  }
-
-  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
-                                   LayerManager* aManager)
-  {
-    return static_cast<nsObjectFrame*>(mFrame)->GetLayerState(aBuilder, aManager);
-  }
 
 private:
   nsRegion mVisibleRegion;

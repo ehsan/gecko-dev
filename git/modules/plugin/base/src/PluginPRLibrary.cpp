@@ -137,19 +137,17 @@ nsresult
 PluginPRLibrary::NP_GetValue(void *future, NPPVariable aVariable,
 			     void *aValue, NPError* error)
 {
-#if defined(XP_UNIX) && !defined(XP_MACOSX)
   if (mNP_GetValue) {
     *error = mNP_GetValue(future, aVariable, aValue);
   } else {
-    NP_GetValueFunc pfNP_GetValue = (NP_GetValueFunc)PR_FindFunctionSymbol(mLibrary, "NP_GetValue");
+    NP_GetValueFunc pfNP_GetValue = (NP_GetValueFunc)
+      PR_FindFunctionSymbol(mLibrary, "NP_GetValue");
     if (!pfNP_GetValue)
       return NS_ERROR_FAILURE;
     *error = pfNP_GetValue(future, aVariable, aValue);
   }
+
   return NS_OK;
-#else
-  return NS_ERROR_NOT_IMPLEMENTED;
-#endif
 }
 
 #if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_OS2)
@@ -183,40 +181,6 @@ PluginPRLibrary::NPP_New(NPMIMEType pluginType, NPP instance,
   if (!mNPP_New)
     return NS_ERROR_FAILURE;
   *error = mNPP_New(pluginType, instance, mode, argc, argn, argv, saved);
-  return NS_OK;
-}
-
-nsresult
-PluginPRLibrary::AsyncSetWindow(NPP instance, NPWindow* window)
-{
-  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
-  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-PluginPRLibrary::NotifyPainted(NPP instance)
-{
-  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
-  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-PluginPRLibrary::GetSurface(NPP instance, gfxASurface** aSurface)
-{
-  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
-  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  *aSurface = nsnull;
-  return NS_OK;
-}
-
-nsresult
-PluginPRLibrary::UseAsyncPainting(NPP instance, PRBool* aIsAsync)
-{
-  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
-  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  *aIsAsync = PR_FALSE;
   return NS_OK;
 }
 

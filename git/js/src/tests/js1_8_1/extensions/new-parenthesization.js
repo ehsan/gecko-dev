@@ -5,6 +5,7 @@
  * Contributor: Jesse Ruderman
  */
 
+var gTestfile = 'new-parenthesization.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 521456;
 var summary =

@@ -746,14 +746,7 @@ EGLBoolean __stdcall eglSwapInterval(EGLDisplay dpy, EGLint interval)
             return EGL_FALSE;
         }
 
-        egl::Surface *draw_surface = static_cast<egl::Surface*>(egl::getCurrentDrawSurface());
-
-        if (draw_surface == NULL)
-        {
-            return error(EGL_BAD_SURFACE, EGL_FALSE);
-        }
-        
-        draw_surface->setSwapInterval(interval);
+        display->setSwapInterval(interval);
 
         return success(EGL_TRUE);
     }
@@ -779,7 +772,7 @@ EGLContext __stdcall eglCreateContext(EGLDisplay dpy, EGLConfig config, EGLConte
             return EGL_NO_CONTEXT;
         }
 
-        EGLContext context = display->createContext(config, static_cast<gl::Context*>(share_context));
+        EGLContext context = display->createContext(config);
 
         return success(context);
     }
@@ -831,8 +824,9 @@ EGLBoolean __stdcall eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EGLSurface 
         egl::Display *display = static_cast<egl::Display*>(dpy);
         gl::Context *context = static_cast<gl::Context*>(ctx);
         IDirect3DDevice9 *device = display->getDevice();
+        DWORD passes;
 
-        if (!device || FAILED(device->TestCooperativeLevel()))
+        if (!device || device->ValidateDevice(&passes) == D3DERR_DEVICELOST)
         {
             return error(EGL_CONTEXT_LOST, EGL_FALSE);
         }

@@ -162,13 +162,6 @@ protected:
     virtual bool RecvTest18(const nsTArray<nsIntRegion>& ra);
 
     NS_OVERRIDE
-    virtual bool RecvDummy(const ShmemUnion& su, ShmemUnion* rsu)
-    {
-        *rsu = su;
-        return true;
-    }
-
-    NS_OVERRIDE
     virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)

@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "TestShellParent.h"
-#include "mozilla/dom/ContentParent.h"
+#include "mozilla/dom/ContentProcessParent.h"
 #include "mozilla/jsipc/ContextWrapperParent.h"
 
 #include "nsAutoPtr.h"
@@ -43,7 +43,7 @@
 using mozilla::ipc::TestShellParent;
 using mozilla::ipc::TestShellCommandParent;
 using mozilla::ipc::PTestShellCommandParent;
-using mozilla::dom::ContentParent;
+using mozilla::dom::ContentProcessParent;
 using mozilla::jsipc::PContextWrapperParent;
 using mozilla::jsipc::ContextWrapperParent;
 
@@ -74,7 +74,8 @@ TestShellParent::CommandDone(TestShellCommandParent* command,
 PContextWrapperParent*
 TestShellParent::AllocPContextWrapper()
 {
-    ContentParent* cpp = static_cast<ContentParent*>(Manager());
+    ContentProcessParent* cpp =
+        static_cast<ContentProcessParent*>(Manager());
     return new ContextWrapperParent(cpp);
 }
 
@@ -115,18 +116,12 @@ TestShellCommandParent::SetCallback(JSContext* aCx,
 JSBool
 TestShellCommandParent::RunCallback(const nsString& aResponse)
 {
-  NS_ENSURE_TRUE(mCallback != JSVAL_NULL && mCx, JS_FALSE);
+  NS_ENSURE_TRUE(mCallback && mCx, JS_FALSE);
 
   JSAutoRequest ar(mCx);
 
   JSObject* global = JS_GetGlobalObject(mCx);
   NS_ENSURE_TRUE(global, JS_FALSE);
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(mCx, global)) {
-    NS_ERROR("Failed to enter compartment!");
-    return false;
-  }
 
   JSString* str = JS_NewUCStringCopyN(mCx, aResponse.get(), aResponse.Length());
   NS_ENSURE_TRUE(str, JS_FALSE);

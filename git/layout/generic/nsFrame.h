@@ -187,7 +187,7 @@ public:
   virtual nsStyleContext* GetAdditionalStyleContext(PRInt32 aIndex) const;
   virtual void SetAdditionalStyleContext(PRInt32 aIndex,
                                          nsStyleContext* aStyleContext);
-  virtual void SetParent(nsIFrame* aParent);
+  NS_IMETHOD  SetParent(const nsIFrame* aParent);
   virtual nscoord GetBaseline() const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
@@ -402,9 +402,9 @@ public:
                                         nsIFrame**      aProviderFrame,
                                         PRBool*         aIsChild);
 
-  // Incorporate the child overflow areas into aOverflowAreas.
-  // If the child does not have a overflow, use the child area.
-  void ConsiderChildOverflow(nsOverflowAreas& aOverflowAreas,
+  // incorporate the child overflow area into the parent overflow area
+  // if the child does not have a overflow use the child area
+  void ConsiderChildOverflow(nsRect&   aOverflowArea,
                              nsIFrame* aChildFrame);
 
   virtual const void* GetStyleDataExternal(nsStyleStructID aSID) const;
@@ -549,7 +549,7 @@ protected:
    * which kind of content this is for
    */
   nsresult DisplaySelectionOverlay(nsDisplayListBuilder* aBuilder,
-      nsDisplayList* aList, PRUint16 aContentType = nsISelectionDisplay::DISPLAY_FRAMES);
+      const nsDisplayListSet& aLists, PRUint16 aContentType = nsISelectionDisplay::DISPLAY_FRAMES);
 
   PRInt16 DisplaySelection(nsPresContext* aPresContext, PRBool isOkToTurnOn = PR_FALSE);
   

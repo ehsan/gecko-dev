@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    AFM parser (body).                                                   */
 /*                                                                         */
-/*  Copyright 2006, 2007, 2008, 2009, 2010 by                              */
+/*  Copyright 2006, 2007, 2008, 2009 by                                    */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -527,7 +527,7 @@
                    FT_Byte*    base,
                    FT_Byte*    limit )
   {
-    AFM_Stream  stream = NULL;
+    AFM_Stream  stream;
     FT_Error    error;
 
 

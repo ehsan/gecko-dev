@@ -40,39 +40,31 @@
 #ifndef mozilla_dom_indexeddb_idbfactory_h__
 #define mozilla_dom_indexeddb_idbfactory_h__
 
-#include "mozilla/dom/indexedDB/IndexedDatabase.h"
+#include "mozilla/dom/indexedDB/IDBRequest.h"
 
 #include "mozIStorageConnection.h"
 #include "nsIIDBFactory.h"
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-class IDBDatabase;
-
-class IDBFactory : public nsIIDBFactory
+class IDBFactory : public IDBRequest::Generator,
+                   public nsIIDBFactory
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIIDBFACTORY
 
-  static already_AddRefed<nsIIDBFactory> Create();
+  static
+  already_AddRefed<nsIIDBFactory>
+  Create();
 
-  static already_AddRefed<mozIStorageConnection>
+  static
+  already_AddRefed<mozIStorageConnection>
   GetConnection(const nsAString& aDatabaseFilePath);
 
-  static bool
-  SetCurrentDatabase(IDBDatabase* aDatabase);
-
-  static PRUint32
-  GetIndexedDBQuota();
-
-  static nsresult
-  GetDirectoryForOrigin(const nsACString& aASCIIOrigin,
-                        nsIFile** aDirectory);
-
-private:
+protected:
+  // Only called by Create().
   IDBFactory() { }
-  ~IDBFactory() { }
 };
 
 END_INDEXEDDB_NAMESPACE

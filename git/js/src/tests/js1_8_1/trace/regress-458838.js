@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-458838.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 458838;
 var summary = 'TM: do not fall off trace when nested function accesses var of outer function';

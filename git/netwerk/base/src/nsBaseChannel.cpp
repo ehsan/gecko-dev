@@ -47,7 +47,6 @@
 #include "nsIStreamConverterService.h"
 #include "nsIContentSniffer.h"
 #include "nsChannelClassifier.h"
-#include "nsAsyncRedirectVerifyHelper.h"
 
 static PLDHashOperator
 CopyProperties(const nsAString &key, nsIVariant *data, void *closure)
@@ -116,59 +115,48 @@ nsBaseChannel::Redirect(nsIChannel *newChannel, PRUint32 redirectFlags,
   // we support nsIHttpEventSink if we are an HTTP channel and if this is not
   // an internal redirect.
 
-  nsRefPtr<nsAsyncRedirectVerifyHelper> redirectCallbackHelper =
-      new nsAsyncRedirectVerifyHelper();
-
-  PRBool checkRedirectSynchronously = !openNewChannel;
-
-  mRedirectChannel = newChannel;
-  mRedirectFlags = redirectFlags;
-  mOpenRedirectChannel = openNewChannel;
-  nsresult rv = redirectCallbackHelper->Init(this, newChannel, redirectFlags,
-                                             checkRedirectSynchronously);
+  // Global observers. These come first so that other observers don't see
+  // redirects that get aborted for security reasons anyway.
+  NS_ASSERTION(gIOService, "Must have an IO service");
+  nsresult rv = gIOService->OnChannelRedirect(this, newChannel, redirectFlags);
   if (NS_FAILED(rv))
     return rv;
 
-  if (checkRedirectSynchronously && NS_FAILED(mStatus))
-    return mStatus;
-
-  return NS_OK;
-}
-
-nsresult
-nsBaseChannel::ContinueRedirect()
-{
   // Backwards compat for non-internal redirects from a HTTP channel.
-  // XXX Is our http channel implementation going to derive from nsBaseChannel?
-  //     If not, this code can be removed.
-  if (!(mRedirectFlags & nsIChannelEventSink::REDIRECT_INTERNAL)) {
+  if (!(redirectFlags & nsIChannelEventSink::REDIRECT_INTERNAL)) {
     nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface();
     if (httpChannel) {
       nsCOMPtr<nsIHttpEventSink> httpEventSink;
       GetCallback(httpEventSink);
       if (httpEventSink) {
-        nsresult rv = httpEventSink->OnRedirect(httpChannel, mRedirectChannel);
-        if (NS_FAILED(rv)) {
+        rv = httpEventSink->OnRedirect(httpChannel, newChannel);
+        if (NS_FAILED(rv))
           return rv;
-        }
       }
     }
   }
 
-  // Make sure to do this _after_ making all the OnChannelRedirect calls
-  mRedirectChannel->SetOriginalURI(OriginalURI());
+  nsCOMPtr<nsIChannelEventSink> channelEventSink;
+  // Give our consumer a chance to observe/block this redirect.
+  GetCallback(channelEventSink);
+  if (channelEventSink) {
+    rv = channelEventSink->OnChannelRedirect(this, newChannel, redirectFlags);
+    if (NS_FAILED(rv))
+      return rv;
+  }
+
+  // Make sure to do this _after_ making all the  OnChannelRedirect calls
+  newChannel->SetOriginalURI(OriginalURI());
 
   // If we fail to open the new channel, then we want to leave this channel
   // unaffected, so we defer tearing down our channel until we have succeeded
   // with the redirect.
 
-  if (mOpenRedirectChannel) {
-    nsresult rv = mRedirectChannel->AsyncOpen(mListener, mListenerContext);
+  if (openNewChannel) {
+    rv = newChannel->AsyncOpen(mListener, mListenerContext);
     if (NS_FAILED(rv))
       return rv;
   }
-
-  mRedirectChannel = nsnull;
 
   // close down this channel
   Cancel(NS_BINDING_REDIRECTED);
@@ -268,30 +256,20 @@ void
 nsBaseChannel::HandleAsyncRedirect(nsIChannel* newChannel)
 {
   NS_ASSERTION(!mPump, "Shouldn't have gotten here");
-
-  nsresult rv = mStatus;
+  PRBool doNotify = PR_TRUE;
   if (NS_SUCCEEDED(mStatus)) {
-    rv = Redirect(newChannel,
-                  nsIChannelEventSink::REDIRECT_TEMPORARY,
-                  PR_TRUE);
-    if (NS_SUCCEEDED(rv)) {
-      // OnRedirectVerifyCallback will be called asynchronously
-      return;
-    }
+      nsresult rv = Redirect(newChannel,
+                             nsIChannelEventSink::REDIRECT_TEMPORARY,
+                             PR_TRUE);
+      if (NS_FAILED(rv))
+          Cancel(rv);
+      else
+          doNotify = PR_FALSE;
   }
 
-  ContinueHandleAsyncRedirect(rv);
-}
-
-void
-nsBaseChannel::ContinueHandleAsyncRedirect(nsresult result)
-{
   mWaitingOnAsyncRedirect = PR_FALSE;
 
-  if (NS_FAILED(result))
-    Cancel(result);
-
-  if (NS_FAILED(result) && mListener) {
+  if (doNotify) {
     // Notify our consumer ourselves
     mListener->OnStartRequest(this, mListenerContext);
     mListener->OnStopRequest(this, mListenerContext, mStatus);
@@ -328,15 +306,14 @@ nsBaseChannel::ClassifyURI()
 //-----------------------------------------------------------------------------
 // nsBaseChannel::nsISupports
 
-NS_IMPL_ISUPPORTS_INHERITED7(nsBaseChannel,
+NS_IMPL_ISUPPORTS_INHERITED6(nsBaseChannel,
                              nsHashPropertyBag,
                              nsIRequest,
                              nsIChannel,
                              nsIInterfaceRequestor,
                              nsITransportEventSink,
                              nsIRequestObserver,
-                             nsIStreamListener,
-                             nsIAsyncVerifyRedirectCallback)
+                             nsIStreamListener)
 
 //-----------------------------------------------------------------------------
 // nsBaseChannel::nsIRequest
@@ -760,22 +737,4 @@ nsBaseChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctxt,
   }
 
   return rv;
-}
-
-NS_IMETHODIMP
-nsBaseChannel::OnRedirectVerifyCallback(nsresult result)
-{
-  if (NS_SUCCEEDED(result))
-    result = ContinueRedirect();
-
-  if (NS_FAILED(result) && !mWaitingOnAsyncRedirect) {
-    if (NS_SUCCEEDED(mStatus))
-      mStatus = result;
-    return NS_OK;
-  }
-
-  if (mWaitingOnAsyncRedirect)
-    ContinueHandleAsyncRedirect(result);
-
-  return NS_OK;
 }

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -68,9 +68,6 @@ nsAccDocManager::GetDocAccessible(nsIDocument *aDocument)
 {
   if (!aDocument)
     return nsnull;
-
-  // Ensure CacheChildren is called before we query cache.
-  nsAccessNode::GetApplicationAccessible()->EnsureChildren();
 
   nsDocAccessible *docAcc =
     mDocAccessibleCache.GetWeak(static_cast<void*>(aDocument));
@@ -235,16 +232,16 @@ nsAccDocManager::OnStateChange(nsIWebProgress *aWebProgress,
       loadType == LOAD_RELOAD_BYPASS_PROXY_AND_CACHE) {
 
     // Fire reload event.
-    nsRefPtr<AccEvent> reloadEvent =
-      new AccEvent(nsIAccessibleEvent::EVENT_DOCUMENT_RELOAD, docAcc);
+    nsRefPtr<nsAccEvent> reloadEvent =
+      new nsAccEvent(nsIAccessibleEvent::EVENT_DOCUMENT_RELOAD, docAcc);
     nsEventShell::FireEvent(reloadEvent);
   }
 
   // Fire state busy change event. Use delayed event since we don't care
   // actually if event isn't delivered when the document goes away like a shot.
-  nsRefPtr<AccEvent> stateEvent =
-    new AccStateChangeEvent(document, nsIAccessibleStates::STATE_BUSY,
-                            PR_FALSE, PR_TRUE);
+  nsRefPtr<nsAccEvent> stateEvent =
+    new nsAccStateChangeEvent(document, nsIAccessibleStates::STATE_BUSY,
+                              PR_FALSE, PR_TRUE);
   docAcc->FireDelayedAccessibleEvent(stateEvent);
 
   return NS_OK;
@@ -378,14 +375,14 @@ nsAccDocManager::HandleDOMDocumentLoad(nsIDocument *aDocument,
 
   // Fire complete/load stopped if the load event type is given.
   if (aLoadEventType) {
-    nsRefPtr<AccEvent> loadEvent = new AccEvent(aLoadEventType, aDocument);
+    nsRefPtr<nsAccEvent> loadEvent = new nsAccEvent(aLoadEventType, aDocument);
     docAcc->FireDelayedAccessibleEvent(loadEvent);
   }
 
   // Fire busy state change event.
-  nsRefPtr<AccEvent> stateEvent =
-    new AccStateChangeEvent(aDocument, nsIAccessibleStates::STATE_BUSY,
-                            PR_FALSE, PR_FALSE);
+  nsRefPtr<nsAccEvent> stateEvent =
+    new nsAccStateChangeEvent(aDocument, nsIAccessibleStates::STATE_BUSY,
+                              PR_FALSE, PR_FALSE);
   docAcc->FireDelayedAccessibleEvent(stateEvent);
 }
 
@@ -437,10 +434,9 @@ nsAccDocManager::AddListeners(nsIDocument *aDocument,
 nsDocAccessible*
 nsAccDocManager::CreateDocOrRootAccessible(nsIDocument *aDocument)
 {
-  // Ignore temporary, hiding, resource documents and documents without
-  // docshell.
+  // Ignore temporary, hiding and svg resource documents.
   if (aDocument->IsInitialDocument() || !aDocument->IsVisible() ||
-      aDocument->IsResourceDoc() || !aDocument->IsActive())
+      aDocument->GetDisplayDocument())
     return nsnull;
 
   // Ignore documents without presshell.
@@ -550,6 +546,8 @@ nsAccDocManager::ClearDocCacheEntry(const void* aKey,
                                     nsRefPtr<nsDocAccessible>& aDocAccessible,
                                     void* aUserArg)
 {
+  nsAccDocManager *accDocMgr = static_cast<nsAccDocManager*>(aUserArg);
+
   NS_ASSERTION(aDocAccessible,
                "Calling ClearDocCacheEntry with a NULL pointer!");
 

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'concat.js';
 
 /**
    Filename:     concat.js

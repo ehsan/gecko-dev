@@ -49,7 +49,7 @@ namespace mozilla {
 namespace CheckedInt_internal {
 
 /* we don't want to use std::numeric_limits here because PRInt... types may not support it,
- * depending on the platform, e.g. on certain platforms they use nonstandard built-in types
+ * depending on the platform, e.g. on certain platform they use nonstandard built-in types
  */
 
 /*** Step 1: manually record information for all the types that we want to support
@@ -61,28 +61,25 @@ template<typename T> struct integer_type_manually_recorded_info
 {
     enum { is_supported = 0 };
     typedef unsupported_type twice_bigger_type;
-    typedef unsupported_type unsigned_type;
 };
 
 
-#define CHECKEDINT_REGISTER_SUPPORTED_TYPE(T,_twice_bigger_type,_unsigned_type)  \
+#define CHECKEDINT_REGISTER_SUPPORTED_TYPE(T,_twice_bigger_type)  \
 template<> struct integer_type_manually_recorded_info<T>       \
 {                                                              \
     enum { is_supported = 1 };                                 \
     typedef _twice_bigger_type twice_bigger_type;              \
-    typedef _unsigned_type unsigned_type;                      \
-    static void TYPE_NOT_SUPPORTED_BY_CheckedInt() {}          \
+    static void TYPE_NOT_SUPPORTED_BY_CheckedInt() {}             \
 };
 
-//                                 Type      Twice Bigger Type     Unsigned Type
-CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRInt8,   PRInt16,              PRUint8)
-CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRUint8,  PRUint16,             PRUint8)
-CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRInt16,  PRInt32,              PRUint16)
-CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRUint16, PRUint32,             PRUint16)
-CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRInt32,  PRInt64,              PRUint32)
-CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRUint32, PRUint64,             PRUint32)
-CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRInt64,  unsupported_type,     PRUint64)
-CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRUint64, unsupported_type,     PRUint64)
+CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRInt8,   PRInt16)
+CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRUint8,  PRUint16)
+CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRInt16,  PRInt32)
+CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRUint16, PRUint32)
+CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRInt32,  PRInt64)
+CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRUint32, PRUint64)
+CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRInt64,  unsupported_type)
+CHECKEDINT_REGISTER_SUPPORTED_TYPE(PRUint64, unsupported_type)
 
 
 /*** Step 2: record some info about a given integer type,
@@ -100,7 +97,6 @@ template<> struct is_unsupported_type<unsupported_type> { enum { answer = 1 }; }
 template<typename T> struct integer_traits
 {
     typedef typename integer_type_manually_recorded_info<T>::twice_bigger_type twice_bigger_type;
-    typedef typename integer_type_manually_recorded_info<T>::unsigned_type unsigned_type;
 
     enum {
         is_supported = integer_type_manually_recorded_info<T>::is_supported,
@@ -116,11 +112,7 @@ template<typename T> struct integer_traits
     static T min_value()
     {
         // bitwise ops may return a larger type, that's why we cast explicitly to T
-        // in C++, left bit shifts on signed values is undefined by the standard unless the shifted value is representable.
-        // notice that signed-to-unsigned conversions are always well-defined in the standard,
-        // as the value congruent to 2^n as expected. By contrast, unsigned-to-signed is only well-defined if the value is
-        // representable.
-        return is_signed ? T(unsigned_type(1) << position_of_sign_bit) : T(0);
+        return is_signed ? T(T(1) << position_of_sign_bit) : T(0);
     }
 
     static T max_value()
@@ -137,12 +129,7 @@ template<typename T> struct integer_traits
 
 template<typename T> inline T has_sign_bit(T x)
 {
-    // in C++, right bit shifts on negative values is undefined by the standard.
-    // notice that signed-to-unsigned conversions are always well-defined in the standard,
-    // as the value congruent modulo 2^n as expected. By contrast, unsigned-to-signed is only well-defined if the value is
-    // representable. Here the unsigned-to-signed conversion is OK because the value (the result of the shift) is 0 or 1.
-    typedef typename integer_traits<T>::unsigned_type unsigned_T;
-    return T(unsigned_T(x) >> integer_traits<T>::position_of_sign_bit);
+    return x >> integer_traits<T>::position_of_sign_bit;
 }
 
 template<typename T> inline T binary_complement(T x)
@@ -160,7 +147,7 @@ struct is_in_range_impl<T, U, true, true>
 {
     static T run(U x)
     {
-        return (x <= integer_traits<T>::max_value()) &&
+        return (x <= integer_traits<T>::max_value()) &
                (x >= integer_traits<T>::min_value());
     }
 };
@@ -194,7 +181,7 @@ struct is_in_range_impl<T, U, false, true>
         if (sizeof(T) >= sizeof(U))
             return x >= 0;
         else
-            return (x >= 0) && (x <= U(integer_traits<T>::max_value()));
+            return x >= 0 && x <= U(integer_traits<T>::max_value());
     }
 };
 
@@ -228,8 +215,19 @@ template<typename T,
          bool twice_bigger_type_is_supported = integer_traits<T>::twice_bigger_type_is_supported>
 struct is_mul_valid_impl {};
 
-template<typename T, bool is_signed>
-struct is_mul_valid_impl<T, is_signed, true>
+template<typename T>
+struct is_mul_valid_impl<T, true, true>
+{
+    static T run(T x, T y)
+    {
+        typedef typename integer_traits<T>::twice_bigger_type twice_bigger_type;
+        twice_bigger_type product = twice_bigger_type(x) * twice_bigger_type(y);
+        return is_in_range<T>(product);
+    }
+};
+
+template<typename T>
+struct is_mul_valid_impl<T, false, true>
 {
     static T run(T x, T y)
     {
@@ -283,26 +281,10 @@ template<typename T> inline T is_div_valid(T x, T y)
 {
     return integer_traits<T>::is_signed ?
                         // keep in mind that min/-1 is invalid because abs(min)>max
-                        (y != 0) && (x != integer_traits<T>::min_value() || y != T(-1))
+                        y != 0 && (x != integer_traits<T>::min_value() || y != T(-1))
                     :
                         y != 0;
 }
-
-// this is just to shut up msvc warnings about negating unsigned ints.
-template<typename T, bool is_signed = integer_traits<T>::is_signed>
-struct opposite_if_signed_impl
-{
-    static T run(T x) { return -x; }
-};
-template<typename T>
-struct opposite_if_signed_impl<T, false>
-{
-    static T run(T x) { return x; }
-};
-template<typename T>
-inline T opposite_if_signed(T x) { return opposite_if_signed_impl<T>::run(x); }
-
-
 
 } // end namespace CheckedInt_internal
 
@@ -315,7 +297,7 @@ inline T opposite_if_signed(T x) { return opposite_if_signed_impl<T>::run(x); }
   * \param T the integer type to wrap. Can be any of PRInt8, PRUint8, PRInt16, PRUint16,
   *          PRInt32, PRUint32, PRInt64, PRUint64.
   *
-  * This class implements guarded integer arithmetic. Do a computation, check that
+  * This class implements guarded integer arithmetic. Do a computation, then check that
   * valid() returns true, you then have a guarantee that no problem, such as integer overflow,
   * happened during this computation.
   *
@@ -342,7 +324,7 @@ inline T opposite_if_signed(T x) { return opposite_if_signed_impl<T>::run(x); }
     CheckedInt<PRUint8> x(-1);  // -1 is of type int, is found not to be in range for PRUint8, x is invalid
     CheckedInt<PRInt8> x(-1);   // -1 is of type int, is found to be in range for PRInt8, x is valid
     CheckedInt<PRInt8> x(PRInt16(1000)); // 1000 is of type PRInt16, is found not to be in range for PRInt8, x is invalid
-    CheckedInt<PRInt32> x(PRUint32(3123456789)); // 3123456789 is of type PRUint32, is found not to be in range
+    CheckedInt<PRInt32> x(PRUint32(123456789)); // 3123456789 is of type PRUint32, is found not to be in range
                                              // for PRInt32, x is invalid
   * \endcode
   * Implicit conversion from
@@ -352,7 +334,7 @@ inline T opposite_if_signed(T x) { return opposite_if_signed_impl<T>::run(x); }
   * Arithmetic operations between checked and plain integers is allowed; the result type
   * is the type of the checked integer.
   *
-  * Checked integers of different types cannot be used in the same arithmetic expression.
+  * Safe integers of different types cannot be used in the same arithmetic expression.
   *
   * There are convenience typedefs for all PR integer types, of the following form (these are just 2 examples):
     \code
@@ -369,7 +351,7 @@ protected:
                 // evaluating nested arithmetic expressions.
 
     template<typename U>
-    CheckedInt(U value, T isValid) : mValue(value), mIsValid(isValid)
+    CheckedInt(const U& value, PRBool isValid) : mValue(value), mIsValid(isValid)
     {
         CheckedInt_internal::integer_type_manually_recorded_info<T>
             ::TYPE_NOT_SUPPORTED_BY_CheckedInt();
@@ -385,16 +367,16 @@ public:
       * valid.
       */
     template<typename U>
-    CheckedInt(U value)
-        : mValue(T(value)),
+    CheckedInt(const U& value)
+        : mValue(value),
           mIsValid(CheckedInt_internal::is_in_range<T>(value))
     {
         CheckedInt_internal::integer_type_manually_recorded_info<T>
             ::TYPE_NOT_SUPPORTED_BY_CheckedInt();
     }
 
-    /** Constructs a valid checked integer with initial value 0 */
-    CheckedInt() : mValue(0), mIsValid(1)
+    /** Constructs a valid checked integer with uninitialized value */
+    CheckedInt() : mIsValid(1)
     {
         CheckedInt_internal::integer_type_manually_recorded_info<T>
             ::TYPE_NOT_SUPPORTED_BY_CheckedInt();
@@ -406,43 +388,38 @@ public:
     /** \returns PR_TRUE if the checked integer is valid, i.e. is not the result
       * of an invalid operation or of an operation involving an invalid checked integer
       */
-    PRBool valid() const
-    {
-        return PRBool(mIsValid);
-    }
+    PRBool valid() const { return mIsValid; }
 
     /** \returns the sum. Checks for overflow. */
     template<typename U> friend CheckedInt<U> operator +(const CheckedInt<U>& lhs, const CheckedInt<U>& rhs);
     /** Adds. Checks for overflow. \returns self reference */
-    template<typename U> CheckedInt& operator +=(U rhs);
+    template<typename U> CheckedInt& operator +=(const U &rhs);
     /** \returns the difference. Checks for overflow. */
     template<typename U> friend CheckedInt<U> operator -(const CheckedInt<U>& lhs, const CheckedInt<U> &rhs);
     /** Substracts. Checks for overflow. \returns self reference */
-    template<typename U> CheckedInt& operator -=(U rhs);
+    template<typename U> CheckedInt& operator -=(const U &rhs);
     /** \returns the product. Checks for overflow. */
     template<typename U> friend CheckedInt<U> operator *(const CheckedInt<U>& lhs, const CheckedInt<U> &rhs);
     /** Multiplies. Checks for overflow. \returns self reference */
-    template<typename U> CheckedInt& operator *=(U rhs);
+    template<typename U> CheckedInt& operator *=(const U &rhs);
     /** \returns the quotient. Checks for overflow and for divide-by-zero. */
     template<typename U> friend CheckedInt<U> operator /(const CheckedInt<U>& lhs, const CheckedInt<U> &rhs);
     /** Divides. Checks for overflow and for divide-by-zero. \returns self reference */
-    template<typename U> CheckedInt& operator /=(U rhs);
+    template<typename U> CheckedInt& operator /=(const U &rhs);
 
     /** \returns the opposite value. Checks for overflow. */
     CheckedInt operator -() const
     {
-        // circumvent msvc warning about - applied to unsigned int.
-        // if we're unsigned, the only valid case anyway is 0 in which case - is a no-op.
-        T result = CheckedInt_internal::opposite_if_signed(value());
+        T result = -value();
         /* give the compiler a good chance to perform RVO */
         return CheckedInt(result,
-                          mIsValid & CheckedInt_internal::is_sub_valid(T(0), value(), result));
+                       mIsValid & CheckedInt_internal::is_sub_valid(T(0), value(), result));
     }
 
     /** \returns true if the left and right hand sides are valid and have the same value. */
     PRBool operator ==(const CheckedInt& other) const
     {
-        return PRBool(mIsValid & other.mIsValid & (value() == other.mValue));
+        return PRBool(mIsValid & other.mIsValid & T(value() == other.value()));
     }
 
     /** prefix ++ */
@@ -476,25 +453,27 @@ public:
     }
 
 private:
-    /** operator!= is disabled. Indeed, (a!=b) should be the same as !(a==b) but that
+    /** operator!= is disabled. Indeed: (a!=b) should be the same as !(a==b) but that
       * would mean that if a or b is invalid, (a!=b) is always true, which is very tricky.
       */
     template<typename U>
-    PRBool operator !=(U other) const { return !(*this == other); }
+    PRBool operator !=(const U& other) const { return !(*this == other); }
 };
 
 #define CHECKEDINT_BASIC_BINARY_OPERATOR(NAME, OP)               \
 template<typename T>                                          \
 inline CheckedInt<T> operator OP(const CheckedInt<T> &lhs, const CheckedInt<T> &rhs) \
-{                                                                     \
-    T x = lhs.mValue;                                                \
-    T y = rhs.mValue;                                                \
-    T result = x OP y;                                                \
-    T is_op_valid                                                     \
-        = CheckedInt_internal::is_##NAME##_valid(x, y, result);       \
-    /* give the compiler a good chance to perform RVO */              \
-    return CheckedInt<T>(result,                                      \
-                         lhs.mIsValid & rhs.mIsValid & is_op_valid);  \
+{                                                             \
+    T x = lhs.value();                                        \
+    T y = rhs.value();                                        \
+    T result = x OP y;                                        \
+    T is_op_valid                                             \
+        = CheckedInt_internal::is_##NAME##_valid(x, y, result);  \
+    /* give the compiler a good chance to perform RVO */      \
+    return CheckedInt<T>(result,                                 \
+                      lhs.mIsValid &                          \
+                      rhs.mIsValid &                          \
+                      is_op_valid);                           \
 }
 
 CHECKEDINT_BASIC_BINARY_OPERATOR(add, +)
@@ -506,13 +485,15 @@ CHECKEDINT_BASIC_BINARY_OPERATOR(mul, *)
 template<typename T>
 inline CheckedInt<T> operator /(const CheckedInt<T> &lhs, const CheckedInt<T> &rhs)
 {
-    T x = lhs.mValue;
-    T y = rhs.mValue;
+    T x = lhs.value();
+    T y = rhs.value();
     T is_op_valid = CheckedInt_internal::is_div_valid(x, y);
     T result = is_op_valid ? (x / y) : 0;
     /* give the compiler a good chance to perform RVO */
     return CheckedInt<T>(result,
-                         lhs.mIsValid & rhs.mIsValid & is_op_valid);
+                      lhs.mIsValid &
+                      rhs.mIsValid &
+                      is_op_valid);
 }
 
 // implement cast_to_CheckedInt<T>(x), making sure that
@@ -523,7 +504,7 @@ template<typename T, typename U>
 struct cast_to_CheckedInt_impl
 {
     typedef CheckedInt<T> return_type;
-    static CheckedInt<T> run(U u) { return u; }
+    static CheckedInt<T> run(const U& u) { return u; }
 };
 
 template<typename T>
@@ -535,7 +516,7 @@ struct cast_to_CheckedInt_impl<T, CheckedInt<T> >
 
 template<typename T, typename U>
 inline typename cast_to_CheckedInt_impl<T, U>::return_type
-cast_to_CheckedInt(U u)
+cast_to_CheckedInt(const U& u)
 {
     return cast_to_CheckedInt_impl<T, U>::run(u);
 }
@@ -543,18 +524,18 @@ cast_to_CheckedInt(U u)
 #define CHECKEDINT_CONVENIENCE_BINARY_OPERATORS(OP, COMPOUND_OP) \
 template<typename T>                                          \
 template<typename U>                                          \
-CheckedInt<T>& CheckedInt<T>::operator COMPOUND_OP(U rhs)    \
+CheckedInt<T>& CheckedInt<T>::operator COMPOUND_OP(const U &rhs)    \
 {                                                             \
     *this = *this OP cast_to_CheckedInt<T>(rhs);                 \
     return *this;                                             \
 }                                                             \
 template<typename T, typename U>                              \
-inline CheckedInt<T> operator OP(const CheckedInt<T> &lhs, U rhs) \
+inline CheckedInt<T> operator OP(const CheckedInt<T> &lhs, const U &rhs) \
 {                                                             \
     return lhs OP cast_to_CheckedInt<T>(rhs);                    \
 }                                                             \
 template<typename T, typename U>                              \
-inline CheckedInt<T> operator OP(U lhs, const CheckedInt<T> &rhs) \
+inline CheckedInt<T> operator OP(const U & lhs, const CheckedInt<T> &rhs) \
 {                                                             \
     return cast_to_CheckedInt<T>(lhs) OP rhs;                    \
 }
@@ -565,13 +546,13 @@ CHECKEDINT_CONVENIENCE_BINARY_OPERATORS(-, -=)
 CHECKEDINT_CONVENIENCE_BINARY_OPERATORS(/, /=)
 
 template<typename T, typename U>
-inline PRBool operator ==(const CheckedInt<T> &lhs, U rhs)
+inline PRBool operator ==(const CheckedInt<T> &lhs, const U &rhs)
 {
     return lhs == cast_to_CheckedInt<T>(rhs);
 }
 
 template<typename T, typename U>
-inline PRBool operator ==(U  lhs, const CheckedInt<T> &rhs)
+inline PRBool operator ==(const U & lhs, const CheckedInt<T> &rhs)
 {
     return cast_to_CheckedInt<T>(lhs) == rhs;
 }

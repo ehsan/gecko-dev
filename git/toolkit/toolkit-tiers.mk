@@ -240,22 +240,7 @@ tier_platform_dirs += embedding/browser/gtk
 endif
 endif
 
-ifdef MOZ_ENABLE_LIBXUL
-tier_platform_dirs += startupcache
-endif
-
 ifndef BUILD_STATIC_LIBS
-ifdef APP_LIBXUL_STATICDIRS
-# Applications can cheat and ask for code to be
-# built before libxul so libxul can be linked against it.
-tier_platform_staticdirs += $(APP_LIBXUL_STATICDIRS)
-endif
-ifdef APP_LIBXUL_DIRS
-# Applications can cheat and ask for code to be
-# built before libxul so it can be linked into libxul.
-tier_platform_dirs += $(APP_LIBXUL_DIRS)
-endif
-
 tier_platform_dirs += toolkit/library
 endif
 
@@ -295,6 +280,5 @@ ifdef ENABLE_TESTS
 tier_platform_dirs += testing/mochitest
 tier_platform_dirs += testing/xpcshell 
 tier_platform_dirs += testing/mozmill
-tier_platform_dirs += testing/tools/screenshot
 endif
 

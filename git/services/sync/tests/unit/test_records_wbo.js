@@ -31,7 +31,6 @@ function coll_handler(metadata, response) {
 
 function run_test() {
   let server;
-  do_test_pending();
 
   try {
     let log = Log4Moz.repository.getLogger('Test');
@@ -51,7 +50,7 @@ function run_test() {
     let res = new Resource("http://localhost:8080/record");
     let resp = res.get();
 
-    let rec = new WBORecord("http://localhost:8080/record");
+    let rec = new WBORecord();
     rec.deserialize(res.data);
     do_check_eq(rec.id, "asdf-1234-asdf-1234"); // NOT "record"!
 
@@ -75,5 +74,5 @@ function run_test() {
     log.info("Done!");
   }
   catch (e) { do_throw(e); }
-  finally { server.stop(do_test_finished); }
+  finally { server.stop(function() {}); }
 }

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'expression-013.js';
 
 /**
    File Name:          expression-013.js

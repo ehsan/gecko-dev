@@ -100,7 +100,7 @@ public:
 
     // return the atk object for this nsAccessibleWrap
     NS_IMETHOD GetNativeInterface(void **aOutAccessible);
-    virtual nsresult HandleAccEvent(AccEvent* aEvent);
+    virtual nsresult HandleAccEvent(nsAccEvent *aEvent);
 
     AtkObject * GetAtkObject(void);
     static AtkObject * GetAtkObject(nsIAccessible * acc);
@@ -118,11 +118,11 @@ public:
     }
 
 protected:
-    virtual nsresult FirePlatformEvent(AccEvent* aEvent);
+    virtual nsresult FirePlatformEvent(nsAccEvent *aEvent);
 
-    nsresult FireAtkStateChangeEvent(AccEvent* aEvent, AtkObject *aObject);
-    nsresult FireAtkTextChangedEvent(AccEvent* aEvent, AtkObject *aObject);
-    nsresult FireAtkShowHideEvent(AccEvent* aEvent, AtkObject *aObject,
+    nsresult FireAtkStateChangeEvent(nsAccEvent *aEvent, AtkObject *aObject);
+    nsresult FireAtkTextChangedEvent(nsAccEvent *aEvent, AtkObject *aObject);
+    nsresult FireAtkShowHideEvent(nsAccEvent *aEvent, AtkObject *aObject,
                                   PRBool aIsAdded);
 
     AtkObject *mAtkObject;

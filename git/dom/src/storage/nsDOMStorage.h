@@ -175,21 +175,11 @@ public:
     return mSessionOnly;
   }
 
-  // Some privileged internal pages can use a persistent storage even in
-  // session-only or private-browsing modes.
-  bool CanUseChromePersist();
-
   // Check whether storage may be used by the caller, and whether it
   // is session only.  Returns true if storage may be used.
   static PRBool
   CanUseStorage(PRPackedBool* aSessionOnly);
 
-  // Check whether this URI can use chrome persist storage.  This kind of
-  // storage can bypass cookies limits, private browsing and uses the offline
-  // apps quota.
-  static PRBool
-  URICanUseChromePersist(nsIURI* aURI);
-  
   // Check whether storage may be used.  Updates mSessionOnly based on
   // the result of CanUseStorage.
   PRBool
@@ -275,8 +265,6 @@ protected:
   friend class nsIDOMStorage2;
   nsPIDOMStorage* mSecurityChecker;
   nsPIDOMStorage* mEventBroadcaster;
-
-  bool mCanUseChromePersist;
 
 public:
   // e.g. "moc.rab.oof.:" or "moc.rab.oof.:http:80" depending

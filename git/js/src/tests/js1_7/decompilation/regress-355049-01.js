@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-355049-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 355049;
 var summary = 'decompilation of destructing into two hole';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-119719.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 119719;
 var summary = 'Rethrown errors should have line number updated.';

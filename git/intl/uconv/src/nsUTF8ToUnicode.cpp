@@ -44,15 +44,6 @@
 
 #define UNICODE_BYTE_ORDER_MARK    0xFEFF
 
-static PRUnichar* EmitSurrogatePair(PRUint32 ucs4, PRUnichar* aDest)
-{
-  NS_ASSERTION(ucs4 > 0xFFFF, "Should be a supplementary character");
-  ucs4 -= 0x00010000;
-  *aDest++ = 0xD800 | (0x000003FF & (ucs4 >> 10));
-  *aDest++ = 0xDC00 | (0x000003FF & ucs4);
-  return aDest;
-}
-
 //----------------------------------------------------------------------
 // Class nsUTF8ToUnicode [implementation]
 
@@ -74,7 +65,7 @@ nsUTF8ToUnicode::nsUTF8ToUnicode()
  * However, there is an edge case where the output can be longer than the
  *  input: if the previous buffer ended with an incomplete multi-byte
  *  sequence and this buffer does not begin with a valid continuation
- *  byte, we will return NS_ERROR_ILLEGAL_INPUT and the caller may insert a
+ *  byte, we will return NS_ERROR_UNEXPECTED and the caller may insert a
  *  replacement character in the output buffer which corresponds to no
  *  character in the input buffer. So in the worst case the destination
  *  will need to be one code unit longer than the source.
@@ -286,22 +277,6 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
 
   nsresult res = NS_OK; // conversion result
 
-  out = aDest;
-  if (mState == 0xFF) {
-    // Emit supplementary character left over from previous iteration. If the
-    // buffer size is insufficient, treat it as an illegal character.
-    if (aDestLen < 2) {
-      NS_ERROR("Output buffer insufficient to hold supplementary character");
-      mState = 0;
-      return NS_ERROR_ILLEGAL_INPUT;
-    }
-    out = EmitSurrogatePair(mUcs4, out);
-    mUcs4 = 0;
-    mState = 0;
-    mBytes = 1;
-    mFirst = PR_FALSE;
-  }
-
   // alias these locally for speed
   PRInt32 mUcs4 = this->mUcs4;
   PRUint8 mState = this->mState;
@@ -313,7 +288,7 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
   if (mFirst && aSrcLen && (0 == (0x80 & (*aSrc))))
     mFirst = PR_FALSE;
 
-  for (in = aSrc; ((in < inend) && (out < outend)); ++in) {
+  for (in = aSrc, out = aDest; ((in < inend) && (out < outend)); ++in) {
     if (0 == mState) {
       // When mState is zero we expect either a US-ASCII character or a
       // multi-octet sequence.
@@ -366,7 +341,7 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
          * Return an error condition. Caller is responsible for flushing and
          * refilling the buffer and resetting state.
          */
-        res = NS_ERROR_ILLEGAL_INPUT;
+        res = NS_ERROR_UNEXPECTED;
         break;
       }
     } else {
@@ -395,20 +370,14 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
               ((mUcs4 & 0xFFFFF800) == 0xD800) ||
               // Codepoints outside the Unicode range are illegal
               (mUcs4 > 0x10FFFF)) {
-            res = NS_ERROR_ILLEGAL_INPUT;
+            res = NS_ERROR_UNEXPECTED;
             break;
           }
           if (mUcs4 > 0xFFFF) {
             // mUcs4 is in the range 0x10000 - 0x10FFFF. Output a UTF-16 pair
-            if (out + 2 > outend) {
-              // insufficient space left in the buffer. Keep mUcs4 for the
-              // next iteration.
-              mState = 0xFF;
-              ++in;
-              res = NS_OK_UDEC_MOREOUTPUT;
-              break;
-            }
-            out = EmitSurrogatePair(mUcs4, out);
+            mUcs4 -= 0x00010000;
+            *out++ = 0xD800 | (0x000003FF & (mUcs4 >> 10));
+            *out++ = 0xDC00 | (0x000003FF & mUcs4);
           } else if (UNICODE_BYTE_ORDER_MARK != mUcs4 || !mFirst) {
             // Don't output the BOM only if it is the first character
             *out++ = mUcs4;
@@ -427,7 +396,7 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
          * for flushing and refilling the buffer and resetting state.
          */
         in--;
-        res = NS_ERROR_ILLEGAL_INPUT;
+        res = NS_ERROR_UNEXPECTED;
         break;
       }
     }

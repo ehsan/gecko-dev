@@ -40,7 +40,6 @@
 #define __nsCharSeparatedTokenizer_h
 
 #include "nsDependentSubstring.h"
-#include "nsCRT.h"
 
 /**
  * This parses a SeparatorChar-separated string into tokens.
@@ -56,12 +55,8 @@
  * "foo, ,bar,baz" ->      "foo" "" "bar" "baz"
  * "foo,,bar,baz" ->       "foo" "" "bar" "baz"
  * "foo,bar,baz," ->       "foo" "bar" "baz"
- *
- * The function used for whitespace detection is a template argument.
- * By default, it is NS_IsAsciiWhitespace.
  */
-template<PRBool IsWhitespace(PRUnichar) = NS_IsAsciiWhitespace>
-class nsCharSeparatedTokenizerTemplate
+class nsCharSeparatedTokenizer
 {
 public:
     // Flags -- only one for now. If we need more, they should be defined to
@@ -70,9 +65,9 @@ public:
         SEPARATOR_OPTIONAL = 1
     };
 
-    nsCharSeparatedTokenizerTemplate(const nsSubstring& aSource,
-                                     PRUnichar aSeparatorChar,
-                                     PRUint32  aFlags = 0)
+    nsCharSeparatedTokenizer(const nsSubstring& aSource,
+                             PRUnichar aSeparatorChar,
+                             PRUint32  aFlags = 0)
         : mLastTokenEndedWithSeparator(PR_FALSE),
           mSeparatorChar(aSeparatorChar),
           mFlags(aFlags)
@@ -81,7 +76,7 @@ public:
         aSource.EndReading(mEnd);
 
         // Skip initial whitespace
-        while (mIter != mEnd && IsWhitespace(*mIter)) {
+        while (mIter != mEnd && isWhitespace(*mIter)) {
             ++mIter;
         }
     }
@@ -91,7 +86,7 @@ public:
      */
     PRBool hasMoreTokens()
     {
-        NS_ASSERTION(mIter == mEnd || !IsWhitespace(*mIter),
+        NS_ASSERTION(mIter == mEnd || !isWhitespace(*mIter),
                      "Should be at beginning of token if there is one");
 
         return mIter != mEnd;
@@ -109,7 +104,7 @@ public:
     {
         nsSubstring::const_char_iterator end = mIter, begin = mIter;
 
-        NS_ASSERTION(mIter == mEnd || !IsWhitespace(*mIter),
+        NS_ASSERTION(mIter == mEnd || !isWhitespace(*mIter),
                      "Should be at beginning of token if there is one");
 
         // Search until we hit separator or end (or whitespace, if separator
@@ -117,13 +112,13 @@ public:
         while (mIter != mEnd && *mIter != mSeparatorChar) {
           // Skip to end of current word.
           while (mIter != mEnd &&
-                 !IsWhitespace(*mIter) && *mIter != mSeparatorChar) {
+                 !isWhitespace(*mIter) && *mIter != mSeparatorChar) {
               ++mIter;
           }
           end = mIter;
 
           // Skip whitespace after current word.
-          while (mIter != mEnd && IsWhitespace(*mIter)) {
+          while (mIter != mEnd && isWhitespace(*mIter)) {
               ++mIter;
           }
           if (mFlags & SEPARATOR_OPTIONAL) {
@@ -145,7 +140,7 @@ public:
         if (mLastTokenEndedWithSeparator) {
             ++mIter;
 
-            while (mIter != mEnd && IsWhitespace(*mIter)) {
+            while (mIter != mEnd && isWhitespace(*mIter)) {
                 ++mIter;
             }
         }
@@ -158,16 +153,12 @@ private:
     PRPackedBool mLastTokenEndedWithSeparator;
     PRUnichar mSeparatorChar;
     PRUint32  mFlags;
-};
 
-class nsCharSeparatedTokenizer: public nsCharSeparatedTokenizerTemplate<>
-{
-public:
-    nsCharSeparatedTokenizer(const nsSubstring& aSource,
-                             PRUnichar aSeparatorChar,
-                             PRUint32  aFlags = 0)
-      : nsCharSeparatedTokenizerTemplate<>(aSource, aSeparatorChar, aFlags)
+    PRBool isWhitespace(PRUnichar aChar)
     {
+        return aChar <= ' ' &&
+               (aChar == ' ' || aChar == '\n' ||
+                aChar == '\r'|| aChar == '\t');
     }
 };
 

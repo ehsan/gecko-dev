@@ -57,7 +57,7 @@
 #include "nsIDOMHTMLElement.h"
 #include "nsIJSNativeInitializer.h"
 
-#include "GLContextProvider.h"
+#include "GLContext.h"
 #include "Layers.h"
 
 #include "CheckedInt.h"
@@ -80,13 +80,6 @@ class WebGLUniformLocation;
 
 class WebGLZeroingObject;
 class WebGLContextBoundObject;
-
-enum FakeBlackStatus { DoNotNeedFakeBlack, DoNeedFakeBlack, DontKnowIfNeedFakeBlack };
-
-inline PRBool is_pot_assuming_nonnegative(WebGLsizei x)
-{
-    return (x & (x-1)) == 0;
-}
 
 class WebGLObjectBaseRefPtr
 {
@@ -226,7 +219,7 @@ class WebGLBuffer;
 
 struct WebGLVertexAttribData {
     WebGLVertexAttribData()
-        : buf(0), stride(0), size(0), byteOffset(0), type(0), enabled(PR_FALSE), normalized(PR_FALSE)
+        : buf(0), stride(0), size(0), byteOffset(0), type(0), enabled(PR_FALSE)
     { }
 
     WebGLObjectRefPtr<WebGLBuffer> buf;
@@ -235,7 +228,6 @@ struct WebGLVertexAttribData {
     GLuint byteOffset;
     GLenum type;
     PRBool enabled;
-    PRBool normalized;
 
     GLuint componentSize() const {
         switch(type) {
@@ -287,8 +279,6 @@ public:
     NS_IMETHOD SetDimensions(PRInt32 width, PRInt32 height);
     NS_IMETHOD InitializeWithSurface(nsIDocShell *docShell, gfxASurface *surface, PRInt32 width, PRInt32 height)
         { return NS_ERROR_NOT_IMPLEMENTED; }
-    NS_IMETHOD Reset()
-        { /* (InitializeWithSurface) */ return NS_ERROR_NOT_IMPLEMENTED; }
     NS_IMETHOD Render(gfxContext *ctx, gfxPattern::GraphicsFilter f);
     NS_IMETHOD GetInputStream(const char* aMimeType,
                               const PRUnichar* aEncoderOptions,
@@ -310,13 +300,8 @@ public:
     nsresult ErrorInvalidEnum(const char *fmt = 0, ...);
     nsresult ErrorInvalidOperation(const char *fmt = 0, ...);
     nsresult ErrorInvalidValue(const char *fmt = 0, ...);
-    nsresult ErrorInvalidEnumInfo(const char *info, PRUint32 enumvalue) {
-        return ErrorInvalidEnum("%s: invalid enum value 0x%x", info, enumvalue);
-    }
-
-    WebGLTexture *activeBoundTextureForTarget(WebGLenum target) {
-        return target == LOCAL_GL_TEXTURE_2D ? mBound2DTextures[mActiveTexture]
-                                             : mBoundCubeMapTextures[mActiveTexture];
+    nsresult ErrorInvalidEnumInfo(const char *info) {
+        return ErrorInvalidEnum("%s: invalid enum value", info);
     }
 
     already_AddRefed<CanvasLayer> GetCanvasLayer(CanvasLayer *aOldLayer,
@@ -326,19 +311,6 @@ public:
     // a number that increments every time we have an event that causes
     // all context resources to be lost.
     PRUint32 Generation() { return mGeneration.value(); }
-
-    void SetDontKnowIfNeedFakeBlack() {
-        mFakeBlackStatus = DontKnowIfNeedFakeBlack;
-    }
-
-    PRBool NeedFakeBlack();
-    void BindFakeBlackTextures();
-    void UnbindFakeBlackTextures();
-
-    PRBool NeedFakeVertexAttrib0();
-    void DoFakeVertexAttrib0(WebGLuint vertexCount);
-    void UndoFakeVertexAttrib0();
-
 protected:
     nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
     nsHTMLCanvasElement *HTMLCanvasElement() {
@@ -352,7 +324,6 @@ protected:
 
     PRPackedBool mInvalidated;
     PRPackedBool mResetLayer;
-    PRPackedBool mVerbose;
 
     WebGLuint mActiveTexture;
     WebGLenum mSynthesizedGLError;
@@ -361,15 +332,15 @@ protected:
     PRBool mShaderValidation;
 
     // some GL constants
-    PRInt32 mGLMaxVertexAttribs;
-    PRInt32 mGLMaxTextureUnits;
-    PRInt32 mGLMaxTextureSize;
-    PRInt32 mGLMaxCubeMapTextureSize;
-    PRInt32 mGLMaxTextureImageUnits;
-    PRInt32 mGLMaxVertexTextureImageUnits;
-    PRInt32 mGLMaxVaryingVectors;
-    PRInt32 mGLMaxFragmentUniformVectors;
-    PRInt32 mGLMaxVertexUniformVectors;
+    PRUint32 mGLMaxVertexAttribs;
+    PRUint32 mGLMaxTextureUnits;
+    PRUint32 mGLMaxTextureSize;
+    PRUint32 mGLMaxCubeMapTextureSize;
+    PRUint32 mGLMaxTextureImageUnits;
+    PRUint32 mGLMaxVertexTextureImageUnits;
+    PRUint32 mGLMaxVaryingVectors;
+    PRUint32 mGLMaxFragmentUniformVectors;
+    PRUint32 mGLMaxVertexUniformVectors;
 
     PRBool SafeToCreateCanvas3DContext(nsHTMLCanvasElement *canvasElement);
     PRBool InitAndValidateGL();
@@ -381,14 +352,12 @@ protected:
     PRBool ValidateTextureTargetEnum(WebGLenum target, const char *info);
     PRBool ValidateComparisonEnum(WebGLenum target, const char *info);
     PRBool ValidateStencilOpEnum(WebGLenum action, const char *info);
-    PRBool ValidateFaceEnum(WebGLenum face, const char *info);
+    PRBool ValidateFaceEnum(WebGLenum target, const char *info);
     PRBool ValidateBufferUsageEnum(WebGLenum target, const char *info);
     PRBool ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
                                       PRUint32 *texelSize, const char *info);
-    PRBool ValidateDrawModeEnum(WebGLenum mode, const char *info);
 
     void Invalidate();
-    void DestroyResourcesAndContext();
 
     void MakeContextCurrent() { gl->MakeCurrent(); }
 
@@ -404,8 +373,6 @@ protected:
                                 void *pixels, PRUint32 byteLength);
     nsresult ReadPixels_base(WebGLint x, WebGLint y, WebGLsizei width, WebGLsizei height,
                              WebGLenum format, WebGLenum type, void *data, PRUint32 byteLength);
-    nsresult TexParameter_base(WebGLenum target, WebGLenum pname,
-                               WebGLint *intParamPtr, WebGLfloat *floatParamPtr);
 
     nsresult DOMElementToImageSurface(nsIDOMElement *imageOrCanvas,
                                       gfxImageSurface **imageOut,
@@ -413,33 +380,28 @@ protected:
 
     // Conversion from public nsI* interfaces to concrete objects
     template<class ConcreteObjectType, class BaseInterfaceType>
-    PRBool GetConcreteObject(const char *info,
-                             BaseInterfaceType *aInterface,
+    PRBool GetConcreteObject(BaseInterfaceType *aInterface,
                              ConcreteObjectType **aConcreteObject,
                              PRBool *isNull = 0,
-                             PRBool *isDeleted = 0,
-                             PRBool generateErrors = PR_TRUE);
+                             PRBool *isDeleted = 0);
 
     template<class ConcreteObjectType, class BaseInterfaceType>
-    PRBool GetConcreteObjectAndGLName(const char *info,
-                                      BaseInterfaceType *aInterface,
+    PRBool GetConcreteObjectAndGLName(BaseInterfaceType *aInterface,
                                       ConcreteObjectType **aConcreteObject,
                                       WebGLuint *aGLObjectName,
                                       PRBool *isNull = 0,
                                       PRBool *isDeleted = 0);
 
     template<class ConcreteObjectType, class BaseInterfaceType>
-    PRBool GetGLName(const char *info,
-                     BaseInterfaceType *aInterface,
+    PRBool GetGLName(BaseInterfaceType *aInterface,
                      WebGLuint *aGLObjectName,
                      PRBool *isNull = 0,
                      PRBool *isDeleted = 0);
 
     template<class ConcreteObjectType, class BaseInterfaceType>
-    PRBool CanGetConcreteObject(const char *info,
-                                BaseInterfaceType *aInterface,
-                                PRBool *isNull = 0,
-                                PRBool *isDeleted = 0);
+    PRBool CheckConversion(BaseInterfaceType *aInterface,
+                           PRBool *isNull = 0,
+                           PRBool *isDeleted = 0);
 
 
     // the buffers bound to the current program's attribs
@@ -475,23 +437,10 @@ protected:
     // WebGL-specific PixelStore parameters
     PRBool mPixelStoreFlipY, mPixelStorePremultiplyAlpha;
 
-    FakeBlackStatus mFakeBlackStatus;
-
-    WebGLuint mBlackTexture2D, mBlackTextureCubeMap;
-    PRBool mBlackTexturesAreInitialized;
-
-    WebGLfloat mVertexAttrib0Vector[4];
-    nsAutoArrayPtr<WebGLfloat> mFakeVertexAttrib0Array;
-
 public:
     // console logging helpers
-    static void LogMessage(const char *fmt, ...);
+    static void LogMessage (const char *fmt, ...);
     static void LogMessage(const char *fmt, va_list ap);
-    // if display is false, this won't actually do anything
-    static void LogMessage(bool display, const char *fmt, ...);
-    void LogMessageIfVerbose(const char *fmt, ...);
-
-    friend class WebGLTexture;
 };
 
 // this class is a mixin for the named type wrappers, and is used
@@ -687,17 +636,8 @@ public:
 
     WebGLTexture(WebGLContext *context, WebGLuint name) :
         WebGLContextBoundObject(context),
-        mDeleted(PR_FALSE), mName(name),
-        mTarget(0),
-        mMinFilter(LOCAL_GL_NEAREST_MIPMAP_LINEAR),
-        mMagFilter(LOCAL_GL_LINEAR),
-        mWrapS(LOCAL_GL_REPEAT),
-        mWrapT(LOCAL_GL_REPEAT),
-        mFacesCount(0),
-        mMaxLevelWithCustomImages(0),
-        mHaveGeneratedMipmap(PR_FALSE),
-        mFakeBlackStatus(DoNotNeedFakeBlack)
-    {}
+        mName(name), mDeleted(PR_FALSE)
+    { }
 
     void Delete() {
         if (mDeleted)
@@ -711,349 +651,9 @@ public:
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLTEXTURE
-
 protected:
-    PRBool mDeleted;
     WebGLuint mName;
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/////// everything below that point is only used for the texture completeness/npot business
-/////// (sections 3.7.10 and 3.8.2 in GL ES 2.0.24 spec)
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    struct ImageInfo {
-        ImageInfo() : mWidth(0), mHeight(0), mFormat(0), mType(0), mIsDefined(PR_FALSE) {}
-        PRBool operator==(const ImageInfo& a) const {
-            return mWidth == a.mWidth && mHeight == a.mHeight &&
-                   mFormat == a.mFormat && mType == a.mType;
-        }
-        PRBool operator!=(const ImageInfo& a) const {
-            return !(*this == a);
-        }
-        PRBool IsSquare() const {
-            return mWidth == mHeight;
-        }
-        PRBool IsPositive() const {
-            return mWidth > 0 && mHeight > 0;
-        }
-        PRBool IsPowerOfTwo() const {
-            return is_pot_assuming_nonnegative(mWidth) &&
-                   is_pot_assuming_nonnegative(mHeight); // negative sizes should never happen (caught in texImage2D...)
-        }
-        WebGLsizei mWidth, mHeight;
-        WebGLenum mFormat, mType;
-        PRBool mIsDefined;
-    };
-
-    ImageInfo& ImageInfoAt(size_t level, size_t face) {
-#ifdef DEBUG
-        if (face >= mFacesCount)
-            NS_ERROR("wrong face index, must be 0 for TEXTURE_2D and at most 5 for cube maps");
-#endif
-        // no need to check level as a wrong value would be caught by ElementAt().
-        return mImageInfos.ElementAt(level * mFacesCount + face);
-    }
-
-    const ImageInfo& ImageInfoAt(size_t level, size_t face) const {
-        return const_cast<WebGLTexture*>(this)->ImageInfoAt(level, face);
-    }
-
-    WebGLenum mTarget;
-    WebGLenum mMinFilter, mMagFilter, mWrapS, mWrapT;
-
-    size_t mFacesCount, mMaxLevelWithCustomImages;
-    nsTArray<ImageInfo> mImageInfos;
-
-    PRBool mHaveGeneratedMipmap;
-    FakeBlackStatus mFakeBlackStatus;
-
-    void EnsureMaxLevelWithCustomImagesAtLeast(size_t aMaxLevelWithCustomImages) {
-        mMaxLevelWithCustomImages = PR_MAX(mMaxLevelWithCustomImages, aMaxLevelWithCustomImages);
-        mImageInfos.EnsureLengthAtLeast((mMaxLevelWithCustomImages + 1) * mFacesCount);
-    }
-
-    PRBool DoesMinFilterRequireMipmap() const {
-        return !(mMinFilter == LOCAL_GL_NEAREST || mMinFilter == LOCAL_GL_LINEAR);
-    }
-
-    PRBool AreBothWrapModesClampToEdge() const {
-        return mWrapS == LOCAL_GL_CLAMP_TO_EDGE && mWrapT == LOCAL_GL_CLAMP_TO_EDGE;
-    }
-
-    PRBool DoesTexture2DMipmapHaveAllLevelsConsistentlyDefined(size_t face) const {
-        if (mHaveGeneratedMipmap)
-            return PR_TRUE;
-
-        ImageInfo expected = ImageInfoAt(0, face);
-
-        // checks if custom level>0 images are all defined up to the highest level defined
-        // and have the expected dimensions
-        for (size_t level = 0; level <= mMaxLevelWithCustomImages; ++level) {
-            const ImageInfo& actual = ImageInfoAt(level, face);
-            if (actual != expected)
-                return PR_FALSE;
-            expected.mWidth = PR_MAX(1, expected.mWidth >> 1);
-            expected.mHeight = PR_MAX(1, expected.mHeight >> 1);
-
-            // if the current level has size 1x1, we can stop here: the spec doesn't seem to forbid the existence
-            // of extra useless levels.
-            if (actual.mWidth == 1 && actual.mHeight == 1)
-                return PR_TRUE;
-        }
-
-        // if we're here, we've exhausted all levels without finding a 1x1 image
-        return PR_FALSE;
-    }
-
-public:
-
-    void SetDontKnowIfNeedFakeBlack() {
-        mFakeBlackStatus = DontKnowIfNeedFakeBlack;
-        mContext->SetDontKnowIfNeedFakeBlack();
-    }
-
-    void Bind(WebGLenum aTarget) {
-        // this function should only be called by bindTexture().
-        // it assumes that the GL context is already current.
-
-        PRBool firstTimeThisTextureIsBound = mTarget == 0;
-
-        if (!firstTimeThisTextureIsBound && aTarget != mTarget) {
-            mContext->ErrorInvalidOperation("bindTexture: this texture has already been bound to a different target");
-            // very important to return here before modifying texture state! This was the place when I lost a whole day figuring
-            // very strange 'invalid write' crashes.
-            return;
-        }
-
-        mTarget = aTarget;
-
-        mContext->gl->fBindTexture(mTarget, mName);
-
-        if (firstTimeThisTextureIsBound) {
-            mFacesCount = (mTarget == LOCAL_GL_TEXTURE_2D) ? 1 : 6;
-            EnsureMaxLevelWithCustomImagesAtLeast(0);
-            SetDontKnowIfNeedFakeBlack();
-
-            // thanks to the WebKit people for finding this out: GL_TEXTURE_WRAP_R is not
-            // present in GLES 2, but is present in GL and it seems as if for cube maps
-            // we need to set it to GL_CLAMP_TO_EDGE to get the expected GLES behavior.
-            if (mTarget == LOCAL_GL_TEXTURE_CUBE_MAP && !mContext->gl->IsGLES2())
-                mContext->gl->fTexParameteri(mTarget, LOCAL_GL_TEXTURE_WRAP_R, LOCAL_GL_CLAMP_TO_EDGE);
-        }
-    }
-
-    void SetImageInfo(WebGLenum aTarget, WebGLint aLevel,
-                      WebGLsizei aWidth, WebGLsizei aHeight,
-                      WebGLenum aFormat = 0, WebGLenum aType = 0) {
-        size_t face = 0;
-        if (aTarget == LOCAL_GL_TEXTURE_2D) {
-            if (mTarget != LOCAL_GL_TEXTURE_2D) return;
-        } else {
-            if (mTarget == LOCAL_GL_TEXTURE_2D) return;
-            face = aTarget - LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
-        }
-
-        EnsureMaxLevelWithCustomImagesAtLeast(aLevel);
-
-        ImageInfo& imageInfo = ImageInfoAt(aLevel, face);
-        imageInfo.mWidth  = aWidth;
-        imageInfo.mHeight = aHeight;
-        if (aFormat)
-            imageInfo.mFormat = aFormat;
-        if (aType)
-            imageInfo.mType = aType;
-        imageInfo.mIsDefined = PR_TRUE;
-
-        if (aLevel > 0)
-            SetCustomMipmap();
-
-        SetDontKnowIfNeedFakeBlack();
-    }
-
-    void SetMinFilter(WebGLenum aMinFilter) {
-        mMinFilter = aMinFilter;
-        SetDontKnowIfNeedFakeBlack();
-    }
-    void SetMagFilter(WebGLenum aMagFilter) {
-        mMagFilter = aMagFilter;
-        SetDontKnowIfNeedFakeBlack();
-    }
-    void SetWrapS(WebGLenum aWrapS) {
-        mWrapS = aWrapS;
-        SetDontKnowIfNeedFakeBlack();
-    }
-    void SetWrapT(WebGLenum aWrapT) {
-        mWrapT = aWrapT;
-        SetDontKnowIfNeedFakeBlack();
-    }
-
-    void SetGeneratedMipmap() {
-        if (!mHaveGeneratedMipmap) {
-            mHaveGeneratedMipmap = PR_TRUE;
-            SetDontKnowIfNeedFakeBlack();
-        }
-    }
-
-    void SetCustomMipmap() {
-        if (mHaveGeneratedMipmap) {
-            // if we were in GeneratedMipmap mode and are now switching to CustomMipmap mode,
-            // we need to compute now all the mipmap image info.
-
-            // since we were in GeneratedMipmap mode, we know that the level 0 images all have the same info,
-            // and are power-of-two.
-            ImageInfo imageInfo = ImageInfoAt(0, 0);
-            NS_ASSERTION(imageInfo.IsPowerOfTwo(), "this texture is NPOT, so how could GenerateMipmap() ever accept it?");
-
-            WebGLsizei size = PR_MAX(imageInfo.mWidth, imageInfo.mHeight);
-
-            // so, the size is a power of two, let's find its log in base 2.
-            size_t maxLevel = 0;
-            for (WebGLsizei n = size; n > 1; n >>= 1)
-                ++maxLevel;
-
-            EnsureMaxLevelWithCustomImagesAtLeast(maxLevel);
-
-            for (size_t level = 1; level <= maxLevel; ++level) {
-                // again, since the sizes are powers of two, no need for any max(1,x) computation
-                imageInfo.mWidth >>= 1;
-                imageInfo.mHeight >>= 1;
-                for(size_t face = 0; face < mFacesCount; ++face)
-                    ImageInfoAt(level, face) = imageInfo;
-            }
-        }
-        mHaveGeneratedMipmap = PR_FALSE;
-    }
-
-    PRBool IsFirstImagePowerOfTwo() const {
-        return ImageInfoAt(0, 0).IsPowerOfTwo();
-    }
-
-    PRBool AreAllLevel0ImageInfosEqual() const {
-        for (size_t face = 1; face < mFacesCount; ++face) {
-            if (ImageInfoAt(0, face) != ImageInfoAt(0, 0))
-                return PR_FALSE;
-        }
-        return PR_TRUE;
-    }
-
-    PRBool IsMipmapTexture2DComplete() const {
-        if (mTarget != LOCAL_GL_TEXTURE_2D)
-            return PR_FALSE;
-        if (!ImageInfoAt(0, 0).IsPositive())
-            return PR_FALSE;
-        if (mHaveGeneratedMipmap)
-            return PR_TRUE;
-        return DoesTexture2DMipmapHaveAllLevelsConsistentlyDefined(0);
-    }
-
-    PRBool IsCubeComplete() const {
-        if (mTarget != LOCAL_GL_TEXTURE_CUBE_MAP)
-            return PR_FALSE;
-        const ImageInfo &first = ImageInfoAt(0, 0);
-        if (!first.IsPositive() || !first.IsSquare())
-            return PR_FALSE;
-        return AreAllLevel0ImageInfosEqual();
-    }
-
-    PRBool IsMipmapCubeComplete() const {
-        if (!IsCubeComplete()) // in particular, this checks that this is a cube map
-            return PR_FALSE;
-        for (size_t face = 0; face < mFacesCount; ++face) {
-            if (!DoesTexture2DMipmapHaveAllLevelsConsistentlyDefined(face))
-                return PR_FALSE;
-        }
-        return PR_TRUE;
-    }
-
-    PRBool NeedFakeBlack() {
-        // handle this case first, it's the generic case
-        if (mFakeBlackStatus == DoNotNeedFakeBlack)
-            return PR_FALSE;
-
-        if (mFakeBlackStatus == DontKnowIfNeedFakeBlack) {
-            // Determine if the texture needs to be faked as a black texture.
-            // See 3.8.2 Shader Execution in the OpenGL ES 2.0.24 spec.
-
-            const char *msg_rendering_as_black
-                = "A texture is going to be rendered as if it were black, as per the OpenGL ES 2.0.24 spec section 3.8.2, "
-                  "because it";
-
-            if (mTarget == LOCAL_GL_TEXTURE_2D)
-            {
-                if (DoesMinFilterRequireMipmap())
-                {
-                    if (!IsMipmapTexture2DComplete()) {
-                        mContext->LogMessageIfVerbose
-                            ("%s is a 2D texture, with a minification filter requiring a mipmap, "
-                             "and is not mipmap complete (as defined in section 3.7.10).", msg_rendering_as_black);
-                        mFakeBlackStatus = DoNeedFakeBlack;
-                    } else if (!ImageInfoAt(0, 0).IsPowerOfTwo()) {
-                        mContext->LogMessageIfVerbose
-                            ("%s is a 2D texture, with a minification filter requiring a mipmap, "
-                             "and either its width or height is not a power of two.", msg_rendering_as_black);
-                        mFakeBlackStatus = DoNeedFakeBlack;
-                    }
-                }
-                else // no mipmap required
-                {
-                    if (!ImageInfoAt(0, 0).IsPositive()) {
-                        mContext->LogMessageIfVerbose
-                            ("%s is a 2D texture and its width or height is equal to zero.",
-                             msg_rendering_as_black);
-                        mFakeBlackStatus = DoNeedFakeBlack;
-                    } else if (!AreBothWrapModesClampToEdge() && !ImageInfoAt(0, 0).IsPowerOfTwo()) {
-                        mContext->LogMessageIfVerbose
-                            ("%s is a 2D texture, with a minification filter not requiring a mipmap, "
-                             "with its width or height not a power of two, and with a wrap mode "
-                             "different from CLAMP_TO_EDGE.", msg_rendering_as_black);
-                        mFakeBlackStatus = DoNeedFakeBlack;
-                    }
-                }
-            }
-            else // cube map
-            {
-                PRBool areAllLevel0ImagesPOT = PR_TRUE;
-                for (size_t face = 0; face < mFacesCount; ++face)
-                    areAllLevel0ImagesPOT &= ImageInfoAt(0, face).IsPowerOfTwo();
-
-                if (DoesMinFilterRequireMipmap())
-                {
-                    if (!IsMipmapCubeComplete()) {
-                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter requiring a mipmap, "
-                                   "and is not mipmap cube complete (as defined in section 3.7.10).",
-                                   msg_rendering_as_black);
-                        mFakeBlackStatus = DoNeedFakeBlack;
-                    } else if (!areAllLevel0ImagesPOT) {
-                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter requiring a mipmap, "
-                                   "and either the width or the height of some level 0 image is not a power of two.",
-                                   msg_rendering_as_black);
-                        mFakeBlackStatus = DoNeedFakeBlack;
-                    }
-                }
-                else // no mipmap required
-                {
-                    if (!IsCubeComplete()) {
-                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter not requiring a mipmap, "
-                                   "and is not cube complete (as defined in section 3.7.10).",
-                                   msg_rendering_as_black);
-                        mFakeBlackStatus = DoNeedFakeBlack;
-                    } else if (!AreBothWrapModesClampToEdge() && !areAllLevel0ImagesPOT) {
-                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter not requiring a mipmap, "
-                                   "with some level 0 image having width or height not a power of two, and with a wrap mode "
-                                   "different from CLAMP_TO_EDGE.", msg_rendering_as_black);
-                        mFakeBlackStatus = DoNeedFakeBlack;
-                    }
-                }
-            }
-
-            // we have exhausted all cases where we do need fakeblack, so if the status is still unknown,
-            // that means that we do NOT need it.
-            if (mFakeBlackStatus == DontKnowIfNeedFakeBlack)
-                mFakeBlackStatus = DoNotNeedFakeBlack;
-        }
-
-        return mFakeBlackStatus == DoNeedFakeBlack;
-    }
+    PRBool mDeleted;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(WebGLTexture, WEBGLTEXTURE_PRIVATE_IID)
@@ -1322,41 +922,6 @@ protected:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(WebGLUniformLocation, WEBGLUNIFORMLOCATION_PRIVATE_IID)
 
-#define WEBGLACTIVEINFO_PRIVATE_IID \
-    {0x90def5ec, 0xc672, 0x4ac3, {0xb8, 0x97, 0x04, 0xa2, 0x6d, 0xda, 0x66, 0xd7}}
-class WebGLActiveInfo :
-    public nsIWebGLActiveInfo
-{
-public:
-    NS_DECLARE_STATIC_IID_ACCESSOR(WEBGLACTIVEINFO_PRIVATE_IID)
-
-    WebGLActiveInfo(WebGLint size, WebGLenum type, const char *nameptr, PRUint32 namelength) :
-        mDeleted(PR_FALSE),
-        mSize(size),
-        mType(type)
-    {
-        mName.AssignASCII(nameptr, namelength);
-    }
-
-    void Delete() {
-        if (mDeleted)
-            return;
-        mDeleted = PR_TRUE;
-    }
-
-    PRBool Deleted() { return mDeleted; }
-
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIWEBGLACTIVEINFO
-protected:
-    PRBool mDeleted;
-    WebGLint mSize;
-    WebGLenum mType;
-    nsString mName;
-};
-
-NS_DEFINE_STATIC_IID_ACCESSOR(WebGLActiveInfo, WEBGLACTIVEINFO_PRIVATE_IID)
-
 /**
  ** Template implementations
  **/
@@ -1369,21 +934,16 @@ NS_DEFINE_STATIC_IID_ACCESSOR(WebGLActiveInfo, WEBGLACTIVEINFO_PRIVATE_IID)
  * By default, null (respectively: deleted) aInterface pointers are
  * not allowed, but if you pass a non-null isNull (respectively:
  * isDeleted) pointer, then they become allowed and the value at
- * isNull (respecively isDeleted) is overwritten.
- *
- * If generateErrors is true (which is the default) then upon errors,
- * GL errors are synthesized and error messages are printed, prepended by
- * the 'info' string.
+ * isNull (respecively isDeleted) is overwritten. In case of a null
+ * pointer, the resulting
  */
 
 template<class ConcreteObjectType, class BaseInterfaceType>
-inline PRBool
-WebGLContext::GetConcreteObject(const char *info,
-                                BaseInterfaceType *aInterface,
+PRBool
+WebGLContext::GetConcreteObject(BaseInterfaceType *aInterface,
                                 ConcreteObjectType **aConcreteObject,
                                 PRBool *isNull,
-                                PRBool *isDeleted,
-                                PRBool generateErrors)
+                                PRBool *isDeleted)
 {
     if (!aInterface) {
         if (NS_LIKELY(isNull)) {
@@ -1393,8 +953,7 @@ WebGLContext::GetConcreteObject(const char *info,
             *aConcreteObject = 0;
             return PR_TRUE;
         } else {
-            if (generateErrors)
-                ErrorInvalidValue("%s: null object passed as argument", info);
+            LogMessage("Null object passed to WebGL function");
             return PR_FALSE;
         }
     }
@@ -1411,9 +970,7 @@ WebGLContext::GetConcreteObject(const char *info,
 
     if (!(*aConcreteObject)->IsCompatibleWithContext(this)) {
         // the object doesn't belong to this WebGLContext
-        if (generateErrors)
-            ErrorInvalidOperation("%s: object from different WebGL context (or older generation of this one) "
-                                  "passed as argument", info);
+        LogMessage("Object from different WebGL context given as argument (or older generation of this one)");
         return PR_FALSE;
     }
 
@@ -1423,8 +980,7 @@ WebGLContext::GetConcreteObject(const char *info,
             *isDeleted = PR_TRUE;
             return PR_TRUE;
         } else {
-            if (generateErrors)
-                ErrorInvalidValue("%s: deleted object passed as argument", info);
+            LogMessage("Deleted object passed to WebGL function");
             return PR_FALSE;
         }
     }
@@ -1439,15 +995,14 @@ WebGLContext::GetConcreteObject(const char *info,
  * Null objects give the name 0.
  */
 template<class ConcreteObjectType, class BaseInterfaceType>
-inline PRBool
-WebGLContext::GetConcreteObjectAndGLName(const char *info,
-                                         BaseInterfaceType *aInterface,
+PRBool
+WebGLContext::GetConcreteObjectAndGLName(BaseInterfaceType *aInterface,
                                          ConcreteObjectType **aConcreteObject,
                                          WebGLuint *aGLObjectName,
                                          PRBool *isNull,
                                          PRBool *isDeleted)
 {
-    PRBool result = GetConcreteObject(info, aInterface, aConcreteObject, isNull, isDeleted);
+    PRBool result = GetConcreteObject(aInterface, aConcreteObject, isNull, isDeleted);
     if (result == PR_FALSE) return PR_FALSE;
     *aGLObjectName = *aConcreteObject ? (*aConcreteObject)->GLName() : 0;
     return PR_TRUE;
@@ -1456,28 +1011,26 @@ WebGLContext::GetConcreteObjectAndGLName(const char *info,
 /* Same as GetConcreteObjectAndGLName when you don't need the concrete object pointer.
  */
 template<class ConcreteObjectType, class BaseInterfaceType>
-inline PRBool
-WebGLContext::GetGLName(const char *info,
-                        BaseInterfaceType *aInterface,
+PRBool
+WebGLContext::GetGLName(BaseInterfaceType *aInterface,
                         WebGLuint *aGLObjectName,
                         PRBool *isNull,
                         PRBool *isDeleted)
 {
     ConcreteObjectType *aConcreteObject;
-    return GetConcreteObjectAndGLName(info, aInterface, &aConcreteObject, aGLObjectName, isNull, isDeleted);
+    return GetConcreteObjectAndGLName(aInterface, &aConcreteObject, aGLObjectName, isNull, isDeleted);
 }
 
 /* Same as GetConcreteObject when you only want to check if the conversion succeeds.
  */
 template<class ConcreteObjectType, class BaseInterfaceType>
-inline PRBool
-WebGLContext::CanGetConcreteObject(const char *info,
-                              BaseInterfaceType *aInterface,
+PRBool
+WebGLContext::CheckConversion(BaseInterfaceType *aInterface,
                               PRBool *isNull,
                               PRBool *isDeleted)
 {
     ConcreteObjectType *aConcreteObject;
-    return GetConcreteObject(info, aInterface, &aConcreteObject, isNull, isDeleted, PR_FALSE);
+    return GetConcreteObject(aInterface, &aConcreteObject, isNull, isDeleted);
 }
 
 }

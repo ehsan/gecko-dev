@@ -58,7 +58,6 @@ CPPSRCS = \
 	nsSecureBrowserUIImpl.cpp \
 	nsBOOTModule.cpp \
 	nsSecurityWarningDialogs.cpp \
-	nsStrictTransportSecurityService.cpp \
 	$(NULL)
 
 

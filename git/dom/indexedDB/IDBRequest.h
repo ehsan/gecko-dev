@@ -44,71 +44,89 @@
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
 #include "nsIIDBRequest.h"
+#include "nsIVariant.h"
 
 #include "nsDOMEventTargetHelper.h"
 #include "nsCycleCollectionParticipant.h"
 
-class nsIScriptContext;
-class nsPIDOMWindow;
-
 BEGIN_INDEXEDDB_NAMESPACE
+
+class AsyncConnectionHelper;
+class IDBFactory;
+class IDBDatabase;
 
 class IDBRequest : public nsDOMEventTargetHelper,
                    public nsIIDBRequest
 {
+  friend class AsyncConnectionHelper;
+
 public:
+  class Generator : public nsISupports
+  {
+    protected:
+      friend class IDBRequest;
+
+      Generator() { }
+
+      virtual ~Generator() {
+        NS_ASSERTION(mLiveRequests.IsEmpty(), "Huh?!");
+      }
+
+      IDBRequest* GenerateRequest() {
+        IDBRequest* request = new IDBRequest(this, false);
+        if (!mLiveRequests.AppendElement(request)) {
+          NS_ERROR("Append failed!");
+        }
+        return request;
+      }
+
+      IDBRequest* GenerateWriteRequest() {
+        IDBRequest* request = new IDBRequest(this, true);
+        if (!mLiveRequests.AppendElement(request)) {
+          NS_ERROR("Append failed!");
+        }
+        return request;
+      }
+
+      void NoteDyingRequest(IDBRequest* aRequest) {
+        NS_ASSERTION(mLiveRequests.Contains(aRequest), "Unknown request!");
+        mLiveRequests.RemoveElement(aRequest);
+      }
+
+    private:
+      // XXXbent Assuming infallible nsTArray here, make sure it lands!
+      nsAutoTArray<IDBRequest*, 1> mLiveRequests;
+  };
+
+  friend class IDBRequestGenerator;
+
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIIDBREQUEST
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBRequest,
                                            nsDOMEventTargetHelper)
 
-  static
-  already_AddRefed<IDBRequest> Create(nsISupports* aSource,
-                                      nsIScriptContext* aScriptContext,
-                                      nsPIDOMWindow* aOwner);
-
-  already_AddRefed<nsISupports> Source()
+  already_AddRefed<nsISupports> GetGenerator()
   {
-    nsCOMPtr<nsISupports> source(mSource);
-    return source.forget();
+    nsCOMPtr<nsISupports> generator(mGenerator);
+    return generator.forget();
   }
 
-  void SetDone()
-  {
-    NS_ASSERTION(mReadyState != nsIIDBRequest::DONE, "Already set!");
-    mReadyState = nsIIDBRequest::DONE;
-  }
+private:
+  // Only called by IDBRequestGenerator::Generate().
+  IDBRequest(Generator* aGenerator,
+             bool aWriteRequest);
 
-  nsIScriptContext* ScriptContext()
-  {
-    NS_ASSERTION(mScriptContext, "This should never be null!");
-    return mScriptContext;
-  }
-
-  nsPIDOMWindow* Owner()
-  {
-    NS_ASSERTION(mOwner, "This should never be null!");
-    return mOwner;
-  }
+  nsRefPtr<Generator> mGenerator;
 
 protected:
-  IDBRequest()
-  : mReadyState(nsIIDBRequest::LOADING)
-  { }
-
-  ~IDBRequest()
-  {
-    if (mListenerManager) {
-      mListenerManager->Disconnect();
-    }
-  }
-
-  nsCOMPtr<nsISupports> mSource;
-
-  nsRefPtr<nsDOMEventListenerWrapper> mOnSuccessListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
+  // Called by Release().
+  ~IDBRequest();
 
   PRUint16 mReadyState;
+  PRBool mAborted;
+  PRBool mWriteRequest;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnSuccessListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 };
 
 END_INDEXEDDB_NAMESPACE

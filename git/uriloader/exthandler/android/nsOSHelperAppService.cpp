@@ -37,7 +37,6 @@
 
 #include "nsOSHelperAppService.h"
 #include "nsMIMEInfoAndroid.h"
-#include "AndroidBridge.h"
 
 nsOSHelperAppService::nsOSHelperAppService() : nsExternalHelperAppService()
 {
@@ -52,48 +51,21 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType,
                                         const nsACString& aFileExt,
                                         PRBool* aFound)
 {
-    nsRefPtr<nsMIMEInfoAndroid> mimeInfo;
     *aFound = PR_FALSE;
-    if (!aMIMEType.IsEmpty())
-        *aFound = 
-            nsMIMEInfoAndroid::GetMimeInfoForMimeType(aMIMEType, 
-                                                      getter_AddRefs(mimeInfo));
-    if (!*aFound)
-        *aFound =
-            nsMIMEInfoAndroid::GetMimeInfoForFileExt(aFileExt, 
-                                                     getter_AddRefs(mimeInfo));
+    already_AddRefed<nsIMIMEInfo> mimeInfo = 
+            nsMIMEInfoAndroid::GetMimeInfoForMimeType(aMIMEType);
+    if (!mimeInfo.get())
+            mimeInfo = nsMIMEInfoAndroid::GetMimeInfoForFileExt(aFileExt);
 
-    // Code that calls this requires an object regardless if the OS has
-    // something for us, so we return the empty object.
-    if (!*aFound)
-        mimeInfo = new nsMIMEInfoAndroid(aMIMEType);
-
-    return mimeInfo.forget();
+    *aFound = !!mimeInfo.get();
+    
+    return mimeInfo;
 }
 
 nsresult
 nsOSHelperAppService::OSProtocolHandlerExists(const char* aScheme,
                                               PRBool* aExists)
 {
-    *aExists = mozilla::AndroidBridge::Bridge()->GetHandlersForProtocol(aScheme);    
+    *aExists = PR_FALSE;
     return NS_OK;
-}
-
-nsresult nsOSHelperAppService::GetProtocolHandlerInfoFromOS(const nsACString &aScheme,
-                                      PRBool *found,
-                                      nsIHandlerInfo **info)
-{
-    return nsMIMEInfoAndroid::GetMimeInfoForProtocol(aScheme, found, info);
-}
-
-nsIHandlerApp*
-nsOSHelperAppService::CreateAndroidHandlerApp(const nsAString& aName,
-                                              const nsAString& aDescription,
-                                              const nsAString& aPackageName,
-                                              const nsAString& aClassName, 
-                                              const nsACString& aMimeType,
-                                              const nsAString& aAction)
-{
-    return new nsAndroidHandlerApp(aName, aDescription, aPackageName,
-                                   aClassName, aMimeType, aAction);
 }

@@ -40,32 +40,27 @@
 #define _nsXULMenuAccessible_H_
 
 #include "nsAccessibleWrap.h"
+#include "nsIAccessibleSelectable.h"
 #include "nsIDOMXULSelectCntrlEl.h"
 
 /**
- * The basic implementation of SelectAccessible for XUL select controls.
+ * The basic implementation of nsIAccessibleSelectable.
  */
 class nsXULSelectableAccessible : public nsAccessibleWrap
 {
 public:
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIACCESSIBLESELECTABLE
+
   nsXULSelectableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
   virtual ~nsXULSelectableAccessible() {}
 
   // nsAccessNode
   virtual void Shutdown();
 
-  // SelectAccessible
-  virtual bool IsSelect();
-  virtual already_AddRefed<nsIArray> SelectedItems();
-  virtual PRUint32 SelectedItemCount();
-  virtual nsAccessible* GetSelectedItem(PRUint32 aIndex);
-  virtual bool IsItemSelected(PRUint32 aIndex);
-  virtual bool AddItemToSelection(PRUint32 aIndex);
-  virtual bool RemoveItemFromSelection(PRUint32 aIndex);
-  virtual bool SelectAll();
-  virtual bool UnselectAll();
-
 protected:
+  nsresult ChangeSelection(PRInt32 aIndex, PRUint8 aMethod, PRBool *aSelState);
+
   // nsIDOMXULMultiSelectControlElement inherits from this, so we'll always have
   // one of these if the widget is valid and not defunct
   nsCOMPtr<nsIDOMXULSelectControlElement> mSelectControl;
@@ -94,7 +89,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual PRInt32 GetLevelInternal();
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
@@ -118,7 +113,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -133,7 +128,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -147,7 +142,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 

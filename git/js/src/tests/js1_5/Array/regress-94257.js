@@ -47,6 +47,7 @@
  *                       arr[1+1] += 2;
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-94257.js';
 var UBound = 0;
 var BUGNUMBER = 94257;
 var summary = "Making sure we don't crash on this code -";

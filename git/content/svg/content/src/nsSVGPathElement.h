@@ -76,8 +76,8 @@ friend class nsSVGTextPathFrame;
 
 protected:
   friend nsresult NS_NewSVGPathElement(nsIContent **aResult,
-                                       already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGPathElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                       nsINodeInfo *aNodeInfo);
+  nsSVGPathElement(nsINodeInfo *aNodeInfo);
   virtual ~nsSVGPathElement();
 
 public:
@@ -114,7 +114,6 @@ public:
   virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                  const nsAString* aValue, PRBool aNotify);
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   // nsSVGElement method

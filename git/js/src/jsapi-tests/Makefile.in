@@ -50,15 +50,12 @@ CPPSRCS = \
   tests.cpp \
   selfTest.cpp \
   testClassGetter.cpp \
-  testCloneScript.cpp \
   testConservativeGC.cpp \
   testContexts.cpp \
   testDebugger.cpp \
-  testDeepFreeze.cpp \
   testDefineGetterSetterNonEnumerable.cpp \
   testDefineProperty.cpp \
   testExtendedEq.cpp \
-  testFuncCallback.cpp \
   testGCChunkAlloc.cpp \
   testIntString.cpp \
   testIsAboutToBeFinalized.cpp \
@@ -66,12 +63,11 @@ CPPSRCS = \
   testNewObject.cpp \
   testOps.cpp \
   testPropCache.cpp \
-  testSameValue.cpp \
-  testScriptObject.cpp \
-  testSetPropertyWithNativeGetterStubSetter.cpp \
-  testBug604087.cpp \
   testTrap.cpp \
+  testSameValue.cpp \
+  testSeal.cpp \
   testXDR.cpp \
+  testSetPropertyWithNativeGetterStubSetter.cpp \
   $(NULL)
 
 DEFINES         += -DEXPORT_JS_API

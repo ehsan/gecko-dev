@@ -39,12 +39,9 @@
 
 #include "WebGLContext.h"
 
-#include "nsIPrefService.h"
-#include "nsServiceManagerUtils.h"
-
 #include "CheckedInt.h"
 
-#if defined(USE_ANGLE)
+#if !defined(USE_GLES2) && defined(USE_ANGLE)
 #include "angle/ShaderLang.h"
 #endif
 
@@ -111,7 +108,7 @@ WebGLContext::ValidateBuffers(PRUint32 count)
             continue;
 
         if (vd.buf == nsnull) {
-            LogMessage(mVerbose, "No VBO bound to enabled attrib index %d!", i);
+            LogMessage("No VBO bound to enabled attrib index %d!", i);
             return PR_FALSE;
         }
 
@@ -126,12 +123,12 @@ WebGLContext::ValidateBuffers(PRUint32 count)
             CheckedUint32(vd.componentSize()) * vd.size;   // and the number of bytes needed for these components
 
         if (!checked_needed.valid()) {
-            LogMessage(mVerbose, "Integer overflow computing the size of bound vertex attrib buffer at index %d", i);
+            LogMessage("Integer overflow computing the size of bound vertex attrib buffer at index %d", i);
             return PR_FALSE;
         }
 
         if (vd.buf->ByteLength() < checked_needed.value()) {
-            LogMessage(mVerbose, "VBO too small for bound attrib index %d: need at least %d bytes, but have only %d",
+            LogMessage("VBO too small for bound attrib index %d: need at least %d bytes, but have only %d",
                        i, checked_needed.value(), vd.buf->ByteLength());
             return PR_FALSE;
         }
@@ -154,7 +151,7 @@ PRBool WebGLContext::ValidateCapabilityEnum(WebGLenum cap, const char *info)
         case LOCAL_GL_STENCIL_TEST:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, cap);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -167,7 +164,7 @@ PRBool WebGLContext::ValidateBlendEquationEnum(WebGLenum mode, const char *info)
         case LOCAL_GL_FUNC_REVERSE_SUBTRACT:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, mode);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -191,7 +188,7 @@ PRBool WebGLContext::ValidateBlendFuncDstEnum(WebGLenum factor, const char *info
         case LOCAL_GL_ONE_MINUS_CONSTANT_ALPHA:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, factor);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -211,7 +208,7 @@ PRBool WebGLContext::ValidateTextureTargetEnum(WebGLenum target, const char *inf
         case LOCAL_GL_TEXTURE_CUBE_MAP:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, target);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -229,7 +226,7 @@ PRBool WebGLContext::ValidateComparisonEnum(WebGLenum target, const char *info)
         case LOCAL_GL_ALWAYS:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, target);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -247,20 +244,20 @@ PRBool WebGLContext::ValidateStencilOpEnum(WebGLenum action, const char *info)
         case LOCAL_GL_INVERT:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, action);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
 
-PRBool WebGLContext::ValidateFaceEnum(WebGLenum face, const char *info)
+PRBool WebGLContext::ValidateFaceEnum(WebGLenum target, const char *info)
 {
-    switch (face) {
+    switch (target) {
         case LOCAL_GL_FRONT:
         case LOCAL_GL_BACK:
         case LOCAL_GL_FRONT_AND_BACK:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, face);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -273,24 +270,7 @@ PRBool WebGLContext::ValidateBufferUsageEnum(WebGLenum target, const char *info)
         case LOCAL_GL_DYNAMIC_DRAW:
             return PR_TRUE;
         default:
-            ErrorInvalidEnumInfo(info, target);
-            return PR_FALSE;
-    }
-}
-
-PRBool WebGLContext::ValidateDrawModeEnum(WebGLenum mode, const char *info)
-{
-    switch (mode) {
-        case LOCAL_GL_TRIANGLES:
-        case LOCAL_GL_TRIANGLE_STRIP:
-        case LOCAL_GL_TRIANGLE_FAN:
-        case LOCAL_GL_POINTS:
-        case LOCAL_GL_LINE_STRIP:
-        case LOCAL_GL_LINE_LOOP:
-        case LOCAL_GL_LINES:
-            return PR_TRUE;
-        default:
-            ErrorInvalidEnumInfo(info, mode);
+            ErrorInvalidEnumInfo(info);
             return PR_FALSE;
     }
 }
@@ -318,7 +298,7 @@ PRBool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
                 *texelSize = 4;
                 return PR_TRUE;
             default:
-                ErrorInvalidEnum("%s: invalid format 0x%x", info, format);
+                ErrorInvalidEnum("%s: invalid format", info);
                 return PR_FALSE;
         }
     } else {
@@ -341,7 +321,7 @@ PRBool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
                     return PR_FALSE;
                 }
             default:
-                ErrorInvalidEnum("%s: invalid type 0x%x", info, type);
+                ErrorInvalidEnum("%s: invalid type", info);
                 return PR_FALSE;
         }
     }
@@ -382,16 +362,12 @@ WebGLContext::InitAndValidateGL()
     // make sure that the opengl stuff that we need is supported
     GLint val = 0;
 
-    MakeContextCurrent();
-
-    // on desktop OpenGL, we always keep vertex attrib 0 array enabled
-    if (!gl->IsGLES2()) {
-        gl->fEnableVertexAttribArray(0);
-    }
+    // XXX this exposes some strange latent bug; what's going on?
+    //MakeContextCurrent();
 
     gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_ATTRIBS, (GLint*) &mGLMaxVertexAttribs);
     if (mGLMaxVertexAttribs < 8) {
-        LogMessage("GL_MAX_VERTEX_ATTRIBS: %d is < 8!", mGLMaxVertexAttribs);
+        LogMessage("GL_MAX_VERTEX_ATTRIBS is < 8!");
         return PR_FALSE;
     }
 
@@ -402,7 +378,7 @@ WebGLContext::InitAndValidateGL()
     // GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS value is the accurate value.
     gl->fGetIntegerv(LOCAL_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxTextureUnits);
     if (mGLMaxTextureUnits < 8) {
-        LogMessage("GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS: %d is < 8!", mGLMaxTextureUnits);
+        LogMessage("GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS is < 8!");
         return PR_FALSE;
     }
 
@@ -415,27 +391,20 @@ WebGLContext::InitAndValidateGL()
     gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxTextureImageUnits);
     gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxVertexTextureImageUnits);
 
-    if (gl->IsGLES2()) {
-        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS, (GLint*) &mGLMaxFragmentUniformVectors);
-        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS, (GLint*) &mGLMaxVertexUniformVectors);
-        gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_VECTORS, (GLint*) &mGLMaxVaryingVectors);
-    } else {
-        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, (GLint*) &mGLMaxFragmentUniformVectors);
-        mGLMaxFragmentUniformVectors /= 4;
-        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_COMPONENTS, (GLint*) &mGLMaxVertexUniformVectors);
-        mGLMaxVertexUniformVectors /= 4;
-        gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_FLOATS, (GLint*) &mGLMaxVaryingVectors);
-        mGLMaxVaryingVectors /= 4;
-    }
-
-#if 0
-    // Leaving this code in here, even though it's ifdef'd out, for
-    // when we support more than 1 color attachment.
-    gl->fGetIntegerv(LOCAL_GL_MAX_COLOR_ATTACHMENTS, (GLint*) &val);
+#ifdef USE_GLES2
+    gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS, (GLint*) &mGLMaxFragmentUniformVectors);
+    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS, (GLint*) &mGLMaxVertexUniformVectors);
+    gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_VECTORS, (GLint*) &mGLMaxVaryingVectors);
 #else
-    // Always 1 for GLES2
-    val = 1;
+    gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, (GLint*) &mGLMaxFragmentUniformVectors);
+    mGLMaxFragmentUniformVectors /= 4;
+    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_COMPONENTS, (GLint*) &mGLMaxVertexUniformVectors);
+    mGLMaxVertexUniformVectors /= 4;
+    gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_FLOATS, (GLint*) &mGLMaxVaryingVectors);
+    mGLMaxVaryingVectors /= 4;
 #endif
+
+    gl->fGetIntegerv(LOCAL_GL_MAX_COLOR_ATTACHMENTS, (GLint*) &val);
     mFramebufferColorAttachments.SetLength(val);
 
 #if defined(DEBUG_vladimir) && defined(USE_GLES2)
@@ -446,51 +415,23 @@ WebGLContext::InitAndValidateGL()
     fprintf(stderr, "GL_IMPLEMENTATION_COLOR_READ_TYPE: 0x%04x\n", val);
 #endif
 
-    if (!gl->IsGLES2()) {
-        // gl_PointSize is always available in ES2 GLSL, but has to be
-        // specifically enabled on desktop GLSL.
-        gl->fEnable(LOCAL_GL_VERTEX_PROGRAM_POINT_SIZE);
-
-        // we don't do the following glEnable(GL_POINT_SPRITE) on ATI cards on Windows, because bug 602183 shows that it causes
-        // crashes in the ATI/Windows driver; and point sprites on ATI seem like a lost cause anyway, see
-        //    http://www.gamedev.net/community/forums/topic.asp?topic_id=525643
-        // Also, if the ATI/Windows driver implements a recent GL spec version, this shouldn't be needed anyway.
-#ifdef XP_WIN
-        if (gl->Vendor() != gl::GLContext::VendorATI)
-#else
-        if (true)
+#ifndef USE_GLES2
+    // gl_PointSize is always available in ES2 GLSL, but has to be
+    // specifically enabled on desktop GLSL.
+    gl->fEnable(LOCAL_GL_VERTEX_PROGRAM_POINT_SIZE);
 #endif
-        {
-            // gl_PointCoord is always available in ES2 GLSL and in newer desktop GLSL versions, but apparently
-            // not in OpenGL 2 and apparently not (due to a driver bug) on certain NVIDIA setups. See:
-            //   http://www.opengl.org/discussion_boards/ubbthreads.php?ubb=showflat&Number=261472
-            gl->fEnable(LOCAL_GL_POINT_SPRITE);
-        }
-    }
 
-    // Check the shader validator pref
-    nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    NS_ENSURE_TRUE(prefService != nsnull, NS_ERROR_FAILURE);
-
-    prefService->GetBoolPref("webgl.shader_validator", &mShaderValidation);
-
-#if defined(USE_ANGLE)
+#if !defined(USE_GLES2) && defined(USE_ANGLE)
     // initialize shader translator
-    if (mShaderValidation) {
+    static bool didTranslatorInit = false;
+    if (!didTranslatorInit && mShaderValidation) {
         if (!ShInitialize()) {
             LogMessage("GLSL translator initialization failed!");
             return PR_FALSE;
         }
+        didTranslatorInit = true;
     }
 #endif
-
-    // notice that the point of calling GetError here is not only to check for error,
-    // it is also to reset the error flag so that a subsequent WebGL getError call will give the correct result.
-    GLenum error = gl->fGetError();
-    if (error != LOCAL_GL_NO_ERROR) {
-        LogMessage("GL error 0x%x occurred during WebGL context initialization!", error);
-        return PR_FALSE;
-    }
 
     return PR_TRUE;
 }

@@ -165,40 +165,17 @@ nsAccessibilityService::NotifyOfAnchorJumpTo(nsIContent *aTarget)
 }
 
 // nsIAccessibilityService
-void
+nsresult
 nsAccessibilityService::FireAccessibleEvent(PRUint32 aEvent,
-                                            nsAccessible* aTarget)
+                                            nsIAccessible *aTarget)
 {
-  nsEventShell::FireEvent(aEvent, aTarget);
+  nsRefPtr<nsAccessible> accessible(do_QueryObject(aTarget));
+  nsEventShell::FireEvent(aEvent, accessible);
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessibilityService
-
-nsAccessible*
-nsAccessibilityService::GetRootDocumentAccessible(nsIPresShell* aPresShell,
-                                                  PRBool aCanCreate)
-{
-  nsIDocument* documentNode = aPresShell->GetDocument();
-  if (documentNode) {
-    nsCOMPtr<nsISupports> container = documentNode->GetContainer();
-    nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryInterface(container));
-    if (treeItem) {
-      nsCOMPtr<nsIDocShellTreeItem> rootTreeItem;
-      treeItem->GetRootTreeItem(getter_AddRefs(rootTreeItem));
-      if (treeItem != rootTreeItem) {
-        nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(rootTreeItem));
-        nsCOMPtr<nsIPresShell> presShell;
-        docShell->GetPresShell(getter_AddRefs(presShell));
-        documentNode = presShell->GetDocument();
-      }
-
-      return aCanCreate ?
-        GetDocAccessible(documentNode) : GetDocAccessibleFromCache(documentNode);
-    }
-  }
-  return nsnull;
-}
 
 already_AddRefed<nsAccessible>
 nsAccessibilityService::CreateOuterDocAccessible(nsIContent* aContent,
@@ -232,10 +209,12 @@ nsAccessibilityService::CreateHTMLButtonAccessible(nsIContent* aContent,
 
 already_AddRefed<nsAccessible>
 nsAccessibilityService::CreateHTMLLIAccessible(nsIContent* aContent,
-                                               nsIPresShell* aPresShell)
+                                               nsIPresShell* aPresShell,
+                                               const nsAString& aBulletText)
 {
   nsCOMPtr<nsIWeakReference> weakShell(do_GetWeakReference(aPresShell));
-  nsAccessible* accessible = new nsHTMLLIAccessible(aContent, weakShell);
+  nsAccessible* accessible = new nsHTMLLIAccessible(aContent, weakShell,
+                                                    aBulletText);
   NS_IF_ADDREF(accessible);
   return accessible;
 }
@@ -964,7 +943,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
 
           if (tableAccessible) {
             if (!roleMapEntry) {
-              PRUint32 role = tableAccessible->Role();
+              PRUint32 role = nsAccUtils::Role(tableAccessible);
               if (role != nsIAccessibleRole::ROLE_TABLE &&
                   role != nsIAccessibleRole::ROLE_TREE_TABLE) {
                 // No ARIA role and not in table: override role. For example,
@@ -1632,7 +1611,8 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
     // Normally for li, it is created by the list item frame (in nsBlockFrame)
     // which knows about the bullet frame; however, in this case the list item
     // must have been styled using display: foo
-    nsAccessible* accessible = new nsHTMLLIAccessible(aContent, aWeakShell);
+    nsAccessible* accessible = new nsHTMLLIAccessible(aContent, aWeakShell,
+                                                      EmptyString());
     NS_IF_ADDREF(accessible);
     return accessible;
   }
@@ -1664,12 +1644,6 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
   if (nsCoreUtils::IsHTMLTableHeader(aContent)) {
     nsAccessible* accessible = new nsHTMLTableHeaderCellAccessibleWrap(aContent,
                                                                        aWeakShell);
-    NS_IF_ADDREF(accessible);
-    return accessible;
-  }
-
-  if (tag == nsAccessibilityAtoms::output) {
-    nsAccessible* accessible = new nsHTMLOutputAccessible(aContent, aWeakShell);
     NS_IF_ADDREF(accessible);
     return accessible;
   }

@@ -1,3 +1,8 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
+var jps = Components.classes["@mozilla.org/jetpack/service;1"]
+  .getService(Components.interfaces.nsIJetpackService);
 var jetpack = null;
 
 load("handle_tests.js");
@@ -5,12 +10,32 @@ function createHandle() {
   return jetpack.createHandle();
 }
 
+const PR_RDONLY = 0x1;
+
+function read_file(f)
+{
+  var fis = Cc["@mozilla.org/network/file-input-stream;1"]
+    .createInstance(Ci.nsIFileInputStream);
+  fis.init(f, PR_RDONLY, 0444, Ci.nsIFileInputStream.CLOSE_ON_EOF);
+
+  var lis = Cc["@mozilla.org/intl/converter-input-stream;1"]
+    .createInstance(Ci.nsIConverterInputStream);
+  lis.init(fis, "UTF-8", 1024, 0);
+
+  var data = "";
+
+  var r = {};
+  while (lis.readString(0x0FFFFFFF, r))
+    data += r.value;
+
+  return data;
+}
+
 function run_test() {
-  jetpack = createJetpack({
-    skipRegisterError: true,
-    scriptFile: do_get_file("impl.js")
-  });
+  jetpack = jps.createJetpack();
   run_handle_tests();
+
+  jetpack.evalScript(read_file(do_get_file("impl.js")));
 
   var circ1 = {},
       circ2 = {},
@@ -167,13 +192,6 @@ function run_test() {
   });
   jetpack.registerReceiver("sandbox done", do_test_finished);
 
-  jetpack.registerReceiver("core:exception",
-			   function(msgName, e) {
-			       do_check_true(/throwing on request/.test(e.message));
-			       do_test_finished();
-			   });
-
-  do_test_pending();
   do_test_pending();
   do_test_pending();
   do_test_pending();
@@ -200,5 +218,8 @@ function run_test() {
   jetpack.sendMessage("duplicate receivers");
 
   jetpack.sendMessage("test sandbox");
-  jetpack.sendMessage("throw");
+
+  do_register_cleanup(function() {
+    jetpack.destroy();
+  });
 }

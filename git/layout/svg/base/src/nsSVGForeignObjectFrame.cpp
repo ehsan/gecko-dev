@@ -70,7 +70,8 @@ nsSVGForeignObjectFrame::nsSVGForeignObjectFrame(nsStyleContext* aContext)
   : nsSVGForeignObjectFrameBase(aContext),
     mInReflow(PR_FALSE)
 {
-  AddStateBits(NS_FRAME_REFLOW_ROOT | NS_FRAME_MAY_BE_TRANSFORMED);
+  AddStateBits(NS_FRAME_REFLOW_ROOT |
+               NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS);
 }
 
 //----------------------------------------------------------------------
@@ -154,7 +155,8 @@ nsSVGForeignObjectFrame::Reflow(nsPresContext*           aPresContext,
 
   aDesiredSize.width = aReflowState.ComputedWidth();
   aDesiredSize.height = aReflowState.ComputedHeight();
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
+  aDesiredSize.mOverflowArea =
+    nsRect(0, 0, aReflowState.ComputedWidth(), aReflowState.ComputedHeight());
   aStatus = NS_FRAME_COMPLETE;
 
   return NS_OK;
@@ -174,7 +176,7 @@ nsSVGForeignObjectFrame::InvalidateInternal(const nsRect& aDamageRect,
   nsRegion* region = (aFlags & INVALIDATE_CROSS_DOC)
     ? &mSubDocDirtyRegion : &mSameDocDirtyRegion;
   region->Or(*region, aDamageRect + nsPoint(aX, aY));
-  FlushDirtyRegion(aFlags);
+  FlushDirtyRegion();
 }
 
 
@@ -256,12 +258,9 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
 
   kidDirtyRect.IntersectRect(kidDirtyRect, kid->GetRect());
 
-  PRUint32 flags = nsLayoutUtils::PAINT_IN_TRANSFORM;
-  if (aContext->IsPaintingToWindow()) {
-    flags |= nsLayoutUtils::PAINT_TO_WINDOW;
-  }
   nsresult rv = nsLayoutUtils::PaintFrame(ctx, kid, nsRegion(kidDirtyRect),
-                                          NS_RGBA(0,0,0,0), flags);
+                                          NS_RGBA(0,0,0,0),
+                                          nsLayoutUtils::PAINT_IN_TRANSFORM);
 
   gfx->Restore();
 
@@ -425,7 +424,7 @@ nsSVGForeignObjectFrame::NotifyRedrawUnsuspended()
     if (GetStateBits() & NS_STATE_SVG_DIRTY) {
       UpdateGraphic(); // invalidate our entire area
     } else {
-      FlushDirtyRegion(0); // only invalidate areas dirtied by our descendants
+      FlushDirtyRegion(); // only invalidate areas dirtied by our descendants
     }
   }
   return NS_OK;
@@ -571,10 +570,10 @@ nsSVGForeignObjectFrame::DoReflow()
 
   // initiate a synchronous reflow here and now:  
   nsSize availableSpace(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
+  nsCOMPtr<nsIRenderingContext> renderingContext;
   nsIPresShell* presShell = presContext->PresShell();
   NS_ASSERTION(presShell, "null presShell");
-  nsCOMPtr<nsIRenderingContext> renderingContext =
-    presShell->GetReferenceRenderingContext();
+  presShell->CreateRenderingContext(this,getter_AddRefs(renderingContext));
   if (!renderingContext)
     return;
 
@@ -615,7 +614,7 @@ nsSVGForeignObjectFrame::DoReflow()
                     NS_FRAME_NO_MOVE_FRAME);
   
   mInReflow = PR_FALSE;
-  FlushDirtyRegion(0);
+  FlushDirtyRegion();
 }
 
 void
@@ -643,7 +642,7 @@ nsSVGForeignObjectFrame::InvalidateDirtyRect(nsSVGOuterSVGFrame* aOuter,
 }
 
 void
-nsSVGForeignObjectFrame::FlushDirtyRegion(PRUint32 aFlags)
+nsSVGForeignObjectFrame::FlushDirtyRegion()
 {
   if ((mSameDocDirtyRegion.IsEmpty() && mSubDocDirtyRegion.IsEmpty()) ||
       mInReflow)
@@ -658,9 +657,8 @@ nsSVGForeignObjectFrame::FlushDirtyRegion(PRUint32 aFlags)
   if (outerSVGFrame->IsRedrawSuspended())
     return;
 
-  InvalidateDirtyRect(outerSVGFrame, mSameDocDirtyRegion.GetBounds(), aFlags);
-  InvalidateDirtyRect(outerSVGFrame, mSubDocDirtyRegion.GetBounds(),
-                      aFlags | INVALIDATE_CROSS_DOC);
+  InvalidateDirtyRect(outerSVGFrame, mSameDocDirtyRegion.GetBounds(), 0);
+  InvalidateDirtyRect(outerSVGFrame, mSubDocDirtyRegion.GetBounds(), INVALIDATE_CROSS_DOC);
 
   mSameDocDirtyRegion.SetEmpty();
   mSubDocDirtyRegion.SetEmpty();

@@ -45,6 +45,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-223535.js';
 var i = 0;
 var BUGNUMBER = 223535;
 var summary = 'Testing regexps with empty alternatives';

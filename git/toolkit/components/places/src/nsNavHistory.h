@@ -70,6 +70,9 @@
 
 #include "mozilla/storage.h"
 
+// define to enable lazy link adding
+#define LAZY_ADD
+
 #define QUERYUPDATE_TIME 0
 #define QUERYUPDATE_SIMPLE 1
 #define QUERYUPDATE_COMPLEX 2
@@ -93,22 +96,12 @@
 // Fired after autocomplete feedback has been updated.
 #define TOPIC_AUTOCOMPLETE_FEEDBACK_UPDATED "places-autocomplete-feedback-updated"
 #endif
-
-// Fired when Places is shutting down.  Any code should stop accessing Places
-// APIs after this notification.  If you need to listen for Places shutdown
-// you should only use this notification, next ones are intended only for
-// internal Places use.
+// Fired when Places is shutting down.
 #define TOPIC_PLACES_SHUTDOWN "places-shutdown"
-// For Internal use only.  Fired when connection is about to be closed, only
-// cleanup tasks should run at this stage, nothing should be added to the
-// database, nor APIs should be called.
-#define TOPIC_PLACES_WILL_CLOSE_CONNECTION "places-will-close-connection"
-// For Internal use only. Fired as the last notification before the connection
-// is gone.
-#define TOPIC_PLACES_CONNECTION_CLOSING "places-connection-closing"
-// Fired when the connection has gone, nothing will work from now on.
-#define TOPIC_PLACES_CONNECTION_CLOSED "places-connection-closed"
-
+// Internal notification, called after places-shutdown.
+// If you need to listen for Places shutdown, you should really use
+// places-shutdown, because places-teardown is guaranteed to break your code.
+#define TOPIC_PLACES_TEARDOWN "places-teardown"
 // Fired when Places found a locked database while initing.
 #define TOPIC_DATABASE_LOCKED "places-database-locked"
 // Fired after Places inited.
@@ -199,6 +192,17 @@ public:
     }
     return gHistoryService;
   }
+
+#ifdef LAZY_ADD
+  /**
+   * Adds a lazy message for adding a favicon. Used by the favicon service so
+   * that favicons are handled lazily just like page adds.
+   */
+  nsresult AddLazyLoadFaviconMessage(nsIURI* aPageURI,
+                                     nsIURI* aFaviconURI,
+                                     PRBool aForceReload,
+                                     nsIFaviconDataCallback* aCallback);
+#endif
 
   /**
    * Returns the database ID for the given URI, or 0 if not found and autoCreate
@@ -615,6 +619,59 @@ protected:
    * Called when the cached now value is expired and needs renewal.
    */
   static void expireNowTimerCallback(nsITimer* aTimer, void* aClosure);
+
+#ifdef LAZY_ADD
+  // lazy add committing
+  struct LazyMessage {
+    enum MessageType { Type_Invalid, Type_AddURI, Type_Title, Type_Favicon };
+    LazyMessage()
+    {
+      type = Type_Invalid;
+      isRedirect = PR_FALSE;
+      isToplevel = PR_FALSE;
+      time = 0;
+      alwaysLoadFavicon = PR_FALSE;
+    }
+
+    // call this with common parms to initialize. Caller is responsible for
+    // setting other elements manually depending on type.
+    nsresult Init(MessageType aType, nsIURI* aURI)
+    {
+      NS_ENSURE_ARG_POINTER(aURI);
+      type = aType;
+      nsresult rv = aURI->Clone(getter_AddRefs(uri));
+      NS_ENSURE_SUCCESS(rv, rv);
+      return uri->GetSpec(uriSpec);
+    }
+
+    // common elements
+    MessageType type;
+    nsCOMPtr<nsIURI> uri;
+    nsCString uriSpec; // stringified version of URI, for quick isVisited
+
+    // valid when type == Type_AddURI
+    nsCOMPtr<nsIURI> referrer;
+    PRBool isRedirect;
+    PRBool isToplevel;
+    PRTime time;
+
+    // valid when type == Type_Title
+    nsString title;
+
+    // valid when type == LAZY_FAVICON
+    nsCOMPtr<nsIURI> favicon;
+    PRBool alwaysLoadFavicon;
+    nsCOMPtr<nsIFaviconDataCallback> callback;
+  };
+  nsTArray<LazyMessage> mLazyMessages;
+  nsCOMPtr<nsITimer> mLazyTimer;
+  PRBool mLazyTimerSet;
+  PRUint32 mLazyTimerDeferments; // see StartLazyTimer
+  nsresult StartLazyTimer();
+  nsresult AddLazyMessage(const LazyMessage& aMessage);
+  static void LazyTimerCallback(nsITimer* aTimer, void* aClosure);
+  void CommitLazyMessages(PRBool aIsShutdown = PR_FALSE);
+#endif
 
   nsresult ConstructQueryString(const nsCOMArray<nsNavHistoryQuery>& aQueries, 
                                 nsNavHistoryQueryOptions* aOptions,

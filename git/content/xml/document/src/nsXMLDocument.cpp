@@ -92,7 +92,6 @@
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIHTMLDocument.h"
-#include "nsGenericElement.h"
 
 // ==================================================================
 // =
@@ -121,13 +120,9 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
   PRBool isHTML = PR_FALSE;
   PRBool isXHTML = PR_FALSE;
   if (aDoctype) {
-    nsAutoString publicId, name;
+    nsAutoString publicId;
     aDoctype->GetPublicId(publicId);
-    if (publicId.IsEmpty()) {
-      aDoctype->GetName(name);
-    }
-    if (name.EqualsLiteral("html") ||
-        publicId.EqualsLiteral("-//W3C//DTD HTML 4.01//EN") ||
+    if (publicId.EqualsLiteral("-//W3C//DTD HTML 4.01//EN") ||
         publicId.EqualsLiteral("-//W3C//DTD HTML 4.01 Frameset//EN") ||
         publicId.EqualsLiteral("-//W3C//DTD HTML 4.01 Transitional//EN") ||
         publicId.EqualsLiteral("-//W3C//DTD HTML 4.0//EN") ||
@@ -237,7 +232,7 @@ nsXMLDocument::~nsXMLDocument()
   mLoopingForSyncLoad = PR_FALSE;
 }
 
-DOMCI_NODE_DATA(XMLDocument, nsXMLDocument)
+DOMCI_DATA(XMLDocument, nsXMLDocument)
 
 // QueryInterface implementation for nsXMLDocument
 NS_INTERFACE_TABLE_HEAD(nsXMLDocument)

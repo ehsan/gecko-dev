@@ -66,8 +66,6 @@ public:
   PRBool IsEmpty();
 
   void RenderLayer();
-
-  virtual void LayerManagerDestroyed();
 };
 
 } /* layers */

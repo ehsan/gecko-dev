@@ -401,9 +401,6 @@ AsyncChannel::MaybeHandleError(Result code, const char* channelName)
     }
 
     PrintErrorMessage(channelName, errorMsg);
-
-    mListener->OnProcessingError(code);
-
     return false;
 }
 
@@ -433,8 +430,6 @@ AsyncChannel::ReportConnectionError(const char* channelName) const
     }
 
     PrintErrorMessage(channelName, errorMsg);
-
-    mListener->OnProcessingError(MsgDropped);
 }
 
 //

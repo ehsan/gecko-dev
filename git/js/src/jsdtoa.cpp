@@ -51,8 +51,6 @@
 #include "jslibmath.h"
 #include "jscntxt.h"
 
-#include "jsobjinlines.h"
-
 #ifdef IS_LITTLE_ENDIAN
 #define IEEE_8087
 #else

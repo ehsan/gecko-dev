@@ -37,7 +37,7 @@
 
 /**
  * Content Security Policy
- *
+ * 
  * Overview
  * This is a stub component that will be fleshed out to do all the fancy stuff
  * that ContentSecurityPolicy has to do.
@@ -188,23 +188,13 @@ ContentSecurityPolicy.prototype = {
     if (!aChannel)
       return;
     // grab the request line
-    var internalChannel = null;
-    try {
-      internalChannel = aChannel.QueryInterface(Ci.nsIHttpChannelInternal);
-    } catch (e) {
-      CSPdebug("No nsIHttpChannelInternal for " + aChannel.URI.asciiSpec);
-    }
-
-    this._request = aChannel.requestMethod + " " + aChannel.URI.asciiSpec;
-
-    // We will only be able to provide the HTTP version information if aChannel
-    // implements nsIHttpChannelInternal
-    if (internalChannel) {
-      var reqMaj = {};
-      var reqMin = {};
-      var reqVersion = internalChannel.getRequestVersion(reqMaj, reqMin);
-      this._request += " HTTP/" + reqMaj.value + "." + reqMin.value;
-    }
+    var internalChannel = aChannel.QueryInterface(Ci.nsIHttpChannelInternal);
+    var reqMaj = {};
+    var reqMin = {};
+    var reqVersion = internalChannel.getRequestVersion(reqMaj, reqMin);
+    this._request = aChannel.requestMethod + " " 
+                  + aChannel.URI.asciiSpec
+                  + " HTTP/" + reqMaj.value + "." + reqMin.value;
 
     // grab the request headers
     var self = this;
@@ -226,13 +216,6 @@ ContentSecurityPolicy.prototype = {
   function csp_refinePolicy(aPolicy, selfURI) {
     CSPdebug("REFINE POLICY: " + aPolicy);
     CSPdebug("         SELF: " + selfURI.asciiSpec);
-    // For nested schemes such as view-source: make sure we are taking the
-    // innermost URI to use as 'self' since that's where we will extract the
-    // scheme, host and port from
-    if (selfURI instanceof Ci.nsINestedURI) {
-      CSPdebug("        INNER: " + selfURI.innermostURI.asciiSpec);
-      selfURI = selfURI.innermostURI;
-    }
 
     // stay uninitialized until policy merging is done
     this._isInitialized = false;
@@ -284,13 +267,7 @@ ContentSecurityPolicy.prototype = {
       }
       CSPdebug("Constructed violation report:\n" + JSON.stringify(report));
 
-      CSPWarning("Directive \"" + violatedDirective + "\" violated"
-               + (blockedUri['asciiSpec'] ? " by " + blockedUri.asciiSpec : ""));
-
       // For each URI in the report list, send out a report.
-      // We make the assumption that all of the URIs are absolute URIs; this
-      // should be taken care of in CSPRep.fromString (where it converts any
-      // relative URIs into absolute ones based on "self").
       for (let i in uris) {
         if (uris[i] === "")
           continue;
@@ -308,7 +285,8 @@ ContentSecurityPolicy.prototype = {
           req.setRequestHeader('Content-Type', 'application/json');
           req.upload.addEventListener("error", failure, false);
           req.upload.addEventListener("abort", failure, false);
-
+          //req.channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE;
+ 
           // make request anonymous
           // This prevents sending cookies with the request,
           // in case the policy URI is injected, it can't be
@@ -396,8 +374,7 @@ ContentSecurityPolicy.prototype = {
                           aExtra) {
 
     // don't filter chrome stuff
-    if (aContentLocation.scheme === 'chrome' ||
-        aContentLocation.scheme === 'resource') {
+    if (aContentLocation.scheme === 'chrome') {
       return Ci.nsIContentPolicy.ACCEPT;
     }
 
@@ -405,6 +382,7 @@ ContentSecurityPolicy.prototype = {
     CSPdebug("shouldLoad location = " + aContentLocation.asciiSpec);
     CSPdebug("shouldLoad content type = " + aContentType);
     var cspContext = ContentSecurityPolicy._MAPPINGS[aContentType];
+    // CSPdebug("shouldLoad CSP directive =" + cspContext);
 
     // if the mapping is null, there's no policy, let it through.
     if (!cspContext) {

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-295052.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 295052;
 var summary = 'Do not crash when apply method is called on String.prototype.match';

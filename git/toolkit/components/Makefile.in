@@ -62,7 +62,6 @@ PARALLEL_DIRS += \
   microformats \
   parentalcontrols \
   passwordmgr \
-  perf \
   places \
   prompts \
   startup \

@@ -71,7 +71,7 @@
               oncommand="TestPilotWindowUtils.openFeedbackPage(false);"/>
     <menuseparator/>
     <menuitem id="feedback-menu-show-studies"
-              label="&testpilot.allYourStudies.label;"
+              label="&testpilot.allStudies.label;..."
               oncommand="TestPilotWindowUtils.openAllStudiesWindow();"/>
     <menuitem id="feedback-menu-enable-studies" 
               label="&testpilot.enable.label;"

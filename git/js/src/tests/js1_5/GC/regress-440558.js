@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-440558.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 440558;
 var summary = 'Do not assert: *flagp != GCF_FINAL';

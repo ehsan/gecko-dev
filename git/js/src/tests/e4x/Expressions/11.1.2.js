@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '11.1.2.js';
 
 START("11.1.2 - Qualified Identifiers");
 

@@ -3,11 +3,6 @@
 # found in the LICENSE file.
 
 {
-  'target_defaults': {
-    'defines': [
-      'TRACE_OUTPUT_FILE="angle-debug.txt"',
-    ],
-  },
   'targets': [
     {
       'target_name': 'translator_common',
@@ -24,7 +19,6 @@
       'sources': [
         'compiler/BaseTypes.h',
         'compiler/Common.h',
-        'compiler/Compiler.cpp',
         'compiler/ConstantUnion.h',
         'compiler/debug.cpp',
         'compiler/debug.h',
@@ -40,6 +34,7 @@
         'compiler/intermediate.h',
         'compiler/intermOut.cpp',
         'compiler/IntermTraverse.cpp',
+        'compiler/Link.cpp',
         'compiler/localintermediate.h',
         'compiler/MMap.h',
         'compiler/osinclude.h',
@@ -58,8 +53,6 @@
         'compiler/SymbolTable.h',
         'compiler/Types.h',
         'compiler/unistd.h',
-        'compiler/VariableInfo.cpp',
-        'compiler/VariableInfo.h',
         'compiler/preprocessor/atom.c',
         'compiler/preprocessor/atom.h',
         'compiler/preprocessor/compile.h',
@@ -185,8 +178,6 @@
             'libGLESv2/Buffer.h',
             'libGLESv2/Context.cpp',
             'libGLESv2/Context.h',
-            'libGLESv2/Fence.cpp',
-            'libGLESv2/Fence.h',
             'libGLESv2/Framebuffer.cpp',
             'libGLESv2/Framebuffer.h',
             'libGLESv2/libGLESv2.cpp',
@@ -196,12 +187,8 @@
             'libGLESv2/mathutil.h',
             'libGLESv2/Program.cpp',
             'libGLESv2/Program.h',
-            'libGLESv2/RefCountObject.cpp',
-            'libGLESv2/RefCountObject.h',
             'libGLESv2/Renderbuffer.cpp',
             'libGLESv2/Renderbuffer.h',
-            'libGLESv2/ResourceManager.cpp',
-            'libGLESv2/ResourceManager.h',
             'libGLESv2/Shader.cpp',
             'libGLESv2/Shader.h',
             'libGLESv2/Texture.cpp',
@@ -241,10 +228,7 @@
           ],
           'msvs_settings': {
             'VCLinkerTool': {
-              'AdditionalLibraryDirectories': ['$(DXSDK_DIR)/lib/x86'],
-              'AdditionalDependencies': [
-                'dxguid.lib',
-              ],
+              'AdditionalDependencies': ['d3d9.lib'],
             }
           },
         },

@@ -52,12 +52,6 @@ EXPORTS		= \
 		nsClientRect.h \
 		$(NULL)
 
-ifdef MOZ_IPC
-EXPORTS        += \
-                nsHTMLDNSPrefetch.h \
-                $(NULL)
-endif
-
 CPPSRCS		= \
 		nsClientRect.cpp \
 		nsHTMLDNSPrefetch.cpp \
@@ -72,7 +66,6 @@ CPPSRCS		= \
 		nsHTMLBodyElement.cpp \
 		nsHTMLButtonElement.cpp \
 		nsHTMLCanvasElement.cpp \
-		nsHTMLDataListElement.cpp \
 		nsHTMLDelElement.cpp \
 		nsHTMLDivElement.cpp \
 		nsHTMLFieldSetElement.cpp \
@@ -112,17 +105,14 @@ CPPSRCS		= \
 		nsHTMLTableSectionElement.cpp \
 		nsHTMLTextAreaElement.cpp \
 		nsHTMLTitleElement.cpp \
-		nsDOMValidityState.cpp \
-		nsIConstraintValidation.cpp \
 		$(NULL)
 
 ifdef MOZ_MEDIA
 CPPSRCS		+= \
 		nsHTMLAudioElement.cpp \
 		nsHTMLMediaElement.cpp \
-		nsMediaError.cpp \
+		nsHTMLMediaError.cpp \
 		nsHTMLSourceElement.cpp \
-		nsTimeRanges.cpp \
 		nsHTMLVideoElement.cpp \
 		$(NULL)
 endif
@@ -131,7 +121,6 @@ endif
 FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 INCLUDES	+= \
 		-I$(srcdir)/../../../base/src \

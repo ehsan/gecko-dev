@@ -38,34 +38,24 @@
 namespace mozilla {
 namespace gl {
 
-already_AddRefed<GLContext>
-GLContextProviderNull::CreateForWindow(nsIWidget*)
-{
-    return nsnull;
-}
+GLContextProvider sGLContextProvider;
 
 already_AddRefed<GLContext>
-GLContextProviderNull::CreateOffscreen(const gfxIntSize&,
-                                       const ContextFormat&)
+GLContextProvider::CreateForWindow(nsIWidget*)
 {
     return nsnull;
 }
 
 already_AddRefed<GLContext>
-GLContextProviderNull::CreateForNativePixmapSurface(gfxASurface *)
+GLContextProvider::CreateForNativePixmapSurface(gfxASurface *aSurface)
 {
-    return nsnull;
+    return 0;
 }
 
-GLContext *
-GLContextProviderNull::GetGlobalContext()
+already_AddRefed<GLContext>
+GLContextProvider::CreatePBuffer(const gfxIntSize &, const ContextFormat &)
 {
     return nsnull;
-}
-
-void
-GLContextProviderNull::Shutdown()
-{
 }
 
 } /* namespace gl */

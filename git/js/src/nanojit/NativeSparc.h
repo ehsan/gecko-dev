@@ -42,6 +42,7 @@
 #ifndef __nanojit_NativeSparc__
 #define __nanojit_NativeSparc__
 
+
 #define count_instr()
 #define count_ret()
 #define count_push()
@@ -86,94 +87,89 @@ namespace nanojit
     const size_t LARGEST_BRANCH_PATCH = 2 * sizeof(NIns);
 
     // These are used as register numbers in various parts of the code
-    typedef uint32_t Register;
-    static const Register
-        G0  = { 0 },
-        G1  = { 1 },
-        G2  = { 2 },
-        G3  = { 3 },
-        G4  = { 4 },
-        G5  = { 5 }, // Reserved for system
-        G6  = { 6 }, // Reserved for system
-        G7  = { 7 }, // Reserved for system
+    typedef enum
+        {
+            G0  = 0,
+            G1  = 1,
+            G2  = 2,
+            G3  = 3,
+            G4  = 4,
+            G5  = 5, // Reserved for system
+            G6  = 6, // Reserved for system
+            G7  = 7, // Reserved for system
 
-        O0  = { 8 },
-        O1  = { 9 },
-        O2  = { 10 },
-        O3  = { 11 },
-        O4  = { 12 },
-        O5  = { 13 },
-        O6  = { 14 }, // SP
-        O7  = { 15 }, // Not used.
+            O0  = 8,
+            O1  = 9,
+            O2  = 10,
+            O3  = 11,
+            O4  = 12,
+            O5  = 13,
+            O6  = 14, // SP
+            O7  = 15, // Not used.
 
-        L0  = { 16 },
-        L1  = { 17 },
-        L2  = { 18 },
-        L3  = { 19 },
-        L4  = { 20 },
-        L5  = { 21 },
-        L6  = { 22 },
-        L7  = { 23 },
+            L0  = 16,
+            L1  = 17,
+            L2  = 18,
+            L3  = 19,
+            L4  = 20,
+            L5  = 21,
+            L6  = 22,
+            L7  = 23,
 
-        I0  = { 24 },
-        I1  = { 25 },
-        I2  = { 26 },
-        I3  = { 27 },
-        I4  = { 28 },
-        I5  = { 29 },
-        I6  = { 30 }, // FP
-        I7  = { 31 }, // Not used
+            I0  = 24,
+            I1  = 25,
+            I2  = 26,
+            I3  = 27,
+            I4  = 28,
+            I5  = 29,
+            I6  = 30, // FP
+            I7  = 31, // Not used
 
-        SP  = O6,
-        FP  = I6,
+            SP  = O6,
+            FP  = I6,
 
-        F0  = { 0 },
-        F1  = { 1 },
-        F2  = { 2 },
-        F3  = { 3 },
-        F4  = { 4 },
-        F5  = { 5 },
-        F6  = { 6 },
-        F7  = { 7 },
-        F8  = { 8 },
-        F9  = { 9 },
-        F10 = { 10 },
-        F11 = { 11 },
-        F12 = { 12 },
-        F13 = { 13 },
-        F14 = { 14 },
-        F15 = { 15 },
-        F16 = { 16 },
-        F17 = { 17 },
-        F18 = { 18 },
-        F19 = { 19 },
-        F20 = { 20 },
-        F21 = { 21 },
-        F22 = { 22 },
-        F23 = { 23 },
-        F24 = { 24 },
-        F25 = { 25 },
-        F26 = { 26 },
-        F27 = { 27 },
-        F28 = { 28 },
-        F29 = { 29 },
-        F30 = { 30 },
-        F31 = { 31 },
+            F0  = 0,
+            F1  = 1,
+            F2  = 2,
+            F3  = 3,
+            F4  = 4,
+            F5  = 5,
+            F6  = 6,
+            F7  = 7,
+            F8  = 8,
+            F9  = 9,
+            F10 = 10,
+            F11 = 11,
+            F12 = 12,
+            F13 = 13,
+            F14 = 14,
+            F15 = 15,
+            F16 = 16,
+            F17 = 17,
+            F18 = 18,
+            F19 = 19,
+            F20 = 20,
+            F21 = 21,
+            F22 = 22,
+            F23 = 23,
+            F24 = 24,
+            F25 = 25,
+            F26 = 26,
+            F27 = 27,
+            F28 = 28,
+            F29 = 29,
+            F30 = 30,
+            F31 = 31,
 
-        // helpers
-        FRAME_PTR = G4,
+            // helpers
+            FRAME_PTR = G4,
 
-        deprecated_UnknownReg = { 30 };     // XXX: remove eventually, see bug 538924
+            FirstReg = 0,
+            LastReg = 29,
+            deprecated_UnknownReg = 30      // XXX: remove eventually, see bug 538924
+        }
+    Register;
 
-    static const uint32_t FirstRegNum = 0;
-    static const uint32_t LastRegNum = 29;
-}
-
-#define NJ_USE_UINT32_REGISTER 1
-#include "NativeCommon.h"
-
-namespace nanojit
-{
     // We only use 32 registers to be managed.
     // So we choose some of them.
     // And other unmanaged registers we can use them directly.
@@ -741,10 +737,10 @@ namespace nanojit
     asm_output("movvs %d, %s", simm11, gpn(rd)); \
     } while (0)
 
-#define SMULCC(rs1, rs2, rd) \
+#define MULX(rs1, rs2, rd) \
     do { \
-    Format_3_1(2, rd, 0x1b, rs1, 0, rs2); \
-    asm_output("smulcc %s, %s, %s", gpn(rs1), gpn(rs2), gpn(rd)); \
+    Format_3_1(2, rd, 0x9, rs1, 0, rs2); \
+    asm_output("mul %s, %s, %s", gpn(rs1), gpn(rs2), gpn(rd)); \
     } while (0)
 
 #define NOP() \
@@ -775,12 +771,6 @@ namespace nanojit
     do { \
     Format_3_1(2, rd, 0x11, rs1, 0, rs2); \
     asm_output("andcc %s, %s, %s", gpn(rs1), gpn(rs2), gpn(rd)); \
-    } while (0)
-
-#define RDY(rd) \
-    do { \
-    Format_3_1(2, rd, 0x28, 0, 0, 0); \
-    asm_output("rdy %s", gpn(rd)); \
     } while (0)
 
 #define RESTORE(rs1, rs2, rd) \
@@ -817,12 +807,6 @@ namespace nanojit
     do { \
     Format_3_5(2, rd, 0x27, rs1, 0, rs2); \
     asm_output("sra %s, %s, %s", gpn(rs1), gpn(rs2), gpn(rd)); \
-    } while (0)
-
-#define SRAI(rs1, shcnt32, rd) \
-    do { \
-    Format_3_6(2, rd, 0x27, rs1, shcnt32); \
-    asm_output("sra %s, %d, %s", gpn(rs1), shcnt32, gpn(rd)); \
     } while (0)
 
 #define SRL(rs1, rs2, rd) \

@@ -1,6 +1,6 @@
 /*
  * Copyright 2000 Computing Research Labs, New Mexico State University
- * Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2009, 2010
+ * Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2009
  *   Francesco Zappa Nardelli
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -470,11 +470,6 @@
   }
 
 
-  /* An empty string for empty fields. */
-
-  static const char  empty[1] = { 0 };      /* XXX eliminate this */
-
-
   static char *
   _bdf_list_join( _bdf_list_t*    list,
                   int             c,
@@ -499,12 +494,16 @@
       if ( i + 1 < list->used )
         dp[j++] = (char)c;
     }
-    if ( dp != empty )
-      dp[j] = 0;
+    dp[j] = 0;
 
     *alen = j;
     return dp;
   }
+
+
+  /* An empty string for empty fields. */
+
+  static const char  empty[1] = { 0 };      /* XXX eliminate this */
 
 
   static FT_Error
@@ -649,9 +648,8 @@
     {
       if ( refill )
       {
-        bytes  = (ptrdiff_t)FT_Stream_TryRead(
-                   stream, (FT_Byte*)buf + cursor,
-                   (FT_ULong)( buf_size - cursor ) );
+        bytes  = (ptrdiff_t)FT_Stream_TryRead( stream, (FT_Byte*)buf + cursor,
+                                               (FT_ULong)(buf_size - cursor) );
         avail  = cursor + bytes;
         cursor = 0;
         refill = 0;
@@ -721,10 +719,6 @@
       {
         error = (*cb)( buf + start, end - start, lineno,
                        (void*)&cb, client_data );
-        /* Redo if we have encountered CHARS without properties. */
-        if ( error == -1 )
-          error = (*cb)( buf + start, end - start, lineno,
-                         (void*)&cb, client_data );
         if ( error )
           break;
       }
@@ -1377,8 +1371,7 @@
 
     /* If the property happens to be a comment, then it doesn't need */
     /* to be added to the internal hash table.                       */
-    if ( ft_memcmp( name, "COMMENT", 7 ) != 0 )
-    {
+    if ( ft_memcmp( name, "COMMENT", 7 ) != 0 ) {
       /* Add the property to the font property table. */
       error = hash_insert( fp->name,
                            font->props_used,
@@ -1874,9 +1867,6 @@
     error = BDF_Err_Invalid_File_Format;
 
   Exit:
-    if ( error && ( p->flags & _BDF_GLYPH ) )
-      FT_FREE( p->glyph_name );
-
     return error;
   }
 
@@ -2087,14 +2077,6 @@
     /* Check for the start of the properties. */
     if ( ft_memcmp( line, "STARTPROPERTIES", 15 ) == 0 )
     {
-      if ( !( p->flags & _BDF_FONT_BBX ) )
-      {
-        /* Missing the FONTBOUNDINGBOX field. */
-        FT_ERROR(( "_bdf_parse_start: " ERRMSG1, lineno, "FONTBOUNDINGBOX" ));
-        error = BDF_Err_Missing_Fontboundingbox_Field;
-        goto Exit;
-      }
-
       error = _bdf_list_split( &p->list, (char *)" +", line, linelen );
       if ( error )
         goto Exit;
@@ -2113,7 +2095,7 @@
     /* Check for the FONTBOUNDINGBOX field. */
     if ( ft_memcmp( line, "FONTBOUNDINGBOX", 15 ) == 0 )
     {
-      if ( !( p->flags & _BDF_SIZE ) )
+      if ( !(p->flags & _BDF_SIZE ) )
       {
         /* Missing the SIZE field. */
         FT_ERROR(( "_bdf_parse_start: " ERRMSG1, lineno, "SIZE" ));
@@ -2156,9 +2138,6 @@
         error = BDF_Err_Invalid_File_Format;
         goto Exit;
       }
-
-      /* Allowing multiple `FONT' lines (which is invalid) doesn't hurt... */
-      FT_FREE( p->font->name );
 
       if ( FT_NEW_ARRAY( p->font->name, slen + 1 ) )
         goto Exit;
@@ -2229,45 +2208,6 @@
       goto Exit;
     }
 
-    /* Check for the CHARS field -- font properties are optional */
-    if ( ft_memcmp( line, "CHARS", 5 ) == 0 )
-    {
-      char  nbuf[128];
-
-
-      if ( !( p->flags & _BDF_FONT_BBX ) )
-      {
-        /* Missing the FONTBOUNDINGBOX field. */
-        FT_ERROR(( "_bdf_parse_start: " ERRMSG1, lineno, "FONTBOUNDINGBOX" ));
-        error = BDF_Err_Missing_Fontboundingbox_Field;
-        goto Exit;
-      }
-
-      /* Add the two standard X11 properties which are required */
-      /* for compiling fonts.                                   */
-      p->font->font_ascent = p->font->bbx.ascent;
-      ft_sprintf( nbuf, "%hd", p->font->bbx.ascent );
-      error = _bdf_add_property( p->font, (char *)"FONT_ASCENT", nbuf );
-      if ( error )
-        goto Exit;
-      FT_TRACE2(( "_bdf_parse_properties: " ACMSG1, p->font->bbx.ascent ));
-
-      p->font->font_descent = p->font->bbx.descent;
-      ft_sprintf( nbuf, "%hd", p->font->bbx.descent );
-      error = _bdf_add_property( p->font, (char *)"FONT_DESCENT", nbuf );
-      if ( error )
-        goto Exit;
-      FT_TRACE2(( "_bdf_parse_properties: " ACMSG2, p->font->bbx.descent ));
-
-      p->font->modified = 1;
-
-      *next = _bdf_parse_glyphs;
-
-      /* A special return value. */
-      error = -1;
-      goto Exit;
-    }
-
     error = BDF_Err_Invalid_File_Format;
 
   Exit:
@@ -2289,7 +2229,7 @@
                  bdf_font_t*    *font )
   {
     unsigned long  lineno = 0; /* make compiler happy */
-    _bdf_parse_t   *p     = NULL;
+    _bdf_parse_t   *p;
 
     FT_Memory      memory = extmemory;
     FT_Error       error  = BDF_Err_Ok;
@@ -2404,8 +2344,7 @@
       /* Make sure the comments are NULL terminated if they exist. */
       memory = p->font->memory;
 
-      if ( p->font->comments_len > 0 )
-      {
+      if ( p->font->comments_len > 0 ) {
         if ( FT_RENEW_ARRAY( p->font->comments,
                              p->font->comments_len,
                              p->font->comments_len + 1 ) )
@@ -2509,8 +2448,8 @@
     hash_free( &(font->proptbl), memory );
 
     /* Free up the user defined properties. */
-    for ( prop = font->user_props, i = 0;
-          i < font->nuser_props; i++, prop++ )
+    for (prop = font->user_props, i = 0;
+         i < font->nuser_props; i++, prop++ )
     {
       FT_FREE( prop->name );
       if ( prop->format == BDF_ATOM )

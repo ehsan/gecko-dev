@@ -178,17 +178,9 @@ struct NS_GFX nsRect {
   nsRect  operator+(const nsMargin& aMargin) const { return nsRect(*this) += aMargin; }
   nsRect  operator-(const nsMargin& aMargin) const { return nsRect(*this) -= aMargin; }
 
-  // Scale by aScale, converting coordinates to integers so that the result is
-  // the smallest integer-coordinate rectangle containing the unrounded result.
-  nsRect& ScaleRoundOut(float aScale) { return ScaleRoundOut(aScale, aScale); }
-  nsRect& ScaleRoundOut(float aXScale, float aYScale);
-
-  // Converts this rect from aFromAPP, an appunits per pixel ratio, to aToAPP.
-  // In the RoundOut version we make the rect the smallest rect containing the
-  // unrounded result. In the RoundIn version we make the rect the largest rect
-  // contained in the unrounded result.
-  inline nsRect ConvertAppUnitsRoundOut(PRInt32 aFromAPP, PRInt32 aToAPP) const;
-  inline nsRect ConvertAppUnitsRoundIn(PRInt32 aFromAPP, PRInt32 aToAPP) const;
+  // Scale by aScale, converting coordinates to integers so that the result
+  // is the smallest integer-coordinate rectangle containing the unrounded result
+  nsRect& ScaleRoundOut(float aScale);
 
   // Helpers for accessing the vertices
   nsPoint TopLeft() const { return nsPoint(x, y); }
@@ -336,55 +328,11 @@ struct NS_GFX nsIntRect {
   PRInt32 YMost() const {return y + height;}
 
   inline nsRect ToAppUnits(nscoord aAppUnitsPerPixel) const;
-
-  // Returns a special nsIntRect that's used in some places to signify
-  // "all available space".
-  static const nsIntRect& GetMaxSizedIntRect() { return kMaxSizedIntRect; }
-
-protected:
-  static const nsIntRect kMaxSizedIntRect;
 };
 
 /*
  * App Unit/Pixel conversions
  */
-
-inline nsRect
-nsRect::ConvertAppUnitsRoundOut(PRInt32 aFromAPP, PRInt32 aToAPP) const
-{
-  if (aFromAPP == aToAPP) {
-    return *this;
-  }
-
-  nsRect rect;
-  nscoord right = NSToCoordCeil(NSCoordScale(XMost(), aFromAPP, aToAPP));
-  nscoord bottom = NSToCoordCeil(NSCoordScale(YMost(), aFromAPP, aToAPP));
-  rect.x = NSToCoordFloor(NSCoordScale(x, aFromAPP, aToAPP));
-  rect.y = NSToCoordFloor(NSCoordScale(y, aFromAPP, aToAPP));
-  rect.width = (right - rect.x);
-  rect.height = (bottom - rect.y);
-
-  return rect;
-}
-
-inline nsRect
-nsRect::ConvertAppUnitsRoundIn(PRInt32 aFromAPP, PRInt32 aToAPP) const
-{
-  if (aFromAPP == aToAPP) {
-    return *this;
-  }
-
-  nsRect rect;
-  nscoord right = NSToCoordFloor(NSCoordScale(XMost(), aFromAPP, aToAPP));
-  nscoord bottom = NSToCoordFloor(NSCoordScale(YMost(), aFromAPP, aToAPP));
-  rect.x = NSToCoordCeil(NSCoordScale(x, aFromAPP, aToAPP));
-  rect.y = NSToCoordCeil(NSCoordScale(y, aFromAPP, aToAPP));
-  rect.width = (right - rect.x);
-  rect.height = (bottom - rect.y);
-
-  return rect;
-}
-
 // scale the rect but round to preserve centers
 inline nsIntRect
 nsRect::ToNearestPixels(nscoord aAppUnitsPerPixel) const

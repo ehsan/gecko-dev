@@ -153,7 +153,7 @@ nsAlertsIconListener::OnStopDecode(imgIRequest* aRequest,
 
 NS_IMETHODIMP
 nsAlertsIconListener::FrameChanged(imgIContainer* aContainer,
-                                   const nsIntRect* aDirtyRect)
+                                   nsIntRect* aDirtyRect)
 {
   return NS_OK;
 }

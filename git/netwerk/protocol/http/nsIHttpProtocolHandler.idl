@@ -39,7 +39,7 @@
 
 #include "nsIProxiedProtocolHandler.idl"
 
-[scriptable, uuid(7516a8d3-0a6f-4476-88f5-fb9973450c5f)]
+[scriptable, uuid(415D4087-79D3-40FE-B194-0ADA8471F895)]
 interface nsIHttpProtocolHandler : nsIProxiedProtocolHandler
 {
     /**
@@ -62,14 +62,34 @@ interface nsIHttpProtocolHandler : nsIProxiedProtocolHandler
     readonly attribute ACString appVersion;
 
     /**
+     * @return The vendor name.
+     */
+    attribute ACString vendor;
+
+    /**
+     * @return The vendor sub string.
+     */
+    attribute ACString vendorSub;
+    
+    /**
+     * @return The vendor comment.
+     */
+    attribute ACString vendorComment;
+
+    /**
      * @return The product name.
      */
-    readonly attribute ACString product;
+    attribute ACString product;
 
     /**
      * @return A product sub string.
      */
-    readonly attribute ACString productSub;
+    attribute ACString productSub;
+
+    /**
+     * @return A product comment.
+     */
+    attribute ACString productComment;
 
     /**
      * Get the current platform.
@@ -91,12 +111,20 @@ interface nsIHttpProtocolHandler : nsIProxiedProtocolHandler
      * is usually a 2-letter code such as "en" and occasionally a 
      * five-character code to indicate a language subtype, such as "zh_CN". 
      */
-    readonly attribute ACString language;
+    attribute ACString language;
 
     /**
-     * Get the application comment misc portion.
+     * Get/Set the application comment misc portion.
      */
-    readonly attribute ACString misc;
+    attribute ACString misc;
+
+    /**
+     * Get the current device type.
+     *
+     * @return The device type this application is running on.  Maybe
+     * be null.
+     */
+    readonly attribute ACString deviceType;
 
 };
 

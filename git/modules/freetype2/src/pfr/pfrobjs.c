@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    FreeType PFR object methods (body).                                  */
 /*                                                                         */
-/*  Copyright 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2010 by            */
+/*  Copyright 2002, 2003, 2004, 2005, 2006, 2007, 2008 by                  */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -23,7 +23,6 @@
 #include "pfrsbit.h"
 #include FT_OUTLINE_H
 #include FT_INTERNAL_DEBUG_H
-#include FT_TRUETYPE_IDS_H 
 
 #include "pfrerror.h"
 
@@ -148,16 +147,7 @@
             break;
 
         if ( nn == phy_font->num_chars )
-        {
-          if ( phy_font->num_strikes > 0 )
-            pfrface->face_flags = 0;        /* not scalable */
-          else
-          {
-            FT_ERROR(( "pfr_face_init: font doesn't contain glyphs\n" ));
-            error = PFR_Err_Invalid_File_Format;
-            goto Exit;
-          }
-        }
+          pfrface->face_flags = 0;        /* not scalable */
       }
 
       if ( (phy_font->flags & PFR_PHY_PROPORTIONAL) == 0 )
@@ -253,11 +243,11 @@
 
 
         charmap.face        = pfrface;
-        charmap.platform_id = TT_PLATFORM_MICROSOFT;
-        charmap.encoding_id = TT_MS_ID_UNICODE_CS;
+        charmap.platform_id = 3;
+        charmap.encoding_id = 1;
         charmap.encoding    = FT_ENCODING_UNICODE;
 
-        error = FT_CMap_New( &pfr_cmap_class_rec, NULL, &charmap, NULL );
+        FT_CMap_New( &pfr_cmap_class_rec, NULL, &charmap, NULL );
 
 #if 0
         /* Select default charmap */

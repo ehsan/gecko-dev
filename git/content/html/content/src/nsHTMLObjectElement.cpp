@@ -50,22 +50,16 @@
 #include "nsFormSubmission.h"
 #include "nsIObjectFrame.h"
 #include "nsIPluginInstance.h"
-#include "nsIConstraintValidation.h"
-
 
 class nsHTMLObjectElement : public nsGenericHTMLFormElement,
                             public nsObjectLoadingContent,
-                            public nsIDOMHTMLObjectElement,
-                            public nsIConstraintValidation
+                            public nsIDOMHTMLObjectElement
 #ifdef MOZ_SVG
                             , public nsIDOMGetSVGDocument
 #endif
 {
 public:
-  using nsIConstraintValidation::GetValidationMessage;
-
-  nsHTMLObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      PRUint32 aFromParser = 0);
+  nsHTMLObjectElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser = 0);
   virtual ~nsHTMLObjectElement();
 
   // nsISupports
@@ -109,9 +103,8 @@ public:
   }
 
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission *aFormSubmission);
-
-  virtual bool IsDisabled() const { return PR_FALSE; }
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission *aFormSubmission,
+                               nsIContent *aSubmitElement);
 
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
   virtual PRBool IsDoneAddingChildren();
@@ -137,18 +130,11 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLObjectElement,
                                                      nsGenericHTMLFormElement)
 
-  virtual nsXPCClassInfo* GetClassInfo();
 private:
   /**
    * Calls LoadObject with the correct arguments to start the plugin load.
    */
   NS_HIDDEN_(void) StartObjectLoad(PRBool aNotify);
-
-  /**
-   * Returns if the element is currently focusable regardless of it's tabindex
-   * value. This is used to know the default tabindex value.
-   */
-  bool IsFocusableForTabIndex();
 
   PRPackedBool mIsDoneAddingChildren;
 };
@@ -157,16 +143,12 @@ private:
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Object)
 
 
-nsHTMLObjectElement::nsHTMLObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+nsHTMLObjectElement::nsHTMLObjectElement(nsINodeInfo *aNodeInfo,
                                          PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mIsDoneAddingChildren(!aFromParser)
 {
   RegisterFreezableElement();
-  SetIsNetworkCreated(aFromParser == NS_FROM_PARSER_NETWORK);
-
-  // <object> is always barred from constraint validation.
-  SetBarredFromConstraintValidation(PR_TRUE);
 }
 
 nsHTMLObjectElement::~nsHTMLObjectElement()
@@ -203,7 +185,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLObjectElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLObjectElement, nsGenericElement) 
 
-DOMCI_NODE_DATA(HTMLObjectElement, nsHTMLObjectElement)
+DOMCI_DATA(HTMLObjectElement, nsHTMLObjectElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLObjectElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(nsHTMLObjectElement)
@@ -217,7 +199,6 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLObjectElement)
     NS_INTERFACE_TABLE_ENTRY(nsHTMLObjectElement, imgIContainerObserver)
     NS_INTERFACE_TABLE_ENTRY(nsHTMLObjectElement, nsIInterfaceRequestor)
     NS_INTERFACE_TABLE_ENTRY(nsHTMLObjectElement, nsIChannelEventSink)
-    NS_INTERFACE_TABLE_ENTRY(nsHTMLObjectElement, nsIConstraintValidation)
 #ifdef MOZ_SVG
     NS_INTERFACE_TABLE_ENTRY(nsHTMLObjectElement, nsIDOMGetSVGDocument)
 #endif
@@ -228,8 +209,6 @@ NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLObjectElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLObjectElement)
 
-// nsIConstraintValidation
-NS_IMPL_NSICONSTRAINTVALIDATION(nsHTMLObjectElement)
 
 NS_IMETHODIMP
 nsHTMLObjectElement::GetForm(nsIDOMHTMLFormElement **aForm)
@@ -303,61 +282,23 @@ nsHTMLObjectElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
   return nsGenericHTMLFormElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
-bool
-nsHTMLObjectElement::IsFocusableForTabIndex()
-{
-  nsIDocument* doc = GetCurrentDoc();
-  if (!doc || doc->HasFlag(NODE_IS_EDITABLE)) {
-    return false;
-  }
-
-  return Type() == eType_Plugin || IsEditableRoot() ||
-         (Type() == eType_Document && nsContentUtils::IsSubDocumentTabbable(this));
-}
-
 PRBool
 nsHTMLObjectElement::IsHTMLFocusable(PRBool aWithMouse,
                                      PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
-  // TODO: this should probably be managed directly by IsHTMLFocusable.
-  // See bug 597242.
-  nsIDocument *doc = GetCurrentDoc();
-  if (!doc || doc->HasFlag(NODE_IS_EDITABLE)) {
-    if (aTabIndex) {
-      GetIntAttr(nsGkAtoms::tabindex, -1, aTabIndex);
-    }
-
-    *aIsFocusable = PR_FALSE;
-
-    return PR_FALSE;
-  }
-
-  // This method doesn't call nsGenericHTMLFormElement intentionally.
-  // TODO: It should probably be changed when bug 597242 will be fixed.
-  if (Type() == eType_Plugin || IsEditableRoot() ||
-      (Type() == eType_Document && nsContentUtils::IsSubDocumentTabbable(this))) {
+  if (Type() == eType_Plugin) {
     // Has plugin content: let the plugin decide what to do in terms of
     // internal focus from mouse clicks
     if (aTabIndex) {
-      GetIntAttr(nsGkAtoms::tabindex, 0, aTabIndex);
+      GetTabIndex(aTabIndex);
     }
-
+  
     *aIsFocusable = PR_TRUE;
 
     return PR_FALSE;
   }
 
-  // TODO: this should probably be managed directly by IsHTMLFocusable.
-  // See bug 597242.
-  const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(nsGkAtoms::tabindex);
-
-  *aIsFocusable = attrVal && attrVal->Type() == nsAttrValue::eInteger;
-
-  if (aTabIndex && *aIsFocusable) {
-    *aTabIndex = attrVal->GetIntegerValue();
-  }
-
-  return PR_FALSE;
+  return nsGenericHTMLFormElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex);
 }
 
 PRUint32
@@ -377,7 +318,8 @@ nsHTMLObjectElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLObjectElement::SubmitNamesValues(nsFormSubmission *aFormSubmission)
+nsHTMLObjectElement::SubmitNamesValues(nsFormSubmission *aFormSubmission,
+                                       nsIContent *aSubmitElement)
 {
   nsAutoString name;
   if (!GetAttr(kNameSpaceID_None, nsGkAtoms::name, name)) {
@@ -419,8 +361,7 @@ NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Height, height)
 NS_IMPL_INT_ATTR(nsHTMLObjectElement, Hspace, hspace)
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Name, name)
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Standby, standby)
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLObjectElement, TabIndex, tabindex,
-                               IsFocusableForTabIndex() ? 0 : -1)
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLObjectElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Type, type)
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, UseMap, usemap)
 NS_IMPL_INT_ATTR(nsHTMLObjectElement, Vspace, vspace)
@@ -521,7 +462,6 @@ nsHTMLObjectElement::StartObjectLoad(PRBool aNotify)
     // get interpreted as the page itself, instead of absence of URI.
     LoadObject(nsnull, aNotify, ctype);
   }
-  SetIsNetworkCreated(PR_FALSE);
 }
 
 PRInt32

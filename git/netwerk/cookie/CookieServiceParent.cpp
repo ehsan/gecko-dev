@@ -70,13 +70,13 @@ CookieServiceParent::RecvGetCookieString(const IPC::URI& aHost,
 
   // Deserialize URIs. Having a host URI is mandatory and should always be
   // provided by the child; thus we consider failure fatal.
-  nsCOMPtr<nsIURI> hostURI(aHost);
-  nsCOMPtr<nsIURI> originatingURI(aOriginating);
+  nsCOMPtr<nsIURI> hostURI = aHost;
+  nsCOMPtr<nsIURI> originatingURI = aOriginating;
   if (!hostURI)
     return false;
 
-  mCookieService->GetCookieStringInternal(hostURI, originatingURI,
-                                          aFromHttp, *aResult);
+  mCookieService->GetCookieInternal(hostURI, originatingURI,
+                                    aFromHttp, *aResult);
   return true;
 }
 
@@ -92,8 +92,8 @@ CookieServiceParent::RecvSetCookieString(const IPC::URI& aHost,
 
   // Deserialize URIs. Having a host URI is mandatory and should always be
   // provided by the child; thus we consider failure fatal.
-  nsCOMPtr<nsIURI> hostURI(aHost);
-  nsCOMPtr<nsIURI> originatingURI(aOriginating);
+  nsCOMPtr<nsIURI> hostURI = aHost;
+  nsCOMPtr<nsIURI> originatingURI = aOriginating;
   if (!hostURI)
     return false;
 

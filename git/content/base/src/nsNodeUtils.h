@@ -38,13 +38,14 @@
 #ifndef nsNodeUtils_h___
 #define nsNodeUtils_h___
 
+#include "nsDOMAttributeMap.h"
+#include "nsIDOMNode.h"
 #include "nsINode.h"
 
 struct CharacterDataChangeInfo;
 struct JSContext;
 struct JSObject;
 class nsIVariant;
-class nsIDOMNode;
 class nsIDOMUserDataHandler;
 template<class E> class nsCOMArray;
 class nsCycleCollectionTraversalCallback;
@@ -72,26 +73,26 @@ public:
 
   /**
    * Send AttributeWillChange notifications to nsIMutationObservers.
-   * @param aElement      Element whose data will change
+   * @param aContent      Node whose data will change
    * @param aNameSpaceID  Namespace of changing attribute
    * @param aAttribute    Local-name of changing attribute
    * @param aModType      Type of change (add/change/removal)
    * @see nsIMutationObserver::AttributeWillChange
    */
-  static void AttributeWillChange(mozilla::dom::Element* aElement,
+  static void AttributeWillChange(nsIContent* aContent,
                                   PRInt32 aNameSpaceID,
                                   nsIAtom* aAttribute,
                                   PRInt32 aModType);
 
   /**
    * Send AttributeChanged notifications to nsIMutationObservers.
-   * @param aElement      Element whose data changed
+   * @param aContent      Node whose data changed
    * @param aNameSpaceID  Namespace of changed attribute
    * @param aAttribute    Local-name of changed attribute
    * @param aModType      Type of change (add/change/removal)
    * @see nsIMutationObserver::AttributeChanged
    */
-  static void AttributeChanged(mozilla::dom::Element* aElement,
+  static void AttributeChanged(nsIContent* aContent,
                                PRInt32 aNameSpaceID,
                                nsIAtom* aAttribute,
                                PRInt32 aModType);
@@ -126,15 +127,7 @@ public:
    */
   static void ContentRemoved(nsINode* aContainer,
                              nsIContent* aChild,
-                             PRInt32 aIndexInContainer,
-                             nsIContent* aPreviousSibling);
-  /**
-   * Send AttributeChildRemoved notifications to nsIMutationObservers.
-   * @param aAttribute Attribute from which the child has been removed.
-   * @param aChild     Removed child.
-   * @see nsIMutationObserver2::AttributeChildRemoved.
-   */
-  static void AttributeChildRemoved(nsINode* aAttribute, nsIContent* aChild);
+                             PRInt32 aIndexInContainer);
   /**
    * Send ParentChainChanged notifications to nsIMutationObservers
    * @param aContent  The piece of content that had its parent changed.
@@ -257,6 +250,9 @@ public:
   static void UnlinkUserData(nsINode *aNode);
 
 private:
+  friend PLDHashOperator
+    AdoptFunc(nsAttrHashKey::KeyType aKey, nsIDOMNode *aData, void* aUserArg);
+
   /**
    * Walks aNode, its attributes and, if aDeep is PR_TRUE, its descendant nodes.
    * If aClone is PR_TRUE the nodes will be cloned. If aNewNodeInfoManager is

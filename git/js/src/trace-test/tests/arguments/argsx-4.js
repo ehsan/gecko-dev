@@ -1,5 +1,5 @@
 actual = '';
-expected = '[object Arguments] undefined undefined,[object Arguments] undefined undefined,';
+expected = '[object Object] undefined undefined,[object Object] undefined undefined,';
 
 function f() {
   g(arguments);

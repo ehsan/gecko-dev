@@ -45,8 +45,6 @@
 
 #include "nsComponentManagerUtils.h"
 #include "nsDOMClassInfo.h"
-#include "nsDOMJSUtils.h"
-#include "nsPIDOMWindow.h"
 #include "nsStringGlue.h"
 #include "nsThreadUtils.h"
 
@@ -54,24 +52,41 @@
 
 USING_INDEXEDDB_NAMESPACE
 
-// static
-already_AddRefed<IDBRequest>
-IDBRequest::Create(nsISupports* aSource,
-                   nsIScriptContext* aScriptContext,
-                   nsPIDOMWindow* aOwner)
+IDBRequest::IDBRequest(Generator* aGenerator,
+                       bool aWriteRequest)
+: mGenerator(aGenerator),
+  mReadyState(nsIIDBRequest::INITIAL),
+  mAborted(false),
+  mWriteRequest(aWriteRequest)
 {
-  if (!aScriptContext || !aOwner) {
-    NS_ERROR("Null context and owner!");
-    return nsnull;
+  NS_ASSERTION(aGenerator, "Null generator!");
+}
+
+IDBRequest::~IDBRequest()
+{
+  mGenerator->NoteDyingRequest(this);
+
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
+}
+
+NS_IMETHODIMP
+IDBRequest::Abort()
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  if (mAborted || mReadyState != nsIIDBRequest::LOADING) {
+    return NS_OK;
   }
 
-  nsRefPtr<IDBRequest> request(new IDBRequest());
+  if (mWriteRequest) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
-  request->mSource = aSource;
-  request->mScriptContext = aScriptContext;
-  request->mOwner = aOwner;
-
-  return request.forget();
+  mAborted = true;
+  mReadyState = nsIIDBRequest::DONE;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -113,14 +128,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBRequest,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnSuccessListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSource)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBRequest,
                                                 nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnSuccessListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSource)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBRequest)

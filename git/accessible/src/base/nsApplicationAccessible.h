@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:expandtab:shiftwidth=2:tabstop=2:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -63,8 +63,6 @@ class nsApplicationAccessible: public nsAccessibleWrap,
                                public nsIAccessibleApplication
 {
 public:
-  using nsAccessible::GetChildAtPoint;
-
   nsApplicationAccessible();
 
   // nsISupports
@@ -81,6 +79,7 @@ public:
   NS_IMETHOD GetValue(nsAString &aValue);
   NS_IMETHOD GetDescription(nsAString &aDescription);
   NS_IMETHOD GetKeyboardShortcut(nsAString &aKeyboardShortcut);
+  NS_IMETHOD GetRole(PRUint32 *aRole);
   NS_IMETHOD GetState(PRUint32 *aState , PRUint32 *aExtraState );
   NS_IMETHOD GetAttributes(nsIPersistentProperties **aAttributes);
   NS_IMETHOD GroupPosition(PRInt32 *aGroupLevel, PRInt32 *aSimilarItemsInGroup,
@@ -112,8 +111,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetARIAState(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual PRUint32 Role();
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual void InvalidateChildren();

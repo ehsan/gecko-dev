@@ -45,7 +45,6 @@ MODULE		= pipnss
 DIRS = \
   bugs \
   mixedcontent \
-  stricttransportsecurity \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk

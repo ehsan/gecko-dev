@@ -61,9 +61,10 @@ enum nsViewVisibility {
   nsViewVisibility_kShow = 1
 };
 
+// IID for the nsIView interface
 #define NS_IVIEW_IID    \
-  { 0xd0c2cf54, 0xb527, 0x4d8e, \
-    { 0xba, 0x87, 0x39, 0x03, 0xa7, 0xc4, 0x13, 0xe1 } }
+  { 0xdb512cfa, 0xe00c, 0x4eff, \
+    { 0xa2, 0x9c, 0x18, 0x74, 0x96, 0x63, 0x17, 0x69 } }
 
 // Public view flags are defined in this file
 #define NS_VIEW_FLAGS_PUBLIC              0x00FF
@@ -143,8 +144,7 @@ public:
 
   /**
    * Called to get the position of a view.
-   * The specified coordinates are relative to the parent view's origin, but
-   * are in appunits of this.
+   * The specified coordinates are in the parent view's coordinate space.
    * This is the (0, 0) origin of the coordinate space established by this view.
    * @param x out parameter for x position
    * @param y out parameter for y position
@@ -165,8 +165,7 @@ public:
   
   /**
    * Called to get the dimensions and position of the view's bounds.
-   * The view's bounds (x,y) are relative to the origin of the parent view, but
-   * are in appunits of this.
+   * The view's bounds (x,y) are in the coordinate space of the parent view.
    * The view's bounds (x,y) might not be the same as the view's position,
    * if the view has content above or to the left of its origin.
    * @param aBounds out parameter for bounds
@@ -178,11 +177,6 @@ public:
    * Adding the return value to a point in the coordinate system of |this|
    * will transform the point to the coordinate system of aOther.
    *
-   * The offset is expressed in appunits of |this|. So if you are getting the
-   * offset between views in different documents that might have different
-   * appunits per devpixel ratios you need to be careful how you use the
-   * result.
-   *
    * If aOther is null, this will return the offset of |this| from the
    * root of the viewmanager tree.
    * 
@@ -192,15 +186,6 @@ public:
    * that offset is added to transform _coordinates_ from |this| to aOther.
    */
   nsPoint GetOffsetTo(const nsIView* aOther) const;
-
-  /**
-   * Get the offset between the origin of |this| and the origin of aWidget.
-   * Adding the return value to a point in the coordinate system of |this|
-   * will transform the point to the coordinate system of aWidget.
-   *
-   * The offset is expressed in appunits of |this|.
-   */
-  nsPoint GetOffsetToWidget(nsIWidget* aWidget) const;
 
   /**
    * Called to query the visibility state of a view.
@@ -248,9 +233,6 @@ public:
    * @result view's next sibling
    */
   nsIView* GetNextSibling() const { return reinterpret_cast<nsIView*>(mNextSibling); }
-  void SetNextSibling(nsIView *aSibling) {
-    mNextSibling = reinterpret_cast<nsView*>(aSibling);
-  }
 
   /**
    * Set the view's link to client owned data.
@@ -268,7 +250,7 @@ public:
    * Get the nearest widget in this view or a parent of this view and
    * the offset from the widget's origin to this view's origin
    * @param aOffset the offset from this view's origin to the widget's origin
-   * (usually positive) expressed in appunits of this.
+   * (usually positive)
    * @return the widget closest to this view; can be null because some view trees
    * don't have widgets at all (e.g., printing), but if any view in the view tree
    * has a widget, then it's safe to assume this will not return null
@@ -278,39 +260,29 @@ public:
   virtual nsIWidget* GetNearestWidget(nsPoint* aOffset) const;
 
   /**
-   * Create a widget to associate with this view.  This variant of
-   * CreateWidget*() will look around in the view hierarchy for an
-   * appropriate parent widget for the view.
-   *
+   * Create a widget to associate with this view.
+   * @param aWindowIID IID for Widget type that this view
+   *        should have associated with it. if nsull, then no
+   *        width will be created for this view
    * @param aWidgetInitData data used to initialize this view's widget before
    *        its create is called.
+   * @param aNative native window that will be used as parent of
+   *        aWindowIID. if nsnull, then parent will be derived from
+   *        parent view and it's ancestors
+   * @param aWindowType is either content, UI or inherit from parent window.
+   *        This is used to expose what type of window this is to 
+   *        assistive technology like screen readers.
+   * @param aParentWidget alternative parent to aNative used for popups. Must
+   *        be null for non-popups.
    * @return error status
    */
-  nsresult CreateWidget(nsWidgetInitData *aWidgetInitData = nsnull,
+  nsresult CreateWidget(const nsIID &aWindowIID,
+                        nsWidgetInitData *aWidgetInitData = nsnull,
+                        nsNativeWidget aNative = nsnull,
                         PRBool aEnableDragDrop = PR_TRUE,
-                        PRBool aResetVisibility = PR_TRUE);
-
-  /**
-   * Create a widget for this view with an explicit parent widget.
-   * |aParentWidget| must be nonnull.  The other params are the same
-   * as for |CreateWidget()|.
-   */
-  nsresult CreateWidgetForParent(nsIWidget* aParentWidget,
-                                 nsWidgetInitData *aWidgetInitData = nsnull,
-                                 PRBool aEnableDragDrop = PR_TRUE,
-                                 PRBool aResetVisibility = PR_TRUE);
-
-  /**
-   * Create a popup widget for this view.  Pass |aParentWidget| to
-   * explicitly set the popup's parent.  If it's not passed, the view
-   * hierarchy will be searched for an appropriate parent widget.  The
-   * other params are the same as for |CreateWidget()|, except that
-   * |aWidgetInitData| must be nonnull.
-   */
-  nsresult CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
-                                nsIWidget* aParentWidget = nsnull,
-                                PRBool aEnableDragDrop = PR_TRUE,
-                                PRBool aResetVisibility = PR_TRUE);
+                        PRBool aResetVisibility = PR_TRUE,
+                        nsContentType aWindowType = eContentTypeInherit,
+                        nsIWidget* aParentWidget = nsnull);
 
   /**
    * Attach/detach a top level widget from this view. When attached, the view
@@ -382,8 +354,7 @@ public:
 
   // This is an app unit offset to add when converting view coordinates to
   // widget coordinates.  It is the offset in view coordinates from widget
-  // origin (unlike views, widgets can't extend above or to the left of their
-  // origin) to view origin expressed in appunits of this.
+  // top-left to view top-left.
   nsPoint ViewToWidgetOffset() const { return mViewToWidgetOffset; }
 
 protected:
@@ -396,11 +367,8 @@ protected:
   void              *mClientData;
   PRInt32           mZIndex;
   nsViewVisibility  mVis;
-  // position relative our parent view origin but in our appunits
   nscoord           mPosX, mPosY;
-  // relative to parent, but in our appunits
-  nsRect            mDimBounds;
-  // in our appunits
+  nsRect            mDimBounds; // relative to parent
   nsPoint           mViewToWidgetOffset;
   float             mOpacity;
   PRUint32          mVFlags;
@@ -408,10 +376,6 @@ protected:
   PRBool            mWidgetIsTopLevel;
 
   virtual ~nsIView() {}
-
-private:
-  nsView* Impl();
-  const nsView* Impl() const;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIView, NS_IVIEW_IID)

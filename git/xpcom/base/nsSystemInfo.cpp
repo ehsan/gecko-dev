@@ -45,10 +45,6 @@
 #include <gtk/gtk.h>
 #endif
 
-#ifdef ANDROID
-#include "AndroidBridge.h"
-#endif
-
 nsSystemInfo::nsSystemInfo()
 {
 }
@@ -127,15 +123,7 @@ nsSystemInfo::Init()
         free(line);
       fclose(fp);
     }
-#endif
-
-#ifdef ANDROID
-    if (mozilla::AndroidBridge::Bridge()) {
-        nsAutoString str;
-        if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MODEL", str))
-            SetPropertyAsAString(NS_LITERAL_STRING("device"), str);
-    }
-#endif
+#endif   
     return NS_OK;
 }
 
@@ -145,10 +133,7 @@ nsSystemInfo::SetInt32Property(const nsAString &aPropertyName,
 {
   NS_WARN_IF_FALSE(aValue > 0, "Unable to read system value");
   if (aValue > 0) {
-#ifdef DEBUG
-    nsresult rv =
-#endif
-      SetPropertyAsInt32(aPropertyName, aValue);
+    nsresult rv = SetPropertyAsInt32(aPropertyName, aValue);
     NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Unable to set property");
   }
 }
@@ -159,10 +144,7 @@ nsSystemInfo::SetUint64Property(const nsAString &aPropertyName,
 {
   NS_WARN_IF_FALSE(aValue > 0, "Unable to read system value");
   if (aValue > 0) {
-#ifdef DEBUG
-    nsresult rv =
-#endif
-      SetPropertyAsUint64(aPropertyName, aValue);
+    nsresult rv = SetPropertyAsUint64(aPropertyName, aValue);
     NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Unable to set property");
   }
 }

@@ -39,7 +39,6 @@
 #include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
 #include "nsHtml5NamedCharacters.h"
-#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
@@ -59,12 +58,11 @@
 #include "nsHtml5StateSnapshot.h"
 
 
-nsHtml5StateSnapshot::nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,PRInt32> stack, jArray<nsHtml5StackNode*,PRInt32> listOfActiveFormattingElements, nsIContent** formPointer, nsIContent** headPointer, nsIContent** deepTreeSurrogateParent, PRInt32 mode, PRInt32 originalMode, PRBool framesetOk, PRBool inForeign, PRBool needToDropLF, PRBool quirks)
+nsHtml5StateSnapshot::nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,PRInt32> stack, jArray<nsHtml5StackNode*,PRInt32> listOfActiveFormattingElements, nsIContent** formPointer, nsIContent** headPointer, PRInt32 mode, PRInt32 originalMode, PRBool framesetOk, PRBool inForeign, PRBool needToDropLF, PRBool quirks)
   : stack(stack),
     listOfActiveFormattingElements(listOfActiveFormattingElements),
     formPointer(formPointer),
     headPointer(headPointer),
-    deepTreeSurrogateParent(deepTreeSurrogateParent),
     mode(mode),
     originalMode(originalMode),
     framesetOk(framesetOk),
@@ -97,12 +95,6 @@ nsIContent**
 nsHtml5StateSnapshot::getHeadPointer()
 {
   return headPointer;
-}
-
-nsIContent** 
-nsHtml5StateSnapshot::getDeepTreeSurrogateParent()
-{
-  return deepTreeSurrogateParent;
 }
 
 PRInt32 

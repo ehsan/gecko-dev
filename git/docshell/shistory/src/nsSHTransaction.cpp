@@ -111,12 +111,10 @@ nsSHTransaction::GetNext(nsISHTransaction * * aResult)
 NS_IMETHODIMP
 nsSHTransaction::SetNext(nsISHTransaction * aNext)
 {
-  if (aNext) {
-    NS_ENSURE_SUCCESS(aNext->SetPrev(this), NS_ERROR_FAILURE);
-  }
+   NS_ENSURE_SUCCESS(aNext->SetPrev(this), NS_ERROR_FAILURE);
 
-  mNext = aNext;
-  return NS_OK;
+   mNext = aNext;
+   return NS_OK;
 }
 
 NS_IMETHODIMP

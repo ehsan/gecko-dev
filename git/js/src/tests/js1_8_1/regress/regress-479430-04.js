@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-479430-04.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 479430;
 var summary = 'Missing operation callback checks';

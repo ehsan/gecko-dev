@@ -50,8 +50,8 @@ class nsSVGSwitchElement : public nsSVGSwitchElementBase,
   friend class nsSVGSwitchFrame;
 protected:
   friend nsresult NS_NewSVGSwitchElement(nsIContent **aResult,
-                                         already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGSwitchElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                         nsINodeInfo *aNodeInfo);
+  nsSVGSwitchElement(nsINodeInfo *aNodeInfo);
 
 public:
   nsIContent * GetActiveChild() const
@@ -80,7 +80,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 private:
   void UpdateActiveChild()
   { mActiveChild = FindActiveChild(); }

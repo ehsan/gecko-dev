@@ -60,12 +60,7 @@ public:
     }
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                         gfxASurface::gfxContentType contentType);
-
-    virtual PRBool IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags);
-    virtual gfxPlatformFontList* CreatePlatformFontList();
-    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                     const PRUint8 *aFontData, PRUint32 aLength);
+                                                         gfxASurface::gfxImageFormat imageFormat);
 
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,

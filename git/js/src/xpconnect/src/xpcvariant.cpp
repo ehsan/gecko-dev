@@ -88,7 +88,7 @@ XPCTraceableVariant::~XPCTraceableVariant()
     if(!JSVAL_IS_STRING(mJSVal))
         nsVariant::Cleanup(&mData);
 
-    if (!JSVAL_IS_NULL(mJSVal))
+    if(!JSVAL_IS_NULL(mJSVal))
         RemoveFromRootSet(nsXPConnect::GetRuntimeInstance()->GetJSRuntime());
 }
 
@@ -298,14 +298,12 @@ XPCArrayHomogenizer::GetTypeForArray(XPCCallContext& ccx, JSObject* array,
 
 JSBool XPCVariant::InitializeData(XPCCallContext& ccx)
 {
-    JS_CHECK_RECURSION(ccx.GetJSContext(), return JS_FALSE);
-
     if(JSVAL_IS_INT(mJSVal))
         return NS_SUCCEEDED(nsVariant::SetFromInt32(&mData, 
                                                     JSVAL_TO_INT(mJSVal)));
     if(JSVAL_IS_DOUBLE(mJSVal))
         return NS_SUCCEEDED(nsVariant::SetFromDouble(&mData, 
-                                                     JSVAL_TO_DOUBLE(mJSVal)));
+                                                     *JSVAL_TO_DOUBLE(mJSVal)));
     if(JSVAL_IS_BOOLEAN(mJSVal))
         return NS_SUCCEEDED(nsVariant::SetFromBool(&mData, 
                                                    JSVAL_TO_BOOLEAN(mJSVal)));
@@ -425,10 +423,6 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
     {
         // It's not a JSObject (or it's a JSArray or a JSObject representing an
         // nsID).  Just pass through the underlying data.
-        JSAutoEnterCompartment ac;
-        JSContext *cx = lccx.GetJSContext();
-        if(!ac.enter(cx, scope) || !JS_WrapValue(cx, &realVal))
-            return JS_FALSE;
         *pJSVal = realVal;
         return JS_TRUE;
     }
@@ -440,12 +434,9 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
                      type == nsIDataType::VTYPE_INTERFACE_IS,
                      "Weird variant");
 
-        JSAutoEnterCompartment ac;
-        JSContext *cx = lccx.GetJSContext();
-        if(!ac.enter(cx, scope) || !JS_WrapValue(cx, &realVal))
-            return JS_FALSE;
-        *pJSVal = realVal;
-        return JS_TRUE;
+        return XPCWrapper::RewrapObject(lccx.GetJSContext(), scope,
+                                        JSVAL_TO_OBJECT(realVal),
+                                        XPCWrapper::UNKNOWN, pJSVal);
     }
 
     // else, it's an object and we really need to double wrap it if we've 

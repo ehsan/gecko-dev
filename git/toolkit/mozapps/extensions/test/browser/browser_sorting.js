@@ -42,7 +42,7 @@ function test() {
     size: 5
   }]);
 
-  open_manager("addons://list/extension", function(aWindow) {
+  open_manager(null, function(aWindow) {
     gManagerWindow = aWindow;
     run_next_test();
   });
@@ -82,11 +82,45 @@ add_test(function() {
   run_next_test();
 });
 
+// Tests that switching to size ordering works and defaults to descending
+add_test(function() {
+  var sorters = gManagerWindow.document.getElementById("list-sorters");
+  var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "btn-size");
+  EventUtils.synthesizeMouse(nameSorter, 2, 2, { }, gManagerWindow);
+
+  check_order([
+    "test2@tests.mozilla.org",
+    "test3@tests.mozilla.org",
+    "test5@tests.mozilla.org",
+    "test1@tests.mozilla.org",
+    "test4@tests.mozilla.org"
+  ]);
+
+  run_next_test();
+});
+
+// Tests that switching to ascending size ordering works
+add_test(function() {
+  var sorters = gManagerWindow.document.getElementById("list-sorters");
+  var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "btn-size");
+  EventUtils.synthesizeMouse(nameSorter, 2, 2, { }, gManagerWindow);
+
+  check_order([
+    "test4@tests.mozilla.org",
+    "test1@tests.mozilla.org",
+    "test5@tests.mozilla.org",
+    "test3@tests.mozilla.org",
+    "test2@tests.mozilla.org"
+  ]);
+
+  run_next_test();
+});
+
 // Tests that switching to date ordering works and defaults to descending
 add_test(function() {
   var sorters = gManagerWindow.document.getElementById("list-sorters");
   var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "btn-date");
-  EventUtils.synthesizeMouseAtCenter(nameSorter, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(nameSorter, 2, 2, { }, gManagerWindow);
 
   check_order([
     "test5@tests.mozilla.org",
@@ -103,7 +137,7 @@ add_test(function() {
 add_test(function() {
   var sorters = gManagerWindow.document.getElementById("list-sorters");
   var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "btn-name");
-  EventUtils.synthesizeMouseAtCenter(nameSorter, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(nameSorter, 2, 2, { }, gManagerWindow);
 
   check_order([
     "test2@tests.mozilla.org",

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-274035.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 274035;
 var summary = 'Array.prototype[concat|slice|splice] lengths';

@@ -1,4 +1,3 @@
-var escape;
 function testBug458838() {
     var a = 1;
     function g() {

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-211590.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 211590;
 var summary = 'Math.random should be random';

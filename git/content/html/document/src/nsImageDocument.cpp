@@ -90,8 +90,7 @@ public:
   ImageListener(nsImageDocument* aDocument);
   virtual ~ImageListener();
 
-  /* nsIRequestObserver */
-  NS_IMETHOD OnStartRequest(nsIRequest* request, nsISupports *ctxt);
+  NS_DECL_NSIREQUESTOBSERVER
 };
 
 class nsImageDocument : public nsMediaDocument,
@@ -124,7 +123,6 @@ public:
 
   // imgIDecoderObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage);
-  NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult aStatus, const PRUnichar *aStatusArg);
 
   // nsIDOMEventListener
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
@@ -135,7 +133,6 @@ public:
 
   void DefaultCheckOverflowing() { CheckOverflowing(mResizeImageByDefault); }
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   virtual nsresult CreateSyntheticDocument();
 
@@ -239,6 +236,43 @@ ImageListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
   return nsMediaDocumentStreamListener::OnStartRequest(request, ctxt);
 }
 
+NS_IMETHODIMP
+ImageListener::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
+                             nsresult status)
+{
+  NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
+  nsImageDocument *imgDoc = (nsImageDocument*)mDocument.get();
+  imgDoc->UpdateTitleAndCharset();
+  
+  nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(imgDoc->mImageContent);
+  if (imageLoader) {
+    imgDoc->mObservingImageLoader = PR_FALSE;
+    imageLoader->RemoveObserver(imgDoc);
+  }
+
+  // |status| is NS_ERROR_PARSED_DATA_CACHED if the image was found in
+  // the cache (bug 177747 comment 51, bug 475344).
+  if (status == NS_ERROR_PARSED_DATA_CACHED) {
+    status = NS_OK;
+  }
+
+  // mImageContent can be null if the document is already destroyed
+  if (NS_FAILED(status) && imgDoc->mStringBundle && imgDoc->mImageContent) {
+    nsCAutoString src;
+    imgDoc->mDocumentURI->GetSpec(src);
+    NS_ConvertUTF8toUTF16 srcString(src);
+    const PRUnichar* formatString[] = { srcString.get() };
+    nsXPIDLString errorMsg;
+    NS_NAMED_LITERAL_STRING(str, "InvalidImage");
+    imgDoc->mStringBundle->FormatStringFromName(str.get(), formatString, 1,
+                                                getter_Copies(errorMsg));
+    
+    imgDoc->mImageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::alt, errorMsg, PR_FALSE);
+  }
+
+  return nsMediaDocumentStreamListener::OnStopRequest(request, ctxt, status);
+}
+
 
   // NOTE! nsDocument::operator new() zeroes out all members, so don't
   // bother initializing members to 0.
@@ -268,7 +302,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_ADDREF_INHERITED(nsImageDocument, nsMediaDocument)
 NS_IMPL_RELEASE_INHERITED(nsImageDocument, nsMediaDocument)
 
-DOMCI_NODE_DATA(ImageDocument, nsImageDocument)
+DOMCI_DATA(ImageDocument, nsImageDocument)
 
 NS_INTERFACE_TABLE_HEAD(nsImageDocument)
   NS_HTML_DOCUMENT_INTERFACE_TABLE_BEGIN(nsImageDocument)
@@ -436,9 +470,6 @@ nsImageDocument::GetImageRequest(imgIRequest** aImageRequest)
 NS_IMETHODIMP
 nsImageDocument::ShrinkToFit()
 {
-  if (!mImageContent) {
-    return NS_OK;
-  }
   if (GetZoomLevel() != mOriginalZoomLevel && mImageIsResized &&
       !nsContentUtils::IsChildOfSameType(this)) {
     return NS_OK;
@@ -498,9 +529,6 @@ nsImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage)
 NS_IMETHODIMP
 nsImageDocument::RestoreImage()
 {
-  if (!mImageContent) {
-    return NS_OK;
-  }
   // Keep image content alive while changing the attributes.
   nsCOMPtr<nsIContent> imageContent = mImageContent;
   imageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::width, PR_TRUE);
@@ -547,36 +575,6 @@ nsImageDocument::OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage)
     NS_NewRunnableMethod(this, &nsImageDocument::DefaultCheckOverflowing);
   nsContentUtils::AddScriptRunner(runnable);
   UpdateTitleAndCharset();
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageDocument::OnStopDecode(imgIRequest *aRequest,
-                              nsresult aStatus,
-                              const PRUnichar *aStatusArg)
-{
-  UpdateTitleAndCharset();
-
-  nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mImageContent);
-  if (imageLoader) {
-    mObservingImageLoader = PR_FALSE;
-    imageLoader->RemoveObserver(this);
-  }
-
-  // mImageContent can be null if the document is already destroyed
-  if (NS_FAILED(aStatus) && mStringBundle && mImageContent) {
-    nsCAutoString src;
-    mDocumentURI->GetSpec(src);
-    NS_ConvertUTF8toUTF16 srcString(src);
-    const PRUnichar* formatString[] = { srcString.get() };
-    nsXPIDLString errorMsg;
-    NS_NAMED_LITERAL_STRING(str, "InvalidImage");
-    mStringBundle->FormatStringFromName(str.get(), formatString, 1,
-                                        getter_Copies(errorMsg));
-
-    mImageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::alt, errorMsg, PR_FALSE);
-  }
 
   return NS_OK;
 }
@@ -659,7 +657,7 @@ nsImageDocument::CreateSyntheticDocument()
                                            kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  mImageContent = NS_NewHTMLImageElement(nodeInfo.forget());
+  mImageContent = NS_NewHTMLImageElement(nodeInfo);
   if (!mImageContent) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

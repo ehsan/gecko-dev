@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = '11.7.2-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 396969;
 var summary = '11.7.2 - >> should evaluate operands in order';

@@ -61,8 +61,6 @@ function run_test_1() {
     do_check_true(install.addon.hasResource("install.rdf"));
     do_check_true(install.addon.hasResource("bootstrap.js"));
     do_check_false(install.addon.hasResource("foo.bar"));
-    do_check_eq(install.addon.operationsRequiringRestart &
-                AddonManager.OP_NEEDS_RESTART_INSTALL, 0);
     do_check_not_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
 
     prepare_test({
@@ -98,8 +96,11 @@ function check_test_1() {
       do_check_false(b1.hasResource("foo.bar"));
       do_check_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
 
-      let dir = do_get_addon_root_uri(profileDir, "bootstrap1@tests.mozilla.org");
-      do_check_eq(b1.getResourceURI("bootstrap.js").spec, dir + "bootstrap.js");
+      let dir = profileDir.clone();
+      dir.append("bootstrap1@tests.mozilla.org");
+      dir.append("bootstrap.js");
+      let uri = Services.io.newFileURI(dir).spec;
+      do_check_eq(b1.getResourceURI("bootstrap.js").spec, uri);
 
       AddonManager.getAddonsWithOperationsByTypes(null, function(list) {
         do_check_eq(list.length, 0);
@@ -120,8 +121,6 @@ function run_test_2() {
       ]
     });
 
-    do_check_eq(b1.operationsRequiringRestart &
-                AddonManager.OP_NEEDS_RESTART_DISABLE, 0);
     b1.userDisabled = true;
     ensure_test_completed();
 
@@ -180,8 +179,6 @@ function run_test_4() {
       ]
     });
 
-    do_check_eq(b1.operationsRequiringRestart &
-                AddonManager.OP_NEEDS_RESTART_ENABLE, 0);
     b1.userDisabled = false;
     ensure_test_completed();
 
@@ -288,8 +285,6 @@ function run_test_7() {
       ]
     });
 
-    do_check_eq(b1.operationsRequiringRestart &
-                AddonManager.OP_NEEDS_RESTART_UNINSTALL, 0);
     b1.uninstall();
 
     check_test_7();
@@ -633,121 +628,6 @@ function run_test_14() {
 
     b1.uninstall();
 
-    run_test_15();
-  });
-}
-
-// Tests that upgrading a disabled bootstrapped extension still calls uninstall
-// and install but doesn't startup the new version
-function run_test_15() {
-  installAllFiles([do_get_addon("test_bootstrap1_1")], function() {
-    AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
-      do_check_neq(b1, null);
-      do_check_eq(b1.version, "1.0");
-      do_check_false(b1.appDisabled);
-      do_check_false(b1.userDisabled);
-      do_check_true(b1.isActive);
-      do_check_eq(getInstalledVersion(), 1);
-      do_check_eq(getActiveVersion(), 1);
-
-      b1.userDisabled = true;
-      do_check_false(b1.isActive);
-      do_check_eq(getInstalledVersion(), 1);
-      do_check_eq(getActiveVersion(), 0);
-
-      prepare_test({ }, [
-        "onNewInstall"
-      ]);
-
-      AddonManager.getInstallForFile(do_get_addon("test_bootstrap1_2"), function(install) {
-        ensure_test_completed();
-
-        do_check_neq(install, null);
-        do_check_true(install.addon.userDisabled);
-
-        prepare_test({
-          "bootstrap1@tests.mozilla.org": [
-            ["onInstalling", false],
-            "onInstalled"
-          ]
-        }, [
-          "onInstallStarted",
-          "onInstallEnded",
-        ], check_test_15);
-        install.install();
-      });
-    });
-  });
-}
-
-function check_test_15() {
-  AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
-    do_check_neq(b1, null);
-    do_check_eq(b1.version, "2.0");
-    do_check_false(b1.appDisabled);
-    do_check_true(b1.userDisabled);
-    do_check_false(b1.isActive);
-    do_check_eq(getInstalledVersion(), 2);
-    do_check_eq(getActiveVersion(), 0);
-
-    restartManager();
-
-    AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
-      do_check_neq(b1, null);
-      do_check_eq(b1.version, "2.0");
-      do_check_false(b1.appDisabled);
-      do_check_true(b1.userDisabled);
-      do_check_false(b1.isActive);
-      do_check_eq(getInstalledVersion(), 2);
-      do_check_eq(getActiveVersion(), 0);
-
-      b1.uninstall();
-
-      run_test_16();
-    });
-  });
-}
-
-// Tests that bootstrapped extensions don't get loaded when in safe mode
-function run_test_16() {
-  installAllFiles([do_get_addon("test_bootstrap1_1")], function() {
-    AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
-      // Should have installed and started
-      do_check_eq(getInstalledVersion(), 1);
-      do_check_eq(getActiveVersion(), 1);
-      do_check_true(b1.isActive);
-      do_check_eq(b1.iconURL, "chrome://foo/skin/icon.png");
-      do_check_eq(b1.aboutURL, "chrome://foo/content/about.xul");
-      do_check_eq(b1.optionsURL, "chrome://foo/content/options.xul");
-
-      shutdownManager();
-
-      // Should have stopped
-      do_check_eq(getInstalledVersion(), 1);
-      do_check_eq(getActiveVersion(), 0);
-
-      gAppInfo.inSafeMode = true;
-      startupManager(false);
-
-      AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
-        // Should still be stopped
-        do_check_eq(getInstalledVersion(), 1);
-        do_check_eq(getActiveVersion(), 0);
-        do_check_false(b1.isActive);
-        do_check_eq(b1.iconURL, null);
-        do_check_eq(b1.aboutURL, null);
-        do_check_eq(b1.optionsURL, null);
-
-        shutdownManager();
-        gAppInfo.inSafeMode = false;
-        startupManager(false);
-
-        // Should have started
-        do_check_eq(getInstalledVersion(), 1);
-        do_check_eq(getActiveVersion(), 1);
-
-        do_test_finished();
-      });
-    });
+    do_test_finished();
   });
 }

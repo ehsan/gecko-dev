@@ -283,14 +283,8 @@ gfxWindowsNativeDrawing::PaintToContext()
     } else if (mRenderState == RENDER_STATE_ALPHA_RECOVERY_WHITE_DONE) {
         nsRefPtr<gfxImageSurface> black = mBlackSurface->GetImageSurface();
         nsRefPtr<gfxImageSurface> white = mWhiteSurface->GetImageSurface();
-        if (!gfxAlphaRecovery::RecoverAlpha(black, white)) {
-            NS_ERROR("Alpha recovery failure");
-            return;
-        }
         nsRefPtr<gfxImageSurface> alphaSurface =
-            new gfxImageSurface(black->Data(), black->GetSize(),
-                                black->Stride(),
-                                gfxASurface::ImageFormatARGB32);
+            gfxAlphaRecovery::RecoverAlpha(black, white, mTempSurfaceSize);
 
         mContext->Save();
         mContext->Translate(mNativeRect.pos);

@@ -38,11 +38,10 @@
 
 #include "TabParent.h"
 
-#include "mozilla/dom/ContentParent.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/ipc/DocumentRendererShmemParent.h"
 #include "mozilla/ipc/DocumentRendererNativeIDParent.h"
-#include "mozilla/layout/RenderFrameParent.h"
+#include "mozilla/dom/ContentProcessParent.h"
 
 #include "nsIURI.h"
 #include "nsFocusManager.h"
@@ -53,27 +52,26 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIWindowWatcher.h"
 #include "nsIDOMWindow.h"
-#include "nsIIdentityInfo.h"
 #include "nsPIDOMWindow.h"
 #include "TabChild.h"
 #include "nsIDOMEvent.h"
 #include "nsIPrivateDOMEvent.h"
+#include "nsIWebProgressListener2.h"
 #include "nsFrameLoader.h"
 #include "nsNetUtil.h"
 #include "jsarray.h"
 #include "nsContentUtils.h"
-#include "nsContentPermissionHelper.h"
+#include "nsGeolocationOOP.h"
 #include "nsIDOMNSHTMLFrameElement.h"
 #include "nsIDialogCreator.h"
 #include "nsThreadUtils.h"
-#include "nsSerializationHelper.h"
 #include "nsIPromptFactory.h"
 #include "nsIContent.h"
-#include "mozilla/unused.h"
 
-using namespace mozilla::dom;
-using namespace mozilla::ipc;
-using namespace mozilla::layout;
+using mozilla::ipc::DocumentRendererParent;
+using mozilla::ipc::DocumentRendererShmemParent;
+using mozilla::ipc::DocumentRendererNativeIDParent;
+using mozilla::dom::ContentProcessParent;
 
 // The flags passed by the webProgress notifications are 16 bits shifted
 // from the ones registered by webProgressListeners.
@@ -82,14 +80,9 @@ using namespace mozilla::layout;
 namespace mozilla {
 namespace dom {
 
-TabParent *TabParent::mIMETabParent = nsnull;
-
-NS_IMPL_ISUPPORTS4(TabParent, nsITabParent, nsIAuthPromptProvider, nsISSLStatusProvider, nsISecureBrowserUI)
+NS_IMPL_ISUPPORTS3(TabParent, nsITabParent, nsIWebProgress, nsIAuthPromptProvider)
 
 TabParent::TabParent()
-  : mSecurityState(0)
-  , mIMECompositionEnding(PR_FALSE)
-  , mIMEComposing(PR_FALSE)
 {
 }
 
@@ -100,20 +93,23 @@ TabParent::~TabParent()
 void
 TabParent::ActorDestroy(ActorDestroyReason why)
 {
-  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  if (frameLoader) {
-    frameLoader->DestroyChild();
+  nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner = do_QueryInterface(mFrameElement);
+  if (frameLoaderOwner) {
+    nsRefPtr<nsFrameLoader> frameLoader = frameLoaderOwner->GetFrameLoader();
+    if (frameLoader) {
+      frameLoader->DestroyChild();
+    }
   }
 }
 
 bool
-TabParent::RecvMoveFocus(const bool& aForward)
+TabParent::RecvmoveFocus(const bool& aForward)
 {
   nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
   if (fm) {
     nsCOMPtr<nsIDOMElement> dummy;
-    PRUint32 type = aForward ? PRUint32(nsIFocusManager::MOVEFOCUS_FORWARD)
-                             : PRUint32(nsIFocusManager::MOVEFOCUS_BACKWARD);
+    PRUint32 type = aForward ? nsIFocusManager::MOVEFOCUS_FORWARD
+                             : nsIFocusManager::MOVEFOCUS_BACKWARD;
     fm->MoveFocus(nsnull, mFrameElement, type, nsIFocusManager::FLAG_BYKEY, 
                   getter_AddRefs(dummy));
   }
@@ -121,7 +117,7 @@ TabParent::RecvMoveFocus(const bool& aForward)
 }
 
 bool
-TabParent::RecvEvent(const RemoteDOMEvent& aEvent)
+TabParent::RecvsendEvent(const RemoteDOMEvent& aEvent)
 {
   nsCOMPtr<nsIDOMEvent> event = do_QueryInterface(aEvent.mEvent);
   NS_ENSURE_TRUE(event, true);
@@ -135,7 +131,241 @@ TabParent::RecvEvent(const RemoteDOMEvent& aEvent)
 }
 
 bool
-TabParent::AnswerCreateWindow(PBrowserParent** retval)
+TabParent::RecvnotifyProgressChange(const PRInt64& aProgress,
+                                    const PRInt64& aProgressMax,
+                                    const PRInt64& aTotalProgress,
+                                    const PRInt64& aMaxTotalProgress)
+{
+  /*
+   * First notify any listeners of the new progress info...
+   *
+   * Operate the elements from back to front so that if items get
+   * get removed from the list it won't affect our iteration
+   */
+  nsCOMPtr<nsIWebProgressListener> listener;
+  PRUint32 count = mListenerInfoList.Length();
+
+  while (count-- > 0) {
+    TabParentListenerInfo *info = &mListenerInfoList[count];
+    if (!(info->mNotifyMask & nsIWebProgress::NOTIFY_PROGRESS)) {
+      continue;
+    }
+
+    listener = do_QueryReferent(info->mWeakListener);
+    if (!listener) {
+      // the listener went away. gracefully pull it out of the list.
+      mListenerInfoList.RemoveElementAt(count);
+      continue;
+    }
+
+    nsCOMPtr<nsIWebProgressListener2> listener2 =
+      do_QueryReferent(info->mWeakListener);
+    if (listener2) {
+      listener2->OnProgressChange64(this, nsnull, aProgress, aProgressMax,
+                                    aTotalProgress, aMaxTotalProgress);
+    } else {
+      listener->OnProgressChange(this, nsnull, PRInt32(aProgress),
+                                 PRInt32(aProgressMax),
+                                 PRInt32(aTotalProgress), 
+                                 PRInt32(aMaxTotalProgress));
+    }
+  }
+
+  return true;
+}
+
+bool
+TabParent::RecvnotifyStateChange(const PRUint32& aStateFlags,
+                                 const nsresult& aStatus)
+{
+  /*                                                                           
+   * First notify any listeners of the new state info...
+   *
+   * Operate the elements from back to front so that if items get
+   * get removed from the list it won't affect our iteration
+   */
+  nsCOMPtr<nsIWebProgressListener> listener;
+  PRUint32 count = mListenerInfoList.Length();
+  
+  while (count-- > 0) {
+    TabParentListenerInfo *info = &mListenerInfoList[count];
+
+    // The flags used in listener registration are shifted over
+    // 16 bits from the ones sent in the notification, so we shift
+    // to see if the listener is interested in this change.
+    // Note that the flags are not changed in the notification we
+    // send along. Flags are defined in  nsIWebProgressListener and 
+    // nsIWebProgress.
+    // See nsDocLoader for another example of this.
+    if (!(info->mNotifyMask & (aStateFlags >> NOTIFY_FLAG_SHIFT))) {
+        continue;
+    }
+    
+    listener = do_QueryReferent(info->mWeakListener);
+    if (!listener) {
+      // the listener went away. gracefully pull it out of the list.
+      mListenerInfoList.RemoveElementAt(count);
+      continue;
+    }
+    
+    listener->OnStateChange(this, nsnull, aStateFlags, aStatus); 
+  }   
+
+  return true;
+ }
+
+bool
+TabParent::RecvnotifyLocationChange(const nsCString& aUri)
+{
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aUri);
+  if (NS_FAILED(rv)) {
+    return false;
+  }
+
+  /*                                                                           
+   * First notify any listeners of the new state info...
+   *
+   * Operate the elements from back to front so that if items get
+   * get removed from the list it won't affect our iteration
+   */
+  nsCOMPtr<nsIWebProgressListener> listener;
+  PRUint32 count = mListenerInfoList.Length();
+
+  while (count-- > 0) {
+    TabParentListenerInfo *info = &mListenerInfoList[count];
+    if (!(info->mNotifyMask & nsIWebProgress::NOTIFY_LOCATION)) {
+      continue;
+    }
+    
+    listener = do_QueryReferent(info->mWeakListener);
+    if (!listener) {
+      // the listener went away. gracefully pull it out of the list.
+      mListenerInfoList.RemoveElementAt(count);
+      continue;
+    }
+    
+    listener->OnLocationChange(this, nsnull, uri);
+  }
+
+  return true;
+}
+
+bool
+TabParent::RecvnotifyStatusChange(const nsresult& status,
+                                  const nsString& message)
+{
+  /*                                                                           
+   * First notify any listeners of the new state info...
+   *
+   * Operate the elements from back to front so that if items get
+   * get removed from the list it won't affect our iteration
+   */
+  nsCOMPtr<nsIWebProgressListener> listener;
+  PRUint32 count = mListenerInfoList.Length();
+
+  while (count-- > 0) {
+    TabParentListenerInfo *info = &mListenerInfoList[count];
+    if (!(info->mNotifyMask & nsIWebProgress::NOTIFY_STATUS)) {
+      continue;
+    }
+
+    listener = do_QueryReferent(info->mWeakListener);
+    if (!listener) {
+      // the listener went away. gracefully pull it out of the list.
+      mListenerInfoList.RemoveElementAt(count);
+      continue;
+    }
+
+    listener->OnStatusChange(this, nsnull, status, message.BeginReading());
+  }
+
+  return true;
+}
+
+bool
+TabParent::RecvnotifySecurityChange(const PRUint32& aState)
+{
+  /*                                                                           
+   * First notify any listeners of the new state info...
+   *
+   * Operate the elements from back to front so that if items get
+   * get removed from the list it won't affect our iteration
+   */
+
+  nsCOMPtr<nsIWebProgressListener> listener;
+  PRUint32 count = mListenerInfoList.Length();
+
+  while (count-- > 0) {
+    TabParentListenerInfo *info = &mListenerInfoList[count];
+    if (!(info->mNotifyMask & nsIWebProgress::NOTIFY_SECURITY)) {
+      continue;
+    }
+
+    listener = do_QueryReferent(info->mWeakListener);
+    if (!listener) {
+      // the listener went away. gracefully pull it out of the list.
+      mListenerInfoList.RemoveElementAt(count);
+      continue;
+    }
+
+    listener->OnSecurityChange(this, nsnull, aState);
+  }
+
+  return true;
+}
+
+bool
+TabParent::RecvrefreshAttempted(const nsCString& aURI, const PRInt32& aMillis, 
+                                const bool& aSameURI, bool* refreshAllowed)
+{
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aURI);
+  if (NS_FAILED(rv)) {
+    return false;
+  }
+  /*                                                                           
+   * First notify any listeners of the new state info...
+   *
+   * Operate the elements from back to front so that if items get
+   * get removed from the list it won't affect our iteration
+   */
+
+  nsCOMPtr<nsIWebProgressListener> listener;
+  PRUint32 count = mListenerInfoList.Length();
+
+  *refreshAllowed = true;
+  while (count-- > 0) {
+    TabParentListenerInfo *info = &mListenerInfoList[count];
+    if (!(info->mNotifyMask & nsIWebProgress::NOTIFY_REFRESH)) {
+      continue;
+    }
+
+    listener = do_QueryReferent(info->mWeakListener);
+    if (!listener) {
+      // the listener went away. gracefully pull it out of the list.
+      mListenerInfoList.RemoveElementAt(count);
+      continue;
+    }
+
+    nsCOMPtr<nsIWebProgressListener2> listener2 =
+      do_QueryReferent(info->mWeakListener);
+    if (!listener2) {
+      continue;
+    }
+
+    // some listeners don't seem to set this at all...
+    PRBool allowed = true;
+    listener2->OnRefreshAttempted(this, uri, 
+                                  aMillis, aSameURI, &allowed);
+    *refreshAllowed = allowed && *refreshAllowed;
+  }
+
+  return true;
+}
+
+bool
+TabParent::AnswercreateWindow(PIFrameEmbeddingParent** retval)
 {
     if (!mBrowserDOMWindow) {
         return false;
@@ -157,7 +387,7 @@ TabParent::AnswerCreateWindow(PBrowserParent** retval)
         return false;
     }
 
-    *retval = frameLoader->GetRemoteBrowser();
+    *retval = frameLoader->GetChildProcess();
     return true;
 }
 
@@ -167,57 +397,20 @@ TabParent::LoadURL(nsIURI* aURI)
     nsCString spec;
     aURI->GetSpec(spec);
 
-    unused << SendLoadURL(spec);
+    SendloadURL(spec);
 }
 
 void
-TabParent::Show(const nsIntSize& size)
+TabParent::Move(PRUint32 x, PRUint32 y, PRUint32 width, PRUint32 height)
 {
-    // sigh
-    unused << SendShow(size);
-}
-
-void
-TabParent::Move(const nsIntSize& size)
-{
-    unused << SendMove(size);
+    Sendmove(x, y, width, height);
 }
 
 void
 TabParent::Activate()
 {
-    unused << SendActivate();
+    Sendactivate();
 }
-
-NS_IMETHODIMP
-TabParent::Init(nsIDOMWindow *window)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TabParent::GetState(PRUint32 *aState)
-{
-  NS_ENSURE_ARG(aState);
-  NS_WARNING("SecurityState not valid here");
-  *aState = mSecurityState;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TabParent::GetTooltipText(nsAString & aTooltipText)
-{
-  aTooltipText = mSecurityTooltipText;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TabParent::GetSSLStatus(nsISupports ** aStatus)
-{
-  NS_IF_ADDREF(*aStatus = mSecurityStatusObject);
-  return NS_OK;
-}
-
 
 mozilla::ipc::PDocumentRendererParent*
 TabParent::AllocPDocumentRenderer(const PRInt32& x,
@@ -266,14 +459,14 @@ TabParent::DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDParent* act
     return true;
 }
 
-PContentPermissionRequestParent*
-TabParent::AllocPContentPermissionRequest(const nsCString& type, const IPC::URI& uri)
+PGeolocationRequestParent*
+TabParent::AllocPGeolocationRequest(const IPC::URI& uri)
 {
-  return new ContentPermissionRequestParent(type, mFrameElement, uri);
+  return new GeolocationRequestParent(mFrameElement, uri);
 }
   
 bool
-TabParent::DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor)
+TabParent::DeallocPGeolocationRequest(PGeolocationRequestParent* actor)
 {
   delete actor;
   return true;
@@ -284,9 +477,8 @@ TabParent::SendMouseEvent(const nsAString& aType, float aX, float aY,
                           PRInt32 aButton, PRInt32 aClickCount,
                           PRInt32 aModifiers, PRBool aIgnoreRootScrollFrame)
 {
-  unused << PBrowserParent::SendMouseEvent(nsString(aType), aX, aY,
-                                           aButton, aClickCount,
-                                           aModifiers, aIgnoreRootScrollFrame);
+  SendsendMouseEvent(nsString(aType), aX, aY, aButton, aClickCount,
+                     aModifiers, aIgnoreRootScrollFrame);
 }
 
 void
@@ -296,261 +488,23 @@ TabParent::SendKeyEvent(const nsAString& aType,
                         PRInt32 aModifiers,
                         PRBool aPreventDefault)
 {
-  unused << PBrowserParent::SendKeyEvent(nsString(aType), aKeyCode, aCharCode,
-                                         aModifiers, aPreventDefault);
+    SendsendKeyEvent(nsString(aType), aKeyCode, aCharCode, aModifiers,
+                     aPreventDefault);
 }
 
 bool
-TabParent::RecvSyncMessage(const nsString& aMessage,
-                           const nsString& aJSON,
-                           nsTArray<nsString>* aJSONRetVal)
+TabParent::RecvsendSyncMessageToParent(const nsString& aMessage,
+                                       const nsString& aJSON,
+                                       nsTArray<nsString>* aJSONRetVal)
 {
   return ReceiveMessage(aMessage, PR_TRUE, aJSON, aJSONRetVal);
 }
 
 bool
-TabParent::RecvAsyncMessage(const nsString& aMessage,
-                            const nsString& aJSON)
+TabParent::RecvsendAsyncMessageToParent(const nsString& aMessage,
+                                        const nsString& aJSON)
 {
   return ReceiveMessage(aMessage, PR_FALSE, aJSON, nsnull);
-}
-
-bool
-TabParent::RecvNotifyIMEFocus(const PRBool& aFocus,
-                              nsIMEUpdatePreference* aPreference,
-                              PRUint32* aSeqno)
-{
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return true;
-
-  *aSeqno = mIMESeqno;
-  mIMETabParent = aFocus ? this : nsnull;
-  mIMESelectionAnchor = 0;
-  mIMESelectionFocus = 0;
-  nsresult rv = widget->OnIMEFocusChange(aFocus);
-
-  if (aFocus) {
-    if (NS_SUCCEEDED(rv) && rv != NS_SUCCESS_IME_NO_UPDATES) {
-      *aPreference = widget->GetIMEUpdatePreference();
-    } else {
-      aPreference->mWantUpdates = PR_FALSE;
-      aPreference->mWantHints = PR_FALSE;
-    }
-  } else {
-    mIMECacheText.Truncate(0);
-  }
-  return true;
-}
-
-bool
-TabParent::RecvNotifyIMETextChange(const PRUint32& aStart,
-                                   const PRUint32& aEnd,
-                                   const PRUint32& aNewEnd)
-{
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return true;
-
-  widget->OnIMETextChange(aStart, aEnd, aNewEnd);
-  return true;
-}
-
-bool
-TabParent::RecvNotifyIMESelection(const PRUint32& aSeqno,
-                                  const PRUint32& aAnchor,
-                                  const PRUint32& aFocus)
-{
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return true;
-
-  if (aSeqno == mIMESeqno) {
-    mIMESelectionAnchor = aAnchor;
-    mIMESelectionFocus = aFocus;
-    widget->OnIMESelectionChange();
-  }
-  return true;
-}
-
-bool
-TabParent::RecvNotifyIMETextHint(const nsString& aText)
-{
-  // Replace our cache with new text
-  mIMECacheText = aText;
-  return true;
-}
-
-/**
- * Try to answer query event using cached text.
- *
- * For NS_QUERY_SELECTED_TEXT, fail if the cache doesn't contain the whole
- *  selected range. (This shouldn't happen because PuppetWidget should have
- *  already sent the whole selection.)
- *
- * For NS_QUERY_TEXT_CONTENT, fail only if the cache doesn't overlap with
- *  the queried range. Note the difference from above. We use
- *  this behavior because a normal NS_QUERY_TEXT_CONTENT event is allowed to
- *  have out-of-bounds offsets, so that widget can request content without
- *  knowing the exact length of text. It's up to widget to handle cases when
- *  the returned offset/length are different from the queried offset/length.
- */
-bool
-TabParent::HandleQueryContentEvent(nsQueryContentEvent& aEvent)
-{
-  aEvent.mSucceeded = PR_FALSE;
-  aEvent.mWasAsync = PR_FALSE;
-  aEvent.mReply.mFocusedWidget = nsCOMPtr<nsIWidget>(GetWidget()).get();
-
-  switch (aEvent.message)
-  {
-  case NS_QUERY_SELECTED_TEXT:
-    {
-      aEvent.mReply.mOffset = PR_MIN(mIMESelectionAnchor, mIMESelectionFocus);
-      if (mIMESelectionAnchor == mIMESelectionFocus) {
-        aEvent.mReply.mString.Truncate(0);
-      } else {
-        if (mIMESelectionAnchor > mIMECacheText.Length() ||
-            mIMESelectionFocus > mIMECacheText.Length()) {
-          break;
-        }
-        PRUint32 selLen = mIMESelectionAnchor > mIMESelectionFocus ?
-                          mIMESelectionAnchor - mIMESelectionFocus :
-                          mIMESelectionFocus - mIMESelectionAnchor;
-        aEvent.mReply.mString = Substring(mIMECacheText,
-                                          aEvent.mReply.mOffset,
-                                          selLen);
-      }
-      aEvent.mReply.mReversed = mIMESelectionFocus < mIMESelectionAnchor;
-      aEvent.mReply.mHasSelection = PR_TRUE;
-      aEvent.mSucceeded = PR_TRUE;
-    }
-    break;
-  case NS_QUERY_TEXT_CONTENT:
-    {
-      PRUint32 inputOffset = aEvent.mInput.mOffset,
-               inputEnd = inputOffset + aEvent.mInput.mLength;
-
-      if (inputEnd > mIMECacheText.Length()) {
-        inputEnd = mIMECacheText.Length();
-      }
-      if (inputEnd < inputOffset) {
-        break;
-      }
-      aEvent.mReply.mOffset = inputOffset;
-      aEvent.mReply.mString = Substring(mIMECacheText,
-                                        inputOffset,
-                                        inputEnd - inputOffset);
-      aEvent.mSucceeded = PR_TRUE;
-    }
-    break;
-  }
-  return true;
-}
-
-bool
-TabParent::SendCompositionEvent(nsCompositionEvent& event)
-{
-  mIMEComposing = event.message == NS_COMPOSITION_START;
-  mIMECompositionStart = PR_MIN(mIMESelectionAnchor, mIMESelectionFocus);
-  if (mIMECompositionEnding)
-    return true;
-  event.seqno = ++mIMESeqno;
-  return PBrowserParent::SendCompositionEvent(event);
-}
-
-/**
- * During ResetInputState or CancelComposition, widget usually sends a
- * NS_TEXT_TEXT event to finalize or clear the composition, respectively
- *
- * Because the event will not reach content in time, we intercept it
- * here and pass the text as the EndIMEComposition return value
- */
-bool
-TabParent::SendTextEvent(nsTextEvent& event)
-{
-  if (mIMECompositionEnding) {
-    mIMECompositionText = event.theText;
-    return true;
-  }
-
-  // We must be able to simulate the selection because
-  // we might not receive selection updates in time
-  if (!mIMEComposing) {
-    mIMECompositionStart = PR_MIN(mIMESelectionAnchor, mIMESelectionFocus);
-  }
-  mIMESelectionAnchor = mIMESelectionFocus =
-      mIMECompositionStart + event.theText.Length();
-
-  event.seqno = ++mIMESeqno;
-  return PBrowserParent::SendTextEvent(event);
-}
-
-bool
-TabParent::SendSelectionEvent(nsSelectionEvent& event)
-{
-  mIMESelectionAnchor = event.mOffset + (event.mReversed ? event.mLength : 0);
-  mIMESelectionFocus = event.mOffset + (!event.mReversed ? event.mLength : 0);
-  event.seqno = ++mIMESeqno;
-  return PBrowserParent::SendSelectionEvent(event);
-}
-
-bool
-TabParent::RecvEndIMEComposition(const PRBool& aCancel,
-                                 nsString* aComposition)
-{
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return true;
-
-  mIMECompositionEnding = PR_TRUE;
-
-  if (aCancel) {
-    widget->CancelIMEComposition();
-  } else {
-    widget->ResetInputState();
-  }
-
-  mIMECompositionEnding = PR_FALSE;
-  *aComposition = mIMECompositionText;
-  mIMECompositionText.Truncate(0);  
-  return true;
-}
-
-bool
-TabParent::RecvGetIMEEnabled(PRUint32* aValue)
-{
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget)
-    widget->GetIMEEnabled(aValue);
-  return true;
-}
-
-bool
-TabParent::RecvSetIMEEnabled(const PRUint32& aValue)
-{
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget)
-    widget->SetIMEEnabled(aValue);
-  return true;
-}
-
-bool
-TabParent::RecvGetIMEOpenState(PRBool* aValue)
-{
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget)
-    widget->GetIMEOpenState(aValue);
-  return true;
-}
-
-bool
-TabParent::RecvSetIMEOpenState(const PRBool& aValue)
-{
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget)
-    widget->SetIMEOpenState(aValue);
-  return true;
 }
 
 bool
@@ -559,27 +513,104 @@ TabParent::ReceiveMessage(const nsString& aMessage,
                           const nsString& aJSON,
                           nsTArray<nsString>* aJSONRetVal)
 {
-  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  if (frameLoader && frameLoader->GetFrameMessageManager()) {
-    nsFrameMessageManager* manager = frameLoader->GetFrameMessageManager();
-    JSContext* ctx = manager->GetJSContext();
-    JSAutoRequest ar(ctx);
-    PRUint32 len = 0; //TODO: obtain a real value in bug 572685
-    // Because we want JS messages to have always the same properties,
-    // create array even if len == 0.
-    JSObject* objectsArray = JS_NewArrayObject(ctx, len, NULL);
-    if (!objectsArray) {
-      return false;
-    }
+  nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner =
+    do_QueryInterface(mFrameElement);
+  if (frameLoaderOwner) {
+    nsRefPtr<nsFrameLoader> frameLoader = frameLoaderOwner->GetFrameLoader();
+    if (frameLoader && frameLoader->GetFrameMessageManager()) {
+      nsFrameMessageManager* manager = frameLoader->GetFrameMessageManager();
+      JSContext* ctx = manager->GetJSContext();
+      JSAutoRequest ar(ctx);
+      jsval* dest;
+      PRUint32 len = 0; //TODO: obtain a real value in bug 572685
+      // Because we want JS messages to have always the same properties,
+      // create array even if len == 0.
+      JSObject* objectsArray =
+        js_NewArrayObjectWithCapacity(ctx, len, &dest);
+      if (!objectsArray) {
+        return false;
+      }
 
-    manager->ReceiveMessage(mFrameElement,
-                            aMessage,
-                            aSync,
-                            aJSON,
-                            objectsArray,
-                            aJSONRetVal);
+      nsresult rv = NS_OK;
+      nsAutoGCRoot arrayGCRoot(&objectsArray, &rv);
+      NS_ENSURE_SUCCESS(rv, false);
+      
+      manager->ReceiveMessage(mFrameElement,
+                              aMessage,
+                              aSync,
+                              aJSON,
+                              objectsArray,
+                              aJSONRetVal);
+    }
   }
   return true;
+}
+
+// nsIWebProgress
+nsresult
+TabParent::AddProgressListener(nsIWebProgressListener* aListener,
+                               PRUint32 aNotifyMask)
+{
+  nsresult rv;
+
+  if (GetListenerInfo(aListener)) {
+    // The listener is already registered!
+    return NS_ERROR_FAILURE;
+  }
+
+  nsWeakPtr listener = do_GetWeakReference(aListener);
+  if (!listener) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  TabParentListenerInfo info(listener, aNotifyMask);
+
+  if (!mListenerInfoList.AppendElement(info))
+    return NS_ERROR_FAILURE;
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+TabParent::RemoveProgressListener(nsIWebProgressListener *aListener)
+{
+  nsAutoPtr<TabParentListenerInfo> info(GetListenerInfo(aListener));
+  
+  return info && mListenerInfoList.RemoveElement(*info) ?
+    NS_OK : NS_ERROR_FAILURE;
+}
+
+TabParentListenerInfo * 
+TabParent::GetListenerInfo(nsIWebProgressListener *aListener)
+{
+  PRUint32 i, count;
+  TabParentListenerInfo *info;
+
+  nsCOMPtr<nsISupports> listener1 = do_QueryInterface(aListener);
+  count = mListenerInfoList.Length();
+  for (i = 0; i < count; ++i) {
+    info = &mListenerInfoList[i];
+
+    if (info) {
+      nsCOMPtr<nsISupports> listener2 = do_QueryReferent(info->mWeakListener);
+      if (listener1 == listener2) {
+        return info;
+      }
+    }
+  }
+  return nsnull;
+}
+
+NS_IMETHODIMP
+TabParent::GetDOMWindow(nsIDOMWindow **aResult)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+TabParent::GetIsLoadingDocument(PRBool *aIsLoadingDocument)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 // nsIAuthPromptProvider
@@ -589,6 +620,9 @@ NS_IMETHODIMP
 TabParent::GetAuthPrompt(PRUint32 aPromptReason, const nsIID& iid,
                           void** aResult)
 {
+  // a priority prompt request will override a false mAllowAuth setting
+  PRBool priorityPrompt = (aPromptReason == PROMPT_PROXY);
+
   // we're either allowing auth, or it's a proxy request
   nsresult rv;
   nsCOMPtr<nsIPromptFactory> wwatch =
@@ -669,8 +703,7 @@ TabParent::HandleDelayedDialogs()
       nsTArray<PRInt32> intParams;
       nsTArray<nsString> stringParams;
       TabChild::ParamsToArrays(params, intParams, stringParams);
-      unused << PContentDialogParent::Send__delete__(dialog,
-                                                     intParams, stringParams);
+      PContentDialogParent::Send__delete__(dialog, intParams, stringParams);
     }
   }
   if (ShouldDelayDialogs() && mDelayedDialogs.Length()) {
@@ -680,49 +713,16 @@ TabParent::HandleDelayedDialogs()
   }
 }
 
-PRenderFrameParent*
-TabParent::AllocPRenderFrame()
-{
-  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  return new RenderFrameParent(frameLoader);
-}
-
-bool
-TabParent::DeallocPRenderFrame(PRenderFrameParent* aFrame)
-{
-  delete aFrame;
-  return true;
-}
-
 PRBool
 TabParent::ShouldDelayDialogs()
 {
-  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
+  nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner = do_QueryInterface(mFrameElement);
+  NS_ENSURE_TRUE(frameLoaderOwner, PR_TRUE);
+  nsRefPtr<nsFrameLoader> frameLoader = frameLoaderOwner->GetFrameLoader();
   NS_ENSURE_TRUE(frameLoader, PR_TRUE);
   PRBool delay = PR_FALSE;
   frameLoader->GetDelayRemoteDialogs(&delay);
   return delay;
-}
-
-already_AddRefed<nsFrameLoader>
-TabParent::GetFrameLoader() const
-{
-  nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner = do_QueryInterface(mFrameElement);
-  return frameLoaderOwner ? frameLoaderOwner->GetFrameLoader() : nsnull;
-}
-
-already_AddRefed<nsIWidget>
-TabParent::GetWidget() const
-{
-  nsCOMPtr<nsIContent> content = do_QueryInterface(mFrameElement);
-  if (!content)
-    return nsnull;
-
-  nsIFrame *frame = content->GetPrimaryFrame();
-  if (!frame)
-    return nsnull;
-
-  return nsCOMPtr<nsIWidget>(frame->GetNearestWidget()).forget();
 }
 
 } // namespace tabs

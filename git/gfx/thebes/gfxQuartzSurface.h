@@ -60,12 +60,8 @@ public:
     {
       return PR_FALSE;
     }
-    virtual TextQuality GetTextQualityInTransparentSurfaces()
-    {
-      return TEXT_QUALITY_OK_OVER_OPAQUE_PIXELS;
-    }
 
-    virtual const gfxIntSize GetSize() const { return gfxIntSize(mSize.width, mSize.height); }
+    const gfxSize& GetSize() const { return mSize; }
 
     CGContextRef GetCGContext() { return mCGContext; }
 

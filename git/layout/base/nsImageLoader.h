@@ -91,8 +91,7 @@ public:
   // incrementally in nsImageFrame.cpp.
 
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
-                          const nsIntRect *aDirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, nsIntRect *dirtyRect);
 
   void Destroy();
 

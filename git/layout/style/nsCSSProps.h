@@ -69,10 +69,8 @@
 #define CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED (1<<4)
 
 // A property that needs to have image loads started when a URL value
-// for the property is used for an element.  This is supported only
-// for a few possible value formats: image directly in the value; list
-// of images; and with CSS_PROPERTY_IMAGE_IS_IN_ARRAY_0, image in slot
-// 0 of an array, or list of such arrays.
+// for the property is used for an element.  Supported only for
+// eCSSType_Value and eCSSType_ValueList.
 #define CSS_PROPERTY_START_IMAGE_LOADS            (1<<5)
 
 // Should be set only for properties with START_IMAGE_LOADS.  Indicates
@@ -87,12 +85,6 @@
 // should be reported as being margin-left, etc.  Call
 // nsCSSProps::OtherNameFor to get the other property.
 #define CSS_PROPERTY_REPORT_OTHER_NAME            (1<<7)
-
-// This property allows calc() between lengths and percentages and
-// stores such calc() expressions in its style structs (typically in an
-// nsStyleCoord, although this is not the case for 'background-position'
-// and 'background-size').
-#define CSS_PROPERTY_STORES_CALC                  (1<<8)
 
 /**
  * Types of animatable values.
@@ -154,7 +146,7 @@ public:
   static nsCSSProperty LookupProperty(const nsACString& aProperty);
 
   static inline PRBool IsShorthand(nsCSSProperty aProperty) {
-    NS_ABORT_IF_FALSE(0 <= aProperty && aProperty < eCSSProperty_COUNT,
+    NS_ASSERTION(0 <= aProperty && aProperty < eCSSProperty_COUNT,
                  "out of range");
     return (aProperty >= eCSSProperty_COUNT_no_shorthands);
   }
@@ -190,6 +182,7 @@ public:
   // Ditto but as a string, return "" when not found.
   static const nsAFlatCString& ValueToKeyword(PRInt32 aValue, const PRInt32 aTable[]);
 
+  static const nsCSSType       kTypeTable[eCSSProperty_COUNT_no_shorthands];
   static const nsStyleStructID kSIDTable[eCSSProperty_COUNT_no_shorthands];
   static const PRInt32* const  kKeywordTableTable[eCSSProperty_COUNT_no_shorthands];
   static const nsStyleAnimType kAnimTypeTable[eCSSProperty_COUNT_no_shorthands];
@@ -202,8 +195,8 @@ private:
 public:
   static inline PRBool PropHasFlags(nsCSSProperty aProperty, PRUint32 aFlags)
   {
-    NS_ABORT_IF_FALSE(0 <= aProperty && aProperty < eCSSProperty_COUNT,
-                      "out of range");
+    NS_ASSERTION(0 <= aProperty && aProperty < eCSSProperty_COUNT,
+                 "out of range");
     return (nsCSSProps::kFlagsTable[aProperty] & aFlags) == aFlags;
   }
 
@@ -216,9 +209,9 @@ private:
 public:
   static inline
   const nsCSSProperty * SubpropertyEntryFor(nsCSSProperty aProperty) {
-    NS_ABORT_IF_FALSE(eCSSProperty_COUNT_no_shorthands <= aProperty &&
-                      aProperty < eCSSProperty_COUNT,
-                      "out of range");
+    NS_ASSERTION(eCSSProperty_COUNT_no_shorthands <= aProperty &&
+                 aProperty < eCSSProperty_COUNT,
+                 "out of range");
     return nsCSSProps::kSubpropertyTable[aProperty -
                                          eCSSProperty_COUNT_no_shorthands];
   }
@@ -227,10 +220,9 @@ public:
   // properties containing |aProperty|, sorted from those that contain
   // the most properties to those that contain the least.
   static const nsCSSProperty * ShorthandsContaining(nsCSSProperty aProperty) {
-    NS_ABORT_IF_FALSE(gShorthandsContainingPool, "uninitialized");
-    NS_ABORT_IF_FALSE(0 <= aProperty &&
-                      aProperty < eCSSProperty_COUNT_no_shorthands,
-                      "out of range");
+    NS_ASSERTION(gShorthandsContainingPool, "uninitialized");
+    NS_ASSERTION(0 <= aProperty && aProperty < eCSSProperty_COUNT_no_shorthands,
+                 "out of range");
     return gShorthandsContainingTable[aProperty];
   }
 private:

@@ -57,6 +57,8 @@
 #include <unistd.h>
 
 #include <gtk/gtk.h>
+/* used with esd_open_sound */
+static int esdref = -1;
 static PRLibrary *elib = nsnull;
 static PRLibrary *libcanberra = nsnull;
 static PRLibrary* libasound = nsnull;
@@ -71,6 +73,9 @@ static PRLibrary* libasound = nsnull;
 #define ESD_PLAY (0x1000)
 
 #define WAV_MIN_LENGTH 44
+
+typedef int (*EsdOpenSoundType)(const char *host);
+typedef int (*EsdCloseType)(int);
 
 /* used to play the sounds from the find symbol call */
 typedef int  (*EsdPlayStreamType) (int, int, const char *, const char *);
@@ -126,6 +131,12 @@ nsSound::nsSound()
 
 nsSound::~nsSound()
 {
+    if (esdref >= 0) {
+        EsdCloseType EsdClose = (EsdCloseType) PR_FindFunctionSymbol(elib, "esd_close");
+        if (EsdClose)
+            (*EsdClose)(esdref);
+        esdref = -1;
+    }
 }
 
 NS_IMETHODIMP
@@ -140,6 +151,20 @@ nsSound::Init()
 
     if (!elib) {
         elib = PR_LoadLibrary("libesd.so.0");
+        if (elib) {
+            EsdOpenSoundType EsdOpenSound =
+                (EsdOpenSoundType) PR_FindFunctionSymbol(elib, "esd_open_sound");
+            if (!EsdOpenSound) {
+                PR_UnloadLibrary(elib);
+                elib = nsnull;
+            } else {
+                esdref = (*EsdOpenSound)("localhost");
+                if (esdref < 0) {
+                    PR_UnloadLibrary(elib);
+                    elib = nsnull;
+                }
+            }
+        }
     }
 
     if (!libasound) {

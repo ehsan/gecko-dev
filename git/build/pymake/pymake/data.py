@@ -1185,7 +1185,7 @@ def getcommandsforrule(rule, target, makefile, prerequisites, stem):
         cstring = c.resolvestr(makefile, v)
         for cline in splitcommand(cstring):
             cline, isHidden, isRecursive, ignoreErrors = findmodifiers(cline)
-            if isHidden or makefile.silent:
+            if isHidden:
                 echo = None
             else:
                 echo = "%s$ %s" % (c.loc, cline)
@@ -1335,8 +1335,7 @@ class Makefile(object):
 
     def __init__(self, workdir=None, env=None, restarts=0, make=None,
                  makeflags='', makeoverrides='',
-                 makelevel=0, context=None, targets=(), keepgoing=False,
-                 silent=False):
+                 makelevel=0, context=None, targets=(), keepgoing=False):
         self.defaulttarget = None
 
         if env is None:
@@ -1350,7 +1349,6 @@ class Makefile(object):
         self.exportedvars = {}
         self._targets = {}
         self.keepgoing = keepgoing
-        self.silent = silent
         self._patternvariables = [] # of (pattern, variables)
         self.implicitrules = []
         self.parsingfinished = False

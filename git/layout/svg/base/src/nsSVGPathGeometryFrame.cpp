@@ -46,7 +46,6 @@
 #include "nsSVGRect.h"
 #include "nsSVGPathGeometryElement.h"
 #include "gfxContext.h"
-#include "gfxPlatform.h"
 
 //----------------------------------------------------------------------
 // Implementation
@@ -170,24 +169,23 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 
   PRBool isHit = PR_FALSE;
 
-  nsRefPtr<gfxContext> context =
-    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
+  gfxContext context(nsSVGUtils::GetThebesComputationalSurface());
 
-  GeneratePath(context);
+  GeneratePath(&context);
   gfxPoint userSpacePoint =
-    context->DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
-                                   PresContext()->AppUnitsToGfxUnits(aPoint.y)));
+    context.DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
+                                  PresContext()->AppUnitsToGfxUnits(aPoint.y)));
 
   if (fillRule == NS_STYLE_FILL_RULE_EVENODD)
-    context->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
+    context.SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
   else
-    context->SetFillRule(gfxContext::FILL_RULE_WINDING);
+    context.SetFillRule(gfxContext::FILL_RULE_WINDING);
 
   if (mask & HITTEST_MASK_FILL)
-    isHit = context->PointInFill(userSpacePoint);
+    isHit = context.PointInFill(userSpacePoint);
   if (!isHit && (mask & HITTEST_MASK_STROKE)) {
-    SetupCairoStrokeHitGeometry(context);
-    isHit = context->PointInStroke(userSpacePoint);
+    SetupCairoStrokeHitGeometry(&context);
+    isHit = context.PointInStroke(userSpacePoint);
   }
 
   if (isHit && nsSVGUtils::HitTestClip(this, aPoint))
@@ -251,13 +249,12 @@ nsSVGPathGeometryFrame::UpdateCoveredRegion()
 {
   mRect.Empty();
 
-  nsRefPtr<gfxContext> context =
-    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
+  gfxContext context(nsSVGUtils::GetThebesComputationalSurface());
 
-  GeneratePath(context);
-  context->IdentityMatrix();
+  GeneratePath(&context);
+  context.IdentityMatrix();
 
-  gfxRect extent = context->GetUserPathExtent();
+  gfxRect extent = context.GetUserPathExtent();
 
   // Be careful when replacing the following logic to get the fill and stroke
   // extents independently (instead of computing the stroke extents from the
@@ -272,12 +269,12 @@ nsSVGPathGeometryFrame::UpdateCoveredRegion()
   //   stroke bounds that it will return will be empty.
 
   if (HasStroke()) {
-    SetupCairoStrokeGeometry(context);
+    SetupCairoStrokeGeometry(&context);
     if (extent.Width() <= 0 && extent.Height() <= 0) {
       // If 'extent' is empty, its position will not be set. Although
       // GetUserStrokeExtent gets the extents wrong we can still use it
       // to get the device space position of zero length stroked paths.
-      extent = context->GetUserStrokeExtent();
+      extent = context.GetUserStrokeExtent();
       extent.pos.x += extent.size.width / 2;
       extent.pos.y += extent.size.height / 2;
       extent.size.width = 0;
@@ -364,11 +361,10 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
     // XXX ReportToConsole
     return gfxRect(0.0, 0.0, 0.0, 0.0);
   }
-  nsRefPtr<gfxContext> context =
-    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
-  GeneratePath(context, &aToBBoxUserspace);
-  context->IdentityMatrix();
-  return context->GetUserPathExtent();
+  gfxContext context(nsSVGUtils::GetThebesComputationalSurface());
+  GeneratePath(&context, &aToBBoxUserspace);
+  context.IdentityMatrix();
+  return context.GetUserPathExtent();
 }
 
 //----------------------------------------------------------------------

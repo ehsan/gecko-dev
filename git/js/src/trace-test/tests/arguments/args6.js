@@ -1,5 +1,5 @@
 actual = '';
-expected = '6,';
+expected = '5,';
 
 // tracing length
 
@@ -14,7 +14,7 @@ function f() {
 }
 
 for (var i = 0; i < 5; ++i) {
-  f(10, 20, 30, 40, 50, 60);
+  f(10, 20, 30, 40, 50);
 }
 appendToActual(g);
 

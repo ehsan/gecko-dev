@@ -34,8 +34,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ['Auth', 'BrokenBasicAuthenticator',
-                          'BasicAuthenticator', 'NoOpAuthenticator'];
+const EXPORTED_SYMBOLS = ['Auth', 'BasicAuthenticator', 'NoOpAuthenticator'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -56,26 +55,13 @@ NoOpAuthenticator.prototype = {
   }
 };
 
-// Warning: This will drop the high unicode bytes from passwords.
-// Use BasicAuthenticator to send non-ASCII passwords UTF8-encoded.
-function BrokenBasicAuthenticator(identity) {
-  this._id = identity;
-}
-BrokenBasicAuthenticator.prototype = {
-  onRequest: function BasicAuth_onRequest(headers) {
-    headers['Authorization'] = 'Basic ' +
-      btoa(this._id.username + ':' + this._id.password);
-    return headers;
-  }
-};
-
 function BasicAuthenticator(identity) {
   this._id = identity;
 }
 BasicAuthenticator.prototype = {
-  onRequest: function onRequest(headers) {
+  onRequest: function BasicAuth_onRequest(headers) {
     headers['Authorization'] = 'Basic ' +
-      btoa(this._id.username + ':' + this._id.passwordUTF8);
+      btoa(this._id.username + ':' + this._id.password);
     return headers;
   }
 };

@@ -50,8 +50,8 @@ class nsSVGAnimateMotionElement : public nsSVGAnimateMotionElementBase,
 {
 protected:
   friend nsresult NS_NewSVGAnimateMotionElement(nsIContent **aResult,
-                                                already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGAnimateMotionElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                                   nsINodeInfo *aNodeInfo);
+  nsSVGAnimateMotionElement(nsINodeInfo* aNodeInfo);
 
   mozilla::SVGMotionSMILAnimationFunction mAnimationFunction;
 
@@ -70,15 +70,12 @@ public:
 
   // nsISMILAnimationElement
   virtual nsSMILAnimationFunction& AnimationFunction();
-  virtual PRBool GetTargetAttributeName(PRInt32 *aNamespaceID,
-                                        nsIAtom **aLocalName) const;
+  virtual nsIAtom* GetTargetAttributeName() const;
   virtual nsSMILTargetAttrType GetTargetAttributeType() const;
 
   // Utility method to let our <mpath> children tell us when they've changed,
   // so we can make sure our mAnimationFunction is marked as having changed.
   void MpathChanged() { mAnimationFunction.MpathChanged(); }
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 #endif // NS_SVGANIMATEMOTIONELEMENT_H_

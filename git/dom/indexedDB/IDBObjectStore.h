@@ -40,12 +40,13 @@
 #ifndef mozilla_dom_indexeddb_idbobjectstore_h__
 #define mozilla_dom_indexeddb_idbobjectstore_h__
 
-#include "mozilla/dom/indexedDB/IndexedDatabase.h"
+#include "mozilla/dom/indexedDB/IDBRequest.h"
+#include "mozilla/dom/indexedDB/IDBDatabase.h"
 #include "mozilla/dom/indexedDB/IDBTransaction.h"
 
 #include "nsIIDBObjectStore.h"
 
-#include "nsDOMEventTargetHelper.h"
+struct JSContext;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
@@ -209,18 +210,16 @@ private:
   PRInt64 mInt;
 };
 
-class IDBObjectStore : public nsDOMEventTargetHelper,
+class IDBObjectStore : public IDBRequest::Generator,
                        public nsIIDBObjectStore
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIIDBOBJECTSTORE
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBObjectStore,
-                                           nsDOMEventTargetHelper)
-
   static already_AddRefed<IDBObjectStore>
-  Create(IDBTransaction* aTransaction,
+  Create(IDBDatabase* aDatabase,
+         IDBTransaction* aTransaction,
          const ObjectStoreInfo* aInfo,
          PRUint16 aMode);
 
@@ -307,6 +306,7 @@ protected:
                       nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
 
 private:
+  nsRefPtr<IDBDatabase> mDatabase;
   nsRefPtr<IDBTransaction> mTransaction;
 
   PRInt64 mId;
@@ -315,9 +315,6 @@ private:
   PRBool mAutoIncrement;
   PRUint32 mDatabaseId;
   PRUint16 mMode;
-
-  // Only touched on the main thread.
-  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 };
 
 END_INDEXEDDB_NAMESPACE

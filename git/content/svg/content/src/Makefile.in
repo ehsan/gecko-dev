@@ -49,14 +49,12 @@ LIBRARY_NAME	= gkcontentsvg_s
 LIBXUL_LIBRARY	= 1
 
 CPPSRCS		= \
-		DOMSVGAnimatedLengthList.cpp \
-		DOMSVGLength.cpp \
-		DOMSVGLengthList.cpp \
 		nsDOMSVGZoomEvent.cpp \
 		nsDOMSVGEvent.cpp \
 		nsSVGAElement.cpp \
 		nsSVGAltGlyphElement.cpp \
 		nsSVGAngle.cpp \
+		nsSVGAnimatedLengthList.cpp \
 		nsSVGAnimatedNumberList.cpp \
 		nsSVGAnimatedTransformList.cpp \
 		nsSVGBoolean.cpp \
@@ -78,7 +76,9 @@ CPPSRCS		= \
 		nsSVGGraphicElement.cpp \
 		nsSVGImageElement.cpp \
 		nsSVGInteger.cpp \
+		nsSVGLength.cpp \
 		nsSVGLength2.cpp \
+		nsSVGLengthList.cpp \
 		nsSVGLineElement.cpp \
 		nsSVGMarkerElement.cpp \
 		nsSVGMaskElement.cpp \
@@ -122,9 +122,6 @@ CPPSRCS		= \
 		nsSVGUseElement.cpp \
 		nsSVGValue.cpp \
 		nsSVGViewBox.cpp \
-		SVGAnimatedLengthList.cpp \
-		SVGLength.cpp \
-		SVGLengthList.cpp \
 		$(NULL)
 
 ifdef MOZ_SMIL
@@ -136,7 +133,6 @@ CPPSRCS += nsSVGAnimateElement.cpp \
            nsSVGSetElement.cpp \
            nsSVGTransformSMILType.cpp \
            nsSVGTransformSMILAttr.cpp \
-           SVGLengthListSMILType.cpp \
            SVGMotionSMILType.cpp \
            SVGMotionSMILAttr.cpp \
            SVGMotionSMILAnimationFunction.cpp \

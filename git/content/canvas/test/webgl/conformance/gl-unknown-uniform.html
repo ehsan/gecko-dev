@@ -38,7 +38,8 @@ description("Tests that unknown uniforms don't cause errors.");
 debug("");
 debug("Canvas.getContext");
 
-var gl = initWebGL("example", "vshader", "fshader", [ "vPosition"], [ 0, 0, 0, 1 ], 1);
+gl = initWebGL("example", "vshader", "fshader", [ "vPosition"], [ 0, 0, 0, 1 ], 1);
+var gl = create3DContext(document.getElementById("canvas"));
 if (!gl) {
   testFailed("context does not exist");
 } else {
@@ -49,10 +50,10 @@ if (!gl) {
   // Get the location of an unknown uniform.
   var loc = gl.getUniformLocation(gl.program, "someUnknownUniform");
   assertMsg(loc === null, "location of unknown uniform should be null");
-  glErrorShouldBe(gl, gl.NO_ERROR,
+  assertMsg(gl.getError() == gl.NO_ERROR,
             "there should be no error from getting an unknown uniform");
   gl.uniform1f(loc, 1);
-  glErrorShouldBe(gl, gl.NO_ERROR,
+  assertMsg(gl.getError() == gl.NO_ERROR,
             "there should be no error from trying to set an unknown uniform");
 }
 

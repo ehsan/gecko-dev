@@ -65,7 +65,6 @@ protected:
   nsSVGGlyphFrame(nsStyleContext* aContext)
     : nsSVGGlyphFrameBase(aContext),
       mTextRun(nsnull),
-      mStartIndex(0),
       mWhitespaceHandling(COMPRESS_WHITESPACE)
       {}
   ~nsSVGGlyphFrame()
@@ -150,15 +149,8 @@ public:
   NS_IMETHOD_(nsSVGTextPathFrame*) FindTextPathParent();
   NS_IMETHOD_(PRBool) IsStartOfChunk(); // == is new absolutely positioned chunk.
 
-  NS_IMETHOD_(void) GetXY(mozilla::SVGUserUnitList *aX, mozilla::SVGUserUnitList *aY);
-  NS_IMETHOD_(void) SetStartIndex(PRUint32 aStartIndex);
-  NS_IMETHOD_(void) GetEffectiveXY(PRInt32 strLength,
-                                   nsTArray<float> &aX, nsTArray<float> &aY);
-  NS_IMETHOD_(void) GetEffectiveDxDy(PRInt32 strLength, 
-                                     nsTArray<float> &aDx,
-                                     nsTArray<float> &aDy);
-  NS_IMETHOD_(void) GetEffectiveRotate(PRInt32 strLength,
-                                       nsTArray<float> &aRotate);
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetX();
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetY();
   NS_IMETHOD_(PRUint16) GetTextAnchor();
   NS_IMETHOD_(PRBool) IsAbsolutelyPositioned();
 
@@ -215,7 +207,8 @@ protected:
                             float aMetricsScale);
   gfxFloat GetBaselineOffset(float aMetricsScale);
 
-  virtual void GetDxDy(mozilla::SVGUserUnitList *aDx, mozilla::SVGUserUnitList *aDy);
+  already_AddRefed<nsIDOMSVGLengthList> GetDx();
+  already_AddRefed<nsIDOMSVGLengthList> GetDy();
   already_AddRefed<nsIDOMSVGNumberList> GetRotate();
 
   // Used to support GetBBoxContribution by making GetConvasTM use this as the
@@ -225,8 +218,6 @@ protected:
   // Owning pointer, must call gfxTextRunWordCache::RemoveTextRun before deleting
   gfxTextRun *mTextRun;
   gfxPoint mPosition;
-  // The start index into the position and rotation data
-  PRUint32 mStartIndex;
   PRUint8 mWhitespaceHandling;
 };
 

@@ -50,6 +50,22 @@ function getBrowserURL()
   return "chrome://browser/content/browser.xul";
 }
 
+function goToggleToolbar( id, elementID )
+{
+  var toolbar = document.getElementById(id);
+  var element = document.getElementById(elementID);
+  if (toolbar)
+  {
+    var isHidden = toolbar.hidden;
+    toolbar.hidden = !isHidden;
+    document.persist(id, 'hidden');
+    if (element) {
+      element.setAttribute("checked", isHidden ? "true" : "false");
+      document.persist(elementID, 'checked');
+    }
+  }
+}
+
 function getTopWin()
 {
   return Services.wm.getMostRecentWindow("navigator:browser");
@@ -212,20 +228,6 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
 
   var loadInBackground = getBoolPref("browser.tabs.loadBookmarksInBackground");
 
-  if (where == "current" && w.gBrowser.selectedTab.pinned) {
-    try {
-      let uriObj = Services.io.newURI(url, null, null);
-      if (!uriObj.schemeIs("javascript") &&
-          w.gBrowser.currentURI.host != uriObj.host) {
-        where = "tab";
-        loadInBackground = false;
-      }
-    } catch (err) {
-      where = "tab";
-      loadInBackground = false;
-    }
-  }
-
   switch (where) {
   case "current":
     w.loadURI(url, aReferrerURI, aPostData, aAllowThirdPartyFixup);
@@ -379,8 +381,10 @@ function openAboutDialog() {
   var enumerator = Services.wm.getEnumerator("Browser:About");
   while (enumerator.hasMoreElements()) {
     let win = enumerator.getNext();
+#ifdef XP_WIN
     if (win.opener != window)
       continue;
+#endif
     win.focus();
     return;
   }
@@ -388,7 +392,11 @@ function openAboutDialog() {
 #ifdef XP_MACOSX
   var features = "chrome,resizable=no,minimizable=no";
 #else
+#ifdef XP_WIN
   var features = "chrome,centerscreen,dependent";
+#else
+  var features = "chrome,centerscreen";
+#endif
 #endif
   window.openDialog("chrome://browser/content/aboutDialog.xul", "", features);
 }
@@ -444,15 +452,6 @@ function openTroubleshootingPage()
   openUILinkIn("about:support", "tab");
 }
 
-/**
- * Opens the feedback page for this version of the application.
- */
-function openFeedbackPage()
-{
-  openUILinkIn("http://input.mozilla.com/sad", "tab");
-}
-
-
 #ifdef MOZ_UPDATER
 /**
  * Opens the update manager and checks for updates to the application.
@@ -476,12 +475,14 @@ function checkForUpdates()
 }
 #endif
 
-#ifdef MOZ_UPDATER
-/**
- * Updates an element to reflect the state of available update services.
- */
-function setupCheckForUpdates(checkForUpdates, aStringBundle)
+function buildHelpMenu()
 {
+  // Enable/disable the "Report Web Forgery" menu item.  safebrowsing object
+  // may not exist in OSX
+  if (typeof safebrowsing != "undefined")
+    safebrowsing.setReportPhishingMenu();
+
+#ifdef MOZ_UPDATER
   var updates = 
       Components.classes["@mozilla.org/updates/update-service;1"].
       getService(Components.interfaces.nsIApplicationUpdateService);
@@ -491,21 +492,23 @@ function setupCheckForUpdates(checkForUpdates, aStringBundle)
 
   // Disable the UI if the update enabled pref has been locked by the 
   // administrator or if we cannot update for some other reason
+  var checkForUpdates = document.getElementById("checkForUpdates");
   var canCheckForUpdates = updates.canCheckForUpdates;
   checkForUpdates.setAttribute("disabled", !canCheckForUpdates);
   if (!canCheckForUpdates)
     return; 
 
+  var strings = document.getElementById("bundle_browser");
   var activeUpdate = um.activeUpdate;
-
+  
   // If there's an active update, substitute its name into the label
   // we show for this item, otherwise display a generic label.
   function getStringWithUpdateName(key) {
     if (activeUpdate && activeUpdate.name)
-      return aStringBundle.formatStringFromName(key, [activeUpdate.name], 1);
-    return aStringBundle.GetStringFromName(key + "Fallback");
+      return strings.getFormattedString(key, [activeUpdate.name]);
+    return strings.getString(key + "Fallback");
   }
-
+  
   // By default, show "Check for Updates..."
   var key = "default";
   if (activeUpdate) {
@@ -524,31 +527,11 @@ function setupCheckForUpdates(checkForUpdates, aStringBundle)
     }
   }
   checkForUpdates.label = getStringWithUpdateName("updatesItem_" + key);
-  checkForUpdates.accessKey = aStringBundle.
-                              GetStringFromName("updatesItem_" + key + ".accesskey");
+  checkForUpdates.accessKey = strings.getString("updatesItem_" + key + ".accesskey");
   if (um.activeUpdate && updates.isDownloading)
     checkForUpdates.setAttribute("loading", "true");
   else
     checkForUpdates.removeAttribute("loading");
-}
-#endif
-
-function buildHelpMenu()
-{
-  // Enable/disable the "Report Web Forgery" menu item.  safebrowsing object
-  // may not exist in OSX
-  if (typeof safebrowsing != "undefined")
-    safebrowsing.setReportPhishingMenu();
-
-#ifdef XP_MACOSX
-#ifdef MOZ_UPDATER
-  var checkForUpdates = document.getElementById("checkForUpdates");
-  var browserBundle = document.getElementById("bundle_browser").stringBundle;
-  setupCheckForUpdates(checkForUpdates, browserBundle);
-#else  
-  // Needed by safebrowsing for inserting its menuitem so just hide it
-  document.getElementById("updateSeparator").hidden = true;
-#endif
 #else
   // Needed by safebrowsing for inserting its menuitem so just hide it
   document.getElementById("updateSeparator").hidden = true;

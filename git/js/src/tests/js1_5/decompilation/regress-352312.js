@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-352312.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 352312;
 var summary = 'decompilation of |new| with unary expression';

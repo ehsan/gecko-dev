@@ -53,13 +53,9 @@ class nsMenuItemIconX;
 class nsMenuItemX;
 class nsIWidget;
 
-// MenuDelegate is used to receive Cocoa notifications for setting
-// up carbon events. Protocol is defined as of 10.6 SDK.
-#if defined(MAC_OS_X_VERSION_10_6) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_6)
-@interface MenuDelegate : NSObject < NSMenuDelegate >
-#else
+// MenuDelegate is used to receive Cocoa notifications for
+// setting up carbon events
 @interface MenuDelegate : NSObject
-#endif
 {
   nsMenuX* mGeckoMenu; // weak ref
 }

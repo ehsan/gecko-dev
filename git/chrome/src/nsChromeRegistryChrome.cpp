@@ -37,7 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef MOZ_IPC
-#include "mozilla/dom/PContentParent.h"
+#include "mozilla/dom/PContentProcessParent.h"
 #include "RegistryMessageUtils.h"
 #include "nsResProtocolHandler.h"
 #endif
@@ -77,6 +77,8 @@
 #include "nsIXPConnect.h"
 #include "nsIXULAppInfo.h"
 #include "nsIXULRuntime.h"
+
+#include "mozilla/Omnijar.h"
 
 #define UILOCALE_CMD_LINE_ARG "UILocale"
 
@@ -464,7 +466,7 @@ struct EnumerationArgs
 
 void
 nsChromeRegistryChrome::SendRegisteredChrome(
-    mozilla::dom::PContentParent* aParent)
+    mozilla::dom::PContentProcessParent* aParent)
 {
   nsTArray<ChromePackage> packages;
   nsTArray<ResourceMapping> resources;
@@ -786,6 +788,7 @@ nsChromeRegistry::ManifestProcessingContext::GetManifestURI()
       return NULL;
     }
 
+#ifdef MOZ_OMNIJAR
     if (mPath) {
       nsCOMPtr<nsIURI> fileURI;
       io->NewFileURI(mFile, getter_AddRefs(fileURI));
@@ -798,7 +801,9 @@ nsChromeRegistry::ManifestProcessingContext::GetManifestURI()
 
       NS_NewURI(getter_AddRefs(mManifestURI), spec, NULL, NULL, io);
     }
-    else {
+    else
+#endif
+    {
       io->NewFileURI(mFile, getter_AddRefs(mManifestURI));
     }
   }

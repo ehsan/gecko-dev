@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-include protocol PContent;
+include protocol PContentProcess;
 include protocol PTestShellCommand;
 include protocol PContextWrapper;
 
@@ -44,7 +44,7 @@ namespace ipc {
 
 rpc protocol PTestShell
 {
-  manager PContent;
+  manager PContentProcess;
 
   manages PTestShellCommand;
   manages PContextWrapper;

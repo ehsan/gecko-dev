@@ -48,7 +48,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(AnimateMotion)
 NS_IMPL_ADDREF_INHERITED(nsSVGAnimateMotionElement,nsSVGAnimateMotionElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGAnimateMotionElement,nsSVGAnimateMotionElementBase)
 
-DOMCI_NODE_DATA(SVGAnimateMotionElement, nsSVGAnimateMotionElement)
+DOMCI_DATA(SVGAnimateMotionElement, nsSVGAnimateMotionElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGAnimateMotionElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGAnimateMotionElement, nsIDOMNode,
@@ -61,7 +61,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGAnimateMotionElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGAnimateMotionElement::nsSVGAnimateMotionElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGAnimateMotionElement::nsSVGAnimateMotionElement(nsINodeInfo *aNodeInfo)
   : nsSVGAnimateMotionElementBase(aNodeInfo)
 {
 }
@@ -80,16 +80,13 @@ nsSVGAnimateMotionElement::AnimationFunction()
   return mAnimationFunction;
 }
 
-PRBool
-nsSVGAnimateMotionElement::GetTargetAttributeName(PRInt32 *aNamespaceID,
-                                                  nsIAtom **aLocalName) const
+nsIAtom*
+nsSVGAnimateMotionElement::GetTargetAttributeName() const
 {
   // <animateMotion> doesn't take an attributeName, since it doesn't target an
   // 'attribute' per se.  We'll use a unique dummy attribute-name so that our
   // nsSMILTargetIdentifier logic (which requires a attribute name) still works.
-  *aNamespaceID = kNameSpaceID_None;
-  *aLocalName = nsGkAtoms::mozAnimateMotionDummyAttr;
-  return PR_TRUE;
+  return nsGkAtoms::mozAnimateMotionDummyAttr;
 }
 
 nsSMILTargetAttrType

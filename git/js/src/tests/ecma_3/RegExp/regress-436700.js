@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-436700.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 436700;
 var summary = 'Do not assert: 1 <= num && num <= 0x10000';

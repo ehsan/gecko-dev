@@ -81,7 +81,3 @@ registerReceiver("test sandbox", function() {
 
   sendMessage("sandbox done");
 });
-
-registerReceiver("throw", function(msgName) {
-  throw new Error("throwing on request");
-});

@@ -99,6 +99,7 @@ nsHtml5Parser::nsHtml5Parser()
 nsHtml5Parser::~nsHtml5Parser()
 {
   mTokenizer->end();
+  mFirstBuffer = nsnull;
 }
 
 NS_IMETHODIMP_(void)
@@ -427,12 +428,15 @@ nsHtml5Parser::ParseFragment(const nsAString& aSourceBuffer,
 
 NS_IMETHODIMP
 nsHtml5Parser::ParseFragment(const nsAString& aSourceBuffer,
-                             nsIContent* aTargetNode,
+                             nsISupports* aTargetNode,
                              nsIAtom* aContextLocalName,
                              PRInt32 aContextNamespace,
                              PRBool aQuirks)
 {
-  nsIDocument* doc = aTargetNode->GetOwnerDoc();
+  nsCOMPtr<nsIContent> target = do_QueryInterface(aTargetNode);
+  NS_ASSERTION(target, "Target did not QI to nsIContent");
+
+  nsIDocument* doc = target->GetOwnerDoc();
   NS_ENSURE_TRUE(doc, NS_ERROR_NOT_AVAILABLE);
   
   nsIURI* uri = doc->GetDocumentURI();
@@ -443,10 +447,10 @@ nsHtml5Parser::ParseFragment(const nsAString& aSourceBuffer,
   mExecutor->SetParser(this);
   mExecutor->SetNodeInfoManager(doc->NodeInfoManager());
 
-  nsIContent* target = aTargetNode;
+  nsIContent* weakTarget = target;
   mTreeBuilder->setFragmentContext(aContextLocalName,
                                    aContextNamespace,
-                                   &target,
+                                   &weakTarget,
                                    aQuirks);
   mExecutor->EnableFragmentMode();
   
@@ -511,7 +515,6 @@ nsHtml5Parser::Reset()
   mFirstBuffer->next = nsnull;
   mFirstBuffer->setStart(0);
   mFirstBuffer->setEnd(0);
-  mLastBuffer = mFirstBuffer;
 }
 
 PRBool

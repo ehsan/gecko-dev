@@ -37,6 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '9.2.js';
 
 /**
    File Name:          9.2.js

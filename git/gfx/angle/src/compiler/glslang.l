@@ -274,7 +274,7 @@ int yy_input(char* buf, int max_size)
 //
 // Returns 0 for success, as per yyparse().
 //
-int PaParseStrings(const char* const argv[], const int strLen[], int argc, TParseContext& parseContextLocal)
+int PaParseStrings(char* argv[], int strLen[], int argc, TParseContext& parseContextLocal)
 {
     int argv0len;
     
@@ -309,7 +309,7 @@ int PaParseStrings(const char* const argv[], const int strLen[], int argc, TPars
    
     if (*cpp->PaStrLen >= 0) {    
         int ret = yyparse((void*)(&parseContextLocal));
-        if (ret || cpp->CompileError == 1 || parseContextLocal.recoveredFromError || parseContextLocal.numErrors > 0)
+        if (cpp->CompileError == 1 || parseContextLocal.recoveredFromError || parseContextLocal.numErrors > 0)
              return 1;
         else
              return 0;
@@ -318,7 +318,7 @@ int PaParseStrings(const char* const argv[], const int strLen[], int argc, TPars
         return 0;
 }
 
-void yyerror(const char *s) 
+void yyerror(char *s) 
 {
     if (((TParseContext *)cpp->pC)->AfterEOF) {
         if (cpp->tokensBeforeEOF == 1) {

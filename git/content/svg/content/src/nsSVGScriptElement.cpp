@@ -58,10 +58,9 @@ class nsSVGScriptElement : public nsSVGScriptElementBase,
 {
 protected:
   friend nsresult NS_NewSVGScriptElement(nsIContent **aResult,
-                                         already_AddRefed<nsINodeInfo> aNodeInfo,
+                                         nsINodeInfo *aNodeInfo,
                                          PRUint32 aFromParser);
-  nsSVGScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                     PRUint32 aFromParser);
+  nsSVGScriptElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser);
   
 public:
   // interfaces:
@@ -96,8 +95,7 @@ public:
                               PRBool aCompileEventHandlers);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
+    
 protected:
   virtual StringAttributesInfo GetStringInfo();
 
@@ -108,7 +106,7 @@ protected:
 
 nsSVGElement::StringInfo nsSVGScriptElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_FALSE }
+  { &nsGkAtoms::href, kNameSpaceID_XLink }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(Script)
@@ -119,7 +117,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(Script)
 NS_IMPL_ADDREF_INHERITED(nsSVGScriptElement,nsSVGScriptElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGScriptElement,nsSVGScriptElementBase)
 
-DOMCI_NODE_DATA(SVGScriptElement, nsSVGScriptElement)
+DOMCI_DATA(SVGScriptElement, nsSVGScriptElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGScriptElement)
   NS_NODE_INTERFACE_TABLE8(nsSVGScriptElement, nsIDOMNode, nsIDOMElement,
@@ -132,10 +130,9 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGScriptElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGScriptElement::nsSVGScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+nsSVGScriptElement::nsSVGScriptElement(nsINodeInfo *aNodeInfo,
                                        PRUint32 aFromParser)
   : nsSVGScriptElementBase(aNodeInfo)
-  , nsScriptElement(aFromParser)
 {
   mDoneAddingChildren = !aFromParser;
   AddMutationObserver(this);
@@ -149,8 +146,7 @@ nsSVGScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
 
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsSVGScriptElement* it = new nsSVGScriptElement(ni.forget(), PR_FALSE);
+  nsSVGScriptElement* it = new nsSVGScriptElement(aNodeInfo, PR_FALSE);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -161,7 +157,7 @@ nsSVGScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   NS_ENSURE_SUCCESS(rv, rv);
 
   // The clone should be marked evaluated if we are.
-  it->mAlreadyStarted = mAlreadyStarted;
+  it->mIsEvaluated = mIsEvaluated;
   it->mLineNumber = mLineNumber;
   it->mMalformed = mMalformed;
 
@@ -279,10 +275,11 @@ nsSVGScriptElement::DoneAddingChildren(PRBool aHaveNotified)
 {
   mDoneAddingChildren = PR_TRUE;
   nsresult rv = MaybeProcessScript();
-  if (!mAlreadyStarted) {
-    // Need to lose parser-insertedness here to allow another script to cause
+  if (!mIsEvaluated) {
+    // Need to thaw the script uri here to allow another script to cause
     // execution later.
-    LoseParserInsertedness();
+    mFrozen = PR_FALSE;
+    mUri = nsnull;
   }
   return rv;
 }

@@ -57,7 +57,6 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_closemenu_attribute.xul \
 		test_colorpicker_popup.xul \
 		test_deck.xul \
-		test_menulist.xul \
 		test_menuitem_blink.xul \
 		test_menulist_keynav.xul \
 		test_menulist_null_value.xul \
@@ -76,7 +75,6 @@ _TEST_FILES = 	test_bug360220.xul \
 		popup_trigger.js \
 		window_popup_button.xul \
 		window_popup_attribute.xul \
-		popup_childframe_node.xul \
 		test_tooltip.xul \
 		test_progressmeter.xul \
 		test_props.xul \
@@ -117,7 +115,6 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_scrollbar.xul \
 		test_sorttemplate.xul \
 		test_contextmenu_list.xul \
-		test_contextmenu_nested.xul \
 		test_videocontrols.html \
 		test_richlist_direction.xul \
 		test_videocontrols_video_direction.html \
@@ -144,10 +141,6 @@ _TEST_FILES = 	test_bug360220.xul \
 ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 _TEST_FILES += test_menubar.xul \
                window_menubar.xul
-endif
-
-ifneq (gtk2,$(MOZ_WIDGET_TOOLKIT))
-_TEST_FILES += test_arrowpanel.xul
 endif
 
 libs:: $(_TEST_FILES)

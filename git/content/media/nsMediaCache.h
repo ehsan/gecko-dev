@@ -210,7 +210,7 @@ class nsMediaCacheStream {
 public:
   enum {
     // This needs to be a power of two
-    BLOCK_SIZE = 32768
+    BLOCK_SIZE = 4096
   };
   enum ReadMode {
     MODE_METADATA,

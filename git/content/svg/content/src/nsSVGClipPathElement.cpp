@@ -53,7 +53,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(ClipPath)
 NS_IMPL_ADDREF_INHERITED(nsSVGClipPathElement,nsSVGClipPathElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGClipPathElement,nsSVGClipPathElementBase)
 
-DOMCI_NODE_DATA(SVGClipPathElement, nsSVGClipPathElement)
+DOMCI_DATA(SVGClipPathElement, nsSVGClipPathElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGClipPathElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGClipPathElement, nsIDOMNode, nsIDOMElement,
@@ -65,7 +65,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGClipPathElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGClipPathElement::nsSVGClipPathElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGClipPathElement::nsSVGClipPathElement(nsINodeInfo *aNodeInfo)
   : nsSVGClipPathElementBase(aNodeInfo)
 {
 }

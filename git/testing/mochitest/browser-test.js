@@ -23,7 +23,6 @@ function testOnLoad() {
   var sstring = Cc["@mozilla.org/supports-string;1"].
                 createInstance(Ci.nsISupportsString);
   sstring.data = location.search;
-
   ww.openWindow(window, "chrome://mochikit/content/browser-harness.xul", "browserTest",
                 "chrome,centerscreen,dialog,resizable,titlebar,toolbar=no,width=800,height=600", sstring);
 }
@@ -46,7 +45,6 @@ function Tester(aTests, aDumper, aCallback) {
   var simpleTestScope = {};
   this._scriptLoader.loadSubScript("chrome://mochikit/content/MochiKit/packed.js", simpleTestScope);
   this._scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/SimpleTest.js", simpleTestScope);
-  this._scriptLoader.loadSubScript("chrome://mochikit/content/chrome-harness.js", simpleTestScope);
   this.SimpleTest = simpleTestScope.SimpleTest;
 }
 Tester.prototype = {
@@ -55,7 +53,6 @@ Tester.prototype = {
 
   checker: null,
   currentTestIndex: -1,
-  lastStartTime: null,
   get currentTest() {
     return this.tests[this.currentTestIndex];
   },
@@ -142,16 +139,11 @@ Tester.prototype = {
   },
 
   observe: function Tester_observe(aConsoleMessage) {
-    try {
-      var msg = "Console message: " + aConsoleMessage.message;
-      if (this.currentTest)
-        this.currentTest.addResult(new testMessage(msg));
-      else
-        this.dumper.dump("TEST-INFO | (browser-test.js) | " + msg);
-    } catch (ex) {
-      // Swallow exception so we don't lead to another error being reported,
-      // throwing us into an infinite loop
-    }
+    var msg = "Console message: " + aConsoleMessage.message;
+    if (this.currentTest)
+      this.currentTest.addResult(new testMessage(msg));
+    else
+      this.dumper.dump("TEST-INFO | (browser-test.js) | " + msg);
   },
 
   nextTest: function Tester_nextTest() {
@@ -163,11 +155,6 @@ Tester.prototype = {
         let func = testScope.__cleanupFunctions.shift();
         func.apply(testScope);
       };
-
-      // Note the test run time
-      let time = Date.now() - this.lastStartTime;
-      let msg = "Test took " + (time / 1000) + "s to complete\n";
-      this.currentTest.addResult(new testMessage(msg));
     }
 
     // Check the window state for the current test before moving to the next one.
@@ -195,17 +182,10 @@ Tester.prototype = {
     // Import utils in the test scope.
     this.currentTest.scope.EventUtils = this.EventUtils;
     this.currentTest.scope.SimpleTest = this.SimpleTest;
-    this.currentTest.scope.gTestPath = this.currentTest.path;
-
     // Override SimpleTest methods with ours.
     ["ok", "is", "isnot", "todo", "todo_is", "todo_isnot"].forEach(function(m) {
       this.SimpleTest[m] = this[m];
     }, this.currentTest.scope);
-
-    //load the tools to work with chrome .jar and remote
-    try {
-      this._scriptLoader.loadSubScript("chrome://mochikit/content/chrome-harness.js", this.currentTest.scope);
-    } catch (ex) { /* no chrome-harness tools */ }
 
     // Import head.js script if it exists.
     var currentTestDirPath =
@@ -221,7 +201,6 @@ Tester.prototype = {
                                        this.currentTest.scope);
 
       // Run the test
-      this.lastStartTime = Date.now();
       this.currentTest.scope.test();
     } catch (ex) {
       this.currentTest.addResult(new testResult(false, "Exception thrown", ex, false));
@@ -245,7 +224,7 @@ Tester.prototype = {
             setTimeout(arguments.callee, TIMEOUT_SECONDS * 1000);
           return;
         }
-        self.currentTest.addResult(new testResult(false, "Test timed out", "", false));
+        self.currentTest.addResult(new testResult(false, "Timed out", "", false));
         self.currentTest.timedOut = true;
         self.currentTest.scope.__waitTimer = null;
         self.nextTest();
@@ -352,10 +331,6 @@ function testScope(aTester, aTest) {
 
   this.requestLongerTimeout = function test_requestLongerTimeout(aFactor) {
     self.__timeoutFactor = aFactor;
-  };
-
-  this.copyToProfile = function test_copyToProfile(filename) {
-    self.SimpleTest.copyToProfile(filename);
   };
 
   this.finish = function test_finish() {

@@ -92,7 +92,6 @@
 #include "nsNetCID.h"
 #include "mozilla/Services.h"
 #include "mozilla/dom/Element.h"
-#include "nsGenericElement.h"
 
 using namespace mozilla::dom;
 
@@ -102,10 +101,6 @@ static PRBool gSupportVisitedPseudo = PR_TRUE;
 
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 static nsTArray< nsCOMPtr<nsIAtom> >* sSystemMetrics = 0;
-
-#ifdef XP_WIN
-PRUint8 nsCSSRuleProcessor::sWinThemeId = nsILookAndFeel::eWindowsTheme_Generic;
-#endif
 
 /**
  * A struct representing a given CSS rule and a particular selector
@@ -152,7 +147,7 @@ RuleHash_CIHashKey(PLDHashTable *table, const void *key)
 
   nsAutoString str;
   atom->ToString(str);
-  nsContentUtils::ASCIIToLower(str);
+  ToUpperCase(str);
   return HashString(str);
 }
 
@@ -1005,11 +1000,6 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(nsGkAtoms::images_in_buttons);
   }
 
-  lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MenuBarDrag, metricResult);
-  if (metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::menubar_drag);
-  }
-
   rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsDefaultTheme, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::windows_default_theme);
@@ -1040,36 +1030,6 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(nsGkAtoms::maemo_classic);
   }
 
-#ifdef XP_WIN
-  if (NS_SUCCEEDED(lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsThemeIdentifier,
-                                          metricResult))) {
-    nsCSSRuleProcessor::SetWindowsThemeIdentifier(static_cast<PRUint8>(metricResult));
-    switch(metricResult) {
-      case nsILookAndFeel::eWindowsTheme_Aero:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_aero);
-        break;
-      case nsILookAndFeel::eWindowsTheme_LunaBlue:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_blue);
-        break;
-      case nsILookAndFeel::eWindowsTheme_LunaOlive:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_olive);
-        break;
-      case nsILookAndFeel::eWindowsTheme_LunaSilver:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_silver);
-        break;
-      case nsILookAndFeel::eWindowsTheme_Royale:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_royale);
-        break;
-      case nsILookAndFeel::eWindowsTheme_Zune:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_zune);
-        break;
-      case nsILookAndFeel::eWindowsTheme_Generic:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_generic);
-        break;
-    }
-  }
-#endif
-
   return PR_TRUE;
 }
 
@@ -1096,16 +1056,6 @@ nsCSSRuleProcessor::HasSystemMetric(nsIAtom* aMetric)
   }
   return sSystemMetrics->IndexOf(aMetric) != sSystemMetrics->NoIndex;
 }
-
-#ifdef XP_WIN
-/* static */ PRUint8
-nsCSSRuleProcessor::GetWindowsThemeIdentifier()
-{
-  if (!sSystemMetrics)
-    InitSystemMetrics();
-  return sWinThemeId;
-}
-#endif
 
 RuleProcessorData::RuleProcessorData(nsPresContext* aPresContext,
                                      Element* aElement, 
@@ -1506,7 +1456,7 @@ static PRBool AttrMatchesValue(const nsAttrSelector* aAttrSelector,
     return PR_FALSE;
 
   const nsDefaultStringComparator defaultComparator;
-  const nsASCIICaseInsensitiveStringComparator ciComparator;
+  const nsCaseInsensitiveStringComparator ciComparator;
   const nsStringComparator& comparator =
       (aAttrSelector->mCaseSensitive || !isHTML)
                 ? static_cast<const nsStringComparator&>(defaultComparator)
@@ -1807,7 +1757,7 @@ static PRBool SelectorMatches(RuleProcessorData &data,
         if (lang && !lang->IsEmpty()) { // null check for out-of-memory
           if (!nsStyleUtil::DashMatchCompare(*lang,
                                              nsDependentString(pseudoClass->u.mString),
-                                             nsASCIICaseInsensitiveStringComparator())) {
+                                             nsCaseInsensitiveStringComparator())) {
             return PR_FALSE;
           }
           // This pseudo-class matched; move on to the next thing
@@ -1835,7 +1785,7 @@ static PRBool SelectorMatches(RuleProcessorData &data,
             if (nsStyleUtil::DashMatchCompare(Substring(language, begin,
                                                         end-begin),
                                               langString,
-                                              nsASCIICaseInsensitiveStringComparator())) {
+                                              nsCaseInsensitiveStringComparator())) {
               break;
             }
             begin = end + 1;
@@ -2072,21 +2022,6 @@ static PRBool SelectorMatches(RuleProcessorData &data,
       case nsCSSPseudoClasses::ePseudoClass_mozWindowInactive:
         if ((data.DocumentState() & NS_DOCUMENT_STATE_WINDOW_INACTIVE) == 0) {
           return PR_FALSE;
-        }
-        break;
-
-      case nsCSSPseudoClasses::ePseudoClass_mozTableBorderNonzero:
-        {
-          if (!data.mIsHTMLContent || data.mContentTag != nsGkAtoms::table) {
-            return PR_FALSE;
-          }
-          nsGenericElement *ge = static_cast<nsGenericElement*>(data.mElement);
-          const nsAttrValue *val = ge->GetParsedAttr(nsGkAtoms::border);
-          if (!val ||
-              (val->Type() == nsAttrValue::eInteger &&
-               val->GetIntegerValue() == 0)) {
-            return PR_FALSE;
-          }
         }
         break;
 
@@ -2380,7 +2315,7 @@ static void ContentEnumFunc(nsICSSStyleRule* aRule, nsCSSSelector* aSelector,
   }
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSRuleProcessor::RulesMatching(ElementRuleProcessorData *aData)
 {
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
@@ -2393,9 +2328,10 @@ nsCSSRuleProcessor::RulesMatching(ElementRuleProcessorData *aData)
                                          ContentEnumFunc,
                                          aData);
   }
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSRuleProcessor::RulesMatching(PseudoElementRuleProcessorData* aData)
 {
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
@@ -2411,9 +2347,10 @@ nsCSSRuleProcessor::RulesMatching(PseudoElementRuleProcessorData* aData)
                                   aData);
     }
   }
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSRuleProcessor::RulesMatching(AnonBoxRuleProcessorData* aData)
 {
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
@@ -2439,10 +2376,11 @@ nsCSSRuleProcessor::RulesMatching(AnonBoxRuleProcessorData* aData)
       }
     }
   }
+  return NS_OK;
 }
 
 #ifdef MOZ_XUL
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSRuleProcessor::RulesMatching(XULTreeRuleProcessorData* aData)
 {
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
@@ -2455,13 +2393,17 @@ nsCSSRuleProcessor::RulesMatching(XULTreeRuleProcessorData* aData)
       nsTArray<RuleValue>& rules = entry->mRules;
       for (RuleValue *value = rules.Elements(), *end = value + rules.Length();
            value != end; ++value) {
-        if (aData->mComparator->PseudoMatches(value->mSelector)) {
+        PRBool matches = PR_TRUE;
+        aData->mComparator->PseudoMatches(aData->mPseudoTag, value->mSelector,
+                                          &matches);
+        if (matches) {
           ContentEnumFunc(value->mRule, value->mSelector->mNext,
                           static_cast<RuleProcessorData*>(aData));
         }
       }
     }
   }
+  return NS_OK;
 }
 #endif
 
@@ -2635,8 +2577,9 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
   return data.change;
 }
 
-/* virtual */ PRBool
-nsCSSRuleProcessor::MediumFeaturesChanged(nsPresContext* aPresContext)
+NS_IMETHODIMP
+nsCSSRuleProcessor::MediumFeaturesChanged(nsPresContext* aPresContext,
+                                          PRBool* aRulesChanged)
 {
   RuleCascadeData *old = mRuleCascades;
   // We don't want to do anything if there aren't any sets of rules
@@ -2648,7 +2591,8 @@ nsCSSRuleProcessor::MediumFeaturesChanged(nsPresContext* aPresContext)
   if (old) {
     RefreshRuleCascade(aPresContext);
   }
-  return (old != mRuleCascades);
+  *aRulesChanged = (old != mRuleCascades);
+  return NS_OK;
 }
 
 // Append all the currently-active font face rules to aArray.  Return
@@ -2705,6 +2649,20 @@ PRBool IsStateSelector(nsCSSSelector& aSelector)
   return PR_FALSE;
 }
 
+inline
+void AddSelectorDocumentStates(nsCSSSelector& aSelector, PRUint32* aStateMask)
+{
+  for (nsPseudoClassList* pseudoClass = aSelector.mPseudoClassList;
+       pseudoClass; pseudoClass = pseudoClass->mNext) {
+    if (pseudoClass->mAtom == nsCSSPseudoClasses::mozLocaleDir) {
+      *aStateMask |= NS_DOCUMENT_STATE_RTL_LOCALE;
+    }
+    else if (pseudoClass->mAtom == nsCSSPseudoClasses::mozWindowInactive) {
+      *aStateMask |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
+    }
+  }
+}
+
 static PRBool
 AddSelector(RuleCascadeData* aCascade,
             // The part between combinators at the top level of the selector
@@ -2712,32 +2670,8 @@ AddSelector(RuleCascadeData* aCascade,
             // The part we should look through (might be in :not or :-moz-any())
             nsCSSSelector* aSelectorPart)
 {
-  // Track both document states and attribute dependence in pseudo-classes.
-  for (nsPseudoClassList* pseudoClass = aSelectorPart->mPseudoClassList;
-       pseudoClass; pseudoClass = pseudoClass->mNext) {
-    switch (pseudoClass->mType) {
-      case nsCSSPseudoClasses::ePseudoClass_mozLocaleDir: {
-        aCascade->mSelectorDocumentStates |= NS_DOCUMENT_STATE_RTL_LOCALE;
-        break;
-      }
-      case nsCSSPseudoClasses::ePseudoClass_mozWindowInactive: {
-        aCascade->mSelectorDocumentStates |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
-        break;
-      }
-      case nsCSSPseudoClasses::ePseudoClass_mozTableBorderNonzero: {
-        nsTArray<nsCSSSelector*> *array =
-          aCascade->AttributeListFor(nsGkAtoms::border);
-        if (!array) {
-          return PR_FALSE;
-        }
-        array->AppendElement(aSelectorInTopLevel);
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
+  // Track the selectors that depend on document states.
+  AddSelectorDocumentStates(*aSelectorPart, &aCascade->mSelectorDocumentStates);
 
   // Build mStateSelectors.
   if (IsStateSelector(*aSelectorPart))
@@ -2774,7 +2708,8 @@ AddSelector(RuleCascadeData* aCascade,
     }
     array->AppendElement(aSelectorInTopLevel);
     if (attr->mLowercaseAttr != attr->mCasedAttr) {
-      array = aCascade->AttributeListFor(attr->mLowercaseAttr);
+      nsTArray<nsCSSSelector*> *array =
+        aCascade->AttributeListFor(attr->mLowercaseAttr);
       if (!array) {
         return PR_FALSE;
       }
@@ -2975,7 +2910,8 @@ static PRBool
 CascadeRuleEnumFunc(nsICSSRule* aRule, void* aData)
 {
   CascadeEnumData* data = (CascadeEnumData*)aData;
-  PRInt32 type = aRule->GetType();
+  PRInt32 type = nsICSSRule::UNKNOWN_RULE;
+  aRule->GetType(type);
 
   if (nsICSSRule::STYLE_RULE == type) {
     nsICSSStyleRule* styleRule = (nsICSSStyleRule*)aRule;

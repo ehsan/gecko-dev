@@ -55,7 +55,7 @@ public:
   NS_IMETHOD GetValue(nsAString& _retval);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -72,7 +72,7 @@ public:
   virtual PRBool Init();
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:

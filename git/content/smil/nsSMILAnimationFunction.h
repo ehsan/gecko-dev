@@ -309,16 +309,9 @@ protected:
                                 const nsSMILValue*& aTo);
   double   ComputePacedTotalDistance(const nsSMILValueArray& aValues) const;
 
-  /**
-   * Adjust the simple progress, that is, the point within the simple duration,
-   * by applying any keyTimes.
-   */
-  double   ScaleSimpleProgress(double aProgress, nsSMILCalcMode aCalcMode);
-  /**
-   * Adjust the progress within an interval, that is, between two animation
-   * values, by applying any keySplines.
-   */
-  double   ScaleIntervalProgress(double aProgress, PRUint32 aIntervalIndex);
+  void     ScaleSimpleProgress(double& aProgress);
+  void     ScaleIntervalProgress(double& aProgress, PRUint32 aIntervalIndex,
+                                 PRUint32 aNumIntervals);
 
   // Convenience attribute getters -- use these instead of querying
   // mAnimationElement as these may need to be overridden by subclasses

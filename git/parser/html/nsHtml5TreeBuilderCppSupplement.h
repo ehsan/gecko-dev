@@ -149,14 +149,6 @@ nsHtml5TreeBuilder::createElement(PRInt32 aNamespace, nsIAtom* aName, nsHtml5Htm
           if (url) {
             mSpeculativeLoadQueue.AppendElement()->InitManifest(*url);
           }
-        } else if (nsHtml5Atoms::base == aName &&
-            (mode == NS_HTML5TREE_BUILDER_IN_HEAD ||
-             mode == NS_HTML5TREE_BUILDER_AFTER_HEAD)) {
-          nsString* url =
-              aAttributes->getValue(nsHtml5AttributeName::ATTR_HREF);
-          if (url) {
-            mSpeculativeLoadQueue.AppendElement()->InitBase(*url);
-          }
         }
         break;
       case kNameSpaceID_SVG:
@@ -257,7 +249,7 @@ nsHtml5TreeBuilder::appendElement(nsIContent** aChild, nsIContent** aParent)
 {
   NS_PRECONDITION(aChild, "Null child");
   NS_PRECONDITION(aParent, "Null parent");
-  if (deepTreeSurrogateParent) {
+  if (mDeepTreeSurrogateParent) {
     return;
   }
   nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
@@ -315,7 +307,7 @@ nsHtml5TreeBuilder::appendCharacters(nsIContent** aParent, PRUnichar* aBuffer, P
   nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
   NS_ASSERTION(treeOp, "Tree op allocation failed.");
   treeOp->Init(eTreeOpAppendText, bufferCopy, aLength,
-      deepTreeSurrogateParent ? deepTreeSurrogateParent : aParent);
+      mDeepTreeSurrogateParent ? mDeepTreeSurrogateParent : aParent);
 }
 
 void
@@ -333,7 +325,7 @@ nsHtml5TreeBuilder::appendComment(nsIContent** aParent, PRUnichar* aBuffer, PRIn
 {
   NS_PRECONDITION(aBuffer, "Null buffer");
   NS_PRECONDITION(aParent, "Null parent");
-  if (deepTreeSurrogateParent) {
+  if (mDeepTreeSurrogateParent) {
     return;
   }
 
@@ -386,7 +378,7 @@ void
 nsHtml5TreeBuilder::start(PRBool fragment)
 {
   mCurrentHtmlScriptIsAsyncOrDefer = PR_FALSE;
-  deepTreeSurrogateParent = nsnull;
+  mDeepTreeSurrogateParent = nsnull;
 #ifdef DEBUG
   mActive = PR_TRUE;
 #endif
@@ -438,7 +430,7 @@ nsHtml5TreeBuilder::elementPushed(PRInt32 aNamespace, nsIAtom* aName, nsIContent
    * table elements shouldn't be used as surrogate parents for user experience
    * reasons.
    */
-  if (!deepTreeSurrogateParent && currentPtr >= NS_HTML5_TREE_DEPTH_LIMIT &&
+  if (!mDeepTreeSurrogateParent && currentPtr >= NS_HTML5_TREE_DEPTH_LIMIT &&
       !(aName == nsHtml5Atoms::script ||
         aName == nsHtml5Atoms::table ||
         aName == nsHtml5Atoms::thead ||
@@ -447,7 +439,7 @@ nsHtml5TreeBuilder::elementPushed(PRInt32 aNamespace, nsIAtom* aName, nsIContent
         aName == nsHtml5Atoms::tr ||
         aName == nsHtml5Atoms::colgroup ||
         aName == nsHtml5Atoms::style)) {
-    deepTreeSurrogateParent = aElement;
+    mDeepTreeSurrogateParent = aElement;
   }
   if (aNamespace != kNameSpaceID_XHTML) {
     return;
@@ -466,8 +458,8 @@ nsHtml5TreeBuilder::elementPopped(PRInt32 aNamespace, nsIAtom* aName, nsIContent
   NS_ASSERTION(aNamespace == kNameSpaceID_XHTML || aNamespace == kNameSpaceID_SVG || aNamespace == kNameSpaceID_MathML, "Element isn't HTML, SVG or MathML!");
   NS_ASSERTION(aName, "Element doesn't have local name!");
   NS_ASSERTION(aElement, "No element!");
-  if (deepTreeSurrogateParent && currentPtr <= NS_HTML5_TREE_DEPTH_LIMIT) {
-    deepTreeSurrogateParent = nsnull;
+  if (mDeepTreeSurrogateParent && currentPtr <= NS_HTML5_TREE_DEPTH_LIMIT) {
+    mDeepTreeSurrogateParent = nsnull;
   }
   if (aNamespace == kNameSpaceID_MathML) {
     return;
@@ -502,20 +494,33 @@ nsHtml5TreeBuilder::elementPopped(PRInt32 aNamespace, nsIAtom* aName, nsIContent
     return;
   }
   if (aNamespace == kNameSpaceID_SVG) {
-#ifdef MOZ_SVG
-    if (aName == nsHtml5Atoms::svg) {
-      nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
-      NS_ASSERTION(treeOp, "Tree op allocation failed.");
-      treeOp->Init(eTreeOpSvgLoad, aElement);
+#if 0
+    if (aElement->HasAttr(kNameSpaceID_None, nsHtml5Atoms::onload)) {
+      nsEvent event(PR_TRUE, NS_SVG_LOAD);
+      event.eventStructType = NS_SVG_EVENT;
+      event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+      // Do we care about forcing presshell creation if it hasn't happened yet?
+      // That is, should this code flush or something?  Does it really matter?
+      // For that matter, do we really want to try getting the prescontext?  Does
+      // this event ever want one?
+      nsRefPtr<nsPresContext> ctx;
+      nsCOMPtr<nsIPresShell> shell = parser->GetDocument()->GetShell();
+      if (shell) {
+        ctx = shell->GetPresContext();
+      }
+      nsEventDispatcher::Dispatch(aElement, ctx, &event);
     }
 #endif
+    // TODO soft flush the op queue every now and then
     return;
   }
   // we now have only HTML
   // Some HTML nodes need DoneAddingChildren() called to initialize
   // properly (e.g. form state restoration).
   // XXX expose ElementName group here and do switch
-  if (aName == nsHtml5Atoms::object ||
+  if (aName == nsHtml5Atoms::video ||
+      aName == nsHtml5Atoms::audio ||
+      aName == nsHtml5Atoms::object ||
       aName == nsHtml5Atoms::applet) {
     nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
     NS_ASSERTION(treeOp, "Tree op allocation failed.");
@@ -552,7 +557,7 @@ nsHtml5TreeBuilder::elementPopped(PRInt32 aNamespace, nsIAtom* aName, nsIContent
     treeOp->Init(eTreeOpDoneCreatingElement, aElement);
     return;
   }
-  if (aName == nsHtml5Atoms::meta && !fragment) {
+  if (aName == nsHtml5Atoms::meta) {
     nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
     NS_ASSERTION(treeOp, "Tree op allocation failed.");
     treeOp->Init(eTreeOpProcessMeta, aElement);

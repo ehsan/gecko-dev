@@ -957,10 +957,10 @@ nsTableOuterFrame::UpdateReflowMetrics(PRUint8              aCaptionSide,
   SetDesiredSize(aCaptionSide, aInnerMargin, aCaptionMargin,
                  aMet.width, aMet.height);
 
-  aMet.SetOverflowAreasToDesiredBounds();
-  ConsiderChildOverflow(aMet.mOverflowAreas, mInnerTableFrame);
+  aMet.mOverflowArea = nsRect(0, 0, aMet.width, aMet.height);
+  ConsiderChildOverflow(aMet.mOverflowArea, mInnerTableFrame);
   if (mCaptionFrame) {
-    ConsiderChildOverflow(aMet.mOverflowAreas, mCaptionFrame);
+    ConsiderChildOverflow(aMet.mOverflowArea, mCaptionFrame);
   }
   FinishAndStoreOverflow(&aMet);
 }
@@ -1003,15 +1003,15 @@ NS_METHOD nsTableOuterFrame::Reflow(nsPresContext*           aPresContext,
     static_cast<nsHTMLReflowState*>((void*) innerRSSpace);
 
   nsRect origInnerRect = mInnerTableFrame->GetRect();
-  nsRect origInnerVisualOverflow = mInnerTableFrame->GetVisualOverflowRect();
+  nsRect origInnerOverflowRect = mInnerTableFrame->GetOverflowRect();
   PRBool innerFirstReflow =
     (mInnerTableFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
   nsRect origCaptionRect;
-  nsRect origCaptionVisualOverflow;
+  nsRect origCaptionOverflowRect;
   PRBool captionFirstReflow;
   if (mCaptionFrame) {
     origCaptionRect = mCaptionFrame->GetRect();
-    origCaptionVisualOverflow = mCaptionFrame->GetVisualOverflowRect();
+    origCaptionOverflowRect = mCaptionFrame->GetOverflowRect();
     captionFirstReflow =
       (mCaptionFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
   }
@@ -1121,11 +1121,10 @@ NS_METHOD nsTableOuterFrame::Reflow(nsPresContext*           aPresContext,
   innerRS->~nsHTMLReflowState();
 
   nsTableFrame::InvalidateFrame(mInnerTableFrame, origInnerRect,
-                                origInnerVisualOverflow, innerFirstReflow);
+                                origInnerOverflowRect, innerFirstReflow);
   if (mCaptionFrame) {
     nsTableFrame::InvalidateFrame(mCaptionFrame, origCaptionRect,
-                                  origCaptionVisualOverflow,
-                                  captionFirstReflow);
+                                  origCaptionOverflowRect, captionFirstReflow);
   }
 
   UpdateReflowMetrics(captionSide, aDesiredSize, innerMargin, captionMargin);

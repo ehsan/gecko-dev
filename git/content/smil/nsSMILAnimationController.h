@@ -70,9 +70,8 @@ class nsIDocument;
 class nsSMILAnimationController : public nsSMILTimeContainer,
                                   public nsARefreshObserver
 {
-protected:
-  nsSMILAnimationController();
 public:
+  nsSMILAnimationController();
   ~nsSMILAnimationController();
 
   // nsSMILContainer
@@ -115,10 +114,6 @@ public:
   // (Use to register/unregister us with the given nsRefreshDriver)
   void StartSampling(nsRefreshDriver* aRefreshDriver);
   void StopSampling(nsRefreshDriver* aRefreshDriver);
-
-  // Helper to check if we have any animation elements at all
-  PRBool HasRegisteredAnimations()
-  { return mAnimationElementTable.Count() != 0; }
 
 protected:
   // Typedefs
@@ -191,15 +186,11 @@ protected:
   nsAutoRefCnt mRefCnt;
   NS_DECL_OWNINGTHREAD
 
+  static const PRUint32      kTimerInterval;
   AnimationElementHashtable  mAnimationElementTable;
   TimeContainerHashtable     mChildContainerTable;
-  mozilla::TimeStamp         mCurrentSampleTime;
-  mozilla::TimeStamp         mStartTime;
   PRPackedBool               mResampleNeeded;
   PRPackedBool               mDeferredStartSampling;
-#ifdef DEBUG
-  PRPackedBool               mRunningSample;
-#endif
 
   // Store raw ptr to mDocument.  It owns the controller, so controller
   // shouldn't outlive it

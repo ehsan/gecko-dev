@@ -38,9 +38,6 @@
 
 #ifdef MOZ_WIDGET_GTK2
 #include <glib.h>
-#elif XP_MACOSX
-#include "PluginUtilsOSX.h"
-#include "PluginInterposeOSX.h"
 #endif
 #ifdef MOZ_WIDGET_QT
 #include <QtCore/QCoreApplication>
@@ -55,7 +52,6 @@
 #include "mozilla/plugins/BrowserStreamParent.h"
 #include "PluginIdentifierParent.h"
 
-#include "nsAutoPtr.h"
 #include "nsContentUtils.h"
 #include "nsCRT.h"
 #ifdef MOZ_CRASHREPORTER
@@ -71,7 +67,6 @@ using mozilla::ipc::SyncChannel;
 using namespace mozilla::plugins;
 
 static const char kTimeoutPref[] = "dom.ipc.plugins.timeoutSecs";
-static const char kLaunchTimeoutPref[] = "dom.ipc.plugins.processLaunchTimeoutSecs";
 
 template<>
 struct RunnableMethodTraits<mozilla::plugins::PluginModuleParent>
@@ -87,21 +82,15 @@ PluginModuleParent::LoadModule(const char* aFilePath)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-    PRInt32 prefSecs = nsContentUtils::GetIntPref(kLaunchTimeoutPref, 0);
-
     // Block on the child process being launched and initialized.
-    nsAutoPtr<PluginModuleParent> parent(new PluginModuleParent(aFilePath));
-    bool launched = parent->mSubprocess->Launch(prefSecs * 1000);
-    if (!launched) {
-        // Need to set this so the destructor doesn't complain.
-        parent->mShutdown = true;
-        return nsnull;
-    }
+    PluginModuleParent* parent = new PluginModuleParent(aFilePath);
+    parent->mSubprocess->Launch();
     parent->Open(parent->mSubprocess->GetChannel(),
                  parent->mSubprocess->GetChildProcessHandle());
 
     TimeoutChanged(kTimeoutPref, parent);
-    return parent.forget();
+
+    return parent;
 }
 
 
@@ -233,13 +222,7 @@ PluginModuleParent::ShouldContinueFromReplyTimeout()
 #ifdef MOZ_CRASHREPORTER
     nsCOMPtr<nsILocalFile> pluginDump;
     nsCOMPtr<nsILocalFile> browserDump;
-    CrashReporter::ProcessHandle child;
-#ifdef XP_MACOSX
-    child = mSubprocess->GetChildTask();
-#else
-    child = OtherProcess();
-#endif
-    if (CrashReporter::CreatePairedMinidumps(child,
+    if (CrashReporter::CreatePairedMinidumps(OtherProcess(),
                                              mPluginThread,
                                              &mHangID,
                                              getter_AddRefs(pluginDump),
@@ -613,47 +596,6 @@ PluginModuleParent::HasRequiredFunctions()
     return true;
 }
 
-nsresult
-PluginModuleParent::AsyncSetWindow(NPP instance, NPWindow* window)
-{
-    PluginInstanceParent* i = InstCast(instance);
-    if (!i)
-        return NS_ERROR_FAILURE;
-
-    return i->AsyncSetWindow(window);
-}
-
-nsresult
-PluginModuleParent::NotifyPainted(NPP instance)
-{
-    PluginInstanceParent* i = InstCast(instance);
-    if (!i)
-        return NS_ERROR_FAILURE;
-
-    return i->NotifyPainted();
-}
-
-nsresult
-PluginModuleParent::GetSurface(NPP instance, gfxASurface** aSurface)
-{
-    PluginInstanceParent* i = InstCast(instance);
-    if (!i)
-        return NS_ERROR_FAILURE;
-
-    return i->GetSurface(aSurface);
-}
-
-nsresult
-PluginModuleParent::UseAsyncPainting(NPP instance, PRBool* aIsAsync)
-{
-    PluginInstanceParent* i = InstCast(instance);
-    if (!i)
-        return NS_ERROR_FAILURE;
-
-    return i->UseAsyncPainting(aIsAsync);
-}
-
-
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
 nsresult
 PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs, NPError* error)
@@ -829,14 +771,6 @@ PluginModuleParent::AnswerProcessSomeEvents()
     return true;
 }
 
-#elif defined(XP_MACOSX)
-bool
-PluginModuleParent::AnswerProcessSomeEvents()
-{
-    mozilla::plugins::PluginUtilsOSX::InvokeNativeEventLoop();
-    return true;
-}
-
 #elif !defined(MOZ_WIDGET_GTK2)
 bool
 PluginModuleParent::AnswerProcessSomeEvents()
@@ -873,38 +807,7 @@ PluginModuleParent::RecvProcessNativeEventsInRPCCall()
     return true;
 #else
     NS_NOTREACHED(
-        "PluginInstanceParent::RecvProcessNativeEventsInRPCCall not implemented!");
-    return false;
-#endif
-}
-
-bool
-PluginModuleParent::RecvPluginShowWindow(const uint32_t& aWindowId, const bool& aModal,
-                                         const int32_t& aX, const int32_t& aY,
-                                         const size_t& aWidth, const size_t& aHeight)
-{
-    PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
-#if defined(XP_MACOSX)
-    CGRect windowBound = ::CGRectMake(aX, aY, aWidth, aHeight);
-    mac_plugin_interposing::parent::OnPluginShowWindow(aWindowId, windowBound, aModal);
-    return true;
-#else
-    NS_NOTREACHED(
-        "PluginInstanceParent::RecvPluginShowWindow not implemented!");
-    return false;
-#endif
-}
-
-bool
-PluginModuleParent::RecvPluginHideWindow(const uint32_t& aWindowId)
-{
-    PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
-#if defined(XP_MACOSX)
-    mac_plugin_interposing::parent::OnPluginHideWindow(aWindowId, OtherSidePID());
-    return true;
-#else
-    NS_NOTREACHED(
-        "PluginInstanceParent::RecvPluginHideWindow not implemented!");
+        "PluginInstanceParent::AnswerSetNestedEventState not implemented!");
     return false;
 #endif
 }

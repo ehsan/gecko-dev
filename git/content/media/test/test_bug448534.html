@@ -16,7 +16,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=448534
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
-var manager = new MediaTestManager;
+var videos = [];
 
 function loaded(event) {
   var v = event.target;
@@ -42,15 +42,17 @@ function stopped(event) {
     return false;
   v._finished = true;
   ok(v.paused, "Video should be paused after removing from the Document");
-  manager.finished(v.token);
+  if (AllFinished(videos))
+    SimpleTest.finish();
   return false;
 }
 
 
-function startTest(test, token) {
+for (var i=0; i<gSmallTests.length; ++i) {
   var v = document.createElement('video');
-  v.token = token;
-  manager.started(token);
+  var test = gSmallTests[i];
+  if (!v.canPlayType(test.type))
+    continue;
   v.src = test.name;
   v._played = false;
   v._finished = false;
@@ -58,9 +60,14 @@ function startTest(test, token) {
   v.addEventListener("play", started, false);
   v.addEventListener("pause", stopped, false);
   document.body.appendChild(v);
+  videos.push(v);
 }
 
-manager.runTests(gSmallTests, startTest);
+if (videos.length == 0) {
+  todo(false, "No types supported");
+} else {
+  SimpleTest.waitForExplicitFinish();
+}
 
 </script>
 </pre>

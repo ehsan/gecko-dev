@@ -48,7 +48,6 @@
 #include "nsIURL.h"
 #include "nsNodeInfo.h"
 #include "nsNodeInfoManager.h"
-#include "nsIScriptSecurityManager.h"
 #include "nsString.h"
 #include "nsContentCID.h"
 #include "prprf.h"
@@ -156,30 +155,6 @@ nsContentDLF::~nsContentDLF()
 
 NS_IMPL_ISUPPORTS1(nsContentDLF,
                    nsIDocumentLoaderFactory)
-
-PRBool
-MayUseXULXBL(nsIChannel* aChannel)
-{
-  nsIScriptSecurityManager *securityManager =
-    nsContentUtils::GetSecurityManager();
-  if (!securityManager) {
-    return PR_FALSE;
-  }
-
-  nsCOMPtr<nsIPrincipal> principal;
-  securityManager->GetChannelPrincipal(aChannel, getter_AddRefs(principal));
-  NS_ENSURE_TRUE(principal, PR_FALSE);
-
-  if (nsContentUtils::IsSystemPrincipal(principal)) {
-    return PR_TRUE;
-  }
-
-  nsCOMPtr<nsIURI> uri;
-  principal->GetURI(getter_AddRefs(uri));
-  NS_ENSURE_TRUE(uri, PR_FALSE);
-
-  return nsContentUtils::IsSitePermAllow(uri, "allowXULXBL");
-}
 
 NS_IMETHODIMP
 nsContentDLF::CreateInstance(const char* aCommand,
@@ -303,9 +278,8 @@ nsContentDLF::CreateInstance(const char* aCommand,
   // Try XUL
   typeIndex = 0;
   while (gXULTypes[typeIndex]) {
-    if (0 == PL_strcmp(gXULTypes[typeIndex++], aContentType) &&
-        MayUseXULXBL(aChannel)) {
-      return CreateXULDocument(aCommand,
+    if (0 == PL_strcmp(gXULTypes[typeIndex++], aContentType)) {
+      return CreateXULDocument(aCommand, 
                                aChannel, aLoadGroup,
                                aContentType, aContainer,
                                aExtraInfo, aDocListener, aDocViewer);
@@ -401,18 +375,15 @@ nsContentDLF::CreateBlankDocument(nsILoadGroup *aLoadGroup,
 
     // generate an html html element
     htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::html, 0, kNameSpaceID_XHTML);
-    nsCOMPtr<nsIContent> htmlElement =
-      NS_NewHTMLHtmlElement(htmlNodeInfo.forget());
+    nsCOMPtr<nsIContent> htmlElement = NS_NewHTMLHtmlElement(htmlNodeInfo);
 
     // generate an html head element
     htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::head, 0, kNameSpaceID_XHTML);
-    nsCOMPtr<nsIContent> headElement =
-      NS_NewHTMLHeadElement(htmlNodeInfo.forget());
+    nsCOMPtr<nsIContent> headElement = NS_NewHTMLHeadElement(htmlNodeInfo);
 
-    // generate an html body elemment
+    // generate an html body element
     htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::body, 0, kNameSpaceID_XHTML);
-    nsCOMPtr<nsIContent> bodyElement =
-      NS_NewHTMLBodyElement(htmlNodeInfo.forget());
+    nsCOMPtr<nsIContent> bodyElement = NS_NewHTMLBodyElement(htmlNodeInfo);
 
     // blat in the structure
     if (htmlElement && headElement && bodyElement) {

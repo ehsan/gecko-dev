@@ -52,8 +52,6 @@ _TEST_FILES =\
 		test_button.xul \
 		test_colorpicker.xul \
 		test_combobox.xul \
-		test_cssoverflow.html \
-		test_dochierarchy.html \
 		test_filectrl.html \
 		test_formctrl.html \
 		test_formctrl.xul \
@@ -62,6 +60,7 @@ _TEST_FILES =\
 		test_iframe.html \
 		test_img.html \
 		test_list.html \
+		test_list_invalidate.html \
 		test_media.html \
 		test_menu.xul \
 		test_select.html \

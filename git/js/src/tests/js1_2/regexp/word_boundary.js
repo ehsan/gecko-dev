@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'word_boundary.js';
 
 /**
    Filename:     word_boundary.js

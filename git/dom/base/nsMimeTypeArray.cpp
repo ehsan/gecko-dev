@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=79: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -227,10 +226,6 @@ nsresult nsMimeTypeArray::GetMimeTypes()
 {
   NS_PRECONDITION(!mInited && mPluginMimeTypeCount==0,
                       "already initialized");
-
-  if (!mNavigator) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
 
   nsIDOMPluginArray* pluginArray = nsnull;
   nsresult rv = mNavigator->GetPlugins(&pluginArray);

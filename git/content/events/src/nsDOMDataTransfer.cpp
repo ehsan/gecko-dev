@@ -50,7 +50,6 @@
 #include "nsIScriptableRegion.h"
 #include "nsContentUtils.h"
 #include "nsIContent.h"
-#include "nsCRT.h"
 
 NS_IMPL_CYCLE_COLLECTION_2(nsDOMDataTransfer, mDragTarget, mDragImage)
 
@@ -258,7 +257,14 @@ nsDOMDataTransfer::GetFiles(nsIDOMFileList** aFileList)
       if (!file)
         continue;
 
-      nsRefPtr<nsDOMFile> domFile = new nsDOMFile(file);
+      nsCOMPtr<nsIDocument> targetDoc;
+      nsCOMPtr<nsINode> targetNode = do_QueryInterface(mDragTarget);
+      if (targetNode) {
+        targetDoc = targetNode->GetOwnerDoc();
+      }
+
+      nsRefPtr<nsDOMFile> domFile = new nsDOMFile(file, targetDoc);
+      NS_ENSURE_TRUE(domFile, NS_ERROR_OUT_OF_MEMORY);
 
       if (!mFiles->Append(domFile))
         return NS_ERROR_FAILURE;
@@ -330,7 +336,7 @@ nsDOMDataTransfer::GetData(const nsAString& aFormat, nsAString& aData)
             aData.Assign(Substring(stringdata, lastidx));
           else
             aData.Assign(Substring(stringdata, lastidx, idx - lastidx));
-          aData = nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(aData, PR_TRUE);
+          aData = nsContentUtils::TrimWhitespace(aData, PR_TRUE);
           return NS_OK;
         }
         lastidx = idx + 1;

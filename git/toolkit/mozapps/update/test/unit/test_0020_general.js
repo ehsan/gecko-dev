@@ -156,8 +156,8 @@ function check_test_pt02() {
   do_check_eq(bestUpdate.channel, "test_channel");
   do_check_false(bestUpdate.isCompleteUpdate);
   do_check_false(bestUpdate.isSecurityUpdate);
-  // Check that installDate is within 10 seconds of the current date.
-  do_check_true((Date.now() - bestUpdate.installDate) < 10000);
+  // Check the date is approximately equal
+  do_check_neq(bestUpdate.installDate, 0);
   do_check_eq(bestUpdate.statusText, null);
   // nsIUpdate:state returns an empty string when no action has been performed
   // on an available update
@@ -200,7 +200,7 @@ function check_test_pt02() {
 // one update available and the update's property default values
 function run_test_pt03() {
   dump("Testing: run_test_pt03 - one update available and the update's " +
-       "property default values with the format prior to bug 530872\n");
+       "property default values\n");
   gUpdates = null;
   gUpdateCount = null;
   gCheckFunc = check_test_pt03;
@@ -227,17 +227,17 @@ function check_test_pt03() {
   do_check_eq(bestUpdate.platformVersion, "5.1a1pre");
   do_check_eq(bestUpdate.buildID, "20080811053724");
   do_check_eq(bestUpdate.detailsURL, "http://details/");
-  do_check_eq(bestUpdate.billboardURL, "http://details/");
+  do_check_eq(bestUpdate.billboardURL, null);
   do_check_eq(bestUpdate.licenseURL, null);
-  do_check_true(bestUpdate.showPrompt);
-  do_check_true(bestUpdate.showNeverForVersion);
+  do_check_false(bestUpdate.showPrompt);
+  do_check_false(bestUpdate.showNeverForVersion);
   do_check_false(bestUpdate.showSurvey);
   do_check_eq(bestUpdate.serviceURL, URL_HOST + "update.xml?force=1");
   do_check_eq(bestUpdate.channel, "test_channel");
   do_check_false(bestUpdate.isCompleteUpdate);
   do_check_false(bestUpdate.isSecurityUpdate);
-  // Check that installDate is within 10 seconds of the current date.
-  do_check_true((Date.now() - bestUpdate.installDate) < 10000);
+  // Check the date is approximately equal
+  do_check_neq(bestUpdate.installDate, 0);
   do_check_eq(bestUpdate.statusText, null);
   // nsIUpdate:state returns an empty string when no action has been performed
   // on an available update

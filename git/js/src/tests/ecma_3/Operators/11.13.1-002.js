@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = '11.13.1-002.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 312354;
 var summary = '11.13.1 Simple Assignment should return type of RHS';

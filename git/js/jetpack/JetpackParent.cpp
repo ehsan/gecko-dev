@@ -92,10 +92,6 @@ JetpackParent::SendMessage(const nsAString& aMessageName)
 
   JSAutoRequest request(cx);
 
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, JS_GetGlobalObject(cx)))
-    return false;
-
   for (PRUint32 i = 1; i < argc; ++i)
     if (!jsval_to_Variant(cx, argv[i], data.AppendElement()))
       return NS_ERROR_INVALID_ARG;
@@ -108,7 +104,7 @@ JetpackParent::SendMessage(const nsAString& aMessageName)
 
 NS_IMETHODIMP
 JetpackParent::RegisterReceiver(const nsAString& aMessageName,
-                                const jsval &aReceiver)
+                                jsval aReceiver)
 {
   return JetpackActorCommon::RegisterReceiver(mContext,
                                               nsString(aMessageName),
@@ -117,7 +113,7 @@ JetpackParent::RegisterReceiver(const nsAString& aMessageName,
 
 NS_IMETHODIMP
 JetpackParent::UnregisterReceiver(const nsAString& aMessageName,
-                                  const jsval &aReceiver)
+                                  jsval aReceiver)
 {
   JetpackActorCommon::UnregisterReceiver(nsString(aMessageName),
                                          aReceiver);
@@ -166,26 +162,16 @@ JetpackParent::RecvSendMessage(const nsString& messageName,
 {
   AutoCXPusher cxp(mContext);
   JSAutoRequest request(mContext);
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(mContext, JS_GetGlobalObject(mContext)))
-    return false;
-
   return JetpackActorCommon::RecvMessage(mContext, messageName, data, NULL);
 }
 
 bool
-JetpackParent::AnswerCallMessage(const nsString& messageName,
-                                 const nsTArray<Variant>& data,
-                                 nsTArray<Variant>* results)
+JetpackParent::RecvCallMessage(const nsString& messageName,
+                               const nsTArray<Variant>& data,
+                               nsTArray<Variant>* results)
 {
   AutoCXPusher cxp(mContext);
   JSAutoRequest request(mContext);
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(mContext, JS_GetGlobalObject(mContext)))
-    return false;
-
   return JetpackActorCommon::RecvMessage(mContext, messageName, data, results);
 }
 
@@ -201,10 +187,6 @@ JetpackParent::CreateHandle(nsIVariant** aResult)
   NS_ENSURE_SUCCESS(rv, rv);
 
   JSAutoRequest request(mContext);
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(mContext, JS_GetGlobalObject(mContext)))
-    return false;
 
   JSObject* hobj = handle->ToJSObject(mContext);
   if (!hobj)

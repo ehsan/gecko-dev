@@ -60,10 +60,11 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsOuterDocAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible public (DON'T add methods here)
 
-PRUint32
-nsOuterDocAccessible::NativeRole()
+nsresult
+nsOuterDocAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_INTERNAL_FRAME;
+  *aRole = nsIAccessibleRole::ROLE_INTERNAL_FRAME;
+  return NS_OK;
 }
 
 nsresult
@@ -190,7 +191,7 @@ nsOuterDocAccessible::InvalidateChildren()
   // then allow nsAccDocManager to handle this case since the document
   // accessible is created and appended as a child when it's requested.
 
-  mChildrenFlags = eChildrenUninitialized;
+  mAreChildrenInitialized = PR_FALSE;
 }
 
 PRBool

@@ -165,11 +165,9 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
 
     if (!ok) {
         GDIFontEntry *fe = static_cast<GDIFontEntry*>(GetFontEntry());
-        PRBool useUniscribeOnly = !fe->IsTrueType() || fe->IsSymbolFont();
 
-        if (useUniscribeOnly ||
-            (UseUniscribe(aTextRun, aString, aRunStart, aRunLength)
-             && !fe->mForceGDI))
+        if (UseUniscribe(aTextRun, aString, aRunStart, aRunLength)
+            && !fe->mForceGDI)
         {
             // first try Uniscribe
             if (!mUniscribeShaper) {
@@ -184,15 +182,13 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
             }
 
             // fallback to GDI shaping
-            if (!useUniscribeOnly) {
-                if (!mPlatformShaper) {
-                    CreatePlatformShaper();
-                }
-
-                ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
-                                                  aRunStart, aRunLength, 
-                                                  aRunScript);
+            if (!mPlatformShaper) {
+                CreatePlatformShaper();
             }
+
+            ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
+                                              aRunStart, aRunLength, 
+                                              aRunScript);
 
         } else {
             // first use GDI
@@ -260,8 +256,7 @@ gfxGDIFont::SetupCairoFont(gfxContext *aContext)
     if (!mMetrics) {
         Initialize();
     }
-    if (!mScaledFont ||
-        cairo_scaled_font_status(mScaledFont) != CAIRO_STATUS_SUCCESS) {
+    if (cairo_scaled_font_status(mScaledFont) != CAIRO_STATUS_SUCCESS) {
         // Don't cairo_set_scaled_font as that would propagate the error to
         // the cairo_t, precluding any further drawing.
         return PR_FALSE;
@@ -339,7 +334,7 @@ gfxGDIFont::Initialize()
         mMetrics->emAscent = ROUND(mMetrics->emHeight * (double)oMetrics.otmAscent / typEmHeight);
         mMetrics->emDescent = mMetrics->emHeight - mMetrics->emAscent;
         if (oMetrics.otmEMSquare > 0) {
-            mFUnitsConvFactor = float(GetAdjustedSize() / oMetrics.otmEMSquare);
+            mFUnitsConvFactor = GetAdjustedSize() / oMetrics.otmEMSquare;
         }
     } else {
         // Make a best-effort guess at extended metrics
@@ -424,13 +419,12 @@ gfxGDIFont::Initialize()
                                            &ctm, fontOptions);
     cairo_font_options_destroy(fontOptions);
 
-    if (!mScaledFont ||
-        cairo_scaled_font_status(mScaledFont) != CAIRO_STATUS_SUCCESS) {
+    cairo_status_t cairoerr = cairo_scaled_font_status(mScaledFont);
+    if (cairoerr != CAIRO_STATUS_SUCCESS) {
 #ifdef DEBUG
         char warnBuf[1024];
         sprintf(warnBuf, "Failed to create scaled font: %s status: %d",
-                NS_ConvertUTF16toUTF8(mFontEntry->Name()).get(),
-                mScaledFont ? cairo_scaled_font_status(mScaledFont) : 0);
+                NS_ConvertUTF16toUTF8(mFontEntry->Name()).get(), cairoerr);
         NS_WARNING(warnBuf);
 #endif
     }
@@ -463,10 +457,8 @@ gfxGDIFont::FillLogFont(LOGFONTW& aLogFont, gfxFloat aSize)
     if (fe->mIsUserFont) {
         if (fe->IsItalic())
             italic = PR_FALSE; // avoid synthetic italic
-        if (fe->IsBold() || !mNeedsBold) {
-            // avoid GDI synthetic bold which occurs when weight
-            // specified is >= font data weight + 200
-            weight = 200; 
+        if (fe->IsBold()) {
+            weight = 400; // avoid synthetic bold
         }
     }
 
@@ -486,11 +478,8 @@ gfxGDIFont::GetHintedGlyphWidth(gfxContext *aCtx, PRUint16 aGID)
         return width;
     }
 
-    DCFromContext dc(aCtx);
-    AutoSelectFont fs(dc, GetHFONT());
-
     int devWidth;
-    if (GetCharWidthI(dc, aGID, 1, NULL, &devWidth)) {
+    if (GetCharWidthI(DCFromContext(aCtx), aGID, 1, NULL, &devWidth)) {
         // ensure width is positive, 16.16 fixed-point value
         width = (devWidth & 0x7fff) << 16;
         mGlyphWidths.Put(aGID, width);

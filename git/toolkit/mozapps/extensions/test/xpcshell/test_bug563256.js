@@ -13,7 +13,9 @@ function run_test() {
   do_test_pending();
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("default@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "default@tests.mozilla.org",
     version: "1.0",
     name: "Default",
@@ -23,9 +25,11 @@ function run_test() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  var dest = profileDir.clone();
+  dest.append("alternate@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "alternate@tests.mozilla.org",
     version: "1.0",
     name: "Test 1",
@@ -36,7 +40,7 @@ function run_test() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
 
   startupManager();
                                      

@@ -91,8 +91,6 @@ public:
                             const nsRect&           aDirtyRect,
                             const nsDisplayListSet& aLists);
 
-  PRBool GetBorderRadii(nscoord aRadii[8]) const;
-
   // nsIReflowCallback
   virtual PRBool ReflowFinished();
   virtual void ReflowCallbackCanceled();
@@ -154,7 +152,7 @@ public:
   static void AsyncScrollCallback(nsITimer *aTimer, void* anInstance);
   void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode);
   void ScrollToImpl(nsPoint aScrollPosition);
-  void ScrollVisual();
+  void ScrollVisual(nsIntPoint aPixDelta);
   void ScrollBy(nsIntPoint aDelta, nsIScrollableFrame::ScrollUnit aUnit,
                 nsIScrollableFrame::ScrollMode aMode, nsIntPoint* aOverflow);
   void ScrollToRestoredPosition();
@@ -342,10 +340,6 @@ public:
   void PlaceScrollArea(const ScrollReflowState& aState,
                        const nsPoint& aScrollPosition);
   nscoord GetIntrinsicVScrollbarWidth(nsIRenderingContext *aRenderingContext);
-
-  virtual PRBool GetBorderRadii(nscoord aRadii[8]) const {
-    return mInner.GetBorderRadii(aRadii);
-  }
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
@@ -601,10 +595,6 @@ public:
 
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
   NS_IMETHOD GetPadding(nsMargin& aPadding);
-
-  virtual PRBool GetBorderRadii(nscoord aRadii[8]) const {
-    return mInner.GetBorderRadii(aRadii);
-  }
 
   nsresult Layout(nsBoxLayoutState& aState);
   void LayoutScrollArea(nsBoxLayoutState& aState, const nsPoint& aScrollPosition);

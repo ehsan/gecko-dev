@@ -62,12 +62,6 @@ class nsIDocShellTreeItem;
 class imgIContainer;
 class nsDOMDataTransfer;
 
-namespace mozilla {
-namespace dom {
-class TabParent;
-}
-}
-
 /*
  * Event listener manager
  */
@@ -152,8 +146,6 @@ public:
   
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsEventStateManager,
                                            nsIEventStateManager)
-
-  static nsIDocument* sMouseOverDocument;
 
 protected:
   void UpdateCursor(nsPresContext* aPresContext, nsEvent* aEvent, nsIFrame* aTargetFrame, nsEventStatus* aStatus);
@@ -339,12 +331,6 @@ protected:
   nsresult DoContentCommandEvent(nsContentCommandEvent* aEvent);
   nsresult DoContentCommandScrollEvent(nsContentCommandEvent* aEvent);
 
-#ifdef MOZ_IPC
-  PRBool RemoteQueryContentEvent(nsEvent *aEvent);
-  mozilla::dom::TabParent *GetCrossProcessTarget();
-  PRBool IsTargetCrossProcess(nsGUIEvent *aEvent);
-#endif
-
   PRInt32     mLockCursor;
 
   nsWeakFrame mCurrentTarget;
@@ -394,6 +380,8 @@ protected:
   PRUint32 mMClickCount;
   PRUint32 mRClickCount;
 
+  PRPackedBool mNormalLMouseEventInProcess;
+
   PRPackedBool m_haveShutdown;
 
   // Array for accesskey support
@@ -404,13 +392,6 @@ protected:
   PRPackedBool mLastLineScrollConsumedY;
 
   static PRInt32 sUserInputEventDepth;
-  
-  static PRBool sNormalLMouseEventInProcess;
-
-  static nsEventStateManager* sActiveESM;
-  
-  static void SetGlobalActiveContent(nsEventStateManager* aNewESM,
-                                     nsIContent* aContent);
 
   // Functions used for click hold context menus
   PRBool mClickHoldContextMenu;

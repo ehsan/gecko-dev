@@ -45,7 +45,7 @@
 
 body {
   border: 1px solid ThreeDShadow;
-  border-radius: 10px;
+  -moz-border-radius: 10px;
   padding: 3em;
   min-width: 30em;
   max-width: 65em;

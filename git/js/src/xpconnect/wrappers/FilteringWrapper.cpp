@@ -41,7 +41,6 @@
 #include "AccessCheck.h"
 #include "CrossOriginWrapper.h"
 #include "XrayWrapper.h"
-#include "WrapperFactory.h"
 
 #include "XPCWrapper.h"
 
@@ -67,16 +66,17 @@ static const Permission DenyAccess = JSWrapper::DenyAccess;
 
 template <typename Policy>
 static bool
-Filter(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+Filter(JSContext *cx, JSObject *wrapper, AutoValueVector &props)
 {
     size_t w = 0;
     for (size_t n = 0; n < props.length(); ++n) {
         jsid id = props[n];
         Permission perm;
-        if (!Policy::check(cx, wrapper, id, JSWrapper::GET, perm))
+        if (perm != PermitObjectAccess && !Policy::check(cx, wrapper, id, false, perm))
             return false; // Error
-        if (perm != DenyAccess)
+        if (perm != DenyAccess) {
             props[w++] = id;
+        }
     }
     props.resize(w);
     return true;
@@ -84,20 +84,12 @@ Filter(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 
 template <typename Policy>
 static bool
-CheckAndReport(JSContext *cx, JSObject *wrapper, jsid id, JSWrapper::Action act, Permission &perm)
+CheckAndReport(JSContext *cx, JSObject *wrapper, jsid id, bool set, Permission &perm)
 {
-    if (!Policy::check(cx, wrapper, id, act, perm)) {
+    if (!Policy::check(cx, wrapper, id, set, perm)) {
         return false;
     }
     if (perm == DenyAccess) {
-        // Reporting an error here indicates a problem entering the
-        // compartment. Therefore, any errors that we throw should be
-        // thrown in our *caller's* compartment, so they can inspect
-        // the error object.
-        JSAutoEnterCompartment ac;
-        if (!ac.enter(cx, wrapper))
-            return false;
-
         AccessCheck::deny(cx, id);
         return false;
     }
@@ -106,7 +98,7 @@ CheckAndReport(JSContext *cx, JSObject *wrapper, jsid id, JSWrapper::Action act,
 
 template <typename Base, typename Policy>
 bool
-FilteringWrapper<Base, Policy>::getOwnPropertyNames(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+FilteringWrapper<Base, Policy>::getOwnPropertyNames(JSContext *cx, JSObject *wrapper, AutoValueVector &props)
 {
     return Base::getOwnPropertyNames(cx, wrapper, props) &&
            Filter<Policy>(cx, wrapper, props);
@@ -114,7 +106,7 @@ FilteringWrapper<Base, Policy>::getOwnPropertyNames(JSContext *cx, JSObject *wra
 
 template <typename Base, typename Policy>
 bool
-FilteringWrapper<Base, Policy>::enumerate(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+FilteringWrapper<Base, Policy>::enumerate(JSContext *cx, JSObject *wrapper, AutoValueVector &props)
 {
     return Base::enumerate(cx, wrapper, props) &&
            Filter<Policy>(cx, wrapper, props);
@@ -122,7 +114,7 @@ FilteringWrapper<Base, Policy>::enumerate(JSContext *cx, JSObject *wrapper, Auto
 
 template <typename Base, typename Policy>
 bool
-FilteringWrapper<Base, Policy>::enumerateOwn(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+FilteringWrapper<Base, Policy>::enumerateOwn(JSContext *cx, JSObject *wrapper, AutoValueVector &props)
 {
     return Base::enumerateOwn(cx, wrapper, props) &&
            Filter<Policy>(cx, wrapper, props);
@@ -130,7 +122,7 @@ FilteringWrapper<Base, Policy>::enumerateOwn(JSContext *cx, JSObject *wrapper, A
 
 template <typename Base, typename Policy>
 bool
-FilteringWrapper<Base, Policy>::iterate(JSContext *cx, JSObject *wrapper, uintN flags, Value *vp)
+FilteringWrapper<Base, Policy>::iterate(JSContext *cx, JSObject *wrapper, uintN flags, jsval *vp)
 {
     // We refuse to trigger the iterator hook across chrome wrappers because
     // we don't know how to censor custom iterator objects. Instead we trigger
@@ -141,42 +133,23 @@ FilteringWrapper<Base, Policy>::iterate(JSContext *cx, JSObject *wrapper, uintN 
 
 template <typename Base, typename Policy>
 bool
-FilteringWrapper<Base, Policy>::enter(JSContext *cx, JSObject *wrapper, jsid id,
-                                      JSWrapper::Action act)
+FilteringWrapper<Base, Policy>::enter(JSContext *cx, JSObject *wrapper, jsid id, bool set)
 {
     Permission perm;
-    return CheckAndReport<Policy>(cx, wrapper, id, act, perm) &&
-           Base::enter(cx, wrapper, id, act);
+    return CheckAndReport<Policy>(cx, wrapper, JSVAL_VOID, set, perm) &&
+           Base::enter(cx, wrapper, id, set);
 }
 
 #define SOW FilteringWrapper<JSCrossCompartmentWrapper, OnlyIfSubjectIsSystem>
-#define SCSOW FilteringWrapper<JSWrapper, OnlyIfSubjectIsSystem>
 #define COW FilteringWrapper<JSCrossCompartmentWrapper, ExposedPropertiesOnly>
-#define XOW FilteringWrapper<XrayWrapper<JSCrossCompartmentWrapper, CrossCompartmentXray>, \
-                             CrossOriginAccessiblePropertiesOnly>
-#define NNXOW FilteringWrapper<JSCrossCompartmentWrapper, CrossOriginAccessiblePropertiesOnly>
-#define LW    FilteringWrapper<XrayWrapper<JSWrapper, SameCompartmentXray>, \
-                               SameOriginOrCrossOriginAccessiblePropertiesOnly>
-#define XLW   FilteringWrapper<XrayWrapper<JSCrossCompartmentWrapper, CrossCompartmentXray>, \
-                               SameOriginOrCrossOriginAccessiblePropertiesOnly>
+#define XOW FilteringWrapper<XrayWrapper<CrossOriginWrapper>, CrossOriginAccessiblePropertiesOnly>
 
-template<> SOW SOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
-                              WrapperFactory::SOW_FLAG);
-template<> SCSOW SCSOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
-                                  WrapperFactory::SOW_FLAG);
+template<> SOW SOW::singleton(0);
 template<> COW COW::singleton(0);
-template<> XOW XOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
-                              WrapperFactory::PARTIALLY_TRANSPARENT);
-template<> NNXOW NNXOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
-                                  WrapperFactory::PARTIALLY_TRANSPARENT);
-template<> LW  LW::singleton(0);
-template<> XLW XLW::singleton(0);
+template<> XOW XOW::singleton(0);
 
 template class SOW;
 template class COW;
 template class XOW;
-template class NNXOW;
-template class LW;
-template class XLW;
 
 }

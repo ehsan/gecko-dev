@@ -69,7 +69,6 @@
 #include "nsIWebNavigationInfo.h"
 #include "nsIScriptChannel.h"
 #include "nsIBlocklistService.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 #include "nsPluginError.h"
 
@@ -478,7 +477,6 @@ nsObjectLoadingContent::nsObjectLoadingContent()
   , mInstantiating(PR_FALSE)
   , mUserDisabled(PR_FALSE)
   , mSuppressed(PR_FALSE)
-  , mNetworkCreated(PR_TRUE)
   , mFallbackReason(ePluginOtherState)
 {
 }
@@ -546,11 +544,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
     // end up trying to dispatch to a nsFrameLoader, which will complain that
     // it couldn't find a way to handle application/octet-stream
 
-    nsCAutoString typeHint, dummy;
-    NS_ParseContentType(mContentType, typeHint, dummy);
-    if (!typeHint.IsEmpty()) {
-      chan->SetContentType(typeHint);
-    }
+    chan->SetContentType(mContentType);
   } else {
     mContentType = channelType;
   }
@@ -633,7 +627,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
       break;
     case eType_Document: {
       if (!mFrameLoader) {
-        mFrameLoader = nsFrameLoader::Create(thisContent, mNetworkCreated);
+        mFrameLoader = nsFrameLoader::Create(thisContent);
         if (!mFrameLoader) {
           Fallback(PR_FALSE);
           return NS_ERROR_UNEXPECTED;
@@ -1027,10 +1021,9 @@ nsObjectLoadingContent::GetInterface(const nsIID & aIID, void **aResult)
 
 // nsIChannelEventSink
 NS_IMETHODIMP
-nsObjectLoadingContent::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                               nsIChannel *aNewChannel,
-                                               PRUint32 aFlags,
-                                               nsIAsyncVerifyRedirectCallback *cb)
+nsObjectLoadingContent::OnChannelRedirect(nsIChannel *aOldChannel,
+                                          nsIChannel *aNewChannel,
+                                          PRUint32    aFlags)
 {
   // If we're already busy with a new load, cancel the redirect
   if (aOldChannel != mChannel) {
@@ -1038,7 +1031,6 @@ nsObjectLoadingContent::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
   }
 
   mChannel = aNewChannel;
-  cb->OnRedirectVerifyCallback(NS_OK);
   return NS_OK;
 }
 
@@ -1287,7 +1279,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
       // Must have a frameloader before creating a frame, or the frame will
       // create its own.
       if (!mFrameLoader && newType == eType_Document) {
-        mFrameLoader = nsFrameLoader::Create(thisContent, mNetworkCreated);
+        mFrameLoader = nsFrameLoader::Create(thisContent);
         if (!mFrameLoader) {
           mURI = nsnull;
           return NS_OK;
@@ -1445,11 +1437,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
 
   // MIME Type hint
   if (!aTypeHint.IsEmpty()) {
-    nsCAutoString typeHint, dummy;
-    NS_ParseContentType(aTypeHint, typeHint, dummy);
-    if (!typeHint.IsEmpty()) {
-      chan->SetContentType(typeHint);
-    }
+    chan->SetContentType(aTypeHint);
   }
 
   // Set up the channel's principal and such, like nsDocShell::DoURILoad does
@@ -1990,7 +1978,7 @@ nsObjectLoadingContent::CreateStaticClone(nsObjectLoadingContent* aDest) const
   if (mFrameLoader) {
     nsCOMPtr<nsIContent> content =
       do_QueryInterface(static_cast<nsIImageLoadingContent*>((aDest)));
-    nsFrameLoader* fl = nsFrameLoader::Create(content, PR_FALSE);
+    nsFrameLoader* fl = nsFrameLoader::Create(content);
     if (fl) {
       aDest->mFrameLoader = fl;
       mFrameLoader->CreateStaticClone(fl);

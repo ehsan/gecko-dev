@@ -41,7 +41,6 @@
 
 #include "nsDeque.h"
 #include "nsBuiltinDecoderReader.h"
-#include "nsWebMBufferedParser.h"
 #include "nestegg/nestegg.h"
 #include "vpx/vpx_decoder.h"
 #include "vpx/vp8dx.h"
@@ -95,13 +94,14 @@ class PacketQueue : private nsDeque {
   }
 };
 
+
 class nsWebMReader : public nsBuiltinDecoderReader
 {
 public:
   nsWebMReader(nsBuiltinDecoder* aDecoder);
   ~nsWebMReader();
 
-  virtual nsresult Init(nsBuiltinDecoderReader* aCloneDonor);
+  virtual nsresult Init();
   virtual nsresult ResetDecode();
   virtual PRBool DecodeAudioData();
 
@@ -124,9 +124,7 @@ public:
   }
 
   virtual nsresult ReadMetadata();
-  virtual nsresult Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime);
-  virtual nsresult GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime);
-  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset);
+  virtual nsresult Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime);
 
 private:
   // Value passed to NextPacket to determine if we are reading a video or an
@@ -184,16 +182,6 @@ private:
   // Index of video and audio track to play
   PRUint32 mVideoTrack;
   PRUint32 mAudioTrack;
-
-  // Time in ms of the start of the first audio sample we've decoded.
-  PRInt64 mAudioStartMs;
-
-  // Number of samples we've decoded since decoding began at mAudioStartMs.
-  PRUint64 mAudioSamples;
-
-  // Parser state and computed offset-time mappings.  Shared by multiple
-  // readers when decoder has been cloned.  Main thread only.
-  nsRefPtr<nsWebMBufferedState> mBufferedState;
 
   // Booleans to indicate if we have audio and/or video data
   PRPackedBool mHasVideo;

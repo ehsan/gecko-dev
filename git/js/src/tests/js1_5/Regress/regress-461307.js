@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-461307.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 461307;
 var summary = 'Do not crash @ QuoteString';

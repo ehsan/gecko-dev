@@ -75,8 +75,7 @@ static PRBool EqualExceptRef(nsIURL* aURL1, nsIURL* aURL2)
 }
 
 void
-nsReferencedElement::Reset(nsIContent* aFromContent, nsIURI* aURI,
-                           PRBool aWatch, PRBool aReferenceImage)
+nsReferencedElement::Reset(nsIContent* aFromContent, nsIURI* aURI, PRBool aWatch)
 {
   Unlink();
 
@@ -176,8 +175,6 @@ nsReferencedElement::Reset(nsIContent* aFromContent, nsIURI* aURI,
     atom.swap(mWatchID);
   }
 
-  mReferencingImage = aReferenceImage;
-
   HaveNewDocument(doc, aWatch, ref);
 }
 
@@ -198,8 +195,6 @@ nsReferencedElement::ResetWithID(nsIContent* aFromContent, const nsString& aID,
     atom.swap(mWatchID);
   }
 
-  mReferencingImage = PR_FALSE;
-
   HaveNewDocument(doc, aWatch, aID);
 }
 
@@ -210,8 +205,7 @@ nsReferencedElement::HaveNewDocument(nsIDocument* aDocument, PRBool aWatch,
   if (aWatch) {
     mWatchDocument = aDocument;
     if (mWatchDocument) {
-      mElement = mWatchDocument->AddIDTargetObserver(mWatchID, Observe, this,
-                                                     mReferencingImage);
+      mElement = mWatchDocument->AddIDTargetObserver(mWatchID, Observe, this);
     }
     return;
   }
@@ -220,8 +214,7 @@ nsReferencedElement::HaveNewDocument(nsIDocument* aDocument, PRBool aWatch,
     return;
   }
 
-  Element *e = mReferencingImage ? aDocument->LookupImageElement(aRef) :
-                                   aDocument->GetElementById(aRef);
+  Element *e = aDocument->GetElementById(aRef);
   if (e) {
     mElement = e;
   }
@@ -240,8 +233,7 @@ void
 nsReferencedElement::Unlink()
 {
   if (mWatchDocument && mWatchID) {
-    mWatchDocument->RemoveIDTargetObserver(mWatchID, Observe, this,
-                                           mReferencingImage);
+    mWatchDocument->RemoveIDTargetObserver(mWatchID, Observe, this);
   }
   if (mPendingNotification) {
     mPendingNotification->Clear();
@@ -250,7 +242,6 @@ nsReferencedElement::Unlink()
   mWatchDocument = nsnull;
   mWatchID = nsnull;
   mElement = nsnull;
-  mReferencingImage = PR_FALSE;
 }
 
 PRBool

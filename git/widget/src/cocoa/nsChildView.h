@@ -123,7 +123,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 
   BOOL mIsPluginView;
   NPEventModel mPluginEventModel;
-  NPDrawingModel mPluginDrawingModel;
 
   // The following variables are only valid during key down event processing.
   // Their current usage needs to be fixed to avoid problems with nested event
@@ -144,13 +143,7 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   
   // when mouseDown: is called, we store its event here (strong)
   NSEvent* mLastMouseDownEvent;
-
-  // Whether the last mouse down event was blocked from Gecko.
-  BOOL mBlockedLastMouseDown;
-
-  // when acceptsFirstMouse: is called, we store the event here (strong)
-  NSEvent* mClickThroughMouseDownEvent;
-
+  
   // rects that were invalidated during a draw, so have pending drawing
   NSMutableArray* mPendingDirtyRects;
   BOOL mPendingFullDisplay;
@@ -211,7 +204,7 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 
 - (void)handleMouseMoved:(NSEvent*)aEvent;
 
-- (void)drawRect:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext;
+- (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext;
 
 - (void)sendMouseEnterOrExitEvent:(NSEvent*)aEvent
                             enter:(BOOL)aEnter
@@ -225,8 +218,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 - (void)update;
 - (void)lockFocus;
 - (void) _surfaceNeedsUpdate:(NSNotification*)notification;
-
-- (BOOL)isPluginView;
 
 // Simple gestures support
 //
@@ -251,8 +242,7 @@ public:
 
   static void MouseMoved(NSEvent* aEvent);
   static void OnDestroyView(ChildView* aView);
-  static BOOL WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent,
-                                 ChildView* aView, BOOL isClickThrough = NO);
+  static BOOL WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent);
   static void ReEvaluateMouseEnterState(NSEvent* aEvent = nil);
   static ChildView* ViewForEvent(NSEvent* aEvent);
 
@@ -298,7 +288,8 @@ public:
 
   NS_IMETHOD              SetParent(nsIWidget* aNewParent);
   virtual nsIWidget*      GetParent(void);
-  virtual float           GetDPI();
+
+  LayerManager*           GetLayerManager();
 
   NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop,
                                             PRInt32 *aX, PRInt32 *aY);
@@ -315,6 +306,9 @@ public:
 
   virtual void*           GetNativeData(PRUint32 aDataType);
   virtual nsresult        ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
+  virtual void            Scroll(const nsIntPoint& aDelta,
+                                 const nsTArray<nsIntRect>& aDestRects,
+                                 const nsTArray<Configuration>& aConfigurations);
   virtual nsIntPoint      WidgetToScreenOffset();
   virtual PRBool          ShowsResizeIndicator(nsIntRect* aResizerRect);
 
@@ -323,7 +317,6 @@ public:
   NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
 
   NS_IMETHOD              Update();
-  virtual PRBool          GetShouldAccelerate();
 
   NS_IMETHOD        SetCursor(nsCursor aCursor);
   NS_IMETHOD        SetCursor(imgIContainer* aCursor, PRUint32 aHotspotX, PRUint32 aHotspotY);
@@ -357,7 +350,6 @@ public:
 
   NS_IMETHOD        SetPluginEventModel(int inEventModel);
   NS_IMETHOD        GetPluginEventModel(int* outEventModel);
-  NS_IMETHOD        SetPluginDrawingModel(int inDrawingModel);
 
   NS_IMETHOD        StartComplexTextInputForCurrentEvent();
 
@@ -396,14 +388,84 @@ public:
   static PRUint32 GetCurrentInputEventCount();
   static void UpdateCurrentInputEventCount();
 
+  static void ApplyConfiguration(nsIWidget* aExpectedParent,
+                                 const nsIWidget::Configuration& aConfiguration,
+                                 PRBool aRepaint);
+
   nsCocoaTextInputHandler* TextInputHandler() { return &mTextInputHandler; }
   NSView<mozView>* GetEditorView();
 
-  PRBool IsPluginView() { return (mWindowType == eWindowType_plugin); }
+  // Wrapper methods of nsIMEManager and nsTSMManager
+  void IME_OnDestroyView(NSView<mozView> *aDestroyingView)
+  {
+    mTextInputHandler.OnDestroyView(aDestroyingView);
+  }
 
-  void PaintQD();
+  void IME_OnStartComposition(NSView<mozView>* aComposingView)
+  {
+    mTextInputHandler.OnStartIMEComposition(aComposingView);
+  }
 
-  NS_IMETHOD        ReparentNativeWidget(nsIWidget* aNewParent);
+  void IME_OnUpdateComposition(NSString* aCompositionString)
+  {
+    mTextInputHandler.OnUpdateIMEComposition(aCompositionString);
+  }
+
+  void IME_OnEndComposition()
+  {
+    mTextInputHandler.OnEndIMEComposition();
+  }
+
+  PRBool IME_IsComposing()
+  {
+    return mTextInputHandler.IsIMEComposing();
+  }
+
+  PRBool IME_IsASCIICapableOnly()
+  {
+    return mTextInputHandler.IsASCIICapableOnly();
+  }
+
+  PRBool IME_IsOpened()
+  {
+    return mTextInputHandler.IsIMEOpened();
+  }
+
+  PRBool IME_IsEnabled()
+  {
+    return mTextInputHandler.IsIMEEnabled();
+  }
+
+  PRBool IME_IgnoreCommit()
+  {
+    return mTextInputHandler.IgnoreIMECommit();
+  }
+
+  void IME_CommitComposition()
+  {
+    mTextInputHandler.CommitIMEComposition();
+  }
+
+  void IME_CancelComposition()
+  {
+    mTextInputHandler.CancelIMEComposition();
+  }
+
+  void IME_SetASCIICapableOnly(PRBool aASCIICapableOnly)
+  {
+    mTextInputHandler.SetASCIICapableOnly(aASCIICapableOnly);
+  }
+
+  void IME_SetOpenState(PRBool aOpen)
+  {
+    mTextInputHandler.SetIMEOpenState(aOpen);
+  }
+
+  void IME_Enable(PRBool aEnable)
+  {
+    mTextInputHandler.EnableIME(aEnable);
+  }
+
 protected:
 
   PRBool            ReportDestroyEvent();
@@ -415,14 +477,6 @@ protected:
   virtual NSView*   CreateCocoaView(NSRect inFrame);
   void              TearDownView();
   nsCocoaWindow*    GetXULWindowWidget();
-
-  virtual already_AddRefed<nsIWidget>
-  AllocateChildPopupWidget()
-  {
-    static NS_DEFINE_IID(kCPopUpCID, NS_POPUP_CID);
-    nsCOMPtr<nsIWidget> widget = do_CreateInstance(kCPopUpCID);
-    return widget.forget();
-  }
 
 protected:
 
@@ -443,7 +497,7 @@ protected:
   PRPackedBool          mVisible;
   PRPackedBool          mDrawing;
   PRPackedBool          mPluginDrawing;
-  PRPackedBool          mIsDispatchPaint; // Is a paint event being dispatched
+  PRPackedBool          mPluginIsCG; // true if this is a CoreGraphics plugin
 
   NP_CGContext          mPluginCGContext;
 #ifndef NP_NO_QUICKDRAW

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-461110.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 461110;
 var summary = 'Decompilation of a += b = 3';

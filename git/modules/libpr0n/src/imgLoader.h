@@ -38,9 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef imgLoader_h__
-#define imgLoader_h__
-
 #include "imgILoader.h"
 #include "imgICache.h"
 #include "nsWeakReference.h"
@@ -405,5 +402,3 @@ private:
 
   static imgLoader sImgLoader;
 };
-
-#endif  // imgLoader_h__

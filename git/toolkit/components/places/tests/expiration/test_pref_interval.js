@@ -51,8 +51,6 @@
 // PREF_INTERVAL_SECONDS_NOTSET in nsPlacesExpiration.
 const DEFAULT_TIMER_DELAY_SECONDS = 3 * 60;
 
-// Sync this with the const value in the component.
-const EXPIRE_AGGRESSIVITY_MULTIPLIER = 3;
 
 // Provide a mock timer implementation, so there is no need to wait seconds to
 // achieve test results.
@@ -81,8 +79,7 @@ let mockTimerImpl = {
     print("Checking timer delay equals expected interval value");
     if (!gCurrentTest)
       return;
-    // History status is not dirty, so the timer is delayed.
-    do_check_eq(aDelay, gCurrentTest.expectedTimerDelay * 1000 * EXPIRE_AGGRESSIVITY_MULTIPLIER)
+    do_check_eq(aDelay, gCurrentTest.expectedTimerDelay * 1000)
 
     do_execute_soon(run_next_test);
   },

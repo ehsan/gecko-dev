@@ -65,7 +65,8 @@ function initTest()
   // Install a test extension into the profile
   let dir = gProfD.clone();
   dir.append("extensions");
-  writeInstallRDFForExtension({
+  dir.append("test@mozilla.org");
+  writeInstallRDFToDir({
     id: "test@mozilla.org",
     version: "1.0",
     name: "Test extension",

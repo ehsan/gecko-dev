@@ -76,8 +76,6 @@ xpc_qsUnwrapArg<_interface>(JSContext *cx,                                    \
     return rv;                                                                \
 }
 
-#undef DOMCI_CASTABLE_INTERFACE
-
 #define DOMCI_CASTABLE_INTERFACE(_interface, _base, _bit, _extra)             \
   DEFINE_UNWRAP_CAST(_interface, _base, _bit)
 
@@ -143,18 +141,6 @@ xpc_qsUnwrapArg<nsGenericElement>(JSContext *cx,
 
 inline nsISupports*
 ToSupports(nsContentList *p)
-{
-    return static_cast<nsINodeList*>(p);
-}
-
-inline nsISupports*
-ToCanonicalSupports(nsINode* p)
-{
-    return p;
-}
-
-inline nsISupports*
-ToCanonicalSupports(nsContentList *p)
 {
     return static_cast<nsINodeList*>(p);
 }

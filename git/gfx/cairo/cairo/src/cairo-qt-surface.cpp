@@ -43,7 +43,6 @@
 #include "cairo-surface-clipper-private.h"
 #include "cairo-region-private.h"
 
-#include "cairo-ft.h"
 #include "cairo-qt.h"
 
 #include <memory>
@@ -57,7 +56,15 @@
 #include <QtGui/QPen>
 #include <QtGui/QWidget>
 #include <QtGui/QX11Info>
-#include <QtCore/QVarLengthArray>
+
+#if CAIRO_HAS_XLIB_XRENDER_SURFACE
+#include "cairo-xlib.h"
+#include "cairo-xlib-xrender.h"
+// I hate X
+#undef Status
+#undef CursorShape
+#undef Bool
+#endif
 
 #include <sys/time.h>
 
@@ -109,6 +116,15 @@ struct cairo_qt_surface_t {
 
     cairo_bool_t supports_porter_duff;
 
+#if defined(Q_WS_X11) && CAIRO_HAS_XLIB_XRENDER_SURFACE
+    /* temporary, so that we can share the xlib surface's glyphs code */
+    bool xlib_has_clipping;
+    cairo_surface_t *xlib_equiv;
+    QRect xlib_clip_bounds;
+    int xlib_clip_serial;
+    QPoint redir_offset;
+#endif
+
     QPainter *p;
 
     /* The pixmap/image constructors will store their objects here */
@@ -126,6 +142,11 @@ struct cairo_qt_surface_t {
  * up with one without an alpha channel.
  */
 static cairo_bool_t _qpixmaps_have_no_alpha = FALSE;
+
+#if defined(Q_WS_X11) && CAIRO_HAS_XLIB_XRENDER_SURFACE
+slim_hidden_proto (cairo_xlib_surface_create);
+slim_hidden_proto (cairo_xlib_surface_create_with_xrender_format);
+#endif
 
 /**
  ** Helper methods
@@ -471,6 +492,11 @@ _cairo_qt_surface_finish (void *abstract_surface)
         cairo_surface_destroy (qs->image_equiv);
 
     _cairo_surface_clipper_reset (&qs->clipper);
+
+#if defined(Q_WS_X11) && CAIRO_HAS_XLIB_XRENDER_SURFACE
+    if (qs->xlib_equiv)
+        cairo_surface_destroy (qs->xlib_equiv);
+#endif
 
     if (qs->image)
         delete qs->image;
@@ -1361,6 +1387,32 @@ _cairo_qt_surface_show_glyphs (void *abstract_surface,
 			       cairo_clip_t *clip,
 			       int *remaining_glyphs)
 {
+    cairo_qt_surface_t *qs = (cairo_qt_surface_t *) abstract_surface;
+
+#if defined(Q_WS_X11) && CAIRO_HAS_XLIB_XRENDER_SURFACE
+    /* If we have an equivalent X surface, let the xlib surface handle this
+     * until we figure out how to do this natively with Qt.
+     */
+    if (qs->xlib_equiv) {
+	D(fprintf(stderr, "q[%p] show_glyphs (x11 equiv) op:%s nglyphs: %d\n", abstract_surface, _opstr(op), num_glyphs));
+
+	for (int i = 0; i < num_glyphs; i++) {
+	    glyphs[i].x -= qs->redir_offset.x();
+	    glyphs[i].y -= qs->redir_offset.y();
+	}
+
+        return (cairo_int_status_t)
+               _cairo_surface_show_text_glyphs (qs->xlib_equiv,
+						op, source,
+						NULL, 0,
+						glyphs, num_glyphs,
+						NULL, 0,
+						(cairo_text_cluster_flags_t) 0,
+						scaled_font,
+						clip);
+    }
+#endif
+
     return CAIRO_INT_STATUS_UNSUPPORTED;
 }
 
@@ -1498,6 +1550,24 @@ _cairo_qt_surface_composite (cairo_operator_t op,
 }
 
 static cairo_status_t
+_cairo_qt_surface_flush (void *abstract_surface)
+{
+    cairo_qt_surface_t *qs = (cairo_qt_surface_t *) abstract_surface;
+
+    if (qs->p == NULL)
+	return CAIRO_STATUS_SUCCESS;
+
+    if (qs->image || qs->pixmap) {
+	qs->p->end ();
+	qs->p->begin (qs->p->device ());
+    } else {
+	qs->p->restore ();
+    }
+
+    return CAIRO_STATUS_SUCCESS;
+}
+
+static cairo_status_t
 _cairo_qt_surface_mark_dirty (void *abstract_surface,
 			      int x, int y,
 			      int width, int height)
@@ -1534,7 +1604,7 @@ static const cairo_surface_backend_t cairo_qt_surface_backend = {
     _cairo_qt_surface_get_extents,
     NULL, /* old_show_glyphs */
     NULL, /* get_font_options */
-    NULL, /* flush */
+    _cairo_qt_surface_flush,
     _cairo_qt_surface_mark_dirty,
     NULL, /* scaled_font_fini */
     NULL, /* scaled_glyph_fini */
@@ -1553,6 +1623,64 @@ static const cairo_surface_backend_t cairo_qt_surface_backend = {
     NULL, /* has_show_text_glyphs */
     NULL, /* show_text_glyphs */
 };
+
+#if defined(Q_WS_X11) && CAIRO_HAS_XLIB_XRENDER_SURFACE
+static cairo_surface_t *
+_cairo_qt_create_xlib_surface (cairo_qt_surface_t *qs)
+{
+    if (!qs->p)
+	return NULL;
+
+    QPaintDevice *pd = qs->p->device();
+    if (!pd)
+	return NULL;
+
+    QPoint offs;
+    QPaintDevice *rpd = QPainter::redirected(pd, &offs);
+    if (rpd) {
+	pd = rpd;
+	qs->redir_offset = offs;
+    }
+
+    if (pd->devType() == QInternal::Widget) {
+	QWidget *w = (QWidget*) pd;
+	QX11Info xinfo = w->x11Info();
+
+	return cairo_xlib_surface_create (xinfo.display(),
+					  (Drawable) w->handle (),
+					  (Visual *) xinfo.visual (),
+					  w->width (), w->height ());
+    } else if (pd->devType() == QInternal::Pixmap) {
+	QPixmap *pixmap = (QPixmap*) pd;
+	QX11Info xinfo = pixmap->x11Info ();
+	XRenderPictFormat *xrender_format;
+	int pict_format;
+
+	switch (pixmap->depth ()) {
+	case 1:
+	    pict_format = PictStandardA1; break;
+	case 8:
+	    pict_format = PictStandardA8; break;
+	case 24:
+	    pict_format = PictStandardRGB24; break;
+	default:
+	    ASSERT_NOT_REACHED;
+	case 32:
+	    pict_format = PictStandardARGB32; break;
+	}
+	xrender_format = XRenderFindStandardFormat (xinfo.display (),
+		                                    pict_format);
+
+	return cairo_xlib_surface_create_with_xrender_format (xinfo.display(),
+					  (Drawable) pixmap->handle (),
+					  ScreenOfDisplay (xinfo.display (),
+							   xinfo.screen ()),
+					  xrender_format,
+					  pixmap->width (), pixmap->height ());
+    } else
+	return NULL;
+}
+#endif
 
 cairo_surface_t *
 cairo_qt_surface_create (QPainter *painter)
@@ -1582,6 +1710,10 @@ cairo_qt_surface_create (QPainter *painter)
     qs->p->save();
 
     qs->window = painter->window();
+
+#if defined(Q_WS_X11) && CAIRO_HAS_XLIB_XRENDER_SURFACE
+    qs->xlib_equiv = _cairo_qt_create_xlib_surface (qs);
+#endif
 
     D(fprintf(stderr, "qpainter_surface_create: window: [%d %d %d %d] pd:%d\n",
               qs->window.x(), qs->window.y(), qs->window.width(), qs->window.height(),
@@ -1676,6 +1808,10 @@ cairo_qt_surface_create_with_qpixmap (cairo_content_t content,
     }
 
     qs->window = QRect(0, 0, width, height);
+
+#if defined(Q_WS_X11) && CAIRO_HAS_XLIB_XRENDER_SURFACE
+    qs->xlib_equiv = _cairo_qt_create_xlib_surface (qs);
+#endif
 
     D(fprintf(stderr, "qpainter_surface_create: qpixmap: [%d %d %d %d] pd:%d\n",
               qs->window.x(), qs->window.y(), qs->window.width(), qs->window.height(),

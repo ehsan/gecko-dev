@@ -94,14 +94,14 @@ public:
                                     nsCSSSelectorList* aSelectorList);
 
   // nsIStyleRuleProcessor
-  virtual void RulesMatching(ElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
 
-  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(PseudoElementRuleProcessorData* aData);
 
-  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(AnonBoxRuleProcessorData* aData);
 
 #ifdef MOZ_XUL
-  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
 
   virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
@@ -111,7 +111,8 @@ public:
   virtual nsRestyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
 
-  virtual PRBool MediumFeaturesChanged(nsPresContext* aPresContext);
+  NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
+                                   PRBool* aRulesChanged);
 
   // Append all the currently-active font face rules to aArray.  Return
   // true for success and false for failure.
@@ -122,14 +123,6 @@ public:
   void AssertQuirksChangeOK() {
     NS_ASSERTION(!mRuleCascades, "can't toggle quirks style sheet without "
                                  "clearing rule cascades");
-  }
-#endif
-
-#ifdef XP_WIN
-  // Cached theme identifier for the moz-windows-theme media query.
-  static PRUint8 GetWindowsThemeIdentifier();
-  static void SetWindowsThemeIdentifier(PRUint8 aId) { 
-    sWinThemeId = aId;
   }
 #endif
 
@@ -150,10 +143,6 @@ private:
   
   // type of stylesheet using this processor
   PRUint8 mSheetType;  // == nsStyleSet::sheetType
-
-#ifdef XP_WIN
-  static PRUint8 sWinThemeId;
-#endif
 };
 
 #endif /* nsCSSRuleProcessor_h_ */

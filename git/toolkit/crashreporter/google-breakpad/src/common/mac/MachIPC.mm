@@ -33,7 +33,6 @@
 #import <stdio.h>
 #import "MachIPC.h"
 
-namespace google_breakpad {
 //==============================================================================
 MachSendMessage::MachSendMessage(int32_t message_id) : MachMessage() {
   head.msgh_bits = MACH_MSGH_BITS(MACH_MSG_TYPE_COPY_SEND, 0);
@@ -54,10 +53,10 @@ MachSendMessage::MachSendMessage(int32_t message_id) : MachMessage() {
 bool MachMessage::SetData(void *data,
                           int32_t data_length) {
   // first check to make sure we have enough space
-  size_t size = CalculateSize();
-  size_t new_size = size + data_length;
+  int size = CalculateSize();
+  int new_size = size + data_length;
   
-  if (new_size > sizeof(MachMessage)) {
+  if ((unsigned)new_size > sizeof(MachMessage)) {
     return false;  // not enough space
   }
 
@@ -73,8 +72,8 @@ bool MachMessage::SetData(void *data,
 // calculates and returns the total size of the message
 // Currently, the entire message MUST fit inside of the MachMessage
 //    messsage size <= sizeof(MachMessage)
-mach_msg_size_t MachMessage::CalculateSize() {
-  size_t size = sizeof(mach_msg_header_t) + sizeof(mach_msg_body_t);
+int MachMessage::CalculateSize() {
+  int size = sizeof(mach_msg_header_t) + sizeof(mach_msg_body_t);
   
   // add space for MessageDataPacket
   int32_t alignedDataLength = (GetDataLength() + 3) & ~0x3;
@@ -83,14 +82,14 @@ mach_msg_size_t MachMessage::CalculateSize() {
   // add space for descriptors
   size += GetDescriptorCount() * sizeof(MachMsgPortDescriptor);
   
-  head.msgh_size = static_cast<mach_msg_size_t>(size);
+  head.msgh_size = size;
   
-  return head.msgh_size;
+  return size;
 }
 
 //==============================================================================
 MachMessage::MessageDataPacket *MachMessage::GetDataPacket() {
-  size_t desc_size = sizeof(MachMsgPortDescriptor)*GetDescriptorCount();
+  int desc_size = sizeof(MachMsgPortDescriptor)*GetDescriptorCount();
   MessageDataPacket *packet =
     reinterpret_cast<MessageDataPacket*>(padding + desc_size);
 
@@ -110,9 +109,9 @@ void MachMessage::SetDescriptor(int n,
 bool MachMessage::AddDescriptor(const MachMsgPortDescriptor &desc) {
   // first check to make sure we have enough space
   int size = CalculateSize();
-  size_t new_size = size + sizeof(MachMsgPortDescriptor);
+  int new_size = size + sizeof(MachMsgPortDescriptor);
   
-  if (new_size > sizeof(MachMessage)) {
+  if ((unsigned)new_size > sizeof(MachMessage)) {
     return false;  // not enough space
   }
 
@@ -181,8 +180,8 @@ ReceivePort::ReceivePort(const char *receive_port_name) {
   if (init_result_ != KERN_SUCCESS)
     return;
 
-  mach_port_t task_bootstrap_port = 0;
-  init_result_ = task_get_bootstrap_port(current_task, &task_bootstrap_port);
+  mach_port_t bootstrap_port = 0;
+  init_result_ = task_get_bootstrap_port(current_task, &bootstrap_port);
 
   if (init_result_ != KERN_SUCCESS)
     return;
@@ -241,11 +240,8 @@ kern_return_t ReceivePort::WaitForMessage(MachReceiveMessage *out_message,
   out_message->head.msgh_reserved = 0;
   out_message->head.msgh_id = 0;
 
-  mach_msg_option_t options = MACH_RCV_MSG;
-  if (timeout != MACH_MSG_TIMEOUT_NONE)
-    options |= MACH_RCV_TIMEOUT;
   kern_return_t result = mach_msg(&out_message->head,
-                                  options,
+                                  MACH_RCV_MSG | MACH_RCV_TIMEOUT,
                                   0,
                                   sizeof(MachMessage),
                                   port_,
@@ -260,14 +256,13 @@ kern_return_t ReceivePort::WaitForMessage(MachReceiveMessage *out_message,
 //==============================================================================
 // get a port with send rights corresponding to a named registered service
 MachPortSender::MachPortSender(const char *receive_port_name) {
-  mach_port_t task_bootstrap_port = 0;
-  init_result_ = task_get_bootstrap_port(mach_task_self(), 
-                                         &task_bootstrap_port);
+  mach_port_t bootstrap_port = 0;
+  init_result_ = task_get_bootstrap_port(mach_task_self(), &bootstrap_port);
   
   if (init_result_ != KERN_SUCCESS)
     return;
 
-  init_result_ = bootstrap_look_up(task_bootstrap_port,
+  init_result_ = bootstrap_look_up(bootstrap_port,
                     const_cast<char*>(receive_port_name),
                     &send_port_);
 }
@@ -300,5 +295,3 @@ kern_return_t MachPortSender::SendMessage(MachSendMessage &message,
 
   return result;
 }
-
-}  // namespace google_breakpad

@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-package com.mozilla.SUTAgentAndroid.service;
+package com.mozilla.SUTAgentAndroid;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -45,6 +45,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 
+import android.widget.Toast;
+
 public class RunDataThread extends Thread
 	{
 	Timer heartBeatTimer;
@@ -53,31 +55,16 @@ public class RunDataThread extends Thread
 	private Socket socket	= null;
 	boolean bListening	= true;
 	List<DataWorkerThread> theWorkers = new ArrayList<DataWorkerThread>();
-	android.app.Service	svc = null;
 	
-	public RunDataThread(ServerSocket socket, android.app.Service service)
+	public RunDataThread(ServerSocket socket)
 		{
 		super("RunDataThread");
 		this.SvrSocket = socket;
-		this.svc = service;
 		}
 	
 	public void StopListening()
 		{
 		bListening = false;
-		}
-	
-	public void SendToDataChannel(String strToSend)
-		{
-		int nNumWorkers = theWorkers.size();
-		for (int lcv = 0; lcv < nNumWorkers; lcv++)
-			{
-			if (theWorkers.get(lcv).isAlive())
-				{
-				theWorkers.get(lcv).SendString(strToSend);
-				}
-			}
-		return;
 		}
 
 	public void run() {
@@ -112,12 +99,10 @@ public class RunDataThread extends Thread
 			theWorkers.clear();
 			
 			SvrSocket.close();
-
-			svc.stopSelf();
 			}
 		catch (IOException e)
 			{
-//			Toast.makeText(SUTAgentAndroid.me.getApplicationContext(), e.getMessage(), Toast.LENGTH_LONG).show();
+			Toast.makeText(SUTAgentAndroid.me.getApplicationContext(), e.getMessage(), Toast.LENGTH_LONG).show();
 			e.printStackTrace();
 			}
 		return;

@@ -240,7 +240,7 @@ function pageEventListener(event) {
   try {
     dump("TEST: eventListener received a " + event.type + " event for page " +
       event.originalTarget.title + ", persisted=" + event.persisted + "\n");
-  } catch(e) {
+  }catch(e) {
     // Ignore any exception.
   }
   
@@ -293,8 +293,8 @@ function pageEventListener(event) {
   
   if (typeof(expected.persisted) != "undefined") {
     is(event.persisted, expected.persisted, 
-      "The persisted property of the " + event.type + " event on page " +
-      event.originalTarget.location + " had an unexpected value"); 
+      "The persisted property of the " + event.type + "event on page " +
+      event.originalTarget.title + " had an unexpected value"); 
   }
 
   // If we're out of expected events, let doPageNavigation() return.
@@ -321,9 +321,8 @@ function finish() {
   }
 
   // Close the test window and signal the framework that the test is done.
-  let opener = window.opener;
   window.close();
-  opener.wrappedJSObject.SimpleTest.finish();
+  window.opener.wrappedJSObject.SimpleTest.finish();
 }
 
 /**

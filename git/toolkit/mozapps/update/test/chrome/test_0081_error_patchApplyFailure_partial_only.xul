@@ -16,7 +16,7 @@
 <script type="application/javascript"
         src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
 <script type="application/javascript"
-        src="utils.js"/>
+        src="chrome://mochikit/content/chrome/toolkit/mozapps/update/test/chrome/utils.js"/>
 
 <script type="application/javascript">
 <![CDATA[
@@ -33,9 +33,7 @@ function runTest() {
                                     STATE_PENDING);
   let updates = getLocalUpdateString(patches, null, null, null,
                                      Services.appinfo.version,
-                                     Services.appinfo.platformVersion, null,
-                                     null, null, null, null, null, null,
-                                     "false");
+                                     Services.appinfo.platformVersion);
 
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(updates), true);
 

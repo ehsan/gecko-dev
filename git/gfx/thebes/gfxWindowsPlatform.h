@@ -71,7 +71,6 @@ typedef struct FT_LibraryRec_ *FT_Library;
 #endif
 
 #include <windows.h>
-#include <objbase.h>
 
 // Utility to get a Windows HDC from a thebes context,
 // used by both GDI and Uniscribe font shapers
@@ -118,7 +117,7 @@ public:
     virtual gfxPlatformFontList* CreatePlatformFontList();
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                         gfxASurface::gfxContentType contentType);
+                                                         gfxASurface::gfxImageFormat imageFormat);
 
     enum RenderMode {
         /* Use GDI and windows surfaces */
@@ -148,23 +147,6 @@ public:
 
     RenderMode GetRenderMode() { return mRenderMode; }
     void SetRenderMode(RenderMode rmode) { mRenderMode = rmode; }
-
-    /**
-     * Updates render mode with relation to the current preferences and
-     * available devices.
-     */
-    void UpdateRenderMode();
-
-    /**
-     * Verifies a D2D device is present and working, will attempt to create one
-     * it is non-functional or non-existant.
-     *
-     * \param aAttemptForce Attempt to force D2D cairo device creation by using
-     * cairo device creation routines.
-     */
-    void VerifyD2DDevice(PRBool aAttemptForce);
-
-    HDC GetScreenDC() { return mScreenDC; }
 
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
@@ -230,13 +212,7 @@ public:
     virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
 
 #ifdef CAIRO_HAS_DWRITE_FONT
-    IDWriteFactory *GetDWriteFactory() { return mUseDirectWrite ? mDWriteFactory : nsnull; }
-    inline PRBool DWriteEnabled() { return mUseDirectWrite; }
-#else
-    inline PRBool DWriteEnabled() { return PR_FALSE; }
-#endif
-#ifdef CAIRO_HAS_D2D_SURFACE
-    cairo_device_t *GetD2DDevice() { return mD2DDevice; }
+    IDWriteFactory *GetDWriteFactory() { return mDWriteFactory; }
 #endif
 
 #ifdef MOZ_FT2_FONTS
@@ -244,22 +220,18 @@ public:
 #endif
 
 protected:
+    void InitDisplayCaps();
+
     RenderMode mRenderMode;
 
     PRBool mUseClearTypeForDownloadableFonts;
     PRBool mUseClearTypeAlways;
-    HDC mScreenDC;
 
 private:
     void Init();
 
-    PRBool mUseDirectWrite;
-
 #ifdef CAIRO_HAS_DWRITE_FONT
     nsRefPtr<IDWriteFactory> mDWriteFactory;
-#endif
-#ifdef CAIRO_HAS_D2D_SURFACE
-    cairo_device_t *mD2DDevice;
 #endif
 
     virtual qcms_profile* GetPlatformCMSOutputProfile();

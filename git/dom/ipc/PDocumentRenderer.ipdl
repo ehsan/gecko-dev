@@ -35,14 +35,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-include protocol PBrowser;
+include protocol PIFrameEmbedding;
 
 namespace mozilla {
 namespace ipc {
 
 protocol PDocumentRenderer
 {
-  manager PBrowser;
+  manager PIFrameEmbedding;
 
 parent:
     // Returns the width and height, in pixels, of the returned ARGB32 data.

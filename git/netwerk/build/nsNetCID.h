@@ -403,18 +403,6 @@
     {0x8c, 0xda, 0x00, 0x60, 0xb0, 0xfc, 0x14, 0xa3} \
 }
 
-#define NS_PARTIALLOCALFILEINPUTSTREAM_CLASSNAME \
-    "nsPartialFileInputStream"
-#define NS_PARTIALLOCALFILEINPUTSTREAM_CONTRACTID \
-    "@mozilla.org/network/partial-file-input-stream;1"
-#define NS_PARTIALLOCALFILEINPUTSTREAM_CID           \
-{ /* 8738afd6-162a-418d-a99b-75b3a6b10a56 */         \
-    0x8738afd6,                                      \
-    0x162a,                                          \
-    0x418d,                                          \
-    {0xa9, 0x9b, 0x75, 0xb3, 0xa6, 0xb1, 0x0a, 0x56} \
-}
-
 #define NS_BUFFEREDINPUTSTREAM_CLASSNAME \
     "nsBufferedInputStream"
 #define NS_BUFFEREDINPUTSTREAM_CONTRACTID \
@@ -657,19 +645,6 @@
     0x6183,                                          \
     0x11d3,                                          \
     {0xa1, 0x78, 0x00, 0x50, 0x04, 0x1c, 0xaf, 0x44} \
-}
-
-/******************************************************************************
- * netwerk/protocol/device classes
- */
-#define NS_DEVICEPROTOCOLHANDLER_CLASSNAME \
-    "nsDeviceProtocolHandler"
-#define NS_DEVICEPROTOCOLHANDLER_CID                 \
-{ /* 6b0ffe9e-d114-486b-aeb7-da62e7273ed5 */         \
-    0x60ffe9e,                                       \
-    0xd114,                                          \
-    0x486b,                                          \
-    {0xae, 0xb7, 0xda, 0x62, 0xe7, 0x27, 0x3e, 0xd5} \
 }
 
 /******************************************************************************

@@ -367,8 +367,6 @@ var stringBundle;
     var contentDiv = document.getElementById("experiment-specific-text");
     var dataPrivacyDiv = document.getElementById("data-privacy-text");
     // Get experimentID from the GET args of page
-    // TODO no reason actually to do parseInt here -- all it accomplishes
-    // is preventing us from using non-numeric study IDs.
     var eid = parseInt(getUrlParam("eid"));
     var experiment = TestPilotSetup.getTaskById(eid);
     if (!experiment) {
@@ -379,22 +377,8 @@ var stringBundle;
       window.setTimeout(function() { loadExperimentPage(); }, 2000);
       return;
     }
-
-    // Let the experiment fill in its web content (asynchronous)
     experiment.getWebContent(function(webContent) {
       contentDiv.innerHTML = webContent;
-
-      // Metadata and start/end date should be filled in for every experiment:
-      showMetaData();
-      getTestEndingDate(eid);
-      if (experiment._recursAutomatically &&
-        experiment.status != TaskConstants.STATUS_FINISHED) {
-        showRecurControls(experiment);
-      }
-
-      // Do whatever the experiment's web content wants done on load
-      // (Usually drawing a graph) - must be done after innerHTML is set.
-      experiment.webContent.onPageLoad(experiment, document, jQuery);
     });
 
     experiment.getDataPrivacyContent(function(dataPrivacyContent) {
@@ -403,6 +387,17 @@ var stringBundle;
         dataPrivacyDiv.removeAttribute("hidden");
       }
     });
+
+    // Metadata and start/end date should be filled in for every experiment:
+    showMetaData();
+    getTestEndingDate(eid);
+    if (experiment._recursAutomatically &&
+        experiment.status != TaskConstants.STATUS_FINISHED) {
+      showRecurControls(experiment);
+    }
+
+    // Do whatever the experiment's web content wants done on load:
+    experiment.webContent.onPageLoad(experiment, document, jQuery);
   }
 
   function onStatusPageLoad() {

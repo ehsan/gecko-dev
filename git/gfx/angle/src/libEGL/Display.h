@@ -43,7 +43,7 @@ class Display
     bool getConfigAttrib(EGLConfig config, EGLint attribute, EGLint *value);
 
     egl::Surface *createWindowSurface(HWND window, EGLConfig config);
-    EGLContext createContext(EGLConfig configHandle, const gl::Context *shareContext);
+    EGLContext createContext(EGLConfig configHandle);
 
     void destroySurface(egl::Surface *surface);
     void destroyContext(gl::Context *context);
@@ -54,38 +54,29 @@ class Display
     bool isValidSurface(egl::Surface *surface);
     bool hasExistingWindowSurface(HWND window);
 
-    EGLint getMinSwapInterval();
-    EGLint getMaxSwapInterval();
+    void setSwapInterval(GLint interval);
+    DWORD getPresentInterval();
+    static DWORD convertInterval(GLint interval);
 
     virtual IDirect3DDevice9 *getDevice();
     virtual D3DCAPS9 getDeviceCaps();
-    virtual void getMultiSampleSupport(D3DFORMAT format, bool *multiSampleArray);
-    virtual bool getCompressedTextureSupport();
-    virtual bool getEventQuerySupport();
-    virtual bool getFloatTextureSupport(bool *filtering, bool *renderable);
-    virtual bool getHalfFloatTextureSupport(bool *filtering, bool *renderable);
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Display);
-
-    D3DPRESENT_PARAMETERS getDefaultPresentParameters();
-
     const HDC mDc;
 
-    HMODULE mD3d9Module;
-    
     UINT mAdapter;
     D3DDEVTYPE mDeviceType;
-    IDirect3D9 *mD3d9;  // Always valid after successful initialization.
-    IDirect3D9Ex *mD3d9ex;  // Might be null if D3D9Ex is not supported.
+    IDirect3D9 *mD3d9;
     IDirect3DDevice9 *mDevice;
     D3DCAPS9 mDeviceCaps;
-    HWND mDeviceWindow;
 
     bool mSceneStarted;
+    GLint mSwapInterval;
     EGLint mMaxSwapInterval;
     EGLint mMinSwapInterval;
-    
+    DWORD mPresentInterval;
+
     typedef std::set<Surface*> SurfaceSet;
     SurfaceSet mSurfaceSet;
 
@@ -93,9 +84,6 @@ class Display
 
     typedef std::set<gl::Context*> ContextSet;
     ContextSet mContextSet;
-
-    bool createDevice();
-    bool resetDevice();
 };
 }
 

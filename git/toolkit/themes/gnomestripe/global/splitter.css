@@ -49,6 +49,7 @@ splitter {
   -moz-box-align: center;
   -moz-box-pack: center;
   cursor: ew-resize;
+
 }
 
 splitter[state="collapsed"][collapse="before"],
@@ -79,10 +80,6 @@ splitter[orient="vertical"][state="collapsed"][substate="before"] {
 splitter[orient="vertical"][state="collapsed"][collapse="after"],
 splitter[orient="vertical"][state="collapsed"][substate="after"] {
   cursor: n-resize;
-}
-
-splitter[disabled="true"] {
-  cursor: default !important;
 }
 
 /* ::::: splitter grippy ::::: */

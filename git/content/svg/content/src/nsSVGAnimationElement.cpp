@@ -80,7 +80,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 #pragma warning(push)
 #pragma warning(disable:4355)
 #endif
-nsSVGAnimationElement::nsSVGAnimationElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGAnimationElement::nsSVGAnimationElement(nsINodeInfo *aNodeInfo)
   : nsSVGAnimationElementBase(aNodeInfo),
     mHrefTarget(this),
     mTimedDocumentRoot(nsnull)
@@ -106,14 +106,14 @@ nsSVGAnimationElement::Init()
 //----------------------------------------------------------------------
 // nsISMILAnimationElement methods
 
-const Element&
-nsSVGAnimationElement::AsElement() const
+const nsIContent&
+nsSVGAnimationElement::Content() const
 {
   return *this;
 }
 
-Element&
-nsSVGAnimationElement::AsElement()
+nsIContent&
+nsSVGAnimationElement::Content()
 {
   return *this;
 }
@@ -151,22 +151,18 @@ nsSVGAnimationElement::GetTargetElementContent()
   return nsSVGUtils::GetParentElement(this);
 }
 
-PRBool
-nsSVGAnimationElement::GetTargetAttributeName(PRInt32 *aNamespaceID,
-                                              nsIAtom **aLocalName) const
+nsIAtom*
+nsSVGAnimationElement::GetTargetAttributeName() const
 {
   const nsAttrValue* nameAttr
     = mAttrsAndChildren.GetAttr(nsGkAtoms::attributeName);
 
   if (!nameAttr)
-    return PR_FALSE;
+    return nsnull;
 
   NS_ASSERTION(nameAttr->Type() == nsAttrValue::eAtom,
     "attributeName should have been parsed as an atom");
-
-  return NS_SUCCEEDED(nsContentUtils::SplitQName(
-                        this, nsDependentAtomString(nameAttr->GetAtomValue()),
-                        aNamespaceID, aLocalName));
+  return nameAttr->GetAtomValue();
 }
 
 nsSMILTargetAttrType
@@ -376,30 +372,17 @@ nsSVGAnimationElement::ParseAttribute(PRInt32 aNamespaceID,
     }
   }
 
-  return nsSVGAnimationElementBase::ParseAttribute(aNamespaceID, aAttribute,
-                                                   aValue, aResult);
-}
-
-nsresult
-nsSVGAnimationElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                    const nsAString* aValue, PRBool aNotify)
-{
-  nsresult rv =
-    nsSVGAnimationElementBase::AfterSetAttr(aNamespaceID, aName, aValue,
-                                            aNotify);
-
-  if (aNamespaceID != kNameSpaceID_XLink || aName != nsGkAtoms::href)
-    return rv;
-
-  if (!aValue) {
-    mHrefTarget.Unlink();
-    AnimationTargetChanged();
-  } else if (IsInDoc()) {
-    UpdateHrefTarget(this, *aValue);
-  } // else: we're not yet in a document -- we'll update the target on
-    // next BindToTree call.
-
-  return rv;
+  PRBool returnVal =
+    nsSVGAnimationElementBase::ParseAttribute(aNamespaceID, aAttribute,
+                                              aValue, aResult);
+  if (aNamespaceID == kNameSpaceID_XLink &&
+      aAttribute == nsGkAtoms::href &&
+      IsInDoc()) {
+    // NOTE: If we fail the IsInDoc call, it's ok -- we'll update the target
+    // on next BindToTree call.
+    UpdateHrefTarget(this, aValue);
+  }
+  return returnVal;
 }
 
 nsresult
@@ -414,6 +397,10 @@ nsSVGAnimationElement::UnsetAttr(PRInt32 aNamespaceID,
     if (AnimationFunction().UnsetAttr(aAttribute) ||
         mTimedElement.UnsetAttr(aAttribute)) {
       AnimationNeedsResample();
+    }
+  } else if (aNamespaceID == kNameSpaceID_XLink) {
+    if (aAttribute == nsGkAtoms::href) {
+      mHrefTarget.Unlink();
     }
   }
 
@@ -489,12 +476,6 @@ nsSVGAnimationElement::EndElementAt(float offset)
   return NS_OK;
 }
 
-PRBool
-nsSVGAnimationElement::IsEventName(nsIAtom* aName)
-{
-  return nsContentUtils::IsEventAttributeName(aName, EventNameType_SMIL);
-}
-
 void
 nsSVGAnimationElement::UpdateHrefTarget(nsIContent* aNodeForContext,
                                         const nsAString& aHrefStr)
@@ -504,12 +485,4 @@ nsSVGAnimationElement::UpdateHrefTarget(nsIContent* aNodeForContext,
   nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI),
                                             aHrefStr, GetOwnerDoc(), baseURI);
   mHrefTarget.Reset(aNodeForContext, targetURI);
-  AnimationTargetChanged();
-}
-
-void
-nsSVGAnimationElement::AnimationTargetChanged()
-{
-  mTimedElement.HandleTargetElementChange(GetTargetElementContent());
-  AnimationNeedsResample();
 }

@@ -46,7 +46,7 @@ TestPilotComponent.prototype = {
   classDescription: "Test Pilot Component",
   contractID: "@mozilla.org/testpilot/service;1",
   classID: Components.ID("{e6e5e58f-7977-485a-b076-2f74bee2677b}"),
-  _xpcom_categories: [{ category: "profile-after-change" }],
+  _xpcom_categories: [{ category: "app-startup", service: true }],
   _startupTimer: null,
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
@@ -56,7 +56,7 @@ TestPilotComponent.prototype = {
     let os = Cc["@mozilla.org/observer-service;1"].
         getService(Ci.nsIObserverService);
     switch (topic) {
-    case "profile-after-change":
+    case "app-startup":
       os.addObserver(this, "sessionstore-windows-restored", true);
       break;
     case "sessionstore-windows-restored":
@@ -78,9 +78,7 @@ TestPilotComponent.prototype = {
   }
 };
 
-const components = [TestPilotComponent];
-var NSGetFactory, NSGetModule;
-if (XPCOMUtils.generateNSGetFactory)
-  NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
-else
-  NSGetModule = XPCOMUtils.generateNSGetModule(components);
+function NSGetModule(compMgr, fileSpec) {
+  return XPCOMUtils.generateModule([TestPilotComponent]);
+}
+

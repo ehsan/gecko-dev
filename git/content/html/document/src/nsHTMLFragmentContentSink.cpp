@@ -68,14 +68,14 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsCSSParser.h"
 #include "nsCSSProperty.h"
-#include "mozilla/css/Declaration.h"
+#include "nsCSSDeclaration.h"
 #include "nsICSSStyleRule.h"
 #include "nsUnicharInputStream.h"
 #include "nsCSSStyleSheet.h"
 #include "nsICSSRuleList.h"
+#include "nsCSSDeclaration.h"
+#include "nsCSSProperty.h"
 #include "nsIDOMCSSRule.h"
-
-namespace css = mozilla::css;
 
 //
 // XXX THIS IS TEMPORARY CODE
@@ -390,7 +390,7 @@ nsHTMLFragmentContentSink::OpenContainer(const nsIParserNode& aNode)
       NS_ADDREF(mNodeInfoCache[nodeType] = nodeInfo);
     }
 
-    content = CreateHTMLElement(nodeType, nodeInfo.forget(), PR_FALSE).get();
+    content = CreateHTMLElement(nodeType, nodeInfo, PR_FALSE).get();
     NS_ENSURE_TRUE(content, NS_ERROR_OUT_OF_MEMORY);
 
     result = AddAttributes(aNode, content);
@@ -477,7 +477,7 @@ nsHTMLFragmentContentSink::AddLeaf(const nsIParserNode& aNode)
           NS_ADDREF(mNodeInfoCache[nodeType] = nodeInfo);
         }
 
-        content = CreateHTMLElement(nodeType, nodeInfo.forget(), PR_FALSE);
+        content = CreateHTMLElement(nodeType, nodeInfo, PR_FALSE);
         NS_ENSURE_TRUE(content, NS_ERROR_OUT_OF_MEMORY);
 
         result = AddAttributes(aNode, content);
@@ -992,13 +992,12 @@ nsHTMLParanoidFragmentSink::AddAttributes(const nsIParserNode& aNode,
     nsContentUtils::ASCIIToLower(aNode.GetKeyAt(i), k);
     nsCOMPtr<nsIAtom> keyAtom = do_GetAtom(k);
 
-    // Check if this is an allowed attribute, or a style attribute in case
-    // we've been asked to allow style attributes, or an HTML5 data-*
-    // attribute.
-    if ((!sAllowedAttributes || !sAllowedAttributes->GetEntry(keyAtom)) &&
-        (!mProcessStyle || keyAtom != nsGkAtoms::style) &&
-        !StringBeginsWith(k, NS_LITERAL_STRING("data-"))) {
-      continue;
+    // not an allowed attribute
+    if (!sAllowedAttributes || !sAllowedAttributes->GetEntry(keyAtom)) {
+      // unless it's style, and we're allowing it
+      if (!mProcessStyle || keyAtom != nsGkAtoms::style) {
+        continue;
+      }
     }
 
     // Get value and remove mandatory quotes
@@ -1101,10 +1100,6 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
 {
   nsresult rv = NS_OK;
 
-  if (mIgnoreNextCloseHead && aTag == eHTMLTag_head) {
-    mIgnoreNextCloseHead = PR_FALSE;
-    return NS_OK;
-  }
   if (mSkip) {
     mSkip = PR_FALSE;
     return rv;
@@ -1169,7 +1164,11 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
               if (NS_FAILED(rv))
                 continue;
               NS_ASSERTION(rule, "We should have a rule by now");
-              switch (rule->GetType()) {
+              PRInt32 type;
+              rv = rule->GetType(type);
+              if (NS_FAILED(rv))
+                continue;
+              switch (type) {
                 case nsICSSRule::UNKNOWN_RULE:
                 case nsICSSRule::CHARSET_RULE:
                 case nsICSSRule::IMPORT_RULE:
@@ -1220,10 +1219,12 @@ void
 nsHTMLParanoidFragmentSink::SanitizeStyleRule(nsICSSStyleRule *aRule, nsAutoString &aRuleText)
 {
   aRuleText.Truncate();
-  css::Declaration *style = aRule->GetDeclaration();
+  nsCSSDeclaration *style = aRule->GetDeclaration();
   if (style) {
-    style->RemoveProperty(eCSSProperty_binding);
-    style->ToString(aRuleText);
+    nsresult rv = style->RemoveProperty(eCSSProperty_binding);
+    if (NS_SUCCEEDED(rv)) {
+      style->ToString(aRuleText);
+    }
   }
 }
 
@@ -1234,10 +1235,7 @@ nsHTMLParanoidFragmentSink::AddLeaf(const nsIParserNode& aNode)
   
   nsresult rv = NS_OK;
 
-  // We need to explicitly skip adding leaf nodes in the paranoid sink,
-  // otherwise things like the textnode under <title> get appended to
-  // the fragment itself, and won't be popped off in CloseContainer.
-  if (mSkip || mIgnoreNextCloseHead) {
+  if (mSkip) {
     return rv;
   }
   

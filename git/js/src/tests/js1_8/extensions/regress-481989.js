@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-481989.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 481989;
 var summary = 'TM: Do not assert: SPROP_HAS_STUB_SETTER(sprop)';

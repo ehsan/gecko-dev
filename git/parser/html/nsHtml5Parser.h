@@ -217,13 +217,13 @@ class nsHtml5Parser : public nsIParser,
      * Invoke the fragment parsing algorithm (innerHTML).
      *
      * @param aSourceBuffer the string being set as innerHTML
-     * @param aTargetNode the target container
+     * @param aTargetNode the target container (must QI to nsIContent)
      * @param aContextLocalName local name of context node
      * @param aContextNamespace namespace of context node
      * @param aQuirks true to make <table> not close <p>
      */
     NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
-                             nsIContent* aTargetNode,
+                             nsISupports* aTargetNode,
                              nsIAtom* aContextLocalName,
                              PRInt32 aContextNamespace,
                              PRBool aQuirks);

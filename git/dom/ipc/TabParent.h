@@ -39,7 +39,7 @@
 #ifndef mozilla_tabs_TabParent_h
 #define mozilla_tabs_TabParent_h
 
-#include "mozilla/dom/PBrowserParent.h"
+#include "mozilla/dom/PIFrameEmbeddingParent.h"
 #include "mozilla/dom/PContentDialogParent.h"
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 
@@ -47,66 +47,82 @@
 #include "nsCOMPtr.h"
 #include "nsITabParent.h"
 #include "nsIBrowserDOMWindow.h"
+#include "nsIWebProgress.h"
+#include "nsIWebProgressListener.h"
 #include "nsWeakReference.h"
 #include "nsIDialogParamBlock.h"
 #include "nsIAuthPromptProvider.h"
-#include "nsISSLStatusProvider.h"
-#include "nsISecureBrowserUI.h"
 
-class nsFrameLoader;
 class nsIURI;
 class nsIDOMElement;
-struct gfxMatrix;
+class gfxMatrix;
 
 struct JSContext;
 struct JSObject;
 
 namespace mozilla {
 namespace dom {
+struct TabParentListenerInfo 
+{
+  TabParentListenerInfo(nsIWeakReference *aListener, unsigned long aNotifyMask)
+    : mWeakListener(aListener), mNotifyMask(aNotifyMask)
+  {
+  }
+
+  TabParentListenerInfo(const TabParentListenerInfo& obj)
+    : mWeakListener(obj.mWeakListener), mNotifyMask(obj.mNotifyMask) 
+  {
+  }
+
+  nsWeakPtr mWeakListener;
+
+  PRUint32 mNotifyMask;
+};
+
+inline    
+bool operator==(const TabParentListenerInfo& lhs, const TabParentListenerInfo& rhs)
+{
+  return &lhs == &rhs;
+}
 
 class ContentDialogParent : public PContentDialogParent {};
 
-class TabParent : public PBrowserParent 
+class TabParent : public PIFrameEmbeddingParent 
                 , public nsITabParent 
+                , public nsIWebProgress
                 , public nsIAuthPromptProvider
-                , public nsISecureBrowserUI
-                , public nsISSLStatusProvider
 {
 public:
     TabParent();
     virtual ~TabParent();
-    nsIDOMElement* GetOwnerElement() { return mFrameElement; }
     void SetOwnerElement(nsIDOMElement* aElement) { mFrameElement = aElement; }
-    nsIBrowserDOMWindow *GetBrowserDOMWindow() { return mBrowserDOMWindow; }
     void SetBrowserDOMWindow(nsIBrowserDOMWindow* aBrowserDOMWindow) {
         mBrowserDOMWindow = aBrowserDOMWindow;
     }
- 
-    virtual bool RecvMoveFocus(const bool& aForward);
-    virtual bool RecvEvent(const RemoteDOMEvent& aEvent);
 
-    virtual bool AnswerCreateWindow(PBrowserParent** retval);
-    virtual bool RecvSyncMessage(const nsString& aMessage,
-                                 const nsString& aJSON,
-                                 nsTArray<nsString>* aJSONRetVal);
-    virtual bool RecvAsyncMessage(const nsString& aMessage,
-                                  const nsString& aJSON);
-    virtual bool RecvNotifyIMEFocus(const PRBool& aFocus,
-                                    nsIMEUpdatePreference* aPreference,
-                                    PRUint32* aSeqno);
-    virtual bool RecvNotifyIMETextChange(const PRUint32& aStart,
-                                         const PRUint32& aEnd,
-                                         const PRUint32& aNewEnd);
-    virtual bool RecvNotifyIMESelection(const PRUint32& aSeqno,
-                                        const PRUint32& aAnchor,
-                                        const PRUint32& aFocus);
-    virtual bool RecvNotifyIMETextHint(const nsString& aText);
-    virtual bool RecvEndIMEComposition(const PRBool& aCancel,
-                                       nsString* aComposition);
-    virtual bool RecvGetIMEEnabled(PRUint32* aValue);
-    virtual bool RecvSetIMEEnabled(const PRUint32& aValue);
-    virtual bool RecvGetIMEOpenState(PRBool* aValue);
-    virtual bool RecvSetIMEOpenState(const PRBool& aValue);
+    virtual bool RecvmoveFocus(const bool& aForward);
+    virtual bool RecvsendEvent(const RemoteDOMEvent& aEvent);
+    virtual bool RecvnotifyProgressChange(const PRInt64& aProgress,
+                                          const PRInt64& aProgressMax,
+                                          const PRInt64& aTotalProgress,
+                                          const PRInt64& aMaxTotalProgress);
+    virtual bool RecvnotifyStateChange(const PRUint32& aStateFlags,
+                                       const nsresult& aStatus);
+    virtual bool RecvnotifyLocationChange(const nsCString& aUri);
+    virtual bool RecvnotifyStatusChange(const nsresult& status,
+                                        const nsString& message);
+    virtual bool RecvnotifySecurityChange(const PRUint32& aState);
+    virtual bool RecvrefreshAttempted(const nsCString& aURI,
+                                      const PRInt32& aMillis,
+                                      const bool& aSameURI,
+                                      bool* aAllowRefresh);
+
+    virtual bool AnswercreateWindow(PIFrameEmbeddingParent** retval);
+    virtual bool RecvsendSyncMessageToParent(const nsString& aMessage,
+                                             const nsString& aJSON,
+                                             nsTArray<nsString>* aJSONRetVal);
+    virtual bool RecvsendAsyncMessageToParent(const nsString& aMessage,
+                                              const nsString& aJSON);
     virtual PContentDialogParent* AllocPContentDialog(const PRUint32& aType,
                                                       const nsCString& aName,
                                                       const nsCString& aFeatures,
@@ -119,11 +135,7 @@ public:
     }
 
     void LoadURL(nsIURI* aURI);
-    // XXX/cjones: it's not clear what we gain by hiding these
-    // message-sending functions under a layer of indirection and
-    // eating the return values
-    void Show(const nsIntSize& size);
-    void Move(const nsIntSize& size);
+    void Move(PRUint32 x, PRUint32 y, PRUint32 width, PRUint32 height);
     void Activate();
     void SendMouseEvent(const nsAString& aType, float aX, float aY,
                         PRInt32 aButton, PRInt32 aClickCount,
@@ -167,33 +179,30 @@ public:
     virtual bool DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDParent* actor);
 
 
-    virtual PContentPermissionRequestParent* AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI& uri);
-    virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor);
+    virtual PGeolocationRequestParent* AllocPGeolocationRequest(const IPC::URI& uri);
+    virtual bool DeallocPGeolocationRequest(PGeolocationRequestParent* actor);
 
     JSBool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
 
     NS_DECL_ISUPPORTS
+    NS_DECL_NSIWEBPROGRESS
     NS_DECL_NSIAUTHPROMPTPROVIDER
-    NS_DECL_NSISECUREBROWSERUI
-    NS_DECL_NSISSLSTATUSPROVIDER
 
     void HandleDelayedDialogs();
-
-    static TabParent *GetIMETabParent() { return mIMETabParent; }
-    bool HandleQueryContentEvent(nsQueryContentEvent& aEvent);
-    bool SendCompositionEvent(nsCompositionEvent& event);
-    bool SendTextEvent(nsTextEvent& event);
-    bool SendSelectionEvent(nsSelectionEvent& event);
 protected:
     bool ReceiveMessage(const nsString& aMessage,
                         PRBool aSync,
                         const nsString& aJSON,
                         nsTArray<nsString>* aJSONRetVal = nsnull);
 
+    TabParentListenerInfo* GetListenerInfo(nsIWebProgressListener *aListener);
+
     void ActorDestroy(ActorDestroyReason why);
 
     nsIDOMElement* mFrameElement;
     nsCOMPtr<nsIBrowserDOMWindow> mBrowserDOMWindow;
+
+    nsTArray<TabParentListenerInfo> mListenerInfoList;
 
     struct DelayedDialogData
     {
@@ -213,32 +222,6 @@ protected:
     nsTArray<DelayedDialogData*> mDelayedDialogs;
 
     PRBool ShouldDelayDialogs();
-
-    NS_OVERRIDE
-    virtual PRenderFrameParent* AllocPRenderFrame();
-    NS_OVERRIDE
-    virtual bool DeallocPRenderFrame(PRenderFrameParent* aFrame);
-
-    PRUint32 mSecurityState;
-    nsString mSecurityTooltipText;
-    nsCOMPtr<nsISupports> mSecurityStatusObject;
-
-    // IME
-    static TabParent *mIMETabParent;
-    nsString mIMECacheText;
-    PRUint32 mIMESelectionAnchor;
-    PRUint32 mIMESelectionFocus;
-    PRPackedBool mIMEComposing;
-    PRPackedBool mIMECompositionEnding;
-    // Buffer to store composition text during ResetInputState
-    // Compositions in almost all cases are small enough for nsAutoString
-    nsAutoString mIMECompositionText;
-    PRUint32 mIMECompositionStart;
-    PRUint32 mIMESeqno;
-
-private:
-    already_AddRefed<nsFrameLoader> GetFrameLoader() const;
-    already_AddRefed<nsIWidget> GetWidget() const;
 };
 
 } // namespace dom

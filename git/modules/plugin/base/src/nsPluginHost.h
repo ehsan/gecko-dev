@@ -139,6 +139,9 @@ public:
   AddHeadersToChannel(const char *aHeadersData, PRUint32 aHeadersDataLen, 
                       nsIChannel *aGenericChannel);
 
+  nsresult
+  AddUnusedLibrary(PRLibrary * aLibrary);
+
   static nsresult GetPluginTempDir(nsIFile **aDir);
 
   // Writes updated plugins settings to disk and unloads the plugin
@@ -162,17 +165,19 @@ public:
                      const nsAString& browserDumpID);
 #endif
 
-  nsNPAPIPluginInstance *FindInstance(const char *mimetype);
-  nsNPAPIPluginInstance *FindStoppedInstance(const char * url);
-  nsNPAPIPluginInstance *FindOldestStoppedInstance();
-  PRUint32 StoppedInstanceCount();
+  nsPluginInstanceTag *FindInstanceTag(nsIPluginInstance *instance);
+  nsPluginInstanceTag *FindInstanceTag(const char *mimetype);
+  nsPluginInstanceTag *FindStoppedInstanceTag(const char * url);
+  nsPluginInstanceTag *FindOldestStoppedInstanceTag();
+  PRUint32 StoppedInstanceTagCount();
 
-  nsTArray< nsRefPtr<nsNPAPIPluginInstance> > *InstanceArray();
+  void StopRunningInstances(nsISupportsArray* aReloadDocs, nsPluginTag* aPluginTag);
 
-  void DestroyRunningInstances(nsISupportsArray* aReloadDocs, nsPluginTag* aPluginTag);
+  nsTArray< nsAutoPtr<nsPluginInstanceTag> > *InstanceTagArray();
 
   // Return the tag for |aLibrary| if found, nsnull if not.
-  nsPluginTag* FindTagForLibrary(PRLibrary* aLibrary);
+  nsPluginTag*
+  FindTagForLibrary(PRLibrary* aLibrary);
 
 private:
   nsresult
@@ -187,9 +192,7 @@ private:
   NewEmbeddedPluginStream(nsIURI* aURL, nsIPluginInstanceOwner *aOwner, nsNPAPIPluginInstance* aInstance);
 
   nsresult
-  NewFullPagePluginStream(nsIURI* aURI,
-                          nsNPAPIPluginInstance *aInstance,
-                          nsIStreamListener **aStreamListener);
+  NewFullPagePluginStream(nsIStreamListener *&aStreamListener, nsIURI* aURI, nsNPAPIPluginInstance *aInstance);
 
   // Return an nsPluginTag for this type, if any.  If aCheckEnabled is
   // true, only enabled plugins will be returned.
@@ -199,11 +202,17 @@ private:
   nsPluginTag*
   FindPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
 
-  // Does not accept NULL and should never fail.
-  nsPluginTag* TagForPlugin(nsNPAPIPlugin* aPlugin);
+  // Return the tag for |aPlugin| if found, nsnull if not.
+  nsPluginTag*
+  FindTagForPlugin(nsIPlugin* aPlugin);
 
   nsresult
   FindStoppedPluginForURL(nsIURI* aURL, nsIPluginInstanceOwner *aOwner);
+
+  nsresult
+  AddInstanceToActiveList(nsCOMPtr<nsIPlugin> aPlugin,
+                          nsIPluginInstance* aInstance,
+                          nsIURI* aURL);
 
   nsresult
   FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsChanged);
@@ -244,6 +253,9 @@ private:
 
   nsresult EnsurePrivateDirServiceProvider();
 
+  // calls PostPluginUnloadEvent for each library in mUnusedLibraries
+  void UnloadUnusedLibraries();
+
   void OnPluginInstanceDestroyed(nsPluginTag* aPluginTag);
 
   nsRefPtr<nsPluginTag> mPlugins;
@@ -258,9 +270,9 @@ private:
   // set by pref plugin.disable
   PRPackedBool mPluginsDisabled;
 
-  // Any instances in this array will have valid plugin objects via GetPlugin().
-  // When removing an instance it might not die - be sure to null out it's plugin.
-  nsTArray< nsRefPtr<nsNPAPIPluginInstance> > mInstances;
+  nsTArray< nsAutoPtr<nsPluginInstanceTag> > mInstanceTags;
+
+  nsTArray<PRLibrary*> mUnusedLibraries;
 
   nsCOMPtr<nsIFile> mPluginRegFile;
   nsCOMPtr<nsIPrefBranch> mPrefService;

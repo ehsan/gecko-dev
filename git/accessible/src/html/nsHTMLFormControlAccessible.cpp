@@ -44,9 +44,11 @@
 #include "nsTextEquivUtils.h"
 
 #include "nsIDOMDocument.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMNSEditableElement.h"
+#include "nsIDOMNSHTMLButtonElement.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMHTMLLegendElement.h"
 #include "nsIDOMHTMLTextAreaElement.h"
@@ -69,10 +71,11 @@ nsHTMLCheckboxAccessible::
 {
 }
 
-PRUint32
-nsHTMLCheckboxAccessible::NativeRole()
+nsresult
+nsHTMLCheckboxAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_CHECKBUTTON;
+  *aRole = nsIAccessibleRole::ROLE_CHECKBUTTON;
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsHTMLCheckboxAccessible::GetNumActions(PRUint8 *_retval)
@@ -120,23 +123,30 @@ nsHTMLCheckboxAccessible::GetStateInternal(PRUint32 *aState,
 
   *aState |= nsIAccessibleStates::STATE_CHECKABLE;
 
-  PRBool state = PR_FALSE;   // Radio buttons and check boxes can be checked or mixed
+  PRBool checked = PR_FALSE;   // Radio buttons and check boxes can be checked
+  PRBool mixed = PR_FALSE;     // or mixed.
 
-  nsCOMPtr<nsIDOMHTMLInputElement> htmlCheckboxElement =
+  nsCOMPtr<nsIDOMNSHTMLInputElement> html5CheckboxElement =
     do_QueryInterface(mContent);
            
-  if (htmlCheckboxElement) {
-    htmlCheckboxElement->GetIndeterminate(&state);
+  if (html5CheckboxElement) {
+    html5CheckboxElement->GetIndeterminate(&mixed);
 
-    if (state) {
+    if (mixed) {
       *aState |= nsIAccessibleStates::STATE_MIXED;
-    } else {   // indeterminate can't be checked at the same time.
-      htmlCheckboxElement->GetChecked(&state);
-    
-      if (state)
-        *aState |= nsIAccessibleStates::STATE_CHECKED;
+      return NS_OK;  // indeterminate can't be checked at the same time.
     }
   }
+  
+  nsCOMPtr<nsIDOMHTMLInputElement> htmlCheckboxElement =
+    do_QueryInterface(mContent);
+  if (htmlCheckboxElement) {
+    htmlCheckboxElement->GetChecked(&checked);
+  
+    if (checked)
+      *aState |= nsIAccessibleStates::STATE_CHECKED;
+  }
+
   return NS_OK;
 }
 
@@ -281,10 +291,11 @@ nsHTMLButtonAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-PRUint32
-nsHTMLButtonAccessible::NativeRole()
+nsresult
+nsHTMLButtonAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_PUSHBUTTON;
+  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
+  return NS_OK;
 }
 
 nsresult
@@ -357,10 +368,11 @@ nsHTML4ButtonAccessible::DoAction(PRUint8 aIndex)
   return NS_OK;
 }
 
-PRUint32
-nsHTML4ButtonAccessible::NativeRole()
+nsresult
+nsHTML4ButtonAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_PUSHBUTTON;
+  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
+  return NS_OK;
 }
 
 nsresult
@@ -393,14 +405,16 @@ nsHTMLTextFieldAccessible::
 
 NS_IMPL_ISUPPORTS_INHERITED3(nsHTMLTextFieldAccessible, nsAccessible, nsHyperTextAccessible, nsIAccessibleText, nsIAccessibleEditableText)
 
-PRUint32
-nsHTMLTextFieldAccessible::NativeRole()
+nsresult
+nsHTMLTextFieldAccessible::GetRoleInternal(PRUint32 *aRole)
 {
+  *aRole = nsIAccessibleRole::ROLE_ENTRY;
+
   if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
                             nsAccessibilityAtoms::password, eIgnoreCase)) {
-    return nsIAccessibleRole::ROLE_PASSWORD_TEXT;
+    *aRole = nsIAccessibleRole::ROLE_PASSWORD_TEXT;
   }
-  return nsIAccessibleRole::ROLE_ENTRY;
+  return NS_OK;
 }
 
 nsresult
@@ -460,8 +474,7 @@ nsHTMLTextFieldAccessible::GetStateInternal(PRUint32 *aState,
     *aState |= nsIAccessibleStates::STATE_PROTECTED;
   }
   else {
-    nsAccessible* parent = GetParent();
-    if (parent && parent->Role() == nsIAccessibleRole::ROLE_AUTOCOMPLETE)
+    if (nsAccUtils::Role(GetParent()) == nsIAccessibleRole::ROLE_AUTOCOMPLETE)
       *aState |= nsIAccessibleStates::STATE_HASPOPUP;
   }
 
@@ -584,10 +597,11 @@ nsHTMLGroupboxAccessible::
 {
 }
 
-PRUint32
-nsHTMLGroupboxAccessible::NativeRole()
+nsresult
+nsHTMLGroupboxAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_GROUPING;
+  *aRole = nsIAccessibleRole::ROLE_GROUPING;
+  return NS_OK;
 }
 
 nsIContent* nsHTMLGroupboxAccessible::GetLegend()
@@ -663,7 +677,7 @@ nsHTMLLegendAccessible::GetRelationByType(PRUint32 aRelationType,
     // Look for groupbox parent
     nsAccessible* groupbox = GetParent();
 
-    if (groupbox && groupbox->Role() == nsIAccessibleRole::ROLE_GROUPING) {
+    if (nsAccUtils::Role(groupbox) == nsIAccessibleRole::ROLE_GROUPING) {
       // XXX: if group box exposes more than one relation of the given type
       // then we fail.
       nsCOMPtr<nsIAccessible> testLabelAccessible =
@@ -682,8 +696,9 @@ nsHTMLLegendAccessible::GetRelationByType(PRUint32 aRelationType,
   return NS_OK;
 }
 
-PRUint32
-nsHTMLLegendAccessible::NativeRole()
+nsresult
+nsHTMLLegendAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_LABEL;
+  *aRole = nsIAccessibleRole::ROLE_LABEL;
+  return NS_OK;
 }
