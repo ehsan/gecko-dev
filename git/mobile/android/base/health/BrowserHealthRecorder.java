@@ -564,7 +564,7 @@ public class BrowserHealthRecorder implements GeckoEventListener {
                                  PREF_BLOCKLIST_ENABLED
                              },
                              handler);
-        Log.d(LOG_TAG, "Requested prefs.");
+        Log.d(LOG_TAG, "Done initializing profile cache. Beginning storage init.");
     }
 
     @Override
@@ -574,7 +574,7 @@ public class BrowserHealthRecorder implements GeckoEventListener {
                 Log.d(LOG_TAG, "Got all add-ons.");
                 try {
                     JSONObject addons = message.getJSONObject("json");
-                    Log.i(LOG_TAG, "Persisting " + addons.length() + " add-ons.");
+                    Log.d(LOG_TAG, "Persisting " + addons.length() + " add-ons.");
                     profileCache.setJSONForAddons(addons);
                     profileCache.completeInitialization();
                 } catch (java.io.IOException e) {
@@ -777,17 +777,9 @@ public class BrowserHealthRecorder implements GeckoEventListener {
         final int day = storage.getDay();
         final int env = this.env;
         final String key = getEngineKey(engine);
-        final BrowserHealthRecorder self = this;
-
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                final HealthReportDatabaseStorage storage = self.storage;
-                if (storage == null) {
-                    Log.d(LOG_TAG, "No storage: not recording search. Shutting down?");
-                    return;
-                }
-
                 Log.d(LOG_TAG, "Recording search: " + key + ", " + location +
                                " (" + day + ", " + env + ").");
                 final int searchField = storage.getField(MEASUREMENT_NAME_SEARCH_COUNTS,

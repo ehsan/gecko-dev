@@ -2884,8 +2884,7 @@ int NS_main(int argc, NS_tchar **argv)
     NS_tchar callbackLongPath[MAXPATHLEN];
     ZeroMemory(callbackLongPath, sizeof(callbackLongPath));
     NS_tchar *targetPath = argv[callbackIndex];
-    NS_tchar buffer[MAXPATHLEN * 2] = { NS_T('\0') };
-    size_t bufferLeft = MAXPATHLEN * 2;
+    NS_tchar buffer[MAXPATHLEN*2];
     if (sReplaceRequest) {
       // In case of replace requests, we should look for the callback file in
       // the destination directory.
@@ -2893,21 +2892,16 @@ int NS_main(int argc, NS_tchar **argv)
       NS_tchar *p = buffer;
       NS_tstrncpy(p, argv[callbackIndex], commonPrefixLength);
       p += commonPrefixLength;
-      bufferLeft -= commonPrefixLength;
-      NS_tstrncpy(p, gDestinationPath + commonPrefixLength, bufferLeft);
-
-      size_t len = NS_tstrlen(gDestinationPath + commonPrefixLength);
-      p += len;
-      bufferLeft -= len;
+      NS_tstrcpy(p, gDestinationPath + commonPrefixLength);
+      p += NS_tstrlen(gDestinationPath + commonPrefixLength);
       *p = NS_T('\\');
       ++p;
-      bufferLeft--;
       *p = NS_T('\0');
       NS_tchar installDir[MAXPATHLEN];
       if (!GetInstallationDir(installDir))
         return 1;
       size_t callbackPrefixLength = PathCommonPrefixW(argv[callbackIndex], installDir, NULL);
-      NS_tstrncpy(p, argv[callbackIndex] + max(callbackPrefixLength, commonPrefixLength), bufferLeft);
+      NS_tstrcpy(p, argv[callbackIndex] + max(callbackPrefixLength, commonPrefixLength));
       targetPath = buffer;
     }
     if (!GetLongPathNameW(targetPath, callbackLongPath,
