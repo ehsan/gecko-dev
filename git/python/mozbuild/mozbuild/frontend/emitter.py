@@ -16,7 +16,6 @@ from .data import (
     DirectoryTraversal,
     Exports,
     IPDLFile,
-    LocalInclude,
     Program,
     ReaderSummary,
     VariablePassthru,
@@ -167,9 +166,6 @@ class TreeMetadataEmitter(LoggingMixin):
 
         for ipdl in sandbox.get('IPDL_SOURCES', []):
             yield IPDLFile(sandbox, ipdl)
-
-        for local_include in sandbox.get('LOCAL_INCLUDES', []):
-            yield LocalInclude(sandbox, local_include)
 
     def _emit_directory_traversal_from_sandbox(self, sandbox):
         o = DirectoryTraversal(sandbox)

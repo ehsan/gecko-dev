@@ -13,9 +13,12 @@
 #include "nsITextControlElement.h"
 #include "nsIPhonetic.h"
 #include "nsIDOMNSEditableElement.h"
+#include "nsTextEditorState.h"
 #include "nsCOMPtr.h"
 #include "nsIConstraintValidation.h"
-#include "mozilla/dom/HTMLFormElement.h" // for HasEverTriedInvalidSubmit()
+#include "nsDOMFile.h"
+#include "mozilla/dom/HTMLFormElement.h" // for ShouldShowInvalidUI()
+#include "nsIFile.h"
 #include "nsIFilePicker.h"
 #include "nsIContentPrefService2.h"
 #include "mozilla/Decimal.h"
@@ -24,7 +27,6 @@ class nsDOMFileList;
 class nsIRadioGroupContainer;
 class nsIRadioGroupVisitor;
 class nsIRadioVisitor;
-class nsTextEditorState;
 
 namespace mozilla {
 namespace dom {
@@ -732,7 +734,10 @@ protected:
    */
   bool IsValueEmpty() const;
 
-  void ClearFiles(bool aSetValueChanged);
+  void ClearFiles(bool aSetValueChanged) {
+    nsTArray<nsCOMPtr<nsIDOMFile> > files;
+    SetFiles(files, aSetValueChanged);
+  }
 
   void SetIndeterminateInternal(bool aValue,
                                 bool aShouldInvalidate);

@@ -147,8 +147,6 @@
           <menuseparator id="appmenu_devtools_separator"/>
           <menuitem id="appmenu_devToolbar"
                     observes="devtoolsMenuBroadcaster_DevToolbar"/>
-          <menuitem id="appmenu_devAppMgr"
-                    observes="devtoolsMenuBroadcaster_DevAppMgr"/>
           <menuitem id="appmenu_chromeDebugger"
                     observes="devtoolsMenuBroadcaster_ChromeDebugger"/>
           <menuitem id="appmenu_browserConsole"

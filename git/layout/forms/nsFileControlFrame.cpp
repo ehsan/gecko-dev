@@ -17,7 +17,6 @@
 #include "nsEventStates.h"
 #include "nsIDOMDOMStringList.h"
 #include "nsIDOMDragEvent.h"
-#include "nsIDOMFileList.h"
 #include "nsContentList.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsTextNode.h"
