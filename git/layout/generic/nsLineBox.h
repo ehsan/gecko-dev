@@ -447,44 +447,26 @@ public:
   // layout (except for handling of 'overflow').
   void SetOverflowAreas(const nsOverflowAreas& aOverflowAreas);
   nsRect GetOverflowArea(nsOverflowType aType) {
-    return mData ? mData->mOverflowAreas.Overflow(aType) : GetPhysicalBounds();
+    return mData ? mData->mOverflowAreas.Overflow(aType) : mBounds;
   }
   nsOverflowAreas GetOverflowAreas() {
     if (mData) {
       return mData->mOverflowAreas;
     }
-    nsRect bounds = GetPhysicalBounds();
-    return nsOverflowAreas(bounds, bounds);
+    return nsOverflowAreas(mBounds, mBounds);
   }
   nsRect GetVisualOverflowArea()
     { return GetOverflowArea(eVisualOverflow); }
   nsRect GetScrollableOverflowArea()
     { return GetOverflowArea(eScrollableOverflow); }
 
-  void SlideBy(nscoord aDBCoord, nscoord aContainerWidth) {
-    NS_ASSERTION(aContainerWidth == mContainerWidth || mContainerWidth == -1,
-                 "container width doesn't match");
-    mContainerWidth = aContainerWidth;
-    mBounds.BStart(mWritingMode) += aDBCoord;
+  void SlideBy(nscoord aDY) {
+    mBounds.y += aDY;
     if (mData) {
       NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
-        mData->mOverflowAreas.Overflow(otype).y += aDBCoord;
+        mData->mOverflowAreas.Overflow(otype).y += aDY;
       }
     }
-  }
-
-  void IndentBy(nscoord aDICoord, nscoord aContainerWidth) {
-    NS_ASSERTION(aContainerWidth == mContainerWidth || mContainerWidth == -1,
-                 "container width doesn't match");
-    mContainerWidth = aContainerWidth;
-    mBounds.IStart(mWritingMode) += aDICoord;
-  }
-
-  void ExpandBy(nscoord aDISize, nscoord aContainerWidth) {
-    NS_ASSERTION(aContainerWidth == mContainerWidth || mContainerWidth == -1,
-                 "container width doesn't match");
-    mContainerWidth = aContainerWidth;
-    mBounds.ISize(mWritingMode) += aDISize;
   }
 
   /**
@@ -498,29 +480,8 @@ public:
   nscoord GetAscent() const { return mAscent; }
   void SetAscent(nscoord aAscent) { mAscent = aAscent; }
 
-  nscoord BStart() const {
-    return mBounds.BStart(mWritingMode);
-  }
-  nscoord BSize() const {
-    return mBounds.BSize(mWritingMode);
-  }
-  nscoord BEnd() const {
-    return mBounds.BEnd(mWritingMode);
-  }
-  nscoord IStart() const {
-    return mBounds.IStart(mWritingMode);
-  }
-  nscoord ISize() const {
-    return mBounds.ISize(mWritingMode);
-  }
-  nscoord IEnd() const {
-    return mBounds.IEnd(mWritingMode);
-  }
-  void SetBoundsEmpty() {
-    mBounds.IStart(mWritingMode) = 0;
-    mBounds.ISize(mWritingMode) = 0;
-    mBounds.BStart(mWritingMode) = 0;
-    mBounds.BSize(mWritingMode) = 0;
+  nscoord GetHeight() const {
+    return mBounds.height;
   }
 
   static void DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines,
@@ -578,38 +539,7 @@ public:
 
   nsIFrame* mFirstChild;
 
-  mozilla::WritingMode mWritingMode;
-  nscoord mContainerWidth;
- private:
-  mozilla::LogicalRect mBounds;
- public:
-  const mozilla::LogicalRect& GetBounds() { return mBounds; }
-  nsRect GetPhysicalBounds() const
-  {
-    if (mBounds.IsEmpty()) {
-      return nsRect(0, 0, 0, 0);
-    }
-
-    NS_ASSERTION(mContainerWidth != -1, "mContainerWidth not initialized");
-    return mBounds.GetPhysicalRect(mWritingMode, mContainerWidth);
-  }
-  void SetBounds(mozilla::WritingMode aWritingMode,
-                 nscoord aIStart, nscoord aBStart,
-                 nscoord aISize, nscoord aBSize,
-                 nscoord aContainerWidth)
-  {
-    mWritingMode = aWritingMode;
-    mContainerWidth = aContainerWidth;
-    mBounds = mozilla::LogicalRect(aWritingMode, aIStart, aBStart,
-                                   aISize, aBSize);
-  }
-  void SetBounds(mozilla::WritingMode aWritingMode,
-                 nsRect aRect, nscoord aContainerWidth)
-  {
-    mWritingMode = aWritingMode;
-    mContainerWidth = aContainerWidth;
-    mBounds = mozilla::LogicalRect(aWritingMode, aRect, aContainerWidth);
-  }
+  nsRect mBounds;
 
   // mFlags.mHasHashedFrames says which one to use
   union {

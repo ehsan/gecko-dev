@@ -11,38 +11,18 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "LanguageDetector",
+  "resource:///modules/translation/LanguageDetector.jsm");
 
-this.Translation = {
-  supportedSourceLanguages: ["en", "zh", "ja", "es", "de", "fr", "ru", "ar", "ko", "pt"],
-  supportedTargetLanguages: ["en", "pl", "tr", "vi"],
-
-  _defaultTargetLanguage: "",
-  get defaultTargetLanguage() {
-    if (!this._defaultTargetLanguage) {
-      this._defaultTargetLanguage = Cc["@mozilla.org/chrome/chrome-registry;1"]
-                                      .getService(Ci.nsIXULChromeRegistry)
-                                      .getSelectedLocale("global")
-                                      .split("-")[0];
-    }
-    return this._defaultTargetLanguage;
-  },
-
-  languageDetected: function(aBrowser, aDetectedLanguage) {
-    if (this.supportedSourceLanguages.indexOf(aDetectedLanguage) != -1 &&
-        aDetectedLanguage != this.defaultTargetLanguage) {
-      if (!aBrowser.translationUI)
-        aBrowser.translationUI = new TranslationUI(aBrowser);
-
-      aBrowser.translationUI.showTranslationUI(aDetectedLanguage);
-    }
-  }
-};
-
-/* TranslationUI objects keep the information related to translation for
+/* Create an object keeping the information related to translation for
  * a specific browser.  This object is passed to the translation
  * infobar so that it can initialize itself.  The properties exposed to
  * the infobar are:
+ * - supportedSourceLanguages, array of supported source language codes
+ * - supportedTargetLanguages, array of supported target language codes
  * - detectedLanguage, code of the language detected on the web page.
+ * - defaultTargetLanguage, code of the language to use by default for
+ *   translation.
  * - state, the state in which the infobar should be displayed
  * - STATE_{OFFER,TRANSLATING,TRANSLATED,ERROR} constants.
  * - translatedFrom, if already translated, source language code.
@@ -54,15 +34,29 @@ this.Translation = {
  * - originalShown, boolean indicating if the original or translated
  *   version of the page is shown.
  */
-function TranslationUI(aBrowser) {
+this.Translation = function(aBrowser) {
   this.browser = aBrowser;
-}
+};
 
-TranslationUI.prototype = {
+this.Translation.prototype = {
+  supportedSourceLanguages: ["en", "zh", "ja", "es", "de", "fr", "ru", "ar", "ko", "pt"],
+  supportedTargetLanguages: ["en", "pl", "tr", "vi"],
+
   STATE_OFFER: 0,
   STATE_TRANSLATING: 1,
   STATE_TRANSLATED: 2,
   STATE_ERROR: 3,
+
+  _defaultTargetLanguage: "",
+  get defaultTargetLanguage() {
+    if (!this._defaultTargetLanguage) {
+      this._defaultTargetLanguage = Cc["@mozilla.org/chrome/chrome-registry;1"]
+                                      .getService(Ci.nsIXULChromeRegistry)
+                                      .getSelectedLocale("global")
+                                      .split("-")[0];
+    }
+    return this._defaultTargetLanguage;
+  },
 
   get doc() this.browser.contentDocument,
 

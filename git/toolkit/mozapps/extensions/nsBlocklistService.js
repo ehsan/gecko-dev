@@ -18,10 +18,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
                                   "resource://gre/modules/FileUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
                                   "resource://gre/modules/UpdateChannel.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "OS",
-                                  "resource://gre/modules/osfile.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "Task",
-                                  "resource://gre/modules/Task.jsm");
 
 const TOOLKIT_ID                      = "toolkit@mozilla.org"
 const KEY_PROFILEDIR                  = "ProfD";
@@ -571,8 +567,8 @@ Blocklist.prototype = {
       this._loadBlocklist();
   },
 
-  onXMLLoad: Task.async(function* (aEvent) {
-    let request = aEvent.target;
+  onXMLLoad: function Blocklist_onXMLLoad(aEvent) {
+    var request = aEvent.target;
     try {
       gCertUtils.checkCert(request.channel);
     }
@@ -580,28 +576,28 @@ Blocklist.prototype = {
       LOG("Blocklist::onXMLLoad: " + e);
       return;
     }
-    let responseXML = request.responseXML;
+    var responseXML = request.responseXML;
     if (!responseXML || responseXML.documentElement.namespaceURI == XMLURI_PARSE_ERROR ||
         (request.status != 200 && request.status != 0)) {
       LOG("Blocklist::onXMLLoad: there was an error during load");
       return;
     }
+    var blocklistFile = FileUtils.getFile(KEY_PROFILEDIR, [FILE_BLOCKLIST]);
+    if (blocklistFile.exists())
+      blocklistFile.remove(false);
+    var fos = FileUtils.openSafeFileOutputStream(blocklistFile);
+    fos.write(request.responseText, request.responseText.length);
+    FileUtils.closeSafeFileOutputStream(fos);
 
     var oldAddonEntries = this._addonEntries;
     var oldPluginEntries = this._pluginEntries;
     this._addonEntries = [];
     this._pluginEntries = [];
+    this._loadBlocklistFromFile(FileUtils.getFile(KEY_PROFILEDIR,
+                                                  [FILE_BLOCKLIST]));
 
-    this._loadBlocklistFromString(request.responseText);
     this._blocklistUpdated(oldAddonEntries, oldPluginEntries);
-
-    try {
-      let path = OS.Path.join(OS.Constants.Path.profileDir, FILE_BLOCKLIST);
-      yield OS.File.writeAtomic(path, request.responseText, {tmpPath: path + ".tmp"});
-    } catch (e) {
-      LOG("Blocklist::onXMLLoad: " + e);
-    }
-  }),
+  },
 
   onXMLError: function Blocklist_onXMLError(aEvent) {
     try {
@@ -708,46 +704,17 @@ Blocklist.prototype = {
     }
 
     if (!file.exists()) {
-      LOG("Blocklist::_loadBlocklistFromFile: XML File does not exist " + file.path);
+      LOG("Blocklist::_loadBlocklistFromFile: XML File does not exist");
       return;
     }
 
-    let text = "";
-    let fstream = null;
-    let cstream = null;
-
-    try {
-      fstream = Components.classes["@mozilla.org/network/file-input-stream;1"]
-                          .createInstance(Components.interfaces.nsIFileInputStream);
-      cstream = Components.classes["@mozilla.org/intl/converter-input-stream;1"]
-                          .createInstance(Components.interfaces.nsIConverterInputStream);
-
-      fstream.init(file, FileUtils.MODE_RDONLY, FileUtils.PERMS_FILE, 0);
-      cstream.init(fstream, "UTF-8", 0, 0);
-
-      let (str = {}) {
-        let read = 0;
-
-        do {
-          read = cstream.readString(0xffffffff, str); // read as much as we can and put it in str.value
-          text += str.value;
-        } while (read != 0);
-      }
-    } catch (e) {
-      LOG("Blocklist::_loadBlocklistFromFile: Failed to load XML file " + e);
-    } finally {
-      cstream.close();
-      fstream.close();
-    }
-
-    text && this._loadBlocklistFromString(text);
-  },
-
-  _loadBlocklistFromString : function Blocklist_loadBlocklistFromString(text) {
+    var fileStream = Components.classes["@mozilla.org/network/file-input-stream;1"]
+                               .createInstance(Components.interfaces.nsIFileInputStream);
+    fileStream.init(file, FileUtils.MODE_RDONLY, FileUtils.PERMS_FILE, 0);
     try {
       var parser = Cc["@mozilla.org/xmlextras/domparser;1"].
                    createInstance(Ci.nsIDOMParser);
-      var doc = parser.parseFromString(text, "text/xml");
+      var doc = parser.parseFromStream(fileStream, "UTF-8", file.fileSize, "text/xml");
       if (doc.documentElement.namespaceURI != XMLURI_BLOCKLIST) {
         LOG("Blocklist::_loadBlocklistFromFile: aborting due to incorrect " +
             "XML Namespace.\r\nExpected: " + XMLURI_BLOCKLIST + "\r\n" +
@@ -779,6 +746,7 @@ Blocklist.prototype = {
       LOG("Blocklist::_loadBlocklistFromFile: Error constructing blocklist " + e);
       return;
     }
+    fileStream.close();
   },
 
   _processItemNodes: function Blocklist_processItemNodes(itemNodes, prefix, handler) {

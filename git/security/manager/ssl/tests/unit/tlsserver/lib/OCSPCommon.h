@@ -31,11 +31,7 @@ enum OCSPResponseType
   ORTBadSignature,     // the response has a signature that does not verify
   ORTSkipResponseBytes, // the response does not include responseBytes
   ORTCriticalExtension, // the response includes a critical extension
-  ORTNoncriticalExtension, // the response includes an extension that is not critical
-  ORTDelegatedIncluded, // the response is signed by an included delegated responder
-  ORTDelegatedIncludedLast, // same, but multiple other certificates are included
-  ORTDelegatedMissing, // the response is signed by a not included delegated responder
-  ORTDelegatedMissingMultiple, // same, but multiple other certificates are included
+  ORTNoncriticalExtension // the response includes an extension that is not critical
 };
 
 struct OCSPHost

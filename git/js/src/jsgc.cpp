@@ -1252,15 +1252,15 @@ js::AddScriptRoot(JSContext *cx, JSScript **rp, const char *name)
 }
 
 extern JS_FRIEND_API(bool)
-js::AddRawValueRoot(JSContext *cx, Value *vp, const char *name)
+js_AddObjectRoot(JSRuntime *rt, JSObject **objp)
 {
-    return AddRoot(cx, vp, name, JS_GC_ROOT_VALUE_PTR);
+    return AddRoot(rt, objp, nullptr, JS_GC_ROOT_OBJECT_PTR);
 }
 
 extern JS_FRIEND_API(void)
-js::RemoveRawValueRoot(JSContext *cx, Value *vp)
+js_RemoveObjectRoot(JSRuntime *rt, JSObject **objp)
 {
-    RemoveRoot(cx->runtime(), vp);
+    RemoveRoot(rt, objp);
 }
 
 void

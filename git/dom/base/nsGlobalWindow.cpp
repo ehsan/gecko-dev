@@ -2014,15 +2014,18 @@ nsGlobalWindow::SetInitialPrincipalToSubject()
 {
   FORWARD_TO_OUTER_VOID(SetInitialPrincipalToSubject, ());
 
-  // First, grab the subject principal.
-  nsCOMPtr<nsIPrincipal> newWindowPrincipal = nsContentUtils::GetSubjectPrincipal();
+  // First, grab the subject principal. These methods never fail.
+  nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
+  nsCOMPtr<nsIPrincipal> newWindowPrincipal, systemPrincipal;
+  ssm->GetSubjectPrincipal(getter_AddRefs(newWindowPrincipal));
+  ssm->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
   if (!newWindowPrincipal) {
-    newWindowPrincipal = nsContentUtils::GetSystemPrincipal();
+    newWindowPrincipal = systemPrincipal;
   }
 
-  // Now, if we're about to use the system principal or an nsExpandedPrincipal,
-  // make sure we're not using it for a content docshell.
-  if (nsContentUtils::IsSystemOrExpandedPrincipal(newWindowPrincipal) &&
+  // Now, if we're about to use the system principal, make sure we're not using
+  // it for a content docshell.
+  if (newWindowPrincipal == systemPrincipal &&
       GetDocShell()->ItemType() != nsIDocShellTreeItem::typeChrome) {
     newWindowPrincipal = nullptr;
   }
@@ -2540,10 +2543,10 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     }
 
     if (!aState) {
-      JS::Rooted<JSObject*> rootedWrapper(cx, GetWrapperPreserveColor());
-      if (!JS_DefineProperty(cx, newInnerGlobal, "window", rootedWrapper,
-                             JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT,
-                             JS_PropertyStub, JS_StrictPropertyStub)) {
+      if (!JS_DefineProperty(cx, newInnerGlobal, "window",
+                             OBJECT_TO_JSVAL(GetWrapperPreserveColor()),
+                             JS_PropertyStub, JS_StrictPropertyStub,
+                             JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT)) {
         NS_ERROR("can't create the 'window' property");
         return NS_ERROR_FAILURE;
       }
@@ -4457,8 +4460,9 @@ nsGlobalWindow::SetOpener(nsIDOMWindow* aOpener, ErrorResult& aError)
 
     if (!JS_WrapObject(cx, &otherObj) ||
         !JS_WrapObject(cx, &thisObj) ||
-        !JS_DefineProperty(cx, thisObj, "opener", otherObj, JSPROP_ENUMERATE,
-                           JS_PropertyStub, JS_StrictPropertyStub)) {
+        !JS_DefineProperty(cx, thisObj, "opener", JS::ObjectValue(*otherObj),
+                           JS_PropertyStub, JS_StrictPropertyStub,
+                           JSPROP_ENUMERATE)) {
       aError.Throw(NS_ERROR_FAILURE);
     }
 
@@ -13597,8 +13601,8 @@ nsGlobalWindow::SetConsole(JSContext* aCx, JS::Handle<JS::Value> aValue)
 
   if (!JS_WrapObject(aCx, &thisObj) ||
       !JS_DefineProperty(aCx, thisObj, "console", aValue,
-                         JSPROP_ENUMERATE, JS_PropertyStub,
-                         JS_StrictPropertyStub)) {
+                         JS_PropertyStub, JS_StrictPropertyStub,
+                         JSPROP_ENUMERATE)) {
     return NS_ERROR_FAILURE;
   }
 

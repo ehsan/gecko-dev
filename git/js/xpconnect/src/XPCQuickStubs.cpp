@@ -122,10 +122,10 @@ xpc_qsDefineQuickStubs(JSContext *cx, JSObject *protoArg, unsigned flags,
                 for ( ; ps < ps_end; ++ps) {
                     if (!JS_DefineProperty(cx, proto,
                                            stringTable + ps->name_index,
-                                           JS::UndefinedHandleValue,
-                                           flags | JSPROP_SHARED | JSPROP_NATIVE_ACCESSORS,
+                                           JSVAL_VOID,
                                            (JSPropertyOp)ps->getter,
-                                           (JSStrictPropertyOp)ps->setter))
+                                           (JSStrictPropertyOp)ps->setter,
+                                           flags | JSPROP_SHARED | JSPROP_NATIVE_ACCESSORS))
                         return false;
                 }
 

@@ -117,7 +117,8 @@ class SIMDObject : public JSObject
 struct Float32x4 {
     typedef float Elem;
     static const int32_t lanes = 4;
-    static const X4TypeDescr::Type type = X4TypeDescr::TYPE_FLOAT32;
+    static const X4TypeDescr::Type type =
+        X4TypeDescr::TYPE_FLOAT32;
 
     static TypeDescr &GetTypeDescr(GlobalObject &global) {
         return global.float32x4TypeDescr().as<TypeDescr>();
@@ -125,11 +126,10 @@ struct Float32x4 {
     static Elem toType(Elem a) {
         return a;
     }
-    static bool toType(JSContext *cx, JS::HandleValue v, Elem *out) {
+    static void toType2(JSContext *cx, JS::Handle<JS::Value> v, Elem *out) {
         *out = v.toNumber();
-        return true;
     }
-    static void setReturn(CallArgs &args, Elem value) {
+    static void setReturn(CallArgs &args, float value) {
         args.rval().setDouble(JS::CanonicalizeNaN(value));
     }
 };
@@ -137,7 +137,8 @@ struct Float32x4 {
 struct Int32x4 {
     typedef int32_t Elem;
     static const int32_t lanes = 4;
-    static const X4TypeDescr::Type type = X4TypeDescr::TYPE_INT32;
+    static const X4TypeDescr::Type type =
+        X4TypeDescr::TYPE_INT32;
 
     static TypeDescr &GetTypeDescr(GlobalObject &global) {
         return global.int32x4TypeDescr().as<TypeDescr>();
@@ -145,10 +146,10 @@ struct Int32x4 {
     static Elem toType(Elem a) {
         return ToInt32(a);
     }
-    static bool toType(JSContext *cx, JS::HandleValue v, Elem *out) {
-        return ToInt32(cx, v, out);
+    static void toType2(JSContext *cx, JS::Handle<JS::Value> v, Elem *out) {
+        ToInt32(cx,v,out);
     }
-    static void setReturn(CallArgs &args, Elem value) {
+    static void setReturn(CallArgs &args, int32_t value) {
         args.rval().setInt32(value);
     }
 };

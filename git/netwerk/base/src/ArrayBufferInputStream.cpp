@@ -12,12 +12,21 @@
 NS_IMPL_ISUPPORTS2(ArrayBufferInputStream, nsIArrayBufferInputStream, nsIInputStream);
 
 ArrayBufferInputStream::ArrayBufferInputStream()
-: mBuffer(nullptr)
+: mRt(nullptr)
+, mArrayBuffer(JSVAL_VOID)
+, mBuffer(nullptr)
 , mBufferLength(0)
 , mOffset(0)
 , mPos(0)
 , mClosed(false)
 {
+}
+
+ArrayBufferInputStream::~ArrayBufferInputStream()
+{
+  if (mRt) {
+    JS_RemoveValueRootRT(mRt, &mArrayBuffer);
+  }
 }
 
 NS_IMETHODIMP
@@ -34,7 +43,9 @@ ArrayBufferInputStream::SetData(JS::Handle<JS::Value> aBuffer,
     return NS_ERROR_FAILURE;
   }
 
-  mArrayBuffer.construct(aCx, aBuffer);
+  mRt = JS_GetRuntime(aCx);
+  mArrayBuffer = aBuffer;
+  JS_AddNamedValueRootRT(mRt, &mArrayBuffer, "mArrayBuffer");
 
   uint32_t buflen = JS_GetArrayBufferByteLength(arrayBuffer);
   mOffset = std::min(buflen, aByteOffset);

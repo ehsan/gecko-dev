@@ -4,7 +4,7 @@
   font-weight: 400;
   src: local('Fira Sans'),
        local('FiraSans'),
-       url('../fonts/FiraSans-Regular.woff') format('woff');
+       url('fonts/firasans-regular.woff') format('woff');
 }
 @font-face {
   font-family: 'Fira Sans';
@@ -12,7 +12,7 @@
   font-weight: 300;
   src: local('Fira Sans Light'),
        local('FiraSansLight'),
-       url('../fonts/FiraSans-Light.woff') format('woff');
+       url('fonts/firasans-light.woff') format('woff');
 }
 @font-face {
   font-family: 'Clear Sans';
@@ -20,5 +20,6 @@
   font-weight: 400;
   src: local('Clear Sans'),
        local('ClearSans'),
-       url('../fonts/ClearSans-Regular.woff') format('woff');
+       url('fonts/clearsans-regular.woff') format('woff');
 }
+

@@ -337,6 +337,7 @@ public:
                                 const StructuredCloneData& aData,
                                 JS::Handle<JSObject*> aCpows,
                                 nsIPrincipal* aPrincipal);
+  ~nsSameProcessAsyncMessageBase();
 
   void ReceiveMessage(nsISupports* aTarget, nsFrameMessageManager* aManager);
 
@@ -347,7 +348,7 @@ private:
   nsString mMessage;
   JSAutoStructuredCloneBuffer mData;
   StructuredCloneClosure mClosure;
-  JS::PersistentRooted<JSObject*> mCpows;
+  JSObject* mCpows;
   nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
@@ -355,21 +356,19 @@ class nsScriptCacheCleaner;
 
 struct nsFrameScriptObjectExecutorHolder
 {
-  nsFrameScriptObjectExecutorHolder(JSContext* aCx, JSScript* aScript)
-   : mScript(aCx, aScript), mFunction(aCx, nullptr)
+  nsFrameScriptObjectExecutorHolder(JSScript* aScript) : mScript(aScript), mFunction(nullptr)
   { MOZ_COUNT_CTOR(nsFrameScriptObjectExecutorHolder); }
-
-  nsFrameScriptObjectExecutorHolder(JSContext* aCx, JSObject* aFunction)
-   : mScript(aCx, nullptr), mFunction(aCx, aFunction)
+  nsFrameScriptObjectExecutorHolder(JSObject* aFunction) : mScript(nullptr), mFunction(aFunction)
   { MOZ_COUNT_CTOR(nsFrameScriptObjectExecutorHolder); }
-
   ~nsFrameScriptObjectExecutorHolder()
   { MOZ_COUNT_DTOR(nsFrameScriptObjectExecutorHolder); }
 
   bool WillRunInGlobalScope() { return mScript; }
 
-  JS::PersistentRooted<JSScript*> mScript;
-  JS::PersistentRooted<JSObject*> mFunction;
+  // We use JS_AddNamed{Script,Object}Root to root these fields explicitly, so
+  // no need for Heap<T>.
+  JSScript* mScript;
+  JSObject* mFunction;
 };
 
 class nsFrameScriptObjectExecutorStackHolder;

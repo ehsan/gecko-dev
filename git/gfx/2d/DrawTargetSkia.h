@@ -3,8 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef _MOZILLA_GFX_SOURCESURFACESKIA_H
-#define _MOZILLA_GFX_SOURCESURFACESKIA_H
+#pragma once
 
 #ifdef USE_SKIA_GPU
 #include "skia/GrContext.h"
@@ -138,5 +137,3 @@ private:
 
 }
 }
-
-#endif // _MOZILLA_GFX_SOURCESURFACESKIA_H

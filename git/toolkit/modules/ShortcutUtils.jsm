@@ -34,7 +34,6 @@ let ShortcutUtils = {
   prettifyShortcut: function(aElemKey, aNoCloverLeaf) {
     let elemString = "";
     let elemMod = aElemKey.getAttribute("modifiers");
-    let haveCloverLeaf = false;
 
     if (elemMod.match("accel")) {
       if (Services.appinfo.OS == "Darwin") {
@@ -43,7 +42,8 @@ let ShortcutUtils = {
         if (aNoCloverLeaf) {
           elemString += "Cmd-";
         } else {
-          haveCloverLeaf = true;
+          elemString += PlatformKeys.GetStringFromName("VK_META") +
+            PlatformKeys.GetStringFromName("MODIFIER_SEPARATOR");
         }
       } else {
         elemString += PlatformKeys.GetStringFromName("VK_CONTROL") +
@@ -76,11 +76,6 @@ let ShortcutUtils = {
         PlatformKeys.GetStringFromName("MODIFIER_SEPARATOR");
     }
     if (elemMod.match("meta")) {
-      elemString += PlatformKeys.GetStringFromName("VK_META") +
-        PlatformKeys.GetStringFromName("MODIFIER_SEPARATOR");
-    }
-
-    if (haveCloverLeaf) {
       elemString += PlatformKeys.GetStringFromName("VK_META") +
         PlatformKeys.GetStringFromName("MODIFIER_SEPARATOR");
     }
