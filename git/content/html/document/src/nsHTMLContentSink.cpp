@@ -382,9 +382,6 @@ public:
   PRUnichar* mText;
   PRInt32 mTextLength;
   PRInt32 mTextSize;
-
-private:
-  PRBool mLastTextCharWasCR;
 };
 
 //----------------------------------------------------------------------
@@ -628,8 +625,7 @@ SinkContext::SinkContext(HTMLContentSink* aSink)
     mStackPos(0),
     mText(nsnull),
     mTextLength(0),
-    mTextSize(0),
-    mLastTextCharWasCR(PR_FALSE)
+    mTextSize(0)
 {
   MOZ_COUNT_CTOR(SinkContext);
 }
@@ -1294,6 +1290,7 @@ SinkContext::AddText(const nsAString& aText)
 
   // Copy data from string into our buffer; flush buffer when it fills up
   PRInt32 offset = 0;
+  PRBool  isLastCharCR = PR_FALSE;
 
   while (addLen != 0) {
     PRInt32 amount = mTextSize - mTextLength;
@@ -1308,18 +1305,12 @@ SinkContext::AddText(const nsAString& aText)
       if (NS_FAILED(rv)) {
         return rv;
       }
-
-      // Go back to the top of the loop so we re-calculate amount and
-      // don't fall through to CopyNewlineNormalizedUnicodeTo with a
-      // zero-length amount (which invalidates mLastTextCharWasCR).
-      continue;
     }
 
     mTextLength +=
       nsContentUtils::CopyNewlineNormalizedUnicodeTo(aText, offset,
                                                      &mText[mTextLength],
-                                                     amount,
-                                                     mLastTextCharWasCR);
+                                                     amount, isLastCharCR);
     offset += amount;
     addLen -= amount;
   }
@@ -1511,7 +1502,6 @@ SinkContext::FlushText(PRBool* aDidFlush, PRBool aReleaseLast)
   if (aReleaseLast) {
     mLastTextNodeSize = 0;
     mLastTextNode = nsnull;
-    mLastTextCharWasCR = PR_FALSE;
   }
 
 #ifdef DEBUG
