@@ -681,10 +681,6 @@ MAKEFILES_jsctypes="
   toolkit/components/ctypes/tests/Makefile
 "
 
-MAKEFILES_jsreflect="
-  toolkit/components/reflect/Makefile
-"
-
 MAKEFILES_libpr0n="
   modules/libpr0n/Makefile
   modules/libpr0n/build/Makefile
@@ -751,7 +747,6 @@ add_makefiles "
   $MAKEFILES_jsipc
   $MAKEFILES_jsdebugger
   $MAKEFILES_jsctypes
-  $MAKEFILES_jsreflect
   $MAKEFILES_content
   $MAKEFILES_layout
   $MAKEFILES_libimg

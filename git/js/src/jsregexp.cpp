@@ -53,7 +53,6 @@
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsregexp.h"
-#include "jsscan.h"
 #include "jsstr.h"
 #include "jsvector.h"
 
@@ -162,8 +161,7 @@ js_CloneRegExpObject(JSContext *cx, JSObject *obj, JSObject *proto)
              * This regex is lacking flags from the statics, so we must recompile with the new
              * flags instead of increffing.
              */
-            AlreadyIncRefed<RegExp> clone = RegExp::create(cx, re->getSource(),
-                                                           origFlags | staticsFlags, NULL);
+            AlreadyIncRefed<RegExp> clone = RegExp::create(cx, re->getSource(), origFlags | staticsFlags);
             if (!clone)
                 return NULL;
             re = clone.get();
@@ -193,18 +191,15 @@ js_ObjectIsRegExp(JSObject *obj)
  */
 
 void
-RegExp::reportYarrError(JSContext *cx, TokenStream *ts, JSC::Yarr::ErrorCode error)
+RegExp::reportYarrError(JSContext *cx, JSC::Yarr::ErrorCode error)
 {
     switch (error) {
       case JSC::Yarr::NoError:
         JS_NOT_REACHED("Called reportYarrError with value for no error");
         return;
-#define COMPILE_EMSG(__code, __msg)                                                              \
-      case JSC::Yarr::__code:                                                                    \
-        if (ts)                                                                                  \
-            ReportCompileErrorNumber(cx, ts, NULL, JSREPORT_ERROR, __msg);                       \
-        else                                                                                     \
-            JS_ReportErrorFlagsAndNumberUC(cx, JSREPORT_ERROR, js_GetErrorMessage, NULL, __msg); \
+#define COMPILE_EMSG(__code, __msg) \
+      case JSC::Yarr::__code: \
+        JS_ReportErrorFlagsAndNumberUC(cx, JSREPORT_ERROR, js_GetErrorMessage, NULL, __msg); \
         return
       COMPILE_EMSG(PatternTooLarge, JSMSG_REGEXP_TOO_COMPLEX);
       COMPILE_EMSG(QuantifierOutOfOrder, JSMSG_BAD_QUANTIFIER);
@@ -261,14 +256,14 @@ RegExp::parseFlags(JSContext *cx, JSString *flagStr, uintN *flagsOut)
 }
 
 AlreadyIncRefed<RegExp>
-RegExp::createFlagged(JSContext *cx, JSString *str, JSString *opt, TokenStream *ts)
+RegExp::createFlagged(JSContext *cx, JSString *str, JSString *opt)
 {
     if (!opt)
-        return create(cx, str, 0, ts);
+        return create(cx, str, 0);
     uintN flags = 0;
     if (!parseFlags(cx, opt, &flags))
         return AlreadyIncRefed<RegExp>(NULL);
-    return create(cx, str, flags, ts);
+    return create(cx, str, flags);
 }
 
 const Shape *
@@ -431,7 +426,7 @@ js_XDRRegExpObject(JSXDRState *xdr, JSObject **objp)
          * be from the malloc-allocated GC-invisible re. So we must anchor.
          */
         JS::Anchor<JSString *> anchor(source);
-        AlreadyIncRefed<RegExp> re = RegExp::create(xdr->cx, source, flagsword, NULL);
+        AlreadyIncRefed<RegExp> re = RegExp::create(xdr->cx, source, flagsword);
         if (!re)
             return false;
         if (!obj->initRegExp(xdr->cx, re.get()))
@@ -572,7 +567,7 @@ static bool
 SwapRegExpInternals(JSContext *cx, JSObject *obj, Value *rval, JSString *str, uint32 flags = 0)
 {
     flags |= cx->regExpStatics()->getFlags();
-    AlreadyIncRefed<RegExp> re = RegExp::create(cx, str, flags, NULL);
+    AlreadyIncRefed<RegExp> re = RegExp::create(cx, str, flags);
     if (!re)
         return false;
     SwapObjectRegExp(cx, obj, re);
@@ -829,7 +824,7 @@ js_InitRegExpClass(JSContext *cx, JSObject *global)
     if (!proto)
         return NULL;
 
-    AlreadyIncRefed<RegExp> re = RegExp::create(cx, cx->runtime->emptyString, 0, NULL);
+    AlreadyIncRefed<RegExp> re = RegExp::create(cx, cx->runtime->emptyString, 0);
     if (!re)
         return NULL;
 #ifdef DEBUG

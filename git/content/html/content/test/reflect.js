@@ -18,48 +18,41 @@
  * @param aParameters   Object    object containing the parameters, which are:
  *  - element           Element   node to test
  *  - attribute         String    name of the attribute
- *     OR
- *    attribute         Object    object containing two attributes, 'content' and 'idl'
  *  - otherValues       Array     [optional] other values to test in addition of the default ones
  */
 function reflectString(aParameters)
 {
   var element = aParameters.element;
-  var contentAttr = typeof aParameters.attribute === "string"
-                      ? aParameters.attribute : aParameters.attribute.content;
-  var idlAttr = typeof aParameters.attribute === "string"
-                  ? aParameters.attribute : aParameters.attribute.idl;
+  var attr = aParameters.attribute;
   var otherValues = aParameters.otherValues !== undefined
-                      ? aParameters.otherValues : [];
+    ? aParameters.otherValues : [];
 
-  ok(idlAttr in element,
-     idlAttr + " should be an IDL attribute of this element");
-  is(typeof element[idlAttr], "string",
-     idlAttr + " IDL attribute should be a string");
+  ok(attr in element, attr + " should be an IDL attribute of this element");
+  is(typeof element[attr], "string", attr + " IDL attribute should be a string");
 
   // Tests when the attribute isn't set.
-  is(element.getAttribute(contentAttr), null,
+  is(element.getAttribute(attr), null,
      "When not set, the content attribute should be null.");
-  is(element[idlAttr], "",
+  is(element[attr], "",
      "When not set, the IDL attribute should return the empty string");
 
   /**
    * TODO: as long as null stringification doesn't follow the WebIDL
    * specifications, don't add it to the loop below and keep it here.
    */
-  element.setAttribute(contentAttr, null);
-  todo_is(element.getAttribute(contentAttr), "null",
+  element.setAttribute(attr, null);
+  todo_is(element.getAttribute(attr), "null",
      "null should have been stringified to 'null'");
-  todo_is(element[idlAttr], "null",
+  todo_is(element[attr], "null",
      "null should have been stringified to 'null'");
-  element.removeAttribute(contentAttr);
+  element.removeAttribute(attr);
 
-  element[idlAttr] = null;
-  todo_is(element.getAttribute(contentAttr), "null",
+  element[attr] = null;
+  todo_is(element.getAttribute(attr), "null",
      "null should have been stringified to 'null'");
-  todo_is(element[idlAttr], "null",
+  todo_is(element[attr], "null",
      "null should have been stringified to 'null'");
-  element.removeAttribute(contentAttr);
+  element.removeAttribute(attr);
 
   // Tests various strings.
   var stringsToTest = [
@@ -68,8 +61,7 @@ function reflectString(aParameters)
     [ "null", "null" ],
     [ "undefined", "undefined" ],
     [ "foo", "foo" ],
-    [ contentAttr, contentAttr ],
-    [ idlAttr, idlAttr ],
+    [ attr, attr ],
     // TODO: uncomment this when null stringification will follow the specs.
     // [ null, "null" ],
     [ undefined, "undefined" ],
@@ -92,25 +84,25 @@ function reflectString(aParameters)
   otherValues.forEach(function(v) { stringsToTest.push([v, v]) });
 
   stringsToTest.forEach(function([v, r]) {
-    element.setAttribute(contentAttr, v);
-    is(element[idlAttr], r,
+    element.setAttribute(attr, v);
+    is(element[attr], r,
        "IDL attribute should return the value it has been set to.");
-    is(element.getAttribute(contentAttr), r,
+    is(element.getAttribute(attr), r,
        "Content attribute should return the value it has been set to.");
-    element.removeAttribute(contentAttr);
+    element.removeAttribute(attr);
 
-    element[idlAttr] = v;
-    is(element[idlAttr], r,
+    element[attr] = v;
+    is(element[attr], r,
        "IDL attribute should return the value it has been set to.");
-    is(element.getAttribute(contentAttr), r,
+    is(element.getAttribute(attr), r,
        "Content attribute should return the value it has been set to.");
-    element.removeAttribute(contentAttr);
+    element.removeAttribute(attr);
   });
 
   // Tests after removeAttribute() is called. Should be equivalent with not set.
-  is(element.getAttribute(contentAttr), null,
+  is(element.getAttribute(attr), null,
      "When not set, the content attribute should be null.");
-  is(element[idlAttr], "",
+  is(element[attr], "",
      "When not set, the IDL attribute should return the empty string");
 }
 

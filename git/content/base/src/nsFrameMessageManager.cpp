@@ -215,7 +215,9 @@ nsFrameMessageManager::GetParamsForMessage(nsAString& aMessageName,
 
   if (argc >= 2) {
     jsval v = argv[1];
-    JS_Stringify(ctx, &v, nsnull, JSVAL_NULL, JSONCreator, &aJSON);
+    if (JS_TryJSON(ctx, &v)) {
+      JS_Stringify(ctx, &v, nsnull, JSVAL_NULL, JSONCreator, &aJSON);
+    }
   }
   return NS_OK;
 }
@@ -453,7 +455,8 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                                funval, 1, argv.jsval_addr(), &rval);
           if (aJSONRetVal) {
             nsString json;
-            if (JS_Stringify(ctx, &rval, nsnull, JSVAL_NULL,
+            if (JS_TryJSON(ctx, &rval) &&
+                JS_Stringify(ctx, &rval, nsnull, JSVAL_NULL,
                              JSONCreator, &json)) {
               aJSONRetVal->AppendElement(json);
             }

@@ -906,7 +906,7 @@ Execute(JSContext *cx, JSScript *script, JSObject &scopeChain, const Value &this
 
     AutoPreserveEnumerators preserve(cx);
     JSBool ok = RunScript(cx, script, fp);
-    if (result && ok)
+    if (result)
         *result = fp->returnValue();
 
     Probes::stopExecution(cx, script);
@@ -4077,8 +4077,6 @@ BEGIN_CASE(JSOP_FUNAPPLY)
 
     JSObject *callee;
     JSFunction *fun;
-
-    /* Don't bother trying to fast-path calls to scripted non-constructors. */
     if (!IsFunctionObject(args.calleev(), &callee, &fun) || !fun->isInterpretedConstructor()) {
         if (construct) {
             if (!InvokeConstructor(cx, args))
@@ -4590,12 +4588,12 @@ BEGIN_CASE(JSOP_CALLUPVAR_DBG)
     jsid id;
     JSAtom *atom;
     {
-        Vector<JSAtom *> names(cx);
-        if (!fun->script()->bindings.getLocalNameArray(cx, &names))
+        AutoLocalNameArray names(cx, fun);
+        if (!names)
             goto error;
 
         uintN index = fun->script()->bindings.countArgsAndVars() + GET_UINT16(regs.pc);
-        atom = names[index];
+        atom = JS_LOCAL_NAME_TO_ATOM(names[index]);
         id = ATOM_TO_JSID(atom);
 
         if (!js_FindProperty(cx, id, &obj, &obj2, &prop))
@@ -5963,7 +5961,7 @@ BEGIN_CASE(JSOP_ARRAYPUSH)
     JS_ASSERT(script->nfixed <= slot);
     JS_ASSERT(slot < script->nslots);
     JSObject *obj = &regs.fp()->slots()[slot].toObject();
-    if (!js_NewbornArrayPush(cx, obj, regs.sp[-1]))
+    if (!js_ArrayCompPush(cx, obj, regs.sp[-1]))
         goto error;
     regs.sp--;
 }
@@ -6247,16 +6245,7 @@ END_CASE(JSOP_ARRAYPUSH)
 # endif
 #endif
 
-    JS_ASSERT_IF(!regs.fp()->isGeneratorFrame(),
-                 !js_IsActiveWithOrBlock(cx, &regs.fp()->scopeChain(), 0));
-
-#ifdef JS_METHODJIT
-    /*
-     * This path is used when it's guaranteed the method can be finished
-     * inside the JIT.
-     */
-  leave_on_safe_point:
-#endif
+    JS_ASSERT_IF(!regs.fp()->isGeneratorFrame(), !js_IsActiveWithOrBlock(cx, &regs.fp()->scopeChain(), 0));
 
     return interpReturnOK;
 
@@ -6267,6 +6256,15 @@ END_CASE(JSOP_ARRAYPUSH)
             js_ReportIsNotDefined(cx, printable.ptr());
     }
     goto error;
+
+    /*
+     * This path is used when it's guaranteed the method can be finished
+     * inside the JIT.
+     */
+#if defined(JS_METHODJIT)
+  leave_on_safe_point:
+#endif
+    return interpReturnOK;
 }
 
 } /* namespace js */

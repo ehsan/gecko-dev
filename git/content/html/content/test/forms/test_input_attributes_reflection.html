@@ -133,13 +133,7 @@ reflectLimitedEnumerated({
                        "datetime-local", "number", "range", "color" ]
 });
 
-// .defaultValue
-reflectString({
-  element: document.createElement("input"),
-  attribute: { idl: "defaultValue", content: "value" },
-  otherValues: [ "foo\nbar", "foo\rbar", "foo\r\nbar" ],
-});
-
+// TODO: defaultValue (reflects @value)
 // .value doesn't reflect a content attribute.
 // TODO: valueAsDate (not implemented)
 // TODO: valueAsNumber (not implemented)
