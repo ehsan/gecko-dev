@@ -6,7 +6,3 @@
 
 MODULE = 'browserabout'
 
-EXPORTS.mozilla.browser += [
-    'AboutRedirector.h',
-]
-

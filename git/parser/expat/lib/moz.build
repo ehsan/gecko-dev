@@ -6,8 +6,3 @@
 
 MODULE = 'expat'
 
-EXPORTS += [
-    'expat.h',
-    'expat_external.h',
-]
-

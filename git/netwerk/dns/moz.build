@@ -17,7 +17,3 @@ XPIDL_MODULE = 'necko_dns'
 
 MODULE = 'necko'
 
-EXPORTS.mozilla.net += [
-    'DNS.h',
-]
-

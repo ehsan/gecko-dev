@@ -14,6 +14,8 @@ LIBRARY_NAME	= xpcomthreads_s
 MOZILLA_INTERNAL_API = 1
 LIBXUL_LIBRARY = 1
 
+EXPORTS_NAMESPACES = mozilla
+
 CPPSRCS		= \
 		nsEventQueue.cpp \
 		nsEnvironment.cpp \
@@ -26,6 +28,20 @@ CPPSRCS		= \
 		HangMonitor.cpp \
 		LazyIdleThread.cpp \
 		$(NULL)
+
+EXPORTS		= \
+		nsThread.h \
+		nsProcess.h \
+		nsEventQueue.h \
+		$(NULL)
+
+EXPORTS_mozilla = \
+  HangMonitor.h \
+  LazyIdleThread.h \
+  SyncRunnable.h \
+  $(NULL)
+
+EXPORTS		:= $(addprefix $(srcdir)/, $(EXPORTS))
 
 LOCAL_INCLUDES	= -I$(srcdir)/../components
 

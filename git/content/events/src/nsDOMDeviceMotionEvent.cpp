@@ -5,9 +5,6 @@
 #include "nsDOMClassInfoID.h"
 #include "nsDOMDeviceMotionEvent.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMDeviceMotionEvent, nsDOMEvent)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mAcceleration)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mAccelerationIncludingGravity)
@@ -49,31 +46,12 @@ nsDOMDeviceMotionEvent::InitDeviceMotionEvent(const nsAString & aEventTypeArg,
   return NS_OK;
 }
 
-void
-nsDOMDeviceMotionEvent::InitDeviceMotionEvent(const nsAString& aType,
-                                              bool aCanBubble,
-                                              bool aCancelable,
-                                              nsIDOMDeviceAcceleration* aAcceleration,
-                                              nsIDOMDeviceAcceleration* aAccelerationIncludingGravity,
-                                              nsIDOMDeviceRotationRate* aRotationRate,
-                                              double aInterval,
-                                              ErrorResult& aRv)
-{
-  aRv = InitDeviceMotionEvent(aType,
-                              aCanBubble,
-                              aCancelable,
-                              aAcceleration,
-                              aAccelerationIncludingGravity,
-                              aRotationRate,
-                              aInterval);
-}
-
 NS_IMETHODIMP
 nsDOMDeviceMotionEvent::GetAcceleration(nsIDOMDeviceAcceleration **aAcceleration)
 {
   NS_ENSURE_ARG_POINTER(aAcceleration);
 
-  NS_IF_ADDREF(*aAcceleration = GetAcceleration());
+  NS_IF_ADDREF(*aAcceleration = mAcceleration);
   return NS_OK;
 }
 
@@ -82,8 +60,7 @@ nsDOMDeviceMotionEvent::GetAccelerationIncludingGravity(nsIDOMDeviceAcceleration
 {
   NS_ENSURE_ARG_POINTER(aAccelerationIncludingGravity);
 
-  NS_IF_ADDREF(*aAccelerationIncludingGravity =
-               GetAccelerationIncludingGravity());
+  NS_IF_ADDREF(*aAccelerationIncludingGravity = mAccelerationIncludingGravity);
   return NS_OK;
 }
 
@@ -92,7 +69,7 @@ nsDOMDeviceMotionEvent::GetRotationRate(nsIDOMDeviceRotationRate **aRotationRate
 {
   NS_ENSURE_ARG_POINTER(aRotationRate);
 
-  NS_IF_ADDREF(*aRotationRate = GetRotationRate());
+  NS_IF_ADDREF(*aRotationRate = mRotationRate);
   return NS_OK;
 }
 
@@ -101,7 +78,7 @@ nsDOMDeviceMotionEvent::GetInterval(double *aInterval)
 {
   NS_ENSURE_ARG_POINTER(aInterval);
 
-  *aInterval = Interval();
+  *aInterval = mInterval;
   return NS_OK;
 }
 

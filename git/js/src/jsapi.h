@@ -1161,8 +1161,8 @@ typedef JSBool
  * wrap a function.
  */
 typedef JSObject *
-(* JSWrapObjectCallback)(JSContext *cx, JS::HandleObject existing, JS::HandleObject obj,
-                         JS::HandleObject proto, JS::HandleObject parent,
+(* JSWrapObjectCallback)(JSContext *cx, JSObject *existing, JSObject *obj,
+                         JSObject *proto, JSObject *parent,
                          unsigned flags);
 
 /*
@@ -1171,8 +1171,7 @@ typedef JSObject *
  * or even finding a more suitable object for the new compartment.
  */
 typedef JSObject *
-(* JSPreWrapCallback)(JSContext *cx, JS::HandleObject scope, JS::HandleObject obj,
-                      unsigned flags);
+(* JSPreWrapCallback)(JSContext *cx, JSObject *scope, JSObject *obj, unsigned flags);
 
 /*
  * Callback used when wrapping determines that the underlying object is already
@@ -1185,7 +1184,7 @@ typedef JSObject *
  * compartment wrapper that gets passed to wrap.
  */
 typedef JSObject *
-(* JSSameCompartmentWrapObjectCallback)(JSContext *cx, JS::HandleObject obj);
+(* JSSameCompartmentWrapObjectCallback)(JSContext *cx, JSObject *obj);
 
 typedef void
 (* JSDestroyCompartmentCallback)(JSFreeOp *fop, JSCompartment *compartment);

@@ -6,7 +6,3 @@
 
 MODULE = 'gtkxtbin'
 
-EXPORTS += [
-    'gtk2xtbin.h',
-]
-

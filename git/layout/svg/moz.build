@@ -6,12 +6,3 @@
 
 MODULE = 'layout'
 
-EXPORTS += [
-    'SVGImageContext.h',
-    'nsSVGEffects.h',
-    'nsSVGFilterInstance.h',
-    'nsSVGForeignObjectFrame.h',
-    'nsSVGIntegrationUtils.h',
-    'nsSVGUtils.h',
-]
-

@@ -6,9 +6,3 @@
 
 MODULE = 'content'
 
-EXPORTS += [
-    'GStreamerDecoder.h',
-    'GStreamerFormatHelper.h',
-    'GStreamerReader.h',
-]
-

@@ -6,7 +6,3 @@
 
 MODULE = 'shistory'
 
-EXPORTS += [
-    'nsSHEntryShared.h',
-]
-

@@ -6,8 +6,3 @@
 
 MODULE = 'ucvja'
 
-EXPORTS += [
-    'nsUCVJA2CID.h',
-    'nsUCVJACID.h',
-]
-

@@ -26,18 +26,3 @@ XPIDL_FLAGS += [
 
 MODULE = 'necko'
 
-EXPORTS += [
-    'nsHttp.h',
-    'nsHttpAtomList.h',
-    'nsHttpHeaderArray.h',
-    'nsHttpResponseHead.h',
-]
-
-EXPORTS.mozilla.net += [
-    'HttpBaseChannel.h',
-    'HttpChannelChild.h',
-    'HttpChannelParent.h',
-    'HttpInfo.h',
-    'PHttpChannelParams.h',
-]
-

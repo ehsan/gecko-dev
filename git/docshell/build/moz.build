@@ -6,7 +6,3 @@
 
 MODULE = 'docshell'
 
-EXPORTS += [
-    'nsDocShellCID.h',
-]
-

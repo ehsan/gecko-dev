@@ -3713,7 +3713,7 @@ nsContentUtils::ConvertStringFromCharset(const nsACString& aCharset,
 /* static */
 bool
 nsContentUtils::CheckForBOM(const unsigned char* aBuffer, uint32_t aLength,
-                            nsACString& aCharset)
+                            nsACString& aCharset, bool *bigEndian)
 {
   bool found = true;
   aCharset.Truncate();
@@ -3725,11 +3725,15 @@ nsContentUtils::CheckForBOM(const unsigned char* aBuffer, uint32_t aLength,
   }
   else if (aLength >= 2 &&
            aBuffer[0] == 0xFE && aBuffer[1] == 0xFF) {
-    aCharset = "UTF-16BE";
+    aCharset = "UTF-16";
+    if (bigEndian)
+      *bigEndian = true;
   }
   else if (aLength >= 2 &&
            aBuffer[0] == 0xFF && aBuffer[1] == 0xFE) {
-    aCharset = "UTF-16LE";
+    aCharset = "UTF-16";
+    if (bigEndian)
+      *bigEndian = false;
   } else {
     found = false;
   }
@@ -3787,7 +3791,16 @@ nsContentUtils::GuessCharset(const char *aData, uint32_t aDataLen,
       (aDataLen >= sizeof(sniffBuf) ? sizeof(sniffBuf) : aDataLen);
     memcpy(sniffBuf, aData, numRead);
 
-    CheckForBOM(sniffBuf, numRead, aCharset);
+    bool bigEndian;
+    if (CheckForBOM(sniffBuf, numRead, aCharset, &bigEndian) &&
+        aCharset.EqualsLiteral("UTF-16")) {
+      if (bigEndian) {
+        aCharset.AppendLiteral("BE");
+      }
+      else {
+        aCharset.AppendLiteral("LE");
+      }
+    }
   }
 
   if (aCharset.IsEmpty()) {

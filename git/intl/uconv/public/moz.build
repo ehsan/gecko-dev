@@ -6,11 +6,3 @@
 
 MODULE = 'uconv'
 
-EXPORTS += [
-    'nsEncoderDecoderUtils.h',
-    'nsIUnicodeDecoder.h',
-    'nsIUnicodeEncoder.h',
-    'nsUConvCID.h',
-    'uconvutil.h',
-]
-

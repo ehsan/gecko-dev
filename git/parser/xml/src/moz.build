@@ -6,9 +6,3 @@
 
 MODULE = 'xml'
 
-EXPORTS += [
-    'nsSAXAttributes.h',
-    'nsSAXLocator.h',
-    'nsSAXXMLReader.h',
-]
-

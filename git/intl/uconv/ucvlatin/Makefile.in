@@ -132,6 +132,8 @@ CPPSRCS		= \
 		nsUnicodeToTSCII.cpp \
 		$(NULL)
 
+EXPORTS		= nsUCvLatinCID.h
+
 LOCAL_INCLUDES = -I$(srcdir)/../util -I$(srcdir)/../src
 
 include $(topsrcdir)/config/rules.mk

@@ -125,8 +125,7 @@ WrapperFactory::DoubleWrap(JSContext *cx, HandleObject obj, unsigned flags)
 }
 
 JSObject *
-WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
-                                   HandleObject objArg, unsigned flags)
+WrapperFactory::PrepareForWrapping(JSContext *cx, JSObject *scope, JSObject *objArg, unsigned flags)
 {
     RootedObject obj(cx, objArg);
     // Outerize any raw inner objects at the entry point here, so that we don't
@@ -168,7 +167,6 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
 
     JSAutoCompartment ac(cx, obj);
     XPCCallContext ccx(JS_CALLER, cx, obj);
-    RootedObject wrapScope(cx, scope);
 
     {
         if (NATIVE_HAS_FLAG(&ccx, WantPreCreate)) {
@@ -179,19 +177,20 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
             // being accessed across compartments. We would really prefer to
             // replace the above code with a test that says "do you only have one
             // wrapper?"
+            RootedObject originalScope(cx, scope);
             nsresult rv = wn->GetScriptableInfo()->GetCallback()->
-                PreCreate(wn->Native(), cx, scope, wrapScope.address());
+                PreCreate(wn->Native(), cx, scope, &scope);
             NS_ENSURE_SUCCESS(rv, DoubleWrap(cx, obj, flags));
 
             // If the handed back scope differs from the passed-in scope and is in
             // a separate compartment, then this object is explicitly requesting
             // that we don't create a second JS object for it: create a security
             // wrapper.
-            if (js::GetObjectCompartment(scope) != js::GetObjectCompartment(wrapScope))
+            if (js::GetObjectCompartment(originalScope) != js::GetObjectCompartment(scope))
                 return DoubleWrap(cx, obj, flags);
 
             RootedObject currentScope(cx, JS_GetGlobalForObject(cx, obj));
-            if (MOZ_UNLIKELY(wrapScope != currentScope)) {
+            if (MOZ_UNLIKELY(scope != currentScope)) {
                 // The wrapper claims it wants to be in the new scope, but
                 // currently has a reflection that lives in the old scope. This
                 // can mean one of two things, both of which are rare:
@@ -218,7 +217,7 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
 
                 // Check for case (2).
                 if (probe != currentScope) {
-                    MOZ_ASSERT(probe == wrapScope);
+                    MOZ_ASSERT(probe == scope);
                     return DoubleWrap(cx, obj, flags);
                 }
 
@@ -237,8 +236,8 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
             // This doesn't actually pose a security issue, because we'll still compute
             // the correct (opaque) wrapper for the object below given the security
             // characteristics of the two compartments.
-            if (!AccessCheck::isChrome(js::GetObjectCompartment(wrapScope)) &&
-                 AccessCheck::subsumesIgnoringDomain(js::GetObjectCompartment(wrapScope),
+            if (!AccessCheck::isChrome(js::GetObjectCompartment(scope)) &&
+                 AccessCheck::subsumesIgnoringDomain(js::GetObjectCompartment(scope),
                                                      js::GetObjectCompartment(obj)))
             {
                 return DoubleWrap(cx, obj, flags);
@@ -250,11 +249,11 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
     // WrapNativeToJSVal.
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
 
-    // This public WrapNativeToJSVal API enters the compartment of 'wrapScope'
+    // This public WrapNativeToJSVal API enters the compartment of 'scope'
     // so we don't have to.
     RootedValue v(cx);
     nsresult rv =
-        nsXPConnect::FastGetXPConnect()->WrapNativeToJSVal(cx, wrapScope, wn->Native(), nullptr,
+        nsXPConnect::FastGetXPConnect()->WrapNativeToJSVal(cx, scope, wn->Native(), nullptr,
                                                            &NS_GET_IID(nsISupports), false,
                                                            v.address(), getter_AddRefs(holder));
     if (NS_SUCCEEDED(rv)) {
@@ -345,8 +344,8 @@ SelectWrapper(bool securityWrapper, bool wantXrays, XrayType xrayType,
 }
 
 JSObject *
-WrapperFactory::Rewrap(JSContext *cx, HandleObject existing, HandleObject obj,
-                       HandleObject wrappedProto, HandleObject parent,
+WrapperFactory::Rewrap(JSContext *cx, JSObject *existing, JSObject *obj,
+                       JSObject *wrappedProto, JSObject *parent,
                        unsigned flags)
 {
     MOZ_ASSERT(!IsWrapper(obj) ||
@@ -499,9 +498,8 @@ WrapperFactory::Rewrap(JSContext *cx, HandleObject existing, HandleObject obj,
 }
 
 JSObject *
-WrapperFactory::WrapForSameCompartment(JSContext *cx, HandleObject objArg)
+WrapperFactory::WrapForSameCompartment(JSContext *cx, JSObject *obj)
 {
-    RootedObject obj(cx, objArg);
     MOZ_ASSERT(js::IsObjectInContextCompartment(obj, cx));
 
     // NB: The contract of WrapForSameCompartment says that |obj| may or may not
@@ -513,7 +511,7 @@ WrapperFactory::WrapForSameCompartment(JSContext *cx, HandleObject objArg)
     obj = JS_ObjectToOuterObject(cx, obj);
     NS_ENSURE_TRUE(obj, nullptr);
 
-    if (dom::GetSameCompartmentWrapperForDOMBinding(*obj.address())) {
+    if (dom::GetSameCompartmentWrapperForDOMBinding(obj)) {
         return obj;
     }
 

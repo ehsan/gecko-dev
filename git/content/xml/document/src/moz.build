@@ -6,7 +6,3 @@
 
 MODULE = 'content'
 
-EXPORTS.mozilla.dom += [
-    'XMLDocument.h',
-]
-

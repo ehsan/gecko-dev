@@ -6,7 +6,3 @@
 
 MODULE = 'storage'
 
-EXPORTS += [
-    'mozStorageCID.h',
-]
-

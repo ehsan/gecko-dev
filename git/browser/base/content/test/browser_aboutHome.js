@@ -250,7 +250,6 @@ let gTests = [
 function test()
 {
   waitForExplicitFinish();
-  requestLongerTimeout(2);
 
   Task.spawn(function () {
     for (let test of gTests) {

@@ -13,8 +13,8 @@ function test() {
 
   let scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
                      getService(Ci.mozIJSSubScriptLoader);
-  let ChromeUtils = {};
-  scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/ChromeUtils.js", ChromeUtils);
+  let chromeUtils = {};
+  scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/ChromeUtils.js", chromeUtils);
 
   let homeButton = document.getElementById("home-button");
   ok(homeButton, "home button present");
@@ -44,14 +44,14 @@ function test() {
         // The drop handler throws an exception when dragging URIs that inherit
         // principal, e.g. javascript:
         expectUncaughtException();
-        ChromeUtils.synthesizeDrop(homeButton, homeButton, [[{type: "text/plain", data: "javascript:8888"}]], "copy", window);
+        chromeUtils.synthesizeDrop(homeButton, homeButton, [[{type: "text/plain", data: "javascript:8888"}]], "copy", window, EventUtils);
       });
     })
   });
 
   Services.wm.addListener(dialogListener);
 
-  ChromeUtils.synthesizeDrop(homeButton, homeButton, [[{type: "text/plain", data: "http://mochi.test:8888/"}]], "copy", window);
+  chromeUtils.synthesizeDrop(homeButton, homeButton, [[{type: "text/plain", data: "http://mochi.test:8888/"}]], "copy", window, EventUtils);
 }
 
 function WindowListener(aURL, aCallback) {

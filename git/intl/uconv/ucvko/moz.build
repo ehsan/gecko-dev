@@ -6,7 +6,3 @@
 
 MODULE = 'ucvko'
 
-EXPORTS += [
-    'nsUCvKOCID.h',
-]
-

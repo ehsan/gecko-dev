@@ -21,6 +21,9 @@ XPCOMUtils.defineLazyModuleGetter(this,
 XPCOMUtils.defineLazyModuleGetter(this,
   "Services", "resource://gre/modules/Services.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this,
+  "FileUtils", "resource://gre/modules/FileUtils.jsm");
+
 this.EXPORTED_SYMBOLS = ["DebuggerUI"];
 
 /**

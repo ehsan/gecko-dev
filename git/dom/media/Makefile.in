@@ -22,6 +22,12 @@ EXTRA_COMPONENTS = \
   PeerConnection.manifest \
   $(NULL)
 
+EXPORTS_NAMESPACES = mozilla
+
+EXPORTS_mozilla = \
+  MediaManager.h \
+  $(NULL)
+
 CPPSRCS = \
   MediaManager.cpp \
   $(NULL)

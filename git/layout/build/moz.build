@@ -6,9 +6,3 @@
 
 MODULE = 'layout'
 
-EXPORTS += [
-    'nsContentDLF.h',
-    'nsLayoutCID.h',
-    'nsLayoutStatics.h',
-]
-
