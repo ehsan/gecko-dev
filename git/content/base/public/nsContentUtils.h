@@ -133,7 +133,6 @@ class nsIObserver;
 class nsPresContext;
 class nsIChannel;
 struct nsIntMargin;
-class nsPIDOMWindow;
 
 #ifndef have_PrefChangedFunc_typedef
 typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
@@ -444,12 +443,6 @@ public:
    * @param aDocShell The docshell or null if no JS context
    */
   static nsIDocShell *GetDocShellFromCaller();
-
-  /**
-   * Get the window through the JS context that's currently on the stack.
-   * If there's no JS context currently on the stack, returns null.
-   */
-  static nsPIDOMWindow *GetWindowFromCaller();
 
   /**
    * The two GetDocumentFrom* functions below allow a caller to get at a
@@ -1052,11 +1045,6 @@ public:
   /**
    * Creates a DocumentFragment from text using a context node to resolve
    * namespaces.
-   *
-   * Note! In the HTML case with the HTML5 parser enabled, this is only called
-   * from Range.createContextualFragment() and the implementation here is
-   * quirky accordingly (html context node behaves like a body context node).
-   * If you don't want that quirky behavior, don't use this method as-is!
    *
    * @param aContextNode the node which is used to resolve namespaces
    * @param aFragment the string which is parsed to a DocumentFragment

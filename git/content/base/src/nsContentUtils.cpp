@@ -1522,21 +1522,6 @@ nsContentUtils::GetDocShellFromCaller()
   return nsnull;
 }
 
-nsPIDOMWindow *
-nsContentUtils::GetWindowFromCaller()
-{
-  JSContext *cx = nsnull;
-  sThreadJSContextStack->Peek(&cx);
-
-  if (cx) {
-    nsCOMPtr<nsPIDOMWindow> win =
-      do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
-    return win;
-  }
-
-  return nsnull;
-}
-
 nsIDOMDocument *
 nsContentUtils::GetDocumentFromCaller()
 {
@@ -3911,9 +3896,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
     }
     
     nsCOMPtr<nsIContent> fragment = do_QueryInterface(frag);
-    if (contextAsContent &&
-        !(nsGkAtoms::html == contextAsContent->Tag() &&
-          contextAsContent->IsHTML())) {
+    if (contextAsContent) {
       parser->ParseFragment(aFragment, 
                             fragment, 
                             contextAsContent->Tag(), 

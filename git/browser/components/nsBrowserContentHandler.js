@@ -585,7 +585,6 @@ nsBrowserContentHandler.prototype = {
       if (override != OVERRIDE_NONE) {
         // Setup the default search engine to about:home page.
         AboutHomeUtils.loadDefaultSearchEngine();
-        AboutHomeUtils.loadSnippetsURL();
 
         switch (override) {
           case OVERRIDE_NEW_PROFILE:
@@ -895,7 +894,8 @@ let AboutHomeUtils = {
 
   loadDefaultSearchEngine: function AHU_loadDefaultSearchEngine()
   {
-    let defaultEngine = Services.search.originalDefaultEngine;
+    // TODO: should use originalDefaultEngine once available, see bug 587691.
+    let defaultEngine = Services.search.defaultEngine;
     let submission = defaultEngine.getSubmission("_searchTerms_");
     if (submission.postData)
       throw new Error("Home page does not support POST search engines.");
@@ -904,17 +904,7 @@ let AboutHomeUtils = {
     , searchUrl: submission.uri.spec
     }
     this._storage.setItem("search-engine", JSON.stringify(engine));
-  },
-
-  loadSnippetsURL: function AHU_loadSnippetsURL()
-  {
-    const STARTPAGE_VERSION = 1;
-    const SNIPPETS_URL = "http://snippets.mozilla.com/" + STARTPAGE_VERSION + "/%NAME%/%VERSION%/%APPBUILDID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/";
-    let updateURL = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"].
-                    getService(Components.interfaces.nsIURLFormatter).
-                    formatURL(SNIPPETS_URL);
-    this._storage.setItem("snippets-update-url", updateURL);
-  },
+  }
 };
 
 var components = [nsBrowserContentHandler, nsDefaultCommandLineHandler];

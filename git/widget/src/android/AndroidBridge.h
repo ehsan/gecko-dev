@@ -43,7 +43,6 @@
 
 #include "nsCOMPtr.h"
 #include "nsIRunnable.h"
-#include "nsIObserver.h"
 
 #include "AndroidJavaWrappers.h"
 
@@ -135,13 +134,6 @@ public:
 
     bool ClipboardHasText();
 
-    void ShowAlertNotification(const nsAString& aImageUrl,
-                               const nsAString& aAlertTitle,
-                               const nsAString& aAlertText,
-                               const nsAString& aAlertData,
-                               nsIObserver *aAlertListener,
-                               const nsAString& aAlertName);
-
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
             AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
@@ -161,8 +153,6 @@ public:
 
     /* See GLHelpers.java as to why this is needed */
     void *CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoSurfaceView& surfaceView);
-
-    bool GetStaticStringField(const char *classID, const char *field, nsAString &result);
 
 protected:
     static AndroidBridge *sBridge;
@@ -201,7 +191,6 @@ protected:
     jmethodID jMoveTaskToBack;
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;
-    jmethodID jShowAlertNotification;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

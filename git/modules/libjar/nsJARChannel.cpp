@@ -84,15 +84,17 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIINPUTSTREAM
 
-    nsJARInputThunk(nsIZipReader *zipReader,
+    nsJARInputThunk(nsIFile *jarFile,
                     nsIURI* fullJarURI,
                     const nsACString &jarEntry,
                     nsIZipReaderCache *jarCache)
         : mJarCache(jarCache)
-        , mJarReader(zipReader)
+        , mJarFile(jarFile)
         , mJarEntry(jarEntry)
         , mContentLength(-1)
     {
+        NS_ASSERTION(mJarFile, "no jar file");
+
         if (fullJarURI) {
             nsresult rv = fullJarURI->GetAsciiSpec(mJarDirSpec);
             NS_ASSERTION(NS_SUCCEEDED(rv), "this shouldn't fail");
@@ -110,7 +112,7 @@ public:
         NS_IF_ADDREF(*result = mJarReader);
     }
 
-    PRInt32 GetContentLength()
+    PRInt64 GetContentLength()
     {
         return mContentLength;
     }
@@ -121,10 +123,11 @@ private:
 
     nsCOMPtr<nsIZipReaderCache> mJarCache;
     nsCOMPtr<nsIZipReader>      mJarReader;
+    nsCOMPtr<nsIFile>           mJarFile;
     nsCString                   mJarDirSpec;
     nsCOMPtr<nsIInputStream>    mJarStream;
     nsCString                   mJarEntry;
-    PRInt32                     mContentLength;
+    PRInt64                     mContentLength;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsJARInputThunk, nsIInputStream)
@@ -136,6 +139,17 @@ nsJARInputThunk::EnsureJarStream()
         return NS_OK;
 
     nsresult rv;
+    if (mJarCache)
+        rv = mJarCache->GetZip(mJarFile, getter_AddRefs(mJarReader));
+    else {
+        // create an uncached jar reader
+        mJarReader = do_CreateInstance(kZipReaderCID, &rv);
+        if (NS_FAILED(rv)) return rv;
+
+        rv = mJarReader->Open(mJarFile);
+    }
+    if (NS_FAILED(rv)) return rv;
+
     if (ENTRY_IS_DIRECTORY(mJarEntry)) {
         // A directory stream also needs the Spec of the FullJarURI
         // because is included in the stream data itself.
@@ -159,8 +173,11 @@ nsJARInputThunk::EnsureJarStream()
     }
 
     // ask the JarStream for the content length
-    rv = mJarStream->Available((PRUint32 *) &mContentLength);
+    // XXX want a 64-bit value from nsIInputStream::Available()
+    PRUint32 contentLength;
+    rv = mJarStream->Available(&contentLength);
     if (NS_FAILED(rv)) return rv;
+    mContentLength = contentLength;
 
     return NS_OK;
 }
@@ -289,40 +306,9 @@ nsJARChannel::CreateJarInput(nsIZipReaderCache *jarCache)
     // necessarily MT-safe
     nsCOMPtr<nsIFile> clonedFile;
     nsresult rv = mJarFile->Clone(getter_AddRefs(clonedFile));
-    if (NS_FAILED(rv))
-        return rv;
+    if (NS_FAILED(rv)) return rv;
 
-    nsCOMPtr<nsIZipReader> reader;
-    if (jarCache) {
-        if (mInnerJarEntry.IsEmpty())
-            rv = jarCache->GetZip(mJarFile, getter_AddRefs(reader));
-        else 
-            rv = jarCache->GetInnerZip(mJarFile, mInnerJarEntry.get(),
-                                       getter_AddRefs(reader));
-    } else {
-        // create an uncached jar reader
-        nsCOMPtr<nsIZipReader> outerReader = do_CreateInstance(kZipReaderCID, &rv);
-        if (NS_FAILED(rv))
-            return rv;
-
-        rv = outerReader->Open(mJarFile);
-        if (NS_FAILED(rv))
-            return rv;
-
-        if (mInnerJarEntry.IsEmpty())
-            reader = outerReader;
-        else {
-            reader = do_CreateInstance(kZipReaderCID, &rv);
-            if (NS_FAILED(rv))
-                return rv;
-
-            rv = reader->OpenInner(outerReader, mInnerJarEntry.get());
-        }
-    }
-    if (NS_FAILED(rv))
-        return rv;
-
-    mJarInput = new nsJARInputThunk(reader, mJarURI, mJarEntry, jarCache);
+    mJarInput = new nsJARInputThunk(clonedFile, mJarURI, mJarEntry, jarCache);
     if (!mJarInput)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(mJarInput);
@@ -354,21 +340,6 @@ nsJARChannel::EnsureJarInput(PRBool blocking)
         nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(mJarBaseURI);
         if (fileURL)
             fileURL->GetFile(getter_AddRefs(mJarFile));
-    }
-    // try to handle a nested jar
-    if (!mJarFile) {
-        nsCOMPtr<nsIJARURI> jarURI = do_QueryInterface(mJarBaseURI);
-        if (jarURI) {
-            nsCOMPtr<nsIFileURL> fileURL;
-            nsCOMPtr<nsIURI> innerJarURI;
-            rv = jarURI->GetJARFile(getter_AddRefs(innerJarURI));
-            if (NS_SUCCEEDED(rv))
-                fileURL = do_QueryInterface(innerJarURI);
-            if (fileURL) {
-                fileURL->GetFile(getter_AddRefs(mJarFile));
-                jarURI->GetJAREntry(mInnerJarEntry);
-            }
-        }
     }
 
     if (mJarFile) {
@@ -661,7 +632,14 @@ nsJARChannel::SetContentCharset(const nsACString &aContentCharset)
 }
 
 NS_IMETHODIMP
-nsJARChannel::GetContentLength(PRInt32 *result)
+nsJARChannel::GetContentDisposition(nsACString &result)
+{
+    result = mContentDisposition;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsJARChannel::GetContentLength(PRInt64 *result)
 {
     // if content length is unknown, query mJarInput...
     if (mContentLength < 0 && mJarInput)
@@ -672,7 +650,7 @@ nsJARChannel::GetContentLength(PRInt32 *result)
 }
 
 NS_IMETHODIMP
-nsJARChannel::SetContentLength(PRInt32 aContentLength)
+nsJARChannel::SetContentLength(PRInt64 aContentLength)
 {
     // XXX does this really make any sense at all?
     mContentLength = aContentLength;
@@ -800,7 +778,6 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
     }
 
     if (NS_SUCCEEDED(status) && channel) {
-        nsCAutoString header;
         // Grab the security info from our base channel
         channel->GetSecurityInfo(getter_AddRefs(mSecurityInfo));
 
@@ -809,6 +786,7 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
             // We only want to run scripts if the server really intended to
             // send us a JAR file.  Check the server-supplied content type for
             // a JAR type.
+            nsCAutoString header;
             httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Content-Type"),
                                            header);
             nsCAutoString contentType;
@@ -819,10 +797,6 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
             mIsUnsafe = !(contentType.Equals(channelContentType) &&
                           (contentType.EqualsLiteral("application/java-archive") ||
                            contentType.EqualsLiteral("application/x-jar")));
-            rv = httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Content-Disposition"),
-                                                header);
-            if (NS_SUCCEEDED(rv))
-                SetPropertyAsACString(NS_CHANNEL_PROP_CONTENT_DISPOSITION, header);
         } else {
             nsCOMPtr<nsIJARChannel> innerJARChannel(do_QueryInterface(channel));
             if (innerJARChannel) {
@@ -830,11 +804,9 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
                 innerJARChannel->GetIsUnsafe(&unsafe);
                 mIsUnsafe = unsafe;
             }
-            // Soon-to-be common way to get Disposition: right now only nsIJARChannel
-            rv = NS_GetContentDisposition(request, header);
-            if (NS_SUCCEEDED(rv))
-                SetPropertyAsACString(NS_CHANNEL_PROP_CONTENT_DISPOSITION, header);
         }
+
+        channel->GetContentDisposition(mContentDisposition);
     }
 
     if (NS_SUCCEEDED(status) && mIsUnsafe) {
@@ -934,14 +906,14 @@ nsJARChannel::OnDataAvailable(nsIRequest *req, nsISupports *ctx,
 
     nsresult rv;
 
+    // XXX want 64-bit values in OnDataAvailable
     rv = mListener->OnDataAvailable(this, mListenerContext, stream, offset, count);
 
     // simply report progress here instead of hooking ourselves up as a
     // nsITransportEventSink implementation.
-    // XXX do the 64-bit stuff for real
     if (mProgressSink && NS_SUCCEEDED(rv) && !(mLoadFlags & LOAD_BACKGROUND))
         mProgressSink->OnProgress(this, nsnull, PRUint64(offset + count),
-                                  PRUint64(mContentLength));
+                                  mContentLength);
 
     return rv; // let the pump cancel on failure
 }

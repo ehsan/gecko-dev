@@ -100,7 +100,7 @@ nsCanvasFrame::ScrollPositionWillChange(nscoord aX, nscoord aY)
 {
   if (mDoPaintFocus) {
     mDoPaintFocus = PR_FALSE;
-    PresContext()->FrameManager()->GetRootFrame()->InvalidateFrameSubtree();
+    PresContext()->FrameManager()->GetRootFrame()->InvalidateOverflowRect();
   }
 }
 
@@ -109,7 +109,7 @@ nsCanvasFrame::SetHasFocus(PRBool aHasFocus)
 {
   if (mDoPaintFocus != aHasFocus) {
     mDoPaintFocus = aHasFocus;
-    PresContext()->FrameManager()->GetRootFrame()->InvalidateFrameSubtree();
+    PresContext()->FrameManager()->GetRootFrame()->InvalidateOverflowRect();
 
     if (!mAddedScrollPositionListener) {
       nsIScrollableFrame* sf =

@@ -43,13 +43,6 @@ let gSyncUI = {
     // this will be the first notification fired during init
     // we can set up everything else later
     Services.obs.addObserver(this, "weave:service:ready", true);
-
-    // Remove the observer if the window is closed before the observer
-    // was triggered.
-    window.addEventListener("unload", function() {
-      window.removeEventListener("unload", arguments.callee, false);
-      Services.obs.removeObserver(gSyncUI, "weave:service:ready");
-    }, false);
   },
   initUI: function SUI_initUI() {
     let obs = ["weave:service:sync:start",
@@ -91,14 +84,8 @@ let gSyncUI = {
     try {
       firstSync = Services.prefs.getCharPref("services.sync.firstSync");
     } catch (e) { }
-    return Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED ||
+    return Weave.Status.service == Weave.CLIENT_NOT_CONFIGURED ||
            firstSync == "notReady";
-  },
-
-  _isLoggedIn: function() {
-    if (this._needsSetup())
-      return false;
-    return Weave.Service.isLoggedIn;
   },
 
   updateUI: function SUI_updateUI() {
@@ -107,13 +94,13 @@ let gSyncUI = {
     document.getElementById("sync-menu").hidden = needsSetup;
 
     if (gBrowser) {
-      let showLabel = !this._isLoggedIn() && !needsSetup;
+      let showLabel = !Weave.Service.isLoggedIn && !needsSetup;
       let button = document.getElementById("sync-status-button");
       button.setAttribute("class", showLabel ? "statusbarpanel-iconic-text"
                                              : "statusbarpanel-iconic");
       button.image = "chrome://browser/skin/sync-16.png";
 
-      if (!this._isLoggedIn()) {
+      if (!Weave.Service.isLoggedIn) {
         //XXXzpao When we move the string bundle, we can add more and make this
         //        say "needs setup" or something similar. (bug 583381)
         button.removeAttribute("tooltiptext");
@@ -317,7 +304,7 @@ let gSyncUI = {
   _updateLastSyncItem: function SUI__updateLastSyncItem() {
     let lastSync;
     try {
-      lastSync = Services.prefs.getCharPref("services.sync.lastSync");
+      Services.prefs.getCharPref("services.sync.lastSync");
     }
     catch (e) { };
     if (!lastSync)
@@ -341,10 +328,6 @@ let gSyncUI = {
   _onSyncEnd: function SUI__onSyncEnd(success) {
     let title = this._stringBundle.GetStringFromName("error.sync.title");
     if (!success) {
-      if (Weave.Status.login != Weave.LOGIN_SUCCEEDED) {
-        this.onLoginError();
-        return;
-      }
       let error = Weave.Utils.getErrorString(Weave.Status.sync);
       let description =
         this._stringBundle.formatStringFromName("error.sync.description", [error], 1);
@@ -414,12 +397,6 @@ let gSyncUI = {
         break;
       case "weave:service:ready":
         this.initUI();
-        break;
-      case "weave:notification:added":
-        this.onNotificationAdded();
-        break;
-      case "weave:notification:removed":
-        this.onNotificationRemoved();
         break;
     }
   },

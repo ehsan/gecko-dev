@@ -129,7 +129,7 @@
 #define SYSTEMPREF_MODULES
 #endif
 
-#ifdef ENABLE_LAYOUTDEBUG
+#if defined(MOZ_DEBUG) && defined(ENABLE_TESTS)
 #define LAYOUT_DEBUG_MODULE MODULE(nsLayoutDebugModule)
 #else
 #define LAYOUT_DEBUG_MODULE
@@ -241,7 +241,6 @@
     AUTH_MODULE                              \
     MODULE(nsJarModule)                      \
     ZIPWRITER_MODULE                         \
-    MODULE(StartupCacheModule)               \
     MODULE(nsPrefModule)                     \
     RDF_MODULES                              \
     MODULE(nsParserModule)                   \

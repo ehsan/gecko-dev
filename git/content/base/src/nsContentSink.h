@@ -270,9 +270,6 @@ protected:
   // stylesheets are all done loading.
 public:
   void StartLayout(PRBool aIgnorePendingSheets);
-
-  static void NotifyDocElementCreated(nsIDocument* aDoc);
-
 protected:
   void
   FavorPerformanceHint(PRBool perfOverStarvation, PRUint32 starvationDelay);

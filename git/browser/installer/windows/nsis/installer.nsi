@@ -88,6 +88,7 @@ Var PageName
 !include defines.nsi
 !include common.nsh
 !include locales.nsi
+!include version.nsh
 
 VIAddVersionKey "FileDescription" "${BrandShortName} Installer"
 VIAddVersionKey "OriginalFilename" "setup.exe"
@@ -133,11 +134,8 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 
 Name "${BrandFullName}"
 OutFile "setup.exe"
-!ifdef HAVE_64BIT_OS
-  InstallDir "$PROGRAMFILES64\${BrandFullName}\"
-!else
-  InstallDir "$PROGRAMFILES32\${BrandFullName}\"
-!endif
+InstallDirRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${BrandFullNameInternal} (${AppVersion})" "InstallLocation"
+InstallDir "$PROGRAMFILES\${BrandFullName}\"
 ShowInstDetails nevershow
 
 ################################################################################
@@ -250,7 +248,7 @@ Section "-Application" APP_IDX
   ; registered. bug 338878
   ${LogHeader} "DLL Registration"
   ClearErrors
-  ${RegisterDLL} "$INSTDIR\AccessibleMarshal.dll"
+  RegDLL "$INSTDIR\AccessibleMarshal.dll"
   ${If} ${Errors}
     ${LogMsg} "** ERROR Registering: $INSTDIR\AccessibleMarshal.dll **"
   ${Else}
@@ -270,6 +268,27 @@ Section "-Application" APP_IDX
   ${LogUninstall} "File: \install_wizard.log"
   ${LogUninstall} "File: \updates.xml"
 
+  ; Check if QuickTime is installed and copy the nsIQTScriptablePlugin.xpt from
+  ; its plugins directory into the app's components directory.
+  ClearErrors
+  ReadRegStr $R0 HKLM "Software\Apple Computer, Inc.\QuickTime" "InstallDir"
+  ${Unless} ${Errors}
+    ${GetLongPath} "$R0" $R0
+    ${Unless} "$R0" == ""
+      ClearErrors
+      GetFullPathName $R0 "$R0\Plugins\nsIQTScriptablePlugin.xpt"
+      ${Unless} ${Errors}
+        ${LogHeader} "Copying QuickTime Scriptable Component"
+        CopyFiles /SILENT "$R0" "$INSTDIR\components"
+        ${If} ${Errors}
+          ${LogMsg} "** ERROR Installing File: $INSTDIR\components\nsIQTScriptablePlugin.xpt **"
+        ${Else}
+          ${LogMsg} "Installed File: $INSTDIR\components\nsIQTScriptablePlugin.xpt"
+          ${LogUninstall} "File: \components\nsIQTScriptablePlugin.xpt"
+        ${EndIf}
+      ${EndUnless}
+    ${EndUnless}
+  ${EndUnless}
   ClearErrors
 
   ; Default for creating Start Menu folder and shortcuts
@@ -532,7 +551,7 @@ Function CustomAbort
       ${Else}
         UAC::ExecCodeSegment $0
       ${EndIf}
-
+      
       CustomAbort_finish:
       Return
     ${EndUnless}
@@ -983,7 +1002,8 @@ Function .onInit
 
   ; There must always be a core directory.
   ${GetSize} "$EXEDIR\core\" "/S=0K" $R5 $R7 $R8
-  SectionSetSize ${APP_IDX} $R5
+  IntOp $R8 $R5 + $R6
+  SectionSetSize ${APP_IDX} $R8
 
   ; Initialize $hHeaderBitmap to prevent redundant changing of the bitmap if
   ; the user clicks the back button

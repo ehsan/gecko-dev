@@ -96,10 +96,11 @@ NS_IMETHODIMP nsXULTabAccessible::DoAction(PRUint8 index)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTabAccessible: nsAccessible
 
-PRUint32
-nsXULTabAccessible::NativeRole()
+nsresult
+nsXULTabAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_PAGETAB;
+  *aRole = nsIAccessibleRole::ROLE_PAGETAB;
+  return NS_OK;
 }
 
 nsresult
@@ -183,10 +184,11 @@ nsXULTabsAccessible::
 {
 }
 
-PRUint32
-nsXULTabsAccessible::NativeRole()
+nsresult
+nsXULTabsAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_PAGETABLIST;
+  *aRole = nsIAccessibleRole::ROLE_PAGETABLIST;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -222,10 +224,11 @@ nsXULTabpanelsAccessible::
 {
 }
 
-PRUint32
-nsXULTabpanelsAccessible::NativeRole()
+nsresult
+nsXULTabpanelsAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_PANE;
+  *aRole = nsIAccessibleRole::ROLE_PANE;
+  return NS_OK;
 }
 
 
@@ -239,10 +242,11 @@ nsXULTabpanelAccessible::
 {
 }
 
-PRUint32
-nsXULTabpanelAccessible::NativeRole()
+nsresult
+nsXULTabpanelAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_PROPERTYPAGE;
+  *aRole = nsIAccessibleRole::ROLE_PROPERTYPAGE;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

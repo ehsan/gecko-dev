@@ -58,7 +58,6 @@
 #include "nsImageFrame.h"
 #include "nsIImageLoadingContent.h"
 #include "nsDisplayList.h"
-#include "nsCSSRendering.h"
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
@@ -418,10 +417,8 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsDisplayList replacedContent;
-
   if (HasVideoElement() && !ShouldDisplayPoster()) {
-    rv = replacedContent.AppendNewToTop(
+    rv = aLists.Content()->AppendNewToTop(
       new (aBuilder) nsDisplayVideo(aBuilder, this));
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -434,17 +431,15 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     if (child->GetType() == nsGkAtoms::imageFrame && ShouldDisplayPoster()) {
       rv = child->BuildDisplayListForStackingContext(aBuilder,
                                                      aDirtyRect - child->GetOffsetTo(this),
-                                                     &replacedContent);
+                                                     aLists.Content());
       NS_ENSURE_SUCCESS(rv,rv);
     } else if (child->GetType() == nsGkAtoms::boxFrame) {
       rv = child->BuildDisplayListForStackingContext(aBuilder,
                                                      aDirtyRect - child->GetOffsetTo(this),
-                                                     &replacedContent);
+                                                     aLists.Content());
       NS_ENSURE_SUCCESS(rv,rv);
     }
   }
-
-  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
 
   return NS_OK;
 }
@@ -559,9 +554,8 @@ nsVideoFrame::GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext)
     if (child && child->GetType() == nsGkAtoms::imageFrame) {
       nsImageFrame* imageFrame = static_cast<nsImageFrame*>(child);
       nsSize imgsize;
-      if (NS_SUCCEEDED(imageFrame->GetIntrinsicImageSize(imgsize))) {
-        return imgsize;
-      }
+      imageFrame->GetIntrinsicImageSize(imgsize);
+      return imgsize;
     }
   }
 

@@ -41,18 +41,18 @@
 #include "base/basictypes.h"
 
 #include "nsIGeolocationProvider.h"
-#include "nsIContentPermissionPrompt.h"
+#include "nsIGeolocationPrompt.h"
 #include "nsString.h"
 #include "nsIDOMElement.h"
 
-#include "mozilla/dom/PContentPermissionRequestParent.h"
+#include "mozilla/dom/PGeolocationRequestParent.h"
 
 class nsGeolocationRequestProxy;
 
 namespace mozilla {
 namespace dom {
 
-class GeolocationRequestParent : public PContentPermissionRequestParent
+class GeolocationRequestParent : public PGeolocationRequestParent
 {
  public:
   GeolocationRequestParent(nsIDOMElement *element, const IPC::URI& principal);
@@ -69,7 +69,7 @@ class GeolocationRequestParent : public PContentPermissionRequestParent
 } // namespace dom
 } // namespace mozilla
 
-class nsGeolocationRequestProxy : public nsIContentPermissionRequest
+class nsGeolocationRequestProxy : public nsIGeolocationRequest
 {
  public:
   nsGeolocationRequestProxy();
@@ -78,7 +78,7 @@ class nsGeolocationRequestProxy : public nsIContentPermissionRequest
   nsresult Init(mozilla::dom::GeolocationRequestParent* parent);
   
   NS_DECL_ISUPPORTS;
-  NS_DECL_NSICONTENTPERMISSIONREQUEST;
+  NS_DECL_NSIGEOLOCATIONREQUEST;
 
  private:
   // Non-owning pointer to the GeolocationRequestParent object which owns this proxy.

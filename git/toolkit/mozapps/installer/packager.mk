@@ -87,7 +87,6 @@ SDK           = $(SDK_PATH)$(PKG_BASENAME).sdk$(SDK_SUFFIX)
 
 MAKE_PACKAGE	= $(error What is a $(MOZ_PKG_FORMAT) package format?);
 MAKE_CAB	= $(error Don't know how to make a CAB!);
-_ABS_DIST = $(call core_abspath,$(DIST))
 
 ifdef WINCE
 ifndef WINCE_WINDOWS_MOBILE
@@ -185,6 +184,7 @@ endif
 INNER_MAKE_PACKAGE	= $(_ABS_MOZSRCDIR)/build/package/mac_osx/pkg-dmg \
   --source "$(PKG_DMG_SOURCE)" --target "$(PACKAGE)" \
   --volname "$(MOZ_APP_DISPLAYNAME)" $(PKG_DMG_FLAGS)
+_ABS_DIST = $(call core_abspath,$(DIST))
 INNER_UNMAKE_PACKAGE	= \
   set -ex; \
   rm -rf $(_ABS_DIST)/unpack.tmp; \
@@ -229,7 +229,6 @@ OMNIJAR_FILES	= \
 
 NON_OMNIJAR_FILES = \
   chrome/icons/\* \
-  defaults/pref/channel-prefs.js \
   res/cursors/\* \
   res/MainMenu.nib/\* \
   $(NULL)
@@ -237,19 +236,11 @@ NON_OMNIJAR_FILES = \
 PACK_OMNIJAR	= \
   rm -f omni.jar components/binary.manifest && \
   grep -h '^binary-component' components/*.manifest > binary.manifest ; \
-  sed -e 's/^binary-component/\#binary-component/' components/components.manifest > components.manifest && \
-  mv components.manifest components && \
-  find . | xargs touch -t 201001010000 && \
-  zip -r9mX omni.jar $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
-  $(OPTIMIZE_JARS_CMD) --optimize $(_ABS_DIST)/jarlog/ ./ ./ && \
+  zip -r9m omni.jar $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
+  $(OPTIMIZE_JARS_CMD) $(DIST)/jarlog/ ./ ./ && \
   mv binary.manifest components && \
   printf "manifest components/binary.manifest\n" > chrome.manifest
-UNPACK_OMNIJAR	= \
-  $(OPTIMIZE_JARS_CMD) --deoptimize $(_ABS_DIST)/jarlog/ ./ ./ && \
-  unzip -o omni.jar && \
-  rm -f components/binary.manifest && \
-  sed -e 's/^\#binary-component/binary-component/' components/components.manifest > components.manifest && \
-  mv components.manifest components
+UNPACK_OMNIJAR	= unzip -o omni.jar && rm -f components/binary.manifest
 
 MAKE_PACKAGE	= (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR)) && $(INNER_MAKE_PACKAGE)
 UNMAKE_PACKAGE	= $(INNER_UNMAKE_PACKAGE) && (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(UNPACK_OMNIJAR))
@@ -457,7 +448,7 @@ else
 endif # DMG
 endif # MOZ_PKG_MANIFEST
 endif # UNIVERSAL_BINARY
-	$(OPTIMIZE_JARS_CMD) --optimize $(DIST)/jarlog/ $(DIST)/bin/chrome $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/chrome
+	$(OPTIMIZE_JARS_CMD) $(DIST)/jarlog/ $(DIST)/bin/chrome $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/chrome
 ifndef PKG_SKIP_STRIP
 	@echo "Stripping package directory..."
 	@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR); find . ! -type d \

@@ -1298,7 +1298,6 @@ nsCacheService::OpenCacheEntry(nsCacheSession *           session,
 
     CACHE_LOG_DEBUG(("Created request %p\n", request));
 
-#if 0 // Disabled because of bug 589296
     // Process the request on the background thread if we are on the main thread
     // and the the request is asynchronous
     if (NS_IsMainThread() && listener && gService->mCacheIOThread) {
@@ -1314,9 +1313,7 @@ nsCacheService::OpenCacheEntry(nsCacheSession *           session,
         if (NS_FAILED(rv))
             delete request;
     }
-    else 
-#endif
-    {
+    else {
         rv = gService->ProcessRequest(request, PR_TRUE, result);
 
         // delete requests that have completed
@@ -1481,7 +1478,6 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
     nsCacheDevice * device = entry->CacheDevice();
     if (device)  return device;
 
-    PRInt64 predictedDataSize = entry->PredictedDataSize();
 #ifdef NECKO_DISK_CACHE
     if (entry->IsStreamData() && entry->IsAllowedOnDisk() && mEnableDiskDevice) {
         // this is the default
@@ -1490,14 +1486,6 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
         }
 
         if (mDiskDevice) {
-            // Bypass the cache if Content-Length says the entry will be too big
-            if (predictedDataSize != -1 &&
-                mDiskDevice->EntryIsTooBig(predictedDataSize)) {
-                nsresult rv = nsCacheService::DoomEntry(entry);
-                NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
-                return nsnull;
-            }
-
             entry->MarkBinding();  // enter state of binding
             nsresult rv = mDiskDevice->BindEntry(entry);
             entry->ClearBinding(); // exit state of binding
@@ -1506,21 +1494,13 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
         }
     }
 #endif // !NECKO_DISK_CACHE
-
+     
     // if we can't use mDiskDevice, try mMemoryDevice
     if (!device && mEnableMemoryDevice && entry->IsAllowedInMemory()) {        
         if (!mMemoryDevice) {
             (void)CreateMemoryDevice();  // ignore the error (check for mMemoryDevice instead)
         }
         if (mMemoryDevice) {
-            // Bypass the cache if Content-Length says entry will be too big
-            if (predictedDataSize != -1 &&
-                mMemoryDevice->EntryIsTooBig(predictedDataSize)) {
-                nsresult rv = nsCacheService::DoomEntry(entry);
-                NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
-                return nsnull;
-            }
-
             entry->MarkBinding();  // enter state of binding
             nsresult rv = mMemoryDevice->BindEntry(entry);
             entry->ClearBinding(); // exit state of binding

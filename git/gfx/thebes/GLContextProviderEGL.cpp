@@ -819,9 +819,8 @@ public:
                     const nsIntSize& aSize,
                     ContentType aContentType,
                     GLContext* aContext,
-                    GLContextEGL* aImpl,
-                    PRBool aIsRGB)
-        : TextureImage(aTexture, aSize, aContentType, aIsRGB)
+                    GLContextEGL* aImpl)
+        : TextureImage(aTexture, aSize, aContentType)
         , mGLContext(aContext)
         , mImpl(aImpl)
     { }
@@ -884,8 +883,6 @@ GLContextEGL::CreateTextureImage(const nsIntSize& aSize,
       (gfxASurface::CONTENT_COLOR == aContentType) ?
       gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
 
-  PRBool isRGB = PR_TRUE; // ^ this is always RGB
-
   nsRefPtr<gfxASurface> pixmap =
     gfxPlatform::GetPlatform()->
       CreateOffscreenSurface(gfxIntSize(aSize.width, aSize.height),
@@ -915,8 +912,7 @@ GLContextEGL::CreateTextureImage(const nsIntSize& aSize,
 
   nsRefPtr<TextureImageEGL> teximage =
       new TextureImageEGL(texture, aSize, aContentType, this,
-                          static_cast<GLContextEGL*>(impl.get()),
-                          isRGB);
+                          static_cast<GLContextEGL*>(impl.get()));
   return teximage.forget();
 }
 

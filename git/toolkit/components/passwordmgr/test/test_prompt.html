@@ -395,7 +395,7 @@ function handleLoad() {
 
         // Same realm we've already authenticated to, but with a different
         // expected password (to trigger an auth prompt, and change-password
-        // popup notification).
+        // notification bar).
         startCallbackTimer();
         iframe.src = "authenticate.sjs?user=mochiuser1&pass=mochipass1-new";
         break;
@@ -406,12 +406,11 @@ function handleLoad() {
         is(username, "mochiuser1", "Checking for echoed username");
         is(password, "mochipass1-new", "Checking for echoed password");
 
-        // Check for the popup notification, and change the password.
-        popup = getPopup(popupNotifications, "password-change");
-        ok(popup, "got popup notification");
-        clickPopupButton(popup, kChangeButton);
-        popup.remove();
-        
+        // Check for the notification bar, and change the password.
+        bar = getNotificationBar(notifyBox, "password-change");
+        ok(bar, "got notification bar");
+        clickNotificationButton(bar, kChangeButton);
+
         // Housekeeping: change it back
         tmpLogin.init("http://mochi.test:8888", null, "mochitest",
                       "mochiuser1", "mochipass1-new", "", "");
@@ -419,7 +418,7 @@ function handleLoad() {
 
         // Same as last test, but for a realm we haven't already authenticated
         // to (but have an existing saved login for, so that we'll trigger
-        // a change-password popup notification.
+        // a change-password notification bar.
         startCallbackTimer();
         iframe.src = "authenticate.sjs?user=mochiuser3&pass=mochipass3-new&realm=mochitest3";
         break;
@@ -430,11 +429,10 @@ function handleLoad() {
         is(username, "mochiuser3", "Checking for echoed username");
         is(password, "mochipass3-new", "Checking for echoed password");
 
-        // Check for the popup notification, and change the password.
-        popup = getPopup(popupNotifications, "password-change");
-        ok(popup, "got popup notification");
-        clickPopupButton(popup, kChangeButton);
-        popup.remove();
+        // Check for the notification bar, and change the password.
+        bar = getNotificationBar(notifyBox, "password-change");
+        ok(bar, "got notification bar");
+        clickNotificationButton(bar, kChangeButton);
 
         // Housekeeping: change it back to the original login4. Actually,
         // just delete it and we'll re-add it as the next test.
@@ -457,12 +455,11 @@ function handleLoad() {
         is(username, "mochiuser3", "Checking for echoed username");
         is(password, "mochipass3-old", "Checking for echoed password");
 
-        // Check for the popup notification, and change the password.
-        popup = getPopup(popupNotifications, "password-save");
-        ok(popup, "got popup notification");
-        clickPopupButton(popup, kRememberButton);
-        popup.remove();
-        
+        // Check for the notification bar, and change the password.
+        bar = getNotificationBar(notifyBox, "password-save");
+        ok(bar, "got notification bar");
+        clickNotificationButton(bar, kRememberButton);
+
         finishTest();
         break;
 
@@ -522,10 +519,14 @@ var pword  = { value : null };
 var result = { value : null };
 var isOk;
 
-// popupNotifications (not *popup*) is a constant, per-tab container. So, we
+// The notification box (not *bar*) is a constant, per-tab container. So, we
 // only need to fetch it once.
-var popupNotifications = getPopupNotifications(window.top);
-ok(popupNotifications, "Got popupNotifications");
+var notifyBox = getNotificationBox(window.top);
+ok(notifyBox, "Got notification box");
+
+// Remove any notification bars that might be left over from other tests.
+notifyBox.removeAllNotifications(true);
+
 
 // ===== test 1 ===== 
 var testNum = 1;
@@ -1015,7 +1016,7 @@ if (pb) {
 
 prefs.clearUserPref("signon.autologin.proxy");
 
-// XXX check for and kill popup notification??
+// XXX check for and kill notification bar??
 // XXX check for checkbox / checkstate on old prompts?
 // XXX check NTLM domain stuff
 

@@ -18,7 +18,8 @@ function testName(aAccOrElmOrID, aName, aMsg)
 ////////////////////////////////////////////////////////////////////////////////
 // Name tests described by "namerules.xml" file.
 
-var gNameRulesFileURL = "namerules.xml";
+var gNameRulesFileURL =
+  "chrome://mochikit/content/a11y/accessible/namerules.xml";
 
 var gRuleDoc = null;
 

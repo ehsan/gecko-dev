@@ -47,7 +47,6 @@
 #include "nsThreadUtils.h"
 
 #include "IDBEvents.h"
-#include "IDBFactory.h"
 #include "IDBTransaction.h"
 #include "TransactionThreadPool.h"
 
@@ -106,6 +105,10 @@ AsyncConnectionHelper::AsyncConnectionHelper(IDBTransaction* aTransaction,
 AsyncConnectionHelper::~AsyncConnectionHelper()
 {
   if (!NS_IsMainThread()) {
+    NS_ASSERTION(mErrorCode == NOREPLY || !mRequest,
+                 "This should only happen if NOREPLY was returned or if the "
+                 "runnable already ran on the main thread!");
+
     IDBDatabase* database;
     mDatabase.forget(&database);
 
@@ -143,7 +146,17 @@ NS_IMETHODIMP
 AsyncConnectionHelper::Run()
 {
   if (NS_IsMainThread()) {
-    mRequest->SetDone();
+    if (mRequest->mAborted) {
+      NS_ASSERTION(mRequest->mReadyState == nsIIDBRequest::DONE,
+                   "Wrong state!");
+      mError = true;
+      mErrorCode = nsIIDBDatabaseException::UNKNOWN_ERR;
+    }
+    else {
+      NS_ASSERTION(mRequest->mReadyState == nsIIDBRequest::LOADING,
+                   "Wrong state!");
+      mRequest->mReadyState = nsIIDBRequest::DONE;
+    }
 
     // Call OnError if the database had an error or if the OnSuccess handler
     // has an error.
@@ -155,11 +168,9 @@ AsyncConnectionHelper::Run()
       mTransaction->OnRequestFinished();
     }
 
-    ReleaseMainThreadObjects();
-
-    NS_ASSERTION(!(mDatabase || mTransaction || mRequest), "Subclass didn't "
-                 "call AsyncConnectionHelper::ReleaseMainThreadObjects!");
-
+    mDatabase = nsnull;
+    mTransaction = nsnull;
+    mRequest = nsnull;
     return NS_OK;
   }
 
@@ -179,6 +190,8 @@ AsyncConnectionHelper::Run()
     }
   }
 
+  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "GetOrCreateConnection failed!");
+
   if (connection) {
     rv = connection->SetProgressHandler(kProgressHandlerGranularity, this,
                                         getter_AddRefs(mOldProgressHandler));
@@ -189,20 +202,10 @@ AsyncConnectionHelper::Run()
   }
 
   if (NS_SUCCEEDED(rv)) {
-    if (mDatabase) {
-      IDBFactory::SetCurrentDatabase(mDatabase);
-    }
     mErrorCode = DoDatabaseWork(connection);
-    if (mDatabase) {
-      IDBFactory::SetCurrentDatabase(nsnull);
-    }
   }
   else {
-    // NS_ERROR_NOT_AVAILABLE is our special code for "database is invalidated"
-    // and we should fail with RECOVERABLE_ERR.
-    mErrorCode = rv == NS_ERROR_NOT_AVAILABLE ?
-                 nsIIDBDatabaseException::RECOVERABLE_ERR :
-                 nsIIDBDatabaseException::UNKNOWN_ERR;
+    mErrorCode = nsIIDBDatabaseException::UNKNOWN_ERR;
   }
 
   if (!mStartTime.IsNull()) {
@@ -220,20 +223,19 @@ AsyncConnectionHelper::Run()
     mStartTime = TimeStamp();
   }
 
-  mError = mErrorCode != OK;
-  return NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL);
+  if (mErrorCode != NOREPLY) {
+    mError = mErrorCode != OK;
+
+    return NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL);
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 AsyncConnectionHelper::OnProgress(mozIStorageConnection* aConnection,
                                   PRBool* _retval)
 {
-  if (mDatabase && mDatabase->IsInvalidated()) {
-    // Someone is trying to delete the database file. Exit lightningfast!
-    *_retval = PR_TRUE;
-    return NS_OK;
-  }
-
   TimeDuration elapsed = TimeStamp::Now() - mStartTime;
   if (elapsed >= mTimeoutDuration) {
     *_retval = PR_TRUE;
@@ -265,6 +267,10 @@ AsyncConnectionHelper::Dispatch(nsIEventTarget* aDatabaseThread)
   if (NS_FAILED(rv)) {
     return rv;
   }
+
+  NS_ASSERTION(mRequest->mReadyState == nsIIDBRequest::INITIAL,
+               "Wrong readyState!");
+  mRequest->mReadyState = nsIIDBRequest::LOADING;
 
   rv = aDatabaseThread->Dispatch(this, NS_DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -360,16 +366,6 @@ AsyncConnectionHelper::GetSuccessResult(nsIWritableVariant* /* aResult */)
   // Leave the variant remain set to empty.
 
   return OK;
-}
-
-void
-AsyncConnectionHelper::ReleaseMainThreadObjects()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  mDatabase = nsnull;
-  mTransaction = nsnull;
-  mRequest = nsnull;
 }
 
 NS_IMETHODIMP_(nsrefcnt)

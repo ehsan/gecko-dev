@@ -1719,6 +1719,8 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
       SSL_OptionSetDefault(SSL_ENABLE_RENEGOTIATION, 
         enabled ? SSL_RENEGOTIATE_UNRESTRICTED : SSL_RENEGOTIATE_REQUIRES_XTN);
 
+      mPrefBranch->GetBoolPref("security.ssl.enable_compression", &enabled);
+      SSL_OptionSetDefault(SSL_ENABLE_DEFLATE, enabled);
 #ifdef SSL_ENABLE_FALSE_START // Requires NSS 3.12.8
       mPrefBranch->GetBoolPref("security.ssl.enable_false_start", &enabled);
       SSL_OptionSetDefault(SSL_ENABLE_FALSE_START, enabled);
@@ -2251,6 +2253,10 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
       PRInt32 warnLevel = 1;
       mPrefBranch->GetIntPref("security.ssl.warn_missing_rfc5746", &warnLevel);
       nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(warnLevel);
+    } else if (prefName.Equals("security.ssl.enable_compression")) {
+      mPrefBranch->GetBoolPref("security.ssl.enable_compression", &enabled);
+      SSL_OptionSetDefault(SSL_ENABLE_DEFLATE, enabled);
+      clearSessionCache = PR_TRUE;
 #ifdef SSL_ENABLE_FALSE_START // Requires NSS 3.12.8
     } else if (prefName.Equals("security.ssl.enable_false_start")) {
       mPrefBranch->GetBoolPref("security.ssl.enable_false_start", &enabled);
@@ -3145,7 +3151,7 @@ PSMContentDownloader::~PSMContentDownloader()
 
 NS_IMPL_ISUPPORTS2(PSMContentDownloader, nsIStreamListener, nsIRequestObserver)
 
-const PRInt32 kDefaultCertAllocLength = 2048;
+const PRInt64 kDefaultCertAllocLength = 2048;
 
 NS_IMETHODIMP
 PSMContentDownloader::OnStartRequest(nsIRequest* request, nsISupports* context)
@@ -3158,11 +3164,14 @@ PSMContentDownloader::OnStartRequest(nsIRequest* request, nsISupports* context)
   // Get the URI //
   channel->GetURI(getter_AddRefs(mURI));
 
-  PRInt32 contentLength;
+  PRInt64 contentLength;
   rv = channel->GetContentLength(&contentLength);
   if (NS_FAILED(rv) || contentLength <= 0)
     contentLength = kDefaultCertAllocLength;
   
+  if (contentLength > PR_INT32_MAX)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   mBufferOffset = 0;
   mBufferSize = 0;
   mByteData = (char*) nsMemory::Alloc(contentLength);

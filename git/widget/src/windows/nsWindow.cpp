@@ -226,8 +226,6 @@
 #include "nsICrashReporter.h"
 #endif
 
-#include "nsIXULRuntime.h"
-
 using namespace mozilla::widget;
 
 /**************************************************************
@@ -386,7 +384,6 @@ nsWindow::nsWindow() : nsBaseWidget()
   mTouchWindow          = PR_FALSE;
   mCustomNonClient      = PR_FALSE;
   mHideChrome           = PR_FALSE;
-  mFullscreenMode       = PR_FALSE;
   mWindowType           = eWindowType_child;
   mBorderStyle          = eBorderStyle_default;
   mPopupType            = ePopupTypeAny;
@@ -436,6 +433,10 @@ nsWindow::nsWindow() : nsBaseWidget()
     if (SUCCEEDED(::OleInitialize(NULL)))
       sIsOleInitialized = TRUE;
     NS_ASSERTION(sIsOleInitialized, "***** OLE is not initialized!\n");
+#endif
+
+#if defined(HEAP_DUMP_EVENT)
+    InitHeapDump();
 #endif
 
 #if !defined(WINCE)
@@ -554,10 +555,13 @@ nsWindow::Create(nsIWidget *aParent,
 
   mPopupType = aInitData->mPopupHint;
   mContentType = aInitData->mContentType;
-  mIsRTL = aInitData->mRTL;
 
   DWORD style = WindowStyle();
   DWORD extendedStyle = WindowExStyle();
+
+  if (aInitData->mRTL) {
+    extendedStyle |= WS_EX_LAYOUTRTL | WS_EX_NOINHERITLAYOUT;
+  }
 
   if (mWindowType == eWindowType_popup) {
     if (!aParent)
@@ -595,13 +599,6 @@ nsWindow::Create(nsIWidget *aParent,
     NS_WARNING("nsWindow CreateWindowEx failed.");
     return NS_ERROR_FAILURE;
   }
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  if (mIsRTL && nsUXThemeData::dwmSetWindowAttributePtr) {
-    DWORD dwAttribute = TRUE;    
-    nsUXThemeData::dwmSetWindowAttributePtr(mWnd, DWMWA_NONCLIENT_RTL_LAYOUT, &dwAttribute, sizeof dwAttribute);
-  }
-#endif
 
   if (nsWindow::sTrackPointHack &&
       mWindowType != eWindowType_plugin &&
@@ -747,6 +744,12 @@ LPCWSTR nsWindow::WindowClass()
       nsWindow::sIsRegistered = FALSE;
     }
 
+    wc.lpszClassName = kClassNameUI;
+    if (!::RegisterClassW(&wc) && 
+      ERROR_CLASS_ALREADY_EXISTS != GetLastError()) {
+      nsWindow::sIsRegistered = FALSE;
+    }
+
     wc.lpszClassName = kClassNameGeneral;
     ATOM generalClassAtom = ::RegisterClassW(&wc);
     if (!generalClassAtom && 
@@ -773,6 +776,9 @@ LPCWSTR nsWindow::WindowClass()
   }
   if (mContentType == eContentTypeContentFrame) {
     return kClassNameContentFrame;
+  }
+  if (mContentType == eContentTypeUI) {
+    return kClassNameUI;
   }
   return kClassNameGeneral;
 }
@@ -1286,8 +1292,7 @@ void nsWindow::ClearThemeRegion()
 {
 #ifndef WINCE
   if (nsUXThemeData::sIsVistaOrLater && !HasGlass() &&
-      (mWindowType == eWindowType_popup && !IsPopupWithTitleBar() &&
-       (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel))) {
+      mWindowType == eWindowType_popup && (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel)) {
     SetWindowRgn(mWnd, NULL, false);
   }
 #endif
@@ -1302,8 +1307,7 @@ void nsWindow::SetThemeRegion()
   // state values from nsNativeThemeWin's GetThemePartAndState, but currently windows that
   // change shape based on state haven't come up.
   if (nsUXThemeData::sIsVistaOrLater && !HasGlass() &&
-      (mWindowType == eWindowType_popup && !IsPopupWithTitleBar() &&
-       (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel))) {
+      mWindowType == eWindowType_popup && (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel)) {
     HRGN hRgn = nsnull;
     RECT rect = {0,0,mBounds.width,mBounds.height};
     
@@ -2435,6 +2439,20 @@ void nsWindow::SetTransparencyMode(nsTransparencyMode aMode)
   GetTopLevelWindow(PR_TRUE)->SetWindowTranslucencyInner(aMode);
 }
 
+namespace {
+  BOOL CALLBACK AddClientAreaToRegion(HWND hWnd, LPARAM lParam) {
+    nsIntRegion *region = reinterpret_cast<nsIntRegion*>(lParam);
+
+    RECT clientRect;
+    ::GetWindowRect(hWnd, &clientRect);
+    nsIntRect clientArea(clientRect.left, clientRect.top,
+                         clientRect.right - clientRect.left,
+                         clientRect.bottom - clientRect.top);
+    region->Or(*region, clientArea);
+    return TRUE;
+  }
+}
+
 void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
                                                const nsIntRegion &aPossiblyTransparentRegion) {
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
@@ -2450,10 +2468,24 @@ void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
   mPossiblyTransparentRegion.Sub(mPossiblyTransparentRegion, aDirtyRegion);
   mPossiblyTransparentRegion.Or(mPossiblyTransparentRegion, aPossiblyTransparentRegion);
 
+  nsIntRegion childWindowRegion;
+
+  ::EnumChildWindows(mWnd, AddClientAreaToRegion, reinterpret_cast<LPARAM>(&childWindowRegion));
+
+  nsIntPoint clientOffset = GetClientOffset();
+  childWindowRegion.MoveBy(-clientOffset);
+
+  RECT r;
+  ::GetWindowRect(mWnd, &r);
+  childWindowRegion.MoveBy(-r.left, -r.top);
+
   nsIntRect clientBounds;
   topWindow->GetClientBounds(clientBounds);
   nsIntRegion opaqueRegion;
   opaqueRegion.Sub(clientBounds, mPossiblyTransparentRegion);
+  opaqueRegion.Or(opaqueRegion, childWindowRegion);
+  // Sometimes child windows overlap our bounds
+  opaqueRegion.And(opaqueRegion, clientBounds);
  
   MARGINS margins = { 0, 0, 0, 0 };
   DWORD_PTR dwStyle = ::GetWindowLongPtrW(hWnd, GWL_STYLE);
@@ -2734,7 +2766,6 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
 
 #else
 
-  mFullscreenMode = aFullScreen;
   if (aFullScreen) {
     if (mSizeMode == nsSizeMode_Fullscreen)
       return NS_OK;
@@ -2796,20 +2827,6 @@ NS_IMETHODIMP nsWindow::Update()
 void* nsWindow::GetNativeData(PRUint32 aDataType)
 {
   switch (aDataType) {
-    case NS_NATIVE_TMP_WINDOW:
-      return (void*)::CreateWindowExW(WS_EX_NOACTIVATE |
-                                       mIsRTL ? WS_EX_LAYOUTRTL : 0,
-                                      WindowClass(),
-                                      L"",
-                                      WS_CHILD,
-                                      CW_USEDEFAULT,
-                                      CW_USEDEFAULT,
-                                      CW_USEDEFAULT,
-                                      CW_USEDEFAULT,
-                                      mWnd,
-                                      NULL,
-                                      nsToolkit::mDllInstance,
-                                      NULL);
     case NS_NATIVE_PLUGIN_PORT:
     case NS_NATIVE_WIDGET:
     case NS_NATIVE_WINDOW:
@@ -3187,68 +3204,54 @@ nsWindow::HasPendingInputEvent()
 mozilla::layers::LayerManager*
 nsWindow::GetLayerManager()
 {
+  nsWindow *topWindow = GetNSWindowPtr(GetTopLevelHWND(mWnd, PR_TRUE));
+
+  if (!topWindow) {
+    return nsBaseWidget::GetLayerManager();
+  }
+
+  if (topWindow->GetAcceleratedRendering() != mUseAcceleratedRendering) {
+    mLayerManager = NULL;
+    mUseAcceleratedRendering = topWindow->GetAcceleratedRendering();
+  }
+
 #ifndef WINCE
   if (!mLayerManager) {
-    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-
-    PRBool accelerateByDefault = PR_TRUE;
-    PRBool disableAcceleration = PR_FALSE;
-    PRBool preferOpenGL = PR_FALSE;
-    if (prefs) {
-      prefs->GetBoolPref("layers.accelerate-all",
-                         &accelerateByDefault);
-      prefs->GetBoolPref("layers.accelerate-none",
-                         &disableAcceleration);
-      prefs->GetBoolPref("layers.prefer-opengl",
-                         &preferOpenGL);
-    }
-
-    const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
-    accelerateByDefault = accelerateByDefault ||
-                          (acceleratedEnv && (*acceleratedEnv != '0'));
-
-    /* We don't currently support using an accelerated layer manager with
-     * transparent windows so don't even try. I'm also not sure if we even
-     * want to support this case. See bug #593471 */
-    disableAcceleration = disableAcceleration ||
-                          eTransparencyTransparent == mTransparencyMode;
-
-    nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
-    PRBool safeMode = PR_FALSE;
-    if (xr)
-      xr->GetInSafeMode(&safeMode);
-
-    if (disableAcceleration || safeMode)
-      mUseAcceleratedRendering = PR_FALSE;
-    else if (accelerateByDefault)
-      mUseAcceleratedRendering = PR_TRUE;
-
     if (mUseAcceleratedRendering) {
-#ifdef MOZ_ENABLE_D3D9_LAYER
-      if (!preferOpenGL) {
-        nsRefPtr<mozilla::layers::LayerManagerD3D9> layerManager =
-          new mozilla::layers::LayerManagerD3D9(this);
-        if (layerManager->Initialize()) {
-          mLayerManager = layerManager;
-        }
+      nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+
+      PRBool allowAcceleration = PR_TRUE;
+      PRBool preferOpenGL = PR_FALSE;
+      if (prefs) {
+        prefs->GetBoolPref("mozilla.widget.accelerated-layers",
+                           &allowAcceleration);
+        prefs->GetBoolPref("mozilla.layers.prefer-opengl",
+                           &preferOpenGL);
       }
+      
+      if (allowAcceleration) {
+#ifdef MOZ_ENABLE_D3D9_LAYER
+        if (!preferOpenGL) {
+          nsRefPtr<mozilla::layers::LayerManagerD3D9> layerManager =
+            new mozilla::layers::LayerManagerD3D9(this);
+          if (layerManager->Initialize()) {
+            mLayerManager = layerManager;
+          }
+        }
 #endif
-      if (!mLayerManager && preferOpenGL) {
-        nsRefPtr<mozilla::layers::LayerManagerOGL> layerManager =
-          new mozilla::layers::LayerManagerOGL(this);
-        if (layerManager->Initialize()) {
-          mLayerManager = layerManager;
+        if (!mLayerManager) {
+          nsRefPtr<mozilla::layers::LayerManagerOGL> layerManager =
+            new mozilla::layers::LayerManagerOGL(this);
+          if (layerManager->Initialize()) {
+            mLayerManager = layerManager;
+          }
         }
       }
     }
-
-    // Fall back to software if we couldn't use any hardware backends.
-    if (!mLayerManager)
-      mLayerManager = new BasicLayerManager(this);
   }
 #endif
 
-  return mLayerManager;
+  return nsBaseWidget::GetLayerManager();
 }
 
 /**************************************************************
@@ -4922,26 +4925,8 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       break;
 
     case WM_MBUTTONDBLCLK:
-      result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
+      result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
-      break;
-
-    case WM_NCMBUTTONDOWN:
-      result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, 0, lParamToClient(lParam), PR_FALSE,
-                                  nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
-      DispatchPendingEvents();
-      break;
-
-    case WM_NCMBUTTONUP:
-      result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, 0, lParamToClient(lParam), PR_FALSE,
-                                  nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
-      DispatchPendingEvents();
-      break;
-
-    case WM_NCMBUTTONDBLCLK:
-      result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, 0, lParamToClient(lParam), PR_FALSE,
-                                  nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
-      DispatchPendingEvents();
       break;
 
     case WM_RBUTTONDOWN:
@@ -5437,6 +5422,12 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         nsTextStore::OnTextChangeMsg();
       }
 #endif //NS_ENABLE_TSF
+#if defined(HEAP_DUMP_EVENT)
+      if (msg == GetHeapMsg()) {
+        HeapDump(msg, wParam, lParam);
+        result = PR_TRUE;
+      }
+#endif
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
       if (msg == nsAppShell::GetTaskbarButtonCreatedMessage())
         SetHasTaskbarIconBeenCreated();
@@ -5915,8 +5906,6 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
       event.mSizeMode = nsSizeMode_Maximized;
     else if (pl.showCmd == SW_SHOWMINIMIZED)
       event.mSizeMode = nsSizeMode_Minimized;
-    else if (mFullscreenMode)
-      event.mSizeMode = nsSizeMode_Fullscreen;
     else
       event.mSizeMode = nsSizeMode_Normal;
 
@@ -6084,8 +6073,6 @@ void nsWindow::OnWindowPosChanging(LPWINDOWPOS& info)
       sizeMode = nsSizeMode_Maximized;
     else if (pl.showCmd == SW_SHOWMINIMIZED)
       sizeMode = nsSizeMode_Minimized;
-    else if (mFullscreenMode)
-      sizeMode = nsSizeMode_Fullscreen;
     else
       sizeMode = nsSizeMode_Normal;
 
@@ -6873,8 +6860,6 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
     // We put the region back just below, anyway.
     ::SetWindowRgn(w->mWnd, NULL, TRUE);
 #endif
-    nsresult rv = w->SetWindowClipRegion(configuration.mClipRegion, PR_TRUE);
-    NS_ENSURE_SUCCESS(rv, rv);
     nsIntRect bounds;
     w->GetBounds(bounds);
     if (bounds.Size() != configuration.mBounds.Size()) {
@@ -6884,7 +6869,7 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
     } else if (bounds.TopLeft() != configuration.mBounds.TopLeft()) {
       w->Move(configuration.mBounds.x, configuration.mBounds.y);
     }
-    rv = w->SetWindowClipRegion(configuration.mClipRegion, PR_FALSE);
+    nsresult rv = w->SetWindowClipRegion(configuration.mClipRegion, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   return NS_OK;
@@ -6919,14 +6904,6 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
   if (!aIntersectWithExisting) {
     if (!StoreWindowClipRegion(aRects))
       return NS_OK;
-  } else {
-    // In this case still early return if nothing changed.
-    if (mClipRects && mClipRectCount == aRects.Length() &&
-        memcmp(mClipRects,
-               aRects.Elements(),
-               sizeof(nsIntRect)*mClipRectCount) == 0) {
-      return NS_OK;
-    }
   }
 
   HRGN dest = CreateHRGNFromArray(aRects);

@@ -73,8 +73,6 @@ private:
   /* This contains the D2D surface if we have one */
   nsRefPtr<gfxASurface> mD2DSurface;
 
-  bool mD2DSurfaceInitialized;
-
   /* Have a region of our layer drawn */
   void DrawRegion(const nsIntRegion &aRegion);
 

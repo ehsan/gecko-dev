@@ -40,12 +40,6 @@ let bs = PlacesUtils.bookmarks;
 let db = DBConn();
 
 function check_keyword(aItemId, aExpectedBookmarkKeyword, aExpectedURIKeyword) {
-  // All keywords are handled lowercased internally.
-  if (aExpectedURIKeyword)
-    aExpectedURIKeyword = aExpectedURIKeyword.toLowerCase();
-  if (aExpectedBookmarkKeyword)
-    aExpectedBookmarkKeyword = aExpectedBookmarkKeyword.toLowerCase();
-
   if (aItemId) {
     print("Check keyword for bookmark");
     do_check_eq(bs.getKeywordForBookmark(aItemId), aExpectedBookmarkKeyword);
@@ -56,11 +50,8 @@ function check_keyword(aItemId, aExpectedBookmarkKeyword, aExpectedURIKeyword) {
 
     print("Check uri for keyword");
     // This API can't tell which uri the user wants, so it returns a random one.
-    if (aExpectedURIKeyword) {
+    if (aExpectedURIKeyword)
       do_check_true(/http:\/\/test[0-9]\.mozilla\.org/.test(bs.getURIForKeyword(aExpectedURIKeyword).spec));
-      // Check case insensitivity.
-      do_check_true(/http:\/\/test[0-9]\.mozilla\.org/.test(bs.getURIForKeyword(aExpectedURIKeyword.toUpperCase()).spec));
-    }
   }
   else {
     stmt = db.createStatement(
@@ -102,8 +93,6 @@ function run_test() {
   check_keyword(itemId1, null, null);
   bs.setKeywordForBookmark(itemId1, "keyword");
   check_keyword(itemId1, "keyword", "keyword");
-  // Check case insensitivity.
-  check_keyword(itemId1, "kEyWoRd", "kEyWoRd");
 
   print("Add another bookmark with the same uri, should not inherit keyword.");
   let itemId1_bis = bs.insertBookmark(folderId,
@@ -112,8 +101,6 @@ function run_test() {
                                       "test1_bis");
 
   check_keyword(itemId1_bis, null, "keyword");
-  // Check case insensitivity.
-  check_keyword(itemId1_bis, null, "kEyWoRd");
 
   print("Set same keyword on another bookmark with a different uri.");
   let itemId2 = bs.insertBookmark(folderId,
@@ -121,9 +108,7 @@ function run_test() {
                                   bs.DEFAULT_INDEX,
                                   "test2");
   check_keyword(itemId2, null, null);
-  bs.setKeywordForBookmark(itemId2, "kEyWoRd");
-  check_keyword(itemId1, "kEyWoRd", "kEyWoRd");
-  // Check case insensitivity.
+  bs.setKeywordForBookmark(itemId2, "keyword");
   check_keyword(itemId1, "keyword", "keyword");
   check_keyword(itemId1_bis, null, "keyword");
   check_keyword(itemId2, "keyword", "keyword");

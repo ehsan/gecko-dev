@@ -11,7 +11,9 @@ profileDir.append("extensions");
 function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
 
-  writeInstallRDFForExtension({
+  var dest = profileDir.clone();
+  dest.append("addon1@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon1@tests.mozilla.org",
     version: "1.0",
     updateURL: "http://localhost:4444/data/test_update.rdf",
@@ -21,7 +23,7 @@ function run_test() {
       maxVersion: "1"
     }],
     name: "Test Addon 1",
-  }, profileDir);
+  }, dest);
 
   startupManager();
 

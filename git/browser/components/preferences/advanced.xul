@@ -68,8 +68,6 @@
 
       <preference id="general.autoScroll"              name="general.autoScroll"              type="bool"/>
       <preference id="general.smoothScroll"            name="general.smoothScroll"            type="bool"/>
-      <preference id="layers.accelerate-none"          name="layers.accelerate-none"          type="bool"   inverted="true"
-                  onchange="gAdvancedPane.updateHardwareAcceleration()"/>
       <preference id="layout.spellcheckDefault"        name="layout.spellcheckDefault"        type="int"/>
 
 #ifdef HAVE_SHELL_SERVICE
@@ -176,10 +174,6 @@
                       label="&useSmoothScrolling.label;"
                       accesskey="&useSmoothScrolling.accesskey;"
                       preference="general.smoothScroll"/>
-            <checkbox id="allowHWAccel"
-                      label="&allowHWAccel.label;"
-                      accesskey="&allowHWAccel.accesskey;"
-                      preference="layers.accelerate-none"/>
             <checkbox id="checkSpelling"
                       label="&checkSpelling.label;"
                       accesskey="&checkSpelling.accesskey;"

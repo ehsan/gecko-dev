@@ -199,8 +199,6 @@ public:
     ContentType GetContentType() const { return mContentType; }
     virtual PRBool InUpdate() const = 0;
 
-    PRBool IsRGB() const { return mIsRGBFormat; }
-
 protected:
     /**
      * After the ctor, the TextureImage is invalid.  Implementations
@@ -208,17 +206,15 @@ protected:
      * TextureImage from GLContext::CreateTextureImage().  That is,
      * clients must not be given partially-constructed TextureImages.
      */
-    TextureImage(GLuint aTexture, const nsIntSize& aSize, ContentType aContentType, PRBool aIsRGB = PR_FALSE)
+    TextureImage(GLuint aTexture, const nsIntSize& aSize, ContentType aContentType)
         : mTexture(aTexture)
         , mSize(aSize)
         , mContentType(aContentType)
-        , mIsRGBFormat(aIsRGB)
     {}
 
     GLuint mTexture;
     nsIntSize mSize;
     ContentType mContentType;
-    PRPackedBool mIsRGBFormat;
 };
 
 /**

@@ -225,7 +225,8 @@ BrowserGlue.prototype = {
           Services.obs.removeObserver(this, "places-shutdown");
           this._isPlacesShutdownObserver = false;
         }
-        // places-shutdown is fired when the profile is about to disappear.
+        // places-shutdown is fired on profile-before-change, but before
+        // Places executes the last flush and closes connection.
         this._onProfileShutdown();
         break;
       case "idle":
@@ -589,7 +590,7 @@ BrowserGlue.prototype = {
     var buttonAccessKey  = rightsBundle.GetStringFromName("buttonAccessKey");
     var productName      = brandBundle.GetStringFromName("brandFullName");
     var notifyRightsText = rightsBundle.formatStringFromName("notifyRightsText", [productName], 1);
-
+    
     var buttons = [
                     {
                       label:     buttonLabel,
@@ -995,7 +996,7 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 3;
+    const UI_VERSION = 2;
     let currentUIVersion = 0;
     try {
       currentUIVersion = Services.prefs.getIntPref("browser.migration.version");
@@ -1053,25 +1054,6 @@ BrowserGlue.prototype = {
       }
     }
 
-    if (currentUIVersion < 3) {
-      // This code merges the reload/stop/go button into the url bar.
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbarResource = this._rdf.GetResource("chrome://browser/content/browser.xul#nav-bar");
-      let currentset = this._getPersist(toolbarResource, currentsetResource);
-      // Need to migrate only if toolbar is customized and all 3 elements are found.
-      if (currentset &&
-          currentset.indexOf("reload-button") != -1 &&
-          currentset.indexOf("stop-button") != -1 &&
-          currentset.indexOf("urlbar-container") != -1 &&
-          currentset.indexOf("urlbar-container,reload-button,stop-button") == -1) {
-        currentset = currentset.replace(/(^|,)reload-button($|,)/, "$1$2").
-                                replace(/(^|,)stop-button($|,)/, "$1$2").
-                                replace(/(^|,)urlbar-container($|,)/,
-                                        "$1urlbar-container,reload-button,stop-button$2");
-        this._setPersist(toolbarResource, currentsetResource, currentset);
-      }
-    }
-
     if (this._dirty)
       this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
 
@@ -1109,7 +1091,7 @@ BrowserGlue.prototype = {
   // ------------------------------
   // public nsIBrowserGlue members
   // ------------------------------
-
+  
   sanitize: function BG_sanitize(aParentWindow) {
     this._sanitizer.sanitize(aParentWindow);
   },
@@ -1248,7 +1230,7 @@ BrowserGlue.prototype = {
                                     SMART_BOOKMARKS_ANNO, smartBookmark.queryId,
                                     0, annosvc.EXPIRE_NEVER);
         }
-
+        
         // If we are creating all Smart Bookmarks from ground up, add a
         // separator below them in the bookmarks menu.
         if (smartBookmarksCurrentVersion == 0 &&
@@ -1323,20 +1305,15 @@ BrowserGlue.prototype = {
   _xpcom_factory: BrowserGlueServiceFactory,
 }
 
-function ContentPermissionPrompt() {}
+function GeolocationPrompt() {}
 
-ContentPermissionPrompt.prototype = {
-  classID:          Components.ID("{d8903bf6-68d5-4e97-bcd1-e4d3012f721a}"),
+GeolocationPrompt.prototype = {
+  classID:          Components.ID("{C6E8C44D-9F39-4AF7-BCC0-76E38A8310F5}"),
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPermissionPrompt]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIGeolocationPrompt]),
 
-  prompt: function CPP_prompt(request) {
-
-    if (request.type != "geolocation") {
-        return;
-    }
-
-    var requestingURI = request.uri;
+  prompt: function GP_prompt(request) {
+    var requestingURI = request.requestingURI;
 
     // Ignore requests from non-nsIStandardURLs
     if (!(requestingURI instanceof Ci.nsIStandardURL))
@@ -1348,7 +1325,7 @@ ContentPermissionPrompt.prototype = {
       request.allow();
       return;
     }
-
+    
     if (result == Ci.nsIPermissionManager.DENY_ACTION) {
       request.cancel();
       return;
@@ -1387,7 +1364,7 @@ ContentPermissionPrompt.prototype = {
     // Different message/options if it is a local file
     if (requestingURI.schemeIs("file")) {
       message = browserBundle.formatStringFromName("geolocation.fileWantsToKnow",
-                                                   [requestingURI.path], 1);
+                                                   [request.requestingURI.path], 1);
     } else {
       message = browserBundle.formatStringFromName("geolocation.siteWantsToKnow",
                                                    [requestingURI.host], 1);
@@ -1417,7 +1394,7 @@ ContentPermissionPrompt.prototype = {
       }
     }
 
-    var requestingWindow = request.window.top;
+    var requestingWindow = request.requestingWindow.top;
     var chromeWin = getChromeWindow(requestingWindow).wrappedJSObject;
     var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
 
@@ -1426,5 +1403,5 @@ ContentPermissionPrompt.prototype = {
   }
 };
 
-var components = [BrowserGlue, ContentPermissionPrompt];
+var components = [BrowserGlue, GeolocationPrompt];
 var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

@@ -73,7 +73,6 @@ HttpBaseChannel::HttpBaseChannel()
   , mInheritApplicationCache(PR_TRUE)
   , mChooseApplicationCache(PR_FALSE)
   , mLoadedFromApplicationCache(PR_FALSE)
-  , mChannelIsForDownload(PR_FALSE)
 {
   LOG(("Creating HttpBaseChannel @%x\n", this));
 
@@ -360,20 +359,29 @@ HttpBaseChannel::SetContentCharset(const nsACString& aContentCharset)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetContentLength(PRInt32 *aContentLength)
+HttpBaseChannel::GetContentDisposition(nsACString& aContentDisposition)
 {
-  NS_ENSURE_ARG_POINTER(aContentLength);
+  aContentDisposition.Truncate();
 
   if (!mResponseHead)
     return NS_ERROR_NOT_AVAILABLE;
 
-  // XXX truncates to 32 bit
+  mResponseHead->GetHeader(nsHttp::Content_Disposition, aContentDisposition);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::GetContentLength(PRInt64 *aContentLength)
+{
+  if (!mResponseHead)
+    return NS_ERROR_NOT_AVAILABLE;
+
   *aContentLength = mResponseHead->ContentLength();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::SetContentLength(PRInt32 value)
+HttpBaseChannel::SetContentLength(PRInt64 value)
 {
   NS_NOTYETIMPLEMENTED("nsHttpChannel::SetContentLength");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -933,20 +941,6 @@ NS_IMETHODIMP
 HttpBaseChannel::GetCanceled(PRBool *aCanceled)
 {
   *aCanceled = mCanceled;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::GetChannelIsForDownload(PRBool *aChannelIsForDownload)
-{
-  *aChannelIsForDownload = mChannelIsForDownload;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::SetChannelIsForDownload(PRBool aChannelIsForDownload)
-{
-  mChannelIsForDownload = aChannelIsForDownload;
   return NS_OK;
 }
 

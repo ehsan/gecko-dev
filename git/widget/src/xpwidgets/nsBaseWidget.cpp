@@ -51,7 +51,6 @@
 #include "nsIPrefBranch2.h"
 #include "BasicLayers.h"
 #include "LayerManagerOGL.h"
-#include "nsIXULRuntime.h"
 
 #ifdef DEBUG
 #include "nsIObserver.h"
@@ -292,10 +291,7 @@ NS_IMETHODIMP
 nsBaseWidget::AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction,
                                    nsIDeviceContext *aContext)
 {
-  NS_ASSERTION((mWindowType == eWindowType_toplevel ||
-                mWindowType == eWindowType_dialog ||
-                mWindowType == eWindowType_invisible),
-               "Can't attach to child?");
+  NS_ASSERTION((mWindowType == eWindowType_toplevel), "Can't attach to child?");
 
   mViewCallback = aViewEventFunction;
 
@@ -766,31 +762,13 @@ LayerManager* nsBaseWidget::GetLayerManager()
   if (!mLayerManager) {
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
 
-    PRBool disableAcceleration = PR_FALSE;
-    PRBool accelerateByDefault = PR_TRUE;
-
+    PRBool allowAcceleration = PR_TRUE;
     if (prefs) {
-      prefs->GetBoolPref("layers.accelerate-all",
-                         &accelerateByDefault);
-      prefs->GetBoolPref("layers.accelerate-none",
-                         &disableAcceleration);
+      prefs->GetBoolPref("mozilla.widget.accelerated-layers",
+                         &allowAcceleration);
     }
 
-    const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
-    accelerateByDefault = accelerateByDefault || 
-                          (acceleratedEnv && (*acceleratedEnv != '0'));
-
-    nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
-    PRBool safeMode = PR_FALSE;
-    if (xr)
-      xr->GetInSafeMode(&safeMode);
-
-    if (disableAcceleration || safeMode)
-      mUseAcceleratedRendering = PR_FALSE;
-    else if (accelerateByDefault)
-      mUseAcceleratedRendering = PR_TRUE;
-
-    if (mUseAcceleratedRendering) {
+    if (mUseAcceleratedRendering && allowAcceleration) {
       nsRefPtr<LayerManagerOGL> layerManager =
         new mozilla::layers::LayerManagerOGL(this);
       /**

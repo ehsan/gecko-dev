@@ -129,8 +129,9 @@ public:
   NS_IMETHOD SetContentType(const nsACString& aContentType);
   NS_IMETHOD GetContentCharset(nsACString& aContentCharset);
   NS_IMETHOD SetContentCharset(const nsACString& aContentCharset);
-  NS_IMETHOD GetContentLength(PRInt32 *aContentLength);
-  NS_IMETHOD SetContentLength(PRInt32 aContentLength);
+  NS_IMETHOD GetContentDisposition(nsACString& aContentDisposition);
+  NS_IMETHOD GetContentLength(PRInt64 *aContentLength);
+  NS_IMETHOD SetContentLength(PRInt64 aContentLength);
   NS_IMETHOD Open(nsIInputStream **aResult);
 
   // HttpBaseChannel::nsIHttpChannel
@@ -165,8 +166,6 @@ public:
   NS_IMETHOD GetForceAllowThirdPartyCookie(PRBool *aForce);
   NS_IMETHOD SetForceAllowThirdPartyCookie(PRBool aForce);
   NS_IMETHOD GetCanceled(PRBool *aCanceled);
-  NS_IMETHOD GetChannelIsForDownload(PRBool *aChannelIsForDownload);
-  NS_IMETHOD SetChannelIsForDownload(PRBool aChannelIsForDownload);
 
   // nsISupportsPriority
   NS_IMETHOD GetPriority(PRInt32 *value);
@@ -232,7 +231,6 @@ protected:
   PRUint32                          mInheritApplicationCache    : 1;
   PRUint32                          mChooseApplicationCache     : 1;
   PRUint32                          mLoadedFromApplicationCache : 1;
-  PRUint32                          mChannelIsForDownload       : 1;
 };
 
 

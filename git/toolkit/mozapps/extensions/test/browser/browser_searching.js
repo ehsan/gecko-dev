@@ -437,8 +437,10 @@ add_test(function() {
         var version = gManagerWindow.document.getElementById("detail-version").value;
         is(version, item.mAddon.version, "Version in detail view should be correct");
 
-        EventUtils.synthesizeMouse(gManagerWindow.document.getElementById("back-btn"),
-                                   2, 2, { }, gManagerWindow);
+        var headerLink = gManagerWindow.document.getElementById("header-link");
+        is(headerLink.hidden, false, "Header link should be showing in detail view");
+
+        EventUtils.synthesizeMouse(headerLink, 2, 2, { }, gManagerWindow);
         wait_for_view_load(gManagerWindow, run_next_double_click_test);
       });
     }

@@ -58,6 +58,7 @@ RCINCLUDE = xulrunner.rc
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
+DEFINES += -DZLIB_INTERNAL
 endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/windows
@@ -78,6 +79,7 @@ CPPSRCS += \
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
+DEFINES += -DZLIB_INTERNAL
 endif
 
 ifdef MOZ_ENABLE_LIBXUL
@@ -137,7 +139,6 @@ COMPONENT_LIBS += \
 	i18n \
 	chardet \
 	jar$(VERSION_NUMBER) \
-        startupcache \
 	pref \
 	htmlpars \
 	imglib2 \

@@ -184,12 +184,6 @@ public:
   PRUint16 DoDatabaseWork(mozIStorageConnection* aConnection);
   PRUint16 GetSuccessResult(nsIWritableVariant* aResult);
 
-  void ReleaseMainThreadObjects()
-  {
-    mObjectStore = nsnull;
-    AsyncConnectionHelper::ReleaseMainThreadObjects();
-  }
-
 private:
   // In-params.
   nsRefPtr<IDBObjectStore> mObjectStore;
@@ -221,12 +215,6 @@ public:
   PRUint16 DoDatabaseWork(mozIStorageConnection* aConnection);
   PRUint16 GetSuccessResult(nsIWritableVariant* aResult);
 
-  void ReleaseMainThreadObjects()
-  {
-    mObjectStore = nsnull;
-    AsyncConnectionHelper::ReleaseMainThreadObjects();
-  }
-
 private:
   PRUint16 InsertDataFromObjectStore(mozIStorageConnection* aConnection);
 
@@ -254,12 +242,6 @@ public:
 
   PRUint16 DoDatabaseWork(mozIStorageConnection* aConnection);
   PRUint16 GetSuccessResult(nsIWritableVariant* aResult);
-
-  void ReleaseMainThreadObjects()
-  {
-    mObjectStore = nsnull;
-    AsyncConnectionHelper::ReleaseMainThreadObjects();
-  }
 
 private:
   // In-params
@@ -323,21 +305,12 @@ GetKeyFromObject(JSContext* aCx,
   return NS_OK;
 }
 
-inline
-already_AddRefed<IDBRequest>
-GenerateRequest(IDBObjectStore* aObjectStore)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  IDBDatabase* database = aObjectStore->Transaction()->Database();
-  return IDBRequest::Create(static_cast<nsPIDOMEventTarget*>(aObjectStore),
-                            database->ScriptContext(), database->Owner());
-}
-
 } // anonymous namespace
 
 // static
 already_AddRefed<IDBObjectStore>
-IDBObjectStore::Create(IDBTransaction* aTransaction,
+IDBObjectStore::Create(IDBDatabase* aDatabase,
+                       IDBTransaction* aTransaction,
                        const ObjectStoreInfo* aStoreInfo,
                        PRUint16 aMode)
 {
@@ -345,9 +318,7 @@ IDBObjectStore::Create(IDBTransaction* aTransaction,
 
   nsRefPtr<IDBObjectStore> objectStore = new IDBObjectStore();
 
-  objectStore->mScriptContext = aTransaction->Database()->ScriptContext();
-  objectStore->mOwner = aTransaction->Database()->Owner();
-
+  objectStore->mDatabase = aDatabase;
   objectStore->mTransaction = aTransaction;
   objectStore->mName = aStoreInfo->name;
   objectStore->mId = aStoreInfo->id;
@@ -761,10 +732,6 @@ IDBObjectStore::IDBObjectStore()
 IDBObjectStore::~IDBObjectStore()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  if (mListenerManager) {
-    mListenerManager->Disconnect();
-  }
 }
 
 nsresult
@@ -822,28 +789,14 @@ IDBObjectStore::GetAddInfo(JSContext* aCx,
   return NS_OK;
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(IDBObjectStore)
+NS_IMPL_ADDREF(IDBObjectStore)
+NS_IMPL_RELEASE(IDBObjectStore)
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBObjectStore,
-                                                  nsDOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mTransaction,
-                                                       nsPIDOMEventTarget)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBObjectStore,
-                                                nsDOMEventTargetHelper)
-  // Don't unlink mTransaction!
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBObjectStore)
+NS_INTERFACE_MAP_BEGIN(IDBObjectStore)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, IDBRequest::Generator)
   NS_INTERFACE_MAP_ENTRY(nsIIDBObjectStore)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBObjectStore)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
-
-NS_IMPL_ADDREF_INHERITED(IDBObjectStore, nsDOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(IDBObjectStore, nsDOMEventTargetHelper)
+NS_INTERFACE_MAP_END
 
 DOMCI_DATA(IDBObjectStore, IDBObjectStore)
 
@@ -903,7 +856,8 @@ IDBObjectStore::Get(nsIVariant* aKey,
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this);
+  nsRefPtr<IDBRequest> request =
+    GenerateRequest(mTransaction->ScriptContext(), mTransaction->Owner());
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetHelper> helper =
@@ -953,7 +907,8 @@ IDBObjectStore::GetAll(nsIIDBKeyRange* aKeyRange,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this);
+  nsRefPtr<IDBRequest> request =
+    GenerateRequest(mTransaction->ScriptContext(), mTransaction->Owner());
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetAllHelper> helper =
@@ -1008,7 +963,8 @@ IDBObjectStore::Add(const jsval &aValue,
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this);
+  nsRefPtr<IDBRequest> request =
+    GenerateWriteRequest(mTransaction->ScriptContext(), mTransaction->Owner());
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<AddHelper> helper =
@@ -1053,7 +1009,8 @@ IDBObjectStore::Put(const jsval &aValue,
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this);
+  nsRefPtr<IDBRequest> request =
+    GenerateWriteRequest(mTransaction->ScriptContext(), mTransaction->Owner());
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<AddHelper> helper =
@@ -1090,7 +1047,8 @@ IDBObjectStore::Remove(nsIVariant* aKey,
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this);
+  nsRefPtr<IDBRequest> request =
+    GenerateWriteRequest(mTransaction->ScriptContext(), mTransaction->Owner());
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<RemoveHelper> helper =
@@ -1115,7 +1073,8 @@ IDBObjectStore::Clear(nsIIDBRequest** _retval)
     return NS_ERROR_OBJECT_IS_IMMUTABLE;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this);
+  nsRefPtr<IDBRequest> request =
+    GenerateWriteRequest(mTransaction->ScriptContext(), mTransaction->Owner());
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<ClearHelper> helper =
@@ -1180,7 +1139,8 @@ IDBObjectStore::OpenCursor(nsIIDBKeyRange* aKeyRange,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this);
+  nsRefPtr<IDBRequest> request =
+    GenerateRequest(mTransaction->ScriptContext(), mTransaction->Owner());
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<OpenCursorHelper> helper =
@@ -1231,7 +1191,8 @@ IDBObjectStore::CreateIndex(const nsAString& aName,
     return NS_ERROR_UNEXPECTED;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this);
+  nsRefPtr<IDBRequest> request =
+    GenerateWriteRequest(mTransaction->ScriptContext(), mTransaction->Owner());
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<CreateIndexHelper> helper =
@@ -1310,7 +1271,8 @@ IDBObjectStore::RemoveIndex(const nsAString& aName,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this);
+  nsRefPtr<IDBRequest> request =
+    GenerateWriteRequest(mTransaction->ScriptContext(), mTransaction->Owner());
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<RemoveIndexHelper> helper =
@@ -1896,7 +1858,9 @@ OpenCursorHelper::GetSuccessResult(nsIWritableVariant* aResult)
     IDBCursor::Create(mRequest, mTransaction, mObjectStore, mDirection, mData);
   NS_ENSURE_TRUE(cursor, nsIIDBDatabaseException::UNKNOWN_ERR);
 
-  aResult->SetAsISupports(static_cast<nsPIDOMEventTarget*>(cursor));
+  mObjectStore = nsnull;
+
+  aResult->SetAsISupports(static_cast<IDBRequest::Generator*>(cursor));
   return OK;
 }
 
@@ -2077,6 +2041,8 @@ CreateIndexHelper::GetSuccessResult(nsIWritableVariant* aResult)
   nsresult rv = mObjectStore->Index(mName, getter_AddRefs(result));
   NS_ENSURE_SUCCESS(rv, nsIIDBDatabaseException::UNKNOWN_ERR);
 
+  mObjectStore = nsnull;
+
   aResult->SetAsISupports(result);
   return OK;
 }
@@ -2138,6 +2104,7 @@ RemoveIndexHelper::GetSuccessResult(nsIWritableVariant* /* aResult */)
     }
   }
 
+  mObjectStore = nsnull;
   return OK;
 }
 

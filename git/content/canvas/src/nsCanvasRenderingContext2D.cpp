@@ -1095,22 +1095,8 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
         if (PR_GetEnv("MOZ_CANVAS_IMAGE_SURFACE")) {
             surface = new gfxImageSurface(gfxIntSize(width, height), format);
         } else {
-            nsCOMPtr<nsIContent> content =
-                do_QueryInterface(static_cast<nsIDOMHTMLCanvasElement*>(mCanvasElement));
-            nsIDocument* ownerDoc = nsnull;
-            if (content)
-                ownerDoc = content->GetOwnerDoc();
-            nsRefPtr<LayerManager> layerManager = nsnull;
-
-            if (ownerDoc)
-              layerManager = nsContentUtils::LayerManagerForDocument(ownerDoc);
-
-            if (layerManager) {
-              surface = layerManager->CreateOptimalSurface(gfxIntSize(width, height), format);
-            } else {
-              surface = gfxPlatform::GetPlatform()->
-                CreateOffscreenSurface(gfxIntSize(width, height), format);
-            }
+            surface = gfxPlatform::GetPlatform()->CreateOffscreenSurface
+                (gfxIntSize(width, height), format);
         }
 
         if (surface && surface->CairoStatus() != 0)
@@ -1881,8 +1867,7 @@ nsCanvasRenderingContext2D::ShadowInitialize(const gfxRect& extents, gfxAlphaBox
 {
     gfxIntSize blurRadius;
 
-    float shadowBlur = CurrentState().shadowBlur;
-    gfxFloat sigma = shadowBlur > 8 ? sqrt(shadowBlur * 2) : (shadowBlur / 2);
+    gfxFloat sigma = CurrentState().shadowBlur > 8 ? sqrt(CurrentState().shadowBlur) : CurrentState().shadowBlur / 2;
     // limit to avoid overly huge temp images
     if (sigma > SIGMA_MAX)
         sigma = SIGMA_MAX;
@@ -4169,7 +4154,7 @@ nsCanvasRenderingContext2D::GetCanvasLayer(CanvasLayer *aOldLayer,
         return nsnull;
 
     if (!mResetLayer && aOldLayer &&
-        aOldLayer->HasUserData(&g2DContextLayerUserData)) {
+        aOldLayer->GetUserData() == &g2DContextLayerUserData) {
         NS_ADDREF(aOldLayer);
         // XXX Need to just update the changed area here
         aOldLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
@@ -4181,7 +4166,7 @@ nsCanvasRenderingContext2D::GetCanvasLayer(CanvasLayer *aOldLayer,
         NS_WARNING("CreateCanvasLayer returned null!");
         return nsnull;
     }
-    canvasLayer->SetUserData(&g2DContextLayerUserData, nsnull);
+    canvasLayer->SetUserData(&g2DContextLayerUserData);
 
     CanvasLayer::Data data;
 
@@ -4189,8 +4174,7 @@ nsCanvasRenderingContext2D::GetCanvasLayer(CanvasLayer *aOldLayer,
     data.mSize = nsIntSize(mWidth, mHeight);
 
     canvasLayer->Initialize(data);
-    PRUint32 flags = mOpaque ? Layer::CONTENT_OPAQUE : 0;
-    canvasLayer->SetContentFlags(flags);
+    canvasLayer->SetIsOpaqueContent(mOpaque);
     canvasLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
 
     mResetLayer = PR_FALSE;

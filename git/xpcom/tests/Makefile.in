@@ -73,6 +73,7 @@ CPPSRCS		= \
 		TestRegistrationOrder.cpp \
 		TestThreadPoolListener.cpp \
 		TestTimers.cpp \
+		TestOOM.cpp \
 		TestBlockingProcess.cpp \
 		TestQuickReturn.cpp \
 		TestArguments.cpp \

@@ -54,8 +54,8 @@ public:
     nsresult BeginPage();
     nsresult EndPage();
 
-    virtual const gfxIntSize GetSize() const {
-        gfxIntSize size(mRect.size.width, mRect.size.height);
+    gfxSize GetSize() {
+        gfxSize size(mRect.size.width, mRect.size.height);
         return size;
     }
 

@@ -156,8 +156,6 @@ public:
 
   virtual PRBool SupportsOrdinalsInChildren();
 
-  virtual PRBool ComputesOwnOverflowArea() { return PR_TRUE; }
-
 protected:
   class nsPositionChangedEvent;
   friend class nsPositionChangedEvent;

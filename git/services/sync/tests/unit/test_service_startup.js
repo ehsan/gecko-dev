@@ -2,10 +2,9 @@ Cu.import("resource://services-sync/ext/Observers.js");
 Cu.import("resource://services-sync/ext/Sync.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/engines.js");
 
 function run_test() {
-  _("When imported, Service.onStartup is called");
+  _("When imported, Weave.Service.onStartup is called");
 
   // Test fixtures
   let observerCalled = false;
@@ -19,10 +18,10 @@ function run_test() {
     Cu.import("resource://services-sync/service.js");
 
     _("Service is enabled.");
-    do_check_eq(Service.enabled, true);
+    do_check_eq(Weave.Service.enabled, true);
 
     _("Engines are registered.");
-    let engines = Engines.getAll();
+    let engines = Weave.Engines.getAll();
     do_check_true(Utils.deepEquals([engine.name for each (engine in engines)],
                                    ['tabs', 'bookmarks', 'forms', 'history']));
 
@@ -31,7 +30,7 @@ function run_test() {
     do_check_eq(ID.get('WeaveCryptoID').username, "johndoe");
 
     _("Observers are notified of startup");
-    // Synchronize with Service.onStartup's async notification
+    // Synchronize with Weave.Service.onStartup's async notification
     Sync.sleep(0);
     do_check_true(observerCalled);
 
