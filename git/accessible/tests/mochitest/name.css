@@ -1,0 +1,11 @@
+box.first {
+  -moz-binding: url('name.xbl#first');
+}
+
+.second {
+  -moz-binding: url('name.xbl#second');
+}
+
+.third {
+  -moz-binding: url('name.xbl#third');
+}
