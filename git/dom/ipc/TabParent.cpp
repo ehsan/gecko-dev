@@ -954,8 +954,8 @@ TabParent::DeallocPRenderFrame(PRenderFrameParent* aFrame)
 }
 
 mozilla::docshell::POfflineCacheUpdateParent*
-TabParent::AllocPOfflineCacheUpdate(const URIParams& aManifestURI,
-                                    const URIParams& aDocumentURI,
+TabParent::AllocPOfflineCacheUpdate(const URI& aManifestURI,
+                                    const URI& aDocumentURI,
                                     const nsCString& aClientID,
                                     const bool& stickDocument)
 {

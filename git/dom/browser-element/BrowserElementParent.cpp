@@ -17,7 +17,6 @@
 #include "nsOpenWindowEventDetail.h"
 #include "nsEventDispatcher.h"
 #include "nsIDOMCustomEvent.h"
-#include "nsIInterfaceRequestorUtils.h"
 #include "nsVariant.h"
 
 using mozilla::dom::Element;

@@ -781,7 +781,7 @@ nsScriptNameSpaceManager::Observe(nsISupports* aSubject, const char* aTopic,
 
 void
 nsScriptNameSpaceManager::RegisterDefineDOMInterface(const nsAFlatString& aName,
-    mozilla::dom::DefineInterface aDefineDOMInterface)
+    mozilla::dom::binding::DefineInterface aDefineDOMInterface)
 {
   nsGlobalNameStruct *s = AddToHash(&mGlobalNames, &aName);
   if (s) {

@@ -22,9 +22,15 @@
 
 <script> 
 
-steps = [install_super_crazy, uninstall_super_crazy, tearDown];
+steps = [setUp, install_super_crazy, tearDown];
 
 runAll(steps);
+
+function setUp(next) { 
+  debug("in " + arguments.callee.name);
+  uninstallAll(next);
+}
+
 
 function install_super_crazy(next)  {
   debug("in " + arguments.callee.name);
@@ -45,12 +51,6 @@ function install_super_crazy(next)  {
  
     next();
   };
-}
-
-function uninstall_super_crazy(next)  {
-  debug("in " + arguments.callee.name);
-  var appURL = SERVERS['super_crazy'];
-  uninstall(appURL, ok, function() { next(); });
 }
 
 </script> 

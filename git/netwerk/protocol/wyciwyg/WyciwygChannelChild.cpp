@@ -14,9 +14,6 @@
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
 #include "nsILoadContext.h"
-#include "mozilla/ipc/URIUtils.h"
-
-using namespace mozilla::ipc;
 
 namespace mozilla {
 namespace net {
@@ -72,10 +69,7 @@ WyciwygChannelChild::Init(nsIURI* uri)
   mURI = uri;
   mOriginalURI = uri;
 
-  URIParams serializedUri;
-  SerializeURI(uri, serializedUri);
-
-  SendInit(serializedUri);
+  SendInit(IPC::URI(mURI));
   return NS_OK;
 }
 
@@ -568,10 +562,8 @@ WyciwygChannelChild::AsyncOpen(nsIStreamListener *aListener, nsISupports *aConte
   if (mLoadGroup)
     mLoadGroup->AddRequest(this, nullptr);
 
-  URIParams originalURI;
-  SerializeURI(mOriginalURI, originalURI);
-
-  SendAsyncOpen(originalURI, mLoadFlags, IPC::SerializedLoadContext(this));
+  SendAsyncOpen(IPC::URI(mOriginalURI), mLoadFlags,
+                IPC::SerializedLoadContext(this));
 
   mState = WCC_OPENED;
 

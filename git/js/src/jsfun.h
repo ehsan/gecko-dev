@@ -109,9 +109,9 @@ struct JSFunction : public JSObject
         this->flags |= JSFUN_HAS_DEFAULTS;
     }
 
-    JSAtom *atom() const { return hasGuessedAtom() ? NULL : atom_.get(); }
+    JSAtom *atom() { return hasGuessedAtom() ? NULL : atom_.get(); }
     void initAtom(JSAtom *atom) { atom_.init(atom); }
-    JSAtom *displayAtom() const { return atom_; }
+    JSAtom *displayAtom() { return atom_; }
 
     void setGuessedAtom(JSAtom *atom) {
         JS_ASSERT(this->atom_ == NULL);

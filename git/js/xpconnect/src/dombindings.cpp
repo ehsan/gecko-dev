@@ -26,7 +26,7 @@ using namespace mozilla::dom;
 
 namespace mozilla {
 namespace dom {
-namespace oldproxybindings {
+namespace binding {
 
 enum {
     JSPROXYSLOT_EXPANDO = 0

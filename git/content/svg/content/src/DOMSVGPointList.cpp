@@ -74,13 +74,14 @@ DOMSVGPointList::GetDOMWrapper(void *aList,
                                nsSVGElement *aElement,
                                bool aIsAnimValList)
 {
-  nsRefPtr<DOMSVGPointList> wrapper =
+  DOMSVGPointList *wrapper =
     sSVGPointListTearoffTable.GetTearoff(aList);
   if (!wrapper) {
     wrapper = new DOMSVGPointList(aElement, aIsAnimValList);
     sSVGPointListTearoffTable.AddTearoff(aList, wrapper);
   }
-  return wrapper.forget();
+  NS_ADDREF(wrapper);
+  return wrapper;
 }
 
 /* static */ DOMSVGPointList*
@@ -102,7 +103,7 @@ DOMSVGPointList::~DOMSVGPointList()
 JSObject*
 DOMSVGPointList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  return mozilla::dom::oldproxybindings::SVGPointList::create(cx, scope, this,
+  return mozilla::dom::binding::SVGPointList::create(cx, scope, this,
                                                      triedToWrap);
 }
 

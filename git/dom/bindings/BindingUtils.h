@@ -8,7 +8,6 @@
 #define mozilla_dom_BindingUtils_h__
 
 #include "mozilla/dom/DOMJSClass.h"
-#include "mozilla/dom/DOMJSProxyHandler.h"
 #include "mozilla/dom/workers/Workers.h"
 #include "mozilla/ErrorResult.h"
 
@@ -79,34 +78,13 @@ IsDOMClass(const js::Class* clasp)
   return IsDOMClass(Jsvalify(clasp));
 }
 
-// It's ok for eRegularDOMObject and eProxyDOMObject to be the same, but
-// eNonDOMObject should always be different from the other two. This enum
-// shouldn't be used to differentiate between non-proxy and proxy bindings.
-enum DOMObjectSlot {
-  eNonDOMObject = -1,
-  eRegularDOMObject = DOM_OBJECT_SLOT,
-  eProxyDOMObject = DOM_PROXY_OBJECT_SLOT
-};
-
 template <class T>
 inline T*
-UnwrapDOMObject(JSObject* obj, DOMObjectSlot slot)
+UnwrapDOMObject(JSObject* obj)
 {
-  MOZ_ASSERT(slot != eNonDOMObject,
-             "Don't pass non-DOM objects to this function");
+  MOZ_ASSERT(IsDOMClass(JS_GetClass(obj)));
 
-#ifdef DEBUG
-  if (IsDOMClass(js::GetObjectClass(obj))) {
-    MOZ_ASSERT(slot == eRegularDOMObject);
-  } else {
-    MOZ_ASSERT(js::IsObjectProxyClass(js::GetObjectClass(obj)) ||
-               js::IsFunctionProxyClass(js::GetObjectClass(obj)));
-    MOZ_ASSERT(js::GetProxyHandler(obj)->family() == ProxyFamily());
-    MOZ_ASSERT(slot == eProxyDOMObject);
-  }
-#endif
-
-  JS::Value val = js::GetReservedSlot(obj, slot);
+  JS::Value val = js::GetReservedSlot(obj, DOM_OBJECT_SLOT);
   // XXXbz/khuey worker code tries to unwrap interface objects (which have
   // nothing here).  That needs to stop.
   // XXX We don't null-check UnwrapObject's result; aren't we going to crash
@@ -118,62 +96,6 @@ UnwrapDOMObject(JSObject* obj, DOMObjectSlot slot)
   return static_cast<T*>(val.toPrivate());
 }
 
-// Only use this with a new DOM binding object (either proxy or regular).
-inline const DOMClass*
-GetDOMClass(JSObject* obj)
-{
-  js::Class* clasp = js::GetObjectClass(obj);
-  if (IsDOMClass(clasp)) {
-    return &DOMJSClass::FromJSClass(clasp)->mClass;
-  }
-
-  js::BaseProxyHandler* handler = js::GetProxyHandler(obj);
-  MOZ_ASSERT(handler->family() == ProxyFamily());
-  return &static_cast<DOMProxyHandler*>(handler)->mClass;
-}
-
-inline DOMObjectSlot
-GetDOMClass(JSObject* obj, const DOMClass*& result)
-{
-  js::Class* clasp = js::GetObjectClass(obj);
-  if (IsDOMClass(clasp)) {
-    result = &DOMJSClass::FromJSClass(clasp)->mClass;
-    return eRegularDOMObject;
-  }
-
-  if (js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) {
-    js::BaseProxyHandler* handler = js::GetProxyHandler(obj);
-    if (handler->family() == ProxyFamily()) {
-      result = &static_cast<DOMProxyHandler*>(handler)->mClass;
-      return eProxyDOMObject;
-    }
-  }
-
-  return eNonDOMObject;
-}
-
-inline bool
-UnwrapDOMObjectToISupports(JSObject* obj, nsISupports*& result)
-{
-  const DOMClass* clasp;
-  DOMObjectSlot slot = GetDOMClass(obj, clasp);
-  if (slot == eNonDOMObject || !clasp->mDOMObjectIsISupports) {
-    return false;
-  }
- 
-  result = UnwrapDOMObject<nsISupports>(obj, slot);
-  return true;
-}
-
-inline bool
-IsDOMObject(JSObject* obj)
-{
-  js::Class* clasp = js::GetObjectClass(obj);
-  return IsDOMClass(clasp) ||
-         ((js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) &&
-          js::GetProxyHandler(obj)->family() == ProxyFamily());
-}
-
 // Some callers don't want to set an exception when unwrappin fails
 // (for example, overload resolution uses unwrapping to tell what sort
 // of thing it's looking at).
@@ -183,9 +105,8 @@ inline nsresult
 UnwrapObject(JSContext* cx, JSObject* obj, U& value)
 {
   /* First check to see whether we have a DOM object */
-  const DOMClass* domClass;
-  DOMObjectSlot slot = GetDOMClass(obj, domClass);
-  if (slot == eNonDOMObject) {
+  JSClass* clasp = js::GetObjectJSClass(obj);
+  if (!IsDOMClass(clasp)) {
     /* Maybe we have a security wrapper or outer window? */
     if (!js::IsWrapper(obj)) {
       /* Not a DOM object, not a wrapper, just bail */
@@ -197,19 +118,22 @@ UnwrapObject(JSContext* cx, JSObject* obj, U& value)
       return NS_ERROR_XPC_SECURITY_MANAGER_VETO;
     }
     MOZ_ASSERT(!js::IsWrapper(obj));
-    slot = GetDOMClass(obj, domClass);
-    if (slot == eNonDOMObject) {
+    clasp = js::GetObjectJSClass(obj);
+    if (!IsDOMClass(clasp)) {
       /* We don't have a DOM object */
       return NS_ERROR_XPC_BAD_CONVERT_JS;
     }
   }
 
+  MOZ_ASSERT(IsDOMClass(clasp));
+
   /* This object is a DOM object.  Double-check that it is safely
      castable to T by checking whether it claims to inherit from the
      class identified by protoID. */
+  DOMJSClass* domClass = DOMJSClass::FromJSClass(clasp);
   if (domClass->mInterfaceChain[PrototypeTraits<PrototypeID>::Depth] ==
       PrototypeID) {
-    value = UnwrapDOMObject<T>(obj, slot);
+    value = UnwrapDOMObject<T>(obj);
     return NS_OK;
   }
 
@@ -385,7 +309,7 @@ JSObject*
 CreateInterfaceObjects(JSContext* cx, JSObject* global, JSObject* receiver,
                        JSObject* protoProto, JSClass* protoClass,
                        JSClass* constructorClass, JSNative constructor,
-                       unsigned ctorNargs, const DOMClass* domClass,
+                       unsigned ctorNargs, JSClass* instanceClass,
                        Prefable<JSFunctionSpec>* methods,
                        Prefable<JSPropertySpec>* properties,
                        Prefable<ConstantSpec>* constants,
@@ -631,22 +555,6 @@ GetParentPointer(const ParentObject& aObject)
   return ToSupports(aObject.mObject);
 }
 
-template<class T>
-inline void
-ClearWrapper(T* p, nsWrapperCache* cache)
-{
-  cache->ClearWrapper();
-}
-
-template<class T>
-inline void
-ClearWrapper(T* p, void*)
-{
-  nsWrapperCache* cache;
-  CallQueryInterface(p, &cache);
-  ClearWrapper(p, cache);
-}
-
 // Can only be called with the immediate prototype of the instance object. Can
 // only be called on the prototype of an object known to be a DOM instance.
 JSBool
@@ -791,14 +699,6 @@ JSBool
 QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp);
 JSBool
 ThrowingConstructor(JSContext* cx, unsigned argc, JS::Value* vp);
-
-bool
-GetPropertyOnPrototype(JSContext* cx, JSObject* proxy, jsid id, bool* found,
-                       JS::Value* vp);
-
-bool
-HasPropertyOnPrototype(JSContext* cx, JSObject* proxy, DOMProxyHandler* handler,
-                       jsid id);
 
 template<class T>
 class NonNull

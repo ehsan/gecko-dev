@@ -467,6 +467,12 @@ NS_IMPL_ISUPPORTS4(nsScriptSecurityManager,
 
 ///////////////// Security Checks /////////////////
 
+/* static */ JSPrincipals *
+nsScriptSecurityManager::ObjectPrincipalFinder(JSObject *aObj)
+{
+    return nsJSPrincipals::get(doGetObjectPrincipal(aObj));
+}
+
 JSBool
 nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
 {
@@ -485,8 +491,13 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
     if (NS_FAILED(rv))
         return JS_FALSE; // Not just absence of principal, but failure.
 
-    if (!subjectPrincipal)
+    if (!subjectPrincipal) {
+        // See bug 553448 for discussion of this case.
+        NS_ASSERTION(!JS_GetSecurityCallbacks(js::GetRuntime(cx))->findObjectPrincipals,
+                     "CSP: Should have been able to find subject principal. "
+                     "Reluctantly granting access.");
         return JS_TRUE;
+    }
 
     nsCOMPtr<nsIContentSecurityPolicy> csp;
     rv = subjectPrincipal->GetCsp(getter_AddRefs(csp));
@@ -2388,7 +2399,10 @@ nsScriptSecurityManager::old_doGetObjectPrincipal(JSObject *aObj,
             if (!(~jsClass->flags & (JSCLASS_HAS_PRIVATE |
                                      JSCLASS_PRIVATE_IS_NSISUPPORTS))) {
                 priv = (nsISupports *) js::GetObjectPrivate(aObj);
-            } else if (!UnwrapDOMObjectToISupports(aObj, priv)) {
+            } else if (IsDOMClass(jsClass) &&
+                       DOMJSClass::FromJSClass(jsClass)->mDOMObjectIsISupports) {
+                priv = UnwrapDOMObject<nsISupports>(aObj);
+            } else {
                 priv = nullptr;
             }
 
@@ -2441,10 +2455,71 @@ NS_IMETHODIMP
 nsScriptSecurityManager::IsCapabilityEnabled(const char *capability,
                                              bool *result)
 {
+    nsresult rv;
+    JSStackFrame *fp = nullptr;
     JSContext *cx = GetCurrentJSContext();
-    if (cx && (*result = xpc::IsUniversalXPConnectEnabled(cx)))
+    fp = cx ? JS_FrameIterator(cx, &fp) : nullptr;
+
+    if (!fp)
+    {
+        // No script code on stack. Allow access if and only if the subject
+        // principal is system.
+        nsresult ignored;
+        nsIPrincipal *subjectPrin = doGetSubjectPrincipal(&ignored);
+        *result = (!subjectPrin || subjectPrin == mSystemPrincipal);
         return NS_OK;
-    return SubjectPrincipalIsSystem(result);
+    }
+
+    *result = false;
+    nsIPrincipal* previousPrincipal = nullptr;
+    do
+    {
+        nsIPrincipal* principal = GetFramePrincipal(cx, fp, &rv);
+        if (NS_FAILED(rv))
+            return rv;
+        if (!principal)
+            continue;
+        // If caller has a different principal, stop looking up the stack.
+        if(previousPrincipal)
+        {
+            bool isEqual = false;
+            if(NS_FAILED(previousPrincipal->Equals(principal, &isEqual)) || !isEqual)
+                break;
+        }
+        else
+            previousPrincipal = principal;
+
+        // First check if the principal is even able to enable the
+        // given capability. If not, don't look any further.
+        int16_t canEnable;
+        rv = principal->CanEnableCapability(capability, &canEnable);
+        if (NS_FAILED(rv)) return rv;
+        if (canEnable != nsIPrincipal::ENABLE_GRANTED &&
+            canEnable != nsIPrincipal::ENABLE_WITH_USER_PERMISSION)
+            return NS_OK;
+
+        // Now see if the capability is enabled.
+        void *annotation = JS_GetFrameAnnotation(cx, fp);
+        rv = principal->IsCapabilityEnabled(capability, annotation, result);
+        if (NS_FAILED(rv)) return rv;
+        if (*result)
+            return NS_OK;
+
+        // Capabilities do not extend to calls into C/C++ and then back into
+        // the JS engine via JS_EvaluateScript or similar APIs.
+        if (JS_IsGlobalFrame(cx, fp))
+            break;
+    } while ((fp = JS_FrameIterator(cx, &fp)) != nullptr);
+
+    if (!previousPrincipal)
+    {
+        // No principals on the stack, all native code.  Allow
+        // execution if the subject principal is the system principal.
+
+        return SubjectPrincipalIsSystem(result);
+    }
+
+    return NS_OK;
 }
 
 void
@@ -2976,6 +3051,8 @@ nsresult nsScriptSecurityManager::Init()
 
     static const JSSecurityCallbacks securityCallbacks = {
         CheckObjectAccess,
+        nsJSPrincipals::Subsume,
+        ObjectPrincipalFinder,
         ContentSecurityPolicyPermitsJSAction
     };
 

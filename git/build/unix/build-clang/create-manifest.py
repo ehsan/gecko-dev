@@ -1,7 +1,6 @@
 #!/bin/python
 
 import os
-import os.path
 import simplejson
 import sys
 import subprocess
@@ -12,23 +11,24 @@ def check_run(args):
     r = subprocess.call(args)
     assert r == 0
 
-old_files = glob.glob('*.manifest')
+old_files = glob.glob('*.manifest') + ['tooltool.py', 'setup.sh']
 for f in old_files:
     try:
         os.unlink(f)
     except:
         pass
 
-basedir = os.path.split(os.path.realpath(sys.argv[0]))[0]
-tooltool = basedir + '/tooltool.py'
-setup = basedir + '/setup.sh'
+urllib.urlretrieve('https://raw.github.com/jhford/tooltool/master/tooltool.py',
+                   'tooltool.py')
+urllib.urlretrieve('https://hg.mozilla.org/mozilla-central/raw-file/tip/build/unix/build-clang/setup.sh',
+                   'setup.sh')
 
-check_run(['python', tooltool, '-m', 'linux32.manifest', 'add',
-           'clang-linux32.tar.bz2', setup])
-check_run(['python', tooltool, '-m', 'linux64.manifest', 'add',
-           'clang-linux64.tar.bz2', setup])
-check_run(['python', tooltool, '-m', 'darwin.manifest', 'add',
-           'clang-darwin.tar.bz2', setup])
+check_run(['python', 'tooltool.py', '-m', 'linux32.manifest', 'add',
+           'clang-linux32.tar.bz2', 'setup.sh'])
+check_run(['python', 'tooltool.py', '-m', 'linux64.manifest', 'add',
+           'clang-linux64.tar.bz2', 'setup.sh'])
+check_run(['python', 'tooltool.py', '-m', 'darwin.manifest', 'add',
+           'clang-darwin.tar.bz2', 'setup.sh'])
 
 def key_sort(item):
     item = item[0]

@@ -8,10 +8,6 @@
 #include "WebSocketChannelParent.h"
 #include "nsIAuthPromptProvider.h"
 #include "mozilla/LoadContext.h"
-#include "mozilla/ipc/InputStreamUtils.h"
-#include "mozilla/ipc/URIUtils.h"
-
-using namespace mozilla::ipc;
 
 namespace mozilla {
 namespace net {
@@ -44,17 +40,14 @@ WebSocketChannelParent::RecvDeleteSelf()
 }
 
 bool
-WebSocketChannelParent::RecvAsyncOpen(const URIParams& aURI,
+WebSocketChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
                                       const nsCString& aOrigin,
                                       const nsCString& aProtocol,
                                       const bool& aSecure,
                                       const IPC::SerializedLoadContext& loadContext)
 {
   LOG(("WebSocketChannelParent::RecvAsyncOpen() %p\n", this));
-
   nsresult rv;
-  nsCOMPtr<nsIURI> uri;
-
   if (aSecure) {
     mChannel =
       do_CreateInstance("@mozilla.org/network/protocol;1?name=wss", &rv);
@@ -76,13 +69,7 @@ WebSocketChannelParent::RecvAsyncOpen(const URIParams& aURI,
   if (NS_FAILED(rv))
     goto fail;
 
-  uri = DeserializeURI(aURI);
-  if (!uri) {
-    rv = NS_ERROR_FAILURE;
-    goto fail;
-  }
-
-  rv = mChannel->AsyncOpen(uri, aOrigin, this, nullptr);
+  rv = mChannel->AsyncOpen(aURI, aOrigin, this, nullptr);
   if (NS_FAILED(rv))
     goto fail;
 
@@ -127,16 +114,12 @@ WebSocketChannelParent::RecvSendBinaryMsg(const nsCString& aMsg)
 }
 
 bool
-WebSocketChannelParent::RecvSendBinaryStream(const InputStreamParams& aStream,
+WebSocketChannelParent::RecvSendBinaryStream(const InputStream& aStream,
                                              const uint32_t& aLength)
 {
   LOG(("WebSocketChannelParent::RecvSendBinaryStream() %p\n", this));
   if (mChannel) {
-    nsCOMPtr<nsIInputStream> stream = DeserializeInputStream(aStream);
-    if (!stream) {
-      return false;
-    }
-    nsresult rv = mChannel->SendBinaryStream(stream, aLength);
+    nsresult rv = mChannel->SendBinaryStream(aStream, aLength);
     NS_ENSURE_SUCCESS(rv, true);
   }
   return true;

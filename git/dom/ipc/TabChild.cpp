@@ -1030,8 +1030,8 @@ TabChild::RecvActivateFrameEvent(const nsString& aType, const bool& capture)
 }
 
 POfflineCacheUpdateChild*
-TabChild::AllocPOfflineCacheUpdate(const URIParams& manifestURI,
-            const URIParams& documentURI,
+TabChild::AllocPOfflineCacheUpdate(const URI& manifestURI,
+            const URI& documentURI,
             const nsCString& clientID,
             const bool& stickDocument)
 {

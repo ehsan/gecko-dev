@@ -910,20 +910,13 @@ public:
    */
   virtual void DisableComponentAlpha() {}
 
-  /**
-   * Check if we can add async animations to the layer for this display item.
-   */
-  virtual bool CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder) {
-    return false;
-  }
-
 protected:
   friend class nsDisplayList;
-
+  
   nsDisplayItem() {
     mAbove = nullptr;
   }
-
+  
   nsIFrame* mFrame;
   // Result of ToReferenceFrame(mFrame), if mFrame is non-null
   nsPoint   mToReferenceFrame;
@@ -1880,7 +1873,7 @@ public:
 protected:
   nsDisplayWrapper() {}
 };
-
+                              
 /**
  * The standard display item to paint a stacking context with translucency
  * set by the stacking context root frame's 'opacity' style.
@@ -1892,7 +1885,7 @@ public:
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayOpacity();
 #endif
-
+  
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    bool* aSnap);
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
@@ -1906,10 +1899,6 @@ public:
                                    const nsRect& aAllowVisibleRegionExpansion);  
   virtual bool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem);
   NS_DISPLAY_DECL_NAME("Opacity", TYPE_OPACITY)
-
-  bool CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder) {
-    return GetUnderlyingFrame()->AreLayersMarkedActive(nsChangeHint_UpdateOpacityLayer);
-  }
 };
 
 /**
@@ -2421,10 +2410,6 @@ public:
    */
   static bool ShouldPrerenderTransformedContent(nsDisplayListBuilder* aBuilder,
                                                 nsIFrame* aFrame);
-  bool CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder) {
-    return nsDisplayTransform::ShouldPrerenderTransformedContent(aBuilder,
-                                                                 GetUnderlyingFrame());
-  }
 
 private:
   nsDisplayWrapList mStoredList;
