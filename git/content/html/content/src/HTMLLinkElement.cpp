@@ -426,9 +426,9 @@ HTMLLinkElement::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 }
 
 JSObject*
-HTMLLinkElement::WrapNode(JSContext* aCx, JSObject* aScope)
+HTMLLinkElement::WrapNode(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
 {
-  return HTMLLinkElementBinding::Wrap(aCx, aScope, this);
+  return HTMLLinkElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 } // namespace dom

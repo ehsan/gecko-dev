@@ -89,7 +89,7 @@ public:
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
-  JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
+  JSObject* WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap);
 
   nsRefPtr<nsContentList> mRows;
 };

@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SVGAnimatedBoolean.h"
+#include "nsSVGBoolean.h"
 #include "mozilla/dom/SVGAnimatedBooleanBinding.h"
 #include "nsContentUtils.h"
 
@@ -21,8 +22,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(SVGAnimatedBoolean)
 NS_INTERFACE_MAP_END
 
 JSObject*
-SVGAnimatedBoolean::WrapObject(JSContext* aCx, JSObject* aScope)
+SVGAnimatedBoolean::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
 {
-  return SVGAnimatedBooleanBinding::Wrap(aCx, aScope, this);
+  return SVGAnimatedBooleanBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 

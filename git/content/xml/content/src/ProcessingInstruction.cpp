@@ -75,9 +75,9 @@ NS_IMPL_ISUPPORTS_INHERITED3(ProcessingInstruction, nsGenericDOMDataNode,
                              nsIDOMProcessingInstruction)
 
 JSObject*
-ProcessingInstruction::WrapNode(JSContext *aCx, JSObject *aScope)
+ProcessingInstruction::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return ProcessingInstructionBinding::Wrap(aCx, aScope, this);
+  return ProcessingInstructionBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 NS_IMETHODIMP

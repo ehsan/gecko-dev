@@ -11,13 +11,25 @@
 #include "AudioParam.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/TypedEnum.h"
-#include "mozilla/dom/PannerNodeBinding.h"
 #include "ThreeDPoint.h"
 
 namespace mozilla {
 namespace dom {
 
 class AudioContext;
+
+MOZ_BEGIN_ENUM_CLASS(PanningModelEnum, uint16_t)
+  EQUALPOWER = 0,
+  HRTF = 1,
+  SOUNDFIELD = 2,
+  Max = 2
+MOZ_END_ENUM_CLASS(PanningModelEnum)
+MOZ_BEGIN_ENUM_CLASS(DistanceModelEnum, uint16_t)
+  LINEAR_DISTANCE = 0,
+  INVERSE_DISTANCE = 1,
+  EXPONENTIAL_DISTANCE = 2,
+  Max = 2
+MOZ_END_ENUM_CLASS(DistanceModelEnum)
 
 class PannerNode : public AudioNode
 {
@@ -26,111 +38,123 @@ public:
 
   virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope);
 
-  PanningModelType PanningModel() const
+  uint16_t PanningModel() const
   {
-    return mPanningModel;
+    return static_cast<uint16_t> (mPanningModel);
   }
-  void SetPanningModel(PanningModelType aPanningModel)
+  void SetPanningModel(uint16_t aPanningModel, ErrorResult& aRv)
   {
-    mPanningModel = aPanningModel;
-  }
-
-  DistanceModelType DistanceModel() const
-  {
-    return mDistanceModel;
-  }
-  void SetDistanceModel(DistanceModelType aDistanceModel)
-  {
-    mDistanceModel = aDistanceModel;
+    PanningModelEnum panningModel =
+      static_cast<PanningModelEnum> (aPanningModel);
+    if (panningModel > PanningModelEnum::Max) {
+      aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
+    } else {
+      mPanningModel = panningModel;
+    }
   }
 
-  void SetPosition(double aX, double aY, double aZ)
+  uint16_t DistanceModel() const
+  {
+    return static_cast<uint16_t> (mDistanceModel);
+  }
+  void SetDistanceModel(uint16_t aDistanceModel, ErrorResult& aRv)
+  {
+    DistanceModelEnum distanceModel =
+      static_cast<DistanceModelEnum> (aDistanceModel);
+    if (distanceModel > DistanceModelEnum::Max) {
+      aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
+    } else {
+      mDistanceModel = distanceModel;
+    }
+  }
+
+  void SetPosition(float aX, float aY, float aZ)
   {
     mPosition.x = aX;
     mPosition.y = aY;
     mPosition.z = aZ;
   }
 
-  void SetOrientation(double aX, double aY, double aZ)
+  void SetOrientation(float aX, float aY, float aZ)
   {
     mOrientation.x = aX;
     mOrientation.y = aY;
     mOrientation.z = aZ;
   }
 
-  void SetVelocity(double aX, double aY, double aZ)
+  void SetVelocity(float aX, float aY, float aZ)
   {
     mVelocity.x = aX;
     mVelocity.y = aY;
     mVelocity.z = aZ;
   }
 
-  double RefDistance() const
+  float RefDistance() const
   {
     return mRefDistance;
   }
-  void SetRefDistance(double aRefDistance)
+  void SetRefDistance(float aRefDistance)
   {
     mRefDistance = aRefDistance;
   }
 
-  double MaxDistance() const
+  float MaxDistance() const
   {
     return mMaxDistance;
   }
-  void SetMaxDistance(double aMaxDistance)
+  void SetMaxDistance(float aMaxDistance)
   {
     mMaxDistance = aMaxDistance;
   }
 
-  double RolloffFactor() const
+  float RolloffFactor() const
   {
     return mRolloffFactor;
   }
-  void SetRolloffFactor(double aRolloffFactor)
+  void SetRolloffFactor(float aRolloffFactor)
   {
     mRolloffFactor = aRolloffFactor;
   }
 
-  double ConeInnerAngle() const
+  float ConeInnerAngle() const
   {
     return mConeInnerAngle;
   }
-  void SetConeInnerAngle(double aConeInnerAngle)
+  void SetConeInnerAngle(float aConeInnerAngle)
   {
     mConeInnerAngle = aConeInnerAngle;
   }
 
-  double ConeOuterAngle() const
+  float ConeOuterAngle() const
   {
     return mConeOuterAngle;
   }
-  void SetConeOuterAngle(double aConeOuterAngle)
+  void SetConeOuterAngle(float aConeOuterAngle)
   {
     mConeOuterAngle = aConeOuterAngle;
   }
 
-  double ConeOuterGain() const
+  float ConeOuterGain() const
   {
     return mConeOuterGain;
   }
-  void SetConeOuterGain(double aConeOuterGain)
+  void SetConeOuterGain(float aConeOuterGain)
   {
     mConeOuterGain = aConeOuterGain;
   }
 
 private:
-  PanningModelType mPanningModel;
-  DistanceModelType mDistanceModel;
+  PanningModelEnum mPanningModel;
+  DistanceModelEnum mDistanceModel;
   ThreeDPoint mPosition;
   ThreeDPoint mOrientation;
   ThreeDPoint mVelocity;
-  double mRefDistance;
-  double mMaxDistance;
-  double mRolloffFactor;
-  double mConeInnerAngle;
-  double mConeOuterAngle;
-  double mConeOuterGain;
+  float mRefDistance;
+  float mMaxDistance;
+  float mRolloffFactor;
+  float mConeInnerAngle;
+  float mConeOuterAngle;
+  float mConeOuterGain;
 };
 
 }

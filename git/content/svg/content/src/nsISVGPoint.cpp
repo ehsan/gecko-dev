@@ -3,12 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsISVGPoint.h"
+#include "DOMSVGPoint.h"
 #include "DOMSVGPointList.h"
 #include "SVGPoint.h"
+#include "SVGAnimatedPointList.h"
 #include "nsSVGElement.h"
 #include "nsError.h"
 #include "nsContentUtils.h" // NS_ENSURE_FINITE
+#include "mozilla/dom/SVGMatrix.h"
 #include "mozilla/dom/SVGPointBinding.h"
 
 // See the architecture comment in DOMSVGPointList.h.

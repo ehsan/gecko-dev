@@ -1555,10 +1555,14 @@ let RIL = {
    */
   selectNetwork: function selectNetwork(options) {
     if (DEBUG) {
-      debug("Setting manual network selection: " + options.mcc + ", " + options.mnc);
+      debug("Setting manual network selection: " + options.mcc + options.mnc);
     }
 
-    let numeric = (options.mcc && options.mnc) ? options.mcc + options.mnc : null;
+    // TODO: Bug 828307 - B2G RIL: Change to store MNC/MCC values from integer to string
+    let mnc = options.mnc.toString();
+    if (mnc.length == 1)
+      mnc = "0" + mnc;
+    let numeric = options.mcc.toString() + mnc;
     Buf.newParcel(REQUEST_SET_NETWORK_SELECTION_MANUAL, options);
     Buf.writeString(numeric);
     Buf.sendParcel();
@@ -3090,14 +3094,14 @@ let RIL = {
     }
 
     let [longName, shortName, networkTuple] = operatorData;
-    let thisTuple = this.operator.mcc + this.operator.mnc;
+    let thisTuple = "" + this.operator.mcc + this.operator.mnc;
 
     if (this.operator.longName !== longName ||
         this.operator.shortName !== shortName ||
         thisTuple !== networkTuple) {
 
-      this.operator.mcc = null;
-      this.operator.mnc = null;
+      this.operator.mcc = 0;
+      this.operator.mnc = 0;
 
       if (networkTuple) {
         try {
@@ -3325,8 +3329,7 @@ let RIL = {
       let network = {
         longName: strings[i],
         shortName: strings[i + 1],
-        mcc: null,
-        mnc: null,
+        mcc: 0, mnc: 0,
         state: null
       };
 
@@ -3358,16 +3361,24 @@ let RIL = {
    */
   _processNetworkTuple: function _processNetworkTuple(networkTuple, network) {
     let tupleLen = networkTuple.length;
+    let mcc = 0, mnc = 0;
 
     if (tupleLen == 5 || tupleLen == 6) {
-      network.mcc = networkTuple.substr(0, 3);
-      network.mnc = networkTuple.substr(3);
-    } else {
-      network.mcc = null;
-      network.mnc = null;
+      mcc = parseInt(networkTuple.substr(0, 3), 10);
+      if (isNaN(mcc)) {
+        throw new Error("MCC could not be parsed from network tuple: " + networkTuple );
+      }
 
+      mnc = parseInt(networkTuple.substr(3), 10);
+      if (isNaN(mnc)) {
+        throw new Error("MNC could not be parsed from network tuple: " + networkTuple);
+      }
+    } else {
       throw new Error("Invalid network tuple (should be 5 or 6 digits): " + networkTuple);
     }
+
+    network.mcc = mcc;
+    network.mnc = mnc;
   },
 
   /**
@@ -9364,11 +9375,14 @@ let ComprehensionTlvHelper = {
     // shall be coded as '1111'".
 
     // MCC & MNC, 3 octets
-    let mcc = loc.mcc, mnc;
-    if (loc.mnc.length == 2) {
-      mnc = "F" + loc.mnc;
+    let mcc = loc.mcc.toString();
+    let mnc = loc.mnc.toString();
+    if (mnc.length == 1) {
+      mnc = "F0" + mnc;
+    } else if (mnc.length == 2) {
+      mnc = "F" + mnc;
     } else {
-      mnc = loc.mnc[2] + loc.mnc[0] + loc.mnc[1];
+      mnc = mnc[2] + mnc[0] + mnc[1];
     }
     GsmPDUHelper.writeSwappedNibbleBCD(mcc + mnc);
 
@@ -10019,9 +10033,9 @@ let ICCRecordHelper = {
       let imsi = RIL.iccInfoPrivate.imsi;
       if (imsi) {
         // MCC is the first 3 digits of IMSI.
-        RIL.iccInfo.mcc = imsi.substr(0,3);
+        RIL.iccInfo.mcc = parseInt(imsi.substr(0,3));
         // The 4th byte of the response is the length of MNC.
-        RIL.iccInfo.mnc = imsi.substr(3, ad[3]);
+        RIL.iccInfo.mnc = parseInt(imsi.substr(3, ad[3]));
         if (DEBUG) debug("MCC: " + RIL.iccInfo.mcc + " MNC: " + RIL.iccInfo.mnc);
         ICCUtilsHelper.handleICCInfoChange();
       }
@@ -10619,11 +10633,11 @@ let ICCRecordHelper = {
           }
           if (i === 2) {
             // 0-2: MCC
-            oplElement.mcc = buf;
+            oplElement.mcc = parseInt(buf);
             buf = "";
           } else if (i === 5) {
             // 3-5: MNC
-            oplElement.mnc = buf;
+            oplElement.mnc = parseInt(buf);
           }
         }
         // LAC/TAC
@@ -10815,11 +10829,11 @@ let ICCRecordHelper = {
             }
             if (i === 2) {
               // 0-2: MCC
-              plmnEntry.mcc = buf;
+              plmnEntry.mcc = parseInt(buf);
               buf = "";
             } else if (i === 5) {
               // 3-5: MNC
-              plmnEntry.mnc = buf;
+              plmnEntry.mnc = parseInt(buf);
             }
           }
           if (DEBUG) debug("readPLMNEntries: PLMN = " + plmnEntry.mcc + ", " + plmnEntry.mnc);

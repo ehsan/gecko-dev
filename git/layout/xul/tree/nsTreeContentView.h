@@ -6,6 +6,7 @@
 #ifndef nsTreeContentView_h__
 #define nsTreeContentView_h__
 
+#include "nsFixedSizeAllocator.h"
 #include "nsTArray.h"
 #include "nsIDocument.h"
 #include "nsStubDocumentObserver.h"
@@ -93,6 +94,7 @@ class nsTreeContentView MOZ_FINAL : public nsINativeTreeView,
     nsCOMPtr<nsIContent>                mRoot;
     nsCOMPtr<nsIContent>                mBody;
     nsIDocument*                        mDocument;      // WEAK
+    nsFixedSizeAllocator                mAllocator;
     nsTArray<Row*>                      mRows;
 };
 

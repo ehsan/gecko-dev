@@ -23,13 +23,16 @@
 #include "nsLayoutUtils.h"
 #include "nsSVGUtils.h"
 #include "nsStyleContext.h"
+#include "nsIDocument.h"
 #include "nsIFrame.h"
 #include "gfxContext.h"
 #include "gfxMatrix.h"
 #include "imgIContainer.h"
 #include "nsNetUtil.h"
+#include "nsIInterfaceRequestorUtils.h"
 #include "mozilla/dom/SVGFilterElement.h"
 #include "nsSVGString.h"
+#include "nsSVGEffects.h"
 #include "gfxUtils.h"
 #include "SVGContentUtils.h"
 #include <algorithm>
@@ -1894,9 +1897,10 @@ NS_IMPL_ISUPPORTS_INHERITED5(SVGFEFuncRElement,
                              nsIDOMSVGFEFuncRElement)
 
 /* virtual */ JSObject*
-SVGFEFuncRElement::WrapNode(JSContext* aCx, JSObject* aScope)
+SVGFEFuncRElement::WrapNode(JSContext* aCx, JSObject* aScope,
+                            bool* aTriedToWrap)
 {
-  return SVGFEFuncRElementBinding::Wrap(aCx, aScope, this);
+  return SVGFEFuncRElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 } // namespace dom
@@ -1917,9 +1921,10 @@ NS_IMPL_ISUPPORTS_INHERITED5(SVGFEFuncGElement,
                              nsIDOMSVGFEFuncGElement)
 
 /* virtual */ JSObject*
-SVGFEFuncGElement::WrapNode(JSContext* aCx, JSObject* aScope)
+SVGFEFuncGElement::WrapNode(JSContext* aCx, JSObject* aScope,
+                            bool* aTriedToWrap)
 {
-  return SVGFEFuncGElementBinding::Wrap(aCx, aScope, this);
+  return SVGFEFuncGElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 } // namespace dom
@@ -1940,9 +1945,10 @@ NS_IMPL_ISUPPORTS_INHERITED5(SVGFEFuncBElement,
                              nsIDOMSVGFEFuncBElement)
 
 /* virtual */ JSObject*
-SVGFEFuncBElement::WrapNode(JSContext* aCx, JSObject* aScope)
+SVGFEFuncBElement::WrapNode(JSContext* aCx, JSObject* aScope,
+                            bool* aTriedToWrap)
 {
-  return SVGFEFuncBElementBinding::Wrap(aCx, aScope, this);
+  return SVGFEFuncBElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 } // namespace dom
@@ -1963,9 +1969,10 @@ NS_IMPL_ISUPPORTS_INHERITED5(SVGFEFuncAElement,
                              nsIDOMSVGFEFuncAElement)
 
 /* virtual */ JSObject*
-SVGFEFuncAElement::WrapNode(JSContext* aCx, JSObject* aScope)
+SVGFEFuncAElement::WrapNode(JSContext* aCx, JSObject* aScope,
+                            bool* aTriedToWrap)
 {
-  return SVGFEFuncAElementBinding::Wrap(aCx, aScope, this);
+  return SVGFEFuncAElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 } // namespace dom

@@ -82,9 +82,9 @@ Comment::List(FILE* out, int32_t aIndent) const
 #endif
 
 JSObject*
-Comment::WrapNode(JSContext *aCx, JSObject *aScope)
+Comment::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return CommentBinding::Wrap(aCx, aScope, this);
+  return CommentBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 } // namespace dom

@@ -92,9 +92,11 @@ public:
 
   virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName);
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap)
   {
-    return mozilla::dom::CSS2PropertiesBinding::Wrap(cx, scope, this);
+    return mozilla::dom::CSS2PropertiesBinding::Wrap(cx, scope, this,
+                                                     triedToWrap);
   }
 
 protected:

@@ -30,6 +30,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
+#include "nsFixedSizeAllocator.h"
 #include "nsIAtom.h"
 #include "nsIDOMNode.h"
 #include "plhash.h"
@@ -53,10 +54,15 @@ class nsXULTemplateQueryProcessorRDF;
 class MemoryElement {
 protected:
     MemoryElement() { MOZ_COUNT_CTOR(MemoryElement); }
-
-public:
     virtual ~MemoryElement() { MOZ_COUNT_DTOR(MemoryElement); }
+public:
 
+    static bool Init();
+
+    static bool gPoolInited;
+    static nsFixedSizeAllocator gPool;
+
+    virtual void Destroy() = 0;
     virtual const char* Type() const = 0;
     virtual PLHashNumber Hash() const = 0;
     virtual bool Equals(const MemoryElement& aElement) const = 0;
@@ -87,7 +93,7 @@ protected:
 
         ~List() {
             MOZ_COUNT_DTOR(MemoryElementSet::List);
-            delete mElement;
+            mElement->Destroy();
             NS_IF_RELEASE(mNext); }
 
         int32_t AddRef() { return ++mRefCnt; }

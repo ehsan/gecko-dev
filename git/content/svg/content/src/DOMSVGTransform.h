@@ -12,6 +12,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsDebug.h"
 #include "nsID.h"
+#include "nsTArray.h"
 #include "SVGTransform.h"
 #include "nsWrapperCache.h"
 #include "mozilla/Attributes.h"
@@ -130,7 +131,7 @@ public:
 
   // WebIDL
   DOMSVGTransformList* GetParentObject() const { return mList; }
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap);
   uint16_t Type() const;
   dom::SVGMatrix* Matrix();
   float Angle() const;

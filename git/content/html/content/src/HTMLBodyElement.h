@@ -149,7 +149,8 @@ private:
   nsresult GetColorHelper(nsIAtom* aAtom, nsAString& aColor);
 
 protected:
-  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope,
+                             bool *aTriedToWrap) MOZ_OVERRIDE;
 
   nsRefPtr<BodyRule> mContentStyleRule;
 };

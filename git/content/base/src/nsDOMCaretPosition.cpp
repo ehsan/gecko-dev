@@ -22,9 +22,10 @@ nsINode* nsDOMCaretPosition::GetOffsetNode() const
 }
 
 JSObject*
-nsDOMCaretPosition::WrapObject(JSContext *aCx, JSObject *aScope)
+nsDOMCaretPosition::WrapObject(JSContext *aCx, JSObject *aScope,
+                              bool *aTried)
 {
-  return mozilla::dom::CaretPositionBinding::Wrap(aCx, aScope, this);
+  return mozilla::dom::CaretPositionBinding::Wrap(aCx, aScope, this, aTried);
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsDOMCaretPosition, mOffsetNode)

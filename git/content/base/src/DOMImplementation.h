@@ -52,7 +52,8 @@ public:
     return mOwner;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope,
+                               bool* aTriedToWrap) MOZ_OVERRIDE;
 
   bool HasFeature(const nsAString& aFeature, const nsAString& aVersion);
 

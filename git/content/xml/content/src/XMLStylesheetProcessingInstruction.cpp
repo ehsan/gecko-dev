@@ -38,9 +38,11 @@ XMLStylesheetProcessingInstruction::~XMLStylesheetProcessingInstruction()
 }
 
 JSObject*
-XMLStylesheetProcessingInstruction::WrapNode(JSContext *aCx, JSObject *aScope)
+XMLStylesheetProcessingInstruction::WrapNode(JSContext *aCx, JSObject *aScope,
+                                             bool *aTriedToWrap)
 {
-  return XMLStylesheetProcessingInstructionBinding::Wrap(aCx, aScope, this);
+  return XMLStylesheetProcessingInstructionBinding::Wrap(aCx, aScope, this,
+                                                         aTriedToWrap);
 }
 
 // nsIContent

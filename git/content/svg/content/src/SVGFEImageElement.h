@@ -20,6 +20,7 @@ typedef nsSVGFE SVGFEImageElementBase;
 
 class SVGFEImageElement : public SVGFEImageElementBase,
                           public nsIDOMSVGElement,
+                          public nsIDOMSVGURIReference,
                           public nsImageLoadingContent
 {
   friend class ::SVGFEImageFrame;
@@ -29,7 +30,7 @@ protected:
                                              already_AddRefed<nsINodeInfo> aNodeInfo));
   SVGFEImageElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~SVGFEImageElement();
-  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap) MOZ_OVERRIDE;
 
 public:
   virtual bool SubregionIsUnionOfRegions() { return false; }
@@ -46,6 +47,8 @@ public:
   virtual nsSVGString& GetResultImageName() { return mStringAttributes[RESULT]; }
   virtual nsIntRect ComputeTargetBBox(const nsTArray<nsIntRect>& aSourceBBoxes,
           const nsSVGFilterInstance& aInstance);
+
+  NS_DECL_NSIDOMSVGURIREFERENCE
 
   NS_FORWARD_NSIDOMSVGELEMENT(SVGFEImageElementBase::)
 

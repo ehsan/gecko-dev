@@ -8,6 +8,7 @@
 #include "nsSMILTimeContainer.h"
 #include "nsSMILAnimationController.h"
 #include "nsSMILAnimationFunction.h"
+#include "nsISMILAttr.h"
 #include "nsContentUtils.h"
 
 namespace mozilla {

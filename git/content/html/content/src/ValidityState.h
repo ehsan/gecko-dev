@@ -30,7 +30,8 @@ public:
     return mConstraintValidation;
   }
 
-  virtual JSObject* WrapObject(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *aCx, JSObject *aScope,
+                               bool *aTriedToWrap) MOZ_OVERRIDE;
 
   // Web IDL methods
   bool ValueMissing() const

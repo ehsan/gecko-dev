@@ -33,9 +33,9 @@ AudioChannelManager::Init(nsPIDOMWindow* aWindow)
 }
 
 JSObject*
-AudioChannelManager::WrapObject(JSContext* aCx, JSObject* aScope)
+AudioChannelManager::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
 {
-  return AudioChannelManagerBinding::Wrap(aCx, aScope, this);
+  return AudioChannelManagerBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 void

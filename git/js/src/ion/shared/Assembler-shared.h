@@ -238,12 +238,9 @@ class Label : public LabelBase
     { }
     ~Label()
     {
-#ifdef DEBUG
-        // Note: the condition is a hack to silence this assert when OOM testing,
+        // Note: the condition is a hack to avoid this assert when OOM testing,
         // see bug 756614.
-        if (!js_IonOptions.parallelCompilation)
-            JS_ASSERT_IF(!GetIonContext()->cx->runtime->hadOutOfMemory, !used());
-#endif
+        JS_ASSERT_IF(OOM_counter < OOM_maxAllocations, !used());
     }
 };
 

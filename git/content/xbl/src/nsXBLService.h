@@ -13,6 +13,7 @@
 #include "nsWeakReference.h"
 #include "jsapi.h"              // nsXBLJSClass derives from JSClass
 #include "jsclist.h"            // nsXBLJSClass derives from JSCList
+#include "nsFixedSizeAllocator.h"
 #include "nsTArray.h"
 
 class nsXBLBinding;
@@ -125,6 +126,8 @@ public:
   static bool     gAllowDataURIs;            // Whether we should allow data
                                              // urls in -moz-binding. Needed for
                                              // testing.
+
+  nsFixedSizeAllocator mPool;
 };
 
 class nsXBLJSClass : public JSCList, public JSClass

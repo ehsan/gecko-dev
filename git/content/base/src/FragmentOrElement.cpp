@@ -381,9 +381,10 @@ NS_INTERFACE_TABLE_HEAD(nsChildContentList)
 NS_INTERFACE_MAP_END
 
 JSObject*
-nsChildContentList::WrapObject(JSContext *cx, JSObject *scope)
+nsChildContentList::WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap)
 {
-  return NodeListBinding::Wrap(cx, scope, this);
+  return NodeListBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
 NS_IMETHODIMP

@@ -7,10 +7,7 @@
 #define mozilla_dom_SVGAnimatedLength_h
 
 #include "nsSVGElement.h"
-#include "nsIDOMSVGAnimatedLength.h"
-
-class nsSVGLength2;
-class nsIDOMSVGLength;
+#include "nsSVGLength2.h"
 
 namespace mozilla {
 namespace dom {
@@ -36,7 +33,7 @@ public:
 
   // WebIDL
   nsSVGElement* GetParentObject() { return mSVGElement; }
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap);
   already_AddRefed<nsIDOMSVGLength> BaseVal();
   already_AddRefed<nsIDOMSVGLength> AnimVal();
 

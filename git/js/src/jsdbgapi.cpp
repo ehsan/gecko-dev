@@ -728,7 +728,8 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj_, JSPropertyDescArray *pda)
         return false;
 
     {
-        Shape::Range<CanGC> r(cx, obj->lastProperty());
+        Shape::Range r(obj->lastProperty()->all());
+        Shape::Range::AutoRooter rooter(cx, &r);
         RootedShape shape(cx);
         for (; !r.empty(); r.popFront()) {
             pd[i].id = JSVAL_NULL;

@@ -124,9 +124,11 @@ nsPerformanceTiming::ResponseEnd() const
 }
 
 JSObject*
-nsPerformanceTiming::WrapObject(JSContext *cx, JSObject *scope)
+nsPerformanceTiming::WrapObject(JSContext *cx, JSObject *scope,
+                                bool *triedToWrap)
 {
-  return dom::PerformanceTimingBinding::Wrap(cx, scope, this);
+  return dom::PerformanceTimingBinding::Wrap(cx, scope, this,
+                                             triedToWrap);
 }
 
 
@@ -147,9 +149,11 @@ nsPerformanceNavigation::~nsPerformanceNavigation()
 }
 
 JSObject*
-nsPerformanceNavigation::WrapObject(JSContext *cx, JSObject *scope)
+nsPerformanceNavigation::WrapObject(JSContext *cx, JSObject *scope,
+                                    bool *triedToWrap)
 {
-  return dom::PerformanceNavigationBinding::Wrap(cx, scope, this);
+  return dom::PerformanceNavigationBinding::Wrap(cx, scope, this,
+                                                 triedToWrap);
 }
 
 
@@ -206,8 +210,10 @@ nsPerformance::Now()
 }
 
 JSObject*
-nsPerformance::WrapObject(JSContext *cx, JSObject *scope)
+nsPerformance::WrapObject(JSContext *cx, JSObject *scope,
+                          bool *triedToWrap)
 {
-  return dom::PerformanceBinding::Wrap(cx, scope, this);
+  return dom::PerformanceBinding::Wrap(cx, scope, this,
+                                       triedToWrap);
 }
 

@@ -138,7 +138,6 @@ ifdef MOZ_ENABLE_SKIA
 CPPSRCS += \
         ScaledFontWin.cpp \
         $(NULL)
-DEFINES += -DSKIA_IMPLEMENTATION=1 -DGR_IMPLEMENTATION=1
 endif
 endif
 

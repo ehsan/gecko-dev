@@ -124,9 +124,10 @@ public:
   nsresult GetSortedControls(nsTArray<nsGenericHTMLFormElement*>& aControls) const;
 
   // nsWrapperCache
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope)
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap)
   {
-    return HTMLCollectionBinding::Wrap(cx, scope, this);
+    return HTMLCollectionBinding::Wrap(cx, scope, this, triedToWrap);
   }
 
   nsHTMLFormElement* mForm;  // WEAK - the form owns me

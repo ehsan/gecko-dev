@@ -37,35 +37,36 @@ public:
     return mContext;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope,
+                               bool* aTriedToWrap);
 
-  double DopplerFactor() const
+  float DopplerFactor() const
   {
     return mDopplerFactor;
   }
-  void SetDopplerFactor(double aDopplerFactor)
+  void SetDopplerFactor(float aDopplerFactor)
   {
     mDopplerFactor = aDopplerFactor;
   }
 
-  double SpeedOfSound() const
+  float SpeedOfSound() const
   {
     return mSpeedOfSound;
   }
-  void SetSpeedOfSound(double aSpeedOfSound)
+  void SetSpeedOfSound(float aSpeedOfSound)
   {
     mSpeedOfSound = aSpeedOfSound;
   }
 
-  void SetPosition(double aX, double aY, double aZ)
+  void SetPosition(float aX, float aY, float aZ)
   {
     mPosition.x = aX;
     mPosition.y = aY;
     mPosition.z = aZ;
   }
 
-  void SetOrientation(double aX, double aY, double aZ,
-                      double aXUp, double aYUp, double aZUp)
+  void SetOrientation(float aX, float aY, float aZ,
+                      float aXUp, float aYUp, float aZUp)
   {
     mOrientation.x = aX;
     mOrientation.y = aY;
@@ -75,7 +76,7 @@ public:
     mUpVector.z = aZUp;
   }
 
-  void SetVelocity(double aX, double aY, double aZ)
+  void SetVelocity(float aX, float aY, float aZ)
   {
     mVelocity.x = aX;
     mVelocity.y = aY;
@@ -88,8 +89,8 @@ private:
   ThreeDPoint mOrientation;
   ThreeDPoint mUpVector;
   ThreeDPoint mVelocity;
-  double mDopplerFactor;
-  double mSpeedOfSound;
+  float mDopplerFactor;
+  float mSpeedOfSound;
 };
 
 }

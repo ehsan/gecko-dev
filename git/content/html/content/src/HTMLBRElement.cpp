@@ -106,9 +106,10 @@ HTMLBRElement::GetAttributeMappingFunction() const
 }
 
 JSObject*
-HTMLBRElement::WrapNode(JSContext *aCx, JSObject *aScope)
+HTMLBRElement::WrapNode(JSContext *aCx, JSObject *aScope,
+                        bool* aTriedToWrap)
 {
-  return HTMLBRElementBinding::Wrap(aCx, aScope, this);
+  return HTMLBRElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 } // namespace dom

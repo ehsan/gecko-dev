@@ -180,8 +180,8 @@ nsRDFConMemberTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
             if (isconsistent) {
                 // Add a memory element to our set-of-support.
                 Element* element =
-                    new nsRDFConMemberTestNode::Element(containerRes,
-                                                        memberValue);
+                    nsRDFConMemberTestNode::Element::Create(containerRes,
+                                                            memberValue);
 
                 if (! element)
                     return NS_ERROR_OUT_OF_MEMORY;
@@ -235,7 +235,7 @@ nsRDFConMemberTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
                 newinst.AddAssignment(mMemberVariable, node);
 
                 Element* element =
-                    new nsRDFConMemberTestNode::Element(containerRes, node);
+                    nsRDFConMemberTestNode::Element::Create(containerRes, node);
 
                 if (! element)
                     return NS_ERROR_OUT_OF_MEMORY;
@@ -325,8 +325,8 @@ nsRDFConMemberTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
                         newinst.AddAssignment(mContainerVariable, source);
 
                         Element* element =
-                            new nsRDFConMemberTestNode::Element(source,
-                                                                memberValue);
+                            nsRDFConMemberTestNode::Element::Create(source,
+                                                                    memberValue);
 
                         if (! element)
                             return NS_ERROR_OUT_OF_MEMORY;
@@ -421,11 +421,11 @@ nsRDFConMemberTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
                     Element* element;
                     if (hasContainerBinding) {
                         element =
-                            new nsRDFConMemberTestNode::Element(containerRes, value);
+                            nsRDFConMemberTestNode::Element::Create(containerRes, value);
                     }
                     else {
                         element =
-                            new nsRDFConMemberTestNode::Element(valueRes, memberValue);
+                            nsRDFConMemberTestNode::Element::Create(valueRes, memberValue);
                     }
 
                     if (! element)

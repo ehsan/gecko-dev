@@ -2018,9 +2018,10 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsHTMLOptionCollection)
 
 
 JSObject*
-nsHTMLOptionCollection::WrapObject(JSContext* cx, JSObject* scope)
+nsHTMLOptionCollection::WrapObject(JSContext* cx, JSObject* scope,
+                                   bool* triedToWrap)
 {
-  return HTMLOptionsCollectionBinding::Wrap(cx, scope, this);
+  return HTMLOptionsCollectionBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
 NS_IMETHODIMP

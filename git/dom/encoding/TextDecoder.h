@@ -45,9 +45,9 @@ public:
   {}
 
   virtual JSObject*
-  WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE
+  WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap) MOZ_OVERRIDE
   {
-    return TextDecoderBinding::Wrap(aCx, aScope, this);
+    return TextDecoderBinding::Wrap(aCx, aScope, this, aTriedToWrap);
   }
 
   nsISupports*

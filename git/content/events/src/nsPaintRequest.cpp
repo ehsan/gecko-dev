@@ -25,9 +25,9 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsPaintRequest)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsPaintRequest)
 
 /* virtual */ JSObject*
-nsPaintRequest::WrapObject(JSContext* aCx, JSObject* aScope)
+nsPaintRequest::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
 {
-  return PaintRequestBinding::Wrap(aCx, aScope, this);
+  return PaintRequestBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 already_AddRefed<nsClientRect>
@@ -65,9 +65,11 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsPaintRequestList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsPaintRequestList)
 
 JSObject*
-nsPaintRequestList::WrapObject(JSContext *cx, JSObject *scope)
+nsPaintRequestList::WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap)
 {
-  return mozilla::dom::PaintRequestListBinding::Wrap(cx, scope, this);
+  return mozilla::dom::PaintRequestListBinding::Wrap(cx, scope, this,
+                                                     triedToWrap);
 }
 
 NS_IMETHODIMP    

@@ -475,7 +475,8 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
             if (!source)
                 return false;
 
-            Shape::Range<CanGC> r(cx, obj->lastProperty());
+            Shape::Range r = obj->lastProperty()->all();
+            Shape::Range::AutoRooter root(cx, &r);
 
             while (!r.empty()) {
                 Rooted<Shape*> shape(cx, &r.front());
@@ -1428,7 +1429,7 @@ ExpressionDecompiler::findLetVar(jsbytecode *pc, unsigned depth)
             uint32_t blockDepth = block.stackDepth();
             uint32_t blockCount = block.slotCount();
             if (uint32_t(depth - blockDepth) < uint32_t(blockCount)) {
-                for (Shape::Range<NoGC> r(block.lastProperty()); !r.empty(); r.popFront()) {
+                for (Shape::Range r(block.lastProperty()); !r.empty(); r.popFront()) {
                     const Shape &shape = r.front();
                     if (shape.shortid() == int(depth - blockDepth))
                         return JSID_TO_ATOM(shape.propid());

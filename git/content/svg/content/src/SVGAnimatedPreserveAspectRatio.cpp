@@ -30,9 +30,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGAnimatedPreserveAspectRatio)
 NS_INTERFACE_MAP_END
 
 JSObject*
-DOMSVGAnimatedPreserveAspectRatio::WrapObject(JSContext* aCx, JSObject* aScope)
+DOMSVGAnimatedPreserveAspectRatio::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
 {
-  return SVGAnimatedPreserveAspectRatioBinding::Wrap(aCx, aScope, this);
+  return SVGAnimatedPreserveAspectRatioBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 /* Implementation */

@@ -4,9 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SVGFragmentIdentifier.h"
+#include "nsIDOMSVGDocument.h"
 #include "mozilla/dom/SVGSVGElement.h"
 #include "mozilla/dom/SVGViewElement.h"
 #include "SVGAnimatedTransformList.h"
+#include "nsContentUtils.h"
 
 using namespace mozilla;
 

@@ -425,7 +425,7 @@ struct HasWrapObject
 private:
   typedef char yes[1];
   typedef char no[2];
-  typedef JSObject* (nsWrapperCache::*WrapObject)(JSContext*, JSObject*);
+  typedef JSObject* (nsWrapperCache::*WrapObject)(JSContext*, JSObject*, bool*);
   template<typename U, U> struct SFINAE;
   template <typename V> static no& Check(SFINAE<WrapObject, &V::WrapObject>*);
   template <typename V> static yes& Check(...);
@@ -586,11 +586,13 @@ WrapNewBindingObject(JSContext* cx, JSObject* scope, T* value, JS::Value* vp)
       return false;
     }
 
-    obj = value->WrapObject(cx, scope);
+    bool triedToWrap;
+    obj = value->WrapObject(cx, scope, &triedToWrap);
     if (!obj) {
-      // At this point, obj is null, so just return false.
-      // Callers seem to be testing JS_IsExceptionPending(cx) to
-      // figure out whether WrapObject() threw.
+      // At this point, obj is null, so just return false.  We could
+      // try to communicate triedToWrap to the caller, but in practice
+      // callers seem to be testing JS_IsExceptionPending(cx) to
+      // figure out whether WrapObject() threw instead.
       return false;
     }
   }
@@ -1034,6 +1036,8 @@ struct WrapNativeParentFallback
   static inline JSObject* Wrap(JSContext* cx, JSObject* scope, T* parent,
                                nsWrapperCache* cache)
   {
+    MOZ_NOT_REACHED("Don't know how to deal with triedToWrap == false for "
+                    "non-nsISupports classes");
     return nullptr;
   }
 };
@@ -1065,13 +1069,17 @@ struct WrapNativeParentHelper
       return obj;
     }
 
+    bool triedToWrap;
     // Inline this here while we have non-dom objects in wrapper caches.
     if (!CouldBeDOMBinding(parent)) {
-      obj = WrapNativeParentFallback<T>::Wrap(cx, scope, parent, cache);
+      triedToWrap = false;
     } else {
-      obj = parent->WrapObject(cx, scope);
+      obj = parent->WrapObject(cx, scope, &triedToWrap);
     }
 
+    if (!triedToWrap) {
+      obj = WrapNativeParentFallback<T>::Wrap(cx, scope, parent, cache);
+    }
     return obj;
   }
 };

@@ -8,6 +8,7 @@
 #include "mozilla/dom/SVGMatrix.h"
 #include "SVGAnimatedTransformList.h"
 #include "nsError.h"
+#include <math.h>
 #include "nsContentUtils.h"
 #include "nsAttrValueInlines.h"
 #include "nsSVGAttrTearoffTable.h"
@@ -58,9 +59,9 @@ NS_INTERFACE_MAP_END
 
 
 JSObject*
-DOMSVGTransform::WrapObject(JSContext* aCx, JSObject* aScope)
+DOMSVGTransform::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
 {
-  return mozilla::dom::SVGTransformBinding::Wrap(aCx, aScope, this);
+  return mozilla::dom::SVGTransformBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 //----------------------------------------------------------------------

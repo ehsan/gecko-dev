@@ -169,7 +169,7 @@ nsXULTemplateQueryProcessorRDF::InitGlobals()
                              &kRDF_type);
     }
 
-    return NS_OK;
+    return MemoryElement::Init() ? NS_OK : NS_ERROR_FAILURE;
 }
 
 //----------------------------------------------------------------------

@@ -6,15 +6,16 @@
 #ifndef __NS_SVGANGLE_H__
 #define __NS_SVGANGLE_H__
 
-#include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
+#include "nsCycleCollectionParticipant.h"
 #include "nsError.h"
 #include "nsISMILAttr.h"
+#include "nsSVGElement.h"
+#include "nsWrapperCache.h"
 #include "mozilla/Attributes.h"
 
-class nsISupports;
 class nsISMILAnimationElement;
 class nsSMILValue;
-class nsSVGElement;
 
 namespace mozilla {
 

@@ -174,9 +174,10 @@ HTMLLegendElement::GetForm()
 }
 
 JSObject*
-HTMLLegendElement::WrapNode(JSContext* aCx, JSObject* aScope)
+HTMLLegendElement::WrapNode(JSContext* aCx, JSObject* aScope,
+                            bool* aTriedToWrap)
 {
-  return HTMLLegendElementBinding::Wrap(aCx, aScope, this);
+  return HTMLLegendElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 } // namespace dom

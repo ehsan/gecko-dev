@@ -17,16 +17,3 @@ function isSubObjectOf(expectedObj, actualObj, name) {
     }
   }
 }
-
-function waitForPopupShown(aPopupId, aCallback) {
-  let popup = document.getElementById(aPopupId);
-  function onPopupShown() {
-    popup.removeEventListener("popupshown", onPopupShown);
-    SimpleTest.executeSoon(aCallback);
-  }
-  popup.addEventListener("popupshown", onPopupShown);
-}
-
-function waitForBrowserContextMenu(aCallback) {
-  waitForPopupShown(gBrowser.selectedBrowser.contextMenu, aCallback);
-}

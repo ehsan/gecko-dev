@@ -23,7 +23,8 @@ public:
   }
   virtual ~XMLStylesheetProcessingInstruction();
 
-  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope,
+                             bool *aTriedToWrap);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

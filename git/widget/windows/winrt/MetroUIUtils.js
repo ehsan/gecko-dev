@@ -97,9 +97,11 @@ MetroUIUtils.prototype = {
     let browserWin = Services.wm.getMostRecentWindow("navigator:browser");
     let tabBrowser = browserWin.getBrowser();
     if (browserWin && tabBrowser && tabBrowser.contentWindow) {
-      let sel = tabBrowser.contentWindow.getSelection();
-      if (sel && sel.rangeCount)
-        return sel;
+      return tabBrowser.contentWindow.getSelection() || "";
+    }
+    else if (browserWin && browserWin.content && browserWin.document) {
+      return browserWin.content.document.URL ||
+             browserWin.content.document.title || "";
     }
 
     throw Cr.NS_ERROR_FAILURE;
@@ -165,6 +167,10 @@ MetroUIUtils.prototype = {
       }
       this._expandURLs(tabBrowser.contentWindow.document, div);
       return div.outerHTML;
+    }
+    else if (browserWin && browserWin.content && browserWin.document) {
+      return browserWin.content.document.URL ||
+             browserWin.content.document.title || "";
     }
 
     throw Cr.NS_ERROR_FAILURE;

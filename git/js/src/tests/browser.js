@@ -189,6 +189,7 @@ function optionsInit() {
   options.currvalues = {
     strict:     true,
     werror:     true,
+    atline:     true,
     methodjit:  true,
     methodjit_always: true,
     strict_mode: true

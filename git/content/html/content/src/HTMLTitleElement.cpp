@@ -51,9 +51,9 @@ NS_HTML_CONTENT_INTERFACE_MAP_END
 NS_IMPL_ELEMENT_CLONE(HTMLTitleElement)
 
 JSObject*
-HTMLTitleElement::WrapNode(JSContext* cx, JSObject* scope)
+HTMLTitleElement::WrapNode(JSContext* cx, JSObject* scope, bool* triedToWrap)
 {
-  return HTMLTitleElementBinding::Wrap(cx, scope, this);
+  return HTMLTitleElementBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
 

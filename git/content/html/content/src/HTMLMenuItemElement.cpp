@@ -491,9 +491,10 @@ HTMLMenuItemElement::InitChecked()
 }
 
 JSObject*
-HTMLMenuItemElement::WrapNode(JSContext* aCx, JSObject* aScope)
+HTMLMenuItemElement::WrapNode(JSContext* aCx, JSObject* aScope,
+                              bool* aTriedToWrap)
 {
-  return HTMLMenuItemElementBinding::Wrap(aCx, aScope, this);
+  return HTMLMenuItemElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 } // namespace dom
