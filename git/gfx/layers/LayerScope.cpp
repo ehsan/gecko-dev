@@ -21,7 +21,6 @@
 
 #include "GLContext.h"
 #include "GLContextProvider.h"
-#include "GLReadTexImageHelper.h"
 
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
@@ -496,9 +495,9 @@ SendTextureSource(GLContext* aGLContext,
     // By sending 0 to ReadTextureImage rely upon aSource->BindTexture binding
     // texture correctly. textureId is used for tracking in DebugGLTextureData.
     nsRefPtr<gfxImageSurface> img =
-        aGLContext->ReadTexImageHelper()->ReadTexImage(0, textureTarget,
-                                                       gfxIntSize(size.width, size.height),
-                                                       shaderProgram, aFlipY);
+        aGLContext->ReadTextureImage(0, textureTarget,
+                                     gfxIntSize(size.width, size.height),
+                                     shaderProgram, aFlipY);
 
     gCurrentSender->Append(
         new DebugGLTextureData(aGLContext, aLayerRef, textureTarget,

@@ -158,8 +158,6 @@ SharedPlanarYCbCrImage::SetDataNoCopy(const Data &aData)
   serializer.InitializeBufferInfo(yOffset,
                                   cbOffset,
                                   crOffset,
-                                  aData.mYStride,
-                                  aData.mCbCrStride,
                                   aData.mYSize,
                                   aData.mCbCrSize,
                                   aData.mStereoMode);

@@ -24,7 +24,6 @@
 
 using namespace xpc;
 using namespace JS;
-using namespace mozilla;
 
 NS_IMPL_ISUPPORTS1(nsXPCWrappedJSClass, nsIXPCWrappedJSClass)
 
@@ -474,22 +473,28 @@ nsXPCWrappedJSClass::IsWrappedJS(nsISupports* aPtr)
 static JSContext *
 GetContextFromObjectOrDefault(nsXPCWrappedJS* wrapper)
 {
-    // First, try the cx stack.
+    // Don't stomp over a running context.
     XPCJSContextStack* stack = XPCJSRuntime::Get()->GetJSContextStack();
-    if (stack->Peek())
+    if (stack && stack->Peek())
         return stack->Peek();
 
-    // If the cx stack is empty, try the wrapper's JSObject.
-    JSCompartment *c = js::GetObjectCompartment(wrapper->GetJSObject());
-    XPCContext *xpcc = EnsureCompartmentPrivate(c)->scope->GetContext();
+    // In order to get a context, we need a context.
+    XPCCallContext ccx(NATIVE_CALLER);
+    if (!ccx.IsValid())
+        return nullptr;
+
+    RootedObject obj(ccx, wrapper->GetJSObject());
+    JSAutoCompartment ac(ccx, obj);
+    XPCWrappedNativeScope* scope = GetObjectScope(obj);
+    XPCContext *xpcc = scope->GetContext();
+
     if (xpcc) {
         JSContext *cx = xpcc->GetJSContext();
         JS_AbortIfWrongThread(JS_GetRuntime(cx));
         return cx;
     }
 
-    // Fall back to the safe JSContext.
-    return stack->GetSafeJSContext();
+    return XPCCallContext::GetDefaultJSContext();
 }
 
 class SameOriginCheckedComponent MOZ_FINAL : public nsISecurityCheckedComponent
@@ -589,7 +594,7 @@ nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
         return NS_NOINTERFACE;
     }
 
-    AutoPushJSContext context(GetContextFromObjectOrDefault(self));
+    JSContext *context = GetContextFromObjectOrDefault(self);
     XPCCallContext ccx(NATIVE_CALLER, context);
     if (!ccx.IsValid()) {
         *aInstancePtr = nullptr;
@@ -1112,7 +1117,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
     // the whole nsIXPCFunctionThisTranslator bit.  That code uses ccx to
     // convert natives to JSObjects, but we do NOT plan to pass those JSObjects
     // to our real callee.
-    AutoPushJSContext context(GetContextFromObjectOrDefault(wrapper));
+    JSContext *context = GetContextFromObjectOrDefault(wrapper);
     XPCCallContext ccx(NATIVE_CALLER, context);
     if (!ccx.IsValid())
         return retval;

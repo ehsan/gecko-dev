@@ -801,7 +801,7 @@ public:
     static JSContext* GetDefaultJSContext();
 
     XPCCallContext(XPCContext::LangType callerLanguage,
-                   JSContext* cx,
+                   JSContext* cx           = GetDefaultJSContext(),
                    JS::HandleObject obj    = JS::NullPtr(),
                    JS::HandleObject funobj = JS::NullPtr(),
                    JS::HandleId id         = JSID_VOIDHANDLE,
@@ -893,7 +893,7 @@ inline void CHECK_STATE(int s) const {MOZ_ASSERT(mState >= s, "bad state");}
 #endif
 
 private:
-    JSAutoRequest                   mAr;
+    mozilla::AutoPushJSContext      mPusher;
     State                           mState;
 
     nsRefPtr<nsXPConnect>           mXPC;

@@ -300,6 +300,8 @@ GLContextProviderCGL::GetGlobalContext(const ContextFlags)
             gGlobalContext = nullptr;
             return nullptr; 
         }
+
+        gGlobalContext->SetIsGlobalSharedContext(true);
     }
 
     return gGlobalContext;

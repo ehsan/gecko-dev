@@ -348,59 +348,43 @@ nsDeviceSensors::FireDOMMotionEvent(nsIDOMDocument *domdoc,
 
   switch (type) {
   case nsIDeviceSensorData::TYPE_LINEAR_ACCELERATION:
-    if (mLastAcceleration.empty()) {
-      mLastAcceleration.construct();
-    }
-    mLastAcceleration.ref().mX.SetValue(x);
-    mLastAcceleration.ref().mY.SetValue(y);
-    mLastAcceleration.ref().mZ.SetValue(z);
+    mLastAcceleration = new nsDOMDeviceAcceleration(x, y, z);
     break;
   case nsIDeviceSensorData::TYPE_ACCELERATION:
-    if (mLastAccelerationIncluduingGravity.empty()) {
-      mLastAccelerationIncluduingGravity.construct();
-    }
-    mLastAccelerationIncluduingGravity.ref().mX.SetValue(x);
-    mLastAccelerationIncluduingGravity.ref().mY.SetValue(y);
-    mLastAccelerationIncluduingGravity.ref().mZ.SetValue(z);
+    mLastAccelerationIncluduingGravity = new nsDOMDeviceAcceleration(x, y, z);
     break;
   case nsIDeviceSensorData::TYPE_GYROSCOPE:
-    if (mLastRotationRate.empty()) {
-      mLastRotationRate.construct();
-    }
-    mLastRotationRate.ref().mAlpha.SetValue(x);
-    mLastRotationRate.ref().mBeta.SetValue(y);
-    mLastRotationRate.ref().mGamma.SetValue(z);
+    mLastRotationRate = new nsDOMDeviceRotationRate(x, y, z);
     break;
   }
 
-  if (!fireEvent && (mLastAcceleration.empty() ||
-                     mLastAccelerationIncluduingGravity.empty() ||
-                     mLastRotationRate.empty())) {
+  if (!fireEvent && (!mLastAcceleration || !mLastAccelerationIncluduingGravity || !mLastRotationRate)) {
     return;
   }
 
   nsCOMPtr<nsIDOMEvent> event;
   domdoc->CreateEvent(NS_LITERAL_STRING("DeviceMotionEvent"), getter_AddRefs(event));
 
-  nsDOMDeviceMotionEvent* me = static_cast<nsDOMDeviceMotionEvent*>(event.get());
+  nsCOMPtr<nsIDOMDeviceMotionEvent> me = do_QueryInterface(event);
 
-  ErrorResult rv;
+  if (!me)
+    return;
+
   me->InitDeviceMotionEvent(NS_LITERAL_STRING("devicemotion"),
                             true,
                             false,
-                            mLastAcceleration.ref(),
-                            mLastAccelerationIncluduingGravity.ref(),
-                            mLastRotationRate.ref(),
-                            Nullable<double>(DEFAULT_SENSOR_POLL),
-                            rv);
+                            mLastAcceleration,
+                            mLastAccelerationIncluduingGravity,
+                            mLastRotationRate,
+                            DEFAULT_SENSOR_POLL);
 
   event->SetTrusted(true);
 
   bool defaultActionEnabled = true;
   target->DispatchEvent(event, &defaultActionEnabled);
 
-  mLastRotationRate.destroy();
-  mLastAccelerationIncluduingGravity.destroy();
-  mLastAcceleration.destroy();
+  mLastRotationRate = nullptr;
+  mLastAccelerationIncluduingGravity = nullptr;
+  mLastAcceleration = nullptr;
   mLastDOMMotionEventTime = TimeStamp::Now();
 }
