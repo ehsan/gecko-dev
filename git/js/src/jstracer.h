@@ -54,13 +54,13 @@
 class Tracker 
 {
     struct Page {
-        struct Page*    next;
-        jsuword         base;
-        nanojit::LIns*  map[0];
+        struct Page* next;
+        long base;
+        nanojit::LIns* map[0];
     };
     struct Page* pagelist;
     
-    jsuword         getPageBase(const void* v) const;
+    long            getPageBase(const void* v) const;
     struct Page*    findPage(const void* v) const;
     struct Page*    addPage(const void* v);
 public:    
@@ -74,7 +74,7 @@ public:
 
 struct VMFragmentInfo {
     unsigned                maxNativeFrameSlots;
-    size_t                  nativeStackBase;
+    unsigned                nativeStackBase;
     char                    typeMap[0];
 };
 
@@ -104,7 +104,7 @@ class TraceRecorder {
     JSStackFrame* findFrame(void* p) const;
     bool onFrame(void* p) const;
     unsigned nativeFrameSlots(JSStackFrame* fp, JSFrameRegs& regs) const;
-    size_t   nativeFrameOffset(void* p) const;
+    unsigned nativeFrameOffset(void* p) const;
     void import(jsval*, char *prefix = NULL, int index = 0);
     void trackNativeFrameUse(unsigned slots);
     
@@ -133,6 +133,7 @@ class TraceRecorder {
     bool inc(jsval& v, jsint incr, bool pre);
     bool cmp(nanojit::LOpcode op, bool negate = false);
     bool ibinary(nanojit::LOpcode op, bool ov = false); 
+    bool iunary(nanoijit::LOpcode op);
     nanojit::LIns* loadObjectClass(nanojit::LIns* objld);
     
     // Guard that aval is a dense array, and that ival represents an index
@@ -143,6 +144,10 @@ class TraceRecorder {
                                 nanojit::LIns*& dslotsld);
 
     bool map_is_native(JSObjectMap* map, nanojit::LIns* map_ins);
+    bool stobj_set_slot(nanojit::LIns* obj_ins, unsigned slot, nanojit::LIns* v_ins);
+    bool stobj_get_slot(nanojit::LIns* obj_ins, unsigned slot, nanojit::LIns*& v_ins);
+    bool native_set(nanojit::LIns* obj_ins, JSScopeProperty* sprop, nanojit::LIns* v_ins);
+    bool native_get(nanojit::LIns* obj_ins, nanojit::LIns* pobj_ins, JSScopeProperty* sprop, nanojit::LIns*& v_ins);
 public:
     TraceRecorder(JSContext* cx, nanojit::Fragmento*, nanojit::Fragment*);
     ~TraceRecorder();

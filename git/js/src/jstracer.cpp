@@ -1,5 +1,5 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=99:
+ * vim: set ts=8 sw=4 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -66,16 +66,16 @@ Tracker::~Tracker()
     clear();
 }
 
-jsuword
+long
 Tracker::getPageBase(const void* v) const
 {
-    return jsuword(v) & ~jsuword(NJ_PAGE_SIZE-1);
+    return ((long)v) & (~(NJ_PAGE_SIZE-1));
 }
 
 struct Tracker::Page*
 Tracker::findPage(const void* v) const
 {
-    jsuword base = getPageBase(v);
+    long base = getPageBase(v);
     struct Tracker::Page* p = pagelist;
     while (p) {
         if (p->base == base) {
@@ -88,7 +88,7 @@ Tracker::findPage(const void* v) const
 
 struct Tracker::Page*
 Tracker::addPage(const void* v) {
-    jsuword base = getPageBase(v);
+    long base = getPageBase(v);
     struct Tracker::Page* p = (struct Tracker::Page*)
         GC::Alloc(sizeof(struct Tracker::Page) + (NJ_PAGE_SIZE >> 2) * sizeof(LInsp));
     p->base = base;
@@ -112,7 +112,7 @@ Tracker::get(const void* v) const
 {
     struct Tracker::Page* p = findPage(v);
     JS_ASSERT(p != 0); /* we must have a page for the slot we are looking for */
-    LIns* i = p->map[(jsuword(v) & 0xfff) >> 2];
+    LIns* i = p->map[(((long)v) & 0xfff) >> 2];
     JS_ASSERT(i != 0);
     return i;
 }
@@ -123,7 +123,7 @@ Tracker::set(const void* v, LIns* ins)
     struct Tracker::Page* p = findPage(v);
     if (!p)
         p = addPage(v);
-    p->map[(jsuword(v) & 0xfff) >> 2] = ins;
+    p->map[(((long)v) & 0xfff) >> 2] = ins;
 }
 
 #define LO ARGSIZE_LO
@@ -135,15 +135,6 @@ Tracker::set(const void* v, LIns* ins)
 #else
 #define NAME(op)
 #endif
-
-#define builtin_DoubleToECMAInt32 js_DoubleToECMAInt32
-#define builtin_DoubleToECMAUint32 js_DoubleToECMAUint32
-#define builtin_CompareStrings js_CompareStrings
-
-jsint builtin_StringLength(JSString* s)
-{
-    return JSSTRING_LENGTH(s);
-}
 
 jsdouble builtin_dmod(jsdouble a, jsdouble b)
 {
@@ -162,6 +153,40 @@ jsdouble builtin_dmod(jsdouble a, jsdouble b)
 #endif
         r = fmod(a, b);
     return r;
+}
+
+/* The following boxing/unboxing primitives we can't emit inline because
+   they either interact with the GC and depend on Spidermonkey's 32-bit
+   integer representation. */
+
+inline uint64 builtin_BoxDouble(JSContext* cx, jsdouble d)
+{
+    if (!cx->doubleFreeList) /* we must be certain the GC won't kick in */
+        return 1LL << 32;
+    jsval v; /* not rooted but ok here because we know GC won't run */
+#ifdef DEBUG        
+    bool ok = 
+#endif            
+        js_NewDoubleInRootedValue(cx, d, &v);
+#ifdef DEBUG
+    JS_ASSERT(ok);
+#endif        
+    return v & 0xffffffffLL;
+}
+
+inline uint64 builtin_BoxInt32(JSContext* cx, jsint i)
+{
+    if (INT_FITS_IN_JSVAL(i)) 
+        return INT_TO_JSVAL(i) & 0xffffffffLL;
+    return builtin_BoxDouble(cx, (jsdouble)i);
+}
+
+inline jsint builtin_UnboxInt32(JSContext* cx, jsval v)
+{
+    if (JSVAL_IS_INT(v))
+        return JSVAL_TO_INT(v);
+    JS_ASSERT(JSVAL_IS_DOUBLE(v));
+    return js_DoubleToECMAInt32(*JSVAL_TO_DOUBLE(v));
 }
 
 #define BUILTIN1(op, at0, atr, tr, t0, cse, fold) \
@@ -228,7 +253,7 @@ TraceRecorder::TraceRecorder(JSContext* cx, Fragmento* fragmento, Fragment* _fra
         import(&fp->argv[n], "arg", n);
     for (n = 0; n < fp->nvars; ++n)
         import(&fp->vars[n], "var", n);
-    for (n = 0; n < unsigned(fp->regs->sp - fp->spbase); ++n)
+    for (n = 0; n < (unsigned)(fp->regs->sp - fp->spbase); ++n)
         import(&fp->spbase[n], "stack", n);
 }
 
@@ -260,20 +285,16 @@ TraceRecorder::calldepth() const
 JSStackFrame*
 TraceRecorder::findFrame(void* p) const
 {
-    jsval* vp = (jsval*) p;
     JSStackFrame* fp = cx->fp;
-    for (;;) {
-        // FIXME: fixing bug 441686 collapses the last two tests here
-        if (size_t(vp - fp->argv) < fp->argc ||
-            size_t(vp - fp->vars) < fp->nvars ||
-            size_t(vp - fp->spbase) < fp->script->depth) {
+    while (1) {
+        if ((p >= &fp->argv[0] && p < &fp->argv[fp->argc]) ||
+            (p >= &fp->vars[0] && p < &fp->vars[fp->nvars]) ||
+            (p >= &fp->spbase[0] && p < &fp->spbase[fp->script->depth]))
             return fp;
-        }
         if (fp == entryFrame)
-           return NULL;
+            return NULL;
         fp = fp->down;
     }
-    JS_NOT_REACHED("findFrame");
 }
 
 /* Determine whether an address is part of a currently active frame. */
@@ -288,33 +309,30 @@ TraceRecorder::onFrame(void* p) const
 unsigned
 TraceRecorder::nativeFrameSlots(JSStackFrame* fp, JSFrameRegs& regs) const
 {
-    unsigned slots = 0;
-    for (;;) {
-        slots += fp->argc + fp->nvars + (regs.sp - fp->spbase);
+    unsigned size = 0;
+    while (1) {
+        size += fp->argc + fp->nvars + (regs.sp - fp->spbase);
         if (fp == entryFrame)
-            return slots;
+            return size;
         fp = fp->down;
     }
-    JS_NOT_REACHED("nativeFrameSlots");
 }
 
 /* Determine the offset in the native frame (marshal) for an address
    that is part of a currently active frame. */
-size_t
+unsigned
 TraceRecorder::nativeFrameOffset(void* p) const
 {
-    jsval* vp = (jsval*) p;
     JSStackFrame* fp = findFrame(p);
     JS_ASSERT(fp != NULL); // must be on the frame somewhere
-    size_t offset = size_t(vp - fp->argv);
-    if (offset >= fp->argc) {
-        // FIXME: fixing bug 441686 collapses the vars and spbase cases
-        offset = size_t(vp - fp->vars);
-        if (offset >= fp->nvars) {
-            JS_ASSERT(size_t(vp - fp->spbase) < fp->script->depth);
-            offset = fp->nvars + size_t(vp - fp->spbase);
-        }
-        offset += fp->argc;
+    unsigned offset = 0;
+    if (p >= &fp->argv[0] && p < &fp->argv[fp->argc])
+        offset = unsigned((jsval*)p - &fp->argv[0]);
+    else if (p >= &fp->vars[0] && p < &fp->vars[fp->nvars])
+        offset = (fp->argc + unsigned((jsval*)p - &fp->vars[0]));
+    else {
+        JS_ASSERT((p >= &fp->spbase[0] && p < &fp->spbase[fp->script->depth]));
+        offset = (fp->argc + fp->nvars + unsigned((jsval*)p - &fp->spbase[0]));
     }
     if (fp != entryFrame)
         offset += nativeFrameSlots(fp->down, *fp->regs);
@@ -767,6 +785,17 @@ TraceRecorder::cmp(LOpcode op, bool negate)
 }
 
 bool
+TraceRecorder::iunary(LOpcode op)
+{
+    jsval& v = stackval(-1);
+    if (isInt(v)) {
+        set(&v, lir->ins1(op, get(&v)));
+        return true;
+    }
+    return false;
+}
+
+bool
 TraceRecorder::ibinary(LOpcode op, bool ov)
 {
     jsval& r = stackval(-1);
@@ -782,16 +811,17 @@ TraceRecorder::ibinary(LOpcode op, bool ov)
 }
 
 bool
-TraceRecorder::map_is_native(JSObjectMap* map, LIns* map_ins)
+TraceRecorder::map_is_native(JSObjectMap* map, 
+        LIns* map_ins)
 {
     LIns* ops = lir->insLoadi(map_ins, offsetof(JSObjectMap, ops));
     if (map->ops == &js_ObjectOps) {
-        guard(true, lir->ins2i(LIR_eq, ops, (jsword)&js_ObjectOps));
+        guard(true, lir->ins2i(LIR_eq, ops, (long)&js_ObjectOps));
         return true;
     }
     LIns* n = lir->insLoadi(ops, offsetof(JSObjectOps, newObjectMap));
     if (map->ops->newObjectMap == js_ObjectOps.newObjectMap) {
-        guard(true, lir->ins2i(LIR_eq, n, (jsword)js_ObjectOps.newObjectMap));
+        guard(true, lir->ins2i(LIR_eq, n, (long)js_ObjectOps.newObjectMap));
         return true;
     }
     return false;
@@ -805,6 +835,56 @@ TraceRecorder::loadObjectClass(LIns* objld)
                                    offsetof(JSObject, fslots[JSSLOT_CLASS])),
                      lir->insImmPtr((void *)~3));
 }
+
+bool
+TraceRecorder::stobj_set_slot(LIns* obj_ins, unsigned slot, LIns* v_ins)
+{
+    if (slot < JS_INITIAL_NSLOTS)
+        lir->insStorei(v_ins, 
+                obj_ins, 
+                offsetof(JSObject, fslots) + slot * sizeof(jsval));
+    else
+        lir->insStorei(v_ins, 
+                lir->insLoadi(obj_ins, offsetof(JSObject, dslots)),
+                (slot - JS_INITIAL_NSLOTS) * sizeof(jsval));
+    return true;
+}    
+
+bool
+TraceRecorder::stobj_get_slot(LIns* obj_ins, unsigned slot, LIns*& v_ins)
+{
+    if (slot < JS_INITIAL_NSLOTS)
+        v_ins = lir->insLoadi(obj_ins, 
+                offsetof(JSObject, fslots) + slot * sizeof(jsval));
+    else
+        v_ins = lir->insLoadi(lir->insLoadi(obj_ins, offsetof(JSObject, dslots)),
+                (slot - JS_INITIAL_NSLOTS) * sizeof(jsval));
+    return true;
+}    
+
+bool
+TraceRecorder::native_set(LIns* obj_ins, JSScopeProperty* sprop, LIns* v_ins)
+{
+    // TODO: needs guard?
+    if (SPROP_HAS_STUB_SETTER(sprop) && sprop->slot != SPROP_INVALID_SLOT) {
+        return stobj_set_slot(obj_ins, sprop->slot, v_ins);
+    }
+    return false;
+}
+
+bool
+TraceRecorder::native_get(LIns* obj_ins, LIns* pobj_ins, JSScopeProperty* sprop, LIns*& v_ins)
+{
+    // TODO: needs a guard?
+    if (SPROP_HAS_STUB_GETTER(sprop)) {
+        if (sprop->slot != SPROP_INVALID_SLOT)
+            return stobj_get_slot(pobj_ins, sprop->slot, v_ins);
+        else
+            v_ins = lir->insImm(JSVAL_VOID);
+        return true;
+    }        
+    return false;
+}    
 
 bool TraceRecorder::JSOP_INTERRUPT()
 {
@@ -916,15 +996,7 @@ bool TraceRecorder::JSOP_URSH()
 }
 bool TraceRecorder::JSOP_ADD()
 {
-    jsval& r = stackval(-1);
-    jsval& l = stackval(-2);
-    if (isInt(l) && isInt(r)) {
-        LIns* result = lir->ins2(LIR_add, get(&l), get(&r));
-        guard(false, lir->ins1(LIR_ov, result));
-        set(&l, result);
-        return true;
-    }
-    return false;
+    return ibinary(LIR_add, true);
 }
 bool TraceRecorder::JSOP_SUB()
 {
@@ -952,9 +1024,7 @@ bool TraceRecorder::JSOP_BITNOT()
 }
 bool TraceRecorder::JSOP_NEG()
 {
-    jsval& v = stackval(-1);
-    set(&v, lir->ins1(LIR_neg, get(&v)));
-    return true;
+    return iunary(LIR_neg);
 }
 bool TraceRecorder::JSOP_NEW()
 {
