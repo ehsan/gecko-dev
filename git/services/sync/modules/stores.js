@@ -168,8 +168,7 @@ SnapshotStore.prototype = {
       delete this._data[oldGUID];
 
       for (let GUID in this._data) {
-        if (("parentGUID" in this._data[GUID]) &&
-            (this._data[GUID].parentGUID == oldGUID))
+        if (this._data[GUID].parentGUID == oldGUID)
           this._data[GUID].parentGUID = newGUID;
       }
     }
