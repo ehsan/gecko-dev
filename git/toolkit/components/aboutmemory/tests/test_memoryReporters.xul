@@ -171,7 +171,11 @@
                 domSize, styleSize, otherSize, totalSize,
                 jsMilliseconds, nonJSMilliseconds);
 
-  mgr.getReportsForThisProcess(handleReport, null);
+  let e = mgr.enumerateReporters();
+  while (e.hasMoreElements()) {
+    let r = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
+    r.collectReports(handleReport, null);
+  }
 
   function checkSpecialReport(aName, aAmounts, aCanBeUnreasonable)
   {

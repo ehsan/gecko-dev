@@ -200,11 +200,11 @@ Service::CollectReports(nsIHandleReportCallback *aHandleReport,
 ////////////////////////////////////////////////////////////////////////////////
 //// Service
 
-NS_IMPL_ISUPPORTS3(
+NS_IMPL_ISUPPORTS_INHERITED2(
   Service,
+  MemoryMultiReporter,
   mozIStorageService,
-  nsIObserver,
-  nsIMemoryReporter
+  nsIObserver
 )
 
 Service *Service::gService = nullptr;
@@ -386,8 +386,8 @@ namespace {
 // how much memory SQLite is using.  And we can compare that against what
 // SQLite reports it is using.
 
-MOZ_DEFINE_MALLOC_SIZE_OF_ON_ALLOC(SqliteMallocSizeOfOnAlloc)
-MOZ_DEFINE_MALLOC_SIZE_OF_ON_FREE(SqliteMallocSizeOfOnFree)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_ALLOC_FUN(SqliteMallocSizeOfOnAlloc)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_FREE_FUN(SqliteMallocSizeOfOnFree)
 
 #endif
 
