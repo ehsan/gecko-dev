@@ -191,7 +191,6 @@ ShouldBeInElements(nsIFormControl* aFormControl)
   case NS_FORM_TEXTAREA :
   case NS_FORM_FIELDSET :
   case NS_FORM_OBJECT :
-  case NS_FORM_OUTPUT :
     return PR_TRUE;
   }
 
@@ -437,10 +436,10 @@ nsHTMLFormElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::method) {
-      return aResult.ParseEnumValue(aValue, kFormMethodTable, PR_FALSE);
+      return aResult.ParseEnumValue(aValue, kFormMethodTable);
     }
     if (aAttribute == nsGkAtoms::enctype) {
-      return aResult.ParseEnumValue(aValue, kFormEnctypeTable, PR_FALSE);
+      return aResult.ParseEnumValue(aValue, kFormEnctypeTable);
     }
   }
 

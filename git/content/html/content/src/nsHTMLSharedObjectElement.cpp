@@ -260,9 +260,9 @@ nsHTMLSharedObjectElement::BindToTree(nsIDocument *aDocument,
 
   // If we already have all the children, start the load.
   if (mIsDoneAddingChildren) {
-    void (nsHTMLSharedObjectElement::*start)() =
-      &nsHTMLSharedObjectElement::StartObjectLoad;
-    nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this, start));
+    nsContentUtils::AddScriptRunner(
+      new nsRunnableMethod<nsHTMLSharedObjectElement>(this,
+                                                      &nsHTMLSharedObjectElement::StartObjectLoad));
   }
 
   return NS_OK;

@@ -357,7 +357,6 @@ struct NS_STACK_CLASS nsHandlerData
   PRUint16 mOperation;
   nsCOMPtr<nsIDOMNode> mSource;
   nsCOMPtr<nsIDOMNode> mDest;
-  nsCxPusher mPusher;
 };
 
 static void
@@ -371,9 +370,6 @@ CallHandler(void *aObject, nsIAtom *aKey, void *aHandler, void *aData)
     static_cast<nsIVariant*>(node->GetProperty(DOM_USER_DATA, aKey));
   NS_ASSERTION(data, "Handler without data?");
 
-  if (!handlerData->mPusher.RePush(node)) {
-    return;
-  }
   nsAutoString key;
   aKey->ToString(key);
   handler->Handle(handlerData->mOperation, key, data, handlerData->mSource,

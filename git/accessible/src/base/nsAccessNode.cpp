@@ -37,14 +37,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsDocAccessible.h"
-
 #include "nsIAccessible.h"
-
-#include "nsAccCache.h"
 #include "nsAccessibilityAtoms.h"
-#include "nsAccUtils.h"
-#include "nsCoreUtils.h"
-
 #include "nsHashtable.h"
 #include "nsAccessibilityService.h"
 #include "nsApplicationAccessibleWrap.h"
@@ -52,6 +46,7 @@
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocument.h"
+#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
@@ -171,7 +166,8 @@ nsAccessNode::Init()
 
   void* uniqueID;
   GetUniqueID(&uniqueID);
-  nsRefPtr<nsDocAccessible> docAcc = do_QueryObject(docAccessible);
+  nsRefPtr<nsDocAccessible> docAcc =
+    nsAccUtils::QueryAccessibleDocument(docAccessible);
   NS_ASSERTION(docAcc, "No nsDocAccessible for document accessible!");
 
   if (!docAcc->CacheAccessNode(uniqueID, this))

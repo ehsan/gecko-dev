@@ -1757,8 +1757,7 @@ nsXMLHttpRequest::OpenRequest(const nsACString& method,
   // get Content Security Policy from principal to pass into channel
   nsCOMPtr<nsIChannelPolicy> channelPolicy;
   nsCOMPtr<nsIContentSecurityPolicy> csp;
-  rv = mPrincipal->GetCsp(getter_AddRefs(csp));
-  NS_ENSURE_SUCCESS(rv, rv);
+  mPrincipal->GetCsp(getter_AddRefs(csp));
   if (csp) {
     channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
     channelPolicy->SetContentSecurityPolicy(csp);

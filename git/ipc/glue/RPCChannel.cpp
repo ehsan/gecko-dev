@@ -120,8 +120,14 @@ RPCChannel::Clear()
     AsyncChannel::Clear();
 }
 
+#ifdef OS_WIN
+// static
+int RPCChannel::sInnerEventLoopDepth = 0;
+int RPCChannel::sModalEventCount = 0;
+#endif
+
 bool
-RPCChannel::EventOccurred() const
+RPCChannel::EventOccurred()
 {
     AssertWorkerThread();
     mMutex.AssertCurrentThreadOwns();
@@ -158,10 +164,6 @@ RPCChannel::Call(Message* msg, Message* reply)
     RPC_ASSERT(!ProcessingSyncMessage(),
                "violation of sync handler invariant");
     RPC_ASSERT(msg->is_rpc(), "can only Call() RPC messages here");
-
-#ifdef OS_WIN
-    SyncStackFrame frame(this, true);
-#endif
 
     Message copy = *msg;
     CxxStackFrame f(*this, OUT_MESSAGE, &copy);
@@ -616,7 +618,7 @@ RPCChannel::ExitedCxxStack()
 void
 RPCChannel::DebugAbort(const char* file, int line, const char* cond,
                        const char* why,
-                       const char* type, bool reply) const
+                       const char* type, bool reply)
 {
     fprintf(stderr,
             "###!!! [RPCChannel][%s][%s:%d] "
@@ -635,21 +637,19 @@ RPCChannel::DebugAbort(const char* file, int line, const char* cond,
             mOutOfTurnReplies.size());
     fprintf(stderr, "  Pending queue size: %lu, front to back:\n",
             mPending.size());
-
-    MessageQueue pending = mPending;
-    while (!pending.empty()) {
+    while (!mPending.empty()) {
         fprintf(stderr, "    [ %s%s ]\n",
-                pending.front().is_rpc() ? "rpc" :
-                (pending.front().is_sync() ? "sync" : "async"),
-                pending.front().is_reply() ? "reply" : "");
-        pending.pop();
+                mPending.front().is_rpc() ? "rpc" :
+                (mPending.front().is_sync() ? "sync" : "async"),
+                mPending.front().is_reply() ? "reply" : "");
+        mPending.pop();
     }
 
     NS_RUNTIMEABORT(why);
 }
 
 void
-RPCChannel::DumpRPCStack(FILE* outfile, const char* const pfx) const
+RPCChannel::DumpRPCStack(FILE* outfile, const char* const pfx)
 {
     NS_WARN_IF_FALSE(MessageLoop::current() != mWorkerLoop,
                      "The worker thread had better be paused in a debugger!");

@@ -578,11 +578,8 @@ nsDiskCacheStreamIO::Write( const char * buffer,
         if (mBufPos == mBufSize) {
             if (mBufSize < kMaxBufferSize) {
                 mBufSize = kMaxBufferSize;
-                char *buffer = mBuffer;
-
                 mBuffer  = (char *) realloc(mBuffer, mBufSize);
-                if (!mBuffer) {
-                    free(buffer);
+                if (!mBuffer)  {
                     mBufSize = 0;
                     break;
                 }

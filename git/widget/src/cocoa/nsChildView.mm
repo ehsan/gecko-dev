@@ -78,14 +78,11 @@
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
 #include "nsRegion.h"
-#include "Layers.h"
-#include "LayerManagerOGL.h"
 
 #include <dlfcn.h>
 
 #include <ApplicationServices/ApplicationServices.h>
 
-using namespace mozilla::layers;
 #undef DEBUG_IME
 #undef DEBUG_UPDATE
 #undef INVALIDATE_DEBUGGING  // flash areas as they are invalidated
@@ -950,20 +947,9 @@ void nsChildView::ResetParent()
 }
 
 nsIWidget*
-nsChildView::GetParent()
+nsChildView::GetParent(void)
 {
   return mParentWidget;
-}
-
-LayerManager*
-nsChildView::GetLayerManager()
-{
-  nsCocoaWindow* window = GetXULWindowWidget();
-  if (window->GetAcceleratedRendering() != mUseAcceleratedRendering) {
-    mLayerManager = NULL;
-    mUseAcceleratedRendering = window->GetAcceleratedRendering();
-  }
-  return nsBaseWidget::GetLayerManager();
 }
 
 NS_IMETHODIMP nsChildView::Enable(PRBool aState)
@@ -2245,10 +2231,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
                                                           name:@"AppleAquaScrollBarVariantChanged"
                                                         object:nil
                                             suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately]; 
-  [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(_surfaceNeedsUpdate:)
-                                               name:NSViewGlobalFrameDidChangeNotification
-                                             object:self];
 
   return self;
 
@@ -2283,9 +2265,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 - (void)updatePluginTopLevelWindowStatus:(BOOL)hasMain
 {
-  if (!mGeckoChild)
-    return;
-
   nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
   NPCocoaEvent cocoaEvent;
   InitNPCocoaEvent(&cocoaEvent);
@@ -2457,7 +2436,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 }
 
 // We accept key and mouse events, so don't keep passing them up the chain. Allow
-// this to be a 'focused' widget for event dispatch.
+// this to be a 'focussed' widget for event dispatch
 - (BOOL)acceptsFirstResponder
 {
   return YES;
@@ -2522,14 +2501,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   [super lockFocus];
 
-  if (mContext) {
-    if ([mContext view] != self) {
-      [mContext setView:self];
-    }
-
-    [mContext makeCurrentContext];
-  }
-
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
@@ -2569,18 +2540,6 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
   }
 }
 
--(void)update
-{
-  if (mContext) {
-    [mContext update];
-  }
-}
-
-- (void) _surfaceNeedsUpdate:(NSNotification*)notification
-{
-   [self update];
-}
-
 // The display system has told us that a portion of our view is dirty. Tell
 // gecko to paint it
 - (void)drawRect:(NSRect)aRect
@@ -2614,6 +2573,14 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
   CGAffineTransform xform = CGContextGetCTM(aContext);
   fprintf (stderr, "  xform in: [%f %f %f %f %f %f]\n", xform.a, xform.b, xform.c, xform.d, xform.tx, xform.ty);
 #endif
+
+  // Create Cairo objects.
+  NSSize bufferSize = [self bounds].size;
+  nsRefPtr<gfxQuartzSurface> targetSurface =
+    new gfxQuartzSurface(aContext, gfxSize(bufferSize.width, bufferSize.height));
+
+  nsRefPtr<gfxContext> targetContext = new gfxContext(targetSurface);
+
   // Create the event so we can fill in its region
   nsPaintEvent paintEvent(PR_TRUE, NS_PAINT, mGeckoChild);
 
@@ -2642,25 +2609,6 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
     paintEvent.region.Sub(paintEvent.region,
       nsIntRect(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height));
   }
-  
-  if (mGeckoChild->GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL) {
-    LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGeckoChild->GetLayerManager());
-    manager->SetClippingRegion(paintEvent.region); 
-    if (!mContext) {
-        mContext = (NSOpenGLContext *)manager->gl()->GetNativeContext();
-    }
-    [mContext makeCurrentContext];
-    mGeckoChild->DispatchWindowEvent(paintEvent);
-    [mContext flushBuffer];
-    return;
-  }
-
-  // Create Cairo objects.
-  NSSize bufferSize = [self bounds].size;
-  nsRefPtr<gfxQuartzSurface> targetSurface =
-    new gfxQuartzSurface(aContext, gfxSize(bufferSize.width, bufferSize.height));
-
-  nsRefPtr<gfxContext> targetContext = new gfxContext(targetSurface);
 
   // Set up the clip region.
   nsIntRegionRectIterator iter(paintEvent.region);
@@ -5521,48 +5469,16 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (void)updateCocoaPluginFocusStatus:(BOOL)hasFocus
-{
-  if (!mGeckoChild)
-    return;
-
-  nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
-  NPCocoaEvent cocoaEvent;
-  InitNPCocoaEvent(&cocoaEvent);
-  cocoaEvent.type = NPCocoaEventFocusChanged;
-  cocoaEvent.data.focus.hasFocus = hasFocus;
-  pluginEvent.pluginEvent = &cocoaEvent;
-  mGeckoChild->DispatchWindowEvent(pluginEvent);
-}
-
-// We must always call through to our superclass, even when mGeckoChild is
-// nil -- otherwise the keyboard focus can end up in the wrong NSView.
-- (BOOL)becomeFirstResponder
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    [self updateCocoaPluginFocusStatus:YES];
-  }
-
-  return [super becomeFirstResponder];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(YES);
-}
-
+// This method is called when are are about to lose focus.
 // We must always call through to our superclass, even when mGeckoChild is
 // nil -- otherwise the keyboard focus can end up in the wrong NSView.
 - (BOOL)resignFirstResponder
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    [self updateCocoaPluginFocusStatus:NO];
-  }
-
   return [super resignFirstResponder];
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(YES);
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
 - (void)viewsWindowDidBecomeKey

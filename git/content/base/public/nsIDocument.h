@@ -58,7 +58,6 @@
 #include "nsIObserver.h"
 #include "nsGkAtoms.h"
 #include "nsAutoPtr.h"
-#include "nsPIDOMWindow.h"
 #ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
 #endif // MOZ_SMIL
@@ -73,6 +72,7 @@ class nsIStyleRule;
 class nsICSSStyleSheet;
 class nsIViewManager;
 class nsIScriptGlobalObject;
+class nsPIDOMWindow;
 class nsIDOMEvent;
 class nsIDOMEventTarget;
 class nsIDeviceContext;
@@ -115,8 +115,8 @@ class Link;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID      \
-{ 0x56d981ce, 0x7f03, 0x4d90, \
-  { 0xb2, 0x40, 0x72, 0x08, 0xb6, 0x28, 0x73, 0x06 } }
+{ 0x4a0c9bfa, 0xef60, 0x4bb2, \
+  { 0x87, 0x5e, 0xac, 0xdb, 0xe8, 0xfe, 0xa1, 0xb5 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -633,10 +633,7 @@ public:
   /**
    * Return the window containing the document (the outer window).
    */
-  nsPIDOMWindow *GetWindow()
-  {
-    return mWindow ? mWindow->GetOuterWindow() : GetWindowInternal();
-  }
+  virtual nsPIDOMWindow *GetWindow() = 0;
 
   /**
    * Return the inner window used as the script compilation scope for
@@ -1350,9 +1347,6 @@ protected:
   }
 
   nsPropertyTable* GetExtraPropertyTable(PRUint16 aCategory);
-
-  // Never ever call this. Only call GetWindow!
-  virtual nsPIDOMWindow *GetWindowInternal() = 0;
 
   // Never ever call this. Only call GetInnerWindow!
   virtual nsPIDOMWindow *GetInnerWindowInternal() = 0;

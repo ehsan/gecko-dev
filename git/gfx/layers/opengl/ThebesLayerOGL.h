@@ -50,7 +50,7 @@ class ThebesLayerOGL : public ThebesLayer,
                          public LayerOGL
 {
 public:
-  ThebesLayerOGL(LayerManagerOGL *aManager);
+  ThebesLayerOGL(LayerManager *aManager);
   virtual ~ThebesLayerOGL();
 
   /** Layer implementation */
@@ -88,10 +88,10 @@ private:
    */
   nsIntRect mInvalidatedRect;
   /**
-   * Destination surface used for this layer's drawing operation. This is 
-   * created on BeginDrawing() and should be removed on EndDrawing().
+   * Software surface used for this layer's drawing operation. This is created
+   * on BeginDrawing() and should be removed on EndDrawing().
    */
-  nsRefPtr<gfxASurface> mDestinationSurface;
+  nsRefPtr<gfxImageSurface> mSoftwareSurface;
 
   /**
    * We hold the reference to the context.

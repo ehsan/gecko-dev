@@ -63,6 +63,7 @@ EXPORTS = \
 CPPSRCS = \
         BasicImages.cpp \
         BasicLayers.cpp \
+        glWrapper.cpp \
         LayerManagerOGL.cpp \
         ThebesLayerOGL.cpp \
         ContainerLayerOGL.cpp \

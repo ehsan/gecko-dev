@@ -82,8 +82,11 @@ gfxQuartzNativeDrawing::BeginNativeDrawing()
         return nsnull;
     }
 
+    // Need to force the clip to be set
+    mContext->UpdateSurfaceClip();
+
     // grab the CGContextRef
-    mCGContext = mQuartzSurface->GetCGContextWithClip(mContext);
+    mCGContext = mQuartzSurface->GetCGContext();
     if (!mCGContext)
         return nsnull;
 
