@@ -43,7 +43,7 @@
 #include "nsPresContext.h"
 #include "nsCOMPtr.h"
 #include "nsIContent.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsFrameManager.h"
@@ -616,8 +616,12 @@ nsBox::SyncLayout(nsBoxLayoutState& aState)
   if (view) {
     // Make sure the frame's view is properly sized and positioned and has
     // things like opacity correct
-    nsContainerFrame::SyncFrameViewAfterReflow(presContext, this, view,
-                                               visualOverflow, flags);
+    nsHTMLContainerFrame::SyncFrameViewAfterReflow(
+                             presContext, 
+                             this,
+                             view,
+                             visualOverflow,
+                             flags);
   } 
 
   return NS_OK;

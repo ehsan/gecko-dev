@@ -377,8 +377,7 @@ var gEventManager = {
   shutdown: function() {
     Services.prefs.removeObserver(PREF_CHECK_COMPATIBILITY, this);
     Services.prefs.removeObserver(PREF_CHECK_UPDATE_SECURITY, this);
-    Services.prefs.removeObserver(PREF_UPDATE_ENABLED, this);
-    Services.prefs.removeObserver(PREF_AUTOUPDATE_DEFAULT, this);
+    Services.prefs.removeObserver(PREF_AUTOUPDATE_DEFAULT, this, false);
 
     AddonManager.removeInstallListener(this);
     AddonManager.removeAddonListener(this);
@@ -1823,20 +1822,9 @@ var gDiscoverView = {
     this._error = document.getElementById("discover-error");
     this._browser = document.getElementById("discover-browser");
 
-    let checkCompatibility = true;
-    try {
-      checkCompatibility = Services.prefs.getBoolPref(PREF_CHECK_COMPATIBILITY);
-    } catch(e) { }
-
-    let compatMode = "normal";
-    if (!checkCompatibility)
-      compatMode = "ignore";
-    else if (AddonManager.strictCompatibility)
-      compatMode = "strict";
-
-    var url = Services.prefs.getCharPref(PREF_DISCOVERURL);
-    url = url.replace("%COMPATIBILITY_MODE%", compatMode);
-    url = Services.urlFormatter.formatURL(url);
+    var url = Cc["@mozilla.org/toolkit/URLFormatterService;1"]
+                .getService(Ci.nsIURLFormatter)
+                .formatURLPref(PREF_DISCOVERURL);
 
     var self = this;
 

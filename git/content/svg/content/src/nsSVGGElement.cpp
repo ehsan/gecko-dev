@@ -40,15 +40,13 @@
 
 #include "nsSVGGraphicElement.h"
 #include "nsIDOMSVGGElement.h"
-#include "DOMSVGTests.h"
 
 using namespace mozilla;
 
 typedef nsSVGGraphicElement nsSVGGElementBase;
 
 class nsSVGGElement : public nsSVGGElementBase,
-                      public nsIDOMSVGGElement,
-                      public DOMSVGTests
+                      public nsIDOMSVGGElement
 {
 protected:
   friend nsresult NS_NewSVGGElement(nsIContent **aResult,
@@ -90,9 +88,8 @@ NS_IMPL_RELEASE_INHERITED(nsSVGGElement,nsSVGGElementBase)
 DOMCI_NODE_DATA(SVGGElement, nsSVGGElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGGElement)
-  NS_NODE_INTERFACE_TABLE5(nsSVGGElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGTests,
-                           nsIDOMSVGGElement)
+  NS_NODE_INTERFACE_TABLE4(nsSVGGElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGGElement)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGGElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGGElementBase)
 

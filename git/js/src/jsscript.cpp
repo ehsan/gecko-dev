@@ -68,7 +68,6 @@
 
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/Parser.h"
-#include "js/MemoryMetrics.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/Retcon.h"
 #include "vm/Debugger.h"
@@ -90,8 +89,9 @@ Bindings::lookup(JSContext *cx, JSAtom *name, uintN *indexp) const
     if (!lastBinding)
         return NONE;
 
-    Shape **spp;
-    Shape *shape = Shape::search(cx, lastBinding, ATOM_TO_JSID(name), &spp);
+    Shape *shape =
+        SHAPE_FETCH(Shape::search(cx, const_cast<HeapPtrShape *>(&lastBinding),
+                                  ATOM_TO_JSID(name)));
     if (!shape)
         return NONE;
 
@@ -165,21 +165,19 @@ Bindings::add(JSContext *cx, JSAtom *name, BindingKind kind)
         id = ATOM_TO_JSID(name);
     }
 
-    StackBaseShape base(&CallClass, NULL, BaseShape::VAROBJ);
-    base.updateGetterSetter(attrs, getter, setter);
-
+    BaseShape base(&CallClass, NULL, BaseShape::VAROBJ, attrs, getter, setter);
     UnownedBaseShape *nbase = BaseShape::getUnowned(cx, base);
     if (!nbase)
         return NULL;
 
-    StackShape child(nbase, id, slot, 0, attrs, Shape::HAS_SHORTID, *indexp);
+    Shape child(nbase, id, slot, 0, attrs, Shape::HAS_SHORTID, *indexp);
 
     /* Shapes in bindings cannot be dictionaries. */
-    Shape *shape = lastBinding->getChildBinding(cx, child);
+    Shape *shape = lastBinding->getChildBinding(cx, child, &lastBinding);
     if (!shape)
         return false;
 
-    lastBinding = shape;
+    JS_ASSERT(lastBinding == shape);
     ++*indexp;
     return true;
 }
@@ -653,24 +651,23 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
         HeapPtr<JSObject> *objp = &script->objects()->vector[i];
         uint32_t isBlock;
         if (xdr->mode == JSXDR_ENCODE) {
-            JSObject *obj = *objp;
-            JS_ASSERT(obj->isFunction() || obj->isStaticBlock());
-            isBlock = obj->isBlock() ? 1 : 0;
+            Class *clasp = (*objp)->getClass();
+            JS_ASSERT(clasp == &FunctionClass ||
+                      clasp == &BlockClass);
+            isBlock = (clasp == &BlockClass) ? 1 : 0;
         }
         if (!JS_XDRUint32(xdr, &isBlock))
             goto error;
+        JSObject *tmp = *objp;
         if (isBlock == 0) {
-            JSObject *tmp = *objp;
             if (!js_XDRFunctionObject(xdr, &tmp))
                 goto error;
-            *objp = tmp;
         } else {
             JS_ASSERT(isBlock == 1);
-            StaticBlockObject *tmp = static_cast<StaticBlockObject *>(objp->get());
-            if (!js_XDRStaticBlockObject(xdr, &tmp))
+            if (!js_XDRBlockObject(xdr, &tmp))
                 goto error;
-            *objp = tmp;
         }
+        *objp = tmp;
     }
     for (i = 0; i != nupvars; ++i) {
         if (!JS_XDRUint32(xdr, reinterpret_cast<uint32_t *>(&script->upvars()->vector[i])))
@@ -1262,7 +1259,7 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
             return NULL;
 
         fun->setScript(script);
-        script->globalObject = fun->getParent() ? &fun->getParent()->global() : NULL;
+        script->globalObject = fun->getParent() ? fun->getParent()->getGlobal() : NULL;
     } else {
         /*
          * Initialize script->object, if necessary, so that the debugger has a
@@ -1279,7 +1276,7 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
         if (script->compileAndGo) {
             compileAndGoGlobal = script->globalObject;
             if (!compileAndGoGlobal)
-                compileAndGoGlobal = &bce->scopeChain()->global();
+                compileAndGoGlobal = bce->scopeChain()->getGlobal();
         }
         Debugger::onNewScript(cx, script, compileAndGoGlobal);
     }
@@ -1312,12 +1309,6 @@ JSScript::dataSize(JSMallocSizeOfFun mallocSizeOf)
 #endif
 
     return mallocSizeOf(data, dataSize());
-}
-
-JS_PUBLIC_API(size_t)
-JS::SizeOfScriptData(JSScript *script, JSMallocSizeOfFun mallocSizeOf)
-{
-    return script->dataSize(mallocSizeOf);
 }
 
 /*

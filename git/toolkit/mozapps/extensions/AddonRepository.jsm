@@ -1257,10 +1257,8 @@ var AddonRepository = {
   // Parses addon_compatibility nodes, that describe compatibility overrides.
   _parseAddonCompatElement: function(aResultObj, aElement) {
     let guid = this._getDescendantTextContent(aElement, "guid");
-    if (!guid) {
-        LOG("Compatibility override is missing guid.");
+    if (!guid)
       return;
-    }
 
     let compat = {id: guid};
     compat.hosted = aElement.getAttribute("hosted") != "false";
@@ -1294,31 +1292,21 @@ var AddonRepository = {
     function parseRangeNode(aNode) {
       let type = aNode.getAttribute("type");
       // Only "incompatible" (blacklisting) is supported for now.
-      if (type != "incompatible") {
-        LOG("Compatibility override of unsupported type found.");
+      if (type != "incompatible")
         return null;
-      }
 
       let override = new AddonManagerPrivate.AddonCompatibilityOverride(type);
 
       override.minVersion = this._getDirectDescendantTextContent(aNode, "min_version");
       override.maxVersion = this._getDirectDescendantTextContent(aNode, "max_version");
 
-      if (!override.minVersion) {
-        LOG("Compatibility override is missing min_version.");
+      if (!override.minVersion || !override.maxVersion)
         return null;
-      }
-      if (!override.maxVersion) {
-        LOG("Compatibility override is missing max_version.");
-        return null;
-      }
 
       let appRanges = aNode.querySelectorAll("compatible_applications > application");
       let appRange = findMatchingAppRange.bind(this)(appRanges);
-      if (!appRange) {
-        LOG("Compatibility override is missing a valid application range.");
+      if (!appRange)
         return null;
-      }
 
       override.appID = appRange.appID;
       override.appMinVersion = appRange.appMinVersion;

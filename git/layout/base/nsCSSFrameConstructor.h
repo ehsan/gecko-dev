@@ -43,8 +43,6 @@
 #ifndef nsCSSFrameConstructor_h___
 #define nsCSSFrameConstructor_h___
 
-#include "mozilla/Attributes.h"
-
 #include "nsCOMPtr.h"
 #include "nsILayoutHistoryState.h"
 #include "nsIXBLService.h"
@@ -104,9 +102,10 @@ public:
                                   nsIAtom*       aTag,  // content object's tag
                                   nsXPIDLString& aAltText);
 
-private:
-  nsCSSFrameConstructor(const nsCSSFrameConstructor& aCopy) MOZ_DELETE;
-  nsCSSFrameConstructor& operator=(const nsCSSFrameConstructor& aCopy) MOZ_DELETE;
+private: 
+  // These are not supported and are not implemented! 
+  nsCSSFrameConstructor(const nsCSSFrameConstructor& aCopy); 
+  nsCSSFrameConstructor& operator=(const nsCSSFrameConstructor& aCopy); 
 
 public:
   // XXXbz this method needs to actually return errors!
@@ -1202,8 +1201,6 @@ private:
     FindInputData(Element* aElement, nsStyleContext* aStyleContext);
   static const FrameConstructionData*
     FindObjectData(Element* aElement, nsStyleContext* aStyleContext);
-  static const FrameConstructionData*
-    FindCanvasData(Element* aElement, nsStyleContext* aStyleContext);
 
   /* Construct a frame from the given FrameConstructionItem.  This function
      will handle adding the frame to frame lists, processing children, setting

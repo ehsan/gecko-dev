@@ -38,7 +38,7 @@
 #define nsTableFrame_h__
 
 #include "nscore.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsStyleCoord.h"
 #include "nsStyleConsts.h"
 #include "nsITableLayout.h"
@@ -128,7 +128,7 @@ private:
   * The principal child list contains row group frames. There is also an
   * additional child list, kColGroupList, which contains the col group frames.
   */
-class nsTableFrame : public nsContainerFrame, public nsITableLayout
+class nsTableFrame : public nsHTMLContainerFrame, public nsITableLayout
 {
 public:
   NS_DECL_QUERYFRAME
@@ -518,7 +518,7 @@ protected:
 
   void InitChildReflowState(nsHTMLReflowState& aReflowState);
 
-  /** implement abstract method on nsContainerFrame */
+  /** implement abstract method on nsHTMLContainerFrame */
   virtual PRIntn GetSkipSides() const;
 
 public:

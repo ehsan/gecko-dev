@@ -40,6 +40,7 @@
 
 #include "nsSVGElement.h"
 #include "nsSVGSVGElement.h"
+#include "nsSVGSwitchElement.h"
 #include "nsIDocument.h"
 #include "nsRange.h"
 #include "nsIDOMAttr.h"
@@ -80,7 +81,6 @@
 #include "SVGAnimatedPointList.h"
 #include "SVGAnimatedPathSegList.h"
 #include "SVGAnimatedTransformList.h"
-#include "DOMSVGTests.h"
 #include "nsIDOMSVGUnitTypes.h"
 #include "nsSVGRect.h"
 #include "nsIFrame.h"
@@ -275,6 +275,19 @@ nsSVGElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
+  if (aNamespaceID == kNameSpaceID_None &&
+      (aName == nsGkAtoms::requiredFeatures ||
+       aName == nsGkAtoms::requiredExtensions ||
+       aName == nsGkAtoms::systemLanguage)) {
+
+    nsIContent* parent = GetFlattenedTreeParent();
+  
+    if (parent &&
+        parent->NodeInfo()->Equals(nsGkAtoms::svgSwitch, kNameSpaceID_SVG)) {
+      static_cast<nsSVGSwitchElement*>(parent)->MaybeInvalidate();
+    }
+  }
+
   return nsSVGElementBase::AfterSetAttr(aNamespaceID, aName, aValue, aNotify);
 }
 
@@ -461,30 +474,6 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
           rv = enumInfo.mEnums[i].SetBaseValueString(aValue, this);
           if (NS_FAILED(rv)) {
             enumInfo.Reset(i);
-          }
-          foundMatch = true;
-          break;
-        }
-      }
-    }
-
-    if (!foundMatch) {
-      // Check for conditional processing attributes
-      nsCOMPtr<DOMSVGTests> tests(do_QueryInterface(this));
-      if (tests && tests->ParseConditionalProcessingAttribute(
-                            aAttribute, aValue, aResult)) {
-        foundMatch = true;
-      }
-    }
-
-    if (!foundMatch) {
-      // Check for StringList attribute
-      StringListAttributesInfo stringListInfo = GetStringListInfo();
-      for (i = 0; i < stringListInfo.mStringListCount; i++) {
-        if (aAttribute == *stringListInfo.mStringListInfo[i].mName) {
-          rv = stringListInfo.mStringLists[i].SetValue(aValue, false);
-          if (NS_FAILED(rv)) {
-            stringListInfo.Reset(i);
           }
           foundMatch = true;
           break;
@@ -735,23 +724,6 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
         return;
       }
     }
-
-    // Check for conditional processing attributes
-    nsCOMPtr<DOMSVGTests> tests(do_QueryInterface(this));
-    if (tests && tests->IsConditionalProcessingAttribute(aName)) {
-      tests->UnsetAttr(aName);
-      return;
-    }
-
-    // Check if this is a string list attribute going away
-    StringListAttributesInfo stringListInfo = GetStringListInfo();
-
-    for (PRUint32 i = 0; i < stringListInfo.mStringListCount; i++) {
-      if (aName == *stringListInfo.mStringListInfo[i].mName) {
-        stringListInfo.Reset(i);
-        return;
-      }
-    }
   }
 
   // Check if this is a string attribute going away
@@ -782,11 +754,12 @@ nsSVGElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
   nsChangeHint retval =
     nsSVGElementBase::GetAttributeChangeHint(aAttribute, aModType);
 
-  nsCOMPtr<DOMSVGTests> tests(do_QueryInterface(const_cast<nsSVGElement*>(this)));
-  if (tests && tests->IsConditionalProcessingAttribute(aAttribute)) {
+  if (aAttribute == nsGkAtoms::requiredFeatures ||
+      aAttribute == nsGkAtoms::requiredExtensions ||
+      aAttribute == nsGkAtoms::systemLanguage) {
     // It would be nice to only reconstruct the frame if the value returned by
-    // DOMSVGTests::PassesConditionalProcessingTests has changed, but we don't
-    // know that
+    // NS_SVG_PassesConditionalProcessingTests has changed, but we don't know
+    // that
     NS_UpdateHint(retval, nsChangeHint_ReconstructFrame);
   }
   return retval;
@@ -1139,24 +1112,6 @@ nsSVGElement::UpdateContentStyleRule()
     if (!attrName->IsAtom() || !IsAttributeMapped(attrName->Atom()))
       continue;
 
-    if (Tag() == nsGkAtoms::svg) {
-      // Special case: we don't want <svg> 'width'/'height' mapped into style
-      // if the attribute value isn't a valid <length> according to SVG (which
-      // only supports a subset of the CSS <length> values). We don't enforce
-      // this by checking the attribute value in nsSVGSVGElement::
-      // IsAttributeMapped since we don't want that method to depend on the
-      // value of the attribute that is being checked. Rather we just prevent
-      // the actual mapping here, as necessary.
-      if (attrName->Atom() == nsGkAtoms::width &&
-          !GetAnimatedLength(nsGkAtoms::width)->HasBaseVal()) {
-        continue;
-      }
-      if (attrName->Atom() == nsGkAtoms::height &&
-          !GetAnimatedLength(nsGkAtoms::height)->HasBaseVal()) {
-        continue;
-      }
-    }
-
     nsAutoString value;
     mAttrsAndChildren.AttrAt(i)->ToString(value);
     mappedAttrParser.ParseMappedAttrValue(attrName->Atom(), value);
@@ -1357,20 +1312,6 @@ nsSVGElement::DidAnimateLength(PRUint8 aAttrEnum)
                             *info.mLengthInfo[aAttrEnum].mName,
                             nsIDOMMutationEvent::MODIFICATION);
   }
-}
-
-nsSVGLength2*
-nsSVGElement::GetAnimatedLength(const nsIAtom *aAttrName)
-{
-  LengthAttributesInfo lengthInfo = GetLengthInfo();
-
-  for (PRUint32 i = 0; i < lengthInfo.mLengthCount; i++) {
-    if (aAttrName == *lengthInfo.mLengthInfo[i].mName) {
-      return &lengthInfo.mLengths[i];
-    }
-  }
-  NS_ABORT_IF_FALSE(false, "no matching length found");
-  return nsnull;
 }
 
 void
@@ -2143,44 +2084,6 @@ nsSVGElement::DidAnimateString(PRUint8 aAttrEnum)
                             *info.mStringInfo[aAttrEnum].mName,
                             nsIDOMMutationEvent::MODIFICATION);
   }
-}
-
-nsSVGElement::StringListAttributesInfo
-nsSVGElement::GetStringListInfo()
-{
-  return StringListAttributesInfo(nsnull, nsnull, 0);
-}
-
-void
-nsSVGElement::DidChangeStringList(bool aIsConditionalProcessingAttribute,
-                                  PRUint8 aAttrEnum)
-{
-  if (aIsConditionalProcessingAttribute) {
-    nsCOMPtr<DOMSVGTests> tests(do_QueryInterface(this));
-    tests->DidChangeStringList(aAttrEnum);
-    return;
-  }
-
-  StringListAttributesInfo info = GetStringListInfo();
-
-  NS_ASSERTION(info.mStringListCount > 0,
-               "DidChangeStringList on element with no string list attribs");
-
-  NS_ASSERTION(aAttrEnum < info.mStringListCount, "aAttrEnum out of range");
-
-  nsAutoString serializedValue;
-  info.mStringLists[aAttrEnum].GetValue(serializedValue, this);
-
-  nsAttrValue attrValue(serializedValue);
-  SetParsedAttr(kNameSpaceID_None, *info.mStringListInfo[aAttrEnum].mName,
-                nsnull, attrValue, true);
-}
-
-void
-nsSVGElement::StringListAttributesInfo::Reset(PRUint8 aAttrEnum)
-{
-  mStringLists[aAttrEnum].Clear();
-  // caller notifies
 }
 
 nsresult

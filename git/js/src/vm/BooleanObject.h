@@ -41,13 +41,11 @@
 #ifndef BooleanObject_h___
 #define BooleanObject_h___
 
-#include "mozilla/Attributes.h"
-
 #include "jsbool.h"
 
 namespace js {
 
-class BooleanObject : public JSObject
+class BooleanObject : public ::JSObject
 {
     /* Stores this Boolean object's [[PrimitiveValue]]. */
     static const uintN PRIMITIVE_VALUE_SLOT = 0;
@@ -82,8 +80,8 @@ class BooleanObject : public JSObject
     ::js_InitBooleanClass(JSContext *cx, JSObject *global);
 
   private:
-    BooleanObject() MOZ_DELETE;
-    BooleanObject &operator=(const BooleanObject &bo) MOZ_DELETE;
+    BooleanObject();
+    BooleanObject &operator=(const BooleanObject &bo);
 };
 
 } // namespace js

@@ -62,27 +62,6 @@ struct InvariantCodePatch {
     InvariantCodePatch() : hasPatch(false) {}
 };
 
-struct JSActiveFrame {
-    JSActiveFrame *parent;
-    jsbytecode *parentPC;
-    JSScript *script;
-
-    /*
-     * Index into inlineFrames or OUTER_FRAME, matches this frame's index in
-     * the cross script SSA.
-     */
-    uint32_t inlineIndex;
-
-    /* JIT code generation tracking state */
-    size_t mainCodeStart;
-    size_t stubCodeStart;
-    size_t mainCodeEnd;
-    size_t stubCodeEnd;
-    size_t inlinePCOffset;
-
-    JSActiveFrame();
-};
-
 class Compiler : public BaseCompiler
 {
     friend class StubCompiler;
@@ -248,7 +227,7 @@ class Compiler : public BaseCompiler
         bool usePropCache;
         Label shapeGuard;
         jsbytecode *pc;
-        PropertyName *name;
+        JSAtom *atom;
         bool hasTypeCheck;
         bool typeMonitored;
         types::TypeSet *rhsTypes;
@@ -282,7 +261,7 @@ class Compiler : public BaseCompiler
             ic.kind = kind;
             ic.shapeReg = shapeReg;
             ic.objReg = objReg;
-            ic.name = name;
+            ic.atom = atom;
             ic.usePropCache = usePropCache;
             if (ic.isSet()) {
                 ic.u.vr = vr;
@@ -376,11 +355,25 @@ class Compiler : public BaseCompiler
      */
 
 public:
-    struct ActiveFrame : public JSActiveFrame {
+    struct ActiveFrame {
+        ActiveFrame *parent;
+        jsbytecode *parentPC;
+        JSScript *script;
         Label *jumpMap;
+
+        /*
+         * Index into inlineFrames or OUTER_FRAME, matches this frame's index
+         * in the cross script SSA.
+         */
+        uint32_t inlineIndex;
 
         /* Current types for non-escaping vars in the script. */
         VarType *varTypes;
+
+        /* JIT code generation tracking state */
+        size_t mainCodeStart;
+        size_t stubCodeStart;
+        size_t inlinePCOffset;
 
         /* State for managing return from inlined frames. */
         bool needReturnValue;          /* Return value will be used. */
@@ -477,7 +470,7 @@ private:
             return PC;
         ActiveFrame *scan = a;
         while (scan && scan->parent != outer)
-            scan = static_cast<ActiveFrame *>(scan->parent);
+            scan = scan->parent;
         return scan->parentPC;
     }
 
@@ -493,12 +486,14 @@ private:
         return callSites[index].inlinepc;
     }
 
+    bool arrayPrototypeHasIndexedProperty();
+
     bool activeFrameHasMultipleExits() {
         ActiveFrame *na = a;
         while (na->parent) {
             if (na->exitState)
                 return true;
-            na = static_cast<ActiveFrame *>(na->parent);
+            na = na->parent;
         }
         return false;
     }
@@ -598,9 +593,9 @@ private:
     bool jumpAndRun(Jump j, jsbytecode *target, Jump *slow = NULL, bool *trampoline = NULL);
     bool startLoop(jsbytecode *head, Jump entry, jsbytecode *entryTarget);
     bool finishLoop(jsbytecode *head);
-    void jsop_bindname(PropertyName *name, bool usePropCache);
+    void jsop_bindname(JSAtom *atom, bool usePropCache);
     void jsop_setglobal(uint32_t index);
-    void jsop_getprop_slow(PropertyName *name, bool usePropCache = true);
+    void jsop_getprop_slow(JSAtom *atom, bool usePropCache = true);
     void jsop_getarg(uint32_t slot);
     void jsop_setarg(uint32_t slot, bool popped);
     void jsop_this();
@@ -623,25 +618,25 @@ private:
     void jsop_getgname(uint32_t index);
     void jsop_getgname_slow(uint32_t index);
     void jsop_callgname_epilogue();
-    void jsop_setgname(PropertyName *name, bool usePropertyCache, bool popGuaranteed);
-    void jsop_setgname_slow(PropertyName *name, bool usePropertyCache);
+    void jsop_setgname(JSAtom *atom, bool usePropertyCache, bool popGuaranteed);
+    void jsop_setgname_slow(JSAtom *atom, bool usePropertyCache);
     void jsop_bindgname();
     void jsop_setelem_slow();
     void jsop_getelem_slow();
     void jsop_callelem_slow();
-    bool jsop_getprop(PropertyName *name, JSValueType type,
+    bool jsop_getprop(JSAtom *atom, JSValueType type,
                       bool typeCheck = true, bool usePropCache = true);
-    bool jsop_setprop(PropertyName *name, bool usePropCache, bool popGuaranteed);
-    void jsop_setprop_slow(PropertyName *name, bool usePropCache = true);
-    bool jsop_callprop_slow(PropertyName *name);
-    bool jsop_callprop(PropertyName *name);
-    bool jsop_callprop_obj(PropertyName *name);
-    bool jsop_callprop_str(PropertyName *name);
-    bool jsop_callprop_generic(PropertyName *name);
-    bool jsop_callprop_dispatch(PropertyName *name);
+    bool jsop_setprop(JSAtom *atom, bool usePropCache, bool popGuaranteed);
+    void jsop_setprop_slow(JSAtom *atom, bool usePropCache = true);
+    bool jsop_callprop_slow(JSAtom *atom);
+    bool jsop_callprop(JSAtom *atom);
+    bool jsop_callprop_obj(JSAtom *atom);
+    bool jsop_callprop_str(JSAtom *atom);
+    bool jsop_callprop_generic(JSAtom *atom);
+    bool jsop_callprop_dispatch(JSAtom *atom);
     bool jsop_instanceof();
-    void jsop_name(PropertyName *name, JSValueType type, bool isCall);
-    bool jsop_xname(PropertyName *name);
+    void jsop_name(JSAtom *atom, JSValueType type, bool isCall);
+    bool jsop_xname(JSAtom *atom);
     void enterBlock(JSObject *obj);
     void leaveBlock();
     void emitEval(uint32_t argc);

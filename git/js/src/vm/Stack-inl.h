@@ -44,14 +44,13 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 
-#include "methodjit/MethodJIT.h"
-#include "vm/Stack.h"
+#include "Stack.h"
 
 #include "jsscriptinlines.h"
-
 #include "ArgumentsObject-inl.h"
-#include "ScopeObject-inl.h"
+#include "CallObject-inl.h"
 
+#include "methodjit/MethodJIT.h"
 
 namespace js {
 
@@ -85,7 +84,7 @@ StackFrame::varObj()
 {
     JSObject *obj = &scopeChain();
     while (!obj->isVarObj())
-        obj = obj->enclosingScope();
+        obj = obj->scopeChain();
     return *obj;
 }
 
@@ -155,14 +154,12 @@ StackFrame::initCallFrame(JSContext *cx, JSFunction &callee,
     JS_ASSERT(script == callee.toFunction()->script());
 
     /* Initialize stack frame members. */
-    flags_ = FUNCTION | HAS_PREVPC | HAS_SCOPECHAIN | HAS_BLOCKCHAIN | flagsArg;
+    flags_ = FUNCTION | HAS_PREVPC | HAS_SCOPECHAIN | flagsArg;
     exec.fun = &callee;
     args.nactual = nactual;
     scopeChain_ = callee.toFunction()->environment();
     ncode_ = NULL;
     initPrev(cx);
-    blockChain_= NULL;
-    JS_ASSERT(!hasBlockChain());
     JS_ASSERT(!hasHookData());
     JS_ASSERT(annotation() == NULL);
     JS_ASSERT(!hasCallObj());
@@ -378,10 +375,10 @@ StackFrame::setScopeChainNoCallObj(JSObject &obj)
         if (hasCallObj()) {
             JSObject *pobj = &obj;
             while (pobj && pobj->getPrivate() != this)
-                pobj = pobj->enclosingScope();
+                pobj = pobj->scopeChain();
             JS_ASSERT(pobj);
         } else {
-            for (JSObject *pobj = &obj; pobj->isScope(); pobj = pobj->enclosingScope())
+            for (JSObject *pobj = &obj; pobj->isInternalScope(); pobj = pobj->scopeChain())
                 JS_ASSERT_IF(pobj->isCall(), pobj->getPrivate() != this);
         }
     }
@@ -406,7 +403,7 @@ StackFrame::callObj() const
 
     JSObject *pobj = &scopeChain();
     while (JS_UNLIKELY(!pobj->isCall()))
-        pobj = pobj->enclosingScope();
+        pobj = pobj->scopeChain();
     return pobj->asCall();
 }
 
@@ -478,7 +475,7 @@ StackFrame::markFunctionEpilogueDone()
              */
             scopeChain_ = isFunctionFrame()
                           ? callee().toFunction()->environment()
-                          : &scopeChain_->asScope().enclosingScope();
+                          : scopeChain_->internalScopeChain();
             flags_ &= ~HAS_CALL_OBJ;
         }
     }

@@ -111,7 +111,6 @@ abstract public class GeckoApp
     public Handler mMainHandler;
     private File mProfileDir;
     private static boolean sIsGeckoReady = false;
-    private static int mOrientation;
 
     private IntentFilter mConnectivityFilter;
     private IntentFilter mBatteryFilter;
@@ -392,14 +391,14 @@ abstract public class GeckoApp
         if (!checkAndSetLaunchState(LaunchState.Launching, LaunchState.Launched))
             return false;
 
+                String args = intent.getStringExtra("args");
+                if (args != null && args.contains("-profile")) {
+                    // XXX: TO-DO set mProfileDir to the path passed in
+                    mUserDefinedProfile = true;
+                }
+
         if (intent == null)
             intent = getIntent();
-
-        String args = intent.getStringExtra("args");
-        if (args != null && args.contains("-profile")) {
-            // XXX: TO-DO set mProfileDir to the path passed in
-            mUserDefinedProfile = true;
-        }
 
         prefetchDNS(intent.getData());
         new GeckoThread(intent, mLastUri, mLastTitle).start();
@@ -465,7 +464,6 @@ abstract public class GeckoApp
             forward.setEnabled(false);
             share.setEnabled(false);
             saveAsPDF.setEnabled(false);
-            agentMode.setEnabled(false);
             return true;
         }
         
@@ -484,12 +482,9 @@ abstract public class GeckoApp
 
         forward.setEnabled(tab.canDoForward());
 
-        // Disable share and agentMode menuitems for about:, chrome: and file: URIs
+        // Don't share about:, chrome: and file: URIs
         String scheme = Uri.parse(tab.getURL()).getScheme();
-        boolean enabled = !(scheme.equals("about") || scheme.equals("chrome") ||
-                            scheme.equals("file"));
-        share.setEnabled(enabled);
-        agentMode.setEnabled(enabled);
+        share.setEnabled(!(scheme.equals("about") || scheme.equals("chrome") || scheme.equals("file")));
 
         // Disable save as PDF for about:home and xul pages
         saveAsPDF.setEnabled(!(tab.getURL().equals("about:home") ||
@@ -553,7 +548,7 @@ abstract public class GeckoApp
                 GeckoAppShell.sendEventToGecko(new GeckoEvent("Permissions:Get", null));
                 return true;
             case R.id.addons:
-                loadUrlInTab("about:addons");
+                loadUrlInNewTab("about:addons");
                 return true;
             case R.id.agent_mode:
                 Tab selectedTab = Tabs.getInstance().getSelectedTab();
@@ -612,7 +607,8 @@ abstract public class GeckoApp
                 if (getLayerController().getLayerClient() != mSoftwareLayerClient)
                     return;
 
-                if (lastHistoryEntry.mUri.equals(mLastUri))
+                if (mLastUri == lastHistoryEntry.mUri &&
+                    mLastTitle == lastHistoryEntry.mTitle)
                     return;
    
                 mLastViewport = mSoftwareLayerClient.getGeckoViewportMetrics().toJSON();
@@ -882,9 +878,6 @@ abstract public class GeckoApp
                 final String href = message.getString("href");
                 Log.i(LOGTAG, "link rel - " + rel + ", href - " + href);
                 handleLinkAdded(tabId, rel, href);
-            } else if (event.equals("DOMWindowClose")) {
-                final int tabId = message.getInt("tabID");
-                handleWindowClose(tabId);
             } else if (event.equals("log")) {
                 // generic log listener
                 final String msg = message.getString("msg");
@@ -905,7 +898,7 @@ abstract public class GeckoApp
                 final int tabId = message.getInt("tabID");
                 int state = message.getInt("state");
                 Log.i(LOGTAG, "State - " + state);
-                if ((state & GeckoAppShell.WPL_STATE_IS_NETWORK) != 0) {
+                if ((state & GeckoAppShell.WPL_STATE_IS_DOCUMENT) != 0) {
                     if ((state & GeckoAppShell.WPL_STATE_START) != 0) {
                         Log.i(LOGTAG, "Got a document start");
                         handleDocumentStart(tabId);
@@ -1027,10 +1020,7 @@ abstract public class GeckoApp
                         loadUrl(url, AwesomeBar.Type.EDIT);
                     }
                 });
-                RelativeLayout.LayoutParams lp = 
-                    new RelativeLayout.LayoutParams(LayoutParams.FILL_PARENT, 
-                                                    LayoutParams.FILL_PARENT);
-                mGeckoLayout.addView(mAboutHomeContent, lp);
+                mGeckoLayout.addView(mAboutHomeContent);
             }
             if (mAboutHomeContent != null)
                 mAboutHomeContent.setVisibility(mShow ? View.VISIBLE : View.GONE);
@@ -1315,12 +1305,6 @@ abstract public class GeckoApp
         }
     }
 
-    void handleWindowClose(final int tabId) {
-        Tabs tabs = Tabs.getInstance();
-        Tab tab = tabs.getTab(tabId);
-        tabs.closeTab(tab);
-    }
-
     void addPluginView(final View view,
                        final double x, final double y,
                        final double w, final double h) {
@@ -1541,7 +1525,6 @@ abstract public class GeckoApp
         GeckoAppShell.registerGeckoEventListener("DOMContentLoaded", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("DOMTitleChanged", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("DOMLinkAdded", GeckoApp.mAppContext);
-        GeckoAppShell.registerGeckoEventListener("DOMWindowClose", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("log", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Content:LocationChange", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Content:SecurityChange", GeckoApp.mAppContext);
@@ -1579,7 +1562,7 @@ abstract public class GeckoApp
 
         final GeckoApp self = this;
  
-        GeckoAppShell.getHandler().postDelayed(new Runnable() {
+        mMainHandler.postDelayed(new Runnable() {
             public void run() {
                 
                 Log.w(LOGTAG, "zerdatime " + new Date().getTime() + " - pre checkLaunchState");
@@ -1604,8 +1587,6 @@ abstract public class GeckoApp
                 checkMigrateProfile();
             }
         }, 50);
-
-        mOrientation = getResources().getConfiguration().orientation;
     }
 
     /**
@@ -1777,7 +1758,6 @@ abstract public class GeckoApp
         GeckoAppShell.unregisterGeckoEventListener("DOMContentLoaded", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("DOMTitleChanged", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("DOMLinkAdded", GeckoApp.mAppContext);
-        GeckoAppShell.unregisterGeckoEventListener("DOMWindowClose", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("log", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Content:LocationChange", GeckoApp.mAppContext);
         GeckoAppShell.unregisterGeckoEventListener("Content:SecurityChange", GeckoApp.mAppContext);
@@ -1815,21 +1795,14 @@ abstract public class GeckoApp
 
 
     @Override
-    public void onConfigurationChanged(Configuration newConfig)
+    public void onConfigurationChanged(android.content.res.Configuration newConfig)
     {
         Log.i(LOGTAG, "configuration changed");
 
+        // hide the autocomplete list on rotation
+        mAutoCompletePopup.hide();
+
         super.onConfigurationChanged(newConfig);
-
-        if (mOrientation != newConfig.orientation) {
-            mOrientation = newConfig.orientation;
-            mAutoCompletePopup.hide();
-
-            if (Build.VERSION.SDK_INT >= 11) {
-                mBrowserToolbar = (BrowserToolbar) getLayoutInflater().inflate(R.layout.gecko_app_actionbar, null);
-                GeckoActionBar.setCustomView(mAppContext, mBrowserToolbar);
-            }
-        }
     }
 
     @Override
@@ -1848,6 +1821,7 @@ abstract public class GeckoApp
         Map<String,String> envMap = System.getenv();
         Set<Map.Entry<String,String>> envSet = envMap.entrySet();
         Iterator<Map.Entry<String,String>> envIter = envSet.iterator();
+        StringBuffer envstr = new StringBuffer();
         int c = 0;
         while (envIter.hasNext()) {
             Map.Entry<String,String> entry = envIter.next();
@@ -2195,24 +2169,11 @@ abstract public class GeckoApp
     }
 
     /**
-     * Open the url as a new tab, and mark the selected tab as its "parent".
-     * If the url is already open in a tab, the existing tab is selected.
+     * Open the link as a new tab, and mark the selected tab as its "parent".
      * Use this for tabs opened by the browser chrome, so users can press the
      * "Back" button to return to the previous tab.
      */
-    public void loadUrlInTab(String url) {
-        ArrayList<Tab> tabs = Tabs.getInstance().getTabsInOrder();
-        if (tabs != null) {
-            Iterator<Tab> tabsIter = tabs.iterator();
-            while (tabsIter.hasNext()) {
-                Tab tab = tabsIter.next();
-                if (url.equals(tab.getURL())) {
-                    GeckoAppShell.sendEventToGecko(new GeckoEvent("Tab:Select", String.valueOf(tab.getId())));
-                    return;
-                }
-            }
-        }
-
+    public void loadUrlInNewTab(String url) {
         JSONObject args = new JSONObject();
         try {
             args.put("url", url);

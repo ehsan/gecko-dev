@@ -9,18 +9,15 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=656379
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <style>
-    input[type="button"]:hover { color: green; }
+    button:hover { color: green; }
   </style>
 </head>
 <body>
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=656379">Mozilla Bug 656379</a>
 <p id="display">
   <label for="button1" id="label1">Label 1</label>
-  <input type="button" id="button1" value="Button 1">
-  <label>
-    <span id="label2">Label 2</span>
-    <input type="button" id="button2" value="Button 2">
-  </label>
+  <button id="button1">Button 1</button>
+  <label><span id="label2">Label 2</span><button id="button2">Button 2</button></label>
 </p>
 <div id="content" style="display: none">
   
@@ -34,33 +31,15 @@ function tests() {
   synthesizeMouseAtCenter($("label1"), { type: "mousemove" });
   yield;
   is($("button1").mozMatchesSelector(":hover"), true,
-     "Button 1 should be hovered after mousemove over label1");
-  is($("label1").mozMatchesSelector(":hover"), true,
-     "Label 1 should be hovered after mousemove over label1");
+     "Button 1 should be hovered");
   is($("button2").mozMatchesSelector(":hover"), false,
-     "Button 2 should not be hovered after mousemove over label1");
-  is($("label2").mozMatchesSelector(":hover"), false,
-     "Label 2 should not be hovered after mousemove over label1");
-  synthesizeMouseAtCenter($("button2"), { type: "mousemove" });
-  yield;
-  is($("button1").mozMatchesSelector(":hover"), false,
-     "Button 1 should not be hovered after mousemove over button2");
-  is($("label1").mozMatchesSelector(":hover"), false,
-     "Label 1 should not be hovered after mousemove over button2");
-  is($("button2").mozMatchesSelector(":hover"), true,
-     "Button 2 should be hovered after mousemove over button2");
-  is($("label2").mozMatchesSelector(":hover"), false,
-     "Label 2 should not be hovered after mousemove over label2");
+     "Button 2 should not be hovered");
   synthesizeMouseAtCenter($("label2"), { type: "mousemove" });
   yield;
   is($("button1").mozMatchesSelector(":hover"), false,
-     "Button 1 should not be hovered after mousemove over label2");
-  is($("label1").mozMatchesSelector(":hover"), false,
-     "Label 1 should not be hovered after mousemove over label2");
+     "Button 1 should not be hovered");
   is($("button2").mozMatchesSelector(":hover"), true,
-     "Button 2 should be hovered after mousemove over label2");
-  is($("label2").mozMatchesSelector(":hover"), true,
-     "Label 2 should be hovered after mousemove over label2");
+     "Button 2 should be hovered");
   SimpleTest.finish();
 }
 

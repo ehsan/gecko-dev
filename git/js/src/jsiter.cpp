@@ -216,15 +216,10 @@ static bool
 EnumerateNativeProperties(JSContext *cx, JSObject *obj, JSObject *pobj, uintN flags, IdSet &ht,
                           AutoIdVector *props)
 {
-    RootObject objRoot(cx, &obj);
-    RootObject pobjRoot(cx, &pobj);
-
     size_t initialLength = props->length();
 
     /* Collect all unique properties from this object's scope. */
-    Shape::Range r = pobj->lastProperty()->all();
-    Shape::Range::Root root(cx, &r);
-    for (; !r.empty(); r.popFront()) {
+    for (Shape::Range r = pobj->lastProperty()->all(); !r.empty(); r.popFront()) {
         const Shape &shape = r.front();
 
         if (!JSID_IS_DEFAULT_XML_NAMESPACE(shape.propid()) &&
@@ -299,10 +294,7 @@ Snapshot(JSContext *cx, JSObject *obj, uintN flags, AutoIdVector *props)
     if (!ht.init(32))
         return NULL;
 
-    RootObject objRoot(cx, &obj);
-    RootedVarObject pobj(cx);
-    pobj = obj;
-
+    JSObject *pobj = obj;
     do {
         Class *clasp = pobj->getClass();
         if (pobj->isNative() &&
@@ -481,14 +473,12 @@ static inline JSObject *
 NewIteratorObject(JSContext *cx, uintN flags)
 {
     if (flags & JSITER_ENUMERATE) {
-        RootedVarTypeObject type(cx);
-        type = cx->compartment->getEmptyType(cx);
+        types::TypeObject *type = cx->compartment->getEmptyType(cx);
         if (!type)
             return NULL;
 
-        RootedVarShape emptyEnumeratorShape(cx);
-        emptyEnumeratorShape = EmptyShape::getInitialShape(cx, &IteratorClass, NULL, NULL,
-                                                           ITERATOR_FINALIZE_KIND);
+        Shape *emptyEnumeratorShape = EmptyShape::getInitialShape(cx, &IteratorClass, NULL, NULL,
+                                                                  ITERATOR_FINALIZE_KIND);
         if (!emptyEnumeratorShape)
             return NULL;
 
@@ -866,7 +856,7 @@ js_ValueToIterator(JSContext *cx, uintN flags, Value *vp)
 }
 
 #if JS_HAS_GENERATORS
-static JSBool
+static JS_REQUIRES_STACK JSBool
 CloseGenerator(JSContext *cx, JSObject *genobj);
 #endif
 
@@ -938,16 +928,16 @@ SuppressDeletedPropertyHelper(JSContext *cx, JSObject *obj, IdPredicate predicat
                      * became visible as a result of this deletion.
                      */
                     if (obj->getProto()) {
-                        JSObject *proto = obj->getProto();
-                        JSObject *obj2;
+                        AutoObjectRooter proto(cx, obj->getProto());
+                        AutoObjectRooter obj2(cx);
                         JSProperty *prop;
-                        if (!proto->lookupGeneric(cx, *idp, &obj2, &prop))
+                        if (!proto.object()->lookupGeneric(cx, *idp, obj2.addr(), &prop))
                             return false;
                         if (prop) {
                             uintN attrs;
-                            if (obj2->isNative())
+                            if (obj2.object()->isNative())
                                 attrs = ((Shape *) prop)->attributes();
-                            else if (!obj2->getGenericAttributes(cx, *idp, &attrs))
+                            else if (!obj2.object()->getGenericAttributes(cx, *idp, &attrs))
                                 return false;
 
                             if (attrs & JSPROP_ENUMERATE)
@@ -1270,7 +1260,7 @@ Class js::GeneratorClass = {
  * from the activation in fp, so we can steal away fp->callobj and fp->argsobj
  * if they are non-null.
  */
-JSObject *
+JS_REQUIRES_STACK JSObject *
 js_NewGenerator(JSContext *cx)
 {
     FrameRegs &stackRegs = cx->regs();
@@ -1278,7 +1268,7 @@ js_NewGenerator(JSContext *cx)
     JS_ASSERT(stackfp->base() == cx->regs().sp);
     JS_ASSERT(stackfp->actualArgs() <= stackfp->formalArgs());
 
-    GlobalObject *global = &stackfp->scopeChain().global();
+    GlobalObject *global = stackfp->scopeChain().getGlobal();
     JSObject *proto = global->getOrCreateGeneratorPrototype(cx);
     if (!proto)
         return NULL;
@@ -1340,7 +1330,7 @@ typedef enum JSGeneratorOp {
  * Start newborn or restart yielding generator and perform the requested
  * operation inside its frame.
  */
-static JSBool
+static JS_REQUIRES_STACK JSBool
 SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
                 JSGenerator *gen, const Value &arg)
 {
@@ -1446,7 +1436,7 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
     return JS_FALSE;
 }
 
-static JSBool
+static JS_REQUIRES_STACK JSBool
 CloseGenerator(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj->isGenerator());
@@ -1622,7 +1612,7 @@ js_InitIteratorClasses(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj->isNative());
 
-    GlobalObject *global = &obj->asGlobal();
+    GlobalObject *global = obj->asGlobal();
 
     /*
      * Bail if Iterator has already been initialized.  We test for Iterator

@@ -266,8 +266,8 @@ nsMathMLmoFrame::ProcessOperatorData()
     // in case of dynamic changes
     mEmbellishData.flags = 0;
     mEmbellishData.coreFrame = nsnull;
-    mEmbellishData.leadingSpace = 0;
-    mEmbellishData.trailingSpace = 0;
+    mEmbellishData.leftSpace = 0;
+    mEmbellishData.rightSpace = 0;
     if (mMathMLChar.Length() != 1)
       mEmbellishData.direction = NS_STRETCH_DIRECTION_UNSUPPORTED;  
     // else... retain the native direction obtained in ProcessTextData()
@@ -390,8 +390,8 @@ nsMathMLmoFrame::ProcessOperatorData()
       nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
       GetEmHeight(fm, em);
 
-      mEmbellishData.leadingSpace = NSToCoordRound(lspace * em);
-      mEmbellishData.trailingSpace = NSToCoordRound(rspace * em);
+      mEmbellishData.leftSpace = NSToCoordRound(lspace * em);
+      mEmbellishData.rightSpace = NSToCoordRound(rspace * em);
 
       // tuning if we don't want too much extra space when we are a script.
       // (with its fonts, TeX sets lspace=0 & rspace=0 as soon as scriptlevel>0.
@@ -399,22 +399,22 @@ nsMathMLmoFrame::ProcessOperatorData()
       if (GetStyleFont()->mScriptLevel > 0) {
         if (NS_MATHML_OPERATOR_EMBELLISH_IS_ISOLATED(mFlags)) {
           // could be an isolated accent or script, e.g., x^{+}, just zero out
-          mEmbellishData.leadingSpace = 0;
-          mEmbellishData.trailingSpace  = 0;
+          mEmbellishData.leftSpace = 0;
+          mEmbellishData.rightSpace  = 0;
         }
         else if (!NS_MATHML_OPERATOR_HAS_EMBELLISH_ANCESTOR(mFlags)) {
-          mEmbellishData.leadingSpace /= 2;
-          mEmbellishData.trailingSpace  /= 2;
+          mEmbellishData.leftSpace /= 2;
+          mEmbellishData.rightSpace  /= 2;
         }
       }
     }
   }
 
   // If we are an accent without explicit lspace="." or rspace=".",
-  // we will ignore our default leading/trailing space
+  // we will ignore our default left/right space
 
   // lspace = number h-unit | namedspace
-  nscoord leadingSpace = mEmbellishData.leadingSpace;
+  nscoord leftSpace = mEmbellishData.leftSpace;
   GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::lspace_,
                value);
   if (!value.IsEmpty()) {
@@ -423,15 +423,15 @@ nsMathMLmoFrame::ProcessOperatorData()
         ParseNamedSpaceValue(mPresentationData.mstyle, value, cssValue))
     {
       if ((eCSSUnit_Number == cssValue.GetUnit()) && !cssValue.GetFloatValue())
-        leadingSpace = 0;
+        leftSpace = 0;
       else if (cssValue.IsLengthUnit())
-        leadingSpace = CalcLength(presContext, mStyleContext, cssValue);
-      mFlags |= NS_MATHML_OPERATOR_LSPACE_ATTR;
+        leftSpace = CalcLength(presContext, mStyleContext, cssValue);
+      mFlags |= NS_MATHML_OPERATOR_LEFTSPACE_ATTR;
     }
   }
 
   // rspace = number h-unit | namedspace
-  nscoord trailingSpace = mEmbellishData.trailingSpace;
+  nscoord rightSpace = mEmbellishData.rightSpace;
   GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::rspace_,
                value);
   if (!value.IsEmpty()) {
@@ -440,26 +440,26 @@ nsMathMLmoFrame::ProcessOperatorData()
         ParseNamedSpaceValue(mPresentationData.mstyle, value, cssValue))
     {
       if ((eCSSUnit_Number == cssValue.GetUnit()) && !cssValue.GetFloatValue())
-        trailingSpace = 0;
+        rightSpace = 0;
       else if (cssValue.IsLengthUnit())
-        trailingSpace = CalcLength(presContext, mStyleContext, cssValue);
-      mFlags |= NS_MATHML_OPERATOR_RSPACE_ATTR;
+        rightSpace = CalcLength(presContext, mStyleContext, cssValue);
+      mFlags |= NS_MATHML_OPERATOR_RIGHTSPACE_ATTR;
     }
   }
 
   // little extra tuning to round lspace & rspace to at least a pixel so that
   // operators don't look as if they are colliding with their operands
-  if (leadingSpace || trailingSpace) {
+  if (leftSpace || rightSpace) {
     nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
-    if (leadingSpace && leadingSpace < onePixel)
-      leadingSpace = onePixel;
-    if (trailingSpace && trailingSpace < onePixel)
-      trailingSpace = onePixel;
+    if (leftSpace && leftSpace < onePixel)
+      leftSpace = onePixel;
+    if (rightSpace && rightSpace < onePixel)
+      rightSpace = onePixel;
   }
 
   // the values that we get from our attributes override the dictionary
-  mEmbellishData.leadingSpace = leadingSpace;
-  mEmbellishData.trailingSpace = trailingSpace;
+  mEmbellishData.leftSpace = leftSpace;
+  mEmbellishData.rightSpace = rightSpace;
 
   // Now see if there are user-defined attributes that override the dictionary.
   // XXX If an attribute can be forced to be true when it is false in the
@@ -760,10 +760,7 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
 
     // let the MathMLChar stretch itself...
     nsresult res = mMathMLChar.Stretch(PresContext(), aRenderingContext,
-                                       aStretchDirection, container, charSize,
-                                       stretchHint,
-                                       NS_MATHML_IS_RTL(mPresentationData.
-                                                        flags));
+                                       aStretchDirection, container, charSize, stretchHint);
     if (NS_FAILED(res)) {
       // gracefully handle cases where stretching the char failed (i.e., GetBoundingMetrics failed)
       // clear our 'form' to behave as if the operator wasn't in the dictionary
@@ -874,39 +871,36 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
   if (!NS_MATHML_OPERATOR_HAS_EMBELLISH_ANCESTOR(mFlags)) {
 
     // Account the spacing if we are not an accent with explicit attributes
-    nscoord leadingSpace = mEmbellishData.leadingSpace;
-    if (isAccent && !NS_MATHML_OPERATOR_HAS_LSPACE_ATTR(mFlags)) {
-      leadingSpace = 0;
+    nscoord leftSpace = mEmbellishData.leftSpace;
+    if (isAccent && !NS_MATHML_OPERATOR_HAS_LEFTSPACE_ATTR(mFlags)) {
+      leftSpace = 0;
     }
-    nscoord trailingSpace = mEmbellishData.trailingSpace;
-    if (isAccent && !NS_MATHML_OPERATOR_HAS_RSPACE_ATTR(mFlags)) {
-      trailingSpace = 0;
+    nscoord rightSpace = mEmbellishData.rightSpace;
+    if (isAccent && !NS_MATHML_OPERATOR_HAS_RIGHTSPACE_ATTR(mFlags)) {
+      rightSpace = 0;
     }
 
-    mBoundingMetrics.width += leadingSpace + trailingSpace;
+    mBoundingMetrics.width += leftSpace + rightSpace;
     aDesiredStretchSize.width = mBoundingMetrics.width;
     aDesiredStretchSize.mBoundingMetrics.width = mBoundingMetrics.width;
 
-    nscoord dx = (NS_MATHML_IS_RTL(mPresentationData.flags) ?
-                  trailingSpace : leadingSpace);
-    if (dx) {
+    if (leftSpace) {
       // adjust the offsets
-      mBoundingMetrics.leftBearing += dx;
-      mBoundingMetrics.rightBearing += dx;
-      aDesiredStretchSize.mBoundingMetrics.leftBearing += dx;
-      aDesiredStretchSize.mBoundingMetrics.rightBearing += dx;
+      mBoundingMetrics.leftBearing += leftSpace;
+      mBoundingMetrics.rightBearing += leftSpace;
+      aDesiredStretchSize.mBoundingMetrics.leftBearing += leftSpace;
+      aDesiredStretchSize.mBoundingMetrics.rightBearing += leftSpace;
 
       if (useMathMLChar) {
         nsRect rect;
         mMathMLChar.GetRect(rect);
-        mMathMLChar.SetRect(nsRect(rect.x + dx, rect.y,
-                                   rect.width, rect.height));
+        mMathMLChar.SetRect(nsRect(rect.x + leftSpace, rect.y, rect.width, rect.height));
       }
       else {
         nsIFrame* childFrame = firstChild;
         while (childFrame) {
-          childFrame->SetPosition(childFrame->GetPosition() +
-                                  nsPoint(dx, 0));
+          childFrame->SetPosition(childFrame->GetPosition()
+				  + nsPoint(leftSpace, 0));
           childFrame = childFrame->GetNextSibling();
         }
       }
@@ -1017,10 +1011,10 @@ nsMathMLmoFrame::GetIntrinsicWidth(nsRenderingContext *aRenderingContext)
     width = nsMathMLTokenFrame::GetIntrinsicWidth(aRenderingContext);
   }
 
-  // leadingSpace and trailingSpace are actually applied to the outermost
+  // leftSpace and rightSpace are actually applied to the outermost
   // embellished container but for determining total intrinsic width it should
   // be safe to include it for the core here instead.
-  width += mEmbellishData.leadingSpace + mEmbellishData.trailingSpace;
+  width += mEmbellishData.leftSpace + mEmbellishData.rightSpace;
 
   return width;
 }

@@ -80,11 +80,11 @@ public:
         SurfaceTypePS,
         SurfaceTypeXlib,
         SurfaceTypeXcb,
-        SurfaceTypeGlitz,           // unused, but needed for cairo parity
+        SurfaceTypeGlitz,
         SurfaceTypeQuartz,
         SurfaceTypeWin32,
         SurfaceTypeBeOS,
-        SurfaceTypeDirectFB,        // unused, but needed for cairo parity
+        SurfaceTypeDirectFB,
         SurfaceTypeSVG,
         SurfaceTypeOS2,
         SurfaceTypeWin32Printing,

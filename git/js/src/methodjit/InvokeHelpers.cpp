@@ -111,11 +111,10 @@ top:
             if (tn->stackDepth > cx->regs().sp - fp->base())
                 continue;
 
-            UnwindScope(cx, tn->stackDepth);
-
             jsbytecode *pc = script->main() + tn->start + tn->length;
             cx->regs().pc = pc;
-            cx->regs().sp = fp->base() + tn->stackDepth;
+            JSBool ok = UnwindScope(cx, tn->stackDepth, JS_TRUE);
+            JS_ASSERT(cx->regs().sp == fp->base() + tn->stackDepth);
 
             switch (tn->kind) {
                 case JSTRY_CATCH:
@@ -157,7 +156,7 @@ top:
                   Value v = cx->getPendingException();
                   JS_ASSERT(JSOp(*pc) == JSOP_ENDITER);
                   cx->clearPendingException();
-                  bool ok = !!js_CloseIterator(cx, &cx->regs().sp[-1].toObject());
+                  ok = !!js_CloseIterator(cx, &cx->regs().sp[-1].toObject());
                   cx->regs().sp -= 1;
                   if (!ok)
                       goto top;
@@ -178,7 +177,6 @@ InlineReturn(VMFrame &f)
 {
     JS_ASSERT(f.fp() != f.entryfp);
     JS_ASSERT(!IsActiveWithOrBlock(f.cx, f.fp()->scopeChain(), 0));
-    JS_ASSERT(!f.fp()->hasBlockChain());
     f.cx->stack.popInlineFrame(f.regs);
 
     DebugOnly<JSOp> op = JSOp(*f.regs.pc);
@@ -580,8 +578,7 @@ js_InternalThrow(VMFrame &f)
         // and epilogues. RunTracer(), Interpret(), and Invoke() all
         // rely on this property.
         JS_ASSERT(!f.fp()->finishedInInterpreter());
-        UnwindScope(cx, 0);
-        f.regs.sp = f.fp()->base();
+        UnwindScope(cx, 0, cx->isExceptionPending());
 
         if (cx->compartment->debugMode())
             js::ScriptDebugEpilogue(cx, f.fp(), false);
@@ -632,8 +629,8 @@ js_InternalThrow(VMFrame &f)
      */
     if (cx->isExceptionPending()) {
         JS_ASSERT(JSOp(*pc) == JSOP_ENTERBLOCK);
-        StaticBlockObject &blockObj = script->getObject(GET_SLOTNO(pc))->asStaticBlock();
-        Value *vp = cx->regs().sp + blockObj.slotCount();
+        JSObject *obj = script->getObject(GET_SLOTNO(pc));
+        Value *vp = cx->regs().sp + OBJ_BLOCK_COUNT(cx, obj);
         SetValueRangeToUndefined(cx->regs().sp, vp);
         cx->regs().sp = vp;
         JS_ASSERT(JSOp(pc[JSOP_ENTERBLOCK_LENGTH]) == JSOP_EXCEPTION);
@@ -641,7 +638,6 @@ js_InternalThrow(VMFrame &f)
         cx->clearPendingException();
         cx->regs().sp++;
         cx->regs().pc = pc + JSOP_ENTERBLOCK_LENGTH + JSOP_EXCEPTION_LENGTH;
-        cx->regs().fp()->setBlockChain(&blockObj);
     }
 
     *f.oldregs = f.regs;
@@ -816,16 +812,14 @@ js_InternalInterpret(void *returnData, void *returnType, void *returnReg, js::VM
 
     switch (rejoin) {
       case REJOIN_SCRIPTED: {
-        jsval_layout rval;
 #ifdef JS_NUNBOX32
-        rval.asBits = ((uint64_t)returnType << 32) | (uint32_t)returnData;
+        uint64_t rvalBits = ((uint64_t)returnType << 32) | (uint32_t)returnData;
 #elif JS_PUNBOX64
-        rval.asBits = (uint64_t)returnType | (uint64_t)returnData;
+        uint64_t rvalBits = (uint64_t)returnType | (uint64_t)returnData;
 #else
 #error "Unknown boxing format"
 #endif
-
-        nextsp[-1] = IMPL_TO_JSVAL(rval);
+        nextsp[-1].setRawBits(rvalBits);
 
         /*
          * When making a scripted call at monitored sites, it is the caller's

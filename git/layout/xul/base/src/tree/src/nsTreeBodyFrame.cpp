@@ -77,7 +77,7 @@
 #include "nsCSSRendering.h"
 #include "nsIXULTemplateBuilder.h"
 #include "nsXPIDLString.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsWidgetsCID.h"

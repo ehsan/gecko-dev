@@ -43,7 +43,6 @@
 #include "nsAutoPtr.h"
 #include "nsReferencedElement.h"
 #include "nsIDOMSVGAnimationElement.h"
-#include "DOMSVGTests.h"
 #include "nsIDOMElementTimeControl.h"
 #include "nsISMILAnimationElement.h"
 #include "nsSMILTimedElement.h"
@@ -51,7 +50,6 @@
 typedef nsSVGElement nsSVGAnimationElementBase;
 
 class nsSVGAnimationElement : public nsSVGAnimationElementBase,
-                              public DOMSVGTests,
                               public nsISMILAnimationElement,
                               public nsIDOMElementTimeControl
 {

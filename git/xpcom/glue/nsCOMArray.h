@@ -39,8 +39,6 @@
 #ifndef nsCOMArray_h__
 #define nsCOMArray_h__
 
-#include "mozilla/Attributes.h"
-
 #include "nsVoidArray.h"
 #include "nsISupports.h"
 
@@ -127,7 +125,7 @@ private:
     nsVoidArray mArray;
 
     // don't implement these, defaults will muck with refcounts!
-    nsCOMArray_base& operator=(const nsCOMArray_base& other) MOZ_DELETE;
+    nsCOMArray_base& operator=(const nsCOMArray_base& other);
 };
 
 // a non-XPCOM, refcounting array of XPCOM objects
@@ -279,7 +277,7 @@ class nsCOMArray : public nsCOMArray_base
 private:
 
     // don't implement these!
-    nsCOMArray<T>& operator=(const nsCOMArray<T>& other) MOZ_DELETE;
+    nsCOMArray<T>& operator=(const nsCOMArray<T>& other);
 };
 
 

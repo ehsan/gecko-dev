@@ -73,9 +73,6 @@ JS_ObjectCountDynamicSlots(JSObject *obj);
 extern JS_FRIEND_API(void)
 JS_ShrinkingGC(JSContext *cx);
 
-extern JS_FRIEND_API(void)
-JS_ShrinkGCBuffers(JSRuntime *rt);
-
 extern JS_FRIEND_API(size_t)
 JS_GetE4XObjectsCreated(JSContext *cx);
 
@@ -116,6 +113,25 @@ typedef void
 
 extern JS_FRIEND_API(void)
 JS_SetGCFinishedCallback(JSRuntime *rt, JSGCFinishedCallback callback);
+
+/* Data for tracking analysis/inference memory usage. */
+typedef struct TypeInferenceMemoryStats
+{
+    int64_t scripts;
+    int64_t objects;
+    int64_t tables;
+    int64_t temporary;
+} TypeInferenceMemoryStats;
+
+extern JS_FRIEND_API(void)
+JS_GetTypeInferenceMemoryStats(JSContext *cx, JSCompartment *compartment,
+                               TypeInferenceMemoryStats *stats,
+                               JSMallocSizeOfFun mallocSizeOf);
+
+extern JS_FRIEND_API(void)
+JS_GetTypeInferenceObjectStats(/*TypeObject*/ void *object,
+                               TypeInferenceMemoryStats *stats,
+                               JSMallocSizeOfFun mallocSizeOf);
 
 extern JS_FRIEND_API(JSPrincipals *)
 JS_GetCompartmentPrincipals(JSCompartment *compartment);
@@ -193,8 +209,11 @@ JS_FRIEND_API(JSBool) obj_defineGetter(JSContext *cx, uintN argc, js::Value *vp)
 JS_FRIEND_API(JSBool) obj_defineSetter(JSContext *cx, uintN argc, js::Value *vp);
 #endif
 
-extern JS_FRIEND_API(bool)
-IsSystemCompartment(const JSCompartment *compartment);
+extern JS_FRIEND_API(size_t)
+GetObjectDynamicSlotSize(JSObject *obj, JSMallocSizeOfFun mallocSizeOf);
+
+extern JS_FRIEND_API(size_t)
+GetCompartmentShapeTableSize(JSCompartment *c, JSMallocSizeOfFun mallocSizeOf);
 
 /*
  * Check whether it is OK to assign an undeclared property with name
@@ -285,8 +304,8 @@ extern JS_FRIEND_DATA(js::Class) NamespaceClass;
 extern JS_FRIEND_DATA(js::Class) OuterWindowProxyClass;
 extern JS_FRIEND_DATA(js::Class) ObjectProxyClass;
 extern JS_FRIEND_DATA(js::Class) QNameClass;
+extern JS_FRIEND_DATA(js::Class) ScriptClass;
 extern JS_FRIEND_DATA(js::Class) XMLClass;
-extern JS_FRIEND_DATA(js::Class) ObjectClass;
 
 inline js::Class *
 GetObjectClass(const JSObject *obj)
@@ -301,17 +320,17 @@ GetObjectJSClass(const JSObject *obj)
 }
 
 JS_FRIEND_API(bool)
-IsScopeObject(JSObject *obj);
+IsScopeObject(const JSObject *obj);
 
 inline JSObject *
-GetObjectParent(JSObject *obj)
+GetObjectParent(const JSObject *obj)
 {
     JS_ASSERT(!IsScopeObject(obj));
-    return reinterpret_cast<shadow::Object*>(obj)->shape->base->parent;
+    return reinterpret_cast<const shadow::Object*>(obj)->shape->base->parent;
 }
 
 JS_FRIEND_API(JSObject *)
-GetObjectParentMaybeScope(JSObject *obj);
+GetObjectParentMaybeScope(const JSObject *obj);
 
 JS_FRIEND_API(JSObject *)
 GetGlobalForObjectCrossCompartment(JSObject *obj);
@@ -344,13 +363,13 @@ JS_FRIEND_API(void)
 SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val);
 
 inline JSObject *
-GetObjectProto(JSObject *obj)
+GetObjectProto(const JSObject *obj)
 {
     return reinterpret_cast<const shadow::Object*>(obj)->type->proto;
 }
 
 inline void *
-GetObjectPrivate(JSObject *obj)
+GetObjectPrivate(const JSObject *obj)
 {
     const shadow::Object *nobj = reinterpret_cast<const shadow::Object*>(obj);
     void **addr = reinterpret_cast<void**>(&nobj->fixedSlots()[nobj->numFixedSlots()]);
@@ -376,17 +395,17 @@ SetReservedSlot(JSObject *obj, size_t slot, const Value &value)
 }
 
 JS_FRIEND_API(uint32_t)
-GetObjectSlotSpan(JSObject *obj);
+GetObjectSlotSpan(const JSObject *obj);
 
 inline const Value &
-GetObjectSlot(JSObject *obj, size_t slot)
+GetObjectSlot(const JSObject *obj, size_t slot)
 {
     JS_ASSERT(slot < GetObjectSlotSpan(obj));
     return reinterpret_cast<const shadow::Object *>(obj)->slotRef(slot);
 }
 
 inline Shape *
-GetObjectShape(JSObject *obj)
+GetObjectShape(const JSObject *obj)
 {
     shadow::Shape *shape = reinterpret_cast<const shadow::Object*>(obj)->shape;
     return reinterpret_cast<Shape *>(shape);
@@ -412,9 +431,6 @@ StringIsArrayIndex(JSLinearString *str, jsuint *indexp);
 
 JS_FRIEND_API(void)
 SetPreserveWrapperCallback(JSRuntime *rt, PreserveWrapperCallback callback);
-
-JS_FRIEND_API(bool)
-IsObjectInContextCompartment(const JSObject *obj, const JSContext *cx);
 
 /*
  * NB: these flag bits are encoded into the bytecode stream in the immediate
@@ -446,15 +462,6 @@ JS_FRIEND_API(JSString *)
 GetPCCountScriptContents(JSContext *cx, size_t script);
 
 } /* namespace js */
-
-/*
- * If protoKey is not JSProto_Null, then clasp is ignored. If protoKey is
- * JSProto_Null, clasp must non-null.
- */
-extern JS_FRIEND_API(JSBool)
-js_GetClassPrototype(JSContext *cx, JSObject *scope, JSProtoKey protoKey,
-                     JSObject **protop, js::Class *clasp = NULL);
-
 #endif
 
 #endif /* jsfriendapi_h___ */

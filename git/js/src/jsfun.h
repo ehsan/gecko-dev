@@ -48,6 +48,7 @@
 #include "jsatom.h"
 #include "jsscript.h"
 #include "jsstr.h"
+#include "jsopcode.h"
 
 #include "gc/Barrier.h"
 
@@ -126,7 +127,7 @@ struct JSFunction : public JSObject
     bool optimizedClosure()  const { return kind() > JSFUN_INTERPRETED; }
     bool isInterpreted()     const { return kind() >= JSFUN_INTERPRETED; }
     bool isNative()          const { return !isInterpreted(); }
-    bool isNativeConstructor() const { return flags & JSFUN_CONSTRUCTOR; }
+    bool isConstructor()     const { return flags & JSFUN_CONSTRUCTOR; }
     bool isHeavyweight()     const { return JSFUN_HEAVYWEIGHT_TEST(flags); }
     bool isNullClosure()     const { return kind() == JSFUN_NULL_CLOSURE; }
     bool isFlatClosure()     const { return kind() == JSFUN_FLAT_CLOSURE; }
@@ -310,7 +311,7 @@ fun_toStringHelper(JSContext *cx, JSObject *obj, uintN indent);
 
 extern JSFunction *
 js_NewFunction(JSContext *cx, JSObject *funobj, JSNative native, uintN nargs,
-               uintN flags, js::HandleObject parent, JSAtom *atom,
+               uintN flags, JSObject *parent, JSAtom *atom,
                js::gc::AllocKind kind = JSFunction::FinalizeKind);
 
 extern JSFunction * JS_FASTCALL
@@ -321,10 +322,10 @@ extern JSFunction * JS_FASTCALL
 js_AllocFlatClosure(JSContext *cx, JSFunction *fun, JSObject *scopeChain);
 
 extern JSFunction *
-js_NewFlatClosure(JSContext *cx, JSFunction *fun);
+js_NewFlatClosure(JSContext *cx, JSFunction *fun, JSOp op, size_t oplen);
 
 extern JSFunction *
-js_DefineFunction(JSContext *cx, js::HandleObject obj, jsid id, JSNative native,
+js_DefineFunction(JSContext *cx, JSObject *obj, jsid id, JSNative native,
                   uintN nargs, uintN flags,
                   js::gc::AllocKind kind = JSFunction::FinalizeKind);
 

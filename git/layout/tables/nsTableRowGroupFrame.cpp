@@ -56,7 +56,7 @@
 using namespace mozilla;
 
 nsTableRowGroupFrame::nsTableRowGroupFrame(nsStyleContext* aContext):
-  nsContainerFrame(aContext)
+  nsHTMLContainerFrame(aContext)
 {
   SetRepeatable(false);
 }
@@ -67,7 +67,7 @@ nsTableRowGroupFrame::~nsTableRowGroupFrame()
 
 NS_QUERYFRAME_HEAD(nsTableRowGroupFrame)
   NS_QUERYFRAME_ENTRY(nsTableRowGroupFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
 PRInt32
 nsTableRowGroupFrame::GetRowCount()
@@ -955,7 +955,6 @@ nsTableRowGroupFrame::SplitSpanningCells(nsPresContext&           aPresContext,
     static_cast<nsTableFrame*>(aTable.GetFirstInFlow())->IsBorderCollapse();
   PRInt32 lastRowIndex = aLastRow.GetRowIndex();
   bool wasLast = false;
-  bool haveRowSpan = false;
   // Iterate the rows between aFirstRow and aLastRow
   for (nsTableRowFrame* row = &aFirstRow; !wasLast; row = row->GetNextRow()) {
     wasLast = (row == &aLastRow);
@@ -967,7 +966,6 @@ nsTableRowGroupFrame::SplitSpanningCells(nsPresContext&           aPresContext,
       // Only reflow rowspan > 1 cells which span aLastRow. Those which don't span aLastRow
       // were reflowed correctly during the unconstrained height reflow. 
       if ((rowSpan > 1) && (rowIndex + rowSpan > lastRowIndex)) {
-        haveRowSpan = true;
         nsReflowStatus status;
         // Ask the row to reflow the cell to the height of all the rows it spans up through aLastRow
         // aAvailHeight is the space between the row group start and the end of the page
@@ -1022,9 +1020,6 @@ nsTableRowGroupFrame::SplitSpanningCells(nsPresContext&           aPresContext,
         }
       }
     }
-  }
-  if (!haveRowSpan) {
-    aDesiredHeight = aLastRow.GetRect().YMost();
   }
 }
 

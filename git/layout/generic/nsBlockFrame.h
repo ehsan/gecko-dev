@@ -44,7 +44,7 @@
 #ifndef nsBlockFrame_h___
 #define nsBlockFrame_h___
 
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsHTMLParts.h"
 #include "nsAbsoluteContainingBlock.h"
 #include "nsLineBox.h"
@@ -123,7 +123,7 @@ class nsIntervalSet;
 // (including <BR CLEAR="..."> frames)
 #define NS_BLOCK_HAS_CLEAR_CHILDREN         NS_FRAME_STATE_BIT(27)
 
-#define nsBlockFrameSuper nsContainerFrame
+#define nsBlockFrameSuper nsHTMLContainerFrame
 
 /*
  * Base class for block and inline frames.
@@ -330,7 +330,7 @@ public:
   
 protected:
   nsBlockFrame(nsStyleContext* aContext)
-    : nsContainerFrame(aContext)
+    : nsHTMLContainerFrame(aContext)
     , mMinWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
     , mPrefWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
   {

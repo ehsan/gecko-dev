@@ -424,7 +424,7 @@ nsCSSScanner::OutputError()
     }
 
     nsresult rv;
-    nsCOMPtr<nsIScriptError> errorObject =
+    nsCOMPtr<nsIScriptError2> errorObject =
       do_CreateInstance(gScriptErrorFactory, &rv);
 
     if (NS_SUCCEEDED(rv)) {
@@ -437,7 +437,8 @@ nsCSSScanner::OutputError()
                                          "CSS Parser",
                                          mInnerWindowID);
       if (NS_SUCCEEDED(rv)) {
-        gConsoleService->LogMessage(errorObject);
+        nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
+        gConsoleService->LogMessage(logError);
       }
     }
   }

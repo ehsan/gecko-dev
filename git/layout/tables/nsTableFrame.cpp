@@ -184,7 +184,7 @@ nsTableFrame::GetType() const
 
 
 nsTableFrame::nsTableFrame(nsStyleContext* aContext)
-  : nsContainerFrame(aContext),
+  : nsHTMLContainerFrame(aContext),
     mCellMap(nsnull),
     mTableLayoutStrategy(nsnull)
 {
@@ -198,7 +198,7 @@ nsTableFrame::nsTableFrame(nsStyleContext* aContext)
 
 NS_QUERYFRAME_HEAD(nsTableFrame)
   NS_QUERYFRAME_ENTRY(nsITableLayout)
-NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
 NS_IMETHODIMP
 nsTableFrame::Init(nsIContent*      aContent,
@@ -208,7 +208,7 @@ nsTableFrame::Init(nsIContent*      aContent,
   nsresult  rv;
 
   // Let the base class do its processing
-  rv = nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  rv = nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
 
   // see if border collapse is on, if so set it
   const nsStyleTableBorder* tableStyle = GetStyleTableBorder();
@@ -260,7 +260,7 @@ void
 nsTableFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   mColGroups.DestroyFramesFrom(aDestructRoot);
-  nsContainerFrame::DestroyFrom(aDestructRoot);
+  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
 
 // Make sure any views are positioned properly
@@ -1060,13 +1060,13 @@ nsTableFrame::GetChildList(ChildListID aListID) const
   if (aListID == kColGroupList) {
     return mColGroups;
   }
-  return nsContainerFrame::GetChildList(aListID);
+  return nsHTMLContainerFrame::GetChildList(aListID);
 }
 
 void
 nsTableFrame::GetChildLists(nsTArray<ChildList>* aLists) const
 {
-  nsContainerFrame::GetChildLists(aLists);
+  nsHTMLContainerFrame::GetChildLists(aLists);
   mColGroups.AppendIfNonempty(aLists, kColGroupList);
 }
 
@@ -1469,7 +1469,7 @@ nsTableFrame::MarkIntrinsicWidthsDirty()
 
   // XXXldb Call SetBCDamageArea?
 
-  nsContainerFrame::MarkIntrinsicWidthsDirty();
+  nsHTMLContainerFrame::MarkIntrinsicWidthsDirty();
 }
 
 /* virtual */ nscoord
@@ -1498,7 +1498,7 @@ nsTableFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 nsTableFrame::IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext)
 {
   IntrinsicWidthOffsetData result =
-    nsContainerFrame::IntrinsicWidthOffsets(aRenderingContext);
+    nsHTMLContainerFrame::IntrinsicWidthOffsets(aRenderingContext);
 
   result.hMargin = 0;
   result.hPctMargin = 0;
@@ -1521,8 +1521,9 @@ nsTableFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                           bool aShrinkWrap)
 {
   nsSize result =
-    nsContainerFrame::ComputeSize(aRenderingContext, aCBSize, aAvailableWidth,
-                                  aMargin, aBorder, aPadding, aShrinkWrap);
+    nsHTMLContainerFrame::ComputeSize(aRenderingContext, aCBSize,
+                                      aAvailableWidth,
+                                      aMargin, aBorder, aPadding, aShrinkWrap);
 
   // Tables never shrink below their min width.
   nscoord minWidth = GetMinWidth(aRenderingContext);
@@ -2321,7 +2322,7 @@ nsTableFrame::RemoveFrame(ChildListID     aListID,
 nsTableFrame::GetUsedBorder() const
 {
   if (!IsBorderCollapse())
-    return nsContainerFrame::GetUsedBorder();
+    return nsHTMLContainerFrame::GetUsedBorder();
 
   return GetIncludedOuterBCBorder();
 }
@@ -2330,7 +2331,7 @@ nsTableFrame::GetUsedBorder() const
 nsTableFrame::GetUsedPadding() const
 {
   if (!IsBorderCollapse())
-    return nsContainerFrame::GetUsedPadding();
+    return nsHTMLContainerFrame::GetUsedPadding();
 
   return nsMargin(0,0,0,0);
 }

@@ -205,36 +205,6 @@ inline Anchor<T>::~Anchor()
 #endif  /* defined(__GNUC__) */
 
 /*
- * Methods for poisoning GC heap pointer words and checking for poisoned words.
- * These are in this file for use in Value methods and so forth.
- *
- * If the moving GC hazard analysis is in use and detects a non-rooted stack
- * pointer to a GC thing, one byte of that pointer is poisoned to refer to an
- * invalid location. For both 32 bit and 64 bit systems, the fourth byte of the
- * pointer is overwritten, to reduce the likelihood of accidentally changing
- * a live integer value.
- */
-
-inline void PoisonPtr(jsuword *v)
-{
-#if defined(JSGC_ROOT_ANALYSIS) && defined(DEBUG)
-    uint8_t *ptr = (uint8_t *) v + 3;
-    *ptr = JS_FREE_PATTERN;
-#endif
-}
-
-template <typename T>
-inline bool IsPoisonedPtr(T *v)
-{
-#if defined(JSGC_ROOT_ANALYSIS) && defined(DEBUG)
-    uint32_t mask = jsuword(v) & 0xff000000;
-    return mask == uint32_t(JS_FREE_PATTERN << 24);
-#else
-    return false;
-#endif
-}
-
-/*
  * JS::Value is the C++ interface for a single JavaScript Engine value.
  * A few general notes on JS::Value:
  *
@@ -251,8 +221,8 @@ inline bool IsPoisonedPtr(T *v)
  *   example, if cx->exception has a magic value, the reason must be
  *   JS_GENERATOR_CLOSING.
  *
- * - A key difference between JSVAL_* and JS::Value operations is that
- *   JS::Value gives null a separate type. Thus
+ * - A key difference between jsval and JS::Value is that JS::Value gives null
+ *   a separate type. Thus
  *
  *           JSVAL_IS_OBJECT(v) === v.isObjectOrNull()
  *       !JSVAL_IS_PRIMITIVE(v) === v.isObject()
@@ -311,7 +281,6 @@ class Value
 
     JS_ALWAYS_INLINE
     void setString(JSString *str) {
-        JS_ASSERT(!IsPoisonedPtr(str));
         data = STRING_TO_JSVAL_IMPL(str);
     }
 
@@ -322,8 +291,12 @@ class Value
 
     JS_ALWAYS_INLINE
     void setObject(JSObject &obj) {
-        JS_ASSERT(!IsPoisonedPtr(&obj));
         data = OBJECT_TO_JSVAL_IMPL(&obj);
+    }
+
+    JS_ALWAYS_INLINE
+    void setObject(const JS::Anchor<JSObject *> &obj) {
+        setObject(*obj.get());
     }
 
     JS_ALWAYS_INLINE
@@ -334,6 +307,16 @@ class Value
     JS_ALWAYS_INLINE
     void setMagic(JSWhyMagic why) {
         data = MAGIC_TO_JSVAL_IMPL(why);
+    }
+
+    JS_ALWAYS_INLINE
+    void setMagicWithObjectOrNullPayload(JSObject *obj) {
+        data = MAGIC_OBJ_TO_JSVAL_IMPL(obj);
+    }
+
+    JS_ALWAYS_INLINE
+    JSObject *getMagicObjectOrNullPayload() const {
+        return MAGIC_JSVAL_TO_OBJECT_OR_NULL_IMPL(data);
     }
 
     JS_ALWAYS_INLINE
@@ -462,15 +445,17 @@ class Value
         return JSVAL_IS_MAGIC_IMPL(data);
     }
 
-    /*
-     * Although the Value class comment says 'magic' is a singleton type, it is
-     * technically possible to use the payload. This should be avoided to
-     * preserve the ability for the strong assertions in isMagic().
-     */
     JS_ALWAYS_INLINE
-    bool isParticularMagic(JSWhyMagic why) const {
+    bool isMagicCheck(JSWhyMagic why) const {
         return isMagic() && data.s.payload.why == why;
     }
+
+#if JS_BITS_PER_WORD == 64
+    JS_ALWAYS_INLINE
+    bool hasPtrPayload() const {
+        return data.asBits >= JSVAL_LOWER_INCL_SHIFTED_TAG_OF_PTR_PAYLOAD_SET;
+    }
+#endif
 
     JS_ALWAYS_INLINE
     bool isMarkable() const {
@@ -560,8 +545,56 @@ class Value
     }
 
     JS_ALWAYS_INLINE
+    uint64_t asRawBits() const {
+        return data.asBits;
+    }
+
+    JS_ALWAYS_INLINE
+    void setRawBits(uint64_t bits) {
+        data.asBits = bits;
+    }
+
+    /*
+     * In the extract/box/unbox functions below, "NonDouble" means this
+     * functions must not be called on a value that is a double. This allows
+     * these operations to be implemented more efficiently, since doubles
+     * generally already require special handling by the caller.
+     */
+    JS_ALWAYS_INLINE
     JSValueType extractNonDoubleType() const {
         return JSVAL_EXTRACT_NON_DOUBLE_TYPE_IMPL(data);
+    }
+
+    JS_ALWAYS_INLINE
+    JSValueTag extractNonDoubleTag() const {
+        return JSVAL_EXTRACT_NON_DOUBLE_TAG_IMPL(data);
+    }
+
+    JS_ALWAYS_INLINE
+    void unboxNonDoubleTo(uint64_t *out) const {
+        UNBOX_NON_DOUBLE_JSVAL(data, out);
+    }
+
+    JS_ALWAYS_INLINE
+    void boxNonDoubleFrom(JSValueType type, uint64_t *out) {
+        data = BOX_NON_DOUBLE_JSVAL(type, out);
+    }
+
+    /*
+     * The trace-jit specializes JSVAL_TYPE_OBJECT into JSVAL_TYPE_FUNOBJ and
+     * JSVAL_TYPE_NONFUNOBJ. Since these two operations just return the type of
+     * a value, the caller must handle JSVAL_TYPE_OBJECT separately.
+     */
+    JS_ALWAYS_INLINE
+    JSValueType extractNonDoubleObjectTraceType() const {
+        JS_ASSERT(!isObject());
+        return JSVAL_EXTRACT_NON_DOUBLE_TYPE_IMPL(data);
+    }
+
+    JS_ALWAYS_INLINE
+    JSValueTag extractNonDoubleObjectTraceTag() const {
+        JS_ASSERT(!isObject());
+        return JSVAL_EXTRACT_NON_DOUBLE_TAG_IMPL(data);
     }
 
     /*
@@ -647,16 +680,6 @@ class Value
     friend jsval_layout (::JSVAL_TO_IMPL)(Value);
     friend Value (::IMPL_TO_JSVAL)(jsval_layout l);
 } JSVAL_ALIGNMENT;
-
-inline bool
-IsPoisonedValue(const Value &v)
-{
-    if (v.isString())
-        return IsPoisonedPtr(v.toString());
-    if (v.isObject())
-        return IsPoisonedPtr(&v.toObject());
-    return false;
-}
 
 /************************************************************************/
 
@@ -781,7 +804,7 @@ template<>
 inline Anchor<Value>::~Anchor()
 {
     volatile uint64_t bits;
-    bits = JSVAL_TO_IMPL(hold).asBits;
+    bits = hold.asRawBits();
 }
 
 #endif
@@ -1958,16 +1981,6 @@ JS_IsInRequest(JSContext *cx);
 
 #ifdef __cplusplus
 JS_END_EXTERN_C
-
-inline bool
-IsPoisonedId(jsid iden)
-{
-    if (JSID_IS_STRING(iden))
-        return JS::IsPoisonedPtr(JSID_TO_STRING(iden));
-    if (JSID_IS_OBJECT(iden))
-        return JS::IsPoisonedPtr(JSID_TO_OBJECT(iden));
-    return false;
-}
 
 class JSAutoRequest {
   public:
@@ -3399,11 +3412,12 @@ extern JS_PUBLIC_API(JSBool)
 JS_FreezeObject(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_ConstructObject(JSContext *cx, JSClass *clasp, JSObject *parent);
+JS_ConstructObject(JSContext *cx, JSClass *clasp, JSObject *proto,
+                   JSObject *parent);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_ConstructObjectWithArguments(JSContext *cx, JSClass *clasp, JSObject *parent,
-                                uintN argc, jsval *argv);
+JS_ConstructObjectWithArguments(JSContext *cx, JSClass *clasp, JSObject *proto,
+                                JSObject *parent, uintN argc, jsval *argv);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_New(JSContext *cx, JSObject *ctor, uintN argc, jsval *argv);

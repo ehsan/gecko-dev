@@ -106,7 +106,7 @@ public class Tabs implements GeckoEventListener {
     }
 
     public Tab getTabAt(int index) {
-        if (index >= 0 && index < order.size())
+        if (index < order.size())
             return order.get(index);
         else
             return null;
@@ -141,7 +141,7 @@ public class Tabs implements GeckoEventListener {
 
     /** Close tab and then select nextTab */
     public void closeTab(Tab tab, Tab nextTab) {
-        if (tab == null || nextTab == null)
+        if (tab == null)
             return;
 
         GeckoAppShell.sendEventToGecko(new GeckoEvent("Tab:Select", String.valueOf(nextTab.getId())));

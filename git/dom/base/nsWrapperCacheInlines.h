@@ -139,11 +139,4 @@ nsWrapperCache::ClearWrapperIfProxy()
     SetWrapperBits(NULL);
 }
 
-inline bool
-nsWrapperCache::IsBlack()
-{
-  JSObject* o = GetWrapperPreserveColor();
-  return o && !xpc_IsGrayGCThing(o);
-}
-
 #endif /* nsWrapperCache_h___ */

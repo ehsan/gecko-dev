@@ -240,10 +240,6 @@ private:
   // Booleans to indicate if we have audio and/or video data
   bool mHasVideo;
   bool mHasAudio;
-
-  // Value of the "media.webm.force_stereo_mode" pref, which we need off the
-  // main thread.
-  PRInt32 mForceStereoMode;
 };
 
 #endif

@@ -50,13 +50,15 @@ using namespace mozilla::imagelib;
 
 NS_IMPL_THREADSAFE_ISUPPORTS3(nsICOEncoder, imgIEncoder, nsIInputStream, nsIAsyncInputStream)
 
-nsICOEncoder::nsICOEncoder() : mImageBufferStart(nsnull),
+nsICOEncoder::nsICOEncoder() : mFinished(false),
+                               mImageBufferStart(nsnull), 
                                mImageBufferCurr(0),
                                mImageBufferSize(0), 
                                mImageBufferReadPoint(0), 
-                               mFinished(false),
-                               mUsePNG(true),
-                               mNotifyThreshold(0)
+                               mCallback(nsnull),
+                               mCallbackTarget(nsnull), 
+                               mNotifyThreshold(0),
+                               mUsePNG(true)
 {
 }
 

@@ -56,7 +56,6 @@
 #include "jsiter.h"
 
 #include "frontend/TokenStream.h"
-#include "js/MemoryMetrics.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/Retcon.h"
 
@@ -1685,7 +1684,7 @@ types::MarkArgumentsCreated(JSContext *cx, JSScript *script)
              */
             Value *sp = fp->base() + analysis->getCode(iter.pc()).stackDepth;
             for (Value *vp = fp->slots(); vp < sp; vp++) {
-                if (vp->isParticularMagic(JS_LAZY_ARGUMENTS)) {
+                if (vp->isMagicCheck(JS_LAZY_ARGUMENTS)) {
                     if (!js_GetArgsValue(cx, fp, vp))
                         vp->setNull();
                 }
@@ -1891,7 +1890,7 @@ TypeHasGlobal(Type type, JSObject *global)
         return false;
 
     if (type.isSingleObject())
-        return &type.singleObject()->global() == global;
+        return type.singleObject()->getGlobal() == global;
 
     if (type.isTypeObject())
         return type.typeObject()->getGlobal() == global;
@@ -1969,8 +1968,6 @@ TypeObject *
 TypeCompartment::newTypeObject(JSContext *cx, JSScript *script,
                                JSProtoKey key, JSObject *proto, bool unknown)
 {
-    RootObject root(cx, &proto);
-
     TypeObject *object = gc::NewGCThing<TypeObject>(cx, gc::FINALIZE_TYPE_OBJECT, sizeof(TypeObject));
     if (!object)
         return NULL;
@@ -2035,21 +2032,21 @@ TypeCompartment::newAllocationSiteTypeObject(JSContext *cx, const AllocationSite
 static inline jsid
 GetAtomId(JSContext *cx, JSScript *script, const jsbytecode *pc, unsigned offset)
 {
-    unsigned index = js_GetIndexFromBytecode(script, (jsbytecode*) pc, offset);
+    unsigned index = js_GetIndexFromBytecode(cx, script, (jsbytecode*) pc, offset);
     return MakeTypeId(cx, ATOM_TO_JSID(script->getAtom(index)));
 }
 
 static inline JSObject *
 GetScriptObject(JSContext *cx, JSScript *script, const jsbytecode *pc, unsigned offset)
 {
-    unsigned index = js_GetIndexFromBytecode(script, (jsbytecode*) pc, offset);
+    unsigned index = js_GetIndexFromBytecode(cx, script, (jsbytecode*) pc, offset);
     return script->getObject(index);
 }
 
 static inline const Value &
 GetScriptConst(JSContext *cx, JSScript *script, const jsbytecode *pc)
 {
-    unsigned index = js_GetIndexFromBytecode(script, (jsbytecode*) pc, 0);
+    unsigned index = js_GetIndexFromBytecode(cx, script, (jsbytecode*) pc, 0);
     return script->getConst(index);
 }
 
@@ -2082,29 +2079,6 @@ types::UseNewType(JSContext *cx, JSScript *script, jsbytecode *pc)
         jsid id = GetAtomId(cx, script, pc, 0);
         if (id == id_prototype(cx))
             return true;
-    }
-
-    return false;
-}
-
-bool
-types::ArrayPrototypeHasIndexedProperty(JSContext *cx, JSScript *script)
-{
-    if (!cx->typeInferenceEnabled() || !script->hasGlobal())
-        return true;
-
-    JSObject *proto;
-    if (!js_GetClassPrototype(cx, NULL, JSProto_Array, &proto, NULL))
-        return true;
-
-    while (proto) {
-        TypeObject *type = proto->getType(cx);
-        if (type->unknownProperties())
-            return true;
-        TypeSet *indexTypes = type->getProperty(cx, JSID_VOID, false);
-        if (!indexTypes || indexTypes->isOwnProperty(cx, type, true) || indexTypes->knownNonEmpty(cx))
-            return true;
-        proto = proto->getProto();
     }
 
     return false;
@@ -2619,7 +2593,7 @@ struct types::ObjectTableKey
 
 struct types::ObjectTableEntry
 {
-    ReadBarriered<TypeObject> object;
+    TypeObject *object;
     Type *types;
 };
 
@@ -3431,6 +3405,8 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_INDEXBASE3:
       case JSOP_RESETBASE:
       case JSOP_RESETBASE0:
+      case JSOP_BLOCKCHAIN:
+      case JSOP_NULLBLOCKCHAIN:
       case JSOP_POPV:
       case JSOP_DEBUGGER:
       case JSOP_SETCALL:
@@ -3982,22 +3958,11 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
 
       case JSOP_ENTERWITH:
       case JSOP_ENTERBLOCK:
-      case JSOP_ENTERLET0:
         /*
          * Scope lookups can occur on the values being pushed here. We don't track
          * the value or its properties, and just monitor all name opcodes in the
          * script.
          */
-        break;
-
-      case JSOP_ENTERLET1:
-        /*
-         * JSOP_ENTERLET1 enters a let block with an unrelated value on top of
-         * the stack (such as the condition to a switch) whose constraints must
-         * be propagated. The other values are ignored for the same reason as
-         * JSOP_ENTERLET0.
-         */
-        poppedTypes(pc, 0)->addSubset(cx, &pushed[defCount - 1]);
         break;
 
       case JSOP_ITER: {
@@ -4056,9 +4021,6 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
 
       case JSOP_LEAVEBLOCKEXPR:
         poppedTypes(pc, 0)->addSubset(cx, &pushed[0]);
-        break;
-
-      case JSOP_LEAVEFORLETIN:
         break;
 
       case JSOP_CASE:
@@ -4594,7 +4556,7 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
              * integer properties and bail out. We can't mark the aggregate
              * JSID_VOID type property as being in a definite slot.
              */
-            unsigned index = js_GetIndexFromBytecode(script, pc, 0);
+            unsigned index = js_GetIndexFromBytecode(cx, script, pc, 0);
             jsid id = ATOM_TO_JSID(script->getAtom(index));
             if (MakeTypeId(cx, id) != id)
                 return false;
@@ -5178,11 +5140,7 @@ TypeScript::SetScope(JSContext *cx, JSScript *script, JSObject *scope)
 {
     JS_ASSERT(script->types && !script->types->hasScope());
 
-    Root<JSScript*> scriptRoot(cx, &script);
-    RootObject scopeRoot(cx, &scope);
-
     JSFunction *fun = script->function();
-    bool nullClosure = fun && fun->isNullClosure();
 
     JS_ASSERT_IF(!fun, !script->isOuterFunction && !script->isInnerFunction);
     JS_ASSERT_IF(!scope, fun && !script->isInnerFunction);
@@ -5199,8 +5157,8 @@ TypeScript::SetScope(JSContext *cx, JSScript *script, JSObject *scope)
         return true;
     }
 
-    JS_ASSERT_IF(fun && scope, fun->global() == scope->global());
-    script->types->global = fun ? &fun->global() : &scope->global();
+    JS_ASSERT_IF(fun && scope, fun->getGlobal() == scope->getGlobal());
+    script->types->global = fun ? fun->getGlobal() : scope->getGlobal();
 
     /*
      * Update the parent in the script's bindings. The bindings are created
@@ -5213,7 +5171,7 @@ TypeScript::SetScope(JSContext *cx, JSScript *script, JSObject *scope)
     if (!cx->typeInferenceEnabled())
         return true;
 
-    if (!script->isInnerFunction || nullClosure) {
+    if (!script->isInnerFunction || fun->isNullClosure()) {
         /*
          * Outermost functions need nesting information if there are inner
          * functions directly nested in them.
@@ -5231,7 +5189,7 @@ TypeScript::SetScope(JSContext *cx, JSScript *script, JSObject *scope)
      * the script is nested inside.
      */
     while (!scope->isCall())
-        scope = &scope->asScope().enclosingScope();
+        scope = scope->internalScopeChain();
 
     CallObject &call = scope->asCall();
 
@@ -5264,9 +5222,9 @@ TypeScript::SetScope(JSContext *cx, JSScript *script, JSObject *scope)
     if (!parent->ensureHasTypes(cx))
         return false;
     if (!parent->types->hasScope()) {
-        if (!SetScope(cx, parent, &call.enclosingScope()))
+        if (!SetScope(cx, parent, scope->internalScopeChain()))
             return false;
-        parent->nesting()->activeCall = &call;
+        parent->nesting()->activeCall = scope;
         parent->nesting()->argArray = Valueify(call.argArray());
         parent->nesting()->varArray = Valueify(call.varArray());
     }
@@ -5359,7 +5317,7 @@ CheckNestingParent(JSContext *cx, JSObject *scope, JSScript *script)
     JS_ASSERT(parent);
 
     while (!scope->isCall() || scope->asCall().getCalleeFunction()->script() != parent)
-        scope = &scope->asScope().enclosingScope();
+        scope = scope->internalScopeChain();
 
     if (scope != parent->nesting()->activeCall) {
         parent->reentrantOuterFunction = true;
@@ -5374,7 +5332,7 @@ CheckNestingParent(JSContext *cx, JSObject *scope, JSScript *script)
          * parent.
          */
         if (parent->nesting()->parent) {
-            scope = &scope->asScope().enclosingScope();
+            scope = scope->internalScopeChain();
             script = parent;
             goto restart;
         }
@@ -5465,8 +5423,6 @@ IgnorePushed(const jsbytecode *pc, unsigned index)
       /* Storage for 'with' and 'let' blocks not monitored. */
       case JSOP_ENTERWITH:
       case JSOP_ENTERBLOCK:
-      case JSOP_ENTERLET0:
-      case JSOP_ENTERLET1:
         return true;
 
       /* We don't keep track of the iteration state for 'for in' or 'for each in' loops. */
@@ -5817,6 +5773,9 @@ JSObject::setNewTypeUnknown(JSContext *cx)
 TypeObject *
 JSObject::getNewType(JSContext *cx, JSFunction *fun)
 {
+    if (!setDelegate(cx))
+        return NULL;
+
     TypeObjectSet &table = cx->compartment->newTypeObjects;
 
     if (!table.initialized() && !table.init())
@@ -5840,22 +5799,20 @@ JSObject::getNewType(JSContext *cx, JSFunction *fun)
         if (type->newScript && type->newScript->fun != fun)
             type->clearNewScript(cx);
 
+        if (cx->compartment->needsBarrier())
+            TypeObject::readBarrier(type);
+
         return type;
     }
 
-    RootedVarObject self(cx, this);
-
-    if (!setDelegate(cx))
-        return NULL;
-
-    bool markUnknown = self->lastProperty()->hasObjectFlag(BaseShape::NEW_TYPE_UNKNOWN);
+    bool markUnknown = lastProperty()->hasObjectFlag(BaseShape::NEW_TYPE_UNKNOWN);
 
     TypeObject *type = cx->compartment->types.newTypeObject(cx, NULL,
-                                                            JSProto_Object, self, markUnknown);
+                                                            JSProto_Object, this, markUnknown);
     if (!type)
         return NULL;
 
-    if (!table.relookupOrAdd(p, self, type))
+    if (!table.relookupOrAdd(p, this, type))
         return NULL;
 
     if (!cx->typeInferenceEnabled())
@@ -5868,7 +5825,7 @@ JSObject::getNewType(JSContext *cx, JSFunction *fun)
      * flag set. This is a hack, :XXX: need a real correspondence between
      * types and the possible js::Class of objects with that type.
      */
-    if (self->hasSpecialEquality())
+    if (hasSpecialEquality())
         type->flags |= OBJECT_FLAG_SPECIAL_EQUALITY;
 
     if (fun)
@@ -5876,11 +5833,11 @@ JSObject::getNewType(JSContext *cx, JSFunction *fun)
 
 #if JS_HAS_XML_SUPPORT
     /* Special case for XML object equality, see makeLazyType(). */
-    if (self->isXML() && !type->unknownProperties())
+    if (isXML() && !type->unknownProperties())
         type->flags |= OBJECT_FLAG_UNKNOWN_MASK;
 #endif
 
-    if (self->getClass()->ext.equality)
+    if (getClass()->ext.equality)
         type->flags |= OBJECT_FLAG_SPECIAL_EQUALITY;
 
     /*
@@ -5900,8 +5857,6 @@ JSObject::getNewType(JSContext *cx, JSFunction *fun)
 TypeObject *
 JSCompartment::getLazyType(JSContext *cx, JSObject *proto)
 {
-    gc::MaybeCheckStackRoots(cx);
-
     TypeObjectSet &table = cx->compartment->lazyTypeObjects;
 
     if (!table.initialized() && !table.init())
@@ -5911,6 +5866,9 @@ JSCompartment::getLazyType(JSContext *cx, JSObject *proto)
     if (p) {
         TypeObject *type = *p;
         JS_ASSERT(type->lazy());
+
+        if (cx->compartment->needsBarrier())
+            TypeObject::readBarrier(type);
 
         return type;
     }
@@ -6322,7 +6280,7 @@ GetScriptMemoryStats(JSScript *script, TypeInferenceMemoryStats *stats, JSMalloc
 
     /*
      * This counts memory that is in the temp pool but gets attributed
-     * elsewhere.  See JS::SizeOfCompartmentTypeInferenceData for more details.
+     * elsewhere.  See JS_GetTypeInferenceMemoryStats for more details.
      */
     TypeSet *typeArray = typeScript->typeArray();
     for (unsigned i = 0; i < count; i++) {
@@ -6332,10 +6290,10 @@ GetScriptMemoryStats(JSScript *script, TypeInferenceMemoryStats *stats, JSMalloc
     }
 }
 
-JS_PUBLIC_API(void)
-JS::SizeOfCompartmentTypeInferenceData(JSContext *cx, JSCompartment *compartment,
-                                       TypeInferenceMemoryStats *stats,
-                                       JSMallocSizeOfFun mallocSizeOf)
+JS_FRIEND_API(void)
+JS_GetTypeInferenceMemoryStats(JSContext *cx, JSCompartment *compartment,
+                               TypeInferenceMemoryStats *stats,
+                               JSMallocSizeOfFun mallocSizeOf)
 {
     /*
      * Note: not all data in the pool is temporary, and some will survive GCs
@@ -6378,8 +6336,8 @@ JS::SizeOfCompartmentTypeInferenceData(JSContext *cx, JSCompartment *compartment
     }
 }
 
-JS_PUBLIC_API(void)
-JS::SizeOfObjectTypeInferenceData(void *object_, TypeInferenceMemoryStats *stats, JSMallocSizeOfFun mallocSizeOf)
+JS_FRIEND_API(void)
+JS_GetTypeInferenceObjectStats(void *object_, TypeInferenceMemoryStats *stats, JSMallocSizeOfFun mallocSizeOf)
 {
     TypeObject *object = (TypeObject *) object_;
 

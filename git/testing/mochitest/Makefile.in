@@ -53,9 +53,6 @@ DIRS = \
   specialpowers \
   $(NULL)
 
-ifeq ($(MOZ_BUILD_APP),mobile/android)
-DIRS += roboextender
-endif
 
 NO_JS_MANIFEST = 1
 MOZ_CHROME_FILE_FORMAT = jar
@@ -85,7 +82,6 @@ _SERV_FILES = 	\
 		$(topsrcdir)/build/mobile/devicemanagerADB.py \
 		$(topsrcdir)/build/mobile/devicemanagerSUT.py \
 		$(topsrcdir)/build/automationutils.py \
-		$(topsrcdir)/build/manifestparser.py \
 		$(topsrcdir)/build/mobile/remoteautomation.py \
 		gen_template.pl \
 		server.js \
@@ -103,10 +99,6 @@ _SERV_FILES = 	\
  	 	plain-loop.html \
 		android.json \
 		$(NULL)	
-
-ifeq ($(MOZ_BUILD_APP),mobile/android)
-_SERV_FILES += $(topsrcdir)/mobile/android/base/tests/robocop.ini
-endif
 
 _PYWEBSOCKET_FILES = \
 		pywebsocket/standalone.py \

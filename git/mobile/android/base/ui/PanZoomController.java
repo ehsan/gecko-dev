@@ -153,10 +153,19 @@ public class PanZoomController
     private boolean mOverrideScrollAck;
     private boolean mOverrideScrollPending;
 
+    /* The current frame of the bounce-back animation, or -1 if the animation is not running. */
+    private int mBounceFrame;
+    /*
+     * The viewport metrics that represent the start and end of the bounce-back animation,
+     * respectively.
+     */
+    private ViewportMetrics mBounceStartMetrics, mBounceEndMetrics;
+
     public PanZoomController(LayerController controller) {
         mController = controller;
         mX = new AxisX(); mY = new AxisY();
         mState = PanZoomState.NOTHING;
+        mBounceFrame = -1;
 
         GeckoAppShell.registerGeckoEventListener("Browser:ZoomToRect", this);
         GeckoAppShell.registerGeckoEventListener("Browser:ZoomToPageWidth", this);
@@ -509,17 +518,19 @@ public class PanZoomController
     private void bounce(ViewportMetrics metrics) {
         stopAnimationTimer();
 
-        ViewportMetrics bounceStartMetrics = new ViewportMetrics(mController.getViewportMetrics());
-        if (bounceStartMetrics.fuzzyEquals(metrics)) {
+        mBounceStartMetrics = new ViewportMetrics(mController.getViewportMetrics());
+        if (mBounceStartMetrics.fuzzyEquals(metrics)) {
             mState = PanZoomState.NOTHING;
             return;
         }
 
+        mBounceFrame = 0;
         mState = PanZoomState.FLING;
         mX.setFlingState(Axis.FlingStates.SNAPPING); mY.setFlingState(Axis.FlingStates.SNAPPING);
-        Log.d(LOGTAG, "end bounce at " + metrics);
+        mBounceEndMetrics = metrics;
+        Log.d(LOGTAG, "end bounce at " + mBounceEndMetrics);
 
-        startAnimationTimer(new BounceRunnable(bounceStartMetrics, metrics));
+        startAnimationTimer(new BounceRunnable());
     }
 
     /* Performs a bounce-back animation to the nearest valid viewport metrics. */
@@ -586,20 +597,6 @@ public class PanZoomController
 
     /* The callback that performs the bounce animation. */
     private class BounceRunnable implements Runnable {
-        /* The current frame of the bounce-back animation */
-        private int mBounceFrame;
-        /*
-         * The viewport metrics that represent the start and end of the bounce-back animation,
-         * respectively.
-         */
-        private ViewportMetrics mBounceStartMetrics;
-        private ViewportMetrics mBounceEndMetrics;
-
-        BounceRunnable(ViewportMetrics startMetrics, ViewportMetrics endMetrics) {
-            mBounceStartMetrics = startMetrics;
-            mBounceEndMetrics = endMetrics;
-        }
-
         public void run() {
             /*
              * The pan/zoom controller might have signaled to us that it wants to abort the
@@ -669,18 +666,18 @@ public class PanZoomController
             if (flingingX || flingingY) {
                 mX.displace(); mY.displace();
                 updatePosition();
-
-                /*
-                 * If we're still flinging with an appreciable velocity, stop here. The threshold is
-                 * higher in the case of overscroll, so we bounce back eagerly when overscrolling but
-                 * coast smoothly to a stop when not.
-                 */
-                float excess = PointUtils.distance(new PointF(mX.getExcess(), mY.getExcess()));
-                PointF velocityVector = new PointF(mX.getRealVelocity(), mY.getRealVelocity());
-                float threshold = (excess >= 1.0f) ? STOPPED_THRESHOLD : FLING_STOPPED_THRESHOLD;
-                if (PointUtils.distance(velocityVector) >= threshold)
-                    return;
             }
+
+            /*
+             * If we're still flinging with an appreciable velocity, stop here. The threshold is
+             * higher in the case of overscroll, so we bounce back eagerly when overscrolling but
+             * coast smoothly to a stop when not.
+             */
+            float excess = PointUtils.distance(new PointF(mX.getExcess(), mY.getExcess()));
+            PointF velocityVector = new PointF(mX.getRealVelocity(), mY.getRealVelocity());
+            float threshold = (excess >= 1.0f) ? STOPPED_THRESHOLD : FLING_STOPPED_THRESHOLD;
+            if (PointUtils.distance(velocityVector) >= threshold)
+                return;
 
             /*
              * Perform a bounce-back animation if overscrolled, unless panning is being overridden
@@ -940,14 +937,6 @@ public class PanZoomController
 
         synchronized (mController) {
             float newZoomFactor = mController.getZoomFactor() * spanRatio;
-            if (newZoomFactor >= MAX_ZOOM) {
-                // apply resistance when zooming past MAX_ZOOM,
-                // such that it asymptotically reaches MAX_ZOOM + 1.0
-                // but never exceeds that
-                float excessZoom = newZoomFactor - MAX_ZOOM;
-                excessZoom = 1.0f - (float)Math.exp(-excessZoom);
-                newZoomFactor = MAX_ZOOM + excessZoom;
-            }
 
             mController.scrollBy(new PointF(mLastZoomFocus.x - detector.getFocusX(),
                                             mLastZoomFocus.y - detector.getFocusY()));
@@ -970,7 +959,6 @@ public class PanZoomController
         mState = PanZoomState.PINCHING;
         mLastZoomFocus = new PointF(detector.getFocusX(), detector.getFocusY());
         GeckoApp.mAppContext.hidePluginViews();
-        GeckoApp.mAppContext.mAutoCompletePopup.hide();
         cancelTouch();
 
         return true;
@@ -980,12 +968,18 @@ public class PanZoomController
     public void onScaleEnd(ScaleGestureDetector detector) {
         Log.d(LOGTAG, "onScaleEnd in " + mState);
 
+        PointF o = mController.getOrigin();
         if (mState == PanZoomState.ANIMATED_ZOOM)
             return;
 
         mState = PanZoomState.PANNING_HOLD_LOCKED;
         mX.firstTouchPos = mX.lastTouchPos = mX.touchPos = detector.getFocusX();
         mY.firstTouchPos = mY.lastTouchPos = mY.touchPos = detector.getFocusY();
+
+        RectF viewport = mController.getViewport();
+
+        FloatSize pageSize = mController.getPageSize();
+        RectF pageRect = new RectF(0,0, pageSize.width, pageSize.height);
 
         // Force a viewport synchronisation
         mController.setForceRedraw();
@@ -1081,7 +1075,6 @@ public class PanZoomController
 
     private boolean animatedZoomTo(RectF zoomToRect) {
         GeckoApp.mAppContext.hidePluginViews();
-        GeckoApp.mAppContext.mAutoCompletePopup.hide();
 
         mState = PanZoomState.ANIMATED_ZOOM;
         final float startZoom = mController.getZoomFactor();

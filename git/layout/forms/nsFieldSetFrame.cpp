@@ -38,7 +38,7 @@
 // YY need to pass isMultiple before create called
 
 //#include "nsFormControlFrame.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsLegendFrame.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMHTMLFieldSetElement.h"
@@ -65,7 +65,7 @@
 
 class nsLegendFrame;
 
-class nsFieldSetFrame : public nsContainerFrame {
+class nsFieldSetFrame : public nsHTMLContainerFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
@@ -138,7 +138,7 @@ NS_NewFieldSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsFieldSetFrame)
 
 nsFieldSetFrame::nsFieldSetFrame(nsStyleContext* aContext)
-  : nsContainerFrame(aContext)
+  : nsHTMLContainerFrame(aContext)
 {
   mContentFrame = nsnull;
   mLegendFrame  = nsnull;
@@ -149,7 +149,7 @@ void
 nsFieldSetFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   DestroyAbsoluteFrames(aDestructRoot);
-  nsContainerFrame::DestroyFrom(aDestructRoot);
+  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
 
 nsIAtom*
@@ -173,7 +173,7 @@ nsFieldSetFrame::SetInitialChildList(ChildListID    aListID,
   }
 
   // Queue up the frames for the content frame
-  return nsContainerFrame::SetInitialChildList(kPrincipalList, aChildList);
+  return nsHTMLContainerFrame::SetInitialChildList(kPrincipalList, aChildList);
 }
 
 class nsDisplayFieldSetBorderBackground : public nsDisplayItem {
@@ -399,8 +399,9 @@ nsFieldSetFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                              bool aShrinkWrap)
 {
   nsSize result =
-    nsContainerFrame::ComputeSize(aRenderingContext, aCBSize, aAvailableWidth,
-                                  aMargin, aBorder, aPadding, aShrinkWrap);
+    nsHTMLContainerFrame::ComputeSize(aRenderingContext, aCBSize,
+                                      aAvailableWidth,
+                                      aMargin, aBorder, aPadding, aShrinkWrap);
 
   // Fieldsets never shrink below their min width.
   nscoord minWidth = GetMinWidth(aRenderingContext);

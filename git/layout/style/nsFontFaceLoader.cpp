@@ -797,7 +797,7 @@ nsUserFontSet::LogMessage(gfxProxyFontEntry *aProxy,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsCOMPtr<nsIScriptError> scriptError =
+  nsCOMPtr<nsIScriptError2> scriptError =
     do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -809,8 +809,11 @@ nsUserFontSet::LogMessage(gfxProxyFontEntry *aProxy,
                                      aFlags,       // flags
                                      "CSS Loader", // category (make separate?)
                                      innerWindowID);
-  if (NS_SUCCEEDED(rv)) {
-    console->LogMessage(scriptError);
+  if (NS_SUCCEEDED(rv)){
+    nsCOMPtr<nsIScriptError> logError = do_QueryInterface(scriptError);
+    if (logError) {
+      console->LogMessage(logError);
+    }
   }
 
   return NS_OK;

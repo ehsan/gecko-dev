@@ -89,8 +89,7 @@ li.error > .stylesheet-info > .stylesheet-more  > .stylesheet-error-message {
 }
 
 .stylesheet-rule-count,
-li.splitview-active > hgroup > .stylesheet-more > h3 > .stylesheet-saveButton,
-li:hover > hgroup > .stylesheet-more > h3 > .stylesheet-saveButton {
+li:hover > hgroup > .stylesheet-more > h3 >  .stylesheet-saveButton {
   display: -moz-box;
 }
 
@@ -100,7 +99,6 @@ li:hover > hgroup > .stylesheet-more > h3 > .stylesheet-saveButton {
 
 /* portrait mode */
 @media (max-aspect-ratio: 5/3) {
-  li.splitview-active > hgroup > .stylesheet-more > .stylesheet-rule-count,
   li:hover > hgroup > .stylesheet-more > .stylesheet-rule-count {
     display: none;
   }

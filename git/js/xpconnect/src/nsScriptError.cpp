@@ -46,7 +46,8 @@
 #include "nsGlobalWindow.h"
 #include "nsPIDOMWindow.h"
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsScriptError, nsIConsoleMessage, nsIScriptError)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsScriptError, nsIConsoleMessage, nsIScriptError,
+                              nsIScriptError2)
 
 nsScriptError::nsScriptError()
     :  mMessage(),

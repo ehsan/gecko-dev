@@ -1564,27 +1564,23 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     }
     catch (ex) { /* never mind; suppose SessionStore is broken */ }
     if (shouldCheck && !shell.isDefaultBrowser(true) && !willRecoverSession) {
-      // Delay the set-default-browser prompt so it doesn't block
-      // initialisation of the session store service.
-      setTimeout(function () {
-        var brandBundle = document.getElementById("bundle_brand");
-        var shellBundle = document.getElementById("bundle_shell");
+      var brandBundle = document.getElementById("bundle_brand");
+      var shellBundle = document.getElementById("bundle_shell");
 
-        var brandShortName = brandBundle.getString("brandShortName");
-        var promptTitle = shellBundle.getString("setDefaultBrowserTitle");
-        var promptMessage = shellBundle.getFormattedString("setDefaultBrowserMessage",
-                                                           [brandShortName]);
-        var checkboxLabel = shellBundle.getFormattedString("setDefaultBrowserDontAsk",
-                                                           [brandShortName]);
-        var checkEveryTime = { value: shouldCheck };
-        var ps = Services.prompt;
-        var rv = ps.confirmEx(window, promptTitle, promptMessage,
-                              ps.STD_YES_NO_BUTTONS,
-                              null, null, null, checkboxLabel, checkEveryTime);
-        if (rv == 0)
-          shell.setDefaultBrowser(true, false);
-        shell.shouldCheckDefaultBrowser = checkEveryTime.value;
-      }, 0);
+      var brandShortName = brandBundle.getString("brandShortName");
+      var promptTitle = shellBundle.getString("setDefaultBrowserTitle");
+      var promptMessage = shellBundle.getFormattedString("setDefaultBrowserMessage",
+                                                         [brandShortName]);
+      var checkboxLabel = shellBundle.getFormattedString("setDefaultBrowserDontAsk",
+                                                         [brandShortName]);
+      var checkEveryTime = { value: shouldCheck };
+      var ps = Services.prompt;
+      var rv = ps.confirmEx(window, promptTitle, promptMessage,
+                            ps.STD_YES_NO_BUTTONS,
+                            null, null, null, checkboxLabel, checkEveryTime);
+      if (rv == 0)
+        shell.setDefaultBrowser(true, false);
+      shell.shouldCheckDefaultBrowser = checkEveryTime.value;
     }
   }
 #endif
@@ -9023,10 +9019,3 @@ XPCOMUtils.defineLazyGetter(window, "gShowPageResizers", function () {
 #endif
 });
 
-function focusNextFrame(event) {
-  let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
-  let dir = event.shiftKey ? fm.MOVEFOCUS_BACKWARDDOC : fm.MOVEFOCUS_FORWARDDOC;
-  let element = fm.moveFocus(window, null, dir, fm.FLAG_BYKEY);
-  if (element.ownerDocument == document)
-    focusAndSelectUrlBar();
-}

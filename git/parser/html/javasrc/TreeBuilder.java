@@ -939,7 +939,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             case IN_BODY:
             case IN_CELL:
             case IN_CAPTION:
-                if (!isInForeignButNotHtmlOrMathTextIntegrationPoint()) {
+                if (!isInForeignButNotHtmlIntegrationPoint()) {
                     reconstructTheActiveFormattingElements();
                 }
                 // fall through
@@ -998,7 +998,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                      * Reconstruct the active formatting
                                      * elements, if any.
                                      */
-                                    if (!isInForeignButNotHtmlOrMathTextIntegrationPoint()) {
+                                    if (!isInForeignButNotHtmlIntegrationPoint()) {
                                         flushCharacters();
                                         reconstructTheActiveFormattingElements();
                                     }
@@ -1195,7 +1195,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                      * Reconstruct the active formatting
                                      * elements, if any.
                                      */
-                                    if (!isInForeignButNotHtmlOrMathTextIntegrationPoint()) {
+                                    if (!isInForeignButNotHtmlIntegrationPoint()) {
                                         flushCharacters();
                                         reconstructTheActiveFormattingElements();
                                     }
@@ -1310,7 +1310,11 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             return;
         }
         if (currentPtr >= 0) {
-            if (isSpecialParentInForeign(stack[currentPtr])) {
+            StackNode<T> stackNode = stack[currentPtr];
+            if (stackNode.ns == "http://www.w3.org/1999/xhtml") {
+                return;
+            }
+            if (stackNode.isHtmlIntegrationPoint()) {
                 return;
             }
             accumulateCharacters(REPLACEMENT_CHARACTER, 0, 1);
@@ -2282,6 +2286,17 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 attributes = null; // CPP
                                 break starttagloop;
                             case RT_OR_RP:
+                                /*
+                                 * If the stack of open elements has a ruby
+                                 * element in scope, then generate implied end
+                                 * tags. If the current node is not then a ruby
+                                 * element, this is a parse error; pop all the
+                                 * nodes from the current node up to the node
+                                 * immediately before the bottommost ruby
+                                 * element on the stack of open elements.
+                                 * 
+                                 * Insert an HTML element for the token.
+                                 */
                                 eltPos = findLastInScope("ruby");
                                 if (eltPos != NOT_FOUND_ON_STACK) {
                                     generateImpliedEndTags();
@@ -2291,6 +2306,9 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                         errStartTagSeenWithoutRuby(name);
                                     } else {
                                         errUnclosedChildrenInRuby();
+                                    }
+                                    while (currentPtr > eltPos) {
+                                        pop();
                                     }
                                 }
                                 appendToCurrentNodeAndPushElementMayFoster(
@@ -5276,11 +5294,10 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                 && stack[currentPtr].ns != "http://www.w3.org/1999/xhtml";
     }
 
-    private boolean isInForeignButNotHtmlOrMathTextIntegrationPoint() {
-        if (currentPtr < 0) {
-            return false;
-        }
-        return !isSpecialParentInForeign(stack[currentPtr]);
+    private boolean isInForeignButNotHtmlIntegrationPoint() {
+        return currentPtr >= 0
+                && stack[currentPtr].ns != "http://www.w3.org/1999/xhtml"
+                && !stack[currentPtr].isHtmlIntegrationPoint();
     }
 
     /**

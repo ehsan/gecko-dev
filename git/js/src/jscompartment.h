@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -39,8 +39,6 @@
 
 #ifndef jscompartment_h___
 #define jscompartment_h___
-
-#include "mozilla/Attributes.h"
 
 #include "jsclist.h"
 #include "jscntxt.h"
@@ -235,7 +233,7 @@ struct JS_FRIEND_API(JSCompartment) {
 
     bool ensureJaegerCompartmentExists(JSContext *cx);
 
-    size_t sizeOfMjitCode() const;
+    void sizeOfCode(size_t *method, size_t *regexp, size_t *unused) const;
 #endif
 
     /*
@@ -471,8 +469,9 @@ class AutoCompartment
     void leave();
 
   private:
-    AutoCompartment(const AutoCompartment &) MOZ_DELETE;
-    AutoCompartment & operator=(const AutoCompartment &) MOZ_DELETE;
+    // Prohibit copying.
+    AutoCompartment(const AutoCompartment &);
+    AutoCompartment & operator=(const AutoCompartment &);
 };
 
 /*

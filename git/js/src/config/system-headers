@@ -113,6 +113,11 @@ fusion/protocol.h
 fusion/fusion.h
 fusion/arena.h
 fusion/object.h
+directfbgl.h
+directfb_version.h
+directfb.h
+directfb_util.h
+directfb_keynames.h
 dgiff.h
 direct/util.h
 direct/memcpy.h
@@ -526,7 +531,6 @@ nl_types.h
 NodeInfo.h
 nss.h
 nssilock.h
-nsswitch.h
 objbase.h
 objidl.h
 Objsafe.h
@@ -746,7 +750,6 @@ sys/sysctl.h
 sys/sysinfo.h
 sys/sysmp.h
 sys/syssgi.h
-sys/system_properties.h
 sys/systeminfo.h
 sys/timeb.h
 sys/time.h

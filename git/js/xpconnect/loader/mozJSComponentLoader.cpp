@@ -41,8 +41,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Attributes.h"
-
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG
 #endif
@@ -90,7 +88,6 @@
 #include "nsILocalFileWin.h"
 #endif
 #include "xpcprivate.h"
-#include "xpcpublic.h"
 #include "nsIResProtocolHandler.h"
 
 #include "mozilla/scache/StartupCache.h"
@@ -236,7 +233,7 @@ Atob(JSContext *cx, uintN argc, jsval *vp)
     if (!argc)
         return true;
 
-    return xpc::Base64Decode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
+    return nsXPConnect::Base64Decode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
 }
 
 static JSBool
@@ -245,7 +242,7 @@ Btoa(JSContext *cx, uintN argc, jsval *vp)
     if (!argc)
         return true;
 
-    return xpc::Base64Encode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
+    return nsXPConnect::Base64Encode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
 }
 
 static JSBool
@@ -322,8 +319,8 @@ private:
     char*      mBuf;
 
     // prevent copying and assignment
-    JSCLContextHelper(const JSCLContextHelper &) MOZ_DELETE;
-    const JSCLContextHelper& operator=(const JSCLContextHelper &) MOZ_DELETE;
+    JSCLContextHelper(const JSCLContextHelper &); // not implemented
+    const JSCLContextHelper& operator=(const JSCLContextHelper &); // not implemented
 };
 
 
@@ -337,9 +334,9 @@ public:
 private:
     JSContext* mContext;
     JSErrorReporter mOldReporter;
-
-    JSCLAutoErrorReporterSetter(const JSCLAutoErrorReporterSetter &) MOZ_DELETE;
-    const JSCLAutoErrorReporterSetter& operator=(const JSCLAutoErrorReporterSetter &) MOZ_DELETE;
+    // prevent copying and assignment
+    JSCLAutoErrorReporterSetter(const JSCLAutoErrorReporterSetter &); // not implemented
+    const JSCLAutoErrorReporterSetter& operator=(const JSCLAutoErrorReporterSetter &); // not implemented
 };
 
 static nsresult
@@ -441,7 +438,7 @@ mozJSComponentLoader::ReallyInit()
     if (!mContext)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    uint32_t options = JS_GetOptions(mContext);
+    uint32 options = JS_GetOptions(mContext);
     JS_SetOptions(mContext, options | JSOPTION_XML);
 
     // Always use the latest js version
@@ -791,7 +788,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
         // If |exception| is non-null, then our caller wants us to propagate
         // any exceptions out to our caller. Ensure that the engine doesn't
         // eagerly report the exception.
-        uint32_t oldopts = JS_GetOptions(cx);
+        uint32 oldopts = JS_GetOptions(cx);
         JS_SetOptions(cx, oldopts | JSOPTION_NO_SCRIPT_RVAL |
                       (exception ? JSOPTION_DONT_REPORT_UNCAUGHT : 0));
 
@@ -965,20 +962,10 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     // See bug 384168.
     *aGlobal = global;
 
-    uint32_t oldopts = JS_GetOptions(cx);
-    JS_SetOptions(cx, oldopts |
-                  (exception ? JSOPTION_DONT_REPORT_UNCAUGHT : 0));
-    bool ok = JS_ExecuteScriptVersion(cx, global, script, NULL, JSVERSION_LATEST);
-    JS_SetOptions(cx, oldopts);
-
-    if (!ok) {
+    if (!JS_ExecuteScriptVersion(cx, global, script, NULL, JSVERSION_LATEST)) {
 #ifdef DEBUG_shaver_off
         fprintf(stderr, "mJCL: failed to execute %s\n", nativePath.get());
 #endif
-        if (exception) {
-            JS_GetPendingException(cx, exception);
-            JS_ClearPendingException(cx);
-        }
         *aGlobal = nsnull;
         return NS_ERROR_FAILURE;
     }

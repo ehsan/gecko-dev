@@ -45,8 +45,6 @@
 
 #include "vm/GlobalObject.h"
 
-#include "vm/ScopeObject-inl.h"
-
 inline bool
 JSFunction::inStrictMode() const
 {
@@ -299,6 +297,24 @@ IsConstructing(CallReceiver call)
     return IsConstructing(call.base());
 }
 
+static JS_ALWAYS_INLINE bool
+IsConstructing_PossiblyWithGivenThisObject(const Value *vp, JSObject **ctorThis)
+{
+#ifdef DEBUG
+    JSObject *callee = &JS_CALLEE(cx, vp).toObject();
+    if (callee->isFunction()) {
+        JSFunction *fun = callee->toFunction();
+        JS_ASSERT((fun->flags & JSFUN_CONSTRUCTOR) != 0);
+    } else {
+        JS_ASSERT(callee->getClass()->construct != NULL);
+    }
+#endif
+    bool isCtor = vp[1].isMagic();
+    if (isCtor)
+        *ctorThis = vp[1].getMagicObjectOrNullPayload();
+    return isCtor;
+}
+
 inline const char *
 GetFunctionNameBytes(JSContext *cx, JSFunction *fun, JSAutoByteString *bytes)
 {
@@ -335,8 +351,8 @@ SkipScopeParent(JSObject *parent)
 {
     if (!parent)
         return NULL;
-    while (parent->isScope())
-        parent = &parent->asScope().enclosingScope();
+    while (parent->isInternalScope())
+        parent = parent->scopeChain();
     return parent;
 }
 
@@ -345,7 +361,7 @@ CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
                     gc::AllocKind kind = JSFunction::FinalizeKind)
 {
     JS_ASSERT(parent);
-    JSObject *proto = parent->global().getOrCreateFunctionPrototype(cx);
+    JSObject *proto = parent->getGlobal()->getOrCreateFunctionPrototype(cx);
     if (!proto)
         return NULL;
 
@@ -379,7 +395,7 @@ CloneFunctionObject(JSContext *cx, JSFunction *fun)
      * Variant which makes an exact clone of fun, preserving parent and proto.
      * Calling the above version CloneFunctionObject(cx, fun, fun->getParent())
      * is not equivalent: API clients, including XPConnect, can reparent
-     * objects so that fun->global() != fun->getProto()->global().
+     * objects so that fun->getGlobal() != fun->getProto()->getGlobal().
      * See ReparentWrapperIfFound.
      */
     JS_ASSERT(fun->getParent() && fun->getProto());

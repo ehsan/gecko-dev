@@ -50,7 +50,7 @@
 #include "nsCOMPtr.h"
 #include "nsIContent.h"
 #include "nsIPresShell.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsBoxFrame.h"
 #include "nsBoxFrame.h"
 

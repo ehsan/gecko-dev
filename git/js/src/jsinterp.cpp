@@ -83,6 +83,7 @@
 #include "jsinferinlines.h"
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
+#include "jsopcodeinlines.h"
 #include "jsprobes.h"
 #include "jspropertycacheinlines.h"
 #include "jsscopeinlines.h"
@@ -105,6 +106,124 @@
 using namespace js;
 using namespace js::gc;
 using namespace js::types;
+
+JSObject *
+js::GetScopeChain(JSContext *cx)
+{
+    /*
+     * Note: we don't need to expand inline frames here, because frames are
+     * only inlined when the caller and callee share the same scope chain.
+     */
+    StackFrame *fp = js_GetTopStackFrame(cx, FRAME_EXPAND_NONE);
+    if (!fp) {
+        /*
+         * There is no code active on this context. In place of an actual
+         * scope chain, use the context's global object, which is set in
+         * js_InitFunctionAndObjectClasses, and which represents the default
+         * scope chain for the embedding. See also js_FindClassObject.
+         *
+         * For embeddings that use the inner and outer object hooks, the inner
+         * object represents the ultimate global object, with the outer object
+         * acting as a stand-in.
+         */
+        JSObject *obj = cx->globalObject;
+        if (!obj) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INACTIVE);
+            return NULL;
+        }
+
+        OBJ_TO_INNER_OBJECT(cx, obj);
+        return obj;
+    }
+    return GetScopeChain(cx, fp);
+}
+
+/*
+ * This computes the blockChain by iterating through the bytecode
+ * of the current script until it reaches the PC. Each time it sees
+ * an ENTERBLOCK or LEAVEBLOCK instruction, it records the new
+ * blockChain. A faster variant of this function that doesn't
+ * require bytecode scanning appears below.
+ */
+JSObject *
+js::GetBlockChain(JSContext *cx, StackFrame *fp)
+{
+    if (!fp->isScriptFrame())
+        return NULL;
+
+    jsbytecode *target = fp->pcQuadratic(cx->stack);
+
+    JSScript *script = fp->script();
+    jsbytecode *start = script->code;
+
+    /*
+     * If the debugger asks for the scope chain at a pc where we are about to
+     * fix it up, advance target past the fixup. See bug 672804.
+     */
+    JSOp op = JSOp(*target);
+    while (op == JSOP_NOP || op == JSOP_INDEXBASE || op == JSOP_INDEXBASE1 ||
+           op == JSOP_INDEXBASE2 || op == JSOP_INDEXBASE3 ||
+           op == JSOP_BLOCKCHAIN || op == JSOP_NULLBLOCKCHAIN)
+    {
+        target += js_CodeSpec[op].length;
+        op = JSOp(*target);
+    }
+    JS_ASSERT(target >= start && target < start + script->length);
+
+    JSObject *blockChain = NULL;
+    uintN indexBase = 0;
+    ptrdiff_t oplen;
+    for (jsbytecode *pc = start; pc < target; pc += oplen) {
+        JSOp op = JSOp(*pc);
+        const JSCodeSpec *cs = &js_CodeSpec[op];
+        oplen = cs->length;
+        if (oplen < 0)
+            oplen = js_GetVariableBytecodeLength(pc);
+
+        if (op == JSOP_INDEXBASE)
+            indexBase = GET_INDEXBASE(pc);
+        else if (op == JSOP_INDEXBASE1 || op == JSOP_INDEXBASE2 || op == JSOP_INDEXBASE3)
+            indexBase = (op - JSOP_INDEXBASE1 + 1) << 16;
+        else if (op == JSOP_RESETBASE || op == JSOP_RESETBASE0)
+            indexBase = 0;
+        else if (op == JSOP_ENTERBLOCK)
+            blockChain = script->getObject(indexBase + GET_INDEX(pc));
+        else if (op == JSOP_LEAVEBLOCK || op == JSOP_LEAVEBLOCKEXPR)
+            blockChain = blockChain->getStaticBlockScopeChain();
+        else if (op == JSOP_BLOCKCHAIN)
+            blockChain = script->getObject(indexBase + GET_INDEX(pc));
+        else if (op == JSOP_NULLBLOCKCHAIN)
+            blockChain = NULL;
+    }
+
+    return blockChain;
+}
+
+/*
+ * This function computes the current blockChain, but only in
+ * the special case where a BLOCKCHAIN or NULLBLOCKCHAIN
+ * instruction appears immediately after the current PC.
+ * We ensure this happens for a few important ops like DEFFUN.
+ * |oplen| is the length of opcode at the current PC.
+ */
+JSObject *
+js::GetBlockChainFast(JSContext *cx, StackFrame *fp, JSOp op, size_t oplen)
+{
+    /* Assume that we're in a script frame. */
+    jsbytecode *pc = fp->pcQuadratic(cx->stack);
+    JS_ASSERT(JSOp(*pc) == op);
+
+    pc += oplen;
+    op = JSOp(*pc);
+
+    /* The fast paths assume no JSOP_RESETBASE/INDEXBASE noise. */
+    if (op == JSOP_NULLBLOCKCHAIN)
+        return NULL;
+    if (op == JSOP_BLOCKCHAIN)
+        return fp->script()->getObject(GET_INDEX(pc));
+
+    return GetBlockChain(cx, fp);
+}
 
 /*
  * We can't determine in advance which local variables can live on the stack and
@@ -136,10 +255,10 @@ using namespace js::types;
  * This lazy cloning is implemented in GetScopeChain, which is also used in
  * some other cases --- entering 'with' blocks, for example.
  */
-JSObject *
-js::GetScopeChain(JSContext *cx, StackFrame *fp)
+static JSObject *
+GetScopeChainFull(JSContext *cx, StackFrame *fp, JSObject *blockChain)
 {
-    StaticBlockObject *sharedBlock = fp->maybeBlockChain();
+    JSObject *sharedBlock = blockChain;
 
     if (!sharedBlock) {
         /*
@@ -175,7 +294,7 @@ js::GetScopeChain(JSContext *cx, StackFrame *fp)
          */
         limitClone = &fp->scopeChain();
         while (limitClone->isWith())
-            limitClone = &limitClone->asWith().enclosingScope();
+            limitClone = limitClone->internalScopeChain();
         JS_ASSERT(limitClone);
 
         /*
@@ -207,35 +326,37 @@ js::GetScopeChain(JSContext *cx, StackFrame *fp)
      * Special-case cloning the innermost block; this doesn't have enough in
      * common with subsequent steps to include in the loop.
      *
-     * create() leaves the clone's enclosingScope unset. We set it below.
+     * js_CloneBlockObject leaves the clone's parent slot uninitialized. We
+     * populate it below.
      */
-    ClonedBlockObject *innermostNewChild = ClonedBlockObject::create(cx, *sharedBlock, fp);
+    JSObject *innermostNewChild = js_CloneBlockObject(cx, sharedBlock, fp);
     if (!innermostNewChild)
         return NULL;
+    AutoObjectRooter tvr(cx, innermostNewChild);
 
     /*
      * Clone our way towards outer scopes until we reach the innermost
      * enclosing function, or the innermost block we've already cloned.
      */
-    ClonedBlockObject *newChild = innermostNewChild;
+    JSObject *newChild = innermostNewChild;
     for (;;) {
         JS_ASSERT(newChild->getProto() == sharedBlock);
-        sharedBlock = sharedBlock->enclosingBlock();
+        sharedBlock = sharedBlock->getStaticBlockScopeChain();
 
         /* Sometimes limitBlock will be NULL, so check that first.  */
         if (sharedBlock == limitBlock || !sharedBlock)
             break;
 
         /* As in the call above, we don't know the real parent yet.  */
-        ClonedBlockObject *clone = ClonedBlockObject::create(cx, *sharedBlock, fp);
+        JSObject *clone = js_CloneBlockObject(cx, sharedBlock, fp);
         if (!clone)
             return NULL;
 
-        if (!newChild->setEnclosingScope(cx, *clone))
+        if (!newChild->setInternalScopeChain(cx, clone))
             return NULL;
         newChild = clone;
     }
-    if (!newChild->setEnclosingScope(cx, fp->scopeChain()))
+    if (!newChild->setInternalScopeChain(cx, &fp->scopeChain()))
         return NULL;
 
 
@@ -244,7 +365,7 @@ js::GetScopeChain(JSContext *cx, StackFrame *fp)
      * found it in blockChain.
      */
     JS_ASSERT_IF(limitBlock &&
-                 limitBlock->isClonedBlock() &&
+                 limitBlock->isBlock() &&
                  limitClone->getPrivate() == js_FloatingFrameIfGenerator(cx, fp),
                  sharedBlock);
 
@@ -254,34 +375,15 @@ js::GetScopeChain(JSContext *cx, StackFrame *fp)
 }
 
 JSObject *
-js::GetScopeChain(JSContext *cx)
+js::GetScopeChain(JSContext *cx, StackFrame *fp)
 {
-    /*
-     * Note: we don't need to expand inline frames here, because frames are
-     * only inlined when the caller and callee share the same scope chain.
-     */
-    StackFrame *fp = js_GetTopStackFrame(cx, FRAME_EXPAND_NONE);
-    if (!fp) {
-        /*
-         * There is no code active on this context. In place of an actual
-         * scope chain, use the context's global object, which is set in
-         * js_InitFunctionAndObjectClasses, and which represents the default
-         * scope chain for the embedding. See also js_FindClassObject.
-         *
-         * For embeddings that use the inner and outer object hooks, the inner
-         * object represents the ultimate global object, with the outer object
-         * acting as a stand-in.
-         */
-        JSObject *obj = cx->globalObject;
-        if (!obj) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INACTIVE);
-            return NULL;
-        }
+    return GetScopeChainFull(cx, fp, GetBlockChain(cx, fp));
+}
 
-        OBJ_TO_INNER_OBJECT(cx, obj);
-        return obj;
-    }
-    return GetScopeChain(cx, fp);
+JSObject *
+js::GetScopeChainFast(JSContext *cx, StackFrame *fp, JSOp op, size_t oplen)
+{
+    return GetScopeChainFull(cx, fp, GetBlockChainFast(cx, fp, op, oplen));
 }
 
 /* Some objects (e.g., With) delegate 'this' to another object. */
@@ -326,7 +428,7 @@ js::BoxNonStrictThis(JSContext *cx, const CallReceiver &call)
 #endif
 
     if (thisv.isNullOrUndefined()) {
-        JSObject *thisp = call.callee().global().thisObject(cx);
+        JSObject *thisp = call.callee().getGlobal()->thisObject(cx);
         if (!thisp)
             return false;
         call.thisv().setObject(*thisp);
@@ -420,7 +522,7 @@ js::OnUnknownMethod(JSContext *cx, Value *vp)
     return true;
 }
 
-static JSBool
+static JS_REQUIRES_STACK JSBool
 NoSuchMethod(JSContext *cx, uintN argc, Value *vp)
 {
     InvokeArgsGuard args;
@@ -446,7 +548,7 @@ NoSuchMethod(JSContext *cx, uintN argc, Value *vp)
 
 #endif /* JS_HAS_NO_SUCH_METHOD */
 
-bool
+JS_REQUIRES_STACK bool
 js::RunScript(JSContext *cx, JSScript *script, StackFrame *fp)
 {
     JS_ASSERT(script);
@@ -458,7 +560,7 @@ js::RunScript(JSContext *cx, JSScript *script, StackFrame *fp)
 
     /* FIXME: Once bug 470510 is fixed, make this an assert. */
     if (script->compileAndGo) {
-        if (fp->scopeChain().global().isCleared()) {
+        if (fp->scopeChain().getGlobal()->isCleared()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CLEARED_SCOPE);
             return false;
         }
@@ -518,7 +620,7 @@ js::InvokeKernel(JSContext *cx, CallArgs args, MaybeConstruct construct)
 
     /* Invoke native functions. */
     JSFunction *fun = callee.toFunction();
-    JS_ASSERT_IF(construct, !fun->isNativeConstructor());
+    JS_ASSERT_IF(construct, !fun->isConstructor());
     if (fun->isNative())
         return CallJSNative(cx, fun->u.n.native, args);
 
@@ -575,45 +677,6 @@ js::Invoke(JSContext *cx, const Value &thisv, const Value &fval, uintN argc, Val
 
     *rval = args.rval();
     return true;
-}
-
-bool
-js::InvokeConstructorKernel(JSContext *cx, const CallArgs &argsRef)
-{
-    JS_ASSERT(!FunctionClass.construct);
-    CallArgs args = argsRef;
-
-    args.thisv().setMagic(JS_IS_CONSTRUCTING);
-
-    if (args.calleev().isObject()) {
-        JSObject *callee = &args.callee();
-        Class *clasp = callee->getClass();
-        if (clasp == &FunctionClass) {
-            JSFunction *fun = callee->toFunction();
-
-            if (fun->isNativeConstructor()) {
-                Probes::calloutBegin(cx, fun);
-                bool ok = CallJSNativeConstructor(cx, fun->u.n.native, args);
-                Probes::calloutEnd(cx, fun);
-                return ok;
-            }
-
-            if (!fun->isInterpretedConstructor())
-                goto error;
-
-            if (!InvokeKernel(cx, args, CONSTRUCT))
-                return false;
-
-            JS_ASSERT(args.rval().isObject());
-            return true;
-        }
-        if (clasp->construct)
-            return CallJSNativeConstructor(cx, clasp->construct, args);
-    }
-
-error:
-    js_ReportIsNotFunction(cx, &args.calleev(), JSV2F_CONSTRUCT);
-    return false;
 }
 
 bool
@@ -681,8 +744,6 @@ js::ExecuteKernel(JSContext *cx, JSScript *script, JSObject &scopeChain, const V
 {
     JS_ASSERT_IF(evalInFrame, type == EXECUTE_DEBUG);
 
-    Root<JSScript*> scriptRoot(cx, &script);
-
     if (script->isEmpty()) {
         if (result)
             result->setUndefined();
@@ -691,9 +752,6 @@ js::ExecuteKernel(JSContext *cx, JSScript *script, JSObject &scopeChain, const V
 
     ExecuteFrameGuard efg;
     if (!cx->stack.pushExecuteFrame(cx, script, thisv, scopeChain, type, evalInFrame, &efg))
-        return false;
-
-    if (!script->ensureRanAnalysis(cx, &scopeChain))
         return false;
 
     /* Give strict mode eval its own fresh lexical environment. */
@@ -707,6 +765,9 @@ js::ExecuteKernel(JSContext *cx, JSScript *script, JSObject &scopeChain, const V
 #endif
 
     Probes::startExecution(cx, script);
+
+    if (!script->ensureRanAnalysis(cx, &scopeChain))
+        return false;
 
     TypeScript::SetThis(cx, script, fp->thisValue());
 
@@ -996,6 +1057,85 @@ js::TypeOfValue(JSContext *cx, const Value &vref)
 }
 
 bool
+js::InvokeConstructorKernel(JSContext *cx, const CallArgs &argsRef)
+{
+    JS_ASSERT(!FunctionClass.construct);
+    CallArgs args = argsRef;
+
+    /*
+     * Callers are not required to initialize 'this' when constructing, but
+     * make sure the value is initialized in case we are about to call a native
+     * or if something (e.g. type inference) tries to inspect the frame before
+     * its 'this' value is constructed.
+     */
+    args.thisv().setMagicWithObjectOrNullPayload(NULL);
+
+    if (args.calleev().isObject()) {
+        JSObject *callee = &args.callee();
+        Class *clasp = callee->getClass();
+        if (clasp == &FunctionClass) {
+            JSFunction *fun = callee->toFunction();
+
+            if (fun->isConstructor()) {
+                Probes::calloutBegin(cx, fun);
+                bool ok = CallJSNativeConstructor(cx, fun->u.n.native, args);
+                Probes::calloutEnd(cx, fun);
+                return ok;
+            }
+
+            if (!fun->isInterpretedConstructor())
+                goto error;
+
+            if (!InvokeKernel(cx, args, CONSTRUCT))
+                return false;
+
+            JS_ASSERT(args.rval().isObject());
+            return true;
+        }
+        if (clasp->construct)
+            return CallJSNativeConstructor(cx, clasp->construct, args);
+    }
+
+error:
+    js_ReportIsNotFunction(cx, &args.calleev(), JSV2F_CONSTRUCT);
+    return false;
+}
+
+bool
+js::InvokeConstructorWithGivenThis(JSContext *cx, JSObject *thisobj, const Value &fval,
+                                   uintN argc, Value *argv, Value *rval)
+{
+    InvokeArgsGuard args;
+    if (!cx->stack.pushInvokeArgs(cx, argc, &args))
+        return JS_FALSE;
+
+    args.calleev() = fval;
+    /* Initialize args.thisv on all paths below. */
+    memcpy(args.array(), argv, argc * sizeof(Value));
+
+    /* Handle the fast-constructor cases before calling the general case. */
+    JSObject &callee = fval.toObject();
+    Class *clasp = callee.getClass();
+    JSFunction *fun;
+    bool ok;
+    if (clasp == &FunctionClass && (fun = callee.toFunction())->isConstructor()) {
+        args.thisv().setMagicWithObjectOrNullPayload(thisobj);
+        Probes::calloutBegin(cx, fun);
+        ok = CallJSNativeConstructor(cx, fun->u.n.native, args);
+        Probes::calloutEnd(cx, fun);
+    } else if (clasp->construct) {
+        args.thisv().setMagicWithObjectOrNullPayload(thisobj);
+        ok = CallJSNativeConstructor(cx, clasp->construct, args);
+    } else {
+        args.thisv().setObjectOrNull(thisobj);
+        ok = Invoke(cx, args, CONSTRUCT);
+    }
+
+    *rval = args.rval();
+    return ok;
+}
+
+bool
 js::ValueToId(JSContext *cx, const Value &v, jsid *idp)
 {
     int32_t i;
@@ -1022,7 +1162,7 @@ js::ValueToId(JSContext *cx, const Value &v, jsid *idp)
  * of the with block with sp + stackIndex.
  */
 static bool
-EnterWith(JSContext *cx, jsint stackIndex)
+EnterWith(JSContext *cx, jsint stackIndex, JSOp op, size_t oplen)
 {
     StackFrame *fp = cx->fp();
     Value *sp = cx->regs().sp;
@@ -1039,7 +1179,7 @@ EnterWith(JSContext *cx, jsint stackIndex)
         sp[-1].setObject(*obj);
     }
 
-    JSObject *parent = GetScopeChain(cx, fp);
+    JSObject *parent = GetScopeChainFast(cx, fp, op, oplen);
     if (!parent)
         return JS_FALSE;
 
@@ -1047,8 +1187,8 @@ EnterWith(JSContext *cx, jsint stackIndex)
     if (!obj)
         return JS_FALSE;
 
-    JSObject *withobj = WithObject::create(cx, fp, *obj, *parent,
-                                           sp + stackIndex - fp->base());
+    JSObject *withobj = js_NewWithObject(cx, obj, parent,
+                                         sp + stackIndex - fp->base());
     if (!withobj)
         return JS_FALSE;
 
@@ -1059,45 +1199,49 @@ EnterWith(JSContext *cx, jsint stackIndex)
 static void
 LeaveWith(JSContext *cx)
 {
-    WithObject &withobj = cx->fp()->scopeChain().asWith();
-    JS_ASSERT(withobj.maybeStackFrame() == js_FloatingFrameIfGenerator(cx, cx->fp()));
-    JS_ASSERT(withobj.stackDepth() >= 0);
-    withobj.setStackFrame(NULL);
-    cx->fp()->setScopeChainNoCallObj(withobj.enclosingScope());
+    JSObject *withobj;
+
+    withobj = &cx->fp()->scopeChain();
+    JS_ASSERT(withobj->getClass() == &WithClass);
+    JS_ASSERT(withobj->getPrivate() == js_FloatingFrameIfGenerator(cx, cx->fp()));
+    JS_ASSERT(OBJ_BLOCK_DEPTH(cx, withobj) >= 0);
+    withobj->setPrivate(NULL);
+    cx->fp()->setScopeChainNoCallObj(*withobj->internalScopeChain());
 }
 
 bool
-js::IsActiveWithOrBlock(JSContext *cx, JSObject &obj, uint32_t stackDepth)
+js::IsActiveWithOrBlock(JSContext *cx, JSObject &obj, int stackDepth)
 {
     return (obj.isWith() || obj.isBlock()) &&
            obj.getPrivate() == js_FloatingFrameIfGenerator(cx, cx->fp()) &&
-           obj.asNestedScope().stackDepth() >= stackDepth;
+           OBJ_BLOCK_DEPTH(cx, &obj) >= stackDepth;
 }
 
-/* Unwind block and scope chains to match the given depth. */
-void
-js::UnwindScope(JSContext *cx, uint32_t stackDepth)
+/*
+ * Unwind block and scope chains to match the given depth. The function sets
+ * fp->sp on return to stackDepth.
+ */
+bool
+js::UnwindScope(JSContext *cx, jsint stackDepth, JSBool normalUnwind)
 {
+    JS_ASSERT(stackDepth >= 0);
     JS_ASSERT(cx->fp()->base() + stackDepth <= cx->regs().sp);
 
     StackFrame *fp = cx->fp();
-    StaticBlockObject *block = fp->maybeBlockChain();
-    while (block) {
-        if (block->stackDepth() < stackDepth)
-            break;
-        block = block->enclosingBlock();
-    }
-    fp->setBlockChain(block);
-
     for (;;) {
         JSObject &scopeChain = fp->scopeChain();
         if (!IsActiveWithOrBlock(cx, scopeChain, stackDepth))
             break;
-        if (scopeChain.isClonedBlock())
-            scopeChain.asClonedBlock().put(cx);
-        else
+        if (scopeChain.isBlock()) {
+            /* Don't fail until after we've updated all stacks. */
+            normalUnwind &= js_PutBlockObject(cx, normalUnwind);
+        } else {
             LeaveWith(cx);
+        }
     }
+
+    cx->regs().sp = fp->base() + stackDepth;
+    return normalUnwind;
 }
 
 /*
@@ -1284,8 +1428,8 @@ AssertValidPropertyCacheHit(JSContext *cx, JSScript *script, FrameRegs& regs,
     uint32_t sample = cx->runtime->gcNumber;
     PropertyCacheEntry savedEntry = *entry;
 
-    PropertyName *name;
-    GET_NAME_FROM_BYTECODE(script, regs.pc, 0, name);
+    JSAtom *atom;
+    GET_ATOM_FROM_BYTECODE(script, regs.pc, 0, atom);
 
     JSObject *obj, *pobj;
     JSProperty *prop;
@@ -1293,10 +1437,10 @@ AssertValidPropertyCacheHit(JSContext *cx, JSScript *script, FrameRegs& regs,
 
     if (JOF_OPMODE(*regs.pc) == JOF_NAME) {
         bool global = js_CodeSpec[*regs.pc].format & JOF_GNAME;
-        ok = FindProperty(cx, name, global, &obj, &pobj, &prop);
+        ok = js_FindProperty(cx, ATOM_TO_JSID(atom), global, &obj, &pobj, &prop);
     } else {
         obj = start;
-        ok = LookupProperty(cx, obj, name, &pobj, &prop);
+        ok = js_LookupProperty(cx, obj, ATOM_TO_JSID(atom), &pobj, &prop);
     }
     if (!ok)
         return false;
@@ -1497,13 +1641,6 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
         atom = atoms[GET_INDEX(regs.pc + PCOFF)];                             \
     JS_END_MACRO
 
-#define LOAD_NAME(PCOFF, name)                                                \
-    JS_BEGIN_MACRO                                                            \
-        JSAtom *atom;                                                         \
-        LOAD_ATOM((PCOFF), atom);                                             \
-        name = atom->asPropertyName();                                        \
-    JS_END_MACRO
-
 #define GET_FULL_INDEX(PCOFF)                                                 \
     (atoms - script->atoms + GET_INDEX(regs.pc + (PCOFF)))
 
@@ -1651,6 +1788,7 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
 
     /* State communicated between non-local jumps: */
     JSBool interpReturnOK;
+    JSAtom *atomNotDefined;
 
     /* Don't call the script prologue if executing between Method and Trace JIT. */
     if (interpMode == JSINTERP_NORMAL) {
@@ -1810,12 +1948,14 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
 /* No-ops for ease of decompilation. */
 ADD_EMPTY_CASE(JSOP_NOP)
 ADD_EMPTY_CASE(JSOP_UNUSED0)
+ADD_EMPTY_CASE(JSOP_UNUSED1)
 ADD_EMPTY_CASE(JSOP_CONDSWITCH)
 ADD_EMPTY_CASE(JSOP_TRY)
 #if JS_HAS_XML_SUPPORT
 ADD_EMPTY_CASE(JSOP_STARTXML)
 ADD_EMPTY_CASE(JSOP_STARTXMLEXPR)
 #endif
+ADD_EMPTY_CASE(JSOP_NULLBLOCKCHAIN)
 ADD_EMPTY_CASE(JSOP_LOOPHEAD)
 END_EMPTY_CASES
 
@@ -1861,6 +2001,9 @@ check_backedge:
 BEGIN_CASE(JSOP_LINENO)
 END_CASE(JSOP_LINENO)
 
+BEGIN_CASE(JSOP_BLOCKCHAIN)
+END_CASE(JSOP_BLOCKCHAIN)
+
 BEGIN_CASE(JSOP_UNDEFINED)
     PUSH_UNDEFINED();
 END_CASE(JSOP_UNDEFINED)
@@ -1874,17 +2017,17 @@ BEGIN_CASE(JSOP_POPN)
     regs.sp -= GET_UINT16(regs.pc);
 #ifdef DEBUG
     JS_ASSERT(regs.fp()->base() <= regs.sp);
-    StaticBlockObject *block = regs.fp()->maybeBlockChain();
-    JS_ASSERT_IF(block,
-                 block->stackDepth() + block->slotCount()
+    JSObject *obj = GetBlockChain(cx, regs.fp());
+    JS_ASSERT_IF(obj,
+                 OBJ_BLOCK_DEPTH(cx, obj) + OBJ_BLOCK_COUNT(cx, obj)
                  <= (size_t) (regs.sp - regs.fp()->base()));
-    for (JSObject *obj = &regs.fp()->scopeChain(); obj; obj = obj->enclosingScope()) {
+    for (obj = &regs.fp()->scopeChain(); obj; obj = obj->scopeChain()) {
         if (!obj->isBlock() || !obj->isWith())
             continue;
         if (obj->getPrivate() != js_FloatingFrameIfGenerator(cx, regs.fp()))
             break;
-        JS_ASSERT(regs.fp()->base() + obj->asBlock().stackDepth()
-                  + (obj->isBlock() ? obj->asBlock().slotCount() : 1)
+        JS_ASSERT(regs.fp()->base() + OBJ_BLOCK_DEPTH(cx, obj)
+                  + (obj->isBlock() ? OBJ_BLOCK_COUNT(cx, obj) : 1)
                   <= regs.sp);
     }
 #endif
@@ -1897,7 +2040,7 @@ BEGIN_CASE(JSOP_POPV)
 END_CASE(JSOP_POPV)
 
 BEGIN_CASE(JSOP_ENTERWITH)
-    if (!EnterWith(cx, -1))
+    if (!EnterWith(cx, -1, JSOP_ENTERWITH, JSOP_ENTERWITH_LENGTH))
         goto error;
 
     /*
@@ -1935,7 +2078,6 @@ BEGIN_CASE(JSOP_STOP)
     if (entryFrame != regs.fp())
   inline_return:
     {
-        JS_ASSERT(!regs.fp()->hasBlockChain());
         JS_ASSERT(!IsActiveWithOrBlock(cx, regs.fp()->scopeChain(), 0));
 
         if (cx->compartment->debugMode())
@@ -2266,11 +2408,11 @@ END_CASE(JSOP_PICK)
 
 BEGIN_CASE(JSOP_SETCONST)
 {
-    PropertyName *name;
-    LOAD_NAME(0, name);
+    JSAtom *atom;
+    LOAD_ATOM(0, atom);
     JSObject &obj = regs.fp()->varObj();
     const Value &ref = regs.sp[-1];
-    if (!obj.defineProperty(cx, name, ref,
+    if (!obj.defineProperty(cx, atom->asPropertyName(), ref,
                             JS_PropertyStub, JS_StrictPropertyStub,
                             JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY)) {
         goto error;
@@ -2297,7 +2439,7 @@ END_CASE(JSOP_ENUMCONSTELEM)
 #endif
 
 BEGIN_CASE(JSOP_BINDGNAME)
-    PUSH_OBJECT(regs.fp()->scopeChain().global());
+    PUSH_OBJECT(*regs.fp()->scopeChain().getGlobal());
 END_CASE(JSOP_BINDGNAME)
 
 BEGIN_CASE(JSOP_BINDNAME)
@@ -2326,14 +2468,15 @@ BEGIN_CASE(JSOP_BINDNAME)
 
         PropertyCacheEntry *entry;
         JSObject *obj2;
-        PropertyName *name;
-        JS_PROPERTY_CACHE(cx).test(cx, regs.pc, obj, obj2, entry, name);
-        if (!name) {
+        JSAtom *atom;
+        JS_PROPERTY_CACHE(cx).test(cx, regs.pc, obj, obj2, entry, atom);
+        if (!atom) {
             ASSERT_VALID_PROPERTY_CACHE_HIT(obj, obj2, entry);
             break;
         }
 
-        obj = FindIdentifierBase(cx, &regs.fp()->scopeChain(), name);
+        jsid id = ATOM_TO_JSID(atom);
+        obj = js_FindIdentifierBase(cx, &regs.fp()->scopeChain(), id);
         if (!obj)
             goto error;
     } while (0);
@@ -2726,11 +2869,12 @@ END_CASE(JSOP_POS)
 
 BEGIN_CASE(JSOP_DELNAME)
 {
-    PropertyName *name;
-    LOAD_NAME(0, name);
+    JSAtom *atom;
+    LOAD_ATOM(0, atom);
+    jsid id = ATOM_TO_JSID(atom);
     JSObject *obj, *obj2;
     JSProperty *prop;
-    if (!FindProperty(cx, name, false, &obj, &obj2, &prop))
+    if (!js_FindProperty(cx, id, false, &obj, &obj2, &prop))
         goto error;
 
     /* Strict mode code should never contain JSOP_DELNAME opcodes. */
@@ -2739,7 +2883,7 @@ BEGIN_CASE(JSOP_DELNAME)
     /* ECMA says to return true if name is undefined or inherited. */
     PUSH_BOOLEAN(true);
     if (prop) {
-        if (!obj->deleteProperty(cx, name, &regs.sp[-1], false))
+        if (!obj->deleteProperty(cx, atom->asPropertyName(), &regs.sp[-1], false))
             goto error;
     }
 }
@@ -2747,14 +2891,15 @@ END_CASE(JSOP_DELNAME)
 
 BEGIN_CASE(JSOP_DELPROP)
 {
-    PropertyName *name;
-    LOAD_NAME(0, name);
+    JSAtom *atom;
+    LOAD_ATOM(0, atom);
+    jsid id = ATOM_TO_JSID(atom);
 
     JSObject *obj;
     FETCH_OBJECT(cx, -1, obj);
 
     Value rval;
-    if (!obj->deleteProperty(cx, name, &rval, script->strictModeCode))
+    if (!obj->deleteGeneric(cx, id, &rval, script->strictModeCode))
         goto error;
 
     regs.sp[-1] = rval;
@@ -2807,7 +2952,8 @@ BEGIN_CASE(JSOP_TYPEOF)
 {
     const Value &ref = regs.sp[-1];
     JSType type = JS_TypeOfValue(cx, ref);
-    regs.sp[-1].setString(rt->atomState.typeAtoms[type]);
+    JSAtom *atom = rt->atomState.typeAtoms[type];
+    regs.sp[-1].setString(atom);
 }
 END_CASE(JSOP_TYPEOF)
 
@@ -2927,9 +3073,9 @@ BEGIN_CASE(JSOP_LENGTH)
                 }
 
                 if (obj->isArguments()) {
-                    ArgumentsObject &argsobj = obj->asArguments();
-                    if (!argsobj.hasOverriddenLength()) {
-                        uint32_t length = argsobj.initialLength();
+                    ArgumentsObject *argsobj = obj->asArguments();
+                    if (!argsobj->hasOverriddenLength()) {
+                        uint32_t length = argsobj->initialLength();
                         JS_ASSERT(length < INT32_MAX);
                         rval = Int32Value(int32_t(length));
                         break;
@@ -2950,21 +3096,22 @@ BEGIN_CASE(JSOP_LENGTH)
 
         PropertyCacheEntry *entry;
         JSObject *obj2;
-        PropertyName *name;
-        JS_PROPERTY_CACHE(cx).test(cx, regs.pc, aobj, obj2, entry, name);
-        if (!name) {
+        JSAtom *atom;
+        JS_PROPERTY_CACHE(cx).test(cx, regs.pc, aobj, obj2, entry, atom);
+        if (!atom) {
             ASSERT_VALID_PROPERTY_CACHE_HIT(aobj, obj2, entry);
             NATIVE_GET(cx, obj, obj2, entry->prop, JSGET_METHOD_BARRIER, &rval);
             break;
         }
 
+        jsid id = ATOM_TO_JSID(atom);
         if (JS_LIKELY(!aobj->getOps()->getProperty)
-            ? !GetPropertyHelper(cx, obj, name,
-                                 (regs.pc[JSOP_GETPROP_LENGTH] == JSOP_IFEQ)
-                                 ? JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER
-                                 : JSGET_CACHE_RESULT | JSGET_METHOD_BARRIER,
-                                 &rval)
-            : !obj->getProperty(cx, name, &rval))
+            ? !js_GetPropertyHelper(cx, obj, id,
+                                    (regs.pc[JSOP_GETPROP_LENGTH] == JSOP_IFEQ)
+                                    ? JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER
+                                    : JSGET_CACHE_RESULT | JSGET_METHOD_BARRIER,
+                                    &rval)
+            : !obj->getGeneric(cx, id, &rval))
         {
             goto error;
         }
@@ -2985,14 +3132,14 @@ BEGIN_CASE(JSOP_CALLPROP)
     if (lval.isObject()) {
         objv = lval;
     } else {
-        GlobalObject &global = regs.fp()->scopeChain().global();
+        GlobalObject *global = regs.fp()->scopeChain().getGlobal();
         JSObject *pobj;
         if (lval.isString()) {
-            pobj = global.getOrCreateStringPrototype(cx);
+            pobj = global->getOrCreateStringPrototype(cx);
         } else if (lval.isNumber()) {
-            pobj = global.getOrCreateNumberPrototype(cx);
+            pobj = global->getOrCreateNumberPrototype(cx);
         } else if (lval.isBoolean()) {
-            pobj = global.getOrCreateBooleanPrototype(cx);
+            pobj = global->getOrCreateBooleanPrototype(cx);
         } else {
             JS_ASSERT(lval.isNull() || lval.isUndefined());
             js_ReportIsNullOrUndefined(cx, -1, lval, NULL);
@@ -3008,44 +3155,50 @@ BEGIN_CASE(JSOP_CALLPROP)
 
     PropertyCacheEntry *entry;
     JSObject *obj2;
-    PropertyName *name;
-    JS_PROPERTY_CACHE(cx).test(cx, regs.pc, aobj, obj2, entry, name);
-    if (!name) {
+    JSAtom *atom;
+    JS_PROPERTY_CACHE(cx).test(cx, regs.pc, aobj, obj2, entry, atom);
+    if (!atom) {
         ASSERT_VALID_PROPERTY_CACHE_HIT(aobj, obj2, entry);
         NATIVE_GET(cx, &objv.toObject(), obj2, entry->prop, JSGET_NO_METHOD_BARRIER, &rval);
         regs.sp[-1] = rval;
         assertSameCompartment(cx, regs.sp[-1]);
         PUSH_COPY(lval);
     } else {
-        /* Cache miss: use the name loaded for us under PropertyCache::test. */
+        /*
+         * Cache miss: use the immediate atom that was loaded for us under
+         * PropertyCache::test.
+         */
+        jsid id;
+        id = ATOM_TO_JSID(atom);
+
         PUSH_NULL();
         if (lval.isObject()) {
-            if (!GetMethod(cx, &objv.toObject(), name,
-                           JS_LIKELY(!aobj->getOps()->getProperty)
-                           ? JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER
-                           : JSGET_NO_METHOD_BARRIER,
-                           &rval))
-            {
+            if (!js_GetMethod(cx, &objv.toObject(), id,
+                              JS_LIKELY(!aobj->getOps()->getProperty)
+                              ? JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER
+                              : JSGET_NO_METHOD_BARRIER,
+                              &rval)) {
                 goto error;
             }
             regs.sp[-1] = objv;
             regs.sp[-2] = rval;
+            assertSameCompartment(cx, regs.sp[-1], regs.sp[-2]);
         } else {
             JS_ASSERT(!objv.toObject().getOps()->getProperty);
-            if (!GetPropertyHelper(cx, &objv.toObject(), name,
-                                   JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER, &rval))
-            {
+            if (!js_GetPropertyHelper(cx, &objv.toObject(), id,
+                                      JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER,
+                                      &rval)) {
                 goto error;
             }
             regs.sp[-1] = lval;
             regs.sp[-2] = rval;
+            assertSameCompartment(cx, regs.sp[-1], regs.sp[-2]);
         }
-        assertSameCompartment(cx, regs.sp[-1], regs.sp[-2]);
     }
 #if JS_HAS_NO_SUCH_METHOD
     if (JS_UNLIKELY(rval.isPrimitive()) && regs.sp[-1].isObject()) {
-        LOAD_NAME(0, name);
-        regs.sp[-2].setString(name);
+        LOAD_ATOM(0, atom);
+        regs.sp[-2].setString(atom);
         if (!OnUnknownMethod(cx, regs.sp - 2))
             goto error;
     }
@@ -3066,7 +3219,7 @@ BEGIN_CASE(JSOP_SETMETHOD)
     JSObject *obj;
     VALUE_TO_OBJECT(cx, &lref, obj);
 
-    JS_ASSERT_IF(op == JSOP_SETGNAME, obj == &regs.fp()->scopeChain().global());
+    JS_ASSERT_IF(op == JSOP_SETGNAME, obj == regs.fp()->scopeChain().getGlobal());
 
     do {
         PropertyCache *cache = &JS_PROPERTY_CACHE(cx);
@@ -3092,8 +3245,8 @@ BEGIN_CASE(JSOP_SETMETHOD)
          */
         PropertyCacheEntry *entry;
         JSObject *obj2;
-        PropertyName *name;
-        if (cache->testForSet(cx, regs.pc, obj, &entry, &obj2, &name)) {
+        JSAtom *atom;
+        if (cache->testForSet(cx, regs.pc, obj, &entry, &obj2, &atom)) {
             /*
              * Property cache hit, only partially confirmed by testForSet. We
              * know that the entry applies to regs.pc and that obj's shape
@@ -3103,19 +3256,17 @@ BEGIN_CASE(JSOP_SETMETHOD)
              * on a prototype property that has a setter.
              */
             const Shape *shape = entry->prop;
+            JS_ASSERT_IF(shape->isDataDescriptor(), shape->writable());
+            JS_ASSERT_IF(shape->hasSlot(), !entry->vindex);
 
-            if (entry->isOwnPropertyHit() ||
-                ((obj2 = obj->getProto()) && obj2->lastProperty() == entry->pshape))
-            {
-                JS_ASSERT_IF(shape->isDataDescriptor(), shape->writable());
-                JS_ASSERT_IF(shape->hasSlot(), entry->isOwnPropertyHit());
-
+            if (entry->vindex == 0 ||
+                ((obj2 = obj->getProto()) && obj2->lastProperty() == entry->pshape)) {
 #ifdef DEBUG
-                if (entry->isOwnPropertyHit()) {
+                if (entry->directHit()) {
                     JS_ASSERT(obj->nativeContains(cx, *shape));
                 } else {
                     JS_ASSERT(obj2->nativeContains(cx, *shape));
-                    JS_ASSERT(entry->isPrototypePropertyHit());
+                    JS_ASSERT(entry->vindex == 1);
                     JS_ASSERT(entry->kshape != entry->pshape);
                     JS_ASSERT(!shape->hasSlot());
                 }
@@ -3128,11 +3279,12 @@ BEGIN_CASE(JSOP_SETMETHOD)
             }
             PCMETER(cache->setpcmisses++);
 
-            LOAD_NAME(0, name);
+            LOAD_ATOM(0, atom);
         } else {
-            JS_ASSERT(name);
+            JS_ASSERT(atom);
         }
 
+        jsid id = ATOM_TO_JSID(atom);
         if (entry && JS_LIKELY(!obj->getOps()->setProperty)) {
             uintN defineHow;
             if (op == JSOP_SETMETHOD)
@@ -3141,10 +3293,10 @@ BEGIN_CASE(JSOP_SETMETHOD)
                 defineHow = DNP_CACHE_RESULT | DNP_UNQUALIFIED;
             else
                 defineHow = DNP_CACHE_RESULT;
-            if (!SetPropertyHelper(cx, obj, name, defineHow, &rval, script->strictModeCode))
+            if (!js_SetPropertyHelper(cx, obj, id, defineHow, &rval, script->strictModeCode))
                 goto error;
         } else {
-            if (!obj->setProperty(cx, name, &rval, script->strictModeCode))
+            if (!obj->setGeneric(cx, id, &rval, script->strictModeCode))
                 goto error;
         }
     } while (0);
@@ -3198,7 +3350,7 @@ BEGIN_CASE(JSOP_GETELEM)
                     goto end_getelem;
             }
         } else if (obj->isArguments()) {
-            if (obj->asArguments().getElement(index, &rval))
+            if (obj->asArguments()->getElement(index, &rval))
                 goto end_getelem;
         }
 
@@ -3210,7 +3362,7 @@ BEGIN_CASE(JSOP_GETELEM)
 
         SpecialId special;
         if (ValueIsSpecial(obj, &rref, &special, cx)) {
-            if (!obj->getSpecial(cx, obj, special, &rval))
+            if (!obj->getSpecial(cx, special, &rval))
                 goto error;
         } else {
             JSAtom *name;
@@ -3446,15 +3598,15 @@ BEGIN_CASE(JSOP_CALLNAME)
 
     bool global = js_CodeSpec[op].format & JOF_GNAME;
     if (global)
-        obj = &obj->global();
+        obj = obj->getGlobal();
 
     Value rval;
 
     PropertyCacheEntry *entry;
     JSObject *obj2;
-    PropertyName *name;
-    JS_PROPERTY_CACHE(cx).test(cx, regs.pc, obj, obj2, entry, name);
-    if (!name) {
+    JSAtom *atom;
+    JS_PROPERTY_CACHE(cx).test(cx, regs.pc, obj, obj2, entry, atom);
+    if (!atom) {
         ASSERT_VALID_PROPERTY_CACHE_HIT(obj, obj2, entry);
         NATIVE_GET(cx, obj, obj2, entry->prop, JSGET_METHOD_BARRIER, &rval);
         PUSH_COPY(rval);
@@ -3468,8 +3620,9 @@ BEGIN_CASE(JSOP_CALLNAME)
         DO_NEXT_OP(len);
     }
 
+    jsid id = ATOM_TO_JSID(atom);
     JSProperty *prop;
-    if (!FindPropertyHelper(cx, name, true, global, &obj, &obj2, &prop))
+    if (!js_FindPropertyHelper(cx, id, true, global, &obj, &obj2, &prop))
         goto error;
     if (!prop) {
         /* Kludge to allow (typeof foo == "undefined") tests. */
@@ -3480,22 +3633,19 @@ BEGIN_CASE(JSOP_CALLNAME)
             len = JSOP_NAME_LENGTH;
             DO_NEXT_OP(len);
         }
-
-        JSAutoByteString bytes;
-        if (js_AtomToPrintableString(cx, name, &bytes))
-            js_ReportIsNotDefined(cx, bytes.ptr());
-        goto error;
+        atomNotDefined = atom;
+        goto atom_not_defined;
     }
 
     /* Take the slow path if prop was not found in a native object. */
     if (!obj->isNative() || !obj2->isNative()) {
-        if (!obj->getProperty(cx, name, &rval))
+        if (!obj->getGeneric(cx, id, &rval))
             goto error;
     } else {
         Shape *shape = (Shape *)prop;
         JSObject *normalized = obj;
-        if (normalized->isWith() && !shape->hasDefaultGetter())
-            normalized = &normalized->asWith().object();
+        if (normalized->getClass() == &WithClass && !shape->hasDefaultGetter())
+            normalized = js_UnwrapWithObject(cx, normalized);
         NATIVE_GET(cx, normalized, obj2, shape, JSGET_METHOD_BARRIER, &rval);
     }
 
@@ -3574,7 +3724,7 @@ BEGIN_CASE(JSOP_REGEXP)
      * bytecode at pc.
      */
     jsatomid index = GET_FULL_INDEX(0);
-    JSObject *proto = regs.fp()->scopeChain().global().getOrCreateRegExpPrototype(cx);
+    JSObject *proto = regs.fp()->scopeChain().getGlobal()->getOrCreateRegExpPrototype(cx);
     if (!proto)
         goto error;
     JSObject *obj = js_CloneRegExpObject(cx, script->getRegExp(index), proto);
@@ -3857,6 +4007,7 @@ BEGIN_CASE(JSOP_DEFVAR)
         attrs |= JSPROP_PERMANENT;
 
     /* Lookup id in order to check for redeclaration problems. */
+    jsid id = ATOM_TO_JSID(name);
     bool shouldDefine;
     if (op == JSOP_DEFVAR) {
         /*
@@ -3871,7 +4022,7 @@ BEGIN_CASE(JSOP_DEFVAR)
     } else {
         JS_ASSERT(op == JSOP_DEFCONST);
         attrs |= JSPROP_READONLY;
-        if (!CheckRedeclaration(cx, obj, name, attrs))
+        if (!CheckRedeclaration(cx, obj, id, attrs))
             goto error;
 
         /*
@@ -3883,9 +4034,8 @@ BEGIN_CASE(JSOP_DEFVAR)
 
     /* Bind a variable only if it's not yet defined. */
     if (shouldDefine &&
-        !DefineNativeProperty(cx, obj, name, UndefinedValue(),
-                              JS_PropertyStub, JS_StrictPropertyStub, attrs, 0, 0))
-    {
+        !DefineNativeProperty(cx, obj, id, UndefinedValue(), JS_PropertyStub, JS_StrictPropertyStub,
+                              attrs, 0, 0)) {
         goto error;
     }
 }
@@ -3914,7 +4064,7 @@ BEGIN_CASE(JSOP_DEFFUN)
     } else {
         JS_ASSERT(!fun->isFlatClosure());
 
-        obj2 = GetScopeChain(cx, regs.fp());
+        obj2 = GetScopeChainFast(cx, regs.fp(), JSOP_DEFFUN, JSOP_DEFFUN_LENGTH);
         if (!obj2)
             goto error;
     }
@@ -3952,6 +4102,7 @@ BEGIN_CASE(JSOP_DEFFUN)
 
     /* ES5 10.5 (NB: with subsequent errata). */
     PropertyName *name = fun->atom->asPropertyName();
+    jsid id = ATOM_TO_JSID(name);
     JSProperty *prop = NULL;
     JSObject *pobj;
     if (!parent->lookupProperty(cx, name, &pobj, &prop))
@@ -3985,9 +4136,9 @@ BEGIN_CASE(JSOP_DEFFUN)
 
             if (shape->isAccessorDescriptor() || !shape->writable() || !shape->enumerable()) {
                 JSAutoByteString bytes;
-                if (js_AtomToPrintableString(cx, name, &bytes)) {
+                if (const char *name = js_ValueToPrintable(cx, IdToValue(id), &bytes)) {
                     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                         JSMSG_CANT_REDEFINE_PROP, bytes.ptr());
+                                         JSMSG_CANT_REDEFINE_PROP, name);
                 }
                 goto error;
             }
@@ -4012,7 +4163,7 @@ BEGIN_CASE(JSOP_DEFFUN_FC)
     JSFunction *fun;
     LOAD_FUNCTION(0);
 
-    JSObject *obj = js_NewFlatClosure(cx, fun);
+    JSObject *obj = js_NewFlatClosure(cx, fun, JSOP_DEFFUN_FC, JSOP_DEFFUN_FC_LENGTH);
     if (!obj)
         goto error;
 
@@ -4024,10 +4175,11 @@ BEGIN_CASE(JSOP_DEFFUN_FC)
 
     JSObject &parent = regs.fp()->varObj();
 
-    PropertyName *name = fun->atom->asPropertyName();
-    if (!CheckRedeclaration(cx, &parent, name, attrs))
+    jsid id = ATOM_TO_JSID(fun->atom);
+    if (!CheckRedeclaration(cx, &parent, id, attrs))
         goto error;
 
+    PropertyName *name = fun->atom->asPropertyName();
     if ((attrs == JSPROP_ENUMERATE)
         ? !parent.setProperty(cx, name, &rval, script->strictModeCode)
         : !parent.defineProperty(cx, name, rval, JS_PropertyStub, JS_StrictPropertyStub, attrs))
@@ -4055,7 +4207,8 @@ BEGIN_CASE(JSOP_DEFLOCALFUN)
     if (fun->isNullClosure()) {
         parent = &regs.fp()->scopeChain();
     } else {
-        parent = GetScopeChain(cx, regs.fp());
+        parent = GetScopeChainFast(cx, regs.fp(), JSOP_DEFLOCALFUN,
+                                   JSOP_DEFLOCALFUN_LENGTH);
         if (!parent)
             goto error;
     }
@@ -4075,7 +4228,7 @@ BEGIN_CASE(JSOP_DEFLOCALFUN_FC)
     JSFunction *fun;
     LOAD_FUNCTION(SLOTNO_LEN);
 
-    JSObject *obj = js_NewFlatClosure(cx, fun);
+    JSObject *obj = js_NewFlatClosure(cx, fun, JSOP_DEFLOCALFUN_FC, JSOP_DEFLOCALFUN_FC_LENGTH);
     if (!obj)
         goto error;
 
@@ -4098,7 +4251,7 @@ BEGIN_CASE(JSOP_LAMBDA)
             parent = &regs.fp()->scopeChain();
 
             if (fun->joinable()) {
-                jsbytecode *pc2 = regs.pc + JSOP_LAMBDA_LENGTH;
+                jsbytecode *pc2 = AdvanceOverBlockchainOp(regs.pc + JSOP_LAMBDA_LENGTH);
                 JSOp op2 = JSOp(*pc2);
 
                 /*
@@ -4113,7 +4266,7 @@ BEGIN_CASE(JSOP_LAMBDA)
                     JSObject *obj2 = &lref.toObject();
                     JS_ASSERT(obj2->isObject());
 #endif
-                    JS_ASSERT(fun->methodAtom() == script->getAtom(GET_FULL_INDEX(JSOP_LAMBDA_LENGTH)));
+                    JS_ASSERT(fun->methodAtom() == script->getAtom(GET_FULL_INDEX(pc2 - regs.pc)));
                     break;
                 }
 
@@ -4124,7 +4277,7 @@ BEGIN_CASE(JSOP_LAMBDA)
 #endif
                     const Value &lref = regs.sp[-1];
                     if (lref.isObject() && lref.toObject().canHaveMethodBarrier()) {
-                        JS_ASSERT(fun->methodAtom() == script->getAtom(GET_FULL_INDEX(JSOP_LAMBDA_LENGTH)));
+                        JS_ASSERT(fun->methodAtom() == script->getAtom(GET_FULL_INDEX(pc2 - regs.pc)));
                         break;
                     }
                 } else if (op2 == JSOP_CALL) {
@@ -4162,7 +4315,7 @@ BEGIN_CASE(JSOP_LAMBDA)
                 }
             }
         } else {
-            parent = GetScopeChain(cx, regs.fp());
+            parent = GetScopeChainFast(cx, regs.fp(), JSOP_LAMBDA, JSOP_LAMBDA_LENGTH);
             if (!parent)
                 goto error;
         }
@@ -4184,7 +4337,7 @@ BEGIN_CASE(JSOP_LAMBDA_FC)
     JSFunction *fun;
     LOAD_FUNCTION(0);
 
-    JSObject *obj = js_NewFlatClosure(cx, fun);
+    JSObject *obj = js_NewFlatClosure(cx, fun, JSOP_LAMBDA_FC, JSOP_LAMBDA_FC_LENGTH);
     if (!obj)
         goto error;
     JS_ASSERT_IF(script->hasGlobal(), obj->getProto() == fun->getProto());
@@ -4221,9 +4374,9 @@ BEGIN_CASE(JSOP_SETTER)
       case JSOP_SETNAME:
       case JSOP_SETPROP:
       {
-        PropertyName *name;
-        LOAD_NAME(0, name);
-        id = ATOM_TO_JSID(name);
+        JSAtom *atom;
+        LOAD_ATOM(0, atom);
+        id = ATOM_TO_JSID(atom);
         rval = regs.sp[-1];
         i = -1;
         goto gs_pop_lval;
@@ -4241,9 +4394,9 @@ BEGIN_CASE(JSOP_SETTER)
         JS_ASSERT(regs.sp - regs.fp()->base() >= 2);
         rval = regs.sp[-1];
         i = -1;
-        PropertyName *name;
-        LOAD_NAME(0, name);
-        id = ATOM_TO_JSID(name);
+        JSAtom *atom;
+        LOAD_ATOM(0, atom);
+        id = ATOM_TO_JSID(atom);
         goto gs_get_lval;
       }
       default:
@@ -4267,8 +4420,11 @@ BEGIN_CASE(JSOP_SETTER)
         FETCH_ELEMENT_ID(obj, i, id);
 
     if (!js_IsCallable(rval)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_GETTER_OR_SETTER,
-                             (op == JSOP_GETTER) ? js_getter_str : js_setter_str);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                             JSMSG_BAD_GETTER_OR_SETTER,
+                             (op == JSOP_GETTER)
+                             ? js_getter_str
+                             : js_setter_str);
         goto error;
     }
 
@@ -4403,24 +4559,26 @@ BEGIN_CASE(JSOP_INITMETHOD)
      */
     PropertyCacheEntry *entry;
     JSObject *obj2;
-    PropertyName *name;
-    if (JS_PROPERTY_CACHE(cx).testForSet(cx, regs.pc, obj, &entry, &obj2, &name) &&
+    JSAtom *atom;
+    if (JS_PROPERTY_CACHE(cx).testForSet(cx, regs.pc, obj, &entry, &obj2, &atom) &&
         entry->prop->hasDefaultSetter() &&
-        entry->isOwnPropertyHit())
-    {
+        entry->vindex == 0) {
         JS_ASSERT(obj == obj2);
         /* Fast path. Property cache hit. */
         obj->nativeSetSlotWithType(cx, entry->prop, rval);
     } else {
         PCMETER(JS_PROPERTY_CACHE(cx).inipcmisses++);
-        LOAD_NAME(0, name);
+        LOAD_ATOM(0, atom);
+
+        /* Get the immediate property name into id. */
+        jsid id = ATOM_TO_JSID(atom);
 
         uintN defineHow = (op == JSOP_INITMETHOD)
                           ? DNP_CACHE_RESULT | DNP_SET_METHOD
                           : DNP_CACHE_RESULT;
-        if (JS_UNLIKELY(name == cx->runtime->atomState.protoAtom)
-            ? !SetPropertyHelper(cx, obj, name, defineHow, &rval, script->strictModeCode)
-            : !DefineNativeProperty(cx, obj, name, rval, NULL, NULL,
+        if (JS_UNLIKELY(atom == cx->runtime->atomState.protoAtom)
+            ? !js_SetPropertyHelper(cx, obj, id, defineHow, &rval, script->strictModeCode)
+            : !DefineNativeProperty(cx, obj, id, rval, NULL, NULL,
                                     JSPROP_ENUMERATE, 0, 0, defineHow)) {
             goto error;
         }
@@ -4921,7 +5079,7 @@ BEGIN_CASE(JSOP_ENDFILTER)
          * temporaries.
          */
         JS_ASSERT(IsXML(regs.sp[-1]));
-        if (!EnterWith(cx, -2))
+        if (!EnterWith(cx, -2, JSOP_ENDFILTER, JSOP_ENDFILTER_LENGTH))
             goto error;
         regs.sp--;
         len = GET_JUMP_OFFSET(regs.pc);
@@ -5036,7 +5194,7 @@ BEGIN_CASE(JSOP_GETFUNNS)
     JS_ASSERT(!script->strictModeCode);
 
     Value rval;
-    if (!cx->fp()->scopeChain().global().getFunctionNamespace(cx, &rval))
+    if (!cx->fp()->scopeChain().getGlobal()->getFunctionNamespace(cx, &rval))
         goto error;
     PUSH_COPY(rval);
 }
@@ -5044,32 +5202,18 @@ END_CASE(JSOP_GETFUNNS)
 #endif /* JS_HAS_XML_SUPPORT */
 
 BEGIN_CASE(JSOP_ENTERBLOCK)
-BEGIN_CASE(JSOP_ENTERLET0)
-BEGIN_CASE(JSOP_ENTERLET1)
 {
     JSObject *obj;
     LOAD_OBJECT(0, obj);
-    StaticBlockObject &blockObj = obj->asStaticBlock();
-    JS_ASSERT(regs.fp()->maybeBlockChain() == blockObj.enclosingBlock());
-
-    if (op == JSOP_ENTERBLOCK) {
-        JS_ASSERT(regs.fp()->base() + blockObj.stackDepth() == regs.sp);
-        Value *vp = regs.sp + blockObj.slotCount();
-        JS_ASSERT(regs.sp < vp);
-        JS_ASSERT(vp <= regs.fp()->slots() + script->nslots);
-        SetValueRangeToUndefined(regs.sp, vp);
-        regs.sp = vp;
-    } else if (op == JSOP_ENTERLET0) {
-        JS_ASSERT(regs.fp()->base() + blockObj.stackDepth() + blockObj.slotCount()
-                  == regs.sp);
-    } else if (op == JSOP_ENTERLET1) {
-        JS_ASSERT(regs.fp()->base() + blockObj.stackDepth() + blockObj.slotCount()
-                  == regs.sp - 1);
-    }
+    JS_ASSERT(obj->isStaticBlock());
+    JS_ASSERT(regs.fp()->base() + OBJ_BLOCK_DEPTH(cx, obj) == regs.sp);
+    Value *vp = regs.sp + OBJ_BLOCK_COUNT(cx, obj);
+    JS_ASSERT(regs.sp < vp);
+    JS_ASSERT(vp <= regs.fp()->slots() + script->nslots);
+    SetValueRangeToUndefined(regs.sp, vp);
+    regs.sp = vp;
 
 #ifdef DEBUG
-    JS_ASSERT(regs.fp()->maybeBlockChain() == blockObj.enclosingBlock());
-
     /*
      * The young end of fp->scopeChain may omit blocks if we haven't closed
      * over them, but if there are any closure blocks on fp->scopeChain, they'd
@@ -5079,53 +5223,51 @@ BEGIN_CASE(JSOP_ENTERLET1)
      */
     JSObject *obj2 = &regs.fp()->scopeChain();
     while (obj2->isWith())
-        obj2 = &obj2->asWith().enclosingScope();
+        obj2 = obj2->internalScopeChain();
     if (obj2->isBlock() &&
-        obj2->getPrivate() == js_FloatingFrameIfGenerator(cx, regs.fp()))
-    {
-        StaticBlockObject &youngestProto = obj2->asClonedBlock().staticBlock();
-        StaticBlockObject *parent = &blockObj;
-        while ((parent = parent->enclosingBlock()) != &youngestProto)
+        obj2->getPrivate() == js_FloatingFrameIfGenerator(cx, regs.fp())) {
+        JSObject *youngestProto = obj2->getProto();
+        JS_ASSERT(youngestProto->isStaticBlock());
+        JSObject *parent = obj;
+        while ((parent = parent->scopeChain()) != youngestProto)
             JS_ASSERT(parent);
     }
 #endif
-
-    regs.fp()->setBlockChain(&blockObj);
 }
 END_CASE(JSOP_ENTERBLOCK)
 
-BEGIN_CASE(JSOP_LEAVEBLOCK)
-BEGIN_CASE(JSOP_LEAVEFORLETIN)
 BEGIN_CASE(JSOP_LEAVEBLOCKEXPR)
+BEGIN_CASE(JSOP_LEAVEBLOCK)
 {
-    StaticBlockObject &blockObj = regs.fp()->blockChain();
-    JS_ASSERT(blockObj.stackDepth() <= StackDepth(script));
-
+    JSObject *blockChain;
+    LOAD_OBJECT(UINT16_LEN, blockChain);
+#ifdef DEBUG
+    JS_ASSERT(blockChain->isStaticBlock());
+    uintN blockDepth = OBJ_BLOCK_DEPTH(cx, blockChain);
+    JS_ASSERT(blockDepth <= StackDepth(script));
+#endif
     /*
      * If we're about to leave the dynamic scope of a block that has been
      * cloned onto fp->scopeChain, clear its private data, move its locals from
      * the stack into the clone, and pop it off the chain.
      */
-    JSObject &scope = regs.fp()->scopeChain();
-    if (scope.getProto() == &blockObj)
-        scope.asClonedBlock().put(cx);
+    JSObject &obj = regs.fp()->scopeChain();
+    if (obj.getProto() == blockChain) {
+        JS_ASSERT(obj.isClonedBlock());
+        if (!js_PutBlockObject(cx, JS_TRUE))
+            goto error;
+    }
 
-    regs.fp()->setBlockChain(blockObj.enclosingBlock());
-
-    if (op == JSOP_LEAVEBLOCK) {
-        /* Pop the block's slots. */
-        regs.sp -= GET_UINT16(regs.pc);
-        JS_ASSERT(regs.fp()->base() + blockObj.stackDepth() == regs.sp);
-    } else if (op == JSOP_LEAVEBLOCKEXPR) {
-        /* Pop the block's slots maintaining the topmost expr. */
-        Value *vp = &regs.sp[-1];
-        regs.sp -= GET_UINT16(regs.pc);
-        JS_ASSERT(regs.fp()->base() + blockObj.stackDepth() == regs.sp - 1);
+    /* Move the result of the expression to the new topmost stack slot. */
+    Value *vp = NULL;  /* silence GCC warnings */
+    if (op == JSOP_LEAVEBLOCKEXPR)
+        vp = &regs.sp[-1];
+    regs.sp -= GET_UINT16(regs.pc);
+    if (op == JSOP_LEAVEBLOCKEXPR) {
+        JS_ASSERT(regs.fp()->base() + blockDepth == regs.sp - 1);
         regs.sp[-1] = *vp;
     } else {
-        /* Another op will pop; nothing to do here. */
-        len = JSOP_LEAVEFORLETIN_LENGTH;
-        DO_NEXT_OP(len);
+        JS_ASSERT(regs.fp()->base() + blockDepth == regs.sp);
     }
 }
 END_CASE(JSOP_LEAVEBLOCK)
@@ -5324,13 +5466,18 @@ END_CASE(JSOP_ARRAYPUSH)
              */
             regs.pc = (script)->main() + tn->start + tn->length;
 
-            UnwindScope(cx, tn->stackDepth);
-            regs.sp = regs.fp()->base() + tn->stackDepth;
+            JSBool ok = UnwindScope(cx, tn->stackDepth, JS_TRUE);
+            JS_ASSERT(regs.sp == regs.fp()->base() + tn->stackDepth);
+            if (!ok) {
+                /*
+                 * Restart the handler search with updated pc and stack depth
+                 * to properly notify the debugger.
+                 */
+                goto error;
+            }
 
             switch (tn->kind) {
               case JSTRY_CATCH:
-                  JS_ASSERT(*regs.pc == JSOP_ENTERBLOCK);
-
 #if JS_HAS_GENERATORS
                 /* Catch cannot intercept the closing of a generator. */
                   if (JS_UNLIKELY(cx->getPendingException().isMagic(JS_GENERATOR_CLOSING)))
@@ -5361,7 +5508,7 @@ END_CASE(JSOP_ARRAYPUSH)
                 JS_ASSERT(JSOp(*regs.pc) == JSOP_ENDITER);
                 Value v = cx->getPendingException();
                 cx->clearPendingException();
-                bool ok = js_CloseIterator(cx, &regs.sp[-1].toObject());
+                ok = js_CloseIterator(cx, &regs.sp[-1].toObject());
                 regs.sp -= 1;
                 if (!ok)
                     goto error;
@@ -5387,8 +5534,15 @@ END_CASE(JSOP_ARRAYPUSH)
     }
 
   forced_return:
-    UnwindScope(cx, 0);
-    regs.sp = regs.fp()->base();
+    /*
+     * Unwind the scope making sure that interpReturnOK stays false even when
+     * UnwindScope returns true.
+     *
+     * When a trap handler returns JSTRAP_RETURN, we jump here with
+     * interpReturnOK set to true bypassing any finally blocks.
+     */
+    interpReturnOK &= (JSBool)UnwindScope(cx, 0, interpReturnOK || cx->isExceptionPending());
+    JS_ASSERT(regs.sp == regs.fp()->base());
 
     if (entryFrame != regs.fp())
         goto inline_return;
@@ -5411,10 +5565,9 @@ END_CASE(JSOP_ARRAYPUSH)
      * frame pc.
      */
     JS_ASSERT(entryFrame == regs.fp());
-    if (!regs.fp()->isGeneratorFrame()) {
-        JS_ASSERT(!IsActiveWithOrBlock(cx, regs.fp()->scopeChain(), 0));
-        JS_ASSERT(!regs.fp()->hasBlockChain());
-    }
+
+    JS_ASSERT_IF(!regs.fp()->isGeneratorFrame(),
+                 !IsActiveWithOrBlock(cx, regs.fp()->scopeChain(), 0));
 
 #ifdef JS_METHODJIT
     /*
@@ -5426,4 +5579,12 @@ END_CASE(JSOP_ARRAYPUSH)
 
     gc::VerifyBarriers(cx, true);
     return interpReturnOK;
+
+  atom_not_defined:
+    {
+        JSAutoByteString printable;
+        if (js_AtomToPrintableString(cx, atomNotDefined, &printable))
+            js_ReportIsNotDefined(cx, printable.ptr());
+    }
+    goto error;
 }

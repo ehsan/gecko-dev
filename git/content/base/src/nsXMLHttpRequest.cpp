@@ -69,9 +69,8 @@
 #include "nsIMIMEService.h"
 #include "nsCExternalHandlerService.h"
 #include "nsIVariant.h"
-#include "nsVariant.h"
-#include "nsIScriptError.h"
-#include "xpcpublic.h"
+#include "xpcprivate.h"
+#include "XPCQuickStubs.h"
 #include "nsStringStream.h"
 #include "nsIStreamConverterService.h"
 #include "nsICachingChannel.h"
@@ -1037,7 +1036,7 @@ NS_IMETHODIMP nsXMLHttpRequest::GetResponse(JSContext *aCx, jsval *aResult)
       nsString str;
       rv = GetResponseText(str);
       if (NS_FAILED(rv)) return rv;
-      NS_ENSURE_TRUE(xpc::StringToJsval(aCx, str, aResult),
+      NS_ENSURE_TRUE(xpc_qsStringToJsval(aCx, str, aResult),
                      NS_ERROR_OUT_OF_MEMORY);
     }
     break;
@@ -2749,10 +2748,10 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
   }
 
   // Prevent modification to certain HTTP headers (see bug 302263), unless
-  // the executing script has UniversalXPConnect.
+  // the executing script has UniversalBrowserWrite permission.
 
   bool privileged;
-  rv = IsCapabilityEnabled("UniversalXPConnect", &privileged);
+  rv = IsCapabilityEnabled("UniversalBrowserWrite", &privileged);
   if (NS_FAILED(rv))
     return NS_ERROR_FAILURE;
 

@@ -39,6 +39,7 @@
 
 #include "IDBCursor.h"
 
+#include "jscntxt.h"
 #include "mozilla/storage.h"
 #include "nsComponentManagerUtils.h"
 #include "nsContentUtils.h"

@@ -878,8 +878,6 @@ struct TypeObject : gc::Cell
     static inline void writeBarrierPost(TypeObject *type, void *addr);
     static inline void readBarrier(TypeObject *type);
 
-    static inline ThingRootKind rootKind() { return THING_ROOT_TYPE_OBJECT; }
-
   private:
     inline uint32_t basePropertyCount() const;
     inline void setBasePropertyCount(uint32_t count);
@@ -900,7 +898,7 @@ struct TypeObjectEntry
     static inline HashNumber hash(JSObject *base);
     static inline bool match(TypeObject *key, JSObject *lookup);
 };
-typedef HashSet<ReadBarriered<TypeObject>, TypeObjectEntry, SystemAllocPolicy> TypeObjectSet;
+typedef HashSet<TypeObject *, TypeObjectEntry, SystemAllocPolicy> TypeObjectSet;
 
 /*
  * Call to mark a script's arguments as having been created, recompile any
@@ -912,13 +910,6 @@ MarkArgumentsCreated(JSContext *cx, JSScript *script);
 /* Whether to use a new type object when calling 'new' at script/pc. */
 bool
 UseNewType(JSContext *cx, JSScript *script, jsbytecode *pc);
-
-/*
- * Whether Array.prototype, or an object on its proto chain, has an
- * indexed property.
- */
-bool
-ArrayPrototypeHasIndexedProperty(JSContext *cx, JSScript *script);
 
 /*
  * Type information about a callsite. this is separated from the bytecode
@@ -1122,14 +1113,14 @@ class TypeScript
 };
 
 struct ArrayTableKey;
-typedef HashMap<ArrayTableKey,ReadBarriered<TypeObject>,ArrayTableKey,SystemAllocPolicy> ArrayTypeTable;
+typedef HashMap<ArrayTableKey,TypeObject*,ArrayTableKey,SystemAllocPolicy> ArrayTypeTable;
 
 struct ObjectTableKey;
 struct ObjectTableEntry;
 typedef HashMap<ObjectTableKey,ObjectTableEntry,ObjectTableKey,SystemAllocPolicy> ObjectTypeTable;
 
 struct AllocationSiteKey;
-typedef HashMap<AllocationSiteKey,ReadBarriered<TypeObject>,AllocationSiteKey,SystemAllocPolicy> AllocationSiteTable;
+typedef HashMap<AllocationSiteKey,TypeObject*,AllocationSiteKey,SystemAllocPolicy> AllocationSiteTable;
 
 /* Type information for a compartment. */
 struct TypeCompartment

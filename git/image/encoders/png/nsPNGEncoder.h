@@ -35,10 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Attributes.h"
-#include "mozilla/ReentrantMonitor.h"
-
 #include "imgIEncoder.h"
+
+#include "mozilla/ReentrantMonitor.h"
 
 #include "nsCOMPtr.h"
 
@@ -55,7 +54,7 @@
 // Provides PNG encoding functionality. Use InitFromData() to do the
 // encoding. See that function definition for encoding options.
 
-class nsPNGEncoder MOZ_FINAL : public imgIEncoder
+class nsPNGEncoder : public imgIEncoder
 {
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
 public:

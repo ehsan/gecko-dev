@@ -350,15 +350,13 @@ INNER_MAKE_PACKAGE	= \
   cp $(_ABS_DIST)/gecko.apk $(_ABS_DIST)/gecko-unsigned-unaligned.apk && \
   $(JARSIGNER) $(_ABS_DIST)/gecko.apk && \
   $(ZIPALIGN) -f -v 4 $(_ABS_DIST)/gecko.apk $(PACKAGE)
-
 INNER_UNMAKE_PACKAGE	= \
   mkdir $(MOZ_PKG_DIR) && \
-  pushd $(MOZ_PKG_DIR) && \
+  cd $(MOZ_PKG_DIR) && \
   $(UNZIP) $(UNPACKAGE) && \
   mv lib/$(ABI_DIR)/libmozutils.so . && \
   mv lib/$(ABI_DIR)/*plugin-container* $(MOZ_CHILD_PROCESS_NAME) && \
-  rm -rf lib/$(ABI_DIR) && \
-  popd
+  rm -rf lib/$(ABI_DIR)
 endif
 ifeq ($(MOZ_PKG_FORMAT),DMG)
 ifndef _APPNAME
@@ -658,9 +656,15 @@ endif
 PKG_ARG = , "$(pkg)"
 
 # Define packager macro to work around make 3.81 backslash issue (bug #339933)
+
+# Controls whether missing file warnings should be fatal
+ifndef MOZ_PKG_FATAL_WARNINGS
+MOZ_PKG_FATAL_WARNINGS = 0
+endif
+
 define PACKAGER_COPY
 $(PERL) -I$(MOZILLA_DIR)/toolkit/mozapps/installer -e 'use Packager; \
-       Packager::Copy($1,$2,$3,$4,$5,$6,$7);'
+       Packager::Copy($1,$2,$3,$4,$5,$(MOZ_PKG_FATAL_WARNINGS),$6,$7);'
 endef
 
 installer-stage: stage-package

@@ -38,7 +38,7 @@
 
 /* rendering object for css3 multi-column layout */
 
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsIContent.h"
 #include "nsIFrame.h"
 #include "nsISupports.h"
@@ -54,7 +54,7 @@
 
 using namespace mozilla;
 
-class nsColumnSetFrame : public nsContainerFrame {
+class nsColumnSetFrame : public nsHTMLContainerFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
@@ -200,7 +200,7 @@ NS_NewColumnSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint3
 NS_IMPL_FRAMEARENA_HELPERS(nsColumnSetFrame)
 
 nsColumnSetFrame::nsColumnSetFrame(nsStyleContext* aContext)
-  : nsContainerFrame(aContext), mLastBalanceHeight(NS_INTRINSICSIZE),
+  : nsHTMLContainerFrame(aContext), mLastBalanceHeight(NS_INTRINSICSIZE),
     mLastFrameStatus(NS_FRAME_COMPLETE)
 {
 }
@@ -209,7 +209,7 @@ void
 nsColumnSetFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   DestroyAbsoluteFrames(aDestructRoot);
-  nsContainerFrame::DestroyFrom(aDestructRoot);
+  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
 
 nsIAtom*
@@ -305,7 +305,7 @@ nsColumnSetFrame::SetInitialChildList(ChildListID     aListID,
   NS_ASSERTION(aChildList.OnlyChild(),
                "initial child list must have exactly one child");
   // Queue up the frames for the content frame
-  return nsContainerFrame::SetInitialChildList(kPrincipalList, aChildList);
+  return nsHTMLContainerFrame::SetInitialChildList(kPrincipalList, aChildList);
 }
 
 static nscoord
@@ -416,22 +416,18 @@ nsColumnSetFrame::ChooseColumnStrategy(const nsHTMLReflowState& aReflowState)
     expectedWidthLeftOver = extraSpace - (extraToColumns*numColumns);
   }
 
-  // If column-fill is set to 'balance', then we want to balance the columns.
-  if (colStyle->mColumnFill == NS_STYLE_COLUMN_FILL_BALANCE) {
+  // NOTE that the non-balancing behavior for non-auto computed height
+  // is not in the CSS3 columns draft as of 18 January 2001
+  if (aReflowState.ComputedHeight() == NS_INTRINSICSIZE) {
     // Balancing!
-
     if (numColumns <= 0) {
       // Hmm, auto column count, column width or available width is unknown,
       // and balancing is required. Let's just use one column then.
       numColumns = 1;
     }
-
-    colHeight = NS_MIN(mLastBalanceHeight,
-                       GetAvailableContentHeight(aReflowState));
+    colHeight = NS_MIN(mLastBalanceHeight, GetAvailableContentHeight(aReflowState));
   } else {
-    // This is the case when the column-fill property is set to 'auto'.
     // No balancing, so don't limit the column count
-
     numColumns = PR_INT32_MAX;
   }
 

@@ -384,12 +384,9 @@ pref("security.fileuri.strict_origin_policy", false);
 
 // Temporarily force-enable GL compositing.  This is default-disabled
 // deep within the bowels of the widgetry system.  Remove me when GL
-// compositing isn't default disabled in widget/android.
+// compositing isn't default disabled in widget/src/android.
 pref("layers.acceleration.force-enabled", true);
 
 // screen.enabled and screen.brightness properties.
 pref("dom.screenEnabledProperty.enabled", true);
 pref("dom.screenBrightnessProperty.enabled", true);
-
-// Ignore X-Frame-Options headers.
-pref("b2g.ignoreXFrameOptions", true);

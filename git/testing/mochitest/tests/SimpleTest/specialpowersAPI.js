@@ -641,10 +641,6 @@ SpecialPowersAPI.prototype = {
       copyString(str);
   },
 
-  openDialog: function(win, args) {
-    return win.openDialog.apply(win, args);
-  },
-
   // :jdm gets credit for this.  ex: getPrivilegedProps(window, 'location.href');
   getPrivilegedProps: function(obj, props) {
     parts = props.split('.');

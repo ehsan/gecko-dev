@@ -53,12 +53,12 @@
 #include "nsRuleWalker.h"
 #include "nsEventStates.h"
 
-struct CascadeEnumData;
-struct nsCSSSelector;
-struct nsCSSSelectorList;
 struct RuleCascadeData;
+struct nsCSSSelectorList;
+struct CascadeEnumData;
 struct TreeMatchContext;
 class nsCSSKeyframesRule;
+class nsCSSSelector;
 
 /**
  * The CSS style rule processor provides a mechanism for sibling style

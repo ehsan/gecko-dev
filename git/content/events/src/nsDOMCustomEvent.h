@@ -59,8 +59,9 @@ public:
   // Forward to base class
   NS_FORWARD_TO_NSDOMEVENT
 
-  virtual nsresult InitFromCtor(const nsAString& aType,
-                                JSContext* aCx, jsval* aVal);
+  virtual const nsIID& EventInitIID() { return NS_GET_IID(nsICustomEventInit); }
+  virtual nsresult InitFromCtor(const nsAString& aType, nsISupports* aDict,
+                                JSContext* aCx, JSObject* aObj);
 private:
   nsCOMPtr<nsIVariant> mDetail;
 };

@@ -57,7 +57,6 @@
 #include "jspropertytree.h"
 
 #include "js/HashTable.h"
-#include "mozilla/Attributes.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -67,67 +66,141 @@
 #endif
 
 /*
- * In isolation, a Shape represents a property that exists in one or more
- * objects; it has an id, flags, etc. (But it doesn't represent the property's
- * value.)  However, Shapes are always stored in linked linear sequence of
- * Shapes, called "shape lineages". Each shape lineage represents the layout of
- * an entire object. 
- *   
- * Every JSObject has a pointer, |shape_|, accessible via lastProperty(), to
- * the last Shape in a shape lineage, which identifies the property most
- * recently added to the object.  This pointer permits fast object layout
- * tests. The shape lineage order also dictates the enumeration order for the
- * object; ECMA requires no particular order but this implementation has
- * promised and delivered property definition order.
- *   
- * Shape lineages occur in two kinds of data structure.
- * 
- * 1. N-ary property trees. Each path from a non-root node to the root node in
- *    a property tree is a shape lineage. Property trees permit full (or
- *    partial) sharing of Shapes between objects that have fully (or partly)
- *    identical layouts. The root is an EmptyShape whose identity is determined
- *    by the object's class, compartment and prototype. These Shapes are shared
- *    and immutable.
- * 
- * 2. Dictionary mode lists. Shapes in such lists are said to be "in
- *    dictionary mode", as are objects that point to such Shapes. These Shapes
- *    are unshared, private to a single object, and mutable.
- * 
- * All shape lineages are bi-directionally linked, via the |parent| and
- * |kids|/|listp| members.
- * 
- * Shape lineages start out life in the property tree. They can be converted
- * (by copying) to dictionary mode lists in the following circumstances.
- * 
- * 1. The shape lineage's size reaches MAX_HEIGHT. This reasonable limit avoids
- *    potential worst cases involving shape lineage mutations.
- * 
- * 2. A property represented by a non-last Shape in a shape lineage is removed
- *    from an object. (In the last Shape case, obj->shape_ can be easily
- *    adjusted to point to obj->shape_->parent.)  We originally tried lazy
- *    forking of the property tree, but this blows up for delete/add
- *    repetitions.
- * 
- * 3. A property represented by a non-last Shape in a shape lineage has its
- *    attributes modified.
- * 
- * To find the Shape for a particular property of an object initially requires
- * a linear search. But if the number of searches starting at any particular
- * Shape in the property tree exceeds MAX_LINEAR_SEARCHES and the Shape's
- * lineage has (excluding the EmptyShape) at least MIN_ENTRIES, we create an
- * auxiliary hash table -- the PropertyTable -- that allows faster lookup.
- * Furthermore, a PropertyTable is always created for dictionary mode lists,
- * and it is attached to the last Shape in the lineage. Property tables for
- * property tree Shapes never change, but property tables for dictionary mode
- * Shapes can grow and shrink.
+ * Given P independent, non-unique properties each of size S words mapped by
+ * all scopes in a runtime, construct a property tree of N nodes each of size
+ * S+L words (L for tree linkage).  A nominal L value is 2 for leftmost-child
+ * and right-sibling links.  We hope that the N < P by enough that the space
+ * overhead of L, and the overhead of scope entries pointing at property tree
+ * nodes, is worth it.
  *
- * There used to be a long, math-heavy comment here explaining why property
- * trees are more space-efficient than alternatives.  This was removed in bug
- * 631138; see that bug for the full details.
+ * The tree construction goes as follows.  If any empty scope in the runtime
+ * has a property X added to it, find or create a node under the tree root
+ * labeled X, and set obj->lastProp to point at that node.  If any non-empty
+ * scope whose most recently added property is labeled Y has another property
+ * labeled Z added, find or create a node for Z under the node that was added
+ * for Y, and set obj->lastProp to point at that node.
  *
- * Because many Shapes have similar data, there is actually a secondary type
- * called a BaseShape that holds some of a Shape's data.  Many shapes can share
- * a single BaseShape.
+ * A property is labeled by its members' values: id, getter, setter, slot,
+ * attributes, tiny or short id, and a field telling for..in order.  Note that
+ * labels are not unique in the tree, but they are unique among a node's kids
+ * (barring rare and benign multi-threaded race condition outcomes, see below)
+ * and along any ancestor line from the tree root to a given leaf node (except
+ * for the hard case of duplicate formal parameters to a function).
+ *
+ * Thus the root of the tree represents all empty scopes, and the first ply
+ * of the tree represents all scopes containing one property, etc.  Each node
+ * in the tree can stand for any number of scopes having the same ordered set
+ * of properties, where that node was the last added to the scope.  (We need
+ * not store the root of the tree as a node, and do not -- all we need are
+ * links to its kids.)
+ *
+ * Sidebar on for..in loop order: ECMA requires no particular order, but this
+ * implementation has promised and delivered property definition order, and
+ * compatibility is king.  We could use an order number per property, which
+ * would require a sort in js_Enumerate, and an entry order generation number
+ * per scope.  An order number beats a list, which should be doubly-linked for
+ * O(1) delete.  An even better scheme is to use a parent link in the property
+ * tree, so that the ancestor line can be iterated from obj->lastProp when
+ * filling in a JSIdArray from back to front.  This parent link also helps the
+ * GC to sweep properties iteratively.
+ *
+ * What if a property Y is deleted from a scope?  If Y is the last property in
+ * the scope, we simply adjust the scope's lastProp member after we remove the
+ * scope's hash-table entry pointing at that property node.  The parent link
+ * mentioned in the for..in sidebar above makes this adjustment O(1).  But if
+ * Y comes between X and Z in the scope, then we might have to "fork" the tree
+ * at X, leaving X->Y->Z in case other scopes have those properties added in
+ * that order; and to finish the fork, we'd add a node labeled Z with the path
+ * X->Z, if it doesn't exist.  This could lead to lots of extra nodes, and to
+ * O(n^2) growth when deleting lots of properties.
+ *
+ * Rather, for O(1) growth all around, we should share the path X->Y->Z among
+ * scopes having those three properties added in that order, and among scopes
+ * having only X->Z where Y was deleted.  All such scopes have a lastProp that
+ * points to the Z child of Y.  But a scope in which Y was deleted does not
+ * have a table entry for Y, and when iterating that scope by traversing the
+ * ancestor line from Z, we will have to test for a table entry for each node,
+ * skipping nodes that lack entries.
+ *
+ * What if we add Y again?  X->Y->Z->Y is wrong and we'll enumerate Y twice.
+ * Therefore we must fork in such a case if not earlier, or do something else.
+ * We used to fork on the theory that set after delete is rare, but the Web is
+ * a harsh mistress, and we now convert the scope to a "dictionary" on first
+ * delete, to avoid O(n^2) growth in the property tree.
+ *
+ * Is the property tree worth it compared to property storage in each table's
+ * entries?  To decide, we must find the relation <> between the words used
+ * with a property tree and the words required without a tree.
+ *
+ * Model all scopes as one super-scope of capacity T entries (T a power of 2).
+ * Let alpha be the load factor of this double hash-table.  With the property
+ * tree, each entry in the table is a word-sized pointer to a node that can be
+ * shared by many scopes.  But all such pointers are overhead compared to the
+ * situation without the property tree, where the table stores property nodes
+ * directly, as entries each of size S words.  With the property tree, we need
+ * L=2 extra words per node for siblings and kids pointers.  Without the tree,
+ * (1-alpha)*S*T words are wasted on free or removed sentinel-entries required
+ * by double hashing.
+ *
+ * Therefore,
+ *
+ *      (property tree)                 <> (no property tree)
+ *      N*(S+L) + T                     <> S*T
+ *      N*(S+L) + T                     <> P*S + (1-alpha)*S*T
+ *      N*(S+L) + alpha*T + (1-alpha)*T <> P*S + (1-alpha)*S*T
+ *
+ * Note that P is alpha*T by definition, so
+ *
+ *      N*(S+L) + P + (1-alpha)*T <> P*S + (1-alpha)*S*T
+ *      N*(S+L)                   <> P*S - P + (1-alpha)*S*T - (1-alpha)*T
+ *      N*(S+L)                   <> (P + (1-alpha)*T) * (S-1)
+ *      N*(S+L)                   <> (P + (1-alpha)*P/alpha) * (S-1)
+ *      N*(S+L)                   <> P * (1/alpha) * (S-1)
+ *
+ * Let N = P*beta for a compression ratio beta, beta <= 1:
+ *
+ *      P*beta*(S+L) <> P * (1/alpha) * (S-1)
+ *      beta*(S+L)   <> (S-1)/alpha
+ *      beta         <> (S-1)/((S+L)*alpha)
+ *
+ * For S = 6 (32-bit architectures) and L = 2, the property tree wins iff
+ *
+ *      beta < 5/(8*alpha)
+ *
+ * We ensure that alpha <= .75, so the property tree wins if beta < .83_.  An
+ * average beta from recent Mozilla browser startups was around .6.
+ *
+ * Can we reduce L?  Observe that the property tree degenerates into a list of
+ * lists if at most one property Y follows X in all scopes.  In or near such a
+ * case, we waste a word on the right-sibling link outside of the root ply of
+ * the tree.  Note also that the root ply tends to be large, so O(n^2) growth
+ * searching it is likely, indicating the need for hashing.
+ *
+ * If only K out of N nodes in the property tree have more than one child, we
+ * could eliminate the sibling link and overlay a children list or hash-table
+ * pointer on the leftmost-child link (which would then be either null or an
+ * only-child link; the overlay could be tagged in the low bit of the pointer,
+ * or flagged elsewhere in the property tree node, although such a flag must
+ * not be considered when comparing node labels during tree search).
+ *
+ * For such a system, L = 1 + (K * averageChildrenTableSize) / N instead of 2.
+ * If K << N, L approaches 1 and the property tree wins if beta < .95.
+ *
+ * We observe that fan-out below the root ply of the property tree appears to
+ * have extremely low degree (see the MeterPropertyTree code that histograms
+ * child-counts in jsscope.c), so instead of a hash-table we use a linked list
+ * of child node pointer arrays ("kid chunks").  The details are isolated in
+ * jspropertytree.h/.cpp; others must treat js::Shape.kids as opaque.
+ *
+ * One final twist (can you stand it?): the vast majority (~95% or more) of
+ * scopes are looked up fewer than three times;  in these cases, initializing
+ * scope->table isn't worth it.  So instead of always allocating scope->table,
+ * we leave it null while initializing all the other scope members as if it
+ * were non-null and minimal-length.  Until a scope is searched
+ * LINEAR_SEARCHES_MAX times, we use linear search from obj->lastProp to find a
+ * given id, and save on the time and space overhead of creating a hash table.
+ * Also, we don't create tables for property tree Shapes that have shape
+ * lineages smaller than MIN_ENTRIES.
  */
 
 namespace js {
@@ -272,8 +345,7 @@ class BaseShape : public js::gc::Cell
 {
   public:
     friend struct Shape;
-    friend struct StackBaseShape;
-    friend struct StackShape;
+    friend struct BaseShapeEntry;
 
     enum Flag {
         /* Owned by the referring shape. */
@@ -335,10 +407,6 @@ class BaseShape : public js::gc::Cell
     inline BaseShape(Class *clasp, JSObject *parent, uint32_t objectFlags);
     inline BaseShape(Class *clasp, JSObject *parent, uint32_t objectFlags,
                      uint8_t attrs, PropertyOp rawGetter, StrictPropertyOp rawSetter);
-    inline BaseShape(const StackBaseShape &base);
-
-    /* Not defined: BaseShapes must not be stack allocated. */
-    ~BaseShape();
 
     bool isOwned() const { return !!(flags & OWNED_SHAPE); }
 
@@ -348,8 +416,10 @@ class BaseShape : public js::gc::Cell
     inline void adoptUnowned(UnownedBaseShape *other);
     inline void setOwned(UnownedBaseShape *unowned);
 
-    JSObject *getObjectParent() const { return parent; }
-    uint32_t getObjectFlags() const { return flags & OBJECT_FLAG_MASK; }
+    inline void setParent(JSObject *obj);
+    JSObject *getObjectParent() { return parent; }
+
+    void setObjectFlag(Flag flag) { JS_ASSERT(!(flag & ~OBJECT_FLAG_MASK)); flags |= flag; }
 
     bool hasGetterObject() const { return !!(flags & HAS_GETTER_OBJECT); }
     JSObject *getterObject() const { JS_ASSERT(hasGetterObject()); return getterObj; }
@@ -365,7 +435,7 @@ class BaseShape : public js::gc::Cell
     void setSlotSpan(uint32_t slotSpan) { JS_ASSERT(isOwned()); slotSpan_ = slotSpan; }
 
     /* Lookup base shapes from the compartment's baseShapes table. */
-    static UnownedBaseShape *getUnowned(JSContext *cx, const StackBaseShape &base);
+    static UnownedBaseShape *getUnowned(JSContext *cx, const BaseShape &base);
 
     /* Get the canonical base shape. */
     inline UnownedBaseShape *unowned();
@@ -376,9 +446,6 @@ class BaseShape : public js::gc::Cell
     /* Get the canonical base shape for an unowned one (i.e. identity). */
     inline UnownedBaseShape *toUnowned();
 
-    /* Check that an owned base shape is consistent with its unowned base. */
-    inline void assertConsistency();
-
     /* For JIT usage */
     static inline size_t offsetOfClass() { return offsetof(BaseShape, clasp); }
     static inline size_t offsetOfParent() { return offsetof(BaseShape, parent); }
@@ -387,8 +454,6 @@ class BaseShape : public js::gc::Cell
     static inline void writeBarrierPre(BaseShape *shape);
     static inline void writeBarrierPost(BaseShape *shape, void *addr);
     static inline void readBarrier(BaseShape *shape);
-
-    static inline ThingRootKind rootKind() { return THING_ROOT_BASE_SHAPE; }
 
   private:
     static void staticAsserts() {
@@ -417,55 +482,21 @@ BaseShape::baseUnowned()
 }
 
 /* Entries for the per-compartment baseShapes set of unowned base shapes. */
-struct StackBaseShape
+struct BaseShapeEntry
 {
-    typedef const StackBaseShape *Lookup;
+    typedef const BaseShape *Lookup;
 
-    uint32_t flags;
-    Class *clasp;
-    JSObject *parent;
-    PropertyOp rawGetter;
-    StrictPropertyOp rawSetter;
-
-    StackBaseShape(BaseShape *base)
-      : flags(base->flags & BaseShape::OBJECT_FLAG_MASK),
-        clasp(base->clasp),
-        parent(base->parent),
-        rawGetter(NULL),
-        rawSetter(NULL)
-    {}
-
-    StackBaseShape(Class *clasp, JSObject *parent, uint32_t objectFlags)
-      : flags(objectFlags),
-        clasp(clasp),
-        parent(parent),
-        rawGetter(NULL),
-        rawSetter(NULL)
-    {}
-
-    inline StackBaseShape(Shape *shape);
-
-    inline void updateGetterSetter(uint8_t attrs,
-                                   PropertyOp rawGetter,
-                                   StrictPropertyOp rawSetter);
-
-    static inline HashNumber hash(const StackBaseShape *lookup);
-    static inline bool match(UnownedBaseShape *key, const StackBaseShape *lookup);
+    static inline HashNumber hash(const BaseShape *base);
+    static inline bool match(UnownedBaseShape *key, const BaseShape *lookup);
 };
-
-typedef HashSet<ReadBarriered<UnownedBaseShape>,
-                StackBaseShape,
-                SystemAllocPolicy> BaseShapeSet;
+typedef HashSet<UnownedBaseShape *, BaseShapeEntry, SystemAllocPolicy> BaseShapeSet;
 
 struct Shape : public js::gc::Cell
 {
     friend struct ::JSObject;
     friend struct ::JSFunction;
-    friend class js::StaticBlockObject;
     friend class js::PropertyTree;
     friend class js::Bindings;
-    friend struct js::StackShape;
-    friend struct js::StackBaseShape;
     friend bool IsShapeAboutToBeFinalized(JSContext *cx, const js::Shape *shape);
 
   protected:
@@ -508,26 +539,25 @@ struct Shape : public js::gc::Cell
     union {
         KidsPointer kids;       /* null, single child, or a tagged ptr
                                    to many-kids data structure */
-        HeapPtrShape *listp;    /* dictionary list starting at shape_
+        HeapPtrShape *listp;    /* dictionary list starting at lastProp
                                    has a double-indirect back pointer,
-                                   either to the next shape's parent if not
-                                   last, else to obj->shape_ */
+                                   either to shape->parent if not last,
+                                   else to obj->lastProp */
     };
 
-    static inline Shape *search(JSContext *cx, Shape *start, jsid id,
-                                Shape ***pspp, bool adding = false);
+    static inline Shape **search(JSContext *cx, HeapPtrShape *pstart, jsid id,
+                                 bool adding = false);
+    static js::Shape *newDictionaryList(JSContext *cx, HeapPtrShape *listp);
 
     inline void removeFromDictionary(JSObject *obj);
     inline void insertIntoDictionary(HeapPtrShape *dictp);
 
-    inline void initDictionaryShape(const StackShape &child, uint32_t nfixed,
-                                    HeapPtrShape *dictp);
+    inline void initDictionaryShape(const Shape &child, HeapPtrShape *dictp);
 
-    Shape *getChildBinding(JSContext *cx, const StackShape &child);
+    Shape *getChildBinding(JSContext *cx, const Shape &child, HeapPtrShape *lastBinding);
 
     /* Replace the base shape of the last shape in a non-dictionary lineage with base. */
-    static Shape *replaceLastProperty(JSContext *cx, const StackBaseShape &base,
-                                      JSObject *proto, Shape *shape);
+    static bool replaceLastProperty(JSContext *cx, const BaseShape &base, JSObject *proto, HeapPtrShape *lastp);
 
     bool hashify(JSContext *cx);
     void handoffTableTo(Shape *newShape);
@@ -569,7 +599,9 @@ struct Shape : public js::gc::Cell
     class Range {
       protected:
         friend struct Shape;
+
         const Shape *cursor;
+        const Shape *end;
 
       public:
         Range(const Shape *shape) : cursor(shape) { }
@@ -587,14 +619,6 @@ struct Shape : public js::gc::Cell
             JS_ASSERT(!empty());
             cursor = cursor->parent;
         }
-
-        class Root {
-            js::Root<const Shape*> cursorRoot;
-          public:
-            Root(JSContext *cx, Range *range)
-              : cursorRoot(cx, &range->cursor)
-            {}
-        };
     };
 
     Range all() const {
@@ -604,10 +628,10 @@ struct Shape : public js::gc::Cell
     Class *getObjectClass() const { return base()->clasp; }
     JSObject *getObjectParent() const { return base()->parent; }
 
-    static Shape *setObjectParent(JSContext *cx, JSObject *obj, JSObject *proto, Shape *last);
-    static Shape *setObjectFlag(JSContext *cx, BaseShape::Flag flag, JSObject *proto, Shape *last);
+    static bool setObjectParent(JSContext *cx, JSObject *obj, JSObject *proto, HeapPtrShape *listp);
+    static bool setObjectFlag(JSContext *cx, BaseShape::Flag flag, JSObject *proto, HeapPtrShape *listp);
 
-    uint32_t getObjectFlags() const { return base()->getObjectFlags(); }
+    uint32_t getObjectFlags() const { return base()->flags & BaseShape::OBJECT_FLAG_MASK; }
     bool hasObjectFlag(BaseShape::Flag flag) const {
         JS_ASSERT(!(flag & ~BaseShape::OBJECT_FLAG_MASK));
         return !!(base()->flags & flag);
@@ -629,14 +653,17 @@ struct Shape : public js::gc::Cell
         UNUSED_BITS     = 0x3C
     };
 
+    Shape(UnownedBaseShape *base, jsid id, uint32_t slot, uint32_t nfixed, uintN attrs,
+          uintN flags, intN shortid);
+
     /* Get a shape identical to this one, without parent/kids information. */
-    Shape(const StackShape &other, uint32_t nfixed);
+    Shape(const Shape *other);
 
     /* Used by EmptyShape (see jsscopeinlines.h). */
     Shape(UnownedBaseShape *base, uint32_t nfixed);
 
     /* Copy constructor disabled, to avoid misuse of the above form. */
-    Shape(const Shape &other) MOZ_DELETE;
+    Shape(const Shape &other);
 
     /*
      * Whether this shape has a valid slot value. This may be true even if
@@ -721,8 +748,8 @@ struct Shape : public js::gc::Cell
 
     void update(js::PropertyOp getter, js::StrictPropertyOp setter, uint8_t attrs);
 
-    inline bool matches(const Shape *other) const;
-    inline bool matches(const StackShape &other) const;
+    inline JSDHashNumber hash() const;
+    inline bool matches(const js::Shape *p) const;
     inline bool matchesParamsAfterId(BaseShape *base,
                                      uint32_t aslot, uintN aattrs, uintN aflags,
                                      intN ashortid) const;
@@ -749,7 +776,7 @@ struct Shape : public js::gc::Cell
 
     void setSlot(uint32_t slot) {
         JS_ASSERT(slot <= SHAPE_INVALID_SLOT);
-        slotInfo = slotInfo & ~Shape::SLOT_MASK;
+        slotInfo = slotInfo & ~SLOT_MASK;
         slotInfo = slotInfo | slot;
     }
 
@@ -859,7 +886,7 @@ struct Shape : public js::gc::Cell
      * Call or Block objects need unique shapes. If the flag is clear, then we
      * can use lastBinding's shape.
      */
-    static Shape *setExtensibleParents(JSContext *cx, Shape *shape);
+    static bool setExtensibleParents(JSContext *cx, HeapPtrShape *listp);
     bool extensibleParents() const { return !!(base()->flags & BaseShape::EXTENSIBLE_PARENTS); }
 
     uint32_t entryCount() const {
@@ -903,8 +930,6 @@ struct Shape : public js::gc::Cell
      */
     static inline void readBarrier(const Shape *shape);
 
-    static inline ThingRootKind rootKind() { return THING_ROOT_SHAPE; }
-
     /* For JIT usage */
     static inline size_t offsetOfBase() { return offsetof(Shape, base_); }
 
@@ -946,7 +971,7 @@ struct InitialShapeEntry
      * certain classes (e.g. String, RegExp) which may add certain baked-in
      * properties.
      */
-    ReadBarriered<Shape> shape;
+    js::Shape *shape;
 
     /*
      * Matching prototype for the entry. The shape of an object determines its
@@ -971,72 +996,7 @@ struct InitialShapeEntry
     static inline HashNumber hash(const Lookup &lookup);
     static inline bool match(const InitialShapeEntry &key, const Lookup &lookup);
 };
-
 typedef HashSet<InitialShapeEntry, InitialShapeEntry, SystemAllocPolicy> InitialShapeSet;
-
-struct StackShape
-{
-    UnownedBaseShape *base;
-    jsid             propid;
-    uint32_t         slot_;
-    uint8_t          attrs;
-    uint8_t          flags;
-    int16_t          shortid;
-
-    StackShape(UnownedBaseShape *base, jsid propid, uint32_t slot,
-               uint32_t nfixed, uintN attrs, uintN flags, intN shortid)
-      : base(base),
-        propid(propid),
-        slot_(slot),
-        attrs(uint8_t(attrs)),
-        flags(uint8_t(flags)),
-        shortid(int16_t(shortid))
-    {
-        JS_ASSERT(base);
-        JS_ASSERT(!JSID_IS_VOID(propid));
-        JS_ASSERT(slot <= SHAPE_INVALID_SLOT);
-    }
-
-    StackShape(const Shape *shape)
-      : base(shape->base()->unowned()),
-        propid(shape->maybePropid()),
-        slot_(shape->slotInfo & Shape::SLOT_MASK),
-        attrs(shape->attrs),
-        flags(shape->flags),
-        shortid(shape->shortid_)
-    {}
-
-    bool hasSlot() const { return (attrs & JSPROP_SHARED) == 0; }
-    bool hasMissingSlot() const { return maybeSlot() == SHAPE_INVALID_SLOT; }
-
-    uint32_t slot() const { JS_ASSERT(hasSlot() && !hasMissingSlot()); return slot_; }
-    uint32_t maybeSlot() const { return slot_; }
-
-    uint32_t slotSpan() const {
-        uint32_t free = JSSLOT_FREE(base->clasp);
-        return hasMissingSlot() ? free : (maybeSlot() + 1);
-    }
-
-    void setSlot(uint32_t slot) {
-        JS_ASSERT(slot <= SHAPE_INVALID_SLOT);
-        slot_ = slot;
-    }
-
-    inline JSDHashNumber hash() const;
-};
-
-/* Rooter for stack allocated shapes. */
-class RootStackShape
-{
-    Root<const UnownedBaseShape*> baseShapeRoot;
-    Root<const jsid> propidRoot;
-
-  public:
-    RootStackShape(JSContext *cx, const StackShape *shape)
-      : baseShapeRoot(cx, &shape->base),
-        propidRoot(cx, &shape->propid)
-    {}
-};
 
 } /* namespace js */
 
@@ -1061,30 +1021,27 @@ class RootStackShape
 
 namespace js {
 
-inline Shape *
-Shape::search(JSContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
+/*
+ * The search succeeds if it finds a Shape with the given id.  There are two
+ * success cases:
+ * - If the Shape is the last in its shape lineage, we return |startp|, which
+ *   is &obj->lastProp or something similar.
+ * - Otherwise, we return &shape->parent, where |shape| is the successor to the
+ *   found Shape.
+ *
+ * There is one failure case:  we return &emptyShape->parent, where
+ * |emptyShape| is the EmptyShape at the start of the shape lineage.
+ */
+JS_ALWAYS_INLINE Shape **
+Shape::search(JSContext *cx, HeapPtrShape *pstart, jsid id, bool adding)
 {
-    if (start->inDictionary()) {
-        *pspp = start->table().search(id, adding);
-        return SHAPE_FETCH(*pspp);
-    }
-
-    *pspp = NULL;
-
-    if (start->hasTable()) {
-        Shape **spp = start->table().search(id, adding);
-        return SHAPE_FETCH(spp);
-    }
+    Shape *start = *pstart;
+    if (start->hasTable())
+        return start->table().search(id, adding);
 
     if (start->numLinearSearches() == LINEAR_SEARCHES_MAX) {
-        if (start->isBigEnoughForAPropertyTable()) {
-            RootShape startRoot(cx, &start);
-            RootId idRoot(cx, &id);
-            if (start->hashify(cx)) {
-                Shape **spp = start->table().search(id, adding);
-                return SHAPE_FETCH(spp);
-            }
-        }
+        if (start->isBigEnoughForAPropertyTable() && start->hashify(cx))
+            return start->table().search(id, adding);
         /* 
          * No table built -- there weren't enough entries, or OOM occurred.
          * Don't increment numLinearSearches, to keep hasTable() false.
@@ -1094,12 +1051,20 @@ Shape::search(JSContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
         start->incrementNumLinearSearches();
     }
 
-    for (Shape *shape = start; shape; shape = shape->parent) {
+    /*
+     * Not enough searches done so far to justify hashing: search linearly
+     * from start.
+     *
+     * We don't use a Range here, or stop at null parent (the empty shape at
+     * the end).  This avoids an extra load per iteration at the cost (if the
+     * search fails) of an extra load and id test at the end.
+     */
+    HeapPtrShape *spp;
+    for (spp = pstart; js::Shape *shape = *spp; spp = &shape->parent) {
         if (shape->maybePropid() == id)
-            return shape;
+            return spp->unsafeGet();
     }
-
-    return NULL;
+    return spp->unsafeGet();
 }
 
 } // namespace js

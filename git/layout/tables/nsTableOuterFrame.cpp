@@ -83,7 +83,7 @@ nsTableOuterFrame::GetBaseline() const
   nsIFrame* kid = mFrames.FirstChild();
   if (!kid) {
     NS_NOTREACHED("no inner table");
-    return nsContainerFrame::GetBaseline();
+    return nsHTMLContainerFrame::GetBaseline();
   }
 
   return kid->GetBaseline() + kid->GetPosition().y;
@@ -173,7 +173,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsTableCaptionFrame)
 /* ----------- nsTableOuterFrame ---------- */
 
 nsTableOuterFrame::nsTableOuterFrame(nsStyleContext* aContext):
-  nsContainerFrame(aContext)
+  nsHTMLContainerFrame(aContext)
 {
 }
 
@@ -183,7 +183,7 @@ nsTableOuterFrame::~nsTableOuterFrame()
 
 NS_QUERYFRAME_HEAD(nsTableOuterFrame)
   NS_QUERYFRAME_ENTRY(nsITableLayout)
-NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
 #ifdef ACCESSIBILITY
 already_AddRefed<nsAccessible>
@@ -204,7 +204,7 @@ nsTableOuterFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   DestroyAbsoluteFrames(aDestructRoot);
   mCaptionFrames.DestroyFramesFrom(aDestructRoot);
-  nsContainerFrame::DestroyFrom(aDestructRoot);
+  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
 
 nsFrameList
@@ -214,13 +214,13 @@ nsTableOuterFrame::GetChildList(ChildListID aListID) const
     return mCaptionFrames;
   }
 
-  return nsContainerFrame::GetChildList(aListID);
+  return nsHTMLContainerFrame::GetChildList(aListID);
 }
 
 void
 nsTableOuterFrame::GetChildLists(nsTArray<ChildList>* aLists) const
 {
-  nsContainerFrame::GetChildLists(aLists);
+  nsHTMLContainerFrame::GetChildLists(aLists);
   mCaptionFrames.AppendIfNonempty(aLists, kCaptionList);
 }
 

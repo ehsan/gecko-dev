@@ -1600,20 +1600,13 @@ bool Program::linkVaryings()
     if (mFragmentShader->mUsesFragCoord)
     {
         mPixelHLSL += "    float rhw = 1.0 / input.gl_FragCoord.w;\n";
-        
-        if (sm3)
-        {
-            // dx_Coord.y contains the render target height. See Context::applyRenderTarget()
+        if (sm3) {
             mPixelHLSL += "    gl_FragCoord.x = input.dx_VPos.x + 0.5;\n"
-                          "    gl_FragCoord.y = dx_Coord.y - input.dx_VPos.y - 0.5;\n";
+                          "    gl_FragCoord.y = 2.0 * dx_Viewport.y - input.dx_VPos.y - 0.5;\n";
+        } else {
+            mPixelHLSL += "    gl_FragCoord.x = (input.gl_FragCoord.x * rhw) * dx_Viewport.x + dx_Viewport.z;\n"
+                          "    gl_FragCoord.y = -(input.gl_FragCoord.y * rhw) * dx_Viewport.y + dx_Viewport.w;\n";
         }
-        else
-        {
-            // dx_Coord contains the viewport width/2, height/2, center.x and center.y. See Context::applyRenderTarget()
-            mPixelHLSL += "    gl_FragCoord.x = (input.gl_FragCoord.x * rhw) * dx_Coord.x + dx_Coord.z;\n"
-                          "    gl_FragCoord.y = -(input.gl_FragCoord.y * rhw) * dx_Coord.y + dx_Coord.w;\n";
-        }
-        
         mPixelHLSL += "    gl_FragCoord.z = (input.gl_FragCoord.z * rhw) * dx_Depth.x + dx_Depth.y;\n"
                       "    gl_FragCoord.w = rhw;\n";
     }
@@ -1739,7 +1732,7 @@ void Program::link()
             // are reserved prefixes, and do not receive additional decoration
             mDxDepthRangeLocation = getUniformLocation("dx_DepthRange");
             mDxDepthLocation = getUniformLocation("dx_Depth");
-            mDxCoordLocation = getUniformLocation("dx_Coord");
+            mDxViewportLocation = getUniformLocation("dx_Viewport");
             mDxHalfPixelSizeLocation = getUniformLocation("dx_HalfPixelSize");
             mDxFrontCCWLocation = getUniformLocation("dx_FrontCCW");
             mDxPointsOrLinesLocation = getUniformLocation("dx_PointsOrLines");
@@ -2427,7 +2420,7 @@ void Program::unlink(bool destroy)
 
     mDxDepthRangeLocation = -1;
     mDxDepthLocation = -1;
-    mDxCoordLocation = -1;
+    mDxViewportLocation = -1;
     mDxHalfPixelSizeLocation = -1;
     mDxFrontCCWLocation = -1;
     mDxPointsOrLinesLocation = -1;
@@ -2848,9 +2841,9 @@ GLint Program::getDxDepthLocation() const
     return mDxDepthLocation;
 }
 
-GLint Program::getDxCoordLocation() const
+GLint Program::getDxViewportLocation() const
 {
-    return mDxCoordLocation;
+    return mDxViewportLocation;
 }
 
 GLint Program::getDxHalfPixelSizeLocation() const

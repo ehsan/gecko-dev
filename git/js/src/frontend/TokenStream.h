@@ -131,6 +131,7 @@ enum TokenKind {
     TOK_XMLPI,                     /* XML processing instruction */
     TOK_AT,                        /* XML attribute op (@) */
     TOK_DBLCOLON,                  /* namespace qualified name op (::) */
+    TOK_ANYNAME,                   /* XML AnyName singleton (*) */
     TOK_DBLDOT,                    /* XML descendant op (..) */
     TOK_FILTER,                    /* XML filtering predicate op (.()) */
     TOK_XMLELEM,                   /* XML element node type (no token) */
@@ -198,6 +199,12 @@ inline bool
 TokenKindIsEquality(TokenKind tt)
 {
     return TOK_EQUALITY_START <= tt && tt <= TOK_EQUALITY_LAST;
+}
+
+inline bool
+TokenKindIsXML(TokenKind tt)
+{
+    return tt == TOK_AT || tt == TOK_DBLCOLON || tt == TOK_ANYNAME;
 }
 
 inline bool
@@ -323,8 +330,8 @@ struct Token {
       private:
         friend struct Token;
         struct {                        /* pair for <?target data?> XML PI */
-            PropertyName *target;       /* non-empty */
-            JSAtom       *data;         /* maybe empty, never null */
+            JSAtom       *data;         /* auxiliary atom table entry */
+            PropertyName *target;       /* main atom table entry */
         } xmlpi;
         uint16_t        sharpNumber;    /* sharp variable number: #1# or #1= */
         jsdouble        number;         /* floating point number */
@@ -352,9 +359,6 @@ struct Token {
     }
 
     void setProcessingInstruction(PropertyName *target, JSAtom *data) {
-        JS_ASSERT(target);
-        JS_ASSERT(data);
-        JS_ASSERT(!target->empty());
         u.xmlpi.target = target;
         u.xmlpi.data = data;
     }

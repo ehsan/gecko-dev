@@ -40,8 +40,6 @@
 #ifndef jsstrinlines_h___
 #define jsstrinlines_h___
 
-#include "mozilla/Attributes.h"
-
 #include "jsatom.h"
 #include "jsstr.h"
 
@@ -77,9 +75,6 @@ class StringBuffer
     inline bool checkLength(size_t length);
     JSContext *context() const { return cb.allocPolicy().context(); }
     jschar *extractWellSized();
-
-    StringBuffer(const StringBuffer &other) MOZ_DELETE;
-    void operator=(const StringBuffer &other) MOZ_DELETE;
 
   public:
     explicit inline StringBuffer(JSContext *cx);
@@ -247,9 +242,6 @@ ValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
 class RopeBuilder {
     JSContext *cx;
     JSString *res;
-
-    RopeBuilder(const RopeBuilder &other) MOZ_DELETE;
-    void operator=(const RopeBuilder &other) MOZ_DELETE;
 
   public:
     RopeBuilder(JSContext *cx)

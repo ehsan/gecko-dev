@@ -1703,8 +1703,7 @@ nsMathMLChar::Stretch(nsPresContext*           aPresContext,
                       nsStretchDirection       aStretchDirection,
                       const nsBoundingMetrics& aContainerSize,
                       nsBoundingMetrics&       aDesiredStretchSize,
-                      PRUint32                 aStretchHint,
-                      bool                     aRTL)
+                      PRUint32                 aStretchHint)
 {
   NS_ASSERTION(!(aStretchHint &
                  ~(NS_STRETCH_VARIABLE_MASK | NS_STRETCH_LARGEOP |
@@ -1712,7 +1711,6 @@ nsMathMLChar::Stretch(nsPresContext*           aPresContext,
                "Unexpected stretch flags");
 
   mDrawNormal = true;
-  mMirrored = aRTL && nsMathMLOperators::IsMirrorableOperator(mData);
   mScaleY = mScaleX = 1.0;
   mDirection = aStretchDirection;
   nsresult rv =
@@ -1798,11 +1796,10 @@ nsMathMLChar::ComposeChildren(nsPresContext*      aPresContext,
     child->mDirection = mDirection;
     child->mStyleContext = mStyleContext;
     child->mGlyphTable = aGlyphTable; // the child is associated to this table
-    child->mMirrored = mMirrored;
     // there goes the Stretch() ...
     nsBoundingMetrics childSize;
     nsresult rv = child->Stretch(aPresContext, aRenderingContext, mDirection,
-                                 splitSize, childSize, aStretchHint, mMirrored);
+                                 splitSize, childSize, aStretchHint);
     // check if something went wrong or the child couldn't fit in the alloted space
     if (NS_FAILED(rv) || (NS_STRETCH_DIRECTION_UNSUPPORTED == child->mDirection)) {
       delete mSibling; // don't leave a dangling list behind ...
@@ -2031,13 +2028,8 @@ void
 nsMathMLChar::ApplyTransforms(nsRenderingContext& aRenderingContext, nsRect &r)
 {
   // apply the transforms
-  if (mMirrored) {
-    aRenderingContext.Translate(r.TopRight());
-    aRenderingContext.Scale(-mScaleX, mScaleY);
-  } else {
-    aRenderingContext.Translate(r.TopLeft());
-    aRenderingContext.Scale(mScaleX, mScaleY);
-  }
+  aRenderingContext.Translate(r.TopLeft());
+  aRenderingContext.Scale(mScaleX, mScaleY);
 
   // update the bounding rectangle.
   r.x = r.y = 0;

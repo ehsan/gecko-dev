@@ -156,9 +156,9 @@ js_GetLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp)
     }
 
     if (obj->isArguments()) {
-        ArgumentsObject &argsobj = obj->asArguments();
-        if (!argsobj.hasOverriddenLength()) {
-            *lengthp = argsobj.initialLength();
+        ArgumentsObject *argsobj = obj->asArguments();
+        if (!argsobj->hasOverriddenLength()) {
+            *lengthp = argsobj->initialLength();
             return true;
         }
     }
@@ -415,7 +415,7 @@ GetElement(JSContext *cx, JSObject *obj, IndexType index, JSBool *hole, Value *v
         return JS_TRUE;
     }
     if (obj->isArguments()) {
-        if (obj->asArguments().getElement(uint32_t(index), vp)) {
+        if (obj->asArguments()->getElement(uint32_t(index), vp)) {
             *hole = JS_FALSE;
             return true;
         }
@@ -452,9 +452,9 @@ GetElements(JSContext *cx, JSObject *aobj, jsuint length, Value *vp)
     }
 
     if (aobj->isArguments()) {
-        ArgumentsObject &argsobj = aobj->asArguments();
-        if (!argsobj.hasOverriddenLength()) {
-            if (argsobj.getElements(0, length, vp))
+        ArgumentsObject *argsobj = aobj->asArguments();
+        if (!argsobj->hasOverriddenLength()) {
+            if (argsobj->getElements(0, length, vp))
                 return true;
         }
     }
@@ -660,6 +660,9 @@ array_length_setter(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value 
         if (!iter)
             return false;
 
+        /* Protect iter against GC under JSObject::deleteProperty. */
+        AutoObjectRooter tvr(cx, iter);
+
         jsuint gap = oldlen - newlen;
         for (;;) {
             if (!JS_CHECK_OPERATION_LIMIT(cx) || !JS_NextProperty(cx, iter, &id))
@@ -776,45 +779,60 @@ js_GetDenseArrayElementValue(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 }
 
 static JSBool
-array_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name, Value *vp)
+array_getGeneric(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp)
 {
-    if (name == cx->runtime->atomState.lengthAtom) {
+    uint32_t i;
+
+    if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom)) {
         vp->setNumber(obj->getArrayLength());
-        return true;
+        return JS_TRUE;
     }
 
-    if (name == cx->runtime->atomState.protoAtom) {
+    if (JSID_IS_ATOM(id, cx->runtime->atomState.protoAtom)) {
         vp->setObjectOrNull(obj->getProto());
-        return true;
+        return JS_TRUE;
     }
 
     if (!obj->isDenseArray())
-        return js_GetProperty(cx, obj, receiver, ATOM_TO_JSID(name), vp);
+        return js_GetProperty(cx, obj, id, vp);
 
-    JSObject *proto = obj->getProto();
-    if (!proto) {
-        vp->setUndefined();
-        return true;
+    if (!js_IdIsIndex(id, &i) || i >= obj->getDenseArrayInitializedLength() ||
+        obj->getDenseArrayElement(i).isMagic(JS_ARRAY_HOLE)) {
+        JSObject *proto = obj->getProto();
+        if (!proto) {
+            vp->setUndefined();
+            return JS_TRUE;
+        }
+
+        return proto->getGeneric(cx, receiver, id, vp);
     }
 
-    return proto->getProperty(cx, receiver, name, vp);
+    *vp = obj->getDenseArrayElement(i);
+
+    /* Type information for dense array elements must be correct. */
+    JS_ASSERT_IF(!obj->hasSingletonType(),
+                 js::types::TypeHasProperty(cx, obj->type(), JSID_VOID, *vp));
+
+    return JS_TRUE;
+}
+
+static JSBool
+array_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name, Value *vp)
+{
+    return array_getGeneric(cx, obj, receiver, ATOM_TO_JSID(name), vp);
 }
 
 static JSBool
 array_getElement(JSContext *cx, JSObject *obj, JSObject *receiver, uint32_t index, Value *vp)
 {
     if (!obj->isDenseArray())
-        return js_GetElement(cx, obj, receiver, index, vp);
+        return js_GetElement(cx, obj, index, vp);
 
-    if (index < obj->getDenseArrayInitializedLength()) {
+    if (index < obj->getDenseArrayInitializedLength() &&
+        !obj->getDenseArrayElement(index).isMagic(JS_ARRAY_HOLE))
+    {
         *vp = obj->getDenseArrayElement(index);
-        if (!vp->isMagic(JS_ARRAY_HOLE)) {
-            /* Type information for dense array elements must be correct. */
-            JS_ASSERT_IF(!obj->hasSingletonType(),
-                         js::types::TypeHasProperty(cx, obj->type(), JSID_VOID, *vp));
-
-            return true;
-        }
+        return true;
     }
 
     JSObject *proto = obj->getProto();
@@ -829,35 +847,7 @@ array_getElement(JSContext *cx, JSObject *obj, JSObject *receiver, uint32_t inde
 static JSBool
 array_getSpecial(JSContext *cx, JSObject *obj, JSObject *receiver, SpecialId sid, Value *vp)
 {
-    if (obj->isDenseArray() && !obj->getProto()) {
-        vp->setUndefined();
-        return true;
-    }
-
-    return js_GetProperty(cx, obj, receiver, SPECIALID_TO_JSID(sid), vp);
-}
-
-static JSBool
-array_getGeneric(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp)
-{
-    Value idval = IdToValue(id);
-
-    uint32_t index;
-    if (IsDefinitelyIndex(idval, &index))
-        return array_getElement(cx, obj, receiver, index, vp);
-
-    SpecialId sid;
-    if (ValueIsSpecial(obj, &idval, &sid, cx))
-        return array_getSpecial(cx, obj, receiver, sid, vp);
-
-    JSAtom *atom;
-    if (!js_ValueToAtom(cx, idval, &atom))
-        return false;
-
-    if (atom->isIndex(&index))
-        return array_getElement(cx, obj, receiver, index, vp);
-
-    return array_getProperty(cx, obj, receiver, atom->asPropertyName(), vp);
+    return array_getGeneric(cx, obj, receiver, SPECIALID_TO_JSID(sid), vp);
 }
 
 static JSBool
@@ -2028,7 +2018,7 @@ struct SortComparatorFunction {
     SortComparatorFunction(JSContext *cx, const Value &fval, InvokeArgsGuard &ag)
       : cx(cx), fval(fval), ag(ag) { }
 
-    bool operator()(const Value &a, const Value &b, bool *lessOrEqualp);
+    bool JS_REQUIRES_STACK operator()(const Value &a, const Value &b, bool *lessOrEqualp);
 };
 
 bool
@@ -3598,18 +3588,15 @@ js_InitArrayClass(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj->isNative());
 
-    RootedVar<GlobalObject*> global(cx);
-    global = &obj->asGlobal();
+    GlobalObject *global = obj->asGlobal();
 
-    RootedVarObject arrayProto(cx);
-    arrayProto = global->createBlankPrototype(cx, &SlowArrayClass);
+    JSObject *arrayProto = global->createBlankPrototype(cx, &SlowArrayClass);
     if (!arrayProto || !AddLengthProperty(cx, arrayProto))
         return NULL;
     arrayProto->setArrayLength(cx, 0);
 
-    RootedVarFunction ctor(cx);
-    ctor = global->createConstructor(cx, js_Array, &ArrayClass,
-                                     CLASS_ATOM(cx, Array), 1);
+    JSFunction *ctor = global->createConstructor(cx, js_Array, &ArrayClass,
+                                                 CLASS_ATOM(cx, Array), 1);
     if (!ctor)
         return NULL;
 
@@ -3687,15 +3674,10 @@ NewArray(JSContext *cx, uint32_t length, JSObject *proto)
         return obj;
     }
 
-    Root<GlobalObject*> parentRoot(cx, &parent);
-
-    if (!proto && !FindProto(cx, &ArrayClass, parentRoot, &proto))
+    if (!proto && !FindProto(cx, &ArrayClass, parent, &proto))
         return NULL;
 
-    RootObject protoRoot(cx, &proto);
-    RootedVarTypeObject type(cx);
-
-    type = proto->getNewType(cx);
+    types::TypeObject *type = proto->getNewType(cx);
     if (!type)
         return NULL;
 
@@ -3703,9 +3685,8 @@ NewArray(JSContext *cx, uint32_t length, JSObject *proto)
      * Get a shape with zero fixed slots, regardless of the size class.
      * See JSObject::createDenseArray.
      */
-    RootedVarShape shape(cx);
-    shape = EmptyShape::getInitialShape(cx, &ArrayClass, proto,
-                                        parent, gc::FINALIZE_OBJECT0);
+    Shape *shape = EmptyShape::getInitialShape(cx, &ArrayClass, proto,
+                                               proto->getParent(), gc::FINALIZE_OBJECT0);
     if (!shape)
         return NULL;
 

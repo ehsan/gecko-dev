@@ -39,6 +39,7 @@
 
 #include "IDBDatabase.h"
 
+#include "jscntxt.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/storage.h"
 #include "nsDOMClassInfo.h"
@@ -59,7 +60,6 @@
 #include "IndexedDatabaseManager.h"
 #include "LazyIdleThread.h"
 #include "TransactionThreadPool.h"
-#include "DictionaryHelpers.h"
 
 USING_INDEXEDDB_NAMESPACE
 
@@ -386,17 +386,27 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
 
   DatabaseInfo* databaseInfo = transaction->DBInfo();
 
-  mozilla::dom::IDBObjectStoreParameters params;
   nsString keyPath;
   keyPath.SetIsVoid(true);
   nsTArray<nsString> keyPathArray;
+  bool autoIncrement = false;
 
   if (!JSVAL_IS_VOID(aOptions) && !JSVAL_IS_NULL(aOptions)) {
-    nsresult rv = params.Init(aCx, &aOptions);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (JSVAL_IS_PRIMITIVE(aOptions)) {
+      // XXX This isn't the right error
+      return NS_ERROR_DOM_TYPE_ERR;
+    }
+
+    NS_ASSERTION(JSVAL_IS_OBJECT(aOptions), "Huh?!");
+    JSObject* options = JSVAL_TO_OBJECT(aOptions);
 
     // Get keyPath
-    jsval val = params.keyPath;
+    jsval val;
+    if (!JS_GetPropertyById(aCx, options, nsDOMClassInfo::sKeyPath_id, &val)) {
+      NS_WARNING("JS_GetPropertyById failed!");
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
+
     if (!JSVAL_IS_VOID(val) && !JSVAL_IS_NULL(val)) {
       if (!JSVAL_IS_PRIMITIVE(val) &&
           JS_IsArrayObject(aCx, JSVAL_TO_OBJECT(val))) {
@@ -448,13 +458,26 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
         keyPath = str;
       }
     }
+
+    if (!JS_GetPropertyById(aCx, options, nsDOMClassInfo::sAutoIncrement_id,
+                            &val)) {
+      NS_WARNING("JS_GetPropertyById failed!");
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
+
+    JSBool boolVal;
+    if (!JS_ValueToBoolean(aCx, val, &boolVal)) {
+      NS_WARNING("JS_ValueToBoolean failed!");
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
+    autoIncrement = !!boolVal;
   }
 
   if (databaseInfo->ContainsStoreName(aName)) {
     return NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR;
   }
 
-  if (params.autoIncrement &&
+  if (autoIncrement &&
       ((!keyPath.IsVoid() && keyPath.IsEmpty()) || !keyPathArray.IsEmpty())) {
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
@@ -465,7 +488,7 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
   newInfo->id = databaseInfo->nextObjectStoreId++;
   newInfo->keyPath = keyPath;
   newInfo->keyPathArray = keyPathArray;
-  newInfo->nextAutoIncrementId = params.autoIncrement ? 1 : 0;
+  newInfo->nextAutoIncrementId = autoIncrement ? 1 : 0;
   newInfo->comittedAutoIncrementId = newInfo->nextAutoIncrementId;
 
   if (!databaseInfo->PutObjectStore(newInfo)) {

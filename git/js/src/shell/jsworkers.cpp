@@ -99,14 +99,16 @@ namespace workers {
 
 template <class T, class AllocPolicy>
 class Queue {
+  private:
     typedef Vector<T, 4, AllocPolicy> Vec;
     Vec v1;
     Vec v2;
     Vec *front;
     Vec *back;
 
-    Queue(const Queue &) MOZ_DELETE;
-    Queue & operator=(const Queue &) MOZ_DELETE;
+    // Queue is not copyable.
+    Queue(const Queue &);
+    Queue & operator=(const Queue &);
 
   public:
     Queue() : front(&v1), back(&v2) {}
