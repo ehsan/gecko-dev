@@ -28,6 +28,8 @@ Components.utils.import("resource://gre/modules/Task.jsm");
 Components.utils.import("resource://gre/modules/osfile.jsm");
 Components.utils.import("resource://gre/modules/AsyncShutdown.jsm");
 
+Services.prefs.setBoolPref("toolkit.osfile.log", true);
+
 // We need some internal bits of AddonManager
 let AMscope = Components.utils.import("resource://gre/modules/AddonManager.jsm");
 let AddonManager = AMscope.AddonManager;

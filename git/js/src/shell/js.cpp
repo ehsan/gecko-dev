@@ -5370,7 +5370,7 @@ dom_constructor(JSContext* cx, unsigned argc, JS::Value *vp)
     }
 
     RootedObject proto(cx, &protov.toObject());
-    RootedObject domObj(cx, JS_NewObjectWithGivenProto(cx, &dom_class, proto));
+    RootedObject domObj(cx, JS_NewObjectWithGivenProto(cx, &dom_class, proto, JS::NullPtr()));
     if (!domObj)
         return false;
 

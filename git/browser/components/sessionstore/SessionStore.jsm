@@ -688,6 +688,7 @@ let SessionStoreInternal = {
             Services.obs.notifyObservers(browser, NOTIFY_TAB_RESTORED, null);
           }
 
+          delete browser.__SS_restore_data;
           delete browser.__SS_data;
 
           SessionStoreInternal._resetLocalTabRestoringState(tab);
@@ -2682,16 +2683,26 @@ let SessionStoreInternal = {
   },
 
   /**
-   * Kicks off restoring the given tab.
+   * Restores the specified tab. If the tab can't be restored (eg, no history or
+   * calling gotoIndex fails), then state changes will be rolled back.
+   * This method will check if gTabsProgressListener is attached to the tab's
+   * window, ensuring that we don't get caught without one.
+   * This method removes the session history listener right before starting to
+   * attempt a load. This will prevent cases of "stuck" listeners.
+   * If this method returns false, then it is up to the caller to decide what to
+   * do. In the common case (restoreNextTab), we will want to then attempt to
+   * restore the next tab. In the other case (selecting the tab, reloading the
+   * tab), the caller doesn't actually want to do anything if no page is loaded.
    *
    * @param aTab
    *        the tab to restore
-   * @param aLoadArguments
-   *        optional load arguments used for loadURI()
+   *
+   * @returns true/false indicating whether or not a load actually happened
    */
   restoreTabContent: function (aTab, aLoadArguments = null) {
     let window = aTab.ownerDocument.defaultView;
     let browser = aTab.linkedBrowser;
+    let tabData = browser.__SS_data;
 
     // Make sure that this tab is removed from the priority queue.
     TabRestoreQueue.remove(aTab);
@@ -2703,6 +2714,17 @@ let SessionStoreInternal = {
     browser.__SS_restoreState = TAB_STATE_RESTORING;
     browser.removeAttribute("pending");
     aTab.removeAttribute("pending");
+
+    let activeIndex = tabData.index - 1;
+
+    // Attach data that will be restored on "load" event, after tab is restored.
+    if (tabData.entries.length) {
+      // restore those aspects of the currently active documents which are not
+      // preserved in the plain history entries (mainly scroll state and text data)
+      browser.__SS_restore_data = tabData.entries[activeIndex] || {};
+    } else {
+      browser.__SS_restore_data = {};
+    }
 
     browser.messageManager.sendAsyncMessage("SessionStore:restoreTabContent",
       {loadArguments: aLoadArguments});

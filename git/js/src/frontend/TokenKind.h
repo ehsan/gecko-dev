@@ -110,7 +110,6 @@
     macro(LET,          "keyword 'let'") \
     macro(EXPORT,       "keyword 'export'") \
     macro(IMPORT,       "keyword 'import'") \
-    macro(CLASS,        "keyword 'class'") \
     macro(RESERVED,     "reserved keyword") \
     /* reserved keywords in strict mode */ \
     macro(STRICT_RESERVED, "reserved keyword") \

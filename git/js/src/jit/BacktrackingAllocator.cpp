@@ -17,11 +17,11 @@ BacktrackingAllocator::init()
 {
     RegisterSet remainingRegisters(allRegisters_);
     while (!remainingRegisters.empty(/* float = */ false)) {
-        AnyRegister reg = AnyRegister(remainingRegisters.takeUnaliasedGeneral());
+        AnyRegister reg = AnyRegister(remainingRegisters.takeGeneral());
         registers[reg.code()].allocatable = true;
     }
     while (!remainingRegisters.empty(/* float = */ true)) {
-        AnyRegister reg = AnyRegister(remainingRegisters.takeUnaliasedFloat());
+        AnyRegister reg = AnyRegister(remainingRegisters.takeFloat());
         registers[reg.code()].allocatable = true;
     }
 

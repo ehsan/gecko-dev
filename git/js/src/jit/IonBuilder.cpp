@@ -417,25 +417,6 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
         return DontInline(nullptr, "Non-interpreted target");
     }
 
-    if (info().analysisMode() != Analysis_DefiniteProperties) {
-        // If |this| or an argument has an empty resultTypeSet, don't bother
-        // inlining, as the call is currently unreachable due to incomplete type
-        // information. This does not apply to the definite properties analysis,
-        // in that case we want to inline anyway.
-
-        if (callInfo.thisArg()->emptyResultTypeSet()) {
-            trackOptimizationOutcome(TrackedOutcome::CantInlineUnreachable);
-            return DontInline(nullptr, "Empty TypeSet for |this|");
-        }
-
-        for (size_t i = 0; i < callInfo.argc(); i++) {
-            if (callInfo.getArg(i)->emptyResultTypeSet()) {
-                trackOptimizationOutcome(TrackedOutcome::CantInlineUnreachable);
-                return DontInline(nullptr, "Empty TypeSet for argument");
-            }
-        }
-    }
-
     // Allow constructing lazy scripts when performing the definite properties
     // analysis, as baseline has not been used to warm the caller up yet.
     if (target->isInterpreted() && info().analysisMode() == Analysis_DefiniteProperties) {
@@ -1749,8 +1730,6 @@ IonBuilder::inspectOpcode(JSOp op)
         return jsop_initelem_array();
 
       case JSOP_INITPROP:
-      case JSOP_INITLOCKEDPROP:
-      case JSOP_INITHIDDENPROP:
       {
         PropertyName *name = info().getAtom(pc)->asPropertyName();
         return jsop_initprop(name);
@@ -6402,7 +6381,7 @@ IonBuilder::jsop_initprop(PropertyName *name)
 
     bool useSlowPath = false;
 
-    if (obj->isUnknownValue() || obj->isLambda()) {
+    if (obj->isUnknownValue()) {
         useSlowPath = true;
     } else {
         templateObject = obj->toNewObject()->templateObject();

@@ -1336,7 +1336,7 @@ pref("browser.devedition.theme.showCustomizeButton", false);
 
 // Developer edition promo preferences
 pref("devtools.devedition.promo.shown", false);
-pref("devtools.devedition.promo.url", "https://www.mozilla.org/firefox/developer/?utm_source=firefox-dev-tools&utm_medium=firefox-browser&utm_content=betadoorhanger");
+pref("devtools.devedition.promo.url", "https://mozilla.org/firefox/developer");
 
 // Only potentially show in beta release
 #if MOZ_UPDATE_CHANNEL == beta
@@ -1438,9 +1438,6 @@ pref("devtools.timeline.enabled", true);
 #else
 pref("devtools.timeline.enabled", false);
 #endif
-
-// TODO remove `devtools.timeline.hiddenMarkers.` branches when performance
-// tool lands (bug 1075567)
 pref("devtools.timeline.hiddenMarkers", "[]");
 
 // Enable perftools via build command
@@ -1458,7 +1455,6 @@ pref("devtools.profiler.ui.show-platform-data", false);
 pref("devtools.profiler.ui.show-idle-blocks", true);
 
 // The default Performance UI settings
-pref("devtools.performance.timeline.hidden-markers", "[]");
 pref("devtools.performance.ui.invert-call-tree", true);
 pref("devtools.performance.ui.invert-flame-graph", false);
 pref("devtools.performance.ui.flatten-tree-recursion", true);
@@ -1576,9 +1572,6 @@ pref("devtools.browserconsole.filter.secwarn", true);
 
 // Text size in the Web Console. Use 0 for the system default size.
 pref("devtools.webconsole.fontSize", 0);
-
-// Max number of inputs to store in web console history.
-pref("devtools.webconsole.inputHistoryCount", 50);
 
 // Persistent logging: |true| if you want the Web Console to keep all of the
 // logged messages after reloading the page, |false| if you want the output to

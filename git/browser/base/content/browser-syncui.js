@@ -11,19 +11,13 @@ XPCOMUtils.defineLazyModuleGetter(this, "CloudSync",
 let CloudSync = null;
 #endif
 
-XPCOMUtils.defineLazyModuleGetter(this, "ReadingListScheduler",
-                                  "resource:///modules/readinglist/Scheduler.jsm");
-
 // gSyncUI handles updating the tools menu and displaying notifications.
 let gSyncUI = {
   _obs: ["weave:service:sync:start",
-         "weave:service:sync:finish",
-         "weave:service:sync:error",
          "weave:service:quota:remaining",
          "weave:service:setup-complete",
          "weave:service:login:start",
          "weave:service:login:finish",
-         "weave:service:login:error",
          "weave:service:logout:finish",
          "weave:service:start-over",
          "weave:service:start-over:finish",
@@ -31,15 +25,9 @@ let gSyncUI = {
          "weave:ui:sync:error",
          "weave:ui:sync:finish",
          "weave:ui:clear-error",
-
-         "readinglist:sync:start",
-         "readinglist:sync:finish",
-         "readinglist:sync:error",
   ],
 
   _unloaded: false,
-  // The number of "active" syncs - while this is non-zero, our button will spin
-  _numActiveSyncTasks: 0,
 
   init: function () {
     Cu.import("resource://services-common/stringbundle.js");
@@ -107,25 +95,21 @@ let gSyncUI = {
     }
   },
 
-  _needsSetup() {
+  _needsSetup: function SUI__needsSetup() {
     // We want to treat "account needs verification" as "needs setup". So
     // "reach in" to Weave.Status._authManager to check whether we the signed-in
     // user is verified.
     // Referencing Weave.Status spins a nested event loop to initialize the
     // authManager, so this should always return a value directly.
     // This only applies to fxAccounts-based Sync.
-    if (Weave.Status._authManager._signedInUser !== undefined) {
-      // So we are using Firefox accounts - in this world, checking Sync isn't
-      // enough as reading list may be configured but not Sync.
-      // We consider ourselves setup if we have a verified user.
-      // XXX - later we should consider checking preferences to ensure at least
-      // one engine is enabled?
-      return !Weave.Status._authManager._signedInUser ||
-             !Weave.Status._authManager._signedInUser.verified;
+    if (Weave.Status._authManager._signedInUser) {
+      // If we have a signed in user already, and that user is not verified,
+      // revert to the "needs setup" state.
+      if (!Weave.Status._authManager._signedInUser.verified) {
+        return true;
+      }
     }
 
-    // So we are using legacy sync, and reading-list isn't supported for such
-    // users, so check sync itself.
     let firstSync = "";
     try {
       firstSync = Services.prefs.getCharPref("services.sync.firstSync");
@@ -136,8 +120,7 @@ let gSyncUI = {
   },
 
   _loginFailed: function () {
-    return Weave.Status.login == Weave.LOGIN_FAILED_LOGIN_REJECTED ||
-           ReadingListScheduler.state == ReadingListScheduler.STATE_ERROR_AUTHENTICATION;
+    return Weave.Status.login == Weave.LOGIN_FAILED_LOGIN_REJECTED;
   },
 
   updateUI: function SUI_updateUI() {
@@ -153,7 +136,6 @@ let gSyncUI = {
       document.getElementById("sync-syncnow-state").hidden = false;
     } else if (loginFailed) {
       document.getElementById("sync-reauth-state").hidden = false;
-      this.showLoginError();
     } else if (needsSetup) {
       document.getElementById("sync-setup-state").hidden = false;
     } else {
@@ -164,6 +146,14 @@ let gSyncUI = {
       return;
 
     let syncButton = document.getElementById("sync-button");
+    if (syncButton) {
+      syncButton.removeAttribute("status");
+    }
+    let panelHorizontalButton = document.getElementById("PanelUI-fxa-status");
+    if (panelHorizontalButton) {
+      panelHorizontalButton.removeAttribute("syncstatus");
+    }
+
     if (needsSetup && syncButton)
       syncButton.removeAttribute("tooltiptext");
 
@@ -172,45 +162,17 @@ let gSyncUI = {
 
 
   // Functions called by observers
-  onActivityStart() {
+  onActivityStart: function SUI_onActivityStart() {
     if (!gBrowser)
       return;
 
-    this.log.debug("onActivityStart with numActive", this._numActiveSyncTasks);
-    if (++this._numActiveSyncTasks == 1) {
-      let button = document.getElementById("sync-button");
-      if (button) {
-        button.setAttribute("status", "active");
-      }
-      button = document.getElementById("PanelUI-fxa-status");
-      if (button) {
-        button.setAttribute("syncstatus", "active");
-      }
+    let button = document.getElementById("sync-button");
+    if (button) {
+      button.setAttribute("status", "active");
     }
-  },
-
-  onActivityStop() {
-    if (!gBrowser)
-      return;
-    this.log.debug("onActivityStop with numActive", this._numActiveSyncTasks);
-    if (--this._numActiveSyncTasks) {
-      if (this._numActiveSyncTasks < 0) {
-        // This isn't particularly useful (it seems more likely we'll set a
-        // "start" without a "stop" meaning it forever remains > 0) but it
-        // might offer some value...
-        this.log.error("mismatched onActivityStart/Stop calls",
-                       new Error("active=" + this._numActiveSyncTasks));
-      }
-      return; // active tasks are still ongoing...
-    }
-
-    let syncButton = document.getElementById("sync-button");
-    if (syncButton) {
-      syncButton.removeAttribute("status");
-    }
-    let panelHorizontalButton = document.getElementById("PanelUI-fxa-status");
-    if (panelHorizontalButton) {
-      panelHorizontalButton.removeAttribute("syncstatus");
+    button = document.getElementById("PanelUI-fxa-status");
+    if (button) {
+      button.setAttribute("syncstatus", "active");
     }
   },
 
@@ -225,7 +187,6 @@ let gSyncUI = {
   },
 
   onLoginError: function SUI_onLoginError() {
-    // Note: This is used for *both* Sync and ReadingList login errors.
     // if login fails, any other notifications are essentially moot
     Weave.Notifications.removeAll();
 
@@ -239,18 +200,11 @@ let gSyncUI = {
       this.updateUI();
       return;
     }
-    this.showLoginError();
-    this.updateUI();
-  },
 
-  showLoginError() {
-    // Note: This is used for *both* Sync and ReadingList login errors.
     let title = this._stringBundle.GetStringFromName("error.login.title");
 
     let description;
-    if (Weave.Status.sync == Weave.PROLONGED_SYNC_FAILURE ||
-        this.isProlongedReadingListError()) {
-      this.log.debug("showLoginError has a prolonged login error");
+    if (Weave.Status.sync == Weave.PROLONGED_SYNC_FAILURE) {
       // Convert to days
       let lastSync =
         Services.prefs.getIntPref("services.sync.errorhandler.networkFailureReportTimeout") / 86400;
@@ -260,7 +214,6 @@ let gSyncUI = {
       let reason = Weave.Utils.getErrorString(Weave.Status.login);
       description =
         this._stringBundle.formatStringFromName("error.sync.description", [reason], 1);
-      this.log.debug("showLoginError has a non-prolonged error", reason);
     }
 
     let buttons = [];
@@ -273,6 +226,7 @@ let gSyncUI = {
     let notification = new Weave.Notification(title, description, null,
                                               Weave.Notifications.PRIORITY_WARNING, buttons);
     Weave.Notifications.replaceTitle(notification);
+    this.updateUI();
   },
 
   onLogout: function SUI_onLogout() {
@@ -317,7 +271,6 @@ let gSyncUI = {
     }
 
     Services.obs.notifyObservers(null, "cloudsync:user-sync", null);
-    Services.obs.notifyObservers(null, "readinglist:user-sync", null);
   },
 
   handleToolbarButton: function SUI_handleStatusbarButton() {
@@ -414,15 +367,7 @@ let gSyncUI = {
 
     let lastSync;
     try {
-      lastSync = new Date(Services.prefs.getCharPref("services.sync.lastSync"));
-    }
-    catch (e) { };
-    // and reading-list time - we want whatever one is the most recent.
-    try {
-      let lastRLSync = new Date(Services.prefs.getCharPref("readinglist.scheduler.lastSync"));
-      if (!lastSync || lastRLSync > lastSync) {
-        lastSync = lastRLSync;
-      }
+      lastSync = Services.prefs.getCharPref("services.sync.lastSync");
     }
     catch (e) { };
     if (!lastSync || this._needsSetup()) {
@@ -431,9 +376,9 @@ let gSyncUI = {
     }
 
     // Show the day-of-week and time (HH:MM) of last sync
-    let lastSyncDateString = lastSync.toLocaleFormat("%a %H:%M");
+    let lastSyncDate = new Date(lastSync).toLocaleFormat("%a %H:%M");
     let lastSyncLabel =
-      this._stringBundle.formatStringFromName("lastSync2.label", [lastSyncDateString], 1);
+      this._stringBundle.formatStringFromName("lastSync2.label", [lastSyncDate], 1);
 
     syncButton.setAttribute("tooltiptext", lastSyncLabel);
   },
@@ -450,69 +395,7 @@ let gSyncUI = {
     this.clearError(title);
   },
 
-  // Return true if the reading-list is in a "prolonged" error state. That
-  // engine doesn't impose what that means, so calculate it here. For
-  // consistency, we just use the sync prefs.
-  isProlongedReadingListError() {
-    let lastSync, threshold, prolonged;
-    try {
-      lastSync = new Date(Services.prefs.getCharPref("readinglist.scheduler.lastSync"));
-      threshold = new Date(Date.now() - Services.prefs.getIntPref("services.sync.errorhandler.networkFailureReportTimeout"));
-      prolonged = lastSync <= threshold;
-    } catch (ex) {
-      // no pref, assume not prolonged.
-      prolonged = false;
-    }
-    this.log.debug("isProlongedReadingListError has last successful sync at ${lastSync}, threshold is ${threshold}, prolonged=${prolonged}",
-                   {lastSync, threshold, prolonged});
-    return prolonged;
-  },
-
-  onRLSyncError() {
-    // Like onSyncError, but from the reading-list engine.
-    // However, the current UX around Sync is that error notifications should
-    // generally *not* be seen as they typically aren't actionable - so only
-    // authentication errors (which require user action) and "prolonged" errors
-    // (which technically aren't actionable, but user really should know anyway)
-    // are shown.
-    this.log.debug("onRLSyncError with readingList state", ReadingListScheduler.state);
-    if (ReadingListScheduler.state == ReadingListScheduler.STATE_ERROR_AUTHENTICATION) {
-      this.onLoginError();
-      return;
-    }
-    // If it's not prolonged there's nothing to do.
-    if (!this.isProlongedReadingListError()) {
-      this.log.debug("onRLSyncError has a non-authentication, non-prolonged error, so not showing any error UI");
-      return;
-    }
-    // So it's a prolonged error.
-    // Unfortunate duplication from below...
-    this.log.debug("onRLSyncError has a prolonged error");
-    let title = this._stringBundle.GetStringFromName("error.sync.title");
-    // XXX - this is somewhat wrong - we are reporting the threshold we consider
-    // to be prolonged, not how long it actually has been. (ie, lastSync below
-    // is effectively constant) - bit it too is copied from below.
-    let lastSync =
-      Services.prefs.getIntPref("services.sync.errorhandler.networkFailureReportTimeout") / 86400;
-    let description =
-      this._stringBundle.formatStringFromName("error.sync.prolonged_failure", [lastSync], 1);
-    let priority = Weave.Notifications.PRIORITY_INFO;
-    let buttons = [
-      new Weave.NotificationButton(
-        this._stringBundle.GetStringFromName("error.sync.tryAgainButton.label"),
-        this._stringBundle.GetStringFromName("error.sync.tryAgainButton.accesskey"),
-        function() { gSyncUI.doSync(); return true; }
-      ),
-    ];
-    let notification =
-      new Weave.Notification(title, description, null, priority, buttons);
-    Weave.Notifications.replaceTitle(notification);
-
-    this.updateUI();
-  },
-
   onSyncError: function SUI_onSyncError() {
-    this.log.debug("onSyncError");
     let title = this._stringBundle.GetStringFromName("error.sync.title");
 
     if (Weave.Status.login != Weave.LOGIN_SUCCEEDED) {
@@ -535,9 +418,7 @@ let gSyncUI = {
     let priority = Weave.Notifications.PRIORITY_WARNING;
     let buttons = [];
 
-    // Check if the client is outdated in some way (but note: we've never in the
-    // past, and probably never will, bump the relevent version numbers, so
-    // this is effectively dead code!)
+    // Check if the client is outdated in some way
     let outdated = Weave.Status.sync == Weave.VERSION_OUT_OF_DATE;
     for (let [engine, reason] in Iterator(Weave.Status.engines))
       outdated = outdated || reason == Weave.VERSION_OUT_OF_DATE;
@@ -587,7 +468,6 @@ let gSyncUI = {
   },
 
   observe: function SUI_observe(subject, topic, data) {
-    this.log.debug("observed", topic);
     if (this._unloaded) {
       Cu.reportError("SyncUI observer called after unload: " + topic);
       return;
@@ -600,26 +480,10 @@ let gSyncUI = {
       subject = subject.wrappedJSObject.object;
     }
 
-    // First handle "activity" only.
     switch (topic) {
       case "weave:service:sync:start":
-      case "weave:service:login:start":
-      case "readinglist:sync:start":
         this.onActivityStart();
         break;
-      case "weave:service:sync:finish":
-      case "weave:service:sync:error":
-      case "weave:service:login:finish":
-      case "weave:service:login:error":
-      case "readinglist:sync:finish":
-      case "readinglist:sync:error":
-        this.onActivityStop();
-        break;
-    }
-    // Now non-activity state (eg, enabled, errors, etc)
-    // Note that sync uses the ":ui:" notifications for errors because sync.
-    // ReadingList has no such concept (yet?; hopefully the :error is enough!)
-    switch (topic) {
       case "weave:ui:sync:finish":
         this.onSyncFinish();
         break;
@@ -631,6 +495,9 @@ let gSyncUI = {
         break;
       case "weave:service:setup-complete":
         this.onSetupComplete();
+        break;
+      case "weave:service:login:start":
+        this.onActivityStart();
         break;
       case "weave:service:login:finish":
         this.onLoginFinish();
@@ -656,13 +523,6 @@ let gSyncUI = {
       case "weave:ui:clear-error":
         this.clearError();
         break;
-
-      case "readinglist:sync:error":
-        this.onRLSyncError();
-        break;
-      case "readinglist:sync:finish":
-        this.clearError();
-        break;
     }
   },
 
@@ -680,6 +540,3 @@ XPCOMUtils.defineLazyGetter(gSyncUI, "_stringBundle", function() {
          createBundle("chrome://weave/locale/services/sync.properties");
 });
 
-XPCOMUtils.defineLazyGetter(gSyncUI, "log", function() {
-  return Log.repository.getLogger("browserwindow.syncui");
-});

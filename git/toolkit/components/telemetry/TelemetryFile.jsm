@@ -244,9 +244,13 @@ this.TelemetryFile = {
    *
    * @return {iterator}
    */
-  popPendingPings: function*() {
+  popPendingPings: function*(reason) {
     while (pendingPings.length > 0) {
       let data = pendingPings.pop();
+      // Send persisted pings to the test URL too.
+      if (reason == "test-ping") {
+        data.reason = reason;
+      }
       yield data;
     }
   },
@@ -259,9 +263,7 @@ this.TelemetryFile = {
 
 ///// Utility functions
 function pingFilePath(ping) {
-  // Support legacy ping formats, who don't have an "id" field, but a "slug" field.
-  let pingIdentifier = (ping.slug) ? ping.slug : ping.id;
-  return OS.Path.join(TelemetryFile.pingDirectoryPath, pingIdentifier);
+  return OS.Path.join(TelemetryFile.pingDirectoryPath, ping.slug);
 }
 
 function getPingDirectory() {

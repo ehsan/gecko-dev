@@ -976,14 +976,8 @@ TokenStream::putIdentInTokenbuf(const char16_t *identStart)
 bool
 TokenStream::checkForKeyword(const KeywordInfo *kw, TokenKind *ttp)
 {
-    if (kw->tokentype == TOK_RESERVED
-#ifndef JS_HAS_CLASSES
-        || kw->tokentype == TOK_CLASS
-#endif
-        )
-    {
+    if (kw->tokentype == TOK_RESERVED)
         return reportError(JSMSG_RESERVED_ID, kw->chars);
-    }
 
     if (kw->tokentype != TOK_STRICT_RESERVED) {
         if (kw->version <= versionNumber()) {

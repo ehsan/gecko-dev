@@ -1101,8 +1101,11 @@ static bool
 MakeFinalizeObserver(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
+    RootedObject scope(cx, JS::CurrentGlobalOrNull(cx));
+    if (!scope)
+        return false;
 
-    JSObject *obj = JS_NewObjectWithGivenProto(cx, &FinalizeCounterClass, JS::NullPtr());
+    JSObject *obj = JS_NewObjectWithGivenProto(cx, &FinalizeCounterClass, JS::NullPtr(), scope);
     if (!obj)
         return false;
 

@@ -386,7 +386,8 @@ public:
 
     virtual JSObject* createHolder(JSContext *cx, JSObject *wrapper) MOZ_OVERRIDE
     {
-        return JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr());
+        JS::RootedObject global(cx, JS_GetGlobalForObject(cx, wrapper));
+        return JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr(), global);
     }
 
     static OpaqueXrayTraits singleton;

@@ -377,9 +377,6 @@ bool
 InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, HandlePropertyName name,
                           HandleObject val);
 
-unsigned
-GetInitDataPropAttrs(JSOp op);
-
 bool
 EnterWithOperation(JSContext *cx, AbstractFramePtr frame, HandleValue val, HandleObject staticWith);
 

@@ -431,7 +431,7 @@ IonCache::linkAndAttachStub(JSContext *cx, MacroAssembler &masm, StubAttacher &a
     // Add entry to native => bytecode mapping for this stub if needed.
     if (cx->runtime()->jitRuntime()->isProfilerInstrumentationEnabled(cx->runtime())) {
         JitcodeGlobalEntry::IonCacheEntry entry;
-        entry.init(code, code->raw(), code->rawEnd(), rejoinAddress());
+        entry.init(code->raw(), code->rawEnd(), rejoinAddress());
 
         // Add entry to the global table.
         JitcodeGlobalTable *globalTable = cx->runtime()->jitRuntime()->getJitcodeGlobalTable();
@@ -444,7 +444,7 @@ IonCache::linkAndAttachStub(JSContext *cx, MacroAssembler &masm, StubAttacher &a
         code->setHasBytecodeMap();
     } else {
         JitcodeGlobalEntry::DummyEntry entry;
-        entry.init(code, code->raw(), code->rawEnd());
+        entry.init(code->raw(), code->rawEnd());
 
         // Add entry to the global table.
         JitcodeGlobalTable *globalTable = cx->runtime()->jitRuntime()->getJitcodeGlobalTable();
@@ -1697,10 +1697,9 @@ GetPropertyIC::tryAttachProxy(JSContext *cx, HandleScript outerScript, IonScript
         DOMProxyShadowsResult shadows = GetDOMProxyShadowsCheck()(cx, obj, id);
         if (shadows == ShadowCheckFailed)
             return false;
-        if (DOMProxyIsShadowing(shadows))
+        if (shadows == Shadows)
             return tryAttachDOMProxyShadowed(cx, outerScript, ion, obj, returnAddr, emitted);
 
-        MOZ_ASSERT(shadows == DoesntShadow || shadows == DoesntShadowUnique);
         return tryAttachDOMProxyUnshadowed(cx, outerScript, ion, obj, name,
                                            shadows == DoesntShadowUnique, returnAddr, emitted);
     }
@@ -2922,7 +2921,7 @@ SetPropertyIC::attachSetUnboxed(JSContext *cx, HandleScript outerScript, IonScri
     MacroAssembler masm(cx, ion, outerScript, profilerLeavePc_);
     RepatchStubAppender attacher(*this);
     GenerateSetUnboxed(cx, masm, attacher, obj, id, unboxedOffset, unboxedType,
-                       object(), value(), checkTypeset);
+                       object(), value(), needsTypeBarrier());
     return linkAndAttachStub(cx, masm, attacher, ion, "set_unboxed");
 }
 
@@ -2970,7 +2969,7 @@ SetPropertyIC::update(JSContext *cx, HandleScript outerScript, size_t cacheIndex
                 DOMProxyShadowsResult shadows = GetDOMProxyShadowsCheck()(cx, obj, id);
                 if (shadows == ShadowCheckFailed)
                     return false;
-                if (DOMProxyIsShadowing(shadows)) {
+                if (shadows == Shadows) {
                     if (!cache.attachDOMProxyShadowed(cx, outerScript, ion, obj, returnAddr))
                         return false;
                     addedSetterStub = true;
