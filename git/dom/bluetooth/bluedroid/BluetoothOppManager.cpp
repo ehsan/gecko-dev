@@ -270,7 +270,15 @@ BluetoothOppManager::HandleShutdown()
 {
   MOZ_ASSERT(NS_IsMainThread());
   sInShutdown = true;
-  Disconnect(nullptr);
+
+  if (mSocket) {
+    mSocket->Disconnect();
+    mSocket = nullptr;
+  }
+  if (mServerSocket) {
+    mServerSocket->Disconnect();
+    mServerSocket = nullptr;
+  }
   sBluetoothOppManager = nullptr;
 }
 
@@ -434,8 +442,10 @@ BluetoothOppManager::StopSendingFile()
 
   if (mIsServer) {
     mAbortFlag = true;
+  } else if (mSocket) {
+    mSocket->Disconnect();
   } else {
-    Disconnect(nullptr);
+    BT_WARNING("%s: No ongoing file transfer to stop", __FUNCTION__);
   }
 
   return true;
@@ -498,7 +508,9 @@ BluetoothOppManager::AfterOppConnected()
     // If we fail to get a mount lock, abort this transaction
     // Directly sending disconnect-request is better than abort-request
     BT_WARNING("BluetoothOPPManager couldn't get a mount lock!");
-    Disconnect(nullptr);
+
+    MOZ_ASSERT(mSocket);
+    mSocket->Disconnect();
   }
 }
 
@@ -1459,16 +1471,6 @@ BluetoothOppManager::OnSocketDisconnect(BluetoothSocket* aSocket)
   }
 }
 
-void
-BluetoothOppManager::Disconnect(BluetoothProfileController* aController)
-{
-  if (mSocket) {
-    mSocket->Disconnect();
-  } else {
-    BT_WARNING("%s: No ongoing file transfer to stop", __FUNCTION__);
-  }
-}
-
 NS_IMPL_ISUPPORTS1(BluetoothOppManager, nsIObserver)
 
 bool
@@ -1501,6 +1503,12 @@ BluetoothOppManager::OnUpdateSdpRecords(const nsAString& aDeviceAddress)
 void
 BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
                              BluetoothProfileController* aController)
+{
+  MOZ_ASSERT(false);
+}
+
+void
+BluetoothOppManager::Disconnect(BluetoothProfileController* aController)
 {
   MOZ_ASSERT(false);
 }

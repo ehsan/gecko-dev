@@ -283,7 +283,7 @@ let FormAssistant = {
       this._observer = new MutationObserver(function(mutations) {
         var del = [].some.call(mutations, function(m) {
           return [].some.call(m.removedNodes, function(n) {
-            return n.contains(element);
+            return n === element;
           });
         });
         if (del && element === self.focusedElement) {
@@ -292,9 +292,8 @@ let FormAssistant = {
         }
       });
 
-      this._observer.observe(element.ownerDocument.body, {
-        childList: true,
-        subtree: true
+      this._observer.observe(element.parentNode, {
+        childList: true
       });
     }
 
@@ -518,16 +517,10 @@ let FormAssistant = {
       case "Forms:Input:SendKey":
         CompositionManager.endComposition('');
 
-        this._editing = true;
-        let doKeypress = domWindowUtils.sendKeyEvent('keydown', json.keyCode,
-                                  json.charCode, json.modifiers);
-        if (doKeypress) {
-          domWindowUtils.sendKeyEvent('keypress', json.keyCode,
-                                  json.charCode, json.modifiers);
-        }
-        domWindowUtils.sendKeyEvent('keyup', json.keyCode,
-                                  json.charCode, json.modifiers);
-        this._editing = false;
+        ["keydown", "keypress", "keyup"].forEach(function(type) {
+          domWindowUtils.sendKeyEvent(type, json.keyCode, json.charCode,
+            json.modifiers);
+        });
 
         if (json.requestId) {
           sendAsyncMessage("Forms:SendKey:Result:OK", {

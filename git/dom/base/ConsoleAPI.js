@@ -82,9 +82,6 @@ ConsoleAPI.prototype = {
       error: function CA_error() {
         self.queueCall("error", arguments);
       },
-      exception: function CA_exception() {
-        self.queueCall("exception", arguments);
-      },
       debug: function CA_debug() {
         self.queueCall("debug", arguments);
       },
@@ -137,7 +134,6 @@ ConsoleAPI.prototype = {
         info: "r",
         warn: "r",
         error: "r",
-        exception: "r",
         debug: "r",
         trace: "r",
         dir: "r",
@@ -163,7 +159,6 @@ ConsoleAPI.prototype = {
       info: genPropDesc('info'),
       warn: genPropDesc('warn'),
       error: genPropDesc('error'),
-      exception: genPropDesc('exception'),
       debug: genPropDesc('debug'),
       trace: genPropDesc('trace'),
       dir: genPropDesc('dir'),
@@ -293,7 +288,6 @@ ConsoleAPI.prototype = {
       case "info":
       case "warn":
       case "error":
-      case "exception":
       case "debug":
         consoleEvent.arguments = this.processArguments(args);
         break;

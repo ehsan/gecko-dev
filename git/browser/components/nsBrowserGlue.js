@@ -1653,8 +1653,8 @@ BrowserGlue.prototype = {
             position: menuIndex++,
             newInVersion: 1
           },
-          Windows8Touch: {
-            title: bundle.GetStringFromName("windows8TouchTitle"),
+          FirefoxTouch: {
+            title: bundle.GetStringFromName("firefoxTouchTitle"),
             uri: NetUtil.newURI("place:folder=" +
                                 PlacesUtils.annotations.getItemsWithAnnotation('metro/bookmarksRoot', {})[0] +
                                 "&queryType=" +

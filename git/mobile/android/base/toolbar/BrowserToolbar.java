@@ -566,7 +566,8 @@ public class BrowserToolbar extends GeckoRelativeLayout
                 case START:
                     updateBackButton(canDoBack(tab));
                     updateForwardButton(canDoForward(tab));
-                    if (tab.getState() == Tab.STATE_LOADING) {
+                    Boolean showProgress = (Boolean)data;
+                    if (showProgress && tab.getState() == Tab.STATE_LOADING) {
                         setProgressVisibility(true);
                     }
                     setSecurityMode(tab.getSecurityMode());
