@@ -12,6 +12,7 @@
 #include "nsIPopupWindowManager.h"
 #include "nsISupportsArray.h"
 #include "nsIDocShell.h"
+#include "nsIDocument.h"
 
 // For PR_snprintf
 #include "prprf.h"
@@ -571,7 +572,7 @@ public:
 
     // Was a backend provided?
     if (!mBackendChosen) {
-      mBackend = mManager->GetBackend();
+      mBackend = mManager->GetBackend(mWindowID);
     }
 
     // Was a device provided?
@@ -814,10 +815,12 @@ class GetUserMediaDevicesRunnable : public nsRunnable
 public:
   GetUserMediaDevicesRunnable(
     already_AddRefed<nsIGetUserMediaDevicesSuccessCallback> aSuccess,
-    already_AddRefed<nsIDOMGetUserMediaErrorCallback> aError)
+    already_AddRefed<nsIDOMGetUserMediaErrorCallback> aError,
+    uint64_t aWindowId)
     : mSuccess(aSuccess)
     , mError(aError)
     , mManager(MediaManager::GetInstance())
+    , mWindowId(aWindowId)
   {}
 
   NS_IMETHOD
@@ -828,11 +831,11 @@ public:
     uint32_t audioCount, videoCount, i;
 
     nsTArray<nsRefPtr<MediaEngineVideoSource> > videoSources;
-    mManager->GetBackend()->EnumerateVideoDevices(&videoSources);
+    mManager->GetBackend(mWindowId)->EnumerateVideoDevices(&videoSources);
     videoCount = videoSources.Length();
 
     nsTArray<nsRefPtr<MediaEngineAudioSource> > audioSources;
-    mManager->GetBackend()->EnumerateAudioDevices(&audioSources);
+    mManager->GetBackend(mWindowId)->EnumerateAudioDevices(&audioSources);
     audioCount = audioSources.Length();
 
     nsTArray<nsCOMPtr<nsIMediaDevice> > *devices =
@@ -863,6 +866,7 @@ private:
   already_AddRefed<nsIGetUserMediaDevicesSuccessCallback> mSuccess;
   already_AddRefed<nsIDOMGetUserMediaErrorCallback> mError;
   nsRefPtr<MediaManager> mManager;
+  uint64_t mWindowId;
 };
 
 MediaManager::MediaManager()
@@ -1017,9 +1021,8 @@ MediaManager::GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
       nsCOMPtr<nsIDocument> doc = aWindow->GetExtantDoc();
       pm->TestPermission(doc->NodePrincipal(), &permission);
       if (permission == nsIPopupWindowManager::DENY_POPUP) {
-        nsCOMPtr<nsIDOMDocument> domDoc = aWindow->GetExtantDocument();
         nsGlobalWindow::FirePopupBlockedEvent(
-          domDoc, aWindow, nullptr, EmptyString(), EmptyString()
+          doc, aWindow, nullptr, EmptyString(), EmptyString()
         );
         return NS_OK;
       }
@@ -1090,7 +1093,16 @@ MediaManager::GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
                                            );
   }
 
-#ifdef ANDROID
+#ifdef MOZ_B2G_CAMERA
+  if (mCameraManager == nullptr) {
+    mCameraManager = nsDOMCameraManager::CheckPermissionAndCreateInstance(aWindow);
+    if (!mCameraManager) {
+      aPrivileged = false;
+    }
+  }
+#endif
+
+#if defined(ANDROID) && !defined(MOZ_WIDGET_GONK)
   if (picture) {
     // ShowFilePickerForMimeType() must run on the Main Thread! (on Android)
     NS_DispatchToMainThread(gUMRunnable);
@@ -1156,7 +1168,7 @@ MediaManager::GetUserMediaDevices(nsPIDOMWindow* aWindow,
   nsCOMPtr<nsIDOMGetUserMediaErrorCallback> onError(aOnError);
 
   nsCOMPtr<nsIRunnable> gUMDRunnable = new GetUserMediaDevicesRunnable(
-    onSuccess.forget(), onError.forget()
+    onSuccess.forget(), onError.forget(), aWindow->WindowID()
   );
 
   nsCOMPtr<nsIThread> deviceThread;
@@ -1169,7 +1181,7 @@ MediaManager::GetUserMediaDevices(nsPIDOMWindow* aWindow,
 }
 
 MediaEngine*
-MediaManager::GetBackend()
+MediaManager::GetBackend(uint64_t aWindowId)
 {
   // Plugin backends as appropriate. The default engine also currently
   // includes picture support for Android.
@@ -1177,7 +1189,11 @@ MediaManager::GetBackend()
   MutexAutoLock lock(mMutex);
   if (!mBackend) {
 #if defined(MOZ_WEBRTC)
+  #ifndef MOZ_B2G_CAMERA
     mBackend = new MediaEngineWebRTC();
+  #else
+    mBackend = new MediaEngineWebRTC(mCameraManager, aWindowId);
+  #endif
 #else
     mBackend = new MediaEngineDefault();
 #endif

@@ -40,6 +40,26 @@ function promiseSocialUrlNotRemembered(url) {
 
 let gURLsNotRemembered = [];
 
+
+function checkProviderPrefsEmpty(isError) {
+  let MANIFEST_PREFS = Services.prefs.getBranch("social.manifest.");
+  let prefs = MANIFEST_PREFS.getChildList("", []);
+  let c = 0;
+  for (let pref of prefs) {
+    if (MANIFEST_PREFS.prefHasUserValue(pref)) {
+      info("provider [" + pref + "] manifest left installed from previous test");
+      c++;
+    }
+  }
+  is(c, 0, "all provider prefs uninstalled from previous test");
+  is(Social.providers.length, 0, "all providers uninstalled from previous test " + Social.providers.length);
+}
+
+function defaultFinishChecks() {
+  checkProviderPrefsEmpty(true);
+  finish();
+}
+
 function runSocialTestWithProvider(manifest, callback, finishcallback) {
   let SocialService = Cu.import("resource://gre/modules/SocialService.jsm", {}).SocialService;
 
@@ -67,7 +87,7 @@ function runSocialTestWithProvider(manifest, callback, finishcallback) {
   function finishIfDone(callFinish) {
     finishCount++;
     if (finishCount == manifests.length)
-      Task.spawn(finishCleanUp).then(finishcallback || finish);
+      Task.spawn(finishCleanUp).then(finishcallback || defaultFinishChecks);
   }
   function removeAddedProviders(cleanup) {
     manifests.forEach(function (m) {
@@ -128,6 +148,7 @@ function runSocialTestWithProvider(manifest, callback, finishcallback) {
 
 function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
   let testIter = Iterator(tests);
+  let providersAtStart = Social.providers.length;
 
   if (cbPreTest === undefined) {
     cbPreTest = function(cb) {cb()};
@@ -142,7 +163,7 @@ function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
       [name, func] = testIter.next();
     } catch (err if err instanceof StopIteration) {
       // out of items:
-      (cbFinish || finish)();
+      (cbFinish || defaultFinishChecks)();
       return;
     }
     // We run on a timeout as the frameworker also makes use of timeouts, so
@@ -153,6 +174,7 @@ function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
         cbPostTest(runNextTest);
       }
       cbPreTest(function() {
+        is(providersAtStart, Social.providers.length, "no new providers left enabled");
         info("sub-test " + name + " starting");
         try {
           func.call(tests, cleanupAndRunNextTest);
@@ -185,11 +207,18 @@ function checkSocialUI(win) {
   isbool(win.SocialChatBar.isAvailable, enabled && Social.haveLoggedInUser(), "chatbar available?");
   isbool(!win.SocialChatBar.chatbar.hidden, enabled && Social.haveLoggedInUser(), "chatbar visible?");
 
-  let canShare = enabled && provider.recommendInfo && Social.haveLoggedInUser() && win.SocialShareButton.canSharePage(win.gBrowser.currentURI)
-  isbool(!win.SocialShareButton.shareButton.hidden, canShare, "share button visible?");
+  let markVisible = enabled && provider.pageMarkInfo;
+  let canMark = markVisible && win.SocialMark.canMarkPage(win.gBrowser.currentURI);
+  isbool(!win.SocialMark.button.hidden, markVisible, "SocialMark button visible?");
+  isbool(!win.SocialMark.button.disabled, canMark, "SocialMark button enabled?");
   isbool(!doc.getElementById("social-toolbar-item").hidden, active, "toolbar items visible?");
-  if (active)
-    is(win.SocialToolbar.button.style.listStyleImage, 'url("' + Social.defaultProvider.iconURL + '")', "toolbar button has provider icon");
+  if (active) {
+    if (!enabled) {
+      ok(!win.SocialToolbar.button.style.listStyleImage, "toolbar button is default icon");
+    } else {
+      is(win.SocialToolbar.button.style.listStyleImage, 'url("' + Social.defaultProvider.iconURL + '")', "toolbar button has provider icon");
+    }
+  }
   // the menus should always have the provider name
   if (provider) {
     for (let id of ["menu_socialSidebar", "menu_socialAmbientMenu"])
@@ -201,7 +230,7 @@ function checkSocialUI(win) {
   isbool(!doc.getElementById("Social:ToggleNotifications").hidden, enabled, "Social:ToggleNotifications visible?");
   isbool(!doc.getElementById("Social:FocusChat").hidden, enabled && Social.haveLoggedInUser(), "Social:FocusChat visible?");
   isbool(doc.getElementById("Social:FocusChat").getAttribute("disabled"), enabled ? "false" : "true", "Social:FocusChat disabled?");
-  is(doc.getElementById("Social:SharePage").getAttribute("disabled"), canShare ? "false" : "true", "Social:SharePage visible?");
+  is(doc.getElementById("Social:TogglePageMark").getAttribute("disabled"), canMark ? "false" : "true", "Social:TogglePageMark enabled?");
 
   // broadcasters.
   isbool(!doc.getElementById("socialActiveBroadcaster").hidden, active, "socialActiveBroadcaster hidden?");
@@ -220,16 +249,14 @@ function updateBlocklist(aCallback) {
   blocklistNotifier.notify(null);
 }
 
-var _originalTestBlocklistURL = null;
 function setAndUpdateBlocklist(aURL, aCallback) {
-  if (!_originalTestBlocklistURL)
-    _originalTestBlocklistURL = Services.prefs.getCharPref("extensions.blocklist.url");
   Services.prefs.setCharPref("extensions.blocklist.url", aURL);
   updateBlocklist(aCallback);
 }
 
-function resetBlocklist() {
-  Services.prefs.setCharPref("extensions.blocklist.url", _originalTestBlocklistURL);
+function resetBlocklist(aCallback) {
+  Services.prefs.clearUserPref("extensions.blocklist.url");
+  updateBlocklist(aCallback);
 }
 
 function setManifestPref(name, manifest) {
@@ -294,3 +321,25 @@ function addTab(url, callback) {
     executeSoon(function() {callback(tab)});
   }, true);
 }
+
+function selectBrowserTab(tab, callback) {
+  if (gBrowser.selectedTab == tab) {
+    executeSoon(function() {callback(tab)});
+    return;
+  }
+  gBrowser.tabContainer.addEventListener("TabSelect", function onTabSelect() {
+    gBrowser.tabContainer.removeEventListener("TabSelect", onTabSelect, false);
+    is(gBrowser.selectedTab, tab, "browser tab is selected");
+    executeSoon(function() {callback(tab)});
+  });
+  gBrowser.selectedTab = tab;
+}
+
+function loadIntoTab(tab, url, callback) {
+  tab.linkedBrowser.addEventListener("load", function tabLoad(event) {
+    tab.linkedBrowser.removeEventListener("load", tabLoad, true);
+    executeSoon(function() {callback(tab)});
+  }, true);
+  tab.linkedBrowser.loadURI(url);
+}
+

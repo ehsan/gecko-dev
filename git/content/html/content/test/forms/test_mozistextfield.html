@@ -48,8 +48,10 @@ var gInputTestData = [
   ['email',    true],
   ['url',      true],
   ['number',   false],
+  ['range',    false],
   ['date',     false],
   ['time',     false],
+  ['color',    false],
 ];
 
 /**
@@ -58,12 +60,10 @@ var gInputTestData = [
  */
 var gInputTodoData = [
 /* type        expected result */
-  ['color',    false],
   ['datetime', false],
   ['month',    false],
   ['week',     false],
   ['datetime-local', false],
-  ['range',    false],
 ];
 
 function checkMozIsTextFieldDefined(aElement, aResult)

@@ -28,11 +28,6 @@ var SelectHelperUI = {
   },
 
   show: function selectHelperShow(aList, aTitle, aRect) {
-    if (AnimatedZoom.isZooming()) {
-      FormHelperUI._waitForZoom(this.show.bind(this, aList, aTitle, aRect));
-      return;
-    }
-
     if (this._list)
       this.reset();
 
@@ -103,11 +98,10 @@ var SelectHelperUI = {
 
   _positionOptions: function _positionOptions(aRect) {
     let browser = Browser.selectedBrowser;
-    let p0 = browser.transformBrowserToClient(aRect.left, aRect.top);
-    let p1 = browser.transformBrowserToClient(aRect.right, aRect.bottom);
+    let p0 = browser.ptBrowserToClient(aRect.left, aRect.top);
+    let p1 = browser.ptBrowserToClient(aRect.right, aRect.bottom);
 
     return {
-      forcePosition: true,
       xPos: p0.x,
       yPos: p1.y,
       bottomAligned: false,

@@ -12,7 +12,7 @@
 using namespace mozilla;
 
 JSObject*
-WebGLTexture::WrapObject(JSContext *cx, JSObject *scope) {
+WebGLTexture::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope) {
     return dom::WebGLTextureBinding::Wrap(cx, scope, this);
 }
 
@@ -325,6 +325,28 @@ WebGLTexture::NeedFakeBlack() {
                                "different from CLAMP_TO_EDGE.", msg_rendering_as_black);
                     mFakeBlackStatus = DoNeedFakeBlack;
                 }
+            }
+        }
+
+        if (ImageInfoAt(0).mType == LOCAL_GL_FLOAT &&
+            !Context()->IsExtensionEnabled(WebGLContext::OES_texture_float_linear))
+        {
+            if (mMinFilter == LOCAL_GL_LINEAR ||
+                mMinFilter == LOCAL_GL_LINEAR_MIPMAP_LINEAR ||
+                mMinFilter == LOCAL_GL_LINEAR_MIPMAP_NEAREST ||
+                mMinFilter == LOCAL_GL_NEAREST_MIPMAP_LINEAR)
+            {
+                mContext->GenerateWarning("%s is a texture with a linear minification filter, "
+                                          "which is not compatible with gl.FLOAT by default. "
+                                          "Try enabling the OES_texture_float_linear extension if supported.", msg_rendering_as_black);
+                mFakeBlackStatus = DoNeedFakeBlack;
+            }
+            else if (mMagFilter == LOCAL_GL_LINEAR)
+            {
+                mContext->GenerateWarning("%s is a texture with a linear magnification filter, "
+                                          "which is not compatible with gl.FLOAT by default. "
+                                          "Try enabling the OES_texture_float_linear extension if supported.", msg_rendering_as_black);
+                mFakeBlackStatus = DoNeedFakeBlack;
             }
         }
 

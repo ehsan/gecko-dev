@@ -14,7 +14,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEGaussianBlurElement::WrapNode(JSContext* aCx, JSObject* aScope)
+SVGFEGaussianBlurElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return SVGFEGaussianBlurElementBinding::Wrap(aCx, aScope, this);
 }
@@ -37,7 +37,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEGaussianBlurElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<nsIDOMSVGAnimatedString>
+already_AddRefed<SVGAnimatedString>
 SVGFEGaussianBlurElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);

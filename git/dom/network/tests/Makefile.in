@@ -27,10 +27,4 @@ MOCHITEST_FILES = \
   $(NULL)
 endif
 
-XPCSHELL_TESTS = unit unit_ipc
-
-ifdef MOZ_B2G_RIL
-XPCSHELL_TESTS += unit_stats
-endif
-
 include $(topsrcdir)/config/rules.mk

@@ -79,9 +79,9 @@ public:
   nsresult SetUpPluginInstance(const char *aMimeType,
                                nsIURI *aURL,
                                nsPluginInstanceOwner *aOwner);
-  nsresult IsPluginEnabledForType(const char* aMimeType);
+  bool PluginExistsForType(const char* aMimeType);
+
   nsresult IsPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
-  nsresult GetBlocklistStateForType(const char *aMimeType, uint32_t *state);
 
   nsresult GetPluginCount(uint32_t* aPluginCount);
   nsresult GetPlugins(uint32_t aPluginCount, nsIDOMPlugin** aPluginArray);
@@ -301,7 +301,7 @@ private:
   static nsPluginHost* sInst;
 };
 
-class NS_STACK_CLASS PluginDestructionGuard : protected PRCList
+class MOZ_STACK_CLASS PluginDestructionGuard : protected PRCList
 {
 public:
   PluginDestructionGuard(nsNPAPIPluginInstance *aInstance)

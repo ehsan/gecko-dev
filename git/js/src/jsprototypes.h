@@ -1,14 +1,13 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99 ft=cpp:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* A higher-order macro for enumerating all JSProtoKey values. */
 
-#ifndef jsprototypes_h___
-#define jsprototypes_h___
+#ifndef jsprototypes_h
+#define jsprototypes_h
 
 #include "jsversion.h"
 
@@ -58,4 +57,4 @@
     macro(ParallelArray,         36,     js_InitParallelArrayClass) \
     macro(Intl,                  37,     js_InitIntlClass) \
 
-#endif /* jsprototypes_h___ */
+#endif /* jsprototypes_h */

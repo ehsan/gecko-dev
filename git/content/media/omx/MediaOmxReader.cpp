@@ -17,6 +17,8 @@
 #include "MPAPI.h"
 
 #define MAX_DROPPED_FRAMES 25
+// Try not to spend more than this much time in a single call to DecodeVideoFrame.
+#define MAX_VIDEO_DECODE_SECONDS 3.0
 
 using namespace android;
 
@@ -28,7 +30,6 @@ MediaOmxReader::MediaOmxReader(AbstractMediaDecoder *aDecoder) :
   mHasAudio(false),
   mVideoSeekTimeUs(-1),
   mAudioSeekTimeUs(-1),
-  mLastVideoFrame(nullptr),
   mSkipCount(0)
 {
 }
@@ -36,11 +37,36 @@ MediaOmxReader::MediaOmxReader(AbstractMediaDecoder *aDecoder) :
 MediaOmxReader::~MediaOmxReader()
 {
   ResetDecode();
+  mOmxDecoder.clear();
 }
 
 nsresult MediaOmxReader::Init(MediaDecoderReader* aCloneDonor)
 {
   return NS_OK;
+}
+
+bool MediaOmxReader::IsWaitingMediaResources()
+{
+  if (!mOmxDecoder.get()) {
+    return false;
+  }
+  return mOmxDecoder->IsWaitingMediaResources();
+}
+
+bool MediaOmxReader::IsDormantNeeded()
+{
+  if (!mOmxDecoder.get()) {
+    return false;
+  }
+  return mOmxDecoder->IsDormantNeeded();
+}
+
+void MediaOmxReader::ReleaseMediaResources()
+{
+  ResetDecode();
+  if (mOmxDecoder.get()) {
+    mOmxDecoder->ReleaseMediaResources();
+  }
 }
 
 nsresult MediaOmxReader::ReadMetadata(VideoInfo* aInfo,
@@ -52,7 +78,17 @@ nsresult MediaOmxReader::ReadMetadata(VideoInfo* aInfo,
 
   if (!mOmxDecoder.get()) {
     mOmxDecoder = new OmxDecoder(mDecoder->GetResource(), mDecoder);
-    mOmxDecoder->Init();
+    if (!mOmxDecoder->Init()) {
+      return NS_ERROR_FAILURE;
+    }
+  }
+
+  if (!mOmxDecoder->TryLoad()) {
+    return NS_ERROR_FAILURE;
+  }
+
+  if (IsWaitingMediaResources()) {
+    return NS_OK;
   }
 
   // Set the total duration (the max of the audio and video track).
@@ -111,12 +147,6 @@ nsresult MediaOmxReader::ResetDecode()
   if (container) {
     container->ClearCurrentFrame();
   }
-
-  if (mLastVideoFrame) {
-    delete mLastVideoFrame;
-    mLastVideoFrame = nullptr;
-  }
-  mOmxDecoder.clear();
   return NS_OK;
 }
 
@@ -128,49 +158,39 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
   uint32_t parsed = 0, decoded = 0;
   AbstractMediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
 
-  // Throw away the currently buffered frame if we are seeking.
-  if (mLastVideoFrame && mVideoSeekTimeUs != -1) {
-    delete mLastVideoFrame;
-    mLastVideoFrame = nullptr;
-  }
-
   bool doSeek = mVideoSeekTimeUs != -1;
   if (doSeek) {
     aTimeThreshold = mVideoSeekTimeUs;
   }
 
-  // Read next frame
-  while (true) {
+  TimeStamp start = TimeStamp::Now();
+
+  // Read next frame. Don't let this loop run for too long.
+  while ((TimeStamp::Now() - start) < TimeDuration::FromSeconds(MAX_VIDEO_DECODE_SECONDS)) {
     MPAPI::VideoFrame frame;
     frame.mGraphicBuffer = nullptr;
     frame.mShouldSkip = false;
     if (!mOmxDecoder->ReadVideo(&frame, aTimeThreshold, aKeyframeSkip, doSeek)) {
-      // We reached the end of the video stream. If we have a buffered
-      // video frame, push it the video queue using the total duration
-      // of the video as the end time.
-      if (mLastVideoFrame) {
-        int64_t durationUs;
-        mOmxDecoder->GetDuration(&durationUs);
-        mLastVideoFrame->mEndTime = (durationUs > mLastVideoFrame->mTime)
-                                  ? durationUs
-                                  : mLastVideoFrame->mTime;
-        mVideoQueue.Push(mLastVideoFrame);
-        mLastVideoFrame = nullptr;
-      }
       mVideoQueue.Finish();
       return false;
+    }
+    doSeek = false;
+
+    // Ignore empty buffer which stagefright media read will sporadically return
+    if (frame.mSize == 0 && !frame.mGraphicBuffer) {
+      continue;
     }
 
     parsed++;
     if (frame.mShouldSkip && mSkipCount < MAX_DROPPED_FRAMES) {
       mSkipCount++;
-      return true;
+      continue;
     }
 
     mSkipCount = 0;
 
     mVideoSeekTimeUs = -1;
-    doSeek = aKeyframeSkip = false;
+    aKeyframeSkip = false;
 
     nsIntRect picture = mPicture;
     if (frame.Y.mWidth != mInitialFrame.width ||
@@ -242,28 +262,7 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
     decoded++;
     NS_ASSERTION(decoded <= parsed, "Expect to decode fewer frames than parsed in MediaPlugin...");
 
-    // Seeking hack
-    if (mLastVideoFrame && mLastVideoFrame->mTime > v->mTime) {
-      delete mLastVideoFrame;
-      mLastVideoFrame = v;
-      continue;
-    }
-
-    // Since MPAPI doesn't give us the end time of frames, we keep one frame
-    // buffered in MediaOmxReader and push it into the queue as soon
-    // we read the following frame so we can use that frame's start time as
-    // the end time of the buffered frame.
-    if (!mLastVideoFrame) {
-      mLastVideoFrame = v;
-      continue;
-    }
-
-    mLastVideoFrame->mEndTime = v->mTime;
-
-    mVideoQueue.Push(mLastVideoFrame);
-
-    // Buffer the current frame we just decoded.
-    mLastVideoFrame = v;
+    mVideoQueue.Push(v);
 
     break;
   }
@@ -371,6 +370,19 @@ nsresult MediaOmxReader::GetBuffered(mozilla::dom::TimeRanges* aBuffered, int64_
     startOffset = stream->GetNextCachedData(endOffset);
   }
   return NS_OK;
+}
+
+void MediaOmxReader::OnDecodeThreadFinish() {
+  if (mOmxDecoder.get()) {
+    mOmxDecoder->Pause();
+  }
+}
+
+void MediaOmxReader::OnDecodeThreadStart() {
+  if (mOmxDecoder.get()) {
+    DebugOnly<nsresult> result = mOmxDecoder->Play();
+    NS_ASSERTION(result == NS_OK, "OmxDecoder should be in play state to continue decoding");
+  }
 }
 
 } // namespace mozilla

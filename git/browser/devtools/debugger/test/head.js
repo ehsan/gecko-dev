@@ -12,18 +12,19 @@ Cu.import("resource://gre/modules/devtools/dbg-server.jsm", tempScope);
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm", tempScope);
 Cu.import("resource:///modules/source-editor.jsm", tempScope);
 Cu.import("resource:///modules/devtools/gDevTools.jsm", tempScope);
-Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
+Cu.import("resource://gre/modules/devtools/Loader.jsm", tempScope);
 let Services = tempScope.Services;
 let SourceEditor = tempScope.SourceEditor;
 let DebuggerServer = tempScope.DebuggerServer;
 let DebuggerTransport = tempScope.DebuggerTransport;
 let DebuggerClient = tempScope.DebuggerClient;
 let gDevTools = tempScope.gDevTools;
-let TargetFactory = tempScope.TargetFactory;
+let devtools = tempScope.devtools;
+let TargetFactory = devtools.TargetFactory;
 
 // Import the GCLI test helper
 let testDir = gTestPath.substr(0, gTestPath.lastIndexOf("/"));
-Services.scriptloader.loadSubScript(testDir + "/helpers.js", this);
+Services.scriptloader.loadSubScript(testDir + "../../../commandline/test/helpers.js", this);
 
 const EXAMPLE_URL = "http://example.com/browser/browser/devtools/debugger/test/";
 const TAB1_URL = EXAMPLE_URL + "browser_dbg_tab1.html";
@@ -69,19 +70,20 @@ function addTab(aURL, aOnload, aWindow) {
   targetBrowser.selectedTab = targetBrowser.addTab(aURL);
 
   let tab = targetBrowser.selectedTab;
-  let win = tab.linkedBrowser.contentWindow;
+  let browser = tab.linkedBrowser;
+  let win = browser.contentWindow;
   let expectedReadyState = aURL == "about:blank" ? ["interactive", "complete"] : ["complete"];
 
   if (aOnload) {
     let handler = function() {
-      if (tab.linkedBrowser.currentURI.spec != aURL ||
+      if (browser.currentURI.spec != aURL ||
           expectedReadyState.indexOf((win.document || {}).readyState) == -1) {
         return;
       }
-      tab.removeEventListener("load", handler, false);
+      browser.removeEventListener("load", handler, true);
       executeSoon(aOnload);
     }
-    tab.addEventListener("load", handler, false);
+    browser.addEventListener("load", handler, true);
   }
 
   return tab;
@@ -183,30 +185,9 @@ function debug_tab_pane(aURL, aOnDebugging, aBeforeTabAdded) {
         info("Debugger has started");
         dbg._view.Variables.lazyEmpty = false;
         dbg._view.Variables.lazyAppend = false;
+        dbg._view.Variables.lazyExpand = false;
         aOnDebugging(tab, debuggee, dbg);
       });
-    });
-  });
-}
-
-function debug_remote(aURL, aOnDebugging, aBeforeTabAdded) {
-  // Make any necessary preparations (start the debugger server etc.)
-  if (aBeforeTabAdded) {
-    aBeforeTabAdded();
-  }
-
-  let tab = addTab(aURL, function() {
-    let debuggee = tab.linkedBrowser.contentWindow.wrappedJSObject;
-
-    info("Opening Remote Debugger");
-    let win = DebuggerUI.toggleRemoteDebugger();
-
-    // Wait for the initial resume...
-    win.panelWin.gClient.addOneTimeListener("resumed", function() {
-      info("Remote Debugger has started");
-      win._dbgwin.DebuggerView.Variables.lazyEmpty = false;
-      win._dbgwin.DebuggerView.Variables.lazyAppend = false;
-      aOnDebugging(tab, debuggee, win);
     });
   });
 }
@@ -216,7 +197,7 @@ function debug_chrome(aURL, aOnClosing, aOnDebugging) {
     let debuggee = tab.linkedBrowser.contentWindow.wrappedJSObject;
 
     info("Opening Browser Debugger");
-    let win = DebuggerUI.toggleChromeDebugger(aOnClosing, function(process) {
+    let win = BrowserDebuggerProcess.init(aOnClosing, function(process) {
 
       // The remote debugging process has started...
       info("Browser Debugger has started");

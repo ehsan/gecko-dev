@@ -6,6 +6,7 @@
 #ifndef __NS_SVGFILTERSELEMENT_H__
 #define __NS_SVGFILTERSELEMENT_H__
 
+#include "mozilla/Attributes.h"
 #include "gfxImageSurface.h"
 #include "gfxRect.h"
 #include "nsIFrame.h"
@@ -134,14 +135,14 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIContent interface
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
 
   // nsSVGElement interface
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE = 0;
 
-  virtual bool HasValidDimensions() const;
+  virtual bool HasValidDimensions() const MOZ_OVERRIDE;
 
-  bool IsNodeOfType(uint32_t aFlags) const
+  bool IsNodeOfType(uint32_t aFlags) const MOZ_OVERRIDE
     { return !(aFlags & ~(eCONTENT | eFILTER)); }
 
   virtual nsSVGString& GetResultImageName() = 0;
@@ -206,7 +207,7 @@ public:
   already_AddRefed<mozilla::dom::SVGAnimatedLength> Y();
   already_AddRefed<mozilla::dom::SVGAnimatedLength> Width();
   already_AddRefed<mozilla::dom::SVGAnimatedLength> Height();
-  already_AddRefed<nsIDOMSVGAnimatedString> Result();
+  already_AddRefed<mozilla::dom::SVGAnimatedString> Result();
 
 protected:
   virtual bool OperatesOnPremultipledAlpha(int32_t) { return true; }
@@ -225,7 +226,7 @@ protected:
   }
 
   // nsSVGElement specializations:
-  virtual LengthAttributesInfo GetLengthInfo();
+  virtual LengthAttributesInfo GetLengthInfo() MOZ_OVERRIDE;
 
   enum { ATTR_X, ATTR_Y, ATTR_WIDTH, ATTR_HEIGHT };
   nsSVGLength2 mLengthAttributes[4];
@@ -266,32 +267,32 @@ public:
   virtual nsresult Filter(nsSVGFilterInstance* aInstance,
                           const nsTArray<const Image*>& aSources,
                           const Image* aTarget,
-                          const nsIntRect& aDataRect);
+                          const nsIntRect& aDataRect) MOZ_OVERRIDE;
   virtual bool AttributeAffectsRendering(
-          int32_t aNameSpaceID, nsIAtom* aAttribute) const;
-  virtual nsSVGString& GetResultImageName() { return mStringAttributes[RESULT]; }
-  virtual void GetSourceImageNames(nsTArray<nsSVGStringInfo>& aSources);
+          int32_t aNameSpaceID, nsIAtom* aAttribute) const MOZ_OVERRIDE;
+  virtual nsSVGString& GetResultImageName() MOZ_OVERRIDE { return mStringAttributes[RESULT]; }
+  virtual void GetSourceImageNames(nsTArray<nsSVGStringInfo>& aSources) MOZ_OVERRIDE;
   // XXX shouldn't we have ComputeTargetBBox here, since the output can
   // extend beyond the bounds of the inputs thanks to the convolution kernel?
   virtual void ComputeNeededSourceBBoxes(const nsIntRect& aTargetBBox,
-          nsTArray<nsIntRect>& aSourceBBoxes, const nsSVGFilterInstance& aInstance);
+          nsTArray<nsIntRect>& aSourceBBoxes, const nsSVGFilterInstance& aInstance) MOZ_OVERRIDE;
   virtual nsIntRect ComputeChangeBBox(const nsTArray<nsIntRect>& aSourceChangeBoxes,
-          const nsSVGFilterInstance& aInstance);
+          const nsSVGFilterInstance& aInstance) MOZ_OVERRIDE;
 
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGFELightingElementBase::)
 
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
 
 protected:
   virtual bool OperatesOnSRGB(nsSVGFilterInstance*,
-                              int32_t, Image*) { return true; }
+                              int32_t, Image*) MOZ_OVERRIDE { return true; }
   virtual void
   LightPixel(const float *N, const float *L,
              nscolor color, uint8_t *targetData) = 0;
 
-  virtual NumberAttributesInfo GetNumberInfo();
-  virtual NumberPairAttributesInfo GetNumberPairInfo();
-  virtual StringAttributesInfo GetStringInfo();
+  virtual NumberAttributesInfo GetNumberInfo() MOZ_OVERRIDE;
+  virtual NumberPairAttributesInfo GetNumberPairInfo() MOZ_OVERRIDE;
+  virtual StringAttributesInfo GetStringInfo() MOZ_OVERRIDE;
 
   enum { SURFACE_SCALE, DIFFUSE_CONSTANT, SPECULAR_CONSTANT, SPECULAR_EXPONENT };
   nsSVGNumber2 mNumberAttributes[4];

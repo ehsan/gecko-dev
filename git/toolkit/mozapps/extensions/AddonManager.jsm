@@ -1456,6 +1456,35 @@ var AddonManagerInternal = {
   },
 
   /**
+   * Synchronously map a URI to the corresponding Addon ID.
+   *
+   * Mappable URIs are limited to in-application resources belonging to the
+   * add-on, such as Javascript compartments, XUL windows, XBL bindings, etc.
+   * but do not include URIs from meta data, such as the add-on homepage.
+   *
+   * @param  aURI
+   *         nsIURI to map to an addon id
+   * @return string containing the Addon ID or null
+   * @see    amIAddonManager.mapURIToAddonID
+   */
+  mapURIToAddonID: function AMI_mapURIToAddonID(aURI) {
+    if (!(aURI instanceof Ci.nsIURI)) {
+      throw Components.Exception("aURI is not a nsIURI",
+                                 Cr.NS_ERROR_INVALID_ARG);
+    }
+    // Try all providers
+    let providers = this.providers.slice(0);
+    for (let provider of providers) {
+      var id = callProvider(provider, "mapURIToAddonID", null, aURI);
+      if (id !== null) {
+        return id;
+      }
+    }
+
+    return null;
+  },
+
+  /**
    * Checks whether installation is enabled for a particular mimetype.
    *
    * @param  aMimetype
@@ -2200,6 +2229,9 @@ this.AddonManager = {
   PERM_CAN_DISABLE: 4,
   // Indicates that the Addon can be upgraded.
   PERM_CAN_UPGRADE: 8,
+  // Indicates that the Addon can be set to be optionally enabled
+  // on a case-by-case basis.
+  PERM_CAN_ASK_TO_ACTIVATE: 16,
 
   // General descriptions of where items are installed.
   // Installed in this profile.
@@ -2217,6 +2249,10 @@ this.AddonManager = {
   VIEW_TYPE_LIST: "list",
 
   TYPE_UI_HIDE_EMPTY: 16,
+  // Indicates that this add-on type supports the ask-to-activate state.
+  // That is, add-ons of this type can be set to be optionally enabled
+  // on a case-by-case basis.
+  TYPE_SUPPORTS_ASK_TO_ACTIVATE: 32,
 
   // Constants for Addon.applyBackgroundUpdates.
   // Indicates that the Addon should not update automatically.
@@ -2263,6 +2299,12 @@ this.AddonManager = {
   // an application change making an add-on compatible. Doesn't include
   // add-ons that were pending being enabled the last time the application ran.
   STARTUP_CHANGE_ENABLED: "enabled",
+
+  // Constants for the Addon.userDisabled property
+  // Indicates that the userDisabled state of this add-on is currently
+  // ask-to-activate. That is, it can be conditionally enabled on a
+  // case-by-case basis.
+  STATE_ASK_TO_ACTIVATE: "askToActivate",
 
 #ifdef MOZ_EM_DEBUG
   get __AddonManagerInternal__() {
@@ -2325,6 +2367,10 @@ this.AddonManager = {
 
   getAllInstalls: function AM_getAllInstalls(aCallback) {
     AddonManagerInternal.getAllInstalls(aCallback);
+  },
+
+  mapURIToAddonID: function AM_mapURIToAddonID(aURI) {
+    return AddonManagerInternal.mapURIToAddonID(aURI);
   },
 
   isInstallEnabled: function AM_isInstallEnabled(aType) {

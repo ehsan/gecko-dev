@@ -6,6 +6,7 @@
 
 #include "mozilla/dom/HTMLAreaElement.h"
 #include "mozilla/dom/HTMLAreaElementBinding.h"
+#include "base/compiler_specific.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Area)
 
@@ -14,7 +15,7 @@ namespace dom {
 
 HTMLAreaElement::HTMLAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
-    Link(this)
+    ALLOW_THIS_IN_INITIALIZER_LIST(Link(this))
 {
   SetIsDOMBinding();
 }
@@ -28,13 +29,13 @@ NS_IMPL_RELEASE_INHERITED(HTMLAreaElement, Element)
 
 // QueryInterface implementation for HTMLAreaElement
 NS_INTERFACE_TABLE_HEAD(HTMLAreaElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE3(HTMLAreaElement,
-                                   nsIDOMHTMLAreaElement,
-                                   nsILink,
-                                   Link)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLAreaElement,
-                                               nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED3(HTMLAreaElement,
+                                nsIDOMHTMLAreaElement,
+                                nsILink,
+                                Link)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLAreaElement)
@@ -218,12 +219,6 @@ HTMLAreaElement::SetPing(const nsAString& aValue)
   return SetAttr(kNameSpaceID_None, nsGkAtoms::ping, aValue, true);
 }
 
-nsLinkState
-HTMLAreaElement::GetLinkState() const
-{
-  return Link::GetLinkState();
-}
-
 already_AddRefed<nsIURI>
 HTMLAreaElement::GetHrefURI() const
 {
@@ -244,7 +239,7 @@ HTMLAreaElement::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 }
 
 JSObject*
-HTMLAreaElement::WrapNode(JSContext* aCx, JSObject* aScope)
+HTMLAreaElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return HTMLAreaElementBinding::Wrap(aCx, aScope, this);
 }

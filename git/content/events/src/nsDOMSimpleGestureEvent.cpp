@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsDOMClassInfoID.h"
 #include "nsDOMSimpleGestureEvent.h"
 
 nsDOMSimpleGestureEvent::nsDOMSimpleGestureEvent(mozilla::dom::EventTarget* aOwner,
@@ -22,7 +21,6 @@ nsDOMSimpleGestureEvent::nsDOMSimpleGestureEvent(mozilla::dom::EventTarget* aOwn
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
     static_cast<nsMouseEvent*>(mEvent)->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
   }
-  SetIsDOMBinding();
 }
 
 nsDOMSimpleGestureEvent::~nsDOMSimpleGestureEvent()
@@ -36,12 +34,27 @@ nsDOMSimpleGestureEvent::~nsDOMSimpleGestureEvent()
 NS_IMPL_ADDREF_INHERITED(nsDOMSimpleGestureEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMSimpleGestureEvent, nsDOMUIEvent)
 
-DOMCI_DATA(SimpleGestureEvent, nsDOMSimpleGestureEvent)
-
 NS_INTERFACE_MAP_BEGIN(nsDOMSimpleGestureEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSimpleGestureEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SimpleGestureEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMMouseEvent)
+
+/* attribute unsigned long allowedDirections; */
+NS_IMETHODIMP
+nsDOMSimpleGestureEvent::GetAllowedDirections(uint32_t *aAllowedDirections)
+{
+  NS_ENSURE_ARG_POINTER(aAllowedDirections);
+  *aAllowedDirections =
+    static_cast<nsSimpleGestureEvent*>(mEvent)->allowedDirections;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMSimpleGestureEvent::SetAllowedDirections(uint32_t aAllowedDirections)
+{
+  static_cast<nsSimpleGestureEvent*>(mEvent)->allowedDirections =
+    aAllowedDirections;
+  return NS_OK;
+}
 
 /* readonly attribute unsigned long direction; */
 NS_IMETHODIMP
@@ -86,6 +99,7 @@ nsDOMSimpleGestureEvent::InitSimpleGestureEvent(const nsAString& aTypeArg,
                                                 bool aMetaKeyArg,
                                                 uint16_t aButton,
                                                 nsIDOMEventTarget* aRelatedTarget,
+                                                uint32_t aAllowedDirectionsArg,
                                                 uint32_t aDirectionArg,
                                                 double aDeltaArg,
                                                 uint32_t aClickCountArg)
@@ -108,6 +122,7 @@ nsDOMSimpleGestureEvent::InitSimpleGestureEvent(const nsAString& aTypeArg,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsSimpleGestureEvent* simpleGestureEvent = static_cast<nsSimpleGestureEvent*>(mEvent);
+  simpleGestureEvent->allowedDirections = aAllowedDirectionsArg;
   simpleGestureEvent->direction = aDirectionArg;
   simpleGestureEvent->delta = aDeltaArg;
   simpleGestureEvent->clickCount = aClickCountArg;

@@ -7,6 +7,7 @@
 #include "DecoderTraits.h"
 #include "MediaDecoder.h"
 #include "nsCharSeparatedTokenizer.h"
+#include "mozilla/Preferences.h"
 
 #ifdef MOZ_MEDIA_PLUGINS
 #include "MediaPluginHost.h"
@@ -29,7 +30,6 @@
 #include "RawReader.h"
 #endif
 #ifdef MOZ_GSTREAMER
-#include "mozilla/Preferences.h"
 #include "GStreamerDecoder.h"
 #include "GStreamerReader.h"
 #endif
@@ -39,7 +39,7 @@
 #include "MediaPluginReader.h"
 #include "MediaPluginHost.h"
 #endif
-#ifdef MOZ_WIDGET_GONK
+#ifdef MOZ_OMX_DECODER
 #include "MediaOmxDecoder.h"
 #include "MediaOmxReader.h"
 #include "nsIPrincipal.h"
@@ -196,7 +196,7 @@ IsGStreamerSupportedType(const nsACString& aMimeType)
 }
 #endif
 
-#ifdef MOZ_WIDGET_GONK
+#ifdef MOZ_OMX_DECODER
 static const char* const gOmxTypes[7] = {
   "audio/mpeg",
   "audio/mp4",
@@ -226,6 +226,11 @@ static char const *const gH264Codecs[9] = {
   "avc1.64001F",  // H.264 High Profile Level 3.1
   "mp4v.20.3",    // 3GPP
   "mp4a.40.2",    // AAC-LC
+  nullptr
+};
+
+static char const *const gMpegAudioCodecs[2] = {
+  "mp3",          // MP3
   nullptr
 };
 #endif
@@ -334,10 +339,14 @@ DecoderTraits::CanHandleMediaType(const char* aMIMEType,
     return CANPLAY_MAYBE;
   }
 #endif
-#ifdef MOZ_WIDGET_GONK
+#ifdef MOZ_OMX_DECODER
   if (IsOmxSupportedType(nsDependentCString(aMIMEType))) {
-    codecList = gH264Codecs;
     result = CANPLAY_MAYBE;
+    if (nsDependentCString(aMIMEType).EqualsASCII("audio/mpeg")) {
+      codecList = gMpegAudioCodecs;
+    } else {
+      codecList = gH264Codecs;
+    }
   }
 #endif
 #ifdef MOZ_WMF
@@ -400,11 +409,11 @@ DecoderTraits::CreateDecoder(const nsACString& aType, MediaDecoderOwner* aOwner)
     decoder = new WaveDecoder();
   }
 #endif
-#ifdef MOZ_WIDGET_GONK
+#ifdef MOZ_OMX_DECODER
   if (IsOmxSupportedType(aType)) {
     // AMR audio is enabled for MMS, but we are discouraging Web and App
     // developers from using AMR, thus we only allow AMR to be played on WebApps.
-    if (aType.EqualsASCII("audio/amr") || aType.EqualsASCII("video/3gpp")) {
+    if (aType.EqualsASCII("audio/amr")) {
       HTMLMediaElement* element = aOwner->GetMediaElement();
       if (!element) {
         return nullptr;
@@ -472,7 +481,7 @@ MediaDecoderReader* DecoderTraits::CreateReader(const nsACString& aType, Abstrac
     decoderReader = new WaveReader(aDecoder);
   } else
 #endif
-#ifdef MOZ_WIDGET_GONK
+#ifdef MOZ_OMX_DECODER
   if (IsOmxSupportedType(aType)) {
     decoderReader = new MediaOmxReader(aDecoder);
   } else
@@ -508,7 +517,7 @@ bool DecoderTraits::IsSupportedInVideoDocument(const nsACString& aType)
 #ifdef MOZ_OGG
     IsOggType(aType) ||
 #endif
-#ifdef MOZ_WIDGET_GONK
+#ifdef MOZ_OMX_DECODER
     IsOmxSupportedType(aType) ||
 #endif
 #ifdef MOZ_WEBM
@@ -524,7 +533,8 @@ bool DecoderTraits::IsSupportedInVideoDocument(const nsACString& aType)
     (MediaDecoder::IsMediaPluginsEnabled() && IsMediaPluginsType(aType)) ||
 #endif
 #ifdef MOZ_WMF
-    IsWMFSupportedType(aType) ||
+    (IsWMFSupportedType(aType) &&
+     Preferences::GetBool("media.windows-media-foundation.play-stand-alone", true)) ||
 #endif
     false;
 }

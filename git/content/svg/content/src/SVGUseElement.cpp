@@ -20,7 +20,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGUseElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGUseElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
   return SVGUseElementBinding::Wrap(aCx, aScope, this);
 }
@@ -62,10 +62,8 @@ NS_IMPL_ADDREF_INHERITED(SVGUseElement,SVGUseElementBase)
 NS_IMPL_RELEASE_INHERITED(SVGUseElement,SVGUseElementBase)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(SVGUseElement)
-  NS_NODE_INTERFACE_TABLE4(SVGUseElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement,
-                           nsIMutationObserver)
-NS_INTERFACE_MAP_END_INHERITING(SVGUseElementBase)
+  NS_INTERFACE_TABLE_INHERITED1(SVGUseElement, nsIMutationObserver)
+NS_INTERFACE_TABLE_TAIL_INHERITING(SVGUseElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
@@ -117,12 +115,10 @@ SVGUseElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   return NS_FAILED(rv1) ? rv1 : rv2;
 }
 
-already_AddRefed<nsIDOMSVGAnimatedString>
+already_AddRefed<SVGAnimatedString>
 SVGUseElement::Href()
 {
-  nsCOMPtr<nsIDOMSVGAnimatedString> href;
-  mStringAttributes[HREF].ToDOMAnimatedString(getter_AddRefs(href), this);
-  return href.forget();
+  return mStringAttributes[HREF].ToDOMAnimatedString(this);
 }
 
 //----------------------------------------------------------------------
@@ -295,8 +291,6 @@ SVGUseElement::CreateAnonymousContent()
     nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::svg, nullptr,
                                             kNameSpaceID_SVG,
                                             nsIDOMNode::ELEMENT_NODE);
-    if (!nodeInfo)
-      return nullptr;
 
     nsCOMPtr<nsIContent> svgNode;
     NS_NewSVGSVGElement(getter_AddRefs(svgNode), nodeInfo.forget(),

@@ -199,12 +199,6 @@ nsImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
   if (mListener) {
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
     if (imageLoader) {
-      // Push a null JSContext on the stack so that code that runs
-      // within the below code doesn't think it's being called by
-      // JS. See bug 604262.
-      nsCxPusher pusher;
-      pusher.PushNull();
-
       // Notify our image loading content that we are going away so it can
       // deregister with our refresh driver.
       imageLoader->FrameDestroyed(this);
@@ -240,15 +234,7 @@ nsImageFrame::Init(nsIContent*      aContent,
     NS_RUNTIMEABORT("Why do we have an nsImageFrame here at all?");
   }
 
-  {
-    // Push a null JSContext on the stack so that code that runs
-    // within the below code doesn't think it's being called by
-    // JS. See bug 604262.
-    nsCxPusher pusher;
-    pusher.PushNull();
-
-    imageLoader->AddObserver(mListener);
-  }
+  imageLoader->AddObserver(mListener);
 
   nsPresContext *aPresContext = PresContext();
   
@@ -1218,11 +1204,15 @@ static void PaintDebugImageMap(nsIFrame* aFrame, nsRenderingContext* aCtx,
 void
 nsDisplayImage::Paint(nsDisplayListBuilder* aBuilder,
                       nsRenderingContext* aCtx) {
+  uint32_t flags = imgIContainer::FLAG_NONE;
+  if (aBuilder->ShouldSyncDecodeImages()) {
+    flags |= imgIContainer::FLAG_SYNC_DECODE;
+  }
+  if (aBuilder->IsPaintingToWindow()) {
+    flags |= imgIContainer::FLAG_HIGH_QUALITY_SCALING;
+  }
   static_cast<nsImageFrame*>(mFrame)->
-    PaintImage(*aCtx, ToReferenceFrame(), mVisibleRect, mImage,
-               aBuilder->ShouldSyncDecodeImages()
-                 ? (uint32_t) imgIContainer::FLAG_SYNC_DECODE
-                 : (uint32_t) imgIContainer::FLAG_NONE);
+    PaintImage(*aCtx, ToReferenceFrame(), mVisibleRect, mImage, flags);
 }
 
 already_AddRefed<ImageContainer>
@@ -1253,35 +1243,43 @@ nsDisplayImage::GetLayerState(nsDisplayListBuilder* aBuilder,
                               LayerManager* aManager,
                               const FrameLayerBuilder::ContainerParameters& aParameters)
 {
-  if (mImage->GetType() != imgIContainer::TYPE_RASTER ||
-      !aManager->IsCompositingCheap() ||
-      !nsLayoutUtils::GPUImageScalingEnabled()) {
-    return LAYER_NONE;
+  bool animated = false;
+  if (!nsLayoutUtils::AnimatedImageLayersEnabled() ||
+      mImage->GetType() != imgIContainer::TYPE_RASTER ||
+      NS_FAILED(mImage->GetAnimated(&animated)) ||
+      !animated) {
+    if (!aManager->IsCompositingCheap() ||
+        !nsLayoutUtils::GPUImageScalingEnabled()) {
+      return LAYER_NONE;
+    }
   }
 
-  int32_t imageWidth;
-  int32_t imageHeight;
-  mImage->GetWidth(&imageWidth);
-  mImage->GetHeight(&imageHeight);
+  if (!animated) {
+    int32_t imageWidth;
+    int32_t imageHeight;
+    mImage->GetWidth(&imageWidth);
+    mImage->GetHeight(&imageHeight);
 
-  NS_ASSERTION(imageWidth != 0 && imageHeight != 0, "Invalid image size!");
+    NS_ASSERTION(imageWidth != 0 && imageHeight != 0, "Invalid image size!");
 
-  gfxRect destRect = GetDestRect();
+    gfxRect destRect = GetDestRect();
 
-  destRect.width *= aParameters.mXScale;
-  destRect.height *= aParameters.mYScale;
+    destRect.width *= aParameters.mXScale;
+    destRect.height *= aParameters.mYScale;
 
-  // Calculate the scaling factor for the frame.
-  gfxSize scale = gfxSize(destRect.width / imageWidth, destRect.height / imageHeight);
+    // Calculate the scaling factor for the frame.
+    gfxSize scale = gfxSize(destRect.width / imageWidth,
+                            destRect.height / imageHeight);
 
-  // If we are not scaling at all, no point in separating this into a layer.
-  if (scale.width == 1.0f && scale.height == 1.0f) {
-    return LAYER_NONE;
-  }
+    // If we are not scaling at all, no point in separating this into a layer.
+    if (scale.width == 1.0f && scale.height == 1.0f) {
+      return LAYER_NONE;
+    }
 
-  // If the target size is pretty small, no point in using a layer.
-  if (destRect.width * destRect.height < 64 * 64) {
-    return LAYER_NONE;
+    // If the target size is pretty small, no point in using a layer.
+    if (destRect.width * destRect.height < 64 * 64) {
+      return LAYER_NONE;
+    }
   }
 
   nsRefPtr<ImageContainer> container;
@@ -1302,7 +1300,13 @@ nsDisplayImage::BuildLayer(nsDisplayListBuilder* aBuilder,
   nsresult rv = mImage->GetImageContainer(aManager, getter_AddRefs(container));
   NS_ENSURE_SUCCESS(rv, nullptr);
 
-  nsRefPtr<ImageLayer> layer = aManager->CreateImageLayer();
+  nsRefPtr<ImageLayer> layer = static_cast<ImageLayer*>
+    (aManager->GetLayerBuilder()->GetLeafLayerFor(aBuilder, this));
+  if (!layer) {
+    layer = aManager->CreateImageLayer();
+    if (!layer)
+      return nullptr;
+  }
   layer->SetContainer(container);
   ConfigureLayer(layer, aParameters.mOffset);
   return layer.forget();
@@ -1349,9 +1353,12 @@ nsImageFrame::PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
   nsImageMap* map = GetImageMap();
   if (nullptr != map) {
     aRenderingContext.PushState();
+    aRenderingContext.Translate(inner.TopLeft());
+    aRenderingContext.SetColor(NS_RGB(255, 255, 255));
+    aRenderingContext.SetLineStyle(nsLineStyle_kSolid);
+    map->Draw(this, aRenderingContext);
     aRenderingContext.SetColor(NS_RGB(0, 0, 0));
     aRenderingContext.SetLineStyle(nsLineStyle_kDotted);
-    aRenderingContext.Translate(inner.TopLeft());
     map->Draw(this, aRenderingContext);
     aRenderingContext.PopState();
   }
@@ -1365,16 +1372,11 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleForPainting(aBuilder))
     return;
 
-  // REVIEW: We don't need any special logic here for deciding which layer
-  // to put the background in ... it goes in aLists.BorderBackground() and
-  // then if we have a block parent, it will put our background in the right
-  // place.
   DisplayBorderBackgroundOutline(aBuilder, aLists);
-  // REVIEW: Checking mRect.IsEmpty() makes no sense to me, so I removed it.
-  // It can't have been protecting us against bad situations with zero-size
-  // images since adding a border would make the rect non-empty.
 
-  nsDisplayList replacedContent;
+  DisplayListClipState::AutoClipContainingBlockDescendantsToContentBox
+    clip(aBuilder, this, DisplayListClipState::ASSUME_DRAWING_RESTRICTED_TO_CONTENT_RECT);
+
   if (mComputedSize.width != 0 && mComputedSize.height != 0) {
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
     NS_ASSERTION(imageLoader, "Not an image loading content?");
@@ -1407,11 +1409,11 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     if (!imageOK || !haveSize) {
       // No image yet, or image load failed. Draw the alt-text and an icon
       // indicating the status
-      replacedContent.AppendNewToTop(new (aBuilder)
+      aLists.Content()->AppendNewToTop(new (aBuilder)
         nsDisplayAltFeedback(aBuilder, this));
     }
     else {
-      replacedContent.AppendNewToTop(new (aBuilder)
+      aLists.Content()->AppendNewToTop(new (aBuilder)
         nsDisplayImage(aBuilder, this, imgCon));
 
       // If we were previously displaying an icon, we're not anymore
@@ -1420,7 +1422,6 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
         mDisplayingIcon = false;
       }
 
-        
 #ifdef DEBUG
       if (GetShowFrameBorders() && GetImageMap()) {
         aLists.Outlines()->AppendNewToTop(new (aBuilder)
@@ -1432,11 +1433,9 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   if (ShouldDisplaySelection()) {
-    DisplaySelectionOverlay(aBuilder, &replacedContent,
+    DisplaySelectionOverlay(aBuilder, aLists.Content(),
                             nsISelectionDisplay::DISPLAY_IMAGES);
   }
-
-  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
 }
 
 bool
@@ -1735,23 +1734,10 @@ nsImageFrame::GetFrameName(nsAString& aResult) const
   return MakeFrameName(NS_LITERAL_STRING("ImageFrame"), aResult);
 }
 
-NS_IMETHODIMP
+void
 nsImageFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 {
-  IndentBy(out, aIndent);
-  ListTag(out);
-#ifdef DEBUG_waterson
-  fprintf(out, " [parent=%p]", mParent);
-#endif
-  if (HasView()) {
-    fprintf(out, " [view=%p]", (void*)GetView());
-  }
-  fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
-  if (0 != mState) {
-    fprintf(out, " [state=%016llx]", (unsigned long long)mState);
-  }
-  fprintf(out, " [content=%p]", (void*)mContent);
-  fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
+  ListGeneric(out, aIndent, aFlags);
 
   // output the img src url
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
@@ -1768,7 +1754,6 @@ nsImageFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
     }
   }
   fputs("\n", out);
-  return NS_OK;
 }
 #endif
 

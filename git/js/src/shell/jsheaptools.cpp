@@ -1,6 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=99:
- *
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -384,10 +383,10 @@ class ReferenceFinder {
             JSObject *object = static_cast<JSObject *>(cell);
 
             /* Certain classes of object are for internal use only. */
-            if (object->isBlock() ||
-                object->isCall() ||
-                object->isWith() ||
-                object->isDeclEnv()) {
+            if (object->is<BlockObject>() ||
+                object->is<CallObject>() ||
+                object->is<WithObject>() ||
+                object->is<DeclEnvObject>()) {
                 return JSVAL_VOID;
             }
 
@@ -485,7 +484,7 @@ ReferenceFinder::addReferrer(jsval referrerArg, Path *path)
 {
     RootedValue referrer(context, referrerArg);
 
-    if (!context->compartment->wrap(context, &referrer))
+    if (!context->compartment()->wrap(context, &referrer))
         return false;
 
     ScopedJSFreePtr<char> pathName(path->computeName(context));

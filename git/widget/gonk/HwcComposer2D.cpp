@@ -15,11 +15,13 @@
  */
 
 #include <android/log.h>
+#include <string.h>
 
+#include "libdisplay/GonkDisplay.h"
 #include "Framebuffer.h"
 #include "HwcComposer2D.h"
-#include "LayerManagerOGL.h"
-#include "mozilla/layers/PLayers.h"
+#include "mozilla/layers/LayerManagerComposite.h"
+#include "mozilla/layers/PLayerTransaction.h"
 #include "mozilla/layers/ShadowLayerUtilsGralloc.h"
 #include "mozilla/StaticPtr.h"
 #include "cutils/properties.h"
@@ -51,7 +53,10 @@ enum {
     // Draw a solid color rectangle
     // The color should be set on the transform member of the hwc_layer_t struct
     // The expected format is a 32 bit ABGR with 8 bits per component
-    HWC_COLOR_FILL = 0x8
+    HWC_COLOR_FILL = 0x8,
+    // Swap the RB pixels of gralloc buffer, like RGBA<->BGRA or RGBX<->BGRX
+    // The flag will be set inside LayerRenderState
+    HWC_FORMAT_RB_SWAP = 0x40
 };
 
 namespace mozilla {
@@ -61,6 +66,7 @@ static StaticRefPtr<HwcComposer2D> sInstance;
 HwcComposer2D::HwcComposer2D()
     : mMaxLayerCount(0)
     , mList(nullptr)
+    , mHwc(nullptr)
 {
 }
 
@@ -73,9 +79,10 @@ HwcComposer2D::Init(hwc_display_t dpy, hwc_surface_t sur)
 {
     MOZ_ASSERT(!Initialized());
 
-    if (int err = init()) {
+    mHwc = (hwc_composer_device_t*)GetGonkDisplay()->GetHWCDevice();
+    if (!mHwc) {
         LOGE("Failed to initialize hwc");
-        return err;
+        return -1;
     }
 
     nsIntSize screenSize;
@@ -166,7 +173,7 @@ PrepareLayerRects(nsIntRect aVisible, const gfxMatrix& aTransform,
 
     //clip to buffer size
     crop.IntersectRect(crop, aBufferRect);
-    crop.RoundOut();
+    crop.Round();
 
     if (crop.IsEmpty()) {
         LOGD("Skip layer");
@@ -175,7 +182,7 @@ PrepareLayerRects(nsIntRect aVisible, const gfxMatrix& aTransform,
 
     //propagate buffer clipping back to visible rect
     visibleRectScreen = aTransform.TransformBounds(crop);
-    visibleRectScreen.RoundOut();
+    visibleRectScreen.Round();
 
     // Map from layer space to buffer space
     crop -= aBufferRect.TopLeft();
@@ -191,6 +198,52 @@ PrepareLayerRects(nsIntRect aVisible, const gfxMatrix& aTransform,
     aVisibleRegionScreen->bottom = visibleRectScreen.y + visibleRectScreen.height;
 
     return true;
+}
+
+/**
+ * Prepares hwc layer visible region required for hwc composition
+ *
+ * @param aVisible Input. Layer's unclipped visible region
+ *        The origin is the top-left corner of the layer
+ * @param aTransform Input. Layer's transformation matrix
+ *        It transforms from layer space to screen space
+ * @param aClip Input. A clipping rectangle.
+ *        The origin is the top-left corner of the screen
+ * @param aBufferRect Input. The layer's buffer bounds
+ *        The origin is the top-left corner of the layer
+ * @param aVisibleRegionScreen Output. Visible region in screen space.
+ *        The origin is the top-left corner of the screen
+ * @return true if the layer should be rendered.
+ *         false if the layer can be skipped
+ */
+static bool
+PrepareVisibleRegion(const nsIntRegion& aVisible,
+                     const gfxMatrix& aTransform,
+                     nsIntRect aClip, nsIntRect aBufferRect,
+                     RectVector* aVisibleRegionScreen) {
+
+    nsIntRegionRectIterator rect(aVisible);
+    bool isVisible = false;
+    while (const nsIntRect* visibleRect = rect.Next()) {
+        hwc_rect_t visibleRectScreen;
+        gfxRect screenRect;
+
+        screenRect.IntersectRect(gfxRect(*visibleRect), aBufferRect);
+        screenRect = aTransform.TransformBounds(screenRect);
+        screenRect.IntersectRect(screenRect, aClip);
+        screenRect.Round();
+        if (screenRect.IsEmpty()) {
+            continue;
+        }
+        visibleRectScreen.left = screenRect.x;
+        visibleRectScreen.top  = screenRect.y;
+        visibleRectScreen.right  = screenRect.XMost();
+        visibleRectScreen.bottom = screenRect.YMost();
+        aVisibleRegionScreen->push_back(visibleRectScreen);
+        isVisible = true;
+    }
+
+    return isVisible;
 }
 
 /**
@@ -251,18 +304,8 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
     }
 
     float opacity = aLayer->GetEffectiveOpacity();
-    if (opacity <= 0) {
-        LOGD("Layer is fully transparent so skip rendering");
-        return true;
-    }
-    else if (opacity < 1) {
-        LOGD("Layer has planar semitransparency which is unsupported");
-        return false;
-    }
-
-    if (visibleRegion.GetNumRects() > 1) {
-        // FIXME/bug 808339
-        LOGD("Layer has nontrivial visible region");
+    if (opacity < 1) {
+        LOGD("%s Layer has planar semitransparency which is unsupported", aLayer->Name());
         return false;
     }
 
@@ -272,7 +315,7 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
                            aClip,
                            &clip))
     {
-        LOGD("Clip rect is empty. Skip layer");
+        LOGD("%s Clip rect is empty. Skip layer", aLayer->Name());
         return true;
     }
 
@@ -300,20 +343,21 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         return true;
     }
 
-    LayerOGL* layerGL = static_cast<LayerOGL*>(aLayer->ImplData());
-    LayerRenderState state = layerGL->GetRenderState();
+    LayerRenderState state = aLayer->GetRenderState();
+    nsIntSize surfaceSize;
 
-    if (!state.mSurface ||
-        state.mSurface->type() != SurfaceDescriptor::TSurfaceDescriptorGralloc) {
+    if (state.mSurface.get()) {
+        surfaceSize = state.mSize;
+    } else {
         if (aLayer->AsColorLayer() && mColorFill) {
             fillColor = true;
         } else {
-            LOGD("Layer doesn't have a gralloc buffer");
+            LOGD("%s Layer doesn't have a gralloc buffer", aLayer->Name());
             return false;
         }
     }
     if (state.BufferRotated()) {
-        LOGD("Layer has a rotated buffer");
+        LOGD("%s Layer has a rotated buffer", aLayer->Name());
         return false;
     }
 
@@ -328,8 +372,6 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         }
     }
 
-    sp<GraphicBuffer> buffer = fillColor ? nullptr : GrallocBufferActor::GetFrom(*state.mSurface);
-
     nsIntRect visibleRect = visibleRegion.GetBounds();
 
     nsIntRect bufferRect;
@@ -338,10 +380,10 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
     } else {
         if(state.mHasOwnOffset) {
             bufferRect = nsIntRect(state.mOffset.x, state.mOffset.y,
-                int(buffer->getWidth()), int(buffer->getHeight()));
+                                   state.mSize.width, state.mSize.height);
         } else {
             bufferRect = nsIntRect(visibleRect.x, visibleRect.y,
-                int(buffer->getWidth()), int(buffer->getHeight()));
+                                   state.mSize.width, state.mSize.height);
         }
     }
 
@@ -357,7 +399,7 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         return true;
     }
 
-    buffer_handle_t handle = fillColor ? nullptr : buffer->getNativeBuffer()->handle;
+    buffer_handle_t handle = fillColor ? nullptr : state.mSurface->getNativeBuffer()->handle;
     hwcLayer.handle = handle;
 
     hwcLayer.flags = 0;
@@ -366,6 +408,10 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
     hwcLayer.compositionType = HWC_USE_COPYBIT;
 
     if (!fillColor) {
+        if (state.FormatRBSwapped()) {
+            hwcLayer.flags |= HWC_FORMAT_RB_SWAP;
+        }
+
         gfxMatrix rotation = transform * aGLWorldTransform;
         // Compute fuzzy equal like PreservesAxisAlignedRectangles()
         if (fabs(rotation.xx) < 1e-6) {
@@ -385,12 +431,30 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
 
         hwcLayer.transform |= state.YFlipped() ? HWC_TRANSFORM_FLIP_V : 0;
         hwc_region_t region;
-        region.numRects = 1;
-        region.rects = &(hwcLayer.displayFrame);
+        if (visibleRegion.GetNumRects() > 1) {
+            mVisibleRegions.push_back(RectVector());
+            RectVector* visibleRects = &(mVisibleRegions.back());
+            if(!PrepareVisibleRegion(visibleRegion,
+                                     transform * aGLWorldTransform,
+                                     clip,
+                                     bufferRect,
+                                     visibleRects)) {
+                return true;
+            }
+            region.numRects = visibleRects->size();
+            region.rects = &((*visibleRects)[0]);
+        } else {
+            region.numRects = 1;
+            region.rects = &(hwcLayer.displayFrame);
+        }
         hwcLayer.visibleRegionScreen = region;
     } else {
         hwcLayer.flags |= HWC_COLOR_FILL;
-        ColorLayer* colorLayer = static_cast<ColorLayer*>(layerGL->GetLayer());
+        ColorLayer* colorLayer = aLayer->AsColorLayer();
+        if (colorLayer->GetColor().a < 1.0) {
+            LOGD("Color layer has semitransparency which is unsupported");
+            return false;
+        }
         hwcLayer.transform = colorLayer->GetColor().Packed();
     }
 
@@ -411,6 +475,10 @@ HwcComposer2D::TryRender(Layer* aRoot,
     if (mList) {
         mList->numHwLayers = 0;
     }
+
+    // XXX: The clear() below means all rect vectors will be have to be
+    // reallocated. We may want to avoid this if possible
+    mVisibleRegions.clear();
 
     if (!PrepareLayerList(aRoot,
                           mScreenRect,

@@ -460,12 +460,12 @@ public:
 
   void RemoveEntry(nsINode* aTextNode, Element* aElement)
   {
-    if (mElements.Contains(aElement)) {
-      mElements.Remove(aElement);
+    NS_ASSERTION(mElements.Contains(aElement),
+                 "element already removed from map");
 
-      aElement->ClearHasDirAutoSet();
-      aElement->UnsetProperty(nsGkAtoms::dirAutoSetBy);
-    }
+    mElements.Remove(aElement);
+    aElement->ClearHasDirAutoSet();
+    aElement->UnsetProperty(nsGkAtoms::dirAutoSetBy);
   }
 
 private:
@@ -600,13 +600,9 @@ RecomputeDirectionality(Element* aElement, bool aNotify)
         dir = parentDir;
       }
     } else {
-      // If there is no parent element, the directionality is the same as the
-      // document direction.
-      Directionality documentDir =
-        aElement->OwnerDoc()->GetDocumentDirectionality();
-      if (documentDir != eDir_NotSet) {
-        dir = documentDir;
-      }
+      // If there is no parent element and no dir attribute, the directionality
+      // is LTR.
+      dir = eDir_LTR;
     }
 
     aElement->SetDirectionality(dir, aNotify);

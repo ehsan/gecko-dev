@@ -4,12 +4,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
+#include "WebGLUniformLocation.h"
+#include "WebGLShader.h"
+#include "WebGLProgram.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 
 using namespace mozilla;
 
 JSObject*
-WebGLUniformLocation::WrapObject(JSContext *cx, JSObject *scope)
+WebGLUniformLocation::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
 {
     return dom::WebGLUniformLocationBinding::Wrap(cx, scope, this);
 }

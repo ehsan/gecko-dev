@@ -33,8 +33,9 @@
 
 #include "nsBoxLayoutState.h"
 #include "nsBoxFrame.h"
-#include "nsDOMTouchEvent.h"
+#include "mozilla/dom/Touch.h"
 #include "nsStyleContext.h"
+#include "nsPlaceholderFrame.h"
 #include "nsPresContext.h"
 #include "nsCOMPtr.h"
 #include "nsINameSpaceManager.h"
@@ -66,6 +67,7 @@
 #include "nsIURI.h"
 
 using namespace mozilla;
+using namespace mozilla::dom;
 
 //define DEBUG_REDRAW
 
@@ -1888,7 +1890,10 @@ bool
 IsBoxOrdinalLEQ(nsIFrame* aFrame1,
                 nsIFrame* aFrame2)
 {
-  return aFrame1->GetOrdinal() <= aFrame2->GetOrdinal();
+  // If we've got a placeholder frame, use its out-of-flow frame's ordinal val.
+  nsIFrame* aRealFrame1 = nsPlaceholderFrame::GetRealFrameFor(aFrame1);
+  nsIFrame* aRealFrame2 = nsPlaceholderFrame::GetRealFrameFor(aFrame2);
+  return aRealFrame1->GetOrdinal() <= aRealFrame2->GetOrdinal();
 }
 
 void 
@@ -2036,7 +2041,7 @@ public:
   virtual nsDisplayItem* WrapItem(nsDisplayListBuilder* aBuilder,
                                   nsDisplayItem* aItem) {
     return new (aBuilder)
-        nsDisplayXULEventRedirector(aBuilder, aItem->GetUnderlyingFrame(), aItem,
+        nsDisplayXULEventRedirector(aBuilder, aItem->Frame(), aItem,
                                     mTargetFrame);
   }
 private:
@@ -2071,12 +2076,12 @@ nsBoxFrame::GetEventPoint(nsGUIEvent* aEvent, nsIntPoint &aPoint) {
     if (touchEvent->touches.Length() != 1) {
       return false;
     }
-  
+
     nsIDOMTouch *touch = touchEvent->touches.SafeElementAt(0);
     if (!touch) {
       return false;
     }
-    nsDOMTouch* domtouch = static_cast<nsDOMTouch*>(touch);
+    Touch* domtouch = static_cast<Touch*>(touch);
     aPoint = domtouch->mRefPoint;
   } else {
     aPoint = aEvent->refPoint;

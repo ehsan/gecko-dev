@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -16,8 +15,6 @@
 using namespace js;
 using namespace js::ion;
 using namespace mozilla;
-
-#ifdef JS_ASMJS
 
 #if defined(XP_WIN)
 # define XMM_sig(p,i) ((p)->Xmm##i)
@@ -67,6 +64,7 @@ using namespace mozilla;
 # endif
 # define EIP_sig(p) ((p)->uc_mcontext.gregs[REG_EIP])
 # define RIP_sig(p) ((p)->uc_mcontext.gregs[REG_RIP])
+# define PC_sig(p) ((p)->uc_mcontext.arm_pc)
 # define RAX_sig(p) ((p)->uc_mcontext.gregs[REG_RAX])
 # define RCX_sig(p) ((p)->uc_mcontext.gregs[REG_RCX])
 # define RDX_sig(p) ((p)->uc_mcontext.gregs[REG_RDX])
@@ -276,6 +274,53 @@ LookupHeapAccess(const AsmJSModule &module, uint8_t *pc)
 #  endif
 # endif
 
+// Not all versions of the Android NDK define ucontext_t or mcontext_t.
+// Detect this and provide custom but compatible definitions. Note that these
+// follow the GLibc naming convention to access register values from
+// mcontext_t.
+//
+// See: https://chromiumcodereview.appspot.com/10829122/
+// See: http://code.google.com/p/android/issues/detail?id=34784
+# if (defined(ANDROID)) && !defined(__BIONIC_HAVE_UCONTEXT_T)
+#  if defined(__arm__)
+// GLibc on ARM defines mcontext_t has a typedef for 'struct sigcontext'.
+// Old versions of the C library <signal.h> didn't define the type.
+#if !defined(__BIONIC_HAVE_STRUCT_SIGCONTEXT)
+#include <asm/sigcontext.h>
+#endif
+
+typedef struct sigcontext mcontext_t;
+
+typedef struct ucontext {
+    uint32_t uc_flags;
+    struct ucontext* uc_link;
+    stack_t uc_stack;
+    mcontext_t uc_mcontext;
+    // Other fields are not used so don't define them here.
+} ucontext_t;
+
+#  elif defined(__i386__)
+// x86 version for Android.
+typedef struct {
+    uint32_t gregs[19];
+    void* fpregs;
+    uint32_t oldmask;
+    uint32_t cr2;
+} mcontext_t;
+
+typedef uint32_t kernel_sigset_t[2];  // x86 kernel uses 64-bit signal masks
+typedef struct ucontext {
+    uint32_t uc_flags;
+    struct ucontext* uc_link;
+    stack_t uc_stack;
+    mcontext_t uc_mcontext;
+    // Other fields are not used by V8, don't define them here.
+} ucontext_t;
+enum { REG_EIP = 14 };
+#  endif
+# endif  // defined(__ANDROID__) && !defined(__BIONIC_HAVE_UCONTEXT_T)
+
+
 # if !defined(XP_WIN)
 #  define CONTEXT ucontext_t
 # endif
@@ -287,9 +332,12 @@ ContextToPC(CONTEXT *context)
 #  if defined(JS_CPU_X64)
     JS_STATIC_ASSERT(sizeof(RIP_sig(context)) == sizeof(void*));
     return reinterpret_cast<uint8_t**>(&RIP_sig(context));
-#  else
+#  elif defined(JS_CPU_X86)
     JS_STATIC_ASSERT(sizeof(EIP_sig(context)) == sizeof(void*));
     return reinterpret_cast<uint8_t**>(&EIP_sig(context));
+#  elif defined(JS_CPU_ARM)
+    JS_STATIC_ASSERT(sizeof(PC_sig(context)) == sizeof(void*));
+    return reinterpret_cast<uint8_t**>(&PC_sig(context));
 #  endif
 }
 
@@ -359,7 +407,7 @@ HandleException(PEXCEPTION_POINTERS exception)
 
     uint8_t **ppc = ContextToPC(context);
     uint8_t *pc = *ppc;
-	JS_ASSERT(pc == record->ExceptionAddress);
+    JS_ASSERT(pc == record->ExceptionAddress);
 
     const AsmJSModule &module = activation->module();
     if (!module.containsPC(pc))
@@ -850,7 +898,8 @@ HandleSignal(int signum, siginfo_t *info, void *ctx)
 #  endif
 }
 
-static struct sigaction sPrevHandler;
+static struct sigaction sPrevSegvHandler;
+static struct sigaction sPrevBusHandler;
 
 static void
 AsmJSFaultHandler(int signum, siginfo_t *info, void *context)
@@ -865,49 +914,54 @@ AsmJSFaultHandler(int signum, siginfo_t *info, void *context)
     // be re-executed which will crash in the normal way. The advantage to
     // doing this is that we remove ourselves from the crash stack which
     // simplifies crash reports. Note: the order of these tests matter.
-    if (sPrevHandler.sa_flags & SA_SIGINFO) {
-        sPrevHandler.sa_sigaction(signum, info, context);
+    struct sigaction* prevHandler = NULL;
+    if (signum == SIGSEGV)
+        prevHandler = &sPrevSegvHandler;
+    else {
+	JS_ASSERT(signum == SIGBUS);
+        prevHandler = &sPrevBusHandler;
+    }
+
+    if (prevHandler->sa_flags & SA_SIGINFO) {
+        prevHandler->sa_sigaction(signum, info, context);
         exit(signum);  // backstop
-    } else if (sPrevHandler.sa_handler == SIG_DFL || sPrevHandler.sa_handler == SIG_IGN) {
-        sigaction(signum, &sPrevHandler, NULL);
+    } else if (prevHandler->sa_handler == SIG_DFL || prevHandler->sa_handler == SIG_IGN) {
+        sigaction(signum, prevHandler, NULL);
     } else {
-        sPrevHandler.sa_handler(signum);
+        prevHandler->sa_handler(signum);
         exit(signum);  // backstop
     }
 }
 # endif
-#endif // JS_ASMJS
 
 bool
 EnsureAsmJSSignalHandlersInstalled(JSRuntime *rt)
 {
-#if defined(JS_ASMJS)
-# if defined(XP_MACOSX)
+#if defined(XP_MACOSX)
     // On OSX, each JSRuntime gets its own handler.
     return rt->asmJSMachExceptionHandler.installed() || rt->asmJSMachExceptionHandler.install(rt);
-# else
+#else
     // Assume Windows or Unix. For these platforms, there is a single,
     // process-wide signal handler installed. Take care to only install it once.
     InstallSignalHandlersMutex::Lock lock;
     if (lock.handlersInstalled())
         return true;
 
-#  if defined(XP_WIN)
+# if defined(XP_WIN)
     if (!AddVectoredExceptionHandler(/* FirstHandler = */true, AsmJSExceptionHandler))
         return false;
-#  else  // assume Unix
+# else  // assume Unix
     struct sigaction sigAction;
     sigAction.sa_sigaction = &AsmJSFaultHandler;
     sigemptyset(&sigAction.sa_mask);
     sigAction.sa_flags = SA_SIGINFO;
-    if (sigaction(SIGSEGV, &sigAction, &sPrevHandler))
+    if (sigaction(SIGSEGV, &sigAction, &sPrevSegvHandler))
         return false;
-    if (sigaction(SIGBUS, &sigAction, &sPrevHandler))
+    if (sigaction(SIGBUS, &sigAction, &sPrevBusHandler))
         return false;
-#  endif
+# endif
 
     lock.setHandlersInstalled();
-# endif
 #endif
     return true;
 }
@@ -925,8 +979,7 @@ EnsureAsmJSSignalHandlersInstalled(JSRuntime *rt)
 void
 js::TriggerOperationCallbackForAsmJSCode(JSRuntime *rt)
 {
-#if defined(JS_ASMJS)
-    PerThreadData::AsmJSActivationStackLock lock(rt->mainThread);
+    JS_ASSERT(rt->currentThreadOwnsOperationCallbackLock());
 
     AsmJSActivation *activation = rt->mainThread.asmJSActivationStackFromAnyThread();
     if (!activation)
@@ -934,13 +987,23 @@ js::TriggerOperationCallbackForAsmJSCode(JSRuntime *rt)
 
     const AsmJSModule &module = activation->module();
 
-# if defined(XP_WIN)
+#if defined(XP_WIN)
     DWORD oldProtect;
     if (!VirtualProtect(module.functionCode(), module.functionBytes(), PAGE_NOACCESS, &oldProtect))
         MOZ_CRASH();
-# else  // assume Unix
+#else  // assume Unix
     if (mprotect(module.functionCode(), module.functionBytes(), PROT_NONE))
         MOZ_CRASH();
-# endif
 #endif
 }
+
+#ifdef MOZ_ASAN
+// When running with asm.js under AddressSanitizer, we need to explicitely
+// tell AddressSanitizer to allow custom signal handlers because it will 
+// otherwise trigger ASan's SIGSEGV handler for the internal SIGSEGVs that 
+// asm.js would otherwise handle.
+extern "C" MOZ_ASAN_BLACKLIST
+const char* __asan_default_options() {
+    return "allow_user_segv_handler=1";
+}
+#endif

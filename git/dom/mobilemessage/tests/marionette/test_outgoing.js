@@ -1,10 +1,11 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_TIMEOUT = 40000;
+MARIONETTE_TIMEOUT = 60000;
 
 SpecialPowers.setBoolPref("dom.sms.enabled", true);
 SpecialPowers.setBoolPref("dom.sms.strict7BitEncoding", false);
+SpecialPowers.setBoolPref("dom.sms.requestStatusReport", true);
 SpecialPowers.addPermission("sms", true, document);
 
 const SENDER = "15555215554"; // the emulator's number
@@ -32,6 +33,7 @@ function checkMessage(message, delivery, body) {
      "message is instanceof " + message.constructor);
 
   ok(message.id, "message.id");
+  ok(message.threadId, "message.threadId");
   is(message.delivery, delivery, "message.delivery");
   is(message.deliveryStatus, "pending", "message.deliveryStatus");
   is(message.sender, SENDER, "message.sender");
@@ -92,9 +94,9 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
   }
 
   function onRequestSuccess(event) {
-    log("SmsRequest.onsuccess event received.");
+    log("request.onsuccess event received.");
 
-    ok(event.target instanceof MozSmsRequest,
+    ok(event.target instanceof DOMRequest,
        "event.target is instanceof " + event.target.constructor);
     event.target.removeEventListener("success", onRequestSuccess);
 
@@ -157,7 +159,7 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
 
   for (let i = 0; i < result.length; i++) {
     let request = result[i];
-    ok(request instanceof MozSmsRequest,
+    ok(request instanceof DOMRequest,
        "request is instanceof " + request.constructor);
     request.addEventListener("success", onRequestSuccess);
   }
@@ -184,6 +186,7 @@ function cleanUp() {
   SpecialPowers.removePermission("sms", document);
   SpecialPowers.clearUserPref("dom.sms.enabled");
   SpecialPowers.clearUserPref("dom.sms.strict7BitEncoding");
+  SpecialPowers.clearUserPref("dom.sms.requestStatusReport");
   finish();
 }
 

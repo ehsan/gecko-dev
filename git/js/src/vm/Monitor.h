@@ -1,18 +1,12 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=78:
- *
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef Monitor_h__
-#define Monitor_h__
+#ifndef vm_Monitor_h
+#define vm_Monitor_h
 
-#include <stdlib.h>
-
-#include "mozilla/DebugOnly.h"
-
-#include "js/Utility.h"
 #include "jslock.h"
 
 namespace js {
@@ -121,4 +115,4 @@ class AutoUnlockMonitor
 
 } // namespace js
 
-#endif // Monitor_h__
+#endif /* vm_Monitor_h */

@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10,7 +9,7 @@
 #include "LIR.h"
 #include "IonSpewer.h"
 #include "LIR-inl.h"
-
+#include "shared/CodeGenerator-shared.h"
 using namespace js;
 using namespace js::ion;
 
@@ -40,6 +39,12 @@ LIRGraph::noteNeedsSafepoint(LInstruction *ins)
     if (!ins->isCall() && !nonCallSafepoints_.append(ins))
         return false;
     return safepoints_.append(ins);
+}
+
+void
+LIRGraph::removeBlock(size_t i)
+{
+    blocks_.erase(blocks_.begin() + i);
 }
 
 Label *
@@ -165,7 +170,7 @@ LPhi::New(MIRGenerator *gen, MPhi *ins)
 void
 LInstruction::printName(FILE *fp, Opcode op)
 {
-    static const char *names[] =
+    static const char * const names[] =
     {
 #define LIROP(x) #x,
         LIR_OPCODE_LIST(LIROP)
@@ -183,7 +188,7 @@ LInstruction::printName(FILE *fp)
     printName(fp, op());
 }
 
-static const char *TypeChars[] =
+static const char * const TypeChars[] =
 {
     "i",            // INTEGER
     "o",            // OBJECT

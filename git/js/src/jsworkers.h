@@ -1,6 +1,6 @@
-/* -*- Mode: C++; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil -*- */
-/* vim: set ts=4 sw=4 et tw=99: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -10,10 +10,11 @@
  * web workers.
  */
 
-#ifndef jsworkers_h___
-#define jsworkers_h___
+#ifndef jsworkers_h
+#define jsworkers_h
 
 #include "mozilla/GuardObjects.h"
+#include "mozilla/PodOperations.h"
 
 #include "jscntxt.h"
 #include "jslock.h"
@@ -21,6 +22,8 @@
 #include "ion/Ion.h"
 
 namespace js {
+
+struct AsmJSParallelTask;
 
 namespace ion {
   class IonBuilder;
@@ -58,7 +61,7 @@ class WorkerThreadState
      */
     js::Vector<AsmJSParallelTask*, 0, SystemAllocPolicy> asmJSFinishedList;
 
-    WorkerThreadState() { PodZero(this); }
+    WorkerThreadState() { mozilla::PodZero(this); }
     ~WorkerThreadState();
 
     bool init(JSRuntime *rt);
@@ -165,8 +168,8 @@ OffThreadCompilationEnabled(JSContext *cx)
 {
 #ifdef JS_PARALLEL_COMPILATION
     return ion::js_IonOptions.parallelCompilation
-        && cx->runtime->useHelperThreads()
-        && cx->runtime->helperThreadCount() != 0;
+        && cx->runtime()->useHelperThreads()
+        && cx->runtime()->helperThreadCount() != 0;
 #else
     return false;
 #endif
@@ -254,4 +257,4 @@ class AutoUnlockWorkerThreadState
 
 } /* namespace js */
 
-#endif // jsworkers_h___
+#endif /* jsworkers_h */

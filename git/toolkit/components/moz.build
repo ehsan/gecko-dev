@@ -1,3 +1,4 @@
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
 # vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -15,11 +16,13 @@ PARALLEL_DIRS += [
     'console',
     'contentprefs',
     'cookie',
+    'diskspacewatcher',
     'downloads',
     'exthelper',
     'filepicker',
     'find',
     'intl',
+    'jsdownloads',
     'mediasniffer',
     'microformats',
     'osfile',
@@ -30,7 +33,6 @@ PARALLEL_DIRS += [
     'prompts',
     'protobuf',
     'reflect',
-    'social',
     'startup',
     'statusfilter',
     'telemetry',
@@ -39,7 +41,11 @@ PARALLEL_DIRS += [
     'urlformatter',
     'viewconfig',
     'viewsource',
+    'workerloader',
 ]
+
+if CONFIG['MOZ_SOCIAL']:
+    PARALLEL_DIRS += ['social']
 
 if CONFIG['BUILD_CTYPES']:
     PARALLEL_DIRS += ['ctypes']
@@ -49,9 +55,6 @@ if CONFIG['MOZ_FEEDS']:
 
 if CONFIG['MOZ_HELP_VIEWER']:
     PARALLEL_DIRS += ['help']
-
-if CONFIG['MOZ_JSDOWNLOADS']:
-    PARALLEL_DIRS += ['jsdownloads']
 
 if CONFIG['NS_PRINTING']:
     PARALLEL_DIRS += ['printing']
@@ -69,3 +72,8 @@ if CONFIG['MOZ_CAPTIVEDETECT']:
     PARALLEL_DIRS += ['captivedetect']
 
 DIRS += ['build']
+
+EXTRA_COMPONENTS += [
+    'nsDefaultCLH.js',
+    'nsDefaultCLH.manifest',
+]

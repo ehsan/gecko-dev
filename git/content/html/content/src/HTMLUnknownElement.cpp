@@ -16,17 +16,18 @@ NS_IMPL_ADDREF_INHERITED(HTMLUnknownElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLUnknownElement, Element)
 
 JSObject*
-HTMLUnknownElement::WrapNode(JSContext *aCx, JSObject *aScope)
+HTMLUnknownElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  JSObject* obj =
-    HTMLUnknownElementBinding::Wrap(aCx, aScope, this);
+  JS::Rooted<JSObject*> obj(aCx,
+    HTMLUnknownElementBinding::Wrap(aCx, aScope, this));
   if (obj && Substring(NodeName(), 0, 2).LowerCaseEqualsLiteral("x-")) {
     // If we have a registered x-tag then we fix the prototype.
     JSAutoCompartment ac(aCx, obj);
     nsDocument* document = static_cast<nsDocument*>(OwnerDoc());
-    JSObject* prototype = document->GetCustomPrototype(LocalName());
+    JS::Rooted<JSObject*> prototype(aCx);
+    document->GetCustomPrototype(LocalName(), &prototype);
     if (prototype) {
-      NS_ENSURE_TRUE(JS_WrapObject(aCx, &prototype), nullptr);
+      NS_ENSURE_TRUE(JS_WrapObject(aCx, prototype.address()), nullptr);
       NS_ENSURE_TRUE(JS_SetPrototype(aCx, obj, prototype), nullptr);
     }
   }
@@ -35,11 +36,11 @@ HTMLUnknownElement::WrapNode(JSContext *aCx, JSObject *aScope)
 
 // QueryInterface implementation for HTMLUnknownElement
 NS_INTERFACE_TABLE_HEAD(HTMLUnknownElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLUnknownElement,
-                                   nsIDOMHTMLUnknownElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLUnknownElement,
-                                               nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(HTMLUnknownElement,
+                                nsIDOMHTMLUnknownElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLUnknownElement)
 

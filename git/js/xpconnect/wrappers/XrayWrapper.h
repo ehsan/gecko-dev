@@ -22,9 +22,10 @@ class XPCWrappedNative;
 namespace xpc {
 
 JSBool
-holder_get(JSContext *cx, JSHandleObject holder, JSHandleId id, JSMutableHandleValue vp);
+holder_get(JSContext *cx, JS::HandleObject holder, JS::HandleId id, JS::MutableHandleValue vp);
 JSBool
-holder_set(JSContext *cx, JSHandleObject holder, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
+holder_set(JSContext *cx, JS::HandleObject holder, JS::HandleId id, JSBool strict,
+           JS::MutableHandleValue vp);
 
 namespace XrayUtils {
 
@@ -33,16 +34,16 @@ extern JSClass HolderClass;
 bool CloneExpandoChain(JSContext *cx, JSObject *src, JSObject *dst);
 
 bool
-IsTransparent(JSContext *cx, JSObject *wrapper, jsid id);
+IsTransparent(JSContext *cx, JS::HandleObject wrapper, JS::HandleId id);
 
 JSObject *
 GetNativePropertiesObject(JSContext *cx, JSObject *wrapper);
 
 bool
-IsXrayResolving(JSContext *cx, JSObject *wrapper, jsid id);
+IsXrayResolving(JSContext *cx, JS::HandleObject wrapper, JS::HandleId id);
 
 bool
-HasNativeProperty(JSContext *cx, JSHandleObject wrapper, JSHandleId id,
+HasNativeProperty(JSContext *cx, JS::HandleObject wrapper, JS::HandleId id,
                   bool *hasProp);
 }
 
@@ -98,11 +99,14 @@ class XrayWrapper : public Base {
     virtual bool iterate(JSContext *cx, JS::Handle<JSObject*> wrapper, unsigned flags,
                          JS::MutableHandle<JS::Value> vp);
 
-    virtual bool call(JSContext *cx, JS::Handle<JSObject*> wrapper, unsigned argc,
-                      js::Value *vp);
+    virtual bool call(JSContext *cx, JS::Handle<JSObject*> wrapper,
+                      const JS::CallArgs &args) MOZ_OVERRIDE;
     virtual bool construct(JSContext *cx, JS::Handle<JSObject*> wrapper,
-                           unsigned argc, js::Value *argv,
-                           JS::MutableHandle<JS::Value> rval);
+                           const JS::CallArgs &args) MOZ_OVERRIDE;
+
+    virtual bool defaultValue(JSContext *cx, JS::HandleObject wrapper,
+                              JSType hint, JS::MutableHandleValue vp)
+                              MOZ_OVERRIDE;
 
     static XrayWrapper singleton;
 
@@ -159,8 +163,8 @@ public:
     {
     }
 
-    virtual bool call(JSContext *cx, JS::Handle<JSObject*> proxy, unsigned argc,
-                      JS::Value *vp);
+    virtual bool call(JSContext *cx, JS::Handle<JSObject*> proxy,
+                      const JS::CallArgs &args) MOZ_OVERRIDE;
 };
 
 extern SandboxCallableProxyHandler sandboxCallableProxyHandler;
@@ -168,9 +172,9 @@ extern SandboxCallableProxyHandler sandboxCallableProxyHandler;
 class AutoSetWrapperNotShadowing;
 class XPCWrappedNativeXrayTraits;
 
-class ResolvingId {
+class MOZ_STACK_CLASS ResolvingId {
 public:
-    ResolvingId(JSObject *wrapper, jsid id);
+    ResolvingId(JSContext *cx, JS::HandleObject wrapper, JS::HandleId id);
     ~ResolvingId();
 
     bool isXrayShadowing(jsid id);
@@ -183,8 +187,8 @@ private:
     friend class AutoSetWrapperNotShadowing;
     friend class XPCWrappedNativeXrayTraits;
 
-    jsid mId;
-    JSObject *mHolder;
+    JS::HandleId mId;
+    JS::RootedObject mHolder;
     ResolvingId *mPrev;
     bool mXrayShadowing;
 };

@@ -1,19 +1,14 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* Profiling-related API */
 
+#include "builtin/Profilers.h"
+
 #include <stdarg.h>
-
-#include "Profilers.h"
-#include "jsapi.h"
-#include "jscntxt.h"
-#include "jsprobes.h"
-
-#include "jscntxtinlines.h"
-#include "vm/Stack-inl.h"
 
 #ifdef MOZ_CALLGRIND
 #include <valgrind/callgrind.h>
@@ -23,6 +18,8 @@
 #include "devtools/sharkctl.h"
 #include "devtools/Instruments.h"
 #endif
+
+#include "jscntxtinlines.h"
 
 using namespace js;
 
@@ -358,7 +355,7 @@ DumpCallgrind(JSContext *cx, unsigned argc, jsval *vp)
 }
 #endif
 
-static JSFunctionSpec profiling_functions[] = {
+static const JSFunctionSpec profiling_functions[] = {
     JS_FN("startProfiling",  StartProfiling,      1,0),
     JS_FN("stopProfiling",   StopProfiling,       1,0),
     JS_FN("pauseProfilers",  PauseProfilers,      1,0),
@@ -448,7 +445,6 @@ js_DumpCallgrind(const char *outfile)
  * MOZ_PROFILE_PERF_FLAGS="-e 'foo bar'").
  */
 
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>

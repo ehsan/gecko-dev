@@ -25,16 +25,14 @@ HTMLDataElement::~HTMLDataElement()
 NS_IMPL_ADDREF_INHERITED(HTMLDataElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLDataElement, Element)
 
-NS_INTERFACE_TABLE_HEAD(HTMLDataElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE0(HTMLDataElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLDataElement,
-                                               nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+NS_INTERFACE_MAP_BEGIN(HTMLDataElement)
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
+NS_ELEMENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLDataElement)
 
 JSObject*
-HTMLDataElement::WrapNode(JSContext* aCx, JSObject* aScope)
+HTMLDataElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return HTMLDataElementBinding::Wrap(aCx, aScope, this);
 }

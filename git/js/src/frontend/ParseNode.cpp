@@ -1,6 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=99:
- *
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,14 +8,12 @@
 #include "frontend/ParseNode.h"
 #include "frontend/Parser.h"
 
-#include "jsscriptinlines.h"
-
-#include "frontend/ParseMaps-inl.h"
-#include "frontend/ParseNode-inl.h"
 #include "frontend/Parser-inl.h"
 
 using namespace js;
 using namespace js::frontend;
+
+using mozilla::IsFinite;
 
 /*
  * Asserts to verify assumptions behind pn_ macros.
@@ -345,25 +342,11 @@ ParseNode::newBinaryOrAppend(ParseNodeKind kind, JSOp op, ParseNode *left, Parse
     return handler->new_<BinaryNode>(kind, op, left, right);
 }
 
-// Note: the parse context passed into this may not equal the associated
-// parser's current context.
-NameNode *
-NameNode::create(ParseNodeKind kind, JSAtom *atom, FullParseHandler *handler,
-                 ParseContext<FullParseHandler> *pc)
-{
-    ParseNode *pn = ParseNode::create(kind, PN_NAME, handler);
-    if (pn) {
-        pn->pn_atom = atom;
-        ((NameNode *)pn)->initCommon(pc);
-    }
-    return (NameNode *)pn;
-}
-
 const char *
 Definition::kindString(Kind kind)
 {
-    static const char *table[] = {
-        js_var_str, js_const_str, js_let_str, js_function_str, "argument", "unknown"
+    static const char * const table[] = {
+        "", js_var_str, js_const_str, js_let_str, js_function_str, "argument", "unknown"
     };
 
     JS_ASSERT(unsigned(kind) <= unsigned(ARG));
@@ -461,7 +444,7 @@ Parser<FullParseHandler>::cloneParseTree(ParseNode *opn)
              */
             if (opn->isDefn()) {
                 opn->setDefn(false);
-                LinkUseToDef(opn, (Definition *) pn);
+                handler.linkUseToDef(opn, (Definition *) pn);
             }
         }
         break;
@@ -518,7 +501,7 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
 
                 pn2 = handler.new_<BinaryNode>(PNK_COLON, JSOP_INITPROP, opn2->pn_pos, tag, target);
             } else if (opn2->isArity(PN_NULLARY)) {
-                JS_ASSERT(opn2->isKind(PNK_COMMA));
+                JS_ASSERT(opn2->isKind(PNK_ELISION));
                 pn2 = cloneParseTree(opn2);
             } else {
                 pn2 = cloneLeftHandSide(opn2);
@@ -552,7 +535,7 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
             pn->pn_dflags &= ~PND_BOUND;
             pn->setDefn(false);
 
-            LinkUseToDef(pn, (Definition *) opn);
+            handler.linkUseToDef(pn, (Definition *) opn);
         }
     }
     return pn;
@@ -563,7 +546,7 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
 
 #ifdef DEBUG
 
-static const char *parseNodeNames[] = {
+static const char * const parseNodeNames[] = {
 #define STRINGIFY(name) #name,
     FOR_EACH_PARSE_NODE_KIND(STRINGIFY)
 #undef STRINGIFY
@@ -636,7 +619,7 @@ NullaryNode::dump()
       case PNK_NUMBER: {
         ToCStringBuf cbuf;
         const char *cstr = NumberToCString(NULL, &cbuf, pn_dval);
-        if (!MOZ_DOUBLE_IS_FINITE(pn_dval))
+        if (!IsFinite(pn_dval))
             fputc('#', stderr);
         if (cstr)
             fprintf(stderr, "%s", cstr);
@@ -768,7 +751,7 @@ ObjectBox::ObjectBox(JSObject *object, ObjectBox* traceLink)
     traceLink(traceLink),
     emitLink(NULL)
 {
-    JS_ASSERT(!object->isFunction());
+    JS_ASSERT(!object->is<JSFunction>());
 }
 
 ObjectBox::ObjectBox(JSFunction *function, ObjectBox* traceLink)
@@ -776,7 +759,7 @@ ObjectBox::ObjectBox(JSFunction *function, ObjectBox* traceLink)
     traceLink(traceLink),
     emitLink(NULL)
 {
-    JS_ASSERT(object->isFunction());
+    JS_ASSERT(object->is<JSFunction>());
     JS_ASSERT(asFunctionBox()->function() == function);
 }
 
@@ -799,7 +782,7 @@ ObjectBox::ObjectBox(Module *module, ObjectBox* traceLink)
     traceLink(traceLink),
     emitLink(NULL)
 {
-    JS_ASSERT(object->isModule());
+    JS_ASSERT(object->is<Module>());
 }
 
 void

@@ -62,9 +62,9 @@ function test()
 
   function performTest()
   {
-    is(gWatch._container._parent.querySelectorAll(".dbg-expression[hidden=true]").length, 0,
+    is(gWatch.widget._parent.querySelectorAll(".dbg-expression[hidden=true]").length, 0,
       "There should be 0 hidden nodes in the watch expressions container");
-    is(gWatch._container._parent.querySelectorAll(".dbg-expression:not([hidden=true])").length, 27,
+    is(gWatch.widget._parent.querySelectorAll(".dbg-expression:not([hidden=true])").length, 27,
       "There should be 27 visible nodes in the watch expressions container");
 
     test1(function() {
@@ -90,9 +90,9 @@ function test()
 
   function finishTest()
   {
-    is(gWatch._container._parent.querySelectorAll(".dbg-expression[hidden=true]").length, 0,
+    is(gWatch.widget._parent.querySelectorAll(".dbg-expression[hidden=true]").length, 0,
       "There should be 0 hidden nodes in the watch expressions container");
-    is(gWatch._container._parent.querySelectorAll(".dbg-expression:not([hidden=true])").length, 27,
+    is(gWatch.widget._parent.querySelectorAll(".dbg-expression:not([hidden=true])").length, 27,
       "There should be 27 visible nodes in the watch expressions container");
 
     closeDebuggerAndFinish();
@@ -104,7 +104,7 @@ function test()
       checkWatchExpressions("ReferenceError: a is not defined",
                             { type: "object", class: "Object" },
                             { type: "object", class: "String" },
-                            undefined,
+                            { type: "undefined" },
                             26);
       callback();
     });
@@ -116,9 +116,9 @@ function test()
   function test2(callback) {
     waitForWatchExpressions(function() {
       info("Performing test2");
-      checkWatchExpressions(undefined,
-                            { type: "object", class: "Proxy" },
-                            undefined,
+      checkWatchExpressions({ type: "undefined" },
+                            { type: "object", class: "Window" },
+                            { type: "undefined" },
                             "sensational",
                             26);
       callback();
@@ -132,8 +132,8 @@ function test()
     waitForWatchExpressions(function() {
       info("Performing test3");
       checkWatchExpressions({ type: "object", class: "Object" },
-                            { type: "object", class: "Proxy" },
-                            undefined,
+                            { type: "object", class: "Window" },
+                            { type: "undefined" },
                             "sensational",
                             26);
       callback();
@@ -147,8 +147,8 @@ function test()
     waitForWatchExpressions(function() {
       info("Performing test4");
       checkWatchExpressions(5,
-                            { type: "object", class: "Proxy" },
-                            undefined,
+                            { type: "object", class: "Window" },
+                            { type: "undefined" },
                             "sensational",
                             27);
       callback();
@@ -163,8 +163,8 @@ function test()
     waitForWatchExpressions(function() {
       info("Performing test5");
       checkWatchExpressions(5,
-                            { type: "object", class: "Proxy" },
-                            undefined,
+                            { type: "object", class: "Window" },
+                            { type: "undefined" },
                             "sensational",
                             27);
       callback();
@@ -179,8 +179,8 @@ function test()
     waitForWatchExpressions(function() {
       info("Performing test6");
       checkWatchExpressions(5,
-                            { type: "object", class: "Proxy" },
-                            undefined,
+                            { type: "object", class: "Window" },
+                            { type: "undefined" },
                             "sensational",
                             27);
       callback();
@@ -195,8 +195,8 @@ function test()
     waitForWatchExpressions(function() {
       info("Performing test7");
       checkWatchExpressions(5,
-                            { type: "object", class: "Proxy" },
-                            undefined,
+                            { type: "object", class: "Window" },
+                            { type: "undefined" },
                             "sensational",
                             27);
       callback();
@@ -211,8 +211,8 @@ function test()
     waitForWatchExpressions(function() {
       info("Performing test8");
       checkWatchExpressions(5,
-                            { type: "object", class: "Proxy" },
-                            undefined,
+                            { type: "object", class: "Window" },
+                            { type: "undefined" },
                             "sensational",
                             27);
       callback();
@@ -253,9 +253,9 @@ function test()
                                  expected_arguments,
                                  total)
   {
-    is(gWatch._container._parent.querySelectorAll(".dbg-expression[hidden=true]").length, total,
+    is(gWatch.widget._parent.querySelectorAll(".dbg-expression[hidden=true]").length, total,
       "There should be " + total + " hidden nodes in the watch expressions container");
-    is(gWatch._container._parent.querySelectorAll(".dbg-expression:not([hidden=true])").length, 0,
+    is(gWatch.widget._parent.querySelectorAll(".dbg-expression:not([hidden=true])").length, 0,
       "There should be 0 visible nodes in the watch expressions container");
 
     let label = gDebugger.L10N.getStr("watchExpressionsScopeLabel");
@@ -355,13 +355,24 @@ function test()
     is(w12.value.type, "object", "The eleventh value type is correct");
     is(w12.value.class, "Array", "The twelfth value class is correct");
     is(w13.value, false, "The 13th value is correct");
-    is(w14.value, expected_arguments, "The 14th value is correct");
+
+    if (typeof expected_arguments == "object") {
+      is(w14.value.type, expected_arguments.type, "The 14th value type is correct");
+      is(w14.value.class, expected_arguments.class, "The 14th value class is correct");
+    } else {
+      is(w14.value, expected_arguments, "The 14th value is correct");
+    }
 
     is(w15.value, "SyntaxError: unterminated string literal", "The 15th value is correct");
     is(w16.value, "SyntaxError: unterminated string literal", "The 16th value is correct");
     is(w17.value, "URIError: malformed URI sequence", "The 17th value is correct");
-    is(w18.value, undefined, "The 18th value is correct");
-    is(w19.value, undefined, "The 19th value is correct");
+
+    is(w18.value.type, "undefined", "The 18th value type is correct");
+    is(w18.value.class, undefined, "The 18th value class is correct");
+
+    is(w19.value.type, "undefined", "The 19th value type is correct");
+    is(w19.value.class, undefined, "The 19th value class is correct");
+
     is(w20.value, "SyntaxError: syntax error", "The 20th value is correct");
     is(w21.value, "SyntaxError: syntax error", "The 21th value is correct");
     is(w22.value, "TypeError: (intermediate value).foo is not a function", "The 22th value is correct");

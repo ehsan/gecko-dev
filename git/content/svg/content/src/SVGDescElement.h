@@ -6,6 +6,7 @@
 #ifndef mozilla_dom_SVGDescElement_h
 #define mozilla_dom_SVGDescElement_h
 
+#include "mozilla/Attributes.h"
 #include "nsSVGElement.h"
 
 nsresult NS_NewSVGDescElement(nsIContent **aResult,
@@ -23,10 +24,11 @@ protected:
                                           already_AddRefed<nsINodeInfo> aNodeInfo));
   SVGDescElement(already_AddRefed<nsINodeInfo> aNodeInfo);
 
-  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx,
+                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
 public:
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 };
 
 } // namespace dom

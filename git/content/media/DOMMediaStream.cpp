@@ -8,6 +8,7 @@
 #include "nsContentUtils.h"
 #include "mozilla/dom/MediaStreamBinding.h"
 #include "mozilla/dom/LocalMediaStreamBinding.h"
+#include "mozilla/dom/AudioNode.h"
 #include "MediaStreamGraph.h"
 #include "AudioStreamTrack.h"
 #include "VideoStreamTrack.h"
@@ -23,10 +24,30 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMMediaStream)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMMediaStream)
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(DOMMediaStream, mWindow, mTracks)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMMediaStream)
+  tmp->Destroy();
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mTracks)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(DOMMediaStream)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTracks)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(DOMMediaStream)
 
 NS_IMPL_ISUPPORTS_INHERITED1(DOMLocalMediaStream, DOMMediaStream,
                              nsIDOMLocalMediaStream)
+
+NS_IMPL_CYCLE_COLLECTION_INHERITED_1(DOMAudioNodeMediaStream, DOMMediaStream,
+                                     mStreamNode)
+
+NS_IMPL_ADDREF_INHERITED(DOMAudioNodeMediaStream, DOMMediaStream)
+NS_IMPL_RELEASE_INHERITED(DOMAudioNodeMediaStream, DOMMediaStream)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(DOMAudioNodeMediaStream)
+NS_INTERFACE_MAP_END_INHERITING(DOMMediaStream)
 
 class DOMMediaStream::StreamListener : public MediaStreamListener {
 public:
@@ -86,7 +107,7 @@ public:
                                         TrackRate aTrackRate,
                                         TrackTicks aTrackOffset,
                                         uint32_t aTrackEvents,
-                                        const MediaSegment& aQueuedMedia)
+                                        const MediaSegment& aQueuedMedia) MOZ_OVERRIDE
   {
     if (aTrackEvents & (TRACK_EVENT_CREATED | TRACK_EVENT_ENDED)) {
       nsRefPtr<TrackChange> runnable =
@@ -111,16 +132,24 @@ DOMMediaStream::DOMMediaStream()
 
 DOMMediaStream::~DOMMediaStream()
 {
+  Destroy();
+}
+
+void
+DOMMediaStream::Destroy()
+{
   if (mListener) {
     mListener->Forget();
+    mListener = nullptr;
   }
   if (mStream) {
     mStream->Destroy();
+    mStream = nullptr;
   }
 }
 
 JSObject*
-DOMMediaStream::WrapObject(JSContext* aCx, JSObject* aScope)
+DOMMediaStream::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return dom::MediaStreamBinding::Wrap(aCx, aScope, this);
 }
@@ -297,7 +326,7 @@ DOMLocalMediaStream::~DOMLocalMediaStream()
 }
 
 JSObject*
-DOMLocalMediaStream::WrapObject(JSContext* aCx, JSObject* aScope)
+DOMLocalMediaStream::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return dom::LocalMediaStreamBinding::Wrap(aCx, aScope, this);
 }
@@ -324,6 +353,21 @@ DOMLocalMediaStream::CreateTrackUnionStream(nsIDOMWindow* aWindow,
                                             TrackTypeHints aHintContents)
 {
   nsRefPtr<DOMLocalMediaStream> stream = new DOMLocalMediaStream();
+  stream->InitTrackUnionStream(aWindow, aHintContents);
+  return stream.forget();
+}
+
+DOMAudioNodeMediaStream::DOMAudioNodeMediaStream(AudioNode* aNode)
+: mStreamNode(aNode)
+{
+}
+
+already_AddRefed<DOMAudioNodeMediaStream>
+DOMAudioNodeMediaStream::CreateTrackUnionStream(nsIDOMWindow* aWindow,
+                                                AudioNode* aNode,
+                                                TrackTypeHints aHintContents)
+{
+  nsRefPtr<DOMAudioNodeMediaStream> stream = new DOMAudioNodeMediaStream(aNode);
   stream->InitTrackUnionStream(aWindow, aHintContents);
   return stream.forget();
 }

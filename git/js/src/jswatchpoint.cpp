@@ -1,14 +1,17 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsatom.h"
 #include "jswatchpoint.h"
+
+#include "jsatom.h"
+#include "jscompartment.h"
 
 #include "gc/Marking.h"
 
+#include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -49,6 +52,15 @@ WatchpointMap::init()
     return map.init();
 }
 
+#ifdef JSGC_GENERATIONAL
+void
+Mark(JSTracer *trc, WatchKey *key, const char *name)
+{
+    MarkId(trc, &key->id, "WatchKey id");
+    MarkObject(trc, &key->object, "WatchKey id");
+}
+#endif
+
 static void
 WatchpointWriteBarrierPost(JSRuntime *rt, WatchpointMap::Map *map, const WatchKey &key,
                            const Watchpoint &val)
@@ -82,7 +94,7 @@ WatchpointMap::watch(JSContext *cx, HandleObject obj, HandleId id,
         js_ReportOutOfMemory(cx);
         return false;
     }
-    WatchpointWriteBarrierPost(cx->runtime, &map, WatchKey(obj, id), w);
+    WatchpointWriteBarrierPost(cx->runtime(), &map, WatchKey(obj, id), w);
     return true;
 }
 
@@ -136,7 +148,7 @@ WatchpointMap::triggerWatchpoint(JSContext *cx, HandleObject obj, HandleId id, M
     Value old;
     old.setUndefined();
     if (obj->isNative()) {
-        if (RawShape shape = obj->nativeLookup(cx, id)) {
+        if (Shape *shape = obj->nativeLookup(cx, id)) {
             if (shape->hasSlot())
                 old = obj->nativeGetSlot(shape->slot());
         }

@@ -34,12 +34,12 @@ Cu.import("resource://gre/modules/Metrics.jsm");
 
 #endif
 
-Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
+Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
+Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://services-common/utils.js");
 
 XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
@@ -155,6 +155,24 @@ AppVersionMeasurement2.prototype = Object.freeze({
   },
 });
 
+/**
+ * Holds data on the application update functionality.
+ */
+function AppUpdateMeasurement1() {
+  Metrics.Measurement.call(this);
+}
+
+AppUpdateMeasurement1.prototype = Object.freeze({
+  __proto__: Metrics.Measurement.prototype,
+
+  name: "update",
+  version: 1,
+
+  fields: {
+    enabled: {type: Metrics.Storage.FIELD_DAILY_LAST_NUMERIC},
+    autoDownload: {type: Metrics.Storage.FIELD_DAILY_LAST_NUMERIC},
+  },
+});
 
 this.AppInfoProvider = function AppInfoProvider() {
   Metrics.Provider.call(this);
@@ -169,6 +187,7 @@ AppInfoProvider.prototype = Object.freeze({
   measurementTypes: [
     AppInfoMeasurement,
     AppInfoMeasurement1,
+    AppUpdateMeasurement1,
     AppVersionMeasurement1,
     AppVersionMeasurement2,
   ],
@@ -190,11 +209,11 @@ AppInfoProvider.prototype = Object.freeze({
     xpcomabi: "XPCOMABI",
   },
 
-  onInit: function () {
-    return Task.spawn(this._onInit.bind(this));
+  postInit: function () {
+    return Task.spawn(this._postInit.bind(this));
   },
 
-  _onInit: function () {
+  _postInit: function () {
     let recordEmptyAppInfo = function () {
       this._setCurrentAppVersion("");
       this._setCurrentPlatformVersion("");
@@ -371,6 +390,19 @@ AppInfoProvider.prototype = Object.freeze({
     }
 
     return m.setDailyLastNumeric("isDefaultBrowser", isDefault);
+  },
+
+  collectDailyData: function () {
+    return this.storage.enqueueTransaction(function getDaily() {
+      let m = this.getMeasurement(AppUpdateMeasurement1.prototype.name,
+                                  AppUpdateMeasurement1.prototype.version);
+
+      let enabled = this._prefs.get("app.update.enabled", false);
+      yield m.setDailyLastNumeric("enabled", enabled ? 1 : 0);
+
+      let auto = this._prefs.get("app.update.auto", false);
+      yield m.setDailyLastNumeric("autoDownload", auto ? 1 : 0);
+    }.bind(this));
   },
 });
 
@@ -611,7 +643,7 @@ SessionsProvider.prototype = Object.freeze({
     this._log.debug("The last recorded session was #" + lastRecordedSession);
 
     for (let [index, session] in Iterator(sessions)) {
-      if (index < lastRecordedSession) {
+      if (index <= lastRecordedSession) {
         this._log.warn("Already recorded session " + index + ". Did the last " +
                        "session crash or have an issue saving the prefs file?");
         continue;
@@ -754,7 +786,7 @@ AddonsProvider.prototype = Object.freeze({
     AddonCountsMeasurement,
   ],
 
-  onInit: function () {
+  postInit: function () {
     let listener = {};
 
     for (let method of this.ADDON_LISTENER_CALLBACKS) {
@@ -842,13 +874,6 @@ AddonsProvider.prototype = Object.freeze({
         continue;
       }
 
-      let optOutPref = "extensions." + addon.id + ".getAddons.cache.enabled";
-      if (!this._prefs.get(optOutPref, true)) {
-        this._log.debug("Ignoring add-on that's opted out of AMO updates: " +
-                        addon.id);
-        continue;
-      }
-
       let obj = {};
       for (let field of this.COPY_FIELDS) {
         obj[field] = addon[field];
@@ -927,6 +952,12 @@ CrashesProvider.prototype = Object.freeze({
 
     let m = this.getMeasurement("crashes", 1);
 
+    // Aggregate counts locally to avoid excessive storage interaction.
+    let counts = {
+      pending: new Metrics.DailyValues(),
+      submitted: new Metrics.DailyValues(),
+    };
+
     // FUTURE detect mtimes in the future and react more intelligently.
     for (let filename in pending) {
       let modified = pending[filename].modified;
@@ -935,7 +966,7 @@ CrashesProvider.prototype = Object.freeze({
         continue;
       }
 
-      yield m.incrementDailyCounter("pending", modified);
+      counts.pending.appendValue(modified, 1);
     }
 
     for (let filename in submitted) {
@@ -945,7 +976,15 @@ CrashesProvider.prototype = Object.freeze({
         continue;
       }
 
-      yield m.incrementDailyCounter("submitted", modified);
+      counts.submitted.appendValue(modified, 1);
+    }
+
+    for (let [date, values] in counts.pending) {
+      yield m.incrementDailyCounter("pending", date, values.length);
+    }
+
+    for (let [date, values] in counts.submitted) {
+      yield m.incrementDailyCounter("submitted", date, values.length);
     }
 
     yield this.setState("lastCheck", "" + now.getTime());
@@ -1223,7 +1262,7 @@ SearchCountMeasurement2.prototype = Object.freeze({
    * data.
    */
   shouldIncludeField: function (name) {
-    return name.indexOf(".") != -1;
+    return name.contains(".");
   },
 
   /**
@@ -1354,6 +1393,18 @@ this.SearchesProvider.prototype = Object.freeze({
     SearchCountMeasurement1,
     SearchCountMeasurement2,
   ],
+
+  /**
+   * Initialize the search service before our measurements are touched.
+   */
+  preInit: function (storage) {
+    // Initialize search service.
+    let deferred = Promise.defer();
+    Services.search.init(function onInitComplete () {
+      deferred.resolve();
+    });
+    return deferred.promise;
+  },
 
   /**
    * Record that a search occurred.

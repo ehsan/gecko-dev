@@ -11,8 +11,10 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 Cu.import("resource:///modules/devtools/FloatingScrollbars.jsm");
-Cu.import("resource:///modules/devtools/EventEmitter.jsm");
-Cu.import("resource:///modules/devtools/Target.jsm");
+Cu.import("resource:///modules/devtools/shared/event-emitter.js");
+
+var require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
+let Telemetry = require("devtools/shared/telemetry");
 
 this.EXPORTED_SYMBOLS = ["ResponsiveUIManager"];
 
@@ -109,6 +111,7 @@ function ResponsiveUI(aWindow, aTab)
   this.chromeDoc = aWindow.document;
   this.container = aWindow.gBrowser.getBrowserContainer(this.browser);
   this.stack = this.container.querySelector(".browserStack");
+  this._telemetry = new Telemetry();
 
   // Try to load presets from prefs
   if (Services.prefs.prefHasUserValue("devtools.responsiveUI.presets")) {
@@ -179,12 +182,14 @@ function ResponsiveUI(aWindow, aTab)
 
   this.tab.__responsiveUI = this;
 
+  this._telemetry.toolOpened("responsive");
+
   ResponsiveUIManager.emit("on", this.tab, this);
 }
 
 ResponsiveUI.prototype = {
   _transitionsEnabled: true,
-  _floatingScrollbars: true,
+  _floatingScrollbars: Services.appinfo.OS != "Darwin",
   get transitionsEnabled() this._transitionsEnabled,
   set transitionsEnabled(aValue) {
     this._transitionsEnabled = aValue;
@@ -237,6 +242,7 @@ ResponsiveUI.prototype = {
     this.stack.removeAttribute("responsivemode");
 
     delete this.tab.__responsiveUI;
+    this._telemetry.toolClosed("responsive");
     ResponsiveUIManager.emit("off", this.tab, this);
   },
 

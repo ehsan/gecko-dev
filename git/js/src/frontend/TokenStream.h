@@ -1,17 +1,18 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef TokenStream_h__
-#define TokenStream_h__
+#ifndef frontend_TokenStream_h
+#define frontend_TokenStream_h
 
 /*
  * JS lexical scanner interface.
  */
 
 #include "mozilla/DebugOnly.h"
+#include "mozilla/PodOperations.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -71,7 +72,6 @@ enum TokenKind {
     TOK_THROW,                     /* throw keyword */
     TOK_DEBUGGER,                  /* debugger keyword */
     TOK_YIELD,                     /* yield from generator function */
-    TOK_LEXICALSCOPE,              /* block scope AST node label */
     TOK_LET,                       /* let keyword */
     TOK_EXPORT,                    /* export keyword */
     TOK_IMPORT,                    /* import keyword */
@@ -198,19 +198,15 @@ struct TokenPos {
     uint32_t          begin;          /* offset of the token's first char */
     uint32_t          end;            /* offset of 1 past the token's last char */
 
-    static TokenPos make(uint32_t begin, uint32_t end) {
-        JS_ASSERT(begin <= end);
-        TokenPos pos = {begin, end};
-        return pos;
-    }
+    TokenPos() {}
+    TokenPos(uint32_t begin, uint32_t end) : begin(begin), end(end) {}
 
     /* Return a TokenPos that covers left, right, and anything in between. */
     static TokenPos box(const TokenPos &left, const TokenPos &right) {
         JS_ASSERT(left.begin <= left.end);
         JS_ASSERT(left.end <= right.begin);
         JS_ASSERT(right.begin <= right.end);
-        TokenPos pos = {left.begin, right.end};
-        return pos;
+        return TokenPos(left.begin, right.end);
     }
 
     bool operator==(const TokenPos& bpos) const {
@@ -371,7 +367,7 @@ struct CompileError {
     CompileError(JSContext *cx)
       : cx(cx), message(NULL), argumentsType(ArgumentsAreUnicode)
     {
-        PodZero(&report);
+        mozilla::PodZero(&report);
     }
     ~CompileError();
     void throwError();
@@ -435,7 +431,7 @@ class StrictModeGetter {
 //
 // The methods seek() and tell() allow to rescan from a previous visited
 // location of the buffer.
-class TokenStream
+class MOZ_STACK_CLASS TokenStream
 {
     /* Unicode separators that are treated as line terminators, in addition to \n, \r */
     enum {
@@ -452,7 +448,8 @@ class TokenStream
     typedef Vector<jschar, 32> CharBuffer;
 
     TokenStream(JSContext *cx, const CompileOptions &options,
-                const jschar *base, size_t length, StrictModeGetter *smg);
+                const jschar *base, size_t length, StrictModeGetter *smg,
+                AutoKeepAtoms& keepAtoms);
 
     ~TokenStream();
 
@@ -470,6 +467,7 @@ class TokenStream
     const CharBuffer &getTokenbuf() const { return tokenbuf; }
     const char *getFilename() const { return filename; }
     unsigned getLineno() const { return lineno; }
+    unsigned getColumn() const { return userbuf.addressOfNextRawChar() - linebase - 1; }
     JSVersion versionNumber() const { return VersionNumber(version); }
     JSVersion versionWithFlags() const { return version; }
     bool hadError() const { return !!(flags & TSF_HAD_ERROR); }
@@ -633,7 +631,20 @@ class TokenStream
         JS_ALWAYS_TRUE(matchToken(tt));
     }
 
-    class Position {
+    class MOZ_STACK_CLASS Position {
+      public:
+        /*
+         * The Token fields may contain pointers to atoms, so for correct
+         * rooting we must ensure collection of atoms is disabled while objects
+         * of this class are live.  Do this by requiring a dummy AutoKeepAtoms
+         * reference in the constructor.
+         *
+         * This class is explicity ignored by the analysis, so don't add any
+         * more pointers to GC things here!
+         */
+        Position(AutoKeepAtoms&) { }
+      private:
+        Position(const Position&) MOZ_DELETE;
         friend class TokenStream;
         const jschar *buf;
         unsigned flags;
@@ -645,8 +656,10 @@ class TokenStream
         Token lookaheadTokens[maxLookahead];
     };
 
+    void advance(size_t position);
     void tell(Position *);
     void seek(const Position &pos);
+    void seek(const Position &pos, const TokenStream &other);
     void positionAfterLastFunctionKeyword(Position &pos);
 
     size_t positionToOffset(const Position &pos) const {
@@ -737,6 +750,7 @@ class TokenStream
         SourceCoords(JSContext *cx, uint32_t ln);
 
         void add(uint32_t lineNum, uint32_t lineStartOffset);
+        void fill(const SourceCoords &other);
 
         bool isOnThisLine(uint32_t offset, uint32_t lineNum) const {
             uint32_t lineIndex = lineNumToIndex(lineNum);
@@ -813,14 +827,14 @@ class TokenStream
             ptr--;
         }
 
-        const jschar *addressOfNextRawChar() {
-            JS_ASSERT(ptr);     /* make sure haven't been poisoned */
+        const jschar *addressOfNextRawChar(bool allowPoisoned = false) const {
+            JS_ASSERT_IF(!allowPoisoned, ptr);     /* make sure haven't been poisoned */
             return ptr;
         }
 
         /* Use this with caution! */
-        void setAddressOfNextRawChar(const jschar *a) {
-            JS_ASSERT(a);
+        void setAddressOfNextRawChar(const jschar *a, bool allowPoisoned = false) {
+            JS_ASSERT_IF(!allowPoisoned, a);
             ptr = a;
         }
 
@@ -859,7 +873,7 @@ class TokenStream
     bool matchUnicodeEscapeIdStart(int32_t *c);
     bool matchUnicodeEscapeIdent(int32_t *c);
     bool peekChars(int n, jschar *cp);
-    bool getAtSourceMappingURL(bool isMultiline);
+    bool getSourceMappingURL(bool isMultiline, bool shouldWarnDeprecated);
 
     // |expect| cannot be an EOL char.
     bool matchChar(int32_t expect) {
@@ -920,27 +934,6 @@ class TokenStream
     SkipRoot            prevLinebaseSkip;
 };
 
-struct KeywordInfo {
-    const char  *chars;         /* C string with keyword text */
-    TokenKind   tokentype;
-    JSOp        op;             /* JSOp */
-    JSVersion   version;        /* JSVersion */
-};
-
-/*
- * Returns a KeywordInfo for the specified characters, or NULL if the string is
- * not a keyword.
- */
-const KeywordInfo *
-FindKeyword(const jschar *s, size_t length);
-
-/*
- * Check that str forms a valid JS identifier name. The function does not
- * check if str is a JS keyword.
- */
-bool
-IsIdentifier(JSLinearString *str);
-
 /*
  * Steal one JSREPORT_* bit (see jsapi.h) to tell that arguments to the error
  * message have const jschar* type, not const char*.
@@ -958,4 +951,4 @@ extern const char *
 TokenKindToString(js::frontend::TokenKind tt);
 #endif
 
-#endif /* TokenStream_h__ */
+#endif /* frontend_TokenStream_h */

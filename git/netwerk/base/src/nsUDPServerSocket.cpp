@@ -82,7 +82,7 @@ NS_IMETHODIMP nsUDPOutputStream::Write(const char * aBuf, uint32_t aCount, uint3
     return NS_BASE_STREAM_CLOSED;
 
   *_retval = 0;
-  PRInt32 count = PR_SendTo(mFD, aBuf, aCount, 0, &mPrClientAddr, PR_INTERVAL_NO_WAIT);
+  int32_t count = PR_SendTo(mFD, aBuf, aCount, 0, &mPrClientAddr, PR_INTERVAL_NO_WAIT);
   if (count < 0) {
     PRErrorCode code = PR_GetError();
     return ErrorAccordingToNSPR(code);
@@ -513,7 +513,7 @@ class ServerSocketListenerProxy MOZ_FINAL : public nsIUDPServerSocketListener
 {
 public:
   ServerSocketListenerProxy(nsIUDPServerSocketListener* aListener)
-    : mListener(aListener)
+    : mListener(new nsMainThreadPtrHolder<nsIUDPServerSocketListener>(aListener))
     , mTargetThread(do_GetCurrentThread())
   { }
 
@@ -523,7 +523,7 @@ public:
   class OnPacketReceivedRunnable : public nsRunnable
   {
   public:
-    OnPacketReceivedRunnable(nsIUDPServerSocketListener* aListener,
+    OnPacketReceivedRunnable(nsMainThreadPtrHolder<nsIUDPServerSocketListener>* aListener,
                      nsIUDPServerSocket* aServ,
                      nsIUDPMessage* aMessage)
       : mListener(aListener)
@@ -534,7 +534,7 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsCOMPtr<nsIUDPServerSocketListener> mListener;
+    nsMainThreadPtrHandle<nsIUDPServerSocketListener> mListener;
     nsCOMPtr<nsIUDPServerSocket> mServ;
     nsCOMPtr<nsIUDPMessage> mMessage;
   };
@@ -542,7 +542,7 @@ public:
   class OnStopListeningRunnable : public nsRunnable
   {
   public:
-    OnStopListeningRunnable(nsIUDPServerSocketListener* aListener,
+    OnStopListeningRunnable(nsMainThreadPtrHolder<nsIUDPServerSocketListener>* aListener,
                             nsIUDPServerSocket* aServ,
                             nsresult aStatus)
       : mListener(aListener)
@@ -553,13 +553,13 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsCOMPtr<nsIUDPServerSocketListener> mListener;
+    nsMainThreadPtrHandle<nsIUDPServerSocketListener> mListener;
     nsCOMPtr<nsIUDPServerSocket> mServ;
     nsresult mStatus;
   };
 
 private:
-  nsCOMPtr<nsIUDPServerSocketListener> mListener;
+  nsMainThreadPtrHandle<nsIUDPServerSocketListener> mListener;
   nsCOMPtr<nsIEventTarget> mTargetThread;
 };
 

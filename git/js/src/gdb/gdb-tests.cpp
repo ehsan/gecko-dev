@@ -13,7 +13,7 @@ using namespace JS;
 /* The class of the global object. */
 JSClass global_class = {
     "global", JSCLASS_GLOBAL_FLAGS,
-    JS_PropertyStub,  JS_PropertyStub, JS_PropertyStub,  JS_StrictPropertyStub,
+    JS_PropertyStub,  JS_DeletePropertyStub, JS_PropertyStub,  JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
 };
 
@@ -62,13 +62,14 @@ main (int argc, const char **argv)
     JS_SetNativeStackQuota(runtime, 5000000);
 
     JSContext *cx = checkPtr(JS_NewContext(runtime, 8192));
-    JS_SetVersion(cx, JSVERSION_LATEST);
     JS_SetErrorReporter(cx, reportError);
 
     JSAutoRequest ar(cx);
 
     /* Create the global object. */
-    RootedObject global(cx, checkPtr(JS_NewGlobalObject(cx, &global_class, NULL)));
+    JS::CompartmentOptions options;
+    options.setVersion(JSVERSION_LATEST);
+    RootedObject global(cx, checkPtr(JS_NewGlobalObject(cx, &global_class, NULL, options)));
     JS_SetGlobalObject(cx, global);
 
     JSAutoCompartment ac(cx, global);

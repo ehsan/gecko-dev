@@ -20,7 +20,7 @@ function test() {
   let inspector;
   let {
     getInplaceEditorForSpan: inplaceEditor
-  } = Cu.import("resource:///modules/devtools/InplaceEditor.jsm", {});
+  } = devtools.require("devtools/shared/inplace-editor");
 
   waitForExplicitFinish();
 
@@ -255,14 +255,7 @@ function test() {
     var target = TargetFactory.forTab(gBrowser.selectedTab);
     gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
       inspector = toolbox.getCurrentPanel();
-      runTests();
-    });
-  }
-
-  function runTests() {
-    inspector.selection.once("new-node", startTests);
-    executeSoon(function() {
-      inspector.selection.setNode(doc.body);
+      startTests();
     });
   }
 

@@ -34,10 +34,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=781534
       playback.playMedia(false, function () {
         aStream.stop();
         SimpleTest.finish();
-      }, unexpectedCallbackAndFinish);
+      }, unexpectedCallbackAndFinish());
 
-    }, unexpectedCallbackAndFinish);
-  }, true);
+    }, unexpectedCallbackAndFinish());
+  });
 
 </script>
 </pre>

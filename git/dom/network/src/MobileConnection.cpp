@@ -9,15 +9,15 @@
 #include "nsIDOMUSSDReceivedEvent.h"
 #include "nsIDOMDataErrorEvent.h"
 #include "nsIDOMCFStateChangeEvent.h"
-#include "nsIDOMICCCardLockErrorEvent.h"
 #include "GeneratedEvents.h"
+#include "mozilla/Preferences.h"
+#include "nsIPermissionManager.h"
 
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "nsJSON.h"
 #include "jsapi.h"
 #include "mozilla/Services.h"
-#include "IccManager.h"
 
 #define NS_RILCONTENTHELPER_CONTRACTID "@mozilla.org/ril/content-helper;1"
 
@@ -53,12 +53,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(MobileConnection,
   // Don't traverse mListener because it doesn't keep any reference to
   // MobileConnection but a raw pointer instead. Neither does mProvider because
   // it's an xpcom service and is only released at shutting down.
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mIccManager)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(MobileConnection,
                                                 nsDOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mIccManager)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(MobileConnection)
@@ -75,12 +73,12 @@ NS_IMPL_EVENT_HANDLER(MobileConnection, voicechange)
 NS_IMPL_EVENT_HANDLER(MobileConnection, datachange)
 NS_IMPL_EVENT_HANDLER(MobileConnection, ussdreceived)
 NS_IMPL_EVENT_HANDLER(MobileConnection, dataerror)
-NS_IMPL_EVENT_HANDLER(MobileConnection, icccardlockerror)
 NS_IMPL_EVENT_HANDLER(MobileConnection, cfstatechange)
 
 MobileConnection::MobileConnection()
 {
   mProvider = do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
+  mWindow = nullptr;
 
   // Not being able to acquire the provider isn't fatal since we check
   // for it explicitly below.
@@ -88,11 +86,6 @@ MobileConnection::MobileConnection()
     NS_WARNING("Could not acquire nsIMobileConnectionProvider!");
     return;
   }
-
-  mListener = new Listener(this);
-  DebugOnly<nsresult> rv = mProvider->RegisterMobileConnectionMsg(mListener);
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
-                   "Failed registering mobile connection messages with provider");
 }
 
 void
@@ -100,8 +93,17 @@ MobileConnection::Init(nsPIDOMWindow* aWindow)
 {
   BindToOwner(aWindow);
 
-  mIccManager = new icc::IccManager();
-  mIccManager->Init(aWindow);
+  mWindow = do_GetWeakReference(aWindow);
+  mListener = new Listener(this);
+
+  if (!CheckPermission("mobilenetwork") &&
+      CheckPermission("mobileconnection")) {
+    DebugOnly<nsresult> rv = mProvider->RegisterMobileConnectionMsg(mListener);
+    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
+                     "Failed registering mobile connection messages with provider");
+
+    printf_stderr("MobileConnection initialized");
+  }
 }
 
 void
@@ -113,30 +115,81 @@ MobileConnection::Shutdown()
     mProvider = nullptr;
     mListener = nullptr;
   }
-
-  if (mIccManager) {
-    mIccManager->Shutdown();
-    mIccManager = nullptr;
-  }
 }
 
 // nsIDOMMozMobileConnection
 
 NS_IMETHODIMP
+MobileConnection::GetLastKnownNetwork(nsAString& network)
+{
+  network.SetIsVoid(true);
+
+  if (!CheckPermission("mobilenetwork")) {
+    return NS_OK;
+  }
+
+  network = mozilla::Preferences::GetString("ril.lastKnownNetwork");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+MobileConnection::GetLastKnownHomeNetwork(nsAString& network)
+{
+  network.SetIsVoid(true);
+
+  if (!CheckPermission("mobilenetwork")) {
+    return NS_OK;
+  }
+
+  network = mozilla::Preferences::GetString("ril.lastKnownHomeNetwork");
+  return NS_OK;
+}
+
+// All fields below require the "mobileconnection" permission.
+
+bool
+MobileConnection::CheckPermission(const char* type)
+{
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
+  NS_ENSURE_TRUE(window, false);
+
+  nsCOMPtr<nsIPermissionManager> permMgr =
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
+  NS_ENSURE_TRUE(permMgr, false);
+
+  uint32_t permission = nsIPermissionManager::DENY_ACTION;
+  permMgr->TestPermissionFromWindow(window, type, &permission);
+  return permission == nsIPermissionManager::ALLOW_ACTION;
+}
+
+NS_IMETHODIMP
 MobileConnection::GetCardState(nsAString& cardState)
 {
-  if (!mProvider) {
-    cardState.SetIsVoid(true);
+  cardState.SetIsVoid(true);
+
+  if (!mProvider || !CheckPermission("mobileconnection")) {
     return NS_OK;
   }
   return mProvider->GetCardState(cardState);
 }
 
 NS_IMETHODIMP
+MobileConnection::GetRetryCount(int32_t* retryCount)
+{
+  *retryCount = 0;
+
+  if (!mProvider || !CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+  return mProvider->GetRetryCount(retryCount);
+}
+
+NS_IMETHODIMP
 MobileConnection::GetIccInfo(nsIDOMMozMobileICCInfo** aIccInfo)
 {
-  if (!mProvider) {
-    *aIccInfo = nullptr;
+  *aIccInfo = nullptr;
+
+  if (!mProvider || !CheckPermission("mobileconnection")) {
     return NS_OK;
   }
   return mProvider->GetIccInfo(aIccInfo);
@@ -145,8 +198,9 @@ MobileConnection::GetIccInfo(nsIDOMMozMobileICCInfo** aIccInfo)
 NS_IMETHODIMP
 MobileConnection::GetVoice(nsIDOMMozMobileConnectionInfo** voice)
 {
-  if (!mProvider) {
-    *voice = nullptr;
+  *voice = nullptr;
+
+  if (!mProvider || !CheckPermission("mobileconnection")) {
     return NS_OK;
   }
   return mProvider->GetVoiceConnectionInfo(voice);
@@ -155,8 +209,9 @@ MobileConnection::GetVoice(nsIDOMMozMobileConnectionInfo** voice)
 NS_IMETHODIMP
 MobileConnection::GetData(nsIDOMMozMobileConnectionInfo** data)
 {
-  if (!mProvider) {
-    *data = nullptr;
+  *data = nullptr;
+
+  if (!mProvider || !CheckPermission("mobileconnection")) {
     return NS_OK;
   }
   return mProvider->GetDataConnectionInfo(data);
@@ -165,24 +220,22 @@ MobileConnection::GetData(nsIDOMMozMobileConnectionInfo** data)
 NS_IMETHODIMP
 MobileConnection::GetNetworkSelectionMode(nsAString& networkSelectionMode)
 {
-  if (!mProvider) {
-    networkSelectionMode.SetIsVoid(true);
-    return NS_OK;
+  networkSelectionMode.SetIsVoid(true);
+
+  if (!mProvider || !CheckPermission("mobileconnection")) {
+     return NS_OK;
   }
   return mProvider->GetNetworkSelectionMode(networkSelectionMode);
-}
-
-NS_IMETHODIMP
-MobileConnection::GetIcc(nsIDOMMozIccManager** aIcc)
-{
-  NS_IF_ADDREF(*aIcc = mIccManager);
-  return NS_OK;
 }
 
 NS_IMETHODIMP
 MobileConnection::GetNetworks(nsIDOMDOMRequest** request)
 {
   *request = nullptr;
+
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
 
   if (!mProvider) {
     return NS_ERROR_FAILURE;
@@ -196,6 +249,10 @@ MobileConnection::SelectNetwork(nsIDOMMozMobileNetworkInfo* network, nsIDOMDOMRe
 {
   *request = nullptr;
 
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
   if (!mProvider) {
     return NS_ERROR_FAILURE;
   }
@@ -208,6 +265,10 @@ MobileConnection::SelectNetworkAutomatically(nsIDOMDOMRequest** request)
 {
   *request = nullptr;
 
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
   if (!mProvider) {
     return NS_ERROR_FAILURE;
   }
@@ -216,45 +277,13 @@ MobileConnection::SelectNetworkAutomatically(nsIDOMDOMRequest** request)
 }
 
 NS_IMETHODIMP
-MobileConnection::GetCardLock(const nsAString& aLockType, nsIDOMDOMRequest** aDomRequest)
-{
-  *aDomRequest = nullptr;
-
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->GetCardLock(GetOwner(), aLockType, aDomRequest);
-}
-
-NS_IMETHODIMP
-MobileConnection::UnlockCardLock(const jsval& aInfo, nsIDOMDOMRequest** aDomRequest)
-{
-  *aDomRequest = nullptr;
-
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->UnlockCardLock(GetOwner(), aInfo, aDomRequest);
-}
-
-NS_IMETHODIMP
-MobileConnection::SetCardLock(const jsval& aInfo, nsIDOMDOMRequest** aDomRequest)
-{
-  *aDomRequest = nullptr;
-
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->SetCardLock(GetOwner(), aInfo, aDomRequest);
-}
-
-NS_IMETHODIMP
 MobileConnection::SendMMI(const nsAString& aMMIString,
                           nsIDOMDOMRequest** request)
 {
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
   if (!mProvider) {
     return NS_ERROR_FAILURE;
   }
@@ -265,6 +294,10 @@ MobileConnection::SendMMI(const nsAString& aMMIString,
 NS_IMETHODIMP
 MobileConnection::CancelMMI(nsIDOMDOMRequest** request)
 {
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
   if (!mProvider) {
     return NS_ERROR_FAILURE;
   }
@@ -277,6 +310,10 @@ MobileConnection::GetCallForwardingOption(uint16_t aReason,
                                           nsIDOMDOMRequest** aRequest)
 {
   *aRequest = nullptr;
+
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
 
   if (!mProvider) {
     return NS_ERROR_FAILURE;
@@ -291,6 +328,10 @@ MobileConnection::SetCallForwardingOption(nsIDOMMozMobileCFInfo* aCFInfo,
 {
   *aRequest = nullptr;
 
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
   if (!mProvider) {
     return NS_ERROR_FAILURE;
   }
@@ -298,29 +339,112 @@ MobileConnection::SetCallForwardingOption(nsIDOMMozMobileCFInfo* aCFInfo,
   return mProvider->SetCallForwardingOption(GetOwner(), aCFInfo, aRequest);
 }
 
+NS_IMETHODIMP
+MobileConnection::GetCallBarringOption(const JS::Value& aOption,
+                                       nsIDOMDOMRequest** aRequest)
+{
+  *aRequest = nullptr;
+
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
+  if (!mProvider) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return mProvider->GetCallBarringOption(GetOwner(), aOption, aRequest);
+}
+
+NS_IMETHODIMP
+MobileConnection::SetCallBarringOption(const JS::Value& aOption,
+                                       nsIDOMDOMRequest** aRequest)
+{
+  *aRequest = nullptr;
+
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
+  if (!mProvider) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return mProvider->SetCallBarringOption(GetOwner(), aOption, aRequest);
+}
+
+NS_IMETHODIMP
+MobileConnection::GetCallWaitingOption(nsIDOMDOMRequest** aRequest)
+{
+  *aRequest = nullptr;
+
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
+  if (!mProvider) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return mProvider->GetCallWaitingOption(GetOwner(), aRequest);
+}
+
+NS_IMETHODIMP
+MobileConnection::SetCallWaitingOption(bool aEnabled,
+                                       nsIDOMDOMRequest** aRequest)
+{
+  *aRequest = nullptr;
+
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
+  if (!mProvider) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return mProvider->SetCallWaitingOption(GetOwner(), aEnabled, aRequest);
+}
+
 // nsIMobileConnectionListener
 
 NS_IMETHODIMP
 MobileConnection::NotifyVoiceChanged()
 {
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
   return DispatchTrustedEvent(NS_LITERAL_STRING("voicechange"));
 }
 
 NS_IMETHODIMP
 MobileConnection::NotifyDataChanged()
 {
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
   return DispatchTrustedEvent(NS_LITERAL_STRING("datachange"));
 }
 
 NS_IMETHODIMP
 MobileConnection::NotifyCardStateChanged()
 {
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
   return DispatchTrustedEvent(NS_LITERAL_STRING("cardstatechange"));
 }
 
 NS_IMETHODIMP
 MobileConnection::NotifyIccInfoChanged()
 {
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
   return DispatchTrustedEvent(NS_LITERAL_STRING("iccinfochange"));
 }
 
@@ -328,6 +452,10 @@ NS_IMETHODIMP
 MobileConnection::NotifyUssdReceived(const nsAString& aMessage,
                                      bool aSessionEnded)
 {
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
   nsCOMPtr<nsIDOMEvent> event;
   NS_NewDOMUSSDReceivedEvent(getter_AddRefs(event), this, nullptr, nullptr);
 
@@ -343,28 +471,16 @@ MobileConnection::NotifyUssdReceived(const nsAString& aMessage,
 NS_IMETHODIMP
 MobileConnection::NotifyDataError(const nsAString& aMessage)
 {
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
   nsCOMPtr<nsIDOMEvent> event;
   NS_NewDOMDataErrorEvent(getter_AddRefs(event), this, nullptr, nullptr);
 
   nsCOMPtr<nsIDOMDataErrorEvent> ce = do_QueryInterface(event);
   nsresult rv = ce->InitDataErrorEvent(NS_LITERAL_STRING("dataerror"),
                                        false, false, aMessage);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return DispatchTrustedEvent(ce);
-}
-
-NS_IMETHODIMP
-MobileConnection::NotifyIccCardLockError(const nsAString& aLockType,
-                                         uint32_t aRetryCount)
-{
-  nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMICCCardLockErrorEvent(getter_AddRefs(event), this, nullptr, nullptr);
-
-  nsCOMPtr<nsIDOMICCCardLockErrorEvent> ce = do_QueryInterface(event);
-  nsresult rv =
-    ce->InitICCCardLockErrorEvent(NS_LITERAL_STRING("icccardlockerror"),
-                                  false, false, aLockType, aRetryCount);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchTrustedEvent(ce);
@@ -378,6 +494,10 @@ MobileConnection::NotifyCFStateChange(bool aSuccess,
                                       unsigned short aSeconds,
                                       unsigned short aServiceClass)
 {
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
   nsCOMPtr<nsIDOMEvent> event;
   NS_NewDOMCFStateChangeEvent(getter_AddRefs(event), this, nullptr, nullptr);
 

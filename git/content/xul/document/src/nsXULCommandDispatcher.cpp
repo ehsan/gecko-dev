@@ -26,7 +26,6 @@
 #include "nsRDFCID.h"
 #include "nsXULCommandDispatcher.h"
 #include "prlog.h"
-#include "nsIDOMEventTarget.h"
 #include "nsGUIEvent.h"
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
@@ -98,7 +97,7 @@ already_AddRefed<nsPIWindowRoot>
 nsXULCommandDispatcher::GetWindowRoot()
 {
   if (mDocument) {
-    nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetScriptGlobalObject()));
+    nsCOMPtr<nsPIDOMWindow> window(mDocument->GetWindow());
     if (window) {
       return window->GetTopWindowRoot();
     }

@@ -5,7 +5,6 @@
 
 #include "mozilla/dom/SVGAltGlyphElement.h"
 #include "mozilla/dom/SVGAltGlyphElementBinding.h"
-#include "nsContentUtils.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(AltGlyph)
 
@@ -13,7 +12,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGAltGlyphElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGAltGlyphElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
   return SVGAltGlyphElementBinding::Wrap(aCx, aScope, this);
 }
@@ -37,7 +36,7 @@ SVGAltGlyphElement::SVGAltGlyphElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGAltGlyphElement)
 
-already_AddRefed<nsIDOMSVGAnimatedString>
+already_AddRefed<SVGAnimatedString>
 SVGAltGlyphElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);
@@ -87,12 +86,6 @@ SVGAltGlyphElement::IsAttributeMapped(const nsIAtom* name) const
 
 //----------------------------------------------------------------------
 // nsSVGElement overrides
-
-bool
-SVGAltGlyphElement::IsEventName(nsIAtom* aName)
-{
-  return nsContentUtils::IsEventAttributeName(aName, EventNameType_SVGGraphic);
-}
 
 nsSVGElement::StringAttributesInfo
 SVGAltGlyphElement::GetStringInfo()

@@ -10,10 +10,8 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-PROGRAM		= xpcshell$(BIN_SUFFIX)
+FAIL_ON_WARNINGS := 1
 SDK_BINARY	= $(PROGRAM)
-
-CPPSRCS		= xpcshell.cpp
 
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/toolkit/xre \

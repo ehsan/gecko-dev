@@ -7,12 +7,14 @@
 #ifndef VideoUtils_h
 #define VideoUtils_h
 
+#include "mozilla/Attributes.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/CheckedInt.h"
 
 #include "nsRect.h"
 #include "nsIThreadManager.h"
 #include "nsThreadUtils.h"
+#include "prtime.h"
 
 using mozilla::CheckedInt64;
 using mozilla::CheckedUint64;
@@ -35,7 +37,7 @@ namespace mozilla {
  *
  * MUCH PREFERRED to bare calls to ReentrantMonitor.Exit and Enter.
  */ 
-class NS_STACK_CLASS ReentrantMonitorAutoExit
+class MOZ_STACK_CLASS ReentrantMonitorAutoExit
 {
 public:
     /**
@@ -77,7 +79,7 @@ private:
  * E.g. Used to allow unmonitored read access on the decode thread,
  * and monitored access on all other threads.
  */
-class NS_STACK_CLASS ReentrantMonitorConditionallyEnter
+class MOZ_STACK_CLASS ReentrantMonitorConditionallyEnter
 {
 public:
   ReentrantMonitorConditionallyEnter(bool aEnter,
@@ -115,7 +117,7 @@ class ShutdownThreadEvent : public nsRunnable
 public:
   ShutdownThreadEvent(nsIThread* aThread) : mThread(aThread) {}
   ~ShutdownThreadEvent() {}
-  NS_IMETHOD Run() {
+  NS_IMETHOD Run() MOZ_OVERRIDE {
     mThread->Shutdown();
     mThread = nullptr;
     return NS_OK;
@@ -160,6 +162,9 @@ static const int64_t USECS_PER_S = 1000000;
 
 // Number of microseconds per millisecond.
 static const int64_t USECS_PER_MS = 1000;
+
+// Converts seconds to milliseconds.
+#define MS_TO_SECONDS(s) ((double)(s) / (PR_MSEC_PER_SEC))
 
 // The maximum height and width of the video. Used for
 // sanitizing the memory allocation of the RGB buffer.

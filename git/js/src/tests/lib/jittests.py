@@ -114,6 +114,11 @@ class Test:
                             test.expect_status = int(value, 0);
                         except ValueError:
                             print("warning: couldn't parse exit status %s" % value)
+                    elif name == 'thread-count':
+                        try:
+                            test.jitflags.append('--thread-count=' + int(value, 0));
+                        except ValueError:
+                            print("warning: couldn't parse thread-count %s" % value)
                     else:
                         print('warning: unrecognized |jit-test| attribute %s' % part)
                 else:
@@ -135,6 +140,8 @@ class Test:
                         test.jitflags.append('--no-jm')
                     elif name == 'ion-eager':
                         test.jitflags.append('--ion-eager')
+                    elif name == 'no-ion':
+                        test.jitflags.append('--no-ion')
                     elif name == 'dump-bytecode':
                         test.jitflags.append('--dump-bytecode')
                     else:
@@ -279,7 +286,8 @@ def run_test(test, prefix, options):
 
 def check_output(out, err, rc, test):
     if test.expect_error:
-        return test.expect_error in err
+        # The shell exits with code 3 on uncaught exceptions.
+        return test.expect_error in err and rc == 3
 
     for line in out.split('\n'):
         if line.startswith('Trace stats check failed'):

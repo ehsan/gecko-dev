@@ -17,7 +17,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFilterElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGFilterElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
   return SVGFilterElementBinding::Wrap(aCx, aScope, this);
 }
@@ -125,7 +125,7 @@ SVGFilterElement::SetFilterRes(uint32_t filterResX, uint32_t filterResY)
   mIntegerPairAttributes[FILTERRES].SetBaseValues(filterResX, filterResY, this);
 }
 
-already_AddRefed<nsIDOMSVGAnimatedString>
+already_AddRefed<SVGAnimatedString>
 SVGFilterElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);

@@ -15,13 +15,13 @@
 #include <dlfcn.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sched.h>
 
 #include "nsAppShell.h"
 #include "nsWindow.h"
 #include <android/log.h>
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
-#include "nsINetworkLinkService.h"
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsICrashReporter.h"
@@ -35,13 +35,18 @@
 #include "mozilla/dom/mobilemessage/Types.h"
 #include "mozilla/dom/mobilemessage/PSms.h"
 #include "mozilla/dom/mobilemessage/SmsParent.h"
+#include "mozilla/layers/AsyncPanZoomController.h"
 #include "nsIMobileMessageDatabaseService.h"
 #include "nsPluginInstanceOwner.h"
 #include "nsSurfaceTexture.h"
+#include "GeckoProfiler.h"
+
+#include "GeckoProfiler.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::dom::mobilemessage;
+using namespace mozilla::layers;
 
 /* Forward declare all the JNI methods as extern "C" */
 
@@ -61,15 +66,15 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGeckoOfEvent(JNIEnv *jenv, jclass jc,
 {
     // poke the appshell
     if (nsAppShell::gAppShell)
-        nsAppShell::gAppShell->PostEvent(new AndroidGeckoEvent(jenv, event));
+        nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeFromJavaObject(jenv, event));
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent(JNIEnv *jenv, jclass)
+Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent(JNIEnv *jenv, jclass, jboolean mayWait)
 {
     // poke the appshell
     if (nsAppShell::gAppShell)
-        nsAppShell::gAppShell->ProcessNextNativeEvent(false);
+        nsAppShell::gAppShell->ProcessNextNativeEvent(mayWait != JNI_FALSE);
 }
 
 NS_EXPORT void JNICALL
@@ -79,60 +84,10 @@ Java_org_mozilla_gecko_GeckoAppShell_setLayerClient(JNIEnv *jenv, jclass, jobjec
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_onLowMemory(JNIEnv *jenv, jclass jc)
-{
-    if (nsAppShell::gAppShell) {
-        nsAppShell::gAppShell->NotifyObservers(nullptr,
-                                               "memory-pressure",
-                                               NS_LITERAL_STRING("low-memory").get());
-    }
-}
-
-NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_onResume(JNIEnv *jenv, jclass jc)
 {
     if (nsAppShell::gAppShell)
         nsAppShell::gAppShell->OnResume();
-}
-
-NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_callObserver(JNIEnv *jenv, jclass, jstring jObserverKey, jstring jTopic, jstring jData)
-{
-    if (!nsAppShell::gAppShell)
-        return;
-
-    nsJNIString sObserverKey(jObserverKey, jenv);
-    nsJNIString sTopic(jTopic, jenv);
-    nsJNIString sData(jData, jenv);
-
-    nsAppShell::gAppShell->CallObserver(sObserverKey, sTopic, sData);
-}
-
-NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_removeObserver(JNIEnv *jenv, jclass, jstring jObserverKey)
-{
-    if (!nsAppShell::gAppShell)
-        return;
-
-    const jchar *observerKey = jenv->GetStringChars(jObserverKey, NULL);
-    nsString sObserverKey(observerKey);
-    sObserverKey.SetLength(jenv->GetStringLength(jObserverKey));
-    jenv->ReleaseStringChars(jObserverKey, observerKey);
-
-    nsAppShell::gAppShell->RemoveObserver(sObserverKey);
-}
-
-NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_onChangeNetworkLinkStatus(JNIEnv *jenv, jclass, jstring jStatus)
-{
-    if (!nsAppShell::gAppShell)
-        return;
-
-    nsJNIString sStatus(jStatus, jenv);
-
-    nsAppShell::gAppShell->NotifyObservers(nullptr,
-                                           NS_NETWORK_LINK_TOPIC,
-                                           sStatus.get());
 }
 
 NS_EXPORT void JNICALL
@@ -206,7 +161,8 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsReceived(JNIEnv* jenv, jclass,
       SmsMessageData mMessageData;
     };
 
-    SmsMessageData message(0, eDeliveryState_Received, eDeliveryStatus_Success,
+    // TODO Need to correct the message `threadId` parameter value. Bug 859098
+    SmsMessageData message(0, 0, eDeliveryState_Received, eDeliveryStatus_Success,
                            nsJNIString(aSender, jenv), EmptyString(),
                            nsJNIString(aBody, jenv),
                            static_cast<MessageClass>(aMessageClass),
@@ -259,7 +215,8 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsSent(JNIEnv* jenv, jclass,
     };
 
     // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aId, eDeliveryState_Sent, eDeliveryStatus_Pending,
+    // TODO Need to correct the message `threadId` parameter value. Bug 859098
+    SmsMessageData message(aId, 0, eDeliveryState_Sent, eDeliveryStatus_Pending,
                            EmptyString(), nsJNIString(aReceiver, jenv),
                            nsJNIString(aBody, jenv), eMessageClass_Normal,
                            aTimestamp, true);
@@ -302,7 +259,8 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDelivery(JNIEnv* jenv, jclass,
     };
 
     // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aId, eDeliveryState_Sent,
+    // TODO Need to correct the message `threadId` parameter value. Bug 859098
+    SmsMessageData message(aId, 0, eDeliveryState_Sent,
                            static_cast<DeliveryStatus>(aDeliveryStatus),
                            EmptyString(), nsJNIString(aReceiver, jenv),
                            nsJNIString(aBody, jenv), eMessageClass_Normal,
@@ -384,7 +342,8 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyGetSms(JNIEnv* jenv, jclass,
 
     // TODO Need to add the message `read` parameter value. Bug 748391
     // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aId, state,
+    // TODO Need to correct the message `threadId` parameter value. Bug 859098
+    SmsMessageData message(aId, 0, state,
                            static_cast<DeliveryStatus>(aDeliveryStatus),
                            nsJNIString(aSender, jenv), receiver,
                            nsJNIString(aBody, jenv), eMessageClass_Normal,
@@ -444,7 +403,8 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDeleted(JNIEnv* jenv, jclass,
           AndroidBridge::Bridge()->DequeueSmsRequest(mRequestId);
         NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
-        request->NotifyMessageDeleted(mDeleted);
+        // For android, we support only single SMS deletion.
+        request->NotifyMessageDeleted(&mDeleted, 1);
         return NS_OK;
       }
 
@@ -565,7 +525,8 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyListCreated(JNIEnv* jenv, jclass,
 
     // TODO Need to add the message `read` parameter value. Bug 748391
     // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aMessageId, state,
+    // TODO Need to correct the message `threadId` parameter value. Bug 859098
+    SmsMessageData message(aMessageId, 0, state,
                            static_cast<DeliveryStatus>(aDeliveryStatus),
                            nsJNIString(aSender, jenv), receiver,
                            nsJNIString(aBody, jenv), eMessageClass_Normal,
@@ -616,7 +577,8 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyGotNextMessage(JNIEnv* jenv, jclass
 
     // TODO Need to add the message `read` parameter value. Bug 748391
     // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aMessageId, state,
+    // TODO Need to correct the message `threadId` parameter value. Bug 859098
+    SmsMessageData message(aMessageId, 0, state,
                            static_cast<DeliveryStatus>(aDeliveryStatus),
                            nsJNIString(aSender, jenv), receiver,
                            nsJNIString(aBody, jenv), eMessageClass_Normal,
@@ -868,6 +830,152 @@ Java_org_mozilla_gecko_GeckoAppShell_onSurfaceTextureFrameAvailable(JNIEnv* jenv
   }
 
   st->NotifyFrameAvailable();
+}
+
+NS_EXPORT jdouble JNICALL
+Java_org_mozilla_gecko_GeckoJavaSampler_getProfilerTime(JNIEnv *jenv, jclass jc)
+{
+  return profiler_time();
+}
+
+NS_EXPORT void JNICALL
+Java_org_mozilla_gecko_gfx_NativePanZoomController_init(JNIEnv* env, jobject instance)
+{
+    if (!AndroidBridge::Bridge()) {
+        return;
+    }
+
+    jobject oldRef = AndroidBridge::Bridge()->SetNativePanZoomController(env->NewGlobalRef(instance));
+    if (oldRef) {
+        MOZ_ASSERT(false, "Registering a new NPZC when we already have one");
+        env->DeleteGlobalRef(oldRef);
+    }
+    nsWindow::SetPanZoomController(new AsyncPanZoomController(AndroidBridge::Bridge(), AsyncPanZoomController::USE_GESTURE_DETECTOR));
+}
+
+NS_EXPORT void JNICALL
+Java_org_mozilla_gecko_gfx_NativePanZoomController_handleTouchEvent(JNIEnv* env, jobject instance, jobject event)
+{
+    AsyncPanZoomController *controller = nsWindow::GetPanZoomController();
+    if (controller) {
+        AndroidGeckoEvent* wrapper = AndroidGeckoEvent::MakeFromJavaObject(env, event);
+        const MultiTouchInput& input = wrapper->MakeMultiTouchInput(nsWindow::TopWindow());
+        delete wrapper;
+        if (input.mType >= 0) {
+            controller->ReceiveInputEvent(input);
+        }
+    }
+}
+
+NS_EXPORT void JNICALL
+Java_org_mozilla_gecko_gfx_NativePanZoomController_handleMotionEvent(JNIEnv* env, jobject instance, jobject event)
+{
+    // FIXME implement this
+}
+
+NS_EXPORT jlong JNICALL
+Java_org_mozilla_gecko_gfx_NativePanZoomController_runDelayedCallback(JNIEnv* env, jobject instance)
+{
+    if (!AndroidBridge::Bridge()) {
+        return -1;
+    }
+
+    return AndroidBridge::Bridge()->RunDelayedTasks();
+}
+
+NS_EXPORT void JNICALL
+Java_org_mozilla_gecko_gfx_NativePanZoomController_destroy(JNIEnv* env, jobject instance)
+{
+    if (!AndroidBridge::Bridge()) {
+        return;
+    }
+
+    nsWindow::SetPanZoomController(nullptr);
+    jobject oldRef = AndroidBridge::Bridge()->SetNativePanZoomController(NULL);
+    if (!oldRef) {
+        MOZ_ASSERT(false, "Clearing a non-existent NPZC");
+    } else {
+        env->DeleteGlobalRef(oldRef);
+    }
+}
+
+NS_EXPORT void JNICALL
+Java_org_mozilla_gecko_gfx_NativePanZoomController_notifyDefaultActionPrevented(JNIEnv* env, jobject instance, jboolean prevented)
+{
+    AsyncPanZoomController *controller = nsWindow::GetPanZoomController();
+    if (controller) {
+        controller->ContentReceivedTouch(prevented);
+    }
+}
+
+NS_EXPORT jboolean JNICALL
+Java_org_mozilla_gecko_gfx_NativePanZoomController_getRedrawHint(JNIEnv* env, jobject instance)
+{
+    // FIXME implement this
+    return true;
+}
+
+NS_EXPORT void JNICALL
+Java_org_mozilla_gecko_gfx_NativePanZoomController_setOverScrollMode(JNIEnv* env, jobject instance, jint overscrollMode)
+{
+    // FIXME implement this
+}
+
+NS_EXPORT jint JNICALL
+Java_org_mozilla_gecko_gfx_NativePanZoomController_getOverScrollMode(JNIEnv* env, jobject instance)
+{
+    // FIXME implement this
+    return 0;
+}
+
+NS_EXPORT jboolean JNICALL
+Java_org_mozilla_gecko_ANRReporter_requestNativeStack(JNIEnv*, jclass)
+{
+    if (profiler_is_active()) {
+        // Don't proceed if profiler is already running
+        return JNI_FALSE;
+    }
+    // WARNING: we are on the ANR reporter thread at this point and it is
+    // generally unsafe to use the profiler from off the main thread. However,
+    // the risk here is limited because for most users, the profiler is not run
+    // elsewhere. See the discussion in Bug 863777, comment 13
+    const char *NATIVE_STACK_FEATURES[] = {"leaf", "threads", "privacy"};
+    // Buffer one sample and let the profiler wait a long time
+    profiler_start(100, 10000, NATIVE_STACK_FEATURES,
+        sizeof(NATIVE_STACK_FEATURES) / sizeof(char*),
+        NULL, 0);
+    return JNI_TRUE;
+}
+
+NS_EXPORT jstring JNICALL
+Java_org_mozilla_gecko_ANRReporter_getNativeStack(JNIEnv* jenv, jclass)
+{
+    if (!profiler_is_active()) {
+        // Maybe profiler support is disabled?
+        return NULL;
+    }
+    char *profile = profiler_get_profile();
+    while (profile && !strlen(profile)) {
+        // no sample yet?
+        sched_yield();
+        profile = profiler_get_profile();
+    }
+    jstring result = NULL;
+    if (profile) {
+        result = jenv->NewStringUTF(profile);
+        free(profile);
+    }
+    return result;
+}
+
+NS_EXPORT void JNICALL
+Java_org_mozilla_gecko_ANRReporter_releaseNativeStack(JNIEnv* jenv, jclass)
+{
+    if (!profiler_is_active()) {
+        // Maybe profiler support is disabled?
+        return;
+    }
+    mozilla_sampler_stop();
 }
 
 }

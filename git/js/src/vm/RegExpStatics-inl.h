@@ -1,16 +1,18 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99 ft=cpp:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef RegExpStatics_inl_h__
-#define RegExpStatics_inl_h__
+#ifndef vm_RegExpStatics_inl_h
+#define vm_RegExpStatics_inl_h
 
-#include "RegExpStatics.h"
+#include "vm/RegExpStatics.h"
 
-#include "vm/RegExpObject-inl.h"
+#include "gc/Marking.h"
+
+#include "jsinferinlines.h"
+
 #include "vm/String-inl.h"
 
 namespace js {
@@ -82,6 +84,7 @@ class RegExpStatics
     explicit RegExpStatics(InitBuffer) : bufferLink(NULL), copied(false) {}
 
     friend class PreserveRegExpStatics;
+    friend class AutoRegExpStaticsBuffer;
 
   public:
     /* Mutators. */
@@ -147,47 +150,57 @@ class RegExpStatics
     void getLastParen(JSSubString *out) const;
     void getLeftContext(JSSubString *out) const;
     void getRightContext(JSSubString *out) const;
+};
 
-    /* PreserveRegExpStatics helpers. */
-
-    class AutoRooter : private AutoGCRooter
+class AutoRegExpStaticsBuffer : private JS::CustomAutoRooter
+{
+  public:
+    explicit AutoRegExpStaticsBuffer(JSContext *cx
+                                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+      : CustomAutoRooter(cx), statics(RegExpStatics::InitBuffer()), skip(cx, &statics)
     {
-      public:
-        explicit AutoRooter(JSContext *cx, RegExpStatics *statics_
-                            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-          : AutoGCRooter(cx, REGEXPSTATICS), statics(statics_), skip(cx, statics_)
-        {
-            MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    RegExpStatics& getStatics() { return statics; }
+
+  private:
+    virtual void trace(JSTracer *trc) {
+        if (statics.matchesInput) {
+            MarkStringRoot(trc, reinterpret_cast<JSString**>(&statics.matchesInput),
+                                "AutoRegExpStaticsBuffer matchesInput");
         }
+        if (statics.lazySource) {
+            MarkStringRoot(trc, reinterpret_cast<JSString**>(&statics.lazySource),
+                                "AutoRegExpStaticsBuffer lazySource");
+        }
+        if (statics.pendingInput) {
+            MarkStringRoot(trc, reinterpret_cast<JSString**>(&statics.pendingInput),
+                                "AutoRegExpStaticsBuffer pendingInput");
+        }
+    }
 
-        friend void AutoGCRooter::trace(JSTracer *trc);
-        void trace(JSTracer *trc);
-
-      private:
-        RegExpStatics *statics;
-        SkipRoot skip;
-        MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-    };
+    RegExpStatics statics;
+    SkipRoot skip;
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class PreserveRegExpStatics
 {
     RegExpStatics * const original;
-    RegExpStatics buffer;
-    RegExpStatics::AutoRooter bufferRoot;
+    AutoRegExpStaticsBuffer buffer;
 
   public:
     explicit PreserveRegExpStatics(JSContext *cx, RegExpStatics *original)
      : original(original),
-       buffer(RegExpStatics::InitBuffer()),
-       bufferRoot(cx, &buffer)
+       buffer(cx)
     {}
 
     bool init(JSContext *cx) {
-        return original->save(cx, &buffer);
+        return original->save(cx, &buffer.getStatics());
     }
 
-    inline ~PreserveRegExpStatics();
+    ~PreserveRegExpStatics() { original->restore(); }
 };
 
 inline js::RegExpStatics *
@@ -211,7 +224,7 @@ RegExpStatics::createDependent(JSContext *cx, size_t start, size_t end, MutableH
 
     JS_ASSERT(start <= end);
     JS_ASSERT(end <= matchesInput->length());
-    RawString str = js_NewDependentString(cx, matchesInput, start, end - start);
+    JSString *str = js_NewDependentString(cx, matchesInput, start, end - start);
     if (!str)
         return false;
     out.setString(str);
@@ -222,7 +235,7 @@ inline bool
 RegExpStatics::createPendingInput(JSContext *cx, MutableHandleValue out)
 {
     /* Lazy evaluation need not be resolved to return the input. */
-    out.setString(pendingInput ? pendingInput.get() : cx->runtime->emptyString);
+    out.setString(pendingInput ? pendingInput.get() : cx->runtime()->emptyString);
     return true;
 }
 
@@ -239,7 +252,7 @@ RegExpStatics::makeMatch(JSContext *cx, size_t checkValidIndex, size_t pairNum,
     if (matches.empty() || checkPair >= matches.pairCount() ||
         (checkWhich ? matches[checkPair].limit : matches[checkPair].start) < 0)
     {
-        out.setString(cx->runtime->emptyString);
+        out.setString(cx->runtime()->emptyString);
         return true;
     }
     const MatchPair &pair = matches[pairNum];
@@ -261,12 +274,12 @@ RegExpStatics::createLastParen(JSContext *cx, MutableHandleValue out)
         return false;
 
     if (matches.empty() || matches.pairCount() == 1) {
-        out.setString(cx->runtime->emptyString);
+        out.setString(cx->runtime()->emptyString);
         return true;
     }
     const MatchPair &pair = matches[matches.pairCount() - 1];
     if (pair.start == -1) {
-        out.setString(cx->runtime->emptyString);
+        out.setString(cx->runtime()->emptyString);
         return true;
     }
     JS_ASSERT(pair.start >= 0 && pair.limit >= 0);
@@ -282,7 +295,7 @@ RegExpStatics::createParen(JSContext *cx, size_t pairNum, MutableHandleValue out
         return false;
 
     if (matches.empty() || pairNum >= matches.pairCount()) {
-        out.setString(cx->runtime->emptyString);
+        out.setString(cx->runtime()->emptyString);
         return true;
     }
     return makeMatch(cx, pairNum * 2, pairNum, out);
@@ -295,7 +308,7 @@ RegExpStatics::createLeftContext(JSContext *cx, MutableHandleValue out)
         return false;
 
     if (matches.empty()) {
-        out.setString(cx->runtime->emptyString);
+        out.setString(cx->runtime()->emptyString);
         return true;
     }
     if (matches[0].start < 0) {
@@ -312,7 +325,7 @@ RegExpStatics::createRightContext(JSContext *cx, MutableHandleValue out)
         return false;
 
     if (matches.empty()) {
-        out.setString(cx->runtime->emptyString);
+        out.setString(cx->runtime()->emptyString);
         return true;
     }
     if (matches[0].limit < 0) {
@@ -490,11 +503,6 @@ RegExpStatics::setPendingInput(JSString *newInput)
     pendingInput = newInput;
 }
 
-PreserveRegExpStatics::~PreserveRegExpStatics()
-{
-    original->restore();
-}
-
 inline void
 RegExpStatics::setMultiline(JSContext *cx, bool enabled)
 {
@@ -575,4 +583,4 @@ JSContext::regExpStatics()
     return global()->getRegExpStatics();
 }
 
-#endif
+#endif /* vm_RegExpStatics_inl_h */

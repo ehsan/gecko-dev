@@ -26,6 +26,7 @@ class TrackUnionStream : public ProcessedMediaStream {
 public:
   TrackUnionStream(DOMMediaStream* aWrapper) :
     ProcessedMediaStream(aWrapper),
+    mFilterCallback(nullptr),
     mMaxTrackID(0) {}
 
   virtual void RemoveInput(MediaInputPort* aPort)
@@ -75,7 +76,7 @@ public:
             break;
           }
         }
-        if (!found) {
+        if (!found && (!mFilterCallback || mFilterCallback(tracks.get()))) {
           bool trackFinished = false;
           uint32_t mapIndex = AddTrack(mInputs[i], tracks.get(), aFrom);
           CopyTrackData(tracks.get(), mapIndex, aFrom, aTo, &trackFinished);
@@ -107,7 +108,16 @@ public:
     }
   }
 
+  // Consumers may specify a filtering callback to apply to every input track.
+  // Returns true to allow the track to act as an input; false to reject it entirely.
+  typedef bool (*TrackIDFilterCallback)(StreamBuffer::Track*);
+  void SetTrackIDFilter(TrackIDFilterCallback aCallback) {
+    mFilterCallback = aCallback;
+  }
+
 protected:
+  TrackIDFilterCallback mFilterCallback;
+
   // Only non-ended tracks are allowed to persist in this map.
   struct TrackMapEntry {
     MediaInputPort* mInputPort;
@@ -220,7 +230,7 @@ protected:
       if (interval.mInputIsBlocked) {
         // Maybe the input track ended?
         segment->AppendNullData(ticks);
-        LOG(PR_LOG_DEBUG, ("TrackUnionStream %p appending %lld ticks of null data to track %d",
+        LOG(PR_LOG_DEBUG+1, ("TrackUnionStream %p appending %lld ticks of null data to track %d",
             this, (long long)ticks, outputTrack->GetID()));
       } else {
         // Figuring out which samples to use from the input stream is tricky
@@ -235,10 +245,11 @@ protected:
         segment->AppendSlice(*aInputTrack->GetSegment(),
                              std::min(inputTrackEndPoint, inputStartTicks),
                              std::min(inputTrackEndPoint, inputEndTicks));
-        LOG(PR_LOG_DEBUG, ("TrackUnionStream %p appending %lld ticks of input data to track %d",
+        LOG(PR_LOG_DEBUG+1, ("TrackUnionStream %p appending %lld ticks of input data to track %d",
             this, (long long)(std::min(inputTrackEndPoint, inputEndTicks) - std::min(inputTrackEndPoint, inputStartTicks)),
             outputTrack->GetID()));
       }
+      ApplyTrackDisabling(outputTrack->GetID(), segment);
       for (uint32_t j = 0; j < mListeners.Length(); ++j) {
         MediaStreamListener* l = mListeners[j];
         l->NotifyQueuedTrackChanges(Graph(), outputTrack->GetID(),

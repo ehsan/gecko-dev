@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=99:
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  *
  * Copyright (C) 2008 Apple Inc. All rights reserved.
  *
@@ -31,8 +31,6 @@
 
 #if ENABLE_ASSEMBLER
 
-#include "prmjtime.h"
-
 namespace JSC {
 
 size_t ExecutableAllocator::pageSize = 0;
@@ -51,14 +49,12 @@ ExecutableAllocator::sizeOfCode(JS::CodeSizes *sizes) const
     if (m_pools.initialized()) {
         for (ExecPoolHashSet::Range r = m_pools.all(); !r.empty(); r.popFront()) {
             ExecutablePool* pool = r.front();
-            sizes->jaeger   += pool->m_jaegerCodeBytes;
             sizes->ion      += pool->m_ionCodeBytes;
             sizes->baseline += pool->m_baselineCodeBytes;
             sizes->asmJS    += pool->m_asmJSCodeBytes;
             sizes->regexp   += pool->m_regexpCodeBytes;
             sizes->other    += pool->m_otherCodeBytes;
-            sizes->unused   += pool->m_allocation.size - pool->m_jaegerCodeBytes
-                                                       - pool->m_ionCodeBytes
+            sizes->unused   += pool->m_allocation.size - pool->m_ionCodeBytes
                                                        - pool->m_baselineCodeBytes
                                                        - pool->m_asmJSCodeBytes
                                                        - pool->m_regexpCodeBytes

@@ -15,51 +15,7 @@ ifndef _MSC_VER
 FAIL_ON_WARNINGS := 1
 endif # !_MSC_VER
 
-CPPSRCS := \
-  AudioBuffer.cpp \
-  AudioBufferSourceNode.cpp \
-  AudioContext.cpp \
-  AudioDestinationNode.cpp \
-  AudioListener.cpp \
-  AudioNode.cpp \
-  AudioParam.cpp \
-  AudioSourceNode.cpp \
-  BiquadFilterNode.cpp \
-  DelayNode.cpp \
-  DynamicsCompressorNode.cpp \
-  EnableWebAudioCheck.cpp \
-  GainNode.cpp \
-  MediaBufferDecoder.cpp \
-  PannerNode.cpp \
-  ThreeDPoint.cpp \
-  WebAudioUtils.cpp \
-  $(NULL)
-
-EXPORTS_NAMESPACES := mozilla/dom
-EXPORTS_mozilla/dom := \
-  AudioBuffer.h \
-  AudioBufferSourceNode.h \
-  AudioContext.h \
-  AudioDestinationNode.h \
-  AudioListener.h \
-  AudioNode.h \
-  AudioParam.h \
-  AudioSourceNode.h \
-  BiquadFilterNode.h \
-  DelayNode.h \
-  DynamicsCompressorNode.h \
-  EnableWebAudioCheck.h \
-  GainNode.h \
-  PannerNode.h \
-  $(NULL)
-
-EXPORTS := \
-  AudioParamTimeline.h \
-  MediaBufferDecoder.h \
-  ThreeDPoint.h \
-  WebAudioUtils.h \
-  $(NULL)
-
 FORCE_STATIC_LIB := 1
 
 include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk

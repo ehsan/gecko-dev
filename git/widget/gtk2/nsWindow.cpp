@@ -14,7 +14,6 @@
 #endif
 
 #include "prlink.h"
-#include "nsWindow.h"
 #include "nsGTKToolkit.h"
 #include "nsIRollupListener.h"
 #include "nsIDOMNode.h"
@@ -69,7 +68,7 @@
 #include "nsIStringBundle.h"
 #include "nsGfxCIID.h"
 #include "nsIObserverService.h"
-#include "LayersTypes.h"
+#include "mozilla/layers/LayersTypes.h"
 #include "nsIIdleServiceInternal.h"
 #include "nsIPropertyBag2.h"
 
@@ -96,6 +95,7 @@ using namespace mozilla::widget;
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsAutoPtr.h"
 #include "BasicLayers.h"
+#include "ClientLayerManager.h"
 
 extern "C" {
 #define PIXMAN_DONT_DEFINE_STDINT
@@ -113,13 +113,16 @@ extern "C" {
 #include "gfxXlibSurface.h"
 #include "cairo-xlib.h"
 #endif
-
+  
 #include "nsShmImage.h"
 
 #include "nsIDOMWheelEvent.h"
 
+#include "nsWindow.h"
+
 using namespace mozilla;
 using namespace mozilla::widget;
+using namespace mozilla::layers;
 using mozilla::gl::GLContext;
 using mozilla::layers::LayerManagerOGL;
 
@@ -1949,7 +1952,7 @@ gdk_window_flash(GdkWindow *    aGdkWindow,
                          &x,
                          &y);
 
-  gc = gdk_gc_new(GDK_ROOT_PARENT());
+  gc = gdk_gc_new(gdk_get_default_root_window());
 
   white.pixel = WhitePixel(gdk_display,DefaultScreen(gdk_display));
 
@@ -1966,7 +1969,7 @@ gdk_window_flash(GdkWindow *    aGdkWindow,
    */
   for (i = 0; i < aTimes * 2; i++)
   {
-    gdk_draw_rectangle(GDK_ROOT_PARENT(),
+    gdk_draw_rectangle(gdk_get_default_root_window(),
                        gc,
                        TRUE,
                        x,
@@ -2121,16 +2124,8 @@ nsWindow::OnExposeEvent(cairo_t *cr)
         return TRUE;
     }
     // If this widget uses OMTC...
-    if (GetLayerManager()->AsShadowForwarder() && GetLayerManager()->AsShadowForwarder()->HasShadowManager()) {
-#if defined(MOZ_WIDGET_GTK2)
-        nsRefPtr<gfxContext> ctx = new gfxContext(GetThebesSurface());
-#else
-        nsRefPtr<gfxContext> ctx = new gfxContext(GetThebesSurface(cr));
-#endif
-        nsBaseWidget::AutoLayerManagerSetup
-          setupLayerManager(this, ctx, mozilla::layers::BUFFER_NONE);
-
-        listener->PaintWindow(this, region, 0);
+    if (GetLayerManager()->AsShadowForwarder() && GetLayerManager()->AsShadowForwarder()->HasShadowManager() &&
+        Compositor::GetBackend() != LAYERS_BASIC) {
         listener->DidPaintWindow();
 
         g_free(rects);
@@ -2140,7 +2135,7 @@ nsWindow::OnExposeEvent(cairo_t *cr)
         LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager());
         manager->SetClippingRegion(region);
 
-        listener->PaintWindow(this, region, 0);
+        listener->PaintWindow(this, region);
         listener->DidPaintWindow();
 
         g_free(rects);
@@ -2202,8 +2197,14 @@ nsWindow::OnExposeEvent(cairo_t *cr)
 
     bool painted = false;
     {
-      AutoLayerManagerSetup setupLayerManager(this, ctx, layerBuffering);
-      painted = listener->PaintWindow(this, region, 0);
+      if (GetLayerManager()->GetBackendType() == LAYERS_BASIC) {
+        AutoLayerManagerSetup setupLayerManager(this, ctx, layerBuffering);
+        painted = listener->PaintWindow(this, region);
+      } else if (GetLayerManager()->GetBackendType() == LAYERS_CLIENT) {
+        ClientLayerManager *manager = static_cast<ClientLayerManager*>(GetLayerManager());
+        manager->SetShadowTarget(ctx);
+        painted = listener->PaintWindow(this, region);
+      }
     }
 
 #ifdef MOZ_X11
@@ -3712,8 +3713,10 @@ nsWindow::Create(nsIWidget        *aParent,
     }
 
     if (eventWidget) {
+#if defined(MOZ_WIDGET_GTK2)
         // Don't let GTK mess with the shapes of our GdkWindows
         GTK_PRIVATE_SET_FLAG(eventWidget, GTK_HAS_SHAPE_MASK);
+#endif
 
         // These events are sent to the owning widget of the relevant window
         // and propagate up to the first widget that handles the events, so we
@@ -5939,7 +5942,7 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
     Display* xDisplay = DisplayOfScreen(xScreen);
     Drawable xDrawable = gdk_x11_drawable_get_xid(aDrawable);
 
-    gfxASurface* result = nullptr;
+    nsRefPtr<gfxASurface> result;
 
     if (visual) {
         Visual* xVisual = gdk_x11_visual_get_xvisual(visual);
@@ -5966,8 +5969,7 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
                                     gfxIntSize(aSize.width, aSize.height));
     }
 
-    NS_IF_ADDREF(result);
-    return result;
+    return result.forget();
 }
 #endif
 
@@ -6163,7 +6165,7 @@ nsWindow::BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVert
 }
 
 nsIWidget::LayerManager*
-nsWindow::GetLayerManager(PLayersChild* aShadowManager,
+nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
                           LayersBackend aBackendHint,
                           LayerManagerPersistence aPersistence,
                           bool* aAllowRetaining)

@@ -5,6 +5,7 @@
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="head.js"></script>
   <script type="application/javascript" src="pc.js"></script>
+  <script type="application/javascript" src="templates.js"></script>
 </head>
 <body>
 <pre id="test">
@@ -85,7 +86,7 @@
     test.setMediaConstraints([{audio: true}], [{audio: true}]);
     test.chain.append(steps);
     test.run();
-  }, true);
+  });
 </script>
 </pre>
 </body>

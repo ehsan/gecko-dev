@@ -3,10 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <iostream>
+#include <ostream>
 #include "GeckoProfilerImpl.h"
 #include "platform.h"
 #include "nsThreadUtils.h"
+#include "nsXULAppAPI.h"
 
 // JSON
 #include "JSObjectBuilder.h"
@@ -134,19 +135,27 @@ std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
 
 #define DYNAMIC_MAX_STRING 512
 
-ThreadProfile::ThreadProfile(int aEntrySize, PseudoStack *aStack)
+ThreadProfile::ThreadProfile(const char* aName, int aEntrySize,
+                             PseudoStack *aStack, int aThreadId,
+                             PlatformData* aPlatform,
+                             bool aIsMainThread)
   : mWritePos(0)
   , mLastFlushPos(0)
   , mReadPos(0)
   , mEntrySize(aEntrySize)
   , mPseudoStack(aStack)
   , mMutex("ThreadProfile::mMutex")
+  , mName(strdup(aName))
+  , mThreadId(aThreadId)
+  , mIsMainThread(aIsMainThread)
+  , mPlatformData(aPlatform)
 {
   mEntries = new ProfileEntry[mEntrySize];
 }
 
 ThreadProfile::~ThreadProfile()
 {
+  free(mName);
   delete[] mEntries;
 }
 
@@ -299,6 +308,17 @@ JSCustomObject* ThreadProfile::ToJSObject(JSContext *aCx)
 }
 
 void ThreadProfile::BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile) {
+
+  // Thread meta data
+  if (XRE_GetProcessType() == GeckoProcessType_Plugin) {
+    // TODO Add the proper plugin name
+    b.DefineProperty(profile, "name", "Plugin");
+  } else {
+    b.DefineProperty(profile, "name", mName);
+  }
+
+  b.DefineProperty(profile, "tid", mThreadId);
+
   JSCustomArray *samples = b.CreateArray();
   b.DefineProperty(profile, "samples", samples);
 

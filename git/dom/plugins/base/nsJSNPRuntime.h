@@ -37,7 +37,8 @@ class nsJSObjWrapper : public NPObject,
                        public nsJSObjWrapperKey
 {
 public:
-  static NPObject *GetNewOrUsed(NPP npp, JSContext *cx, JSObject *obj);
+  static NPObject *GetNewOrUsed(NPP npp, JSContext *cx,
+                                JS::Handle<JSObject*> obj);
 
 protected:
   nsJSObjWrapper(NPP npp);
@@ -75,7 +76,7 @@ public:
 };
 
 bool
-JSValToNPVariant(NPP npp, JSContext *cx, jsval val, NPVariant *variant);
+JSValToNPVariant(NPP npp, JSContext *cx, JS::Value val, NPVariant *variant);
 
 
 #endif // nsJSNPRuntime_h_

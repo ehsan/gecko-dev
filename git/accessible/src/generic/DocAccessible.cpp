@@ -130,8 +130,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(DocAccessible)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY(nsIAccessiblePivotObserver)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIAccessibleDocument)
-  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIAccessibleCursorable,
-                                     (mDocFlags & eCursorable))
     foundInterface = 0;
 
   nsresult status;
@@ -477,7 +475,6 @@ DocAccessible::GetChildDocumentAt(uint32_t aIndex,
   return *aDocument ? NS_OK : NS_ERROR_INVALID_ARG;
 }
 
-// nsIAccessibleVirtualCursor method
 NS_IMETHODIMP
 DocAccessible::GetVirtualCursor(nsIAccessiblePivot** aVirtualCursor)
 {
@@ -486,9 +483,6 @@ DocAccessible::GetVirtualCursor(nsIAccessiblePivot** aVirtualCursor)
 
   if (IsDefunct())
     return NS_ERROR_FAILURE;
-
-  if (!(mDocFlags & eCursorable))
-    return NS_OK;
 
   if (!mVirtualCursor) {
     mVirtualCursor = new nsAccessiblePivot(this);
@@ -1061,7 +1055,7 @@ DocAccessible::ARIAAttributeChanged(Accessible* aAccessible, nsIAtom* aAttribute
 
   // For aria attributes like drag and drop changes we fire a generic attribute
   // change event; at least until native API comes up with a more meaningful event.
-  uint8_t attrFlags = nsAccUtils::GetAttributeCharacteristics(aAttribute);
+  uint8_t attrFlags = aria::AttrCharacteristicsFor(aAttribute);
   if (!(attrFlags & ATTR_BYPASSOBJ))
     FireDelayedEvent(nsIAccessibleEvent::EVENT_OBJECT_ATTRIBUTE_CHANGED,
                      aAccessible);
@@ -1465,10 +1459,6 @@ DocAccessible::DoInitialUpdate()
   if (nsCoreUtils::IsTabDocument(mDocumentNode))
     mDocFlags |= eTabDocument;
 
-  // We provide a virtual cursor if this is a root doc or if it's a tab doc.
-  if (!mDocumentNode->GetParentDocument() || (mDocFlags & eTabDocument))
-    mDocFlags |= eCursorable;
-
   mLoadState |= eTreeConstructed;
 
   // The content element may be changed before the initial update and then we
@@ -1748,30 +1738,34 @@ DocAccessible::UpdateTree(Accessible* aContainer, nsIContent* aChildNode,
 
   if (child) {
     updateFlags |= UpdateTreeInternal(child, aIsInsert, reorderEvent);
+  } else {
+    if (aIsInsert) {
+      TreeWalker walker(aContainer, aChildNode, true);
 
-    // XXX: since select change insertion point of option contained by optgroup
-    // then we need to have special processing for them (bug 690417).
-    if (!aIsInsert && aChildNode->IsHTML(nsGkAtoms::optgroup) &&
-        aContainer->GetContent() &&
-        aContainer->GetContent()->IsHTML(nsGkAtoms::select)) {
-      for (nsIContent* optContent = aChildNode->GetFirstChild(); optContent;
-           optContent = optContent->GetNextSibling()) {
-        if (optContent->IsHTML(nsGkAtoms::option)) {
-          Accessible* option = GetAccessible(optContent);
-          if (option) {
-            NS_ASSERTION(option->Parent() == aContainer,
-                         "Not expected hierarchy on HTML select!");
-            if (option->Parent() == aContainer)
-              updateFlags |= UpdateTreeInternal(option, aIsInsert, reorderEvent);
-          }
+      while ((child = walker.NextChild()))
+        updateFlags |= UpdateTreeInternal(child, aIsInsert, reorderEvent);
+    } else {
+      // aChildNode may not coorespond to a particular accessible, to handle
+      // this we go through all the children of aContainer.  Then if a child
+      // has aChildNode as an ancestor, or does not have the node for
+      // aContainer as an ancestor remove that child of aContainer.  Note that
+      // when we are called aChildNode may already have been removed
+      // from the DOM so we can't expect it to have a parent or what was it's
+      // parent to have it as a child.
+      nsINode* containerNode = aContainer->GetNode();
+      for (uint32_t idx = 0; idx < aContainer->ContentChildCount();) {
+        Accessible* child = aContainer->ContentChildAt(idx);
+        nsINode* childNode = child->GetContent();
+        while (childNode != aChildNode && childNode != containerNode &&
+               (childNode = childNode->GetParentNode()));
+
+        if (childNode != containerNode) {
+          updateFlags |= UpdateTreeInternal(child, false, reorderEvent);
+        } else {
+          idx++;
         }
       }
     }
-  } else {
-    TreeWalker walker(aContainer, aChildNode, true);
-
-    while ((child = walker.NextChild()))
-      updateFlags |= UpdateTreeInternal(child, aIsInsert, reorderEvent);
   }
 
   // Content insertion/removal is not cause of accessible tree change.
@@ -1936,7 +1930,10 @@ DocAccessible::ShutdownChildrenInSubtree(Accessible* aAccessible)
       jdx++;
     }
 
-    ShutdownChildrenInSubtree(child);
+    // Don't cross document boundaries. The outerdoc shutdown takes care about
+    // its subdocument.
+    if (!child->IsDoc())
+      ShutdownChildrenInSubtree(child);
   }
 
   UnbindFromDocument(aAccessible);

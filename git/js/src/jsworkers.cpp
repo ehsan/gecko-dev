@@ -1,14 +1,16 @@
-/* -*- Mode: C++; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil -*- */
-/* vim: set ts=4 sw=4 et tw=99: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "jsworkers.h"
 
-#if JS_ION
+#include "mozilla/DebugOnly.h"
+
+#include "prmjtime.h"
+
+#ifdef JS_PARALLEL_COMPILATION
 # include "ion/AsmJS.h"
 # include "ion/IonBuilder.h"
 # include "ion/ExecutionModeInlines.h"
@@ -43,14 +45,14 @@ bool
 js::StartOffThreadAsmJSCompile(JSContext *cx, AsmJSParallelTask *asmData)
 {
     // Threads already initialized by the AsmJS compiler.
-    JS_ASSERT(cx->runtime->workerThreadState);
+    JS_ASSERT(cx->runtime()->workerThreadState);
     JS_ASSERT(asmData->mir);
     JS_ASSERT(asmData->lir == NULL);
 
-    WorkerThreadState &state = *cx->runtime->workerThreadState;
+    WorkerThreadState &state = *cx->runtime()->workerThreadState;
     JS_ASSERT(state.numThreads);
 
-    AutoLockWorkerThreadState lock(cx->runtime);
+    AutoLockWorkerThreadState lock(cx->runtime());
 
     // Don't append this task if another failed.
     if (state.asmJSWorkerFailed())
@@ -66,11 +68,11 @@ js::StartOffThreadAsmJSCompile(JSContext *cx, AsmJSParallelTask *asmData)
 bool
 js::StartOffThreadIonCompile(JSContext *cx, ion::IonBuilder *builder)
 {
-    JSRuntime *rt = cx->runtime;
+    JSRuntime *rt = cx->runtime();
     if (!EnsureParallelCompilationInitialized(rt))
         return false;
 
-    WorkerThreadState &state = *cx->runtime->workerThreadState;
+    WorkerThreadState &state = *cx->runtime()->workerThreadState;
     JS_ASSERT(state.numThreads);
 
     AutoLockWorkerThreadState lock(rt);
@@ -346,12 +348,17 @@ WorkerThread::handleAsmJSWorkload(WorkerThreadState &state)
     do {
         ion::IonContext icx(asmData->mir->compartment, &asmData->mir->temp());
 
+        int64_t before = PRMJ_Now();
+
         if (!OptimizeMIR(asmData->mir))
             break;
 
         asmData->lir = GenerateLIR(asmData->mir);
         if (!asmData->lir)
             break;
+
+        int64_t after = PRMJ_Now();
+        asmData->compileTime = (after - before) / PRMJ_USEC_PER_MSEC;
 
         success = true;
     } while(0);

@@ -1,33 +1,28 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* JS Garbage Collector. */
 
-#ifndef jsgc_h___
-#define jsgc_h___
-
-#include <setjmp.h>
+#ifndef jsgc_h
+#define jsgc_h
 
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
 
 #include "jsalloc.h"
-#include "jstypes.h"
-#include "jsprvtd.h"
-#include "jspubtd.h"
+#include "jsclass.h"
 #include "jslock.h"
-#include "jsutil.h"
-#include "jsversion.h"
+#include "jspubtd.h"
+#include "jsscript.h"
+#include "jstypes.h"
 
-#include "ds/BitArray.h"
 #include "gc/Heap.h"
-#include "gc/Statistics.h"
+#include "js/GCAPI.h"
 #include "js/HashTable.h"
 #include "js/Vector.h"
-#include "js/TemplateLib.h"
 
 struct JSAtom;
 struct JSCompartment;
@@ -43,6 +38,7 @@ class BaseShape;
 class DebugScopeObject;
 class GCHelperThread;
 class GlobalObject;
+class Nursery;
 class PropertyName;
 class ScopeObject;
 class Shape;
@@ -50,9 +46,10 @@ class UnownedBaseShape;
 struct SliceBudget;
 
 enum HeapState {
-    Idle,       // doing nothing with the GC heap
-    Tracing,    // tracing the GC heap without collecting, e.g. IterateCompartments()
-    Collecting  // doing a GC of the heap
+    Idle,             // doing nothing with the GC heap
+    Tracing,          // tracing the GC heap without collecting, e.g. IterateCompartments()
+    MajorCollecting,  // doing a GC of the major heap
+    MinorCollecting   // doing a GC of the minor heap (nursery)
 };
 
 namespace ion {
@@ -117,6 +114,7 @@ MapAllocToTraceKind(AllocKind kind)
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT16 */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT16_BACKGROUND */
         JSTRACE_SCRIPT,     /* FINALIZE_SCRIPT */
+        JSTRACE_LAZY_SCRIPT,/* FINALIZE_LAZY_SCRIPT */
         JSTRACE_SHAPE,      /* FINALIZE_SHAPE */
         JSTRACE_BASE_SHAPE, /* FINALIZE_BASE_SHAPE */
         JSTRACE_TYPE_OBJECT,/* FINALIZE_TYPE_OBJECT */
@@ -138,6 +136,7 @@ template <> struct MapTypeToTraceKind<DebugScopeObject> { const static JSGCTrace
 template <> struct MapTypeToTraceKind<GlobalObject>     { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<ScopeObject>      { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<JSScript>         { const static JSGCTraceKind kind = JSTRACE_SCRIPT; };
+template <> struct MapTypeToTraceKind<LazyScript>       { const static JSGCTraceKind kind = JSTRACE_LAZY_SCRIPT; };
 template <> struct MapTypeToTraceKind<Shape>            { const static JSGCTraceKind kind = JSTRACE_SHAPE; };
 template <> struct MapTypeToTraceKind<BaseShape>        { const static JSGCTraceKind kind = JSTRACE_BASE_SHAPE; };
 template <> struct MapTypeToTraceKind<UnownedBaseShape> { const static JSGCTraceKind kind = JSTRACE_BASE_SHAPE; };
@@ -168,6 +167,7 @@ IsNurseryAllocable(AllocKind kind)
         false,     /* FINALIZE_OBJECT16 */
         true,      /* FINALIZE_OBJECT16_BACKGROUND */
         false,     /* FINALIZE_SCRIPT */
+        false,     /* FINALIZE_LAZY_SCRIPT */
         false,     /* FINALIZE_SHAPE */
         false,     /* FINALIZE_BASE_SHAPE */
         false,     /* FINALIZE_TYPE_OBJECT */
@@ -199,6 +199,7 @@ IsBackgroundFinalized(AllocKind kind)
         false,     /* FINALIZE_OBJECT16 */
         true,      /* FINALIZE_OBJECT16_BACKGROUND */
         false,     /* FINALIZE_SCRIPT */
+        false,     /* FINALIZE_LAZY_SCRIPT */
         true,      /* FINALIZE_SHAPE */
         true,      /* FINALIZE_BASE_SHAPE */
         true,      /* FINALIZE_TYPE_OBJECT */
@@ -209,6 +210,21 @@ IsBackgroundFinalized(AllocKind kind)
     };
     JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
     return map[kind];
+}
+
+static inline bool
+CanBeFinalizedInBackground(gc::AllocKind kind, Class *clasp)
+{
+    JS_ASSERT(kind <= gc::FINALIZE_OBJECT_LAST);
+    /* If the class has no finalizer or a finalizer that is safe to call on
+     * a different thread, we change the finalize kind. For example,
+     * FINALIZE_OBJECT0 calls the finalizer on the main thread,
+     * FINALIZE_OBJECT0_BACKGROUND calls the finalizer on the gcHelperThread.
+     * IsBackgroundFinalized is called to prevent recursively incrementing
+     * the finalize kind; kind may already be a background finalize kind.
+     */
+    return (!gc::IsBackgroundFinalized(kind) &&
+            (!clasp->finalize || (clasp->flags & JSCLASS_BACKGROUND_FINALIZE)));
 }
 
 inline JSGCTraceKind
@@ -241,8 +257,8 @@ struct ArenaList {
     void insert(ArenaHeader *arena);
 };
 
-struct ArenaLists {
-
+struct ArenaLists
+{
   private:
     /*
      * For each arena kind its free list is represented as the first span with
@@ -450,7 +466,7 @@ struct ArenaLists {
     }
 
     template <AllowGC allowGC>
-    static void *refillFreeList(JSContext *cx, AllocKind thingKind);
+    static void *refillFreeList(ThreadSafeContext *cx, AllocKind thingKind);
 
     /*
      * Moves all arenas from |fromArenaLists| into |this|.  In
@@ -484,20 +500,15 @@ struct ArenaLists {
     bool foregroundFinalize(FreeOp *fop, AllocKind thingKind, SliceBudget &sliceBudget);
     static void backgroundFinalize(FreeOp *fop, ArenaHeader *listHead, bool onBackgroundThread);
 
-    /*
-     * Invoked from IonMonkey-compiled parallel worker threads to
-     * perform an allocation.  In this case, |this| will be
-     * thread-local, but the compartment |comp| is shared between all
-     * threads.
-     */
-    void *parallelAllocate(JS::Zone *zone, AllocKind thingKind, size_t thingSize);
-
   private:
     inline void finalizeNow(FreeOp *fop, AllocKind thingKind);
     inline void queueForForegroundSweep(FreeOp *fop, AllocKind thingKind);
     inline void queueForBackgroundSweep(FreeOp *fop, AllocKind thingKind);
 
-    inline void *allocateFromArena(JS::Zone *zone, AllocKind thingKind);
+    void *allocateFromArena(JS::Zone *zone, AllocKind thingKind);
+    inline void *allocateFromArenaInline(JS::Zone *zone, AllocKind thingKind);
+
+    friend class js::Nursery;
 };
 
 /*
@@ -602,6 +613,9 @@ GCDebugSlice(JSRuntime *rt, bool limit, int64_t objCount);
 extern void
 PrepareForDebugGC(JSRuntime *rt);
 
+extern void
+MinorGC(JSRuntime *rt, JS::gcreason::Reason reason);
+
 #ifdef JS_GC_ZEAL
 extern void
 SetGCZeal(JSRuntime *rt, uint8_t zeal, uint32_t frequency);
@@ -610,16 +624,16 @@ SetGCZeal(JSRuntime *rt, uint8_t zeal, uint32_t frequency);
 /* Functions for managing cross compartment gray pointers. */
 
 extern void
-DelayCrossCompartmentGrayMarking(RawObject src);
+DelayCrossCompartmentGrayMarking(JSObject *src);
 
 extern void
-NotifyGCNukeWrapper(RawObject o);
+NotifyGCNukeWrapper(JSObject *o);
 
 extern unsigned
-NotifyGCPreSwap(RawObject a, RawObject b);
+NotifyGCPreSwap(JSObject *a, JSObject *b);
 
 extern void
-NotifyGCPostSwap(RawObject a, RawObject b, unsigned preResult);
+NotifyGCPostSwap(JSObject *a, JSObject *b, unsigned preResult);
 
 void
 InitTracer(JSTracer *trc, JSRuntime *rt, JSTraceCallback callback);
@@ -1189,7 +1203,8 @@ js_FinalizeStringRT(JSRuntime *rt, JSString *str);
 namespace js {
 
 JSCompartment *
-NewCompartment(JSContext *cx, JS::Zone *zone, JSPrincipals *principals);
+NewCompartment(JSContext *cx, JS::Zone *zone, JSPrincipals *principals,
+               const JS::CompartmentOptions &options);
 
 namespace gc {
 
@@ -1255,15 +1270,38 @@ MaybeVerifyBarriers(JSContext *cx, bool always = false)
 
 #endif
 
+/*
+ * Instances of this class set the |JSRuntime::suppressGC| flag for the duration
+ * that they are live. Use of this class is highly discouraged. Please carefully
+ * read the comment in jscntxt.h above |suppressGC| and take all appropriate
+ * precautions before instantiating this class.
+ */
+class AutoSuppressGC
+{
+    int32_t &suppressGC_;
+
+  public:
+    AutoSuppressGC(JSContext *cx);
+    AutoSuppressGC(JSCompartment *comp);
+
+    ~AutoSuppressGC()
+    {
+        suppressGC_--;
+    }
+};
+
 } /* namespace gc */
 
 #ifdef DEBUG
 /* Use this to avoid assertions when manipulating the wrapper map. */
-struct AutoDisableProxyCheck
+class AutoDisableProxyCheck
 {
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER;
     uintptr_t &count;
 
-    AutoDisableProxyCheck(JSRuntime *rt);
+  public:
+    AutoDisableProxyCheck(JSRuntime *rt
+                          MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
 
     ~AutoDisableProxyCheck() {
         count--;
@@ -1281,4 +1319,4 @@ PurgeJITCaches(JS::Zone *zone);
 
 } /* namespace js */
 
-#endif /* jsgc_h___ */
+#endif /* jsgc_h */

@@ -401,9 +401,12 @@ AlphaBoxBlur::AlphaBoxBlur(const Rect& aRect,
     mStride(aStride),
     mSurfaceAllocationSize(-1)
 {
-  CheckedInt<int32_t> minDataSize = CheckedInt<int32_t>(aRect.width)*aRect.height;
-  if (minDataSize.isValid()) {
-    mSurfaceAllocationSize = minDataSize.value();
+  IntRect intRect;
+  if (aRect.ToIntRect(&intRect)) {
+    CheckedInt<int32_t> minDataSize = CheckedInt<int32_t>(intRect.width)*intRect.height;
+    if (minDataSize.isValid()) {
+      mSurfaceAllocationSize = minDataSize.value();
+    }
   }
 }
 
@@ -463,7 +466,11 @@ AlphaBoxBlur::Blur(uint8_t* aData)
     if (mSpreadRadius.width > 0 || mSpreadRadius.height > 0) {
       // No need to use CheckedInt here - we have validated it in the constructor.
       size_t szB = stride * size.height;
-      unsigned char* tmpData = new uint8_t[szB];
+      unsigned char* tmpData = new (std::nothrow) uint8_t[szB];
+
+      if (!tmpData) {
+        return;
+      }
 
       memset(tmpData, 0, szB);
 
@@ -523,6 +530,9 @@ AlphaBoxBlur::Blur(uint8_t* aData)
       // of 3 pixels in the blurring code.
       AlignedArray<uint32_t> integralImage((integralImageStride / 4) * integralImageSize.height + 12);
 
+      if (!integralImage) {
+        return;
+      }
 #ifdef USE_SSE2
       if (Factory::HasSSE2()) {
         BoxBlur_SSE2(aData, horizontalLobes[0][0], horizontalLobes[0][1], verticalLobes[0][0],

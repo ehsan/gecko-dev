@@ -33,12 +33,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=822109
         streamPlayback.playMedia(true, function() {
           stream.stop();
           SimpleTest.finish();
-        }, unexpectedCallbackAndFinish);
+        }, unexpectedCallbackAndFinish());
 
-      }, unexpectedCallbackAndFinish);
+      }, unexpectedCallbackAndFinish());
 
-    }, unexpectedCallbackAndFinish);
-  }, true);
+    }, unexpectedCallbackAndFinish());
+  });
 
 </script>
 </pre>

@@ -92,7 +92,7 @@ nsBlockReflowContext::ComputeCollapsedTopMargin(const nsHTMLReflowState& aRS,
   // B->nextinflow, we'll traverse B->nextinflow twice. But this is
   // OK because our traversal is idempotent.
   for ( ;block; block = static_cast<nsBlockFrame*>(block->GetNextInFlow())) {
-    for (int overflowLines = false; overflowLines <= true; ++overflowLines) {
+    for (int overflowLines = 0; overflowLines <= 1; ++overflowLines) {
       nsBlockFrame::line_iterator line;
       nsBlockFrame::line_iterator line_end;
       bool anyLines = true;
@@ -300,8 +300,7 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
         // parent is not this because we are executing pullup code).
         // Floats will eventually be removed via nsBlockFrame::RemoveFloat
         // which detaches the placeholder from the float.
-/* XXX promote DeleteChildsNextInFlow to nsIFrame to elminate this cast */
-        aState.mOverflowTracker->Finish(mFrame);
+        nsOverflowContinuationTracker::AutoFinish fini(aState.mOverflowTracker, mFrame);
         static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
           ->DeleteNextInFlowChild(mPresContext, kidNextInFlow, true);
       }

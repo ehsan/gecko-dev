@@ -10,182 +10,92 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
+Cu.import("resource://gre/modules/devtools/Console.jsm");
+Cu.import("resource://gre/modules/AddonManager.jsm");
 
 let EXPORTED_SYMBOLS = ["ProfilerController"];
 
-XPCOMUtils.defineLazyGetter(this, "DebuggerServer", function () {
-  Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
-  return DebuggerServer;
-});
+XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
+  "resource:///modules/devtools/gDevTools.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "DebuggerServer",
+  "resource://gre/modules/devtools/dbg-server.jsm");
+
+/**
+ * Data structure that contains information that has
+ * to be shared between separate ProfilerController
+ * instances.
+ */
+const sharedData = {
+  data: new WeakMap(),
+  controllers: new WeakMap(),
+};
 
 /**
  * Makes a structure representing an individual profile.
  */
-function makeProfile(name) {
+function makeProfile(name, def={}) {
+  if (def.timeStarted == null)
+    def.timeStarted = null;
+
+  if (def.timeEnded == null)
+    def.timeEnded = null;
+
   return {
     name: name,
-    timeStarted: null,
-    timeEnded: null
+    timeStarted: def.timeStarted,
+    timeEnded: def.timeEnded
   };
 }
 
-/**
- * Object acting as a mediator between the ProfilerController and
- * DebuggerServer.
- */
-function ProfilerConnection(client) {
-  this.client = client;
-  this.startTime = 0;
+// Three functions below all operate with sharedData
+// structure defined above. They should be self-explanatory.
+
+function addTarget(target) {
+  sharedData.data.set(target, new Map());
 }
 
-ProfilerConnection.prototype = {
-  actor: null,
-  startTime: null,
-
-  /**
-   * Returns how many milliseconds have passed since the connection
-   * was started (start time is specificed by the startTime property).
-   *
-   * @return number
-   */
-  get currentTime() {
-    return (new Date()).getTime() - this.startTime;
-  },
-
-  /**
-   * Connects to a debugee and executes a callback when ready.
-   *
-   * @param function aCallback
-   *        Function to be called once we're connected to the client.
-   */
-  connect: function PCn_connect(aCallback) {
-    this.client.listTabs(function (aResponse) {
-      this.actor = aResponse.profilerActor;
-      aCallback();
-    }.bind(this));
-  },
-
-  /**
-   * Sends a message to check if the profiler is currently active.
-   *
-   * @param function aCallback
-   *        Function to be called once we have a response from
-   *        the client. It will be called with a single argument
-   *        containing a response object.
-   */
-  isActive: function PCn_isActive(aCallback) {
-    var message = { to: this.actor, type: "isActive" };
-    this.client.request(message, aCallback);
-  },
-
-  /**
-   * Sends a message to start a profiler.
-   *
-   * @param function aCallback
-   *        Function to be called once the profiler is running.
-   *        It will be called with a single argument containing
-   *        a response object.
-   */
-  startProfiler: function PCn_startProfiler(aCallback) {
-    var message = {
-      to: this.actor,
-      type: "startProfiler",
-      entries: 1000000,
-      interval: 1,
-      features: ["js"],
-    };
-
-    this.client.request(message, function () {
-      // Record the current time so we could split profiler data
-      // in chunks later.
-      this.startTime = (new Date()).getTime();
-      aCallback.apply(null, Array.slice(arguments));
-    }.bind(this));
-  },
-
-  /**
-   * Sends a message to stop a profiler.
-   *
-   * @param function aCallback
-   *        Function to be called once the profiler is idle.
-   *        It will be called with a single argument containing
-   *        a response object.
-   */
-  stopProfiler: function PCn_stopProfiler(aCallback) {
-    var message = { to: this.actor, type: "stopProfiler" };
-    this.client.request(message, aCallback);
-  },
-
-  /**
-   * Sends a message to get the generated profile data.
-   *
-   * @param function aCallback
-   *        Function to be called once we have the data.
-   *        It will be called with a single argument containing
-   *        a response object.
-   */
-  getProfileData: function PCn_getProfileData(aCallback) {
-    var message = { to: this.actor, type: "getProfile" };
-    this.client.request(message, aCallback);
-  },
-
-  /**
-   * Cleanup.
-   */
-  destroy: function PCn_destroy() {
-    this.client = null;
-  }
-};
+function getProfiles(target) {
+  return sharedData.data.get(target);
+}
 
 /**
- * Object defining the profiler controller components.
+ * Object to control the JavaScript Profiler over the remote
+ * debugging protocol.
+ *
+ * @param Target target
+ *        A target object as defined in Target.jsm
  */
 function ProfilerController(target) {
-  this.profiler = new ProfilerConnection(target.client);
-  this.profiles = new Map();
-
-  // Chrome debugging targets have already obtained a reference to the
-  // profiler actor.
-  this._connected = !!target.chrome;
-
-  if (target.chrome) {
-    this.profiler.actor = target.form.profilerActor;
+  if (sharedData.controllers.has(target)) {
+    return sharedData.controllers.get(target);
   }
-}
+
+  this.target = target;
+  this.client = target.client;
+  this.isConnected = false;
+  this.consoleProfiles = [];
+
+  addTarget(target);
+
+  // Chrome debugging targets have already obtained a reference
+  // to the profiler actor.
+  if (target.chrome) {
+    this.isConnected = true;
+    this.actor = target.form.profilerActor;
+  }
+
+  sharedData.controllers.set(target, this);
+};
 
 ProfilerController.prototype = {
   /**
-   * Connects to the client unless we're already connected.
+   * Return a map of profile results for the current target.
    *
-   * @param function aCallback
-   *        Function to be called once we're connected. If
-   *        the controller is already connected, this function
-   *        will be called immediately (synchronously).
+   * @return Map
    */
-  connect: function (aCallback) {
-    if (this._connected) {
-      return void aCallback();
-    }
-
-    this.profiler.connect(function onConnect() {
-      this._connected = true;
-      aCallback();
-    }.bind(this));
-  },
-
-  /**
-   * Checks whether the profiler is active.
-   *
-   * @param function aCallback
-   *        Function to be called with a response from the
-   *        client. It will be called with two arguments:
-   *        an error object (may be null) and a boolean
-   *        value indicating if the profiler is active or not.
-   */
-  isActive: function PC_isActive(aCallback) {
-    this.profiler.isActive(function onActive(aResponse) {
-      aCallback(aResponse.error, aResponse.isActive);
-    });
+  get profiles() {
+    return getProfiles(this.target);
   },
 
   /**
@@ -197,6 +107,187 @@ ProfilerController.prototype = {
    */
   isProfileRecording: function PC_isProfileRecording(profile) {
     return profile.timeStarted !== null && profile.timeEnded === null;
+  },
+
+  /**
+   * A listener that fires whenever console.profile or console.profileEnd
+   * is called.
+   *
+   * @param string type
+   *        Type of a call. Either 'profile' or 'profileEnd'.
+   * @param object data
+   *        Event data.
+   * @param object panel
+   *        A reference to the ProfilerPanel in the current tab.
+   */
+  onConsoleEvent: function (type, data, panel) {
+    let name = data.extra.name;
+
+    let profileStart = () => {
+      if (name && this.profiles.has(name))
+        return;
+
+      // Add profile to the UI (createProfile will return
+      // an automatically generated name if 'name' is falsey).
+      let profile = panel.createProfile(name);
+      profile.start((name, cb) => cb());
+
+      // Add profile structure to shared data.
+      this.profiles.set(profile.name, makeProfile(profile.name, {
+        timeStarted: data.extra.currentTime
+      }));
+      this.consoleProfiles.push(profile.name);
+    };
+
+    let profileEnd = () => {
+      if (!name && !this.consoleProfiles.length)
+        return;
+
+      if (!name)
+        name = this.consoleProfiles.pop();
+      else
+        this.consoleProfiles.filter((n) => n !== name);
+
+      if (!this.profiles.has(name))
+        return;
+
+      let profile = this.profiles.get(name);
+      if (!this.isProfileRecording(profile))
+        return;
+
+      let profileData = data.extra.profile;
+      profile.timeEnded = data.extra.currentTime;
+
+      profileData.threads = profileData.threads.map((thread) => {
+        let samples = thread.samples.filter((sample) => {
+          return sample.time >= profile.timeStarted;
+        });
+
+        return { samples: samples };
+      });
+
+      let ui = panel.getProfileByName(name);
+      ui.data = profileData;
+      ui.parse(profileData, () => panel.emit("parsed"));
+      ui.stop((name, cb) => cb());
+    };
+
+    if (type === "profile")
+      profileStart();
+
+    if (type === "profileEnd")
+      profileEnd();
+  },
+
+  /**
+   * Connects to the client unless we're already connected.
+   *
+   * @param function cb
+   *        Function to be called once we're connected. If
+   *        the controller is already connected, this function
+   *        will be called immediately (synchronously).
+   */
+  connect: function (cb=function(){}) {
+    if (this.isConnected) {
+      return void cb();
+    }
+
+    // Check if we already have a grip to the listTabs response object
+    // and, if we do, use it to get to the profilerActor. Otherwise,
+    // call listTabs. The problem is that if we call listTabs twice
+    // webconsole tests fail (see bug 872826).
+
+    let register = () => {
+      let data = { events: ["console-api-profiler"] };
+
+      // Check if Gecko Profiler Addon [1] is installed and, if it is,
+      // don't register our own console event listeners. Gecko Profiler
+      // Addon takes care of console.profile and console.profileEnd methods
+      // and we don't want to break it.
+      //
+      // [1] - https://github.com/bgirard/Gecko-Profiler-Addon/
+
+      AddonManager.getAddonByID("jid0-edalmuivkozlouyij0lpdx548bc@jetpack", (addon) => {
+        if (addon && !addon.userDisabled && !addon.softDisabled)
+          return void cb();
+
+        this.request("registerEventNotifications", data, (resp) => {
+          this.client.addListener("eventNotification", (type, resp) => {
+            let toolbox = gDevTools.getToolbox(this.target);
+            if (toolbox == null)
+              return;
+
+            let panel = toolbox.getPanel("jsprofiler");
+            if (panel)
+              return void this.onConsoleEvent(resp.subject.action, resp.data, panel);
+
+            // Can't use a promise here because of a race condition when the promise
+            // is resolved only after -ready event is fired when creating a new panel
+            // and during the -ready event when waiting for a panel to be created:
+            //
+            // console.profile();    // creates a new panel, waits for the promise
+            // console.profileEnd(); // panel is not created yet but loading
+            //
+            // -> jsprofiler-ready event is fired which triggers a promise for profileEnd
+            // -> a promise for profile is triggered.
+            //
+            // And it should be the other way around. Hence the event.
+
+            toolbox.once("jsprofiler-ready", (_, panel) => {
+              this.onConsoleEvent(resp.subject.action, resp.data, panel);
+            });
+
+            toolbox.loadTool("jsprofiler");
+          });
+        });
+
+        cb();
+      });
+    };
+
+    if (this.target.root) {
+      this.actor = this.target.root.profilerActor;
+      this.isConnected = true;
+      return void register();
+    }
+
+    this.client.listTabs((resp) => {
+      this.actor = resp.profilerActor;
+      this.isConnected = true;
+      register();
+    });
+  },
+
+  /**
+   * Adds actor and type information to data and sends the request over
+   * the remote debugging protocol.
+   *
+   * @param string type
+   *        Method to call on the other side
+   * @param object data
+   *        Data to send with the request
+   * @param function cb
+   *        A callback function
+   */
+  request: function (type, data, cb) {
+    data.to = this.actor;
+    data.type = type;
+    this.client.request(data, cb);
+  },
+
+  /**
+   * Checks whether the profiler is active.
+   *
+   * @param function cb
+   *        Function to be called with a response from the
+   *        client. It will be called with two arguments:
+   *        an error object (may be null) and a boolean
+   *        value indicating if the profiler is active or not.
+   */
+  isActive: function (cb) {
+    this.request("isActive", {}, (resp) => {
+      cb(resp.error, resp.isActive, resp.currentTime);
+    });
   },
 
   /**
@@ -214,35 +305,42 @@ ProfilerController.prototype = {
       return;
     }
 
-    let profiler = this.profiler;
     let profile = makeProfile(name);
+    this.consoleProfiles.push(name);
     this.profiles.set(name, profile);
-
 
     // If profile is already running, no need to do anything.
     if (this.isProfileRecording(profile)) {
       return void cb();
     }
 
-    this.isActive(function (err, isActive) {
+    this.isActive((err, isActive, currentTime) => {
       if (isActive) {
-        profile.timeStarted = profiler.currentTime;
+        profile.timeStarted = currentTime;
         return void cb();
       }
 
-      profiler.startProfiler(function onStart(aResponse) {
-        if (aResponse.error) {
-          return void cb(aResponse.error);
+      let params = {
+        entries: 1000000,
+        interval: 1,
+        features: ["js"],
+      };
+
+      this.request("startProfiler", params, (resp) => {
+        if (resp.error) {
+          return void cb(resp.error);
         }
 
-        profile.timeStarted = profiler.currentTime;
+        profile.timeStarted = 0;
         cb();
       });
     });
   },
 
   /**
-   * Stops the profiler.
+   * Stops the profiler. NOTE, that we don't stop the actual
+   * SPS Profiler here. It will be stopped as soon as all
+   * clients disconnect from the profiler actor.
    *
    * @param string name
    *        Name of the profile that needs to be stopped.
@@ -252,50 +350,36 @@ ProfilerController.prototype = {
    *        argument: an error object (may be null).
    */
   stop: function PC_stop(name, cb) {
-    let profiler = this.profiler;
-    let profile = this.profiles.get(name);
-
-    if (!profile || !this.isProfileRecording(profile)) {
+    if (!this.profiles.has(name)) {
       return;
     }
 
-    let isRecording = function () {
-      for (let [ name, profile ] of this.profiles) {
-        if (this.isProfileRecording(profile)) {
-          return true;
-        }
+    let profile = this.profiles.get(name);
+    if (!this.isProfileRecording(profile)) {
+      return;
+    }
+
+    this.request("getProfile", {}, (resp) => {
+      if (resp.error) {
+        Cu.reportError("Failed to fetch profile data.");
+        return void cb(resp.error, null);
       }
 
-      return false;
-    }.bind(this);
+      let data = resp.profile;
+      profile.timeEnded = resp.currentTime;
 
-    let onStop = function (data) {
-      if (isRecording()) {
-        return void cb(null, data);
-      }
+      // Filter out all samples that fall out of current
+      // profile's range.
 
-      profiler.stopProfiler(function onStopProfiler(response) {
-        cb(response.error, data);
-      });
-    }.bind(this);
-
-    profiler.getProfileData(function onData(aResponse) {
-      if (aResponse.error) {
-        Cu.reportError("Failed to fetch profile data before stopping the profiler.");
-        return void cb(aResponse.error, null);
-      }
-
-      let data = aResponse.profile;
-      profile.timeEnded = profiler.currentTime;
-
-      data.threads = data.threads.map(function (thread) {
-        let samples = thread.samples.filter(function (sample) {
+      data.threads = data.threads.map((thread) => {
+        let samples = thread.samples.filter((sample) => {
           return sample.time >= profile.timeStarted;
         });
+
         return { samples: samples };
       });
 
-      onStop(data);
+      cb(null, data);
     });
   },
 
@@ -303,7 +387,8 @@ ProfilerController.prototype = {
    * Cleanup.
    */
   destroy: function PC_destroy() {
-    this.profiler.destroy();
-    this.profiler = null;
+    this.client = null;
+    this.target = null;
+    this.actor = null;
   }
 };

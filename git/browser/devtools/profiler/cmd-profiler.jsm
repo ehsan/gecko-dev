@@ -5,7 +5,7 @@
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 this.EXPORTED_SYMBOLS = [];
 
-Cu.import("resource:///modules/devtools/gcli.jsm");
+Cu.import("resource://gre/modules/devtools/gcli.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/devtools/Require.jsm");
 
@@ -49,6 +49,9 @@ gcli.addCommand({
   params: [],
 
   exec: function (args, context) {
+    if (!getPanel(context, "jsprofiler"))
+      return;
+
     return gDevTools.closeToolbox(context.environment.target)
       .then(function () null);
   }
@@ -65,7 +68,8 @@ gcli.addCommand({
   params: [
     {
       name: "name",
-      type: "string"
+      type: "string",
+      manual: gcli.lookup("profilerStartManual")
     }
   ],
 
@@ -80,11 +84,19 @@ gcli.addCommand({
       }
 
       if (profile.isFinished) {
-        throw gcli.lookup("profilerAlradyFinished");
+        throw gcli.lookup("profilerAlreadyFinished");
       }
 
-      panel.switchToProfile(profile, function () profile.start());
-      return gcli.lookup("profilerStarting");
+      let item = panel.sidebar.getItemByProfile(profile);
+
+      if (panel.sidebar.selectedItem === item) {
+        profile.start();
+      } else {
+        panel.on("profileSwitched", () => profile.start());
+        panel.sidebar.selectedItem = item;
+      }
+
+      return gcli.lookup("profilerStarting2");
     }
 
     return gDevTools.showToolbox(context.environment.target, "jsprofiler")
@@ -103,7 +115,8 @@ gcli.addCommand({
   params: [
     {
       name: "name",
-      type: "string"
+      type: "string",
+      manual: gcli.lookup("profilerStopManual")
     }
   ],
 
@@ -121,11 +134,19 @@ gcli.addCommand({
       }
 
       if (!profile.isStarted) {
-        throw gcli.lookup("profilerNotStarted");
+        throw gcli.lookup("profilerNotStarted2");
       }
 
-      panel.switchToProfile(profile, function () profile.stop());
-      return gcli.lookup("profilerStopping");
+      let item = panel.sidebar.getItemByProfile(profile);
+
+      if (panel.sidebar.selectedItem === item) {
+        profile.stop();
+      } else {
+        panel.on("profileSwitched", () => profile.stop());
+        panel.sidebar.selectedItem = item;
+      }
+
+      return gcli.lookup("profilerStopping2");
     }
 
     return gDevTools.showToolbox(context.environment.target, "jsprofiler")
@@ -177,7 +198,8 @@ gcli.addCommand({
   params: [
     {
       name: "name",
-      type: "string"
+      type: "string",
+      manual: gcli.lookup("profilerShowManual")
     }
   ],
 
@@ -193,7 +215,7 @@ gcli.addCommand({
       throw gcli.lookup("profilerNotFound");
     }
 
-    panel.switchToProfile(profile);
+    panel.sidebar.selectedItem = panel.sidebar.getItemByProfile(profile);
   }
 });
 

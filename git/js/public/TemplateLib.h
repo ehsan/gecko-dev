@@ -1,12 +1,11 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=99 ft=cpp:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef js_template_lib_h__
-#define js_template_lib_h__
+#ifndef js_TemplateLib_h
+#define js_TemplateLib_h
 
 #include "jstypes.h"
 
@@ -104,10 +103,6 @@ template <class T> struct UnsafeRangeSizeMask {
     static const size_t result = MulOverflowMask<2 * sizeof(T)>::result;
 };
 
-/* Return T stripped of any const-ness. */
-template <class T> struct StripConst          { typedef T result; };
-template <class T> struct StripConst<const T> { typedef T result; };
-
 template <bool cond, typename T, T v1, T v2> struct If        { static const T result = v1; };
 template <typename T, T v1, T v2> struct If<false, T, v1, v2> { static const T result = v2; };
 
@@ -119,4 +114,4 @@ template <class T> struct IsRelocatableHeapType { static const bool result = tru
 } /* namespace tl */
 } /* namespace js */
 
-#endif  /* js_template_lib_h__ */
+#endif  /* js_TemplateLib_h */

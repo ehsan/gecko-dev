@@ -778,6 +778,18 @@ NON_IDL_EVENT(gamepaddisconnected,
 #endif
 
 // Simple gesture events
+NON_IDL_EVENT(MozSwipeGestureStart,
+              NS_SIMPLE_GESTURE_SWIPE_START,
+              EventNameType_None,
+              NS_SIMPLE_GESTURE_EVENT)
+NON_IDL_EVENT(MozSwipeGestureUpdate,
+              NS_SIMPLE_GESTURE_SWIPE_UPDATE,
+              EventNameType_None,
+              NS_SIMPLE_GESTURE_EVENT)
+NON_IDL_EVENT(MozSwipeGestureEnd,
+              NS_SIMPLE_GESTURE_SWIPE_END,
+              EventNameType_None,
+              NS_SIMPLE_GESTURE_EVENT)
 NON_IDL_EVENT(MozSwipeGesture,
               NS_SIMPLE_GESTURE_SWIPE,
               EventNameType_None,
@@ -814,8 +826,16 @@ NON_IDL_EVENT(MozPressTapGesture,
               NS_SIMPLE_GESTURE_PRESSTAP,
               EventNameType_None,
               NS_SIMPLE_GESTURE_EVENT)
-NON_IDL_EVENT(MozEdgeUIGesture,
-              NS_SIMPLE_GESTURE_EDGEUI,
+NON_IDL_EVENT(MozEdgeUIStarted,
+              NS_SIMPLE_GESTURE_EDGE_STARTED,
+              EventNameType_None,
+              NS_SIMPLE_GESTURE_EVENT)
+NON_IDL_EVENT(MozEdgeUICanceled,
+              NS_SIMPLE_GESTURE_EDGE_CANCELED,
+              EventNameType_None,
+              NS_SIMPLE_GESTURE_EVENT)
+NON_IDL_EVENT(MozEdgeUICompleted,
+              NS_SIMPLE_GESTURE_EDGE_COMPLETED,
               EventNameType_None,
               NS_SIMPLE_GESTURE_EVENT)
 
@@ -835,6 +855,16 @@ NON_IDL_EVENT(animationiteration,
               NS_ANIMATION_ITERATION,
               EventNameType_None,
               NS_ANIMATION_EVENT)
+
+NON_IDL_EVENT(audioprocess,
+              NS_AUDIO_PROCESS,
+              EventNameType_None,
+              NS_EVENT)
+
+NON_IDL_EVENT(complete,
+              NS_AUDIO_COMPLETE,
+              EventNameType_None,
+              NS_EVENT)
 
 #ifdef DEFINED_FORWARDED_EVENT
 #undef DEFINED_FORWARDED_EVENT

@@ -1,11 +1,11 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsprvtd_h___
-#define jsprvtd_h___
+#ifndef jsprvtd_h
+#define jsprvtd_h
 /*
  * JS private typename definitions.
  *
@@ -24,10 +24,8 @@
 #include "jsapi.h"
 #include "jsutil.h"
 
-#ifdef __cplusplus
 #include "js/HashTable.h"
 #include "js/Vector.h"
-#endif
 
 /*
  * Convenience constants.
@@ -58,17 +56,7 @@ typedef struct JSStackHeader        JSStackHeader;
 typedef struct JSSubString          JSSubString;
 typedef struct JSSpecializedNative  JSSpecializedNative;
 
-/*
- * Template declarations.
- *
- * jsprvtd.h can be included in both C and C++ translation units. For C++, it
- * may possibly be wrapped in an extern "C" block which does not agree with
- * templates.
- */
-#ifdef __cplusplus
-
-extern "C++" {
-
+/* String typedefs. */
 class JSDependentString;
 class JSExtensibleString;
 class JSExternalString;
@@ -82,6 +70,7 @@ namespace js {
 struct ArgumentsData;
 struct Class;
 
+class AutoNameVector;
 class RegExpGuard;
 class RegExpObject;
 class RegExpObjectBuilder;
@@ -89,6 +78,7 @@ class RegExpShared;
 class RegExpStatics;
 class MatchPairs;
 class PropertyName;
+class LazyScript;
 
 enum RegExpFlag
 {
@@ -101,19 +91,14 @@ enum RegExpFlag
     AllFlags        = 0x0f
 };
 
-class ExecuteArgsGuard;
-class InvokeFrameGuard;
-class InvokeArgsGuard;
 class StringBuffer;
 
 class FrameRegs;
 class StackFrame;
-class StackSegment;
-class StackSpace;
-class ContextStack;
 class ScriptFrameIter;
 
 class Proxy;
+class JS_FRIEND_API(AutoEnterPolicy);
 class JS_FRIEND_API(BaseProxyHandler);
 class JS_FRIEND_API(Wrapper);
 class JS_FRIEND_API(CrossCompartmentWrapper);
@@ -150,10 +135,13 @@ typedef JSPropertyOp         PropertyOp;
 typedef JSStrictPropertyOp   StrictPropertyOp;
 typedef JSPropertyDescriptor PropertyDescriptor;
 
+struct SourceCompressionToken;
+
 namespace frontend {
 
 struct BytecodeEmitter;
 struct Definition;
+class FullParseHandler;
 class FunctionBox;
 class ObjectBox;
 struct Token;
@@ -235,14 +223,6 @@ class BumpPointerAllocator;
 
 } /* namespace WTF */
 
-} /* export "C++" */
-
-#else
-
-typedef struct JSAtom JSAtom;
-
-#endif  /* __cplusplus */
-
 /* "Friend" types used by jscntxt.h and jsdbgapi.h. */
 typedef enum JSTrapStatus {
     JSTRAP_ERROR,
@@ -298,18 +278,18 @@ typedef void
  * if an error or exception was thrown on cx.
  */
 typedef JSObject *
-(* JSObjectOp)(JSContext *cx, JSHandleObject obj);
+(* JSObjectOp)(JSContext *cx, JS::Handle<JSObject*> obj);
 
 /* Signature for class initialization ops. */
 typedef JSObject *
-(* JSClassInitializerOp)(JSContext *cx, JSHandleObject obj);
+(* JSClassInitializerOp)(JSContext *cx, JS::HandleObject obj);
 
 /*
  * Hook that creates an iterator object for a given object. Returns the
  * iterator object or null if an error or exception was thrown on cx.
  */
 typedef JSObject *
-(* JSIteratorOp)(JSContext *cx, JSHandleObject obj, JSBool keysonly);
+(* JSIteratorOp)(JSContext *cx, JS::HandleObject obj, JSBool keysonly);
 
 
-#endif /* jsprvtd_h___ */
+#endif /* jsprvtd_h */

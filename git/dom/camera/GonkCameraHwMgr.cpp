@@ -88,7 +88,11 @@ GonkCameraHardware::postData(int32_t aMsgType, const sp<IMemory>& aDataPtr, came
       break;
 
     case CAMERA_MSG_COMPRESSED_IMAGE:
-      ReceiveImage(mTarget, (uint8_t*)aDataPtr->pointer(), aDataPtr->size());
+      if (aDataPtr != nullptr) {
+        ReceiveImage(mTarget, (uint8_t*)aDataPtr->pointer(), aDataPtr->size());
+      } else {
+        ReceiveImageError(mTarget);
+      }
       break;
 
     default:
@@ -217,6 +221,10 @@ GonkCameraHardware::~GonkCameraHardware()
   DOM_CAMERA_LOGT( "%s:%d : this=%p\n", __func__, __LINE__, (void*)this );
   mCamera.clear();
   mNativeWindow.clear();
+
+  if (mClosing) {
+    return;
+  }
 
   /**
    * Trigger the OnClosed event; the upper layers can't do anything

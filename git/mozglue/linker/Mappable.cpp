@@ -65,6 +65,13 @@ MappableFile::finalize()
   fd = -1;
 }
 
+size_t
+MappableFile::GetLength() const
+{
+  struct stat st;
+  return fstat(fd, &st) ? 0 : st.st_size;
+}
+
 Mappable *
 MappableExtractFile::Create(const char *name, Zip *zip, Zip::Stream *stream)
 {
@@ -342,6 +349,12 @@ MappableDeflate::finalize()
   zip = NULL;
 }
 
+size_t
+MappableDeflate::GetLength() const
+{
+  return buffer->GetLength();
+}
+
 Mappable *
 MappableSeekableZStream::Create(const char *name, Zip *zip,
                                 Zip::Stream *stream)
@@ -350,7 +363,11 @@ MappableSeekableZStream::Create(const char *name, Zip *zip,
   mozilla::ScopedDeletePtr<MappableSeekableZStream> mappable;
   mappable = new MappableSeekableZStream(zip);
 
-  if (pthread_mutex_init(&mappable->mutex, NULL))
+  pthread_mutexattr_t recursiveAttr;
+  pthread_mutexattr_init(&recursiveAttr);
+  pthread_mutexattr_settype(&recursiveAttr, PTHREAD_MUTEX_RECURSIVE);
+
+  if (pthread_mutex_init(&mappable->mutex, &recursiveAttr))
     return NULL;
 
   if (!mappable->zStream.Init(stream->GetBuffer(), stream->GetSize()))
@@ -470,6 +487,19 @@ MappableSeekableZStream::ensure(const void *addr)
     length = it->endOffset() - chunkStart;
   }
 
+  /* The following lock can be re-acquired by the thread holding it.
+   * If this happens, it means the following code is interrupted somehow by
+   * some signal, and ends up retriggering a chunk decompression for the
+   * same MappableSeekableZStream.
+   * If the chunk to decompress is different the second time, then everything
+   * is safe as the only common data touched below is chunkAvailNum, and it is
+   * atomically updated (leaving out any chance of an interruption while it is
+   * updated affecting the result). If the chunk to decompress is the same, the
+   * worst thing that can happen is chunkAvailNum being incremented one too
+   * many times, which doesn't affect functionality. The chances of it
+   * happening being pretty slim, and the effect being harmless, we can just
+   * ignore the issue. Other than that, we'd just be wasting time decompressing
+   * the same chunk twice. */
   AutoLock lock(&mutex);
 
   /* The very first page is mapped and accessed separately of the rest, and
@@ -526,7 +556,7 @@ MappableSeekableZStream::stats(const char *when, const char *name) const
 {
   size_t nEntries = zStream.GetChunksNum();
   debug("%s: %s; %" PRIdSize "/%" PRIdSize " chunks decompressed",
-        name, when, chunkAvailNum, nEntries);
+        name, when, static_cast<size_t>(chunkAvailNum), nEntries);
 
   size_t len = 64;
   mozilla::ScopedDeleteArray<char> map;
@@ -542,4 +572,10 @@ MappableSeekableZStream::stats(const char *when, const char *name) const
       j = 0;
     }
   }
+}
+
+size_t
+MappableSeekableZStream::GetLength() const
+{
+  return buffer->GetLength();
 }

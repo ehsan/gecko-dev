@@ -29,7 +29,7 @@ function testFrameParameters()
     gDebugger.removeEventListener("Debugger:FetchedVariables", test, false);
     Services.tm.currentThread.dispatch({ run: function() {
 
-      var frames = gDebugger.DebuggerView.StackFrames._container._list,
+      var frames = gDebugger.DebuggerView.StackFrames.widget._list,
           localScope = gDebugger.DebuggerView.Variables._list.querySelectorAll(".variables-view-scope")[0],
           localNodes = localScope.querySelector(".variables-view-element-details").childNodes,
           localNonEnums = localScope.querySelector(".nonenum").childNodes;
@@ -43,7 +43,7 @@ function testFrameParameters()
       is(localNodes.length + localNonEnums.length, 12,
         "The localScope and localNonEnums should contain all the created variable elements.");
 
-      is(localNodes[0].querySelector(".value").getAttribute("value"), "[object Proxy]",
+      is(localNodes[0].querySelector(".value").getAttribute("value"), "[object Window]",
         "Should have the right property value for 'this'.");
       is(localNodes[8].querySelector(".value").getAttribute("value"), "[object Arguments]",
         "Should have the right property value for 'arguments'.");
@@ -117,7 +117,7 @@ function testFrameParameters()
         window.clearInterval(intervalID);
 
         is(thisNode.target.querySelector(".value")
-           .getAttribute("value"), "[object Proxy]",
+           .getAttribute("value"), "[object Window]",
           "Should have the right property value for 'this'.");
 
         is(thisNode.get("window").target.querySelector(".name")
@@ -226,7 +226,7 @@ function resumeAndFinish() {
   gDebugger.addEventListener("Debugger:AfterFramesCleared", function listener() {
     gDebugger.removeEventListener("Debugger:AfterFramesCleared", listener, true);
 
-    var frames = gDebugger.DebuggerView.StackFrames._container._list;
+    var frames = gDebugger.DebuggerView.StackFrames.widget._list;
     is(frames.querySelectorAll(".dbg-stackframe").length, 0,
       "Should have no frames.");
 

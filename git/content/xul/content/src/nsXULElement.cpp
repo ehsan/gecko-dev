@@ -48,7 +48,6 @@
 #include "nsIScriptContext.h"
 #include "nsIScriptRuntime.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsIScriptGlobalObjectOwner.h"
 #include "nsIServiceManager.h"
 #include "mozilla/css/StyleRule.h"
 #include "nsIStyleSheet.h"
@@ -59,6 +58,7 @@
 #include "nsIXULTemplateBuilder.h"
 #include "nsLayoutCID.h"
 #include "nsContentCID.h"
+#include "nsDOMEvent.h"
 #include "nsRDFCID.h"
 #include "nsStyleConsts.h"
 #include "nsXPIDLString.h"
@@ -224,10 +224,8 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype, nsINodeInfo *aNodeInfo,
                      bool aIsScriptable, bool aIsRoot)
 {
     nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-    nsXULElement *element = new nsXULElement(ni.forget());
+    nsRefPtr<nsXULElement> element = new nsXULElement(ni.forget());
     if (element) {
-        NS_ADDREF(element);
-
         if (aPrototype->mHasIdAttribute) {
             element->SetHasID();
         }
@@ -258,7 +256,7 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype, nsINodeInfo *aNodeInfo,
         }
     }
 
-    return element;
+    return element.forget();
 }
 
 nsresult
@@ -283,7 +281,6 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype,
         nodeInfo = aDocument->NodeInfoManager()->
           GetNodeInfo(ni->NameAtom(), ni->GetPrefixAtom(), ni->NamespaceID(),
                       nsIDOMNode::ELEMENT_NODE);
-        NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
     }
     else {
         nodeInfo = aPrototype->mNodeInfo;
@@ -342,11 +339,8 @@ NS_IMPL_ADDREF_INHERITED(nsXULElement, nsStyledElement)
 NS_IMPL_RELEASE_INHERITED(nsXULElement, nsStyledElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULElement)
-    NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsXULElement)
-        NS_INTERFACE_TABLE_ENTRY(nsXULElement, nsIDOMNode)
-        NS_INTERFACE_TABLE_ENTRY(nsXULElement, nsIDOMElement)
-        NS_INTERFACE_TABLE_ENTRY(nsXULElement, nsIDOMXULElement)
-    NS_OFFSET_AND_INTERFACE_TABLE_END
+    NS_INTERFACE_TABLE_INHERITED3(nsXULElement, nsIDOMNode, nsIDOMElement,
+                                  nsIDOMXULElement)
     NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE
     NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMElementCSSInlineStyle,
                                    new nsXULElementTearoff(this))
@@ -500,9 +494,9 @@ nsXULElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName, bool* aDefer)
     nsPIDOMWindow *window;
     Element *root = doc->GetRootElement();
     if ((!root || root == this) && !mNodeInfo->Equals(nsGkAtoms::overlay) &&
-        (window = doc->GetInnerWindow()) && window->IsInnerWindow()) {
+        (window = doc->GetInnerWindow())) {
 
-        nsCOMPtr<nsIDOMEventTarget> piTarget = do_QueryInterface(window);
+        nsCOMPtr<EventTarget> piTarget = do_QueryInterface(window);
 
         *aDefer = false;
         return piTarget->GetListenerManager(true);
@@ -1181,15 +1175,15 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                 // handling.
                 nsCOMPtr<nsIDOMEvent> domEvent = aVisitor.mDOMEvent;
                 while (domEvent) {
-                    nsCOMPtr<nsIDOMEventTarget> oTarget;
-                    domEvent->GetOriginalTarget(getter_AddRefs(oTarget));
-                    NS_ENSURE_STATE(!SameCOMIdentity(oTarget, commandContent));
+                    nsDOMEvent* event = domEvent->InternalDOMEvent();
+                    NS_ENSURE_STATE(!SameCOMIdentity(event->GetOriginalTarget(),
+                                                     commandContent));
                     nsCOMPtr<nsIDOMXULCommandEvent> commandEvent =
                         do_QueryInterface(domEvent);
                     if (commandEvent) {
                         commandEvent->GetSourceEvent(getter_AddRefs(domEvent));
                     } else {
-                        domEvent = NULL;
+                        domEvent = nullptr;
                     }
                 }
 
@@ -1474,9 +1468,8 @@ nsXULElement::GetFrameLoader()
     if (!slots)
         return nullptr;
 
-    nsFrameLoader* loader = slots->mFrameLoader;
-    NS_IF_ADDREF(loader);
-    return loader;
+    nsRefPtr<nsFrameLoader> loader = slots->mFrameLoader;
+    return loader.forget();
 }
 
 nsresult
@@ -1933,7 +1926,7 @@ nsXULElement::IsEventAttributeName(nsIAtom *aName)
 }
 
 JSObject*
-nsXULElement::WrapNode(JSContext *aCx, JSObject *aScope)
+nsXULElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
     return dom::XULElementBinding::Wrap(aCx, aScope, this);
 }
@@ -1969,9 +1962,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXULPrototypeNode)
     if (tmp->mType == nsXULPrototypeNode::eType_Script) {
         nsXULPrototypeScript *script =
             static_cast<nsXULPrototypeScript*>(tmp);
-        NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(script->GetScriptObject(),
-                                                   "mScriptObject")
-
+        script->Trace(aCallbacks, aClosure);
     }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
@@ -2308,6 +2299,9 @@ nsXULPrototypeElement::SetAttrAt(uint32_t aPos, const nsAString& aValue,
         nsCSSParser parser;
 
         // XXX Get correct Base URI (need GetBaseURI on *prototype* element)
+        // TODO: If we implement Content Security Policy for chrome documents
+        // as has been discussed, the CSP should be checked here to see if
+        // inline styles are allowed to be applied.
         parser.ParseStyleAttribute(aValue, aDocumentURI, aDocumentURI,
                                    // This is basically duplicating what
                                    // nsINode::NodePrincipal() does
@@ -2343,10 +2337,7 @@ nsXULPrototypeElement::TraceAllScripts(JSTracer* aTrc)
         if (child->mType == nsXULPrototypeNode::eType_Element) {
             static_cast<nsXULPrototypeElement*>(child)->TraceAllScripts(aTrc);
         } else if (child->mType == nsXULPrototypeNode::eType_Script) {
-            JSScript* script = static_cast<nsXULPrototypeScript*>(child)->GetScriptObject();
-            if (script) {
-                JS_CallScriptTracer(aTrc, script, "active window XUL prototype script");
-            }
+            static_cast<nsXULPrototypeScript*>(child)->TraceScriptObject(aTrc);
         }
     }
 }
@@ -2465,6 +2456,7 @@ nsXULPrototypeScript::Deserialize(nsIObjectInputStream* aStream,
     nsIScriptContext *context = aGlobal->GetScriptContext();
     NS_ASSERTION(context != nullptr, "Have no context for deserialization");
     NS_ENSURE_TRUE(context, NS_ERROR_UNEXPECTED);
+    JSAutoRequest ar(context->GetNativeContext());
     JS::Rooted<JSScript*> newScriptObject(context->GetNativeContext());
     rv = context->Deserialize(aStream, &newScriptObject);
     if (NS_FAILED(rv)) {
@@ -2529,7 +2521,7 @@ nsXULPrototypeScript::DeserializeOutOfLine(nsIObjectInputStream* aInput,
                     bool isChrome = false;
                     mSrcURI->SchemeIs("chrome", &isChrome);
                     if (isChrome)
-                        cache->PutScript(mSrcURI, mScriptObject);
+                        cache->PutScript(mSrcURI, GetScriptObject());
                 }
                 cache->FinishInputStream(mSrcURI);
             } else {
@@ -2551,7 +2543,7 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
                               nsIURI* aURI,
                               uint32_t aLineNo,
                               nsIDocument* aDocument,
-                              nsIScriptGlobalObjectOwner* aGlobalOwner)
+                              nsIScriptGlobalObject* aGlobal)
 {
     // We'll compile the script using the prototype document's special
     // script object as the parent. This ensures that we won't end up
@@ -2563,21 +2555,16 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
     // our script object would reference the first document, and the
     // first document would indirectly reference the prototype document
     // because it keeps the prototype cache alive. Circularity!
-    nsresult rv;
+    NS_ASSERTION(aGlobal, "prototype doc has no script global");
+    if (!aGlobal) {
+        return NS_ERROR_UNEXPECTED;
+    }
 
     // Use the prototype document's special context
-    nsIScriptContext *context;
-
-    {
-        nsIScriptGlobalObject* global = aGlobalOwner->GetScriptGlobalObject();
-        NS_ASSERTION(global != nullptr, "prototype doc has no script global");
-        if (! global)
-            return NS_ERROR_UNEXPECTED;
-
-        context = global->GetScriptContext();
-        NS_ASSERTION(context != nullptr, "no context for script global");
-        if (! context)
-            return NS_ERROR_UNEXPECTED;
+    nsIScriptContext *context = aGlobal->GetScriptContext();
+    NS_ASSERTION(context, "no context for script global");
+    if (! context) {
+      return NS_ERROR_UNEXPECTED;
     }
 
     nsAutoCString urlspec;
@@ -2585,6 +2572,7 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
 
     // Ok, compile it to create a prototype script object!
 
+    JSAutoRequest ar(context->GetNativeContext());
     JS::Rooted<JSScript*> newScriptObject(context->GetNativeContext());
 
     // If the script was inline, tell the JS parser to save source for
@@ -2592,20 +2580,16 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
     // source from the files on demand.
     bool saveSource = !mOutOfLine;
 
-    rv = context->CompileScript(aText,
-                                aTextLength,
-                                // Use the enclosing document's principal
-                                // XXX is this right? or should we use the
-                                // protodoc's?
-                                // If we start using the protodoc's, make sure
-                                // the DowngradePrincipalIfNeeded stuff in
-                                // XULDocument::OnStreamComplete still works!
-                                aDocument->NodePrincipal(),
-                                urlspec.get(),
-                                aLineNo,
-                                mLangVersion,
-                                &newScriptObject,
-                                saveSource);
+    nsresult rv = context->CompileScript(aText, aTextLength,
+                                         // Use the enclosing document's principal
+                                         // XXX is this right? or should we use the
+                                         // protodoc's?
+                                         // If we start using the protodoc's, make sure
+                                         // the DowngradePrincipalIfNeeded stuff in
+                                         // XULDocument::OnStreamComplete still works!
+                                         aDocument->NodePrincipal(),
+                                         urlspec.get(), aLineNo, mLangVersion,
+                                         &newScriptObject, saveSource);
     if (NS_FAILED(rv))
         return rv;
 
@@ -2631,9 +2615,9 @@ nsXULPrototypeScript::Set(JSScript* aObject)
         return;
     }
 
+    mScriptObject = aObject;
     nsContentUtils::HoldJSObjects(
         this, NS_CYCLE_COLLECTION_PARTICIPANT(nsXULPrototypeNode));
-    mScriptObject = aObject;
 }
 
 //----------------------------------------------------------------------

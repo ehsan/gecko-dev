@@ -116,12 +116,6 @@ nsSVGImageFrame::~nsSVGImageFrame()
   if (mListener) {
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
     if (imageLoader) {
-      // Push a null JSContext on the stack so that code that runs
-      // within the below code doesn't think it's being called by
-      // JS. See bug 604262.
-      nsCxPusher pusher;
-      pusher.PushNull();
-
       imageLoader->RemoveObserver(mListener);
     }
     reinterpret_cast<nsSVGImageListener*>(mListener.get())->SetFrame(nullptr);
@@ -148,12 +142,6 @@ nsSVGImageFrame::Init(nsIContent* aContent,
   // We should have a PresContext now, so let's notify our image loader that
   // we need to register any image animations with the refresh driver.
   imageLoader->FrameCreated(this);
-
-  // Push a null JSContext on the stack so that code that runs within
-  // the below code doesn't think it's being called by JS. See bug
-  // 604262.
-  nsCxPusher pusher;
-  pusher.PushNull();
 
   imageLoader->AddObserver(mListener);
 }
@@ -184,12 +172,13 @@ nsSVGImageFrame::AttributeChanged(int32_t         aNameSpaceID,
         aAttribute == nsGkAtoms::y ||
         aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
-      nsSVGUtils::InvalidateBounds(this, false);
+      nsSVGEffects::InvalidateRenderingObservers(this);
       nsSVGUtils::ScheduleReflowSVG(this);
       return NS_OK;
     }
     else if (aAttribute == nsGkAtoms::preserveAspectRatio) {
-      nsSVGUtils::InvalidateBounds(this);
+      // Don't invalidate (the layers code does that).
+      SchedulePaint();
       return NS_OK;
     }
   }
@@ -259,19 +248,20 @@ nsSVGImageFrame::TransformContextForPainting(gfxContext* aGfxContext)
     }
     imageTransform =
       GetRasterImageTransform(nativeWidth, nativeHeight, FOR_PAINTING);
+
+    // NOTE: We need to cancel out the effects of Full-Page-Zoom, or else
+    // it'll get applied an extra time by DrawSingleUnscaledImage.
+    nscoord appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
+    gfxFloat pageZoomFactor =
+      nsPresContext::AppUnitsToFloatCSSPixels(appUnitsPerDevPx);
+    imageTransform.Scale(pageZoomFactor, pageZoomFactor);
   }
 
   if (imageTransform.IsSingular()) {
     return false;
   }
 
-  // NOTE: We need to cancel out the effects of Full-Page-Zoom, or else
-  // it'll get applied an extra time by DrawSingleUnscaledImage.
-  nscoord appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
-  gfxFloat pageZoomFactor =
-    nsPresContext::AppUnitsToFloatCSSPixels(appUnitsPerDevPx);
-  aGfxContext->Multiply(imageTransform.Scale(pageZoomFactor, pageZoomFactor));
-
+  aGfxContext->Multiply(imageTransform);
   return true;
 }
 
@@ -559,7 +549,8 @@ nsSVGImageListener::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect
     return NS_ERROR_FAILURE;
 
   if (aType == imgINotificationObserver::LOAD_COMPLETE) {
-    nsSVGUtils::InvalidateBounds(mFrame, false);
+    mFrame->InvalidateFrame();
+    nsSVGEffects::InvalidateRenderingObservers(mFrame);
     nsSVGUtils::ScheduleReflowSVG(mFrame);
   }
 
@@ -567,13 +558,14 @@ nsSVGImageListener::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect
     // No new dimensions, so we don't need to call
     // nsSVGUtils::InvalidateAndScheduleBoundsUpdate.
     nsSVGEffects::InvalidateRenderingObservers(mFrame);
-    nsSVGUtils::InvalidateBounds(mFrame);
+    mFrame->InvalidateFrame();
   }
 
   if (aType == imgINotificationObserver::SIZE_AVAILABLE) {
     // Called once the resource's dimensions have been obtained.
     aRequest->GetImage(getter_AddRefs(mFrame->mImageContainer));
-    nsSVGUtils::InvalidateBounds(mFrame, false);
+    mFrame->InvalidateFrame();
+    nsSVGEffects::InvalidateRenderingObservers(mFrame);
     nsSVGUtils::ScheduleReflowSVG(mFrame);
   }
 

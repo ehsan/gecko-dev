@@ -10,26 +10,14 @@
       <html:div flex="1" class="selection-overlay-inner window-width window-height" anonid="selection-overlay-inner">
         <xul:stack>
           <html:div anonid="selection-overlay-debug" class="window-width window-height"/>
-          <xul:toolbarbutton id="selectionhandle-mark1" label="^" left="10" top="10" hidden="true"/>
-          <xul:toolbarbutton id="selectionhandle-mark2" label="^" left="10" top="10" hidden="true"/>
-          <xul:toolbarbutton id="selectionhandle-mark3" label="^" left="10" top="10" hidden="true"/>
+          <xul:toolbarbutton anonid="selectionhandle-mark1" class="selectionhandle" label="^" left="10" top="10" hidden="true"/>
+          <xul:toolbarbutton anonid="selectionhandle-mark2" class="selectionhandle" label="^" left="10" top="10" hidden="true"/>
+          <xul:toolbarbutton anonid="selectionhandle-mark3" class="selectionhandle" label="^" left="10" top="10" hidden="true"/>
         </xul:stack>
       </html:div>
     </content>
 
     <implementation implements="nsIDOMEventListener">
-      <constructor>
-        <![CDATA[
-          this._selectionOverlay.addEventListener('contextmenu', this);
-        ]]>
-      </constructor>
-
-      <destructor>
-        <![CDATA[
-          this._selectionOverlay.removeEventListener('contextmenu', this);
-        ]]>
-      </destructor>
-
       <field name="_selectionOverlay" readonly="true">document.getAnonymousElementByAttribute(this, "anonid", "selection-overlay-inner").parentNode;</field>
       <field name="_selectionDebugOverlay" readonly="true">document.getAnonymousElementByAttribute(this, "anonid", "selection-overlay-debug");</field>
 
@@ -74,43 +62,11 @@
         </getter>
       </property>
 
-      <method name="init">
+      <method name="getMarker">
+        <parameter name="aMarkerId"/>
         <body>
           <![CDATA[
-          this.enabled = true;
-          ]]>
-        </body>
-      </method>
-
-      <method name="shutdown">
-        <body>
-          <![CDATA[
-          this.enabled = false;
-          ]]>
-        </body>
-      </method>
-
-      <method name="_onContextMenu">
-        <parameter name="aEvent"/>
-        <body>
-          <![CDATA[
-            // forward this over. frame script will treat this like
-            // a bubbling contextmenu event.
-            Browser.selectedTab.browser.messageManager.sendAsyncMessage("Browser:InvokeContextAtPoint", {
-             xPos: aEvent.clientX, yPos: aEvent.clientY });
-          ]]>
-        </body>
-      </method>
-
-      <method name="handleEvent">
-        <parameter name="aEvent"/>
-        <body>
-          <![CDATA[
-            switch (aEvent.type) {
-              case 'contextmenu':
-                this._onContextMenu(aEvent);
-                break;
-            }
+            return document.getAnonymousElementByAttribute(this, "anonid", aMarkerId);
           ]]>
         </body>
       </method>

@@ -94,7 +94,10 @@ nsMIMEHeaderParamImpl::DoGetParameter(const nsACString& aHeaderVal,
     
     nsAutoCString str1;
     rv = internalDecodeParameter(med, charset.get(), nullptr, false,
-                                 aDecoding == MIME_FIELD_ENCODING, str1);
+                                 // was aDecoding == MIME_FIELD_ENCODING
+                                 // see bug 875615
+                                 true,
+                                 str1);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!aFallbackCharset.IsEmpty())
@@ -745,7 +748,7 @@ internalDecodeRFC2047Header(const char* aHeaderVal, const char* aDefaultCharset,
   // to UTF-8. Otherwise, just strips away CRLF. 
   if (PL_strstr(aHeaderVal, "=?") || 
       (aDefaultCharset && (!IsUTF8(nsDependentCString(aHeaderVal)) || 
-      Is7bitNonAsciiString(aHeaderVal, PL_strlen(aHeaderVal))))) {
+      Is7bitNonAsciiString(aHeaderVal, strlen(aHeaderVal))))) {
     DecodeRFC2047Str(aHeaderVal, aDefaultCharset, aOverrideCharset, aResult);
   } else if (aEatContinuations && 
              (PL_strchr(aHeaderVal, '\n') || PL_strchr(aHeaderVal, '\r'))) {

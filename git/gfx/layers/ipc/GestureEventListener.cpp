@@ -101,9 +101,9 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
   }
   case MultiTouchInput::MULTITOUCH_MOVE: {
     // If we move too much, bail out of the tap.
-    nsIntPoint touch = (nsIntPoint&)event.mTouches[0].mScreenPoint;
+    ScreenIntPoint delta = event.mTouches[0].mScreenPoint - mTouchStartPosition;
     if (mTouches.Length() == 1 &&
-        NS_hypot(mTouchStartPosition.x - touch.x, mTouchStartPosition.y - touch.y) >
+        NS_hypot(delta.x, delta.y) >
           mAsyncPanZoomController->GetDPI() * mAsyncPanZoomController->GetTouchStartTolerance())
     {
       HandleTapCancel(event);
@@ -142,7 +142,7 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
           event.mTime - mLastTapEndTime > MAX_TAP_TIME) {
         // mDoubleTapTimeoutTask wasn't scheduled in time. We need to run the
         // task synchronously to confirm the last tap.
-        mDoubleTapTimeoutTask->Cancel();
+        CancelDoubleTapTimeoutTask();
         TimeoutDoubleTap();
 
         // Change the state so we can proceed to process the current tap.
@@ -150,14 +150,12 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
       }
 
       if (mState == GESTURE_WAITING_DOUBLE_TAP) {
-        mDoubleTapTimeoutTask->Cancel();
-
+        CancelDoubleTapTimeoutTask();
         // We were waiting for a double tap and it has arrived.
         HandleDoubleTap(event);
         mState = GESTURE_NONE;
       } else if (mState == GESTURE_WAITING_SINGLE_TAP) {
-        mLongTapTimeoutTask->Cancel();
-
+        CancelLongTapTimeoutTask();
         HandleSingleTapUpEvent(event);
 
         // We were not waiting for anything but a single tap has happened that
@@ -202,14 +200,11 @@ nsEventStatus GestureEventListener::HandlePinchGestureEvent(const MultiTouchInpu
   nsEventStatus rv = nsEventStatus_eIgnore;
 
   if (mTouches.Length() > 1 && !aClearTouches) {
-    const nsIntPoint& firstTouch = mTouches[0].mScreenPoint,
-                      secondTouch = mTouches[mTouches.Length() - 1].mScreenPoint;
-    nsIntPoint focusPoint =
-      nsIntPoint((firstTouch.x + secondTouch.x)/2,
-                 (firstTouch.y + secondTouch.y)/2);
-    float currentSpan =
-      float(NS_hypot(firstTouch.x - secondTouch.x,
-                     firstTouch.y - secondTouch.y));
+    const ScreenIntPoint& firstTouch = mTouches[0].mScreenPoint,
+                         secondTouch = mTouches[mTouches.Length() - 1].mScreenPoint;
+    ScreenPoint focusPoint = ScreenPoint(firstTouch + secondTouch) / 2;
+    ScreenIntPoint delta = secondTouch - firstTouch;
+    float currentSpan = float(NS_hypot(delta.x, delta.y));
 
     switch (mState) {
     case GESTURE_NONE:
@@ -299,7 +294,7 @@ nsEventStatus GestureEventListener::HandleTapCancel(const MultiTouchInput& aEven
   switch (mState)
   {
   case GESTURE_WAITING_SINGLE_TAP:
-    mLongTapTimeoutTask->Cancel();
+    CancelLongTapTimeoutTask();
     mState = GESTURE_NONE;
     break;
 
@@ -321,6 +316,7 @@ nsEventStatus GestureEventListener::HandleDoubleTap(const MultiTouchInput& aEven
 
 void GestureEventListener::TimeoutDoubleTap()
 {
+  mDoubleTapTimeoutTask = nullptr;
   // If we haven't gotten another tap by now, reset the state and treat it as a
   // single tap. It couldn't have been a double tap.
   if (mState == GESTURE_WAITING_DOUBLE_TAP) {
@@ -330,13 +326,28 @@ void GestureEventListener::TimeoutDoubleTap()
   }
 }
 
+void GestureEventListener::CancelDoubleTapTimeoutTask() {
+  if (mDoubleTapTimeoutTask) {
+    mDoubleTapTimeoutTask->Cancel();
+    mDoubleTapTimeoutTask = nullptr;
+  }
+}
+
 void GestureEventListener::TimeoutLongTap()
 {
+  mLongTapTimeoutTask = nullptr;
   // If the tap has not been released, this is a long press.
   if (mState == GESTURE_WAITING_SINGLE_TAP) {
     mState = GESTURE_NONE;
 
     HandleLongTapEvent(mLastTouchInput);
+  }
+}
+
+void GestureEventListener::CancelLongTapTimeoutTask() {
+  if (mLongTapTimeoutTask) {
+    mLongTapTimeoutTask->Cancel();
+    mLongTapTimeoutTask = nullptr;
   }
 }
 

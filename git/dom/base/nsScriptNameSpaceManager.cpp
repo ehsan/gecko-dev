@@ -20,11 +20,14 @@
 #include "nsIInterfaceInfo.h"
 #include "xptinfo.h"
 #include "nsXPIDLString.h"
+#include "nsPrintfCString.h"
 #include "nsReadableUtils.h"
 #include "nsHashKeys.h"
 #include "nsDOMClassInfo.h"
 #include "nsCRT.h"
 #include "nsIObserverService.h"
+
+#include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 
 #define NS_INTERFACE_PREFIX "nsI"
@@ -716,6 +719,18 @@ nsScriptNameSpaceManager::AddCategoryEntryToHash(nsICategoryManager* aCategoryMa
                                           getter_Copies(contractId));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  if (type == nsGlobalNameStruct::eTypeNavigatorProperty ||
+      type == nsGlobalNameStruct::eTypeExternalConstructor) {
+    bool isNavProperty = type == nsGlobalNameStruct::eTypeNavigatorProperty;
+    nsPrintfCString prefName("dom.%s.disable.%s",
+                             isNavProperty ? "navigator-property" : "global-constructor",
+                             categoryEntry.get());
+    if (Preferences::GetType(prefName.get()) == nsIPrefBranch::PREF_BOOL &&
+        Preferences::GetBool(prefName.get(), false)) {
+        return NS_OK;
+    }
+  }
+
   nsCOMPtr<nsIComponentRegistrar> registrar;
   rv = NS_GetComponentRegistrar(getter_AddRefs(registrar));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -810,7 +825,7 @@ nsScriptNameSpaceManager::Observe(nsISupports* aSubject, const char* aTopic,
 void
 nsScriptNameSpaceManager::RegisterDefineDOMInterface(const nsAFlatString& aName,
     mozilla::dom::DefineInterface aDefineDOMInterface,
-    mozilla::dom::PrefEnabled aPrefEnabled)
+    mozilla::dom::ConstructorEnabled* aConstructorEnabled)
 {
   nsGlobalNameStruct *s = AddToHash(&mGlobalNames, &aName);
   if (s) {
@@ -818,7 +833,23 @@ nsScriptNameSpaceManager::RegisterDefineDOMInterface(const nsAFlatString& aName,
       s->mType = nsGlobalNameStruct::eTypeNewDOMBinding;
     }
     s->mDefineDOMInterface = aDefineDOMInterface;
-    s->mPrefEnabled = aPrefEnabled;
+    s->mConstructorEnabled = aConstructorEnabled;
+  }
+}
+
+void
+nsScriptNameSpaceManager::RegisterNavigatorDOMConstructor(
+    const nsAFlatString& aName,
+    mozilla::dom::ConstructNavigatorProperty aNavConstructor,
+    mozilla::dom::ConstructorEnabled* aConstructorEnabled)
+{
+  nsGlobalNameStruct *s = AddToHash(&mNavigatorNames, &aName);
+  if (s) {
+    if (s->mType == nsGlobalNameStruct::eTypeNotInitialized) {
+      s->mType = nsGlobalNameStruct::eTypeNewDOMBinding;
+    }
+    s->mConstructNavigatorProperty = aNavConstructor;
+    s->mConstructorEnabled = aConstructorEnabled;
   }
 }
 

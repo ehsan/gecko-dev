@@ -84,6 +84,14 @@ function debug(str) {
   dump(' -*- Shell.js: ' + str + '\n');
 }
 
+#ifdef MOZ_CRASHREPORTER
+function debugCrashReport(aStr) {
+  dump('Crash reporter : ' + aStr);
+}
+#else
+function debugCrashReport(aStr) {}
+#endif
+
 var shell = {
 
   get CrashSubmit() {
@@ -92,6 +100,7 @@ var shell = {
     Cu.import("resource://gre/modules/CrashSubmit.jsm", this);
     return this.CrashSubmit;
 #else
+    dump('Crash reporter : disabled at build time.');
     return this.CrashSubmit = null;
 #endif
   },
@@ -111,7 +120,10 @@ var shell = {
         crashID = Cc["@mozilla.org/xre/app-info;1"]
                     .getService(Ci.nsIXULRuntime).lastRunCrashID;
       }
-    } catch(e) { }
+    } catch(e) {
+      debugCrashReport('Failed to fetch crash id. Crash ID is "' + crashID
+                       + '" Exception: ' + e);
+    }
 
     // Bail if there isn't a valid crashID.
     if (!this.CrashSubmit || !crashID && !this.CrashSubmit.pendingIDs().length) {
@@ -123,10 +135,14 @@ var shell = {
 
     try {
       // Check if we should automatically submit this crash.
-      if (Services.prefs.getBoolPref("app.reportCrashes")) {
+      if (Services.prefs.getBoolPref('app.reportCrashes')) {
         this.submitCrash(crashID);
+      } else {
+        this.deleteCrash(crashID);
       }
-    } catch (e) { }
+    } catch (e) {
+      debugCrashReport('Can\'t fetch app.reportCrashes. Exception: ' + e);
+    }
 
     // We can get here if we're just submitting old pending crashes.
     // Check that there's a valid crashID so that we only notify the
@@ -140,12 +156,20 @@ var shell = {
     }
   },
 
+  deleteCrash: function shell_deleteCrash(aCrashID) {
+    if (aCrashID) {
+      debugCrashReport('Deleting pending crash: ' + aCrashID);
+      shell.CrashSubmit.delete(aCrashID);
+    }
+  },
+
   // this function submit the pending crashes.
   // make sure you are online.
   submitQueuedCrashes: function shell_submitQueuedCrashes() {
     // submit the pending queue.
     let pending = shell.CrashSubmit.pendingIDs();
     for (let crashid of pending) {
+      debugCrashReport('Submitting crash: ' + crashid);
       shell.CrashSubmit.submit(crashid);
     }
   },
@@ -156,6 +180,8 @@ var shell = {
       this.submitQueuedCrashes();
       return;
     }
+
+    debugCrashReport('Not online, postponing.');
 
     Services.obs.addObserver(function observer(subject, topic, state) {
       let network = subject.QueryInterface(Ci.nsINetworkInterface);
@@ -242,7 +268,7 @@ var shell = {
       });
 #endif
     } catch(e) {
-      dump("exception: " + e);
+      debugCrashReport('exception: ' + e);
     }
 
     let homeURL = this.homeURL;
@@ -292,14 +318,6 @@ var shell = {
     UserAgentOverrides.init();
     IndexedDBPromptHelper.init();
     CaptivePortalLoginHelper.init();
-
-    // XXX could factor out into a settings->pref map.  Not worth it yet.
-    SettingsListener.observe("debug.fps.enabled", false, function(value) {
-      Services.prefs.setBoolPref("layers.acceleration.draw-fps", value);
-    });
-    SettingsListener.observe("debug.paint-flashing.enabled", false, function(value) {
-      Services.prefs.setBoolPref("nglayout.debug.paint_flashing", value);
-    });
 
     this.contentBrowser.src = homeURL;
     this.isHomeLoaded = false;
@@ -361,8 +379,27 @@ var shell = {
       case evt.DOM_VK_F1: // headset button
         type = 'headset-button';
         break;
-      default:                      // Anything else is a real key
-        return;  // Don't filter it at all; let it propagate to Gaia
+    }
+
+    let mediaKeys = {
+      'MediaNextTrack': 'media-next-track-button',
+      'MediaPreviousTrack': 'media-previous-track-button',
+      'MediaPause': 'media-pause-button',
+      'MediaPlay': 'media-play-button',
+      'MediaPlayPause': 'media-play-pause-button',
+      'MediaStop': 'media-stop-button',
+      'MediaRewind': 'media-rewind-button',
+      'FastFwd': 'media-fast-forward-button'
+    };
+
+    let isMediaKey = false;
+    if (mediaKeys[evt.key]) {
+      isMediaKey = true;
+      type = mediaKeys[evt.key];
+    }
+
+    if (!type) {
+      return;
     }
 
     // If we didn't return, then the key event represents a hardware key
@@ -390,6 +427,12 @@ var shell = {
       return;
     }
 
+    if (isMediaKey) {
+      this.lastHardwareButtonEventType = type;
+      gSystemMessenger.broadcastMessage('media-button', type);
+      return;
+    }
+
     // On my device, the physical hardware buttons (sleep and volume)
     // send multiple events (press press release release), but the
     // soft home button just sends one.  This hack is to manually
@@ -404,8 +447,8 @@ var shell = {
   },
 
   lastHardwareButtonEventType: null, // property for the hack above
-  needBufferSysMsgs: true,
-  bufferedSysMsgs: [],
+  needBufferOpenAppReq: true,
+  bufferedOpenAppReqs: [],
   timer: null,
   visibleNormalAudioActive: false,
 
@@ -521,7 +564,7 @@ var shell = {
                    ObjectWrapper.wrap(details, getContentWindow()));
   },
 
-  sendSystemMessage: function shell_sendSystemMessage(msg) {
+  openAppForSystemMessage: function shell_openAppForSystemMessage(msg) {
     let origin = Services.io.newURI(msg.manifest, null, null).prePath;
     this.sendChromeEvent({
       type: 'open-app',
@@ -596,16 +639,16 @@ nsBrowserAccess.prototype = {
   }
 };
 
-// Listen for system messages and relay them to Gaia.
-Services.obs.addObserver(function onSystemMessage(subject, topic, data) {
+// Listen for the request of opening app and relay them to Gaia.
+Services.obs.addObserver(function onSystemMessageOpenApp(subject, topic, data) {
   let msg = JSON.parse(data);
-  // Buffer non-activity messages until content starts to load for 10 seconds.
-  // We'll revisit this later if new kind of messages don't need to be cached.
-  if (shell.needBufferSysMsgs && msg.type !== 'activity') {
-    shell.bufferedSysMsgs.push(msg);
+  // Buffer non-activity request until content starts to load for 10 seconds.
+  // We'll revisit this later if new kind of requests don't need to be cached.
+  if (shell.needBufferOpenAppReq && msg.type !== 'activity') {
+    shell.bufferedOpenAppReqs.push(msg);
     return;
   }
-  shell.sendSystemMessage(msg);
+  shell.openAppForSystemMessage(msg);
 }, 'system-messages-open-app', false);
 
 Services.obs.addObserver(function(aSubject, aTopic, aData) {
@@ -635,14 +678,17 @@ var CustomEventManager = {
       content.addEventListener("mozContentEvent", this, false, true);
 
       // After content starts to load for 10 seconds, send and
-      // clean up the buffered system messages if there is any.
+      // clean up the buffered open-app requests if there is any.
+      //
+      // TODO: Bug 793420 - Remove the waiting timer for the 'open-app'
+      //                    mozChromeEvents requested by System Message
       shell.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
       shell.timer.initWithCallback(function timerCallback() {
-        shell.bufferedSysMsgs.forEach(function sendSysMsg(msg) {
-          shell.sendSystemMessage(msg);
+        shell.bufferedOpenAppReqs.forEach(function bufferOpenAppReq(msg) {
+          shell.openAppForSystemMessage(msg);
         });
-        shell.bufferedSysMsgs.length = 0;
-        shell.needBufferSysMsgs = false;
+        shell.bufferedOpenAppReqs.length = 0;
+        shell.needBufferOpenAppReq = false;
         shell.timer = null;
       }, 10000, Ci.nsITimer.TYPE_ONE_SHOT);
     }).bind(this), false);
@@ -856,6 +902,7 @@ var WebappsHelper = {
   init: function webapps_init() {
     Services.obs.addObserver(this, "webapps-launch", false);
     Services.obs.addObserver(this, "webapps-ask-install", false);
+    Services.obs.addObserver(this, "webapps-close", false);
   },
 
   registerInstaller: function webapps_registerInstaller(data) {
@@ -907,6 +954,12 @@ var WebappsHelper = {
           app: json.app
         });
         break;
+      case "webapps-close":
+        shell.sendChromeEvent({
+          "type": "webapps-close",
+          "manifestURL": json.manifestURL
+        });
+        break;
     }
   }
 }
@@ -922,7 +975,7 @@ let IndexedDBPromptHelper = {
 
   uninit:
   function IndexedDBPromptHelper_uninit() {
-    Services.obs.removeObserver(this, this._quotaPrompt, false);
+    Services.obs.removeObserver(this, this._quotaPrompt);
   },
 
   observe:
@@ -970,9 +1023,19 @@ let RemoteDebugger = {
     if (!DebuggerServer.initialized) {
       // Ask for remote connections.
       DebuggerServer.init(this.prompt.bind(this));
-      DebuggerServer.addBrowserActors();
+      DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/webbrowser.js");
+#ifndef MOZ_WIDGET_GONK
+      DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/script.js");
+      DebuggerServer.addGlobalActor(DebuggerServer.ChromeDebuggerActor, "chromeDebugger");
+      DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/webconsole.js");
+      DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/gcli.js");
+#endif
+      if ("nsIProfiler" in Ci) {
+        DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/profiler.js");
+      }
+      DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/styleeditor.js");
       DebuggerServer.addActors('chrome://browser/content/dbg-browser-actors.js');
-      DebuggerServer.addActors('chrome://browser/content/dbg-webapps-actors.js');
+      DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/webapps.js");
     }
 
     let port = Services.prefs.getIntPref('devtools.debugger.remote-port') || 6000;
@@ -1069,7 +1132,11 @@ window.addEventListener('ContentStart', function cr_onContentStart() {
   let content = shell.contentBrowser.contentWindow;
   content.addEventListener("mozContentEvent", function cr_onMozContentEvent(e) {
     if (e.detail.type == "submit-crash" && e.detail.crashID) {
+      debugCrashReport("submitting crash at user request ", e.detail.crashID);
       shell.submitCrash(e.detail.crashID);
+    } else if (e.detail.type == "delete-crash" && e.detail.crashID) {
+      debugCrashReport("deleting crash at user request ", e.detail.crashID);
+      shell.deleteCrash(e.detail.crashID);
     }
   });
 });
@@ -1171,3 +1238,19 @@ Services.obs.addObserver(function(aSubject, aTopic, aData) {
     pageURL: data.pageURL
   });
 }, "activity-done", false);
+
+#ifdef MOZ_WIDGET_GONK
+// Devices don't have all the same partition size for /cache where we
+// store the http cache.
+(function setHTTPCacheSize() {
+  let path = Services.prefs.getCharPref("browser.cache.disk.parent_directory");
+  let volumeService = Cc["@mozilla.org/telephony/volume-service;1"]
+                        .getService(Ci.nsIVolumeService);
+
+  let stats = volumeService.createOrGetVolumeByPath(path).getStats();
+
+  // We must set the size in KB, and keep a bit of free space.
+  let size = Math.floor(stats.totalBytes / 1024) - 1024;
+  Services.prefs.setIntPref("browser.cache.disk.capacity", size);
+}) ()
+#endif

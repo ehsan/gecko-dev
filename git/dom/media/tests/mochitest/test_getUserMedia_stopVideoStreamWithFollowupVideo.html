@@ -38,14 +38,14 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=822109
           streamPlayback.playMedia(false, function() {
             secondStream.stop();
             SimpleTest.finish();
-          }, unexpectedCallbackAndFinish);
+          }, unexpectedCallbackAndFinish());
 
-        }, unexpectedCallbackAndFinish);
+        }, unexpectedCallbackAndFinish());
 
-      }, unexpectedCallbackAndFinish);
+      }, unexpectedCallbackAndFinish());
 
-    }, unexpectedCallbackAndFinish);
-  }, true);
+    }, unexpectedCallbackAndFinish());
+  });
 
 </script>
 </pre>

@@ -170,7 +170,6 @@ add_task(function test_record_telemetry() {
   setTelemetry(true);
   provider = new AppInfoProvider();
   yield provider.init(storage);
-  yield provider.onInit();
   yield provider.collectConstantData();
 
   let m = provider.getMeasurement("appinfo", 2);
@@ -182,7 +181,6 @@ add_task(function test_record_telemetry() {
   setTelemetry(false);
   provider = new AppInfoProvider();
   yield provider.init(storage);
-  yield provider.onInit();
   yield provider.collectConstantData();
 
   m = provider.getMeasurement("appinfo", 2);
@@ -202,7 +200,6 @@ add_task(function test_record_blocklist() {
   Services.prefs.setBoolPref("extensions.blocklist.enabled", true);
   let provider = new AppInfoProvider();
   yield provider.init(storage);
-  yield provider.onInit();
   yield provider.collectConstantData();
 
   let m = provider.getMeasurement("appinfo", 2);
@@ -214,7 +211,6 @@ add_task(function test_record_blocklist() {
   Services.prefs.setBoolPref("extensions.blocklist.enabled", false);
   provider = new AppInfoProvider();
   yield provider.init(storage);
-  yield provider.onInit();
   yield provider.collectConstantData();
 
   m = provider.getMeasurement("appinfo", 2);
@@ -224,4 +220,56 @@ add_task(function test_record_blocklist() {
   yield provider.shutdown();
 
   yield storage.close();
+});
+
+add_task(function test_record_app_update () {
+  let storage = yield Metrics.Storage("record_update");
+
+  let now = new Date();
+
+  Services.prefs.setBoolPref("app.update.enabled", true);
+  Services.prefs.setBoolPref("app.update.auto", true);
+  let provider = new AppInfoProvider();
+  yield provider.init(storage);
+  yield provider.collectDailyData();
+
+  let m = provider.getMeasurement("update", 1);
+  let data = yield m.getValues();
+  let d = yield m.serializer(m.SERIALIZE_JSON).daily(data.days.getDay(now));
+  do_check_eq(d.enabled, 1);
+  do_check_eq(d.autoDownload, 1);
+
+  Services.prefs.setBoolPref("app.update.enabled", false);
+  Services.prefs.setBoolPref("app.update.auto", false);
+
+  yield provider.collectDailyData();
+  data = yield m.getValues();
+  d = yield m.serializer(m.SERIALIZE_JSON).daily(data.days.getDay(now));
+  do_check_eq(d.enabled, 0);
+  do_check_eq(d.autoDownload, 0);
+
+  yield provider.shutdown();
+  yield storage.close();
+});
+
+add_task(function test_healthreporter_integration () {
+  let reporter = getHealthReporter("healthreporter_integration");
+  yield reporter.init();
+
+  try {
+    yield reporter._providerManager.registerProviderFromType(AppInfoProvider);
+    yield reporter.collectMeasurements();
+
+    let payload = yield reporter.getJSONPayload(true);
+    let days = payload['data']['days'];
+
+    for (let [day, measurements] in Iterator(days)) {
+      do_check_eq(Object.keys(measurements).length, 3);
+      do_check_true("org.mozilla.appInfo.appinfo" in measurements);
+      do_check_true("org.mozilla.appInfo.update" in measurements);
+      do_check_true("org.mozilla.appInfo.versions" in measurements);
+    }
+  } finally {
+    reporter._shutdown();
+  }
 });

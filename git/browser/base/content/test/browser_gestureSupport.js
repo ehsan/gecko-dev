@@ -122,6 +122,14 @@ function test_TestEventListeners()
 {
   let e = test_helper1;  // easier to type this name
 
+  // Swipe gesture animation events
+  e("MozSwipeGestureStart", 0, -0.7, 0);
+  e("MozSwipeGestureUpdate", 0, -0.4, 0);
+  e("MozSwipeGestureEnd", 0, 0, 0);
+  e("MozSwipeGestureStart", 0, 0.6, 0);
+  e("MozSwipeGestureUpdate", 0, 0.3, 0);
+  e("MozSwipeGestureEnd", 0, 1, 0);
+
   // Swipe gesture event
   e("MozSwipeGesture", SimpleGestureEvent.DIRECTION_LEFT, 0.0, 0);
   e("MozSwipeGesture", SimpleGestureEvent.DIRECTION_RIGHT, 0.0, 0);
@@ -154,8 +162,10 @@ function test_TestEventListeners()
   test_clicks("MozTapGesture", 3);
   test_clicks("MozPressTapGesture", 1);
 
-  // simple delivery test for edgeui gesture
-  e("MozEdgeUIGesture", 0, 0, 0);
+  // simple delivery test for edgeui gestures
+  e("MozEdgeUIStarted", 0, 0, 0);
+  e("MozEdgeUICanceled", 0, 0, 0);
+  e("MozEdgeUICompleted", 0, 0, 0);
 
   // event.shiftKey
   let modifier = Components.interfaces.nsIDOMEvent.SHIFT_MASK;
@@ -199,7 +209,7 @@ function test_helper2(type, direction, delta, altKey, ctrlKey, shiftKey, metaKey
                                  10, 10, 10, 10,
                                  ctrlKey, altKey, shiftKey, metaKey,
                                  1, window,
-                                 direction, delta, 0);
+                                 0, direction, delta, 0);
     successful = true;
   }
   catch (ex) {

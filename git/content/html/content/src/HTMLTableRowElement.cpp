@@ -21,7 +21,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-HTMLTableRowElement::WrapNode(JSContext *aCx, JSObject *aScope)
+HTMLTableRowElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
   return HTMLTableRowElementBinding::Wrap(aCx, aScope, this);
 }
@@ -36,11 +36,11 @@ NS_IMPL_RELEASE_INHERITED(HTMLTableRowElement, Element)
 
 // QueryInterface implementation for HTMLTableRowElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLTableRowElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLTableRowElement,
-                                   nsIDOMHTMLTableRowElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLTableRowElement,
-                                               nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(HTMLTableRowElement,
+                                nsIDOMHTMLTableRowElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLTableRowElement)

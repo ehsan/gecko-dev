@@ -16,7 +16,7 @@
 #include "nsDOMEventTargetHelper.h"
 
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/FileHandleBinding.h"
+#include "mozilla/dom/FileModeBinding.h"
 
 class nsIDOMFile;
 class nsIFileStorage;
@@ -56,7 +56,8 @@ public:
   {
     return GetOwner();
   }
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx,
+                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
   void GetName(nsString& aName) const
   {

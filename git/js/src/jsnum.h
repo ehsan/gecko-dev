@@ -1,17 +1,15 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsnum_h___
-#define jsnum_h___
+#ifndef jsnum_h
+#define jsnum_h
 
 #include "mozilla/FloatingPoint.h"
 
-#include <math.h>
-
-#include "jsobj.h"
+#include "jscntxt.h"
 
 #include "vm/NumericConversions.h"
 
@@ -109,6 +107,15 @@ NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base = 10);
 const double DOUBLE_INTEGRAL_PRECISION_LIMIT = uint64_t(1) << 53;
 
 /*
+ * Parse a decimal number encoded in |chars|.  The decimal number must be
+ * sufficiently small that it will not overflow the integrally-precise range of
+ * the double type -- that is, the number will be smaller than
+ * DOUBLE_INTEGRAL_PRECISION_LIMIT
+ */
+extern double
+ParseDecimalNumber(const JS::TwoByteChars chars);
+
+/*
  * Compute the positive integer of the given base described immediately at the
  * start of the range [start, end) -- no whitespace-skipping, no magical
  * leading-"0" octal or leading-"0x" hex behavior, no "+"/"-" parsing, just
@@ -177,7 +184,7 @@ ValueFitsInInt32(const Value &v, int32_t *pi)
         *pi = v.toInt32();
         return true;
     }
-    return v.isDouble() && MOZ_DOUBLE_IS_INT32(v.toDouble(), pi);
+    return v.isDouble() && mozilla::DoubleIsInt32(v.toDouble(), pi);
 }
 
 /*
@@ -198,7 +205,7 @@ IsDefinitelyIndex(const Value &v, uint32_t *indexp)
     }
 
     int32_t i;
-    if (v.isDouble() && MOZ_DOUBLE_IS_INT32(v.toDouble(), &i) && i >= 0) {
+    if (v.isDouble() && mozilla::DoubleIsInt32(v.toDouble(), &i) && i >= 0) {
         *indexp = uint32_t(i);
         return true;
     }
@@ -258,4 +265,4 @@ SafeMul(int32_t one, int32_t two, int32_t *res)
 
 } /* namespace js */
 
-#endif /* jsnum_h___ */
+#endif /* jsnum_h */

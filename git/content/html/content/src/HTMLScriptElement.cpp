@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsIDOMEventTarget.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsIDocument.h"
@@ -30,7 +29,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-HTMLScriptElement::WrapNode(JSContext *aCx, JSObject *aScope)
+HTMLScriptElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
   return HTMLScriptElementBinding::Wrap(aCx, aScope, this);
 }
@@ -54,14 +53,14 @@ NS_IMPL_RELEASE_INHERITED(HTMLScriptElement, Element)
 
 // QueryInterface implementation for HTMLScriptElement
 NS_INTERFACE_TABLE_HEAD(HTMLScriptElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE4(HTMLScriptElement,
-                                   nsIDOMHTMLScriptElement,
-                                   nsIScriptLoaderObserver,
-                                   nsIScriptElement,
-                                   nsIMutationObserver)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLScriptElement,
-                                               nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED4(HTMLScriptElement,
+                                nsIDOMHTMLScriptElement,
+                                nsIScriptLoaderObserver,
+                                nsIScriptElement,
+                                nsIMutationObserver)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 
 nsresult

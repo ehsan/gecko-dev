@@ -7,14 +7,14 @@
 #include "base/basictypes.h"
 
 #include "IDBFactory.h"
+
 #include "nsIFile.h"
-#include "nsIJSContextStack.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptContext.h"
 #include "nsIXPConnect.h"
 #include "nsIXPCScriptable.h"
 
-#include "jsdbgapi.h"
+#include <algorithm>
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/IDBFactoryBinding.h"
@@ -27,6 +27,7 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsDOMClassInfoID.h"
 #include "nsGlobalWindow.h"
 #include "nsHashKeys.h"
@@ -43,9 +44,9 @@
 #include "IDBKeyRange.h"
 #include "IndexedDatabaseManager.h"
 #include "Key.h"
+#include "ProfilerHelpers.h"
 
 #include "ipc/IndexedDBChild.h"
-#include <algorithm>
 
 USING_INDEXEDDB_NAMESPACE
 USING_QUOTA_NAMESPACE
@@ -157,7 +158,7 @@ IDBFactory::Create(nsPIDOMWindow* aWindow,
 // static
 nsresult
 IDBFactory::Create(JSContext* aCx,
-                   JSObject* aOwningObject,
+                   JS::Handle<JSObject*> aOwningObject,
                    ContentParent* aContentParent,
                    IDBFactory** aFactory)
 {
@@ -202,27 +203,13 @@ IDBFactory::Create(ContentParent* aContentParent,
   NS_ASSERTION(nsContentUtils::IsCallerChrome(), "Only for chrome!");
   NS_ASSERTION(aContentParent, "Null ContentParent!");
 
-#ifdef DEBUG
-  {
-    nsIThreadJSContextStack* cxStack = nsContentUtils::ThreadJSContextStack();
-    NS_ASSERTION(cxStack, "Couldn't get ThreadJSContextStack!");
-
-    JSContext* lastCx;
-    if (NS_SUCCEEDED(cxStack->Peek(&lastCx))) {
-      NS_ASSERTION(!lastCx, "We should only be called from C++!");
-    }
-    else {
-      NS_ERROR("nsIThreadJSContextStack::Peek should never fail!");
-    }
-  }
-#endif
+  NS_ASSERTION(!nsContentUtils::GetCurrentJSContext(), "Should be called from C++");
 
   nsCOMPtr<nsIPrincipal> principal =
     do_CreateInstance("@mozilla.org/nullprincipal;1");
   NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
 
-  SafeAutoJSContext cx;
-  JSAutoRequest ar(cx);
+  AutoSafeJSContext cx;
 
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
   NS_ASSERTION(xpc, "This should never be null!");
@@ -231,13 +218,12 @@ IDBFactory::Create(ContentParent* aContentParent,
   nsresult rv = xpc->CreateSandbox(cx, principal, getter_AddRefs(globalHolder));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  JSObject* global;
-  rv = globalHolder->GetJSObject(&global);
-  NS_ENSURE_SUCCESS(rv, rv);
+  JS::Rooted<JSObject*> global(cx, globalHolder->GetJSObject());
+  NS_ENSURE_STATE(global);
 
   // The CreateSandbox call returns a proxy to the actual sandbox object. We
   // don't need a proxy here.
-  global = JS_UnwrapObject(global);
+  global = js::UncheckedUnwrap(global);
 
   JSAutoCompartment ac(cx, global);
 
@@ -300,19 +286,38 @@ IDBFactory::GetConnection(const nsAString& aDatabaseFilePath,
   rv = ss->OpenDatabaseWithFileURL(dbFileUrl, getter_AddRefs(connection));
   NS_ENSURE_SUCCESS(rv, nullptr);
 
-  // Turn on foreign key constraints and recursive triggers.
-  // The "INSERT OR REPLACE" statement doesn't fire the update trigger,
-  // instead it fires only the insert trigger. This confuses the update
-  // refcount function. This behavior changes with enabled recursive triggers,
-  // so the statement fires the delete trigger first and then the insert
-  // trigger.
-  rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-    "PRAGMA foreign_keys = ON; "
-    "PRAGMA recursive_triggers = ON;"
-  ));
+  rv = SetDefaultPragmas(connection);
   NS_ENSURE_SUCCESS(rv, nullptr);
 
   return connection.forget();
+}
+
+// static
+nsresult
+IDBFactory::SetDefaultPragmas(mozIStorageConnection* aConnection)
+{
+  NS_ASSERTION(aConnection, "Null connection!");
+
+  static const char query[] =
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+    // Switch the journaling mode to TRUNCATE to avoid changing the directory
+    // structure at the conclusion of every transaction for devices with slower
+    // file systems.
+    "PRAGMA journal_mode = TRUNCATE; "
+#endif
+    // We use foreign keys in lots of places.
+    "PRAGMA foreign_keys = ON; "
+    // The "INSERT OR REPLACE" statement doesn't fire the update trigger,
+    // instead it fires only the insert trigger. This confuses the update
+    // refcount function. This behavior changes with enabled recursive triggers,
+    // so the statement fires the delete trigger first and then the insert
+    // trigger.
+    "PRAGMA recursive_triggers = ON;";
+
+  nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(query));
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+  return NS_OK;
 }
 
 inline
@@ -329,7 +334,7 @@ IDBFactory::LoadDatabaseInformation(mozIStorageConnection* aConnection,
                                     uint64_t* aVersion,
                                     ObjectStoreInfoArray& aObjectStores)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+  AssertIsOnIOThread();
   NS_ASSERTION(aConnection, "Null pointer!");
 
   aObjectStores.Clear();
@@ -521,14 +526,14 @@ IDBFactory::OpenInternal(const nsAString& aName,
                          int64_t aVersion,
                          const nsACString& aASCIIOrigin,
                          bool aDeleting,
-                         JSContext* aCallingCx,
                          IDBOpenDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(mWindow || mOwningObject, "Must have one of these!");
 
+  AutoJSContext cx;
   nsCOMPtr<nsPIDOMWindow> window;
-  JSObject* scriptOwner = nullptr;
+  JS::Rooted<JSObject*> scriptOwner(cx);
   StoragePrivilege privilege;
 
   if (mWindow) {
@@ -543,7 +548,7 @@ IDBFactory::OpenInternal(const nsAString& aName,
   }
 
   nsRefPtr<IDBOpenDBRequest> request =
-    IDBOpenDBRequest::Create(this, window, scriptOwner, aCallingCx);
+    IDBOpenDBRequest::Create(this, window, scriptOwner);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsresult rv;
@@ -588,19 +593,36 @@ IDBFactory::OpenInternal(const nsAString& aName,
     dbActor->SetRequest(request);
   }
 
+#ifdef IDB_PROFILER_USE_MARKS
+  {
+    NS_ConvertUTF16toUTF8 profilerName(aName);
+    if (aDeleting) {
+      IDB_PROFILER_MARK("IndexedDB Request %llu: deleteDatabase(\"%s\")",
+                        "MT IDBFactory.deleteDatabase()",
+                        request->GetSerialNumber(), profilerName.get());
+    }
+    else {
+      IDB_PROFILER_MARK("IndexedDB Request %llu: open(\"%s\", %lld)",
+                        "MT IDBFactory.open()",
+                        request->GetSerialNumber(), profilerName.get(),
+                        aVersion);
+    }
+  }
+#endif
+
   request.forget(_retval);
   return NS_OK;
 }
 
 JSObject*
-IDBFactory::WrapObject(JSContext* aCx, JSObject* aScope)
+IDBFactory::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return IDBFactoryBinding::Wrap(aCx, aScope, this);
 }
 
 int16_t
-IDBFactory::Cmp(JSContext* aCx, JS::Value aFirst, JS::Value aSecond,
-                ErrorResult& aRv)
+IDBFactory::Cmp(JSContext* aCx, JS::Handle<JS::Value> aFirst,
+                JS::Handle<JS::Value> aSecond, ErrorResult& aRv)
 {
   Key first, second;
   nsresult rv = first.SetFromJSVal(aCx, aFirst);
@@ -624,7 +646,7 @@ IDBFactory::Cmp(JSContext* aCx, JS::Value aFirst, JS::Value aSecond,
 }
 
 already_AddRefed<nsIIDBOpenDBRequest>
-IDBFactory::OpenForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
+IDBFactory::OpenForPrincipal(nsIPrincipal* aPrincipal,
                              const NonNull<nsAString>& aName,
                              const Optional<uint64_t>& aVersion,
                              ErrorResult& aRv)
@@ -634,11 +656,11 @@ IDBFactory::OpenForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
     MOZ_CRASH();
   }
 
-  return Open(aCx, aPrincipal, aName, aVersion, false, aRv);
+  return Open(aPrincipal, aName, aVersion, false, aRv);
 }
 
 already_AddRefed<nsIIDBOpenDBRequest>
-IDBFactory::DeleteForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
+IDBFactory::DeleteForPrincipal(nsIPrincipal* aPrincipal,
                                const NonNull<nsAString>& aName,
                                ErrorResult& aRv)
 {
@@ -647,11 +669,11 @@ IDBFactory::DeleteForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
     MOZ_CRASH();
   }
 
-  return Open(aCx, aPrincipal, aName, Optional<uint64_t>(), true, aRv);
+  return Open(aPrincipal, aName, Optional<uint64_t>(), true, aRv);
 }
 
 already_AddRefed<nsIIDBOpenDBRequest>
-IDBFactory::Open(JSContext* aCx, nsIPrincipal* aPrincipal,
+IDBFactory::Open(nsIPrincipal* aPrincipal,
                  const nsAString& aName, const Optional<uint64_t>& aVersion,
                  bool aDelete, ErrorResult& aRv)
 {
@@ -682,7 +704,7 @@ IDBFactory::Open(JSContext* aCx, nsIPrincipal* aPrincipal,
   }
 
   nsRefPtr<IDBOpenDBRequest> request;
-  rv = OpenInternal(aName, version, origin, aDelete, aCx,
+  rv = OpenInternal(aName, version, origin, aDelete,
                     getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);

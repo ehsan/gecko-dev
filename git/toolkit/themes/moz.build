@@ -1,3 +1,4 @@
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
 # vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -20,7 +21,7 @@ if toolkit == 'cocoa':
 else:
     DIRS += ['windows']
 
-    if toolkit in ('gtk2', 'qt'):
+    if toolkit in ('gtk2', 'gtk3', 'qt'):
         DIRS += ['linux']
     elif toolkit == 'os2':
         DIRS += ['os2/global']

@@ -24,7 +24,6 @@ class nsIImageLoadingContent;
 #include "nsStyleContext.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
-#include "nsView.h"
 #include "nsIFrame.h"
 #include "nsThreadUtils.h"
 #include "nsIPresShell.h"
@@ -41,6 +40,7 @@ class nsIImageLoadingContent;
 
 class nsBlockFrame;
 class gfxDrawable;
+class nsView;
 
 namespace mozilla {
 class SVGImageContext;
@@ -657,6 +657,15 @@ public:
                                            const nscoord aRadii[8],
                                            const nsRect& aContainedRect);
 
+  /**
+   * Return whether any part of aTestRect is inside of the rounded
+   * rectangle formed by aBounds and aRadii (which are indexed by the
+   * NS_CORNER_* constants in nsStyleConsts.h). This is precise.
+   */
+  static bool RoundedRectIntersectsRect(const nsRect& aRoundedRect,
+                                        const nscoord aRadii[8],
+                                        const nsRect& aTestRect);
+
   enum {
     PAINT_IN_TRANSFORM = 0x01,
     PAINT_SYNC_DECODE_IMAGES = 0x02,
@@ -667,8 +676,7 @@ public:
     PAINT_ALL_CONTINUATIONS = 0x40,
     PAINT_TO_WINDOW = 0x80,
     PAINT_EXISTING_TRANSACTION = 0x100,
-    PAINT_NO_COMPOSITE = 0x200,
-    PAINT_NO_CLEAR_INVALIDATIONS = 0x400
+    PAINT_NO_COMPOSITE = 0x200
   };
 
   /**
@@ -800,13 +808,6 @@ public:
    */
   static void GetAllInFlowRects(nsIFrame* aFrame, nsIFrame* aRelativeTo,
                                 RectCallback* aCallback, uint32_t aFlags = 0);
-  /**
-   * The same as GetAllInFlowRects, but it collects the CSS padding-boxes
-   * rather than the CSS border-boxes. SVG frames are handled the same way
-   * as in GetAllInFlowRects.
-   */
-  static void GetAllInFlowPaddingRects(nsIFrame* aFrame, nsIFrame* aRelativeTo,
-                                RectCallback* aCallback, uint32_t aFlags = 0);
 
   /**
    * Computes the union of all rects returned by GetAllInFlowRects. If
@@ -817,14 +818,6 @@ public:
    */
   static nsRect GetAllInFlowRectsUnion(nsIFrame* aFrame, nsIFrame* aRelativeTo,
                                        uint32_t aFlags = 0);
-
-  /**
-   * The same as GetAllInFlowRectsUnion, but it computes the union of the
-   * rects returned by GetAllInFlowPaddingRects.
-   */
-  static nsRect GetAllInFlowPaddingRectsUnion(nsIFrame* aFrame,
-                                              nsIFrame* aRelativeTo,
-                                              uint32_t aFlags = 0);
 
   enum {
     EXCLUDE_BLUR_SHADOWS = 0x01
@@ -1587,15 +1580,9 @@ public:
                                          nsCSSProperty aProperty);
 
   /**
-   * Checks if CSS 3D transforms are currently enabled.
+   * Checks if off-main-thread animations are enabled.
    */
-  static bool Are3DTransformsEnabled();
-
-  /**
-   * Checks if off-main-thread transform and opacity animations are enabled.
-   */
-  static bool AreOpacityAnimationsEnabled();
-  static bool AreTransformAnimationsEnabled();
+  static bool AreAsyncAnimationsEnabled();
 
   /**
    * Checks if we should warn about animations that can't be async
@@ -1620,6 +1607,11 @@ public:
    * possible.
    */
   static bool GPUImageScalingEnabled();
+
+  /**
+   * Checks whether we want to layerize animated images whenever possible.
+   */
+  static bool AnimatedImageLayersEnabled();
 
   /**
    * Unions the overflow areas of all non-popup children of aFrame with
@@ -1717,6 +1709,15 @@ public:
    */
   static int32_t FontSizeInflationMappingIntercept() {
     return sFontSizeInflationMappingIntercept;
+  }
+
+  /**
+   * Returns true if the nglayout.debug.invalidation pref is set to true.
+   * Note that sInvalidationDebuggingIsEnabled is declared outside this function to
+   * allow it to be accessed an manipulated from breakpoint conditions.
+   */
+  static bool InvalidationDebuggingIsEnabled() {
+    return sInvalidationDebuggingIsEnabled || getenv("MOZ_DUMP_INVALIDATION") != 0;
   }
 
   static void Initialize();
@@ -1846,6 +1847,7 @@ private:
   static uint32_t sFontSizeInflationMaxRatio;
   static bool sFontSizeInflationForceEnabled;
   static bool sFontSizeInflationDisabledInMasterProcess;
+  static bool sInvalidationDebuggingIsEnabled;
 };
 
 // Helper-functions for nsLayoutUtils::SortFrameList()

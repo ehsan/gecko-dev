@@ -17,6 +17,13 @@ html|select[multiple] > scrollbar {
   -moz-appearance: scrollbar-small;
 }
 
+@media all and (-moz-overlay-scrollbars) {
+  scrollbar:not([active="true"]),
+  scrollbar[disabled="true"] {
+    visibility: hidden;
+  }
+}
+
 /* ..... track ..... */
 
 slider {

@@ -12,83 +12,6 @@
   outline-offset: -2px;
 }
 
-/* Style the scrollbars */
-html xul|scrollbar {
-  display: none;
-}
-
-xul|window xul|scrollbar {
-  display: block;
-}
-
-xul|window xul|scrollbar[orient="vertical"] {
-  -moz-appearance: none !important;
-  opacity: 0;
-  position: relative;
-  margin-left: -8px;
-  min-width: 8px;
-  background-color: transparent !important;
-  background-image: none !important;
-  border: 0px solid transparent !important;
-}
-
-xul|window xul|scrollbar[orient="vertical"]:-moz-locale-dir(rtl) {
-  margin-left: 2px;
-  margin-right: -10px;
-}
-
-xul|window xul|scrollbar[orient="vertical"] xul|thumb {
-  max-width: 6px !important;
-  min-width: 6px !important;
-}
-
-xul|window xul|scrollbar[orient="horizontal"] {
-  -moz-appearance: none !important;
-  opacity: 0;
-  position: relative;
-  min-height: 8px;
-  margin-top: -8px;
-  background-color: transparent !important;
-  background-image: none !important;
-  border: 0px solid transparent !important;
-}
-
-xul|window xul|scrollbar[orient="horizontal"] xul|thumb {
-  max-height: 6px !important;
-  min-height: 6px !important;
-}
-
-xul|window xul|*[panning] xul|scrollbar {
-  opacity: 1;
-}
-
-xul|window xul|scrollbox {
-  overflow-y: scroll;
-  overflow-x: scroll;
-}
-
-xul|window xul|scrollbarbutton {
-  min-height: 8px !important;
-  min-width: 8px !important;
-  -moz-appearance: none !important;
-  visibility: hidden;
-}
-
-xul|window xul|scrollbarbutton[sbattr="scrollbar-up-top"],
-xul|window xul|scrollbarbutton[sbattr="scrollbar-bottom-top"] {
-  display: none;
-}
-
-xul|window xul|scrollbar xul|thumb {
-  background-color: rgba(0, 0, 0, 0.4) !important;
-  -moz-border-top-colors: none !important;
-  -moz-border-bottom-colors: none !important;
-  -moz-border-right-colors: none !important;
-  -moz-border-left-colors: none !important;
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
-  border-radius: 3px;
-}
-
 select:not([size]):not([multiple]) > xul|scrollbar,
 select[size="1"] > xul|scrollbar,
 select:not([size]):not([multiple]) xul|scrollbarbutton,
@@ -131,11 +54,11 @@ button {
 }
 
 input[type="checkbox"] {
-  background: white -moz-linear-gradient(top, rgba(115,115,115,0.5) 0, rgba(215,215,215,0.5) 2px, rgba(255,255,255,0.2) 6px);
+  background: white linear-gradient(rgba(115,115,115,0.5) 0, rgba(215,215,215,0.5) 2px, rgba(255,255,255,0.2) 6px);
 }
 
 input[type="radio"] {
-  background: -moz-radial-gradient(6px 6px, cover, rgba(255,255,255,0.2) 3px, rgba(195,195,195,0.5) 5px, rgba(115,115,115,0.5) 100%);
+  background: radial-gradient(at 6px 6px, rgba(255,255,255,0.2) 3px, rgba(195,195,195,0.5) 5px, rgba(115,115,115,0.5) 100%);
 }
 
 select {
@@ -186,11 +109,11 @@ input[type="radio"]:focus {
 }
 
 input[type="checkbox"]:focus {
-  background: white -moz-linear-gradient(top, rgba(27,113,177,0.5) 0, rgba(198,225,246,0.2) 2px, rgba(255,255,255,0.2) 6px);
+  background: white linear-gradient(rgba(27,113,177,0.5) 0, rgba(198,225,246,0.2) 2px, rgba(255,255,255,0.2) 6px);
 }
 
 input[type="radio"]:focus {
-  background: -moz-radial-gradient(6px 6px, cover, rgba(255,255,255,0.2) 3px, rgba(198,225,246,0.2) 5px, rgba(27,113,177,0.5) 100%);
+  background: radial-gradient(at 6px 6px, rgba(255,255,255,0.2) 3px, rgba(198,225,246,0.2) 5px, rgba(27,113,177,0.5) 100%);
 }
 
 /* we need to be specific for selects because the above rules are specific too */
@@ -206,13 +129,13 @@ button[disabled],
   border-color: rgba(125,125,125,0.4);
   border-style: solid;
   border-width: 1px;
-  background: transparent -moz-linear-gradient(top, rgba(185,185,185,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(255,255,255,0.4) 100%);
+  background: transparent linear-gradient(rgba(185,185,185,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(255,255,255,0.4) 100%);
 }
 
 select:not([size]):not([multiple])[disabled],
 select[size="0"][disabled],
 select[size="1"][disabled] {
-  background: transparent -moz-linear-gradient(top, rgba(255,255,255,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(185,185,185,0.4) 100%);
+  background: transparent linear-gradient(rgba(255,255,255,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(185,185,185,0.4) 100%);
 }
 
 input[type="button"][disabled],
@@ -220,7 +143,7 @@ input[type="submit"][disabled],
 input[type="reset"][disabled],
 button[disabled] {
   padding: 0 7px 0 7px;
-  background: transparent -moz-linear-gradient(top, rgba(255,255,255,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(185,185,185,0.4) 100%);
+  background: transparent linear-gradient(rgba(255,255,255,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(185,185,185,0.4) 100%);
 }
 
 input[type="radio"][disabled],

@@ -8,6 +8,7 @@ user preferences
 
 __all__ = ('PreferencesReadError', 'Preferences')
 
+import mozfile
 import os
 import re
 import tokenize
@@ -45,7 +46,7 @@ class Preferences(object):
 
     def add_file(self, path):
         """a preferences from a file
-        
+
         :param path:
         """
         self.add(self.read(path))
@@ -91,7 +92,7 @@ class Preferences(object):
             # section of INI file
             path, section = path.rsplit(':', 1)
 
-        if not os.path.exists(path):
+        if not os.path.exists(path) and not mozfile.is_url(path):
             raise PreferencesReadError("'%s' does not exist" % path)
 
         if section:
@@ -120,7 +121,7 @@ class Preferences(object):
         """read preferences from an .ini file"""
 
         parser = ConfigParser()
-        parser.read(path)
+        parser.readfp(mozfile.load(path))
 
         if section:
             if section not in parser.sections():
@@ -136,7 +137,7 @@ class Preferences(object):
     def read_json(cls, path):
         """read preferences from a JSON blob"""
 
-        prefs = json.loads(file(path).read())
+        prefs = json.loads(mozfile.load(path).read())
 
         if type(prefs) not in [list, dict]:
             raise PreferencesReadError("Malformed preferences: %s" % path)
@@ -161,7 +162,7 @@ class Preferences(object):
         comment = re.compile('/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/', re.MULTILINE)
 
         marker = '##//' # magical marker
-        lines = [i.strip() for i in file(path).readlines() if i.strip()]
+        lines = [i.strip() for i in mozfile.load(path).readlines() if i.strip()]
         _lines = []
         for line in lines:
             if line.startswith(('#', '//')):
@@ -203,26 +204,26 @@ class Preferences(object):
         return retval
 
     @classmethod
-    def write(cls, _file, prefs, pref_string='user_pref("%s", %s);'):
+    def write(cls, _file, prefs, pref_string='user_pref(%s, %s);'):
         """write preferences to a file"""
 
         if isinstance(_file, basestring):
-            f = file(_file, 'w')
+            f = file(_file, 'a')
         else:
             f = _file
 
         if isinstance(prefs, dict):
+            # order doesn't matter
             prefs = prefs.items()
 
-        for key, value in prefs:
-            if value is True:
-                print >> f, pref_string % (key, 'true')
-            elif value is False:
-                print >> f, pref_string % (key, 'false')
-            elif isinstance(value, basestring):
-                print >> f, pref_string % (key, repr(str(value)))
-            else:
-                print >> f, pref_string % (key, value) # should be numeric!
+        # serialize -> JSON
+        _prefs = [(json.dumps(k), json.dumps(v) )
+                  for k, v in prefs]
 
+        # write the preferences
+        for _pref in _prefs:
+            print >> f, pref_string % _pref
+
+        # close the file if opened internally
         if isinstance(_file, basestring):
             f.close()

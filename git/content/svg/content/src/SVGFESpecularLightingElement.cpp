@@ -13,7 +13,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFESpecularLightingElement::WrapNode(JSContext* aCx, JSObject* aScope)
+SVGFESpecularLightingElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return SVGFESpecularLightingElementBinding::Wrap(aCx, aScope, this);
 }
@@ -23,7 +23,7 @@ SVGFESpecularLightingElement::WrapNode(JSContext* aCx, JSObject* aScope)
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFESpecularLightingElement)
 
-already_AddRefed<nsIDOMSVGAnimatedString>
+already_AddRefed<SVGAnimatedString>
 SVGFESpecularLightingElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);

@@ -1,12 +1,11 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=79:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_zone_h___
-#define gc_zone_h___
+#ifndef gc_Zone_h
+#define gc_Zone_h
 
 #include "mozilla/Attributes.h"
 #include "mozilla/GuardObjects.h"
@@ -27,28 +26,25 @@
 namespace js {
 
 /*
- * Encapsulates the data needed to perform allocation.  Typically
- * there is precisely one of these per compartment
- * (|compartment.allocator|).  However, in parallel execution mode,
- * there will be one per worker thread.  In general, if a piece of
- * code must perform execution and should work safely either in
- * parallel or sequential mode, you should make it take an
- * |Allocator*| rather than a |JSContext*|.
+ * Encapsulates the data needed to perform allocation.  Typically there is
+ * precisely one of these per zone (|cx->zone().allocator|).  However, in
+ * parallel execution mode, there will be one per worker thread.
  */
-class Allocator : public MallocProvider<Allocator>
+class Allocator
 {
-    JS::Zone *zone;
+    /*
+     * Since allocators can be accessed from worker threads, the parent zone_
+     * should not be accessed in general. ArenaLists is allowed to actually do
+     * the allocation, however.
+     */
+    friend class gc::ArenaLists;
+
+    JS::Zone *zone_;
 
   public:
     explicit Allocator(JS::Zone *zone);
 
     js::gc::ArenaLists arenas;
-
-    inline void *parallelNewGCThing(gc::AllocKind thingKind, size_t thingSize);
-
-    inline void *onOutOfMemory(void *p, size_t nbytes);
-    inline void updateMallocCounter(size_t nbytes);
-    inline void reportAllocationOverflow();
 };
 
 typedef Vector<JSCompartment *, 1, SystemAllocPolicy> CompartmentVector;
@@ -103,7 +99,9 @@ namespace JS {
  * zone.)
  */
 
-struct Zone : private JS::shadow::Zone, public js::gc::GraphNodeBase<JS::Zone>
+struct Zone : private JS::shadow::Zone,
+              public js::gc::GraphNodeBase<JS::Zone>,
+              public js::MallocProvider<JS::Zone>
 {
     JSRuntime                    *rt;
     js::Allocator                allocator;
@@ -112,15 +110,10 @@ struct Zone : private JS::shadow::Zone, public js::gc::GraphNodeBase<JS::Zone>
 
     bool                         hold;
 
-#ifdef JSGC_GENERATIONAL
-    js::gc::VerifierNursery      gcNursery;
-    js::gc::StoreBuffer          gcStoreBuffer;
-#endif
-
   private:
     bool                         ionUsingBarriers_;
-  public:
 
+  public:
     bool                         active;  // GC flag, whether there are active frames
 
     bool needsBarrier() const {
@@ -182,7 +175,7 @@ struct Zone : private JS::shadow::Zone, public js::gc::GraphNodeBase<JS::Zone>
      * tracer.
      */
     bool requireGCTracer() const {
-        return rt->isHeapCollecting() && gcState != NoGC;
+        return rt->isHeapMajorCollecting() && gcState != NoGC;
     }
 
     void setGCState(CompartmentGCState state) {
@@ -291,11 +284,21 @@ struct Zone : private JS::shadow::Zone, public js::gc::GraphNodeBase<JS::Zone>
 
     void onTooMuchMalloc();
 
+    void *onOutOfMemory(void *p, size_t nbytes) {
+        return rt->onOutOfMemory(p, nbytes);
+    }
+    void reportAllocationOverflow() {
+        js_ReportAllocationOverflow(NULL);
+    }
+
     void markTypes(JSTracer *trc);
 
     js::types::TypeZone types;
 
     void sweep(js::FreeOp *fop, bool releaseTypes);
+
+  private:
+    void sweepBreakpoints(js::FreeOp *fop);
 };
 
 } /* namespace JS */
@@ -397,4 +400,4 @@ typedef CompartmentsIterT<ZonesIter> CompartmentsIter;
 
 } /* namespace js */
 
-#endif /* gc_zone_h___ */
+#endif /* gc_Zone_h */

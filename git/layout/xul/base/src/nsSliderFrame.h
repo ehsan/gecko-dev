@@ -33,7 +33,7 @@ public:
 
   virtual void SetSlider(nsSliderFrame* aSlider) { mSlider = aSlider; }
 
-  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) MOZ_OVERRIDE;
 };
 
 class nsSliderFrame : public nsBoxFrame
@@ -127,6 +127,9 @@ private:
 
   bool GetScrollToClick();
   nsIFrame* GetScrollbar();
+  bool ShouldScrollForEvent(nsGUIEvent* aEvent);
+  bool ShouldScrollToClickForEvent(nsGUIEvent* aEvent);
+  bool IsEventOverThumb(nsGUIEvent* aEvent);
 
   void PageUpDown(nscoord change);
   void SetCurrentThumbPosition(nsIContent* aScrollbar, nscoord aNewPos, bool aIsSmooth,

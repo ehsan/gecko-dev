@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,17 +9,18 @@
  * ECMAScript Internationalization API Specification.
  */
 
+#include "builtin/Intl.h"
+
 #include <string.h>
 
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jsinterp.h"
 #include "jsobj.h"
 
-#include "builtin/Intl.h"
 #include "vm/DateTime.h"
 #include "vm/GlobalObject.h"
+#include "vm/Interpreter.h"
 #include "vm/Stack.h"
 #include "vm/StringBuffer.h"
 
@@ -39,6 +40,9 @@
 #include "jsobjinlines.h"
 
 using namespace js;
+
+using mozilla::IsFinite;
+using mozilla::IsNegativeZero;
 
 #if ENABLE_INTL_API
 using icu::Locale;
@@ -193,11 +197,16 @@ enum UNumberFormatStyle {
     UNUM_CURRENCY_PLURAL,
 };
 
+enum UNumberFormatRoundingMode {
+    UNUM_ROUND_HALFUP,
+};
+
 enum UNumberFormatAttribute {
   UNUM_GROUPING_USED,
   UNUM_MIN_INTEGER_DIGITS,
   UNUM_MAX_FRACTION_DIGITS,
   UNUM_MIN_FRACTION_DIGITS,
+  UNUM_ROUNDING_MODE,
   UNUM_SIGNIFICANT_DIGITS_USED,
   UNUM_MIN_SIGNIFICANT_DIGITS,
   UNUM_MAX_SIGNIFICANT_DIGITS,
@@ -432,10 +441,10 @@ IntlInitialize(JSContext *cx, HandleObject obj, Handle<PropertyName*> initialize
     if (!cx->global()->getIntrinsicValue(cx, initializer, &initializerValue))
         return false;
     JS_ASSERT(initializerValue.isObject());
-    JS_ASSERT(initializerValue.toObject().isFunction());
+    JS_ASSERT(initializerValue.toObject().is<JSFunction>());
 
-    InvokeArgsGuard args;
-    if (!cx->stack.pushInvokeArgs(cx, 3, &args))
+    InvokeArgs args(cx);
+    if (!args.init(3))
         return false;
 
     args.setCallee(initializerValue);
@@ -498,10 +507,10 @@ GetInternals(JSContext *cx, HandleObject obj, MutableHandleObject internals)
     if (!cx->global()->getIntrinsicValue(cx, cx->names().getInternals, &getInternalsValue))
         return false;
     JS_ASSERT(getInternalsValue.isObject());
-    JS_ASSERT(getInternalsValue.toObject().isFunction());
+    JS_ASSERT(getInternalsValue.toObject().is<JSFunction>());
 
-    InvokeArgsGuard args;
-    if (!cx->stack.pushInvokeArgs(cx, 1, &args))
+    InvokeArgs args(cx);
+    if (!args.init(1))
         return false;
 
     args.setCallee(getInternalsValue);
@@ -582,7 +591,7 @@ static Class CollatorClass = {
     js_Object_str,
     JSCLASS_HAS_RESERVED_SLOTS(COLLATOR_SLOTS_COUNT),
     JS_PropertyStub,         /* addProperty */
-    JS_PropertyStub,         /* delProperty */
+    JS_DeletePropertyStub,   /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -600,12 +609,12 @@ collator_toSource(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif
 
-static JSFunctionSpec collator_static_methods[] = {
+static const JSFunctionSpec collator_static_methods[] = {
     {"supportedLocalesOf", JSOP_NULLWRAPPER, 1, JSFunction::INTERPRETED, "Intl_Collator_supportedLocalesOf"},
     JS_FS_END
 };
 
-static JSFunctionSpec collator_methods[] = {
+static const JSFunctionSpec collator_methods[] = {
     {"resolvedOptions", JSOP_NULLWRAPPER, 0, JSFunction::INTERPRETED, "Intl_Collator_resolvedOptions"},
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str, collator_toSource, 0, 0),
@@ -697,7 +706,7 @@ InitCollatorClass(JSContext *cx, HandleObject Intl, Handle<GlobalObject*> global
     if (!ctor)
         return NULL;
 
-    RootedObject proto(cx, global->asGlobal().getOrCreateCollatorPrototype(cx));
+    RootedObject proto(cx, global->as<GlobalObject>().getOrCreateCollatorPrototype(cx));
     if (!proto)
         return NULL;
     if (!LinkConstructorAndPrototype(cx, ctor, proto))
@@ -1060,7 +1069,7 @@ static Class NumberFormatClass = {
     js_Object_str,
     JSCLASS_HAS_RESERVED_SLOTS(NUMBER_FORMAT_SLOTS_COUNT),
     JS_PropertyStub,         /* addProperty */
-    JS_PropertyStub,         /* delProperty */
+    JS_DeletePropertyStub,   /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -1078,12 +1087,12 @@ numberFormat_toSource(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif
 
-static JSFunctionSpec numberFormat_static_methods[] = {
+static const JSFunctionSpec numberFormat_static_methods[] = {
     {"supportedLocalesOf", JSOP_NULLWRAPPER, 1, JSFunction::INTERPRETED, "Intl_NumberFormat_supportedLocalesOf"},
     JS_FS_END
 };
 
-static JSFunctionSpec numberFormat_methods[] = {
+static const JSFunctionSpec numberFormat_methods[] = {
     {"resolvedOptions", JSOP_NULLWRAPPER, 0, JSFunction::INTERPRETED, "Intl_NumberFormat_resolvedOptions"},
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str, numberFormat_toSource, 0, 0),
@@ -1176,7 +1185,7 @@ InitNumberFormatClass(JSContext *cx, HandleObject Intl, Handle<GlobalObject*> gl
     if (!ctor)
         return NULL;
 
-    RootedObject proto(cx, global->asGlobal().getOrCreateNumberFormatPrototype(cx));
+    RootedObject proto(cx, global->as<GlobalObject>().getOrCreateNumberFormatPrototype(cx));
     if (!proto)
         return NULL;
     if (!LinkConstructorAndPrototype(cx, ctor, proto))
@@ -1268,7 +1277,7 @@ js::intl_numberingSystem(JSContext *cx, unsigned argc, Value *vp)
         return false;
     }
     const char *name = numbers->getName();
-    JSString *jsname = JS_NewStringCopyZ(cx, name);
+    RootedString jsname(cx, JS_NewStringCopyZ(cx, name));
     delete numbers;
     if (!jsname)
         return false;
@@ -1415,6 +1424,7 @@ NewUNumberFormat(JSContext *cx, HandleObject numberFormat)
         unum_setAttribute(nf, UNUM_MAX_FRACTION_DIGITS, uMaximumFractionDigits);
     }
     unum_setAttribute(nf, UNUM_GROUPING_USED, uUseGrouping);
+    unum_setAttribute(nf, UNUM_ROUNDING_MODE, UNUM_ROUND_HALFUP);
 
     return toClose.forget();
 }
@@ -1423,7 +1433,7 @@ static bool
 intl_FormatNumber(JSContext *cx, UNumberFormat *nf, double x, MutableHandleValue result)
 {
     // FormatNumber doesn't consider -0.0 to be negative.
-    if (MOZ_DOUBLE_IS_NEGATIVE_ZERO(x))
+    if (IsNegativeZero(x))
         x = 0.0;
 
     StringBuffer chars(cx);
@@ -1509,7 +1519,7 @@ static Class DateTimeFormatClass = {
     js_Object_str,
     JSCLASS_HAS_RESERVED_SLOTS(DATE_TIME_FORMAT_SLOTS_COUNT),
     JS_PropertyStub,         /* addProperty */
-    JS_PropertyStub,         /* delProperty */
+    JS_DeletePropertyStub,   /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -1527,12 +1537,12 @@ dateTimeFormat_toSource(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif
 
-static JSFunctionSpec dateTimeFormat_static_methods[] = {
+static const JSFunctionSpec dateTimeFormat_static_methods[] = {
     {"supportedLocalesOf", JSOP_NULLWRAPPER, 1, JSFunction::INTERPRETED, "Intl_DateTimeFormat_supportedLocalesOf"},
     JS_FS_END
 };
 
-static JSFunctionSpec dateTimeFormat_methods[] = {
+static const JSFunctionSpec dateTimeFormat_methods[] = {
     {"resolvedOptions", JSOP_NULLWRAPPER, 0, JSFunction::INTERPRETED, "Intl_DateTimeFormat_resolvedOptions"},
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str, dateTimeFormat_toSource, 0, 0),
@@ -1624,7 +1634,7 @@ InitDateTimeFormatClass(JSContext *cx, HandleObject Intl, Handle<GlobalObject*> 
     if (!ctor)
         return NULL;
 
-    RootedObject proto(cx, global->asGlobal().getOrCreateDateTimeFormatPrototype(cx));
+    RootedObject proto(cx, global->as<GlobalObject>().getOrCreateDateTimeFormatPrototype(cx));
     if (!proto)
         return NULL;
     if (!LinkConstructorAndPrototype(cx, ctor, proto))
@@ -1902,7 +1912,7 @@ NewUDateFormat(JSContext *cx, HandleObject dateTimeFormat)
 static bool
 intl_FormatDateTime(JSContext *cx, UDateFormat *df, double x, MutableHandleValue result)
 {
-    if (!MOZ_DOUBLE_IS_FINITE(x)) {
+    if (!IsFinite(x)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_DATE_NOT_FINITE);
         return false;
     }
@@ -1985,7 +1995,7 @@ Class js::IntlClass = {
     js_Object_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_Intl),
     JS_PropertyStub,         /* addProperty */
-    JS_PropertyStub,         /* delProperty */
+    JS_DeletePropertyStub,   /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -2002,7 +2012,7 @@ intl_toSource(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif
 
-static JSFunctionSpec intl_static_methods[] = {
+static const JSFunctionSpec intl_static_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,  intl_toSource,        0, 0),
 #endif
@@ -2016,8 +2026,8 @@ static JSFunctionSpec intl_static_methods[] = {
 JSObject *
 js_InitIntlClass(JSContext *cx, HandleObject obj)
 {
-    JS_ASSERT(obj->isGlobal());
-    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
+    JS_ASSERT(obj->is<GlobalObject>());
+    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
 
     // The constructors above need to be able to determine whether they've been
     // called with this being "the standard built-in Intl object". The global
@@ -2040,7 +2050,7 @@ js_InitIntlClass(JSContext *cx, HandleObject obj)
     // Skip initialization of the Intl constructors during initialization of the
     // self-hosting global as we may get here before self-hosted code is compiled,
     // and no core code refers to the Intl classes.
-    if (!cx->runtime->isSelfHostingGlobal(cx->global())) {
+    if (!cx->runtime()->isSelfHostingGlobal(cx->global())) {
         if (!InitCollatorClass(cx, Intl, global))
             return NULL;
         if (!InitNumberFormatClass(cx, Intl, global))

@@ -20,6 +20,27 @@ class AudioStream;
  */
 const int GUESS_AUDIO_CHANNELS = 2;
 
+// We ensure that the graph advances in steps that are multiples of the Web
+// Audio block size
+const uint32_t WEBAUDIO_BLOCK_SIZE_BITS = 7;
+const uint32_t WEBAUDIO_BLOCK_SIZE = 1 << WEBAUDIO_BLOCK_SIZE_BITS;
+
+void InterleaveAndConvertBuffer(const void** aSourceChannels,
+                                AudioSampleFormat aSourceFormat,
+                                int32_t aLength, float aVolume,
+                                int32_t aChannels,
+                                AudioDataValue* aOutput);
+
+/**
+ * Given an array of input channels (aChannelData), downmix to aOutputChannels,
+ * interleave the channel data. A total of aOutputChannels*aDuration
+ * interleaved samples will be copied to a channel buffer in aOutput.
+ */
+void DownmixAndInterleave(const nsTArray<const void*>& aChannelData,
+                          AudioSampleFormat aSourceFormat, int32_t aDuration,
+                          float aVolume, uint32_t aOutputChannels,
+                          AudioDataValue* aOutput);
+
 /**
  * An AudioChunk represents a multi-channel buffer of audio samples.
  * It references an underlying ThreadSharedObject which manages the lifetime

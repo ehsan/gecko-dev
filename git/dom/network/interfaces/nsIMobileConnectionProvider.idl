@@ -11,7 +11,7 @@ interface nsIDOMMozMobileCFInfo;
 interface nsIDOMDOMRequest;
 interface nsIDOMWindow;
 
-[scriptable, uuid(2cb8e811-7eaf-4cb9-8aa8-581e7a245edc)]
+[scriptable, uuid(d09099b0-a25a-11e2-9e96-0800200c9a66)]
 interface nsIMobileConnectionListener : nsISupports
 {
   void notifyVoiceChanged();
@@ -21,8 +21,6 @@ interface nsIMobileConnectionListener : nsISupports
   void notifyUssdReceived(in DOMString message,
                           in boolean sessionEnded);
   void notifyDataError(in DOMString message);
-  void notifyIccCardLockError(in DOMString lockType,
-                              in unsigned long retryCount);
   void notifyCFStateChange(in boolean success,
                            in unsigned short action,
                            in unsigned short reason,
@@ -35,7 +33,7 @@ interface nsIMobileConnectionListener : nsISupports
  * XPCOM component (in the content process) that provides the mobile
  * network information.
  */
-[scriptable, uuid(152da558-c3c0-45ad-9ac5-1adaf7a83c0d)]
+[scriptable, uuid(b9605230-a25a-11e2-9e96-0800200c9a66)]
 interface nsIMobileConnectionProvider : nsISupports
 {
   /**
@@ -47,6 +45,7 @@ interface nsIMobileConnectionProvider : nsISupports
   void unregisterMobileConnectionMsg(in nsIMobileConnectionListener listener);
 
   readonly attribute DOMString cardState;
+  readonly attribute long retryCount;
   readonly attribute nsIDOMMozMobileICCInfo iccInfo;
   readonly attribute nsIDOMMozMobileConnectionInfo voiceConnectionInfo;
   readonly attribute nsIDOMMozMobileConnectionInfo dataConnectionInfo;
@@ -56,10 +55,6 @@ interface nsIMobileConnectionProvider : nsISupports
   nsIDOMDOMRequest selectNetwork(in nsIDOMWindow window, in nsIDOMMozMobileNetworkInfo network);
   nsIDOMDOMRequest selectNetworkAutomatically(in nsIDOMWindow window);
 
-  nsIDOMDOMRequest getCardLock(in nsIDOMWindow window, in DOMString lockType);
-  nsIDOMDOMRequest unlockCardLock(in nsIDOMWindow window, in jsval info);
-  nsIDOMDOMRequest setCardLock(in nsIDOMWindow window, in jsval info);
-
   nsIDOMDOMRequest sendMMI(in nsIDOMWindow window, in DOMString mmi);
   nsIDOMDOMRequest cancelMMI(in nsIDOMWindow window);
 
@@ -67,4 +62,13 @@ interface nsIMobileConnectionProvider : nsISupports
                                            in unsigned short reason);
   nsIDOMDOMRequest setCallForwardingOption(in nsIDOMWindow          window,
                                            in nsIDOMMozMobileCFInfo CFInfo);
+
+  nsIDOMDOMRequest getCallBarringOption(in nsIDOMWindow window,
+                                        in jsval        option);
+  nsIDOMDOMRequest setCallBarringOption(in nsIDOMWindow window,
+                                        in jsval        option);
+
+  nsIDOMDOMRequest setCallWaitingOption(in nsIDOMWindow   window,
+                                        in bool enabled);
+  nsIDOMDOMRequest getCallWaitingOption(in nsIDOMWindow   window);
 };

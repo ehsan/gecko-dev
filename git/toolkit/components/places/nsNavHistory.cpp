@@ -2828,6 +2828,8 @@ nsNavHistory::GetCharsetForURI(nsIURI* aURI,
 NS_IMETHODIMP
 nsNavHistory::GetPageTitle(nsIURI* aURI, nsAString& aTitle)
 {
+  PLACES_WARN_DEPRECATED();
+
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
   NS_ENSURE_ARG(aURI);
 
@@ -2873,8 +2875,9 @@ nsNavHistory::GetDatabaseConnection(mozIStorageConnection** _DBConnection)
 NS_IMETHODIMP
 nsNavHistory::GetExpectedDatabasePageSize(int32_t* _expectedPageSize)
 {
-  *_expectedPageSize = mozIStorageConnection::DEFAULT_PAGE_SIZE;
-  return NS_OK;
+  NS_ENSURE_STATE(mDB);
+  NS_ENSURE_STATE(mDB->MainConn());
+  return mDB->MainConn()->GetDefaultPageSize(_expectedPageSize);
 }
 
 

@@ -11,6 +11,8 @@
 #include <mozilla/Types.h>
 #include "nsXPCOMStrings.h"
 
+namespace mozilla {
+
 class GStreamerFormatHelper {
   /* This class can be used to query the GStreamer registry for the required
    * demuxers/decoders from nsHTMLMediaElement::CanPlayType.
@@ -24,23 +26,37 @@ class GStreamerFormatHelper {
     bool CanHandleMediaType(const nsACString& aMIMEType,
                             const nsAString* aCodecs);
 
-   static void Shutdown();
+    bool CanHandleContainerCaps(GstCaps* aCaps);
+    bool CanHandleCodecCaps(GstCaps* aCaps);
+
+    static GstCaps* ConvertFormatsToCaps(const char* aMIMEType,
+                                         const nsAString* aCodecs);
+
+    static void Shutdown();
 
   private:
     GStreamerFormatHelper();
-    GstCaps* ConvertFormatsToCaps(const char* aMIMEType,
-                                  const nsAString* aCodecs);
     char* const *CodecListFromCaps(GstCaps* aCaps);
     bool HaveElementsToProcessCaps(GstCaps* aCaps);
     GList* GetFactories();
 
     static GStreamerFormatHelper* gInstance;
 
-    /* table to convert from container MIME types to GStreamer elements */
+    /* table to convert from container MIME types to GStreamer caps */
     static char const *const mContainers[6][2];
 
-    /* table to convert from codec MIME types to GStreamer elements */
+    /* table to convert from codec MIME types to GStreamer caps */
     static char const *const mCodecs[9][2];
+
+    /*
+     * True iff we were able to find the proper GStreamer libs and the functions
+     * we need.
+     */
+    static bool sLoadOK;
+
+    /* whitelist of supported container/codec gst caps */
+    GstCaps* mSupportedContainerCaps;
+    GstCaps* mSupportedCodecCaps;
 
     /* list of GStreamer element factories
      * Element factories are the basic types retrieved from the GStreamer
@@ -56,5 +72,7 @@ class GStreamerFormatHelper {
      * GStreamer registry. */
     uint32_t mCookie;
 };
+
+} //namespace mozilla
 
 #endif

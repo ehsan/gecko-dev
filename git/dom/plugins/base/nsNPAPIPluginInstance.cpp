@@ -83,8 +83,8 @@ static bool EnsureGLContext()
 {
   if (!sPluginContext) {
     gfxIntSize dummySize(16, 16);
-    GLContext::SurfaceCaps dummyCaps;
-    sPluginContext = GLContextProvider::CreateOffscreen(dummySize, dummyCaps);
+    sPluginContext = GLContextProvider::CreateOffscreen(dummySize,
+                                                        GLContext::SurfaceCaps::Any());
   }
 
   return sPluginContext != nullptr;
@@ -255,7 +255,7 @@ nsresult nsNPAPIPluginInstance::Initialize(nsNPAPIPlugin *aPlugin, nsPluginInsta
   mOwner = aOwner;
 
   if (aMIMEType) {
-    mMIMEType = (char*)PR_Malloc(PL_strlen(aMIMEType) + 1);
+    mMIMEType = (char*)PR_Malloc(strlen(aMIMEType) + 1);
     if (mMIMEType) {
       PL_strcpy(mMIMEType, aMIMEType);
     }
@@ -354,10 +354,9 @@ nsNPAPIPluginInstance::GetDOMWindow()
   if (!doc)
     return nullptr;
 
-  nsPIDOMWindow *window = doc->GetWindow();
-  NS_IF_ADDREF(window);
+  nsRefPtr<nsPIDOMWindow> window = doc->GetWindow();
 
-  return window;
+  return window.forget();
 }
 
 nsresult
@@ -1171,7 +1170,7 @@ nsNPAPIPluginInstance::IsWindowless(bool* isWindowless)
   return NS_OK;
 }
 
-class NS_STACK_CLASS AutoPluginLibraryCall
+class MOZ_STACK_CLASS AutoPluginLibraryCall
 {
 public:
   AutoPluginLibraryCall(nsNPAPIPluginInstance* aThis)
@@ -1619,7 +1618,8 @@ nsNPAPIPluginInstance::GetJSContext(JSContext* *outContext)
   nsresult rv = mOwner->GetDocument(getter_AddRefs(document));
 
   if (NS_SUCCEEDED(rv) && document) {
-    nsIScriptGlobalObject *global = document->GetScriptGlobalObject();
+    nsCOMPtr<nsIScriptGlobalObject> global =
+      do_QueryInterface(document->GetWindow());
 
     if (global) {
       nsIScriptContext *context = global->GetContext();
@@ -1791,13 +1791,6 @@ nsNPAPIPluginInstance::CheckJavaC2PJSObjectQuirk(uint16_t paramCount,
     return;
   }
 
-  bool isClickToPlay;
-  nsAutoCString mimeType(mMIMEType);
-  rv = pluginHost->IsPluginClickToPlayForType(mimeType, &isClickToPlay);
-  if (NS_FAILED(rv) || !isClickToPlay) {
-    return;
-  }
-
   nsPluginTag* pluginTag = pluginHost->TagForPlugin(mPlugin);
   if (!pluginTag ||
       !pluginTag->mIsJavaPlugin) {
@@ -1808,10 +1801,10 @@ nsNPAPIPluginInstance::CheckJavaC2PJSObjectQuirk(uint16_t paramCount,
   bool haveCodeParam = false;
   bool isCodeParamEmpty = true;
 
-  for (uint16_t i = 0; i < paramCount; ++i) {
-    if (PL_strcasecmp(paramNames[i], "code") == 0) {
+  for (uint16_t i = paramCount; i > 0; --i) {
+    if (PL_strcasecmp(paramNames[i - 1], "code") == 0) {
       haveCodeParam = true;
-      if (PL_strlen(paramValues[i]) > 0) {
+      if (strlen(paramValues[i - 1]) > 0) {
         isCodeParamEmpty = false;
       }
       break;

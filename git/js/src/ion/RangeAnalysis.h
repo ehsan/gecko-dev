@@ -1,12 +1,11 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_range_analysis_h__
-#define jsion_range_analysis_h__
+#ifndef ion_RangeAnalysis_h
+#define ion_RangeAnalysis_h
 
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/MathAlgorithms.h"
@@ -79,7 +78,8 @@ class RangeAnalysis
     MIRGraph &graph_;
 
   public:
-    RangeAnalysis(MIRGraph &graph);
+    MOZ_CONSTEXPR RangeAnalysis(MIRGraph &graph) :
+        graph_(graph) {}
     bool addBetaNobes();
     bool analyze();
     bool removeBetaNobes();
@@ -103,10 +103,10 @@ class Range : public TempObject {
     // Maximal exponenent under which we have no precission loss on double
     // operations. Double has 52 bits of mantissa, so 2^52+1 cannot be
     // represented without loss.
-    static const uint16_t MaxTruncatableExponent = MOZ_DOUBLE_EXPONENT_SHIFT;
+    static const uint16_t MaxTruncatableExponent = mozilla::DoubleExponentShift;
 
     // 11 bits of signed exponent, so the max is encoded on 10 bits.
-    static const uint16_t MaxDoubleExponent = MOZ_DOUBLE_EXPONENT_BIAS;
+    static const uint16_t MaxDoubleExponent = mozilla::DoubleExponentBias;
 
   private:
     // Absolute ranges.
@@ -369,5 +369,4 @@ class Range : public TempObject {
 } // namespace ion
 } // namespace js
 
-#endif // jsion_range_analysis_h__
-
+#endif /* ion_RangeAnalysis_h */

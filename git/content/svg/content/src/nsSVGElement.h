@@ -11,6 +11,7 @@
   It implements all the common DOM interfaces and handles attributes.
 */
 
+#include "mozilla/Attributes.h"
 #include "mozilla/css/StyleRule.h"
 #include "nsAutoPtr.h"
 #include "nsChangeHint.h"
@@ -52,7 +53,7 @@ class SVGUserUnitList;
 class SVGAnimatedPointList;
 class SVGAnimatedPathSegList;
 class SVGAnimatedPreserveAspectRatio;
-class SVGAnimatedTransformList;
+class nsSVGAnimatedTransformList;
 class SVGStringList;
 class DOMSVGStringList;
 }
@@ -74,7 +75,7 @@ protected:
 
 public:
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_MUST_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
 
   typedef mozilla::SVGNumberList SVGNumberList;
   typedef mozilla::SVGAnimatedNumberList SVGAnimatedNumberList;
@@ -83,32 +84,32 @@ public:
   typedef mozilla::SVGAnimatedPointList SVGAnimatedPointList;
   typedef mozilla::SVGAnimatedPathSegList SVGAnimatedPathSegList;
   typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
-  typedef mozilla::SVGAnimatedTransformList SVGAnimatedTransformList;
+  typedef mozilla::nsSVGAnimatedTransformList nsSVGAnimatedTransformList;
   typedef mozilla::SVGStringList SVGStringList;
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
-  virtual const nsAttrValue* DoGetClasses() const;
+  virtual const nsAttrValue* DoGetClasses() const MOZ_OVERRIDE;
   void DidAnimateClass();
 
   // nsIContent interface methods
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers);
+                              bool aCompileEventHandlers) MOZ_OVERRIDE;
 
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify);
+                             bool aNotify) MOZ_OVERRIDE;
 
   virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                              int32_t aModType) const;
+                                              int32_t aModType) const MOZ_OVERRIDE;
 
-  virtual bool IsNodeOfType(uint32_t aFlags) const;
+  virtual bool IsNodeOfType(uint32_t aFlags) const MOZ_OVERRIDE;
 
-  NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
+  NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker) MOZ_OVERRIDE;
 
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
 
   static const MappedAttributeEntry sFillStrokeMap[];
   static const MappedAttributeEntry sGraphicsMap[];
@@ -264,27 +265,27 @@ public:
     return nullptr;
   }
   /**
-   * Get the SVGAnimatedTransformList for this element.
+   * Get the nsSVGAnimatedTransformList for this element.
    *
    * Despite the fact that animated transform lists are used for a variety of
    * attributes, no SVG element uses more than one.
    *
    * It's relatively uncommon for elements to have their transform attribute
-   * set, so to save memory the SVGAnimatedTransformList is not allocated until
+   * set, so to save memory the nsSVGAnimatedTransformList is not allocated until
    * the attribute is set/animated or its DOM wrapper is created. Callers that
-   * require the SVGAnimatedTransformList to be allocated and for this method
+   * require the nsSVGAnimatedTransformList to be allocated and for this method
    * to return non-null must pass the DO_ALLOCATE flag.
    */
-  virtual SVGAnimatedTransformList* GetAnimatedTransformList(
+  virtual nsSVGAnimatedTransformList* GetAnimatedTransformList(
                                                         uint32_t aFlags = 0) {
     return nullptr;
   }
 
-  virtual nsISMILAttr* GetAnimatedAttr(int32_t aNamespaceID, nsIAtom* aName);
+  virtual nsISMILAttr* GetAnimatedAttr(int32_t aNamespaceID, nsIAtom* aName) MOZ_OVERRIDE;
   void AnimationNeedsResample();
   void FlushAnimations();
 
-  virtual void RecompileScriptEventListeners();
+  virtual void RecompileScriptEventListeners() MOZ_OVERRIDE;
 
   void GetStringBaseValue(uint8_t aAttrEnum, nsAString& aResult) const;
   void SetStringBaseValue(uint8_t aAttrEnum, const nsAString& aValue);
@@ -299,16 +300,17 @@ public:
     return nullptr;
   }
 
-  virtual nsIDOMNode* AsDOMNode() MOZ_FINAL { return this; }
+  virtual nsIDOMNode* AsDOMNode() MOZ_FINAL MOZ_OVERRIDE { return this; }
   virtual bool IsTransformable() { return false; }
 
   // WebIDL
   mozilla::dom::SVGSVGElement* GetOwnerSVGElement(mozilla::ErrorResult& rv);
   nsSVGElement* GetViewportElement();
-  already_AddRefed<nsIDOMSVGAnimatedString> ClassName();
+  already_AddRefed<mozilla::dom::SVGAnimatedString> ClassName();
   already_AddRefed<mozilla::dom::CSSValue> GetPresentationAttribute(const nsAString& aName, mozilla::ErrorResult& rv);
 protected:
-  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx,
+                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
 #ifdef DEBUG
   // We define BeforeSetAttr here and mark it MOZ_FINAL to ensure it is NOT used
@@ -318,12 +320,12 @@ protected:
   // See the comment in nsSVGElement::WillChangeValue.
   virtual nsresult BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
                                  const nsAttrValueOrString* aValue,
-                                 bool aNotify) MOZ_FINAL { return NS_OK; }
+                                 bool aNotify) MOZ_OVERRIDE MOZ_FINAL { return NS_OK; }
 #endif // DEBUG
   virtual nsresult AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify);
+                                const nsAttrValue* aValue, bool aNotify) MOZ_OVERRIDE;
   virtual bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
-                                const nsAString& aValue, nsAttrValue& aResult);
+                                const nsAString& aValue, nsAttrValue& aResult) MOZ_OVERRIDE;
   static nsresult ReportAttributeParseFailure(nsIDocument* aDocument,
                                               nsIAtom* aAttribute,
                                               const nsAString& aValue);

@@ -1,12 +1,13 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_frame_iterator_h__
-#define jsion_frame_iterator_h__
+#ifndef ion_IonFrameIterator_h
+#define ion_IonFrameIterator_h
+
+#ifdef JS_ION
 
 #include "jstypes.h"
 #include "IonCode.h"
@@ -16,6 +17,10 @@ class JSFunction;
 class JSScript;
 
 namespace js {
+    class ActivationIterator;
+};
+
+namespace js {
 namespace ion {
 
 enum FrameType
@@ -23,6 +28,13 @@ enum FrameType
     // A JS frame is analagous to a js::StackFrame, representing one scripted
     // functon activation. OptimizedJS frames are used by the optimizing compiler.
     IonFrame_OptimizedJS,
+
+    // JS frame used by the baseline JIT.
+    IonFrame_BaselineJS,
+
+    // Frame pushed for baseline JIT stubs that make non-tail calls, so that the
+    // return address -> ICEntry mapping works.
+    IonFrame_BaselineStub,
 
     // The entry frame is the initial prologue block transitioning from the VM
     // into the Ion world.
@@ -37,13 +49,16 @@ enum FrameType
     // Baseline exception unwinding.
     IonFrame_Unwound_OptimizedJS,
 
+    // Like Unwound_OptimizedJS, but the caller is a baseline stub frame.
+    IonFrame_Unwound_BaselineStub,
+
     // An unwound rectifier frame is a rectifier frame signalling that its callee
     // frame has been turned into an exit frame (see EnsureExitFrame).
     IonFrame_Unwound_Rectifier,
 
     // An exit frame is necessary for transitioning from a JS frame into C++.
     // From within C++, an exit frame is always the last frame in any
-    // IonActivation.
+    // JitActivation.
     IonFrame_Exit,
 
     // An OSR frame is added when performing OSR from within a bailout. It
@@ -56,8 +71,9 @@ class IonCommonFrameLayout;
 class IonJSFrameLayout;
 class IonExitFrameLayout;
 
-class IonActivation;
-class IonActivationIterator;
+class BaselineFrame;
+
+class JitActivation;
 
 class IonFrameIterator
 {
@@ -69,7 +85,9 @@ class IonFrameIterator
 
   private:
     mutable const SafepointIndex *cachedSafepointIndex_;
-    const IonActivation *activation_;
+    const JitActivation *activation_;
+
+    void dumpBaseline() const;
 
   public:
     IonFrameIterator(uint8_t *top)
@@ -81,7 +99,7 @@ class IonFrameIterator
         activation_(NULL)
     { }
 
-    IonFrameIterator(const IonActivationIterator &activations);
+    IonFrameIterator(const ActivationIterator &activations);
     IonFrameIterator(IonJSFrameLayout *fp);
 
     // Current frame information.
@@ -96,14 +114,14 @@ class IonFrameIterator
     inline uint8_t *returnAddress() const;
 
     IonJSFrameLayout *jsFrame() const {
-        JS_ASSERT(type() == IonFrame_OptimizedJS);
+        JS_ASSERT(isScripted());
         return (IonJSFrameLayout *) fp();
     }
 
-    IonExitFrameLayout *exitFrame() const {
-        JS_ASSERT(type() == IonFrame_Exit);
-        return (IonExitFrameLayout *) fp();
-    }
+    // Returns true iff this exit frame was created using EnsureExitFrame.
+    inline bool isFakeExitFrame() const;
+
+    inline IonExitFrameLayout *exitFrame() const;
 
     // Returns whether the JS frame has been invalidated and, if so,
     // places the invalidated Ion script in |ionScript|.
@@ -111,16 +129,27 @@ class IonFrameIterator
     bool checkInvalidation() const;
 
     bool isScripted() const {
+        return type_ == IonFrame_BaselineJS || type_ == IonFrame_OptimizedJS;
+    }
+    bool isBaselineJS() const {
+        return type_ == IonFrame_BaselineJS;
+    }
+    bool isOptimizedJS() const {
         return type_ == IonFrame_OptimizedJS;
+    }
+    bool isBaselineStub() const {
+        return type_ == IonFrame_BaselineStub;
     }
     bool isNative() const;
     bool isOOLNativeGetter() const;
     bool isOOLPropertyOp() const;
+    bool isOOLProxyGet() const;
     bool isDOMExit() const;
     bool isEntry() const {
         return type_ == IonFrame_Entry;
     }
     bool isFunctionFrame() const;
+    bool isParallelFunctionFrame() const;
 
     bool isConstructing() const;
 
@@ -130,7 +159,8 @@ class IonFrameIterator
     JSFunction *callee() const;
     JSFunction *maybeCallee() const;
     unsigned numActualArgs() const;
-    RawScript script() const;
+    JSScript *script() const;
+    void baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) const;
     Value *nativeVp() const;
     Value *actualArgs() const;
 
@@ -170,33 +200,12 @@ class IonFrameIterator
     uintptr_t *spillBase() const;
     MachineState machineState() const;
 
+    template <class Op>
+    inline void forEachCanonicalActualArg(Op op, unsigned start, unsigned count) const;
+
     void dump() const;
-};
 
-class IonActivationIterator
-{
-    uint8_t *top_;
-    IonActivation *activation_;
-
-  private:
-    void settle();
-
-  public:
-    IonActivationIterator(JSContext *cx);
-    IonActivationIterator(JSRuntime *rt);
-
-    IonActivationIterator &operator++();
-
-    IonActivation *activation() const {
-        return activation_;
-    }
-    uint8_t *top() const {
-        return top_;
-    }
-    bool more() const;
-
-    // Returns the bottom and top addresses of the current activation.
-    void ionStackRange(uintptr_t *&min, uintptr_t *&end);
+    inline BaselineFrame *baselineFrame() const;
 };
 
 class IonJSFrameLayout;
@@ -240,7 +249,8 @@ class SnapshotIterator : public SnapshotReader
 
     template <class Op>
     inline void readFrameArgs(Op &op, const Value *argv, Value *scopeChain, Value *thisv,
-                              unsigned start, unsigned formalEnd, unsigned iterEnd);
+                              unsigned start, unsigned formalEnd, unsigned iterEnd,
+                              JSScript *script);
 
     Value maybeReadSlotByIndex(size_t index) {
         while (index--) {
@@ -294,7 +304,7 @@ class InlineFrameIteratorMaybeGC
     template <class Op>
     inline void forEachCanonicalActualArg(JSContext *cx, Op op, unsigned start, unsigned count) const;
 
-    RawScript script() const {
+    JSScript *script() const {
         return script_;
     }
     jsbytecode *pc() const {
@@ -323,5 +333,6 @@ typedef InlineFrameIteratorMaybeGC<NoGC> InlineFrameIteratorNoGC;
 } // namespace ion
 } // namespace js
 
-#endif // jsion_frames_iterator_h__
+#endif // JS_ION
 
+#endif /* ion_IonFrameIterator_h */

@@ -1,12 +1,13 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if !defined(jsion_ion_gc_h__) && defined(JS_ION)
-#define jsion_ion_gc_h__
+#ifndef ion_CompilerRoot_h
+#define ion_CompilerRoot_h
+
+#ifdef JS_ION
 
 #include "jscntxt.h"
 
@@ -25,8 +26,10 @@ class CompilerRoot : public CompilerRootNode
     CompilerRoot(T ptr)
       : CompilerRootNode(NULL)
     {
-        if (ptr)
+        if (ptr) {
+            JS_ASSERT(!IsInsideNursery(GetIonContext()->compartment->rt, ptr));
             setRoot(ptr);
+        }
     }
 
   public:
@@ -60,5 +63,6 @@ typedef CompilerRoot<Value> CompilerRootValue;
 } // namespace ion
 } // namespace js
 
-#endif // jsion_ion_gc_h__
+#endif // JS_ION
 
+#endif /* ion_CompilerRoot_h */

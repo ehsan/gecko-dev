@@ -26,12 +26,17 @@ MOZ_ARG_ENABLE_BOOL(android-libstdcxx,
     MOZ_ANDROID_LIBSTDCXX=1,
     MOZ_ANDROID_LIBSTDCXX= )
 
-android_version=9
+define([MIN_ANDROID_VERSION], [9])
+android_version=MIN_ANDROID_VERSION
 
 MOZ_ARG_WITH_STRING(android-version,
 [  --with-android-version=VER
-                          android platform version, default 9],
+                          android platform version, default] MIN_ANDROID_VERSION,
     android_version=$withval)
+
+if test $android_version -lt MIN_ANDROID_VERSION ; then
+    AC_MSG_ERROR([--with-android-version must be at least MIN_ANDROID_VERSION.])
+fi
 
 MOZ_ARG_WITH_STRING(android-platform,
 [  --with-android-platform=DIR
@@ -75,9 +80,24 @@ case "$target" in
             mipsel)
                 target_name=mipsel-linux-android-$version
                 ;;
+            *)
+                AC_MSG_ERROR([target cpu is not supported])
+                ;;
             esac
-            android_toolchain="$android_ndk"/toolchains/$target_name/prebuilt/$kernel_name-x86
-
+            case "$host_cpu" in
+            i*86)
+                android_toolchain="$android_ndk"/toolchains/$target_name/prebuilt/$kernel_name-x86
+                ;;
+            x86_64)
+                android_toolchain="$android_ndk"/toolchains/$target_name/prebuilt/$kernel_name-x86_64
+                if ! test -d "$android_toolchain" ; then
+                    android_toolchain="$android_ndk"/toolchains/$target_name/prebuilt/$kernel_name-x86
+                fi
+                ;;
+            *)
+                AC_MSG_ERROR([No known toolchain for your host cpu])
+                ;;
+            esac
             if test -d "$android_toolchain" ; then
                 android_gnu_compiler_version=$version
                 break
@@ -91,7 +111,10 @@ case "$target" in
         else
             AC_MSG_RESULT([$android_toolchain])
         fi
+        NSPR_CONFIGURE_ARGS="$NSPR_CONFIGURE_ARGS --with-android-toolchain=$android_toolchain"
     fi
+
+    NSPR_CONFIGURE_ARGS="$NSPR_CONFIGURE_ARGS --with-android-version=$android_version"
 
     if test -z "$android_platform" ; then
         AC_MSG_CHECKING([for android platform directory])
@@ -115,6 +138,7 @@ case "$target" in
         else
             AC_MSG_ERROR([not found. You have to specify --with-android-platform=/path/to/ndk/platform.])
         fi
+        NSPR_CONFIGURE_ARGS="$NSPR_CONFIGURE_ARGS --with-android-platform=$android_platform"
     fi
 
     dnl Old NDK support. If minimum requirement is changed to NDK r8b,
@@ -167,11 +191,8 @@ case "$target" in
     ANDROID_NDK="${android_ndk}"
     ANDROID_TOOLCHAIN="${android_toolchain}"
     ANDROID_PLATFORM="${android_platform}"
-    ANDROID_VERSION="${android_version}"
 
     AC_DEFINE(ANDROID)
-    AC_DEFINE_UNQUOTED(ANDROID_VERSION, $android_version)
-    AC_SUBST(ANDROID_VERSION)
     CROSS_COMPILE=1
     AC_SUBST(ANDROID_NDK)
     AC_SUBST(ANDROID_TOOLCHAIN)
@@ -233,7 +254,7 @@ if test "$OS_TARGET" = "Android" -a -z "$gonkdir"; then
             fi
             STLPORT_SOURCES="$android_ndk/sources/cxx-stl/stlport"
             STLPORT_CPPFLAGS="-I$_objdir/build/stlport -I$android_ndk/sources/cxx-stl/stlport/stlport"
-            STLPORT_LIBS="-lstlport_static"
+            STLPORT_LIBS="-lstlport_static -static-libstdc++"
         elif test "$target" != "arm-android-eabi"; then
             dnl fail if we're not building with NDKr4
             AC_MSG_ERROR([Couldn't find path to stlport in the android ndk])
@@ -284,6 +305,19 @@ case "$target" in
     if test ! -d "$android_platform_tools" ; then
         android_platform_tools="$android_sdk"/tools # SDK Tools < r8
     fi
+    # The build tools got moved around to different directories in
+    # SDK Tools r22.  Try to locate them.
+    android_build_tools=""
+    for suffix in 17.0.0 android-4.2.2; do
+        tools_directory="$android_sdk/../../build-tools/$suffix"
+        if test -d "$tools_directory" ; then
+            android_build_tools="$tools_directory"
+            break
+        fi
+    done
+    if test -z "$android_build_tools" ; then
+        android_build_tools="$android_platform_tools" # SDK Tools < r22
+    fi
     ANDROID_SDK="${android_sdk}"
     if test -e "${android_sdk}/../../extras/android/compatibility/v4/android-support-v4.jar" ; then
         ANDROID_COMPAT_LIB="${android_sdk}/../../extras/android/compatibility/v4/android-support-v4.jar"
@@ -291,12 +325,14 @@ case "$target" in
         ANDROID_COMPAT_LIB="${android_sdk}/../../extras/android/support/v4/android-support-v4.jar";
     fi
     ANDROID_PLATFORM_TOOLS="${android_platform_tools}"
+    ANDROID_BUILD_TOOLS="${android_build_tools}"
     AC_SUBST(ANDROID_SDK)
     AC_SUBST(ANDROID_COMPAT_LIB)
     if ! test -e $ANDROID_COMPAT_LIB ; then
         AC_MSG_ERROR([You must download the Android support library when targeting Android.   Run the Android SDK tool and install Android Support Library under Extras.  See https://developer.android.com/tools/extras/support-library.html for more info. (looked for $ANDROID_COMPAT_LIB)])
     fi
     AC_SUBST(ANDROID_PLATFORM_TOOLS)
+    AC_SUBST(ANDROID_BUILD_TOOLS)
     ;;
 esac
 

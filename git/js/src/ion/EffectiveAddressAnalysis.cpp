@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10,7 +9,6 @@
 using namespace js;
 using namespace ion;
 
-#ifdef JS_ASMJS
 static void
 AnalyzeLsh(MBasicBlock *block, MLsh *lsh)
 {
@@ -88,7 +86,6 @@ AnalyzeLsh(MBasicBlock *block, MLsh *lsh)
     last->replaceAllUsesWith(eaddr);
     block->insertAfter(last, eaddr);
 }
-#endif
 
 // This analysis converts patterns of the form:
 //   truncate(x + (y << {0,1,2,3}))
@@ -107,13 +104,11 @@ AnalyzeLsh(MBasicBlock *block, MLsh *lsh)
 bool
 EffectiveAddressAnalysis::analyze()
 {
-#if defined(JS_ASMJS)
     for (ReversePostorderIterator block(graph_.rpoBegin()); block != graph_.rpoEnd(); block++) {
         for (MInstructionIterator i = block->begin(); i != block->end(); i++) {
             if (i->isLsh())
                 AnalyzeLsh(*block, i->toLsh());
         }
     }
-#endif
     return true;
 }

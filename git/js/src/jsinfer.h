@@ -1,15 +1,13 @@
-/* -*- Mode: C++; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil -*- */
-/* vim: set ts=4 sw=4 et tw=99: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* Definitions related to javascript type inference. */
 
-#ifndef jsinfer_h___
-#define jsinfer_h___
-
-#include "mozilla/Attributes.h"
+#ifndef jsinfer_h
+#define jsinfer_h
 
 #include "jsalloc.h"
 #include "jsfriendapi.h"
@@ -20,7 +18,7 @@
 #include "js/HashTable.h"
 #include "js/Vector.h"
 
-ForwardDeclareJS(Script);
+class JSScript;
 
 namespace js {
 
@@ -51,14 +49,14 @@ struct RootKind<TaggedProto>
     static ThingRootKind rootKind() { return THING_ROOT_OBJECT; }
 };
 
-template <> struct RootMethods<const TaggedProto>
+template <> struct GCMethods<const TaggedProto>
 {
     static TaggedProto initial() { return TaggedProto(); }
     static ThingRootKind kind() { return THING_ROOT_OBJECT; }
     static bool poisoned(const TaggedProto &v) { return IsPoisonedPtr(v.raw()); }
 };
 
-template <> struct RootMethods<TaggedProto>
+template <> struct GCMethods<TaggedProto>
 {
     static TaggedProto initial() { return TaggedProto(); }
     static ThingRootKind kind() { return THING_ROOT_OBJECT; }
@@ -100,10 +98,6 @@ class RootedBase<TaggedProto> : public TaggedProtoOperations<Rooted<TaggedProto>
 };
 
 class CallObject;
-
-namespace mjit {
-    struct JITScript;
-}
 
 namespace ion {
     struct IonScript;
@@ -168,7 +162,7 @@ class Type
         return isObject() && !!(data & 1);
     }
 
-    inline RawObject singleObject() const;
+    inline JSObject *singleObject() const;
 
     /* Accessors for TypeObject types */
 
@@ -196,7 +190,7 @@ class Type
         return Type(type);
     }
 
-    static inline Type ObjectType(RawObject obj);
+    static inline Type ObjectType(JSObject *obj);
     static inline Type ObjectType(TypeObject *obj);
     static inline Type ObjectType(TypeObjectKey *obj);
 };
@@ -387,8 +381,9 @@ enum {
      */
     OBJECT_FLAG_LENGTH_OVERFLOW       = 0x00040000,
 
-    /* Whether any represented script is considered uninlineable in JM. */
-    OBJECT_FLAG_UNINLINEABLE          = 0x00080000,
+    /*
+     * UNUSED FLAG                    = 0x00080000,
+     */
 
     /* Whether any objects have been iterated over. */
     OBJECT_FLAG_ITERATED              = 0x00100000,
@@ -399,8 +394,14 @@ enum {
     /* Whether any objects emulate undefined; see EmulatesUndefined. */
     OBJECT_FLAG_EMULATES_UNDEFINED    = 0x00400000,
 
+    /*
+     * For the function on a run-once script, whether the function has actually
+     * run multiple times.
+     */
+    OBJECT_FLAG_RUNONCE_INVALIDATED   = 0x00800000,
+
     /* Flags which indicate dynamic properties of represented objects. */
-    OBJECT_FLAG_DYNAMIC_MASK          = 0x007f0000,
+    OBJECT_FLAG_DYNAMIC_MASK          = 0x00ff0000,
 
     /*
      * Whether all properties of this object are considered unknown.
@@ -437,6 +438,8 @@ class TypeSet
         : flags(0), objectSet(NULL), constraintList(NULL)
     {}
 
+    TypeSet(Type type);
+
     void print();
 
     inline void sweep(JS::Zone *zone);
@@ -449,6 +452,7 @@ class TypeSet
     bool unknownObject() const { return !!(flags & (TYPE_FLAG_UNKNOWN | TYPE_FLAG_ANYOBJECT)); }
 
     bool empty() const { return !baseFlags() && !baseObjectCount(); }
+    bool noConstraints() const { return constraintList == NULL; }
 
     bool hasAnyFlag(TypeFlags flags) const {
         JS_ASSERT((flags & TYPE_FLAG_BASE_MASK) == flags);
@@ -468,7 +472,10 @@ class TypeSet
      * Clone a type set into an arbitrary allocator. The result should not be
      * modified further.
      */
-    const StackTypeSet *clone(LifoAlloc *alloc) const;
+    StackTypeSet *clone(LifoAlloc *alloc) const;
+
+    /* Join two type sets into a new set. The result should not be modified further. */
+    static StackTypeSet *unionSets(TypeSet *a, TypeSet *b, LifoAlloc *alloc);
 
     /*
      * Add a type to this set, calling any constraint handlers if this is a new
@@ -480,14 +487,21 @@ class TypeSet
     inline void setOwnProperty(JSContext *cx, bool configured);
 
     /*
+     * Add an object to this set using the specified allocator, without
+     * triggering constraints.
+     */
+    bool addObject(TypeObjectKey *key, LifoAlloc *alloc);
+
+    /*
      * Iterate through the objects in this set. getObjectCount overapproximates
      * in the hash case (see SET_ARRAY_SIZE in jsinferinlines.h), and getObject
      * may return NULL.
      */
     inline unsigned getObjectCount() const;
     inline TypeObjectKey *getObject(unsigned i) const;
-    inline RawObject getSingleObject(unsigned i) const;
+    inline JSObject *getSingleObject(unsigned i) const;
     inline TypeObject *getTypeObject(unsigned i) const;
+    inline TypeObject *getTypeOrSingleObject(JSContext *cx, unsigned i) const;
 
     void setOwnProperty(bool configurable) {
         flags |= TYPE_FLAG_OWN_PROPERTY;
@@ -542,6 +556,9 @@ class StackTypeSet : public TypeSet
 {
   public:
 
+    StackTypeSet() : TypeSet() {}
+    StackTypeSet(Type type) : TypeSet(type) {}
+
     /*
      * Make a type set with the specified debugging name, not embedded in
      * another structure.
@@ -552,9 +569,9 @@ class StackTypeSet : public TypeSet
 
     void addSubset(JSContext *cx, TypeSet *target);
     void addGetProperty(JSContext *cx, JSScript *script, jsbytecode *pc,
-                        StackTypeSet *target, RawId id);
+                        StackTypeSet *target, jsid id);
     void addSetProperty(JSContext *cx, JSScript *script, jsbytecode *pc,
-                        StackTypeSet *target, RawId id);
+                        StackTypeSet *target, jsid id);
     void addSetElement(JSContext *cx, JSScript *script, jsbytecode *pc,
                        StackTypeSet *objectTypes, StackTypeSet *valueTypes);
     void addCall(JSContext *cx, TypeCallsite *site);
@@ -576,6 +593,9 @@ class StackTypeSet : public TypeSet
 
     /* Get any type tag which all values in this set must have. */
     JSValueType getKnownTypeTag();
+
+    /* Whether any values in this set might have the specified type. */
+    bool mightBeType(JSValueType type);
 
     bool isMagicArguments() { return getKnownTypeTag() == JSVAL_TYPE_MAGIC; }
 
@@ -611,10 +631,10 @@ class StackTypeSet : public TypeSet
     bool isDOMClass();
 
     /* Get the single value which can appear in this type set, otherwise NULL. */
-    RawObject getSingleton();
+    JSObject *getSingleton();
 
     /* Whether any objects in the type set needs a barrier on id. */
-    bool propertyNeedsBarrier(JSContext *cx, RawId id);
+    bool propertyNeedsBarrier(JSContext *cx, jsid id);
 
     /*
      * Whether this set contains all types in other, except (possibly) the
@@ -627,14 +647,6 @@ class StackTypeSet : public TypeSet
      * null/undefined/int/double, or some combination of those.
      */
     bool knownNonStringPrimitive();
-
-    bool knownPrimitiveOrObject() {
-        TypeFlags flags = TYPE_FLAG_PRIMITIVE | TYPE_FLAG_ANYOBJECT;
-        if (baseFlags() & (~flags & TYPE_FLAG_BASE_MASK))
-            return false;
-
-        return true;
-    }
 
     enum DoubleConversion {
         /* All types in the set should use eager double conversion. */
@@ -671,7 +683,7 @@ class HeapTypeSet : public TypeSet
 
     void addSubset(JSContext *cx, TypeSet *target);
     void addGetProperty(JSContext *cx, JSScript *script, jsbytecode *pc,
-                        StackTypeSet *target, RawId id);
+                        StackTypeSet *target, jsid id);
     void addCallProperty(JSContext *cx, JSScript *script, jsbytecode *pc, jsid id);
     void addFilterPrimitives(JSContext *cx, TypeSet *target);
     void addSubsetBarrier(JSContext *cx, JSScript *script, jsbytecode *pc, TypeSet *target);
@@ -707,7 +719,7 @@ class HeapTypeSet : public TypeSet
     bool knownSubset(JSContext *cx, TypeSet *other);
 
     /* Get the single value which can appear in this type set, otherwise NULL. */
-    RawObject getSingleton(JSContext *cx);
+    JSObject *getSingleton(JSContext *cx);
 
     /*
      * Whether a location with this TypeSet needs a write barrier (i.e., whether
@@ -850,7 +862,7 @@ struct Property
     inline Property(jsid id);
     inline Property(const Property &o);
 
-    static uint32_t keyBits(RawId id) { return uint32_t(JSID_BITS(id)); }
+    static uint32_t keyBits(jsid id) { return uint32_t(JSID_BITS(id)); }
     static jsid getKey(Property *p) { return p->id; }
 };
 
@@ -950,7 +962,7 @@ struct TypeObject : gc::Cell
      * object whose type has not been constructed yet.
      */
     static const size_t LAZY_SINGLETON = 1;
-    bool lazy() const { return singleton == (RawObject) LAZY_SINGLETON; }
+    bool lazy() const { return singleton == (JSObject *) LAZY_SINGLETON; }
 
     /* Flags for this object. */
     TypeObjectFlags flags;
@@ -1038,10 +1050,10 @@ struct TypeObject : gc::Cell
      * assignment, and the own types of the property will be used instead of
      * aggregate types.
      */
-    inline HeapTypeSet *getProperty(JSContext *cx, RawId id, bool own);
+    inline HeapTypeSet *getProperty(JSContext *cx, jsid id, bool own);
 
     /* Get a property only if it already exists. */
-    inline HeapTypeSet *maybeGetProperty(RawId id, JSContext *cx);
+    inline HeapTypeSet *maybeGetProperty(jsid id, JSContext *cx);
 
     inline unsigned getPropertyCount();
     inline Property *getProperty(unsigned i);
@@ -1054,7 +1066,7 @@ struct TypeObject : gc::Cell
 
     /* Helpers */
 
-    bool addProperty(JSContext *cx, RawId id, Property **pprop);
+    bool addProperty(JSContext *cx, jsid id, Property **pprop);
     bool addDefiniteProperties(JSContext *cx, JSObject *obj);
     bool matchDefiniteProperties(HandleObject obj);
     void addPrototype(JSContext *cx, TypeObject *proto);
@@ -1156,7 +1168,7 @@ struct TypeCallsite
     /* Type set receiving the return value of this call. */
     StackTypeSet *returnTypes;
 
-    inline TypeCallsite(JSContext *cx, RawScript script, jsbytecode *pc,
+    inline TypeCallsite(JSContext *cx, JSScript *script, jsbytecode *pc,
                         bool isNew, unsigned argumentCount);
 };
 
@@ -1167,6 +1179,12 @@ class TypeScript
 
     /* Analysis information for the script, cleared on each GC. */
     analyze::ScriptAnalysis *analysis;
+
+    /*
+     * List mapping indexes of bytecode type sets to the offset of the opcode
+     * they correspond to. Cleared on each GC.
+     */
+    uint32_t *bytecodeMap;
 
   public:
     /* Dynamic types generated at points within this script. */
@@ -1182,21 +1200,17 @@ class TypeScript
     /* Array of type type sets for variables and JOF_TYPESET ops. */
     TypeSet *typeArray() { return (TypeSet *) (uintptr_t(this) + sizeof(TypeScript)); }
 
-    static inline unsigned NumTypeSets(RawScript script);
+    static inline unsigned NumTypeSets(JSScript *script);
 
-    static inline HeapTypeSet  *ReturnTypes(RawScript script);
-    static inline StackTypeSet *ThisTypes(RawScript script);
-    static inline StackTypeSet *ArgTypes(RawScript script, unsigned i);
-    static inline StackTypeSet *LocalTypes(RawScript script, unsigned i);
+    static inline HeapTypeSet  *ReturnTypes(JSScript *script);
+    static inline StackTypeSet *ThisTypes(JSScript *script);
+    static inline StackTypeSet *ArgTypes(JSScript *script, unsigned i);
 
     /* Follows slot layout in jsanalyze.h, can get this/arg/local type sets. */
-    static inline StackTypeSet *SlotTypes(RawScript script, unsigned slot);
+    static inline StackTypeSet *SlotTypes(JSScript *script, unsigned slot);
 
-#ifdef DEBUG
-    /* Check that correct types were inferred for the values pushed by this bytecode. */
-    static void CheckBytecode(JSContext *cx, HandleScript script, jsbytecode *pc,
-                              const js::Value *sp);
-#endif
+    /* Get the type set for values observed at an opcode. */
+    static inline StackTypeSet *BytecodeTypes(JSScript *script, jsbytecode *pc);
 
     /* Get the default 'new' object for a given standard class, per the script's global. */
     static inline TypeObject *StandardType(JSContext *cx, JSProtoKey kind);
@@ -1235,17 +1249,14 @@ class TypeScript
     /* Add a type for a variable in a script. */
     static inline void SetThis(JSContext *cx, JSScript *script, Type type);
     static inline void SetThis(JSContext *cx, JSScript *script, const js::Value &value);
-    static inline void SetLocal(JSContext *cx, JSScript *script, unsigned local, Type type);
-    static inline void SetLocal(JSContext *cx, JSScript *script, unsigned local,
-                                const js::Value &value);
     static inline void SetArgument(JSContext *cx, JSScript *script, unsigned arg, Type type);
     static inline void SetArgument(JSContext *cx, JSScript *script, unsigned arg,
                                    const js::Value &value);
 
-    static void AddFreezeConstraints(JSContext *cx, HandleScript script);
+    static void AddFreezeConstraints(JSContext *cx, JSScript *script);
     static void Purge(JSContext *cx, HandleScript script);
 
-    static void Sweep(FreeOp *fop, RawScript script);
+    static void Sweep(FreeOp *fop, JSScript *script);
     void destroy();
 };
 
@@ -1268,7 +1279,6 @@ typedef HashMap<AllocationSiteKey,ReadBarriered<TypeObject>,AllocationSiteKey,Sy
 struct CompilerOutput
 {
     enum Kind {
-        MethodJIT,
         Ion,
         ParallelIon
     };
@@ -1279,17 +1289,13 @@ struct CompilerOutput
     // but, for portability, bitfields are limited to bool, int, and
     // unsigned int.  You should really use the accessor below.
     unsigned kindInt : 2;
-    bool constructing : 1;
-    bool barriers : 1;
     bool pendingRecompilation : 1;
-    uint32_t chunkIndex:27;
 
     CompilerOutput();
 
     Kind kind() const { return static_cast<Kind>(kindInt); }
     void setKind(Kind k) { kindInt = k; }
 
-    mjit::JITScript *mjit() const;
     ion::IonScript *ion() const;
 
     bool isValid() const;
@@ -1354,14 +1360,6 @@ struct TypeCompartment
     Vector<RecompileInfo> *pendingRecompiles;
 
     /*
-     * Number of recompilation events and inline frame expansions that have
-     * occurred in this compartment. If these change, code should not count on
-     * compiled code or the current stack being intact.
-     */
-    unsigned recompilations;
-    unsigned frameExpansions;
-
-    /*
      * Script currently being compiled. All constraints which look for type
      * changes inducing recompilation are keyed to this script. Note: script
      * compilation is not reentrant.
@@ -1422,7 +1420,7 @@ struct TypeCompartment
 
     /* Mark a script as needing recompilation once inference has finished. */
     void addPendingRecompile(JSContext *cx, const RecompileInfo &info);
-    void addPendingRecompile(JSContext *cx, RawScript script, jsbytecode *pc);
+    void addPendingRecompile(JSContext *cx, JSScript *script);
 
     /* Monitor future effects on a bytecode. */
     void monitorBytecode(JSContext *cx, JSScript *script, uint32_t offset,
@@ -1507,4 +1505,4 @@ MOZ_NORETURN void TypeFailure(JSContext *cx, const char *fmt, ...);
 } /* namespace types */
 } /* namespace js */
 
-#endif // jsinfer_h___
+#endif /* jsinfer_h */

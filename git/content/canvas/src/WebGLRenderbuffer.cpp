@@ -5,13 +5,14 @@
 
 #include "WebGLContext.h"
 #include "WebGLRenderbuffer.h"
+#include "WebGLTexture.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "nsContentUtils.h"
 
 using namespace mozilla;
 
 JSObject*
-WebGLRenderbuffer::WrapObject(JSContext *cx, JSObject *scope) {
+WebGLRenderbuffer::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope) {
     return dom::WebGLRenderbufferBinding::Wrap(cx, scope, this);
 }
 

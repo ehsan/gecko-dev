@@ -31,16 +31,14 @@ public:
   // Forward to base class
   NS_FORWARD_TO_NSDOMMOUSEEVENT
 
-  virtual nsresult InitFromCtor(const nsAString& aType,
-                                JSContext* aCx, JS::Value* aVal);
-
   static
   already_AddRefed<DOMWheelEvent> Constructor(const GlobalObject& aGlobal,
                                               const nsAString& aType,
                                               const WheelEventInit& aParam,
                                               mozilla::ErrorResult& aRv);
 
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
+  virtual JSObject* WrapObject(JSContext* aCx,
+                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
     return mozilla::dom::WheelEventBinding::Wrap(aCx, aScope, this);
   }

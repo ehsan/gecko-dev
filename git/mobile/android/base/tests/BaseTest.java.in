@@ -18,7 +18,10 @@ import android.os.Build;
 import android.os.SystemClock;
 import android.test.ActivityInstrumentationTestCase2;
 import android.util.DisplayMetrics;
+import android.view.inputmethod.InputMethodManager;
 import android.view.View;
+import android.widget.Button;
+import android.widget.ListAdapter;
 import android.widget.ListView;
 import java.io.File;
 import java.io.InputStream;
@@ -50,6 +53,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     protected String mRawBaseUrl;
     private String mLogFile;
     protected String mProfile;
+    public Device mDevice;
 
     protected void blockForGeckoReady() {
         try {
@@ -63,6 +67,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
             if (!ret.booleanValue()) {
                 geckoReadyExpector.blockForEvent();
             }
+            geckoReadyExpector.unregisterListener();
         } catch (Exception e) {
             mAsserter.dumpLog("Exception in blockForGeckoReady", e);
         }
@@ -117,6 +122,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         mSolo = new Solo(getInstrumentation(), mActivity);
         mDriver = new FennecNativeDriver(mActivity, mSolo, rootPath);
         mActions = new FennecNativeActions(mActivity, mSolo, getInstrumentation(), mAsserter);
+        mDevice = new Device();
     }
 
     @Override
@@ -167,35 +173,42 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
             mAsserter.ok(clicked != false, "checking that awesome bar clicked", "awesome bar was clicked");
             return null;
         }
-        // Wait for click to take effect before waiting for activity
-        // (otherwise we sometimes get the previous activity).
-        // Previously, waitForIdleSync was used here but it was found
-        // to hang very occasionally.
-        mSolo.sleep(2000);
-        Activity activity = inst.waitForMonitor(monitor);
+        inst.waitForMonitor(monitor);
         // Give the activity time to render itself and initialize views 
         // before continuing, so that views are created before access
         // attempts are made. Again, waitForIdleSync was used here
         // previously, but replaced with a sleep to avoid hangs.
         // TODO: Investigate and document why these pauses are required.
         mSolo.sleep(2000);
-        return activity;
+
+        return mSolo.getCurrentActivity();
     }
 
     /**
      * Click on the awesome bar element and return the resulting activity.
      * @return The created activity, or null if the awesome bar cannot be clicked.
      */
+    private Activity mAwesomeActivity;
     protected final Activity clickOnAwesomeBar() {
-        Activity activity = null;
-        Element awesomebar = mDriver.findElement(mActivity, "awesome_bar");
-        if (awesomebar != null) {
-            activity = getActivityFromClick(awesomebar);
-            if (activity == null) {
-                mAsserter.dumpLog("failed to click on awesome bar!");
+        mAwesomeActivity = null;
+        boolean success = waitForTest(new BooleanTest() {
+            @Override
+            public boolean test() {
+                Element awesomebar = mDriver.findElement(mActivity, "browser_toolbar");
+                if (awesomebar != null) {
+                    mAwesomeActivity = getActivityFromClick(awesomebar);
+                    if (mAwesomeActivity == null) {
+                        mAsserter.dumpLog("failed to click on awesome bar!");
+                    }
+                    return mSolo.waitForText("History", 1, MAX_WAIT_MS);
+                }
+                return false;
             }
-        }
-        return activity;
+        }, MAX_WAIT_MS*5);
+
+        if (!success)
+            mAsserter.dumpLog("failed to find History");
+        return mAwesomeActivity;
     }
 
     protected final void enterUrl(String url) {
@@ -214,11 +227,39 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         mActions.sendSpecialKey(Actions.SpecialKey.ENTER);
         // wait for screen to load
         contentEventExpecter.blockForEvent();
+        contentEventExpecter.unregisterListener();
     }
 
+    /**
+     * Load <code>url</code> using the awesome bar UI and sending key strokes.
+     *
+     * This method waits synchronously for the <code>DOMContentLoaded</code>
+     * message from Gecko before returning.
+     */
     protected final void loadUrl(String url) {
         enterUrl(url);
         hitEnterAndWait();
+    }
+
+    /**
+     * Load <code>url</code> using reflection and the internal
+     * <code>org.mozilla.gecko.Tabs</code> API.
+     *
+     * This method does not wait for any confirmation from Gecko before
+     * returning.
+     */
+    protected final void loadUrlInTab(final String url) {
+        try {
+            ClassLoader classLoader = getActivity().getClassLoader();
+            Class tabsClass = classLoader.loadClass("org.mozilla.gecko.Tabs");
+            Method getInstance = tabsClass.getMethod("getInstance");
+            Method loadUrlInTab = tabsClass.getMethod("loadUrlInTab", String.class);
+            Object tabs = getInstance.invoke(null);
+            loadUrlInTab.invoke(tabs, new Object[] { url });
+        } catch (Exception e) {
+            mAsserter.dumpLog("Exception in loadUrlInTab", e);
+            throw new RuntimeException(e);
+        }
     }
 
     public final void verifyUrl(String url) {
@@ -358,6 +399,25 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         return rc;
     }
 
+    /** 
+     * Select <item> from Menu > "Settings" > <section>
+     */
+    public void selectSettingsItem(String section, String item) {
+        String itemName = "^" + item + "$";
+        selectMenuItem("Settings");
+        // On tablets, settings are arranged in a hierarchy; if the item is not 
+        // in the first ("General") section, the section must be selected first.
+        if (mDevice.type.equals("tablet") && 
+            section != null &&
+            !section.equals("General")) {
+            String sectionName = "^" + section + "$";
+            waitForText(sectionName);
+            mSolo.clickOnText(sectionName);
+        }
+        waitForText(itemName);
+        mSolo.clickOnText(itemName);
+    }
+
     public final void selectMenuItem(String menuItemName) {
         // build the item name ready to be used
         String itemName = "^" + menuItemName + "$";
@@ -404,10 +464,39 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
 
     public final void verifyTabCount(int expectedTabCount) {
         Activity activity = getActivity();
-        Element tabCount = mDriver.findElement(activity, "tabs_count");
+        Element tabCount = mDriver.findElement(activity, "tabs_counter");
         String tabCountText = tabCount.getText();
         int tabCountInt = Integer.parseInt(tabCountText);
         mAsserter.is(tabCountInt, expectedTabCount, "The correct number of tabs are opened");
+    }
+
+    // Used to perform clicks on pop-up buttons without having to close the virtual keyboard
+    public void clickOnButton(String label) {
+        final Button button = mSolo.getButton(label);
+        try {
+            runTestOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    button.performClick();
+                }
+            });
+       } catch (Throwable throwable) {
+           mAsserter.ok(false, "Unable to click the button","Was unable to click button ");
+       }
+    }
+
+    // Used to hide/show the virtual keyboard
+    public void toggleVKB() {
+        InputMethodManager imm = (InputMethodManager) getActivity().getSystemService(Activity.INPUT_METHOD_SERVICE);
+        imm.toggleSoftInput(InputMethodManager.HIDE_IMPLICIT_ONLY, 0);
+    }
+
+    protected boolean isBookmark(String[] bookmarks, String aValue) {
+        for (int i = 0; i < bookmarks.length; i++) {
+            if (bookmarks[i].equals(aValue))
+                return true;
+        }
+        return false;
     }
 
     private ListView getAwesomeList(String waitText, int expectedChildCount,
@@ -425,7 +514,12 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
                 for (ListView view : views) {
                     if (view.getTag().equals(tagName)) {
                         tabView = view;
-                        childCount = view.getAdapter().getCount();
+                        ListAdapter adapter = view.getAdapter();
+                        if (adapter != null) {
+                            childCount = adapter.getCount();
+                        } else {
+                            childCount = 0;
+                        }
                         if (expectedChildCount < 0 || expectedChildCount == childCount) {
                             return view;
                         }
@@ -584,9 +678,9 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         mSolo.clickOnText("Bookmarks");
         child = list.getChildAt(bookmarkIndex);
         mAsserter.ok(child != null, "edit item can be retrieved", child != null ? child.toString() : "null!");
-        waitForText("about:home|Firefox");
+        waitForText("Switch to tab");
         mSolo.clickLongOnView(child);
-        waitForText("Open in New Tab");
+        waitForText("Share");
         mSolo.clickOnText("Edit");
         waitForText("Edit Bookmark");
 
@@ -598,7 +692,6 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         mActions.sendKeys(addedText);
         mSolo.clickOnText("OK");
         waitForText("Bookmark updated");
-        mActions.sendSpecialKey(Actions.SpecialKey.BACK); // close the VKB
     }
 
     public boolean checkBookmarkEdit(int bookmarkIndex, String addedText, ListView list) {
@@ -608,50 +701,37 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         mSolo.clickOnText("Bookmarks");
         child = list.getChildAt(bookmarkIndex);
         mAsserter.ok(child != null, "check item can be retrieved", child != null ? child.toString() : "null!");
-        waitForText("about:home|Firefox");
+        waitForText("Switch to tab");
         mSolo.clickLongOnView(child);
-        waitForText("Open in New Tab");
+        waitForText("Share");
         mSolo.clickOnText("Edit");
         waitForText("Edit Bookmark");
 
-        // If the OS is not Gingerbread the vkb will be opened so we need to close it in order to press the "Cancel" button
-        if (!(mDevice.version.equals("2.x"))) {
-            mActions.sendSpecialKey(Actions.SpecialKey.BACK); // close the VKB
-        }
-
         // Check if the new text was added
         if (mSolo.searchText(addedText)) {
-            mSolo.clickOnText("Cancel");
+            clickOnButton("Cancel");
             waitForText("about:home");
-            mActions.sendSpecialKey(Actions.SpecialKey.BACK); // close the VKB
             return true;
         } else {
-            mSolo.clickOnText("Cancel");
+            clickOnButton("Cancel");
             waitForText("about:home");
-            mActions.sendSpecialKey(Actions.SpecialKey.BACK); // close the VKB
             return false;
         }
     }
 
     class Device {
-        Build.VERSION mBuildVersion;
-        public String version; // 2.x or 3.x or 4.x
+        public final String version; // 2.x or 3.x or 4.x
         public String type; // "tablet" or "phone"
-        public int width;
-        public int height;
+        public final int width;
+        public final int height;
 
         public Device() {
-            detectDevice();
-        }
-
-        private void detectDevice() {
             // Determine device version
-            mBuildVersion = new Build.VERSION();
-            int mSDK = mBuildVersion.SDK_INT;
-            if (mSDK < Build.VERSION_CODES.HONEYCOMB) {
+            int sdk = Build.VERSION.SDK_INT;
+            if (sdk < Build.VERSION_CODES.HONEYCOMB) {
                 version = "2.x";
             } else {
-                if (mSDK > Build.VERSION_CODES.HONEYCOMB_MR2) {
+                if (sdk > Build.VERSION_CODES.HONEYCOMB_MR2) {
                     version = "4.x";
                 } else {
                     version = "3.x";

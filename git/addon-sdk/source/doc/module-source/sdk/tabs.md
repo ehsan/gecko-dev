@@ -55,7 +55,8 @@ property you can load a new page in the tab:
 
 You can attach a [content script](dev-guide/guides/content-scripts/index.html)
 to the page hosted in a tab, and use that to access and manipulate the page's
-content:
+content (see the
+[Modifying the Page Hosted by a Tab](dev-guide/tutorials/modifying-web-pages-tab.html) tutorial):
 
     var tabs = require("sdk/tabs");
 
@@ -169,6 +170,12 @@ This is an optional property.
 @prop [onReady] {function}
 A callback function that will be registered for 'ready' event.
 This is an optional property.
+@prop [onLoad] {function}
+A callback function that will be registered for 'load' event.
+This is an optional property.
+@prop [onPageShow] {function}
+A callback function that will be registered for 'pageshow' event.
+This is an optional property.
 @prop [onActivate] {function}
 A callback function that will be registered for 'activate' event.
 This is an optional property.
@@ -186,6 +193,11 @@ registration.
 Tabs emit all the events described in the Events section. Listeners are
 passed the `Tab` object that triggered the event.
 
+<api name="id">
+@property {string}
+The unique id for the tab. This property is read-only.
+</api>
+
 <api name="title">
 @property {string}
 The title of the tab (usually the title of the page currently loaded in the tab)
@@ -202,6 +214,12 @@ This property can be set to load a different URL in the tab.
 @property {string}
 The URL of the favicon for the page currently loaded in the tab.
 This property is read-only.
+
+<div class="warning">
+  This property is deprecated.
+  From version 1.15, use the <a href="modules/sdk/places/favicon.html#getFavicon()">favicon module's <code>getFavicon()</code></a> function instead.
+</div>
+
 </api>
 
 <api name="contentType">
@@ -301,8 +319,10 @@ Returns thumbnail data URI of the page currently loaded in this tab.
     content script. Optional.
 
 @returns {Worker}
+  The [Worker](modules/sdk/content/worker.html#Worker) object can be used to
+  communicate with the content script.
   See [Content Scripts guide](dev-guide/guides/content-scripts/index.html)
-  to learn how to use the `Worker` object to communicate with the content script.
+  to learn the details.
 
 </api>
 
@@ -330,6 +350,47 @@ content can be used.
 
 @argument {Tab}
 Listeners are passed the tab object.
+</api>
+
+<api name="load">
+@event
+
+This event is emitted when the page for the tab's content is loaded. It is
+equivalent to the `load` event for the given content page.
+
+A single tab will emit this event every time the page is loaded: so it will be
+emitted again if the tab's location changes or the content is reloaded.
+
+After this event has been emitted, all properties relating to the tab's
+content can be used.
+
+This is fired after the `ready` event on DOM content pages and can be used
+for pages that do not have a `DOMContentLoaded` event, like images.
+
+@argument {Tab}
+Listeners are passed the tab object.
+</api>
+
+<api name="pageshow">
+@event
+
+This event is emitted when the page for the tab's content is potentially
+from the cache. It is equivilent to the [pageshow](https://developer.mozilla.org/en-US/docs/DOM/Mozilla_event_reference/pageshow) event for the given
+content page.
+
+After this event has been emitted, all properties relating to the tab's
+content can be used.
+
+While the `ready` and `load` events will not be fired when a user uses the back
+or forward buttons to navigate history, the `pageshow` event will be fired.
+If the `persisted` argument is true, then the contents were loaded from the
+bfcache.
+
+@argument {Tab}
+Listeners are passed the tab object.
+@argument {persisted}
+Listeners are passed a boolean value indicating whether or not the page
+was loaded from the [bfcache](https://developer.mozilla.org/en-US/docs/Working_with_BFCache) or not.
 </api>
 
 <api name="activate">

@@ -3,15 +3,72 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 (function() {
-  const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
-  Cu.import("resource://gre/modules/Services.jsm");
-  let theme = Services.prefs.getCharPref("devtools.theme");
-  let theme_url = Services.io.newURI("chrome://browser/skin/devtools/" + theme + "-theme.css", null, null);
-  let winUtils = window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-  winUtils.loadSheet(theme_url, window.AUTHOR_SHEET);
-  if (theme == "dark") {
-    let scrollbar_url = Services.io.newURI("chrome://browser/skin/devtools/floating-scrollbars-light.css", null, null);
-    winUtils.loadSheet(scrollbar_url, window.AGENT_SHEET);
+  const DEVTOOLS_SKIN_URL = "chrome://browser/skin/devtools/";
+
+  function forceStyle() {
+    let computedStyle = window.getComputedStyle(document.documentElement);
+    if (!computedStyle) {
+      // Null when documentElement is not ready. This method is anyways not
+      // required then as scrollbars would be in their state without flushing.
+      return;
+    }
+    let display = computedStyle.display; // Save display value
+    document.documentElement.style.display = "none";
+    window.getComputedStyle(document.documentElement).display; // Flush
+    document.documentElement.style.display = display; // Restore
   }
-  document.documentElement.classList.add("theme-" + theme);
-})()
+
+  function switchTheme(newTheme, oldTheme) {
+    let winUtils = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIDOMWindowUtils);
+
+    if (oldTheme && newTheme != oldTheme) {
+      let oldThemeUrl = Services.io.newURI(
+        DEVTOOLS_SKIN_URL + oldTheme + "-theme.css", null, null);
+      try {
+        winUtils.removeSheet(oldThemeUrl, window.AUTHOR_SHEET);
+      } catch(ex) {}
+    }
+
+    let newThemeUrl = Services.io.newURI(
+      DEVTOOLS_SKIN_URL + newTheme + "-theme.css", null, null);
+    winUtils.loadSheet(newThemeUrl, window.AUTHOR_SHEET);
+
+    // Floating scrollbars à la osx
+    if (Services.appinfo.OS != "Darwin") {
+      let scrollbarsUrl = Services.io.newURI(
+        DEVTOOLS_SKIN_URL + "floating-scrollbars-light.css", null, null);
+
+      if (newTheme == "dark") {
+        winUtils.loadSheet(scrollbarsUrl, window.AGENT_SHEET);
+      } else if (oldTheme == "dark") {
+        try {
+          winUtils.removeSheet(scrollbarsUrl, window.AGENT_SHEET);
+        } catch(ex) {}
+      }
+      forceStyle();
+    }
+
+    document.documentElement.classList.remove("theme-" + oldTheme);
+    document.documentElement.classList.add("theme-" + newTheme);
+  }
+
+  function handlePrefChange(event, data) {
+    if (data.pref == "devtools.theme") {
+      switchTheme(data.newValue, data.oldValue);
+    }
+  }
+
+  const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
+
+  Cu.import("resource://gre/modules/Services.jsm");
+  Cu.import("resource:///modules/devtools/gDevTools.jsm");
+
+  let theme = Services.prefs.getCharPref("devtools.theme");
+  switchTheme(theme);
+
+  gDevTools.on("pref-changed", handlePrefChange);
+  window.addEventListener("unload", function() {
+    gDevTools.off("pref-changed", handlePrefChange);
+  });
+})();

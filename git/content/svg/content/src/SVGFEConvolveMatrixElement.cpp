@@ -20,7 +20,7 @@ static const unsigned short SVG_EDGEMODE_WRAP = 2;
 static const unsigned short SVG_EDGEMODE_NONE = 3;
 
 JSObject*
-SVGFEConvolveMatrixElement::WrapNode(JSContext* aCx, JSObject* aScope)
+SVGFEConvolveMatrixElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return SVGFEConvolveMatrixElementBinding::Wrap(aCx, aScope, this);
 }
@@ -85,7 +85,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEConvolveMatrixElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<nsIDOMSVGAnimatedString>
+already_AddRefed<SVGAnimatedString>
 SVGFEConvolveMatrixElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);

@@ -6,6 +6,7 @@
   <script type="application/javascript" src="head.js"></script>
   <script type="application/javascript" src="mediaStreamPlayback.js"></script>
   <script type="application/javascript" src="pc.js"></script>
+  <script type="application/javascript" src="templates.js"></script>
 </head>
 <body>
 <pre id="test">
@@ -20,7 +21,7 @@
     test = new PeerConnectionTest();
     test.setMediaConstraints([{video: true}], [{video: true}]);
     test.run();
-  }, true);
+  });
 </script>
 </pre>
 </body>

@@ -698,11 +698,10 @@ nsDocumentViewer::InitPresentationStuff(bool aDoInitialReflow)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Now make the shell for the document
-  rv = mDocument->CreateShell(mPresContext, mViewManager, styleSet,
-                              getter_AddRefs(mPresShell));
-  if (NS_FAILED(rv)) {
+  mPresShell = mDocument->CreateShell(mPresContext, mViewManager, styleSet);
+  if (!mPresShell) {
     delete styleSet;
-    return rv;
+    return NS_ERROR_FAILURE;
   }
 
   // We're done creating the style set
@@ -933,8 +932,7 @@ nsDocumentViewer::InitInternal(nsIWidget* aParentWidget,
                             getter_AddRefs(window));
 
     if (window) {
-      nsCOMPtr<nsIDocument> curDoc =
-        do_QueryInterface(window->GetExtantDocument());
+      nsCOMPtr<nsIDocument> curDoc = window->GetExtantDoc();
       if (aForceSetNewDocument || curDoc != mDocument) {
         window->SetNewDocument(mDocument, aState, false);
         nsJSContext::LoadStart();
@@ -1543,12 +1541,6 @@ nsDocumentViewer::Destroy()
         nsView *rootView = vm->GetRootView();
 
         if (rootView) {
-          // The invalidate that removing this view causes is dropped because
-          // the Freeze call above sets painting to be suppressed for our
-          // document. So we do it ourselves and make it happen.
-          vm->InvalidateViewNoSuppression(rootView,
-            rootView->GetBounds() - rootView->GetPosition());
-
           nsView *rootViewParent = rootView->GetParent();
           if (rootViewParent) {
             nsViewManager *parentVM = rootViewParent->GetViewManager();
@@ -1564,14 +1556,8 @@ nsDocumentViewer::Destroy()
 
     // This is after Hide() so that the user doesn't see the inputs clear.
     if (mDocument) {
-      nsresult rv = mDocument->Sanitize();
-      if (NS_FAILED(rv)) {
-        // If we failed to sanitize, don't save presentation.
-        // XXX Shouldn't we run all the stuff after the |if (mSHEntry)| then?
-        savePresentation = false;
-      }
+      mDocument->Sanitize();
     }
-
 
     // Reverse ownership. Do this *after* calling sanitize so that sanitize
     // doesn't cause mutations that make the SHEntry drop the presentation
@@ -2800,6 +2786,11 @@ SetExtResourceFullZoom(nsIDocument* aDocument, void* aClosure)
 NS_IMETHODIMP
 nsDocumentViewer::SetTextZoom(float aTextZoom)
 {
+  // If we don't have a document, then we need to bail.
+  if (!mDocument) {
+    return NS_ERROR_FAILURE;
+  }
+
   if (GetIsPrintPreview()) {
     return NS_OK;
   }
@@ -2837,6 +2828,11 @@ nsDocumentViewer::GetTextZoom(float* aTextZoom)
 NS_IMETHODIMP
 nsDocumentViewer::SetMinFontSize(int32_t aMinFontSize)
 {
+  // If we don't have a document, then we need to bail.
+  if (!mDocument) {
+    return NS_ERROR_FAILURE;
+  }
+
   if (GetIsPrintPreview()) {
     return NS_OK;
   }
@@ -2901,6 +2897,11 @@ nsDocumentViewer::SetFullZoom(float aFullZoom)
     return NS_OK;
   }
 #endif
+
+  // If we don't have a document, then we need to bail.
+  if (!mDocument) {
+    return NS_ERROR_FAILURE;
+  }
 
   mPageZoom = aFullZoom;
 
@@ -3349,7 +3350,7 @@ nsDocumentViewer::GetPopupNode(nsIDOMNode** aNode)
     if (!node) {
       nsPIDOMWindow* rootWindow = root->GetWindow();
       if (rootWindow) {
-        nsCOMPtr<nsIDocument> rootDoc = do_QueryInterface(rootWindow->GetExtantDocument());
+        nsCOMPtr<nsIDocument> rootDoc = rootWindow->GetExtantDoc();
         if (rootDoc) {
           nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
           if (pm) {

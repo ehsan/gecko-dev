@@ -736,9 +736,9 @@ OpenDir(const nsAFlatString &name, nsDir * *dir)
      //If 'name' ends in a slash or backslash, do not append
      //another backslash.
     if (filename.Last() == L'/' || filename.Last() == L'\\')
-        filename.AppendASCII("*");
+        filename.Append('*');
     else 
-        filename.AppendASCII("\\*");
+        filename.AppendLiteral("\\*");
 
     filename.ReplaceChar(L'/', L'\\');
 
@@ -1041,7 +1041,7 @@ nsLocalFile::ResolveAndStat()
     // slutty hack designed to work around bug 134796 until it is fixed
     nsAutoString nsprPath(mWorkingPath.get());
     if (mWorkingPath.Length() == 2 && mWorkingPath.CharAt(1) == L':') 
-        nsprPath.AppendASCII("\\");
+        nsprPath.Append('\\');
 
     // first we will see if the working path exists. If it doesn't then
     // there is nothing more that can be done
@@ -1787,7 +1787,7 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
     nsAutoString destPath;
     destParent->GetTarget(destPath);
 
-    destPath.AppendASCII("\\");
+    destPath.Append('\\');
 
     if (newName.IsEmpty())
     {
@@ -1826,43 +1826,32 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
     int copyOK;
     DWORD dwVersion = GetVersion();
     DWORD dwMajorVersion = (DWORD)(LOBYTE(LOWORD(dwVersion)));
-    DWORD dwCopyFlags = 0;
+    DWORD dwCopyFlags = COPY_FILE_ALLOW_DECRYPTED_DESTINATION;
     if (dwMajorVersion > 5) {
         bool path1Remote, path2Remote;
         if (!IsRemoteFilePath(filePath.get(), path1Remote) || 
             !IsRemoteFilePath(destPath.get(), path2Remote) ||
             path1Remote || path2Remote) {
-            dwCopyFlags = COPY_FILE_NO_BUFFERING;
+            dwCopyFlags |= COPY_FILE_NO_BUFFERING;
         }
     }
     
     if (!move)
+    {
         copyOK = ::CopyFileExW(filePath.get(), destPath.get(), NULL, NULL, NULL, dwCopyFlags);
-    else {
-        DWORD status;
-        if (FileEncryptionStatusW(filePath.get(), &status)
-            && status == FILE_IS_ENCRYPTED)
+    }
+    else
+    {
+        copyOK = ::MoveFileExW(filePath.get(), destPath.get(), MOVEFILE_REPLACE_EXISTING);
+
+        // Check if copying the source file to a different volume,
+        // as this could be an SMBV2 mapped drive.
+        if (!copyOK && GetLastError() == ERROR_NOT_SAME_DEVICE)
         {
-            dwCopyFlags |= COPY_FILE_ALLOW_DECRYPTED_DESTINATION;
             copyOK = CopyFileExW(filePath.get(), destPath.get(), NULL, NULL, NULL, dwCopyFlags);
 
             if (copyOK)
                 DeleteFileW(filePath.get());
-        }
-        else
-        {
-            copyOK = ::MoveFileExW(filePath.get(), destPath.get(),
-                                   MOVEFILE_REPLACE_EXISTING);
-            
-            // Check if copying the source file to a different volume,
-            // as this could be an SMBV2 mapped drive.
-            if (!copyOK && GetLastError() == ERROR_NOT_SAME_DEVICE)
-            {
-                copyOK = CopyFileExW(filePath.get(), destPath.get(), NULL, NULL, NULL, dwCopyFlags);
-            
-                if (copyOK)
-                    DeleteFile(filePath.get());
-            }
         }
     }
 
@@ -3427,7 +3416,7 @@ nsresult nsDriveEnumerator::Init()
      * the length required for the string. */
     DWORD length = GetLogicalDriveStringsW(0, 0);
     /* The string is null terminated */
-    if (!EnsureStringLength(mDrives, length+1))
+    if (!mDrives.SetLength(length+1, fallible_t()))
         return NS_ERROR_OUT_OF_MEMORY;
     if (!GetLogicalDriveStringsW(length, mDrives.BeginWriting()))
         return NS_ERROR_FAILURE;

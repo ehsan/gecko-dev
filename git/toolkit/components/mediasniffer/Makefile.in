@@ -16,14 +16,5 @@ MODULE_NAME = nsMediaSnifferModule
 IS_COMPONENT = 1
 
 
-CPPSRCS = \
-    nsMediaSniffer.cpp \
-    nsMediaSnifferModule.cpp \
-    $(NULL)
-
-EXPORTS = \
-    nsMediaSniffer.h \
-    $(NULL)
-
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/config/rules.mk

@@ -25,15 +25,15 @@ NS_IMPL_RELEASE_INHERITED(HTMLDivElement, Element)
 
 // QueryInterface implementation for HTMLDivElement
 NS_INTERFACE_TABLE_HEAD(HTMLDivElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLDivElement, nsIDOMHTMLDivElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLDivElement,
-                                               nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(HTMLDivElement, nsIDOMHTMLDivElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLDivElement)
 
 JSObject*
-HTMLDivElement::WrapNode(JSContext *aCx, JSObject *aScope)
+HTMLDivElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
   return dom::HTMLDivElementBinding::Wrap(aCx, aScope, this);
 }

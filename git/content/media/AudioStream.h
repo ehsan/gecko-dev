@@ -77,8 +77,6 @@ class AudioClock
     int mInRate;
     // True if the we are timestretching, false if we are resampling.
     bool mPreservesPitch;
-    // The current playback rate.
-    double mPlaybackRate;
     // True if we are playing at the old playbackRate after it has been changed.
     bool mCompensatingLatency;
 };
@@ -106,6 +104,9 @@ public:
   // depending on where you call it from.  If you call this from a child process,
   // you may receive an implementation which forwards to a compositing process.
   static AudioStream* AllocateStream();
+
+  // Returns the maximum number of channels supported by the audio hardware.
+  static int MaxNumberOfChannels();
 
   // Initialize the audio stream. aNumChannels is the number of audio
   // channels (1 for mono, 2 for stereo, etc) and aRate is the sample rate

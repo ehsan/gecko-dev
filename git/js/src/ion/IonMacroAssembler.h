@@ -1,12 +1,16 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_macro_assembler_h__
-#define jsion_macro_assembler_h__
+#ifndef ion_IonMacroAssembler_h
+#define ion_IonMacroAssembler_h
+
+#ifdef JS_ION
+
+#include "jstypedarray.h"
+#include "jscompartment.h"
 
 #if defined(JS_CPU_X86)
 # include "ion/x86/MacroAssembler-x86.h"
@@ -15,16 +19,12 @@
 #elif defined(JS_CPU_ARM)
 # include "ion/arm/MacroAssembler-arm.h"
 #endif
+#include "ion/AsmJS.h"
 #include "ion/IonCompartment.h"
 #include "ion/IonInstrumentation.h"
-#include "ion/TypeOracle.h"
 #include "ion/ParallelFunctions.h"
-
+#include "ion/VMFunctions.h"
 #include "vm/ForkJoin.h"
-
-#include "jstypedarray.h"
-#include "jscompartment.h"
-
 #include "vm/Shape.h"
 
 namespace js {
@@ -59,6 +59,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     mozilla::Maybe<IonContext> ionContext_;
     mozilla::Maybe<AutoIonContextAlloc> alloc_;
     bool enoughMemory_;
+    bool embedsNurseryPointers_;
 
   private:
     // This field is used to manage profiling instrumentation output. If
@@ -74,6 +75,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     // instrumentation from being emitted.
     MacroAssembler()
       : enoughMemory_(true),
+        embedsNurseryPointers_(false),
         sps_(NULL)
     {
         JSContext *cx = GetIonContext()->cx;
@@ -95,6 +97,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     // (for example, Trampoline-$(ARCH).cpp and IonCaches.cpp).
     MacroAssembler(JSContext *cx)
       : enoughMemory_(true),
+        embedsNurseryPointers_(false),
         sps_(NULL)
     {
         constructRoot(cx);
@@ -134,6 +137,10 @@ class MacroAssembler : public MacroAssemblerSpecific
         return !enoughMemory_ || MacroAssemblerSpecific::oom();
     }
 
+    bool embedsNurseryPointers() const {
+        return embedsNurseryPointers_;
+    }
+
     // Emits a test of a value against all types in a TypeSet. A scratch
     // register is required.
     template <typename Source, typename TypeSet>
@@ -163,6 +170,34 @@ class MacroAssembler : public MacroAssemblerSpecific
     void branchTestObjShape(Condition cond, Register obj, const Shape *shape, Label *label) {
         branchPtr(cond, Address(obj, JSObject::offsetOfShape()), ImmGCPtr(shape), label);
     }
+    void branchTestObjShape(Condition cond, Register obj, Register shape, Label *label) {
+        branchPtr(cond, Address(obj, JSObject::offsetOfShape()), shape, label);
+    }
+
+    template <typename Value>
+    Condition testMIRType(Condition cond, const Value &val, MIRType type) {
+        JS_ASSERT(type == MIRType_Null    || type == MIRType_Undefined  ||
+                  type == MIRType_Boolean || type == MIRType_Int32      ||
+                  type == MIRType_String  || type == MIRType_Object     ||
+                  type == MIRType_Double);
+        switch (type) {
+          case MIRType_Null:        return testNull(cond, val);
+          case MIRType_Undefined:   return testUndefined(cond, val);
+          case MIRType_Boolean:     return testBoolean(cond, val);
+          case MIRType_Int32:       return testInt32(cond, val);
+          case MIRType_String:      return testString(cond, val);
+          case MIRType_Object:      return testObject(cond, val);
+          case MIRType_Double:      return testDouble(cond, val);
+          default:
+            JS_NOT_REACHED("Bad MIRType");
+        }
+    }
+
+    template <typename Value>
+    void branchTestMIRType(Condition cond, const Value &val, MIRType type, Label *label) {
+        cond = testMIRType(cond, val, type);
+        j(cond, label);
+    }
 
     // Branches to |label| if |reg| is false. |reg| should be a C++ bool.
     void branchIfFalseBool(const Register &reg, Label *label) {
@@ -188,9 +223,10 @@ class MacroAssembler : public MacroAssemblerSpecific
         movePtr(ImmWord(GetIonContext()->runtime), dest);
         loadPtr(Address(dest, offsetof(JSRuntime, mainThread.ionJSContext)), dest);
     }
-    void loadIonActivation(const Register &dest) {
+    void loadJitActivation(const Register &dest) {
         movePtr(ImmWord(GetIonContext()->runtime), dest);
-        loadPtr(Address(dest, offsetof(JSRuntime, mainThread.ionActivation)), dest);
+        size_t offset = offsetof(JSRuntime, mainThread) + PerThreadData::offsetOfActivation();
+        loadPtr(Address(dest, offset), dest);
     }
 
     template<typename T>
@@ -282,6 +318,11 @@ class MacroAssembler : public MacroAssemblerSpecific
             storeCallResultValue(dest.valueReg());
         else
             storeCallResultValue(dest.typedReg());
+    }
+
+    template <typename T>
+    Register extractString(const T &source, Register scratch) {
+        return extractObject(source, scratch);
     }
 
     void PushRegsInMask(RegisterSet set);
@@ -377,6 +418,15 @@ class MacroAssembler : public MacroAssemblerSpecific
         framePushed_ += sizeof(Value);
     }
 
+    void PushValue(const Address &addr) {
+        JS_ASSERT(addr.base != StackPointer);
+        pushValue(addr);
+        framePushed_ += sizeof(Value);
+    }
+
+    void PushEmptyRooted(VMFunction::RootType rootType);
+    void popRooted(VMFunction::RootType rootType, Register cellReg, const ValueOperand &valueReg);
+
     void adjustStack(int amount) {
         if (amount > 0)
             freeStack(amount);
@@ -441,7 +491,10 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     template <typename T>
     void patchableCallPreBarrier(const T &address, MIRType type) {
-        JS_ASSERT(type == MIRType_Value || type == MIRType_String || type == MIRType_Object);
+        JS_ASSERT(type == MIRType_Value ||
+                  type == MIRType_String ||
+                  type == MIRType_Object ||
+                  type == MIRType_Shape);
 
         Label done;
 
@@ -456,6 +509,10 @@ class MacroAssembler : public MacroAssemblerSpecific
         align(8);
         bind(&done);
     }
+
+    void branchNurseryPtr(Condition cond, const Address &ptr1, const ImmMaybeNurseryPtr &ptr2,
+                          Label *label);
+    void moveNurseryPtr(const ImmMaybeNurseryPtr &ptr, const Register &reg);
 
     void canonicalizeDouble(FloatRegister reg) {
         Label notNaN;
@@ -520,8 +577,28 @@ class MacroAssembler : public MacroAssemblerSpecific
     // This function clobbers the input register.
     void clampDoubleToUint8(FloatRegister input, Register output);
 
+    using MacroAssemblerSpecific::ensureDouble;
+
+    void ensureDouble(const Address &source, FloatRegister dest, Label *failure) {
+        Label isDouble, done;
+        branchTestDouble(Assembler::Equal, source, &isDouble);
+        branchTestInt32(Assembler::NotEqual, source, failure);
+
+        convertInt32ToDouble(source, dest);
+        jump(&done);
+
+        bind(&isDouble);
+        unboxDouble(source, dest);
+
+        bind(&done);
+    }
+
     // Inline allocation.
+    void newGCThing(const Register &result, gc::AllocKind allocKind, Label *fail);
     void newGCThing(const Register &result, JSObject *templateObject, Label *fail);
+    void newGCString(const Register &result, Label *fail);
+    void newGCShortString(const Register &result, Label *fail);
+
     void parNewGCThing(const Register &result,
                        const Register &threadContextReg,
                        const Register &tempReg1,
@@ -560,6 +637,12 @@ class MacroAssembler : public MacroAssemblerSpecific
         Push(ImmWord(uintptr_t(NULL)));
     }
 
+    void enterParallelExitFrameAndLoadSlice(const VMFunction *f, Register slice,
+                                            Register scratch);
+
+    void enterExitFrameAndLoadContext(const VMFunction *f, Register cxReg, Register scratch,
+                                      ExecutionMode executionMode);
+
     void leaveExitFrame() {
         freeStack(IonExitFooterFrame::Size());
     }
@@ -589,7 +672,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     void maybeRemoveOsrFrame(Register scratch);
 
     // Generates code used to complete a bailout.
-    void generateBailoutTail(Register scratch);
+    void generateBailoutTail(Register scratch, Register bailoutInfo);
 
     // These functions exist as small wrappers around sites where execution can
     // leave the currently running stream of instructions. They exist so that
@@ -606,16 +689,10 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     void handleException() {
-        // Re-entry code is irrelevant because the exception will leave the
-        // running function and never come back
-        if (sps_)
-            sps_->skipNextReenter();
-        leaveSPSFrame();
-        MacroAssemblerSpecific::handleException();
-        // Doesn't actually emit code, but balances the leave()
-        if (sps_)
-            sps_->reenter(*this, InvalidReg);
+        handleFailure(SequentialExecution);
     }
+
+    void handleFailure(ExecutionMode executionMode);
 
     // see above comment for what is returned
     uint32_t callIon(const Register &callee) {
@@ -643,6 +720,24 @@ class MacroAssembler : public MacroAssemblerSpecific
         reenterSPSFrame();
         return ret;
     }
+
+    Condition branchTestObjectTruthy(bool truthy, Register objReg, Register scratch,
+                                     Label *slowCheck)
+    {
+        // The branches to out-of-line code here implement a conservative version
+        // of the JSObject::isWrapper test performed in EmulatesUndefined.  If none
+        // of the branches are taken, we can check class flags directly.
+        loadObjClass(objReg, scratch);
+        branchPtr(Assembler::Equal, scratch, ImmWord(&ObjectProxyClass), slowCheck);
+        branchPtr(Assembler::Equal, scratch, ImmWord(&OuterWindowProxyClass), slowCheck);
+        branchPtr(Assembler::Equal, scratch, ImmWord(&FunctionProxyClass), slowCheck);
+
+        test32(Address(scratch, Class::offsetOfFlags()), Imm32(JSCLASS_EMULATES_UNDEFINED));
+        return truthy ? Assembler::Zero : Assembler::NonZero;
+    }
+
+    void tagCallee(Register callee, ExecutionMode mode);
+    void clearCalleeTag(Register callee, ExecutionMode mode);
 
   private:
     // These two functions are helpers used around call sites throughout the
@@ -690,6 +785,38 @@ class MacroAssembler : public MacroAssemblerSpecific
         addPtr(ImmWord(p->stack()), temp);
     }
 
+    // The safe version of the above method refrains from assuming that the fields
+    // of the SPSProfiler class are going to stay the same across different runs of
+    // the jitcode.  Ion can use the more efficient unsafe version because ion jitcode
+    // will not survive changes to to the profiler settings.  Baseline jitcode, however,
+    // can span these changes, so any hardcoded field values will be incorrect afterwards.
+    // All the sps-related methods used by baseline call |spsProfileEntryAddressSafe|.
+    void spsProfileEntryAddressSafe(SPSProfiler *p, int offset, Register temp,
+                                    Label *full)
+    {
+        movePtr(ImmWord(p->addressOfSizePointer()), temp);
+
+        // Load size pointer
+        loadPtr(Address(temp, 0), temp);
+
+        // Load size
+        load32(Address(temp, 0), temp);
+        if (offset != 0)
+            add32(Imm32(offset), temp);
+
+        // Test against max size.
+        branch32(Assembler::LessThanOrEqual, AbsoluteAddress(p->addressOfMaxSize()), temp, full);
+
+        // 4 * sizeof(void*) * idx = idx << (2 + log(sizeof(void*)))
+        JS_STATIC_ASSERT(sizeof(ProfileEntry) == 4 * sizeof(void*));
+        lshiftPtr(Imm32(2 + (sizeof(void*) == 4 ? 2 : 3)), temp);
+        push(temp);
+        movePtr(ImmWord(p->addressOfStack()), temp);
+        loadPtr(Address(temp, 0), temp);
+        addPtr(Address(StackPointer, 0), temp);
+        addPtr(Imm32(sizeof(size_t)), StackPointer);
+    }
+
   public:
 
     // These functions are needed by the IonInstrumentation interface defined in
@@ -703,20 +830,51 @@ class MacroAssembler : public MacroAssemblerSpecific
         bind(&stackFull);
     }
 
-    void spsPushFrame(SPSProfiler *p, const char *str, RawScript s, Register temp) {
+    void spsUpdatePCIdx(SPSProfiler *p, Register idx, Register temp) {
+        Label stackFull;
+        spsProfileEntryAddressSafe(p, -1, temp, &stackFull);
+        store32(idx, Address(temp, ProfileEntry::offsetOfPCIdx()));
+        bind(&stackFull);
+    }
+
+    void spsPushFrame(SPSProfiler *p, const char *str, JSScript *s, Register temp) {
         Label stackFull;
         spsProfileEntryAddress(p, 0, temp, &stackFull);
 
         storePtr(ImmWord(str),    Address(temp, ProfileEntry::offsetOfString()));
         storePtr(ImmGCPtr(s),     Address(temp, ProfileEntry::offsetOfScript()));
-        storePtr(ImmWord((void*) NULL),
-                 Address(temp, ProfileEntry::offsetOfStackAddress()));
-        store32(Imm32(ProfileEntry::NullPCIndex),
-                Address(temp, ProfileEntry::offsetOfPCIdx()));
+        storePtr(ImmWord((void*) NULL), Address(temp, ProfileEntry::offsetOfStackAddress()));
+        store32(Imm32(ProfileEntry::NullPCIndex), Address(temp, ProfileEntry::offsetOfPCIdx()));
 
         /* Always increment the stack size, whether or not we actually pushed. */
         bind(&stackFull);
         movePtr(ImmWord(p->sizePointer()), temp);
+        add32(Imm32(1), Address(temp, 0));
+    }
+
+    void spsPushFrame(SPSProfiler *p, const Address &str, const Address &script,
+                      Register temp, Register temp2)
+    {
+        Label stackFull;
+        spsProfileEntryAddressSafe(p, 0, temp, &stackFull);
+
+        loadPtr(str, temp2);
+        storePtr(temp2, Address(temp, ProfileEntry::offsetOfString()));
+
+        loadPtr(script, temp2);
+        storePtr(temp2, Address(temp, ProfileEntry::offsetOfScript()));
+
+        storePtr(ImmWord((void*) 0), Address(temp, ProfileEntry::offsetOfStackAddress()));
+
+        // Store 0 for PCIdx because that's what interpreter does.
+        // (See Probes::enterScript, which calls spsProfiler.enter, which pushes an entry
+        //  with 0 pcIdx).
+        store32(Imm32(0), Address(temp, ProfileEntry::offsetOfPCIdx()));
+
+        /* Always increment the stack size, whether or not we actually pushed. */
+        bind(&stackFull);
+        movePtr(ImmWord(p->addressOfSizePointer()), temp);
+        loadPtr(Address(temp, 0), temp);
         add32(Imm32(1), Address(temp, 0));
     }
 
@@ -725,8 +883,31 @@ class MacroAssembler : public MacroAssemblerSpecific
         add32(Imm32(-1), Address(temp, 0));
     }
 
+    // spsPropFrameSafe does not assume |profiler->sizePointer()| will stay constant.
+    void spsPopFrameSafe(SPSProfiler *p, Register temp) {
+        movePtr(ImmWord(p->addressOfSizePointer()), temp);
+        loadPtr(Address(temp, 0), temp);
+        add32(Imm32(-1), Address(temp, 0));
+    }
+
+    void loadBaselineOrIonRaw(Register script, Register dest, ExecutionMode mode, Label *failure);
+    void loadBaselineOrIonNoArgCheck(Register callee, Register dest, ExecutionMode mode, Label *failure);
+
+    void loadBaselineFramePtr(Register framePtr, Register dest);
+
+    void pushBaselineFramePtr(Register framePtr, Register scratch) {
+        loadBaselineFramePtr(framePtr, scratch);
+        push(scratch);
+    }
+
     void printf(const char *output);
     void printf(const char *output, Register value);
+
+    void copyMem(Register copyFrom, Register copyEnd, Register copyTo, Register temp);
+
+    void convertInt32ValueToDouble(const Address &address, Register scratch, Label *done);
+    void convertValueToDouble(ValueOperand value, FloatRegister output, Label *fail);
+    void convertValueToInt32(ValueOperand value, FloatRegister temp, Register output, Label *fail);
 };
 
 static inline Assembler::DoubleCondition
@@ -753,9 +934,57 @@ JSOpToDoubleCondition(JSOp op)
     }
 }
 
+// Note: the op may have been inverted during lowering (to put constants in a
+// position where they can be immediates), so it is important to use the
+// lir->jsop() instead of the mir->jsop() when it is present.
+static inline Assembler::Condition
+JSOpToCondition(JSOp op, bool isSigned)
+{
+    if (isSigned) {
+        switch (op) {
+          case JSOP_EQ:
+          case JSOP_STRICTEQ:
+            return Assembler::Equal;
+          case JSOP_NE:
+          case JSOP_STRICTNE:
+            return Assembler::NotEqual;
+          case JSOP_LT:
+            return Assembler::LessThan;
+          case JSOP_LE:
+            return Assembler::LessThanOrEqual;
+          case JSOP_GT:
+            return Assembler::GreaterThan;
+          case JSOP_GE:
+            return Assembler::GreaterThanOrEqual;
+          default:
+            JS_NOT_REACHED("Unrecognized comparison operation");
+            return Assembler::Equal;
+        }
+    } else {
+        switch (op) {
+          case JSOP_EQ:
+          case JSOP_STRICTEQ:
+            return Assembler::Equal;
+          case JSOP_NE:
+          case JSOP_STRICTNE:
+            return Assembler::NotEqual;
+          case JSOP_LT:
+            return Assembler::Below;
+          case JSOP_LE:
+            return Assembler::BelowOrEqual;
+          case JSOP_GT:
+            return Assembler::Above;
+          case JSOP_GE:
+            return Assembler::AboveOrEqual;
+          default:
+            JS_NOT_REACHED("Unrecognized comparison operation");
+            return Assembler::Equal;
+        }
+    }
+}
+
 typedef Vector<MIRType, 8> MIRTypeVector;
 
-#ifdef JS_ASMJS
 class ABIArgIter
 {
     ABIArgGenerator gen_;
@@ -775,10 +1004,10 @@ class ABIArgIter
     MIRType mirType() const { JS_ASSERT(!done()); return types_[i_]; }
     uint32_t stackBytesConsumedSoFar() const { return gen_.stackBytesConsumedSoFar(); }
 };
-#endif
 
 } // namespace ion
 } // namespace js
 
-#endif // jsion_macro_assembler_h__
+#endif // JS_ION
 
+#endif /* ion_IonMacroAssembler_h */

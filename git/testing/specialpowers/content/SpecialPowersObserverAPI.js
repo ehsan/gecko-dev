@@ -16,7 +16,7 @@ SpecialPowersException.prototype.toString = function() {
   return this.name + ': "' + this.message + '"';
 };
 
-function SpecialPowersObserverAPI() {
+this.SpecialPowersObserverAPI = function SpecialPowersObserverAPI() {
   this._crashDumpDir = null;
   this._processCrashObserversRegistered = false;
 }
@@ -252,6 +252,31 @@ SpecialPowersObserverAPI.prototype = {
           default:
             throw new SpecialPowersException("Invalid operation for " +
                                              "SPPermissionManager");
+        }
+        break;
+
+      case "SPWebAppService":
+        let Webapps = {};
+        Components.utils.import("resource://gre/modules/Webapps.jsm", Webapps);
+        switch (aMessage.json.op) {
+          case "set-launchable":
+            let val = Webapps.DOMApplicationRegistry.allAppsLaunchable;
+            Webapps.DOMApplicationRegistry.allAppsLaunchable = aMessage.json.launchable;
+            return val;
+          default:
+            throw new SpecialPowersException("Invalid operation for SPWebAppsService");
+        }
+        break;
+
+      case "SPObserverService":
+        switch (aMessage.json.op) {
+          case "notify":
+            let topic = aMessage.json.observerTopic;
+            let data = aMessage.json.observerData
+            Services.obs.notifyObservers(null, topic, data);
+            break;
+          default:
+            throw new SpecialPowersException("Invalid operation for SPObserverervice");
         }
         break;
 

@@ -13,7 +13,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEBlendElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGFEBlendElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
   return SVGFEBlendElementBinding::Wrap(aCx, aScope, this);
 }
@@ -50,13 +50,13 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEBlendElement)
 //----------------------------------------------------------------------
 // nsIDOMSVGFEBlendElement methods
 
-already_AddRefed<nsIDOMSVGAnimatedString>
+already_AddRefed<SVGAnimatedString>
 SVGFEBlendElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<nsIDOMSVGAnimatedString>
+already_AddRefed<SVGAnimatedString>
 SVGFEBlendElement::In2()
 {
   return mStringAttributes[IN2].ToDOMAnimatedString(this);

@@ -10,6 +10,7 @@
 #include "nsString.h"
 #include "nsMimeTypes.h"
 #include "mozilla/ModuleUtils.h"
+#include "mp3sniff.h"
 #ifdef MOZ_WEBM
 #include "nestegg/nestegg.h"
 #endif
@@ -58,10 +59,17 @@ static bool MatchesMP4(const uint8_t* aData, const uint32_t aLength)
     if (i == 3) {
       continue;
     }
-    // The string "mp4".
+    // The string "mp42" or "mp41".
     if (aData[4*i]   == 0x6D &&
         aData[4*i+1] == 0x70 &&
         aData[4*i+2] == 0x34) {
+      return true;
+    }
+    // The string "isom" or "iso2".
+    if (aData[4*i]   == 0x69 &&
+        aData[4*i+1] == 0x73 &&
+        aData[4*i+2] == 0x6F &&
+        (aData[4*i+3] == 0x6D || aData[4*i+3] == 0x32)) {
       return true;
     }
   }
@@ -75,6 +83,13 @@ static bool MatchesWebM(const uint8_t* aData, const uint32_t aLength)
 #else
   return false;
 #endif
+}
+
+// This function implements mp3 sniffing based on parsing
+// packet headers and looking for expected boundaries.
+static bool MatchesMP3(const uint8_t* aData, const uint32_t aLength)
+{
+  return mp3_sniff(aData, (long)aLength);
 }
 
 NS_IMETHODIMP
@@ -124,6 +139,11 @@ nsMediaSniffer::GetMIMETypeFromContent(nsIRequest* aRequest,
 
   if (MatchesWebM(aData, clampedLength)) {
     aSniffedType.AssignLiteral(VIDEO_WEBM);
+    return NS_OK;
+  }
+
+  if (MatchesMP3(aData, clampedLength)) {
+    aSniffedType.AssignLiteral(AUDIO_MP3);
     return NS_OK;
   }
 

@@ -48,9 +48,9 @@ var tests = {
           } else if (e.data.result == "shown") {
             ok(true, "chatbox got shown");
             // close it now
-            let iframe = chats.selectedChat.iframe;
-            iframe.addEventListener("unload", function chatUnload() {
-              iframe.removeEventListener("unload", chatUnload, true);
+            let content = chats.selectedChat.content;
+            content.addEventListener("unload", function chatUnload() {
+              content.removeEventListener("unload", chatUnload, true);
               ok(true, "got chatbox unload on close");
               port.close();
               next();
@@ -105,47 +105,6 @@ var tests = {
     }
     port.postMessage({topic: "test-init", data: { id: 1 }});
   },
-  // In this case the *worker* opens a chat (so minimized is specified).
-  // The worker then makes the same call again - as that second call also
-  // specifies "minimized" the chat should *not* be restored.
-  testWorkerChatWindowMinimized: function(next) {
-    const chatUrl = "https://example.com/browser/browser/base/content/test/social/social_chat.html";
-    let port = Social.provider.getWorkerPort();
-    let seen_opened = false;
-    ok(port, "provider has a port");
-    port.postMessage({topic: "test-init"});
-    port.onmessage = function (e) {
-      let topic = e.data.topic;
-      switch (topic) {
-        case "got-chatbox-message":
-          ok(true, "got a chat window opened");
-          let chats = document.getElementById("pinnedchats");
-          if (!seen_opened) {
-            // first time we got the opened message, so minimize the chat then
-            // re-request the same chat to be opened - we should get the
-            // message again and the chat should be restored.
-            ok(chats.selectedChat.minimized, "chatbox from worker opened as minimized");
-            seen_opened = true;
-            port.postMessage({topic: "test-worker-chat", data: chatUrl});
-            // Sadly there is no notification we can use to know the chat was
-            // re-opened :(  So we ask the chat window to "ping" us - by then
-            // the second request should have made it.
-            chats.selectedChat.iframe.contentWindow.wrappedJSObject.pingWorker();
-          } else {
-            // This is the second time we've seen this message - there should
-            // be exactly 1 chat open and it should still be minimized.
-            let chats = document.getElementById("pinnedchats");
-            ok(chats.selectedChat.minimized, "chat still minimized")
-            chats.selectedChat.close();
-            is(chats.selectedChat, null, "should only have been one chat open");
-            port.close();
-            next();
-          }
-          break;
-      }
-    }
-    port.postMessage({topic: "test-worker-chat", data: chatUrl});
-  },
   testManyChats: function(next) {
     // open enough chats to overflow the window, then check
     // if the menupopup is visible
@@ -189,6 +148,7 @@ var tests = {
   },
   testWorkerChatWindow: function(next) {
     const chatUrl = "https://example.com/browser/browser/base/content/test/social/social_chat.html";
+    let chats = document.getElementById("pinnedchats");
     let port = Social.provider.getWorkerPort();
     ok(port, "provider has a port");
     port.postMessage({topic: "test-init"});
@@ -197,8 +157,7 @@ var tests = {
       switch (topic) {
         case "got-chatbox-message":
           ok(true, "got a chat window opened");
-          let chats = document.getElementById("pinnedchats");
-          ok(chats.selectedChat.minimized, "chatbox from worker opened as minimized");
+          ok(chats.selectedChat, "chatbox from worker opened");
           while (chats.selectedChat) {
             chats.selectedChat.close();
           }
@@ -209,6 +168,7 @@ var tests = {
           break;
       }
     }
+    ok(!chats.selectedChat, "chats are all closed");
     port.postMessage({topic: "test-worker-chat", data: chatUrl});
   },
   testCloseSelf: function(next) {
@@ -227,7 +187,7 @@ var tests = {
           let chat = chats.selectedChat;
           ok(chat.parentNode, "chat has a parent node before it is closed");
           // ask it to close itself.
-          let doc = chat.iframe.contentDocument;
+          let doc = chat.contentDocument;
           let evt = doc.createEvent("CustomEvent");
           evt.initCustomEvent("socialTest-CloseSelf", true, true, {});
           doc.documentElement.dispatchEvent(evt);
@@ -391,10 +351,10 @@ var tests = {
       ok(!chatbar.selectedChat.hasAttribute("activity"), "third chat should have no activity");
       // send an activity message to the second.
       ok(!second.hasAttribute("activity"), "second chat should have no activity");
-      let iframe2 = second.iframe;
-      let evt = iframe2.contentDocument.createEvent("CustomEvent");
+      let chat2 = second.content;
+      let evt = chat2.contentDocument.createEvent("CustomEvent");
       evt.initCustomEvent("socialChatActivity", true, true, {});
-      iframe2.contentDocument.documentElement.dispatchEvent(evt);
+      chat2.contentDocument.documentElement.dispatchEvent(evt);
       // second should have activity.
       ok(second.hasAttribute("activity"), "second chat should now have activity");
       // select the second - it should lose "activity"
@@ -402,10 +362,10 @@ var tests = {
       ok(!second.hasAttribute("activity"), "second chat should no longer have activity");
       // Now try the first - it is collapsed, so the 'nub' also gets activity attr.
       ok(!first.hasAttribute("activity"), "first chat should have no activity");
-      let iframe1 = first.iframe;
-      let evt = iframe1.contentDocument.createEvent("CustomEvent");
+      let chat1 = first.content;
+      let evt = chat1.contentDocument.createEvent("CustomEvent");
       evt.initCustomEvent("socialChatActivity", true, true, {});
-      iframe1.contentDocument.documentElement.dispatchEvent(evt);
+      chat1.contentDocument.documentElement.dispatchEvent(evt);
       ok(first.hasAttribute("activity"), "first chat should now have activity");
       ok(chatbar.nub.hasAttribute("activity"), "nub should also have activity");
       // first is collapsed, so use openChat to get it.
@@ -415,18 +375,18 @@ var tests = {
       todo(!chatbar.nub.hasAttribute("activity"), "Bug 806266 - nub should no longer have activity");
       // TODO: tests for bug 806266 should arrange to have 2 chats collapsed
       // then open them checking the nub is updated correctly.
-      // Now we will go and change the embedded iframe in the second chat and
+      // Now we will go and change the embedded browser in the second chat and
       // ensure the activity magic still works (ie, check that the unload for
-      // the iframe didn't cause our event handlers to be removed.)
+      // the browser didn't cause our event handlers to be removed.)
       ok(!second.hasAttribute("activity"), "second chat should have no activity");
-      let subiframe = iframe2.contentDocument.getElementById("iframe");
+      let subiframe = chat2.contentDocument.getElementById("iframe");
       subiframe.contentWindow.addEventListener("unload", function subunload() {
         subiframe.contentWindow.removeEventListener("unload", subunload);
         // ensure all other unload listeners have fired.
         executeSoon(function() {
-          let evt = iframe2.contentDocument.createEvent("CustomEvent");
+          let evt = chat2.contentDocument.createEvent("CustomEvent");
           evt.initCustomEvent("socialChatActivity", true, true, {});
-          iframe2.contentDocument.documentElement.dispatchEvent(evt);
+          chat2.contentDocument.documentElement.dispatchEvent(evt);
           ok(second.hasAttribute("activity"), "second chat still has activity after unloading sub-iframe");
           closeAllChats();
           port.close();
@@ -663,15 +623,16 @@ function resizeWindowToChatAreaWidth(desired, cb) {
   }
   // Otherwise we request resize and expect a resize event
   window.addEventListener("resize", function resize_handler() {
-    window.removeEventListener("resize", resize_handler);
     // we did resize - but did we get far enough to be able to continue?
     let newSize = window.SocialChatBar.chatbar.getBoundingClientRect().width;
     let sizedOk = widthDeltaCloseEnough(newSize - desired);
     if (!sizedOk) {
-      // not an error...
-      info("skipping this as we can't resize chat area to " + desired + " - got " + newSize);
+      return;
     }
-    cb(sizedOk);
+    window.removeEventListener("resize", resize_handler);
+    executeSoon(function() {
+      cb(sizedOk);
+    });
   });
   window.resizeBy(delta, 0);
 }

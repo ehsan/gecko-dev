@@ -1,12 +1,11 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99 ft=cpp:
- *
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsvector_h_
-#define jsvector_h_
+#ifndef js_Vector_h
+#define js_Vector_h
 
 #include "mozilla/Attributes.h"
 #include "mozilla/TypeTraits.h"
@@ -1105,4 +1104,4 @@ Vector<T,N,AP>::swap(Vector &other)
 #pragma warning(pop)
 #endif
 
-#endif /* jsvector_h_ */
+#endif /* js_Vector_h */

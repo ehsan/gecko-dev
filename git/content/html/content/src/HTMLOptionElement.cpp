@@ -6,10 +6,9 @@
 
 #include "mozilla/dom/HTMLOptionElement.h"
 #include "mozilla/dom/HTMLOptionElementBinding.h"
-#include "nsHTMLSelectElement.h"
+#include "mozilla/dom/HTMLSelectElement.h"
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIDOMHTMLFormElement.h"
-#include "nsIDOMEventTarget.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsIFormControl.h"
@@ -27,34 +26,13 @@
 #include "nsEventStates.h"
 #include "nsContentCreatorFunctions.h"
 #include "mozAutoDocUpdate.h"
+#include "nsTextNode.h"
 
 /**
  * Implementation of &lt;option&gt;
  */
 
-nsGenericHTMLElement*
-NS_NewHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        mozilla::dom::FromParser aFromParser)
-{
-  /*
-   * HTMLOptionElement's will be created without a nsINodeInfo passed in
-   * if someone says "var opt = new Option();" in JavaScript, in a case like
-   * that we request the nsINodeInfo from the document's nodeinfo list.
-   */
-  nsCOMPtr<nsINodeInfo> nodeInfo(aNodeInfo);
-  if (!nodeInfo) {
-    nsCOMPtr<nsIDocument> doc =
-      do_QueryInterface(nsContentUtils::GetDocumentFromCaller());
-    NS_ENSURE_TRUE(doc, nullptr);
-
-    nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::option, nullptr,
-                                                   kNameSpaceID_XHTML,
-                                                   nsIDOMNode::ELEMENT_NODE);
-    NS_ENSURE_TRUE(nodeInfo, nullptr);
-  }
-
-  return new mozilla::dom::HTMLOptionElement(nodeInfo.forget());
-}
+NS_IMPL_NS_NEW_HTML_ELEMENT(Option)
 
 namespace mozilla {
 namespace dom {
@@ -84,11 +62,11 @@ NS_IMPL_RELEASE_INHERITED(HTMLOptionElement, Element)
 
 // QueryInterface implementation for HTMLOptionElement
 NS_INTERFACE_TABLE_HEAD(HTMLOptionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLOptionElement,
-                                   nsIDOMHTMLOptionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLOptionElement,
-                                               nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(HTMLOptionElement,
+                                nsIDOMHTMLOptionElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLOptionElement)
@@ -101,10 +79,10 @@ HTMLOptionElement::GetForm(nsIDOMHTMLFormElement** aForm)
   return NS_OK;
 }
 
-nsHTMLFormElement*
+mozilla::dom::HTMLFormElement*
 HTMLOptionElement::GetForm()
 {
-  nsHTMLSelectElement* selectControl = GetSelect();
+  HTMLSelectElement* selectControl = GetSelect();
   return selectControl ? selectControl->GetForm() : nullptr;
 }
 
@@ -134,7 +112,7 @@ HTMLOptionElement::SetSelected(bool aValue)
 {
   // Note: The select content obj maintains all the PresState
   // so defer to it to get the answer
-  nsHTMLSelectElement* selectInt = GetSelect();
+  HTMLSelectElement* selectInt = GetSelect();
   if (selectInt) {
     int32_t index;
     GetIndex(&index);
@@ -163,7 +141,7 @@ HTMLOptionElement::GetIndex(int32_t* aIndex)
   *aIndex = 0;
 
   // Only select elements can contain a list of options.
-  nsHTMLSelectElement* selectElement = GetSelect();
+  HTMLSelectElement* selectElement = GetSelect();
   if (!selectElement) {
     return NS_OK;
   }
@@ -225,7 +203,7 @@ HTMLOptionElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
   // We just changed out selected state (since we look at the "selected"
   // attribute when mSelectedChanged is false).  Let's tell our select about
   // it.
-  nsHTMLSelectElement* selectInt = GetSelect();
+  HTMLSelectElement* selectInt = GetSelect();
   if (!selectInt) {
     return NS_OK;
   }
@@ -344,13 +322,13 @@ HTMLOptionElement::IntrinsicState() const
 }
 
 // Get the select content element that contains this option
-nsHTMLSelectElement*
+HTMLSelectElement*
 HTMLOptionElement::GetSelect()
 {
   nsIContent* parent = this;
   while ((parent = parent->GetParent()) &&
          parent->IsHTML()) {
-    nsHTMLSelectElement* select = nsHTMLSelectElement::FromContent(parent);
+    HTMLSelectElement* select = HTMLSelectElement::FromContent(parent);
     if (select) {
       return select;
     }
@@ -380,21 +358,13 @@ HTMLOptionElement::Option(const GlobalObject& aGlobal,
     doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::option, nullptr,
                                         kNameSpaceID_XHTML,
                                         nsIDOMNode::ELEMENT_NODE);
-  if (!nodeInfo) {
-    aError.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
 
   nsRefPtr<HTMLOptionElement> option = new HTMLOptionElement(nodeInfo.forget());
 
   if (aText.WasPassed()) {
     // Create a new text node and append it to the option
-    nsCOMPtr<nsIContent> textContent;
-    aError = NS_NewTextNode(getter_AddRefs(textContent),
-                            option->NodeInfo()->NodeInfoManager());
-    if (aError.Failed()) {
-      return nullptr;
-    }
+    nsRefPtr<nsTextNode> textContent =
+      new nsTextNode(option->NodeInfo()->NodeInfoManager());
 
     textContent->SetText(aText.Value(), false);
 
@@ -449,7 +419,7 @@ HTMLOptionElement::CopyInnerTo(Element* aDest)
 }
 
 JSObject*
-HTMLOptionElement::WrapNode(JSContext* aCx, JSObject* aScope)
+HTMLOptionElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return HTMLOptionElementBinding::Wrap(aCx, aScope, this);
 }

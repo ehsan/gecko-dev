@@ -30,10 +30,10 @@ NS_IMPL_RELEASE_INHERITED(HTMLSourceElement, Element)
 
 // QueryInterface implementation for HTMLSourceElement
 NS_INTERFACE_TABLE_HEAD(HTMLSourceElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLSourceElement, nsIDOMHTMLSourceElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLSourceElement,
-                                               nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(HTMLSourceElement, nsIDOMHTMLSourceElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLSourceElement)
@@ -77,7 +77,7 @@ HTMLSourceElement::BindToTree(nsIDocument *aDocument,
 }
 
 JSObject*
-HTMLSourceElement::WrapNode(JSContext* aCx, JSObject* aScope)
+HTMLSourceElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return HTMLSourceElementBinding::Wrap(aCx, aScope, this);
 }
