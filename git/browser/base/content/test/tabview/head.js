@@ -294,18 +294,6 @@ function whenWindowStateReady(win, callback) {
 }
 
 // ----------
-function whenDelayedStartupFinished(win, callback) {
-  let topic = "browser-delayed-startup-finished";
-  Services.obs.addObserver(function onStartup(aSubject) {
-    if (win != aSubject)
-      return;
-
-    Services.obs.removeObserver(onStartup, topic, false);
-    executeSoon(callback);
-  }, topic, false);
-}
-
-// ----------
 function newWindowWithState(state, callback) {
   const ss = Cc["@mozilla.org/browser/sessionstore;1"]
              .getService(Ci.nsISessionStore);
@@ -314,20 +302,12 @@ function newWindowWithState(state, callback) {
   let win = window.openDialog(getBrowserURL(), "_blank", opts);
 
   whenWindowLoaded(win, function () {
-    whenWindowStateReady(win, function () {
-      afterAllTabsLoaded(check, win);
-    });
-
     ss.setWindowState(win, JSON.stringify(state), true);
-    whenDelayedStartupFinished(win, check);
   });
 
-
-  let numConditions = 2;
-  let check = function () {
-    if (!--numConditions)
-      callback(win);
-  };
+  whenWindowStateReady(win, function () {
+    afterAllTabsLoaded(function () callback(win), win);
+  });
 }
 
 // ----------

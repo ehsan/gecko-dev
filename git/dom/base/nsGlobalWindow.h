@@ -137,7 +137,6 @@ class nsLocation;
 class nsNavigator;
 class nsScreen;
 class nsHistory;
-class nsPerformance;
 class nsIDocShellLoadInfo;
 class WindowStateHolder;
 class nsGlobalWindowObserver;
@@ -285,8 +284,7 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public nsIInterfaceRequestor,
                        public nsIDOMWindow_2_0_BRANCH,
                        public nsWrapperCache,
-                       public PRCListStr,
-                       public nsIDOMWindowPerformance
+                       public PRCListStr
 {
 public:
   friend class nsDOMMozURLProperty;
@@ -330,9 +328,6 @@ public:
 
   // nsIDOMWindowInternal
   NS_DECL_NSIDOMWINDOWINTERNAL
-
-  // nsIDOMWindowPerformance
-  NS_DECL_NSIDOMWINDOWPERFORMANCE
 
   // nsIDOMJSWindow
   NS_DECL_NSIDOMJSWINDOW
@@ -570,8 +565,6 @@ public:
   }
 
   static bool HasIndexedDBSupport();
-
-  static bool HasPerformanceSupport();
 
 private:
   // Enable updates for the accelerometer.
@@ -907,7 +900,6 @@ protected:
   nsCOMPtr<nsIPrincipal>        mArgumentsOrigin;
   nsRefPtr<nsNavigator>         mNavigator;
   nsRefPtr<nsScreen>            mScreen;
-  nsRefPtr<nsPerformance>       mPerformance;
   nsRefPtr<nsDOMWindowList>     mFrames;
   nsRefPtr<nsBarProp>           mMenubar;
   nsRefPtr<nsBarProp>           mToolbar;
