@@ -95,8 +95,6 @@ using namespace mozilla;
 // Buffer file writes in 32kb chunks
 #define BUFFERED_OUTPUT_SIZE (1024 * 32)
 
-#define NS_SUCCESS_DONT_FIXUP NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 1)
-
 // Information about a DOM document
 struct DocData
 {
@@ -305,7 +303,7 @@ NS_IMETHODIMP nsWebBrowserPersist::GetCurrentState(PRUint32 *aCurrentState)
 }
 
 /* readonly attribute unsigned long result; */
-NS_IMETHODIMP nsWebBrowserPersist::GetResult(PRUint32 *aResult)
+NS_IMETHODIMP nsWebBrowserPersist::GetResult(nsresult *aResult)
 {
     NS_ENSURE_ARG_POINTER(aResult);
     *aResult = mPersistResult;
@@ -994,8 +992,8 @@ NS_IMETHODIMP nsWebBrowserPersist::OnStatus(
         case NS_NET_STATUS_SENDING_TO:
         case NS_NET_STATUS_RECEIVING_FROM:
         case NS_NET_STATUS_WAITING_FOR:
-        case nsITransport::STATUS_READING:
-        case nsITransport::STATUS_WRITING:
+        case NS_NET_STATUS_READING:
+        case NS_NET_STATUS_WRITING:
             break;
 
         default:

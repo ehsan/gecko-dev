@@ -2059,6 +2059,11 @@ GCMarker::markDelayedChildren(ArenaHeader *aheader)
         PushArena(this, aheader);
     }
     aheader->allocatedDuringIncremental = 0;
+    /*
+     * Note that during an incremental GC we may still be allocating into
+     * aheader. However, prepareForIncrementalGC sets the
+     * allocatedDuringIncremental flag if we continue marking.
+     */
 }
 
 bool
@@ -2336,6 +2341,12 @@ AutoGCRooter::trace(JSTracer *trc)
         return;
       }
 
+      case NAMEVECTOR: {
+        AutoNameVector::VectorImpl &vector = static_cast<AutoNameVector *>(this)->vector;
+        MarkStringRootRange(trc, vector.length(), vector.begin(), "js::AutoNameVector.vector");
+        return;
+      }
+
       case VALARRAY: {
         AutoValueArray *array = static_cast<AutoValueArray *>(this);
         MarkValueRootRange(trc, array->length(), array->start(), "js::AutoValueArray");
@@ -2441,9 +2452,7 @@ Shape::Range::AutoRooter::trace(JSTracer *trc)
 void
 Bindings::AutoRooter::trace(JSTracer *trc)
 {
-    if (bindings->lastBinding)
-        MarkShapeRoot(trc, reinterpret_cast<Shape**>(&bindings->lastBinding),
-                      "Bindings::AutoRooter lastBinding");
+    bindings->trace(trc);
 }
 
 void
@@ -2501,13 +2510,8 @@ MarkRuntime(JSTracer *trc, bool useSavedRoots = false)
             MarkScriptRoot(trc, &vec[i].script, "scriptAndCountsVector");
     }
 
-    /*
-     * Atoms are not in the cross-compartment map. So if there are any
-     * compartments that are not being collected, we are not allowed to collect
-     * atoms. Otherwise, the non-collected compartments could contain pointers
-     * to atoms that we would miss.
-     */
-    MarkAtomState(trc, rt->gcKeepAtoms || (IS_GC_MARKING_TRACER(trc) && !rt->gcIsFull));
+    if (!IS_GC_MARKING_TRACER(trc) || rt->atomsCompartment->isCollecting())
+        MarkAtomState(trc);
     rt->staticStrings.trace(trc);
 
     for (ContextIter acx(rt); !acx.done(); acx.next())
@@ -3189,6 +3193,38 @@ BeginMarkPhase(JSRuntime *rt)
 {
     int64_t currentTime = PRMJ_Now();
 
+    rt->gcIsFull = true;
+    DebugOnly<bool> any = false;
+    for (CompartmentsIter c(rt); !c.done(); c.next()) {
+        /* Assert that compartment state is as we expect */
+        JS_ASSERT(!c->isCollecting());
+        for (unsigned i = 0; i < FINALIZE_LIMIT; ++i)
+            JS_ASSERT(!c->arenas.arenaListsToSweep[i]);
+
+        /* Set up which compartments will be collected. */
+        if (c->isGCScheduled()) {
+            any = true;
+            if (c.get() != rt->atomsCompartment)
+                c->setCollecting(true);
+        } else {
+            rt->gcIsFull = false;
+        }
+
+        c->setPreservingCode(ShouldPreserveJITCode(c, currentTime));
+    }
+
+    /* Check that at least one compartment is scheduled for collection. */
+    JS_ASSERT(any);
+
+    /*
+     * Atoms are not in the cross-compartment map. So if there are any
+     * compartments that are not being collected, we are not allowed to collect
+     * atoms. Otherwise, the non-collected compartments could contain pointers
+     * to atoms that we would miss.
+     */
+    if (rt->atomsCompartment->isGCScheduled() && rt->gcIsFull && !rt->gcKeepAtoms)
+        rt->atomsCompartment->setCollecting(true);
+
     /*
      * At the end of each incremental slice, we call prepareForIncrementalGC,
      * which marks objects in all arenas that we're currently allocating
@@ -3199,20 +3235,6 @@ BeginMarkPhase(JSRuntime *rt)
     if (rt->gcIsIncremental) {
         for (GCCompartmentsIter c(rt); !c.done(); c.next())
             c->arenas.purge();
-    }
-
-    rt->gcIsFull = true;
-    for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        JS_ASSERT(!c->wasGCStarted());
-        for (unsigned i = 0 ; i < FINALIZE_LIMIT ; ++i)
-            JS_ASSERT(!c->arenas.arenaListsToSweep[i]);
-
-        if (c->isCollecting())
-            c->setGCStarted(true);
-        else
-            rt->gcIsFull = false;
-
-        c->setPreservingCode(ShouldPreserveJITCode(c, currentTime));
     }
 
     rt->gcMarker.start(rt);
@@ -3487,6 +3509,7 @@ BeginSweepPhase(JSRuntime *rt)
         if (!c->isCollecting())
             isFull = false;
     }
+    JS_ASSERT_IF(isFull, rt->gcIsFull);
 
     rt->gcSweepOnBackgroundThread =
         (rt->hasContexts() && rt->gcHelperThread.prepareForBackgroundSweep());
@@ -3507,7 +3530,7 @@ BeginSweepPhase(JSRuntime *rt)
     WeakMapBase::sweepAll(&rt->gcMarker);
     rt->debugScopes->sweep();
 
-    {
+    if (rt->atomsCompartment->wasGCStarted()) {
         gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_SWEEP_ATOMS);
         SweepAtomState(rt);
     }
@@ -3650,9 +3673,8 @@ EndSweepPhase(JSRuntime *rt, JSGCInvocationKind gckind, gcreason::Reason gcReaso
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
         c->setGCLastBytes(c->gcBytes, c->gcMallocAndFreeBytes, gckind);
         if (c->wasGCStarted())
-            c->setGCStarted(false);
+            c->setCollecting(false);
 
-        JS_ASSERT(!c->wasGCStarted());
         for (unsigned i = 0 ; i < FINALIZE_LIMIT ; ++i)
             JS_ASSERT(!c->arenas.arenaListsToSweep[i]);
     }
@@ -3703,15 +3725,6 @@ AutoTraceSession::~AutoTraceSession()
 AutoGCSession::AutoGCSession(JSRuntime *rt)
   : AutoTraceSession(rt, JSRuntime::Collecting)
 {
-    DebugOnly<bool> any = false;
-    for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        if (c->isGCScheduled()) {
-            c->setCollecting(true);
-            any = true;
-        }
-    }
-    JS_ASSERT(any);
-
     runtime->gcIsNeeded = false;
     runtime->gcInterFrameGC = true;
 
@@ -3720,9 +3733,6 @@ AutoGCSession::AutoGCSession(JSRuntime *rt)
 
 AutoGCSession::~AutoGCSession()
 {
-    for (GCCompartmentsIter c(runtime); !c.done(); c.next())
-        c->setCollecting(false);
-
 #ifndef JS_MORE_DETERMINISTIC
     runtime->gcNextFullGCTime = PRMJ_Now() + GC_IDLE_FULL_SPAN;
 #endif
@@ -3735,8 +3745,10 @@ AutoGCSession::~AutoGCSession()
 #endif
 
     /* Clear gcMallocBytes for all compartments */
-    for (CompartmentsIter c(runtime); !c.done(); c.next())
+    for (CompartmentsIter c(runtime); !c.done(); c.next()) {
         c->resetGCMallocBytes();
+        c->unscheduleGC();
+    }
 
     runtime->resetGCMallocBytes();
 }
@@ -3765,7 +3777,7 @@ ResetIncrementalGC(JSRuntime *rt, const char *reason)
 
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
         c->setNeedsBarrier(false);
-        c->setGCStarted(false);
+        c->setCollecting(false);
         for (unsigned i = 0 ; i < FINALIZE_LIMIT ; ++i)
             JS_ASSERT(!c->arenas.arenaListsToSweep[i]);
     }
@@ -4062,7 +4074,7 @@ BudgetIncrementalGC(JSRuntime *rt, int64_t *budget)
         }
 
         if (rt->gcIncrementalState != NO_INCREMENTAL &&
-            c->isCollecting() != c->wasGCStarted()) {
+            c->isGCScheduled() != c->wasGCStarted()) {
             reset = true;
         }
     }
@@ -4894,7 +4906,7 @@ StartVerifyPreBarriers(JSRuntime *rt)
     rt->gcMarker.start(rt);
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
         c->setNeedsBarrier(true);
-        c->arenas.prepareForIncrementalGC(rt);
+        c->arenas.purge();
     }
 
     return;

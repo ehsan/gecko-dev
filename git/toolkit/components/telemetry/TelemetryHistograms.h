@@ -52,8 +52,11 @@ HISTOGRAM(FORGET_SKIPPABLE_MAX, 1, 10000, 50, EXPONENTIAL, "Max time spent on on
 HISTOGRAM_ENUMERATED_VALUES(GC_REASON_2, js::gcreason::NUM_TELEMETRY_REASONS, "Reason (enum value) for initiating a GC")
 HISTOGRAM_BOOLEAN(GC_IS_COMPARTMENTAL, "Is it a compartmental GC?")
 HISTOGRAM(GC_MS, 1, 10000, 50, EXPONENTIAL, "Time spent running JS GC (ms)")
+HISTOGRAM(GC_MAX_PAUSE_MS, 1, 1000, 50, LINEAR, "Longest GC slice in a GC (ms)")
 HISTOGRAM(GC_MARK_MS, 1, 10000, 50, EXPONENTIAL, "Time spent running JS GC mark phase (ms)")
 HISTOGRAM(GC_SWEEP_MS, 1, 10000, 50, EXPONENTIAL, "Time spent running JS GC sweep phase (ms)")
+HISTOGRAM(GC_MARK_ROOTS_MS, 1, 200, 50, LINEAR, "Time spent marking GC roots (ms)")
+HISTOGRAM(GC_MARK_GRAY_MS, 1, 200, 50, LINEAR, "Time spent marking gray GC objects (ms)")
 HISTOGRAM(GC_SLICE_MS, 1, 10000, 50, EXPONENTIAL, "Time spent running a JS GC slice (ms)")
 HISTOGRAM(GC_MMU_50, 1, 100, 20, LINEAR, "Minimum percentage of time spent outside GC over any 50ms window")
 HISTOGRAM_BOOLEAN(GC_RESET, "Was an incremental GC canceled?")
@@ -178,8 +181,8 @@ HISTOGRAM(SPDY_SYN_SIZE, 20, 20000, 50, EXPONENTIAL,  "SPDY: SYN Frame Header Si
 HISTOGRAM(SPDY_SYN_RATIO, 1, 99, 20, LINEAR,  "SPDY: SYN Frame Header Ratio (lower better)")
 HISTOGRAM(SPDY_SYN_REPLY_SIZE, 16, 20000, 50, EXPONENTIAL,  "SPDY: SYN Reply Header Size")
 HISTOGRAM(SPDY_SYN_REPLY_RATIO, 1, 99, 20, LINEAR,  "SPDY: SYN Reply Header Ratio (lower better)")
-HISTOGRAM(SPDY_NPN_CONNECT, 0, 1, 2, BOOLEAN,  "SPDY: NPN Negotiated")
-HISTOGRAM(SPDY_NPN_JOIN, 0, 1, 2, BOOLEAN,  "SPDY: Coalesce Succeeded")
+HISTOGRAM_BOOLEAN(SPDY_NPN_CONNECT,  "SPDY: NPN Negotiated")
+HISTOGRAM_BOOLEAN(SPDY_NPN_JOIN,  "SPDY: Coalesce Succeeded")
 HISTOGRAM(SPDY_KBREAD_PER_CONN, 1, 3000, 50, EXPONENTIAL, "SPDY: KB read per connection")
 HISTOGRAM(SPDY_PING_EXPERIMENT_PASS, 10, 355, 64, LINEAR, "SPDY: Ping Interval Passed")
 HISTOGRAM(SPDY_PING_EXPERIMENT_FAIL, 10, 355, 64, LINEAR, "SPDY: Ping Interval Failed")
@@ -301,7 +304,6 @@ HISTOGRAM(PLUGIN_SHUTDOWN_MS, 1, 5000, 20, EXPONENTIAL, "Time spent shutting dow
   SQLITE_TIME_SPENT(OTHER_ ## NAME, DESC) \
   SQLITE_TIME_SPENT(PLACES_ ## NAME, DESC) \
   SQLITE_TIME_SPENT(COOKIES_ ## NAME, DESC) \
-  SQLITE_TIME_SPENT(URLCLASSIFIER_ ## NAME, DESC) \
   SQLITE_TIME_SPENT(WEBAPPS_ ## NAME, DESC)
 
 SQLITE_TIME_SPENT(OPEN, "Time spent on SQLite open() (ms)")
@@ -314,11 +316,9 @@ SQLITE_TIME_PER_FILE(SYNC, "Time spent on SQLite fsync() (ms)")
 HISTOGRAM(MOZ_SQLITE_OTHER_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
 HISTOGRAM(MOZ_SQLITE_PLACES_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
 HISTOGRAM(MOZ_SQLITE_COOKIES_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
-HISTOGRAM(MOZ_SQLITE_URLCLASSIFIER_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
 HISTOGRAM(MOZ_SQLITE_WEBAPPS_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
 HISTOGRAM(MOZ_SQLITE_PLACES_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
 HISTOGRAM(MOZ_SQLITE_COOKIES_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
-HISTOGRAM(MOZ_SQLITE_URLCLASSIFIER_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
 HISTOGRAM(MOZ_SQLITE_WEBAPPS_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
 HISTOGRAM(MOZ_SQLITE_OTHER_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
 HISTOGRAM(MOZ_STORAGE_ASYNC_REQUESTS_MS, 1, 32768, 20, EXPONENTIAL, "mozStorage async requests completion (ms)")
@@ -347,11 +347,15 @@ HISTOGRAM(IDLE_NOTIFY_IDLE_LISTENERS, 1, 100, 20, LINEAR, "Number of listeners n
  * Url-Classifier telemetry
  */
 #ifdef MOZ_URL_CLASSIFIER
+HISTOGRAM(URLCLASSIFIER_LOOKUP_TIME, 1, 500, 10, EXPONENTIAL, "Time spent per dbservice lookup (ms)")
+HISTOGRAM(URLCLASSIFIER_CL_CHECK_TIME, 1, 500, 10, EXPONENTIAL, "Time spent per classifier lookup (ms)")
+HISTOGRAM(URLCLASSIFIER_CL_UPDATE_TIME, 20, 15000, 15, EXPONENTIAL, "Time spent per classifier update (ms)")
 HISTOGRAM(URLCLASSIFIER_PS_FILELOAD_TIME, 1, 1000, 10, EXPONENTIAL, "Time spent loading PrefixSet from file (ms)")
 HISTOGRAM(URLCLASSIFIER_PS_FALLOCATE_TIME, 1, 1000, 10, EXPONENTIAL, "Time spent fallocating PrefixSet (ms)")
 HISTOGRAM(URLCLASSIFIER_PS_CONSTRUCT_TIME, 1, 5000, 15, EXPONENTIAL, "Time spent constructing PrefixSet from DB (ms)")
-HISTOGRAM(URLCLASSIFIER_PS_LOOKUP_TIME, 1, 500, 10, EXPONENTIAL, "Time spent per PrefixSet lookup (ms)")
-HISTOGRAM_BOOLEAN(URLCLASSIFIER_PS_OOM, "Did UrlClassifier run out of memory during PrefixSet construction?")
+HISTOGRAM(URLCLASSIFIER_LC_PREFIXES, 1, 1500000, 15, LINEAR, "Size of the prefix cache in entries")
+HISTOGRAM(URLCLASSIFIER_LC_COMPLETIONS, 1, 200, 10, EXPONENTIAL, "Size of the completion cache in entries")
+HISTOGRAM_BOOLEAN(URLCLASSIFIER_PS_FAILURE, "Did UrlClassifier fail to construct the PrefixSet?")
 #endif
 
 /**
@@ -421,7 +425,7 @@ HISTOGRAM(FX_NEW_WINDOW_MS, 1, 10000, 20, EXPONENTIAL, "Firefox: Time taken to o
  */
 HISTOGRAM(FX_THUMBNAILS_CAPTURE_TIME_MS, 1, 500, 15, EXPONENTIAL, "THUMBNAILS: Time (ms) it takes to capture a thumbnail")
 HISTOGRAM(FX_THUMBNAILS_STORE_TIME_MS, 1, 500, 15, EXPONENTIAL, "THUMBNAILS: Time (ms) it takes to store a thumbnail in the cache")
-HISTOGRAM(FX_THUMBNAILS_HIT_OR_MISS, 0, 1, 2, BOOLEAN, "THUMBNAILS: Thumbnail found")
+HISTOGRAM_BOOLEAN(FX_THUMBNAILS_HIT_OR_MISS, "THUMBNAILS: Thumbnail found")
 
 
 /*
@@ -498,7 +502,7 @@ HISTOGRAM_ENUMERATED_VALUES(SAFE_MODE_USAGE, 3, "Whether the user is in safe mod
 /**
  * New Tab Page telemetry.
  */
-HISTOGRAM(NEWTAB_PAGE_ENABLED, 0, 1, 2, BOOLEAN, "New tab page is enabled.")
+HISTOGRAM_BOOLEAN(NEWTAB_PAGE_ENABLED, "New tab page is enabled.")
 HISTOGRAM(NEWTAB_PAGE_PINNED_SITES_COUNT, 1, 9, 10, EXPONENTIAL, "Number of pinned sites on the new tab page.")
 HISTOGRAM(NEWTAB_PAGE_BLOCKED_SITES_COUNT, 1, 100, 10, EXPONENTIAL, "Number of sites blocked from the new tab page.")
 

@@ -9,7 +9,6 @@
 
 #include "base/basictypes.h"
 #include "IPC/IPCMessageUtils.h"
-#include "nsIIPCSerializable.h"
 #include "nsILoadContext.h"
 
 /*
@@ -28,7 +27,7 @@ class SerializedLoadContext
 public:
   SerializedLoadContext()
   {
-    Init(nsnull);
+    Init(nullptr);
   }
 
   SerializedLoadContext(nsILoadContext* aLoadContext);

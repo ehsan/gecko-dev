@@ -67,9 +67,13 @@
 
         let mm = SpecialPowers.getBrowserFrameMessageManager(iframe);
         mm.addMessageListener("test:ipcClonedMessage", function(message) {
-          is(message.json, messages[receivedMessageIndex++],
+          // We need to wrap to access message.json, and unwrap to do the
+          // identity check.
+          is(SpecialPowers.unwrap(SpecialPowers.wrap(message).json),
+             messages[receivedMessageIndex++],
              "Got correct round-tripped response");
           if (receivedMessageIndex == messages.length) {
+            SpecialPowers.removePermission("browser", document);
             SimpleTest.finish();
           }
         });
@@ -87,21 +91,11 @@
     addEventListener("load", function() {
       info("Got load event.");
 
-      let whitelist;
-      try {
-        whitelist =
-          SpecialPowers.getCharPref("dom.mozBrowserFramesWhitelist") + ", ";
-      } catch (e) {
-        whitelist = "";
-      }
-
-      whitelist += window.location.protocol + "//" + window.location.host;
-
+      SpecialPowers.addPermission("browser", true, document);
       SpecialPowers.pushPrefEnv({
         "set": [
           ["dom.ipc.browser_frames.oop_by_default", true],
           ["dom.mozBrowserFramesEnabled", true],
-          ["dom.mozBrowserFramesWhitelist", whitelist],
           ["browser.pageThumbs.enabled", false]
         ]
       }, runTests);

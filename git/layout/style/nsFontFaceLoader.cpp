@@ -13,7 +13,6 @@
 
 #include "nsFontFaceLoader.h"
 
-#include "nsDOMError.h"
 #include "nsError.h"
 #include "nsIFile.h"
 #include "nsIStreamListener.h"
@@ -32,7 +31,6 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
-#include "nsContentErrors.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsIChannelPolicy.h"
@@ -747,7 +745,7 @@ nsUserFontSet::LogMessage(gfxProxyFontEntry *aProxy,
       break;
     default:
       msg.Append("status=");
-      msg.AppendInt(aStatus);
+      msg.AppendInt(static_cast<PRUint32>(aStatus));
       break;
     }
   }

@@ -38,7 +38,7 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIAppShell.h"
 
-#include "nsPluginError.h"
+#include "nsError.h"
 
 // Util headers
 #include "prenv.h"
@@ -540,7 +540,7 @@ IsPluginEnabledForType(const nsCString& aMIMEType)
 
   if (!pluginHost) {
     NS_NOTREACHED("No pluginhost");
-    return false;
+    return NS_ERROR_FAILURE;
   }
 
   nsresult rv = pluginHost->IsPluginEnabledForType(aMIMEType.get());
@@ -605,10 +605,13 @@ nsObjectLoadingContent::IsSupportedDocument(const nsCString& aMimeType)
 
 nsresult
 nsObjectLoadingContent::BindToTree(nsIDocument* aDocument,
-                                   nsIContent* /*aParent*/,
-                                   nsIContent* /*aBindingParent*/,
-                                   bool /*aCompileEventHandlers*/)
+                                   nsIContent* aParent,
+                                   nsIContent* aBindingParent,
+                                   bool aCompileEventHandlers)
 {
+  nsImageLoadingContent::BindToTree(aDocument, aParent, aBindingParent,
+                                    aCompileEventHandlers);
+
   if (aDocument) {
     return aDocument->AddPlugin(this);
   }
@@ -616,8 +619,10 @@ nsObjectLoadingContent::BindToTree(nsIDocument* aDocument,
 }
 
 void
-nsObjectLoadingContent::UnbindFromTree(bool /*aDeep*/, bool /*aNullParent*/)
+nsObjectLoadingContent::UnbindFromTree(bool aDeep, bool aNullParent)
 {
+  nsImageLoadingContent::UnbindFromTree(aDeep, aNullParent);
+
   nsCOMPtr<nsIContent> thisContent =
     do_QueryInterface(static_cast<nsIObjectLoadingContent*>(this));
   MOZ_ASSERT(thisContent);
@@ -635,7 +640,8 @@ nsObjectLoadingContent::UnbindFromTree(bool /*aDeep*/, bool /*aNullParent*/)
     if (appShell) {
       appShell->RunInStableState(event);
     }
-  } else {
+  } else if (mType != eType_Image) {
+    // nsImageLoadingContent handles the image case.
     // Reset state and clear pending events
     /// XXX(johns): The implementation for GenericFrame notes that ideally we
     ///             would keep the docshell around, but trash the frameloader
@@ -720,7 +726,7 @@ nsObjectLoadingContent::InstantiatePluginInstance()
 
   if (!pluginHost) {
     NS_NOTREACHED("No pluginhost");
-    return false;
+    return NS_ERROR_FAILURE;
   }
 
   // If you add early return(s), be sure to balance this call to
@@ -1513,7 +1519,9 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
 
   ParameterUpdateFlags stateChange = UpdateObjectParameters();
 
-  if (!stateChange && !aForceLoad) {
+  // If nothing changed and we are not force-loading, or we're in state loading
+  // but continuing to wait on a channel, we're done
+  if ((!stateChange && !aForceLoad) || (mType == eType_Loading && mChannel)) {
     return NS_OK;
   }
 
@@ -1711,21 +1719,15 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
         mType = eType_Null;
         break;
       }
+      
+      mFrameLoader = nsFrameLoader::Create(thisContent->AsElement(),
+                                           mNetworkCreated);
       if (!mFrameLoader) {
-        // Force a sync state change, we need the frame created
-        NotifyStateChanged(oldType, oldState, true, aNotify);
-        oldType = mType;
-        oldState = ObjectState();
-
-        mFrameLoader = nsFrameLoader::Create(thisContent->AsElement(),
-                                             mNetworkCreated);
-        if (!mFrameLoader) {
-          NS_NOTREACHED("nsFrameLoader::Create failed");
-          mType = eType_Null;
-          break;
-        }
+        NS_NOTREACHED("nsFrameLoader::Create failed");
+        mType = eType_Null;
+        break;
       }
-
+      
       rv = mFrameLoader->CheckForRecursiveLoad(mURI);
       if (NS_FAILED(rv)) {
         mType = eType_Null;
@@ -1806,10 +1808,11 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
   // Notify of our final state if we haven't already
   NotifyStateChanged(oldType, oldState, false, aNotify);
 
-  if (mType == eType_Null && mFallbackType != eFallbackAlternate) {
-    // if we're not showing alternate content, fire a pluginerror to trigger
-    // (we stopped LoadFallback from doing so above, it doesn't know of our old
-    //  state)
+  if (mType == eType_Null && !mContentType.IsEmpty() &&
+      mFallbackType != eFallbackAlternate) {
+    // if we have a content type and are not showing alternate
+    // content, fire a pluginerror to trigger (we stopped LoadFallback
+    // from doing so above, it doesn't know of our old state)
     FirePluginError(mFallbackType);
   }
 

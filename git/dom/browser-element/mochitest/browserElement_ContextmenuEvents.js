@@ -31,7 +31,7 @@ var trigger1 = function() {
 function runTest() {
 
   browserElementTestHelpers.setEnabledPref(true);
-  browserElementTestHelpers.addToWhitelist();
+  browserElementTestHelpers.addPermission();
 
   var iframe1 = document.createElement('iframe');
   iframe1.mozbrowser = true;
@@ -103,6 +103,7 @@ function runTest() {
   }
 
   function ctxCallbackRecieved(msg) {
+    msg = SpecialPowers.wrap(msg);
     ctxCallbackEvents++;
     if (ctxCallbackEvents === 1) {
       ok(msg.json.data === 'inner2', 'Callback function got fired correctly');

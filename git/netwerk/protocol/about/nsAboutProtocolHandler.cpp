@@ -17,7 +17,7 @@
 #include "nsReadableUtils.h"
 #include "nsNetCID.h"
 #include "nsAboutProtocolUtils.h"
-#include "nsNetError.h"
+#include "nsError.h"
 #include "nsNetUtil.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
@@ -292,7 +292,7 @@ nsNestedAboutURI::Write(nsIObjectOutputStream* aStream)
     return NS_OK;
 }
 
-// nsIIPCSerializable
+// nsIIPCSerializableObsolete
 bool
 nsNestedAboutURI::Read(const IPC::Message *aMsg, void **aIter)
 {
