@@ -10,6 +10,7 @@ import org.mozilla.gecko.animation.PropertyAnimator;
 import org.mozilla.gecko.animation.ViewHelper;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.util.AttributeSet;
 
 /**
@@ -20,18 +21,15 @@ class BrowserToolbarNewTablet extends BrowserToolbarTabletBase {
 
     private static final int FORWARD_ANIMATION_DURATION = 450;
 
-    private final int forwardButtonTranslationWidth;
+    private final int urlBarViewOffset;
+    private final int defaultForwardMargin;
 
     public BrowserToolbarNewTablet(final Context context, final AttributeSet attrs) {
         super(context, attrs);
 
-        forwardButtonTranslationWidth =
-                getResources().getDimensionPixelOffset(R.dimen.new_tablet_nav_button_width);
-
-        // The forward button is initially expanded (in the layout file)
-        // so translate it for start of the expansion animation; future
-        // iterations translate it to this position when hiding and will already be set up.
-        ViewHelper.setTranslationX(forwardButton, -forwardButtonTranslationWidth);
+        final Resources res = getResources();
+        urlBarViewOffset = res.getDimensionPixelSize(R.dimen.url_bar_offset_left);
+        defaultForwardMargin = res.getDimensionPixelSize(R.dimen.new_tablet_forward_default_offset);
     }
 
     @Override
@@ -51,24 +49,25 @@ class BrowserToolbarNewTablet extends BrowserToolbarTabletBase {
 
     @Override
     protected void animateForwardButton(final ForwardButtonAnimation animation) {
-        final boolean willShowForward = (animation == ForwardButtonAnimation.SHOW);
+        final boolean showing = (animation == ForwardButtonAnimation.SHOW);
 
-        // If we're not in the appropriate state to start a particular animation,
-        // then we must be in the opposite state and do not need to animate.
-        final float forwardOffset = ViewHelper.getTranslationX(forwardButton);
-        if ((forwardOffset >= 0 && willShowForward) ||
-                forwardOffset < 0 && !willShowForward) {
+        // if the forward button's margin is non-zero, this means it has already
+        // been animated to be visible¸ and vice-versa.
+        MarginLayoutParams fwdParams = (MarginLayoutParams) forwardButton.getLayoutParams();
+        if ((fwdParams.leftMargin > defaultForwardMargin && showing) ||
+            (fwdParams.leftMargin == defaultForwardMargin && !showing)) {
             return;
         }
 
         // We want the forward button to show immediately when switching tabs
         final PropertyAnimator forwardAnim =
                 new PropertyAnimator(isSwitchingTabs ? 10 : FORWARD_ANIMATION_DURATION);
+        final int width = Math.round(forwardButton.getWidth() * .75f);
 
         forwardAnim.addPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
             @Override
             public void onPropertyAnimationStart() {
-                if (!willShowForward) {
+                if (!showing) {
                     // Set the margin before the transition when hiding the forward button. We
                     // have to do this so that the favicon isn't clipped during the transition
                     MarginLayoutParams layoutParams =
@@ -88,23 +87,26 @@ class BrowserToolbarNewTablet extends BrowserToolbarTabletBase {
 
             @Override
             public void onPropertyAnimationEnd() {
-                if (willShowForward) {
-                    // Increase the margins to ensure the text does not run outside the View.
+                if (showing) {
                     MarginLayoutParams layoutParams =
                         (MarginLayoutParams) urlDisplayLayout.getLayoutParams();
-                    layoutParams.leftMargin = forwardButtonTranslationWidth;
+                    layoutParams.leftMargin = urlBarViewOffset;
 
                     layoutParams = (MarginLayoutParams) urlEditLayout.getLayoutParams();
-                    layoutParams.leftMargin = forwardButtonTranslationWidth;
+                    layoutParams.leftMargin = urlBarViewOffset;
                 }
 
                 urlDisplayLayout.finishForwardAnimation();
+
+                MarginLayoutParams layoutParams = (MarginLayoutParams) forwardButton.getLayoutParams();
+                layoutParams.leftMargin = defaultForwardMargin + (showing ? width : 0);
+                ViewHelper.setTranslationX(forwardButton, 0);
 
                 requestLayout();
             }
         });
 
-        prepareForwardAnimation(forwardAnim, animation, forwardButtonTranslationWidth);
+        prepareForwardAnimation(forwardAnim, animation, width);
         forwardAnim.start();
     }
 
@@ -120,7 +122,7 @@ class BrowserToolbarNewTablet extends BrowserToolbarTabletBase {
         } else {
             anim.attach(forwardButton,
                       PropertyAnimator.Property.TRANSLATION_X,
-                      0);
+                      width);
             anim.attach(forwardButton,
                       PropertyAnimator.Property.ALPHA,
                       1);

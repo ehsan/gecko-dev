@@ -231,10 +231,9 @@ void RTSPSource::performPlay(int64_t playTimeUs) {
 
     int64_t duration = 0;
     getDuration(&duration);
-    MOZ_ASSERT(duration == 0 || playTimeUs < duration,
+    MOZ_ASSERT(playTimeUs < duration,
                "Should never receive an out of bounds play time!");
-    if (duration > 0 && playTimeUs >= duration) {
-        // if not a live stream and play time out of bounds
+    if (playTimeUs >= duration) {
         return;
     }
 
@@ -595,26 +594,20 @@ void RTSPSource::onConnected(bool isSeekable)
         meta->SetTotalTracks(numTracks);
         meta->SetMimeType(mimeType);
 
-        bool success;
-        success = format->findInt64(kKeyDuration, &int64Value);
-        MOZ_ASSERT(success);
+        CHECK(format->findInt64(kKeyDuration, &int64Value));
         meta->SetDuration(int64Value);
 
         if (isAudio) {
-            success = format->findInt32(kKeyChannelCount, &int32Value);
-            MOZ_ASSERT(success);
+            CHECK(format->findInt32(kKeyChannelCount, &int32Value));
             meta->SetChannelCount(int32Value);
 
-            success = format->findInt32(kKeySampleRate, &int32Value);
-            MOZ_ASSERT(success);
+            CHECK(format->findInt32(kKeySampleRate, &int32Value));
             meta->SetSampleRate(int32Value);
         } else {
-            success = format->findInt32(kKeyWidth, &int32Value);
-            MOZ_ASSERT(success);
+            CHECK(format->findInt32(kKeyWidth, &int32Value));
             meta->SetWidth(int32Value);
 
-            success = format->findInt32(kKeyHeight, &int32Value);
-            MOZ_ASSERT(success);
+            CHECK(format->findInt32(kKeyHeight, &int32Value));
             meta->SetHeight(int32Value);
         }
 
@@ -712,9 +705,8 @@ void RTSPSource::onTrackDataAvailable(size_t trackIndex)
 
     meta = new mozilla::net::RtspMetaData();
 
-    MOZ_ASSERT(accessUnit != NULL);
-    bool success = accessUnit->meta()->findInt64("timeUs", &int64Value);
-    MOZ_ASSERT(success);
+    CHECK(accessUnit != NULL);
+    CHECK(accessUnit->meta()->findInt64("timeUs", &int64Value));
     meta->SetTimeStamp(int64Value);
 
     meta->SetFrameType(MEDIASTREAM_FRAMETYPE_NORMAL);

@@ -174,14 +174,6 @@ WifiProxyService::Start(nsIWifiEventListener* aListener,
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aListener);
 
-#if ANDROID_VERSION >= 19
-  // KK changes the way mux'ing/demux'ing different supplicant interfaces
-  // (e.g. wlan0/p2p0) from multi-sockets to single socket embedded with
-  // prefixed interface name (e.g. IFNAME=wlan0 xxxxxx). Therefore, we use
-  // the first given interface as the global interface for KK.
-  aNumOfInterfaces = 1;
-#endif
-
   nsresult rv;
 
   // Since EventRunnable runs in the manner of blocking, we have to
@@ -258,14 +250,6 @@ WifiProxyService::WaitForEvent(const nsACString& aInterface)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-#if ANDROID_VERSION >= 19
-  // We will only have one global interface for KK.
-  if (!mEventThreadList.IsEmpty()) {
-    nsCOMPtr<nsIRunnable> runnable = new EventRunnable(aInterface);
-    mEventThreadList[0].mThread->Dispatch(runnable, nsIEventTarget::DISPATCH_NORMAL);
-    return NS_OK;
-  }
-#else
   // Dispatch to the event thread which has the given interface name
   for (size_t i = 0; i < mEventThreadList.Length(); i++) {
     if (mEventThreadList[i].mInterface.Equals(aInterface)) {
@@ -274,7 +258,6 @@ WifiProxyService::WaitForEvent(const nsACString& aInterface)
       return NS_OK;
     }
   }
-#endif
 
   return NS_ERROR_FAILURE;
 }
@@ -299,27 +282,16 @@ void
 WifiProxyService::DispatchWifiEvent(const nsAString& aEvent, const nsACString& aInterface)
 {
   MOZ_ASSERT(NS_IsMainThread());
-
-#if ANDROID_VERSION < 19
-  mListener->OnWaitEvent(aEvent, aInterface);
-#else
-  // The interface might be embedded in the event string such as
-  // "IFNAME=wlan0 CTRL-EVENT-BSS-ADDED 65 3c:94:d5:7c:11:8b".
-  // Parse the interface name from the event string and use p2p0
-  // as the default interface if "IFNAME" is not found.
   nsAutoString event;
-  nsAutoString embeddedInterface(NS_LITERAL_STRING("p2p0"));
   if (StringBeginsWith(aEvent, NS_LITERAL_STRING("IFNAME"))) {
-    int32_t ifnameFrom = aEvent.FindChar('=') + 1;
-    int32_t ifnameTo = aEvent.FindChar(' ') - 1;
-    embeddedInterface = Substring(aEvent, ifnameFrom, ifnameTo - ifnameFrom + 1);
+    // Jump over IFNAME for gonk-kk.
     event = Substring(aEvent, aEvent.FindChar(' ') + 1);
   }
   else {
     event = aEvent;
   }
-  mListener->OnWaitEvent(event, NS_ConvertUTF16toUTF8(embeddedInterface));
-#endif
+  // Call the listener.
+  mListener->OnWaitEvent(event, aInterface);
 }
 
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(WifiProxyService,

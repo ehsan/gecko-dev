@@ -143,9 +143,7 @@ RootActor.prototype = {
     selectorEditable: true,
     // Whether the page style actor implements the addNewRule method that
     // adds new rules to the page
-    addNewRule: true,
-    // Whether the dom node actor implements the getUniqueSelector method
-    getUniqueSelector: true
+    addNewRule: true
   },
 
   /**

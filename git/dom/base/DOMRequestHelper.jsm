@@ -276,11 +276,6 @@ DOMRequestIpcHelper.prototype = {
   },
 
   createRequest: function() {
-    // If we don't have a valid window object, throw.
-    if (!this._window) {
-      Cu.reportError("DOMRequestHelper trying to create a DOMRequest without a valid window, failing.");
-      throw Cr.NS_ERROR_FAILURE;
-    }
     return Services.DOMRequest.createRequest(this._window);
   },
 
@@ -290,11 +285,6 @@ DOMRequestIpcHelper.prototype = {
    * reference to window owned by this DOMRequestIPCHelper.
    */
   createPromise: function(aPromiseInit) {
-    // If we don't have a valid window object, throw.
-    if (!this._window) {
-      Cu.reportError("DOMRequestHelper trying to create a Promise without a valid window, failing.");
-      throw Cr.NS_ERROR_FAILURE;
-    }
     return new this._window.Promise(aPromiseInit);
   },
 
