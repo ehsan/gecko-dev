@@ -149,6 +149,32 @@ protected:
     static jfieldID jTopField;
 };
 
+class AndroidGeckoSoftwareLayerClient : public WrappedJavaObject {
+public:
+    static void InitGeckoSoftwareLayerClientClass(JNIEnv *jEnv);
+ 
+     void Init(jobject jobj);
+ 
+    AndroidGeckoSoftwareLayerClient() {}
+    AndroidGeckoSoftwareLayerClient(jobject jobj) { Init(jobj); }
+
+    jobject LockBuffer();
+    unsigned char *LockBufferBits();
+    void UnlockBuffer();
+    void BeginDrawing(int aWidth, int aHeight);
+    void EndDrawing(const nsIntRect &aRect, const nsAString &aMetadata);
+
+private:
+    static jclass jGeckoSoftwareLayerClientClass;
+    static jmethodID jLockBufferMethod;
+    static jmethodID jUnlockBufferMethod;
+
+protected:
+     static jmethodID jBeginDrawingMethod;
+     static jmethodID jEndDrawingMethod;
+};
+
+
 class AndroidGeckoSurfaceView : public WrappedJavaObject
 {
 public:
@@ -364,7 +390,6 @@ public:
     static jclass jAddressClass;
     static jmethodID jGetAddressLineMethod;
     static jmethodID jGetAdminAreaMethod;
-    static jmethodID jGetCountryCodeMethod;
     static jmethodID jGetCountryNameMethod;
     static jmethodID jGetFeatureNameMethod;
     static jmethodID jGetLocalityMethod;
@@ -388,6 +413,9 @@ public:
     AndroidGeckoEvent(int x1, int y1, int x2, int y2) {
         Init(x1, y1, x2, y2);
     }
+    AndroidGeckoEvent(int aType, const nsIntRect &aRect) {
+        Init(aType, aRect);
+    }
     AndroidGeckoEvent(JNIEnv *jenv, jobject jobj) {
         Init(jenv, jobj);
     }
@@ -398,6 +426,7 @@ public:
     void Init(JNIEnv *jenv, jobject jobj);
     void Init(int aType);
     void Init(int x1, int y1, int x2, int y2);
+    void Init(int aType, const nsIntRect &aRect);
     void Init(AndroidGeckoEvent *aResizeEvent);
 
     int Action() { return mAction; }
@@ -413,6 +442,7 @@ public:
     double Z() { return mZ; }
     const nsIntRect& Rect() { return mRect; }
     nsAString& Characters() { return mCharacters; }
+    nsAString& CharactersExtra() { return mCharactersExtra; }
     int KeyCode() { return mKeyCode; }
     int MetaState() { return mMetaState; }
     int Flags() { return mFlags; }
@@ -440,7 +470,7 @@ protected:
     int mRangeForeColor, mRangeBackColor;
     double mAlpha, mBeta, mGamma;
     double mX, mY, mZ;
-    nsString mCharacters;
+    nsString mCharacters, mCharactersExtra;
     nsRefPtr<nsGeoPosition> mGeoPosition;
     nsRefPtr<nsGeoPositionAddress> mGeoAddress;
 
@@ -448,6 +478,7 @@ protected:
     void ReadP1Field(JNIEnv *jenv);
     void ReadRectField(JNIEnv *jenv);
     void ReadCharactersField(JNIEnv *jenv);
+    void ReadCharactersExtraField(JNIEnv *jenv);
 
     static jclass jGeckoEventClass;
     static jfieldID jActionField;
@@ -465,6 +496,7 @@ protected:
     static jfieldID jNativeWindowField;
 
     static jfieldID jCharactersField;
+    static jfieldID jCharactersExtraField;
     static jfieldID jKeyCodeField;
     static jfieldID jMetaStateField;
     static jfieldID jFlagsField;
@@ -498,6 +530,10 @@ public:
         GECKO_EVENT_SYNC = 15,
         FORCED_RESIZE = 16,
         ACTIVITY_START = 17,
+        BROADCAST = 19,
+        VIEWPORT = 20,
+        TILE_SIZE = 21,
+        VISITED = 22,
         dummy_java_enum_list_end
     };
 

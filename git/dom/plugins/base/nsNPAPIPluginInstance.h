@@ -49,16 +49,12 @@
 #include "nsIChannel.h"
 #include "nsInterfaceHashtable.h"
 #include "nsHashKeys.h"
-
-#include "gfxASurface.h"
-#include "gfxImageSurface.h"
+#ifdef MOZ_WIDGET_ANDROID
+#include "nsIRunnable.h"
+#endif
 
 #include "mozilla/TimeStamp.h"
 #include "mozilla/PluginLibrary.h"
-
-#ifdef ANDROID
-#include "mozilla/Mutex.h"
-#endif
 
 struct JSObject;
 
@@ -93,7 +89,7 @@ public:
   nsresult NewStreamToPlugin(nsIPluginStreamListener** listener);
   nsresult NewStreamFromPlugin(const char* type, const char* target, nsIOutputStream* *result);
   nsresult Print(NPPrint* platformPrint);
-#ifdef ANDROID
+#ifdef MOZ_WIDGET_ANDROID
   nsresult PostEvent(void* event) { return 0; };
 #endif
   nsresult HandleEvent(void* event, PRInt16* result);
@@ -153,16 +149,11 @@ public:
   void SetEventModel(NPEventModel aModel);
 #endif
 
-#ifdef ANDROID
+#ifdef MOZ_WIDGET_ANDROID
   void SetDrawingModel(PRUint32 aModel);
   void* GetJavaSurface();
-
-  gfxImageSurface* LockTargetSurface();
-  gfxImageSurface* LockTargetSurface(PRUint32 aWidth, PRUint32 aHeight, gfxASurface::gfxImageFormat aFormat,
-                                     NPRect* aRect);
-  void UnlockTargetSurface(bool aInvalidate);
-
-  static nsNPAPIPluginInstance* FindByJavaSurface(void* aJavaSurface);
+  void SetJavaSurface(void* aSurface);
+  void RequestJavaSurface();
 #endif
 
   nsresult NewStreamListener(const char* aURL, void* notifyData,
@@ -237,8 +228,9 @@ protected:
   NPDrawingModel mDrawingModel;
 #endif
 
-#ifdef ANDROID
+#ifdef MOZ_WIDGET_ANDROID
   PRUint32 mDrawingModel;
+  nsCOMPtr<nsIRunnable> mSurfaceGetter;
 #endif
 
   enum {
@@ -289,13 +281,8 @@ private:
   nsCOMPtr<nsIURI> mURI;
 
   bool mUsePluginLayersPref;
-#ifdef ANDROID
-  void InvalidateTargetRect();
-  
+#ifdef MOZ_WIDGET_ANDROID
   void* mSurface;
-  gfxImageSurface *mTargetSurface;
-  mozilla::Mutex* mTargetSurfaceLock;
-  NPRect mTargetLockRect;
 #endif
 };
 

@@ -92,6 +92,7 @@
 #include <Carbon/Carbon.h>
 #include <ApplicationServices/ApplicationServices.h>
 #include <OpenGL/OpenGL.h>
+#include "nsCocoaFeatures.h"
 #endif
 
 // needed for nppdf plugin
@@ -131,7 +132,7 @@ using mozilla::plugins::PluginModuleParent;
 #include <windows.h>
 #endif
 
-#ifdef ANDROID
+#ifdef MOZ_WIDGET_ANDROID
 #include "ANPBase.h"
 #include "AndroidBridge.h"
 #include <android/log.h>
@@ -488,7 +489,7 @@ nsNPAPIPlugin::CreatePlugin(nsPluginTag *aPluginTag, nsNPAPIPlugin** aResult)
     return NS_ERROR_FAILURE;
   }
 
-#if defined(XP_MACOSX) || defined(ANDROID)
+#if defined(XP_MACOSX) || defined(MOZ_WIDGET_ANDROID)
   if (!pluginLib->HasRequiredFunctions()) {
     NS_WARNING("Not all necessary functions exposed by plugin, it will not load.");
     return NS_ERROR_FAILURE;
@@ -526,6 +527,7 @@ nsNPAPIPlugin::CreatePlugin(nsPluginTag *aPluginTag, nsNPAPIPlugin** aResult)
   if (rv != NS_OK || pluginCallError != NPERR_NO_ERROR) {
     return NS_ERROR_FAILURE;
   }
+#elif defined(MOZ_WIDGET_GONK)
 #else
   rv = pluginLib->NP_Initialize(&sBrowserFuncs, &plugin->mPluginFuncs, &pluginCallError);
   if (rv != NS_OK || pluginCallError != NPERR_NO_ERROR) {
@@ -1645,6 +1647,8 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   }
 
   obj = JS_ObjectToInnerObject(cx, obj);
+  NS_ABORT_IF_FALSE(obj,
+    "JS_ObjectToInnerObject should never return null with non-null input.");
 
   // Root obj and the rval (below).
   jsval vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
@@ -1998,19 +2002,6 @@ _releasevariantvalue(NPVariant* variant)
   VOID_TO_NPVARIANT(*variant);
 }
 
-bool NP_CALLBACK
-_tostring(NPObject* npobj, NPVariant *result)
-{
-  NS_ERROR("Write me!");
-
-  if (!NS_IsMainThread()) {
-    NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_tostring called from the wrong thread\n"));
-    return false;
-  }
-
-  return false;
-}
-
 void NP_CALLBACK
 _setexception(NPObject* npobj, const NPUTF8 *message)
 {
@@ -2267,13 +2258,13 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 
    case NPNVsupportsCoreAnimationBool: {
-     *(NPBool*)result = true;
+     *(NPBool*)result = nsCocoaFeatures::SupportCoreAnimationPlugins();
 
      return NPERR_NO_ERROR;
    }
 
    case NPNVsupportsInvalidatingCoreAnimationBool: {
-     *(NPBool*)result = true;
+     *(NPBool*)result = nsCocoaFeatures::SupportCoreAnimationPlugins();
 
      return NPERR_NO_ERROR;
    }
@@ -2298,7 +2289,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 #endif
 
-#ifdef ANDROID
+#ifdef MOZ_WIDGET_ANDROID
     case kLogInterfaceV0_ANPGetValue: {
       LOG("get log interface");
       ANPLogInterfaceV0 *i = (ANPLogInterfaceV0 *) result;
@@ -2514,7 +2505,7 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
       }
     }
 #endif
-#ifdef ANDROID
+#ifdef MOZ_WIDGET_ANDROID
   case kRequestDrawingModel_ANPSetValue:
     if (inst)
       inst->SetDrawingModel(NS_PTR_TO_INT32(result));

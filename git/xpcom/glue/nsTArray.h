@@ -442,6 +442,7 @@ public:
   typedef nsTArray_SafeElementAtHelper<E, self_type> safeelementat_helper_type;
 
   using safeelementat_helper_type::SafeElementAt;
+  using base_type::EmptyHdr;
 
   // A special value that is used to indicate an invalid or unknown index
   // into the array.
@@ -514,11 +515,21 @@ public:
     return *this;
   }
 
-  // @return The amount of memory taken used by this nsTArray, not including
-  // sizeof(this)
-  size_t SizeOf() const {
-    return this->UsesAutoArrayBuffer() ?
-      0 : this->Capacity() * sizeof(elem_type) + sizeof(*this->Hdr());
+  // @return The amount of memory used by this nsTArray, excluding
+  // sizeof(*this).
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun mallocSizeOf) const {
+    if (this->UsesAutoArrayBuffer() || Hdr() == EmptyHdr())
+      return 0;
+    return mallocSizeOf(this->Hdr(), 
+                        sizeof(nsTArrayHeader) +
+                        this->Capacity() * sizeof(elem_type));
+  }
+
+  // @return The amount of memory used by this nsTArray, including
+  // sizeof(*this).
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf) const {
+    return mallocSizeOf(this, sizeof(nsTArray)) +
+           SizeOfExcludingThis(mallocSizeOf);
   }
 
   //

@@ -64,6 +64,8 @@
 #include "BasicLayers.h"
 #include "nsBoxFrame.h"
 #include "nsViewportFrame.h"
+#include "nsSVGEffects.h"
+#include "nsSVGClipPathFrame.h"
 
 using namespace mozilla;
 using namespace mozilla::layers;
@@ -2566,6 +2568,15 @@ nsDisplayTransform::GetResultingTransformMatrix(const nsIFrame* aFrame,
     (newOrigin + toMozOrigin, result);
 }
 
+bool
+nsDisplayTransform::ShouldPrerenderTransformedContent(nsDisplayListBuilder* aBuilder,
+                                                      nsIFrame* aFrame)
+{
+  return aFrame->AreLayersMarkedActive(nsChangeHint_UpdateTransformLayer) &&
+         aFrame->GetVisualOverflowRectRelativeToSelf().Size() <=
+          aBuilder->ReferenceFrame()->GetSize();
+}
+
 /* If the matrix is singular, or a hidden backface is shown, the frame won't be visible or hit. */
 static bool IsFrameVisible(nsIFrame* aFrame, const gfx3DMatrix& aMatrix) 
 {
@@ -2609,7 +2620,7 @@ already_AddRefed<Layer> nsDisplayTransform::BuildLayer(nsDisplayListBuilder *aBu
 
   // Add the preserve-3d flag for this layer, BuildContainerLayerFor clears all flags,
   // so we never need to explicitely unset this flag.
-  if (mFrame->Preserves3D()) {
+  if (mFrame->Preserves3D() || mFrame->Preserves3DChildren()) {
     container->SetContentFlags(container->GetContentFlags() | Layer::CONTENT_PRESERVE_3D);
   }
   return container.forget();
@@ -2643,7 +2654,8 @@ bool nsDisplayTransform::ComputeVisibility(nsDisplayListBuilder *aBuilder,
    * think that it's painting in its original rectangular coordinate space.
    * If we can't untransform, take the entire overflow rect */
   nsRect untransformedVisibleRect;
-  if (!UntransformRect(mVisibleRect, 
+  if (ShouldPrerenderTransformedContent(aBuilder, mFrame) ||
+      !UntransformRect(mVisibleRect,
                        mFrame, 
                        aBuilder->ToReferenceFrame(mFrame), 
                        &untransformedVisibleRect)) 
@@ -2999,3 +3011,44 @@ bool nsDisplaySVGEffects::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem
     other->mBounds + other->mEffectsFrame->GetOffsetTo(mEffectsFrame));
   return true;
 }
+
+#ifdef MOZ_DUMP_PAINTING
+void
+nsDisplaySVGEffects::PrintEffects(FILE* aOutput)
+{
+  nsIFrame* firstFrame =
+    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(mEffectsFrame);
+  nsSVGEffects::EffectProperties effectProperties =
+    nsSVGEffects::GetEffectProperties(firstFrame);
+  bool isOK = true;
+  nsSVGClipPathFrame *clipPathFrame = effectProperties.GetClipPathFrame(&isOK);
+  bool first = true;
+  fprintf(aOutput, " effects=(");
+  if (mEffectsFrame->GetStyleDisplay()->mOpacity != 1.0f) {
+    first = false;
+    fprintf(aOutput, "opacity(%f)", mEffectsFrame->GetStyleDisplay()->mOpacity);
+  }
+  if (clipPathFrame) {
+    if (!first) {
+      fprintf(aOutput, ", ");
+    }
+    fprintf(aOutput, "clip(%s)", clipPathFrame->IsTrivial() ? "trivial" : "non-trivial");
+    first = false;
+  }
+  if (effectProperties.GetFilterFrame(&isOK)) {
+    if (!first) {
+      fprintf(aOutput, ", ");
+    }
+    fprintf(aOutput, "filter");
+    first = false;
+  }
+  if (effectProperties.GetMaskFrame(&isOK)) {
+    if (!first) {
+      fprintf(aOutput, ", ");
+    }
+    fprintf(aOutput, "mask");
+  }
+  fprintf(aOutput, ")");
+}
+#endif
+

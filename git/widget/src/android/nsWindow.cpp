@@ -39,6 +39,7 @@
 
 #include <android/log.h>
 #include <math.h>
+#include <unistd.h>
 
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ContentChild.h"
@@ -53,6 +54,7 @@ using mozilla::unused;
 #include "nsIdleService.h"
 #include "nsWindow.h"
 #include "nsIObserverService.h"
+#include "nsFocusManager.h"
 
 #include "nsRenderingContext.h"
 #include "nsIDOMSimpleGestureEvent.h"
@@ -74,13 +76,37 @@ using mozilla::unused;
 
 #include "AndroidBridge.h"
 
+#include "imgIEncoder.h"
+
+#include "nsStringGlue.h"
+
 using namespace mozilla;
+using namespace mozilla::widget;
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsWindow, nsBaseWidget)
 
 // The dimensions of the current android view
-static gfxIntSize gAndroidBounds;
+static gfxIntSize gAndroidBounds = gfxIntSize(0, 0);
+static gfxIntSize gAndroidTileSize = gfxIntSize(0, 0);
 static gfxIntSize gAndroidScreenBounds;
+
+#ifdef ACCESSIBILITY
+bool nsWindow::sAccessibilityEnabled = false;
+#endif
+
+#ifdef MOZ_JAVA_COMPOSITOR
+#include "mozilla/Mutex.h"
+#include "nsThreadUtils.h"
+#include "AndroidDirectTexture.h"
+
+static AndroidDirectTexture* sDirectTexture = new AndroidDirectTexture(2048, 2048,
+        AndroidGraphicBuffer::UsageSoftwareWrite | AndroidGraphicBuffer::UsageTexture,
+        gfxASurface::ImageFormatRGB16_565);
+
+static bool sHasDirectTexture = true;
+
+#endif
+
 
 class ContentCreationNotifier;
 static nsCOMPtr<ContentCreationNotifier> gContentCreationNotifier;
@@ -175,6 +201,9 @@ nsWindow::nsWindow() :
     mIsVisible(false),
     mParent(nsnull),
     mFocus(nsnull),
+#ifdef ACCESSIBILITY
+    mRootAccessible(nsnull),
+#endif
     mIMEComposing(false)
 {
 }
@@ -185,6 +214,10 @@ nsWindow::~nsWindow()
     nsWindow *top = FindTopLevel();
     if (top->mFocus == this)
         top->mFocus = nsnull;
+#ifdef ACCESSIBILITY
+    if (mRootAccessible)
+        mRootAccessible = nsnull;
+#endif
     ALOG("nsWindow %p destructor", (void*)this);
 }
 
@@ -252,6 +285,8 @@ nsWindow::Create(nsIWidget *aParent,
 NS_IMETHODIMP
 nsWindow::Destroy(void)
 {
+    nsBaseWidget::mOnDestroyCalled = true;
+
     for (PRUint32 i = 0; i < mChildren.Length(); ++i) {
         // why do we still have children?
         ALOG("### Warning: Destroying window %p and reparenting child %p to null!", (void*)this, (void*)mChildren[i]);
@@ -263,6 +298,8 @@ nsWindow::Destroy(void)
 
     if (mParent)
         mParent->mChildren.RemoveElement(this);
+
+    nsBaseWidget::OnDestroy();
 
     return NS_OK;
 }
@@ -280,6 +317,14 @@ nsWindow::ConfigureChildren(const nsTArray<nsIWidget::Configuration>& config)
     }
 
     return NS_OK;
+}
+
+void
+nsWindow::RedrawAll()
+{
+    nsIntRect entireRect(0, 0, gAndroidBounds.width, gAndroidBounds.height);
+    AndroidGeckoEvent *event = new AndroidGeckoEvent(AndroidGeckoEvent::DRAW, entireRect);
+    nsAppShell::gAppShell->PostEvent(event);
 }
 
 NS_IMETHODIMP
@@ -302,7 +347,7 @@ nsWindow::SetParent(nsIWidget *aNewParent)
 
     // if we are now in the toplevel window's hierarchy, schedule a redraw
     if (FindTopLevel() == TopWindow())
-        nsAppShell::gAppShell->PostEvent(new AndroidGeckoEvent(-1, -1, -1, -1));
+        RedrawAll();
 
     return NS_OK;
 }
@@ -370,8 +415,19 @@ nsWindow::Show(bool aState)
             }
         }
     } else if (FindTopLevel() == TopWindow()) {
-        nsAppShell::gAppShell->PostEvent(new AndroidGeckoEvent(-1, -1, -1, -1));
+        RedrawAll();
     }
+
+#ifdef ACCESSIBILITY
+    static bool sAccessibilityChecked = false;
+    if (!sAccessibilityChecked) {
+        sAccessibilityChecked = true;
+        sAccessibilityEnabled =
+            AndroidBridge::Bridge()->GetAccessibilityEnabled();
+     } 
+    if (aState && sAccessibilityEnabled)
+        CreateRootAccessible();
+#endif
 
 #ifdef DEBUG_ANDROID_WIDGET
     DumpWindows();
@@ -379,6 +435,32 @@ nsWindow::Show(bool aState)
 
     return NS_OK;
 }
+
+#ifdef ACCESSIBILITY
+void
+nsWindow::CreateRootAccessible()
+{
+    if (IsTopLevel() && !mRootAccessible) {
+        ALOG(("nsWindow:: Create Toplevel Accessibility\n"));
+        nsAccessible *acc = DispatchAccessibleEvent();
+
+        if (acc) {
+            mRootAccessible = acc;
+        }
+    }
+}
+
+nsAccessible*
+nsWindow::DispatchAccessibleEvent()
+{
+    nsAccessibleEvent event(true, NS_GETACCESSIBLE, this);
+
+    nsEventStatus status;
+    DispatchEvent(&event, status);
+
+    return event.mAccessible;
+}
+#endif
 
 NS_IMETHODIMP
 nsWindow::SetModal(bool aState)
@@ -458,7 +540,7 @@ nsWindow::Resize(PRInt32 aX,
 
     // Should we skip honoring aRepaint here?
     if (aRepaint && FindTopLevel() == TopWindow())
-        nsAppShell::gAppShell->PostEvent(new AndroidGeckoEvent(-1, -1, -1, -1));
+        RedrawAll();
 
     return NS_OK;
 }
@@ -511,7 +593,8 @@ NS_IMETHODIMP
 nsWindow::Invalidate(const nsIntRect &aRect,
                      bool aIsSynchronous)
 {
-    nsAppShell::gAppShell->PostEvent(new AndroidGeckoEvent(-1, -1, -1, -1));
+    AndroidGeckoEvent *event = new AndroidGeckoEvent(AndroidGeckoEvent::DRAW, aRect);
+    nsAppShell::gAppShell->PostEvent(event);
     return NS_OK;
 }
 
@@ -555,7 +638,14 @@ nsWindow::SetFocus(bool aRaise)
 void
 nsWindow::BringToFront()
 {
-    if (FindTopLevel() == TopWindow())
+    // If the window to be raised is the same as the currently raised one,
+    // do nothing. We need to check the focus manager as well, as the first
+    // window that is created will be first in the window list but won't yet
+    // be focused.
+    nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
+    nsCOMPtr<nsIDOMWindow> existingTopWindow;
+    fm->GetActiveWindow(getter_AddRefs(existingTopWindow));
+    if (existingTopWindow && FindTopLevel() == TopWindow())
         return;
 
     if (!IsTopLevel()) {
@@ -563,7 +653,10 @@ nsWindow::BringToFront()
         return;
     }
 
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
+
     nsWindow *oldTop = nsnull;
+    nsWindow *newTop = this;
     if (!gTopLevelWindows.IsEmpty())
         oldTop = gTopLevelWindows[0];
 
@@ -575,12 +668,21 @@ nsWindow::BringToFront()
         DispatchEvent(&event);
     }
 
-    nsGUIEvent event(true, NS_ACTIVATE, this);
+    if (Destroyed()) {
+        // somehow the deactivate event handler destroyed this window.
+        // try to recover by grabbing the next window in line and activating
+        // that instead
+        if (gTopLevelWindows.IsEmpty())
+            return;
+        newTop = gTopLevelWindows[0];
+    }
+
+    nsGUIEvent event(true, NS_ACTIVATE, newTop);
     DispatchEvent(&event);
 
     // force a window resize
-    nsAppShell::gAppShell->ResendLastResizeEvent(this);
-    nsAppShell::gAppShell->PostEvent(new AndroidGeckoEvent(-1, -1, -1, -1));
+    nsAppShell::gAppShell->ResendLastResizeEvent(newTop);
+    RedrawAll();
 }
 
 NS_IMETHODIMP
@@ -722,6 +824,53 @@ nsWindow::GetThebesSurface()
     return new gfxImageSurface(gfxIntSize(5,5), gfxImageSurface::ImageFormatRGB24);
 }
 
+#ifdef MOZ_JAVA_COMPOSITOR
+
+void
+nsWindow::BindToTexture()
+{
+    sDirectTexture->Bind();
+}
+
+bool
+nsWindow::HasDirectTexture()
+{
+  // If we already tested, return early
+  if (!sHasDirectTexture)
+    return false;
+
+  AndroidGraphicBuffer* buffer = new AndroidGraphicBuffer(512, 512,
+      AndroidGraphicBuffer::UsageSoftwareWrite | AndroidGraphicBuffer::UsageTexture,
+      gfxASurface::ImageFormatRGB16_565);
+
+  unsigned char* bits = NULL;
+  if (buffer->Lock(AndroidGraphicBuffer::UsageSoftwareWrite, &bits) != 0 || !bits) {
+    ALOG("failed to lock graphic buffer");
+    buffer->Unlock();
+    sHasDirectTexture = false;
+    goto cleanup;
+  }
+
+  if (buffer->Unlock() != 0) {
+    ALOG("failed to unlock graphic buffer");
+    sHasDirectTexture = false;
+    goto cleanup;
+  }
+
+  if (!buffer->Reallocate(1024, 1024, gfxASurface::ImageFormatRGB16_565)) {
+    ALOG("failed to reallocate graphic buffer");
+    sHasDirectTexture = false;
+    goto cleanup;
+  }
+
+cleanup:
+  delete buffer;
+
+  return sHasDirectTexture;
+}
+
+#endif
+
 void
 nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
 {
@@ -833,6 +982,12 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             win->OnDraw(ae);
             break;
 
+        case AndroidGeckoEvent::TILE_SIZE: {
+            gAndroidTileSize.width = ae->P0().x;
+            gAndroidTileSize.height = ae->P0().y;
+            break;
+        }
+
         case AndroidGeckoEvent::IME_EVENT:
             win->UserActivity();
             if (win->mFocus) {
@@ -899,9 +1054,17 @@ nsWindow::OnAndroidEvent(AndroidGeckoEvent *ae)
 bool
 nsWindow::DrawTo(gfxASurface *targetSurface)
 {
+    nsIntRect boundsRect(0, 0, mBounds.width, mBounds.height);
+    return DrawTo(targetSurface, boundsRect);
+}
+
+bool
+nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
+{
     if (!mIsVisible)
         return false;
 
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
     nsEventStatus status;
     nsIntRect boundsRect(0, 0, mBounds.width, mBounds.height);
 
@@ -919,7 +1082,10 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
     // If we have no covering child, then we need to render this.
     if (coveringChildIndex == -1) {
         nsPaintEvent event(true, NS_PAINT, this);
-        event.region = boundsRect;
+
+        nsIntRect tileRect(0, 0, gAndroidBounds.width, gAndroidBounds.height);
+        event.region = boundsRect.Intersect(invalidRect).Intersect(tileRect);
+
         switch (GetLayerManager(nsnull)->GetBackendType()) {
             case LayerManager::LAYERS_BASIC: {
                 nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
@@ -927,6 +1093,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
                 {
                     AutoLayerManagerSetup
                       setupLayerManager(this, ctx, BasicLayerManager::BUFFER_NONE);
+
                     status = DispatchEvent(&event);
                 }
 
@@ -974,7 +1141,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
             targetSurface->SetDeviceOffset(offset + gfxPoint(mChildren[i]->mBounds.x,
                                                              mChildren[i]->mBounds.y));
 
-        bool ok = mChildren[i]->DrawTo(targetSurface);
+        bool ok = mChildren[i]->DrawTo(targetSurface, invalidRect);
 
         if (!ok) {
             ALOG("nsWindow[%p]::DrawTo child %d[%p] returned FALSE!", (void*) this, i, (void*)mChildren[i]);
@@ -990,11 +1157,6 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
 void
 nsWindow::OnDraw(AndroidGeckoEvent *ae)
 {
-  
-    if (!sSurfaceExists) {
-        return;
-    }
-
     if (!IsTopLevel()) {
         ALOG("##### redraw for window %p, which is not a toplevel window -- sending to toplevel!", (void*) this);
         DumpWindows();
@@ -1008,6 +1170,98 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
     }
 
     AndroidBridge::AutoLocalJNIFrame jniFrame;
+#ifdef MOZ_JAVA_COMPOSITOR
+    // We haven't been given a window-size yet, so do nothing
+    if (gAndroidBounds.width <= 0 || gAndroidBounds.height <= 0)
+        return;
+
+    /*
+     * Check to see whether the presentation shell corresponding to the document on the screen
+     * is suppressing painting. If it is, we bail out, as continuing would result in a mismatch
+     * between the content on the screen and the current viewport metrics.
+     */
+    nsCOMPtr<nsIAndroidDrawMetadataProvider> metadataProvider =
+        AndroidBridge::Bridge()->GetDrawMetadataProvider();
+
+    bool paintingSuppressed = false;
+    if (metadataProvider) {
+        metadataProvider->PaintingSuppressed(&paintingSuppressed);
+    }
+    if (paintingSuppressed) {
+        return;
+    }
+
+    AndroidGeckoSoftwareLayerClient &client =
+        AndroidBridge::Bridge()->GetSoftwareLayerClient();
+    client.BeginDrawing(gAndroidBounds.width, gAndroidBounds.height);
+
+    nsIntRect dirtyRect = ae->Rect().Intersect(nsIntRect(0, 0, gAndroidBounds.width, gAndroidBounds.height));
+
+    nsAutoString metadata;
+    unsigned char *bits = NULL;
+    if (sHasDirectTexture) {
+      if (sDirectTexture->Width() != gAndroidBounds.width ||
+          sDirectTexture->Height() != gAndroidBounds.height) {
+        sDirectTexture->Reallocate(gAndroidBounds.width, gAndroidBounds.height);
+      }
+
+      sDirectTexture->Lock(AndroidGraphicBuffer::UsageSoftwareWrite, dirtyRect, &bits);
+    } else {
+      bits = client.LockBufferBits();
+    }
+    if (!bits) {
+        ALOG("### Failed to lock buffer");
+    } else {
+        // If tile size is 0,0, we assume we only have a single tile
+        int tileWidth = (gAndroidTileSize.width > 0) ? gAndroidTileSize.width : gAndroidBounds.width;
+        int tileHeight = (gAndroidTileSize.height > 0) ? gAndroidTileSize.height : gAndroidBounds.height;
+
+        bool drawSuccess = true;
+        int offset = 0;
+
+        for (int y = 0; y < gAndroidBounds.height; y += tileHeight) {
+            for (int x = 0; x < gAndroidBounds.width; x += tileWidth) {
+                int width = NS_MIN(tileWidth, gAndroidBounds.width - x);
+                int height = NS_MIN(tileHeight, gAndroidBounds.height - y);
+
+                nsRefPtr<gfxImageSurface> targetSurface =
+                    new gfxImageSurface(bits + offset,
+                                        gfxIntSize(width, height),
+                                        width * 2,
+                                        gfxASurface::ImageFormatRGB16_565);
+
+                offset += width * height * 2;
+
+                if (targetSurface->CairoStatus()) {
+                    ALOG("### Failed to create a valid surface from the bitmap");
+                    drawSuccess = false;
+                    break;
+                } else {
+                    targetSurface->SetDeviceOffset(gfxPoint(-x, -y));
+                    DrawTo(targetSurface, dirtyRect);
+                }
+            }
+        }
+
+        // Don't fill in the draw metadata on an unsuccessful draw
+        if (drawSuccess && metadataProvider) {
+            metadataProvider->GetDrawMetadata(metadata);
+        }
+    }
+
+    if (sHasDirectTexture) {
+        sDirectTexture->Unlock();
+    } else {
+        client.UnlockBuffer();
+    }
+
+    client.EndDrawing(dirtyRect, metadata);
+    return;
+#endif
+
+    if (!sSurfaceExists) {
+        return;
+    }
 
     AndroidGeckoSurfaceView& sview(AndroidBridge::Bridge()->SurfaceView());
 
@@ -1134,6 +1388,7 @@ nsWindow::OnSizeChanged(const gfxIntSize& aSize)
 
     ALOG("nsWindow: %p OnSizeChanged [%d %d]", (void*)this, w, h);
 
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
     nsSizeEvent event(true, NS_SIZE, this);
     InitEvent(event);
 
@@ -1208,6 +1463,7 @@ nsWindow::OnMotionEvent(AndroidGeckoEvent *ae)
             return;
     }
 
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
     nsIntPoint pt(ae->P0());
     nsIntPoint offset = WidgetToScreenOffset();
 
@@ -1240,6 +1496,8 @@ send_again:
     // XXX add the double-click handling logic here
 
     DispatchEvent(&event);
+    if (Destroyed())
+        return;
 
     if (msg == NS_MOUSE_BUTTON_DOWN) {
         msg = NS_MOUSE_MOVE;
@@ -1289,7 +1547,10 @@ void nsWindow::OnMultitouchEvent(AndroidGeckoEvent *ae)
     }
 
     if (!mGestureFinished) {
+        nsRefPtr<nsWindow> kungFuDeathGrip(this);
         DispatchGestureEvent(msg, 0, pinchDelta, refPoint, ae->Time());
+        if (Destroyed())
+            return;
 
         // If the cumulative pinch delta goes past the threshold, treat this
         // as a pinch only, and not a swipe.
@@ -1316,6 +1577,8 @@ void nsWindow::OnMultitouchEvent(AndroidGeckoEvent *ae)
                 // Finish the pinch gesture, then fire the swipe event:
                 msg = NS_SIMPLE_GESTURE_MAGNIFY;
                 DispatchGestureEvent(msg, 0, pinchDist - mStartDist, refPoint, ae->Time());
+                if (Destroyed())
+                    return;
                 msg = NS_SIMPLE_GESTURE_SWIPE;
                 DispatchGestureEvent(msg, direction, 0, refPoint, ae->Time());
 
@@ -1518,6 +1781,7 @@ nsWindow::InitKeyEvent(nsKeyEvent& event, AndroidGeckoEvent& key)
 void
 nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
 {
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
     nsCOMPtr<nsIAtom> command;
     bool isDown = ae->Action() == AndroidKeyEvent::ACTION_DOWN;
     bool isLongPress = !!(ae->Flags() & AndroidKeyEvent::FLAG_LONG_PRESS);
@@ -1579,6 +1843,7 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
 void
 nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
 {
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
     PRUint32 msg;
     switch (ae->Action()) {
     case AndroidKeyEvent::ACTION_DOWN:
@@ -1621,6 +1886,8 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
     InitKeyEvent(event, *ae);
     DispatchEvent(&event, status);
 
+    if (Destroyed())
+        return;
     if (!firePress)
         return;
 
@@ -1668,6 +1935,7 @@ nsWindow::OnIMEAddRange(AndroidGeckoEvent *ae)
 void
 nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
 {
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
     switch (ae->Action()) {
     case AndroidGeckoEvent::IME_COMPOSITION_END:
         {
@@ -1713,9 +1981,8 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
                 compositionUpdate.data = event.theText;
                 mIMELastDispatchedComposingText = event.theText;
                 DispatchEvent(&compositionUpdate);
-                // XXX We must check whether this widget is destroyed or not
-                //     before dispatching next event.  However, Android's
-                //     nsWindow has never checked it...
+                if (Destroyed())
+                    return;
             }
 
             ALOGIME("IME: IME_SET_TEXT: l=%u, r=%u",
@@ -1836,6 +2103,8 @@ nsWindow::ResetInputState()
 
     // Cancel composition on Gecko side
     if (mIMEComposing) {
+        nsRefPtr<nsWindow> kungFuDeathGrip(this);
+
         nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
         InitEvent(textEvent, nsnull);
         textEvent.theText = mIMEComposingText;
@@ -1848,36 +2117,44 @@ nsWindow::ResetInputState()
     }
 
     AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_RESETINPUTSTATE, 0);
+
+    // Send IME text/selection change notifications
+    OnIMETextChange(0, 0, 0);
+    OnIMESelectionChange();
+
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsWindow::SetInputMode(const IMEContext& aContext)
+NS_IMETHODIMP_(void)
+nsWindow::SetInputContext(const InputContext& aContext,
+                          const InputContextAction& aAction)
 {
-    ALOGIME("IME: SetInputMode: s=%d trusted=%d", aContext.mStatus, aContext.mReason);
+    ALOGIME("IME: SetInputContext: s=0x%X, 0x%X, action=0x%X, 0x%X",
+            aContext.mIMEState.mEnabled, aContext.mIMEState.mOpen,
+            aAction.mCause, aAction.mFocusChange);
 
-    mIMEContext = aContext;
+    mInputContext = aContext;
 
     // Ensure that opening the virtual keyboard is allowed for this specific
-    // IMEContext depending on the content.ime.strict.policy pref
-    if (aContext.mStatus != nsIWidget::IME_STATUS_DISABLED && 
-        aContext.mStatus != nsIWidget::IME_STATUS_PLUGIN) {
-      if (Preferences::GetBool("content.ime.strict_policy", false) &&
-          !aContext.FocusMovedByUser() &&
-          aContext.FocusMovedInContentProcess()) {
-        return NS_OK;
-      }
+    // InputContext depending on the content.ime.strict.policy pref
+    if (aContext.mIMEState.mEnabled != IMEState::DISABLED && 
+        aContext.mIMEState.mEnabled != IMEState::PLUGIN &&
+        Preferences::GetBool("content.ime.strict_policy", false) &&
+        !aAction.ContentGotFocusByTrustedCause() &&
+        !aAction.UserMightRequestOpenVKB()) {
+        return;
     }
 
-    AndroidBridge::NotifyIMEEnabled(int(aContext.mStatus), aContext.mHTMLInputType, aContext.mActionHint);
-    return NS_OK;
+    AndroidBridge::NotifyIMEEnabled(int(aContext.mIMEState.mEnabled),
+                                    aContext.mHTMLInputType,
+                                    aContext.mActionHint);
 }
 
-NS_IMETHODIMP
-nsWindow::GetInputMode(IMEContext& aContext)
+NS_IMETHODIMP_(InputContext)
+nsWindow::GetInputContext()
 {
-    aContext = mIMEContext;
-    return NS_OK;
+    mInputContext.mIMEState.mOpen = IMEState::OPEN_STATE_NOT_SUPPORTED;
+    return mInputContext;
 }
 
 NS_IMETHODIMP
@@ -1887,6 +2164,8 @@ nsWindow::CancelIMEComposition()
 
     // Cancel composition on Gecko side
     if (mIMEComposing) {
+        nsRefPtr<nsWindow> kungFuDeathGrip(this);
+
         nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
         InitEvent(textEvent, nsnull);
         DispatchEvent(&textEvent);
@@ -1927,6 +2206,7 @@ nsWindow::OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd)
     // The more efficient way would have been passing the substring from index
     // aStart to index aNewEnd
 
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
     nsQueryContentEvent event(true, NS_QUERY_TEXT_CONTENT, this);
     InitEvent(event, nsnull);
     event.InitForQueryTextContent(0, PR_UINT32_MAX);
@@ -1947,6 +2227,7 @@ nsWindow::OnIMESelectionChange(void)
 {
     ALOGIME("IME: OnIMESelectionChange");
 
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
     nsQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);
     InitEvent(event, nsnull);
 
