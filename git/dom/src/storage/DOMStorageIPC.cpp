@@ -253,7 +253,12 @@ DOMStorageDBChild::RecvLoadDone(const nsCString& aScope, const nsresult& aRv)
 bool
 DOMStorageDBChild::RecvLoadUsage(const nsCString& aScope, const int64_t& aUsage)
 {
-  nsRefPtr<DOMStorageUsageBridge> scopeUsage = mManager->GetScopeUsage(aScope);
+  DOMStorageDBBridge* db = DOMStorageCache::GetDatabase();
+  if (!db) {
+    return false;
+  }
+
+  DOMStorageUsageBridge* scopeUsage = db->GetScopeUsage(aScope);
   scopeUsage->LoadUsage(aUsage);
   return true;
 }
@@ -399,7 +404,7 @@ DOMStorageDBParent::RecvAsyncGetUsage(const nsCString& aScope)
   }
 
   // The object releases it self in LoadUsage method
-  nsRefPtr<UsageParentBridge> usage = new UsageParentBridge(this, aScope);
+  UsageParentBridge* usage = new UsageParentBridge(this, aScope);
   db->AsyncGetUsage(usage);
   return true;
 }
@@ -728,6 +733,7 @@ DOMStorageDBParent::UsageParentBridge::LoadUsage(const int64_t aUsage)
 {
   nsRefPtr<UsageRunnable> r = new UsageRunnable(mParent, mScope, aUsage);
   NS_DispatchToMainThread(r);
+  delete this;
 }
 
 } // ::dom

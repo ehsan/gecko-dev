@@ -38,35 +38,35 @@ JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options =
   : options_(options),
     zone_(zone),
     runtime_(zone->runtimeFromMainThread()),
-    principals(nullptr),
+    principals(NULL),
     isSystem(false),
     marked(true),
 #ifdef DEBUG
     firedOnNewGlobalObject(false),
 #endif
-    global_(nullptr),
+    global_(NULL),
     enterCompartmentDepth(0),
     lastCodeRelease(0),
-    data(nullptr),
-    objectMetadataCallback(nullptr),
+    data(NULL),
+    objectMetadataCallback(NULL),
     lastAnimationTime(0),
     regExps(runtime_),
     typeReprs(runtime_),
     globalWriteBarriered(false),
     propertyTree(thisForCtor()),
-    gcIncomingGrayPointers(nullptr),
-    gcLiveArrayBuffers(nullptr),
-    gcWeakMapList(nullptr),
+    gcIncomingGrayPointers(NULL),
+    gcLiveArrayBuffers(NULL),
+    gcWeakMapList(NULL),
     debugModeBits(runtime_->debugMode ? DebugFromC : 0),
     rngState(0),
-    watchpointMap(nullptr),
-    scriptCountsMap(nullptr),
-    debugScriptMap(nullptr),
-    debugScopes(nullptr),
-    enumerators(nullptr),
-    compartmentStats(nullptr)
+    watchpointMap(NULL),
+    scriptCountsMap(NULL),
+    debugScriptMap(NULL),
+    debugScopes(NULL),
+    enumerators(NULL),
+    compartmentStats(NULL)
 #ifdef JS_ION
-    , ionCompartment_(nullptr)
+    , ionCompartment_(NULL)
 #endif
 {
     runtime_->numCompartments++;
@@ -131,19 +131,19 @@ JSRuntime::createIonRuntime(JSContext *cx)
     ionRuntime_ = cx->new_<jit::IonRuntime>();
 
     if (!ionRuntime_)
-        return nullptr;
+        return NULL;
 
     if (!ionRuntime_->initialize(cx)) {
         js_delete(ionRuntime_);
-        ionRuntime_ = nullptr;
+        ionRuntime_ = NULL;
 
         JSCompartment *comp = cx->runtime()->atomsCompartment();
         if (comp->ionCompartment_) {
             js_delete(comp->ionCompartment_);
-            comp->ionCompartment_ = nullptr;
+            comp->ionCompartment_ = NULL;
         }
 
-        return nullptr;
+        return NULL;
     }
 
     return ionRuntime_;
@@ -168,7 +168,7 @@ JSCompartment::ensureIonCompartmentExists(JSContext *cx)
 
     if (!ionCompartment_->initialize(cx)) {
         js_delete(ionCompartment_);
-        ionCompartment_ = nullptr;
+        ionCompartment_ = NULL;
         return false;
     }
 
@@ -278,7 +278,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
 
     /*
      * Wrappers should really be parented to the wrapped parent of the wrapped
-     * object, but in that case a wrapped global object would have a nullptr
+     * object, but in that case a wrapped global object would have a NULL
      * parent without being a proper global object (JSCLASS_IS_GLOBAL). Instead,
      * we parent all wrappers to the global object in their home compartment.
      * This loses us some transparency, and is generally very cheesy.
@@ -343,7 +343,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
             existing->getParent() != global ||
             obj->isCallable())
         {
-            existing = nullptr;
+            existing = NULL;
         }
     }
 
@@ -518,7 +518,7 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
         sweepCallsiteClones();
 
         if (global_ && IsObjectAboutToBeFinalized(global_.unsafeGet()))
-            global_ = nullptr;
+            global_ = NULL;
 
 #ifdef JS_ION
         if (ionCompartment_)
@@ -593,7 +593,7 @@ JSCompartment::purge()
 void
 JSCompartment::clearTables()
 {
-    global_ = nullptr;
+    global_ = NULL;
 
     regExps.clearTables();
 
@@ -722,7 +722,7 @@ JSCompartment::setDebugModeFromC(JSContext *cx, bool b, AutoDebugModeGC &dmgc)
     if (enabledBefore != enabledAfter) {
         onStack = hasScriptsOnStack();
         if (b && onStack) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_NOT_IDLE);
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_DEBUG_NOT_IDLE);
             return false;
         }
         if (enabledAfter && !CreateLazyScriptsForCompartment(cx))

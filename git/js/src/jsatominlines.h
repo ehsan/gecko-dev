@@ -154,7 +154,7 @@ IdToString(JSContext *cx, jsid id)
     RootedValue idv(cx, IdToValue(id));
     JSString *str = ToStringSlow<CanGC>(cx, idv);
     if (!str)
-        return nullptr;
+        return NULL;
 
     return str->ensureFlat(cx);
 }

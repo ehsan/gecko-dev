@@ -26,7 +26,7 @@ static inline JSObject *
 SkipScopeParent(JSObject *parent)
 {
     if (!parent)
-        return nullptr;
+        return NULL;
     while (parent->is<ScopeObject>())
         parent = &parent->as<ScopeObject>().enclosingScope();
     return parent;
@@ -70,7 +70,7 @@ CloneFunctionObjectIfNotSingleton(JSContext *cx, HandleFunction fun, HandleObjec
     if (CanReuseFunctionForClone(cx, fun)) {
         RootedObject obj(cx, SkipScopeParent(parent));
         if (!JSObject::setParent(cx, fun, obj))
-            return nullptr;
+            return NULL;
         fun->setEnvironment(parent);
         return fun;
     }

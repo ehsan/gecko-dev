@@ -33,13 +33,13 @@ const JSClass addPropertyClass = {
 
 BEGIN_TEST(testAddPropertyHook)
 {
-    JS::RootedObject obj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+    JS::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
     CHECK(obj);
     JS::RootedValue proto(cx, OBJECT_TO_JSVAL(obj));
-    JS_InitClass(cx, global, obj, &addPropertyClass, nullptr, 0, nullptr, nullptr, nullptr,
-                 nullptr);
+    JS_InitClass(cx, global, obj, &addPropertyClass, NULL, 0, NULL, NULL, NULL,
+                 NULL);
 
-    obj = JS_NewArrayObject(cx, 0, nullptr);
+    obj = JS_NewArrayObject(cx, 0, NULL);
     CHECK(obj);
     JS::RootedValue arr(cx, OBJECT_TO_JSVAL(obj));
 
@@ -48,7 +48,7 @@ BEGIN_TEST(testAddPropertyHook)
                             JSPROP_ENUMERATE));
 
     for (int i = 0; i < expectedCount; ++i) {
-        obj = JS_NewObject(cx, &addPropertyClass, nullptr, nullptr);
+        obj = JS_NewObject(cx, &addPropertyClass, NULL, NULL);
         CHECK(obj);
         JS::RootedValue vobj(cx, OBJECT_TO_JSVAL(obj));
         JS::RootedObject arrObj(cx, JSVAL_TO_OBJECT(arr));

@@ -118,13 +118,13 @@ class ArenaIter
     }
 
     void init() {
-        aheader = nullptr;
-        remainingHeader = nullptr;
+        aheader = NULL;
+        remainingHeader = NULL;
     }
 
     void init(ArenaHeader *aheaderArg) {
         aheader = aheaderArg;
-        remainingHeader = nullptr;
+        remainingHeader = NULL;
     }
 
     void init(JS::Zone *zone, AllocKind kind) {
@@ -132,7 +132,7 @@ class ArenaIter
         remainingHeader = zone->allocator.arenas.getFirstArenaToSweep(kind);
         if (!aheader) {
             aheader = remainingHeader;
-            remainingHeader = nullptr;
+            remainingHeader = NULL;
         }
     }
 
@@ -148,7 +148,7 @@ class ArenaIter
         aheader = aheader->next;
         if (!aheader) {
             aheader = remainingHeader;
-            remainingHeader = nullptr;
+            remainingHeader = NULL;
         }
     }
 };
@@ -214,7 +214,7 @@ class CellIterImpl
                 break;
             }
             if (aiter.done()) {
-                cell = nullptr;
+                cell = NULL;
                 return;
             }
             ArenaHeader *aheader = aiter.get();
@@ -266,7 +266,7 @@ class CellIter : public CellIterImpl
             gc::FinishBackgroundFinalize(zone->runtimeFromMainThread());
         }
         if (lists->isSynchronizedFreeList(kind)) {
-            lists = nullptr;
+            lists = NULL;
         } else {
             JS_ASSERT(!zone->runtimeFromMainThread()->isHeapBusy());
             lists->copyFreeListToArena(kind);
@@ -351,7 +351,7 @@ typedef CompartmentsIterT<GCZoneGroupIter> GCCompartmentGroupIter;
 #ifdef JSGC_GENERATIONAL
 /*
  * Attempt to allocate a new GC thing out of the nursery. If there is not enough
- * room in the nursery or there is an OOM, this method will return nullptr.
+ * room in the nursery or there is an OOM, this method will return NULL.
  */
 template <typename T, AllowGC allowGC>
 inline T *
@@ -376,7 +376,7 @@ TryNewNurseryGCThing(ThreadSafeContext *cxArg, size_t thingSize)
             return t;
         }
     }
-    return nullptr;
+    return NULL;
 }
 #endif /* JSGC_GENERATIONAL */
 

@@ -59,8 +59,7 @@ class JSAPITest
     JSAPITestString msgs;
     JSCompartment *oldCompartment;
 
-    JSAPITest() : rt(nullptr), cx(nullptr), global(nullptr),
-                  knownFail(false), oldCompartment(nullptr) {
+    JSAPITest() : rt(NULL), cx(NULL), global(NULL), knownFail(false), oldCompartment(NULL) {
         next = list;
         list = this;
     }
@@ -72,18 +71,18 @@ class JSAPITest
     virtual void uninit() {
         if (oldCompartment) {
             JS_LeaveCompartment(cx, oldCompartment);
-            oldCompartment = nullptr;
+            oldCompartment = NULL;
         }
         if (cx) {
             JS_RemoveObjectRoot(cx, &global);
-            JS_LeaveCompartment(cx, nullptr);
+            JS_LeaveCompartment(cx, NULL);
             JS_EndRequest(cx);
             JS_DestroyContext(cx);
-            cx = nullptr;
+            cx = NULL;
         }
         if (rt) {
             destroyRuntime();
-            rt = nullptr;
+            rt = NULL;
         }
     }
 
@@ -278,7 +277,7 @@ class JSAPITest
     virtual JSRuntime * createRuntime() {
         JSRuntime *rt = JS_NewRuntime(8L * 1024 * 1024, JS_USE_HELPER_THREADS);
         if (!rt)
-            return nullptr;
+            return NULL;
         setNativeStackQuota(rt);
         return rt;
     }
@@ -299,7 +298,7 @@ class JSAPITest
     virtual JSContext * createContext() {
         JSContext *cx = JS_NewContext(rt, 8192);
         if (!cx)
-            return nullptr;
+            return NULL;
         JS_SetOptions(cx, JSOPTION_VAROBJFIX);
         JS_SetErrorReporter(cx, &reportError);
         return cx;
@@ -309,7 +308,7 @@ class JSAPITest
         return basicGlobalClass();
     }
 
-    virtual JSObject * createGlobal(JSPrincipals *principals = nullptr);
+    virtual JSObject * createGlobal(JSPrincipals *principals = NULL);
 };
 
 #define BEGIN_TEST(testname)                                            \
@@ -385,7 +384,7 @@ class TempFile {
                     name, strerror(errno));
             exit(1);
         }
-        stream = nullptr;
+        stream = NULL;
     }
 
     /* Delete the temporary file. */
@@ -395,7 +394,7 @@ class TempFile {
                     name, strerror(errno));
             exit(1);
         }
-        name = nullptr;
+        name = NULL;
     }
 };
 

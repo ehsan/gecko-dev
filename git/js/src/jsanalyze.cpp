@@ -440,7 +440,7 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
     }
     unsigned savedCount = 0;
 
-    LoopAnalysis *loop = nullptr;
+    LoopAnalysis *loop = NULL;
 
     uint32_t offset = script_->length - 1;
     while (offset < script_->length) {
@@ -525,7 +525,7 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
                     setOOM(cx);
                     return;
                 }
-                var.saved = nullptr;
+                var.saved = NULL;
                 saved[i--] = saved[--savedCount];
             }
             savedCount = 0;
@@ -617,7 +617,7 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
                             setOOM(cx);
                             return;
                         }
-                        var.saved = nullptr;
+                        var.saved = NULL;
                         saved[i--] = saved[--savedCount];
                     } else if (loop && !var.savedEnd) {
                         /*
@@ -680,7 +680,7 @@ ScriptAnalysis::addVariable(JSContext *cx, LifetimeVariable &var, unsigned offse
             setOOM(cx);
             return;
         }
-        var.saved = nullptr;
+        var.saved = NULL;
     }
 }
 
@@ -730,7 +730,7 @@ ScriptAnalysis::killVariable(JSContext *cx, LifetimeVariable &var, unsigned offs
     } else {
         var.saved = var.lifetime;
         var.savedEnd = 0;
-        var.lifetime = nullptr;
+        var.lifetime = NULL;
 
         saved[savedCount++] = &var;
     }
@@ -1510,7 +1510,7 @@ ScriptAnalysis::freezeNewValues(JSContext *cx, uint32_t offset)
     Bytecode &code = getCode(offset);
 
     Vector<SlotValue> *pending = code.pendingValues;
-    code.pendingValues = nullptr;
+    code.pendingValues = NULL;
 
     unsigned count = pending->length();
     if (count == 0) {
