@@ -1605,21 +1605,11 @@ this.MozLoopService = {
     MozLoopServiceInternal.clearError("profile");
   }),
 
-  openFxASettings: Task.async(function() {
-    try {
-      let fxAOAuthClient = yield MozLoopServiceInternal.promiseFxAOAuthClient();
-      if (!fxAOAuthClient) {
-        log.error("Could not get the OAuth client");
-        return;
-      }
-
-      let url = new URL("/settings", fxAOAuthClient.parameters.content_uri);
-      let win = Services.wm.getMostRecentWindow("navigator:browser");
-      win.switchToTabHavingURI(url.toString(), true);
-    } catch (ex) {
-      log.error("Error opening FxA settings", ex);
-    }
-  }),
+  openFxASettings: function() {
+    let url = new URL("/settings", gFxAOAuthClient.parameters.content_uri);
+    let win = Services.wm.getMostRecentWindow("navigator:browser");
+    win.switchToTabHavingURI(url.toString(), true);
+  },
 
   /**
    * Performs a hawk based request to the loop server.

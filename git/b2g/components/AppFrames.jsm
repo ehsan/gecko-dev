@@ -4,7 +4,7 @@
 
 'use strict';
 
-this.EXPORTED_SYMBOLS = ['Frames'];
+this.EXPORTED_SYMBOLS = ['AppFrames'];
 
 const Cu = Components.utils;
 const Ci = Components.interfaces;
@@ -27,13 +27,11 @@ const Observer = {
     Services.obs.addObserver(this, 'inprocess-browser-shown', false);
     Services.obs.addObserver(this, 'message-manager-disconnect', false);
 
-    SystemAppProxy.getFrames().forEach(frame => {
+    SystemAppProxy.getAppFrames().forEach((frame) => {
       let mm = frame.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader.messageManager;
       this._frames.set(mm, frame);
       let mozapp = frame.getAttribute('mozapp');
-      if (mozapp) {
-        this._apps.set(mozapp, (this._apps.get(mozapp) || 0) + 1);
-      }
+      this._apps.set(mozapp, (this._apps.get(mozapp) || 0) + 1);
     });
   },
 
@@ -70,20 +68,16 @@ const Observer = {
   onMessageManagerCreated: function (mm, frame) {
     this._frames.set(mm, frame);
 
-    let isFirstAppFrame = null;
     let mozapp = frame.getAttribute('mozapp');
-    if (mozapp) {
-      let count = (this._apps.get(mozapp) || 0) + 1;
-      this._apps.set(mozapp, count);
-      isFirstAppFrame = (count === 1);
-    }
+    let count = (this._apps.get(mozapp) || 0) + 1;
+    this._apps.set(mozapp, count);
 
+    let isFirstAppFrame = (count === 1);
     listeners.forEach(function (listener) {
       try {
-        listener.onFrameCreated(frame, isFirstAppFrame);
+        listener.onAppFrameCreated(frame, isFirstAppFrame);
       } catch(e) {
-        dump('Exception while calling Frames.jsm listener:' + e + '\n' +
-             e.stack + '\n');
+        dump('Exception while calling Frames.jsm listener:' + e + '\n' + e.stack + '\n');
       }
     });
   },
@@ -91,35 +85,31 @@ const Observer = {
   onMessageManagerDestroyed: function (mm) {
     let frame = this._frames.get(mm);
     if (!frame) {
-      // We received an event for an unknown message manager
+      // We receive an event for a non mozapp message manager
       return;
     }
 
     this._frames.delete(mm);
 
-    let isLastAppFrame = null;
     let mozapp = frame.getAttribute('mozapp');
-    if (mozapp) {
-      let count = (this._apps.get(mozapp) || 0) - 1;
-      this._apps.set(mozapp, count);
-      isLastAppFrame = (count === 0);
-    }
+    let count = (this._apps.get(mozapp) || 0) - 1;
+    this._apps.set(mozapp, count);
 
+    let isLastAppFrame = (count === 0);
     listeners.forEach(function (listener) {
       try {
-        listener.onFrameDestroyed(frame, isLastAppFrame);
+        listener.onAppFrameDestroyed(frame, isLastAppFrame);
       } catch(e) {
-        dump('Exception while calling Frames.jsm listener:' + e + '\n' +
-             e.stack + '\n');
+        dump('Exception while calling Frames.jsm listener:' + e + '\n' + e.stack + '\n');
       }
     });
   }
 
 };
 
-let Frames = this.Frames = {
+let AppFrames = this.AppFrames = {
 
-  list: () => SystemAppProxy.getFrames(),
+  list: () => SystemAppProxy.getAppFrames(),
 
   addObserver: function (listener) {
     if (listeners.indexOf(listener) !== -1) {
