@@ -374,18 +374,15 @@ Boolean(Input& input, /*out*/ bool& value)
 
 // This is for any BOOLEAN DEFAULT FALSE.
 // (If it is present and false, this is a bad encoding.)
-// TODO(bug 989518): For compatibility reasons, in some places we allow
-// invalid encodings with the explicit default value.
 inline Result
-OptionalBoolean(Input& input, bool allowInvalidExplicitEncoding,
-                /*out*/ bool& value)
+OptionalBoolean(Input& input, /*out*/ bool& value)
 {
   value = false;
   if (input.Peek(BOOLEAN)) {
     if (Boolean(input, value) != Success) {
       return Failure;
     }
-    if (!allowInvalidExplicitEncoding && !value) {
+    if (!value) {
       return Fail(SEC_ERROR_BAD_DER);
     }
   }

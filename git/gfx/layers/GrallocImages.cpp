@@ -15,6 +15,7 @@
 #include "YCbCrUtils.h"                 // for YCbCr conversions
 
 #include <ColorConverter.h>
+#include <cutils/properties.h>
 #include <OMX_IVCommon.h>
 
 
@@ -47,6 +48,14 @@ struct GraphicBufferAutoUnlock {
   ~GraphicBufferAutoUnlock() { mGraphicBuffer->unlock(); }
 };
 
+static bool
+IsInEmulator()
+{
+  char propQemu[PROPERTY_VALUE_MAX];
+  property_get("ro.kernel.qemu", propQemu, "");
+  return !strncmp(propQemu, "1", 1);
+}
+
 GrallocImage::GrallocImage()
   : PlanarYCbCrImage(nullptr)
 {
@@ -68,7 +77,7 @@ GrallocImage::SetData(const Data& aData)
   mData = aData;
   mSize = aData.mPicSize;
 
-  if (gfxPlatform::GetPlatform()->IsInGonkEmulator()) {
+  if (IsInEmulator()) {
     // Emulator does not support HAL_PIXEL_FORMAT_YV12.
     return;
   }
