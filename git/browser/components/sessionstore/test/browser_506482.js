@@ -47,7 +47,7 @@ function test() {
 
   // create and select a first tab
   let tab = gBrowser.addTab(TEST_URL);
-  promiseBrowserLoaded(tab.linkedBrowser).then(() => {
+  whenBrowserLoaded(tab.linkedBrowser, function() {
     // step1: the above has triggered some saveStateDelayed(), sleep until
     // it's done, and get the initial sessionstore.js mtime
     setTimeout(function step1(e) {

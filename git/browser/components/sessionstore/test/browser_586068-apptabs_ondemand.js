@@ -5,7 +5,11 @@
 const PREF_RESTORE_ON_DEMAND = "browser.sessionstore.restore_on_demand";
 const PREF_RESTORE_PINNED_TABS_ON_DEMAND = "browser.sessionstore.restore_pinned_tabs_on_demand";
 
-add_task(function* test() {
+function test() {
+  TestRunner.run();
+}
+
+function runTests() {
   Services.prefs.setBoolPref(PREF_RESTORE_ON_DEMAND, true);
   Services.prefs.setBoolPref(PREF_RESTORE_PINNED_TABS_ON_DEMAND, true);
 
@@ -24,30 +28,23 @@ add_task(function* test() {
     { entries: [{ url: "http://example.org/#7" }], extData: { "uniq": r() } },
   ], selected: 5 }] };
 
-  let promiseRestoringTabs = new Promise(resolve => {
-    gProgressListener.setCallback(function (aBrowser, aNeedRestore, aRestoring, aRestored) {
-      // get the tab
-      let tab;
-      for (let i = 0; i < window.gBrowser.tabs.length; i++) {
-        if (!tab && window.gBrowser.tabs[i].linkedBrowser == aBrowser)
-          tab = window.gBrowser.tabs[i];
-      }
+  gProgressListener.setCallback(function (aBrowser, aNeedRestore, aRestoring, aRestored) {
+    // get the tab
+    let tab;
+    for (let i = 0; i < window.gBrowser.tabs.length; i++) {
+      if (!tab && window.gBrowser.tabs[i].linkedBrowser == aBrowser)
+        tab = window.gBrowser.tabs[i];
+    }
 
-      // Check that the load only comes from the selected tab.
-      ok(tab.selected, "load came from selected tab");
-      is(aNeedRestore, 6, "six tabs left to restore");
-      is(aRestoring, 1, "one tab is restoring");
-      is(aRestored, 0, "no tabs have been restored, yet");
+    // Check that the load only comes from the selected tab.
+    ok(tab.selected, "load came from selected tab");
+    is(aNeedRestore, 6, "six tabs left to restore");
+    is(aRestoring, 1, "one tab is restoring");
+    is(aRestored, 0, "no tabs have been restored, yet");
 
-      gProgressListener.unsetCallback();
-      resolve();
-    });
+    gProgressListener.unsetCallback();
+    executeSoon(next);
   });
 
-  let backupState = ss.getBrowserState();
-  ss.setBrowserState(JSON.stringify(state));
-  yield promiseRestoringTabs;
-
-  // Cleanup.
-  yield promiseBrowserState(backupState);
-});
+  yield ss.setBrowserState(JSON.stringify(state));
+}

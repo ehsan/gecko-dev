@@ -4536,10 +4536,9 @@ pref("reader.parse-on-load.force-enabled", false);
 // The default relative font size in reader mode (1-5)
 pref("reader.font_size", 3);
 
-// The default color scheme in reader mode (light, dark, print, auto)
+// The default color scheme in reader mode (light, dark, auto)
 // auto = color automatically adjusts according to ambient light level
-// (auto only works on platforms where the 'devicelight' event is enabled)
-pref("reader.color_scheme", "light");
+pref("reader.color_scheme", "auto");
 
 // The font type in reader (sans-serif, serif)
 pref("reader.font_type", "sans-serif");

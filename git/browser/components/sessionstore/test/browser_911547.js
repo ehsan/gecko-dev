@@ -5,14 +5,18 @@
 // security policy with the document.
 // The policy being tested disallows inline scripts
 
-add_task(function* test() {
+function test() {
+  TestRunner.run();
+}
+
+function runTests() {
   // create a tab that has a CSP
   let testURL = "http://mochi.test:8888/browser/browser/components/sessionstore/test/browser_911547_sample.html";
   let tab = gBrowser.selectedTab = gBrowser.addTab(testURL);
   gBrowser.selectedTab = tab;
 
   let browser = tab.linkedBrowser;
-  yield promiseBrowserLoaded(browser);
+  yield waitForLoad(browser);
 
   // this is a baseline to ensure CSP is active
   // attempt to inject and run a script via inline (pre-restore, allowed)
@@ -23,7 +27,7 @@ add_task(function* test() {
   // attempt to click a link to a data: URI (will inherit the CSP of the
   // origin document) and navigate to the data URI in the link.
   browser.contentDocument.getElementById("test_data_link").click();
-  yield promiseBrowserLoaded(browser);
+  yield waitForLoad(browser);
 
   is(browser.contentDocument.getElementById("test_id2").value, "ok",
      "CSP should block the script loaded by the clicked data URI");
@@ -33,7 +37,7 @@ add_task(function* test() {
 
   // open new tab and recover the state
   tab = ss.undoCloseTab(window, 0);
-  yield promiseTabRestored(tab);
+  yield waitForTabRestored(tab);
   browser = tab.linkedBrowser;
 
   is(browser.contentDocument.getElementById("test_id2").value, "ok",
@@ -41,7 +45,21 @@ add_task(function* test() {
 
   // clean up
   gBrowser.removeTab(tab);
-});
+}
+
+function waitForLoad(aElement) {
+  aElement.addEventListener("load", function onLoad() {
+    aElement.removeEventListener("load", onLoad, true);
+    executeSoon(next);
+  }, true);
+}
+
+function waitForTabRestored(aElement) {
+  aElement.addEventListener("SSTabRestored", function tabRestored(e) {
+    aElement.removeEventListener("SSTabRestored", tabRestored, true);
+    executeSoon(next);
+  }, true);
+}
 
 // injects an inline script element (with a text body)
 function injectInlineScript(browser, scriptText) {

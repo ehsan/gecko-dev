@@ -4,9 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 var gContentPane = {
+
+  /**
+   * Initializes the fonts dropdowns displayed in this pane.
+   */
   init: function ()
   {
-    // Initializes the fonts dropdowns displayed in this pane.
     this._rebuildFonts();
     var menulist = document.getElementById("defaultFont");
     if (menulist.selectedIndex == -1) {
@@ -20,12 +23,6 @@ var gContentPane = {
       let row = document.getElementById("translationBox");
       row.removeAttribute("hidden");
     }
-
-    let drmInfoURL =
-      Services.urlFormatter.formatURLPref("app.support.baseURL") + "drm-content";
-    document.getElementById("playDRMContentLink").setAttribute("href", drmInfoURL);
-    document.getElementById("playDRMContentRow").hidden =
-      !Services.prefs.getBoolPref("browser.eme.ui.enabled");
   },
 
   // UTILITY FUNCTIONS

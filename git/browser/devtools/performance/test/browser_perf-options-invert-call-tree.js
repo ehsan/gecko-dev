@@ -8,12 +8,9 @@ const INVERT_PREF = "devtools.performance.ui.invert-call-tree";
  */
 function spawnTest () {
   let { panel } = yield initPerformance(SIMPLE_URL);
-  let { EVENTS, DetailsView, CallTreeView } = panel.panelWin;
+  let { EVENTS, CallTreeView } = panel.panelWin;
 
   Services.prefs.setBoolPref(INVERT_PREF, true);
-
-  DetailsView.selectView("calltree");
-  ok(DetailsView.isViewSelected(CallTreeView), "The call tree is now selected.");
 
   yield startRecording(panel);
   yield busyWait(100);

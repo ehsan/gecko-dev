@@ -6,10 +6,7 @@
  */
 function spawnTest () {
   let { panel } = yield initPerformance(SIMPLE_URL);
-  let { EVENTS, DetailsView, CallTreeView } = panel.panelWin;
-
-  DetailsView.selectView("calltree");
-  ok(DetailsView.isViewSelected(CallTreeView), "The call tree is now selected.");
+  let { EVENTS, CallTreeView } = panel.panelWin;
 
   yield startRecording(panel);
   yield busyWait(100);

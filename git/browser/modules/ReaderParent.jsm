@@ -45,10 +45,7 @@ let ReaderParent = {
 
       case "Reader:ArticleGet":
         this._getArticle(message.data.url, message.target).then((article) => {
-          // Make sure the target browser is still alive before trying to send data back.
-          if (message.target.messageManager) {
-            message.target.messageManager.sendAsyncMessage("Reader:ArticleData", { article: article });
-          }
+          message.target.messageManager.sendAsyncMessage("Reader:ArticleData", { article: article });
         });
         break;
 

@@ -18,14 +18,15 @@ function test() {
 
   let browser = tab.linkedBrowser;
 
-  promiseTabState(tab, tabState).then(() => {
+  waitForTabState(tab, tabState, function () {
+
     let sessionHistory = browser.sessionHistory;
     let entry = sessionHistory.getEntryAtIndex(0, false);
     entry.QueryInterface(Ci.nsISHContainer);
 
     whenChildCount(entry, 1, function () {
       whenChildCount(entry, 2, function () {
-        promiseBrowserLoaded(browser).then(() => {
+        whenBrowserLoaded(browser, function () {
           TabState.flush(browser);
           let {entries} = JSON.parse(ss.getTabState(tab));
           is(entries.length, 1, "tab has one history entry");

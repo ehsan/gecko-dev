@@ -100,7 +100,7 @@ function test() {
     // public session, add new tab: (A)
     let tab_A = aWin.gBrowser.addTab(testURL);
     ss.setTabState(tab_A, JSON.stringify(state));
-    promiseBrowserLoaded(tab_A.linkedBrowser).then(() => {
+    whenBrowserLoaded(tab_A.linkedBrowser, function() {
       // make sure that the next closed tab will increase getClosedTabCount
       Services.prefs.setIntPref(
         "browser.sessionstore.max_tabs_undo", max_tabs_undo + 1)
@@ -119,7 +119,7 @@ function test() {
       // verify tab: (A), in undo list
       let tab_A_restored = test(function() ss.undoCloseTab(aWin, 0));
       ok(tab_A_restored, "a tab is in undo list");
-      promiseTabRestored(tab_A_restored).then(() => {
+      whenTabRestored(tab_A_restored, function() {
         is(testURL, tab_A_restored.linkedBrowser.currentURI.spec,
            "it's the same tab that we expect");
         aWin.gBrowser.removeTab(tab_A_restored);
@@ -136,14 +136,15 @@ function test() {
           };
 
           let tab_B = aWin.gBrowser.addTab(testURL2);
-          promiseTabState(tab_B, state1).then(() => {
+          ss.setTabState(tab_B, JSON.stringify(state1));
+          whenTabRestored(tab_B, function() {
             // populate tab: (B) with different form data
             for (let item in fieldList)
               setFormValue(tab_B, item, fieldList[item]);
 
             // duplicate tab: (B)
             let tab_C = aWin.gBrowser.duplicateTab(tab_B);
-            promiseTabRestored(tab_C).then(() => {
+            whenTabRestored(tab_C, function() {
               // verify the correctness of the duplicated tab
               is(ss.getTabValue(tab_C, key1), value1,
                 "tab successfully duplicated - correct state");

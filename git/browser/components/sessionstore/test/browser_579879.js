@@ -4,7 +4,7 @@ function test() {
   var tab1 = gBrowser.addTab("data:text/plain;charset=utf-8,foo");
   gBrowser.pinTab(tab1);
 
-  promiseBrowserLoaded(tab1.linkedBrowser).then(() => {
+  whenBrowserLoaded(tab1.linkedBrowser, function() {
     var tab2 = gBrowser.addTab();
     gBrowser.pinTab(tab2);
 

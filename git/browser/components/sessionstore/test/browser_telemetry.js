@@ -24,7 +24,9 @@ function gt(a, b, message) {
 }
 
 add_task(function init() {
-  forgetClosedWindows();
+  for (let i = ss.getClosedWindowCount() - 1; i >= 0; --i) {
+    ss.forgetClosedWindow(i);
+  }
   for (let i = ss.getClosedTabCount(window) - 1; i >= 0; --i) {
     ss.forgetClosedTab(window, i);
   }

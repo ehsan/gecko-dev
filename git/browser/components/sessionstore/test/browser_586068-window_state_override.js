@@ -4,7 +4,11 @@
 
 const PREF_RESTORE_ON_DEMAND = "browser.sessionstore.restore_on_demand";
 
-add_task(function* test() {
+function test() {
+  TestRunner.run();
+}
+
+function runTests() {
   Services.prefs.setBoolPref(PREF_RESTORE_ON_DEMAND, false);
   registerCleanupFunction(function () {
     Services.prefs.clearUserPref(PREF_RESTORE_ON_DEMAND);
@@ -29,31 +33,24 @@ add_task(function* test() {
   let numTabs = 2 + state2.windows[0].tabs.length;
 
   let loadCount = 0;
-  let promiseRestoringTabs = new Promise(resolve => {
-    gProgressListener.setCallback(function (aBrowser, aNeedRestore, aRestoring, aRestored) {
-      // When loadCount == 2, we'll also restore state2 into the window
-      if (++loadCount == 2) {
-        executeSoon(() => ss.setWindowState(window, JSON.stringify(state2), true));
-      }
+  gProgressListener.setCallback(function (aBrowser, aNeedRestore, aRestoring, aRestored) {
+    // When loadCount == 2, we'll also restore state2 into the window
+    if (++loadCount == 2) {
+      executeSoon(() => ss.setWindowState(window, JSON.stringify(state2), true));
+    }
 
-      if (loadCount < numTabs) {
-        return;
-      }
+    if (loadCount < numTabs) {
+      return;
+    }
 
-      // We don't actually care about load order in this test, just that they all
-      // do load.
-      is(loadCount, numTabs, "all tabs were restored");
-      is(aNeedRestore, 0, "there are no tabs left needing restore");
+    // We don't actually care about load order in this test, just that they all
+    // do load.
+    is(loadCount, numTabs, "all tabs were restored");
+    is(aNeedRestore, 0, "there are no tabs left needing restore");
 
-      gProgressListener.unsetCallback();
-      resolve();
-    });
+    gProgressListener.unsetCallback();
+    executeSoon(next);
   });
 
-  let backupState = ss.getBrowserState();
-  ss.setWindowState(window, JSON.stringify(state1), true);
-  yield promiseRestoringTabs;
-
-  // Cleanup.
-  yield promiseBrowserState(backupState);
-});
+  yield ss.setWindowState(window, JSON.stringify(state1), true);
+}

@@ -596,7 +596,6 @@ nsContextMenu.prototype = {
     // gContextMenuContentData instead.
     if (this.isRemote) {
       this.browser = gContextMenuContentData.browser;
-      this.principal = gContextMenuContentData.principal;
     } else {
       editFlags = SpellCheckHelper.isEditable(this.target, window);
       this.browser = this.target.ownerDocument.defaultView
@@ -604,7 +603,6 @@ nsContextMenu.prototype = {
                                   .getInterface(Ci.nsIWebNavigation)
                                   .QueryInterface(Ci.nsIDocShell)
                                   .chromeEventHandler;
-      this.principal = this.target.ownerDocument.nodePrincipal;
     }
     this.onSocial = !!this.browser.getAttribute("origin");
 
@@ -836,6 +834,18 @@ nsContextMenu.prototype = {
              this.linkProtocol == "snews"      );
   },
 
+  _unremotePrincipal: function(aRemotePrincipal) {
+    if (this.isRemote) {
+      return Cc["@mozilla.org/scriptsecuritymanager;1"]
+               .getService(Ci.nsIScriptSecurityManager)
+               .getAppCodebasePrincipal(aRemotePrincipal.URI,
+                                        aRemotePrincipal.appId,
+                                        aRemotePrincipal.isInBrowserElement);
+    }
+
+    return aRemotePrincipal;
+  },
+
   _isSpellCheckEnabled: function(aNode) {
     // We can always force-enable spellchecking on textboxes
     if (this.isTargetATextBox(aNode)) {
@@ -865,14 +875,14 @@ nsContextMenu.prototype = {
   // Open linked-to URL in a new window.
   openLink : function () {
     var doc = this.target.ownerDocument;
-    urlSecurityCheck(this.linkURL, this.principal);
+    urlSecurityCheck(this.linkURL, this._unremotePrincipal(doc.nodePrincipal));
     openLinkIn(this.linkURL, "window", this._openLinkInParameters(doc));
   },
 
   // Open linked-to URL in a new private window.
   openLinkInPrivateWindow : function () {
     var doc = this.target.ownerDocument;
-    urlSecurityCheck(this.linkURL, this.principal);
+    urlSecurityCheck(this.linkURL, this._unremotePrincipal(doc.nodePrincipal));
     openLinkIn(this.linkURL, "window",
                this._openLinkInParameters(doc, { private: true }));
   },
@@ -880,7 +890,7 @@ nsContextMenu.prototype = {
   // Open linked-to URL in a new tab.
   openLinkInTab: function() {
     var doc = this.target.ownerDocument;
-    urlSecurityCheck(this.linkURL, this.principal);
+    urlSecurityCheck(this.linkURL, this._unremotePrincipal(doc.nodePrincipal));
     var referrerURI = doc.documentURIObject;
 
     // if the mixedContentChannel is present and the referring URI passes
@@ -907,7 +917,7 @@ nsContextMenu.prototype = {
   // open URL in current tab
   openLinkInCurrent: function() {
     var doc = this.target.ownerDocument;
-    urlSecurityCheck(this.linkURL, this.principal);
+    urlSecurityCheck(this.linkURL, this._unremotePrincipal(doc.nodePrincipal));
     openLinkIn(this.linkURL, "current", this._openLinkInParameters(doc));
   },
 
@@ -1115,7 +1125,8 @@ nsContextMenu.prototype = {
       return;
 
     var doc = this.target.ownerDocument;
-    urlSecurityCheck(this.target.currentURI.spec, this.principal);
+    urlSecurityCheck(this.target.currentURI.spec,
+                     this._unremotePrincipal(doc.nodePrincipal));
 
     // Confirm since it's annoying if you hit this accidentally.
     const kDesktopBackgroundURL = 
@@ -1292,7 +1303,7 @@ nsContextMenu.prototype = {
       linkText = this.focusedWindow.getSelection().toString().trim();
     else
       linkText = this.linkText();
-    urlSecurityCheck(this.linkURL, this.principal);
+    urlSecurityCheck(this.linkURL, this._unremotePrincipal(doc.nodePrincipal));
 
     this.saveHelper(this.linkURL, linkText, null, true, doc);
   },
@@ -1312,12 +1323,14 @@ nsContextMenu.prototype = {
                    true, false, doc.documentURIObject, doc);
     }
     else if (this.onImage) {
-      urlSecurityCheck(this.mediaURL, this.principal);
+      urlSecurityCheck(this.mediaURL,
+                       this._unremotePrincipal(doc.nodePrincipal));
       saveImageURL(this.mediaURL, null, "SaveImageTitle", false,
                    false, doc.documentURIObject, doc);
     }
     else if (this.onVideo || this.onAudio) {
-      urlSecurityCheck(this.mediaURL, this.principal);
+      urlSecurityCheck(this.mediaURL,
+                       this._unremotePrincipal(doc.nodePrincipal));
       var dialogTitle = this.onVideo ? "SaveVideoTitle" : "SaveAudioTitle";
       this.saveHelper(this.mediaURL, null, dialogTitle, false, doc);
     }

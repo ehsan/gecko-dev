@@ -43,9 +43,7 @@ nsParentalControlsService::GetBlockFileDownloadsEnabled(bool *aResult)
 NS_IMETHODIMP
 nsParentalControlsService::GetLoggingEnabled(bool *aResult)
 {
-  // Android doesn't currently have any method of logging restricted actions.
-  *aResult = false;
-  return NS_OK;
+  return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP

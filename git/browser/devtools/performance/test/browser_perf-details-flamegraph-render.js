@@ -6,10 +6,7 @@
  */
 function spawnTest () {
   let { panel } = yield initPerformance(SIMPLE_URL);
-  let { EVENTS, DetailsView, FlameGraphView } = panel.panelWin;
-
-  DetailsView.selectView("flamegraph");
-  ok(DetailsView.isViewSelected(FlameGraphView), "The flamegraph is now selected.");
+  let { EVENTS, FlameGraphView } = panel.panelWin;
 
   yield startRecording(panel);
   yield busyWait(100);
