@@ -40,9 +40,9 @@
 #include "mozilla/dom/HTMLContentElement.h"
 #include "mozilla/dom/TextDecoder.h"
 #include "mozilla/dom/ShadowRoot.h"
+#include "mozilla/InternalMutationEvent.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MouseEvents.h"
-#include "mozilla/MutationEvent.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
 #include "mozilla/TextEvents.h"
@@ -413,12 +413,8 @@ nsContentUtils::Init()
       EventListenerManagerHashInitEntry
     };
 
-    if (!PL_DHashTableInit(&sEventListenerManagersHash, &hash_table_ops,
-                           nullptr, sizeof(EventListenerManagerMapEntry), 16)) {
-      sEventListenerManagersHash.ops = nullptr;
-
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
+    PL_DHashTableInit(&sEventListenerManagersHash, &hash_table_ops,
+                      nullptr, sizeof(EventListenerManagerMapEntry), 16);
 
     RegisterStrongMemoryReporter(new DOMEventListenerManagersHashReporter());
   }
