@@ -5,7 +5,6 @@
 
 package org.mozilla.gecko.home;
 
-import org.mozilla.gecko.AboutPages;
 import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.SessionParser;
@@ -228,7 +227,7 @@ public class LastTabsPage extends HomeFragment {
                     final String url = tab.getUrl();
 
                     // Don't show last tabs for about:home
-                    if (AboutPages.isAboutHome(url)) {
+                    if (url.equals("about:home")) {
                         return;
                     }
 

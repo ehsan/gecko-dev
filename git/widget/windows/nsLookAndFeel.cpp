@@ -11,41 +11,12 @@
 #include "nsUXThemeConstants.h"
 #include "gfxFont.h"
 #include "gfxWindowsPlatform.h"
+#include "WinUtils.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/WindowsVersion.h"
 #include "gfxFontConstants.h"
 
-using namespace mozilla;
 using namespace mozilla::widget;
-
-enum WinVersion {
-  WINXP_VERSION     = 0x501,
-  WIN2K3_VERSION    = 0x502,
-  VISTA_VERSION     = 0x600,
-  WIN7_VERSION      = 0x601,
-  WIN8_VERSION      = 0x602,
-  WIN8_1_VERSION    = 0x603
-};
-
-static WinVersion GetWindowsVersion()
-{
-  static int32_t version = 0;
-
-  if (version) {
-    return static_cast<WinVersion>(version);
-  }
-
-  OSVERSIONINFOEX osInfo;
-  osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-  // This cast is safe and supposed to be here, don't worry
-#pragma warning(push)
-#pragma warning(disable:4996)
-  ::GetVersionEx((OSVERSIONINFO*)&osInfo);
-#pragma warning(pop)
-  version =
-    (osInfo.dwMajorVersion & 0xff) << 8 | (osInfo.dwMinorVersion & 0xff);
-  return static_cast<WinVersion>(version);
-}
+using mozilla::LookAndFeel;
 
 static nsresult GetColorFromTheme(nsUXThemeClass cls,
                            int32_t aPart,
@@ -197,7 +168,8 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       idx = COLOR_HIGHLIGHT;
       break;
     case eColorID__moz_menubarhovertext:
-      if (!IsVistaOrLater() || !IsAppThemed())
+      if (WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION ||
+          !IsAppThemed())
       {
         idx = nsUXThemeData::sFlatMenus ?
                 COLOR_HIGHLIGHTTEXT :
@@ -206,7 +178,8 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       }
       // Fall through
     case eColorID__moz_menuhovertext:
-      if (IsVistaOrLater() && IsAppThemed())
+      if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION &&
+          IsAppThemed())
       {
         res = ::GetColorFromTheme(eUXMenu,
                                   MENU_POPUPITEM, MPI_HOT, TMT_TEXTCOLOR, aColor);
@@ -282,7 +255,8 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       idx = COLOR_3DFACE;
       break;
     case eColorID__moz_win_mediatext:
-      if (IsVistaOrLater() && IsAppThemed()) {
+      if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION &&
+          IsAppThemed()) {
         res = ::GetColorFromTheme(eUXMediaToolbar,
                                   TP_BUTTON, TS_NORMAL, TMT_TEXTCOLOR, aColor);
         if (NS_SUCCEEDED(res))
@@ -292,7 +266,8 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       idx = COLOR_WINDOWTEXT;
       break;
     case eColorID__moz_win_communicationstext:
-      if (IsVistaOrLater() && IsAppThemed())
+      if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION &&
+          IsAppThemed())
       {
         res = ::GetColorFromTheme(eUXCommunicationsToolbar,
                                   TP_BUTTON, TS_NORMAL, TMT_TEXTCOLOR, aColor);
@@ -417,18 +392,18 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
 
     case eIntID_OperatingSystemVersionIdentifier:
     {
-        switch (GetWindowsVersion()) {
-            case WINXP_VERSION:
-            case WIN2K3_VERSION:
+        switch(WinUtils::GetWindowsVersion()) {
+            case WinUtils::WINXP_VERSION:
+            case WinUtils::WIN2K3_VERSION:
                 aResult = LookAndFeel::eOperatingSystemVersion_WindowsXP;
                 break;
-            case VISTA_VERSION:
+            case WinUtils::VISTA_VERSION:
                 aResult = LookAndFeel::eOperatingSystemVersion_WindowsVista;
                 break;
-            case WIN7_VERSION:
+            case WinUtils::WIN7_VERSION:
                 aResult = LookAndFeel::eOperatingSystemVersion_Windows7;
                 break;
-            case WIN8_VERSION:
+            case WinUtils::WIN8_VERSION:
                 aResult = LookAndFeel::eOperatingSystemVersion_Windows8;
                 break;
             default:
@@ -448,7 +423,8 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
         break;
     case eIntID_WindowsGlass:
         // Aero Glass is only available prior to Windows 8 when DWM is used.
-        aResult = (nsUXThemeData::CheckForCompositor() && !IsWin8OrLater());
+        aResult = (nsUXThemeData::CheckForCompositor() &&
+                   WinUtils::GetWindowsVersion() < WinUtils::WIN8_VERSION);
         break;
     case eIntID_AlertNotificationOrigin:
         aResult = 0;

@@ -39,7 +39,6 @@ let AboutFlyoutPanel = {
     }
 
     window.addEventListener('MozFlyoutPanelShowing', this, false);
-    window.addEventListener('MozFlyoutPanelHiding', this, false);
 
 #if MOZ_UPDATE_CHANNEL != release
     let defaults = Services.prefs.getDefaultBranch("");
@@ -60,13 +59,9 @@ let AboutFlyoutPanel = {
     switch (aEvent.type) {
       case 'MozFlyoutPanelShowing':
 #ifdef MOZ_UPDATER
+        onUnload();
         this.appUpdater = new appUpdater();
         gAppUpdater = this.appUpdater;
-#endif
-        break;
-      case 'MozFlyoutPanelHiding':
-#ifdef MOZ_UPDATER
-        onUnload();
 #endif
         break;
     }
@@ -88,7 +83,7 @@ function onUnload(aEvent) {
   // Safe to call even when there isn't a download in progress.
   gAppUpdater.removeDownloadListener();
   gAppUpdater = null;
-  AboutFlyoutPanel.appUpdater = null;
+  AboutFlyout.appUpdater = null;
 }
 
 function appUpdater()

@@ -19,9 +19,6 @@
 #include <shlobj.h>
 #include <knownfolders.h>
 #include <guiddef.h>
-#include "mozilla/WindowsVersion.h"
-
-using mozilla::IsWin7OrLater;
 
 #elif defined(XP_OS2)
 
@@ -158,7 +155,10 @@ GetLibrarySaveToPath(int aFallbackFolderId, REFKNOWNFOLDERID aFolderId,
                      nsIFile** aFile)
 {
     // Skip off checking for library support if the os is Vista or lower.
-    if (!IsWin7OrLater())
+    DWORD dwVersion = GetVersion();
+    if ((DWORD)(LOBYTE(LOWORD(dwVersion))) < 6 ||
+        ((DWORD)(LOBYTE(LOWORD(dwVersion))) == 6 &&
+         (DWORD)(HIBYTE(LOWORD(dwVersion))) == 0))
       return GetWindowsFolder(aFallbackFolderId, aFile);
 
     nsRefPtr<IShellLibrary> shellLib;

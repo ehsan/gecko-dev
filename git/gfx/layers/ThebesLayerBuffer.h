@@ -394,8 +394,8 @@ protected:
   /**
    * If the buffer hasn't been mapped, map it.
    */
-  bool EnsureBuffer();
-  bool EnsureBufferOnWhite();
+  void EnsureBuffer();
+  void EnsureBufferOnWhite();
   /**
    * True if we have a buffer where we can get it (but not necessarily
    * mapped currently).

@@ -454,14 +454,10 @@ var BrowserUI = {
   openLinkInNewTab: function (aURI, aBringFront, aOwner) {
     ContextUI.peekTabs(aBringFront ? kForegroundTabAnimationDelay
                                    : kBackgroundTabAnimationDelay);
-    let params = null;
-    if (aOwner) {
-      params = {
-        referrerURI: aOwner.browser.documentURI,
-        charset: aOwner.browser.characterSet,
-      };
-    }
-    let tab = Browser.addTab(aURI, aBringFront, aOwner, params);
+    let tab = Browser.addTab(aURI, aBringFront, aOwner, {
+      referrerURI: aOwner.browser.documentURI,
+      charset: aOwner.browser.characterSet,
+    });
     Elements.tabList.strip.ensureElementIsVisible(tab.chromeTab);
     return tab;
   },

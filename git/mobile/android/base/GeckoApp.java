@@ -71,8 +71,6 @@ import android.telephony.TelephonyManager;
 import android.telephony.PhoneStateListener;
 import android.telephony.gsm.GsmCellLocation;
 
-import android.text.TextUtils;
-
 import android.util.AttributeSet;
 import android.util.Base64;
 import android.util.Log;
@@ -927,7 +925,7 @@ abstract public class GeckoApp
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
-                mLayerView.showSurface();
+                mLayerView.show();
             }
         });
 
@@ -1355,7 +1353,7 @@ abstract public class GeckoApp
             if (!mShouldRestore) {
                 // Show about:home if we aren't restoring previous session and
                 // there's no external URL
-                Tab tab = Tabs.getInstance().loadUrl(AboutPages.HOME, Tabs.LOADURL_NEW_TAB);
+                Tab tab = Tabs.getInstance().loadUrl("about:home", Tabs.LOADURL_NEW_TAB);
             }
         } else {
             // If given an external URL, load it
@@ -1377,13 +1375,12 @@ abstract public class GeckoApp
         String action = intent.getAction();
 
         String passedUri = null;
-        final String uri = getURIFromIntent(intent);
-        if (!TextUtils.isEmpty(uri)) {
+        String uri = getURIFromIntent(intent);
+        if (uri != null && uri.length() > 0) {
             passedUri = uri;
         }
 
-        final boolean isExternalURL = passedUri != null &&
-                                      !AboutPages.isAboutHome(passedUri);
+        final boolean isExternalURL = passedUri != null && !passedUri.equals("about:home");
         StartupAction startupAction;
         if (isExternalURL) {
             startupAction = StartupAction.URL;
@@ -2660,7 +2657,7 @@ abstract public class GeckoApp
             ThreadUtils.postToUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    mLayerView.hideSurface();
+                    mLayerView.hide();
                 }
             });
         }

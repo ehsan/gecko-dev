@@ -122,8 +122,6 @@ class ISurfaceAllocator;
 class NewTextureSource;
 class DataTextureSource;
 class CompositingRenderTarget;
-class PCompositorParent;
-class LayerManagerComposite;
 
 enum SurfaceInitMode
 {
@@ -178,10 +176,9 @@ enum SurfaceInitMode
 class Compositor : public RefCounted<Compositor>
 {
 public:
-  Compositor(PCompositorParent* aParent = nullptr)
+  Compositor()
     : mCompositorID(0)
     , mDiagnosticTypes(DIAGNOSTIC_NONE)
-    , mParent(aParent)
   {
     MOZ_COUNT_CTOR(Compositor);
   }
@@ -309,8 +306,7 @@ public:
    * for the clip rect).
    *
    * If aRenderBoundsOut is non-null, it will be set to the render bounds
-   * actually used by the compositor in window space. If aRenderBoundsOut
-   * is returned empty, composition should be aborted.
+   * actually used by the compositor in window space.
    */
   virtual void BeginFrame(const nsIntRegion& aInvalidRegion,
                           const gfx::Rect* aClipRectIn,
@@ -412,12 +408,6 @@ public:
    */
   virtual bool Resume() { return true; }
 
-  /**
-   * Call before rendering begins to ensure the compositor is ready to
-   * composite. Returns false if rendering should be aborted.
-   */
-  virtual bool Ready() { return true; }
-
   // XXX I expect we will want to move mWidget into this class and implement
   // these methods properly.
   virtual nsIWidget* GetWidget() const { return nullptr; }
@@ -456,7 +446,6 @@ protected:
   uint32_t mCompositorID;
   static LayersBackend sBackend;
   DiagnosticTypes mDiagnosticTypes;
-  PCompositorParent* mParent;
 
   /**
    * We keep track of the total number of pixels filled as we composite the

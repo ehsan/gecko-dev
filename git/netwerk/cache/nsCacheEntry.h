@@ -303,9 +303,9 @@ private:
                                      void *                 arg);
                                      
     // member variables
-    static const PLDHashTableOps ops;
-    PLDHashTable                 table;
-    bool                         initialized;
+    static PLDHashTableOps ops;
+    PLDHashTable           table;
+    bool                   initialized;
 };
 
 #endif // _nsCacheEntry_h_

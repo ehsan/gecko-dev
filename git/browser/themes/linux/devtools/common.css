@@ -19,8 +19,9 @@
 .devtools-toolbar {
   -moz-appearance: none;
   padding: 4px 3px;
-  border-bottom-width: 1px;
-  border-bottom-style: solid;
+  color: hsl(210,30%,85%);
+  background-color: #343c45;
+  border-bottom: 1px solid #060a0d;
 }
 
 .devtools-menulist,

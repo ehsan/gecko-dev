@@ -374,7 +374,7 @@ nsCacheEntryInfo::IsStreamBased(bool * result)
  *  nsCacheEntryHashTable
  *****************************************************************************/
 
-const PLDHashTableOps
+PLDHashTableOps
 nsCacheEntryHashTable::ops =
 {
     PL_DHashAllocTable,
