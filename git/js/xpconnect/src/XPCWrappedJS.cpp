@@ -23,7 +23,8 @@ NS_CYCLE_COLLECTION_CLASSNAME(nsXPCWrappedJS)::Traverse
    (void *p, nsCycleCollectionTraversalCallback &cb)
 {
     nsISupports *s = static_cast<nsISupports*>(p);
-    MOZ_ASSERT(CheckForRightISupports(s), "not the nsISupports pointer we expect");
+    NS_ASSERTION(CheckForRightISupports(s),
+                 "not the nsISupports pointer we expect");
     nsXPCWrappedJS *tmp = Downcast(s);
 
     nsrefcnt refcnt = tmp->mRefCnt.get();
@@ -74,7 +75,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMETHODIMP
 nsXPCWrappedJS::AggregatedQueryInterface(REFNSIID aIID, void** aInstancePtr)
 {
-    MOZ_ASSERT(IsAggregatedToNative(), "bad AggregatedQueryInterface call");
+    NS_ASSERTION(IsAggregatedToNative(), "bad AggregatedQueryInterface call");
 
     if (!IsValid())
         return NS_ERROR_UNEXPECTED;
@@ -180,7 +181,8 @@ nsXPCWrappedJS::Release(void)
         nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
         // If we can't get the main thread anymore we just leak, but this really
         // shouldn't happen.
-        MOZ_ASSERT(mainThread, "Can't get main thread, leaking nsXPCWrappedJS!");
+        NS_ASSERTION(mainThread,
+                     "Can't get main thread, leaking nsXPCWrappedJS!");
         if (mainThread) {
             NS_ProxyRelease(mainThread,
                             static_cast<nsIXPConnectWrappedJS*>(this));
@@ -219,7 +221,7 @@ do_decrement:
 void
 nsXPCWrappedJS::TraceJS(JSTracer* trc)
 {
-    MOZ_ASSERT(mRefCnt >= 2 && IsValid(), "must be strongly referenced");
+    NS_ASSERTION(mRefCnt >= 2 && IsValid(), "must be strongly referenced");
     JS_SET_TRACING_DETAILS(trc, GetTraceName, this, 0);
     JS_CallHeapObjectTracer(trc, &mJSObj, "nsXPCWrappedJS::mJSObj");
 }
@@ -292,7 +294,7 @@ nsXPCWrappedJS::GetNewOrUsed(JS::HandleObject jsObj,
 
     map = rt->GetWrappedJSMap();
     if (!map) {
-        MOZ_ASSERT(map,"bad map");
+        NS_ASSERTION(map,"bad map");
         return NS_ERROR_FAILURE;
     }
 
@@ -382,8 +384,8 @@ nsXPCWrappedJS::GetNewOrUsed(JS::HandleObject jsObj,
     }
 
     // at this point we have a root and may need to build the specific wrapper
-    MOZ_ASSERT(root,"bad root");
-    MOZ_ASSERT(clazz,"bad clazz");
+    NS_ASSERTION(root,"bad root");
+    NS_ASSERTION(clazz,"bad clazz");
 
     if (!wrapper) {
         wrapper = new nsXPCWrappedJS(cx, jsObj, clazz, root, aOuter);
@@ -496,7 +498,7 @@ nsXPCWrappedJS::Unlink()
                 break;
             }
             cur = cur->mNext;
-            MOZ_ASSERT(cur, "failed to find wrapper in its own chain");
+            NS_ASSERTION(cur, "failed to find wrapper in its own chain");
         }
         // let the root go
         NS_RELEASE(mRoot);
@@ -532,7 +534,7 @@ nsXPCWrappedJS::Find(REFNSIID aIID)
 nsXPCWrappedJS*
 nsXPCWrappedJS::FindInherited(REFNSIID aIID)
 {
-    MOZ_ASSERT(!aIID.Equals(NS_GET_IID(nsISupports)), "bad call sequence");
+    NS_ASSERTION(!aIID.Equals(NS_GET_IID(nsISupports)), "bad call sequence");
 
     for (nsXPCWrappedJS* cur = mRoot; cur; cur = cur->mNext) {
         bool found;
@@ -547,8 +549,8 @@ nsXPCWrappedJS::FindInherited(REFNSIID aIID)
 NS_IMETHODIMP
 nsXPCWrappedJS::GetInterfaceInfo(nsIInterfaceInfo** info)
 {
-    MOZ_ASSERT(GetClass(), "wrapper without class");
-    MOZ_ASSERT(GetClass()->GetInterfaceInfo(), "wrapper class without interface");
+    NS_ASSERTION(GetClass(), "wrapper without class");
+    NS_ASSERTION(GetClass()->GetInterfaceInfo(), "wrapper class without interface");
 
     // Since failing to get this info will crash some platforms(!), we keep
     // mClass valid at shutdown time.

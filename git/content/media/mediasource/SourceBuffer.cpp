@@ -5,6 +5,8 @@
 
 #include "SourceBuffer.h"
 
+#include "nsContentUtils.h"
+
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaSourceLog;
 #define LOG(type, msg) PR_LOG(gMediaSourceLog, type, msg)

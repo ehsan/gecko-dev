@@ -20,6 +20,7 @@
 
 #include "js/RootingAPI.h"
 #include "mozilla/Assertions.h"
+#include "mozilla/AutoRestore.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/TimeStamp.h"
 #include "nsAString.h"

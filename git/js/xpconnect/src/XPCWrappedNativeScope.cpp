@@ -294,17 +294,17 @@ XPCWrappedNativeScope::~XPCWrappedNativeScope()
     // We can do additional cleanup assertions here...
 
     if (mWrappedNativeMap) {
-        MOZ_ASSERT(0 == mWrappedNativeMap->Count(), "scope has non-empty map");
+        NS_ASSERTION(0 == mWrappedNativeMap->Count(), "scope has non-empty map");
         delete mWrappedNativeMap;
     }
 
     if (mWrappedNativeProtoMap) {
-        MOZ_ASSERT(0 == mWrappedNativeProtoMap->Count(), "scope has non-empty map");
+        NS_ASSERTION(0 == mWrappedNativeProtoMap->Count(), "scope has non-empty map");
         delete mWrappedNativeProtoMap;
     }
 
     if (mMainThreadWrappedNativeProtoMap) {
-        MOZ_ASSERT(0 == mMainThreadWrappedNativeProtoMap->Count(), "scope has non-empty map");
+        NS_ASSERTION(0 == mMainThreadWrappedNativeProtoMap->Count(), "scope has non-empty map");
         delete mMainThreadWrappedNativeProtoMap;
     }
 
@@ -405,7 +405,8 @@ XPCWrappedNativeScope::StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* r
     // We are in JSGC_MARK_END and JSGC_FINALIZE_END must always follow it
     // calling FinishedFinalizationPhaseOfGC and clearing gDyingScopes in
     // KillDyingScopes.
-    MOZ_ASSERT(!gDyingScopes, "JSGC_MARK_END without JSGC_FINALIZE_END");
+    NS_ASSERTION(gDyingScopes == nullptr,
+                 "JSGC_MARK_END without JSGC_FINALIZE_END");
 
     XPCWrappedNativeScope* prev = nullptr;
     XPCWrappedNativeScope* cur = gScopes;

@@ -6,6 +6,7 @@
 
 #include "AudioNode.h"
 #include "AudioContext.h"
+#include "nsContentUtils.h"
 #include "mozilla/ErrorResult.h"
 #include "AudioNodeStream.h"
 
