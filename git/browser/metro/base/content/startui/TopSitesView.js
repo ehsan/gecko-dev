@@ -21,6 +21,7 @@ function TopSitesView(aGrid, aMaxSites) {
                 getService(Ci.nsINavHistoryService);
   history.addObserver(this, false);
 
+  PageThumbs.addExpirationFilter(this);
   Services.obs.addObserver(this, "Metro:RefreshTopsiteThumbnail", false);
 
   NewTabUtils.allPages.register(this);
@@ -39,6 +40,7 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
 
   destruct: function destruct() {
     Services.obs.removeObserver(this, "Metro:RefreshTopsiteThumbnail");
+    PageThumbs.removeExpirationFilter(this);
     NewTabUtils.allPages.unregister(this);
     if (StartUI.chromeWin) {
       StartUI.chromeWin.removeEventListener('MozAppbarDismissing', this, false);
@@ -212,6 +214,10 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
         item.refreshBackgroundImage();
       }
     }
+  },
+
+  filterForThumbnailExpiration: function filterForThumbnailExpiration(aCallback) {
+    aCallback([item.getAttribute("value") for (item of this._set.children)]);
   },
 
   isFirstRun: function isFirstRun() {
