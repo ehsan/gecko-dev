@@ -88,7 +88,7 @@ public:
     NS_IMETHOD CreateRenderingContext(nsIRenderingContext *&aContext);
     NS_IMETHOD CreateRenderingContextInstance(nsIRenderingContext *&aContext);
 
-    NS_IMETHOD GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
+    NS_IMETHOD GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
                              gfxUserFontSet* aUserFontSet,
                              nsIFontMetrics*& aMetrics);
     NS_IMETHOD GetMetricsFor(const nsFont& aFont,
@@ -114,8 +114,6 @@ public:
 
     NS_IMETHOD GetDepth(PRUint32& aDepth);
 
-    NS_IMETHOD ConvertPixel(nscolor aColor, PRUint32& aPixel);
-
     NS_IMETHOD GetDeviceSurfaceDimensions(nscoord& aWidth, nscoord& aHeight);
     NS_IMETHOD GetRect(nsRect& aRect);
     NS_IMETHOD GetClientRect(nsRect& aRect);
@@ -135,8 +133,6 @@ public:
     NS_IMETHOD EndPage(void);
     /* end printing goop */
 
-    static void DebugShowCairoSurface (const char *aName, cairo_surface_t *aSurface);
-
     virtual PRBool CheckDPIChange();
 
     virtual PRBool SetPixelScale(float aScale);
@@ -152,7 +148,7 @@ protected:
     nsresult AliasFont(const nsString& aFont, 
                        const nsString& aAlias, const nsString& aAltAlias,
                        PRBool aForceAlias);
-    void GetLocaleLangGroup(void);
+    void GetLocaleLanguage(void);
     nsresult SetDPI();
     void ComputeClientRectUsingScreen(nsRect *outRect);
     void ComputeFullAreaUsingScreen(nsRect *outRect);
@@ -162,7 +158,7 @@ protected:
 
     PRUint32          mDepth;
     nsFontCache*      mFontCache;
-    nsCOMPtr<nsIAtom> mLocaleLangGroup; // XXX temp fix for performance bug - erik
+    nsCOMPtr<nsIAtom> mLocaleLanguage; // XXX temp fix for performance bug
     nsHashtable*      mFontAliasTable;
     nsIWidget*        mWidget;
 #ifdef NS_DEBUG

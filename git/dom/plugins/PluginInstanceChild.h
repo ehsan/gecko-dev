@@ -51,6 +51,8 @@
 #include "nsTArray.h"
 #include "ChildAsyncCall.h"
 #include "ChildTimer.h"
+#include "nsRect.h"
+#include "nsTHashtable.h"
 
 namespace mozilla {
 namespace plugins {
@@ -73,10 +75,6 @@ class PluginInstanceChild : public PPluginInstanceChild
 protected:
     virtual bool AnswerNPP_SetWindow(const NPRemoteWindow& window, NPError* rv);
 
-    virtual bool
-    AnswerNPP_GetValue_NPPVpluginWindow(bool* windowed, NPError* rv);
-    virtual bool
-    AnswerNPP_GetValue_NPPVpluginTransparent(bool* transparent, NPError* rv);
     virtual bool
     AnswerNPP_GetValue_NPPVpluginNeedsXEmbed(bool* needs, NPError* rv);
     virtual bool
@@ -152,7 +150,7 @@ protected:
     AnswerUpdateWindow();
 
 public:
-    PluginInstanceChild(const NPPluginFuncs* aPluginIface);
+    PluginInstanceChild(const NPPluginFuncs* aPluginIface, const nsCString& aMimeType);
 
     virtual ~PluginInstanceChild();
 
@@ -184,6 +182,18 @@ public:
     void UnscheduleTimer(uint32_t id);
 
 private:
+    friend class PluginModuleChild;
+
+    // Quirks mode support for various plugin mime types
+    enum PluginQuirks {
+        QUIRK_SILVERLIGHT_WINLESS_INPUT_TRANSLATION = 1, // Win32
+    };
+
+    void InitQuirksModes(const nsCString& aMimeType);
+
+    NPError
+    InternalGetNPObjectForValue(NPNVariable aValue,
+                                NPObject** aObject);
 
 #if defined(OS_WIN)
     static bool RegisterWindowClass();
@@ -191,6 +201,12 @@ private:
     void DestroyPluginWindow();
     void ReparentPluginWindow(HWND hWndParent);
     void SizePluginWindow(int width, int height);
+    int16_t WinlessHandleEvent(NPEvent& event);
+    void SetNestedInputEventHook();
+    void ResetNestedEventHook();
+    void SetNestedInputPumpHook();
+    void ResetPumpHooks();
+    void InternalCallSetNestedEventState(bool aState);
     static LRESULT CALLBACK DummyWindowProc(HWND hWnd,
                                             UINT message,
                                             WPARAM wParam,
@@ -199,11 +215,26 @@ private:
                                              UINT message,
                                              WPARAM wParam,
                                              LPARAM lParam);
+    static VOID CALLBACK PumpTimerProc(HWND hwnd,
+                                       UINT uMsg,
+                                       UINT_PTR idEvent,
+                                       DWORD dwTime);
+    static LRESULT CALLBACK NestedInputEventHook(int code,
+                                                 WPARAM wParam,
+                                                 LPARAM lParam);
+    static LRESULT CALLBACK NestedInputPumpHook(int code,
+                                                WPARAM wParam,
+                                                LPARAM lParam);
 #endif
 
     const NPPluginFuncs* mPluginIface;
     NPP_t mData;
     NPWindow mWindow;
+    int mQuirks;
+
+    // Cached scriptable actors to avoid IPC churn
+    PluginScriptableObjectChild* mCachedWindowActor;
+    PluginScriptableObjectChild* mCachedElementActor;
 
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
     NPSetWindowCallbackStruct mWsInfo;
@@ -211,11 +242,26 @@ private:
     HWND mPluginWindowHWND;
     WNDPROC mPluginWndProc;
     HWND mPluginParentHWND;
+    HHOOK mNestedEventHook;
+    HHOOK mNestedPumpHook;
+    int mNestedEventLevelDepth;
+    bool mNestedEventState;
+    HWND mCachedWinlessPluginHWND;
+    UINT_PTR mEventPumpTimer;
+    nsIntPoint mPluginSize;
+    nsIntPoint mPluginOffset;
 #endif
 
     friend class ChildAsyncCall;
     nsTArray<ChildAsyncCall*> mPendingAsyncCalls;
     nsTArray<nsAutoPtr<ChildTimer> > mTimers;
+
+    /**
+     * During destruction we enumerate all remaining scriptable objects and
+     * invalidate/delete them. Enumeration can re-enter, so maintain a
+     * hash separate from PluginModuleChild.mObjectMap.
+     */
+    nsAutoPtr< nsTHashtable<DeletingObjectEntry> > mDeletingHash;
 
 #if defined(OS_WIN)
 private:

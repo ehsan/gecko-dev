@@ -57,6 +57,9 @@
 #include "gfxWindowsSurface.h"
 #include "nsWindowDbg.h"
 #include "cairo.h"
+#ifdef CAIRO_HAS_D2D_SURFACE
+#include "gfxD2DSurface.h"
+#endif
 
 #if !defined(WINCE)
 #include "nsWinGesture.h"
@@ -385,6 +388,11 @@ private:
 protected:
 #endif // MOZ_XUL
 
+#ifdef MOZ_IPC
+  static bool             IsAsyncResponseEvent(UINT aMsg, LRESULT& aResult);
+  void                    IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam);
+#endif // MOZ_IPC
+
   /**
    * Misc.
    */
@@ -444,6 +452,9 @@ protected:
   static PRBool         sTrackPointHack;
 #ifdef MOZ_IPC
   static PRUint32       sOOPPPluginFocusEvent;
+  static PRUint32       sOOPPGetBaseMessageEvent;
+  static PRInt32        sCallDepth;
+  static UINT           sBaseMsg;
 #endif
 
   // Hook Data Memebers for Dropdowns. sProcessHook Tells the
@@ -473,6 +484,10 @@ protected:
 
   // Graphics
   HDC                   mPaintDC; // only set during painting
+
+#ifdef CAIRO_HAS_D2D_SURFACE
+  nsRefPtr<gfxD2DSurface>    mD2DWindowSurface; // Surface for this window.
+#endif
 
   // Transparency
 #ifdef MOZ_XUL

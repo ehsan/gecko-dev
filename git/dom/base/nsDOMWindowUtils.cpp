@@ -63,6 +63,7 @@
 #include "nsICanvasElement.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
+#include "nsLayoutUtils.h"
 
 #if defined(MOZ_X11) && defined(MOZ_WIDGET_GTK2)
 #include <gdk/gdk.h>
@@ -621,33 +622,10 @@ nsDOMWindowUtils::ElementFromPoint(PRInt32 aX, PRInt32 aY,
 static already_AddRefed<gfxImageSurface>
 CanvasToImageSurface(nsIDOMHTMLCanvasElement *canvas)
 {
-  PRUint32 w, h;
-  nsresult rv;
-
-  nsCOMPtr<nsICanvasElement> elt = do_QueryInterface(canvas);
-  rv = elt->GetSize(&w, &h);
-  if (NS_FAILED(rv))
-    return nsnull;
-
-  nsRefPtr<gfxImageSurface> img = new gfxImageSurface(gfxIntSize(w, h), gfxASurface::ImageFormatARGB32);
-  if (img == nsnull)
-    return nsnull;
-
-  nsRefPtr<gfxContext> ctx = new gfxContext(img);
-  if (ctx == nsnull)
-    return nsnull;
-
-  ctx->SetOperator(gfxContext::OPERATOR_CLEAR);
-  ctx->Paint();
-
-  ctx->SetOperator(gfxContext::OPERATOR_OVER);
-  rv = elt->RenderContexts(ctx, gfxPattern::FILTER_NEAREST);
-  if (NS_FAILED(rv))
-    return nsnull;
-
-  ctx = nsnull;
-
-  return img.forget();
+  nsLayoutUtils::SurfaceFromElementResult result =
+    nsLayoutUtils::SurfaceFromElement(canvas,
+                                      nsLayoutUtils::SFE_WANT_IMAGE_SURFACE);
+  return static_cast<gfxImageSurface*>(result.mSurface.forget().get());
 }
 
 NS_IMETHODIMP
@@ -702,10 +680,10 @@ nsDOMWindowUtils::CompareCanvases(nsIDOMHTMLCanvasElement *aCanvas1,
 
           different++;
 
-          dc = PR_MAX(abs(p1[0] - p2[0]), dc);
-          dc = PR_MAX(abs(p1[1] - p2[1]), dc);
-          dc = PR_MAX(abs(p1[2] - p2[2]), dc);
-          dc = PR_MAX(abs(p1[3] - p2[3]), dc);
+          dc = NS_MAX((PRUint32)abs(p1[0] - p2[0]), dc);
+          dc = NS_MAX((PRUint32)abs(p1[1] - p2[1]), dc);
+          dc = NS_MAX((PRUint32)abs(p1[2] - p2[2]), dc);
+          dc = NS_MAX((PRUint32)abs(p1[3] - p2[3]), dc);
         }
 
         p1 += 4;

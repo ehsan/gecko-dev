@@ -190,15 +190,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 nsContentSink::nsContentSink()
 {
   // We have a zeroing operator new
-  NS_ASSERTION(mLayoutStarted == PR_FALSE, "What?");
-  NS_ASSERTION(mDynamicLowerValue == PR_FALSE, "What?");
-  NS_ASSERTION(mParsing == PR_FALSE, "What?");
+  NS_ASSERTION(!mLayoutStarted, "What?");
+  NS_ASSERTION(!mDynamicLowerValue, "What?");
+  NS_ASSERTION(!mParsing, "What?");
   NS_ASSERTION(mLastSampledUserEventTime == 0, "What?");
   NS_ASSERTION(mDeflectedCount == 0, "What?");
-  NS_ASSERTION(mDroppedTimer == PR_FALSE, "What?");
+  NS_ASSERTION(!mDroppedTimer, "What?");
   NS_ASSERTION(mInMonolithicContainer == 0, "What?");
   NS_ASSERTION(mInNotification == 0, "What?");
-  NS_ASSERTION(mDeferredLayoutStart == PR_FALSE, "What?");
+  NS_ASSERTION(!mDeferredLayoutStart, "What?");
 
 #ifdef NS_DEBUG
   if (!gContentSinkLogModuleInfo) {
@@ -1087,11 +1087,22 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
     return;
   }
 
-  nsresult rv;
-
   // Check for a manifest= attribute.
   nsAutoString manifestSpec;
   aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::manifest, manifestSpec);
+  ProcessOfflineManifest(manifestSpec);
+}
+
+void
+nsContentSink::ProcessOfflineManifest(const nsAString& aManifestSpec)
+{
+  // Don't bother processing offline manifest for documents
+  // without a docshell
+  if (!mDocShell) {
+    return;
+  }
+
+  nsresult rv;
 
   // Grab the application cache the document was loaded from, if any.
   nsCOMPtr<nsIApplicationCache> applicationCache;
@@ -1115,7 +1126,7 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
     }
   }
 
-  if (manifestSpec.IsEmpty() && !applicationCache) {
+  if (aManifestSpec.IsEmpty() && !applicationCache) {
     // Not loaded from an application cache, and no manifest
     // attribute.  Nothing to do here.
     return;
@@ -1124,12 +1135,12 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
   CacheSelectionAction action = CACHE_SELECTION_NONE;
   nsCOMPtr<nsIURI> manifestURI;
 
-  if (manifestSpec.IsEmpty()) {
+  if (aManifestSpec.IsEmpty()) {
     action = CACHE_SELECTION_RESELECT_WITHOUT_MANIFEST;
   }
   else {
     nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(manifestURI),
-                                              manifestSpec, mDocument,
+                                              aManifestSpec, mDocument,
                                               mDocumentURI);
     if (!manifestURI) {
       return;
@@ -1255,29 +1266,6 @@ nsContentSink::ScrollToRef()
   }
 }
 
-nsresult
-nsContentSink::RefreshIfEnabled(nsIViewManager* vm)
-{
-  if (!vm) {
-    // vm might be null if the shell got Destroy() called already
-    return NS_OK;
-  }
-
-  NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsIContentViewer> contentViewer;
-  mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
-  if (contentViewer) {
-    PRBool enabled;
-    contentViewer->GetEnableRendering(&enabled);
-    if (enabled) {
-      vm->EnableRefresh(NS_VMREFRESH_IMMEDIATE);
-    }
-  }
-
-  return NS_OK;
-}
-
 void
 nsContentSink::StartLayout(PRBool aIgnorePendingSheets)
 {
@@ -1320,9 +1308,6 @@ nsContentSink::StartLayout(PRBool aIgnorePendingSheets)
     if (NS_FAILED(rv)) {
       return;
     }
-
-    // Now trigger a refresh
-    RefreshIfEnabled(shell->GetViewManager());
   }
 
   // If the document we are loading has a reference or it is a

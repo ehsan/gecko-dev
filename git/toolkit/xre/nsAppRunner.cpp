@@ -240,6 +240,7 @@ protected:
 #endif
 
 extern void InstallSignalHandlers(const char *ProgramName);
+#include "nsX11ErrorHandler.h"
 
 #define FILE_COMPATIBILITY_INFO NS_LITERAL_CSTRING("compatibility.ini")
 
@@ -975,6 +976,19 @@ nsXULAppInfo::AppendObjCExceptionInfoToAppNotes(void* aException)
   return NS_ERROR_NOT_IMPLEMENTED;
 #endif
 }
+
+NS_IMETHODIMP
+nsXULAppInfo::GetSubmitReports(PRBool* aEnabled)
+{
+  return CrashReporter::GetSubmitReports(aEnabled);
+}
+
+NS_IMETHODIMP
+nsXULAppInfo::SetSubmitReports(PRBool aEnabled)
+{
+  return CrashReporter::SetSubmitReports(aEnabled);
+}
+
 #endif
 
 static const nsXULAppInfo kAppInfo;
@@ -3120,6 +3134,10 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
     gtk_widget_set_default_colormap(gdk_rgb_get_colormap());
 #endif /* MOZ_WIDGET_GTK2 */
+#ifdef MOZ_X11
+    // Do this after initializing GDK, or GDK will install its own handler.
+    InstallX11ErrorHandler();
+#endif
 
     // Call the code to install our handler
 #ifdef MOZ_JPROF

@@ -1,3 +1,6 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
 const MANDATORY = ["id", "name", "headerURL"];
 const OPTIONAL = ["footerURL", "textcolor", "accentcolor", "iconURL",
                   "previewURL", "author", "description", "homepageURL",
@@ -119,6 +122,41 @@ function run_test() {
   do_check_eq(ltm.usedThemes.length, 0);
   do_check_eq(ltm.currentTheme, null);
 
+  // Use chinese name to test utf-8, for bug #541943
+  var chineseTheme = dummy("chinese0");
+  chineseTheme.name = "中文0";
+  chineseTheme.description = "中文1";
+  ltm.currentTheme = chineseTheme;
+  do_check_eq(ltm.usedThemes.length, 1);
+  do_check_eq(ltm.currentTheme.name, "中文0");
+  do_check_eq(ltm.currentTheme.description, "中文1");
+  do_check_eq(ltm.usedThemes[0].name, "中文0");
+  do_check_eq(ltm.usedThemes[0].description, "中文1");
+  do_check_eq(ltm.getUsedTheme("chinese0").name, "中文0");
+  do_check_eq(ltm.getUsedTheme("chinese0").description, "中文1");
+
+  // This name used to break the usedTheme JSON causing all LWTs to be lost
+  var chineseTheme1 = dummy("chinese1");
+  chineseTheme1.name = "植物大战僵尸~最爱";
+  chineseTheme1.description = "植物大战僵尸~最爱";
+  ltm.currentTheme = chineseTheme1;
+  do_check_neq(ltm.currentTheme, null);
+  do_check_eq(ltm.usedThemes.length, 2);
+  do_check_eq(ltm.currentTheme.name, "植物大战僵尸~最爱");
+  do_check_eq(ltm.currentTheme.description, "植物大战僵尸~最爱");
+  do_check_eq(ltm.usedThemes[1].name, "中文0");
+  do_check_eq(ltm.usedThemes[1].description, "中文1");
+  do_check_eq(ltm.usedThemes[0].name, "植物大战僵尸~最爱");
+  do_check_eq(ltm.usedThemes[0].description, "植物大战僵尸~最爱");
+
+  ltm.forgetUsedTheme("chinese0");
+  do_check_eq(ltm.usedThemes.length, 1);
+  do_check_neq(ltm.currentTheme, null);
+
+  ltm.forgetUsedTheme("chinese1");
+  do_check_eq(ltm.usedThemes.length, 0);
+  do_check_eq(ltm.currentTheme, null);
+
   do_check_eq(ltm.parseTheme("invalid json"), null);
   do_check_eq(ltm.parseTheme('"json string"'), null);
 
@@ -141,6 +179,14 @@ function run_test() {
   do_check_eq(roundtrip(data), null);
   data.id = [];
   do_check_eq(roundtrip(data), null);
+
+  // Check whether parseTheme handles international characters right
+  var chineseTheme2 = dummy();
+  chineseTheme2.name = "植物大战僵尸~最爱";
+  chineseTheme2.description = "植物大战僵尸~最爱";
+  do_check_neq(roundtrip(chineseTheme2), null);
+  do_check_eq(roundtrip(chineseTheme2).name, "植物大战僵尸~最爱");
+  do_check_eq(roundtrip(chineseTheme2).description, "植物大战僵尸~最爱");
 
   data = dummy();
   data.unknownProperty = "Foo";
@@ -247,4 +293,104 @@ function run_test() {
   }, function (after, prop) {
     do_check_eq(typeof after[prop], "undefined");
   });
+
+  do_check_eq(ltm.usedThemes.length, 0);
+  do_check_eq(ltm.currentTheme, null);
+
+  data = dummy();
+  delete data.name;
+  try {
+    ltm.currentTheme = data;
+    do_throw("Should have rejected a theme with no name");
+  }
+  catch (e) {
+    // Expected exception
+  }
+
+  data = dummy();
+  data.headerURL = "foo";
+  try {
+    ltm.currentTheme = data;
+    do_throw("Should have rejected a theme with a bad headerURL");
+  }
+  catch (e) {
+    // Expected exception
+  }
+
+  data = dummy();
+  data.headerURL = "ftp://lwtest.invalid/test.png";
+  try {
+    ltm.currentTheme = data;
+    do_throw("Should have rejected a theme with a bad headerURL");
+  }
+  catch (e) {
+    // Expected exception
+  }
+
+  data = dummy();
+  delete data.id;
+  try {
+    ltm.currentTheme = data;
+    do_throw("Should have rejected a theme with no ID");
+  }
+  catch (e) {
+    // Expected exception
+  }
+
+  do_check_eq(ltm.usedThemes.length, 0);
+  do_check_eq(ltm.currentTheme, null);
+
+  // Force the theme into the prefs anyway
+  let prefs = Cc["@mozilla.org/preferences-service;1"].
+              getService(Ci.nsIPrefBranch);
+  let themes = [data];
+  prefs.setCharPref("lightweightThemes.usedThemes", JSON.stringify(themes));
+  do_check_eq(ltm.usedThemes.length, 1);
+
+  // This should silently drop the bad theme.
+  ltm.currentTheme = dummy();
+  do_check_eq(ltm.usedThemes.length, 1);
+  ltm.forgetUsedTheme(ltm.currentTheme.id);
+  do_check_eq(ltm.usedThemes.length, 0);
+  do_check_eq(ltm.currentTheme, null);
+
+  // Add one broken and some working.
+  themes = [data, dummy("x1"), dummy("x2")];
+  prefs.setCharPref("lightweightThemes.usedThemes", JSON.stringify(themes));
+  do_check_eq(ltm.usedThemes.length, 3);
+
+  // Switching to an existing theme should drop the bad theme.
+  ltm.currentTheme = ltm.getUsedTheme("x1");
+  do_check_eq(ltm.usedThemes.length, 2);
+  ltm.forgetUsedTheme("x1");
+  ltm.forgetUsedTheme("x2");
+  do_check_eq(ltm.usedThemes.length, 0);
+  do_check_eq(ltm.currentTheme, null);
+
+  prefs.setCharPref("lightweightThemes.usedThemes", JSON.stringify(themes));
+  do_check_eq(ltm.usedThemes.length, 3);
+
+  // Forgetting an existing theme should drop the bad theme.
+  ltm.forgetUsedTheme("x1");
+  do_check_eq(ltm.usedThemes.length, 1);
+  ltm.forgetUsedTheme("x2");
+  do_check_eq(ltm.usedThemes.length, 0);
+  do_check_eq(ltm.currentTheme, null);
+
+  // Test whether a JSON set with setCharPref can be retrieved with usedThemes
+  ltm.currentTheme = dummy("x0");
+  ltm.currentTheme = dummy("x1");
+  prefs.setCharPref("lightweightThemes.usedThemes", JSON.stringify(ltm.usedThemes));
+  do_check_eq(ltm.usedThemes.length, 2);
+  do_check_eq(ltm.currentTheme.id, "x1");
+  do_check_eq(ltm.usedThemes[1].id, "x0");
+  do_check_eq(ltm.usedThemes[0].id, "x1");
+
+  ltm.forgetUsedTheme("x0");
+  do_check_eq(ltm.usedThemes.length, 1);
+  do_check_neq(ltm.currentTheme, null);
+
+  ltm.forgetUsedTheme("x1");
+  do_check_eq(ltm.usedThemes.length, 0);
+  do_check_eq(ltm.currentTheme, null);
 }

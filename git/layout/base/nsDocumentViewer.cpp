@@ -117,8 +117,8 @@
 #include "nsIClipboardHelper.h"
 
 #include "nsPIDOMWindow.h"
+#include "nsPIWindowRoot.h"
 #include "nsJSEnvironment.h"
-#include "nsIFocusController.h"
 #include "nsFocusManager.h"
 
 #include "nsIScrollableFrame.h"
@@ -385,11 +385,8 @@ private:
   /**
    * @param aDoInitialReflow set to true if you want to kick off the initial
    * reflow
-   * @param aReenableRefresh set to true if you want this to reenable refresh
-   * before returning; otherwise this will return with refresh disabled
-   * in the view manager
    */
-  nsresult InitPresentationStuff(PRBool aDoInitialReflow, PRBool aReenableRefresh);
+  nsresult InitPresentationStuff(PRBool aDoInitialReflow);
 
   nsresult GetPopupNode(nsIDOMNode** aNode);
   nsresult GetPopupLinkNode(nsIDOMNode** aNode);
@@ -455,7 +452,6 @@ protected:
   PRInt16 mNumURLStarts;
   PRInt16 mDestroyRefCount;    // a second "refcount" for the document viewer's "destroy"
 
-  unsigned      mEnableRendering : 1;
   unsigned      mStopped : 1;
   unsigned      mLoaded : 1;
   unsigned      mDeferredWindowClose : 1;
@@ -497,6 +493,7 @@ protected:
   PRPackedBool mIsPageMode;
   PRPackedBool mCallerIsClosingWindow;
   PRPackedBool mInitializedForPrintPreview;
+  PRPackedBool mHidden;
 };
 
 //------------------------------------------------------------------
@@ -523,7 +520,6 @@ NS_NewDocumentViewer(nsIDocumentViewer** aResult)
 
 void DocumentViewerImpl::PrepareToStartLoad()
 {
-  mEnableRendering  = PR_TRUE;
   mStopped          = PR_FALSE;
   mLoaded           = PR_FALSE;
   mDeferredWindowClose = PR_FALSE;
@@ -558,7 +554,8 @@ DocumentViewerImpl::DocumentViewerImpl()
     mPrintPreviewZoom(1.0),
 #endif
     mHintCharsetSource(kCharsetUninitialized),
-    mInitializedForPrintPreview(PR_FALSE)
+    mInitializedForPrintPreview(PR_FALSE),
+    mHidden(PR_FALSE)
 {
   PrepareToStartLoad();
 }
@@ -696,7 +693,7 @@ DocumentViewerImpl::Init(nsIWidget* aParentWidget,
 }
 
 nsresult
-DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow, PRBool aReenableRefresh)
+DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow)
 {
   if (GetIsPrintPreview())
     return NS_OK;
@@ -739,7 +736,6 @@ DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow, PRBool aReena
   nscoord width = mPresContext->DeviceContext()->UnscaledAppUnitsPerDevPixel() * mBounds.width;
   nscoord height = mPresContext->DeviceContext()->UnscaledAppUnitsPerDevPixel() * mBounds.height;
 
-  mViewManager->DisableRefresh();
   mViewManager->SetWindowDimensions(width, height);
   mPresContext->SetTextZoom(mTextZoom);
   mPresContext->SetFullZoom(mPageZoom);
@@ -759,11 +755,6 @@ DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow, PRBool aReena
     // Store the visible area so it's available for other callers of
     // InitialReflow, like nsContentSink::StartLayout.
     mPresContext->SetVisibleArea(nsRect(0, 0, width, height));
-  }
-
-  // Now trigger a refresh
-  if (aReenableRefresh && mEnableRendering && mViewManager) {
-    mViewManager->EnableRefresh(NS_VMREFRESH_IMMEDIATE);
   }
 
   // now register ourselves as a selection listener, so that we get
@@ -966,7 +957,7 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
     // The ViewManager and Root View was created above (in
     // MakeWindow())...
 
-    rv = InitPresentationStuff(!makeCX, !makeCX);
+    rv = InitPresentationStuff(!makeCX);
   }
 
   return rv;
@@ -1260,7 +1251,7 @@ DocumentViewerImpl::ResetCloseWindow()
 NS_IMETHODIMP
 DocumentViewerImpl::PageHide(PRBool aIsUnload)
 {
-  mEnableRendering = PR_FALSE;
+  mHidden = PR_TRUE;
 
   if (!mDocument) {
     return NS_ERROR_NULL_POINTER;
@@ -1640,7 +1631,7 @@ DocumentViewerImpl::Stop(void)
     mDocument->StopDocumentLoad();
   }
 
-  if (mEnableRendering && (mLoaded || mStopped) && mPresContext && !mSHEntry)
+  if (!mHidden && (mLoaded || mStopped) && mPresContext && !mSHEntry)
     mPresContext->SetImageAnimationMode(imgIContainer::kDontAnimMode);
 
   mStopped = PR_TRUE;
@@ -1755,10 +1746,7 @@ DocumentViewerImpl::SetDOMDocument(nsIDOMDocument *aDocument)
       mPresContext->SetLinkHandler(linkHandler);
     }
 
-    rv = InitPresentationStuff(PR_FALSE, PR_FALSE);
-    if (NS_SUCCEEDED(rv) && mEnableRendering && mViewManager) {
-      mViewManager->EnableRefresh(NS_VMREFRESH_IMMEDIATE);
-    }
+    rv = InitPresentationStuff(PR_FALSE);
   }
 
   return rv;
@@ -1985,8 +1973,7 @@ DocumentViewerImpl::Show(void)
     if (mPresContext) {
       Hide();
 
-      rv = InitPresentationStuff(mDocument->MayStartLayout(),
-                                 mDocument->MayStartLayout());
+      rv = InitPresentationStuff(mDocument->MayStartLayout());
     }
 
     // If we get here the document load has already started and the
@@ -2054,26 +2041,6 @@ DocumentViewerImpl::Hide(void)
 
   return NS_OK;
 }
-NS_IMETHODIMP
-DocumentViewerImpl::SetEnableRendering(PRBool aOn)
-{
-  NS_ENSURE_TRUE(mDocument, NS_ERROR_NOT_AVAILABLE);
-  mEnableRendering = aOn;
-  if (mViewManager) {
-    if (aOn) {
-      mViewManager->EnableRefresh(NS_VMREFRESH_IMMEDIATE);
-      nsIView* view;
-      mViewManager->GetRootView(view);   // views are not refCounted
-      if (view) {
-        mViewManager->UpdateView(view, NS_VMREFRESH_IMMEDIATE);
-      }
-    }
-    else {
-      mViewManager->DisableRefresh();
-    }
-  }
-  return NS_OK;
-}
 
 NS_IMETHODIMP
 DocumentViewerImpl::GetSticky(PRBool *aSticky)
@@ -2088,17 +2055,6 @@ DocumentViewerImpl::SetSticky(PRBool aSticky)
 {
   mIsSticky = aSticky;
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-DocumentViewerImpl::GetEnableRendering(PRBool* aResult)
-{
-  NS_ENSURE_TRUE(mDocument, NS_ERROR_NOT_AVAILABLE);
-  NS_PRECONDITION(nsnull != aResult, "null OUT ptr");
-  if (aResult) {
-    *aResult = mEnableRendering;
-  }
   return NS_OK;
 }
 
@@ -2386,19 +2342,6 @@ DocumentViewerImpl::FindContainerView()
       outerWidget->GetTransparencyMode() == eTransparencyTransparent)
     return containerView;
 
-  // see if the containerView has already been hooked into a foreign view manager hierarchy
-  // if it has, then we have to hook into the hierarchy too otherwise bad things will happen.
-  nsIViewManager* containerVM = containerView->GetViewManager();
-  nsIView* pView = containerView;
-  do {
-    pView = pView->GetParent();
-  } while (pView && pView->GetViewManager() == containerVM);
-  if (pView)
-    return containerView;
-
-  // OK, so the container is not already hooked up into a foreign view manager hierarchy.
-  // That means we can choose not to hook ourselves up.
-  //
   // If the parent container is a chrome shell and we are a content shell
   // then we won't hook into its view
   // tree. This will improve performance a little bit (especially given scrolling/painting perf bugs)
@@ -3196,27 +3139,6 @@ NS_IMETHODIMP DocumentViewerImpl::GetBidiTextType(PRUint8* aTextType)
   return NS_OK;
 }
 
-NS_IMETHODIMP DocumentViewerImpl::SetBidiControlsTextMode(PRUint8 aControlsTextMode)
-{
-  PRUint32 bidiOptions;
-
-  GetBidiOptions(&bidiOptions);
-  SET_BIDI_OPTION_CONTROLSTEXTMODE(bidiOptions, aControlsTextMode);
-  SetBidiOptions(bidiOptions);
-  return NS_OK;
-}
-
-NS_IMETHODIMP DocumentViewerImpl::GetBidiControlsTextMode(PRUint8* aControlsTextMode)
-{
-  PRUint32 bidiOptions;
-
-  if (aControlsTextMode) {
-    GetBidiOptions(&bidiOptions);
-    *aControlsTextMode = GET_BIDI_OPTION_CONTROLSTEXTMODE(bidiOptions);
-  }
-  return NS_OK;
-}
-
 NS_IMETHODIMP DocumentViewerImpl::SetBidiNumeral(PRUint8 aNumeral)
 {
   PRUint32 bidiOptions;
@@ -3400,17 +3322,16 @@ DocumentViewerImpl::GetPopupNode(nsIDOMNode** aNode)
   nsIDocument* document = GetDocument();
   NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
 
-
   // get the private dom window
-  nsPIDOMWindow *privateWin = document->GetWindow();
-  NS_ENSURE_TRUE(privateWin, NS_ERROR_NOT_AVAILABLE);
+  nsCOMPtr<nsPIDOMWindow> window(document->GetWindow());
+  NS_ENSURE_TRUE(window, NS_ERROR_NOT_AVAILABLE);
+  if (window) {
+    nsCOMPtr<nsPIWindowRoot> root = window->GetTopWindowRoot();
+    NS_ENSURE_TRUE(root, NS_ERROR_FAILURE);
 
-  // get the focus controller
-  nsIFocusController *focusController = privateWin->GetRootFocusController();
-  NS_ENSURE_TRUE(focusController, NS_ERROR_FAILURE);
-
-  // get the popup node
-  focusController->GetPopupNode(aNode); // addref happens here
+    // get the popup node
+    root->GetPopupNode(aNode); // addref happens here
+  }
 
   return NS_OK;
 }
@@ -4206,6 +4127,9 @@ DocumentViewerImpl::SetIsPrintPreview(PRBool aIsPrintPreview)
   }
 #endif
   if (!aIsPrintPreview) {
+    if (mPresShell) {
+      DestroyPresShell();
+    }
     mWindow = nsnull;
     mViewManager = nsnull;
     mPresContext = nsnull;
@@ -4242,10 +4166,6 @@ DocumentViewerImpl::ReturnToGalleyPresentation()
   mPrintEngine->TurnScriptingOn(PR_TRUE);
   mPrintEngine->Destroy();
   mPrintEngine = nsnull;
-
-  if (mViewManager) {
-    mViewManager->EnableRefresh(NS_VMREFRESH_DEFERRED);
-  }
 
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
   ResetFocusState(docShell);
@@ -4357,7 +4277,6 @@ NS_IMETHODIMP DocumentViewerImpl::SetPageMode(PRBool aPageMode, nsIPrintSettings
     NS_ENSURE_SUCCESS(rv, rv);
   }
   InitInternal(mParentWidget, nsnull, mBounds, PR_TRUE, PR_FALSE, PR_FALSE);
-  mViewManager->EnableRefresh(NS_VMREFRESH_NO_SYNC);
 
   Show();
   return NS_OK;

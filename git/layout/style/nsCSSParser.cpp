@@ -308,18 +308,18 @@ protected:
   PRBool ParseMediaQuery(PRUnichar aStopSymbol, nsMediaQuery **aQuery,
                          PRBool *aParsedSomething, PRBool *aHitStop);
   PRBool ParseMediaQueryExpression(nsMediaQuery* aQuery);
-  PRBool ProcessImport(const nsString& aURLSpec,
-                       nsMediaList* aMedia,
-                       RuleAppendFunc aAppendFunc,
-                       void* aProcessData);
+  void ProcessImport(const nsString& aURLSpec,
+                     nsMediaList* aMedia,
+                     RuleAppendFunc aAppendFunc,
+                     void* aProcessData);
   PRBool ParseGroupRule(nsICSSGroupRule* aRule, RuleAppendFunc aAppendFunc,
                         void* aProcessData);
   PRBool ParseMediaRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool ParseMozDocumentRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool ParseNameSpaceRule(RuleAppendFunc aAppendFunc, void* aProcessData);
-  PRBool ProcessNameSpace(const nsString& aPrefix,
-                          const nsString& aURLSpec, RuleAppendFunc aAppendFunc,
-                          void* aProcessData);
+  void ProcessNameSpace(const nsString& aPrefix,
+                        const nsString& aURLSpec, RuleAppendFunc aAppendFunc,
+                        void* aProcessData);
 
   PRBool ParseFontFaceRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool ParseFontDescriptor(nsCSSFontFaceRule* aRule);
@@ -1358,7 +1358,7 @@ CSSParserImpl::GetURLInParens(nsString& aURL)
 void
 CSSParserImpl::UngetToken()
 {
-  NS_PRECONDITION(mHavePushBack == PR_FALSE, "double pushback");
+  NS_PRECONDITION(!mHavePushBack, "double pushback");
   mHavePushBack = PR_TRUE;
 }
 
@@ -1900,7 +1900,7 @@ CSSParserImpl::ParseImportRule(RuleAppendFunc aAppendFunc, void* aData)
 }
 
 
-PRBool
+void
 CSSParserImpl::ProcessImport(const nsString& aURLSpec,
                              nsMediaList* aMedia,
                              RuleAppendFunc aAppendFunc,
@@ -1908,28 +1908,32 @@ CSSParserImpl::ProcessImport(const nsString& aURLSpec,
 {
   nsCOMPtr<nsICSSImportRule> rule;
   nsresult rv = NS_NewCSSImportRule(getter_AddRefs(rule), aURLSpec, aMedia);
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv)) { // out of memory
     mScanner.SetLowLevelError(rv);
-    return PR_FALSE;
+    return;
   }
   (*aAppendFunc)(rule, aData);
 
-  if (mChildLoader) {
-    nsCOMPtr<nsIURI> url;
-    // XXX should pass a charset!
-    rv = NS_NewURI(getter_AddRefs(url), aURLSpec, nsnull, mBaseURL);
+  // Diagnose bad URIs even if we don't have a child loader.
+  nsCOMPtr<nsIURI> url;
+  // Charset will be deduced from mBaseURL, which is more or less correct.
+  rv = NS_NewURI(getter_AddRefs(url), aURLSpec, nsnull, mBaseURL);
 
-    if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
       // import url is bad
-      // XXX log this somewhere for easier web page debugging
-      mScanner.SetLowLevelError(rv);
-      return PR_FALSE;
+      const PRUnichar *params[] = {
+        aURLSpec.get()
+      };
+      REPORT_UNEXPECTED_P(PEImportBadURI, params);
+      OUTPUT_ERROR();
     }
-
-    mChildLoader->LoadChildSheet(mSheet, url, aMedia, rule);
+    return;
   }
 
-  return PR_TRUE;
+  if (mChildLoader) {
+    mChildLoader->LoadChildSheet(mSheet, url, aMedia, rule);
+  }
 }
 
 // Parse the {} part of an @media or @-moz-document rule.
@@ -2100,14 +2104,12 @@ CSSParserImpl::ParseNameSpaceRule(RuleAppendFunc aAppendFunc, void* aData)
   return PR_FALSE;
 }
 
-PRBool
+void
 CSSParserImpl::ProcessNameSpace(const nsString& aPrefix,
                                 const nsString& aURLSpec,
                                 RuleAppendFunc aAppendFunc,
                                 void* aData)
 {
-  PRBool result = PR_FALSE;
-
   nsCOMPtr<nsICSSNameSpaceRule> rule;
   nsCOMPtr<nsIAtom> prefix;
 
@@ -2125,8 +2127,6 @@ CSSParserImpl::ProcessNameSpace(const nsString& aPrefix,
       mNameSpaceMap = mSheet->GetNameSpaceMap();
     }
   }
-
-  return result;
 }
 
 // font-face-rule: '@font-face' '{' font-description '}'
@@ -6968,6 +6968,34 @@ CSSParserImpl::ParseBorderSide(const nsCSSProperty aPropIDs[],
       AppendValue(kBorderStyleIDs[index], values[1]);
       AppendValue(kBorderColorIDs[index], values[2]);
     }
+
+    static const nsCSSProperty kBorderColorsProps[] = {
+      eCSSProperty_border_top_colors,
+      eCSSProperty_border_right_colors,
+      eCSSProperty_border_bottom_colors,
+      eCSSProperty_border_left_colors
+    };
+
+    // Set the other properties that the border shorthand sets to their
+    // initial values.
+    nsCSSValue extraValue;
+    switch (values[0].GetUnit()) {
+      case eCSSUnit_Inherit:    extraValue.SetInheritValue();    break;
+      case eCSSUnit_Initial:    extraValue.SetInitialValue();    break;
+      default:                  extraValue.SetNoneValue();       break;
+    }
+    NS_FOR_CSS_SIDES(side) {
+      nsCSSValueList *l = new nsCSSValueList;
+      if (!l) {
+        mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
+        return PR_FALSE;
+      }
+      l->mValue = extraValue;
+      mTempData.mMargin.mBorderColors.*(nsCSSValueListRect::sides[side]) = l;
+      mTempData.SetPropertyBit(kBorderColorsProps[side]);
+    }
+    mTempData.mMargin.mBorderImage = extraValue;
+    mTempData.SetPropertyBit(eCSSProperty_border_image);
   }
   else {
     // Just set our one side

@@ -2280,17 +2280,18 @@ NS_IMETHODIMP
 nsHTMLDocument::GetElementsByName(const nsAString& aElementName,
                                   nsIDOMNodeList** aReturn)
 {
-  void* elementNameData = new nsString(aElementName);
+  nsString* elementNameData = new nsString(aElementName);
   NS_ENSURE_TRUE(elementNameData, NS_ERROR_OUT_OF_MEMORY);
   nsContentList* elements =
-    new nsContentList(this,
-                      MatchNameAttribute,
-                      nsContentUtils::DestroyMatchString,
-                      elementNameData);
+    NS_GetFuncStringContentList(this,
+                                MatchNameAttribute,
+                                nsContentUtils::DestroyMatchString,
+                                elementNameData,
+                                *elementNameData).get();
   NS_ENSURE_TRUE(elements, NS_ERROR_OUT_OF_MEMORY);
 
+  // Transfer ownership
   *aReturn = elements;
-  NS_ADDREF(*aReturn);
 
   return NS_OK;
 }
@@ -2984,7 +2985,7 @@ nsHTMLDocument::GetDesignMode(nsAString & aDesignMode)
 void
 nsHTMLDocument::MaybeEditingStateChanged()
 {
-  if (mUpdateNestLevel == 0 && mContentEditableCount > 0 != IsEditingOn()) {
+  if (mUpdateNestLevel == 0 && (mContentEditableCount > 0) != IsEditingOn()) {
     if (nsContentUtils::IsSafeToRunScript()) {
       EditingStateChanged();
     } else if (!mInDestructor) {
@@ -3012,7 +3013,7 @@ nsHTMLDocument::ChangeContentEditableCount(nsIContent *aElement,
   mContentEditableCount += aChange;
 
   if (mParser ||
-      (mUpdateNestLevel > 0 && mContentEditableCount > 0 != IsEditingOn())) {
+      (mUpdateNestLevel > 0 && (mContentEditableCount > 0) != IsEditingOn())) {
     return NS_OK;
   }
 

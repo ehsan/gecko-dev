@@ -79,6 +79,7 @@
 #include "nsDisplayList.h"
 #include "nsBidiUtils.h"
 #include "nsFrameManager.h"
+#include "nsIPrefService.h"
 
 //----------------------------------------------------------------------
 
@@ -102,6 +103,12 @@ nsresult
 nsHTMLScrollFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   return mInner.CreateAnonymousContent(aElements);
+}
+
+void
+nsHTMLScrollFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
+{
+  mInner.AppendAnonymousContentTo(aElements);
 }
 
 void
@@ -485,7 +492,7 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
 
   // Temporarily set mHasHorizontalScrollbar/mHasVerticalScrollbar to
   // reflect our assumptions while we reflow the child.
-  PRBool didHaveHorizonalScrollbar = mInner.mHasHorizontalScrollbar;
+  PRBool didHaveHorizontalScrollbar = mInner.mHasHorizontalScrollbar;
   PRBool didHaveVerticalScrollbar = mInner.mHasVerticalScrollbar;
   mInner.mHasHorizontalScrollbar = aAssumeHScroll;
   mInner.mHasVerticalScrollbar = aAssumeVScroll;
@@ -495,7 +502,7 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
                             kidReflowState, 0, 0,
                             NS_FRAME_NO_MOVE_FRAME | NS_FRAME_NO_MOVE_VIEW, status);
 
-  mInner.mHasHorizontalScrollbar = didHaveHorizonalScrollbar;
+  mInner.mHasHorizontalScrollbar = didHaveHorizontalScrollbar;
   mInner.mHasVerticalScrollbar = didHaveVerticalScrollbar;
 
   // Don't resize or position the view (if any) because we're going to resize
@@ -950,6 +957,12 @@ nsresult
 nsXULScrollFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   return mInner.CreateAnonymousContent(aElements);
+}
+
+void
+nsXULScrollFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
+{
+  mInner.AppendAnonymousContentTo(aElements);
 }
 
 void
@@ -2235,6 +2248,14 @@ nsGfxScrollFrameInner::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   }
 
   return NS_OK;
+}
+
+void
+nsGfxScrollFrameInner::AppendAnonymousContentTo(nsBaseContentList& aElements)
+{
+  aElements.MaybeAppendElement(mHScrollbarContent);
+  aElements.MaybeAppendElement(mVScrollbarContent);
+  aElements.MaybeAppendElement(mScrollCornerContent);
 }
 
 void

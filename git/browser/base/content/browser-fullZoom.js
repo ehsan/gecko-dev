@@ -208,9 +208,9 @@ var FullZoom = {
   // nsIObserver
 
   observe: function (aSubject, aTopic, aData) {
-    switch(aTopic) {
+    switch (aTopic) {
       case "nsPref:changed":
-        switch(aData) {
+        switch (aData) {
           case "browser.zoom.siteSpecific":
             this._siteSpecificPref =
               this._prefBranch.getBoolPref("browser.zoom.siteSpecific");
@@ -333,13 +333,13 @@ var FullZoom = {
    * one.
    **/
   _applyPrefToSetting: function FullZoom__applyPrefToSetting(aValue, aBrowser) {
-    if (!this.siteSpecific && !this._inPrivateBrowsing)
+    if ((!this.siteSpecific && !this._inPrivateBrowsing) ||
+        gInPrintPreviewMode)
       return;
 
     var browser = aBrowser || gBrowser.selectedBrowser;
     try {
-      if (gInPrintPreviewMode ||
-          browser.contentDocument instanceof Ci.nsIImageDocument ||
+      if (browser.contentDocument instanceof Ci.nsIImageDocument ||
           this._inPrivateBrowsing)
         ZoomManager.setZoomForBrowser(browser, 1);
       else if (typeof aValue != "undefined")

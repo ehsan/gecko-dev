@@ -48,7 +48,7 @@ namespace XPCWrapper {
 const PRUint32 sWrappedObjSlot = 1;
 const PRUint32 sFlagsSlot = 0;
 const PRUint32 sNumSlots = 2;
-JSNative sEvalNative = nsnull;
+JSFastNative sEvalNative = nsnull;
 
 const PRUint32 FLAG_RESOLVING = 0x1;
 const PRUint32 LAST_FLAG = FLAG_RESOLVING;
@@ -75,7 +75,8 @@ Unwrap(JSContext *cx, JSObject *wrapper)
   }
 
   if (clasp == &XPCSafeJSObjectWrapper::SJOWClass.base) {
-    JSObject *wrappedObj = STOBJ_GET_PARENT(wrapper);
+    JSObject *wrappedObj =
+      XPCSafeJSObjectWrapper::GetUnsafeObject(cx, wrapper);
 
     if (NS_FAILED(XPCCrossOriginWrapper::CanAccessWrapper(cx, wrappedObj, nsnull))) {
       JS_ClearPendingException(cx);

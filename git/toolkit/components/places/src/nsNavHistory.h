@@ -236,6 +236,8 @@ public:
   mozIStorageStatement *DBGetTags() { return mDBGetTags; }
   PRInt64 GetTagsFolder();
 
+  mozIStorageStatement *DBGetIsVisited() { return mDBIsPageVisited; }
+
   // Constants for the columns returned by the above statement
   // (in addition to the ones above).
   static const PRInt32 kGetInfoIndex_VisitDate;
@@ -686,6 +688,8 @@ protected:
   PRBool mInPrivateBrowsing;
 
   PRUint16 mDatabaseStatus;
+
+  PRInt8 mHasHistoryEntries;
 
   // Used to enable and disable the observer notifications
   bool mCanNotify;

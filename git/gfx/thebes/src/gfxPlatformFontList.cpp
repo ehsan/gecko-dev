@@ -247,7 +247,7 @@ gfxPlatformFontList::LoadBadUnderlineList()
     for (PRUint32 i = 0; i < numFonts; i++) {
         nsAutoString key;
         GenerateFontListKey(blacklist[i], key);
-        mBadUnderlineFamilyNames.PutEntry(key);
+        mBadUnderlineFamilyNames.Put(key);
     }
 }
 
@@ -263,12 +263,12 @@ gfxPlatformFontList::ResolveFontName(const nsAString& aFontName, nsAString& aRes
 }
 
 struct FontListData {
-    FontListData(const nsACString& aLangGroup,
+    FontListData(nsIAtom *aLangGroup,
                  const nsACString& aGenericFamily,
                  nsTArray<nsString>& aListOfFonts) :
         mLangGroup(aLangGroup), mGenericFamily(aGenericFamily),
         mListOfFonts(aListOfFonts) {}
-    const nsACString& mLangGroup;
+    nsIAtom *mLangGroup;
     const nsACString& mGenericFamily;
     nsTArray<nsString>& mListOfFonts;
 };
@@ -284,7 +284,7 @@ gfxPlatformFontList::HashEnumFuncForFamilies(nsStringHashKey::KeyType aKey,
     // for all the variations and should probably be moved up to
     // the Family
     gfxFontStyle style;
-    style.langGroup = data->mLangGroup;
+    style.language = data->mLangGroup;
     PRBool needsBold;
     nsRefPtr<gfxFontEntry> aFontEntry = aFamilyEntry->FindFontForStyle(style, needsBold);
     NS_ASSERTION(aFontEntry, "couldn't find any font entry in family");
@@ -306,7 +306,7 @@ gfxPlatformFontList::HashEnumFuncForFamilies(nsStringHashKey::KeyType aKey,
 }
 
 void
-gfxPlatformFontList::GetFontList (const nsACString& aLangGroup,
+gfxPlatformFontList::GetFontList(nsIAtom *aLangGroup,
                                  const nsACString& aGenericFamily,
                                  nsTArray<nsString>& aListOfFonts)
 {
@@ -466,7 +466,7 @@ gfxPlatformFontList::AddOtherFamilyName(gfxFontFamily *aFamilyEntry, nsAString& 
         PR_LOG(gFontListLog, PR_LOG_DEBUG, ("(fontlist-otherfamily) canonical family: %s, other family: %s\n", 
                                             NS_ConvertUTF16toUTF8(aFamilyEntry->Name()).get(), 
                                             NS_ConvertUTF16toUTF8(aOtherFamilyName).get()));
-        if (mBadUnderlineFamilyNames.GetEntry(key))
+        if (mBadUnderlineFamilyNames.Contains(key))
             aFamilyEntry->SetBadUnderlineFamily();
     }
 }
@@ -524,6 +524,13 @@ gfxPlatformFontList::RunLoader()
 
         // find all faces that are members of this family
         familyEntry->FindStyleVariations();
+        if (familyEntry->GetFontList().Length() == 0) {
+            // failed to load any faces for this family, so discard it
+            nsAutoString key;
+            GenerateFontListKey(familyEntry->Name(), key);
+            mFontFamilies.Remove(key);
+            continue;
+        }
 
         // load the cmaps
         familyEntry->ReadCMAP();
@@ -535,10 +542,9 @@ gfxPlatformFontList::RunLoader()
         familyEntry->CheckForSimpleFamily();
     }
 
-    mStartIndex += mIncrement;
-    if (mStartIndex < mNumFamilies)
-        return PR_FALSE;
-    return PR_TRUE;
+    mStartIndex = endIndex;
+
+    return (mStartIndex >= mNumFamilies);
 }
 
 void 

@@ -127,6 +127,8 @@ nsHttpChannel::nsHttpChannel()
     , mUploadStreamHasHeaders(PR_FALSE)
     , mAuthRetryPending(PR_FALSE)
     , mProxyAuth(PR_FALSE)
+    , mTriedProxyAuth(PR_FALSE)
+    , mTriedHostAuth(PR_FALSE)
     , mSuppressDefensiveAuth(PR_FALSE)
     , mResuming(PR_FALSE)
     , mInitedCacheEntry(PR_FALSE)
@@ -223,25 +225,9 @@ nsHttpChannel::Init(nsIURI *uri,
     // Set request headers
     //
     nsCAutoString hostLine;
-    if (strchr(host.get(), ':')) {
-        // host is an IPv6 address literal and must be encapsulated in []'s
-        hostLine.Assign('[');
-        // scope id is not needed for Host header.
-        int scopeIdPos = host.FindChar('%');
-        if (scopeIdPos == kNotFound)
-            hostLine.Append(host);
-        else if (scopeIdPos > 0)
-            hostLine.Append(Substring(host, 0, scopeIdPos));
-        else
-          return NS_ERROR_MALFORMED_URI;
-        hostLine.Append(']');
-    }
-    else
-        hostLine.Assign(host);
-    if (port != -1) {
-        hostLine.Append(':');
-        hostLine.AppendInt(port);
-    }
+    rv = nsHttpHandler::GenerateHostPort(host, port, hostLine);
+    if (NS_FAILED(rv))
+        return rv;
 
     rv = mRequestHead.SetHeader(nsHttp::Host, hostLine);
     if (NS_FAILED(rv)) return rv;
@@ -1243,6 +1229,7 @@ nsHttpChannel::HandleAsyncReplaceWithProxy()
 nsresult
 nsHttpChannel::DoReplaceWithProxy(nsIProxyInfo* pi)
 {
+    LOG(("DoReplaceWithProxy from @%x [pi=%p]", this, pi));
     nsresult rv;
 
     nsCOMPtr<nsIChannel> newChannel;
@@ -2397,7 +2384,8 @@ nsHttpChannel::CloseCacheEntry(PRBool doomOnFailure)
     if (!mCacheEntry)
         return;
 
-    LOG(("nsHttpChannel::CloseCacheEntry [this=%x]", this));
+    LOG(("nsHttpChannel::CloseCacheEntry [this=%x] mStatus=%x mCacheAccess=%x",
+            this, mStatus, mCacheAccess));
 
     // If we have begun to create or replace a cache entry, and that cache
     // entry is not complete and not resumable, then it needs to be doomed.
@@ -2492,10 +2480,8 @@ nsHttpChannel::InitCacheEntry()
     if (mResponseHead->NoStore())
         mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
 
-    // Only cache SSL content on disk if the server sent a
-    // Cache-Control: public header, or if the user set the pref
-    if (!gHttpHandler->CanCacheAllSSLContent() &&
-        mConnectionInfo->UsingSSL() && !mResponseHead->CacheControlPublic())
+    // Only cache SSL content on disk if the pref is set
+    if (!gHttpHandler->IsPersistentHttpsCachingEnabled())
         mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
 
     if (mLoadFlags & INHIBIT_PERSISTENT_CACHING) {
@@ -2675,9 +2661,21 @@ nsHttpChannel::InstallCacheListener(PRUint32 offset)
         do_CreateInstance(kStreamListenerTeeCID, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    rv = tee->Init(mListener, out, nsnull);
-    if (NS_FAILED(rv)) return rv;
+    nsCacheStoragePolicy policy;
+    rv = mCacheEntry->GetStoragePolicy(&policy);
 
+    if (!gHttpHandler->mCacheWriteThread ||
+         NS_FAILED(rv) ||
+         policy == nsICache::STORE_ON_DISK_AS_FILE) {
+        LOG(("nsHttpChannel::InstallCacheListener sync tee %p\n", tee.get()));
+        rv = tee->Init(mListener, out, nsnull);
+    } else {
+        LOG(("nsHttpChannel::InstallCacheListener async tee %p\n",
+                tee.get()));
+        rv = tee->InitAsync(mListener, gHttpHandler->mCacheWriteThread, out, nsnull);
+    }
+   
+    if (NS_FAILED(rv)) return rv;
     mListener = tee;
     return NS_OK;
 }
@@ -2751,6 +2749,8 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
                                        nsIChannel   *newChannel,
                                        PRBool        preserveMethod)
 {
+    LOG(("SetupReplacementChannel from @%x with @%x [preserveMethod=%d]",
+         this, newChannel, preserveMethod));
     PRUint32 newLoadFlags = mLoadFlags | LOAD_REPLACE;
     // if the original channel was using SSL and this channel is not using
     // SSL, then no need to inhibit persistent caching.  however, if the
@@ -2789,11 +2789,11 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
                 if (!ctype)
                     ctype = "";
                 const char *clen  = mRequestHead.PeekHeader(nsHttp::Content_Length);
-                if (clen)
-                    uploadChannel2->ExplicitSetUploadStream(
+                PRInt64 len = clen ? nsCRT::atoll(clen) : -1;
+                uploadChannel2->ExplicitSetUploadStream(
                         mUploadStream,
                         nsDependentCString(ctype),
-                        nsCRT::atoll(clen),
+                        len,
                         nsDependentCString(mRequestHead.Method()),
                         mUploadStreamHasHeaders);
             }
@@ -3112,6 +3112,7 @@ nsHttpChannel::GenCredsAndSetEntry(nsIHttpAuthenticator *auth,
         continuationState = &mAuthContinuationState;
     }
 
+    PRUint32 generateFlags;
     rv = auth->GenerateCredentials(this,
                                    challenge,
                                    proxyAuth,
@@ -3120,6 +3121,7 @@ nsHttpChannel::GenCredsAndSetEntry(nsIHttpAuthenticator *auth,
                                    ident.Password(),
                                    &ss,
                                    &*continuationState,
+                                   &generateFlags,
                                    result);
 
     sessionState.swap(ss);
@@ -3137,6 +3139,9 @@ nsHttpChannel::GenCredsAndSetEntry(nsIHttpAuthenticator *auth,
     PRBool saveChallenge =
         0 != (authFlags & nsIHttpAuthenticator::REUSABLE_CHALLENGE);
 
+    PRBool saveIdentity =
+        0 == (generateFlags & nsIHttpAuthenticator::USING_INTERNAL_IDENTITY);
+
     // this getter never fails
     nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
 
@@ -3149,7 +3154,8 @@ nsHttpChannel::GenCredsAndSetEntry(nsIHttpAuthenticator *auth,
     rv = authCache->SetAuthEntry(scheme, host, port, directory, realm,
                                  saveCreds ? *result : nsnull,
                                  saveChallenge ? challenge : nsnull,
-                                 ident, sessionState);
+                                 saveIdentity ? &ident : nsnull,
+                                 sessionState);
     return rv;
 }
 
@@ -3696,9 +3702,18 @@ nsHttpChannel::PromptForIdentity(PRUint32    level,
     // prompt the user...
     PRUint32 promptFlags = 0;
     if (proxyAuth)
+    {
         promptFlags |= nsIAuthInformation::AUTH_PROXY;
-    else
+        if (mTriedProxyAuth)
+            promptFlags |= nsIAuthInformation::PREVIOUS_FAILED;
+        mTriedProxyAuth = PR_TRUE;
+    }
+    else {
         promptFlags |= nsIAuthInformation::AUTH_HOST;
+        if (mTriedHostAuth)
+            promptFlags |= nsIAuthInformation::PREVIOUS_FAILED;
+        mTriedHostAuth = PR_TRUE;
+    }
 
     if (authFlags & nsIHttpAuthenticator::IDENTITY_INCLUDES_DOMAIN)
         promptFlags |= nsIAuthInformation::NEED_DOMAIN;
@@ -4768,7 +4783,7 @@ nsHttpChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
     // Ensure stream is set and method is valid 
     NS_ENSURE_TRUE(aStream, NS_ERROR_FAILURE);
 
-    if (aContentLength < 0) {
+    if (aContentLength < 0 && !aStreamHasHeaders) {
         PRUint32 streamLength;
         aStream->Available(&streamLength);
         aContentLength = streamLength;
@@ -4781,8 +4796,10 @@ nsHttpChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
     nsresult rv = SetRequestMethod(aMethod);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mRequestHead.SetHeader(nsHttp::Content_Length, nsPrintfCString("%lld", aContentLength));
-    mRequestHead.SetHeader(nsHttp::Content_Type, aContentType);
+    if (!aStreamHasHeaders) {
+        mRequestHead.SetHeader(nsHttp::Content_Length, nsPrintfCString("%lld", aContentLength));
+        mRequestHead.SetHeader(nsHttp::Content_Type, aContentType);
+    }
 
     mUploadStreamHasHeaders = aStreamHasHeaders;
     mUploadStream = aStream;

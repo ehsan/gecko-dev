@@ -340,7 +340,7 @@ nsSVGPatternFrame::GetPatternUnits()
   // See if we need to get the value from another pattern
   nsSVGPatternElement *patternElement =
     GetPatternWithAttr(nsGkAtoms::patternUnits, mContent);
-  return patternElement->mEnumAttributes[nsSVGPatternElement::PATTERNUNITS].GetAnimValue(patternElement);
+  return patternElement->mEnumAttributes[nsSVGPatternElement::PATTERNUNITS].GetAnimValue();
 }
 
 PRUint16
@@ -348,7 +348,7 @@ nsSVGPatternFrame::GetPatternContentUnits()
 {
   nsSVGPatternElement *patternElement =
     GetPatternWithAttr(nsGkAtoms::patternContentUnits, mContent);
-  return patternElement->mEnumAttributes[nsSVGPatternElement::PATTERNCONTENTUNITS].GetAnimValue(patternElement);
+  return patternElement->mEnumAttributes[nsSVGPatternElement::PATTERNCONTENTUNITS].GetAnimValue();
 }
 
 gfxMatrix
@@ -459,6 +459,11 @@ nsSVGPatternFrame::GetReferencedPattern()
 nsSVGPatternElement *
 nsSVGPatternFrame::GetPatternWithAttr(nsIAtom *aAttrName, nsIContent *aDefault)
 {
+  // XXX TODO: this method needs to take account of SMIL animation, since it
+  // the requested attribute may be animated even if it is not set in the DOM.
+  // The callers also need to be fixed up to then ask for the right thing from
+  // the pattern we return! Do we neet to call mContent->FlushAnimations()?
+
   if (mContent->HasAttr(kNameSpaceID_None, aAttrName))
     return static_cast<nsSVGPatternElement *>(mContent);
 
@@ -534,6 +539,8 @@ nsSVGPatternFrame::ConstructCTM(const gfxRect &callerBBox,
     tCTM.Scale(scale, scale);
   }
 
+  nsSVGPatternElement *patternElement =
+    static_cast<nsSVGPatternElement*>(mContent);
   gfxMatrix tm;
   const nsSVGViewBoxRect viewBox = GetViewBox().GetAnimValue();
 
@@ -541,7 +548,8 @@ nsSVGPatternFrame::ConstructCTM(const gfxRect &callerBBox,
     nsSVGSVGElement *ctx = aTargetContent->GetCtx();
     float viewportWidth = GetWidth()->GetAnimValue(ctx);
     float viewportHeight = GetHeight()->GetAnimValue(ctx);
-    gfxMatrix viewBoxTM = nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
+    gfxMatrix viewBoxTM = nsSVGUtils::GetViewBoxTransform(patternElement,
+                                                          viewportWidth, viewportHeight,
                                                           viewBox.x, viewBox.y,
                                                           viewBox.width, viewBox.height,
                                                           GetPreserveAspectRatio(),

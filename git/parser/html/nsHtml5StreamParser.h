@@ -58,7 +58,7 @@
 class nsHtml5Parser;
 
 #define NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE 1024
-#define NS_HTML5_STREAM_PARSER_SNIFFING_BUFFER_SIZE 512
+#define NS_HTML5_STREAM_PARSER_SNIFFING_BUFFER_SIZE 1024
 
 enum eBomState {
   /**
@@ -160,8 +160,6 @@ class nsHtml5StreamParser : public nsIStreamListener,
       NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
       mObserver = aObserver;
     }
-
-    void SetSpeculativeLoaderWithDocument(nsIDocument* aDocument);
 
     nsresult GetChannel(nsIChannel** aChannel);
 
@@ -453,11 +451,6 @@ class nsHtml5StreamParser : public nsIStreamListener,
     
     nsCOMPtr<nsIRunnable>         mExecutorFlusher;
     
-    /**
-     * The document wrapped by the speculative loader.
-     */
-    nsCOMPtr<nsIDocument>         mDocument;
-
     /**
      * The chardet instance if chardet is enabled.
      */
