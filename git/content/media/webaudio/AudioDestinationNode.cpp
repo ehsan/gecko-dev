@@ -7,7 +7,6 @@
 #include "AudioDestinationNode.h"
 #include "mozilla/dom/AudioDestinationNodeBinding.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
 #include "AudioChannelAgent.h"
 #include "AudioChannelService.h"
 #include "AudioNodeEngine.h"
@@ -483,7 +482,7 @@ AudioDestinationNode::CheckAudioChannelPermissions(AudioChannel aValue)
   }
 
   nsCOMPtr<nsIPermissionManager> permissionManager =
-    services::GetPermissionManager();
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   if (!permissionManager) {
     return false;
   }

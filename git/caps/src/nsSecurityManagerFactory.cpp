@@ -99,10 +99,11 @@ nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
         securityObj = &v.toObject();
     } else {
         /* define netscape.security object */
-        obj = JS_DefineObject(cx, global, "netscape", objectClass);
+        obj = JS_DefineObject(cx, global, "netscape", objectClass, nullptr, 0);
         if (obj == nullptr)
             return NS_ERROR_FAILURE;
-        securityObj = JS_DefineObject(cx, obj, "security", objectClass);
+        securityObj = JS_DefineObject(cx, obj, "security", objectClass,
+                                      nullptr, 0);
         if (securityObj == nullptr)
             return NS_ERROR_FAILURE;
     }
@@ -117,7 +118,8 @@ nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
         return NS_OK;
 
     /* Define PrivilegeManager object with the necessary "static" methods. */
-    obj = JS_DefineObject(cx, securityObj, "PrivilegeManager", objectClass);
+    obj = JS_DefineObject(cx, securityObj, "PrivilegeManager", objectClass,
+                          nullptr, 0);
     if (obj == nullptr)
         return NS_ERROR_FAILURE;
 

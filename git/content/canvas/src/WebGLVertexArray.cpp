@@ -56,7 +56,7 @@ bool WebGLVertexArray::EnsureAttrib(GLuint index, const char *info)
     return true;
 }
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(WebGLVertexArray,
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(WebGLVertexArray,
   mAttribs,
   mBoundElementArrayBuffer)
 

@@ -12155,11 +12155,10 @@ nsIDocument::WrapObject(JSContext *aCx)
 
   NS_NAMED_LITERAL_STRING(doc_str, "document");
 
-  JS::Rooted<JSObject*> winObj(aCx, &winVal.toObject());
-  if (!JS_DefineUCProperty(aCx, winObj, doc_str.get(),
-                           doc_str.Length(), obj,
-                           JSPROP_READONLY | JSPROP_ENUMERATE,
-                           JS_PropertyStub, JS_StrictPropertyStub)) {
+  if (!JS_DefineUCProperty(aCx, winVal.toObjectOrNull(), doc_str.get(),
+                           doc_str.Length(), JS::ObjectValue(*obj),
+                           JS_PropertyStub, JS_StrictPropertyStub,
+                           JSPROP_READONLY | JSPROP_ENUMERATE)) {
     return nullptr;
   }
 

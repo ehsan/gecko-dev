@@ -308,7 +308,7 @@ DataStoreService.prototype = {
   getDataStoreCreate: function(aWindow, aResolve, aStores) {
     debug("GetDataStoreCreate");
 
-    let results = new aWindow.Array();
+    let results = [];
 
     if (!aStores.length) {
       aResolve(results);
@@ -342,7 +342,7 @@ DataStoreService.prototype = {
     debug("GetDataStoreResolve");
 
     let callbackPending = aStores.length;
-    let results = new aWindow.Array();
+    let results = [];
 
     if (!callbackPending) {
       aResolve(results);

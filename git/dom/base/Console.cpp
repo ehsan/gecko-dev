@@ -295,10 +295,9 @@ private:
       return false;
     }
 
-    JS::Rooted<JS::Value> arg(aCx);
     for (uint32_t i = 0; i < mCallData->mArguments.Length(); ++i) {
-      arg = mCallData->mArguments[i];
-      if (!JS_DefineElement(aCx, arguments, i, arg, JSPROP_ENUMERATE)) {
+      if (!JS_DefineElement(aCx, arguments, i, mCallData->mArguments[i],
+                            nullptr, nullptr, JSPROP_ENUMERATE)) {
         return false;
       }
     }
@@ -406,10 +405,9 @@ private:
       return false;
     }
 
-    JS::Rooted<JS::Value> arg(aCx);
     for (uint32_t i = 0; i < mArguments.Length(); ++i) {
-      arg = mArguments[i];
-      if (!JS_DefineElement(aCx, arguments, i, arg, JSPROP_ENUMERATE)) {
+      if (!JS_DefineElement(aCx, arguments, i, mArguments[i], nullptr, nullptr,
+                            JSPROP_ENUMERATE)) {
         return false;
       }
     }

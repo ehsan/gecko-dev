@@ -148,9 +148,10 @@ nsXBLProtoImplProperty::InstallMember(JSContext *aCx,
     nsDependentString name(mName);
     if (!::JS_DefineUCProperty(aCx, aTargetClassObject,
                                static_cast<const jschar*>(mName),
-                               name.Length(), JS::UndefinedHandleValue, mJSAttributes,
+                               name.Length(), JSVAL_VOID,
                                JS_DATA_TO_FUNC_PTR(JSPropertyOp, getter.get()),
-                               JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, setter.get())))
+                               JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, setter.get()),
+                               mJSAttributes))
       return NS_ERROR_OUT_OF_MEMORY;
   }
   return NS_OK;

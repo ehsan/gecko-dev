@@ -2338,7 +2338,7 @@ bool HTMLMediaElement::CheckAudioChannelPermissions(const nsAString& aString)
   }
 
   nsCOMPtr<nsIPermissionManager> permissionManager =
-    services::GetPermissionManager();
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   if (!permissionManager) {
     return false;
   }

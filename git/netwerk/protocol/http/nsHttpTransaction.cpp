@@ -1066,10 +1066,7 @@ nsHttpTransaction::Restart()
 
     // clear old connection state...
     mSecurityInfo = 0;
-    if (mConnection) {
-        mConnection->DontReuse();
-        NS_RELEASE(mConnection);
-    }
+    NS_IF_RELEASE(mConnection);
 
     // disable pipelining for the next attempt in case pipelining caused the
     // reset.  this is being overly cautious since we don't know if pipelining

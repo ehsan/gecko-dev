@@ -114,6 +114,7 @@ function fillSubviewFromMenuItems(aMenuItems, aSubview) {
       subviewItem = doc.createElementNS(kNSXUL, "menuseparator");
     } else if (menuChild.localName == "menuitem") {
       subviewItem = doc.createElementNS(kNSXUL, "toolbarbutton");
+      subviewItem.setAttribute("class", "subviewbutton");
       addShortcut(menuChild, doc, subviewItem);
     } else {
       continue;
@@ -122,10 +123,6 @@ function fillSubviewFromMenuItems(aMenuItems, aSubview) {
       let attrVal = menuChild.getAttribute(attr);
       if (attrVal)
         subviewItem.setAttribute(attr, attrVal);
-    }
-    // We do this after so the .subviewbutton class doesn't get overriden.
-    if (menuChild.localName == "menuitem") {
-      subviewItem.classList.add("subviewbutton");
     }
     fragment.appendChild(subviewItem);
   }
