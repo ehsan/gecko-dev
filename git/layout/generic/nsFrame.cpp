@@ -48,7 +48,9 @@
 #include "nsStyleStructInlines.h"
 #include <algorithm>
 
+#ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
+#endif
 
 // For triple-click pref
 #include "imgIContainer.h"
@@ -6549,7 +6551,8 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
       uint32_t lineFlags;
       nsIFrame* baseFrame = nullptr;
       bool endOfLine = (eSelectEndLine == aPos->mAmount);
-
+      
+#ifdef IBMBIDI
       if (aPos->mVisual && PresContext()->BidiEnabled()) {
         bool lineIsRTL = it->GetDirection();
         bool isReordered;
@@ -6563,7 +6566,9 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
           if ((embeddingLevel & 1) == !lineIsRTL)
             endOfLine = !endOfLine;
         }
-      } else {
+      } else
+#endif
+      {
         it->GetLine(thisLine, &firstFrame, &lineFrameCount, usedRect, &lineFlags);
 
         nsIFrame* frame = firstFrame;
@@ -6775,6 +6780,7 @@ nsIFrame::GetFrameFromDirection(nsDirection aDirection, bool aVisual,
     bool atLineEdge;
     nsIFrame *firstFrame;
     nsIFrame *lastFrame;
+#ifdef IBMBIDI
     if (aVisual && presContext->BidiEnabled()) {
       bool lineIsRTL = it->GetDirection();
       bool isReordered;
@@ -6792,7 +6798,9 @@ nsIFrame::GetFrameFromDirection(nsDirection aDirection, bool aVisual,
       } else {
         atLineEdge = true;
       }
-    } else {
+    } else
+#endif
+    {
       nsRect  nonUsedRect;
       int32_t lineFrameCount;
       uint32_t lineFlags;
@@ -6848,12 +6856,14 @@ nsIFrame::GetFrameFromDirection(nsDirection aDirection, bool aVisual,
 
   *aOutOffset = (aDirection == eDirNext) ? 0 : -1;
 
+#ifdef IBMBIDI
   if (aVisual) {
     uint8_t newLevel = NS_GET_EMBEDDING_LEVEL(traversedFrame);
     uint8_t newBaseLevel = NS_GET_BASE_LEVEL(traversedFrame);
     if ((newLevel & 1) != (newBaseLevel & 1)) // The new frame is reverse-direction, go to the other end
       *aOutOffset = -1 - *aOutOffset;
   }
+#endif
   *aOutFrame = traversedFrame;
   return NS_OK;
 }

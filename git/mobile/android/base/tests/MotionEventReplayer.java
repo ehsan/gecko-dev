@@ -203,13 +203,8 @@ class MotionEventReplayer {
                             eventTime * 1000000, action, pointerCount, pointerIds, (float[])pointerData,
                             metaState, xPrecision, yPrecision, deviceId, edgeFlags);
                 }
-                try {
-                    Log.v(LOGTAG, "Injecting " + event.toString());
-                    mInstrumentation.sendPointerSync(event);
-                } finally {
-                    event.recycle();
-                    event = null;
-                }
+                Log.v(LOGTAG, "Injecting " + event.toString());
+                mInstrumentation.sendPointerSync(event);
 
                 eventProperties.clear();
             }

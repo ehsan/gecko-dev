@@ -131,6 +131,7 @@ var gSimpleMatchFunc = function gSimpleMatchFunc(aAccessible) {
     }
   case Roles.GRAPHIC:
     return TraversalRules._shouldSkipImage(aAccessible);
+  case Roles.LINK:
   case Roles.HEADER:
   case Roles.HEADING:
     if ((aAccessible.childCount > 0 || aAccessible.name) &&

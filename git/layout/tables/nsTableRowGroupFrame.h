@@ -245,6 +245,7 @@ public:
                          bool* aXIsBeforeFirstFrame,
                          bool* aXIsAfterLastFrame) MOZ_OVERRIDE;
 
+#ifdef IBMBIDI
    /** Check whether visual and logical order of cell frames within a line are
      * identical. As the layout will reorder them this is always the case
      * @param aLine        - the index of the row relative to the table
@@ -257,6 +258,7 @@ public:
                             bool                     *aIsReordered,
                             nsIFrame                 **aFirstVisual,
                             nsIFrame                 **aLastVisual) MOZ_OVERRIDE;
+#endif
 
   /** Find the next originating cell frame that originates in the row.    
     * @param aFrame      - cell frame to start with, will return the next cell

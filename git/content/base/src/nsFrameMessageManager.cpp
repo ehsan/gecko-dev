@@ -32,8 +32,6 @@
 #include "xpcpublic.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/StructuredCloneUtils.h"
-#include "mozilla/dom/PBlobChild.h"
-#include "mozilla/dom/PBlobParent.h"
 #include "JavaScriptChild.h"
 #include "JavaScriptParent.h"
 #include "mozilla/dom/DOMStringList.h"
@@ -130,31 +128,6 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsFrameMessageManager)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsFrameMessageManager)
 
-enum ActorFlavorEnum {
-  Parent = 0,
-  Child
-};
-
-template <ActorFlavorEnum>
-struct BlobTraits
-{ };
-
-template <>
-struct BlobTraits<Parent>
-{
-  typedef mozilla::dom::BlobParent BlobType;
-  typedef mozilla::dom::PBlobParent ProtocolType;
-  typedef mozilla::dom::ContentParent ConcreteContentManagerType;
-};
-
-template <>
-struct BlobTraits<Child>
-{
-  typedef mozilla::dom::BlobChild BlobType;
-  typedef mozilla::dom::PBlobChild ProtocolType;
-  typedef mozilla::dom::ContentChild ConcreteContentManagerType;
-};
-
 template<ActorFlavorEnum>
 struct DataBlobs
 { };
@@ -207,8 +180,7 @@ BuildClonedMessageData(typename BlobTraits<Flavor>::ConcreteContentManagerType* 
     uint32_t length = blobs.Length();
     blobList.SetCapacity(length);
     for (uint32_t i = 0; i < length; ++i) {
-      typename BlobTraits<Flavor>::BlobType* protocolActor =
-        aManager->GetOrCreateActorForBlob(blobs[i]);
+      Blob<Flavor>* protocolActor = aManager->GetOrCreateActorForBlob(blobs[i]);
       if (!protocolActor) {
         return false;
       }
@@ -248,8 +220,7 @@ UnpackClonedMessageData(const ClonedMessageData& aData)
     uint32_t length = blobs.Length();
     cloneData.mClosure.mBlobs.SetCapacity(length);
     for (uint32_t i = 0; i < length; ++i) {
-      auto* blob =
-        static_cast<typename BlobTraits<Flavor>::BlobType*>(blobs[i]);
+      Blob<Flavor>* blob = static_cast<Blob<Flavor>*>(blobs[i]);
       MOZ_ASSERT(blob);
       nsCOMPtr<nsIDOMBlob> domBlob = blob->GetBlob();
       MOZ_ASSERT(domBlob);

@@ -201,7 +201,11 @@ protected:
     bool          UpdateCaretRects(nsIFrame* aFrame, int32_t aFrameOffset);
     nsRect        GetHookRect()
     {
+#ifdef IBMBIDI
       return mHookRect;
+#else
+      return nsRect();
+#endif
     }
     void          ToggleDrawnStatus() { mDrawn = !mDrawn; }
 
@@ -240,10 +244,12 @@ protected:
 
     bool                  mIgnoreUserModify;
 
+#ifdef IBMBIDI
     bool                  mKeyboardRTL;       // is the keyboard language right-to-left
     bool                  mBidiUI;            // is bidi UI turned on
     nsRect                mHookRect;          // directional hook on the caret
     uint8_t               mLastBidiLevel;     // saved bidi level of the last draw request, to use when we erase
+#endif
     nsRect                mCaretRect;         // the last caret rect, in the coodinates of the last frame.
 
     nsCOMPtr<nsIContent>  mLastContent;       // store the content the caret was last requested to be drawn

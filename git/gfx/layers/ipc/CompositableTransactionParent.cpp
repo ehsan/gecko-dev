@@ -78,13 +78,9 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
         static_cast<CompositableParent*>(op.compositableParent());
       CompositableHost* compositable = compositableParent->GetCompositableHost();
 
-      bool success =
-        compositable->CreatedIncrementalTexture(compositableParent->GetCompositableManager(),
-                                                op.textureInfo(),
-                                                op.bufferRect());
-      if (!success) {
-        return false;
-      }
+      compositable->CreatedIncrementalTexture(compositableParent->GetCompositableManager(),
+                                              op.textureInfo(),
+                                              op.bufferRect());
       break;
     }
     case CompositableOperation::TOpPaintTextureRegion: {

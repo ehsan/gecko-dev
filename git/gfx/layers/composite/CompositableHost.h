@@ -204,12 +204,11 @@ public:
    * don't have a single surface for the texture contents, and we
    * need to allocate our own one to be updated later.
    */
-  virtual bool CreatedIncrementalTexture(ISurfaceAllocator* aAllocator,
+  virtual void CreatedIncrementalTexture(ISurfaceAllocator* aAllocator,
                                          const TextureInfo& aTextureInfo,
                                          const nsIntRect& aBufferRect)
   {
-    NS_ERROR("should be implemented or not used");
-    return false;
+    MOZ_ASSERT(false, "should be implemented or not used");
   }
 
   /**
