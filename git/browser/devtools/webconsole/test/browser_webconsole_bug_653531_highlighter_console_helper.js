@@ -92,17 +92,19 @@ function runSelectionTests()
     InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED, false);
 
   executeSoon(function() {
-    InspectorUI.highlighter.addListener("nodeselected", performTestComparisons);
+    Services.obs.addObserver(performTestComparisons,
+      InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
     EventUtils.synthesizeMouse(h1, 2, 2, {type: "mousemove"}, content);
   });
 }
 
 function performTestComparisons(evt)
 {
-  InspectorUI.highlighter.removeListener("nodeselected", performTestComparisons);
+  Services.obs.removeObserver(performTestComparisons,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
 
   InspectorUI.stopInspecting();
-  is(InspectorUI.highlighter.node, h1, "node selected");
+  ok(InspectorUI.highlighter.isHighlighting, "highlighter is highlighting");
   is(InspectorUI.selection, h1, "selection matches node");
 
   HUDService.activateHUDForContext(gBrowser.selectedTab);
