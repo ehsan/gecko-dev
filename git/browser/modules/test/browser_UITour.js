@@ -267,7 +267,8 @@ let tests = [
   },
   function test_getConfigurationVersion(done) {
     function callback(result) {
-      let props = ["defaultUpdateChannel", "version"];
+      let props = ["defaultUpdateChannel", "distributionID", "isOfficialBranding",
+                   "isReleaseBuild", "name", "vendor", "version"];
       for (let property of props) {
         ok(typeof(result[property]) !== undefined, "Check " + property + " isn't undefined.");
         is(result[property], Services.appinfo[property], "Should have the same " + property + " property.");

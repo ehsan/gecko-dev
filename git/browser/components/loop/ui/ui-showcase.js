@@ -152,14 +152,14 @@
             Example({summary: "Default / incoming video call", dashed: "true", style: {width: "280px"}}, 
               React.DOM.div({className: "fx-embedded"}, 
                 IncomingCallView({model: mockConversationModel, 
-                                  video: true})
+                                  video: {enabled: true}})
               )
             ), 
 
             Example({summary: "Default / incoming audio only call", dashed: "true", style: {width: "280px"}}, 
               React.DOM.div({className: "fx-embedded"}, 
                 IncomingCallView({model: mockConversationModel, 
-                                  video: false})
+                                  video: {enabled: false}})
               )
             )
           ), 
@@ -169,7 +169,7 @@
               React.DOM.div({className: "fx-embedded"}, 
                 IncomingCallView({model: mockConversationModel, 
                                    showDeclineMenu: true, 
-                                   video: true})
+                                   video: {enabled: true}})
               )
             )
           ), 

@@ -15,7 +15,7 @@ var next;
   do_get_profile();
 })();
 
-function runAsyncTests(tests, dontResetBefore = false) {
+function runAsyncTests(tests) {
   do_test_pending();
 
   cps = Cc["@mozilla.org/content-pref/service;1"].
@@ -31,7 +31,7 @@ function runAsyncTests(tests, dontResetBefore = false) {
   asyncRunner = new s.AsyncRunner({
     done: do_test_finished,
     error: function (err) {
-      // xpcshell test functions like equal throw NS_ERROR_ABORT on
+      // xpcshell test functions like do_check_eq throw NS_ERROR_ABORT on
       // failure.  Ignore those and catch only uncaught exceptions.
       if (err !== Cr.NS_ERROR_ABORT) {
         if (err.stack) {
@@ -76,33 +76,21 @@ function runAsyncTests(tests, dontResetBefore = false) {
   });
 
   // reset() ends up calling asyncRunner.next(), starting the tests.
-  if (dontResetBefore) {
-    next();
-  } else {
-    reset();
-  }
+  reset();
 }
 
-function makeCallback(callbacks, success = null) {
+function makeCallback(callbacks) {
   callbacks = callbacks || {};
-  if (!callbacks.handleError) {
-    callbacks.handleError = function (error) {
-      do_throw("handleError call was not expected, error: " + error);
-    };
-  }
-  if (!callbacks.handleResult) {
-    callbacks.handleResult = function() {
-      do_throw("handleResult call was not expected");
-    };
-  }
+  ["handleResult", "handleError"].forEach(function (meth) {
+    if (!callbacks[meth])
+      callbacks[meth] = function () {
+        do_throw(meth + " shouldn't be called.");
+      };
+  });
   if (!callbacks.handleCompletion)
     callbacks.handleCompletion = function (reason) {
-      equal(reason, Ci.nsIContentPrefCallback2.COMPLETE_OK);
-      if (success) {
-        success();
-      } else {
-        next();
-      }
+      do_check_eq(reason, Ci.nsIContentPrefCallback2.COMPLETE_OK);
+      next();
     };
   return callbacks;
 }
@@ -115,7 +103,7 @@ function do_check_throws(fn) {
   catch (err) {
     threw = true;
   }
-  ok(threw);
+  do_check_true(threw);
 }
 
 function sendMessage(msg, callback) {
@@ -129,60 +117,6 @@ function reset() {
   sendMessage("reset", next);
 }
 
-function setWithDate(group, name, val, timestamp, context) {
-  function updateDate() {
-    let db = sendMessage("db");
-    let stmt = db.createAsyncStatement(`
-      UPDATE prefs SET timestamp = :timestamp
-      WHERE
-        settingID = (SELECT id FROM settings WHERE name = :name)
-        AND groupID = (SELECT id FROM groups WHERE name = :group)
-    `);
-    stmt.params.timestamp = timestamp / 1000;
-    stmt.params.name = name;
-    stmt.params.group = group;
-
-    stmt.executeAsync({
-      handleCompletion: function (reason) {
-        next();
-      },
-      handleError: function (err) {
-        do_throw(err);
-      }
-    });
-    stmt.finalize();
-  }
-
-  cps.set(group, name, val, context, makeCallback(null, updateDate));
-}
-
-function getDate(group, name, context) {
-  let db = sendMessage("db");
-  let stmt = db.createAsyncStatement(`
-    SELECT timestamp FROM prefs
-    WHERE
-      settingID = (SELECT id FROM settings WHERE name = :name)
-      AND groupID = (SELECT id FROM groups WHERE name = :group)
-  `);
-  stmt.params.name = name;
-  stmt.params.group = group;
-
-  let res;
-  stmt.executeAsync({
-    handleResult: function (results) {
-      let row = results.getNextRow();
-      res = row.getResultByName("timestamp");
-    },
-    handleCompletion: function (reason) {
-      next(res * 1000);
-    },
-    handleError: function (err) {
-      do_throw(err);
-    }
-  });
-  stmt.finalize();
-}
-
 function set(group, name, val, context) {
   cps.set(group, name, val, context, makeCallback());
 }
@@ -192,13 +126,13 @@ function setGlobal(name, val, context) {
 }
 
 function prefOK(actual, expected, strict) {
-  ok(actual instanceof Ci.nsIContentPref);
-  equal(actual.domain, expected.domain);
-  equal(actual.name, expected.name);
+  do_check_true(actual instanceof Ci.nsIContentPref);
+  do_check_eq(actual.domain, expected.domain);
+  do_check_eq(actual.name, expected.name);
   if (strict)
-    strictEqual(actual.value, expected.value);
+    do_check_true(actual.value === expected.value);
   else
-    equal(actual.value, expected.value);
+    do_check_eq(actual.value, expected.value);
 }
 
 function getOK(args, expectedVal, expectedGroup, strict) {
@@ -260,7 +194,7 @@ function getCachedSubdomainsOK(args, expectedGroupValPairs) {
   actualPrefs = actualPrefs.sort(function (a, b) {
     return a.domain.localeCompare(b.domain);
   });
-  equal(actualPrefs.length, len.value);
+  do_check_eq(actualPrefs.length, len.value);
   let expectedPrefs = expectedGroupValPairs.map(function ([group, val]) {
     return { domain: group, name: args[1], value: val };
   });
@@ -283,24 +217,19 @@ function getCachedOKEx(methodName, args, expectedPref, strict) {
   if (expectedPref)
     prefOK(actualPref, expectedPref, strict);
   else
-    strictEqual(actualPref, null);
-}
-
-function arraysOK(actual, expected, cmp) {
-  if (actual.length != expected.length) {
-    do_throw("Length is not equal: " + JSON.stringify(actual) + "==" + JSON.stringify(expected));
-  } else {
-    actual.forEach(function (actualElt, j) {
-      let expectedElt = expected[j];
-      cmp(actualElt, expectedElt);
-    });
-  }
+    do_check_true(actualPref === null);
 }
 
 function arraysOfArraysOK(actual, expected, cmp) {
-  cmp = cmp || equal;
-  arraysOK(actual, expected, function (act, exp) {
-    arraysOK(act, exp, cmp)
+  cmp = cmp || function (a, b) do_check_eq(a, b);
+  do_check_eq(actual.length, expected.length);
+  actual.forEach(function (actualChildArr, i) {
+    let expectedChildArr = expected[i];
+    do_check_eq(actualChildArr.length, expectedChildArr.length);
+    actualChildArr.forEach(function (actualElt, j) {
+      let expectedElt = expectedChildArr[j];
+      cmp(actualElt, expectedElt);
+    });
   });
 }
 
@@ -391,16 +320,11 @@ function on(event, names, dontRemove) {
   });
 }
 
-function schemaVersionIs(expectedVersion) {
-  let db = sendMessage("db");
-  equal(db.schemaVersion, expectedVersion);
-}
-
 function wait() {
   do_execute_soon(next);
 }
 
 function observerArgsOK(actualArgs, expectedArgs) {
-  notEqual(actualArgs, undefined);
+  do_check_neq(actualArgs, undefined);
   arraysOfArraysOK(actualArgs, expectedArgs);
 }

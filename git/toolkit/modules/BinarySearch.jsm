@@ -60,8 +60,7 @@ this.BinarySearch = Object.freeze({
     let low = 0;
     let high = array.length - 1;
     while (low <= high) {
-      // Thanks to http://jsperf.com/code-review-1480 for this tip.
-      let mid = (low + high) >> 1;
+      let mid = Math.floor((low + high) / 2);
       let cmp = comparator(target, array[mid]);
       if (cmp == 0)
         return [true, mid];

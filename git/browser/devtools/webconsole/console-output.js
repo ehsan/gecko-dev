@@ -565,21 +565,17 @@ Messages.BaseMessage.prototype = {
  *
  * @constructor
  * @extends Messages.BaseMessage
- * @param object response
- *        The response received from the back end.
+ * @param string url
+ *        The URL to display.
  * @param number timestamp
  *        The message date and time, milliseconds elapsed since 1 January 1970
  *        00:00:00 UTC.
  */
-Messages.NavigationMarker = function(response, timestamp)
+Messages.NavigationMarker = function(url, timestamp)
 {
   Messages.BaseMessage.call(this);
-
-  // Store the response packet received from the server. It might
-  // be useful for extensions customizing the console output.
-  this.response = response;
-  this._url = response.url;
-  this.textContent = "------ " + this._url;
+  this._url = url;
+  this.textContent = "------ " + url;
   this.timestamp = timestamp;
 };
 
@@ -1207,10 +1203,6 @@ Messages.Extended.prototype = Heritage.extend(Messages.Simple.prototype,
 Messages.JavaScriptEvalOutput = function(evalResponse, errorMessage)
 {
   let severity = "log", msg, quoteStrings = true;
-
-  // Store also the response packet from the back end. It might
-  // be useful to extensions customizing the console output.
-  this.response = evalResponse;
 
   if (errorMessage) {
     severity = "error";
@@ -3266,11 +3258,7 @@ Widgets.LongString.prototype = Heritage.extend(Widgets.BaseWidget.prototype,
 
     this._renderString(this.longStringActor.initial + response.substring);
 
-    this.output.owner.emit("new-messages", new Set([{
-      update: true,
-      node: this.message.element,
-      response: response,
-    }]));
+    this.output.owner.emit("messages-updated", new Set([this.message.element]));
 
     let toIndex = Math.min(this.longStringActor.length, MAX_LONG_STRING_LENGTH);
     if (toIndex != this.longStringActor.length) {

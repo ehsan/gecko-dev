@@ -65,13 +65,13 @@ describe("loop.shared.models", function() {
         conversation.set("loopToken", "fakeToken");
       });
 
-      describe("#accepted", function() {
-        it("should trigger a `call:accepted` event", function(done) {
-          conversation.once("call:accepted", function() {
+      describe("#incoming", function() {
+        it("should trigger a `call:incoming` event", function(done) {
+          conversation.once("call:incoming", function() {
             done();
           });
 
-          conversation.accepted();
+          conversation.incoming();
         });
       });
 

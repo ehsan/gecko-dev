@@ -46,29 +46,7 @@ loop.shared.utils = (function() {
     return !!localStorage.getItem(prefName);
   }
 
-  /**
-   * Helper for general things
-   */
-  function Helper() {
-    this._iOSRegex = /^(iPad|iPhone|iPod)/;
-  }
-
-  Helper.prototype = {
-    isFirefox: function(platform) {
-      return platform.indexOf("Firefox") !== -1;
-    },
-
-    isIOS: function(platform) {
-      return this._iOSRegex.test(platform);
-    },
-
-    locationHash: function() {
-      return window.location.hash;
-    }
-  };
-
   return {
-    Helper: Helper,
     getTargetPlatform: getTargetPlatform,
     getBoolPreference: getBoolPreference
   };

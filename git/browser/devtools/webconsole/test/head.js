@@ -1302,10 +1302,9 @@ function waitForMessages(aOptions)
     return aRule.matched.size == count;
   }
 
-  function onMessagesAdded(aEvent, aNewMessages)
+  function onMessagesAdded(aEvent, aNewElements)
   {
-    for (let msg of aNewMessages) {
-      let elem = msg.node;
+    for (let elem of aNewElements) {
       let location = elem.querySelector(".message-location");
       if (location) {
         let url = location.title;
@@ -1344,7 +1343,8 @@ function waitForMessages(aOptions)
   {
     if (allRulesMatched()) {
       if (listenerAdded) {
-        webconsole.ui.off("new-messages", onMessagesAdded);
+        webconsole.ui.off("messages-added", onMessagesAdded);
+        webconsole.ui.off("messages-updated", onMessagesAdded);
       }
       gPendingOutputTest--;
       deferred.resolve(rules);
@@ -1359,7 +1359,7 @@ function waitForMessages(aOptions)
     }
 
     if (webconsole.ui) {
-      webconsole.ui.off("new-messages", onMessagesAdded);
+      webconsole.ui.off("messages-added", onMessagesAdded);
     }
 
     for (let rule of rules) {
@@ -1382,21 +1382,12 @@ function waitForMessages(aOptions)
   }
 
   executeSoon(() => {
-
-    let messages = [];
-    for (let elem of webconsole.outputNode.childNodes) {
-      messages.push({
-        node: elem,
-        update: false,
-      });
-    }
-
-    onMessagesAdded("new-messages", messages);
-
+    onMessagesAdded("messages-added", webconsole.outputNode.childNodes);
     if (!allRulesMatched()) {
       listenerAdded = true;
       registerCleanupFunction(testCleanup);
-      webconsole.ui.on("new-messages", onMessagesAdded);
+      webconsole.ui.on("messages-added", onMessagesAdded);
+      webconsole.ui.on("messages-updated", onMessagesAdded);
     }
   });
 

@@ -9,7 +9,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 //// Constants
 
-const { classes: Cc, interfaces: Ci, results: Cr, utils: Cu } = Components;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
+const Cu = Components.utils;
 
 const TOPIC_SHUTDOWN = "places-shutdown";
 const TOPIC_PREFCHANGED = "nsPref:changed";
@@ -53,7 +56,6 @@ const QUERYTYPE_KEYWORD       = 0;
 const QUERYTYPE_FILTERED      = 1;
 const QUERYTYPE_AUTOFILL_HOST = 2;
 const QUERYTYPE_AUTOFILL_URL  = 3;
-const QUERYTYPE_AUTOFILL_PREDICTURL  = 4;
 
 // This separator is used as an RTL-friendly way to split the title and tags.
 // It can also be used by an nsIAutoCompleteResult consumer to re-split the
@@ -66,7 +68,7 @@ const TITLE_SEARCH_ENGINE_SEPARATOR = " \u00B7\u2013\u00B7 ";
 // Telemetry probes.
 const TELEMETRY_1ST_RESULT = "PLACES_AUTOCOMPLETE_1ST_RESULT_TIME_MS";
 const TELEMETRY_6_FIRST_RESULTS = "PLACES_AUTOCOMPLETE_6_FIRST_RESULTS_TIME_MS";
-// The default frecency value used when inserting matches with unknown frecency.
+// The default frecency value used when inserting search engine results.
 const FRECENCY_SEARCHENGINES_DEFAULT = 1000;
 
 // Sqlite result row index constants.
@@ -740,6 +742,12 @@ Search.prototype = {
           return;
       }
     }
+
+    // If we didn't find enough matches and we have some frecency-driven
+    // matches, add them.
+    if (this._frecencyMatches) {
+      this._frecencyMatches.forEach(this._addMatch, this);
+    }
   }),
 
   _matchKnownUrl: function* (conn, queries) {
@@ -817,7 +825,7 @@ Search.prototype = {
     }
 
     this._result.setDefaultIndex(0);
-    this._addMatch({
+    this._addFrecencyMatch({
       value: value,
       comment: match.engineName,
       icon: match.iconUrl,
@@ -835,8 +843,6 @@ Search.prototype = {
     switch (queryType) {
       case QUERYTYPE_AUTOFILL_HOST:
         this._result.setDefaultIndex(0);
-        // Fall through.
-      case QUERYTYPE_AUTOFILL_PREDICTURL:
         match = this._processHostRow(row);
         break;
       case QUERYTYPE_AUTOFILL_URL:
@@ -849,6 +855,19 @@ Search.prototype = {
         break;
     }
     this._addMatch(match);
+  },
+
+  /**
+   * These matches should be mixed up with other matches, based on frecency.
+   */
+  _addFrecencyMatch: function (match) {
+    if (!this._frecencyMatches)
+      this._frecencyMatches = [];
+    this._frecencyMatches.push(match);
+    // We keep this array in reverse order, so we can walk it and remove stuff
+    // from it in one pass.  Notice that for frecency reverse order means from
+    // lower to higher.
+    this._frecencyMatches.sort((a, b) => a.frecency - b.frecency);
   },
 
   _maybeRestyleSearchMatch: function (match) {
@@ -882,6 +901,14 @@ Search.prototype = {
       return;
 
     let notifyResults = false;
+
+    if (this._frecencyMatches) {
+      for (let i = this._frecencyMatches.length - 1;  i >= 0 ; i--) {
+        if (this._frecencyMatches[i].frecency > match.frecency) {
+          this._addMatch(this._frecencyMatches.splice(i, 1)[0]);
+        }
+      }
+    }
 
     // Must check both id and url, cause keywords dinamically modify the url.
     let urlMapKey = stripHttpAndTrim(match.value);
@@ -1277,7 +1304,7 @@ Search.prototype = {
     return [
       SQL_HOST_QUERY,
       {
-        query_type: QUERYTYPE_AUTOFILL_PREDICTURL,
+        query_type: QUERYTYPE_AUTOFILL_HOST,
         searchString: host
       }
     ];

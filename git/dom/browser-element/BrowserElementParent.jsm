@@ -85,7 +85,6 @@ function BrowserElementParent(frameLoader, hasRemoteFrame, isPendingFrame) {
 
   Services.obs.addObserver(this, 'ask-children-to-exit-fullscreen', /* ownsWeak = */ true);
   Services.obs.addObserver(this, 'oop-frameloader-crashed', /* ownsWeak = */ true);
-  Services.obs.addObserver(this, 'copypaste-docommand', /* ownsWeak = */ true);
 
   let defineMethod = function(name, fn) {
     XPCNativeWrapper.unwrap(self._frameElement)[name] = function() {
@@ -170,6 +169,14 @@ function BrowserElementParent(frameLoader, hasRemoteFrame, isPendingFrame) {
                                   /* wantsUntrusted = */ false);
   }
 
+  this._doCommandHandlerBinder = this._doCommandHandler.bind(this);
+  this._frameElement.addEventListener('mozdocommand',
+                                      this._doCommandHandlerBinder,
+                                      /* useCapture = */ false,
+                                      /* wantsUntrusted = */ false);
+
+  Services.obs.addObserver(this, 'ipc:browser-destroyed', /* ownsWeak = */ true);
+
   this._window._browserElementParents.set(this, null);
 
   // Insert ourself into the prompt service.
@@ -210,15 +217,10 @@ BrowserElementParent.prototype = {
     let appManifestURL =
           this._frameElement.QueryInterface(Ci.nsIMozBrowserFrame).appManifestURL;
     if (appManifestURL) {
-      let inParent = Cc["@mozilla.org/xre/app-info;1"]
-                       .getService(Ci.nsIXULRuntime)
-                       .processType == Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT;
-      if (inParent) {
-        DOMApplicationRegistry.registerBrowserElementParentForApp(
-          { manifestURL: appManifestURL }, this._mm);
-      } else {
-        this._mm.sendAsyncMessage("Webapps:RegisterBEP",
-                                  { manifestURL: appManifestURL });
+      let appId =
+            DOMApplicationRegistry.getAppLocalIdByManifestURL(appManifestURL);
+      if (appId != Ci.nsIScriptSecurityManager.NO_APP_ID) {
+        DOMApplicationRegistry.registerBrowserElementParentForApp(this, appId);
       }
     }
   },
@@ -494,6 +496,11 @@ BrowserElementParent.prototype = {
     let evt = this._createEvent('selectionchange', data.json,
                                 /* cancelable = */ false);
     this._frameElement.dispatchEvent(evt);
+  },
+
+  _doCommandHandler: function(e) {
+    e.stopPropagation();
+    this._sendAsyncMsg('do-command', { command: e.detail.cmd });
   },
 
   _createEvent: function(evtName, detail, cancelable) {
@@ -919,9 +926,11 @@ BrowserElementParent.prototype = {
         }
         Services.obs.removeObserver(this, 'remote-browser-frame-shown');
       }
-    case 'copypaste-docommand':
-      if (this._isAlive() && this._frameElement.isEqualNode(subject.wrappedJSObject)) {
-        this._sendAsyncMsg('do-command', { command: data });
+    case 'ipc:browser-destroyed':
+      if (this._isAlive() && subject == this._frameLoader) {
+        Services.obs.removeObserver(this, 'ipc:browser-destroyed');
+        this._frameElement.removeEventListener('mozdocommand',
+                                               this._doCommandHandlerBinder)
       }
       break;
     default:

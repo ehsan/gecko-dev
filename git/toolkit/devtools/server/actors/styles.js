@@ -603,7 +603,7 @@ var PageStyleActor = protocol.ActorClass({
     if (rawNode.id) {
       selector = "#" + rawNode.id;
     } else if (rawNode.className) {
-      selector = "." + rawNode.className.split(" ")[0];
+      selector = "." + rawNode.className;
     } else {
       selector = rawNode.tagName.toLowerCase();
     }
