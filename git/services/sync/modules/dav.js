@@ -43,25 +43,21 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://weave/log4moz.js");
-Cu.import("resource://weave/constants.js");
 Cu.import("resource://weave/util.js");
-Cu.import("resource://weave/identity.js");
 Cu.import("resource://weave/async.js");
+Cu.import("resource://weave/constants.js");
 
 Function.prototype.async = Async.sugar;
 
 Utils.lazy(this, 'DAV', DAVCollection);
-
-let DAVLocks = {};
 
 /*
  * DAV object
  * Abstracts the raw DAV commands
  */
 
-function DAVCollection(baseURL, defaultPrefix) {
-  this.baseURL = baseURL;
-  this.defaultPrefix = defaultPrefix;
+function DAVCollection(baseURL) {
+  this._baseURL = baseURL;
   this._authProvider = new DummyAuthProvider();
   this._log = Log4Moz.Service.getLogger("Service.DAV");
   this._log.level =
@@ -77,29 +73,24 @@ DAVCollection.prototype = {
     return this.__dp;
   },
 
+  _auth: null,
+
   get baseURL() {
     return this._baseURL;
   },
   set baseURL(value) {
-    if (value && value[value.length-1] != '/')
+    if (value[value.length-1] != '/')
       value = value + '/';
     this._baseURL = value;
   },
 
-  get defaultPrefix() {
-    return this._defaultPrefix;
-  },
-  set defaultPrefix(value) {
-    if (value && value[value.length-1] != '/')
-      value = value + '/';
-    if (value && value[0] == '/')
-      value = value.slice(1);
-    this._defaultPrefix = value;
+  _loggedIn: false,
+  get loggedIn() {
+    return this._loggedIn;
   },
 
   get locked() {
-    return !this._lockAllowed || (DAVLocks['default'] &&
-                                  DAVLocks['default'].token);
+    return !this._lockAllowed || this._token != null;
   },
 
   _lockAllowed: true,
@@ -157,14 +148,10 @@ DAVCollection.prototype = {
   },
 
   get _defaultHeaders() {
-    let h = {'Content-type': 'text/plain'},
-      id = ID.get('DAV:default'),
-      lock = DAVLocks['default'];
-    if (id)
-      h['Authorization'] = 'Basic ' + btoa(id.username + ":" + id.password);
-    if (lock)
-      h['If'] = "<" + lock.URL + "> (<" + lock.token + ">)";
-    return h;
+    return {'Authorization': this._auth? this._auth : '',
+            'Content-type': 'text/plain',
+            'If': this._token?
+            "<" + this._baseURL + "> (<" + this._token + ">)" : ''};
   },
 
   // mkdir -p
@@ -255,7 +242,7 @@ DAVCollection.prototype = {
   },
 
   UNLOCK: function DC_UNLOCK(path, onComplete) {
-    let headers = {'Lock-Token': '<' + DAVLocks['default'].token + '>'};
+    let headers = {'Lock-Token': '<' + this._token + '>'};
     headers.__proto__ = this._defaultHeaders;
     return this._makeRequest.async(this, onComplete, "UNLOCK", path, headers);
   },
@@ -279,13 +266,13 @@ DAVCollection.prototype = {
 
     let ret = [];
     try {
-      let elts = Utils.xpath(resp.responseXML, '//D:href');
+      let tokens = Utils.xpath(resp.responseXML, '//D:href');
       // FIXME: shouldn't depend on the first one being the root
-      let root = elts.iterateNext();
+      let root = tokens.iterateNext();
       root = root.textContent;
-      let elt;
-      while (elt = elts.iterateNext())
-        ret.push(elt.textContent.replace(root, ''));
+      let token;
+      while (token = tokens.iterateNext())
+        ret.push(token.textContent.replace(root, ''));
     } catch (e) {}
 
     self.done(ret);
@@ -293,10 +280,19 @@ DAVCollection.prototype = {
 
   // Login / Logout
 
-  checkLogin: function DC_checkLogin() {
+  login: function DC_login(username, password) {
     let self = yield;
 
-    this._log.debug("Checking login");
+    if (this._loggedIn) {
+      this._log.debug("Login requested, but already logged in");
+      self.done(true);
+      yield;
+    }
+
+    this._log.debug("Logging in");
+
+    let URI = Utils.makeURI(this._baseURL);
+    this._auth = "Basic " + btoa(username + ":" + password);
 
     // Make a call to make sure it's working
     this.GET("", self.cb);
@@ -308,7 +304,15 @@ DAVCollection.prototype = {
       yield;
     }
 
+    this._loggedIn = true;
+
     self.done(true);
+  },
+
+  logout: function DC_logout() {
+    this._log.trace("Logging out (forgetting auth header)");
+    this._loggedIn = false;
+    this.__auth = null;
   },
 
   // Locking
@@ -340,21 +344,22 @@ DAVCollection.prototype = {
       this._log.trace("Found an active lock token");
     else
       this._log.trace("No active lock token found");
-    self.done({URL: this._baseURL, token: ret});
+    self.done(ret);
   },
 
   lock: function DC_lock() {
     let self = yield;
+    this._token = null;
 
     this._log.trace("Acquiring lock");
 
-    if (DAVLocks['default']) {
+    if (this._token) {
       this._log.debug("Lock called, but we already hold a token");
-      self.done(DAVLocks['default']);
+      self.done(this._token);
       yield;
     }
 
-    this.LOCK("lock",
+    this.LOCK("",
               "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n" +
               "<D:lockinfo xmlns:D=\"DAV:\">\n" +
               "  <D:locktype><D:write/></D:locktype>\n" +
@@ -364,27 +369,21 @@ DAVCollection.prototype = {
 
     if (this._authProvider._authFailed ||
         resp.status < 200 || resp.status >= 300) {
-      self.done();
+      self.done(this._token);
       yield;
     }
 
     let tokens = Utils.xpath(resp.responseXML, '//D:locktoken/D:href');
     let token = tokens.iterateNext();
-    if (token) {
-      DAVLocks['default'] = {
-        URL: this._baseURL,
-        token: token.textContent
-      };
-    }
+    if (token)
+      this._token = token.textContent;
 
-    if (!DAVLocks['default']) {
+    if (this._token)
+      this._log.trace("Lock acquired");
+    else
       this._log.warn("Could not acquire lock");
-      self.done();
-      return;
-    }
 
-    this._log.trace("Lock acquired");
-    self.done(DAVLocks['default']);
+    self.done(this._token);
   },
 
   unlock: function DC_unlock() {
@@ -398,7 +397,7 @@ DAVCollection.prototype = {
       yield;
     }
 
-    this.UNLOCK("lock", self.cb);
+    this.UNLOCK("", self.cb);
     let resp = yield;
 
     if (this._authProvider._authFailed ||
@@ -407,9 +406,14 @@ DAVCollection.prototype = {
       yield;
     }
 
-    delete DAVLocks['default']
-    this._log.trace("Lock released (or we didn't have one)");
-    self.done(true);
+    this._token = null;
+
+    if (this._token)
+      this._log.trace("Could not release lock");
+    else
+      this._log.trace("Lock released (or we didn't have one)");
+
+    self.done(!this._token);
   },
 
   forceUnlock: function DC_forceUnlock() {
@@ -419,9 +423,9 @@ DAVCollection.prototype = {
     this._log.debug("Forcibly releasing any server locks");
 
     this._getActiveLock.async(this, self.cb);
-    DAVLocks['default'] = yield;
+    this._token = yield;
 
-    if (!DAVLocks['default']) {
+    if (!this._token) {
       this._log.debug("No server lock found");
       self.done(true);
       yield;
@@ -436,6 +440,21 @@ DAVCollection.prototype = {
     else
       this._log.trace("No lock released");
     self.done(unlocked);
+  },
+
+  stealLock: function DC_stealLock() {
+    let self = yield;
+    let stolen = null;
+
+    this.forceUnlock.async(this, self.cb);
+    let unlocked = yield;
+
+    if (unlocked) {
+      this.lock.async(this, self.cb);
+      stolen = yield;
+    }
+
+    self.done(stolen);
   }
 };
 
