@@ -161,7 +161,6 @@ let gGrid = {
     site.innerHTML =
       '<a class="newtab-link">' +
       '  <span class="newtab-thumbnail"/>' +
-      '  <span class="newtab-thumbnail enhanced-content"/>' +
       '  <span class="newtab-title"/>' +
       '</a>' +
       '<input type="button" title="' + newTabString("pin") + '"' +

@@ -558,8 +558,7 @@ void nsDisplayListBuilder::MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame,
                                                         const nsRect& aDirtyRect)
 {
   nsRect dirtyRectRelativeToDirtyFrame = aDirtyRect;
-  if (nsLayoutUtils::IsFixedPosFrameInDisplayPort(aFrame) &&
-      IsPaintingToWindow()) {
+  if (nsLayoutUtils::IsFixedPosFrameInDisplayPort(aFrame)) {
     NS_ASSERTION(aDirtyFrame == aFrame->GetParent(), "Dirty frame should be viewport frame");
     // position: fixed items are reflowed into and only drawn inside the
     // viewport, or the scroll position clamping scrollport size, if one is
@@ -635,7 +634,7 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
     nsRect dp;
     if (nsLayoutUtils::GetDisplayPort(content, &dp)) {
       metrics.mDisplayPort = CSSRect::FromAppUnits(dp);
-      nsLayoutUtils::LogTestDataForPaint(aRoot->Manager(), scrollId, "displayport",
+      nsLayoutUtils::LogTestDataForPaint(presShell, scrollId, "displayport",
           metrics.mDisplayPort);
     }
     if (nsLayoutUtils::GetCriticalDisplayPort(content, &dp)) {
@@ -2938,7 +2937,6 @@ nsDisplayWrapList::nsDisplayWrapList(nsDisplayListBuilder* aBuilder,
                                      nsIFrame* aFrame, nsDisplayList* aList)
   : nsDisplayItem(aBuilder, aFrame)
   , mOverrideZIndex(0)
-  , mHasZIndexOverride(false)
 {
   MOZ_COUNT_CTOR(nsDisplayWrapList);
 
@@ -2985,7 +2983,6 @@ nsDisplayWrapList::nsDisplayWrapList(nsDisplayListBuilder* aBuilder,
                                      nsIFrame* aFrame, nsDisplayItem* aItem)
   : nsDisplayItem(aBuilder, aFrame)
   , mOverrideZIndex(0)
-  , mHasZIndexOverride(false)
 {
   MOZ_COUNT_CTOR(nsDisplayWrapList);
 
@@ -3603,20 +3600,9 @@ nsDisplaySubDocument::ComputeVisibility(nsDisplayListBuilder* aBuilder,
   bool visible = mList.ComputeVisibilityForSublist(
     aBuilder, &childVisibleRegion, boundedRect,
     usingDisplayPort ? mFrame : nullptr);
-
-#ifndef MOZ_WIDGET_ANDROID
-  // If APZ is enabled then don't allow this computation to influence
-  // aVisibleRegion, on the assumption that the layer can be asynchronously
-  // scrolled so we'll definitely need all the content under it.
-  if (!gfxPrefs::AsyncPanZoomEnabled()) {
-    bool snap;
-    nsRect bounds = GetBounds(aBuilder, &snap);
-    nsRegion removed;
-    removed.Sub(bounds, childVisibleRegion);
-
-    aBuilder->SubtractFromVisibleRegion(aVisibleRegion, removed);
-  }
-#endif
+  // We don't allow this computation to influence aVisibleRegion, on the
+  // assumption that the layer can be asynchronously scrolled so we'll
+  // definitely need all the content under it.
 
   return visible;
 }
@@ -3901,9 +3887,6 @@ bool
 nsDisplayScrollLayer::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                         nsRegion* aVisibleRegion)
 {
-  if (aBuilder->IsForPluginGeometry()) {
-    return nsDisplayWrapList::ComputeVisibility(aBuilder, aVisibleRegion);
-  }
   nsRect displayport;
   bool usingDisplayPort =
     nsLayoutUtils::GetDisplayPort(mScrolledFrame->GetContent(), &displayport);
@@ -3915,19 +3898,9 @@ nsDisplayScrollLayer::ComputeVisibility(nsDisplayListBuilder* aBuilder,
   bool visible = mList.ComputeVisibilityForSublist(
     aBuilder, &childVisibleRegion, boundedRect,
     usingDisplayPort ? mScrollFrame : nullptr);
-
-#ifndef MOZ_WIDGET_ANDROID
-  // If APZ is enabled then don't allow this computation to influence
-  // aVisibleRegion, on the assumption that the layer can be asynchronously
-  // scrolled so we'll definitely need all the content under it.
-  if (!gfxPrefs::AsyncPanZoomEnabled()) {
-    bool snap;
-    nsRect bounds = GetBounds(aBuilder, &snap);
-    nsRegion removed;
-    removed.Sub(bounds, childVisibleRegion);
-    aBuilder->SubtractFromVisibleRegion(aVisibleRegion, removed);
-  }
-#endif
+  // We don't allow this computation to influence aVisibleRegion, on the
+  // assumption that the layer can be asynchronously scrolled so we'll
+  // definitely need all the content under it.
 
   return visible;
 }

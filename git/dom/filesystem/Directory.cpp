@@ -195,12 +195,12 @@ Directory::RemoveInternal(const StringOrFileOrDirectory& aPath, bool aRecursive,
 {
   nsresult error = NS_OK;
   nsString realPath;
-  nsRefPtr<DOMFileImpl> file;
+  nsCOMPtr<nsIDOMFile> file;
 
   // Check and get the target path.
 
   if (aPath.IsFile()) {
-    file = static_cast<DOMFile*>(aPath.GetAsFile())->Impl();
+    file = aPath.GetAsFile();
     goto parameters_check_done;
   }
 

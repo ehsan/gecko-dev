@@ -1860,10 +1860,6 @@ nsresult WriteMinidumpForException(EXCEPTION_POINTERS* aExceptionInfo)
 #ifdef XP_LINUX
 bool WriteMinidumpForSigInfo(int signo, siginfo_t* info, void* uc)
 {
-  if (!gExceptionHandler) {
-    // Crash reporting is disabled.
-    return false;
-  }
   return gExceptionHandler->HandleSignal(signo, info, uc);
 }
 #endif

@@ -393,7 +393,6 @@ static inline void LogRendertraceRect(const ScrollableLayerGuid& aGuid, const ch
 
 static TimeStamp sFrameTime;
 static bool sThreadAssertionsEnabled = true;
-static PRThread* sControllerThread;
 
 // Counter used to give each APZC a unique id
 static uint32_t sAsyncPanZoomControllerCount = 0;
@@ -404,6 +403,26 @@ GetFrameTime() {
     return TimeStamp::Now();
   }
   return sFrameTime;
+}
+
+static PRThread* sControllerThread;
+
+static void
+AssertOnControllerThread() {
+  if (!AsyncPanZoomController::GetThreadAssertionsEnabled()) {
+    return;
+  }
+
+  static bool sControllerThreadDetermined = false;
+  if (!sControllerThreadDetermined) {
+    // Technically this may not actually pick up the correct controller thread,
+    // if the first call to this method happens from a non-controller thread.
+    // If the assertion below fires, it is possible that it is because
+    // sControllerThread is not actually the controller thread.
+    sControllerThread = PR_GetCurrentThread();
+    sControllerThreadDetermined = true;
+  }
+  MOZ_ASSERT(sControllerThread == PR_GetCurrentThread());
 }
 
 class FlingAnimation: public AsyncPanZoomAnimation {
@@ -667,24 +686,6 @@ AsyncPanZoomController::SetThreadAssertionsEnabled(bool aEnabled) {
 bool
 AsyncPanZoomController::GetThreadAssertionsEnabled() {
   return sThreadAssertionsEnabled;
-}
-
-void
-AsyncPanZoomController::AssertOnControllerThread() {
-  if (!GetThreadAssertionsEnabled()) {
-    return;
-  }
-
-  static bool sControllerThreadDetermined = false;
-  if (!sControllerThreadDetermined) {
-    // Technically this may not actually pick up the correct controller thread,
-    // if the first call to this method happens from a non-controller thread.
-    // If the assertion below fires, it is possible that it is because
-    // sControllerThread is not actually the controller thread.
-    sControllerThread = PR_GetCurrentThread();
-    sControllerThreadDetermined = true;
-  }
-  MOZ_ASSERT(sControllerThread == PR_GetCurrentThread());
 }
 
 /*static*/ void
@@ -1151,8 +1152,6 @@ nsEventStatus AsyncPanZoomController::OnTouchEnd(const MultiTouchInput& aEvent) 
 nsEventStatus AsyncPanZoomController::OnTouchCancel(const MultiTouchInput& aEvent) {
   APZC_LOG("%p got a touch-cancel in state %d\n", this, mState);
   OnTouchEndOrCancel();
-  mX.CancelTouch();
-  mY.CancelTouch();
   CancelAnimation();
   return nsEventStatus_eConsumeNoDefault;
 }
@@ -2360,7 +2359,9 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
     mPaintThrottler.ClearHistory();
     mPaintThrottler.SetMaxDurations(gfxPrefs::APZNumPaintDurationSamples());
 
-    CancelAnimation();
+    mX.CancelTouch();
+    mY.CancelTouch();
+    SetState(NOTHING);
 
     mFrameMetrics = aLayerMetrics;
     mLastDispatchedPaintMetrics = aLayerMetrics;

@@ -87,10 +87,6 @@ BasicCompositor::CreateRenderTarget(const IntRect& aRect, SurfaceInitMode aInit)
 {
   RefPtr<DrawTarget> target = mDrawTarget->CreateSimilarDrawTarget(aRect.Size(), SurfaceFormat::B8G8R8A8);
 
-  if (!target) {
-    return nullptr;
-  }
-
   RefPtr<BasicCompositingRenderTarget> rt = new BasicCompositingRenderTarget(target, aRect);
 
   return rt.forget();
@@ -431,12 +427,6 @@ BasicCompositor::BeginFrame(const nsIntRegion& aInvalidRegion,
   // Setup an intermediate render target to buffer all compositing. We will
   // copy this into mDrawTarget (the widget), and/or mTarget in EndFrame()
   RefPtr<CompositingRenderTarget> target = CreateRenderTarget(mInvalidRect, INIT_MODE_CLEAR);
-  if (!target) {
-    if (!mTarget) {
-      mWidget->EndRemoteDrawing();
-    }
-    return;
-  }
   SetRenderTarget(target);
 
   // We only allocate a surface sized to the invalidated region, so we need to

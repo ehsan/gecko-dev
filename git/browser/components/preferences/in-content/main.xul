@@ -91,6 +91,7 @@
       class="header"
       hidden="true"
       data-category="paneGeneral">
+  <image class="header-icon"/>
   <label class="header-name">&paneGeneral.title;</label>
 </hbox>
 

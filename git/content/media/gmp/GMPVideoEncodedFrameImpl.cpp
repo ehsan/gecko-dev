@@ -51,7 +51,7 @@ GMPVideoEncodedFrameImpl::~GMPVideoEncodedFrameImpl()
   }
 }
 
-const GMPEncryptedBufferMetadata*
+const GMPEncryptedBufferData*
 GMPVideoEncodedFrameImpl::GetDecryptionData() const
 {
   return nullptr;
