@@ -67,7 +67,18 @@ NS_INTERFACE_MAP_BEGIN(OfflineCacheUpdateChild)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(OfflineCacheUpdateChild)
-NS_IMPL_RELEASE(OfflineCacheUpdateChild)
+NS_IMPL_RELEASE_WITH_DESTROY(OfflineCacheUpdateChild, RefcountHitZero())
+
+void
+OfflineCacheUpdateChild::RefcountHitZero()
+{
+    if (mIPCActivated) {
+        // ContentChild::DeallocPOfflineCacheUpdate will delete this
+        OfflineCacheUpdateChild::Send__delete__(this);
+    } else {
+        delete this;    // we never opened IPDL channel
+    }
+}
 
 //-----------------------------------------------------------------------------
 // OfflineCacheUpdateChild <public>
@@ -76,6 +87,7 @@ NS_IMPL_RELEASE(OfflineCacheUpdateChild)
 OfflineCacheUpdateChild::OfflineCacheUpdateChild(nsIDOMWindow* aWindow)
     : mState(STATE_UNINITIALIZED)
     , mIsUpgrade(false)
+    , mIPCActivated(false)
     , mAppID(NECKO_NO_APP_ID)
     , mInBrowser(false)
     , mWindow(aWindow)
@@ -436,8 +448,8 @@ OfflineCacheUpdateChild::Schedule()
     child->SendPOfflineCacheUpdateConstructor(this, manifestURI, documentURI,
                                               stickDocument);
 
-    // TabChild::DeallocPOfflineCacheUpdate will release this.
-    NS_ADDREF_THIS();
+    mIPCActivated = true;
+    this->AddRef();
 
     return NS_OK;
 }
@@ -525,8 +537,7 @@ OfflineCacheUpdateChild::RecvFinish(const bool &succeeded,
 
     // This is by contract the last notification from the parent, release
     // us now. This is corresponding to AddRef in Schedule().
-    // TabChild::DeallocPOfflineCacheUpdate will call Release.
-    OfflineCacheUpdateChild::Send__delete__(this);
+    this->Release();
 
     return true;
 }

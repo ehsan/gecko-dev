@@ -1705,7 +1705,7 @@ NS_METHOD nsTableFrame::Reflow(nsPresContext*           aPresContext,
   aDesiredSize.Width() = aReflowState.AvailableWidth();
 
   // Check for an overflow list, and append any row group frames being pushed
-  MoveOverflowToChildList();
+  MoveOverflowToChildList(aPresContext);
 
   bool haveDesiredHeight = false;
   SetHaveReflowedColGroups(false);
@@ -1949,13 +1949,13 @@ nsTableFrame::PushChildren(const RowGroupArray& aRowGroups,
     }
     // When pushing and pulling frames we need to check for whether any
     // views need to be reparented.
-    ReparentFrameViewList(frames, this, nextInFlow);
+    ReparentFrameViewList(PresContext(), frames, this, nextInFlow);
     nextInFlow->mFrames.InsertFrames(nextInFlow, prevSibling,
                                      frames);
   }
   else {
     // Add the frames to our overflow list.
-    SetOverflowFrames(frames);
+    SetOverflowFrames(PresContext(), frames);
   }
 }
 

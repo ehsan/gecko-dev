@@ -56,8 +56,7 @@ var SettingsCharm = {
     this.addEntry({
         label: Strings.browser.GetStringFromName("helpOnlineCharm"),
         onselected: function() {
-          let url = Services.urlFormatter.formatURLPref("app.support.baseURL") +
-            "firefox-help";
+          let url = Services.urlFormatter.formatURLPref("app.support.baseURL");
           BrowserUI.addAndShowTab(url, Browser.selectedTab);
         }
     });

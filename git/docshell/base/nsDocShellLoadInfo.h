@@ -45,7 +45,6 @@ protected:
   bool                             mIsSrcdocLoad;
   nsString                         mSrcdocData;
   nsCOMPtr<nsIDocShell>            mSourceDocShell;
-  nsCOMPtr<nsIURI>                 mBaseURI;
 };
 
 #endif /* nsDocShellLoadInfo_h__ */

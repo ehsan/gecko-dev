@@ -214,7 +214,7 @@ protected:
 private:
   WorkerPrivate* mParent;
   nsString mScriptURL;
-  nsCString mSharedWorkerName;
+  nsString mSharedWorkerName;
   LocationInfo mLocationInfo;
   // The lifetime of these objects within LoadInfo is managed explicitly;
   // they do not need to be cycle collected.
@@ -251,8 +251,7 @@ protected:
   WorkerPrivateParent(JSContext* aCx, WorkerPrivate* aParent,
                       const nsAString& aScriptURL, bool aIsChromeWorker,
                       WorkerType aWorkerType,
-                      const nsACString& aSharedWorkerName,
-                      LoadInfo& aLoadInfo);
+                      const nsAString& aSharedWorkerName, LoadInfo& aLoadInfo);
 
   ~WorkerPrivateParent();
 
@@ -649,7 +648,7 @@ public:
     return mWorkerType == WorkerTypeShared;
   }
 
-  const nsCString&
+  const nsString&
   SharedWorkerName() const
   {
     return mSharedWorkerName;
@@ -789,7 +788,7 @@ public:
   static already_AddRefed<WorkerPrivate>
   Constructor(const GlobalObject& aGlobal, const nsAString& aScriptURL,
               bool aIsChromeWorker, WorkerType aWorkerType,
-              const nsACString& aSharedWorkerName,
+              const nsAString& aSharedWorkerName,
               LoadInfo* aLoadInfo, ErrorResult& aRv);
 
   static bool
@@ -1043,7 +1042,7 @@ public:
 private:
   WorkerPrivate(JSContext* aCx, WorkerPrivate* aParent,
                 const nsAString& aScriptURL, bool aIsChromeWorker,
-                WorkerType aWorkerType, const nsACString& aSharedWorkerName,
+                WorkerType aWorkerType, const nsAString& aSharedWorkerName,
                 LoadInfo& aLoadInfo);
 
   void

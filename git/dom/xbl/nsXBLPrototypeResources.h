@@ -12,6 +12,7 @@
 
 class nsIContent;
 class nsIAtom;
+class nsSupportsHashtable;
 class nsXBLResourceLoader;
 class nsXBLPrototypeBinding;
 class nsCSSStyleSheet;

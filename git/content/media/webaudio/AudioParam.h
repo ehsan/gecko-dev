@@ -10,6 +10,7 @@
 #include "AudioParamTimeline.h"
 #include "nsWrapperCache.h"
 #include "nsCycleCollectionParticipant.h"
+#include "EnableWebAudioCheck.h"
 #include "nsAutoPtr.h"
 #include "AudioNode.h"
 #include "mozilla/dom/TypedArray.h"
@@ -21,6 +22,7 @@ namespace mozilla {
 namespace dom {
 
 class AudioParam MOZ_FINAL : public nsWrapperCache,
+                             public EnableWebAudioCheck,
                              public AudioParamTimeline
 {
 public:

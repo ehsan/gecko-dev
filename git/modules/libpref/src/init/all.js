@@ -113,9 +113,6 @@ pref("dom.gamepad.non_standard_events.enabled", false);
 pref("dom.gamepad.non_standard_events.enabled", true);
 #endif
 
-// Whether the UndoManager API is enabled
-pref("dom.undo_manager.enabled", false);
-
 // Fastback caching - if this pref is negative, then we calculate the number
 // of content viewers to cache based on the amount of available memory.
 pref("browser.sessionhistory.max_total_viewers", -1);
@@ -284,6 +281,9 @@ pref("media.encoder.webm.enabled", true);
 #ifdef MOZ_OMX_ENCODER
 pref("media.encoder.omx.enabled", true);
 #endif
+
+// Whether to enable Web Audio support
+pref("media.webaudio.enabled", true);
 
 // Whether to autostart a media element with an |autoplay| attribute
 pref("media.autoplay.enabled", true);
@@ -1011,16 +1011,6 @@ pref("network.http.pacing.requests.min-parallelism", 6);
 pref("network.http.pacing.requests.hz", 100);
 pref("network.http.pacing.requests.burst", 32);
 
-// TCP Keepalive config for HTTP connections.
-pref("network.http.tcp_keepalive.short_lived_connections", true);
-// Max time from initial request during which conns are considered short-lived.
-pref("network.http.tcp_keepalive.short_lived_time", 60);
-// Idle time of TCP connection until first keepalive probe sent.
-pref("network.http.tcp_keepalive.short_lived_idle_time", 10);
-
-pref("network.http.tcp_keepalive.long_lived_connections", true);
-pref("network.http.tcp_keepalive.long_lived_idle_time", 600);
-
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
 // Section 4.8 "High-Throughput Data Service Class", and 80 (0x50, or AF22)
@@ -1402,7 +1392,6 @@ pref("intl.charsetmenu.composer.cache",     "");
 pref("intl.charsetmenu.browser.cache.size", 5);
 pref("intl.charset.detector",               "chrome://global/locale/intl.properties");
 pref("intl.charset.fallback.override",      "");
-pref("intl.charset.fallback.tld",           true);
 pref("intl.ellipsis",                       "chrome://global-platform/locale/intl.properties");
 pref("intl.locale.matchOS",                 false);
 // fallback charset list for Unicode conversion (converting from Unicode)
@@ -4068,22 +4057,6 @@ pref("stagefright.disabled", false);
 #ifdef XP_WIN
 // The default TCP send window on Windows is too small, and autotuning only occurs on receive
 pref("network.tcp.sendbuffer", 131072);
-#endif
-// TCP Keepalive
-pref("network.tcp.keepalive.enabled", true);
-// Default idle time before first TCP keepalive probe; same time for interval
-// between successful probes. Can be overridden in socket transport API.
-// Win, Linux and Mac.
-pref("network.tcp.keepalive.idle_time", 600); // seconds; 10 mins
-// Default timeout for retransmission of unack'd keepalive probes.
-// Win and Linux only; not configurable on Mac.
-#if defined(XP_UNIX) && !defined(XP_MACOSX) || defined(XP_WIN)
-pref("network.tcp.keepalive.retry_interval", 1); // seconds
-#endif
-// Default maximum probe retransmissions.
-// Linux only; not configurable on Win and Mac; fixed at 10 and 8 respectively.
-#ifdef XP_UNIX && !defined(XP_MACOSX)
-pref("network.tcp.keepalive.probe_count", 4);
 #endif
 
 // Whether to disable acceleration for all widgets.

@@ -48,8 +48,6 @@
 
 using namespace mozilla;
 
-typedef nsCSSProps::KTableValue KTableValue;
-
 const uint32_t
 nsCSSProps::kParserVariantTable[eCSSProperty_COUNT_no_shorthands] = {
 #define CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, \
@@ -626,8 +624,7 @@ protected:
   bool ParseFontSynthesis(nsCSSValue& aValue);
   bool ParseSingleAlternate(int32_t& aWhichFeature, nsCSSValue& aValue);
   bool ParseFontVariantAlternates(nsCSSValue& aValue);
-  bool ParseBitmaskValues(nsCSSValue& aValue,
-                          const KTableValue aKeywordTable[],
+  bool ParseBitmaskValues(nsCSSValue& aValue, const int32_t aKeywordTable[],
                           const int32_t aMasks[]);
   bool ParseFontVariantEastAsian(nsCSSValue& aValue);
   bool ParseFontVariantLigatures(nsCSSValue& aValue);
@@ -648,8 +645,7 @@ protected:
   bool ParsePadding();
   bool ParseQuotes();
   bool ParseSize();
-  bool ParseTextAlign(nsCSSValue& aValue,
-                      const KTableValue aTable[]);
+  bool ParseTextAlign(nsCSSValue& aValue, const int32_t aTable[]);
   bool ParseTextAlign(nsCSSValue& aValue);
   bool ParseTextAlignLast(nsCSSValue& aValue);
   bool ParseTextDecoration();
@@ -755,17 +751,16 @@ protected:
   // after the opacity
   bool ParseColorOpacity(uint8_t& aOpacity);
   bool ParseColorOpacity(float& aOpacity);
-  bool ParseEnum(nsCSSValue& aValue,
-                 const KTableValue aKeywordTable[]);
+  bool ParseEnum(nsCSSValue& aValue, const int32_t aKeywordTable[]);
   bool ParseVariant(nsCSSValue& aValue,
-                    int32_t aVariantMask,
-                    const KTableValue aKeywordTable[]);
+                      int32_t aVariantMask,
+                      const int32_t aKeywordTable[]);
   bool ParseNonNegativeVariant(nsCSSValue& aValue,
-                               int32_t aVariantMask,
-                               const KTableValue aKeywordTable[]);
+                                 int32_t aVariantMask,
+                                 const int32_t aKeywordTable[]);
   bool ParseOneOrLargerVariant(nsCSSValue& aValue,
-                               int32_t aVariantMask,
-                               const KTableValue aKeywordTable[]);
+                                 int32_t aVariantMask,
+                                 const int32_t aKeywordTable[]);
   bool ParseCounter(nsCSSValue& aValue);
   bool ParseAttr(nsCSSValue& aValue);
   bool SetValueToURL(nsCSSValue& aValue, const nsString& aURL);
@@ -5876,7 +5871,7 @@ static const nsCSSProperty kColumnRuleIDs[] = {
 
 bool
 CSSParserImpl::ParseEnum(nsCSSValue& aValue,
-                         const KTableValue aKeywordTable[])
+                         const int32_t aKeywordTable[])
 {
   nsSubstring* ident = NextIdent();
   if (nullptr == ident) {
@@ -6025,7 +6020,7 @@ CSSParserImpl::TranslateDimension(nsCSSValue& aValue,
 bool
 CSSParserImpl::ParseNonNegativeVariant(nsCSSValue& aValue,
                                        int32_t aVariantMask,
-                                       const KTableValue aKeywordTable[])
+                                       const int32_t aKeywordTable[])
 {
   // The variant mask must only contain non-numeric variants or the ones
   // that we specifically handle.
@@ -6067,7 +6062,7 @@ CSSParserImpl::ParseNonNegativeVariant(nsCSSValue& aValue,
 bool
 CSSParserImpl::ParseOneOrLargerVariant(nsCSSValue& aValue,
                                        int32_t aVariantMask,
-                                       const KTableValue aKeywordTable[])
+                                       const int32_t aKeywordTable[])
 {
   // The variant mask must only contain non-numeric variants or the ones
   // that we specifically handle.
@@ -6097,7 +6092,7 @@ CSSParserImpl::ParseOneOrLargerVariant(nsCSSValue& aValue,
 bool
 CSSParserImpl::ParseVariant(nsCSSValue& aValue,
                             int32_t aVariantMask,
-                            const KTableValue aKeywordTable[])
+                            const int32_t aKeywordTable[])
 {
   NS_ASSERTION(!(mHashlessColorQuirk && (aVariantMask & VARIANT_COLOR)) ||
                !(aVariantMask & VARIANT_NUMBER),
@@ -7952,7 +7947,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
        aPropID == eCSSProperty_math_display))
     return false;
 
-  const KTableValue *kwtable = nsCSSProps::kKeywordTableTable[aPropID];
+  const int32_t *kwtable = nsCSSProps::kKeywordTableTable[aPropID];
   switch (nsCSSProps::ValueRestrictions(aPropID)) {
     default:
       NS_ABORT_IF_FALSE(false, "should not be reached");
@@ -9719,7 +9714,7 @@ CSSParserImpl::ParseContent()
 {
   // We need to divide the 'content' keywords into two classes for
   // ParseVariant's sake, so we can't just use nsCSSProps::kContentKTable.
-  static const KTableValue kContentListKWs[] = {
+  static const int32_t kContentListKWs[] = {
     eCSSKeyword_open_quote, NS_STYLE_CONTENT_OPEN_QUOTE,
     eCSSKeyword_close_quote, NS_STYLE_CONTENT_CLOSE_QUOTE,
     eCSSKeyword_no_open_quote, NS_STYLE_CONTENT_NO_OPEN_QUOTE,
@@ -9727,7 +9722,7 @@ CSSParserImpl::ParseContent()
     eCSSKeyword_UNKNOWN,-1
   };
 
-  static const KTableValue kContentSolitaryKWs[] = {
+  static const int32_t kContentSolitaryKWs[] = {
     eCSSKeyword__moz_alt_content, NS_STYLE_CONTENT_ALT_CONTENT,
     eCSSKeyword_UNKNOWN,-1
   };
@@ -10169,7 +10164,7 @@ CSSParserImpl::ParseFontVariantAlternates(nsCSSValue& aValue)
 
 bool
 CSSParserImpl::ParseBitmaskValues(nsCSSValue& aValue,
-                                  const KTableValue aKeywordTable[],
+                                  const int32_t aKeywordTable[],
                                   const int32_t aMasks[])
 {
   if (!ParseVariant(aValue, VARIANT_HMK, aKeywordTable)) {
@@ -10932,7 +10927,7 @@ CSSParserImpl::ParseTextDecoration()
                  eDecorationBlink | eDecorationPrefAnchors),
                 "text decoration constants need to be bitmasks");
 
-  static const KTableValue kTextDecorationKTable[] = {
+  static const int32_t kTextDecorationKTable[] = {
     eCSSKeyword_none,                   eDecorationNone,
     eCSSKeyword_underline,              eDecorationUnderline,
     eCSSKeyword_overline,               eDecorationOverline,
@@ -10996,7 +10991,7 @@ CSSParserImpl::ParseTextDecoration()
 }
 
 bool
-CSSParserImpl::ParseTextAlign(nsCSSValue& aValue, const KTableValue aTable[])
+CSSParserImpl::ParseTextAlign(nsCSSValue& aValue, const int32_t aTable[])
 {
   if (ParseVariant(aValue, VARIANT_INHERIT, nullptr)) {
     // 'inherit', 'initial' and 'unset' must be alone
@@ -12394,7 +12389,7 @@ CSSParserImpl::ParsePaintOrder()
     ((1 << NS_STYLE_PAINT_ORDER_BITWIDTH) > NS_STYLE_PAINT_ORDER_LAST_VALUE,
      "bitfield width insufficient for paint-order constants");
 
-  static const KTableValue kPaintOrderKTable[] = {
+  static const int32_t kPaintOrderKTable[] = {
     eCSSKeyword_normal,  NS_STYLE_PAINT_ORDER_NORMAL,
     eCSSKeyword_fill,    NS_STYLE_PAINT_ORDER_FILL,
     eCSSKeyword_stroke,  NS_STYLE_PAINT_ORDER_STROKE,

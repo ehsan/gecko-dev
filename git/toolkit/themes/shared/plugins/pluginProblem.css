@@ -21,7 +21,7 @@
 
 .hoverBox {
   display: table-cell;
-  box-sizing: border-box;
+  -moz-box-sizing: border-box;
   padding: 5px;
   vertical-align: middle;
   width: 100%;

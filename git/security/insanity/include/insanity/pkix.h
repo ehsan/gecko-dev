@@ -18,16 +18,10 @@
 #ifndef insanity_pkix__pkix_h
 #define insanity_pkix__pkix_h
 
-#include "pkixtypes.h"
-#include "prtime.h"
+#include "certt.h"
+#include "seccomon.h"
 
 namespace insanity { namespace pkix {
-
-SECStatus BuildCertChain(TrustDomain& trustDomain,
-                         CERTCertificate* cert,
-                         PRTime time,
-            /*optional*/ KeyUsages requiredKeyUsagesIfPresent,
-                 /*out*/ ScopedCERTCertList& results);
 
 // Verify the given signed data using the public key of the given certificate.
 // (EC)DSA parameter inheritance is not supported.

@@ -2092,13 +2092,13 @@ typename WorkerPrivateParent<Derived>::cycleCollection
 
 template <class Derived>
 WorkerPrivateParent<Derived>::WorkerPrivateParent(
-                                           JSContext* aCx,
-                                           WorkerPrivate* aParent,
-                                           const nsAString& aScriptURL,
-                                           bool aIsChromeWorker,
-                                           WorkerType aWorkerType,
-                                           const nsACString& aSharedWorkerName,
-                                           LoadInfo& aLoadInfo)
+                                             JSContext* aCx,
+                                             WorkerPrivate* aParent,
+                                             const nsAString& aScriptURL,
+                                             bool aIsChromeWorker,
+                                             WorkerType aWorkerType,
+                                             const nsAString& aSharedWorkerName,
+                                             LoadInfo& aLoadInfo)
 : mMutex("WorkerPrivateParent Mutex"),
   mCondVar(mMutex, "WorkerPrivateParent CondVar"),
   mMemoryReportCondVar(mMutex, "WorkerPrivateParent Memory Report CondVar"),
@@ -3523,7 +3523,7 @@ WorkerPrivate::WorkerPrivate(JSContext* aCx,
                              WorkerPrivate* aParent,
                              const nsAString& aScriptURL,
                              bool aIsChromeWorker, WorkerType aWorkerType,
-                             const nsACString& aSharedWorkerName,
+                             const nsAString& aSharedWorkerName,
                              LoadInfo& aLoadInfo)
 : WorkerPrivateParent<WorkerPrivate>(aCx, aParent, aScriptURL,
                                      aIsChromeWorker, aWorkerType,
@@ -3563,9 +3563,8 @@ WorkerPrivate::Constructor(const GlobalObject& aGlobal,
                            const nsAString& aScriptURL,
                            ErrorResult& aRv)
 {
-  return WorkerPrivate::Constructor(aGlobal, aScriptURL, false,
-                                    WorkerTypeDedicated, EmptyCString(),
-                                    nullptr, aRv);
+  return WorkerPrivate::Constructor(aGlobal, aScriptURL, false, WorkerTypeDedicated,
+                                    EmptyString(), nullptr, aRv);
 }
 
 // static
@@ -3592,10 +3591,8 @@ ChromeWorkerPrivate::Constructor(const GlobalObject& aGlobal,
                                  const nsAString& aScriptURL,
                                  ErrorResult& aRv)
 {
-  return WorkerPrivate::Constructor(aGlobal, aScriptURL, true,
-                                    WorkerTypeDedicated, EmptyCString(),
-                                    nullptr, aRv)
-                                    .downcast<ChromeWorkerPrivate>();
+  return WorkerPrivate::Constructor(aGlobal, aScriptURL, true, WorkerTypeDedicated,
+                                    EmptyString(), nullptr, aRv).downcast<ChromeWorkerPrivate>();
 }
 
 // static
@@ -3612,7 +3609,7 @@ already_AddRefed<WorkerPrivate>
 WorkerPrivate::Constructor(const GlobalObject& aGlobal,
                            const nsAString& aScriptURL,
                            bool aIsChromeWorker, WorkerType aWorkerType,
-                           const nsACString& aSharedWorkerName,
+                           const nsAString& aSharedWorkerName,
                            LoadInfo* aLoadInfo, ErrorResult& aRv)
 {
   WorkerPrivate* parent = NS_IsMainThread() ?

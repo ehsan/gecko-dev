@@ -64,7 +64,6 @@ ALL_JARS = \
   gecko-browser.jar \
   gecko-mozglue.jar \
   gecko-util.jar \
-  squareup-picasso.jar \
   sync-thirdparty.jar \
   websockets.jar \
   $(NULL)

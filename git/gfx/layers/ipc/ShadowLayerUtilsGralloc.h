@@ -90,9 +90,6 @@ public:
   void AddDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost);
   void RemoveDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost);
 
-  void AddTextureHost(TextureHost* aTextureHost);
-  void RemoveTextureHost();
-
   android::GraphicBuffer* GetGraphicBuffer();
 
   void InitFromHandle(const MagicGrallocBufferHandle& aHandle);
@@ -109,9 +106,6 @@ private:
   // used only for hacky fix in gecko 23 for bug 862324
   // see bug 865908 about fixing this.
   nsAutoTArray<DeprecatedTextureHost*, 2> mDeprecatedTextureHosts;
-
-  // Used only for hacky fix for bug 966446.
-  TextureHost* mTextureHost;
 
   friend class ISurfaceAllocator;
 };

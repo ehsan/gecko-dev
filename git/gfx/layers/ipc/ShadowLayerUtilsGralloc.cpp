@@ -254,7 +254,6 @@ int64_t GrallocReporter::sAmount = 0;
 
 GrallocBufferActor::GrallocBufferActor()
 : mAllocBytes(0)
-, mTextureHost(nullptr)
 {
   static bool registered;
   if (!registered) {
@@ -305,17 +304,11 @@ GrallocBufferActor::Create(const gfx::IntSize& aSize,
   return actor;
 }
 
+// used only for hacky fix for bug 862324
 void GrallocBufferActor::ActorDestroy(ActorDestroyReason)
 {
-  // used only for hacky fix for bug 862324
   for (size_t i = 0; i < mDeprecatedTextureHosts.Length(); i++) {
     mDeprecatedTextureHosts[i]->ForgetBuffer();
-  }
-
-  // Used only for hacky fix for bug 966446.
-  if (mTextureHost) {
-    mTextureHost->ForgetBufferActor();
-    mTextureHost = nullptr;
   }
 }
 
@@ -332,16 +325,6 @@ void GrallocBufferActor::RemoveDeprecatedTextureHost(DeprecatedTextureHost* aDep
   // that should be the only occurence, otherwise we'd leak this TextureHost...
   // assert that that's not happening.
   MOZ_ASSERT(!mDeprecatedTextureHosts.Contains(aDeprecatedTextureHost));
-}
-
-void GrallocBufferActor::AddTextureHost(TextureHost* aTextureHost)
-{
-  mTextureHost = aTextureHost;
-}
-
-void GrallocBufferActor::RemoveTextureHost()
-{
-  mTextureHost = nullptr;
 }
 
 /*static*/ bool

@@ -10,7 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-[Pref="dom.undo_manager.enabled"]
+[PrefControlled]
 interface UndoManager {
   [Throws] void transact(DOMTransaction transaction, boolean merge);
   [Throws] void undo();

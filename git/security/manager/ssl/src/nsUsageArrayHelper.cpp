@@ -132,6 +132,7 @@ nsUsageArrayHelper::check(uint32_t previousCheckResult,
 
   PRErrorCode error = PR_GetError();
 
+  const char * errorString = PR_ErrorToName(error);
   uint32_t result = nsIX509Cert::NOT_VERIFIED_UNKNOWN;
   verifyFailed(&result, error);
 
@@ -144,7 +145,7 @@ nsUsageArrayHelper::check(uint32_t previousCheckResult,
 
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
           ("error validating certificate for usage %s: %s (%d) -> %ud \n",
-          typestr.get(), PR_ErrorToName(error), (int) error, (int) result));
+          typestr.get(), errorString, (int) error, (int) result));
 
   return result;
 }

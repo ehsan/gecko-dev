@@ -23,6 +23,12 @@ using mozilla::dom::Sequence;
 
 USING_WORKERS_NAMESPACE
 
+namespace {
+
+const char kSharedWorkersEnabledPref[] = "dom.workers.sharedWorkers.enabled";
+
+} // anonymous namespace
+
 SharedWorker::SharedWorker(nsPIDOMWindow* aWindow,
                            WorkerPrivate* aWorkerPrivate)
 : nsDOMEventTargetHelper(aWindow), mWorkerPrivate(aWorkerPrivate),
@@ -42,6 +48,15 @@ SharedWorker::~SharedWorker()
   MOZ_ASSERT(!mWorkerPrivate);
 }
 
+//static
+bool
+SharedWorker::PrefEnabled()
+{
+  AssertIsOnMainThread();
+
+  return mozilla::Preferences::GetBool(kSharedWorkersEnabledPref, false);
+}
+
 // static
 already_AddRefed<SharedWorker>
 SharedWorker::Constructor(const GlobalObject& aGlobal, JSContext* aCx,
@@ -57,9 +72,9 @@ SharedWorker::Constructor(const GlobalObject& aGlobal, JSContext* aCx,
     return nullptr;
   }
 
-  nsCString name;
+  nsString name;
   if (aName.WasPassed()) {
-    name = NS_ConvertUTF16toUTF8(aName.Value());
+    name = aName.Value();
   }
 
   nsRefPtr<SharedWorker> sharedWorker;

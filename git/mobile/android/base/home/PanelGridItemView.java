@@ -8,11 +8,9 @@ package org.mozilla.gecko.home;
 import java.net.MalformedURLException;
 import java.net.URL;
 
-import org.mozilla.gecko.db.BrowserContract.HomeItems;
+import org.mozilla.gecko.db.BrowserContract.URLColumns;
 import org.mozilla.gecko.favicons.Favicons;
 import org.mozilla.gecko.R;
-
-import com.squareup.picasso.Picasso;
 
 import android.content.Context;
 import android.database.Cursor;
@@ -49,12 +47,5 @@ public class PanelGridItemView extends FrameLayout {
         mThumbnailView = (ImageView) findViewById(R.id.image);
     }
 
-    public void updateFromCursor(Cursor cursor) {
-        int imageIndex = cursor.getColumnIndexOrThrow(HomeItems.IMAGE_URL);
-        final String imageUrl = cursor.getString(imageIndex);
-
-        Picasso.with(getContext())
-               .load(imageUrl)
-               .into(mThumbnailView);
-    }
+    public void updateFromCursor(Cursor cursor) { }
 }
