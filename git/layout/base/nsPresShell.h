@@ -629,7 +629,7 @@ protected:
   nsIDocument* GetTouchEventTargetDocument();
 #endif
   bool InZombieDocument(nsIContent *aContent);
-  already_AddRefed<nsIPresShell> GetParentPresShellForEventHandling();
+  already_AddRefed<nsIPresShell> GetParentPresShell();
   nsIContent* GetCurrentEventContent();
   nsIFrame* GetCurrentEventFrame();
   nsresult RetargetEventToParent(mozilla::WidgetGUIEvent* aEvent,

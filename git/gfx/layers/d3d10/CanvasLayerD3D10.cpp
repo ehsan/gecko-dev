@@ -145,10 +145,9 @@ CanvasLayerD3D10::UpdateSurface()
         DataSourceSurface* frameData = shareSurf->GetData();
         // Scope for DrawTarget, so it's destroyed before Unmap.
         {
-          IntSize boundsSize(mBounds.width, mBounds.height);
           RefPtr<DrawTarget> mapDt = Factory::CreateDrawTargetForData(BackendType::CAIRO,
                                                                       (uint8_t*)map.pData,
-                                                                      boundsSize,
+                                                                      frameData->GetSize(),
                                                                       map.RowPitch,
                                                                       SurfaceFormat::B8G8R8A8);
 

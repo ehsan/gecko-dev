@@ -24,13 +24,10 @@ namespace net {
 #define kMinMetadataRead 1024  // TODO find optimal value from telemetry
 #define kAlignSize       4096
 
-#define kCacheEntryVersion 1
-
 NS_IMPL_ISUPPORTS1(CacheFileMetadata, CacheFileIOListener)
 
 CacheFileMetadata::CacheFileMetadata(CacheFileHandle *aHandle, const nsACString &aKey)
-  : CacheMemoryConsumer(NORMAL)
-  , mHandle(aHandle)
+  : mHandle(aHandle)
   , mHashArray(nullptr)
   , mHashArraySize(0)
   , mHashCount(0)
@@ -49,67 +46,12 @@ CacheFileMetadata::CacheFileMetadata(CacheFileHandle *aHandle, const nsACString 
 
   MOZ_COUNT_CTOR(CacheFileMetadata);
   memset(&mMetaHdr, 0, sizeof(CacheFileMetadataHeader));
-  mMetaHdr.mVersion = kCacheEntryVersion;
   mMetaHdr.mExpirationTime = nsICacheEntry::NO_EXPIRATION_TIME;
   mKey = aKey;
 
   DebugOnly<nsresult> rv;
   rv = ParseKey(aKey);
   MOZ_ASSERT(NS_SUCCEEDED(rv));
-}
-
-CacheFileMetadata::CacheFileMetadata(bool aMemoryOnly, const nsACString &aKey)
-  : CacheMemoryConsumer(aMemoryOnly ? MEMORY_ONLY : NORMAL)
-  , mHandle(nullptr)
-  , mHashArray(nullptr)
-  , mHashArraySize(0)
-  , mHashCount(0)
-  , mOffset(0)
-  , mBuf(nullptr)
-  , mBufSize(0)
-  , mWriteBuf(nullptr)
-  , mElementsSize(0)
-  , mIsDirty(true)
-  , mAnonymous(false)
-  , mInBrowser(false)
-  , mAppId(nsILoadContextInfo::NO_APP_ID)
-{
-  LOG(("CacheFileMetadata::CacheFileMetadata() [this=%p, key=%s]",
-       this, PromiseFlatCString(aKey).get()));
-
-  MOZ_COUNT_CTOR(CacheFileMetadata);
-  memset(&mMetaHdr, 0, sizeof(CacheFileMetadataHeader));
-  mMetaHdr.mVersion = kCacheEntryVersion;
-  mMetaHdr.mExpirationTime = nsICacheEntry::NO_EXPIRATION_TIME;
-  mMetaHdr.mFetchCount = 1;
-  mKey = aKey;
-  mMetaHdr.mKeySize = mKey.Length();
-
-  DebugOnly<nsresult> rv;
-  rv = ParseKey(aKey);
-  MOZ_ASSERT(NS_SUCCEEDED(rv));
-}
-
-CacheFileMetadata::CacheFileMetadata()
-  : CacheMemoryConsumer(DONT_REPORT /* This is a helper class */)
-  , mHandle(nullptr)
-  , mHashArray(nullptr)
-  , mHashArraySize(0)
-  , mHashCount(0)
-  , mOffset(0)
-  , mBuf(nullptr)
-  , mBufSize(0)
-  , mWriteBuf(nullptr)
-  , mElementsSize(0)
-  , mIsDirty(false)
-  , mAnonymous(false)
-  , mInBrowser(false)
-  , mAppId(nsILoadContextInfo::NO_APP_ID)
-{
-  LOG(("CacheFileMetadata::CacheFileMetadata() [this=%p]", this));
-
-  MOZ_COUNT_CTOR(CacheFileMetadata);
-  memset(&mMetaHdr, 0, sizeof(CacheFileMetadataHeader));
 }
 
 CacheFileMetadata::~CacheFileMetadata()
@@ -130,6 +72,59 @@ CacheFileMetadata::~CacheFileMetadata()
     mBuf = nullptr;
     mBufSize = 0;
   }
+
+  DoMemoryReport(MemoryUsage());
+}
+
+CacheFileMetadata::CacheFileMetadata(const nsACString &aKey)
+  : mHandle(nullptr)
+  , mHashArray(nullptr)
+  , mHashArraySize(0)
+  , mHashCount(0)
+  , mOffset(0)
+  , mBuf(nullptr)
+  , mBufSize(0)
+  , mWriteBuf(nullptr)
+  , mElementsSize(0)
+  , mIsDirty(true)
+  , mAnonymous(false)
+  , mInBrowser(false)
+  , mAppId(nsILoadContextInfo::NO_APP_ID)
+{
+  LOG(("CacheFileMetadata::CacheFileMetadata() [this=%p, key=%s]",
+       this, PromiseFlatCString(aKey).get()));
+
+  MOZ_COUNT_CTOR(CacheFileMetadata);
+  memset(&mMetaHdr, 0, sizeof(CacheFileMetadataHeader));
+  mMetaHdr.mExpirationTime = nsICacheEntry::NO_EXPIRATION_TIME;
+  mMetaHdr.mFetchCount++;
+  mKey = aKey;
+  mMetaHdr.mKeySize = mKey.Length();
+
+  DebugOnly<nsresult> rv;
+  rv = ParseKey(aKey);
+  MOZ_ASSERT(NS_SUCCEEDED(rv));
+}
+
+CacheFileMetadata::CacheFileMetadata()
+  : mHandle(nullptr)
+  , mHashArray(nullptr)
+  , mHashArraySize(0)
+  , mHashCount(0)
+  , mOffset(0)
+  , mBuf(nullptr)
+  , mBufSize(0)
+  , mWriteBuf(nullptr)
+  , mElementsSize(0)
+  , mIsDirty(false)
+  , mAnonymous(false)
+  , mInBrowser(false)
+  , mAppId(nsILoadContextInfo::NO_APP_ID)
+{
+  LOG(("CacheFileMetadata::CacheFileMetadata() [this=%p]", this));
+
+  MOZ_COUNT_CTOR(CacheFileMetadata);
+  memset(&mMetaHdr, 0, sizeof(CacheFileMetadataHeader));
 }
 
 void
@@ -236,7 +231,7 @@ CacheFileMetadata::WriteMetadata(uint32_t aOffset,
   char *p = mWriteBuf + sizeof(uint32_t);
   memcpy(p, mHashArray, mHashCount * sizeof(CacheHash::Hash16_t));
   p += mHashCount * sizeof(CacheHash::Hash16_t);
-  mMetaHdr.WriteToBuf(p);
+  memcpy(p, &mMetaHdr, sizeof(CacheFileMetadataHeader));
   p += sizeof(CacheFileMetadataHeader);
   memcpy(p, mKey.get(), mKey.Length());
   p += mKey.Length();
@@ -248,9 +243,9 @@ CacheFileMetadata::WriteMetadata(uint32_t aOffset,
   CacheHash::Hash32_t hash;
   hash = CacheHash::Hash(mWriteBuf + sizeof(uint32_t),
                          p - mWriteBuf - sizeof(uint32_t));
-  NetworkEndian::writeUint32(mWriteBuf, hash);
+  *reinterpret_cast<uint32_t *>(mWriteBuf) = PR_htonl(hash);
 
-  NetworkEndian::writeUint32(p, aOffset);
+  *reinterpret_cast<uint32_t *>(p) = PR_htonl(aOffset);
   p += sizeof(uint32_t);
 
   char * writeBuffer;
@@ -323,7 +318,7 @@ CacheFileMetadata::SyncReadMetadata(nsIFile *aFile)
     return NS_ERROR_FAILURE;
   }
 
-  metaOffset = NetworkEndian::readUint32(&metaOffset);
+  metaOffset = PR_ntohl(metaOffset);
   if (metaOffset > fileSize) {
     PR_Close(fd);
     return NS_ERROR_FAILURE;
@@ -437,7 +432,7 @@ CacheHash::Hash16_t
 CacheFileMetadata::GetHash(uint32_t aIndex)
 {
   MOZ_ASSERT(aIndex < mHashCount);
-  return NetworkEndian::readUint16(&mHashArray[aIndex]);
+  return PR_ntohs(mHashArray[aIndex]);
 }
 
 nsresult
@@ -466,7 +461,7 @@ CacheFileMetadata::SetHash(uint32_t aIndex, CacheHash::Hash16_t aHash)
     mHashCount++;
   }
 
-  NetworkEndian::writeUint16(&mHashArray[aIndex], aHash);
+  mHashArray[aIndex] = PR_htons(aHash);
 
   DoMemoryReport(MemoryUsage());
 
@@ -596,8 +591,8 @@ CacheFileMetadata::OnDataRead(CacheFileHandle *aHandle, char *aBuf,
   }
 
   // check whether we have read all necessary data
-  uint32_t realOffset = NetworkEndian::readUint32(mBuf + mBufSize -
-                                                  sizeof(uint32_t));
+  uint32_t realOffset = PR_ntohl(*(reinterpret_cast<uint32_t *>(
+                                 mBuf + mBufSize - sizeof(uint32_t))));
 
   int64_t size = mHandle->FileSize();
   MOZ_ASSERT(size != -1);
@@ -695,7 +690,6 @@ CacheFileMetadata::InitEmptyMetadata()
     mBufSize = 0;
   }
   mOffset = 0;
-  mMetaHdr.mVersion = kCacheEntryVersion;
   mMetaHdr.mFetchCount = 1;
   mMetaHdr.mExpirationTime = nsICacheEntry::NO_EXPIRATION_TIME;
   mMetaHdr.mKeySize = mKey.Length();
@@ -774,15 +768,13 @@ CacheFileMetadata::ParseMetadata(uint32_t aMetaOffset, uint32_t aBufOffset,
   }
 
   // check metadata hash (data from hashesOffset to metaposOffset)
-  CacheHash::Hash32_t hashComputed, hashExpected;
-  hashComputed = CacheHash::Hash(mBuf + hashesOffset,
-                                 metaposOffset - hashesOffset);
-  hashExpected = NetworkEndian::readUint32(mBuf + aBufOffset);
+  CacheHash::Hash32_t hash;
+  hash = CacheHash::Hash(mBuf + hashesOffset, metaposOffset - hashesOffset);
 
-  if (hashComputed != hashExpected) {
+  if (hash != PR_ntohl(*(reinterpret_cast<uint32_t *>(mBuf + aBufOffset)))) {
     LOG(("CacheFileMetadata::ParseMetadata() - Metadata hash mismatch! Hash of "
-         "the metadata is %x, hash in file is %x [this=%p]", hashComputed,
-         hashExpected, this));
+         "the metadata is %x, hash in file is %x [this=%p]", hash,
+         PR_ntohl(*(reinterpret_cast<uint32_t *>(mBuf + aBufOffset))), this));
     return NS_ERROR_FILE_CORRUPTED;
   }
 
@@ -799,15 +791,7 @@ CacheFileMetadata::ParseMetadata(uint32_t aMetaOffset, uint32_t aBufOffset,
     memcpy(mHashArray, mBuf + hashesOffset, mHashArraySize);
   }
 
-  mMetaHdr.ReadFromBuf(mBuf + hdrOffset);
-
-  if (mMetaHdr.mVersion != kCacheEntryVersion) {
-    LOG(("CacheFileMetadata::ParseMetadata() - Not a version we understand to. "
-         "[version=0x%x, this=%p]", mMetaHdr.mVersion, this));
-    return NS_ERROR_UNEXPECTED;
-  }
-
-
+  memcpy(&mMetaHdr, mBuf + hdrOffset, sizeof(CacheFileMetadataHeader));
   mMetaHdr.mFetchCount++;
   MarkDirty();
 
@@ -864,8 +848,11 @@ CacheFileMetadata::EnsureBuffer(uint32_t aSize)
 nsresult
 CacheFileMetadata::ParseKey(const nsACString &aKey)
 {
-  nsCOMPtr<nsILoadContextInfo> info = CacheFileUtils::ParseKey(aKey);
-  NS_ENSURE_TRUE(info, NS_ERROR_FAILURE);
+  nsresult rv;
+
+  nsCOMPtr<nsILoadContextInfo> info;
+  rv = CacheFileUtils::ParseKey(aKey, getter_AddRefs(info), nullptr);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   mAnonymous =  info->IsAnonymous();
   mAppId = info->AppId();

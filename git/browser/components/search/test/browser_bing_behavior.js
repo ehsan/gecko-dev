@@ -36,7 +36,7 @@ function test() {
   var gTests = [
     {
       name: "context menu search",
-      searchURL: base + "&form=MOZCON",
+      searchURL: base + "&form=MOZSBR",
       run: function () {
         // Simulate a contextmenu search
         // FIXME: This is a bit "low-level"...

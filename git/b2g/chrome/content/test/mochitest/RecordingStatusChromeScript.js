@@ -3,7 +3,6 @@
 
 const { classes: Cc, interfaces: Ci, results: Cr, utils: Cu } = Components;
 const { Services } = Cu.import('resource://gre/modules/Services.jsm');
-const { SystemAppProxy } = Cu.import('resource://gre/modules/SystemAppProxy.jsm');
 
 var processId;
 
@@ -18,8 +17,9 @@ function peekChildId(aSubject, aTopic, aData) {
 
 addMessageListener('init-chrome-event', function(message) {
   // listen mozChromeEvent and forward to content process.
+  let browser = Services.wm.getMostRecentWindow('navigator:browser');
   let type = message.type;
-  SystemAppProxy.addEventListener('mozChromeEvent', function(event) {
+  browser.addEventListener('mozChromeEvent', function(event) {
     let details = event.detail;
     if (details.type === type) {
       sendAsyncMessage('chrome-event', details);

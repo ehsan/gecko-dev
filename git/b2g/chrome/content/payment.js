@@ -46,9 +46,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "uuidgen",
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
 
-XPCOMUtils.defineLazyModuleGetter(this, "SystemAppProxy",
-                                  "resource://gre/modules/SystemAppProxy.jsm");
-
 #ifdef MOZ_B2G_RIL
 XPCOMUtils.defineLazyServiceGetter(this, "gRil",
                                    "@mozilla.org/ril;1",
@@ -200,6 +197,8 @@ const kClosePaymentFlowEvent = "close-payment-flow-dialog";
 
 let gRequestId;
 
+let gBrowser = Services.wm.getMostRecentWindow("navigator:browser");
+
 let PaymentProvider = {
 #ifdef MOZ_B2G_RIL
   __exposedProps__: {
@@ -230,6 +229,11 @@ let PaymentProvider = {
     // payment flow dialog and return to the caller application.
     let id = kClosePaymentFlowEvent + "-" + uuidgen.generateUUID().toString();
 
+    let content = gBrowser.getContentWindow();
+    if (!content) {
+      return;
+    }
+
     let detail = {
       type: kClosePaymentFlowEvent,
       id: id,
@@ -240,13 +244,13 @@ let PaymentProvider = {
     // it has successfully closed the payment flow and has recovered the
     // caller app, before notifying the parent process to fire the success
     // or error event over the DOMRequest.
-    SystemAppProxy.addEventListener("mozContentEvent",
-                               function closePaymentFlowReturn(evt) {
+    content.addEventListener("mozContentEvent",
+                             function closePaymentFlowReturn(evt) {
       if (evt.detail.id == id && aCallback) {
         aCallback();
       }
 
-      SystemAppProxy.removeEventListener("mozContentEvent",
+      content.removeEventListener("mozContentEvent",
                                   closePaymentFlowReturn);
 
       let glue = Cc["@mozilla.org/payment/ui-glue;1"]
@@ -254,7 +258,7 @@ let PaymentProvider = {
       glue.cleanup();
     });
 
-    SystemAppProxy.dispatchEvent(detail);
+    gBrowser.shell.sendChromeEvent(detail);
 
 #ifdef MOZ_B2G_RIL
     this._cleanUp();
@@ -474,7 +478,7 @@ addEventListener("DOMWindowCreated", function(e) {
 // If the trusted dialog is not closed via paymentSuccess or paymentFailed
 // a mozContentEvent with type 'cancel' is sent from the UI. We need to listen
 // for this event to clean up the silent sms observers if any exists.
-SystemAppProxy.addEventListener("mozContentEvent", function(e) {
+gBrowser.getContentWindow().addEventListener("mozContentEvent", function(e) {
   if (e.detail.type === "cancel") {
     PaymentProvider._cleanUp();
   }

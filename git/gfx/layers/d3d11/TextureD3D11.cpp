@@ -8,6 +8,7 @@
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 #include "Effects.h"
+#include "ipc/AutoOpenSurface.h"
 #include "mozilla/layers/YCbCrImageDataSerializer.h"
 #include "gfxWindowsPlatform.h"
 #include "gfxD2DSurface.h"
@@ -106,9 +107,7 @@ static void LockD3DTexture(T* aTexture)
   MOZ_ASSERT(aTexture);
   RefPtr<IDXGIKeyedMutex> mutex;
   aTexture->QueryInterface((IDXGIKeyedMutex**)byRef(mutex));
-  if (mutex) {
-    mutex->AcquireSync(0, INFINITE);
-  }
+  mutex->AcquireSync(0, INFINITE);
 }
 
 template<typename T> // ID3D10Texture2D or ID3D11Texture2D
@@ -117,9 +116,7 @@ static void UnlockD3DTexture(T* aTexture)
   MOZ_ASSERT(aTexture);
   RefPtr<IDXGIKeyedMutex> mutex;
   aTexture->QueryInterface((IDXGIKeyedMutex**)byRef(mutex));
-  if (mutex) {
-    mutex->ReleaseSync(0);
-  }
+  mutex->ReleaseSync(0);
 }
 
 TemporaryRef<TextureHost>
@@ -260,7 +257,7 @@ TextureClientD3D11::ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor)
     return false;
   }
 
-  aOutDescriptor = SurfaceDescriptorD3D10((WindowsHandle)sharedHandle, mFormat, mSize);
+  aOutDescriptor = SurfaceDescriptorD3D10((WindowsHandle)sharedHandle, mFormat);
   return true;
 }
 

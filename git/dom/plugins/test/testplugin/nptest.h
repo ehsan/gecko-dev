@@ -106,7 +106,6 @@ typedef struct InstanceData {
   bool npnNewStream;
   bool throwOnNextInvoke;
   bool runScriptOnPaint;
-  bool dontTouchElement;
   uint32_t timerID[2];
   bool timerTestResult;
   bool asyncCallbackResult;

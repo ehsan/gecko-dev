@@ -103,10 +103,8 @@ WMFReader::InitializeDXVA()
     nsContentUtils::LayerManagerForDocument(element->OwnerDoc());
   NS_ENSURE_TRUE(layerManager, false);
 
-  LayersBackend backend = layerManager->GetCompositorBackendType();
-  if (backend != LayersBackend::LAYERS_D3D9 &&
-      backend != LayersBackend::LAYERS_D3D10 &&
-      backend != LayersBackend::LAYERS_D3D11) {
+  if (layerManager->GetBackendType() != LayersBackend::LAYERS_D3D9 &&
+      layerManager->GetBackendType() != LayersBackend::LAYERS_D3D10) {
     return false;
   }
 

@@ -29,19 +29,25 @@ Cu.import("resource://gre/modules/FxAccountsCommon.js");
 XPCOMUtils.defineLazyModuleGetter(this, "FxAccountsManager",
   "resource://gre/modules/FxAccountsManager.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "SystemAppProxy",
-                                  "resource://gre/modules/SystemAppProxy.jsm");
-
 this.FxAccountsMgmtService = {
+
+  _sendChromeEvent: function(aEventName, aMsg) {
+    if (!this._shell) {
+      return;
+    }
+    log.debug("Chrome event " + JSON.stringify(aMsg));
+    this._shell.sendCustomEvent(aEventName, aMsg);
+  },
+
   _onFulfill: function(aMsgId, aData) {
-    SystemAppProxy._sendCustomEvent("mozFxAccountsChromeEvent", {
+    this._sendChromeEvent("mozFxAccountsChromeEvent", {
       id: aMsgId,
       data: aData ? aData : null
     });
   },
 
   _onReject: function(aMsgId, aReason) {
-    SystemAppProxy._sendCustomEvent("mozFxAccountsChromeEvent", {
+    this._sendChromeEvent("mozFxAccountsChromeEvent", {
       id: aMsgId,
       error: aReason ? aReason : null
     });
@@ -58,15 +64,17 @@ this.FxAccountsMgmtService = {
     log.debug("Observed " + aTopic);
     switch (aTopic) {
       case "content-start":
-        SystemAppProxy.addEventListener("mozFxAccountsContentEvent",
-                                        FxAccountsMgmtService);
+        this._shell = Services.wm.getMostRecentWindow("navigator:browser").shell;
+        let content = this._shell.contentBrowser.contentWindow;
+        content.addEventListener("mozFxAccountsContentEvent",
+                                 FxAccountsMgmtService);
         Services.obs.removeObserver(this, "content-start");
         break;
       case ONLOGIN_NOTIFICATION:
       case ONVERIFIED_NOTIFICATION:
       case ONLOGOUT_NOTIFICATION:
         // FxAccounts notifications have the form of fxaccounts:*
-        SystemAppProxy._sendCustomEvent("mozFxAccountsUnsolChromeEvent", {
+        this._sendChromeEvent("mozFxAccountsUnsolChromeEvent", {
           eventName: aTopic.substring(aTopic.indexOf(":") + 1)
         });
         break;

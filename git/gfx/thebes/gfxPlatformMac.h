@@ -76,6 +76,9 @@ public:
 
     virtual already_AddRefed<gfxASurface>
     GetThebesSurfaceForDrawTarget(mozilla::gfx::DrawTarget *aTarget);
+
+    virtual already_AddRefed<gfxASurface>
+    CreateThebesSurfaceAliasForDrawTarget_hack(mozilla::gfx::DrawTarget *aTarget);
 private:
     virtual void GetPlatformCMSOutputProfile(void* &mem, size_t &size);
 

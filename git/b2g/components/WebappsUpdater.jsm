@@ -16,30 +16,34 @@ XPCOMUtils.defineLazyServiceGetter(this, "settings",
                                    "@mozilla.org/settingsService;1",
                                    "nsISettingsService");
 
-XPCOMUtils.defineLazyModuleGetter(this, "SystemAppProxy",
-                                  "resource://gre/modules/SystemAppProxy.jsm");
-
 function debug(aStr) {
   //dump("--*-- WebappsUpdater: " + aStr);
 }
 
 this.WebappsUpdater = {
   _checkingApps: false,
+  _pendingEvents: [],
 
-  handleContentStart: function() {
+  handleContentStart: function(aShell) {
+    let content = aShell.contentBrowser.contentWindow;
+    this._pendingEvents.forEach(aShell.sendChromeEvent);
+
+    this._pendingEvents.length = 0;
   },
 
   sendChromeEvent: function(aType, aDetail) {
     let detail = aDetail || {};
     detail.type = aType;
 
-    let sent = SystemAppProxy.dispatchEvent(detail);
-    if (!sent) {
+    let browser = Services.wm.getMostRecentWindow("navigator:browser");
+    if (!browser) {
+      this._pendingEvents.push(detail);
       debug("Warning: Couldn't send update event " + aType +
           ": no content browser. Will send again when content becomes available.");
       return false;
     }
 
+    browser.shell.sendChromeEvent(detail);
     return true;
   },
 
