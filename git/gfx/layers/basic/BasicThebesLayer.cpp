@@ -173,16 +173,16 @@ BasicThebesLayer::Validate(LayerManager::DrawThebesLayerCallback aCallback,
   uint32_t flags = 0;
 #ifndef MOZ_WIDGET_ANDROID
   if (BasicManager()->CompositorMightResample()) {
-    flags |= RotatedContentBuffer::PAINT_WILL_RESAMPLE;
+    flags |= ThebesLayerBuffer::PAINT_WILL_RESAMPLE;
   }
-  if (!(flags & RotatedContentBuffer::PAINT_WILL_RESAMPLE)) {
+  if (!(flags & ThebesLayerBuffer::PAINT_WILL_RESAMPLE)) {
     if (MayResample()) {
-      flags |= RotatedContentBuffer::PAINT_WILL_RESAMPLE;
+      flags |= ThebesLayerBuffer::PAINT_WILL_RESAMPLE;
     }
   }
 #endif
   if (mDrawAtomically) {
-    flags |= RotatedContentBuffer::PAINT_NO_ROTATION;
+    flags |= ThebesLayerBuffer::PAINT_NO_ROTATION;
   }
   PaintState state =
     mContentClient->BeginPaintBuffer(this, contentType, flags);

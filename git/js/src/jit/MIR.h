@@ -337,7 +337,6 @@ class MDefinition : public MNode
     static void PrintOpcodeName(FILE *fp, Opcode op);
     virtual void printOpcode(FILE *fp) const;
     void dump(FILE *fp) const;
-    void dump() const;
 
     // For LICM.
     virtual bool neverHoist() const { return false; }
@@ -363,8 +362,8 @@ class MDefinition : public MNode
     // Warning: Range analysis is removing the bit-operations such as '| 0' at
     // the end of the transformations. Using this function to analyse any
     // operands after the truncate phase of the range analysis will lead to
-    // errors. Instead, one should define the collectRangeInfoPreTrunc() to set
-    // the right set of flags which are dependent on the range of the inputs.
+    // errors. Instead, one should define the collectRangeInfo() to set the
+    // right set of flags which are dependent on the range of the inputs.
     Range *range() const {
         JS_ASSERT(type() != MIRType_None);
         return range_;
@@ -392,8 +391,8 @@ class MDefinition : public MNode
     virtual void computeRange() {
     }
 
-    // Collect information from the pre-truncated ranges.
-    virtual void collectRangeInfoPreTrunc() {
+    // Collect information from the truncated ranges.
+    virtual void collectRangeInfo() {
     }
 
     MNode::Kind kind() const {
@@ -514,10 +513,6 @@ class MDefinition : public MNode
     // (only counting MDefinitions, ignoring MResumePoints)
     bool hasOneDefUse() const;
 
-    // Test whether this MDefinition has at least one use.
-    // (only counting MDefinitions, ignoring MResumePoints)
-    bool hasDefUses() const;
-
     bool hasUses() const {
         return !uses_.empty();
     }
@@ -535,6 +530,11 @@ class MDefinition : public MNode
     // returning false if the replacement should not be performed. For use when
     // GVN eliminates instructions which are not equivalent to one another.
     virtual bool updateForReplacement(MDefinition *ins) {
+        return true;
+    }
+
+    // Same thing, but for folding
+    virtual bool updateForFolding(MDefinition *ins) {
         return true;
     }
 
@@ -2283,7 +2283,7 @@ class MCompare
     }
 
     void printOpcode(FILE *fp) const;
-    void collectRangeInfoPreTrunc();
+    void collectRangeInfo();
 
     void trySpecializeFloat32(TempAllocator &alloc);
     bool isFloat32Commutative() const { return true; }
@@ -3435,7 +3435,6 @@ class MUrsh : public MShiftInstruction
     bool fallible() const;
 
     void computeRange();
-    void collectRangeInfoPreTrunc();
 };
 
 class MBinaryArithInstruction
@@ -3803,7 +3802,7 @@ class MPowHalf
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    void collectRangeInfoPreTrunc();
+    void collectRangeInfo();
 };
 
 // Inline implementation of Math.random().
@@ -4102,10 +4101,9 @@ class MDiv : public MBinaryArithInstruction
         return new(alloc) MDiv(left, right, type);
     }
     static MDiv *NewAsmJS(TempAllocator &alloc, MDefinition *left, MDefinition *right,
-                          MIRType type, bool unsignd)
+                          MIRType type)
     {
         MDiv *div = new(alloc) MDiv(left, right, type);
-        div->unsigned_ = unsignd;
         if (type == MIRType_Int32)
             div->setTruncated(true);
         return div;
@@ -4166,10 +4164,9 @@ class MMod : public MBinaryArithInstruction
         return new(alloc) MMod(left, right, MIRType_Value);
     }
     static MMod *NewAsmJS(TempAllocator &alloc, MDefinition *left, MDefinition *right,
-                          MIRType type, bool unsignd)
+                          MIRType type)
     {
         MMod *mod = new(alloc) MMod(left, right, type);
-        mod->unsigned_ = unsignd;
         if (type == MIRType_Int32)
             mod->setTruncated(true);
         return mod;
@@ -4196,7 +4193,7 @@ class MMod : public MBinaryArithInstruction
 
     void computeRange();
     bool truncate();
-    void collectRangeInfoPreTrunc();
+    void collectRangeInfo();
 };
 
 class MConcat
@@ -5427,7 +5424,7 @@ class MNot
     TypePolicy *typePolicy() {
         return this;
     }
-    void collectRangeInfoPreTrunc();
+    void collectRangeInfo();
 
     void trySpecializeFloat32(TempAllocator &alloc);
     bool isFloat32Commutative() const { return true; }
@@ -5535,7 +5532,7 @@ class MBoundsCheckLower
     bool fallible() const {
         return fallible_;
     }
-    void collectRangeInfoPreTrunc();
+    void collectRangeInfo();
 };
 
 // Load a value from a dense array's element vector and does a hole check if the
@@ -5640,7 +5637,7 @@ class MLoadElementHole
     AliasSet getAliasSet() const {
         return AliasSet::Load(AliasSet::Element);
     }
-    void collectRangeInfoPreTrunc();
+    void collectRangeInfo();
 };
 
 class MStoreElementCommon
@@ -8205,7 +8202,7 @@ class MInArray
     bool needsNegativeIntCheck() const {
         return needsNegativeIntCheck_;
     }
-    void collectRangeInfoPreTrunc();
+    void collectRangeInfo();
     AliasSet getAliasSet() const {
         return AliasSet::Load(AliasSet::Element);
     }
@@ -8329,8 +8326,7 @@ class MGetFrameArgument
 
 // This MIR instruction is used to set an argument value in the frame.
 class MSetFrameArgument
-  : public MUnaryInstruction,
-    public NoFloatPolicy<0>
+  : public MUnaryInstruction
 {
     uint32_t argno_;
 
@@ -8361,9 +8357,6 @@ class MSetFrameArgument
     }
     AliasSet getAliasSet() const {
         return AliasSet::Store(AliasSet::FrameArgument);
-    }
-    TypePolicy *typePolicy() {
-        return this;
     }
 };
 
@@ -9092,6 +9085,38 @@ class MAsmJSNeg : public MUnaryInstruction
     INSTRUCTION_HEADER(AsmJSNeg);
     static MAsmJSNeg *NewAsmJS(TempAllocator &alloc, MDefinition *op, MIRType type) {
         return new(alloc) MAsmJSNeg(op, type);
+    }
+};
+
+class MAsmJSUDiv : public MBinaryInstruction
+{
+    MAsmJSUDiv(MDefinition *left, MDefinition *right)
+      : MBinaryInstruction(left, right)
+    {
+        setResultType(MIRType_Int32);
+        setMovable();
+    }
+
+  public:
+    INSTRUCTION_HEADER(AsmJSUDiv);
+    static MAsmJSUDiv *New(TempAllocator &alloc, MDefinition *left, MDefinition *right) {
+        return new(alloc) MAsmJSUDiv(left, right);
+    }
+};
+
+class MAsmJSUMod : public MBinaryInstruction
+{
+    MAsmJSUMod(MDefinition *left, MDefinition *right)
+       : MBinaryInstruction(left, right)
+    {
+        setResultType(MIRType_Int32);
+        setMovable();
+    }
+
+  public:
+    INSTRUCTION_HEADER(AsmJSUMod);
+    static MAsmJSUMod *New(TempAllocator &alloc, MDefinition *left, MDefinition *right) {
+        return new(alloc) MAsmJSUMod(left, right);
     }
 };
 

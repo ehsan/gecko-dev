@@ -75,7 +75,7 @@ function make_CA {
 SERIALNO=1
 
 function make_cert {
-  CERT_RESPONSES="n\n\ny\n2\n7\nhttp://localhost:8080/\n\nn\nn\n"
+  CERT_RESPONSES="n\n\ny"
   NICKNAME="${1}"
   SUBJECT="${2}"
   CA="${3}"
@@ -91,7 +91,6 @@ function make_cert {
                                                      -c $CA \
                                                      -t ",," \
                                                      -m $SERIALNO \
-                                                     --extAIA \
                                                      $COMMON_ARGS
   SERIALNO=$(($SERIALNO + 1))
 }

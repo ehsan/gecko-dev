@@ -34,6 +34,12 @@
                        //we always write out to our own
                        //file.
 
+namespace {
+
+static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
+
+} // unnamed namespace
+
 namespace mozilla { namespace psm {
 
 TransportSecurityInfo::TransportSecurityInfo()
@@ -557,8 +563,6 @@ formatPlainErrorMessage(const nsXPIDLCString &host, int32_t port,
                         bool suppressPort443,
                         nsString &returnedMessage)
 {
-  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   const PRUnichar *params[1];
   nsresult rv;
 
@@ -960,8 +964,6 @@ formatOverridableCertErrorMessage(nsISSLStatus & sslStatus,
                                   bool wantsHtml,
                                   nsString & returnedMessage)
 {
-  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   const PRUnichar *params[1];
   nsresult rv;
   nsAutoString hostWithPort;

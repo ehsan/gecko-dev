@@ -731,17 +731,6 @@ CanonicalizeParticipant(void **parti, nsCycleCollectionParticipant **cp)
     }
 }
 
-struct nsPurpleBufferEntry {
-  union {
-    void *mObject;                        // when low bit unset
-    nsPurpleBufferEntry *mNextInFreeList; // when low bit set
-  };
-
-  nsCycleCollectingAutoRefCnt *mRefCnt;
-
-  nsCycleCollectionParticipant *mParticipant; // nullptr for nsISupports
-};
-
 class nsCycleCollector;
 
 struct nsPurpleBuffer
@@ -2590,20 +2579,23 @@ nsCycleCollector::ForgetJSRuntime()
 
 #ifdef DEBUG
 static bool
-HasParticipant(void *aPtr, nsCycleCollectionParticipant *aParti)
+nsCycleCollector_isScanSafe(void *s, nsCycleCollectionParticipant *cp)
 {
-    if (aParti) {
+    if (!s)
+        return false;
+
+    if (cp)
         return true;
-    }
 
     nsXPCOMCycleCollectionParticipant *xcp;
-    ToParticipant(static_cast<nsISupports*>(aPtr), &xcp);
+    ToParticipant(static_cast<nsISupports*>(s), &xcp);
+
     return xcp != nullptr;
 }
 #endif
 
 MOZ_ALWAYS_INLINE void
-nsCycleCollector::Suspect(void *aPtr, nsCycleCollectionParticipant *aParti,
+nsCycleCollector::Suspect(void *n, nsCycleCollectionParticipant *cp,
                           nsCycleCollectingAutoRefCnt *aRefCnt)
 {
     CheckThreadSafety();
@@ -2612,16 +2604,13 @@ nsCycleCollector::Suspect(void *aPtr, nsCycleCollectionParticipant *aParti,
     // we are canonicalizing nsISupports pointers using QI, so we will
     // see some spurious refcount traffic here.
 
-    if (MOZ_UNLIKELY(mScanInProgress)) {
+    if (MOZ_UNLIKELY(mScanInProgress))
         return;
-    }
 
-    MOZ_ASSERT(aPtr, "Don't suspect null pointers");
+    MOZ_ASSERT(nsCycleCollector_isScanSafe(n, cp),
+               "suspected a non-scansafe pointer");
 
-    MOZ_ASSERT(HasParticipant(aPtr, aParti),
-               "Suspected nsISupports pointer must QI to nsXPCOMCycleCollectionParticipant");
-
-    mPurpleBuf.Put(aPtr, aParti, aRefCnt);
+    mPurpleBuf.Put(n, cp, aRefCnt);
 }
 
 void

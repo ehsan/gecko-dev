@@ -98,8 +98,7 @@ function registerSelf() {
 
   if (register[0]) {
     listenerId = register[0].id;
-    importedScripts = FileUtils.getDir('TmpD', [], false);
-    importedScripts.append('marionetteContentScripts');
+    importedScripts = FileUtils.getFile('TmpD', ['marionetteContentScripts']);
     startListeners();
   }
 }

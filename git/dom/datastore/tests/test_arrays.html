@@ -84,10 +84,6 @@
     },
 
     function() {
-      SpecialPowers.pushPrefEnv({"set": [["geo.testing.ignore_ipc_principal", true]]}, runTest);
-    },
-
-    function() {
       SpecialPowers.setAllAppsLaunchable(true);
       SpecialPowers.setBoolPref("dom.mozBrowserFramesEnabled", true);
       runTest();

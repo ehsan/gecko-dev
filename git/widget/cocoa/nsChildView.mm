@@ -56,6 +56,7 @@
 #include "gfxUtils.h"
 #include "nsRegion.h"
 #include "Layers.h"
+#include "LayerManagerOGL.h"
 #include "ClientLayerManager.h"
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "GLTextureImage.h"
@@ -3519,6 +3520,17 @@ NSEvent* gLastDragMouseDownEvent = nil;
   nsIntRect geckoBounds;
   mGeckoChild->GetBounds(geckoBounds);
   nsIntRegion region(geckoBounds);
+
+  if ([self isUsingMainThreadOpenGL]) {
+    LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGeckoChild->GetLayerManager(nullptr));
+    manager->SetClippingRegion(region);
+    NSOpenGLContext *glContext = (NSOpenGLContext *)manager->GetNSOpenGLContext();
+
+    if (!mGLContext) {
+      [self setGLContext:glContext];
+      [self updateGLContext];
+    }
+  }
 
   mGeckoChild->PaintWindow(region);
 

@@ -416,7 +416,7 @@ LIRGeneratorARM::visitAsmJSNeg(MAsmJSNeg *ins)
 }
 
 bool
-LIRGeneratorARM::lowerUDiv(MDiv *div)
+LIRGeneratorARM::lowerUDiv(MInstruction *div)
 {
     MDefinition *lhs = div->getOperand(0);
     MDefinition *rhs = div->getOperand(1);
@@ -425,20 +425,22 @@ LIRGeneratorARM::lowerUDiv(MDiv *div)
         LUDiv *lir = new LUDiv;
         lir->setOperand(0, useRegister(lhs));
         lir->setOperand(1, useRegister(rhs));
-        if (div->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
-            return false;
         return define(lir, div);
     } else {
         LSoftUDivOrMod *lir = new LSoftUDivOrMod(useFixedAtStart(lhs, r0), useFixedAtStart(rhs, r1),
                                                  tempFixed(r1), tempFixed(r2), tempFixed(r3));
-        if (div->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
-            return false;
         return defineFixed(lir, div, LAllocation(AnyRegister(r0)));
     }
 }
 
 bool
-LIRGeneratorARM::lowerUMod(MMod *mod)
+LIRGeneratorARM::visitAsmJSUDiv(MAsmJSUDiv *div)
+{
+    return lowerUDiv(div);
+}
+
+bool
+LIRGeneratorARM::lowerUMod(MInstruction *mod)
 {
     MDefinition *lhs = mod->getOperand(0);
     MDefinition *rhs = mod->getOperand(1);
@@ -447,16 +449,18 @@ LIRGeneratorARM::lowerUMod(MMod *mod)
         LUMod *lir = new LUMod;
         lir->setOperand(0, useRegister(lhs));
         lir->setOperand(1, useRegister(rhs));
-        if (mod->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
-            return false;
         return define(lir, mod);
     } else {
         LSoftUDivOrMod *lir = new LSoftUDivOrMod(useFixedAtStart(lhs, r0), useFixedAtStart(rhs, r1),
                                                  tempFixed(r0), tempFixed(r2), tempFixed(r3));
-        if (mod->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
-            return false;
         return defineFixed(lir, mod, LAllocation(AnyRegister(r1)));
     }
+}
+
+bool
+LIRGeneratorARM::visitAsmJSUMod(MAsmJSUMod *mod)
+{
+    return lowerUMod(mod);
 }
 
 bool

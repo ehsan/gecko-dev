@@ -17,8 +17,6 @@
 #include "TabChild.h"
 
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/asmjscache/AsmJSCache.h"
-#include "mozilla/dom/asmjscache/PAsmJSCacheEntryChild.h"
 #include "mozilla/dom/ExternalHelperAppChild.h"
 #include "mozilla/dom/PCrashReporterChild.h"
 #include "mozilla/dom/DOMStorageIPC.h"
@@ -83,7 +81,6 @@
 #if defined(MOZ_WIDGET_GONK)
 #include "nsVolume.h"
 #include "nsVolumeService.h"
-#include "SpeakerManagerService.h"
 #endif
 
 #ifdef XP_WIN
@@ -589,20 +586,6 @@ ContentChild::RecvSetProcessPrivileges(const ChildPrivileges& aPrivs)
   return true;
 }
 
-bool
-ContentChild::RecvSpeakerManagerNotify()
-{
-#ifdef MOZ_WIDGET_GONK
-  nsRefPtr<SpeakerManagerService> service =
-    SpeakerManagerService::GetSpeakerManagerService();
-  if (service) {
-    service->Notify();
-  }
-  return true;
-#endif
-  return false;
-}
-
 static CancelableTask* sFirstIdleTask;
 
 static void FirstIdle(void)
@@ -866,22 +849,6 @@ bool
 ContentChild::DeallocPIndexedDBChild(PIndexedDBChild* aActor)
 {
   delete aActor;
-  return true;
-}
-
-asmjscache::PAsmJSCacheEntryChild*
-ContentChild::AllocPAsmJSCacheEntryChild(const asmjscache::OpenMode& aOpenMode,
-                                         const int64_t& aSizeToWrite,
-                                         const IPC::Principal& aPrincipal)
-{
-  NS_NOTREACHED("Should never get here!");
-  return nullptr;
-}
-
-bool
-ContentChild::DeallocPAsmJSCacheEntryChild(PAsmJSCacheEntryChild* aActor)
-{
-  asmjscache::DeallocEntryChild(aActor);
   return true;
 }
 
