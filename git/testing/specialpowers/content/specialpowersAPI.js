@@ -561,7 +561,7 @@ SpecialPowersAPI.prototype = {
      [{'type': 'SystemXHR', 'allow': 1, 'context': document}, 
       {'type': 'SystemXHR', 'allow': Ci.nsIPermissionManager.PROMPT_ACTION, 'context': document}]
 
-     Allow can be a boolean value of true/false or ALLOW_ACTION/DENY_ACTION/PROMPT_ACTION/UNKNOWN_ACTION
+    allow is a boolean and can be true/false or 1/0
   */
   pushPermissions: function(inPermissions, callback) {
     var pendingPermissions = [];
@@ -591,12 +591,7 @@ SpecialPowersAPI.prototype = {
         if (originalValue == perm) {
           continue;
         }
-
-        var todo = {'op': 'add', 'type': permission.type, 'permission': perm, 'value': perm, 'url': url, 'appId': appId, 'isInBrowserElement': isInBrowserElement};
-        if (permission.remove == true)
-          todo.op = 'remove';
-
-        pendingPermissions.push(todo);
+        pendingPermissions.push({'op': 'add', 'type': permission.type, 'permission': perm, 'value': perm, 'url': url, 'appId': appId, 'isInBrowserElement': isInBrowserElement});
 
         /* Push original permissions value or clear into cleanup array */
         var cleanupTodo = {'op': 'add', 'type': permission.type, 'permission': perm, 'value': perm, 'url': url, 'appId': appId, 'isInBrowserElement': isInBrowserElement};

@@ -401,8 +401,8 @@ APZCTreeManager::ContentReceivedTouch(const ScrollableLayerGuid& aGuid,
 void
 APZCTreeManager::UpdateZoomConstraints(const ScrollableLayerGuid& aGuid,
                                        bool aAllowZoom,
-                                       const CSSToScreenScale& aMinScale,
-                                       const CSSToScreenScale& aMaxScale)
+                                       float aMinScale,
+                                       float aMaxScale)
 {
   nsRefPtr<AsyncPanZoomController> apzc = GetTargetAPZC(aGuid);
   if (apzc) {

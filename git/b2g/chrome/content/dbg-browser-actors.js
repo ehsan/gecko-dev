@@ -23,11 +23,11 @@
 function createRootActor(connection)
 {
   let parameters = {
-    tabList: {
-      getList: function() {
-        return promise.resolve([]);
-      }
-    },
+#ifndef MOZ_WIDGET_GONK
+    tabList: new ContentTabList(connection),
+#else
+    tabList: [],
+#endif
     globalActorFactories: DebuggerServer.globalActorFactories,
     onShutdown: sendShutdownEvent
   };

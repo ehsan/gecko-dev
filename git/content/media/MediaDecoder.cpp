@@ -139,14 +139,12 @@ void MediaDecoder::SetDormantIfNecessary(bool aDormant)
       mNextState = PLAY_STATE_PAUSED;
     }
     mNextState = mPlayState;
-    mIsDormant = true;
-    mIsExitingDormant = false;
+    mIsDormant = aDormant;
     ChangeState(PLAY_STATE_LOADING);
   } else if ((aDormant != true) && (mPlayState == PLAY_STATE_LOADING)) {
     // exit dormant state
-    // trigger to state machine.
+    // just trigger to state machine.
     mDecoderStateMachine->SetDormant(false);
-    mIsExitingDormant = true;
   }
 }
 
@@ -373,7 +371,6 @@ MediaDecoder::MediaDecoder() :
   mSameOriginMedia(false),
   mReentrantMonitor("media.decoder"),
   mIsDormant(false),
-  mIsExitingDormant(false),
   mPlayState(PLAY_STATE_PAUSED),
   mNextState(PLAY_STATE_PAUSED),
   mCalledResourceLoaded(false),
@@ -727,11 +724,8 @@ void MediaDecoder::MetadataLoaded(int aChannels, int aRate, bool aHasAudio, bool
 
   {
     ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-    if (mPlayState == PLAY_STATE_LOADING && mIsDormant && !mIsExitingDormant) {
-      return;
-    } else if (mPlayState == PLAY_STATE_LOADING && mIsDormant && mIsExitingDormant) {
+    if (mPlayState == PLAY_STATE_LOADING && mIsDormant) {
       mIsDormant = false;
-      mIsExitingDormant = false;
     }
     mDuration = mDecoderStateMachine ? mDecoderStateMachine->GetDuration() : -1;
     // Duration has changed so we should recompute playback rate
@@ -1193,7 +1187,6 @@ void MediaDecoder::ChangeState(PlayState aState)
 
   if (aState!= PLAY_STATE_LOADING) {
     mIsDormant = false;
-    mIsExitingDormant = false;
   }
 
   GetReentrantMonitor().NotifyAll();
