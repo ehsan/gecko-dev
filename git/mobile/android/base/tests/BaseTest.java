@@ -859,14 +859,14 @@ abstract class BaseTest extends BaseRobocopTest {
             Actions.EventExpecter pageShowExpecter = mActions.expectGeckoEvent("Content:PageShow");
 
             if (devType.equals("tablet")) {
-                mSolo.waitForView(R.id.forward);
-                mSolo.clickOnView(mSolo.getView(R.id.forward));
+                Element fwdBtn = mDriver.findElement(getActivity(), R.id.forward);
+                fwdBtn.click();
             } else {
                 mActions.sendSpecialKey(Actions.SpecialKey.MENU);
                 waitForText("^New Tab$");
                 if (!osVersion.equals("2.x")) {
-                    mSolo.waitForView(R.id.forward);
-                    mSolo.clickOnView(mSolo.getView(R.id.forward));
+                    Element fwdBtn = mDriver.findElement(getActivity(), R.id.forward);
+                    fwdBtn.click();
                 } else {
                     mSolo.clickOnText("^Forward$");
                 }
@@ -879,14 +879,14 @@ abstract class BaseTest extends BaseRobocopTest {
 
         public void reload() {
             if (devType.equals("tablet")) {
-                mSolo.waitForView(R.id.reload);
-                mSolo.clickOnView(mSolo.getView(R.id.reload));
+                Element reloadBtn = mDriver.findElement(getActivity(), R.id.reload);
+                reloadBtn.click();
             } else {
                 mActions.sendSpecialKey(Actions.SpecialKey.MENU);
                 waitForText("^New Tab$");
                 if (!osVersion.equals("2.x")) {
-                    mSolo.waitForView(R.id.reload);
-                    mSolo.clickOnView(mSolo.getView(R.id.reload));
+                    Element reloadBtn = mDriver.findElement(getActivity(), R.id.reload);
+                    reloadBtn.click();
                 } else {
                     mSolo.clickOnText("^Reload$");
                 }

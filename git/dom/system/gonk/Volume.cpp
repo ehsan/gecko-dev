@@ -337,13 +337,11 @@ Volume::SetState(Volume::STATE aNewState)
        break;
 
      case nsIVolume::STATE_MOUNTED:
-     case nsIVolume::STATE_MOUNT_FAIL:
        mMountRequested = false;
        mIsFormatting = false;
        mIsSharing = false;
        mIsUnmounting = false;
        break;
-
      case nsIVolume::STATE_FORMATTING:
        mFormatRequested = false;
        mIsFormatting = true;
@@ -543,12 +541,7 @@ Volume::HandleVoldResponse(int aResponseCode, nsCWhitespaceTokenizer& aTokenizer
             // then the AutoMounter will set the volume as STATE_MOUNTED.
             SetState(nsIVolume::STATE_CHECKMNT);
           } else {
-            if (State() == nsIVolume::STATE_CHECKING && newState == nsIVolume::STATE_IDLE) {
-              LOG("Mount of volume '%s' failed", NameStr());
-              SetState(nsIVolume::STATE_MOUNT_FAIL);
-            } else {
-              SetState(newState);
-            }
+            SetState(newState);
           }
           break;
         }

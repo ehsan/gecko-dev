@@ -43,7 +43,10 @@ function* playerHasAnInitialState(walker, front) {
 function* playerStateIsCorrect(walker, front) {
   info("Checking the state of the simple animation");
 
-  let state = yield getAnimationStateForNode(walker, front, ".simple-animation", 0);
+  let node = yield walker.querySelector(walker.rootNode, ".simple-animation");
+  let [player] = yield front.getAnimationPlayersForNode(node);
+  let state = player.initialState;
+
   is(state.name, "move", "Name is correct");
   is(state.duration, 2000, "Duration is correct");
   // null = infinite count
@@ -52,7 +55,10 @@ function* playerStateIsCorrect(walker, front) {
 
   info("Checking the state of the transition");
 
-  state = yield getAnimationStateForNode(walker, front, ".transition", 0);
+  node = yield walker.querySelector(walker.rootNode, ".transition");
+  [player] = yield front.getAnimationPlayersForNode(node);
+  state = player.initialState;
+
   is(state.name, "", "Transition has no name");
   is(state.duration, 5000, "Transition duration is correct");
   // transitions run only once
@@ -61,19 +67,13 @@ function* playerStateIsCorrect(walker, front) {
 
   info("Checking the state of one of multiple animations on a node");
 
+  node = yield walker.querySelector(walker.rootNode, ".multiple-animations");
   // Checking the 2nd player
-  state = yield getAnimationStateForNode(walker, front, ".multiple-animations", 1);
+  [, player] = yield front.getAnimationPlayersForNode(node);
+  state = player.initialState;
+
   is(state.name, "glow", "The 2nd animation's name is correct");
   is(state.duration, 1000, "The 2nd animation's duration is correct");
   is(state.iterationCount, 5, "The 2nd animation's iteration count is correct");
   is(state.playState, "running", "The 2nd animation's playState is correct");
-}
-
-function* getAnimationStateForNode(walker, front, nodeSelector, playerIndex) {
-  let node = yield walker.querySelector(walker.rootNode, nodeSelector);
-  let players = yield front.getAnimationPlayersForNode(node);
-  let player = players[playerIndex];
-  yield player.ready();
-  let state = yield player.getCurrentState();
-  return state;
 }

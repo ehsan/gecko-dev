@@ -4,7 +4,7 @@
 
 "use strict";
 
-const {Cc, Ci, Cu} = require("chrome");
+const {Cc, Ci, Cu, Cr} = require("chrome");
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -57,13 +57,47 @@ function NetworkResponseListener(aOwner, aHttpActivity)
   this.receivedData = "";
   this.httpActivity = aHttpActivity;
   this.bodySize = 0;
+  let channel = this.httpActivity.channel;
+  this._wrappedNotificationCallbacks = channel.notificationCallbacks;
+  channel.notificationCallbacks = this;
 }
 exports.NetworkResponseListener = NetworkResponseListener;
 
 NetworkResponseListener.prototype = {
   QueryInterface:
     XPCOMUtils.generateQI([Ci.nsIStreamListener, Ci.nsIInputStreamCallback,
-                           Ci.nsIRequestObserver, Ci.nsISupports]),
+                           Ci.nsIRequestObserver, Ci.nsIInterfaceRequestor,
+                           Ci.nsISupports]),
+
+  // nsIInterfaceRequestor implementation
+
+  /**
+   * This object implements nsIProgressEventSink, but also needs to forward
+   * interface requests to the notification callbacks of other objects.
+   */
+  getInterface(iid) {
+    if (iid.equals(Ci.nsIProgressEventSink)) {
+      return this;
+    }
+    if (this._wrappedNotificationCallbacks) {
+      return this._wrappedNotificationCallbacks.getInterface(iid);
+    }
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  },
+
+  /**
+   * Forward notifications for interfaces this object implements, in case other
+   * objects also implemented them.
+   */
+  _forwardNotification(iid, method, args) {
+    if (!this._wrappedNotificationCallbacks) {
+      return;
+    }
+    try {
+      let impl = this._wrappedNotificationCallbacks.getInterface(iid);
+      impl[method].apply(impl, args);
+    } catch(e if e.result == Cr.NS_ERROR_NO_INTERFACE) {}
+  },
 
   /**
    * This NetworkResponseListener tracks the NetworkMonitor.openResponses object
@@ -71,6 +105,12 @@ NetworkResponseListener.prototype = {
    * @private
    */
   _foundOpenResponse: false,
+
+  /**
+   * If the channel already had notificationCallbacks, hold them here internally
+   * so that we can forward getInterface requests to that object.
+   */
+  _wrappedNotificationCallbacks: null,
 
   /**
    * The response listener owner.
@@ -94,9 +134,14 @@ NetworkResponseListener.prototype = {
   receivedData: null,
 
   /**
-   * The network response body size.
+   * The uncompressed, decoded response body size.
    */
   bodySize: null,
+
+  /**
+   * Response body size on the wire, potentially compressed / encoded.
+   */
+  transferredSize: null,
 
   /**
    * The nsIRequest we are started for.
@@ -160,25 +205,10 @@ NetworkResponseListener.prototype = {
   onStartRequest: function NRL_onStartRequest(aRequest)
   {
     this.request = aRequest;
-    this._getSecurityInfo();
     this._findOpenResponse();
     // Asynchronously wait for the data coming from the request.
     this.setAsyncListener(this.sink.inputStream, this);
   },
-
-  /**
-   * Parse security state of this request and report it to the client.
-   */
-  _getSecurityInfo: DevToolsUtils.makeInfallible(function NRL_getSecurityInfo() {
-    // Take the security information from the original nsIHTTPChannel instead of
-    // the nsIRequest received in onStartRequest. If response to this request
-    // was a redirect from http to https, the request object seems to contain
-    // security info for the https request after redirect.
-    let secinfo = this.httpActivity.channel.securityInfo;
-    let info = NetworkHelper.parseSecurityInfo(secinfo, this.request);
-
-    this.httpActivity.owner.addSecurityInfo(info);
-  }),
 
   /**
    * Handle the onStopRequest by closing the sink output stream.
@@ -190,6 +220,23 @@ NetworkResponseListener.prototype = {
   {
     this._findOpenResponse();
     this.sink.outputStream.close();
+  },
+
+  // nsIProgressEventSink implementation
+
+  /**
+   * Handle progress event as data is transferred.  This is used to record the
+   * size on the wire, which may be compressed / encoded.
+   */
+  onProgress: function(request, context, progress, progressMax) {
+    this.transferredSize = progress;
+    // Need to forward as well to keep things like Download Manager's progress
+    // bar working properly.
+    this._forwardNotification(Ci.nsIProgressEventSink, 'onProgress', arguments);
+  },
+
+  onStatus: function () {
+    this._forwardNotification(Ci.nsIProgressEventSink, 'onStatus', arguments);
   },
 
   /**
@@ -274,6 +321,7 @@ NetworkResponseListener.prototype = {
     };
 
     response.size = response.text.length;
+    response.transferredSize = this.transferredSize;
 
     try {
       response.mimeType = this.request.contentType;
@@ -294,6 +342,7 @@ NetworkResponseListener.prototype = {
     this.httpActivity.owner.
       addResponseContent(response, this.httpActivity.discardResponseBody);
 
+    this._wrappedNotificationCallbacks = null;
     this.httpActivity.channel = null;
     this.httpActivity.owner = null;
     this.httpActivity = null;
@@ -1175,8 +1224,8 @@ NetworkEventActorProxy.prototype = {
 (function() {
   // Listeners for new network event data coming from the NetworkMonitor.
   let methods = ["addRequestHeaders", "addRequestCookies", "addRequestPostData",
-                 "addResponseStart", "addSecurityInfo", "addResponseHeaders",
-                 "addResponseCookies", "addResponseContent", "addEventTimings"];
+                 "addResponseStart", "addResponseHeaders", "addResponseCookies",
+                 "addResponseContent", "addEventTimings"];
   let factory = NetworkEventActorProxy.methodFactory;
   for (let method of methods) {
     NetworkEventActorProxy.prototype[method] = factory(method);
