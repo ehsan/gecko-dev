@@ -47,7 +47,6 @@ public:
   virtual bool IsMarkable() MOZ_OVERRIDE;
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks) MOZ_OVERRIDE;
   virtual void ConstructPath(gfxContext *aCtx) MOZ_OVERRIDE;
-  virtual TemporaryRef<Path> BuildPath() MOZ_OVERRIDE;
 
   virtual already_AddRefed<gfxPath> GetPath(const gfxMatrix &aMatrix) MOZ_OVERRIDE;
 

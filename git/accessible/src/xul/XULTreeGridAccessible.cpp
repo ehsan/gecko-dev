@@ -61,14 +61,21 @@ XULTreeGridAccessible::SelectedColCount()
   // If all the row has been selected, then all the columns are selected,
   // because we can't select a column alone.
 
-  uint32_t selectedRowCount = SelectedItemCount();
+  int32_t selectedRowCount = 0;
+  nsresult rv = GetSelectionCount(&selectedRowCount);
+  NS_ENSURE_SUCCESS(rv, 0);
+
   return selectedRowCount > 0 && selectedRowCount == RowCount() ? ColCount() : 0;
 }
 
 uint32_t
 XULTreeGridAccessible::SelectedRowCount()
 {
-  return SelectedItemCount();
+  int32_t selectedRowCount = 0;
+  nsresult rv = GetSelectionCount(&selectedRowCount);
+  NS_ENSURE_SUCCESS(rv, 0);
+
+  return selectedRowCount >= 0 ? selectedRowCount : 0;
 }
 
 void
@@ -157,7 +164,12 @@ XULTreeGridAccessible::IsColSelected(uint32_t aColIdx)
 {
   // If all the row has been selected, then all the columns are selected.
   // Because we can't select a column alone.
-  return SelectedItemCount() == RowCount();
+
+  int32_t selectedrowCount = 0;
+  nsresult rv = GetSelectionCount(&selectedrowCount);
+  NS_ENSURE_SUCCESS(rv, false);
+
+  return selectedrowCount == RowCount();
 }
 
 bool

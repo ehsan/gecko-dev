@@ -41,7 +41,7 @@ public:
   void GetSupportedNames(nsTArray< nsString >& retval);
 
 protected:
-  void EnsurePluginMimeTypes();
+  void EnsureMimeTypes();
   void Clear();
 
   nsCOMPtr<nsPIDOMWindow> mWindow;

@@ -6,8 +6,12 @@
 include protocol PPluginInstance;
 include protocol PPluginIdentifier;
 
-using struct mozilla::void_t from "ipc/IPCMessageUtils.h";
-using struct mozilla::null_t from "ipc/IPCMessageUtils.h";
+include "npapi.h";
+include "npruntime.h";
+include "mozilla/plugins/PluginMessageUtils.h";
+
+using mozilla::void_t;
+using mozilla::null_t;
 
 namespace mozilla {
 namespace plugins {

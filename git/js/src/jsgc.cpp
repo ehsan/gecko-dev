@@ -1104,11 +1104,11 @@ js_AddObjectRoot(JSRuntime *rt, JSObject **objp)
 extern JS_FRIEND_API(void)
 js_RemoveObjectRoot(JSRuntime *rt, JSObject **objp)
 {
-    RemoveRoot(rt, objp);
+    js_RemoveRoot(rt, objp);
 }
 
-void
-js::RemoveRoot(JSRuntime *rt, void *rp)
+JS_FRIEND_API(void)
+js_RemoveRoot(JSRuntime *rt, void *rp)
 {
     rt->gcRootsHash.remove(rp);
     rt->gcPoke = true;

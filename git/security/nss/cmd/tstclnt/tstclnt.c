@@ -528,14 +528,12 @@ ownAuthCertificate(void *arg, PRFileDesc *fd, PRBool checkSig,
         csa = SSL_PeerStapledOCSPResponses(fd);
         if (csa) {
             for (i = 0; i < csa->len; ++i) {
-		SECStatus test_rv =
-		    CERT_CacheOCSPResponseFromSideChannel(
-			serverCertAuth->dbHandle, cert, PR_Now(),
-			&csa->items[i], arg);
-		if (test_rv != SECSuccess) {
-		    PRErrorCode error = PR_GetError();
-		    PORT_Assert(error != 0);
-		}
+                CERT_CacheOCSPResponseFromSideChannel(
+                    serverCertAuth->dbHandle,
+                    cert,
+                    PR_Now(),
+                    &csa->items[i],
+                    arg);
             }
         }
     
@@ -753,7 +751,7 @@ restartHandshakeAfterServerCertIfNeeded(PRFileDesc * fd,
                                         PRBool override)
 {
     SECStatus rv;
-    PRErrorCode error;
+    PRErrorCode status;
     
     if (!serverCertAuth->isPaused)
 	return SECSuccess;
@@ -764,20 +762,20 @@ restartHandshakeAfterServerCertIfNeeded(PRFileDesc * fd,
     serverCertAuth->isPaused = PR_FALSE;
     rv = SSL_AuthCertificate(serverCertAuth->dbHandle, fd, PR_TRUE, PR_FALSE);
     if (rv != SECSuccess) {
-        error = PR_GetError();
-        if (error == 0) {
+        status = PR_GetError();
+        if (status == 0) {
             PR_NOT_REACHED("SSL_AuthCertificate return SECFailure without "
                            "setting error code.");
-            error = PR_INVALID_STATE_ERROR;
+            status = PR_INVALID_STATE_ERROR;
         } else if (override) {
             rv = ownBadCertHandler(NULL, fd);
         }
     }
     if (rv == SECSuccess) {
-        error = 0;
+        status = 0;
     }
 
-    if (SSL_AuthCertificateComplete(fd, error) != SECSuccess) {
+    if (SSL_AuthCertificateComplete(fd, status) != SECSuccess) {
         rv = SECFailure;
     }
 

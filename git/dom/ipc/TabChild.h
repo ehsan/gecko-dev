@@ -35,7 +35,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/TabContext.h"
 #include "mozilla/EventForwards.h"
-#include "mozilla/layers/CompositorTypes.h"
 
 struct gfxMatrix;
 class nsICachedFileDescriptorListener;
@@ -44,6 +43,10 @@ class nsIDOMWindowUtils;
 namespace mozilla {
 namespace layout {
 class RenderFrameChild;
+}
+
+namespace layers {
+struct TextureFactoryIdentifier;
 }
 
 namespace dom {

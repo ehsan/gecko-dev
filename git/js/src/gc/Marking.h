@@ -81,15 +81,15 @@ namespace gc {
  *     GC things.  It indicates whether the object is currently marked.
  */
 #define DeclMarker(base, type)                                                                    \
-void Mark##base(JSTracer *trc, BarrieredPtr<type> *thing, const char *name);                   \
+void Mark##base(JSTracer *trc, EncapsulatedPtr<type> *thing, const char *name);                   \
 void Mark##base##Root(JSTracer *trc, type **thingp, const char *name);                            \
 void Mark##base##Unbarriered(JSTracer *trc, type **thingp, const char *name);                     \
 void Mark##base##Range(JSTracer *trc, size_t len, HeapPtr<type> *thing, const char *name);        \
 void Mark##base##RootRange(JSTracer *trc, size_t len, type **thing, const char *name);            \
 bool Is##base##Marked(type **thingp);                                                             \
-bool Is##base##Marked(BarrieredPtr<type> *thingp);                                             \
+bool Is##base##Marked(EncapsulatedPtr<type> *thingp);                                             \
 bool Is##base##AboutToBeFinalized(type **thingp);                                                 \
-bool Is##base##AboutToBeFinalized(BarrieredPtr<type> *thingp);                                 \
+bool Is##base##AboutToBeFinalized(EncapsulatedPtr<type> *thingp);
 
 DeclMarker(BaseShape, BaseShape)
 DeclMarker(BaseShape, UnownedBaseShape)
@@ -142,7 +142,7 @@ MarkGCThingUnbarriered(JSTracer *trc, void **thingp, const char *name);
 /*** ID Marking ***/
 
 void
-MarkId(JSTracer *trc, BarrieredId *id, const char *name);
+MarkId(JSTracer *trc, EncapsulatedId *id, const char *name);
 
 void
 MarkIdRoot(JSTracer *trc, jsid *id, const char *name);
@@ -159,10 +159,10 @@ MarkIdRootRange(JSTracer *trc, size_t len, jsid *vec, const char *name);
 /*** Value Marking ***/
 
 void
-MarkValue(JSTracer *trc, BarrieredValue *v, const char *name);
+MarkValue(JSTracer *trc, EncapsulatedValue *v, const char *name);
 
 void
-MarkValueRange(JSTracer *trc, size_t len, BarrieredValue *vec, const char *name);
+MarkValueRange(JSTracer *trc, size_t len, EncapsulatedValue *vec, const char *name);
 
 inline void
 MarkValueRange(JSTracer *trc, HeapValue *begin, HeapValue *end, const char *name)
@@ -259,19 +259,19 @@ PushArena(GCMarker *gcmarker, ArenaHeader *aheader);
  */
 
 inline void
-Mark(JSTracer *trc, BarrieredValue *v, const char *name)
+Mark(JSTracer *trc, EncapsulatedValue *v, const char *name)
 {
     MarkValue(trc, v, name);
 }
 
 inline void
-Mark(JSTracer *trc, BarrieredPtrObject *o, const char *name)
+Mark(JSTracer *trc, EncapsulatedPtrObject *o, const char *name)
 {
     MarkObject(trc, o, name);
 }
 
 inline void
-Mark(JSTracer *trc, BarrieredPtrScript *o, const char *name)
+Mark(JSTracer *trc, EncapsulatedPtrScript *o, const char *name)
 {
     MarkScript(trc, o, name);
 }
@@ -303,7 +303,7 @@ bool
 IsCellAboutToBeFinalized(Cell **thing);
 
 inline bool
-IsMarked(BarrieredValue *v)
+IsMarked(EncapsulatedValue *v)
 {
     if (!v->isMarkable())
         return true;
@@ -311,19 +311,19 @@ IsMarked(BarrieredValue *v)
 }
 
 inline bool
-IsMarked(BarrieredPtrObject *objp)
+IsMarked(EncapsulatedPtrObject *objp)
 {
     return IsObjectMarked(objp);
 }
 
 inline bool
-IsMarked(BarrieredPtrScript *scriptp)
+IsMarked(EncapsulatedPtrScript *scriptp)
 {
     return IsScriptMarked(scriptp);
 }
 
 inline bool
-IsAboutToBeFinalized(BarrieredValue *v)
+IsAboutToBeFinalized(EncapsulatedValue *v)
 {
     if (!v->isMarkable())
         return false;
@@ -331,13 +331,13 @@ IsAboutToBeFinalized(BarrieredValue *v)
 }
 
 inline bool
-IsAboutToBeFinalized(BarrieredPtrObject *objp)
+IsAboutToBeFinalized(EncapsulatedPtrObject *objp)
 {
     return IsObjectAboutToBeFinalized(objp);
 }
 
 inline bool
-IsAboutToBeFinalized(BarrieredPtrScript *scriptp)
+IsAboutToBeFinalized(EncapsulatedPtrScript *scriptp)
 {
     return IsScriptAboutToBeFinalized(scriptp);
 }

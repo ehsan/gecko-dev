@@ -10,7 +10,6 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsNetUtil.h"
-#include "SerializedLoadContext.h"
 
 using namespace mozilla::ipc;
 

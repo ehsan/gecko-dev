@@ -853,8 +853,7 @@ TypeCompartment::compartment()
 }
 
 inline void
-TypeCompartment::addPending(JSContext *cx, TypeConstraint *constraint,
-                            ConstraintTypeSet *source, Type type)
+TypeCompartment::addPending(JSContext *cx, TypeConstraint *constraint, TypeSet *source, Type type)
 {
     JS_ASSERT(this == &cx->compartment()->types);
     JS_ASSERT(!cx->runtime()->isHeapBusy());
@@ -1199,12 +1198,15 @@ TypeSet::addType(Type type, LifoAlloc *alloc, bool *padded)
 }
 
 inline void
-ConstraintTypeSet::addType(ExclusiveContext *cxArg, Type type)
+TypeSet::addType(ExclusiveContext *cxArg, Type type)
 {
     JS_ASSERT(cxArg->compartment()->activeAnalysis);
 
+    // Temporary type sets use a separate LifoAlloc for storage.
+    JS_ASSERT(isStackSet() || isHeapSet());
+
     bool added = false;
-    if (!TypeSet::addType(type, &cxArg->typeLifoAlloc(), &added)) {
+    if (!addType(type, &cxArg->typeLifoAlloc(), &added)) {
         cxArg->compartment()->types.setPendingNukeTypes(cxArg);
         return;
     }
@@ -1229,7 +1231,7 @@ ConstraintTypeSet::addType(ExclusiveContext *cxArg, Type type)
 }
 
 inline void
-HeapTypeSet::setConfiguredProperty(ExclusiveContext *cxArg)
+TypeSet::setConfiguredProperty(ExclusiveContext *cxArg)
 {
     if (flags & TYPE_FLAG_CONFIGURED_PROPERTY)
         return;

@@ -12,7 +12,6 @@
 #include "nsSerializationHelper.h"
 #include "mozilla/ipc/URIUtils.h"
 #include "mozilla/net/NeckoParent.h"
-#include "SerializedLoadContext.h"
 
 using namespace mozilla::ipc;
 

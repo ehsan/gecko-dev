@@ -57,7 +57,6 @@ using namespace js::gc;
 using namespace js::types;
 
 using mozilla::DebugOnly;
-using mozilla::DoubleEqualsInt32;
 using mozilla::PodCopy;
 
 /*
@@ -465,7 +464,7 @@ js::Invoke(JSContext *cx, CallArgs args, MaybeConstruct construct)
     if (!fun->getOrCreateScript(cx))
         return false;
 
-    /* Run function until JSOP_RETRVAL, JSOP_RETURN or error. */
+    /* Run function until JSOP_STOP, JSOP_RETURN or error. */
     InvokeState state(cx, args, initial);
 
     // Check to see if useNewType flag should be set for this frame.
@@ -1368,7 +1367,7 @@ Interpret(JSContext *cx, RunState &state)
     } else {
         probes::EnterScript(cx, script, script->function(), activation.entryFrame());
     }
-    if (JS_UNLIKELY(cx->compartment()->debugMode())) {
+    if (cx->compartment()->debugMode()) {
         JSTrapStatus status = ScriptDebugPrologue(cx, activation.entryFrame());
         switch (status) {
           case JSTRAP_CONTINUE:
@@ -1469,7 +1468,6 @@ CASE(EnableInterruptsPseudoOpcode)
 
 /* Various 1-byte no-ops. */
 CASE(JSOP_NOP)
-CASE(JSOP_UNUSED2)
 CASE(JSOP_UNUSED44)
 CASE(JSOP_UNUSED45)
 CASE(JSOP_UNUSED46)
@@ -1526,7 +1524,6 @@ CASE(JSOP_UNUSED189)
 CASE(JSOP_UNUSED190)
 CASE(JSOP_UNUSED191)
 CASE(JSOP_UNUSED192)
-CASE(JSOP_UNUSED194)
 CASE(JSOP_UNUSED196)
 CASE(JSOP_UNUSED200)
 CASE(JSOP_UNUSED201)
@@ -1602,8 +1599,9 @@ CASE(JSOP_POPN)
 END_CASE(JSOP_POPN)
 
 CASE(JSOP_SETRVAL)
+CASE(JSOP_POPV)
     POP_RETURN_VALUE();
-END_CASE(JSOP_SETRVAL)
+END_CASE(JSOP_POPV)
 
 CASE(JSOP_ENTERWITH)
 {
@@ -1636,7 +1634,8 @@ CASE(JSOP_RETURN)
     POP_RETURN_VALUE();
     /* FALL THROUGH */
 
-CASE(JSOP_RETRVAL)
+CASE(JSOP_RETRVAL)    /* fp return value already set */
+CASE(JSOP_STOP)
 {
     /*
      * When the inlined frame exits with an exception or an error, ok will be
@@ -1652,7 +1651,7 @@ CASE(JSOP_RETRVAL)
         TraceLogging::defaultLogger()->log(TraceLogging::SCRIPT_STOP);
 #endif
 
-        if (JS_UNLIKELY(cx->compartment()->debugMode()))
+        if (cx->compartment()->debugMode())
             interpReturnOK = ScriptDebugEpilogue(cx, REGS.fp(), interpReturnOK);
 
         if (!REGS.fp()->isYielding())
@@ -2561,7 +2560,7 @@ CASE(JSOP_FUNCALL)
 
     if (!REGS.fp()->prologue(cx))
         goto error;
-    if (JS_UNLIKELY(cx->compartment()->debugMode())) {
+    if (cx->compartment()->debugMode()) {
         switch (ScriptDebugPrologue(cx, REGS.fp())) {
           case JSTRAP_CONTINUE:
             break;
@@ -2576,7 +2575,7 @@ CASE(JSOP_FUNCALL)
         }
     }
 
-    /* Load first op and dispatch it (safe since JSOP_RETRVAL). */
+    /* Load first op and dispatch it (safe since JSOP_STOP). */
     ADVANCE_AND_DISPATCH(0);
 }
 
@@ -2718,8 +2717,9 @@ CASE(JSOP_TABLESWITCH)
     if (rref.isInt32()) {
         i = rref.toInt32();
     } else {
-        /* Use mozilla::DoubleEqualsInt32 to treat -0 (double) as 0. */
-        if (!rref.isDouble() || !DoubleEqualsInt32(rref.toDouble(), &i))
+        double d;
+        /* Don't use mozilla::DoubleIsInt32; treat -0 (double) as 0. */
+        if (!rref.isDouble() || (d = rref.toDouble()) != (i = int32_t(rref.toDouble())))
             ADVANCE_AND_DISPATCH(len);
     }
 
@@ -3324,7 +3324,7 @@ DEFAULT()
 
     if (cx->isExceptionPending()) {
         /* Call debugger throw hooks. */
-        if (JS_UNLIKELY(cx->compartment()->debugMode())) {
+        if (cx->compartment()->debugMode()) {
             JSTrapStatus status = DebugExceptionUnwind(cx, REGS.fp(), REGS.pc);
             switch (status) {
               case JSTRAP_ERROR:
@@ -3430,7 +3430,7 @@ DEFAULT()
         goto inline_return;
 
   exit:
-    if (JS_UNLIKELY(cx->compartment()->debugMode()))
+    if (cx->compartment()->debugMode())
         interpReturnOK = ScriptDebugEpilogue(cx, REGS.fp(), interpReturnOK);
     if (!REGS.fp()->isYielding())
         REGS.fp()->epilogue(cx);

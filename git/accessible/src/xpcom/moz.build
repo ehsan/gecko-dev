@@ -6,13 +6,8 @@
 
 MODULE = 'accessibility'
 
-EXPORTS += [
-    'xpcAccessibleSelectable.h',
-]
-
 SOURCES += [
     'nsAccessibleRelation.cpp',
-    'xpcAccessibleSelectable.cpp',
     'xpcAccessibleTable.cpp',
     'xpcAccessibleTableCell.cpp',
 ]
