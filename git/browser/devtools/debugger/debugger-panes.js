@@ -54,10 +54,6 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     this._stopBlackBoxButton = document.getElementById("black-boxed-message-button");
     this._prettyPrintButton = document.getElementById("pretty-print");
 
-    if (Prefs.prettyPrintEnabled) {
-      this._prettyPrintButton.removeAttribute("hidden");
-    }
-
     window.on(EVENTS.EDITOR_LOADED, this._onEditorLoad, false);
     window.on(EVENTS.EDITOR_UNLOADED, this._onEditorUnload, false);
     this.widget.addEventListener("select", this._onSourceSelect, false);

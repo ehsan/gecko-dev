@@ -1856,7 +1856,6 @@ let Prefs = new ViewHelpers.Prefs("devtools", {
   pauseOnExceptions: ["Bool", "debugger.pause-on-exceptions"],
   ignoreCaughtExceptions: ["Bool", "debugger.ignore-caught-exceptions"],
   sourceMapsEnabled: ["Bool", "debugger.source-maps-enabled"],
-  prettyPrintEnabled: ["Bool", "debugger.pretty-print-enabled"],
   editorTabSize: ["Int", "editor.tabsize"]
 });
 
