@@ -452,15 +452,7 @@ class nsTSubstring_CharT
          * buffer sizing
          */
 
-        /**
-         * Attempts to set the capacity to the given size, without affecting
-         * the length of the string. Also ensures that the buffer is mutable.
-         *
-         * @returns PR_TRUE on success
-         *          PR_FALSE on out-of-memory, or if requesting a size bigger
-         *                   than a string can hold (2^31 chars).
-         */
-      NS_COM PRBool NS_FASTCALL SetCapacity( size_type newCapacity );
+      NS_COM void NS_FASTCALL SetCapacity( size_type newCapacity );
 
       NS_COM void NS_FASTCALL SetLength( size_type newLength );
 
@@ -624,8 +616,7 @@ class nsTSubstring_CharT
          * returns the number of writable storage units starting at mData.
          * the value does not include space for the null-terminator character.
          *
-         * NOTE: this function returns 0 if mData is immutable (or the buffer
-         *       is 0-sized).
+         * NOTE: this function returns size_type(-1) if mData is immutable.
          */
       size_type NS_FASTCALL Capacity() const;
 

@@ -1334,7 +1334,7 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
   // that can flush layout, either directly, or via DOM manipulation, or some
   // CSS styles like :hover. We use the weak frame checks to avoid calling
   // methods on a dead frame pointer.
-  nsWeakFrame weakFrame(*aFrameHint);
+  nsWeakFrame weakFrame = *aFrameHint;
 
 #ifdef DEBUG_A11Y
   // Please leave this in for now, it's a convenient debugging method
@@ -1460,10 +1460,8 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
     *aIsHidden = PR_TRUE;
   }
 
-  if (*aIsHidden) {
-    *aFrameHint = weakFrame.GetFrame();
+  if (*aIsHidden)
     return NS_OK;
-  }
 
   /**
    * Attempt to create an accessible based on what we know
@@ -1477,17 +1475,13 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
       if (renderedWhitespace.IsEmpty()) {
         // Really empty -- nothing is rendered
         *aIsHidden = PR_TRUE;
-        *aFrameHint = weakFrame.GetFrame();
         return NS_OK;
       }
     }
     if (weakFrame.IsAlive()) {
       weakFrame.GetFrame()->GetAccessible(getter_AddRefs(newAcc));
     }
-
-    nsresult rv = InitAccessible(newAcc, aAccessible, nsnull);
-    *aFrameHint = weakFrame.GetFrame();
-    return rv;
+    return InitAccessible(newAcc, aAccessible, nsnull);
   }
 
   PRBool isHTML = content->IsHTML();
@@ -1504,16 +1498,12 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
     content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::name, name);
     if (!name.IsEmpty()) {
       *aIsHidden = PR_TRUE;
-      *aFrameHint = weakFrame.GetFrame();
       return NS_OK;
     }
     
     nsresult rv =
       CreateHyperTextAccessible(weakFrame.GetFrame(), getter_AddRefs(newAcc));
-    if (NS_FAILED(rv)) {
-      *aFrameHint = weakFrame.GetFrame();
-      return rv;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsRoleMapEntry *roleMapEntry = nsAccUtils::GetRoleMapEntry(aNode);
@@ -1522,7 +1512,6 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
     // Only create accessible for role of "presentation" if it is focusable --
     // in that case we need an accessible in case it gets focused, we
     // don't want focus ever to be 'lost'
-    *aFrameHint = weakFrame.GetFrame();
     return NS_OK;
   }
 
@@ -1580,7 +1569,6 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
             // presentation if they aren't focusable and have not explicit ARIA
             // role (don't create accessibles for them unless they need to fire
             // focus events).
-            *aFrameHint = weakFrame.GetFrame();
             return NS_OK;
           }
 
@@ -1628,10 +1616,7 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
       nsresult rv =
         CreateHTMLAccessibleByMarkup(weakFrame.GetFrame(), aWeakShell, aNode,
                                      getter_AddRefs(newAcc));
-      if (NS_FAILED(rv)) {
-        *aFrameHint = weakFrame.GetFrame();
-        return rv;
-      }
+      NS_ENSURE_SUCCESS(rv, rv);
 
       if (!newAcc) {
         // Do not create accessible object subtrees for non-rendered table
@@ -1649,7 +1634,6 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
           // XXX This is not the ideal place for this code, but right now there
           // is no better place:
           *aIsHidden = PR_TRUE;
-          *aFrameHint = weakFrame.GetFrame();
           return NS_OK;
         }
         f->GetAccessible(getter_AddRefs(newAcc)); // Try using frame to do it
@@ -1661,10 +1645,7 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
     // Elements may implement nsIAccessibleProvider via XBL. This allows them to
     // say what kind of accessible to create.
     nsresult rv = GetAccessibleByType(aNode, getter_AddRefs(newAcc));
-    if (NS_FAILED(rv)) {
-      *aFrameHint = weakFrame.GetFrame();
-      return rv;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (!newAcc) {
@@ -1707,9 +1688,7 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
     }
   }
 
-  nsresult rv = InitAccessible(newAcc, aAccessible, roleMapEntry);
-  *aFrameHint = weakFrame.GetFrame();
-  return rv;
+  return InitAccessible(newAcc, aAccessible, roleMapEntry);
 }
 
 PRBool
