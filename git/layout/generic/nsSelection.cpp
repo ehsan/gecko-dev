@@ -5996,16 +5996,6 @@ nsTypedSelection::SelectionLanguageChange(PRBool aLangRTL)
   return NS_OK;
 }
 
-NS_IMETHODIMP_(nsDirection)
-nsTypedSelection::GetSelectionDirection() {
-  return mDirection;
-}
-
-NS_IMETHODIMP_(void)
-nsTypedSelection::SetSelectionDirection(nsDirection aDirection) {
-  mDirection = aDirection;
-}
-
 
 // nsAutoCopyListener
 

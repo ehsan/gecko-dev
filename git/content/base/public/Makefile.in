@@ -77,7 +77,6 @@ nsContentCreatorFunctions.h \
 nsDOMFile.h \
 nsLineBreaker.h \
 nsReferencedElement.h \
-nsTreeSanitizer.h \
 nsXMLNameSpaceMap.h \
 nsDOMEventTargetWrapperCache.h \
 $(NULL)

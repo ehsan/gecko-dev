@@ -139,7 +139,6 @@ CPPSRCS		= \
 		nsTextFragment.cpp \
 		nsTextNode.cpp \
 		nsTraversal.cpp \
-		nsTreeSanitizer.cpp \
 		nsTreeWalker.cpp \
 		nsWebSocket.cpp \
 		nsXHTMLContentSerializer.cpp \

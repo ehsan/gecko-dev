@@ -283,9 +283,10 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
           }
 
           if (weakFrame.IsAlive() &&
-              (oldRect.x != rect.x || oldRect.y != rect.y) &&
-              (!menuPopupFrame->IsAnchored() ||
-               menuPopupFrame->PopupLevel() != ePopupLevelParent)) {
+              (oldRect.x != rect.x || oldRect.y != rect.y)) {
+            // XXX This might go very wrong, since menu popups may add
+            // offsets (e.g. from margins) to this position, so the popup's
+            // widget won't end up at the desired position.
             menuPopupFrame->MoveTo(rect.x, rect.y, PR_TRUE);
           }
         }
@@ -330,8 +331,8 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
 
   if (doDefault && weakFrame.IsAlive())
     return nsTitleBarFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
-
-  return NS_OK;
+  else
+    return NS_OK;
 }
 
 nsIContent*
@@ -427,14 +428,14 @@ nsResizerFrame::GetDirection()
     {&nsGkAtoms::topleft,    &nsGkAtoms::top,    &nsGkAtoms::topright,
      &nsGkAtoms::left,                           &nsGkAtoms::right,
      &nsGkAtoms::bottomleft, &nsGkAtoms::bottom, &nsGkAtoms::bottomright,
-     &nsGkAtoms::bottomstart,                    &nsGkAtoms::bottomend,
+                                                 &nsGkAtoms::bottomend,
      nsnull};
 
   static const Direction directions[] =
     {{-1, -1}, {0, -1}, {1, -1},
      {-1,  0},          {1,  0},
      {-1,  1}, {0,  1}, {1,  1},
-     {-1,  1},          {1,  1}
+                        {1,  1}
     };
 
   if (!GetContent())

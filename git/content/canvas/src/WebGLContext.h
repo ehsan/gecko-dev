@@ -491,8 +491,6 @@ protected:
     PRBool ValidateAttribIndex(WebGLuint index, const char *info);
     PRBool ValidateStencilParamsForDrawCall();
     
-    bool  ValidateGLSLIdentifier(const nsAString& name, const char *info);
-
     static PRUint32 GetTexelSize(WebGLenum format, WebGLenum type);
 
     void Invalidate();

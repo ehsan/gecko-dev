@@ -300,7 +300,7 @@ nsHTMLSelectOptionAccessible::NativeState()
     // visibility implementation unless they get reimplemented in layout
     state &= ~states::OFFSCREEN;
     // <select> is not collapsed: compare bounds to calculate OFFSCREEN
-    nsAccessible* listAcc = Parent();
+    nsAccessible* listAcc = GetParent();
     if (listAcc) {
       PRInt32 optionX, optionY, optionWidth, optionHeight;
       PRInt32 listX, listY, listWidth, listHeight;
@@ -382,9 +382,8 @@ NS_IMETHODIMP nsHTMLSelectOptionAccessible::DoAction(PRUint8 index)
     if (!newHTMLOption) 
       return NS_ERROR_FAILURE;
     // Clear old selection
-    nsAccessible* parent = Parent();
-    if (!parent)
-      return NS_OK;
+    nsAccessible* parent = GetParent();
+    NS_ASSERTION(parent, "No parent!");
 
     nsCOMPtr<nsIContent> oldHTMLOptionContent =
       GetFocusedOption(parent->GetContent());
@@ -892,7 +891,7 @@ void nsHTMLComboboxListAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aBo
 {
   *aBoundingFrame = nsnull;
 
-  nsAccessible* comboAcc = Parent();
+  nsAccessible* comboAcc = GetParent();
   if (!comboAcc)
     return;
 

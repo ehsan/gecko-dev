@@ -1839,9 +1839,6 @@ WebGLContext::GetAttribLocation(nsIWebGLProgram *pobj,
     if (!GetGLName<WebGLProgram>("getAttribLocation: program", pobj, &progname))
         return NS_OK;
 
-    if (!ValidateGLSLIdentifier(name, "getAttribLocation"))
-        return NS_OK; 
-
     MakeContextCurrent();
     *retval = gl->fGetAttribLocation(progname, NS_LossyConvertUTF16toASCII(name).get());
     return NS_OK;
@@ -2663,9 +2660,6 @@ WebGLContext::GetUniformLocation(nsIWebGLProgram *pobj, const nsAString& name, n
     WebGLProgram *prog;
     if (!GetConcreteObjectAndGLName("getUniformLocation: program", pobj, &prog, &progname))
         return NS_OK;
-
-    if (!ValidateGLSLIdentifier(name, "getUniformLocation"))
-        return NS_OK; 
 
     MakeContextCurrent();
 

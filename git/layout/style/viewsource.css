@@ -103,9 +103,10 @@ pre {
 span:not(.error) {
  unicode-bidi: embed;
 }
-.error, 
-.error > :-moz-any(.start-tag, .end-tag, .comment, .cdata, .doctype, .pi,
-                   .entity, .attribute-name, .attribute-value) {
+.error, .error > .start-tag, .error > .end-tag,
+.error > .comment, .error > .cdata, .error > .doctype,
+.error > .pi, .error > .entity, .error > .attribute-name,
+.error > .attribute-value {
   color: red;
   font-weight: bold;
 }

@@ -123,7 +123,7 @@ getKeyBindingCB(AtkAction *aAction, gint aActionIndex)
   if (!keyBinding.IsEmpty()) {
     keyBinding.AppendToString(keyBindingsStr, KeyBinding::eAtkFormat);
 
-    nsAccessible* parent = acc->Parent();
+    nsAccessible* parent = acc->GetParent();
     PRUint32 role = parent ? parent->Role() : 0;
     if (role == nsIAccessibleRole::ROLE_PARENT_MENUITEM ||
         role == nsIAccessibleRole::ROLE_MENUITEM ||
@@ -141,7 +141,7 @@ getKeyBindingCB(AtkAction *aAction, gint aActionIndex)
 
           keysInHierarchyStr.Insert(str, 0);
         }
-      } while ((parent = parent->Parent()) &&
+      } while ((parent = parent->GetParent()) &&
                parent->Role() != nsIAccessibleRole::ROLE_MENUBAR);
 
       keyBindingsStr.Append(';');

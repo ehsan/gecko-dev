@@ -374,8 +374,8 @@ NotificationController::CoalesceEvents()
             return;
           }
         } else if (tailEvent->mEventType == nsIAccessibleEvent::EVENT_SHOW) {
-          if (thisEvent->mAccessible->Parent() ==
-              tailEvent->mAccessible->Parent()) {
+          if (thisEvent->mAccessible->GetParent() ==
+              tailEvent->mAccessible->GetParent()) {
             tailEvent->mEventRule = thisEvent->mEventRule;
 
             // Coalesce text change events for show events.
