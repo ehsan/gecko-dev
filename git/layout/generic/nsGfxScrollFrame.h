@@ -82,7 +82,7 @@ public:
   void ReloadChildFrames();
 
   nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  void AppendAnonymousContentTo(nsBaseContentList& aElements);
+  void AppendAnonymousContentTo(nsBaseContentList& aElements, PRUint32 aFilter);
   nsresult FireScrollPortEvent();
   void PostOverflowEvent();
   void Destroy();
@@ -154,7 +154,7 @@ public:
   static void AsyncScrollCallback(nsITimer *aTimer, void* anInstance);
   void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode);
   void ScrollToImpl(nsPoint aScrollPosition);
-  void ScrollVisual(nsIntPoint aPixDelta);
+  void ScrollVisual();
   void ScrollBy(nsIntPoint aDelta, nsIScrollableFrame::ScrollUnit aUnit,
                 nsIScrollableFrame::ScrollMode aMode, nsIntPoint* aOverflow);
   void ScrollToRestoredPosition();
@@ -394,7 +394,8 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
+                                        PRUint32 aFilter);
 
   // nsIScrollableFrame
   virtual nsIFrame* GetScrolledFrame() const {
@@ -592,7 +593,8 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
+                                        PRUint32 aFilter);
 
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
