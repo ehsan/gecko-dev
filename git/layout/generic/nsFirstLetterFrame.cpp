@@ -85,7 +85,6 @@ nsFirstLetterFrame::SetInitialChildList(ChildListID  aListID,
   for (nsFrameList::Enumerator e(aChildList); !e.AtEnd(); e.Next()) {
     NS_ASSERTION(e.get()->GetParent() == this, "Unexpected parent");
     restyleManager->ReparentStyleContext(e.get());
-    nsLayoutUtils::MarkDescendantsDirty(e.get());
   }
 
   mFrames.SetFrames(aChildList);
@@ -317,7 +316,6 @@ nsFirstLetterFrame::CreateContinuationForFloatingParent(nsPresContext* aPresCont
     nsRefPtr<nsStyleContext> newSC;
     newSC = presShell->StyleSet()->ResolveStyleForNonElement(parentSC);
     continuation->SetStyleContext(newSC);
-    nsLayoutUtils::MarkDescendantsDirty(continuation);
   }
 
   //XXX Bidi may not be involved but we have to use the list name
@@ -371,7 +369,6 @@ nsFirstLetterFrame::DrainOverflowFrames(nsPresContext* aPresContext)
                                               mStyleContext;
       sc = aPresContext->StyleSet()->ResolveStyleForNonElement(parentSC);
       kid->SetStyleContext(sc);
-      nsLayoutUtils::MarkDescendantsDirty(kid);
     }
   }
 }

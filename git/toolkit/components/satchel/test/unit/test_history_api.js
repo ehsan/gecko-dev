@@ -5,7 +5,7 @@
 var testnum = 0;
 let dbConnection; // used for deleted table tests
 
-Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 
 function countDeletedEntries(expected)
 {

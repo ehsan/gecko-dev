@@ -27,7 +27,6 @@ function byClassName(elt, cls) {
 }
 
 var ie_lt8 = /MSIE [1-7]\b/.test(navigator.userAgent);
-var ie_lt9 = /MSIE [1-8]\b/.test(navigator.userAgent);
 var mac = /Mac/.test(navigator.platform);
 var phantom = /PhantomJS/.test(navigator.userAgent);
 var opera = /Opera\/\./.test(navigator.userAgent);
@@ -88,7 +87,7 @@ testCM("selection", function(cm) {
   is(!cm.somethingSelected());
   eq(cm.getSelection(), "");
   eqPos(cm.getCursor(true), Pos(1, 0));
-  cm.replaceSelection("abc", "around");
+  cm.replaceSelection("abc");
   eq(cm.getSelection(), "abc");
   eq(cm.getValue(), "111111\nabc222222\n333333");
   cm.replaceSelection("def", "end");
@@ -133,16 +132,16 @@ testCM("extendSelection", function(cm) {
   eqPos(cm.getCursor("anchor"), Pos(4, 5));
   cm.setExtending(false);
   cm.extendSelection(Pos(0, 3), Pos(0, 4));
-  eqPos(cm.getCursor("head"), Pos(0, 3));
-  eqPos(cm.getCursor("anchor"), Pos(0, 4));
+  eqPos(cm.getCursor("head"), Pos(0, 4));
+  eqPos(cm.getCursor("anchor"), Pos(0, 3));
 });
 
 testCM("lines", function(cm) {
   eq(cm.getLine(0), "111111");
   eq(cm.getLine(1), "222222");
   eq(cm.getLine(-1), null);
-  cm.replaceRange("", Pos(1, 0), Pos(2, 0))
-  cm.replaceRange("abc", Pos(1, 0), Pos(1));
+  cm.removeLine(1);
+  cm.setLine(1, "abc");
   eq(cm.getValue(), "111111\nabc");
 }, {value: "111111\n222222\n333333"});
 
@@ -173,7 +172,7 @@ test("core_defaults", function() {
   for (var opt in defs) defsCopy[opt] = defs[opt];
   defs.indentUnit = 5;
   defs.value = "uu";
-  defs.indentWithTabs = true;
+  defs.enterMode = "keep";
   defs.tabindex = 55;
   var place = document.getElementById("testground"), cm = CodeMirror(place);
   try {
@@ -181,7 +180,7 @@ test("core_defaults", function() {
     cm.setOption("indentUnit", 10);
     eq(defs.indentUnit, 5);
     eq(cm.getValue(), "uu");
-    eq(cm.getOption("indentWithTabs"), true);
+    eq(cm.getOption("enterMode"), "keep");
     eq(cm.getInputField().tabIndex, 55);
   }
   finally {
@@ -265,7 +264,7 @@ testCM("posFromIndex", function(cm) {
 });
 
 testCM("undo", function(cm) {
-  cm.replaceRange("def", Pos(0, 0), Pos(0));
+  cm.setLine(0, "def");
   eq(cm.historySize().undo, 1);
   cm.undo();
   eq(cm.getValue(), "abc");
@@ -295,7 +294,7 @@ testCM("undoDepth", function(cm) {
   cm.replaceRange("f", Pos(0));
   cm.undo(); cm.undo(); cm.undo();
   eq(cm.getValue(), "abcd");
-}, {value: "abc", undoDepth: 4});
+}, {value: "abc", undoDepth: 2});
 
 testCM("undoDoesntClearValue", function(cm) {
   cm.undo();
@@ -351,13 +350,6 @@ testCM("undoSelection", function(cm) {
   eqPos(cm.getCursor(true), Pos(0, 2));
   eqPos(cm.getCursor(false), Pos(0, 2));
 }, {value: "abcdefgh\n"});
-
-testCM("undoSelectionAsBefore", function(cm) {
-  cm.replaceSelection("abc", "around");
-  cm.undo();
-  cm.redo();
-  eq(cm.getSelection(), "abc");
-});
 
 testCM("markTextSingleLine", function(cm) {
   forEach([{a: 0, b: 1, c: "", f: 2, t: 5},
@@ -549,14 +541,10 @@ testCM("bookmarkCursor", function(cm) {
   cm.setBookmark(Pos(3, 0), {widget: document.createTextNode("→")});
   var new01 = cm.cursorCoords(Pos(0, 1)), new11 = cm.cursorCoords(Pos(1, 1)),
       new20 = cm.cursorCoords(Pos(2, 0)), new30 = cm.cursorCoords(Pos(3, 0));
-  near(new01.left, pos01.left, 1);
-  near(new01.top, pos01.top, 1);
-  is(new11.left > pos11.left, "at right, middle of line");
-  near(new11.top == pos11.top, 1);
-  near(new20.left, pos20.left, 1);
-  near(new20.top, pos20.top, 1);
-  is(new30.left > pos30.left, "at right, empty line");
-  near(new30.top, pos30, 1);
+  is(new01.left == pos01.left && new01.top == pos01.top, "at left, middle of line");
+  is(new11.left > pos11.left && new11.top == pos11.top, "at right, middle of line");
+  is(new20.left == pos20.left && new20.top == pos20.top, "at left, empty line");
+  is(new30.left > pos30.left && new30.top == pos30.top, "at right, empty line");
   cm.setBookmark(Pos(4, 0), {widget: document.createTextNode("→")});
   is(cm.cursorCoords(Pos(4, 1)).left > pos41.left, "single-char bug");
 }, {value: "foo\nbar\n\n\nx\ny"});
@@ -573,10 +561,10 @@ testCM("multiBookmarkCursor", function(cm) {
   }
   var base1 = cm.cursorCoords(Pos(0, 1)).left, base4 = cm.cursorCoords(Pos(0, 4)).left;
   add(true);
-  near(base1, cm.cursorCoords(Pos(0, 1)).left, 1);
+  is(Math.abs(base1 - cm.cursorCoords(Pos(0, 1)).left) < .1);
   while (m = ms.pop()) m.clear();
   add(false);
-  near(base4, cm.cursorCoords(Pos(0, 1)).left, 1);
+  is(Math.abs(base4 - cm.cursorCoords(Pos(0, 1)).left) < .1);
 }, {value: "abcdefg"});
 
 testCM("getAllMarks", function(cm) {
@@ -616,40 +604,20 @@ testCM("scrollSnap", function(cm) {
 testCM("scrollIntoView", function(cm) {
   if (phantom) return;
   var outer = cm.getWrapperElement().getBoundingClientRect();
-  function test(line, ch, msg) {
+  function test(line, ch) {
     var pos = Pos(line, ch);
     cm.scrollIntoView(pos);
     var box = cm.charCoords(pos, "window");
-    is(box.left >= outer.left, msg + " (left)");
-    is(box.right <= outer.right, msg + " (right)");
-    is(box.top >= outer.top, msg + " (top)");
-    is(box.bottom <= outer.bottom, msg + " (bottom)");
+    is(box.left >= outer.left && box.right <= outer.right &&
+       box.top >= outer.top && box.bottom <= outer.bottom);
   }
   addDoc(cm, 200, 200);
-  test(199, 199, "bottom right");
-  test(0, 0, "top left");
-  test(100, 100, "center");
-  test(199, 0, "bottom left");
-  test(0, 199, "top right");
-  test(100, 100, "center again");
-});
-
-testCM("scrollBackAndForth", function(cm) {
-  addDoc(cm, 1, 200);
-  cm.operation(function() {
-    cm.scrollIntoView(Pos(199, 0));
-    cm.scrollIntoView(Pos(4, 0));
-  });
-  is(cm.getScrollInfo().top > 0);
-});
-
-testCM("selectAllNoScroll", function(cm) {
-  addDoc(cm, 1, 200);
-  cm.execCommand("selectAll");
-  eq(cm.getScrollInfo().top, 0);
-  cm.setCursor(199);
-  cm.execCommand("selectAll");
-  is(cm.getScrollInfo().top > 0);
+  test(199, 199);
+  test(0, 0);
+  test(100, 100);
+  test(199, 0);
+  test(0, 199);
+  test(100, 100);
 });
 
 testCM("selectionPos", function(cm) {
@@ -689,8 +657,8 @@ testCM("selectionPos", function(cm) {
 
 testCM("restoreHistory", function(cm) {
   cm.setValue("abc\ndef");
-  cm.replaceRange("hello", Pos(1, 0), Pos(1));
-  cm.replaceRange("goop", Pos(0, 0), Pos(0));
+  cm.setLine(1, "hello");
+  cm.setLine(0, "goop");
   cm.undo();
   var storedVal = cm.getValue(), storedHist = cm.getHistory();
   if (window.JSON) storedHist = JSON.parse(JSON.stringify(storedHist));
@@ -755,11 +723,11 @@ testCM("collapsedLines", function(cm) {
   cm.setCursor(Pos(3, 0));
   CodeMirror.commands.goLineDown(cm);
   eqPos(cm.getCursor(), Pos(5, 0));
-  cm.replaceRange("abcdefg", Pos(3, 0), Pos(3));
+  cm.setLine(3, "abcdefg");
   cm.setCursor(Pos(3, 6));
   CodeMirror.commands.goLineDown(cm);
   eqPos(cm.getCursor(), Pos(5, 4));
-  cm.replaceRange("ab", Pos(3, 0), Pos(3));
+  cm.setLine(3, "ab");
   cm.setCursor(Pos(3, 2));
   CodeMirror.commands.goLineDown(cm);
   eqPos(cm.getCursor(), Pos(5, 2));
@@ -781,31 +749,6 @@ testCM("collapsedRangeCoordsChar", function(cm) {
   var m1 = cm.markText(Pos(0, 0), Pos(1, 6), opts);
   eqPos(cm.coordsChar(pos_1_3), Pos(3, 3));
 }, {value: "123456\nabcdef\nghijkl\nmnopqr\n"});
-
-testCM("collapsedRangeBetweenLinesSelected", function(cm) {
-  var widget = document.createElement("span");
-  widget.textContent = "\u2194";
-  cm.markText(Pos(0, 3), Pos(1, 0), {replacedWith: widget});
-  cm.setSelection(Pos(0, 3), Pos(1, 0));
-  var selElts = byClassName(cm.getWrapperElement(), "CodeMirror-selected");
-  for (var i = 0, w = 0; i < selElts.length; i++)
-    w += selElts[i].offsetWidth;
-  is(w > 0);
-}, {value: "one\ntwo"});
-
-testCM("randomCollapsedRanges", function(cm) {
-  addDoc(cm, 20, 500);
-  cm.operation(function() {
-    for (var i = 0; i < 200; i++) {
-      var start = Pos(Math.floor(Math.random() * 500), Math.floor(Math.random() * 20));
-      if (i % 4)
-        try { cm.markText(start, Pos(start.line + 2, 1), {collapsed: true}); }
-        catch(e) { if (!/overlapping/.test(String(e))) throw e; }
-      else
-        cm.markText(start, Pos(start.line, start.ch + 4), {"className": "foo"});
-    }
-  });
-});
 
 testCM("hiddenLinesAutoUnfold", function(cm) {
   var range = foldLines(cm, 1, 3, true), cleared = 0;
@@ -945,15 +888,6 @@ testCM("nestedFoldOnSide", function(cm) {
   is(caught && /overlap/i.test(caught.message));
 }, {value: "ab\ncd\ef"});
 
-testCM("editInFold", function(cm) {
-  addDoc(cm, 4, 6);
-  var m = cm.markText(Pos(1, 2), Pos(3, 2), {collapsed: true});
-  cm.replaceRange("", Pos(0, 0), Pos(1, 3));
-  cm.replaceRange("", Pos(2, 1), Pos(3, 3));
-  cm.replaceRange("a\nb\nc\nd", Pos(0, 1), Pos(1, 0));
-  cm.cursorCoords(Pos(0, 0));
-});
-
 testCM("wrappingInlineWidget", function(cm) {
   cm.setSize("11em");
   var w = document.createElement("span");
@@ -970,7 +904,6 @@ testCM("wrappingInlineWidget", function(cm) {
   eq(curR.bottom, cur1.bottom);
   cm.replaceRange("", Pos(0, 9), Pos(0));
   curR = cm.cursorCoords(Pos(0, 9));
-  if (phantom) return;
   eq(curR.top, cur1.top);
   eq(curR.bottom, cur1.bottom);
 }, {value: "1 2 3 xxx 4", lineWrapping: true});
@@ -1115,15 +1048,15 @@ testCM("verticalScroll", function(cm) {
   cm.setSize(100, 200);
   cm.setValue("foo\nbar\nbaz\n");
   var sc = cm.getScrollerElement(), baseWidth = sc.scrollWidth;
-  cm.replaceRange("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaah", Pos(0, 0), Pos(0));
+  cm.setLine(0, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaah");
   is(sc.scrollWidth > baseWidth, "scrollbar present");
-  cm.replaceRange("foo", Pos(0, 0), Pos(0));
+  cm.setLine(0, "foo");
   if (!phantom) eq(sc.scrollWidth, baseWidth, "scrollbar gone");
-  cm.replaceRange("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaah", Pos(0, 0), Pos(0));
-  cm.replaceRange("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbh", Pos(1, 0), Pos(1));
+  cm.setLine(0, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaah");
+  cm.setLine(1, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbh");
   is(sc.scrollWidth > baseWidth, "present again");
   var curWidth = sc.scrollWidth;
-  cm.replaceRange("foo", Pos(0, 0), Pos(0));
+  cm.setLine(0, "foo");
   is(sc.scrollWidth < curWidth, "scrollbar smaller");
   is(sc.scrollWidth > baseWidth, "but still present");
 });
@@ -1200,31 +1133,12 @@ testCM("groupMovementCommands", function(cm) {
   cm.execCommand("goGroupRight"); cm.execCommand("goGroupRight");
   eqPos(cm.getCursor(), Pos(0, 20));
   cm.execCommand("goGroupRight");
-  eqPos(cm.getCursor(), Pos(1, 0));
-  cm.execCommand("goGroupRight");
-  eqPos(cm.getCursor(), Pos(1, 2));
-  cm.execCommand("goGroupRight");
   eqPos(cm.getCursor(), Pos(1, 5));
   cm.execCommand("goGroupLeft"); cm.execCommand("goGroupLeft");
   eqPos(cm.getCursor(), Pos(1, 0));
   cm.execCommand("goGroupLeft");
-  eqPos(cm.getCursor(), Pos(0, 20));
-  cm.execCommand("goGroupLeft");
   eqPos(cm.getCursor(), Pos(0, 16));
 }, {value: "booo ba---quux. ffff\n  abc d"});
-
-testCM("groupsAndWhitespace", function(cm) {
-  var positions = [Pos(0, 0), Pos(0, 2), Pos(0, 5), Pos(0, 9), Pos(0, 11),
-                   Pos(1, 0), Pos(1, 2), Pos(1, 5)];
-  for (var i = 1; i < positions.length; i++) {
-    cm.execCommand("goGroupRight");
-    eqPos(cm.getCursor(), positions[i]);
-  }
-  for (var i = positions.length - 2; i >= 0; i--) {
-    cm.execCommand("goGroupLeft");
-    eqPos(cm.getCursor(), i == 2 ? Pos(0, 6) : positions[i]);
-  }
-}, {value: "  foo +++  \n  bar"});
 
 testCM("charMovementCommands", function(cm) {
   cm.execCommand("goCharLeft"); cm.execCommand("goColumnLeft");
@@ -1296,26 +1210,23 @@ testCM("rtlMovement", function(cm) {
            "<img src=\"/בדיקה3.jpg\">"], function(line) {
     var inv = line.charAt(0) == "خ";
     cm.setValue(line + "\n"); cm.execCommand(inv ? "goLineEnd" : "goLineStart");
-    var cursors = byClassName(cm.getWrapperElement(), "CodeMirror-cursors")[0];
-    var cursor = cursors.firstChild;
+    var cursor = byClassName(cm.getWrapperElement(), "CodeMirror-cursor")[0];
     var prevX = cursor.offsetLeft, prevY = cursor.offsetTop;
     for (var i = 0; i <= line.length; ++i) {
       cm.execCommand("goCharRight");
-      cursor = cursors.firstChild;
       if (i == line.length) is(cursor.offsetTop > prevY, "next line");
       else is(cursor.offsetLeft > prevX, "moved right");
       prevX = cursor.offsetLeft; prevY = cursor.offsetTop;
     }
     cm.setCursor(0, 0); cm.execCommand(inv ? "goLineStart" : "goLineEnd");
-    prevX = cursors.firstChild.offsetLeft;
+    prevX = cursor.offsetLeft;
     for (var i = 0; i < line.length; ++i) {
       cm.execCommand("goCharLeft");
-      cursor = cursors.firstChild;
       is(cursor.offsetLeft < prevX, "moved left");
       prevX = cursor.offsetLeft;
     }
   });
-}, null, ie_lt9);
+});
 
 // Verify that updating a line clears its bidi ordering
 testCM("bidiUpdate", function(cm) {
@@ -1326,7 +1237,7 @@ testCM("bidiUpdate", function(cm) {
 }, {value: "abcd\n"});
 
 testCM("movebyTextUnit", function(cm) {
-  cm.setValue("בְּרֵאשִ\nééé́\n");
+  cm.setValue("בְּרֵאשִ\ńéée\n");
   cm.execCommand("goLineEnd");
   for (var i = 0; i < 4; ++i) cm.execCommand("goCharRight");
   eqPos(cm.getCursor(), Pos(0, 0));
@@ -1334,9 +1245,10 @@ testCM("movebyTextUnit", function(cm) {
   eqPos(cm.getCursor(), Pos(1, 0));
   cm.execCommand("goCharRight");
   cm.execCommand("goCharRight");
-  eqPos(cm.getCursor(), Pos(1, 4));
+  eqPos(cm.getCursor(), Pos(1, 3));
   cm.execCommand("goCharRight");
-  eqPos(cm.getCursor(), Pos(1, 7));
+  cm.execCommand("goCharRight");
+  eqPos(cm.getCursor(), Pos(1, 6));
 });
 
 testCM("lineChangeEvents", function(cm) {
@@ -1397,39 +1309,6 @@ testCM("lineWidgetFocus", function(cm) {
   }
 });
 
-testCM("lineWidgetCautiousRedraw", function(cm) {
-  var node = document.createElement("div");
-  node.innerHTML = "hahah";
-  var w = cm.addLineWidget(0, node);
-  var redrawn = false;
-  w.on("redraw", function() { redrawn = true; });
-  cm.replaceSelection("0");
-  is(!redrawn);
-}, {value: "123\n456"});
-
-testCM("lineWidgetChanged", function(cm) {
-  addDoc(cm, 2, 300);
-  cm.setSize(null, cm.defaultTextHeight() * 50);
-  cm.scrollTo(null, cm.heightAtLine(125, "local"));
-  function w() {
-    var node = document.createElement("div");
-    node.style.cssText = "background: yellow; height: 50px;";
-    return node;
-  }
-  var info0 = cm.getScrollInfo();
-  var w0 = cm.addLineWidget(0, w());
-  var w150 = cm.addLineWidget(150, w());
-  var w300 = cm.addLineWidget(300, w());
-  var info1 = cm.getScrollInfo();
-  eq(info0.height + 150, info1.height);
-  eq(info0.top + 50, info1.top);
-  w0.node.style.height = w150.node.style.height = w300.node.style.height = "10px";
-  w0.changed(); w150.changed(); w300.changed();
-  var info2 = cm.getScrollInfo();
-  eq(info0.height + 30, info2.height);
-  eq(info0.top + 10, info2.top);
-});
-
 testCM("getLineNumber", function(cm) {
   addDoc(cm, 2, 20);
   var h1 = cm.getLineHandle(1);
@@ -1441,10 +1320,9 @@ testCM("getLineNumber", function(cm) {
 });
 
 testCM("jumpTheGap", function(cm) {
-  if (phantom) return;
   var longLine = "abcdef ghiklmnop qrstuvw xyz ";
   longLine += longLine; longLine += longLine; longLine += longLine;
-  cm.replaceRange(longLine, Pos(2, 0), Pos(2));
+  cm.setLine(2, longLine);
   cm.setSize("200px", null);
   cm.getWrapperElement().style.lineHeight = 2;
   cm.refresh();
@@ -1559,14 +1437,14 @@ testCM("readOnlyMarker", function(cm) {
   eqPos(cm.getCursor(), Pos(0, 2));
   eq(cm.getLine(0), "abcde");
   cm.execCommand("selectAll");
-  cm.replaceSelection("oops", "around");
+  cm.replaceSelection("oops");
   eq(cm.getValue(), "oopsbcd");
   cm.undo();
   eqPos(m.find().from, Pos(0, 1));
   eqPos(m.find().to, Pos(0, 4));
   m.clear();
   cm.setCursor(Pos(0, 2));
-  cm.replaceSelection("hi", "around");
+  cm.replaceSelection("hi");
   eq(cm.getLine(0), "abhicde");
   eqPos(cm.getCursor(), Pos(0, 4));
   m = mark(0, 2, 2, 2, true);
@@ -1578,19 +1456,19 @@ testCM("readOnlyMarker", function(cm) {
   cm.execCommand("goCharLeft");
   eqPos(cm.getCursor(), Pos(0, 2));
   cm.setSelection(Pos(0, 1), Pos(0, 3));
-  cm.replaceSelection("xx", "around");
+  cm.replaceSelection("xx");
   eqPos(cm.getCursor(), Pos(0, 3));
   eq(cm.getLine(0), "axxhicde");
 }, {value: "abcde\nfghij\nklmno\n"});
 
 testCM("dirtyBit", function(cm) {
   eq(cm.isClean(), true);
-  cm.replaceSelection("boo", null, "test");
+  cm.replaceSelection("boo");
   eq(cm.isClean(), false);
   cm.undo();
   eq(cm.isClean(), true);
-  cm.replaceSelection("boo", null, "test");
-  cm.replaceSelection("baz", null, "test");
+  cm.replaceSelection("boo");
+  cm.replaceSelection("baz");
   cm.undo();
   eq(cm.isClean(), false);
   cm.markClean();
@@ -1602,15 +1480,15 @@ testCM("dirtyBit", function(cm) {
 });
 
 testCM("changeGeneration", function(cm) {
-  cm.replaceSelection("x");
+  cm.replaceSelection("x", null, "+insert");
   var softGen = cm.changeGeneration();
-  cm.replaceSelection("x");
+  cm.replaceSelection("x", null, "+insert");
   cm.undo();
   eq(cm.getValue(), "");
   is(!cm.isClean(softGen));
-  cm.replaceSelection("x");
+  cm.replaceSelection("x", null, "+insert");
   var hardGen = cm.changeGeneration(true);
-  cm.replaceSelection("x");
+  cm.replaceSelection("x", null, "+insert");
   cm.undo();
   eq(cm.getValue(), "x");
   is(cm.isClean(hardGen));
@@ -1688,8 +1566,8 @@ testCM("beforeChange", function(cm) {
 }, {value: "abcdefghijk"});
 
 testCM("beforeChangeUndo", function(cm) {
-  cm.replaceRange("hi", Pos(0, 0), Pos(0));
-  cm.replaceRange("bye", Pos(0, 0), Pos(0));
+  cm.setLine(0, "hi");
+  cm.setLine(0, "bye");
   eq(cm.historySize().undo, 2);
   cm.on("beforeChange", function(cm, change) {
     is(!change.update);
@@ -1706,9 +1584,9 @@ testCM("beforeSelectionChange", function(cm) {
     if (!len || pos.ch == len) return Pos(pos.line, pos.ch - 1);
     return pos;
   }
-  cm.on("beforeSelectionChange", function(cm, obj) {
-    obj.update([{anchor: notAtEnd(cm, obj.ranges[0].anchor),
-                 head: notAtEnd(cm, obj.ranges[0].head)}]);
+  cm.on("beforeSelectionChange", function(cm, sel) {
+    sel.head = notAtEnd(cm, sel.head);
+    sel.anchor = notAtEnd(cm, sel.anchor);
   });
 
   addDoc(cm, 10, 10);
@@ -1722,9 +1600,9 @@ testCM("beforeSelectionChange", function(cm) {
 testCM("change_removedText", function(cm) {
   cm.setValue("abc\ndef");
 
-  var removedText = [];
+  var removedText;
   cm.on("change", function(cm, change) {
-    removedText.push(change.removed);
+    removedText = [change.removed, change.next && change.next.removed];
   });
 
   cm.operation(function() {
@@ -1732,19 +1610,14 @@ testCM("change_removedText", function(cm) {
     cm.replaceRange("123", Pos(0,0));
   });
 
-  eq(removedText.length, 2);
   eq(removedText[0].join("\n"), "abc\nd");
   eq(removedText[1].join("\n"), "");
 
-  var removedText = [];
   cm.undo();
-  eq(removedText.length, 2);
   eq(removedText[0].join("\n"), "123");
   eq(removedText[1].join("\n"), "xyz");
 
-  var removedText = [];
   cm.redo();
-  eq(removedText.length, 2);
   eq(removedText[0].join("\n"), "abc\nd");
   eq(removedText[1].join("\n"), "");
 });
@@ -1752,29 +1625,21 @@ testCM("change_removedText", function(cm) {
 testCM("lineStyleFromMode", function(cm) {
   CodeMirror.defineMode("test_mode", function() {
     return {token: function(stream) {
-      if (stream.match(/^\[[^\]]*\]/)) return "  line-brackets  ";
-      if (stream.match(/^\([^\)]*\)/)) return "  line-background-parens  ";
-      if (stream.match(/^<[^>]*>/)) return "  span  line-line  line-background-bg  ";
+      if (stream.match(/^\[[^\]]*\]/)) return "line-brackets";
+      if (stream.match(/^\([^\]]*\)/)) return "line-background-parens";
       stream.match(/^\s+|^\S+/);
     }};
   });
   cm.setOption("mode", "test_mode");
   var bracketElts = byClassName(cm.getWrapperElement(), "brackets");
-  eq(bracketElts.length, 1, "brackets count");
+  eq(bracketElts.length, 1);
   eq(bracketElts[0].nodeName, "PRE");
   is(!/brackets.*brackets/.test(bracketElts[0].className));
   var parenElts = byClassName(cm.getWrapperElement(), "parens");
-  eq(parenElts.length, 1, "parens count");
+  eq(parenElts.length, 1);
   eq(parenElts[0].nodeName, "DIV");
   is(!/parens.*parens/.test(parenElts[0].className));
-  eq(parenElts[0].parentElement.nodeName, "DIV");
-
-  eq(byClassName(cm.getWrapperElement(), "bg").length, 1);
-  eq(byClassName(cm.getWrapperElement(), "line").length, 1);
-  var spanElts = byClassName(cm.getWrapperElement(), "cm-span");
-  eq(spanElts.length, 2);
-  is(/^\s*cm-span\s*$/.test(spanElts[0].className));
-}, {value: "line1: [br] [br]\nline2: (par) (par)\nline3: <tag> <tag>"});
+}, {value: "line1: [br] [br]\nline2: (par) (par)\nline3: nothing"});
 
 CodeMirror.registerHelper("xxx", "a", "A");
 CodeMirror.registerHelper("xxx", "b", "B");
@@ -1794,85 +1659,3 @@ testCM("helpers", function(cm) {
   cm.setOption("mode", "javascript");
   eq(cm.getHelpers(Pos(0, 0), "xxx").join("/"), "");
 });
-
-testCM("selectionHistory", function(cm) {
-  for (var i = 0; i < 3; i++) {
-    cm.setExtending(true);
-    cm.execCommand("goCharRight");
-    cm.setExtending(false);
-    cm.execCommand("goCharRight");
-    cm.execCommand("goCharRight");
-  }
-  cm.execCommand("undoSelection");
-  eq(cm.getSelection(), "c");
-  cm.execCommand("undoSelection");
-  eq(cm.getSelection(), "");
-  eqPos(cm.getCursor(), Pos(0, 4));
-  cm.execCommand("undoSelection");
-  eq(cm.getSelection(), "b");
-  cm.execCommand("redoSelection");
-  eq(cm.getSelection(), "");
-  eqPos(cm.getCursor(), Pos(0, 4));
-  cm.execCommand("redoSelection");
-  eq(cm.getSelection(), "c");
-  cm.execCommand("redoSelection");
-  eq(cm.getSelection(), "");
-  eqPos(cm.getCursor(), Pos(0, 6));
-}, {value: "a b c d"});
-
-testCM("selectionChangeReducesRedo", function(cm) {
-  cm.replaceSelection("X");
-  cm.execCommand("goCharRight");
-  cm.undoSelection();
-  cm.execCommand("selectAll");
-  cm.undoSelection();
-  eq(cm.getValue(), "Xabc");
-  eqPos(cm.getCursor(), Pos(0, 1));
-  cm.undoSelection();
-  eq(cm.getValue(), "abc");
-}, {value: "abc"});
-
-testCM("selectionHistoryNonOverlapping", function(cm) {
-  cm.setSelection(Pos(0, 0), Pos(0, 1));
-  cm.setSelection(Pos(0, 2), Pos(0, 3));
-  cm.execCommand("undoSelection");
-  eqPos(cm.getCursor("anchor"), Pos(0, 0));
-  eqPos(cm.getCursor("head"), Pos(0, 1));
-}, {value: "1234"});
-
-testCM("cursorMotionSplitsHistory", function(cm) {
-  cm.replaceSelection("a");
-  cm.execCommand("goCharRight");
-  cm.replaceSelection("b");
-  cm.replaceSelection("c");
-  cm.undo();
-  eq(cm.getValue(), "a1234");
-  eqPos(cm.getCursor(), Pos(0, 2));
-  cm.undo();
-  eq(cm.getValue(), "1234");
-  eqPos(cm.getCursor(), Pos(0, 0));
-}, {value: "1234"});
-
-testCM("selChangeInOperationDoesNotSplit", function(cm) {
-  for (var i = 0; i < 4; i++) {
-    cm.operation(function() {
-      cm.replaceSelection("x");
-      cm.setCursor(Pos(0, cm.getCursor().ch - 1));
-    });
-  }
-  eqPos(cm.getCursor(), Pos(0, 0));
-  eq(cm.getValue(), "xxxxa");
-  cm.undo();
-  eq(cm.getValue(), "a");
-}, {value: "a"});
-
-testCM("alwaysMergeSelEventWithChangeOrigin", function(cm) {
-  cm.replaceSelection("U", null, "foo");
-  cm.setSelection(Pos(0, 0), Pos(0, 1), {origin: "foo"});
-  cm.undoSelection();
-  eq(cm.getValue(), "a");
-  cm.replaceSelection("V", null, "foo");
-  cm.setSelection(Pos(0, 0), Pos(0, 1), {origin: "bar"});
-  cm.undoSelection();
-  eq(cm.getValue(), "Va");
-}, {value: "a"});

@@ -4,19 +4,18 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "MessagePort.h"
-#include "MessageEvent.h"
 #include "mozilla/dom/Event.h"
 #include "mozilla/dom/MessageChannel.h"
 #include "mozilla/dom/MessagePortBinding.h"
-#include "mozilla/dom/MessagePortList.h"
 #include "mozilla/dom/StructuredCloneTags.h"
-#include "nsContentUtils.h"
 #include "nsGlobalWindow.h"
+#include "nsContentUtils.h"
 #include "nsPresContext.h"
 
 #include "nsIDocument.h"
 #include "nsIDOMFile.h"
 #include "nsIDOMFileList.h"
+#include "nsIDOMMessageEvent.h"
 #include "nsIPresShell.h"
 
 namespace mozilla {
@@ -92,7 +91,6 @@ struct StructuredCloneInfo
 {
   PostMessageRunnable* mEvent;
   MessagePort* mPort;
-  nsRefPtrHashtable<nsRefPtrHashKey<MessagePortBase>, MessagePortBase> mPorts;
 };
 
 static JSObject*
@@ -102,6 +100,9 @@ PostMessageReadStructuredClone(JSContext* cx,
                                uint32_t data,
                                void* closure)
 {
+  StructuredCloneInfo* scInfo = static_cast<StructuredCloneInfo*>(closure);
+  NS_ASSERTION(scInfo, "Must have scInfo!");
+
   if (tag == SCTAG_DOM_BLOB || tag == SCTAG_DOM_FILELIST) {
     NS_ASSERTION(!data, "Data should be empty");
 
@@ -113,6 +114,22 @@ PostMessageReadStructuredClone(JSContext* cx,
         if (NS_SUCCEEDED(nsContentUtils::WrapNative(cx, global, supports,
                                                     &val))) {
           return JSVAL_TO_OBJECT(val);
+        }
+      }
+    }
+  }
+
+  if (tag == SCTAG_DOM_MESSAGEPORT) {
+    NS_ASSERTION(!data, "Data should be empty");
+
+    MessagePort* port;
+    if (JS_ReadBytes(reader, &port, sizeof(port))) {
+      JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
+      if (global) {
+        JS::Rooted<JSObject*> obj(cx, port->WrapObject(cx, global));
+        if (JS_WrapObject(cx, &obj)) {
+          port->BindToOwner(scInfo->mPort->GetOwner());
+          return obj;
         }
       }
     }
@@ -161,6 +178,20 @@ PostMessageWriteStructuredClone(JSContext* cx,
     }
   }
 
+  MessagePortBase* port = nullptr;
+  nsresult rv = UNWRAP_OBJECT(MessagePort, obj, port);
+  if (NS_SUCCEEDED(rv)) {
+    nsRefPtr<MessagePortBase> newPort = port->Clone();
+
+    if (!newPort) {
+      return false;
+    }
+
+    return JS_WriteUint32Pair(writer, SCTAG_DOM_MESSAGEPORT, 0) &&
+           JS_WriteBytes(writer, &newPort, sizeof(newPort)) &&
+           scInfo->mEvent->StoreISupports(newPort);
+  }
+
   const JSStructuredCloneCallbacks* runtimeCallbacks =
     js::GetContextStructuredCloneCallbacks(cx);
 
@@ -171,107 +202,13 @@ PostMessageWriteStructuredClone(JSContext* cx,
   return false;
 }
 
-static bool
-PostMessageReadTransferStructuredClone(JSContext* aCx,
-                                       JSStructuredCloneReader* reader,
-                                       uint32_t tag, void* data,
-                                       uint64_t unused,
-                                       void* aClosure,
-                                       JS::MutableHandle<JSObject*> returnObject)
-{
-  StructuredCloneInfo* scInfo = static_cast<StructuredCloneInfo*>(aClosure);
-  NS_ASSERTION(scInfo, "Must have scInfo!");
-
-  if (tag == SCTAG_DOM_MAP_MESSAGEPORT) {
-    MessagePort* port = static_cast<MessagePort*>(data);
-    port->BindToOwner(scInfo->mPort->GetOwner());
-    scInfo->mPorts.Put(port, nullptr);
-
-    JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
-    if (global) {
-      JS::Rooted<JSObject*> obj(aCx, port->WrapObject(aCx, global));
-      if (JS_WrapObject(aCx, &obj)) {
-        MOZ_ASSERT(port->GetOwner() == scInfo->mPort->GetOwner());
-        returnObject.set(obj);
-      }
-    }
-    return true;
-  }
-
-  return false;
-}
-
-static bool
-PostMessageTransferStructuredClone(JSContext* aCx,
-                                   JS::Handle<JSObject*> aObj,
-                                   void* aClosure,
-                                   uint32_t* aTag,
-                                   JS::TransferableOwnership* aOwnership,
-                                   void** aContent,
-                                   uint64_t *aExtraData)
-{
-  StructuredCloneInfo* scInfo = static_cast<StructuredCloneInfo*>(aClosure);
-  NS_ASSERTION(scInfo, "Must have scInfo!");
-
-  MessagePortBase *port = nullptr;
-  nsresult rv = UNWRAP_OBJECT(MessagePort, aObj, port);
-  if (NS_SUCCEEDED(rv)) {
-    nsRefPtr<MessagePortBase> newPort;
-    if (scInfo->mPorts.Get(port, getter_AddRefs(newPort))) {
-      // No duplicate.
-      return false;
-    }
-
-    newPort = port->Clone();
-    scInfo->mPorts.Put(port, newPort);
-
-    *aTag = SCTAG_DOM_MAP_MESSAGEPORT;
-    *aOwnership = JS::SCTAG_TMO_CUSTOM;
-    *aContent = newPort;
-    *aExtraData = 0;
-
-    return true;
-  }
-
-  return false;
-}
-
-static void
-PostMessageFreeTransferStructuredClone(uint32_t aTag, JS::TransferableOwnership aOwnership,
-                                       void* aData,
-                                       uint64_t aExtraData,
-                                       void* aClosure)
-{
-  StructuredCloneInfo* scInfo = static_cast<StructuredCloneInfo*>(aClosure);
-  NS_ASSERTION(scInfo, "Must have scInfo!");
-
-  if (aTag == SCTAG_DOM_MAP_MESSAGEPORT) {
-    MOZ_ASSERT(aOwnership == JS::SCTAG_TMO_CUSTOM);
-    nsRefPtr<MessagePort> port(static_cast<MessagePort*>(aData));
-    scInfo->mPorts.Remove(port);
-  }
-}
-
 JSStructuredCloneCallbacks kPostMessageCallbacks = {
   PostMessageReadStructuredClone,
   PostMessageWriteStructuredClone,
-  nullptr,
-  PostMessageReadTransferStructuredClone,
-  PostMessageTransferStructuredClone,
-  PostMessageFreeTransferStructuredClone
+  nullptr
 };
 
 } // anonymous namespace
-
-static PLDHashOperator
-PopulateMessagePortList(MessagePortBase* aKey, MessagePortBase* aValue, void* aClosure)
-{
-  nsTArray<nsRefPtr<MessagePortBase> > *array =
-    static_cast<nsTArray<nsRefPtr<MessagePortBase> > *>(aClosure);
-
-  array->AppendElement(aKey);
-  return PL_DHASH_NEXT;
-}
 
 NS_IMETHODIMP
 PostMessageRunnable::Run()
@@ -289,32 +226,45 @@ PostMessageRunnable::Run()
 
   // Deserialize the structured clone data
   JS::Rooted<JS::Value> messageData(cx);
-  StructuredCloneInfo scInfo;
-  scInfo.mEvent = this;
-  scInfo.mPort = mPort;
+  {
+    StructuredCloneInfo scInfo;
+    scInfo.mEvent = this;
+    scInfo.mPort = mPort;
 
-  if (!mBuffer.read(cx, &messageData, &kPostMessageCallbacks, &scInfo)) {
-    return NS_ERROR_DOM_DATA_CLONE_ERR;
+    if (!mBuffer.read(cx, &messageData, &kPostMessageCallbacks, &scInfo)) {
+      return NS_ERROR_DOM_DATA_CLONE_ERR;
+    }
   }
 
   // Create the event
-  nsCOMPtr<mozilla::dom::EventTarget> eventTarget =
-    do_QueryInterface(mPort->GetOwner());
-  nsRefPtr<MessageEvent> event =
-    new MessageEvent(eventTarget, nullptr, nullptr);
+  nsIDocument* doc = mPort->GetOwner()->GetExtantDoc();
+  if (!doc) {
+    return NS_OK;
+  }
 
-  event->InitMessageEvent(NS_LITERAL_STRING("message"), false /* non-bubbling */,
-                          false /* cancelable */, messageData, EmptyString(),
-                          EmptyString(), nullptr);
-  event->SetTrusted(true);
-  event->SetSource(mPort);
+  ErrorResult error;
+  nsRefPtr<Event> event =
+    doc->CreateEvent(NS_LITERAL_STRING("MessageEvent"), error);
+  if (error.Failed()) {
+    return NS_OK;
+  }
 
-  nsTArray<nsRefPtr<MessagePortBase> > ports;
-  scInfo.mPorts.EnumerateRead(PopulateMessagePortList, &ports);
-  event->SetPorts(new MessagePortList(static_cast<dom::Event*>(event.get()), ports));
+  nsCOMPtr<nsIDOMMessageEvent> message = do_QueryInterface(event);
+  nsresult rv = message->InitMessageEvent(NS_LITERAL_STRING("message"),
+                                          false /* non-bubbling */,
+                                          true /* cancelable */,
+                                          messageData,
+                                          EmptyString(),
+                                          EmptyString(),
+                                          mPort->GetOwner());
+  if (NS_FAILED(rv)) {
+    return NS_OK;
+  }
+
+  message->SetTrusted(true);
 
   bool status;
-  mPort->DispatchEvent(static_cast<dom::Event*>(event.get()), &status);
+  mPort->DispatchEvent(event, &status);
   return status ? NS_OK : NS_ERROR_FAILURE;
 }
 
