@@ -61,7 +61,6 @@ let gInitializeTimer = null;
 let gFxAOAuthClientPromise = null;
 let gFxAOAuthClient = null;
 let gFxAOAuthTokenData = null;
-let gErrors = new Map();
 
 /**
  * Internal helper methods and state
@@ -136,30 +135,6 @@ let MozLoopServiceInternal = {
    */
   set doNotDisturb(aFlag) {
     Services.prefs.setBoolPref("loop.do_not_disturb", Boolean(aFlag));
-    this.notifyStatusChanged();
-  },
-
-  notifyStatusChanged: function() {
-    Services.obs.notifyObservers(null, "loop-status-changed", null);
-  },
-
-  /**
-   * @param {String} errorType a key to identify the type of error. Only one
-   *                           error of a type will be saved at a time.
-   * @param {Object} error     an object describing the error in the format from Hawk errors
-   */
-  setError: function(errorType, error) {
-    gErrors.set(errorType, error);
-    this.notifyStatusChanged();
-  },
-
-  clearError: function(errorType) {
-    gErrors.delete(errorType);
-    this.notifyStatusChanged();
-  },
-
-  get errors() {
-    return gErrors;
   },
 
   /**
@@ -282,7 +257,6 @@ let MozLoopServiceInternal = {
         if (!this.storeSessionToken(response.headers))
           return;
 
-        this.clearError("registration");
         gRegisteredDeferred.resolve();
         // No need to clear the promise here, everything was good, so we don't need
         // to re-register.
@@ -304,7 +278,6 @@ let MozLoopServiceInternal = {
 
         // XXX Bubble the precise details up to the UI somehow (bug 1013248).
         Cu.reportError("Failed to register with the loop server. error: " + error);
-        this.setError("registration", error);
         gRegisteredDeferred.reject(error.errno);
         gRegisteredDeferred = null;
       }
@@ -328,7 +301,7 @@ let MozLoopServiceInternal = {
     Services.prefs.setCharPref("loop.seenToS", "seen");
 
     this.openChatWindow(null,
-                        this.localizedStrings["incoming_call_title2"].textContent,
+                        this.localizedStrings["incoming_call_title"].textContent,
                         "about:loopconversation#incoming/" + version);
   },
 
@@ -720,10 +693,6 @@ this.MozLoopService = {
    */
   set doNotDisturb(aFlag) {
     MozLoopServiceInternal.doNotDisturb = aFlag;
-  },
-
-  get errors() {
-    return MozLoopServiceInternal.errors;
   },
 
   /**

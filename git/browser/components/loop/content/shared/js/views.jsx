@@ -184,7 +184,7 @@ loop.shared.views = (function(_, OT, l10n) {
           <li className="conversation-toolbar-btn-box">
             <button className="btn btn-hangup" onClick={this.handleClickHangup}
                     title={l10n.get("hangup_button_title")}>
-              {l10n.get("hangup_button_caption2")}
+              {l10n.get("hangup_button_caption")}
             </button>
           </li>
           <li className="conversation-toolbar-btn-box">
@@ -611,7 +611,7 @@ loop.shared.views = (function(_, OT, l10n) {
         default:
           return (
             <FeedbackLayout title={
-              l10n.get("feedback_call_experience_heading2")}>
+              l10n.get("feedback_call_experience_heading")}>
               <div className="faces">
                 <button className="face face-happy"
                         onClick={this.handleHappyClick}></button>
