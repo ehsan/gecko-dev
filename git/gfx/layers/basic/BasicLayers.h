@@ -165,7 +165,8 @@ protected:
   void PaintLayer(gfxContext* aTarget,
                   Layer* aLayer,
                   DrawThebesLayerCallback aCallback,
-                  void* aCallbackData);
+                  void* aCallbackData,
+                  ReadbackProcessor* aReadback);
 
   // Clear the contents of a layer
   void ClearLayer(Layer* aLayer);

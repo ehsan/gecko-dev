@@ -6558,7 +6558,7 @@ RilObject.prototype[UNSOLICITED_ON_USSD] = function UNSOLICITED_ON_USSD() {
 
   this._ussdSession = (typeCode != "0" && typeCode != "2");
 
-  this.sendChromeMessage({rilMessageType: "ussdreceived",
+  this.sendChromeMessage({rilMessageType: "USSDReceived",
                           message: message,
                           sessionEnded: !this._ussdSession});
 };

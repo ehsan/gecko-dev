@@ -2444,7 +2444,7 @@ nsEditor::InsertTextImpl(const nsAString& aStringToInsert,
 
 
 nsresult nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert,
-                                              nsINode* aTextNode,
+                                              Text* aTextNode,
                                               int32_t aOffset,
                                               bool aSuppressIME)
 {

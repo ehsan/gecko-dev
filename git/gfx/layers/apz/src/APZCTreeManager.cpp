@@ -250,7 +250,6 @@ APZCTreeManager::UpdatePanZoomControllerTree(CompositorParent* aCompositor,
           aParent->SetLastChild(apzc);
         } else {
           mRootApzc = apzc;
-          apzc->MakeRoot();
         }
 
         // Let this apzc be the parent of other controllers when we recurse downwards

@@ -611,7 +611,7 @@ GenerateKeyPair(/*out*/ ScopedSECKEYPublicKey& publicKey,
 // Certificates
 
 static SECItem* TBSCertificate(PLArenaPool* arena, long version,
-                               SECItem* serialNumber, SECOidTag signature,
+                               long serialNumber, SECOidTag signature,
                                const SECItem* issuer, PRTime notBefore,
                                PRTime notAfter, const SECItem* subject,
                                const SECKEYPublicKey* subjectPublicKey,
@@ -623,7 +623,7 @@ static SECItem* TBSCertificate(PLArenaPool* arena, long version,
 //         signatureValue       BIT STRING  }
 SECItem*
 CreateEncodedCertificate(PLArenaPool* arena, long version,
-                         SECOidTag signature, SECItem* serialNumber,
+                         SECOidTag signature, long serialNumber,
                          const SECItem* issuerNameDER, PRTime notBefore,
                          PRTime notAfter, const SECItem* subjectNameDER,
                          /*optional*/ SECItem const* const* extensions,
@@ -674,7 +674,7 @@ CreateEncodedCertificate(PLArenaPool* arena, long version,
 //                           -- If present, version MUST be v3 --  }
 static SECItem*
 TBSCertificate(PLArenaPool* arena, long versionValue,
-               SECItem* serialNumber, SECOidTag signatureOidTag,
+               long serialNumberValue, SECOidTag signatureOidTag,
                const SECItem* issuer, PRTime notBeforeTime,
                PRTime notAfterTime, const SECItem* subject,
                const SECKEYPublicKey* subjectPublicKey,
@@ -707,6 +707,10 @@ TBSCertificate(PLArenaPool* arena, long versionValue,
     }
   }
 
+  SECItem* serialNumber(Integer(arena, serialNumberValue));
+  if (!serialNumber) {
+    return nullptr;
+  }
   if (output.Add(serialNumber) != der::Success) {
     return nullptr;
   }

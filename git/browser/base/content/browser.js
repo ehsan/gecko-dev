@@ -6053,7 +6053,7 @@ function GetSearchFieldBookmarkData(node) {
 
 
 function AddKeywordForSearchField() {
-  bookmarkData = GetSearchFieldBookmarkData(gContextMenu.target);
+  bookmarkData = GetSearchFieldBookmarkData(document.popupNode);
 
   PlacesUIUtils.showBookmarkDialog({ action: "add"
                                    , type: "bookmark"

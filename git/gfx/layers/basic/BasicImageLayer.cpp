@@ -44,9 +44,7 @@ public:
     ImageLayer::SetVisibleRegion(aRegion);
   }
 
-  virtual void Paint(DrawTarget* aDT,
-                     const gfx::Point& aDeviceOffset,
-                     Layer* aMaskLayer) MOZ_OVERRIDE;
+  virtual void Paint(DrawTarget* aDT, Layer* aMaskLayer) MOZ_OVERRIDE;
 
   virtual TemporaryRef<SourceSurface> GetAsSourceSurface() MOZ_OVERRIDE;
 
@@ -66,9 +64,7 @@ protected:
 };
 
 void
-BasicImageLayer::Paint(DrawTarget* aDT,
-                       const gfx::Point& aDeviceOffset,
-                       Layer* aMaskLayer)
+BasicImageLayer::Paint(DrawTarget* aDT, Layer* aMaskLayer)
 {
   if (IsHidden() || !mContainer) {
     return;
@@ -85,8 +81,7 @@ BasicImageLayer::Paint(DrawTarget* aDT,
     return;
   }
 
-  FillRectWithMask(aDT, aDeviceOffset, Rect(0, 0, size.width, size.height), 
-                   surface, ToFilter(mFilter),
+  FillRectWithMask(aDT, Rect(0, 0, size.width, size.height), surface, ToFilter(mFilter),
                    DrawOptions(GetEffectiveOpacity(), GetEffectiveOperator(this)),
                    aMaskLayer);
 
