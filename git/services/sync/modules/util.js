@@ -690,13 +690,21 @@ let Utils = {
     Utils._openChromeWindow("Sync", "pick-sync.xul");
   },
 
+  __errorBundle: null,
+  get _errorBundle() {
+    if (!this.__errorBundle) {
+      this.__errorBundle = new StringBundle("chrome://weave/locales/errors.properties");
+    }
+    return this.__errorBundle;
+  },
+
   getErrorString: function Utils_getErrorString(error, args) {
     try {
-      return Str.errors.get(error, args || null);
+      return this._errorBundle.get(error, args || null);
     } catch (e) {}
     
     // basically returns "Unknown Error"
-    return Str.errors.get("error.reason.unknown");
+    return this._errorBundle.get("error.reason.unknown");
   },
 
   // assumes an nsIConverterInputStream
@@ -785,5 +793,5 @@ Svc.Prefs = new Preferences(PREFS_BRANCH);
 ].forEach(function(lazy) Utils.lazySvc(Svc, lazy[0], lazy[1], Ci[lazy[2]]));
 
 let Str = {};
-["about", "errors"]
+["service", "about"]
   .forEach(function(lazy) Utils.lazy2(Str, lazy, Utils.lazyStrings(lazy)));

@@ -57,6 +57,7 @@ FormEngine.prototype = {
   __proto__: SyncEngine.prototype,
   name: "forms",
   displayName: "Forms",
+  description: "Take advantage of form-fill convenience on all your devices",
   logName: "Forms",
   _storeObj: FormStore,
   _trackerObj: FormTracker,
@@ -132,12 +133,12 @@ FormStore.prototype = {
   },
   
   cacheFormItems: function FormStore_cacheFormItems() {
-    this._log.trace("Caching all form items");
+    this._log.debug("Caching all form items");
     this._formItems = this.getAllIDs();
   },
   
   clearFormCache: function FormStore_clearFormCache() {
-    this._log.trace("Clearing form cache");
+    this._log.debug("Clearing form cache");
     this._formItems = null;
   },
   

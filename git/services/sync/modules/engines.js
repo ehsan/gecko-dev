@@ -146,6 +146,7 @@ function Engine() { this._init(); }
 Engine.prototype = {
   name: "engine",
   displayName: "Boring Engine",
+  description: "An engine example - it doesn't actually sync anything",
   logName: "Engine",
 
   // _storeObj, and _trackerObj should to be overridden in subclasses
@@ -361,7 +362,7 @@ SyncEngine.prototype = {
       meta.generateIV();
       meta.addUnwrappedKey(pubkey, symkey);
       let res = new Resource(meta.uri);
-      let resp = res.put(meta);
+      let resp = res.put(meta.serialize());
       if (!resp.success) {
         this._log.debug("Metarecord upload fail:" + resp);
         resp.failureCode = ENGINE_METARECORD_UPLOAD_FAIL;

@@ -59,6 +59,7 @@ PrefsEngine.prototype = {
   __proto__: SyncEngine.prototype,
   name: "prefs",
   displayName: "Preferences",
+  description: "Synchronize your home page, selected persona, and more",
   logName: "Prefs",
   _storeObj: PrefStore,
   _trackerObj: PrefTracker,
@@ -183,7 +184,7 @@ PrefStore.prototype = {
   },
 
   update: function PrefStore_update(record) {
-    this._log.trace("Received pref updates, applying...");
+    this._log.debug("Received pref updates, applying...");
     this._setAllPrefs(record.value);
   },
   
@@ -232,7 +233,7 @@ PrefTracker.prototype = {
     if (this._syncPrefs.indexOf(aData) != -1) {
       this._score += 25;
       this.addChangedID(WEAVE_PREFS_GUID);
-      this._log.trace("Preference " + aData + " changed");
+      this._log.debug("Preference " + aData + " changed");
     }
   }
 };
