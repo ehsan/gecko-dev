@@ -170,7 +170,6 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 
 #ifdef CAIRO_HAS_D2D_SURFACE
     NS_RegisterMemoryReporter(new D2DCacheReporter());
-    mD2DDevice = NULL;
 #endif
 #ifdef CAIRO_HAS_DWRITE_FONT
     nsresult rv;
@@ -214,8 +213,7 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 #ifndef CAIRO_HAS_D2D_SURFACE
                 return;
 #else
-		mD2DDevice = cairo_d2d_create_device();
-                if (!mD2DDevice) {
+                if (!cairo_d2d_has_support()) {
                     return;
                 }
 #ifdef CAIRO_HAS_DWRITE_FONT
@@ -237,11 +235,6 @@ gfxWindowsPlatform::~gfxWindowsPlatform()
 {
     // not calling FT_Done_FreeType because cairo may still hold references to
     // these FT_Faces.  See bug 458169.
-#ifdef CAIRO_HAS_D2D_SURFACE
-    if (mD2DDevice) {
-	cairo_release_device(mD2DDevice);
-    }
-#endif
 }
 
 gfxPlatformFontList*

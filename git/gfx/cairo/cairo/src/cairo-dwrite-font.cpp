@@ -1262,52 +1262,32 @@ _cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
     if (cairo_scaled_font_get_type (scaled_font) != CAIRO_FONT_TYPE_DWRITE)
 	return CAIRO_INT_STATUS_UNSUPPORTED;
 
-    op = _cairo_d2d_simplify_operator(op, source);
 
-    /* We cannot handle operator SOURCE or CLEAR */
-    if (op == CAIRO_OPERATOR_SOURCE || op == CAIRO_OPERATOR_CLEAR) {
+    /* We can only handle operator SOURCE or OVER with the destination
+     * having no alpha */
+    if (op != CAIRO_OPERATOR_SOURCE && op != CAIRO_OPERATOR_OVER)
 	return CAIRO_INT_STATUS_UNSUPPORTED;
+
+    _cairo_d2d_begin_draw_state (dst);
+    _cairo_d2d_set_clip (dst, clip);
+
+    D2D1_TEXT_ANTIALIAS_MODE cleartype = D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE;
+
+    if (dst->base.content != CAIRO_CONTENT_COLOR) {
+	cleartype = D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE;
     }
-
-    RefPtr<ID2D1RenderTarget> target_rt = dst->rt;
-    cairo_rectangle_int_t fontArea;
-#ifndef ALWAYS_MANUAL_COMPOSITE
-    if (op != CAIRO_OPERATOR_OVER) {
-#endif
-	target_rt = _cairo_d2d_get_temp_rt(dst, clip);
-
-	if (!target_rt) {
-	    return CAIRO_INT_STATUS_UNSUPPORTED;
-	}
-#ifndef ALWAYS_MANUAL_COMPOSITE
-    } else {
-	_cairo_d2d_begin_draw_state(dst);
-	status = (cairo_int_status_t)_cairo_d2d_set_clip (dst, clip);
-
-	if (unlikely(status))
-	    return status;
-    }
-#endif
-
-    D2D1_TEXT_ANTIALIAS_MODE highest_quality = D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE;
-
-    // If we're rendering to a temporary surface we cannot do sub-pixel AA.
-    if (dst->base.content != CAIRO_CONTENT_COLOR || dst->rt.get() != target_rt.get()) {
-	highest_quality = D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE;
-    }
-
     switch (scaled_font->options.antialias) {
 	case CAIRO_ANTIALIAS_DEFAULT:
-	    target_rt->SetTextAntialiasMode(highest_quality);
+	    dst->rt->SetTextAntialiasMode(cleartype);
 	    break;
 	case CAIRO_ANTIALIAS_NONE:
-	    target_rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
+	    dst->rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
 	    break;
 	case CAIRO_ANTIALIAS_GRAY:
-	    target_rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+	    dst->rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 	    break;
 	case CAIRO_ANTIALIAS_SUBPIXEL:
-	    target_rt->SetTextAntialiasMode(highest_quality);
+	    dst->rt->SetTextAntialiasMode(cleartype);
 	    break;
     }
 
@@ -1369,29 +1349,7 @@ _cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
     D2D1::Matrix3x2F mat = _cairo_d2d_matrix_from_matrix(&dwritesf->mat);
 	
     if (transform) {
-	target_rt->SetTransform(mat);
-    }
-
-    if (dst->rt.get() != target_rt.get()) {
-	RefPtr<IDWriteGlyphRunAnalysis> analysis;
-	DWRITE_MATRIX dwmat = _cairo_dwrite_matrix_from_matrix(&dwritesf->mat);
-	DWriteFactory::Instance()->CreateGlyphRunAnalysis(&run,
-							  1.0f,
-							  transform ? &dwmat : 0,
-							  DWRITE_RENDERING_MODE_CLEARTYPE_NATURAL_SYMMETRIC,
-							  DWRITE_MEASURING_MODE_NATURAL,
-							  0,
-							  0,
-							  &analysis);
-
-	RECT bounds;
-	analysis->GetAlphaTextureBounds(scaled_font->options.antialias == CAIRO_ANTIALIAS_NONE ?
-					DWRITE_TEXTURE_ALIASED_1x1 : DWRITE_TEXTURE_CLEARTYPE_3x1,
-					&bounds);
-	fontArea.x = bounds.left;
-	fontArea.y = bounds.top;
-	fontArea.width = bounds.right - bounds.left;
-	fontArea.height = bounds.bottom - bounds.top;
+	dst->rt->SetTransform(mat);
     }
 
     RefPtr<ID2D1Brush> brush = _cairo_d2d_create_brush_for_pattern(dst,
@@ -1416,19 +1374,15 @@ _cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
 	brush->SetTransform(&mat_brush);
     }
     
-    target_rt->DrawGlyphRun(D2D1::Point2F(0, 0), &run, brush);
+    dst->rt->DrawGlyphRun(D2D1::Point2F(0, 0), &run, brush);
     
     if (transform) {
-	target_rt->SetTransform(D2D1::Matrix3x2F::Identity());
+	dst->rt->SetTransform(D2D1::Matrix3x2F::Identity());
     }
 
     delete [] indices;
     delete [] offsets;
     delete [] advances;
-
-    if (target_rt.get() != dst->rt.get()) {
-	return _cairo_d2d_blend_temp_surface(dst, op, target_rt, clip, &fontArea);
-    }
 
     return CAIRO_INT_STATUS_SUCCESS;
 }

@@ -61,10 +61,9 @@ public:
     ~PluginProcessParent();
 
     /**
-     * Synchronously launch the plugin process. If the process fails to launch
-     * after timeoutMs, this method will return false.
+     * Synchronously launch the plugin process.
      */
-    bool Launch(PRInt32 timeoutMs);
+    bool Launch();
 
     void Delete();
 

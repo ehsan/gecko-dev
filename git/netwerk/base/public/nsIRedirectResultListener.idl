@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: IDL; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,14 +13,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Corporation code.
+ * The Original Code is nsIApplicationCache.idl.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Bas Schouten <bschouten@mozilla.com>
+ *   Honza Bambas <honzab@firemni.cz>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,43 +37,19 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef GFX_THEBESLAYERD3D9_H
-#define GFX_THEBESLAYERD3D9_H
+#include "nsISupports.idl"
 
-#include "Layers.h"
-#include "LayerManagerD3D9.h"
-#include "gfxImageSurface.h"
-
-
-namespace mozilla {
-namespace layers {
-
-class ThebesLayerD3D9 : public ThebesLayer,
-                        public LayerD3D9
+[scriptable, uuid(85cd2640-e91e-41ac-bdca-1dbf10dc131e)]
+interface nsIRedirectResultListener : nsISupports
 {
-public:
-  ThebesLayerD3D9(LayerManagerD3D9 *aManager);
-  virtual ~ThebesLayerD3D9();
-
-  /* Layer implementation */
-  void SetVisibleRegion(const nsIntRegion& aRegion);
-
-  /* ThebesLayer implementation */
-  void InvalidateRegion(const nsIntRegion& aRegion);
-
-  /* LayerD3D9 implementation */
-  Layer* GetLayer();
-  virtual PRBool IsEmpty();
-  virtual void RenderLayer();
-  virtual void CleanResources();
-
-private:
-  /*
-   * D3D9 texture
+  /**
+   *  When an HTTP redirect has been processed (either successfully or not)
+   *  nsIHttpChannel will call this function if its callbacks implement this
+   *  interface.
+   *
+   *  @param proceeding
+   *         Indicated whether the redirect will be proceeding, or not (i.e.
+   *         has been canceled, or failed).
    */
-  nsRefPtr<IDirect3DTexture9> mTexture;
+  void onRedirectResult(in PRBool proceeding);
 };
-
-} /* layers */
-} /* mozilla */
-#endif /* GFX_THEBESLAYERD3D9_H */
