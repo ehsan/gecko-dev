@@ -45,8 +45,6 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= pref
 GRE_MODULE	= 1
 
-EXPORTS_NAMESPACES = mozilla
-
 SDK_XPIDLSRCS   = \
               nsIPrefService.idl \
               nsIPrefBranch.idl \
@@ -61,11 +59,7 @@ XPIDLSRCS	= \
 
 EXPORTS     = \
               PPrefTuple.h \
-              PrefTuple.h \
-              $(NULL)
-
-EXPORTS_mozilla = \
-              Preferences.h \
+              PrefTuple.h
               $(NULL)
 
 include $(topsrcdir)/config/rules.mk

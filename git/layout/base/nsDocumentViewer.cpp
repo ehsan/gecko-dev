@@ -52,6 +52,7 @@
 #include "nsIDocumentViewer.h"
 #include "mozilla/FunctionTimer.h"
 #include "nsIDocumentViewerPrint.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIDOMBeforeUnloadEvent.h"
 #include "nsIDocument.h"
@@ -1141,10 +1142,10 @@ DocumentViewerImpl::PermitUnload(PRBool aCallerClosesWindow, PRBool *aPermitUnlo
 
   // Now, fire an BeforeUnload event to the document and see if it's ok
   // to unload...
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(mDocument);
+  nsCOMPtr<nsIDOMDocumentEvent> docEvent = do_QueryInterface(mDocument);
   nsCOMPtr<nsIDOMEvent> event;
-  domDoc->CreateEvent(NS_LITERAL_STRING("beforeunloadevent"),
-                      getter_AddRefs(event));
+  docEvent->CreateEvent(NS_LITERAL_STRING("beforeunloadevent"),
+                        getter_AddRefs(event));
   nsCOMPtr<nsIDOMBeforeUnloadEvent> beforeUnload = do_QueryInterface(event);
   nsCOMPtr<nsIPrivateDOMEvent> pEvent = do_QueryInterface(beforeUnload);
   NS_ENSURE_STATE(pEvent);

@@ -705,51 +705,6 @@ struct JSRuntime {
     size_t               mjitDataSize;
 #endif
 
-    /*
-     * To ensure that cx->malloc does not cause a GC, we set this flag during
-     * OOM reporting (in js_ReportOutOfMemory). If a GC is requested while
-     * reporting the OOM, we ignore it.
-     */
-    bool                 inOOMReport;
-
-#if defined(MOZ_GCTIMER) || defined(JSGC_TESTPILOT)
-    struct GCData {
-        /*
-         * Timestamp of the first GCTimer -- application runtime is determined
-         * relative to this value.
-         */
-        uint64      firstEnter;
-        bool        firstEnterValid;
-
-        void setFirstEnter(uint64 v) {
-            JS_ASSERT(!firstEnterValid);
-            firstEnter = v;
-            firstEnterValid = true;
-        }
-
-#ifdef JSGC_TESTPILOT
-        bool        infoEnabled;
-
-        bool isTimerEnabled() {
-            return infoEnabled;
-        }
-
-        /* 
-         * Circular buffer with GC data.
-         * count may grow >= INFO_LIMIT, which would indicate data loss.
-         */
-        static const size_t INFO_LIMIT = 64;
-        JSGCInfo    info[INFO_LIMIT];
-        size_t      start;
-        size_t      count;
-#else /* defined(MOZ_GCTIMER) */
-        bool isTimerEnabled() {
-            return true;
-        }
-#endif
-    } gcData;
-#endif
-
     JSRuntime();
     ~JSRuntime();
 
@@ -760,7 +715,7 @@ struct JSRuntime {
 
     /*
      * Call the system malloc while checking for GC memory pressure and
-     * reporting OOM error when cx is not null. We will not GC from here.
+     * reporting OOM error when cx is not null.
      */
     void* malloc_(size_t bytes, JSContext *cx = NULL) {
         updateMallocCounter(bytes);
@@ -770,7 +725,7 @@ struct JSRuntime {
 
     /*
      * Call the system calloc while checking for GC memory pressure and
-     * reporting OOM error when cx is not null. We will not GC from here.
+     * reporting OOM error when cx is not null.
      */
     void* calloc_(size_t bytes, JSContext *cx = NULL) {
         updateMallocCounter(bytes);
@@ -1434,7 +1389,7 @@ static inline JSAtom **
 FrameAtomBase(JSContext *cx, js::StackFrame *fp)
 {
     return fp->hasImacropc()
-           ? cx->runtime->atomState.commonAtomsStart()
+           ? COMMON_ATOMS_START(&cx->runtime->atomState)
            : fp->script()->atomMap.vector;
 }
 
@@ -1920,7 +1875,7 @@ class AutoLockAtomsCompartment {
 
   public:
     AutoLockAtomsCompartment(JSContext *cx
-                             JS_GUARD_OBJECT_NOTIFIER_PARAM)
+                               JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : cx(cx)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;

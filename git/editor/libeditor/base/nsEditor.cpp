@@ -242,7 +242,8 @@ nsEditor::Init(nsIDOMDocument *aDoc, nsIContent *aRoot, nsISelectionController *
     mSelConWeak = do_GetWeakReference(aSelCon);   // weak reference to selectioncontroller
     selCon = aSelCon;
   } else {
-    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    nsCOMPtr<nsIPresShell> presShell;
+    GetPresShell(getter_AddRefs(presShell));
     selCon = do_QueryInterface(presShell);
   }
   NS_ASSERTION(selCon, "Selection controller should be available at this point");
@@ -314,7 +315,8 @@ nsEditor::PostCreate()
   // update nsTextStateManager and caret if we have focus
   nsCOMPtr<nsIContent> focusedContent = GetFocusedContent();
   if (focusedContent) {
-    nsCOMPtr<nsIPresShell> ps = GetPresShell();
+    nsCOMPtr<nsIPresShell> ps;
+    GetPresShell(getter_AddRefs(ps));
     NS_ASSERTION(ps, "no pres shell even though we have focus");
     NS_ENSURE_TRUE(ps, NS_ERROR_UNEXPECTED);
     nsPresContext* pc = ps->GetPresContext(); 
@@ -394,11 +396,12 @@ nsEditor::GetDesiredSpellCheckState()
     return PR_FALSE;
   }
 
-  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  if (presShell) {
+  nsCOMPtr<nsIPresShell> presShell;
+  rv = GetPresShell(getter_AddRefs(presShell));
+  if (NS_SUCCEEDED(rv)) {
     nsPresContext* context = presShell->GetPresContext();
     if (context && !context->IsDynamic()) {
-      return PR_FALSE;
+        return PR_FALSE;
     }
   }
 
@@ -525,14 +528,19 @@ nsEditor::GetDocument(nsIDOMDocument **aDoc)
   return NS_OK;
 }
 
-already_AddRefed<nsIPresShell>
-nsEditor::GetPresShell()
+
+nsresult 
+nsEditor::GetPresShell(nsIPresShell **aPS)
 {
+  NS_ENSURE_TRUE(aPS, NS_ERROR_NULL_POINTER);
+  *aPS = nsnull; // init out param
   NS_PRECONDITION(mDocWeak, "bad state, null mDocWeak");
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
-  NS_ENSURE_TRUE(doc, NULL);
-  nsCOMPtr<nsIPresShell> ps = doc->GetShell();
-  return ps.forget();
+  NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
+  *aPS = doc->GetShell();
+  NS_ENSURE_TRUE(*aPS, NS_ERROR_NOT_INITIALIZED);
+  NS_ADDREF(*aPS);
+  return NS_OK;
 }
 
 
@@ -561,7 +569,8 @@ nsEditor::GetSelectionController(nsISelectionController **aSel)
   if (mSelConWeak) {
     selCon = do_QueryReferent(mSelConWeak);
   } else {
-    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    nsCOMPtr<nsIPresShell> presShell;
+    GetPresShell(getter_AddRefs(presShell));
     selCon = do_QueryInterface(presShell);
   }
   NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
@@ -930,7 +939,8 @@ nsEditor::EndPlaceHolderTransaction()
       // Hide the caret here to avoid hiding it twice, once in EndUpdateViewBatch
       // and once in ScrollSelectionIntoView.
       nsRefPtr<nsCaret> caret;
-      nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+      nsCOMPtr<nsIPresShell> presShell;
+      GetPresShell(getter_AddRefs(presShell));
 
       if (presShell)
         caret = presShell->GetCaret();
@@ -2768,7 +2778,8 @@ nsEditor::SplitNodeImpl(nsIDOMNode * aExistingRightNode,
           }        
         }
         // handle selection
-        nsCOMPtr<nsIPresShell> ps = GetPresShell();
+        nsCOMPtr<nsIPresShell> ps;
+        GetPresShell(getter_AddRefs(ps));
         if (ps)
           ps->FlushPendingNotifications(Flush_Frames);
 
@@ -3896,7 +3907,8 @@ nsEditor::IsPreformatted(nsIDOMNode *aNode, PRBool *aResult)
   
   NS_ENSURE_TRUE(aResult && content, NS_ERROR_NULL_POINTER);
   
-  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsCOMPtr<nsIPresShell> ps;
+  GetPresShell(getter_AddRefs(ps));
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   // Look at the node (and its parent if it's not an element), and grab its style context
@@ -4105,7 +4117,8 @@ nsresult nsEditor::BeginUpdateViewBatch()
     }
 
     // Turn off view updating.
-    nsCOMPtr<nsIPresShell> ps = GetPresShell();
+    nsCOMPtr<nsIPresShell> ps;
+    GetPresShell(getter_AddRefs(ps));
     if (ps) {
       nsCOMPtr<nsIViewManager> viewManager = ps->GetViewManager();
       if (viewManager) {
@@ -4140,7 +4153,8 @@ nsresult nsEditor::EndUpdateViewBatch()
     // to draw at the correct position.
 
     nsRefPtr<nsCaret> caret;
-    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    nsCOMPtr<nsIPresShell> presShell;
+    GetPresShell(getter_AddRefs(presShell));
 
     if (presShell)
       caret = presShell->GetCaret();
@@ -5069,8 +5083,9 @@ nsEditor::InitializeSelection(nsIDOMEventTarget* aFocusEventTarget)
   nsresult rv = GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  NS_ENSURE_TRUE(presShell, NS_ERROR_NOT_INITIALIZED);
+  nsCOMPtr<nsIPresShell> presShell;
+  rv = GetPresShell(getter_AddRefs(presShell));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsISelectionController> selCon;
   rv = GetSelectionController(getter_AddRefs(selCon));

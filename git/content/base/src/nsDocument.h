@@ -69,6 +69,8 @@
 #include "nsIParser.h"
 #include "nsBindingManager.h"
 #include "nsINodeInfo.h"
+#include "nsIDOMDocumentEvent.h"
+#include "nsIDOM3DocumentEvent.h"
 #include "nsHashtable.h"
 #include "nsInterfaceHashtable.h"
 #include "nsIBoxObject.h"
@@ -491,6 +493,8 @@ protected:
 class nsDocument : public nsIDocument,
                    public nsIDOMXMLDocument, // inherits nsIDOMDocument
                    public nsIDOMNSDocument,
+                   public nsIDOMDocumentEvent,
+                   public nsIDOM3DocumentEvent,
                    public nsIDOMNSDocumentStyle,
                    public nsIDOMDocumentXBL,
                    public nsSupportsWeakReference,
@@ -793,6 +797,12 @@ public:
 
   // nsIDOMNSDocument
   NS_DECL_NSIDOMNSDOCUMENT
+
+  // nsIDOMDocumentEvent
+  NS_DECL_NSIDOMDOCUMENTEVENT
+
+  // nsIDOM3DocumentEvent
+  NS_DECL_NSIDOM3DOCUMENTEVENT
 
   // nsIDOMDocumentStyle
   NS_DECL_NSIDOMDOCUMENTSTYLE
@@ -1242,6 +1252,7 @@ protected:
   NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocument, nsDocument)      \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNSDocument, nsDocument)    \
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentEvent, nsDocument) \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMEventTarget, nsDocument)   \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNode, nsDocument)
 

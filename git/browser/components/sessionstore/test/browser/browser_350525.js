@@ -39,9 +39,6 @@ function test() {
   // value should not exist post-delete
   is(ss.getWindowValue(window, key), "", "window value was deleted");
   
-  // test deleting a non-existent value
-  ok(test(function() ss.deleteWindowValue(window, key)), "delete non-existent window value");
-  
   /////////////////////////
   // setTabValue, et al. //
   /////////////////////////
@@ -58,12 +55,8 @@ function test() {
   
   // test deleting 
   ok(test(function() ss.deleteTabValue(tab, key)), "delete the tab value");
-  
   // value should not exist post-delete
   is(ss.getTabValue(tab, key), "", "tab value was deleted");
-  
-  // test deleting a non-existent value
-  ok(test(function() ss.deleteTabValue(tab, key)), "delete non-existent tab value");
   
   // clean up
   tabbrowser.removeTab(tab);

@@ -65,7 +65,7 @@ function checkHistograms(request, response) {
     OS: "XPCShell", 
     XPCOMABI: "noarch-spidermonkey", 
     ID: "xpcshell@tests.mozilla.org", 
-    version: "1", 
+    vesion: "1", 
     name: "XPCShell", 
     appBuildID: "2007010101",
     platformBuildID: "2007010101"

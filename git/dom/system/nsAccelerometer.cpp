@@ -43,6 +43,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIServiceManager.h"
 #include "nsIPrivateDOMEvent.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIDOMDeviceOrientationEvent.h"
 #include "nsIServiceManager.h"
 #include "nsIPrefService.h"
@@ -256,12 +257,13 @@ nsAccelerometer::AccelerationChanged(double alpha, double beta, double gamma)
     nsCOMPtr<nsIDOMDocument> domdoc;
     mWindowListeners[i]->GetDocument(getter_AddRefs(domdoc));
 
+    nsCOMPtr<nsIDOMDocumentEvent> docevent(do_QueryInterface(domdoc));
     nsCOMPtr<nsIDOMEvent> event;
 
     PRBool defaultActionEnabled = PR_TRUE;
 
-    if (domdoc) {
-      domdoc->CreateEvent(NS_LITERAL_STRING("DeviceOrientationEvent"), getter_AddRefs(event));
+    if (docevent) {
+      docevent->CreateEvent(NS_LITERAL_STRING("DeviceOrientationEvent"), getter_AddRefs(event));
 
       nsCOMPtr<nsIDOMDeviceOrientationEvent> oe = do_QueryInterface(event);
 

@@ -4,17 +4,8 @@
 
 // Bug 656269 - Add link to Mozilla plugin check from Add-ons Manager
 
-const MAIN_URL = "https://example.com/" + RELATIVE_DIR + "discovery.html";
-const PREF_PLUGINCHECKURL = "plugins.update.url";
-
 function test() {
   waitForExplicitFinish();
-
-  Services.prefs.setCharPref(PREF_PLUGINCHECKURL, MAIN_URL);
-  registerCleanupFunction(function() {
-    Services.prefs.clearUserPref(PREF_PLUGINCHECKURL);
-  });
-
   run_next_test();
 }
 
@@ -29,7 +20,7 @@ add_test(function() {
     is_element_hidden(button, "Plugin Check message button should be hidden");
 
     info("Changing view to plugins")
-    EventUtils.synthesizeMouseAtCenter(aManager.document.getElementById("category-plugin"), { }, aManager);
+    EventUtils.synthesizeMouseAtCenter(aManager.document.getElementById("category-plugins"), { }, aManager);
 
     wait_for_view_load(aManager, function(aManager) {
       var button = aManager.document.querySelector("#list-view hbox.global-info-plugincheck button.button-link");

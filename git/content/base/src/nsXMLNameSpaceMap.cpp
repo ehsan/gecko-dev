@@ -109,6 +109,12 @@ nsXMLNameSpaceMap::AddPrefix(nsIAtom *aPrefix, nsString &aURI)
   return AddPrefix(aPrefix, id);
 }
 
+void
+nsXMLNameSpaceMap::RemovePrefix(nsIAtom *aPrefix)
+{
+  mNameSpaces.RemoveElement(aPrefix);
+}
+
 PRInt32
 nsXMLNameSpaceMap::FindNameSpaceID(nsIAtom *aPrefix) const
 {

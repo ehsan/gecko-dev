@@ -59,7 +59,6 @@
 #include "jsdbgapi.h"
 #include "jsfun.h"
 #include "jsgc.h"
-#include "jsgcmark.h"
 #include "jsinterp.h"
 #include "jsiter.h"
 #include "jslock.h"
@@ -200,8 +199,9 @@ js::GetBlockChainFast(JSContext *cx, StackFrame *fp, JSOp op, size_t oplen)
 
     pc += oplen;
     op = JSOp(*pc);
+    JS_ASSERT(js_GetOpcode(cx, fp->script(), pc) == op);
 
-    /* The fast paths assume no JSOP_RESETBASE/INDEXBASE or JSOP_TRAP noise. */
+    /* The fast paths assume no JSOP_RESETBASE/INDEXBASE noise. */
     if (op == JSOP_NULLBLOCKCHAIN)
         return NULL;
     if (op == JSOP_BLOCKCHAIN)
@@ -477,13 +477,6 @@ BoxNonStrictThis(JSContext *cx, const CallReceiver &call)
 const uint32 JSSLOT_FOUND_FUNCTION  = 0;
 const uint32 JSSLOT_SAVED_ID        = 1;
 
-static void
-no_such_method_trace(JSTracer *trc, JSObject *obj)
-{
-    gc::MarkValue(trc, obj->getSlot(JSSLOT_FOUND_FUNCTION), "found function");
-    gc::MarkValue(trc, obj->getSlot(JSSLOT_SAVED_ID), "saved id");
-}
-
 Class js_NoSuchMethodClass = {
     "NoSuchMethod",
     JSCLASS_HAS_RESERVED_SLOTS(2) | JSCLASS_IS_ANONYMOUS,
@@ -494,14 +487,6 @@ Class js_NoSuchMethodClass = {
     EnumerateStub,
     ResolveStub,
     ConvertStub,
-    NULL,                 /* finalize */
-    NULL,                 /* reserved0 */
-    NULL,                 /* checkAccess */
-    NULL,                 /* call */
-    NULL,                 /* construct */
-    NULL,                 /* XDR */
-    NULL,                 /* hasInstance */
-    no_such_method_trace  /* trace */
 };
 
 /*
@@ -545,8 +530,13 @@ js_OnUnknownMethod(JSContext *cx, Value *vp)
         if (!obj)
             return false;
 
+        /*
+         * Null map to cause prompt and safe crash if this object were to
+         * escape due to a bug. This will make the object appear to be a
+         * stillborn instance that needs no finalization, which is sound:
+         * NoSuchMethod helper objects own no manually allocated resources.
+         */
         obj->init(cx, &js_NoSuchMethodClass, NULL, NULL, NULL, false);
-        obj->setSharedNonNativeMap();
         obj->setSlot(JSSLOT_FOUND_FUNCTION, tvr.value());
         obj->setSlot(JSSLOT_SAVED_ID, vp[0]);
         vp[0].setObject(*obj);
@@ -2269,7 +2259,7 @@ Interpret(JSContext *cx, StackFrame *entryFrame, uintN inlineCallCount, InterpMo
 #define LOAD_ATOM(PCOFF, atom)                                                \
     JS_BEGIN_MACRO                                                            \
         JS_ASSERT(regs.fp()->hasImacropc()                                    \
-                  ? atoms == rt->atomState.commonAtomsStart() &&              \
+                  ? atoms == COMMON_ATOMS_START(&rt->atomState) &&            \
                     GET_INDEX(regs.pc + PCOFF) < js_common_atom_count         \
                   : (size_t)(atoms - script->atomMap.vector) <                \
                     (size_t)(script->atomMap.length -                         \
@@ -2289,9 +2279,7 @@ Interpret(JSContext *cx, StackFrame *entryFrame, uintN inlineCallCount, InterpMo
 #define LOAD_DOUBLE(PCOFF, dbl)                                               \
     (dbl = script->getConst(GET_FULL_INDEX(PCOFF)).toDouble())
 
-#if defined(JS_TRACER) || defined(JS_METHODJIT)
     bool useMethodJIT = false;
-#endif
 
 #ifdef JS_METHODJIT
 
@@ -2520,7 +2508,7 @@ Interpret(JSContext *cx, StackFrame *entryFrame, uintN inlineCallCount, InterpMo
     }
 
     if (regs.fp()->hasImacropc())
-        atoms = rt->atomState.commonAtomsStart();
+        atoms = COMMON_ATOMS_START(&rt->atomState);
 #endif
 
     /* Don't call the script prologue if executing between Method and Trace JIT. */
@@ -2686,7 +2674,7 @@ Interpret(JSContext *cx, StackFrame *entryFrame, uintN inlineCallCount, InterpMo
                 break;
               case ARECORD_IMACRO:
               case ARECORD_IMACRO_ABORTED:
-                atoms = rt->atomState.commonAtomsStart();
+                atoms = COMMON_ATOMS_START(&rt->atomState);
                 op = JSOp(*regs.pc);
                 CLEAR_LEAVE_ON_TRACE_POINT();
                 if (status == ARECORD_IMACRO)
@@ -4557,7 +4545,7 @@ BEGIN_CASE(JSOP_NEW)
     if (IsFunctionObject(vp[0], &callee)) {
         newfun = callee->getFunctionPrivate();
         if (newfun->isInterpretedConstructor()) {
-            if (newfun->script()->isEmpty()) {
+            if (newfun->u.i.script->isEmpty()) {
                 JSObject *obj2 = js_CreateThisForFunction(cx, callee);
                 if (!obj2)
                     goto error;
@@ -5518,7 +5506,7 @@ BEGIN_CASE(JSOP_LAMBDA)
 
                 if (op2 == JSOP_SETMETHOD) {
 #ifdef DEBUG
-                    op2 = js_GetOpcode(cx, script, pc2 + JSOP_SETMETHOD_LENGTH);
+                    op2 = JSOp(pc2[JSOP_SETMETHOD_LENGTH]);
                     JS_ASSERT(op2 == JSOP_POP || op2 == JSOP_POPV);
 #endif
                     const Value &lref = regs.sp[-1];

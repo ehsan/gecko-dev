@@ -3858,7 +3858,9 @@ nsHtml5Tokenizer::loadState(nsHtml5Tokenizer* other)
   } else {
     attributeName = other->attributeName->cloneAttributeName(interner);
   }
-  delete attributes;
+  if (attributes) {
+    delete attributes;
+  }
   if (!other->attributes) {
     attributes = nsnull;
   } else {

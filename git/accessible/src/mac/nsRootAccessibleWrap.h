@@ -54,7 +54,7 @@ public:
                        nsIWeakReference *aShell);
   virtual ~nsRootAccessibleWrap();
 
-    Class GetNativeType ();
+    objc_class* GetNativeType ();
     
     // let's our native accessible get in touch with the
     // native cocoa view that is our accessible parent.

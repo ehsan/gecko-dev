@@ -201,14 +201,6 @@ private:
    */
   nsresult notifyResults();
 
-  /**
-   * Tests whether the current statements should be wrapped in an explicit
-   * transaction.
-   *
-   * @return true if an explicit transaction is needed, false otherwise.
-   */
-  bool statementsNeedTransaction();
-
   StatementDataArray mStatements;
   nsRefPtr<Connection> mConnection;
   mozStorageTransaction *mTransactionManager;

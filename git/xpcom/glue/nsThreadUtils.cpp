@@ -144,6 +144,11 @@ bool NS_IsMainThread()
   nsThreadManager::get()->nsThreadManager::GetIsMainThread(&result);
   return bool(result);
 }
+#elif !defined(MOZ_ENABLE_LIBXUL)
+bool NS_IsMainThread()
+{
+  return gTLSThreadID == mozilla::threads::Main;
+}
 #endif
 
 NS_METHOD

@@ -225,9 +225,7 @@ var ContentPopupHelper = {
         break;
 
       case "resize":
-        window.setTimeout(function(self) {
-          self.anchorTo();
-        }, 0, this);
+        this.anchorTo();
         break;
     }
   }

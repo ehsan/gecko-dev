@@ -390,7 +390,8 @@ PACK_OMNIJAR	= \
   grep -h '^binary-component' components/*.manifest > binary.manifest ; \
   sed -e 's/^binary-component/\#binary-component/' components/components.manifest > components.manifest && \
   mv components.manifest components && \
-  zip -r9m omni.jar $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
+  find . | xargs touch -t 201001010000 && \
+  zip -r9mX omni.jar $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
   $(GENERATE_CACHE) && \
   $(OPTIMIZE_JARS_CMD) --optimize $(JARLOG_DIR) ./ ./ && \
   mv binary.manifest components && \

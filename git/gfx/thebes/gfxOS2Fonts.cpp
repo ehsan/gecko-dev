@@ -97,7 +97,9 @@ gfxOS2Font::~gfxOS2Font()
     if (mScaledFont) {
         cairo_scaled_font_destroy(mScaledFont);
     }
-    delete mMetrics;
+    if (mMetrics) {
+        delete mMetrics;
+    }
     mFontFace = nsnull;
     mScaledFont = nsnull;
     mMetrics = nsnull;

@@ -103,7 +103,7 @@ public:
   
   static PRBool RunPluginOOP(const nsPluginTag *aPluginTag);
 
-  nsresult CreatePluginInstance(nsNPAPIPluginInstance **aResult);
+  nsresult CreatePluginInstance(nsIPluginInstance **aResult);
   nsresult Shutdown();
 
 protected:
@@ -144,9 +144,9 @@ NPIdentifierToString(NPIdentifier id)
 }
 
 static inline NPIdentifier
-StringToNPIdentifier(JSContext *cx, JSString *str)
+StringToNPIdentifier(JSString *str)
 {
-    return JSIdToNPIdentifier(INTERNED_STRING_TO_JSID(cx, str));
+    return JSIdToNPIdentifier(INTERNED_STRING_TO_JSID(str));
 }
 
 static inline bool

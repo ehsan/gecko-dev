@@ -36,7 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsAutoPtr.h"
 #include "nsGenericHTMLElement.h"
 #include "nsObjectLoadingContent.h"
 #include "nsGkAtoms.h"
@@ -50,7 +49,7 @@
 #include "nsIDOMHTMLObjectElement.h"
 #include "nsFormSubmission.h"
 #include "nsIObjectFrame.h"
-#include "nsNPAPIPluginInstance.h"
+#include "nsIPluginInstance.h"
 #include "nsIConstraintValidation.h"
 
 using namespace mozilla::dom;
@@ -397,8 +396,8 @@ nsHTMLObjectElement::SubmitNamesValues(nsFormSubmission *aFormSubmission)
     return NS_OK;
   }
 
-  nsRefPtr<nsNPAPIPluginInstance> pi;
-  objFrame->GetPluginInstance(getter_AddRefs(pi));
+  nsCOMPtr<nsIPluginInstance> pi;
+  objFrame->GetPluginInstance(*getter_AddRefs(pi));
   if (!pi)
     return NS_OK;
 

@@ -495,10 +495,7 @@ function writeVersionFile(dir, version) {
 function createChannelChangeFile(dir) {
   var channelChangeFile = dir.clone();
   channelChangeFile.append(FILE_CHANNELCHANGE);
-  if (!channelChangeFile.exists()) {
-    channelChangeFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE,
-                             FileUtils.PERMS_FILE);
-  }
+  channelChangeFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
 }
 
 /**
@@ -539,7 +536,7 @@ function cleanUpUpdatesDir() {
             dir.path + " and rename it to " + FILE_LAST_LOG);
       }
     }
-    // Now, recursively remove this file.  The recursive removal is really
+    // Now, recursively remove this file.  The recusive removal is really
     // only needed on Mac OSX because this directory will contain a copy of
     // updater.app, which is itself a directory.
     try {
@@ -1178,7 +1175,6 @@ UpdateService.prototype = {
     case "xpcom-shutdown":
       Services.obs.removeObserver(this, "xpcom-shutdown");
 
-      this.pauseDownload();
       // Prevent leaking the downloader (bug 454964)
       this._downloader = null;
       break;
@@ -1376,8 +1372,8 @@ UpdateService.prototype = {
       return null;
 
     if (getDesiredChannel()) {
-      LOG("UpdateService:selectUpdate - skipping version checks for channel " +
-          "change request");
+      LOG("Checker:selectUpdate - skipping version checks for change change " +
+          "request");
       return updates[0];
     }
 
@@ -1392,9 +1388,8 @@ UpdateService.prototype = {
       if (vc.compare(aUpdate.appVersion, Services.appinfo.version) < 0 ||
           vc.compare(aUpdate.appVersion, Services.appinfo.version) == 0 &&
           aUpdate.buildID == Services.appinfo.appBuildID) {
-        LOG("UpdateService:selectUpdate - skipping update because the " +
-            "update's application version is less than the current " +
-            "application version");
+        LOG("Checker:selectUpdate - skipping update because the update's " +
+            "application version is less than the current application version");
         return;
       }
 
@@ -1404,7 +1399,7 @@ UpdateService.prototype = {
       let neverPrefName = PREF_APP_UPDATE_NEVER_BRANCH + aUpdate.appVersion;
       if (aUpdate.showNeverForVersion &&
           getPref("getBoolPref", neverPrefName, false)) {
-        LOG("UpdateService:selectUpdate - skipping update because the " +
+        LOG("Checker:selectUpdate - skipping update because the " +
             "preference " + neverPrefName + " is true");
         return;
       }
@@ -1423,7 +1418,7 @@ UpdateService.prototype = {
             minorUpdate = aUpdate;
           break;
         default:
-          LOG("UpdateService:selectUpdate - skipping unknown update type: " +
+          LOG("Checker:selectUpdate - skipping unknown update type: " +
               aUpdate.type);
           break;
       }
@@ -1458,14 +1453,14 @@ UpdateService.prototype = {
 
     var updateEnabled = getPref("getBoolPref", PREF_APP_UPDATE_ENABLED, true);
     if (!updateEnabled) {
-      LOG("UpdateService:_selectAndInstallUpdate - not prompting because " +
-          "update is disabled");
+      LOG("Checker:_selectAndInstallUpdate - not prompting because update is " +
+          "disabled");
       return;
     }
 
     if (!gCanApplyUpdates) {
-      LOG("UpdateService:_selectAndInstallUpdate - the user is unable to " +
-          "apply updates... prompting");
+      LOG("Checker:_selectAndInstallUpdate - the user is unable to apply " +
+          "updates... prompting");
       this._showPrompt(update);
       return;
     }
@@ -1497,14 +1492,14 @@ UpdateService.prototype = {
 #      Minor         1      No                     Auto Install
      */
     if (update.showPrompt) {
-      LOG("UpdateService:_selectAndInstallUpdate - prompting because the " +
-          "update snippet specified showPrompt");
+      LOG("Checker:_selectAndInstallUpdate - prompting because the update " +
+          "snippet specified showPrompt");
       this._showPrompt(update);
       return;
     }
 
     if (!getPref("getBoolPref", PREF_APP_UPDATE_AUTO, true)) {
-      LOG("UpdateService:_selectAndInstallUpdate - prompting because silent " +
+      LOG("Checker:_selectAndInstallUpdate - prompting because silent " +
           "install is disabled");
       this._showPrompt(update);
       return;
@@ -1658,8 +1653,8 @@ UpdateService.prototype = {
       return;
 
     if (this._incompatibleAddons.length > 0 || !gCanApplyUpdates) {
-      LOG("UpdateService:onUpdateEnded - prompting because there are " +
-          "incompatible add-ons");
+      LOG("Checker:onUpdateEnded - prompting because there are incompatible " +
+          "add-ons");
       this._showPrompt(this._update);
     }
     else {
@@ -1747,7 +1742,6 @@ UpdateService.prototype = {
       return STATE_NONE;
     }
 
-    // If a download request is in progress vs. a download ready to resume
     if (this.isDownloading) {
       if (update.isCompleteUpdate == this._downloader.isCompleteUpdate &&
           background == this._downloader.background) {
@@ -2133,11 +2127,6 @@ Checker.prototype = {
     var url = this.getUpdateURL(force);
     if (!url || (!this.enabled && !force))
       return;
-
-    // If the user changes the update channel there can be leftover files from
-    // a previous download so clean the updates directory for manual checks.
-    if (force)
-      cleanUpUpdatesDir();
 
     this._request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
                     createInstance(Ci.nsIXMLHttpRequest);
@@ -2741,8 +2730,7 @@ Downloader.prototype = {
       }
     }
     else if (status != Cr.NS_BINDING_ABORTED &&
-             status != Cr.NS_ERROR_ABORT &&
-             status != Cr.NS_ERROR_DOCUMENT_NOT_CACHED) {
+             status != Cr.NS_ERROR_ABORT) {
       LOG("Downloader:onStopRequest - non-verification failure");
       // Some sort of other failure, log this in the |statusText| property
       state = STATE_DOWNLOAD_FAILED;
@@ -2750,8 +2738,9 @@ Downloader.prototype = {
       // XXXben - if |request| (The Incremental Download) provided a means
       // for accessing the http channel we could do more here.
 
+      const NS_BINDING_FAILED = 2152398849;
       this._update.statusText = getStatusTextFromCode(status,
-                                                      Cr.NS_BINDING_FAILED);
+        NS_BINDING_FAILED);
 
       // Destroy the updates directory, since we're done with it.
       cleanUpUpdatesDir();

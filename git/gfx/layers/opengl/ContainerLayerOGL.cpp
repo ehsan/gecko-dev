@@ -168,6 +168,8 @@ ContainerRender(Container* aContainer,
   nsIntPoint childOffset(aOffset);
   nsIntRect visibleRect = aContainer->GetEffectiveVisibleRegion().GetBounds();
 
+  gfxMatrix worldTransform = aManager->GetWorldTransform();
+
   nsIntRect cachedScissor = aContainer->gl()->ScissorRect();
   aContainer->gl()->PushScissorRect();
   aContainer->mSupportsComponentAlphaChildren = PR_FALSE;
@@ -231,8 +233,12 @@ ContainerRender(Container* aContainer,
       continue;
     }
 
-    nsIntRect scissorRect = layerToRender->GetLayer()->
-        CalculateScissorRect(cachedScissor, &aManager->GetWorldTransform());
+    nsIntRect scissorRect = 
+      layerToRender->GetLayer()->CalculateScissorRect(needsFramebuffer,
+                                                      visibleRect,
+                                                      cachedScissor,
+                                                      contTransform * worldTransform);
+
     if (scissorRect.IsEmpty()) {
       continue;
     }

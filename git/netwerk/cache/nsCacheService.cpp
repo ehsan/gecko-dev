@@ -1738,7 +1738,9 @@ nsCacheService::ActivateEntry(nsCacheRequest * request,
     
  error:
     *result = nsnull;
-    delete entry;
+    if (entry) {
+        delete entry;
+    }
     return rv;
 }
 
