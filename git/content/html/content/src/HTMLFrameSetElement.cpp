@@ -9,6 +9,7 @@
 #include "nsGlobalWindow.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(FrameSet)
+DOMCI_NODE_DATA(HTMLFrameSetElement, mozilla::dom::HTMLFrameSetElement)
 
 namespace mozilla {
 namespace dom {
@@ -33,7 +34,7 @@ NS_INTERFACE_TABLE_HEAD(HTMLFrameSetElement)
                                    nsIDOMHTMLFrameSetElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLFrameSetElement,
                                                nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLFrameSetElement)
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLFrameSetElement)

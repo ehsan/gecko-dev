@@ -82,25 +82,7 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSNative native)
     if (native == intrinsic_UnsafeSetElement)
         return inlineUnsafeSetElement(callInfo);
     if (native == testingFunc_inParallelSection)
-        return inlineShouldForceSequentialOrInParallelSection(callInfo);
-    if (native == intrinsic_NewDenseArray)
-        return inlineNewDenseArray(callInfo);
-
-    // Self-hosting
-    if (native == intrinsic_ThrowError)
-        return inlineThrowError(callInfo);
-#ifdef DEBUG
-    if (native == intrinsic_Dump)
-        return inlineDump(callInfo);
-#endif
-
-    // Parallel Array
-    if (native == intrinsic_UnsafeSetElement)
-        return inlineUnsafeSetElement(callInfo);
-    if (native == intrinsic_ShouldForceSequential)
-        return inlineShouldForceSequentialOrInParallelSection(callInfo);
-    if (native == testingFunc_inParallelSection)
-        return inlineShouldForceSequentialOrInParallelSection(callInfo);
+        return inlineForceSequentialOrInParallelSection(callInfo);
     if (native == intrinsic_NewDenseArray)
         return inlineNewDenseArray(callInfo);
 
@@ -1021,7 +1003,7 @@ IonBuilder::inlineUnsafeSetTypedArrayElement(CallInfo &callInfo,
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineShouldForceSequentialOrInParallelSection(CallInfo &callInfo)
+IonBuilder::inlineForceSequentialOrInParallelSection(CallInfo &callInfo)
 {
     if (callInfo.constructing())
         return InliningStatus_NotInlined;

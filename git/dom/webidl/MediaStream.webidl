@@ -10,7 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-interface MediaStream {
+interface MediaStream : EventTarget {
     // readonly attribute DOMString    id;
     // sequence<MediaStreamTrack> getAudioTracks ();
     // sequence<MediaStreamTrack> getVideoTracks ();

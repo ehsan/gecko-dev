@@ -78,6 +78,8 @@ public:
 
   virtual bool IsNodeOfType(uint32_t aFlags) const;
 
+  virtual nsXPCClassInfo* GetClassInfo();
+
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
   virtual nsIAtom* DoGetID() const;

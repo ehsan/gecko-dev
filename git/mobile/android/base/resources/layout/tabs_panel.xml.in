@@ -28,7 +28,6 @@
     </RelativeLayout>
 
     <view class="org.mozilla.gecko.TabsPanel$TabsListContainer"
-          android:id="@+id/tabs_container"
           android:layout_width="fill_parent"
           android:layout_height="wrap_content">
 

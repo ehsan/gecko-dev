@@ -75,7 +75,7 @@ protected:
   /**
    * The document accessible reference owning this queue.
    */
-  DocAccessible* mDocument;
+  nsRefPtr<DocAccessible> mDocument;
 
   /**
    * Pending events array. Don't make this an nsAutoTArray; we use

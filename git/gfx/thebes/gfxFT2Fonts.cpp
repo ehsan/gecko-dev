@@ -25,7 +25,9 @@
 #include "gfxFT2FontList.h"
 #include <locale.h>
 #include "gfxHarfBuzzShaper.h"
+#ifdef MOZ_GRAPHITE
 #include "gfxGraphiteShaper.h"
+#endif
 #include "nsGkAtoms.h"
 #include "nsTArray.h"
 #include "nsUnicodeRange.h"
@@ -411,6 +413,7 @@ gfxFT2Font::ShapeText(gfxContext      *aContext,
 {
     bool ok = false;
 
+#ifdef MOZ_GRAPHITE
     if (FontCanSupportGraphite()) {
         if (gfxPlatform::GetPlatform()->UseGraphiteShaping()) {
             if (!mGraphiteShaper) {
@@ -421,6 +424,7 @@ gfxFT2Font::ShapeText(gfxContext      *aContext,
                                             aScript, aShapedText);
         }
     }
+#endif
 
     if (!ok && gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aScript)) {
         if (!mHarfBuzzShaper) {

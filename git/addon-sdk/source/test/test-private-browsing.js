@@ -7,7 +7,6 @@ const { Ci } = require('chrome');
 const { pb, pbUtils, getOwnerWindow } = require('./private-browsing/helper');
 const { merge } = require('sdk/util/object');
 const windows = require('sdk/windows').browserWindows;
-const tabs = require('sdk/tabs');
 const winUtils = require('sdk/window/utils');
 const { isPrivateBrowsingSupported } = require('sdk/self');
 const { is } = require('sdk/system/xul-app');
@@ -71,9 +70,9 @@ exports.testGetOwnerWindow = function(test) {
   let chromeWindow = getOwnerWindow(window);
   test.assert(chromeWindow instanceof Ci.nsIDOMWindow, 'associated window is found');
 
-  tabs.open({
+  window.tabs.open({
     url: 'about:blank',
-    isPrivate: true,
+    private: true, // should be ignored in this case
     onOpen: function(tab) {
       // test that getOwnerWindow works as expected
       if (is('Fennec')) {
@@ -87,7 +86,6 @@ exports.testGetOwnerWindow = function(test) {
       // test that the tab is not private
       // private flag should be ignored by default
       test.assert(!isPrivate(tab));
-      test.assert(!isPrivate(getOwnerWindow(tab)));
 
       tab.close(function() test.done());
     }

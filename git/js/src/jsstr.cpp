@@ -3626,7 +3626,7 @@ js_ValueToPrintable(JSContext *cx, const Value &v, JSAutoByteString *bytes, bool
     str = js_QuoteString(cx, str, 0);
     if (!str)
         return NULL;
-    return bytes->encodeLatin1(cx, str);
+    return bytes->encode(cx, str);
 }
 
 template <AllowGC allowGC>

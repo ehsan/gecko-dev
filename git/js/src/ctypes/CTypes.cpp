@@ -805,7 +805,7 @@ TypeError(JSContext* cx, const char* expected, jsval actual)
   
   const char* src;
   if (str) {
-    src = bytes.encodeLatin1(cx, str);
+    src = bytes.encode(cx, str);
     if (!src)
       return false;
   } else {

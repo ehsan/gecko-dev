@@ -306,6 +306,11 @@ gfxUserFontSet::SanitizeOpenTypeData(gfxMixedFontFamily *aFamily,
     // limit output/expansion to 256MB
     ExpandingMemoryStream output(aIsCompressed ? aLength * 2 : aLength,
                                  1024 * 1024 * 256);
+#ifdef MOZ_GRAPHITE
+#define PRESERVE_GRAPHITE true
+#else
+#define PRESERVE_GRAPHITE false
+#endif
 
 #ifdef MOZ_OTS_REPORT_ERRORS
     OTSCallbackUserData userData;
@@ -319,7 +324,7 @@ gfxUserFontSet::SanitizeOpenTypeData(gfxMixedFontFamily *aFamily,
 
     if (ots::Process(&output, aData, aLength,
                      ERROR_REPORTING_ARGS
-                     true)) {
+                     PRESERVE_GRAPHITE)) {
         aSaneLength = output.Tell();
         return static_cast<uint8_t*>(output.forget());
     } else {

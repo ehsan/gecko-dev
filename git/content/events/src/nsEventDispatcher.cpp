@@ -871,6 +871,8 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMDataContainerEvent(aDOMEvent, aPresContext, nullptr);
   if (aEventType.LowerCaseEqualsLiteral("messageevent"))
     return NS_NewDOMMessageEvent(aDOMEvent, aPresContext, nullptr);
+  if (aEventType.LowerCaseEqualsLiteral("progressevent"))
+    return NS_NewDOMProgressEvent(aDOMEvent, aPresContext, nullptr);
   if (aEventType.LowerCaseEqualsLiteral("notifypaintevent"))
     return NS_NewDOMNotifyPaintEvent(aDOMEvent, aPresContext, nullptr);
   if (aEventType.LowerCaseEqualsLiteral("simplegestureevent"))

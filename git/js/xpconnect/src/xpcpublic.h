@@ -414,7 +414,7 @@ inline bool IsDOMProxy(JSObject *obj)
 }
 
 typedef JSObject*
-(*DefineInterface)(JSContext *cx, JSObject *global, jsid id, bool *enabled);
+(*DefineInterface)(JSContext *cx, JSObject *global, bool *enabled);
 
 typedef bool
 (*PrefEnabled)();

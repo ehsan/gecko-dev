@@ -1964,14 +1964,6 @@ public class GeckoAppShell
         return GeckoApp.mAppContext.isTablet();
     }
 
-    public static boolean isLargeTablet() {
-        return GeckoApp.mAppContext.isLargeTablet();
-    }
-
-    public static boolean isSmallTablet() {
-        return GeckoApp.mAppContext.isSmallTablet();
-    }
-
     public static void viewSizeChanged() {
         LayerView v = GeckoApp.mAppContext.getLayerView();
         if (v != null && v.isIMEEnabled()) {

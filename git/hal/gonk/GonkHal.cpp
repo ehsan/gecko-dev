@@ -1135,10 +1135,7 @@ SetProcessPriority(int aPid, ProcessPriority aPriority)
     priorityStr = "master";
     break;
   default:
-    // PROCESS_PRIORITY_UNKNOWN ends up in this branch, along with invalid enum
-    // values.
-    NS_ERROR("Invalid process priority!");
-    return;
+    MOZ_NOT_REACHED();
   }
 
   // Notice that you can disable oom_adj and renice by deleting the prefs

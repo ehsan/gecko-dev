@@ -12,6 +12,7 @@
 #include "mozilla/dom/HTMLTableCaptionElementBinding.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(TableCaption)
+DOMCI_NODE_DATA(HTMLTableCaptionElement, mozilla::dom::HTMLTableCaptionElement)
 
 namespace mozilla {
 namespace dom {
@@ -36,7 +37,7 @@ NS_INTERFACE_TABLE_HEAD(HTMLTableCaptionElement)
                                    nsIDOMHTMLTableCaptionElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLTableCaptionElement,
                                                nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTableCaptionElement)
 
 NS_IMPL_ELEMENT_CLONE(HTMLTableCaptionElement)
 

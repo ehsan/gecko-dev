@@ -79,18 +79,18 @@ fi
 
 if [ "$MOZ_WIDGET_TOOLKIT" = "gtk2" -o "$MOZ_WIDGET_TOOLKIT" = "qt" ]; then
   add_makefiles "
-    browser/themes/linux/Makefile
-    browser/themes/linux/communicator/Makefile
+    browser/themes/gnomestripe/Makefile
+    browser/themes/gnomestripe/communicator/Makefile
   "
 elif [ "$MOZ_WIDGET_TOOLKIT" = "cocoa" ]; then
   add_makefiles "
-    browser/themes/osx/Makefile
-    browser/themes/osx/communicator/Makefile
+    browser/themes/pinstripe/Makefile
+    browser/themes/pinstripe/communicator/Makefile
   "
 else
   add_makefiles "
-    browser/themes/windows/Makefile
-    browser/themes/windows/communicator/Makefile
+    browser/themes/winstripe/Makefile
+    browser/themes/winstripe/communicator/Makefile
   "
 fi
 

@@ -95,6 +95,7 @@ nsWinMetroUtils::PinTileAsync(const nsAString &aTileID,
   secondaryTile->put_ShortName(shortName.Get());
   secondaryTile->put_Arguments(tileActivationArgumentsStr.Get());
   secondaryTile->put_TileOptions(TileOptions::TileOptions_ShowNameOnLogo);
+  secondaryTile->put_ForegroundText(ForegroundText::ForegroundText_Dark);
 
   // The tile is created and we can now attempt to pin the tile.
   ComPtr<IAsyncOperationCompletedHandler<bool>> callback(Callback<IAsyncOperationCompletedHandler<bool>>(

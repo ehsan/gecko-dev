@@ -75,7 +75,7 @@ struct frontend::StmtInfoBCE : public StmtInfoBase
     StmtInfoBCE(JSContext *cx) : StmtInfoBase(cx) {}
 
     /*
-     * To reuse space, alias two of the ptrdiff_t fields for use during
+     * To reuse space, alias the three ptrdiff_t fields for use during
      * try/catch/finally code generation and backpatching.
      *
      * Only a loop, switch, or label statement info record can have breaks and
@@ -86,6 +86,11 @@ struct frontend::StmtInfoBCE : public StmtInfoBase
     ptrdiff_t &gosubs() {
         JS_ASSERT(type == STMT_FINALLY);
         return breaks;
+    }
+
+    ptrdiff_t &catchNote() {
+        JS_ASSERT(type == STMT_TRY || type == STMT_FINALLY);
+        return update;
     }
 
     ptrdiff_t &guardJump() {
@@ -365,7 +370,7 @@ ReportStatementTooLarge(JSContext *cx, StmtInfoBCE *topStmt)
  * so that we can walk back up the chain fixing up the op and jump offset.
  */
 static ptrdiff_t
-EmitBackPatchOp(JSContext *cx, BytecodeEmitter *bce, ptrdiff_t *lastp)
+EmitBackPatchOp(JSContext *cx, BytecodeEmitter *bce, JSOp op, ptrdiff_t *lastp)
 {
     ptrdiff_t offset, delta;
 
@@ -373,7 +378,7 @@ EmitBackPatchOp(JSContext *cx, BytecodeEmitter *bce, ptrdiff_t *lastp)
     delta = offset - *lastp;
     *lastp = offset;
     JS_ASSERT(delta > 0);
-    return EmitJump(cx, bce, JSOP_BACKPATCH, delta);
+    return EmitJump(cx, bce, op, delta);
 }
 
 /* Updates line number notes, not column notes. */
@@ -566,7 +571,7 @@ EmitNonLocalJumpFixup(JSContext *cx, BytecodeEmitter *bce, StmtInfoBCE *toStmt)
             FLUSH_POPS();
             if (NewSrcNote(cx, bce, SRC_HIDDEN) < 0)
                 return false;
-            if (EmitBackPatchOp(cx, bce, &stmt->gosubs()) < 0)
+            if (EmitBackPatchOp(cx, bce, JSOP_BACKPATCH, &stmt->gosubs()) < 0)
                 return false;
             break;
 
@@ -638,17 +643,23 @@ static const jsatomid INVALID_ATOMID = -1;
 
 static ptrdiff_t
 EmitGoto(JSContext *cx, BytecodeEmitter *bce, StmtInfoBCE *toStmt, ptrdiff_t *lastp,
-         SrcNoteType noteType = SRC_NULL)
+         jsatomid labelIndex = INVALID_ATOMID, SrcNoteType noteType = SRC_NULL)
 {
+    int index;
+
     if (!EmitNonLocalJumpFixup(cx, bce, toStmt))
         return -1;
 
-    if (noteType != SRC_NULL) {
-        if (NewSrcNote(cx, bce, noteType) < 0)
-            return -1;
-    }
+    if (labelIndex != INVALID_ATOMID)
+        index = NewSrcNote2(cx, bce, noteType, ptrdiff_t(labelIndex));
+    else if (noteType != SRC_NULL)
+        index = NewSrcNote(cx, bce, noteType);
+    else
+        index = 0;
+    if (index < 0)
+        return -1;
 
-    return EmitBackPatchOp(cx, bce, lastp);
+    return EmitBackPatchOp(cx, bce, JSOP_BACKPATCH, lastp);
 }
 
 static bool
@@ -2164,7 +2175,7 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     jsbytecode *pc;
     StmtInfoBCE stmtInfo(cx);
 
-    /* Try for most optimal, fall back if not dense ints. */
+    /* Try for most optimal, fall back if not dense ints, and per ECMAv2. */
     switchOp = JSOP_TABLESWITCH;
     hasDefault = false;
     defaultOffset = -1;
@@ -2319,22 +2330,24 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     }
 
     /*
-     * The note has one or two offsets: first tells total switch code length;
-     * second (if condswitch) tells offset to first JSOP_CASE.
+     * Emit a note with two offsets: first tells total switch code length,
+     * second tells offset to first JSOP_CASE if condswitch.
      */
+    noteIndex = NewSrcNote3(cx, bce, SRC_SWITCH, 0, 0);
+    if (noteIndex < 0)
+        return false;
+
     if (switchOp == JSOP_CONDSWITCH) {
-        /* 0 bytes of immediate for unoptimized switch. */
+        /*
+         * 0 bytes of immediate for unoptimized ECMAv2 switch.
+         */
         switchSize = 0;
-        noteIndex = NewSrcNote3(cx, bce, SRC_CONDSWITCH, 0, 0);
     } else {
         JS_ASSERT(switchOp == JSOP_TABLESWITCH);
 
         /* 3 offsets (len, low, high) before the table, 1 per entry. */
         switchSize = (size_t)(JUMP_OFFSET_LEN * (3 + tableLength));
-        noteIndex = NewSrcNote2(cx, bce, SRC_TABLESWITCH, 0);
     }
-    if (noteIndex < 0)
-        return false;
 
     /* Emit switchOp followed by switchSize bytes of jump or lookup table. */
     if (EmitN(cx, bce, switchOp, switchSize) < 0)
@@ -2810,7 +2823,12 @@ EmitDestructuringOpsHelper(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn,
 
     index = 0;
     for (pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next) {
-        /* Duplicate the value being destructured to use as a reference base. */
+        /*
+         * Duplicate the value being destructured to use as a reference base.
+         * If dup is not the first one, annotate it for the decompiler.
+         */
+        if (pn2 != pn->pn_head && NewSrcNote(cx, bce, SRC_CONTINUE) < 0)
+            return false;
         if (Emit1(cx, bce, JSOP_DUP) < 0)
             return false;
 
@@ -3552,7 +3570,7 @@ class EmitLevelManager
 static bool
 EmitCatch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
-    ptrdiff_t guardJump;
+    ptrdiff_t catchStart, guardJump;
 
     /*
      * Morph STMT_BLOCK to STMT_CATCH, note the block entry code offset,
@@ -3561,6 +3579,7 @@ EmitCatch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     StmtInfoBCE *stmt = bce->topStmt;
     JS_ASSERT(stmt->type == STMT_BLOCK && stmt->isBlockScope);
     stmt->type = STMT_CATCH;
+    catchStart = stmt->update;
 
     /* Go up one statement info record to the TRY or FINALLY record. */
     stmt = stmt->down;
@@ -3606,7 +3625,8 @@ EmitCatch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     if (pn->pn_kid2) {
         if (!EmitTree(cx, bce, pn->pn_kid2))
             return false;
-
+        if (!SetSrcNoteOffset(cx, bce, stmt->catchNote(), 0, bce->offset() - catchStart))
+            return false;
         /* ifeq <next block> */
         guardJump = EmitJump(cx, bce, JSOP_IFEQ, 0);
         if (guardJump < 0)
@@ -3626,7 +3646,10 @@ EmitCatch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
      * Annotate the JSOP_LEAVEBLOCK that will be emitted as we unwind via
      * our PNK_LEXICALSCOPE parent, so the decompiler knows to pop.
      */
-    return NewSrcNote(cx, bce, SRC_CATCH) >= 0;
+    ptrdiff_t off = bce->stackDepth;
+    if (NewSrcNote2(cx, bce, SRC_CATCH, off) < 0)
+        return false;
+    return true;
 }
 
 /*
@@ -3673,14 +3696,14 @@ EmitTry(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     if (pn->pn_kid3) {
         if (NewSrcNote(cx, bce, SRC_HIDDEN) < 0)
             return false;
-        if (EmitBackPatchOp(cx, bce, &stmtInfo.gosubs()) < 0)
+        if (EmitBackPatchOp(cx, bce, JSOP_BACKPATCH, &stmtInfo.gosubs()) < 0)
             return false;
     }
 
     /* Emit (hidden) jump over catch and/or finally. */
     if (NewSrcNote(cx, bce, SRC_HIDDEN) < 0)
         return false;
-    if (EmitBackPatchOp(cx, bce, &catchJump) < 0)
+    if (EmitBackPatchOp(cx, bce, JSOP_BACKPATCH, &catchJump) < 0)
         return false;
 
     ptrdiff_t tryEnd = bce->offset();
@@ -3695,7 +3718,7 @@ EmitTry(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
          *
          * [throwing]                          only if 2nd+ catch block
          * [leaveblock]                        only if 2nd+ catch block
-         * enterblock
+         * enterblock                          with SRC_CATCH
          * exception
          * [dup]                               only if catchguard
          * setlocalpop <slot>                  or destructuring code
@@ -3713,7 +3736,7 @@ EmitTry(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
          * thrown from catch{} blocks.
          */
         for (ParseNode *pn3 = pn2->pn_head; pn3; pn3 = pn3->pn_next) {
-            ptrdiff_t guardJump;
+            ptrdiff_t guardJump, catchNote;
 
             JS_ASSERT(bce->stackDepth == depth);
             guardJump = stmtInfo.guardJump();
@@ -3745,6 +3768,18 @@ EmitTry(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             }
 
             /*
+             * Annotate the JSOP_ENTERBLOCK that's about to be generated
+             * by the call to EmitTree immediately below.  Save this
+             * source note's index in stmtInfo for use by the PNK_CATCH:
+             * case, where the length of the catch guard is set as the
+             * note's offset.
+             */
+            catchNote = NewSrcNote2(cx, bce, SRC_CATCH, 0);
+            if (catchNote < 0)
+                return false;
+            stmtInfo.catchNote() = catchNote;
+
+            /*
              * Emit the lexical scope and catch body.  Save the catch's
              * block object population via count, for use when targeting
              * guardJump at the next catch (the guard mismatch case).
@@ -3756,7 +3791,7 @@ EmitTry(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
             /* gosub <finally>, if required */
             if (pn->pn_kid3) {
-                if (EmitBackPatchOp(cx, bce, &stmtInfo.gosubs()) < 0)
+                if (EmitBackPatchOp(cx, bce, JSOP_BACKPATCH, &stmtInfo.gosubs()) < 0)
                     return false;
                 JS_ASSERT(bce->stackDepth == depth);
             }
@@ -3767,7 +3802,7 @@ EmitTry(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
              */
             if (NewSrcNote(cx, bce, SRC_HIDDEN) < 0)
                 return false;
-            if (EmitBackPatchOp(cx, bce, &catchJump) < 0)
+            if (EmitBackPatchOp(cx, bce, JSOP_BACKPATCH, &catchJump) < 0)
                 return false;
 
             /*
@@ -3876,12 +3911,18 @@ EmitIf(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         /*
          * We came here from the goto further below that detects else-if
          * chains, so we must mutate stmtInfo back into a STMT_IF record.
-         * Also we need a note offset for SRC_IF_ELSE to help IonMonkey.
+         * Also (see below for why) we need a note offset for SRC_IF_ELSE
+         * to help the decompiler.  Actually, we need two offsets, one for
+         * decompiling any else clause and the second for decompiling an
+         * else-if chain without bracing, overindenting, or incorrectly
+         * scoping let declarations.
          */
         JS_ASSERT(stmtInfo.type == STMT_ELSE);
         stmtInfo.type = STMT_IF;
         stmtInfo.update = top;
         if (!SetSrcNoteOffset(cx, bce, noteIndex, 0, jmp - beq))
+            return false;
+        if (!SetSrcNoteOffset(cx, bce, noteIndex, 1, top - beq))
             return false;
     }
 
@@ -3923,7 +3964,7 @@ EmitIf(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
         /*
          * Annotate SRC_IF_ELSE with the offset from branch to jump, for
-         * IonMonkey's benefit.  We can't just "back up" from the pc
+         * the decompiler's benefit.  We can't just "back up" from the pc
          * of the else clause, because we don't know whether an extended
          * jump was required to leap from the end of the then clause over
          * the else clause.
@@ -3987,6 +4028,9 @@ EmitLet(JSContext *cx, BytecodeEmitter *bce, ParseNode *pnLet)
     uint32_t alreadyPushed = unsigned(bce->stackDepth - letHeadDepth);
     uint32_t blockObjCount = blockObj->slotCount();
     for (uint32_t i = alreadyPushed; i < blockObjCount; ++i) {
+        /* Tell the decompiler not to print the decl in the let head. */
+        if (NewSrcNote(cx, bce, SRC_CONTINUE) < 0)
+            return false;
         if (Emit1(cx, bce, JSOP_UNDEFINED) < 0)
             return false;
     }
@@ -4133,7 +4177,7 @@ EmitForIn(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
             return false;
     }
 
-    /* Annotate so IonMonkey can find the loop-closing jump. */
+    /* Annotate so the decompiler can find the loop-closing jump. */
     int noteIndex = NewSrcNote(cx, bce, SRC_FOR_IN);
     if (noteIndex < 0)
         return false;
@@ -4166,6 +4210,7 @@ EmitForIn(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
     if (!EmitAssignment(cx, bce, forHead->pn_kid2, JSOP_NOP, NULL))
         return false;
 
+    ptrdiff_t tmp2 = bce->offset();
     if (Emit1(cx, bce, JSOP_POP) < 0)
         return false;
 
@@ -4194,8 +4239,11 @@ EmitForIn(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
     if (beq < 0)
         return false;
 
-    /* Set the srcnote offset so we can find the closing jump. */
-    if (!SetSrcNoteOffset(cx, bce, (unsigned)noteIndex, 0, beq - jmp))
+    /* Set the first srcnote offset so we can find the start of the loop body. */
+    if (!SetSrcNoteOffset(cx, bce, (unsigned)noteIndex, 0, tmp2 - jmp))
+        return false;
+    /* Set the second srcnote offset so we can find the closing jump. */
+    if (!SetSrcNoteOffset(cx, bce, (unsigned)noteIndex, 1, beq - jmp))
         return false;
 
     /* Fixup breaks and continues before JSOP_ITER (and JSOP_LEAVEFORINLET). */
@@ -4214,8 +4262,12 @@ EmitForIn(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
     if (Emit1(cx, bce, JSOP_ENDITER) < 0)
         return false;
 
-    if (letDecl)
+    if (letDecl) {
+        /* Tell the decompiler to pop but not to print. */
+        if (NewSrcNote(cx, bce, SRC_CONTINUE) < 0)
+            return false;
         EMIT_UINT16_IMM_OP(JSOP_POPN, blockObjCount);
+    }
 
     return true;
 }
@@ -4461,6 +4513,8 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         JS_ASSERT(bi.frameIndex() < JS_BIT(20));
 #endif
         pn->pn_index = index;
+        if (NewSrcNote(cx, bce, SRC_CONTINUE) < 0)
+            return false;
         if (!EmitIndexOp(cx, JSOP_LAMBDA, index, bce))
             return false;
         JS_ASSERT(pn->getOp() == JSOP_GETLOCAL || pn->getOp() == JSOP_GETARG);
@@ -4585,24 +4639,34 @@ EmitBreak(JSContext *cx, BytecodeEmitter *bce, PropertyName *label)
 {
     StmtInfoBCE *stmt = bce->topStmt;
     SrcNoteType noteType;
+    jsatomid labelIndex;
     if (label) {
+        if (!bce->makeAtomIndex(label, &labelIndex))
+            return false;
+
         while (stmt->type != STMT_LABEL || stmt->label != label)
             stmt = stmt->down;
         noteType = SRC_BREAK2LABEL;
     } else {
+        labelIndex = INVALID_ATOMID;
         while (!stmt->isLoop() && stmt->type != STMT_SWITCH)
             stmt = stmt->down;
         noteType = (stmt->type == STMT_SWITCH) ? SRC_SWITCHBREAK : SRC_BREAK;
     }
 
-    return EmitGoto(cx, bce, stmt, &stmt->breaks, noteType) >= 0;
+    return EmitGoto(cx, bce, stmt, &stmt->breaks, labelIndex, noteType) >= 0;
 }
 
 static bool
 EmitContinue(JSContext *cx, BytecodeEmitter *bce, PropertyName *label)
 {
     StmtInfoBCE *stmt = bce->topStmt;
+    SrcNoteType noteType;
+    jsatomid labelIndex;
     if (label) {
+        if (!bce->makeAtomIndex(label, &labelIndex))
+            return false;
+
         /* Find the loop statement enclosed by the matching label. */
         StmtInfoBCE *loop = NULL;
         while (stmt->type != STMT_LABEL || stmt->label != label) {
@@ -4611,12 +4675,15 @@ EmitContinue(JSContext *cx, BytecodeEmitter *bce, PropertyName *label)
             stmt = stmt->down;
         }
         stmt = loop;
+        noteType = SRC_CONT2LABEL;
     } else {
+        labelIndex = INVALID_ATOMID;
         while (!stmt->isLoop())
             stmt = stmt->down;
+        noteType = SRC_CONTINUE;
     }
 
-    return EmitGoto(cx, bce, stmt, &stmt->continues, SRC_CONTINUE) >= 0;
+    return EmitGoto(cx, bce, stmt, &stmt->continues, labelIndex, noteType) >= 0;
 }
 
 static bool
@@ -5403,7 +5470,15 @@ EmitArray(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     }
     JS_ASSERT(atomIndex == pn->pn_count);
     if (nspread) {
+        if (NewSrcNote(cx, bce, SRC_CONTINUE) < 0)
+            return false;
         if (Emit1(cx, bce, JSOP_POP) < 0)
+            return false;
+    }
+
+    if (pn->pn_xflags & PNX_ENDCOMMA) {
+        /* Emit a source note so we know to decompile an extra comma. */
+        if (NewSrcNote(cx, bce, SRC_CONTINUE) < 0)
             return false;
     }
 
@@ -5510,7 +5585,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             // main pass later the emitter will add JSOP_NOP with source notes
             // for the function to preserve the original functions position
             // when decompiling.
-            //
+             
             // Currently this is used only for functions, as compile-as-we go
             // mode for scripts does not allow separate emitter passes.
             for (ParseNode *pn2 = pnchild; pn2; pn2 = pn2->pn_next) {
@@ -6326,42 +6401,31 @@ CGConstList::finish(ConstArray *array)
  * JSOP_{NOP,POP}_LENGTH), which is used only by SRC_FOR.
  */
 JS_FRIEND_DATA(JSSrcNoteSpec) js_SrcNoteSpec[] = {
-/*  0 */ {"null",           0},
-
-/*  1 */ {"if",             0},
-/*  2 */ {"if-else",        1},
-/*  3 */ {"cond",           1},
-
-/*  4 */ {"for",            3},
-
-/*  5 */ {"while",          1},
-/*  6 */ {"for-in",         1},
-/*  7 */ {"continue",       0},
-/*  8 */ {"break",          0},
-/*  9 */ {"break2label",    0},
-/* 10 */ {"switchbreak",    0},
-
-/* 11 */ {"tableswitch",    1},
-/* 12 */ {"condswitch",     2},
-
-/* 13 */ {"pcdelta",        1},
-
-/* 14 */ {"assignop",       0},
-
-/* 15 */ {"hidden",         0},
-
-/* 16 */ {"catch",          0},
-
-/* 17 */ {"colspan",        1},
-/* 18 */ {"newline",        0},
-/* 19 */ {"setline",        1},
-
-/* 20 */ {"unused20",       0},
-/* 21 */ {"unused21",       0},
-/* 22 */ {"unused22",       0},
-/* 23 */ {"unused23",       0},
-
-/* 24 */ {"xdelta",         0},
+    {"null",            0},
+    {"if",              0},
+    {"if-else",         2},
+    {"for",             3},
+    {"while",           1},
+    {"continue",        0},
+    {"decl",            1},
+    {"pcdelta",         1},
+    {"assignop",        0},
+    {"cond",            1},
+    {"brace",           1},
+    {"hidden",          0},
+    {"pcbase",          1},
+    {"label",           1},
+    {"labelbrace",      1},
+    {"endbrace",        0},
+    {"break2label",     1},
+    {"cont2label",      1},
+    {"switch",          2},
+    {"funcdef",         1},
+    {"catch",           1},
+    {"colspan",         1},
+    {"newline",         0},
+    {"setline",         1},
+    {"xdelta",          0},
 };
 
 JS_FRIEND_API(unsigned)

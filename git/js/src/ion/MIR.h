@@ -1445,38 +1445,6 @@ class MApplyArgs
     }
 };
 
-class MGetDynamicName
-  : public MAryInstruction<2>,
-    public MixPolicy<ObjectPolicy<0>, StringPolicy<1> >
-{
-  protected:
-    MGetDynamicName(MDefinition *scopeChain, MDefinition *name)
-    {
-        setOperand(0, scopeChain);
-        setOperand(1, name);
-        setResultType(MIRType_Value);
-    }
-
-  public:
-    INSTRUCTION_HEADER(GetDynamicName)
-
-    static MGetDynamicName *
-    New(MDefinition *scopeChain, MDefinition *name) {
-        return new MGetDynamicName(scopeChain, name);
-    }
-
-    MDefinition *getScopeChain() const {
-        return getOperand(0);
-    }
-    MDefinition *getName() const {
-        return getOperand(1);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
 class MCallDirectEval
   : public MAryInstruction<3>,
     public MixPolicy<ObjectPolicy<0>, MixPolicy<StringPolicy<1>, BoxPolicy<2> > >
@@ -1754,7 +1722,6 @@ class MBox : public MUnaryInstruction
 
         return new MBox(ins);
     }
-
     bool congruentTo(MDefinition *const &ins) const {
         return congruentIfOperandsEqual(ins);
     }
@@ -6221,7 +6188,6 @@ class MTypeBarrier : public MUnaryInstruction
     static MTypeBarrier *New(MDefinition *def, const types::StackTypeSet *types) {
         return new MTypeBarrier(def, types);
     }
-
     bool congruentTo(MDefinition * const &def) const {
         return false;
     }
@@ -6270,46 +6236,6 @@ class MMonitorTypes : public MUnaryInstruction
     }
     const types::StackTypeSet *typeSet() const {
         return typeSet_;
-    }
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-};
-
-// Guards that the incoming value does not have the specified Type.
-class MExcludeType
-  : public MUnaryInstruction,
-    public BoxInputsPolicy
-{
-    types::Type type_;
-
-    MExcludeType(MDefinition *def, types::Type type)
-      : MUnaryInstruction(def),
-        type_(type)
-    {
-        setGuard();
-        setMovable();
-    }
-
-  public:
-    INSTRUCTION_HEADER(ExcludeType);
-
-    static MExcludeType *New(MDefinition *def, types::Type type) {
-        return new MExcludeType(def, type);
-    }
-
-    MDefinition *input() const {
-        return getOperand(0);
-    }
-    BailoutKind bailoutKind() const {
-        return Bailout_Normal;
-    }
-    types::Type type() const {
-        return type_;
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
     }
     AliasSet getAliasSet() const {
         return AliasSet::None();

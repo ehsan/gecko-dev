@@ -17,11 +17,7 @@ class HTMLLegendElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLLegendElement
 {
 public:
-  HTMLLegendElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-    : nsGenericHTMLElement(aNodeInfo)
-  {
-    SetIsDOMBinding();
-  }
+  HTMLLegendElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~HTMLLegendElement();
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLLegendElement, legend)
@@ -77,6 +73,8 @@ public:
 
     return fieldsetControl ? fieldsetControl->GetFormElement() : nullptr;
   }
+
+  virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 

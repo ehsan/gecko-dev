@@ -102,13 +102,10 @@ function openTab(window, url, options) {
     return window.BrowserApp.addTab(url, {
       selected: options.inBackground ? false : true,
       pinned: options.isPinned || false,
-      isPrivate: options.isPrivate || false
+      isPrivate: options.private || false
     });
   }
-  let tab = window.gBrowser.addTab(url);
-  if (!options.inBackground)
-    activateTab(tab);
-  return tab;
+  return window.gBrowser.addTab(url);
 };
 exports.openTab = openTab;
 

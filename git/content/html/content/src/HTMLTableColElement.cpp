@@ -12,6 +12,7 @@
 #include "mozilla/dom/HTMLTableColElementBinding.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(TableCol)
+DOMCI_NODE_DATA(HTMLTableColElement, mozilla::dom::HTMLTableColElement)
 
 namespace mozilla {
 namespace dom {
@@ -40,7 +41,7 @@ NS_INTERFACE_TABLE_HEAD(HTMLTableColElement)
                                    nsIDOMHTMLTableColElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLTableColElement,
                                                nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTableColElement)
 
 NS_IMPL_ELEMENT_CLONE(HTMLTableColElement)
 

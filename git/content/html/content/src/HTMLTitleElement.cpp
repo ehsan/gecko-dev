@@ -35,6 +35,8 @@ NS_IMPL_RELEASE_INHERITED(HTMLTitleElement, Element)
 } // namespace dom
 } // namespace mozilla
 
+DOMCI_NODE_DATA(HTMLTitleElement, mozilla::dom::HTMLTitleElement)
+
 namespace mozilla {
 namespace dom {
 
@@ -45,7 +47,7 @@ NS_INTERFACE_TABLE_HEAD(HTMLTitleElement)
                                    nsIMutationObserver)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLTitleElement,
                                                nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTitleElement)
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLTitleElement)

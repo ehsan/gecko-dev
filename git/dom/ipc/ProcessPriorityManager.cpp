@@ -161,21 +161,15 @@ public:
    * Recompute this process's priority and apply it, potentially after a brief
    * delay.
    *
-   * If we are transitioning to a priority that is "lower" than the current
-   * priority (as defined below), that transition happens after a grace period.
-   * Otherwise the transition happens immediately.
+   * If the new priority is FOREGROUND*, it takes effect immediately.
    *
-   * For the purposes of deciding whether to apply a grace period, the
-   * hierarchy of priorities is
+   * If the new priority is a BACKGROUND* priority and this process's priority
+   * is currently a BACKGROUND* priority, the new priority takes effect
+   * immediately.
    *
-   *  - UNKNOWN
-   *  - FOREGROUND_HIGH
-   *  - FOREGROUND
-   *  - BACKGROUND*
-   *
-   * So for example, a transition between any two BACKGROUND* priorites happens
-   * immediately, but a transition from UNKNOWN to FOREGROUND_HIGH happens
-   * after a grace period.
+   * But if the new priority is a BACKGROUND* priority and this process is not
+   * currently in the background, we schedule a timer and run
+   * ResetPriorityNow() after a short period of time.
    */
   void ResetPriority();
 
@@ -208,19 +202,11 @@ private:
    */
   bool ComputeIsInForeground();
 
-
-  /**
-   * Set this process's priority to the appropriate FOREGROUND* priority
-   * immediately if we're upgrading its priority, and after a grace period if
-   * we're downgrading it or if the current priority is unknown.
-   */
-  void SetIsForeground();
-
   /**
    * Set this process's priority to the appropriate FOREGROUND* priority
    * immediately.
    */
-  void SetIsForegroundNow();
+  void SetIsForeground();
 
   /**
    * Set this process's priority to the appropriate BACKGROUND* priority
@@ -245,10 +231,6 @@ private:
   // mProcessPriority tracks the priority we've given this process in hal.
   ProcessPriority mProcessPriority;
 
-  // Have we seen at least one tab-child-created event yet?  Until this is
-  // true, ResetPriority() and ResetPriorityNow() do nothing.
-  bool mObservedTabChildCreated;
-
   nsTArray<nsWeakPtr> mWindows;
 
   // When this timer expires, we set mResetPriorityTimer to null and run
@@ -264,7 +246,6 @@ ProcessPriorityManager::ProcessPriorityManager()
   : mHoldsCPUWakeLock(false)
   , mHoldsHighPriorityWakeLock(false)
   , mProcessPriority(ProcessPriority(-1))
-  , mObservedTabChildCreated(false)
 {
   // When our parent process forked us, it may have set our process's priority
   // to one of a few of the process priorities, depending on exactly why this
@@ -288,7 +269,6 @@ ProcessPriorityManager::Init()
   // because docshells don't fire an event when their visibility changes, but
   // windows do.
   nsCOMPtr<nsIObserverService> os = services::GetObserverService();
-  os->AddObserver(this, "tab-child-created", /* ownsWeak = */ false);
   os->AddObserver(this, "content-document-global-created", /* ownsWeak = */ false);
   os->AddObserver(this, "inner-window-destroyed", /* ownsWeak = */ false);
   os->AddObserver(this, "audio-channel-agent-changed", /* ownsWeak = */ false);
@@ -315,10 +295,7 @@ ProcessPriorityManager::Observe(
   const char* aTopic,
   const PRUnichar* aData)
 {
-  if (!strcmp(aTopic, "tab-child-created")) {
-    mObservedTabChildCreated = true;
-    ResetPriority();
-  } else if (!strcmp(aTopic, "content-document-global-created")) {
+  if (!strcmp(aTopic, "content-document-global-created")) {
     OnContentDocumentGlobalCreated(aSubject);
   } else if (!strcmp(aTopic, "inner-window-destroyed") ||
              !strcmp(aTopic, "audio-channel-agent-changed")) {
@@ -473,12 +450,6 @@ ProcessPriorityManager::GetBackgroundPriority()
 void
 ProcessPriorityManager::ResetPriority()
 {
-  if (!mObservedTabChildCreated) {
-    LOG("ResetPriority bailing because we haven't observed "
-        "a tab-child-created event.");
-    return;
-  }
-
   if (ComputeIsInForeground()) {
     SetIsForeground();
   } else if (IsBackgroundPriority(mProcessPriority)) {
@@ -493,14 +464,8 @@ ProcessPriorityManager::ResetPriority()
 void
 ProcessPriorityManager::ResetPriorityNow()
 {
-  if (!mObservedTabChildCreated) {
-    LOG("ResetPriorityNow bailing because we haven't observed "
-        "a tab-child-created event.");
-    return;
-  }
-
   if (ComputeIsInForeground()) {
-    SetIsForegroundNow();
+    SetIsForeground();
   } else {
     SetIsBackgroundNow();
   }
@@ -561,22 +526,6 @@ ProcessPriorityManager::ComputeIsInForeground()
 
 void
 ProcessPriorityManager::SetIsForeground()
-{
-  ProcessPriority foregroundPriority = GetForegroundPriority();
-
-  if (mProcessPriority == PROCESS_PRIORITY_UNKNOWN ||
-      foregroundPriority < mProcessPriority) {
-    LOG("Giving grace period to %s -> %s transition.",
-        ProcessPriorityToString(mProcessPriority),
-        ProcessPriorityToString(foregroundPriority));
-    ScheduleResetPriority("backgroundGracePeriodMS");
-  } else {
-    SetIsForegroundNow();
-  }
-}
-
-void
-ProcessPriorityManager::SetIsForegroundNow()
 {
   ProcessPriority foregroundPriority = GetForegroundPriority();
   if (foregroundPriority == mProcessPriority) {

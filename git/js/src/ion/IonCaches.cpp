@@ -2063,7 +2063,7 @@ CallsiteCloneIC::update(JSContext *cx, size_t cacheIndex, HandleObject callee)
     // Act as the identity for functions that are not clone-at-callsite, as we
     // generate this cache as long as some callees are clone-at-callsite.
     RootedFunction fun(cx, callee->toFunction());
-    if (!fun->nonLazyScript()->shouldCloneAtCallsite)
+    if (!fun->isCloneAtCallsite())
         return fun;
 
     IonScript *ion = GetTopIonJSScript(cx)->ionScript();

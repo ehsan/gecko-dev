@@ -4,8 +4,6 @@
 
 #include <errno.h>
 #include <string>
-#include <prcvar.h>
-#include <prlock.h>
 
 #include "CSFLog.h"
 
@@ -21,12 +19,7 @@
 extern "C"
 {
 #include "config_api.h"
-
-extern PRCondVar *ccAppReadyToStartCond;
-extern PRLock *ccAppReadyToStartLock;
-extern char ccAppReadyToStart;
 }
-
 
 static const char* logTag = "CallControlManager";
 
@@ -212,22 +205,11 @@ bool CallControlManagerImpl::startP2PMode(const std::string& user)
 
 bool CallControlManagerImpl::startSDPMode()
 {
-    bool retval = false;
     CSFLogInfo(logTag, "startSDPMode");
     if(phone != NULL)
     {
         CSFLogError(logTag, "%s failed - already started in SDP mode!",__FUNCTION__);
         return false;
-    }
-
-    ccAppReadyToStartLock = PR_NewLock();
-    if (!ccAppReadyToStartLock) {
-      return false;
-    }
-
-    ccAppReadyToStartCond = PR_NewCondVar(ccAppReadyToStartLock);
-    if (!ccAppReadyToStartCond) {
-      return false;
     }
 
     softPhone = CC_SIPCCServicePtr(new CC_SIPCCService());
@@ -237,16 +219,7 @@ bool CallControlManagerImpl::startSDPMode()
     phone->addCCObserver(this);
     phone->setSDPMode(true);
 
-    retval = phone->startService();
-
-    // Now that everything is set up, we let the CCApp thread
-    // know that it's okay to start processing messages.
-    PR_Lock(ccAppReadyToStartLock);
-    ccAppReadyToStart = 1;
-    PR_NotifyAllCondVar(ccAppReadyToStartCond);
-    PR_Unlock(ccAppReadyToStartLock);
-
-    return retval;
+    return phone->startService();
 }
 
 bool CallControlManagerImpl::disconnect()

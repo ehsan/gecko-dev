@@ -74,14 +74,6 @@ class UTF8CharsZ : public mozilla::RangedPtr<unsigned char>
     {
         JS_ASSERT(aBytes[aLength] == '\0');
     }
-
-    UTF8CharsZ(unsigned char *aBytes, size_t aLength)
-      : Base(aBytes, aLength)
-    {
-        JS_ASSERT(aBytes[aLength] == '\0');
-    }
-
-    char *c_str() { return reinterpret_cast<char *>(get()); }
 };
 
 /*
@@ -145,12 +137,8 @@ class TwoByteCharsZ : public mozilla::RangedPtr<jschar>
 extern Latin1CharsZ
 LossyTwoByteCharsToNewLatin1CharsZ(JSContext *cx, TwoByteChars tbchars);
 
-extern UTF8CharsZ
-TwoByteCharsToNewUTF8CharsZ(JSContext *cx, TwoByteChars tbchars);
-
 } // namespace JS
 
 inline void JS_free(JS::Latin1CharsZ &ptr) { js_free((void*)ptr.get()); }
-inline void JS_free(JS::UTF8CharsZ &ptr) { js_free((void*)ptr.get()); }
 
 #endif // js_CharacterEncoding_h___

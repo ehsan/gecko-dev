@@ -7,9 +7,6 @@
 // Private resumed request sends times=1 cookie, completes
 
 function run_test() {
-  // Allow all cookies.
-  Services.prefs.setIntPref("network.cookie.cookieBehavior", 0);
-
   do_test_pending();
   let httpserv = new HttpServer();
 

@@ -27,7 +27,9 @@
 #include "harfbuzz/hb.h"
 #include "harfbuzz/hb-ot.h"
 #include "gfxHarfBuzzShaper.h"
+#ifdef MOZ_GRAPHITE
 #include "gfxGraphiteShaper.h"
+#endif
 #include "nsUnicodeProperties.h"
 #include "nsUnicodeScriptCodes.h"
 #include "gfxFontconfigUtils.h"
@@ -191,7 +193,9 @@ protected:
     {
     }
 
+#ifdef MOZ_GRAPHITE
     virtual void CheckForGraphiteTables();
+#endif
 
     // One pattern is the common case and some subclasses rely on successful
     // addition of the first element to the array.
@@ -228,6 +232,7 @@ gfxFcFontEntry::RealFaceName()
     return gfxFontEntry::RealFaceName();
 }
 
+#ifdef MOZ_GRAPHITE
 void
 gfxFcFontEntry::CheckForGraphiteTables()
 {
@@ -238,6 +243,7 @@ gfxFcFontEntry::CheckForGraphiteTables()
                            FC_CAPABILITY, 0, &capability) == FcResultMatch &&
         FcStrStr(capability, gfxFontconfigUtils::ToFcChar8("ttable:Silf"));
 }
+#endif
 
 bool
 gfxFcFontEntry::ShouldUseHarfBuzz(int32_t aRunScript) {
@@ -2227,6 +2233,7 @@ gfxFcFont::ShapeText(gfxContext      *aContext,
 
     bool ok = false;
 
+#ifdef MOZ_GRAPHITE
     if (FontCanSupportGraphite()) {
         if (gfxPlatform::GetPlatform()->UseGraphiteShaping()) {
             if (!mGraphiteShaper) {
@@ -2236,6 +2243,7 @@ gfxFcFont::ShapeText(gfxContext      *aContext,
                                             aScript, aShapedText);
         }
     }
+#endif
 
     if (!ok && fontEntry->ShouldUseHarfBuzz(aScript)) {
         if (!mHarfBuzzShaper) {
