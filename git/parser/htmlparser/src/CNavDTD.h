@@ -24,10 +24,9 @@ class CNavDTD : public nsIDTD
 #pragma warning( default : 4275 )
 #endif
 
-    virtual ~CNavDTD();
-
 public:
     CNavDTD();
+    virtual ~CNavDTD();
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIDTD

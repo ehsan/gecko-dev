@@ -33,6 +33,7 @@ class nsHtml5StreamListener : public nsIStreamListener,
 {
 public:
   nsHtml5StreamListener(nsHtml5StreamParser* aDelegate);
+  virtual ~nsHtml5StreamListener();
 
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIREQUESTOBSERVER
@@ -47,8 +48,6 @@ public:
   void DropDelegate();
 
 private:
-  virtual ~nsHtml5StreamListener();
-
   nsHtml5RefPtr<nsHtml5StreamParser> mDelegate;
 };
 

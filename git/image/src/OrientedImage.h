@@ -47,7 +47,6 @@ public:
                   const SVGImageContext* aSVGContext,
                   uint32_t aWhichFrame,
                   uint32_t aFlags) MOZ_OVERRIDE;
-  NS_IMETHOD_(nsIntRect) GetImageSpaceInvalidationRect(const nsIntRect& aRect) MOZ_OVERRIDE;
  
 protected:
   OrientedImage(Image* aImage, Orientation aOrientation)

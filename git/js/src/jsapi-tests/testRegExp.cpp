@@ -27,7 +27,7 @@ BEGIN_TEST(testGetRegExpFlags)
 
     EVAL("/foopy/", &val);
     obj = val.toObjectOrNull();
-    CHECK_EQUAL(JS_GetRegExpFlags(cx, obj), 0u);
+    CHECK_EQUAL(JS_GetRegExpFlags(cx, obj), 0);
 
     EVAL("/foopy/g", &val);
     obj = val.toObjectOrNull();

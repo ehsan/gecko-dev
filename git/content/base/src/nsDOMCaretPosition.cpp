@@ -51,7 +51,7 @@ nsDOMCaretPosition::GetClientRect() const
 
   NS_ASSERTION(domRange, "unable to retrieve valid dom range from CaretPosition");
 
-  rect = domRange->GetBoundingClientRect(false);
+  rect = domRange->GetBoundingClientRect();
 
   return rect.forget();
 }

@@ -14,10 +14,9 @@ extern "C" int MOZ_XMLTranslateEntity(const char* ptr, const char* end,
                                       const char** next, char16_t* result);
 
 class nsParserService : public nsIParserService {
-  virtual ~nsParserService();
-
 public:
   nsParserService();
+  virtual ~nsParserService();
 
   NS_DECL_ISUPPORTS
 

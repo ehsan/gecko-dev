@@ -570,12 +570,6 @@ VectorImage::SendInvalidationNotifications()
   }
 }
 
-NS_IMETHODIMP_(nsIntRect)
-VectorImage::GetImageSpaceInvalidationRect(const nsIntRect& aRect)
-{
-  return aRect;
-}
-
 //******************************************************************************
 /* readonly attribute int32_t height; */
 NS_IMETHODIMP
@@ -1212,13 +1206,6 @@ VectorImage::InvalidateObserversOnNextRefreshDriverTick()
   } else {
     SendInvalidationNotifications();
   }
-}
-
-already_AddRefed<imgIContainer>
-VectorImage::Unwrap()
-{
-  nsCOMPtr<imgIContainer> self(this);
-  return self.forget();
 }
 
 } // namespace image

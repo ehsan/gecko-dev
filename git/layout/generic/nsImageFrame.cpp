@@ -216,33 +216,7 @@ nsImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsSplittableFrame::DestroyFrom(aDestructRoot);
 }
 
-void
-nsImageFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
-{
-  ImageFrameSuper::DidSetStyleContext(aOldStyleContext);
 
-  if (!mImage) {
-    // We'll pick this change up whenever we do get an image.
-    return;
-  }
-
-  nsStyleImageOrientation newOrientation = StyleVisibility()->mImageOrientation;
-
-  // We need to update our orientation either if we had no style context before
-  // because this is the first time it's been set, or if the image-orientation
-  // property changed from its previous value.
-  bool shouldUpdateOrientation =
-    !aOldStyleContext ||
-    aOldStyleContext->StyleVisibility()->mImageOrientation != newOrientation;
-
-  if (shouldUpdateOrientation) {
-    nsCOMPtr<imgIContainer> image(mImage->Unwrap());
-    mImage = nsLayoutUtils::OrientImage(image, newOrientation);
-
-    UpdateIntrinsicSize(mImage);
-    UpdateIntrinsicRatio(mImage);
-  }
-}
 
 void
 nsImageFrame::Init(nsIContent*       aContent,
@@ -630,19 +604,16 @@ nsImageFrame::OnDataAvailable(imgIRequest *aRequest,
     return NS_OK;
   }
 
-  nsIntRect rect = mImage ? mImage->GetImageSpaceInvalidationRect(*aRect)
-                          : *aRect;
-
 #ifdef DEBUG_decode
   printf("Source rect (%d,%d,%d,%d)\n",
          aRect->x, aRect->y, aRect->width, aRect->height);
 #endif
 
-  if (rect.IsEqualInterior(nsIntRect::GetMaxSizedIntRect())) {
+  if (aRect->IsEqualInterior(nsIntRect::GetMaxSizedIntRect())) {
     InvalidateFrame(nsDisplayItem::TYPE_IMAGE);
     InvalidateFrame(nsDisplayItem::TYPE_ALT_FEEDBACK);
   } else {
-    nsRect invalid = SourceRectToDest(rect);
+    nsRect invalid = SourceRectToDest(*aRect);
     InvalidateFrameWithRect(invalid, nsDisplayItem::TYPE_IMAGE);
     InvalidateFrameWithRect(invalid, nsDisplayItem::TYPE_ALT_FEEDBACK);
   }
@@ -1836,19 +1807,19 @@ nsImageFrame::List(FILE* out, const char* aPrefix, uint32_t aFlags) const
 }
 #endif
 
-nsIFrame::LogicalSides
+int
 nsImageFrame::GetLogicalSkipSides(const nsHTMLReflowState* aReflowState) const
 {
   if (MOZ_UNLIKELY(StyleBorder()->mBoxDecorationBreak ==
                      NS_STYLE_BOX_DECORATION_BREAK_CLONE)) {
-    return LogicalSides();
+    return 0;
   }
-  LogicalSides skip;
+  int skip = 0;
   if (nullptr != GetPrevInFlow()) {
-    skip |= eLogicalSideBitsBStart;
+    skip |= LOGICAL_SIDE_B_START;
   }
   if (nullptr != GetNextInFlow()) {
-    skip |= eLogicalSideBitsBEnd;
+    skip |= LOGICAL_SIDE_B_END;
   }
   return skip;
 }

@@ -8,7 +8,9 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/WindowsVersion.h"
 
+#include "gfxHarfBuzzShaper.h"
 #include <algorithm>
+#include "gfxGraphiteShaper.h"
 #include "gfxWindowsPlatform.h"
 #include "gfxContext.h"
 #include "mozilla/Preferences.h"
@@ -50,6 +52,10 @@ gfxGDIFont::gfxGDIFont(GDIFontEntry *aFontEntry,
       mNeedsBold(aNeedsBold),
       mScriptCache(nullptr)
 {
+    if (FontCanSupportGraphite()) {
+        mGraphiteShaper = new gfxGraphiteShaper(this);
+    }
+    mHarfBuzzShaper = new gfxHarfBuzzShaper(this);
 }
 
 gfxGDIFont::~gfxGDIFont()
@@ -77,12 +83,13 @@ gfxGDIFont::CopyWithAntialiasOption(AntialiasOption anAAOption)
 }
 
 bool
-gfxGDIFont::ShapeText(gfxContext     *aContext,
+gfxGDIFont::ShapeText(gfxContext      *aContext,
                       const char16_t *aText,
-                      uint32_t        aOffset,
-                      uint32_t        aLength,
-                      int32_t         aScript,
-                      gfxShapedText  *aShapedText)
+                      uint32_t         aOffset,
+                      uint32_t         aLength,
+                      int32_t          aScript,
+                      gfxShapedText   *aShapedText,
+                      bool             aPreferPlatformShaping)
 {
     if (!mMetrics) {
         Initialize();
@@ -101,7 +108,7 @@ gfxGDIFont::ShapeText(gfxContext     *aContext,
     }
 
     return gfxFont::ShapeText(aContext, aText, aOffset, aLength, aScript,
-                              aShapedText);
+                              aShapedText, aPreferPlatformShaping);
 }
 
 const gfxFont::Metrics&
@@ -240,6 +247,9 @@ gfxGDIFont::Initialize()
         TEXTMETRIC& metrics = oMetrics.otmTextMetrics;
 
         if (0 < GetOutlineTextMetrics(dc.GetDC(), sizeof(oMetrics), &oMetrics)) {
+            mMetrics->superscriptOffset = (double)oMetrics.otmptSuperscriptOffset.y;
+            // Some fonts have wrong sign on their subscript offset, bug 410917.
+            mMetrics->subscriptOffset = fabs((double)oMetrics.otmptSubscriptOffset.y);
             mMetrics->strikeoutSize = (double)oMetrics.otmsStrikeoutSize;
             mMetrics->strikeoutOffset = (double)oMetrics.otmsStrikeoutPosition;
             mMetrics->underlineSize = (double)oMetrics.otmsUnderscoreSize;
@@ -278,6 +288,8 @@ gfxGDIFont::Initialize()
 
             mMetrics->xHeight =
                 ROUND((float)metrics.tmAscent * DEFAULT_XHEIGHT_FACTOR);
+            mMetrics->superscriptOffset = mMetrics->xHeight;
+            mMetrics->subscriptOffset = mMetrics->xHeight;
             mMetrics->strikeoutSize = 1;
             mMetrics->strikeoutOffset = ROUND(mMetrics->xHeight * 0.5f); // 50% of xHeight
             mMetrics->underlineSize = 1;
@@ -382,8 +394,9 @@ gfxGDIFont::Initialize()
     printf("    maxAscent: %f maxDescent: %f maxAdvance: %f\n", mMetrics->maxAscent, mMetrics->maxDescent, mMetrics->maxAdvance);
     printf("    internalLeading: %f externalLeading: %f\n", mMetrics->internalLeading, mMetrics->externalLeading);
     printf("    spaceWidth: %f aveCharWidth: %f xHeight: %f\n", mMetrics->spaceWidth, mMetrics->aveCharWidth, mMetrics->xHeight);
-    printf("    uOff: %f uSize: %f stOff: %f stSize: %f\n",
-           mMetrics->underlineOffset, mMetrics->underlineSize, mMetrics->strikeoutOffset, mMetrics->strikeoutSize);
+    printf("    uOff: %f uSize: %f stOff: %f stSize: %f supOff: %f subOff: %f\n",
+           mMetrics->underlineOffset, mMetrics->underlineSize, mMetrics->strikeoutOffset, mMetrics->strikeoutSize,
+           mMetrics->superscriptOffset, mMetrics->subscriptOffset);
 #endif
 }
 

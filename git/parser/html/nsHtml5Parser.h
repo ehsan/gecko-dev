@@ -37,6 +37,7 @@ class nsHtml5Parser : public nsIParser,
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsHtml5Parser, nsIParser)
 
     nsHtml5Parser();
+    virtual ~nsHtml5Parser();
 
     /* Start nsIParser */
     /**
@@ -264,8 +265,6 @@ class nsHtml5Parser : public nsIParser,
     void ParseUntilBlocked();
 
   private:
-
-    virtual ~nsHtml5Parser();
 
     // State variables
 

@@ -59,6 +59,8 @@
 #include <ui/Fence.h>
 #endif
 
+#define BUFFER_OFFSET(i) ((char *)nullptr + (i))
+
 namespace mozilla {
 
 using namespace std;
@@ -404,13 +406,11 @@ SetRects(int n,
   aTextureRects[n] = Rect(tx0, ty0, tx1 - tx0, ty1 - ty0);
 }
 
-#ifdef DEBUG
 static inline bool
 FuzzyEqual(float a, float b)
 {
   return fabs(a - b) < 0.0001f;
 }
-#endif
 
 static int
 DecomposeIntoNoRepeatRects(const Rect& aRect,

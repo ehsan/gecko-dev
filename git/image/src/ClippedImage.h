@@ -52,7 +52,6 @@ public:
                   uint32_t aFlags) MOZ_OVERRIDE;
   NS_IMETHOD RequestDiscard() MOZ_OVERRIDE;
   NS_IMETHOD_(Orientation) GetOrientation() MOZ_OVERRIDE;
-  NS_IMETHOD_(nsIntRect) GetImageSpaceInvalidationRect(const nsIntRect& aRect) MOZ_OVERRIDE;
 
 protected:
   ClippedImage(Image* aImage, nsIntRect aClip);

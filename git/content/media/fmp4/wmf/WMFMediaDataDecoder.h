@@ -13,9 +13,7 @@
 #include "MFTDecoder.h"
 #include "mozilla/RefPtr.h"
 
-namespace mp4_demuxer {
-class MP4Sample;
-}
+class mp4_demuxer::MP4Sample;
 
 namespace mozilla {
 

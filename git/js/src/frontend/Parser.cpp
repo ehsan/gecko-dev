@@ -2717,19 +2717,11 @@ Parser<ParseHandler>::matchLabel(MutableHandle<PropertyName*> label)
 
 template <typename ParseHandler>
 bool
-Parser<ParseHandler>::reportRedeclaration(Node pn, bool isConst, HandlePropertyName name)
+Parser<ParseHandler>::reportRedeclaration(Node pn, bool isConst, JSAtom *atom)
 {
-    JSAutoByteString printable;
-    if (!AtomToPrintableString(context, name, &printable))
-        return false;
-
-    StmtInfoPC *stmt = LexicalLookup(pc, name, nullptr, (StmtInfoPC *)nullptr);
-    if (stmt && stmt->type == STMT_CATCH) {
-        report(ParseError, false, pn, JSMSG_REDECLARED_CATCH_IDENTIFIER, printable.ptr());
-    } else {
-        report(ParseError, false, pn, JSMSG_REDECLARED_VAR, isConst ? "const" : "variable",
-               printable.ptr());
-    }
+    JSAutoByteString name;
+    if (AtomToPrintableString(context, atom, &name))
+        report(ParseError, false, pn, JSMSG_REDECLARED_VAR, isConst ? "const" : "variable", name.ptr());
     return false;
 }
 
@@ -3008,26 +3000,20 @@ Parser<ParseHandler>::bindVarOrConst(BindData<ParseHandler> *data,
         if (!parser->report(ParseExtraWarning, false, pn, JSMSG_VAR_HIDES_ARG, bytes.ptr()))
             return false;
     } else {
-        bool inCatchBody = (stmt && stmt->type == STMT_CATCH);
         bool error = (isConstDecl ||
                       dn_kind == Definition::CONST ||
                       (dn_kind == Definition::LET &&
-                       (!inCatchBody || OuterLet(pc, stmt, name))));
+                       (stmt->type != STMT_CATCH || OuterLet(pc, stmt, name))));
 
         if (parser->options().extraWarningsOption
             ? data->op != JSOP_DEFVAR || dn_kind != Definition::VAR
             : error)
         {
             JSAutoByteString bytes;
-            if (!AtomToPrintableString(cx, name, &bytes))
-                return false;
-
             ParseReportKind reporter = error ? ParseError : ParseExtraWarning;
-            if (!(inCatchBody
-                  ? parser->report(reporter, false, pn,
-                                   JSMSG_REDECLARED_CATCH_IDENTIFIER, bytes.ptr())
-                  : parser->report(reporter, false, pn, JSMSG_REDECLARED_VAR,
-                                   Definition::kindString(dn_kind), bytes.ptr())))
+            if (!AtomToPrintableString(cx, name, &bytes) ||
+                !parser->report(reporter, false, pn, JSMSG_REDECLARED_VAR,
+                                Definition::kindString(dn_kind), bytes.ptr()))
             {
                 return false;
             }
@@ -3622,25 +3608,6 @@ Parser<FullParseHandler>::letDeclaration()
             JS_ASSERT(pc->staticScope == stmt->staticScope);
         } else {
             if (pc->atBodyLevel()) {
-                /*
-                 * When bug 589199 is fixed, let variables will be stored in
-                 * the slots of a new scope chain object, encountered just
-                 * before the global object in the overall chain.  This extra
-                 * object is present in the scope chain for all code in that
-                 * global, including self-hosted code.  But self-hosted code
-                 * must be usable against *any* global object, including ones
-                 * with other let variables -- variables possibly placed in
-                 * conflicting slots.  Forbid top-level let declarations to
-                 * prevent such conflicts from ever occurring.
-                 */
-                if (options().selfHostingMode &&
-                    !pc->sc->isFunctionBox() &&
-                    stmt == pc->topScopeStmt)
-                {
-                    report(ParseError, false, null(), JSMSG_SELFHOSTED_TOP_LEVEL_LET);
-                    return null();
-                }
-
                 /*
                  * ES4 specifies that let at top level and at body-block scope
                  * does not shadow var, so convert back to var.

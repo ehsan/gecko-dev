@@ -771,9 +771,8 @@ nsCSPPolicy::permits(nsContentPolicyType aContentType,
     return true;
   }
 
-  // unspecified default-src should default to no restrictions
-  // see bug 764937
-  return true;
+  // Didn't find a directive, load is not allowed.
+  return false;
 }
 
 bool

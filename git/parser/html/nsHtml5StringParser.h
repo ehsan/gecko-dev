@@ -25,6 +25,7 @@ class nsHtml5StringParser : public nsParserBase
      * nsContentUtils statics that wrap this.
      */
     nsHtml5StringParser();
+    virtual ~nsHtml5StringParser();
 
     /**
      * Invoke the fragment parsing algorithm (innerHTML).
@@ -56,8 +57,6 @@ class nsHtml5StringParser : public nsParserBase
                            bool aScriptingEnabledForNoscriptParsing);
 
   private:
-
-    virtual ~nsHtml5StringParser();
 
     nsresult Tokenize(const nsAString& aSourceBuffer,
                       nsIDocument* aDocument,

@@ -28,8 +28,6 @@ public:
                int32_t aColumnNumber);
 
 private:
-  ~nsSAXLocator() {}
-
   nsString mPublicId;
   nsString mSystemId;
   int32_t mLineNumber;

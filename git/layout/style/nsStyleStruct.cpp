@@ -2654,7 +2654,6 @@ nsChangeHint nsStyleVisibility::CalcDifference(const nsStyleVisibility& aOther) 
   } else {
     if ((mImageOrientation != aOther.mImageOrientation)) {
       NS_UpdateHint(hint, nsChangeHint_AllReflowHints);
-      NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
     }
     if (mVisible != aOther.mVisible) {
       if ((NS_STYLE_VISIBILITY_COLLAPSE == mVisible) ||
