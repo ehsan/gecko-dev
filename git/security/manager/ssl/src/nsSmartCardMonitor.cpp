@@ -1,116 +1,86 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Contributed by Red Hat Inc.
+ *
+ * The Initial Developer of the Original Code is
+ * Red Hat, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "nspr.h"
 
-#include "mozilla/Services.h"
-#include "mozilla/unused.h"
-#include "nsIObserverService.h"
-#include "nsServiceManagerUtils.h"
-#include "nsSmartCardMonitor.h"
-#include "nsThreadUtils.h"
 #include "pk11func.h"
-
-using namespace mozilla;
+#include "nsNSSComponent.h"
+#include "nsSmartCardMonitor.h"
+#include "nsSmartCardEvent.h"
 
 //
 // The SmartCard monitoring thread should start up for each module we load
 // that has removable tokens. This code calls an NSS function which waits
-// until there is a change in the token state. NSS uses the
+// until there is a change in the token state. NSS uses the 
 // C_WaitForSlotEvent() call in PKCS #11 if the module implements the call,
-// otherwise NSS will poll the token in a loop with a delay of 'latency'
+// otherwise NSS will poll the token in a loop with a delay of 'latency' 
 // between polls. Note that the C_WaitForSlotEvent() may wake up on any type
 // of token event, so it's necessary to filter these events down to just the
 // insertion and removal events we are looking for.
 //
-// Once the event is found, it is dispatched to the main thread to notify
-// any window where window.crypto.enableSmartCardEvents is true.
-// Additionally, all observers of the topics "smartcard-insert" and
-// "smartcard-remove" are notified by the observer service of the appropriate
-// event.
+// Once the event is found, It is passed to nsNSSComponent for dispatching
+// on the UI thread, and forwarding to any interested listeners (including
+// javascript).
 //
 
-class nsTokenEventRunnable : public nsIRunnable {
-public:
-  nsTokenEventRunnable(const nsAString& aType, const nsAString& aTokenName)
-    : mType(aType)
-    , mTokenName(aTokenName)
-  {
-  }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIRUNNABLE
+static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
-private:
-  virtual ~nsTokenEventRunnable() {}
-
-  nsString mType;
-  nsString mTokenName;
-};
-
-NS_IMPL_ISUPPORTS(nsTokenEventRunnable, nsIRunnable)
-
-NS_IMETHODIMP
-nsTokenEventRunnable::Run()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (!observerService) {
-    return NS_ERROR_FAILURE;
-  }
-  // This conversion is safe because mType can only be "smartcard-insert"
-  // or "smartcard-remove".
-  NS_ConvertUTF16toUTF8 eventTypeUTF8(mType);
-  return observerService->NotifyObservers(nullptr, eventTypeUTF8.get(),
-                                          mTokenName.get());
-}
+#include <assert.h>
 
 // self linking and removing double linked entry
 // adopts the thread it is passed.
-class SmartCardThreadEntry
-{
+class SmartCardThreadEntry {
 public:
-  friend class SmartCardThreadList;
-  SmartCardThreadEntry(SmartCardMonitoringThread *thread,
-                       SmartCardThreadEntry *next,
-                       SmartCardThreadEntry *prev,
-                       SmartCardThreadEntry **head)
-    : next(next)
-    , prev(prev)
-    , head(head)
-    , thread(thread)
-  {
-    if (prev) {
-      prev->next = this;
-    } else {
-      *head = this;
-    }
-    if (next) {
-      next->prev = this;
-    }
+ SmartCardThreadEntry *next;
+ SmartCardThreadEntry *prev;
+ SmartCardThreadEntry **head;
+ SmartCardMonitoringThread *thread;
+ SmartCardThreadEntry(SmartCardMonitoringThread *thread_,
+   SmartCardThreadEntry *next_, SmartCardThreadEntry *prev_,
+   SmartCardThreadEntry **head_) : 
+   next(next_), prev(prev_), head(head_), thread(thread_) { 
+    if (prev) { prev->next = this; } else { *head = this; }
+    if (next) { next->prev = this; }
   }
-
-  ~SmartCardThreadEntry()
-  {
-    if (prev) {
-      prev->next = next;
-    } else {
-      *head = next;
-    }
-    if (next) {
-      next->prev = prev;
-    }
+  ~SmartCardThreadEntry() {
+    if (prev) { prev->next = next; } else { *head = next; }
+    if (next) { next->prev = prev; }
     // NOTE: automatically stops the thread
     delete thread;
   }
-
-private:
-  SmartCardThreadEntry *next;
-  SmartCardThreadEntry *prev;
-  SmartCardThreadEntry **head;
-  SmartCardMonitoringThread *thread;
 };
 
 //
@@ -135,8 +105,8 @@ SmartCardThreadList::~SmartCardThreadList()
 void
 SmartCardThreadList::Remove(SECMODModule *aModule)
 {
-  for (SmartCardThreadEntry* current = head; current;
-       current = current->next) {
+  SmartCardThreadEntry *current;
+  for (current = head; current; current=current->next) {
     if (current->thread->GetModule() == aModule) {
       // NOTE: automatically stops the thread and dequeues it from the list
       delete current;
@@ -145,31 +115,32 @@ SmartCardThreadList::Remove(SECMODModule *aModule)
   }
 }
 
-// adopts the thread passed to it. Starts the thread as well
+// adopts the thread passwd to it. Starts the thread as well
 nsresult
-SmartCardThreadList::Add(SmartCardMonitoringThread* thread)
+SmartCardThreadList::Add(SmartCardMonitoringThread *thread)
 {
-  SmartCardThreadEntry* current = new SmartCardThreadEntry(thread, head,
-                                                           nullptr, &head);
-  // OK to forget current here, it's on the list.
-  unused << current;
-
-  return thread->Start();
+  SmartCardThreadEntry *current = new SmartCardThreadEntry(thread, head, nsnull,
+                                                           &head);
+  if (current) {  
+     // OK to forget current here, it's on the list
+    return thread->Start();
+  }
+  return NS_ERROR_OUT_OF_MEMORY;
 }
 
 
 // We really should have a Unity PL Hash function...
-static PLHashNumber
-unity(const void* key) { return PLHashNumber(NS_PTR_TO_INT32(key)); }
+static PR_CALLBACK PLHashNumber
+unity(const void *key) { return PLHashNumber(NS_PTR_TO_INT32(key)); }
 
-SmartCardMonitoringThread::SmartCardMonitoringThread(SECMODModule* module_)
-  : mThread(nullptr)
+SmartCardMonitoringThread::SmartCardMonitoringThread(SECMODModule *module_)
+  : mThread(nsnull)
 {
   mModule = SECMOD_ReferenceModule(module_);
   // simple hash functions, most modules have less than 3 slots, so 10 buckets
   // should be plenty
-  mHash = PL_NewHashTable(10, unity, PL_CompareValues, PL_CompareStrings,
-                          nullptr, 0);
+  mHash = PL_NewHashTable(10, unity, PL_CompareValues, 
+                           PL_CompareStrings, nsnull, 0);
 }
 
 //
@@ -190,7 +161,7 @@ SmartCardMonitoringThread::Start()
 {
   if (!mThread) {
     mThread = PR_CreateThread(PR_SYSTEM_THREAD, LaunchExecute, this,
-                              PR_PRIORITY_NORMAL, PR_GLOBAL_THREAD,
+                              PR_PRIORITY_NORMAL, PR_LOCAL_THREAD,
                               PR_JOINABLE_THREAD, 0);
   }
   return mThread ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
@@ -208,11 +179,11 @@ void SmartCardMonitoringThread::Stop()
 
   rv = SECMOD_CancelWait(mModule);
   if (rv != SECSuccess) {
-    // we didn't wake up the Wait, so don't try to join the thread
+    // we didn't wake up the Wait, so don't try to join the thread 
     // otherwise we will hang forever...
     return;
   }
-
+ 
   // confused about the memory model here? NSPR owns the memory for
   // threads. non-joinable threads are freed when the thread dies.
   // joinable threads are freed after the call to PR_JoinThread.
@@ -221,7 +192,7 @@ void SmartCardMonitoringThread::Stop()
   // what will happen if we try to join a thread that blocked).
   if (mThread) {
     PR_JoinThread(mThread);
-    mThread = 0;
+    mThread = 0; 
   }
 }
 
@@ -234,59 +205,58 @@ void SmartCardMonitoringThread::Stop()
 // cycles through various states.
 //
 void
-SmartCardMonitoringThread::SetTokenName(CK_SLOT_ID slotid,
-                                       const char* tokenName, uint32_t series)
+SmartCardMonitoringThread::SetTokenName(CK_SLOT_ID slotid, 
+                                       const char *tokenName, PRUint32 series)
 {
   if (mHash) {
     if (tokenName) {
       int len = strlen(tokenName) + 1;
       /* this must match the allocator used in
        * PLHashAllocOps.freeEntry DefaultFreeEntry */
-      char* entry = (char*)PR_Malloc(len + sizeof(uint32_t));
+      char *entry = (char *)PR_Malloc(len+sizeof(PRUint32));
+     
+      if (entry) {  
+        memcpy(entry,&series,sizeof(PRUint32));
+        memcpy(&entry[sizeof(PRUint32)],tokenName,len);
 
-      if (entry) {
-        memcpy(entry, &series, sizeof(uint32_t));
-        memcpy(&entry[sizeof(uint32_t)], tokenName, len);
-
-        PL_HashTableAdd(mHash, (void*)(uintptr_t)slotid, entry); /* adopt */
+        PL_HashTableAdd(mHash,(void *)slotid, entry); /* adopt */
         return;
       }
-    } else {
+    } 
+    else {
       // if tokenName was not provided, remove the old one (implicit delete)
-      PL_HashTableRemove(mHash, (void*)(uintptr_t)slotid);
+      PL_HashTableRemove(mHash,(void *)slotid);
     }
   }
 }
 
 // retrieve the name saved above
-const char*
+const char *
 SmartCardMonitoringThread::GetTokenName(CK_SLOT_ID slotid)
 {
-  const char* tokenName = nullptr;
-  const char* entry;
+  const char *tokenName = nsnull;
+  const char *entry;
 
   if (mHash) {
-    entry = (const char*)PL_HashTableLookupConst(mHash,
-                                                 (void*)(uintptr_t)slotid);
+    entry = (const char *)PL_HashTableLookupConst(mHash,(void *)slotid);
     if (entry) {
-      tokenName = &entry[sizeof(uint32_t)];
+      tokenName = &entry[sizeof(PRUint32)];
     }
   }
   return tokenName;
 }
 
 // retrieve the series saved in SetTokenName above
-uint32_t
+PRUint32
 SmartCardMonitoringThread::GetTokenSeries(CK_SLOT_ID slotid)
 {
-  uint32_t series = 0;
-  const char* entry;
+  PRUint32 series = 0;
+  const char *entry;
 
   if (mHash) {
-    entry = (const char*)PL_HashTableLookupConst(mHash,
-                                                 (void*)(uintptr_t)slotid);
+    entry = (const char *)PL_HashTableLookupConst(mHash,(void *)slotid);
     if (entry) {
-      memcpy(&series, entry, sizeof(uint32_t));
+      memcpy(&series,entry,sizeof(PRUint32));
     }
   }
   return series;
@@ -295,22 +265,19 @@ SmartCardMonitoringThread::GetTokenSeries(CK_SLOT_ID slotid)
 //
 // helper function to pass the event off to nsNSSComponent.
 //
-void
-SmartCardMonitoringThread::SendEvent(const nsAString& eventType,
-                                     const char* tokenName)
+nsresult
+SmartCardMonitoringThread::SendEvent(const nsAString &eventType,
+                                     const char *tokenName)
 {
-  // The token name should be UTF8, but it's not clear that this is enforced
-  // by NSS. To be safe, we explicitly check here before converting it to
-  // UTF16. If it isn't UTF8, we just use an empty string with the idea that
-  // consumers of these events should at least be notified that something
-  // happened.
-  nsAutoString tokenNameUTF16(NS_LITERAL_STRING(""));
-  if (IsUTF8(nsDependentCString(tokenName))) {
-    tokenNameUTF16.Assign(NS_ConvertUTF8toUTF16(tokenName));
-  }
-  nsCOMPtr<nsIRunnable> runnable(new nsTokenEventRunnable(eventType,
-                                                          tokenNameUTF16));
-  NS_DispatchToMainThread(runnable);
+  nsresult rv;
+  nsCOMPtr<nsINSSComponent> 
+                    nssComponent(do_GetService(kNSSComponentCID, &rv));
+  if (NS_FAILED(rv))
+    return rv;
+
+  // NSS returns actual UTF8, not ASCII
+  nssComponent->PostEvent(eventType, NS_ConvertUTF8toUTF16(tokenName));
+  return NS_OK;
 }
 
 //
@@ -318,29 +285,29 @@ SmartCardMonitoringThread::SendEvent(const nsAString& eventType,
 //
 void SmartCardMonitoringThread::Execute()
 {
-  PK11SlotInfo* slot;
-  const char* tokenName;
+  PK11SlotInfo *slot;
+  const char *tokenName = nsnull;
 
   //
   // populate token names for already inserted tokens.
   //
-  PK11SlotList* sl = PK11_FindSlotsByNames(mModule->dllName, nullptr, nullptr,
-                                           true);
-
-  PK11SlotListElement* sle;
+  PK11SlotList *sl =
+            PK11_FindSlotsByNames(mModule->dllName, nsnull, nsnull, PR_TRUE);
+  PK11SlotListElement *sle;
+ 
   if (sl) {
-    for (sle = PK11_GetFirstSafe(sl); sle;
-         sle = PK11_GetNextSafe(sl, sle, false)) {
-      SetTokenName(PK11_GetSlotID(sle->slot), PK11_GetTokenName(sle->slot),
-                   PK11_GetSlotSeries(sle->slot));
+    for (sle=PK11_GetFirstSafe(sl); sle; 
+                                      sle=PK11_GetNextSafe(sl,sle,PR_FALSE)) {
+      SetTokenName(PK11_GetSlotID(sle->slot), 
+                  PK11_GetTokenName(sle->slot), PK11_GetSlotSeries(sle->slot));
     }
     PK11_FreeSlotList(sl);
   }
 
   // loop starts..
   do {
-    slot = SECMOD_WaitForAnyTokenEvent(mModule, 0, PR_SecondsToInterval(1));
-    if (!slot) {
+    slot = SECMOD_WaitForAnyTokenEvent(mModule, 0, PR_SecondsToInterval(1)  );
+    if (slot == nsnull) {
       break;
     }
 
@@ -349,7 +316,7 @@ void SmartCardMonitoringThread::Execute()
     if (PK11_IsPresent(slot)) {
       // insertion
       CK_SLOT_ID slotID = PK11_GetSlotID(slot);
-      uint32_t series = PK11_GetSlotSeries(slot);
+      PRUint32 series = PK11_GetSlotSeries(slot);
 
       // skip spurious insertion events...
       if (series != GetTokenSeries(slotID)) {
@@ -357,23 +324,23 @@ void SmartCardMonitoringThread::Execute()
         // event for the previous token, do so now...
         tokenName = GetTokenName(slotID);
         if (tokenName) {
-          SendEvent(NS_LITERAL_STRING("smartcard-remove"), tokenName);
+          SendEvent(NS_LITERAL_STRING(SMARTCARDEVENT_REMOVE), tokenName);
         }
         tokenName = PK11_GetTokenName(slot);
         // save the token name and series
         SetTokenName(slotID, tokenName, series);
-        SendEvent(NS_LITERAL_STRING("smartcard-insert"), tokenName);
+        SendEvent(NS_LITERAL_STRING(SMARTCARDEVENT_INSERT), tokenName);
       }
     } else {
-      // retrieve token name
+      // retrieve token name 
       CK_SLOT_ID slotID = PK11_GetSlotID(slot);
       tokenName = GetTokenName(slotID);
       // if there's not a token name, then the software isn't expecting
       // a (or another) remove event.
       if (tokenName) {
-        SendEvent(NS_LITERAL_STRING("smartcard-remove"), tokenName);
+        SendEvent(NS_LITERAL_STRING(SMARTCARDEVENT_REMOVE), tokenName);
         // clear the token name (after we send it)
-        SetTokenName(slotID, nullptr, 0);
+        SetTokenName(slotID, nsnull, 0);
       }
     }
     PK11_FreeSlot(slot);
@@ -382,15 +349,14 @@ void SmartCardMonitoringThread::Execute()
 }
 
 // accessor to help searching active Monitoring threads
-const SECMODModule* SmartCardMonitoringThread::GetModule()
+const SECMODModule * SmartCardMonitoringThread::GetModule() 
 {
   return mModule;
 }
 
 // C-like calling sequence to glue into PR_CreateThread.
-void SmartCardMonitoringThread::LaunchExecute(void* arg)
+void SmartCardMonitoringThread::LaunchExecute(void *arg)
 {
-  PR_SetCurrentThreadName("SmartCard");
-
   ((SmartCardMonitoringThread*)arg)->Execute();
 }
+

@@ -1,3 +1,6 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
 const PR_RDONLY = 0x1;
 
 var etld = Cc["@mozilla.org/network/effective-tld-service;1"]
@@ -33,9 +36,11 @@ function run_test()
 
     if ("*." == firstTwo)
     {
-      let rest = line.substring(2);
-      checkPublicSuffix("foo.SUPER-SPECIAL-AWESOME-PREFIX." + rest,
-                        "SUPER-SPECIAL-AWESOME-PREFIX." + rest);
+      let (rest = line.substring(2))
+      {
+        checkPublicSuffix("foo.SUPER-SPECIAL-AWESOME-PREFIX." + rest,
+                          "SUPER-SPECIAL-AWESOME-PREFIX." + rest);
+      }
     }
     else if ("!" == line.charAt(0))
     {

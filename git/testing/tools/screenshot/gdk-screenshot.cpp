@@ -29,10 +29,8 @@
  *   Karl Tomlinson <karlt+@karlt.net>
  */
 /*
- * gdk-screenshot.cpp: Save a screenshot of the root window in .png format.
- *  If a filename is specified as the first argument on the commandline,
- *  then the image will be saved to that filename. Otherwise, the image will
- *  be written to stdout.
+ * gdk-screenshot.cpp: Write a screenshot of the root window to stdout in .png
+ * format.
  */
 #include <gdk/gdk.h>
 #include <gdk/gdkx.h>
@@ -60,8 +58,7 @@ int main(int argc, char** argv)
 {
   gdk_init(&argc, &argv);
 
-// TODO GTK3
-#if defined(HAVE_LIBXSS) && (MOZ_WIDGET_GTK == 2)
+#ifdef HAVE_LIBXSS
   int event_base, error_base;
   Bool have_xscreensaver =
     XScreenSaverQueryExtension(GDK_DISPLAY(), &event_base, &error_base);
@@ -77,7 +74,7 @@ int main(int argc, char** argv)
     XScreenSaverQueryInfo(GDK_DISPLAY(), GDK_ROOT_WINDOW(), info);
 
     const char* state;
-    const char* til_or_since = nullptr;
+    const char* til_or_since = NULL;
     switch (info->state) {
     case ScreenSaverOff:
       state = "Off";
@@ -126,27 +123,20 @@ int main(int argc, char** argv)
   }
 #endif
 
-  GdkPixbuf* screenshot = nullptr;
-// TODO GTK3
-#if (MOZ_WIDGET_GTK == 2)
   GdkWindow* window = gdk_get_default_root_window();
-  screenshot = gdk_pixbuf_get_from_drawable(nullptr, window, nullptr,
-                                            0, 0, 0, 0,
-                                            gdk_screen_width(),
-                                            gdk_screen_height());
-#endif
+  GdkPixbuf* screenshot = gdk_pixbuf_get_from_drawable(NULL, window, NULL,
+                                                       0, 0, 0, 0,
+                                                       gdk_screen_width(),
+                                                       gdk_screen_height());
+
   if (!screenshot) {
     fprintf(stderr, "%s: failed to create screenshot GdkPixbuf\n", argv[0]);
     return 1;
   }
 
-  GError* error = nullptr;
-  if (argc > 1) {
-    gdk_pixbuf_save(screenshot, argv[1], "png", &error, nullptr);
-  } else {
-    gdk_pixbuf_save_to_callback(screenshot, save_to_stdout, nullptr,
-                                "png", &error, nullptr);
-  }
+  GError* error = NULL;
+  gdk_pixbuf_save_to_callback(screenshot, save_to_stdout, NULL,
+                              "png", NULL, NULL);
   if (error) {
     fprintf(stderr, "%s: failed to write screenshot as png: %s\n",
             argv[0], error->message);

@@ -1,4 +1,4 @@
-/* vim: set ts=8 sts=4 et sw=4 tw=99: */
+/* vim: set ts=4 sw=4 tw=99 et: */
 
 function g(a, b, c, d) {
     return "" + a + b + c + d;
@@ -12,7 +12,7 @@ function f(a, b, c) {
     if (x)
         arguments.length = 4;
     var k;
-    for (var i = 0; i < 9; i++)
+    for (var i = 0; i < RUNLOOP; i++)
         k = g.apply(this, arguments);
     return k;
 }

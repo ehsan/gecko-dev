@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Test that we flush before painting</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -13,9 +14,6 @@
 <pre id="test">
 <script type="application/javascript">
 SimpleTest.waitForExplicitFinish();
-SimpleTest.requestFlakyTimeout("This test deals with painting and invalidation. " +
-                               "Those are tricky to detect, so we have to poll here, which means that we have to rely on flaky timeouts. " +
-                               "This special case is safe because we're only polling for events.");
 
 var iterations = 0;
 var plugin = document.getElementById("plugin");
@@ -47,7 +45,9 @@ function checkDone() {
     return;
   }
 
-  var utils = SpecialPowers.getDOMWindowUtils(window);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                 getInterface(Components.interfaces.nsIDOMWindowUtils);
   is(plugin.getWidthAtLastPaint(), utils.screenPixelsPerCSSPixel*expectedWidth,
      "Check that we set width before painting");
 

@@ -1,10 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+var EXPORTED_SYMBOLS = ["Microformats", "adr", "tag", "hCard", "hCalendar", "geo"];
 
-this.EXPORTED_SYMBOLS = ["Microformats", "adr", "tag", "hCard", "hCalendar", "geo"];
-
-this.Microformats = {
+var Microformats = {
   /* When a microformat is added, the name is placed in this list */
   list: [],
   /* Custom iterator so that microformats can be enumerated as */
@@ -357,11 +353,11 @@ this.Microformats = {
       
       
       if (((((propnode.localName.toLowerCase() == "abbr") || (propnode.localName.toLowerCase() == "html:abbr")) && !propnode.namespaceURI) || 
-         ((propnode.localName.toLowerCase() == "abbr") && (propnode.namespaceURI == "http://www.w3.org/1999/xhtml"))) && (propnode.hasAttribute("title"))) {
+         ((propnode.localName.toLowerCase() == "abbr") && (propnode.namespaceURI == "http://www.w3.org/1999/xhtml"))) && (propnode.getAttribute("title"))) {
         return propnode.getAttribute("title");
-      } else if ((propnode.nodeName.toLowerCase() == "img") && (propnode.hasAttribute("alt"))) {
+      } else if ((propnode.nodeName.toLowerCase() == "img") && (propnode.getAttribute("alt"))) {
         return propnode.getAttribute("alt");
-      } else if ((propnode.nodeName.toLowerCase() == "area") && (propnode.hasAttribute("alt"))) {
+      } else if ((propnode.nodeName.toLowerCase() == "area") && (propnode.getAttribute("alt"))) {
         return propnode.getAttribute("alt");
       } else if ((propnode.nodeName.toLowerCase() == "textarea") ||
                  (propnode.nodeName.toLowerCase() == "select") ||
@@ -651,7 +647,7 @@ this.Microformats = {
       }
       if (in_node.ownerDocument) {
         if (Microformats[microformat].attributeName) {
-          if (!(in_node.hasAttribute(Microformats[microformat].attributeName))) {
+          if (!(in_node.getAttribute(Microformats[microformat].attributeName))) {
             throw("Node is not a microformat (" + microformat + ")");
           }
         } else {
@@ -854,7 +850,7 @@ this.Microformats = {
      */
     preProcessMicroformat: function preProcessMicroformat(in_mfnode) {
       var mfnode;
-      if ((in_mfnode.nodeName.toLowerCase() == "td") && (in_mfnode.hasAttribute("headers"))) {
+      if ((in_mfnode.nodeName.toLowerCase() == "td") && (in_mfnode.getAttribute("headers"))) {
         mfnode = in_mfnode.cloneNode(true);
         mfnode.origNode = in_mfnode;
         var headers = in_mfnode.getAttribute("headers").split(" ");
@@ -1163,7 +1159,7 @@ this.Microformats = {
 
 /* MICROFORMAT DEFINITIONS BEGIN HERE */
 
-this.adr = function adr(node, validate) {
+function adr(node, validate) {
   if (node) {
     Microformats.parser.newMicroformat(this, node, "adr", validate);
   }
@@ -1255,7 +1251,7 @@ var adr_definition = {
 
 Microformats.add("adr", adr_definition);
 
-this.hCard = function hCard(node, validate) {
+function hCard(node, validate) {
   if (node) {
     Microformats.parser.newMicroformat(this, node, "hCard", validate);
   }
@@ -1464,7 +1460,7 @@ var hCard_definition = {
 
 Microformats.add("hCard", hCard_definition);
 
-this.hCalendar = function hCalendar(node, validate) {
+function hCalendar(node, validate) {
   if (node) {
     Microformats.parser.newMicroformat(this, node, "hCalendar", validate);
   }
@@ -1644,7 +1640,7 @@ var hCalendar_definition = {
 
 Microformats.add("hCalendar", hCalendar_definition);
 
-this.geo = function geo(node, validate) {
+function geo(node, validate) {
   if (node) {
     Microformats.parser.newMicroformat(this, node, "geo", validate);
   }
@@ -1760,7 +1756,7 @@ var geo_definition = {
 
 Microformats.add("geo", geo_definition);
 
-this.tag = function tag(node, validate) {
+function tag(node, validate) {
   if (node) {
     Microformats.parser.newMicroformat(this, node, "tag", validate);
   }

@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl
 ##
 ##  Copyright (c) 2010 The WebM project authors. All Rights Reserved.
 ##
@@ -17,45 +17,14 @@
 #
 # Usage: cat inputfile | perl ads2gas.pl > outputfile
 #
-
-use FindBin;
-use lib $FindBin::Bin;
-use thumb;
-
-my $thumb = 0;
-
-foreach my $arg (@ARGV) {
-    $thumb = 1 if ($arg eq "-thumb");
-}
-
 print "@ This file was created from a .asm file\n";
 print "@  using the ads2gas.pl script.\n";
 print "\t.equ DO1STROUNDING, 0\n";
-if ($thumb) {
-    print "\t.syntax unified\n";
-    print "\t.thumb\n";
-}
-
-# Stack of procedure names.
-@proc_stack = ();
 
 while (<STDIN>)
 {
-    undef $comment;
-    undef $line;
-    $comment_char = ";";
-    $comment_sub = "@";
-
-    # Handle comments.
-    if (/$comment_char/)
-    {
-      $comment = "";
-      ($line, $comment) = /(.*?)$comment_char(.*)/;
-      $_ = $line;
-    }
-
-    # Load and store alignment
-    s/@/,:/g;
+    # Comment character
+    s/;/@/g;
 
     # Hexadecimal constants prefaced by 0x
     s/#&/#0x/g;
@@ -76,27 +45,16 @@ while (<STDIN>)
     s/:SHR:/ >> /g;
 
     # Convert ELSE to .else
-    s/\bELSE\b/.else/g;
+    s/ELSE/.else/g;
 
     # Convert ENDIF to .endif
-    s/\bENDIF\b/.endif/g;
+    s/ENDIF/.endif/g;
 
     # Convert ELSEIF to .elseif
-    s/\bELSEIF\b/.elseif/g;
+    s/ELSEIF/.elseif/g;
 
     # Convert LTORG to .ltorg
-    s/\bLTORG\b/.ltorg/g;
-
-    # Convert endfunc to nothing.
-    s/\bendfunc\b//ig;
-
-    # Convert FUNCTION to nothing.
-    s/\bFUNCTION\b//g;
-    s/\bfunction\b//g;
-
-    s/\bENTRY\b//g;
-    s/\bMSARMASM\b/0/g;
-    s/^\s+end\s+$//g;
+    s/LTORG/.ltorg/g;
 
     # Convert IF :DEF:to .if
     # gcc doesn't have the ability to do a conditional
@@ -121,10 +79,7 @@ while (<STDIN>)
     s/CODE([0-9][0-9])/.code $1/;
 
     # No AREA required
-    # But ALIGNs in AREA must be obeyed
-    s/^\s*AREA.*ALIGN=([0-9])$/.text\n.p2align $1/;
-    # If no ALIGN, strip the AREA and align to 4 bytes
-    s/^\s*AREA.*$/.text\n.p2align 2/;
+    s/^\s*AREA.*$/.text/;
 
     # DCD to .word
     # This one is for incoming symbols
@@ -142,7 +97,6 @@ while (<STDIN>)
     if (s/RN\s+([Rr]\d+|lr)/.req $1/)
     {
         print;
-        print "$comment_sub$comment\n" if defined $comment;
         next;
     }
 
@@ -150,9 +104,6 @@ while (<STDIN>)
     # prepended underscore
     s/EXPORT\s+\|([\$\w]*)\|/.global $1 \n\t.type $1, function/;
     s/IMPORT\s+\|([\$\w]*)\|/.global $1/;
-
-    s/EXPORT\s+([\$\w]*)/.global $1/;
-    s/export\s+([\$\w]*)/.global $1/;
 
     # No vertical bars required; make additional symbol with prepended
     # underscore
@@ -163,61 +114,28 @@ while (<STDIN>)
     # put the colon at the end of the line in the macro
     s/^([a-zA-Z_0-9\$]+)/$1:/ if !/EQU/;
 
-    # ALIGN directive
-    s/\bALIGN\b/.balign/g;
+    # Strip ALIGN
+    s/\sALIGN/@ ALIGN/g;
 
-    if ($thumb) {
-        # ARM code - we force everything to thumb with the declaration in the header
-        s/\sARM//g;
-    } else {
-        # ARM code
-        s/\sARM/.arm/g;
-    }
+    # Strip ARM
+    s/\sARM/@ ARM/g;
 
-    # push/pop
-    s/(push\s+)(r\d+)/stmdb sp\!, \{$2\}/g;
-    s/(pop\s+)(r\d+)/ldmia sp\!, \{$2\}/g;
+    # Strip REQUIRE8
+    #s/\sREQUIRE8/@ REQUIRE8/g;
+    s/\sREQUIRE8/@ /g;      #EQU cause problem
 
-    # NEON code
-    s/(vld1.\d+\s+)(q\d+)/$1\{$2\}/g;
-    s/(vtbl.\d+\s+[^,]+),([^,]+)/$1,\{$2\}/g;
+    # Strip PRESERVE8
+    s/\sPRESERVE8/@ PRESERVE8/g;
 
-    if ($thumb) {
-        thumb::FixThumbInstructions($_, 0);
-    }
-
-    # eabi_attributes numerical equivalents can be found in the
-    # "ARM IHI 0045C" document.
-
-    # REQUIRE8 Stack is required to be 8-byte aligned
-    s/\sREQUIRE8/.eabi_attribute 24, 1 \@Tag_ABI_align_needed/g;
-
-    # PRESERVE8 Stack 8-byte align is preserved
-    s/\sPRESERVE8/.eabi_attribute 25, 1 \@Tag_ABI_align_preserved/g;
-
-    # Use PROC and ENDP to give the symbols a .size directive.
-    # This makes them show up properly in debugging tools like gdb and valgrind.
-    if (/\bPROC\b/)
-    {
-        my $proc;
-        /^_([\.0-9A-Z_a-z]\w+)\b/;
-        $proc = $1;
-        push(@proc_stack, $proc) if ($proc);
-        s/\bPROC\b/@ $&/;
-    }
-    if (/\bENDP\b/)
-    {
-        my $proc;
-        s/\bENDP\b/@ $&/;
-        $proc = pop(@proc_stack);
-        $_ = "\t.size $proc, .-$proc".$_ if ($proc);
-    }
+    # Strip PROC and ENDPROC
+    s/\sPROC/@/g;
+    s/\sENDP/@/g;
 
     # EQU directive
-    s/(\S+\s+)EQU(\s+\S+)/.equ $1, $2/;
+    s/(.*)EQU(.*)/.equ $1, $2/;
 
     # Begin macro definition
-    if (/\bMACRO\b/) {
+    if (/MACRO/) {
         $_ = <STDIN>;
         s/^/.macro/;
         s/\$//g;                # remove formal param reference
@@ -226,11 +144,7 @@ while (<STDIN>)
 
     # For macros, use \ to reference formal params
     s/\$/\\/g;                  # End macro definition
-    s/\bMEND\b/.endm/;              # No need to tell it where to stop assembling
+    s/MEND/.endm/;              # No need to tell it where to stop assembling
     next if /^\s*END\s*$/;
     print;
-    print "$comment_sub$comment\n" if defined $comment;
 }
-
-# Mark that this object doesn't need an executable stack.
-printf ("\t.section\t.note.GNU-stack,\"\",\%\%progbits\n");

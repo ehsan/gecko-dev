@@ -33,7 +33,7 @@ class NotificationDetails {
   }
 
  protected:
-  explicit NotificationDetails(void* ptr) : ptr_(ptr) {}
+  NotificationDetails(void* ptr) : ptr_(ptr) {}
 
   void* ptr_;
 };
@@ -41,8 +41,8 @@ class NotificationDetails {
 template <class T>
 class Details : public NotificationDetails {
  public:
-  explicit Details(T* ptr) : NotificationDetails(ptr) {}
-  explicit Details(const NotificationDetails& other)
+  Details(T* ptr) : NotificationDetails(ptr) {}
+  Details(const NotificationDetails& other)
     : NotificationDetails(other) {}
 
   T* operator->() const { return ptr(); }

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2014 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -11,64 +11,41 @@
 #include "libEGL/Display.h"
 
 #include <algorithm>
-#include <map>
 #include <vector>
-#include <sstream>
-#include <iterator>
 
 #include "common/debug.h"
-#include "common/mathutil.h"
-#include "libGLESv2/main.h"
-#include "libGLESv2/Context.h"
-#include "libGLESv2/renderer/SwapChain.h"
 
 #include "libEGL/main.h"
-#include "libEGL/Surface.h"
+
+#define REF_RAST 0        // Can also be enabled by defining FORCE_REF_RAST in the project's predefined macros
+#define ENABLE_D3D9EX 1   // Enables use of the IDirect3D9Ex interface, when available
 
 namespace egl
 {
-
-typedef std::map<EGLNativeDisplayType, Display*> DisplayMap;
-static DisplayMap *GetDisplayMap()
+Display::Display(HDC deviceContext) : mDc(deviceContext)
 {
-    static DisplayMap displays;
-    return &displays;
-}
-
-egl::Display *Display::getDisplay(EGLNativeDisplayType displayId, EGLint displayType)
-{
-    DisplayMap *displays = GetDisplayMap();
-    DisplayMap::const_iterator iter = displays->find(displayId);
-    if (iter != displays->end())
-    {
-        return iter->second;
-    }
+    mD3d9Module = NULL;
     
-    // FIXME: Check if displayId is a valid display device context
+    mD3d9 = NULL;
+    mD3d9ex = NULL;
+    mDevice = NULL;
+    mDeviceWindow = NULL;
 
-    egl::Display *display = new egl::Display(displayId, displayType);
-    displays->insert(std::make_pair(displayId, display));
+    mAdapter = D3DADAPTER_DEFAULT;
 
-    return display;
-}
+    #if REF_RAST == 1 || defined(FORCE_REF_RAST)
+        mDeviceType = D3DDEVTYPE_REF;
+    #else
+        mDeviceType = D3DDEVTYPE_HAL;
+    #endif
 
-Display::Display(EGLNativeDisplayType displayId, EGLint displayType)
-    : mDisplayId(displayId),
-      mRequestedDisplayType(displayType),
-      mRenderer(NULL)
-{
+    mMinSwapInterval = 1;
+    mMaxSwapInterval = 1;
 }
 
 Display::~Display()
 {
     terminate();
-
-    DisplayMap *displays = GetDisplayMap();
-    DisplayMap::iterator iter = displays->find(mDisplayId);
-    if (iter != displays->end())
-    {
-        displays->erase(iter);
-    }
 }
 
 bool Display::initialize()
@@ -78,49 +55,162 @@ bool Display::initialize()
         return true;
     }
 
-    mRenderer = glCreateRenderer(this, mDisplayId, mRequestedDisplayType);
-
-    if (!mRenderer)
-    {
-        terminate();
-        return error(EGL_NOT_INITIALIZED, false);
-    }
-
-    EGLint minSwapInterval = mRenderer->getMinSwapInterval();
-    EGLint maxSwapInterval = mRenderer->getMaxSwapInterval();
-    EGLint maxTextureSize = mRenderer->getRendererCaps().max2DTextureSize;
-
-    rx::ConfigDesc *descList;
-    int numConfigs = mRenderer->generateConfigs(&descList);
-    ConfigSet configSet;
-
-    for (int i = 0; i < numConfigs; ++i)
-    {
-        configSet.add(descList[i], minSwapInterval, maxSwapInterval, maxTextureSize, maxTextureSize);
-    }
-
-    // Give the sorted configs a unique ID and store them internally
-    EGLint index = 1;
-    for (ConfigSet::Iterator config = configSet.mSet.begin(); config != configSet.mSet.end(); config++)
-    {
-        Config configuration = *config;
-        configuration.mConfigID = index;
-        index++;
-
-        mConfigSet.mSet.insert(configuration);
-    }
-
-    mRenderer->deleteConfigs(descList);
-    descList = NULL;
-
-    if (!isInitialized())
+    mD3d9Module = GetModuleHandle(TEXT("d3d9.dll"));
+    if (mD3d9Module == NULL)
     {
         terminate();
         return false;
     }
 
-    initDisplayExtensionString();
-    initVendorString();
+    typedef HRESULT (WINAPI *Direct3DCreate9ExFunc)(UINT, IDirect3D9Ex**);
+    Direct3DCreate9ExFunc Direct3DCreate9ExPtr = reinterpret_cast<Direct3DCreate9ExFunc>(GetProcAddress(mD3d9Module, "Direct3DCreate9Ex"));
+
+    // Use Direct3D9Ex if available. Among other things, this version is less
+    // inclined to report a lost context, for example when the user switches
+    // desktop. Direct3D9Ex is available in Windows Vista and later if suitable drivers are available.
+    if (ENABLE_D3D9EX && Direct3DCreate9ExPtr && SUCCEEDED(Direct3DCreate9ExPtr(D3D_SDK_VERSION, &mD3d9ex)))
+    {
+        ASSERT(mD3d9ex);
+        mD3d9ex->QueryInterface(IID_IDirect3D9, reinterpret_cast<void**>(&mD3d9));
+        ASSERT(mD3d9);
+    }
+    else
+    {
+        mD3d9 = Direct3DCreate9(D3D_SDK_VERSION);
+    }
+
+    if (mD3d9)
+    {
+        if (mDc != NULL)
+        {
+        //  UNIMPLEMENTED();   // FIXME: Determine which adapter index the device context corresponds to
+        }
+
+        HRESULT result;
+        
+        // Give up on getting device caps after about one second.
+        for (int i = 0; i < 10; ++i)
+        {
+            result = mD3d9->GetDeviceCaps(mAdapter, mDeviceType, &mDeviceCaps);
+            
+            if (SUCCEEDED(result))
+            {
+                break;
+            }
+            else if (result == D3DERR_NOTAVAILABLE)
+            {
+                Sleep(100);   // Give the driver some time to initialize/recover
+            }
+            else if (FAILED(result))   // D3DERR_OUTOFVIDEOMEMORY, E_OUTOFMEMORY, D3DERR_INVALIDDEVICE, or another error we can't recover from
+            {
+                terminate();
+                return error(EGL_BAD_ALLOC, false);
+            }
+        }
+
+        if (mDeviceCaps.PixelShaderVersion < D3DPS_VERSION(2, 0))
+        {
+            terminate();
+            return error(EGL_NOT_INITIALIZED, false);
+        }
+
+        // When DirectX9 is running with an older DirectX8 driver, a StretchRect from a regular texture to a render target texture is not supported.
+        // This is required by Texture2D::convertToRenderTarget.
+        if ((mDeviceCaps.DevCaps2 & D3DDEVCAPS2_CAN_STRETCHRECT_FROM_TEXTURES) == 0)
+        {
+            terminate();
+            return error(EGL_NOT_INITIALIZED, false);
+        }
+
+        mMinSwapInterval = 4;
+        mMaxSwapInterval = 0;
+
+        if (mDeviceCaps.PresentationIntervals & D3DPRESENT_INTERVAL_IMMEDIATE) {mMinSwapInterval = std::min(mMinSwapInterval, 0); mMaxSwapInterval = std::max(mMaxSwapInterval, 0);}
+        if (mDeviceCaps.PresentationIntervals & D3DPRESENT_INTERVAL_ONE)       {mMinSwapInterval = std::min(mMinSwapInterval, 1); mMaxSwapInterval = std::max(mMaxSwapInterval, 1);}
+        if (mDeviceCaps.PresentationIntervals & D3DPRESENT_INTERVAL_TWO)       {mMinSwapInterval = std::min(mMinSwapInterval, 2); mMaxSwapInterval = std::max(mMaxSwapInterval, 2);}
+        if (mDeviceCaps.PresentationIntervals & D3DPRESENT_INTERVAL_THREE)     {mMinSwapInterval = std::min(mMinSwapInterval, 3); mMaxSwapInterval = std::max(mMaxSwapInterval, 3);}
+        if (mDeviceCaps.PresentationIntervals & D3DPRESENT_INTERVAL_FOUR)      {mMinSwapInterval = std::min(mMinSwapInterval, 4); mMaxSwapInterval = std::max(mMaxSwapInterval, 4);}
+
+        const D3DFORMAT renderTargetFormats[] =
+        {
+            D3DFMT_A1R5G5B5,
+        //  D3DFMT_A2R10G10B10,   // The color_ramp conformance test uses ReadPixels with UNSIGNED_BYTE causing it to think that rendering skipped a colour value.
+            D3DFMT_A8R8G8B8,
+            D3DFMT_R5G6B5,
+        //  D3DFMT_X1R5G5B5,      // Has no compatible OpenGL ES renderbuffer format
+            D3DFMT_X8R8G8B8
+        };
+
+        const D3DFORMAT depthStencilFormats[] =
+        {
+        //  D3DFMT_D16_LOCKABLE,
+            D3DFMT_D32,
+        //  D3DFMT_D15S1,
+            D3DFMT_D24S8,
+            D3DFMT_D24X8,
+        //  D3DFMT_D24X4S4,
+            D3DFMT_D16,
+        //  D3DFMT_D32F_LOCKABLE,
+        //  D3DFMT_D24FS8
+        };
+
+        D3DDISPLAYMODE currentDisplayMode;
+        mD3d9->GetAdapterDisplayMode(mAdapter, &currentDisplayMode);
+
+        ConfigSet configSet;
+
+        for (int formatIndex = 0; formatIndex < sizeof(renderTargetFormats) / sizeof(D3DFORMAT); formatIndex++)
+        {
+            D3DFORMAT renderTargetFormat = renderTargetFormats[formatIndex];
+
+            HRESULT result = mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_RENDERTARGET, D3DRTYPE_SURFACE, renderTargetFormat);
+
+            if (SUCCEEDED(result))
+            {
+                for (int depthStencilIndex = 0; depthStencilIndex < sizeof(depthStencilFormats) / sizeof(D3DFORMAT); depthStencilIndex++)
+                {
+                    D3DFORMAT depthStencilFormat = depthStencilFormats[depthStencilIndex];
+                    HRESULT result = mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_DEPTHSTENCIL, D3DRTYPE_SURFACE, depthStencilFormat);
+
+                    if (SUCCEEDED(result))
+                    {
+                        HRESULT result = mD3d9->CheckDepthStencilMatch(mAdapter, mDeviceType, currentDisplayMode.Format, renderTargetFormat, depthStencilFormat);
+
+                        if (SUCCEEDED(result))
+                        {
+                            // FIXME: enumerate multi-sampling
+
+                            configSet.add(currentDisplayMode, mMinSwapInterval, mMaxSwapInterval, renderTargetFormat, depthStencilFormat, 0,
+                                          mDeviceCaps.MaxTextureWidth, mDeviceCaps.MaxTextureHeight);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Give the sorted configs a unique ID and store them internally
+        EGLint index = 1;
+        for (ConfigSet::Iterator config = configSet.mSet.begin(); config != configSet.mSet.end(); config++)
+        {
+            Config configuration = *config;
+            configuration.mConfigID = index;
+            index++;
+
+            mConfigSet.mSet.insert(configuration);
+        }
+    }
+
+    if (!isInitialized())
+    {
+        terminate();
+
+        return false;
+    }
+
+    static const TCHAR windowName[] = TEXT("AngleHiddenWindow");
+    static const TCHAR className[] = TEXT("STATIC");
+
+    mDeviceWindow = CreateWindowEx(WS_EX_NOACTIVATE, className, windowName, WS_DISABLED | WS_POPUP, 0, 0, 1, 1, HWND_MESSAGE, NULL, GetModuleHandle(NULL), NULL);
 
     return true;
 }
@@ -137,8 +227,60 @@ void Display::terminate()
         destroyContext(*mContextSet.begin());
     }
 
-    glDestroyRenderer(mRenderer);
-    mRenderer = NULL;
+    if (mDevice)
+    {
+        // If the device is lost, reset it first to prevent leaving the driver in an unstable state
+        if (FAILED(mDevice->TestCooperativeLevel()))
+        {
+            resetDevice();
+        }
+
+        mDevice->Release();
+        mDevice = NULL;
+    }
+
+    if (mD3d9)
+    {
+        mD3d9->Release();
+        mD3d9 = NULL;
+    }
+
+    if (mDeviceWindow)
+    {
+        DestroyWindow(mDeviceWindow);
+        mDeviceWindow = NULL;
+    }
+    
+    if (mD3d9ex)
+    {
+        mD3d9ex->Release();
+        mD3d9ex = NULL;
+    }
+
+    if (mD3d9Module)
+    {
+        mD3d9Module = NULL;
+    }
+}
+
+void Display::startScene()
+{
+    if (!mSceneStarted)
+    {
+        long result = mDevice->BeginScene();
+        ASSERT(SUCCEEDED(result));
+        mSceneStarted = true;
+    }
+}
+
+void Display::endScene()
+{
+    if (mSceneStarted)
+    {
+        long result = mDevice->EndScene();
+        ASSERT(SUCCEEDED(result));
+        mSceneStarted = false;
+    }
 }
 
 bool Display::getConfigs(EGLConfig *configs, const EGLint *attribList, EGLint configSize, EGLint *numConfig)
@@ -191,259 +333,110 @@ bool Display::getConfigAttrib(EGLConfig config, EGLint attribute, EGLint *value)
     return true;
 }
 
-
-
-EGLSurface Display::createWindowSurface(EGLNativeWindowType window, EGLConfig config, const EGLint *attribList)
+bool Display::createDevice()
 {
-    const Config *configuration = mConfigSet.get(config);
-    EGLint postSubBufferSupported = EGL_FALSE;
+    D3DPRESENT_PARAMETERS presentParameters = getDefaultPresentParameters();
+    DWORD behaviorFlags = D3DCREATE_FPU_PRESERVE | D3DCREATE_NOWINDOWCHANGES;
 
-    EGLint width = 0;
-    EGLint height = 0;
-    EGLint fixedSize = EGL_FALSE;
+    HRESULT result = mD3d9->CreateDevice(mAdapter, mDeviceType, mDeviceWindow, behaviorFlags | D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_PUREDEVICE, &presentParameters, &mDevice);
 
-    if (attribList)
-    {
-        while (*attribList != EGL_NONE)
-        {
-            switch (attribList[0])
-            {
-              case EGL_RENDER_BUFFER:
-                switch (attribList[1])
-                {
-                  case EGL_BACK_BUFFER:
-                    break;
-                  case EGL_SINGLE_BUFFER:
-                    return error(EGL_BAD_MATCH, EGL_NO_SURFACE);   // Rendering directly to front buffer not supported
-                  default:
-                    return error(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-                }
-                break;
-              case EGL_POST_SUB_BUFFER_SUPPORTED_NV:
-                postSubBufferSupported = attribList[1];
-                break;
-              case EGL_WIDTH:
-                width = attribList[1];
-                break;
-              case EGL_HEIGHT:
-                height = attribList[1];
-                break;
-              case EGL_FIXED_SIZE_ANGLE:
-                fixedSize = attribList[1];
-                break;
-              case EGL_VG_COLORSPACE:
-                return error(EGL_BAD_MATCH, EGL_NO_SURFACE);
-              case EGL_VG_ALPHA_FORMAT:
-                return error(EGL_BAD_MATCH, EGL_NO_SURFACE);
-              default:
-                return error(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-            }
-
-            attribList += 2;
-        }
-    }
-
-    if (width < 0 || height < 0)
-    {
-        return error(EGL_BAD_PARAMETER, EGL_NO_SURFACE);
-    }
-
-    if (!fixedSize)
-    {
-        width = -1;
-        height = -1;
-    }
-
-    if (hasExistingWindowSurface(window))
-    {
-        return error(EGL_BAD_ALLOC, EGL_NO_SURFACE);
-    }
-
-    if (mRenderer->testDeviceLost(false))
-    {
-        if (!restoreLostDevice())
-            return EGL_NO_SURFACE;
-    }
-
-    Surface *surface = new Surface(this, configuration, window, fixedSize, width, height, postSubBufferSupported);
-
-    if (!surface->initialize())
-    {
-        delete surface;
-        return EGL_NO_SURFACE;
-    }
-
-    mSurfaceSet.insert(surface);
-
-    return success(surface);
-}
-
-EGLSurface Display::createOffscreenSurface(EGLConfig config, HANDLE shareHandle, const EGLint *attribList)
-{
-    EGLint width = 0, height = 0;
-    EGLenum textureFormat = EGL_NO_TEXTURE;
-    EGLenum textureTarget = EGL_NO_TEXTURE;
-    const Config *configuration = mConfigSet.get(config);
-
-    if (attribList)
-    {
-        while (*attribList != EGL_NONE)
-        {
-            switch (attribList[0])
-            {
-              case EGL_WIDTH:
-                width = attribList[1];
-                break;
-              case EGL_HEIGHT:
-                height = attribList[1];
-                break;
-              case EGL_LARGEST_PBUFFER:
-                if (attribList[1] != EGL_FALSE)
-                  UNIMPLEMENTED(); // FIXME
-                break;
-              case EGL_TEXTURE_FORMAT:
-                switch (attribList[1])
-                {
-                  case EGL_NO_TEXTURE:
-                  case EGL_TEXTURE_RGB:
-                  case EGL_TEXTURE_RGBA:
-                    textureFormat = attribList[1];
-                    break;
-                  default:
-                    return error(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-                }
-                break;
-              case EGL_TEXTURE_TARGET:
-                switch (attribList[1])
-                {
-                  case EGL_NO_TEXTURE:
-                  case EGL_TEXTURE_2D:
-                    textureTarget = attribList[1];
-                    break;
-                  default:
-                    return error(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-                }
-                break;
-              case EGL_MIPMAP_TEXTURE:
-                if (attribList[1] != EGL_FALSE)
-                  return error(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-                break;
-              case EGL_VG_COLORSPACE:
-                return error(EGL_BAD_MATCH, EGL_NO_SURFACE);
-              case EGL_VG_ALPHA_FORMAT:
-                return error(EGL_BAD_MATCH, EGL_NO_SURFACE);
-              default:
-                return error(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-            }
-
-            attribList += 2;
-        }
-    }
-
-    if (width < 0 || height < 0)
-    {
-        return error(EGL_BAD_PARAMETER, EGL_NO_SURFACE);
-    }
-
-    if (width == 0 || height == 0)
-    {
-        return error(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-    }
-
-    if (textureFormat != EGL_NO_TEXTURE && !mRenderer->getRendererExtensions().textureNPOT && (!gl::isPow2(width) || !gl::isPow2(height)))
-    {
-        return error(EGL_BAD_MATCH, EGL_NO_SURFACE);
-    }
-
-    if ((textureFormat != EGL_NO_TEXTURE && textureTarget == EGL_NO_TEXTURE) ||
-        (textureFormat == EGL_NO_TEXTURE && textureTarget != EGL_NO_TEXTURE))
-    {
-        return error(EGL_BAD_MATCH, EGL_NO_SURFACE);
-    }
-
-    if (!(configuration->mSurfaceType & EGL_PBUFFER_BIT))
-    {
-        return error(EGL_BAD_MATCH, EGL_NO_SURFACE);
-    }
-
-    if ((textureFormat == EGL_TEXTURE_RGB && configuration->mBindToTextureRGB != EGL_TRUE) ||
-        (textureFormat == EGL_TEXTURE_RGBA && configuration->mBindToTextureRGBA != EGL_TRUE))
-    {
-        return error(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-    }
-
-    if (mRenderer->testDeviceLost(false))
-    {
-        if (!restoreLostDevice())
-            return EGL_NO_SURFACE;
-    }
-
-    Surface *surface = new Surface(this, configuration, shareHandle, width, height, textureFormat, textureTarget);
-
-    if (!surface->initialize())
-    {
-        delete surface;
-        return EGL_NO_SURFACE;
-    }
-
-    mSurfaceSet.insert(surface);
-
-    return success(surface);
-}
-
-EGLContext Display::createContext(EGLConfig configHandle, EGLint clientVersion, const gl::Context *shareContext, bool notifyResets, bool robustAccess)
-{
-    if (!mRenderer)
-    {
-        return EGL_NO_CONTEXT;
-    }
-    else if (mRenderer->testDeviceLost(false))   // Lost device
-    {
-        if (!restoreLostDevice())
-        {
-            return error(EGL_CONTEXT_LOST, EGL_NO_CONTEXT);
-        }
-    }
-
-    if (clientVersion > 2 && mRenderer->getMajorShaderModel() < 4)
-    {
-        return error(EGL_BAD_CONFIG, EGL_NO_CONTEXT);
-    }
-
-    gl::Context *context = glCreateContext(clientVersion, shareContext, mRenderer, notifyResets, robustAccess);
-    mContextSet.insert(context);
-
-    return success(context);
-}
-
-bool Display::restoreLostDevice()
-{
-    for (ContextSet::iterator ctx = mContextSet.begin(); ctx != mContextSet.end(); ctx++)
-    {
-        if ((*ctx)->isResetNotificationEnabled())
-            return false;   // If reset notifications have been requested, application must delete all contexts first
-    }
- 
-    // Release surface resources to make the Reset() succeed
-    for (SurfaceSet::iterator surface = mSurfaceSet.begin(); surface != mSurfaceSet.end(); surface++)
-    {
-        (*surface)->release();
-    }
-
-    if (!mRenderer->resetDevice())
+    if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY || result == D3DERR_DEVICELOST)
     {
         return error(EGL_BAD_ALLOC, false);
     }
 
-    // Restore any surfaces that may have been lost
-    for (SurfaceSet::iterator surface = mSurfaceSet.begin(); surface != mSurfaceSet.end(); surface++)
+    if (FAILED(result))
     {
-        (*surface)->resetSwapChain();
+        result = mD3d9->CreateDevice(mAdapter, mDeviceType, mDeviceWindow, behaviorFlags | D3DCREATE_SOFTWARE_VERTEXPROCESSING, &presentParameters, &mDevice);
+
+        if (FAILED(result))
+        {
+            ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY || result == D3DERR_NOTAVAILABLE || result == D3DERR_DEVICELOST);
+            return error(EGL_BAD_ALLOC, false);
+        }
     }
+
+    // Permanent non-default states
+    mDevice->SetRenderState(D3DRS_POINTSPRITEENABLE, TRUE);
+
+    mSceneStarted = false;
 
     return true;
 }
 
+bool Display::resetDevice()
+{
+    D3DPRESENT_PARAMETERS presentParameters = getDefaultPresentParameters();
+    HRESULT result;
+    
+    do
+    {
+        Sleep(0);   // Give the graphics driver some CPU time
+
+        result = mDevice->Reset(&presentParameters);
+    }
+    while (result == D3DERR_DEVICELOST);
+
+    if (FAILED(result))
+    {
+        return error(EGL_BAD_ALLOC, false);
+    }
+
+    ASSERT(SUCCEEDED(result));
+
+    return true;
+}
+
+Surface *Display::createWindowSurface(HWND window, EGLConfig config)
+{
+    const Config *configuration = mConfigSet.get(config);
+
+    Surface *surface = new Surface(this, configuration, window);
+    mSurfaceSet.insert(surface);
+
+    return surface;
+}
+
+Surface *Display::createOffscreenSurface(int width, int height, EGLConfig config)
+{
+    const Config *configuration = mConfigSet.get(config);
+
+    Surface *surface = new Surface(this, configuration, width, height);
+    mSurfaceSet.insert(surface);
+
+    return surface;
+}
+
+EGLContext Display::createContext(EGLConfig configHandle, const gl::Context *shareContext)
+{
+    if (!mDevice)
+    {
+        if (!createDevice())
+        {
+            return NULL;
+        }
+    }
+    else if (FAILED(mDevice->TestCooperativeLevel()))   // Lost device
+    {
+        if (!resetDevice())
+        {
+            return NULL;
+        }
+
+        // Restore any surfaces that may have been lost
+        for (SurfaceSet::iterator surface = mSurfaceSet.begin(); surface != mSurfaceSet.end(); surface++)
+        {
+            (*surface)->resetSwapChain();
+        }
+    }
+
+    const egl::Config *config = mConfigSet.get(configHandle);
+
+    gl::Context *context = glCreateContext(config, shareContext);
+    mContextSet.insert(context);
+
+    return context;
+}
 
 void Display::destroySurface(egl::Surface *surface)
 {
@@ -455,28 +448,19 @@ void Display::destroyContext(gl::Context *context)
 {
     glDestroyContext(context);
     mContextSet.erase(context);
-}
 
-void Display::notifyDeviceLost()
-{
-    for (ContextSet::iterator context = mContextSet.begin(); context != mContextSet.end(); context++)
+    if (mContextSet.empty() && mDevice && FAILED(mDevice->TestCooperativeLevel()))   // Last context of a lost device
     {
-        (*context)->markContextLost();
-    }
-    egl::error(EGL_CONTEXT_LOST);
-}
-
-void Display::recreateSwapChains()
-{
-    for (SurfaceSet::iterator surface = mSurfaceSet.begin(); surface != mSurfaceSet.end(); surface++)
-    {
-        (*surface)->getSwapChain()->recreate();
+        for (SurfaceSet::iterator surface = mSurfaceSet.begin(); surface != mSurfaceSet.end(); surface++)
+        {
+            (*surface)->release();
+        }	
     }
 }
 
-bool Display::isInitialized() const
+bool Display::isInitialized()
 {
-    return mRenderer != NULL && mConfigSet.size() > 0;
+    return mD3d9 != NULL && mConfigSet.size() > 0;
 }
 
 bool Display::isValidConfig(EGLConfig config)
@@ -494,7 +478,7 @@ bool Display::isValidSurface(egl::Surface *surface)
     return mSurfaceSet.find(surface) != mSurfaceSet.end();
 }
 
-bool Display::hasExistingWindowSurface(EGLNativeWindowType window)
+bool Display::hasExistingWindowSurface(HWND window)
 {
     for (SurfaceSet::iterator surface = mSurfaceSet.begin(); surface != mSurfaceSet.end(); surface++)
     {
@@ -507,106 +491,173 @@ bool Display::hasExistingWindowSurface(EGLNativeWindowType window)
     return false;
 }
 
-std::string Display::generateClientExtensionString()
+EGLint Display::getMinSwapInterval()
 {
-    std::vector<std::string> extensions;
-
-    extensions.push_back("EGL_EXT_client_extensions");
-
-    extensions.push_back("ANGLE_platform_angle");
-
-    if (supportsPlatformD3D())
-    {
-        extensions.push_back("ANGLE_platform_angle_d3d");
-    }
-
-    if (supportsPlatformOpenGL())
-    {
-        extensions.push_back("ANGLE_platform_angle_opengl");
-    }
-
-    std::ostringstream stream;
-    std::copy(extensions.begin(), extensions.end(), std::ostream_iterator<std::string>(stream, " "));
-    return stream.str();
+    return mMinSwapInterval;
 }
 
-void Display::initDisplayExtensionString()
+EGLint Display::getMaxSwapInterval()
 {
-    std::vector<std::string> extensions;
-
-    // Multi-vendor (EXT) extensions
-    extensions.push_back("EGL_EXT_create_context_robustness");
-
-    // ANGLE-specific extensions
-    if (mRenderer->getShareHandleSupport())
-    {
-        extensions.push_back("EGL_ANGLE_d3d_share_handle_client_buffer");
-        extensions.push_back("EGL_ANGLE_surface_d3d_texture_2d_share_handle");
-    }
-
-    extensions.push_back("EGL_ANGLE_query_surface_pointer");
-    extensions.push_back("EGL_ANGLE_window_fixed_size");
-
-    if (mRenderer->getPostSubBufferSupport())
-    {
-        extensions.push_back("EGL_NV_post_sub_buffer");
-    }
-
-#if defined (ANGLE_TEST_CONFIG)
-    // TODO: complete support for the EGL_KHR_create_context extension
-    extensions.push_back("EGL_KHR_create_context");
-#endif
-
-    std::ostringstream stream;
-    std::copy(extensions.begin(), extensions.end(), std::ostream_iterator<std::string>(stream, " "));
-    mDisplayExtensionString = stream.str();
+    return mMaxSwapInterval;
 }
 
-const char *Display::getExtensionString(egl::Display *display)
+IDirect3DDevice9 *Display::getDevice()
 {
-    if (display != EGL_NO_DISPLAY)
+    if (!mDevice)
     {
-        return display->mDisplayExtensionString.c_str();
+        if (!createDevice())
+        {
+            return NULL;
+        }
+    }
+
+    return mDevice;
+}
+
+D3DCAPS9 Display::getDeviceCaps()
+{
+    return mDeviceCaps;
+}
+
+void Display::getMultiSampleSupport(D3DFORMAT format, bool *multiSampleArray)
+{
+    for (int multiSampleIndex = 0; multiSampleIndex <= D3DMULTISAMPLE_16_SAMPLES; multiSampleIndex++)
+    {
+        HRESULT result = mD3d9->CheckDeviceMultiSampleType(mAdapter, mDeviceType, format,
+                                                           TRUE, (D3DMULTISAMPLE_TYPE)multiSampleIndex, NULL);
+
+        multiSampleArray[multiSampleIndex] = SUCCEEDED(result);
+    }
+}
+
+bool Display::getCompressedTextureSupport()
+{
+    D3DDISPLAYMODE currentDisplayMode;
+    mD3d9->GetAdapterDisplayMode(mAdapter, &currentDisplayMode);
+
+    return SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0, D3DRTYPE_TEXTURE, D3DFMT_DXT1));
+}
+
+bool Display::getFloatTextureSupport(bool *filtering, bool *renderable)
+{
+    D3DDISPLAYMODE currentDisplayMode;
+    mD3d9->GetAdapterDisplayMode(mAdapter, &currentDisplayMode);
+
+    *filtering = SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_QUERY_FILTER, 
+                                                    D3DRTYPE_TEXTURE, D3DFMT_A32B32G32R32F)) &&
+                 SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_QUERY_FILTER,
+                                                    D3DRTYPE_CUBETEXTURE, D3DFMT_A32B32G32R32F));
+    
+    *renderable = SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_RENDERTARGET,
+                                                     D3DRTYPE_TEXTURE, D3DFMT_A32B32G32R32F))&&
+                  SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_RENDERTARGET,
+                                                     D3DRTYPE_CUBETEXTURE, D3DFMT_A32B32G32R32F));
+
+    if (!filtering && !renderable)
+    {
+        return SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0, 
+                                                  D3DRTYPE_TEXTURE, D3DFMT_A32B32G32R32F)) &&
+               SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0,
+                                                  D3DRTYPE_CUBETEXTURE, D3DFMT_A32B32G32R32F));
     }
     else
     {
-        static std::string clientExtensions = generateClientExtensionString();
-        return clientExtensions.c_str();
+        return true;
     }
 }
 
-bool Display::supportsPlatformD3D()
+bool Display::getHalfFloatTextureSupport(bool *filtering, bool *renderable)
 {
-#if defined(ANGLE_ENABLE_D3D9) || defined(ANGLE_ENABLE_D3D11)
-    return true;
-#else
-    return false;
-#endif
-}
+    D3DDISPLAYMODE currentDisplayMode;
+    mD3d9->GetAdapterDisplayMode(mAdapter, &currentDisplayMode);
 
-bool Display::supportsPlatformOpenGL()
-{
-    return false;
-}
+    *filtering = SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_QUERY_FILTER, 
+                                                    D3DRTYPE_TEXTURE, D3DFMT_A16B16G16R16F)) &&
+                 SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_QUERY_FILTER,
+                                                    D3DRTYPE_CUBETEXTURE, D3DFMT_A16B16G16R16F));
+    
+    *renderable = SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_RENDERTARGET, 
+                                                    D3DRTYPE_TEXTURE, D3DFMT_A16B16G16R16F)) &&
+                 SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_RENDERTARGET,
+                                                    D3DRTYPE_CUBETEXTURE, D3DFMT_A16B16G16R16F));
 
-void Display::initVendorString()
-{
-    mVendorString = "Google Inc.";
-
-    LUID adapterLuid = {0};
-
-    if (mRenderer && mRenderer->getLUID(&adapterLuid))
+    if (!filtering && !renderable)
     {
-        char adapterLuidString[64];
-        sprintf_s(adapterLuidString, sizeof(adapterLuidString), " (adapter LUID: %08x%08x)", adapterLuid.HighPart, adapterLuid.LowPart);
-
-        mVendorString += adapterLuidString;
+        return SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0, 
+                                                  D3DRTYPE_TEXTURE, D3DFMT_A16B16G16R16F)) &&
+               SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0,
+                                                  D3DRTYPE_CUBETEXTURE, D3DFMT_A16B16G16R16F));
+    }
+    else
+    {
+        return true;
     }
 }
 
-const char *Display::getVendorString() const
+bool Display::getLuminanceTextureSupport()
 {
-    return mVendorString.c_str();
+    D3DDISPLAYMODE currentDisplayMode;
+    mD3d9->GetAdapterDisplayMode(mAdapter, &currentDisplayMode);
+
+    return SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0, D3DRTYPE_TEXTURE, D3DFMT_L8));
 }
 
+bool Display::getLuminanceAlphaTextureSupport()
+{
+    D3DDISPLAYMODE currentDisplayMode;
+    mD3d9->GetAdapterDisplayMode(mAdapter, &currentDisplayMode);
+
+    return SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0, D3DRTYPE_TEXTURE, D3DFMT_A8L8));
+}
+
+D3DPOOL Display::getBufferPool(DWORD usage) const
+{
+    if (mD3d9ex != NULL)
+    {
+        return D3DPOOL_DEFAULT;
+    }
+    else
+    {
+        if (!(usage & D3DUSAGE_DYNAMIC))
+        {
+            return D3DPOOL_MANAGED;
+        }
+    }
+
+    return D3DPOOL_DEFAULT;
+}
+
+bool Display::getEventQuerySupport()
+{
+    IDirect3DQuery9 *query;
+    HRESULT result = mDevice->CreateQuery(D3DQUERYTYPE_EVENT, &query);
+    if (SUCCEEDED(result))
+    {
+        query->Release();
+    }
+
+    return result != D3DERR_NOTAVAILABLE;
+}
+
+D3DPRESENT_PARAMETERS Display::getDefaultPresentParameters()
+{
+    D3DPRESENT_PARAMETERS presentParameters = {0};
+
+    // The default swap chain is never actually used. Surface will create a new swap chain with the proper parameters.
+    presentParameters.AutoDepthStencilFormat = D3DFMT_UNKNOWN;
+    presentParameters.BackBufferCount = 1;
+    presentParameters.BackBufferFormat = D3DFMT_UNKNOWN;
+    presentParameters.BackBufferWidth = 1;
+    presentParameters.BackBufferHeight = 1;
+    presentParameters.EnableAutoDepthStencil = FALSE;
+    presentParameters.Flags = 0;
+    presentParameters.hDeviceWindow = mDeviceWindow;
+    presentParameters.MultiSampleQuality = 0;
+    presentParameters.MultiSampleType = D3DMULTISAMPLE_NONE;
+    presentParameters.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
+    presentParameters.SwapEffect = D3DSWAPEFFECT_DISCARD;
+    presentParameters.Windowed = TRUE;
+
+    return presentParameters;
+}
 }

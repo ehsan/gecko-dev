@@ -1,9 +1,43 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Code for dealing with X509.V3 extensions.
+ *
+ * $Id: certv3.c,v 1.10 2007/10/12 01:44:40 julien.pierre.boogz%sun.com Exp $
  */
 
 #include "cert.h"
@@ -23,7 +57,7 @@ CERT_FindCertExtensionByOID(CERTCertificate *cert, SECItem *oid,
     
 
 SECStatus
-CERT_FindCertExtension(const CERTCertificate *cert, int tag, SECItem *value)
+CERT_FindCertExtension(CERTCertificate *cert, int tag, SECItem *value)
 {
     return (cert_FindExtension (cert->extensions, tag, value));
 }
@@ -43,31 +77,71 @@ CERT_StartCertExtensions(CERTCertificate *cert)
     return (cert_StartExtensions ((void *)cert, cert->arena, SetExts));
 }
 
-/* find a URL extension in the cert
+/* find the given extension in the certificate of the Issuer of 'cert' */
+SECStatus
+CERT_FindIssuerCertExtension(CERTCertificate *cert, int tag, SECItem *value)
+{
+    CERTCertificate *issuercert;
+    SECStatus rv;
+
+    issuercert = CERT_FindCertByName(cert->dbhandle, &cert->derIssuer);
+    if ( issuercert ) {
+	rv = cert_FindExtension(issuercert->extensions, tag, value);
+	CERT_DestroyCertificate(issuercert);
+    } else {
+	rv = SECFailure;
+    }
+    
+    return(rv);
+}
+
+/* find a URL extension in the cert or its CA
+ * apply the base URL string if it exists
  */
 char *
-CERT_FindCertURLExtension(CERTCertificate *cert, SECOidTag tag)
+CERT_FindCertURLExtension(CERTCertificate *cert, int tag, int catag)
 {
     SECStatus rv;
     SECItem urlitem = {siBuffer,0};
+    SECItem baseitem = {siBuffer,0};
     SECItem urlstringitem = {siBuffer,0};
-    PLArenaPool *arena = NULL;
-    char *urlstring = NULL;
+    SECItem basestringitem = {siBuffer,0};
+    PRArenaPool *arena = NULL;
+    PRBool hasbase;
+    char *urlstring;
     char *str;
     int len;
+    unsigned int i;
     
-    if (!cert) {
-        PORT_SetError(SEC_ERROR_INVALID_ARGS);
-        return NULL;
-    }
+    urlstring = NULL;
 
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
     if ( ! arena ) {
 	goto loser;
     }
     
+    hasbase = PR_FALSE;
+    
     rv = cert_FindExtension(cert->extensions, tag, &urlitem);
-    if ( rv != SECSuccess ) {
+    if ( rv == SECSuccess ) {
+	rv = cert_FindExtension(cert->extensions, SEC_OID_NS_CERT_EXT_BASE_URL,
+				   &baseitem);
+	if ( rv == SECSuccess ) {
+	    hasbase = PR_TRUE;
+	}
+	
+    } else if ( catag ) {
+	/* if the cert doesn't have the extensions, see if the issuer does */
+	rv = CERT_FindIssuerCertExtension(cert, catag, &urlitem);
+	if ( rv != SECSuccess ) {
+	    goto loser;
+	}	    
+	rv = CERT_FindIssuerCertExtension(cert, SEC_OID_NS_CERT_EXT_BASE_URL,
+					 &baseitem);
+	if ( rv == SECSuccess ) {
+	    hasbase = PR_TRUE;
+	}
+    } else {
 	goto loser;
     }
 
@@ -77,15 +151,42 @@ CERT_FindCertURLExtension(CERTCertificate *cert, SECOidTag tag)
     if ( rv != SECSuccess ) {
 	goto loser;
     }
+    if ( hasbase ) {
+	rv = SEC_QuickDERDecodeItem(arena, &basestringitem,
+                                    SEC_ASN1_GET(SEC_IA5StringTemplate),
+                                    &baseitem);
+
+	if ( rv != SECSuccess ) {
+	    goto loser;
+	}
+    }
     
-    len = urlstringitem.len + 1;
+    len = urlstringitem.len + ( hasbase ? basestringitem.len : 0 ) + 1;
     
     str = urlstring = (char *)PORT_Alloc(len);
     if ( urlstring == NULL ) {
 	goto loser;
     }
     
-    /* copy the URL */
+    /* copy the URL base first */
+    if ( hasbase ) {
+
+	/* if the urlstring has a : in it, then we assume it is an absolute
+	 * URL, and will not get the base string pre-pended
+	 */
+	for ( i = 0; i < urlstringitem.len; i++ ) {
+	    if ( urlstringitem.data[i] == ':' ) {
+		goto nobase;
+	    }
+	}
+	
+	PORT_Memcpy(str, basestringitem.data, basestringitem.len);
+	str += basestringitem.len;
+	
+    }
+
+nobase:
+    /* copy the rest (or all) of the URL */
     PORT_Memcpy(str, urlstringitem.data, urlstringitem.len);
     str += urlstringitem.len;
     
@@ -101,6 +202,9 @@ loser:
 done:
     if ( arena ) {
 	PORT_FreeArena(arena, PR_FALSE);
+    }
+    if ( baseitem.data ) {
+	PORT_Free(baseitem.data);
     }
     if ( urlitem.data ) {
 	PORT_Free(urlitem.data);
@@ -129,7 +233,7 @@ CERT_FindNSStringExtension(CERTCertificate *cert, int oidtag)
 {
     SECItem wrapperItem, tmpItem = {siBuffer,0};
     SECStatus rv;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     char *retstring = NULL;
     
     wrapperItem.data = NULL;
@@ -242,7 +346,7 @@ CERT_FindBasicConstraintExten(CERTCertificate *cert,
 }
 
 CERTAuthKeyID *
-CERT_FindAuthKeyIDExten (PLArenaPool *arena, CERTCertificate *cert)
+CERT_FindAuthKeyIDExten (PRArenaPool *arena, CERTCertificate *cert)
 {
     SECItem encodedExtenValue;
     SECStatus rv;

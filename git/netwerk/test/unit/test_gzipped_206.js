@@ -1,5 +1,4 @@
-Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
+do_load_httpd_js();
 
 var httpserver = null;
 
@@ -9,17 +8,17 @@ const responseBody = [0x1f, 0x8b, 0x08, 0x08, 0xef, 0x70, 0xe6, 0x4c, 0x00, 0x03
                      0xe2, 0x9c, 0xcc, 0xf4, 0x8c, 0x92, 0x9c, 0x4a, 0x85, 0x9c, 0xfc, 0xbc, 0xf4, 0xd4, 0x22, 0x85,
                      0x92, 0xd4, 0xe2, 0x12, 0x2e, 0x2e, 0x00, 0x00, 0xe5, 0xe6, 0xf0, 0x20, 0x00, 0x00, 0x00];
 
+function getCacheService()
+{
+    var nsCacheService = Components.classes["@mozilla.org/network/cache-service;1"];
+    var service = nsCacheService.getService(Components.interfaces.nsICacheService);
+    return service;
+}
+
 function make_channel(url, callback, ctx) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
             getService(Ci.nsIIOService);
-  return ios.newChannel2(url,
-                         "",
-                         null,
-                         null,      // aLoadingNode
-                         Services.scriptSecurityManager.getSystemPrincipal(),
-                         null,      // aTriggeringPrincipal
-                         Ci.nsILoadInfo.SEC_NORMAL,
-                         Ci.nsIContentPolicy.TYPE_OTHER);
+  return ios.newChannel(url, "", null);
 }
 
 var doRangeResponse = false;
@@ -29,6 +28,7 @@ function cachedHandler(metadata, response) {
   response.setHeader("Content-Encoding", "gzip", false);
   response.setHeader("ETag", "Just testing");
   response.setHeader("Cache-Control", "max-age=3600000"); // avoid validation
+  response.setHeader("Content-Length", "" + responseBody.length);
 
   var body = responseBody;
 
@@ -43,13 +43,10 @@ function cachedHandler(metadata, response) {
       return;
     }
     body = body.slice(from, to + 1);
-    response.setHeader("Content-Length", "" + (to + 1 - from));
     // always respond to successful range requests with 206
     response.setStatusLine(metadata.httpVersion, 206, "Partial Content");
     response.setHeader("Content-Range", from + "-" + to + "/" + responseBody.length, false);
   } else {
-    // This response will get cut off prematurely
-    response.setHeader("Content-Length", "" + responseBody.length);
     response.setHeader("Accept-Ranges", "bytes");
     body = body.slice(0, 17); // slice off a piece to send first
     doRangeResponse = true;
@@ -65,13 +62,10 @@ function cachedHandler(metadata, response) {
 }
 
 function continue_test(request, data) {
-  do_check_eq(17, data.length);
-  var chan = make_channel("http://localhost:" +
-                          httpserver.identity.primaryPort + "/cached/test.gz");
+  do_check_true(17 == data.length);
+  var chan = make_channel("http://localhost:4444/cached/test.gz");
   chan.asyncOpen(new ChannelListener(finish_test, null, CL_EXPECT_GZIP), null);
 }
-
-var enforcePref;
 
 function finish_test(request, data, ctx) {
   do_check_eq(request.status, 0);
@@ -79,23 +73,18 @@ function finish_test(request, data, ctx) {
   for (var i = 0; i < data.length; ++i) {
     do_check_eq(data.charCodeAt(i), responseBody[i]);
   }
-  Services.prefs.setBoolPref("network.http.enforce-framing.http1", enforcePref);
   httpserver.stop(do_test_finished);
 }
 
 function run_test() {
-  enforcePref = Services.prefs.getBoolPref("network.http.enforce-framing.http1");
-  Services.prefs.setBoolPref("network.http.enforce-framing.http1", false);
-
-  httpserver = new HttpServer();
+  httpserver = new nsHttpServer();
   httpserver.registerPathHandler("/cached/test.gz", cachedHandler);
-  httpserver.start(-1);
+  httpserver.start(4444);
 
   // wipe out cached content
-  evict_cache_entries();
+  getCacheService().evictEntries(Components.interfaces.nsICache.STORE_ANYWHERE);
 
-  var chan = make_channel("http://localhost:" +
-                          httpserver.identity.primaryPort + "/cached/test.gz");
-  chan.asyncOpen(new ChannelListener(continue_test, null, CL_EXPECT_GZIP | CL_IGNORE_CL), null);
+  var chan = make_channel("http://localhost:4444/cached/test.gz");
+  chan.asyncOpen(new ChannelListener(continue_test, null, CL_EXPECT_GZIP), null);
   do_test_pending();
 }

@@ -15,6 +15,8 @@ window.addEventListener("message", onMessageReceived, false);
 
 function onMessageReceived(event)
 {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalBrowserRead");
 
   switch (event.data)
   {
@@ -28,11 +30,11 @@ function onMessageReceived(event)
     // Indication of successfully finished step of a test
     case "perf":
       if (callMasterFrame)
-        masterFrame.postMessage("step", "*");
+        masterFrame.postMessage("step", masterFrameOrigin);
       else if (slaveFrame)
-        slaveFrame.postMessage("step", "*");
-      else if (SpecialPowers.wrap(masterFrame).slaveFrame)
-        SpecialPowers.wrap(masterFrame).slaveFrame.postMessage("step", "*");
+        slaveFrame.postMessage("step", slaveFrameOrigin);
+      else if (masterFrame.slaveFrame)
+        masterFrame.slaveFrame.postMessage("step", slaveFrameOrigin);
       callMasterFrame = !callMasterFrame;
       break;
 
@@ -47,9 +49,6 @@ function onMessageReceived(event)
 
     // Any other message indicates error, succes or todo message of a test
     default:
-      if (typeof event.data == "undefined")
-        break; // XXXkhuey this receives undefined values
-               // (which used to become empty strings) on occasion ...
       if (event.data.match(todoRegExp))
         SimpleTest.todo(false, event.data);
       else

@@ -4,6 +4,7 @@
 -->
 <head>
   <title>Test that property_database.js contains all supported CSS properties</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="css_properties.js"></script>
   <script type="text/javascript" src="property_database.js"></script>
@@ -33,9 +34,6 @@
 
 for (var idx in gLonghandProperties) {
   var prop = gLonghandProperties[idx];
-  if (prop.pref && !SpecialPowers.getBoolPref(prop.pref)) {
-    continue;
-  }
   var present = prop.name in gCSSProperties;
   ok(present,
      "'" + prop.name + "' listed in gCSSProperties");
@@ -48,13 +46,6 @@ for (var idx in gLonghandProperties) {
 }
 for (var idx in gShorthandProperties) {
   var prop = gShorthandProperties[idx];
-  if (prop.pref && !SpecialPowers.getBoolPref(prop.pref)) {
-    continue;
-  }
-  if (prop.name == "all") {
-    // "all" isn't listed in property_database.js.
-    continue;
-  }
   var present = prop.name in gCSSProperties;
   ok(present,
      "'" + prop.name + "' listed in gCSSProperties");
@@ -68,9 +59,6 @@ for (var idx in gShorthandProperties) {
 }
 for (var idx in gShorthandPropertiesLikeLonghand) {
   var prop = gShorthandPropertiesLikeLonghand[idx];
-  if (prop.pref && !SpecialPowers.getBoolPref(prop.pref)) {
-    continue;
-  }
   var present = prop.name in gCSSProperties;
   ok(present,
      "'" + prop.name + "' listed in gCSSProperties");
@@ -88,9 +76,6 @@ for (var idx in gShorthandPropertiesLikeLonghand) {
  */
 for (var prop in gCSSProperties) {
   var info = gCSSProperties[prop];
-  if (info.pref && !SpecialPowers.getBoolPref(info.pref)) {
-    continue;
-  }
   if (info.type == CSS_TYPE_LONGHAND) {
     ok(!("subproperties" in info),
        "longhand property '" + prop + "' must not have subproperty list");
@@ -122,29 +107,6 @@ for (var prop in gCSSProperties) {
      "must have non-initial values for property '" + prop + "'");
 }
 
-/*
- * Test that only longhand properties are listed as logical properties.
- */
-for (var prop in gCSSProperties) {
-  var info = gCSSProperties[prop];
-  if (info.logical) {
-    is(info.type, CSS_TYPE_LONGHAND,
-       "property '" + prop + "' is listed as CSS_TYPE_LONGHAND due to its " +
-       "being a logical property");
-  }
-}
-
-/*
- * Test that axis is only specified for logical properties.
- */
-for (var prop in gCSSProperties) {
-  var info = gCSSProperties[prop];
-  if (info.axis) {
-    ok(info.logical,
-       "property '" + prop + "' is listed as an logical property due to its " +
-       "being listed as an axis-related property");
-  }
-}
 </script>
 </pre>
 </body>

@@ -1,6 +1,43 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Shawn Wilsher <me@shawnwilsher.com>
+ *   Myk Melez <myk@mozilla.org>
+ *   Dan Mosedale <dmose@mozilla.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Constants
@@ -8,10 +45,6 @@
 const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cc = Components.classes;
-const Cu = Components.utils;
-
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsWebHandler class
@@ -82,24 +115,18 @@ nsWebHandlerApp.prototype = {
     if (aWindowContext) {
 
       // create a channel from this URI
-      var channel = ioService.newChannelFromURI2(uriToSend,
-                                                 null,      // aLoadingNode
-                                                 Services.scriptSecurityManager.getSystemPrincipal(),
-                                                 null,      // aTriggeringPrincipal
-                                                 Ci.nsILoadInfo.SEC_NORMAL,
-                                                 Ci.nsIContentPolicy.TYPE_OTHER);
+      var channel = ioService.newChannelFromURI(uriToSend);
       channel.loadFlags = Ci.nsIChannel.LOAD_DOCUMENT_URI;
 
       // load the channel
       var uriLoader = Cc["@mozilla.org/uriloader;1"].
                       getService(Ci.nsIURILoader);
-      // XXX ideally, whether to pass the IS_CONTENT_PREFERRED flag should be
-      // passed in from above.  Practically, the flag is probably a reasonable
+      // XXX ideally, aIsContentPreferred (the second param) should really be
+      // passed in from above.  Practically, true is probably a reasonable
       // default since browsers don't care much, and link click is likely to be
       // the more interesting case for non-browser apps.  See 
       // <https://bugzilla.mozilla.org/show_bug.cgi?id=392957#c9> for details.
-      uriLoader.openURI(channel, Ci.nsIURILoader.IS_CONTENT_PREFERRED,
-                        aWindowContext);
+      uriLoader.openURI(channel, true, aWindowContext);
       return;
     } 
 
@@ -131,7 +158,7 @@ nsWebHandlerApp.prototype = {
     // openURI
     browserDOMWin.openURI(uriToSend,
                           null, // no window.opener 
-                          Ci.nsIBrowserDOMWindow.OPEN_DEFAULTWINDOW,
+                          Ci.nsIBrowserDOMWindow.OPEN_DEFAULT_WINDOW,
                           Ci.nsIBrowserDOMWindow.OPEN_NEW);
       
     return;
@@ -157,5 +184,5 @@ nsWebHandlerApp.prototype = {
 ////////////////////////////////////////////////////////////////////////////////
 //// Module
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([nsWebHandlerApp]);
+NSGetFactory = XPCOMUtils.generateNSGetFactory([nsWebHandlerApp]);
 

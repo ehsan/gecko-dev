@@ -17,19 +17,20 @@ public:
     TestSyncWakeupParent();
     virtual ~TestSyncWakeupParent();
 
-    static bool RunTestInProcesses() { return true; }
-    static bool RunTestInThreads() { return true; }
-
     void Main();
 
 protected:
-    virtual bool AnswerStackFrame() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerStackFrame();
 
-    virtual bool RecvSync1() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvSync1();
 
-    virtual bool RecvSync2() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvSync2();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");  
@@ -47,15 +48,20 @@ public:
     virtual ~TestSyncWakeupChild();
 
 protected:
-    virtual bool RecvStart() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvStart();
 
-    virtual bool RecvNote1() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvNote1();
 
-    virtual bool AnswerStackFrame() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerStackFrame();
 
-    virtual bool RecvNote2() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvNote2();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");

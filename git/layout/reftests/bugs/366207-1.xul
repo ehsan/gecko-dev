@@ -3,7 +3,7 @@
 <?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
 
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-        onload="loaded()"
+        onload="setTimeout(boom, 1000)"
 	class="reftest-wait">
         
 <hbox style="display: none">
@@ -21,11 +21,7 @@
     </content>
     <implementation>
       <constructor>
-        var win = XPCNativeWrapper.unwrap(window);
-        win.setTimeout(function() {
-          win.document.documentElement.clientHeight;
-          win.setTimeout(win.finish, 0);
-        }, 0);
+        window.setTimeout(finish, 1000);
       </constructor>
     </implementation>
   </binding>
@@ -33,13 +29,6 @@
 </hbox>
 
 <script>
-function loaded()
-{
-  setTimeout(function() {
-    document.documentElement.clientHeight;
-    setTimeout(boom, 0);
-  }, 0);
-}
 function boom()
 {
   document.documentElement.style.MozBinding = "url('#foo')"; 

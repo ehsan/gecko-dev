@@ -1,5 +1,4 @@
-Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
+do_load_httpd_js();
 
 var server;
 const BUGID = "263127";
@@ -35,21 +34,13 @@ var listener = {
 
 function run_test() {
   // start server
-  server = new HttpServer();
-  server.start(-1);
+  server = new nsHttpServer();
+  server.start(4444);
 
   // Initialize downloader
   var channel = Cc["@mozilla.org/network/io-service;1"]
                   .getService(Ci.nsIIOService)
-                  .newChannel2("http://localhost:" +
-                               server.identity.primaryPort + "/",
-                               null,
-                               null,
-                               null,      // aLoadingNode
-                               Services.scriptSecurityManager.getSystemPrincipal(),
-                               null,      // aTriggeringPrincipal
-                               Ci.nsILoadInfo.SEC_NORMAL,
-                               Ci.nsIContentPolicy.TYPE_OTHER);
+                  .newChannel("http://localhost:4444/", null, null);
 
   var targetFile = Cc["@mozilla.org/file/directory_service;1"]
                      .getService(Ci.nsIProperties)

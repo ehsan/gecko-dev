@@ -21,6 +21,14 @@ XPCOMUtils.defineLazyServiceGetter(Services, "etld",
                                    "@mozilla.org/network/effective-tld-service;1",
                                    "nsIEffectiveTLDService");
 
+XPCOMUtils.defineLazyServiceGetter(Services, "permissions",
+                                   "@mozilla.org/permissionmanager;1",
+                                   "nsIPermissionManager");
+
+XPCOMUtils.defineLazyServiceGetter(Services, "pb",
+                                   "@mozilla.org/privatebrowsing;1",
+                                   "nsIPrivateBrowsingService");
+
 function do_check_throws(f, result, stack)
 {
   if (!stack)
@@ -80,13 +88,13 @@ _observer.prototype = {
 
 // Close the cookie database. If a generator is supplied, it will be invoked
 // once the close is complete.
-function do_close_profile(generator) {
+function do_close_profile(generator, cleanse) {
   // Register an observer for db close.
   let obs = new _observer(generator, "cookie-db-closed");
 
   // Close the db.
   let service = Services.cookies.QueryInterface(Ci.nsIObserver);
-  service.observe(null, "profile-before-change", "shutdown-persist");
+  service.observe(null, "profile-before-change", cleanse ? cleanse : "");
 }
 
 // Load the cookie database. If a generator is supplied, it will be invoked
@@ -98,13 +106,6 @@ function do_load_profile(generator) {
   // Load the profile.
   let service = Services.cookies.QueryInterface(Ci.nsIObserver);
   service.observe(null, "profile-do-change", "");
-}
-
-// Set a single session cookie using http and test the cookie count
-// against 'expected'
-function do_set_single_http_cookie(uri, channel, expected) {
-  Services.cookies.setCookieStringFromHttp(uri, null, null, "foo=bar", null, channel);
-  do_check_eq(Services.cookiemgr.countCookiesFromHost(uri.host), expected);
 }
 
 // Set four cookies; with & without channel, http and non-http; and test

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2007,2008,2009  Red Hat, Inc.
+ * Copyright (C) 2007,2008,2009  Red Hat, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -24,9 +24,9 @@
  * Red Hat Author(s): Behdad Esfahbod
  */
 
-#include "hb-mutex-private.hh"
+#define HB_OT_LAYOUT_CC
 #include "hb-open-file-private.hh"
-#include "hb-ot-layout-gdef-table.hh"
+#include "hb-ot-layout-gdef-private.hh"
 #include "hb-ot-layout-gsubgpos-private.hh"
 
 #ifdef HAVE_GLIB
@@ -35,8 +35,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-
-using namespace OT;
+HB_BEGIN_DECLS
 
 
 int
@@ -51,7 +50,7 @@ main (int argc, char **argv)
   int len = 0;
 
 #ifdef HAVE_GLIB
-  GMappedFile *mf = g_mapped_file_new (argv[1], false, NULL);
+  GMappedFile *mf = g_mapped_file_new (argv[1], FALSE, NULL);
   font_data = g_mapped_file_get_contents (mf);
   len = g_mapped_file_get_length (mf);
 #else
@@ -126,16 +125,12 @@ main (int argc, char **argv)
 	    const LangSys &langsys = n_langsys == -1
 				   ? script.get_default_lang_sys ()
 				   : script.get_lang_sys (n_langsys);
-	    if (n_langsys == -1)
-	      printf ("      Default Language System\n");
-	    else
-	      printf ("      Language System %2d of %2d: %.4s\n", n_langsys, num_langsys,
-		      (const char *)script.get_lang_sys_tag (n_langsys));
-	    if (!langsys.has_required_feature ())
+	    printf (n_langsys == -1
+		   ? "      Default Language System\n"
+		   : "      Language System %2d of %2d: %.4s\n", n_langsys, num_langsys,
+	            (const char *)script.get_lang_sys_tag (n_langsys));
+	    if (langsys.get_required_feature_index () == Index::NOT_FOUND_INDEX)
 	      printf ("        No required feature\n");
-	    else
-	      printf ("        Required feature index: %d\n",
-		      langsys.get_required_feature_index ());
 
 	    int num_features = langsys.get_feature_count ();
 	    printf ("        %d feature(s) found in language system\n", num_features);
@@ -150,10 +145,11 @@ main (int argc, char **argv)
 	printf ("    %d feature(s) found in table\n", num_features);
 	for (int n_feature = 0; n_feature < num_features; n_feature++) {
 	  const Feature &feature = g.get_feature (n_feature);
-	  int num_lookups = feature.get_lookup_count ();
-	  printf ("    Feature %2d of %2d: %c%c%c%c\n", n_feature, num_features,
-	          HB_UNTAG(g.get_feature_tag(n_feature)));
+	  printf ("    Feature %2d of %2d: %.4s; %d lookup(s)\n", n_feature, num_features,
+	          (const char *)g.get_feature_tag(n_feature),
+		  feature.get_lookup_count());
 
+	  int num_lookups = feature.get_lookup_count ();
 	  printf ("        %d lookup(s) found in feature\n", num_lookups);
 	  for (int n_lookup = 0; n_lookup < num_lookups; n_lookup++) {
 	    printf ("        Lookup index %2d of %2d: %d\n", n_lookup, num_lookups,
@@ -172,7 +168,7 @@ main (int argc, char **argv)
 	}
 	break;
 
-      case GDEF::tableTag:
+      case GDEF::Tag:
 	{
 
 	const GDEF &gdef = *CastP<GDEF> (font_data + table.offset);
@@ -197,3 +193,4 @@ main (int argc, char **argv)
 }
 
 
+HB_END_DECLS

@@ -1,7 +1,7 @@
 function testBug504520() {
     // A bug involving comparisons.
     var arr = [1/0, 1/0, 1/0, 1/0, 1/0, 1/0, 1/0, 1/0, 1/0, 0];
-    assertEq(arr.length > 9, true);
+    assertEq(arr.length > RUNLOOP, true);
 
     var s = '';
     for (var i = 0; i < arr.length; i++)

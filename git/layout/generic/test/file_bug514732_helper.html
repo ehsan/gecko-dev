@@ -86,7 +86,7 @@ function testPhoom(isCapturing, x, y, expectEvent) {
   var eventGen = (function() {
     var innerdoc = document.getElementById('testframe').contentDocument;
 
-    for (var doc of [document, innerdoc]) {
+    for each (var doc in [document, innerdoc]) {
       var inner = (doc == innerdoc);
       var w, h, result, listener;
 

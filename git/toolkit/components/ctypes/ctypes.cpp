@@ -1,7 +1,41 @@
 /* -*-  Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2; -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is js-ctypes.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation <http://www.mozilla.org/>.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Mark Finkle <mark.finkle@gmail.com>, <mfinkle@mozilla.com>
+ *  Dan Witte <dwitte@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "ctypes.h"
 #include "jsapi.h"
@@ -9,9 +43,6 @@
 #include "nsMemory.h"
 #include "nsString.h"
 #include "nsNativeCharsetUtils.h"
-#include "mozilla/Preferences.h"
-#include "mozJSComponentLoader.h"
-#include "nsZipArchive.h"
 
 #define JSCTYPES_CONTRACTID \
   "@mozilla.org/jsctypes;1"
@@ -24,19 +55,19 @@ namespace mozilla {
 namespace ctypes {
 
 static char*
-UnicodeToNative(JSContext *cx, const char16_t *source, size_t slen)
+UnicodeToNative(JSContext *cx, const jschar *source, size_t slen)
 {
-  nsAutoCString native;
-  nsDependentString unicode(reinterpret_cast<const char16_t*>(source), slen);
+  nsCAutoString native;
+  nsDependentString unicode(reinterpret_cast<const PRUnichar*>(source), slen);
   nsresult rv = NS_CopyUnicodeToNative(unicode, native);
   if (NS_FAILED(rv)) {
     JS_ReportError(cx, "could not convert string to native charset");
-    return nullptr;
+    return NULL;
   }
 
   char* result = static_cast<char*>(JS_malloc(cx, native.Length() + 1));
   if (!result)
-    return nullptr;
+    return NULL;
 
   memcpy(result, native.get(), native.Length() + 1);
   return result;
@@ -48,7 +79,7 @@ static JSCTypesCallbacks sCallbacks = {
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(Module)
 
-NS_IMPL_ISUPPORTS(Module, nsIXPCScriptable)
+NS_IMPL_ISUPPORTS1(Module, nsIXPCScriptable)
 
 Module::Module()
 {
@@ -64,39 +95,33 @@ Module::~Module()
 #define XPC_MAP_FLAGS nsIXPCScriptable::WANT_CALL
 #include "xpc_map_end.h"
 
-static bool
-SealObjectAndPrototype(JSContext* cx, JS::Handle<JSObject *> parent, const char* name)
+static JSBool
+SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
 {
-  JS::Rooted<JS::Value> prop(cx);
+  jsval prop;
   if (!JS_GetProperty(cx, parent, name, &prop))
     return false;
 
-  if (prop.isUndefined()) {
-    // Pretend we sealed the object.
-    return true;
-  }
-
-  JS::Rooted<JSObject*> obj(cx, prop.toObjectOrNull());
+  JSObject* obj = JSVAL_TO_OBJECT(prop);
   if (!JS_GetProperty(cx, obj, "prototype", &prop))
     return false;
 
-  JS::Rooted<JSObject*> prototype(cx, prop.toObjectOrNull());
+  JSObject* prototype = JSVAL_TO_OBJECT(prop);
   return JS_FreezeObject(cx, obj) && JS_FreezeObject(cx, prototype);
 }
 
-static bool
-InitAndSealCTypesClass(JSContext* cx, JS::Handle<JSObject*> global)
+static JSBool
+InitAndSealCTypesClass(JSContext* cx, JSObject* global)
 {
   // Init the ctypes object.
   if (!JS_InitCTypesClass(cx, global))
     return false;
 
   // Set callbacks for charset conversion and such.
-  JS::Rooted<JS::Value> ctypes(cx);
-  if (!JS_GetProperty(cx, global, "ctypes", &ctypes))
+  jsval ctypes;
+  if (!JS_GetProperty(cx, global, "ctypes", &ctypes) ||
+      !JS_SetCTypesCallbacks(cx, JSVAL_TO_OBJECT(ctypes), &sCallbacks))
     return false;
-
-  JS_SetCTypesCallbacks(ctypes.toObjectOrNull(), &sCallbacks);
 
   // Seal up Object, Function, Array and Error and their prototypes.  (This
   // single object instance is shared amongst everyone who imports the ctypes
@@ -116,15 +141,16 @@ NS_IMETHODIMP
 Module::Call(nsIXPConnectWrappedNative* wrapper,
              JSContext* cx,
              JSObject* obj,
-             const JS::CallArgs& args,
-             bool* _retval)
+             PRUint32 argc,
+             jsval* argv,
+             jsval* vp,
+             PRBool* _retval)
 {
-  mozJSComponentLoader* loader = mozJSComponentLoader::Get();
-  JS::Rooted<JSObject*> targetObj(cx);
-  nsresult rv = loader->FindTargetObject(cx, &targetObj);
-  NS_ENSURE_SUCCESS(rv, rv);
+  JSObject* global = JS_GetGlobalForScopeChain(cx);
+  if (!global)
+    return NS_ERROR_NOT_AVAILABLE;
 
-  *_retval = InitAndSealCTypesClass(cx, targetObj);
+  *_retval = InitAndSealCTypesClass(cx, global);
   return NS_OK;
 }
 
@@ -134,13 +160,13 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
 NS_DEFINE_NAMED_CID(JSCTYPES_CID);
 
 static const mozilla::Module::CIDEntry kCTypesCIDs[] = {
-  { &kJSCTYPES_CID, false, nullptr, mozilla::ctypes::ModuleConstructor },
-  { nullptr }
+  { &kJSCTYPES_CID, false, NULL, mozilla::ctypes::ModuleConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kCTypesContracts[] = {
   { JSCTYPES_CONTRACTID, &kJSCTYPES_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kCTypesModule = {

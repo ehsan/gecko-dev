@@ -1,28 +1,57 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 3; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Travis Bogard <travis@netscape.com>
+ *   Viswanath Ramachandran <vishy@netscape.com>
+ *   Simon Fraser <sfraser@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 // Local Includes
 #include "nsDocShellLoadInfo.h"
-#include "nsISHEntry.h"
-#include "nsIInputStream.h"
-#include "nsIURI.h"
-#include "nsIDocShell.h"
-#include "mozilla/net/ReferrerPolicy.h"
+#include "nsReadableUtils.h"
 
 //*****************************************************************************
 //***    nsDocShellLoadInfo: Object Management
 //*****************************************************************************
 
 nsDocShellLoadInfo::nsDocShellLoadInfo()
-  : mInheritOwner(false)
-  , mOwnerIsExplicit(false)
-  , mSendReferrer(true)
-  , mReferrerPolicy(mozilla::net::RP_Default)
-  , mLoadType(nsIDocShellLoadInfo::loadNormal)
-  , mIsSrcdocLoad(false)
+  : mInheritOwner(PR_FALSE),
+    mOwnerIsExplicit(PR_FALSE),
+    mSendReferrer(PR_TRUE),
+    mLoadType(nsIDocShellLoadInfo::loadNormal)
 {
 }
 
@@ -32,136 +61,123 @@ nsDocShellLoadInfo::~nsDocShellLoadInfo()
 
 //*****************************************************************************
 // nsDocShellLoadInfo::nsISupports
-//*****************************************************************************
+//*****************************************************************************   
 
 NS_IMPL_ADDREF(nsDocShellLoadInfo)
 NS_IMPL_RELEASE(nsDocShellLoadInfo)
 
 NS_INTERFACE_MAP_BEGIN(nsDocShellLoadInfo)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDocShellLoadInfo)
-  NS_INTERFACE_MAP_ENTRY(nsIDocShellLoadInfo)
-NS_INTERFACE_MAP_END
+   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDocShellLoadInfo)
+   NS_INTERFACE_MAP_ENTRY(nsIDocShellLoadInfo)
+NS_INTERFACE_MAP_END     
 
 //*****************************************************************************
 // nsDocShellLoadInfo::nsIDocShellLoadInfo
-//*****************************************************************************
+//*****************************************************************************   
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetReferrer(nsIURI** aReferrer)
+NS_IMETHODIMP nsDocShellLoadInfo::GetReferrer(nsIURI** aReferrer)
 {
-  NS_ENSURE_ARG_POINTER(aReferrer);
+   NS_ENSURE_ARG_POINTER(aReferrer);
 
-  *aReferrer = mReferrer;
-  NS_IF_ADDREF(*aReferrer);
-  return NS_OK;
+   *aReferrer = mReferrer;
+   NS_IF_ADDREF(*aReferrer);
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetReferrer(nsIURI* aReferrer)
+NS_IMETHODIMP nsDocShellLoadInfo::SetReferrer(nsIURI* aReferrer)
 {
-  mReferrer = aReferrer;
-  return NS_OK;
+   mReferrer = aReferrer;
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetOwner(nsISupports** aOwner)
+NS_IMETHODIMP nsDocShellLoadInfo::GetOwner(nsISupports** aOwner)
 {
-  NS_ENSURE_ARG_POINTER(aOwner);
+   NS_ENSURE_ARG_POINTER(aOwner);
 
-  *aOwner = mOwner;
-  NS_IF_ADDREF(*aOwner);
-  return NS_OK;
+   *aOwner = mOwner;
+   NS_IF_ADDREF(*aOwner);
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetOwner(nsISupports* aOwner)
+NS_IMETHODIMP nsDocShellLoadInfo::SetOwner(nsISupports* aOwner)
 {
-  mOwner = aOwner;
-  return NS_OK;
+   mOwner = aOwner;
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetInheritOwner(bool* aInheritOwner)
+NS_IMETHODIMP nsDocShellLoadInfo::GetInheritOwner(PRBool* aInheritOwner)
 {
-  NS_ENSURE_ARG_POINTER(aInheritOwner);
+   NS_ENSURE_ARG_POINTER(aInheritOwner);
 
-  *aInheritOwner = mInheritOwner;
-  return NS_OK;
+   *aInheritOwner = mInheritOwner;
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetInheritOwner(bool aInheritOwner)
+NS_IMETHODIMP nsDocShellLoadInfo::SetInheritOwner(PRBool aInheritOwner)
 {
-  mInheritOwner = aInheritOwner;
-  return NS_OK;
+   mInheritOwner = aInheritOwner;
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetOwnerIsExplicit(bool* aOwnerIsExplicit)
+NS_IMETHODIMP nsDocShellLoadInfo::GetOwnerIsExplicit(PRBool* aOwnerIsExplicit)
 {
-  *aOwnerIsExplicit = mOwnerIsExplicit;
-  return NS_OK;
+   *aOwnerIsExplicit = mOwnerIsExplicit;
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetOwnerIsExplicit(bool aOwnerIsExplicit)
+NS_IMETHODIMP nsDocShellLoadInfo::SetOwnerIsExplicit(PRBool aOwnerIsExplicit)
 {
-  mOwnerIsExplicit = aOwnerIsExplicit;
-  return NS_OK;
+   mOwnerIsExplicit = aOwnerIsExplicit;
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetLoadType(nsDocShellInfoLoadType* aLoadType)
+NS_IMETHODIMP nsDocShellLoadInfo::GetLoadType(nsDocShellInfoLoadType * aLoadType)
 {
-  NS_ENSURE_ARG_POINTER(aLoadType);
+   NS_ENSURE_ARG_POINTER(aLoadType);
 
-  *aLoadType = mLoadType;
-  return NS_OK;
+   *aLoadType = mLoadType;
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetLoadType(nsDocShellInfoLoadType aLoadType)
+NS_IMETHODIMP nsDocShellLoadInfo::SetLoadType(nsDocShellInfoLoadType aLoadType)
 {
-  mLoadType = aLoadType;
-  return NS_OK;
+   mLoadType = aLoadType;
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetSHEntry(nsISHEntry** aSHEntry)
+NS_IMETHODIMP nsDocShellLoadInfo::GetSHEntry(nsISHEntry** aSHEntry)
 {
-  NS_ENSURE_ARG_POINTER(aSHEntry);
+   NS_ENSURE_ARG_POINTER(aSHEntry);
 
-  *aSHEntry = mSHEntry;
-  NS_IF_ADDREF(*aSHEntry);
-  return NS_OK;
+   *aSHEntry = mSHEntry;
+   NS_IF_ADDREF(*aSHEntry);
+   return NS_OK;
+}
+ 
+NS_IMETHODIMP nsDocShellLoadInfo::SetSHEntry(nsISHEntry* aSHEntry)
+{
+   mSHEntry = aSHEntry;
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetSHEntry(nsISHEntry* aSHEntry)
+NS_IMETHODIMP nsDocShellLoadInfo::GetTarget(PRUnichar** aTarget)
 {
-  mSHEntry = aSHEntry;
-  return NS_OK;
+   NS_ENSURE_ARG_POINTER(aTarget);
+
+   *aTarget = ToNewUnicode(mTarget);
+
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetTarget(char16_t** aTarget)
+NS_IMETHODIMP nsDocShellLoadInfo::SetTarget(const PRUnichar* aTarget)
 {
-  NS_ENSURE_ARG_POINTER(aTarget);
-
-  *aTarget = ToNewUnicode(mTarget);
-
-  return NS_OK;
+   mTarget.Assign(aTarget);
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetTarget(const char16_t* aTarget)
-{
-  mTarget.Assign(aTarget);
-  return NS_OK;
-}
 
 NS_IMETHODIMP
-nsDocShellLoadInfo::GetPostDataStream(nsIInputStream** aResult)
+nsDocShellLoadInfo::GetPostDataStream(nsIInputStream **aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
 
@@ -171,112 +187,46 @@ nsDocShellLoadInfo::GetPostDataStream(nsIInputStream** aResult)
   return NS_OK;
 }
 
+
 NS_IMETHODIMP
-nsDocShellLoadInfo::SetPostDataStream(nsIInputStream* aStream)
+nsDocShellLoadInfo::SetPostDataStream(nsIInputStream *aStream)
 {
   mPostDataStream = aStream;
   return NS_OK;
 }
 
 /* attribute nsIInputStream headersStream; */
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetHeadersStream(nsIInputStream** aHeadersStream)
+NS_IMETHODIMP nsDocShellLoadInfo::GetHeadersStream(nsIInputStream * *aHeadersStream)
 {
   NS_ENSURE_ARG_POINTER(aHeadersStream);
   *aHeadersStream = mHeadersStream;
   NS_IF_ADDREF(*aHeadersStream);
   return NS_OK;
 }
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetHeadersStream(nsIInputStream* aHeadersStream)
+NS_IMETHODIMP nsDocShellLoadInfo::SetHeadersStream(nsIInputStream * aHeadersStream)
 {
   mHeadersStream = aHeadersStream;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetSendReferrer(bool* aSendReferrer)
+NS_IMETHODIMP nsDocShellLoadInfo::GetSendReferrer(PRBool* aSendReferrer)
 {
-  NS_ENSURE_ARG_POINTER(aSendReferrer);
+   NS_ENSURE_ARG_POINTER(aSendReferrer);
 
-  *aSendReferrer = mSendReferrer;
-  return NS_OK;
+   *aSendReferrer = mSendReferrer;
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetSendReferrer(bool aSendReferrer)
+NS_IMETHODIMP nsDocShellLoadInfo::SetSendReferrer(PRBool aSendReferrer)
 {
-  mSendReferrer = aSendReferrer;
-  return NS_OK;
+   mSendReferrer = aSendReferrer;
+   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetReferrerPolicy(
-    nsDocShellInfoReferrerPolicy* aReferrerPolicy)
-{
-  *aReferrerPolicy = mReferrerPolicy;
-  return NS_OK;
-}
+//*****************************************************************************
+// nsDocShellLoadInfo: Helpers
+//*****************************************************************************   
 
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetReferrerPolicy(
-    nsDocShellInfoReferrerPolicy aReferrerPolicy)
-{
-  mReferrerPolicy = aReferrerPolicy;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetIsSrcdocLoad(bool* aIsSrcdocLoad)
-{
-  *aIsSrcdocLoad = mIsSrcdocLoad;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetSrcdocData(nsAString& aSrcdocData)
-{
-  aSrcdocData = mSrcdocData;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetSrcdocData(const nsAString& aSrcdocData)
-{
-  mSrcdocData = aSrcdocData;
-  mIsSrcdocLoad = true;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetSourceDocShell(nsIDocShell** aSourceDocShell)
-{
-  MOZ_ASSERT(aSourceDocShell);
-  nsCOMPtr<nsIDocShell> result = mSourceDocShell;
-  result.forget(aSourceDocShell);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetSourceDocShell(nsIDocShell* aSourceDocShell)
-{
-  mSourceDocShell = aSourceDocShell;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShellLoadInfo::GetBaseURI(nsIURI** aBaseURI)
-{
-  NS_ENSURE_ARG_POINTER(aBaseURI);
-
-  *aBaseURI = mBaseURI;
-  NS_IF_ADDREF(*aBaseURI);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShellLoadInfo::SetBaseURI(nsIURI* aBaseURI)
-{
-  mBaseURI = aBaseURI;
-  return NS_OK;
-}
+//*****************************************************************************
+// nsDocShellLoadInfo: Accessors
+//*****************************************************************************   

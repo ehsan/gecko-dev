@@ -1,13 +1,43 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is libpref
+ *
+ * The Initial Developer of the Original Code is Collabora ltd.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Frederic Plourde <frederic.plourde@collabora.co.uk>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const PREF_INVALID = 0;
 const PREF_BOOL    = 128;
 const PREF_INT     = 64;
 const PREF_STRING  = 32;
-
-const MAX_PREF_LENGTH = 1 * 1024 * 1024;
 
 function makeList(a)
 {
@@ -25,7 +55,7 @@ function run_test() {
             getService(Ci.nsIPrefService);
 
   var pb2= Cc["@mozilla.org/preferences-service;1"].
-            getService(Ci.nsIPrefBranch);
+            getService(Ci.nsIPrefBranch2);
 
   var pb = Cc["@mozilla.org/preferences-service;1"].
             getService(Ci.nsIPrefBranch);
@@ -70,7 +100,8 @@ function run_test() {
   // Nonexisting user preferences
 
   do_check_eq(pb.prefHasUserValue("UserPref.nonexistent.hasUserValue"), false);
-  pb.clearUserPref("UserPref.nonexistent.clearUserPref"); // shouldn't throw
+  do_check_throws(function() {
+    pb.clearUserPref("UserPref.nonexistent.clearUserPref");},  Cr.NS_ERROR_UNEXPECTED);
   do_check_eq(pb.getPrefType("UserPref.nonexistent.getPrefType"), PREF_INVALID);
   do_check_eq(pb.root, "");
 
@@ -109,8 +140,8 @@ function run_test() {
   do_check_eq(pb.getBoolPref("UserPref.existing.bool"), false);
   pb.setIntPref("UserPref.existing.int", 24);
   do_check_eq(pb.getIntPref("UserPref.existing.int"), 24);
-  pb.setCharPref("UserPref.existing.char", "hej dÃ¥!");
-  do_check_eq(pb.getCharPref("UserPref.existing.char"), "hej dÃ¥!");
+  pb.setCharPref("UserPref.existing.char", "hej då!");
+  do_check_eq(pb.getCharPref("UserPref.existing.char"), "hej då!");
 
   // prefHasUserValue should return true now
   do_check_true(pb.prefHasUserValue("UserPref.existing.bool"));
@@ -124,15 +155,6 @@ function run_test() {
   do_check_false(pb.prefHasUserValue("UserPref.existing.int"));
   pb.clearUserPref("UserPref.existing.char");
   do_check_false(pb.prefHasUserValue("UserPref.existing.char"));
-
-  //**************************************************************************//
-  // Large value test
-
-  let largeStr = new Array(MAX_PREF_LENGTH + 1).join('x');
-  pb.setCharPref("UserPref.large.char", largeStr);
-  largeStr += 'x';
-  do_check_throws(function() {
-    pb.setCharPref("UserPref.large.char", largeStr); }, Cr.NS_ERROR_ILLEGAL_VALUE);
 
   //**************************************************************************//
   // getPrefType test
@@ -166,22 +188,22 @@ function run_test() {
 
   // int ...
   pb.setIntPref("UserPref.root.intPref", 23);
-  pb_1 = ps.getBranch("UserPref.root.");
+  let pb_1 = ps.getBranch("UserPref.root.");
   do_check_eq(pb_1.getIntPref("intPref"), 23);
-  pb_2 = ps.getBranch("UserPref.root.intPref");
+  let pb_2 = ps.getBranch("UserPref.root.intPref");
   do_check_eq(pb_2.getIntPref(""), 23);
   pb_2.setIntPref(".anotherPref", 69);
-  pb_3 = ps.getBranch("UserPref.root.intPre");
+  let pb_3 = ps.getBranch("UserPref.root.intPre");
   do_check_eq(pb_3.getIntPref("f.anotherPref"), 69);
 
   // char...
   pb.setCharPref("UserPref.root.charPref", "_char");
-  pb_1 = ps.getBranch("UserPref.root.");
+  let pb_1 = ps.getBranch("UserPref.root.");
   do_check_eq(pb_1.getCharPref("charPref"), "_char");
-  pb_2 = ps.getBranch("UserPref.root.charPref");
+  let pb_2 = ps.getBranch("UserPref.root.charPref");
   do_check_eq(pb_2.getCharPref(""), "_char");
   pb_2.setCharPref(".anotherPref", "_another");
-  pb_3 = ps.getBranch("UserPref.root.charPre");
+  let pb_3 = ps.getBranch("UserPref.root.charPre");
   do_check_eq(pb_3.getCharPref("f.anotherPref"), "_another");
 
   //**************************************************************************//
@@ -334,12 +356,10 @@ function run_test() {
   do_check_eq(pb.getIntPref("int1"), 23);
   do_check_eq(pb.getIntPref("int2"), -1236);
   do_check_eq(pb.getCharPref("char1"), "_testPref");
-  do_check_eq(pb.getCharPref("char2"), "Ã¤lskar");
+  do_check_eq(pb.getCharPref("char2"), "älskar");
 
   // loading our former savePrefFile should allow us to read former prefs
   ps.readUserPrefs(savePrefFile);
-  // cleanup the file now we don't need it
-  savePrefFile.remove(false);
   do_check_eq(ps.getBoolPref("ReadPref.bool"), true);
   do_check_eq(ps.getIntPref("ReadPref.int"), 230);
   do_check_eq(ps.getCharPref("ReadPref.char"), "hello");

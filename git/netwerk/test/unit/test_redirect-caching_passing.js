@@ -1,29 +1,14 @@
-Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
-
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort;
-});
+do_load_httpd_js();
 
 var httpserver = null;
 // Need to randomize, because apparently no one clears our cache
 var randomPath = "/redirect/" + Math.random();
-
-XPCOMUtils.defineLazyGetter(this, "randomURI", function() {
-  return URL + randomPath;
-});
+var randomURI = "http://localhost:4444" + randomPath;
 
 function make_channel(url, callback, ctx) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
             getService(Ci.nsIIOService);
-  return ios.newChannel2(url,
-                         "",
-                         null,
-                         null,      // aLoadingNode
-                         Services.scriptSecurityManager.getSystemPrincipal(),
-                         null,      // aTriggeringPrincipal
-                         Ci.nsILoadInfo.SEC_NORMAL,
-                         Ci.nsIContentPolicy.TYPE_OTHER);
+  return ios.newChannel(url, "", null);
 }
 
 const responseBody = "response body";
@@ -31,7 +16,7 @@ const responseBody = "response body";
 function redirectHandler(metadata, response)
 {
   response.setStatusLine(metadata.httpVersion, 301, "Moved");
-  response.setHeader("Location", URL + "/content", false);
+  response.setHeader("Location", "http://localhost:4444/content", false);
   return;
 }
 
@@ -57,10 +42,10 @@ function finish_test(request, buffer)
 
 function run_test()
 {
-  httpserver = new HttpServer();
+  httpserver = new nsHttpServer();
   httpserver.registerPathHandler(randomPath, redirectHandler);
   httpserver.registerPathHandler("/content", contentHandler);
-  httpserver.start(-1);
+  httpserver.start(4444);
 
   var chan = make_channel(randomURI);
   chan.asyncOpen(new ChannelListener(firstTimeThrough, null), null);

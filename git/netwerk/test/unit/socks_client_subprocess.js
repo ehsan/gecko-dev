@@ -1,6 +1,8 @@
-const CC = Components.Constructor;
 const Cc = Components.classes;
 const Ci = Components.interfaces;
+const Cr = Components.results;
+const Cu = Components.utils;
+const CC = Components.Constructor;
 
 const BinaryInputStream = CC("@mozilla.org/binaryinputstream;1",
                              "nsIBinaryInputStream",
@@ -36,7 +38,7 @@ function launchConnection(socks_vers, socks_port, dest_host, dest_port, dns)
 
 for each (var arg in arguments) {
   print('client: running test', arg);
-  test = arg.split('|');
+  test = arg.split(':');
   launchConnection(test[0], parseInt(test[1]), test[2],
        parseInt(test[3]), test[4]);
 }

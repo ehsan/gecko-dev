@@ -1,8 +1,4 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 
 <bindings id="resizerBindings"
    xmlns="http://www.mozilla.org/xbl">
@@ -21,15 +17,9 @@
 
         // if the direction is rtl, set the rtl attribute so that the
         // stylesheet can use this to make the cursor appear properly
-        var cs = window.getComputedStyle(this, "");
-        if (cs.writingMode === undefined || cs.writingMode == "horizontal-tb") {;
-          if (cs.direction == "rtl") {
-            this.setAttribute("rtl", "true");
-          }
-        } else {
-          if (cs.writingMode == "vertical-rl") {
-            this.setAttribute("rtl", "true");
-          }
+        var direction = window.getComputedStyle(this, "").direction;
+        if (direction == "rtl") {
+          this.setAttribute("rtl", "true");
         }
       ]]>
       </constructor>

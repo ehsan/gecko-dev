@@ -9,22 +9,14 @@
  */
 
 
-#ifndef VP8_DECODER_ONYXD_INT_H_
-#define VP8_DECODER_ONYXD_INT_H_
-
-#include "vpx_config.h"
-#include "vp8/common/onyxd.h"
+#ifndef __INC_VP8D_INT_H
+#define __INC_VP8D_INT_H
+#include "vpx_ports/config.h"
+#include "onyxd.h"
 #include "treereader.h"
-#include "vp8/common/onyxc_int.h"
-#include "vp8/common/threading.h"
-
-#if CONFIG_ERROR_CONCEALMENT
-#include "ec_types.h"
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "onyxc_int.h"
+#include "threading.h"
+#include "dequantize.h"
 
 typedef struct
 {
@@ -36,57 +28,73 @@ typedef struct
 typedef struct
 {
     MACROBLOCKD  mbd;
+    int mb_row;
+    int current_mb_col;
+    short *coef_ptr;
 } MB_ROW_DEC;
-
 
 typedef struct
 {
-    int enabled;
-    unsigned int count;
-    const unsigned char *ptrs[MAX_PARTITIONS];
-    unsigned int sizes[MAX_PARTITIONS];
-} FRAGMENT_DATA;
+    INT64 time_stamp;
+    int size;
+} DATARATE;
 
-#define MAX_FB_MT_DEC 32
-
-struct frame_buffers
+typedef struct
 {
-    /*
-     * this struct will be populated with frame buffer management
-     * info in future commits. */
+    INT16         min_val;
+    INT16         Length;
+    UINT8 Probs[12];
+} TOKENEXTRABITS;
 
-    /* enable/disable frame-based threading */
-    int     use_frame_threads;
+typedef struct
+{
+    int const *scan;
+    UINT8 const *ptr_block2leftabove;
+    vp8_tree_index const *vp8_coef_tree_ptr;
+    TOKENEXTRABITS const *teb_base_ptr;
+    unsigned char *norm_ptr;
+    UINT8 *ptr_coef_bands_x;
 
-    /* decoder instances */
-    struct VP8D_COMP *pbi[MAX_FB_MT_DEC];
+    ENTROPY_CONTEXT_PLANES *A;
+    ENTROPY_CONTEXT_PLANES *L;
 
-};
+    INT16 *qcoeff_start_ptr;
+    BOOL_DECODER *current_bc;
 
-typedef struct VP8D_COMP
+    vp8_prob const *coef_probs[4];
+
+    UINT8 eob[25];
+
+} DETOK;
+
+typedef struct VP8Decompressor
 {
     DECLARE_ALIGNED(16, MACROBLOCKD, mb);
 
-    YV12_BUFFER_CONFIG *dec_fb_ref[NUM_YV12_BUFFERS];
-
     DECLARE_ALIGNED(16, VP8_COMMON, common);
 
-    /* the last partition will be used for the modes/mvs */
-    vp8_reader mbc[MAX_PARTITIONS];
+    vp8_reader bc, bc2;
 
     VP8D_CONFIG oxcf;
 
-    FRAGMENT_DATA fragments;
 
-#if CONFIG_MULTITHREAD
-    /* variable for threading */
+    const unsigned char *Source;
+    unsigned int   source_sz;
+
+
+    unsigned int CPUFreq;
+    unsigned int decode_microseconds;
+    unsigned int time_decoding;
+    unsigned int time_loop_filtering;
 
     volatile int b_multithreaded_rd;
     int max_threads;
     int current_mb_col_main;
-    unsigned int decoding_thread_count;
+    int decoding_thread_count;
     int allocated_decoding_thread_count;
 
+    /* variable for threading */
+#if CONFIG_MULTITHREAD
     int mt_baseline_filter_level[MAX_MB_SEGMENTS];
     int sync_range;
     int *mt_current_mb_col;                  /* Each row remembers its already decoded column. */
@@ -107,33 +115,30 @@ typedef struct VP8D_COMP
     /* end of threading data */
 #endif
 
-    int64_t last_time_stamp;
+    vp8_reader *mbc;
+    INT64 last_time_stamp;
     int   ready_for_new_data;
+
+    DATARATE dr[16];
+
+    DETOK detoken;
+
+#if CONFIG_RUNTIME_CPU_DETECT
+    vp8_dequant_rtcd_vtable_t        dequant;
+    struct vp8_dboolhuff_rtcd_vtable dboolhuff;
+#endif
+
 
     vp8_prob prob_intra;
     vp8_prob prob_last;
     vp8_prob prob_gf;
     vp8_prob prob_skip_false;
 
-#if CONFIG_ERROR_CONCEALMENT
-    MB_OVERLAP *overlaps;
-    /* the mb num from which modes and mvs (first partition) are corrupt */
-    unsigned int mvs_corrupt_from_mb;
-#endif
-    int ec_enabled;
-    int ec_active;
-    int decoded_key_frame;
-    int independent_partitions;
-    int frame_corrupt_residual;
-
-    vpx_decrypt_cb decrypt_cb;
-    void *decrypt_state;
 } VP8D_COMP;
 
 int vp8_decode_frame(VP8D_COMP *cpi);
+void vp8_dmachine_specific_config(VP8D_COMP *pbi);
 
-int vp8_create_decoder_instances(struct frame_buffers *fb, VP8D_CONFIG *oxcf);
-int vp8_remove_decoder_instances(struct frame_buffers *fb);
 
 #if CONFIG_DEBUG
 #define CHECK_MEM_ERROR(lval,expr) do {\
@@ -152,8 +157,4 @@ int vp8_remove_decoder_instances(struct frame_buffers *fb);
     } while(0)
 #endif
 
-#ifdef __cplusplus
-}  // extern "C"
 #endif
-
-#endif  // VP8_DECODER_ONYXD_INT_H_

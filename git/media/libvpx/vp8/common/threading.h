@@ -9,18 +9,15 @@
  */
 
 
-#ifndef VP8_COMMON_THREADING_H_
-#define VP8_COMMON_THREADING_H_
+#ifndef _PTHREAD_EMULATION
+#define _PTHREAD_EMULATION
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#if CONFIG_OS_SUPPORT && CONFIG_MULTITHREAD
+#define VPXINFINITE 10000       /* 10second. */
 
 /* Thread management macros */
 #ifdef _WIN32
 /* Win32 */
+#define _WIN32_WINNT 0x500 /* WINBASE.H - Enable signal_object_and_wait */
 #include <process.h>
 #include <windows.h>
 #define THREAD_FUNCTION DWORD WINAPI
@@ -29,7 +26,7 @@ extern "C" {
 #define pthread_t HANDLE
 #define pthread_attr_t DWORD
 #define pthread_create(thhandle,attr,thfunc,tharg) (int)((*thhandle=(HANDLE)_beginthreadex(NULL,0,(unsigned int (__stdcall *)(void *))thfunc,tharg,0,NULL))==NULL)
-#define pthread_join(thread, result) ((WaitForSingleObject((thread),INFINITE)!=WAIT_OBJECT_0) || !CloseHandle(thread))
+#define pthread_join(thread, result) ((WaitForSingleObject((thread),VPXINFINITE)!=WAIT_OBJECT_0) || !CloseHandle(thread))
 #define pthread_detach(thread) if(thread!=NULL)CloseHandle(thread)
 #define thread_sleep(nms) Sleep(nms)
 #define pthread_cancel(thread) terminate_thread(thread,0)
@@ -37,32 +34,8 @@ extern "C" {
 #define pthread_getspecific(ts_key) TlsGetValue(ts_key)
 #define pthread_setspecific(ts_key, value) TlsSetValue(ts_key, (void *)value)
 #define pthread_self() GetCurrentThreadId()
-
-#elif defined(__OS2__)
-/* OS/2 */
-#define INCL_DOS
-#include <os2.h>
-
-#include <stdlib.h>
-#define THREAD_FUNCTION void
-#define THREAD_FUNCTION_RETURN void
-#define THREAD_SPECIFIC_INDEX PULONG
-#define pthread_t TID
-#define pthread_attr_t ULONG
-#define pthread_create(thhandle,attr,thfunc,tharg) \
-    ((int)((*(thhandle)=_beginthread(thfunc,NULL,1024*1024,tharg))==-1))
-#define pthread_join(thread, result) ((int)DosWaitThread(&(thread),0))
-#define pthread_detach(thread) 0
-#define thread_sleep(nms) DosSleep(nms)
-#define pthread_cancel(thread) DosKillThread(thread)
-#define ts_key_create(ts_key, destructor) \
-    DosAllocThreadLocalMemory(1, &(ts_key));
-#define pthread_getspecific(ts_key) ((void *)(*(ts_key)))
-#define pthread_setspecific(ts_key, value) (*(ts_key)=(ULONG)(value))
-#define pthread_self() _gettid()
 #else
 #ifdef __APPLE__
-#include <mach/mach_init.h>
 #include <mach/semaphore.h>
 #include <mach/task.h>
 #include <time.h>
@@ -85,81 +58,11 @@ extern "C" {
 #ifdef _WIN32
 #define sem_t HANDLE
 #define pause(voidpara) __asm PAUSE
-#define sem_init(sem, sem_attr1, sem_init_value) (int)((*sem = CreateSemaphore(NULL,0,32768,NULL))==NULL)
-#define sem_wait(sem) (int)(WAIT_OBJECT_0 != WaitForSingleObject(*sem,INFINITE))
-#define sem_post(sem) ReleaseSemaphore(*sem,1,NULL)
+#define sem_init(sem, sem_attr1, sem_init_value) (int)((*sem = CreateEvent(NULL,FALSE,FALSE,NULL))==NULL)
+#define sem_wait(sem) (int)(WAIT_OBJECT_0 != WaitForSingleObject(*sem,VPXINFINITE))
+#define sem_post(sem) SetEvent(*sem)
 #define sem_destroy(sem) if(*sem)((int)(CloseHandle(*sem))==TRUE)
 #define thread_sleep(nms) Sleep(nms)
-
-#elif defined(__OS2__)
-typedef struct
-{
-    HEV  event;
-    HMTX wait_mutex;
-    HMTX count_mutex;
-    int  count;
-} sem_t;
-
-static inline int sem_init(sem_t *sem, int pshared, unsigned int value)
-{
-    DosCreateEventSem(NULL, &sem->event, pshared ? DC_SEM_SHARED : 0,
-                      value > 0 ? TRUE : FALSE);
-    DosCreateMutexSem(NULL, &sem->wait_mutex, 0, FALSE);
-    DosCreateMutexSem(NULL, &sem->count_mutex, 0, FALSE);
-
-    sem->count = value;
-
-    return 0;
-}
-
-static inline int sem_wait(sem_t * sem)
-{
-    DosRequestMutexSem(sem->wait_mutex, -1);
-
-    DosWaitEventSem(sem->event, -1);
-
-    DosRequestMutexSem(sem->count_mutex, -1);
-
-    sem->count--;
-    if (sem->count == 0)
-    {
-        ULONG post_count;
-
-        DosResetEventSem(sem->event, &post_count);
-    }
-
-    DosReleaseMutexSem(sem->count_mutex);
-
-    DosReleaseMutexSem(sem->wait_mutex);
-
-    return 0;
-}
-
-static inline int sem_post(sem_t * sem)
-{
-    DosRequestMutexSem(sem->count_mutex, -1);
-
-    if (sem->count < 32768)
-    {
-        sem->count++;
-        DosPostEventSem(sem->event);
-    }
-
-    DosReleaseMutexSem(sem->count_mutex);
-
-    return 0;
-}
-
-static inline int sem_destroy(sem_t * sem)
-{
-    DosCloseEventSem(sem->event);
-    DosCloseMutexSem(sem->wait_mutex);
-    DosCloseMutexSem(sem->count_mutex);
-
-    return 0;
-}
-
-#define thread_sleep(nms) DosSleep(nms)
 
 #else
 
@@ -185,10 +88,4 @@ static inline int sem_destroy(sem_t * sem)
 #define x86_pause_hint()
 #endif
 
-#endif /* CONFIG_OS_SUPPORT && CONFIG_MULTITHREAD */
-
-#ifdef __cplusplus
-}  // extern "C"
 #endif
-
-#endif  // VP8_COMMON_THREADING_H_

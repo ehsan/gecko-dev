@@ -1,6 +1,40 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is Google Safe Browsing.
+#
+# The Initial Developer of the Original Code is Google Inc.
+# Portions created by the Initial Developer are Copyright (C) 2006
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Fritz Schneider <fritz@google.com> (original author)
+#   Annie Sullivan <sullivan@google.com>
+#   Aaron Boodman <aa@google.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 #ifdef DEBUG
 
@@ -78,7 +112,7 @@ if (typeof G_GDEBUG == "undefined") {
  *            zone to which this message belongs
  * @param msg Message to output
  */
-this.G_Debug = function G_Debug(who, msg) {
+function G_Debug(who, msg) {
   if (G_GDEBUG) {
     G_GetDebugZone(who).debug(msg);
   }
@@ -87,7 +121,7 @@ this.G_Debug = function G_Debug(who, msg) {
 /**
  * Debugs loudly
  */
-this.G_DebugL = function G_DebugL(who, msg) {
+function G_DebugL(who, msg) {
   if (G_GDEBUG) {
     var zone = G_GetDebugZone(who);
 
@@ -110,7 +144,7 @@ this.G_DebugL = function G_DebugL(who, msg) {
  *            zone to which this message belongs
  * @param msg Message to output
  */
-this.G_TraceCall = function G_TraceCall(who, msg) {
+function G_TraceCall(who, msg) {
   if (G_GDEBUG) {
     if (G_debugService.callTracingEnabled()) {
       G_debugService.dump(msg + "\n");
@@ -125,7 +159,7 @@ this.G_TraceCall = function G_TraceCall(who, msg) {
  *            zone to which this message belongs
  * @param msg Message to output
  */
-this.G_Error = function G_Error(who, msg) {
+function G_Error(who, msg) {
   if (G_GDEBUG) {
     G_GetDebugZone(who).error(msg);
   }
@@ -139,7 +173,7 @@ this.G_Error = function G_Error(who, msg) {
  * @param condition Boolean condition to test
  * @param msg Message to output
  */
-this.G_Assert = function G_Assert(who, condition, msg) {
+function G_Assert(who, condition, msg) {
   if (G_GDEBUG) {
     G_GetDebugZone(who).assert(condition, msg);
   }
@@ -153,7 +187,7 @@ this.G_Assert = function G_Assert(who, condition, msg) {
  *            likely an object that has .debugZone property, or a string.
  * @returns The DebugZone object corresponding to the input
  */
-this.G_GetDebugZone = function G_GetDebugZone(who) {
+function G_GetDebugZone(who) {
   if (G_GDEBUG) {
     var zone = "?";
 
@@ -184,7 +218,7 @@ this.G_GetDebugZone = function G_GetDebugZone(who) {
  *               when creating preferences to control this zone
  * @param zone String indicating the name of the zone
  */
-this.G_DebugZone = function G_DebugZone(service, prefix, zone) {
+function G_DebugZone(service, prefix, zone) {
   if (G_GDEBUG) {
     this.debugService_ = service;
     this.prefix_ = prefix;
@@ -277,7 +311,7 @@ G_DebugZone.prototype.assert = function(condition, msg) {
  * @param opt_prefix Optional string indicating the unique prefix we should 
  *                   use when creating preferences
  */
-this.G_DebugService = function G_DebugService(opt_prefix) {
+function G_DebugService(opt_prefix) {
   if (G_GDEBUG) {
     this.prefix_ = opt_prefix ? opt_prefix : "safebrowsing-debug-service";
     this.consoleEnabledPrefName_ = this.prefix_ + ".alsologtoconsole";
@@ -606,10 +640,10 @@ G_DebugService.prototype.observe = function(consoleMessage) {
  */
 G_DebugService.prototype.reportScriptError_ = function(message, sourceName, 
                                                        lineNumber, label) {
-  message = "\n------------------------------------------------------------\n" +
-            label + ": " + message +
-            "\nlocation: " + sourceName + ", " + "line: " + lineNumber +
-            "\n------------------------------------------------------------\n\n";
+  var message = "\n------------------------------------------------------------\n" +
+                label + ": " + message +
+                "\nlocation: " + sourceName + ", " + "line: " + lineNumber +
+                "\n------------------------------------------------------------\n\n";
 
   dump(message);
   this.maybeDumpToFile(message);
@@ -628,7 +662,7 @@ G_DebugService.prototype.reportScriptError_ = function(message, sourceName,
  *
  * @constructor
  */
-this.G_Loggifier = function G_Loggifier() {
+function G_Loggifier() {
   if (G_GDEBUG) {
     // Careful not to loggify ourselves!
     this.mark_(this);  
@@ -711,7 +745,7 @@ G_Loggifier.prototype.loggify = function(obj) {
     // they're encountered during execution, so declare this helper
     // before using it.)
 
-    let wrap = function (meth, objName, methName) {
+    function wrap(meth, objName, methName) {
       return function() {
         
         // First output the call along with actual parameters
@@ -795,7 +829,7 @@ G_Loggifier.prototype.loggify = function(obj) {
  * preferences tree. If a setting isn't in the preferences tree, then we grab it
  * from the defaults.
  */
-this.G_DebugSettings = function G_DebugSettings() {
+function G_DebugSettings() {
   this.defaults_ = {};
   this.prefs_ = new G_Preferences();
 }
@@ -835,9 +869,9 @@ if (G_GDEBUG) {
 // Stubs for the debugging aids scattered through this component.
 // They will be expanded if you compile yourself a debug build.
 
-this.G_Debug = function G_Debug(who, msg) { }
-this.G_Assert = function G_Assert(who, condition, msg) { }
-this.G_Error = function G_Error(who, msg) { }
-this.G_debugService = { __noSuchMethod__: function() { } };
+function G_Debug(who, msg) { }
+function G_Assert(who, condition, msg) { }
+function G_Error(who, msg) { }
+var G_debugService = { __noSuchMethod__: function() { } };
 
 #endif

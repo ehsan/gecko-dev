@@ -1,23 +1,53 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=8 et :
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla IPC.
+ *
+ * The Initial Developer of the Original Code is
+ *   The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Chris Jones <jones.chris.g@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_ipc_Shmem_h
 #define mozilla_ipc_Shmem_h
-
-#include "mozilla/Attributes.h"
 
 #include "base/basictypes.h"
 #include "base/process.h"
 
 #include "nscore.h"
 #include "nsDebug.h"
-#include "nsAutoPtr.h"
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 #include "mozilla/ipc/SharedMemory.h"
 
 /**
@@ -55,30 +85,22 @@
  */
 
 namespace mozilla {
-namespace layers {
-class ShadowLayerForwarder;
-}
-
 namespace ipc {
 
-class Shmem MOZ_FINAL
+class NS_FINAL_CLASS Shmem
 {
   friend struct IPC::ParamTraits<mozilla::ipc::Shmem>;
-#ifdef DEBUG
-  // For ShadowLayerForwarder::CheckSurfaceDescriptor
-  friend class mozilla::layers::ShadowLayerForwarder;
-#endif
 
 public:
-  typedef int32_t id_t;
+  typedef int32 id_t;
   // Low-level wrapper around platform shmem primitives.
   typedef mozilla::ipc::SharedMemory SharedMemory;
   typedef SharedMemory::SharedMemoryType SharedMemoryType;
   struct IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead {};
 
   Shmem() :
-    mSegment(nullptr),
-    mData(nullptr),
+    mSegment(0),
+    mData(0),
     mSize(0),
     mId(0)
   {
@@ -139,7 +161,7 @@ public:
   bool
   IsWritable() const
   {
-    return mSegment != nullptr;
+    return mSegment != NULL;
   }
 
   // Returns whether this Shmem is readable by you, and thus whether you can
@@ -147,7 +169,7 @@ public:
   bool
   IsReadable() const
   {
-    return mSegment != nullptr;
+    return mSegment != NULL;
   }
 
   // Return a pointer to the user-visible data segment.
@@ -196,13 +218,13 @@ public:
 
   void forget(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead)
   {
-    mSegment = nullptr;
-    mData = nullptr;
+    mSegment = 0;
+    mData = 0;
     mSize = 0;
     mId = 0;
   }
 
-  static already_AddRefed<Shmem::SharedMemory>
+  static SharedMemory*
   Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
         size_t aNBytes,
         SharedMemoryType aType,
@@ -212,26 +234,26 @@ public:
   // Prepare this to be shared with |aProcess|.  Return an IPC message
   // that contains enough information for the other process to map
   // this segment in OpenExisting() below.  Return a new message if
-  // successful (owned by the caller), nullptr if not.
+  // successful (owned by the caller), NULL if not.
   IPC::Message*
   ShareTo(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
           base::ProcessHandle aProcess,
-          int32_t routingId);
+          int32 routingId);
 
   // Stop sharing this with |aProcess|.  Return an IPC message that
   // contains enough information for the other process to unmap this
   // segment.  Return a new message if successful (owned by the
-  // caller), nullptr if not.
+  // caller), NULL if not.
   IPC::Message*
   UnshareFrom(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
               base::ProcessHandle aProcess,
-              int32_t routingId);
+              int32 routingId);
 
   // Return a SharedMemory instance in this process using the
   // descriptor shared to us by the process that created the
   // underlying OS shmem resource.  The contents of the descriptor
   // depend on the type of SharedMemory that was passed to us.
-  static already_AddRefed<SharedMemory>
+  static SharedMemory*
   OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
                const IPC::Message& aDescriptor,
                id_t* aId,
@@ -253,19 +275,19 @@ private:
   void AssertInvariants() const
   { }
 
-  static uint32_t*
+  static uint32*
   PtrToSize(SharedMemory* aSegment)
   {
     char* endOfSegment =
       reinterpret_cast<char*>(aSegment->memory()) + aSegment->Size();
-    return reinterpret_cast<uint32_t*>(endOfSegment - sizeof(uint32_t));
+    return reinterpret_cast<uint32*>(endOfSegment - sizeof(uint32));
   }
 
 #else
   void AssertInvariants() const;
 #endif
 
-  SharedMemory* MOZ_NON_OWNING_REF mSegment;
+  SharedMemory* mSegment;
   void* mData;
   size_t mSize;
   id_t mId;

@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the PKIX-C library.
+ *
+ * The Initial Developer of the Original Code is
+ * Sun Microsystems, Inc.
+ * Portions created by the Initial Developer are
+ * Copyright 2004-2007 Sun Microsystems, Inc.  All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Sun Microsystems, Inc.
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 /*
  * pkix_pl_cert.c
  *
@@ -1636,13 +1669,13 @@ PKIX_PL_Cert_GetVersion(
         void *plContext)
 {
         CERTCertificate *nssCert = NULL;
-        PKIX_UInt32 myVersion = 0;  /* v1 */
+        PKIX_UInt32 myVersion = 1;
 
         PKIX_ENTER(CERT, "PKIX_PL_Cert_GetVersion");
         PKIX_NULLCHECK_THREE(cert, cert->nssCert, pVersion);
 
         nssCert = cert->nssCert;
-        if (nssCert->version.len != 0) {
+        if (nssCert->version.data) {
                 myVersion = *(nssCert->version.data);
         }
 
@@ -2397,14 +2430,14 @@ PKIX_PL_Cert_GetExtendedKeyUsage(
                                 PKIX_DECREF(pkixOID);
                         }
 
-                        PKIX_CHECK(PKIX_List_SetImmutable
-                                    (oidsList, plContext),
-                                    PKIX_LISTSETIMMUTABLEFAILED);
-
                         /* save a cached copy in case it is asked for again */
                         cert->extKeyUsages = oidsList;
                         oidsList = NULL;
                 }
+
+                PKIX_CHECK(PKIX_List_SetImmutable
+                            (cert->extKeyUsages, plContext),
+                            PKIX_LISTSETIMMUTABLEFAILED);
 
                 PKIX_OBJECT_UNLOCK(cert);
         }
@@ -2856,9 +2889,6 @@ PKIX_PL_Cert_VerifySignature(
         status = CERT_VerifySignedDataWithPublicKey(tbsCert, nssPubKey, wincx);
 
         if (status != SECSuccess) {
-                if (PORT_GetError() != SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED) {
-                        PORT_SetError(SEC_ERROR_BAD_SIGNATURE);
-                }
                 PKIX_ERROR(PKIX_SIGNATUREDIDNOTVERIFYWITHTHEPUBLICKEY);
         }
 
@@ -3135,7 +3165,6 @@ PKIX_Error *
 PKIX_PL_Cert_CheckNameConstraints(
         PKIX_PL_Cert *cert,
         PKIX_PL_CertNameConstraints *nameConstraints,
-        PKIX_Boolean treatCommonNameAsDNSName,
         void *plContext)
 {
         PKIX_Boolean checkPass = PKIX_TRUE;
@@ -3152,14 +3181,11 @@ PKIX_PL_Cert_CheckNameConstraints(
                         PKIX_ERROR(PKIX_OUTOFMEMORY);
                 }
 
-                /* This NSS call returns Subject Alt Names. If
-                 * treatCommonNameAsDNSName is true, it also returns the
-                 * Subject Common Name
-                 */
+                /* This NSS call returns both Subject and  Subject Alt Names */
                 PKIX_CERT_DEBUG
                     ("\t\tCalling CERT_GetConstrainedCertificateNames\n");
                 nssSubjectNames = CERT_GetConstrainedCertificateNames
-                        (cert->nssCert, arena, treatCommonNameAsDNSName);
+                        (cert->nssCert, arena, PR_TRUE);
 
                 PKIX_CHECK(pkix_pl_CertNameConstraints_CheckNameSpaceNssNames
                         (nssSubjectNames,
@@ -3216,32 +3242,55 @@ cleanup:
 }
 
 /*
- * Find out the state of the NSS trust bits for the requested usage.
- * Returns SECFailure if the cert is explicitly distrusted.
- * Returns SECSuccess if the cert can be used to form a chain (normal case),
- *   or it is explicitly trusted. The trusted bool is set to true if it is
- *   explicitly trusted.
+ * FUNCTION: PKIX_PL_Cert_IsCertTrusted
+ * (see comments in pkix_pl_pki.h)
  */
-static SECStatus
-pkix_pl_Cert_GetTrusted(void *plContext,
-                        PKIX_PL_Cert *cert,
-                        PKIX_Boolean *trusted,
-                        PKIX_Boolean isCA)
+PKIX_Error *
+PKIX_PL_Cert_IsCertTrusted(
+        PKIX_PL_Cert *cert,
+        PKIX_Boolean trustOnlyUserAnchors,
+        PKIX_Boolean *pTrusted,
+        void *plContext)
 {
-        SECStatus rv;
-        CERTCertificate *nssCert = NULL;
+        PKIX_CertStore_CheckTrustCallback trustCallback = NULL;
         SECCertUsage certUsage = 0;
-        SECCertificateUsage certificateUsage;
-        SECTrustType trustType;
-        unsigned int trustFlags;
+        PKIX_Boolean trusted = PKIX_FALSE;
+        SECStatus rv = SECFailure;
         unsigned int requiredFlags;
+        SECTrustType trustType;
         CERTCertTrust trust;
+        CERTCertificate *nssCert = NULL;
+        SECCertificateUsage certificateUsage;
 
-        *trusted = PKIX_FALSE;
+        PKIX_ENTER(CERT, "pkix_pl_Cert_IsCertTrusted");
+        PKIX_NULLCHECK_TWO(cert, pTrusted);
 
-        /* no key usage information  */
-        if (plContext == NULL) {
-                return SECSuccess;
+        if (trustOnlyUserAnchors) {
+            *pTrusted = cert->isUserTrustAnchor;
+            goto cleanup;
+        }
+
+        /* no key usage information and store is not trusted */
+        if (plContext == NULL || cert->store == NULL) {
+                *pTrusted = PKIX_FALSE;
+                goto cleanup;
+        }
+
+        if (cert->store) {
+                PKIX_CHECK(PKIX_CertStore_GetTrustCallback
+                        (cert->store, &trustCallback, plContext),
+                        PKIX_CERTSTOREGETTRUSTCALLBACKFAILED);
+
+                PKIX_CHECK_ONLY_FATAL(trustCallback
+                        (cert->store, cert, &trusted, plContext),
+                        PKIX_CHECKTRUSTCALLBACKFAILED);
+
+                if (PKIX_ERROR_RECEIVED || (trusted == PKIX_FALSE)) {
+
+                        *pTrusted = PKIX_FALSE;
+                        goto cleanup;
+                }
+
         }
 
         certificateUsage = ((PKIX_PL_NssContext*)plContext)->certificateUsage;
@@ -3252,132 +3301,24 @@ pkix_pl_Cert_GetTrusted(void *plContext,
         /* convert SECertificateUsage (bit mask) to SECCertUsage (enum) */
         while (0 != (certificateUsage = certificateUsage >> 1)) { certUsage++; }
 
+        rv = CERT_TrustFlagsForCACertUsage(certUsage, &requiredFlags, &trustType);
+        if (rv != SECSuccess) {
+                *pTrusted = PKIX_FALSE;
+                goto cleanup;
+        }
+
         nssCert = cert->nssCert;
 
-        if (!isCA) {
-                PRBool prTrusted;
-                unsigned int failedFlags;
-                rv = cert_CheckLeafTrust(nssCert, certUsage,
-                                         &failedFlags, &prTrusted);
-                *trusted = (PKIX_Boolean) prTrusted;
-                return rv;
-        }
-        rv = CERT_TrustFlagsForCACertUsage(certUsage, &requiredFlags,
-                                           &trustType);
-        if (rv != SECSuccess) {
-                return SECSuccess;
-        }
-
         rv = CERT_GetCertTrust(nssCert, &trust);
-        if (rv != SECSuccess) {
-                return SECSuccess;
-        }
-        trustFlags = SEC_GET_TRUST_FLAGS(&trust, trustType);
-        /* normally trustTypeNone usages accept any of the given trust bits
-         * being on as acceptable. If any are distrusted (and none are trusted),
-         * then we will also distrust the cert */
-        if ((trustFlags == 0) && (trustType == trustTypeNone)) {
-                trustFlags = trust.sslFlags | trust.emailFlags |
-                             trust.objectSigningFlags;
-        }
-        if ((trustFlags & requiredFlags) == requiredFlags) {
-                *trusted = PKIX_TRUE;
-                return SECSuccess;
-        }
-        if ((trustFlags & CERTDB_TERMINAL_RECORD) &&
-            ((trustFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED)) == 0)) {
-                return SECFailure;
-        }
-        return SECSuccess;
-}
-
-/*
- * FUNCTION: PKIX_PL_Cert_IsCertTrusted
- * (see comments in pkix_pl_pki.h)
- */
-PKIX_Error *
-PKIX_PL_Cert_IsCertTrusted(
-        PKIX_PL_Cert *cert,
-        PKIX_PL_TrustAnchorMode trustAnchorMode,
-        PKIX_Boolean *pTrusted,
-        void *plContext)
-{
-        PKIX_CertStore_CheckTrustCallback trustCallback = NULL;
-        PKIX_Boolean trusted = PKIX_FALSE;
-        SECStatus rv = SECFailure;
-
-        PKIX_ENTER(CERT, "PKIX_PL_Cert_IsCertTrusted");
-        PKIX_NULLCHECK_TWO(cert, pTrusted);
-
-        /* Call GetTrusted first to see if we are going to distrust the
-         * certificate */
-        rv = pkix_pl_Cert_GetTrusted(plContext, cert, &trusted, PKIX_TRUE);
-        if (rv != SECSuccess) {
-                /* Failure means the cert is explicitly distrusted,
-                 * let the next level know not to use it. */
-                *pTrusted = PKIX_FALSE;
-                PKIX_ERROR(PKIX_CERTISCERTTRUSTEDFAILED);
-        }
-
-        if (trustAnchorMode == PKIX_PL_TrustAnchorMode_Exclusive ||
-            (trustAnchorMode == PKIX_PL_TrustAnchorMode_Additive &&
-             cert->isUserTrustAnchor)) {
-            /* Use the trust anchor's |trusted| value */
-            *pTrusted = cert->isUserTrustAnchor;
-            goto cleanup;
-        }
-
-        /* no key usage information or store is not trusted */
-        if (plContext == NULL || cert->store == NULL) {
-                *pTrusted = PKIX_FALSE;
-                goto cleanup;
-        }
-
-        PKIX_CHECK(PKIX_CertStore_GetTrustCallback
-                (cert->store, &trustCallback, plContext),
-                PKIX_CERTSTOREGETTRUSTCALLBACKFAILED);
-
-        PKIX_CHECK_ONLY_FATAL(trustCallback
-                (cert->store, cert, &trusted, plContext),
-                PKIX_CHECKTRUSTCALLBACKFAILED);
-
-        /* allow trust store to override if we can trust the trust
-         * bits */
-        if (PKIX_ERROR_RECEIVED || (trusted == PKIX_FALSE)) {
-                *pTrusted = PKIX_FALSE;
-                goto cleanup;
+        if (rv == SECSuccess) {
+                unsigned int certFlags;
+                certFlags = SEC_GET_TRUST_FLAGS((&trust), trustType);
+                if ((certFlags & requiredFlags) == requiredFlags) {
+                        trusted = PKIX_TRUE;
+                }
         }
 
         *pTrusted = trusted;
-
-cleanup:
-        PKIX_RETURN(CERT);
-}
-
-/*
- * FUNCTION: PKIX_PL_Cert_IsLeafCertTrusted
- * (see comments in pkix_pl_pki.h)
- */
-PKIX_Error *
-PKIX_PL_Cert_IsLeafCertTrusted(
-        PKIX_PL_Cert *cert,
-        PKIX_Boolean *pTrusted,
-        void *plContext)
-{
-        SECStatus rv;
-
-        PKIX_ENTER(CERT, "PKIX_PL_Cert_IsLeafCertTrusted");
-        PKIX_NULLCHECK_TWO(cert, pTrusted);
-
-        *pTrusted = PKIX_FALSE;
-
-        rv = pkix_pl_Cert_GetTrusted(plContext, cert, pTrusted, PKIX_FALSE);
-        if (rv != SECSuccess) {
-                /* Failure means the cert is explicitly distrusted,
-                 * let the next level know not to use it. */
-                *pTrusted = PKIX_FALSE;
-                PKIX_ERROR(PKIX_CERTISCERTTRUSTEDFAILED);
-        }
 
 cleanup:
         PKIX_RETURN(CERT);

@@ -1,116 +1,134 @@
 //
-// Copyright (c) 2002-2013 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
 
-// Fence.cpp: Implements the gl::FenceNV and gl::FenceSync classes, which support the GL_NV_fence
-// extension and GLES3 sync objects.
+// Fence.cpp: Implements the gl::Fence class, which supports the GL_NV_fence extension.
 
 #include "libGLESv2/Fence.h"
-#include "libGLESv2/renderer/FenceImpl.h"
-#include "libGLESv2/renderer/Renderer.h"
-#include "libGLESv2/main.h"
-#include "common/utilities.h"
 
-#include "angle_gl.h"
+#include "libGLESv2/main.h"
 
 namespace gl
 {
 
-FenceNV::FenceNV(rx::FenceNVImpl *impl)
-    : mFence(impl),
-      mIsSet(false),
-      mStatus(GL_FALSE),
-      mCondition(GL_NONE)
-{
+Fence::Fence()
+{ 
+    mQuery = NULL;
+    mCondition = GL_NONE;
+    mStatus = GL_FALSE;
 }
 
-FenceNV::~FenceNV()
+Fence::~Fence()
 {
-    SafeDelete(mFence);
+    if (mQuery != NULL)
+    {
+        mQuery->Release();
+        mQuery = NULL;
+    }
 }
 
-GLboolean FenceNV::isFence() const
+GLboolean Fence::isFence()
 {
     // GL_NV_fence spec:
     // A name returned by GenFencesNV, but not yet set via SetFenceNV, is not the name of an existing fence.
-    return (mIsSet ? GL_TRUE : GL_FALSE);
+    return mQuery != NULL;
 }
 
-Error FenceNV::setFence(GLenum condition)
+void Fence::setFence(GLenum condition)
 {
-    Error error = mFence->set();
-    if (error.isError())
+    if (mQuery != NULL)
     {
-        return error;
+        mQuery->Release();
+        mQuery = NULL;
     }
+
+    if (FAILED(getDevice()->CreateQuery(D3DQUERYTYPE_EVENT, &mQuery)))
+    {
+        return error(GL_OUT_OF_MEMORY);
+    }
+
+    HRESULT result = mQuery->Issue(D3DISSUE_END);
+    ASSERT(SUCCEEDED(result));
 
     mCondition = condition;
     mStatus = GL_FALSE;
-    mIsSet = true;
-
-    return Error(GL_NO_ERROR);
 }
 
-Error FenceNV::testFence(GLboolean *outResult)
+GLboolean Fence::testFence()
 {
-    // Flush the command buffer by default
-    Error error = mFence->test(true, &mStatus);
-    if (error.isError())
+    if (mQuery == NULL)
     {
-        return error;
+        return error(GL_INVALID_OPERATION, GL_TRUE);
     }
 
-    *outResult = mStatus;
-    return Error(GL_NO_ERROR);
-}
+    HRESULT result = mQuery->GetData(NULL, 0, D3DGETDATA_FLUSH);
 
-Error FenceNV::finishFence()
-{
-    ASSERT(mIsSet);
-
-    return mFence->finishFence(&mStatus);
-}
-
-FenceSync::FenceSync(rx::FenceSyncImpl *impl, GLuint id)
-    : RefCountObject(id),
-      mFence(impl),
-      mCondition(GL_NONE)
-{
-}
-
-FenceSync::~FenceSync()
-{
-    SafeDelete(mFence);
-}
-
-Error FenceSync::set(GLenum condition)
-{
-    Error error = mFence->set();
-    if (error.isError())
+    if (result == D3DERR_DEVICELOST)
     {
-        return error;
+       return error(GL_OUT_OF_MEMORY, GL_TRUE);
     }
 
-    mCondition = condition;
-    return Error(GL_NO_ERROR);
+    ASSERT(result == S_OK || result == S_FALSE);
+    mStatus = result == S_OK;
+    return mStatus;
 }
 
-Error FenceSync::clientWait(GLbitfield flags, GLuint64 timeout, GLenum *outResult)
+void Fence::finishFence()
 {
-    ASSERT(mCondition != GL_NONE);
-    return mFence->clientWait(flags, timeout, outResult);
+    if (mQuery == NULL)
+    {
+        return error(GL_INVALID_OPERATION);
+    }
+
+    while (!testFence())
+    {
+        Sleep(0);
+    }
 }
 
-Error FenceSync::serverWait(GLbitfield flags, GLuint64 timeout)
+void Fence::getFenceiv(GLenum pname, GLint *params)
 {
-    return mFence->serverWait(flags, timeout);
-}
+    if (mQuery == NULL)
+    {
+        return error(GL_INVALID_OPERATION);
+    }
 
-Error FenceSync::getStatus(GLint *outResult) const
-{
-    return mFence->getStatus(outResult);
+    switch (pname)
+    {
+        case GL_FENCE_STATUS_NV:
+        {
+            // GL_NV_fence spec:
+            // Once the status of a fence has been finished (via FinishFenceNV) or tested and the returned status is TRUE (via either TestFenceNV
+            // or GetFenceivNV querying the FENCE_STATUS_NV), the status remains TRUE until the next SetFenceNV of the fence.
+            if (mStatus)
+            {
+                params[0] = GL_TRUE;
+                return;
+            }
+            
+            HRESULT result = mQuery->GetData(NULL, 0, 0);
+            
+            if (result == D3DERR_DEVICELOST)
+            {
+                params[0] = GL_TRUE;
+                return error(GL_OUT_OF_MEMORY);
+            }
+
+            ASSERT(result == S_OK || result == S_FALSE);
+            mStatus = result == S_OK;
+            params[0] = mStatus;
+            
+            break;
+        }
+        case GL_FENCE_CONDITION_NV:
+            params[0] = mCondition;
+            break;
+        default:
+            return error(GL_INVALID_ENUM);
+            break;
+    }
 }
 
 }

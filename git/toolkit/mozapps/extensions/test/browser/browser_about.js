@@ -45,7 +45,8 @@ function test() {
 
 function test_about_window(aAddonItemName, aExpectedAboutUri, aCallback) {
   var addonList = gManagerWindow.document.getElementById("addon-list");
-  for (var addonItem of addonList.childNodes) {
+  for (var i = 0; i < addonList.childNodes.length; i++) {
+    var addonItem = addonList.childNodes[i];
     if (addonItem.hasAttribute("name") &&
         addonItem.getAttribute("name") === aAddonItemName)
       break;
@@ -58,7 +59,7 @@ function test_about_window(aAddonItemName, aExpectedAboutUri, aCallback) {
       Services.ww.unregisterNotification(TEST_ww_observer);
 
       info("About dialog closed, waiting for focus on browser window");
-      waitForFocus(() => executeSoon(aCallback));
+      waitForFocus(aCallback);
     } else if (aTopic == "domwindowopened") {
       info("About dialog opened, waiting for focus");
 
@@ -74,7 +75,7 @@ function test_about_window(aAddonItemName, aExpectedAboutUri, aCallback) {
            aAddonItemName,
            "window.arguments[0] should refer to the add-on object");
 
-        executeSoon(() => win.close());
+        win.close();
       }, win);
     }
   });

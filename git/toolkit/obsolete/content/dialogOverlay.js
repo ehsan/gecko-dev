@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 var doOKFunction = 0;
 var doCancelFunction = 0;
 var doButton2Function = 0;
@@ -71,17 +67,12 @@ function moveToAlertPosition()
         sizeToContent();
     }
 
-    if (opener) {
-        var xOffset = (opener.outerWidth - window.outerWidth) / 2;
-        var yOffset = opener.outerHeight / 5;
-
-        var newX = opener.screenX + xOffset;
-        var newY = opener.screenY + yOffset;
-    } else {
-        newX = (screen.availWidth - window.outerWidth) / 2;
-        newY = (screen.availHeight - window.outerHeight) / 2;
-    }
-
+	var xOffset = (opener.outerWidth - window.outerWidth) / 2;
+	var yOffset = opener.outerHeight / 5;
+	
+	var newX = opener.screenX + xOffset;
+	var newY = opener.screenY + yOffset;
+	
 	// ensure the window is fully onscreen (if smaller than the screen)
 	if (newX < screen.availLeft)
 		newX = screen.availLeft + 20;

@@ -1,9 +1,42 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: sw=4 ts=4 et :
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Chris Jones <jones.chris.g@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_mozalloc_h
 #define mozilla_mozalloc_h
@@ -17,20 +50,14 @@
 #if defined(__cplusplus)
 #  include <new>
 #endif
-#include "xpcom-config.h"
 
-#if defined(__cplusplus)
-#include "mozilla/fallible.h"
-#include "mozilla/TemplateLib.h"
-#endif
-#include "mozilla/Attributes.h"
 
 #define MOZALLOC_HAVE_XMALLOC
 
 #if defined(MOZALLOC_EXPORT)
 /* do nothing: it's been defined to __declspec(dllexport) by
  * mozalloc*.cpp on platforms where that's required. */
-#elif defined(XP_WIN)
+#elif defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
 #  define MOZALLOC_EXPORT __declspec(dllimport)
 #elif defined(HAVE_VISIBILITY_ATTRIBUTE)
 /* Make sure symbols are still exported even if we're wrapped in a
@@ -41,8 +68,8 @@
 #endif
 
 
-#if defined(MOZ_ALWAYS_INLINE_EVEN_DEBUG)
-#  define MOZALLOC_INLINE MOZ_ALWAYS_INLINE_EVEN_DEBUG
+#if defined(NS_ALWAYS_INLINE)
+#  define MOZALLOC_INLINE NS_ALWAYS_INLINE inline
 #elif defined(HAVE_FORCEINLINE)
 #  define MOZALLOC_INLINE __forceinline
 #else
@@ -108,8 +135,6 @@ MOZALLOC_EXPORT char* moz_strdup(const char* str)
 
 MOZALLOC_EXPORT size_t moz_malloc_usable_size(void *ptr);
 
-MOZALLOC_EXPORT size_t moz_malloc_size_of(const void *ptr);
-
 #if defined(HAVE_STRNDUP)
 MOZALLOC_EXPORT char* moz_xstrndup(const char* str, size_t strsize)
     NS_ATTR_MALLOC NS_WARN_UNUSED_RESULT;
@@ -119,7 +144,7 @@ MOZALLOC_EXPORT char* moz_strndup(const char* str, size_t strsize)
 #endif /* if defined(HAVE_STRNDUP) */
 
 
-#if defined(HAVE_POSIX_MEMALIGN)
+#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_JEMALLOC_POSIX_MEMALIGN)
 MOZALLOC_EXPORT int moz_xposix_memalign(void **ptr, size_t alignment, size_t size)
     NS_WARN_UNUSED_RESULT;
 
@@ -128,7 +153,7 @@ MOZALLOC_EXPORT int moz_posix_memalign(void **ptr, size_t alignment, size_t size
 #endif /* if defined(HAVE_POSIX_MEMALIGN) */
 
 
-#if defined(HAVE_MEMALIGN)
+#if defined(HAVE_MEMALIGN) || defined(HAVE_JEMALLOC_MEMALIGN)
 MOZALLOC_EXPORT void* moz_xmemalign(size_t boundary, size_t size)
     NS_ATTR_MALLOC NS_WARN_UNUSED_RESULT;
 
@@ -181,27 +206,22 @@ MOZALLOC_EXPORT void* moz_valloc(size_t size)
 #  define MOZALLOC_EXPORT_NEW
 #endif
 
-#if defined(ANDROID)
+#if defined(ANDROID) || defined(_MSC_VER)
 /*
- * It's important to always specify 'throw()' in GCC because it's used to tell
- * GCC that 'new' may return null. That makes GCC null-check the result before
- * potentially initializing the memory to zero.
- * Also, the Android minimalistic headers don't include std::bad_alloc.
+ * Android doesn't fully support exceptions, so its <new> header
+ * has operators that don't specify throw() at all. Also include MSVC
+ * to suppress build warning spam (bug 578546).
  */
-#define MOZALLOC_THROW_IF_HAS_EXCEPTIONS throw()
-#define MOZALLOC_THROW_BAD_ALLOC_IF_HAS_EXCEPTIONS
-#elif defined(_MSC_VER)
-/*
- * Suppress build warning spam (bug 578546).
- */
-#define MOZALLOC_THROW_IF_HAS_EXCEPTIONS
-#define MOZALLOC_THROW_BAD_ALLOC_IF_HAS_EXCEPTIONS
+#define MOZALLOC_THROW_IF_HAS_EXCEPTIONS /**/
 #else
 #define MOZALLOC_THROW_IF_HAS_EXCEPTIONS throw()
-#define MOZALLOC_THROW_BAD_ALLOC_IF_HAS_EXCEPTIONS throw(std::bad_alloc)
 #endif
 
-#define MOZALLOC_THROW_BAD_ALLOC MOZALLOC_THROW_BAD_ALLOC_IF_HAS_EXCEPTIONS
+#ifdef MOZ_CPP_EXCEPTIONS
+#define MOZALLOC_THROW_BAD_ALLOC throw(std::bad_alloc)
+#else
+#define MOZALLOC_THROW_BAD_ALLOC MOZALLOC_THROW_IF_HAS_EXCEPTIONS
+#endif
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
 void* operator new(size_t size) MOZALLOC_THROW_BAD_ALLOC
@@ -271,6 +291,12 @@ void operator delete[](void* ptr, const std::nothrow_t&) MOZALLOC_THROW_IF_HAS_E
  *   (4) the matching system |operator delete(void*) throw(std::bad_alloc)|
  */
 
+namespace mozilla {
+
+struct MOZALLOC_EXPORT fallible_t { };
+
+} /* namespace mozilla */
+
 MOZALLOC_INLINE
 void* operator new(size_t size, const mozilla::fallible_t&) MOZALLOC_THROW_IF_HAS_EXCEPTIONS
 {
@@ -295,49 +321,7 @@ void operator delete[](void* ptr, const mozilla::fallible_t&) MOZALLOC_THROW_IF_
     moz_free(ptr);
 }
 
-
-/*
- * This policy is identical to MallocAllocPolicy, except it uses
- * moz_xmalloc/moz_xcalloc/moz_xrealloc/moz_free instead of
- * malloc/calloc/realloc/free.
- */
-class InfallibleAllocPolicy
-{
-public:
-    template <typename T>
-    T* pod_malloc(size_t aNumElems)
-    {
-        if (aNumElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value) {
-            return nullptr;
-        }
-        return static_cast<T*>(moz_xmalloc(aNumElems * sizeof(T)));
-    }
-
-    template <typename T>
-    T* pod_calloc(size_t aNumElems)
-    {
-        return static_cast<T*>(moz_xcalloc(aNumElems, sizeof(T)));
-    }
-
-    template <typename T>
-    T* pod_realloc(T* aPtr, size_t aOldSize, size_t aNewSize)
-    {
-        if (aNewSize & mozilla::tl::MulOverflowMask<sizeof(T)>::value) {
-            return nullptr;
-        }
-        return static_cast<T*>(moz_xrealloc(aPtr, aNewSize * sizeof(T)));
-    }
-
-    void free_(void* aPtr)
-    {
-        moz_free(aPtr);
-    }
-
-    void reportAllocOverflow() const
-    {
-    }
-};
-
 #endif  /* ifdef __cplusplus */
+
 
 #endif /* ifndef mozilla_mozalloc_h */

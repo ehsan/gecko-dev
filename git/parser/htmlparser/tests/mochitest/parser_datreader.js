@@ -1,7 +1,41 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert Sayre <sayrer@gmail.com>
+ *   Henri Sivonen <hsivonen@iki.fi>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK *****/
 
 /**
  * A test suite that runs WHATWG HTML parser tests.
@@ -100,20 +134,8 @@ function test_parser(testlist) {
  * @param the DOM document
  */
 function docToTestOutput(doc) {
-  var walker = doc.createTreeWalker(doc, NodeFilter.SHOW_ALL, null);
+  var walker = doc.createTreeWalker(doc, NodeFilter.SHOW_ALL, null, true);
   return addLevels(walker, "", "| ").slice(0,-1); // remove the last newline
-}
-
-/**
- * Creates a walker for a fragment that skips over the root node.
- *
- * @param an element
- */
-function createFragmentWalker(elt) {
-  return elt.ownerDocument.createTreeWalker(elt, NodeFilter.SHOW_ALL,
-    function (node) {
-      return elt == node ? NodeFilter.FILTER_SKIP : NodeFilter.FILTER_ACCEPT;
-    });
 }
 
 /**
@@ -123,7 +145,10 @@ function createFragmentWalker(elt) {
  * @param an element
  */
 function fragmentToTestOutput(elt) {
-  var walker = createFragmentWalker(elt);
+  var walker = elt.ownerDocument.createTreeWalker(elt, NodeFilter.SHOW_ALL, 
+    function (node) { return elt == node ? 
+                        NodeFilter.FILTER_SKIP : 
+                        NodeFilter.FILTER_ACCEPT; }, true);
   return addLevels(walker, "", "| ").slice(0,-1); // remove the last newline
 }
 
@@ -148,6 +173,10 @@ function addLevels(walker, buf, indent) {
             var attrs = walker.currentNode.attributes;
             for (var i = 0; i < attrs.length; ++i) {
               var localName = attrs[i].localName;
+              if (localName.indexOf("_moz-") == 0) {
+                // Skip bogus attributes added by the MathML implementation
+                continue;
+              }
               var name;
               var attrNs = attrs[i].namespaceURI;
               if (null == attrNs) {
@@ -189,15 +218,6 @@ function addLevels(walker, buf, indent) {
           break;
       }
       buf += "\n";
-      // In the case of template elements, children do not get inserted as
-      // children of the template element, instead they are inserted
-      // as children of the template content (which is a document fragment).
-      if (walker.currentNode instanceof HTMLTemplateElement) {
-        buf += indent + "  content\n";
-        // Walk through the template content.
-        var templateWalker = createFragmentWalker(walker.currentNode.content);
-        buf = addLevels(templateWalker, buf, indent + "    ");
-      }
       buf = addLevels(walker, buf, indent + "  ");
     } while(walker.nextSibling());
     walker.parentNode();

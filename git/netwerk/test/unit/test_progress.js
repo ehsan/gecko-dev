@@ -1,11 +1,7 @@
-Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort;
-});
+do_load_httpd_js();
 
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var testpath = "/simple";
 var httpbody = "0123456789";
 
@@ -98,7 +94,7 @@ var progressCallback = {
 
 function run_test() {
   httpserver.registerPathHandler(testpath, serverHandler);
-  httpserver.start(-1);
+  httpserver.start(4444);
   var channel = setupChannel(testpath);
   channel.asyncOpen(progressCallback, null);
   do_test_pending();
@@ -107,14 +103,7 @@ function run_test() {
 function setupChannel(path) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
                        getService(Ci.nsIIOService);
-  var chan = ios.newChannel2(URL + path,
-                             "",
-                             null,
-                             null,      // aLoadingNode
-                             Services.scriptSecurityManager.getSystemPrincipal(),
-                             null,      // aTriggeringPrincipal
-                             Ci.nsILoadInfo.SEC_NORMAL,
-                             Ci.nsIContentPolicy.TYPE_OTHER);
+  var chan = ios.newChannel("http://localhost:4444" + path, "", null);
   chan.QueryInterface(Ci.nsIHttpChannel);
   chan.requestMethod = "GET";
   chan.notificationCallbacks = progressCallback;

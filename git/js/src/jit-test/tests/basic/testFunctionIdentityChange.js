@@ -14,3 +14,8 @@ function testFunctionIdentityChange()
   return true;
 }
 assertEq(testFunctionIdentityChange(), true);
+checkStats({
+  recorderStarted: 2,
+  traceCompleted: 2,
+  sideExitIntoInterpreter: 3
+});

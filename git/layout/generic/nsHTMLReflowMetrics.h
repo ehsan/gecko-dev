@@ -1,23 +1,58 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* struct containing the output from nsIFrame::Reflow */
 
 #ifndef nsHTMLReflowMetrics_h___
 #define nsHTMLReflowMetrics_h___
 
+#include <stdio.h>
+#include "nsISupports.h"
+#include "nsMargin.h"
 #include "nsRect.h"
-#include "nsBoundingMetrics.h"
-#include "WritingModes.h"
+// for MOZ_MATHML
+#include "nsIRenderingContext.h" //to get struct nsBoundingMetrics
 
 //----------------------------------------------------------------------
 
-struct nsHTMLReflowState;
-
 // Option flags
+#ifdef MOZ_MATHML
 #define NS_REFLOW_CALC_BOUNDING_METRICS  0x0001
+#endif
 
 /**
  * When we store overflow areas as an array of scrollable and visual
@@ -39,11 +74,11 @@ private:
   nsRect mRects[2];
 public:
   nsRect& Overflow(size_t aIndex) {
-    NS_ASSERTION(aIndex < 2, "index out of range");
+    NS_ASSERTION(0 <= aIndex && aIndex < 2, "index out of range");
     return mRects[aIndex];
   }
   const nsRect& Overflow(size_t aIndex) const {
-    NS_ASSERTION(aIndex < 2, "index out of range");
+    NS_ASSERTION(0 <= aIndex && aIndex < 2, "index out of range");
     return mRects[aIndex];
   }
 
@@ -77,8 +112,8 @@ public:
   bool operator==(const nsOverflowAreas& aOther) const {
     // Scrollable overflow is a point-set rectangle and visual overflow
     // is a pixel-set rectangle.
-    return VisualOverflow().IsEqualInterior(aOther.VisualOverflow()) &&
-           ScrollableOverflow().IsEqualEdges(aOther.ScrollableOverflow());
+    return VisualOverflow() == aOther.VisualOverflow() &&
+           ScrollableOverflow().IsExactEqual(aOther.ScrollableOverflow());
   }
 
   bool operator!=(const nsOverflowAreas& aOther) const {
@@ -139,13 +174,13 @@ struct nsCollapsingMargin {
       {
       }
 
-    bool operator==(const nsCollapsingMargin& aOther)
+    PRBool operator==(const nsCollapsingMargin& aOther)
       {
         return mMostPos == aOther.mMostPos &&
           mMostNeg == aOther.mMostNeg;
       }
 
-    bool operator!=(const nsCollapsingMargin& aOther)
+    PRBool operator!=(const nsCollapsingMargin& aOther)
       {
         return !(*this == aOther);
       }
@@ -179,7 +214,7 @@ struct nsCollapsingMargin {
         mMostNeg = 0;
       }
 
-    bool IsZero() const
+    PRBool IsZero() const
       {
         return (mMostPos == 0) && (mMostNeg == 0);
       }
@@ -196,89 +231,13 @@ struct nsCollapsingMargin {
  *
  * @see #Reflow()
  */
-class nsHTMLReflowMetrics {
-public:
-  // XXXldb Should |aFlags| generally be passed from parent to child?
-  // Some places do it, and some don't.  |aFlags| should perhaps go away
-  // entirely.
-  // XXX width/height/ascent are OUT parameters and so they shouldn't
-  // have to be initialized, but there are some bad frame classes that
-  // aren't properly setting them when returning from Reflow()...
-  explicit nsHTMLReflowMetrics(mozilla::WritingMode aWritingMode, uint32_t aFlags = 0)
-    : mISize(0)
-    , mBSize(0)
-    , mBlockStartAscent(ASK_FOR_BASELINE)
-    , mFlags(aFlags)
-    , mWritingMode(aWritingMode)
-  {}
-
-  explicit nsHTMLReflowMetrics(const nsHTMLReflowState& aState, uint32_t aFlags = 0);
-
-  // ISize and BSize are logical-coordinate dimensions:
-  // ISize is the size in the writing mode's inline direction (which equates to
-  // width in horizontal writing modes, height in vertical ones), and BSize is
-  // the size in the block-progression direction.
-  nscoord ISize(mozilla::WritingMode aWritingMode) const {
-    CHECK_WRITING_MODE(aWritingMode);
-    return mISize;
-  }
-  nscoord BSize(mozilla::WritingMode aWritingMode) const {
-    CHECK_WRITING_MODE(aWritingMode);
-    return mBSize;
-  }
-  mozilla::LogicalSize Size(mozilla::WritingMode aWritingMode) const {
-    CHECK_WRITING_MODE(aWritingMode);
-    return mozilla::LogicalSize(aWritingMode, mISize, mBSize);
-  }
-
-  nscoord& ISize(mozilla::WritingMode aWritingMode) {
-    CHECK_WRITING_MODE(aWritingMode);
-    return mISize;
-  }
-  nscoord& BSize(mozilla::WritingMode aWritingMode) {
-    CHECK_WRITING_MODE(aWritingMode);
-    return mBSize;
-  }
-
-  // Set inline and block size from a LogicalSize, converting to our
-  // writing mode as necessary.
-  void SetSize(mozilla::WritingMode aWM, mozilla::LogicalSize aSize)
-  {
-    mozilla::LogicalSize convertedSize = aSize.ConvertTo(mWritingMode, aWM);
-    mBSize = convertedSize.BSize(mWritingMode);
-    mISize = convertedSize.ISize(mWritingMode);
-  }
-
-  // Set both inline and block size to zero -- no need for a writing mode!
-  void ClearSize()
-  {
-    mISize = mBSize = 0;
-  }
-
-  // Width and Height are physical dimensions, independent of writing mode.
-  // Accessing these is slightly more expensive than accessing the logical
-  // dimensions (once vertical writing mode support is enabled); as far as
-  // possible, client code should work purely with logical dimensions.
-  nscoord Width() const { return mWritingMode.IsVertical() ? mBSize : mISize; }
-  nscoord Height() const { return mWritingMode.IsVertical() ? mISize : mBSize; }
-
-  // It's only meaningful to consider "ascent" on the block-start side of the
-  // frame, so no need to pass a writing mode argument
-  nscoord BlockStartAscent() const
-  {
-    return mBlockStartAscent;
-  }
-
-  nscoord& Width() { return mWritingMode.IsVertical() ? mBSize : mISize; }
-  nscoord& Height() { return mWritingMode.IsVertical() ? mISize : mBSize; }
-
-  void SetBlockStartAscent(nscoord aAscent)
-  {
-    mBlockStartAscent = aAscent;
-  }
+struct nsHTMLReflowMetrics {
+  nscoord width, height;    // [OUT] desired width and height (border-box)
+  nscoord ascent;           // [OUT] baseline (from top), or ASK_FOR_BASELINE
 
   enum { ASK_FOR_BASELINE = nscoord_MAX };
 
+#ifdef MOZ_MATHML
   // Metrics that _exactly_ enclose the text to allow precise MathML placements.
   // If the NS_REFLOW_CALC_BOUNDING_METRICS flag is set, then the caller is 
   // requesting that you also compute additional details about your inner
@@ -286,10 +245,11 @@ public:
   // msup is the smallest rectangle that _exactly_ encloses both the text
   // of the base and the text of the superscript.
   nsBoundingMetrics mBoundingMetrics;  // [OUT]
+#endif
 
-  // Carried out block-end margin values. This is the collapsed
-  // (generational) block-end margin value.
-  nsCollapsingMargin mCarriedOutBEndMargin;
+  // Carried out bottom margin values. This is the collapsed
+  // (generational) bottom margin value.
+  nsCollapsingMargin mCarriedOutBottomMargin;
 
   // For frames that have content that overflow their content area
   // (HasOverflowAreas() is true) these rectangles represent the total
@@ -316,17 +276,39 @@ public:
   // Union all of mOverflowAreas with (0, 0, width, height).
   void UnionOverflowAreasWithDesiredBounds();
 
-  mozilla::WritingMode GetWritingMode() const { return mWritingMode; }
+  PRUint32 mFlags;
 
-private:
-  nscoord mISize, mBSize; // [OUT] desired width and height (border-box)
-  nscoord mBlockStartAscent; // [OUT] baseline (in Block direction), or ASK_FOR_BASELINE
+  // XXXldb Should |aFlags| generally be passed from parent to child?
+  // Some places do it, and some don't.  |aFlags| should perhaps go away
+  // entirely.
+  nsHTMLReflowMetrics(PRUint32 aFlags = 0) {
+    mFlags = aFlags;
+#ifdef MOZ_MATHML
+    mBoundingMetrics.Clear();
+#endif
 
-public:
-  uint32_t mFlags;
+    // XXX These are OUT parameters and so they shouldn't have to be
+    // initialized, but there are some bad frame classes that aren't
+    // properly setting them when returning from Reflow()...
+    width = height = 0;
+    ascent = ASK_FOR_BASELINE;
+  }
 
-private:
-  mozilla::WritingMode mWritingMode;
+  nsHTMLReflowMetrics& operator=(const nsHTMLReflowMetrics& aOther)
+  {
+    mFlags = aOther.mFlags;
+    mCarriedOutBottomMargin = aOther.mCarriedOutBottomMargin;
+    mOverflowAreas = aOther.mOverflowAreas;
+#ifdef MOZ_MATHML
+    mBoundingMetrics = aOther.mBoundingMetrics;
+#endif
+
+    width = aOther.width;
+    height = aOther.height;
+    ascent = aOther.ascent;
+    return *this;
+  }
+
 };
 
 #endif /* nsHTMLReflowMetrics_h___ */

@@ -1,232 +1,198 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Stuart Parmenter <stuart@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "gfxPattern.h"
-
-#include "gfxUtils.h"
 #include "gfxTypes.h"
+#include "gfxPattern.h"
 #include "gfxASurface.h"
 #include "gfxPlatform.h"
-#include "gfx2DGlue.h"
-#include "gfxGradientCache.h"
-#include "mozilla/gfx/2D.h"
 
 #include "cairo.h"
 
-#include <vector>
-
-using namespace mozilla::gfx;
+gfxPattern::gfxPattern(cairo_pattern_t *aPattern)
+{
+    mPattern = cairo_pattern_reference(aPattern);
+}
 
 gfxPattern::gfxPattern(const gfxRGBA& aColor)
-  : mExtend(EXTEND_NONE)
 {
-  mGfxPattern.InitColorPattern(ToDeviceColor(aColor));
+    mPattern = cairo_pattern_create_rgba(aColor.r, aColor.g, aColor.b, aColor.a);
+}
+
+// from another surface
+gfxPattern::gfxPattern(gfxASurface *surface)
+{
+    mPattern = cairo_pattern_create_for_surface(surface->CairoSurface());
 }
 
 // linear
 gfxPattern::gfxPattern(gfxFloat x0, gfxFloat y0, gfxFloat x1, gfxFloat y1)
-  : mExtend(EXTEND_NONE)
 {
-  mGfxPattern.InitLinearGradientPattern(Point(x0, y0), Point(x1, y1), nullptr);
+    mPattern = cairo_pattern_create_linear(x0, y0, x1, y1);
 }
 
 // radial
 gfxPattern::gfxPattern(gfxFloat cx0, gfxFloat cy0, gfxFloat radius0,
                        gfxFloat cx1, gfxFloat cy1, gfxFloat radius1)
-  : mExtend(EXTEND_NONE)
 {
-  mGfxPattern.InitRadialGradientPattern(Point(cx0, cy0), Point(cx1, cy1),
-                                        radius0, radius1, nullptr);
+    mPattern = cairo_pattern_create_radial(cx0, cy0, radius0,
+                                           cx1, cy1, radius1);
 }
 
-// Azure
-gfxPattern::gfxPattern(SourceSurface *aSurface, const Matrix &aPatternToUserSpace)
-  : mPatternToUserSpace(aPatternToUserSpace)
-  , mExtend(EXTEND_NONE)
+gfxPattern::~gfxPattern()
 {
-  mGfxPattern.InitSurfacePattern(aSurface, ToExtendMode(mExtend), Matrix(), // matrix is overridden in GetPattern()
-                                 mozilla::gfx::Filter::GOOD);
+    cairo_pattern_destroy(mPattern);
+}
+
+cairo_pattern_t *
+gfxPattern::CairoPattern()
+{
+    return mPattern;
 }
 
 void
 gfxPattern::AddColorStop(gfxFloat offset, const gfxRGBA& c)
 {
-  if (mGfxPattern.GetPattern()->GetType() != PatternType::LINEAR_GRADIENT &&
-      mGfxPattern.GetPattern()->GetType() != PatternType::RADIAL_GRADIENT) {
-    return;
-  }
+    if (gfxPlatform::GetCMSMode() == eCMSMode_All) {
+        gfxRGBA cms;
+        gfxPlatform::TransformPixel(c, cms, gfxPlatform::GetCMSRGBTransform());
 
-  mStops = nullptr;
-
-  GradientStop stop;
-  stop.offset = offset;
-  stop.color = ToDeviceColor(c);
-  mStopsList.AppendElement(stop);
+        // Use the original alpha to avoid unnecessary float->byte->float
+        // conversion errors
+        cairo_pattern_add_color_stop_rgba(mPattern, offset,
+                                          cms.r, cms.g, cms.b, c.a);
+    }
+    else
+        cairo_pattern_add_color_stop_rgba(mPattern, offset, c.r, c.g, c.b, c.a);
 }
 
 void
-gfxPattern::SetColorStops(GradientStops* aStops)
+gfxPattern::SetMatrix(const gfxMatrix& matrix)
 {
-  mStops = aStops;
-}
-
-void
-gfxPattern::CacheColorStops(const DrawTarget *aDT)
-{
-  mStops = gfxGradientCache::GetOrCreateGradientStops(aDT, mStopsList,
-                                                      ToExtendMode(mExtend));
-}
-
-void
-gfxPattern::SetMatrix(const gfxMatrix& aPatternToUserSpace)
-{
-  mPatternToUserSpace = ToMatrix(aPatternToUserSpace);
-  // Cairo-pattern matrices specify the conversion from DrawTarget to pattern
-  // space. Azure pattern matrices specify the conversion from pattern to
-  // DrawTarget space.
-  mPatternToUserSpace.Invert();
+    cairo_matrix_t mat = *reinterpret_cast<const cairo_matrix_t*>(&matrix);
+    cairo_pattern_set_matrix(mPattern, &mat);
 }
 
 gfxMatrix
 gfxPattern::GetMatrix() const
 {
-  // invert at the higher precision of gfxMatrix
-  // cause we need to convert at some point anyways
-  gfxMatrix mat = ThebesMatrix(mPatternToUserSpace);
-  mat.Invert();
-  return mat;
-}
-
-gfxMatrix
-gfxPattern::GetInverseMatrix() const
-{
-  return ThebesMatrix(mPatternToUserSpace);
-}
-
-Pattern*
-gfxPattern::GetPattern(const DrawTarget *aTarget,
-                       Matrix *aOriginalUserToDevice)
-{
-  Matrix patternToUser = mPatternToUserSpace;
-
-  if (aOriginalUserToDevice &&
-      *aOriginalUserToDevice != aTarget->GetTransform()) {
-    // mPatternToUserSpace maps from pattern space to the original user space,
-    // but aTarget now has a transform to a different user space.  In order for
-    // the Pattern* that we return to be usable in aTarget's new user space we
-    // need the Pattern's mMatrix to be the transform from pattern space to
-    // aTarget's -new- user space.  That transform is equivalent to the
-    // transform from pattern space to original user space (patternToUser),
-    // multiplied by the transform from original user space to device space,
-    // multiplied by the transform from device space to current user space.
-
-    Matrix deviceToCurrentUser = aTarget->GetTransform();
-    deviceToCurrentUser.Invert();
-
-    patternToUser = patternToUser * *aOriginalUserToDevice * deviceToCurrentUser;
-  }
-  patternToUser.NudgeToIntegers();
-
-  if (!mStops &&
-      !mStopsList.IsEmpty()) {
-    mStops = aTarget->CreateGradientStops(mStopsList.Elements(),
-                                          mStopsList.Length(),
-                                          ToExtendMode(mExtend));
-  }
-
-  switch (mGfxPattern.GetPattern()->GetType()) {
-  case PatternType::SURFACE: {
-    SurfacePattern* surfacePattern = static_cast<SurfacePattern*>(mGfxPattern.GetPattern());
-    surfacePattern->mMatrix = patternToUser;
-    surfacePattern->mExtendMode = ToExtendMode(mExtend);
-    break;
-  }
-  case PatternType::LINEAR_GRADIENT: {
-    LinearGradientPattern* linearGradientPattern = static_cast<LinearGradientPattern*>(mGfxPattern.GetPattern());
-    linearGradientPattern->mMatrix = patternToUser;
-    linearGradientPattern->mStops = mStops;
-    break;
-  }
-  case PatternType::RADIAL_GRADIENT: {
-    RadialGradientPattern* radialGradientPattern = static_cast<RadialGradientPattern*>(mGfxPattern.GetPattern());
-    radialGradientPattern->mMatrix = patternToUser;
-    radialGradientPattern->mStops = mStops;
-    break;
-  }
-  default:
-    /* Reassure the compiler we are handling all the enum values.  */
-    break;
-  }
-
-  return mGfxPattern.GetPattern();
+    cairo_matrix_t mat;
+    cairo_pattern_get_matrix(mPattern, &mat);
+    return gfxMatrix(*reinterpret_cast<gfxMatrix*>(&mat));
 }
 
 void
 gfxPattern::SetExtend(GraphicsExtend extend)
 {
-  mExtend = extend;
-  mStops = nullptr;
-}
+    if (extend == EXTEND_PAD_EDGE) {
+        if (cairo_pattern_get_type(mPattern) == CAIRO_PATTERN_TYPE_SURFACE) {
+            cairo_surface_t *surf = NULL;
 
-bool
-gfxPattern::IsOpaque()
-{
-  if (mGfxPattern.GetPattern()->GetType() != PatternType::SURFACE) {
-    return false;
-  }
+            cairo_pattern_get_surface (mPattern, &surf);
+            if (surf) {
+                switch (cairo_surface_get_type(surf)) {
+                    case CAIRO_SURFACE_TYPE_WIN32_PRINTING:
+                    case CAIRO_SURFACE_TYPE_QUARTZ:
+                        extend = EXTEND_NONE;
+                        break;
 
-  if (static_cast<SurfacePattern*>(mGfxPattern.GetPattern())->mSurface->GetFormat() == SurfaceFormat::B8G8R8X8) {
-    return true;
-  }
-  return false;
+                    case CAIRO_SURFACE_TYPE_WIN32:
+                    case CAIRO_SURFACE_TYPE_XLIB:
+                    default:
+                        extend = EXTEND_PAD;
+                        break;
+                }
+            }
+        }
+
+        // if something went wrong, or not a surface pattern, use PAD
+        if (extend == EXTEND_PAD_EDGE)
+            extend = EXTEND_PAD;
+    }
+
+    cairo_pattern_set_extend(mPattern, (cairo_extend_t)extend);
 }
 
 gfxPattern::GraphicsExtend
 gfxPattern::Extend() const
 {
-  return mExtend;
+    return (GraphicsExtend)cairo_pattern_get_extend(mPattern);
 }
 
 void
 gfxPattern::SetFilter(GraphicsFilter filter)
 {
-  if (mGfxPattern.GetPattern()->GetType() != PatternType::SURFACE) {
-    return;
-  }
-
-  static_cast<SurfacePattern*>(mGfxPattern.GetPattern())->mFilter = ToFilter(filter);
+    cairo_pattern_set_filter(mPattern, (cairo_filter_t)filter);
 }
 
-GraphicsFilter
+gfxPattern::GraphicsFilter
 gfxPattern::Filter() const
 {
-  if (mGfxPattern.GetPattern()->GetType() != PatternType::SURFACE) {
-    return GraphicsFilter::FILTER_GOOD;
-  }
-  return ThebesFilter(static_cast<const SurfacePattern*>(mGfxPattern.GetPattern())->mFilter);
+    return (GraphicsFilter)cairo_pattern_get_filter(mPattern);
 }
 
-bool
+PRBool
 gfxPattern::GetSolidColor(gfxRGBA& aColor)
 {
-  if (mGfxPattern.GetPattern()->GetType() == PatternType::COLOR) {
-    aColor = ThebesColor(static_cast<ColorPattern*>(mGfxPattern.GetPattern())->mColor);
-    return true;
-  }
+    return cairo_pattern_get_rgba(mPattern,
+                                  &aColor.r,
+                                  &aColor.g,
+                                  &aColor.b,
+                                  &aColor.a) == CAIRO_STATUS_SUCCESS;
+}
 
- return false;
+already_AddRefed<gfxASurface>
+gfxPattern::GetSurface()
+{
+    cairo_surface_t *surf = nsnull;
+
+    if (cairo_pattern_get_surface (mPattern, &surf) != CAIRO_STATUS_SUCCESS)
+        return nsnull;
+
+    return gfxASurface::Wrap(surf);
 }
 
 gfxPattern::GraphicsPatternType
 gfxPattern::GetType() const
 {
-  return ThebesPatternType(mGfxPattern.GetPattern()->GetType());
+    return (GraphicsPatternType) cairo_pattern_get_type(mPattern);
 }
 
 int
 gfxPattern::CairoStatus()
 {
-  return CAIRO_STATUS_SUCCESS;
+    return cairo_pattern_status(mPattern);
 }

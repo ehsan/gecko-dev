@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsISupports.idl"
 
@@ -13,7 +45,7 @@
  * This service will eventually get replaced by extending xpidl to allow errors to be defined.
  * (http://bugzilla.mozilla.org/show_bug.cgi?id=13423).
  */
-[scriptable, uuid(afe1f190-a3c2-11e3-a5e2-0800200c9a66)]
+[scriptable, uuid(e72f94b2-5f85-11d4-9877-00c04fa0cf4a)]
 interface nsIErrorService : nsISupports 
 {
     /**
@@ -23,7 +55,7 @@ interface nsIErrorService : nsISupports
     void registerErrorStringBundle(in short errorModule, in string stringBundleURL);
 
     /**
-     * Unregisters a string bundle URL for an error module.
+     * Registers a string bundle URL for an error module.
      */
     void unregisterErrorStringBundle(in short errorModule);
 
@@ -31,6 +63,25 @@ interface nsIErrorService : nsISupports
      * Retrieves a string bundle URL for an error module.
      */
     string getErrorStringBundle(in short errorModule);
+
+    /**
+     * Registers a key in a string bundle for an nsresult error code. Only the code portion
+     * of the nsresult is used (obtained with NS_ERROR_GET_CODE) in this registration. The
+     * string bundle key is used to look up internationalized messages in the string bundle.
+     */
+    void registerErrorStringBundleKey(in nsresult error, in string stringBundleKey);
+    
+    /**
+     * Unregisters a key in a string bundle for an nsresult error code. 
+     */
+    void unregisterErrorStringBundleKey(in nsresult error);
+    
+    /**
+     * Retrieves a key in a string bundle for an nsresult error code. If no key is registered
+     * for the specified nsresult's code (obtained with NS_ERROR_GET_CODE), then the stringified
+     * version of the nsresult code is returned.
+     */
+    string getErrorStringBundleKey(in nsresult error);
 };
 
 %{C++

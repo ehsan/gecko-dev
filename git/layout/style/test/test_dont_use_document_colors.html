@@ -4,6 +4,7 @@
 -->
 <head>
   <title>Test for preference not to use document colors</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
   <style type="text/css">
@@ -42,6 +43,23 @@
 
 SimpleTest.waitForExplicitFinish();
 
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+var prefService = Components.classes["@mozilla.org/preferences-service;1"].
+                    getService(Components.interfaces.nsIPrefService);
+var dispBranch = prefService.getBranch("browser.display.");
+
+function get_pref()
+{
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    return dispBranch.getBoolPref("use_document_colors");
+}
+
+function set_pref(val)
+{
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    dispBranch.setBoolPref("use_document_colors", val);
+}
+
 var cs1 = getComputedStyle(document.getElementById("one"), "");
 var cs2 = getComputedStyle(document.getElementById("two"), "");
 var cs3 = getComputedStyle(document.getElementById("three"), "");
@@ -50,7 +68,10 @@ var cs5 = getComputedStyle(document.getElementById("five"), "");
 var cs6 = getComputedStyle(document.getElementById("six"), "");
 var cs7 = getComputedStyle(document.getElementById("seven"), "");
 
-SpecialPowers.pushPrefEnv({'set': [['browser.display.document_color_use', 1]]}, part1);
+
+var oldVal = get_pref();
+set_pref(true);
+setTimeout(part1, 0);
 
 var transparentBackgroundColor;
 var inputBackgroundColor, inputColor, inputBorderTopColor;
@@ -121,7 +142,8 @@ function part1()
     inputBorderRightColor = cs4.borderRightColor;
     inputBorderLeftColor = cs4.borderLeftColor;
     inputBorderBottomColor = cs4.borderBottomColor;
-    SpecialPowers.pushPrefEnv({'set': [['browser.display.document_color_use', 2]]}, part2);
+    set_pref(false);
+    setTimeout(part2, 0);
 }
 
 function part2()
@@ -177,6 +199,7 @@ function part2()
     is(cs4.borderBottomColor, inputBorderBottomColor,
        "border-bottom-color not broken on inputs");
 
+    set_pref(oldVal);
     SimpleTest.finish();
 }
 

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Jeff Walden <jwalden+code@mit.edu>.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Test harness for XPCOM objects, providing a scoped XPCOM initializer,
@@ -12,9 +44,6 @@
 #ifndef TestHarness_h__
 #define TestHarness_h__
 
-#include "mozilla/ArrayUtils.h"
-
-#include "prenv.h"
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsCOMPtr.h"
@@ -26,13 +55,12 @@
 #include "nsIDirectoryService.h"
 #include "nsIFile.h"
 #include "nsIProperties.h"
-#include "nsIObserverService.h"
 #include "nsXULAppAPI.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 
-static uint32_t gFailCount = 0;
+static PRUint32 gFailCount = 0;
 
 /**
  * Prints the given failure message and arguments using printf, prepending
@@ -54,22 +82,148 @@ void fail(const char* msg, ...)
 }
 
 /**
- * Prints the given success message and arguments using printf, prepending
- * "TEST-PASS " for the benefit of the test harness and
- * appending "\n" to eliminate having to type it at each call site.
+ * Prints the given string prepending "TEST-PASS | " for the benefit of
+ * the test harness and with "\n" at the end, to be used at the end of a
+ * successful test function.
  */
-void passed(const char* msg, ...)
+void passed(const char* test)
 {
-  va_list ap;
-
-  printf("TEST-PASS | ");
-
-  va_start(ap, msg);
-  vprintf(msg, ap);
-  va_end(ap);
-
-  putchar('\n');
+  printf("TEST-PASS | %s\n", test);
 }
+
+//-----------------------------------------------------------------------------
+// Code profiling
+//
+static const char* gCurrentProfile;
+static PRBool gProfilerTriedInit = PR_FALSE;
+static PRBool gProfilerInited = PR_FALSE;
+
+// Platform profilers must implement these functions.
+// Init and deinit are guaranteed to only be called once, and
+// StartProfile/StopProfile may assume that they are only called
+// when the profiler has successfully been initialized.
+static PRBool _PlatformInitProfiler();
+static PRBool _PlatformStartProfile(const char* profileName);
+static PRBool _PlatformStopProfile(const char* profileName);
+static PRBool _PlatformDeinitProfiler();
+
+/**
+ * If the build has been configured properly, start the best code profiler
+ * available on this platform.
+ *
+ * This is NOT thread safe.
+ *
+ * @precondition Profiling is not started
+ * @param profileName A descriptive name for this profiling run.  Every 
+ *                    attempt is made to name the profile data according
+ *                    to this name, but check your platform's profiler
+ *                    documentation for what this means.
+ * @return PR_TRUE if profiling was available and successfully started.
+ * @see StopProfiling
+ */
+inline PRBool
+StartProfiling(const char* profileName)
+{
+    if (!gProfilerTriedInit) {
+        gProfilerTriedInit = PR_TRUE;
+        gProfilerInited = _PlatformInitProfiler();
+    }
+    if (!gProfilerInited)
+        return PR_FALSE;
+
+    NS_ASSERTION(profileName, "need a name for this profile");
+    NS_PRECONDITION(!gCurrentProfile, "started a new profile before stopping another");
+
+    PRBool rv = _PlatformStartProfile(profileName);
+    gCurrentProfile = profileName;
+    return rv;
+}
+
+/**
+ * Stop the platform's profiler.  For what this means, what happens after
+ * stopping, and how the profile data can be accessed, check the 
+ * documentation of your platform's profiler.
+ *
+ * This is NOT thread safe.
+ *
+ * @precondition Profiling was started
+ * @return PR_TRUE if profiling was successfully stopped.
+ * @see StartProfiling
+ */
+inline PRBool
+StopProfiling()
+{
+    NS_ASSERTION(gProfilerTriedInit, "tried to stop profile before starting one");
+    if (!gProfilerInited)
+        return PR_FALSE;
+
+    NS_PRECONDITION(gCurrentProfile, "tried to stop profile before starting one");
+
+    const char* profileName = gCurrentProfile;
+    gCurrentProfile = 0;
+    return _PlatformStopProfile(profileName);
+}
+
+//--------------------------------------------------
+// Shark impl
+#if defined(MOZ_SHARK)
+#include "jsdbgapi.h"
+
+static PRBool
+_PlatformInitProfiler()
+{
+    return PR_TRUE;
+}
+
+static PRBool
+_PlatformStartProfile(const char* profileName)
+{
+    return JS_StartProfiling() ? PR_TRUE : PR_FALSE;
+}
+
+static PRBool
+_PlatformStopProfile(const char* profileName)
+{
+    JS_StopProfiling();
+    return PR_TRUE;
+}
+
+static PRBool
+_PlatformDeinitProfiler()
+{
+    return PR_TRUE;
+}
+
+//--------------------------------------------------
+// Default, no-profiler impl
+#else 
+
+static PRBool
+_PlatformInitProfiler()
+{
+    NS_WARNING("Profiling is not available/configured for your platform.");
+    return PR_FALSE;
+}
+static PRBool
+_PlatformStartProfile(const char* profileName)
+{
+    NS_WARNING("Profiling is not available/configured for your platform.");
+    return PR_FALSE;
+}
+static PRBool
+_PlatformStopProfile(const char* profileName)
+{
+    NS_WARNING("Profiling is not available/configured for your platform.");
+    return PR_FALSE;
+}
+static PRBool
+_PlatformDeinitProfiler()
+{
+    NS_WARNING("Profiling is not available/configured for your platform.");
+    return PR_FALSE;
+}
+
+#endif
 
 //-----------------------------------------------------------------------------
 
@@ -92,47 +246,40 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
   public:
     NS_DECL_ISUPPORTS
 
-    explicit ScopedXPCOM(const char* testName,
-                         nsIDirectoryServiceProvider *dirSvcProvider = nullptr)
+    ScopedXPCOM(const char* testName,
+                nsIDirectoryServiceProvider *dirSvcProvider = NULL)
     : mDirSvcProvider(dirSvcProvider)
     {
       mTestName = testName;
       printf("Running %s tests...\n", mTestName);
 
-      nsresult rv = NS_InitXPCOM2(&mServMgr, nullptr, this);
+      nsresult rv = NS_InitXPCOM2(&mServMgr, NULL, this);
       if (NS_FAILED(rv))
       {
         fail("NS_InitXPCOM2 returned failure code 0x%x", rv);
-        mServMgr = nullptr;
+        mServMgr = NULL;
         return;
       }
     }
 
     ~ScopedXPCOM()
     {
+      if (gProfilerInited)
+        if (!_PlatformDeinitProfiler())
+          NS_WARNING("Problem shutting down profiler");
+
       // If we created a profile directory, we need to remove it.
       if (mProfD) {
-        nsCOMPtr<nsIObserverService> os =
-          do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-        MOZ_ASSERT(os);
-        if (os) {
-          MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->NotifyObservers(nullptr, "profile-change-net-teardown", nullptr)));
-          MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->NotifyObservers(nullptr, "profile-change-teardown", nullptr)));
-          MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->NotifyObservers(nullptr, "profile-before-change", nullptr)));
-          MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->NotifyObservers(nullptr, "profile-before-change2", nullptr)));
-        }
+        if (NS_FAILED(mProfD->Remove(PR_TRUE)))
+          NS_WARNING("Problem removing profile direrctory");
 
-        if (NS_FAILED(mProfD->Remove(true))) {
-          NS_WARNING("Problem removing profile directory");
-        }
-
-        mProfD = nullptr;
+        mProfD = nsnull;
       }
 
       if (mServMgr)
       {
         NS_RELEASE(mServMgr);
-        nsresult rv = NS_ShutdownXPCOM(nullptr);
+        nsresult rv = NS_ShutdownXPCOM(NULL);
         if (NS_FAILED(rv))
         {
           fail("XPCOM shutdown failed with code 0x%x", rv);
@@ -143,84 +290,39 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
       printf("Finished running %s tests.\n", mTestName);
     }
 
-    bool failed()
+    PRBool failed()
     {
-      return mServMgr == nullptr;
+      return mServMgr == NULL;
     }
 
     already_AddRefed<nsIFile> GetProfileDirectory()
     {
       if (mProfD) {
-        nsCOMPtr<nsIFile> copy = mProfD;
-        return copy.forget();
+        NS_ADDREF(mProfD);
+        return mProfD.get();
       }
 
       // Create a unique temporary folder to use for this test.
-      // Note that runcppunittests.py will run tests with a temp
-      // directory as the cwd, so just put something under that.
       nsCOMPtr<nsIFile> profD;
-      nsresult rv = NS_GetSpecialDirectory(NS_OS_CURRENT_PROCESS_DIR,
+      nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR,
                                            getter_AddRefs(profD));
-      NS_ENSURE_SUCCESS(rv, nullptr);
+      NS_ENSURE_SUCCESS(rv, nsnull);
 
       rv = profD->Append(NS_LITERAL_STRING("cpp-unit-profd"));
-      NS_ENSURE_SUCCESS(rv, nullptr);
+      NS_ENSURE_SUCCESS(rv, nsnull);
 
       rv = profD->CreateUnique(nsIFile::DIRECTORY_TYPE, 0755);
-      NS_ENSURE_SUCCESS(rv, nullptr);
+      NS_ENSURE_SUCCESS(rv, nsnull);
 
       mProfD = profD;
       return profD.forget();
     }
 
-    already_AddRefed<nsIFile> GetGREDirectory()
-    {
-      if (mGRED) {
-        nsCOMPtr<nsIFile> copy = mGRED;
-        return copy.forget();
-      }
-
-      char* env = PR_GetEnv("MOZ_XRE_DIR");
-      nsCOMPtr<nsIFile> greD;
-      if (env) {
-        NS_NewLocalFile(NS_ConvertUTF8toUTF16(env), false,
-                        getter_AddRefs(greD));
-      }
-
-      mGRED = greD;
-      return greD.forget();
-    }
-
-    already_AddRefed<nsIFile> GetGREBinDirectory()
-    {
-      if (mGREBinD) {
-        nsCOMPtr<nsIFile> copy = mGREBinD;
-        return copy.forget();
-      }
-
-      nsCOMPtr<nsIFile> greD = GetGREDirectory();
-      if (!greD) {
-        return greD.forget();
-      }
-      greD->Clone(getter_AddRefs(mGREBinD));
-
-#ifdef XP_MACOSX
-      nsAutoCString leafName;
-      mGREBinD->GetNativeLeafName(leafName);
-      if (leafName.Equals("Resources")) {
-        mGREBinD->SetNativeLeafName(NS_LITERAL_CSTRING("MacOS"));
-      }
-#endif
-
-      nsCOMPtr<nsIFile> copy = mGREBinD;
-      return copy.forget();
-    }
-
     ////////////////////////////////////////////////////////////////////////////
     //// nsIDirectoryServiceProvider
 
-    NS_IMETHODIMP GetFile(const char *aProperty, bool *_persistent,
-                          nsIFile **_result) MOZ_OVERRIDE
+    NS_IMETHODIMP GetFile(const char *aProperty, PRBool *_persistent,
+                          nsIFile **_result)
     {
       // If we were supplied a directory service provider, ask it first.
       if (mDirSvcProvider &&
@@ -240,22 +342,8 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
         nsresult rv = profD->Clone(getter_AddRefs(clone));
         NS_ENSURE_SUCCESS(rv, rv);
 
-        *_persistent = true;
+        *_persistent = PR_TRUE;
         clone.forget(_result);
-        return NS_OK;
-      } else if (0 == strcmp(aProperty, NS_GRE_DIR)) {
-        nsCOMPtr<nsIFile> greD = GetGREDirectory();
-        NS_ENSURE_TRUE(greD, NS_ERROR_FAILURE);
-
-        *_persistent = true;
-        greD.forget(_result);
-        return NS_OK;
-      } else if (0 == strcmp(aProperty, NS_GRE_BIN_DIR)) {
-        nsCOMPtr<nsIFile> greBinD = GetGREBinDirectory();
-        NS_ENSURE_TRUE(greBinD, NS_ERROR_FAILURE);
-
-        *_persistent = true;
-        greBinD.forget(_result);
         return NS_OK;
       }
 
@@ -265,7 +353,7 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
     ////////////////////////////////////////////////////////////////////////////
     //// nsIDirectoryServiceProvider2
 
-    NS_IMETHODIMP GetFiles(const char *aProperty, nsISimpleEnumerator **_enum) MOZ_OVERRIDE
+    NS_IMETHODIMP GetFiles(const char *aProperty, nsISimpleEnumerator **_enum)
     {
       // If we were supplied a directory service provider, ask it first.
       nsCOMPtr<nsIDirectoryServiceProvider2> provider =
@@ -282,23 +370,21 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
     nsIServiceManager* mServMgr;
     nsCOMPtr<nsIDirectoryServiceProvider> mDirSvcProvider;
     nsCOMPtr<nsIFile> mProfD;
-    nsCOMPtr<nsIFile> mGRED;
-    nsCOMPtr<nsIFile> mGREBinD;
 };
 
-NS_IMPL_QUERY_INTERFACE(
+NS_IMPL_QUERY_INTERFACE2(
   ScopedXPCOM,
   nsIDirectoryServiceProvider,
   nsIDirectoryServiceProvider2
 )
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 ScopedXPCOM::AddRef()
 {
   return 2;
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 ScopedXPCOM::Release()
 {
   return 1;

@@ -1,13 +1,9 @@
-// |reftest| skip-if(!xulRuntime.shell&&(Android||xulRuntime.OS=="WINNT")) silentfail
 /*
  * Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/licenses/publicdomain/
  *
  * Author: Christian Holler <decoder@own-hero.net>
  */
-
-expectExitCode(0);
-expectExitCode(5);
 
 /* Length of 32 */
 var foo = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -22,15 +18,15 @@ foo += "a";
 
 var bar = "bbbbbbbbbbbbbbbb";
 
-/* Make len(bar) 8192 */
-for (i = 0; i < 9; ++i) {
+/* Make len(bar) 65536 */
+for (i = 0; i < 12; ++i) {
     bar += bar;
 }
 
 /* 
  * Resulting string should be 
- * len(foo) * len(bar) = (2**10 * 32 + 1) * 8192 = 268443648
- * which will be larger than the max string length (2**28, or 268435456).
+ * len(foo)*len(bar) = (2^10 * 32 + 1) * 65536 = 2147549184 
+ * which will be negative as jsint
  */
 try {
     foo.replace(/[a]/g, bar);
@@ -39,4 +35,4 @@ try {
 }
 reportCompare(true, true, "No crash occurred.");
 
-print("Tests complete");
+print("All tests passed!");

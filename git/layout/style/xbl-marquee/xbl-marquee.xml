@@ -1,7 +1,41 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - The Original Code is Netscape's XBL Marquee Emulation code.
+   -
+   - The Initial Developer of the Original Code is
+   - Netscape Communications Corporation.
+   - Portions created by the Initial Developer are Copyright (C) 2002
+   - the Initial Developer. All Rights Reserved.
+   -
+   - Contributor(s):
+   -   Doron Rosenberg <doron@netscape.com>
+   -   L. David Baron <dbaron@dbaron.org>
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either the GNU General Public License Version 2 or later (the "GPL"), or
+   - the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the LGPL or the GPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
 
 <bindings id="marqueeBindings"
           xmlns="http://www.mozilla.org/xbl"
@@ -10,14 +44,15 @@
           xmlns:xbl="http://www.mozilla.org/xbl">
 
 
-  <binding id="marquee" bindToUntrustedContent="true">
+  <binding id="marquee">
 
     <resources>
       <stylesheet src="chrome://xbl-marquee/content/xbl-marquee.css"/>
     </resources>
     <implementation>
 
-      <property name="scrollAmount" exposeToUntrustedContent="true">
+      <field name="_scrollAmount">6</field>
+      <property name="scrollAmount">
         <getter>
           <![CDATA[
           var val = parseInt(this.getAttribute("scrollamount"));
@@ -33,7 +68,8 @@
         </setter>
       </property>
 
-      <property name="scrollDelay" exposeToUntrustedContent="true">
+      <field name="_scrollDelay">85</field>
+      <property name="scrollDelay">
         <getter>
           <![CDATA[
           var val = parseInt(this.getAttribute("scrolldelay"));
@@ -49,7 +85,7 @@
         </setter>
       </property>
 
-      <property name="trueSpeed" exposeToUntrustedContent="true">
+      <property name="trueSpeed">
         <getter>
           <![CDATA[
           if (!this.hasAttribute("truespeed"))
@@ -68,7 +104,7 @@
         </setter>
       </property>
 
-      <property name="direction" exposeToUntrustedContent="true">
+      <property name="direction">
         <getter>
           return this.getAttribute("direction");
         </getter>
@@ -77,7 +113,9 @@
         </setter>
       </property>
 
-      <property name="behavior" exposeToUntrustedContent="true">
+      <field name="_direction">"left"</field>
+
+      <property name="behavior">
         <getter>
           return this._behavior;
         </getter>
@@ -86,8 +124,9 @@
         </setter>
       </property>
 
+      <field name="_behavior">"scroll"</field>
 
-      <property name="loop" exposeToUntrustedContent="true">
+      <property name="loop">
         <getter>
           <![CDATA[
           var val = parseInt(this.getAttribute('loop'));
@@ -103,8 +142,9 @@
         </setter>
       </property>
 
+      <field name="_loop">-1</field>
 
-      <property name="onstart" exposeToUntrustedContent="true">
+      <property name="onstart">
         <getter>
           return this.getAttribute("onstart");
         </getter>
@@ -114,7 +154,9 @@
         </setter>
       </property>
 
-      <property name="onfinish" exposeToUntrustedContent="true">
+      <field name="_onstart"></field>
+
+      <property name="onfinish">
         <getter>
           return this.getAttribute("onfinish");
         </getter>
@@ -124,7 +166,9 @@
         </setter>
       </property>
 
-      <property name="onbounce" exposeToUntrustedContent="true">
+      <field name="_onfinish"></field>
+
+      <property name="onbounce">
         <getter>
           return this.getAttribute("onbounce");
         </getter>
@@ -134,6 +178,17 @@
         </setter>
       </property>
 
+      <field name="_onbounce"></field>
+
+      <field name="dirsign">1</field>
+      <field name="startAt">0</field>
+      <field name="stopAt">0</field>
+      <field name="newPosition">0</field>
+      <field name="runId">0</field>
+
+      <field name="originalHeight">0</field>
+      <field name="startNewDirection">true</field>
+
       <property name="outerDiv"
         onget="return document.getAnonymousNodes(this)[0]"
       />
@@ -142,12 +197,12 @@
         onget="return document.getAnonymousElementByAttribute(this, 'class', 'innerDiv');"
       />
 
-      <property name="height" exposeToUntrustedContent="true"
+      <property name="height"
         onget="return this.getAttribute('height');"
         onset="this.setAttribute('height', val);"
       />
 
-      <property name="width" exposeToUntrustedContent="true"
+      <property name="width"
         onget="return this.getAttribute('width');"
         onset="this.setAttribute('width', val);"
       />
@@ -259,8 +314,7 @@
             case "string":
               if (!aIgnoreNextCall) {
                 try {
-                  // Function Xrays make this simple and safe. \o/
-                  this["_on" + aName] = new window.Function("event", aValue);
+                  this["_on" + aName] = new Function("event", aValue);
                 }
                 catch(e) {
                   return false;
@@ -298,7 +352,7 @@
         </body>
       </method>
 
-      <method name="start" exposeToUntrustedContent="true">
+      <method name="start">
         <body>
         <![CDATA[
           if (this.runId == 0) {
@@ -311,7 +365,7 @@
         </body>
       </method>
 
-      <method name="stop" exposeToUntrustedContent="true">
+      <method name="stop">
         <body>
         <![CDATA[
           if (this.runId != 0) {
@@ -490,20 +544,6 @@
 
       <constructor>
         <![CDATA[
-          // Set up state.
-          this._scrollAmount = 6;
-          this._scrollDelay = 85;
-          this._direction = "left";
-          this._behavior = "scroll";
-          this._loop = -1;
-          this.dirsign = 1;
-          this.startAt = 0;
-          this.stopAt = 0;
-          this.newPosition = 0;
-          this.runId = 0;
-          this.originalHeight = 0;
-          this.startNewDirection = true;
-
           // hack needed to fix js error, see bug 386470
           var myThis = this;
           var lambda = function myScopeFunction() { if (myThis.init) myThis.init(); }
@@ -623,7 +663,7 @@
 
   </binding>
 
-  <binding id="marquee-horizontal" bindToUntrustedContent="true"
+  <binding id="marquee-horizontal"
            extends="chrome://xbl-marquee/content/xbl-marquee.xml#marquee"
            inheritstyle="false">
 
@@ -643,7 +683,7 @@
 
   </binding>
 
-  <binding id="marquee-vertical" bindToUntrustedContent="true"
+  <binding id="marquee-vertical"
            extends="chrome://xbl-marquee/content/xbl-marquee.xml#marquee"
            inheritstyle="false">
 
@@ -659,7 +699,7 @@
 
   </binding>
 
-  <binding id="marquee-horizontal-editable" bindToUntrustedContent="true"
+  <binding id="marquee-horizontal-editable"
            inheritstyle="false">
 
     <!-- White-space isn't allowed because a marquee could be 
@@ -672,7 +712,7 @@
 
   </binding>
 
-  <binding id="marquee-vertical-editable" bindToUntrustedContent="true"
+  <binding id="marquee-vertical-editable"
            inheritstyle="false">
 
     <!-- White-space isn't allowed because a marquee could be 

@@ -1,28 +1,51 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Novell code.
+ *
+ * The Initial Developer of the Original Code is Novell.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   rocallahan@novell.com
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef GFXXLIBNATIVERENDER_H_
 #define GFXXLIBNATIVERENDER_H_
 
-#include "nsPoint.h"
+#include "gfxColor.h"
+#include "nsAutoPtr.h"
 #include "nsRect.h"
 #include <X11/Xlib.h>
 
-namespace mozilla {
-namespace gfx {
-  class DrawTarget;
-}
-}
-
 class gfxASurface;
+class gfxXlibSurface;
 class gfxContext;
-struct nsIntRect;
-struct nsIntPoint;
-struct nsIntSize;
-typedef struct _cairo cairo_t;
-typedef struct _cairo_surface cairo_surface_t;
 
 /**
  * This class lets us take code that draws into an X drawable and lets us
@@ -30,14 +53,15 @@ typedef struct _cairo_surface cairo_surface_t;
  * override DrawWithXib, and then call Draw(). The drawing will be subjected
  * to all Thebes transformations, clipping etc.
  */
-class gfxXlibNativeRenderer {
+class THEBES_API gfxXlibNativeRenderer {
 public:
     /**
      * Perform the native drawing.
-     * @param surface the cairo_surface_t for drawing. Must be a cairo_xlib_surface_t.
+     * @param surface the drawable for drawing.
      *                The extents of this surface do not necessarily cover the
      *                entire rectangle with size provided to Draw().
-     * @param offset  draw at this offset into the given drawable
+     * @param offsetX draw at this offset into the given drawable
+     * @param offsetY draw at this offset into the given drawable
      * @param clipRects an array of rectangles; clip to the union.
      *                  Any rectangles provided will be contained by the
      *                  rectangle with size provided to Draw and by the
@@ -45,9 +69,9 @@ public:
      * @param numClipRects the number of rects in the array, or zero if
      *                     no clipping is required.
      */
-    virtual nsresult DrawWithXlib(cairo_surface_t* surface,
+    virtual nsresult DrawWithXlib(gfxXlibSurface* surface,
                                   nsIntPoint offset,
-                                  nsIntRect* clipRects, uint32_t numClipRects) = 0;
+                                  nsIntRect* clipRects, PRUint32 numClipRects) = 0;
   
     enum {
         // If set, then Draw() is opaque, i.e., every pixel in the intersection
@@ -70,6 +94,13 @@ public:
         DRAW_SUPPORTS_ALTERNATE_SCREEN = 0x20
     };
 
+    struct DrawOutput {
+        nsRefPtr<gfxASurface> mSurface;
+        PRPackedBool mUniformAlpha;
+        PRPackedBool mUniformColor;
+        gfxRGBA      mColor;
+    };
+
     /**
      * @param flags see above
      * @param size the size of the rectangle being drawn;
@@ -80,25 +111,18 @@ public:
      * @param result if non-null, we will try to capture a copy of the
      * rendered image into a surface similar to the surface of ctx; if
      * successful, a pointer to the new gfxASurface is stored in *resultSurface,
-     * otherwise *resultSurface is set to nullptr.
+     * otherwise *resultSurface is set to nsnull.
      */
     void Draw(gfxContext* ctx, nsIntSize size,
-              uint32_t flags, Screen *screen, Visual *visual);
+              PRUint32 flags, Screen *screen, Visual *visual,
+              DrawOutput* result);
 
 private:
-    bool DrawDirect(gfxContext *ctx, nsIntSize bounds,
-                    uint32_t flags, Screen *screen, Visual *visual);
+    PRBool DrawDirect(gfxContext *ctx, nsIntSize bounds,
+                      PRUint32 flags, Screen *screen, Visual *visual);
 
-    bool DrawCairo(cairo_t* cr, nsIntSize size,
-                   uint32_t flags, Screen *screen, Visual *visual);
-
-    void DrawFallback(mozilla::gfx::DrawTarget* dt, gfxContext* ctx,
-                      gfxASurface* aSurface, nsIntSize& size,
-                      nsIntRect& drawingRect, bool canDrawOverBackground,
-                      uint32_t flags, Screen* screen, Visual* visual);
-
-    bool DrawOntoTempSurface(cairo_surface_t *tempXlibSurface,
-                             nsIntPoint offset);
+    PRBool DrawOntoTempSurface(gfxXlibSurface *tempXlibSurface,
+                               nsIntPoint offset);
 
 };
 

@@ -2,6 +2,8 @@
 <head>
   <title>Test for Bug 551434</title>
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
@@ -15,7 +17,7 @@
 
 <input id="i3" onkeydown="gKeyDown3++; frames[0].document.getElementById('i4').focus();"
        onkeypress="gKeyPress3++;" onkeyup="gKeyUp3++;"/>
-<iframe id="iframe" src="http://example.org/chrome/layout/base/tests/chrome/bug551434_childframe.html"></iframe>
+<iframe id="iframe" src="http://example.org/chrome/layout/base/test/chrome/bug551434_childframe.html"></iframe>
 
 <script class="testbody" type="text/javascript">
 
@@ -31,10 +33,11 @@ function runTest()
 
   // key events should not be retargeted when the focus changes to an
   // element in the same document.
-  synthesizeKey("a", { type: "keydown", code: "KeyA", keyCode: KeyboardEvent.DOM_VK_B });
+  synthesizeKey("a", { type: "keydown" });
   is(document.activeElement, $("i2"), "input 2 in focused");
 
-  synthesizeKey("a", { type: "keyup", code: "KeyA", keyCode: KeyboardEvent.DOM_VK_B });
+  synthesizeKey("a", { type: "keypress" });
+  synthesizeKey("a", { type: "keyup" });
 
   is(gKeyDown1, 1, "keydown on input 1");
   is(gKeyPress1, 0, "keypress on input 1");
@@ -52,7 +55,9 @@ function runTest()
 
   var childWinObj = frames[0].wrappedJSObject;
 
-  synthesizeKey("b", { code: "KeyB", keyCode: KeyboardEvent.DOM_VK_B });
+  synthesizeKey("b", { type: "keydown" });
+  synthesizeKey("b", { type: "keypress" });
+  synthesizeKey("b", { type: "keyup" });
   is(gKeyDown3, 1, "keydown on input 3");
   is(gKeyPress3, 1, "keypress on input 3");
   is(gKeyUp3, 1, "keyup on input 3");
@@ -71,7 +76,9 @@ function runTest()
   // element in a chrome document from a content document.
   i4.addEventListener("keydown", function () $("i3").focus(), false);
 
-  synthesizeKey("c", { code: "KeyC", keyCode: KeyboardEvent.DOM_VK_C });
+  synthesizeKey("c", { type: "keydown" });
+  synthesizeKey("c", { type: "keypress" });
+  synthesizeKey("c", { type: "keyup" });
 
   is(gKeyDown3, 1, "keydown on input 3");
   is(gKeyPress3, 1, "keypress on input 3");

@@ -8,8 +8,7 @@
   <title>Test animation of the 'd' attribute on the 'path' element</title>
   <script xlink:href="smil-util.js" type="text/javascript"/>
   <style type="text/css">
-    path { fill: none; stroke: blue; stroke-width: 1px;
-           shape-rendering: crispEdges; }
+    path { fill: none; stroke: blue; stroke-width: 1px; }
   </style>
 
 
@@ -303,7 +302,7 @@
           ">
     <animate attributeName="d"
              calcMode="discrete"
-             begin="0s" dur="2s"
+             begin="0s" dur="20s"
              to="M10,10
                  L40,10
                  l-30,60

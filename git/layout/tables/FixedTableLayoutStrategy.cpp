@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 // vim:cindent:ts=4:et:sw=4:
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla's table layout code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   L. David Baron <dbaron@dbaron.org> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Algorithms that determine column and table widths used for CSS2's
@@ -13,13 +45,12 @@
 #include "nsTableFrame.h"
 #include "nsTableColFrame.h"
 #include "nsTableCellFrame.h"
-#include <algorithm>
 
 FixedTableLayoutStrategy::FixedTableLayoutStrategy(nsTableFrame *aTableFrame)
   : nsITableLayoutStrategy(nsITableLayoutStrategy::Fixed)
   , mTableFrame(aTableFrame)
 {
-    MarkIntrinsicISizesDirty();
+    MarkIntrinsicWidthsDirty();
 }
 
 /* virtual */
@@ -28,7 +59,7 @@ FixedTableLayoutStrategy::~FixedTableLayoutStrategy()
 }
 
 /* virtual */ nscoord
-FixedTableLayoutStrategy::GetMinISize(nsRenderingContext* aRenderingContext)
+FixedTableLayoutStrategy::GetMinWidth(nsIRenderingContext* aRenderingContext)
 {
     DISPLAY_MIN_WIDTH(mTableFrame, mMinWidth);
     if (mMinWidth != NS_INTRINSIC_WIDTH_UNKNOWN)
@@ -39,7 +70,7 @@ FixedTableLayoutStrategy::GetMinISize(nsRenderingContext* aRenderingContext)
     // intrinsic widths inside the first row and then reverse the
     // algorithm to find the narrowest width that would hold all of
     // those intrinsic widths), but it wouldn't be compatible with other
-    // browsers, or with the use of GetMinISize by
+    // browsers, or with the use of GetMinWidth by
     // nsTableFrame::ComputeSize to determine the width of a fixed
     // layout table, since CSS2.1 says:
     //   The width of the table is then the greater of the value of the
@@ -50,24 +81,24 @@ FixedTableLayoutStrategy::GetMinISize(nsRenderingContext* aRenderingContext)
     // XXX Should we really ignore widths on column groups?
 
     nsTableCellMap *cellMap = mTableFrame->GetCellMap();
-    int32_t colCount = cellMap->GetColCount();
+    PRInt32 colCount = cellMap->GetColCount();
+    nscoord spacing = mTableFrame->GetCellSpacingX();
 
     nscoord result = 0;
 
     if (colCount > 0) {
-        result += mTableFrame->GetCellSpacingX(-1, colCount);
+        result += spacing * (colCount + 1);
     }
 
-    for (int32_t col = 0; col < colCount; ++col) {
+    for (PRInt32 col = 0; col < colCount; ++col) {
         nsTableColFrame *colFrame = mTableFrame->GetColFrame(col);
         if (!colFrame) {
             NS_ERROR("column frames out of sync with cell map");
             continue;
         }
-        nscoord spacing = mTableFrame->GetCellSpacingX(col);
         const nsStyleCoord *styleWidth =
-            &colFrame->StylePosition()->mWidth;
-        if (styleWidth->ConvertsToLength()) {
+            &colFrame->GetStylePosition()->mWidth;
+        if (styleWidth->GetUnit() == eStyleUnit_Coord) {
             result += nsLayoutUtils::ComputeWidthValue(aRenderingContext,
                         colFrame, 0, 0, 0, *styleWidth);
         } else if (styleWidth->GetUnit() == eStyleUnit_Percent) {
@@ -75,23 +106,23 @@ FixedTableLayoutStrategy::GetMinISize(nsRenderingContext* aRenderingContext)
         } else {
             NS_ASSERTION(styleWidth->GetUnit() == eStyleUnit_Auto ||
                          styleWidth->GetUnit() == eStyleUnit_Enumerated ||
-                         (styleWidth->IsCalcUnit() && styleWidth->CalcHasPercent()),
+                         styleWidth->IsCalcUnit(),
                          "bad width");
 
             // The 'table-layout: fixed' algorithm considers only cells
             // in the first row.
-            bool originates;
-            int32_t colSpan;
+            PRBool originates;
+            PRInt32 colSpan;
             nsTableCellFrame *cellFrame =
                 cellMap->GetCellInfoAt(0, col, &originates, &colSpan);
             if (cellFrame) {
-                styleWidth = &cellFrame->StylePosition()->mWidth;
-                if (styleWidth->ConvertsToLength() ||
+                styleWidth = &cellFrame->GetStylePosition()->mWidth;
+                if (styleWidth->GetUnit() == eStyleUnit_Coord ||
                     (styleWidth->GetUnit() == eStyleUnit_Enumerated &&
                      (styleWidth->GetIntValue() == NS_STYLE_WIDTH_MAX_CONTENT ||
                       styleWidth->GetIntValue() == NS_STYLE_WIDTH_MIN_CONTENT))) {
                     nscoord cellWidth = nsLayoutUtils::IntrinsicForContainer(
-                        aRenderingContext, cellFrame, nsLayoutUtils::MIN_ISIZE);
+                        aRenderingContext, cellFrame, nsLayoutUtils::MIN_WIDTH);
                     if (colSpan > 1) {
                         // If a column-spanning cell is in the first
                         // row, split up the space evenly.  (XXX This
@@ -108,7 +139,7 @@ FixedTableLayoutStrategy::GetMinISize(nsRenderingContext* aRenderingContext)
                     }
                 }
                 // else, for 'auto', '-moz-available', '-moz-fit-content',
-                // and 'calc()' with percentages, do nothing
+                // and 'calc()', do nothing
             }
         }
     }
@@ -117,8 +148,8 @@ FixedTableLayoutStrategy::GetMinISize(nsRenderingContext* aRenderingContext)
 }
 
 /* virtual */ nscoord
-FixedTableLayoutStrategy::GetPrefISize(nsRenderingContext* aRenderingContext,
-                                       bool aComputingSize)
+FixedTableLayoutStrategy::GetPrefWidth(nsIRenderingContext* aRenderingContext,
+                                       PRBool aComputingSize)
 {
     // It's theoretically possible to do something much better here that
     // depends only on the columns and the first row (where we look at
@@ -132,7 +163,7 @@ FixedTableLayoutStrategy::GetPrefISize(nsRenderingContext* aRenderingContext,
 }
 
 /* virtual */ void
-FixedTableLayoutStrategy::MarkIntrinsicISizesDirty()
+FixedTableLayoutStrategy::MarkIntrinsicWidthsDirty()
 {
     mMinWidth = NS_INTRINSIC_WIDTH_UNKNOWN;
     mLastCalcWidth = nscoord_MIN;
@@ -160,7 +191,8 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
     mLastCalcWidth = tableWidth;
 
     nsTableCellMap *cellMap = mTableFrame->GetCellMap();
-    int32_t colCount = cellMap->GetColCount();
+    PRInt32 colCount = cellMap->GetColCount();
+    nscoord spacing = mTableFrame->GetCellSpacingX();
 
     if (colCount == 0) {
         // No Columns - nothing to compute
@@ -168,8 +200,8 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
     }
 
     // border-spacing isn't part of the basis for percentages.
-    tableWidth -= mTableFrame->GetCellSpacingX(-1, colCount);
-
+    tableWidth -= spacing * (colCount + 1);
+    
     // store the old column widths. We might call multiple times SetFinalWidth
     // on the columns, due to this we can't compare at the last call that the
     // width has changed with the respect to the last call to
@@ -183,7 +215,7 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
 
     // XXX Should we really ignore widths on column groups?
 
-    uint32_t unassignedCount = 0;
+    PRUint32 unassignedCount = 0;
     nscoord unassignedSpace = tableWidth;
     const nscoord unassignedMarker = nscoord_MIN;
 
@@ -196,7 +228,7 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
     // distributing excess width to the columns.
     nscoord specTotal = 0;
 
-    for (int32_t col = 0; col < colCount; ++col) {
+    for (PRInt32 col = 0; col < colCount; ++col) {
         nsTableColFrame *colFrame = mTableFrame->GetColFrame(col);
         if (!colFrame) {
             oldColWidths.AppendElement(0);
@@ -206,9 +238,9 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
         oldColWidths.AppendElement(colFrame->GetFinalWidth());
         colFrame->ResetPrefPercent();
         const nsStyleCoord *styleWidth =
-            &colFrame->StylePosition()->mWidth;
+            &colFrame->GetStylePosition()->mWidth;
         nscoord colWidth;
-        if (styleWidth->ConvertsToLength()) {
+        if (styleWidth->GetUnit() == eStyleUnit_Coord) {
             colWidth = nsLayoutUtils::ComputeWidthValue(
                          aReflowState.rendContext,
                          colFrame, 0, 0, 0, *styleWidth);
@@ -221,57 +253,43 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
         } else {
             NS_ASSERTION(styleWidth->GetUnit() == eStyleUnit_Auto ||
                          styleWidth->GetUnit() == eStyleUnit_Enumerated ||
-                         (styleWidth->IsCalcUnit() && styleWidth->CalcHasPercent()),
+                         styleWidth->IsCalcUnit(),
                          "bad width");
 
             // The 'table-layout: fixed' algorithm considers only cells
             // in the first row.
-            bool originates;
-            int32_t colSpan;
+            PRBool originates;
+            PRInt32 colSpan;
             nsTableCellFrame *cellFrame =
                 cellMap->GetCellInfoAt(0, col, &originates, &colSpan);
             if (cellFrame) {
-                styleWidth = &cellFrame->StylePosition()->mWidth;
-                if (styleWidth->ConvertsToLength() ||
+                styleWidth = &cellFrame->GetStylePosition()->mWidth;
+                if (styleWidth->GetUnit() == eStyleUnit_Coord ||
                     (styleWidth->GetUnit() == eStyleUnit_Enumerated &&
                      (styleWidth->GetIntValue() == NS_STYLE_WIDTH_MAX_CONTENT ||
                       styleWidth->GetIntValue() == NS_STYLE_WIDTH_MIN_CONTENT))) {
                     // XXX This should use real percentage padding
-                    // Note that the difference between MIN_ISIZE and
-                    // PREF_ISIZE shouldn't matter for any of these
-                    // values of styleWidth; use MIN_ISIZE for symmetry
-                    // with GetMinISize above, just in case there is a
+                    // Note that the difference between MIN_WIDTH and
+                    // PREF_WIDTH shouldn't matter for any of these
+                    // values of styleWidth; use MIN_WIDTH for symmetry
+                    // with GetMinWidth above, just in case there is a
                     // difference.
                     colWidth = nsLayoutUtils::IntrinsicForContainer(
                                  aReflowState.rendContext,
-                                 cellFrame, nsLayoutUtils::MIN_ISIZE);
+                                 cellFrame, nsLayoutUtils::MIN_WIDTH);
                 } else if (styleWidth->GetUnit() == eStyleUnit_Percent) {
                     // XXX This should use real percentage padding
-                    nsIFrame::IntrinsicISizeOffsetData offsets =
-                        cellFrame->IntrinsicISizeOffsets(aReflowState.rendContext);
+                    nsIFrame::IntrinsicWidthOffsetData offsets =
+                        cellFrame->IntrinsicWidthOffsets(aReflowState.rendContext);
                     float pct = styleWidth->GetPercentValue();
-                    colWidth = NSToCoordFloor(pct * float(tableWidth));
-
-                    nscoord boxSizingAdjust = 0;
-                    switch (cellFrame->StylePosition()->mBoxSizing) {
-                      case NS_STYLE_BOX_SIZING_CONTENT:
-                        boxSizingAdjust += offsets.hPadding;
-                        // Fall through
-                      case NS_STYLE_BOX_SIZING_PADDING:
-                        boxSizingAdjust += offsets.hBorder;
-                        // Fall through
-                      case NS_STYLE_BOX_SIZING_BORDER:
-                        // Don't add anything
-                        break;
-                    }
-                    colWidth += boxSizingAdjust;
-
+                    colWidth = NSToCoordFloor(pct * float(tableWidth)) +
+                               offsets.hPadding + offsets.hBorder;
                     pct /= float(colSpan);
                     colFrame->AddPrefPercent(pct);
                     pctTotal += pct;
                 } else {
                     // 'auto', '-moz-available', '-moz-fit-content', and
-                    // 'calc()' with percentages
+                    // 'calc()'
                     colWidth = unassignedMarker;
                 }
                 if (colWidth != unassignedMarker) {
@@ -280,7 +298,6 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
                         // row, split up the space evenly.  (XXX This
                         // isn't quite right if some of the columns it's
                         // in have specified widths.  Should we care?)
-                        nscoord spacing = mTableFrame->GetCellSpacingX(col);
                         colWidth = ((colWidth + spacing) / colSpan) - spacing;
                         if (colWidth < 0)
                             colWidth = 0;
@@ -309,9 +326,9 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
             // had percentage widths.  The spec doesn't say to do this,
             // but we've always done it in the past, and so does WinIE6.
             nscoord pctUsed = NSToCoordFloor(pctTotal * float(tableWidth));
-            nscoord reduce = std::min(pctUsed, -unassignedSpace);
+            nscoord reduce = NS_MIN(pctUsed, -unassignedSpace);
             float reduceRatio = float(reduce) / pctTotal;
-            for (int32_t col = 0; col < colCount; ++col) {
+            for (PRInt32 col = 0; col < colCount; ++col) {
                 nsTableColFrame *colFrame = mTableFrame->GetColFrame(col);
                 if (!colFrame) {
                     NS_ERROR("column frames out of sync with cell map");
@@ -332,7 +349,7 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
         // The spec says to distribute the remaining space evenly among
         // the columns.
         nscoord toAssign = unassignedSpace / unassignedCount;
-        for (int32_t col = 0; col < colCount; ++col) {
+        for (PRInt32 col = 0; col < colCount; ++col) {
             nsTableColFrame *colFrame = mTableFrame->GetColFrame(col);
             if (!colFrame) {
                 NS_ERROR("column frames out of sync with cell map");
@@ -346,7 +363,7 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
         if (specTotal > 0) {
             // Distribute proportionally to non-percentage columns.
             nscoord specUndist = specTotal;
-            for (int32_t col = 0; col < colCount; ++col) {
+            for (PRInt32 col = 0; col < colCount; ++col) {
                 nsTableColFrame *colFrame = mTableFrame->GetColFrame(col);
                 if (!colFrame) {
                     NS_ERROR("column frames out of sync with cell map");
@@ -371,7 +388,7 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
         } else if (pctTotal > 0) {
             // Distribute proportionally to percentage columns.
             float pctUndist = pctTotal;
-            for (int32_t col = 0; col < colCount; ++col) {
+            for (PRInt32 col = 0; col < colCount; ++col) {
                 nsTableColFrame *colFrame = mTableFrame->GetColFrame(col);
                 if (!colFrame) {
                     NS_ERROR("column frames out of sync with cell map");
@@ -396,8 +413,8 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
             NS_ASSERTION(unassignedSpace == 0, "failed to redistribute");
         } else {
             // Distribute equally to the zero-width columns.
-            int32_t colsLeft = colCount;
-            for (int32_t col = 0; col < colCount; ++col) {
+            PRInt32 colsLeft = colCount;
+            for (PRInt32 col = 0; col < colCount; ++col) {
                 nsTableColFrame *colFrame = mTableFrame->GetColFrame(col);
                 if (!colFrame) {
                     NS_ERROR("column frames out of sync with cell map");
@@ -413,7 +430,7 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
             NS_ASSERTION(unassignedSpace == 0, "failed to redistribute");
         }
     }
-    for (int32_t col = 0; col < colCount; ++col) {
+    for (PRInt32 col = 0; col < colCount; ++col) {
         nsTableColFrame *colFrame = mTableFrame->GetColFrame(col);
         if (!colFrame) {
             NS_ERROR("column frames out of sync with cell map");
@@ -421,7 +438,7 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
         }
         if (oldColWidths.ElementAt(col) != colFrame->GetFinalWidth()) {
             mTableFrame->DidResizeColumns();
-            break;
         }
+            break;
     }
 }

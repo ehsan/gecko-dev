@@ -1,4 +1,4 @@
-function test8Size() {
-    return 8 > 1;
+function testHOTLOOPSize() {
+    return HOTLOOP > 1;
 }
-assertEq(test8Size(), true);
+assertEq(testHOTLOOPSize(), true);

@@ -139,6 +139,12 @@ class MachMsgPortDescriptor : public mach_msg_port_descriptor_t {
     return disposition;
   }
 
+  // We're just a simple wrapper for mach_msg_port_descriptor_t
+  // and have the same memory layout
+  operator mach_msg_port_descriptor_t&() {
+    return *this;
+  }
+
   // For convenience
   operator mach_port_t() const {
     return GetMachPort();
@@ -164,11 +170,11 @@ class MachMessage {
  public:
 
   // The receiver of the message can retrieve the raw data this way
-  uint8_t *GetData() {
+  u_int8_t *GetData() {
     return GetDataLength() > 0 ? GetDataPacket()->data : NULL;
   }
 
-  uint32_t GetDataLength() {
+  u_int32_t GetDataLength() {
     return EndianU32_LtoN(GetDataPacket()->data_length);
   }
 
@@ -210,7 +216,7 @@ class MachMessage {
   struct MessageDataPacket {
     int32_t      id;          // little-endian
     int32_t      data_length; // little-endian
-    uint8_t      data[1];     // actual size limited by sizeof(MachMessage)
+    u_int8_t     data[1];     // actual size limited by sizeof(MachMessage)
   };
 
   MessageDataPacket* GetDataPacket();
@@ -223,7 +229,7 @@ class MachMessage {
 
   mach_msg_header_t  head;
   mach_msg_body_t    body;
-  uint8_t            padding[1024]; // descriptors and data may be embedded here
+  u_int8_t           padding[1024]; // descriptors and data may be embedded here
 };
 
 //==============================================================================

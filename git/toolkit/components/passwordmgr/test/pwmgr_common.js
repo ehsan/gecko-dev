@@ -109,31 +109,31 @@ function checkUnmodifiedForm(formNum) {
 // Mochitest gives us a sendKey(), but it's targeted to a specific element.
 // This basically sends an untargeted key event, to whatever's focused.
 function doKey(aKey, modifier) {
+    // Seems we need to enable this again, or sendKeyEvent() complaints.
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
     var keyName = "DOM_VK_" + aKey.toUpperCase();
-    var key = KeyEvent[keyName];
+    var key = Components.interfaces.nsIDOMKeyEvent[keyName];
 
     // undefined --> null
     if (!modifier)
         modifier = null;
 
     // Window utils for sending fake sey events.
-    var wutils = SpecialPowers.wrap(window).
-                          QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor).
-                          getInterface(SpecialPowers.Ci.nsIDOMWindowUtils);
+    var wutils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                          getInterface(Components.interfaces.nsIDOMWindowUtils);
 
-    if (wutils.sendKeyEvent("keydown",  key, 0, modifier)) {
-      wutils.sendKeyEvent("keypress", key, 0, modifier);
-    }
+    wutils.sendKeyEvent("keydown",  key, 0, modifier);
+    wutils.sendKeyEvent("keypress", key, 0, modifier);
     wutils.sendKeyEvent("keyup",    key, 0, modifier);
 }
 
 // Init with a common login
-// If selfFilling is true or non-undefined, fires an event at the page so that
-// the test can start checking filled-in values. Tests that check observer
-// notifications might be confused by this.
-function commonInit(selfFilling) {
-    var pwmgr = SpecialPowers.Cc["@mozilla.org/login-manager;1"].
-                getService(SpecialPowers.Ci.nsILoginManager);
+function commonInit() {
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
+    var pwmgr = Components.classes["@mozilla.org/login-manager;1"].
+                getService(Components.interfaces.nsILoginManager);
     ok(pwmgr != null, "Access LoginManager");
 
 
@@ -146,13 +146,13 @@ function commonInit(selfFilling) {
     var disabledHosts = pwmgr.getAllDisabledHosts();
     if (disabledHosts.length) {
         //todo(false, "Warning: wasn't expecting disabled hosts to be present.");
-        for (var host of disabledHosts)
+        for each (var host in disabledHosts)
             pwmgr.setLoginSavingEnabled(host, true);
     }
 
     // Add a login that's used in multiple tests
-    var login = SpecialPowers.Cc["@mozilla.org/login-manager/loginInfo;1"].
-                createInstance(SpecialPowers.Ci.nsILoginInfo);
+    var login = Components.classes["@mozilla.org/login-manager/loginInfo;1"].
+                createInstance(Components.interfaces.nsILoginInfo);
     login.init("http://mochi.test:8888", "http://mochi.test:8888", null,
                "testuser", "testpass", "uname", "pword");
     pwmgr.addLogin(login);
@@ -162,41 +162,6 @@ function commonInit(selfFilling) {
     is(logins.length, 1, "Checking for successful init login");
     disabledHosts = pwmgr.getAllDisabledHosts();
     is(disabledHosts.length, 0, "Checking for no disabled hosts");
-
-    if (selfFilling)
-        return;
-
-    // We provide a general mechanism for our tests to know when they can
-    // safely run: we add a final form that we know will be filled in, wait
-    // for the login manager to tell us that it's filled in and then continue
-    // with the rest of the tests.
-    window.addEventListener("DOMContentLoaded", (event) => {
-        var form = document.createElement('form');
-        form.id = 'observerforcer';
-        var username = document.createElement('input');
-        username.name = 'testuser';
-        form.appendChild(username);
-        var password = document.createElement('input');
-        password.name = 'testpass';
-        password.type = 'password';
-        form.appendChild(password);
-
-        var observer = SpecialPowers.wrapCallback(function(subject, topic, data) {
-            var bag = subject.QueryInterface(SpecialPowers.Ci.nsIPropertyBag2);
-            var username = bag.get("usernameField");
-            if (!username || username.form.id !== 'observerforcer')
-                return;
-            SpecialPowers.removeObserver(observer, "passwordmgr-found-logins");
-            form.parentNode.removeChild(form);
-            SimpleTest.executeSoon(() => {
-                var event = new Event("runTests");
-                window.dispatchEvent(event);
-            });
-        });
-        SpecialPowers.addObserver(observer, "passwordmgr-found-logins", false);
-
-        document.body.appendChild(form);
-    });
 }
 
 const masterPassword = "omgsecret!";

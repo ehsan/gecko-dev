@@ -267,7 +267,7 @@ void STLDeleteValues(T *v) {
 
 template<class STLContainer> class STLElementDeleter {
  public:
-  explicit STLElementDeleter(STLContainer *ptr) : container_ptr_(ptr) {}
+  STLElementDeleter(STLContainer *ptr) : container_ptr_(ptr) {}
   ~STLElementDeleter() { STLDeleteElements(container_ptr_); }
  private:
   STLContainer *container_ptr_;
@@ -278,7 +278,7 @@ template<class STLContainer> class STLElementDeleter {
 
 template<class STLContainer> class STLValueDeleter {
  public:
-  explicit STLValueDeleter(STLContainer *ptr) : container_ptr_(ptr) {}
+  STLValueDeleter(STLContainer *ptr) : container_ptr_(ptr) {}
   ~STLValueDeleter() { STLDeleteValues(container_ptr_); }
  private:
   STLContainer *container_ptr_;
@@ -301,7 +301,7 @@ class STLBinaryFunction : public std::binary_function<Arg1, Arg2, Result> {
  public:
   typedef ResultCallback2<Result, Arg1, Arg2> Callback;
 
-  explicit STLBinaryFunction(Callback* callback)
+  STLBinaryFunction(Callback* callback)
     : callback_(callback) {
     assert(callback_);
   }
@@ -325,7 +325,7 @@ template <class Arg>
 class STLBinaryPredicate : public STLBinaryFunction<bool, Arg, Arg> {
  public:
   typedef typename STLBinaryPredicate<Arg>::Callback Callback;
-  explicit STLBinaryPredicate(Callback* callback)
+  STLBinaryPredicate(Callback* callback)
     : STLBinaryFunction<bool, Arg, Arg>(callback) {
   }
 };
@@ -351,7 +351,7 @@ class UnaryOperateOnFirst
   UnaryOperateOnFirst() {
   }
 
-  explicit UnaryOperateOnFirst(const UnaryOp& f) : f_(f) {
+  UnaryOperateOnFirst(const UnaryOp& f) : f_(f) {
   }
 
   typename UnaryOp::result_type operator()(const Pair& p) const {
@@ -374,7 +374,7 @@ class UnaryOperateOnSecond
   UnaryOperateOnSecond() {
   }
 
-  explicit UnaryOperateOnSecond(const UnaryOp& f) : f_(f) {
+  UnaryOperateOnSecond(const UnaryOp& f) : f_(f) {
   }
 
   typename UnaryOp::result_type operator()(const Pair& p) const {
@@ -397,7 +397,7 @@ class BinaryOperateOnFirst
   BinaryOperateOnFirst() {
   }
 
-  explicit BinaryOperateOnFirst(const BinaryOp& f) : f_(f) {
+  BinaryOperateOnFirst(const BinaryOp& f) : f_(f) {
   }
 
   typename BinaryOp::result_type operator()(const Pair& p1,
@@ -421,7 +421,7 @@ class BinaryOperateOnSecond
   BinaryOperateOnSecond() {
   }
 
-  explicit BinaryOperateOnSecond(const BinaryOp& f) : f_(f) {
+  BinaryOperateOnSecond(const BinaryOp& f) : f_(f) {
   }
 
   typename BinaryOp::result_type operator()(const Pair& p1,

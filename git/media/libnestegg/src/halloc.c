@@ -46,7 +46,7 @@ realloc_t halloc_allocator = NULL;
 /*
  *	static methods
  */
-int halloc_set_allocator(realloc_t realloc_func);
+static void _set_allocator(void);
 static void * _realloc(void * ptr, size_t n);
 
 static int  _relate(hblock_t * b, hblock_t * p);
@@ -62,10 +62,7 @@ void * halloc(void * ptr, size_t len)
 	/* set up default allocator */
 	if (! allocator)
 	{
-		if (halloc_set_allocator(realloc) == 0)
-		{
-			halloc_set_allocator(_realloc);
-		}
+		_set_allocator();
 		assert(allocator);
 	}
 
@@ -175,7 +172,7 @@ char * h_strdup(const char * str)
 /*
  *	static stuff
  */
-int halloc_set_allocator(realloc_t realloc_func)
+static void _set_allocator(void)
 {
 	void * p;
 	assert(! allocator);
@@ -190,17 +187,17 @@ int halloc_set_allocator(realloc_t realloc_func)
 	 *
 	 *	Thanks to Stan Tobias for pointing this tricky part out.
 	 */
-	if (! (p = realloc_func(NULL, 1)))
+	allocator = realloc;
+	if (! (p = malloc(1)))
 		/* hmm */
-		return -1;
+		return;
 		
-	if ((p = realloc_func(p, 0)))
+	if ((p = realloc(p, 0)))
 	{
-		/* realloc_func cannot be used as free() */
-		return 0;
+		/* realloc cannot be used as free() */
+		allocator = _realloc;
+		free(p);
 	}
-	allocator = realloc_func;
-	return 1;
 }
 
 static void * _realloc(void * ptr, size_t n)

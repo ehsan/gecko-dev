@@ -7,6 +7,8 @@
         href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
@@ -22,17 +24,8 @@
       var thisTabDocAcc = getTabDocAccessible();
       var thisDocTabPanelAcc = thisTabDocAcc.parent.parent;
       var tabPanelsAcc = thisDocTabPanelAcc.parent;
-      var newDocTabPanelAcc = tabPanelsAcc.firstChild;
-      var nextAcc = newDocTabPanelAcc;
-
-      while (nextAcc = nextAcc.nextSibling) {
-        // Find the last accessible for a browser with about:mozilla loaded.
-        if (nextAcc.firstChild.DOMNode.currentURI.spec == "about:mozilla") {
-          newDocTabPanelAcc = nextAcc;
-        }
-      }
-
-      return newDocTabPanelAcc.firstChild.firstChild;
+      var newDocTabPanelAcc = tabPanelsAcc.lastChild.firstChild;
+      return newDocTabPanelAcc.firstChild;
     }
 
     function linkChecker(aID)

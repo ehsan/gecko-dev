@@ -10,67 +10,121 @@
 
 
 #include "dboolhuff.h"
-#include "vp8/common/common.h"
+#include "vpx_ports/mem.h"
+#include "vpx_mem/vpx_mem.h"
 
-int vp8dx_start_decode(BOOL_DECODER *br,
-                       const unsigned char *source,
-                       unsigned int source_sz,
-                       vpx_decrypt_cb decrypt_cb,
-                       void *decrypt_state)
+DECLARE_ALIGNED(16, const unsigned char, vp8dx_bitreader_norm[256]) =
+{
+    0, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+
+int vp8dx_start_decode_c(BOOL_DECODER *br, const unsigned char *source,
+                        unsigned int source_sz)
 {
     br->user_buffer_end = source+source_sz;
     br->user_buffer     = source;
     br->value    = 0;
     br->count    = -8;
     br->range    = 255;
-    br->decrypt_cb = decrypt_cb;
-    br->decrypt_state = decrypt_state;
 
     if (source_sz && !source)
         return 1;
 
     /* Populate the buffer */
-    vp8dx_bool_decoder_fill(br);
+    vp8dx_bool_decoder_fill_c(br);
 
     return 0;
 }
 
-void vp8dx_bool_decoder_fill(BOOL_DECODER *br)
+
+void vp8dx_bool_decoder_fill_c(BOOL_DECODER *br)
 {
-    const unsigned char *bufptr = br->user_buffer;
-    VP8_BD_VALUE value = br->value;
-    int count = br->count;
-    int shift = VP8_BD_VALUE_SIZE - CHAR_BIT - (count + CHAR_BIT);
-    size_t bytes_left = br->user_buffer_end - bufptr;
-    size_t bits_left = bytes_left * CHAR_BIT;
-    int x = (int)(shift + CHAR_BIT - bits_left);
-    int loop_end = 0;
-    unsigned char decrypted[sizeof(VP8_BD_VALUE) + 1];
+    const unsigned char *bufptr;
+    const unsigned char *bufend;
+    VP8_BD_VALUE         value;
+    int                  count;
+    bufend = br->user_buffer_end;
+    bufptr = br->user_buffer;
+    value = br->value;
+    count = br->count;
 
-    if (br->decrypt_cb) {
-        size_t n = MIN(sizeof(decrypted), bytes_left);
-        br->decrypt_cb(br->decrypt_state, bufptr, decrypted, (int)n);
-        bufptr = decrypted;
-    }
+    VP8DX_BOOL_DECODER_FILL(count, value, bufptr, bufend);
 
-    if(x >= 0)
-    {
-        count += VP8_LOTS_OF_BITS;
-        loop_end = x;
-    }
-
-    if (x < 0 || bits_left)
-    {
-        while(shift >= loop_end)
-        {
-            count += CHAR_BIT;
-            value |= (VP8_BD_VALUE)*bufptr << shift;
-            ++bufptr;
-            ++br->user_buffer;
-            shift -= CHAR_BIT;
-        }
-    }
-
+    br->user_buffer = bufptr;
     br->value = value;
     br->count = count;
 }
+
+#if 0
+/*
+ * Until optimized versions of these functions are available, we
+ * keep the implementation in the header to allow inlining.
+ *
+ * The RTCD-style invocations are still in place so this can
+ * be switched by just uncommenting these functions here and
+ * the DBOOLHUFF_INVOKE calls in the header.
+ */
+int vp8dx_decode_bool_c(BOOL_DECODER *br, int probability)
+{
+    unsigned int bit=0;
+    VP8_BD_VALUE value;
+    unsigned int split;
+    VP8_BD_VALUE bigsplit;
+    int count;
+    unsigned int range;
+
+    value = br->value;
+    count = br->count;
+    range = br->range;
+
+    split = 1 + (((range-1) * probability) >> 8);
+    bigsplit = (VP8_BD_VALUE)split << (VP8_BD_VALUE_SIZE - 8);
+
+    range = split;
+    if(value >= bigsplit)
+    {
+        range = br->range-split;
+        value = value-bigsplit;
+        bit = 1;
+    }
+
+    /*if(range>=0x80)
+    {
+        br->value = value;
+        br->range = range;
+        return bit;
+    }*/
+
+    {
+        register unsigned int shift = vp8dx_bitreader_norm[range];
+        range <<= shift;
+        value <<= shift;
+        count -= shift;
+    }
+    br->value = value;
+    br->count = count;
+    br->range = range;
+    if (count < 0)
+        vp8dx_bool_decoder_fill_c(br);
+    return bit;
+}
+
+int vp8dx_decode_value_c(BOOL_DECODER *br, int bits)
+{
+    int z = 0;
+    int bit;
+    for ( bit=bits-1; bit>=0; bit-- )
+    {
+        z |= (vp8dx_decode_bool(br, 0x80)<<bit);
+    }
+    return z;
+}
+#endif

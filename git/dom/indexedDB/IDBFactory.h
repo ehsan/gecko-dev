@@ -1,252 +1,100 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Indexed Database.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Turner <bent.mozilla@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_dom_indexeddb_idbfactory_h__
 #define mozilla_dom_indexeddb_idbfactory_h__
 
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/StorageTypeBinding.h"
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsISupports.h"
-#include "nsString.h"
-#include "nsTArray.h"
-#include "nsWrapperCache.h"
+#include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
-class nsIPrincipal;
+#include "mozIStorageConnection.h"
+#include "nsIIDBFactory.h"
+
+#include "nsIWeakReferenceUtils.h"
+
 class nsPIDOMWindow;
-struct PRThread;
 
-namespace mozilla {
+BEGIN_INDEXEDDB_NAMESPACE
 
-class ErrorResult;
+struct DatabaseInfo;
+class IDBDatabase;
+struct ObjectStoreInfo;
 
-namespace ipc {
-
-class PBackgroundChild;
-class PrincipalInfo;
-
-} // namespace ipc
-
-namespace dom {
-
-struct IDBOpenDBOptions;
-template <typename> class Optional;
-class TabChild;
-
-namespace indexedDB {
-
-class BackgroundFactoryChild;
-class FactoryRequestParams;
-class IDBOpenDBRequest;
-class LoggingInfo;
-
-class IDBFactory MOZ_FINAL
-  : public nsISupports
-  , public nsWrapperCache
+class IDBFactory : public nsIIDBFactory
 {
-  typedef mozilla::dom::StorageType StorageType;
-  typedef mozilla::ipc::PBackgroundChild PBackgroundChild;
-  typedef mozilla::ipc::PrincipalInfo PrincipalInfo;
-
-  class BackgroundCreateCallback;
-  struct PendingRequestInfo;
-
-  nsAutoPtr<PrincipalInfo> mPrincipalInfo;
-
-  // If this factory lives on a window then mWindow must be non-null. Otherwise
-  // mOwningObject must be non-null.
-  nsCOMPtr<nsPIDOMWindow> mWindow;
-  JS::Heap<JSObject*> mOwningObject;
-
-  // This will only be set if the factory belongs to a window in a child
-  // process.
-  nsRefPtr<TabChild> mTabChild;
-
-  nsTArray<nsAutoPtr<PendingRequestInfo>> mPendingRequests;
-
-  BackgroundFactoryChild* mBackgroundActor;
-
-#ifdef DEBUG
-  PRThread* mOwningThread;
-#endif
-
-  uint64_t mInnerWindowID;
-
-  bool mBackgroundActorFailed;
-  bool mPrivateBrowsingMode;
-
+  typedef nsTArray<nsAutoPtr<ObjectStoreInfo> > ObjectStoreInfoArray;
 public:
-  static nsresult
-  CreateForWindow(nsPIDOMWindow* aWindow,
-                  IDBFactory** aFactory);
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIIDBFACTORY
 
-  static nsresult
-  CreateForChromeJS(JSContext* aCx,
-                    JS::Handle<JSObject*> aOwningObject,
-                    IDBFactory** aFactory);
+  static already_AddRefed<nsIIDBFactory> Create(nsPIDOMWindow* aWindow);
 
-  static nsresult
-  CreateForDatastore(JSContext* aCx,
-                    JS::Handle<JSObject*> aOwningObject,
-                    IDBFactory** aFactory);
-
-  static nsresult
-  CreateForWorker(JSContext* aCx,
-                  JS::Handle<JSObject*> aOwningObject,
-                  const PrincipalInfo& aPrincipalInfo,
-                  uint64_t aInnerWindowID,
-                  IDBFactory** aFactory);
+  static already_AddRefed<mozIStorageConnection>
+  GetConnection(const nsAString& aDatabaseFilePath);
 
   static bool
-  AllowedForWindow(nsPIDOMWindow* aWindow);
+  SetCurrentDatabase(IDBDatabase* aDatabase);
 
-  void
-  AssertIsOnOwningThread() const
-#ifdef DEBUG
-  ;
-#else
-  { }
-#endif
+  static PRUint32
+  GetIndexedDBQuota();
 
-  void
-  SetBackgroundActor(BackgroundFactoryChild* aBackgroundActor);
+  static nsresult
+  GetDirectoryForOrigin(const nsACString& aASCIIOrigin,
+                        nsIFile** aDirectory);
 
-  void
-  ClearBackgroundActor()
-  {
-    AssertIsOnOwningThread();
+  static nsresult
+  LoadDatabaseInformation(mozIStorageConnection* aConnection,
+                          PRUint32 aDatabaseId,
+                          nsAString& aVersion,
+                          ObjectStoreInfoArray& aObjectStores);
 
-    mBackgroundActor = nullptr;
-  }
-
-  void
-  IncrementParentLoggingRequestSerialNumber();
-
-  nsPIDOMWindow*
-  GetParentObject() const
-  {
-    return mWindow;
-  }
-
-  TabChild*
-  GetTabChild() const
-  {
-    return mTabChild;
-  }
-
-  PrincipalInfo*
-  GetPrincipalInfo() const
-  {
-    AssertIsOnOwningThread();
-
-    return mPrincipalInfo;
-  }
-
-  uint64_t
-  InnerWindowID() const
-  {
-    AssertIsOnOwningThread();
-
-    return mInnerWindowID;
-  }
-
-  bool
-  IsChrome() const;
-
-  already_AddRefed<IDBOpenDBRequest>
-  Open(const nsAString& aName,
-       uint64_t aVersion,
-       ErrorResult& aRv);
-
-  already_AddRefed<IDBOpenDBRequest>
-  Open(const nsAString& aName,
-       const IDBOpenDBOptions& aOptions,
-       ErrorResult& aRv);
-
-  already_AddRefed<IDBOpenDBRequest>
-  DeleteDatabase(const nsAString& aName,
-                 const IDBOpenDBOptions& aOptions,
-                 ErrorResult& aRv);
-
-  int16_t
-  Cmp(JSContext* aCx,
-      JS::Handle<JS::Value> aFirst,
-      JS::Handle<JS::Value> aSecond,
-      ErrorResult& aRv);
-
-  already_AddRefed<IDBOpenDBRequest>
-  OpenForPrincipal(nsIPrincipal* aPrincipal,
-                   const nsAString& aName,
-                   uint64_t aVersion,
-                   ErrorResult& aRv);
-
-  already_AddRefed<IDBOpenDBRequest>
-  OpenForPrincipal(nsIPrincipal* aPrincipal,
-                   const nsAString& aName,
-                   const IDBOpenDBOptions& aOptions,
-                   ErrorResult& aRv);
-
-  already_AddRefed<IDBOpenDBRequest>
-  DeleteForPrincipal(nsIPrincipal* aPrincipal,
-                     const nsAString& aName,
-                     const IDBOpenDBOptions& aOptions,
-                     ErrorResult& aRv);
-
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBFactory)
-
-  // nsWrapperCache
-  virtual JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE;
+  static nsresult
+  UpdateDatabaseMetadata(DatabaseInfo* aDatabaseInfo,
+                         const nsAString& aVersion,
+                         ObjectStoreInfoArray& aObjectStores);
 
 private:
-  IDBFactory();
-  ~IDBFactory();
+  IDBFactory() { }
+  ~IDBFactory() { }
 
-  static nsresult
-  CreateForMainThreadJSInternal(JSContext* aCx,
-                                JS::Handle<JSObject*> aOwningObject,
-                                nsAutoPtr<PrincipalInfo>& aPrincipalInfo,
-                                IDBFactory** aFactory);
-
-  static nsresult
-  CreateForJSInternal(JSContext* aCx,
-                      JS::Handle<JSObject*> aOwningObject,
-                      nsAutoPtr<PrincipalInfo>& aPrincipalInfo,
-                      uint64_t aInnerWindowID,
-                      IDBFactory** aFactory);
-
-  static nsresult
-  AllowedForWindowInternal(nsPIDOMWindow* aWindow,
-                           nsIPrincipal** aPrincipal);
-
-  already_AddRefed<IDBOpenDBRequest>
-  OpenInternal(nsIPrincipal* aPrincipal,
-               const nsAString& aName,
-               const Optional<uint64_t>& aVersion,
-               const Optional<StorageType>& aStorageType,
-               bool aDeleting,
-               ErrorResult& aRv);
-
-  nsresult
-  BackgroundActorCreated(PBackgroundChild* aBackgroundActor,
-                         const LoggingInfo& aLoggingInfo);
-
-  void
-  BackgroundActorFailed();
-
-  nsresult
-  InitiateRequest(IDBOpenDBRequest* aRequest,
-                  const FactoryRequestParams& aParams);
+  nsCOMPtr<nsIWeakReference> mWindow;
 };
 
-} // namespace indexedDB
-} // namespace dom
-} // namespace mozilla
+END_INDEXEDDB_NAMESPACE
 
 #endif // mozilla_dom_indexeddb_idbfactory_h__

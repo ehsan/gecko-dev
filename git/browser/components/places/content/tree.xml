@@ -1,8 +1,42 @@
 <?xml version="1.0"?>
 
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Places Tree View.
+#
+# The Initial Developer of the Original Code is Google Inc.
+# Portions created by the Initial Developer are Copyright (C) 2005-2006
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Goodger <beng@google.com>
+#   Annie Sullivan <annie.sullivan@gmail.com>
+#   Marco Bonardo <mak77@bonardo.net>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 <bindings id="placesTreeBindings"
           xmlns="http://www.mozilla.org/xbl"
@@ -26,14 +60,6 @@
         if (result) {
           result.root.containerOpen = false;
         }
-
-        // Unregister the controllber before unlinking the view, otherwise it
-        // may still try to update commands on a view with a null result.
-        if (this._controller) {
-          this._controller.terminate();
-          this.controllers.removeController(this._controller);
-        }
-
         this.view = null;
       ]]></destructor>
 
@@ -45,7 +71,7 @@
       <property name="view">
         <getter><![CDATA[
           try {
-            return this.treeBoxObject.view.wrappedJSObject || null;
+            return this.treeBoxObject.view.QueryInterface(Ci.nsINavHistoryResultTreeViewer);
           }
           catch(e) {
             return null;
@@ -56,14 +82,9 @@
         ]]></setter>
       </property>
 
-      <property name="associatedElement"
-                readonly="true"
-                onget="return this"/>
-
       <method name="applyFilter">
         <parameter name="filterString"/>
         <parameter name="folderRestrict"/>
-        <parameter name="includeHidden"/>
         <body><![CDATA[
           // preserve grouping
           var queryNode = PlacesUtils.asQuery(this.result.root);
@@ -75,7 +96,7 @@
           if (PlacesUtils.nodeIsHistoryContainer(queryNode) ||
               options.resultType == options.RESULTS_AS_TAG_QUERY ||
               options.resultType == options.RESULTS_AS_TAG_CONTENTS)
-            options.resultType = options.RESULTS_AS_URI;
+            options.resultType = options.RESULT_TYPE_URI;
 
           var query = PlacesUtils.history.getNewQuery();
           query.searchTerms = filterString;
@@ -84,8 +105,6 @@
             query.setFolders(folderRestrict, folderRestrict.length);
             options.queryType = options.QUERY_TYPE_BOOKMARKS;
           }
-
-          options.includeHidden = !!includeHidden;
 
           this.load([query], options);
         ]]></body>
@@ -105,23 +124,17 @@
               callback = new Function("aContainer", onOpenFlatContainer);
           }
 
-          if (!this._controller) {
-            this._controller = new PlacesController(this);
-            this.controllers.appendController(this._controller);
-          }
-
-          let treeView = new PlacesTreeView(this.flatList, callback, this._controller);
+          let treeView = new PlacesTreeView(this.flatList, callback);
 
           // Observer removal is done within the view itself.  When the tree
           // goes away, treeboxobject calls view.setTree(null), which then
           // calls removeObserver.
           result.addObserver(treeView, false);
           this.view = treeView;
-
-          if (this.getAttribute("selectfirstnode") == "true" && treeView.rowCount > 0) {
-            treeView.selection.select(0);
+          if (!this._controller) {
+            this._controller = new PlacesController(this);
+            this.controllers.appendController(this._controller);
           }
-
           this._cachedInsertionPoint = undefined;
         ]]></body>
       </method>
@@ -312,21 +325,13 @@
           for (let i = 0; i < rc; ++i) {
             let min = { }, max = { };
             selection.getRangeAt(i, min, max);
-            for (let j = min.value; j <= max.value; ++j) {
+
+            for (let j = min.value; j <= max.value; ++j)
               nodes.push(resultview.nodeForTreeIndex(j));
-            }
           }
           return nodes;
         ]]></getter>
       </property>
-
-      <method name="toggleCutNode">
-        <parameter name="aNode"/>
-        <parameter name="aValue"/>
-        <body><![CDATA[
-          this.view.toggleCutNode(aNode, aValue);
-        ]]></body>
-      </method>
 
       <!-- nsIPlacesView -->
       <property name="removableSelectionRanges">
@@ -453,6 +458,8 @@
           //
           // If the sole selection is the bookmarks toolbar folder, we insert
           // into it even if it is not opened
+          var itemId =
+            PlacesUtils.getConcreteItemId(resultView.nodeForTreeIndex(max.value));
           if (selection.count == 1 && resultView.isContainer(max.value) &&
               !this.flatList)
             orientation = Ci.nsITreeView.DROP_ON;
@@ -529,11 +536,9 @@
           if (PlacesControllerDragHelper.disallowInsertion(container))
             return null;
 
-          let tagName = PlacesUtils.nodeIsTagQuery(container) ?
-                          container.title : null;
           return new InsertionPoint(PlacesUtils.getConcreteItemId(container),
                                     index, orientation,
-                                    tagName,
+                                    PlacesUtils.nodeIsTagQuery(container),
                                     dropNearItemId);
         ]]></body>
       </method>
@@ -546,16 +551,13 @@
       </method>
 
       <!-- This method will select the first node in the tree that matches
-           each given item id. It will open any folder nodes that it needs
+           each given item id. It will open any parent nodes that it needs
            to in order to show the selected items.
       -->
       <method name="selectItems">
         <parameter name="aIDs"/>
         <parameter name="aOpenContainers"/>
         <body><![CDATA[
-          // Never open containers in flat lists.
-          if (this.flatList)
-            aOpenContainers = false;
           // By default, we do search and select within containers which were
           // closed (note that containers in which nodes were not found are
           // closed).
@@ -604,13 +606,8 @@
                 nodesURIChecked.indexOf(node.uri) != -1)
               return foundOne;
 
-            // Don't try to open a query or a shurtcut, since it may return
-            // any duplicate data and be infinitely nested.  Though, if it has
-            // been explicitly opened by the caller, search into it.
-            let shouldOpen = aOpenContainers &&
-                             node.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER;
             PlacesUtils.asContainer(node);
-            if (!node.containerOpen && !shouldOpen)
+            if (!aOpenContainers && !node.containerOpen)
               return foundOne;
 
             nodesURIChecked.push(node.uri);
@@ -683,16 +680,6 @@
           this._contextMenuShown = false;
         <body/>
       </method>
-
-      <property name="ownerWindow"
-                readonly="true"
-                onget="return window;"/>
-
-      <field name="_active">true</field>
-      <property name="active"
-                onget="return this._active"
-                onset="return this._active = val"/>
-
     </implementation>
     <handlers>
       <handler event="focus"><![CDATA[
@@ -747,9 +734,11 @@
         if (event.target.localName != "treechildren")
           return;
 
-        let cell = this.treeBoxObject.getCellAt(event.clientX, event.clientY);
-        let node = cell.row != -1 ?
-                   this.view.nodeForTreeIndex(cell.row) :
+        let row = { }, col = { }, child = { };
+        this.treeBoxObject.getCellAt(event.clientX, event.clientY,
+                                     row, col, child);
+        let node = row.value != -1 ?
+                   this.view.nodeForTreeIndex(row.value) :
                    this.result.root;
         // cache the dropTarget for the view
         PlacesControllerDragHelper.currentDropTarget = node;
@@ -759,11 +748,11 @@
         let tbo = this.treeBoxObject;
         let rowHeight = tbo.rowHeight;
         let eventY = event.clientY - tbo.treeBody.boxObject.y -
-                     rowHeight * (cell.row - tbo.getFirstVisibleRow());
+                     rowHeight * (row.value - tbo.getFirstVisibleRow());
 
         let orientation = Ci.nsITreeView.DROP_BEFORE;
 
-        if (cell.row == -1) {
+        if (row.value == -1) {
           // If the row is not valid we try to insert inside the resultNode.
           orientation = Ci.nsITreeView.DROP_ON;
         }
@@ -780,7 +769,7 @@
           orientation = Ci.nsITreeView.DROP_ON;
         }
 
-        if (!this.view.canDrop(cell.row, orientation, event.dataTransfer))
+        if (!this.view.canDrop(row.value, orientation, event.dataTransfer))
           return;
 
         event.preventDefault();

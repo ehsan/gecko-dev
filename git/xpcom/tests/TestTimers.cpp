@@ -1,7 +1,39 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Timer Test Code.
+ *
+ * The Initial Developer of the Original Code is
+ *   Ben Turner <bent.mozilla@gmail.com>.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "TestHarness.h"
 
@@ -14,10 +46,8 @@
 #include "nsThreadUtils.h"
 #include "prinrval.h"
 #include "prmon.h"
-#include "prthread.h"
-#include "mozilla/Attributes.h"
 
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 using namespace mozilla;
 
 typedef nsresult(*TestFuncPtr)();
@@ -42,7 +72,7 @@ public:
     return mThread;
   }
 
-  nsIThread* operator->() const MOZ_NO_ADDREF_RELEASE_ON_RETURN {
+  nsIThread* operator->() const {
     return mThread;
   }
 
@@ -50,39 +80,40 @@ private:
   nsCOMPtr<nsIThread> mThread;
 };
 
-class AutoCreateAndDestroyReentrantMonitor
+class AutoCreateAndDestroyMonitor
 {
 public:
-  AutoCreateAndDestroyReentrantMonitor() {
-    mReentrantMonitor = new ReentrantMonitor("TestTimers::AutoMon");
-    NS_ASSERTION(mReentrantMonitor, "Out of memory!");
+  AutoCreateAndDestroyMonitor() {
+    mMonitor = new Monitor("TestTimers::AutoMon");
+    NS_ASSERTION(mMonitor, "Out of memory!");
   }
 
-  ~AutoCreateAndDestroyReentrantMonitor() {
-    delete mReentrantMonitor;
+  ~AutoCreateAndDestroyMonitor() {
+    if (mMonitor) {
+      delete mMonitor;
+    }
   }
 
-  operator ReentrantMonitor* () {
-    return mReentrantMonitor;
+  operator Monitor* () {
+    return mMonitor;
   }
 
 private:
-  ReentrantMonitor* mReentrantMonitor;
+  Monitor* mMonitor;
 };
 
-class TimerCallback MOZ_FINAL : public nsITimerCallback
+class TimerCallback : public nsITimerCallback
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
-  TimerCallback(nsIThread** aThreadPtr, ReentrantMonitor* aReentrantMonitor)
-  : mThreadPtr(aThreadPtr), mReentrantMonitor(aReentrantMonitor) { }
+  TimerCallback(nsIThread** aThreadPtr, Monitor* aMonitor)
+  : mThreadPtr(aThreadPtr), mMonitor(aMonitor) { }
 
-  NS_IMETHOD Notify(nsITimer* aTimer) MOZ_OVERRIDE {
-    NS_ASSERTION(mThreadPtr, "Callback was not supposed to be called!");
+  NS_IMETHOD Notify(nsITimer* aTimer) {
     nsCOMPtr<nsIThread> current(do_GetCurrentThread());
 
-    ReentrantMonitorAutoEnter mon(*mReentrantMonitor);
+    MonitorAutoEnter mon(*mMonitor);
 
     NS_ASSERTION(!*mThreadPtr, "Timer called back more than once!");
     *mThreadPtr = current;
@@ -92,18 +123,16 @@ public:
     return NS_OK;
   }
 private:
-  ~TimerCallback() {}
-
   nsIThread** mThreadPtr;
-  ReentrantMonitor* mReentrantMonitor;
+  Monitor* mMonitor;
 };
 
-NS_IMPL_ISUPPORTS(TimerCallback, nsITimerCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(TimerCallback, nsITimerCallback)
 
 nsresult
 TestTargetedTimers()
 {
-  AutoCreateAndDestroyReentrantMonitor newMon;
+  AutoCreateAndDestroyMonitor newMon;
   NS_ENSURE_TRUE(newMon, NS_ERROR_OUT_OF_MEMORY);
 
   AutoTestThread testThread;
@@ -118,7 +147,7 @@ TestTargetedTimers()
   rv = timer->SetTarget(target);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIThread* notifiedThread = nullptr;
+  nsIThread* notifiedThread = nsnull;
 
   nsCOMPtr<nsITimerCallback> callback =
     new TimerCallback(&notifiedThread, newMon);
@@ -128,42 +157,11 @@ TestTargetedTimers()
                                nsITimer::TYPE_ONE_SHOT);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  ReentrantMonitorAutoEnter mon(*newMon);
+  MonitorAutoEnter mon(*newMon);
   while (!notifiedThread) {
     mon.Wait();
   }
   NS_ENSURE_TRUE(notifiedThread == testThread, NS_ERROR_FAILURE);
-
-  return NS_OK;
-}
-
-nsresult
-TestTimerWithStoppedTarget()
-{
-  AutoTestThread testThread;
-  NS_ENSURE_TRUE(testThread, NS_ERROR_OUT_OF_MEMORY);
-
-  nsresult rv;
-  nsCOMPtr<nsITimer> timer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsIEventTarget* target = static_cast<nsIEventTarget*>(testThread);
-
-  rv = timer->SetTarget(target);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // If this is called, we'll assert
-  nsCOMPtr<nsITimerCallback> callback =
-    new TimerCallback(nullptr, nullptr);
-  NS_ENSURE_TRUE(callback, NS_ERROR_OUT_OF_MEMORY);
-
-  rv = timer->InitWithCallback(callback, PR_MillisecondsToInterval(100),
-                               nsITimer::TYPE_ONE_SHOT);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  testThread->Shutdown();
-
-  PR_Sleep(400);
 
   return NS_OK;
 }
@@ -174,12 +172,11 @@ int main(int argc, char** argv)
   NS_ENSURE_FALSE(xpcom.failed(), 1);
 
   static TestFuncPtr testsToRun[] = {
-    TestTargetedTimers,
-    TestTimerWithStoppedTarget
+    TestTargetedTimers
   };
-  static uint32_t testCount = sizeof(testsToRun) / sizeof(testsToRun[0]);
+  static PRUint32 testCount = sizeof(testsToRun) / sizeof(testsToRun[0]);
 
-  for (uint32_t i = 0; i < testCount; i++) {
+  for (PRUint32 i = 0; i < testCount; i++) {
     nsresult rv = testsToRun[i]();
     NS_ENSURE_SUCCESS(rv, 1);
   }

@@ -1,5 +1,7 @@
-const Ci = SpecialPowers.Ci;
-const Cc = SpecialPowers.Cc;
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
+const Ci = Components.interfaces;
+const Cc = Components.classes;
 ok(Ci != null, "Access Ci");
 ok(Cc != null, "Access Cc");
 
@@ -23,21 +25,23 @@ function startCallbackTimer() {
 
 
 var observer = {
-    QueryInterface : SpecialPowers.wrapCallback(function (iid) {
+    QueryInterface : function (iid) {
         const interfaces = [Ci.nsIObserver,
                             Ci.nsISupports, Ci.nsISupportsWeakReference];
 
         if (!interfaces.some( function(v) { return iid.equals(v) } ))
-            throw SpecialPowers.Cr.NS_ERROR_NO_INTERFACE;
+            throw Components.results.NS_ERROR_NO_INTERFACE;
         return this;
-    }),
+    },
 
-    observe : SpecialPowers.wrapCallback(function (subject, topic, data) {
-      try {
+    observe : function (subject, topic, data) {
+        netscape.security.PrivilegeManager
+                         .enablePrivilege('UniversalXPConnect');
+
         if (isTabModal) {
           var promptBox = getTabModalPromptBox(window);
           ok(promptBox, "got tabmodal promptbox");
-          var prompts = SpecialPowers.wrap(promptBox).listPrompts();
+          var prompts = promptBox.listPrompts();
           if (prompts.length)
               handleDialog(prompts[0].Dialog.ui, testNum);
           else
@@ -51,10 +55,7 @@ var observer = {
           else
               startCallbackTimer(); // try again in a bit
         }
-      } catch (e) {
-        ok(false, "Exception thrown in the timer callback: " + e + " at " + (e.fileName || e.filename) + ":" + (e.lineNumber || e.linenumber));
-      }
-    })
+    }
 };
 
 function getTabModalPromptBox(domWin) {
@@ -62,7 +63,7 @@ function getTabModalPromptBox(domWin) {
 
     // Given a content DOM window, returns the chrome window it's in.
     function getChromeWindow(aWindow) {
-        var chromeWin = SpecialPowers.wrap(aWindow).QueryInterface(Ci.nsIInterfaceRequestor)
+        var chromeWin = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                                .getInterface(Ci.nsIWebNavigation)
                                .QueryInterface(Ci.nsIDocShell)
                                .chromeEventHandler.ownerDocument.defaultView;
@@ -74,7 +75,8 @@ function getTabModalPromptBox(domWin) {
         var promptWin = domWin.top;
 
         // Get the chrome window for the content window we're using.
-        var chromeWin = getChromeWindow(promptWin);
+        // (Unwrap because we need a non-IDL property below.)
+        var chromeWin = getChromeWindow(promptWin).wrappedJSObject;
 
         if (chromeWin.getTabModalPromptBox)
             promptBox = chromeWin.getTabModalPromptBox(promptWin);
@@ -82,8 +84,7 @@ function getTabModalPromptBox(domWin) {
         // If any errors happen, just assume no tabmodal prompter.
     }
 
-    // Callers get confused by a wrapped promptBox here.
-    return SpecialPowers.unwrap(promptBox);
+    return promptBox;
 }
 
 function getDialogDoc() {

@@ -3,8 +3,6 @@
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-const Cu = Components.utils;
-Cu.import("resource://gre/modules/Services.jsm");
 
 // XXX: NS_ERROR_UNKNOWN_HOST is not in Components.results
 const NS_ERROR_UNKNOWN_HOST = 0x804B001E;
@@ -34,14 +32,8 @@ function run_test() {
   var ios = Cc["@mozilla.org/network/io-service;1"].
             getService(Ci.nsIIOService);
 
-  var channel = ios.newChannel2("jar:http://test.invalid/test.jar!/index.html",
-                                null,
-                                null,
-                                null,      // aLoadingNode
-                                Services.scriptSecurityManager.getSystemPrincipal(),
-                                null,      // aTriggeringPrincipal
-                                Ci.nsILoadInfo.SEC_NORMAL,
-                                Ci.nsIContentPolicy.TYPE_OTHER);
+  var channel = ios.newChannel("jar:http://test.invalid/test.jar!/index.html",
+                               null, null);
   channel.asyncOpen(listener, null);
   do_test_pending();
 }

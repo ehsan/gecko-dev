@@ -1,6 +1,40 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla XULRunner bootstrap.
+ *
+ * The Initial Developer of the Original Code is
+ * Benjamin Smedberg <benjamin@smedbergs.us>.
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Mozilla Foundation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert Strong <robert.bugzilla@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 // This file is not build directly. Instead, it is included in multiple
 // shared objects.
@@ -15,22 +49,34 @@
 
 #include <shellapi.h>
 
-// Needed for CreateEnvironmentBlock
-#include <userenv.h>
-#pragma comment(lib, "userenv.lib")
+#ifndef ERROR_ELEVATION_REQUIRED
+#define ERROR_ELEVATION_REQUIRED 740L
+#endif
+
+BOOL (WINAPI *pCreateProcessWithTokenW)(HANDLE,
+                                        DWORD,
+                                        LPCWSTR,
+                                        LPWSTR,
+                                        DWORD,
+                                        LPVOID,
+                                        LPCWSTR,
+                                        LPSTARTUPINFOW,
+                                        LPPROCESS_INFORMATION);
+
+BOOL (WINAPI *pIsUserAnAdmin)(VOID);
 
 /**
  * Get the length that the string will take and takes into account the
  * additional length if the string needs to be quoted and if characters need to
  * be escaped.
  */
-static int ArgStrLen(const wchar_t *s)
+static int ArgStrLen(const PRUnichar *s)
 {
   int backslashes = 0;
   int i = wcslen(s);
-  BOOL hasDoubleQuote = wcschr(s, L'"') != nullptr;
+  BOOL hasDoubleQuote = wcschr(s, L'"') != NULL;
   // Only add doublequotes if the string contains a space or a tab
-  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != nullptr;
+  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != NULL;
 
   if (addDoubleQuotes) {
     i += 2; // initial and final duoblequote
@@ -65,12 +111,12 @@ static int ArgStrLen(const wchar_t *s)
  *
  * @return the end of the string
  */
-static wchar_t* ArgToString(wchar_t *d, const wchar_t *s)
+static PRUnichar* ArgToString(PRUnichar *d, const PRUnichar *s)
 {
   int backslashes = 0;
-  BOOL hasDoubleQuote = wcschr(s, L'"') != nullptr;
+  BOOL hasDoubleQuote = wcschr(s, L'"') != NULL;
   // Only add doublequotes if the string contains a space or a tab
-  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != nullptr;
+  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != NULL;
 
   if (addDoubleQuotes) {
     *d = '"'; // initial doublequote
@@ -116,8 +162,8 @@ static wchar_t* ArgToString(wchar_t *d, const wchar_t *s)
  *
  * argv is UTF8
  */
-wchar_t*
-MakeCommandLine(int argc, wchar_t **argv)
+static PRUnichar*
+MakeCommandLine(int argc, PRUnichar **argv)
 {
   int i;
   int len = 0;
@@ -126,15 +172,29 @@ MakeCommandLine(int argc, wchar_t **argv)
   for (i = 0; i < argc; ++i)
     len += ArgStrLen(argv[i]) + 1;
 
+#ifdef WINCE
+  wchar_t *env = mozce_GetEnvironmentCL();
+  // XXX There's a buffer overrun here somewhere that causes a heap
+  // check to fail in the final free of the results of this function
+  // in WinLaunchChild.  I can't honestly figure out where it is,
+  // because I'm pretty sure with the + 1 above and the wcslen here,
+  // we have enough room for a trailing NULL.  But, adding a little
+  // bit more slop (the +10) seems to fix the problem.
+  //
+  // Supposedly CreateProcessW can modify its arguments, so maybe it's
+  // doing some scribbling?
+  len += (wcslen(env)) + 10;
+#endif
+
   // Protect against callers that pass 0 arguments
   if (len == 0)
     len = 1;
 
-  wchar_t *s = (wchar_t*) malloc(len * sizeof(wchar_t));
+  PRUnichar *s = (PRUnichar*) malloc(len * sizeof(PRUnichar));
   if (!s)
-    return nullptr;
+    return NULL;
 
-  wchar_t *c = s;
+  PRUnichar *c = s;
   for (i = 0; i < argc; ++i) {
     c = ArgToString(c, argv[i]);
     if (i + 1 != argc) {
@@ -145,6 +205,11 @@ MakeCommandLine(int argc, wchar_t **argv)
 
   *c = '\0';
 
+#ifdef WINCE
+  wcscat(s, env);
+  if (env)
+    free(env);
+#endif
   return s;
 }
 
@@ -152,14 +217,14 @@ MakeCommandLine(int argc, wchar_t **argv)
  * Convert UTF8 to UTF16 without using the normal XPCOM goop, which we
  * can't link to updater.exe.
  */
-static char16_t*
+static PRUnichar*
 AllocConvertUTF8toUTF16(const char *arg)
 {
   // UTF16 can't be longer in units than UTF8
   int len = strlen(arg);
-  char16_t *s = new char16_t[(len + 1) * sizeof(char16_t)];
+  PRUnichar *s = new PRUnichar[(len + 1) * sizeof(PRUnichar)];
   if (!s)
-    return nullptr;
+    return NULL;
 
   ConvertUTF8toUTF16 convert(s);
   convert.write(arg, len);
@@ -168,7 +233,7 @@ AllocConvertUTF8toUTF16(const char *arg)
 }
 
 static void
-FreeAllocStrings(int argc, wchar_t **argv)
+FreeAllocStrings(int argc, PRUnichar **argv)
 {
   while (argc) {
     --argc;
@@ -178,8 +243,6 @@ FreeAllocStrings(int argc, wchar_t **argv)
   delete [] argv;
 }
 
-
-
 /**
  * Launch a child process with the specified arguments.
  * @note argv[0] is ignored
@@ -187,108 +250,78 @@ FreeAllocStrings(int argc, wchar_t **argv)
  */
 
 BOOL
-WinLaunchChild(const wchar_t *exePath,
-               int argc, wchar_t **argv,
-               HANDLE userToken = nullptr,
-               HANDLE *hProcess = nullptr);
+WinLaunchChild(const PRUnichar *exePath, int argc, PRUnichar **argv);
 
 BOOL
-WinLaunchChild(const wchar_t *exePath,
-               int argc, char **argv,
-               HANDLE userToken,
-               HANDLE *hProcess)
+WinLaunchChild(const PRUnichar *exePath, int argc, char **argv)
 {
-  wchar_t** argvConverted = new wchar_t*[argc];
+  PRUnichar** argvConverted = new PRUnichar*[argc];
   if (!argvConverted)
     return FALSE;
 
   for (int i = 0; i < argc; ++i) {
-      argvConverted[i] = reinterpret_cast<wchar_t*>(AllocConvertUTF8toUTF16(argv[i]));
+    argvConverted[i] = AllocConvertUTF8toUTF16(argv[i]);
     if (!argvConverted[i]) {
-      FreeAllocStrings(i, argvConverted);
       return FALSE;
     }
   }
 
-  BOOL ok = WinLaunchChild(exePath, argc, argvConverted, userToken, hProcess);
+  BOOL ok = WinLaunchChild(exePath, argc, argvConverted);
   FreeAllocStrings(argc, argvConverted);
   return ok;
 }
 
 BOOL
-WinLaunchChild(const wchar_t *exePath,
-               int argc, 
-               wchar_t **argv,
-               HANDLE userToken,
-               HANDLE *hProcess)
+WinLaunchChild(const PRUnichar *exePath, int argc, PRUnichar **argv)
 {
-  wchar_t *cl;
+  PRUnichar *cl;
   BOOL ok;
 
-  cl = MakeCommandLine(argc, argv);
-  if (!cl) {
-    return FALSE;
-  }
+#ifdef WINCE
+  // Windows Mobile Issue: 
+  // When passing both an image name and a command line to
+  // CreateProcessW, you need to make sure that the image name
+  // identially matches the first argument of the command line.  If
+  // they do not match, Windows Mobile will send two "argv[0]" values.
+  // To avoid this problem, we will strip off the argv here, and
+  // depend only on the exePath.
+  argv = argv + 1;
+  argc--;
+#endif
 
-  STARTUPINFOW si = {0};
-  si.cb = sizeof(STARTUPINFOW);
-  si.lpDesktop = L"winsta0\\Default";
+  cl = MakeCommandLine(argc, argv);
+  if (!cl)
+    return FALSE;
+
+  STARTUPINFOW si = {sizeof(si), 0};
   PROCESS_INFORMATION pi = {0};
 
-  if (userToken == nullptr) {
-    ok = CreateProcessW(exePath,
-                        cl,
-                        nullptr,  // no special security attributes
-                        nullptr,  // no special thread attributes
-                        FALSE, // don't inherit filehandles
-                        0,     // creation flags
-                        nullptr,  // inherit my environment
-                        nullptr,  // use my current directory
-                        &si,
-                        &pi);
-  } else {
-    // Create an environment block for the process we're about to start using
-    // the user's token.
-    LPVOID environmentBlock = nullptr;
-    if (!CreateEnvironmentBlock(&environmentBlock, userToken, TRUE)) {
-      environmentBlock = nullptr;
-    }
-
-    ok = CreateProcessAsUserW(userToken, 
-                              exePath,
-                              cl,
-                              nullptr,  // no special security attributes
-                              nullptr,  // no special thread attributes
-                              FALSE,    // don't inherit filehandles
-                              0,        // creation flags
-                              environmentBlock,
-                              nullptr,  // use my current directory
-                              &si,
-                              &pi);
-
-    if (environmentBlock) {
-      DestroyEnvironmentBlock(environmentBlock);
-    }
-  }
+  ok = CreateProcessW(exePath,
+                      cl,
+                      NULL,  // no special security attributes
+                      NULL,  // no special thread attributes
+                      FALSE, // don't inherit filehandles
+                      0,     // No special process creation flags
+                      NULL,  // inherit my environment
+                      NULL,  // use my current directory
+                      &si,
+                      &pi);
 
   if (ok) {
-    if (hProcess) {
-      *hProcess = pi.hProcess; // the caller now owns the HANDLE
-    } else {
-      CloseHandle(pi.hProcess);
-    }
+    CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
   } else {
-    LPVOID lpMsgBuf = nullptr;
+    LPVOID lpMsgBuf = NULL;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                  FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS,
-                  nullptr,
-                  GetLastError(),
-                  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                  (LPTSTR) &lpMsgBuf,
-                  0,
-                  nullptr);
+		  FORMAT_MESSAGE_FROM_SYSTEM |
+		  FORMAT_MESSAGE_IGNORE_INSERTS,
+		  NULL,
+		  GetLastError(),
+		  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		  (LPTSTR) &lpMsgBuf,
+		  0,
+		  NULL
+		  );
     wprintf(L"Error restarting: %s\n", lpMsgBuf ? lpMsgBuf : L"(null)");
     if (lpMsgBuf)
       LocalFree(lpMsgBuf);

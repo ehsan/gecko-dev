@@ -1,6 +1,42 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+#ifdef DEBUG
+static const char CVS_ID[] = "@(#) $RCSfile: bfind.c,v $ $Revision: 1.6 $ $Date: 2005/01/20 02:25:46 $";
+#endif /* DEBUG */
 
 #ifndef BUILTINS_H
 #include "builtins.h"
@@ -115,12 +151,11 @@ builtins_attrmatch
     /* match a decoded serial number */
     if ((a->type == CKA_SERIAL_NUMBER) && (a->ulValueLen < b->size)) {
 	int len;
-	unsigned char *data = NULL;
+	unsigned char *data;
 
 	len = builtins_derUnwrapInt(b->data,b->size,&data);
-	if (data &&
-	    (len == a->ulValueLen) && 
-	    nsslibc_memequal(a->pValue, data, len, (PRStatus *)NULL)) {
+	if ((len == a->ulValueLen) && 
+		nsslibc_memequal(a->pValue, data, len, (PRStatus *)NULL)) {
 	    return CK_TRUE;
 	}
     }
@@ -183,16 +218,7 @@ nss_builtins_FindObjectsInit
   NSSArena *arena;
   NSSCKMDFindObjects *rv = (NSSCKMDFindObjects *)NULL;
   struct builtinsFOStr *fo = (struct builtinsFOStr *)NULL;
-
-  /*
-   * 99% of the time we get 0 or 1 matches. So we start with a small
-   * stack-allocated array to hold the matches and switch to a heap-allocated
-   * array later if the number of matches exceeds STACK_BUF_LENGTH.
-   */
-  #define STACK_BUF_LENGTH 1
-  builtinsInternalObject *stackTemp[STACK_BUF_LENGTH];
-  builtinsInternalObject **temp = stackTemp;
-  PRBool tempIsHeapAllocated = PR_FALSE;
+  builtinsInternalObject **temp = (builtinsInternalObject **)NULL;
   PRUint32 i;
 
   arena = NSSArena_Create();
@@ -220,24 +246,17 @@ nss_builtins_FindObjectsInit
   rv->Next = builtins_mdFindObjects_Next;
   rv->null = (void *)NULL;
 
+  temp = nss_ZNEWARRAY((NSSArena *)NULL, builtinsInternalObject *, 
+                       nss_builtins_nObjects);
+  if( (builtinsInternalObject **)NULL == temp ) {
+    *pError = CKR_HOST_MEMORY;
+    goto loser;
+  }
+
   for( i = 0; i < nss_builtins_nObjects; i++ ) {
     builtinsInternalObject *o = (builtinsInternalObject *)&nss_builtins_data[i];
 
     if( CK_TRUE == builtins_match(pTemplate, ulAttributeCount, o) ) {
-      if( fo->n == STACK_BUF_LENGTH ) {
-        /* Switch from the small stack array to a heap-allocated array large
-         * enough to handle matches in all remaining cases. */
-        temp = nss_ZNEWARRAY((NSSArena *)NULL, builtinsInternalObject *,
-                             fo->n + nss_builtins_nObjects - i);
-        if( (builtinsInternalObject **)NULL == temp ) {
-          *pError = CKR_HOST_MEMORY;
-          goto loser;
-        }
-        tempIsHeapAllocated = PR_TRUE;
-        (void)nsslibc_memcpy(temp, stackTemp,
-                             sizeof(builtinsInternalObject *) * fo->n);
-      }
-
       temp[ fo->n ] = o;
       fo->n++;
     }
@@ -250,17 +269,13 @@ nss_builtins_FindObjectsInit
   }
 
   (void)nsslibc_memcpy(fo->objs, temp, sizeof(builtinsInternalObject *) * fo->n);
-  if (tempIsHeapAllocated) {
-    nss_ZFreeIf(temp);
-    temp = (builtinsInternalObject **)NULL;
-  }
+  nss_ZFreeIf(temp);
+  temp = (builtinsInternalObject **)NULL;
 
   return rv;
 
  loser:
-  if (tempIsHeapAllocated) {
-    nss_ZFreeIf(temp);
-  }
+  nss_ZFreeIf(temp);
   nss_ZFreeIf(fo);
   nss_ZFreeIf(rv);
   if ((NSSArena *)NULL != arena) {

@@ -5,6 +5,7 @@
 #include "base/message_loop.h"
 #include "base/thread.h"
 #include "chrome/common/ipc_channel_proxy.h"
+#include "chrome/common/ipc_logging.h"
 #include "chrome/common/ipc_message_utils.h"
 
 namespace IPC {
@@ -32,9 +33,18 @@ void ChannelProxy::Context::CreateChannel(const std::wstring& id,
 }
 
 bool ChannelProxy::Context::TryFilters(const Message& message) {
+#ifdef IPC_MESSAGE_LOG_ENABLED
+  Logging* logger = Logging::current();
+  if (logger->Enabled())
+    logger->OnPreDispatchMessage(message);
+#endif
 
   for (size_t i = 0; i < filters_.size(); ++i) {
     if (filters_[i]->OnMessageReceived(message)) {
+#ifdef IPC_MESSAGE_LOG_ENABLED
+      if (logger->Enabled())
+        logger->OnPostDispatchMessage(message, channel_id_);
+#endif
       return true;
     }
   }
@@ -59,7 +69,7 @@ void ChannelProxy::Context::OnMessageReceivedNoFilter(const Message& message) {
 }
 
 // Called on the IPC::Channel thread
-void ChannelProxy::Context::OnChannelConnected(int32_t peer_pid) {
+void ChannelProxy::Context::OnChannelConnected(int32 peer_pid) {
   peer_pid_ = peer_pid;
   for (size_t i = 0; i < filters_.size(); ++i)
     filters_[i]->OnChannelConnected(peer_pid);
@@ -158,9 +168,23 @@ void ChannelProxy::Context::OnDispatchMessage(const Message& message) {
 
   OnDispatchConnected();
 
+#ifdef IPC_MESSAGE_LOG_ENABLED
+  Logging* logger = Logging::current();
+  if (message.type() == IPC_LOGGING_ID) {
+    logger->OnReceivedLoggingMessage(message);
+    return;
+  }
+
+  if (logger->Enabled())
+    logger->OnPreDispatchMessage(message);
+#endif
 
   listener_->OnMessageReceived(message);
 
+#ifdef IPC_MESSAGE_LOG_ENABLED
+  if (logger->Enabled())
+    logger->OnPostDispatchMessage(message, channel_id_);
+#endif
 }
 
 // Called on the listener's thread
@@ -239,6 +263,9 @@ void ChannelProxy::Close() {
 }
 
 bool ChannelProxy::Send(Message* message) {
+#ifdef IPC_MESSAGE_LOG_ENABLED
+  Logging::current()->OnSendMessage(message, context_->channel_id());
+#endif
 
   context_->ipc_message_loop()->PostTask(FROM_HERE, NewRunnableMethod(
       context_.get(), &Context::OnSendMessage, message));

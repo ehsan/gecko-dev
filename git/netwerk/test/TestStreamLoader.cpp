@@ -3,34 +3,30 @@
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "prlog.h"
-#include "mozilla/Attributes.h"
-#include "nsIScriptSecurityManager.h"
 
 #if defined(PR_LOGGING)
 //
 // set NSPR_LOG_MODULES=Test:5
 //
-static PRLogModuleInfo *gTestLog = nullptr;
+static PRLogModuleInfo *gTestLog = nsnull;
 #endif
 #define LOG(args) PR_LOG(gTestLog, PR_LOG_DEBUG, args)
 
-class MyStreamLoaderObserver MOZ_FINAL : public nsIStreamLoaderObserver
+class MyStreamLoaderObserver : public nsIStreamLoaderObserver
 {
-  ~MyStreamLoaderObserver() {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSISTREAMLOADEROBSERVER
 };
 
-NS_IMPL_ISUPPORTS(MyStreamLoaderObserver, nsIStreamLoaderObserver)
+NS_IMPL_ISUPPORTS1(MyStreamLoaderObserver, nsIStreamLoaderObserver)
 
 NS_IMETHODIMP
 MyStreamLoaderObserver::OnStreamComplete(nsIStreamLoader *loader,
                                          nsISupports     *ctxt,
                                          nsresult         status,
-                                         uint32_t         resultLen,
-                                         const uint8_t   *result)
+                                         PRUint32         resultLen,
+                                         const PRUint8   *result)
 {
   LOG(("OnStreamComplete [status=%x resultLen=%u]\n", status, resultLen));
 
@@ -56,7 +52,7 @@ int main(int argc, char **argv)
   gTestLog = PR_NewLogModule("Test");
 #endif
 
-  nsresult rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
+  nsresult rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
   if (NS_FAILED(rv))
     return -1;
 
@@ -66,20 +62,8 @@ int main(int argc, char **argv)
     if (NS_FAILED(rv))
       return -1;
 
-    nsCOMPtr<nsIScriptSecurityManager> secman =
-      do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, -1);
-       nsCOMPtr<nsIPrincipal> systemPrincipal;
-    rv = secman->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
-    NS_ENSURE_SUCCESS(rv, -1);
-
     nsCOMPtr<nsIChannel> chan;
-    rv = NS_NewChannel(getter_AddRefs(chan),
-                       uri,
-                       systemPrincipal,
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
-
+    rv = NS_NewChannel(getter_AddRefs(chan), uri);
     if (NS_FAILED(rv))
       return -1;
 
@@ -92,13 +76,13 @@ int main(int argc, char **argv)
     if (NS_FAILED(rv))
       return -1;
 
-    rv = chan->AsyncOpen(loader, nullptr);
+    rv = chan->AsyncOpen(loader, nsnull);
     if (NS_FAILED(rv))
       return -1;
 
     PumpEvents();
   } // this scopes the nsCOMPtrs
   // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
-  NS_ShutdownXPCOM(nullptr);
-  return 0;
+  NS_ShutdownXPCOM(nsnull);
+  return rv;
 }

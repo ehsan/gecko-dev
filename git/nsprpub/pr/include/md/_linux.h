@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * This file is used by not only Linux but also other glibc systems
@@ -41,8 +73,6 @@
 #define _PR_SI_ARCHITECTURE "mips"
 #elif defined(__arm__)
 #define _PR_SI_ARCHITECTURE "arm"
-#elif defined(__aarch64__)
-#define _PR_SI_ARCHITECTURE "aarch64"
 #elif defined(__hppa__)
 #define _PR_SI_ARCHITECTURE "hppa"
 #elif defined(__s390x__)
@@ -65,10 +95,6 @@
 #define _MD_DEFAULT_STACK_SIZE	65536L
 #define _MD_MMAP_FLAGS          MAP_PRIVATE
 
-#if defined(__aarch64__)
-#define _MD_MINIMUM_STACK_SIZE  0x20000
-#endif
-
 #undef	HAVE_STACK_GROWING_UP
 
 /*
@@ -80,7 +106,7 @@
 #define NO_DLOPEN_NULL
 #endif
 
-#if defined(__FreeBSD_kernel__) || defined(__GNU__)
+#ifdef __FreeBSD_kernel__
 #define _PR_HAVE_SOCKADDR_LEN
 #endif
 
@@ -134,18 +160,6 @@ extern PRInt32 _PR_ppc_AtomicAdd(PRInt32 *ptr, PRInt32 val);
 #define _MD_ATOMIC_ADD                _PR_ppc_AtomicAdd
 extern PRInt32 _PR_ppc_AtomicSet(PRInt32 *val, PRInt32 newval);
 #define _MD_ATOMIC_SET                _PR_ppc_AtomicSet
-#endif
-
-#if defined(__powerpc64__)
-#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
-/* Use GCC built-in functions */
-#define _PR_HAVE_ATOMIC_OPS
-#define _MD_INIT_ATOMIC()
-#define _MD_ATOMIC_INCREMENT(ptr) __sync_add_and_fetch(ptr, 1)
-#define _MD_ATOMIC_DECREMENT(ptr) __sync_sub_and_fetch(ptr, 1)
-#define _MD_ATOMIC_ADD(ptr, i) __sync_add_and_fetch(ptr, i)
-#define _MD_ATOMIC_SET(ptr, nv) __sync_lock_test_and_set(ptr, nv)
-#endif
 #endif
 
 #if defined(__alpha)
@@ -204,7 +218,7 @@ extern PRInt32 _PR_ppc_AtomicSet(PRInt32 *val, PRInt32 newval);
 })
 #endif
 
-#if defined(__arm__) || defined(__aarch64__)
+#if defined(__arm__)
 #if defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4)
 /* Use GCC built-in functions */
 #define _PR_HAVE_ATOMIC_OPS
@@ -644,10 +658,13 @@ extern void _MD_YIELD(void);
 #endif /* ! _PR_PTHREADS */
 
 extern void _MD_EarlyInit(void);
+extern PRIntervalTime _PR_UNIX_GetInterval(void);
+extern PRIntervalTime _PR_UNIX_TicksPerSecond(void);
 
 #define _MD_EARLY_INIT                  _MD_EarlyInit
 #define _MD_FINAL_INIT                  _PR_UnixInit
-#define HAVE_CLOCK_MONOTONIC
+#define _MD_GET_INTERVAL                _PR_UNIX_GetInterval
+#define _MD_INTERVAL_PER_SEC            _PR_UNIX_TicksPerSecond
 
 /*
  * We wrapped the select() call.  _MD_SELECT refers to the built-in,

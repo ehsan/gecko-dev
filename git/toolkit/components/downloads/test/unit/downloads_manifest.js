@@ -15,8 +15,10 @@ HelperAppDlg.prototype = {
   show: function (launcher, ctx, reason) {
     launcher.MIMEInfo.preferredAction = Ci.nsIMIMEInfo.saveToDisk;
     launcher.launchWithApplication(null, false);
-  }
+  },
+
+  promptForSaveToFile: function (launcher, ctx, defaultFile, suggestedExtension, forcePrompt) { }
 }
 
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([HelperAppDlg]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([HelperAppDlg]);

@@ -15,8 +15,6 @@
 //         to be COMPLETE_LENGTH.
 //   expectCompletion: boolean indicating whether the server should respond
 //                     with a full hash.
-//   forceServerError: boolean indicating whether the server should respond
-//                     with a 503.
 //   table: name of the table that the hash corresponds to. Only needs to be set
 //          if a completion is expected.
 //   chunkId: positive integer corresponding to the chunk that the hash belongs
@@ -116,53 +114,37 @@ let multipleResponsesCompletionSet = [
   }
 ];
 
-// The fifth completion set is added at runtime by getRandomCompletionSet.
+// The fifth completion set is added at runtime by addRandomCompletionSet.
 // Each completion in the set only has one response and its purpose is to
 // provide an easy way to test the HashCompleter handling an arbitrarily large
 // completion set (determined by SIZE_OF_RANDOM_SET).
 const SIZE_OF_RANDOM_SET = 16;
-function getRandomCompletionSet(forceServerError) {
+function addRandomCompletionSet() {
   let completionSet = [];
-  let hashPrefixes = [];
-
-  let seed = Math.floor(Math.random() * Math.pow(2, 32));
-  dump("Using seed of " + seed + " for random completion set.\n");
-  let rand = new LFSRgenerator(seed);
-
   for (let i = 0; i < SIZE_OF_RANDOM_SET; i++) {
-    let completion = { expectCompletion: false, forceServerError: false, _finished: false };
+    let completion = {};
 
     // Generate a random 256 bit hash. First we get a random number and then
     // convert it to a string.
-    let hash;
-    let prefix;
-    do {
-      hash = "";
-      let length = 1 + rand.nextNum(5);
-      for (let i = 0; i < length; i++)
-        hash += String.fromCharCode(rand.nextNum(8));
-      prefix = hash.substring(0,4);
-    } while (hashPrefixes.indexOf(prefix) != -1);
-
-    hashPrefixes.push(prefix);
+    let hash = "";
+    let length = 1 + Math.floor(Math.random() * 32);
+    for (let i = 0; i < length; i++)
+      hash += String.fromCharCode(Math.floor(Math.random() * 256));
     completion.hash = hash;
 
-    if (!forceServerError) {
-      completion.expectCompletion = rand.nextNum(1) == 1;
-    } else {
-      completion.forceServerError = true;
-    }
+    completion.expectCompletion = Math.random() < 0.5;
     if (completion.expectCompletion) {
       // Generate a random alpha-numeric string of length at most 6 for the
       // table name.
-      completion.table = (rand.nextNum(31)).toString(36);
+      completion.table = Math.floor(Math.random() * Math.pow(36, 6)).toString(36);
 
-      completion.chunkId = rand.nextNum(16);
+      completion.chunkId = Math.floor(Math.random() * Math.pow(2, 16));
     }
+
     completionSet.push(completion);
   }
 
-  return completionSet;
+  completionSets.push(completionSet);
 }
 
 let completionSets = [basicCompletionSet, falseCompletionSet,
@@ -182,22 +164,8 @@ const COMPLETE_LENGTH = 32;
 let completer = Cc["@mozilla.org/url-classifier/hashcompleter;1"].
                   getService(Ci.nsIUrlClassifierHashCompleter);
 
-let gethashUrl;
-
-// Expected highest completion set for which the server sends a response.
-let expectedMaxServerCompletionSet = 0;
-let maxServerCompletionSet = 0;
-
 function run_test() {
-  // Generate a random completion set that return successful responses.
-  completionSets.push(getRandomCompletionSet(false));
-  // We backoff after receiving an error, so requests shouldn't reach the
-  // server after that.
-  expectedMaxServerCompletionSet = completionSets.length;
-  // Generate some completion sets that return 503s.
-  for (let j = 0; j < 10; ++j) {
-    completionSets.push(getRandomCompletionSet(true));
-  }
+  addRandomCompletionSet();
 
   // Fix up the completions before running the test.
   for each (let completionSet in completionSets) {
@@ -217,32 +185,38 @@ function run_test() {
   }
   do_test_pending();
 
-  server = new HttpServer();
+  server = new nsHttpServer();
   server.registerPathHandler(SERVER_PATH, hashCompleterServer);
 
-  server.start(-1);
-  const SERVER_PORT = server.identity.primaryPort;
+  const SERVER_PORT = 8080;
+  server.start(SERVER_PORT);
 
-  gethashUrl = "http://localhost:" + SERVER_PORT + SERVER_PATH;
+  completer.gethashUrl = "http://localhost:" + SERVER_PORT + SERVER_PATH;
+
+  runNextCompletion();
+}
+
+function doneCompletionSet() {
+  do_check_eq(finishedCompletions, completionSets[currentCompletionSet].length);
+
+  for each (let completion in completionSets[currentCompletionSet])
+    do_check_true(completion._finished);
 
   runNextCompletion();
 }
 
 function runNextCompletion() {
-  // The server relies on currentCompletionSet to send the correct response, so
-  // don't increment it until we start the new set of callbacks.
   currentCompletionSet++;
+  finishedCompletions = 0;
+
   if (currentCompletionSet >= completionSets.length) {
     finish();
     return;
   }
 
-  dump("Now on completion set index " + currentCompletionSet + ", length " +
-       completionSets[currentCompletionSet].length + "\n");
-  // Number of finished completions for this set.
-  finishedCompletions = 0;
+  dump("Now on completion set index " + currentCompletionSet + "\n");
   for each (let completion in completionSets[currentCompletionSet]) {
-    completer.complete(completion.hash.substring(0,4), gethashUrl,
+    completer.complete(completion.hash.substring(0,4),
                        (new callback(completion)));
   }
 }
@@ -264,9 +238,6 @@ function hashCompleterServer(aRequest, aResponse) {
   function responseForCompletion(x) {
     return x.table + ":" + x.chunkId + ":" + x.hash.length + "\n" + x.hash;
   }
-  // As per the spec, a server should response with a 204 if there are no
-  // full-length hashes that match the prefixes.
-  let httpStatus = 204;
   for each (let completion in completionSets[currentCompletionSet]) {
     if (completion.expectCompletion &&
         (completedHashes.indexOf(completion.hash) == -1)) {
@@ -277,28 +248,24 @@ function hashCompleterServer(aRequest, aResponse) {
       else
         responseText += responseForCompletion(completion);
     }
-    if (completion.forceServerError) {
-      httpStatus = 503;
-    }
   }
 
-  dump("Server sending response for " + currentCompletionSet + "\n");
-  maxServerCompletionSet = currentCompletionSet;
-  if (responseText && httpStatus != 503) {
+  // As per the spec, a server should response with a 204 if there are no
+  // full-length hashes that match the prefixes.
+  if (responseText)
     aResponse.write(responseText);
-  } else {
-    aResponse.setStatusLine(null, httpStatus, null);
-  }
+  else
+    aResponse.setStatusLine(null, 204, null);
 }
 
 
 function callback(completion) {
   this._completion = completion;
 }
-
 callback.prototype = {
   completion: function completion(hash, table, chunkId, trusted) {
     do_check_true(this._completion.expectCompletion);
+
     if (this._completion.multipleCompletions) {
       for each (let completion in this._completion.completions) {
         if (completion.hash == hash) {
@@ -326,20 +293,16 @@ callback.prototype = {
   },
 
   completionFinished: function completionFinished(status) {
-    finishedCompletions++;
     do_check_eq(!!this._completion.expectCompletion, !!this._completed);
     this._completion._finished = true;
 
-    // currentCompletionSet can mutate before all of the callbacks are complete.
-    if (currentCompletionSet < completionSets.length &&
-        finishedCompletions == completionSets[currentCompletionSet].length) {
-      runNextCompletion();
-    }
+    finishedCompletions++;
+    if (finishedCompletions == completionSets[currentCompletionSet].length)
+      doneCompletionSet();
   },
 };
 
 function finish() {
-  do_check_eq(expectedMaxServerCompletionSet, maxServerCompletionSet);
   server.stop(function() {
     do_test_finished();
   });

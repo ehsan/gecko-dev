@@ -1,11 +1,44 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #ifndef nsShiftJISToUnicode_h__
 #define nsShiftJISToUnicode_h__
+#include "nsISupports.h"
 #include "nsUCSupport.h"
-#include "mozilla/Telemetry.h"
+
 
 class nsShiftJISToUnicode : public nsBasicDecoderSupport
 {
@@ -17,10 +50,10 @@ public:
      }
  virtual ~nsShiftJISToUnicode() {}
 
- NS_IMETHOD Convert(const char * aSrc, int32_t * aSrcLength,
-     char16_t * aDest, int32_t * aDestLength) ;
- NS_IMETHOD GetMaxLength(const char * aSrc, int32_t aSrcLength,
-     int32_t * aDestLength) 
+ NS_IMETHOD Convert(const char * aSrc, PRInt32 * aSrcLength,
+     PRUnichar * aDest, PRInt32 * aDestLength) ;
+ NS_IMETHOD GetMaxLength(const char * aSrc, PRInt32 aSrcLength,
+     PRInt32 * aDestLength) 
      {
         *aDestLength = aSrcLength;
         return NS_OK;
@@ -31,13 +64,13 @@ public:
         return NS_OK;
      }
 
-  virtual char16_t GetCharacterForUnMapped();
+  virtual PRUnichar GetCharacterForUnMapped();
 
 private:
 
 private:
- int32_t  mState;
- int32_t mData;
+ PRInt32  mState;
+ PRInt32 mData;
 };
 
 class nsEUCJPToUnicodeV2 : public nsBasicDecoderSupport
@@ -50,10 +83,10 @@ public:
      }
  virtual ~nsEUCJPToUnicodeV2() {}
 
- NS_IMETHOD Convert(const char * aSrc, int32_t * aSrcLength,
-     char16_t * aDest, int32_t * aDestLength) ;
- NS_IMETHOD GetMaxLength(const char * aSrc, int32_t aSrcLength,
-     int32_t * aDestLength) 
+ NS_IMETHOD Convert(const char * aSrc, PRInt32 * aSrcLength,
+     PRUnichar * aDest, PRInt32 * aDestLength) ;
+ NS_IMETHOD GetMaxLength(const char * aSrc, PRInt32 aSrcLength,
+     PRInt32 * aDestLength) 
      {
         *aDestLength = aSrcLength;
         return NS_OK;
@@ -65,8 +98,8 @@ public:
      }
 
 private:
- int32_t  mState;
- int32_t mData;
+ PRInt32  mState;
+ PRInt32 mData;
 };
  
 class nsISO2022JPToUnicodeV2 : public nsBasicDecoderSupport
@@ -80,20 +113,21 @@ public:
         mData = 0;
         mRunLength = 0;
         G2charset = G2_unknown;
-        mGB2312Decoder = nullptr;
-        mEUCKRDecoder = nullptr;
-        mISO88597Decoder = nullptr;
-        mozilla::Telemetry::Accumulate(
-          mozilla::Telemetry::DECODER_INSTANTIATED_ISO2022JP, true);
+        mGB2312Decoder = nsnull;
+        mEUCKRDecoder = nsnull;
+        mISO88597Decoder = nsnull;
      }
  virtual ~nsISO2022JPToUnicodeV2()
      {
+        NS_IF_RELEASE(mGB2312Decoder);
+        NS_IF_RELEASE(mEUCKRDecoder);
+        NS_IF_RELEASE(mISO88597Decoder);
      }
 
- NS_IMETHOD Convert(const char * aSrc, int32_t * aSrcLength,
-     char16_t * aDest, int32_t * aDestLength) ;
- NS_IMETHOD GetMaxLength(const char * aSrc, int32_t aSrcLength,
-     int32_t * aDestLength) 
+ NS_IMETHOD Convert(const char * aSrc, PRInt32 * aSrcLength,
+     PRUnichar * aDest, PRInt32 * aDestLength) ;
+ NS_IMETHOD GetMaxLength(const char * aSrc, PRInt32 aSrcLength,
+     PRInt32 * aDestLength) 
      {
         *aDestLength = aSrcLength;
         return NS_OK;
@@ -129,15 +163,15 @@ private:
    mState_ESC_4e,
    mState_ERROR
  } mState, mLastLegalState;
- int32_t mData;
- int32_t mRunLength; // the length of a non-ASCII run
+ PRInt32 mData;
+ PRInt32 mRunLength; // the length of a non-ASCII run
  enum {
    G2_unknown,
    G2_ISO88591,
    G2_ISO88597
  } G2charset;
- nsCOMPtr<nsIUnicodeDecoder> mGB2312Decoder;
- nsCOMPtr<nsIUnicodeDecoder> mEUCKRDecoder;
- nsCOMPtr<nsIUnicodeDecoder> mISO88597Decoder;
+ nsIUnicodeDecoder *mGB2312Decoder;
+ nsIUnicodeDecoder *mEUCKRDecoder;
+ nsIUnicodeDecoder *mISO88597Decoder;
 };
 #endif // nsShiftJISToUnicode_h__

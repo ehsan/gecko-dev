@@ -4,8 +4,6 @@ const DG_OPTION_KEY = DG_BACKGROUND + "/picture_options";
 const DG_DRAW_BG_KEY = DG_BACKGROUND + "/draw_background";
 
 function onPageLoad() {
-  gBrowser.selectedBrowser.removeEventListener("load", onPageLoad, true);
-
   var bs = Cc["@mozilla.org/intl/stringbundle;1"].
            getService(Ci.nsIStringBundleService);
   var brandName = bs.createBundle("chrome://branding/locale/brand.properties").
@@ -52,8 +50,7 @@ function onPageLoad() {
   checkWallpaper(Ci.nsIShellService.BACKGROUND_TILE, "wallpaper");
   checkWallpaper(Ci.nsIShellService.BACKGROUND_STRETCH, "stretched");
   checkWallpaper(Ci.nsIShellService.BACKGROUND_CENTER, "centered");
-  checkWallpaper(Ci.nsIShellService.BACKGROUND_FILL, "zoom");
-  checkWallpaper(Ci.nsIShellService.BACKGROUND_FIT, "scaled");
+  checkWallpaper(Ci.nsIShellService.BACKGROUND_FILL, "centered");
 
   // Restore GConf and wallpaper
 
@@ -76,16 +73,6 @@ function test() {
     todo(false, "This test is Linux specific for now.");
     return;
   }
-
-  try {
-    // If GSettings is available, then the GConf tests
-    // will fail
-    var gsettings = Cc["@mozilla.org/gsettings-service;1"].
-                    getService(Ci.nsIGSettingsService).
-                    getCollectionForSchema("org.gnome.desktop.background");
-    todo(false, "This test doesn't work when GSettings is available");
-    return;
-  } catch(e) { }
 
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.selectedBrowser.addEventListener("load", onPageLoad, true);

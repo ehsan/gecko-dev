@@ -7,7 +7,7 @@
 // The test extension uses an insecure update url.
 Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 var testserver;
 const profileDir = gProfD.clone();
 profileDir.append("extensions");
@@ -16,16 +16,15 @@ function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
 
   // Create and configure the HTTP server.
-  testserver = new HttpServer();
+  testserver = new nsHttpServer();
   testserver.registerDirectory("/data/", do_get_file("data"));
   testserver.registerDirectory("/addons/", do_get_file("addons"));
-  testserver.start(-1);
-  gPort = testserver.identity.primaryPort;
+  testserver.start(4444);
 
   writeInstallRDFForExtension({
     id: "addon1@tests.mozilla.org",
     version: "1.0",
-    updateURL: "http://localhost:" + gPort + "/data/test_missing.rdf",
+    updateURL: "http://localhost:4444/data/test_missing.rdf",
     targetApplications: [{
       id: "xpcshell@tests.mozilla.org",
       minVersion: "1",

@@ -1,12 +1,49 @@
-// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
-
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+#
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is Mozilla Communicator client code, released
+# March 31, 1998.
+#
+# The Initial Developer of the Original Code is
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1998
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben "Count XULula" Goodger
+#   Brian Ryner <bryner@brianryner.com>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 /*** =================== INITIALISATION CODE =================== ***/
 
 var kObserverService;
+var gSelectUserInUse = false;
 
 // interface variables
 var passwordmanager     = null;
@@ -22,6 +59,8 @@ var rejectsTree;
 
 var showingPasswords = false;
 
+var kLTRAtom;
+
 function Startup() {
   // xpconnect to password manager interfaces
   passwordmanager = Components.classes["@mozilla.org/login-manager;1"]
@@ -29,47 +68,63 @@ function Startup() {
 
   // be prepared to reload the display if anything changes
   kObserverService = Components.classes["@mozilla.org/observer-service;1"].getService(Components.interfaces.nsIObserverService);
-  kObserverService.addObserver(signonReloadDisplay, "passwordmgr-storage-changed", false);
+  kObserverService.addObserver(signonReloadDisplay, "signonChanged", false);
+
+  // be prepared to disable the buttons when selectuser dialog is in use
+  kObserverService.addObserver(signonReloadDisplay, "signonSelectUser", false);
 
   signonsTree = document.getElementById("signonsTree");
   rejectsTree = document.getElementById("rejectsTree");
+
+  kLTRAtom = Components.classes["@mozilla.org/atom-service;1"]
+                       .getService(Components.interfaces.nsIAtomService)
+                       .getAtom("ltr");
 }
 
 function Shutdown() {
-  kObserverService.removeObserver(signonReloadDisplay, "passwordmgr-storage-changed");
+  kObserverService.removeObserver(signonReloadDisplay, "signonChanged");
+  kObserverService.removeObserver(signonReloadDisplay, "signonSelectUser");
 }
 
 var signonReloadDisplay = {
-  observe: function(subject, topic, data) {
-    if (topic == "passwordmgr-storage-changed") {
-      switch (data) {
-        case "addLogin":
-        case "modifyLogin":
-        case "removeLogin":
-        case "removeAllLogins":
-          if (!signonsTree) {
-            return;
-          }
-          signons.length = 0;
-          LoadSignons();
-          // apply the filter if needed
-          if (document.getElementById("filter") && document.getElementById("filter").value != "") {
-            _filterPasswords();
-          }
-          break;
-        case "hostSavingEnabled":
-        case "hostSavingDisabled":
-          if (!rejectsTree) {
-            return;
-          }
-          rejects.length = 0;
-          if (lastRejectSortColumn == "hostname") {
-            lastRejectSortAscending = !lastRejectSortAscending; // prevents sort from being reversed
-          }
-          LoadRejects();
-          break;
+  observe: function(subject, topic, state) {
+    if (topic == "signonChanged") {
+      if (state == "signons") {
+        signons.length = 0;
+        if (lastSignonSortColumn == "hostname") {
+          lastSignonSortAscending = !lastSignonSortAscending; // prevents sort from being reversed
+        }
+        LoadSignons();
+        // apply the filter if needed
+        if (document.getElementById("filter") && document.getElementById("filter").value != "") {
+          _filterPasswords();
+        }
+      } else if (state == "rejects") {
+        rejects.length = 0;
+        if (lastRejectSortColumn == "hostname") {
+          lastRejectSortAscending = !lastRejectSortAscending; // prevents sort from being reversed
+        }
+        LoadRejects();
       }
-      kObserverService.notifyObservers(null, "passwordmgr-dialog-updated", null);
+    } else if (topic == "signonSelectUser") {
+      if (state == "suspend") {
+        gSelectUserInUse = true;
+        document.getElementById("removeSignon").disabled = true;
+        document.getElementById("removeAllSignons").disabled = true;
+        document.getElementById("togglePasswords").disabled = true;
+      } else if (state == "resume") {
+        gSelectUserInUse = false;
+        var selections = GetTreeSelections(signonsTree);
+        if (selections.length > 0) {
+          document.getElementById("removeSignon").disabled = false;
+        }
+        if (signons.length > 0) {
+          document.getElementById("removeAllSignons").disabled = false;
+          document.getElementById("togglePasswords").disabled = false;
+        }
+      } else if (state == "inUse") {
+        gSelectUserInUse = true;
+      }
     }
   }
 }
@@ -169,40 +224,18 @@ function SortTree(tree, view, table, column, lastSortColumn, lastSortAscending, 
   // determine if sort is to be ascending or descending
   var ascending = (column == lastSortColumn) ? !lastSortAscending : true;
 
-  function compareFunc(a, b) {
-    var valA, valB;
-    switch (column) {
-      case "hostname":
-        var realmA = a.httpRealm;
-        var realmB = b.httpRealm;
-        realmA = realmA == null ? "" : realmA.toLowerCase();
-        realmB = realmB == null ? "" : realmB.toLowerCase();
-
-        valA = a[column].toLowerCase() + realmA;
-        valB = b[column].toLowerCase() + realmB;
-        break;
-      case "username":
-      case "password":
-        valA = a[column].toLowerCase();
-        valB = b[column].toLowerCase();
-        break;
-
-      default:
-        valA = a[column];
-        valB = b[column];
-    }
-
-    if (valA < valB)
-      return -1;
-    if (valA > valB)
-      return 1;
-    return 0;
-  }
-
   // do the sort
+  var compareFunc;
+  if (ascending) {
+    compareFunc = function compare(first, second) {
+      return CompareLowerCase(first[column], second[column]);
+    }
+  } else {
+    compareFunc = function compare(first, second) {
+      return CompareLowerCase(second[column], first[column]);
+    }
+  }
   table.sort(compareFunc);
-  if (!ascending)
-    table.reverse();
 
   // restore the selection
   var selectedRow = -1;
@@ -228,3 +261,28 @@ function SortTree(tree, view, table, column, lastSortColumn, lastSortAscending, 
   return ascending;
 }
 
+/**
+ * Case insensitive string comparator.
+ */
+function CompareLowerCase(first, second) {
+  var firstLower, secondLower;
+
+  // Are we sorting nsILoginInfo entries or just strings?
+  if (first.hostname) {
+    firstLower  = first.hostname.toLowerCase();
+    secondLower = second.hostname.toLowerCase();
+  } else {
+    firstLower  = first.toLowerCase();
+    secondLower = second.toLowerCase();
+  }
+
+  if (firstLower < secondLower) {
+    return -1;
+  }
+
+  if (firstLower > secondLower) {
+    return 1;
+  }
+
+  return 0;
+}

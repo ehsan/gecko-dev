@@ -6,6 +6,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=426271
 <head>
   <title>Test for Bug 426271</title>
   <script type="text/javascript" 
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="text/javascript" 
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js">
           </script>
   <script type="text/javascript" src="CharsetDetectionTests.js"></script>
@@ -23,7 +25,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=426271
 /** Test for Bug 426271 **/
 CharsetDetectionTests("bug426271_text-euc-jp.html",
 		      "EUC-JP",
-		      new Array("ja_parallel_state_machine"));
+		      new Array("ja_parallel_state_machine",
+				"cjk_parallel_state_machine",
+				"universal_charset_detector"));
 </script>
 </pre>
 </body>

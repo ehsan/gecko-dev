@@ -212,8 +212,9 @@ function set_order(aSortBy, aAscending) {
     node = node.nextSibling;
   }
   gManagerWindow.sortElements(elements, ["uiState", aSortBy], aAscending);
-  for (let element of elements)
-    list.appendChild(element);
+  elements.forEach(function(aElement) {
+    list.appendChild(aElement);
+  });
 }
 
 function check_order(aExpectedOrder) {
@@ -222,7 +223,7 @@ function check_order(aExpectedOrder) {
   var node = list.firstChild;
   while (node) {
     var id = node.getAttribute("value");
-    if (id && id.endsWith("@tests.mozilla.org"))
+    if (id && id.substring(id.length - 18) == "@tests.mozilla.org")
       order.push(node.getAttribute("value"));
     node = node.nextSibling;
   }

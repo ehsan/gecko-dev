@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-stylesheet href="chrome://global/skin" type="text/css"?>
 
-<window id="{BUGNUMBER}Test"
+<window id="303267Test"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         width="600"
         height="600"
@@ -35,7 +35,7 @@
       // Tell the framework the test is finished.  Include the final 'yield' 
       // statement to prevent a StopIteration exception from being thrown.
       finish();
-      yield undefined;
+      yield;
     }
     
   ]]></script>

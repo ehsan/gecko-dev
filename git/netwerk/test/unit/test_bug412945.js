@@ -1,5 +1,4 @@
-Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
+do_load_httpd_js();
 
 var httpserv;
 
@@ -14,28 +13,20 @@ TestListener.prototype.onStopRequest = function(request, context, status) {
 }
 
 function run_test() {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
 
   httpserv.registerPathHandler("/bug412945", bug412945);
 
-  httpserv.start(-1);
+  httpserv.start(4444);
 
   // make request
   var channel =
       Components.classes["@mozilla.org/network/io-service;1"].
       getService(Components.interfaces.nsIIOService).
-      newChannel2("http://localhost:" + httpserv.identity.primaryPort +
-                  "/bug412945",
-                  null,
-                  null,
-                  null,      // aLoadingNode
-                  Services.scriptSecurityManager.getSystemPrincipal(),
-                  null,      // aTriggeringPrincipal
-                  Ci.nsILoadInfo.SEC_NORMAL,
-                  Ci.nsIContentPolicy.TYPE_OTHER);
+      newChannel("http://localhost:4444/bug412945", null, null);
 
   channel.QueryInterface(Components.interfaces.nsIHttpChannel);
-  channel.requestMethod = "POST";
+  channel.requestMethod = "post";
   channel.asyncOpen(new TestListener(), null);
 
   do_test_pending();

@@ -2,6 +2,7 @@
 <head>
 <title>wildcard in network section test</title>
 
+<script type="text/javascript" src="/MochiKit/packed.js"></script>
 <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
 <script type="text/javascript" src="/tests/dom/tests/mochitest/ajax/offline/offlineTests.js"></script>
 <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -31,7 +32,8 @@ function finishTheTest()
 {
   OfflineTest.is(gImageLoaded[1], true, "Image from a different origin not cointained in the offline cache has loaded");
   OfflineTest.is(gImageLoaded[2], true, "Image not cointained in the offline cache has loaded");
-  OfflineTest.teardownAndFinish();
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 if (OfflineTest.setup()) {

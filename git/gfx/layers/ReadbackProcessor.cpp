@@ -1,27 +1,41 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert O'Callahan <robert@ocallahan.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "ReadbackProcessor.h"
-#include <sys/types.h>                  // for int32_t
-#include "Layers.h"                     // for Layer, PaintedLayer, etc
-#include "ReadbackLayer.h"              // for ReadbackLayer, ReadbackSink
-#include "gfxColor.h"                   // for gfxRGBA
-#include "gfxContext.h"                 // for gfxContext
-#include "gfxUtils.h"
-#include "gfxRect.h"                    // for gfxRect
-#include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/BasePoint.h"      // for BasePoint
-#include "mozilla/gfx/BaseRect.h"       // for BaseRect
-#include "nsAutoPtr.h"                  // for nsRefPtr, nsAutoPtr
-#include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsISupportsImpl.h"            // for gfxContext::Release, etc
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsSize.h"                     // for nsIntSize
-
-using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace layers {
@@ -34,12 +48,12 @@ ReadbackProcessor::BuildUpdates(ContainerLayer* aContainer)
   if (!aContainer->mMayHaveReadbackChild)
     return;
 
-  aContainer->mMayHaveReadbackChild = false;
+  aContainer->mMayHaveReadbackChild = PR_FALSE;
   // go backwards so the updates read from earlier layers are later in the
   // array.
   for (Layer* l = aContainer->GetLastChild(); l; l = l->GetPrevSibling()) {
     if (l->GetType() == Layer::TYPE_READBACK) {
-      aContainer->mMayHaveReadbackChild = true;
+      aContainer->mMayHaveReadbackChild = PR_TRUE;
       BuildUpdatesForLayer(static_cast<ReadbackLayer*>(l));
     }
   }
@@ -48,19 +62,19 @@ ReadbackProcessor::BuildUpdates(ContainerLayer* aContainer)
 static Layer*
 FindBackgroundLayer(ReadbackLayer* aLayer, nsIntPoint* aOffset)
 {
-  gfx::Matrix transform;
+  gfxMatrix transform;
   if (!aLayer->GetTransform().Is2D(&transform) ||
       transform.HasNonIntegerTranslation())
-    return nullptr;
-  nsIntPoint transformOffset(int32_t(transform._31), int32_t(transform._32));
+    return nsnull;
+  nsIntPoint transformOffset(PRInt32(transform.x0), PRInt32(transform.y0));
 
   for (Layer* l = aLayer->GetPrevSibling(); l; l = l->GetPrevSibling()) {
-    gfx::Matrix backgroundTransform;
+    gfxMatrix backgroundTransform;
     if (!l->GetTransform().Is2D(&backgroundTransform) ||
-        gfx::ThebesMatrix(backgroundTransform).HasNonIntegerTranslation())
-      return nullptr;
+        backgroundTransform.HasNonIntegerTranslation())
+      return nsnull;
 
-    nsIntPoint backgroundOffset(int32_t(backgroundTransform._31), int32_t(backgroundTransform._32));
+    nsIntPoint backgroundOffset(PRInt32(backgroundTransform.x0), PRInt32(backgroundTransform.y0));
     nsIntRect rectInBackground(transformOffset - backgroundOffset, aLayer->GetSize());
     const nsIntRegion& visibleRegion = l->GetEffectiveVisibleRegion();
     if (!visibleRegion.Intersects(rectInBackground))
@@ -68,27 +82,26 @@ FindBackgroundLayer(ReadbackLayer* aLayer, nsIntPoint* aOffset)
     // Since l is present in the background, from here on we either choose l
     // or nothing.
     if (!visibleRegion.Contains(rectInBackground))
-      return nullptr;
+      return nsnull;
 
     if (l->GetEffectiveOpacity() != 1.0 ||
-        l->GetMaskLayer() ||
         !(l->GetContentFlags() & Layer::CONTENT_OPAQUE))
-      return nullptr;
+      return nsnull;
 
     // cliprects are post-transform
     const nsIntRect* clipRect = l->GetEffectiveClipRect();
     if (clipRect && !clipRect->Contains(nsIntRect(transformOffset, aLayer->GetSize())))
-      return nullptr;
+      return nsnull;
 
     Layer::LayerType type = l->GetType();
-    if (type != Layer::TYPE_COLOR && type != Layer::TYPE_PAINTED)
-      return nullptr;
+    if (type != Layer::TYPE_COLOR && type != Layer::TYPE_THEBES)
+      return nsnull;
 
     *aOffset = backgroundOffset - transformOffset;
     return l;
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 void
@@ -107,7 +120,7 @@ ReadbackProcessor::BuildUpdatesForLayer(ReadbackLayer* aLayer)
   if (newBackground->GetType() == Layer::TYPE_COLOR) {
     ColorLayer* colorLayer = static_cast<ColorLayer*>(newBackground);
     if (aLayer->mBackgroundColor != colorLayer->GetColor()) {
-      aLayer->mBackgroundLayer = nullptr;
+      aLayer->mBackgroundLayer = nsnull;
       aLayer->mBackgroundColor = colorLayer->GetColor();
       NS_ASSERTION(aLayer->mBackgroundColor.a == 1.0,
                    "Color layer said it was opaque!");
@@ -115,27 +128,27 @@ ReadbackProcessor::BuildUpdatesForLayer(ReadbackLayer* aLayer)
           aLayer->mSink->BeginUpdate(aLayer->GetRect(),
                                      aLayer->AllocateSequenceNumber());
       if (ctx) {
-        ColorPattern color(ToDeviceColor(aLayer->mBackgroundColor));
+        ctx->SetColor(aLayer->mBackgroundColor);
         nsIntSize size = aLayer->GetSize();
-        ctx->GetDrawTarget()->FillRect(Rect(0, 0, size.width, size.height),
-                                       color);
+        ctx->Rectangle(gfxRect(0, 0, size.width, size.height));
+        ctx->Fill();
         aLayer->mSink->EndUpdate(ctx, aLayer->GetRect());
       }
     }
   } else {
-    NS_ASSERTION(newBackground->AsPaintedLayer(), "Must be PaintedLayer");
-    PaintedLayer* paintedLayer = static_cast<PaintedLayer*>(newBackground);
-    // updateRect is relative to the PaintedLayer
+    NS_ASSERTION(newBackground->AsThebesLayer(), "Must be ThebesLayer");
+    ThebesLayer* thebesLayer = static_cast<ThebesLayer*>(newBackground);
+    // updateRect is relative to the ThebesLayer
     nsIntRect updateRect = aLayer->GetRect() - offset;
-    if (paintedLayer != aLayer->mBackgroundLayer ||
+    if (thebesLayer != aLayer->mBackgroundLayer ||
         offset != aLayer->mBackgroundLayerOffset) {
-      aLayer->mBackgroundLayer = paintedLayer;
+      aLayer->mBackgroundLayer = thebesLayer;
       aLayer->mBackgroundLayerOffset = offset;
       aLayer->mBackgroundColor = gfxRGBA(0,0,0,0);
-      paintedLayer->SetUsedForReadback(true);
+      thebesLayer->SetUsedForReadback(true);
     } else {
       nsIntRegion invalid;
-      invalid.Sub(updateRect, paintedLayer->GetValidRegion());
+      invalid.Sub(updateRect, thebesLayer->GetValidRegion());
       updateRect = invalid.GetBounds();
     }
 
@@ -145,17 +158,17 @@ ReadbackProcessor::BuildUpdatesForLayer(ReadbackLayer* aLayer)
 }
 
 void
-ReadbackProcessor::GetPaintedLayerUpdates(PaintedLayer* aLayer,
+ReadbackProcessor::GetThebesLayerUpdates(ThebesLayer* aLayer,
                                          nsTArray<Update>* aUpdates,
                                          nsIntRegion* aUpdateRegion)
 {
-  // All PaintedLayers used for readback are in mAllUpdates (some possibly
+  // All ThebesLayers used for readback are in mAllUpdates (some possibly
   // with an empty update rect).
   aLayer->SetUsedForReadback(false);
   if (aUpdateRegion) {
     aUpdateRegion->SetEmpty();
   }
-  for (uint32_t i = mAllUpdates.Length(); i > 0; --i) {
+  for (PRUint32 i = mAllUpdates.Length(); i > 0; --i) {
     const Update& update = mAllUpdates[i - 1];
     if (update.mLayer->mBackgroundLayer == aLayer) {
       aLayer->SetUsedForReadback(true);
@@ -173,7 +186,7 @@ ReadbackProcessor::GetPaintedLayerUpdates(PaintedLayer* aLayer,
 
 ReadbackProcessor::~ReadbackProcessor()
 {
-  for (uint32_t i = mAllUpdates.Length(); i > 0; --i) {
+  for (PRUint32 i = mAllUpdates.Length(); i > 0; --i) {
     const Update& update = mAllUpdates[i - 1];
     // Unprocessed update. Notify the readback sink that this content is
     // unknown.

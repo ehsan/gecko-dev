@@ -13,3 +13,8 @@ for (var i = 0; i < 5; ++i) {
 
 assertEq(ans, '10,11,12,13,14,');
 
+checkStats({
+    recorderStarted: 1,
+    recorderAborted: 0,
+    traceTriggered: 1
+});

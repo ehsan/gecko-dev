@@ -1,6 +1,6 @@
 /*
- * Copyright 2003-2007 Niels Provos <provos@citi.umich.edu>
- * Copyright 2007-2012 Niels Provos and Nick Mathewson
+ * Copyright 2003 Niels Provos <provos@citi.umich.edu>
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,50 +33,49 @@
  *
  */
 
-#include "event2/event-config.h"
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifdef _EVENT_HAVE_SYS_TIME_H
 #include <sys/time.h>
-#endif
 #ifdef WIN32
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
 #include <sys/socket.h>
-#include <signal.h>
+#include <sys/signal.h>
 #include <sys/resource.h>
 #endif
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#ifdef _EVENT_HAVE_UNISTD_H
 #include <unistd.h>
-#endif
 #include <errno.h>
 
 #include <event.h>
 #include <evutil.h>
 
+
 static int count, writes, fired;
-static evutil_socket_t *pipes;
+static int *pipes;
 static int num_pipes, num_active, num_writes;
 static struct event *events;
 
 
+
 static void
-read_cb(evutil_socket_t fd, short which, void *arg)
+read_cb(int fd, short which, void *arg)
 {
-	ev_intptr_t idx = (ev_intptr_t) arg, widx = idx + 1;
+	int idx = (int) arg, widx = idx + 1;
 	u_char ch;
 
-	count += recv(fd, (char*)&ch, sizeof(ch), 0);
+	count += read(fd, &ch, sizeof(ch));
 	if (writes) {
 		if (widx >= num_pipes)
 			widx -= num_pipes;
-		send(pipes[2 * widx + 1], "e", 1, 0);
+		write(pipes[2 * widx + 1], "e", 1);
 		writes--;
 		fired++;
 	}
@@ -85,14 +84,12 @@ read_cb(evutil_socket_t fd, short which, void *arg)
 static struct timeval *
 run_once(void)
 {
-	evutil_socket_t *cp, space;
-	long i;
+	int *cp, i, space;
 	static struct timeval ts, te;
 
 	for (cp = pipes, i = 0; i < num_pipes; i++, cp += 2) {
-		if (event_initialized(&events[i]))
-			event_del(&events[i]);
-		event_set(&events[i], cp[0], EV_READ | EV_PERSIST, read_cb, (void *)(ev_intptr_t) i);
+		event_del(&events[i]);
+		event_set(&events[i], cp[0], EV_READ | EV_PERSIST, read_cb, (void *) i);
 		event_add(&events[i], NULL);
 	}
 
@@ -102,17 +99,17 @@ run_once(void)
 	space = num_pipes / num_active;
 	space = space * 2;
 	for (i = 0; i < num_active; i++, fired++)
-		send(pipes[i * space + 1], "e", 1, 0);
+		write(pipes[i * space + 1], "e", 1);
 
 	count = 0;
 	writes = num_writes;
 	{ int xcount = 0;
-	evutil_gettimeofday(&ts, NULL);
+	gettimeofday(&ts, NULL);
 	do {
 		event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
 		xcount++;
 	} while (count != fired);
-	evutil_gettimeofday(&te, NULL);
+	gettimeofday(&te, NULL);
 
 	if (xcount != count) fprintf(stderr, "Xcount: %d, Rcount: %d\n", xcount, count);
 	}
@@ -123,19 +120,15 @@ run_once(void)
 }
 
 int
-main(int argc, char **argv)
+main (int argc, char **argv)
 {
 #ifndef WIN32
 	struct rlimit rl;
 #endif
 	int i, c;
 	struct timeval *tv;
-	evutil_socket_t *cp;
+	int *cp;
 
-#ifdef WIN32
-	WSADATA WSAData;
-	WSAStartup(0x101, &WSAData);
-#endif
 	num_pipes = 100;
 	num_active = 1;
 	num_writes = num_pipes;
@@ -165,7 +158,7 @@ main(int argc, char **argv)
 #endif
 
 	events = calloc(num_pipes, sizeof(struct event));
-	pipes = calloc(num_pipes * 2, sizeof(evutil_socket_t));
+	pipes = calloc(num_pipes * 2, sizeof(int));
 	if (events == NULL || pipes == NULL) {
 		perror("malloc");
 		exit(1);

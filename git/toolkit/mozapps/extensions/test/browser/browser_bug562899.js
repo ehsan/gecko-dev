@@ -5,9 +5,7 @@
 // Simulates quickly switching between different list views to verify that only
 // the last selected is displayed
 
-let tempScope = {};
-Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm", tempScope);
-let LightweightThemeManager = tempScope.LightweightThemeManager;
+Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm");
 
 const xpi = "browser/toolkit/mozapps/extensions/test/browser/browser_installssl.xpi";
 

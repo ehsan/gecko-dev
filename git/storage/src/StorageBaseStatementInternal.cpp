@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 sts=2 expandtab
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Andrew Sutherland <asutherland@asutherland.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "StorageBaseStatementInternal.h"
 
@@ -46,7 +78,7 @@ public:
   {
     if (mStatement->mAsyncStatement) {
       (void)::sqlite3_finalize(mStatement->mAsyncStatement);
-      mStatement->mAsyncStatement = nullptr;
+      mStatement->mAsyncStatement = nsnull;
     }
     (void)::NS_ProxyRelease(mConnection->threadOpenedOn, mStatement);
     return NS_OK;
@@ -89,11 +121,11 @@ public:
   NS_IMETHOD Run()
   {
     (void)::sqlite3_finalize(mAsyncStatement);
-    mAsyncStatement = nullptr;
+    mAsyncStatement = nsnull;
 
     // Because of our ambiguous nsISupports we cannot use the NS_ProxyRelease
     // template helpers.
-    Connection *rawConnection = nullptr;
+    Connection *rawConnection = nsnull;
     mConnection.swap(rawConnection);
     (void)::NS_ProxyRelease(
       rawConnection->threadOpenedOn,
@@ -109,7 +141,7 @@ private:
 //// StorageBaseStatementInternal
 
 StorageBaseStatementInternal::StorageBaseStatementInternal()
-: mAsyncStatement(nullptr)
+: mAsyncStatement(NULL)
 {
 }
 
@@ -117,20 +149,21 @@ void
 StorageBaseStatementInternal::asyncFinalize()
 {
   nsIEventTarget *target = mDBConnection->getAsyncExecutionTarget();
-  if (target) {
-    // Attempt to finalize asynchronously
+  if (!target) {
+    // If we cannot get the background thread, we have to assume it has been
+    // shutdown (or is in the process of doing so).  As a result, we should
+    // just finalize it here and now.
+    destructorAsyncFinalize();
+  }
+  else {
     nsCOMPtr<nsIRunnable> event =
       new AsyncStatementFinalizer(this, mDBConnection);
 
-    // Dispatch. Note that dispatching can fail, typically if
-    // we have a race condition with asyncClose(). It's ok,
-    // let asyncClose() win.
-    (void)target->Dispatch(event, NS_DISPATCH_NORMAL);
+    // If the dispatching did not go as planned, finalize now.
+    if (NS_FAILED(target->Dispatch(event, NS_DISPATCH_NORMAL))) {
+      destructorAsyncFinalize();
+    }
   }
-  // If we cannot get the background thread,
-  // mozStorageConnection::AsyncClose() has already been called and
-  // the statement either has been or will be cleaned up by
-  // internalClose().
 }
 
 void
@@ -139,29 +172,18 @@ StorageBaseStatementInternal::destructorAsyncFinalize()
   if (!mAsyncStatement)
     return;
 
-  // If we reach this point, our owner has not finalized this
-  // statement, yet we are being destructed. If possible, we want to
-  // auto-finalize it early, to release the resources early.
   nsIEventTarget *target = mDBConnection->getAsyncExecutionTarget();
   if (target) {
-    // If we can get the async execution target, we can indeed finalize
-    // the statement, as the connection is still open.
-    bool isAsyncThread = false;
-    (void)target->IsOnCurrentThread(&isAsyncThread);
-
     nsCOMPtr<nsIRunnable> event =
       new LastDitchSqliteStatementFinalizer(mDBConnection, mAsyncStatement);
-    if (isAsyncThread) {
-      (void)event->Run();
-    } else {
-      (void)target->Dispatch(event, NS_DISPATCH_NORMAL);
+    if (NS_SUCCEEDED(target->Dispatch(event, NS_DISPATCH_NORMAL))) {
+      mAsyncStatement = nsnull;
+      return;
     }
   }
-
-  // We might not be able to dispatch to the background thread,
-  // presumably because it is being shutdown. Since said shutdown will
-  // finalize the statement, we just need to clean-up around here.
-  mAsyncStatement = nullptr;
+  // (no async thread remains or we could not dispatch to it)
+  (void)::sqlite3_finalize(mAsyncStatement);
+  mAsyncStatement = nsnull;
 }
 
 NS_IMETHODIMP
@@ -194,23 +216,23 @@ StorageBaseStatementInternal::ExecuteAsync(
   NS_ENSURE_TRUE(stmts.AppendElement(data), NS_ERROR_OUT_OF_MEMORY);
 
   // Dispatch to the background
-  return AsyncExecuteStatements::execute(stmts, mDBConnection,
-                                         mNativeConnection, aCallback, _stmt);
+  return AsyncExecuteStatements::execute(stmts, mDBConnection, aCallback,
+                                         _stmt);
 }
 
 NS_IMETHODIMP
 StorageBaseStatementInternal::EscapeStringForLIKE(
   const nsAString &aValue,
-  const char16_t aEscapeChar,
+  const PRUnichar aEscapeChar,
   nsAString &_escapedString
 )
 {
-  const char16_t MATCH_ALL('%');
-  const char16_t MATCH_ONE('_');
+  const PRUnichar MATCH_ALL('%');
+  const PRUnichar MATCH_ONE('_');
 
   _escapedString.Truncate(0);
 
-  for (uint32_t i = 0; i < aValue.Length(); i++) {
+  for (PRUint32 i = 0; i < aValue.Length(); i++) {
     if (aValue[i] == aEscapeChar || aValue[i] == MATCH_ALL ||
         aValue[i] == MATCH_ONE) {
       _escapedString += aEscapeChar;

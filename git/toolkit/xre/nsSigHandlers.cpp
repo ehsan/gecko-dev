@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jerry.Kirk@Nexwarecorp.com
+ *   Chris Seawood <cls@seawood.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * This module is supposed to abstract signal handling away from the other
@@ -26,10 +60,7 @@
 #include <sys/resource.h>
 #include <unistd.h>
 #include <stdlib.h> // atoi
-#include <sys/prctl.h>
-#ifndef ANDROID // no Android impl
-#  include <ucontext.h>
-#endif
+#include <ucontext.h>
 #endif
 
 #if defined(SOLARIS)
@@ -40,16 +71,13 @@
 static char _progname[1024] = "huh?";
 static unsigned int _gdb_sleep_duration = 300;
 
+// NB: keep me up to date with the same variable in
+// ipc/chromium/chrome/common/ipc_channel_posix.cc
+static const int kClientChannelFd = 3;
+
 #if defined(LINUX) && defined(DEBUG) && \
       (defined(__i386) || defined(__x86_64) || defined(PPC))
 #define CRAWL_STACK_ON_SIGSEGV
-#endif
-
-#ifndef PR_SET_PTRACER
-#define PR_SET_PTRACER 0x59616d61
-#endif
-#ifndef PR_SET_PTRACER_ANY
-#define PR_SET_PTRACER_ANY ((unsigned long)-1)
 #endif
 
 #if defined(CRAWL_STACK_ON_SIGSEGV)
@@ -58,22 +86,16 @@ static unsigned int _gdb_sleep_duration = 300;
 #include "nsISupportsUtils.h"
 #include "nsStackWalk.h"
 
-// NB: keep me up to date with the same variable in
-// ipc/chromium/chrome/common/ipc_channel_posix.cc
-static const int kClientChannelFd = 3;
-
 extern "C" {
 
-static void PrintStackFrame(uint32_t aFrameNumber, void *aPC, void *aSP,
-                            void *aClosure)
+static void PrintStackFrame(void *aPC, void *aClosure)
 {
   char buf[1024];
   nsCodeAddressDetails details;
 
   NS_DescribeCodeAddress(aPC, &details);
-  NS_FormatCodeAddressDetails(buf, sizeof(buf), aFrameNumber, aPC, &details);
-  fprintf(stdout, "%s\n", buf);
-  fflush(stdout);
+  NS_FormatCodeAddressDetails(aPC, &details, buf, sizeof(buf));
+  fputs(buf, stdout);
 }
 
 }
@@ -87,16 +109,12 @@ ah_crap_handler(int signum)
          signum);
 
   printf("Stack:\n");
-  NS_StackWalk(PrintStackFrame, /* skipFrames */ 2, /* maxFrames */ 0,
-               nullptr, 0, nullptr);
+  NS_StackWalk(PrintStackFrame, 2, nsnull);
 
   printf("Sleeping for %d seconds.\n",_gdb_sleep_duration);
   printf("Type 'gdb %s %d' to attach your debugger to this thread.\n",
          _progname,
          getpid());
-
-  // Allow us to be ptraced by gdb on Linux with Yama restrictions enabled.
-  prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
 
   sleep(_gdb_sleep_duration);
 
@@ -115,14 +133,14 @@ child_ah_crap_handler(int signum)
 
 #endif // CRAWL_STACK_ON_SIGSEGV
 
-#ifdef MOZ_WIDGET_GTK
+#ifdef MOZ_WIDGET_GTK2
 // Need this include for version test below.
 #include <glib.h>
 #endif
 
-#if defined(MOZ_WIDGET_GTK) && (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 6))
+#if defined(MOZ_WIDGET_GTK2) && (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 6))
 
-static GLogFunc orig_log_func = nullptr;
+static GLogFunc orig_log_func = NULL;
 
 extern "C" {
 static void
@@ -140,7 +158,7 @@ my_glib_log_func(const gchar *log_domain, GLogLevelFlags log_level,
     NS_DebugBreak(NS_DEBUG_WARNING, message, "glib warning", __FILE__, __LINE__);
   }
 
-  orig_log_func(log_domain, log_level, message, nullptr);
+  orig_log_func(log_domain, log_level, message, NULL);
 }
 
 #endif
@@ -151,7 +169,7 @@ static void fpehandler(int signum, siginfo_t *si, void *context)
   /* Integer divide by zero or integer overflow. */
   /* Note: FPE_INTOVF is ignored on Intel, PowerPC and SPARC systems. */
   if (si->si_code == FPE_INTDIV || si->si_code == FPE_INTOVF) {
-    NS_DebugBreak(NS_DEBUG_ABORT, "Divide by zero", nullptr, __FILE__, __LINE__);
+    NS_DebugBreak(NS_DEBUG_ABORT, "Divide by zero", nsnull, __FILE__, __LINE__);
   }
 
 #ifdef XP_MACOSX
@@ -170,7 +188,7 @@ static void fpehandler(int signum, siginfo_t *si, void *context)
   *mxcsr &= ~SSE_STATUS_FLAGS; /* clear all pending SSE exceptions */
 #endif
 #endif
-#if defined(LINUX) && !defined(ANDROID)
+#ifdef LINUX
   ucontext_t *uc = (ucontext_t *)context;
 
 #if defined(__i386__)
@@ -259,15 +277,6 @@ void InstallSignalHandlers(const char *ProgramName)
   sigaction(SIGFPE, &sa, &osa);
 #endif
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    /*
-     * If the user is debugging a Gecko parent process in gdb and hits ^C to
-     * suspend, a SIGINT signal will be sent to the child. We ignore this signal
-     * so the child isn't killed.
-     */
-    signal(SIGINT, SIG_IGN);
-  }
-
 #if defined(DEBUG) && defined(LINUX)
   const char *memLimit = PR_GetEnv("MOZ_MEM_LIMIT");
   if (memLimit && *memLimit)
@@ -305,7 +314,7 @@ void InstallSignalHandlers(const char *ProgramName)
     }
 #endif //SOLARIS
 
-#if defined(MOZ_WIDGET_GTK) && (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 6))
+#if defined(MOZ_WIDGET_GTK2) && (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 6))
   const char *assertString = PR_GetEnv("XPCOM_DEBUG_BREAK");
   if (assertString &&
       (!strcmp(assertString, "suspend") ||
@@ -314,7 +323,7 @@ void InstallSignalHandlers(const char *ProgramName)
        !strcmp(assertString, "trap") ||
        !strcmp(assertString, "break"))) {
     // Override the default glib logging function so we get stacks for it too.
-    orig_log_func = g_log_set_default_handler(my_glib_log_func, nullptr);
+    orig_log_func = g_log_set_default_handler(my_glib_log_func, NULL);
   }
 #endif
 }
@@ -344,6 +353,13 @@ void InstallSignalHandlers(const char *ProgramName)
 #define X87CW(ctx) (ctx)->FloatSave.ControlWord
 #define X87SW(ctx) (ctx)->FloatSave.StatusWord
 #endif
+
+/*
+ * SSE traps raise these exception codes, which are defined in internal NT headers
+ * but not winbase.h
+ */
+#define STATUS_FLOAT_MULTIPLE_FAULTS 0xC00002B4
+#define STATUS_FLOAT_MULTIPLE_TRAPS  0xC00002B5
 
 static LPTOP_LEVEL_EXCEPTION_FILTER gFPEPreviousFilter;
 
@@ -393,6 +409,9 @@ void InstallSignalHandlers(const char *ProgramName)
 }
 
 #endif
+
+#elif defined(XP_OS2)
+/* OS/2's FPE handler is implemented in NSPR */
 
 #else
 #error No signal handling implementation for this platform.

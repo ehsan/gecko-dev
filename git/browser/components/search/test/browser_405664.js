@@ -1,14 +1,11 @@
 function test() {
   var searchBar = BrowserSearch.searchBar;
   ok(searchBar, "got search bar");
-
-  if (searchBar.getAttribute("oneoffui"))
-    return; // The oneoffui removes the menu that's being tested here.
-
+  
   searchBar.focus();
 
   var pbo = searchBar._popup.popupBoxObject;
-  ok(pbo, "popup is PopupBoxObject");
+  ok(pbo, "popup is nsIPopupBoxObject");
 
   EventUtils.synthesizeKey("VK_UP", { altKey: true });
   is(pbo.popupState, "showing", "popup is opening after Alt+Up");

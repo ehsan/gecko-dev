@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=513439
 -->
 <head>
   <title>Test for Bug 513439</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -19,13 +20,15 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=513439
 
 /** Test for Bug 513439 **/
 
-var prefService = SpecialPowers.Cc["@mozilla.org/preferences-service;1"]
-                               .getService(SpecialPowers.Ci.nsIPrefService);
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+var prefService = Components.classes["@mozilla.org/preferences-service;1"]
+                            .getService(Components.interfaces.nsIPrefService);
 var layoutCSSBranch = prefService.getBranch("layout.css.");
 var oldVal = layoutCSSBranch.getCharPref("devPixelsPerPx");
 
 try {
-  var domWindowUtils = SpecialPowers.DOMWindowUtils;
+  var domWindowUtils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                             .getInterface(Components.interfaces.nsIDOMWindowUtils);
   var devPxPerCSSPx = domWindowUtils.screenPixelsPerCSSPixel;
 
   layoutCSSBranch.setCharPref("devPixelsPerPx", "2");

@@ -7,3 +7,7 @@ function testToStringBeforeValueOf()
     return a.join(",");
 }
 assertEq(testToStringBeforeValueOf(), "s,s,s,s,s,s,s,s,s,s");
+checkStats({
+    recorderStarted: 1,
+    sideExitIntoInterpreter: 1
+});

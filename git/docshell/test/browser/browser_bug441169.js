@@ -17,11 +17,7 @@ function test() {
   newBrowser.contentWindow.location = chromeURL;
 }
 
-function checkPage(event) {
-  if (event.target != gBrowser.selectedBrowser.contentDocument) {
-    return;
-  }
-
+function checkPage() {
   window.removeEventListener("DOMContentLoaded", checkPage, false);
   
   is(newBrowser.contentDocument.getElementById("test_span"), null, "Error message should not be parsed as HTML, and hence shouldn't include the 'test_span' element.");

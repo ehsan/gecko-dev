@@ -12,7 +12,7 @@ function testBug504520Harder() {
                     var yz = eval(y + op + z);
 
                     var arr = [x, x, x, x, x, x, x, x, x, y];
-                    assertEq(arr.length > 9, true);
+                    assertEq(arr.length > RUNLOOP, true);
                     var expected = [xz, xz, xz, xz, xz, xz, xz, xz, xz, yz];
 
                     // ?: looks superfluous but that's what we're testing here

@@ -1,5 +1,5 @@
-load(libdir + "evalInFrame.js");
-
+// |jit-test| debug
+setDebug(true);
 var a = new Array();
 
 function i(save) {

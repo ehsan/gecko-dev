@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *  Masayuki Nakano <masayuki@d-toybox.com>
+ *  Robert Strong <robert.bugzilla@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <stdio.h>
 #include <windows.h>
@@ -41,13 +75,11 @@
 
 static float sProgress;  // between 0 and 100
 static BOOL  sQuit = FALSE;
-static BOOL sIndeterminate = FALSE;
-static StringTable sUIStrings;
 
 static BOOL
 GetStringsFile(WCHAR filename[MAX_PATH])
 {
-  if (!GetModuleFileNameW(nullptr, filename, MAX_PATH))
+  if (!GetModuleFileNameW(NULL, filename, MAX_PATH))
     return FALSE;
  
   WCHAR *dot = wcsrchr(filename, '.');
@@ -103,30 +135,32 @@ CenterDialog(HWND hDlg)
 static void
 InitDialog(HWND hDlg)
 {
+  WCHAR filename[MAX_PATH];
+  if (!GetStringsFile(filename))
+    return;
+
+  StringTable uiStrings;
+  if (ReadStrings(filename, &uiStrings) != OK)
+    return;
+
   WCHAR szwTitle[MAX_TEXT_LEN];
   WCHAR szwInfo[MAX_TEXT_LEN];
 
-  MultiByteToWideChar(CP_UTF8, 0, sUIStrings.title, -1, szwTitle,
+  MultiByteToWideChar(CP_UTF8, 0, uiStrings.title, -1, szwTitle,
                       sizeof(szwTitle)/sizeof(szwTitle[0]));
-  MultiByteToWideChar(CP_UTF8, 0, sUIStrings.info, -1, szwInfo,
+  MultiByteToWideChar(CP_UTF8, 0, uiStrings.info, -1, szwInfo,
                       sizeof(szwInfo)/sizeof(szwInfo[0]));
 
   SetWindowTextW(hDlg, szwTitle);
   SetWindowTextW(GetDlgItem(hDlg, IDC_INFO), szwInfo);
 
   // Set dialog icon
-  HICON hIcon = LoadIcon(GetModuleHandle(nullptr),
-                         MAKEINTRESOURCE(IDI_DIALOG));
+  HICON hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_DIALOG));
   if (hIcon)
     SendMessage(hDlg, WM_SETICON, ICON_BIG, (LPARAM) hIcon);
 
   HWND hWndPro = GetDlgItem(hDlg, IDC_PROGRESS);
   SendMessage(hWndPro, PBM_SETRANGE, 0, MAKELPARAM(0, 100));
-  if (sIndeterminate) {
-    LONG_PTR val = GetWindowLongPtr(hWndPro, GWL_STYLE);
-    SetWindowLongPtr(hWndPro, GWL_STYLE, val|PBS_MARQUEE); 
-    SendMessage(hWndPro,(UINT) PBM_SETMARQUEE,(WPARAM) TRUE,(LPARAM)50 );
-  }
 
   // Resize the dialog to fit all of the text if necessary.
   RECT infoSize, textSize;
@@ -172,7 +206,7 @@ InitDialog(HWND hDlg)
 
   CenterDialog(hDlg);  // make dialog appear in the center of the screen
 
-  SetTimer(hDlg, TIMER_ID, TIMER_INTERVAL, nullptr);
+  SetTimer(hDlg, TIMER_ID, TIMER_INTERVAL, NULL);
 }
 
 // Message handler for update dialog.
@@ -200,93 +234,33 @@ DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 int
-InitProgressUI(int *argc, WCHAR ***argv)
+InitProgressUI(int *argc, NS_tchar ***argv)
 {
   return 0;
 }
 
-/**
- * Initializes the progress UI strings
- * 
- * @return 0 on success, -1 on error
-*/
 int
-InitProgressUIStrings() {
+ShowProgressUI()
+{
+  // Only show the Progress UI if the process is taking significant time. We
+  // measure significant time as sProgress being more than 60 out of 100.
+
+  Sleep(500);
+
+  if (sQuit || sProgress > 60.0f)
+    return 0;
+
   // If we do not have updater.ini, then we should not bother showing UI.
   WCHAR filename[MAX_PATH];
-  if (!GetStringsFile(filename)) {
+  if (!GetStringsFile(filename))
     return -1;
-  }
-
-  if (_waccess(filename, 04)) {
+  if (_waccess(filename, 04))
     return -1;
-  }
-  
   // If the updater.ini doesn't have the required strings, then we should not
   // bother showing UI.
-  if (ReadStrings(filename, &sUIStrings) != OK) {
+  StringTable uiStrings;
+  if (ReadStrings(filename, &uiStrings) != OK)
     return -1;
-  }
-
-  return 0;
-}
-
-int
-ShowProgressUI(bool indeterminate, bool initUIStrings)
-{
-  sIndeterminate = indeterminate;
-  if (!indeterminate) {
-    // Only show the Progress UI if the process is taking a significant amount of
-    // time where a significant amount of time is defined as .5 seconds after
-    // ShowProgressUI is called sProgress is less than 70.
-    Sleep(500);
-
-    if (sQuit || sProgress > 70.0f)
-      return 0;
-  }
-
-  // Don't load the UI if there's an <exe_name>.Local directory for redirection.
-  WCHAR appPath[MAX_PATH + 1] = { L'\0' };
-  if (!GetModuleFileNameW(nullptr, appPath, MAX_PATH)) {
-    return -1;
-  }
-
-  if (wcslen(appPath) + wcslen(L".Local") >= MAX_PATH) {
-    return -1;
-  }
-
-  wcscat(appPath, L".Local");
-
-  if (!_waccess(appPath, 04)) {
-    return -1;
-  }
-
-  // Don't load the UI if the strings for the UI are not provided.
-  if (initUIStrings && InitProgressUIStrings() == -1) {
-    return -1;
-  }
-
-  if (!GetModuleFileNameW(nullptr, appPath, MAX_PATH)) {
-    return -1;
-  }
-
-  // Use an activation context that supports visual styles for the controls.
-  ACTCTXW actx = {0};
-  actx.cbSize = sizeof(ACTCTXW);
-  actx.dwFlags = ACTCTX_FLAG_RESOURCE_NAME_VALID | ACTCTX_FLAG_HMODULE_VALID;
-  actx.hModule = GetModuleHandle(NULL); // Use the embedded manifest
-  // This is needed only for Win XP but doesn't cause a problem with other
-  // versions of Windows.
-  actx.lpSource = appPath;
-  actx.lpResourceName = MAKEINTRESOURCE(IDR_COMCTL32_MANIFEST);
-
-  HANDLE hactx = INVALID_HANDLE_VALUE;
-  hactx = CreateActCtxW(&actx);
-  ULONG_PTR actxCookie = NULL;
-  if (hactx != INVALID_HANDLE_VALUE) {
-    // Push the specified activation context to the top of the activation stack.
-    ActivateActCtx(hactx, &actxCookie);
-  }
 
   INITCOMMONCONTROLSEX icc = {
     sizeof(INITCOMMONCONTROLSEX),
@@ -294,14 +268,9 @@ ShowProgressUI(bool indeterminate, bool initUIStrings)
   };
   InitCommonControlsEx(&icc);
 
-  DialogBox(GetModuleHandle(nullptr),
-            MAKEINTRESOURCE(IDD_DIALOG), nullptr,
+  DialogBox(GetModuleHandle(NULL),
+            MAKEINTRESOURCE(IDD_DIALOG), NULL,
             (DLGPROC) DialogProc);
-
-  if (hactx != INVALID_HANDLE_VALUE) {
-    // Deactivate the context now that the comctl32.dll is loaded.
-    DeactivateActCtx(0, actxCookie);
-  }
 
   return 0;
 }

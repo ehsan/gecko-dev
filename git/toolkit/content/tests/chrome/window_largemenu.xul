@@ -43,16 +43,6 @@ function getScreenXY(element)
   return [screenX, screenY];
 }
 
-function hidePopup() {
-  window.requestAnimationFrame(
-    function() {
-      setTimeout(
-        function() {
-          document.getElementById("popup").hidePopup();
-        }, 0);
-    });
-}
-
 function runTests()
 {
   [, gScreenY] = getScreenXY(document.documentElement);
@@ -83,12 +73,7 @@ function nextTest()
       popup.removeChild(popup.lastChild);
   }
 
-  window.requestAnimationFrame(function() {
-    setTimeout(
-      function() {
-        popup.openPopupAtScreen(100, y, false);
-      }, 0);
-  });
+  popup.openPopupAtScreen(100, y, false);
 }
 
 function popupShown()
@@ -126,7 +111,7 @@ function popupShown()
   else if (gTestIndex == 2) {
     // the popup is too large so ensure that it is on screen
     ok(Math.round(rect.top) + gScreenY >= screen.top, gTests[gTestIndex] + " top");
-    ok(Math.round(rect.bottom) + gScreenY <= screen.height, gTests[gTestIndex] + " bottom");
+    ok(Math.round(rect.bottom) + gScreenY < screen.height, gTests[gTestIndex] + " bottom");
     ok(gOverflowed && !gUnderflowed, gTests[gTestIndex] + " overflow")
 
     sbo.scrollTo(0, 40);
@@ -145,9 +130,11 @@ function popupShown()
     ok(!gOverflowed && gUnderflowed, gTests[gTestIndex] + " overflow")
   }
 
-  is(sbo.positionY, expectedScrollPos, "menu scroll position");
+  var sx = { }, sy = { };
+  sbo.getPosition(sx, sy);
+  is(sy.value, expectedScrollPos, "menu scroll position");
 
-  hidePopup();
+  popup.hidePopup();
 }
 
 function is(l, r, n) { window.opener.wrappedJSObject.SimpleTest.is(l,r,n); }
@@ -227,8 +214,10 @@ function contextMenuPopupShown()
       [, gScreenY] = getScreenXY(document.documentElement);
       // compare against the available size as well as the total size, as some
       // platforms allow the menu to overlap os chrome and others do not
-      var pos = (screen.availTop + screen.availHeight - rect.height) - gScreenY;
-      var availPos = (screen.top + screen.height - rect.height) - gScreenY;
+      // the - 3 here is to account for 3 pixels that are subtracted from the
+      // screen size when sizing a popup for the popup shadow
+      var pos = (screen.availTop + screen.availHeight - 3 - rect.height) - gScreenY;
+      var availPos = (screen.top + screen.height - 3 - rect.height) - gScreenY;
       ok(rect.top == pos || rect.top == availPos,
          gTests[gTestIndex] + " top");
       break;
@@ -237,7 +226,7 @@ function contextMenuPopupShown()
       break;
   }
 
-  hidePopup();
+  popup.hidePopup();
 }
 
 function contextMenuPopupHidden()
@@ -275,8 +264,7 @@ function nextContextMenuTest(desiredHeight)
 function testPopupMovement()
 {
   var button = document.getElementById("label");
-  var isPanelTest = (gTests[gTestIndex] == "panel movement");
-  var popup = document.getElementById(isPanelTest ? "panel" : "popup");
+  var popup = document.getElementById((gTests[gTestIndex] == "panel movement") ? "panel" : "popup");
 
   var screenX, screenY, buttonScreenX, buttonScreenY;
   var rect = popup.getBoundingClientRect();
@@ -285,36 +273,21 @@ function testPopupMovement()
   popup.moveTo(1, 1);
   [screenX, screenY] = getScreenXY(popup);
 
-  var expectedx = 1, expectedy = 1;
-  if (!isPanelTest && !overlapOSChrome) {
-    if (screen.availLeft >= 1) expectedx = screen.availLeft;
-    if (screen.availTop >= 1) expectedy = screen.availTop;
-  }
+  var expectedx = overlapOSChrome ? 1 : (screen.availLeft < 1 ? 1 : screen.availLeft);
+  var expectedy = overlapOSChrome ? 1 : (screen.availTop < 1 ? 1 : screen.availTop);
   is(screenX, expectedx, gTests[gTestIndex] + " (1, 1) x");
   is(screenY, expectedy, gTests[gTestIndex] + " (1, 1) y");
 
   popup.moveTo(100, 8000);
-  if (isPanelTest) {
-    expectedy = 8000;
-  }
-  else {
-    expectedy = (overlapOSChrome ? screen.height + screen.top : screen.availHeight + screen.availTop) -
-                Math.round(rect.height);
-  }
-
+  var expectedy = (overlapOSChrome ? screen.height + screen.top : screen.availHeight + screen.availTop) -
+                  Math.round(rect.height) - 3;
   [screenX, screenY] = getScreenXY(popup);
   is(screenX, 100, gTests[gTestIndex] + " (100, 8000) x");
   is(screenY, expectedy, gTests[gTestIndex] + " (100, 8000) y");
 
   popup.moveTo(6000, 100);
-
-  if (isPanelTest) {
-    expectedx = 6000;
-  }
-  else {
-    expectedx = (overlapOSChrome ? screen.width + screen.left : screen.availWidth + screen.availLeft) -
-                Math.round(rect.width);
-  }
+  expectedx = (overlapOSChrome ? screen.width + screen.left : screen.availWidth + screen.availLeft) -
+              Math.round(rect.width) - 3;
 
   [screenX, screenY] = getScreenXY(popup);
   is(screenX, expectedx, gTests[gTestIndex] + " (6000, 100) x");

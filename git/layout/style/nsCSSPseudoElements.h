@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is atom lists for CSS pseudos.
+ *
+ * The Initial Developer of the Original Code is 
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   L. David Baron <dbaron@dbaron.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* atom list for CSS pseudo-elements */
 
@@ -13,7 +46,7 @@
 // Is this pseudo-element a CSS2 pseudo-element that can be specified
 // with the single colon syntax (in addition to the double-colon syntax,
 // which can be used for all pseudo-elements)?
-#define CSS_PSEUDO_ELEMENT_IS_CSS2                     (1<<0)
+#define CSS_PSEUDO_ELEMENT_IS_CSS2                (1<<0)
 // Is this pseudo-element a pseudo-element that can contain other
 // elements?
 // (Currently pseudo-elements are either leaves of the tree (relative to
@@ -22,18 +55,7 @@
 // possible that in the future there might be container pseudo-elements
 // that form a properly nested tree structure.  If that happens, we
 // should probably split this flag into two.)
-#define CSS_PSEUDO_ELEMENT_CONTAINS_ELEMENTS           (1<<1)
-// Flag to add the ability to take into account style attribute set for the
-// pseudo element (by default it's ignored).
-#define CSS_PSEUDO_ELEMENT_SUPPORTS_STYLE_ATTRIBUTE    (1<<2)
-// Flag that indicate the pseudo-element supports a user action pseudo-class
-// following it, such as :active or :hover.  This would normally correspond
-// to whether the pseudo-element is tree-like, but we don't support these
-// pseudo-classes on ::before and ::after generated content yet.  See
-// http://dev.w3.org/csswg/selectors4/#pseudo-elements.
-#define CSS_PSEUDO_ELEMENT_SUPPORTS_USER_ACTION_STATE  (1<<3)
-// Is content prevented from parsing selectors containing this pseudo-element?
-#define CSS_PSEUDO_ELEMENT_UA_SHEET_ONLY               (1<<4)
+#define CSS_PSEUDO_ELEMENT_CONTAINS_ELEMENTS      (1<<1)
 
 // Empty class derived from nsIAtom so that function signatures can
 // require an atom from this atom list.
@@ -44,9 +66,13 @@ public:
 
   static void AddRefAtoms();
 
-  static bool IsPseudoElement(nsIAtom *aAtom);
+  static PRBool IsPseudoElement(nsIAtom *aAtom);
 
-  static bool IsCSS2PseudoElement(nsIAtom *aAtom);
+  static PRBool IsCSS2PseudoElement(nsIAtom *aAtom);
+
+  static PRBool PseudoElementContainsElements(nsIAtom *aAtom) {
+    return PseudoElementHasFlags(aAtom, CSS_PSEUDO_ELEMENT_CONTAINS_ELEMENTS);
+  }
 
 #define CSS_PSEUDO_ELEMENT(_name, _value, _flags) \
   static nsICSSPseudoElement* _name;
@@ -74,29 +100,13 @@ public:
   // Get the atom for a given Type.  aType must be < ePseudo_PseudoElementCount
   static nsIAtom* GetPseudoAtom(Type aType);
 
-  static bool PseudoElementContainsElements(const Type aType) {
-    return PseudoElementHasFlags(aType, CSS_PSEUDO_ELEMENT_CONTAINS_ELEMENTS);
-  }
-
-  static bool PseudoElementSupportsStyleAttribute(const Type aType) {
-    MOZ_ASSERT(aType < ePseudo_PseudoElementCount);
-    return PseudoElementHasFlags(aType, CSS_PSEUDO_ELEMENT_SUPPORTS_STYLE_ATTRIBUTE);
-  }
-
-  static bool PseudoElementSupportsUserActionState(const Type aType);
-
-  static bool PseudoElementIsUASheetOnly(const Type aType) {
-    MOZ_ASSERT(aType < ePseudo_PseudoElementCount);
-    return PseudoElementHasFlags(aType, CSS_PSEUDO_ELEMENT_UA_SHEET_ONLY);
-  }
-
 private:
-  static uint32_t FlagsForPseudoElement(const Type aType);
+  static PRUint32 FlagsForPseudoElement(nsIAtom *aAtom);
 
   // Does the given pseudo-element have all of the flags given?
-  static bool PseudoElementHasFlags(const Type aType, uint32_t aFlags)
+  static PRBool PseudoElementHasFlags(nsIAtom *aAtom, PRUint32 aFlags)
   {
-    return (FlagsForPseudoElement(aType) & aFlags) == aFlags;
+    return (FlagsForPseudoElement(aAtom) & aFlags) == aFlags;
   }
 };
 

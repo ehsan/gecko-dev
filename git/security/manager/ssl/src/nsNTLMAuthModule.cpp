@@ -1,52 +1,69 @@
 /* vim:set ts=2 sw=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "nsNTLMAuthModule.h"
-
-#include <time.h>
-
-#include "md4.h"
-#include "mozilla/CheckedInt.h"
-#include "mozilla/Endian.h"
-#include "mozilla/Likely.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
-#include "nsCOMPtr.h"
-#include "nsComponentManagerUtils.h"
-#include "nsICryptoHash.h"
-#include "nsICryptoHMAC.h"
-#include "nsIKeyModule.h"
-#include "nsKeyModule.h"
-#include "nsNativeCharsetUtils.h"
-#include "nsNetCID.h"
-#include "nsNSSShutDown.h"
-#include "nsUnicharUtils.h"
-#include "pk11pub.h"
 #include "prlog.h"
-#include "prsystem.h"
 
-static bool sNTLMv1Forced = false;
+#include <stdlib.h>
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
+#include "nsServiceManagerUtils.h"
+#include "nsCOMPtr.h"
+#include "nsNSSShutDown.h"
+#include "nsNTLMAuthModule.h"
+#include "nsNativeCharsetUtils.h"
+#include "nsReadableUtils.h"
+#include "nsString.h"
+#include "prsystem.h"
+#include "nss.h"
+#include "pk11func.h"
+#include "md4.h"
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo *
-GetNTLMLog()
-{
-  static PRLogModuleInfo *sNTLMLog;
-  if (!sNTLMLog)
-    sNTLMLog = PR_NewLogModule("NTLM");
-  return sNTLMLog;
-}
+PRLogModuleInfo *gNTLMLog = PR_NewLogModule("NTLM");
 
-#define LOG(x) PR_LOG(GetNTLMLog(), PR_LOG_DEBUG, x)
-#define LOG_ENABLED() PR_LOG_TEST(GetNTLMLog(), PR_LOG_DEBUG)
+#define LOG(x) PR_LOG(gNTLMLog, PR_LOG_DEBUG, x)
+#define LOG_ENABLED() PR_LOG_TEST(gNTLMLog, PR_LOG_DEBUG)
 #else
 #define LOG(x)
 #endif
 
-static void des_makekey(const uint8_t *raw, uint8_t *key);
-static void des_encrypt(const uint8_t *key, const uint8_t *src, uint8_t *hash);
+static void des_makekey(const PRUint8 *raw, PRUint8 *key);
+static void des_encrypt(const PRUint8 *key, const PRUint8 *src, PRUint8 *hash);
+static void md5sum(const PRUint8 *input, PRUint32 inputLen, PRUint8 *result);
 
 //-----------------------------------------------------------------------------
 // this file contains a cross-platform NTLM authentication implementation. it
@@ -101,21 +118,27 @@ static const char NTLM_TYPE2_MARKER[] = { 0x02, 0x00, 0x00, 0x00 };
 static const char NTLM_TYPE3_MARKER[] = { 0x03, 0x00, 0x00, 0x00 };
 
 #define NTLM_TYPE1_HEADER_LEN 32
-#define NTLM_TYPE2_HEADER_LEN 48
+#define NTLM_TYPE2_HEADER_LEN 32
 #define NTLM_TYPE3_HEADER_LEN 64
 
-/**
- * We don't actually send a LM response, but we still have to send something in this spot
- */
+#define LM_HASH_LEN 16
 #define LM_RESP_LEN 24
 
-#define NTLM_CHAL_LEN 8
-
 #define NTLM_HASH_LEN 16
-#define NTLMv2_HASH_LEN 16
 #define NTLM_RESP_LEN 24
-#define NTLMv2_RESP_LEN 16
-#define NTLMv2_BLOB1_LEN 28
+
+//-----------------------------------------------------------------------------
+
+static PRBool SendLM()
+{
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (!prefs)
+    return PR_FALSE;
+
+  PRBool val;
+  nsresult rv = prefs->GetBoolPref("network.ntlm.send-lm-response", &val);
+  return NS_SUCCEEDED(rv) && val;
+}
 
 //-----------------------------------------------------------------------------
 
@@ -124,7 +147,7 @@ static const char NTLM_TYPE3_MARKER[] = { 0x03, 0x00, 0x00, 0x00 };
 /**
  * Prints a description of flags to the NSPR Log, if enabled.
  */
-static void LogFlags(uint32_t flags)
+static void LogFlags(PRUint32 flags)
 {
   if (!LOG_ENABLED())
     return;
@@ -175,7 +198,7 @@ static void LogFlags(uint32_t flags)
  * @param bufLen length of the data
  */
 static void
-LogBuf(const char *tag, const uint8_t *buf, uint32_t bufLen)
+LogBuf(const char *tag, const PRUint8 *buf, PRUint32 bufLen)
 {
   int i;
 
@@ -227,12 +250,12 @@ LogBuf(const char *tag, const uint8_t *buf, uint32_t bufLen)
  * @param token The token to print
  * @param tokenLen length of the data in token
  */
-static void LogToken(const char *name, const void *token, uint32_t tokenLen)
+static void LogToken(const char *name, const void *token, PRUint32 tokenLen)
 {
   if (!LOG_ENABLED())
     return;
 
-  char *b64data = PL_Base64Encode((const char *) token, tokenLen, nullptr);
+  char *b64data = PL_Base64Encode((const char *) token, tokenLen, NULL);
   if (b64data)
   {
     PR_LogPrint("%s: %s\n", name, b64data);
@@ -254,14 +277,14 @@ static void LogToken(const char *name, const void *token, uint32_t tokenLen)
 #define SWAP32(x) ((SWAP16((x) & 0xffff) << 16) | (SWAP16((x) >> 16)))
 
 static void *
-WriteBytes(void *buf, const void *data, uint32_t dataLen)
+WriteBytes(void *buf, const void *data, PRUint32 dataLen)
 {
   memcpy(buf, data, dataLen);
-  return (uint8_t *) buf + dataLen;
+  return (PRUint8 *) buf + dataLen;
 }
 
 static void *
-WriteDWORD(void *buf, uint32_t dword)
+WriteDWORD(void *buf, PRUint32 dword)
 {
 #ifdef IS_BIG_ENDIAN 
   // NTLM uses little endian on the wire
@@ -271,7 +294,7 @@ WriteDWORD(void *buf, uint32_t dword)
 }
 
 static void *
-WriteSecBuf(void *buf, uint16_t length, uint32_t offset)
+WriteSecBuf(void *buf, PRUint16 length, PRUint32 offset)
 {
 #ifdef IS_BIG_ENDIAN
   length = SWAP16(length);
@@ -292,15 +315,15 @@ WriteSecBuf(void *buf, uint16_t length, uint32_t offset)
  * convert the unicode buffer to little-endian on big-endian platforms.
  */
 static void *
-WriteUnicodeLE(void *buf, const char16_t *str, uint32_t strLen)
+WriteUnicodeLE(void *buf, const PRUnichar *str, PRUint32 strLen)
 {
   // convert input string from BE to LE
-  uint8_t *cursor = (uint8_t *) buf,
-          *input  = (uint8_t *) str;
-  for (uint32_t i=0; i<strLen; ++i, input+=2, cursor+=2)
+  PRUint8 *cursor = (PRUint8 *) buf,
+          *input  = (PRUint8 *) str;
+  for (PRUint32 i=0; i<strLen; ++i, input+=2, cursor+=2)
   {
     // allow for the case where |buf == str|
-    uint8_t temp = input[0];
+    PRUint8 temp = input[0];
     cursor[0] = input[1];
     cursor[1] = temp;
   }
@@ -308,21 +331,21 @@ WriteUnicodeLE(void *buf, const char16_t *str, uint32_t strLen)
 }
 #endif
 
-static uint16_t
-ReadUint16(const uint8_t *&buf)
+static PRUint16
+ReadUint16(const PRUint8 *&buf)
 {
-  uint16_t x = ((uint16_t) buf[0]) | ((uint16_t) buf[1] << 8);
+  PRUint16 x = ((PRUint16) buf[0]) | ((PRUint16) buf[1] << 8);
   buf += sizeof(x);
   return x;
 }
 
-static uint32_t
-ReadUint32(const uint8_t *&buf)
+static PRUint32
+ReadUint32(const PRUint8 *&buf)
 {
-  uint32_t x = ( (uint32_t) buf[0])        |
-               (((uint32_t) buf[1]) << 8)  |
-               (((uint32_t) buf[2]) << 16) |
-               (((uint32_t) buf[3]) << 24);
+  PRUint32 x = ( (PRUint32) buf[0])        |
+               (((PRUint32) buf[1]) << 8)  |
+               (((PRUint32) buf[2]) << 16) |
+               (((PRUint32) buf[3]) << 24);
   buf += sizeof(x);
   return x;
 }
@@ -336,9 +359,48 @@ ZapBuf(void *buf, size_t bufLen)
 }
 
 static void
+ZapString(nsCString &s)
+{
+  ZapBuf(s.BeginWriting(), s.Length());
+}
+
+static void
 ZapString(nsString &s)
 {
   ZapBuf(s.BeginWriting(), s.Length() * 2);
+}
+
+static const unsigned char LM_MAGIC[] = "KGS!@#$%";
+
+/**
+ * LM_Hash computes the LM hash of the given password.
+ *
+ * @param password
+ *        null-terminated unicode password.
+ * @param hash
+ *        16-byte result buffer
+ */
+static void
+LM_Hash(const nsString &password, unsigned char *hash)
+{
+  // convert password to OEM character set.  we'll just use the native
+  // filesystem charset.
+  nsCAutoString passbuf;
+  NS_CopyUnicodeToNative(password, passbuf);
+  ToUpperCase(passbuf);
+  PRUint32 n = passbuf.Length();
+  passbuf.SetLength(14);
+  for (PRUint32 i=n; i<14; ++i)
+    passbuf.SetCharAt('\0', i);
+
+  unsigned char k1[8], k2[8];
+  des_makekey((const unsigned char *) passbuf.get()    , k1);
+  des_makekey((const unsigned char *) passbuf.get() + 7, k2);
+  ZapString(passbuf);
+
+  // use password keys to hash LM magic string twice.
+  des_encrypt(k1, LM_MAGIC, hash);
+  des_encrypt(k2, LM_MAGIC, hash + 8);
 }
 
 /**
@@ -352,14 +414,14 @@ ZapString(nsString &s)
 static void
 NTLM_Hash(const nsString &password, unsigned char *hash)
 {
-  uint32_t len = password.Length();
-  uint8_t *passbuf;
+  PRUint32 len = password.Length();
+  PRUint8 *passbuf;
   
 #ifdef IS_BIG_ENDIAN
-  passbuf = (uint8_t *) malloc(len * 2);
+  passbuf = (PRUint8 *) malloc(len * 2);
   WriteUnicodeLE(passbuf, password.get(), len);
 #else
-  passbuf = (uint8_t *) password.get();
+  passbuf = (PRUint8 *) password.get();
 #endif
 
   md4sum(passbuf, len * 2, hash);
@@ -384,9 +446,9 @@ NTLM_Hash(const nsString &password, unsigned char *hash)
  *        24-byte buffer to contain the LM response upon return
  */
 static void
-LM_Response(const uint8_t *hash, const uint8_t *challenge, uint8_t *response)
+LM_Response(const PRUint8 *hash, const PRUint8 *challenge, PRUint8 *response)
 {
-  uint8_t keybytes[21], k1[8], k2[8], k3[8];
+  PRUint8 keybytes[21], k1[8], k2[8], k3[8];
 
   memcpy(keybytes, hash, 16);
   ZapBuf(keybytes + 16, 5);
@@ -403,7 +465,7 @@ LM_Response(const uint8_t *hash, const uint8_t *challenge, uint8_t *response)
 //-----------------------------------------------------------------------------
 
 static nsresult
-GenerateType1Msg(void **outBuf, uint32_t *outLen)
+GenerateType1Msg(void **outBuf, PRUint32 *outLen)
 {
   //
   // verify that bufLen is sufficient
@@ -446,16 +508,14 @@ GenerateType1Msg(void **outBuf, uint32_t *outLen)
 
 struct Type2Msg
 {
-  uint32_t    flags;                    // NTLM_Xxx bitwise combination
-  uint8_t     challenge[NTLM_CHAL_LEN]; // 8 byte challenge
-  const uint8_t *target;                // target string (type depends on flags)
-  uint32_t    targetLen;                // target length in bytes
-  const uint8_t *targetInfo;            // target Attribute-Value pairs (DNS domain, et al)
-  uint32_t    targetInfoLen;            // target AV pairs length in bytes
+  PRUint32    flags;         // NTLM_Xxx bitwise combination
+  PRUint8     challenge[8];  // 8 byte challenge
+  const void *target;        // target string (type depends on flags)
+  PRUint32    targetLen;     // target length in bytes
 };
 
 static nsresult
-ParseType2Msg(const void *inBuf, uint32_t inLen, Type2Msg *msg)
+ParseType2Msg(const void *inBuf, PRUint32 inLen, Type2Msg *msg)
 {
   // make sure inBuf is long enough to contain a meaningful type2 msg.
   //
@@ -464,13 +524,12 @@ ParseType2Msg(const void *inBuf, uint32_t inLen, Type2Msg *msg)
   // 12 Target Name
   // 20 Flags
   // 24 Challenge
-  // 32 targetInfo
-  // 48 start of optional data blocks
+  // 32 end of header, start of optional data blocks
   //
   if (inLen < NTLM_TYPE2_HEADER_LEN)
     return NS_ERROR_UNEXPECTED;
 
-  const uint8_t *cursor = reinterpret_cast<const uint8_t*>(inBuf);
+  const PRUint8 *cursor = (const PRUint8 *) inBuf;
 
   // verify NTLMSSP signature
   if (memcmp(cursor, NTLM_SIGNATURE, sizeof(NTLM_SIGNATURE)) != 0)
@@ -486,22 +545,22 @@ ParseType2Msg(const void *inBuf, uint32_t inLen, Type2Msg *msg)
 
   // Read target name security buffer: ...
   // ... read target length.
-  uint32_t targetLen = ReadUint16(cursor);
+  PRUint32 targetLen = ReadUint16(cursor);
   // ... skip next 16-bit "allocated space" value.
   ReadUint16(cursor);
   // ... read offset from inBuf.
-  uint32_t offset = ReadUint32(cursor);
-  mozilla::CheckedInt<uint32_t> targetEnd = offset;
-  targetEnd += targetLen;
+  PRUint32 offset = ReadUint32(cursor);
   // Check the offset / length combo is in range of the input buffer, including
   // integer overflow checking.
-  if (MOZ_LIKELY(targetEnd.isValid() && targetEnd.value() <= inLen)) {
+  if (NS_LIKELY(offset < offset + targetLen && offset + targetLen <= inLen)) {
     msg->targetLen = targetLen;
-    msg->target = reinterpret_cast<const uint8_t*>(inBuf) + offset;
-  } else {
+    msg->target = ((const PRUint8 *) inBuf) + offset;
+  }
+  else
+  {
     // Do not error out, for (conservative) backward compatibility.
     msg->targetLen = 0;
-    msg->target = nullptr;
+    msg->target = NULL;
   }
 
   // read flags
@@ -511,34 +570,16 @@ ParseType2Msg(const void *inBuf, uint32_t inLen, Type2Msg *msg)
   memcpy(msg->challenge, cursor, sizeof(msg->challenge));
   cursor += sizeof(msg->challenge);
 
+
   LOG(("NTLM type 2 message:\n"));
-  LogBuf("target", reinterpret_cast<const uint8_t*> (msg->target), msg->targetLen);
-  LogBuf("flags", reinterpret_cast<const uint8_t*> (&msg->flags), 4);
+  LogBuf("target", (const PRUint8 *) msg->target, msg->targetLen);
+  LogBuf("flags", (const PRUint8 *) &msg->flags, 4);
   LogFlags(msg->flags);
   LogBuf("challenge", msg->challenge, sizeof(msg->challenge));
 
-  // Read (and skip) the reserved field
-  ReadUint32(cursor);
-  ReadUint32(cursor);
-  // Read target name security buffer: ...
-  // ... read target length.
-  uint32_t targetInfoLen = ReadUint16(cursor);
-  // ... skip next 16-bit "allocated space" value.
-  ReadUint16(cursor);
-  // ... read offset from inBuf.
-  offset = ReadUint32(cursor);
-  mozilla::CheckedInt<uint32_t> targetInfoEnd = offset;
-  targetInfoEnd += targetInfoLen;
-  // Check the offset / length combo is in range of the input buffer, including
-  // integer overflow checking.
-  if (MOZ_LIKELY(targetInfoEnd.isValid() && targetInfoEnd.value() <= inLen)) {
-    msg->targetInfoLen = targetInfoLen;
-    msg->targetInfo = reinterpret_cast<const uint8_t*>(inBuf) + offset;
-  } else {
-    NS_ERROR("failed to get NTLMv2 target info");
-    return NS_ERROR_UNEXPECTED;
-  }
-
+  // we currently do not implement LMv2/NTLMv2 or NTLM2 responses,
+  // so we can ignore target information.  we may want to enable
+  // support for these alternate mechanisms in the future.
   return NS_OK;
 }
 
@@ -547,9 +588,9 @@ GenerateType3Msg(const nsString &domain,
                  const nsString &username,
                  const nsString &password,
                  const void     *inBuf,
-                 uint32_t        inLen,
+                 PRUint32        inLen,
                  void          **outBuf,
-                 uint32_t       *outLen)
+                 PRUint32       *outLen)
 {
   // inBuf contains Type-2 msg (the challenge) from server
 
@@ -560,11 +601,7 @@ GenerateType3Msg(const nsString &domain,
   if (NS_FAILED(rv))
     return rv;
 
-  bool unicode = (msg.flags & NTLM_NegotiateUnicode);
-
-  // There is no negotiation for NTLMv2, so we just do it unless we are forced
-  // by explict user configuration to use the older DES-based cryptography.
-  bool ntlmv2 = (sNTLMv1Forced == false);
+  PRBool unicode = (msg.flags & NTLM_NegotiateUnicode);
 
   // temporary buffers for unicode strings
 #ifdef IS_BIG_ENDIAN
@@ -572,14 +609,11 @@ GenerateType3Msg(const nsString &domain,
 #endif
   nsAutoString ucsHostBuf; 
   // temporary buffers for oem strings
-  nsAutoCString oemDomainBuf, oemUserBuf, oemHostBuf;
+  nsCAutoString oemDomainBuf, oemUserBuf, oemHostBuf;
   // pointers and lengths for the string buffers; encoding is unicode if
   // the "negotiate unicode" flag was set in the Type-2 message.
   const void *domainPtr, *userPtr, *hostPtr;
-  uint32_t domainLen, userLen, hostLen;
-
-  // This is for NTLM, for NTLMv2 we set the new full length once we know it
-  mozilla::CheckedInt<uint16_t> ntlmRespLen = NTLM_RESP_LEN;
+  PRUint32 domainLen, userLen, hostLen;
 
   //
   // get domain name
@@ -590,7 +624,7 @@ GenerateType3Msg(const nsString &domain,
     ucsDomainBuf = domain;
     domainPtr = ucsDomainBuf.get();
     domainLen = ucsDomainBuf.Length() * 2;
-    WriteUnicodeLE((void *) domainPtr, reinterpret_cast<const char16_t*> (domainPtr),
+    WriteUnicodeLE((void *) domainPtr, (const PRUnichar *) domainPtr,
                    ucsDomainBuf.Length());
 #else
     domainPtr = domain.get();
@@ -613,7 +647,7 @@ GenerateType3Msg(const nsString &domain,
     ucsUserBuf = username;
     userPtr = ucsUserBuf.get();
     userLen = ucsUserBuf.Length() * 2;
-    WriteUnicodeLE((void *) userPtr, reinterpret_cast<const char16_t*> (userPtr),
+    WriteUnicodeLE((void *) userPtr, (const PRUnichar *) userPtr,
                    ucsUserBuf.Length());
 #else
     userPtr = username.get();
@@ -641,7 +675,7 @@ GenerateType3Msg(const nsString &domain,
     hostPtr = ucsHostBuf.get();
     hostLen = ucsHostBuf.Length() * 2;
 #ifdef IS_BIG_ENDIAN
-    WriteUnicodeLE((void *) hostPtr, reinterpret_cast<const char16_t*> (hostPtr),
+    WriteUnicodeLE((void *) hostPtr, (const PRUnichar *) hostPtr,
                    ucsHostBuf.Length());
 #endif
   }
@@ -651,243 +685,56 @@ GenerateType3Msg(const nsString &domain,
   //
   // now that we have generated all of the strings, we can allocate outBuf.
   //
+  *outLen = NTLM_TYPE3_HEADER_LEN + hostLen + domainLen + userLen +
+            LM_RESP_LEN + NTLM_RESP_LEN;
+  *outBuf = nsMemory::Alloc(*outLen);
+  if (!*outBuf)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   //
-  // next, we compute the NTLM or NTLM2 responses.
+  // next, we compute the LM and NTLM responses.
   //
-  uint8_t lmResp[LM_RESP_LEN];
-  uint8_t ntlmResp[NTLM_RESP_LEN];
-  uint8_t ntlmv2Resp[NTLMv2_RESP_LEN];
-  uint8_t ntlmHash[NTLM_HASH_LEN];
-  uint8_t ntlmv2_blob1[NTLMv2_BLOB1_LEN];
-  if (ntlmv2) {
-    // NTLMv2 mode, the default
-    nsString userUpper, domainUpper;
-    nsAutoCString ntlmHashStr;
-    nsAutoCString ntlmv2HashStr;
-    nsAutoCString lmv2ResponseStr;
-    nsAutoCString ntlmv2ResponseStr;
-
-    // temporary buffers for unicode strings
-    nsAutoString ucsDomainUpperBuf;
-    nsAutoString ucsUserUpperBuf;
-    const void *domainUpperPtr;
-    const void *userUpperPtr;
-    uint32_t domainUpperLen;
-    uint32_t userUpperLen;
-
-    if (msg.targetInfoLen == 0) {
-      NS_ERROR("failed to get NTLMv2 target info, can not do NTLMv2");
-      return NS_ERROR_UNEXPECTED;
-    }
-
-    ToUpperCase(username, ucsUserUpperBuf);
-    userUpperPtr = ucsUserUpperBuf.get();
-    userUpperLen = ucsUserUpperBuf.Length() * 2;
-#ifdef IS_BIG_ENDIAN
-    WriteUnicodeLE((void *) userUpperPtr, reinterpret_cast<const char16_t*> (userUpperPtr),
-                   ucsUserUpperBuf.Length());
-#endif
-    ToUpperCase(domain, ucsDomainUpperBuf);
-    domainUpperPtr = ucsDomainUpperBuf.get();
-    domainUpperLen = ucsDomainUpperBuf.Length() * 2;
-#ifdef IS_BIG_ENDIAN
-    WriteUnicodeLE((void *) domainUpperPtr, reinterpret_cast<const char16_t*> (domainUpperPtr),
-                   ucsDomainUpperBuf.Length());
-#endif
-
-    NTLM_Hash(password, ntlmHash);
-    ntlmHashStr = nsAutoCString(reinterpret_cast<const char *>(ntlmHash), NTLM_HASH_LEN);
-
-    nsCOMPtr<nsIKeyObjectFactory> keyFactory =
-        do_CreateInstance(NS_KEYMODULEOBJECTFACTORY_CONTRACTID, &rv);
-
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
-    nsCOMPtr<nsIKeyObject> ntlmKey =
-        do_CreateInstance(NS_KEYMODULEOBJECT_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
-    rv = keyFactory->KeyFromString(nsIKeyObject::HMAC, ntlmHashStr, getter_AddRefs(ntlmKey));
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
-    nsCOMPtr<nsICryptoHMAC> hasher =
-        do_CreateInstance(NS_CRYPTO_HMAC_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Init(nsICryptoHMAC::MD5, ntlmKey);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Update(reinterpret_cast<const uint8_t*> (userUpperPtr), userUpperLen);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Update(reinterpret_cast<const uint8_t*> (domainUpperPtr), domainUpperLen);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Finish(false, ntlmv2HashStr);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
-    uint8_t client_random[NTLM_CHAL_LEN];
-    PK11_GenerateRandom(client_random, NTLM_CHAL_LEN);
-
-    nsCOMPtr<nsIKeyObject> ntlmv2Key =
-        do_CreateInstance(NS_KEYMODULEOBJECT_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
-    // Prepare the LMv2 response
-    rv = keyFactory->KeyFromString(nsIKeyObject::HMAC, ntlmv2HashStr, getter_AddRefs(ntlmv2Key));
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
-    rv = hasher->Init(nsICryptoHMAC::MD5, ntlmv2Key);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Update(msg.challenge, NTLM_CHAL_LEN);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Update(client_random, NTLM_CHAL_LEN);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Finish(false, lmv2ResponseStr);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
-    if (lmv2ResponseStr.Length() != NTLMv2_HASH_LEN) {
-      return NS_ERROR_UNEXPECTED;
-    }
-
-    memcpy(lmResp, lmv2ResponseStr.get(), NTLMv2_HASH_LEN);
-    memcpy(lmResp + NTLMv2_HASH_LEN, client_random, NTLM_CHAL_LEN);
-
-    memset(ntlmv2_blob1, 0, NTLMv2_BLOB1_LEN);
-
-    time_t unix_time;
-    uint64_t nt_time = time(&unix_time);
-    nt_time += 11644473600LL;    // Number of seconds betwen 1601 and 1970
-    nt_time *= 1000 * 1000 * 10; // Convert seconds to 100 ns units
-
-    ntlmv2_blob1[0] = 1;
-    ntlmv2_blob1[1] = 1;
-    mozilla::LittleEndian::writeUint64(&ntlmv2_blob1[8], nt_time);
-    PK11_GenerateRandom(&ntlmv2_blob1[16], NTLM_CHAL_LEN);
-
-    rv = hasher->Init(nsICryptoHMAC::MD5, ntlmv2Key);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Update(msg.challenge, NTLM_CHAL_LEN);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Update(ntlmv2_blob1, NTLMv2_BLOB1_LEN);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Update(reinterpret_cast<const uint8_t*> (msg.targetInfo), msg.targetInfoLen);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Finish(false, ntlmv2ResponseStr);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
-    if (ntlmv2ResponseStr.Length() != NTLMv2_RESP_LEN) {
-      return NS_ERROR_UNEXPECTED;
-    }
-
-    memcpy(ntlmv2Resp, ntlmv2ResponseStr.get(), NTLMv2_RESP_LEN);
-    ntlmRespLen = NTLMv2_RESP_LEN + NTLMv2_BLOB1_LEN;
-    ntlmRespLen += msg.targetInfoLen;
-    if (!ntlmRespLen.isValid()) {
-      NS_ERROR("failed to do NTLMv2: integer overflow?!?");
-      return NS_ERROR_UNEXPECTED;
-    }
-  } else if (msg.flags & NTLM_NegotiateNTLM2Key) {
+  PRUint8 lmResp[LM_RESP_LEN], ntlmResp[NTLM_RESP_LEN], ntlmHash[NTLM_HASH_LEN];
+  if (msg.flags & NTLM_NegotiateNTLM2Key)
+  {
     // compute NTLM2 session response
-    nsCString sessionHashString;
-    const uint8_t *sessionHash;
+    PRUint8 sessionHash[16], temp[16];
 
-    PK11_GenerateRandom(lmResp, NTLM_CHAL_LEN);
-    memset(lmResp + NTLM_CHAL_LEN, 0, LM_RESP_LEN - NTLM_CHAL_LEN);
+    PK11_GenerateRandom(lmResp, 8);
+    memset(lmResp + 8, 0, LM_RESP_LEN - 8);
 
-    nsCOMPtr<nsICryptoHash> hasher =
-        do_CreateInstance(NS_CRYPTO_HASH_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Init(nsICryptoHash::MD5);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Update(msg.challenge, NTLM_CHAL_LEN);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Update(lmResp, NTLM_CHAL_LEN);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    rv = hasher->Finish(false, sessionHashString);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
-    sessionHash = reinterpret_cast<const uint8_t*> (sessionHashString.get());
-
-    LogBuf("NTLM2 effective key: ", sessionHash, 8);
+    memcpy(temp, msg.challenge, 8);
+    memcpy(temp + 8, lmResp, 8);
+    md5sum(temp, 16, sessionHash);
 
     NTLM_Hash(password, ntlmHash);
     LM_Response(ntlmHash, sessionHash, ntlmResp);
-  } else {
+  }
+  else
+  {
     NTLM_Hash(password, ntlmHash);
     LM_Response(ntlmHash, msg.challenge, ntlmResp);
 
-    // According to http://davenport.sourceforge.net/ntlm.html#ntlmVersion2,
-    // the correct way to not send the LM hash is to send the NTLM hash twice
-    // in both the LM and NTLM response fields.
-    LM_Response(ntlmHash, msg.challenge, lmResp);
-  }
-
-  mozilla::CheckedInt<uint32_t> totalLen = NTLM_TYPE3_HEADER_LEN + LM_RESP_LEN;
-  totalLen += hostLen;
-  totalLen += domainLen;
-  totalLen += userLen;
-  totalLen += ntlmRespLen.value();
-
-  if (!totalLen.isValid()) {
-    NS_ERROR("failed preparing to allocate NTLM response: integer overflow?!?");
-    return NS_ERROR_FAILURE;
-  }
-  *outBuf = nsMemory::Alloc(totalLen.value());
-  *outLen = totalLen.value();
-  if (!*outBuf) {
-    return NS_ERROR_OUT_OF_MEMORY;
+    if (SendLM())
+    {
+      PRUint8 lmHash[LM_HASH_LEN];
+      LM_Hash(password, lmHash);
+      LM_Response(lmHash, msg.challenge, lmResp);
+    }
+    else
+    {
+      // According to http://davenport.sourceforge.net/ntlm.html#ntlmVersion2,
+      // the correct way to not send the LM hash is to send the NTLM hash twice
+      // in both the LM and NTLM response fields.
+      LM_Response(ntlmHash, msg.challenge, lmResp);
+    }
   }
 
   //
   // finally, we assemble the Type-3 msg :-)
   //
   void *cursor = *outBuf;
-  mozilla::CheckedInt<uint32_t> offset;
+  PRUint32 offset;
 
   // 0 : signature
   cursor = WriteBytes(cursor, NTLM_SIGNATURE, sizeof(NTLM_SIGNATURE));
@@ -896,63 +743,29 @@ GenerateType3Msg(const nsString &domain,
   cursor = WriteBytes(cursor, NTLM_TYPE3_MARKER, sizeof(NTLM_TYPE3_MARKER));
 
   // 12 : LM response sec buf
-  offset = NTLM_TYPE3_HEADER_LEN;
-  offset += domainLen;
-  offset += userLen;
-  offset += hostLen;
-  if (!offset.isValid()) {
-    NS_ERROR("failed preparing to write NTLM response: integer overflow?!?");
-    return NS_ERROR_UNEXPECTED;
-  }
-  cursor = WriteSecBuf(cursor, LM_RESP_LEN, offset.value());
-  memcpy((uint8_t *) *outBuf + offset.value(), lmResp, LM_RESP_LEN);
+  offset = NTLM_TYPE3_HEADER_LEN + domainLen + userLen + hostLen;
+  cursor = WriteSecBuf(cursor, LM_RESP_LEN, offset);
+  memcpy((PRUint8 *) *outBuf + offset, lmResp, LM_RESP_LEN);
 
-  // 20 : NTLM or NTLMv2 response sec buf
+  // 20 : NTLM response sec buf
   offset += LM_RESP_LEN;
-  if (!offset.isValid()) {
-    NS_ERROR("failed preparing to write NTLM response: integer overflow?!?");
-    return NS_ERROR_UNEXPECTED;
-  }
-  cursor = WriteSecBuf(cursor, ntlmRespLen.value(), offset.value());
-  if (ntlmv2) {
-    memcpy(reinterpret_cast<uint8_t*> (*outBuf) + offset.value(), ntlmv2Resp, NTLMv2_RESP_LEN);
-    offset += NTLMv2_RESP_LEN;
-    if (!offset.isValid()) {
-      NS_ERROR("failed preparing to write NTLM response: integer overflow?!?");
-      return NS_ERROR_UNEXPECTED;
-    }
-    memcpy(reinterpret_cast<uint8_t*> (*outBuf) + offset.value(), ntlmv2_blob1, NTLMv2_BLOB1_LEN);
-    offset += NTLMv2_BLOB1_LEN;
-    if (!offset.isValid()) {
-      NS_ERROR("failed preparing to write NTLM response: integer overflow?!?");
-      return NS_ERROR_UNEXPECTED;
-    }
-    memcpy(reinterpret_cast<uint8_t*> (*outBuf) + offset.value(), msg.targetInfo, msg.targetInfoLen);
-  } else {
-    memcpy(reinterpret_cast<uint8_t*> (*outBuf) + offset.value(), ntlmResp, NTLM_RESP_LEN);
-  }
+  cursor = WriteSecBuf(cursor, NTLM_RESP_LEN, offset);
+  memcpy((PRUint8 *) *outBuf + offset, ntlmResp, NTLM_RESP_LEN);
+
   // 28 : domain name sec buf
   offset = NTLM_TYPE3_HEADER_LEN;
-  cursor = WriteSecBuf(cursor, domainLen, offset.value());
-  memcpy((uint8_t *) *outBuf + offset.value(), domainPtr, domainLen);
+  cursor = WriteSecBuf(cursor, domainLen, offset);
+  memcpy((PRUint8 *) *outBuf + offset, domainPtr, domainLen);
 
   // 36 : user name sec buf
   offset += domainLen;
-  if (!offset.isValid()) {
-    NS_ERROR("failed preparing to write NTLM response: integer overflow?!?");
-    return NS_ERROR_UNEXPECTED;
-  }
-  cursor = WriteSecBuf(cursor, userLen, offset.value());
-  memcpy(reinterpret_cast<uint8_t*> (*outBuf) + offset.value(), userPtr, userLen);
+  cursor = WriteSecBuf(cursor, userLen, offset);
+  memcpy((PRUint8 *) *outBuf + offset, userPtr, userLen);
 
   // 44 : workstation (host) name sec buf
   offset += userLen;
-  if (!offset.isValid()) {
-    NS_ERROR("failed preparing to write NTLM response: integer overflow?!?");
-    return NS_ERROR_UNEXPECTED;
-  }
-  cursor = WriteSecBuf(cursor, hostLen, offset.value());
-  memcpy(reinterpret_cast<uint8_t*> (*outBuf) + offset.value(), hostPtr, hostLen);
+  cursor = WriteSecBuf(cursor, hostLen, offset);
+  memcpy((PRUint8 *) *outBuf + offset, hostPtr, hostLen);
 
   // 52 : session key sec buf (not used)
   cursor = WriteSecBuf(cursor, 0, 0);
@@ -965,7 +778,7 @@ GenerateType3Msg(const nsString &domain,
 
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS(nsNTLMAuthModule, nsIAuthModule)
+NS_IMPL_ISUPPORTS1(nsNTLMAuthModule, nsIAuthModule)
 
 nsNTLMAuthModule::~nsNTLMAuthModule()
 {
@@ -975,13 +788,6 @@ nsNTLMAuthModule::~nsNTLMAuthModule()
 nsresult
 nsNTLMAuthModule::InitTest()
 {
-  static bool prefObserved = false;
-  if (!prefObserved) {
-    mozilla::Preferences::AddBoolVarCache(
-      &sNTLMv1Forced, "network.auth.force-generic-ntlm-v1", sNTLMv1Forced);
-    prefObserved = true;
-  }
-
   nsNSSShutDownPreventionLock locker;
   //
   // disable NTLM authentication when FIPS mode is enabled.
@@ -991,36 +797,24 @@ nsNTLMAuthModule::InitTest()
 
 NS_IMETHODIMP
 nsNTLMAuthModule::Init(const char      *serviceName,
-                       uint32_t         serviceFlags,
-                       const char16_t *domain,
-                       const char16_t *username,
-                       const char16_t *password)
+                       PRUint32         serviceFlags,
+                       const PRUnichar *domain,
+                       const PRUnichar *username,
+                       const PRUnichar *password)
 {
-  NS_ASSERTION((serviceFlags & ~nsIAuthModule::REQ_PROXY_AUTH) == nsIAuthModule::REQ_DEFAULT,
-      "unexpected service flags");
+  NS_ASSERTION(serviceFlags == nsIAuthModule::REQ_DEFAULT, "unexpected service flags");
 
   mDomain = domain;
   mUsername = username;
   mPassword = password;
-
-  static bool sTelemetrySent = false;
-  if (!sTelemetrySent) {
-      mozilla::Telemetry::Accumulate(
-          mozilla::Telemetry::NTLM_MODULE_USED_2,
-          serviceFlags & nsIAuthModule::REQ_PROXY_AUTH
-              ? NTLM_MODULE_GENERIC_PROXY
-              : NTLM_MODULE_GENERIC_DIRECT);
-      sTelemetrySent = true;
-  }
-
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsNTLMAuthModule::GetNextToken(const void *inToken,
-                               uint32_t    inTokenLen,
+                               PRUint32    inTokenLen,
                                void      **outToken,
-                               uint32_t   *outTokenLen)
+                               PRUint32   *outTokenLen)
 {
   nsresult rv;
   nsNSSShutDownPreventionLock locker;
@@ -1052,19 +846,19 @@ nsNTLMAuthModule::GetNextToken(const void *inToken,
 
 NS_IMETHODIMP
 nsNTLMAuthModule::Unwrap(const void *inToken,
-                        uint32_t    inTokenLen,
+                        PRUint32    inTokenLen,
                         void      **outToken,
-                        uint32_t   *outTokenLen)
+                        PRUint32   *outTokenLen)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 nsNTLMAuthModule::Wrap(const void *inToken,
-                       uint32_t    inTokenLen,
-                       bool        confidential,
+                       PRUint32    inTokenLen,
+                       PRBool      confidential,
                        void      **outToken,
-                       uint32_t   *outTokenLen)
+                       PRUint32   *outTokenLen)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -1073,8 +867,8 @@ nsNTLMAuthModule::Wrap(const void *inToken,
 // DES support code
 
 // set odd parity bit (in least significant bit position)
-static uint8_t
-des_setkeyparity(uint8_t x)
+static PRUint8
+des_setkeyparity(PRUint8 x)
 {
   if ((((x >> 7) ^ (x >> 6) ^ (x >> 5) ^
         (x >> 4) ^ (x >> 3) ^ (x >> 2) ^
@@ -1087,7 +881,7 @@ des_setkeyparity(uint8_t x)
 
 // build 64-bit des key from 56-bit raw key
 static void
-des_makekey(const uint8_t *raw, uint8_t *key)
+des_makekey(const PRUint8 *raw, PRUint8 *key)
 {
   key[0] = des_setkeyparity(raw[0]);
   key[1] = des_setkeyparity((raw[0] << 7) | (raw[1] >> 1));
@@ -1101,28 +895,28 @@ des_makekey(const uint8_t *raw, uint8_t *key)
 
 // run des encryption algorithm (using NSS)
 static void
-des_encrypt(const uint8_t *key, const uint8_t *src, uint8_t *hash)
+des_encrypt(const PRUint8 *key, const PRUint8 *src, PRUint8 *hash)
 {
   CK_MECHANISM_TYPE cipherMech = CKM_DES_ECB;
-  PK11SlotInfo *slot = nullptr;
-  PK11SymKey *symkey = nullptr;
-  PK11Context *ctxt = nullptr;
-  SECItem keyItem, *param = nullptr;
+  PK11SlotInfo *slot = nsnull;
+  PK11SymKey *symkey = nsnull;
+  PK11Context *ctxt = nsnull;
+  SECItem keyItem, *param = nsnull;
   SECStatus rv;
   unsigned int n;
   
-  slot = PK11_GetBestSlot(cipherMech, nullptr);
+  slot = PK11_GetBestSlot(cipherMech, nsnull);
   if (!slot)
   {
     NS_ERROR("no slot");
     goto done;
   }
 
-  keyItem.data = (uint8_t *) key;
+  keyItem.data = (PRUint8 *) key;
   keyItem.len = 8;
   symkey = PK11_ImportSymKey(slot, cipherMech,
                              PK11_OriginUnwrap, CKA_ENCRYPT,
-                             &keyItem, nullptr);
+                             &keyItem, nsnull);
   if (!symkey)
   {
     NS_ERROR("no symkey");
@@ -1130,7 +924,7 @@ des_encrypt(const uint8_t *key, const uint8_t *src, uint8_t *hash)
   }
 
   // no initialization vector required
-  param = PK11_ParamFromIV(cipherMech, nullptr);
+  param = PK11_ParamFromIV(cipherMech, nsnull);
   if (!param)
   {
     NS_ERROR("no param");
@@ -1139,30 +933,53 @@ des_encrypt(const uint8_t *key, const uint8_t *src, uint8_t *hash)
 
   ctxt = PK11_CreateContextBySymKey(cipherMech, CKA_ENCRYPT,
                                     symkey, param);
-  if (!ctxt) {
+  if (!ctxt)
+  {
     NS_ERROR("no context");
     goto done;
   }
 
-  rv = PK11_CipherOp(ctxt, hash, (int *) &n, 8, (uint8_t *) src, 8);
-  if (rv != SECSuccess) {
+  rv = PK11_CipherOp(ctxt, hash, (int *) &n, 8, (PRUint8 *) src, 8);
+  if (rv != SECSuccess)
+  {
     NS_ERROR("des failure");
     goto done;
   }
 
   rv = PK11_DigestFinal(ctxt, hash+8, &n, 0);
-  if (rv != SECSuccess) {
+  if (rv != SECSuccess)
+  {
     NS_ERROR("des failure");
     goto done;
   }
 
 done:
   if (ctxt)
-    PK11_DestroyContext(ctxt, true);
+    PK11_DestroyContext(ctxt, PR_TRUE);
   if (symkey)
     PK11_FreeSymKey(symkey);
   if (param)
-    SECITEM_FreeItem(param, true);
+    SECITEM_FreeItem(param, PR_TRUE);
   if (slot)
     PK11_FreeSlot(slot);
+}
+
+//-----------------------------------------------------------------------------
+// MD5 support code
+
+static void md5sum(const PRUint8 *input, PRUint32 inputLen, PRUint8 *result)
+{
+  PK11Context *ctxt = PK11_CreateDigestContext(SEC_OID_MD5);
+  if (ctxt)
+  {
+    if (PK11_DigestBegin(ctxt) == SECSuccess)
+    {
+      if (PK11_DigestOp(ctxt, input, inputLen) == SECSuccess)
+      {
+        PRUint32 resultLen = 16;
+        PK11_DigestFinal(ctxt, result, &resultLen, resultLen);
+      }
+    }
+    PK11_DestroyContext(ctxt, PR_TRUE);
+  }
 }

@@ -1,102 +1,107 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2006-2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir@pobox.com>
+ *   Masayuki Nakano <masayuki@d-toybox.com>
+ *   John Daggett <jdaggett@mozilla.com>
+ *   Jonathan Kew <jfkthame@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef GFX_MACFONT_H
 #define GFX_MACFONT_H
 
-#include "mozilla/MemoryReporting.h"
 #include "gfxFont.h"
-#include "cairo.h"
-#include <ApplicationServices/ApplicationServices.h>
+#include "gfxMacPlatformFontList.h"
 
-class MacOSFontEntry;
+#include "cairo.h"
 
 class gfxMacFont : public gfxFont
 {
 public:
     gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
-               bool aNeedsBold);
+               PRBool aNeedsBold);
 
     virtual ~gfxMacFont();
 
+    ATSFontRef GetATSFontRef() const { return mATSFont; }
     CGFontRef GetCGFontRef() const { return mCGFont; }
 
     /* overrides for the pure virtual methods in gfxFont */
-    virtual uint32_t GetSpaceGlyph() MOZ_OVERRIDE {
-        return mSpaceGlyph;
-    }
-
-    virtual bool SetupCairoFont(gfxContext *aContext) MOZ_OVERRIDE;
-
-    /* override Measure to add padding for antialiasing */
-    virtual RunMetrics Measure(gfxTextRun *aTextRun,
-                               uint32_t aStart, uint32_t aEnd,
-                               BoundingBoxType aBoundingBoxType,
-                               gfxContext *aContextForTightBoundingBox,
-                               Spacing *aSpacing,
-                               uint16_t aOrientation) MOZ_OVERRIDE;
-
-    // We need to provide hinted (non-linear) glyph widths if using a font
-    // with embedded color bitmaps (Apple Color Emoji), as Core Text renders
-    // the glyphs with non-linear scaling at small pixel sizes.
-    virtual bool ProvidesGlyphWidths() const MOZ_OVERRIDE {
-        return mFontEntry->HasFontTable(TRUETYPE_TAG('s','b','i','x'));
-    }
-
-    virtual int32_t GetGlyphWidth(DrawTarget& aDrawTarget,
-                                  uint16_t aGID) MOZ_OVERRIDE;
-
-    virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
-    GetScaledFont(mozilla::gfx::DrawTarget *aTarget) MOZ_OVERRIDE;
-
-    virtual mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions>
-      GetGlyphRenderingOptions(const TextRunDrawParams* aRunParams = nullptr) MOZ_OVERRIDE;
-
-    virtual void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontCacheSizes* aSizes) const MOZ_OVERRIDE;
-    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontCacheSizes* aSizes) const MOZ_OVERRIDE;
-
-    virtual FontType GetType() const MOZ_OVERRIDE { return FONT_TYPE_MAC; }
-
-protected:
-    virtual const Metrics& GetHorizontalMetrics() MOZ_OVERRIDE {
+    virtual const gfxFont::Metrics& GetMetrics() {
         return mMetrics;
     }
 
+    virtual PRUint32 GetSpaceGlyph() {
+        return mSpaceGlyph;
+    }
+
+    virtual PRBool SetupCairoFont(gfxContext *aContext);
+
+    // override gfxFont table access function to bypass gfxFontEntry cache,
+    // use CGFontRef API to get direct access to system font data
+    virtual hb_blob_t *GetFontTable(PRUint32 aTag);
+
+protected:
+    virtual void CreatePlatformShaper();
+
     // override to prefer CoreText shaping with fonts that depend on AAT
-    virtual bool ShapeText(gfxContext     *aContext,
-                           const char16_t *aText,
-                           uint32_t        aOffset,
-                           uint32_t        aLength,
-                           int32_t         aScript,
-                           bool            aVertical,
-                           gfxShapedText  *aShapedText) MOZ_OVERRIDE;
+    virtual PRBool InitTextRun(gfxContext *aContext,
+                               gfxTextRun *aTextRun,
+                               const PRUnichar *aString,
+                               PRUint32 aRunStart,
+                               PRUint32 aRunLength,
+                               PRInt32 aRunScript,
+                               PRBool aPreferPlatformShaping = PR_FALSE);
 
     void InitMetrics();
-    void InitMetricsFromPlatform();
+    void InitMetricsFromATSMetrics();
 
     // Get width and glyph ID for a character; uses aConvFactor
     // to convert font units as returned by CG to actual dimensions
-    gfxFloat GetCharWidth(CFDataRef aCmap, char16_t aUniChar,
-                          uint32_t *aGlyphID, gfxFloat aConvFactor);
+    gfxFloat GetCharWidth(CFDataRef aCmap, PRUnichar aUniChar,
+                          PRUint32 *aGlyphID, gfxFloat aConvFactor);
 
-    // a weak reference to the CoreGraphics font: this is owned by the
-    // MacOSFontEntry, it is not retained or released by gfxMacFont
+    static void DestroyBlobFunc(void* aUserData);
+
+    ATSFontRef            mATSFont;
     CGFontRef             mCGFont;
 
-    // a Core Text font reference, created only if we're using CT to measure
-    // glyph widths; otherwise null.
-    CTFontRef             mCTFont;
-
     cairo_font_face_t    *mFontFace;
-
-    nsAutoPtr<gfxFontShaper> mCoreTextShaper;
+    cairo_scaled_font_t  *mScaledFont;
 
     Metrics               mMetrics;
-    uint32_t              mSpaceGlyph;
+    PRUint32              mSpaceGlyph;
 };
 
 #endif /* GFX_MACFONT_H */

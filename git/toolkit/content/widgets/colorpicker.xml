@@ -1,8 +1,4 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 
 <bindings id="colorpickerBindings"
    xmlns="http://www.mozilla.org/xbl"
@@ -413,7 +409,7 @@
     </handlers>
   </binding>
 
-  <binding id="colorpicker-button" display="xul:menu" role="xul:colorpicker"
+  <binding id="colorpicker-button" display="xul:menu"
            extends="chrome://global/content/bindings/general.xml#basecontrol">
     <resources>
       <stylesheet src="chrome://global/skin/colorpicker.css"/>
@@ -432,7 +428,15 @@
       </xul:panel>
     </content>
     
-    <implementation>
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULColorPicker;
+          ]]>
+        </getter>
+      </property>
+    
       <property name="open"
                 onget="return this.getAttribute('open') == 'true'"
                 onset="this.showPopup();"/>
@@ -441,7 +445,7 @@
           return this.getAttribute("color");
         ]]></getter>
         <setter><![CDATA[
-          this.mColorBox.style.backgroundColor = val;
+          this.mColorBox.setAttribute("style", "background-color: " + val);
           this.setAttribute("color", val);
           return val;
         ]]></setter>
@@ -541,7 +545,16 @@
     </handlers>
   </binding>
 
-  <binding id="colorpickertile" role="xul:colorpickertile">
+  <binding id="colorpickertile">
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULColorPickerTile;
+          ]]>
+        </getter>
+      </property>
+    </implementation>
   </binding>
 
 </bindings>

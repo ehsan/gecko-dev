@@ -32,7 +32,7 @@ class AtExitManager {
   // even if one already exists.  This should only be used for testing!
   // AtExitManagers are kept on a global stack, and it will be removed during
   // destruction.  This allows you to shadow another AtExitManager.
-  explicit AtExitManager(bool shadow);
+  AtExitManager(bool shadow);
 
  public:
   typedef void (*AtExitCallbackType)(void*);
@@ -51,7 +51,9 @@ class AtExitManager {
   // is possible to register new callbacks after calling this function.
   static void ProcessCallbacksNow();
 
+#ifdef CHROMIUM_MOZILLA_BUILD
   static bool AlreadyRegistered();
+#endif
 
  private:
   struct CallbackAndParam {

@@ -1,27 +1,16 @@
-Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
+do_load_httpd_js();
 
 var httpServer = null;
 // Need to randomize, because apparently no one clears our cache
 var randomPath = "/redirect/" + Math.random();
-
-XPCOMUtils.defineLazyGetter(this, "randomURI", function() {
-  return "http://localhost:" + httpServer.identity.primaryPort + randomPath;
-});
+var randomURI = "http://localhost:4444" + randomPath;
 
 var cacheUpdateObserver = null;
 
 function make_channel(url, callback, ctx) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
             getService(Ci.nsIIOService);
-  return ios.newChannel2(url,
-                         "",
-                         null,
-                         null,      // aLoadingNode
-                         Services.scriptSecurityManager.getSystemPrincipal(),
-                         null,      // aTriggeringPrincipal
-                         Ci.nsILoadInfo.SEC_NORMAL,
-                         Ci.nsIContentPolicy.TYPE_OTHER);
+  return ios.newChannel(url, "", null);
 }
 
 function make_uri(url) {
@@ -71,24 +60,20 @@ function finish_test(request, buffer)
 
 function run_test()
 {
-  httpServer = new HttpServer();
+  httpServer = new nsHttpServer();
   httpServer.registerPathHandler("/masterEntry", masterEntryHandler);
   httpServer.registerPathHandler("/manifest", manifestHandler);
   httpServer.registerPathHandler("/content", contentHandler);
   httpServer.registerPathHandler(randomPath, redirectHandler);
-  httpServer.start(-1);
+  httpServer.start(4444);
 
   var pm = Cc["@mozilla.org/permissionmanager;1"]
     .getService(Ci.nsIPermissionManager);
-  var uri = make_uri("http://localhost:" + httpServer.identity.primaryPort);
-  var principal = Cc["@mozilla.org/scriptsecuritymanager;1"]
-                    .getService(Ci.nsIScriptSecurityManager)
-                    .getNoAppCodebasePrincipal(uri);
-
-  if (pm.testPermissionFromPrincipal(principal, "offline-app") != 0) {
+  var uri = make_uri("http://localhost:4444");
+  if (pm.testPermission(uri, "offline-app") != 0) {
     dump("Previous test failed to clear offline-app permission!  Expect failures.\n");
   }
-  pm.addFromPrincipal(principal, "offline-app", Ci.nsIPermissionManager.ALLOW_ACTION);
+  pm.add(uri, "offline-app", Ci.nsIPermissionManager.ALLOW_ACTION);
 
   var ps = Cc["@mozilla.org/preferences-service;1"]
     .getService(Ci.nsIPrefBranch);
@@ -111,11 +96,8 @@ function run_test()
 
   var us = Cc["@mozilla.org/offlinecacheupdate-service;1"].
            getService(Ci.nsIOfflineCacheUpdateService);
-  us.scheduleUpdate(make_uri("http://localhost:" +
-                             httpServer.identity.primaryPort + "/manifest"),
-                    make_uri("http://localhost:" +
-                             httpServer.identity.primaryPort + "/masterEntry"),
-                    null);
+  us.scheduleUpdate(make_uri("http://localhost:4444/manifest"),
+                    make_uri("http://localhost:4444/masterEntry"));
 
   do_test_pending();
 }

@@ -1,7 +1,41 @@
 //* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-/
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Url Classifier code
+ *
+ * The Initial Developer of the Original Code is
+ * Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Tony Chang <tony@ponderer.org> (original author)
+ *   Brett Wilson <brettw@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsUrlClassifierDBService_h_
 #define nsUrlClassifierDBService_h_
@@ -11,19 +45,10 @@
 #include "nsID.h"
 #include "nsInterfaceHashtable.h"
 #include "nsIObserver.h"
-#include "nsUrlClassifierPrefixSet.h"
 #include "nsIUrlClassifierHashCompleter.h"
-#include "nsIUrlListManager.h"
 #include "nsIUrlClassifierDBService.h"
 #include "nsIURIClassifier.h"
 #include "nsToolkitCompsCID.h"
-#include "nsICryptoHMAC.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/Mutex.h"
-#include "mozilla/TimeStamp.h"
-
-#include "Entries.h"
-#include "LookupCache.h"
 
 // The hash length for a domain key.
 #define DOMAIN_LENGTH 4
@@ -34,25 +59,13 @@
 // The hash length of a complete hash entry.
 #define COMPLETE_LENGTH 32
 
-using namespace mozilla::safebrowsing;
-
 class nsUrlClassifierDBServiceWorker;
-class nsIThread;
-class nsIURI;
-class UrlClassifierDBServiceWorkerProxy;
-namespace mozilla {
-namespace safebrowsing {
-class Classifier;
-class ProtocolParser;
-class TableUpdate;
-}
-}
 
 // This is a proxy class that just creates a background thread and delagates
 // calls to the background thread.
-class nsUrlClassifierDBService MOZ_FINAL : public nsIUrlClassifierDBService,
-                                           public nsIURIClassifier,
-                                           public nsIObserver
+class nsUrlClassifierDBService : public nsIUrlClassifierDBService,
+                                 public nsIURIClassifier,
+                                 public nsIObserver
 {
 public:
   // This is thread safe. It throws an exception if the thread is busy.
@@ -64,17 +77,14 @@ public:
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_URLCLASSIFIERDBSERVICE_CID)
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIURLCLASSIFIERDBSERVICE
   NS_DECL_NSIURICLASSIFIER
   NS_DECL_NSIOBSERVER
 
-  bool GetCompleter(const nsACString& tableName,
+  PRBool GetCompleter(const nsACString& tableName,
                       nsIUrlClassifierHashCompleter** completer);
-  nsresult CacheCompletions(mozilla::safebrowsing::CacheResultArray *results);
-  nsresult CacheMisses(mozilla::safebrowsing::PrefixArray *results);
-
-  static nsIThread* BackgroundThread();
+  nsresult CacheCompletions(nsTArray<nsUrlClassifierLookupResult> *results);
 
 private:
   // No subclassing
@@ -83,154 +93,33 @@ private:
   // Disallow copy constructor
   nsUrlClassifierDBService(nsUrlClassifierDBService&);
 
-  nsresult LookupURI(nsIPrincipal* aPrincipal,
-                     const nsACString& tables,
-                     nsIUrlClassifierCallback* c,
-                     bool forceCheck, bool *didCheck);
+  nsresult LookupURI(nsIURI* uri, nsIUrlClassifierCallback* c,
+                     PRBool forceCheck, PRBool *didCheck);
 
-  // Close db connection and join the background thread if it exists.
+  // Close db connection and join the background thread if it exists. 
   nsresult Shutdown();
-
-  // Check if the key is on a known-clean host.
-  nsresult CheckClean(const nsACString &lookupKey,
-                      bool *clean);
-
-  // Read everything into mGethashTables and mDisallowCompletionTables
-  nsresult ReadTablesFromPrefs();
-
-  // Build a comma-separated list of tables to check
-  void BuildTables(bool trackingProtectionEnabled, nsCString& tables);
-
-  nsRefPtr<nsUrlClassifierDBServiceWorker> mWorker;
-  nsRefPtr<UrlClassifierDBServiceWorkerProxy> mWorkerProxy;
+  
+  nsCOMPtr<nsUrlClassifierDBServiceWorker> mWorker;
+  nsCOMPtr<nsUrlClassifierDBServiceWorker> mWorkerProxy;
 
   nsInterfaceHashtable<nsCStringHashKey, nsIUrlClassifierHashCompleter> mCompleters;
 
   // TRUE if the nsURIClassifier implementation should check for malware
   // uris on document loads.
-  bool mCheckMalware;
+  PRBool mCheckMalware;
 
   // TRUE if the nsURIClassifier implementation should check for phishing
   // uris on document loads.
-  bool mCheckPhishing;
-
-  // TRUE if the nsURIClassifier implementation should check for tracking
-  // uris on document loads.
-  bool mCheckTracking;
+  PRBool mCheckPhishing;
 
   // TRUE if a BeginUpdate() has been called without an accompanying
   // CancelUpdate()/FinishUpdate().  This is used to prevent competing
   // updates, not to determine whether an update is still being
   // processed.
-  bool mInUpdate;
+  PRBool mInUpdate;
 
   // The list of tables that can use the default hash completer object.
-  nsTArray<nsCString> mGethashTables;
-
-  // The list of tables that should never be hash completed.
-  nsTArray<nsCString> mDisallowCompletionsTables;
-
-  // Thread that we do the updates on.
-  static nsIThread* gDbBackgroundThread;
-};
-
-class nsUrlClassifierDBServiceWorker MOZ_FINAL :
-  public nsIUrlClassifierDBServiceWorker
-{
-public:
-  nsUrlClassifierDBServiceWorker();
-
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIURLCLASSIFIERDBSERVICE
-  NS_DECL_NSIURLCLASSIFIERDBSERVICEWORKER
-
-  nsresult Init(uint32_t aGethashNoise, nsCOMPtr<nsIFile> aCacheDir);
-
-  // Queue a lookup for the worker to perform, called in the main thread.
-  // tables is a comma-separated list of tables to query
-  nsresult QueueLookup(const nsACString& lookupKey,
-                       const nsACString& tables,
-                       nsIUrlClassifierLookupCallback* callback);
-
-  // Handle any queued-up lookups.  We call this function during long-running
-  // update operations to prevent lookups from blocking for too long.
-  nsresult HandlePendingLookups();
-
-  // Perform a blocking classifier lookup for a given url. Can be called on
-  // either the main thread or the worker thread.
-  nsresult DoLocalLookup(const nsACString& spec,
-                         const nsACString& tables,
-                         LookupResultArray* results);
-
-private:
-  // No subclassing
-  ~nsUrlClassifierDBServiceWorker();
-
-  // Disallow copy constructor
-  nsUrlClassifierDBServiceWorker(nsUrlClassifierDBServiceWorker&);
-
-  // Applies the current transaction and resets the update/working times.
-  nsresult ApplyUpdate();
-
-  // Reset the in-progress update stream
-  void ResetStream();
-
-  // Reset the in-progress update
-  void ResetUpdate();
-
-  // Perform a classifier lookup for a given url.
-  nsresult DoLookup(const nsACString& spec,
-                    const nsACString& tables,
-                    nsIUrlClassifierLookupCallback* c);
-
-  nsresult AddNoise(const Prefix aPrefix,
-                    const nsCString tableName,
-                    uint32_t aCount,
-                    LookupResultArray& results);
-
-  // Can only be used on the background thread
-  nsCOMPtr<nsICryptoHash> mCryptoHash;
-
-  nsAutoPtr<mozilla::safebrowsing::Classifier> mClassifier;
-  // The class that actually parses the update chunks.
-  nsAutoPtr<ProtocolParser> mProtocolParser;
-
-  // Directory where to store the SB databases.
-  nsCOMPtr<nsIFile> mCacheDir;
-
-  // XXX: maybe an array of autoptrs.  Or maybe a class specifically
-  // storing a series of updates.
-  nsTArray<mozilla::safebrowsing::TableUpdate*> mTableUpdates;
-
-  int32_t mUpdateWait;
-
-  // Entries that cannot be completed. We expect them to die at
-  // the next update
-  PrefixArray mMissCache;
-
-  nsresult mUpdateStatus;
-  nsTArray<nsCString> mUpdateTables;
-
-  nsCOMPtr<nsIUrlClassifierUpdateObserver> mUpdateObserver;
-  bool mInStream;
-
-  // The number of noise entries to add to the set of lookup results.
-  uint32_t mGethashNoise;
-
-  // Pending lookups are stored in a queue for processing.  The queue
-  // is protected by mPendingLookupLock.
-  mozilla::Mutex mPendingLookupLock;
-
-  class PendingLookup {
-  public:
-    mozilla::TimeStamp mStartTime;
-    nsCString mKey;
-    nsCString mTables;
-    nsCOMPtr<nsIUrlClassifierLookupCallback> mCallback;
-  };
-
-  // list of pending lookups
-  nsTArray<PendingLookup> mPendingLookups;
+  nsTArray<nsCString> mGethashWhitelist;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsUrlClassifierDBService, NS_URLCLASSIFIERDBSERVICE_CID)

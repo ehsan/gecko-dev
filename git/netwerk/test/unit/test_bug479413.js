@@ -2,6 +2,8 @@
  * Test for unassigned code points in IDNs (RFC 3454 section 7)
  */
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 var idnService;
 
 function expected_pass(inputIDN)
@@ -27,7 +29,7 @@ function expected_fail(inputIDN)
 function run_test() {
    // add an IDN whitelist pref
   var pbi = Cc["@mozilla.org/preferences-service;1"]
-    .getService(Ci.nsIPrefBranch);
+    .getService(Ci.nsIPrefBranch2);
   var whitelistPref = "network.IDN.whitelist.com";
 
   pbi.setBoolPref(whitelistPref, true);

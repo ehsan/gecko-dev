@@ -53,10 +53,13 @@ count       RN  r5
 
 ;r0     unsigned char *src_ptr,
 ;r1     int src_pixel_step,
-;r2     const char *blimit,
+;r2     const char *flimit,
 ;r3     const char *limit,
 ;stack  const char *thresh,
 ;stack  int  count
+
+;Note: All 16 elements in flimit are equal. So, in the code, only one load is needed
+;for flimit. Same way applies to limit and thresh.
 
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 |vp8_loop_filter_horizontal_edge_armv6| PROC
@@ -69,18 +72,14 @@ count       RN  r5
     sub         sp, sp, #16                 ; create temp buffer
 
     ldr         r9, [src], pstep            ; p3
-    ldrb        r4, [r2]                    ; blimit
+    ldr         r4, [r2], #4                ; flimit
     ldr         r10, [src], pstep           ; p2
-    ldrb        r2, [r3]                    ; limit
+    ldr         r2, [r3], #4                ; limit
     ldr         r11, [src], pstep           ; p1
-    orr         r4, r4, r4, lsl #8
-    ldrb        r3, [r6]                    ; thresh
-    orr         r2, r2, r2, lsl #8
+    uadd8       r4, r4, r4                  ; flimit * 2
+    ldr         r3, [r6], #4                ; thresh
     mov         count, count, lsl #1        ; 4-in-parallel
-    orr         r4, r4, r4, lsl #16
-    orr         r3, r3, r3, lsl #8
-    orr         r2, r2, r2, lsl #16
-    orr         r3, r3, r3, lsl #16
+    uadd8       r4, r4, r2                  ; flimit * 2 + limit
 
 |Hnext8|
     ; vp8_filter_mask() function
@@ -254,6 +253,12 @@ count       RN  r5
 
     subs        count, count, #1
 
+    ;pld            [src]
+    ;pld            [src, pstep]
+    ;pld            [src, pstep, lsl #1]
+    ;pld            [src, pstep, lsl #2]
+    ;pld            [src, pstep, lsl #3]
+
     ldrne       r9, [src], pstep            ; p3
     ldrne       r10, [src], pstep           ; p2
     ldrne       r11, [src], pstep           ; p1
@@ -276,18 +281,14 @@ count       RN  r5
     sub         sp, sp, #16                 ; create temp buffer
 
     ldr         r9, [src], pstep            ; p3
-    ldrb        r4, [r2]                    ; blimit
+    ldr         r4, [r2], #4                ; flimit
     ldr         r10, [src], pstep           ; p2
-    ldrb        r2, [r3]                    ; limit
+    ldr         r2, [r3], #4                ; limit
     ldr         r11, [src], pstep           ; p1
-    orr         r4, r4, r4, lsl #8
-    ldrb        r3, [r6]                    ; thresh
-    orr         r2, r2, r2, lsl #8
+    uadd8       r4, r4, r4                  ; flimit * 2
+    ldr         r3, [r6], #4                ; thresh
     mov         count, count, lsl #1        ; 4-in-parallel
-    orr         r4, r4, r4, lsl #16
-    orr         r3, r3, r3, lsl #8
-    orr         r2, r2, r2, lsl #16
-    orr         r3, r3, r3, lsl #16
+    uadd8       r4, r4, r2                  ; flimit * 2 + limit
 
 |MBHnext8|
 
@@ -589,19 +590,15 @@ count       RN  r5
     sub         sp, sp, #16                 ; create temp buffer
 
     ldr         r6, [src], pstep            ; load source data
-    ldrb        r4, [r2]                    ; blimit
+    ldr         r4, [r2], #4                ; flimit
     ldr         r7, [src], pstep
-    ldrb        r2, [r3]                    ; limit
+    ldr         r2, [r3], #4                ; limit
     ldr         r8, [src], pstep
-    orr         r4, r4, r4, lsl #8
-    ldrb        r3, [r12]                   ; thresh
-    orr         r2, r2, r2, lsl #8
+    uadd8       r4, r4, r4                  ; flimit * 2
+    ldr         r3, [r12], #4               ; thresh
     ldr         lr, [src], pstep
     mov         count, count, lsl #1        ; 4-in-parallel
-    orr         r4, r4, r4, lsl #16
-    orr         r3, r3, r3, lsl #8
-    orr         r2, r2, r2, lsl #16
-    orr         r3, r3, r3, lsl #16
+    uadd8       r4, r4, r2                  ; flimit * 2 + limit
 
 |Vnext8|
 
@@ -860,26 +857,18 @@ count       RN  r5
     sub         src, src, #4                ; move src pointer down by 4
     ldr         count, [sp, #40]            ; count for 8-in-parallel
     ldr         r12, [sp, #36]              ; load thresh address
-    pld         [src, #23]                  ; preload for next block
     sub         sp, sp, #16                 ; create temp buffer
 
     ldr         r6, [src], pstep            ; load source data
-    ldrb        r4, [r2]                    ; blimit
-    pld         [src, #23]
+    ldr         r4, [r2], #4                ; flimit
     ldr         r7, [src], pstep
-    ldrb        r2, [r3]                    ; limit
-    pld         [src, #23]
+    ldr         r2, [r3], #4                ; limit
     ldr         r8, [src], pstep
-    orr         r4, r4, r4, lsl #8
-    ldrb        r3, [r12]                   ; thresh
-    orr         r2, r2, r2, lsl #8
-    pld         [src, #23]
+    uadd8       r4, r4, r4                  ; flimit * 2
+    ldr         r3, [r12], #4               ; thresh
     ldr         lr, [src], pstep
     mov         count, count, lsl #1        ; 4-in-parallel
-    orr         r4, r4, r4, lsl #16
-    orr         r3, r3, r3, lsl #8
-    orr         r2, r2, r2, lsl #16
-    orr         r3, r3, r3, lsl #16
+    uadd8       r4, r4, r2                  ; flimit * 2 + limit
 
 |MBVnext8|
     ; vp8_filter_mask() function
@@ -918,7 +907,6 @@ count       RN  r5
     ldr         r8, [src], pstep
     str         lr, [sp, #8]
     ldr         lr, [src], pstep
-
 
     TRANSPOSE_MATRIX r6, r7, r8, lr, r9, r10, r11, r12
 
@@ -966,7 +954,6 @@ count       RN  r5
 
     cmp         lr, #0
     beq         mbvskip_filter               ; skip filtering
-
 
 
     ;vp8_hevmask() function
@@ -1136,7 +1123,6 @@ count       RN  r5
     smlabb      r8, r6, lr, r7
     smlatb      r6, r6, lr, r7
     smlabb      r9, r10, lr, r7
-
     smlatb      r10, r10, lr, r7
     ssat        r8, #8, r8, asr #7
     ssat        r6, #8, r6, asr #7
@@ -1256,13 +1242,9 @@ count       RN  r5
     sub         src, src, #4
     subs        count, count, #1
 
-    pld         [src, #23]                  ; preload for next block
     ldrne       r6, [src], pstep            ; load source data
-    pld         [src, #23]
     ldrne       r7, [src], pstep
-    pld         [src, #23]
     ldrne       r8, [src], pstep
-    pld         [src, #23]
     ldrne       lr, [src], pstep
 
     bne         MBVnext8
