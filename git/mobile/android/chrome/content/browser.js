@@ -105,12 +105,6 @@ const kElementsReceivingInput = {
     video: true
 };
 
-// How many pixels on each side to buffer.
-const kBufferAmount = 300;
-
-// Whether we're using GL layers.
-const kUsingGLLayers = true;
-
 function dump(a) {
   Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).logStringMessage(a);
 }
@@ -1398,8 +1392,6 @@ let gTabIDFactory = 0;
 let gScreenWidth = 1;
 let gScreenHeight = 1;
 
-let gBrowserWidth = null;
-
 function Tab(aURL, aParams) {
   this.browser = null;
   this.vbox = null;
@@ -1429,20 +1421,14 @@ Tab.prototype = {
     this.browser = document.createElement("browser");
     this.browser.setAttribute("type", "content");
     this.setBrowserSize(980, 480);
-    this.browser.style.width = gScreenWidth + "px";
-    this.browser.style.height = gScreenHeight + "px";
     this.browser.style.MozTransformOrigin = "0 0";
     this.vbox.appendChild(this.browser);
 
     this.browser.stop();
 
+    // Turn off clipping so we can buffer areas outside of the browser element.
     let frameLoader = this.browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
-    if (kUsingGLLayers) {
-        frameLoader.renderMode = Ci.nsIFrameLoader.RENDER_MODE_ASYNC_SCROLL;
-    } else {
-        // Turn off clipping so we can buffer areas outside of the browser element.
-        frameLoader.clipSubdocument = false;
-    }
+    frameLoader.clipSubdocument = false;
 
     this.id = ++gTabIDFactory;
 
@@ -1625,8 +1611,8 @@ Tab.prototype = {
     let transform =
       "translate(" + x + "px, " +
                      y + "px)";
-
-    // FIXME: Use nsIDOMWindowUtils::SetResolution(this._viewport.zoom * k) for some k here.
+    if (hasZoom)
+      transform += " scale(" + this._viewport.zoom + ")";
 
     this.browser.style.MozTransform = transform;
   },
@@ -1742,14 +1728,6 @@ Tab.prototype = {
         // Show a plugin doorhanger if there are no clickable overlays showing
         if (this._pluginsToPlay.length && !this._pluginOverlayShowing)
           PluginHelper.showDoorHanger(this);
-
-        // FIXME: This should not be in DOMContentLoaded; it should happen earlier.
-        let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                                            .getInterface(Ci.nsIDOMWindowUtils);
-        cwu.setDisplayPortForElement(-kBufferAmount, -kBufferAmount,
-                                     gScreenWidth + kBufferAmount * 2,
-                                     gScreenHeight + kBufferAmount * 2,
-                                     this.browser.contentDocument.documentElement);
 
         break;
       }
@@ -2071,7 +2049,7 @@ Tab.prototype = {
     let minScale = this.getPageZoomLevel(screenW);
     viewportH = Math.max(viewportH, screenH / minScale);
 
-    let oldBrowserWidth = gBrowserWidth;
+    let oldBrowserWidth = parseInt(this.browser.style.width);
     this.setBrowserSize(viewportW, viewportH);
 
     // Avoid having the scroll position jump around after device rotation.
@@ -2082,7 +2060,7 @@ Tab.prototype = {
     // If the browser width changes, we change the zoom proportionally. This ensures sensible
     // behavior when rotating the device on pages with automatically-resizing viewports.
 
-    if (oldBrowserWidth == null || viewportW == oldBrowserWidth)
+    if (viewportW == oldBrowserWidth)
       return;
 
     let viewport = this.viewport;
@@ -2095,8 +2073,9 @@ Tab.prototype = {
     if ("defaultZoom" in md && md.defaultZoom)
       return md.defaultZoom;
 
+    let browserWidth = parseInt(this.browser.style.width);
     dump("### getDefaultZoomLevel gScreenWidth=" + gScreenWidth);
-    return gScreenWidth / gBrowserWidth;
+    return gScreenWidth / browserWidth;
   },
 
   getPageZoomLevel: function getPageZoomLevel() {
@@ -2109,8 +2088,8 @@ Tab.prototype = {
   },
 
   setBrowserSize: function(aWidth, aHeight) {
-    // TODO: Use nsIDOMWindowUtils::SetCSSViewport() here.
-    gBrowserWidth = aWidth;
+    this.browser.style.width = aWidth + "px";
+    this.browser.style.height = aHeight + "px";
   },
 
   getRequestLoadContext: function(aRequest) {

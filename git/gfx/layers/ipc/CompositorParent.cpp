@@ -104,11 +104,13 @@ CompositorParent::PauseComposition()
 void
 CompositorParent::ResumeComposition()
 {
-  mPaused = false;
+  if (mPaused) {
+    mPaused = false;
 
 #ifdef MOZ_WIDGET_ANDROID
-  static_cast<LayerManagerOGL*>(mLayerManager.get())->gl()->RenewSurface();
+    static_cast<LayerManagerOGL*>(mLayerManager.get())->gl()->RenewSurface();
 #endif
+  }
 }
 
 void
@@ -182,41 +184,11 @@ CompositorParent::Composite()
   printf_stderr("Correcting for position fixed %i, %i\n", -mScrollOffset.x, -mScrollOffset.y);
   worldTransform.Translate(offset);
   worldTransform.Scale(mXScale, mYScale, 1.0f);
-  Layer* layer = GetPrimaryScrollableLayer();
-  layer->AsShadowLayer()->SetShadowTransform(worldTransform);
+  Layer* root = mLayerManager->GetRoot();
+  root->AsShadowLayer()->SetShadowTransform(worldTransform);
 
   mLayerManager->EndEmptyTransaction();
   mLastCompose = mozilla::TimeStamp::Now();
-}
-
-// Do a breadth-first search to find the first layer in the tree with a
-// displayport set.
-Layer*
-CompositorParent::GetPrimaryScrollableLayer()
-{
-  Layer* root = mLayerManager->GetRoot();
-
-  nsTArray<Layer*> queue;
-  queue.AppendElement(root);
-  for (int i = 0; i < queue.Length(); i++) {
-    ContainerLayer* containerLayer = queue[i]->AsContainerLayer();
-    if (!containerLayer) {
-      continue;
-    }
-
-    const FrameMetrics& frameMetrics = containerLayer->GetFrameMetrics();
-    if (!frameMetrics.mDisplayPort.IsEmpty()) {
-      return containerLayer;
-    }
-
-    Layer* child = containerLayer->GetFirstChild();
-    while (child) {
-      queue.AppendElement(child);
-      child = child->GetNextSibling();
-    }
-  }
-
-  return root;
 }
 
 // Go down shadow layer tree, setting properties to match their non-shadow

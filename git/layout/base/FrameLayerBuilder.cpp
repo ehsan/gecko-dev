@@ -871,8 +871,6 @@ ContainerState::CreateOrRecycleThebesLayer(nsIFrame* aActiveScrolledRoot)
   matrix.Translate(gfxPoint(pixOffset.x, pixOffset.y));
   layer->SetTransform(gfx3DMatrix::From2D(matrix));
 
-   // FIXME: Temporary workaround for bug 681192 and bug 724786. Uncomment this code before review!
-#if 0
   // Calculate exact position of the top-left of the active scrolled root.
   // This might not be 0,0 due to the snapping in ScaleToNearestPixels.
   gfxPoint activeScrolledRootTopLeft = scaledOffset - matrix.GetTranslation();
@@ -884,7 +882,6 @@ ContainerState::CreateOrRecycleThebesLayer(nsIFrame* aActiveScrolledRoot)
     nsIntRect invalidate = layer->GetValidRegion().GetBounds();
     layer->InvalidateRegion(invalidate);
   }
-#endif
 
   return layer.forget();
 }
