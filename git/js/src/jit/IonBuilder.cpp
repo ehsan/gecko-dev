@@ -1394,20 +1394,11 @@ IonBuilder::inspectOpcode(JSOp op)
                         op->resultTypeSet() &&
                         op->resultTypeSet()->empty())
                     {
-                        bool otherUses = false;
-                        for (MUseDefIterator iter(op); iter; iter++) {
-                            MDefinition *def = iter.def();
-                            if (def == value)
-                                continue;
-                            otherUses = true;
-                        }
-                        if (!otherUses) {
-                            types::TypeSet *argTypes = types::TypeScript::ArgTypes(script(), arg);
+                        types::TypeSet *argTypes = types::TypeScript::ArgTypes(script(), arg);
 
-                            // Update both the original and cloned type set.
-                            argTypes->addType(cx, types::Type::UnknownType());
-                            op->resultTypeSet()->addType(cx, types::Type::UnknownType());
-                        }
+                        // Update both the original and cloned type set.
+                        argTypes->addType(cx, types::Type::UnknownType());
+                        op->resultTypeSet()->addType(cx, types::Type::UnknownType());
                     }
                 }
             }

@@ -10,21 +10,15 @@ SUPPRESS_DEFAULT_RULES := 1
 default::
 	+$(MAKE) export
 
-ifndef LIBXUL_SDK
-export:: ipdl webidl
+export:: ipdl webidl xpidl
 
 ipdl:
 	$(call SUBMAKE,ipdl,$(DEPTH)/ipc/ipdl)
 
 webidl:
 	$(call SUBMAKE,webidl,$(DEPTH)/dom/bindings)
-endif
-
-export:: xpidl
 
 xpidl:
-ifndef LIBXUL_SDK
 	$(call SUBMAKE,xpidl-parser,$(DEPTH)/xpcom/idl-parser)
-endif
 	$(call py_action,process_install_manifest,$(DIST)/idl $(DEPTH)/_build_manifests/install/dist_idl)
 	$(call SUBMAKE,xpidl,$(DEPTH)/config/makefiles/xpidl)

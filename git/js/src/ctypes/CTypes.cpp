@@ -4778,15 +4778,13 @@ StructType::DefineInternal(JSContext* cx, JSObject* typeObj_, JSObject* fieldsOb
   // to get GC safety for free, since if anything in this function fails we
   // do not want to mutate 'typeObj'.)
   AutoPtr<FieldInfoHash> fields(cx->new_<FieldInfoHash>());
-  if (!fields || !fields->init(len)) {
+  Array<jsval, 16> fieldRootsArray;
+  if (!fields || !fields->init(len) || !fieldRootsArray.appendN(JSVAL_VOID, len)) {
     JS_ReportOutOfMemory(cx);
     return false;
   }
-  JS::AutoValueVector fieldRoots(cx);
-  if (!fieldRoots.resize(len)) {
-    JS_ReportOutOfMemory(cx);
-    return false;
-  }
+  js::AutoArrayRooter fieldRoots(cx, fieldRootsArray.length(),
+    fieldRootsArray.begin());
 
   // Process the field types.
   size_t structSize, structAlign;
@@ -4806,7 +4804,7 @@ StructType::DefineInternal(JSContext* cx, JSObject* typeObj_, JSObject* fieldsOb
       Rooted<JSStableString*> name(cx, flat->ensureStable(cx));
       if (!name)
         return false;
-      fieldRoots[i] = JS::ObjectValue(*fieldType);
+      fieldRootsArray[i] = OBJECT_TO_JSVAL(fieldType);
 
       // Make sure each field name is unique
       FieldInfoHash::AddPtr entryPtr = fields->lookupForAdd(name);
@@ -5107,9 +5105,10 @@ StructType::BuildFieldsArray(JSContext* cx, JSObject* obj)
   size_t len = fields->count();
 
   // Prepare a new array for the 'fields' property of the StructType.
-  JS::AutoValueVector fieldsVec(cx);
-  if (!fieldsVec.resize(len))
+  Array<jsval, 16> fieldsVec;
+  if (!fieldsVec.appendN(JSVAL_VOID, len))
     return NULL;
+  js::AutoArrayRooter root(cx, fieldsVec.length(), fieldsVec.begin());
 
   for (FieldInfoHash::Range r = fields->all(); !r.empty(); r.popFront()) {
     const FieldInfoHash::Entry& entry = r.front();
@@ -5915,7 +5914,7 @@ FunctionType::ArgTypesGetter(JSContext* cx, HandleObject obj, HandleId idval, Mu
   size_t len = fninfo->mArgTypes.length();
 
   // Prepare a new array.
-  JS::AutoValueVector vec(cx);
+  Array<jsval, 16> vec;
   if (!vec.resize(len))
     return false;
 
@@ -6170,12 +6169,13 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
   }
 
   // Set up an array for converted arguments.
-  JS::AutoValueVector argv(cx);
-  if (!argv.resize(cif->nargs)) {
+  Array<jsval, 16> argv;
+  if (!argv.appendN(JSVAL_VOID, cif->nargs)) {
     JS_ReportOutOfMemory(cx);
     return;
   }
 
+  js::AutoArrayRooter roots(cx, argv.length(), argv.begin());
   for (uint32_t i = 0; i < cif->nargs; ++i) {
     // Convert each argument, and have any CData objects created depend on
     // the existing buffers.

@@ -240,7 +240,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpDetach: {
       nsIContent* node = *(mOne.node);
       aBuilder->FlushPendingAppendNotifications();
-      nsCOMPtr<nsINode> parent = node->GetParentNode();
+      nsCOMPtr<nsIContent> parent = node->GetParent();
       if (parent) {
         nsHtml5OtherDocUpdate update(parent->OwnerDoc(),
                                      aBuilder->GetDocument());
