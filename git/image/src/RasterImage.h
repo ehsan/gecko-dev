@@ -395,12 +395,6 @@ private:
     void RequestDecode(RasterImage* aImg);
 
     /**
-     * Decode aImg for a short amount of time, and post the remainder to the
-     * queue.
-     */
-    void DecodeABitOf(RasterImage* aImg);
-
-    /**
      * Give this image ASAP priority; it will be decoded before all non-ASAP
      * images.  You can call MarkAsASAP before or after you call RequestDecode
      * for the image, but if you MarkAsASAP before you call RequestDecode, you
@@ -571,8 +565,6 @@ private:
                             gfxASurface::gfxImageFormat aFormat, PRUint8 aPaletteDepth,
                             PRUint8 **imageData, PRUint32 *imageLength,
                             PRUint32 **paletteData, PRUint32 *paletteLength);
-
-  bool ApplyDecodeFlags(PRUint32 aNewFlags);
 
 private: // data
 

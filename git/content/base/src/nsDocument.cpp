@@ -26,7 +26,6 @@
 #include "nsIObserver.h"
 #include "nsIBaseWindow.h"
 #include "mozilla/css/Loader.h"
-#include "mozilla/css/ImageLoader.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIScriptRuntime.h"
@@ -1646,11 +1645,6 @@ nsDocument::~nsDocument()
     mCSSLoader->DropDocumentReference();
   }
 
-  if (mStyleImageLoader) {
-    mStyleImageLoader->DropDocumentReference();
-    NS_RELEASE(mStyleImageLoader);
-  }
-
   delete mHeaderData;
 
   if (mBoxObjectTable) {
@@ -1981,7 +1975,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 nsresult
 nsDocument::Init()
 {
-  if (mCSSLoader || mStyleImageLoader || mNodeInfoManager || mScriptLoader) {
+  if (mCSSLoader || mNodeInfoManager || mScriptLoader) {
     return NS_ERROR_ALREADY_INITIALIZED;
   }
 
@@ -2005,11 +1999,8 @@ nsDocument::Init()
   // Assume we're not quirky, until we know otherwise
   mCSSLoader->SetCompatibilityMode(eCompatibility_FullStandards);
 
-  mStyleImageLoader = new mozilla::css::ImageLoader(this);
-  NS_ADDREF(mStyleImageLoader);
-
   mNodeInfoManager = new nsNodeInfoManager();
-  nsresult rv = mNodeInfoManager->Init(this);
+  nsresult  rv = mNodeInfoManager->Init(this);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // mNodeInfo keeps NodeInfoManager alive!

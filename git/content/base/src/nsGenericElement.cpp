@@ -1883,7 +1883,13 @@ nsGenericElement::MaybeCheckSameAttrVal(PRInt32 aNamespaceID,
       }
       bool valueMatches = aValue.EqualsAsStrings(*info.mValue);
       if (valueMatches && aPrefix == info.mName->GetPrefix()) {
-        return true;
+        if (OwnerDoc()->MayHaveDOMMutationObservers()) {
+          // For backward compatibility, don't fire mutation events
+          // when setting an attribute to its old value.
+          *aHasListeners = false;
+        } else {
+          return true;
+        }
       }
       modification = true;
     }
@@ -1914,8 +1920,8 @@ nsGenericElement::SetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
   nsAttrValueOrString value(aValue);
   nsAttrValue oldValue;
 
-  if (OnlyNotifySameValueSet(aNamespaceID, aName, aPrefix, value, aNotify,
-                             oldValue, &modType, &hasListeners)) {
+  if (MaybeCheckSameAttrVal(aNamespaceID, aName, aPrefix, value, aNotify,
+                            oldValue, &modType, &hasListeners)) {
     return NS_OK;
   }
 
@@ -1961,8 +1967,8 @@ nsGenericElement::SetParsedAttr(PRInt32 aNamespaceID, nsIAtom* aName,
   nsAttrValueOrString value(aParsedValue);
   nsAttrValue oldValue;
 
-  if (OnlyNotifySameValueSet(aNamespaceID, aName, aPrefix, value, aNotify,
-                             oldValue, &modType, &hasListeners)) {
+  if (MaybeCheckSameAttrVal(aNamespaceID, aName, aPrefix, value, aNotify,
+                            oldValue, &modType, &hasListeners)) {
     return NS_OK;
   }
 
