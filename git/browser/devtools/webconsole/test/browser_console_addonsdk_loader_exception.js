@@ -53,7 +53,7 @@ function test()
       webconsole: hud,
       messages: [
         {
-          text: "TypeError: can't convert null to object",
+          text: "TypeError: this._toolPanels is null",
           category: CATEGORY_JS,
           severity: SEVERITY_ERROR,
         },
