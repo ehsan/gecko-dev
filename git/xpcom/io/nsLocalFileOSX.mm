@@ -64,9 +64,7 @@
 
 #include <unistd.h>
 #include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <stdlib.h>
-#include <utime.h>
 
 #define CHECK_mBaseURL()                        \
     PR_BEGIN_MACRO                              \
@@ -284,6 +282,11 @@ NS_IMPL_ISUPPORTS2(nsDirEnumerator, nsISimpleEnumerator, nsIDirectoryEnumerator)
 #define FILENAME_BUFFER_SIZE 512
 
 const char kPathSepChar = '/';
+
+// The HFS+ epoch is Jan. 1, 1904 GMT - differs from HFS in which times were local
+// The NSPR epoch is Jan. 1, 1970 GMT
+// 2082844800 is the difference in seconds between those dates
+const PRInt64 kJanuaryFirst1970Seconds = 2082844800LL;
 
 #pragma mark -
 #pragma mark [CTORs/DTOR]
@@ -813,73 +816,81 @@ NS_IMETHODIMP nsLocalFile::SetPermissionsOfLink(PRUint32 aPermissionsOfLink)
 
 NS_IMETHODIMP nsLocalFile::GetLastModifiedTime(PRInt64 *aLastModifiedTime)
 {
-  NS_ENSURE_ARG_POINTER(aLastModifiedTime);
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
+  // Check we are correctly initialized.
+  CHECK_mBaseURL();
+
+  NS_ENSURE_ARG_POINTER(aLastModifiedTime);
+  
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
-
-  PRFileInfo64 info;
-  if (PR_GetFileInfo64(path.get(), &info) != PR_SUCCESS)
-    return NSRESULT_FOR_ERRNO();
-  PRInt64 modTime = PRInt64(info.modifyTime);
-  if (modTime == 0)
-    *aLastModifiedTime = 0;
-  else
-    *aLastModifiedTime = modTime / PRInt64(PR_USEC_PER_MSEC);
-
+    
+  FSCatalogInfo catalogInfo;
+  OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoContentMod, &catalogInfo,
+                                nsnull, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  *aLastModifiedTime = HFSPlustoNSPRTime(catalogInfo.contentModDate);  
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsLocalFile::SetLastModifiedTime(PRInt64 aLastModifiedTime)
 {
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  // Check we are correctly initialized.
+  CHECK_mBaseURL();
+
+  OSErr err;
+  nsresult rv;
+  FSRef fsRef;
+  FSCatalogInfo catalogInfo;
+
+  rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
 
-  int result;
-  if (aLastModifiedTime != 0) {
-    struct STAT statBuf;
-    if (STAT(path.get(), &statBuf) == -1) {
-      // try lstat it may be a symlink
-      if (LSTAT(path.get(), &statBuf) == -1)
-        return NS_ERROR_FAILURE;
-    }
+  FSRef parentRef;
+  PRBool notifyParent;
 
-    struct utimbuf ut;
-    ut.actime = statBuf.st_atime;
+  // Get the node flags, the content modification date and time, and the parent ref
+  err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoNodeFlags + kFSCatInfoContentMod,
+                           &catalogInfo, NULL, NULL, &parentRef);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  
+  // Notify the parent if this is a file
+  notifyParent = (0 == (catalogInfo.nodeFlags & kFSNodeIsDirectoryMask));
 
-    // convert milliseconds to seconds since the unix epoch
-    ut.modtime = (time_t)(PRFloat64(aLastModifiedTime) / PR_MSEC_PER_SEC);
-    result = utime(path.get(), &ut);
-  } else {
-    result = utime(path.get(), nsnull);
-  }
-  return NSRESULT_FOR_RETURN(result);
+  NSPRtoHFSPlusTime(aLastModifiedTime, catalogInfo.contentModDate);
+  err = ::FSSetCatalogInfo(&fsRef, kFSCatInfoContentMod, &catalogInfo);
+  if (err != noErr)
+    return MacErrorMapper(err);
+
+  // Send a notification for the parent of the file, or for the directory
+  err = FNNotify(notifyParent ? &parentRef : &fsRef, kFNDirectoryModifiedMessage, kNilOptions);
+  if (err != noErr)
+    return MacErrorMapper(err);
+
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsLocalFile::GetLastModifiedTimeOfLink(PRInt64 *aLastModifiedTimeOfLink)
 {
-  NS_ENSURE_ARG(aLastModifiedTimeOfLink);
-
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
-  if (NS_FAILED(rv))
-    return rv;
-
-  struct STAT sbuf;
-  if (LSTAT(path.get(), &sbuf) == -1)
-    return NSRESULT_FOR_ERRNO();
-  *aLastModifiedTimeOfLink = PRInt64(sbuf.st_mtime) * PRInt64(PR_MSEC_PER_SEC);
-
-  return NS_OK;
+    NS_ERROR("NS_ERROR_NOT_IMPLEMENTED");
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
-
 NS_IMETHODIMP nsLocalFile::SetLastModifiedTimeOfLink(PRInt64 aLastModifiedTimeOfLink)
 {
-  return SetLastModifiedTime(aLastModifiedTimeOfLink);
+    NS_ERROR("NS_ERROR_NOT_IMPLEMENTED");
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP nsLocalFile::GetFileSize(PRInt64 *aFileSize)
@@ -1514,18 +1525,30 @@ NS_IMETHODIMP nsLocalFile::GetDiskSpaceAvailable(PRInt64 *aDiskSpaceAvailable)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  NS_ENSURE_ARG_POINTER(aDiskSpaceAvailable);
+  // Check we are correctly initialized.
+  CHECK_mBaseURL();
 
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
+  NS_ENSURE_ARG_POINTER(aDiskSpaceAvailable);
+  
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
-
-  struct STATVFS fs_buf;
-  if (STATVFS(path.get(), &fs_buf) < 0)
-    return NS_ERROR_FAILURE;
-  // minus one block for fuzz
-  *aDiskSpaceAvailable = (PRInt64)fs_buf.f_frsize * (fs_buf.f_bavail - 1);
+    
+  OSErr err;
+  FSCatalogInfo catalogInfo;
+  err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoVolume, &catalogInfo,
+                           nsnull, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  
+  FSVolumeInfo volumeInfo;  
+  err = ::FSGetVolumeInfo(catalogInfo.volume, 0, nsnull, kFSVolInfoSizes,
+                          &volumeInfo, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+    
+  *aDiskSpaceAvailable = volumeInfo.freeBytes;
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
@@ -2167,18 +2190,17 @@ nsresult nsLocalFile::GetPathInternal(nsACString& path)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CFURLRef whichURLRef = mFollowLinks ? mTargetURL : mBaseURL;
-  if (!whichURLRef)
-    return NS_ERROR_FAILURE;
-
-  path.SetLength(PATH_MAX);
-  if (path.Length() != (unsigned int)PATH_MAX)
-    return NS_ERROR_OUT_OF_MEMORY;
-  UInt8 *buffer = (UInt8*)path.BeginWriting();
-  if (::CFURLGetFileSystemRepresentation(whichURLRef, true, buffer, PATH_MAX))
-    return NS_OK;
+  nsresult rv = NS_ERROR_FAILURE;
   
-  return NS_ERROR_FAILURE;
+  CFURLRef whichURLRef = mFollowLinks ? mTargetURL : mBaseURL;
+  NS_ENSURE_TRUE(whichURLRef, NS_ERROR_NULL_POINTER);
+   
+  CFStringRef pathStrRef = ::CFURLCopyFileSystemPath(whichURLRef, kCFURLPOSIXPathStyle);
+  if (pathStrRef) {
+    rv = CFStringReftoUTF8(pathStrRef, path);
+    ::CFRelease(pathStrRef);
+  }
+  return rv;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
@@ -2246,26 +2268,51 @@ nsresult nsLocalFile::CopyInternal(nsIFile* aParentDir,
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+const PRInt64 kMillisecsPerSec = 1000LL;
+const PRInt64 kUTCDateTimeFractionDivisor = 65535LL;
+
+PRInt64 nsLocalFile::HFSPlustoNSPRTime(const UTCDateTime& utcTime)
+{
+  // Start with seconds since Jan. 1, 1904 GMT
+  PRInt64 result = ((PRInt64)utcTime.highSeconds << 32) + (PRInt64)utcTime.lowSeconds; 
+  // Subtract to convert to NSPR epoch of 1970
+  result -= kJanuaryFirst1970Seconds;
+  // Convert to millisecs
+  result *= kMillisecsPerSec;
+  // Convert the fraction to millisecs and add it
+  result += ((PRInt64)utcTime.fraction * kMillisecsPerSec) / kUTCDateTimeFractionDivisor;
+
+  return result;
+}
+
+void nsLocalFile::NSPRtoHFSPlusTime(PRInt64 nsprTime, UTCDateTime& utcTime)
+{
+  PRInt64 fraction = nsprTime % kMillisecsPerSec;
+  PRInt64 seconds = (nsprTime / kMillisecsPerSec) + kJanuaryFirst1970Seconds;
+  utcTime.highSeconds = (UInt16)((PRUint64)seconds >> 32);
+  utcTime.lowSeconds = (UInt32)seconds;
+  utcTime.fraction = (UInt16)((fraction * kUTCDateTimeFractionDivisor) / kMillisecsPerSec);
+}
+
 nsresult nsLocalFile::CFStringReftoUTF8(CFStringRef aInStrRef, nsACString& aOutStr)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  // first see if the conversion would succeed and find the length of the result
+  nsresult rv = NS_ERROR_FAILURE;
   CFIndex usedBufLen, inStrLen = ::CFStringGetLength(aInStrRef);
   CFIndex charsConverted = ::CFStringGetBytes(aInStrRef, CFRangeMake(0, inStrLen),
-                                              kCFStringEncodingUTF8, 0, PR_FALSE,
-                                              NULL, 0, &usedBufLen);
+                              kCFStringEncodingUTF8, 0, PR_FALSE, nsnull, 0, &usedBufLen);
   if (charsConverted == inStrLen) {
-    // all characters converted, do the actual conversion
     aOutStr.SetLength(usedBufLen);
     if (aOutStr.Length() != (unsigned int)usedBufLen)
       return NS_ERROR_OUT_OF_MEMORY;
-    UInt8 *buffer = (UInt8*)aOutStr.BeginWriting();
-    ::CFStringGetBytes(aInStrRef, CFRangeMake(0, inStrLen), kCFStringEncodingUTF8,
-                       0, false, buffer, usedBufLen, &usedBufLen);
-    return NS_OK;
+    UInt8 *buffer = (UInt8*) aOutStr.BeginWriting();
+
+    ::CFStringGetBytes(aInStrRef, CFRangeMake(0, inStrLen),
+                       kCFStringEncodingUTF8, 0, false, buffer, usedBufLen, &usedBufLen);
+    rv = NS_OK;
   }
-  return NS_ERROR_FAILURE;
+  return rv;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }

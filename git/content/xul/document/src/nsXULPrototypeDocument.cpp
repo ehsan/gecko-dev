@@ -230,8 +230,7 @@ NS_NewXULPrototypeDocument(nsXULPrototypeDocument** aResult)
 
 // Helper method that shares a system global among all prototype documents
 // that have the system principal as their security principal.   Called by
-// nsXULPrototypeDocument::Read and
-// nsXULPrototypeDocument::GetScriptGlobalObject.
+// nsXULPrototypeDocument::Read and nsXULPDGlobalObject::GetGlobalObject.
 // This method greatly reduces the number of nsXULPDGlobalObjects and their
 // nsIScriptContexts in apps that load many XUL documents via chrome: URLs.
 

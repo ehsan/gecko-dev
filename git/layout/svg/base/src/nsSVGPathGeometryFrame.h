@@ -45,7 +45,6 @@
 #include "nsGkAtoms.h"
 #include "nsSVGGeometryFrame.h"
 #include "gfxRect.h"
-#include "gfxMatrix.h"
 
 class nsPresContext;
 class nsIDOMSVGMatrix;
@@ -92,7 +91,7 @@ public:
 #endif
 
   // nsSVGGeometryFrame methods
-  gfxMatrix GetCanvasTM();
+  NS_IMETHOD GetCanvasTM(nsIDOMSVGMatrix * *aCTM);
 
 protected:
   // nsISVGChildFrame interface:
@@ -107,7 +106,7 @@ protected:
   NS_IMETHOD NotifyRedrawUnsuspended();
   NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
   virtual PRBool GetMatrixPropagation();
-  virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace);
+  NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
   NS_IMETHOD_(PRBool) IsDisplayContainer() { return PR_FALSE; }
   NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_TRUE; }
 
@@ -116,8 +115,7 @@ protected:
 
 private:
   void Render(nsSVGRenderState *aContext);
-  void GeneratePath(gfxContext *aContext,
-                    const gfxMatrix *aOverrideTransform = nsnull);
+  void GeneratePath(gfxContext *aContext);
 
   struct MarkerProperties {
     nsSVGMarkerProperty* mMarkerStart;

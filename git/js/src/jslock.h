@@ -306,12 +306,6 @@ extern void js_SetScopeInfo(JSScope *scope, const char *file, int line);
 extern JSBool
 js_CompareAndSwap(jsword *w, jsword ov, jsword nv);
 
-/* Atomically bitwise-or the mask into the word *w using compare and swap. */
-extern void
-js_AtomicSetMask(jsword *w, jsword mask);
-
-#define JS_ATOMIC_SET_MASK(w, mask) js_AtomicSetMask(w, mask)
-
 #else
 
 static inline JSBool
@@ -320,9 +314,7 @@ js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
     return (*w == ov) ? *w = nv, JS_TRUE : JS_FALSE;
 }
 
-#define JS_ATOMIC_SET_MASK(w, mask) (*(w) |= (mask))
-
-#endif /* JS_THREADSAFE */
+#endif
 
 JS_END_EXTERN_C
 

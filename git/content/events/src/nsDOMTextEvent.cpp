@@ -73,7 +73,9 @@ nsDOMTextEvent::nsDOMTextEvent(nsPresContext* aPresContext,
 
     for(i = 0; i < te->rangeCount; i++) {
       nsRefPtr<nsPrivateTextRange> tempPrivateTextRange = new
-        nsPrivateTextRange(te->rangeArray[i]);
+        nsPrivateTextRange(te->rangeArray[i].mStartOffset,
+                           te->rangeArray[i].mEndOffset,
+                           te->rangeArray[i].mRangeType);
 
       if (tempPrivateTextRange) {
         mTextRange->AppendTextRange(tempPrivateTextRange);

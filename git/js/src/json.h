@@ -40,7 +40,6 @@
 /*
  * JS JSON functions.
  */
-#include "jsscan.h"
 
 #define JSON_MAX_DEPTH  2048
 #define JSON_PARSER_BUFSIZE 1024
@@ -89,8 +88,8 @@ struct JSONParser {
     JSONParserState *statep;
     JSONParserState stateStack[JSON_MAX_DEPTH];
     jsval *rootVal;
-    JSStringBuffer objectKey;
-    JSStringBuffer buffer;
+    JSStringBuffer *objectKey;
+    JSStringBuffer *buffer;
     JSObject *objectStack;
 };
 

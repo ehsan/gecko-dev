@@ -99,7 +99,7 @@ js_MinimizeDependentStrings(JSString *str, int level, JSString **basep)
             JSPREFIX_SET_BASE(str, base);
         } else if (start <= JSSTRDEP_START_MASK) {
             length = JSSTRDEP_LENGTH(str);
-            JSSTRDEP_REINIT(str, base, start, length);
+            JSSTRDEP_INIT(str, base, start, length);
         }
     }
     *basep = base;
@@ -182,7 +182,7 @@ js_ConcatStrings(JSContext *cx, JSString *left, JSString *right)
 
         /* Morph left into a dependent prefix if we realloc'd its buffer. */
         if (ldep) {
-            JSPREFIX_REINIT(ldep, str, ln);
+            JSPREFIX_INIT(ldep, str, ln);
 #ifdef DEBUG
           {
             JSRuntime *rt = cx->runtime;
@@ -214,7 +214,7 @@ js_UndependString(JSContext *cx, JSString *str)
 
         js_strncpy(s, JSSTRDEP_CHARS(str), n);
         s[n] = 0;
-        JSFLATSTR_REINIT(str, s, n);
+        JSFLATSTR_INIT(str, s, n);
 
 #ifdef DEBUG
         {
@@ -2724,16 +2724,6 @@ js_NewString(JSContext *cx, jschar *chars, size_t length)
     JSString *str;
 
     if (length > JSSTRING_LENGTH_MASK) {
-        if (JS_ON_TRACE(cx)) {
-            /*
-             * If we can't leave the trace, signal OOM condition, otherwise
-             * exit from trace and proceed with GC.
-             */
-            if (!js_CanLeaveTrace(cx))
-                return NULL;
-
-            js_LeaveTrace(cx);
-        }
         js_ReportAllocationOverflow(cx);
         return NULL;
     }
@@ -2935,7 +2925,7 @@ js_FinalizeStringRT(JSRuntime *rt, JSString *str, intN type, JSContext *cx)
             }
         }
     }
-    if (valid && JSSTRING_IS_DEFLATED(str))
+    if (valid)
         js_PurgeDeflatedStringCache(rt, str);
 }
 
@@ -3450,12 +3440,10 @@ js_SetStringBytes(JSContext *cx, JSString *str, char *bytes, size_t length)
     hep = JS_HashTableRawLookup(cache, hash, str);
     JS_ASSERT(*hep == NULL);
     ok = JS_HashTableRawAdd(cache, hep, hash, str, bytes) != NULL;
-    if (ok) {
-        JSSTRING_SET_DEFLATED(str);
 #ifdef DEBUG
+    if (ok)
         rt->deflatedStringCacheBytes += length;
 #endif
-    }
 
     JS_RELEASE_LOCK(rt->deflatedStringCacheLock);
     return ok;
@@ -3510,7 +3498,6 @@ js_GetStringBytes(JSContext *cx, JSString *str)
 #ifdef DEBUG
                 rt->deflatedStringCacheBytes += JSSTRING_LENGTH(str);
 #endif
-                JSSTRING_SET_DEFLATED(str);
             } else {
                 if (cx)
                     JS_free(cx, bytes);

@@ -38,12 +38,7 @@
 #include "nsSVGUtils.h"
 #include "nsSVGOuterSVGFrame.h"
 
-NS_QUERYFRAME_HEAD(nsSVGContainerFrame)
-  NS_QUERYFRAME_ENTRY(nsSVGContainerFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsSVGContainerFrameBase)
-
 NS_QUERYFRAME_HEAD(nsSVGDisplayContainerFrame)
-  NS_QUERYFRAME_ENTRY(nsSVGDisplayContainerFrame)
   NS_QUERYFRAME_ENTRY(nsISVGChildFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsSVGContainerFrame)
 
@@ -260,27 +255,10 @@ nsSVGDisplayContainerFrame::NotifyRedrawUnsuspended()
   return NS_OK;
 }
 
-gfxRect
-nsSVGDisplayContainerFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
+NS_IMETHODIMP
+nsSVGDisplayContainerFrame::GetBBox(nsIDOMSVGRect **_retval)
 {
-  gfxRect bboxUnion(0.0, 0.0, 0.0, 0.0);
-
-  nsIFrame* kid = mFrames.FirstChild();
-  while (kid) {
-    nsISVGChildFrame* svgKid = do_QueryFrame(kid);
-    if (svgKid) {
-      gfxMatrix transform = aToBBoxUserspace;
-      // nsSVGGlyphFrame's mContent is a nsTextNode!
-      if (kid->GetType() != nsGkAtoms::svgGlyphFrame) {
-        transform = static_cast<nsSVGElement*>(kid->GetContent())->
-                      PrependLocalTransformTo(aToBBoxUserspace);
-      }
-      bboxUnion = bboxUnion.Union(svgKid->GetBBoxContribution(transform));
-    }
-    kid = kid->GetNextSibling();
-  }
-
-  return bboxUnion;
+  return nsSVGUtils::GetBBox(&mFrames, _retval);
 }
 
 NS_IMETHODIMP

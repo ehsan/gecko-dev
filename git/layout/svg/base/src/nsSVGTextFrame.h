@@ -40,8 +40,6 @@
 #define NS_SVGTEXTFRAME_H
 
 #include "nsSVGTextContainerFrame.h"
-#include "gfxRect.h"
-#include "gfxMatrix.h"
 
 typedef nsSVGTextContainerFrame nsSVGTextFrameBase;
 
@@ -92,10 +90,10 @@ public:
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint & aPoint);
   NS_IMETHOD UpdateCoveredRegion();
   NS_IMETHOD InitialUpdate();
-  virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace);
+  NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
   
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
   
   // nsISVGTextContentMetrics
   NS_IMETHOD GetNumberOfChars(PRInt32 *_retval);

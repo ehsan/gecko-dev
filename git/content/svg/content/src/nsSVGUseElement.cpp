@@ -457,18 +457,6 @@ nsSVGUseElement::UnlinkSource()
 //----------------------------------------------------------------------
 // nsSVGElement methods
 
-/* virtual */ gfxMatrix
-nsSVGUseElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
-{
-  // 'transform' attribute:
-  gfxMatrix matrix = nsSVGUseElementBase::PrependLocalTransformTo(aMatrix);
-
-  // now translate by our 'x' and 'y':
-  float x, y;
-  GetAnimatedLengthValues(&x, &y, nsnull);
-  return matrix.PreMultiply(gfxMatrix().Translate(gfxPoint(x, y)));
-}
-
 void
 nsSVGUseElement::DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 {

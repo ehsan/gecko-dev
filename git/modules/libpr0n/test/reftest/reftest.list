@@ -28,5 +28,3 @@ include apng/reftest.list
 # Generic image tests
 include generic/reftest.list
 
-# Color management test
-include color-management/reftest.list

@@ -57,12 +57,6 @@ NS_IMETHODIMP nsBidiKeyboard::IsLangRTL(PRBool *aIsRTL)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-#ifdef __LP64__
-  // There isn't a way to determine this in 64-bit Mac OS X because any keyboard
-  // layout could generate any unicode characters. Apple simply doesn't consider
-  // this to be a valid question.
-  return NS_ERROR_FAILURE;
-#else  
   *aIsRTL = PR_FALSE;
   nsresult rv = NS_ERROR_FAILURE;
 
@@ -86,7 +80,6 @@ NS_IMETHODIMP nsBidiKeyboard::IsLangRTL(PRBool *aIsRTL)
   }
 
   return rv;
-#endif
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }

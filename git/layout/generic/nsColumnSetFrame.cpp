@@ -455,7 +455,6 @@ static void MoveChildTo(nsIFrame* aParent, nsIFrame* aChild, nsPoint aOrigin) {
 nscoord
 nsColumnSetFrame::GetMinWidth(nsIRenderingContext *aRenderingContext) {
   nscoord width = 0;
-  DISPLAY_MIN_WIDTH(this, width);
   if (mFrames.FirstChild()) {
     width = mFrames.FirstChild()->GetMinWidth(aRenderingContext);
   }
@@ -489,8 +488,6 @@ nsColumnSetFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext) {
   // the child's preferred width, times the number of columns, plus the width
   // of any required column gaps
   // XXX what about forced column breaks here?
-  nscoord result = 0;
-  DISPLAY_PREF_WIDTH(this, result);
   const nsStyleColumn* colStyle = GetStyleColumn();
   nscoord colGap = GetColumnGap(this, colStyle);
 
@@ -512,8 +509,7 @@ nsColumnSetFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext) {
   nscoord width = colWidth*numColumns + colGap*(numColumns - 1);
   // The multiplication above can make 'width' negative (integer overflow),
   // so use PR_MAX to protect against that.
-  result = PR_MAX(width, colWidth);
-  return result;
+  return PR_MAX(width, colWidth);
 }
 
 PRBool

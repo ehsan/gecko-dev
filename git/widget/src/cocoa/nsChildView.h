@@ -409,8 +409,6 @@ public:
 
   void              HidePlugin();
 
-  void              ResetParent();
-
 protected:
 
   PRBool            ReportDestroyEvent();
@@ -448,7 +446,7 @@ protected:
   PRPackedBool          mVisible;
   PRPackedBool          mDrawing;
   PRPackedBool          mLiveResizeInProgress;
-  PRPackedBool          mIsPluginView;
+  PRPackedBool          mIsPluginView; // true if this is a plugin view
   PRPackedBool          mPluginDrawing;
   PRPackedBool          mPluginIsCG; // true if this is a CoreGraphics plugin
 

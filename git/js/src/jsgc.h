@@ -125,7 +125,7 @@ js_GetGCStringRuntime(JSString *str);
         if (SCOPE_IS_BRANDED(scope) &&                                        \
             (oldval) != (newval) &&                                           \
             (VALUE_IS_FUNCTION(cx,oldval) || VALUE_IS_FUNCTION(cx,newval))) { \
-            js_MakeScopeShapeUnique(cx, scope);                               \
+            SCOPE_MAKE_UNIQUE_SHAPE(cx, scope);                               \
         }                                                                     \
         GC_POKE(cx, oldval);                                                  \
     JS_END_MACRO
@@ -246,16 +246,6 @@ js_TraceRuntime(JSTracer *trc, JSBool allAtoms);
 
 extern JS_REQUIRES_STACK JS_FRIEND_API(void)
 js_TraceContext(JSTracer *trc, JSContext *acx);
-
-/*
- * Schedule the GC call at a later safe point.
- */
-#ifndef JS_THREADSAFE
-# define js_TriggerGC(cx, gcLocked)    js_TriggerGC (cx)
-#endif
-
-extern void
-js_TriggerGC(JSContext *cx, JSBool gcLocked);
 
 /*
  * Kinds of js_GC invocation.

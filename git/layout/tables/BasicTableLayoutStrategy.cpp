@@ -704,7 +704,6 @@ BasicTableLayoutStrategy::DistributeWidthToColumns(nscoord aWidth,
     PRInt32 numNonSpecZeroWidthCols = 0;
 
     PRInt32 col;
-    nsTableCellMap *cellMap = mTableFrame->GetCellMap();
     for (col = aFirstCol; col < aFirstCol + aColCount; ++col) {
         nsTableColFrame *colFrame = mTableFrame->GetColFrame(col);
         if (!colFrame) {
@@ -738,7 +737,7 @@ BasicTableLayoutStrategy::DistributeWidthToColumns(nscoord aWidth,
                                                         pref_width);
             } else if (pref_width == 0) {
                 if (aWidthType == BTLS_FINAL_WIDTH &&
-                    cellMap->GetNumCellsOriginatingInCol(col) > 0) {
+                    mTableFrame->ColumnHasCellSpacingBefore(col)) {
                     ++numNonSpecZeroWidthCols;
                 }
             } else {
@@ -936,7 +935,7 @@ BasicTableLayoutStrategy::DistributeWidthToColumns(nscoord aWidth,
                              "when we're setting final width.");
                 if (pct == 0.0f &&
                     !colFrame->GetHasSpecifiedCoord() &&
-                    cellMap->GetNumCellsOriginatingInCol(col) > 0) {
+                    mTableFrame->ColumnHasCellSpacingBefore(col)) {
 
                     NS_ASSERTION(col_width == 0 &&
                                  colFrame->GetPrefCoord() == 0,

@@ -355,10 +355,11 @@ vbox[typeName="status"][type="header-recommended"] {
   -moz-box-align: center;
 }
 
-/* View buttons resp. Progress box */
-#topBar {
+/* View buttons */
+.viewSelector {
   -moz-appearance: listbox;
-  margin: 8px 8px 0;
+  margin: 8px 8px 0 8px;
+  padding: 0;
 }
 
 #viewGroup radio {

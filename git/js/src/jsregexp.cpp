@@ -71,6 +71,9 @@
 #include "jstracer.h"
 using namespace avmplus;
 using namespace nanojit;
+
+/* Amount of memory in the RE fragmento before flushing. */
+#define MAX_MEM_IN_RE_FRAGMENTO (1 << 20)
 #endif
 
 typedef enum REOp {
@@ -2439,7 +2442,7 @@ class RegExpNativeCompiler {
         return JS_TRUE;
     fail:
         if (lirbuf->outOMem() || oom || 
-            js_OverfullFragmento(&JS_TRACE_MONITOR(cx), fragmento)) {
+            js_OverfullFragmento(fragmento, MAX_MEM_IN_RE_FRAGMENTO)) {
             fragmento->clearFrags();
             lirbuf->rewind();
         } else {
@@ -4919,6 +4922,21 @@ regexp_test(JSContext *cx, uintN argc, jsval *vp)
     return JS_TRUE;
 }
 
+#ifdef JS_TRACER
+static JSBool FASTCALL
+Regexp_p_test(JSContext* cx, JSObject* regexp, JSString* str)
+{
+    jsval vp[3] = { JSVAL_NULL, OBJECT_TO_JSVAL(regexp), STRING_TO_JSVAL(str) };
+    if (!regexp_exec_sub(cx, regexp, 1, vp + 2, JS_TRUE, vp))
+        return JSVAL_TO_BOOLEAN(JSVAL_VOID);
+    return *vp == JSVAL_TRUE;
+}
+
+JS_DEFINE_TRCINFO_1(regexp_test,
+    (3, (static, BOOL_RETRY, Regexp_p_test, CONTEXT, THIS, STRING,  1, 1)))
+
+#endif
+
 static JSFunctionSpec regexp_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,  regexp_toString,    0,0),
@@ -4926,7 +4944,7 @@ static JSFunctionSpec regexp_methods[] = {
     JS_FN(js_toString_str,  regexp_toString,    0,0),
     JS_FN("compile",        regexp_compile,     2,0),
     JS_FN("exec",           regexp_exec,        1,0),
-    JS_FN("test",           regexp_test,        1,0),
+    JS_TN("test",           regexp_test,        1,0, regexp_test_trcinfo),
     JS_FS_END
 };
 

@@ -129,6 +129,9 @@ struct JSStackFrame {
     JSObject        *xmlNamespace;  /* null or default xml namespace in E4X */
     JSStackFrame    *displaySave;   /* previous value of display entry for
                                        script->staticLevel */
+#ifdef DEBUG
+    jsrefcount      pcDisabledSave; /* for balanced property cache control */
+#endif
 
 #ifdef __cplusplus /* Aargh, LiveConnect, bug 442399. */
     inline void assertValidStackDepth(uintN depth);
@@ -243,12 +246,12 @@ typedef struct JSInlineFrame {
 
 #define SHAPE_OVERFLOW_BIT      JS_BIT(32 - PCVCAP_TAGBITS)
 
-#ifndef JS_THREADSAFE
-# define js_GenerateShape(cx, gcLocked)    js_GenerateShape (cx)
-#endif
-
+/*
+ * When sprop is not null and the shape generation triggers the GC due to a
+ * shape overflow, the functions roots sprop.
+ */
 extern uint32
-js_GenerateShape(JSContext *cx, JSBool gcLocked);
+js_GenerateShape(JSContext *cx, JSBool gcLocked, JSScopeProperty *sprop);
 
 struct JSPropCacheEntry {
     jsbytecode          *kpc;           /* pc if vcap tag is <= 1, else atom */
@@ -257,12 +260,6 @@ struct JSPropCacheEntry {
     jsuword             vword;          /* value word, see PCVAL_* below */
 };
 
-/*
- * Special value for functions returning JSPropCacheEntry * to distinguish
- * between failure and no no-cache-fill cases.
- */
-#define JS_NO_PROP_CACHE_FILL ((JSPropCacheEntry *) NULL + 1)
-
 #if defined DEBUG_brendan || defined DEBUG_brendaneich
 #define JS_PROPERTY_CACHE_METERING 1
 #endif
@@ -270,12 +267,14 @@ struct JSPropCacheEntry {
 typedef struct JSPropertyCache {
     JSPropCacheEntry    table[PROPERTY_CACHE_SIZE];
     JSBool              empty;
+    jsrefcount          disabled;       /* signed for anti-underflow asserts */
 #ifdef JS_PROPERTY_CACHE_METERING
     uint32              fills;          /* number of cache entry fills */
     uint32              nofills;        /* couldn't fill (e.g. default get) */
     uint32              rofills;        /* set on read-only prop can't fill */
     uint32              disfills;       /* fill attempts on disabled cache */
     uint32              oddfills;       /* fill attempt after setter deleted */
+    uint32              modfills;       /* fill that rehashed to a new entry */
     uint32              brandfills;     /* scope brandings to type structural
                                            method fills */
     uint32              noprotos;       /* resolve-returned non-proto pobj */
@@ -343,14 +342,12 @@ typedef struct JSPropertyCache {
  * Fill property cache entry for key cx->fp->pc, optimized value word computed
  * from obj and sprop, and entry capability forged from 24-bit OBJ_SHAPE(obj),
  * 4-bit scopeIndex, and 4-bit protoIndex.
- *
- * Return the filled cache entry or JS_NO_PROP_CACHE_FILL if caching was not
- * possible.
  */
-extern JS_REQUIRES_STACK JSPropCacheEntry *
+extern JS_REQUIRES_STACK void
 js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
                      uintN scopeIndex, uintN protoIndex,
-                     JSObject *pobj, JSScopeProperty *sprop);
+                     JSObject *pobj, JSScopeProperty *sprop,
+                     JSPropCacheEntry **entryp);
 
 /*
  * Property cache lookup macros. PROPERTY_CACHE_TEST is designed to inline the
@@ -415,6 +412,12 @@ js_PurgePropertyCache(JSContext *cx, JSPropertyCache *cache);
 extern void
 js_PurgePropertyCacheForScript(JSContext *cx, JSScript *script);
 
+extern void
+js_DisablePropertyCache(JSContext *cx);
+
+extern void
+js_EnablePropertyCache(JSContext *cx);
+
 /*
  * Interpreter stack arena-pool alloc and free functions.
  */
@@ -462,19 +465,6 @@ extern const uint16 js_PrimitiveTestFlags[];
     (JS_ASSERT(!JSVAL_IS_VOID(thisv)),                                        \
      JSFUN_THISP_TEST(JSFUN_THISP_FLAGS((fun)->flags),                        \
                       js_PrimitiveTestFlags[JSVAL_TAG(thisv) - 1]))
-
-static inline JSObject *
-js_ComputeThisForFrame(JSContext *cx, JSStackFrame *fp)
-{
-    if (fp->flags & JSFRAME_COMPUTED_THIS)
-        return fp->thisp;
-    JSObject* obj = js_ComputeThis(cx, JS_TRUE, fp->argv);
-    if (!obj)
-        return NULL;
-    fp->thisp = obj;
-    fp->flags |= JSFRAME_COMPUTED_THIS;
-    return obj;
-}
 
 /*
  * NB: js_Invoke requires that cx is currently running JS (i.e., that cx->fp
@@ -612,6 +602,9 @@ js_LeaveWith(JSContext *cx);
 
 extern JS_REQUIRES_STACK JSClass *
 js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth);
+
+extern jsint
+js_CountWithBlocks(JSContext *cx, JSStackFrame *fp);
 
 /*
  * Unwind block and scope chains to match the given depth. The function sets

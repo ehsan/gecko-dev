@@ -60,8 +60,6 @@ endif
 
 LIBS		= $(DIST)/lib/$(LIB_PREFIX)xpt.$(LIB_SUFFIX)
 
-USE_STATIC_LIBS = 1
-
 include $(topsrcdir)/config/rules.mk
 
 # Do not link to jemalloc

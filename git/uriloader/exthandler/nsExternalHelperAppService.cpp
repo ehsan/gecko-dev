@@ -93,9 +93,7 @@
 #ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
 #include "nsIInternetConfigService.h"
-#ifndef __LP64__
 #include "nsIAppleFileDecoder.h"
-#endif
 #elif defined(XP_OS2)
 #include "nsILocalFileOS2.h"
 #endif
@@ -1385,7 +1383,7 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
 
   mOutStream = NS_BufferOutputStream(outputStream, BUFFERED_OUTPUT_SIZE);
 
-#if defined(XP_MACOSX) && !defined(__LP64__)
+#ifdef XP_MACOSX
     nsCAutoString contentType;
     mMimeInfo->GetMIMEType(contentType);
     if (contentType.LowerCaseEqualsLiteral(APPLICATION_APPLEFILE) ||

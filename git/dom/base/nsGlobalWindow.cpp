@@ -212,7 +212,6 @@ static PopupControlState    gPopupControlState         = openAbused;
 static PRInt32              gRunningTimeoutDepth       = 0;
 static PRBool               gMouseDown                 = PR_FALSE;
 static PRBool               gDragServiceDisabled       = PR_FALSE;
-static FILE                *gDumpFile                  = nsnull;
 
 #ifdef DEBUG
 static PRUint32             gSerialCounter             = 0;
@@ -674,18 +673,6 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
   }
 #endif
 
-  if (gDumpFile == nsnull) {
-    const nsAdoptingCString& fname = 
-      nsContentUtils::GetCharPref("browser.dom.window.dump.file");
-    if (!fname.IsEmpty()) {
-      // if this fails to open, Dump() knows to just go to stdout
-      // on null.
-      gDumpFile = fopen(fname, "wb+");
-    } else {
-      gDumpFile = stdout;
-    }
-  }
-
   if (!gEntropyCollector) {
     CallGetService(NS_ENTROPYCOLLECTOR_CONTRACTID, &gEntropyCollector);
   }
@@ -798,11 +785,6 @@ nsGlobalWindow::ShutDown()
 {
   NS_IF_RELEASE(sComputedDOMStyleFactory);
   NS_IF_RELEASE(sGlobalStorageList);
-
-  if (gDumpFile && gDumpFile != stdout) {
-    fclose(gDumpFile);
-  }
-  gDumpFile = nsnull;
 }
 
 // static
@@ -3928,9 +3910,7 @@ nsGlobalWindow::Dump(const nsAString& aStr)
 #endif
 
   if (cstr) {
-    FILE *fp = gDumpFile ? gDumpFile : stdout;
-    fputs(cstr, fp);
-    fflush(fp);
+    printf("%s", cstr);
     nsMemory::Free(cstr);
   }
 
@@ -6476,12 +6456,13 @@ nsGlobalWindow::GetSystemEventGroup(nsIDOMEventGroup **aGroup)
   return NS_ERROR_FAILURE;
 }
 
-nsIScriptContext*
-nsGlobalWindow::GetContextForEventHandlers(nsresult* aRv)
+nsresult
+nsGlobalWindow::GetContextForEventHandlers(nsIScriptContext** aContext)
 {
-  nsIScriptContext* scx = GetContext();
-  *aRv = scx ? NS_OK : NS_ERROR_UNEXPECTED;
-  return scx;
+  NS_IF_ADDREF(*aContext = GetContext());
+  // Bad, no context from script global object!
+  NS_ENSURE_STATE(*aContext);
+  return NS_OK;
 }
 
 //*****************************************************************************
@@ -7656,7 +7637,7 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
   mTimeoutInsertionPoint = &dummy_timeout;
 
   for (timeout = FirstTimeout();
-       timeout != &dummy_timeout && !IsFrozen();
+       timeout != &dummy_timeout && !IsFrozen() && !mTimeoutsSuspendDepth;
        timeout = nextTimeout) {
     nextTimeout = timeout->Next();
 
@@ -7664,13 +7645,6 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
       // We skip the timeout since it's on the list to run at another
       // depth.
 
-      continue;
-    }
-
-    if (mTimeoutsSuspendDepth) {
-      // Some timer did suspend us. Make sure the
-      // rest of the timers get executed later.
-      timeout->mFiringDepth = 0;
       continue;
     }
 

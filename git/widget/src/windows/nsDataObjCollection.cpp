@@ -76,6 +76,8 @@ nsDataObjCollection::~nsDataObjCollection()
 {
   NS_IF_RELEASE(mTransferable);
 
+  PRUint32 i;
+
   mDataFlavors.Clear();
   mDataObjects.Clear();
 

@@ -63,9 +63,11 @@ DIRS += mochitest \
 XPCSHELL_TESTS=unit
 
 # simple c++ tests (no xpcom)
-CPP_UNIT_TESTS = \
+CPPSRCS = \
 	TestUrlClassifierUtils.cpp \
 	$(NULL)
+
+SIMPLE_PROGRAMS = $(CPPSRCS:.cpp=$(BIN_SUFFIX))
 
 LOCAL_INCLUDES = \
 	-I$(srcdir)/../src \
@@ -80,3 +82,10 @@ LIBS = \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk
+
+check::
+	@echo Running tests...
+	@$(EXIT_ON_ERROR) \
+	for f in $(SIMPLE_PROGRAMS); do \
+	  $(RUN_TEST_PROGRAM) $(DIST)/bin/$$f; \
+  done

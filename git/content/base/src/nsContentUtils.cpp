@@ -2710,9 +2710,8 @@ nsCxPusher::Push(nsPIDOMEventTarget *aCurrentTarget)
   }
 
   NS_ENSURE_TRUE(aCurrentTarget, PR_FALSE);
-  nsresult rv;
-  nsIScriptContext* scx =
-    aCurrentTarget->GetContextForEventHandlers(&rv);
+  nsCOMPtr<nsIScriptContext> scx;
+  nsresult rv = aCurrentTarget->GetContextForEventHandlers(getter_AddRefs(scx));
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   if (!scx) {
@@ -4504,38 +4503,26 @@ nsContentUtils::URIIsLocalFile(nsIURI *aURI)
 }
 
 /* static */
-nsIScriptContext*
+nsresult
 nsContentUtils::GetContextForEventHandlers(nsINode* aNode,
-                                           nsresult* aRv)
+                                           nsIScriptContext** aContext)
 {
-  *aRv = NS_OK;
+  *aContext = nsnull;
   nsIDocument* ownerDoc = aNode->GetOwnerDoc();
-  if (!ownerDoc) {
-    *aRv = NS_ERROR_UNEXPECTED;
-    return nsnull;
-  }
-
+  NS_ENSURE_STATE(ownerDoc);
+  nsCOMPtr<nsIScriptGlobalObject> sgo;
   PRBool hasHadScriptObject = PR_TRUE;
-  nsIScriptGlobalObject* sgo =
-    ownerDoc->GetScriptHandlingObject(hasHadScriptObject);
+  sgo = ownerDoc->GetScriptHandlingObject(hasHadScriptObject);
   // It is bad if the document doesn't have event handling context,
   // but it used to have one.
-  if (!sgo && hasHadScriptObject) {
-    *aRv = NS_ERROR_UNEXPECTED;
-    return nsnull;
-  }
-
+  NS_ENSURE_STATE(sgo || !hasHadScriptObject);
   if (sgo) {
-    nsIScriptContext* scx = sgo->GetContext();
+    NS_IF_ADDREF(*aContext = sgo->GetContext());
     // Bad, no context from script global object!
-    if (!scx) {
-      *aRv = NS_ERROR_UNEXPECTED;
-      return nsnull;
-    }
-    return scx;
+    NS_ENSURE_STATE(*aContext);
   }
 
-  return nsnull;
+  return NS_OK;
 }
 
 /* static */

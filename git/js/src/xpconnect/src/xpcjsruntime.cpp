@@ -761,7 +761,7 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
                 // Do any deferred released of native objects.
 #ifdef XPC_TRACK_DEFERRED_RELEASES
                 printf("XPC - Begin deferred Release of %d nsISupports pointers\n",
-                       array.Length());
+                       self->mNativesToReleaseArray.Length());
 #endif
                 DoDeferredRelease(self->mNativesToReleaseArray);
 #ifdef XPC_TRACK_DEFERRED_RELEASES
@@ -1142,7 +1142,6 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
     JSBool ok = JS_TRUE;
     if(!mStrIDs[0])
     {
-        JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
         JSAutoRequest ar(cx);
         for(uintN i = 0; i < IDX_TOTAL_COUNT; i++)
         {
