@@ -21,7 +21,7 @@ function test() {
 
     waitForSourceShown(gPanel, ".coffee")
       .then(testSourceEditorShown)
-      .then(toggleBlackBoxing.bind(null, gPanel))
+      .then(blackBoxSource)
       .then(testBlackBoxMessageShown)
       .then(clickStopBlackBoxingButton)
       .then(testSourceEditorShownAgain)
@@ -35,6 +35,12 @@ function test() {
 function testSourceEditorShown() {
   is(gDeck.selectedIndex, "0",
     "The first item in the deck should be selected (the source editor).");
+}
+
+function blackBoxSource() {
+  let finished = waitForThreadEvents(gPanel, "blackboxchange");
+  getAnyBlackBoxCheckbox().click();
+  return finished;
 }
 
 function testBlackBoxMessageShown() {
@@ -51,6 +57,11 @@ function clickStopBlackBoxingButton() {
 function testSourceEditorShownAgain() {
   is(gDeck.selectedIndex, "0",
     "The first item in the deck should be selected again (the source editor).");
+}
+
+function getAnyBlackBoxCheckbox() {
+  return gDebugger.document.querySelector(
+    ".side-menu-widget-item .side-menu-widget-item-checkbox");
 }
 
 function getEditorBlackboxMessageButton() {

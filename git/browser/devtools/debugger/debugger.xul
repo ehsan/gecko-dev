@@ -32,8 +32,6 @@
   <commandset id="debuggerCommands">
     <command id="prettyPrintCommand"
              oncommand="DebuggerView.Sources.togglePrettyPrint()"/>
-    <command id="blackBoxCommand"
-             oncommand="DebuggerView.Sources.toggleBlackBoxing()"/>
     <command id="unBlackBoxButton"
              oncommand="DebuggerView.Sources._onStopBlackBoxing()"/>
     <command id="nextSourceCommand"
@@ -322,18 +320,12 @@
       <vbox id="sources-pane">
         <vbox id="sources" flex="1"/>
         <toolbar id="sources-toolbar" class="devtools-toolbar">
-          <hbox id="sources-controls">
-            <toolbarbutton id="black-box"
-                           tooltiptext="&debuggerUI.sources.blackBoxTooltip;"
-                           command="blackBoxCommand"
-                           class="devtools-toolbarbutton"/>
-            <toolbarbutton id="pretty-print"
-                           label="{}"
-                           tooltiptext="&debuggerUI.sources.prettyPrint;"
-                           class="devtools-toolbarbutton devtools-monospace"
-                           command="prettyPrintCommand"
-                           hidden="true"/>
-          </hbox>
+          <toolbarbutton id="pretty-print"
+                         label="{}"
+                         tooltiptext="&debuggerUI.sources.prettyPrint;"
+                         class="devtools-toolbarbutton devtools-monospace"
+                         command="prettyPrintCommand"
+                         hidden="true"/>
         </toolbar>
       </vbox>
       <splitter id="sources-and-editor-splitter"

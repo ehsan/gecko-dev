@@ -1156,13 +1156,8 @@ SourceScripts.prototype = {
   _onBlackBoxChange: function (aEvent, { url, isBlackBoxed }) {
     const item = DebuggerView.Sources.getItemByValue(url);
     if (item) {
-      if (isBlackBoxed) {
-        item.target.classList.add("black-boxed");
-      } else {
-        item.target.classList.remove("black-boxed");
-      }
+      DebuggerView.Sources.callMethod("checkItem", item.target, !isBlackBoxed);
     }
-    DebuggerView.Sources.updateToolbarButtonsState();
     DebuggerView.maybeShowBlackBoxMessage();
   },
 
