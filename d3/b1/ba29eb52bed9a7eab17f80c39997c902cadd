@@ -1,0 +1,4 @@
+changeset fc4e4fa98b14b4d0fa6f84ab72c52a8f040eac3d
+manifest b367f481af55f5301426fd4cd1797b7bf10cd000
+author timeless@mozdev.org
+files gfx/layers/opengl/ImageLayerOGL.cpp

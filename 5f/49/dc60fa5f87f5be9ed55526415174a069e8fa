@@ -1,0 +1,4 @@
+changeset da2765a95e4f5cafb9a5548c799c2a94759ad490
+manifest f9458d58067281930ce17b740a83537d5922420c
+author varga@nixcorp.com
+files toolkit/components/passwordmgr/content/passwordManager.js

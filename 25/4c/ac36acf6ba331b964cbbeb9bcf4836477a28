@@ -1,0 +1,4 @@
+changeset ffd64701a996ead4383afcfb42f66bddf4a76afe
+manifest dd75bc905c8c59c9003112f5392df41bc3cbfeec
+extra rebase_source:f91a29d32e8d26996ecc90429d5f473f0f5a42bd
+files dom/contacts/tests/test_contacts_basics.html

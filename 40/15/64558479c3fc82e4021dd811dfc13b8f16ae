@@ -1,0 +1,4 @@
+changeset 12a8c3b520c03acde1d5a0fe07cbb1f99a44ed8c
+manifest 9534d979888c23af9957ee08288de67a86d2e2a4
+author sdwilsh@shawnwilsher.com
+files storage/src/mozStorageUnicodeFunctions.cpp

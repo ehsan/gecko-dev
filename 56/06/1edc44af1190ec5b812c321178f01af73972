@@ -1,0 +1,4 @@
+changeset 6689c80cf25af88d6c8e29615af68cf59c8a4448
+manifest fd083110f78b312a3de0351173094c7d84585df5
+author mats.palmgren@bredband.net
+files accessible/src/xul/nsXULTreeAccessible.cpp

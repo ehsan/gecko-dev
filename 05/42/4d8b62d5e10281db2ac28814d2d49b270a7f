@@ -1,0 +1,4 @@
+changeset 834fa61f11b27c7a0dbb012699806671c1b7579d
+manifest c5eddf6b9707cfcf75abe5557ceedf2501763c34
+author dbaron@dbaron.org
+files layout/generic/nsAbsoluteContainingBlock.cpp

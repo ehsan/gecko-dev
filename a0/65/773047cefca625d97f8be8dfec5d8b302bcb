@@ -1,0 +1,4 @@
+changeset 1b1e722d339e6c154f4d919f365d33ce1bc5665f
+manifest 55e6e95b37cf1f00ed0c2666cca2944bfc6e1dca
+author mozilla@weilbacher.org
+files modules/plugin/Makefile.in

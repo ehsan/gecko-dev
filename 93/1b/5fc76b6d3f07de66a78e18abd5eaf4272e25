@@ -1,0 +1,4 @@
+changeset 978ca52298f03d045caf4599364f844db0ae41f4
+manifest c4cc72967f23065dd2ecf39fe6a7fc349e0db5e4
+extra amend_source:d73f36b24712273b8c56feb3a4a945f25d9a4f0f
+files js/src/jit-test/tests/basic/maxConvertAllArgs.js

@@ -1,0 +1,4 @@
+changeset 137cb083e239ee0dae86dfe9c89edcb1f8521c77
+manifest bc7807595b83ee48af69688975b0960756cd8665
+author peterv@propagandism.org
+files js/src/xpconnect/src/nsXPConnect.cpp

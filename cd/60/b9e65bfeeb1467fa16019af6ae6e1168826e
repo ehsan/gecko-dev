@@ -1,0 +1,3 @@
+changeset 5ec41b0085be9afd358acfd9ff5ea0be37c4a067
+manifest 56cb9e56ae54642cbe0906dd8cbb769653690d58
+files dom/workers/XMLHttpRequestPrivate.cpp

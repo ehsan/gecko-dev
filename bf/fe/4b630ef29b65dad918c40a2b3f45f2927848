@@ -1,0 +1,4 @@
+changeset c400385f8c1efaa32920f99ea366e3c43c7b2ba6
+manifest e33948dc4fb1c6c7d94dbc3f68e8823406bcbad9
+author jonathandicarlo@jonathan-dicarlos-macbook-pro.local
+files services/sync/modules/syncCores.js

@@ -1,0 +1,4 @@
+changeset 0462cf0d51f6535a1b1f991e0dff6208217edc63
+manifest 4a6bb479673a6c876b995df43739ac52ef85af53
+extra rebase_source:0797a8d3d624c4be46fceda95509b13582daaf4f
+files toolkit/content/tests/chrome/test_arrowpanel.xul

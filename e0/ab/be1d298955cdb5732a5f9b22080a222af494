@@ -1,0 +1,4 @@
+changeset a9f91f3e53da6b2ac457ce63a18bdeb3deb33591
+manifest 161b37f6bad3276a094ffa8620bb7ec28595abb0
+author smontagu@smontagu.org
+files intl/unicharutil/util/nsBidiUtils.cpp

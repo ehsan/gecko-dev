@@ -1,0 +1,5 @@
+changeset 4b7b9f55fdad6502678b146982d258a69731c25b
+manifest a074ad24d5932a7eff225848ad276fd64fc85961
+author Leon Sha<leon.sha@sun.com>
+extra convert_revision:69ef86e45856c850accc542111053c4387a8b804
+files js/src/lirasm/lirasm.cpp

@@ -1,0 +1,4 @@
+changeset 30cb4f8ad6a50e47c7defb2341b263ab9ebe4ac0
+manifest 0d181c62a25e7276c65f04e8c7b078a186f3e563
+extra rebase_source:5700682b71b2d6359cbfc3c6a80290fe2d28ed65
+files netwerk/base/src/nsSocketTransportService2.cpp

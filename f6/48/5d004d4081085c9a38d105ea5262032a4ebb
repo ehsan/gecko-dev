@@ -1,0 +1,4 @@
+changeset 9d4c33b3a6b05550e5d58a1c8ee51083ad337f34
+manifest 40ff02488798cca283a1c606f03d2e1f45c34086
+author reed@reedloden.com
+files toolkit/components/places/src/nsNavBookmarks.cpp

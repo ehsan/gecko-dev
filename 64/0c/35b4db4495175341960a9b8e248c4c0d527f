@@ -1,0 +1,4 @@
+changeset a7208f3dc034bb1d635c6d5c7555dabc30bc1e63
+manifest 6891b4e5fbc917679f7697463e02ef2d3ad595e7
+author jag@tty.nl
+files js/src/xpconnect/src/xpcwrappednative.cpp

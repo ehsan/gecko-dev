@@ -1,0 +1,4 @@
+changeset f143f852ede1c32309a40328cfecca0f8490e206
+manifest 850baf4066994e9c1f303a821d28eb86c9abf90f
+extra rebase_source:0279058dc09dd0d31971191a6f5edfbe48da0fd7
+files toolkit/modules/Http.jsm

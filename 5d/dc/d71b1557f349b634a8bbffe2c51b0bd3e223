@@ -1,0 +1,4 @@
+changeset 572efc8fea865f421b8e8ac1322494fe7668dc84
+manifest 04786baa6f832f8296020a4ab549053caf0293c1
+extra rebase_source:d067ab4920157e8bd388eecc6df5130b0c3b61c4
+files xpcom/base/nsMemoryInfoDumper.cpp

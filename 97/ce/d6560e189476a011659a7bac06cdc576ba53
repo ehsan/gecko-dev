@@ -1,0 +1,4 @@
+changeset 8781afe7e4ab3d63a71574f21800602ff9143905
+manifest 47b295125ce4532902d68113a24405c342056f0b
+author bzbarsky@mit.edu
+files embedding/components/windowwatcher/src/nsWindowWatcher.cpp

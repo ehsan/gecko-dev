@@ -1,0 +1,4 @@
+changeset 6cf02a73ad54fb2bc1317559a5e53869dd105158
+manifest 11f068c2905fdf574a8505ac6aea0e500464cf2c
+author jdaggett@mozilla.com
+files gfx/thebes/src/gfxAtsuiFonts.cpp

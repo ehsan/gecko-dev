@@ -1,0 +1,4 @@
+changeset 74303a630bea3ee48c3d3d84af1eb2edbe1c8289
+manifest b1c00d6d871d554d2599b02f458972e5cf8ffdf1
+extra rebase_source:cb4258aabfd1c7b7a9540048e27a7ab752d79d85
+files browser/devtools/app-manager/app-validator.js

@@ -1,0 +1,4 @@
+changeset d3cb395288a184adad76db7747dbcd794076b1e7
+manifest 554f3c0fe3b3e2762add9b62ab6efeeb6ee42457
+author gijskruitbosch@gmail.com
+files browser/components/places/src/nsPlacesImportExportService.cpp

@@ -1,0 +1,3 @@
+changeset 595dce3556ff770c7fe9b21c15f2a502f5591ff4
+manifest da9ff2bcaf914889206b4e68ff516082f8348a94
+files testing/mozbase/mozlog/mozlog/structured/formatters/html/html.py

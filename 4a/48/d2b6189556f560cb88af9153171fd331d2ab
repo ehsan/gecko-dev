@@ -1,0 +1,4 @@
+changeset 9eb0c777cd3b43c9eb7e440199616ca26d342a7b
+manifest 5bd06339ac119b1f91377d189a0b59aa79846e0f
+author rob_strong@exchangecode.com
+files toolkit/mozapps/installer/windows/nsis/check-locales.pl

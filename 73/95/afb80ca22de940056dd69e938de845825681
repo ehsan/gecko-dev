@@ -1,0 +1,4 @@
+changeset a1d4338cdf1cb531e200b899b6fc8421d65c5730
+manifest 56bcbbf620400d43b9e026469c2a2b96b31d30a2
+author vladimir@pobox.com
+files gfx/cairo/cairo/src/cairo-xlib-screen.c

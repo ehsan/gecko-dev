@@ -1,0 +1,4 @@
+changeset ce6dd662ecfba03cbe28244ad9ae7fd061e8e10d
+manifest c9dd6d4569ca410f21598df8205b561aee9b37fb
+author mark.finkle@gmail.com
+files extensions/spellcheck/hunspell/src/mozHunspell.cpp

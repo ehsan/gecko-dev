@@ -1,0 +1,4 @@
+changeset 16d1d8b7e5298d8900092eac139ec7f3fe3a7d91
+manifest 6f77e7da7a1bab01a993c70aa91635b80a85527e
+author tor@cs.brown.edu
+files modules/libpr0n/decoders/png/nsPNGDecoder.cpp

@@ -1,0 +1,3 @@
+changeset 5ec98e8b1be9f619dca62e255bf22e46a96fb1e4
+manifest 3237cd9df76bcc60969b72a0b2a5f796c8d2f412
+files js/src/jit-test/tests/oom/bug-877437.js

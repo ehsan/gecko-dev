@@ -1,0 +1,3 @@
+changeset 900a8b788309b439e8e8fcaf4c999a659cc0191a
+manifest 3dfc749f9bb5b43ecd9765e39eb5ad99e83a54f1
+files browser/devtools/styleinspector/test/browser_computedview_select-and-copy-styles.js

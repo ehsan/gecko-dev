@@ -1,0 +1,3 @@
+changeset 862e63e75fd30d7ed87fd9c4eac727cad15d66a3
+manifest 05d39bf7b3c43e55e4af31c3fc2e59f34e4a5ac3
+files toolkit/components/telemetry/tests/unit/test_TelemetryLog.js

@@ -1,0 +1,3 @@
+changeset 68737c373ababe1079bdfd12f17e357927fca32a
+manifest d9255a538b833284bfac68703ba983dd07a442c5
+files widget/src/gtk2/nsGtkIMModule.cpp

@@ -1,0 +1,4 @@
+changeset ad33ff867faf74892396d3dbdbd50f23d13510c0
+manifest e39d18c6dd45687cdf25cbab395b4c1a80f38d0f
+author ted.mielczarek@gmail.com
+files toolkit/crashreporter/nsExceptionHandler.cpp

@@ -1,0 +1,4 @@
+changeset bec5e1269d11b9e3166a31e18e0f8a7a2b91ae5d
+manifest b0c6f42811375642104dd2ab7bdc08b44ea155d7
+author pekka.vanhoja
+files widget/src/qt/Makefile.in

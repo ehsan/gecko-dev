@@ -1,0 +1,4 @@
+changeset 38d39b4c3023a79e6bc47982a4e7ff38304bc9b7
+manifest 8e82eab7fe9272058793653c4d78ca28e4e706f8
+extra rebase_source:9f197c8d3277490c4be36286cddda3d4aa2f0bf9
+files js/src/jsmath.cpp

@@ -1,0 +1,4 @@
+changeset d48cd30ffe9ccc17b0adf2fd877df52dd59f0ad7
+manifest d85b3b1eac8b0945d5ddeda9cfd7e01ec79e0077
+extra rebase_source:4ef8ddbf765efe40ccb6e4e389112926cef82749
+files toolkit/components/prompts/content/tabprompts.xml

@@ -1,0 +1,4 @@
+changeset dd6e82e5edacd359bbda6bdf321f0b9156d9bfef
+manifest a690f4b0cdc699806480288b2017ea1261ec0569
+extra rebase_source:9943ace287e944ed84565a3d71271d411815c659
+files dom/system/nsDeviceMotion.cpp

@@ -1,0 +1,4 @@
+changeset 41ea0740c97dff3755ce68ab4a8f96e04cb7b59f
+manifest c5d34448554223a5d91ab7d334898b38e320aa8c
+extra rebase_source:5ebebc39f689d0b76e51b2ca79fa432871b1404e
+files js/src/xpconnect/src/xpcvariant.cpp

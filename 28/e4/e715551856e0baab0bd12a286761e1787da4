@@ -1,0 +1,4 @@
+changeset 50843cebfab6b083da40c6a31e95e16ee37dc1f0
+manifest 5073fad892e13f4d6d48424426bcc64b98274a2b
+extra rebase_source:406dd7104924cb6767b2a6cbb0d05afae493ba52
+files dom/bindings/Bindings.conf

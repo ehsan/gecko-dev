@@ -1,0 +1,4 @@
+changeset 2239304a84744e48d41ea4f98d2027cc6f069df8
+manifest d86f8f361a34113f851af833d27ae8033169fdfb
+author jwalden@mit.edu
+files xpcom/base/nscore.h

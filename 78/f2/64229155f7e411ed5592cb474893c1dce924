@@ -1,0 +1,4 @@
+changeset df6c82b1864aa496913b77546c640003f939d7af
+manifest e718d5d04165422f274a0d619ad55798bcbfe185
+author reed@reedloden.com
+files browser/components/sessionstore/src/nsSessionStore.js

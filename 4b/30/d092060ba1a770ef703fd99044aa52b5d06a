@@ -1,0 +1,4 @@
+changeset 8e9e117e9c054a3583e36cc771ac4f0eb236f7b8
+manifest a01087e23a0a6b0a1ce026ec28acaadfd5abab25
+author timeless@mozdev.org
+files xpcom/proxy/src/nsProxyEventObject.cpp

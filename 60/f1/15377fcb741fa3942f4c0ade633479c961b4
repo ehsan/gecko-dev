@@ -1,0 +1,4 @@
+changeset e407423119636dce03247470e71263bf32786e5b
+manifest b312cab853ff3c9ef78db80f085cd995a91ba628
+author jst@mozilla.org
+files modules/plugin/base/public/npruntime.h

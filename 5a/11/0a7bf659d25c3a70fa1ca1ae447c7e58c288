@@ -1,0 +1,4 @@
+changeset ddda7acf37399eaf5e78c3f97b23d744def1be5c
+manifest 136d2b92cb4f150ca27b6e773de489c727816f40
+extra rebase_source:0c43953ffac68f75036bd20183e3307befa449f9
+files testing/xpcshell/xpcshell_android.ini

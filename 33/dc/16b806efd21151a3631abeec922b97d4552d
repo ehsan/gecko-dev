@@ -1,0 +1,4 @@
+changeset 58c81a7545edfb0024064abdf0b69537f5ce9a32
+manifest a854b798c33ee1fe870246f30ef1aa05edcb49c6
+author dolske@mozilla.com
+files browser/fuel/test/Makefile.in

@@ -1,0 +1,4 @@
+changeset 1097857407cb71f58b1142a92c219c8e46ec8138
+manifest f932a3b436fed11059b23eafe92d25c03ec387c6
+author kaie@kuix.de
+files security/manager/ssl/src/nsKeygenHandler.cpp

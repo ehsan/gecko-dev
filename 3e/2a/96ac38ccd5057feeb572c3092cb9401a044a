@@ -1,0 +1,3 @@
+changeset dc13dd7f28d937d1da482e94dcc9390276ac2566
+manifest 2a304ab5de5ae83782ff2220e7d6c5d22b511f66
+files modules/libpref/test/unit/test_bug577950.js

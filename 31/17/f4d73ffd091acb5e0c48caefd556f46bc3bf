@@ -1,0 +1,4 @@
+changeset 4172ddf0eabea8c42799a7b353924e8a1a44c827
+manifest 5f615bc792a70d44403d64171fc9bb4abe875a17
+extra rebase_source:be760413dbc9a0ffdf6bd4f5b59286fcc6602f00
+files other-licenses/android/APKOpen.cpp

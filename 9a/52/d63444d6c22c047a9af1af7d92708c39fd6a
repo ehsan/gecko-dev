@@ -1,0 +1,4 @@
+changeset e02681a56d8ac298c4bbfc9e1611d188bd6d3651
+manifest 2eaa9b6c2a2cc51abc64af6dabf3620abb6ab59c
+author wr@rosenauer.org
+files toolkit/mozapps/update/src/updater/updater.cpp

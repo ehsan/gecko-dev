@@ -1,0 +1,4 @@
+changeset 304741fcee19b277d9db3bb204fa2a4d3afa839d
+manifest 35aaeadc8007de4802358545e8ff9fbef720421d
+extra branch:electrolysis-plugins-only
+files dom/interfaces/canvas/nsIDOMCanvasRenderingContext2D.idl

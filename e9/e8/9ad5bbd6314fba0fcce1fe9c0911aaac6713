@@ -1,0 +1,4 @@
+changeset 210a02595981224ba16c0be672e818f03813f1e2
+manifest 65c2e40be96d4963cd6633da38ed3121669ec855
+extra rebase_source:d1233872ce281ca8ec4ce4a11766dc6dec756e92
+files browser/components/wintaskbar/WindowsPreviewPerTab.jsm

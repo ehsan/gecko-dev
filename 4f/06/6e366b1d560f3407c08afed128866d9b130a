@@ -1,0 +1,4 @@
+changeset b9e2c6e0f2ad19579b18adfce468cd8c38fc9db5
+manifest 1481a55d49432603aa377ba308ff73c18d4bea09
+extra rebase_source:09d37ec155d552690e4e10c41789158b98541e2b
+files browser/themes/pinstripe/browser/browser.css

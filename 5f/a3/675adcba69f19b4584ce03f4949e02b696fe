@@ -1,0 +1,4 @@
+changeset 4add6eaba66ff0b2a6c7a809922a60f99625ddc3
+manifest 4522dd078102a2dc782ba0684613eaffb52cb836
+extra rebase_source:b405b0ac1c54dd3af3141d8762b26e91e2e63a02
+files toolkit/mozapps/downloads/nsHelperAppDlg.js

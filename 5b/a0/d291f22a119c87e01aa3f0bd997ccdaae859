@@ -1,0 +1,4 @@
+changeset b31febec7e34432119d12a3116cb09f77d6a90d2
+manifest e080146149ebb18e1680d5a4eb272e407fc4b5ba
+author roc+@cs.cmu.edu
+files intl/lwbrk/src/nsPangoBreaker.cpp

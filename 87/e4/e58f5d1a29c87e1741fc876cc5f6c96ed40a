@@ -1,0 +1,4 @@
+changeset d0742b0dfa151c1a0bfed82465629f24dbb2e503
+manifest 5b261919f20726fb6f4c6ddeb983f11e525c3977
+author timeless@mozdev.org
+files dom/src/offline/nsDOMOfflineResourceList.cpp

@@ -1,0 +1,4 @@
+changeset 3ca5d6674febda08b2c3af9bdf639689e56f4e8d
+manifest 0b4839bfd828ca93aa9ebde2f13b2dda16c0c175
+author timeless@mozdev.org
+files security/manager/Makefile.in

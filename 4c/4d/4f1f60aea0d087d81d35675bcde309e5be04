@@ -1,0 +1,4 @@
+changeset fb003134dc97bf5f731c1adb576791115b47e0d5
+manifest 7978bb34b76a49e1abf1f79faa4a36361a735dfa
+author brendan@mozilla.org
+files js/src/jsemit.c

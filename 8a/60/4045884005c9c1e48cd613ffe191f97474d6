@@ -1,0 +1,4 @@
+changeset 75d63f6c2798b86cff69c60db3672a789340cecf
+manifest 6b91f3cd7b053b02fc57abb1cc2a1f02bb1f21d1
+author brendan@mozilla.org
+files js/src/jsfun.c

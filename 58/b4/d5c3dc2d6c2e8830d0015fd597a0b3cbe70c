@@ -1,0 +1,3 @@
+changeset 0fd07d2752e8b4aef70ef6659fc8017f29f63ec1
+manifest bfa2199391e1a46d59cf6d5ff4cbdb53968ab9c2
+files extensions/cookie/test/unit_ipc/test_child.js

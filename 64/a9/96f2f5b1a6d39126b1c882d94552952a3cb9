@@ -1,0 +1,4 @@
+changeset 0ffa26aecbe34c88b0e37bd37278fee799a73334
+manifest 40c9de7670a4a634b6c6828255b47866ca2549de
+extra rebase_source:4a9dae1e9123206f89ff6d6197a32752077570ee
+files gfx/thebes/src/gfxHarfBuzzShaper.cpp

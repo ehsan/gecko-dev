@@ -1,0 +1,3 @@
+changeset 4de3970256ef69ae87ab2e2968c64d0bb783b5c5
+manifest c962f79fc57df20fb4bd626cc62798ec413a08ab
+files extensions/spellcheck/hunspell/src/affentry.cpp

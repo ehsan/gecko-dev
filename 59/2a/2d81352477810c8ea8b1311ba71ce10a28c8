@@ -1,0 +1,4 @@
+changeset 63e80b49bc19bc1142954e6e2b8a686cff8c6191
+manifest d3e8b9b6c8e5808280b91d887936da7b9806d3fb
+extra rebase_source:6c99d82f7b2a188d209d1782231d84a9c3bbd00f
+files browser/base/content/test/newtab/browser.ini

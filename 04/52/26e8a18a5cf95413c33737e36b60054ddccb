@@ -1,0 +1,4 @@
+changeset ff68b34b6a9d25e0a4bb9989cf346505598f1c93
+manifest fdf4da371934d8b3a0186d65420a9525f5f85171
+author brendan@mozilla.org
+files js/src/jsscript.c

@@ -1,0 +1,4 @@
+changeset ee56d65affa35502fe19f3d97061878aa7753ef3
+manifest 5be2152ec8b06995676315722796e58cbd70f29b
+extra rebase_source:a8eec6469678e6c47e9fb85d1a1b77ddf25a0cf9
+files dom/tests/mochitest/dom-level1-core/test_hc_documentgetdoctype.html

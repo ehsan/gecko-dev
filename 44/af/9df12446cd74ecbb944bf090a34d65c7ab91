@@ -1,0 +1,4 @@
+changeset 803f24f819105f902a2c60b15cff6aa7126509cf
+manifest b855df4a282ea431d4d5607a604d9ce22e9e6866
+author jwalden@mit.edu
+files dom/src/base/nsGlobalWindow.cpp

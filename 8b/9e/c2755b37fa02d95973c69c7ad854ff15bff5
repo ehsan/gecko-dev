@@ -1,0 +1,3 @@
+changeset c257bfb8cad0f66541c7e1f006b999ad96e6dbb5
+manifest 5399070182c66aea1d31be0241a500e78bdd1c63
+files dom/tests/unit/test_geolocation_provider.js

@@ -1,0 +1,3 @@
+changeset 1325a3ae0a82d68961cc80769e7e42d055f5672e
+manifest cb39d81c188dfe54e2f232dedd2b7f44ec31d4e3
+files browser/devtools/webconsole/test/browser_webconsole_bug_595934_message_categories.js

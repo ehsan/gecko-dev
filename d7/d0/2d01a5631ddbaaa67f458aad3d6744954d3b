@@ -1,0 +1,4 @@
+changeset 82131a5ab66d4eec2aba48b6ab71e687dbfadcec
+manifest 3f2c299237c8f01d9f73ea4b312db8c4ed70162d
+extra rebase_source:66933306a84171b5f93cb9e26eb3d9ad5c0f9b9d
+files content/mathml/content/src/moz.build

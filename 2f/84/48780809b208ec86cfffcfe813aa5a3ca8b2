@@ -1,0 +1,4 @@
+changeset 49c3394f31353d8b517033b4ca0bc10032e7f144
+manifest a4368751edfedab1cf4fa375cf70d651ba7796a5
+author jst@mozilla.org
+files content/base/src/nsObjectLoadingContent.cpp

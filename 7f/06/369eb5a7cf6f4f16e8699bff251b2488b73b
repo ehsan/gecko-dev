@@ -1,0 +1,4 @@
+changeset 02817a8791538a8cf9cb41ef62d1a4f6486f76f0
+manifest ba2506c25645039b1d4a8290675eaf2f7e40ce00
+author reed@reedloden.com
+files extensions/python/dom/src/Makefile.in

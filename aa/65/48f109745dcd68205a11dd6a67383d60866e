@@ -1,0 +1,4 @@
+changeset e94c0c00ffeddb562dec85a9824de13bf13b1e7e
+manifest ab53382d5cc33fe75e4310553d2daea7035c64dc
+extra rebase_source:fddf0ea4b9269b2d431d0b75c40f99a9140138a1
+files layout/base/nsCaret.h

@@ -1,0 +1,4 @@
+changeset ec3239373af79523d41f621d4d0c27283335eca0
+manifest 97b9112c9f412d45c0e57ab5749f1b2f12b282a7
+extra rebase_source:b8c8687f663fe5d914bf4bb0b0228e37560aff43
+files xpcom/glue/nsEnumeratorUtils.cpp

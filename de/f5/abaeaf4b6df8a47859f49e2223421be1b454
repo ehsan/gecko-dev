@@ -1,0 +1,4 @@
+changeset 5af1366607200865f3ec684635e0a9e543af32ae
+manifest 6fc8d3d40b3a87392a12b762bc2c766c4cf607be
+author reed@reedloden.com
+files xpcom/reflect/xptinfo/src/xptiInterfaceInfoManager.cpp

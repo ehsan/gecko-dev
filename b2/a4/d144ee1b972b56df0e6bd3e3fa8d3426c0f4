@@ -1,0 +1,3 @@
+changeset baa2460daf87b462da11adbc4b89a1eafdef7aa6
+manifest 8cceb19e9e9d2099156be79ebd9f59f318aa810a
+files browser/components/loop/test/mochitest/browser_mozLoop_softStart.js

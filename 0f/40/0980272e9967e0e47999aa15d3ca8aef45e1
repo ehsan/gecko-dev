@@ -1,0 +1,3 @@
+changeset b7e845bb88b1894d1da9746596dc54fd2dfd6058
+manifest 47d351bcc741fb524bbc97a0d83154df74054a46
+files browser/components/places/tests/unit/test_browserGlue_shutdown.js

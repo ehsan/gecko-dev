@@ -1,0 +1,4 @@
+changeset d795f994fdd82c0f696047960a23362d5ef27d12
+manifest 32cbb21531c91e3fd216bf2d070d02d804962d70
+author Olli.Pettay@helsinki.fi
+files content/base/src/nsNodeInfoManager.cpp

@@ -1,0 +1,4 @@
+changeset ee268ef7df396d3d61280d374f2169c724ac4f0b
+manifest 087bdfd14c373fa47b3875d1dd307ba56d23a0ec
+author julian.reschke@gmx.de
+files netwerk/protocol/ftp/nsFtpConnectionThread.cpp

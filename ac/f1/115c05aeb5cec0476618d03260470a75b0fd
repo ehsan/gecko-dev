@@ -1,0 +1,4 @@
+changeset 0ad56fef7fb28017906c1ad1d3a18c08ecc20504
+manifest bc67c2fb32d5cfa2ebeb250a82fec439a84f25fb
+extra rebase_source:0374ddeaffe0936ac7bb78aff0fc5b3a467c3bd1
+files dom/settings/SettingsManager.js

@@ -1,0 +1,4 @@
+changeset ec956e14daf9aac6ad07db9e57d5259f06b2c7ae
+manifest b2656119b72b37f1861ecdb41d5ece59b0a0fc37
+author bugzilla@standard8.plus.com
+files xpfe/components/bookmarks/src/nsBookmarksService.cpp

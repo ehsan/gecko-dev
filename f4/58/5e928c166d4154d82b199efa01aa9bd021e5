@@ -1,0 +1,4 @@
+changeset 999ed4d448e25e714d04dcc04c109413eff23cc2
+manifest b8b884a92c637607406d2640e7ff36772cec4ccc
+author mkmelin+mozilla@iki.fi
+files toolkit/components/viewsource/content/viewSource.js

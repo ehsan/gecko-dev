@@ -1,0 +1,4 @@
+changeset 10b781704400c1b969761a460d787de171f5cb73
+manifest 2c35b4e274897e30c1e3fe4e875c3e59d604d5d2
+author Brendan Eich
+files js/src/jstracer.cpp

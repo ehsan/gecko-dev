@@ -1,0 +1,4 @@
+changeset f23ef87dcfb3f6ff30bb6b5486574778e7df1187
+manifest 6e0b93ed6a3391b46ad4a033bafa201acadbe28d
+extra rebase_source:b823f3edf4cc1585fa752233db6052945e47a23f
+files layout/svg/base/src/nsSVGForeignObjectFrame.cpp

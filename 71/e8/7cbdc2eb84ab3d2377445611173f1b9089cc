@@ -1,0 +1,3 @@
+changeset 527b831a048471b73148ae759b16af4385284cf0
+manifest e5744291cf0648ae0bb6acfd227994f88e3e3508
+files services/sync/tests/unit/test_bookmark_sharing.js

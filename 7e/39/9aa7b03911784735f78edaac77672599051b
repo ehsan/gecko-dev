@@ -1,0 +1,4 @@
+changeset 684ea46aa095873cd9d6a0f9f107940a6eb85e1d
+manifest bc7e476fff3d5605be4ce4d0a1e187d89b4eb0ce
+author bienvenu@nventure.com
+files widget/src/windows/nsFilePicker.cpp

@@ -1,0 +1,4 @@
+changeset 62f025bcb0cc3a2c9ef81544ffc0feee0e3a2236
+manifest ef761764d13df63be94f214818f712643a8db82b
+author gavin@gavinsharp.com
+files caps/src/nsScriptSecurityManager.cpp

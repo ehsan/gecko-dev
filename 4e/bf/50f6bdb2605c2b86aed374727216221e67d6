@@ -1,0 +1,3 @@
+changeset ddabced0c99aa88a2a6060fe399d6d7768551e09
+manifest c4906c27ca7ed53d9b893a705fafc25b957afb54
+files ipc/chromium/src/base/atomicops_internals_x86_msvc.h

@@ -1,0 +1,4 @@
+changeset c0a5b63c3f3dca8ef6482bcddb66dc95d0c55413
+manifest f2d210f6a7da3370ac36615ec2ef7f448b704c51
+author timeless@mozdev.org
+files js/src/xpconnect/src/XPCIDispatchExtension.cpp

@@ -1,0 +1,4 @@
+changeset 34cea343610811c2eb9eb781c3c35ece45063fb1
+manifest 3e0bd9a05f1bc0125850a9e32ec6ea1240ca72e8
+author edward.lee@engineering.uiuc.edu
+files toolkit/components/downloads/src/nsDownloadManager.cpp

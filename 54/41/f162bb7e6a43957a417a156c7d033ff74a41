@@ -1,0 +1,3 @@
+changeset 31f2b18e87f11dd09b69cd9f0f60d6a15f72a5ce
+manifest 34060e0b2e9e87610301eebd55530d673cde65d2
+files python/mozbuild/mozpack/test/test_copier.py

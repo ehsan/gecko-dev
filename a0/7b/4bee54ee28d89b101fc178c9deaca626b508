@@ -1,0 +1,3 @@
+changeset d2e790e8bc8ef596046cdb6cfe7d9124bf72afb8
+manifest 5d0f896fa8147882fd55f1230c4038cc0413355b
+files js/src/vm/SavedStacks.cpp

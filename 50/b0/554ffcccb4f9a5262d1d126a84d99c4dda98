@@ -1,0 +1,3 @@
+changeset 2aad820d07eccd4700b79d0552139241453ee8f8
+manifest ecbc135a84adf48427e2710cf2c6a39d23f69869
+files js/xpconnect/src/XPCJSContextStack.cpp

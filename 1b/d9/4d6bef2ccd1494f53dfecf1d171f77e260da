@@ -1,0 +1,4 @@
+changeset 8fdae602e9b05b9f947f0ec93cc33099bc865b2b
+manifest 203b55b3612dc4181eb72204b0c7ea3dbf5fd75d
+author timeless@mozdev.org
+files widget/src/xpwidgets/nsBaseDragService.cpp

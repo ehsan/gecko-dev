@@ -1,0 +1,4 @@
+changeset 22077e19fd2ecf8a5f2f664ab17415edd9d3dc26
+manifest da9532907e4c3b8b02d12134da30d5d6eb411143
+author myk@mozilla.org
+files toolkit/components/contentprefs/src/nsContentPrefService.js

@@ -1,0 +1,4 @@
+changeset 716859f207c26a5a0af5f337edba69a091271785
+manifest 80c969c08af1f0b22e21e9a2c8df0da5bf9e7414
+author dcamp@mozilla.com
+files toolkit/airbag/nsAirbagExceptionHandler.cpp

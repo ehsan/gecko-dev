@@ -1,0 +1,4 @@
+changeset c5e5421fd495113297e81e6daf2ea576f4aa7749
+manifest 4b4413a69d3be79779ae1aa341f1c382f8eeb13c
+extra rebase_source:4cda7e6863fd6daad5de642be9ace6a0f04c8e54
+files caps/tests/mochitest/test_bug995943.xul

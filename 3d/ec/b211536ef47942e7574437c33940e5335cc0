@@ -1,0 +1,4 @@
+changeset f42d33b9ec468340a1a08f9e96bc39e948f309ac
+manifest 124f99afa503bfde17a53323c08b74ec2a4a657b
+author gijskruitbosch@gmail.com
+files rdf/datasource/src/nsLocalStore.cpp

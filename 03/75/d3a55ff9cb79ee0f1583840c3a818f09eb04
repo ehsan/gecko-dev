@@ -1,0 +1,4 @@
+changeset 6b5839b29f3f4b64e5f844ec23f5f1375049fc20
+manifest 88440abaee6d8a43017d9c4ded8025da1aa7748b
+author timeless@mozdev.org
+files netwerk/streamconv/converters/mozTXTToHTMLConv.cpp

@@ -1,0 +1,4 @@
+changeset 2512d523d5fcfbd865d5b2aea7da63e402c43dac
+manifest f02a1358ae7fceea864a4c69dbf49d80bfdb8df1
+extra rebase_source:60ca3536d325ef26a2199a934ad7932a764a64c3
+files browser/base/content/browser.css

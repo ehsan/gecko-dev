@@ -1,0 +1,4 @@
+changeset ffe1c1a4103b1c9743b1214b9c873a0c6f011908
+manifest 4363da6ea8e8ef8a77fd833caa0b1993596e6b57
+author ikezoe@clear-code.com
+files js/src/nanojit/LIR.cpp

@@ -1,0 +1,3 @@
+changeset 0850bf665bd2cda53f2852a4cb3e9cfcfb72e0c4
+manifest 6bfba253a5aaa5542021e5492f286b46c8518a99
+files js/src/jit-test/tests/collections/WeakMap-moving-gc.js

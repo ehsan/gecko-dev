@@ -1,0 +1,4 @@
+changeset e1c1894421b665c3248f786463f5cd638769d37e
+manifest c8e6a887eac5d2e81a676226d8baf66ea73bf6d1
+author pavlov@pavlov.net
+files gfx/thebes/src/cairo-xlib-utils.c

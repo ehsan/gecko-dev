@@ -1,0 +1,4 @@
+changeset 3a29ac53516b67fc1998131825f93eedc324963c
+manifest 9279829dabc2b2cc9e4ff08f04b5bab323fb0eab
+author roc+@cs.cmu.edu
+files widget/src/cocoa/nsChildView.mm

@@ -1,0 +1,4 @@
+changeset 212e1383eb6ed9d9f6c13530e320bc65815501aa
+manifest 19e0aa98a0085d54e09c151259863de1dc499c47
+extra rebase_source:fecd856eee53b99a2a306b4005f2bb3b84c1cfb3
+files caps/idl/nsIPrincipal.idl

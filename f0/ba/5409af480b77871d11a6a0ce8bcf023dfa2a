@@ -1,0 +1,5 @@
+changeset d265cdc8c02c3c69335ec3506d057f30c53ebf5f
+manifest 16b30f8ebe90b6ca50f01ee66e658c8759fc85f1
+author timeless@mozdev.org
+extra rebase_source:330993f8af2139cd6c6fde60be85688472def56b
+files storage/public/mozIStorageValueArray.idl

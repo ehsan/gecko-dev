@@ -1,0 +1,4 @@
+changeset 57431b8b1ae93bd42fcac9ea1bc3317c1bedd87b
+manifest be3382c799245d057d1e4cdfa033dbe0022cbe32
+extra rebase_source:05e1649e02e473a22ceacb55f05afa9a9de2bda2
+files js/src/methodjit/TrampolineMingwX64.s

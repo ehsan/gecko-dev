@@ -1,0 +1,4 @@
+changeset 65e4979062c4ab95224d746eaefb84664ea15107
+manifest f4d5d246becfb6291fc8afa8c8b042362d669a04
+author enndeakin@sympatico.ca
+files widget/src/os2/nsDragService.cpp

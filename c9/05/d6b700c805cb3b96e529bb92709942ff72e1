@@ -1,0 +1,4 @@
+changeset c31c5070b5a687bde7887169fd392b1e4cce6834
+manifest b0a0f80a86fe2b52d869e7fa03e02d43ff09cd51
+author myk@mozilla.org
+files browser/components/microsummaries/public/nsIMicrosummaryServiceNonPlaces.idl

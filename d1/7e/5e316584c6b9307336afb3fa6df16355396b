@@ -1,0 +1,5 @@
+changeset 4c43764259af0f69a1071058208be1740459605f
+manifest a0dd55e3b6c2185b8758ac938f0a853e84b8fb5a
+author timeless@mozdev.org
+extra rebase_source:d91b03aaab9669808bf9bb3c5159bb2f09078a35
+files netwerk/protocol/http/src/nsHttpHandler.cpp

@@ -1,0 +1,4 @@
+changeset bb91dfae700703d64870da6dd2ba7adc01963a9b
+manifest aeb4f83328af4fe6257d4fd025f067877ff19222
+extra rebase_source:e91a8bcca76d66dd421473d2f2a17ce5be6eaffc
+files js/src/jsscopeinlines.h

@@ -1,0 +1,4 @@
+changeset 0ab8e74fea028b4a223ba771407538cd9d9a7134
+manifest b49b6ca9516924b958824bca977cbd137214ba82
+author rhelmer@mozilla.com
+files tools/build/sync-all-configures

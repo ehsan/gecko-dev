@@ -1,0 +1,5 @@
+changeset 928c1026aeb43ba0b15c82fb16c08be618f9f7c6
+manifest 84f29a9de3c1956a706734cea5aad9aaf0c4543e
+author timeless@mozdev.org
+extra rebase_source:6204cc0c59e0896eab5996f85f136fb0523dd447
+files content/base/src/nsChannelPolicy.cpp

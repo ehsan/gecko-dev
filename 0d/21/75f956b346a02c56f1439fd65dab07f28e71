@@ -1,0 +1,3 @@
+changeset 9ebf591bb011d164ae9d201a442199df07bf20a1
+manifest 7be186d4df2d531721c3d1efbb756e30c2b468fc
+files caps/tests/mochitest/test_principal_extendedorigin_appid_appstatus.html

@@ -1,0 +1,4 @@
+changeset 5cab21a35f6e705fbc0f9350e6dee85014c47c40
+manifest cf28d35087c7e051ed9630137257efd76f2f9ec5
+author jonathandicarlo@jonathan-dicarlos-macbook-pro.local
+files services/sync/modules/constants.js

@@ -1,0 +1,4 @@
+changeset fc21bb81193172283e62307a8493759ef67e29ea
+manifest 7983208f545f939637f090581a2bf9d761f5994d
+author mozilla.mano@sent.com
+files gfx/src/thebes/nsThebesImage.cpp

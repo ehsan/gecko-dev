@@ -1,0 +1,3 @@
+changeset e1ae6cb6c6b131aadcf10ac9b3486694757bb576
+manifest 21b17e7029bc0be178ea2121cd02da11f3c656d4
+files memory/replace/dmd/check_test_output.py

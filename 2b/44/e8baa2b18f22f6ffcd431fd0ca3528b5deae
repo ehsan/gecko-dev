@@ -1,0 +1,4 @@
+changeset 3704704cde6a052ae1fee4136660411705c22f99
+manifest b02982e3c25ac36189ebea337df0e8f41623df03
+extra rebase_source:3712f24a7eb9f9e55218b70ab72c6c2f3e945414
+files toolkit/components/passwordmgr/test/chrome.ini

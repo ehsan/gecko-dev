@@ -1,0 +1,4 @@
+changeset 7fc9640767aef079c5c78cf58e1b40a0a5c7935d
+manifest 9ef1786027fb88f3bb33ac37e26a96f731395c84
+author mats.palmgren@bredband.net
+files widget/src/gtk2/nsSound.cpp

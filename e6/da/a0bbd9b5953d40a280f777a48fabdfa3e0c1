@@ -1,0 +1,4 @@
+changeset bfbcfc557d5dcb0bf586b6715f8d07aa0a1cda63
+manifest 5360390ee0b0ced613897138fe34b999d1553aef
+author Olli.Pettay@helsinki.fi
+files editor/libeditor/html/nsHTMLAnonymousUtils.cpp

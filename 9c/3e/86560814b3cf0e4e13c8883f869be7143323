@@ -1,0 +1,4 @@
+changeset 34fe493c58066b6e0087e0af38713dd1119ca63a
+manifest bb43e3b7f63122859ac3130c491e42e2f18a0379
+extra rebase_source:9f663aad5c939af6798cb9a080d25256c3d105fe
+files build/clang-plugin/tests/TestNoArithmeticExprInArgument.cpp

@@ -1,0 +1,3 @@
+changeset 0f3ed33fd5f24add3db2dbefc9d57870a4d6651a
+manifest 7aeef47d949c27885b1deb88bd780aef73d82603
+files js/src/jit-test/tests/baseline/funcall-array.js

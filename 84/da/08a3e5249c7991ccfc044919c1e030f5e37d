@@ -1,0 +1,4 @@
+changeset 7d053a9a3f06c6908dce343e97a9614a484c475f
+manifest 87a3f31b18d47c646bf5053e28a98b283aa378b0
+extra rebase_source:b04d57e8d521e39b36b3464e931f48aad1b3e2d7
+files layout/reftests/svg/image/reftest.list

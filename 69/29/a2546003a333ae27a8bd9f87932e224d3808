@@ -1,0 +1,4 @@
+changeset 94ded28fac60b3419c9615a8badf170c0bdf66cd
+manifest 485695c61b7cac45293f0959f72f1dc1fd0fd569
+author timeless@mozdev.org
+files toolkit/components/passwordmgr/content/passwordManager.js

@@ -1,0 +1,4 @@
+changeset 768a6a62fbc664ef88feb62c7897d774e9ab5b32
+manifest 88d4bb36acf79bb0bcf2bd3176545edd147d3bc4
+extra rebase_source:311a6406b1d2739389276589f23548c6fda89c98
+files js/src/frontend/BytecodeEmitter.cpp

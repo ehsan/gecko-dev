@@ -1,0 +1,4 @@
+changeset b7889a39831c64464e5e06fbe248a3c0430551bc
+manifest fd733d9daf7a9348f9bee28522c9829167489ce5
+author ginn.chen@sun.com
+files xpcom/base/nsStackFrameUnix.cpp

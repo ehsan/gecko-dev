@@ -1,0 +1,4 @@
+changeset ad8d31f4bd394f68ef4de022aae306772d60d9d7
+manifest 59e02baddf6a0f9faecbd82b1a1f8fbc8920c831
+extra rebase_source:183ab49a00239b39518ee67cb547caa1fac9333e
+files content/events/test/test_bug602962.xul

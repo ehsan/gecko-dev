@@ -1,0 +1,4 @@
+changeset 8197e5ea71827bb509d829c43e3685af52d1f8a1
+manifest ac3165ac64ccd369a07fa735c745318800c95839
+author jonathandicarlo@jonathan-dicarlos-macbook-pro.local
+files services/sync/modules/xmpp/transportLayer.js

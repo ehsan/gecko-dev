@@ -1,0 +1,4 @@
+changeset 26b24014464821fec04bcb58fbbc3f42b28e1357
+manifest c7176cf447e43ef4087ffac831cd3d7a7801e3b4
+extra rebase_source:68c527247512356f358568c9154f6e8eab71bd46
+files browser/components/loop/test/desktop-local/panel_test.js

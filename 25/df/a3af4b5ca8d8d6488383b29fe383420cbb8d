@@ -1,0 +1,4 @@
+changeset e742b63eda153badd22406b97b6e97359fe8a291
+manifest 1d5a58dfcd5e0da51639307c8bda6a3fccd3dc92
+author peterv@propagandism.org
+files editor/libeditor/text/nsEditorEventListeners.cpp

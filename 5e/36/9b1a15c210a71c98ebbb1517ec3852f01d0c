@@ -1,0 +1,4 @@
+changeset c87d748b173f8e789b3f509ee073104a3fce710f
+manifest dff9b4b15e53b22f138e0f4b2bcff58f91006d76
+author mozilla@weilbacher.org
+files xpcom/base/nsCycleCollector.cpp

@@ -1,0 +1,4 @@
+changeset 845a77a120995233ad04d68b90442b0f01083f1c
+manifest d9972d9dd6bcdfaa1759e30620e87fcacc240cb5
+extra rebase_source:7d063de7b5ec312724039c2bf6546758ebc0e2fe
+files toolkit/components/url-classifier/ProtocolParser.cpp

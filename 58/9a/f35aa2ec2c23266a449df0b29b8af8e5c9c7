@@ -1,0 +1,4 @@
+changeset 56958fd82086e1a0c5d65184df5817a38f01a763
+manifest a8829665bfc7b4a35eff5eb659094ba5b72398fc
+author surkov.alexander@gmail.com
+files accessible/tests/mochitest/test_nsIAccessibleTable_4.html

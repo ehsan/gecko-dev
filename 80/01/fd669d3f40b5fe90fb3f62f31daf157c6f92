@@ -1,0 +1,3 @@
+changeset 4b6602f8fa7bb9c2c874a01080239bf1bd7a0327
+manifest f8a049ede534e6e9ce2752d8e0d48a93eafd53cf
+files xpcom/idl-parser/typelib.py

@@ -1,0 +1,4 @@
+changeset ef6ec16890fc089d1b9e9a3330d67143444bfaf2
+manifest 2a879b9418f6c8e31afbb89f27f0304ce16a6cdd
+author mats.palmgren@bredband.net
+files layout/generic/nsFrame.cpp

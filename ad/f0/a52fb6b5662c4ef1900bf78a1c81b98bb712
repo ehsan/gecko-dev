@@ -1,0 +1,4 @@
+changeset 6229fab0d2e6c90543b63f5cdf4b81302bbd4a11
+manifest 3ac260d0a9ab597f2aeaacb9a18ca4099d38cecc
+author michal.novotny@gmail.com
+files docshell/shistory/src/nsSHEntry.cpp

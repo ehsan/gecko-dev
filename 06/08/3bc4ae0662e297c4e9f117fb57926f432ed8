@@ -1,0 +1,4 @@
+changeset 362b6f5773801360cedd288df3b518b3cd60a649
+manifest f613fe3250b2e71ec249580a58bf8955f3e8f461
+extra rebase_source:94232bb18e4f3dbeef3df827b05b5cc1be37b36e
+files toolkit/devtools/client/dbg-client.jsm

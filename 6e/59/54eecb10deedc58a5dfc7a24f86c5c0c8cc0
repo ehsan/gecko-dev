@@ -1,0 +1,4 @@
+changeset ac134bae8d29df6a8cbac7bb7c38a43ac0c2a045
+manifest 9ba203766926ab3b4dbb9d9f4e1fc7dc5ab9a18a
+extra rebase_source:311aaca5135f223ebcc9f6e3ca81e3c4b2bee219
+files browser/base/content/browser-social.js

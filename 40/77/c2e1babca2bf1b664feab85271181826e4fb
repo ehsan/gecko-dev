@@ -1,0 +1,4 @@
+changeset 8e0ee79f131602e87bc4faebf454589d27a01e29
+manifest 376f3d81aee8b9b9bfbd8e07ec4648097856a4ae
+author emaijala@kolumbus.fi
+files content/events/src/nsEventStateManager.cpp

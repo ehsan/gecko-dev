@@ -1,0 +1,4 @@
+changeset a85327ab6d45fe4dc413609aca5c4910aa00e758
+manifest 88daedcce049bae01e9cf52e77a4a1afa88ba725
+author bzbarsky@mit.edu
+files xpfe/browser/src/nsBrowserStatusFilter.cpp

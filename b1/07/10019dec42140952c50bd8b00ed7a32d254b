@@ -1,0 +1,4 @@
+changeset 5fde1f14be9d78fc8aa37536cb12d5d482da6e5c
+manifest 16d22fc23d41575893f1f3b5d15d3b3df6aeb456
+author gavin@gavinsharp.com
+files js/src/jsopcode.c

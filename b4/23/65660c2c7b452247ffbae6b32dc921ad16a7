@@ -1,0 +1,3 @@
+changeset ad5644e101fd00c4c7f412a0059f14d8b3fc898d
+manifest 0f9b7742379af9f2c716e5a6653339641783bf14
+files xpcom/io/nsIInputStream.idl

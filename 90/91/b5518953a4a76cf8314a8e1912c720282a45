@@ -1,0 +1,4 @@
+changeset 9d08702b63ad0dc5982d0f26155f4fae2ca45c7d
+manifest bf939ab91cf0355375f6a09c9d8f61b57790ed8c
+author bzbarsky@mit.edu
+files layout/style/nsComputedDOMStyle.cpp

@@ -1,0 +1,3 @@
+changeset 7a1ecc3941348d54101c03b0b6b0c0d098b5b1fa
+manifest cc198f93c2667c703b01d65a2f237fcaeffb018f
+files js/src/gc/RootMarking.cpp

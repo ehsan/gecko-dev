@@ -1,0 +1,3 @@
+changeset 5e3b672c303a3027a03d4072aebce95dddf87eef
+manifest 0ce35e065a91daaa37a923bfe0d65dcecf59be2a
+files js/xpconnect/tests/mochitest/test_sameOriginPolicy.html

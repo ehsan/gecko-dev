@@ -1,0 +1,4 @@
+changeset b0b56200232276df1ac5b3bfe0e362488b0eb8e8
+manifest c4ff4efc5ba617d6a5bff45a980edd04eb061053
+author peterv@propagandism.org
+files browser/components/feeds/src/WebContentConverter.js

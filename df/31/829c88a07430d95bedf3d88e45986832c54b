@@ -1,0 +1,4 @@
+changeset 1b268ec6b81ece0ddaff59091f145397dc0dc551
+manifest a9b45dd5c80c24afff704f06128969da4c0a0c1b
+extra rebase_source:b8429c6f04bf4ac84b63940657deafe4a4bf9fac
+files layout/forms/nsNumberControlFrame.cpp

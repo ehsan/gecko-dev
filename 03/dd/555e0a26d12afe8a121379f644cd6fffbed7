@@ -1,0 +1,4 @@
+changeset f92fcea7ba51b4f65d2c470dfa6af9581c95395d
+manifest b2149ed02a084f328084a646541afc0ebd07dfe6
+author mats.palmgren@bredband.net
+files dom/src/base/nsFocusController.cpp

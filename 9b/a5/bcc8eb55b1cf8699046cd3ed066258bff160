@@ -1,0 +1,4 @@
+changeset 2c6243a37618bcb12600d9245bb687e7c34359be
+manifest 084a1e76faedbd31fc76d4ee903b057ceabaff59
+extra rebase_source:8d0d3ca939b8f7327da50b5cf52327e3a37d19fa
+files browser/components/places/content/menu.xml

@@ -1,0 +1,4 @@
+changeset 846b173fd56dcb15c344ad9a3ec5bbdbcfade9b8
+manifest bcd1265f3f59a16cdca491ca80bb95bc0d5921c5
+author dcamp@mozilla.com
+files toolkit/crashreporter/client/crashreporter.cpp

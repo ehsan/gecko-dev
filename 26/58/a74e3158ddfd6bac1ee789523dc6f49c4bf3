@@ -1,0 +1,3 @@
+changeset f165e6c6c222f099ff7f19da471739883c8ac832
+manifest 5e9a3f6bf0c87baf3028da2909d58325b07916f8
+files security/manager/boot/src/nsSiteSecurityService.h

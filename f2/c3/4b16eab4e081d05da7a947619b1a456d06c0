@@ -1,0 +1,4 @@
+changeset 7ecc3f3369048e9f4d83de1d285afe7f1a0596b6
+manifest 83a7d5489a0f2610d46c74bb61a546d99c39bd86
+author marco@gnome.org
+files toolkit/components/passwordmgr/content/passwordManager.xul

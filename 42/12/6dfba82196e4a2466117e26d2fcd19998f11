@@ -1,0 +1,4 @@
+changeset e1c91e951034d09cb9d61e16da827cd12112e771
+manifest 4d07e4cdae71316115f4661efc16c0763e8137fb
+extra rebase_source:e76aa8eca8a38a36e347bf6d055c861cadad3e87
+files image/encoders/png/nsPNGEncoder.cpp

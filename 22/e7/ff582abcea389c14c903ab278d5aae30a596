@@ -1,0 +1,4 @@
+changeset 1458fabf0e267e7a55ea756aafc35a9ddd21c5f8
+manifest bbf11a890558087e9f3d941ea4a9a4c59d335443
+author bzbarsky@mit.edu
+files extensions/python/dom/src/nsPyContext.cpp

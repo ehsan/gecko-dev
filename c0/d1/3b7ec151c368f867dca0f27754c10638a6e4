@@ -1,0 +1,4 @@
+changeset eccba2835f019af8110fe9127712aa83e04ad5b7
+manifest 7b9190ed4004a0ddd6d82f78c29ac4839c764975
+author timeless@mozdev.org
+files gfx/thebes/GLContext.h

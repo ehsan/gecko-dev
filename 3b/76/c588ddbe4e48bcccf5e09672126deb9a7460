@@ -1,0 +1,4 @@
+changeset 5bdf0bc26a33ea65cef064de511cf88209f8deaa
+manifest e228c5c6bc9c8a63417691703862fe11302b91e4
+author Leon Sha<leon.sha@sun.com>
+files js/src/nanojit/Nativei386.cpp

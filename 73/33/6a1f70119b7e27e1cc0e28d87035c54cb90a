@@ -1,0 +1,4 @@
+changeset 1048a507ba604d0a8d98e98c46567b7221878617
+manifest 81f59391593609ba0b3b798427ce1649193b29b1
+author johnath@mozilla.com
+files security/manager/pki/resources/content/deletecert.xul

@@ -1,0 +1,4 @@
+changeset 4b79f281112310fc6821922ce9ecd41269d8ec4a
+manifest ae4f34044e9361cf47c2fd367426fd6670fc35b3
+author bent.mozilla@gmail.com
+files intl/uconv/src/nsCharsetAliasImp.cpp

@@ -1,0 +1,4 @@
+changeset b232d8f4f08d4b0cad0ea32030f3fcbc36e0bd30
+manifest b0f77bbd34b0c002322dd4667078bcb16f21adb7
+author bclary@bclary.com
+files js/tests/js1_7/geniter/regress-352605.js

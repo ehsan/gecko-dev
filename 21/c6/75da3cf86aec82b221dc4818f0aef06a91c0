@@ -1,0 +1,4 @@
+changeset 596144d873cd4bedb7f57c5c314063115ee75fd2
+manifest 3e383ecbed4b760dabf559e0f4ae700c9aeae130
+author dietrich@mozilla.com
+files toolkit/components/places/src/nsMorkHistoryImporter.cpp

@@ -1,0 +1,3 @@
+changeset 51ff01206ba4ea80d03a9783c18c178cfaa5709f
+manifest f0e38a431579d1cf19d0bb51fe13676cac3a9dba
+files js/src/jit-test/tests/parallelarray/bug853555.js

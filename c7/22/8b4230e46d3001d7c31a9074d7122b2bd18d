@@ -1,0 +1,3 @@
+changeset 4a2efb2d245b88b7f63c044f51d27ead46b29aec
+manifest b7becdf55780aeb135d830443164f615526b721b
+files dom/events/nsEventDispatcher.cpp

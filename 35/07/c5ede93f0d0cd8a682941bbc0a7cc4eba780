@@ -1,0 +1,4 @@
+changeset a92c86e620a9cb4198909c057eca50e1e3ff5ab8
+manifest 49244251b27db515c9cc57e0c79aa62206f76bef
+author mats.palmgren@bredband.net
+files modules/plugin/base/src/nsPluginHostImpl.cpp

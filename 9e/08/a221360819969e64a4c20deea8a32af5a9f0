@@ -1,0 +1,5 @@
+changeset 59b775aa5008d870773dd8633fb9c211ad629650
+manifest ac8616479895630e64b4ddd8f1e5b213e5157c0b
+author timeless@mozdev.org
+extra rebase_source:12cf87f85df57e90d9a44919119f7977941a0b13
+files xpinstall/src/nsJSInstallTriggerGlobal.cpp

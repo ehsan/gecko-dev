@@ -1,0 +1,4 @@
+changeset 6120f6d2c90e4e1f3e48061f0f135290e9a6fc83
+manifest 8869dd559d39388e1d152c131aacca474b3e995c
+extra rebase_source:78fb69188d5cf9618bb251fe7a6196fcc86a0ba5
+files js/src/jit/StackSlotAllocator.h

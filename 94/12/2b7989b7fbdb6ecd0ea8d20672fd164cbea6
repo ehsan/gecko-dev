@@ -1,0 +1,4 @@
+changeset 65206c1dc8731614b770d41e40361ddcd56e1a26
+manifest ba0a1901d2616faca03787768978ca7c1e7fea74
+author tor@cs.brown.edu
+files modules/libpr0n/decoders/jpeg/nsJPEGDecoder.cpp

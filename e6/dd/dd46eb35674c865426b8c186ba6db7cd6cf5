@@ -1,0 +1,4 @@
+changeset 8e8e25052a0ebc602241f15cc9ed644dea6ae80b
+manifest ebc81f63b5cbe03b0c3d8988123b66d82cc2d509
+author brendan@mozilla.org
+files js/src/jsxml.c

@@ -1,0 +1,4 @@
+changeset 0feaf5201a90e89af19957acc0d8533a5d4da549
+manifest 90a2188348fe1f2d7954c7eef050e2c7dceecb40
+extra rebase_source:fc8429faed7fd0bcbcc4b879d3dadbd074074d46
+files browser/metro/locales/generic/profile/bookmarks.json.in

@@ -1,0 +1,4 @@
+changeset 9cf450bfa95cf7b981dac42f7620473b6132d8db
+manifest accee1b4abf2b72575ddd6b6542dd00333f40cfc
+author peterv@propagandism.org
+files dom/src/base/nsDOMClassInfo.cpp

@@ -1,0 +1,4 @@
+changeset e4b5ab3610da0bf836727ac2713a9e7ca24e0802
+manifest 395fea3240687c4f8c8de3b0ff9af60b21dedb54
+extra rebase_source:91f842ae5b53c452d156288e7124394646b86ebc
+files js/src/jit-test/tests/ion/bug938431.js

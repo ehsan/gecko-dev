@@ -1,0 +1,4 @@
+changeset 64c414de6db5b58c34b4b2915ff5bc370672d89f
+manifest 4a284a1a7a692fc40770d70979213d8ae019f75e
+extra rebase_source:8b381ebeda17be5931f38ababb19fe6eead09c52
+files gfx/thebes/gfxPattern.cpp

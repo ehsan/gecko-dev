@@ -1,0 +1,4 @@
+changeset ea16e1844aa6c6974065e17302791dfaf7d0e78f
+manifest 37c85d7da90985b9f861a631804995d5b4a17373
+author shaver@mozilla.org
+files js/src/jsobj.c

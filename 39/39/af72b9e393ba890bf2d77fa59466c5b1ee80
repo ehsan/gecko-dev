@@ -1,0 +1,4 @@
+changeset 53a8a6b4c812103b51e17023410224ea14b0de40
+manifest 98fd1508e5df77961006fe0e256801dd23a97684
+extra rebase_source:4062a696008f27124c477367b043bc0f1d96710e
+files xpcom/ds/nsMathUtils.h

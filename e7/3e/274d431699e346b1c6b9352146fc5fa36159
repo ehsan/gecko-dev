@@ -1,0 +1,3 @@
+changeset 8616f715f63cf4ee1feca6aaee62bd7eab3fc8ea
+manifest 94b982db10cbcb3c98e5d46e39623c1c07ae0506
+files services/sync/tests/unit/test_service_sync_remoteSetup.js

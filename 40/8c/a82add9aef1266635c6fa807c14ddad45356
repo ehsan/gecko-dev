@@ -1,0 +1,4 @@
+changeset 7f8e7625b12e48e4309673f085edcff96988fe00
+manifest 9d9ec41beaff5ae604c916736cd33d054692af32
+extra rebase_source:e989536ee950152925c353c26ead9a56adea2baa
+files js/src/jscompartment.cpp

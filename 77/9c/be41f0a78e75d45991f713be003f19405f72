@@ -1,0 +1,3 @@
+changeset 651ea35bfb0b0ca9527125a67048204ac5b8d397
+manifest 3731b085bbb60185d0f90db969d258380000964f
+files js/src/vm/SelfHosting.cpp

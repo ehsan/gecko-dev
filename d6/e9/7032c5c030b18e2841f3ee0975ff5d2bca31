@@ -1,0 +1,4 @@
+changeset 7fe970eaa291293be4040d00013f5880fa8c0929
+manifest d924647ea6099ec1b57c81648b29c55cafbf60f9
+author roc+@cs.cmu.edu
+files widget/src/windows/nsWindow.cpp

@@ -1,0 +1,4 @@
+changeset 5f2ebdc73da009bd3f5a4143cb4ad0139cca5a93
+manifest 6051b9f515012ac16c437e6b4ddc4c2101a75ea5
+extra rebase_source:e7b72c7e7039f92a7bb5941df6958dc0abb5b9dd
+files media/webrtc/signaling/src/sipcc/core/common/resource_manager.h

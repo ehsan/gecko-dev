@@ -1,0 +1,4 @@
+changeset 2830dac4695687bcdce4ff11990d54f067359fac
+manifest e262a51fd22259a8cc8f8da198f357b18e037a9e
+extra rebase_source:6f79bc8eaa3380d4e36722084a78ef6054ad6a74
+files browser/branding/aurora/pref/firefox-branding.js

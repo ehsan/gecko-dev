@@ -1,0 +1,4 @@
+changeset e7ed55a4cdebf192d7dd429ad924183e6dade1f0
+manifest 7c7cd1dd558fcef528c0a34dac5f21f7e1c45c72
+author aaronleventhal@moonset.net
+files accessible/src/base/nsRootAccessible.cpp

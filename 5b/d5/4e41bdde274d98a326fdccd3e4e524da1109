@@ -1,0 +1,4 @@
+changeset 46ff4dc4fa141ba24998e6f66f36ed14c58b02aa
+manifest 192e0e2812f55c42152aee162e424c0a886f203e
+author preed@mozilla.com
+files tools/release/configs/tb-moz18-bootstrap.cfg

@@ -1,0 +1,4 @@
+changeset 9d84b77306db41c089f2ad4b15b2b58b5b48b93b
+manifest 00da2d38256f8f3361fb988b95adcd51dd31d648
+author timeless@mozdev.org
+files js/src/xpconnect/src/XPCSafeJSObjectWrapper.cpp

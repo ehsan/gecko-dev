@@ -1,0 +1,3 @@
+changeset 2479780d0b1f6fedd7e3474e32863c0897cf2cb5
+manifest 4ae5da750a04ff6d26a7d562d631d6cc6c862b21
+files toolkit/crashreporter/google-breakpad/src/common/Makefile.in

@@ -1,0 +1,4 @@
+changeset cf0307cba5c387ab8f44950ef7fff349b13fac0f
+manifest 6045c4f3a29988c03a739959f0b54c87a4769534
+author neil@parkwaycc.co.uk
+files xpfe/components/download-manager/public/nsIProgressDialog.idl

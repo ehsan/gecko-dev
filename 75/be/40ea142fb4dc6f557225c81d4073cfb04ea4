@@ -1,0 +1,4 @@
+changeset 518c3a56a5dadedc242d87aff40c2c243846bf8c
+manifest 034e683b3d2a37f9eb95e99b11d7b15c4507216c
+extra rebase_source:1022ad9bd43ea5f8be342c05ab857bb44ed7e59c
+files modules/libpr0n/src/RasterImage.cpp

@@ -1,0 +1,4 @@
+changeset 3fadf3ab765284cbfbb399792d532b5a240c1251
+manifest be711e1e6ed983be86700d803a64e08cd6ea1b3c
+extra rebase_source:610eb906538ff897b81b7adf4abe8dbf4277ee95
+files browser/installer/package-manifest.in

@@ -1,0 +1,3 @@
+changeset ed8470f3f7c19d75e2812b3240282453a548a336
+manifest 2ceeb2b3436fc1d0ef53e06b0f7ea0d0a9a2073a
+files dom/network/interfaces/nsIMobileConnectionProvider.idl

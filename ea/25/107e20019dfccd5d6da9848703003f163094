@@ -1,0 +1,4 @@
+changeset 4496025f9d35e273ce2dbc75caa2b1bda3c2d19b
+manifest 4a45967b884e1ad491aa58e53893d0fbc7d66d1a
+extra rebase_source:f05215f2c72538a3b5bb4382710c1fa5f9cc1759
+files dom/indexedDB/test/file_app_isolation.js

@@ -1,0 +1,4 @@
+changeset b8294c27c03d085c8e349ef27b3295a99312e763
+manifest d1056913112d2dddb494e8e03228f22252884e71
+author reed@reedloden.com
+files toolkit/components/places/src/nsLivemarkService.js

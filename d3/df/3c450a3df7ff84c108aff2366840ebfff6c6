@@ -1,0 +1,4 @@
+changeset 167f977b7b9cd2af634e3b9954b85dd34ee545ed
+manifest 09b93077161d8ee1f698242e4ec62e685072b8fd
+extra rebase_source:54485a8f2afab0f68af184069a10a9c5e959fb97
+files browser/components/customizableui/test/browser_918049_skipintoolbarset_dnd.js

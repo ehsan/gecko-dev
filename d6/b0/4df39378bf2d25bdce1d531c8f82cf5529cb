@@ -1,0 +1,4 @@
+changeset f52ff228d5bc3ab261aacbac95bf14ee8b7f6a83
+manifest 925956705bfa6eb5fd527a073a8d5e83bb772a7a
+author bzbarsky@mit.edu
+files layout/generic/nsSelection.cpp

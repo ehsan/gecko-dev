@@ -1,0 +1,4 @@
+changeset 626e32186d38da01fc607c38352dc7b7f4155d77
+manifest a7bc0da035931dbefb5e2ff7e58ed2b99e73fdef
+extra amend_source:2e0f6f26823ee5fcce16dfaf8791ae57d8ac62cb
+files mfbt/Atomics.h

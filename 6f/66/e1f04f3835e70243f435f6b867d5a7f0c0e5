@@ -1,0 +1,4 @@
+changeset 0c526c90243e660669fe1bd82b1ae136888fcfc4
+manifest 4aec3f79496c1d4bfec6fd9f6f0dd5cfc04dad6b
+extra rebase_source:380b3302fbf1eba2c97972cf1f60b373e269c083
+files build/macosx/universal/mozconfig.common

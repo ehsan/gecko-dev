@@ -1,0 +1,4 @@
+changeset 52589694438f3984cea6996b24ae82485e35ed4e
+manifest f74e63ffcf9024cb21a4bb6fb8afdc3987318595
+extra amend_source:8ce0a0d1344d249aa567d4769cddde56bbaeec1c
+files mobile/android/components/ContentPermissionPrompt.js

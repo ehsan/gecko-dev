@@ -1,0 +1,4 @@
+changeset af38fd15d15779ec122e44fe15c7e98cbba98cc7
+manifest de8a635c62df430ff9309c6ede4fc4f1dbf8227f
+extra rebase_source:a6019afb7c1ec098eb9e9ac3394cd01ec41119d3
+files js/src/tests/js1_8_5/extensions/findReferences-01.js

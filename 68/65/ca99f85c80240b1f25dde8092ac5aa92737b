@@ -1,0 +1,5 @@
+changeset ece0feb51587e8a6644d1d1a9240663f3e2befc2
+manifest 6a55e2a0de04a016a03bed6e279623a9f6b713fa
+author timeless@mozdev.org
+extra rebase_source:44c9c229412f0d846924c9adbed2dbda72cf890d
+files js/src/xpconnect/src/xpcstack.cpp

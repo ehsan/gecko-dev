@@ -1,0 +1,3 @@
+changeset c93167ec9c1fb214aa247092025ef6fd3485ba48
+manifest 111201ab6fe768c53f0bb86652a21643c84aacbd
+files memory/jemalloc/moz.build

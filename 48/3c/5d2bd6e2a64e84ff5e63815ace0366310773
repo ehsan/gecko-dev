@@ -1,0 +1,4 @@
+changeset 9f9e83390b460fa1ded4aa746bec47c3e9ff47dc
+manifest 45cb478dfb99c37c1d351677c319a93cdb9facf2
+extra rebase_source:f3f7b069253f208c66f4e1d16aa011f7f2777f66
+files dom/tests/mochitest/beacon/test_beaconContentPolicy.html

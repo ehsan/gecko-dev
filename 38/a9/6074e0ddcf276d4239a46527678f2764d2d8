@@ -1,0 +1,3 @@
+changeset 6b0d0598973e674f78b1415ef97cd149f96ecafc
+manifest dfd3482d389e8448b9bcbb43781cbaa0a5c3e0cc
+files extensions/pref/autoconfig/src/nsReadConfig.cpp

@@ -1,0 +1,3 @@
+changeset 5d9fb05d9d12399f0a1ba7df55fbb8d2e38ab844
+manifest c9891eee076a726b731ce4de01a05726a72f6d38
+files testing/config/mozharness/b2g_emulator_config.py

@@ -1,0 +1,4 @@
+changeset 9ad5c138c2d550e3d9784fe42e1daa450733a73a
+manifest c36fc160890e099f3069e3f38252c354d0d7b103
+extra rebase_source:cc6b5ebc3f523ce887ceab275f721f5310c8695d
+files xpcom/glue/nsID.h

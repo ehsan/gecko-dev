@@ -1,0 +1,4 @@
+changeset 40f6d5c240cd2228fc0e5a1226b64a85f55fbad0
+manifest 222368de344c0ef15231e535fb97db4d0273417e
+extra rebase_source:6f0185993355251b6c723acdffaf1fca8719ee18
+files browser/base/content/webrtcIndicator.js

@@ -1,0 +1,4 @@
+changeset def37b64a7581fdb3cb5aa5d32d33d73449bc408
+manifest 8f485c2c27fcb87bf0f57a4d437e28479ae375c7
+extra rebase_source:2bed8e2633d8a9e87db40a7096310dbe1c98c47c
+files browser/base/content/test/browser_tab_dragdrop.js

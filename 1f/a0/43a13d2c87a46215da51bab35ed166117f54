@@ -1,0 +1,4 @@
+changeset 06ee962cc206ea89848bd787e0a64cd3797d277d
+manifest b5ddf5a833ca28ea0e5cc8b5b8b7c3cc3f09c817
+author igor@mir2.org
+files js/src/jsiter.c

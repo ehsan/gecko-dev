@@ -1,0 +1,3 @@
+changeset 0d1f5faf1979e9a2b25e48a6cdec14ef278d2a10
+manifest d80f909f833b77a9134792d36c6308f96be933d6
+files browser/components/migration/src/nsIEHistoryEnumerator.h

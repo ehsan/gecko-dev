@@ -1,0 +1,4 @@
+changeset 0b377ed216fac1ea9a8bd75408ff00be007b8ccf
+manifest 165781d227f6d3de17b4637d9f0a83ebd903e478
+author jst@mozilla.org
+files dom/src/base/nsJSUtils.cpp

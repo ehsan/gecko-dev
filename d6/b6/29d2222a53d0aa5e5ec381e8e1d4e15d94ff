@@ -1,0 +1,4 @@
+changeset d62cb8d3af205dd84f18679367bd5118e24c20ce
+manifest 11f3d8f1abde7284ee726702cd7b0d1dc9533f71
+author dolske@mozilla.com
+files chrome/src/nsChromeRegistry.cpp

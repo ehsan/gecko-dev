@@ -1,0 +1,4 @@
+changeset 604003669a62eb51039fb3a43f89589e3d23fa72
+manifest a43f1f1e595a96f769f78d23bd0a811990326152
+extra rebase_source:2f00c4e48145b9f72839c57a619058a7bdec8efd
+files gfx/cairo/cairo/src/moz.build

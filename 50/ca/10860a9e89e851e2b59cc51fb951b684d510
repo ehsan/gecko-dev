@@ -1,0 +1,4 @@
+changeset f33661125d0809f8b6bc9dfe11f17865c4fcee3c
+manifest f078b4982f854eef28a56744522d7a08f58d6e60
+author timeless@mozdev.org
+files layout/xul/base/src/nsXULPopupManager.cpp

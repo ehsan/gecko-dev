@@ -1,0 +1,4 @@
+changeset 54c2c918d763c4520976a3a120ebf527736a534f
+manifest 1fa92693f3ffc710aa28619a2c151e3c5d8fbbca
+author dholbert@cs.stanford.edu
+files layout/generic/nsInlineFrame.h

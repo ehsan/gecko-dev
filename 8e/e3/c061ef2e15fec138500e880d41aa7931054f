@@ -1,0 +1,3 @@
+changeset 300c21d59506585b8d3dd4b72456c2e2dda6e252
+manifest e16aeb5e4bab92e472e5e73ab1784b263ef95b0b
+files tools/rb/fix_macosx_stack.py

@@ -1,0 +1,4 @@
+changeset 789f083cad9e5da0c667d440051accc67b693c3c
+manifest 514c8d65bc5479c6ee037f2eb6d288d421231cdf
+author marco@gnome.org
+files widget/src/gtk2/nsDragService.cpp

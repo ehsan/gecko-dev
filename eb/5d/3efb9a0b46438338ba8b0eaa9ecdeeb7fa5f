@@ -1,0 +1,4 @@
+changeset ab0d22c436efb3508a3ef9a660a83520c95045ed
+manifest 76606417c50c136cac874f07d7ed2422dff4c093
+author jst@mozilla.org
+files xpcom/io/nsPipe3.cpp

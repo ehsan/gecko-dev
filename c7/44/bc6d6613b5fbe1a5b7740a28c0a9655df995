@@ -1,0 +1,4 @@
+changeset 089e31e3805e8531f9fef2a4587f022d5297a3a8
+manifest 90471e00d85fc728b2589d6d4500c2bbe0d6767f
+author timeless@mozdev.org
+files intl/locale/src/nsLocaleService.cpp

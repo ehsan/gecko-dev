@@ -1,0 +1,3 @@
+changeset ff950ef6212f16576e3a1eeca8b14907eeadcc53
+manifest 2fa481f09108cdd13aa6fd6750373d9717af98ae
+files toolkit/components/captivedetect/test/unit/test_captive_portal_found_303.js

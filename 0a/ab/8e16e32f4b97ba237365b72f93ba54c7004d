@@ -1,0 +1,4 @@
+changeset aed55cabe5cc1cb06147612d1d4e0bd43e5fb1e5
+manifest edbdeb0ca8e97c5ce98bbd75aa8e56c450105044
+author kaie@kuix.de
+files security/manager/ssl/src/nsNSSComponent.cpp

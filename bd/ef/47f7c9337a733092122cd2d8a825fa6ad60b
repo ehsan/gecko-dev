@@ -1,0 +1,3 @@
+changeset c77a88466fc7afb75c5e168dde8b9e09038c57da
+manifest fd7828ded4e0d73b684043badc635c32c0e8f5bc
+files browser/components/loop/test/mochitest/browser_CardDavImporter.js

@@ -1,0 +1,4 @@
+changeset c2edf7d18983e1169cbf0ca5ef0996309a14980d
+manifest a3955b71cf004bce79e5f89bd6ac9faffe30ac61
+extra rebase_source:dbc2df29f4d0efea7113b7365197e8c36a5d0d84
+files dom/geolocation/nsGeolocationSettings.cpp

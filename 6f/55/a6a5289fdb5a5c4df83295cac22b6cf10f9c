@@ -1,0 +1,4 @@
+changeset 710003215a5c1edc5b5c8aa9f399f6da881be2d8
+manifest 7ce34dcc35e31389ad323a12db91a301a6662545
+extra rebase_source:f37370654b9bb59573c4703c5f097ff792b3f037
+files mobile/android/base/tests/testReaderMode.java

@@ -1,0 +1,4 @@
+changeset bae40508348d5d4e7ca5db5af82d7170e1f202f7
+manifest 58b65595621af725afedb805ce3e31caf4b370de
+author roc+@cs.cmu.edu
+files gfx/thebes/src/gfxWindowsFonts.cpp

@@ -1,0 +1,3 @@
+changeset 53a3145c167e2ec374395d693404b061a8aee0e1
+manifest 4ffb53dad31e18b6f9af51a2acd04c18c69e461f
+files toolkit/components/places/tests/autocomplete/test_autocomplete_on_value_removed_479089.js

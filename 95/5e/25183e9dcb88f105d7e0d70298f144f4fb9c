@@ -1,0 +1,3 @@
+changeset cfaf319decb8859eb273a3dcb3db3012949bf5f7
+manifest 09e417b747cdc4957dcbbdfe0a22cfe430b6b08b
+files js/src/xpconnect/tests/mochitest/Makefile.in

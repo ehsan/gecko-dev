@@ -1,0 +1,3 @@
+changeset 10e47df463b9ad0d7355b60d9e8055cfd8cda4b2
+manifest 230de2980b8d3bd72edfa1cd48ab4ff3292e50f4
+files xpcom/reflect/xptcall/src/md/win32/xptcstubs.cpp

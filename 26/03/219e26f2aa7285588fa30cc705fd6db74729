@@ -1,0 +1,4 @@
+changeset 2db2f36b944b2679d9f8bf60905266bdfc486e3f
+manifest a30c705aa14f8aede79dc923675617008cc435ae
+extra amend_source:07e872ce971a620a08b68fbc2b3afdcccaff8539
+files dom/bindings/DOMJSProxyHandler.cpp

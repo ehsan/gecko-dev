@@ -1,0 +1,4 @@
+changeset 5b3f13678e6b224907815e939479a1af88e5632a
+manifest 4cee24000d3ab1bab552e61a57ef963c2c17c64e
+author mats.palmgren@bredband.net
+files widget/src/xpwidgets/nsPrintSettingsImpl.cpp

@@ -1,0 +1,4 @@
+changeset 26994892da30754264b9ce9a8ff7d51fe0cf0965
+manifest 4dcf06767caf20ec13de83173d0020340f6db80f
+author timeless@mozdev.org
+files xpcom/glue/nsThreadUtils.cpp

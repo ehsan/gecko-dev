@@ -1,0 +1,4 @@
+changeset c7cb1779aad553d522fb2e6b3faefae2012b46dc
+manifest ba8161996172dc6f8b625b0ef019b77403a82e19
+extra rebase_source:dcf0256b25620953fd3bfefacc56814bbb2d519c
+files js/src/xpconnect/src/XPCSafeJSObjectWrapper.cpp

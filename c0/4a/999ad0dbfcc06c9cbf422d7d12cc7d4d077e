@@ -1,0 +1,4 @@
+changeset 48e2a2222b06e21d804b33828c39fe5cb140b609
+manifest b5489ffcd2cfc54b7c5a6da900cbbc0a70452985
+extra rebase_source:49b7adbbaf2e9d3fbf2f4756cefdc659109488d3
+files js/src/jsopcode.cpp

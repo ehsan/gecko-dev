@@ -1,0 +1,4 @@
+changeset cbba84c42119888530bb49c667c414414ae8a614
+manifest 2ebddb813a746c4e02b80200c9c2acda232a40d6
+extra rebase_source:0ee05e18c71dcb83437b9b27133c73ec290d22cd
+files widget/src/xpwidgets/nsBaseWidget.cpp

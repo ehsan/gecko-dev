@@ -1,0 +1,4 @@
+changeset 3907a4452942b95c8be4dfc6a36510b6ce415efa
+manifest 6ea1f5614fafad4ecfb07f23c2ed87fe191a152d
+author Olli.Pettay@helsinki.fi
+files layout/xul/base/src/tree/src/nsTreeBoxObject.cpp

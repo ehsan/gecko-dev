@@ -1,0 +1,4 @@
+changeset 4824b2a3c35044e7c1c7b46015a255b620d50db3
+manifest a61adf6671679d4caa03cc17ab4650dcaec323ed
+author peterv@propagandism.org
+files browser/components/sessionstore/src/nsSessionStore.js

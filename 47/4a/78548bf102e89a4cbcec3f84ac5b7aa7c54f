@@ -1,0 +1,4 @@
+changeset cb80fe955989b6e5fb4ee643d7beac7f2e5dffb9
+manifest ac18326a45362e78fa3c2d85220ed2abafdd866b
+author masayuki@d-toybox.com
+files widget/src/gtk2/nsWindow.cpp

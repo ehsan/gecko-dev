@@ -1,0 +1,4 @@
+changeset 21135e70aca9d4ac78fbfe36eeb45696687ae2ff
+manifest 71591ac1bb1cca0d16d93f4bb969a3907fb3bd18
+author gavin@gavinsharp.com
+files toolkit/components/downloads/src/nsDownloadScanner.cpp

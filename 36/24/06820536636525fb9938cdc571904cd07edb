@@ -1,0 +1,4 @@
+changeset b11f4816dc4fa39f9f1a981d5dbbf87f5e2bc03f
+manifest 634032b7574737f6017282be0f23170bda211f07
+author mozilla@weilbacher.org
+files gfx/src/thebes/nsSystemFontsOS2.cpp

@@ -1,0 +1,4 @@
+changeset a4b8d9036f2c48c2736e6dbeaf145aeecb9a42ca
+manifest 7948c5fc33c7171c5459ee2eac359b9adb06b7b9
+author reed@reedloden.com
+files modules/libpr0n/decoders/xbm/nsXBMDecoder.cpp

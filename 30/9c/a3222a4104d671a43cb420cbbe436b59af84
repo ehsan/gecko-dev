@@ -1,0 +1,5 @@
+changeset 400d0d7e3d868d1d36ba4b86e0b385affcbc9c81
+manifest e031995b93bda8209f9ab5be5f12883f3a24140c
+author dougt@dougt-ubuntu
+extra branch:mobile
+files mobile/chrome/content/deckbrowser.xml

@@ -1,0 +1,4 @@
+changeset 4213d8cf6e664fbe537563cb5683f7ca93c421ce
+manifest 131749aebe8b326e2fbbdbf95d6111e55ab6c33c
+author bclary@bclary.com
+files js/tests/ecma_3/Statements/regress-324650.js

@@ -1,0 +1,4 @@
+changeset 0f69fbc0d65d60b169b4d1d3f87359c753344a5e
+manifest 6d6cb2d90bb1120d80312982d4ab76cbc791df4d
+extra rebase_source:e80c240766a9e44e738e706b02ba65dd3e74fd83
+files widget/gonk/HwcComposer2D.cpp

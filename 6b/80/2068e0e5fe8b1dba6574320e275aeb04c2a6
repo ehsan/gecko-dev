@@ -1,0 +1,3 @@
+changeset 611c44e8e3cdcd6304f5ef4cdb03800c231fa0db
+manifest d92ecc1b7b283fae1227cf235ab6ddaf8f6141ca
+files xpcom/build/nsXPCOMPrivate.h

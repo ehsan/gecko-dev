@@ -1,0 +1,4 @@
+changeset dbe8ef0649acaf30b92e9f757b76396f4b12e74a
+manifest 7a6d314712b304e9a4fb3161d8939d3db4c336a5
+extra rebase_source:0cd0a74bfe850d0c16d7f74b77c8ca0c286e1144
+files netwerk/protocol/http/nsHttpTransaction.cpp

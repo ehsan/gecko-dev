@@ -1,0 +1,3 @@
+changeset 3db28151b12f7699b1b52a5f27bc80abeb03e632
+manifest 27f292ea164517a1251c150f965bac74362fb575
+files browser/components/migration/src/nsBrowserProfileMigratorUtils.cpp

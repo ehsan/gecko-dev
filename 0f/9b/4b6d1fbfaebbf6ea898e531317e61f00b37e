@@ -1,0 +1,3 @@
+changeset fb21be8385f75574c34f6c699b8de2abf06473d7
+manifest ccf1a007d22825a4b1107115282d8e9be595412b
+files services/sync/modules/xmpp/transportLayer.js

@@ -1,0 +1,4 @@
+changeset 275d76668bf2115e7ab68e41f1a4818dba414c4e
+manifest dbef47a1ae47e536863c771c9035ca95c7abcb78
+author tellrob@gmail.com
+files toolkit/components/downloads/src/nsDownloadScanner.cpp

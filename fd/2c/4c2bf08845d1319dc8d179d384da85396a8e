@@ -1,0 +1,5 @@
+changeset 99641922946820dea9e0f34d67a62bba785d6ecd
+manifest ad40152012d5c499b10afa0cb0e141ed22340678
+author timeless@mozdev.org
+extra rebase_source:a0277ef8df513601f0523974511e88beb7930bf1
+files js/src/xpconnect/src/XPCChromeObjectWrapper.cpp

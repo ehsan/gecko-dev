@@ -1,0 +1,3 @@
+changeset eb95f58aec0f07e63000981f1d581477bf70d978
+manifest d883b0cf1cc06cec8371016140020497dfd67e65
+files toolkit/components/url-classifier/tests/unit/test_streamupdater.js

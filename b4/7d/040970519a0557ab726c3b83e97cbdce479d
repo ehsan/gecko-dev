@@ -1,0 +1,4 @@
+changeset 61aa163cf951f929a6f30d95582ea7ad4f88ae63
+manifest 847afc6e20962be85a5dbb15f1ade2fd856fbc00
+author timeless@mozdev.org
+files intl/locale/src/mac/nsCollationMacUC.cpp

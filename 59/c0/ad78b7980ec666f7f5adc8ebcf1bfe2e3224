@@ -1,0 +1,4 @@
+changeset cce9ff7c75451b507c688e1c0987aba066aa62ab
+manifest 4fc713fbaeb4954ce303445643544775ae16d8af
+author reed@reedloden.com
+files gfx/src/thebes/nsThebesImage.cpp

@@ -1,0 +1,4 @@
+changeset 759d460bed651eb5d92d43105ecb0e0932ab4434
+manifest 723fb6e15f65dd8c0ef6b23b5e1aab5a0d245e2b
+author dolske@mozilla.com
+files modules/libpr0n/encoders/png/nsPNGEncoder.cpp

@@ -1,0 +1,4 @@
+changeset bf7ecc9f046fe4292772c41384641c97fd37020e
+manifest 4d560496da9c4222ac814133f07a62ed0aacb477
+author gavin@gavinsharp.com
+files browser/components/sessionstore/src/nsSessionStore.js

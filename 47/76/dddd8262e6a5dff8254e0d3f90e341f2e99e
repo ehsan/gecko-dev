@@ -1,0 +1,4 @@
+changeset 36623efb15d816cd06687fe4bf9c47b07dbeab10
+manifest a8947bd51888f27ea5835d9839b7e9d4bb012c0e
+author jonas@sicking.cc
+files content/xul/document/src/nsXULDocument.cpp

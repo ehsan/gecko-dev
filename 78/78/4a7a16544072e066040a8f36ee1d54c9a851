@@ -1,0 +1,4 @@
+changeset 8c1f558c494d0fd1afaafe1de7711e5c4b5e7adc
+manifest 02ec4d49e9276c09dd47705ddccc5570aa68c923
+author silver@warwickcompsoc.co.uk
+files widget/src/windows/nsWindow.cpp

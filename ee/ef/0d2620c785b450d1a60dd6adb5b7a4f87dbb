@@ -1,0 +1,4 @@
+changeset 7f6820ddecabace00176c4068d67215e14788436
+manifest 77a029c0e40dbbcd14c8dcc1b26a9c0589b43949
+extra rebase_source:d8cee395b898d809020b503b83a402de8cb88eee
+files js/src/tests/js1_5/GC/regress-348532.js

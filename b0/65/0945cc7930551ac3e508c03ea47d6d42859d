@@ -1,0 +1,3 @@
+changeset df6b05ee9830e3d3d847392729bdb3a2413c649d
+manifest b838d89cc20574c64da6688f7aab2b9d8a6953cf
+files dom/interfaces/geolocation/nsIDOMGeoPositionAddress.idl

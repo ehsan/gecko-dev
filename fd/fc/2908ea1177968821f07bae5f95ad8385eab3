@@ -1,0 +1,4 @@
+changeset 9fdaf7db31f19095692553795c3962b37559fe6b
+manifest 52580547ae27da82de0b1287b1cf009dcfb468b1
+author reed@reedloden.com
+files db/sqlite3/src/Makefile.in

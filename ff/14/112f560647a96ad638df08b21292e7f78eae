@@ -1,0 +1,4 @@
+changeset 3176bf0b153b74ed20bb9360720e64adb9f1d3f8
+manifest c9af18437fef608389a5d6a4d8c88f782033d920
+author reed@reedloden.com
+files netwerk/socket/base/nsSOCKSIOLayer.cpp

@@ -1,0 +1,4 @@
+changeset 2cf233eddf17150a649ba405b0aa5e859644ec9a
+manifest 9c16dc6994016eb224f36f37b9cba572cb6cfa4e
+extra rebase_source:791aa4ea49e8430a54eab91d9bb55ba760efbe9d
+files b2g/components/FxAccountsUIGlue.js

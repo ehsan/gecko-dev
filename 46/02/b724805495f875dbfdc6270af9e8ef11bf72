@@ -1,0 +1,4 @@
+changeset d7f2e1898c4f676e7347ae3acffbdfa2d1aab581
+manifest 675e61495506ae072dffcc7c4ee437646b948621
+extra branch:GECKO20b7pre_20100929_RELBRANCH
+files content/events/src/nsEventStateManager.cpp

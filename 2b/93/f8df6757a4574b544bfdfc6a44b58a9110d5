@@ -1,0 +1,4 @@
+changeset 81a547b0884614293eeb703bcd5eb7413a7dc98a
+manifest 8b4c9e4d8c149ae16e6cfa674e1a7639708e5e1b
+extra rebase_source:b2ae41c9fffaaa8f5a5222f7f0f156a21f51966c
+files widget/src/android/nsWindow.cpp

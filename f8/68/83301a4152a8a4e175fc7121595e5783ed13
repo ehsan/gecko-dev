@@ -1,0 +1,4 @@
+changeset c7e495e0632670c7f22229baa62f9a6bb63954c2
+manifest e3c70c876430ed8a7f5a31c1bf0fd7f360cb0ede
+extra rebase_source:b27e0b98dee9c0f0dbf6cd848650245d1fe19ba2
+files browser/base/content/browser-tabPreviews.js

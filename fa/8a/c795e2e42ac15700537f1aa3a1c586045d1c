@@ -1,0 +1,3 @@
+changeset 93705f55defe6a9ee2e49cb3a9551df2f01ea7e1
+manifest dbd40cb1ed731fb91842979c87860f2fd644bcd2
+files services/sync/tests/unit/test_passwords.js

@@ -1,0 +1,3 @@
+changeset f27a2aba0db2a27143e921c3479b78ca8dbebd2a
+manifest 729a5b8db28b8406e4a0d1f5185a1833fcbb00cc
+files dom/mobilemessage/interfaces/nsIDOMMozMmsMessage.idl

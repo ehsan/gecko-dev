@@ -1,0 +1,4 @@
+changeset 72c7ca26cf0b2796177f9959262b59b48cc92ff2
+manifest c82d1e2d82a06e807c4cb3451b172ee85ab58a72
+author tor@cs.brown.edu
+files layout/svg/base/src/nsSVGForeignObjectFrame.cpp

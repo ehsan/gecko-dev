@@ -1,0 +1,4 @@
+changeset bbcc14c7325c737cb817f1fb9fa7b1133bc4958c
+manifest 94a84670c88348013c3ffa28a06fc0059b269d5a
+author dbaron@dbaron.org
+files js/src/xpconnect/src/nsXPConnect.cpp

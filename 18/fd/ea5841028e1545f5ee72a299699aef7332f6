@@ -1,0 +1,4 @@
+changeset b6fe70978ee5011e6b0d3db3daf0e97af76a246c
+manifest 94ab7c1ca392a436338d2f3c233cacb152f5622f
+extra rebase_source:5a8bc53c47b45c8ff288a3859601a5476e2901e9
+files js/src/builtin/embedjs.py

@@ -1,0 +1,4 @@
+changeset 66abcfbfbfd08f86cbeacbee4077c3e73a616f45
+manifest 99822d8990a6e4dfa2eb4e449e609b8d3c6fdaee
+author dbaron@dbaron.org
+files xpcom/base/nsStackWalk.cpp

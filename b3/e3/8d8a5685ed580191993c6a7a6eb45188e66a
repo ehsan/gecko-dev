@@ -1,0 +1,4 @@
+changeset fe4f4fae6e7501910411f82a146e77e8667c6070
+manifest ce1a1ab600ce32b6bcb0fd148bf34799c1b6b9e3
+author jwatt@jwatt.org
+files layout/svg/base/src/nsSVGForeignObjectFrame.cpp

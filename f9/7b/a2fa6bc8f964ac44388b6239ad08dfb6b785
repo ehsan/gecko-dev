@@ -1,0 +1,4 @@
+changeset 39e5e699daf1468cbf34005b73dabb29849c2d59
+manifest 86acb2356b91a5f90777ee36f3d644ab0e0752c6
+author Kyle Huey (khuey@mozilla.com)
+files dom/nfc/MozNDEFRecord.cpp

@@ -1,0 +1,4 @@
+changeset 349a8d83053c04c9acd6c8047b5b90f13aa212f8
+manifest 8d9999d9b8e5bce1584752c18f87a2969af6313c
+author bugzilla@standard8.plus.com
+files extensions/pref/autoconfig/src/nsLDAPSyncQuery.cpp

@@ -1,0 +1,4 @@
+changeset 1dd86b414a0c317996f38b72275ee3e0b459d9aa
+manifest 0acb6531f91a185fe93768e3ab05fee6bdf1fdeb
+author mats.palmgren@bredband.net
+files extensions/spellcheck/src/mozInlineSpellChecker.cpp

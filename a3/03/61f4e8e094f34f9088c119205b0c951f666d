@@ -1,0 +1,3 @@
+changeset 220220dd15fee8d9cb1fa5081cb06c030690885a
+manifest aeefa0ec88f9832d33349d4ab2c02ab453ed201d
+files dom/workers/test/test_xhr_implicit_cancel.html

@@ -1,0 +1,3 @@
+changeset 9a9e972fad121952b827c647572dea2707638340
+manifest f8d93a62e691e941c96ca9564cba8f1bb8867394
+files mobile/android/stumbler/java/org/mozilla/mozstumbler/service/stumblerthread/scanners/cellscanner/CellScannerNoWCDMA.java

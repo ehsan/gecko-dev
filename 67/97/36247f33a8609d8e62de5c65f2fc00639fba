@@ -1,0 +1,4 @@
+changeset 1840305d8700dc45f5de78734ceda6a96635461e
+manifest 77a62a487950bf4866da821a12fa3e6f46bbb102
+author bugzilla@standard8.plus.com
+files extensions/pref/autoconfig/src/nsJSConfigTriggers.cpp

@@ -1,0 +1,4 @@
+changeset f3e95d9fb720060ee6c5117f82dd69a4d22877f8
+manifest 9e77d4787051fc447033b924435fb724ef92bae2
+author martijn.martijn@gmail.com
+files widget/src/windows/nsDeviceContextSpecWin.cpp

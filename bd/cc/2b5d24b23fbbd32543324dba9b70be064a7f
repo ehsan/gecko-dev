@@ -1,0 +1,4 @@
+changeset cac6192956abb79c9434e89c0107bdc76b8b087e
+manifest b1cea19219b2bcaf90a5ff7c14de0a3ddf4c42d8
+extra amend_source:da07d071a89c224f9da43b8a72447a31fc30405a
+files browser/devtools/debugger/test/browser.ini

@@ -1,0 +1,4 @@
+changeset e860870e399e2b64e58e599ea62b443d3416ab9a
+manifest ce8eff19afc5feb45018ac0219b163e00a89a769
+author timeless@mozdev.org
+files content/xul/templates/src/nsRuleNetwork.cpp

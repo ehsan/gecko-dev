@@ -1,0 +1,4 @@
+changeset 441896487726ca978c56116a61db076d31de1e3d
+manifest 26ca8bc1780b9b05062aa05e425ed84151efd894
+author timeless@mozdev.org
+files editor/libeditor/html/TypeInState.cpp

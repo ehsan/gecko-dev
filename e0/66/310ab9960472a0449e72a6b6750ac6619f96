@@ -1,0 +1,4 @@
+changeset 93501fc853edb001b2bd1b2bad58e26e453b66e3
+manifest fc4735bf825939cc716bdb6e5a489644d634e20d
+extra rebase_source:3f69b0b5a1e2a7c9382510103fbb5e9e9720ce88
+files testing/mozbase/test-manifest.ini

@@ -1,0 +1,4 @@
+changeset 811b3ea480dcaf7c50c7e8ff12fa51b083968c6b
+manifest eb6941f87ba1acdd0d811b3414ba357ac87c7b41
+author mozilla@weilbacher.org
+files modules/plugin/tools/tester/os2/Makefile.in

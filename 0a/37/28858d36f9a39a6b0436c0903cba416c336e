@@ -1,0 +1,4 @@
+changeset 66328a44d157c79d48b924e65d5911d3273af2c4
+manifest 484b31102664031fe0fb4fc7889d27380ae4bfb6
+author sdwilsh@shawnwilsher.com
+files netwerk/base/src/nsIOService.cpp

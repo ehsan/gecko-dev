@@ -1,0 +1,4 @@
+changeset f576b6e16d462b1872dadb3322d0b8560a3e7353
+manifest 2d7fc607ced46df3bc711bb2e8a418c0e8a753a8
+extra rebase_source:7ec1941c8052c352e6304fd8affe89d890b1ae1b
+files editor/libeditor/html/nsHTMLDataTransfer.cpp

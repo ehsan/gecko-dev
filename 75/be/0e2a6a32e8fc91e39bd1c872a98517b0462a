@@ -1,0 +1,4 @@
+changeset e38897343db5d67e9fc3bdbefa8328024d8d99ea
+manifest ffe293abf7dfa12733e8d0120c575037ff091f8b
+author timeless@mozdev.org
+files dom/src/geolocation/nsGeolocation.cpp

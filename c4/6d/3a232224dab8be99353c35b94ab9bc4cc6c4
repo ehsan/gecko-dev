@@ -1,0 +1,4 @@
+changeset 237ae50f649bf0c667c09add6814976fdf6488de
+manifest d79a6620bfb52c7c84fa2a9ca16f208235b5280b
+extra rebase_source:586b3ee560d408b461325cdb437723637643866d
+files browser/base/content/test/tabview/browser_tabview_snapping.js

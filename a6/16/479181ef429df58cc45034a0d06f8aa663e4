@@ -1,0 +1,4 @@
+changeset 56b55aaddf4b71aab6cd16b9de604f18e415c53f
+manifest 791088d59209987a14b9456e6144af4ca445e424
+author maxf@magma.ca
+files xpcom/reflect/xptcall/src/md/unix/xptc_platforms_unixish_x86.h

@@ -1,0 +1,4 @@
+changeset d64fd027e4ad5489450a4f655521101caf9437ca
+manifest f66c862302f5733f5013c8b3339eb9e24c398ab4
+author timeless@mozdev.org
+files js/src/dtoa.c

@@ -1,0 +1,4 @@
+changeset 553f17ced3914a083c51d7f44659e11cf7308ca1
+manifest fa35812ae2497a58edec8bc9101d4e5bb849fe0a
+author reed@reedloden.com
+files modules/libpr0n/encoders/png/nsPNGEncoder.cpp

@@ -1,0 +1,4 @@
+changeset 8ba032375d53eda14e67efd8e86aeef5309ec25d
+manifest 73b464859c161c7e98ccc5fce8b7d93582b5b014
+author Olli.Pettay@gmail.com
+files dom/base/nsJSEnvironment.cpp

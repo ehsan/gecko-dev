@@ -1,0 +1,4 @@
+changeset 06b5498dfc4d1df7c5662ea1e93a26f4175f2004
+manifest eca0d171c2f22346699cf8b9e3bd72d42c1a1d2c
+author dougt@meer.net
+files build/wince/tools/Makefile

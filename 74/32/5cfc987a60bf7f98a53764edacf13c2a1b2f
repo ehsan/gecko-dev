@@ -1,0 +1,4 @@
+changeset a629dd80584d4a86a0fb174f7b10b1d2855f1545
+manifest e7be3d7eb0484d4473b984abc30bc258dc7c6d94
+author mozilla.mano@sent.com
+files browser/modules/Sanitizer.jsm

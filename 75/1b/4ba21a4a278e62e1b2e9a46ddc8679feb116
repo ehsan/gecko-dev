@@ -1,0 +1,5 @@
+changeset b5d67e6ab6d861ecafba65ee39d2a743bfee0819
+manifest c1ebf0adf1fc0b00256565a61ff6f18f30f626ad
+author timeless@mozdev.org
+extra rebase_source:17325f559ce6f671a1bfca129228667ec5d6e4db
+files browser/components/migration/src/nsDogbertProfileMigrator.cpp

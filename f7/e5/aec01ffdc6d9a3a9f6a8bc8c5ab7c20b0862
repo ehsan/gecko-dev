@@ -1,0 +1,4 @@
+changeset 478f9942809c206978e6211c57aa490195770468
+manifest 778f8a169d9ff2599965eece1a8a7bec5c0c415f
+author dolske@mozilla.com
+files toolkit/mozapps/downloads/src/nsHelperAppDlg.js.in

@@ -1,0 +1,4 @@
+changeset 0993021a3ecf8e19f5ca4d31633fc8b7c25aec68
+manifest 129a8d0dffff329281824fc74dd0faf1cbcdc7b9
+author vladimir@pobox.com
+files gfx/cairo/cairo/src/cairo-traps.c

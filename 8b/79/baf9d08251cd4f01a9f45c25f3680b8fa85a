@@ -1,0 +1,4 @@
+changeset a0b6d0a04e4a200b24299857e7f3b76985c234e6
+manifest 402ad8c7464dc5bad3c71689f6ec48c51a59bfa7
+author julian.reschke@gmx.de
+files netwerk/test/unit/test_XHR_redirects.js

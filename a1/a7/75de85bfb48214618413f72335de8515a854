@@ -1,0 +1,3 @@
+changeset 183d5a2357de1b64266e034d1dabf410ea2b8541
+manifest 1a6c105e439dcd71a8c966836fd3312ab841c7e8
+files xpcom/base/nsSetDllDirectory.cpp

@@ -1,0 +1,4 @@
+changeset 171cda5e93d39e0439e60c73ab623ad6fc38fc6e
+manifest b857e42d7e6ad23ae6298289f86edb6dfdde8b3a
+author jst@mozilla.org
+files js/src/xpconnect/src/xpcwrappedjsclass.cpp

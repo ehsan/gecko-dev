@@ -1,0 +1,4 @@
+changeset 5ff1fa5567e2f7a077e689887abe7ec81f3969bd
+manifest 0601875ea1068ab9d50d55eee117172fdea8e6dc
+author timeless@mozdev.org
+files netwerk/base/src/nsStandardURL.cpp

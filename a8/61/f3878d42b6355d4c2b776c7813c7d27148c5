@@ -1,0 +1,4 @@
+changeset 6d179aa6e46fe5251016a9c7280af48ff0bb8f8d
+manifest 08e356ce013e527d1e075cbf81e22238300149d5
+extra rebase_source:ac9e1609d5dd2211b819083a88dad6e26d2c6479
+files toolkit/mozapps/update/common/updatehelper.cpp

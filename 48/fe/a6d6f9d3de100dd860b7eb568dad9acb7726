@@ -1,0 +1,4 @@
+changeset 80906333f702b45559038610f48082c268a382cf
+manifest 231a09a470b1cf98ffb16eae65942a1c70d9db79
+author kairo@kairo.at
+files xpcom/tests/unit/test_streams.js

@@ -1,0 +1,4 @@
+changeset f1c82820036df20fac442f06a1dc4b8568398d1b
+manifest 052de122a1a6ba8588902c0b7daa109ce6909654
+author timeless@mozdev.org
+files widget/src/cocoa/nsPrintDialogX.mm

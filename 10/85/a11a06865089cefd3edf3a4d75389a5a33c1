@@ -1,0 +1,3 @@
+changeset a4e8ace8a4a92bbff8a58cf406ffd77d860096b0
+manifest f6bb450640221d2884038369617e3c48d0b0990d
+files browser/devtools/debugger/test/browser_dbg_break-on-dom-event.js

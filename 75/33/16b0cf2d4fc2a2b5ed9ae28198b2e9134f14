@@ -1,0 +1,4 @@
+changeset 808ea1a979dc5b368ef7010240c3b726821c1931
+manifest 48538d21b35bdecf4467bdd1106bcf8bf89aa9b7
+author pekka.vanhoja
+files widget/src/qt/nsBidiKeyboard.cpp

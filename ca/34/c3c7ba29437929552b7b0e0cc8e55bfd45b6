@@ -1,0 +1,3 @@
+changeset 5cd4cc4d801edd39002cdf85c8657945bbadc5e4
+manifest 51b8b3a597f244e6961aa5cfd9212b59c6a71dcc
+files js/src/xpconnect/tests/chrome/test_bug503926.xul

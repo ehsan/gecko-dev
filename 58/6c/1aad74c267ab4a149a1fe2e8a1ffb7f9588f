@@ -1,0 +1,4 @@
+changeset 96e2472ca7271bbb22061343bfd95f181d62b764
+manifest db5c90cd7b60684c1fcd40e6dd9488ca3e16f00f
+author mats.palmgren@bredband.net
+files toolkit/components/passwordmgr/test/unit/head_storage_legacy_1.js

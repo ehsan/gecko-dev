@@ -1,0 +1,4 @@
+changeset 0d5b7b701ad5c257da9e78a68770377da0ea50a0
+manifest a3ec5b818b1492dfe38618aebe6454c92046f228
+author bugzilla@standard8.plus.com
+files xpfe/components/download-manager/src/Makefile.in

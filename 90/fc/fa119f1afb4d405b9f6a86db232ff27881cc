@@ -1,0 +1,4 @@
+changeset b843e38a948fa16f15159b49b386d0777cc2a1af
+manifest af7b134d7df8681c1784bdfd56e4e16fe637dd55
+extra rebase_source:c80a5d271c145892e3b55be26b4aa8952ce8eeb9
+files dom/html/test/test_bug347174_write.html

@@ -1,0 +1,4 @@
+changeset 31735047f64420357c88ab4f0ba57539d9215a81
+manifest b82d5fe23c61687c3a595a0b5a5cc01f46af49d2
+extra rebase_source:81a7d30342b51cec036d6644a0e2aac1fd0ef64f
+files browser/base/content/test/social/head.js

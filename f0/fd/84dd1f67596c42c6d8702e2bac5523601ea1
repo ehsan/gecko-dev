@@ -1,0 +1,3 @@
+changeset fae00beb30ff44b8b2e4f4be3b5c426a4c6ae08c
+manifest ccbc219c9f3eabd0f7af4c8752e41ad01587a7e7
+files js/src/xpconnect/src/XPCNativeWrapper.cpp

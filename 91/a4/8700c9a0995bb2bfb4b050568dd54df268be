@@ -1,0 +1,4 @@
+changeset 06273602cad66877fd7c4e78fd4723ef1146f349
+manifest 42ca7df26fc721edfe46af2aa81ff175117d0d4b
+author timeless@mozdev.org
+files netwerk/cache/src/nsCacheService.cpp

@@ -1,0 +1,4 @@
+changeset b393167fc88a589fdb0d7724d41f9c084475c97a
+manifest 72b36cc8bb306f260b4322a7d7a581a37c843672
+author jwalden@mit.edu
+files js/src/xpconnect/src/XPCNativeWrapper.cpp

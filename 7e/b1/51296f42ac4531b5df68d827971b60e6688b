@@ -1,0 +1,4 @@
+changeset 3f2a20a4d0c51a91688936bc5e3c7823e409afa5
+manifest 3f2fec494eb31da5c036bab6dfe8b5811cb9cc21
+author timeless@mozdev.org
+files js/src/xpconnect/src/nsXPConnect.cpp

@@ -1,0 +1,4 @@
+changeset 8481ba44be995baae71648995b1cf8a2e7e40a26
+manifest fe9b9c88b5bbc15dc0f3300d30bbc6aceaddfe78
+author mozilla@weilbacher.org
+files modules/lcms/src/Makefile.in

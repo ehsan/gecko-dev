@@ -1,0 +1,4 @@
+changeset 1d62c90eba1de907598fc0fd58c7989fd95de578
+manifest dfbbd92dac96da6f0f7a15d77e8121fbcdded98d
+author timeless@mozdev.org
+files netwerk/cache/src/nsDiskCacheBlockFile.cpp

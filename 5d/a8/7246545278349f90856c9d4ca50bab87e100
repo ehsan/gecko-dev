@@ -1,0 +1,4 @@
+changeset 3a620ff8ac4aa4fce56d9f6b5ae6690af17acec9
+manifest c7851dc739e17b800735b6fb6a0ba792f5a1b23f
+extra amend_source:cd0913f142f9dfcba18aa5e6925d7a4e6280d975
+files python/mozboot/bin/bootstrap.py

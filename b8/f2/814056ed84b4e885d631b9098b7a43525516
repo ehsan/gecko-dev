@@ -1,0 +1,4 @@
+changeset 8059f97db667da76c4de0bb4c0b82439678856a8
+manifest 7d9ad3b2f0dcf64f0915973eb3dcf5b61d624c8e
+author timeless@mozdev.org
+files xpcom/reflect/xptcall/src/md/unix/xptc_platforms_unixish_x86.h

@@ -1,0 +1,4 @@
+changeset f70c6094f9674b20f3ff9b9d58b5d064ff9b4341
+manifest eccf1b2bf678539bc7aa939252d78c5e1a2c3f08
+author reed@reedloden.com
+files toolkit/components/urlformatter/src/nsURLFormatter.js

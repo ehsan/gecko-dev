@@ -1,0 +1,4 @@
+changeset 2a4cb3a7f070b4176db83365d80d34a698370c0e
+manifest 75d92b8fa90407ab7d7412ced2cc77e1117db57c
+author gavin@gavinsharp.com
+files xpinstall/src/nsInstallTrigger.cpp

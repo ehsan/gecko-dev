@@ -1,0 +1,4 @@
+changeset 27cb341980f2960f0f606abdc2d0f9b286d7a35f
+manifest d51b6ae9bcb9bce606d9203748b0f009638df125
+extra convert_revision:4829136085669a40d0bf61721e5cdd43a9696fc1
+files js/src/nanojit/Nativei386.cpp

@@ -1,0 +1,4 @@
+changeset eec499aeddf33e8e2b3e350a1dc30835a814f3c8
+manifest 8dff663c99c3372e50e243427e8daf5c4fb0edb8
+author timeless@mozdev.org
+files embedding/components/find/src/nsFind.cpp

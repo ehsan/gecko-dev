@@ -1,0 +1,4 @@
+changeset ba3fa936e3f6c09fbe2771abce0aad3b0d7cb6d6
+manifest 8c2d71a069303138f20c3dbd552eddf941f9494b
+extra rebase_source:9fd21f295eb0a92a6f8b16a388d023099dc4247a
+files testing/marionette/client/marionette/tests/print-manifest-dirs.py

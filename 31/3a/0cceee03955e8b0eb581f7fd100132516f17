@@ -1,0 +1,3 @@
+changeset 46c6d779700629ed1ca3bf184707b752ceb3d9f4
+manifest 8c59617161a51ab27f18e53bc02393634e960b01
+files browser/components/migration/src/nsSafariProfileMigrator.cpp

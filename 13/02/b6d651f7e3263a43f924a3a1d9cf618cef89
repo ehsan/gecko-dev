@@ -1,0 +1,4 @@
+changeset 281119c0f5a9c2cc4ff528a37db1caccc014cebe
+manifest bb9b1ad537e45c96b6bba7d2be4fdf09ee22fcdd
+author dwitte@stanford.edu
+files netwerk/base/public/nsReadLine.h

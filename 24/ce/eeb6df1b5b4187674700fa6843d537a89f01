@@ -1,0 +1,4 @@
+changeset 3874d326bc540ec6e2b5456749d40bbe31082d11
+manifest ca906088f972c6d05014e38bfd678b2328687bc9
+extra rebase_source:e78d2c0f443dd67ec147f38ee48d2e52e8ea92f8
+files widget/xpwidgets/nsIdleService.cpp

@@ -1,0 +1,4 @@
+changeset 4f90ae28e4dac0be1b15762816b8703c0798a5d0
+manifest f8c85f6af333d70febcf2432b4a26bf82989b22f
+author kaie@kuix.de
+files uriloader/base/nsIWebProgressListener.idl

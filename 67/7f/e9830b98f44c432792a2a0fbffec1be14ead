@@ -1,0 +1,4 @@
+changeset 28341d7a75f67fe5e85c3e329aa3012a67d848e2
+manifest c3cbca007ff0159d0cc80d73ce1b3fc1f9921513
+extra amend_source:9fbcff790ca45666e26911c6c8161453c12c1b88
+files dom/webidl/Screen.webidl

@@ -1,0 +1,4 @@
+changeset 7f49b1cca9416236d5bd932c3c26fc503ae58727
+manifest 5dc5df536908bb291b609412ff1e1a84f47d2d16
+author kaie@kuix.de
+files security/manager/ssl/public/nsIBadCertListener2.idl

@@ -1,0 +1,4 @@
+changeset 8de489522dbb45c45981acce2300c9f03eb4adc1
+manifest b35f130921d2b85384613acc33ba92df687125b7
+author mattwillis@gmail.com
+files content/base/public/nsIXMLHttpRequest.idl

@@ -1,0 +1,3 @@
+changeset 0024361780c4187a54ac5756d7b532991d0ea403
+manifest f4379462e0bbcde72ce307ec03bb3c72a87fc7ba
+files dom/system/gonk/tests/test_ril_worker_stk.js

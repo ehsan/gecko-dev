@@ -1,0 +1,3 @@
+changeset 73e415d1c471f8d66520fcf157178c5ee63e8ed3
+manifest 3633be97e725fbcb07344febb5cd2e9d243de9f7
+files xpcom/io/nsIStreamBufferAccess.idl

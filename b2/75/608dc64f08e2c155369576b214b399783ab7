@@ -1,0 +1,4 @@
+changeset 3ccf5853463cb63f5fbb651c379046d4b3a411b9
+manifest 4e693fe025ea6ccbb8cf54bf6fb72503bb4b9bf6
+author pavlov@pavlov.net
+files gfx/src/thebes/nsThebesDeviceContext.cpp

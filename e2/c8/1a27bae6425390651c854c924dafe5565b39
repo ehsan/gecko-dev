@@ -1,0 +1,4 @@
+changeset 05d8574eb2c51c900d7421b90fcca3ec63dc8636
+manifest d328ed9c4f2ff43e2cda7a274810c206692fce56
+extra rebase_source:b95ba1ccbbdf318786e2446276d80885602d574a
+files js/tests/js1_8_1/extensions/regress-477187.js

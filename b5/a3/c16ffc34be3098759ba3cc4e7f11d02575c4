@@ -1,0 +1,4 @@
+changeset 031b48dfef03204ff86874e962e4801c74b92339
+manifest 20d4962082013c1bbc68295f2170a2c34ce39164
+author bjarne@runitsoft.com
+files xpcom/io/nsStorageStream.cpp

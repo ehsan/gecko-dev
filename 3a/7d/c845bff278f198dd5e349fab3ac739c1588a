@@ -1,0 +1,4 @@
+changeset b2108d83c12260f085c250641edec3e028c99cea
+manifest 1bf032533757df574f8bacfb28e9bc3525f5c856
+author dcamp@mozilla.com
+files security/manager/ssl/src/nsNSSCallbacks.cpp

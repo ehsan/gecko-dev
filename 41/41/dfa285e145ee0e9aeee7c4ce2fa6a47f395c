@@ -1,0 +1,3 @@
+changeset 272a5a897bb6b892306c4f9b9106ffae2c8784c6
+manifest 9e402301a5869ac7d9ea109fff73e83f9514d0b5
+files toolkit/crashreporter/google-breakpad/src/client/mac/handler/minidump_generator.h

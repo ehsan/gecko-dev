@@ -1,0 +1,4 @@
+changeset 744e274074da6b74ca6935c81411b3df8a556c07
+manifest bec8fad267dae3015ee130201122cd3a7c3bebca
+author timeless@mozdev.org
+files modules/plugin/base/src/nsNPAPIPlugin.cpp

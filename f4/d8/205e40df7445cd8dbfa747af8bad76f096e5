@@ -1,0 +1,4 @@
+changeset 83009a30f98f3f1d2b93e69076df48116ee7ffa3
+manifest 41690a8eeef3c97289f512b82e12197cf3ed0f16
+author timeless@mozdev.org
+files widget/src/qt/nsWindow.cpp

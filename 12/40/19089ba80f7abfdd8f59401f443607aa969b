@@ -1,0 +1,4 @@
+changeset 179c8251792e5a70d0f63c5c469fc81fe4167491
+manifest ecaedd1c571b18e742afc9e88b07ca718148d231
+author pedemont@us.ibm.com
+files extensions/java/xpcom/interfaces/Makefile.in

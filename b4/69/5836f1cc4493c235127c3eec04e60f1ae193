@@ -1,0 +1,4 @@
+changeset e57247933ed6780c8fd7fd12c52361cdef5e8d6b
+manifest 7fb998516cf854875c7ffe78c618f07abc92151c
+author dolske@mozilla.com
+files gfx/src/shared/gfxImageFrame.cpp

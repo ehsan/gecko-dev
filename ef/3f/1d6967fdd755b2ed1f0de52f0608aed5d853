@@ -1,0 +1,4 @@
+changeset eb8d12d360dba9c32a7a5493e67ab6d137113a3e
+manifest 02ce2b0182e57c343e42a691235f96e27e637320
+author jhorak@redhat.com
+files js/xpconnect/shell/Makefile.in

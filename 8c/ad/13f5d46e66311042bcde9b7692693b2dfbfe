@@ -1,0 +1,4 @@
+changeset 9f5cce1a629e3d5b8ed12a2b6650637fed5abbb9
+manifest b466024bcdd4cfd9e49c3c024d676f91a3d2932c
+author bent.mozilla@gmail.com
+files xpcom/base/nsCycleCollector.cpp

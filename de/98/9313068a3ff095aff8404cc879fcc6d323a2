@@ -1,0 +1,3 @@
+changeset 7e4fa834e25d05972689d3d7c7c7c34f647789e5
+manifest 769ade94868d2311151dc5120be58129fd4a60c7
+files netwerk/protocol/websocket/nsIWebSocketChannel.idl

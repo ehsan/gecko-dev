@@ -1,0 +1,3 @@
+changeset 799a2838ed86ddb3f22535d92cfe0df201669dbc
+manifest 028b0d77dbe22bb66cbe4c0c2c9e23fa4da09049
+files js/src/jit-test/tests/proxy/testDirectProxyKeys9.js

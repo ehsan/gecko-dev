@@ -1,0 +1,3 @@
+changeset 0f0e44cd5fbd5bd266eef6fa06ea1241823c164b
+manifest 2a24028b082a69f78e0bb900259b5f240372610f
+files js/src/jit-test/tests/debug/Frame-onPop-generators-02.js

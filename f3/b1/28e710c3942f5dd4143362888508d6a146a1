@@ -1,0 +1,4 @@
+changeset 06756c4481d5dda73afdb1634bdde1b3ae681ac5
+manifest 1ed9e2c25504d78e9b36298933beca7ee6927bc8
+extra rebase_source:f44a483b2f927576cf87c858120826c007d6504f
+files webapprt/gtk2/webapprt.cpp

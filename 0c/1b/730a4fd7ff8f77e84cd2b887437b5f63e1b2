@@ -1,0 +1,3 @@
+changeset 7dc49c3b5130df83171f44462ea4bac2dabb7e99
+manifest e9eb5184236630fec51d791c9cc12878a4dc5cd3
+files security/manager/ssl/src/nsSmartCardMonitor.cpp

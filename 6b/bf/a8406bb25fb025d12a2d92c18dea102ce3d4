@@ -1,0 +1,4 @@
+changeset 4b35d8a471d6c9d0f73ac98a90638622ddffeb0f
+manifest 98a83ff15232770e240ca7193c1ceb2aa91c7b8c
+author smichaud@pobox.com
+files widget/src/cocoa/nsMenuBarX.mm

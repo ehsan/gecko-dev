@@ -1,0 +1,4 @@
+changeset 87885ede96cd898ecb4e657e584d277d0ac535ec
+manifest 4abc4351b8db165a4dc87ca33255bfbf77b256f3
+author jwatt@jwatt.org
+files toolkit/components/feeds/src/FeedProcessor.js

@@ -1,0 +1,4 @@
+changeset 57c69aa913fd8641aaaf6025b4b2ba1b12ea92bb
+manifest cf4534f256fa8068cea4c692a9e52e02c1a73bf2
+author pavlov@pavlov.net
+files gfx/thebes/src/gfxWindowsPlatform.cpp

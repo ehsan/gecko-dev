@@ -1,0 +1,4 @@
+changeset 8c0546dcdf245f72c04c060b8fb6a67f72239c24
+manifest eaa3df5b70739befcf6acef37acfce4cf0779c02
+extra rebase_source:4f0c0fd2540fe4ec5c34d53ebf9b822822377c0a
+files mobile/chrome/content/tabs.xml

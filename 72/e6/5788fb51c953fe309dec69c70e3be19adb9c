@@ -1,0 +1,3 @@
+changeset c779db92fef21901a5734925924147d132451834
+manifest 19544293dbff34ddf40c5838c7535cf3756e1de1
+files netwerk/base/src/nsFileStreams.cpp

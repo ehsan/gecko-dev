@@ -1,0 +1,4 @@
+changeset 6e96d01f26d2944b8596d389aef7f28a82b31e0b
+manifest 30713f2e59cd3e3f64ecf8793f64978b5c6fb488
+author dolske@mozilla.com
+files toolkit/components/passwordmgr/test/test_basic_form_pwonly.html

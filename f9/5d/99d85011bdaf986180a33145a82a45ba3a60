@@ -1,0 +1,5 @@
+changeset 9095a47c448389a2a1dbb2f5c58f7bda1e00d0df
+manifest 01e68d9d920b62b8084d080c857054f147cb6628
+author timeless@mozdev.org
+extra rebase_source:4749619bdf1ffad836353da6d22a9f37377d8080
+files modules/libpr0n/encoders/jpeg/nsJPEGEncoder.cpp

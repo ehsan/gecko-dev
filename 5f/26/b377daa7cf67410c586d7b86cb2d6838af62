@@ -1,0 +1,3 @@
+changeset 0f8cc6e38a1e0f8e3985d77c3569598ef198a3b7
+manifest 9963e5f8ad4ab799b10024a02fbbb769d161ae31
+files js/src/tests/ecma_6/extensions/TypedArray-subarray-arguments-neutering.js

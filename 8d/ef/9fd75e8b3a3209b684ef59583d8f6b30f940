@@ -1,0 +1,3 @@
+changeset b3e685377d7ba0af63ca37b0054cda68742e4013
+manifest 87ae2a007126f1ebf83c98875acfd5dfef7f4148
+files toolkit/components/console/hudservice/tests/browser/browser_webconsole_basic_net_logging.js

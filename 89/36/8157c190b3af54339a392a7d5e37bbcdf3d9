@@ -1,0 +1,4 @@
+changeset f7dae5b4972019895d22fbbaec019bba6ee67e16
+manifest d88fe7c7b1a080ef3ddad3f24865adfa48f0fc31
+author timeless@mozdev.org
+files xpcom/ds/nsHashtable.cpp

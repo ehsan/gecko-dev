@@ -1,0 +1,4 @@
+changeset 7b2d0c5769700bdd35fcd22d130df27af1187efc
+manifest e2ecabc1862f2acc0483ad7e16f3daeff52a005d
+author sspitzer@mozilla.org
+files browser/components/places/content/utils.js

@@ -1,0 +1,4 @@
+changeset bff872c9d4b2a0c49a13f6ed19f441240e7c3290
+manifest c8834cbe39d18ae5e95bda5caa48e8f2780b91e1
+extra rebase_source:42911b48b19e6625adfd5d8615752eb76c4033f4
+files dom/xbl/nsXBLPrototypeResources.cpp

@@ -1,0 +1,4 @@
+changeset 2e3d1f4891bff7bacdaccb2612c8f350621e5727
+manifest c8e8dbfdbe2bd466615c9963d4e8672f072ef08d
+author dcamp@mozilla.com
+files netwerk/cache/src/nsCacheService.cpp

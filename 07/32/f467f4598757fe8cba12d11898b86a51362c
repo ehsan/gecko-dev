@@ -1,0 +1,4 @@
+changeset ea6a053c57b03bd1922a3ab7ab64efba05993a27
+manifest 98ec4ee6b0764098c9b505dabfc4b8d285a3e626
+author timeless@mozdev.org
+files security/manager/ssl/src/nsCRLManager.cpp

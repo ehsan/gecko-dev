@@ -1,0 +1,4 @@
+changeset e2955bb91ce8df3f05b0639891f4e0f0f3dbcb0a
+manifest 642a9a7a76e46afa3a64da8afc68c32542c17aa2
+author mconnor@steelgryphon.com
+files browser/modules/Sanitizer.jsm

@@ -1,0 +1,4 @@
+changeset 710e45d869208cc9f410423d85d300a218661fe3
+manifest bd0fb83e720e10e18d94969dc67476e143a0c350
+extra rebase_source:fcfa8a8ec0a4e75e45f54542e6f25e0aa050d684
+files mobile/android/components/SessionStore.js

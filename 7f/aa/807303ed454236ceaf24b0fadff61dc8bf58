@@ -1,0 +1,4 @@
+changeset 20e727908e45f06b58b37254236f59bec407c973
+manifest 906b2520a73512f537f68ae46ff2d4a4db74b9ee
+extra rebase_source:a920d5c87d112338259c0401c4cb29ed228cfa4c
+files python/mozbuild/mozbuild/base.py

@@ -1,0 +1,4 @@
+changeset 8b618223ad693d124463c9ee15d6cb05b13e1cf7
+manifest b3fa9ead353ce6ea242898a75f1324b981201bcf
+extra rebase_source:b0b36e19849f9ed5a78bd3d9579303f4a6f74f6c
+files browser/confvars.sh

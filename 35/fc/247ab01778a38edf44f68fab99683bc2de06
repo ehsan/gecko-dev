@@ -1,0 +1,3 @@
+changeset 66fe02c5c163e1b5eb5f7fd8242e3136e824dd2d
+manifest 7edc2c9c9faebe9e9f2817423cf0a287e708de3d
+files browser/devtools/webconsole/test/browser_webconsole_bug_632347_iterators_generators.js

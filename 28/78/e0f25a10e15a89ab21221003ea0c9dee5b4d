@@ -1,0 +1,4 @@
+changeset 13929bb5fbbe15fb4ad24da147905e22031baadf
+manifest af34ed7960818e261dff21283c904b826de96dcc
+extra rebase_source:95defa75f1e2f274466523c0dcc8b8424e39793e
+files browser/base/content/browser.xul

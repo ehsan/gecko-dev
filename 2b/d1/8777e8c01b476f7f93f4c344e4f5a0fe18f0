@@ -1,0 +1,4 @@
+changeset ba983923066fbbe4b5df8a872fdeb989386b5a4d
+manifest f58cc0f34e23abce396434f02c2e2dbcd2a16441
+extra rebase_source:15d47594e8c95f28a907c1fdf4c3ac503372fbbd
+files js/src/xpconnect/src/dom_quickstubs.qsconf

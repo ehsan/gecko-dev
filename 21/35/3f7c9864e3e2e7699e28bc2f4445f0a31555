@@ -1,0 +1,4 @@
+changeset 258858275f188fcd6fe48a9cea3f835c39a70765
+manifest 4b3476543d547ae7f5cd51929e7d62999fe5b1a1
+author sspitzer@mozilla.org
+files browser/components/migration/src/nsBrowserProfileMigratorUtils.cpp

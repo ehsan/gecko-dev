@@ -1,0 +1,4 @@
+changeset 52c3382d86d31285511f5bf117fbf14d1978d73e
+manifest fbf605968a70f93d282d3bf9e6cdf881f0cdb2cd
+author jhorak@redhat.com
+files netwerk/mime/src/nsMIMEHeaderParamImpl.cpp

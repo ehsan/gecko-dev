@@ -1,0 +1,4 @@
+changeset 32a1fa1b28d5bb9b43bd745af6cbcb485ef4fb9e
+manifest bdaf3164af964b066ef069cef8f7db25fedc36ba
+extra rebase_source:29ded0fc7b6cd320b234e45571239961513bd9ff
+files content/base/src/nsCSPService.cpp

@@ -1,0 +1,4 @@
+changeset 1b04002bea94f11ac5a881a2a8b44e5b5a786cc9
+manifest 7588991c068f606e6149ab8911be0ffcd309df89
+extra rebase_source:01ce5a48daa53c46138256daf0bf814356b3ca4e
+files js/src/devtools/rootAnalysis/annotations.js

@@ -1,0 +1,4 @@
+changeset eafee0100926764290cd41a5564f00df140315f1
+manifest 47412bfc36819b06efd6488ab53dd1281851e56f
+extra rebase_source:dfd17cf24d7d4c8362a8899521a7b6fed049d00a
+files js/src/jspropcache.h

@@ -1,0 +1,4 @@
+changeset accb8aab69b9de4fc9e4189a60c748219478817e
+manifest 3b41b0412a93b573985e25a92119b4e4b42a60f3
+author bienvenu@nventure.com
+files uriloader/exthandler/unix/nsGNOMERegistry.cpp

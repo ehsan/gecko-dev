@@ -1,0 +1,4 @@
+changeset 48edc39ac3ec8a5d727e2ddfb7b55c2d47a8d0af
+manifest f5ab949ee1b428635aa9ae82da5bb5c7022c88f9
+author jruderman@hmc.edu
+files js/src/jsopcode.c

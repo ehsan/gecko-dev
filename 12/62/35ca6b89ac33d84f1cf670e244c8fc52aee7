@@ -1,0 +1,4 @@
+changeset e5ffeb304e7426fe53b41a4b07fc8ec00afc9770
+manifest 94eb9e15c9cf3b2469f349fb4d1f4995fbef7a9c
+author jruderman@hmc.edu
+files layout/xul/base/src/grid/nsGrid.cpp

@@ -1,0 +1,4 @@
+changeset 8dd9197235a51b3b402ea12d09803e33879bd32a
+manifest e9a30de164ef26000cb63abce71d0528ee1ea0a5
+author rob_strong@exchangecode.com
+files browser/installer/windows/nsis/defines.nsi.in

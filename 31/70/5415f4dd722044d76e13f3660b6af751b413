@@ -1,0 +1,3 @@
+changeset 1cffe22162a4337162e853d89e0e65b4c20f88f7
+manifest a3d94226d94f50abb7372c6fc30f89bc7462dc0b
+files browser/components/privatebrowsing/test/browser/perwindow/browser_privatebrowsing_DownloadLastDirWithCPS.js

@@ -1,0 +1,4 @@
+changeset edba9e7a6b803455fffc74cd6f1c061e66be875a
+manifest b8ef8f705e078b0c299951868f1bcd1d3905f922
+author bhearsum@mozilla.com
+files tools/release/configs/fx-moz19-bootstrap.cfg

@@ -1,0 +1,4 @@
+changeset 8cf9eafbaf4bab699de49a72c921b7329af6b351
+manifest 920b05426711ea8d32729b2bc794ca9e66ab00b2
+extra rebase_source:7e4088d4fab99ba3c0cc5fd0d9531407c0a357f1
+files js/src/ds/LifoAlloc.h

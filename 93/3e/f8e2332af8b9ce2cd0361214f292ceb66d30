@@ -1,0 +1,4 @@
+changeset 6dbe10320e8aa15181da1b06858ef2c29f0a3737
+manifest 767b64437cad4ba96401b2d2fa92390e76835bbb
+extra rebase_source:2ae2046d651c501ecb419c2b8b93b767cd29edbf
+files browser/themes/gnomestripe/browser/tabview/tabview.css

@@ -1,0 +1,3 @@
+changeset 6ffcd2030ed89d382bee62f81fed867acc0e85fe
+manifest 8e9bd822f3575c60d444a4b2e4c34865dedc78ba
+files toolkit/components/telemetry/ThreadHangStats.h

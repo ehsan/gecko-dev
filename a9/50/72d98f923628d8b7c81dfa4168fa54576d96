@@ -1,0 +1,5 @@
+changeset 8ae34117d500f91132b872252e50916ded135011
+manifest 9e41edfeb3206fd8afc516ce8c779759f9b9b98b
+author armenzg
+extra rebase_source:afcf065f2ff67874ac0e383da84fcac13f4e71fe
+files toolkit/locales/l10n.mk

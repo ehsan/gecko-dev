@@ -1,0 +1,4 @@
+changeset 8c3fa7078794b9e7f70752b62f29ef86a11bca66
+manifest 60fc27bb08d7db4f213c0fef899f549110604363
+extra rebase_source:6aff511af4a1744fab88e698735feb984ac15362
+files toolkit/xre/nsSigHandlers.cpp

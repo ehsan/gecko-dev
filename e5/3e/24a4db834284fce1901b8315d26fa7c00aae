@@ -1,0 +1,4 @@
+changeset a26c9e7823e42821968755cfde2424e44d58fc1c
+manifest 399622d393845795b726ea02505766eec9b8c7d4
+author timeless@mozdev.org
+files js/src/nanojit/CodeAlloc.cpp

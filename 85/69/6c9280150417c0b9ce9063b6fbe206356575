@@ -1,0 +1,4 @@
+changeset eb01c53fd87978dc635fd38336d126b0e3a03a9c
+manifest 622e8c40661c77d86b60888e9b57b075cd5b23c8
+extra rebase_source:fdb86de8aba51af285f6293ee4bff8fd4b477d6f
+files toolkit/components/prompts/src/CommonDialog.jsm

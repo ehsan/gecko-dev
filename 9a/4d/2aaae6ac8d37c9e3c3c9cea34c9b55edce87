@@ -1,0 +1,4 @@
+changeset a9b980fcb73aff00364203f50e613be2161db13d
+manifest 73a3c3be187781a0de227b8271aca91f348a2314
+extra rebase_source:f15c2b197eb1a54a2ecb9b738729fda75565932c
+files dom/base/nsGlobalWindow.cpp

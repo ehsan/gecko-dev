@@ -1,0 +1,4 @@
+changeset 0f500b25076fb042ea769397b8e63c8a6da955c3
+manifest 0d6be8f3cc7430f5f62201b5ebd236f3d91f00ee
+extra convert_revision:9fb3875862d0d0f8f1c6ffb84566c0bd73a66a46
+files js/src/nanojit/VMPI.h

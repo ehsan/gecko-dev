@@ -1,0 +1,4 @@
+changeset 9bc34c6debdaf06fde1f7122dbfc95af2fb21a2d
+manifest b8b94c58c5113309372b66fa30a1296a92db0d07
+author reed@reedloden.com
+files widget/src/gtk2/gtk2drawing.c

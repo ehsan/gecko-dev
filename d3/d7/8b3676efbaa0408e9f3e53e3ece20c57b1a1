@@ -1,0 +1,4 @@
+changeset a99b0c372825e1ac3a2f623fa694c1346c1bd5b6
+manifest acdb2d36c929521b9aa61f8b3a3ef8b1a2e8f2a7
+author reed@reedloden.com
+files content/canvas/src/nsCanvasRenderingContext2D.cpp

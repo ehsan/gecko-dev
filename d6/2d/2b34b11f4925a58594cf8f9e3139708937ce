@@ -1,0 +1,4 @@
+changeset 076923aa120ac51cbe3141f75562dcc3d2b5a0fb
+manifest 1b7096c0b571fb4fae349c1851860e0b988905a4
+extra branch:GECKO20b7pre_20101006_RELBRANCH
+files widget/src/windows/nsWindow.cpp

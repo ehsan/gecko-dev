@@ -1,0 +1,5 @@
+changeset 7329deafd7f95b297144e647b2b2584f14400b81
+manifest 0e5e6e30cbdcab0b2165df6c6fa9a66d8e931682
+author timeless@mozdev.org
+extra rebase_source:2bd5e1b28f071d598d2b863bbcdff5237a22f948
+files toolkit/mozapps/update/updater/updater.cpp

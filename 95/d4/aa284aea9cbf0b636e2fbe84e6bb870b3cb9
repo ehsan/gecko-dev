@@ -1,0 +1,4 @@
+changeset 7d96651aef3d28745ee99804842d583757c6d2e7
+manifest ce1a1e53d6598f83ac57eb0df1165efd4f95fee8
+author smontagu@smontagu.org
+files layout/base/nsBidiPresUtils.cpp

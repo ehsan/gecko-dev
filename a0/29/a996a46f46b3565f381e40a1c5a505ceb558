@@ -1,0 +1,4 @@
+changeset 30029cf8e27e540eec3c372bdd350d70a838670c
+manifest 67f550efde11c6db4282f51b65b19f76da5c5e97
+author peterv@propagandism.org
+files editor/libeditor/html/nsWSRunObject.cpp

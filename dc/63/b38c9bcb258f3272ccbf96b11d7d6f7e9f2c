@@ -1,0 +1,4 @@
+changeset 9395e13a68e9de064dcd3b03ddf3c12e9d47eea9
+manifest 94ee5a0822e0eb574e074d19b0367b63751e7deb
+author flamingice@sourmilk.net
+files uriloader/exthandler/nsExternalHelperAppService.cpp

@@ -1,0 +1,4 @@
+changeset 93640018725d4cf803b68f7230f7afe13d2377fb
+manifest e8682e16b839235c8cbdc8d8aa3add8e019c17a9
+extra rebase_source:0d01cc0c5d89a122782c19fbea388e70ac4cf6d6
+files js/src/tests/lib/jittests.py

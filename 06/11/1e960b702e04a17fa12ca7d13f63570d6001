@@ -1,0 +1,4 @@
+changeset d272312ac39f8e5cae83ef59e447c316d4939d7d
+manifest 0b513ec4e75d2c4a36dc8c7ffddafba3cf37ebfa
+author timeless@mozdev.org
+files toolkit/crashreporter/client/crashreporter_win.cpp

@@ -1,0 +1,4 @@
+changeset adb4b1d6a71257212900a2f633770580ff8a4292
+manifest 256c62ebe1db83e342a7bb6d62d8f92ac78d6254
+extra rebase_source:e40b6e22b3cae9c4cfebd1af023e77668d10b972
+files browser/base/content/syncAddDevice.js

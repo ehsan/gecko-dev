@@ -1,0 +1,4 @@
+changeset 3b2798bb35f7aa03b244510f93086d8957f4ad12
+manifest eb278723b37b13a206d87e98d6acd59e5f4a457f
+author wes@page.ca
+files js/src/nanojit/NativeSparc.cpp

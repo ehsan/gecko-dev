@@ -1,0 +1,4 @@
+changeset a5afd8f693b0b64e8dc1c1b2377ab204125b4455
+manifest d23c9fd5de3215f755d140fe1a8aef5b7cd8d6cb
+extra rebase_source:563c13548e1347a5df710e7833bd761515cfcdfa
+files browser/components/customizableui/test/browser_984455_bookmarks_items_reparenting.js

@@ -1,0 +1,4 @@
+changeset 4165906564250c6f3a5f3988827804316b999ba2
+manifest 2daf8a1838a1de2ad754ef13c2e16a03e38c949d
+author dolske@mozilla.com
+files toolkit/components/passwordmgr/content/passwordManager.js

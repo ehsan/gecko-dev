@@ -1,0 +1,3 @@
+changeset 1f5118b1434fd2f94be678b6cf6f3bbd3fb7a926
+manifest 9353117c8288067a905a4dc658c4b3aebdbcbd62
+files toolkit/components/diskspacewatcher/nsIDiskSpaceWatcher.idl

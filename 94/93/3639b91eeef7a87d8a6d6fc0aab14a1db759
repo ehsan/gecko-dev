@@ -1,0 +1,5 @@
+changeset 9fb28d9de2cc7c230f15b213f344243245ca980c
+manifest 82723c2650ec72efa4421640f521112a1e4043c8
+author timeless@mozdev.org
+extra rebase_source:4cdfdf205b6de7a810a4bf86cacd5c3e1635aa8d
+files security/manager/ssl/src/nsNSSCertHelper.cpp

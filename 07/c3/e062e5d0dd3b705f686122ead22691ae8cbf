@@ -1,0 +1,3 @@
+changeset 9a5b898000b5a5889dcb0ec35230029fa0c511af
+manifest b59df69245fb8c9b50875b6d806cc36666ea23a4
+files modules/libjar/zipwriter/src/nsDeflateConverter.cpp

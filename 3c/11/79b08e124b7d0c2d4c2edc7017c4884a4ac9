@@ -1,0 +1,3 @@
+changeset 541ca516d9ca5ff59e7f710e7d110947a6f005ce
+manifest a7080455e6b14da4084be43a3a53a3e8379f0087
+files js/src/jit-test/tests/asm.js/neuter-during-arguments-coercion.js

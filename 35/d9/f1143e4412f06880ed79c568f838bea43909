@@ -1,0 +1,4 @@
+changeset bcad38313f82663de130bbecc9dd1cf930ac406e
+manifest b8e913bc69bd4b1fb2143e7452abe80a9c4cbb7a
+author reed@reedloden.com
+files layout/tables/nsTableFrame.cpp

@@ -1,0 +1,4 @@
+changeset 12cf78e6be5fa3f5ff6c806630c07fdfa56aa140
+manifest 8836fd34941f1b38de0c3a7715ec4ca6bcc4c0c1
+author mozilla.mano@sent.com
+files toolkit/components/places/public/nsINavHistoryService.idl

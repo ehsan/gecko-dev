@@ -1,0 +1,4 @@
+changeset a012b6f9858b20aaeccf5cc02c1b43e6dc6e8cd5
+manifest 71d9294b62de5000330e80589b463be651c8f28c
+extra rebase_source:29d31152455cd9f6702f0788539f0b62bbcf3a98
+files content/base/src/nsXMLHttpRequest.cpp

@@ -1,0 +1,4 @@
+changeset b41736b5548ccfc6de35d18375eef9ba8ddad521
+manifest ab772e9bfc3b81377dde01bfd9bb38df1e11258a
+author mats.palmgren@bredband.net
+files intl/unicharutil/util/nsBidiUtils.cpp

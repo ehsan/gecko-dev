@@ -1,0 +1,4 @@
+changeset 35171f3aa46c8d96a141230ecc77f0828f173509
+manifest 952d28d9afd889e63c5abb4f9cc8feff9db32f0d
+author reed@reedloden.com
+files security/manager/ssl/src/nsCrypto.cpp

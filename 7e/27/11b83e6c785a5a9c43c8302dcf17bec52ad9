@@ -1,0 +1,4 @@
+changeset 656054962a9ebaac6236bd4daefbbfef34fbaef4
+manifest 6a54daee4717d964e992dcc8a1bebdd2ce5be05a
+extra convert_revision:0a31a14aba7746483fe8ff6b8ab287e1784de846
+files js/src/nanojit/NativePPC.cpp

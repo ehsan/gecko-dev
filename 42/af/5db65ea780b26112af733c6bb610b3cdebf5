@@ -1,0 +1,4 @@
+changeset d22acc0c54e6b22db5ec49ff132809a3219c80de
+manifest 6066f4637cbf346f41bfa8e50c3dba1eded3faa8
+author mozilla.mano@sent.com
+files browser/components/migration/src/nsOperaProfileMigrator.cpp

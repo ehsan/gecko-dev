@@ -1,0 +1,4 @@
+changeset f857417260a9e9fe4449131760da3e73ef7b5323
+manifest cccf647bab59240526a1474b928cd912a69e42ff
+extra rebase_source:512f9f8c521c62c2efd4304dcca2205d82d7f8a5
+files js/src/vm/ErrorObject.h

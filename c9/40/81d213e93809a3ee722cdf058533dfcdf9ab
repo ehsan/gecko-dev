@@ -1,0 +1,4 @@
+changeset 1200093dda1d4027ae07de57ad85e91b9dfa4993
+manifest b4168fdde058c28e47372054d785163919d64db4
+author reed@reedloden.com
+files toolkit/xre/nsNativeAppSupportUnix.cpp

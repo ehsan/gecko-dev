@@ -1,0 +1,4 @@
+changeset d341a090707c6c921b0cfa37254ed9f859132608
+manifest d4cad260bea35dc66c51a0e23105732f7b70f265
+author igor@mir2.org
+files dom/src/base/nsJSEnvironment.cpp

@@ -1,0 +1,4 @@
+changeset 36393b0381b6bf9455758d6066c450401877cc5a
+manifest 20c0e1fe3647e25243e3d5d62e6d30d94a49d21f
+author gavin@gavinsharp.com
+files editor/libeditor/base/nsEditor.cpp

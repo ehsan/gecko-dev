@@ -1,0 +1,4 @@
+changeset d8828fe934ad13d1ffc71da8546c1129607f5a5a
+manifest 5ad8981298c8526282ae353e5a3c282b4906cd3a
+author joshmoz@gmail.com
+files layout/xul/base/src/nsSliderFrame.cpp

@@ -1,0 +1,4 @@
+changeset 042aa461bfad6380e2bbf9430a08eee73119559b
+manifest b12b7d3aa5db161056c8e829e84428a02e3239a1
+author dveditz@cruzio.com
+files chrome/src/nsChromeRegistry.cpp

@@ -1,0 +1,4 @@
+changeset a7a8c7d444261a0c08b24ee1c9b283204f19a4cc
+manifest e2e18d291edd94474810c153f8b51e7830761239
+author vladimir@pobox.com
+files gfx/cairo/libpixman/src/pixman-image.c

@@ -1,0 +1,4 @@
+changeset c8f61d0fde2eca100270474f4722524193c97ee4
+manifest ad96bc5cb16cfd80b7725d0fb82b5e1e2cd0f025
+extra rebase_source:fcff93d24aabb4562d883adcff6b0c808b88bc50
+files dom/camera/DOMCameraManager.cpp

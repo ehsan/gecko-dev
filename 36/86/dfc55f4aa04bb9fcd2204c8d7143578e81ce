@@ -1,0 +1,4 @@
+changeset 1191accca3ee77f8102bdb8483caf4d6b03d20bf
+manifest 59ff3e7a46dbd214c4f4790ea9ccc12cba711f83
+author caillon@redhat.com
+files gfx/src/thebes/nsThebesDeviceContext.cpp

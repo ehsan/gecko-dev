@@ -1,0 +1,3 @@
+changeset 7062c8f550ea289558730ce3a2c462d302ac847f
+manifest f0c8dd216ad1af9b5841fb0fdb52bc8a045400bc
+files dom/ipc/AppProcessPermissions.cpp

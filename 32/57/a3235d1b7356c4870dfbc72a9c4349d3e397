@@ -1,0 +1,4 @@
+changeset 740a8fba94ae68a35d1989de3dac5de32203b04a
+manifest 4e1af6adf8e6b3f9c6d432c6aeeb2edc53019b56
+author enndeakin@sympatico.ca
+files layout/xul/base/src/tree/src/nsTreeBodyFrame.cpp

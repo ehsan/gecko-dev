@@ -1,0 +1,4 @@
+changeset bbda00118ba9e64f219e8b140d529138962c3134
+manifest 3096cac932545b480113090cce9e059d41924af8
+author ginn.chen@sun.com
+files widget/src/gtk2/nsWindow.cpp

@@ -1,0 +1,4 @@
+changeset 678bb683e1c254f29c2007699e6441e5b6ccd6dd
+manifest 7dcc73f6d573fcbc8181865a343838ad095ae3d0
+author Leon Sha<leon.sha@sun.com>
+files js/src/nanojit/Assembler.cpp

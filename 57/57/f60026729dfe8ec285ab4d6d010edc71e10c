@@ -1,0 +1,4 @@
+changeset b91b988f25ffc71427fcf1143c716be2a4a52481
+manifest 66e76eb3fb3536816aa6e44a9bb1a417fe270f04
+author roc+@cs.cmu.edu
+files gfx/thebes/src/gfxSkipChars.cpp

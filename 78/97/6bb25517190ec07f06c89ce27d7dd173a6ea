@@ -1,0 +1,4 @@
+changeset 8341fd0ede3436d099ace46043d24c50e5aac984
+manifest 7a3a7f52256fb8606321ca47eb77619a499a9af1
+extra rebase_source:d73572eec90f9fc6b8c71df9eb2c1c7f7a3ea327
+files browser/themes/shared/newtab/newTab.inc.css

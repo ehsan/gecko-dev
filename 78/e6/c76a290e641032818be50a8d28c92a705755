@@ -1,0 +1,5 @@
+changeset ab5f66865563cba7952b339f6d91211471d1b5b2
+manifest 08d868e2ceec130bba9ee4f196666fd1423c6a8e
+author timeless@mozdev.org
+extra rebase_source:995cb88bc3bdb692ea154be2ebee597b0f777e58
+files xpcom/io/nsEscape.cpp

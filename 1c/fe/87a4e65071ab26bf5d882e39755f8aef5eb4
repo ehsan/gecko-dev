@@ -1,0 +1,4 @@
+changeset aea3ee1a9bafb405976609e866a7c7d534017a21
+manifest b983e13407c381900f07e5404aa2a541d205bcff
+extra rebase_source:112d1f7963fe9c3d92960f6e8fc8c17524d41638
+files toolkit/content/tests/widgets/test_mousecapture.xul

@@ -1,0 +1,4 @@
+changeset 317187728774394ae88ad0b771546eb7dcbe088e
+manifest a804e4d8d4758feaba6049f4aadd3efe80847621
+extra rebase_source:98040a219d8371404de0ce06d10b01fdda3bcf69
+files mobile/android/base/GeckoScreenOrientation.java

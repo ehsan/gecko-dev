@@ -1,0 +1,4 @@
+changeset b369b09c60baa6f692abe2fce83a9982177c483a
+manifest 6d7a697ab6e85053402c0d0db2e8ad48183d529b
+extra 
+files toolkit/components/aboutcompartments/nsCompartmentInfo.cpp

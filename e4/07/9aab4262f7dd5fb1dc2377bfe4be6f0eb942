@@ -1,0 +1,5 @@
+changeset efdf011e85f0b76aa1043195ea574aae9fba7916
+manifest 1c5782595e63197c43a9f62c3e0af06ef9c80724
+author timeless@mozdev.org
+extra rebase_source:3e48dcd70be50d94126272c6339573133075faf6
+files gfx/layers/opengl/LayerManagerOGL.cpp

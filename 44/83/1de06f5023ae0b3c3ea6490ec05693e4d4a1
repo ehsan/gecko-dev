@@ -1,0 +1,4 @@
+changeset 14b79d264b0b07db0511469b81988940aaead90a
+manifest b7920e667856ac765eb429b8054b7505cbde17f2
+extra rebase_source:534c787c834fc1d7174b51d8fb8f13ec339c0a58
+files mfbt/Scoped.h

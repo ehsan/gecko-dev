@@ -1,0 +1,4 @@
+changeset 8e334d4b4d36ae91391075d55f41983fa423bd55
+manifest b83e54c76e598e147cf9f0cd7e0a1692b6d224b2
+extra rebase_source:6cb42950ce67950f0c694bd32d90ccaa53c7a7d4
+files js/src/jsscope.cpp

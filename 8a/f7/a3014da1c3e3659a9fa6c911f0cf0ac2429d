@@ -1,0 +1,4 @@
+changeset 0785c84e29c7b0e08c40f221213fb1a836ff5ff5
+manifest bb29f9e8581ab232b1dc3ef14c7ace46ca8a666c
+author bent.mozilla@gmail.com
+files js/src/xpconnect/src/XPCCrossOriginWrapper.cpp

@@ -1,0 +1,3 @@
+changeset 572624d76edf840dbcf50006719d6e0eefce4977
+manifest d99baac7416368361e09ce058466bc674071805a
+files python/mozbuild/mozpack/manifests.py

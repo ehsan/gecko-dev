@@ -1,0 +1,4 @@
+changeset cfdb650315aad12d9f2d041e02c100b9ec80887c
+manifest 609b2f4b96aa04325fc4b839ce626d28c5d7eb5a
+author timeless@mozdev.org
+files embedding/browser/webBrowser/nsWebBrowser.cpp

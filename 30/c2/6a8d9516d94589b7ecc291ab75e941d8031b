@@ -1,0 +1,4 @@
+changeset d69cf8291544bd167f976c5452e22d49c318e30d
+manifest 5420048c09308cb90a4618854ebbd17a16709977
+author shaver@mozilla.org
+files js/src/jsinterp.cpp

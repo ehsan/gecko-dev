@@ -1,0 +1,4 @@
+changeset f273cd19c3b2b9f817fded63ec810b47510b24f1
+manifest cc4c49e1585daf254f0f13f6b653c08b348443b0
+author bent.mozilla@gmail.com
+files content/base/test/TestNativeXMLHttpRequest.cpp

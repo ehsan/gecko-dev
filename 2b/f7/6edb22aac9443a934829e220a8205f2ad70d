@@ -1,0 +1,4 @@
+changeset 18557b56adbeb090e628ef48261da6d98425bc8a
+manifest e6cf1a413ba3d4b6c76fd9e571cc551392586654
+extra 
+files build/stlport/moz.build

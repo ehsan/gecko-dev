@@ -1,0 +1,3 @@
+changeset 97a03e96493d7a8b423cb2b41b5d217507d7b162
+manifest fd259b9ef51417821d2e96837f2a71376a503600
+files browser/devtools/styleinspector/test/browser_ruleview_refresh-on-attribute-change_02.js

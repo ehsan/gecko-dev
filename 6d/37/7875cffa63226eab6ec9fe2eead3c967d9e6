@@ -1,0 +1,4 @@
+changeset 5172971f07dc1079fddf3b267a9ca9734eae0f32
+manifest ff8fec50f046aa1fe28939c42e20a03062c76837
+extra rebase_source:3baca5d39f2898f20d218ec3073e2406ea277510
+files parser/html/nsHtml5TreeBuilderCppSupplement.h

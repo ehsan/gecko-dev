@@ -1,0 +1,4 @@
+changeset 1bf5f690b3826f294fc1e9b6a3e9a5430106b439
+manifest 60d6885cb9c72400c015e85c41092dc4e10e02f7
+extra rebase_source:6f76525855ffc9a8b02ba9770109b490b9bde7c3
+files js/src/jspropertycache.cpp

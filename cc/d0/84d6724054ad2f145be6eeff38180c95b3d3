@@ -1,0 +1,4 @@
+changeset 08763c8d26c3b602b7ceaaf305689a2e3536f369
+manifest c2cb0f06c97668da9e27890f890572db68450cdf
+extra rebase_source:a68963a26fb6479ba006e4bd8a9945230426fb22
+files xpcom/glue/nsCRTGlue.cpp

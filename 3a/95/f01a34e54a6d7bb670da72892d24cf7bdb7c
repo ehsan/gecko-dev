@@ -1,0 +1,4 @@
+changeset a509bbc97a1cab2b9f249f989ef2f1a2f95eb53c
+manifest 14705fed1478067ffe14008907fa031a1578447b
+extra rebase_source:25d53309e30bec26f7a93148c9000e1c79431986
+files js/src/nanojit/Containers.h

@@ -1,0 +1,4 @@
+changeset 368f014c29d005ac26f9de4c2ae12c54dc769422
+manifest 9fb5646fcf4718b4451783f3f4cb4c301e1302bd
+extra rebase_source:f8c0a1c8fbd9bf40331d1a12306faf4e45d1e8f3
+files browser/base/content/tabcandy/tabcandy.css

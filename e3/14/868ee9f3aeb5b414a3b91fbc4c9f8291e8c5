@@ -1,0 +1,3 @@
+changeset b6a1c1c85ca364cb7743de0a1b3b14b5c85eb679
+manifest 4967de6e36d04532204380fe5375084a3b642ac4
+files gfx/skia/src/opts/SkBlitRow_opts_arm.cpp

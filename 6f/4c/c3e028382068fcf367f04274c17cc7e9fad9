@@ -1,0 +1,4 @@
+changeset d5823c08b120a1c74ddef1d4e5433b73e1ee5362
+manifest 4398fa889153c0095498aa7b1582044b688b1ce1
+extra rebase_source:4dafeae0c81076a11703466af76c23248477a09a
+files browser/components/customizableui/src/CustomizeMode.jsm

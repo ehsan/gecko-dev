@@ -1,0 +1,4 @@
+changeset d74665bb6e1768a14e76653704bc7ae6980d8df7
+manifest 80e0e49e46ec9f02bf1ce27687d6f927650947f8
+author rob_strong@exchangecode.com
+files toolkit/mozapps/installer/windows/nsis/preprocess-locale.pl

@@ -1,0 +1,4 @@
+changeset aecbc161d5d139b661903f48efd8c157ddf6af20
+manifest 68444ba5bf5c409aa6340e494a8d48fba96a5672
+author mozilla.mano@sent.com
+files browser/components/places/content/moveBookmarks.js

@@ -1,0 +1,4 @@
+changeset d8aeab7b7e865e7b60e566eb6ae08ca7fe88370f
+manifest b7fff6032177468137ea2c0f028cb53beb0852ed
+author vladimir@pobox.com
+files gfx/thebes/src/gfxPlatformGtk.cpp

@@ -1,0 +1,4 @@
+changeset 1bfc3a8040dab82dcd250e8f937986001f35daa8
+manifest dfbf4d383f8ea6460ea902c70df0f4ce15b2afbd
+extra rebase_source:6029756f6c910d1d201f067379ad2c2838b73b8d
+files xpcom/build/XPCOMInit.cpp

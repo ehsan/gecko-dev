@@ -1,0 +1,4 @@
+changeset c12bfe27e805071c16dbcf95e4024ea24a363eda
+manifest e2cf04a0944ee86170667a140381b0536acdca57
+author timeless@mozdev.org
+files xpcom/glue/nsCategoryCache.cpp

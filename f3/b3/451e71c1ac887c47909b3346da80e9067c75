@@ -1,0 +1,4 @@
+changeset f5081b6adfc4e7e31f301fa5ddf245c656e46d71
+manifest 912b5426f949dc478791636f7fb3e8ae9e9ceb8f
+author enndeakin@sympatico.ca
+files layout/xul/base/src/nsXULPopupManager.cpp

@@ -1,0 +1,4 @@
+changeset bdce3d8236e4a688204e6db9cc65ccafa3bcdd0b
+manifest 8e1c5825ff285e1f63b43d7941507ce7e290ef6f
+author nrthomas@gmail.com
+files tools/release/Bootstrap/Step/Stage.pm

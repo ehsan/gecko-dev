@@ -1,0 +1,4 @@
+changeset 5d4177c57cdb56b285e6d33c9a11c0705d4543a9
+manifest 89e3fdebdeefc5ae9aa72f67c7aec55528db13d7
+author reed@reedloden.com
+files embedding/browser/gtk/src/gtkmozembed_glue.cpp

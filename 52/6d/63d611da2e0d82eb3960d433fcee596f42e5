@@ -1,0 +1,4 @@
+changeset 1ae50858e2faa17ffb090068f6f272780a39cf82
+manifest 00477c337fee30977cbe0f8c0907f3131730a991
+author jwalden@mit.edu
+files toolkit/airbag/nsICrashReporter.idl

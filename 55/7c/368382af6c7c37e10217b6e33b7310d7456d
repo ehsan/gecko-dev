@@ -1,0 +1,4 @@
+changeset 2518714c68dca5d7e2544821299ef8d57e3be872
+manifest b849bcc7d25febee52b10d25a01942840e6e139d
+author neil@parkwaycc.co.uk
+files xpcom/glue/nsStringAPI.h

@@ -1,0 +1,4 @@
+changeset 63e57ff2362aef95443be637ad0ebef9f3bae1a8
+manifest 52bb666132f30fe71b27ab1a003ad24809b223d4
+author mozilla.mano@sent.com
+files browser/components/places/src/nsPlacesImportExportService.cpp

@@ -1,0 +1,4 @@
+changeset c1088a5c4ae4166f281a621df787a6de70223b3a
+manifest 361c54ed908f53ddd82e2d2aec2c8331478d1701
+author mats.palmgren@bredband.net
+files layout/generic/nsColumnSetFrame.cpp

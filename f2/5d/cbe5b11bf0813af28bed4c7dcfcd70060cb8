@@ -1,0 +1,4 @@
+changeset 9e4ee18f745a6d21d97985ebe38d81e556ce15c6
+manifest dfa65529e37d95929c47ae5675f719331eb106a4
+extra rebase_source:b86aa18a1ab7fc35ef6aa8089fd07d54c1669671
+files browser/locales/en-US/chrome/browser/preferences/advanced.dtd

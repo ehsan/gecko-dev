@@ -1,0 +1,4 @@
+changeset 073556b91f46c2d7387355f9b66cce1614513c7e
+manifest 857a1e91be2fd7873f22ccc9617e5ac7b44e1971
+extra rebase_source:cf4ca438261d5bdf115a21d40f1ad4164ccbeaea
+files js/public/TemplateLib.h

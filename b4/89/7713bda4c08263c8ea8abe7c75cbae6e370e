@@ -1,0 +1,3 @@
+changeset d78fa9eb3c9fa0db992e125c63ed34d81fbb3f75
+manifest 7d5045c1960423a8448e009cff7927afab3f20d8
+files extensions/auth/nsAuthSSPI.cpp

@@ -1,0 +1,4 @@
+changeset f66ddf9a9045206b99504cbe9f02c77459ba2d74
+manifest 2faf8673e1ca1e25f6ef74fdbcea45e1101fd22a
+author timeless@mozdev.org
+files content/base/src/nsTextFragment.cpp

@@ -1,0 +1,4 @@
+changeset 3732d343a9eb03deab612f2bea76a81f45a2daf9
+manifest e13f91976903753d26bee70bd20ad2c8e60c369a
+extra amend_source:54f23d7c76e31f59ede5b15c5a777b878abf22d5
+files dom/webidl/Navigator.webidl

@@ -1,0 +1,4 @@
+changeset 49ffa46f4cc98fc75ab5ee0a7639a56f7ec9fd11
+manifest cb00e5c2ba8592e15a8faa1b06cf504426553e70
+author mattwillis@gmail.com
+files content/base/src/nsXMLHttpRequest.cpp

@@ -1,0 +1,4 @@
+changeset b1975d34ea5aa0a47f87edb31a8503cfd5fb82f1
+manifest ceeefe7ec2793ce9124a870384d4e333e1d5021d
+extra rebase_source:eb937c4c8996441eb92b41e2620820f99937ed90
+files toolkit/components/addoncompat/RemoteAddonsChild.jsm

@@ -1,0 +1,4 @@
+changeset 4bc58c803f73c2a0c67bccf3ad16e34fd1d137ce
+manifest f18bb2e5f9d28479a6577f00cce6dc90d3455449
+author ginn.chen@sun.com
+files widget/src/gtk2/gtk2drawing.c

@@ -1,0 +1,4 @@
+changeset e886955ee1b0aa3128414512c12ec2a5edeab33e
+manifest bbfb57eecd3ab1bafe428577dae3f9b38106a749
+author reed@reedloden.com
+files layout/base/nsCaret.cpp

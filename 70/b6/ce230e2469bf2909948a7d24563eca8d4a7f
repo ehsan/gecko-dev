@@ -1,0 +1,4 @@
+changeset 455860e4a4ad7619000d730e5143f2e27487a87c
+manifest f376665717aa063ac3468682f02d4168754bd9c3
+extra branch:GECKO20b7pre_20101006_RELBRANCH
+files dom/base/nsDOMWindowUtils.cpp

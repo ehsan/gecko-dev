@@ -1,0 +1,3 @@
+changeset fc5112c72bba376ecc93191d196abbf4f0f7343b
+manifest 5eafd83a87ea79bfbdcc5cd4d255e258123a2acc
+files netwerk/protocol/http/nsHttpDigestAuth.cpp

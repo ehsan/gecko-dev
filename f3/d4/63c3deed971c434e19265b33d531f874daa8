@@ -1,0 +1,4 @@
+changeset 874203abfc9fba64347340a6c4cd98d782f43e04
+manifest 8c12ee89045382d30587779593b7cf953df9afcb
+extra rebase_source:f5d5bddc797ee50c1b6949875f6fffbd6f0fed74
+files js/src/jit/AsmJS.cpp

@@ -1,0 +1,4 @@
+changeset ce25418d00a8f1e6cee1fcbd323f3038c2e546b2
+manifest 5fd36d0aeb0ddf356d7531b9ff9508864244896c
+extra rebase_source:ed98db39029b6754ad1a7d1abdffa4de51affaeb
+files toolkit/content/aboutTelemetry.js

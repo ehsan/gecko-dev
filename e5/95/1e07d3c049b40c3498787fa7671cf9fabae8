@@ -1,0 +1,3 @@
+changeset 95b207a1b7beec6fca079a21fc8239b7c7761adf
+manifest 9d94cdd9559b9654eb8c5b62f673b63551bd598b
+files storage/src/mozStorageConnection.cpp

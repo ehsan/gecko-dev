@@ -1,0 +1,4 @@
+changeset c9d296faca9f75f38aab4744866c6e81feb8cc0d
+manifest 4ab282923e63ea4135d5ce4624b5d3164a48f36b
+author reed@reedloden.com
+files layout/mathml/base/src/nsMathMLFrame.cpp

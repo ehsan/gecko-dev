@@ -1,0 +1,4 @@
+changeset 4006fe84a89bbf3fbd141f4f4d0c7ea616a18a0b
+manifest f25146ce507b2ff4d96447a0a883a4e70ee78036
+author rflint@ryanflint.com
+files browser/components/places/content/treeView.js

@@ -1,0 +1,4 @@
+changeset 362f621702e630ea930110011995f2514c979223
+manifest 4e8e1dcc8e8f97424d3169bc7c1acd37537e6f92
+extra rebase_source:f4b9e2ccded3844e9384e6f8eb7a801b5e25105d
+files image/src/RasterImage.cpp

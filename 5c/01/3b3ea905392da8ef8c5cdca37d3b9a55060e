@@ -1,0 +1,4 @@
+changeset 429bfa1c5dea5601da90aba52524b302a1472ab9
+manifest 4287abe0b1780c8d53deba94bdc79268e754fe80
+author timeless@mozdev.org
+files dom/src/base/nsJSEnvironment.cpp

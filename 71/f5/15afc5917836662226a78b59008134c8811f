@@ -1,0 +1,3 @@
+changeset 6abe5c9ad11de600f3991e71832732f787c3865c
+manifest b0a1199308ba365c3f35deb9e7267c491ec68ea7
+files dom/src/geolocation/nsGeoPosition.cpp

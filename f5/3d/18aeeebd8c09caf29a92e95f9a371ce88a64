@@ -1,0 +1,4 @@
+changeset 0fafe1819d1d3be018d0365e9b01a2ac07a1bdd9
+manifest af082a80a41b3bf682f0b4282999acdf9604742a
+extra rebase_source:410af9c91a7b9eac23b3870f4921b2d2d0efc9a7
+files browser/components/places/src/PlacesUIUtils.jsm

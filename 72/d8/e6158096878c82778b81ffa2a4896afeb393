@@ -1,0 +1,4 @@
+changeset 802eb411466f8538432fb5ed4159fc56542b84c5
+manifest 9cbfabd0f2f91b7fe4cf0b69782dc16aede9202e
+author bjarne@runitsoft.com
+files content/base/src/nsCSPService.cpp

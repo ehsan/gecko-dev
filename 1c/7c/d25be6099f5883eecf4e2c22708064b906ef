@@ -1,0 +1,4 @@
+changeset 6697d4740263e933475fbac6d26556a908dea9ab
+manifest 3978662f253bee8874a0cbed51b88e680ce3870e
+extra rebase_source:75a15479fd45f9e6a6092356ff96fb26d5f27338
+files content/base/test/chrome/file_bug549682.xul

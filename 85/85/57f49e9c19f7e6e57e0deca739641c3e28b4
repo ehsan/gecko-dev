@@ -1,0 +1,4 @@
+changeset 7c7524e8638cea3ab1b4514c492543ebaa48d3d6
+manifest c4cebe0f6e1e3f1c697991c09cd0b69f69a78d58
+author octoploid@yandex.com
+files dom/base/nsJSEnvironment.cpp

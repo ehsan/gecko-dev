@@ -1,0 +1,4 @@
+changeset 4bc9eda0f9900ffd90d24b10ab3d706ab6a818a9
+manifest 791c4d52dee5d49d805300d62396c164574f7a16
+author dolske@mozilla.com
+files toolkit/components/passwordmgr/src/nsLoginManager.js

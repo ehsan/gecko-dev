@@ -1,0 +1,4 @@
+changeset 832c3f953f995ac665d69684631b53fe6b969257
+manifest ccaee79e10583fe874069a3f63796f76dfd161b4
+extra rebase_source:be77ad9f7b833f32c8b6a0efe389836abc758bd4
+files hal/Hal.cpp

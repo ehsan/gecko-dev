@@ -1,0 +1,4 @@
+changeset aa3ad67bc4421138e73a48ddf1aab37989326a5b
+manifest 3e8786bf6380c8c95245ed8590b602812f86ce33
+author kairo@kairo.at
+files build/macosx/universal/flight.mk

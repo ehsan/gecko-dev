@@ -1,0 +1,3 @@
+changeset f6a427e470ecee500ed454d89c567dcd514bf76a
+manifest 1ba6b5ef9405d6779f93ee45dd482a6e518b3dac
+files dom/public/idl/geolocation/nsIDOMGeoPositionErrorCallback.idl

@@ -1,0 +1,5 @@
+changeset 86e10b84313b6eb4080f1ffc129787d4f5591952
+manifest 0be1bdbd3c320f7f5955d30f1558b9b2d4146eb6
+author Julian Seward <jseward@acm.org>, Benoit Girard <bgirard@mozilla.com>
+extra rebase_source:c156458305645abe6e2fa39697c3281f24588822
+files gfx/qcms/iccread.c

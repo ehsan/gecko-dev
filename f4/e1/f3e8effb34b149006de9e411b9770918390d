@@ -1,0 +1,4 @@
+changeset 67deef1ee0eb7fe7d325657905f8f25b507a327f
+manifest 39d43cd883d7c10cb12e472c7b89dabd43551b60
+author mats.palmgren@bredband.net
+files docshell/base/nsDocShell.cpp

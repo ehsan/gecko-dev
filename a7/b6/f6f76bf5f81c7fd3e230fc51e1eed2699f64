@@ -1,0 +1,4 @@
+changeset 4cb683e8c0f734d8ef978e60e6599d6f69fd6046
+manifest 4127bd2056022eae2deb0bc26f9b3c15f1ee12e0
+extra branch:GECKO20b7pre_20101006_RELBRANCH
+files content/xbl/src/nsBindingManager.cpp

@@ -1,0 +1,4 @@
+changeset e807ec425ad7c1e7f33879e3ded44101ba335b72
+manifest c2fd488b14188e450fb901c43c864918ca2b5fb1
+author timeless@mozdev.org
+files toolkit/components/viewsource/content/viewSource.js

@@ -1,0 +1,4 @@
+changeset 5676d91f4d1cbdf9cc6646ce34ba8460bf9c0b6f
+manifest d0ff81054582564accf65458b0ccb46d945ea78f
+extra rebase_source:9deb4628ef4a60bec06a9adba93c6d77458e8b13
+files services/sync/tests/unit/test_crypto_keypair.js

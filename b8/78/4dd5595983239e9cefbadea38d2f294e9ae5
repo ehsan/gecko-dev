@@ -1,0 +1,3 @@
+changeset ba8acd80e51bb90e3d7100f4fbf6ca7fd0ec11b3
+manifest df4f54826416356b18916205ecb37a6b386af957
+files js/src/jsapi-tests/testCloneScript.cpp

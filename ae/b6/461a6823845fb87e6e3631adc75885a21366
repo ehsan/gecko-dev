@@ -1,0 +1,4 @@
+changeset 4730cae26d3e265cecdc571cc8306a76e172c9b6
+manifest 9f39e03384a6e9c3898b07c8fd6982d90d9efd4b
+author axel@pike.org
+files testing/tests/l10n/lib/Mozilla/CompareLocales.py

@@ -1,0 +1,4 @@
+changeset 052a96664eba9433af0f58a515b25f53b770a02b
+manifest 19ecb9ce28454f2af59dde8dcd973449cc1e1495
+extra rebase_source:d227076d5d83bf69fff53f6af4bbe9f6d7f7fa3a
+files netwerk/base/public/nsNetUtil.h

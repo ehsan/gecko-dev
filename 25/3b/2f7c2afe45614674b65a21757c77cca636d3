@@ -1,0 +1,4 @@
+changeset 503d8204a3418f8e5c31a175166246f2a33e07b7
+manifest be9fe410d4ad8b59a3bc4439dae4037d4fdc712f
+author brendan@mozilla.org
+files js/src/jslock.c

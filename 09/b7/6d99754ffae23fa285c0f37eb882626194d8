@@ -1,0 +1,3 @@
+changeset 08018668136ea90fd1c126641849cb9c1878288b
+manifest 51778029a80f11e787dc4ec505446a9160eadfe0
+files js/src/tests/ecma_6/extensions/TypedArray-set-object-funky-length-neuters.js

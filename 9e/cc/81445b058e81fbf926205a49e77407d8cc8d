@@ -1,0 +1,4 @@
+changeset 2b6d6b69999885bbb175d77b9004100b6a00d395
+manifest 28dc42880154262116e8f0a02a5f960f288a07f1
+author dholbert@cs.stanford.edu
+files layout/generic/nsSimplePageSequence.cpp

@@ -1,0 +1,4 @@
+changeset 80231ab567d3b92f451d336b5b385845c84f4b57
+manifest 172f25383b6fa00b51cb07f1706315cc741ecade
+author roc+@cs.cmu.edu
+files layout/style/nsRuleNode.cpp

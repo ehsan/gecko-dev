@@ -1,0 +1,4 @@
+changeset c35bce5a933d0591958cf35f983e7d75a57275b2
+manifest 0cf513e8d94e81976ab2685a36146121ee74d74f
+author jwalden@mit.edu
+files toolkit/components/autocomplete/public/nsIAutoCompleteSearch.idl

@@ -1,0 +1,4 @@
+changeset 441c2a4b1ddebbf17c9d23d37bc3d6c2229a3532
+manifest f8ffcac89d3ec98a2b6551fdf143334bb098e5be
+extra rebase_source:6df6f2810a71bc6331be54708516bbafb24ea5c0
+files mfbt/TypeTraits.h

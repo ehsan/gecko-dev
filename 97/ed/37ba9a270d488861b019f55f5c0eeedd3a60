@@ -1,0 +1,4 @@
+changeset ed0588fb7d480128740eac2fcf02457252a4a616
+manifest bfa890a500dfc40d732968f1ca4fd1918b5e0eab
+author jwalden@mit.edu
+files xpcom/ds/nsExpirationTracker.h

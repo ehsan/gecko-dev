@@ -1,0 +1,4 @@
+changeset b79ada0b29ead71f2d78221d577511afb8f87d4f
+manifest 10ba2c072344c73247e038e9d009c01e182555da
+extra rebase_source:e923c9b112a7e64cc58796114a24ea8382b92ca1
+files browser/devtools/inspector/inspector-panel.js

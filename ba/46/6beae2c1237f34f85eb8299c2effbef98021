@@ -1,0 +1,4 @@
+changeset 1a67441c1fe0862dad2c7fb4cee98ff412fc16e8
+manifest 086e153719880408d1e42c5a6732cc7719f8445f
+author dietrich@mozilla.com
+files browser/components/places/tests/browser/browser_425884.js

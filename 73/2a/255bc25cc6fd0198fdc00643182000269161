@@ -1,0 +1,3 @@
+changeset b84e21604bc425638749bf45089077fe978e09b2
+manifest 48d206626e04b9c1dc0e2c9d897c0826e6b976e1
+files image/encoders/bmp/nsBMPEncoder.cpp

@@ -1,0 +1,3 @@
+changeset b5b3993fd079903c042d35ab530cfa613e9f2416
+manifest 82dd584c743776faa193c7c50decc0565ea2cf4b
+files toolkit/components/telemetry/nsITelemetryPing.idl

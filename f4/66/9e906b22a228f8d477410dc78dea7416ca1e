@@ -1,0 +1,4 @@
+changeset 5ae4e82e6e81bbb962ef16c043f6cbb9c9131d23
+manifest 3a439d5c6b0b43271ea2183f2f377bbd4dd13635
+author mats.palmgren@bredband.net
+files xpcom/proxy/src/nsProxyObjectManager.cpp

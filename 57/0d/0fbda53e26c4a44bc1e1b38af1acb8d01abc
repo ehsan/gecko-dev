@@ -1,0 +1,4 @@
+changeset cff1deda95579fd70cfc0acd8cb591156ccad3b3
+manifest 0424786a9a66dce1be4e8c99c56d4f2bd3bf8bc9
+author bryner@brianryner.com
+files toolkit/components/passwordmgr/content/passwordManager.js

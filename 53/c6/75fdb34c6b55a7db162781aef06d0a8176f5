@@ -1,0 +1,4 @@
+changeset 42750f461e9538db90ba895b458ab4e497198007
+manifest 26dad58174b0a914ffed4b6d182428524df9e182
+extra rebase_source:0e55b0ae7c140fa38f4089148a7a532171f4cf84
+files browser/components/uitour/UITour.jsm

@@ -1,0 +1,4 @@
+changeset 4e1f1ce55688dfd0b443186909ce0aa86d816a59
+manifest 914e0099ecdae1fcd210823d3554e7088bcb9047
+author bsmedberg@covad.net
+files toolkit/components/places/public/nsIBrowserHistory.idl

@@ -1,0 +1,4 @@
+changeset 36d60c36b23608a864783664897e23a9a3395990
+manifest e07af93a0bf0ca20c6af8d111e6a25996192726c
+extra rebase_source:cf77ff0b22a4333fc662d722cda12f398b35b410
+files browser/themes/linux/searchbar.css

@@ -1,0 +1,3 @@
+changeset e32ba820b8ce1862243989dc4c64ba7a5bd3f41c
+manifest 033fcb2a1c77601bbb2a318cd261ea3484c3c921
+files js/src/jit-test/tests/arrow-functions/bug-885067-2.js

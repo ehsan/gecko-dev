@@ -1,0 +1,4 @@
+changeset 6c4e1568b34bb2cb12c7b9278064e5bde4926067
+manifest 7fb12eb15888084332a69ad4e013f721c2f0c979
+author rhelmer@mozilla.com
+files tools/release/bootstrap.cfg.example

@@ -1,0 +1,4 @@
+changeset 77ebe1d895f346e929fd4953d00594102abc0641
+manifest 8f1fbe9719886ecb8ac948c7675059048ba9b2ef
+author roc+@cs.cmu.edu
+files xpfe/appshell/src/nsWebShellWindow.cpp

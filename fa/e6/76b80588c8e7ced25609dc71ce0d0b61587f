@@ -1,0 +1,4 @@
+changeset db0fac9fe572df20bf9bfdbe74d05b8f095bc1ae
+manifest e429e7925c2827d0b3cb18848decc97250ccb01e
+author dolske@mozilla.com
+files toolkit/components/passwordmgr/test/test_basic_form_autocomplete.html

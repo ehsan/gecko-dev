@@ -1,0 +1,4 @@
+changeset 11f1f087685c7182d027444844751a8404be0fe8
+manifest 9f82f7d82aba2bfada3e58274606aa3663774eb1
+author mconnor@myrealbox.com
+files toolkit/components/places/public/nsIBrowserHistory.idl

@@ -1,0 +1,4 @@
+changeset 7a465074325ad74ce6b72d2d0df5074e24d2bfcd
+manifest 36409f5cd9038d9d3a81e858e2501e79f7b475ea
+author dolske@mozilla.com
+files toolkit/components/satchel/src/nsFormFillController.cpp

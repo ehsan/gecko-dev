@@ -1,0 +1,4 @@
+changeset cc9f97f7722600d81e9ba5440fbfc10cf1eb35dd
+manifest f6c3e6717bf32e63ccd419bf9de49a12c0b055ce
+author jdaggett@mozilla.com
+files gfx/thebes/src/gfxFontUtils.cpp

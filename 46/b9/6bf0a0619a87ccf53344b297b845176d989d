@@ -1,0 +1,4 @@
+changeset cebfb36e95f3f0f9422af4b079052656db2b3c30
+manifest b841c62966b2692d761e4398355b1c0082ed06f0
+author nrthomas@gmail.com
+files tools/release/configs/fx-moz19-staging-bootstrap.cfg

@@ -1,0 +1,4 @@
+changeset 51c9b9433ba98dba32cd81a0eea529efa40cdde5
+manifest 211c86c2130eb7956eca0cdd1280b62368a7b2ca
+author vladimir@pobox.com
+files content/canvas/src/nsCanvasRenderingContext2D.cpp

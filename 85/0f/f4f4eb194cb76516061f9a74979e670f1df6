@@ -1,0 +1,4 @@
+changeset 9bbc487fe141075cb9720910994d750fd18c876d
+manifest f2c1371210643036cf64c9ca079f37f36cf11683
+author reed@reedloden.com
+files widget/src/gtk2/nsPrintSettingsGTK.cpp

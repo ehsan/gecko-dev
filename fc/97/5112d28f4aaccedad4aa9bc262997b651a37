@@ -1,0 +1,4 @@
+changeset 21f1d29d15ace1b44c617b2dca319ceabdc8e6b5
+manifest 9c8f30e1fdb4c8ee029b574e6f3dd2abdfd7c721
+author surkov.alexander@gmail.com
+files accessible/tests/mochitest/test_table_indexes.html

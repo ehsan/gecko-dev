@@ -1,0 +1,4 @@
+changeset e92e49066140a7d9c821f84eeebd38a2c9ec43d0
+manifest d6e61f673cef3cd1bbefb971ecfd6d7e7d80a4db
+author mats.palmgren@bredband.net
+files modules/libpr0n/encoders/png/nsPNGEncoder.cpp

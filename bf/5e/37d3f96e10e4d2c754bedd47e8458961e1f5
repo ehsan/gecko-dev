@@ -1,0 +1,4 @@
+changeset 82f88f349519207bca3adae03214224ebb5c3b19
+manifest 18cdc80ca38f0da59fad968a8e5d19740118991c
+extra rebase_source:1d7a6be5ee0b090b9a4cf73158b1588eaef55390
+files ipc/chromium/src/chrome/common/transport_dib_mac.cc

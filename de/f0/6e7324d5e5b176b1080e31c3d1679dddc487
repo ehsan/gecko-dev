@@ -1,0 +1,4 @@
+changeset c7f7b6728c09d4371b442cd7a2931b00e982f709
+manifest ba502000bb2f2e3af98db7046272535eab532f9e
+author roc+@cs.cmu.edu
+files layout/generic/nsFrame.cpp

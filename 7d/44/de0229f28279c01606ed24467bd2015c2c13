@@ -1,0 +1,4 @@
+changeset 76a272052164c6fce9b8f37f1750525bd72938ab
+manifest 3aad3f1671ec13eb850a069b0a645624ddf59c9e
+extra rebase_source:c75b9802b3b30c5ddb6eecaa33d99af0170c80b4
+files toolkit/devtools/server/actors/webbrowser.js

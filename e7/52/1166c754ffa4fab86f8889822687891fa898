@@ -1,0 +1,4 @@
+changeset 40035d026cdb448d464e5e8713917c2660c456c4
+manifest 02466667e6b96fee0a1f97b61ca0eb32a15a2951
+author reed@reedloden.com
+files docshell/base/nsWebShell.cpp

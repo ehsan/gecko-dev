@@ -1,0 +1,4 @@
+changeset c8164be42671c8ee8160c218147da219c507253f
+manifest 3bfe2e1523e64b7f19a85f5db998d5c8fd4ee256
+author ctalbert@mozilla.com
+files testing/extensions/community/chrome/content/tabs/bugAccess.js

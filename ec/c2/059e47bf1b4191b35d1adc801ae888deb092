@@ -1,0 +1,4 @@
+changeset 856d4c0d72ada04a09ad509afad1f1e27b35589c
+manifest 6f00188d44fffae6bcc0b5b6884ceeb5c8533de8
+author dveditz@cruzio.com
+files modules/libpr0n/decoders/xbm/nsXBMDecoder.cpp

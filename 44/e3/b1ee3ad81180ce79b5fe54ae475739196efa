@@ -1,0 +1,3 @@
+changeset d41ef524608be3e9ae7f10d4921b8d575f138d2c
+manifest 8b624e24dbefd2b5ba1730d3fa7a69ac2f3a94e4
+files js/src/methodjit/FrameState.cpp

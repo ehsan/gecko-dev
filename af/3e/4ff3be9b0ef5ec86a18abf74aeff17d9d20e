@@ -1,0 +1,3 @@
+changeset 7afade8acb581b3b7125263526c162329a9e5f7c
+manifest cdf8ae571ab05fd728d1975b0c6a418d3194030f
+files js/src/trace-test/tests/basic/testBug555484.js

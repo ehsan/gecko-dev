@@ -1,0 +1,5 @@
+changeset fd284df37f4fefaac5c67e6feec79b80c00b7b08
+manifest ceb68b06a84499e7f56e93c939f530b19b9aff17
+author timeless@mozdev.org
+extra rebase_source:da85de78f8bde67ffe713228b0a2b22bd3a4836d
+files layout/base/nsPresShell.cpp

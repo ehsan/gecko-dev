@@ -1,0 +1,4 @@
+changeset 190a0c5ed86e208f644763ce59cb7763b74ffb98
+manifest 6a40cbe820690cf9d7198d7b7a6c950b67afdcfa
+author rflint@ryanflint.com
+files toolkit/components/startup/src/nsTryToClose.js

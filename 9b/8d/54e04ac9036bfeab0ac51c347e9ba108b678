@@ -1,0 +1,4 @@
+changeset 1d079a587a997c19c22624bc3a4645dbe063ebb4
+manifest 225720c7a853f6c86ff0442b3b9912a91ec1c6aa
+author mozilla@weilbacher.org
+files widget/src/os2/nsWindow.cpp

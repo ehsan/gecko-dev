@@ -1,0 +1,4 @@
+changeset af28791d0ff3bf27076cb16963015a6ca3e2385a
+manifest c0183747e58e3697b14adcfbef43a8ba6c9d663c
+author bzbarsky@mit.edu
+files content/canvas/src/nsCanvasRenderingContext2D.cpp

@@ -1,0 +1,4 @@
+changeset 4d803a40e2004c27ebdf03496201342f05debaed
+manifest 08399d19520cc6bb515c27dc07513386ca4e8291
+author benjamin@smedbergs.us
+files rdf/chrome/src/nsChromeRegistry.cpp

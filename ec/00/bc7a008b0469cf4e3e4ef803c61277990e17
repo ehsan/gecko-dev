@@ -1,0 +1,4 @@
+changeset a0e7b20409ecc7cf0a0556d68fc1f395cc420117
+manifest 97ed71684ab2853927c41dfe200dd20ef323bcde
+author bzbarsky@mit.edu
+files content/html/content/src/nsHTMLSharedObjectElement.cpp

@@ -1,0 +1,3 @@
+changeset caba33c2fc551700518a0992d7d3cd1258403dd1
+manifest dea62da89a70f99ac165f0a1aca66e8dec6f15c0
+files browser/devtools/scratchpad/test/browser_scratchpad_reload_and_run.js

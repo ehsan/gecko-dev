@@ -1,0 +1,4 @@
+changeset bf9e6ecce04fe7e6f00f943615f8dfc727d24dca
+manifest dd97c1f63e7f78977e5456bde710bbcc9bd96bad
+author mozilla@weilbacher.org
+files config/static-config.mk

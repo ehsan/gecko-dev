@@ -1,0 +1,3 @@
+changeset 691e52f72ecada7fe0ebfad4291009526643e4df
+manifest 4ba4fc8536dfda1956405ccf7281e7d146b76554
+files netwerk/test/unit/test_XHR_redirects.js

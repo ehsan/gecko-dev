@@ -1,0 +1,4 @@
+changeset 06c253791ae099dea008d5fc699af9db56dc7cc8
+manifest 0fb8cfedf5f7d8c72db31ed33a588279c982c8c2
+extra rebase_source:3fea7a8d9f965e921bb2744b8588f241e2e7c843
+files js/src/jsfun.cpp

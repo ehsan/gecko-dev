@@ -1,0 +1,4 @@
+changeset 68707c3642906a43702839252d4242666c041fea
+manifest e2fc509d7c4188729aa2d7a81b1d474a3c62ea76
+author timeless@mozdev.org
+files js/src/jsxml.cpp

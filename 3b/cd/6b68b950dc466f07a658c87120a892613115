@@ -1,0 +1,4 @@
+changeset b720479dda6c2322544b340aa3fce482f14329aa
+manifest 2918c97ee7b52676fc12d75b320b8f5716350f6b
+author mozilla@weilbacher.org
+files widget/src/os2/resource.h

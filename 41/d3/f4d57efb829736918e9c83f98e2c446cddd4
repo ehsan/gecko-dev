@@ -1,0 +1,4 @@
+changeset 80a39a58d66aa2a48525806db3faccb9a32d449a
+manifest a5850311163b27974e3d1dbe163249fcdf34074e
+extra rebase_source:c5dcaec1516041578c9db5af4682b52a0c67d1d0
+files content/svg/content/test/test_pointer-events-2.xhtml

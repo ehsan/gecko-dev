@@ -1,0 +1,3 @@
+changeset bcc9219555af62fd89cb1fefe73b2805738deba9
+manifest c6f4515dde2fea10b152f82e7958e4a7f55b053e
+files image/decoders/nsGIFDecoder2.cpp

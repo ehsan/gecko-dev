@@ -1,0 +1,3 @@
+changeset 3e529daa34f7272ff6313494822df0b7cca3697f
+manifest 30c3cc2ba86e4f9ee5186c0da18099b54e8f1e30
+files js/src/jit-test/tests/SIMD/bug1130845.js

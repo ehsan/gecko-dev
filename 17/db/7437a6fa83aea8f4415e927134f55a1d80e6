@@ -1,0 +1,4 @@
+changeset 42eed3c1e7a0be08d0f04ab2a566488b60773dcc
+manifest da3bc72f3336aa214d079384d7e323903695470d
+author neil@parkwaycc.co.uk
+files xpcom/glue/nsGREGlue.cpp

@@ -1,0 +1,5 @@
+changeset 3a54d39f2fbb1bde6277c79809001f07e367a512
+manifest c256a643a6f8668c8bee620cbcfc4a22332ebcf7
+author timeless@mozdev.org
+extra rebase_source:980ab566cc21a492ca8b616a3eb39514b02d910d
+files content/base/src/nsInProcessTabChildGlobal.cpp

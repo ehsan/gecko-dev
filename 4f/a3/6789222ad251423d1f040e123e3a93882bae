@@ -1,0 +1,4 @@
+changeset 5a4573e43541fbba69cb56c83033a2c6e0d46dcc
+manifest fc0541068c15a452a1bad0f3a4f5f8063a287555
+author bzbarsky@mit.edu
+files layout/generic/nsFrameFrame.cpp

@@ -1,0 +1,4 @@
+changeset 4f795a0e76090504286f4a4bd14c3047c8c6d5cf
+manifest e69a75001c82dcb6d7a5413936bf36ac75a919a4
+author reed@reedloden.com
+files content/xml/document/src/nsXMLContentSink.cpp

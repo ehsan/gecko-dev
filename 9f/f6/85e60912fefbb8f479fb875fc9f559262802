@@ -1,0 +1,4 @@
+changeset b2187250a3bfee709c47b771ad644729b53ee5ae
+manifest bd72b0150bdb2a9a67304c0cfbffc00b0dc4e615
+author gavin@gavinsharp.com
+files gfx/src/thebes/nsThebesDeviceContext.cpp

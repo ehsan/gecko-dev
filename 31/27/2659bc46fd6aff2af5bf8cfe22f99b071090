@@ -1,0 +1,4 @@
+changeset d380b138a997d5ad3171e1b6e6b444126e2f030c
+manifest e67586f5d35498e750ac8bceb677601afae91b8c
+author jonas@sicking.cc
+files content/base/src/nsGenericElement.cpp

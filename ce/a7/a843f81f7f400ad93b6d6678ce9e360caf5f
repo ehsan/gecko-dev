@@ -1,0 +1,5 @@
+changeset 67dc889892895a9a9ce81d84bf55c86dc8ba4a7a
+manifest 6e81e22d43f4d2667b439887741c78856bd7a2fe
+author timeless@mozdev.org
+extra rebase_source:c3499b2ede5c0a4ebe0725e5e01d9813d6a17342
+files ipc/testshell/XPCShellEnvironment.cpp

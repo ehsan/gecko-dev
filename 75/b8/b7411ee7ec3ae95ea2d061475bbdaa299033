@@ -1,0 +1,4 @@
+changeset 680f1692d750c38fd7127d8ac210892d050a2cf7
+manifest 03ced9043a6d023ce6e9b2071e1b0e945e03c66b
+author reed@reedloden.com
+files netwerk/base/src/nsSocketTransport2.cpp

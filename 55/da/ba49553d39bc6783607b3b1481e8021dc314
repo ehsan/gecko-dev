@@ -1,0 +1,4 @@
+changeset 8bb9c85397f27cab447cf80cdcb6ff54bc9873e6
+manifest 7e858625c7b6cf561ab7a4f8a78cfb7d8bbccc2b
+extra rebase_source:005e5953ac65f0d746b16cebb0e5904f90fddbe3
+files dom/canvas/test/_webgl-conformance.ini

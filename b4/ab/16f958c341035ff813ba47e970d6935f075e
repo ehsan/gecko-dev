@@ -1,0 +1,4 @@
+changeset 1d0ce0fded61850493fb34194ef7772e61c92142
+manifest 36a14d42cd67b88bebdeb5cbae8231cb89b171c7
+author jst@mozilla.org
+files js/src/xpconnect/src/XPCWrapper.h

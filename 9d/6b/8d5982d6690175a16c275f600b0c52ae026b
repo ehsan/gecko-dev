@@ -1,0 +1,3 @@
+changeset e1e7603c2455d33cbbf4660ab92af33c8b98cad8
+manifest 344df3d7ebec3459907a34ea6a8846d96d99baaf
+files testing/mozbase/mozlog/mozlog/structured/formatters/machformatter.py

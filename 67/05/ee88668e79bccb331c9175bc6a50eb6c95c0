@@ -1,0 +1,4 @@
+changeset d7e3b4b3ebef875fc27b2699c12688b99620b9ce
+manifest c7cfba0fb45c3718e4b030896e74c0cb50a214c1
+author sspitzer@mozilla.org
+files browser/components/migration/src/nsOperaProfileMigrator.cpp

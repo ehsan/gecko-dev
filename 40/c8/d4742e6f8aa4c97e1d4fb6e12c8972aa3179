@@ -1,0 +1,4 @@
+changeset 57ace2f00d62a5cea0d4cad271d97d6047fbf4d9
+manifest 5229a395c2b8e1ed60994cd92a18a7ab9059561d
+extra rebase_source:17f97c7fe10e5cdf13b781e1799affe464d99489
+files widget/src/gtk2/nsSound.cpp

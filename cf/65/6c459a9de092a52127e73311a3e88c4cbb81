@@ -1,0 +1,4 @@
+changeset 04d032f0e79a3311b226dabb4e6343fc7598806d
+manifest b9535903229b79811620d34fcab3af60f4c23d04
+author igor@mir2.org
+files js/src/xpconnect/src/xpcjsruntime.cpp

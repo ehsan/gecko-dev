@@ -1,0 +1,4 @@
+changeset 6758bd80a83e457842286f1e8a909dcc074ec2de
+manifest 7f43c0e76e8f3b3e411fd5699c4dc2b2f11f3efb
+author jst@mozilla.org
+files js/src/xpconnect/src/XPCDispParamPropJSClass.cpp

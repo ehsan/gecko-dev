@@ -1,0 +1,4 @@
+changeset 477b39c34d7dc4bbaa47ce8268fa65f0f14d725a
+manifest 1a2dfd2ef82ee362386aacd65917d8409bc9d9ff
+author timeless@mozdev.org
+files embedding/components/webbrowserpersist/src/nsWebBrowserPersist.cpp

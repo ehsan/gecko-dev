@@ -1,0 +1,4 @@
+changeset 568056abc91eb5f00194b29b4548dfe1daf06592
+manifest 1f74e7f7372cd1e9cfddf1d19447d9f86fdeeea3
+author timeless@mozdev.org
+files netwerk/protocol/http/nsHttpTransaction.cpp

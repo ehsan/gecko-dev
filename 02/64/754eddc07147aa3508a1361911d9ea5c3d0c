@@ -1,0 +1,4 @@
+changeset 43ab8b5c4607294f449bd156613699918f842458
+manifest 653772ad6ce9db4c9fd95cab4c6ad7de25d03f72
+author bzbarsky@mit.edu
+files caps/src/nsScriptSecurityManager.cpp

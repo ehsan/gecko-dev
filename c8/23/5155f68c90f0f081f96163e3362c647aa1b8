@@ -1,0 +1,4 @@
+changeset 65e02a60d3dd243ef79fb348380bf96e0b52720b
+manifest d81f02bbaf069d2bd498ecfb5e6a494c91c0aa99
+extra rebase_source:970b91446c7703966aa6f397ac40d8d9d486f796
+files js/src/gc/Barrier-inl.h

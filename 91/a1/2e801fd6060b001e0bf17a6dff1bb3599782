@@ -1,0 +1,3 @@
+changeset e37f82e0226e1d9ef4d5d32474244054ec8ec606
+manifest dc7bb13aa72275c1b71bf1482ef36adc319a9846
+files widget/src/gtk2/nsScreenManagerGtk.cpp

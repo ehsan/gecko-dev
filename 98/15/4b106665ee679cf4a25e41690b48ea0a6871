@@ -1,0 +1,4 @@
+changeset fe2896854ba5183e9feeb7213ac34eb0fb1f1c6e
+manifest fcc6a143a1d4693b97244968cd8ffc7d2c5a7c28
+author bzbarsky@mit.edu
+files content/base/src/nsContentIterator.cpp

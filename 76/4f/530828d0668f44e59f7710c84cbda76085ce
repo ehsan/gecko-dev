@@ -1,0 +1,3 @@
+changeset ebdb460678416494d04679491e1041fa8ac673a5
+manifest 1e220bc580e685a7b799ff9cc5f53f96c202f76a
+files services/sync/tests/unit/test_service_detect_upgrade.js

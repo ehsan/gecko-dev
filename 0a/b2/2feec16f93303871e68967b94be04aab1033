@@ -1,0 +1,3 @@
+changeset df3e012d42e339e719946d0224045df6d5a44eeb
+manifest c95d3f9d96cc89d355a525b3b3f5cdaae64b285b
+files browser/components/sessionstore/src/TabState.jsm

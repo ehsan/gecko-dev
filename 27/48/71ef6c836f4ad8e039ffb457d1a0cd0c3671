@@ -1,0 +1,3 @@
+changeset 3c0945f95ceba234945d7569a3e598c792c6c3d7
+manifest 2f2a143cccd0c1002e097ca65fec065e73d70fb3
+files dom/tests/mochitest/localstorage/Makefile.in

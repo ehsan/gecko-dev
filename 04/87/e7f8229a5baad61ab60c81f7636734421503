@@ -1,0 +1,4 @@
+changeset 2566329e44b954a9ac17788bef9f0d85eb38e552
+manifest cc6b50652b246cfd8fafd00acbb7361bc4cbb371
+extra rebase_source:1e67861478026dfa65b61a31e3272970a7094094
+files media/libspeex_resampler/src/moz.build

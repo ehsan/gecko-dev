@@ -1,0 +1,4 @@
+changeset 6678a86085860e89b1981de9135683e51713493d
+manifest 11e3973c5da4073585309e779e8ad603c8e642a1
+extra rebase_source:6f758e737c2092214ec3185be847f2c5da406be0
+files browser/base/content/tabview/iq.js

@@ -1,0 +1,3 @@
+changeset d556e6f60f4f34c4fecb997598906333658f3ab7
+manifest c49fd062752402440eeecd16ab24e2c67942057f
+files js/src/methodjit/InlineFrameAssembler.h

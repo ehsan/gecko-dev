@@ -1,0 +1,4 @@
+changeset 41ea0ce69d86b6abb987f87359cf1bc55f8cde88
+manifest f2da3b81e7c44e3a3813dfd56b60ffe410c4e51c
+author myk@mozilla.org
+files layout/base/nsPresContext.cpp

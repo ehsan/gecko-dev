@@ -1,0 +1,4 @@
+changeset bd8e25d793ebecc8ced58cbbe31befd27758d100
+manifest 9d66dd98735382d873dbc6681efdf228b3c18fe2
+author cbeard@chris-beards-computer.local
+files services/sync/nsBookmarksSyncService.js

@@ -1,0 +1,4 @@
+changeset 84896936f0d4a9e742f5e404fc405c0347867070
+manifest 65afa15b82327432fb2f28b49e0d61cb4bf0148f
+extra rebase_source:e649e638acdeea8ba93f9822ce16d2b984b28e49
+files browser/base/content/test/browser_URLBarSetURI.js

@@ -1,0 +1,3 @@
+changeset 97ef51f7f37a1dae8da2895bf53fd56d3d5240e3
+manifest e75d63fa61eaa78a3545d8294b05629d309ddb7b
+files toolkit/components/contentprefs/tests/unit/test_bug248970.js

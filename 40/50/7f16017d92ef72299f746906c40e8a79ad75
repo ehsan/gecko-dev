@@ -1,0 +1,4 @@
+changeset a884555d99c53687a2dfd9f84389eeeb851bc466
+manifest 97518605bd181af4089c4f9670d9da006a802b73
+author Daniel Veditz <dveditz@mozilla.com> / Reed Loden <reed@mozilla.com>
+files modules/libpref/src/init/all.js

@@ -1,0 +1,4 @@
+changeset d6d74250a8bfaf5c14c6fd4d9b898e4e09f7398c
+manifest 234a85b272445d31b13e0586d4d57b46eb9ecf6e
+author axel@pike.org
+files testing/tests/l10n/lib/Mozilla/Parser.py

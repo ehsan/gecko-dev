@@ -1,0 +1,4 @@
+changeset 86d0c2f9e1280e143e5595375abe405b58daa4d0
+manifest 9c3fbd16e34199fadae5ea443fce76e5b30ba1fa
+author timeless@mozdev.org
+files intl/uconv/src/nsCharsetConverterManager.cpp

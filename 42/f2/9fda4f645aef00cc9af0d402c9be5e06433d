@@ -1,0 +1,4 @@
+changeset 5f349409c9d5b0b5c6b8d9046e0a365110f2cf10
+manifest fd48260802e91b85c68cb52793ef26700aacf1ab
+author mats.palmgren@bredband.net
+files gfx/thebes/src/gfxTextRunWordCache.cpp

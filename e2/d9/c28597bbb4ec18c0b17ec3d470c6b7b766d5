@@ -1,0 +1,4 @@
+changeset 2700d6caffb845461c3516abbe7983afa7841504
+manifest 3f795a51799cc7c16f05d3f763c6eaecfac6c644
+author mats.palmgren@bredband.net
+files parser/htmlparser/src/nsParser.cpp

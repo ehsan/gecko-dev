@@ -1,0 +1,4 @@
+changeset c2d5c4952beff009bd8f2acee84079022b051e76
+manifest 343866720c1b2e94656a755be3eee4a2aab5264e
+author philringnalda@gmail.com
+files widget/src/gtk2/gtk2drawing.c

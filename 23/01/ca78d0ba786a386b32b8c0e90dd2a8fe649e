@@ -1,0 +1,4 @@
+changeset 14810f6dd6a78b6d5eaa41fac21180ab25ea6461
+manifest e7997200181335a5cf4c9c9791b02f3d7e06aa42
+extra rebase_source:9e496216be05e2e5c901547d6b387e086244e67f
+files mobile/xul/chrome/tests/browser_sessionstore.js

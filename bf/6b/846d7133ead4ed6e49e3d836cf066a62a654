@@ -1,0 +1,4 @@
+changeset b2bd76c430e22fda2bdfa6d1ceb876d858adc0c5
+manifest 12cca16850f84bac5e6d2c78ca0e8400f21ed4ec
+author Olli.Pettay@helsinki.fi
+files xpcom/build/dlldeps.cpp

@@ -1,0 +1,4 @@
+changeset 5c7fbeed8f96bc2a23341f5ed895e72253b6654b
+manifest 67a1bbfd323326507894ee48874857846d7f92ad
+author danderson@mozilla.com
+files js/src/nanojit/NativeARM.cpp

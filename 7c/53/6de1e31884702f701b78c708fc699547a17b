@@ -1,0 +1,4 @@
+changeset 1feb70378764880f5adb03779244e55f70959dcd
+manifest 3340a1a7e17a50aa2045bd6b3a2a2765a8b3fc95
+author reed@reedloden.com
+files browser/components/places/src/nsPlacesImportExportService.cpp

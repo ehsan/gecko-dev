@@ -1,0 +1,4 @@
+changeset 4cdf6817a49ca33884a8c003aff18bffbe1b5eb3
+manifest ed9a36fdd768a0aab4bed66ba3a975949972ed59
+author Matthew Gregan <kinetik@flim.org> and Shane Blackett <shane@blackett.co.nz>
+files layout/generic/nsObjectFrame.cpp

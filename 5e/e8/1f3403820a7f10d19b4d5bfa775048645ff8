@@ -1,0 +1,4 @@
+changeset a9d343497f7d17372e13c827f23a6b5458f26c70
+manifest 47f39e793695cf09071ba501634b66c713b84ec7
+extra rebase_source:cc3e9238dcda8e0bb49e10407d4bafa4e5be4594
+files python/mozbuild/mozbuild/backend/recursivemake.py

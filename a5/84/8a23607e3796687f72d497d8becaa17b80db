@@ -1,0 +1,4 @@
+changeset 0c3b638b497779a5570acd1f313b34f2929e7ab9
+manifest c2ca4009c415b3dfe8e948b0d8d9c5e125a67a44
+author timeless@mozdev.org
+files content/xml/document/src/nsXMLFragmentContentSink.cpp

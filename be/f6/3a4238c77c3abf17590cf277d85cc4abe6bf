@@ -1,0 +1,4 @@
+changeset d51a940d789ad9f52b0ee038e9f2623aedb50ba7
+manifest dd86d6d370db33e670bb8ab533128bd99e4f6a0b
+author dietrich@mozilla.com
+files browser/components/places/content/treeView.js

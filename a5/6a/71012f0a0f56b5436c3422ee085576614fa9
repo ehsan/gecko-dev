@@ -1,0 +1,4 @@
+changeset a55bc08afb8e518cd7569bc73189a9e10760bb3c
+manifest aed7420c70f8004b9cc09b31904823d7df1ae053
+author mrbkap@gmail.com
+files dom/src/base/nsDOMClassInfo.cpp

@@ -1,0 +1,4 @@
+changeset 5761657f7772c5fee0be02ff6545266eb952680a
+manifest e940cfbc31091867a508e58ce5516a3b1d9c2a12
+author reed@reedloden.com
+files dom/src/base/nsDOMClassInfo.cpp

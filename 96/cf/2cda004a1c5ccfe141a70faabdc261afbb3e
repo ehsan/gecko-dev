@@ -1,0 +1,4 @@
+changeset 4ccec9f682e88d86668dd8e5c0822e89444ef000
+manifest 489ffd95248e125c6402b737c05585b2f54781b5
+author reed@reedloden.com
+files browser/components/preferences/tests/browser_bug410900.js

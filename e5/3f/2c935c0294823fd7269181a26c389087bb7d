@@ -1,0 +1,4 @@
+changeset 66a5c7bce7ee86a820d3c0d54fa07cb719be751c
+manifest ee4b287501417725c726b9b281b503db14a8a223
+author dolske@mozilla.com
+files browser/components/preferences/security.js

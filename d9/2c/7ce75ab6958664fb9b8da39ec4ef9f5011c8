@@ -1,0 +1,4 @@
+changeset a2d0eb38ef2d25c440cc56b158fa72bab628ac06
+manifest a332969caa7cd35625456866df1c2ab8e5444052
+author cbiesinger@web.de
+files toolkit/components/downloads/public/nsIDownload.idl

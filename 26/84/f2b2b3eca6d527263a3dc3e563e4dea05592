@@ -1,0 +1,4 @@
+changeset 808b422d1274118e540fe15616e23a202aa3bd6f
+manifest 42001839fd0b2765e35d7feefcd146544108f791
+extra rebase_source:b52ec716b0ae9330ba62493983b7135f86f4f9aa
+files widget/tests/test_plugin_scroll_invalidation.html

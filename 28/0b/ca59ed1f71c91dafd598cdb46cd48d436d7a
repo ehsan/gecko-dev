@@ -1,0 +1,3 @@
+changeset 8367a678afb6f638915d8e99070cc00ac37a941d
+manifest a1becca66be715943d320e979400aa317c200704
+files js/src/jit-test/tests/jaeger/recompile/bug674391.js

@@ -1,0 +1,4 @@
+changeset 9a3585421dd4a1a34c1b899b533dd6a100537c8f
+manifest 9b1d7b080cf4b8d7af038729753f9789b97eb958
+extra rebase_source:260945940ca3eab61b1ff4ee0e206f44747e346d
+files build/autoconf/hooks.m4

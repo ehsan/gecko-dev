@@ -1,0 +1,4 @@
+changeset bfaa333aae35800d930c23febb7eaae225865e61
+manifest 3f0c4df7f91636f790c5be0c9cd8464d192270b2
+author reed@reedloden.com
+files security/manager/pki/resources/content/certManager.xul

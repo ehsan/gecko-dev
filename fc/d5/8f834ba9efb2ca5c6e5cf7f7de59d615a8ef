@@ -1,0 +1,4 @@
+changeset 23aa24fa8d20257d2be519e48f7b4808167149b7
+manifest f4a49b57c93b21c143efad3646cb634fd932be10
+extra rebase_source:289cbc836eead85e5b7feac94c1c6d6ee5cd68de
+files mfbt/PodOperations.h

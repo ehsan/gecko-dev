@@ -1,0 +1,4 @@
+changeset 52bcd8e7a2c1b9e8ee1547834183cc7c489c2907
+manifest 06ebbe8116f8b101335560266562e3e20ab40cd9
+author flamingice@sourmilk.net
+files modules/plugin/base/src/nsPluginHostImpl.cpp

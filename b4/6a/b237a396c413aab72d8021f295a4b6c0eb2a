@@ -1,0 +1,4 @@
+changeset 3d75013d0939b362d9eec5de480f680e1de98206
+manifest 29ac7113c5d144a137b80d92a4b5d25526d6c281
+author jlal@mozilla.com
+files testing/taskcluster/tasks/branches/b2g-inbound/job_flags.yml

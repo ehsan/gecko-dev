@@ -1,0 +1,3 @@
+changeset d7e464f89e7c3b47e53b019de6a236f6b047785d
+manifest 0c695b7d4d549be553fd2d111ca5cb178860b1b1
+files toolkit/components/places/tests/sync/test_database_sync_after_shutdown_with_removeAllPages.js

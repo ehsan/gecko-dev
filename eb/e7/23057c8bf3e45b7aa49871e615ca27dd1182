@@ -1,0 +1,4 @@
+changeset 88a16ae1ecaa35aa50bee145f6f68d6c1c1ecf3f
+manifest ae74ede823371520c6d3a2cb387d695aef0c013b
+extra rebase_source:b1c77d825c620887b7b9bcbdb3e32150dd99f200
+files toolkit/mozapps/extensions/LightweightThemeManager.jsm

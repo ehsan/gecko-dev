@@ -1,0 +1,4 @@
+changeset 29bc04ef128c6e465042dca7c754674ed13d7229
+manifest d15640e425e7f3ae597363605639fd6d191577f9
+author jst@mozilla.org
+files js/src/xpconnect/src/xpcwrappednativejsops.cpp

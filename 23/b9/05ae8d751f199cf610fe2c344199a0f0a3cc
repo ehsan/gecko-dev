@@ -1,0 +1,4 @@
+changeset 01cb84966e13b4c735f122f8b5eabbfe007cf5cb
+manifest 71deb2e9f404266bc2257b63eb2e0d5b310d39f1
+author bclary@bclary.com
+files js/tests/js1_5/Date/toLocaleFormat.js

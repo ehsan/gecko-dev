@@ -1,0 +1,4 @@
+changeset a3344b3670e1b994e9e5957cd87ccf2519d9c2c8
+manifest 7d6b83b76c1ce8a2f5bf84f3b48c808d562a0ce0
+author dcamp@mozilla.com
+files uriloader/prefetch/nsOfflineCacheUpdate.cpp

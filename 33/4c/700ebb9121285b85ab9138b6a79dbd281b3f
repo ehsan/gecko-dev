@@ -1,0 +1,4 @@
+changeset 3627fcbb8f6164adf3677c236824474c633c3447
+manifest 2ab081d7c66206a1b2b3657da804b14cf9ec93af
+author igor@mir2.org
+files js/src/jsgc.c

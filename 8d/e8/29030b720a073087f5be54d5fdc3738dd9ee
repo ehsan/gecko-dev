@@ -1,0 +1,3 @@
+changeset 3cb18fbc1eff5248c0399858e0b0b55faa5f120c
+manifest ce1c227195760e386dbe6a41666c7c8825887c18
+files dom/network/interfaces/nsIDOMMobileConnection.idl

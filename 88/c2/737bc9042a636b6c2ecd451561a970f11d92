@@ -1,0 +1,4 @@
+changeset 46d4b17463d41588a03c9c2bb6ccf0994448a3e1
+manifest d58ea6c9c1e55a6891d6be6ebdeee3cb6b5e54fe
+author shaver@mozilla.org
+files js/src/jstracerinlines.h

@@ -1,0 +1,4 @@
+changeset 3f29f423e0bbbbd95b479bf858e9049546f4acf1
+manifest b86e6a76bfcd40a834ddd8195fa270fc88b58c2e
+author cbeard@h-135.office.mozilla.org
+files services/sync/services-sync.js

@@ -1,0 +1,4 @@
+changeset 44e0d08a1d161ecece3686c322dd07a839fba9d9
+manifest 8c42ee2ce82c45364ffcd1b0fb4474dfab02106a
+author smichaud@pobox.com
+files toolkit/xre/MacApplicationDelegate.mm

@@ -1,0 +1,4 @@
+changeset 4e5466c76923e1cc24d36be241abc7d4fe1f94b1
+manifest 5994ba98f10935dbc79f820abd4c0ab6e2755567
+extra rebase_source:731dfa20fa0fda1feb7ab582deced011ff9c25fc
+files layout/generic/nsSimplePageSequence.cpp

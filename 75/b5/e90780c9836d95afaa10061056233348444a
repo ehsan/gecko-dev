@@ -1,0 +1,4 @@
+changeset 9f5a73b1ca82d6be5b893d83f24098a2812c87a8
+manifest ac86e3d4f621eb3728ea793b12e79734bcf7c9dc
+author johnath@mozilla.com
+files security/manager/pki/resources/content/exceptionDialog.js

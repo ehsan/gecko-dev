@@ -1,0 +1,4 @@
+changeset fa6ba18658a286c84d0fa8ed915636492b1be66c
+manifest 6e7b3fb57b1a2466bffe10f907b0cb1c8d63b0cd
+extra rebase_source:d033288850b3d9594510a34f12ba43fe3097d969
+files content/events/src/nsDOMUIEvent.h

@@ -1,0 +1,4 @@
+changeset 1326ba23640d4e497007686090f0ad34fa5f640b
+manifest 81a27a9bb32b928274212d41edf06e72067c7a60
+author reed@reedloden.com
+files toolkit/components/downloads/src/nsDownloadManager.cpp

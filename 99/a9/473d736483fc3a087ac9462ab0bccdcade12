@@ -1,0 +1,4 @@
+changeset 03b00fa3a3b9e039c58a8f19de93fa471bd68880
+manifest 356ab4776837ad14ae8a7926b933f4abbef8e918
+author mats.palmgren@bredband.net
+files gfx/cairo/cairo/src/cairo-quartz-surface.c

@@ -1,0 +1,4 @@
+changeset 82b7034970fea8354c5e5bf2c73f22f26a5da632
+manifest e9cbd2427de2eead9bd5f086beb0bfaccadebc0a
+author reed@reedloden.com
+files xpcom/base/Makefile.in

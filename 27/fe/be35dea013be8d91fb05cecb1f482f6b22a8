@@ -1,0 +1,4 @@
+changeset 7b94de064dc0fb3e78b843192d1c1fe4f8e951fe
+manifest 4576c89d961c901125d89b4ac772ecfa4894367f
+extra rebase_source:840ff708cca0aa1dbf9235727c967bd0d2d3f91e
+files content/base/src/nsFrameMessageManager.cpp

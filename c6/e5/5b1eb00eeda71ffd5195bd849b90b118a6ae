@@ -1,0 +1,4 @@
+changeset b7bff93480c9a1fbe44d35dd83fe2d75747aae84
+manifest 7be4c295a4ad7540d200520b149bf3bd76fa41d4
+extra rebase_source:be62537ffdc540ed1af4e9a9383baaa7d10e1ce7
+files mobile/confvars.sh

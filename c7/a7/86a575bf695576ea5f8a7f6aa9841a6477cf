@@ -1,0 +1,4 @@
+changeset ead17eacbb435db22273530f96cc611abab30542
+manifest 8c97bc2f869ccce45c0197f7719d0a4354a3e60b
+extra rebase_source:3ff75ba5d6c9fe68a3f195c86176f498db0db5a4
+files hal/windows/WindowsGamepad.cpp

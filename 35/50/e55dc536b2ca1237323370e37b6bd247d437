@@ -1,0 +1,4 @@
+changeset 7a0d5f7e99d4ca9d619a2bb8edc957400e079096
+manifest c55031bfa2168a0d8be5f33ee9370de8e02c49e5
+author flamingice@sourmilk.net
+files extensions/pref/system-pref/src/gconf/nsSystemPrefService.cpp

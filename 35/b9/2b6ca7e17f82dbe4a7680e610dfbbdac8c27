@@ -1,0 +1,4 @@
+changeset 0134d330663fc3ea67bf39e11eb2bd236598fd46
+manifest 29b32016c0c1e8c1278fce20354c28c7f8ee7af6
+extra rebase_source:a18b39cad30e711e033c91a2e67979884a8c68cf
+files toolkit/components/alerts/resources/content/alert.css

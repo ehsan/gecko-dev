@@ -1,0 +1,3 @@
+changeset ef294ff168be02dbd0f10a064853bb700a2bc493
+manifest 18c0ac21571e71db9f86a54f176d0cb8368cccac
+files netwerk/base/src/nsIncrementalDownload.cpp

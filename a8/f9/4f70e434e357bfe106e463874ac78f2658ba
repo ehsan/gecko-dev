@@ -1,0 +1,4 @@
+changeset 547075a3fedd23206fe6581f215cc4851eaccc40
+manifest 88f4cd29fba89683a2ebaa3b47b3a7d949b7a8e9
+author reed@reedloden.com
+files layout/forms/nsFieldSetFrame.cpp

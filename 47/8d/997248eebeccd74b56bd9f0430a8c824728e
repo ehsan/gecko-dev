@@ -1,0 +1,4 @@
+changeset 0293e25b9cb2139652ec5740941789a4b5c78ced
+manifest 7381ab8d86f37ddeebae804726ea89338fc2dad1
+author joshmoz@gmail.com
+files widget/src/cocoa/nsCocoaWindow.mm

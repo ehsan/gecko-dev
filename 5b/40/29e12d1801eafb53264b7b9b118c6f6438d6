@@ -1,0 +1,4 @@
+changeset ad0c45d553ef4859dcc56343d1cc33c32c7a0e45
+manifest 1d22653ce1587c50ba6297ef349381fa2f886e83
+author bent.mozilla@gmail.com
+files toolkit/components/places/tests/Makefile.in

@@ -1,0 +1,4 @@
+changeset 3df1c9540d0e1e8d3f8a63ce20572968d99f1a14
+manifest 4e36ec2a19b86b1f65fffa156a06353ae02c7002
+author mats.palmgren@bredband.net
+files layout/generic/nsSelection.cpp

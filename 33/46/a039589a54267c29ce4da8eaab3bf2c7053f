@@ -1,0 +1,4 @@
+changeset bbf2bc88c21bf0ef2e69c2531b574a2dfde136f2
+manifest c13d8bbf3465c79e24d56e66951503b44696255f
+author jruderman@hmc.edu
+files browser/components/migration/src/nsOperaProfileMigrator.cpp

@@ -1,0 +1,4 @@
+changeset 03b9d4a12461110d1bfaddb8d5196cf39dd0f040
+manifest cb88cf1a79c62f61c28a37fb89dd2f207d531513
+author myk@mozilla.org
+files browser/components/preferences/applicationManager.js

@@ -1,0 +1,4 @@
+changeset 33e3950b5ef5a5c3f7a1637025ef528385ebc274
+manifest 5b5599cca0afd10eba6a12f0b4a7ace97aabc737
+extra rebase_source:78b866fc90e11847b726403a735b596ab609145e
+files toolkit/mozapps/extensions/AddonRepository.jsm

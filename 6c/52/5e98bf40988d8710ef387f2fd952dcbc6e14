@@ -1,0 +1,4 @@
+changeset bf0b963d5f684669a724bd66273023fa667cff73
+manifest f30d41f314478bbc69e07f234c49aa1ee3a71624
+author reed@reedloden.com
+files browser/components/places/content/treeView.js

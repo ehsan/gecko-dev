@@ -1,0 +1,4 @@
+changeset ce76996944e9c90b70e1421d31a41d17f2630eb1
+manifest 7aa8103b7d9812b7555e429a2a298c767dfaff12
+author gandalf@firefox.pl
+files rdf/base/src/rdfutil.cpp

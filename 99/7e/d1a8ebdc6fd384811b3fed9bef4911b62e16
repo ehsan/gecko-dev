@@ -1,0 +1,4 @@
+changeset 1de913bdb895fc6c1b0d77f457f5d32a88b195ab
+manifest 9e34462b2bd092d6df5e037fa3b405ebf74a1d79
+author mozilla@weilbacher.org
+files uriloader/exthandler/os2/nsOSHelperAppService.cpp

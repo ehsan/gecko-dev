@@ -1,0 +1,4 @@
+changeset 9e0e00e12919380b2b87f8bda3256f53b78d0384
+manifest 236d2d1d5505410cbd4d6b604cf9f09b7c5c9aa9
+extra convert_revision:018f529d80309686b99d109eb132f520cf72a2fc
+files js/src/nanojit/NativeSparc.cpp

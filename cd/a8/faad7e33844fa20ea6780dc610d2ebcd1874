@@ -1,0 +1,4 @@
+changeset 6243d2b50e33dbfba24080b2b76f1223f20db3fa
+manifest 410d4aeb8f31cec1880d9926ed9b81a2390d320f
+extra rebase_source:f37bd362ecb450ef479323d74b84cb8101e3faf9
+files js/src/vm/MallocProvider.h

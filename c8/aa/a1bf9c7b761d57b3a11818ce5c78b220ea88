@@ -1,0 +1,5 @@
+changeset c80832b8841b1cc4f8e5d4a444684cc834eb0559
+manifest c290ae4cfd1c2f4be8d4fe30e9476b61850cf2ef
+author mbalaur@mozilla.com
+extra rebase_source:a272bf08a0003a29cac4e4d79d89f445f6a42c79
+files build/mobile/devicemanagerSUT.py

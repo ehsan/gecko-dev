@@ -1,0 +1,4 @@
+changeset 21d6238c711f8dc533eef72b01d1d78aa385fe47
+manifest cf72ddd6dd8a4c2fd923fa9d973f836afe1ce434
+extra rebase_source:5985f2c489ebec61c5089df97900049ff59d6477
+files browser/base/content/sanitize.js

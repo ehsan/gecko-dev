@@ -1,0 +1,4 @@
+changeset 94c35a871de79d45dd55110a0605b6f6916e318c
+manifest 2bc5708f377d8c57c05aca8ed31a8cfffa53289b
+author dietrich@mozilla.com
+files browser/components/places/content/bookmarkProperties.js

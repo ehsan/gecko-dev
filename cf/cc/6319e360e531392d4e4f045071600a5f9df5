@@ -1,0 +1,4 @@
+changeset edb1192fc56f72d76e6123cca46b5208376f9a75
+manifest 18a049cefad61005f6b73badeaae0dd613098be1
+author roc+@cs.cmu.edu
+files extensions/canvas3d/src/nsCanvasRenderingContextGL.h

@@ -1,0 +1,4 @@
+changeset 98baa291a949a7046300d429ee764420f98dce14
+manifest e0b869f97d8f2624b640eef9597231dbef481ff5
+extra rebase_source:617c1329d2f863e01f8654da96736095152b5734
+files js/src/xpconnect/tests/mochitest/Makefile.in

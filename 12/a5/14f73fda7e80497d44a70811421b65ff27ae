@@ -1,0 +1,3 @@
+changeset 23fd17482127f1f14cdcc1929007ce96077312fa
+manifest cd0c4162a2005bab933b4145212f3bd2bf95734c
+files xpcom/base/nsStackWalk.cpp

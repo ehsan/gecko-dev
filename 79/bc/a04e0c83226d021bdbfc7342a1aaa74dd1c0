@@ -1,0 +1,3 @@
+changeset 90b8ac53c262a7040e4c014ecd68f31fdce8f16d
+manifest c922704ec619222dd622b76bdbf9345fa8683b3d
+files js/src/xpconnect/src/XPCCrossOriginWrapper.cpp

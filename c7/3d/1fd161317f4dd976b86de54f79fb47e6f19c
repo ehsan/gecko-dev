@@ -1,0 +1,4 @@
+changeset 770b713c9334abbe10121865740fbbe80060fcc9
+manifest 7a5e9b79e8b947d0fdb5852491f0fc46f7236e9d
+author masayuki@d-toybox.com
+files modules/plugin/base/src/nsPluginHostImpl.cpp

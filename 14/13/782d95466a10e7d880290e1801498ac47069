@@ -1,0 +1,4 @@
+changeset b901707610fcd99f3e23924b7af310b354ae67f8
+manifest d2701ef7e20a9ae5beee37c76e0a351127279197
+author dietrich@mozilla.com
+files browser/components/sessionstore/src/nsSessionStore.js

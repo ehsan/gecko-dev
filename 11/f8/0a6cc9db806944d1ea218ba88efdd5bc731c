@@ -1,0 +1,4 @@
+changeset 41a34f00406292f6f1ae0e9a6c593b25cbc8a6dd
+manifest d376b0fe0a09ac05c95414c9ca2ef7942b39e1ee
+author mozilla@weilbacher.org
+files gfx/thebes/src/gfxOS2Fonts.cpp

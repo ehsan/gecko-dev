@@ -1,0 +1,4 @@
+changeset a3b40d32ad975ba75def58e7c46aae23bcd2eccc
+manifest 2b2e595eed8dd848036b7f6adc82f2b7dd47751e
+extra rebase_source:b71d386827bb0114be6e68a696270868e487fe1c
+files js/xpconnect/src/codegen.py

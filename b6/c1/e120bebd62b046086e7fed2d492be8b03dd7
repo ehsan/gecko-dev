@@ -1,0 +1,4 @@
+changeset 06eacd82c7f2beefef4aa01780055351ac8fbdc9
+manifest bceb9aacd28c8bcddec559b97e04040db77f0024
+author dcamp@mozilla.com
+files browser/components/preferences/advanced.js

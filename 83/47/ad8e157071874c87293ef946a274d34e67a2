@@ -1,0 +1,3 @@
+changeset 7da46c0c739c3ba5636bdee641deb4e206c5c07e
+manifest 368ea71d724487cbe0f0085cd5e40c8a4c8fb75f
+files parser/htmlparser/tests/mochitest/test_bug672453.html

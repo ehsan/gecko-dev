@@ -1,0 +1,4 @@
+changeset 1d4aa2c3b51079d0ee725aaecfedcd167830eec4
+manifest 5ef7c7a453019df3e0ed2c36e0db96f28f5a86e7
+author mattwillis@gmail.com
+files js/src/xpconnect/src/xpcwrappednativejsops.cpp

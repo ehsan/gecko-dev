@@ -1,0 +1,3 @@
+changeset 71d1b1fad33e119695088c41690606c324d7ac83
+manifest c3ad802a8bacbfe1124a584586839d0105909901
+files tools/mercurial/hgsetup/wizard.py

@@ -1,0 +1,4 @@
+changeset bd42b12e6d2eccd33f29234e3f6d4e5396832465
+manifest 4405ffdfb64c895c8fcd086a61ec3fa379caf96e
+extra rebase_source:7f657cd0465c3a568f6cfc534d6fbd4876e0776d
+files parser/html/nsHtml5Portability.cpp

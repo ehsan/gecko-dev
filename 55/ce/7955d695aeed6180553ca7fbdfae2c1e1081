@@ -1,0 +1,4 @@
+changeset 3a341905360d9201f2af5371adfad14650c9d6a9
+manifest 5a8691abfa91f58739fea78ce6ee0f1733aa623e
+author dwitte@stanford.edu
+files netwerk/test/unit/test_bug368702.js

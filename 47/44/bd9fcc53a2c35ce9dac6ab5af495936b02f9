@@ -1,0 +1,4 @@
+changeset 1986bfb7f0b629344edb68a5fd2a6f061ccc4b56
+manifest 183357de1164a1188a33184182b09a52b966d5f1
+extra rebase_source:cb9b119601b30fd3d66e0699f5c66bac850ec1c7
+files js/src/tests/ecma_5/JSON/stringify-replacer-array-boxed-elements.js

@@ -1,0 +1,4 @@
+changeset ec5a37d4238a2631d8f670ec33e4cf91d8e3f178
+manifest b0609ec38869bdfd77c50ff4385389ca7f601d00
+author ajschult@verizon.net
+files docshell/shistory/src/nsSHistory.cpp

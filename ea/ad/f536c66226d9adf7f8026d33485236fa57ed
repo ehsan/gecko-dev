@@ -1,0 +1,4 @@
+changeset 132f070a11b8383df5aa603dfd393987f5b0d889
+manifest 178ad0ca01653fd9d6a9ce71e844c3f9a4905060
+author dtownsend@oxymoronical.com
+files toolkit/mozapps/extensions/test/unit/test_bug299716.js

@@ -1,0 +1,4 @@
+changeset 12c4a1f5f22ea3f411fc6d3e6a311ab249305dd7
+manifest 8f3b2214da6e19fc9535b983bb6852dce95fb837
+extra rebase_source:5fbf5d4c9a5aa3eec08312d5d4033b7b0462fd77
+files widget/tests/Makefile.in

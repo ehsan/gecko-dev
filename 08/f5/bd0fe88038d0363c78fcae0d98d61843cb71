@@ -1,0 +1,3 @@
+changeset 54a5ae891dba6ba156238b42825176deebf78a7f
+manifest 9f997493e6ceb2f9b5f809eb13901343793677d0
+files netwerk/test/httpserver/nsIHttpServer.idl

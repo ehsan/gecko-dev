@@ -1,0 +1,4 @@
+changeset a938a7ec9df9ef6e3120b443ab27218cb9116704
+manifest a18e4eb4658defd7c93dbc5ac74e1eee01147e4a
+extra convert_revision:18cf6386858be93609ffcc0912e1c169b81e6531
+files js/src/nanojit/nanojit.h

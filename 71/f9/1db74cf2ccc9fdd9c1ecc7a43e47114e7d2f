@@ -1,0 +1,3 @@
+changeset fe3a1059a92b1177243854580a69173f5d863498
+manifest 0ffcf3acbb8a513f8a11cac8fd174760d996f191
+files dom/tests/browser/browser_focus_steal_from_chrome.js

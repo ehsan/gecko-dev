@@ -1,0 +1,4 @@
+changeset 6c2cfb9e0b45200216758c67e46805adeccaa6f1
+manifest 0a6a1b61dc1578834e713bf13c8eb34facb5619f
+extra rebase_source:1b7f60d38ffa20c404c777a5ba1e1cc3383f19a0
+files widget/gtk2/mozcontainer.c

@@ -1,0 +1,3 @@
+changeset 8817faa2924021cc985f728cf79b783bbf1dd5a6
+manifest c0d3bc04e53f7b9e00c32c8f697abbb3947ab418
+files memory/mozalloc/msvc_raise_wrappers.cpp

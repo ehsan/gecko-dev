@@ -1,0 +1,4 @@
+changeset d7bd9c7b104c2f285f4fe0df33f8747b3f60754c
+manifest 0fa3fcc12a657e45343ee7b6b10bf7a7211639f9
+author jwalden@mit.edu
+files toolkit/crashreporter/nsICrashReporter.idl

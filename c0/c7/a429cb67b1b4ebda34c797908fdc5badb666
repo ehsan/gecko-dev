@@ -1,0 +1,4 @@
+changeset e623938ea6c77d8939765680d9c5026b26debcf3
+manifest 87e75024bce7495b817c1e38aa9be61001c1263f
+extra histedit_source:c510de9918cfd73652e9e1c278e0bee93c7fdcdc
+files widget/gtk/nsScreenGtk.cpp

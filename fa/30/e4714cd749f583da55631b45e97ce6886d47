@@ -1,0 +1,4 @@
+changeset 2f38255b6efe192b3bd207a29b61a2d4b84a5420
+manifest e57ced2c009cf789b36475086ad12c3638d562ab
+author masayuki@d-toybox.com
+files intl/lwbrk/src/nsUniscribeBreaker.cpp

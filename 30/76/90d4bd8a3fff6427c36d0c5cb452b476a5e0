@@ -1,0 +1,4 @@
+changeset d73853c26a1a571c1970295d71f38d075d9458ec
+manifest 6f1276796fab0b1e87e156a7e262f32cc250fb23
+extra rebase_source:41738a5a898c67f6dd4a41cbf0d877d85f3f4feb
+files xpcom/base/nsIMemoryInfoDumper.idl

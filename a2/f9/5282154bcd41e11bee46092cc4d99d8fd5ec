@@ -1,0 +1,3 @@
+changeset 85a3c4509d2815a6a0ea8960d918af845ef3ba4f
+manifest 093bcfe701a8955da0160235b32284234c37b5de
+files hal/gonk/UeventPoller.cpp

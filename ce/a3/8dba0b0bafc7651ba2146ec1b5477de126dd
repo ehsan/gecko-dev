@@ -1,0 +1,4 @@
+changeset be543a54204958fbe961d9048963a7021715bed9
+manifest a4c37d59ae28363790228f6d3e6e5ffc9e78bcef
+author jst@mozilla.org
+files content/xul/content/src/nsXULElement.cpp

@@ -1,0 +1,3 @@
+changeset ea28d9b3e93957492ff65827d273cf474fe17047
+manifest cab1c3efa605a7db550f84b094561c4296ba6d54
+files dom/tests/mochitest/ajax/offline/test_updatingManifest.html

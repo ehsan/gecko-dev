@@ -1,0 +1,4 @@
+changeset 3faefbd53ec7859023773a6e3f924edc8931cf03
+manifest 411ec629bbe4c8c467bd19ee9db161e46c67a7a2
+author rhelmer@mozilla.com
+files tools/release/t/tinder-config.pl

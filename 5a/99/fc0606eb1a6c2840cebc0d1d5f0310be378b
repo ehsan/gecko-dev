@@ -1,0 +1,4 @@
+changeset c31dee2ffb2c296ccc1a4f28b302bec556a2b6d1
+manifest 7875c7b4e6f89f2b3325514811871ed27ccb88e5
+author timeless@mozdev.org
+files security/manager/ssl/src/nsSDR.cpp

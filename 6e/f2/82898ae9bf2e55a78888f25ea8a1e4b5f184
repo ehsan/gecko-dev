@@ -1,0 +1,4 @@
+changeset 64318c99027e469660b0902c3b8080079970248c
+manifest e1254407c8362bff2c5a6ffe11bfdf50b060d52e
+author bzbarsky@mit.edu
+files widget/src/cocoa/nsChildView.mm

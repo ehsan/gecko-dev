@@ -1,0 +1,4 @@
+changeset e092b3fccd750742b3d7320811386b67a73a6b26
+manifest 1241545bf7f7abe4a32eac65a374d29915900df9
+author dbaron@dbaron.org
+files accessible/src/atk/nsAppRootAccessible.cpp

@@ -1,0 +1,4 @@
+changeset 885e6e2e374b382c9909aadbe1cd8fc949de3dd4
+manifest 9c93162ea317a556a19bc1b6c611cf426f88eaf2
+author gavin@gavinsharp.com
+files layout/xul/base/test/Makefile.in

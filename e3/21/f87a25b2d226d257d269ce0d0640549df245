@@ -1,0 +1,4 @@
+changeset 4d97118fbc9098ef23e51a90a955f4e7f959982a
+manifest 3fa7459701866e166c74ea0c4336381c3f051932
+author kairo@kairo.at
+files tools/update-packaging/Makefile.in

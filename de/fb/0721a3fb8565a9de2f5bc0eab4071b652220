@@ -1,0 +1,4 @@
+changeset 4a05b01c58140e0187140e24f7a6e3b3caf6318b
+manifest a5fe780934a22d3933b6c1824799e02724524535
+author timeless@mozdev.org
+files js/src/xpconnect/loader/mozJSSubScriptLoader.cpp

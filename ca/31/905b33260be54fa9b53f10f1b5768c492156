@@ -1,0 +1,4 @@
+changeset e0b3e64b5cdbc7894317d91a3bd50648694a55c0
+manifest 70424a37ef0bd1ed1e8d8be275a27e3d8686b3cb
+author reed@reedloden.com
+files browser/app/profile/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/install.rdf.in

@@ -1,0 +1,4 @@
+changeset 52edd0d6bdb02bbf6556cf726366ac349ad220ba
+manifest 26f90a8b4f9139662e0985fcdde43fe3aca458c3
+author reed@reedloden.com
+files toolkit/components/passwordmgr/content/passwordManager.js

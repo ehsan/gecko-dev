@@ -1,0 +1,4 @@
+changeset 160a652ead178ad00e7226895e0300ce6642a3d0
+manifest 46c8cd794b50875229f88dcd17c8a148e91d4d39
+author gerv@gerv.net
+files toolkit/components/places/public/nsIBrowserHistory.idl

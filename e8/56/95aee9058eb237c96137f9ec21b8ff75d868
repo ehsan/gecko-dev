@@ -1,0 +1,3 @@
+changeset 7a5cbe4dadf88785c687b75af0f48b26ba3494bc
+manifest 4ea79dc3030f03b7456f38143017a2bbc7886679
+files js/src/jit/MCallOptimize.cpp

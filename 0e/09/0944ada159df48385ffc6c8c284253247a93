@@ -1,0 +1,4 @@
+changeset 12cebb32592c0f8bb94df3391bd64d1e483122ed
+manifest f5d704ab6353de665c129a4a43aac1bd05bb1a25
+author cbarrett@mozilla.com
+files widget/src/cocoa/nsDragService.mm

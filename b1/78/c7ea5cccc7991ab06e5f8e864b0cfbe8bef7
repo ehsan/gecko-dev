@@ -1,0 +1,3 @@
+changeset e62747d22841dc61185cbfa8d5a9d14a64898f10
+manifest e7e0f6ec2fd042d0606b91a0f47565350d0ff35b
+files mobile/android/base/mozglue/DirectBufferAllocator.java

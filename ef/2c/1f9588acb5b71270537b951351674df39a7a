@@ -1,0 +1,4 @@
+changeset 053a352599ab80183ad8c60cd1574744cf388310
+manifest 85eb3858191ff072c3799f0fddf538bd5f7476f2
+extra rebase_source:a4279fdbb9c211d33ece9ab8cd4eb002edb71a1e
+files browser/base/content/test/social/Makefile.in

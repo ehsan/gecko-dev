@@ -1,0 +1,4 @@
+changeset a26f3266540ad8967f004379764c1545b0daa1a3
+manifest 5c46729a7e14cf0faef82cde1529064f7d3e18f9
+author mozilla@weilbacher.org
+files view/src/nsViewManager.cpp

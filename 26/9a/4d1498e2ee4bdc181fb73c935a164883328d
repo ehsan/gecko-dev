@@ -1,0 +1,4 @@
+changeset c6fec38560f26cb5daf340308fadf081c4f820f2
+manifest 80799151ac5cdc8fe6c836d8c2a2edae9ca366ca
+author peterv@propagandism.org
+files extensions/canvas3d/src/nsCanvasRenderingContextGL.cpp

@@ -1,0 +1,4 @@
+changeset 21c2b8c54c54ed4c110d500e7934d2a0316e9b11
+manifest 2c60b989e8365f88effddd24d8013e0acf3f2417
+extra rebase_source:6f3d1a49a07affab679e41cd8cf968d62c072299
+files extensions/gio/nsGIOProtocolHandler.cpp

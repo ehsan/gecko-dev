@@ -1,0 +1,4 @@
+changeset 994ba98c0a0c69bfc55d24ea4338da5814ef54e6
+manifest 35b257c3a63e623735cc49349aef31a2d31d1ee7
+author dolske@mozilla.com
+files browser/components/places/tests/unit/test_384370.js

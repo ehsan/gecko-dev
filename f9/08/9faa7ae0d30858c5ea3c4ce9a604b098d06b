@@ -1,0 +1,4 @@
+changeset d5851b45e4a13f94630509b883f0711b83f0754f
+manifest 88dbfe36f1e8c8e393b015dd807a781061d5839e
+author jag@tty.nl
+files js/src/xpconnect/src/xpcvariant.cpp

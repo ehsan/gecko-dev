@@ -1,0 +1,4 @@
+changeset b9c7d27d4b43dc57832837dff3c26896d359af76
+manifest 94e8fed6611985bd68df675cf289c4be355f9232
+extra rebase_source:3f9323afa6e80962ede30d1b953b95f3d363ccd0
+files mfbt/Casting.h

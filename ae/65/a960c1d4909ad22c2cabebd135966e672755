@@ -1,0 +1,4 @@
+changeset 54c677ce3f7a10b43e1b250866326996ef1e76b2
+manifest ce54ab8446f4c1b21cd615323a3fb6823c572a03
+author roc+@cs.cmu.edu
+files xpcom/base/nsStackWalk.cpp

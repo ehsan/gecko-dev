@@ -1,0 +1,3 @@
+changeset 8496d7a26512c7ac07ac0ab37f1e15cb513eef0b
+manifest 1a85a5ee1b5224c4d70e92c749919490aa313ba7
+files python/mozbuild/mozbuild/backend/templates/android_eclipse/project.properties

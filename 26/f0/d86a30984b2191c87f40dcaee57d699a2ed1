@@ -1,0 +1,4 @@
+changeset 773cbb1213f376480e676521e9850bb55cfa6b43
+manifest 7a98d4a4a50efd81b45db8c7326a897e2e4bdae2
+author bzbarsky@mit.edu
+files xpcom/threads/nsThread.cpp

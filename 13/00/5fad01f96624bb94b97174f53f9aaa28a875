@@ -1,0 +1,4 @@
+changeset 5c7338e166f1fc0d1793902d99333d90f990732e
+manifest 198cedb1b50f457202a5f47dd469fd757d736ed4
+extra rebase_source:44470490fc64cbe0cb59b7223dc93b41846c88e9
+files dom/devicestorage/moz.build

@@ -1,0 +1,4 @@
+changeset 31fbb78ebe50e62915d81cd34285dd2e6f8bd7ea
+manifest c7698779dcd0f5ae7eac4cd3f4ca031fc53353d4
+author rflint@ryanflint.com
+files browser/components/search/nsSearchSuggestions.js

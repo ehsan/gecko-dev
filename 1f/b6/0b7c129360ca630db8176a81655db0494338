@@ -1,0 +1,4 @@
+changeset ee50f5aa90d569299e7f3ed3c458861a845a81a6
+manifest 316a2536c3de12e4386ac6b50506e2f0a3837282
+author neil@parkwaycc.co.uk
+files chrome/src/nsChromeProtocolHandler.cpp

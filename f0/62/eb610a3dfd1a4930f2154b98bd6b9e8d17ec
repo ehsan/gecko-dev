@@ -1,0 +1,4 @@
+changeset 77f74738da27206b1dfc10718993e90a7fc3b2e9
+manifest a4b69f38b95fe85c1e2661f11817f0750f4709f7
+author pavlov@pavlov.net
+files modules/plugin/base/src/ns4xPlugin.cpp

@@ -1,0 +1,4 @@
+changeset 362e3ce08eadf39b68f5f5d9f3d51b463fa54b62
+manifest 9476184c73119b91763d6e46f7baff31b254cc5a
+extra rebase_source:88c0afb3ec0c43f6ed1bf38eda6e460c8adf7a00
+files content/base/src/nsEventSource.cpp

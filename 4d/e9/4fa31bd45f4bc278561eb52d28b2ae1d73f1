@@ -1,0 +1,3 @@
+changeset 1e847cab869ec7dda7e289c8c00ff07968dc8594
+manifest f2ac6f20947fc29d3ed2e574c6ca8b7cd17529e2
+files build/stlport/stl/config/_android.h.in

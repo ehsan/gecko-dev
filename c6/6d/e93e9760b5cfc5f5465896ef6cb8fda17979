@@ -1,0 +1,4 @@
+changeset 0fa0aef598c4858a93c8a4aae3830efbb95f89a0
+manifest 0a3fc43a18071896aefc37f6f5aa5fa29cf227c7
+author pavlov@pavlov.net
+files layout/xul/base/src/nsXULPopupManager.cpp

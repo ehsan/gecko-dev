@@ -1,0 +1,3 @@
+changeset f542c81e7e31ebff879ad1a5983f8d99230cfa8f
+manifest bcd0d79ab1a289f3a135852d16e0a6be3e0523b0
+files js/src/jit-test/tests/TypedObject/gcunattachedhandle.js

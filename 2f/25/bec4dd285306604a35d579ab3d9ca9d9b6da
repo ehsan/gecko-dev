@@ -1,0 +1,4 @@
+changeset 4e1161cfad93242c4fb868e02662e24246fc3fc7
+manifest 505547c14d4c708966906b1de81950dc335107eb
+author bzbarsky@mit.edu
+files layout/tables/nsTableColGroupFrame.cpp

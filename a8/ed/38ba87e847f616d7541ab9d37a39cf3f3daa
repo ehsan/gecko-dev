@@ -1,0 +1,4 @@
+changeset 38c874659fd11bf897461647bc611ffa5d35e336
+manifest fa3f580795ce5a5ef18725907af7c8b6589d545f
+author dvander@traceknight.local
+files js/src/nanojit/Assembler.cpp

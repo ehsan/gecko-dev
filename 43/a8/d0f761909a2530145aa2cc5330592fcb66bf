@@ -1,0 +1,4 @@
+changeset 7153afde1b42313227f6c449bb5b30b768bb6c39
+manifest 5a1a94c4eb972f202975d0330b7d2f6b62e46994
+extra rebase_source:1c202e9ea2b44a764cd6e0753e8ba79e5c1542a4
+files editor/libeditor/html/crashtests/382778-1.html

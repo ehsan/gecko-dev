@@ -1,0 +1,4 @@
+changeset 614291060469ad5cfeff5adf620c025501abc8ea
+manifest fc474b15717df22e9f3cccd80edf1c1ab0e330a8
+author crowder@fiverocks.com
+files js/src/jsopcode.c

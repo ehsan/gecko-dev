@@ -1,0 +1,4 @@
+changeset f8fc36d0b56f807ff7e1db5554da89b1cc8a9484
+manifest f5ad805e4037ae57db85be5cb606e973e7bf16ec
+author bugzilla@standard8.demon.co.uk
+files xpfe/components/filepicker/src/Makefile.in

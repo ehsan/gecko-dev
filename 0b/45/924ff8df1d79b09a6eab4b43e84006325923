@@ -1,0 +1,4 @@
+changeset ee61b74622b6cc84fb5a087db9cdadfd2195784b
+manifest fb6c9eb83fcf76ea61508c08a05227d276001d19
+author timeless@mozdev.org
+files xpcom/base/nsIDebug.idl

@@ -1,0 +1,4 @@
+changeset 40a5a94d512682a2c23ecb782e6e872f52a7007e
+manifest eb0474b0dec843635fe64f7b96dffb366fb6609a
+extra rebase_source:e2a8fe1659816065cd162c2514336ec6f5a07521
+files services/sync/modules/engines/prefs.js

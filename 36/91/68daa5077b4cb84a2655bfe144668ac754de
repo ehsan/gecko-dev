@@ -1,0 +1,3 @@
+changeset 1e5584c8e7d0d7aa6ae41d27a555856c5b82d070
+manifest 4b0d219e60879e2c50769f6295b8b4dd0d839499
+files dom/tests/mochitest/localstorage/test_clear_browser_data.html

@@ -1,0 +1,4 @@
+changeset 24559654b2611288e11e36990cbc1f8b85bad2ca
+manifest 47fe15a4d3b90084c222297091a2802bcd4dcd00
+author jwalden@mit.edu
+files content/base/public/nsINode.h

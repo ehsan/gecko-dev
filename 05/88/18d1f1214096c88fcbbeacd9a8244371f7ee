@@ -1,0 +1,4 @@
+changeset 3d4062588c0f5187e90cd962c70750c62c03f18a
+manifest eb93ccea1d5e205a08374d44e8aec66a0dea94fc
+author cbiesinger@gmail.com
+files netwerk/base/public/nsISocketTransportService.idl

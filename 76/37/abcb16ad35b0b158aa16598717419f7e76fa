@@ -1,0 +1,4 @@
+changeset de263329c8414d9317eff7feba19939a0d1933c4
+manifest d63802a4bbe3888e6610db624501849c2e0c0256
+author roc+@cs.cmu.edu
+files gfx/src/thebes/nsThebesFontMetrics.cpp

@@ -1,0 +1,5 @@
+changeset f7f0892c9807c5265bea3a96a6a6b3dc4dfb9c60
+manifest 290fa8ad0503499ff520300cc4240b578a722d79
+author timeless@mozdev.org
+extra convert_revision:265c5971702784c3acae2a8e6b710afacdfd6798
+files js/src/nanojit/CodeAlloc.cpp

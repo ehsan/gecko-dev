@@ -1,0 +1,5 @@
+changeset 7613d50cb838f4446da07bba80dded404647ae73
+manifest e440699cab3d80998e84d5a33c1e1fe433ddf900
+author dougt@dougt-ubuntu
+extra branch:mobile
+files mobile/chrome/content/browser.js

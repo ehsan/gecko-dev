@@ -1,0 +1,4 @@
+changeset 6d6ea17c3939b2d4c6bcd1ef75a56d449f651ac1
+manifest 59c6d5750acc6ec00a1b15f672b8a5d3b4fbadd4
+author smichaud@pobox.com
+files layout/generic/nsObjectFrame.cpp

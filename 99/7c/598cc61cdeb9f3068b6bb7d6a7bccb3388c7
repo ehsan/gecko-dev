@@ -1,0 +1,4 @@
+changeset 2b7d5628b519ef45ee5f683cfca9f107add7eeb1
+manifest e150545b770cba046eb4a0de371bd55a7a099aef
+extra convert_revision:b681599a542687e6a9779227f2f21a86b69ee2a9
+files js/src/nanojit/NativeSH4.cpp

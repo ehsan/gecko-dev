@@ -1,0 +1,3 @@
+changeset 96f5df57e9b797c35e2cc1fc27ab67e506022123
+manifest c4eb452775f4489ce5be754539d868e305c5dfef
+files dom/events/nsEventStateManager.cpp

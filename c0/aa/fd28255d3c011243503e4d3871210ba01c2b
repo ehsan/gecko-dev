@@ -1,0 +1,4 @@
+changeset 432f3a96bc2be5cb9885102f913dd6907752efde
+manifest 575ef6b158db80b097963789e2f8fabaecbde583
+extra rebase_source:ff9a4b51856ab57229f39c9670f56ca36c017e83
+files dom/base/nsWrapperCache.h

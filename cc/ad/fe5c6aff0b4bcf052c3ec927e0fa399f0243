@@ -1,0 +1,4 @@
+changeset 308f64af1d0bfec2daf54cfb8fdbf69fb04086c9
+manifest 643032c3d8a19c0b7f14c5aa926e12292fdc415a
+author roc+@cs.cmu.edu
+files layout/generic/nsAbsoluteContainingBlock.cpp

@@ -1,0 +1,4 @@
+changeset b3bbfcc4f9a02aae2e1bbf5c6f136d4ca44e625c
+manifest 5747f4b18d25a4411a326d87df56e5ed9b59cc16
+author roc+@cs.cmu.edu
+files intl/lwbrk/src/nsSampleWordBreaker.cpp

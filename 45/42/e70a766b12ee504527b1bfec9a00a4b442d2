@@ -1,0 +1,3 @@
+changeset dbc0b13088500d799922eed1e48aae973221094a
+manifest d96528e9e842d9087e62772cfa60b863590a2597
+files js/src/trace-test/tests/basic/testCrossGlobalCall.js

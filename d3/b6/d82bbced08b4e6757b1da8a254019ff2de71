@@ -1,0 +1,4 @@
+changeset fd742da19c524d33a08a471e7fb8be32d4a22215
+manifest 6b93d72f7dcb10f5212e3d9a40ad9c06f5d55f92
+extra rebase_source:2794602c5fa7b1ee5a2d891b7ef0696985ceccd4
+files js/src/jsstr.h

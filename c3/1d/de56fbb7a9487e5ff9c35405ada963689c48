@@ -1,0 +1,4 @@
+changeset c9e82a1641f895c31684f204e133c417370c28c2
+manifest 533145d04de23281c354767b6067a2cb999d6df0
+author roc+@cs.cmu.edu
+files gfx/thebes/src/gfxWindowsNativeDrawing.cpp

@@ -1,0 +1,4 @@
+changeset 92983dedafddcba0c15a790f58507bb25843bb17
+manifest d77bd89ebb07e16211f8099e85c3cbf4014dfc2b
+author dolske@mozilla.com
+files toolkit/components/passwordmgr/src/storage-Legacy.js

@@ -1,0 +1,4 @@
+changeset 7450b87d6ff4f51e8632bf5a9951dd1deb982c99
+manifest cfd03a4e875e820583d2299585f31c9f39965186
+extra amend_source:9e5b971388ede7bd4a9f4a405b2b91f4c4882ebc
+files js/src/jit/BaselineFrame.cpp

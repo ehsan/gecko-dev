@@ -1,0 +1,3 @@
+changeset bcc149a59ceb93edc962085ea0cc08f3f83bf224
+manifest 824556b27efd8f3a7334672578b4b614656d3544
+files xpcom/base/nsUUIDGenerator.cpp

@@ -1,0 +1,4 @@
+changeset c3ab90e6e765952027af83331c9f2c429e53a87d
+manifest fb1fbc1ca370b9a06bf8368d681923c339cb969d
+author kaie@kuix.de
+files embedding/browser/gtk/src/gtkmozembed_common.cpp

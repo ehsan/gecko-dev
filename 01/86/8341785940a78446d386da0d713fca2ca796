@@ -1,0 +1,4 @@
+changeset 295db958af54e48b865141fe06cbd9124b0c5f5c
+manifest 601fa1d3d5669d0778575d9ba0923adc7dcf7576
+author mozilla.mano@sent.com
+files toolkit/components/places/src/nsTaggingService.js

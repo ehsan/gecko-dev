@@ -1,0 +1,4 @@
+changeset eb977d0849281fd5f1c60873aafa36d133be7ebd
+manifest e4d2c0b41cc1bcd42a83ed6407eca310346ab6f8
+author masayuki@d-toybox.com
+files widget/src/windows/nsWindow.cpp

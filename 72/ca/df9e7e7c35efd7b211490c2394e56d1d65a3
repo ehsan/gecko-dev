@@ -1,0 +1,4 @@
+changeset 1948141f2eb09003a7c481810d1566bb9b5a97b6
+manifest 984eb06db87de50dcb9ab742e3c6ae2fe35aba79
+author bdahl@mozilla.com
+files layout/generic/nsSimplePageSequence.cpp

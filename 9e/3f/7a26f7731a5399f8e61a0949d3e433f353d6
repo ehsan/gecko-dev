@@ -1,0 +1,4 @@
+changeset e535d66512aadb51eb82159a84d48e89b41eb96c
+manifest 8e5e263140ad3b44c43d238370abe82bf9f236c7
+author bzbarsky@mit.edu
+files layout/generic/nsObjectFrame.cpp

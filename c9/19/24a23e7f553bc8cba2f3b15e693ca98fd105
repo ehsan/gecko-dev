@@ -1,0 +1,4 @@
+changeset 13b94dbf1286ad71f92e5597a951ec047781fffe
+manifest fe24f43e124cfe5b274ccce2818c0ce4ebdbd3e3
+author jwalden@mit.edu
+files widget/src/photon/nsWidget.cpp

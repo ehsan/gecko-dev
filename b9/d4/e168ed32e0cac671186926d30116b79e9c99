@@ -1,0 +1,3 @@
+changeset 1ef41c221d6414365c74ec1603c8cce52bfcd31a
+manifest cdecead90f793594e78f539820fc2bfdfc18d7b2
+files js/src/jsapi-tests/testArgumentsObject.cpp

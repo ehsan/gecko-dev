@@ -1,0 +1,4 @@
+changeset 894551227ac53784f9a0009f9ddca0573c4a7532
+manifest 77d42c8a7c1b184a04abd88ea17aaea421cccf4d
+extra rebase_source:2d656203217681d0d1518dbb6e0f680f63d3dd92
+files gfx/harfbuzz/src/moz.build

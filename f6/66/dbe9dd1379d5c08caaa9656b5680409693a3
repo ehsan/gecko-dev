@@ -1,0 +1,4 @@
+changeset d406bd8dc895eb5dfa2e9f6cbb2dee6b2eba40fa
+manifest 80efd6917b53bc53bcfd27339e484a70764704f4
+extra rebase_source:77036469f2173361d5cbc492a937e272cf8e0c97
+files toolkit/components/passwordmgr/nsLoginManagerPrompter.js

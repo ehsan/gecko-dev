@@ -1,0 +1,3 @@
+changeset d659c7e3e5d495b1aa50d0a649fb9ab804b96e92
+manifest 844410a4fd2aa65a6f8ed51be0d2ee695da5ebc9
+files browser/components/migration/src/nsSeamonkeyProfileMigrator.cpp

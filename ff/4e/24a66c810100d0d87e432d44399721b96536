@@ -1,0 +1,4 @@
+changeset ccd8ad8a4604cae07639a3dc6f4164bf2d2f1d10
+manifest b3610797e081bd3de70e8ed1b04ed473d5f56b1b
+extra rebase_source:2c310b5ab0a256da45dff1aea2cb693ac293d573
+files browser/base/Makefile.in

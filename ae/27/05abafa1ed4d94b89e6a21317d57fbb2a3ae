@@ -1,0 +1,4 @@
+changeset f144af3040483c89bad07de1b6ebd07470d03140
+manifest 282c122d4638e197633255108c2f7e73d754b3e1
+extra rebase_source:3b2a8c8f14690bea041366dd35ff5147895abd56
+files xpcom/base/nsMemoryReporterManager.cpp

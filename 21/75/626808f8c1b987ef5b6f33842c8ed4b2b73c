@@ -1,0 +1,4 @@
+changeset 7b366010fbbcef0bc382fa6c78f5117734e012bc
+manifest ab4fc498c9039b2e61e43c39abaa05862a20b92f
+extra rebase_source:44a92234f884af4500bc6eb5a1fc4dd4cfd38dc2
+files security/pkix/tools/DottedOIDToCode.py

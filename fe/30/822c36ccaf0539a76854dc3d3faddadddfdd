@@ -1,0 +1,4 @@
+changeset 58c1588f6fbc824ffc1026df010165919f12d3dc
+manifest be298bd55fcb09b309d3416b22eaf4815a3ee4bf
+author peterv@propagandism.org
+files editor/composer/src/nsEditingSession.cpp

@@ -1,0 +1,5 @@
+changeset e0223cca9d88cb60b1724bef55c7d7aba5bc463b
+manifest c998e459d30e9795b940749850ff50d5e19e8756
+author timeless@mozdev.org
+extra rebase_source:a1d1ab6b36f02edbafa36e743ec846f69b84da66
+files layout/style/nsCSSDataBlock.cpp

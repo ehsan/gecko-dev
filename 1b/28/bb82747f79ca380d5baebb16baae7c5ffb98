@@ -1,0 +1,4 @@
+changeset 3f2f3304790aa6f9e7ed231d1a47f911d5c44eca
+manifest 6d68ebda8e0f86bd8df043590fb850e875437f14
+author mats.palmgren@bredband.net
+files widget/src/gtk2/nsPrintSettingsGTK.cpp

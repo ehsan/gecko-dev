@@ -1,0 +1,4 @@
+changeset 57dfb22278722d6727afb9b817243ae71ae210ae
+manifest ee3ee89d3522b0a897fb10ecad0116793370957c
+author mozilla@weilbacher.org
+files widget/src/gtk2/nsDeviceContextSpecG.cpp

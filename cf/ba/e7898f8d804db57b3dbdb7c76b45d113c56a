@@ -1,0 +1,3 @@
+changeset 5f652fba751d17bddadcf20a92d4f21bc442295a
+manifest cb3984428228cd346aa5263cd086d721395ab13b
+files netwerk/protocol/http/UserAgentOverrides.jsm

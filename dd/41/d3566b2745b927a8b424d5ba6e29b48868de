@@ -1,0 +1,4 @@
+changeset 5bcb54aeff7148943b337afdfe22d66f2a0f68ec
+manifest 5995bb2ecd9c1ee61a030486d5d1680c8b7b03c7
+author reed@reedloden.com
+files layout/style/nsCSSScanner.cpp

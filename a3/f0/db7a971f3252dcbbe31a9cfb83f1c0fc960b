@@ -1,0 +1,4 @@
+changeset 6ad50f1f840f29101912bbcc26ae61377726c415
+manifest 23b8a8946828d9f44922ca7dd202e9839e5c18c0
+extra rebase_source:a679b5caf11b507f15d952cb1979e73b125a5b0a
+files ipc/glue/ScopedXREEmbed.cpp

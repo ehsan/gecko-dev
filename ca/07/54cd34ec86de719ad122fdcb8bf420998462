@@ -1,0 +1,3 @@
+changeset 8fdd8b2b6b695f3815d6d232554378d39593510b
+manifest 2994cc5352cb493996c052a37adc3362d4c4f7c8
+files xpcom/string/src/nsReadableUtils.cpp

@@ -1,0 +1,4 @@
+changeset 0388f46270e49ecb6859dc68cd2fc8ab0fbc0368
+manifest 9123381d18037ebd4c9aa8ba1411e0c75917ee06
+author mozilla.mano@sent.com
+files browser/components/build/Makefile.in

@@ -1,0 +1,3 @@
+changeset d2ac3d6c628ab4a2cc9c390488962e78983651b6
+manifest c8619beae57d4d0cf3ae016ee1fc1abd77ece64f
+files python/mozbuild/mozbuild/controller/clobber.py

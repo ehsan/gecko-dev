@@ -1,0 +1,4 @@
+changeset 8e7cf978049e68ec87d9191ca328361b25ba43e6
+manifest a212fd5d10b2e97dadfc443c70773f4efc2feea4
+extra rebase_source:ea39e580d733130b63d0a71c19c32e773e50f50b
+files js/src/xpconnect/src/xpcthrower.cpp

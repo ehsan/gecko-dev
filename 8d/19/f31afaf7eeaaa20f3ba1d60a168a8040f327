@@ -1,0 +1,4 @@
+changeset 6453c36820392c18acdaed0a933a92ada1a4dc46
+manifest 426bb6e2c47d4fb25dbe0d3fb2d95982b9076ee0
+author martijn.martijn@gmail.com
+files modules/libpr0n/decoders/gif/nsGIFDecoder2.cpp

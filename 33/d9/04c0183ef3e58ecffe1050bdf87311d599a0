@@ -1,0 +1,4 @@
+changeset 06587fe99e45a00d409a69ef9f1e92ce97be3e4f
+manifest c833cf36835e31669b2fad99503f573484770769
+author dbaron@dbaron.org
+files layout/generic/nsInlineFrame.cpp

@@ -1,0 +1,4 @@
+changeset a37c7d1ba84a7ba4363560eb0626d4dafb8fb1a4
+manifest a2ea06b022926c24c0a48f81921ed3e363807b92
+author dbaron@dbaron.org
+files toolkit/components/passwordmgr/src/storage-Legacy.js

@@ -1,0 +1,4 @@
+changeset 8add8629f76589f7dd4395cf741987e71252f8f2
+manifest c6d9889a73eb8251cb7f4c0526d24ae4d7f30a4e
+extra amend_source:cf4f5e29de43f714ae62f247227b17e65debc710
+files tools/mercurial/hgsetup/wizard.py

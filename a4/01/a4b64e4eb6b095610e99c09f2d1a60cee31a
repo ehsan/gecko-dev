@@ -1,0 +1,3 @@
+changeset 596c88c323886594295843889aa38eb22ad0a6d6
+manifest b4dbed60fec310778a0a4c5c41408f86bc3d0642
+files js/src/methodjit/StubCalls.cpp

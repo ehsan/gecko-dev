@@ -1,0 +1,4 @@
+changeset f8f04fc7897f7a8bb0f3f4eb35d843737e0d5b4a
+manifest 133261bfb0c679e6c6e87730d5880714c5cb20f0
+extra rebase_source:76298d970d75f13c5315889f6a0167ef6430b4a7
+files browser/base/content/test/social/share_activate.html

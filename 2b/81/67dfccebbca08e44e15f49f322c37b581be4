@@ -1,0 +1,4 @@
+changeset d99dec37261bbf6592084a752de7038359b00c57
+manifest 5eeb9d5790c5a65056d8d303eac68fe3c22ba201
+author jst@mozilla.org
+files js/src/xpconnect/src/XPCCrossOriginWrapper.cpp

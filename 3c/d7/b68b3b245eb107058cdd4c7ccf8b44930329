@@ -1,0 +1,4 @@
+changeset 3540a252ae0b552bd7e7a2b951b1281e55a56aa2
+manifest 56379a9e0a283a785da1f94a3e0be88f2faa9d5c
+author reed@reedloden.com
+files gfx/cairo/cairo/src/cairo-path-fixed.c

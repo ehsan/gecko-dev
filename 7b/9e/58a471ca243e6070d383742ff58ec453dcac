@@ -1,0 +1,4 @@
+changeset a758759c434086418e8963f8141acc65a7346bcf
+manifest fcdc0d28f150693915b8fd7859765b69afad69d8
+author Olli.Pettay@helsinki.fi
+files widget/src/windows/nsNativeDragTarget.cpp

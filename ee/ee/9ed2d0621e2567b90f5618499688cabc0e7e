@@ -1,0 +1,4 @@
+changeset 4f1a037b281a4cf5308797a05d85ead1f39f8733
+manifest 11b40a12bd80b2f5437a637591b964a74ff73638
+author shaver@mozilla.org
+files js/src/jsbuiltins.cpp

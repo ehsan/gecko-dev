@@ -1,0 +1,4 @@
+changeset ed8a27781493a3a00eab6acab643fd681f793afc
+manifest 507851b721b0e381d7368848e65eb59268d0916f
+author bzbarsky@mit.edu
+files xpcom/base/nsCycleCollector.cpp

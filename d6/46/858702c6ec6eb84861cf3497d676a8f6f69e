@@ -1,0 +1,4 @@
+changeset d6dc560f94688415d4a51eae699ec5ce6c570d07
+manifest fc6f03ae0ed780936d7da760aa15dfe2d4b69fd5
+extra rebase_source:20c72bb80ced7ee200b0456463048e59e080ec11
+files gfx/thebes/test/Makefile.in

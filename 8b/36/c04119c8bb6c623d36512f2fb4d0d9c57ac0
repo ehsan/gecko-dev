@@ -1,0 +1,4 @@
+changeset 6c1721dbb7ba326a43985add491bd5a02ceccd43
+manifest 61a2e57197e0ddb5a6c67cbc11a18a1d7bdebe95
+author reed@reedloden.com
+files widget/src/gtk2/nsDeviceContextSpecG.cpp

@@ -1,0 +1,4 @@
+changeset bb29d2b81a0dcd63536ca822aec2ab297d6de21d
+manifest f27ebc4c4400ba775ec3749874f1bc3f38e9d697
+author rhelmer@mozilla.com
+files tools/release/Bootstrap/Util.pm

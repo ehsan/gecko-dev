@@ -1,0 +1,4 @@
+changeset 805ca0f44c0c13164899ee4b1f3d9193f462adea
+manifest afbf177c00d70eed54d75946566109b0f0e27b2f
+extra rebase_source:e824e2eb2e602350d35ab12e5afe800f56505d8b
+files dom/tests/mochitest/ajax/lib/AJAX_setup.js

@@ -1,0 +1,4 @@
+changeset 4c8363cef88b7dee845c1d0046023367aba29401
+manifest f261bb72ba0e123af5a6f3f705eec296d83e3388
+author timeless@mozdev.org
+files modules/libjar/nsJARChannel.cpp

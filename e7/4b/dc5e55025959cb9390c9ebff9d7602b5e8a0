@@ -1,0 +1,4 @@
+changeset 6fd999ce8f3b3147571a4ec3e2dcea4a5a5e198f
+manifest 31544bf2616c82ba4413ba13bf86ca0aff8ea44d
+author jwalden@mit.edu
+files security/manager/ssl/src/nsPKCS12Blob.cpp

@@ -1,0 +1,4 @@
+changeset d51875529aa655c92768c25cb1cd43af5061ec9a
+manifest 2d8314a3127a1020fc7117424d7cda93bd64ee26
+author rob_strong@exchangecode.com
+files toolkit/mozapps/update/src/updater/updater.cpp

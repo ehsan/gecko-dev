@@ -1,0 +1,3 @@
+changeset 3c53c0e799019455ec1bca4fcb8a5250deb5eb55
+manifest 86eca28ec75e275488dd2ac16b6fc228e5c609ed
+files js/src/jit-test/tests/gc/nursery-finalize.js

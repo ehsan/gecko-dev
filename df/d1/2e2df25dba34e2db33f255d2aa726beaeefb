@@ -1,0 +1,4 @@
+changeset fafa3e2bf727087ee526f263563bdbe7f6b0fd7f
+manifest d76c60e1116c60ef8b8dc09164121909e63236be
+author roc+@cs.cmu.edu
+files layout/xul/base/src/nsMenuPopupFrame.cpp

@@ -1,0 +1,4 @@
+changeset 559c036dce7c4b391d19b3c593ed94d81a516d4c
+manifest 1e9d6f7dbd44c2835806703af4a8adff2ffa8e6c
+author vladimir@pobox.com
+files gfx/cairo/quartz-image-surface.patch

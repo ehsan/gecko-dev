@@ -1,0 +1,3 @@
+changeset f272d2441a3b4ba147bd40f94df8e4bc0ca45a7c
+manifest 050d44872d68a61105bd0cd7406ef2ac95f0a737
+files media/webrtc/signaling/src/sipcc/core/sdp/sdp_token.c

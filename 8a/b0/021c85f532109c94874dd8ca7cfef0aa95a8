@@ -1,0 +1,4 @@
+changeset 431c7155cdb838d99aa102333d0132007b426206
+manifest 8fa05925770a846368aa5876876a0543869d36d2
+author jag@tty.nl
+files extensions/java/xpcom/interfaces/Makefile.in

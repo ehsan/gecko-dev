@@ -1,0 +1,3 @@
+changeset f7b74d242905ec8c8328aecda760aa52a85c390e
+manifest 76a83b6a15b57235afa35ea7a845a68a02bc50ec
+files media/webrtc/trunk/webrtc/modules/audio_device/android/opensles_input.h

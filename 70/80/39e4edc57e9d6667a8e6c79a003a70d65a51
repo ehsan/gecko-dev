@@ -1,0 +1,4 @@
+changeset c9bf08a67f28eb67f64d97d51827587c3fe26828
+manifest aa2985a08335184626e6e64c3757b320c026f489
+extra rebase_source:9ebd56da63f76546d7d6a682c6bc4a7ca0350044
+files dom/src/geolocation/nsGeoPositionIPCSerialiser.h

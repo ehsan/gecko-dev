@@ -1,0 +1,3 @@
+changeset 1d1952d5674ccf8516ee36d884a47bd3b9084043
+manifest ed7aa290972d9cf7599e9fe47fedbbc255fad2f9
+files js/src/jit-test/tests/debug/Object-defineProperty-09.js

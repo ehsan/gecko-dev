@@ -1,0 +1,3 @@
+changeset 6f9506ad113eb8ec99bd982d9727ae1d7cec2a36
+manifest b54c39bdd821659dc69b518264c51f252a2d1dc3
+files toolkit/components/passwordmgr/public/nsILoginInfo.idl

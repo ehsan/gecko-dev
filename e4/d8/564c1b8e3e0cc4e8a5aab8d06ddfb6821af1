@@ -1,0 +1,4 @@
+changeset f459d6c8ef822a6937ce0f2c62bd13bad509e882
+manifest e8db2a32d49d9963862bd8ef6966c61aa4fdec5e
+author stuart.morgan@alumni.case.edu
+files embedding/components/windowwatcher/src/nsWindowWatcher.cpp

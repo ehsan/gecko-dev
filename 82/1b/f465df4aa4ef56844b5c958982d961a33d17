@@ -1,0 +1,3 @@
+changeset 697a51f71cb4a40db98a370e9ef1ed0696c7ebe6
+manifest cc0b44004b5e85f41488bdec2d83d959db2f186f
+files gfx/cairo/cairo/src/cairo-image-surface.c

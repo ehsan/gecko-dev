@@ -1,0 +1,4 @@
+changeset 3c32121813693dd6c18c287af6d1d4e8021fb6f3
+manifest bb695bd95910b3dbaf27147c1be570128e9b2aea
+extra rebase_source:be6e9164df9e943d598db0f4f3f07b266d6bb6f4
+files embedding/components/find/src/nsWebBrowserFind.cpp

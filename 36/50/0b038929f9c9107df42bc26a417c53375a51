@@ -1,0 +1,4 @@
+changeset 90a6816a397f1d1c37dc059053acdd45658516d2
+manifest e26bf72ee69ec2e7a3eb6446fc4bdebe46dfaa63
+author timeless@mozdev.org
+files intl/unicharutil/util/nsBidiUtils.cpp

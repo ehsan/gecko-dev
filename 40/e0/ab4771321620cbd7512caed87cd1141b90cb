@@ -1,0 +1,4 @@
+changeset fcf4347414716d1cffaed5af3c64e37a71d8133a
+manifest 0d117b2a5de9caf98a95fd2764c46418ebfb7cc4
+author smichaud@pobox.com
+files widget/src/cocoa/nsChildView.mm

@@ -1,0 +1,4 @@
+changeset 2ad7eaabcb174e31f74199b44bec2a6a3b1124ec
+manifest 71c01e3356c40015273016fc387aa37d5753fdcd
+author reed@reedloden.com
+files content/base/src/nsPlainTextSerializer.cpp

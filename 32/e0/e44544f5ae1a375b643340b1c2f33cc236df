@@ -1,0 +1,4 @@
+changeset aec95d4f55c78bc606872880f90ee2b2abb8aea0
+manifest c4a313f0d0867836db07cdf704ae0a7830adbf4d
+author sayrer@gmail.com
+files extensions/cookie/nsPermissionManager.cpp

@@ -1,0 +1,4 @@
+changeset 8fa40864937c47a3718c9aea162d98540c35017a
+manifest 0d0ec0b83f8572f332c38aa66a18d220b40eb5dc
+extra rebase_source:51c51088b346a2cd2f1a9c670eb8960382c60101
+files mobile/android/base/moz.build

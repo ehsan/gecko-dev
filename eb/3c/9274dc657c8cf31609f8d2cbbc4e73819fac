@@ -1,0 +1,5 @@
+changeset 32394b8ba64c52133b693db79ba4c66dbe68032f
+manifest 463e81c79e935931bd4b74dccbfffe1a9d67c2ca
+author Werner Sharp (wsharp@adobe.com)
+extra convert_revision:15146f891b3a5cd9755b99f3b51b2acf8a692947
+files js/src/nanojit/Nativei386.cpp

@@ -1,0 +1,4 @@
+changeset dadc1d60b6f3e5acc0213224d4488601f1c03d18
+manifest 16d56aac3af5e5b2a1c9b30e131c8a299780bb95
+author timeless@mozdev.org
+files js/src/methodjit/FrameState-inl.h

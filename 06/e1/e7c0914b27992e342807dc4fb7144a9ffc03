@@ -1,0 +1,4 @@
+changeset 865638f861d8cadbef64599ba3d023e9dfa724e5
+manifest d7539f44785538ae57f439d85a55df822e286b2e
+author bzbarsky@mit.edu
+files netwerk/test/unit/test_plaintext_sniff.js

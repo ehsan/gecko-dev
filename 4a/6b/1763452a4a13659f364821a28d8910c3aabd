@@ -1,0 +1,4 @@
+changeset 75f3bd5737a6704c456535f206de6c09adbd9381
+manifest cd8c8a761d583b96be13e16d2ed651606bab5b10
+extra rebase_source:8632d597557b7a25ebc31dd53ad5680ac5a72583
+files browser/base/content/browser-fxaccounts.js

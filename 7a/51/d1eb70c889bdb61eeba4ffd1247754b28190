@@ -1,0 +1,4 @@
+changeset c625a2037c1d05d420d70625d3c080b86a6559b1
+manifest 5e8bcddc3b856405413d1f38b521106cd238ee24
+author masayuki@d-toybox.com
+files modules/libpref/src/init/all.js

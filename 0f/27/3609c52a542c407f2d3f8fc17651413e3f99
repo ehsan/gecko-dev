@@ -1,0 +1,4 @@
+changeset 0fd6c4c24dc9ca6c224a14938ff6ce7f02d4d94c
+manifest 9d970e1c25e3f3046cbc9af082a8bf4f135f1c03
+extra amend_source:9e4755ff5d3f756c4169db75563c4fed434f9d21
+files browser/components/preferences/in-content/tests/browser_change_app_handler.js

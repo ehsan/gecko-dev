@@ -1,0 +1,4 @@
+changeset d2bb100860c59acd0300b586be08758f053fab2e
+manifest ec8028ac7208dc9888236dda2722f9da0b726376
+author roc+@cs.cmu.edu
+files gfx/thebes/src/gfxTextRunWordCache.cpp

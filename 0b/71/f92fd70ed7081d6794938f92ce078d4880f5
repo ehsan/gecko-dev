@@ -1,0 +1,4 @@
+changeset 06bd89332dcba78ec481b538398fff053a1bf437
+manifest 00c86bd7b2c457ebfde848f349c6daddc3aa9074
+author jst@mozilla.org
+files xpcom/string/public/nsUTF8Utils.h

@@ -1,0 +1,4 @@
+changeset 8d3180c7e7cd43a608868c9c9a88ebc41867b4d5
+manifest 5ea5cf3c5caf0edcc0ad5c793471195144eefb51
+extra rebase_source:5370db85347a4ef93d6403e62cf385dc16a23b97
+files layout/base/TouchCaret.cpp

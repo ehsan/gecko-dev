@@ -1,0 +1,4 @@
+changeset f67a5c0ff459d550b38ff86abba82869c1f7c1ff
+manifest 61f80f181846dc1910d11a1b4225826b4e3019ff
+extra rebase_source:07926a411418a61e20df832ebb032fff5b218a77
+files widget/windows/winrt/MetroAppShell.cpp

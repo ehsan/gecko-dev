@@ -1,0 +1,4 @@
+changeset 32913047a915deb35c31dd04ce2cef02aab7f4ba
+manifest 25a49ff4b224aa72e224551eebc8c26c49ec9d59
+extra rebase_source:f3c2a028d53ba3144fa2c7d06bbc13c436811543
+files browser/config/mozconfigs/macosx-universal/nightly

@@ -1,0 +1,4 @@
+changeset a4347435024b8fecafc92fb50437f574130db821
+manifest 58d74926d3652111d7f2e195153d6cedd80dc0c6
+author masayuki@d-toybox.com
+files layout/xul/base/src/nsXULPopupManager.cpp

@@ -1,0 +1,4 @@
+changeset 5df4d899632389374589f46aeb7d4ab90c5e6253
+manifest cfc90270a9115779d53a83901aad514b7f3fcb13
+extra rebase_source:51ff08bed65bba70ce092a6c10af526fba2eb96a
+files dom/apps/src/Webapps.jsm

@@ -1,0 +1,4 @@
+changeset 7816c3056b65ecc8ca6bc6c3a44d14f561d17bf2
+manifest bcf6390a04e9fc3820893e0b9862b267bd0a8432
+extra rebase_source:9d5ba3964faf1fe2d28020050a0d89fa5cbc5bb0
+files image/src/imgStatusTracker.cpp

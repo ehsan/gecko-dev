@@ -1,0 +1,4 @@
+changeset b7721b91b965b5cdcf6a2cce6b2cbc83fde7c611
+manifest 1d960e9cd7950bb4e2f0eb82230b6b6d7da671ce
+author dmose@mozilla.org
+files uriloader/exthandler/win/nsMIMEInfoWin.cpp

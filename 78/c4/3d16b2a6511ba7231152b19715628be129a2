@@ -1,0 +1,4 @@
+changeset 99233fe0b2b39664cf1044ebfb4edd67bbb2aa64
+manifest 6f5052f306470e69a07aba15a1147c23db1c7071
+author Randy Lin<rlin@mozilla.com>
+files b2g/chrome/content/shell.js

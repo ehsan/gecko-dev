@@ -1,0 +1,4 @@
+changeset e1370dde58160f72f4cc6589c55eb5eee46431d3
+manifest d5e6da4a88e9e6b583a454e60e395e7dbd6ad324
+author mozilla.mano@sent.com
+files browser/components/migration/src/nsMacIEProfileMigrator.cpp

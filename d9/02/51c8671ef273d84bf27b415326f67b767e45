@@ -1,0 +1,4 @@
+changeset 08227c5bef9bf0c112857237627f0aa257b5d581
+manifest 0673a261dd15c89e3515f792238ead0b8dbd303d
+extra rebase_source:14b5abf42bc25cb54eaf490988fb9814abe6dc66
+files toolkit/components/places/tests/chrome/test_favicon_annotations.xul

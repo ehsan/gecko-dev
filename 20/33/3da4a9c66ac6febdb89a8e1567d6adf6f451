@@ -1,0 +1,4 @@
+changeset 4e9575ffaeeda2996a3f4b44db321b9c9fb46626
+manifest 3f417328e0db91051b7a04c6a231a958a23fb48f
+author dwitte@stanford.edu
+files xpcom/glue/nsTObserverArray.h

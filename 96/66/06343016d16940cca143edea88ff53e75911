@@ -1,0 +1,4 @@
+changeset dea325e030e1fddc93e7eaf3929b20004b6dc1fd
+manifest 6869871a1b0d9714964d2a15a3c920e553577ca2
+author timeless@mozdev.org
+files layout/style/nsStyleStruct.cpp

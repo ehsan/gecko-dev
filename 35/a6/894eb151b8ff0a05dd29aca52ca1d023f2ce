@@ -1,0 +1,4 @@
+changeset ebcff5d4c5fcfc8d646dfc014ac2ba14f63cc717
+manifest 7fbf075e7d5a0b0c4ffbbd49795825a3910c254c
+extra rebase_source:9def3eccc8f0d8d5ef1f8c97eb6d9bb0edfb0e18
+files browser/themes/pinstripe/browser/places/places.css

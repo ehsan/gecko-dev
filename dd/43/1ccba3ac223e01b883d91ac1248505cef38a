@@ -1,0 +1,4 @@
+changeset e55d42dde361a6d4a9b8e75d126b2287c71f4914
+manifest dcf14e333893ea58e2a9d4a1bba43f9719a3867d
+author reed@reedloden.com
+files xpcom/build/nsXPComInit.cpp

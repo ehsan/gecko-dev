@@ -1,0 +1,4 @@
+changeset bd1d62f47f4f2dec1a4d93a798efee95b2b294ce
+manifest eb517bd42e39e85d3417f30802f2eb972bdbb0b0
+author aaronleventhal@moonset.net
+files accessible/src/html/nsHTMLTableAccessible.cpp

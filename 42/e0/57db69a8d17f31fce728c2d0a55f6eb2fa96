@@ -1,0 +1,4 @@
+changeset ea56f7ef7ba51fa8da7cdba39c5b44a17e95e06c
+manifest 6c2dd0085b485f6c35cfe2883dcc8aa31b8fb7b4
+extra amend_source:80ad15c08f19448f8e896989392c78f1437e982d
+files mfbt/TypedEnumInternal.h

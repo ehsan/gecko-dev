@@ -1,0 +1,4 @@
+changeset 6c1b686813de528e981dc9143cbdbb9c91761e21
+manifest 20a27b91631273475759c2efebcd4dc63bddf04d
+author mattwillis@gmail.com
+files js/src/xpconnect/loader/XPCOMUtils.jsm

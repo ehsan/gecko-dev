@@ -1,0 +1,4 @@
+changeset 344e0e0cabe451fd8d99f0b5729d8cd3b7121fa9
+manifest 008b75fd25dd29472dac11c054c6e7417f951bb1
+extra rebase_source:5de14b144a54f482fc836dd4ccc14c7d2c5bfb45
+files content/base/src/nsTextFragment.h

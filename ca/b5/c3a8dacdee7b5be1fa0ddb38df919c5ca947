@@ -1,0 +1,4 @@
+changeset e7f38ba5e6a522dbe3f78c2774c06dfbbbd04f32
+manifest 854f54684ee4bac44bc236389c91e2c35aec046c
+extra rebase_source:537ccc1791256a93c224ae653d07d5981f57e037
+files browser/components/sessionstore/content/aboutSessionRestore.js

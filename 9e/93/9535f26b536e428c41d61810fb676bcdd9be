@@ -1,0 +1,4 @@
+changeset 0a50057bc702651141d71827dd7ab4460ff8a4c1
+manifest dfcb1a706d6c0e69ae1c2decd0b93b6ecd7998b9
+author mitcho@mitcho.com
+files browser/base/content/test/tabview/Makefile.in

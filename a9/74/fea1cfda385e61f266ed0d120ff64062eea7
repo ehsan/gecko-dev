@@ -1,0 +1,4 @@
+changeset bba788edaaefb3de4540b23a224562fc3fbbd0d1
+manifest af8a90eceb513c434e1e13598a29e1e8e34e6ac0
+author leon.sha@sun.com
+files gfx/src/thebes/nsThebesDeviceContext.cpp

@@ -1,0 +1,4 @@
+changeset f03a3f52ea03efd4000f2f54cbb14bc4f03e9196
+manifest d5f68f0fc28fe3ccf612495fb1f7bad1cfe06306
+extra rebase_source:ab181172ca28a3c750754147f87366dc2d28d126
+files widget/src/xpwidgets/GfxInfoBase.cpp

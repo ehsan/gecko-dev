@@ -1,0 +1,4 @@
+changeset d02b25c4b1a83599acecabcde100e3f267e4931d
+manifest 6b502318add0a12b435be8e74bff0f1ff41040de
+extra rebase_source:6c1ce49e2ae4bdfeb5c145d0d724c96471eae8e8
+files widget/src/android/AndroidJavaWrappers.cpp

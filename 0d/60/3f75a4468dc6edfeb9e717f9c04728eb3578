@@ -1,0 +1,4 @@
+changeset 4b86f8f0a8dd5587e31bc49b081ce394876d97db
+manifest c90500e765b072fd4cfde8e225831ed6f92a543a
+author jwalden@mit.edu
+files layout/generic/nsIFrame.h

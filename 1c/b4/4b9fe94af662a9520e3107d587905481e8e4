@@ -1,0 +1,4 @@
+changeset 03314fb9df16ebd9f652fbcaf702ea44b28ce803
+manifest 2a654c4f2e99573ad5ad298f36c8307a3a00fc97
+extra rebase_source:2bd877e984aab76cd3cdca3973a5f40952c6e1e1
+files browser/base/content/browser.js

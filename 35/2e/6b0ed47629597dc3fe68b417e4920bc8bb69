@@ -1,0 +1,4 @@
+changeset 442a0c7e7285f6ede58e4b270525e19b55ea5dcb
+manifest 6c8cd07dbd747b8a5d7fe752d3f16fd1af3aba83
+author sdwilsh@shawnwilsher.com
+files toolkit/components/downloads/test/unit/test_download_manager_migration.js

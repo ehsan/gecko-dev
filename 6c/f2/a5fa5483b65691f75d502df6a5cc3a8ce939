@@ -1,0 +1,4 @@
+changeset be5bb69b8340733ba00a803267e077a268e387e6
+manifest 285885e2cd57d1dd187ce31e1288368101112121
+author cltbld
+files tools/release/configs/fx-moz18-bootstrap.cfg

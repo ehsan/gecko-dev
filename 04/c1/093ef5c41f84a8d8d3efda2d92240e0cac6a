@@ -1,0 +1,4 @@
+changeset ce3638e6a65942353a8c56dea78b6079b89bcec8
+manifest 398506775069052acea779274c29c2616537413e
+extra rebase_source:a92130375280523b216562e06f11c6e3f755b9e6
+files media/libstagefright/system/core/include/utils/TypeHelpers.h

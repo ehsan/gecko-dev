@@ -1,0 +1,4 @@
+changeset ae4261eac1127cb714bcf4438a025feaf70ec494
+manifest 127d4c569661801f4196fd41f254bd6b0a720155
+author igor@mir2.org
+files js/src/jsinterp.c

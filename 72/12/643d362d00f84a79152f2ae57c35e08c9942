@@ -1,0 +1,4 @@
+changeset b2ad323de36a1fc9b50c89abab5f3a0b1be47ab0
+manifest d17e7c6ccad66a307680b825c1acf2248db7d270
+author gavin@gavinsharp.com
+files xpcom/tests/nsIFileTest.cpp

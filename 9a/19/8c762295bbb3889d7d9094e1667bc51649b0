@@ -1,0 +1,4 @@
+changeset 81d34cb8b2d40762d67aeb64dd76f1dc300d71a1
+manifest 9f61da3a61501c31838857ad6c213a10f3e2f7e1
+author reed@reedloden.com
+files uriloader/exthandler/unix/nsGNOMERegistry.cpp

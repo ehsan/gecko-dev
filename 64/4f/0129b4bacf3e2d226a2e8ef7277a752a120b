@@ -1,0 +1,4 @@
+changeset b7a7105dc80f6eff994937560942c4b21531621b
+manifest 2bcac6deceddd464315a65167423f0228806b37e
+author Andreas Gal<gal@uci.edu>
+files js/src/jscompartment.cpp

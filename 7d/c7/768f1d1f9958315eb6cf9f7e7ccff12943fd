@@ -1,0 +1,4 @@
+changeset f19583e29a706d0b960e229a915cb4f47bf5504a
+manifest e8b73213702be7b389130f43295e5027e8fac768
+extra rebase_source:0c0b93b67504c9230c4fb3cced6de6a35e43a1c5
+files browser/base/content/test/browser_bug481560.js

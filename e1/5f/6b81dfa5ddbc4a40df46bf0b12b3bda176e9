@@ -1,0 +1,4 @@
+changeset bd072ff095af91ad712e36df693f71274aab9ff5
+manifest 956b13036d736603debe73a979fdefa61a007ca3
+author timeless@mozdev.org
+files content/media/ogg/nsOggPlayStateMachine.cpp

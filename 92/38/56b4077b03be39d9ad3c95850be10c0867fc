@@ -1,0 +1,4 @@
+changeset 54d3bf38ca10c3c04db9d7bee35582ee19c5eae5
+manifest 9165cbe23145bad314f76c4f3471c7c228db0533
+extra rebase_source:cdd3dcbfc9d528ed72820b4fa60e6b88a433aeae
+files browser/themes/shared/devtools/animationinspector.css

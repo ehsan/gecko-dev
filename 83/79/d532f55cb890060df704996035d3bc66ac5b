@@ -1,0 +1,4 @@
+changeset 078003f2b546bba2fa2be81e1822f3c5db4fca62
+manifest 484c527517867751757ca6ebd3bc6f926d13e7be
+author mozilla.mano@sent.com
+files browser/components/feeds/src/FeedWriter.js

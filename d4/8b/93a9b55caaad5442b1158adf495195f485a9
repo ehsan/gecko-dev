@@ -1,0 +1,4 @@
+changeset 6e0c9450ac6872a5866b7232e5dd75d1ae370ffa
+manifest 5253d8d064500803d904df1a0a78ff53615ec546
+author timeless@mozdev.org
+files netwerk/wifi/src/nsWifiScannerUnix.cpp

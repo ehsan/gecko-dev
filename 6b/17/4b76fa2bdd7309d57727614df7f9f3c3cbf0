@@ -1,0 +1,4 @@
+changeset 2d84d1cf7137373247a4253ea37d9dae6290c846
+manifest 05360e2b9eec8062ca3b3f32d1a64a78c3d8e2b4
+author johnath@mozilla.com
+files browser/base/content/pageinfo/security.js

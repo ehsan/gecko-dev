@@ -1,0 +1,4 @@
+changeset 5f8d649783cfa9402b653aa9a890e525d6f11579
+manifest 6c7599ff4f8f25147967e446c0398d9226e3c1cb
+author bclary@bclary.com
+files js/tests/js1_7/lexical/regress-346642-01.js

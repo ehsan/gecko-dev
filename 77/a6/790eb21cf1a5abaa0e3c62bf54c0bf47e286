@@ -1,0 +1,4 @@
+changeset 772642d512342adea1f9910321b9e51a27cb300e
+manifest 974dfc97850283fbf4921b7b4384c59af79c8498
+author gijskruitbosch@gmail.com
+files toolkit/components/places/src/nsLivemarkService.js

@@ -1,0 +1,4 @@
+changeset 7d54dc3c254e888c58ed9a0749c5fd722639de12
+manifest cfab0229f01d6f2fd8ad50ece6ef76a71968e8ef
+extra rebase_source:39b2cd075977cd5ae13d4055fda2658a8cb2cede
+files js/src/vm/String.cpp

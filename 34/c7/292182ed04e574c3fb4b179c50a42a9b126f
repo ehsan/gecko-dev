@@ -1,0 +1,4 @@
+changeset a1ff9a5ce711dcd4fd88a2dcba152eecb9376528
+manifest fb2c024c3115abac0f40017262fb73c696a3212f
+extra rebase_source:89ff25b70b9e79dcc0bfee43c10959ab36f970ab
+files embedding/android/GeckoEvent.java

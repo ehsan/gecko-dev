@@ -1,0 +1,4 @@
+changeset 10e0f4db8501a7a1d2255f63b6f2004aaa97beba
+manifest 31df66f438d09bff8167e93f4f8608bef0bbb7fd
+author aaronr@us.ibm.com
+files xpcom/glue/nsDeque.h

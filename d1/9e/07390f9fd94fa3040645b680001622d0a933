@@ -1,0 +1,4 @@
+changeset c57f18783b12d7069b18bdd4a2299322b9a5d45b
+manifest 2ec7c76532a08c774bcfb2a7afc3c4c4e9193b3f
+extra rebase_source:1d2a962cabe4541cd57b925cf4889fea00b61834
+files gfx/src/thebes/utils/nsCoreAnimationSupport.h

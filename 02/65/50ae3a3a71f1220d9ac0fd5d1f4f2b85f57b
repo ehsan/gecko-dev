@@ -1,0 +1,4 @@
+changeset 34737b42832a974850ec719163ba9e100789a8b6
+manifest 462bcbd6071c5e1d63667533c52a44ec165c3fb5
+author rbs@maths.uq.edu.au
+files layout/mathml/base/src/nsMathMLTokenFrame.cpp

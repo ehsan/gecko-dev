@@ -1,0 +1,4 @@
+changeset 9241c829d819d8445db9eda529cdbe4f40511828
+manifest 7dcb0d413049d1b5a402a5166c79a8e9fec40f63
+extra rebase_source:377a22b5e2850786453fe9f600f57005c1756bed
+files browser/components/customizableui/test/browser_988072_sidebar_events.js

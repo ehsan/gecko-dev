@@ -1,0 +1,4 @@
+changeset 1e7c4903aa7be07c8e0f5839d289972209de7caa
+manifest 2e167e9c3a37027b26972e3c2e48c744a165d106
+author mozilla.mano@sent.com
+files browser/components/places/public/nsIPlacesTransactionsService.idl

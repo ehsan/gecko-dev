@@ -1,0 +1,4 @@
+changeset 3238a5e6e0d81b4fe48e51dc696bf5cff223d46f
+manifest fad1b7c5cb8113688de1b720424d3e4f6b178e2b
+extra rebase_source:5ea9c87610a5242597b002f276ac210bf42c34ab
+files js/src/tests/ecma_5/extensions/cross-global-getPrototypeOf.js

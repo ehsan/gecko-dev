@@ -1,0 +1,4 @@
+changeset 9ff9efa7ae86be5a1be4b2437dca763496109d8a
+manifest ef5bf7ae6dd32a0a6c395fb29b0d824465b266e4
+author reed@reedloden.com
+files layout/generic/nsColumnSetFrame.cpp

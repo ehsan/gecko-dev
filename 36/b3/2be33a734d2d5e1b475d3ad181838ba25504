@@ -1,0 +1,4 @@
+changeset a3304cf98f4ae7d9bc92d2bcc640c43ea7505307
+manifest d7c80b7b7c62c7871e4acf6c6d1a69d37ec12271
+author tero.turtiainen
+files widget/src/qt/nsNativeThemeQt.cpp

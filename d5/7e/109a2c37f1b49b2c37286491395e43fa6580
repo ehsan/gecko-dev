@@ -1,0 +1,4 @@
+changeset e09287b6e1145cb12b2fa38ed6923b55fc7c6250
+manifest 3081c704be9ea240ca11d46335e18065e17e0520
+author preed@mozilla.com
+files tools/release/Bootstrap/Config.pm

@@ -1,0 +1,4 @@
+changeset fd6aa6a7c0fba194725045a77e370cef90e60ad2
+manifest b4b07bb04ab53a3feac4be1dccc1d5bae63df34e
+extra rebase_source:f6435707a5808e9119cca7bbe3ad5a8d40585b0f
+files testing/marionette/client/setup.py

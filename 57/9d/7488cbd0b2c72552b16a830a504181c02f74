@@ -1,0 +1,3 @@
+changeset dc057c38b2b52d8617eba8721ebd570cac083a85
+manifest a90d84de03519530896f7bcbbf3b73c76970082d
+files uriloader/exthandler/tests/unit/test_punycodeURIs.js

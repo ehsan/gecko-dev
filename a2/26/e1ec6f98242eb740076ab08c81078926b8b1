@@ -1,0 +1,3 @@
+changeset 8e03750d5434c1f60cbb918b6f8527e3d36665e6
+manifest 8b2915aa10cc11684a51f0e0045f7c6aede19dde
+files media/webrtc/trunk/src/modules/video_capture/main/source/Mac/QTKit/video_capture_qtkit.mm

@@ -1,0 +1,4 @@
+changeset 3b87cefd4690887645a37375b57b8ba09116a619
+manifest 513d04daeea7189187010e238f2f083398fb0362
+author mozilla.mano@sent.com
+files toolkit/content/tests/widgets/test_statusbar.xul

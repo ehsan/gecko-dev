@@ -1,0 +1,4 @@
+changeset 20e167542411f370b8faf0b52ddf70e6838fd4fd
+manifest 1e35faa478e9215ece599f6e0f394e45584aff41
+author rhelmer@mozilla.com
+files tools/release/configs/fx-moz18-staging-bootstrap.cfg

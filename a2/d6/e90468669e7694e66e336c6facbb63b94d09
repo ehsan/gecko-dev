@@ -1,0 +1,4 @@
+changeset 1d54496e28c91661b4beadcb09d8fd198934184f
+manifest 0a5f925339f53faeed4ca6ba644a36a3fc0b1101
+author mozilla@weilbacher.org
+files gfx/src/thebes/nsThebesImage.cpp

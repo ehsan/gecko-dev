@@ -1,0 +1,4 @@
+changeset 6679e57b27e3ef625dde1b1138d3d8b227763cb9
+manifest 393614aeee6d545cb51b13a614cf19af08cffcae
+extra rebase_source:8643b1ea88d52e76f93e66158373f479f41ccdd7
+files tools/rb/fix_macosx_stack.py

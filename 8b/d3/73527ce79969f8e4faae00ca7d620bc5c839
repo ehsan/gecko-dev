@@ -1,0 +1,3 @@
+changeset 0d817800cb39b5e34ba4c02f07800c1c9b837bda
+manifest b9a3578fcd91a537c6c5aaef8bf93f34b784938b
+files modules/plugin/os2wrapper/wrap_XPCOM.cpp

@@ -1,0 +1,4 @@
+changeset 23cf9fbed8ecc1d267eab98eb2efdb1f2a2f3a92
+manifest c7f2bb98f8bba60e67543531b6afe309b40fc87c
+author reed@reedloden.com
+files extensions/spellcheck/hunspell/src/hunspell.cpp

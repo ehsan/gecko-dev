@@ -1,0 +1,4 @@
+changeset 90fbe2c58f079102aab5210602c061e6c2e08ca2
+manifest a4a8610af2226913a2fa4808d0be90205eaa9567
+author bzbarsky@mit.edu
+files widget/src/gtk2/nsNativeThemeGTK.cpp

@@ -1,0 +1,4 @@
+changeset cf217434dcd8c4f098d37a30b07530d5b49f8df2
+manifest 6ee212df4a05d008007463137a1b9961fc4c1635
+extra rebase_source:42ec6e999f44503a32137bca4fe0e92eedd831cc
+files js/src/vm/ScopeObject.cpp

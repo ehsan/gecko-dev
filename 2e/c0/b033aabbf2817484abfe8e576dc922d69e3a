@@ -1,0 +1,3 @@
+changeset 38f89e365c09a8656987d3809c8511801ac202fe
+manifest db09d1592eadef4112c93034775a76e6d756c29f
+files mobile/installer/debian/fennec.postinst.in

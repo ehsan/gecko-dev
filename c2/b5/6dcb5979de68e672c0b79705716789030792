@@ -1,0 +1,4 @@
+changeset 85ca684e509e67730de7413d945df6ea16ed8a62
+manifest 8b257b2904ecf71f1204ae62308ddb6983e83057
+author brendan@mozilla.org
+files js/src/jsstr.c

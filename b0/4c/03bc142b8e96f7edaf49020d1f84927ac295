@@ -1,0 +1,4 @@
+changeset ef4d7043c4e6a6a0ade2e65afd54cc4c164f6864
+manifest 523fdfb3be88951b2252aed5bbf6e9ebfad0ff4c
+author emaijala@kolumbus.fi
+files widget/src/windows/nsWindow.cpp

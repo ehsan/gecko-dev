@@ -1,0 +1,4 @@
+changeset 882a97d58187549bbd6db748e7e30ab3aaadb5f9
+manifest 4548a477cebccdcbe6494e9cfe521d2a38976988
+author rflint@ryanflint.com
+files netwerk/base/public/nsNetError.h

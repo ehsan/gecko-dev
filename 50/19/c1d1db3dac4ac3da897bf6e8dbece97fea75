@@ -1,0 +1,4 @@
+changeset a3a44ea8a48accbf321e013644528edb3a3670b2
+manifest 4e25bc74dd8fb8d700430609fc1afcddfcd378cd
+author florian@queze.net
+files uriloader/exthandler/mac/nsInternetConfigService.cpp

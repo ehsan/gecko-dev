@@ -1,0 +1,4 @@
+changeset 4b57d8b30fa2686cd9f0cd7ddd346506c02b2783
+manifest 3c996d8f5b5f6139dfe1d2d6418031926aa35881
+extra rebase_source:bc91fc98dc395e701599e7bb04dd96dc29f12b8c
+files browser/base/content/test/general/browser.ini

@@ -1,0 +1,4 @@
+changeset 3e66f24faf18a9740da806c9c266dfb9c61ab74e
+manifest bccf3cd6e0447c6ef8e63f1c1a1a3cc99d461506
+author James Cook
+files toolkit/xre/nsX11ErrorHandler.cpp

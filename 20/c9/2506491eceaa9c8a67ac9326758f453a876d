@@ -1,0 +1,3 @@
+changeset d38e493718cbc3b1aab79363fea40d38aaf4ceb9
+manifest ddcc34db6b9c784e41ebc7c7d336245f31fc72b7
+files services/sync/tests/unit/test_service_cluster.js

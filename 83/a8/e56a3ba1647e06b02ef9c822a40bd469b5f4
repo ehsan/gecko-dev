@@ -1,0 +1,4 @@
+changeset 16483461f359ab222b90c5a89e1322986db3e203
+manifest 80aa7f1d4e8898edc5bd568dc35ca7cf540d7c68
+author timeless@mozdev.org
+files js/src/jsapi-tests/testClassGetter.cpp

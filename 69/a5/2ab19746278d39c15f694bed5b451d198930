@@ -1,0 +1,4 @@
+changeset 40ac7ca4fff0cc3af2db1d1942edb8e11fc19efc
+manifest 122c424de63d6ea82ccd70c7414ac566776cc8ef
+extra rebase_source:1f3c91c0ebdaf883e78e0bd317f0dfda35334838
+files browser/fuel/src/fuelApplication.js

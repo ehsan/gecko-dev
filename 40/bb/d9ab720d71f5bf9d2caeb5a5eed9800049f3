@@ -1,0 +1,4 @@
+changeset fd6d72c2aeb40d89e361bbad502bb2d2247143bc
+manifest 38478563f7aaa81b9d6db96054650ddcb359a2aa
+extra rebase_source:116c669f4226a8e5e0ee26e7d8be140a35264852
+files testing/specialpowers/content/MockFilePicker.jsm

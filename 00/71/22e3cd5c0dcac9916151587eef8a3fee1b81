@@ -1,0 +1,4 @@
+changeset 94bbcc8d45e6758b6a5b1014550541182fa575f0
+manifest ad8c1cafe89dad06d07528af57d7203f855c3df6
+extra rebase_source:5bd7e6896f410b5e4d5ac07083c0184071d38ee1
+files browser/devtools/webide/content/webide.js

@@ -1,0 +1,3 @@
+changeset d8211ef3df67c5c0aaa8b30a79133c7c09717b27
+manifest 7197f153900c3c93f3e7fa89cc52e0344538d22d
+files xpcom/reflect/xptcall/src/md/unix/xptcinvoke_amd64_openbsd.cpp

@@ -1,0 +1,4 @@
+changeset 3f872c75a08c3a9fe4b78c7fc29e771acc0aeb7c
+manifest a0c97b7362b6116a26b16720d6af09ddd41a02a5
+extra rebase_source:b2a40dbd3c7074e884a4d1597b51bf3173502a7f
+files xulrunner/installer/Makefile.in

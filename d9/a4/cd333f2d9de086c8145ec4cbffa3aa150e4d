@@ -1,0 +1,4 @@
+changeset 96c20e2ddd6448a8e54ef13ca45408914b5ca215
+manifest 212bd2cf9d60e9cbcf37c0ec7fa56bd865f481ac
+author reed@reedloden.com
+files netwerk/dns/src/effective_tld_names.dat

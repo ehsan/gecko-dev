@@ -1,0 +1,4 @@
+changeset b6c7ac4865efac670d413f760f768d321569b1a9
+manifest 7dfa9d6d619db380c0ba1496df624a994b987f84
+author mats.palmgren@bredband.net
+files layout/generic/nsLineLayout.cpp

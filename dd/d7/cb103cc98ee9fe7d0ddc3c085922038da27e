@@ -1,0 +1,5 @@
+changeset dfdded687f2aad3f1e6c8c8666a5051453d5c25f
+manifest e26647c91ebb19f626bd1f9077ca8f7391ee43bb
+author timeless@mozdev.org
+extra rebase_source:361e5478262857c4a008c94e12920dbf7244d8b5
+files extensions/spellcheck/hunspell/src/hashmgr.cpp

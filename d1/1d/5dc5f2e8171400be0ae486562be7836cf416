@@ -1,0 +1,4 @@
+changeset 00137d5cdc70d329c21160fe8fcd043bfe2aa7df
+manifest a0d629ec5c50d9bee005d08088b95385b7a6edd6
+extra rebase_source:e537c0be8ce98c46b81cb7e7e7cffb46c16e2c81
+files widget/gtk/nsScreenGtk.cpp

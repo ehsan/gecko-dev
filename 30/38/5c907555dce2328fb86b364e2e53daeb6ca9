@@ -1,0 +1,4 @@
+changeset c506d19ea1a7a16e42ce5165cec75e8101f494cd
+manifest 15b4af84249c958476dc68f9bc825ad7f6b17d12
+extra rebase_source:762cc0600316cfa38129768f80c99bd4fe137096
+files widget/src/qt/Makefile.in

@@ -1,0 +1,4 @@
+changeset c380c62e94f22ae5480b98dc96dc4a301005036c
+manifest 0328ff1394dcddc946bc6fab523a6ef0af7f73ec
+extra rebase_source:9c495cef6839782ec7bfa9d1cc214c282ddaa591
+files js/src/jsfuninlines.h

@@ -1,0 +1,3 @@
+changeset 5aaf62c1e40b76099afa1cc6f523cf4316465d08
+manifest b0aaf5bfc6394364fe4c854beecfd512edec2b8e
+files extensions/cookie/test/unit/test_cookies_read.js

@@ -1,0 +1,4 @@
+changeset c40128a92338f0c3a205a205904e12cb686ecd24
+manifest f0eb0ac0ca0d2e0dac50bc05577891c4575bf9d3
+author timeless@mozdev.org
+files js/jsd/jsd_xpc.cpp

@@ -1,0 +1,4 @@
+changeset b7361569df858ae41e01227959b74f64678cd807
+manifest c96734153685a1e72e12e6482fa4d2d63c8d496a
+author sspitzer@mozilla.org
+files browser/components/places/content/places.js

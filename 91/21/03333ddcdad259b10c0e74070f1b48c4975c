@@ -1,0 +1,4 @@
+changeset 110737e4ae1390ba28594fc1676e2fb24530207e
+manifest c3e82f173835226efa07a1268cd9ab454bacae28
+author neil@parkwaycc.co.uk
+files layout/xul/base/src/nsXULPopupManager.cpp

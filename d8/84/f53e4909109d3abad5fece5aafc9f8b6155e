@@ -1,0 +1,3 @@
+changeset 944d31475d2ed757ec1ca6c7c56a2687d4742795
+manifest d95e80641abb574f59640380ebf84220efb904b9
+files js/src/jit-test/tests/TypedObject/inlineopaque.js

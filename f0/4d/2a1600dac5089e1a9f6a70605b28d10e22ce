@@ -1,0 +1,3 @@
+changeset dd9b5b71e96cced76b02dd144d12e379cd6bd091
+manifest 17b1b017bf1bd0290d36cb89a53858243fbc4b08
+files xpcom/glue/nsThreadUtils.h

@@ -1,0 +1,4 @@
+changeset 412451c0f918cb4d2ff710055145b8d5293bbb29
+manifest 79f40c288d390e7b8b33556e4ddd38859b0e4c10
+extra rebase_source:f804a0e80252624ffca3988e56f5c0d7bd96ba7b
+files dom/locales/en-US/chrome/security/csp.properties

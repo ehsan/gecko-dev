@@ -1,0 +1,4 @@
+changeset 4849db5cf0da50642d6f98ba916929b6d0358609
+manifest 43843e844cb16be849c374ba2aa32a9128a6b047
+author bent.mozilla@gmail.com
+files xpcom/string/public/nsTSubstring.h

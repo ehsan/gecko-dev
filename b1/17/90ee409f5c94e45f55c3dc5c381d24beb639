@@ -1,0 +1,4 @@
+changeset e578086d8507aa05cecb2117ba37cadb6d8262f7
+manifest b00c183a839c25085559db91710267ce99c57c0f
+author dwitte@stanford.edu
+files netwerk/dns/src/effective_tld_names.dat

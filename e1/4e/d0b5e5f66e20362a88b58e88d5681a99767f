@@ -1,0 +1,4 @@
+changeset ec881664bb4f10c9a5370a45f8d875c31a6fb4c8
+manifest 6502975b84969f967560f2f00065692dc8834f7c
+author Olli.Pettay@helsinki.fi
+files layout/base/nsDocumentViewer.cpp

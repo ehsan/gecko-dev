@@ -1,0 +1,3 @@
+changeset 8eaffb059ef50c8c9e6121c69a91753724e519ef
+manifest ba8f58726df8241a44a6989b8649978125c69d66
+files dom/browser-element/mochitest/browserElement_SendEvent.js

@@ -1,0 +1,4 @@
+changeset cb0bcaf2770b9941b6cb92527a7c513de5091bc1
+manifest f178966c6afd8c5210dea8d34d8e32a4702e8409
+author mconnor@steelgryphon.com
+files browser/components/nsBrowserGlue.js

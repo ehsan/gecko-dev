@@ -1,0 +1,4 @@
+changeset eeb774c6cec9c65dc9f137a376f31629530b4612
+manifest 1ae17664d56fc8a3b7b8ee072c83978f798d0b80
+author shaver@mozilla.org
+files js/src/nanojit/avmplus.h

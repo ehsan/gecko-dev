@@ -1,0 +1,4 @@
+changeset c6f9eacdf9dd3a4b9853c7f6e4aa6012be3c8a54
+manifest f09e3f9702850081cf21f99171db8f1943efa08d
+author alfred.peng@sun.com
+files browser/components/preferences/permissionsutils.js

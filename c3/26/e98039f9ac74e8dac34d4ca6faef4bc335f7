@@ -1,0 +1,3 @@
+changeset b15a6d19fb15174142adcb80a5cb74de4c7796a8
+manifest a0b506b146424390eca86c7e65a2e2efd772fefc
+files toolkit/components/console/hudservice/tests/browser/browser_webconsole_netlogging.js

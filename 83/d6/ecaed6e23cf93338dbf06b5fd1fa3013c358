@@ -1,0 +1,3 @@
+changeset 3e171f1759c969d126c51600c9a320034aa7cb9b
+manifest 24b57b23f9e65ae514b486df06833045c94edd91
+files js/src/jit-test/tests/sharedbuf/bug1068458-toolong.js

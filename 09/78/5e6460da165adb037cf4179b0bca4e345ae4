@@ -1,0 +1,4 @@
+changeset 96d922b63e53781ce5cd6f8490f1a091960947a1
+manifest 7e429b073be2f6ee9846e6aefa9e984d3690e71f
+author mozilla.mano@sent.com
+files toolkit/components/passwordmgr/content/passwordManager.xul

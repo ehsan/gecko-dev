@@ -1,0 +1,4 @@
+changeset dd124524d90ff135d7fff523ed75eb76a7608b71
+manifest 89cde2beefcc40e5e43d133561911d9d210c0173
+author paul.feher@softvision.ro
+files mobile/android/base/tests/testReaderMode.java.in

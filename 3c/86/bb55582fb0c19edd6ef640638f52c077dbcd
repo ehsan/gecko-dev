@@ -1,0 +1,4 @@
+changeset 650391fd52bd70d55ded63ede237b7260962e2d8
+manifest b085467864b58ac8de54138c52d21f3559793d0f
+author dwitte@stanford.edu
+files toolkit/components/places/tests/browser/Makefile.in

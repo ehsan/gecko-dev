@@ -1,0 +1,3 @@
+changeset 6ecf2a75d1e5db2aedf36ea6d017ce0a0eeb69f9
+manifest ba910ee380a21a7651d21de0e2e4996094ffc458
+files src/test/java/org/mozilla/android/sync/net/test/TestCredentialsEndToEnd.java

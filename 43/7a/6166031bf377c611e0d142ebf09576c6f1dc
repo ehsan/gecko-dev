@@ -1,0 +1,4 @@
+changeset bc20e5f67b6bb127bcb39327d9d17043ba69c347
+manifest bb491d48531f3eaeb523ba0ead2d74daf1b0d79e
+author bugzilla@standard8.plus.com
+files modules/libpref/src/nsPrefBranch.h

@@ -1,0 +1,3 @@
+changeset 7c28c8e03229ca44bead5c86cb10e2b601c0ec75
+manifest 73eb0b0acfa5d89643259f2e01127c60ea563c9c
+files services/cloudsync/tests/xpcshell/test_bookmarks.js

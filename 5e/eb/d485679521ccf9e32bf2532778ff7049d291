@@ -1,0 +1,4 @@
+changeset c0ce0ab4c3ad48a6889fd1f254fd99f812f8b59d
+manifest 5f94dc242b81c9f2178c7bdfdd3dfc3c4e0c7948
+extra rebase_source:99ef0a24beea67613a67823fd35c313f933841c9
+files image/src/FrameBlender.cpp

@@ -1,0 +1,3 @@
+changeset 636b1e5a994f379943772b2affb359ad09661bdc
+manifest c29f9835be3bcdad1705f2cf993c31ce472a3c9f
+files js/src/methodjit/ImmutableSync.cpp

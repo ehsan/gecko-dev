@@ -1,0 +1,4 @@
+changeset e91db74271277a6c7ed201ad190b6781abe284e2
+manifest 5dd9d06d9ff44abf1d20f3ee11388503cd6da37d
+author jonathandicarlo@jonathan-dicarlos-macbook-pro.local
+files services/sync/modules/dav.js

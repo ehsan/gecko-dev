@@ -1,0 +1,4 @@
+changeset 82b28c16aca6ee7046bda612478f0ec5c1ecbe48
+manifest 58edd42fda6c24dc6d75cb548385712333d7de8d
+extra 
+files xpcom/io/nsStreamUtils.h

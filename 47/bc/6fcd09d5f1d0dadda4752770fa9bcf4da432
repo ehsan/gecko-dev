@@ -1,0 +1,4 @@
+changeset b6d90462cc6d882d15846848cbc45362f63f4f51
+manifest 9a8df095cc702edcec407f0add9401d34c66396f
+extra rebase_source:f99634ff01e9933a1a2cc15348d5c8b6c675ba47
+files browser/components/migration/src/ChromeProfileMigrator.js

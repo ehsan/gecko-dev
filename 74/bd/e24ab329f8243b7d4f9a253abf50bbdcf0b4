@@ -1,0 +1,4 @@
+changeset e024ed77fea15ad08e7b1bd9798a1a7b099737b9
+manifest 081c58ddf7ae4a48a376452e83d183d241bf202c
+extra rebase_source:4d7d4acec4736d722406fd3b243e50dc8bc87c5a
+files extensions/spellcheck/hunspell/Makefile.in

@@ -1,0 +1,4 @@
+changeset 8857ad3785a397d0a2ccc71feb42607bd7cfd70c
+manifest 1b7315de7aacdd08caadaa97597d90ba5cb20a8c
+author timeless@mozdev.org
+files modules/plugin/base/public/npapi.h

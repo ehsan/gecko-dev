@@ -1,0 +1,3 @@
+changeset dfc7ddc234519a1036d8637152527b43f28a2541
+manifest 4417fbad07ceff5e9477bff202e1add09f4a0801
+files services/sync/tests/unit/test_async_querySpinningly.js

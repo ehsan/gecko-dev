@@ -1,0 +1,4 @@
+changeset 3aab17dffac7e5fc6aed9911de4b6f8728766c10
+manifest 9ba3e6ea3b3b2fc83346ce4f5d3d7cd907e00ada
+extra rebase_source:072e023d7d880cce5e9e6999fb81ec0f2c29a94c
+files xpcom/base/nsError.h

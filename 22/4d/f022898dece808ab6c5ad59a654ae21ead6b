@@ -1,0 +1,4 @@
+changeset 1552c33b01ad68eaa4ce3b3073e4f7d12f3a840a
+manifest 777d787bd2062d839af74b68b115915544d626d8
+author asqueella@gmail.com
+files content/base/src/nsXMLHttpRequest.cpp

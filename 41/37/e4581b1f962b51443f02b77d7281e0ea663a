@@ -1,0 +1,4 @@
+changeset 6c939eb49b8e5e694d29166077707b9d5125c1f2
+manifest ea76a89af86ba31e9fac562d0261d30574f2c0c0
+extra convert_revision:661718b83d398aa4c91f522f7d08ef5cea8e20a9
+files js/src/nanojit/NativeCommon.h

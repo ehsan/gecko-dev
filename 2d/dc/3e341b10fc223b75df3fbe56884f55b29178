@@ -1,0 +1,4 @@
+changeset 42096f9d445ad41e14a6f393b63acbfb18d94b67
+manifest 31b3ec89f4dca298f60e225a8b63addf33402011
+author sayrer@gmail.com
+files widget/src/gtk2/gtk2drawing.c

@@ -1,0 +1,3 @@
+changeset 370927f1465a65fe8b2a4aa6b9a911a689ebe293
+manifest 41bcc887c2cc65aea13bf2f958b222fdb341b00a
+files testing/mozbase/manifestparser/tests/test_testmanifest.py

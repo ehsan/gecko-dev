@@ -1,0 +1,4 @@
+changeset b25941106951afce9e46cd7cb7e128136b8d4e90
+manifest 1534f4f5ff890b6721b7782ffac9625ebe837d6e
+author bent.mozilla@gmail.com
+files toolkit/crashreporter/tools/upload_symbols.sh

@@ -1,0 +1,4 @@
+changeset e8db0dbe4bfcf0207f81da1c3541a592cd63b2ee
+manifest 2a43fbdc5de14b8c4ffdaf322e0c23c744a231c9
+author aza@70-7-150-98.pools.spcsdns.net
+files browser/base/content/tabview/modules/utils.jsm

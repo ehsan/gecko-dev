@@ -1,0 +1,3 @@
+changeset 1a1611bb10630cda771042ef8089b7b6060c3f55
+manifest f9972cf317e62548fbcf209362043c4f2d19f251
+files netwerk/test/unit/test_bug248970_cache.js

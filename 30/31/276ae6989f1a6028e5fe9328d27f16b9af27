@@ -1,0 +1,4 @@
+changeset 44ef1e2129706317a17b29e7ff8bdb04b2424342
+manifest 9a01971444e46fa5ee6d75b4b931b8681aaee46a
+extra rebase_source:18787ca6131d944ee344c9428f5fa909b5e78a52
+files docshell/test/browser/browser_bug503832.js

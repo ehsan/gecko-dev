@@ -1,0 +1,4 @@
+changeset 83629ce268b20bd6ebcaa98b34f0e159b723f960
+manifest 3588bfc6e19e41c1188ef54ac8d8a33cd8ed9d1b
+extra rebase_source:c77c9dea614b89265e9a0bf481dc070237c675f9
+files modules/libpr0n/src/imgLoader.cpp

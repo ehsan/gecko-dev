@@ -1,0 +1,5 @@
+changeset e2eca12381c4ef222efa92abcef8b1bf54edbe3b
+manifest 338d63635e88757758a2db5a2ffe94f14c0d4144
+author timeless@mozdev.org
+extra rebase_source:5de1af8537fb0ab490cb51550029006e471cbe63
+files layout/style/nsCSSParser.cpp

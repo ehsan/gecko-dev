@@ -1,0 +1,4 @@
+changeset e75563f0695299ee1c0f4439d63729923fb1043e
+manifest 6fd9647f484a33333eeebd9eb5947f47d336911d
+author blassey@vmware-ubuntu
+files widget/src/qt/nsAppShell.cpp

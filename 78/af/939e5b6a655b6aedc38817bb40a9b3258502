@@ -1,0 +1,4 @@
+changeset ee9a8d36a96ab43388b2f38b2327a94ea88e0aff
+manifest 83685ecde0c148bd75aac0a8df73479b02b6bc06
+extra rebase_source:69f39a94d1284aaa087993cd65aa030f40e9ff92
+files python/mozbuild/mozbuild/mozinfo.py

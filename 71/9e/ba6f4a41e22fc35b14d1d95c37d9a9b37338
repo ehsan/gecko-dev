@@ -1,0 +1,3 @@
+changeset 7127f726f66177c3bf21057933d44616b8f777af
+manifest 968a929512d5570e7bac868c95d86ac752f838b7
+files toolkit/components/places/tests/sync/test_database_sync_embed_visits.js

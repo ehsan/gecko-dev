@@ -1,0 +1,4 @@
+changeset ffceb5f5624ac84fa5d1b90e986962bd488760b6
+manifest 9ac1c7c70ab8e62caa8524e242809cb03283f9d4
+author benjamin@smedbergs.us
+files xpcom/components/nsComponentManager.cpp

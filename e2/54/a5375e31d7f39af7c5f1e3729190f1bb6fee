@@ -1,0 +1,4 @@
+changeset b2429adf2b9f91d17c6346b45aa12041f9d1692a
+manifest d53e64650556d14ff1134694d156c8c67178e637
+author gavin@gavinsharp.com
+files toolkit/mozapps/installer/packager.mk

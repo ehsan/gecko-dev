@@ -1,0 +1,4 @@
+changeset b949e9f6b2fc258aa42ca2e8a0bd46abb40c03ff
+manifest 69bb5a475128c8711411ae8ada231e6e1fbe68dc
+author jonathandicarlo@jonathan-dicarlos-macbook-pro.local
+files services/sync/modules/xmpp/authenticationLayer.js

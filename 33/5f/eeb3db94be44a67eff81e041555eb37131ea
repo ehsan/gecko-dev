@@ -1,0 +1,3 @@
+changeset 9b0d8f906b9a513d3fc8f513d7d2ce4e897fc0ca
+manifest 0021dd2cf47902ae53b63795d7b025f42e540c1d
+files testing/mozbase/mozprocess/tests/test_mozprocess_nonewline.py

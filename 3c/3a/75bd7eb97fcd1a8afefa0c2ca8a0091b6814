@@ -1,0 +1,3 @@
+changeset 4f972fa92cd01682668fe166a0ce9db9df1f8d74
+manifest 494c864041d1b086d131cf17c1b1b29d52749b3d
+files storage/src/mozStorageResultSet.cpp

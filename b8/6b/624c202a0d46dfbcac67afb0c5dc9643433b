@@ -1,0 +1,4 @@
+changeset 767edeccca826b36948f1dd9aeb5f525be00bc28
+manifest 525ea7718f6de8b7ddcdf2364536ca52d87f9f8e
+author reed@reedloden.com
+files widget/src/gtkxtbin/gtk2xtbin.c

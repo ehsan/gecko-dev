@@ -1,0 +1,4 @@
+changeset ee2a1dd646967cf7d02ab061ae382b5b65423ba7
+manifest 65f3630e32aee5ce0c70630bbdd596529d9e75ef
+author dwitte@stanford.edu
+files netwerk/base/src/nsFileStreams.cpp

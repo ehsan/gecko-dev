@@ -1,0 +1,4 @@
+changeset 812167178a44464ce71e9ce9a79b6f8bf50ed475
+manifest 94ba1d28827bbccc7cf65f39ce37a75b16237e12
+author caillon@redhat.com
+files xulrunner/app/Makefile.in

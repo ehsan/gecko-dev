@@ -1,0 +1,3 @@
+changeset bdf27424d1b9b2e90c6e3c717968bb361a29a453
+manifest d0876c55fd401621e314c2c9fe28908946816bfa
+files testing/mozbase/mozlog/mozlog/structured/commandline.py

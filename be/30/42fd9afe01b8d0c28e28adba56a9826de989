@@ -1,0 +1,4 @@
+changeset 2629a0f7c7cf6074976b0b2a45efd31171734589
+manifest 0e4f513b773b02bf4affd386866dbe93803b02e8
+author flamingice@sourmilk.net
+files toolkit/components/downloads/src/nsDownloadManager.cpp

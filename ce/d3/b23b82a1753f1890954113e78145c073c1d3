@@ -1,0 +1,4 @@
+changeset d5088d91f2fcf2f9340f646b0b40e6ca1fb84827
+manifest d994b758cc879883e3a46246bc57b270ed36a02e
+author reed@reedloden.com
+files modules/libjar/nsJARDirectoryInputStream.h

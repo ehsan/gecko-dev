@@ -1,0 +1,3 @@
+changeset cc0f6cfd4f004ec2da9987dcbe02cf7d416f50dd
+manifest bbb3e357dca88e7ac6d72825c0ef571ca5e1a553
+files browser/devtools/debugger/test/browser_dbg_bug723069_editor-breakpoints.js

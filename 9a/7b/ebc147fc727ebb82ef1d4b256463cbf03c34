@@ -1,0 +1,4 @@
+changeset 6b5770a8faea874b881c364712c88875ce17f297
+manifest 0105b6e537869c0fe02a1e349ade6f4c13f14b39
+author timeless@mozdev.org
+files widget/src/cocoa/nsFilePicker.mm

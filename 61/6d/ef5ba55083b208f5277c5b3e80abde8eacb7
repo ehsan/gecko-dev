@@ -1,0 +1,4 @@
+changeset 85d794aadac926d78f521b02610d223133166e72
+manifest ebddcc0190664c5f500ee4900ed7fb97a83f0226
+extra rebase_source:87f59b724062ee27e982ea54fceccf45391d228c
+files accessible/src/atk/nsMaiInterfaceTable.cpp

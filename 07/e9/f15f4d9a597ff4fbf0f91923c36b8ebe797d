@@ -1,0 +1,4 @@
+changeset 603759afc77ac4cdb52bf0c8b594035e3996d7af
+manifest 2277aebcecdae87e9aa42f33aec8ae730bfd2b3e
+extra rebase_source:e23f76a07a998d8a27ea253c2cfe7e07a3f4b268
+files modules/libjar/nsJARDirectoryInputStream.cpp

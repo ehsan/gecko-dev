@@ -1,0 +1,4 @@
+changeset 21f5241b4c857e204f4555fe753785dd9a2c9cd0
+manifest d0528d5fd2896f5482234705be3bb29d0485ed1d
+extra rebase_source:13877f83391acd4d6f4b5c033db2af1a6cc9f63d
+files browser/components/customizableui/test/browser_876926_customize_mode_wrapping.js

@@ -1,0 +1,3 @@
+changeset 4b69c06d878cf6a662cc0cb83679befb115e07a3
+manifest 4435caecde27a6433f105d09fe0295e8b72e9a02
+files dom/tests/browser/browser_focus_steal_from_chrome_during_mousedown.js

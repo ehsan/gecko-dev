@@ -1,0 +1,4 @@
+changeset c566a31100070ea51ce31b5cf48ffb1168a44eac
+manifest cb47fa741fb7822f3222483ccdb22db5fa20f6f9
+author preed@mozilla.com
+files tools/release/Bootstrap/Step/PatcherConfig.pm

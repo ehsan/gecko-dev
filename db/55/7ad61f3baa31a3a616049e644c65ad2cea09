@@ -1,0 +1,4 @@
+changeset 6894f070318286052738cfebdaebc014d737a7fb
+manifest 8f68dab0ace81085b1048e3491351d7ae7cd3616
+author vladimir@pobox.com
+files docshell/test/unit/test_bug414201_jfif.js

@@ -1,0 +1,4 @@
+changeset e5fc3b78daa02c2ad6515a5b33b80612a88a6896
+manifest fe09812df5f0fc090b75fbd7b7084c6d54f9eaa7
+extra rebase_source:b2d96082c1fb4ac55ad22dd034f7b1fbf217f207
+files b2g/app/macbuild/Contents/Info.plist.in

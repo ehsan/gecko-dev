@@ -1,0 +1,4 @@
+changeset 3fe14625f9543330393d8b91628e5d9d1c9e776f
+manifest 91bdc5e59c173e58d1ab56fd1081c8db02785f1b
+extra rebase_source:ea785116f98396183bf3373a6231a05ae059939f
+files toolkit/components/telemetry/TelemetrySession.jsm

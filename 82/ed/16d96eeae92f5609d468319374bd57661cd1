@@ -1,0 +1,4 @@
+changeset 047a7a43334a5dd7279eff602cad4d79eb687ee7
+manifest 13c2b2ab2202e0cd48e39585a643ea549e3655fb
+extra rebase_source:8f489f8fd921e3e4b7dd79b8a99a49a57f823510
+files browser/locales/en-US/chrome/browser/devtools/gclicommands.properties

@@ -1,0 +1,4 @@
+changeset 53fba09e3003888d2b63230b726352744209a647
+manifest d5efc78f666c3cfd86024b2b941e2b2a341a9503
+extra rebase_source:8e0cdc445810aad2f3f4332462df69b07a6eac02
+files gfx/layers/d3d9/DeviceManagerD3D9.h

@@ -1,0 +1,4 @@
+changeset c3bb0f904ecaa11cb4a4f39a6183bb9c948da6a2
+manifest 157fbbe87ea267ad7852e2cb60a4e4bae924e752
+author mkmelin+mozilla@iki.fi
+files uriloader/exthandler/nsExternalHelperAppService.cpp

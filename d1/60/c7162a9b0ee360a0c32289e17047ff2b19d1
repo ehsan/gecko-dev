@@ -1,0 +1,4 @@
+changeset b24e0a98185a7544bc311a0254ad7154189ec072
+manifest 657d0cdbc93991a3544bdd0ad96cd59ba3ed6b88
+author bzbarsky@mit.edu
+files content/events/src/nsDOMUIEvent.cpp

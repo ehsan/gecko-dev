@@ -1,0 +1,4 @@
+changeset eb76ecaad4578cd127c319f176032867b7fccc75
+manifest b1ccfb8ec05d6f812fcd4889daff40870cc7808e
+author dcamp@mozilla.com
+files dom/src/offline/nsDOMOfflineLoadStatusList.cpp

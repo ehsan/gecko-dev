@@ -1,0 +1,4 @@
+changeset 89a045773847ceb68a61981fb6228631a64125aa
+manifest c2d250b0d0c830a2a1b9b1dab3ad1cd871201161
+extra rebase_source:933da02719118c78528f4676710789bd64a8af49
+files mobile/android/search/java/org/mozilla/search/SearchActivity.java

@@ -1,0 +1,5 @@
+changeset cceb83b998de59193ca289e55a6d9ae2e2eb17e5
+manifest 1fa3b0e1698afcb814c31e3f639bb911bf27526e
+author rlin@mozilla.com
+extra rebase_source:d58d00d2bc9d4865c63f8877fecd7c2da5b75e87
+files dom/system/gonk/AudioManager.cpp

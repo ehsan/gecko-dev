@@ -1,0 +1,4 @@
+changeset 31bf9a44fe16674e32e94dcdb5568b020281442f
+manifest d6eb37e234421c6f54e025df4dad3832f5ad965f
+author dolske@mozilla.com
+files browser/components/sessionstore/src/nsSessionStore.js

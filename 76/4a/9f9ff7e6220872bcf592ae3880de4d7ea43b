@@ -1,0 +1,4 @@
+changeset 4ac8ed0e3bf05aeb5d76cd36b7811d0570d9e644
+manifest fca9462d8fa488557313cf6262bd1dea914e6714
+author gavin@gavinsharp.com
+files toolkit/mozapps/downloads/src/nsHelperAppDlg.js.in

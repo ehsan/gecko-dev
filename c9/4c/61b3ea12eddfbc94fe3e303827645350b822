@@ -1,0 +1,4 @@
+changeset 576c93671e21547f4de18cf2eadbee15b16f1bfd
+manifest 71c446edbbb4b6044838d4035b83c107f9ac8480
+extra rebase_source:b798d2ac8c56bd610cd52bc3ac86f585c18055c8
+files js/src/jscntxtinlines.h

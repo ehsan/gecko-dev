@@ -1,0 +1,4 @@
+changeset 4904e1e85f88254dd9b237cc33035701262c55cb
+manifest b76cd4dc5374bfcbc3192cf0d2a8ef7c3a58a2ae
+extra rebase_source:60e58453045c9cfa3e95e74d8c5e95b36754a146
+files image/src/imgLoader.cpp

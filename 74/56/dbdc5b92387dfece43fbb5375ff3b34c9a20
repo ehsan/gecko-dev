@@ -1,0 +1,3 @@
+changeset 257d3a7e61bb5b2f988a10a096536effb2993334
+manifest 65b0dbd34ac344aeb43e74f28cc41180512e2bbb
+files extensions/spellcheck/src/mozInlineSpellWordUtil.cpp

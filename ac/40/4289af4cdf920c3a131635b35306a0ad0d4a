@@ -1,0 +1,4 @@
+changeset 5d278600122b8363f8eb448b089434e75f4bbb1e
+manifest 43ac90a6a6d242588c3722d4da8ef6c9f9f1aeb0
+author jonas@sicking.cc
+files js/src/xpconnect/shell/xpcshell.cpp

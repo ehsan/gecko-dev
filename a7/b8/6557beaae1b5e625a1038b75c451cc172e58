@@ -1,0 +1,4 @@
+changeset efe377847a93123366e6b0e71a30088dd8e9f259
+manifest dab9814f963c17f137260cd33ba9ef20f5d470f7
+author dwitte@stanford.edu
+files toolkit/components/places/src/nsNavHistory.cpp

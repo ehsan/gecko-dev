@@ -1,0 +1,4 @@
+changeset d4bf561a248478b17277e97e06ab744499b6cd2e
+manifest d5977356ab30c584e1537873c54318b239963a36
+author mozilla@weilbacher.org
+files gfx/thebes/public/gfxPlatform.h

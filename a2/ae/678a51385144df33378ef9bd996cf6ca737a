@@ -1,0 +1,4 @@
+changeset 365dad594390ce724bf238f0fd618432baa51a8f
+manifest 145412a93813866baff84d2094bab3ea81da49fa
+extra rebase_source:14c563626da311ee6c87aa5a73f92e8dbae3c97c
+files browser/components/customizableui/test/browser_901207_searchbar_in_panel.js

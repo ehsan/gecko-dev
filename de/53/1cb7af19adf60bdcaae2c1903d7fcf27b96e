@@ -1,0 +1,4 @@
+changeset c1640a974b348a49c35ef30483fad8748c4d95d3
+manifest 1b43512cd316274f48591102e5903173a140b27b
+author dtownsend@oxymoronical.com
+files xpcom/glue/nsISupportsImpl.h

@@ -1,0 +1,4 @@
+changeset d70e66df236348f66e9b24f234848de040fddf96
+manifest 0242396474ef6056881e7cc15dc153ce21808c80
+extra rebase_source:cee71c3201ee6fffc477d2cced50e0df567a0976
+files browser/base/content/aboutaccounts/aboutaccounts.js

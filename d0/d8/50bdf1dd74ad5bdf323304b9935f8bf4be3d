@@ -1,0 +1,3 @@
+changeset 1335f11d11ef0947e68c742097fd074f01fdfd3e
+manifest c19ff139d5a69e4107358100c2161c719e757cb8
+files js/src/jit-test/tests/asm.js/testSIMD.js

@@ -1,0 +1,4 @@
+changeset d39b39e78f886be098b7a95688349bc8bca60408
+manifest 5042258c28d879f9c2fa21dd2b665faea9188c29
+author sdwilsh@shawnwilsher.com
+files xpcom/glue/nsDebug.h

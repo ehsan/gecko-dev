@@ -1,0 +1,3 @@
+changeset b1da75458e0002ef2a572661843517809fb2a70e
+manifest 61de57bd8016fc98a1d9e5f2ac1c40cc7370d947
+files python/mozbuild/mozbuild/backend/visualstudio.py

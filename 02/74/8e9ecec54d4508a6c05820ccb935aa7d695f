@@ -1,0 +1,3 @@
+changeset 1cf703aaa7817de4177b17145b29ef8c1c4ac559
+manifest 2e8c740d27de1b9d655ad67263d1ac8ab0470d19
+files xpcom/glue/nsVersionComparator.cpp

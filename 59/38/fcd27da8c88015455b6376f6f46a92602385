@@ -1,0 +1,4 @@
+changeset a39d9e8b0ab29508eafc1a2ccb3de745327d024a
+manifest 773656e6c7d319211ebb02a4d66845bc1784b39b
+author reed@reedloden.com
+files toolkit/system/gnome/nsGnomeVFSService.cpp

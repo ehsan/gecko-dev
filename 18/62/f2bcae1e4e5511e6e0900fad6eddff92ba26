@@ -1,0 +1,4 @@
+changeset 90653d003d2fe62c1190a1c32912609f3d52a773
+manifest 7c5e87f09c42710aab39530a406deba79563dd74
+author joshmoz@gmail.com
+files extensions/spellcheck/osxspell/src/mozOSXSpell.mm

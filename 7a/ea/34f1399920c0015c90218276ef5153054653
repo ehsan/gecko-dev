@@ -1,0 +1,4 @@
+changeset eee4ce504cb336c354515b5393b0fd4f3acf4fc5
+manifest d16e2914c6ee714ddcc3e7850d851fb7ac0f98b0
+author longsonr@gmail.com
+files extensions/spellcheck/hunspell/src/atypes.hxx

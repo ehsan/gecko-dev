@@ -1,0 +1,3 @@
+changeset 1ea39faa96cf0fa9cb898618ddd6a553f03fa65b
+manifest 3f887a51043998fb3042ec456d65a10f9c80ae0c
+files js/src/methodjit/InvokeHelpers.cpp

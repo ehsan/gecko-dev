@@ -1,0 +1,4 @@
+changeset fd3e0578db2226b7c882d3a892a819aa1b11aa0a
+manifest f502689967231324e41f2a3c0df8c28ab69ed31a
+author reed@reedloden.com
+files xpfe/components/history/src/nsGlobalHistory.cpp

@@ -1,0 +1,4 @@
+changeset a56b3e5afa9e8bc57922e433ed3171dd17bc55de
+manifest c77bc7ebb1a776cffad0ba992bab25902fe194d0
+extra rebase_source:dfacd3352d6d09c68ae1debcc0ce5f81127161e7
+files dom/workers/test/serviceworkers/test_installation_simple.html

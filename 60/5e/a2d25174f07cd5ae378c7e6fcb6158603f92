@@ -1,0 +1,4 @@
+changeset 8b8c307c955c5b870f8463ed05cd45d405ef4148
+manifest 30395d03ffa08270025d68445a7577c34434763c
+extra rebase_source:7e9625e2a93d25646ab086f89feba9493445d523
+files mobile/android/base/PropertyAnimator.java

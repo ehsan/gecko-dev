@@ -1,0 +1,4 @@
+changeset e5a9b831e209f7a4fe3283f10fc8d3ad6dcfa3e1
+manifest b0e1ae8344a2ca1e8927efb8cf5debae024aab95
+author rflint@ryanflint.com
+files browser/components/places/public/nsIPlacesTransactionsService.idl

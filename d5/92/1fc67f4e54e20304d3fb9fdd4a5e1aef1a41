@@ -1,0 +1,4 @@
+changeset b2f6e935e1f2533d1a314aadecfe85ec064448f7
+manifest c5cb7f3c0903d02a694a8aca40154b74b6d94b92
+extra rebase_source:8788d55cd5cfa5e64627d7951209c5f2c1222f0a
+files tools/mercurial/hgsetup/config.py

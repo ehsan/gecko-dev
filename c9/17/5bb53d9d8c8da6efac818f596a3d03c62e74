@@ -1,0 +1,4 @@
+changeset 4083c4a6fbc93b2b4dd5fe7678db8ceaf0d29609
+manifest e9fc11d8f856c557505a23c1bebeb3e1aaf86fd8
+author bent.mozilla@gmail.com
+files js/src/xpconnect/src/xpcJSWeakReference.cpp

@@ -1,0 +1,4 @@
+changeset d95c43a31b26dde8ab0d0bea20eaefbac7f23146
+manifest fcc3556ec3ff752f0713fb76a1feae0b3de79a58
+author joshmoz@gmail.com
+files toolkit/xre/nsNativeAppSupportMac.cpp

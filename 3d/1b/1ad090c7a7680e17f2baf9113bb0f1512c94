@@ -1,0 +1,4 @@
+changeset 887b14dbdf05e368cefa8964aca61a771754641f
+manifest 2e7271f400198d46d8762e71c79285218bb0b917
+author timeless@mozdev.org
+files layout/generic/nsSelection.cpp

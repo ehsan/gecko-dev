@@ -1,0 +1,3 @@
+changeset 5975861b0961045d513fdd2ad0d4dc099bb2faf0
+manifest b5e443f3c673b7a97541e8165b625765824bcf98
+files browser/components/places/tests/unit/test_browserGlue_smartBookmarks.js

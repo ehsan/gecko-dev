@@ -1,0 +1,4 @@
+changeset 727c9af50db9110a6aeaa69f8916df0d0a2f13cc
+manifest 240d9dd5d3e7f93252b646bb2c30dba6ab65c27c
+author ginn.chen@sun.com
+files layout/xul/base/src/nsMenuFrame.cpp

@@ -1,0 +1,4 @@
+changeset 77d51da4893d9fb02b3a9a0cb20fe70d6c889f02
+manifest e9733241b94ec1df7dd78d999d9bfacade777e7a
+author bzbarsky@mit.edu
+files docshell/base/nsDocShell.cpp

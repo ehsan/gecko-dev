@@ -1,0 +1,3 @@
+changeset 1ac8890ee0a354c51824bc0597ea00c5b72110dc
+manifest ad4fc32aa4c5730489280fa06ccd9fe28c2cf31f
+files testing/mozbase/mozversion/tests/test_binary.py

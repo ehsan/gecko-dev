@@ -1,0 +1,4 @@
+changeset 8e158750476e8191cefbead8ba265a81e4071503
+manifest 921fefa3d43e8a64d245cd3679d8138250bc048f
+author jdaggett@mozilla.com
+files gfx/thebes/src/gfxQuartzFontCache.mm

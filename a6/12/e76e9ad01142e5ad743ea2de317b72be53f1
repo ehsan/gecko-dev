@@ -1,0 +1,4 @@
+changeset e8b357181d1cf92487485cd5dec419ef8054be38
+manifest 7afca2b7a5debbc8719a9c50be37e8b961a3f797
+author vladimir@pobox.com
+files extensions/canvas3d/src/nsGLPbuffer.cpp

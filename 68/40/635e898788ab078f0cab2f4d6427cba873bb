@@ -1,0 +1,4 @@
+changeset 31f4bc3f48a32f81af6eb62582e2db2ca86a0d31
+manifest c43fe3c50efebbb5d9b42cd02a8c231b1183d438
+author bzbarsky@mit.edu
+files js/src/xpconnect/src/XPCSafeJSObjectWrapper.cpp

@@ -1,0 +1,4 @@
+changeset 59fbec5e0d43e505643702f1955d452985d79317
+manifest 8d6cc3e239789fe2ea82b9630319fd99cabc80c2
+author sspitzer@mozilla.org
+files browser/components/places/src/nsPlacesImportExportService.cpp

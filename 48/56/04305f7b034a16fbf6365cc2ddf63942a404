@@ -1,0 +1,4 @@
+changeset 728d6ee194ad71fe3fd169f0d3f7a194992fa73e
+manifest fc88100c346211827889335217fc61b72a33b9da
+author dietrich@mozilla.com
+files toolkit/components/places/src/nsLivemarkService.js

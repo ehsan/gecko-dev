@@ -1,0 +1,3 @@
+changeset 15061de6e948bb229ad5eb27a0675ba26a4b86e6
+manifest c7afedb07f6b231c3244de3ab912c4d693a5bb0a
+files js/src/builtin/TypedObject.cpp

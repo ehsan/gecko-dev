@@ -1,0 +1,4 @@
+changeset da306dc448b9caec0c86835068bfaa00c95e8278
+manifest e89a66ec9be596eb404b5907ab1b4fa6f2387744
+extra rebase_source:df7720c490e139f639a7fd58a6dec8d5eba548a2
+files toolkit/identity/Sandbox.jsm

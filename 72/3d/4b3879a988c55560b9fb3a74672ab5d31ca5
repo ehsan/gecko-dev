@@ -1,0 +1,4 @@
+changeset ecdaa6d51ed15fe3adf6e510cc408f964075fceb
+manifest 287a5fea6b66c58dfbf19656509cb8f5221e3604
+author mozilla.mano@sent.com
+files embedding/components/find/src/nsFind.cpp

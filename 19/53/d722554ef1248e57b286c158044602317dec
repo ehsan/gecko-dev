@@ -1,0 +1,4 @@
+changeset 3f10f1ba51f7265490d391a2548fe9b72aaacd17
+manifest dd32e8e9a9bd5f7f4c4161232da929086cba2ac2
+author gavin@gavinsharp.com
+files toolkit/components/passwordmgr/content/passwordManager.js

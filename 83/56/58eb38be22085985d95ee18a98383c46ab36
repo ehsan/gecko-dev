@@ -1,0 +1,4 @@
+changeset f79a00706a7f15cfb2ed84946dc235b3ab9895d2
+manifest bba4d3524300643c4c69da96f606f782ffe4a450
+author alfred.peng@sun.com
+files gfx/thebes/src/gfxPangoFonts.cpp

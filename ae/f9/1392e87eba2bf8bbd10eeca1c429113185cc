@@ -1,0 +1,4 @@
+changeset 13005b44261580b0dad777873fb901a506fe20e1
+manifest 89d51bcb639eeaa2d9bdf8104f14be4e0cd0b484
+author flamingice@sourmilk.net
+files toolkit/xre/nsNativeAppSupportWin.cpp

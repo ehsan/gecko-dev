@@ -1,0 +1,4 @@
+changeset a24b80cfdec354817ab81218b0fcb4b04aa47cdf
+manifest 5812fc27b7b5f8b621cade5acfb867b26802ea23
+author dietrich@mozilla.com
+files browser/components/places/tests/unit/test_398914.js

@@ -1,0 +1,4 @@
+changeset 0957962d7079841ddfb250187735b90e76f2f636
+manifest bc6dbf8e3ecdf1249511f437fc9f485cb6903d3f
+extra rebase_source:a15c886d7f7d12e8092e74564a981670545c8ea6
+files toolkit/mozapps/extensions/AddonManager.jsm

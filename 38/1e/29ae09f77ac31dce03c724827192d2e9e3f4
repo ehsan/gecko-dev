@@ -1,0 +1,4 @@
+changeset 231fe6f453d81b4caecf00ef8dd0478414559770
+manifest 40edf7dd751bdf38029f12620eeb39c8b07e8ec8
+author timeless@mozdev.org
+files parser/html/nsHtml5TreeBuilderCppSupplement.h

@@ -1,0 +1,4 @@
+changeset 6d9b80a3d9490fac81d54c1f17338b41ac3d6c59
+manifest 8bf6cf834d4ff638b00225b31444cdf3fe65e49b
+author reed@reedloden.com
+files widget/src/cocoa/nsChildView.mm

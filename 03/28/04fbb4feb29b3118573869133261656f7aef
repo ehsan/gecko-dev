@@ -1,0 +1,4 @@
+changeset 6f48c3aeba88f31332e5a0c7a7a09df370d62334
+manifest fd53e37ad84a87e6fa4b857dae6af1fc8604d7e7
+author bzbarsky@mit.edu
+files layout/tables/BasicTableLayoutStrategy.cpp

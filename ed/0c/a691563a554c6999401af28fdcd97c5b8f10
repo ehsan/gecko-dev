@@ -1,0 +1,4 @@
+changeset 79010299a931eb56ba814c0e48fb66e2ab9ec1cc
+manifest 459c5c13a374ef51569a694522b08eeb5932a31a
+extra rebase_source:a9ca28dc5a333d303390550bd57ae40627e2dec0
+files layout/xul/nsBoxFrame.cpp

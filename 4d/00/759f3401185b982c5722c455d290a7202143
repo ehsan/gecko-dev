@@ -1,0 +1,4 @@
+changeset c5d7cbb6137dfd4c3860007b2286bf87d693f55b
+manifest f9a97397ccd66623118e2cec15d92a1a99dec264
+author samuel@sieb.net
+files dom/src/base/nsGlobalWindow.cpp

@@ -1,0 +1,3 @@
+changeset 2b6f8fc061e35e25f507dc8b3871156a58799ac1
+manifest 1b1356f28e9e68ba41b472cbd82767f5bcf60138
+files js/src/ion/x86/CodeGenerator-x86.cpp

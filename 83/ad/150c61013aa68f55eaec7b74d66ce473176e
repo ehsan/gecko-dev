@@ -1,0 +1,4 @@
+changeset 27173363bacfbe6649f00c6630dd909010845a72
+manifest f7f2bb1a37220ef793ee3888859dbe340223d5a7
+author sdwilsh@shawnwilsher.com
+files toolkit/components/downloads/public/nsIDownload.idl

@@ -1,0 +1,4 @@
+changeset c4fe713be5468c6f4b05f9e88a5246035289b1a8
+manifest 2732462d0cec68ce85fcb3db9038c67048aedf99
+extra rebase_source:94ffeccb246d2cf5bedde0b3bab141441e1379e6
+files layout/xul/base/src/nsPopupBoxObject.cpp

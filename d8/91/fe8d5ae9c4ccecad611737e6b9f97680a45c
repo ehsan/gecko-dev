@@ -1,0 +1,4 @@
+changeset cf65f1235cff9231c6450b1f71a2c4d10543892e
+manifest 43774044fd9683909bcbb0290fcc51a81367bb27
+author darin@meer.net
+files browser/modules/Sanitizer.jsm

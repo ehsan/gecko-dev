@@ -1,0 +1,4 @@
+changeset b54ad525df1b15dac9d729abc9492121cabf48ea
+manifest db19f3a67d058e970e9cace8112a2cf6fc304305
+author nrthomas@gmail.com
+files tools/release/bin/verify-locales.pl

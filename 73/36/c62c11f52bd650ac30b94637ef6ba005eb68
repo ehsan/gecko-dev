@@ -1,0 +1,4 @@
+changeset 461b7702a5073d01126c4eeb3e8a119e7d0ab4fe
+manifest a4a6eb5d0078c0f4a2f3f9852b54d61fd0a63164
+author mozilla@weilbacher.org
+files gfx/cairo/libpixman/src/Makefile.in

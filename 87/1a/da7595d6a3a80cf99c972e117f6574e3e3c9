@@ -1,0 +1,4 @@
+changeset 669263738da5d2cb6c5f127544953ac6513515be
+manifest 94ddc7d9ad712755cbbb86d40b8eee60e5b382c1
+extra rebase_source:b332e14075d7f41ab09b79265f7803d806194b5e
+files browser/base/content/test/tabview/browser_visibleTabs_contextMenu.js

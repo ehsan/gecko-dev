@@ -1,0 +1,4 @@
+changeset 6b2a05a50eec42a1b0c0aa983930a48d0f0a7c86
+manifest 08e6ca83888ca4fc7c80e70289f1dc1ae93dd629
+extra rebase_source:20f365b3f6074fe18d4aaa7f81baf64f3b64e8de
+files layout/base/nsCaret.cpp

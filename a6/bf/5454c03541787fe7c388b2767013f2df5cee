@@ -1,0 +1,3 @@
+changeset 24c2574041ddabf99d5fd5d8567fc1c183569313
+manifest 71638027b6ea84d5bdc7d6ee100a17736fb76482
+files toolkit/mozapps/extensions/test/xpcshell/test_AddonRepository_cache.js

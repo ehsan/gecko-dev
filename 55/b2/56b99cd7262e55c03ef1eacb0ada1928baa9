@@ -1,0 +1,4 @@
+changeset 97d685f83ac12ff801bcc456c83ca427808c7282
+manifest d50c20a6e0573f71721a413bd8d44998779b4ef5
+author rhelmer@mozilla.com
+files testing/release/l10n/verify_l10n.sh

@@ -1,0 +1,4 @@
+changeset 6476d13bec4943b81dfbfde2d5e28931dea4f08d
+manifest 1ab2766d9b40a2732ee84cef91984d3ee1f0a6c4
+extra rebase_source:38f4b69ce7f39b9c94cb646c899db60171559c23
+files tools/update-packaging/common.sh

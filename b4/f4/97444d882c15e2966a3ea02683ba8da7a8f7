@@ -1,0 +1,3 @@
+changeset 3b218bee64fd94c2fd9a92b95ab828e06c819d0a
+manifest 319424f809e0a31663435d9d2b347075a495efc2
+files gfx/thebes/gfxAlphaRecoverySSE2.cpp

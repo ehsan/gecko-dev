@@ -1,0 +1,4 @@
+changeset 143a6bb6ad00c6edccf5afd30d56b516ac6f5396
+manifest 079923f9189e9c0f609da6364ff7f2158069269b
+author sayrer@gmail.com
+files browser/components/sessionstore/Makefile.in

@@ -1,0 +1,4 @@
+changeset fd648afaf3f0c7a833e9617612e05e69257ea16c
+manifest 04bfd496a94ae916694b5ea245975637aa1ffe03
+author <t_mrc-ct@users.sourceforge.jp>
+files dom/indexedDB/IDBObjectStore.cpp

@@ -1,0 +1,3 @@
+changeset c30b8926c2ceb164a84eb6d6403558c4a1011cb8
+manifest 8716c4bd99917248d3075a644af2c8a4858420fa
+files dom/tests/browser/browser_xhr_sandbox.js

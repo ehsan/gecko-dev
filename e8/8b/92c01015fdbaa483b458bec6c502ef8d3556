@@ -1,0 +1,4 @@
+changeset 9d74f10975e8d1379ea35faa893cc0f19f74a16e
+manifest 8318cdbecdd834976235c33b39761e5b7ed97bec
+extra rebase_source:330bcb80b5dd0ca7b2044bfa9918dc08d6403472
+files browser/modules/WebappManager.jsm

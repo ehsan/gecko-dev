@@ -1,0 +1,4 @@
+changeset b88815f00df94c43d46870772ac73c11bf22fbdd
+manifest c368dee278f161108c7a784e4711d6d984b41f6e
+extra rebase_source:e4a7cbd2988d2beb9d53a1bbb646d65a4478ab40
+files js/src/xpconnect/src/xpcjsid.cpp

@@ -1,0 +1,4 @@
+changeset eae491fbdbbb6b98daed63c0bbf93e4016ed3267
+manifest abb966c4ba99834c4abc9ce0d166ed465c6f5425
+author dtownsend@oxymoronical.com
+files xpinstall/src/nsXPInstallManager.cpp

@@ -1,0 +1,4 @@
+changeset 46080970efb3a37bef2ed88593e6bc23214c0014
+manifest 3c295e02bff39a96b7d564024d24748c2405c53a
+author mrbkap@gmail.com
+files js/src/xpconnect/tests/mochitest/test_wrappers.html

@@ -1,0 +1,4 @@
+changeset a3e47ad6fa3ccb9e2e1b60f6e8c414bfb97ebe6e
+manifest cfb506c40761555873c8b2d56c82606df75e58fc
+author caillon@redhat.com
+files xpcom/reflect/xptcall/src/md/unix/xptcinvoke_ipf64.cpp

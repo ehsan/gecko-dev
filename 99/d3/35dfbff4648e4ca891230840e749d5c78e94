@@ -1,0 +1,4 @@
+changeset e550d86e3ee9cbf63a4bff2718a49830998972de
+manifest d28ac7d1ed70f459dbda56107084b4276018d5d8
+extra rebase_source:495126e85c6a76697610cb5eceab124871b8c5db
+files xpcom/components/nsCategoryManager.cpp

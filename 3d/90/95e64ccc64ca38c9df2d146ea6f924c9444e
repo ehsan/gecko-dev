@@ -1,0 +1,4 @@
+changeset bd3fb04d8e6d54a0e10871594c2db3d6c30057d7
+manifest 09380c800426d3f6e0258e56746a7a39163b3266
+extra rebase_source:d085de61306c18fd9490c44b89d277bb1edef02f
+files browser/app/profile/extensions/testpilot@labs.mozilla.com/content/all-studies-window.js

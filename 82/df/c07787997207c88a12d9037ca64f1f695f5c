@@ -1,0 +1,5 @@
+changeset 8c8d85acebce7d57a0248c58d974a796714d6502
+manifest 76766cf77f70df53e35a5f431429487620bbcdb3
+author Shane Caraveo
+extra rebase_source:93f61063e2d904c12adb60d2943c8a73d42c9334
+files toolkit/content/widgets/popup.xml

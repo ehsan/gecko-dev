@@ -1,0 +1,3 @@
+changeset 5f6beab20174e08fb8048af235f14fbc54d8d0f8
+manifest 9a971f9dd8f741fcb832b548034c20d308fa71c6
+files dom/interfaces/geolocation/nsIDOMGeoPositionError.idl

@@ -1,0 +1,4 @@
+changeset 3e64f7042f7cafa93b8fe6fc3245159d1b7bce67
+manifest 00f8b785599773f177ddfc473fff9f563c196b2a
+author bzbarsky@mit.edu
+files embedding/components/ui/helperAppDlg/nsHelperAppDlg.js

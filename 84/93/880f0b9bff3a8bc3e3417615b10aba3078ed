@@ -1,0 +1,4 @@
+changeset 6cd669bf972103f60c01687cb15a3ee8a9ab7449
+manifest bc6a57193fc6b70a30f814e2ed939db0ac320142
+author bzbarsky@mit.edu
+files content/base/test/test_bug392318.html

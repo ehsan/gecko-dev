@@ -1,0 +1,4 @@
+changeset c4980b518c791e66a6f69a716272411db6e38d0e
+manifest 217c17893b05f77ca720b3520f2b97117f1680ab
+extra branch:GECKO20b5pre_20100820_RELBRANCH
+files uriloader/exthandler/android/nsMIMEInfoAndroid.cpp

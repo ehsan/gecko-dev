@@ -1,0 +1,4 @@
+changeset f2d3d869f38471849199beda120ba8e7c109fa38
+manifest 6f4a9de837ad1da03fc6fe159b0e79c22ddf8e59
+author reed@reedloden.com
+files toolkit/mozapps/downloads/src/nsHelperAppDlg.js.in

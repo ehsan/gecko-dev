@@ -1,0 +1,4 @@
+changeset 998a8a41310b1e1e9b47ba209e5d5bef0ca0b637
+manifest d4cf2a7ae903432956ee7c3eaf0ef3f126ec466c
+extra rebase_source:085e371fc3dd565258eb5e5f604e080604c9d7eb
+files content/svg/content/src/SVGPathData.cpp

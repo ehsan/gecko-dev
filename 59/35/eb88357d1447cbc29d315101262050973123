@@ -1,0 +1,4 @@
+changeset 7ca62ed84eb596b3eff273b38a78915a41fea9c2
+manifest 93a6567327ee204503c80c49fd05911f5c55a904
+extra convert_revision:baa27feb8fb4fdaf1ecb0839c4bd468e83da2aeb
+files js/src/lirasm/lirasm.cpp

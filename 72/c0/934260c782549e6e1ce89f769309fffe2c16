@@ -1,0 +1,4 @@
+changeset 23d6197df2dd64759dbd719c3c8182453393cbbb
+manifest 71572494deb3b7c8668923b141f6c7df0e60e6e4
+extra rebase_source:93ddcd629a445afc374b3535ad48af9067e08ff3
+files js/src/tests/ecma_5/Global/delete-global-NaN-property.js

@@ -1,0 +1,4 @@
+changeset 5c74fd4aab8295684ac30e3d635db818d75dc6f8
+manifest cba7b8305fec17b0ea97d1f3c7a770a4377e661b
+author reed@reedloden.com
+files embedding/components/webbrowserpersist/src/nsWebBrowserPersist.cpp

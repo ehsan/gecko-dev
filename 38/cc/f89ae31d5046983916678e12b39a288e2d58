@@ -1,0 +1,4 @@
+changeset 03a624fda816a88542009914969af4ab6a358e4c
+manifest 31f4d604ecd2b30d42dc0563b1264480309dc616
+extra rebase_source:f99f778126dcad615b754a84dc4ca6e1c9d2578d
+files gfx/layers/d3d10/ImageLayerD3D10.cpp

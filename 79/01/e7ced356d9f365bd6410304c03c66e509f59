@@ -1,0 +1,4 @@
+changeset 52c598032749fffc94208ae641653a37acb7ec7b
+manifest d84e506f1b36cc93f78e9b4d0cfa010b65192d54
+author ted.mielczarek@gmail.com
+files dom/tests/mochitest/bugs/Makefile.in

@@ -1,0 +1,4 @@
+changeset 3acb22fd9332f6282e8c324cdaa42c084b0ce57f
+manifest 83f3f7e242aa19b0b94c595bedeaff3da7cafff6
+author mrbkap@gmail.com
+files xpcom/tests/TestObserverService.cpp

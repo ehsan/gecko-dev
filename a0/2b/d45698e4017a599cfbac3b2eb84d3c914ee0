@@ -1,0 +1,4 @@
+changeset 026dc3ee065478bc854d5b04559be3b7d786ab84
+manifest a5bdbc361994b639820f6610d6d2b6360a5d416d
+extra rebase_source:559f6b9d41922308a4318929316598bf5690bd2d
+files toolkit/content/tests/chrome/window_panel.xul

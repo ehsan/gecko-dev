@@ -1,0 +1,4 @@
+changeset 7acc82690ef7b8e341f169b4f470d3169dcb345f
+manifest ea3f0a7b2a2f4dc0010b740fcf76ecdc59f7503d
+author mats.palmgren@bredband.net
+files layout/style/nsCSSDeclaration.cpp

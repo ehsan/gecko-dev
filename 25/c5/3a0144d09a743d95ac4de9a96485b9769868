@@ -1,0 +1,4 @@
+changeset f2d02ed5a516dab67fc797d8822db7635ba75d7c
+manifest 6fee61491a13d60fab6aebddafaae8ec14591ffa
+author bmlk@gmx.de
+files layout/tables/nsTableFrame.cpp

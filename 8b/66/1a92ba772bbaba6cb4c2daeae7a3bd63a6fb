@@ -1,0 +1,3 @@
+changeset f7e220ce03aa546d9e968cb87a6c9f32daac92d5
+manifest bb3dbb369e586a5084bd1f50735b64a2534e5b6a
+files memory/mozalloc/VolatileBuffer.h

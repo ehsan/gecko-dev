@@ -1,0 +1,4 @@
+changeset 7ad4601a2f66a721bcc3a3dce6ccd476153b0719
+manifest 748fbf1ee3c5c314c9b8120aa47337a3eb54dedf
+author gijskruitbosch@gmail.com
+files widget/tests/test_bug343416.xul

@@ -1,0 +1,4 @@
+changeset 3e1290bba9029798016d7106237fea5850f8840c
+manifest 184303a34bc0acbb493410d1ee0a5f6a01db6d2b
+extra rebase_source:23fa2f7da8b88265a19147a552cbf44d3f869274
+files nsprpub/config/rules.mk

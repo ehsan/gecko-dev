@@ -1,0 +1,3 @@
+changeset dab047ef7851f1f4eee6fe04b1438567d2777f67
+manifest c48370a2355d9f0df0485e8077a47906ba7763cc
+files dom/interfaces/apps/mozIApplicationClearPrivateDataParams.idl

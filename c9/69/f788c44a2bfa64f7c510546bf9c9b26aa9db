@@ -1,0 +1,4 @@
+changeset 59a76cbcc0e8ec0034f416d20f79653631a6abe2
+manifest d3d35cb5e97c8ceebc413ebcc4ea83eb14ee569b
+author mozilla.mano@sent.com
+files browser/components/places/content/bookmarkProperties.js

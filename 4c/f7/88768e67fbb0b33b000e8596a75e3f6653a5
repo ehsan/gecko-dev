@@ -1,0 +1,3 @@
+changeset 6a3351e5b033cc8f2c5c303c94906b87f7d96457
+manifest c95e6d3d1470b0bb4b9ee4125217348c613f3e0a
+files browser/base/content/test/browser_urlbarAutoFillTrimURLs.js

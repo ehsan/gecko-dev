@@ -1,0 +1,4 @@
+changeset c1c0ce793c5ac76cec000c35f129f478268f2b19
+manifest e5a80c28f6512617e2925788eb9523e41e394e83
+extra rebase_source:5b7d05cbe7d8ebd9e3ce4fd2d7f4dc7084edfcb0
+files content/base/src/nsInProcessTabChildGlobal.cpp

@@ -1,0 +1,4 @@
+changeset bc901af701c9e8503d9d2ec93100ca96594da8ef
+manifest bf6f47b06c9a3cb23d1298d1f78b13f952ab966a
+extra rebase_source:40c47b84fe99850c218bb8d5803fd2219ff9362e
+files content/events/src/nsDOMDataTransfer.cpp

@@ -1,0 +1,4 @@
+changeset 29bed971021a86f8e79538b6dd0c74b08b353fe7
+manifest fa34c49d49b1b555d3b82afa03a895e89578b689
+author reed@reedloden.com
+files content/events/src/nsEventStateManager.cpp

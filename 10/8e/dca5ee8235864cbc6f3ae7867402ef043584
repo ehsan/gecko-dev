@@ -1,0 +1,4 @@
+changeset bacdfbdea382d808d259f6d38a7827f9628ff242
+manifest 98f122d6421a6e10d8dda8314da07a33477ef5f2
+extra rebase_source:01ef1b53cabf31479599280bae2f1b9fd99b7f87
+files testing/xpcshell/Makefile.in

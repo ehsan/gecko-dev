@@ -1,0 +1,4 @@
+changeset d64079ce4971bb2ea43a4d20c500b76aa5777aa3
+manifest 6fb28dbff84a384df2d50999ee37639d4e220bd2
+author pevanhoj@pevanhoj-laptop
+files widget/src/qt/nsNativeThemeQt.cpp

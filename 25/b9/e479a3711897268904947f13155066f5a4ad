@@ -1,0 +1,3 @@
+changeset e7b494de5471715037ef3fa0ff2e8dcf2329a3e5
+manifest 5f5d2182607b6b2a11956e731259c7a1801c2564
+files browser/components/places/tests/unit/test_browserGlue_distribution.js

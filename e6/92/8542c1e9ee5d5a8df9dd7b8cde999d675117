@@ -1,0 +1,3 @@
+changeset f3e706953551719e387906dc0e9ed27137d95972
+manifest 35b69559192af40b8383a2431325265b5b40ac44
+files media/webrtc/trunk/webrtc/modules/video_coding/codecs/vp8/vp8_impl.cc

@@ -1,0 +1,3 @@
+changeset 866f05dd291cf82577508b431a0cc92c01ab6a58
+manifest c3576135db62a92ef6f05ccbc4c90f6de92b50c6
+files services/sync/modules/browserid_identity.js

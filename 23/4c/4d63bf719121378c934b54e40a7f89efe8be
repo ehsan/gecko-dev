@@ -1,0 +1,3 @@
+changeset efa4fb561e5b74be637fd2361e552238120b3bfd
+manifest 7d2c976a860cb80e216c3f09a89f78e92c862b32
+files xpcom/glue/nsCOMPtr.h

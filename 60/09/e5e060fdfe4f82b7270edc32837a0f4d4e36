@@ -1,0 +1,3 @@
+changeset 65c007c580a8d103a551c14431ce0ceebc6b5dc4
+manifest ddfd1b33c4fabceeb668bb6c61d9b6d2cfd8ae6b
+files services/sync/tests/unit/xpcshell.ini

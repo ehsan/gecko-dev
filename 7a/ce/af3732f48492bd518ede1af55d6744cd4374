@@ -1,0 +1,3 @@
+changeset 0c814f12120ef48bc5f3f0e5ecd5d289e0dc9d52
+manifest 800876dc53697c80dec4073eb1a5381d9efed24c
+files js/src/jit-test/tests/debug/Debugger-findScripts-19.js

@@ -1,0 +1,3 @@
+changeset d3e1c92d01c20e56f20ab16f406c9e217b7fb8a4
+manifest 21dd142f69bc6cad7ba33b2830f623f5e30b6498
+files db/sqlite3/src/sqlite.def

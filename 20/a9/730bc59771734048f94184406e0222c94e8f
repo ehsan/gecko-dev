@@ -1,0 +1,3 @@
+changeset 765f0b87684600b0c548f486ccd455634830d946
+manifest 30432bc1138c84ebc1949ab5411bb7bbe49cd37d
+files toolkit/content/tests/browser/browser_keyevents_during_autoscrolling.js

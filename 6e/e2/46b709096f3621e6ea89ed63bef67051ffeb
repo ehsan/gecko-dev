@@ -1,0 +1,3 @@
+changeset 96482f2ef48e691e1ab8cf082dbdb7b0030b0b9f
+manifest bfd4636309a22b7b9be5028be43289f4f26a90be
+files js/src/methodjit/Compiler.cpp

@@ -1,0 +1,4 @@
+changeset 5d92ead2065bcd190c103902df4d7aac3c35fd7b
+manifest 5615ddf1acc14d1c82142c470a70202a8d5fc79f
+author timeless@mozdev.org
+files layout/base/nsCaret.cpp

@@ -1,0 +1,4 @@
+changeset 19a51caf7582121d8799d102d5ed604e4365b2cd
+manifest b7856baca8f3839c65c06eb59e039e13d43f1bd8
+extra rebase_source:b98c20106329084d5361dc336a58e98287f27445
+files toolkit/devtools/Console.jsm

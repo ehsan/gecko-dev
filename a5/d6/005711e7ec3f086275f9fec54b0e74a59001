@@ -1,0 +1,3 @@
+changeset 2e368c4a6b5c813c6bf71a4006589a4f3d46765b
+manifest b92217d8428d306f6a95d12c4e028345049c02e4
+files js/src/jit-test/tests/debug/Object-isSealed-01.js

@@ -1,0 +1,4 @@
+changeset c96f59e71f675641c0b02baa0f1775500d391136
+manifest 28a42955877a9c49aa9eba0d26b138762270446d
+author timeless@mozdev.org
+files netwerk/base/src/nsProxyAutoConfig.js

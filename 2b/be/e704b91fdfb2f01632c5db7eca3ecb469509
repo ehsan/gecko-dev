@@ -1,0 +1,4 @@
+changeset 15e25d8a84b319ae33de08cf5e8500dc78e149b5
+manifest c310b52ea9d3eab6bc6b30a1beb27415e53e0bb1
+author brendan@mozilla.org
+files js/src/xpconnect/src/nsXPConnect.cpp

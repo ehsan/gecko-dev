@@ -1,0 +1,5 @@
+changeset 676f1ad2ac2bf7d56474d84bbd21e5047317d741
+manifest 0db8d11e0bbf96009298882b4665891239c2dd19
+author Henry Addo henry@addhen.org
+extra rebase_source:49bdac62b449f1f67a5fb80c2525f5a2267fd4c9
+files mobile/android/base/BrowserApp.java

@@ -1,0 +1,3 @@
+changeset 36ad510c92a1324376202770fc4976e5d07fd892
+manifest 0593d3d5971a8757a254723f71a2d514dffcce25
+files python/mozbuild/mozbuild/test/backend/test_android_eclipse.py

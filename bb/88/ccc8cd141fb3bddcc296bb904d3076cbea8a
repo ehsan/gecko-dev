@@ -1,0 +1,3 @@
+changeset 879bb8e92148d66805261e4c3d7c168243004a01
+manifest 33ef95eeb560cf63d1f15f963033db66e32bc20b
+files xpcom/idl-parser/xpidl.py

@@ -1,0 +1,4 @@
+changeset 9a420200842e30a33bf7104c9a908912c3bd06a7
+manifest d880ff427c97ce4534a5d92c7fafdfd1061be5de
+extra rebase_source:c4a28ae779a4432e1a20bf77501088fa8e966b73
+files js/xpconnect/src/dictionary_helper_gen.py

@@ -1,0 +1,4 @@
+changeset 34bf2119a6c9b5ab666637ecf08a10c641b599d5
+manifest cfb3eab8b4bb5170bb09604d39fb6756a3016431
+extra amend_source:e3f8a281821532ce1b4e50ce784a887ee4d264a0
+files js/src/tests/ecma_7/SIMD/select-bitselect.js

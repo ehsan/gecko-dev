@@ -1,0 +1,4 @@
+changeset 37c13b66c85fd866b94a602b87183843c74b3fbe
+manifest ddd8edfe4d527e443248f1b772a4f4ee6826492e
+author bzbarsky@mit.edu
+files dom/src/jsurl/nsJSProtocolHandler.cpp

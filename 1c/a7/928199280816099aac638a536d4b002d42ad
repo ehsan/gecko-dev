@@ -1,0 +1,4 @@
+changeset 78a9c289f6f1f91fdc18121ac6feaa7b5fd09dc2
+manifest 07332f2ff5bfa959d00d972ffebe847dc0e4b1f6
+author pchang@mozilla.com
+files gfx/layers/ipc/ShadowLayers.cpp

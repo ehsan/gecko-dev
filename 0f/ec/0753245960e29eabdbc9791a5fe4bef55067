@@ -1,0 +1,4 @@
+changeset 738d458860ca13110778cbf1553e2cdca68b403d
+manifest c1d195b687865472d8a29f5a7b68d5545e66c80a
+extra rebase_source:ab3b717b23fcdbec8d4fa112b8a5e46e6dc2a043
+files toolkit/components/places/AsyncFaviconHelpers.cpp

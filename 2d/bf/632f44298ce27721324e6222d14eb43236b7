@@ -1,0 +1,3 @@
+changeset 607459b18af78eaa37130449ff1aeb6ccbc252ba
+manifest 2ae9b92256a4f3a6ca724f93bfd6d5ce6265d897
+files js/src/jit-test/tests/jaeger/bug563000/trap-self.js

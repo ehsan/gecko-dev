@@ -1,0 +1,4 @@
+changeset b0ec597b74531566c6458361cc438c83484c2a2e
+manifest 31034c2f149edc869d3673a62b2fdb28f19a6d2c
+extra rebase_source:fb48217a5654ceba1ec0361466af5698d2f2e3c5
+files mobile/android/base/GeckoNetworkManager.java

@@ -1,0 +1,4 @@
+changeset 15b8a8271ece82ed8288bfc02db14143998140f5
+manifest dbb19691548fabb1ffbb4cdc50aa5b1ef8d34c15
+extra rebase_source:4b2656a7fd82004201ba562d6a9c80b5abcaff28
+files mobile/xul/chrome/content/LoginManagerChild.js

@@ -1,0 +1,4 @@
+changeset dd77ddf3631187357f55ff7a01c147b32dceb4e2
+manifest a6ed4c5bd444bd05622bf3fd5a4e1dd7aa0aea4b
+author bugzilla@standard8.plus.com
+files toolkit/components/passwordmgr/src/nsLoginManagerPrompter.js

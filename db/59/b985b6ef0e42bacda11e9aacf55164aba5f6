@@ -1,0 +1,5 @@
+changeset 5c000f879f4c3c4887053a00ed498089861ea890
+manifest 9bd543241c58f042fe63de5303122a74fece2043
+author timeless@mozdev.org
+extra rebase_source:435bb1d6ba3600970d0e70698d093afcc13eae05
+files gfx/thebes/GLContextProviderEGL.cpp

@@ -1,0 +1,3 @@
+changeset 9f1fa0c72aac9b3c918688c885321c4a3904e01b
+manifest 3d45d27f0a989894a5c443cbe044da58783b7e35
+files services/sync/tests/unit/test_jpakeclient.js

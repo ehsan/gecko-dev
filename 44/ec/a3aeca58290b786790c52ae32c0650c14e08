@@ -1,0 +1,3 @@
+changeset 25df336746e4e8c7cae63288192c79e722e36543
+manifest 860cb3ceb58d4323ebbe477f05d0a3cbe9de1829
+files toolkit/components/console/hudservice/tests/browser/browser_webconsole_bug_581231_close_button.js

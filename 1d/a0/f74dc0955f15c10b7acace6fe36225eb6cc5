@@ -1,0 +1,3 @@
+changeset 43135d676c6838a338d5676a65048e8fd0938ebb
+manifest 99ab5dc4cce130dd148b8f67982ce165582a317f
+files xpcom/base/nsIErrorService.idl

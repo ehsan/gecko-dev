@@ -1,0 +1,4 @@
+changeset 95fe878b5db8b276ecdb9b8106792800ba0615f5
+manifest d348d511dcc34482c90d6de648cabb8956eb4ea3
+extra rebase_source:a9d1c353ae82376cac561c01c94698bf49a9777f
+files python/mozbuild/mozbuild/controller/building.py

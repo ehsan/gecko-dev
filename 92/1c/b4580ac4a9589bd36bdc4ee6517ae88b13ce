@@ -1,0 +1,4 @@
+changeset a51fc3f810c6eb639677e26e257461ace3c5ab69
+manifest 083ee87b1d92cb58c8d8f0009ad18902f057072b
+author timeless@mozdev.org
+files embedding/browser/gtk/src/EmbedPrompter.cpp

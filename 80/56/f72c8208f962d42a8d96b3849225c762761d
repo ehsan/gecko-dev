@@ -1,0 +1,3 @@
+changeset 6539fa13490b1e97fd19fbf018971772b782cce9
+manifest fe408697a62e1a600b7c4aa14a697b9e5dadd9a8
+files netwerk/streamconv/converters/nsBinHexDecoder.cpp

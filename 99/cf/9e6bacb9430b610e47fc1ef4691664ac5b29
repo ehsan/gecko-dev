@@ -1,0 +1,4 @@
+changeset afa1c1563491ac02c9d1f03594475b638dcbd9b5
+manifest 2151164efa87efcbfc9bd1e7840fa18e5ed8eddc
+author johnath@mozilla.com
+files security/manager/pki/resources/content/exceptionDialog.xul

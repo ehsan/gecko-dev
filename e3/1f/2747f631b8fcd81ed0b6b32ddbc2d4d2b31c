@@ -1,0 +1,3 @@
+changeset a61ac869e4e7ecf94d41a69c1d6465e9d8b8b935
+manifest bc6e1f2fcbc03148e7d33367769b0ff38c045efd
+files toolkit/devtools/debugger/tests/unit/test_dbgsocket.js

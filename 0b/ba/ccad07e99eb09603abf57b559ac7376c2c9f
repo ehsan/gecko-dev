@@ -1,0 +1,4 @@
+changeset 9a4bf340c1e3c44b678c1108f56be33f21f6a213
+manifest 9f3af9db934548b765d9007c4915b0f704edf895
+author timeless@mozdev.org
+files xpcom/components/nsComponentManager.cpp

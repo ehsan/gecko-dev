@@ -1,0 +1,4 @@
+changeset accc4cc9009e9611db97e2f84ede0383ad1b6777
+manifest 89c3de8b26639bf4ce36d6204fb1b142a3e5cf7e
+extra source:4643ae3a5bd51b3353fbc5c01287a07fbb749e70
+files mfbt/UniquePtr.h

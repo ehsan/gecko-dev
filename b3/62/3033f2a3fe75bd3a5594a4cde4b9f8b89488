@@ -1,0 +1,4 @@
+changeset 10bb3ee22095a0cbfaf60a9e5a5533210c0cd1c0
+manifest 59f1b08da188c66ee60df51095b23ae654276af3
+author timeless@mozdev.org
+files storage/test/unit/test_storage_connection.js

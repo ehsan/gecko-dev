@@ -1,0 +1,4 @@
+changeset 4485ae77032265bde0159632ea16bcc45004a3da
+manifest 2b0043214806702d238166bfdd9d949b4f8acb30
+author reed@reedloden.com
+files dom/src/base/nsJSEnvironment.cpp

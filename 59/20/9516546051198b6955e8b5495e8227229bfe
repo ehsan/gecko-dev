@@ -1,0 +1,4 @@
+changeset 8c1e4ce8ef8433290b3065a0625e18c58d0997f1
+manifest d45be87c6b58c40b22f39420e0b21fe41a3813d9
+author jwalden@mit.edu
+files toolkit/themes/pinstripe/tests/test_bug371080.xul

@@ -1,0 +1,4 @@
+changeset 56cfe84b26bcd9fb104cb6f94d1e6dc7bba05a0d
+manifest e676b5be2053489cc7e72551e1eb4bf17af7c982
+author surkov.alexander@gmail.com
+files widget/src/gtk2/nsWindow.cpp

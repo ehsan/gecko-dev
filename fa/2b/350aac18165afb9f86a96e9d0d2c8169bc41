@@ -1,0 +1,4 @@
+changeset 857e9d5e0e5062002360233ff0edb1576e5fa3d6
+manifest a6cb20c8b29b683c59f8e7f1db014a4e8f19bf23
+author cltbld
+files tools/release/configs/tb-moz18-bootstrap.cfg

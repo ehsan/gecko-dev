@@ -1,0 +1,4 @@
+changeset 074ebfba009c6fc45103074534181e4742a12d23
+manifest 0cec7b4127cfcf2fe6fa1255c2dd98f4f726dfe9
+author dholbert@cs.stanford.edu
+files widget/src/xpwidgets/nsPrintSettingsImpl.cpp

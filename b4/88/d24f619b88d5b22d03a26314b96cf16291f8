@@ -1,0 +1,3 @@
+changeset b9fac1fab6ca9ba4b839667ce8c795b863adeeea
+manifest 1e1ee7429b3a0216edc9cf0b667005eae8d42788
+files js/src/jit-test/tests/ion/dce-with-rinstructions.js

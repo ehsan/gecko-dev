@@ -1,0 +1,3 @@
+changeset 50cd5f7339f6a11c3b6bea3d80919420979a9f27
+manifest ec0d4696cedf5287cee4469553cd2a7f8bb8dd25
+files netwerk/base/public/nsIProtocolHandler.idl

@@ -1,0 +1,4 @@
+changeset 3478ea7bb5e4c2a104ac986c6907697cae4950b4
+manifest d9d11639faf631b768765be524ecf7a39589d012
+author jonathandicarlo@jonathan-dicarlos-macbook-pro.local
+files services/sync/modules/engines/bookmarks.js

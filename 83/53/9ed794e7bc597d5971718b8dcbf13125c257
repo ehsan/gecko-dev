@@ -1,0 +1,3 @@
+changeset 672467c3103091d8108896e291011b6db45f74ab
+manifest 9419b75eecfdba5e5bfccb806866a36e76569621
+files security/manager/ssl/src/nsSmartCardEvent.cpp

@@ -1,0 +1,4 @@
+changeset a7972d1adc997926e4c836df537dcec6a06b07d0
+manifest ef96fbf3570ba719cfc02b4467270d79426448b4
+extra rebase_source:7ed91b6452409799a66b00b34d9ff5e812f591c8
+files media/webrtc/signaling/signaling.gyp

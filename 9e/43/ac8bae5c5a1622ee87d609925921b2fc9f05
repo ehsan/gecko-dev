@@ -1,0 +1,4 @@
+changeset c1a7ca0948e3845cc37a380193754d2c8ade2155
+manifest d49a094cf86ede104cf83ee6b72d927044fafdf3
+author dcamp@mozilla.com
+files toolkit/components/url-classifier/src/nsUrlClassifierHashCompleter.h

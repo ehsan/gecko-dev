@@ -1,0 +1,3 @@
+changeset e96c48e7e91992c4d1ea4ccaa1a5784102f0c15e
+manifest e39ed56de9c517459b979e5e7919453d0bfd3c0d
+files toolkit/components/downloads/test/schema_migration/test_migration_to_4.js

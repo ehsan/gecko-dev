@@ -1,0 +1,4 @@
+changeset a74b11baf961f93a0ce422204aa08cf63d7ee577
+manifest 136bc517332e46ca3bb7942e8e58757799afada6
+extra rebase_source:fc7025df9a48d2b942054b511694440a59c241bb
+files dom/devicestorage/test/test_stat.html

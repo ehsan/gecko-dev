@@ -1,0 +1,4 @@
+changeset 2e12be5adf949a68df35ed5cd31fb4c2419af1f3
+manifest 8054e6f41a8cd265f17639988485cd0ee9e7f8e8
+author benjamin@smedbergs.us
+files xpcom/proxy/src/nsProxyObjectManager.cpp

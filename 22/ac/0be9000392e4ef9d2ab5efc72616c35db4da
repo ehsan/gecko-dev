@@ -1,0 +1,4 @@
+changeset 1ce1f48e78c0f2be117f1aa08860e5ac5c1334b4
+manifest 90df56cd538ad3043254ce5c59af970a81660669
+author rhelmer@mozilla.com
+files testing/performance/talos/post_file.py

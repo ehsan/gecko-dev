@@ -1,0 +1,4 @@
+changeset 5dc38da16e79228da788e36e1bfb7f49f44f65bd
+manifest 39ade82d6233459ad2626721b48ecd11236c6c92
+author timeless@mozdev.org
+files js/src/jspropertytree.cpp

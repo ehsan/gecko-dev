@@ -1,0 +1,4 @@
+changeset e77e87747cf6d1bdf820f8c1ecb78f16a0862c4d
+manifest bd89ce71f95bcbc7b00e177541474cf3e1c1640d
+author jruderman@hmc.edu
+files xpcom/base/nsCycleCollector.cpp

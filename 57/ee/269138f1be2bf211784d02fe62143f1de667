@@ -1,0 +1,4 @@
+changeset b1cc664c0ff10b4f2728d615dcaba77ed18aa9ce
+manifest 6a86ad534b6d3cd385cbf8f44a9072e0a2c56a04
+author martijn.martijn@gmail.com
+files browser/components/shell/src/nsWindowsShellService.cpp

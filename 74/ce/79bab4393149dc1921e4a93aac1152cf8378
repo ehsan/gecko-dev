@@ -1,0 +1,3 @@
+changeset 1b562fac54c0f1342fcac317bfe23d1a8d4f93fe
+manifest dba3575c42533d301fffde6e06541b15b7f40189
+files dom/tests/mochitest/bugs/test_devicemotion_multiple_listeners.html

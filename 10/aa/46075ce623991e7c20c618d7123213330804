@@ -1,0 +1,3 @@
+changeset 10d44bf9a01f16a4b90c80ad221e6ca92928e05b
+manifest ee10abd4a11c18242a0dfe31cefa7a346def96a5
+files xpcom/tests/unit/test_bug478086.js

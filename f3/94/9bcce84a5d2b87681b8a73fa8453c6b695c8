@@ -1,0 +1,4 @@
+changeset abfc542124115a8b4adda04b3270a0ddd5dc9400
+manifest 89bb3a1d44a6ade1c109c0766900ce3ede51f909
+author sspitzer@mozilla.org
+files toolkit/mozapps/update/src/updater/progressui_win.cpp

@@ -1,0 +1,4 @@
+changeset 0de4a1cec36d67b73b58c210cf4671fb25f28d91
+manifest dd2467a83e20959f46f65ef56489edc7c16a0969
+author gavin@gavinsharp.com
+files toolkit/crashreporter/client/crashreporter_win.cpp

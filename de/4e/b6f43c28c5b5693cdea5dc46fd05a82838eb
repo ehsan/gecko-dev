@@ -1,0 +1,4 @@
+changeset 951002038d9a9feae2efc930e7473827b00a3f10
+manifest 7e686cc7853b70833f0c9401e873c28f46ffe3c0
+author jonathandicarlo@jonathan-dicarlos-macbook-pro.local
+files services/sync/modules/engines/tabs.js

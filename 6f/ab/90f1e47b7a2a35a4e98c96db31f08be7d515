@@ -1,0 +1,3 @@
+changeset 165bbe7a3759d910786c9b1d63a935232d8bcc20
+manifest 1803bfc53992cda98489fe4e862c43068fc9ddd1
+files js/src/jit/shared/BaseAssembler-x86-shared.h

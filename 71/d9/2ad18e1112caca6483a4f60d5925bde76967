@@ -1,0 +1,4 @@
+changeset b80de7ac933b0b229167e1b04fb37eeca534fe90
+manifest ff005ecebe46db882445c8e78304b82da11fb13f
+author dwitte@stanford.edu
+files extensions/cookie/test/Makefile.in

@@ -1,0 +1,4 @@
+changeset f551a45cefbd05e0d4c5f935fc8fed0d4eb9e368
+manifest 98e14247523ac6f24b4e663a037ecb2494f2b1c6
+extra rebase_source:fa67187d67b23489ceff8185cb61f1c12e17ad5e
+files layout/mathml/mathfontSTIXNonUnicode.properties

@@ -1,0 +1,4 @@
+changeset c27e17df73d326496527407fe09cdc457a3ea39d
+manifest e82526563d2dc73aeadf837cfd5271b51fa2f40a
+author gavin@gavinsharp.com
+files toolkit/components/downloads/src/nsDownloadManager.h

@@ -1,0 +1,4 @@
+changeset bc8cc4a1818daa768fa77973e47d5733c1718461
+manifest faecd7934df64c0c848f934f43607128d5171812
+extra rebase_source:130357bc9a7ad66cb0574f7bf3ac69e1c3f4a2ff
+files gfx/layers/d3d10/ReadbackManagerD3D10.cpp

@@ -1,0 +1,4 @@
+changeset 540154d2fd6f2d5f8204c39588d31d1783682fc4
+manifest 466bc850226e815f740fb4cac2dd14b7054062e7
+author dbaron@dbaron.org
+files content/xbl/src/nsBindingManager.cpp

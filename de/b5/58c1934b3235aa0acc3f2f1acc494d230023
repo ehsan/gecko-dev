@@ -1,0 +1,4 @@
+changeset 9b4aaa9174e9b4bd8b95303451202b74b4adb3b0
+manifest c9326a0367d38173b103594698aff02f1d79c473
+author reed@reedloden.com
+files content/xul/document/src/nsXULDocument.cpp

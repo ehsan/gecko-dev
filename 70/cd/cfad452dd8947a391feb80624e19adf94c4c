@@ -1,0 +1,4 @@
+changeset 5019c12e00d5b0a1f42103b920a7ef2b1e49b18f
+manifest 3705ecec3a799a2de37a73dc88ddf36ca5626211
+author philringnalda@gmail.com
+files browser/components/shell/src/nsWindowsShellService.cpp

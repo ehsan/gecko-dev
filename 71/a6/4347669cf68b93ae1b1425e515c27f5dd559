@@ -1,0 +1,3 @@
+changeset dd0f1f0a96b3f7e0d9a4beb6c393c05e3e39937a
+manifest d74d7734934102ca57b8da166835bbacb704884c
+files gfx/cairo/cairo/src/cairo-quartz-surface.c

@@ -1,0 +1,4 @@
+changeset fcbc465d46bd794a28c98c7416c3d7e76ce016c7
+manifest 52ecb9be5c5f01a41f0a68ae165a008cad373b1e
+author reed@reedloden.com
+files modules/libpref/src/init/all.js

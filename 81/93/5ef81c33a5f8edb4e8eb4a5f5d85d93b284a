@@ -1,0 +1,4 @@
+changeset edda3c650b51dd5f2ccc05f72878b1dc2e9b8216
+manifest 7f1ca9de05e5441bacd91085c4f9442f392a0d1b
+extra rebase_source:b3926248c4a152728521b8939de2e26a17f179f6
+files browser/app/profile/firefox.js

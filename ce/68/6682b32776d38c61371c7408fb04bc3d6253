@@ -1,0 +1,3 @@
+changeset 11a6a67cf3a9e2db02cd3d44784cd14d7154911f
+manifest 68efc4e83bdb6c89052e510dc1f27e2b9d377642
+files toolkit/components/console/hudservice/tests/browser/browser_webconsole_bug_595934_message_categories.js

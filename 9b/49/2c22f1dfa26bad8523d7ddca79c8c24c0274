@@ -1,0 +1,4 @@
+changeset 8501bdd8c565322f1ab6aef418ab8ef5d7a0770a
+manifest 5bc43d116df174b058f2894627c9a7c5596b2a34
+extra rebase_source:c52f8181d1debebb9c4ca467b690ba33dbcd052a
+files testing/mozbase/mozdevice/mozdevice/adb.py

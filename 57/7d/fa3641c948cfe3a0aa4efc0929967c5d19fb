@@ -1,0 +1,3 @@
+changeset 83bff13e5f70a29a4218deae4d0ce6271ecbe273
+manifest 49787a7b4a95a283efdd05d067f0115289c6f5f2
+files browser/devtools/styleinspector/test/browser_ruleview_completion-existing-property_01.js

@@ -1,0 +1,4 @@
+changeset ec008b16c0d4eccc0d08804903c79c0ab3c65282
+manifest 156467a70f84190c8af59f0383ce00b11d8381c0
+extra rebase_source:a4503b9f96e31001aaa4388c1ca6ee5cfe477d18
+files b2g/components/LogShake.jsm

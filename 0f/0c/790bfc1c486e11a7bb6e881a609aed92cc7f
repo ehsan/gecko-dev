@@ -1,0 +1,4 @@
+changeset 0f0e220b8cb2ee2184f353916e3b78e7fc228db2
+manifest 559834833402b43507d017f4e1a522dedafa00f7
+author bugzilla@standard8.plus.com
+files xpfe/components/sidebar/src/nsSidebar.js

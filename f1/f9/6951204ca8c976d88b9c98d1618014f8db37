@@ -1,0 +1,4 @@
+changeset 2a1f2758ad0d92bb355e29c75b8d9f63ea9df509
+manifest 4cef9fdac3e942a230c7c80021e2bc4b731a93db
+extra rebase_source:843bf4e7c427ce7d2a976af99d62a32b9dd142ee
+files xpcom/idl-parser/header.py

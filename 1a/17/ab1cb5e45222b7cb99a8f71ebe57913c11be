@@ -1,0 +1,4 @@
+changeset 439a4b36aab8d2ae98a1591ad5cc44d4816eff48
+manifest 373a50bf1332534df8f6cf245bbbbee8702e91bc
+extra rebase_source:960b6d4ea73b52450320ae7c00702f3c233f523d
+files browser/components/thumbnails/PageThumbs.jsm

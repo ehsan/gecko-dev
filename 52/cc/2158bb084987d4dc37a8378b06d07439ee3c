@@ -1,0 +1,4 @@
+changeset dc71da482346e69e71f1bd60bc3c765aea186ab5
+manifest 1c209471f1b9c98a3f330a46e580435da4659f51
+author mats.palmgren@bredband.net
+files widget/src/cocoa/nsChildView.mm

@@ -1,0 +1,4 @@
+changeset 755264b5c07b0838fa9f12799ae61404ea3db3cb
+manifest fbb19de00a981d98351a39d5bb01c92973e16fc2
+author martijn.martijn@gmail.com
+files layout/style/nsCSSStyleRule.cpp

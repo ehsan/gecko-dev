@@ -1,0 +1,4 @@
+changeset 47b1ed20995a626c15948d81f466e9dc406e7ce5
+manifest 08fa27afb88dd24ee378a7318c391a0e5ebc2994
+extra rebase_source:cc01ea1ae837f5b917d44006dde72484f3ffd104
+files xpcom/components/nsComponentManager.cpp

@@ -1,0 +1,3 @@
+changeset 49ff69f7b7f8cac718feadd71ae3d5ddc10b670b
+manifest bd5f7b951f9736a3805e1fdb588a143a0a87d355
+files netwerk/test/unit/test_bug580508.js

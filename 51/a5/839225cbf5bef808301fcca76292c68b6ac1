@@ -1,0 +1,4 @@
+changeset ce90c6378ae19c87c14bd7b7479bacb436402ca0
+manifest 7ddadf7b74128f01bd7513e0a1743f9897c99de0
+author mozilla.mano@sent.com
+files toolkit/components/passwordmgr/content/passwordManager.js

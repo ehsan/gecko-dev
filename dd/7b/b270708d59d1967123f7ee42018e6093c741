@@ -1,0 +1,4 @@
+changeset decf0416889d2a384cd2a2a487feb82e8d816ac4
+manifest 67623f7dacfa547a13e402d3f1c2a86002145f95
+author timeless@mozdev.org
+files extensions/gnomevfs/nsGnomeVFSProtocolHandler.cpp

@@ -1,0 +1,4 @@
+changeset f7a87d4a28916d5f5b85333eac53c8b3bc7b36a0
+manifest 2ad0e500e336e01f2d79944a0a6f2112c16974d3
+author ted.mielczarek@gmail.com
+files config/autoconf.mk.in

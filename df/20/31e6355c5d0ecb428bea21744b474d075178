@@ -1,0 +1,4 @@
+changeset 8760adcf0d33f4fe5534802c06d3630d1d9682b7
+manifest 9763de0659878e29f54be2e1315a4edd3fd1756b
+author peterv@propagandism.org
+files editor/libeditor/html/nsHTMLEditRules.cpp

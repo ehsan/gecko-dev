@@ -1,0 +1,3 @@
+changeset 6a5fa3d8332ba037f36c12ff5b9664dc08793417
+manifest 885ba2a37e3f7357d8a67b8534d7788e44b318c9
+files netwerk/cache/nsCacheEntryDescriptor.cpp

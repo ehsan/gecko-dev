@@ -1,0 +1,3 @@
+changeset 59e54843c6b6806de720b937312d25696028e479
+manifest eb7fa224c7bcba28334ac8b0ff052ad913efe637
+files js/src/vm/ScopeObject.cpp

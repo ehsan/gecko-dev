@@ -1,0 +1,4 @@
+changeset a30cdc2cc8d856aa2e06a7d2fd7bc03c7cf8e05e
+manifest ce83d2ff24b4c0097a87468cc362f3071f065a60
+extra histedit_source:cb74f224b42e1049e76bce542ab7ce1249e60445
+files dom/geolocation/nsGeolocationSettings.cpp

@@ -1,0 +1,4 @@
+changeset d3a6515364692ef468b3b669e43b38c81572b57c
+manifest f75512660013d3f13b35e6255d16a6f10d9b9413
+extra rebase_source:7c4bd486cc9dff1c65eda717fe34dd0fc36fe171
+files js/src/jsemit.cpp

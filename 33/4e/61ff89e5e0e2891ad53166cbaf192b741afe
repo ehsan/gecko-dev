@@ -1,0 +1,3 @@
+changeset a1c04809ef39b546507241fad80c6d60d357cd63
+manifest 49ae1953c692dd45fd4f6530bfbf23aca6bed4ac
+files netwerk/dns/nsIDNSRequest.idl

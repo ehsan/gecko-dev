@@ -1,0 +1,4 @@
+changeset c20505bb8fa0ef804faaa1e0906f6aa0513805b1
+manifest 9e7eaed241ae14de1219d3fa17a3ced521b49bc6
+extra rebase_source:d9c0bc991cf23ff7d7f9765886f3100479b90ec9
+files toolkit/mozapps/extensions/test/browser/browser-common.ini

@@ -1,0 +1,4 @@
+changeset da9b369fe5f46df20a3736b2a778691b26ca49c9
+manifest 21c039c05addbcae069dbc6a41000a90f0dd8d18
+author bzbarsky@mit.edu
+files js/src/xpconnect/shell/xpcshell.cpp

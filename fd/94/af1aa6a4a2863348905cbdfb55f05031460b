@@ -1,0 +1,4 @@
+changeset b20c050eb66cc425946de057b9d6afa2ecc3da2d
+manifest 89465900c63d6aaf1060fc191565c09a73334e33
+author bhearsum@mozilla.com
+files tools/release/Bootstrap/Step/Updates.pm

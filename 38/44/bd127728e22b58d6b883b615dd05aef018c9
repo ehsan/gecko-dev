@@ -1,0 +1,3 @@
+changeset 3e9f8f3605bbc4b068f54460486cbe14eed41301
+manifest bd6df30ebd295d6384f7e6a4ed317cd04a3824d1
+files dom/tests/mochitest/localstorage/test_localStorageBasePrivateBrowsing_perwindowpb.html

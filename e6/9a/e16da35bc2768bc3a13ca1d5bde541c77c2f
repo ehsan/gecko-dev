@@ -1,0 +1,4 @@
+changeset 99e6f6d9769481427333a9ea9634ec7a9f634292
+manifest 0c50777a0aed546276481820e2cf3298c3407287
+author joshmoz@gmail.com
+files toolkit/components/alerts/src/mac/growl/CFGrowlAdditions.c

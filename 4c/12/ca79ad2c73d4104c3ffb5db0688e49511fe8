@@ -1,0 +1,4 @@
+changeset 4ac07f1f29981038b4214ef790c1d14a8482c16f
+manifest 6d85e3e661b57868082c1cbf54070da6cd672de0
+extra rebase_source:36c159f68debeae4f442035233a90919b06d43b1
+files testing/marionette/client/requirements.txt

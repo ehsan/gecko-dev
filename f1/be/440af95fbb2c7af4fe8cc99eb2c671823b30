@@ -1,0 +1,4 @@
+changeset bebe383fcd5292bffd04c488eb862af23f1eb882
+manifest b1cda14806d1a2b6ff199faa53aab0a2a8d8fc4d
+extra rebase_source:14439ca9691ccfc0207c548bc2d7a023feba84a3
+files mobile/android/base/sync/syncadapter/SyncAdapter.java

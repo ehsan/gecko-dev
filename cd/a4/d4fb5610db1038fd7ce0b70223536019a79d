@@ -1,0 +1,3 @@
+changeset 26bb03784c3f2986a60e0fa17b58de92ae6b714f
+manifest c9acd827dd6e6bff10c40d8357ff370c240ac77b
+files js/src/tests/ecma_5/Array/redefine-nonwritable-length-custom-conversion-throw.js

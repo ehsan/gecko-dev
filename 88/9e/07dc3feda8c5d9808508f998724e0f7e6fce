@@ -1,0 +1,4 @@
+changeset c4c6b827e531b3e2b2305b92429a8827f3a8f269
+manifest 2bc9c15c91806c71a5ba620e812d6647f38eb345
+author timeless@mozdev.org
+files xpcom/io/SpecialSystemDirectory.cpp

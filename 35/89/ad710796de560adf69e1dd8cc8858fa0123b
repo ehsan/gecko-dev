@@ -1,0 +1,4 @@
+changeset 27ad0b2617bb831f5d417ac8a3b8fbe30a11d8d4
+manifest 72b851fc3b820270b4706403dbfa1ce88f27309a
+author benjamin@smedbergs.us
+files xpcom/glue/nsINIParser.cpp

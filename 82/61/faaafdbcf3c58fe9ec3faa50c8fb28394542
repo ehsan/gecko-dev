@@ -1,0 +1,4 @@
+changeset 7835a2b7db2df0e44ad7fc7c5ee8a369039a90a1
+manifest 30cfe608a7f0a85a06d76aaf676b7abf7777b4cb
+extra rebase_source:8eb1a001b99c13df914a877cca6758e023ba9e31
+files layout/mathml/nsMathMLContainerFrame.cpp

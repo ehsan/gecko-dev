@@ -1,0 +1,4 @@
+changeset 9974fa64c93ca2a7629c0baeae3a0519d89d155b
+manifest 54b01d522f4e86e62981cd5c6310c65597d4825c
+extra rebase_source:25f0ff5c614d75c3b9676c0c41762a5ab3541410
+files layout/generic/nsInlineFrame.h

@@ -1,0 +1,4 @@
+changeset b532e0d93bc546c47967ff1638a18d857bc24f58
+manifest f43f8943aa79bebd5b9afef21836a60948697851
+extra rebase_source:c344db510c389e9f8cdaa186185da979036d48e7
+files embedding/android/AndroidManifest.xml.in

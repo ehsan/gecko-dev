@@ -1,0 +1,4 @@
+changeset 6b925c9842400dca6058de25a431203676375d6d
+manifest 54da19c19e00aff6bef590999d8cacb6d412870a
+extra rebase_source:e7811bc095ac739c2e5629fbdaa7c81686938416
+files toolkit/crashreporter/nsExceptionHandler.cpp

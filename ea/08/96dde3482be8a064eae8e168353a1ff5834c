@@ -1,0 +1,4 @@
+changeset fe361241397d60138f2cf20f218f37d9518f5e73
+manifest f4178f26927f931253edef872cce118531042100
+author timeless@mozdev.org
+files netwerk/base/public/nsNetUtil.h

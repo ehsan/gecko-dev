@@ -1,0 +1,4 @@
+changeset 9f3968eeaf98535f37cb4c499498a76aee8a986d
+manifest defc4696cad3c33fe27785d986df5a9c914800b0
+author benjamin@smedbergs.us
+files js/src/xpconnect/src/xpcwrappednative.cpp

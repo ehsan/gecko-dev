@@ -1,0 +1,4 @@
+changeset a382fbb818ad27a3368fdb98544d2a77e298f502
+manifest e10cd83aa7b396ff4fd9a4c121458822673e00d7
+extra rebase_source:21ac1e5d6cba8a0771c9612c304ff4206a29f902
+files js/src/vm/Shape-inl.h

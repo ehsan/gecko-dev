@@ -1,0 +1,4 @@
+changeset b7a322d420b89325699f09a4b7df120e53ba7b21
+manifest d6c14a07bb0a514e58f07831756eb93c02cae7d8
+author timeless@mozdev.org
+files widget/src/gtk2/mozcontainer.c

@@ -1,0 +1,4 @@
+changeset 07dfac2647a65f0ab3e1140bddba443862e423f6
+manifest 1c41a4704d1064821b75049dd5eaffd837df65d9
+author timeless@mozdev.org
+files content/events/src/nsEventListenerManager.cpp

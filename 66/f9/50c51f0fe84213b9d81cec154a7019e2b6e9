@@ -1,0 +1,4 @@
+changeset 83c38674da8e1c190b00d82c9b867146c4437eed
+manifest e16e90a694185020acd5c833382d47135910d2be
+extra rebase_source:f6fe2a4416913f55dab81cd0c8801563a4e409f1
+files b2g/components/UpdatePrompt.js

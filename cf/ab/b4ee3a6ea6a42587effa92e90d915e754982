@@ -1,0 +1,4 @@
+changeset a79661f16f410b77ac53caba023091b20bca1741
+manifest 977ff3fa52eb2ade90e0c237005f6ace1fbc2371
+extra rebase_source:4774a7b194cc4c172ee6fcf153fcae18db0c13b6
+files js/src/vm/Opcodes.h

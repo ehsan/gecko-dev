@@ -1,0 +1,4 @@
+changeset b8b3358c6e6bb5407e12a4681dd11403fafa9fcf
+manifest ed373282486513ffc0d0f4fd95c8ce102f206643
+extra rebase_source:52d54012d2423689e08e213e4ae1f313ffacfe6e
+files toolkit/modules/PopupNotifications.jsm

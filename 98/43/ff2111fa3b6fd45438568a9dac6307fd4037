@@ -1,0 +1,4 @@
+changeset ec2dd928604c94be628a7d0fa251247ede456f8a
+manifest 60a2f2ae89c8c54ae0f3baf5b499ff890a4026ff
+extra rebase_source:6d6e917d5cdeafa47fdb3f05dab9c1c27f4d166d
+files toolkit/xre/nsQAppInstance.cpp

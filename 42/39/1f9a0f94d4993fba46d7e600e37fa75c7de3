@@ -1,0 +1,4 @@
+changeset 076ac8d9b59901860663f1a89536d5ae5bad326a
+manifest dee289f0172ce839187182e2d44ba0c786ede2f7
+author dbaron@dbaron.org
+files content/xul/document/src/nsXULPrototypeCache.cpp

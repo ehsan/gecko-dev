@@ -1,0 +1,3 @@
+changeset b7d4478aa0d2847e8dc0e80431a568dc615fdc8b
+manifest deb20685ba15bc275052fd07b4f198427d752d0c
+files services/sync/tests/unit/test_auth_manager.js

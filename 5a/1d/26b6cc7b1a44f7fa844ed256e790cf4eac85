@@ -1,0 +1,4 @@
+changeset c302c800e6f06cceb738da42e64d6cdc4d10891b
+manifest 352c3315b4f3e4d5c9692637dc261ea15dcaba54
+extra rebase_source:a17a38faaeffebae0d4d8aadf0a3a58397aab8d9
+files modules/plugin/base/src/nsPluginNativeWindowGtk2.cpp

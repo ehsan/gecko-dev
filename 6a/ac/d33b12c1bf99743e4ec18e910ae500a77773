@@ -1,0 +1,4 @@
+changeset 5544f74c84b96fde258b9244664c20250599e135
+manifest 921c4330eb95df55b9442a70b2e79c7b16a760c4
+extra rebase_source:f2062288a65527eb0605f94f38e731306b807f53
+files toolkit/mozapps/extensions/test/xpcshell/test_blocklistchange.js

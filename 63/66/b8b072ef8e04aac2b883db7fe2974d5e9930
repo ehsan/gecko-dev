@@ -1,0 +1,4 @@
+changeset a1414662e01c57a2e36bed09dd56bfa7ad269f30
+manifest d31a3946eed3476a2880403d2da16cbca491d424
+extra rebase_source:87b5ec409512da7f1d19ae414292897ca14a09b1
+files mobile/android/base/fxa/activities/FxAccountStatusFragment.java

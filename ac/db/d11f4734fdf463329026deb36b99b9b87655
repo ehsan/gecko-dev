@@ -1,0 +1,5 @@
+changeset f0ad730b195179ddfcd84423ea5bf11e01911a00
+manifest 29f10cdca2c023583c8fe8fe5acfa7abedb29a29
+author timeless@mozdev.org
+extra rebase_source:11c1d83d14854f124ddb6342cad99a01f84e8673
+files js/src/xpconnect/loader/mozJSComponentLoader.cpp

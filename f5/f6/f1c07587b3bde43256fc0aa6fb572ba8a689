@@ -1,0 +1,4 @@
+changeset b6a8d54a46dacaeb7ea4ec95ae4374903cfaf2ec
+manifest 467a94ba22e7b5b73d826669e5ec01ca19cc9fdc
+author kaie@kuix.de
+files security/manager/ssl/src/nsNSSIOLayer.cpp

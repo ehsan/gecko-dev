@@ -1,0 +1,4 @@
+changeset e9a6fdef45e78ea8483250984326f6268511df74
+manifest d5fd37a4f8f4dd3b5226b412f352a276128941ad
+extra rebase_source:2cd77c32b9a26bee79d594cf45ba5d4cfcbd453e
+files browser/locales/en-US/searchplugins/bing.xml

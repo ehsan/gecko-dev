@@ -1,0 +1,4 @@
+changeset e5e483b60518f84520e941e6e4e6f94e9eb66e70
+manifest 0c4fab1a6bc6c062c98614cf3a240f97c46cbaa6
+extra rebase_source:39a880b34d9e7bdaff2ccd079e5812fe57dc6034
+files browser/devtools/shared/DeveloperToolbar.jsm

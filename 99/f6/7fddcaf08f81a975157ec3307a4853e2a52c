@@ -1,0 +1,4 @@
+changeset cd99d5b9ecaf6645844608f9927b8f49ca8ddc86
+manifest 98603f38925a68d2bde8136da55ce3cf93e6f6f8
+author florian@queze.net
+files browser/components/preferences/applicationManager.js

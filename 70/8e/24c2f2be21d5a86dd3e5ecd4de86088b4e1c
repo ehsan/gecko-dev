@@ -1,0 +1,4 @@
+changeset 841ec7492ecbdea629b19f8638ba5c5e2a8d9e3c
+manifest 0ca63b79df31db709a40827f18743e461088b4ff
+extra rebase_source:6c4d13f0b2c91dbdd7c2a9325c5ced0ee74bf9d4
+files layout/xul/base/public/nsIPopupBoxObject.idl

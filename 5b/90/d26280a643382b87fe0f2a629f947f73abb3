@@ -1,0 +1,4 @@
+changeset ffb9beb36e5a8761a600f1b4244d6ae1e071c979
+manifest 224e64d2e1daaece0ed685ab194c15482dec86c2
+extra rebase_source:97e9bf5bf4350befcbf33733482c4d130dd8b225
+files browser/modules/WebappsInstaller.jsm

@@ -1,0 +1,4 @@
+changeset 775e721a1219621fbd6e05d37f7aead31e293cc9
+manifest 9e3e603fe9c3a1f413524f1d38b445cde7dcd0a8
+author reed@reedloden.com
+files embedding/browser/gtk/src/EmbedPrompter.cpp

@@ -1,0 +1,4 @@
+changeset be3ab4f3041063240158ae61015cea94e8b7e662
+manifest 2f756b4aa2d68858d2ded159c0b78bcbee1e3b19
+extra amend_source:32264340bdabf2c66e71967e1f33158b9a5f5cde
+files mobile/android/base/Makefile.in

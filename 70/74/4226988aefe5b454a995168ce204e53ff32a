@@ -1,0 +1,4 @@
+changeset 19ddad0f29bb77b54daae488899f3f899d403879
+manifest c60af165554e21bc9541df1286ee62bf7de487b5
+author rflint@ryanflint.com
+files toolkit/mozapps/extensions/src/nsExtensionManager.js.in

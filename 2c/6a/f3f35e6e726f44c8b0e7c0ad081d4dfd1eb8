@@ -1,0 +1,4 @@
+changeset be715fe9c9164e5c4b519f567d6a96aa6127cfa7
+manifest 3fd4ebe7de827d9625f37d2d8e15d49798d190bd
+extra rebase_source:e865be978256496c8b252f33a3d9644367bfe76f
+files xpcom/idl-parser/xpidl.py

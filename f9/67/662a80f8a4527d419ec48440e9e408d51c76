@@ -1,0 +1,4 @@
+changeset b7fe6529a5b29bb7325630b1031137257b93e1e6
+manifest 72dc6ec143a799a6be97cd84f52ca795820dc16e
+author roc+@cs.cmu.edu
+files gfx/src/thebes/nsThebesDeviceContext.cpp

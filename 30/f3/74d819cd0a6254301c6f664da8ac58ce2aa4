@@ -1,0 +1,4 @@
+changeset 2f74d54aa74aaa396f66e17d74241d9106cf63cd
+manifest 205cdd6419b8402cafbccab7ed370c7ffafbc8cc
+author mrbkap@gmail.com
+files parser/htmlparser/src/CNavDTD.cpp

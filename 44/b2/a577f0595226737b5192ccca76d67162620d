@@ -1,0 +1,4 @@
+changeset 2dc8f1355ab6131402faf8843baacb465eac1cdc
+manifest eaf1edf4741fec6eab12ffa4adc7d30ddcc72f80
+extra rebase_source:171ad892c7008ec2d1b1d02e5440c0d2472504d6
+files toolkit/locales/en-US/chrome/mozapps/extensions/extensions.dtd

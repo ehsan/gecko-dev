@@ -1,0 +1,4 @@
+changeset c919c136540da35e4338954a272d1e92d36e6c10
+manifest 85f8ced63e486cc05970c313fc9893fdc211c5fd
+author peterv@propagandism.org
+files content/xslt/src/xslt/txMozillaStylesheetCompiler.cpp

@@ -1,0 +1,4 @@
+changeset b6147baf283118fdf8f907a584f9ade1a699133e
+manifest 3a720a2220f5c7b1ddeded799bf50c5f4d2398e8
+author sspitzer@mozilla.org
+files toolkit/components/autocomplete/tests/unit/test_393191.js

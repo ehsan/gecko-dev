@@ -1,0 +1,4 @@
+changeset 09bff1cce6b4161e2eab24bf1d450bd4071199c1
+manifest 4fd039143fa8ce71bbd359dad1523b11a8407347
+author reed@reedloden.com
+files extensions/pref/autoconfig/src/nsReadConfig.cpp

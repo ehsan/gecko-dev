@@ -1,0 +1,4 @@
+changeset 2abfa5c6ccf987df6630ae381435e1670cfec5cc
+manifest ff6ea07659172c8e1ae638a88c3fc5f50763abde
+author respindola@mozilla.com
+files media/webrtc/trunk/webrtc/modules/video_capture/mac/video_capture_mac.mm

@@ -1,0 +1,4 @@
+changeset 5734d538913f88af9ac70ac1745cc77279badda9
+manifest a25bcdaf1ba7d70ba85ed82f8f33cc6c795f3080
+author dolske@mozilla.com
+files gfx/thebes/src/gfxPlatformGtk.cpp

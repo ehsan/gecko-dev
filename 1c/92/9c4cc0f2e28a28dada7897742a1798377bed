@@ -1,0 +1,4 @@
+changeset 14b4fa1cb58fe14485a79d3f0fda4f28f3f9f804
+manifest 75aa681bd7b320aaad2fdd19084873e25f63be9f
+author bclary@bclary.com
+files js/tests/js1_7/expressions/destructuring-scope.js

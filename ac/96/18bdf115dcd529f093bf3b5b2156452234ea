@@ -1,0 +1,4 @@
+changeset 01eb3f6401d517426983511931077fb17e662f3f
+manifest d6d99f95ce04ee391f2e1753b20238261a9caeb1
+author Olli.Pettay@helsinki.fi
+files xpcom/glue/nsThreadUtils.cpp

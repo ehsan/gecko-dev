@@ -1,0 +1,4 @@
+changeset 6a59cfc1766cef27ddb48097b08ff8f4bde3500d
+manifest 20139ccf010a91b4d264e39660d26c9639fb25c6
+author timeless@mozdev.org
+files layout/xul/base/src/tree/src/nsTreeBodyFrame.cpp

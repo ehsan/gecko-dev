@@ -1,0 +1,4 @@
+changeset d9bd462072931e568c1a22a3e1e1eeac61cfbffd
+manifest 9b13d18ffd4388f237b2f8c04856020e1f905d1d
+author mozilla@weilbacher.org
+files layout/generic/nsTextFrameThebes.cpp

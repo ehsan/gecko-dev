@@ -1,0 +1,3 @@
+changeset e9f4b05cfbaaa7f474e2d212e2dcae0f33557226
+manifest 65efc7bc6df2597af0a3a3fef48d2901eb13752e
+files js/src/xpconnect/tests/components/native/xpctest_module.cpp

@@ -1,0 +1,4 @@
+changeset 4cd68d278fd226aef0315d39432927df7a8be489
+manifest 8bf496b811481f15db1e637c69b2afd36bcb5243
+author timeless@mozdev.org
+files toolkit/components/passwordmgr/src/storage-mozStorage.js

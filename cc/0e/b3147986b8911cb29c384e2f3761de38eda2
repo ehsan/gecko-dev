@@ -1,0 +1,4 @@
+changeset b49b5e59c916580acd348adbcb0e7b9824c809ce
+manifest ed6ad72f94a5037f583297d915c511638da32868
+author dbaron@dbaron.org
+files accessible/tests/mochitest/test_bug368835.xul

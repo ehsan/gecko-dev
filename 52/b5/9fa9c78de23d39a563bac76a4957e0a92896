@@ -1,0 +1,3 @@
+changeset 4f9febf724b0fed7efda067a6a981f480115f208
+manifest 05b29fbbe1eab9e07044c17ce76cb69d393f93f7
+files security/manager/ssl/public/nsIX509Cert.idl

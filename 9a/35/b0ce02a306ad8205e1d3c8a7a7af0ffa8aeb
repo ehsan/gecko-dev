@@ -1,0 +1,3 @@
+changeset d35435aed8d0a615f3aa59ac5b3dab8d9a53be88
+manifest 98f9e8a4d2dde2f7146fdddcc63f8e4f45b0c8cb
+files js/src/jit-test/tests/auto-regress/bug680797.js

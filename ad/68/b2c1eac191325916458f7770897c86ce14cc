@@ -1,0 +1,4 @@
+changeset e87ba550a5d7c9959bda68cf1e500532d33d0e5c
+manifest b193d3163b1974f2725ea77b730f7f6ebf8e3635
+author timeless@mozdev.org
+files toolkit/mozapps/readstrings/readstrings.cpp

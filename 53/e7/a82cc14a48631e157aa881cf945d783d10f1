@@ -1,0 +1,4 @@
+changeset 76e77fff6b8e6ae8fab5f7e54f0c9682c59db521
+manifest dc40920e303dbb6dd6769cf53bc10af65871a6e0
+author shaver@mozilla.org
+files js/src/jstracer.h

@@ -1,0 +1,4 @@
+changeset abf4cc8d5c2d54dfc971a25356ab0bdde4d9d92b
+manifest 0371022c89a549269ede80f9ad2b14087c2ecf24
+author myk@mozilla.org
+files browser/components/preferences/applications.js

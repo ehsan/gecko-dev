@@ -1,0 +1,4 @@
+changeset 07dadb9729e12c549ea21d908ca38b7822cd5377
+manifest 58736b2799293a39513ce157e138e3d11c8878bb
+extra rebase_source:095bb9298b07cc1308a6b8476ddf9d75e2e7af50
+files xpcom/glue/DeadlockDetector.h

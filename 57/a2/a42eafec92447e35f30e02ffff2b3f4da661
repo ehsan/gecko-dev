@@ -1,0 +1,4 @@
+changeset 575ab9887c3bcf33d44fb5c581e4b284bfcad3a6
+manifest 3905d64e3522cf450778cda9bfe6732ad22d9da1
+author sayrer@gmail.com
+files dom/src/base/nsJSEnvironment.cpp

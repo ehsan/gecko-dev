@@ -1,0 +1,4 @@
+changeset c4ed14e576cdad60e53160e821ec152d691211e8
+manifest 7ff07bc68566c285f93e89ff8d5280e725bb1b69
+author bzbarsky@mit.edu
+files parser/htmlparser/src/CNavDTD.cpp

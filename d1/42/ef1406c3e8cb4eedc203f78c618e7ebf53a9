@@ -1,0 +1,4 @@
+changeset 3cf8c2ab8d3ba35cab0e3f846d8ec359e8a1f309
+manifest 21870028051c718e784958be7fc063693198906f
+extra rebase_source:a2406e7443d174f77579807df7996e057bbbb4bd
+files browser/components/sessionstore/test/browser/browser_615394-SSWindowState_events.js

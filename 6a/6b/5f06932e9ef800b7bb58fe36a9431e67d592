@@ -1,0 +1,4 @@
+changeset d6161c63e250fc572851507272cda4f7f85e82d5
+manifest 9bdff1e835c0b748b6c4206c759ee72164e540b0
+extra 
+files xpcom/ds/nsPersistentProperties.cpp

@@ -1,0 +1,4 @@
+changeset 9dec76dd3b3cf5e66b38f663ed3894bd6a318cae
+manifest 3ca3558c3f7d8f13131a80109cac495d1fb1e203
+extra rebase_source:3898c17e3fe6740b6cecbe0665b9b60710d356b4
+files widget/gtk2/nsNativeThemeGTK.cpp

@@ -1,0 +1,3 @@
+changeset 4481461159f2a33e36e611bd528858b8c2016f67
+manifest 65a7d0827907ef75479009d5e073d9a30bc0b5de
+files media/webrtc/trunk/webrtc/modules/audio_device/android/single_rw_fifo.cc

@@ -1,0 +1,4 @@
+changeset 557aa356c998192658c532c0a0ccc694bde728c8
+manifest 1d1567b89540e9a836e3006b390d948b93a6d31f
+author mozilla@weilbacher.org
+files widget/src/os2/nsDeviceContextSpecOS2.cpp

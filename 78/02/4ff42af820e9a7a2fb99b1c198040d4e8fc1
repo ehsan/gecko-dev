@@ -1,0 +1,4 @@
+changeset 86d34314b6901d6bb353d3fa466491d425788b4b
+manifest 1f2ab64d17686e1958c91c3d20d069a3a7548b9d
+author martijn.martijn@gmail.com
+files gfx/cairo/cairo/src/cairo-win32-private.h

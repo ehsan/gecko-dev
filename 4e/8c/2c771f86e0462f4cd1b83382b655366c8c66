@@ -1,0 +1,4 @@
+changeset 7937d2b42712645953fb2dbfdf12fc1f276eae64
+manifest 0edac6d2283aeed1c25ac05ab3a051263b30a3c6
+extra rebase_source:6c8d4b7a3930dff5ccac300af228a1bc3e1786c4
+files content/base/src/nsGenericElement.h

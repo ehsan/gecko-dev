@@ -1,0 +1,4 @@
+changeset 7f9adc144d5761aa82c269d960b9476e9f3a2b6a
+manifest ad0c77d8bd6f82f966bb16bc4e3683e8005dfc99
+extra rebase_source:082afdd90f2620c596523e4d0b16aab3a5d8296e
+files browser/locales/en-US/chrome/browser/shellservice.properties

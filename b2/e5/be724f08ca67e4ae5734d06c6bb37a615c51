@@ -1,0 +1,4 @@
+changeset cbe0f3fe66586957df78bf3df10c74f5867689e4
+manifest 0aa1f4c740febbbda6e287cb69b8d8e18cb436b9
+author philringnalda@gmail.com
+files browser/components/migration/src/nsIEProfileMigrator.cpp

@@ -1,0 +1,4 @@
+changeset d7fe41661e7fdb00319c2cdcd085273563451bf2
+manifest 2edcd39d05830f10cac3464c5d9781591b8471a0
+extra rebase_source:7445cf7f3cfaca0ff91bbc549c1df90ec4b7fa13
+files js/src/trace-test/tests/basic/bug584565.js

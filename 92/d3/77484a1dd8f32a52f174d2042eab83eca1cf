@@ -1,0 +1,4 @@
+changeset 373b1a2edd6af2667a4ffa694dc429f1f6b6d686
+manifest 9a324936fd0d290ac4f5a37ea4f109672832f4dd
+author timeless@mozdev.org
+files toolkit/components/startup/nsUserInfoUnix.cpp

@@ -1,0 +1,4 @@
+changeset f1323fa2f5cf61f8329833891f2ae2b58d10ba96
+manifest 18abbff788d7bf168a5c8c64e978766bd621880d
+author vladimir@pobox.com
+files gfx/thebes/src/gfxImageSurface.cpp

@@ -1,0 +1,4 @@
+changeset 8a0ea9cee62d6f4959ecb12e7a248cebe17bdaf1
+manifest ef74e286393adc97ea41adef1f91696363d14248
+author peterv@propagandism.org
+files toolkit/components/history/src/nsGlobalHistory.cpp

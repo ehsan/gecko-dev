@@ -1,0 +1,4 @@
+changeset f67977dea071caf9ebd77bd32e9f3cb705e86755
+manifest 83edde239ed8cea3c796049698c636659b45068c
+extra rebase_source:19fb78e15a6f6bb6f6ac61dd721409a9710a30d0
+files toolkit/mozapps/update/nsUpdateService.js

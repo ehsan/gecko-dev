@@ -1,0 +1,4 @@
+changeset 6cf1a8e30ff8c34b8678097d2db35abc156507d2
+manifest 34142bb751086234bb4fdd7e1cebc0895928b40b
+author gavin@gavinsharp.com
+files layout/base/nsPresShell.cpp

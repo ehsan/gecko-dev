@@ -1,0 +1,4 @@
+changeset 91cba558c70c3a08699ba5c4958239f2c77f6d33
+manifest 94c0ff74b33110a809b4bf4e40fc82dbc96d51d0
+extra rebase_source:df6bde90753913ef2008a5cbede3ec89f5d549c6
+files mobile/android/base/sync/net/BaseResource.java

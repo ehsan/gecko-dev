@@ -1,0 +1,4 @@
+changeset 779fe0db869b89243d526deea3652b3636d08658
+manifest 190d7bf4a78694839c14bcf4dde7dbec81249f5f
+extra rebase_source:f71a1bac1d0271758ef9623156cd53d396346a2a
+files js/src/jsscan.cpp

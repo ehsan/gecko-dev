@@ -1,0 +1,4 @@
+changeset 4c0d13ce4c4a208afd1b778543883bb4c9d5db18
+manifest 7b473f95c16d6d912bc4c9a5d906015a560d3706
+extra rebase_source:9bcedd8d1c4194ef628f9473c444c465c2049443
+files js/src/vm/NumericConversions.h

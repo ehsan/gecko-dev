@@ -1,0 +1,4 @@
+changeset 7962f01056292368de168f0e73637916941917bc
+manifest 41b0f892d5a9666751d8e9281d94c778d4279a73
+author timeless@mozdev.org
+files widget/src/gtk2/nsFilePicker.cpp

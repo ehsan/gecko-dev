@@ -1,0 +1,4 @@
+changeset 76a6e84ef01149810a7d4ab4b4e0d6294b41a55e
+manifest bc98a4dd9cac72f03b3c98f7d40fe25b4a9c2215
+author jwalden@mit.edu
+files browser/components/feeds/src/WebContentConverter.js

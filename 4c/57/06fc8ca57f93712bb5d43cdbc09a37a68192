@@ -1,0 +1,4 @@
+changeset 671921d7604d760541c8c6343a0789cc02176aa7
+manifest d47c49f147eb540e0f31e4b4c30a7c246ceb3855
+author benjamin@smedbergs.us
+files js/src/jsinterp.c

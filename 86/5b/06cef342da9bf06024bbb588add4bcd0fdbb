@@ -1,0 +1,4 @@
+changeset f6d4b7254519604c446621cc4e61da61e4b7e65e
+manifest 6b76f9488763a05984cc856686bf1a858aa86cf5
+extra rebase_source:514ace11185493879c560dad7a7fb7ad0fa48e91
+files browser/devtools/framework/toolbox.js

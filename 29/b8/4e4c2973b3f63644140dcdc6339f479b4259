@@ -1,0 +1,4 @@
+changeset b8bc82b8ba89c74ff5a44f9676481daab7c8d674
+manifest baf27bda95a5993708d9053ad996c3981e1f876f
+author pete@mozdevgroup.com
+files extensions/metrics/src/nsProfileCollector.cpp

@@ -1,0 +1,4 @@
+changeset eb0a797171814a893708ccea4454c156052d9d57
+manifest c905a9e59882b46c1a4f3f1a605ad59a9f7a089b
+extra rebase_source:8bcde149c51dc1ab731d7f331a80cf016983c79e
+files image/decoders/nsJPEGDecoder.cpp

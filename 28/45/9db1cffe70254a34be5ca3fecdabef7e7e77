@@ -1,0 +1,4 @@
+changeset 83de9ff935276d0c2e74fdab67f1ba194c644acb
+manifest 293698efcdea5dba9a42276b4fb7e88d7a69d27e
+author ginn.chen@sun.com
+files modules/plugin/base/src/nsPluginNativeWindowGtk2.cpp

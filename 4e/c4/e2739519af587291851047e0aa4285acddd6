@@ -1,0 +1,3 @@
+changeset c667ca8f779a6706cb0b8f9f8aff441ae482f840
+manifest d53d57d261a309a1419f60ed9c2a80720c12c22f
+files browser/base/content/test/general/browser_e10s_switchbrowser.js

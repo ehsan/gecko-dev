@@ -1,0 +1,4 @@
+changeset 31fbc861bcb9ce1cad074ce5b71c5f26598ec2b6
+manifest da2eeca795d0bef1155f86c3e936d0f25101b5e5
+extra rebase_source:f6ba751ca296c934758931e85c3cd1a938c9513a
+files toolkit/content/tests/browser/browser_bug471962.js

@@ -1,0 +1,4 @@
+changeset 6ba9a8fd98d05ce4209627069bbd384313ccee83
+manifest 4b0a20c318f8d0082ba5e6d2076485bf4b317429
+author bzbarsky@mit.edu
+files xpfe/appshell/src/nsXULWindow.cpp

@@ -1,0 +1,3 @@
+changeset 7edde09d2984f01ec6b91a3d359cc348d1ccdf76
+manifest 96724926da0c8ef7831796eadd1fa4a7341dbd46
+files js/src/jsapi-tests/testDeepFreeze.cpp

@@ -1,0 +1,4 @@
+changeset df8ef6995f48df95b2e3fb604e6bff077a3f8196
+manifest 4ffb01a7bb4c5c0bdf83c2d98ea5d0ec1abaab89
+extra rebase_source:67721f2ee0575348d70b74a72e17bedb6c39a0b4
+files js/src/jsobjinlines.h

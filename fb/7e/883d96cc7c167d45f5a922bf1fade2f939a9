@@ -1,0 +1,4 @@
+changeset 28cbb9516328c15534d7829721a843442d4c4f08
+manifest 5d1f920dfc23957342e9670e5b3106d7f56481f8
+author dveditz@cruzio.com
+files intl/unicharutil/util/nsBidiUtils.cpp

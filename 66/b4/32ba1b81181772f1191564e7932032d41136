@@ -1,0 +1,4 @@
+changeset 50027b0a1ed6c9d4b50d8aa9a2a56dbda5f272f3
+manifest 1a3293b7978fcf560f918394571491d5fe729d86
+author leo.bugzilla.gecko@gmail.com
+files toolkit/xre/nsAppRunner.cpp

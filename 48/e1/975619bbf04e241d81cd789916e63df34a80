@@ -1,0 +1,4 @@
+changeset 43fb2970b51b191dea08b00697334b620affed6d
+manifest 0c4d2818011ba2754598b71e6bfb3256e777a7cc
+author anodelman@mozilla.com
+files testing/performance/talos/cmanager_linux.py

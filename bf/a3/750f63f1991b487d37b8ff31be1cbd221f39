@@ -1,0 +1,4 @@
+changeset 60a470a36779147c22279b86f3a1a2f2cd2d14df
+manifest 9ecbcf1422cb23c198369bbc91b1dfba882068ac
+extra rebase_source:59547f9b8f21bc4205b358701d1c9aa900049e81
+files browser/devtools/debugger/debugger-controller.js

@@ -1,0 +1,4 @@
+changeset 145461970c5ab0a2131d8d6cd9b874df5c5ec1a0
+manifest add2a9a63feffa6dba32f3c165bfff514bc3ee17
+author bhearsum@mozilla.com
+files tools/release/Bootstrap/Step/Stage.pm

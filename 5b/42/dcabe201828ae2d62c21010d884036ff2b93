@@ -1,0 +1,4 @@
+changeset 924dcc9404fe412f4600901c6a878e349f00b4fc
+manifest 71d1b44b02aae41565dec6e0a2c88991a0294519
+author dietrich@mozilla.com
+files browser/components/places/tests/Makefile.in

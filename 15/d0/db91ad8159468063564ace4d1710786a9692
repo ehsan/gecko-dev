@@ -1,0 +1,4 @@
+changeset 942f57ba89469012963a03e24b18f752255002de
+manifest 75ed3e7cd77b9e3d08d0f1a9f326b7db6b143830
+extra rebase_source:8f21974f360f1e9806a1b7cfefb7d1733513d22f
+files editor/libeditor/text/tests/test_bug600570.html

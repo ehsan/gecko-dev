@@ -1,0 +1,4 @@
+changeset 7475e1479cb479aa42d12ef28ee4883de1083d90
+manifest f726b53c7c9247374a3abb2386fd1cfdf3efab7b
+author timeless@mozdev.org
+files layout/generic/nsTextFrameThebes.cpp

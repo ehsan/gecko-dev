@@ -1,0 +1,3 @@
+changeset d296fcc8f3dd6254c862cdfd47a5580ee05a94f4
+manifest 0c03ad9662996c5af0199571917bc580b4e3d251
+files xpcom/reflect/xptcall/src/md/unix/xptcstubs_sparc64_openbsd.cpp

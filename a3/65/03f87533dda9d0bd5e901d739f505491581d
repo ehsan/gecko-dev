@@ -1,0 +1,4 @@
+changeset 9dd9d1e5b43cd8cca7a2313f13517f3dbea489fc
+manifest dbd344b7dc6ca2501bb3488c9aa4bee65c6af4f9
+extra rebase_source:06a5b00a8d4d6747290c1111b80f3e5bb6b7d85b
+files browser/devtools/styleinspector/test/browser_styleinspector_context-menu-copy-color_01.js

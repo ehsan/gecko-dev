@@ -1,0 +1,4 @@
+changeset b1d685fd5723627943c2ac509364c19703ba9f09
+manifest f8c37f68522ebce6f7edece7227ae7facc05afdd
+author dwitte@stanford.edu
+files extensions/cookie/nsCookiePermission.h

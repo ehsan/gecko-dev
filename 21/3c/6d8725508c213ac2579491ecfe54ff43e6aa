@@ -1,0 +1,4 @@
+changeset e47b0cd496f8cb4bb581b0696ce75d22698ec692
+manifest 3267abb7ced6cbab12cce2308a44edbbf89fbe81
+extra rebase_source:08b9f74879863ecfb0f5847b3854d28b67ec1f85
+files dom/base/DOMRequestHelper.jsm

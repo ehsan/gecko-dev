@@ -1,0 +1,3 @@
+changeset 04753538e3b651e18970866f3ab332e81a14c4f0
+manifest 8ba00ab29b416bea3e489cb60a3ec1355aff9dec
+files browser/components/places/tests/browser/browser_library_panel_leak.js

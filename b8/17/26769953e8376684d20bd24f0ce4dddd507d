@@ -1,0 +1,4 @@
+changeset 918cb8bf87da73311478f41804d059967ad45a3f
+manifest ec79d6f3b40e8e0e68caf0fdaacd30e60ab43278
+author Evan.Yan@Sun.COM
+files accessible/src/base/nsAccessible.cpp

@@ -1,0 +1,4 @@
+changeset 3f430d6f7eef91a1605048eade4f81da3d8afcf4
+manifest 05b0dfc4b94ffd7ef785d271beb13ebb06cffb50
+extra rebase_source:8ab26dae91f7d989c07426e9b42583694281c821
+files intl/uconv/src/nsGREResProperties.cpp

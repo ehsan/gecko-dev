@@ -1,0 +1,3 @@
+changeset 1ff1e1455206314e362b3c7bceafb8edafdcd615
+manifest df7a99c5722e3e6499a23310824d06ce9427ef8c
+files toolkit/components/downloads/test/schema_migration/test_migration_to_3.js

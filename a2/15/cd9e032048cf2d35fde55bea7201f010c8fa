@@ -1,0 +1,5 @@
+changeset 008aaff8abfa251eaa16b7880f2e96c400d3b699
+manifest 42eea4a8cdddbf1832032a36b38162f75c531831
+author mark.finkle@gmail.com
+extra branch:mobile
+files mobile/chrome/content/browser.js

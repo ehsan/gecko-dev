@@ -1,0 +1,4 @@
+changeset 1dc9799ebd2e8cdf4570ea0dad5b756eb7df7101
+manifest 61c03bf503f80940f5fd4c74555d8a5a7a01c7d5
+author dougt@meer.net
+files widget/src/build/nsWinWidgetFactory.cpp

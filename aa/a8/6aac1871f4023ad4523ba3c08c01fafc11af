@@ -1,0 +1,4 @@
+changeset 73c2ead7d3c9664c85c9f882450a2804496ee549
+manifest 54718eefc8dad29110b3bb942772f1957500a697
+author pavlov@pavlov.net
+files gfx/cairo/libpixman/src/pixman-compose.c

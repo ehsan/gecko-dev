@@ -1,0 +1,4 @@
+changeset 05c5bbdcdddb5cf68001a79f9e870e40494a233b
+manifest c74053043dbf2a37e64dfbe60f933b3295c1536c
+author aaronleventhal@moonset.net
+files accessible/src/msaa/nsAccessibleWrap.cpp

@@ -1,0 +1,4 @@
+changeset 7aee654600f2d7d26be50e28656a29052c213be0
+manifest c48c6f0a8399db018013e2c575161fae74fb14e7
+extra rebase_source:e70fe8ac89cb77e0c71d7305d2ff4004fe7cf3df
+files layout/mathml/mathfont.properties

@@ -1,0 +1,4 @@
+changeset 864d3507de6e5a7585da08c527200c91164026b7
+manifest 7110dc8af0e6bdba03b4fd87bd101b4ddb7c5b47
+extra branch:GECKO20b12_2011022218_RELBRANCH
+files gfx/layers/d3d10/ReadbackManagerD3D10.cpp

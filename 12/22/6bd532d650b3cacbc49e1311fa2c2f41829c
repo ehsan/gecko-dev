@@ -1,0 +1,4 @@
+changeset 00c0b12c29e1e673aaf3e1e5f002c75f2a2e617a
+manifest 7923f5c129783571b98e680d3818fc4f6e13d8fb
+extra rebase_source:bf323152a21613bf20d1ff2456520346bf1460b1
+files image/test/browser/browser_image.js

@@ -1,0 +1,4 @@
+changeset 2b9cf1b220473cbf86dd8dcc3b48754758803550
+manifest 3284d5a12b96337ee4b1e40f3766970a3ea22626
+author dbaron@dbaron.org
+files tools/trace-malloc/lib/nsTraceMalloc.c

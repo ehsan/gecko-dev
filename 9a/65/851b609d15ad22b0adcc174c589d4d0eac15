@@ -1,0 +1,4 @@
+changeset 57307c4fb544c907bb9998c6da0d8a4899250c20
+manifest fc4d76bf1a7411c21150ab00d3d6dc38c50fb00d
+author roc+@cs.cmu.edu
+files gfx/thebes/src/gfxQuartzFontCache.mm

@@ -1,0 +1,4 @@
+changeset ff8cadbdad81acce9c23cac8078be3e9983e4d9e
+manifest b6587ed2f69ebe1969f63a3a70d81ebb2b7dbbf9
+extra rebase_source:60bf8c5ac1e9e7294d4b9d6b5fd7807517c9b541
+files js/src/jsonparser.cpp

@@ -1,0 +1,4 @@
+changeset b84dd5c2cb1843a4246a191edeeb0d183ca6299b
+manifest c390a936d1616e18e83de757c53504bd49542a7f
+extra rebase_source:5e3986af49096c88f2e038d774cbcc53a26436aa
+files browser/components/privatebrowsing/content/aboutPrivateBrowsing.xhtml

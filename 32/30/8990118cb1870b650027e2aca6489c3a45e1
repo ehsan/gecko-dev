@@ -1,0 +1,4 @@
+changeset f6b47f34e8f787d81d85726f289b31c3fbcd1c50
+manifest 6c0c27bd6f08a84946d964b2f4e2ac73094b630a
+author mozilla@weilbacher.org
+files xpcom/build/nsOS2VACLegacy.cpp

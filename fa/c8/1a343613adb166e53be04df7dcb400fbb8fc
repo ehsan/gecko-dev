@@ -1,0 +1,4 @@
+changeset 279bb249ff10279323eaef8807de6e1cab18d59f
+manifest 002aeb32068cf05073e3e7990e018477000845f4
+author mats.palmgren@bredband.net
+files netwerk/base/public/nsReadLine.h

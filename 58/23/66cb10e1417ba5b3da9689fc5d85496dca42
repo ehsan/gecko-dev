@@ -1,0 +1,4 @@
+changeset 031f125f45e16fc79ef7a1a66e287732838e8806
+manifest baf57fbc868a49f8b71103c3d872c80210d98c3f
+author pete@mozdevgroup.com
+files extensions/metrics/content/prefs.xul

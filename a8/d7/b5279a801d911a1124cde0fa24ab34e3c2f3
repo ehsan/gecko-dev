@@ -1,0 +1,4 @@
+changeset c36dc9fec9047c5fa83a86c1e446ee26e6b2c402
+manifest da5481a2e17052c6ed7ebddec33c04bc1edc6306
+author alqahira@ardisson.org
+files dom/src/base/nsGlobalWindow.cpp

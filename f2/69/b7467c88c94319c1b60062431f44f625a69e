@@ -1,0 +1,4 @@
+changeset a70f7e0a4717f5e0ca723595643c6b309cbfcc39
+manifest 46281c009f0f105b4ae38705efb43cccfe882f6d
+extra rebase_source:9a34be6c24641103c7c0b70573322b2defe0c90d
+files browser/components/customizableui/content/customizeMode.inc.xul

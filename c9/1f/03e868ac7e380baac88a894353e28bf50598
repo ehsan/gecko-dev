@@ -1,0 +1,4 @@
+changeset 1cd9f6aea8a5049588360b33af99451ebecd4ade
+manifest 1ed2c590fff1e25332cc428b5b342f8a63ece1bd
+author bzbarsky@mit.edu
+files netwerk/test/unit/test_bug396389.js

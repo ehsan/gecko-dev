@@ -1,0 +1,4 @@
+changeset 7279dfb20c2ba2a4daf965105bde6b263fc43653
+manifest 38ec09c7e439c8095cefc83bc2aad94978a617f4
+author reed@reedloden.com
+files security/manager/ssl/src/nsNSSCertificateDB.cpp

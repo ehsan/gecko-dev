@@ -1,0 +1,4 @@
+changeset 43fbd7e32aa36ea8cc12f2da23b7f9d8227b4ce3
+manifest efd70a25822ff5045acf5af7f007f2ff6d7f7245
+author bryner@brianryner.com
+files toolkit/components/places/public/nsIBrowserHistory.idl

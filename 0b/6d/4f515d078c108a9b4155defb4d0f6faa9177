@@ -1,0 +1,4 @@
+changeset fdb7a6269262e7b79b403a74e0c3fa594f3ea2cd
+manifest 528735cdbb7b7bd4a1f5bae206e532608c95ad6c
+author martijn.martijn@gmail.com
+files modules/libpr0n/decoders/jpeg/nsJPEGDecoder.cpp

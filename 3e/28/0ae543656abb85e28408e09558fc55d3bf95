@@ -1,0 +1,3 @@
+changeset 21bc76970edc2d75d954adfdd12f05142a5d371d
+manifest f05fdb1ba8a4e7a616a94aa0253019a39fa3e56c
+files security/manager/ssl/tests/mochitest/bugs/test_bug882865.html

@@ -1,0 +1,4 @@
+changeset 62ba86c7c50c7384339cfc2bc2a5b6b20aec8150
+manifest 791602d50777298e30eff3440990dc00355985a8
+author Justin Lebar <justin.lebar@gmail.com>, Steven Michaud <smichaud@pobox.com>
+files memory/jemalloc/jemalloc.c

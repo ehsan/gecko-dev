@@ -1,0 +1,4 @@
+changeset 4c29e9143fa38b8b721ae593776716df02a00412
+manifest bb0938db7bd90a419cb5da54ea6f9e2aa4aa5dd7
+author brade@comcast.net
+files xpcom/tests/TestRegistrationOrder.cpp

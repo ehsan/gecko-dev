@@ -1,0 +1,4 @@
+changeset b830a728776e31fee7e98bb5ba5b7062c2ab5c60
+manifest 880126dabbe06c3bef002e3a16c470f78b19725b
+author masayuki@d-toybox.com
+files gfx/thebes/src/gfxFontconfigUtils.cpp

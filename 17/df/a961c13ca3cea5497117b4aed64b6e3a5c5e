@@ -1,0 +1,3 @@
+changeset dcecd5a927bd2a408700affeb1299696b29e63e3
+manifest 90ce123b7da00a42ec904eb5a6158a0e63ae7c17
+files security/manager/ssl/tests/mochitest/stricttransportsecurity/Makefile.in

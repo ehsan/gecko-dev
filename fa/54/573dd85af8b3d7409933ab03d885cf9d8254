@@ -1,0 +1,4 @@
+changeset fefda0f421acbc3914615fcb541edad4d58a7aa6
+manifest 4053fe4dcdcdc195a1b282bc032364dd132b8134
+author reed@reedloden.com
+files toolkit/components/places/src/nsMaybeWeakPtr.cpp

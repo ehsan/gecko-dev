@@ -1,0 +1,4 @@
+changeset 64f61dfd0a2397f1db9f2fc86bf0342b68f626c8
+manifest 9248240872ac04a60f731cc0a15345358fbb9f00
+author reed@reedloden.com
+files embedding/components/windowwatcher/src/nsPromptService.cpp

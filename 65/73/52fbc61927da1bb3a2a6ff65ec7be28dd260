@@ -1,0 +1,4 @@
+changeset 36e03cf9cb413b2a92f2f9cf4368d90ae26a3dda
+manifest f202e740f853fe1e63a02530ffbbdb4f247f6166
+extra rebase_source:d6ee5befb43f912a8ae678c6639e4ae37e64d7d7
+files js/src/jit-test/tests/gc/bug-832103.js

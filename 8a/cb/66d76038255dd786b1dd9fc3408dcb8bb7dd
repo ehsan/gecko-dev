@@ -1,0 +1,5 @@
+changeset 810439625c7e74d0c7c95490ae0fa659a23c9058
+manifest 08df55482c4fdb2e664816a99e9aa90d06e70665
+author timeless@mozdev.org
+extra rebase_source:f7504195843a57c0e6226c874f955f0073e6523c
+files toolkit/components/places/src/nsAnnotationService.cpp

@@ -1,0 +1,4 @@
+changeset eaebf56cd253acb995d7c6a7070d5a715434b7c9
+manifest 9608f6a2fdce768ba8e267aed3ec5bd9797caf28
+author reed@reedloden.com
+files content/base/src/nsXMLHttpRequest.cpp

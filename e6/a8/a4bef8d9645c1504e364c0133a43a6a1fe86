@@ -1,0 +1,3 @@
+changeset 78c6f6a6ecb5480a68dcd432f46738581ec81b66
+manifest dd98cbc5d0b2ccfff93de6febad290e1a50cfccd
+files widget/src/gtk2/nsNativeThemeGTK.cpp

@@ -1,0 +1,4 @@
+changeset e31a47e00bdcce1319a0c139cca805749bd51e63
+manifest 3efad79d02d9549207cb34805a14accf9a41ab64
+author mozilla@weilbacher.org
+files modules/libpr0n/decoders/icon/os2/nsIconChannel.cpp

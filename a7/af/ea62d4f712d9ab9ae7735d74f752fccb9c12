@@ -1,0 +1,3 @@
+changeset 3642a4a60851905b87f31e3712a38604d2d8a18b
+manifest 8170c69eb4905c72e9e12e34fa7232f98b7580fd
+files parser/htmlparser/tests/reftest/bug566280-1-ref.html

@@ -1,0 +1,4 @@
+changeset c067ccfb26d1299eee319f76b73f64d63ffae34f
+manifest 7c9f1010cd559177fee25144f5c11baa656d95b6
+author jst@mozilla.org
+files modules/plugin/base/src/nsPluginHostImpl.cpp

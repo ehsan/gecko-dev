@@ -1,0 +1,4 @@
+changeset 81cb145bd52b50940b4051ecf9165c7f30cf0fe1
+manifest 91b003c8baa756357a8d0f77964e34f007f7358f
+extra rebase_source:1265c3ef7e187c307269273e098ee92c020c2f59
+files toolkit/mozapps/update/updater/updater.cpp

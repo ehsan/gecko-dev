@@ -1,0 +1,3 @@
+changeset b421cdd4b918eeebacdb42debf9690d71bf0d397
+manifest 8fad9a3f07120c4d7e54688d11de8309978e3c7e
+files js/src/jit/ScalarReplacement.cpp

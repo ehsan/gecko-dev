@@ -1,0 +1,4 @@
+changeset 09f0f34dcd8a8efff487ec48a77ee5774ed002e9
+manifest 41326f5b4c5dba85e07addd021c683e6ef7f5335
+author timeless@mozdev.org
+files netwerk/cache/nsDiskCacheStreams.cpp

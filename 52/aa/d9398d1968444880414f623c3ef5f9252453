@@ -1,0 +1,4 @@
+changeset 6385e3d80c9e93abfbbc0862763b26438355293f
+manifest 694db47f478d6944cf158254df3ced9f13a97c2f
+author mozilla@weilbacher.org
+files widget/src/os2/nsLookAndFeel.cpp

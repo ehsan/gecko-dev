@@ -1,0 +1,4 @@
+changeset 473717699910a598f146603cd264f2515478bb03
+manifest 249ad1c3dd5220e1b1c40fb3e2646d973b5d648e
+extra histedit_source:eb8916c6322cf8f858a63a9df252ffae041b275a
+files mobile/android/base/GeckoConnectivityReceiver.java

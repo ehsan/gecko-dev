@@ -1,0 +1,4 @@
+changeset b936197a443c59384062cc55aa1ddac885ff8395
+manifest 0f6d3b474833170cd610c2caf5fd42b4e15d482b
+extra rebase_source:3a5f56c241d98cc9a472cf94add10ae4d8f88fcb
+files b2g/components/FilePicker.js

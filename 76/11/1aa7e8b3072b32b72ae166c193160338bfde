@@ -1,0 +1,4 @@
+changeset 248ea690d6719abe6cbceb2567bbb6ed835f9519
+manifest dcfb601aef6fb8eed8bd94221a61f71a95ac851d
+extra rebase_source:a1e5e5a1ac16da84b2bc4c429b68bd363cc485fa
+files netwerk/dns/effective_tld_names.dat

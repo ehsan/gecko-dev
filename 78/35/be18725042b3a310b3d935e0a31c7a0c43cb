@@ -1,0 +1,3 @@
+changeset 0e81fcb3164bc2b21c0ff9d936b9e5a093098598
+manifest db2e2ab5601c5c9fef2f0401d85998c0bc7ad254
+files dom/workers/WorkerScope.cpp

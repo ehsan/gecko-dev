@@ -1,0 +1,3 @@
+changeset 8d16fdda5b35bb315d3b614656bc615b6cb242a0
+manifest 85f96830b2d3ac995af997ced0e68d3a3fa22b31
+files js/xpconnect/src/XPCJSRuntime.cpp

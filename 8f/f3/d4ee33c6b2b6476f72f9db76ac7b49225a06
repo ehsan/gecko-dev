@@ -1,0 +1,3 @@
+changeset 55ab8cb47c1f796a35add6a287f474ca7c262862
+manifest 2b3e1aafde0f60c2559bfe0c08d70c946349bacc
+files accessible/tests/mochitest/test_nsIAccessNode_invalidation.html

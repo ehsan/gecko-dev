@@ -1,0 +1,4 @@
+changeset 2ef0a5ac123bfda5433ddf3305b60bdd6a066927
+manifest f6aebacb13597e82bf6b3ccd08818b753e1f8e9a
+extra branch:GECKO20b1_20100628_RELBRANCH
+files toolkit/mozapps/extensions/test/browser/browser_bug562890.js

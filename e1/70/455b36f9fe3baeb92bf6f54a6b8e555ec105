@@ -1,0 +1,5 @@
+changeset 3f3bfcd28d692dcafaa475de1a77c4cb3319b9de
+manifest 8c43e7599d9efad5d0ac38567cbdcea099891f5b
+author wfernandom2004@gmail.com,
+extra rebase_source:7b667e60a07c80ed1ff121a4777bbc274f297718
+files js/src/xpconnect/src/dom_quickstubs.qsconf

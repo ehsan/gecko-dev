@@ -1,0 +1,4 @@
+changeset cfd98af52842653571e6e307e95a13fc6b781225
+manifest 6d13be3f253b624520768234aaca11d7c33cc55c
+author reed@reedloden.com
+files widget/src/gtk2/nsDragService.cpp

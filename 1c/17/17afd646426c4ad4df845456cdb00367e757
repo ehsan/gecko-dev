@@ -1,0 +1,4 @@
+changeset 0b92b896aaa159c44a9a06b85955dcc9397c72fc
+manifest 19f6c1c7cce2e04fe57b8775419e8f966ccd1f2b
+extra rebase_source:cd7bdc9f91b478be60fed5572dc8ee5e3faae380
+files content/base/src/nsImageLoadingContent.cpp

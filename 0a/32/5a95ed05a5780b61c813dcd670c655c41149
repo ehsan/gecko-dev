@@ -1,0 +1,4 @@
+changeset 8031688ff76dbae5ede00f9a7678868b640932aa
+manifest d8cacdaafdd1ea05af3da2471337a8585307e2ab
+extra 
+files xpcom/glue/nsCycleCollectionParticipant.h

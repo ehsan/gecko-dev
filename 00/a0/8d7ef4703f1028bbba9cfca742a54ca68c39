@@ -1,0 +1,4 @@
+changeset 58252ac4f28d9f7c816191ee95ffb5473bd28810
+manifest e38a3895ee87cf6c55a3fda91eea5b7f8e8b3665
+extra rebase_source:42bccbef9e86cbc2f9e6113656acdddd04844f67
+files services/sync/modules/browserid_identity.js

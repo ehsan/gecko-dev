@@ -1,0 +1,4 @@
+changeset 078f22017c69479e83fe7e37b27bba2cce8d9017
+manifest ea7624e94da2b68f4fa315edaa429c3805a04227
+extra rebase_source:e4ba8a8b6f4bdad1dcd6fe076e3262a6e07aeba2
+files widget/android/nsAppShell.cpp

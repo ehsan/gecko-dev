@@ -1,0 +1,4 @@
+changeset 7e543014362d9d546b675058a4a71d78a622fd7a
+manifest 22a2aeb4ef95e8fd7a736444f78689501f3faa3a
+author reed@reedloden.com
+files editor/libeditor/html/nsHTMLEditRules.cpp

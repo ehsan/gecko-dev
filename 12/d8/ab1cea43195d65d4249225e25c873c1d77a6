@@ -1,0 +1,4 @@
+changeset c11b2985f18b574dbcaebbbf6d9aaa76b9173093
+manifest 5c6c8a5281152546ebe0b36b1f83c1bd9c65a49e
+author bzbarsky@mit.edu
+files layout/mathml/base/src/nsMathMLmfencedFrame.cpp

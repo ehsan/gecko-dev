@@ -1,0 +1,4 @@
+changeset 1bef02988eb77b813cc2c4f5fda6481429868d17
+manifest 1fc9020bcd3cc3aa122f60b959b6f077888053d4
+extra amend_source:20b3c088b9bfe11ca4a187fe1d96334f4196f323
+files mobile/android/base/android-services.mozbuild

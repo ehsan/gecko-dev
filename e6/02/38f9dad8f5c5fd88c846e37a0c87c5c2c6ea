@@ -1,0 +1,4 @@
+changeset 19d257200d1bd0da7e6834c930ade8f406ceaaef
+manifest 0f7fc073194dcb4468b563b923e400016be6a5e2
+extra branch:electrolysis-plugins-only
+files toolkit/library/dlldeps-xul.cpp

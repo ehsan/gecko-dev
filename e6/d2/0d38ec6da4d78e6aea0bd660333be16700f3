@@ -1,0 +1,4 @@
+changeset c9db288cd5cca9ff3b7a58e57c763b95909be2ba
+manifest 7d6bafef94ac4a5b4695a1275e3977ea1b2228c3
+extra rebase_source:9545085000e8e2336198daad3aaa767747398542
+files gfx/src/thebes/nsThebesImage.cpp

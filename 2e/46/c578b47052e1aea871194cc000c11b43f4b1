@@ -1,0 +1,4 @@
+changeset 960c510beb5080194fd2461eb6c0260954f83869
+manifest 04e366a5fdee0fa78054fe5df82ac535e45632e6
+extra rebase_source:719d16cf540ddf0a28d74651fbd772881f41e16a
+files xulrunner/stub/nsXULStub.cpp

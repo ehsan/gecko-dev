@@ -1,0 +1,4 @@
+changeset b83ef9ad90caa4cf482d3f6b7152a5013f4a1c9a
+manifest 85ba379e8fac33f04935427e763b5d05c501f2a7
+author timeless@mozdev.org
+files layout/mathml/nsMathMLChar.cpp

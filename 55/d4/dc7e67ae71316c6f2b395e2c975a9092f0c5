@@ -1,0 +1,5 @@
+changeset ba11bdfe7034d16cdf3e8097694ee30b1578bbd1
+manifest 3290498d6f57a3417b5fcfdd9b715c2511751225
+author timeless@mozdev.org
+extra rebase_source:c9d1bc55b9f4dee9a17e4e58f73fecfbf73a1104
+files xpfe/appshell/src/nsAppShellService.cpp

@@ -1,0 +1,4 @@
+changeset 9d1e9e1fb1bbac8aae34a61fc0084ea44d88ee5b
+manifest a2a08ddcb31013257827d5fd97bdb39bbf9122d4
+author bzbarsky@mit.edu
+files modules/libpr0n/decoders/icon/nsIconModule.cpp

@@ -1,0 +1,3 @@
+changeset 1fa1f28c6edf8d5e2af3232c2a274082129c643d
+manifest 866fe669efb2501536fe110b92a72fbbf849a98b
+files python/mozbuild/mozbuild/action/xpidl-process.py

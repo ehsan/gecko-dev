@@ -1,0 +1,4 @@
+changeset 6fb0e3389728399fb165642d95cf90bad6b39134
+manifest 7b1d58af6d7bd1ab9d3f47a4d231463d3857625f
+author joshmoz@gmail.com
+files xpcom/base/nsObjCExceptions.h

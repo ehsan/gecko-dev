@@ -1,0 +1,3 @@
+changeset ec9b12e75a9bf7c29dac1ba6a4a151c76640210e
+manifest be17d6eacbb668cf021a9c6be2e886f2077bf17f
+files js/src/jit-test/tests/parallel/ic-setelement.js

@@ -1,0 +1,4 @@
+changeset 37f3e2622ad2fd1bec30ba9601bc248dc6641e8b
+manifest aa37014fd4c931000f8e2e75d4d7cc061b6b3a21
+author emaijala@kolumbus.fi
+files layout/base/nsBidiPresUtils.cpp

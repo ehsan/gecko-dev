@@ -1,0 +1,4 @@
+changeset 0cc0daee5def008b7030ca36f1fd0aa934b04393
+manifest 976900644f7651a851e4a4d5387acb4c6e23001f
+author rhelmer@mozilla.com
+files tools/patcher/patcher2.pl

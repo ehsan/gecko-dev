@@ -1,0 +1,4 @@
+changeset 018ffc02b06d88261914008aead751b0f0ac54e4
+manifest 11ea32138c5ccfe4f09f2a65513d1f141b61069f
+author ccooper@deadsquid.com
+files testing/tools/profiles/createTestingProfile.py

@@ -1,0 +1,4 @@
+changeset 483576811acd5f00ed0f0b26f4b9db828cff79ff
+manifest 357809e5fac205fd10c0ed6ee918a6edf773c57c
+author enndeakin@sympatico.ca
+files layout/xul/base/src/nsPopupSetFrame.cpp

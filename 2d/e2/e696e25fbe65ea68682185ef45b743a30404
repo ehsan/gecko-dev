@@ -1,0 +1,3 @@
+changeset 30c7ffa7bd97ca5709edeb0567ba9868714233dd
+manifest 01f2cc5f498e3bbaef9d1d55f762f1b947d7af1a
+files toolkit/components/telemetry/gen-histogram-data.py

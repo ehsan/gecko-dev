@@ -1,0 +1,4 @@
+changeset 4dab086ec10decdd8b327884548612dabf9dc1d7
+manifest fc6821d42744b5c79ee139f4990bab60322f0363
+author reed@reedloden.com
+files security/manager/Makefile.in

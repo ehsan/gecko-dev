@@ -1,0 +1,3 @@
+changeset 3562374fc3fa564450ddc443939f26d8441cd0cd
+manifest ea215020c2762803806528a212466a7fb394b50f
+files toolkit/components/places/tests/unit/test_update_frecency_after_delete.js

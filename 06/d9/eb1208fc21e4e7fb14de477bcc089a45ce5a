@@ -1,0 +1,4 @@
+changeset 26b6268a5b18f897e37910e72a4875eca1cd1a53
+manifest d9fdf0816bbdbd05c7b8093fecd4699db15ffae9
+extra rebase_source:70a2a7c344042e1ac187282fdda32cea194aa51b
+files accessible/xpcom/AccEventGen.py

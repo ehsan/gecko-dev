@@ -1,0 +1,4 @@
+changeset 47d1efdb02800b7789f8e5bf4b9d1c931b7a9b3c
+manifest da8c2c423e92ad833b2eabfa2426ffce48ab3c67
+extra rebase_source:238fd87657e3e82237f84bfe185d3088178b4c6d
+files gfx/layers/composite/LayerManagerComposite.h

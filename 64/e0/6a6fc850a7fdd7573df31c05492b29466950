@@ -1,0 +1,4 @@
+changeset f704da8cce12481a5436cafbb692df22691e1b7d
+manifest 7eb693e49777eb1919aa53790fd024f2c2662e44
+author Mats Palmgren <matspal@gmail.com>, Boris Zbarsky <bzbarsky@mit.edu>
+files layout/generic/nsTextFrameThebes.cpp

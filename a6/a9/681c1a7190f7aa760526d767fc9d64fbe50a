@@ -1,0 +1,4 @@
+changeset 08083ed4d5830f23233d63a4fed8d1546061db50
+manifest 7d120098925ea35fc3017b3d55c6ee0e274f9e8e
+author brendan@mozilla.org
+files js/src/jsdbgapi.c

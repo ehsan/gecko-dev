@@ -1,0 +1,3 @@
+changeset 6afd61ba31de83cc0332a5016af2c2f2c6c74d8b
+manifest cd19df09bab3130aac643abf2f85d3f4826a648e
+files toolkit/crashreporter/tools/symbolstore.py

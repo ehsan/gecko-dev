@@ -1,0 +1,4 @@
+changeset 692cea55af255355adef829901908c695b7e743a
+manifest a7a8baa753b89b7387fa13ccad780539e72838fb
+author sspitzer@mozilla.org
+files storage/src/mozStorageUnicodeFunctions.cpp

@@ -1,0 +1,4 @@
+changeset 794c73cbfca6b62cfdbb20e82eb91cc15b30ad8b
+manifest 10b0fdd449d4f546a37978361846e28d71f27ecf
+extra rebase_source:00e5cc27f067a191e7a834852faee8c788feb061
+files dom/base/nsStructuredCloneContainer.cpp

@@ -1,0 +1,4 @@
+changeset 608b878667ec9b02d23e16c776da2bcb976da98e
+manifest b2fe410a38d5df97ee0988089f2777929c861e51
+author bzbarsky@mit.edu
+files content/xbl/src/nsXBLProtoImplField.cpp

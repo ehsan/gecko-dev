@@ -1,0 +1,3 @@
+changeset 4825dbfd6d40f56c018a7cfcba382c2a00a19e4f
+manifest fbb6aedb80285a98e530b5cdd98db538ea8ba8d6
+files intl/uconv/ucvlatin/nsUTF7ToUnicode.cpp

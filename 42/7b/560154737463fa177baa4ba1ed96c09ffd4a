@@ -1,0 +1,4 @@
+changeset 985ab6c8587553cc4200ec5448b42ad59fb206ec
+manifest a2507ca91ac6808e9c120afe5e544b9da8c50f02
+author dbaron@dbaron.org
+files widget/src/gtk2/nsNativeThemeGTK.cpp

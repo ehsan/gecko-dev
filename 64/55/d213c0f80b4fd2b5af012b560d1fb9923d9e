@@ -1,0 +1,4 @@
+changeset 23c0e9fb721c0f6bb0ce25b0d33a292f9afe9f96
+manifest 602c41fd36826a075502863942d032a9826b837a
+author enndeakin@sympatico.ca
+files toolkit/components/places/src/nsNavHistoryQuery.cpp

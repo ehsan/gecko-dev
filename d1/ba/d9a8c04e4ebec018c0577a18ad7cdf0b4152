@@ -1,0 +1,4 @@
+changeset 15df947e8cdbad5a2907aaa35b7a438c857c1205
+manifest 48d0052a40c4a7ec96a04530f37801c760b71fcb
+author jacek@codeweavers.com
+files toolkit/xre/nsSigHandlers.cpp

@@ -1,0 +1,4 @@
+changeset b67f6a46781a00fe92f71e6a5c5e395f355d9a88
+manifest 26197d45c1d72eb922cabf4ae9dde74935c9ceb2
+extra rebase_source:b2f45c8f73d2564ac4d9668cc5bd77fa94b9d84b
+files embedding/android/GeckoInputConnection.java

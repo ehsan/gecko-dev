@@ -1,0 +1,3 @@
+changeset dfed4f56ae9a891b6e9eec7ec3b59715c10a76e7
+manifest 61bf7fa356d10039418e083ebdc866d3b7cbd14b
+files dom/tests/mochitest/pointerlock/file_retargetMouseEvents.html

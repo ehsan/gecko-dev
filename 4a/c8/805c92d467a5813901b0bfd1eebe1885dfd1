@@ -1,0 +1,4 @@
+changeset 72481fdb360538f0c90bb2fd546a2cf0a47481ac
+manifest f6addeacf08e0d2087e39d85fbdf2bcef81c5820
+extra rebase_source:b0ff8671df31c6da4a2063ede611b3c554540950
+files xpcom/glue/nsDebug.h

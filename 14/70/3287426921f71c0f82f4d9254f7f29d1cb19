@@ -1,0 +1,4 @@
+changeset ac3e57974ee7064ea52562068c240c75ff259aab
+manifest bce3006c7b5ec883555fccdc1c75e21d403bdd5c
+author timeless@mozdev.org
+files layout/generic/nsObjectFrame.cpp

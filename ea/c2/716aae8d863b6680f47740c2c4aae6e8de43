@@ -1,0 +1,4 @@
+changeset 3c6caf46490470d01cc1e4358657178e056a4d10
+manifest afb06ddb4e296197403acb20caf7b40175d477c3
+author sspitzer@mozilla.org
+files toolkit/components/places/src/nsNavHistory.cpp

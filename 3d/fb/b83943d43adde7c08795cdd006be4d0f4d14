@@ -1,0 +1,4 @@
+changeset 2472df7cb634e08586073f0456696fff58a250f0
+manifest 9f361ed8fd0663928c7608dbca28b40fda0ddb22
+author rhelmer@mozilla.com
+files tools/release/Bootstrap/Step/Sign.pm

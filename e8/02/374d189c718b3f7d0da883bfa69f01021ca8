@@ -1,0 +1,4 @@
+changeset fac17c3d3efd6a8f264bb6678ca2af75105afc41
+manifest aacb65fbde2a09aaf5b90df4d13c24a66ac79cc8
+extra rebase_source:2ca78473213f43537886e0108af6f88227278a72
+files xpcom/ds/nsSupportsPrimitives.cpp

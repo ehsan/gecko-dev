@@ -1,0 +1,3 @@
+changeset 03f984a3bd2a4d07ce5751c78fceabaf9008e58c
+manifest 2d0f5cfbeffa0fa3e44aa0afdc6749a9160a427f
+files python/mozbuild/mozpack/executables.py

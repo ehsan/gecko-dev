@@ -1,0 +1,3 @@
+changeset 1d21b07e4b8828dc0718362ebfffe67e556658d4
+manifest 307d499118049c743bbf4a8cb3d3c11edf7f1579
+files browser/components/migration/src/nsIEProfileMigrator.cpp

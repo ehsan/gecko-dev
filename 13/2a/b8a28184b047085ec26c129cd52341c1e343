@@ -1,0 +1,4 @@
+changeset 8fd528e132d7737b5fb2e5b1e610f59e4d390668
+manifest 177bc06765c86d530a61b1ed3e795e4ced4ff62d
+extra rebase_source:810293a95d07bc0f0a981466a596ccd0db8d389b
+files gfx/thebes/gfxXlibNativeRenderer.cpp

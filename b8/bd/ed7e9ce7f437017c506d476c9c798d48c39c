@@ -1,0 +1,4 @@
+changeset d38070172b154bc71c8e814a58d87c32fbf7d3b6
+manifest 9c0275a72f63c94777588654a24b48d1f04e7a48
+extra rebase_source:4fc6cafc6e771037f2fabc7fb2f633340fdd1811
+files content/smil/test/test_smilChangeAfterFrozen.xhtml

@@ -1,0 +1,4 @@
+changeset ff3d2362e3f2c86921a7f3d5f7907785726d59b1
+manifest 0acf8d0bc8256d2b43d12c712817458dce619192
+author timeless@mozdev.org
+files toolkit/crashreporter/google-breakpad/src/client/mac/handler/minidump_generator.cc

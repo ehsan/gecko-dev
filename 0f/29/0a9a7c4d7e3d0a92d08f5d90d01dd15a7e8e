@@ -1,0 +1,3 @@
+changeset 9318cab3bd13da9cca754884147f3f7c63197c64
+manifest 0860c54e5264d1879f202d1550b1e861c6e3fd8a
+files dom/tests/mochitest/fetch/worker_test_fetch_cors.js

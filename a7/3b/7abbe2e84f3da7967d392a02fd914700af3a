@@ -1,0 +1,4 @@
+changeset 57197340e1daf668f471fef1341065e2d9777b97
+manifest c5420353696f05f4770bde0a152309c5419ba80a
+extra rebase_source:86fcafaa38f9cd9dbf4b299a39e854e9da51c33a
+files mfbt/RangedPtr.h

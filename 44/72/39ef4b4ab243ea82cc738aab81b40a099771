@@ -1,0 +1,4 @@
+changeset e828e9d6d77103f55ce14bcfed1f99693a5c4290
+manifest 7547b9288bb5218bf0d22e48582167a6bff4dede
+author rhelmer@mozilla.com
+files tools/release/Makefile

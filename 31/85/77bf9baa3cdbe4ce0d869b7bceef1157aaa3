@@ -1,0 +1,4 @@
+changeset f8e2b4e1815e51cd3c7fe666ac0fd725dcfb1ab8
+manifest c19ea4f6a374ccc9ff1fabe2ddc20a792aabbbee
+author philringnalda@gmail.com
+files browser/components/feeds/public/nsIFeedResultService.idl

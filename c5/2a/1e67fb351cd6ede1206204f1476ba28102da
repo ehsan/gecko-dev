@@ -1,0 +1,4 @@
+changeset a2e7e8de0fc5e0198610e9670c216136ed8892e0
+manifest 5a0389c8e4d35ea223d59536d9c702eef71882ac
+author tor@cs.brown.edu
+files layout/svg/base/src/nsSVGTextContainerFrame.cpp

@@ -1,0 +1,3 @@
+changeset 10b4034b8b16252c1cbcdad27a5c1d04a37db3ac
+manifest 57bb65b865aa69e13644c94c07a98bcf64ba614d
+files dom/mms/interfaces/nsIWapPushApplication.idl

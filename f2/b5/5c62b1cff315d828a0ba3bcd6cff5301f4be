@@ -1,0 +1,4 @@
+changeset 7246f6bc0ee5a32fe24d3bb9fa91f2b1ebd18d6a
+manifest 20da7cec1d88acb156d5b3378707c74ef4b64465
+author reed@reedloden.com
+files widget/src/gtk2/nsWindow.cpp

@@ -1,0 +1,4 @@
+changeset 3f8f7939bbd66577d40d64d689c6f3e4a84e2942
+manifest 21bfbf04c45190dd2b91500b9acd670792f2de79
+extra rebase_source:b6c5a751206e4837463310cb4bd4f00591e6df40
+files toolkit/mozapps/extensions/test/mochitest/mochitest.ini

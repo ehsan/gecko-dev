@@ -1,0 +1,3 @@
+changeset c509026067eeb0e4c2e3d5bb31aa6e6ec1a34de1
+manifest 75dda6ec04e472722e591eccc58e909df6f2c78e
+files js/src/tests/ecma_5/extensions/JSON-string-replacer-overflow.js

@@ -1,0 +1,4 @@
+changeset 9329008af0f5dc466a173ec56d8482b7c97e8196
+manifest ade22e287071a43823ee6e18caa2608d8412db2c
+extra amend_source:3526194443a4b60a8d0b9b9fccb3ddb92e435c8b
+files tools/trace-malloc/lib/nsWinTraceMalloc.cpp

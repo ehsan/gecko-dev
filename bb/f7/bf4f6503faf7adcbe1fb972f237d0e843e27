@@ -1,0 +1,4 @@
+changeset e1f30dbb81086b17a8a3ff4d97d80b8c0f9b7636
+manifest b1193bdd48d93d28019b97c9c76556246ccaceb0
+extra rebase_source:8961f16a817a65325b356bd700b29665969f391c
+files xpcom/glue/FileUtils.cpp

@@ -1,0 +1,4 @@
+changeset e741f722413dfb75df1f276bfbe0df6b6f218c78
+manifest 441eef13c5911e64c4bcca4d0ce81af5017e9c69
+author surkov.alexander@gmail.com
+files layout/xul/base/src/tree/src/nsTreeBodyFrame.cpp

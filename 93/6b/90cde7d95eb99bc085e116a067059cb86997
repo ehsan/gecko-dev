@@ -1,0 +1,4 @@
+changeset 18ad348c1b1202d08e3ed1646102da3a613eb2c1
+manifest e1c5c85a83d24cd52c5953c254e8a00aeb870af6
+author benjamin@smedbergs.us
+files toolkit/xre/nsUpdateDriver.cpp

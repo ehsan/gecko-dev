@@ -1,0 +1,4 @@
+changeset 13f2d567327a60f5a57771011e3509b2c6846105
+manifest 0ebecbdcefe8ae29c4bd4eaad564841b9821d473
+author reed@reedloden.com
+files layout/generic/nsLineLayout.cpp

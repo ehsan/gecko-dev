@@ -1,0 +1,4 @@
+changeset 09bb38fc659449d3369babced444768e2c8b4758
+manifest 90fd894c16b964db69295f8230df2593c8e66f5f
+extra rebase_source:07b87af2bba5542e022490765c6402f749871642
+files modules/plugin/base/src/nsPluginNativeWindowWin.cpp

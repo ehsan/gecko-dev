@@ -1,0 +1,4 @@
+changeset cb6f7e03b63772332913f6ce59be0e14cf797cbb
+manifest 8964d1e86f1c9f8d306a7c3dd92e9398e6e11897
+author brendan@mozilla.org
+files js/src/jsparse.c

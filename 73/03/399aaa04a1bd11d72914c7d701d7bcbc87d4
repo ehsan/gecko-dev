@@ -1,0 +1,3 @@
+changeset c5ef50d41b47b0ec88306e886fd7880072984956
+manifest 7dfd9ca944b7b98389fb568c78b9ae63269bd02b
+files xpcom/tests/unit/test_symlinks.js

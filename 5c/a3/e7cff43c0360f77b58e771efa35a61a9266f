@@ -1,0 +1,4 @@
+changeset 37586e5a6a96d0d8a2f2214964fc7c71ce841ccf
+manifest a80de81dffda96efb1fe02eec34f6956e825050f
+author Olli.Pettay@helsinki.fi
+files content/events/src/nsEventDispatcher.cpp

@@ -1,0 +1,4 @@
+changeset c30ecec1dd8d9e4dc8cf7bc600fc639d9b9a482b
+manifest ce7afeccbde1501aa3823714b190ff9b5d4c6401
+author mhammond@skippinet.com.au
+files extensions/python/xpcom/src/PyIClassInfo.cpp

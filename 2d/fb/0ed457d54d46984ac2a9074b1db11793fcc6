@@ -1,0 +1,4 @@
+changeset 292e0e6a0bdbfb4967dcb1a8dbff4233b48e37b5
+manifest 3d468610c9e2de27ae1ec776cf78e731c64ac108
+extra rebase_source:23698c10d865bb037e9f00d74ec9b89e99fb0b95
+files browser/app/profile/extensions/testpilot@labs.mozilla.com/install.rdf

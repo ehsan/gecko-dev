@@ -1,0 +1,4 @@
+changeset 3580316564bb14a0352d3d895a724e9ff3fad908
+manifest 7c517c6deced942cd00a2a73605258ce62f1ce90
+author Olli.Pettay@helsinki.fi
+files layout/xul/base/src/nsXULTooltipListener.cpp

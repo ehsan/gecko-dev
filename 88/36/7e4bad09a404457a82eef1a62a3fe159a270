@@ -1,0 +1,4 @@
+changeset a7280ca7a997a48f0a5b0b3ca651f1a4590105f9
+manifest 5a186baa42c5f272b1a97fb822bf99efd1d328e3
+author sspitzer@mozilla.org
+files storage/test/unit/test_bug-393952.js

@@ -1,0 +1,4 @@
+changeset 12ae5c9dc9b8b4f54285f8159cb5ae9eb063e7d6
+manifest 0d64654bb6ee7d6490e103b0014db068f3ca9be4
+extra rebase_source:28ff49903f395240a3aca3b3761c7638ee6d4b7d
+files browser/base/content/tabview/modules/utils.jsm

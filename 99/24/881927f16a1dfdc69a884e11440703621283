@@ -1,0 +1,4 @@
+changeset e44af97aa602c3a3a7447d5f100b87643a29e833
+manifest e4268619fdc06de2312341df68db1245970670df
+author sspitzer@mozilla.org
+files toolkit/components/places/tests/unit/test_annotations.js

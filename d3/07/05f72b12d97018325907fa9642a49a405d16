@@ -1,0 +1,3 @@
+changeset 911fd57f1db2142d4d0e10ecfce92fa6a5d60d1b
+manifest 9bbc12d61f374f35eba3c1ab2fcb8becf95082ba
+files js/xpconnect/tests/mochitest/test_lookupMethod.html

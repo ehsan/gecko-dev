@@ -1,0 +1,4 @@
+changeset 7f72dea3d949f1ed94dcc95d895da5ce6ed74e2e
+manifest 16f6ca086568778b53fd131fe9a91b63920da7af
+author timeless@mozdev.org
+files nsprpub/pr/src/misc/prdtoa.c

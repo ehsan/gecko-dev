@@ -1,0 +1,4 @@
+changeset d30eff09021c967adccb22d9d2b242e80b1ca43b
+manifest 54f4cd93e88ab6d87d39b6f2fd210fe06df838f0
+author cbarrett@mozilla.com
+files xpcom/glue/nsCOMPtr.h

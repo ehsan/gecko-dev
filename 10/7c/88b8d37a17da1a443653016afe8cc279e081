@@ -1,0 +1,4 @@
+changeset 92258b02112bc250efd284a95cae1f3dca828241
+manifest 6b12f2da9ca5e3e8666cb826826750c6208dce8f
+author timeless@mozdev.org
+files intl/uconv/src/nsUNIXCharset.cpp

@@ -1,0 +1,4 @@
+changeset 768bd9ab9a7d3eb5bfa106a3d98b8676825dc87c
+manifest cbe730d5fa6e3021b83081f5a55d9ceb2f5715b9
+author rob_strong@exchangecode.com
+files browser/components/shell/src/nsWindowsShellService.cpp

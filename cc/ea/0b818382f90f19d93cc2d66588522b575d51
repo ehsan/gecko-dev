@@ -1,0 +1,4 @@
+changeset 3d3a77079fe518a463e2f7cefdd23139c7a7ec09
+manifest d33c935f49bd18fbb031c5270368d27ba79dff4d
+extra rebase_source:622f0165d3bb6d7b07d48ba5ae2486975948d718
+files toolkit/components/telemetry/Telemetry.cpp

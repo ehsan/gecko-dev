@@ -1,0 +1,4 @@
+changeset 9b612b23ae160a1aaf888876e8c7964e29e4c9b5
+manifest ab598dda92266ae99de31107dea87d5733717eee
+author timeless@mozdev.org
+files xpcom/ds/nsObserverService.cpp

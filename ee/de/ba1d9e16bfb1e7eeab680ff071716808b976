@@ -1,0 +1,4 @@
+changeset a61fcf408f66d87e144725d7f3d7fc9f7974847f
+manifest 32d30a5e60a3755b227b303a6edd459fb1432d32
+author timeless@mozdev.org
+files js/src/xpconnect/src/xpcwrappednative.cpp

@@ -1,0 +1,4 @@
+changeset 34db3f21d9531a72ce248343c99da1dd117882be
+manifest 9a1f5c7f73c17d14f19ce35a8c591f6bf5338e39
+extra rebase_source:6e14568285c9269d06848e441f3fa3420e76d6a4
+files build/mobile/b2gautomation.py

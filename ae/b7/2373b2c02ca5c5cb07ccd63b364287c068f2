@@ -1,0 +1,3 @@
+changeset 81694fda7c73c58297f9446259cc87c616d0ca0f
+manifest f6d9be1833decf0ddac791e3c2774d70887a6a4c
+files security/manager/boot/src/nsSecureBrowserUIImpl.cpp

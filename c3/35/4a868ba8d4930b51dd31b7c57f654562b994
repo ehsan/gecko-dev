@@ -1,0 +1,4 @@
+changeset 77c5e531f7cbcde17e8a5096ced366fc8d84b0bc
+manifest 6ffc0def22edbd434d5c039be90b665bbf0b1cf7
+extra rebase_source:2c6d99d8cb30b947b0c1192968a30f70ef19178f
+files js/src/jsparse.cpp

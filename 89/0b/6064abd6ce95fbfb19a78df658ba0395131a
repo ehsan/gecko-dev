@@ -1,0 +1,4 @@
+changeset 2e86a5b448b89bf519ab2ba6a4b77c080f8b8941
+manifest 3c54a3f1455eeb3d7c7d9257a37b2914866518be
+author mkaply@us.ibm.com
+files widget/src/os2/nsWindow.cpp

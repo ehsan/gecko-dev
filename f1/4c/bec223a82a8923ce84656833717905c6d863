@@ -1,0 +1,4 @@
+changeset 88adb1e400a80ace6af766033d79c2c1082161e1
+manifest 9f3f8613c3ec521e427be2c549c612a750bc11a2
+extra rebase_source:1a77634fa20cc1bfb42d816dfe2551809f03f116
+files browser/base/content/tabview/ui.js

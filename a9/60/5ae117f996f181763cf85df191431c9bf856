@@ -1,0 +1,4 @@
+changeset 0e5947a8bf778b5b4061789db0edb1a4b070ecd9
+manifest f0ac7553c2f93bd8f33af11f30b4b0760c1c8aed
+author rob_strong@exchangecode.com
+files toolkit/mozapps/installer/windows/nsis/common.nsh

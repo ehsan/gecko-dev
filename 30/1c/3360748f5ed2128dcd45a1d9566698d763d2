@@ -1,0 +1,4 @@
+changeset c0abb46d2fe726cddd3f7195fc44210f54f9a5bc
+manifest aed70af8c732d508dab2aa205b727cbfe1ddc041
+extra rebase_source:a1bad5393e66855b9947315e39559c8feae082d7
+files browser/base/content/test/general/browser_fxa_oauth.js

@@ -1,0 +1,4 @@
+changeset 1e7a1ae17062016781b65ddd285cbadb1d702e7b
+manifest c0fc27a534eacf21e2c7390482ed6f4888a7f81c
+author shaver@mozilla.org
+files js/src/jslock.h

@@ -1,0 +1,4 @@
+changeset c8ec192cf912cc6143beee864b6f57bdb04518f4
+manifest a0dd0187c0652d64cb065b5e570fb5fbd3ce4be1
+extra rebase_source:de4ca9f0a14c275257856d859ea680a8889ebd3d
+files js/src/tests/ecma_6/TypedObject/simd/int32x4bool.js

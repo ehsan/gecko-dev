@@ -1,0 +1,4 @@
+changeset 252aa35f78e40bd5598b16e5c24013c7848a7dad
+manifest db83f7679dfbe09a40a43449f3d4099b887a1ddd
+author timeless@mozdev.org
+files embedding/browser/gtk/src/gtkmozembed_glue.cpp

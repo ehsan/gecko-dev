@@ -1,0 +1,4 @@
+changeset bd481ad563599e76f9ba3bdd58e32ebf0639b740
+manifest 0750e5435e0f51bc612563535b83d9353255bd46
+author aaronr@us.ibm.com
+files xpcom/string/public/nsXPCOMStrings.h

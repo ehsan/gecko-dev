@@ -1,0 +1,4 @@
+changeset 12e74e8b6673464386247fa90ecba4f42e959c93
+manifest 91d8862394901ce86047c0bc0bff7bb914b9f6ef
+author edward.lee@engineering.uiuc.edu
+files toolkit/mozapps/downloads/tests/browser/browser_select_all.js

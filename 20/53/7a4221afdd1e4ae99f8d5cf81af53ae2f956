@@ -1,0 +1,4 @@
+changeset c6ab97a41edba799edbdc3f50a1c4d1a4bc29380
+manifest 673fb55fd3a40bc668c53348437edb8cb4de7194
+extra rebase_source:3357bbf0ea607a07111b6aa5258d0476c782f824
+files testing/mozbase/mozlog/mozlog/structured/commandline.py

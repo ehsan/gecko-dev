@@ -1,0 +1,4 @@
+changeset 389dc829e68999ab98d0071c55ff0ccf3decff61
+manifest 162f128f8ffe378d7bbc45e572efb9b46ab882ee
+author masayuki@d-toybox.com
+files widget/src/windows/nsKeyboardLayout.cpp

@@ -1,0 +1,3 @@
+changeset 4e28042c1b97f0b1837ace07e865e9446e409e64
+manifest 5bdf09657539a6f83fe1c329d2ee202afd0f9fb3
+files xpcom/reflect/xptcall/src/md/win32/moz.build

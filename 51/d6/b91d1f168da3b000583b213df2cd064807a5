@@ -1,0 +1,4 @@
+changeset 74b5d723af8a53d437c15a17b02e92cd6d3068f1
+manifest cc877299200566bf007011e962f4c9dcbc80ba4a
+author ctalbert@mozilla.com
+files testing/release/minotaur/mozDownload.py

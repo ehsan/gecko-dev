@@ -1,0 +1,4 @@
+changeset 0630fff937bbffb54dddb229ee9a7610569721a5
+manifest 1dfc443ade30384a6cf0ab0ce48fee8dc8a83947
+extra rebase_source:14adfd03381b1ec7542448ebf58f9da640cc10bd
+files b2g/components/B2GAppMigrator.js

@@ -1,0 +1,5 @@
+changeset af2804c794ec2142af781a436024d04de9c9f332
+manifest 4831dcaf3077da4337d99fca7a2bec66470727c2
+author timeless@mozdev.org
+extra rebase_source:943559708654622bcc26d684afecf8e9556d7bcd
+files content/base/src/nsCSPService.h

@@ -1,0 +1,4 @@
+changeset ff971b92f74ce7821a08673e344d1b0c3bfc97e5
+manifest b228506eddb096df3e29ce39731b7bc389c833c0
+author timeless@mozdev.org
+files content/canvas/src/NativeJSContext.cpp

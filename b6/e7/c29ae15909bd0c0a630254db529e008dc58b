@@ -1,0 +1,4 @@
+changeset 101c0c10739ad83ee3cec550d6f63dc88cc91acd
+manifest 5680432f1108897468ddf7296d111c0520919ca7
+author bzbarsky@mit.edu
+files content/xbl/src/nsBindingManager.h

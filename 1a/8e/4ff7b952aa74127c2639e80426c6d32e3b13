@@ -1,0 +1,4 @@
+changeset caa59a0d79100efcdcd3980c03b81e821109f971
+manifest 8b6c009cd3e30cdf8e055341c4a8f91edd016005
+extra rebase_source:593da2ba26a89e1d9b7205847bac5c65bded41a4
+files browser/base/content/test/tabview/browser_tabview_dragdrop.js

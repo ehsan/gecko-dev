@@ -1,0 +1,3 @@
+changeset c9b7a566ff056cf34913f482c0ec65b2aa804046
+manifest b3c558b80fd3d336ccb7db29d4b915fc78aceaa4
+files browser/devtools/commandline/test/browser_gcli_web.js

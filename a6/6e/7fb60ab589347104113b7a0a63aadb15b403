@@ -1,0 +1,5 @@
+changeset 6c885a625cb99ff6f7eb239ad5ef99605bf03a61
+manifest 84b259181b262400f8265441e6042f970a4aa7c1
+author timeless@mozdev.org
+extra rebase_source:9fe91fdff530e26416f2c212977fd2de4292fa2e
+files layout/base/nsFrameManager.cpp

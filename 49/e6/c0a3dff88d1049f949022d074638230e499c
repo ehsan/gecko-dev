@@ -1,0 +1,4 @@
+changeset b5c9deb7048ab235eef7a68cc44f1b093fead1c2
+manifest c98eb80d4c7559f8dd273c71facbdfd042603438
+author Olli.Pettay@helsinki.fi
+files widget/src/cocoa/nsMenuItemX.mm

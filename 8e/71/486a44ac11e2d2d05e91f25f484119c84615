@@ -1,0 +1,3 @@
+changeset f23b9848820f967b1754157981d2c9bd69b612b9
+manifest 10ba460f3b4ff33208ad80245e3927786086224f
+files mobile/android/stumbler/java/org/mozilla/mozstumbler/service/stumblerthread/scanners/GPSScanner.java

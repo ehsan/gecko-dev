@@ -1,0 +1,4 @@
+changeset 42b9ed6826ad21ff7295ccaaa175aa80c981a276
+manifest 2686396412873733a84eca22d90e4f897106689d
+extra rebase_source:bab908e94b023a478b5d56d333344dcf3be10274
+files browser/components/customizableui/test/browser_995164_registerArea_during_customize_mode.js

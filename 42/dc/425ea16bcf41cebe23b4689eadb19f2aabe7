@@ -1,0 +1,3 @@
+changeset dcfab5f241a9de9ddbc97026ce8f91ca48c15c4b
+manifest 5fe03c6e789220b268aba781bc2b35e117496a9a
+files dom/src/threads/nsDOMWorkerXHRProxy.cpp

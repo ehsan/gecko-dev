@@ -1,0 +1,4 @@
+changeset 90b23d8e2d59da468f9dd950b50533b6976f76fa
+manifest 42a0bd83757c2adb9212d2eaec26f2678b0f7404
+author dbaron@dbaron.org
+files toolkit/components/passwordmgr/test/test_prompt.html

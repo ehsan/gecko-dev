@@ -1,0 +1,4 @@
+changeset e75af1996b13872fdcfaff21b5c7fe97c594eae4
+manifest b966669210a10cb67842df99e50b68f249069a15
+author dcamp@mozilla.com
+files dom/tests/mochitest/ajax/offline/Makefile.in

@@ -1,0 +1,4 @@
+changeset fd080326e33d3368e06bb6d4639657bef8bcbbf3
+manifest ca96de74509aead37e9abeda3cbaa3d7338b74d3
+author reed@reedloden.com
+files extensions/inspector/resources/content/viewers/dom/dom.xul

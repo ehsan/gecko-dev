@@ -1,0 +1,3 @@
+changeset 9e4c5f10c3fa118f5d042c7d0ac7fabdcf8669a4
+manifest 2fb29c602de7362df68b53c72688bd9b7287e494
+files toolkit/components/telemetry/gen-histogram-enum.py

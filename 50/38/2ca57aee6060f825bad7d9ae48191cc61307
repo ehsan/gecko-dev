@@ -1,0 +1,4 @@
+changeset e3e2d397134f83dea4044a5188f478e3e1b98875
+manifest 59a8c149ba5ae0e9749f302ce51ebd861713b49f
+author timeless@mozdev.org
+files toolkit/crashreporter/client/crashreporter_osx.mm

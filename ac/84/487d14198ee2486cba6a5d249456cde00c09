@@ -1,0 +1,4 @@
+changeset 0b3c38dad8a7ea4ae7a3d33e143dc75c224318a1
+manifest 713bcb650c04a09a1fb84f8279ab640742ca6a89
+extra rebase_source:cb9c5253de97423de99da404fb899e96e0dd5cec
+files browser/components/sessionstore/test/browser/Makefile.in

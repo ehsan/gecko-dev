@@ -1,0 +1,4 @@
+changeset 7f1dc91b2909d786b33b754abcbfec37689fc704
+manifest e14854adf2fb9ebacfba3b42d6ff3df76c240ee5
+extra rebase_source:7b70465805650e1745d2b991be2c6c5f226f59f5
+files browser/components/sessionstore/test/browser/browser_506482.js

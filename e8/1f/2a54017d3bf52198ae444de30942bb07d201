@@ -1,0 +1,4 @@
+changeset 535303458badd0eacf6fd4cfc0337362a4bc5b33
+manifest 75a6e724adec0f0a7647f21be5354ba33712a2d6
+author timeless@mozdev.org
+files content/xul/document/src/nsXULDocument.cpp

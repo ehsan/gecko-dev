@@ -1,0 +1,4 @@
+changeset 2008ce7ec4ea70a02616da1214e4baf3f47ac10a
+manifest 2f1d25858c4300fa17de5f578791847a684ca97d
+extra rebase_source:694cd2b1b10729057793e40c54409fd437e2d2af
+files browser/modules/moz.build

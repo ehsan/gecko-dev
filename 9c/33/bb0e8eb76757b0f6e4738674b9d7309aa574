@@ -1,0 +1,4 @@
+changeset 44aed9c4b9a8e41891612ae17be65a44acf2ce7a
+manifest c88178d2a242ef335c978fb4868421fa79d81965
+extra convert_revision:104c02bf846011a7e6e9792ecc5e5cb6e92f09fd
+files js/src/nanojit/LIRopcode.tbl

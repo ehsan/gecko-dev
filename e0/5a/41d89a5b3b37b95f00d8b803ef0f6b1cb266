@@ -1,0 +1,4 @@
+changeset 8ebc6af7807c562edb9d0da79cd1f8db1e1c7859
+manifest 293dd79f4240a46bd7b6fb18c7b5a9b369fbb2a6
+author bclary@bclary.com
+files js/tests/js1_7/geniter/regress-387871.js

@@ -1,0 +1,4 @@
+changeset b427fd627d3645c64e8a3558d9ed7252d42d5e97
+manifest d2d6de36a84d719685675ebfa496be5e711265f2
+author timeless@mozdev.org
+files layout/style/nsCSSParser.cpp

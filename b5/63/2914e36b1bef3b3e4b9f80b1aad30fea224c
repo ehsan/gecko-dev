@@ -1,0 +1,4 @@
+changeset d29c145b465c21c40f96faf5d6cbe19e0874dcad
+manifest fe941761e77e97eab2539b29453f7186ac9c94df
+extra rebase_source:394255ac2da12eaea09c8be95847a5d19f6b3b21
+files js/src/vm/SelfHosting.cpp

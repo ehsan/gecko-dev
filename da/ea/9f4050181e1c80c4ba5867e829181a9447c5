@@ -1,0 +1,4 @@
+changeset 3d168edebd570b60c405bdeb672dfcd401cd53b6
+manifest a3fa2b925ffe8afb15d2d38ad964ee9fc240572b
+extra rebase_source:ae10c57b04012d3c746fbaaaa2838ea230b32b58
+files mobile/android/base/toolbar/ToolbarProgressView.java

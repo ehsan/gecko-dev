@@ -1,0 +1,3 @@
+changeset 0aa6ce5e6c76e76d691b00c3d77fbc055e7642c6
+manifest bdde3375d1f8791085fcbb24b3b9dfacd7585cae
+files media/webrtc/signaling/src/softphonewrapper/CC_SIPCCCall.cpp

@@ -1,0 +1,4 @@
+changeset 9e71dd6b6697593bcbfe8aa1555f28158b992034
+manifest c3f53cd45f610bde4f267b5ac13d657bc0257a26
+author mats.palmgren@bredband.net
+files gfx/cairo/libpixman/src/pixman-compose.c

@@ -1,0 +1,4 @@
+changeset 7b021e23ff21c9cc010cd8410e3940b51dad9390
+manifest ee5d001e5ff87ab5cac2403e497a7dc072632277
+extra rebase_source:bb635c85fa867dc7480e9281404650d4a454ba1d
+files embedding/components/printingui/mac/nsPrintProgress.cpp

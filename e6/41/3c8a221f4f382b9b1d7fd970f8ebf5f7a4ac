@@ -1,0 +1,4 @@
+changeset ca6784612251b299a08b398173cff40a0f9b0e82
+manifest 003207248cdb4e3f4c4765f06807a71be1287fd9
+author shaver@mozilla.org
+files js/src/jsconfig.mk

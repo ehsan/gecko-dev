@@ -1,0 +1,4 @@
+changeset 44c2b6c15fcc426b4e27f445d7559940295b31cd
+manifest 561a7f8ffa2d0ec3bce7fc2bdf05aca40011b2b7
+author roc+@cs.cmu.edu
+files gfx/thebes/src/gfxFont.cpp

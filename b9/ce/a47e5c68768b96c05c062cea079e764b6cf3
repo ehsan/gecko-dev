@@ -1,0 +1,4 @@
+changeset 78adb26a80b1d32f986ce49ed305c590ba067a6a
+manifest 1a065b1b7614e347ebc8c542dca388157575e0c7
+extra rebase_source:2256968cc41de8369a9efaccec2f2467789bf08b
+files js/src/jsobj.cpp

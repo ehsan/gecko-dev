@@ -1,0 +1,4 @@
+changeset 87c58f687185184db8de8fc1c73e0e3ae520ed21
+manifest 17959ec9b7c26818514e596dba0b06b343a49aaf
+author mats.palmgren@bredband.net
+files gfx/thebes/src/gfxPangoFonts.cpp

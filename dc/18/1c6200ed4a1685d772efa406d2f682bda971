@@ -1,0 +1,3 @@
+changeset c25385c417b95e203fae87438315bd98f20d267c
+manifest 6fffd3e2ca07c319cb8bf30751f034a154609cb2
+files toolkit/components/places/public/nsIFaviconService.idl

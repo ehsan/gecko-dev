@@ -1,0 +1,4 @@
+changeset fcd088db8a7ff57ae7157e6c387f9ac2a9f70cf1
+manifest a7a4bf59dfa8195d1021d538d0c4f4fb54a7f83d
+author reed@reedloden.com
+files netwerk/cache/src/nsCacheService.cpp

@@ -1,0 +1,4 @@
+changeset 1227b57176e5093d0741684778bf9bdddfc68eda
+manifest d9929c2abd9e1504a3b49cedd91882307f70b549
+author rflint@ryanflint.com
+files toolkit/mozapps/extensions/src/nsBlocklistService.js

@@ -1,0 +1,4 @@
+changeset 90ff76b2032e3870691ff1e51b5757a121fe89ef
+manifest 300b9c4b3825566ebd9dc8aab551890b6508afe1
+extra rebase_source:316d258d39e86a760326c14f3196fff5319dc2b1
+files extensions/cookie/nsPermissionManager.cpp

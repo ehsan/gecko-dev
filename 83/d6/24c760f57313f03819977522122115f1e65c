@@ -1,0 +1,4 @@
+changeset ba9444f08a295fb67299fc6c1b9ea624c3d93015
+manifest 6843bf4a83897ad728e9495f0e527d319557eda0
+author jst@mozilla.org
+files js/src/xpconnect/src/XPCSafeJSObjectWrapper.cpp

@@ -1,0 +1,3 @@
+changeset a9501fcd9c2588a1b7d4377d321b12a017a042e4
+manifest 7a21f7d1b721e387e90e00ab2e7b3f0ef19f7f2f
+files parser/htmlparser/tests/mochitest/test_bug568470.html

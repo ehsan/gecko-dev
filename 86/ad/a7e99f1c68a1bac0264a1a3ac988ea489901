@@ -1,0 +1,4 @@
+changeset 6a27a14fb2ab8cf759cea7cb853f85efa5ad27b8
+manifest 35104036d59d133dee573f2b0dec4a6150e92fb3
+author gavin@gavinsharp.com
+files modules/libpr0n/decoders/bmp/nsBMPDecoder.cpp

@@ -1,0 +1,4 @@
+changeset acc93d7235a2da8f53154587a04389552bfc81c6
+manifest 54171e48bc43f77a7bc8059226c13690855be899
+author bzbarsky@mit.edu
+files layout/mathml/base/src/nsMathMLContainerFrame.h

@@ -1,0 +1,4 @@
+changeset 862264f5dd12944ca43de1d30555d68954646156
+manifest d78b11006148a834c866a3035ef099630b40c77c
+author bzbarsky@mit.edu
+files embedding/components/find/src/nsWebBrowserFind.cpp

@@ -1,0 +1,4 @@
+changeset 76ee73d6970b8d5ce558daec7e810ae376bae140
+manifest 9a24243adbf1b0011a5186355ade9be4f8008f13
+author mrbkap@gmail.com
+files js/src/xpconnect/src/XPCSafeJSObjectWrapper.cpp

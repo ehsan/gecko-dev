@@ -1,0 +1,4 @@
+changeset 81eafec98b48dad1ae75659cdc3235bf7e5c8be0
+manifest bee2082b9c188d43eeec1986f0bea058a9970ea7
+extra rebase_source:13cbe5d47b5c79e576627a67b2a6b61b217f9acf
+files gfx/layers/client/ClientTiledPaintedLayer.h

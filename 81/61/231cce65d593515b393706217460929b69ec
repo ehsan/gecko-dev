@@ -1,0 +1,4 @@
+changeset 6f73d59a7a7b11c420c4b8a9e646431d478f0d33
+manifest b6ba9d502ad641a17f3223d1d3cc3e9123ff0d9b
+extra rebase_source:2bdaf8d6ce3a8d093c107eeb9a4b2d4643ba0136
+files xpcom/threads/nsEnvironment.cpp

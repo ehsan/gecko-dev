@@ -1,0 +1,3 @@
+changeset bad360d2339f7f14d2f554dd6fd3b85b3fd7538c
+manifest bd233257356b3673836aa71ac8cae3405594eb0e
+files browser/components/loop/test/xpcshell/test_loopservice_locales.js

@@ -1,0 +1,4 @@
+changeset e2dfba6a7b39c0a697e37ef830d85bbc1f5bd75e
+manifest 2e65654ff1e7012fc0231286a2309b02dbbd24d5
+author neil@parkwaycc.co.uk
+files widget/src/gtk2/nsWindow.cpp

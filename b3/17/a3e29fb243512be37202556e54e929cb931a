@@ -1,0 +1,4 @@
+changeset 1d117b877a463b8d528cb21ec7f7a4fd68f6aff0
+manifest 433a1c4b9446bc09524882707e362dadf9b1efc6
+author dveditz@cruzio.com
+files netwerk/base/src/nsURLParsers.cpp

@@ -1,0 +1,4 @@
+changeset 7ff7a8e35cefa69d6ce1f6f4b2cfad28eb8d1c85
+manifest 500d65072b5e92247fef7da74b74ba2d4795107c
+author vladimir@pobox.com
+files browser/app/macbuild/Contents/Info.plist.in

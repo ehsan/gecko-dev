@@ -1,0 +1,4 @@
+changeset a591c50facf0199862e16a25f3413376296d8e44
+manifest b26f75081db86822205c7dc686d551354f0a95f5
+author jonathandicarlo@jonathan-dicarlos-macbook-pro.local
+files services/sync/modules/service.js

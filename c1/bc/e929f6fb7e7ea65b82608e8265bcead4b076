@@ -1,0 +1,4 @@
+changeset 73efb0ef0d7918dce63ed766a0dc186e4cb5c414
+manifest 5e4cbc22929f6300dc80c465eea72af04a490282
+extra rebase_source:83664ec799b9834dd876bb322a5c7b1e5ee28b83
+files content/xbl/src/nsXBLService.cpp

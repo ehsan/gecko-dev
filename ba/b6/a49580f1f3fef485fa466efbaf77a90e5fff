@@ -1,0 +1,4 @@
+changeset ffcf0ce77162ae77e1edd78edbf1df91d5dd42f2
+manifest d5b882887959911f2c2168670adce0510dd43658
+author timeless@mozdev.org
+files layout/svg/base/src/nsSVGPatternFrame.cpp

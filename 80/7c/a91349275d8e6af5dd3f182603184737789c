@@ -1,0 +1,4 @@
+changeset d511112704cfcc989a6ceb0f536d5e9ae4a7fcc5
+manifest 2f3c48ccd4d115dd1ea99a0d8efc13358de612b8
+extra amend_source:029c30cccaa48d0153bc297be9b976858b98e52b
+files mobile/android/modules/WebappManager.jsm

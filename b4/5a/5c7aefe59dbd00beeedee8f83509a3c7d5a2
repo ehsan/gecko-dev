@@ -1,0 +1,4 @@
+changeset 3fa2eb75768de635d0d9947cef026dfad84658da
+manifest 6cc0419c348552a027ba2a4354494bd86495105a
+extra rebase_source:a0f08483088c1819cae2b144176a6f94333baf7a
+files browser/base/content/browser-fullScreen.js

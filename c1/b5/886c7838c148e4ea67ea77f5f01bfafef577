@@ -1,0 +1,4 @@
+changeset 667cca91930339524d1440261687af2a8c1b8db3
+manifest 7625e9f51b42aa9ac0992ac3b19b1d5552fe934d
+extra rebase_source:a813c3a680c42c712237059104a82c66f7e7bde3
+files dom/devicestorage/nsDeviceStorage.cpp

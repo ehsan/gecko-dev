@@ -1,0 +1,4 @@
+changeset ba8e403bd8227826118000684452009692b065fe
+manifest ed4c0104f1b4d70071348785e9097063e4809df0
+extra rebase_source:6dbd6aa6ea9e697c037fa33e0638abbaa92ca08a
+files mozglue/build/Makefile.in

@@ -1,0 +1,4 @@
+changeset 8305eb91b9b5e9e1b20b2543e9076651fd8400d5
+manifest fe7baf0429648697e65fa6a0d0ffd66b052e08ad
+author bent.mozilla@gmail.com
+files browser/components/safebrowsing/content/malware-warden.js

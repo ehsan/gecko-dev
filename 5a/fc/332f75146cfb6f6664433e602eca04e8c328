@@ -1,0 +1,4 @@
+changeset f711112cc442531e844c75e1c0770ee0531b2245
+manifest 40e8c4ff401c776eb93256497f825176efac2885
+author dietrich@mozilla.com
+files toolkit/components/places/public/nsIFaviconService.idl

@@ -1,0 +1,3 @@
+changeset f980055c83395ad136d59d430e940004f626dce8
+manifest ceecfca54a324df221dddaf1c6f144a6c0f27bfa
+files services/cloudsync/tests/mochitest/browser_tabEvents.js

@@ -1,0 +1,4 @@
+changeset 2dccb504e0949d351ca226cb6f1128a98b75059e
+manifest 7ad626db42d4e8091b3a9261199465275f1d1d5e
+author roc+@cs.cmu.edu
+files extensions/spellcheck/src/cattable.h

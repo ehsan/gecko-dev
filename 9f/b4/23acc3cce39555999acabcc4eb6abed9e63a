@@ -1,0 +1,3 @@
+changeset 8a723f12da344033447ff34f45e80402bba0b1cb
+manifest a85cdb4a314586a34b04057f1967e9ccf26c3a1b
+files xpcom/build/mozPoisonWriteBase.h

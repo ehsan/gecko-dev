@@ -1,0 +1,4 @@
+changeset ffec6ab28f52bf19f31678617529bfa5db671ef3
+manifest 16e82bc91280fc3d4d51b0964a51e01e7839b1e6
+author jonas@sicking.cc
+files content/base/test/test_CrossSiteXHR.html

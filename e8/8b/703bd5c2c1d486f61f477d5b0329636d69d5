@@ -1,0 +1,4 @@
+changeset 96f77ba91358bdc2406a6a2aaae12b13e16d6e63
+manifest 86f117036e656c56eaec32c352f8d6199d2fc368
+author sayrer@gmail.com
+files db/sqlite3/src/Makefile.in

@@ -1,0 +1,4 @@
+changeset de3edbfe2d962c7cdcede8c39c026888692bb628
+manifest de4111092b36cfbcead8a296a3b3b66c6fc694fd
+author myk@mozilla.org
+files uriloader/exthandler/nsHandlerService.js

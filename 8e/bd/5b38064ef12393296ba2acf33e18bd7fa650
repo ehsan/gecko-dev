@@ -1,0 +1,4 @@
+changeset 4de9a91f896f795276150c3c33d7765dfb5d6310
+manifest 85fe92458ed0352d902f99713dec6dc9fcb69379
+author dougt@meer.net
+files embedding/browser/gtk/src/gtkmozembed.h

@@ -1,0 +1,4 @@
+changeset b4e4ec2e16ba4022c6833424dd00c9eea0fa90c6
+manifest 1736cfeb642e599b6e7e78236679efc580f19141
+author dbaron@dbaron.org
+files modules/libpref/src/init/all.js

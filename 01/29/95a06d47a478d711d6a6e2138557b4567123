@@ -1,0 +1,4 @@
+changeset c1a11988968595585051d6d0ba4b25b9232dfd09
+manifest b5b1d6e2934bc03d1df9b29f5a3639e30e74d115
+author jruderman@hmc.edu
+files content/base/src/nsHTMLContentSerializer.cpp

@@ -1,0 +1,4 @@
+changeset b3e1821d76b04630e81eb6089d2fdf4bc955d89c
+manifest ff4577fd35b45031c409879040625ffdcbe79614
+author bzbarsky@mit.edu
+files netwerk/base/src/nsUnicharStreamLoader.cpp

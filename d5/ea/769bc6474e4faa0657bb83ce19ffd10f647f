@@ -1,0 +1,4 @@
+changeset 755a31ec4a53046436f366a445153fd0a484067a
+manifest 79e0e374162613f969acd6e17dda86d61a154c91
+author reed@reedloden.com
+files xpcom/io/nsIScriptableStreams.idl

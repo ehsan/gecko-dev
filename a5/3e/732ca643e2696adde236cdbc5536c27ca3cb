@@ -1,0 +1,4 @@
+changeset 82187deb29387583e3354af6668f9c18200a3477
+manifest d84ef4d41c88f406541ff87e09258f3ded2a5a64
+extra rebase_source:1dc83f67c495d431e4ae4d2ed35b12e6f5eb03d4
+files toolkit/mozapps/update/updater/moz.build

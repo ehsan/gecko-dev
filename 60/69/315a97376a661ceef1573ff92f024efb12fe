@@ -1,0 +1,4 @@
+changeset 762dd6c7a762cd88757c5a3be8908caa34b76b5c
+manifest 3df2402153ce3ae267b258378f308070d6642cd7
+author reed@reedloden.com
+files toolkit/crashreporter/tools/symbolstore.py

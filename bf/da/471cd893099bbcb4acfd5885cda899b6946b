@@ -1,0 +1,4 @@
+changeset d5cdf63fe0eeb1b620c8b0fbe650dfc1059d442c
+manifest 34db69515a97d3168ebd6e382e4ffaa1d2a2f19e
+author roc+@cs.cmu.edu
+files widget/src/gtk2/nsWindow.cpp

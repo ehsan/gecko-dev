@@ -1,0 +1,4 @@
+changeset 88543a3350b5324b54d895d35327c508587a2995
+manifest 6183573b6e547bbe24ad7860b3c7d2737d3e7ede
+author jwalden@mit.edu
+files editor/txmgr/idl/nsITransactionList.idl

@@ -1,0 +1,4 @@
+changeset 17d130494887b4e0db3afc747eade2f1b3072b53
+manifest 9ef4452ce90749c811c2fd17109da0b5211f5a0a
+extra rebase_source:e5a73f212fd5979e1a4dcc5fd653b21416e979cb
+files gfx/thebes/gfxPlatformMac.cpp

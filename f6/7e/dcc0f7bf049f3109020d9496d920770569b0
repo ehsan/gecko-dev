@@ -1,0 +1,4 @@
+changeset adfcd6764cb664591439ee1a99512ff76b23c3e9
+manifest f15da6729beaaf07838d172d64dbc9ae2459f3ff
+extra rebase_source:19f5775bac206fd53a7dab8293b904b5933b11c7
+files layout/reftests/svg/svg-integration/reftest.list

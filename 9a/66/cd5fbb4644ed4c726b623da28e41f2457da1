@@ -1,0 +1,4 @@
+changeset 2e95f0d2fd2379a57c720e9ccf87bfcfc0e4742d
+manifest 42c9f51bb80ef480e1de69c1c761b116055b135b
+extra 
+files toolkit/xre/nsXREDirProvider.cpp

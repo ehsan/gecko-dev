@@ -1,0 +1,3 @@
+changeset 694ba373020e9517abe83ff29174a2ecc823afb7
+manifest 06b33bf036bb4c814c74ebec1ce2d1adb8358b5c
+files services/sync/tests/unit/test_xmpp.js

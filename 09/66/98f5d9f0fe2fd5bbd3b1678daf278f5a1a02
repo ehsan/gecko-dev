@@ -1,0 +1,5 @@
+changeset ebb58e2a3b29b1c1171db9b1d621e4025eb870dc
+manifest 7ad15007c5b63de29d1053f2d25ca795d8ded764
+author bzbarsky@mit.edu
+extra rebase_source:d30d8346c5f2526518386c895146ca6107b924fd
+files layout/base/nsDocumentViewer.cpp

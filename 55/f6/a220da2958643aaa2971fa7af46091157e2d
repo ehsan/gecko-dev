@@ -1,0 +1,4 @@
+changeset 7326f167a78bb936a355026085fb660c3abcc4ab
+manifest 33ecbf35ff12124c270544b1a15a4a1cedc2c748
+extra rebase_source:79cea2a70f177f0d6709ec3c97b228ece1b4b48b
+files layout/mathml/nsMathMLmencloseFrame.cpp

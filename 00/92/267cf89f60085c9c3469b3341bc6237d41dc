@@ -1,0 +1,4 @@
+changeset 4b9a2c610a5e4c9e01622f6a6bda887190030c09
+manifest 54b6c2d9deb6680109bd4d1fb7095c865a66a6ac
+extra rebase_source:e65538722161b0c00d2e8461849af476f52aba83
+files toolkit/locales/en-US/chrome/cookie/cookieAcceptDialog.dtd

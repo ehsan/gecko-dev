@@ -1,0 +1,4 @@
+changeset 43bd6e46c62c795053a643822b887c953ab5b4ed
+manifest 74eba54ab52ac468a7d2b37401fd4380c7c85d65
+extra rebase_source:6c7d8f2454467ea9fcf23c8581f15eb96beb5eda
+files dom/camera/CameraCommon.h

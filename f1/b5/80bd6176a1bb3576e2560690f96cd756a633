@@ -1,0 +1,4 @@
+changeset 13b0f95f8d8b665b359998f76c493a36b19660c3
+manifest 232a8c8fe64ca8394e9ce3e128c9433e7c83c722
+author gavin@gavinsharp.com
+files layout/generic/nsTextFrameThebes.cpp

@@ -1,0 +1,4 @@
+changeset 8ddb395eeed0fe0914ed2af46d9c49b1e5cb93f5
+manifest c61dc0e17f7ff880473b94b0a6b0d4813f50aaef
+author brendan@mozilla.org
+files js/src/jsobj.c

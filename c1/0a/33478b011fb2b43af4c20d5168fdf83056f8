@@ -1,0 +1,4 @@
+changeset 0a11e40b324193722fa26849c10737766f64cc09
+manifest d90f5e600bba82ae14ea84952bc546f57b942d72
+author sspitzer@mozilla.org
+files browser/components/places/content/controller.js

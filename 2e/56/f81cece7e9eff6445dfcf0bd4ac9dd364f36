@@ -1,0 +1,3 @@
+changeset bbdc376f08fe3d80ce92c3a952c82bf6017386a5
+manifest fcfc9435eef062bfbc976472a66fef3b63d2ac12
+files testing/marionette/client/marionette/tests/unit/test_click.py

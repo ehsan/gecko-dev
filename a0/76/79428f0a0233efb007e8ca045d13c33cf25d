@@ -1,0 +1,4 @@
+changeset 8371834cc8e0795138cfe7849f3d1d06275ae701
+manifest 6f3535db90009c5763b102de0026bb600c79bb34
+author dolske@mozilla.com
+files toolkit/components/places/tests/Makefile.in

@@ -1,0 +1,4 @@
+changeset 3cc200eb27bc2ad1533ac5a496fd86a3ad227478
+manifest efd76444e821113799561d1e9f6c903f3ab41749
+extra source:3def1452028894b4a91415a43e4edb1655592761
+files hal/gonk/GonkHal.cpp

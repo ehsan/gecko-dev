@@ -1,0 +1,4 @@
+changeset 12f75d46323fe7aa1ee4ac198f24c055893fae90
+manifest cd9faa418a2a943207a50c441613b8afc78a6845
+author timeless@mozdev.org
+files widget/src/xpwidgets/nsBaseFilePicker.cpp

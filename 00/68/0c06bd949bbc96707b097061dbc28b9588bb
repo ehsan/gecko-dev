@@ -1,0 +1,4 @@
+changeset b9bd5d828e441eb82caf2a2923a913ecaf85f339
+manifest fac04fdca7625bbc899e57454c0a722ea5dc7777
+extra rebase_source:2d815c7a9ebda774d8913c518317b96cbbf60ac3
+files modules/plugin/test/testplugin/nptest_gtk2.cpp

@@ -1,0 +1,4 @@
+changeset 10c5a25e464ccbf4c0cf1a71023d9988fac12e4a
+manifest c161f0a40af4877bce7f511f78218468239269bc
+author mozilla.mano@sent.com
+files toolkit/components/places/tests/unit/test_result_sort.js

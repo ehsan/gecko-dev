@@ -1,0 +1,4 @@
+changeset 649c62df8edcc2cb4cd6b1e65fbc853c8fa9b8dc
+manifest b977c72965650d935ce17a7e2357ddc078c1b263
+author timeless@mozdev.org
+files widget/src/gtk2/nsWindow.cpp

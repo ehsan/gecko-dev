@@ -1,0 +1,4 @@
+changeset 551de77da9513424d3e962cf3430c79da226d3c1
+manifest a2b5fa852177be1501dcf58b00dbeecdab028e07
+author bent.mozilla@gmail.com
+files toolkit/crashreporter/tools/symbolstore.py

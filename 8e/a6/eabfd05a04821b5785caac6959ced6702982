@@ -1,0 +1,4 @@
+changeset c8a7ff3b95437336abc9e0e412cf3fd1a3454667
+manifest 34d1f00daa614714d599fde06bf7b430b8321deb
+extra rebase_source:2135f43636d066c09e2f67ac3009b45be5cfbcf2
+files modules/libjar/nsJAR.cpp

@@ -1,0 +1,4 @@
+changeset e4dd444e5c88da36ef88bc602fcda4f98f83be4f
+manifest 8fb60bcdaf7725d4b2fefe6a5aebadc94ad291af
+extra rebase_source:a2c4071e13cd4c7917ee0876e9b1f2b61dd760d7
+files gfx/layers/client/ClientTiledPaintedLayer.cpp

@@ -1,0 +1,3 @@
+changeset 1fe80c6311cf230e7e6a5ba25581297420e19704
+manifest 8d18f8dd5ff5936fe11016787c10f9d04fd636eb
+files js/src/jit-test/tests/parallel/bug1032264.js

@@ -1,0 +1,4 @@
+changeset d3408cf7447e7c9d731c95bba0a5b08049075aba
+manifest e77e0e78aba94a253f664f355db070c11e2f758b
+author mozilla.mano@sent.com
+files browser/components/places/src/nsPlacesTransactionsService.js

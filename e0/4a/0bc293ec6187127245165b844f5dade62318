@@ -1,0 +1,3 @@
+changeset 4a1235027d8563f38782cd169330ae515c8b92c1
+manifest 90c74d8cf8f8e0560043e473c7317539fa6dfc01
+files dom/indexedDB/test/unit/test_deleteDatabase.js

@@ -1,0 +1,4 @@
+changeset e22ca0619a6a459e2bd188c16dd9841496bbef28
+manifest ea931a1ccc827f98a3e82bc08ff9c97e13651628
+author Olli.Pettay@helsinki.fi
+files layout/xul/base/src/nsTextBoxFrame.cpp

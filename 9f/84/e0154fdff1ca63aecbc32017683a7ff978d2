@@ -1,0 +1,4 @@
+changeset e9c3b5f8f8c16cc8cb5aec376200dd561c74fd8c
+manifest 51d029e8f549f36e45190bd0ddf48e18b1b9748c
+author preed@mozilla.com
+files tools/release/Bootstrap/Step/Tag.pm

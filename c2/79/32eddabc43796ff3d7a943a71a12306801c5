@@ -1,0 +1,4 @@
+changeset 83153d229c346010d3d8e5f7c44c38502a3e67a9
+manifest 8e24f67c5d6407b10220afbddde5d8db4588849d
+author rhelmer@mozilla.com
+files testing/release/common/download_builds.sh

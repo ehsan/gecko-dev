@@ -1,0 +1,4 @@
+changeset b7a0d60024fa88fe07401da06b3fbae7df798972
+manifest 3baa2f8441b97182a859f245ab20352f7858fb07
+author mark.finkle@gmail.com
+files browser/components/nsBrowserContentHandler.js

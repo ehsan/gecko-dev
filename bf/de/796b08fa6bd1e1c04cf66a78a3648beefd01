@@ -1,0 +1,4 @@
+changeset 328ddf1383f7b88aba1c9f256762fa1fdf2a8246
+manifest 73a14a6ff95d586bfe8ca0165ad2718829d3c2e7
+author kaie@kuix.de
+files intl/uconv/tests/Makefile.in

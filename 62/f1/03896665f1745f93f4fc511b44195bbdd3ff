@@ -1,0 +1,3 @@
+changeset e676b8f86ab121d1c8615a0e6e3f35e57653f102
+manifest aba9470fd223dd5192671174f571b82988277c62
+files extensions/auth/nsAuthGSSAPI.cpp

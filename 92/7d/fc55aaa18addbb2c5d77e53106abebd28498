@@ -1,0 +1,4 @@
+changeset d8ba165d5d9a72d504978bf3a78066fd3b57e4f6
+manifest a53f9dc07d15f8e0cac91324fd19fb4df21fc207
+author flamingice@sourmilk.net
+files widget/src/gtk2/nsDragService.cpp

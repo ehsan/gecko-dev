@@ -1,0 +1,4 @@
+changeset 0216995f0aa8169b43fb1236baf54ecbf5838a23
+manifest 45ad7d75f10fcd571c416bbb5b84c8d47bf8f418
+extra rebase_source:269fadc9dbb6dd9cffd6b87f01ff4b4fc4738ef4
+files js/src/jsfriendapi.cpp

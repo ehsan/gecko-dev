@@ -1,0 +1,4 @@
+changeset 19e1411b926f5867b66fe3e8f55c0e25a41c74d3
+manifest 87d45c8d81217f251dce95a5efd2848cd29b5fc3
+author jono@jono-gibbon-laptop
+files services/sync/modules/stores.js

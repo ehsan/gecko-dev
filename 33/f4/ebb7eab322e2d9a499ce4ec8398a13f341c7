@@ -1,0 +1,4 @@
+changeset 48f0fbe014d81f3c1ca48ed234779b202e7dbfc6
+manifest 9be2dce699a3c7aef074bacb46083a73612375c4
+author kjh-5727@comcast.net
+files widget/src/windows/nsDeviceContextSpecWin.cpp

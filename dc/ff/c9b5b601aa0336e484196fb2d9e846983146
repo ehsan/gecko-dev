@@ -1,0 +1,4 @@
+changeset 580f5b55b410c51960e42166663d29c72a06edb8
+manifest 65db4cc798b02ebe9fd699619f2ffd8cd10cdcbf
+extra rebase_source:8f16d6b6cbaed2ef51fb5d1ecf7edbb0b8568ffe
+files security/nss/lib/ssl/ssl3con.c

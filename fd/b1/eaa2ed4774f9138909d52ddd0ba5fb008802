@@ -1,0 +1,4 @@
+changeset e905fe64c1b279d2089e4238e8bdb9c58cb122bf
+manifest d94e843b72d4ece7080917b11c51b644e10ffcf8
+author Brian Crowder <crowder@fiverocks.com>.
+files js/src/jsobj.cpp

@@ -1,0 +1,3 @@
+changeset 9b180bf56cdb0694e31ef06bd93c5f25751af05e
+manifest c0dcb0f602c6aa0f032e637ed6daf0579ff49bfc
+files xpcom/reflect/xptinfo/src/ShimInterfaceInfo.cpp

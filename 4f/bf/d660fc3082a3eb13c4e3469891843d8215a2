@@ -1,0 +1,4 @@
+changeset e06b25c4355dc3a28e354dd0fb8802bd8bf3fbf0
+manifest b2932fe48debedd4a5c4f93b130122d6d62cd73f
+author vladimir@pobox.com
+files uriloader/exthandler/mac/nsInternetConfigService.mm

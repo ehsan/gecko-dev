@@ -1,0 +1,3 @@
+changeset 6464982e3c7f23bb9e0101d7a54f48df5e9759b4
+manifest f40242795f35985138a77d6677355f8cde900dd0
+files dom/src/offline/nsDOMOfflineResourceList.cpp

@@ -1,0 +1,4 @@
+changeset 586c7fa4491f36a4a84c139d6294c5e3e7329ffb
+manifest 8a7a7e4d4bc6d2e03eb33305fc037a742aa29e1c
+author timeless@mozdev.org
+files xpcom/glue/nsDeque.cpp

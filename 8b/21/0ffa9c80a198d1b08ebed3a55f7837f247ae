@@ -1,0 +1,4 @@
+changeset 6460693d22c96f532eee4d112ac687d5b78ffefb
+manifest b24e505b2b0530745a1dd9aefa92b9fac2cee719
+extra rebase_source:0c5f37c23490120048d8e7cc408667b00ab644a9
+files services/sync/locales/en-US/fx-prefs.dtd

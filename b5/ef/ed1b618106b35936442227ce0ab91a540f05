@@ -1,0 +1,4 @@
+changeset dfe8dc3d29037ebd0c27c259ac462707b33219e3
+manifest c6a3cba4ee5e772b00324f6f59e00e04d92eecd4
+author dougt@meer.net
+files build/wince/shunt/include/mozce_defs.h

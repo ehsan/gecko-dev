@@ -1,0 +1,4 @@
+changeset 712021ac1b69dca029fb9d82d39c55e2e109f07c
+manifest de639d2d3b1b65967ffd8aee54bf0f58a6ecaa4b
+extra source:e4337bd21059a0ecbffa5d0d567dd9a8f0a3bcd1
+files gfx/layers/apz/util/APZEventState.cpp

@@ -1,0 +1,4 @@
+changeset e4f7ab0a0b306be6aa14c9b0ef73f1d074bffc78
+manifest fe532e40130de2708a1410c56ad753c30a1bf54f
+extra rebase_source:c96563845a8a67ee815ba0b84108321cadfa62dd
+files xpcom/ds/nsAtomTable.cpp

@@ -1,0 +1,4 @@
+changeset 36bff944e2a7645ea01431f540e8de8f7624f404
+manifest f5ae16c2b8ef2a842bd20555b1656de54c587cda
+author timeless@mozdev.org
+files intl/strres/src/nsStringBundle.cpp

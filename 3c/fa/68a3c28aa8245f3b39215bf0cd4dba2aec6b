@@ -1,0 +1,4 @@
+changeset e9362b77e3b730c93d2fc13d7d502965beebe540
+manifest 8a3ff3b1638defa2e7f78cb5b876ec8b77f07d15
+author mats.palmgren@bredband.net
+files layout/tables/nsTablePainter.cpp

@@ -1,0 +1,4 @@
+changeset cf54509d6516661a76c99de7c95d0983b040a56b
+manifest 333be378b306c1b7a2c9511965085ece438d89f7
+author asqueella@gmail.com
+files netwerk/dns/src/nsIDNService.cpp

@@ -1,0 +1,4 @@
+changeset f63f87e7657662245e093b71b28ae09f42294532
+manifest 2b4f94f568775395dd9af0ae7092de4e30b745e6
+extra rebase_source:ee125df12d629b84e9989b5e45071e5b748f98b8
+files testing/mozbase/mozlog/setup.py

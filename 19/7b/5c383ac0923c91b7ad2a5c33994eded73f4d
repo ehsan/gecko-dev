@@ -1,0 +1,4 @@
+changeset b087a09f82aa42f351253fca85c8c75815731fa7
+manifest 163fbb35ea511912bfd0ae759e6059eddf6ba7dd
+author timeless@mozdev.org
+files dom/src/jsurl/nsJSProtocolHandler.cpp

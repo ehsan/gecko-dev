@@ -1,0 +1,4 @@
+changeset 826cdcc8e46ac29245000d69e89ba8b488f60c9a
+manifest d829de8d1378601ec2303fead33f4c6b61dbdbb9
+author rhelmer@mozilla.com
+files tools/release/MozBuild/TinderLogParse.pm

@@ -1,0 +1,4 @@
+changeset 20065dfb6476c7a3c515b40af41c4b2b0cd7673d
+manifest 5c7c8b88d68a9ea29bd8941db404398c342200ca
+extra rebase_source:266f7f77fc0e7819b5222111d7b45a6c9f931c76
+files media/libstagefright/moz.build

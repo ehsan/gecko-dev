@@ -1,0 +1,4 @@
+changeset 04cb6a409e9edf50eede56ef28aba4b11b688aad
+manifest 91a96a6e00141b5a08fdc364c95a93da99eabef7
+extra branch:FENNEC_A1_BRANCH
+files widget/src/gtk2/nsWindow.cpp

@@ -1,0 +1,4 @@
+changeset 367ee92e86189db131113e88354eb4cc082221a6
+manifest d6767a8a70eb143f89e12e7aaaaf0d12b889b5e3
+author rob_strong@exchangecode.com
+files toolkit/mozapps/installer/windows/nsis/overrides.nsh

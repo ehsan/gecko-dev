@@ -1,0 +1,4 @@
+changeset 99e7d2c397457a416ab8dce459027994778889ab
+manifest 09b8a3767f1e828d3d44091464b1df483cf0e667
+author timeless@mozdev.org
+files extensions/spellcheck/src/mozPersonalDictionary.cpp

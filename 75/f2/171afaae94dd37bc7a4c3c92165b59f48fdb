@@ -1,0 +1,4 @@
+changeset f6e9d997653f7365f68122757efbe5003c9bdb8e
+manifest 084bcc8a3660159f6acf137dc7be7bb2840d57f8
+author gavin@gavinsharp.com
+files toolkit/system/gnome/nsGConfService.cpp

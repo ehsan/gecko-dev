@@ -1,0 +1,4 @@
+changeset 2e0802b5c83a4ae49864e51d4ed112f734e2fe3f
+manifest 5e0ada8001e161fef17512aaf4a5277f15d79149
+extra rebase_source:4d5589283048473f7bd2ba514cf09eaae13ec97e
+files extensions/layout-debug/src/nsRegressionTester.cpp

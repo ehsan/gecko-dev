@@ -1,0 +1,4 @@
+changeset 7d8c3ba343fdfe4888121a43545e79b455fadf04
+manifest 0ec7c0511d2309f7494aeff071bdc1a955d6be47
+author peterv@propagandism.org
+files dom/src/base/nsJSEnvironment.cpp

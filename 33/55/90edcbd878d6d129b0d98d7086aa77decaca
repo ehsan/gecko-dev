@@ -1,0 +1,4 @@
+changeset 0fc382c36b4c020fe2258b911dc1bc26d394dffa
+manifest 7d5545420ebd3cb8502622634d7a52998f92bebc
+extra rebase_source:b554480aaf1fbf926b8ad2aab50964315bdcb426
+files toolkit/content/widgets/autocomplete.xml

@@ -1,0 +1,4 @@
+changeset 74d37a1c17bf3c9b4994763436bf129323456e80
+manifest 6c3d0065eed0be4c5168579cc7f8fc30687f0809
+author thunder@h-125.office.mozilla.org
+files services/sync/BookmarksSyncService.js

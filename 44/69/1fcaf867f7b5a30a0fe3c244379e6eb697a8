@@ -1,0 +1,4 @@
+changeset bb4d62536dfd1ff944a26b5b359ad02480c06e0a
+manifest 23dda6da43356e29050deb185a9acedb57b8d36d
+extra amend_source:4b655b3a88d0e804bb5372297ccf342b1509c344
+files xpcom/system/nsICrashReporter.idl

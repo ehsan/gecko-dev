@@ -1,0 +1,4 @@
+changeset c87bd4f95b960fd3410bc18dce20b4805ef105d7
+manifest 15c7812e2b96fb46f0a6ab188380ed12b26ed1ef
+author timeless@mozdev.org
+files widget/src/os2/nsOS2Uni.cpp

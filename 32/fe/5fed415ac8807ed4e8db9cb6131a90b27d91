@@ -1,0 +1,3 @@
+changeset b69f8f44b1bb8df7794bb01a5fa644fbf2f56aa4
+manifest ce2b0f289d778ec52b140f04ba194660e8e9b47d
+files js/src/jit/shared/MacroAssembler-x86-shared.h

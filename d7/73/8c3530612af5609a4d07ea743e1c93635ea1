@@ -1,0 +1,4 @@
+changeset 06f9b14b690ad0c6a246c2abcb435b5b330126d5
+manifest 8c32e115db3e1ba199a7d525b79c9d8b4572279c
+author jst@mozilla.org
+files modules/plugin/base/src/nsPluginNativeWindowWin.cpp

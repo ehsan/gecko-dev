@@ -1,0 +1,3 @@
+changeset b8092cccaead83902d4a263b388894cc290bb1ca
+manifest b795f088f7240da950c8f221f049bdd1bc7bb015
+files js/src/jit-test/tests/debug/gc-06.js

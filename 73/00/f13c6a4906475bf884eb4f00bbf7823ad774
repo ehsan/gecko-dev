@@ -1,0 +1,4 @@
+changeset df9e359b34b97cd5709c574d021b623c5b5e7e13
+manifest 98c06db8f39bc0373272830aa3f52cb44cb55078
+extra amend_source:cf0dc2233bd0110c9247b6e3c836b8fcb0518a20
+files js/src/vm/SharedArrayObject.cpp

@@ -1,0 +1,4 @@
+changeset b23e9e43fb8adc1c66668f5d5aedb128f71e6fb7
+manifest 96b5d505aff6f301cf68a3e52580e52101b890a4
+extra rebase_source:f259e86fa5a8f9ea51297de625dd388a9ef437f8
+files toolkit/components/reader/content/ReaderMode.jsm

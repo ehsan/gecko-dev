@@ -1,0 +1,4 @@
+changeset ec98cc5c292036eb27ccaa0b1ce2a041e71e5fe6
+manifest 92ae4f480cd02fedb0713f374937419c16ab4f99
+author joshmoz@gmail.com
+files gfx/src/thebes/nsThebesDeviceContext.cpp

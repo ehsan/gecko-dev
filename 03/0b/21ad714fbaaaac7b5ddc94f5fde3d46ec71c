@@ -1,0 +1,3 @@
+changeset ef16fa7bff3844296c7028d2caa218580065b856
+manifest fe030b289574e8caf0b5217df5519a7a8ba312c6
+files browser/components/sessionstore/src/SessionStore.jsm

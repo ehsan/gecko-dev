@@ -1,0 +1,4 @@
+changeset 7d8d4ff84ddbfb2d6d2c8d882170921ce5de815f
+manifest 8deb281fe62ad5801a5d3fdc135147276a318648
+extra rebase_source:69c55368a10c076e9726db9894f2d355326d9aad
+files hal/linux/UPowerClient.cpp

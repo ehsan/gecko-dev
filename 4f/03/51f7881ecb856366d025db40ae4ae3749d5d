@@ -1,0 +1,4 @@
+changeset 63e8513c41e2b9402f54725de8bc48cbcfa46fb4
+manifest d7f51ae75101a55ed110b4ebcea1e84d1d165f68
+author philringnalda@gmail.com
+files modules/libimg/png/pngset.c

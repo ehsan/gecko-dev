@@ -1,0 +1,4 @@
+changeset 6f049c930bc22f773939c976d426c934c2ca2d33
+manifest c1f82e30ff9601a6fe85435594ba33a87f028015
+extra rebase_source:efb68d082921d1a41120c5b447b72637ea72ab73
+files dom/browser-element/BrowserElementPanning.js

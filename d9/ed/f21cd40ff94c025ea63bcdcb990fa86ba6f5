@@ -1,0 +1,4 @@
+changeset 895d95fc58bb432a8c5a3c1901c9895d9935884d
+manifest e9ff6fba9b3a302b8b0c0415d8fb7a16cdeb8f88
+extra rebase_source:e53220ba681b6f8ce7d82f414807efc6173e3863
+files js/src/jsapi-tests/testResolveRecursion.cpp

@@ -1,0 +1,4 @@
+changeset 8beaf971f95018983160b311a90e7717b4826325
+manifest c54eca709c20389c9c3f5a22ad6f8ba56347e7f1
+extra rebase_source:946eef24f2f585f992065430188bdbd2aff523de
+files media/libspeex_resampler/update.sh

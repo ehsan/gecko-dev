@@ -1,0 +1,3 @@
+changeset b0a54ed50a9ed7460c2501cb466231aab4398f6c
+manifest 5a33c4065b15d3df1b23a1d0fab294a06ab61868
+files js/src/jit-test/tests/jaeger/bug563000/untrap-self.js

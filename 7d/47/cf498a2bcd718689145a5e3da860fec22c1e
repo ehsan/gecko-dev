@@ -1,0 +1,3 @@
+changeset 3919cfc6dab45d4d583b31973ea0bc9fc9928c3e
+manifest bf6707b8977ac05702f59937cc74e518c4377e3e
+files browser/devtools/webconsole/test/browser_webconsole_bug_782653_CSS_links_in_Style_Editor.js

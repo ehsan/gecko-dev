@@ -1,0 +1,4 @@
+changeset c94aecc61d74bef4029dd0b80746742ac22813a4
+manifest a867024ed3809ba8d5526496bddcb1fad72f158b
+extra rebase_source:a6ad44a8dc4b596f3a83fcd19ba97cda43e4def1
+files layout/generic/nsObjectFrame.cpp

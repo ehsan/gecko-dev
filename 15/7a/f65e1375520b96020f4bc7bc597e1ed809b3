@@ -1,0 +1,4 @@
+changeset 3b1db782e34cefa436194ce4d6603325fcba2f30
+manifest c8627b77d59d71a03fa8126f36a55a2483279350
+author dougt@meer.net
+files build/wince/tools/vs8ppc2003arm/toolspath.h

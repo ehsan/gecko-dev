@@ -1,0 +1,4 @@
+changeset d938d300ca6f85e0fd54615e7dae79cc7bf21590
+manifest 02be940db0d997b5fc95d57a6073c00151fce7ff
+author sdwilsh@shawnwilsher.com
+files storage/src/mozStorageConnection.cpp

@@ -1,0 +1,4 @@
+changeset fc3bdb9aea25d2ceb327415524a56bfbd23fc6a6
+manifest 88f3bd7c0fdf293e8bfe57719cee4167467f0451
+author jst@mozilla.org
+files layout/generic/nsObjectFrame.cpp

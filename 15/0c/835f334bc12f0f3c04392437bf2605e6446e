@@ -1,0 +1,4 @@
+changeset 9a6d4ff7a42ef0b71584aec81110f054f526e17e
+manifest a0ddf21d6eec534c6fa9528a22d224d2ce36a8ea
+extra rebase_source:b3c5c3a29c859e2632ef97b0acc0a18842f9c52a
+files js/src/xpconnect/src/xpcwrappednative.cpp

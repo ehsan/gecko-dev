@@ -1,0 +1,4 @@
+changeset c3e937b90942bfb1cb41eeb6cf853fc0dd060dfb
+manifest 395f68d1fd374771db7d81eab34344978df8f2f4
+extra rebase_source:f1304b596193016b01374c4d5772281323ea82a0
+files browser/devtools/shared/Templater.jsm

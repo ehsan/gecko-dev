@@ -1,0 +1,4 @@
+changeset d0d21c025dfc68a60dfbe82c3639cd52fea05fe1
+manifest adffb942b7830613c7a815e4f18b9357f58fffee
+author bzbarsky@mit.edu
+files uriloader/exthandler/nsExternalHelperAppService.cpp

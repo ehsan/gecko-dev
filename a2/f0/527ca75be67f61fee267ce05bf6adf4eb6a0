@@ -1,0 +1,4 @@
+changeset 082ad8b3b7318dbafe669c89472e55fd83fa412c
+manifest d3942e6ad0927717447d9686c5a78ba1edadb494
+extra amend_source:b51769b6dd414ffeab01e8066074c0ee05d64ef3
+files browser/devtools/styleeditor/StyleEditorDebuggee.jsm

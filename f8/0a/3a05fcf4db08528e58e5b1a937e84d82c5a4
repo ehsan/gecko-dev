@@ -1,0 +1,4 @@
+changeset 1993865501f587db5077e9ceb0b97686eb0b8615
+manifest 47b352700acd6787a193d205c2f06be2e1abca20
+extra rebase_source:07f6b793c74e961a8afef3a5db0f87d028727e8e
+files browser/app/macbuild/Contents/Info.plist.in

@@ -1,0 +1,3 @@
+changeset 1264667a08548b68226470ac1765f21064d4731e
+manifest aab25108fb32c0fe39499ccaebc0361b7ead7f64
+files python/mozbuild/mozbuild/test/controller/test_clobber.py

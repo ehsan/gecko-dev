@@ -1,0 +1,4 @@
+changeset 7d115ddc412e9d9af74400585e822869828e6228
+manifest aa75d099086c797126d0201bfd461950c28d6fb6
+extra histedit_source:475ee5c33d7528360e994fdd2ac191b6a9342267
+files dom/tests/mochitest/general/test_interfaces.html

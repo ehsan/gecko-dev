@@ -1,0 +1,4 @@
+changeset ab03252f744e4f149c1a034efff32b50acf61ff7
+manifest 3e8bb4ad6f508a8264b2420be9deceb53ca1a11f
+extra rebase_source:7257820a00fa9ac921f61194855f3fd3dcb09fa1
+files toolkit/xre/WindowsCrtPatch.h

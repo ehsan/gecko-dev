@@ -1,0 +1,4 @@
+changeset 4e49a643e73c40ae6cbc2ad99e2ddf741cb5cb42
+manifest 2977ed93373b20eaf1a53c790c2c7721aa953750
+author brade@comcast.net
+files widget/src/cocoa/nsClipboard.mm

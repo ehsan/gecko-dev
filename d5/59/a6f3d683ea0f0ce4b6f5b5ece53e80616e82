@@ -1,0 +1,4 @@
+changeset 37dbff16301d5b9d01cff9a45559a073c9e7dafb
+manifest 6513484199a92c2ebfc143f9967559a696728a46
+author sayrer@gmail.com
+files modules/plugin/base/src/nsJSNPRuntime.cpp

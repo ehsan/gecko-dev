@@ -1,0 +1,4 @@
+changeset b8604b098c8d3a7108a6386b2f5e9c5a0f79addc
+manifest 68d5b177f019363457c0f34719050c3469102b9d
+author bzbarsky@mit.edu
+files security/manager/ssl/src/nsCrypto.cpp

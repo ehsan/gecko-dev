@@ -1,0 +1,4 @@
+changeset 35a68a6011509435dabe78005c07c054aacac565
+manifest d9c561b2eba3d8b79751d6262985c109e4192bc2
+author bzbarsky@mit.edu
+files modules/libpr0n/src/imgRequestProxy.cpp

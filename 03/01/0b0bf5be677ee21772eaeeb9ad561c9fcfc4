@@ -1,0 +1,4 @@
+changeset cf359a73e9c12c2e24324faf60606471cf0cdf8e
+manifest c1772c60d86608b4f3939a9cc6a674f54353a2c8
+author jruderman@hmc.edu
+files editor/libeditor/base/PlaceholderTxn.cpp

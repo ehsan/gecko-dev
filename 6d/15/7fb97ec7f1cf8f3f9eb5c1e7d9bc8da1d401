@@ -1,0 +1,4 @@
+changeset fe85609f950d3b87a1fd2217eb0784404050190b
+manifest 66482c722c5e6fdd162a1a4ed9d58d0b07254cd2
+author mozilla@weilbacher.org
+files toolkit/xre/nsAppRunner.cpp

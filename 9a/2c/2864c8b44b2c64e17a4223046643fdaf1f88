@@ -1,0 +1,4 @@
+changeset 908c5a39cdd369e26dc14ab2d85ee50420c0f1d9
+manifest c6bff200e5e1b940246b7bf161a58d9f055685b2
+author timeless@mozdev.org
+files modules/libpref/src/nsPref.cpp

@@ -1,0 +1,3 @@
+changeset c2b0c3d348d474582f96d8417d4978a229c33ff8
+manifest 0dc64d48101ab27310debaea83b4291e86649f97
+files services/fxaccounts/tests/xpcshell/test_manager.js

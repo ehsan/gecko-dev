@@ -1,0 +1,4 @@
+changeset 1017ba5244655ccd07518d8ff383c36df49a1215
+manifest f78b5d5a1224d0cf6b1387f9d0248734486d217a
+extra rebase_source:ecef0f452e8451150f63bdf9e390f506d61b6f76
+files js/src/xpconnect/wrappers/AccessCheck.cpp

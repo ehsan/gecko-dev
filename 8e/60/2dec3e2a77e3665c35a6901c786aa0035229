@@ -1,0 +1,4 @@
+changeset 1cce9c56538f3554f363eb86cf543b025a492a7f
+manifest e4f949fb35f92d03e662e5e05b2fb3b21faed317
+extra rebase_source:a33654c249bc60464fe3c1a372dee0f58ee465c7
+files dom/base/nsXMLHttpRequest.h

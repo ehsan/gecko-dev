@@ -1,0 +1,4 @@
+changeset 9ddc91081435f3804a8150571edc83a5de43f65d
+manifest b77ae4ebe4c04efc6bab24e2d6b9a6714dbf67fc
+author timeless@mozdev.org
+files js/src/jstracer.cpp

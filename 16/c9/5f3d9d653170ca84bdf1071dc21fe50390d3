@@ -1,0 +1,4 @@
+changeset cd0500baa845b51894172cd173be01a902d44aca
+manifest af7bc00b7d72b7de02dce71f11951472c089b1ed
+author dmose@mozilla.org
+files dom/src/base/nsDOMClassInfo.cpp

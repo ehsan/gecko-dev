@@ -1,0 +1,4 @@
+changeset 7bfa96b421ea71013044d238940e3438f2366df6
+manifest a592923e7c5b53425bd7eb8acd0be828f09863d7
+extra rebase_source:4ac9627e2d8d108e416e50b8746825714ff4e52e
+files toolkit/components/jsdownloads/src/DownloadCore.jsm

@@ -1,0 +1,3 @@
+changeset 8ada6d76215baa84b8a2e65e10fbc3aff382a27a
+manifest ab60fadd839ea9f64478a08cbb22db1c439f6e43
+files security/manager/ssl/src/nsNSSShutDown.h

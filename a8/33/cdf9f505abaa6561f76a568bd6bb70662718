@@ -1,0 +1,4 @@
+changeset dc67ab8bef36c8403c6cf8e5810a652e67e8b8b3
+manifest 70e1b65f804c4412c7d5cb94ad8523607b8264f6
+extra rebase_source:252d766850d5ae69743ac46a80f2b3ed14f633bb
+files js/src/tests/ecma_6/Array/find_findindex.js

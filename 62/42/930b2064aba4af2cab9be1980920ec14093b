@@ -1,0 +1,4 @@
+changeset 75842fe46b0dade064cbe1c141e8fc366157708f
+manifest 6a4b113bc29dc5577ecbced7deb8b1de70e153ce
+author gavin@gavinsharp.com
+files toolkit/components/downloads/public/nsIDownloadManager.idl

@@ -1,0 +1,4 @@
+changeset cb1bea5d8544f7afd0896882ebbdea92fab343f1
+manifest 6ab4cf69ffeb3264c694db486108356e6c7241de
+author bent.mozilla@gmail.com
+files layout/xul/base/src/nsXULTooltipListener.cpp

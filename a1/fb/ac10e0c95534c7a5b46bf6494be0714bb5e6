@@ -1,0 +1,4 @@
+changeset 66454be46c6cffa1bf3cbafea46f1585d981a9ec
+manifest ac9e24d136972c08a5b1b00531ae53ab55582378
+extra rebase_source:a6310cb7a837982912cfa9f552a920dda9515af1
+files js/src/asmjs/AsmJSValidate.cpp

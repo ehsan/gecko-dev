@@ -1,0 +1,4 @@
+changeset 1dfcb36d7c176f9f9e88a128889e0ae48da482e7
+manifest eb77633ac38ab1cddfb5aa637a30777fdac8de5d
+extra rebase_source:08c052ed543bbdcb8bc2c084e8aff24fbd4b40a5
+files editor/composer/src/nsEditorSpellCheck.cpp

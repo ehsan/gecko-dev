@@ -1,0 +1,4 @@
+changeset 14f37b2a632f9a4529e6f42a88681bcf62e1f382
+manifest 6761d8a8d0723b3efce7df14fe0c48443b2839a1
+author dbaron@dbaron.org
+files xpcom/base/nsCycleCollector.cpp

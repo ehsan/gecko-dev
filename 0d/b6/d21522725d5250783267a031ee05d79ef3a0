@@ -1,0 +1,3 @@
+changeset 697a57c606c4f905ea1fe531969e71c1b51604b5
+manifest ebf7e3f1dfa5f943a118b4d712334332b99b649b
+files netwerk/protocol/http/nsHttpChannelAuthProvider.h

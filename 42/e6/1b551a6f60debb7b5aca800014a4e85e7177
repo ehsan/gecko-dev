@@ -1,0 +1,4 @@
+changeset 9d303800c0639654539c91a27dec632665edd0b2
+manifest 8e23435904d2ac33c71ff4a4932d0d8b14411062
+author joshmoz@gmail.com
+files layout/xul/base/src/nsScrollbarButtonFrame.cpp

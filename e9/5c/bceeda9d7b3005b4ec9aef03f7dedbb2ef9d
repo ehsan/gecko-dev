@@ -1,0 +1,5 @@
+changeset 87d58edd3776feca45d8cdb9044702bd42d925ef
+manifest 52e4e54326fd484b09545dbc573ee4c3f3f9588b
+author timeless@mozdev.org
+extra rebase_source:22f7b7a702a99f98bb3f74f3cf6ccb638ea839fa
+files modules/libjar/nsJAR.cpp

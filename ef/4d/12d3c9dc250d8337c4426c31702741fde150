@@ -1,0 +1,3 @@
+changeset 550779e6bab444b48dac408c6f361ab503744472
+manifest 94b5754f66e175e4cd6cd9d5e235c4977e67e93a
+files netwerk/protocol/device/GonkCaptureProvider.cpp

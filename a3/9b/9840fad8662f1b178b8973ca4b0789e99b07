@@ -1,0 +1,4 @@
+changeset 1f13e952df48a94d2365cea99df23a5dd2998dca
+manifest 7830813be8810b36446fed1620c3f80d0f951294
+author cbiesinger@gmx.at
+files netwerk/base/src/nsURLHelper.cpp

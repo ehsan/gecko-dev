@@ -1,0 +1,4 @@
+changeset 94b3ceae4041b8e558d76d22ed48fde26a8b8ab3
+manifest 456f55c4da75e1f87a3aa8cf95b10b53a510955e
+author Takeshi Kurosawa <taken.spc@gmail.com>, Eric Butler <ebutler@mozilla.com>
+files content/canvas/src/nsCanvasRenderingContext2D.cpp

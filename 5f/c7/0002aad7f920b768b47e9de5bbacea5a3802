@@ -1,0 +1,4 @@
+changeset d81db93d73decc6aeb3cd3b58a53c94205fa8259
+manifest 22d53302a3bf0603b214ccb6da6a0a718506f3d4
+author jwatt@jwatt.org
+files layout/svg/base/src/nsSVGOuterSVGFrame.cpp

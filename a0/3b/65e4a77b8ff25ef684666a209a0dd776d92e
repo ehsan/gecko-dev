@@ -1,0 +1,3 @@
+changeset 6b33a2960e6858c253963fcd514be90085bf6d0e
+manifest f0c48118bc2b71bec421573724c1cac78124f13c
+files js/src/tests/ecma_5/RegExp/regress-617935.js

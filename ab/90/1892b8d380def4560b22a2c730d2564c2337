@@ -1,0 +1,4 @@
+changeset 11e78a694ce323122c0b9bb515e660c0586ebd39
+manifest d7455e8b976511872ca2a533a1c6d46f8a709e5e
+author cbiesinger@gmx.at
+files netwerk/base/public/nsINetUtil.idl

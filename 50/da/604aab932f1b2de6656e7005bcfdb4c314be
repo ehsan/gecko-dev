@@ -1,0 +1,4 @@
+changeset d9bc41218c8cd037519f01f4df9a1a14b92a781c
+manifest 331c803d155b55ad78a71da73d2f33061c8f8ba4
+author asqueella@gmail.com
+files netwerk/base/public/nsIURI.idl

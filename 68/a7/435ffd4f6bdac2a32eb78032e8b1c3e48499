@@ -1,0 +1,4 @@
+changeset 9047d68be5f29bbb293ae59817536d4faeb54c64
+manifest 8d8b06c9638c7c382161b3e3bbe7cc5c75abfa56
+author ted.mielczarek@gmail.com
+files toolkit/crashreporter/client/Makefile.in

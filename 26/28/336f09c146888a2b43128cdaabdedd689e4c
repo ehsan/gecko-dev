@@ -1,0 +1,4 @@
+changeset 38403347cdaab10b4ff9f2e0476b8766a93c5b34
+manifest 7cc0c98ce4019feeda3663edec929423276867c8
+author benjamin@smedbergs.us
+files xpcom/glue/nsTHashtable.h

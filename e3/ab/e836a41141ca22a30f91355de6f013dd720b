@@ -1,0 +1,4 @@
+changeset 40f9c546d1f732306fc7d87364de4a06ba391be7
+manifest 9bc5c36c02d94b44bea694a5976d398da54bbe30
+author bzbarsky@mit.edu
+files layout/base/nsPresShell.cpp

@@ -1,0 +1,4 @@
+changeset 1d1143dde4bb02719e47da7488424041c03952ff
+manifest b0e039eb7425a2f9227855cc107c9c359e4c5795
+extra rebase_source:17c7964c9a0a0b0dae896ab88885aacaaa68a01a
+files netwerk/base/src/nsIOService.cpp

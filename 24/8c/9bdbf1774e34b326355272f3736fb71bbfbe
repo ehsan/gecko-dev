@@ -1,0 +1,4 @@
+changeset 2477ba64795b74d983d23d464db4b2d0ec6d0f20
+manifest e82c8d27e4e32f7eec342d6f7caff05cd4351315
+author bhearsum@mozilla.com
+files tools/release/Bootstrap/Step/TinderConfig.pm

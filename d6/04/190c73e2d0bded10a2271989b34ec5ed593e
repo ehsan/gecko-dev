@@ -1,0 +1,4 @@
+changeset 17aa4a9b44299548355e031ad6658d2bd71c2671
+manifest f8dd4f6ad3d029a76cd9c37edbfce0e4bcfc4bb5
+author Olli.Pettay@helsinki.fi
+files netwerk/protocol/ftp/src/nsFtpConnectionThread.cpp

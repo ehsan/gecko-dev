@@ -1,0 +1,4 @@
+changeset 99cbc6cca7df01c33517d6997d663ee23be7d5da
+manifest 665ca6e7d280353391320a5112679ea73068978c
+extra rebase_source:33fb2b38166139f6ba64ab66e0738c751a682152
+files testing/marionette/client/marionette/geckoinstance.py

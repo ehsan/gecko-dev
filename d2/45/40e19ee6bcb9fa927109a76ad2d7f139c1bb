@@ -1,0 +1,3 @@
+changeset 869ff4bc535497af1b7261bc3e3cd04dfcd03cbb
+manifest 9c1396c56ffe3136322e26e561bd6a8d4dd77a98
+files xpcom/system/nsIBlocklistService.idl

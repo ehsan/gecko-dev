@@ -1,0 +1,4 @@
+changeset e7d1441c70f3aca0182151f2af3806c4e9f38241
+manifest bfdf8e6c5343e1f22808ab43a451d919a79b93c9
+extra rebase_source:7c5c2152666c9b8eb8860db4d7e39c274f772b5b
+files js/xpconnect/src/xpcprivate.h

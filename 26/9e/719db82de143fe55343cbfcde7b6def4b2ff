@@ -1,0 +1,4 @@
+changeset 7dcc5b166e4ad22d1c934af20141056f060708e6
+manifest 077ca17c37a262de5b8fc44408271b42d63c5d20
+author rhelmer@mozilla.com
+files tools/release/configs/fx-moz19-nightly-bootstrap.cfg

@@ -1,0 +1,4 @@
+changeset 60a2ab351c589f4fe09073fe36a81dd0c9ed804c
+manifest 0c3b629204646f334515718d8c89a2e3d2a69788
+extra rebase_source:d00ea49793c4d2e5ffb37649ee55f71394276ed6
+files toolkit/components/telemetry/TelemetryPing.js

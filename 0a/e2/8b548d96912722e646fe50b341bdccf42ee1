@@ -1,0 +1,4 @@
+changeset 5184c16e095ac3d01cd5dde4e7e78f43e67bd5ac
+manifest 4f8bbb149c0cf3024303151aad96afa20759da67
+author aaronleventhal@moonset.net
+files accessible/src/base/nsBaseWidgetAccessible.cpp

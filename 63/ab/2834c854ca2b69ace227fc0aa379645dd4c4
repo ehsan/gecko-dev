@@ -1,0 +1,4 @@
+changeset 56b7ac0c1b0f2a348aa5d3815eba48296a0763f8
+manifest 45f424390a65bd5d911a2d18fba175678f9a89f7
+author dbaron@dbaron.org
+files layout/style/test/test_dont_use_document_colors.html

@@ -1,0 +1,4 @@
+changeset 3c5573e42b5cfa8eb25821a19f7152922104d49a
+manifest cc3394e62a9685ff30a2a144a84f44f0a7b58f2a
+author surkov.alexander@gmail.com
+files accessible/tests/mochitest/test_bug368835.xul

@@ -1,0 +1,4 @@
+changeset d7d902a5bcd3d06229b1726544575d086a547d3b
+manifest 7a0a991fbb6071b7e812f9739edabb57f2614bc2
+author kaie@kuix.de
+files netwerk/base/public/nsINSSErrorsService.idl

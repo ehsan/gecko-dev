@@ -1,0 +1,4 @@
+changeset 35bf59d0dbe96fb608f59fd0a4acfce505214711
+manifest 66841c9194bd6fc8964adf9db9abe97cca5ae4a9
+author timeless@mozdev.org
+files layout/xul/base/src/nsSplitterFrame.cpp

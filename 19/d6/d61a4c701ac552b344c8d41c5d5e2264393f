@@ -1,0 +1,4 @@
+changeset 782f5c64e5f6ad29fc58baebecea90ac95d34653
+manifest ce629cedd105299383486cf80abf00afa3f423b6
+extra rebase_source:c32715faff9ea1c2e06b41ffa9ca1f1e316c68f8
+files parser/html/nsHtml5SpeculativeLoader.h

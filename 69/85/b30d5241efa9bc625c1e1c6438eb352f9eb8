@@ -1,0 +1,4 @@
+changeset ccf461135e1e5a18033bf5bb9d0bef99afe26271
+manifest 0b6dfb3a9b77589a0ca0b515f4db2d5479d45cc9
+author reed@reedloden.com
+files toolkit/components/history/src/nsGlobalHistory.cpp

@@ -1,0 +1,5 @@
+changeset 675a973a031085c25a3e1af853e2d9552668b5d6
+manifest fd4c5b1f9e4af6c1986718c02ff7c35b587228ae
+author timeless@mozdev.org
+extra rebase_source:64bae9dcd9eafd8f8bbfa94c16f81ef515f7a92b
+files layout/generic/nsGfxScrollFrame.cpp

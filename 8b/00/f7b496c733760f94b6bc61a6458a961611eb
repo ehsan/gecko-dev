@@ -1,0 +1,3 @@
+changeset 9dc808ef69a41d1747fd1c8f02013a948c9bdb60
+manifest 0bf0e1969ffbfe986e1d7bc9a3f3e75b30987500
+files js/src/jit-test/tests/asm.js/simd-mandelbrot.js

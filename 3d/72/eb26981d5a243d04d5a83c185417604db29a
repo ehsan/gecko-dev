@@ -1,0 +1,4 @@
+changeset 3f2095fd4fc94ce3667506a6811037d0548c25e7
+manifest 18ff54d6b29182e9ecb76f04ff0090aea5855156
+extra rebase_source:f8214c757d49f433c37563e9ceed86e81f25eb1e
+files dom/interfaces/sidebar/nsISidebar.idl

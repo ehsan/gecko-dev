@@ -1,0 +1,3 @@
+changeset 453701d5c7e7000b2f3ac3f58ce967ddbfe600d2
+manifest 5cb1624ddcca042f1ec49d96b8ea00baaed01693
+files js/src/jit-test/tests/debug/resumption-05.js

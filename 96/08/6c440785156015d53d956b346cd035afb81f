@@ -1,0 +1,4 @@
+changeset f14bc21b8c99146b6783588f2d29ebe22b23a585
+manifest 52333411ac6555c050374ab9182a965395bba733
+author mats.palmgren@bredband.net
+files accessible/src/html/nsHTMLSelectAccessible.cpp

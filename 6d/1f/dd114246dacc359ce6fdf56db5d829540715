@@ -1,0 +1,4 @@
+changeset fda698b4e02b7d8491b2e9b250f72e5fa0ba2fb2
+manifest 0e61385a2a5bc506917280576ddddbc9816efe63
+author dbaron@dbaron.org
+files accessible/src/base/nsAccessibilityUtils.h

@@ -1,0 +1,4 @@
+changeset e15d67a4402f0b5ae28a61dc168d3052ccd112ff
+manifest dbd458ac6eff4331c7e2d2fd1a1ca4fc720f2bb5
+author gavin@gavinsharp.com
+files testing/tools/profiles/createTestingProfile.py

@@ -1,0 +1,4 @@
+changeset a280ed6f2dfb18a0c9ddb60bafea33ee5f407830
+manifest bb4b46881dfe272189c7231c3fb3b07ce1cd9fcc
+author johnath@mozilla.com
+files security/manager/ssl/src/nsNSSIOLayer.cpp

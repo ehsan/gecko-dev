@@ -1,0 +1,4 @@
+changeset 86f91ced2ff4bcc43bed1f5f2c2503922438c85e
+manifest b4e633d507287cd873658a6dacbf273960faa896
+author jst@mozilla.org
+files js/src/xpconnect/loader/mozJSSubScriptLoader.cpp

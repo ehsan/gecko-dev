@@ -1,0 +1,4 @@
+changeset 244dba15eff68828579116d748d2a55f204c9e98
+manifest b493e7f2c9b5dc16703f387930d46021fe7249be
+author reed@reedloden.com
+files widget/src/gtk2/nsIdleServiceGTK.cpp

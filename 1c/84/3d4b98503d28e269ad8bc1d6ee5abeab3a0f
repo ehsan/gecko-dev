@@ -1,0 +1,3 @@
+changeset 3384d15466b23889457f02fb785e299dca971d72
+manifest c922f699313a1310f461060e1b789ddefefa9adf
+files xpcom/reflect/xptcall/src/md/win32/xptcstubs_asm_x86_64.asm

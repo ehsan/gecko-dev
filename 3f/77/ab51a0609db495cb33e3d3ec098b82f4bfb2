@@ -1,0 +1,4 @@
+changeset 483582b50575bc53c1fcb745181ac0d55723212b
+manifest 84ce1635d11c7268404bfa9e0bcfdd7a1ebe4875
+extra rebase_source:78d7b6dacda72a98272e3cb86b480f3162798a23
+files js/src/vm/Stack.h

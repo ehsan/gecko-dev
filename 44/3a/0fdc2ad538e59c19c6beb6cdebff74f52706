@@ -1,0 +1,4 @@
+changeset 852dd5b5c8b7a7d0bf435ae2d88cf3ba1e60bde2
+manifest 5109b543ac173a1f8c9b437708ccd6922bc74325
+extra rebase_source:f7e4b3c417051b438e1613d4e9bc685e10af1595
+files js/jetpack/JetpackParent.cpp

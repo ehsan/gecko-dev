@@ -1,0 +1,3 @@
+changeset a9823c18b423e97718435433866af1597126776e
+manifest 2efc8f238402979d3c576e2e5637d3b5200656d5
+files netwerk/base/src/nsSocketTransport2.cpp

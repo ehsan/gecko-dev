@@ -1,0 +1,3 @@
+changeset 63f8d59ad8b9b5aa76f702e9c11ba357c85cb3ab
+manifest 0bbf32955e7de33b7bd782a459fb4200d482a783
+files browser/devtools/styleinspector/test/browser_bug_592743_specificity.js

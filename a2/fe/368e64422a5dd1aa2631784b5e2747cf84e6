@@ -1,0 +1,4 @@
+changeset c4b347794761f6ebc5fbb87849de21a5ba70c62a
+manifest 3462f2c99ebff89ee8121769b3d258dd580d75cd
+author reed@reedloden.com
+files profile/dirserviceprovider/src/nsProfileLock.cpp

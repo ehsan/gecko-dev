@@ -1,0 +1,4 @@
+changeset 271678cd7e3be708e848ef45677d1a3b3a11ba1d
+manifest 7ca37b66f8b3c0c979628030eb66634f66f3bf65
+author rob_strong@exchangecode.com
+files browser/components/shell/src/nsGNOMEShellService.cpp

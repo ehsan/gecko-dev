@@ -1,0 +1,4 @@
+changeset cba5d93947b9dfc04bc56bd1d85b4932e2f91db9
+manifest cc5b7bdce07d10777c07c514fb81d1387857dadb
+extra rebase_source:6a09b05353cf059345924e02fbb819a3faf47cd6
+files browser/app/profile/extensions/testpilot@labs.mozilla.com/content/browser.js

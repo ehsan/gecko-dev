@@ -1,0 +1,4 @@
+changeset d69d8a518c301f3674455ce9cda8a101b5d9fd1b
+manifest 6f0f0862056cefeceea812d26b8caab263fad6f8
+author jag@tty.nl
+files build/unix/mddepend.pl

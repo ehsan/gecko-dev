@@ -1,0 +1,4 @@
+changeset e5db206e1ee3c7e4ba932dce6644a4984c812ecd
+manifest 3c5b8365cb76b768b2c52df2c099a08eef025c53
+author dbaron@dbaron.org
+files layout/base/nsPresContext.h

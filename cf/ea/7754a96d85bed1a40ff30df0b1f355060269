@@ -1,0 +1,4 @@
+changeset 8284d5a176617942c895c7af174b959acfa59003
+manifest 492dcf68902084f9cd77b28bf636f8c41fa40c8c
+author bzbarsky@mit.edu
+files layout/tables/nsTableFrame.cpp

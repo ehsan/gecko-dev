@@ -1,0 +1,3 @@
+changeset 04b71f2c4055a1b3f9deb97e9bd7d08ae46a99cb
+manifest b725e91ba9874cb2761dc9f5af48b8addf8584e7
+files dom/tests/mochitest/ajax/offline/Makefile.in

@@ -1,0 +1,5 @@
+changeset f827953eb7f835cebf15df3ec25dc0056732b36c
+manifest 106909c649c2b1cdc24a7501b6e9a7d02caa79bd
+author timeless@mozdev.org
+extra rebase_source:9a7cb590fe9a185e829fd90ef5cc086b8531adef
+files content/xul/templates/src/nsXULTreeBuilder.cpp

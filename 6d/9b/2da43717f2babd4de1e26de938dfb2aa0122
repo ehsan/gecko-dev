@@ -1,0 +1,4 @@
+changeset 840e5a6b4367702e00b2b8016c2c45dc1bd3bcf5
+manifest 6ec0ac13205e7e652869b8d58213c74613918e22
+author dmose@mozilla.org
+files uriloader/exthandler/os2/nsMIMEInfoOS2.cpp

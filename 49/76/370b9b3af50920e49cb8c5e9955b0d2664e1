@@ -1,0 +1,4 @@
+changeset a359be9e7194cd6a5106da4a1e68afda6b07ef5a
+manifest c59aecb5ed002e9afbad4cd0d16b8c5baf55f574
+author sdwilsh@shawnwilsher.com
+files toolkit/components/places/tests/unit/test_result_sort.js

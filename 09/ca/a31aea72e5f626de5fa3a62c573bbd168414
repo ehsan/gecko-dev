@@ -1,0 +1,4 @@
+changeset 2bff84532177536b971f71a616913c48a8262179
+manifest c8dadfc51945204882dd2672bc33dcac960554f8
+extra rebase_source:37915c9f0afe0fbcaa7748f14c39d970f25ee0c8
+files browser/components/customizableui/src/CustomizableWidgets.jsm

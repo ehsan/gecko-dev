@@ -1,0 +1,4 @@
+changeset 2aabdc20a0da04a6bd420c782a865a15c669fb08
+manifest 001eee63d9f82fd769736e88963ad81e6ca43373
+extra 
+files security/manager/ssl/tests/mochitest/stricttransportsecurity/test_sts_privatebrowsing_perwindowpb.html

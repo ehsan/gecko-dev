@@ -1,0 +1,4 @@
+changeset 3d2f331a57a470535cc355fa071e14ecb774f90e
+manifest b0c04f4eff6117bb05d31fefcf6230fd43c682de
+extra rebase_source:3be93d1e796ef8ec4e6565a083e9abe19879566e
+files layout/xul/nsMenuFrame.cpp

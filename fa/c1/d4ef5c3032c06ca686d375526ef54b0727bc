@@ -1,0 +1,4 @@
+changeset 450b1f89292447f35eff6c3a6cfe2ba0d0fc416a
+manifest 0d98695a98981686ad306abc7cb1ae93494cf77a
+author vladimir@pobox.com
+files netwerk/cache/src/nsCacheEntryDescriptor.cpp

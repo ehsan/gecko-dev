@@ -1,0 +1,4 @@
+changeset 5cb57b7a3a82838de65e4dc5ed0e17a7aabc00f1
+manifest f49a8d8f8c5a06d79c038d6f8d8d99d5deafc0b8
+author sayrer@gmail.com
+files toolkit/components/contentprefs/src/nsContentPrefService.js

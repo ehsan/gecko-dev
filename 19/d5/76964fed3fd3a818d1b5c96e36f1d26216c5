@@ -1,0 +1,4 @@
+changeset 14ac38012dc458092deea015fed7fe7a4e8482b1
+manifest 39a59c0753acc0059ddb2f65648d57960e0fe9e8
+author ben@netscape.com
+files toolkit/components/places/public/nsIBrowserHistory.idl

@@ -1,0 +1,4 @@
+changeset d1ce3dfced9624d26112c1005791fc9aea650a5d
+manifest 6fe77c81bee999670ca04712f396a2ff9d4bef6d
+author reed@reedloden.com
+files modules/libpr0n/decoders/jpeg/nsJPEGDecoder.cpp

@@ -1,0 +1,4 @@
+changeset 938ff0803ee94c4a27a5cbd489e6992a1d40cefa
+manifest 959336cb23cae923b2e3995cd7f3f4f96c09f8a0
+author thunder@h-132.office.mozilla.org
+files services/sync/modules/crypto.js

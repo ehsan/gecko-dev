@@ -1,0 +1,4 @@
+changeset 791cbd3d504764182ed616423fac99a6433a7e2e
+manifest dc4d4af5086fddabf9c295146866aeab860b1a3a
+extra amend_source:c72e232f00e11417faabc3eac492edcc704a1003
+files browser/components/customizableui/test/browser_889120_customize_tab_merging.js

@@ -1,0 +1,4 @@
+changeset 13fa923236155992a159b8acfce4a07977aceb0a
+manifest d0096e926535c951f48e00f4b8ecff2afeceeeca
+author David Mandelin
+files js/src/jsobj.cpp

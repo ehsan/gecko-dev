@@ -1,0 +1,4 @@
+changeset 104e20381ef1c09ded64ce4eeb3fcdb00d9c8796
+manifest bec22558796c1bdf77d4c1403b727b5d7adb99e3
+extra convert_revision:cf0963c16a8c560566fdce0b7187db3a97a060a7
+files js/src/lirasm/testlirc.sh

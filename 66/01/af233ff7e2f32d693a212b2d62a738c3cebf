@@ -1,0 +1,4 @@
+changeset 41823b91e31ff6aca26e7adb3fb9292469f22983
+manifest 123c0d278ee840f947f4a3ec08c66a71c1dc601c
+extra rebase_source:43fd8b87cfa5816bc3e05f21c5994bd9cdc2d29b
+files dom/contacts/fallback/ContactDB.jsm

@@ -1,0 +1,4 @@
+changeset a67df69e95bbd15a414791f8d2820fa3f45f4c52
+manifest 74e7ca6e6886fed34effc2d68775dbeee9a85fe4
+author bzbarsky@mit.edu
+files js/src/xpconnect/loader/mozJSComponentLoader.cpp

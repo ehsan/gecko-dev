@@ -1,0 +1,4 @@
+changeset 6534bace55111b7287ba0233a4f6e9335b7d661d
+manifest 45433d0bc4421d825e76ebb7bdc4caa19ccbe1e3
+extra amend_source:3c950b1662c2e37d915e761926d330bbe0198a58
+files dom/tests/mochitest/pointerlock/mochitest.ini

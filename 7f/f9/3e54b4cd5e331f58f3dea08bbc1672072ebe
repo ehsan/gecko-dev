@@ -1,0 +1,4 @@
+changeset edc0540d1c3e78d8f24a0d75fb3d4d7b0beb6adf
+manifest fd78b2d9998aebe54099419fffeca8d3b4133635
+extra rebase_source:ef3c33928f46428ece45834c6d853c7cd04c57f4
+files dom/browser-element/mochitest/browserElement_TopBarrier.js

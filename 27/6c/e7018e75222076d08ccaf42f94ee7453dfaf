@@ -1,0 +1,4 @@
+changeset 53c333d9961f88e320c021146281a679a9cde856
+manifest a7402fe8d798cdf35894f9db535a3a08fa09e091
+author timeless@mozdev.org
+files content/xbl/src/nsXBLBinding.cpp

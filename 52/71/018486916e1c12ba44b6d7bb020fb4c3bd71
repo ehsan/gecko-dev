@@ -1,0 +1,3 @@
+changeset 3928403b66274f62cc97bc5f145be7a3c4a4ae25
+manifest 77ec6892c467a0c626e515f4520204488f5a2c75
+files python/mozbuild/mozbuild/frontend/reader.py

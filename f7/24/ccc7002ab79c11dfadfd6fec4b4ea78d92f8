@@ -1,0 +1,3 @@
+changeset ead99f250472464cee10582f891eadec2a597dbd
+manifest 49ac47eb7fed5b096d4eb467dd2e33bb5c368213
+files netwerk/protocol/http/HttpBaseChannel.h

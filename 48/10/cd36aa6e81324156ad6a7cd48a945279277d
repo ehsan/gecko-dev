@@ -1,0 +1,3 @@
+changeset 0e9b0466f19dfc17f1243f5072af18282e89918f
+manifest 242369bcae7f054dee45f3b3005611487d4c5e13
+files browser/components/sessionstore/src/RecentlyClosedTabsAndWindowsMenuUtils.jsm

@@ -1,0 +1,4 @@
+changeset a9427f4d2aae5deae8881cd0bfd878c26af592af
+manifest 5a20487dc1dad99d0665046aeaff7c5ce5a941f2
+author vladimir@pobox.com
+files gfx/cairo/cairo/src/cairo-quartz-font.c

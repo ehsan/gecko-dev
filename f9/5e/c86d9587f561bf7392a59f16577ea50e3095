@@ -1,0 +1,3 @@
+changeset 127e27f7c2127c2e7de24ea4b3a2ef032566c1aa
+manifest 62bdcffbfba9a93963817c03156472ebb2158d0f
+files toolkit/mozapps/update/tests/unit_aus_update/downloadResumeForSameAppVersion.js

@@ -1,0 +1,4 @@
+changeset 49b4dee8bbec57c995607c3acc9338db86bda5a7
+manifest c996d074534ffd2528c0afe9909919e6685c0b64
+extra rebase_source:316baafbe157cb5966959c6da1c3db7cb4ce9fd9
+files accessible/tests/mochitest/name/test_browserui.xul

@@ -1,0 +1,4 @@
+changeset 5fa3ba0863b989cce089ef712a479a382ea64127
+manifest 7660ebeff3fbff6c8b872901255744842ed0ec3f
+author flamingice@sourmilk.net
+files modules/plugin/base/src/nsPluginDirServiceProvider.cpp

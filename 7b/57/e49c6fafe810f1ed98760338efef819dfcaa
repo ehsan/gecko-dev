@@ -1,0 +1,5 @@
+changeset 048f8f89152b22b77104b80f473a74437d1ac4a4
+manifest d2b9362b01a442e2b74dd0c67b98b0988e3c6910
+author timeless@mozdev.org
+extra rebase_source:b33a1b5a1a7b5bc754cea9e6e505b4b3f1162272
+files content/xslt/src/xslt/txStylesheetCompileHandlers.cpp

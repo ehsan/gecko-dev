@@ -1,0 +1,4 @@
+changeset 2b2fea402b9c06b4179c677711986159829040fa
+manifest 82f081dcb4ff039649688ec2eac3e5ed7678e11f
+author Dan Minor (dminor@mozilla.com)
+files build/mobile/remoteautomation.py

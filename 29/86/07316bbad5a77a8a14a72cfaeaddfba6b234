@@ -1,0 +1,4 @@
+changeset 93ae1f14427da914c92c3078b31b51127c8518e9
+manifest 7b7054ec6ea67e4af243705526047a8dcb9e5edd
+author pekka.vanhoja
+files widget/src/qt/nsNativeThemeQt.cpp

@@ -1,0 +1,4 @@
+changeset fea7c322f6d948c26479bd462d38beb28fae3ff4
+manifest 243cf9d5fd2a8119007ba363bec3a89cf5ec91ed
+author roc+@cs.cmu.edu
+files layout/generic/nsGfxScrollFrame.cpp

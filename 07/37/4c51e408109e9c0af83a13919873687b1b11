@@ -1,0 +1,4 @@
+changeset 0dd9682f22daa894cea425b8db693a425590f1fa
+manifest 7b22e485d807d78db7b44d1aca35c54b7ff829ef
+extra rebase_source:7be2f1bb51852c3ed0c07b777ff21a92e133412d
+files xpcom/glue/pldhash.h

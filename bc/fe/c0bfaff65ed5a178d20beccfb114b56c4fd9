@@ -1,0 +1,4 @@
+changeset 14e84a93ae119f1f22de7c215f42b208a264a496
+manifest 58dc5e01ebf89cc1accecc9a086ad1a7b994a5f0
+author bugzilla@standard8.demon.co.uk
+files widget/src/mac/nsMacEventHandler.cpp

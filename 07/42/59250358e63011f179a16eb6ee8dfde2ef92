@@ -1,0 +1,4 @@
+changeset 4bbdbed41a812775881b76b27d91cd9067308604
+manifest 791c9e026c7d81a1a7c8bba40d31da85267cd07d
+author jruderman@hmc.edu
+files dom/src/base/nsDOMClassInfo.cpp

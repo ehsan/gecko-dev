@@ -1,0 +1,4 @@
+changeset bcdc2f3743f947c9f6317af2b7248ee2e0c6fbd5
+manifest e09a6dde7abb249f59db6bfc86b98a3f359dc596
+extra rebase_source:7981dd516a4098d7ebc85b9c406163d30d4ebac3
+files browser/components/sidebar/nsSidebar.js

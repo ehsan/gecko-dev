@@ -1,0 +1,4 @@
+changeset fc2901f481464e774f666f3219d7c7bd8744513e
+manifest 2a71137579aa0f06e6392226e214ae4238942382
+extra rebase_source:10c9aa3cb7cdc0892c5c07d93adfc23a0bec904d
+files dom/bindings/BindingDeclarations.h

@@ -1,0 +1,4 @@
+changeset c79175585fcff0d17caa019a9eea84d74172dbfc
+manifest 4cc210a71a517c7e6c76871c796684287a009c59
+author reed@reedloden.com
+files layout/xul/base/src/nsSliderFrame.cpp

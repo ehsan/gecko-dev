@@ -1,0 +1,4 @@
+changeset 80be49be4394699b7a02fb34b95878c142fce3eb
+manifest 5757ee0b4ea956b2c68e969107dfb0009537a7aa
+extra rebase_source:cc0ea86a2df2cfc900e33353935620da24cf3c5b
+files browser/themes/gnomestripe/browser/browser.css

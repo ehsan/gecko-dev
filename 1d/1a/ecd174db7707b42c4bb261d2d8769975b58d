@@ -1,0 +1,4 @@
+changeset 528a9b4f475d32599b4beb051b24f77c126ae63c
+manifest ac53b7ef4e9e45ca4d50fc028ee70f16b8113d06
+author Miika Jarvinen
+files widget/src/qt/nsWindow.cpp

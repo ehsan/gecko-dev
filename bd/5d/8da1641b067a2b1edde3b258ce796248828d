@@ -1,0 +1,4 @@
+changeset bd5016a7600a7b5d6c955df652845f5451df61a1
+manifest 90ffc8ac52b6be676646ea53809173de594631b8
+author karlt+@karlt.net
+files content/xbl/src/nsXBLPrototypeHandler.cpp

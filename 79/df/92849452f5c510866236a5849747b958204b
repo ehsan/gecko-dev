@@ -1,0 +1,4 @@
+changeset b152ca6912136fc709d508480b5eb192a191f9cd
+manifest 46bf490f71db2594b5c7075b8a6203074f7099f4
+extra rebase_source:16c8cbb20b028af184114c2dcdf288209f94755d
+files js/src/jit-test/tests/basic/regexp-test-direct-bug-694752.js

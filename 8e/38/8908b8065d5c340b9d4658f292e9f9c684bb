@@ -1,0 +1,3 @@
+changeset ee4ee2b72573a87afe5a024ce015a36b0cde8b70
+manifest c13d379ba3abd46609814aca91249d63db11cbfb
+files toolkit/mozapps/downloads/tests/chrome/test_close_on_last_window.xul

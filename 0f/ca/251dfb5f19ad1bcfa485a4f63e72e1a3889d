@@ -1,0 +1,4 @@
+changeset 834c6dadc1b237408291c22c8b47ef1f8fab53c0
+manifest 1f7ef382a2efc4bfe76d6db022db4adaea54b3f9
+extra rebase_source:33326a59f0458dbda493b1f90b88481507b7a46b
+files mfbt/Maybe.h

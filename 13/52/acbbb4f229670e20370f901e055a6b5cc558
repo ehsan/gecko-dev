@@ -1,0 +1,4 @@
+changeset 0679aba1d739466801045fa39a0e73be392f8e45
+manifest 8a93f8fd55ce057684c27a1e3e5dec9b7224d99c
+extra rebase_source:3185428a517441ec4b66ccb188f5fafa94ecc694
+files js/src/xpconnect/src/dombindings.cpp

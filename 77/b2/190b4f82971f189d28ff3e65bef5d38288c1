@@ -1,0 +1,4 @@
+changeset 064096245bad0473c47931aa5dd6cbbdfbff021f
+manifest 89ddae7039b9aa9d66adad828c20c08afffcd55e
+author dcamp@mozilla.com
+files toolkit/components/url-classifier/tests/unit/test_backoff.js

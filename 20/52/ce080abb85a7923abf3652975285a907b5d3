@@ -1,0 +1,4 @@
+changeset 04010a4e4eccbaab17e533e072e6d4f1cd9ea55a
+manifest 5eabc6d3170db47a232cb3bb99aff97904ba6506
+author sspitzer@mozilla.org
+files browser/components/places/content/moveBookmarks.js

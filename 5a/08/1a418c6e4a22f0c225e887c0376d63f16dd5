@@ -1,0 +1,4 @@
+changeset af1a435e117a7035d5e9f1464663ab5f49ea464f
+manifest 1d202114d1ea2f066b6a13c93947a8a835b533a5
+extra amend_source:42c86ef1edf2141b6ac81506dd8a31cd68818292
+files dom/camera/DOMCameraControl.cpp

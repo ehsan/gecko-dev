@@ -1,0 +1,4 @@
+changeset 0ed71c340191a845d69b6f25387a278049b1b10c
+manifest 29632cd04af0214ecbaa8991aa2e1077bdd37a2b
+author Miika Jarvinen
+files widget/src/qt/nsFilePicker.cpp

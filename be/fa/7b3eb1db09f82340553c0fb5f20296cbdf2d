@@ -1,0 +1,5 @@
+changeset 97db4c97eadb8fc41f00c6fd670bce577633d9f9
+manifest 46e037f5285f3823a63d9907f1f9293df1ce1f63
+author timeless@mozdev.org
+extra rebase_source:517a30580b8469f6120a5e8fc4accf900111e1a0
+files content/xbl/src/nsXBLDocumentInfo.cpp

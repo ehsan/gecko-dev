@@ -1,0 +1,4 @@
+changeset 8c55fb9f075bbc9fe1114d10f142a89352277c50
+manifest 83ab45cf2029fb8cea4694fca28ad7be4e7fa3fa
+author timeless@mozdev.org
+files js/jsd/idl/jsdIDebuggerService.idl

@@ -1,0 +1,3 @@
+changeset 4861dbac22db9021d92801539aafffcf4166679b
+manifest e846a2ab1ccc8f41577bce226a1b8f5797370aa7
+files dom/interfaces/contacts/nsIDOMMozContactChangeEvent.idl

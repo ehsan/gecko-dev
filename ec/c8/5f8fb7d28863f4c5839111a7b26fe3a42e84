@@ -1,0 +1,4 @@
+changeset 7dcb9b3fa354e2e32a809f1803e7249e300d8f51
+manifest 0840787e536b56b982ab39fb26c315280cae63bf
+author timeless@mozdev.org
+files js/src/methodjit/FrameState.cpp

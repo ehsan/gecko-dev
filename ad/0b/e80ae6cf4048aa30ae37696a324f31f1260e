@@ -1,0 +1,4 @@
+changeset c2d545094c631da47a3d9299d09f4e8158dd26f5
+manifest cb9695112d1141bf8ff14e3b32650bd0e51ce94b
+author timeless@mozdev.org
+files embedding/components/commandhandler/src/nsCommandGroup.cpp

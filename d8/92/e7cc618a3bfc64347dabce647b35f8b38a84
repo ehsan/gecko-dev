@@ -1,0 +1,3 @@
+changeset d22db499ca12cfb986f615a7132b8cfa0ef16e9f
+manifest a5d3f69cb64d3d791541003080af3b1decef22d5
+files security/manager/ssl/tests/mochitest/mixedcontent/test_bug472986.html

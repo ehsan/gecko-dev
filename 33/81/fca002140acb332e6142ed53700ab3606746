@@ -1,0 +1,3 @@
+changeset 975105de85fed9e8e228557da0fb65494c61f2c8
+manifest 3d9ab78f3d8f03d5809345bb3b104134ffd45789
+files browser/devtools/webconsole/test/browser_bug_865871_variables_view_close_on_esc_key.js

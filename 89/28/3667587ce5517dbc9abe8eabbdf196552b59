@@ -1,0 +1,4 @@
+changeset e0184fc2804118070fea7b964d5da6ab5030a87e
+manifest 4a2dbc853017e3daee98281706c3190c753b8dfe
+author dolske@mozilla.com
+files xpcom/reflect/xptinfo/src/xptiManifest.cpp

@@ -1,0 +1,4 @@
+changeset e53d9cba2466fbd9dbe88b0dfc01bb109994f74e
+manifest e9e3fb15aa25a486ad1e89f2432940dc61b8bf59
+extra rebase_source:de08f4c63f55b91e35066a94ce4f05b9f3028a3b
+files js/src/builtin/TypedObject.js

@@ -1,0 +1,4 @@
+changeset 97c9c02d9694ae6793e537393aac0e2483830673
+manifest 76b3d07d40d32186d2760a81a09399104009641c
+author timeless@mozdev.org
+files uriloader/prefetch/nsOfflineCacheUpdate.cpp

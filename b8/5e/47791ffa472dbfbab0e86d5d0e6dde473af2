@@ -1,0 +1,5 @@
+changeset 7939af53a1d16eebdcf7b84a16c5ffc5caf33e1b
+manifest ceeba34989ca285b402ee868900a85ab2ee498c8
+author timeless@mozdev.org
+extra rebase_source:0568e744cc020fbc8a725ec595213f21fe52681b
+files xpcom/glue/nsStringAPI.cpp

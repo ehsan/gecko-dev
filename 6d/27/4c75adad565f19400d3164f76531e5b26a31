@@ -1,0 +1,4 @@
+changeset 8adb40ef09a0f89c3c39479e085d8d5626bec411
+manifest 7e7ac62f1c273e49b1d10c61d86e65c15c7465f1
+author timeless@mozdev.org
+files modules/plugin/base/src/ns4xPlugin.cpp

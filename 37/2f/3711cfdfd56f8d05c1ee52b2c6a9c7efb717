@@ -1,0 +1,4 @@
+changeset 4db8403efb5228c7d3537df0cc1f9ac9ee599fd6
+manifest 27d34b521a3ba4b572436fa87186f094c439929e
+author bmlk@gmx.de
+files layout/generic/nsBlockFrame.cpp

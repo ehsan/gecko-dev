@@ -1,0 +1,4 @@
+changeset 5879c937e281f2c8635bca8abea29488c4aa22cb
+manifest bd7f7a2db36880d7b7d5a21927e8665b9d13b78e
+author jwalden@mit.edu
+files toolkit/mozapps/extensions/test/unit/test_bug378216.js

@@ -1,0 +1,5 @@
+changeset 1c2df0e3b4a9f2507ccb6e1dde67871c0ab3e2ee
+manifest 07d26ba048e0d40972aba65ef3777f587acbae6a
+author timeless@mozdev.org
+extra rebase_source:4a595a81bcbd43bd37f0b5886b0a9f5c3a5e41fe
+files ipc/glue/AsyncChannel.cpp

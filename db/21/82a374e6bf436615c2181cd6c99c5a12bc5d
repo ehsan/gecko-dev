@@ -1,0 +1,3 @@
+changeset b6d7d87ded4685e1f4df26e6b8b376007743cbbd
+manifest 3b1b3ba14a3761762358fc745dc335acfeba859d
+files toolkit/components/places/tests/autocomplete/test_escape_self.js

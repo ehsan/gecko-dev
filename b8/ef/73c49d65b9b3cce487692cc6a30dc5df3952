@@ -1,0 +1,4 @@
+changeset ea7de6b88d853f2c69d1bcc82e873ef3ed8635c7
+manifest 6afdbfab57a81568fa37850a8fcf5d0ef8b5fd86
+extra source:fe1ea639cdfde510a2bb51d2f113fb14809b6b43
+files gfx/layers/apz/util/APZCCallbackHelper.cpp

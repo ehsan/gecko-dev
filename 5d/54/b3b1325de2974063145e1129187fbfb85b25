@@ -1,0 +1,4 @@
+changeset 63ca02fb9138a6ded953f8cb0db531c7ae0aa0ac
+manifest a140aac300cc74c28dde61e1143f678dd6c5083b
+author Olli.Pettay@helsinki.fi
+files editor/libeditor/text/nsEditorEventListeners.cpp

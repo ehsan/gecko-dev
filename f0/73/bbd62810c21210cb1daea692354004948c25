@@ -1,0 +1,4 @@
+changeset 22ca36281f77a91b67a3dde5a4f9b061d6ef8147
+manifest bf2e4cdadfb29165d5127c7504fe3adadda1fb10
+author jonas@sicking.cc
+files content/xbl/src/nsXBLService.cpp

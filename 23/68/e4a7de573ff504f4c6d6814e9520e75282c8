@@ -1,0 +1,4 @@
+changeset acb48b922e91b880e4a8a208218e86310e5b34a1
+manifest 47b51ed09a1dc14fac321c2f44d067f1101bccc0
+extra rebase_source:60797b802588b31e79dea17de0ec0b0667e822ba
+files gfx/src/thebes/nsThebesDeviceContext.h

@@ -1,0 +1,3 @@
+changeset cebf1a09f16843584953c6572ae5212eb0d50e5c
+manifest 63bc0322f12bfc5e082f56cc13829b4f70f28cad
+files xpcom/io/nsBinaryStream.cpp

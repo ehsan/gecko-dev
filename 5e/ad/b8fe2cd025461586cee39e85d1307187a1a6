@@ -1,0 +1,4 @@
+changeset 6ca8dba77738365138b10c77dfe725e88c2925f7
+manifest 8cbf8db1f981b04c82d4a370ebb6e2de37031a24
+author wtc@google.com
+files netwerk/base/src/nsSocketTransportService2.h

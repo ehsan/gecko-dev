@@ -1,0 +1,4 @@
+changeset 7dcb7b833e5c00f21bf5fc30d88feee66c3d35f3
+manifest 87fe07a8707af6ff5f4072d07ffba04873f7f41c
+extra rebase_source:84714cdecb28b2dbbac6ffc98adfc079c8e87a2f
+files xpcom/tests/TestBase64.cpp

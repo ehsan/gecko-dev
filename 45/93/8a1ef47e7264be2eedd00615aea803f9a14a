@@ -1,0 +1,3 @@
+changeset 2072d9ddce60e5ea1ca0e0f063f79b460c300360
+manifest 324bdc2d8d09e4fd788eb84eb4dc5fc183b23c09
+files js/src/xpconnect/tests/mochitest/test_bug478438.html

@@ -1,0 +1,4 @@
+changeset ec33ffe4ae908622d582506d4a23a81e200d1a99
+manifest 9ba6b181dabd2af252b126893ed13e25a228c113
+author reed@reedloden.com
+files xpcom/typelib/xpt/tools/Makefile.in

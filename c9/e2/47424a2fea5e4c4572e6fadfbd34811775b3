@@ -1,0 +1,4 @@
+changeset db528dca8a1e04d84fa8774c25881bc7b317c7f2
+manifest ff7fa7043483db6f9e4a554bfae8016c714a2b9e
+author mozilla.mano@sent.com
+files browser/components/places/tests/unit/test_placesTxn.js

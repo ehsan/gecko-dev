@@ -1,0 +1,3 @@
+changeset 15e0dbb08a2dc7d5f3577f1da97d2fcb93411f61
+manifest 8d18fec5f85216a42d739215fd6bfda410dae6b9
+files browser/devtools/debugger/test/browser_dbg_event-listeners.js

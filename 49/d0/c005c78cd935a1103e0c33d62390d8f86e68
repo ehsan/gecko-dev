@@ -1,0 +1,4 @@
+changeset 37a16c8c4c1c5f6519c8fcb82ca4d5edf667dc29
+manifest ee8e359d21ec87a735384db11073af76a9ac91bd
+extra rebase_source:0278ccf497f7db063b78deddd2ccce5a61fed718
+files browser/components/shell/src/nsWindowsShellService.h

@@ -1,0 +1,4 @@
+changeset 518aafb5a98ac4c74e287f8578744a5683e1cfe1
+manifest 72a5f56cb50964835f4b5b2126210f3bec486e7f
+extra rebase_source:f02971180f0679c069ed0e4dc492ab19893302b8
+files js/src/asmjs/AsmJSModule.cpp

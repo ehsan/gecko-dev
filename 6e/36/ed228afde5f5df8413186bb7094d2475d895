@@ -1,0 +1,4 @@
+changeset 7beceadb18b41f4ce05c3dba72f50b3889aca519
+manifest a2c736040612c230c70318019b0bf3e131dead7a
+extra rebase_source:bbfc41dccba336ac290710a8c3ead77ae0d1df5f
+files xpcom/base/nscore.h

@@ -1,0 +1,4 @@
+changeset 7f2fff853b79710d4f81a73f3dfa60940af688b3
+manifest 6ee095c93da8427703f489c120a8505ab854df34
+author jonathandicarlo@jonathan-dicarlos-macbook-pro.local
+files services/sync/tests/unit/test_cookie_store.js

@@ -1,0 +1,4 @@
+changeset ca7e81e5f724acb4565f2d7afdb46a51a0cca44c
+manifest dd617cf5c359029bc9682a6e40b2638cf79238ea
+author neil@parkwaycc.co.uk
+files layout/xul/base/src/nsSprocketLayout.cpp

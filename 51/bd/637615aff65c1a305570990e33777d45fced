@@ -1,0 +1,3 @@
+changeset dbe38ec9c16d35273188a7afc2e1345db1c0e432
+manifest 9c8ca464ac63944bec40edca05835c8d936435b3
+files browser/devtools/styleinspector/test/browser_ruleview_livepreview.js

@@ -1,0 +1,4 @@
+changeset 099d324f65accdd7c7430aead273047e36ba5a03
+manifest f62c054de84819e0df927b46c936485d177fcc23
+author martijn.martijn@gmail.com
+files extensions/spellcheck/src/mozInlineSpellChecker.cpp

@@ -1,0 +1,4 @@
+changeset 78426f60850b0b72631a8c3bf36de69abb098446
+manifest 1f67c424fe9354048d1d50b7abce4ba325725ea8
+author reed@reedloden.com
+files intl/uconv/src/nsWinCharset.cpp

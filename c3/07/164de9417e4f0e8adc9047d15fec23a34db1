@@ -1,0 +1,4 @@
+changeset cfc485c8250361c7ad341511b4faab543f22671d
+manifest 985f413a933a9b53b2b891f7798206131e06d0a1
+author dbaron@dbaron.org
+files layout/xul/base/src/grid/nsGrid.h

@@ -1,0 +1,3 @@
+changeset 09240240ab18ddec80661a29bf7c8b29bdb58acd
+manifest 11b76e013e1aa243cb40f20c8b2258de5b166912
+files python/mozbuild/mozbuild/backend/templates/android_eclipse/.settings/org.eclipse.jdt.ui.prefs

@@ -1,0 +1,4 @@
+changeset 622d3a8f8ab11e4c7447097aace1f03948fdc6e5
+manifest 9c8cad9135feb39f98e7a201c58b1fac3f539e78
+author mano@mozilla.com
+files browser/components/places/content/browserPlacesViews.js

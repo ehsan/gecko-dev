@@ -1,0 +1,4 @@
+changeset 57e59b2e017e9ed8ab2389b23a675431dbe83d1f
+manifest fa8d7f4cf0801c898e1d00367b1a4bf3b3aa3f6e
+extra rebase_source:c8ba0516bcf4a6ae3ee516f4af668d58fc20b65c
+files embedding/browser/webBrowser/nsWebBrowser.cpp

@@ -1,0 +1,4 @@
+changeset f46dc1e8d2389a84ab08894fc6baf36c2d28d0b6
+manifest 036c9d662742a8d8c754b0eee1380a74fbb2b9eb
+extra rebase_source:ae86e46ae659fc797cf8f20ae8c909f0a2f3cee9
+files browser/base/content/test/general/browser_lastAccessedTab.js

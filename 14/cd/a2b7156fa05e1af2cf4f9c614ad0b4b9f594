@@ -1,0 +1,4 @@
+changeset 073b904aed0cd056c425125a14323e263cc58e4c
+manifest fb9af30ab9e460e33abef09830c9c0506b8716bc
+extra rebase_source:9bad111b49b5455f5f34504968f91eb166464896
+files netwerk/protocol/http/nsHttpChannelAuthProvider.cpp

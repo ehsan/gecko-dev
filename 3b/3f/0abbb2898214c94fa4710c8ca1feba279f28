@@ -1,0 +1,4 @@
+changeset be476c8fd64426c8e1b18219a6976b48e511e010
+manifest 140efdc27f559e44698e972198481ede2ad6421b
+author reed@reedloden.com
+files toolkit/components/passwordmgr/src/nsLoginManagerPrompter.js

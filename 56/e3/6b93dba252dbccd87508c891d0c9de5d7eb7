@@ -1,0 +1,4 @@
+changeset 4e6998d64114049f06876afd12826e392a18f352
+manifest 3845d5f322226e40b5a4440fc77d518d6983f709
+extra rebase_source:1d639eafd83fa51c45e177d1d7f664052ab06371
+files extensions/permissions/nsContentBlocker.h

@@ -1,0 +1,4 @@
+changeset cbbe13b9c4219ce76e782d173190d28377c434a3
+manifest 3a894f8ab3fbc6bc2466d7adf7a4983f57988380
+extra rebase_source:be19f02daf4ca4a4a6706521a3f78d6f06c89f4d
+files widget/tests/native_mouse_mac_window.xul

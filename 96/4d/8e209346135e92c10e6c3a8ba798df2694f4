@@ -1,0 +1,4 @@
+changeset 6a1a0a357f116c1578d7455bf377a662d42449fa
+manifest bd0e7ea89e68887fbd57da10142e90a80958f2b7
+extra rebase_source:20ecfb57c50002addf92e1beb24112c03a0fadc1
+files testing/config/mozharness/marionette.py

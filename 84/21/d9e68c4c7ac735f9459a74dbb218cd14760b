@@ -1,0 +1,4 @@
+changeset 46f0b31b657f25d5a607748573db4130acbbd66f
+manifest fbc38ba96c8aa88538ff61cd99e9f504a16add3c
+author vladimir@pobox.com
+files gfx/src/thebes/nsThebesImage.cpp

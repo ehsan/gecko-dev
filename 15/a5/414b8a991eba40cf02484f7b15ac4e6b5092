@@ -1,0 +1,4 @@
+changeset 37357ffceb05b6bfad93f1c150feceb4b02977c8
+manifest b7a7f092baa8d3084c6ae7e298f70f443c03e938
+extra rebase_source:9987bd127ffbfdc6b34302dd05bfac1d6e481a33
+files caps/src/nsScriptSecurityManager.cpp

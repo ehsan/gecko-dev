@@ -1,0 +1,4 @@
+changeset 448765c6360b44b5ea3ec255936bfb086f8545c5
+manifest e284c44483e55667c4b6ee3b5c9be03f9851c280
+extra rebase_source:e662bf239ad508f911f213ef9de61bdd0abbef8a
+files toolkit/components/search/nsSearchSuggestions.js

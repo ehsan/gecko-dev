@@ -1,0 +1,4 @@
+changeset 5ff15fe83e16733ae14b70f2fb676c5628de4ee6
+manifest 39537b09635449c7fbd47ba773661f06151fd92e
+extra rebase_source:4d0dc461bb21028b4f0dba4de8c1f925a3c85a47
+files layout/base/tests/chrome/test_leaf_layers_partition_browser_window.xul

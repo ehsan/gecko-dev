@@ -1,0 +1,4 @@
+changeset 09804d63d3023a9e4ef446f6891fd505d0fecf81
+manifest 18fdf2434c3622c87610ad403729d1272bc35ee3
+extra rebase_source:041579a7f6f2ff3527d4a87bd82324db1e32def9
+files browser/base/content/tabview/drag.js

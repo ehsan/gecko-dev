@@ -1,0 +1,5 @@
+changeset 9c1ac55cd5b7635479cbcdbd921b72708196cde8
+manifest 8715107dcb5701a300b339bacf0d3f7445bcd997
+author timeless@mozdev.org
+extra rebase_source:20c5eb547b819fde0bdd915f7dc1f9a154e9ea57
+files modules/libpr0n/encoders/png/nsPNGEncoder.cpp

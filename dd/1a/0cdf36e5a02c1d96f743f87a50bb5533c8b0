@@ -1,0 +1,4 @@
+changeset 50a15e04136af7bb04cf28eeebdc0ecd509b2283
+manifest 87c5bae5f139ffe85f2875a5c8cde687289c902a
+extra rebase_source:68f8e2151144b383c06e9f26f8781383dfabc96a
+files intl/hyphenation/src/moz.build

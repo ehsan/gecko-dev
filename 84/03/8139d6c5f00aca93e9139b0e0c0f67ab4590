@@ -1,0 +1,4 @@
+changeset b78d999d215d0cae404ecd1f7657eeed727fcea5
+manifest cd80984190c64619be8282db8ade21ecdf08496f
+extra rebase_source:bba695d76a8bdef06a64772e67dc6c8feaf656f8
+files netwerk/cookie/public/nsICookieService.idl

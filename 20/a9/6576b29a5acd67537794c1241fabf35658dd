@@ -1,0 +1,3 @@
+changeset c31dc4144a137f3bd3cb16740af7a144551d1219
+manifest 7685ea7bce80fbc0cac9e4e0efba89dd2bb8bbb6
+files security/manager/ssl/src/nsNTLMAuthModule.cpp

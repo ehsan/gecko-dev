@@ -1,0 +1,4 @@
+changeset 69f2d0457750c92577ecd972cc8a10cc3bc31b1f
+manifest 65cbc7f4aba93357cadc87f33b04bf5179ee9137
+extra branch:GECKO20b3_20100804_RELBRANCH
+files js/src/jsobj.cpp

@@ -1,0 +1,4 @@
+changeset 940411d26d937c047df398cc2514c74b2ba21197
+manifest 63b044458fa469dac3caef2adb69781dbd43bd91
+author reed@reedloden.com
+files browser/components/feeds/src/FeedWriter.js

@@ -1,0 +1,4 @@
+changeset 461a2366595ee7e7326f8c6342a47acc7822b7fb
+manifest 731963ee27f4b38fca78266bc921ec4872443882
+extra rebase_source:dba778c59be41587c05e964f2328a4ae662130e3
+files toolkit/mozapps/update/updater/archivereader.cpp

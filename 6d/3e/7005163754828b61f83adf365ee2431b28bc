@@ -1,0 +1,3 @@
+changeset 9b21892ec1d1fb4eb7ddfe5970ae4dac84dba4ac
+manifest 329070dde70e179771e769356c85ab9d085d1b50
+files testing/mozbase/mozlog/mozlog/structured/formatters/tbplformatter.py

@@ -1,0 +1,4 @@
+changeset 1921c106eeac3b123b49b5c02950021642ce5d05
+manifest 581492ed5d726c7711bab0916a577057461e3a3f
+author sdwilsh@shawnwilsher.com
+files toolkit/components/downloads/src/nsDownloadManager.cpp

@@ -1,0 +1,4 @@
+changeset 1f4c6d1bcad70c35ddb18a9e5e4eb278f7326189
+manifest d7902ac58c114e7395f8b99d265debbac23e5d67
+author romashin
+files gfx/cairo/cairo/src/cairo-qpainter-surface.cpp

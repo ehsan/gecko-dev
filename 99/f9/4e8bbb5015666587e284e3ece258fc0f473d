@@ -1,0 +1,4 @@
+changeset 8adfeed2fb436c46dfebd394d6fe9160d8f2462e
+manifest 6a58a4fa47f95ed3b439c8d15613cf1152ac2476
+author ted.mielczarek@gmail.com
+files toolkit/crashreporter/client/crashreporter_win.cpp

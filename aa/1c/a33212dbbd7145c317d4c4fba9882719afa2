@@ -1,0 +1,4 @@
+changeset 33a4791fc52809bdb3241ec837082fd2f90b5017
+manifest ea9fcd2283475446b53a67b44e714eac6d739087
+author smichaud@pobox.com
+files widget/src/cocoa/nsAppShell.mm

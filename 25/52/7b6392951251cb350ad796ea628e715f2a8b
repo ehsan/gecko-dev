@@ -1,0 +1,4 @@
+changeset 190cbddca7f4562c291f4c213cd0695e466bb91c
+manifest 8458686740157060bceff030824178ae25fa44f7
+author timeless@mozdev.org
+files modules/plugin/base/src/nsPluginHostImpl.cpp

@@ -1,0 +1,4 @@
+changeset d6182fbb43bd30400682a184a5971345c719f309
+manifest c7f67a76310e2d4c569e259c870767c3d79e3be8
+extra rebase_source:4348354a9d97e5249f4442a0bfc9b61b0220cd4a
+files js/src/jit-test/tests/basic/testMethodWriteBarrier4.js

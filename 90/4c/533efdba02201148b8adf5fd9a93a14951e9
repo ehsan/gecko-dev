@@ -1,0 +1,4 @@
+changeset 8997036f34970cafe811eb8c4837affa909bb9dc
+manifest f89e14c9279437480cf82850aa5eda60a24db2cb
+author Sid Stamm <sstamm@mozilla.com
+files content/base/src/contentSecurityPolicy.js

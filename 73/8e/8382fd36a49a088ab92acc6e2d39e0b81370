@@ -1,0 +1,3 @@
+changeset c8f0e89bc479f10e2a60a84863da79cc12f24d9e
+manifest 7bf141aa7a5e626c8473be861284b7eef4bd37db
+files extensions/cookie/test/unit/test_bug526789.js

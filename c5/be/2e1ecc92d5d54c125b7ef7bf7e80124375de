@@ -1,0 +1,4 @@
+changeset 758e929b7dcbbc2221ed6f5f4f6081d49c0140c5
+manifest 4b4ed926535374615beb69844b8bab086fe5b1bb
+author cbarrett@mozilla.com
+files widget/src/cocoa/nsClipboard.mm

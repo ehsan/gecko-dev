@@ -1,0 +1,4 @@
+changeset d854774124a691c6ad1f0134386a913ef790cca7
+manifest 2e72cb8a861877c6112a490aad7f39a2b1a8dd7d
+extra rebase_source:d2608fc83d7d5563cee035e2343aff48e88ae1e9
+files xulrunner/app/nsXULRunnerApp.cpp

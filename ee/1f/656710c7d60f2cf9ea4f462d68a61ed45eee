@@ -1,0 +1,4 @@
+changeset 5ffa67d71687c42275cbb231e7e96a33d1606f6d
+manifest a5bb8f8e1f0171b7379271c243f814af8704723d
+extra rebase_source:5c0527648f992d5b274a3408a8fdbbb35ea115ce
+files testing/mozbase/mozprofile/setup.py

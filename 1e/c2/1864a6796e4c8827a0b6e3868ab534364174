@@ -1,0 +1,4 @@
+changeset 900fdd7fb8b2635653ccbaac3daf4685a29c5c17
+manifest 15d0014da69bd031df6d5872be783ce48264d54f
+extra branch:GECKO20b3_20100804_RELBRANCH
+files content/base/src/nsInProcessTabChildGlobal.cpp

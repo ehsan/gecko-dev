@@ -1,0 +1,4 @@
+changeset 32454a9197200fb435a992dc49b80aff1ce4118c
+manifest c4a07a141291e447bc1b00b06d24f93320788ca6
+author dietrich@mozilla.com
+files toolkit/components/places/src/nsBookmarksHTML.cpp

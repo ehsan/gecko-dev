@@ -1,0 +1,4 @@
+changeset 21ea685b92f0a308f48a7ed78d45da54c40d3394
+manifest 6060f2009a458b616d809f828792d0babcf3644d
+author jwatt@jwatt.org
+files js/src/xpconnect/loader/mozJSComponentLoader.cpp

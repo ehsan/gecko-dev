@@ -1,0 +1,3 @@
+changeset 388938e096e298925e6654b940a1ddf9b618c68b
+manifest 0793b2becd62b61dc2d02619cc2fec622603374f
+files xpcom/build/nsXPComInit.cpp

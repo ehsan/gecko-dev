@@ -1,0 +1,4 @@
+changeset ce01240d1b16f2e3a407a9a789d391ff9cd399dd
+manifest 2795ecf1703e6213bf54a860ac5e88b5bf586ec2
+extra rebase_source:3fb6f72db7f3b47905ecd167b3bfca3f829cc279
+files browser/base/content/test/browser_discovery.js

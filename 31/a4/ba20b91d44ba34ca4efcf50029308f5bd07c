@@ -1,0 +1,3 @@
+changeset 48b4e65d344d71e132ee97c79ab542b939d058b9
+manifest 88a368ee4c79d1ca2034680d3dca5dbd9566647b
+files js/xpconnect/tests/chrome/test_xrayToJS.xul

@@ -1,0 +1,4 @@
+changeset 4660900fb4530a5d99c73226f171601566ccd88c
+manifest db4619828d80db0e8666767e8daf2f67bb906b42
+author bzbarsky@mit.edu
+files content/html/content/src/nsHTMLStyleElement.cpp

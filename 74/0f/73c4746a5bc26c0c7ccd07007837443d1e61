@@ -1,0 +1,4 @@
+changeset eee919f11f5a9765d8fd0c07fb355fe85523f89c
+manifest 211daf831a38e8a3c370a263f4ec478c21113ff5
+extra rebase_source:dde46f332f1d6fa9cf0b1588a374f3fc47ed1a72
+files browser/base/content/abouthome/aboutHome.xhtml

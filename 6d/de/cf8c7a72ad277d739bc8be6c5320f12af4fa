@@ -1,0 +1,4 @@
+changeset 605a8f29eb29f9ca20e86b665be63a955ee3b1e3
+manifest 49aa3f4ed24ef824872dd4a6d7d3c637abd0906f
+author roc+@cs.cmu.edu
+files xpcom/ds/nsAutoBuffer.h

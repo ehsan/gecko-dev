@@ -1,0 +1,4 @@
+changeset dad5d17328b2eecbc28e4c10b9fc6cdc30526beb
+manifest 700d1831caf730cb7aac22f1cbf8e3a5be828f1e
+extra rebase_source:6c1cad084d36b723d84d73810adfe031d5275af5
+files dom/contacts/ContactManager.js

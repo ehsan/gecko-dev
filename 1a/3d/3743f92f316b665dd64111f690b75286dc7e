@@ -1,0 +1,4 @@
+changeset 6b8abfaa2f5a72f4cb4dea7287ddd7b4a92795fd
+manifest 1cdebcc4e56194e92f637abcabbc4322c3f786fc
+extra rebase_source:92cad3412b9c41dbc96d39a4bf73141811c3a192
+files widget/src/xpwidgets/nsBaseWidget.cpp

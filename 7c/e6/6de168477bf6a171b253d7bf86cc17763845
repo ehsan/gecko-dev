@@ -1,0 +1,4 @@
+changeset aac01f6cb276564ccda3e3b76b74a4244ea7da64
+manifest 6c8aaced03ca1fcb4a788d1165077b2760667a51
+author sspitzer@mozilla.org
+files toolkit/components/places/src/Makefile.in

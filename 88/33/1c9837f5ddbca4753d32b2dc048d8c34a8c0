@@ -1,0 +1,4 @@
+changeset b13b6db2978e8302c666977aadbf23339b19d867
+manifest bb6b1a1a9e0116120ce74bdcc50343705b493c2e
+author peterv@propagandism.org
+files layout/build/nsLayoutStatics.cpp

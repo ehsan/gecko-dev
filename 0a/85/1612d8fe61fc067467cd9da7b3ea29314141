@@ -1,0 +1,4 @@
+changeset 825d5461fe1d8e5af38fc6939920d2103f19ba7b
+manifest 4f3658f5e00314f36b4d982f0afe352e8f4a1597
+author bzbarsky@mit.edu
+files gfx/thebes/src/gfxXlibNativeRenderer.cpp

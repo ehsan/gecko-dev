@@ -1,0 +1,4 @@
+changeset ada90a8d7185b651ad0298ff0e301c0284887829
+manifest 389bc4363398cc0f0201a8646d990a883ffd728f
+author cbiesinger@gmx.at
+files content/base/src/nsXMLHttpRequest.cpp

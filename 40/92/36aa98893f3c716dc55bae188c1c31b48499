@@ -1,0 +1,3 @@
+changeset 0aa4bfb230636c9821fd43defda3455a8c901879
+manifest 8cc2bbbc89c56f626027dfb3dc045fc18cf600ab
+files security/manager/ssl/src/nsNSSCertificate.h

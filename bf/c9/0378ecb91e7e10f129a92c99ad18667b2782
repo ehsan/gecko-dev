@@ -1,0 +1,4 @@
+changeset ff21928b1975ba625e036ba274c205e1791e5523
+manifest 4037b2f78aef5e62f070a93f0d1611f32fe33890
+extra rebase_source:23bc7c6997e0e2b1c174f4f7a75f44f6a0155a42
+files js/src/jsnativestack.cpp

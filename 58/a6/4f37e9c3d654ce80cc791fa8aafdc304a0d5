@@ -1,0 +1,4 @@
+changeset 024322952dffdb1746d767e35ea961ab08464769
+manifest 0ed5a624a220da191b4dee1f34543b69f5b750a0
+author bent.mozilla@gmail.com
+files xulrunner/stub/nsXULStub.cpp

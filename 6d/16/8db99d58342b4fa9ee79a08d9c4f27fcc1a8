@@ -1,0 +1,4 @@
+changeset e8d05811c2a01cf7d63fa81b5eccfe7862dc3b08
+manifest ce9c8b0ca06705358366e15c5bc2cabe91c8e9c2
+extra rebase_source:ce1d5f5ad006be162471155cab300a49b7a12f93
+files content/events/src/nsDOMMouseEvent.cpp

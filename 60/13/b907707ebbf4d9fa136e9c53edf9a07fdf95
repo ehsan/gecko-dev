@@ -1,0 +1,4 @@
+changeset 0df48cf38d63e6697e8ea1b248db20ffeb4b890e
+manifest 72ab7806080185f1e858822beac121a35701e253
+extra rebase_source:9f23e3d3457c5409b00715038e3e8014a6a9b0c3
+files toolkit/components/passwordmgr/content/passwordManager.xul

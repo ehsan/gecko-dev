@@ -1,0 +1,4 @@
+changeset dddf3d3cd480282c419073ef16a0032b5cc699c5
+manifest 639552bab13b1da8dc9baa32af3ae61ad7a5dfb6
+extra rebase_source:cc38471524b1726452c8440c9a7ec95bdd90ed1e
+files mobile/chrome/content/browser.xul

@@ -1,0 +1,4 @@
+changeset 72ea7c9c473d124ffc9bf670c10af9e0e958be85
+manifest d2cf61fb1b30dfb9066f59ea346a085c64ee8d50
+author gijskruitbosch@gmail.com
+files accessible/tests/mochitest/test_nsIAccessibleHyperLink.html

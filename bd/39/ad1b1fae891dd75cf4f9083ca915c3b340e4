@@ -1,0 +1,4 @@
+changeset 052a193712f03c7c4a640a97ec49a3f0ce3fa711
+manifest 2b12844256a3904a7323fbffc5e13d7d832aed64
+author bzbarsky@mit.edu
+files toolkit/components/downloads/public/nsIDownload.idl

@@ -1,0 +1,4 @@
+changeset 5dd40b4e01a00ace56280812e70685304be17755
+manifest dfb06abb732a51b9d4cd03e8933b7d0ac570adcc
+author joshmoz@gmail.com
+files widget/src/cocoa/nsDragService.mm

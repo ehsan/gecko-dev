@@ -1,0 +1,4 @@
+changeset d4b64f62ed944397d4d77ba177a37e72a4a0594b
+manifest dc1190de99d370354161950b86ea29b4ca1fc2da
+author florian@queze.net
+files uriloader/exthandler/nsHandlerService.js

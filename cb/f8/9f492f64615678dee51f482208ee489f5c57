@@ -1,0 +1,4 @@
+changeset a4494a32a9110a6d4c3dc30aea2b3419744ab6e6
+manifest dc1fcd1289bc0650779ac792f17c15d28fa9cf92
+extra rebase_source:f913da27aabc3ee03bcb2cb0e7ce73f6c9ec7d28
+files widget/src/qt/nsDragService.cpp

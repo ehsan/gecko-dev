@@ -1,0 +1,3 @@
+changeset 53e97446fed99facc45642c93dca086a542cb94a
+manifest cf7bb8610e44b5523ddea08e31d49400553bd829
+files browser/devtools/inspector/test/browser_inspector_delete-selected-node-03.js

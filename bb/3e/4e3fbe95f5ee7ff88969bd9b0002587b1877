@@ -1,0 +1,4 @@
+changeset 422309d2a0724da8f47365c3d49fa981abe4ca6a
+manifest e7f6045cf2859ed87ab709332e6db5f3a34d3bee
+extra rebase_source:59a5f2fe7e0086131538cb66cb0d04e50dc32f5e
+files b2g/chrome/content/shell.js

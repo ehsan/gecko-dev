@@ -1,0 +1,4 @@
+changeset b7a482409e747f583230eb26917d47575b6bf89b
+manifest 27830a61fa8955a477b9a4aaec662d1b8e32da5a
+author reed@reedloden.com
+files content/base/public/nsIHTMLToTextSink.h

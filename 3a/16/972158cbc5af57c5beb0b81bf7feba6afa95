@@ -1,0 +1,4 @@
+changeset 0bf61e46bfaee95b4e06a17eb8a375994e58f259
+manifest 1ea98765e53aec2859ed24cab7e389a1ee1515be
+extra rebase_source:d51c372a236b67fdaf91535bc967beb9621c671d
+files js/xpconnect/src/XPCQuickStubs.h

@@ -1,0 +1,4 @@
+changeset f98520dc55e5e9dde7f2cb6e893dc18555604ff1
+manifest 9aa410a9e231c1217f437b1360eb235019f85968
+author dietrich@mozilla.com
+files toolkit/components/places/tests/unit/test_history_sidebar.js

@@ -1,0 +1,3 @@
+changeset b7bceb058d335bcf3d397119161876a9ddab1f10
+manifest fd0b9b0e54fb1dd6475675b20832baca836bbfc3
+files media/webrtc/trunk/webrtc/modules/audio_coding/main/acm2/audio_coding_module_impl.cc

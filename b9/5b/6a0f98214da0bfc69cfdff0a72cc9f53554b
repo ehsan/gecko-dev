@@ -1,0 +1,4 @@
+changeset 892798277d08c10908caa63f443e12e37d426945
+manifest 27a279fc43c240095457e167e8431d82f0a4c082
+author anodelman@mozilla.com
+files testing/performance/talos/cmanager_mac.py

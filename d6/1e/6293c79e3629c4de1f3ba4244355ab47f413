@@ -1,0 +1,4 @@
+changeset 92382656739f34b7a7ff5ddc6c02458143f5674f
+manifest ee4f823993beb5af404708a1b098fe2c32d83b22
+extra rebase_source:d97569b4ba36cfb9ac25959f0634e18f60209809
+files gfx/src/nsRegion.h

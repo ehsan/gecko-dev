@@ -1,0 +1,5 @@
+changeset 3e7e476a9ea09e67c845e41fb5a9b39540b9f4d8
+manifest 61a495db64aaacb80574e1f5933ad7d614e24e54
+author timeless@mozdev.org
+extra rebase_source:3de6dbfb13aad88f47bec0b43ad1ac653e5a083c
+files widget/src/qt/nsLookAndFeel.cpp

@@ -1,0 +1,4 @@
+changeset b4feceae2f94f2966722ed80df81fb3a0b4d86e0
+manifest 098db41fd537626ff740dc9ad38e51c8924795cd
+author timeless@mozdev.org
+files caps/src/nsJSPrincipals.cpp

@@ -1,0 +1,3 @@
+changeset e89f7088dee367154ede98e940cad9751ec4932e
+manifest 0d0efbe3c7ff20007568d67d8aa9969e04845a18
+files js/src/methodjit/nunbox/FastOps.cpp

@@ -1,0 +1,4 @@
+changeset b279d6af70d0d664a5ddeb4230c18e7a6c510cb0
+manifest d78a81fcc5acd80d51a48ed7a0affb3eb7b24304
+author reed@reedloden.com
+files accessible/src/base/nsAccessibleEventData.cpp

@@ -1,0 +1,4 @@
+changeset 39073ec5ae4cd20115aca87d25446802908bdfc5
+manifest db955e752ef6e050c1088efb9a36c7a61b6f62b0
+author benjamin@smedbergs.us
+files js/src/xpconnect/public/nsAXPCNativeCallContext.h

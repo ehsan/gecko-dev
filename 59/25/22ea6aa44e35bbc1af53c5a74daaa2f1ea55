@@ -1,0 +1,4 @@
+changeset c2315c604e7c3123c38ad7752a9f758382236864
+manifest 65ff6a26416c200c55300f151a6242e4d90ef65d
+extra rebase_source:3d7aeec93f1ae1e5bbd4b03c30216e70fe15eb6a
+files mfbt/Util.h

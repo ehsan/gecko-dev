@@ -1,0 +1,4 @@
+changeset c8d70ce0ab4a57cd010409eb7b29f8becc597baa
+manifest 10f2d760401e761a9264000289e29bd1c40c10c0
+extra rebase_source:d5d2ada4afb1733e7b92c8329e86c109488af911
+files dom/camera/nsIDOMCameraManager.idl

@@ -1,0 +1,4 @@
+changeset 746971bdb5c0a5b50ee49566e23e9d735f782dee
+manifest 240d8a033b824a121d901baea57b50a169c8a120
+extra rebase_source:cfe6765441f94a2ea9ffe63258f4fda7e0e47e67
+files browser/modules/webrtcUI.jsm

@@ -1,0 +1,4 @@
+changeset 3157139361df0a07027372681eb9d2601beea0f4
+manifest 2d28c8610b76ed961329418b37c0c5a2db0acde5
+author sspitzer@mozilla.org
+files browser/components/places/content/history-panel.js

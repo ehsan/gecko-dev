@@ -1,0 +1,4 @@
+changeset 3d3924dbed92cf02ffa07c4a9e036bbf6e524a9d
+manifest cb24e12a841ee96000be0a320a27bb133d7b6479
+author reed@reedloden.com
+files dom/src/base/nsGlobalWindow.cpp

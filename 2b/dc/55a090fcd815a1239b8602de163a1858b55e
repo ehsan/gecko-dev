@@ -1,0 +1,4 @@
+changeset 73ec9b19228ac76a06599bc393783f4298478d9e
+manifest 451305e8c8a2edd86489b35a565b1f9df73d4b94
+extra rebase_source:0c02b7aeab290383761b4a38b002dbc01dc6379e
+files xpfe/components/autocomplete/resources/content/autocomplete.xml

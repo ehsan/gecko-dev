@@ -1,0 +1,3 @@
+changeset 2d271df63cff5b350f6da4c064ae749712785d16
+manifest 79a71b3b6cc0cc2442486921a69bf719af16874d
+files media/webrtc/trunk/tools/gyp/pylib/gyp/generator/mozmake.py

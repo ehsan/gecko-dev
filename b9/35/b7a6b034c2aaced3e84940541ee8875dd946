@@ -1,0 +1,3 @@
+changeset cdd3b3f73c79f3cf307359c5e75eb525fdf7670f
+manifest ffbcbee62b1b1515a20b46b18c688cdae55170cf
+files media/webrtc/trunk/webrtc/modules/video_capture/windows/sink_filter_ds.cc

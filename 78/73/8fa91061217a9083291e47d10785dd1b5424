@@ -1,0 +1,4 @@
+changeset 0b4dcfac5d6e89130080b6afc7893bf5017fe8e5
+manifest e6c29cf10d616f51957bb2ac5cd138716fa1c7b9
+author reed@reedloden.com
+files browser/components/nsBrowserContentHandler.js

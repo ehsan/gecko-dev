@@ -1,0 +1,4 @@
+changeset a18205b66f98579409f1911266f87d1f29306601
+manifest fd88551ee1a23ea380ddd831fd6cac672640890a
+author dmose@mozilla.org
+files js/src/xpconnect/loader/XPCOMUtils.jsm

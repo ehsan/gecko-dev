@@ -1,0 +1,4 @@
+changeset e7121b46e8baa3cc3c2a33831dc17bbeb38e2b95
+manifest 55861eedd44768ffa604d203d82880cf92c84e3b
+extra rebase_source:a8fa04125c9e2bced89ae9843887eff3d4904631
+files content/base/src/nsCSPContext.cpp

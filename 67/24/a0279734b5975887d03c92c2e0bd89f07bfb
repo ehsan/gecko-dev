@@ -1,0 +1,4 @@
+changeset 0a0168f2f92e4fea29854c4ad52560fa045b1e55
+manifest 8943a5ac9bfdcd4380247b72b061d3bcc291578a
+author smontagu@smontagu.org
+files intl/unicharutil/util/nsBidiUtils.h

@@ -1,0 +1,4 @@
+changeset 51b6c016b617023883abea1191a77b7e45f95aa5
+manifest 6016de90ccdbc807890ea8b12392871fdec7f89e
+author edward.lee@engineering.uiuc.edu
+files toolkit/components/places/tests/autocomplete/head_autocomplete.js

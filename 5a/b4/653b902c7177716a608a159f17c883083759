@@ -1,0 +1,4 @@
+changeset 06902afe3a585f846860f4a635b4bc7fb9a17449
+manifest 7fd563d1edaf592a8037600a4bf2cb34a423502a
+author timeless@mozdev.org
+files js/src/jsproxy.cpp

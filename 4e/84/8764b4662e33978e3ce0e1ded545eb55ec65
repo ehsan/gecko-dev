@@ -1,0 +1,3 @@
+changeset b00f8ea6443cb1bb4b184081a00e21775303bdd0
+manifest fc474946f7c793d9fcae74fba246552fd3ee1b2b
+files toolkit/mozapps/downloads/tests/chrome/test_backspace_key_removes.xul

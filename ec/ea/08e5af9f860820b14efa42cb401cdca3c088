@@ -1,0 +1,4 @@
+changeset c91a96c71e6206340c2f3390ccff4faea0c68782
+manifest 157849ffda3950f47a41bcf128cf8834e3d35700
+extra rebase_source:684093852b70b0f873b651fc91bd175b39ce7baf
+files testing/mozbase/mozrunner/setup.py

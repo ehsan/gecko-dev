@@ -1,0 +1,3 @@
+changeset c6205db9ec1cc676526829ca7419a2c310deccbf
+manifest e723a1243db93e63d6efca632cd2f8f91e45ea44
+files js/src/methodjit/nunbox/FastArithmetic.cpp

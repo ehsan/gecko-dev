@@ -1,0 +1,4 @@
+changeset 3e8344c981544d60f7373a9bc4a31e6f3b2e260d
+manifest fdf06df72a5a56f05bdf5e3030533814ed260f6f
+author jonathandicarlo@jonathan-dicarlos-macbook-pro.local
+files services/sync/modules/xmpp/xmppClient.js

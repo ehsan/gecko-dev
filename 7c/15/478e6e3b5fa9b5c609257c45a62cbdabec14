@@ -1,0 +1,4 @@
+changeset 7c5ab9bc4a5dc7073938d12195f1126ec507aedb
+manifest c1399a42d77ee4cad44569397006079c29f41b79
+extra rebase_source:ac09c6d4bad6eff76691a950f1ec7d5d8b342cfc
+files toolkit/components/console/content/consoleBindings.xml

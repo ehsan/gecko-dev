@@ -1,0 +1,4 @@
+changeset 8c04c56598d1f655d3f7e57cfb1d49e9388ef2dd
+manifest 45b46030f7dfe4a7a593dd480b3f5fbfcb86150f
+author ted.mielczarek@gmail.com
+files toolkit/airbag/client/crashreporter.cpp

@@ -1,0 +1,4 @@
+changeset ea4a5a69e7e6b84163818b64d77f9b22dc0f0e0c
+manifest ed32ba6b5452d8af2760a3d5bb283fc1a5521d71
+author brendan@mozilla.org
+files js/src/jsnum.c

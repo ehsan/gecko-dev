@@ -1,0 +1,4 @@
+changeset 6747f563e9df2670631f5a6f378776a02a42b6ed
+manifest 38e054f2e7098d9e195ef6a3292da54cba219cb0
+author reed@reedloden.com
+files widget/src/windows/nsNativeThemeWin.cpp

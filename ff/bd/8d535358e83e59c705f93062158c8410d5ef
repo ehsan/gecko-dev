@@ -1,0 +1,4 @@
+changeset 75e9894b3028df78f2f9b3d9f9b129e0172e2f21
+manifest f6872b347b5903a527e9beb1f494f718331f590f
+extra rebase_source:eda2d69c36118cc93540ab0bed934d53c9de0c03
+files mobile/android/chrome/content/browser.js

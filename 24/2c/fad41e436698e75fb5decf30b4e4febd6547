@@ -1,0 +1,4 @@
+changeset 58d4debe70a9b40c0bd6c80a1f926e4a9bccc916
+manifest 4cc9db85f2827c7faba0afd894b231eab022823b
+author dolske@mozilla.com
+files toolkit/components/passwordmgr/test/test_prompt.html

@@ -1,0 +1,3 @@
+changeset a64bb5724b252b683bdb1596ff0056d926c23922
+manifest db59ef8c5ef784a5104246d5856c9e4b44c67b97
+files js/src/trace-test/tests/basic/testWithAndShadowing.js

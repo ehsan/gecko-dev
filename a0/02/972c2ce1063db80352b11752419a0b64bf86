@@ -1,0 +1,4 @@
+changeset 4f2520c904e5827eb8115649a81c1579bdd11c05
+manifest 604fde09db2b7e07db3004fb7e05d2aceaa97c0d
+extra rebase_source:8c4382719dd8886634a8f89a85d89af1e96f6c4d
+files modules/plugin/base/src/nsPluginHost.cpp

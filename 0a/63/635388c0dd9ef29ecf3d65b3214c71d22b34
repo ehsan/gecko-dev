@@ -1,0 +1,3 @@
+changeset c8e0ffa5b44b151621a1556e7ade91a19f5e7a08
+manifest c7dcd8aa38f6fd75a4a11848f81e328d4e5e7881
+files toolkit/components/console/hudservice/tests/browser/browser_webconsole_bug_632347_iterators_generators.js

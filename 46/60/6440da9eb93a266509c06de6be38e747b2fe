@@ -1,0 +1,4 @@
+changeset f1f6be722f2a091b6ccd4ae177d5eb7d2d0e139a
+manifest 828da54d27682429de7205f1a200354e634980e9
+extra rebase_source:ace505d178de7ce66e5733df74291b31471a0202
+files dom/bindings/parser/tests/test_constructor_no_interface_object.py

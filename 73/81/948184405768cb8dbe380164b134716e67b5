@@ -1,0 +1,4 @@
+changeset cef45c1cb7d446d1a16df24aa3e670bc1ce3d47f
+manifest 4d059f44b8e2861062bcf13aff9e0b7d436e1a8f
+extra rebase_source:c602f4691a69a15bca97364f4104caf6420d9a71
+files widget/android/GfxInfo.cpp

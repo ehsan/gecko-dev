@@ -1,0 +1,4 @@
+changeset 69624d61162128c90e31fda100b495e90b99f024
+manifest fa9a00de6b89ab2f50a59de37802c197f3613ccd
+author jst@mozilla.org
+files content/events/src/nsDOMPopupBlockedEvent.cpp

@@ -1,0 +1,4 @@
+changeset 662bde4ab231b47810963bf765b02389f2919aee
+manifest 0ee9a86deae4e52c37901f45ae31f9f282673d63
+author peterv@propagandism.org
+files xpcom/base/nsCycleCollector.cpp

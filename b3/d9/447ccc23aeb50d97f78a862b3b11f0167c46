@@ -1,0 +1,4 @@
+changeset a7c3fdc3ace4f63310f7035d4d285a6c25173002
+manifest 7a93d2e25abe0f15e3f9a9168afcd17e63ffd4b1
+extra rebase_source:ea9509b2772c4df1cfe4f2187f7316faf16b3dcb
+files dom/imptests/failures/html/html/browsers/the-window-object/test_window-named-properties.html.json

@@ -1,0 +1,4 @@
+changeset c6aca5f18fdf9cdb065470f6250acbf4255c03a6
+manifest d062ae6cdd1e20625b14399865ace223d57c35b1
+extra rebase_source:dea2def9ce68d71531521d345d4bea7c046ea498
+files browser/components/preferences/in-content/subdialogs.js

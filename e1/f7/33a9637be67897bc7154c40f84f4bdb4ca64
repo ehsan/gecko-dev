@@ -1,0 +1,4 @@
+changeset 1353f853b17a714b1383ee589fa5fcb3d471e4a8
+manifest 80b376d78b9726c7690d2c0af2c7a03339fda5ec
+extra rebase_source:848e30ac31a4bc96c543ae612074ea4071c0eb88
+files layout/xul/base/src/tree/src/nsTreeSelection.cpp

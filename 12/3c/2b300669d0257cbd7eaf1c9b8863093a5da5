@@ -1,0 +1,4 @@
+changeset 2dd72beeb8f23852a2950010fe3e4d8ac1c4abdf
+manifest 14d5545d49bd42131d29a515651d6aef41ca0532
+extra rebase_source:9e119ae9946e893b6113b838d49ab6384b472a99
+files js/src/jsproxy.h

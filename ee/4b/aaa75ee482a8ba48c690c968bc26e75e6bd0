@@ -1,0 +1,4 @@
+changeset 80c64d4cb87bf982843c781560394c84dacf2758
+manifest 611deb10d2da415da1aaaf907f3c8a9ea0c8d6a0
+extra rebase_source:694428b676809cf0a0c10a81d68e02183d11f780
+files toolkit/components/jsdownloads/src/DownloadIntegration.jsm

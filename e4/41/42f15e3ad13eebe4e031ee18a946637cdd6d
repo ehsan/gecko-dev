@@ -1,0 +1,3 @@
+changeset 658e342f400cb53ca561536e52fcad7ff7a7f6a7
+manifest 20ef3ef25105cf98ba637438eef7904b7e2d1434
+files js/src/jit-test/tests/basic/testArrayBufferSlice.js

@@ -1,0 +1,4 @@
+changeset b21a886ebd94fd971c942da159b54a77f1c1656a
+manifest 8e1413bba9c8ffa6a7a5e419d5eb0802dd86099e
+author dolske@mozilla.com
+files gfx/thebes/public/gfxColor.h

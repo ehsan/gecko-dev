@@ -1,0 +1,4 @@
+changeset 7c76417436280d2232a1977cab04792cbbac3c8b
+manifest 45895396b046566000c275a8f030d6804193e378
+author reed@reedloden.com
+files xpcom/proxy/public/nsProxiedService.h

@@ -1,0 +1,4 @@
+changeset 92891e9bb9c5a955edfde456bb36f042dbc49e70
+manifest 6586a571035ab1c4421d1c2a114c7d3cfd25df6f
+extra rebase_source:a21a795d6992e9d51246b34e98a3ed8a7b99a4a5
+files widget/src/qt/nsClipboard.cpp

@@ -1,0 +1,4 @@
+changeset 186f509732b6b3f6b586d0daa739547942eef813
+manifest 3f5b04e9ecbd3581114bb556efb1fd9bd9212720
+extra rebase_source:02cd9c3e17ece14efeb5319419437bf3bab8ca06
+files b2g/config/hamachi/config.json

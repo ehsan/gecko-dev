@@ -1,0 +1,4 @@
+changeset f11c30c9679d8897d419df20a5ce13244edeedbc
+manifest 93abbe1299c9f61c8b7e2650de408f6f7b906dc4
+author reed@reedloden.com
+files netwerk/protocol/http/src/nsHttpChannel.cpp

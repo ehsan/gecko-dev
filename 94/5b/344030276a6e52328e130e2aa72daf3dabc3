@@ -1,0 +1,4 @@
+changeset 343ffab64e8554acaee0f5646fc65234c26ca167
+manifest c03f628b8cacccaca094378852e92d492930b274
+author mozilla@weilbacher.org
+files widget/src/os2/Makefile.in

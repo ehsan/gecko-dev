@@ -1,0 +1,4 @@
+changeset f05b82d513bcd59fbef0e567d7de3f09fbf0b8f2
+manifest b1ab87cbd45156d097214fa893b65fa56e6a445e
+author myk@mozilla.org
+files browser/components/microsummaries/src/nsMicrosummaryService.js

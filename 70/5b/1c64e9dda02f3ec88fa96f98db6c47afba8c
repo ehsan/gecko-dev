@@ -1,0 +1,3 @@
+changeset 865b5be2ce4dd26ad1d17701bcb61e93c2c6714a
+manifest 3b3901d5080e1edbc54ae1f2a625d59426e62000
+files dom/tests/mochitest/sessionstorage/test_sessionStorageReplace.html

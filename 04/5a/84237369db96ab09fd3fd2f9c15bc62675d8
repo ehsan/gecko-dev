@@ -1,0 +1,4 @@
+changeset ba61b888a558810aefc119ea9d6f2d28091203f8
+manifest d116f3ff8294e0d79ce1a16ea1cec8c30d5bccee
+author dietrich@mozilla.com
+files toolkit/components/places/src/nsNavBookmarks.cpp

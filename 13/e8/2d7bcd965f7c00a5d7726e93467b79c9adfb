@@ -1,0 +1,4 @@
+changeset 681978590fa6bc6be41d639f57e31f3a032d4403
+manifest 18fbf5c555f1b31fb1f8da7620bf9819bea16b48
+author hiikezoe@mozilla-japan.org
+files toolkit/system/gnome/nsGnomeModule.cpp

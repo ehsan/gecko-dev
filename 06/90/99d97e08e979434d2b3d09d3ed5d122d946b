@@ -1,0 +1,3 @@
+changeset 11abb5d7d409884e5df82889f7f24d9636919493
+manifest dc52beacdf3566347d995d102f0b8a2938f3f283
+files js/src/vm/GlobalObject-inl.h

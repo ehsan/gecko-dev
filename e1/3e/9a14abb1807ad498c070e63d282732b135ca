@@ -1,0 +1,4 @@
+changeset 221697fc3a86062a1536d8328a7af54444bd5bf3
+manifest ce49f9fac847d45e86d4581721a7ddc965d5eff2
+author Thinker Lee <tlee@mozilla.com>, Cervantes Yu <cyu@mozilla.com>
+files ipc/glue/MessagePump.cpp

@@ -1,0 +1,4 @@
+changeset 3efbc856bdd746587989714421de73f7b0eafd50
+manifest 1ce79bebf1fb6485c869657170a68b2a4adb3044
+author sdwilsh@shawnwilsher.com
+files toolkit/mozapps/downloads/tests/browser/Makefile.in

@@ -1,0 +1,4 @@
+changeset d987ade28bca2344d1f3eaad5236e3e217646c18
+manifest a1f54e426b5e0ee4ed8a758bf4a6e25c8e313a75
+author timeless@mozdev.org
+files content/base/src/nsDOMFileReader.cpp

@@ -1,0 +1,4 @@
+changeset 9018b956aa5876328ee9e32e6f95c2c52062fb2c
+manifest 85b6ecd7c5f2465d96959237066b49ac724c56b4
+author timeless@mozdev.org
+files js/src/nanojit/Nativei386.cpp

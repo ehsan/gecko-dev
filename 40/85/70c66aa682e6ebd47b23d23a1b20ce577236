@@ -1,0 +1,4 @@
+changeset dfad34fa5205e17b54149e4eed9f4c4e8ef76fcb
+manifest 630002e16f97d480e78f0bee95d6ae1d8bf4b8f4
+author bzbarsky@mit.edu
+files content/svg/content/src/nsSVGUseElement.cpp

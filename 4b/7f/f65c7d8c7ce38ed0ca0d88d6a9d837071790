@@ -1,0 +1,4 @@
+changeset 306239fc63a8dc475b4db5786ab4a671e6eff4a7
+manifest d097b48d00fcbd8769a674b8fd168bde131134e5
+author roc+@cs.cmu.edu
+files accessible/src/base/nsAccessible.cpp

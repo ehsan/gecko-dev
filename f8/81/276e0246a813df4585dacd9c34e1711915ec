@@ -1,0 +1,4 @@
+changeset 1974f4b270d6d1c5b5b00a5590fe545fb87bb21a
+manifest 78b00e91036a303ef8916dc510ae31fa8be3fba7
+author mats.palmgren@bredband.net
+files view/src/nsViewManager.cpp

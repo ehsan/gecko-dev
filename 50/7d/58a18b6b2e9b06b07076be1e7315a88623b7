@@ -1,0 +1,4 @@
+changeset 35879798e372cd0d750884a5bbfaefb105c8a059
+manifest 7f65f8dc24cc84aacbdc95bed8b5a2cfb0582899
+author nrthomas@gmail.com
+files tools/release/Bootstrap/Step/Tag/Bump.pm

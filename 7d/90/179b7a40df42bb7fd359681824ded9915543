@@ -1,0 +1,4 @@
+changeset 67bd1f598818b5f6615f1853914fdaffe5f8debd
+manifest 338b4408ca4b2817246f34f2586b9b257e9820de
+extra amend_source:1545801ced057c7238c582aa6b5480debc3694b4
+files browser/devtools/profiler/sidebar.js

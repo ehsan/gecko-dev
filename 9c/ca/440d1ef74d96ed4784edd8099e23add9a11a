@@ -1,0 +1,4 @@
+changeset e92be8bbe5ef68cc620799651581abc6188f9d5c
+manifest 7b2aa3ef02c239bd22d4a9ea670096b491275493
+author reed@reedloden.com
+files widget/src/gtk2/nsFilePicker.cpp

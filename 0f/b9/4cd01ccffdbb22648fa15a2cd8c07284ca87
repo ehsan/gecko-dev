@@ -1,0 +1,4 @@
+changeset e152c2763cadeb39d632a143c6b714cece5f0ca6
+manifest 04ad744fbdbde8152413344518586bad79cf8fe9
+extra rebase_source:e945338503a9dbaf2ad4b4925c8f8993555e605c
+files image/src/VectorImage.cpp

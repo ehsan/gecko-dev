@@ -1,0 +1,4 @@
+changeset 1c314da975b2672f405d28eeda1f21b8af849764
+manifest 9703433fd9e50878c09c1ee28a94caebd3a4bccf
+author mrbkap@gmail.com
+files js/src/xpconnect/tests/mochitest/test_xow.html

@@ -1,0 +1,4 @@
+changeset 6f30dccd813a9cf75dd76c91eaf8c19e74a1668f
+manifest 57ca7d0850d32823a8c7a0d053ead805940d3b02
+author timeless@mozdev.org
+files netwerk/cookie/nsCookieService.cpp

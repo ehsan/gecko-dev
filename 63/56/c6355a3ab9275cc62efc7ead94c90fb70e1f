@@ -1,0 +1,4 @@
+changeset 1e7bdf840a6296ff88fa4715844e428ad3a89d32
+manifest 5c544a1f27d3eb3af86bfe801c0e1dc8f75d8bc6
+author timeless@mozdev.org
+files content/base/src/nsNameSpaceManager.cpp

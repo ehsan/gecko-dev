@@ -1,0 +1,4 @@
+changeset 0cb0d9df5a8ef984bb47fb479c7727cebd838e1b
+manifest 5a22619bbb51bb2e1a2a28dfd8fe78d2a7dc5e61
+extra rebase_source:49f473c81820b31f4f467f491defe43f7b09a29b
+files services/healthreport/tests/xpcshell/test_provider_addons.js

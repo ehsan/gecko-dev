@@ -1,0 +1,3 @@
+changeset e3ff3875a6f0ef773f367dc6a5ec1c0a2416dd87
+manifest 2f23cd7180bd4c1cbe739eab0d61573994a251a0
+files python/mozbuild/mozpack/files.py

@@ -1,0 +1,4 @@
+changeset 2ce50a992370824dc9371273e45a4a6bf70018b0
+manifest c5ddfc60ce04c8e4bac54acbdcd161523925f257
+author sayrer@gmail.com
+files xpcom/reflect/xptinfo/tests/Makefile.in

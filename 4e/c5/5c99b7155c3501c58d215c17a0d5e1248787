@@ -1,0 +1,4 @@
+changeset b831915b57aff7b77e12651228f9d32951b82d64
+manifest fa6aa991c57ec7a8493a2fdfc5c155f770f5a9a4
+extra convert_revision:ebd6a957cf98ffca526fdce976826be5246e0a51
+files js/src/nanojit/LIR.cpp

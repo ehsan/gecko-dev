@@ -1,0 +1,4 @@
+changeset cfef2762ecb383f0abb2ca08bca43a95ab4675b1
+manifest 760ddde79a2014446f3cbf20243ebfaa629137df
+author bent.mozilla@gmail.com
+files toolkit/crashreporter/google-breakpad/src/common/mac/file_id.cc

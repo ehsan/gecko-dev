@@ -1,0 +1,4 @@
+changeset c5d1a7b383da20a08a1c84576b4cd690023d682c
+manifest b6a88a2a5a53d76ca462429045acce930e37ada9
+author dcamp@mozilla.com
+files toolkit/components/url-classifier/src/nsUrlClassifierUtils.cpp

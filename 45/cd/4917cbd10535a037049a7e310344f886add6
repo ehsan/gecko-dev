@@ -1,0 +1,4 @@
+changeset e24cc7dc5e653f577f6ed4adcc04aef10c7fc11d
+manifest 9e60abd98cfed8555e4706ee3142757cd869010e
+author reed@reedloden.com
+files widget/src/cocoa/nsClipboard.mm

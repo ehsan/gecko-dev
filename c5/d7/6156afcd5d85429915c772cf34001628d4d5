@@ -1,0 +1,4 @@
+changeset 46513f1a2baec0f044511772e97908b1594b2539
+manifest 2ff36c61f06b886fe2f22982372bfd0e5e3ca1b8
+author roc+@cs.cmu.edu
+files intl/unicharutil/src/Makefile.in

@@ -1,0 +1,4 @@
+changeset b490b231672955d85702558cd1d924c139053db1
+manifest 7f7b5335e87f8425528ce31727f492142bfbfe3c
+author timeless@mozdev.org
+files netwerk/protocol/http/nsHttpChannel.cpp

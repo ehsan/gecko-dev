@@ -1,0 +1,4 @@
+changeset 7bd98dbca4db3c36cfb95c95a60501027efd2f58
+manifest 7bb4ba943aa29f0a5769960e9a15c32394f867cf
+author reed@reedloden.com
+files widget/src/windows/nsNativeDragTarget.h

@@ -1,0 +1,3 @@
+changeset 3c49ef2a9f761df37c79ac0803b5c950f9ceea99
+manifest 430ba70b5bb90ef79cb70761e6315418aa1cc665
+files browser/components/sessionstore/src/nsSessionStore.js

@@ -1,0 +1,4 @@
+changeset 169644d6f9e621430bd66f2993f35ef1a8068e72
+manifest 766ff971935aa26c4932786eb5fae31c663b0dc8
+extra rebase_source:a7da5851b13ae1bb487ed843342e2c54976318fb
+files browser/components/migration/src/SafariProfileMigrator.js

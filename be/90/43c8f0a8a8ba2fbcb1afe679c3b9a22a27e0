@@ -1,0 +1,4 @@
+changeset 7b47dcc7deee6df5de5a181092bd5e7f7f627b7f
+manifest 4fa05a82b03defacefbdc4edc61f95d3b68b8d9c
+author benjamin@smedbergs.us
+files xpcom/glue/nsID.h

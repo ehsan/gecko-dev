@@ -1,0 +1,4 @@
+changeset b1465825ac689807e1b77fbc7b75b1b86f0719c5
+manifest fc65cdca71471e5004cd4b983714b593add27288
+author gavin@gavinsharp.com
+files js/src/xpconnect/shell/xpcshell.cpp

@@ -1,0 +1,4 @@
+changeset f2e8982acbf03ff2bba72bdd804913911f91b3fb
+manifest 2bd12db9acc41f547ca934117053000b77fea12f
+extra rebase_source:8a0370bb924fcbdeeb3abe57696f312ada09be35
+files browser/components/customizableui/test/browser_938980_navbar_collapsed.js

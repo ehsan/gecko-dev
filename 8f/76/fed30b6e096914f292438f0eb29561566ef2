@@ -1,0 +1,4 @@
+changeset a4b3c7bb2fb0953b712edd4be8765f69297e5f64
+manifest 5d9536b210e5fe7d4f92efdd30a38d08ec901922
+author timeless@mozdev.org
+files modules/plugin/base/src/nsPluginInstancePeer.cpp

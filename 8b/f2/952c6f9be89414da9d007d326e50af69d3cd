@@ -1,0 +1,3 @@
+changeset a7355ddf5b01b14673b7031fa68f78caa27da9c3
+manifest b4a7a53f46101271316075f9cc17003255488093
+files netwerk/base/public/nsIThreadRetargetableRequest.idl

@@ -1,0 +1,4 @@
+changeset 17461e2b1b9c7124337b7e32b99e0ac5b97e5d6a
+manifest b61fe442b659f54ce98f3cc65cad68ddc2834d9a
+extra rebase_source:43236961f871a7ff04a866646509121055ff927e
+files services/sync/locales/en-US/fx-prefs.properties

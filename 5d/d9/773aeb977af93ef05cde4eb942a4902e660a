@@ -1,0 +1,3 @@
+changeset 32d82a576615c82a1449c8324cbdd2722740644b
+manifest 3623875cfedef23b8cb9d2c171919a7afd280379
+files media/webrtc/trunk/webrtc/modules/audio_device/android/java/src/org/webrtc/voiceengine/AudioManagerAndroid.java

@@ -1,0 +1,4 @@
+changeset 8294084bb6fa9fddeab20b2aeaebfd0f7d72beb9
+manifest d94f7dfb18f0b851b3507eb1e903baff0da4763b
+extra rebase_source:8cfdc2e570f3828af32ccdd6b4f4b9394a9f61fb
+files browser/components/uitour/test/browser.ini

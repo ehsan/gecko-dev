@@ -1,0 +1,4 @@
+changeset 3aa8e0293d5feae8cd397811a0e8e520ff238c50
+manifest 9602613942ea77cd3e2f17b46d33b377f2809df9
+author bjarne@runitsoft.com
+files netwerk/test/unit/test_bug596443.js

@@ -1,0 +1,4 @@
+changeset 94481eaabdafe783401b5d93ac994e90be0c71e7
+manifest 0bf93119e0b5ebc2f20b10c54e92536cde0a22cd
+author timeless@mozdev.org
+files modules/libpr0n/src/imgRequest.cpp

@@ -1,0 +1,3 @@
+changeset bb3ae546ff711546e786a0909bec734758d6d42b
+manifest 99759c86754234937316544ba344caf06dfb691a
+files ipc/unixsocket/SocketBase.h

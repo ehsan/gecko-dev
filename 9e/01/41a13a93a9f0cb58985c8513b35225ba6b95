@@ -1,0 +1,4 @@
+changeset 5b6c27eb0011c5fae0cb97cb3c9290a8af77e068
+manifest 5437855ee5a30a4e24d04729d42c4e1b0d7ff689
+extra rebase_source:7d8365f7e7a8a507b55a21c232b1df2d819e4a09
+files toolkit/xre/nsNativeAppSupportWin.cpp

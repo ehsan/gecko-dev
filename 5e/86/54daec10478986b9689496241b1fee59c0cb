@@ -1,0 +1,4 @@
+changeset 27dd2289e6c7d6487e6b078d1155bc884d1cac84
+manifest 1ab01d380c8328c2d1021864861d1586ecaeddd5
+author mrbkap@gmail.com
+files js/src/xpconnect/src/xpcthrower.cpp

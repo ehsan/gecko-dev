@@ -1,0 +1,3 @@
+changeset dd1f7674fcb3c80176e70416674816820af74f8c
+manifest 8acedc9bec0cc7d896f9cf07f477fc209961b9e1
+files media/webrtc/signaling/src/sipcc/core/sipstack/ccsip_core.c

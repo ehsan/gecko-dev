@@ -1,0 +1,3 @@
+changeset f77ed5fe36f0b82349db2d2b7b9700d44fda3cd9
+manifest b4d837fc0462fbb8c6ca19666c3efbf939df19e1
+files browser/devtools/debugger/test/browser_dbg_reload-same-script.js

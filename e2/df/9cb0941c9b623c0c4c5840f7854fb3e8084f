@@ -1,0 +1,4 @@
+changeset 9693e30b9c9c04faa6aa25488a30b2b912428ddb
+manifest 0cdc53da3545645c3a922e261eeed5cf70f0a7be
+extra branch:GECKO20b12pre_20110216_RELBRANCH
+files embedding/android/GeckoAppShell.java

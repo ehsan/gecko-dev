@@ -1,0 +1,4 @@
+changeset 3bc31639db77e099e2da7d06a833fa349536b00e
+manifest 45b69d9c3d28666c384881d2502f6c4f162fae96
+author mrbkap@gmail.com
+files parser/htmlparser/src/nsParser.cpp

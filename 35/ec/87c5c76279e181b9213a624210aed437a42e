@@ -1,0 +1,4 @@
+changeset 25fba7984dc9638c7c9f5d446feac8d5b102a5ed
+manifest 2831e371da8d3a93676a84f056d7ecfd470637e0
+extra rebase_source:62589f32bbf32569b000f5b1557788402cf979e7
+files toolkit/devtools/server/actors/inspector.js

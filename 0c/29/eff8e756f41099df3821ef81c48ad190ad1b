@@ -1,0 +1,4 @@
+changeset ca0a7e104a7bb8a343b81ab53d44ca309d8e7e25
+manifest 6ea8a19936f0344fa3e9a7b623f7d681e9f9d5b5
+author gavin@gavinsharp.com
+files netwerk/base/src/nsStandardURL.cpp

@@ -1,0 +1,4 @@
+changeset 7cd79e8d80c8693b89eb983446db773cdda63ce3
+manifest e445ee6647b75e3291c969b19177af38310321c5
+author timeless@mozdev.org
+files widget/src/cocoa/nsMenuX.mm

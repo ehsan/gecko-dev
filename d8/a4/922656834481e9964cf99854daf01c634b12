@@ -1,0 +1,4 @@
+changeset d6e697223d822528b3b84843b4692751f752e31d
+manifest 31d7f90569df96f42231cd0df03a7ee82945f026
+author rhelmer@mozilla.com
+files tools/release/MozBuild/Util.pm

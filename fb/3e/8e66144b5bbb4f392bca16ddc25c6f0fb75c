@@ -1,0 +1,4 @@
+changeset 780365615c6d66e1f0042a97994dec8919995dbc
+manifest 03b67ea487125f39fc33b3c2225bcc5ccf918a85
+extra rebase_source:e3cebe6ad88ce7f418501365efdca2cf72dfff83
+files js/xpconnect/src/nsXPConnect.cpp

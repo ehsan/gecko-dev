@@ -1,0 +1,4 @@
+changeset bcaec2cab04f8c23b9283b2d1688c4523b5a99c8
+manifest 01bb219cab53f6399ec68f0611a5375de036ba8d
+author scott@scott-macgregor.org
+files editor/composer/src/nsEditorSpellCheck.cpp

@@ -1,0 +1,4 @@
+changeset 8da116883551365b5f864915e394a263c668ed70
+manifest 4cb165658ea7d68be24e258a25cc487ea7166bdd
+author jst@mozilla.org
+files content/base/src/nsGenericDOMDataNode.cpp

@@ -1,0 +1,4 @@
+changeset 0c1e26893b3cee83281b1c8175b51f1c5db335f5
+manifest d0a3b1fe575c371e97abf2ce78da764fd713095e
+author reed@reedloden.com
+files docshell/test/chrome/test_bug396519.xul

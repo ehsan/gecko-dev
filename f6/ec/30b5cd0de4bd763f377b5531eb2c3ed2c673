@@ -1,0 +1,4 @@
+changeset 71aeb1a130db644b66c5e24b76286a81b4dd3c62
+manifest 0a9b47f7c210d4ae5514fc3ad4cd981a91a235bc
+author jst@mozilla.org
+files embedding/components/windowwatcher/src/nsWindowWatcher.cpp

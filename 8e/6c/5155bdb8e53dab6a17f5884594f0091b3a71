@@ -1,0 +1,4 @@
+changeset 2d6f586ee5b002c9ada0c1782c678f6aae4b557d
+manifest e447eddc545bb973290003dd89168d0d381e4987
+extra rebase_source:bec844e4a62f0492c33d3447fb31ca460768c62a
+files js/src/frontend/BytecodeGenerator.cpp

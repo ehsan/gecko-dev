@@ -1,0 +1,4 @@
+changeset 21bf58cefefd5f4df689259612d5ed1106da97da
+manifest 31d407fed3fb802fa46d2a8f67fcc14f2c2708eb
+author sdwilsh@shawnwilsher.com
+files toolkit/components/alerts/src/mac/nsAlertsService.mm

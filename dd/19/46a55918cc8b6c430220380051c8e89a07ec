@@ -1,0 +1,4 @@
+changeset cff6ff652c4c2fb949a47d580440084726824564
+manifest 2900f306d37c1203d4b4ff92e9ffe5524c5aabe7
+extra rebase_source:fb7431e890cd8b5a01a3f34a511d5b7c4aa575bf
+files gfx/ots/src/svg.cc

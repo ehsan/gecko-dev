@@ -1,0 +1,4 @@
+changeset 42be82fcc8be1bbd126d27d2546b1b62f4bf34fc
+manifest ed368e4225423b3ed32d103ca491e27ef7fc0cd8
+author peterv@propagandism.org
+files content/base/src/nsXMLHttpRequest.cpp

@@ -1,0 +1,4 @@
+changeset 43fc3bd2d00ea252985a89dd5733ea340ea2f341
+manifest b3e82f1bce60367b6d9ab2fa6f5d5cfb7b98ada9
+author peterv@propagandism.org
+files toolkit/components/places/src/nsNavBookmarks.cpp

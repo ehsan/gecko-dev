@@ -1,0 +1,4 @@
+changeset ebc0277f5916c1aac75ae0e7bb7027a1e696ed57
+manifest 21a91c7fff8d54d3a2805d56ab38719a808b09ac
+author mats.palmgren@bredband.net
+files content/events/src/nsEventStateManager.cpp

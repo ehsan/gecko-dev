@@ -1,0 +1,4 @@
+changeset 6c24a513319a1343ffa6782c1542160b6658ddc9
+manifest 02f86666005682d441d896ceb9592b3a5b1954d1
+extra rebase_source:d4b6b71ae273b4b570591d6548cfaed559598d49
+files xpcom/base/nsCycleCollector.cpp

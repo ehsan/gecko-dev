@@ -1,0 +1,3 @@
+changeset ddf8ebbf37fb698639909b337a2b98887613f108
+manifest 961a0f7d08995dfe5d1c548d7db51cf8a06c4200
+files js/src/trace-test/tests/sunspider/check-math-partial-sums.js

@@ -1,0 +1,4 @@
+changeset 932a73dcca777e0da359c095dc767300001a0d29
+manifest 33b87540e9f083532150d148c10dab85d5aff2e7
+author benjamin@smedbergs.us
+files browser/modules/Sanitizer.jsm

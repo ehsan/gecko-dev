@@ -1,0 +1,3 @@
+changeset ba55dd0b1a12bcc3462d7b4357e20ea1dbf2f007
+manifest cf5f9e1d236e6f97254c1cba38fa106d78b6b67a
+files mfbt/tests/TestTypedEnum.cpp

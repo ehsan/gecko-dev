@@ -1,0 +1,4 @@
+changeset 1a7b71c4b284497ead3e0f62071a654e683b6521
+manifest c6949ed8f67380525dca44ecc9dfdabb123caf1a
+extra rebase_source:995ce9bc3bf0516c7b3364ca7e393f19e4e016af
+files js/src/jit/shared/IonAssemblerBuffer.h

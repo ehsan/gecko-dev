@@ -1,0 +1,3 @@
+changeset 620841908404e495e31502d3b15ffef02eae8023
+manifest d288cccf4a0cceb41f17eea69b341174943adc30
+files parser/htmlparser/src/nsScanner.cpp

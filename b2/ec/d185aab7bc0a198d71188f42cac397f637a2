@@ -1,0 +1,4 @@
+changeset 55d3f8fc69fcbc2380e2f5f04cc5dc51eca6bfeb
+manifest 9c56a5f0242d39d92e84ae3b2b3bad3fe3ba830d
+extra convert_revision:c85faf8ab65a97a4fd19df33b90ff43a11133df9
+files js/src/nanojit/NativeX64.cpp

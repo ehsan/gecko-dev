@@ -1,0 +1,4 @@
+changeset 8ca6c6208a4a91d84ba2e27e229e186d00b9f6ed
+manifest 1a57490d3e56ccc439a13a31546c7dfcf01a9b4d
+author roc+@cs.cmu.edu
+files layout/xul/base/src/nsBoxFrame.cpp

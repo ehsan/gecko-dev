@@ -1,0 +1,4 @@
+changeset 300c3cdf3e3cd14e1210c349a74f2a6878e93e82
+manifest eb9feb05984b0e79dbef06ada8b01aa8383cc6cc
+extra rebase_source:9ed22aa9e24016566fe0e843e6019c4a583ca788
+files layout/style/nsRuleNode.cpp

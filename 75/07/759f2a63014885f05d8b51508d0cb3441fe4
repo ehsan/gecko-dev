@@ -1,0 +1,4 @@
+changeset 19ca9c66e9f082b9d4c4d5e23c53ed67ea26049b
+manifest b041a67904cb6bd4022f06e07613f86d1db632f5
+author dietrich@mozilla.com
+files toolkit/components/places/public/nsINavBookmarksService.idl

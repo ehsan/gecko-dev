@@ -1,0 +1,3 @@
+changeset 96878ce5b70b18a4d37cf05b635ddb1d287c24bf
+manifest 225460f51bc7f0bcb321ce87e9554c1480e17098
+files python/mozbuild/mozbuild/mozinfo.py

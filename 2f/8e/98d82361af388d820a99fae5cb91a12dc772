@@ -1,0 +1,4 @@
+changeset cebd409f2ab0a150afb60affb2fec06c50cb012e
+manifest 2217803007726e836f8af341d10bb0fae95ae51d
+author Olli.Pettay@helsinki.fi
+files embedding/components/find/src/nsFind.cpp

@@ -1,0 +1,4 @@
+changeset 0b9e3fc0b06d1c9193e0f3e63e20ce7f72ef8cb3
+manifest 02c7be962035e2ce97998fc97a9699654fc99ac1
+author asqueella@gmail.com
+files browser/components/safebrowsing/src/nsDocNavStartProgressListener.cpp

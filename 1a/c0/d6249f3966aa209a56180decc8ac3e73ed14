@@ -1,0 +1,5 @@
+changeset 4fe78510f911e5be96e7f81666ab7279653ad3e3
+manifest c3f4ca5d350b7a4cbac3b9291083bc6ee3113d5d
+author timeless@mozdev.org
+extra rebase_source:81003129e2b42ed026a43a4a43c295dc0f6fc9cb
+files gfx/layers/opengl/ContainerLayerOGL.h

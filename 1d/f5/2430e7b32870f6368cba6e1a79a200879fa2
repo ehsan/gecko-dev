@@ -1,0 +1,4 @@
+changeset af78342ac3e8d28806426f2839043bedff3ce8a7
+manifest cd810dadcf0e5d8a783c239a7f6c719eac7618b2
+extra rebase_source:d80afcddfc5b50b7f24b5c1266810dde61b9e61f
+files netwerk/cache2/moz.build

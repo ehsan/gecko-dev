@@ -1,0 +1,4 @@
+changeset 771a0f0a295bd2bae2ef9929404a06bcbf4fa558
+manifest 87b5af13ce900d4e18afda3dc5f4e37b7832d1f8
+extra rebase_source:a16f362e62a05ba7eecfc985155b6fc61853e174
+files xpcom/reflect/xptcall/src/md/unix/Makefile.in

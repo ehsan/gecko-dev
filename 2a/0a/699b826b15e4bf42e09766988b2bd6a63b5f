@@ -1,0 +1,5 @@
+changeset 773435dcbbefd78fd4a467f63e01346dc8a49e02
+manifest 395ef0573ee66ef07d7edf15027c3712d51452f4
+author timeless@mozdev.org
+extra rebase_source:be81640ea16edd00e0898dafeb4c04c7fc511b24
+files xpcom/glue/nsIInterfaceRequestorUtils.cpp

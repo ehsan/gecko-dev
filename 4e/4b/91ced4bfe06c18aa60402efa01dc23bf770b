@@ -1,0 +1,3 @@
+changeset 84af366e007ff09c07fd96deddbf9e08b61a4341
+manifest e95de229600f4d5de45215a5b42756fdb00339da
+files js/src/vm/Stack.cpp

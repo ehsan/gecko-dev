@@ -1,0 +1,4 @@
+changeset 8cd074315e8bc7498cc38964a93060772d344772
+manifest b9315afcdc7cf27b75caf26ba45056babc84cf30
+author jonas@sicking.cc
+files content/xbl/src/nsBindingManager.cpp

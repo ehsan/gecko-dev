@@ -1,0 +1,4 @@
+changeset 2aa2a2718383d50f159be5def34ca3613c4d544c
+manifest 9eed186d1ebf508fb56ee74a16f7a112a32d84c2
+author timeless@mozdev.org
+files content/xbl/src/nsXBLWindowKeyHandler.cpp

@@ -1,0 +1,4 @@
+changeset b701cb6e9510e605d63a703e64cc22f87f10af52
+manifest 0091c1cba33a22dbb82c454f6b9fae43d1222d56
+author dtownsend@oxymoronical.com
+files toolkit/components/startup/src/nsAppStartup.cpp

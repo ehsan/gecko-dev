@@ -1,0 +1,3 @@
+changeset c82942addc204f43ab62b4547891629a7085af98
+manifest 27c8ed4cb7b51fce1b80a51f76a317b91f41891e
+files python/mozboot/mozboot/openbsd.py

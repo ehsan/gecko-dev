@@ -1,0 +1,4 @@
+changeset c334454ca1ff0f945bd50692273d2fdfaea220bd
+manifest b96c09d189eb6e9aff87df9b5fad167c6ecaa217
+author pavlov@pavlov.net
+files modules/libimg/png/pngpread.c

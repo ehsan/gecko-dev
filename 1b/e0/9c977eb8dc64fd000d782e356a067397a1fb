@@ -1,0 +1,4 @@
+changeset afad85892e76d89d47b1ff8147e9d068850523b4
+manifest 2948c74560589e120b1788e8afbcdea0c1aee9db
+author scott@scott-macgregor.org
+files extensions/spellcheck/hunspell/src/atypes.hxx

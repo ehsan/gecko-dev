@@ -1,0 +1,3 @@
+changeset 89d2bda1ab3730e7b6a995fdadf1cbc5d61f00b2
+manifest a71482a41f4aa05817778926ad236178cb293fc3
+files xpcom/tests/TestCatManPersistency.cpp

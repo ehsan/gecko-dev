@@ -1,0 +1,4 @@
+changeset 339565aa8cfc76156dc0a5f37d34bf20079789c1
+manifest d9a7035a3557315ccf55bfb4b087336b16775c34
+extra rebase_source:4f273135266ea747aa12ca6bddf922668112fef2
+files toolkit/mozapps/installer/package-name.mk

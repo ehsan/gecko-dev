@@ -1,0 +1,4 @@
+changeset 50dac1e47049b9d4fc420ae16b4c3f489e15d611
+manifest dd7da287cc6f7b3106742512ffb5fa2027c285f5
+author bryner@brianryner.com
+files browser/modules/Sanitizer.jsm

@@ -1,0 +1,4 @@
+changeset d58ec147e8481501b9ac5191a7cf5c1db9526fc4
+manifest af58640bcc3d2212b907f58c80816fa88e3d78c9
+extra rebase_source:93415faaf569657944b3da39f9b7084b69b9987c
+files toolkit/devtools/DevToolsExtensions.jsm

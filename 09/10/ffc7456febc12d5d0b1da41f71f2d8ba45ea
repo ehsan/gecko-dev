@@ -1,0 +1,4 @@
+changeset 23421ddbc416ec2d7601f7d8ef2ecb62b7a08729
+manifest 88d50ec92ede2c9ac71cdc4cfe152eb31a79d6c7
+author timeless@mozdev.org
+files layout/inspector/src/inFlasher.cpp

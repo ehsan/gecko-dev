@@ -1,0 +1,3 @@
+changeset 8ab84754b53641eba91101529266fa9d59303a1c
+manifest b2594eee40b45bc001645d7fdeeebdc4c30336e6
+files toolkit/components/url-classifier/nsIUrlListManager.idl

@@ -1,0 +1,4 @@
+changeset f6cf82daa5bd753f022aea8f756775371e55f863
+manifest 20b6c59af1cde08ef858b2a6dd0c8ef2dd428241
+extra branch:COMM193a5_20100623_RELBRANCH
+files chrome/src/nsChromeRegistry.cpp

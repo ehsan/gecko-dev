@@ -1,0 +1,4 @@
+changeset 15b3fe33254332af1d6f7c2eb93b6808ed9c8bbc
+manifest 9cde2872c3e67e7383ee1468fa61755ba7411293
+author edward.lee@engineering.uiuc.edu
+files widget/src/cocoa/nsAppShell.mm

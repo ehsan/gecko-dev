@@ -1,0 +1,4 @@
+changeset f8cfc4c027090419290f76ce8717072f495037a3
+manifest a04b22c3ad6c3b0d86d47da6574f2c1071ae1ec6
+extra rebase_source:52ef8d0c9333d75e5e67e2ca042131159102b15f
+files modules/libjar/zipwriter/src/nsZipWriter.cpp

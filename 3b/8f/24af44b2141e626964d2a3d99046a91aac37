@@ -1,0 +1,4 @@
+changeset 3ce39d84a1c502e7a1a93bf1b5d7b52ac5abcad6
+manifest 6bb926e1589e4ada886a1b432abc1cd007631673
+author gavin@gavinsharp.com
+files toolkit/xre/nsAppRunner.cpp

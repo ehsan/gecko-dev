@@ -1,0 +1,4 @@
+changeset eabd3d01d2ed316af0b520492e177bf48def550d
+manifest db3a86daea4a8d734714c2b30fbb721663d3d741
+author dougt@meer.net
+files js/src/xpconnect/src/Makefile.in

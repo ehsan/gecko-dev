@@ -1,0 +1,3 @@
+changeset cb053a66c9edd179cf53356a8aeabfe29102dd27
+manifest c8f388f4efaad36b28f60dad7933d44872bca2a9
+files browser/components/shell/src/nsMacShellService.cpp

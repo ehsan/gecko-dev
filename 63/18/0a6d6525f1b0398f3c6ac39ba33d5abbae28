@@ -1,0 +1,4 @@
+changeset 8114d2445db99bc56c26695b041cb8d31dfac359
+manifest fd1e15c077a39f903d3d41a03bf6a189511cb2ca
+extra rebase_source:a77caa6b725028eed75278f6a49baaf087a9d536
+files dom/interfaces/css/nsIDOMCSSRule.idl

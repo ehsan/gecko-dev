@@ -1,0 +1,3 @@
+changeset 10e879bc17a470372647c85aae9a89e60bdf50ef
+manifest 71588bf3a0c6f9a5659be425f7a03e91fdaf57ae
+files xpcom/reflect/xptcall/src/md/win32/xptcinvoke_asm_x86_64_gnu.s

@@ -1,0 +1,3 @@
+changeset 06852afa8721257547f926a6343d98c28c03d87f
+manifest 9a76026e44befdfd3d84a29d818d9139a4bcc418
+files js/xpconnect/src/XPCWrappedNativeJSOps.cpp

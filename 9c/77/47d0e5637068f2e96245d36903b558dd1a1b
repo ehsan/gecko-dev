@@ -1,0 +1,4 @@
+changeset ea8a883f9f8a0bc61149e8eb2a3f3eb3864536cb
+manifest c724faff9f65b5bb27fa55d6d25a414159c39ddd
+author thunder@thunder-mbp.local
+files services/sync/nsBookmarksSyncService.js

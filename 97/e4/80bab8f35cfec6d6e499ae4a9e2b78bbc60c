@@ -1,0 +1,4 @@
+changeset 2806770644f6312d28e0ebe653ae70a2a4dd85eb
+manifest 7ec35c6489ca22a614988e114dc6889ad9db530c
+author peterv@propagandism.org
+files js/src/xpconnect/src/xpcvariant.cpp

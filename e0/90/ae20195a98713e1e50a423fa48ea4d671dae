@@ -1,0 +1,4 @@
+changeset 2ce4ccba7aaf9a576b428f69d3fbd7892a225fb1
+manifest 233c9eb5ce1fa86629aad2f3da865d8d1448bbc0
+author dbaron@dbaron.org
+files layout/style/nsStyleStruct.cpp

@@ -1,0 +1,3 @@
+changeset 62347d33dbc37c19bd0caacf24c31d748ada6cdc
+manifest ec969a97d03751243d0fbbeba34c3ac3b6188133
+files python/mozbuild/mozbuild/frontend/emitter.py

@@ -1,0 +1,4 @@
+changeset e6b4c661c616636e8018fcff3fb1d9f5be913b70
+manifest 2c989bb7e2c7569565c5c50da6e4b3c6893f4206
+extra rebase_source:5e5b3d8f677e6bb6cfeba17d937d5837e4aafd91
+files xpcom/build/nsXPComInit.cpp

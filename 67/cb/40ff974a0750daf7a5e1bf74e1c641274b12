@@ -1,0 +1,4 @@
+changeset 3fa128982fc859d1c9e10520b082c0d5a081e65f
+manifest f4a848f4720f65a9738ab44a4990f9cecd198677
+author anton@antdebian.research.nokia.com
+files embedding/browser/qt/src/qgeckoembed.cpp

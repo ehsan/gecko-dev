@@ -1,0 +1,4 @@
+changeset 61615ac809dcd82e3531d50dd491875bd7b9d6fd
+manifest fad3a66301492ba36f8085f70a897f197b6fb55e
+author gavin@gavinsharp.com
+files browser/modules/Sanitizer.jsm

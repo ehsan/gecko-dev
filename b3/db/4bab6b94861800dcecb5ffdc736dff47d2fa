@@ -1,0 +1,4 @@
+changeset a29560a0660155708d0368f2e46b5b7ad213d2dc
+manifest 061fa1293239f7760554de71389237b1cf44508e
+author rflint@ryanflint.com
+files browser/components/migration/src/nsSeamonkeyProfileMigrator.cpp

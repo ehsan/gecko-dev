@@ -1,0 +1,4 @@
+changeset 36522a47a4a9aa7725b789adc7c1d7040b1864be
+manifest feb88965f4bf2186d038613bc76ee837067055f2
+author pavlov@pavlov.net
+files modules/libpr0n/decoders/jpeg/nsJPEGDecoder.cpp

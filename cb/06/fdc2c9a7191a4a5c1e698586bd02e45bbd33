@@ -1,0 +1,4 @@
+changeset 0770079f15c71b03b95009f69cf9b5c8fc19b721
+manifest c0c2d5cd35f433c1533617e4ed360f6c59740de3
+author adrian.tamas@softvision.ro
+files mobile/android/base/tests/testBookmarksTab.java.in

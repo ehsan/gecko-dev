@@ -1,0 +1,5 @@
+changeset 30b83f45346c6ae6f59cebaddae1a929b2bf2e99
+manifest 3f237d52104caa9cca759631b01fc5b66bb793e7
+author timeless@mozdev.org
+extra rebase_source:5af04f688b6be8980be15ee4def9c33303574d67
+files js/src/xpconnect/src/xpcjsid.cpp

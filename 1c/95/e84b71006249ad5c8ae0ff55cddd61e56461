@@ -1,0 +1,4 @@
+changeset 3fd26ee5928f37952224417e9f116469d072cfc6
+manifest cf9535c2e2c2a2c59d84afdded602c22dcf86baa
+extra rebase_source:ff9148a7a99c139df7c60d5cc55088508dfe5c24
+files toolkit/crashreporter/google-breakpad/src/common/linux/http_upload.cc

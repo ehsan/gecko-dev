@@ -1,0 +1,4 @@
+changeset c2d12e71e342da9f9b9713eb7990b8104192a4b1
+manifest 4ede2c5f517bc3cae530a3c380b7cfb6c7fce1e2
+author reed@reedloden.com
+files modules/libpr0n/decoders/gif/nsGIFDecoder2.cpp

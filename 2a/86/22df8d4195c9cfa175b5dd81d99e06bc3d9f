@@ -1,0 +1,4 @@
+changeset f5de9594c3fa57f1dcd5af4cea7fd06d3fd3c3fd
+manifest 5427e7a281c4495ac8b0c4cff613430821e0f17d
+author sayrer@gmail.com
+files toolkit/components/passwordmgr/test/Makefile.in

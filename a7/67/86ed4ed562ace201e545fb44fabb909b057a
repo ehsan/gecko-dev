@@ -1,0 +1,4 @@
+changeset 26a2aacf9e3a4322a15378a7101adbcb6dfd7dfb
+manifest b306e88bbdce4adb7f9ece1a08f68d773ff4e91e
+author Alexander Surkov <h<surkov.alexander@gmail.com>
+files accessible/src/base/nsAccessibilityService.cpp

@@ -1,0 +1,4 @@
+changeset aec3f38712a316d13e299b8562c6729f4acb23e1
+manifest c49b22d7d95431069d45e4a6bbbb19a7c2fd0f84
+extra rebase_source:df9c75a40f5d25af429a7a14dbea8a05ef82d65e
+files accessible/src/mac/mozAccessible.mm

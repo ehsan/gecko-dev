@@ -1,0 +1,4 @@
+changeset 98c806b8331f754fa1737e202d207352dea5d1e5
+manifest aad71c8be4c2122acc62b6f19bf322691fc8d992
+author bent.mozilla@gmail.com
+files content/xul/templates/src/nsXULTemplateBuilder.cpp

@@ -1,0 +1,4 @@
+changeset 4865db87299b53e0d5ff65f0ec804dc83bced80f
+manifest d15c56bc027640251a268df6a7db64d410c2c963
+author ajschult@verizon.net
+files toolkit/content/tests/widgets/test_popup_scaled.xul

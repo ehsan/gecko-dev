@@ -1,0 +1,4 @@
+changeset 0b1cead41b8380ab6b15f0e544a013ff1da96ebb
+manifest 214034ac10f0f4be67bba5cc094b5b3840a1d2bc
+author sspitzer@mozilla.org
+files toolkit/components/places/tests/unit/test_isvisited.js

@@ -1,0 +1,4 @@
+changeset 3e8d856c9da275fb84971fa0bae1d54ce1307f36
+manifest db9dfb0b587a7a587644b5d67afdc59d48f2a3c6
+extra rebase_source:21c1c224cf9690ad6a91a23598778f48c7b8f412
+files browser/devtools/webconsole/gcli.jsm

@@ -1,0 +1,4 @@
+changeset 4af0049de9cea59d9379c4bed5d7abab7c8a4f8f
+manifest e0dd30a9b30abde72fd0b6a6cd75b130f4eabccd
+author romashin
+files embedding/browser/qt/tests/Makefile.in

@@ -1,0 +1,4 @@
+changeset 12a280f537ef8f57177bf3728ee743c5745f8939
+manifest 3191778a18affd37e279a4583074783a45cb3a7c
+author Olli.Pettay@helsinki.fi
+files security/manager/ssl/src/nsCertTree.cpp

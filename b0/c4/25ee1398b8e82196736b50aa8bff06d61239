@@ -1,0 +1,3 @@
+changeset 221df43616ab2bedebc233f421a8c27e3888dbff
+manifest 0eceaf34e363ea3c6a47dac448d85a57d76f1d93
+files python/mozbuild/mozbuild/frontend/sandbox_symbols.py

@@ -1,0 +1,4 @@
+changeset e69bb10026f312104873d0ec112dc552c92257d5
+manifest d3086aa57578db64b3a9fd88bf7d1bc7efc40367
+extra rebase_source:d776a714c8f356a991286953b6bf15b5726ae5d5
+files xpcom/components/ManifestParser.cpp

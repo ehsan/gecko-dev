@@ -1,0 +1,3 @@
+changeset bf50cdd9ba999bba03f1fcf9da1cdbea440f07d3
+manifest 9b682bf82950ec2ce9b176489cc4f191232d7473
+files parser/htmlparser/src/nsViewSourceHTML.cpp

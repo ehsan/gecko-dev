@@ -1,0 +1,5 @@
+changeset f97c5328098b70dd7548af69ab0608ea738d4184
+manifest 75dddfb35008994847014425b0b1236e4456ea81
+author timeless@mozdev.org
+extra rebase_source:a5db4da740578f8da82a09886834145cd25139f5
+files toolkit/components/console/hudservice/HUDService.jsm

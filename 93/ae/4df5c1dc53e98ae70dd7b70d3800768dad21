@@ -1,0 +1,4 @@
+changeset 7c282eb45b9b72c1b911f6c10fdb776bd7dda82b
+manifest af235e1f8909d7593005d45f6a1f29e03ed050da
+author timeless@mozdev.org
+files gfx/thebes/gfxHarfBuzzShaper.cpp

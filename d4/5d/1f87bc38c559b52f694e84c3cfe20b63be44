@@ -1,0 +1,4 @@
+changeset 99551b8d2e4da8c67b65bf7ef12579383e6e263d
+manifest d3bad819d769af4bb9f13a3857c23abf1a9f6482
+author martijn.martijn@gmail.com
+files embedding/components/find/src/nsFind.cpp

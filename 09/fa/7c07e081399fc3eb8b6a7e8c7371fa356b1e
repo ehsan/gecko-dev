@@ -1,0 +1,4 @@
+changeset 54b5c634212eb738a1f90f25d90a0154a2b45d13
+manifest df546feebd822ef568a3571567f02c302c15608c
+extra rebase_source:3118096536b6271886d5c35a3486bb278dc0fd86
+files xpcom/components/nsNativeComponentLoader.cpp

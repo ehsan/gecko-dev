@@ -1,0 +1,4 @@
+changeset 736ed11f7a0462ec5186b3877f1f0e2d3113dc91
+manifest dbf05404b677565510624fc0f9aa6a4052e0821c
+author igor@mir2.org
+files js/src/xpconnect/src/nsXPConnect.cpp

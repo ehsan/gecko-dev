@@ -1,0 +1,4 @@
+changeset 8cbac12020439c67030a67e535605c58f5b5a250
+manifest c09d4c27dc366f856b9c8d7344debd52a7adcf93
+author joshmoz@gmail.com
+files widget/src/cocoa/Makefile.in

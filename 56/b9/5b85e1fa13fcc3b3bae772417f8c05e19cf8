@@ -1,0 +1,4 @@
+changeset a11b3bf423e08f077bb404711d72a27170552f0d
+manifest f8bb70f562f4856435e104796f4a3b86e3a1b409
+extra rebase_source:5276e796133fd806d0b9229aec51aaaa7fedb5ef
+files image/public/imgINotificationObserver.idl

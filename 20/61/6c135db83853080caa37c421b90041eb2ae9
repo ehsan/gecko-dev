@@ -1,0 +1,4 @@
+changeset f428a9bfec13a9db592939b69acbe4a6d9f66d97
+manifest 30be059705025bf156c73b7637f76103c228ab21
+extra rebase_source:95640f61aae830080c96ff6db849b9da36ad4bcf
+files js/xpconnect/idl/nsIXPCScriptable.idl

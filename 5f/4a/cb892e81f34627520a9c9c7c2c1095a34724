@@ -1,0 +1,4 @@
+changeset 6ba2fed95e002cc4e0620499aadc9e17c0fe52d9
+manifest 5098ea78f663b50f1e9c165bf2650ba062b31c8e
+author sayrer@gmail.com
+files toolkit/components/places/src/nsNavHistoryResult.cpp

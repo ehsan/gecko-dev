@@ -1,0 +1,3 @@
+changeset f4599e608efbcc87c1d2b0464c6ad8559d63fd74
+manifest e925f347abb02bca4a37bcd254e5e270cc31679e
+files netwerk/base/public/nsIRequest.idl

@@ -1,0 +1,4 @@
+changeset 577212601d5c10f0316e304d8705f975ec3992cc
+manifest 47601d101dd077325697702d542620fae85f0ac5
+extra rebase_source:6cd3ace54664e0ef006e01eeac7647463e77ae97
+files widget/windows/nsWindow.h

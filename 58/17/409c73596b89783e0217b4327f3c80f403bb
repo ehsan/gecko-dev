@@ -1,0 +1,4 @@
+changeset 9413f184e70ecf70cecdf0d0900f2efd83f99b9c
+manifest f5ad01e498f2cec1208f3862356ea692446a1b73
+extra rebase_source:82a55f2c2c3336dd6357e05fd198a661a79b8540
+files browser/base/content/browser-appmenu.inc

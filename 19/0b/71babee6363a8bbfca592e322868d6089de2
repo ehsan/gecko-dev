@@ -1,0 +1,4 @@
+changeset 83c9544129df94b6bba6044a02f87672cdb9e7fd
+manifest 611b19a8b810653a12a6d06fee12147d00f4b5cd
+author philringnalda@gmail.com
+files content/events/src/nsEventStateManager.cpp

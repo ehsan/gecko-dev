@@ -1,0 +1,4 @@
+changeset d655d2bf8a40c898430fbe3834624587e199e431
+manifest 933c61515cf01a1c0a834551fca2cedf3927b186
+author reed@reedloden.com
+files embedding/browser/gtk/src/EmbedGlobalHistory.cpp

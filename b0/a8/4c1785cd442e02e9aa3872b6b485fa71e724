@@ -1,0 +1,4 @@
+changeset 36cc30d8c742cd4b0d2fe97b1bcb86f4797e39a0
+manifest 8336da765a797950b987058ee0da680bf7d48d6c
+extra rebase_source:bf0b6d1117cc246d9990a197457063e1e81ce164
+files browser/components/preferences/sync.xul

@@ -1,0 +1,4 @@
+changeset 3c5313a9c4370901793e5b4c9f04e82196e699e3
+manifest c0d97352d16e905ce07ab688c2ef9e95a4d3ae25
+extra rebase_source:7759b352b6b39c2fd6407e0614cbd342fd4f84db
+files modules/libpr0n/decoders/jpeg/nsJPEGDecoder.cpp

@@ -1,0 +1,4 @@
+changeset 117a431062fbca61db7adafdd92e2bcfd6280d6c
+manifest ef63c5ca49f36bd268ce60efe703f50283bae3f9
+author reed@reedloden.com
+files toolkit/mozapps/extensions/src/nsBlocklistService.js

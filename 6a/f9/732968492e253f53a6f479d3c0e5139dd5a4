@@ -1,0 +1,4 @@
+changeset fd4dae82db6a5ac286ce232d5ee07db0d3dba0ab
+manifest 3064cd8c82da2ede919f04551d2b22d2ca747c4b
+author pavlov@pavlov.net
+files content/xbl/src/nsXBLService.cpp

@@ -1,0 +1,4 @@
+changeset 3788ab7b5b4b1a5f14e371729a48057b054e049e
+manifest 25b6ff72ec9bf6994dbe7ebf04f289e8d9ba437d
+author timeless@mozdev.org
+files memory/jemalloc/jemalloc.c

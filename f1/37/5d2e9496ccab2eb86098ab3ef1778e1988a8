@@ -1,0 +1,4 @@
+changeset 6c2d68448f42f48d2dc413a1fca5b16674f2f1f0
+manifest a2e3ae6a2940b3b8c1aeb9187f33fdc91377a12a
+extra rebase_source:267110a1a1dd8cc8d4188f20285d688b2b901aa1
+files browser/base/content/tabview/modules/AllTabs.jsm

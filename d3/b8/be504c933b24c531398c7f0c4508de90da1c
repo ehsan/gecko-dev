@@ -1,0 +1,4 @@
+changeset e04eb0eb59dd27a9fd427319b3d0a37c0e66112f
+manifest e76cdca92afbb9599ce194e986269f7a9addb6e2
+extra rebase_source:315799b482e1db65ea1080216a765066966662dc
+files mobile/android/base/AwesomeBar.java

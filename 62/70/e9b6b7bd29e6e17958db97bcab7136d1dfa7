@@ -1,0 +1,4 @@
+changeset 036176bac86cbe3665e7917db638db3aafef89d7
+manifest c32c7384f8a3cfb9a79ae7e17c5a6b0ae61b19d4
+author thunder@thunder-mbp.pavlov.net
+files services/sync/BookmarksSyncService.js

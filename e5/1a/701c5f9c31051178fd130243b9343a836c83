@@ -1,0 +1,5 @@
+changeset 83c887dff0da702a99ae4b7daf10f5a3bf005900
+manifest 83008a0fc74b0de95e2c5fbd9de052cfd7c3e525
+author timeless@mozdev.org
+extra rebase_source:33db7306106d05a695da3928648f4540fb673eb0
+files security/manager/ssl/src/nsCrypto.cpp

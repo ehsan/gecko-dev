@@ -1,0 +1,4 @@
+changeset 0d866eb9ac2438f2262911ae19c0f202a31a2de9
+manifest 65893ab8c620a3ceca7f94de7dc131c1e8eea49d
+extra rebase_source:113e8e7e98dfea4b67cfa5e08bd281c5f105ab92
+files js/xpconnect/src/dombindingsgen.py

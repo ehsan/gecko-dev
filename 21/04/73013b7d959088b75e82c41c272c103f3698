@@ -1,0 +1,4 @@
+changeset 4152f6cb4994e0ab777a0d8242fe1499d41b6c25
+manifest e3c2e5d080ed89ec87b0f35bb38f94befe48c59a
+author gavin@gavinsharp.com
+files browser/base/content/test/browser_autodiscovery.js

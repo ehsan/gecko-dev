@@ -1,0 +1,4 @@
+changeset ad0b468fb407cdc352fd363227ff53ac7005a594
+manifest 17df0421faaaf75f74bdb5e3b7a5ff304590ddd8
+extra rebase_source:bf6141fb301fcf19b619c9a4c88ce12f3521a12c
+files xpcom/glue/nsTArray.h

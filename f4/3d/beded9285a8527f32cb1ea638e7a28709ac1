@@ -1,0 +1,4 @@
+changeset d419b5cf6af8e073c0bb5207d3413015851f4fe8
+manifest 5affd4ef220f1c199f8bcba2fc9ddcf5d8ef492b
+author dcamp@mozilla.com
+files modules/libpref/src/init/all.js

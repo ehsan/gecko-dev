@@ -1,0 +1,3 @@
+changeset 71c810816820a0e4a7b6c6f9e80e8e41080268e9
+manifest fe5a5d0a3baa4a9af66c45c36a5d07ebfed6baf6
+files js/src/jit/shared/MoveEmitter-x86-shared.cpp

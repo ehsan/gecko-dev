@@ -1,0 +1,4 @@
+changeset 272aed3a91ae82cfdd65b4a45178e5394ff7e9a5
+manifest f90799beb79db12a99d040d4fd35b50ad72d7a0c
+author rhelmer@mozilla.com
+files browser/app/Makefile.in

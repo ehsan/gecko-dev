@@ -1,0 +1,3 @@
+changeset 292bd8571d7c4ea5bc730ebab1c7e6139bf9bfdc
+manifest b8e8d3def16037e9188f2834e778d5adf025a051
+files toolkit/components/startup/public/nsIAppStartup.idl

@@ -1,0 +1,4 @@
+changeset cbe10cc8c21974258a0f6ee0c1d400ed562b2408
+manifest a0b3fc2b24482c5450909ce80a19f0736eb834ba
+extra rebase_source:d0bdbc8c031457a3a9f7f8cc82d141e0d83883f4
+files js/xpconnect/wrappers/CrossOriginWrapper.h

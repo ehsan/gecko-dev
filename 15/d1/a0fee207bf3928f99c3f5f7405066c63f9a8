@@ -1,0 +1,4 @@
+changeset 52574c5172af7a1abbafc3a5b07705f11d366027
+manifest 13dd8ce046fe383810c970432b65e399f5bc2326
+author smontagu@smontagu.org
+files intl/unicharutil/util/symmtable.h

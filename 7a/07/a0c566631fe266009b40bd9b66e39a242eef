@@ -1,0 +1,4 @@
+changeset 40e682b208cc9ab16e54ffa6842dd4f1346be85e
+manifest 7762929167b67eeb26fc1465578968efb7320d12
+extra rebase_source:e8cb8082ac48e3725ad3153fb29fcc89840e867a
+files xpcom/build/BinaryPath.h

@@ -1,0 +1,3 @@
+changeset 747f4b2767f557743f99eac3ef7a9dfd2b1c6b0c
+manifest fd83296c4dff6b78010c23a04baaf3308f55ea97
+files js/src/xpconnect/wrappers/XrayWrapper.cpp

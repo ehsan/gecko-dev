@@ -1,0 +1,4 @@
+changeset f9c0efd7aae3d09fb93b115d5a54f4db9065757e
+manifest 4f469072d9cbdddd74302b72b148824b8c2a8390
+extra rebase_source:e8116e9680c5a2005d0f9e6aea774b292cdca59c
+files js/src/gc/Barrier.h

@@ -1,0 +1,4 @@
+changeset a693d3cff391fd44e7073ee443848ae4b16a66eb
+manifest 0b061a0674c678f813cd4c184699db36ada51c3a
+author blakeross@telocity.com
+files toolkit/components/downloads/public/nsIDownload.idl

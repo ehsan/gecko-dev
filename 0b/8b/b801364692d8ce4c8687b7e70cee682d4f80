@@ -1,0 +1,4 @@
+changeset 64f34db959d4aef554a858039211e9564dc9128d
+manifest 82d257e8f78c6f5ba2a2243a0394c49c1bcac9e9
+author jst@mozilla.org
+files extensions/reporter/resources/content/reporter/reportWizard.xul

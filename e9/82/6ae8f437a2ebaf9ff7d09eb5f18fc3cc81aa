@@ -1,0 +1,5 @@
+changeset 386f6ab3c09b6cb265d156e8f541b1258104b9d8
+manifest a3f2b321af5a70d8e2e201241403645600b04bd7
+author timeless@mozdev.org
+extra rebase_source:fb97bc29e6a1e4b0abc1108555947edb4e1000a5
+files xpcom/components/nsNativeComponentLoader.cpp

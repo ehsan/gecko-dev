@@ -1,0 +1,4 @@
+changeset 6d5e18ad508e045923fa2ebb898c4173779608ef
+manifest fdaf9b817b59b4bf9c556868dd454f5264f9b401
+author sdwilsh@shawnwilsher.com
+files toolkit/mozapps/downloads/content/DownloadProgressListener.js

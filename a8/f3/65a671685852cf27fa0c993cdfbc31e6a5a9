@@ -1,0 +1,4 @@
+changeset 31d8ab3ddf1a2c61a993ddf4ebcdf5fc5e8d0659
+manifest a8962e93b9b78680c50ea7ee9dd2fcdcd61b0252
+extra rebase_source:b6046c6fafc4224132462cdbf88f8e72e701b333
+files xpcom/string/public/nsTSubstring.h

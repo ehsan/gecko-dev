@@ -1,0 +1,4 @@
+changeset d40d19445f9a9d2a447d0880e52fdd1e40426502
+manifest aa00efa310a5316572844ea5f23c14c4622cc714
+extra rebase_source:b3b6f8c8b6323f72a97973d56dd6ea79e8f35eae
+files js/src/jit-test/tests/asm.js/testBasic.js

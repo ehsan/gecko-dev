@@ -1,0 +1,4 @@
+changeset 61c90439642e5a9634c91cb3922603a7d592ffba
+manifest b86c08fb1ead009a43712d15a41ea30a3a5250d0
+author preed@mozilla.com
+files tools/release/configs/fx-moz18-bootstrap.cfg

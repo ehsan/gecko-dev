@@ -1,0 +1,4 @@
+changeset 2f0c5278f4a43bf67c2a8a40b710b05342cc4bba
+manifest 4f97223e254d82660fd73def8a1f7054cd8f9248
+author alfred.peng@sun.com
+files netwerk/cache/src/nsDiskCacheDeviceSQL.cpp

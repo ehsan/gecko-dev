@@ -1,0 +1,4 @@
+changeset 00cc150366cd205afa09c0ee600ab0fcecbba635
+manifest 0b663c98a7d0ccde9b3bdf1f64e67d92d053ce34
+author bent.mozilla@gmail.com
+files widget/src/cocoa/nsMenuX.mm

@@ -1,0 +1,4 @@
+changeset e87f5470b6d6035d4fc9bc20193f5b30ee72250a
+manifest 452eefdc206f2bfbe1e5a26606ac111fc1435c3d
+author dbaron@dbaron.org
+files widget/src/gtk2/gtk2drawing.c

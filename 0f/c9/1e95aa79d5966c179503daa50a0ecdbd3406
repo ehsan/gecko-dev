@@ -1,0 +1,4 @@
+changeset 5b614cfe95ff0d8dae6fafc79c4314b4aff0deb2
+manifest 87038bab5a9a18863f9912c005bb3cb36da42973
+author ginn.chen@sun.com
+files toolkit/xre/nsNativeAppSupportUnix.cpp

@@ -1,0 +1,4 @@
+changeset de7753886ad617969aa364dbcd7f503b97cf604a
+manifest 03aafa67dd055cb1a993c371d81c6bff2ff78192
+author bzbarsky@mit.edu
+files dom/src/base/nsDOMClassInfo.cpp

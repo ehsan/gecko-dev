@@ -1,0 +1,4 @@
+changeset 7ef7d71a93a9d1bbc02d2964e6cad2e67d771174
+manifest 2efc0734187133a9646c4ff5973eeeaeaa99c83a
+author mozilla@weilbacher.org
+files gfx/cairo/cairo/src/Makefile.in

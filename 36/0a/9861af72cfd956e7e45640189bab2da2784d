@@ -1,0 +1,4 @@
+changeset f5bdaa1fd19ab29f437c49fffd2f4bdb9af0e14d
+manifest 91fc80b1124e7579a45f376e1d2fd877ba3808eb
+author sayrer@gmail.com
+files xpcom/reflect/xptcall/src/md/win32/Makefile.in

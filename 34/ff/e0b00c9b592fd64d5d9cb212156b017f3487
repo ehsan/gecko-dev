@@ -1,0 +1,3 @@
+changeset ef0adaaa2e53f1fbad04b0c493b600171fb9406f
+manifest 5f4fd3dadf5febf7c44447473a3f3fada124ef9c
+files browser/components/sessionstore/test/browser/browser_586068-cascaded_restore.js

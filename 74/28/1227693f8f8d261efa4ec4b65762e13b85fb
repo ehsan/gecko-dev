@@ -1,0 +1,5 @@
+changeset 99e9ec4fb2c9a57dfb75967501813baf13be4f07
+manifest 8af6fad979e79d71aa7ef591f030af7b82b3b42d
+author timeless@mozdev.org
+extra rebase_source:5b83d0cadd4a19b7046081d97def741f16021edc
+files view/src/nsViewManager.cpp

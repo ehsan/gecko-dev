@@ -1,0 +1,4 @@
+changeset eb71f420a4c046428c2115eb3656485d8968b739
+manifest 4c9caefd162efb92d9d981185c5e4dd12d9e1740
+author dwitte@stanford.edu
+files netwerk/dns/src/nsEffectiveTLDService.cpp

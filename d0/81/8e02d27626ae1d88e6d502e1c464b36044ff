@@ -1,0 +1,4 @@
+changeset 3e2124f5d0d697776406af0dea06a67fa2f373a9
+manifest 31eef7794aaacfd3d3603780ed97b40ed8d4c696
+extra branch:GECKO20b3_20100804_RELBRANCH
+files js/src/dtoa.c

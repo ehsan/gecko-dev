@@ -1,0 +1,4 @@
+changeset 0c8a191fa865c4c9678e66c6bc06ead53616c09f
+manifest b6369c3559d3437d7a8b6a36c24cb1965020277b
+author sspitzer@mozilla.org
+files netwerk/cache/src/nsDiskCacheDeviceSQL.cpp

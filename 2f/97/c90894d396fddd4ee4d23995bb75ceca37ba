@@ -1,0 +1,4 @@
+changeset 80fa3e80e67141b1da34626935113a64b1b43230
+manifest d787fed2c24ed67a37dda7478052846162427f16
+author mrbkap@gmail.com
+files dom/src/base/nsGlobalWindow.cpp

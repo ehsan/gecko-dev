@@ -1,0 +1,4 @@
+changeset 606538b192913ff2989b965d5e90518209ff5b02
+manifest 315a93709b312f8cba131b0f140200404ca9ac14
+author timeless@mozdev.org
+files toolkit/components/commandlines/src/nsCommandLine.cpp

@@ -1,0 +1,3 @@
+changeset 918caab17da26d47e697d67e3bbe1adebe489b48
+manifest 04c3c6f068aa15e3923b9714bd9d23b5849a71ed
+files xpcom/base/ClearOnShutdown.h

@@ -1,0 +1,4 @@
+changeset 75ac0a5042d8fc4ca7be84c0f4be70a3f3dd5e37
+manifest b132933888df5b0d8b856143a84a9e214e5ab4b0
+author bzbarsky@mit.edu
+files xpcom/base/nsAgg.h

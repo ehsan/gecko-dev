@@ -1,0 +1,4 @@
+changeset 48ea27d2c876f2d69986a8b5a22e23818adab5c2
+manifest 3dac24e1f814ce78648d97ea4406fda0808a4c93
+author reed@reedloden.com
+files xpcom/tests/unit/test_streams.js

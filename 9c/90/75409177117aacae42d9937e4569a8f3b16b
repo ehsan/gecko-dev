@@ -1,0 +1,4 @@
+changeset 0385ac298737e87973724a49176bd9161224ac23
+manifest 5f819866cb35df1619cbb63070aa5dfed2a630eb
+author sergei_d@fi.tartu.ee
+files widget/src/beos/nsWindow.cpp

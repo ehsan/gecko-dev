@@ -1,0 +1,4 @@
+changeset b09a2b0b26edc41bbe15341f2390a762932864fc
+manifest f91e6b98d7644d8c032110d75e0bc538783435d1
+author sayrer@gmail.com
+files dom/src/storage/nsDOMStorage.cpp

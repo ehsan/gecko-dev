@@ -1,0 +1,4 @@
+changeset 1f1750ff5f0afd455d6743f0ba82a1bdc0927177
+manifest c4a98160ed847ebf81f34bbf57e4323a5eee505d
+extra rebase_source:6cc701723aa63e1ad2168dcdf7f8a3832c57ad5a
+files widget/src/gtk2/nsAppShell.cpp

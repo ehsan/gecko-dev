@@ -1,0 +1,3 @@
+changeset faa7c2b09118aa92f8bfe92f6470721830e8392f
+manifest a4575d55cad50589d46f413ae760d5fb6582a228
+files dom/mobileconnection/tests/marionette/test_mobile_operator_names_plmnlist.js

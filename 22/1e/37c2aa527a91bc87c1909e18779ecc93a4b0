@@ -1,0 +1,4 @@
+changeset 4a8c9894e0a17e10871ff708f9de10ddd05aeae0
+manifest 004bb6c3747992e680464e8c37dea9aa1b5a569e
+extra rebase_source:d4ff28171ebdd7d2a23e7cc395d7087831d30f96
+files services/sync/tps/extensions/tps/resource/tps.jsm

@@ -1,0 +1,3 @@
+changeset dd21d25200082c25fe7c2beed93fb1fe17c2283e
+manifest d882a254661a7fc1e623ea3d50d4417b46db9649
+files xpcom/string/public/nsLiteralString.h

@@ -1,0 +1,4 @@
+changeset eb8f60c782dafe08047aacbb78044f6ac3ce7be4
+manifest 0d770c28959112243ead4e3210198320700d344b
+extra rebase_source:00c9e38fa2099ed03dc24aea9582f48423fe3a1b
+files js/src/jsutil.cpp

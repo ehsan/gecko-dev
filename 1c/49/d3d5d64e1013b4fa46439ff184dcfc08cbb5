@@ -1,0 +1,3 @@
+changeset e6d0e1681cc87db2f46b13aea4fe7f2b25806f23
+manifest db1649917b5e901713aae2744cb72c9aa4bbb0ec
+files services/sync/tests/tps/test_tabs.js

@@ -1,0 +1,3 @@
+changeset f7e29a820cc0c45e46f6714881ea41ce18cb2b3d
+manifest 957ef59b6bc19e099923cf6844c6667b247515f4
+files security/manager/ssl/src/nsIdentityChecking.cpp

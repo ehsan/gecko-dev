@@ -1,0 +1,4 @@
+changeset 9149dfa9b249302d807fcf802351dfcf34b034db
+manifest 080808550f13c349f0e50ba81a4001566b02579e
+author bzbarsky@mit.edu
+files content/xbl/src/nsXBLService.cpp

@@ -1,0 +1,3 @@
+changeset b7c6f08e35b3a8447270097ab916b19fe00b31fc
+manifest 677c643440083f20cb58a226a02da866bbc31ab1
+files netwerk/dns/src/effective_tld_names.dat

@@ -1,0 +1,4 @@
+changeset 671784aa243d9c1ef99f0f114daf9aaaf5353b1b
+manifest f1b7dea76a8ecd6394675c9f66e4e982b4e78781
+author pavlov@pavlov.net
+files gfx/thebes/src/gfxPangoFonts.cpp

@@ -1,0 +1,4 @@
+changeset 81a0668b9af2a961e7bde2dc26528ee5d2b57da1
+manifest b1eb44e50381d7772723723648c27039b694bba6
+author sdwilsh@shawnwilsher.com
+files netwerk/protocol/ftp/src/nsFtpConnectionThread.cpp

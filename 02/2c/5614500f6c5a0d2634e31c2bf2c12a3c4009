@@ -1,0 +1,3 @@
+changeset 9b820751dd528621dfeba4083b01de1e16caf324
+manifest e3884c1c22fba7269c2c36698303e64a770074d4
+files dom/mobileconnection/tests/marionette/test_mobile_preferred_network_type.js

@@ -1,0 +1,3 @@
+changeset 22595f411467aff392e1d4f03e0325894efe13cb
+manifest 3c2066d32303c038f6954b966a3e3d87b1b14dc2
+files dom/src/threads/test/test_closeOnGC.html

@@ -1,0 +1,4 @@
+changeset 315b927c1934ef5d0b975276d7dbd022a280090b
+manifest 0043765e7045bd02900bfbc3b4ae21d0159f58e6
+extra rebase_source:c4c58d30ff0b46ca57093cc0b3bbc37af56f2095
+files mfbt/Attributes.h

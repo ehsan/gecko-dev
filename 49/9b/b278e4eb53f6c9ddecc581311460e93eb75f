@@ -1,0 +1,4 @@
+changeset 844996318d2313aae4634ad0635d3a15034d0b40
+manifest 47e7c2f8b88c301a582f6fffc3dd8d1e20ff3d74
+extra rebase_source:601d7a4611e0eb27143b74ab4db0b346e092aa34
+files toolkit/crashreporter/google-breakpad/src/common/windows/http_upload.cc

@@ -1,0 +1,4 @@
+changeset 0de6d41fb3c426ede4a1db2fb5defa223299f5f5
+manifest 6a0e04c4670c8e7567245fdb61f1ab39247bcc98
+author jruderman@hmc.edu
+files browser/components/feeds/test/test_registerHandler.html

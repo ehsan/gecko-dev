@@ -1,0 +1,4 @@
+changeset 2774b727a51a4dfec00d9de7d65a1d9b1ee5ccf5
+manifest 82968b4b6208bf474c92b940737f100808da0def
+author reed@reedloden.com
+files extensions/python/dom/src/nsPyContext.cpp

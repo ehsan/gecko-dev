@@ -1,0 +1,3 @@
+changeset 3bdb961fd6d1ef332b06e6ff9268c0ab56347003
+manifest fad715591af20feee74730e72bcb7e865b526fdb
+files js/src/tests/ecma_6/TypedObject/simd/float32x4clamp.js

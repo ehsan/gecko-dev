@@ -1,0 +1,4 @@
+changeset c53f95cf23f14cf2fe3c07add7ed208459a58c41
+manifest f654bd585c910289b61529feb6129c80fc83ede1
+extra branch:GECKO20b5pre_20100820_RELBRANCH
+files embedding/android/GeckoInputConnection.java

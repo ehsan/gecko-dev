@@ -1,0 +1,4 @@
+changeset d78ccc0037103e2c3985431de2166521e6f127ef
+manifest fcf0d4c327bbe328500cc385aaebf1ce23f4cf52
+author benjamin@smedbergs.us
+files netwerk/base/src/nsSocketTransport2.h

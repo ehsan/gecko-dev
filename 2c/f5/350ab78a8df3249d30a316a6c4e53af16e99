@@ -1,0 +1,4 @@
+changeset 3bbac579487bf5b598305656ac36be24d8014333
+manifest 567070fa361ec9d2f725079a38bb1ace224e1bfa
+author shaver@mozilla.org
+files js/src/xpconnect/loader/mozJSComponentLoader.cpp

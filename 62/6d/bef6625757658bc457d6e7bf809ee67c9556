@@ -1,0 +1,4 @@
+changeset a7e72f1be750e2f6d546cd4b3fedaaa6ce92dc8b
+manifest 1a01abd18ed22fedeb4fa18aff9abd5c311e9bba
+author jonas@sicking.cc
+files dom/src/base/nsGlobalWindow.cpp

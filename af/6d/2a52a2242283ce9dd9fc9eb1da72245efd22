@@ -1,0 +1,4 @@
+changeset 6f451a1012e116bfcf7b71c11d3fa5be380f31a9
+manifest 9b812140f6d163695c498b326d78c9c8d0889f52
+author ajschult@verizon.net
+files xpcom/typelib/xpidl/xpidl_java.c

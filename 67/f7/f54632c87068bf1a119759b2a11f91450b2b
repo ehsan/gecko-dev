@@ -1,0 +1,3 @@
+changeset be9320beb260c8ad584f88b99c57cb35a6241380
+manifest c97a21c8e580e1592b213759a8f0dd494eb62f15
+files js/src/jit-test/tests/TypedObject/aggregate-set-neutered.js

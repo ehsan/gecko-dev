@@ -1,0 +1,4 @@
+changeset 719f34e664880335ea71ae685bf743d6a9f48764
+manifest 553a7cc8cd5e855ceeff8db7cddf968c6dbeea5d
+extra rebase_source:f41a90624996df745a89b0d0bccad21c0356dabb
+files browser/components/customizableui/content/panelUI.inc.xul

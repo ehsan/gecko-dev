@@ -1,0 +1,4 @@
+changeset 2e8ef22d2b1a4c15640e589379721ea1616c418c
+manifest 25b9ed8aeb43a34594767efdf2dd8c6263325dcd
+author reed@reedloden.com
+files xpinstall/src/nsInstallExecute.cpp

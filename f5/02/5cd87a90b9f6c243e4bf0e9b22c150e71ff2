@@ -1,0 +1,4 @@
+changeset a88a9fbcd6a1691525985a8e8ab01c1bba0c5ec2
+manifest fd31d567bfdb2d20d12e8f2055b08b8bdae5fad6
+author pete@mozdevgroup.com
+files extensions/metrics/build/Makefile.in

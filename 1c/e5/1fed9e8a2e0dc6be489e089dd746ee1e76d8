@@ -1,0 +1,3 @@
+changeset 2140cb2f2fcd2ef1fa42346f6fdb1845cd470b40
+manifest 77758fd34191bb4c57211a0f025bd6536b62a4b2
+files modules/libjar/zipwriter/src/nsZipHeader.cpp

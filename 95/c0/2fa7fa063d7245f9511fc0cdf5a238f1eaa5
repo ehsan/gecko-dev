@@ -1,0 +1,4 @@
+changeset 546e2b61da5779d3f2139426fc106f1725f00e86
+manifest 68a7c8e3341755ca8b9453c57c48fc23f5b28ac6
+author <rmkn85>
+files ipc/chromium/src/chrome/common/ipc_channel_win.cc

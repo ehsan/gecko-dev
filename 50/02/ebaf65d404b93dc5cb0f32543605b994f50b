@@ -1,0 +1,4 @@
+changeset e92e9b390d1a4a9cd0681ecaf389cd0d266157e5
+manifest 1bd34b934ef912e834c0ef15526399a8c6d3aef9
+author mrbkap@gmail.com
+files editor/libeditor/text/nsEditorEventListeners.cpp

@@ -1,0 +1,4 @@
+changeset a39fcc86115d533010cac63304e385e6156c09a0
+manifest 58c52077973df5c0fa188ed83166a91917f98f98
+author smontagu@smontagu.org
+files xpcom/ds/nsPersistentProperties.cpp

@@ -1,0 +1,4 @@
+changeset 0ce342530e0b0e7a4d1b948c0798b1b2b29a105c
+manifest a9d1596aea37ee569bd137734fe0cc309229335c
+extra rebase_source:5a5c6785a62af9027e7eb408ecc200b1b13dfc4e
+files widget/tests/test_bug517396.xul

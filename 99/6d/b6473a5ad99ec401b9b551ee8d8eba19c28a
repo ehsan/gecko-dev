@@ -1,0 +1,4 @@
+changeset 36e9ba2453b45a4329660c930fe98f41d4bf7a00
+manifest 93256503b66a194516e36cac9f4139561ff66af7
+author dtownsend@oxymoronical.com
+files chrome/src/nsChromeRegistry.cpp

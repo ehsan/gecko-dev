@@ -1,0 +1,4 @@
+changeset dcbfef090900e6ed1c056ba5fbb6aed0ca4a0025
+manifest 1e80fad3e27c6c35dd91f92d26714936e89003ab
+extra rebase_source:5e2fca4e1f1f84e38634af7090c222330c4a42e7
+files js/src/tests/ecma_6/Expressions/delete-name-parenthesized-early-error-strict-mode.js

@@ -1,0 +1,3 @@
+changeset 8e5656d33bba32c08e1bc687e68dc47b025a7e65
+manifest eadf9c267c66454b2a877d47083dc727f648be5a
+files js/src/trace-test/tests/jaeger/bug597378.js

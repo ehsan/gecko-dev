@@ -1,0 +1,4 @@
+changeset 5d5f2f15037b5333f46cdfb4bca06581d7389f5c
+manifest 817ef9be6ee66fd93e07bcde2f350974e4b93721
+extra rebase_source:2e7fc8f848042ea7557ea9116f8ec9152869114a
+files dom/base/nsDOMClassInfo.cpp

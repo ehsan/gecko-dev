@@ -1,0 +1,5 @@
+changeset c1ecd3ac0f716fe7999b0beea9a3c7adb07b2a8d
+manifest 4a123edcdcc15acb9f9df123cad811e96d1b1976
+author kli@mozilla.com
+extra rebase_source:7288b511e999050c1da1c2ed501aa3dc6ab1dba0
+files netwerk/base/src/nsIncrementalDownload.cpp

@@ -1,0 +1,3 @@
+changeset fabb44ffd5d054c43c88ac5a6d367754a63f092e
+manifest d115276f61f7aa0f0f62b357c2dbd140dfc55183
+files testing/mozbase/mozdevice/mozdevice/devicemanagerADB.py

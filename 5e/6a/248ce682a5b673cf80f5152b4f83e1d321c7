@@ -1,0 +1,4 @@
+changeset 19286884f3dadddca6475bf514c6867965592b76
+manifest 7d2e035d2be90d81100383d616e4766a424b70ec
+extra rebase_source:dc4114dfddee4d8714f7d5c881356352791e6400
+files modules/plugin/test/mochitest/Makefile.in

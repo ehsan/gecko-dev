@@ -1,0 +1,4 @@
+changeset b8eccf3af85550627ea6e139e02b981a18d1dee6
+manifest 8d708db1b4c3cdfa22002b465e3a773b7f6218b4
+extra rebase_source:1e6db1451eedeb73348ec37f8b292ff5ba1893ae
+files content/base/src/nsCSPUtils.cpp

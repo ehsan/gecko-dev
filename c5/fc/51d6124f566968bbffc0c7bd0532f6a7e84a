@@ -1,0 +1,4 @@
+changeset 568b63ef38dba6a47220644793749f290e07ca4d
+manifest 388f21922a96ab5bf76ebe7dc40c595163c8c7e6
+author jst@mozilla.org
+files dom/src/base/nsGlobalWindow.cpp

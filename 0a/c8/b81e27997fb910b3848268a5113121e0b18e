@@ -1,0 +1,4 @@
+changeset 9bfe7b78b4c5f3953b3e6e4930d6c77963d6d32e
+manifest a40a87f2da3f504af7c45e249f3727ce3b30c2d6
+extra rebase_source:c7302c4e268edc0ef4aa7ab87e06b8f9a55d2462
+files gfx/angle/src/libGLESv2/moz.build

@@ -1,0 +1,4 @@
+changeset 3e8be7c3193bc42f41acb9eddfce9f5806044219
+manifest d6abaa7e4cdcd7cab92ff3058d70569fe56633e7
+author reed@reedloden.com
+files chrome/src/nsChromeProtocolHandler.cpp

@@ -1,0 +1,4 @@
+changeset ca591da19a264294980f5ec49ced0924469e735e
+manifest 8ecbc745823427454a6090ac2a8b5284fbaa7306
+author timeless@mozdev.org
+files rdf/base/src/nsRDFContentSink.cpp

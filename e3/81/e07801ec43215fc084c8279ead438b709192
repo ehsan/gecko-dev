@@ -1,0 +1,4 @@
+changeset 88d2dbb78bf5824e87744208a7d9c8fdb415e2e6
+manifest 307cc5b70ae53c9bbae300117da2314c3bc4a299
+extra rebase_source:07b0fc9ccd710601948c1cd10098fa2b8c681932
+files hal/gonk/GonkSensor.cpp

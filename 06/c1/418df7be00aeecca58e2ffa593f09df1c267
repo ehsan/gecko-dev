@@ -1,0 +1,3 @@
+changeset 0885bdf12669511be360a8ad77ff35b69a899f80
+manifest a0386b76a3a009c3e02048ebc556819fb8e56dba
+files services/sync/tests/unit/test_addons_reconciler.js

@@ -1,0 +1,4 @@
+changeset 08f8bf5dd8238eb112abd61505b7486ae34b3977
+manifest 5779d8639e1c6ffcb4d31540e160b82e7ba9dda2
+author neil@parkwaycc.co.uk
+files toolkit/mozapps/extensions/src/nsExtensionManager.js.in

@@ -1,0 +1,4 @@
+changeset ccaba78383f3aa2a5232b4a36401c1695ad6af89
+manifest 1cff8e2c8896361b0a20c2c3a25f42d5850e1a8c
+author gavin@gavinsharp.com
+files browser/components/migration/src/nsSeamonkeyProfileMigrator.cpp

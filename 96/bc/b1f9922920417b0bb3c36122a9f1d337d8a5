@@ -1,0 +1,5 @@
+changeset aacc3b418049d4547423c13aa0022f630161b537
+manifest 7c995d5b32020beac69d389639b52535a71f5114
+author timeless@mozdev.org
+extra rebase_source:62aa3d65a700fba3f17bd9978cc196f77470bb1b
+files extensions/spellcheck/hunspell/src/affixmgr.cpp

@@ -1,0 +1,4 @@
+changeset 5a36cf0311d4f344dba1fbf50299470e1b908589
+manifest c329a3e54910b3b71f58619cb92cf8ad2d330b8c
+author romaxa@romaxa.research.nokia.com
+files widget/src/qt/nsWindow.cpp

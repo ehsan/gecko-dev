@@ -1,0 +1,3 @@
+changeset 550257a8f82f547c8bd66cb33c41b0c7db409f7c
+manifest cc58731c9f217c27274dbb9070d1a85526558745
+files js/src/jit-test/tests/basic/bug691299-regexp.js

@@ -1,0 +1,4 @@
+changeset 801b0b49256459c94e43ae67bbe848339dfc67f6
+manifest 6d1f0826cc621e80c7a1e2baca6250b44f258ede
+author sayrer@gmail.com
+files toolkit/components/passwordmgr/src/nsLoginManager.js

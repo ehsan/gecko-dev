@@ -1,0 +1,4 @@
+changeset b1b1b1b438cc5117585c5cd0bf04c28174358877
+manifest 242193b3deea3e4ba41480362dde24149c52c6cb
+author timeless@mozdev.org
+files layout/svg/base/src/nsSVGGlyphFrame.cpp

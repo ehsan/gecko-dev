@@ -1,0 +1,4 @@
+changeset 90063d32cfb7153c6fb537237cf12b29f012a743
+manifest ad674efaf89239cb8d17d8dfbc32892a4eea6d65
+author dmose@mozilla.org
+files uriloader/exthandler/nsHandlerAppImpl.h

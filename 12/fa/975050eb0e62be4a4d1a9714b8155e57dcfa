@@ -1,0 +1,4 @@
+changeset daf012a38e6c30642f7a67738ff447e5472b77a9
+manifest 1de6615c844876e9ba2bb100b2ba980860f0b7be
+author pekka.vanhoja
+files widget/src/qt/nsLookAndFeel.cpp

@@ -1,0 +1,4 @@
+changeset 3f38a00b89cd014796b4241a53f1aeefdeb375e9
+manifest 7bffc66a931c6179c00b174ea459db00ce54aa5a
+author timeless@mozdev.org
+files netwerk/base/src/nsFileStreams.cpp

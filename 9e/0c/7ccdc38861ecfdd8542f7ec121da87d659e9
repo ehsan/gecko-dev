@@ -1,0 +1,3 @@
+changeset 59a60321d0d6b3ea90afceb592c1badfe48ce42c
+manifest da90abf7f72f8b30cc4bbcdcc4f727473e5c4b9c
+files gfx/cairo/cairo/src/cairo-win32-font.c

@@ -1,0 +1,3 @@
+changeset 75516a2a7c3ee856c29dc6439719a308108e30c3
+manifest 6d8cc9e553688fe5847d1489c845f07eaa47e2ac
+files dom/bluetooth/bluedroid/gonk/BluetoothServiceBluedroid.cpp

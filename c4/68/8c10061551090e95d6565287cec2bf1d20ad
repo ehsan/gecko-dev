@@ -1,0 +1,4 @@
+changeset 7163aa55ea70320bb4d42bf0ad1eeeb75e866ec0
+manifest b564d864103bdf78f652ab611812dff637b55fc7
+extra rebase_source:ff1ad8ac91f713ee0329b769e449f7b745f32507
+files js/xpconnect/tests/mochitest/mochitest.ini

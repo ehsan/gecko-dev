@@ -1,0 +1,4 @@
+changeset 9c6893026006b9ebcd09197d8b96228d2b22667d
+manifest ea5bc75e1dfd7f9991ab5388dd5ab259e1c2ee0c
+extra rebase_source:47e0d5e43884c3722a3517d1e631c790e95101ec
+files layout/xul/base/src/nsXULPopupManager.cpp

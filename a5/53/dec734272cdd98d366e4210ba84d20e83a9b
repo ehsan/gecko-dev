@@ -1,0 +1,4 @@
+changeset 3dab3ecdf1704bb45f513f63c18201da1bd87341
+manifest 2aed8c9c0d19249080385f49d46f284b32c9f7c6
+author mats.palmgren@bredband.net
+files widget/src/gtk2/nsWindow.cpp

@@ -1,0 +1,4 @@
+changeset 5ba1b30730514a5e2090ea316b823b0992a83c63
+manifest 41494004cf5201287ba12570e1a8fc243b9efd06
+extra rebase_source:2fb257c889c8613aba6f488f5a4c867a34f85944
+files browser/modules/Windows8WindowFrameColor.jsm

@@ -1,0 +1,3 @@
+changeset fcaa766c0991e8f541d0affd73f9e325e80d1bf5
+manifest fe5735d3ee4f8c80479f934832d4a7042001256b
+files toolkit/components/places/tests/queries/test_querySerialization.js

@@ -1,0 +1,4 @@
+changeset eeb65bca61d86e48472a18384cadf52b7e316175
+manifest 471813e7bc46a6a82ba0de49e97b893f8db491e1
+author bzbarsky@mit.edu
+files xpcom/io/nsIPipe.idl

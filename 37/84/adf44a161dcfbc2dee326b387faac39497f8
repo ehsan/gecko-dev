@@ -1,0 +1,4 @@
+changeset 891be3548d4370b679fde1f97984166da2bdf9bc
+manifest ef78cb0c0a7c90374fa2b9adf1a3c40836b0e121
+extra rebase_source:cde84a8a08de69f205b1572d85f270c28b6de56f
+files browser/components/preferences/in-content/privacy.js

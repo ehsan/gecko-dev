@@ -1,0 +1,4 @@
+changeset 550c5995e0e214d5ce9bfde3e52c67eefc1031ac
+manifest b1bb4b031e4d2ee3c4ce1e9077ac99ab3a83fcf2
+author cbarrett@mozilla.com
+files widget/src/cocoa/nsNativeThemeCocoa.mm

@@ -1,0 +1,3 @@
+changeset 514e4089924d889c7a2dcecd0e081ab55bd4e2e2
+manifest 6e8458acf378bd2350c11bf448f82f35098a5830
+files storage/src/mozStorageStatementRow.cpp

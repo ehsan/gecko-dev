@@ -1,0 +1,4 @@
+changeset eb6f884142fcc8e71e04109bb76515b0b69ad332
+manifest 971fab6a101fac19d94569b32040b99055ae0bfe
+extra rebase_source:4bd8613dd24fb5034ae995ea1d9323e1360bbf10
+files mobile/android/locales/en-US/chrome/browser.properties

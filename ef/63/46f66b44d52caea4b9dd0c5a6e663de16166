@@ -1,0 +1,4 @@
+changeset 771e44637c2d2d503435297a68a78a7e580c5cc5
+manifest 53a9ce16bbc3fcf0ca2ef496739934dc4d42419e
+author rhelmer@mozilla.com
+files tools/release/Bootstrap/Step/Repack.pm

@@ -1,0 +1,3 @@
+changeset 4d284098220c17ff3485657d923a217cd0b14f9f
+manifest 20febd81dc02aa4da390b515d577fb4b0f3b6e90
+files js/src/assembler/assembler/MacroAssemblerX86Common.h

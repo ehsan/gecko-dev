@@ -1,0 +1,4 @@
+changeset a4debcf7e3edf0f01de53b99a6a38e5a5573a721
+manifest 0e3406e565a9292c67b475c558008fef4b1f35e9
+author mozilla@weilbacher.org
+files uriloader/exthandler/os2/nsMIMEInfoOS2.cpp

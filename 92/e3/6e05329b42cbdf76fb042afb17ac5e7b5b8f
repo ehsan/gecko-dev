@@ -1,0 +1,4 @@
+changeset 067161eed9d09c02d78a07d3c0db5d688bec7049
+manifest ad9ca6f931140979f6b2de30fd140afd9668f9de
+author bclary@bclary.com
+files js/tests/js1_7/iterable/regress-412467.js

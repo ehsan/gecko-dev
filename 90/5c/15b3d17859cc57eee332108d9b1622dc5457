@@ -1,0 +1,4 @@
+changeset 272a7b90280dd5771684342f73f6c6e23893f90d
+manifest dfc4ddc5b4429eaaecfe3998bbb5660aec7e2ee7
+extra rebase_source:e6a2c078b3ad4c9a263d06acaa10fc54274d3361
+files netwerk/base/src/nsProxyAutoConfig.js

@@ -1,0 +1,4 @@
+changeset cee506e765470f45883b7e128801b50800e93f0c
+manifest 612adc5498f5f6f59a47f65ab3198bb2033b931d
+author bzbarsky@mit.edu
+files layout/tables/nsTableOuterFrame.cpp

@@ -1,0 +1,4 @@
+changeset 44c2bba25a626a397103a791a1dd054fe1982ec4
+manifest 876a2f1e342c674a8a087c4e4abf5d90b59bc8ce
+author bzbarsky@mit.edu
+files content/base/src/nsHTMLContentSerializer.cpp

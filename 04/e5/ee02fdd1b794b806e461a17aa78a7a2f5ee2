@@ -1,0 +1,4 @@
+changeset f6545ec92d4cd6c2bfd835cf6abd74676bfb19ad
+manifest 407052c9cb654742d9f7fd2b2210dfdec25d5aa4
+extra rebase_source:ba8bfcabbc2f17b0b0cea1d90dbed54a8471bad9
+files editor/libeditor/html/nsHTMLEditorStyle.cpp

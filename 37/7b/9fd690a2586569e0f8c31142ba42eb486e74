@@ -1,0 +1,4 @@
+changeset 98b857a79804dfbf62d2d8f4d6695a2315f0c593
+manifest 58c8b048d9a1f26c4376c62f4c24a5ed73b9e95e
+author dbaron@dbaron.org
+files layout/tables/nsTableOuterFrame.cpp

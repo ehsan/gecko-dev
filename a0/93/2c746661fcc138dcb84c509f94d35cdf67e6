@@ -1,0 +1,3 @@
+changeset dd3b6f9f8e4af265e6d24b21eed894fe005d8af2
+manifest b7abe48c73dd29e065d622e7b0230023d5295c80
+files browser/components/migration/src/nsOperaProfileMigrator.cpp

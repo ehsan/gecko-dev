@@ -1,0 +1,4 @@
+changeset b371c94305392dbeb89d357f394b70ba8add2629
+manifest 56e3662b3d2ec966c47c9e6ab8b316ec844b78f5
+author timeless@mozdev.org
+files editor/libeditor/base/nsSelectionState.cpp

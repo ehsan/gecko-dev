@@ -1,0 +1,3 @@
+changeset 197943dd42b79512350c8c3faf385c8f4f025403
+manifest 1eec757cbf08dee3a9dc091b4ac19d51262ddc4e
+files storage/src/TelemetryVFS.cpp

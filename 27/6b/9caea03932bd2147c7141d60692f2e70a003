@@ -1,0 +1,4 @@
+changeset 870392da58743f36ef4fab6879e6a426839b46f8
+manifest 5050ada1b5644f1fb590ab83e42aa16709bc3b14
+author nrthomas@gmail.com
+files tools/release/Bootstrap/Step/PatcherConfig.pm

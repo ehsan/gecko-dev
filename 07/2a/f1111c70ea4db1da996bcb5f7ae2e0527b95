@@ -1,0 +1,4 @@
+changeset 2f184da3fba63d8aa7799c35da4190cf7b688ba5
+manifest e9e4401f82cd32bdbaf5d5458dfaaa38d914e89b
+author benjamin@smedbergs.us
+files toolkit/crashreporter/tools/upload_symbols.sh

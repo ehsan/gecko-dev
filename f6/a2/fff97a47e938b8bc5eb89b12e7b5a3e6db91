@@ -1,0 +1,4 @@
+changeset 9f3bde4148003592895a2e4dbabf35b0f6566889
+manifest d67d347a259da95885f170dbdf24c2b6d33e974d
+author timeless@mozdev.org
+files js/src/xpconnect/src/xpcwrappedjsclass.cpp

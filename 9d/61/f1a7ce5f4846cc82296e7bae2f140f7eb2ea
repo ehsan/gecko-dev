@@ -1,0 +1,4 @@
+changeset d5e4fb234b23e578c04229ec6623f3e79ae09ef2
+manifest ed9acda53345a36422060d77b876fc7762c51c2b
+extra rebase_source:dfd1e28137a60ce51b44e319341fd0a1bc5bac32
+files widget/src/cocoa/nsCursorManager.mm

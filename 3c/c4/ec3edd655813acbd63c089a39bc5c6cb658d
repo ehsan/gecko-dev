@@ -1,0 +1,4 @@
+changeset ec0e970dfe4b3c2c760b9345e0dfeb05e449802e
+manifest 57bd623b9340e13cecdea123626d78a7f6611b10
+author joshmoz@gmail.com
+files widget/src/cocoa/nsChildView.mm

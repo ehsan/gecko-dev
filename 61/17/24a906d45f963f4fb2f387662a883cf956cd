@@ -1,0 +1,4 @@
+changeset 699b49e803767a913ebdd6d988a26028881b2389
+manifest e69a7ccb646570b8f4afcae285804784ba7c34b2
+author bugzilla@standard8.demon.co.uk
+files xpinstall/wizard/windows/palmsync/PalmSyncInstall.cpp

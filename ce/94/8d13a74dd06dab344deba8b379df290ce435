@@ -1,0 +1,4 @@
+changeset 851fc65d2f5548fee0f6e673802a698bc5fdbc25
+manifest cedb1a73764313460a2523977d6575dc8f7717a4
+extra rebase_source:b4a7b06a5cc4fdc8a2a16398455a1e7d35ace14e
+files modules/plugin/base/src/nsPluginDirServiceProvider.cpp

@@ -1,0 +1,4 @@
+changeset 49b68a67b57537980d8203dce696392776bbf914
+manifest 8c030236ef6423c4ccb028895591d5096db5e0b8
+extra rebase_source:49e79f3f99265117508f0ebf5b572a6d596f3c5c
+files toolkit/xre/Makefile.in

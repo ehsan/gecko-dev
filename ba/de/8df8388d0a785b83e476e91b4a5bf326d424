@@ -1,0 +1,4 @@
+changeset 85c02151776c532a45982a0f039db6929636c329
+manifest 92b11d6c2961cbcc4b6cf50f7b8add8134ae18e2
+author sayrer@gmail.com
+files parser/htmlparser/src/nsParser.cpp

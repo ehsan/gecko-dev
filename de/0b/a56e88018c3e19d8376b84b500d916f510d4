@@ -1,0 +1,4 @@
+changeset fc4babed0bcd0b273b505a85b59f43a0242cb6b1
+manifest 61dfed852f5fd79f28e184094a368168ea9bcce3
+author marco@gnome.org
+files dom/src/base/nsGlobalWindow.cpp

@@ -1,0 +1,4 @@
+changeset 7fa0f43f3db5ab4c2beb7d05d18bfaec736c1677
+manifest 40a1182f8067eacba013b71d04b23f78f34dabd8
+author smichaud@pobox.com
+files widget/src/cocoa/nsCocoaWindow.mm

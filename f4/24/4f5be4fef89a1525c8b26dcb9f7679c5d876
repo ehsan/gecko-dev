@@ -1,0 +1,3 @@
+changeset 931a3c5e476d1212a9cf9a58de07e55a8201f087
+manifest 8e6426cdc3825d7aac6fdfb9b66e99a5ab8927a1
+files toolkit/components/telemetry/gen-histogram-bucket-ranges.py

@@ -1,0 +1,4 @@
+changeset b8474ffff10280e0dc87f195d23f94a45014dd68
+manifest 6140f2222f931f007a0dcf9a5e630853497b04f7
+author jonas@sicking.cc
+files xpinstall/src/nsXPInstallManager.cpp

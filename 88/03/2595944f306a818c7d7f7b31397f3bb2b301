@@ -1,0 +1,4 @@
+changeset 361251a52012e8623c12468870a992996aa37b38
+manifest cb1c38bb2d4b9c3cb23b9099863d4907c5caa5d5
+extra rebase_source:c18547a0bfcf74f7742683133b5a826c3ce9a63c
+files toolkit/components/places/mozIAsyncHistory.idl

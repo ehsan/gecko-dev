@@ -1,0 +1,4 @@
+changeset 52b9038fdc68690ee4523d539444b6d6d2931f8c
+manifest 366f7c122728855b535b6309066f91872523073a
+extra rebase_source:8ecfb73d54692645941322f0c646896fd84e9214
+files build/virtualenv/Makefile.in

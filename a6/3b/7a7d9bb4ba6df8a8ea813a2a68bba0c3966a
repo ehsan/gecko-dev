@@ -1,0 +1,4 @@
+changeset 343913e3297a91bce6be8117fe25a26c3ec6e872
+manifest a43e0c14e9adee041af1f4960d4778ee50a4e605
+extra rebase_source:002fd9d384bc8d7b961b58df0c870057fb3e0a18
+files netwerk/protocol/wyciwyg/WyciwygChannelParent.cpp

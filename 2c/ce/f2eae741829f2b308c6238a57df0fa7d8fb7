@@ -1,0 +1,4 @@
+changeset 2bc5941882a59775c19a5f5728fcc80fb1d730a9
+manifest 8f32e96c2851990e6e5b57459c96a542ad980a7f
+author gavin@gavinsharp.com
+files toolkit/components/passwordmgr/src/nsLoginManagerPrompter.js

@@ -1,0 +1,3 @@
+changeset 29f55d65a931d10e6f20093fcfadbf5f3252f546
+manifest bdde3d8fd5b1edaf9bd65d9020c25f9fe444e0ee
+files src/test/java/org/mozilla/android/sync/repositories/domain/TabsRecord.java

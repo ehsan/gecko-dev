@@ -1,0 +1,4 @@
+changeset b071de0b58ec7f4f2411ae9123936740778779c8
+manifest 4291efc1913adc27923287f303b8e98fbc73caae
+author timeless@mozdev.org
+files uriloader/exthandler/nsExternalHelperAppService.cpp

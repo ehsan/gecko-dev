@@ -1,0 +1,4 @@
+changeset 9996b7559dae020528760b4e4ff7d68e579b693c
+manifest 3105bbc4057370de0e1720154ce26790ec07d1cd
+author mats.palmgren@bredband.net
+files netwerk/streamconv/converters/ParseFTPList.cpp

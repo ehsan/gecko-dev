@@ -1,0 +1,4 @@
+changeset e61499d5663b5916e10bf8d96f7ca29178859ac4
+manifest bd43c698a0de195e6046d39fd7aeb3ddf770da4e
+author mrbkap@gmail.com
+files js/src/xpconnect/src/XPCNativeWrapper.cpp

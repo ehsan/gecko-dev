@@ -1,0 +1,4 @@
+changeset e8f07439aebe01414e71af3e863d1b20956242e9
+manifest e3c3e42eb17ff9e24aa4284ce3330dd66a61bfc4
+extra rebase_source:dbd952962fb2023ca4e61a4dbd4184c53860edec
+files browser/modules/PluginContent.jsm

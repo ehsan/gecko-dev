@@ -1,0 +1,4 @@
+changeset 3c46705b7df043e5bff24596ce0d3c77fffedc59
+manifest a2778d1e4a4518bf30ea062fa98dc29203326c78
+extra branch:GECKO20b5_20100831_RELBRANCH
+files toolkit/mozapps/installer/packager.mk

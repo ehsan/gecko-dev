@@ -1,0 +1,4 @@
+changeset 03a334471fa35163774699f523a53a1c2fa9865a
+manifest 1f71c76cbf2d9941294b109f064ca8e0b1b6f371
+extra rebase_source:09ee14482503df241e5bbd26c1a0bb42eef4e523
+files browser/locales/en-US/chrome/browser/syncQuota.properties

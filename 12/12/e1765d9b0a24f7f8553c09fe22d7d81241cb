@@ -1,0 +1,3 @@
+changeset bd942ed342bbedf38cef8493d6ea3fd6674a1ec1
+manifest bf0922fc2d78178a2a7dc1eada71d8fe252fd916
+files toolkit/content/tests/browser/browser_bug295977_autoscroll_overflow.js

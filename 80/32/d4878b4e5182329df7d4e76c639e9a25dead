@@ -1,0 +1,3 @@
+changeset 14117bfa4dafa5ec67f6e9d1012c2b406eca0dee
+manifest d54a940f1fe4017fd4a286b4c9f8e5835d130589
+files xpcom/tests/xptinfo/xptunit/test_jar_xptloading.js

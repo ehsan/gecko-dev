@@ -1,0 +1,4 @@
+changeset a87301461be38f99f7221a4963a915aa749de6d7
+manifest 0b1419ad1dcc588e03839415f679c2f68cd305a7
+author bhearsum@mozilla.com
+files tools/release/configs/fx-moz19-staging-bootstrap.cfg

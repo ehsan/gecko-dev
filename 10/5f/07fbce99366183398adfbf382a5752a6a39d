@@ -1,0 +1,4 @@
+changeset e06864445ca158a46155be17e24a72824252bb39
+manifest adf93685627f02beea660f95e32beb4a3cae5bcd
+author wr@rosenauer.org
+files toolkit/crashreporter/client/crashreporter_win.cpp

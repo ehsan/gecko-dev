@@ -1,0 +1,4 @@
+changeset b4de7f385487a2db45556645a519c28f883761f6
+manifest 860e8fe65cebb6a74ce930e66b90d8fa983c37c9
+author stuart.morgan@alumni.case.edu
+files embedding/browser/webBrowser/nsWebBrowser.cpp

@@ -1,0 +1,4 @@
+changeset acf57e5147d1cb07e9d8e9f996eee3c1bc3ab622
+manifest 1701a080ea138ca0f79cb55ef571e609604bdeb1
+author reed@reedloden.com
+files xpfe/bootstrap/nsSigHandlers.cpp

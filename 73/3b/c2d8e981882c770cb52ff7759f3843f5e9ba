@@ -1,0 +1,4 @@
+changeset 6049b0b9bec06297456e2f5d3107d8ae76d6c9c3
+manifest c75e584e6d6a78ca48894e580fec4a22e8f0af10
+author aza@More-Better-Internet.local
+files browser/base/content/tabview/modules/utils.jsm

@@ -1,0 +1,4 @@
+changeset 2020fea893132e6c2b94154cf7aa09692d0875a6
+manifest 198eee95eda6844d251fd24daa98208703c4f565
+author igor@mir2.org
+files js/src/xpconnect/src/XPCDispPrivate.h

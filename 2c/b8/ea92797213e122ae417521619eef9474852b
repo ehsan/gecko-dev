@@ -1,0 +1,4 @@
+changeset 9ad1e44f51168db1475617928b7f3f97d5d45bb6
+manifest c1af59f51e654518a015694c4bec804a6a24bb6f
+author dtownsend@oxymoronical.com
+files modules/libjar/zipwriter/src/nsZipHeader.cpp

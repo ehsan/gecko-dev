@@ -1,0 +1,4 @@
+changeset 468435a1796e1e233b205f3459c4ca4fcced72db
+manifest 0ce73b27e288b388c95bf9327ee8fb08ccc2024c
+author dcamp@mozilla.com
+files dom/tests/mochitest/bugs/test_bug377539.html

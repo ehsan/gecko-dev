@@ -1,0 +1,4 @@
+changeset 67b32642a9a8be5e0f439b4b285e085d28fd5ada
+manifest e50530580607fc7ddbf6114ace10dafaf9b6b05a
+extra rebase_source:bb9749edf5c8e1c0212ea5e4f1f7105d829714c7
+files dom/base/nsPropertyTable.cpp

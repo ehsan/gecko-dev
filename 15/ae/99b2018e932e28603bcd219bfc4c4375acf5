@@ -1,0 +1,4 @@
+changeset 00d7bafcdc208f8d9d69de8448b67feafea80fbe
+manifest 792ca30bc144c05d2fa0fa9ad545341a0c9f0bda
+author benjamin@smedbergs.us
+files toolkit/xre/nsXREDirProvider.cpp

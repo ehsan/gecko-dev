@@ -1,0 +1,4 @@
+changeset ec521b440c6badf4e869802228c74afea2e93c2b
+manifest dc2301f21a20d413df659f3ffdbc9edd445033a0
+author timeless@mozdev.org
+files netwerk/base/src/nsSocketTransportService2.cpp

@@ -1,0 +1,4 @@
+changeset 5d5bb68d29c82e7c1cb2164ec3e7fa725034fef4
+manifest 138e105e1c9a20d862402a3721ed12a5fa4ef8f6
+extra rebase_source:bd4bc7cc2f591dfcc4b1c73d0b4bf0a9e33bae6a
+files mobile/chrome/content/AnimatedZoom.js

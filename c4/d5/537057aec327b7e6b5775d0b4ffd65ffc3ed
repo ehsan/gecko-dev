@@ -1,0 +1,4 @@
+changeset 231a65a2d273b73f4e71a971e9bd223150e83506
+manifest 401a385b39a9076b33a269d388933aa203c35eba
+author cbiesinger@gmail.com
+files xpcom/glue/nsCategoryCache.cpp

@@ -1,0 +1,4 @@
+changeset f92a3d2c1e5bc7f0496cf24108194fc9f897960f
+manifest 0fab5ca9931de46e8a9c5693cc4faf88968fb15b
+author samuel.gallacier@innes.fr
+files gfx/layers/ipc/CompositorParent.cpp

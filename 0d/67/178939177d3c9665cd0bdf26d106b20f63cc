@@ -1,0 +1,4 @@
+changeset dba91788acbac8769bd47dadf0866854c9d4f65f
+manifest bc9c80ddcdc4fbef5e4ddf79bd1caed028dfa6e7
+extra rebase_source:a989bc6184435add6cbf108af56be674b5831ac2
+files mobile/xul/app/mobile.js

@@ -1,0 +1,4 @@
+changeset 2f02dcde22b3b3af8c13919fb5a1a8e965fe53a3
+manifest eb097bb0d571e8d70bdd13db8fd78fc4a9aeac02
+author enndeakin@sympatico.ca
+files widget/src/windows/nsWindow.cpp

@@ -1,0 +1,3 @@
+changeset e8dc0937c41d2e796d61a7df78cb8e5543fb167d
+manifest 81a3d0ea5a24cb581b8f2da4717915ae6d45d733
+files media/webrtc/trunk/webrtc/modules/video_capture/windows/device_info_ds.cc

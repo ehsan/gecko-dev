@@ -1,0 +1,4 @@
+changeset d6d9fb50fe956ced63474b03d816392d18dacbfe
+manifest 9a7b6004ebaacb66ce5ff32d58c649c08876682f
+author dbaron@dbaron.org
+files layout/xul/base/src/nsMenuPopupFrame.cpp

@@ -1,0 +1,4 @@
+changeset 491970ccac96079621770bfcb0e811f6024630fa
+manifest ac0f3929fa17e9f31da7d68efd3728e12ad065ad
+author shaver@mozilla.org
+files js/src/config/SunOS5.10.mk

@@ -1,0 +1,4 @@
+changeset 00bcf77af39cc3742ce8537e6bb19163ccb0b837
+manifest a700b2b9410d30864bebda4c9da1649c10c2ae8b
+extra rebase_source:77c49df413cf04aed1ff9b6eeeacf7d2e12df204
+files browser/components/preferences/in-content/sync.js

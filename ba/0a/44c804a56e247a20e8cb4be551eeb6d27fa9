@@ -1,0 +1,5 @@
+changeset 6dd2f4c1980068932cadb61b7078765c4705d1b9
+manifest 4bf92e299fd39e4980355ccf19b9dca72dbdc8fb
+author timeless@mozdev.org
+extra rebase_source:352876a6e35a7c811a0218f6a238fd602447e235
+files js/src/xpconnect/src/xpcthreadcontext.cpp

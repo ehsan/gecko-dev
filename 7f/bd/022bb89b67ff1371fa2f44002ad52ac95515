@@ -1,0 +1,4 @@
+changeset 27610a443a0c2347c2723437bd77b7863e435cad
+manifest 8364adaaba36a2bbe27efcdf4018d30bff2169bb
+author bzbarsky@mit.edu
+files layout/generic/nsSimplePageSequence.cpp

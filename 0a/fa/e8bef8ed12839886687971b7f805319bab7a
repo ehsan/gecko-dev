@@ -1,0 +1,4 @@
+changeset 79d84a23d87599111984ea5062cd44d8063cdcd1
+manifest 6bed7b06d83857480a45d34afea9486ea2f16176
+author bzbarsky@mit.edu
+files tools/codesighs/nm_wrap_osx.pl

@@ -1,0 +1,4 @@
+changeset 132b6e95d9db83cacca0ec9299d695fbbf35beb1
+manifest 84d1e45965caa884f49c9ea58c8be3fd5dba039a
+extra rebase_source:12b0ac741c09e62a6c741f67100738bf4dab7b33
+files browser/locales/en-US/chrome/browser/browser.dtd

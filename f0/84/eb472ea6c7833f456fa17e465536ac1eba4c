@@ -1,0 +1,4 @@
+changeset cfcb1e82068077e5012abae7bc278a226aad54b1
+manifest 4222530d6b84d5c6ba9706b4f2c907c50a6db7b8
+author mats.palmgren@bredband.net
+files layout/generic/nsLineBox.cpp

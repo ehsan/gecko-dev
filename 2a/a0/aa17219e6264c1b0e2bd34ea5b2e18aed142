@@ -1,0 +1,3 @@
+changeset 98725bc76d7eb71380a381fd371253bac585f8af
+manifest 324ee86c15c8cf78f5ed4623d41426d49eadf4a9
+files dom/interfaces/events/nsIDOMMessageEvent.idl

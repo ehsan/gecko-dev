@@ -1,0 +1,3 @@
+changeset 362d7b098a1e8cac4137871102485c1c6df7d65f
+manifest 42bd2835e089c55cece4693ef189e908057b92b1
+files js/src/nanojit/Assembler.cpp

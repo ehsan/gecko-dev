@@ -1,0 +1,3 @@
+changeset d385989f455b360122bab5bafc3e2a56cace1b3c
+manifest ba2306010be08c1e51d3c30ef7880b7c0dc9c25e
+files browser/devtools/debugger/test/browser_dbg_breakpoints-break-on-last-line-of-script-on-reload.js

@@ -1,0 +1,4 @@
+changeset 8ca8b976593a64becb81790d20783fbaec515f62
+manifest 50bb83093de071074c14e15fa8bbf1732ac442bd
+author timeless@mozdev.org
+files content/xbl/src/nsXBLProtoImplMethod.cpp

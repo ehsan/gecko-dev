@@ -1,0 +1,4 @@
+changeset 736f813b9892af3da4efdb1aaf7c42eece7bc687
+manifest 27f7543820f4f2eab5cdb417271088e4c9ee0905
+extra rebase_source:ee7f4547e0b9b26e8dc577d7a530491c2004876c
+files layout/xul/base/src/nsXULTooltipListener.cpp

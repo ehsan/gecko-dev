@@ -1,0 +1,4 @@
+changeset 495dcc54c2b25829e268197a54611a19098f3293
+manifest e5b5e3e458ab591496d7423018a0b889cb3d5df3
+extra rebase_source:6671c4026d6a8413adc3c71cb374321756a51f6c
+files netwerk/base/public/nsISiteSecurityService.idl

@@ -1,0 +1,4 @@
+changeset 6bcf64c6e8f3ff8e1a301cb92225a9080fc8f2bf
+manifest db2b397f6e613e548a796e59895bc31529c6072f
+extra rebase_source:292e9fbbc33602f4769be2f21e6c2760e2410214
+files toolkit/webapps/tests/chrome.ini

@@ -1,0 +1,4 @@
+changeset 66866486a03cdea6160f4fe5e8732d70332a10c8
+manifest f280730379f6c2a491fe5f7145522adea91bbfda
+author mozilla.mano@sent.com
+files browser/components/microsummaries/public/nsIMicrosummaryServiceNonPlaces.idl

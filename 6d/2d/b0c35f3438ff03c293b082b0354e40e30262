@@ -1,0 +1,4 @@
+changeset 5e501d5bc31523f168ebd99d65e757227340dacf
+manifest f0a7c5f5b067d32887b4f9f559009b59881290bb
+extra convert_revision:c79dae5ba88018f3cfa06621064008a21e39e49f
+files js/src/nanojit/njcpudetect.h

@@ -1,0 +1,4 @@
+changeset a7554405c94c9b49c9d49e798d94cb68e9062a35
+manifest 44999f3c20dbe647a460cdaf8e6e7d7cef423619
+author mattwillis@gmail.com
+files toolkit/mozapps/downloads/src/nsHelperAppDlg.js.in

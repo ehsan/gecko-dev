@@ -1,0 +1,4 @@
+changeset d934642dbd7477ebce6de50db68abe0bf69cd07f
+manifest baa8607066d2737816bc6ab578f239d523fa2602
+author mozilla.mano@sent.com
+files layout/xul/base/src/tree/src/nsTreeBodyFrame.cpp

@@ -1,0 +1,4 @@
+changeset f91ae29dd19fa024ef94f01b279ff48e04cd61f0
+manifest 18a9cdf29f7b5529913f53b9fb0ad82d87632522
+author neil@parkwaycc.co.uk
+files modules/libpr0n/decoders/bmp/nsBMPDecoder.cpp

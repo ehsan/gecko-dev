@@ -1,0 +1,4 @@
+changeset 192dfc6df612f1738998023336e0c3f57e35f65a
+manifest b777f229ec445f2aa42adc4704c0c2f38eff63fb
+author rflint@ryanflint.com
+files browser/components/preferences/tests/browser_bug410900.js

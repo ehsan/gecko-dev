@@ -1,0 +1,4 @@
+changeset 516217ba80f9481eb951d4a65115984d704b4b48
+manifest 928d9f4bfe82d9bfd8920c380d001cb340a89e55
+author thunder@mozilla.com
+files browser/components/dirprovider/nsBrowserDirectoryProvider.cpp

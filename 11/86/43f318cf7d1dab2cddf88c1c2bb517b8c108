@@ -1,0 +1,4 @@
+changeset dd6d201316bb8dee95afc6cdd679a7bad7fd4d66
+manifest 1dd66b7c4ee74990714f57e5e9b77357b2efce1c
+author timeless@mozdev.org
+files content/xul/document/src/nsXULCommandDispatcher.cpp

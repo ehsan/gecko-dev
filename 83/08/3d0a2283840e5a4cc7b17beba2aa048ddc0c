@@ -1,0 +1,4 @@
+changeset 829074f75a550219f3bc529701125e1191cb304e
+manifest e6569bbe83e4423dc3e7ba9bea4f880c68dab893
+extra rebase_source:f0e398168239c0be1274079e8260ff363198beee
+files xpcom/base/nsSystemInfo.cpp

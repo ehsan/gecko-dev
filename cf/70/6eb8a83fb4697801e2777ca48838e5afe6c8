@@ -1,0 +1,4 @@
+changeset 0f3738aad73096482e387350cd8421d36fc1e454
+manifest 85783b5737ad476458e6465d55bd05057b901182
+author timeless@mozdev.org
+files content/smil/nsSMILAnimationFunction.cpp

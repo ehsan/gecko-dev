@@ -1,0 +1,4 @@
+changeset ba1d285f2ddebb2b61ee4ce3a1cc6d4ecd5712e2
+manifest c1a30375257ea7b3222a6afe8e3416787b47e10f
+extra rebase_source:5098d2fa9ee8be7e27111bbb345930adb86f72b3
+files browser/devtools/main.js

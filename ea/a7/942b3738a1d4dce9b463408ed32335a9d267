@@ -1,0 +1,4 @@
+changeset f9f11f19eca6b4f53295791334a894997289f642
+manifest 397054977460384d2da5128d9f5155fad06be912
+extra rebase_source:ebcbf9b1a6d21e516ab18d58f203270ce25a63bc
+files js/src/jit/MIRGenerator.h

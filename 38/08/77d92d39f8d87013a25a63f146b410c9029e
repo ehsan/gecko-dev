@@ -1,0 +1,4 @@
+changeset fdefb4889298dea54109394f036c63b03d7f482b
+manifest c305e04f82d3b5a9620f094cf6437e84acb8d223
+author bzbarsky@mit.edu
+files xpcom/glue/nsISupportsImpl.h

@@ -1,0 +1,4 @@
+changeset a497d25163d62b33a3a2bdbc5265461e9b35e740
+manifest 8fdeb8006caf3a1ba5663f908739d61d07ee0cb7
+author jruderman@hmc.edu
+files extensions/spellcheck/myspell/src/myspell.cpp

@@ -1,0 +1,4 @@
+changeset fcd1b085546bc371b5f76ea078fcd09ebdfde6c8
+manifest 82917d70ea6db9c29cde44da9a4df94c189c142c
+author jwalden@mit.edu
+files layout/generic/nsLineBox.h

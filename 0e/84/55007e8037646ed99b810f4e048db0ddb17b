@@ -1,0 +1,3 @@
+changeset 2f380c0d167075e6e10f7a4501d840a6b588fa4f
+manifest e4a2c004831ecfb586270dda8733940e07f0c538
+files media/webrtc/trunk/webrtc/common_audio/resampler/resampler.cc

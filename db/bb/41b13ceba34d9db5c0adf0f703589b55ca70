@@ -1,0 +1,4 @@
+changeset a513ecd7339da983fbbbabbe0485745bd4306318
+manifest a5bfed5916a5a729477e50b38df3d3d66fac0b02
+author reed@reedloden.com
+files netwerk/base/src/nsURLHelper.cpp

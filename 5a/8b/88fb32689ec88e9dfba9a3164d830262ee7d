@@ -1,0 +1,4 @@
+changeset 9a7f61363efeb7623f7c5e19c9d1f319503bc1d4
+manifest 0164307e4c1f7bec5e07e0debde801809b42dbde
+extra rebase_source:97ed3b670dee51b929344e1222be0d61ce18b3af
+files xpcom/string/public/nsAlgorithm.h

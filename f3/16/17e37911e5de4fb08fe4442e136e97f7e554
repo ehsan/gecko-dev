@@ -1,0 +1,4 @@
+changeset fc10d90f1027fc75c32a557de2a6036a836b95ca
+manifest c5666c3eeca8a28b9727a5cd002075c4a9154c72
+extra rebase_source:f14d846e129ec461128636add62bddcacab6b6e0
+files browser/devtools/fontinspector/font-inspector.js

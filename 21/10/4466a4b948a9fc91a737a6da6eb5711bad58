@@ -1,0 +1,3 @@
+changeset 6d098abf43ad9085a3b9f82e78710895f680f9f0
+manifest 4f8834c970b184e46fc28a52dd92e46f9ba08360
+files gfx/skia/patches/0023-Bug-890240-FreeBSD-NetBSD-cpuset_t.patch

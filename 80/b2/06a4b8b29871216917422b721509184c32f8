@@ -1,0 +1,4 @@
+changeset c743811fb2697c2ae8aa9ec07169d74b138902cf
+manifest 6302d6af4d071ec278542246ea99ddb413c06a1e
+extra rebase_source:a1be4ceb6e06f2153d0927e50090c5f352b741d6
+files toolkit/components/crashes/docs/crash-events.rst

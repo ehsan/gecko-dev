@@ -1,0 +1,3 @@
+changeset cca0bf3db70a138df3e9781b14f65553e0f6bb9b
+manifest 36f9131d1bc370fe583cf80ea06740acf5e032ad
+files toolkit/crashreporter/google-breakpad/src/client/linux/crash_generation/client_info.h

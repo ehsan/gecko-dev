@@ -1,0 +1,4 @@
+changeset 90b832821bf439b0fed519eeee0c293e0fc99b3c
+manifest 04c514c4a1967853d4bf7f27bdc72f65c8dd2f5e
+extra histedit_source:2ee67b4279cbaba99218d875c139a3378efbd00d
+files content/canvas/src/CanvasRenderingContext2D.cpp

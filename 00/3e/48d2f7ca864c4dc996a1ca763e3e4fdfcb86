@@ -1,0 +1,4 @@
+changeset 3a015ec9a7be5e3c5d485158048184d8cf62d49c
+manifest b8380cec86d04f4d5d724ba2245a0691173f4ac1
+extra rebase_source:d656410da544d4d29eb926293d8be355cd3736db
+files dom/bindings/mozwebidlcodegen/__init__.py

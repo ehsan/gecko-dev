@@ -1,0 +1,4 @@
+changeset 64be83cab4d15864adfbd58b594b1027e54b7a84
+manifest 1e75a10f44040fb8876c2187e0c1d95b069b93ad
+author rhelmer@mozilla.com
+files tools/release/configs/fx-moz18-nightly-bootstrap.cfg

@@ -1,0 +1,4 @@
+changeset e53e42edb3d537364bed0dfb1c2c97b20ea35c84
+manifest e03a78f4d0b203f1f52c006945ed42b96fe42db4
+author rhelmer@mozilla.com
+files tools/release/configs/fx-moz18-bootstrap.cfg

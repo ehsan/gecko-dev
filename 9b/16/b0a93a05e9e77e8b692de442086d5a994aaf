@@ -1,0 +1,3 @@
+changeset 0bf983d260c6c3b3215138619fc52e727a8954d0
+manifest 175b2d175bc4dfc4445d947b9c5b7924bac561a9
+files xpcom/reflect/xptcall/src/md/unix/xptcinvoke_gcc_x86_unix.cpp

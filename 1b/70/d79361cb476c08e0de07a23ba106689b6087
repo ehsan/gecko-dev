@@ -1,0 +1,4 @@
+changeset 8260554d3422bea9b0edfa9ccbc830a4adfd105c
+manifest 7fdbeaf2b97977960ad202af8f0cff414cb17d10
+extra rebase_source:a328609e5c5c461fb92b050b8d34816f08f01d8a
+files browser/base/content/browser-syncui.js

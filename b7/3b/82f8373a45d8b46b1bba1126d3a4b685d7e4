@@ -1,0 +1,4 @@
+changeset 5f1d599971dc5780fb1da162e836fb508b1f9f83
+manifest 088c3bbadf73db1424620bbbb574990e48a86b96
+author timeless@mozdev.org
+files xpfe/components/directory/nsDirectoryViewer.cpp

@@ -1,0 +1,4 @@
+changeset aa3e98ac97fa0cf5141d7368d621f546b65b9192
+manifest c1b57fca4aad9effadfbe4c65b584bd1305fc531
+extra convert_revision:3b0fb708c5c9e12f20897d6d7de8ff79ebc66d6d
+files js/src/nanojit/CodeAlloc.h

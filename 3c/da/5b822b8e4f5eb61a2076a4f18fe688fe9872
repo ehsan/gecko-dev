@@ -1,0 +1,4 @@
+changeset dd6b9fe6eea6b42e5a6d8fb09a1acf22a2db5516
+manifest a246d863cf72bfba58bb0b9fe43ca80f177e8ee6
+extra rebase_source:a3c18891569648b33a4a0bf08abd31158eb6b698
+files browser/components/preferences/aboutPermissions.js

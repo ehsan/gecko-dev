@@ -1,0 +1,4 @@
+changeset b92450e97780bbd028cd72eeaa4ba180026be95b
+manifest 0ef07b9c56a5113f1552019d9961f1146eb357a9
+extra rebase_source:04a3b8aa1795f4c49a188e27e9f2d084d59195cd
+files browser/locales/en-US/chrome/browser/devtools/webConsole.dtd

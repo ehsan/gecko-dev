@@ -1,0 +1,5 @@
+changeset 77c9137dda3cba9c3439993af461bd9dd44e2420
+manifest 6502eaf361393b89b0df45593ef6987b1db58089
+author timeless@mozdev.org
+extra rebase_source:07b5d1d19d7533f1a620ab8a83f19b20f33ec6fc
+files caps/src/nsPrincipal.cpp

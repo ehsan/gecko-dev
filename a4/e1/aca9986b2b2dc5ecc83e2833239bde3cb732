@@ -1,0 +1,4 @@
+changeset 0c6c92d27f04ed21a5ad64c44cc6057f8a4a5051
+manifest b00ad014caa2399c71c047d63c7d7985f9a4c75c
+author timeless@mozdev.org
+files toolkit/crashreporter/nsExceptionHandler.cpp

@@ -1,0 +1,4 @@
+changeset 7aa7add881159f000191ba3d53803a2683c306a3
+manifest 1b1cebe824587c65a96d25731860af3de3a2f42d
+author timeless@mozdev.org
+files js/src/xpconnect/tests/TestXPC.cpp

@@ -1,0 +1,4 @@
+changeset 87e1d2396ecbe69115aecfe5aa351304b77f47ef
+manifest 6b5ea90609ba6b32e8ea6cab0ce1d74bd1d69e36
+author bclary@bclary.com
+files js/tests/js1_7/extensions/iterator-ctor.js

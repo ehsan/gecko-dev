@@ -1,0 +1,4 @@
+changeset 3a3ab5cee7c888f817ce0118834cf293d75b394e
+manifest 0203d97cde346f8169dee25d841329e636299419
+extra rebase_source:ed54328349d13cbe555b0f4acb44965a0ec61efc
+files browser/base/content/syncSetup.js

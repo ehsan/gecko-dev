@@ -1,0 +1,3 @@
+changeset 5075f0063d700ffa907b2a765a4ed9fec04dc3ff
+manifest f830537cb9496937469ece0b86648550d9b61f48
+files testing/marionette/client/marionette/tests/unit/test_capabilities.py

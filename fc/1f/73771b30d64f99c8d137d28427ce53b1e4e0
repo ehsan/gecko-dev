@@ -1,0 +1,4 @@
+changeset 7a6f85f6891e76477c641e74f08c2a8eea031a05
+manifest 447e714158d5f4cde6938f8ddaeff0d38f0d382f
+author timeless@mozdev.org
+files layout/svg/base/src/nsSVGGradientFrame.cpp

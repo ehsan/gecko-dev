@@ -1,0 +1,4 @@
+changeset ff456b2c116f1c1c5c6a30b510d8483f33dab75c
+manifest 759eb3118bf4ebf290ad36b24da699e42e54b4f0
+author reed@reedloden.com
+files browser/locales/en-US/chrome/browser/safebrowsing/blockedSite.properties

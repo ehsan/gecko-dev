@@ -1,0 +1,4 @@
+changeset 122641d81c499523d03f147a40f8d4f5fa32a61f
+manifest 7c2504419bac5a89bffcd57900bb5a33139f9197
+extra rebase_source:06b12ba7cb87045261a1bb042a654cac4d573bd1
+files modules/plugin/test/testplugin/nptest.cpp

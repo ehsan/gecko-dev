@@ -1,0 +1,5 @@
+changeset 84599af3f0c8efbf26042b9292438ff11262a358
+manifest b1263354c72d167133085f062ff4df0426b79928
+author timeless@mozdev.org
+extra rebase_source:d386c3e6d9524a86a7c4fe420c756e9352a48330
+files content/media/ogg/nsOggReader.cpp

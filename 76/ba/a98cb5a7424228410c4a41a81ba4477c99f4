@@ -1,0 +1,4 @@
+changeset cb17db957bb3d1ecaf87bc6b82a75b0f82196d84
+manifest cd157630ef3eee0c45cb5c2201c3075a190904d2
+author philringnalda@gmail.com
+files content/base/src/nsXMLHttpRequest.cpp

@@ -1,0 +1,3 @@
+changeset 1678ac609ec91b4ba427983861b301ee89c91a26
+manifest 71e95e11000bd7943f4ee972fd7ca526c1456aec
+files services/sync/tests/unit/test_service.js

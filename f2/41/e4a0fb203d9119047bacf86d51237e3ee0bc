@@ -1,0 +1,4 @@
+changeset 134bebf53a9343e2461098f2a456c6c626e392ed
+manifest 34ec20f20d072500a3eea1675702d59ad4ea5538
+author reed@reedloden.com
+files toolkit/mozapps/installer/package-name.mk

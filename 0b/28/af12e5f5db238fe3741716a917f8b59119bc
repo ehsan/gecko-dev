@@ -1,0 +1,4 @@
+changeset 777d402ac3a8d52cb3680e6387f1d73491ba55a3
+manifest f476085cccc58999fafe1c76cb7514dd4a1aa6b9
+extra rebase_source:269329afabc8de08036eb9a476c7a61dffd67b8d
+files browser/base/content/tabview/tabitems.js

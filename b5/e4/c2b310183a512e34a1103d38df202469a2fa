@@ -1,0 +1,3 @@
+changeset 4491d42a2c351dcf5567dac9c9edeb59b306dd26
+manifest 59f6730ca0691859e1be47ae8556ba80fd20590c
+files xpcom/build/nsWindowsDllInterceptor.h

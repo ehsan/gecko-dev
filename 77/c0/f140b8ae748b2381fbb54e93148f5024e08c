@@ -1,0 +1,4 @@
+changeset 665286f69e0af6f7b642b2913ce2c97ff23e9685
+manifest 9d098c8768e50120e1826481e3f83c67387eab24
+author dietrich@mozilla.com
+files toolkit/components/places/tests/bookmarks/tail_bookmarks.js

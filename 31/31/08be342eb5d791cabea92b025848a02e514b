@@ -1,0 +1,4 @@
+changeset 680086e7b27f258f51e92660859bbeba1056fc92
+manifest e833078fda8b8e7fab92220f5ae41e31eff95ac6
+extra rebase_source:5935f593dcbd0f297eb82f4d2489abf975749ff5
+files js/src/tests/js1_8_5/regress/regress-595365-2.js

@@ -1,0 +1,4 @@
+changeset 0846ebc3938237ccf1519488de781a37a926db9a
+manifest 4e6312abcdb579e5720ed501260e2555c66e9208
+author rhelmer@mozilla.com
+files tools/release/Bootstrap/Step/Build.pm

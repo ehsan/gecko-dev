@@ -1,0 +1,4 @@
+changeset d9bfdfbd9a8941a1b986f9f0a01365bf6213206d
+manifest c5375488878da85b85b3b2ad719e519d5a8d7fc3
+extra rebase_source:3205a7b2e39c6d0a37ef38755902061a025edd15
+files toolkit/components/url-classifier/nsIUrlClassifierPrefixSet.idl

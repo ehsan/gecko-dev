@@ -1,0 +1,4 @@
+changeset a588c47aca45655d78b6ec086a943ecd926700d4
+manifest 9118f85fa9d83021cadb36037fcde1484bf9bad7
+author sayrer@gmail.com
+files js/src/xpconnect/loader/mozJSComponentLoader.cpp

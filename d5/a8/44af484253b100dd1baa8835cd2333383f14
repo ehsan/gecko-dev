@@ -1,0 +1,4 @@
+changeset 40ff8a30689b8d5a1f5b68ac212e83b7078082f4
+manifest c6d34ce69c6e4d757107a3076b49c08295aafaef
+author dbaron@dbaron.org
+files layout/base/nsDocumentViewer.cpp

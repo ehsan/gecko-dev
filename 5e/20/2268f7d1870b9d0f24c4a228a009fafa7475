@@ -1,0 +1,4 @@
+changeset a0448fd67f91a4fb5c3a9b3a953af96c1723987a
+manifest db6b6debb018fea003215f95197bb9c1a8fc8503
+extra rebase_source:d1c031fa5904cbda3a2e69e9b0aab82f5dc1d613
+files layout/xul/base/src/nsBoxObject.cpp

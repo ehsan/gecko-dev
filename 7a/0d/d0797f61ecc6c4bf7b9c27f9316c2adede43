@@ -1,0 +1,4 @@
+changeset 4674f09e977f0aa2f32e64a2770ff86dc6334f1c
+manifest eb4efde8f44c9fe7bfc17b914a9a0edfd02554cb
+extra rebase_source:dee67fe71446cabbd64d09d19af65a63b7e8784c
+files testing/config/mozharness/linux_mulet_config.py

@@ -1,0 +1,4 @@
+changeset 7e71082f0eda4b85bf265ee0bc8e5f3331dbd791
+manifest 0b24702a8ef121559eab8158e061fe26862d6213
+extra rebase_source:0f196b6774783dd804bb39a19a850297a650c121
+files python/eme/gen-eme-voucher.py

@@ -1,0 +1,3 @@
+changeset 08a1fc394904dbc96707e2cfac50f7a8681764b4
+manifest fe2ffb22201b2dddede12d8e1cf9a9e11b0a6785
+files dom/mobilemessage/tests/marionette/test_replace_short_message_type.js

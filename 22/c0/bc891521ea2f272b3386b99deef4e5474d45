@@ -1,0 +1,4 @@
+changeset cb40ffb146b5dcfd491163961eda24a37981df05
+manifest 91b3fc63304f2989057af8d4e2760bc304a40605
+author gavin@gavinsharp.com
+files modules/plugin/base/src/ns4xPlugin.cpp

@@ -1,0 +1,4 @@
+changeset e515f074b29ca8f0d5caff19907b34d9fe72f386
+manifest 2eef458b6da2a3ab3cf7176879e1f48ecf139f89
+author bhearsum@mozilla.com
+files tools/release/Makefile

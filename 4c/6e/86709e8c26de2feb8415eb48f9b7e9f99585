@@ -1,0 +1,4 @@
+changeset ebead0992db48c852e30ff15225879832ecb44d5
+manifest 5a3e9b1b1b748a7fd66465461d56a51c81be47ed
+author cbiesinger@gmx.at
+files xpcom/io/nsStorageStream.cpp

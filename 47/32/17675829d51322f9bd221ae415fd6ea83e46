@@ -1,0 +1,4 @@
+changeset 5d3c5c4f4d538c3646af582a0323f740f713d8c6
+manifest 6ce7973c77ea816e39a61c4f892ba331ff54fd5e
+author timeless@mozdev.org
+files widget/public/nsIFilePicker.idl

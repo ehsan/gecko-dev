@@ -1,0 +1,3 @@
+changeset acf354e64226225a21e8e2542d0d75b52b541e1b
+manifest 9d35e1c12253403e0b98dbc6ebe9d54a2bb04fa5
+files mozglue/build/replace_malloc.mk

@@ -1,0 +1,4 @@
+changeset ab2a32aff793a5e70d218376eac8920bf9521238
+manifest 33915025d387bf40bbe2e9647ca7a3ab5a38654c
+author dietrich@mozilla.com
+files browser/components/places/content/controller.js

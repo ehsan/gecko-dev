@@ -1,0 +1,4 @@
+changeset 3beb56c8fa6a90902ccee694f198684622b03991
+manifest 13b9872ca8c5778013b76e2054b90ec708817b3a
+author longsonr@gmail.com
+files gfx/cairo/cairo/src/cairo-win32-font.c

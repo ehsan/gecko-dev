@@ -1,0 +1,4 @@
+changeset 8f6fd5d6496907384ea87f0c3e316318d42cb941
+manifest 275dcf08ae9b0cf2aa1f095c73168357bd3e454f
+extra rebase_source:272bf154f6ccb17cac511001aa3947588f2334a8
+files toolkit/components/reader/AboutReader.jsm

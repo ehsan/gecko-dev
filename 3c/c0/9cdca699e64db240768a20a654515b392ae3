@@ -1,0 +1,3 @@
+changeset c6b328fb4f3ec9f8e0efec2f9a543a6f40b9d1b9
+manifest 7819a8d70b336c6b70b9f19c400e1bee7f9cd1ac
+files mozglue/linker/szip.cpp

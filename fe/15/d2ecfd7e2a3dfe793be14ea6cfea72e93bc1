@@ -1,0 +1,4 @@
+changeset f55b236cbc4177953a35e2ac68cd3f9f87bf69ad
+manifest 1e0bdcd90a5aaaf669ab5a2756741e598d8441dd
+author sayrer@gmail.com
+files xpcom/reflect/xptinfo/tests/TestInterfaceInfo.cpp

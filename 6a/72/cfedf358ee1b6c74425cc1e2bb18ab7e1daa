@@ -1,0 +1,4 @@
+changeset fc1d35601ec40268f98a4cb4c9ec16c74decf029
+manifest 05db85010819b53bfe48c0956b3b306857778c51
+author bzbarsky@mit.edu
+files content/xbl/src/nsBindingManager.cpp

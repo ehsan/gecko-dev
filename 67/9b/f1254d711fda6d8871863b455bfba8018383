@@ -1,0 +1,3 @@
+changeset 7cbeab4cc868bdfbe25623ae77dd619475d2743a
+manifest ce1a1d78c4806e52cbed3e2e4b35ce4110c52b4a
+files toolkit/components/console/hudservice/tests/browser/browser_webconsole_bug_580001_closing_after_completion.js

@@ -1,0 +1,4 @@
+changeset 1ac2b3c1cfe1090d84d99809c0f72a8dffe022e8
+manifest 1f5f40495bbcdbcb5545a5062d24cccd6e6f6524
+author karlt+@karlt.net
+files gfx/thebes/src/gfxTextRunWordCache.cpp

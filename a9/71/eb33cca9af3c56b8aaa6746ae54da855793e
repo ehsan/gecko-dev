@@ -1,0 +1,3 @@
+changeset 09d63c14379988f8fa6a4bd401ce47acc55570ba
+manifest 2a7c05dcda6ed7569ea8545537604b67b3ce63f3
+files security/manager/boot/src/nsStrictTransportSecurityService.cpp

@@ -1,0 +1,4 @@
+changeset 6c857b9cd33859a83b72e21df37c2a6fce7e36c9
+manifest e4ab09f1f0cc059aa574ec22071252bd77078024
+author igor@mir2.org
+files js/src/jsregexp.c

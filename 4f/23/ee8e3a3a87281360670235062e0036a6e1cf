@@ -1,0 +1,4 @@
+changeset 9b72e9ee825a88c9db1d2b716858cb61aaed4f52
+manifest 7c7777898c9e9448d34e0d0db832c45be78b2537
+author bugzilla@standard8.demon.co.uk
+files embedding/browser/gtk/src/EmbedGlobalHistory.cpp

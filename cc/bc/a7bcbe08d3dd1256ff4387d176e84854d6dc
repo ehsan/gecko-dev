@@ -1,0 +1,4 @@
+changeset 740f467c8b6c85201a2a26b07e4902c96bfaf36a
+manifest fe2e00e4c5f742780988070a1ce2942e0eb7440e
+author Mike Kristoffersen
+files widget/src/qt/nsWindow.cpp

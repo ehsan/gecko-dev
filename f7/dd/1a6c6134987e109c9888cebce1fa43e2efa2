@@ -1,0 +1,4 @@
+changeset 4309ab6fb4b2ecd9b119d46e7f0bacb6f1f3653e
+manifest 8b7b7f60af5dbf43d91bd6132c698def2ed8f282
+author dietrich@mozilla.com
+files xpcom/io/nsFastLoadFile.cpp

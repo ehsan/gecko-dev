@@ -1,0 +1,4 @@
+changeset fd6ab19f312ca587ac73500eedb603736b0e5806
+manifest 2b62bc8b0d407ec7d02bedfe81cd6d164633b170
+extra rebase_source:a67b23da903520585ac32b4113aa65d397fae94a
+files dom/battery/BatteryManager.cpp

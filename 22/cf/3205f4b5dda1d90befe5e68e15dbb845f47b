@@ -1,0 +1,4 @@
+changeset cf715405ebe141be917948fe6075e5facef8cc95
+manifest b7de2a1c30bdacfd9e98aa44b14288126da3d872
+author gavin@gavinsharp.com
+files testing/mochitest/tests/browser/Makefile.in

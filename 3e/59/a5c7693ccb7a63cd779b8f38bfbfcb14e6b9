@@ -1,0 +1,4 @@
+changeset a3c0beca48982b3cf05b408395f0dd59ac5f7f74
+manifest 17aa7284a9b03b3786ad894b4d2cb53173f23c72
+extra rebase_source:271c2ea0e141489b911487670128103e130fe4fa
+files browser/devtools/webide/content/monitor.js

@@ -1,0 +1,4 @@
+changeset f7d6c79dfef8dbfb7949fc0b9a66db5b5889ebfa
+manifest d2a09a7f0e6a29de5ea3b11c162e4c4492c695e3
+extra rebase_source:90858f60619c22c7ec027209479273ca5e543307
+files toolkit/components/telemetry/nsITelemetryPing.idl

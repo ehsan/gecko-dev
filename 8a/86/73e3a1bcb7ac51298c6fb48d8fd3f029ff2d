@@ -1,0 +1,4 @@
+changeset a0cb815b579cbbe32a730e7d7f9e36ffcadbc85e
+manifest b4c05d1a923634253ec2f23833a1e017aa27b188
+extra rebase_source:aaf0d817aab50e25a2f45c2f3c5e386c366ea056
+files testing/mozbase/manifestparser/setup.py

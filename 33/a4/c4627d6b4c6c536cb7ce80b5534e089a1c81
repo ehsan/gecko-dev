@@ -1,0 +1,4 @@
+changeset 6c560ebd47245412cb4ecb8f453100befa731205
+manifest b6b4b768428d8c89e4b229236b2be39be2d0b7c8
+author gavin@gavinsharp.com
+files layout/style/nsCSSProps.cpp

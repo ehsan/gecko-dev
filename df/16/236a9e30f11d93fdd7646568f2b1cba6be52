@@ -1,0 +1,4 @@
+changeset 2cdf8264efb9be1fd1a53a4b9c5b24bb1e0cd7f4
+manifest a9bb6c30b513e8f7b32c48f69f1117ef0b3d5dfd
+extra rebase_source:1c585e1593ccfbcc5613ebe07aed594a0e8c762b
+files toolkit/components/passwordmgr/test/mochitest.ini

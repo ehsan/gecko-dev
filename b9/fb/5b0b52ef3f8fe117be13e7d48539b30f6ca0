@@ -1,0 +1,4 @@
+changeset cb2fa164ecd485c8780519fca0b5c992d2d37045
+manifest 145645e80b3135c6c1ff5a9429fea2b989ff1f5c
+author Olli.Pettay@helsinki.fi
+files netwerk/streamconv/converters/nsIndexedToHTML.cpp

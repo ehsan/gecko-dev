@@ -1,0 +1,4 @@
+changeset fb92ec3cabb1af658d5d322688d131601dff0f5b
+manifest d3acb5d8b3cab256e3fa2c822928922f179ed7f0
+extra 
+files dom/plugins/base/nsNPAPIPlugin.cpp

@@ -1,0 +1,3 @@
+changeset a3f202325d27cdd88c66d82fa17b468ff6898eae
+manifest c032c4a7ce4780bddf49a1a2862c3beaa354c4d8
+files toolkit/components/console/hudservice/tests/browser/browser_webconsole_bug_632817.js

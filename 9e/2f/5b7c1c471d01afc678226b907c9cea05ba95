@@ -1,0 +1,4 @@
+changeset 2df17691b4ae5e244392189076b6c7973f56cb5c
+manifest 443f921b15b343a1f076b587470f7f8d0de1c01d
+author bzbarsky@mit.edu
+files caps/src/nsPrincipal.cpp

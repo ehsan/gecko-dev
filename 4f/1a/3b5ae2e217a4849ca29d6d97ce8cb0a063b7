@@ -1,0 +1,4 @@
+changeset 296f8474ecf4b1fd62d2ff1920b1a29c5e9a5e05
+manifest ff7de35410d92eea9eb05c1a0814b94693545a9b
+author sdwilsh@shawnwilsher.com
+files uriloader/exthandler/nsExternalHelperAppService.cpp

@@ -1,0 +1,4 @@
+changeset 6e3c5b69556b8b5fd42d46612d4d735f3b57f516
+manifest 185aa4645460f4cb8186202d347eabc628a3cad5
+author reed@reedloden.com
+files browser/components/migration/src/nsIEProfileMigrator.cpp

@@ -1,0 +1,4 @@
+changeset 93f36d7a3adeb872458cec43449bcd39214a8b4a
+manifest 2de1512fdadb254c73b5a2adeb055be15dac1d1c
+author kherron@fmailbox.com
+files widget/src/windows/nsDeviceContextSpecWin.cpp

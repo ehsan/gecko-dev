@@ -1,0 +1,4 @@
+changeset ec08313211a64882c441cabf1337d5ec42d2d2dd
+manifest 6b7154e266cb726af84a5b782e181db7d19be827
+author pavlov@pavlov.net
+files config/autoconf.mk.in

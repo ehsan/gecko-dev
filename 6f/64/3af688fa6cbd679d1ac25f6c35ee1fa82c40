@@ -1,0 +1,4 @@
+changeset 24ab00570a33bf0f3d4e05021a1dea97f1b8188a
+manifest e6b95a6a62f16d2b0e8006a8accd440cf34583a7
+extra rebase_source:5e83c965f69fc0c129745514023c220b31419aee
+files js/src/jit-test/tests/saved-stacks/generators.js

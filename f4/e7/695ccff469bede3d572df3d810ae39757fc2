@@ -1,0 +1,4 @@
+changeset cceedac57527a6237832bf2991df6eded0640734
+manifest 09da7e443185487b121ac9e68cf9e1c26e4af58c
+author jag@tty.nl
+files uriloader/exthandler/tests/unit/test_handlerService.js

@@ -1,0 +1,4 @@
+changeset 2b40fdcfd56afa43132a1dcea482b76fa675026d
+manifest ad1379f925f343d70a92f88669026ef4695baeba
+author tor@cs.brown.edu
+files layout/svg/base/src/nsSVGPathGeometryFrame.cpp

@@ -1,0 +1,4 @@
+changeset b350e3b72c2fb21ef8bf76d38ab8ab702b386bd7
+manifest 8e815fecaa876c3d49ddfb45af671657d958d818
+author Brian Hackett
+files js/src/methodjit/PolyIC.cpp

@@ -1,0 +1,4 @@
+changeset 561a743626c17f4ff261d397c163c9f524ac68bf
+manifest 3b205476fc9d53ba8df94008258625a88e49e685
+extra rebase_source:1a0da944bb2cde11e899b78b2421ab87837553d2
+files browser/components/customizableui/test/browser_946320_tabs_from_other_computers.js

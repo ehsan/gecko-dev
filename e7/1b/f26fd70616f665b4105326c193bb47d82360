@@ -1,0 +1,4 @@
+changeset 89b5344791fbedf08249c01451abbb35c3ecd186
+manifest d5c92904ffdcbd7539365833377dcade42fad56e
+author nrthomas@gmail.com
+files testing/release/l10n/verify_l10n.sh

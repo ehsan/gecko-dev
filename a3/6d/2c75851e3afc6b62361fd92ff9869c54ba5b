@@ -1,0 +1,4 @@
+changeset cac219e31b571feb79f54bfaebc4bcd9d9c589c7
+manifest f49bc82fa1c98622e7fbcc9dd273ec60cb8afaa5
+author jst@mozilla.org
+files dom/src/base/nsDOMClassInfo.cpp

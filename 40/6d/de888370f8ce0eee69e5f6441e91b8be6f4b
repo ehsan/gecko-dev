@@ -1,0 +1,4 @@
+changeset 1c4fed24fc4c0f0a0288ce92d2345fae36a79331
+manifest fb46efea3b432823fc89fbfde8128253818e06d6
+extra rebase_source:ec9a5bf70b7b6acc2b9c16dca8d33da277278ac1
+files xpcom/io/nsFastLoadFile.cpp

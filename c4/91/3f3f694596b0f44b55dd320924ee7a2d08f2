@@ -1,0 +1,4 @@
+changeset d5d534d612e6041caf4767fe7527019e1277f1b3
+manifest 0d5650dcb3aaba48a6eafe7e32e4757eed8be610
+extra rebase_source:6f486dad54e8b577a4baf3711dd785a394596bb6
+files js/src/jsiter.cpp

@@ -1,0 +1,4 @@
+changeset c676b554c7bbc2a2ab62f541063aab3a36310d77
+manifest c883f018eb686583bc0ec22cf4cbef2e6b241bef
+extra rebase_source:faa8b37f5f6fa0512c98e4a208774f1e3dd830b2
+files mobile/xul/installer/package-manifest.in

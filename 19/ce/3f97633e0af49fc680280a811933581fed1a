@@ -1,0 +1,4 @@
+changeset 8c257de4a914d0b9f1d1d9d24306d34a208c810d
+manifest 1f6a5f00de798c01415a85fc1d012e4acb35da14
+author benjamin@smedbergs.us
+files toolkit/mozapps/extensions/src/nsExtensionManager.js.in

@@ -1,0 +1,3 @@
+changeset c52e50a27c8c244c5d91d319fd0427223aafffdd
+manifest 9b710baa403ec80ba3dd3648e7f40ab67b14ed6d
+files media/webrtc/trunk/webrtc/video_engine/vie_encoder.cc

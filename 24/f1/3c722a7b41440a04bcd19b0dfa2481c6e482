@@ -1,0 +1,4 @@
+changeset 00b097dcbd0ffdbfd68f5f1a734ad2430cf5f2d3
+manifest b4b22372245b4a9d5ececf6e0f3cfae1656b7c5c
+author timeless@mozdev.org
+files parser/htmlparser/Makefile.in

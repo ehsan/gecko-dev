@@ -1,0 +1,4 @@
+changeset 8787080c97716efd9dda1c0bd51a20470b3dd0ce
+manifest 8ceaad5d9d44d0717bc3f495aed28cca733aa237
+extra rebase_source:75770e0e77ac2b8c4c56fdee7903395e932b57f4
+files embedding/android/GeckoAppShell.java

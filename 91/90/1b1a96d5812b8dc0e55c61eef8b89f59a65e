@@ -1,0 +1,5 @@
+changeset df79eac381aa433715e33a083bd45eb139852e33
+manifest a610a59d160e3acdf7913c5de6e43e12a2e570ad
+author timeless@mozdev.org
+extra rebase_source:f322ae72aeba7d1c0e0810cb5ded934eea709263
+files dom/base/nsDOMClassInfo.cpp

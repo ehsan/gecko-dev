@@ -1,0 +1,3 @@
+changeset b7a4a3444ba97304fc6187c605c567f26dd994a3
+manifest e7eaefabed6549ee5fd40e0dc5d43562606f8352
+files browser/components/places/tests/browser/browser_library_open_leak.js

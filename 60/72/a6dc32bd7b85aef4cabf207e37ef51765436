@@ -1,0 +1,3 @@
+changeset 3a7b9e61c26342f4fa46deb7f37cc6f6b389c00a
+manifest 5cd46311f77bc883308794cae8ae19922397f79d
+files toolkit/xre/nsWindowsDllBlocklist.cpp

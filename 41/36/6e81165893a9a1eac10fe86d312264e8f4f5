@@ -1,0 +1,4 @@
+changeset 88204c53761b71d45c3163ad8ff712de52a484c3
+manifest 1f1fca1d3ac67058a5d18257c05b21958732eaa8
+author dolske@mozilla.com
+files dom/base/nsGlobalWindow.cpp

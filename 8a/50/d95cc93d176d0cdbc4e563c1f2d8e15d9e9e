@@ -1,0 +1,4 @@
+changeset bacb88359f6c1726ef84c4cd00c166bece5b60b2
+manifest e46a180e31740e0fd5667b15b16cab241013ebbf
+author mozilla@weilbacher.org
+files gfx/thebes/src/gfxOS2Surface.cpp

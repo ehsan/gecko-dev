@@ -1,0 +1,3 @@
+changeset 40f7e9a54bb39d04edaedc97b7e0f90bad5011eb
+manifest 5776d4ce4f152d553630a6287ee57d8147713d11
+files dom/media/tests/mochitest/test_getUserMedia_permission.html

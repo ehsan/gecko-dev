@@ -1,0 +1,4 @@
+changeset 05007aad7d2b0f41f43fec557615e6ecc459c3df
+manifest d9f4c8a78848a27b8ac6954658fd4e00100faa19
+extra rebase_source:91766073f4e594cba3767e7bacee053fcfc55cc3
+files browser/locales/en-US/searchplugins/google.xml

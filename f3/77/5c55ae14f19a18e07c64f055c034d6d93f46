@@ -1,0 +1,4 @@
+changeset 547e6057ff302c10d0a4f3bb0de2edb748afdeb4
+manifest 6e7bf639b895e4a61cef0a3635fd656820abbb48
+extra rebase_source:6481a2f0b48496a1f36937ec266bfec0e1161105
+files image/decoders/icon/win/nsIconChannel.h

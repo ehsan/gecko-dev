@@ -1,0 +1,4 @@
+changeset bfb41d02e7e1d20906ada672eaadc49203a69f4d
+manifest 36a44a607c4ae60462aa686b284721106936f1b0
+extra rebase_source:aed9fffb2eabc98feb48e18ff8181c4c80fd34d8
+files toolkit/devtools/event-emitter.js

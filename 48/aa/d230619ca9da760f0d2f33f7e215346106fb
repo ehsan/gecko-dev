@@ -1,0 +1,3 @@
+changeset 38eb61d6f1e60f59fb9fbceccabb67fefd30250e
+manifest c1ae38b40c75235e12f172c251a2d5fd040714d5
+files extensions/spellcheck/tests/chrome/test_add_remove_dictionaries.xul

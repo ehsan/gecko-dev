@@ -1,0 +1,4 @@
+changeset 9e1d2f3f827819084dfc067c073aab69ec1e7f8b
+manifest 9c2db36703bd50f3632ea4dc676f64a8c884599a
+author dmandelin@mozilla.com
+files js/src/jsregexp.cpp

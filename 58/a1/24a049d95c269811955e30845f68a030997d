@@ -1,0 +1,4 @@
+changeset 8b96da4e125d2ed4997fb0f398843c8d07fa05e8
+manifest b2e67e371f74da1ccd90b5fd03811f3899ac0ad4
+author jwalden@mit.edu
+files content/base/src/nsStyledElement.cpp

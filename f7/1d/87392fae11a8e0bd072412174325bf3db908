@@ -1,0 +1,4 @@
+changeset db290a16eb8784e901f334caaf74f169d67b72ee
+manifest 28643262a7c37b399880004b2c5324aed4455f39
+author philringnalda@gmail.com
+files toolkit/mozapps/extensions/src/nsExtensionManager.js.in

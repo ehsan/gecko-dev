@@ -1,0 +1,3 @@
+changeset fb802350a2d270d08659fe0161a967bd64c10596
+manifest 721aeb391e7dee84a310454d47a76c3967c6004e
+files xpcom/base/nsStackWalkPrivate.h

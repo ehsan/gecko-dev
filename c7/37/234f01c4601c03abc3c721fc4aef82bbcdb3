@@ -1,0 +1,4 @@
+changeset ef79fc31f88159ebff4670e3de6203be4cf5aef9
+manifest a6d0e11a0f66611310a2d882b3bbf0f6c084024c
+author bzbarsky@mit.edu
+files netwerk/dns/src/nsHostResolver.cpp

@@ -1,0 +1,4 @@
+changeset 1082a95d3fc5ab6b415663b6d15062983ef30a2d
+manifest e0fe0e7dabdc852c7293919c4504b8bf6c3596e8
+author vladimir@pobox.com
+files gfx/cairo/cairo/src/cairo-features.h.in

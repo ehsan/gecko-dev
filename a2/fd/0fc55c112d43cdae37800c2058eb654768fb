@@ -1,0 +1,4 @@
+changeset ee45cc345be19e602ab51445b009899262f22c8f
+manifest 1bfb5daf888be7a5ccca4a34a78d0913f3ac6558
+author cbiesinger@gmx.at
+files netwerk/protocol/http/src/nsHttpChannel.cpp

@@ -1,0 +1,4 @@
+changeset 9ba53832faf28544329de3bb0834cb8f25ef23af
+manifest a577aaab2a2d2299f63d1a78f9b305a4352d2464
+extra rebase_source:b10be6d3d7c9e43732a7aac05d8a066193f77ec8
+files widget/src/cocoa/GfxInfo.mm

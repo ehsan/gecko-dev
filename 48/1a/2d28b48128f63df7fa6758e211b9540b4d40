@@ -1,0 +1,4 @@
+changeset eee863f8a621a7f1306aa517012925edeeab7558
+manifest 280a1c4b8efdbd99c6e7c0ee65928fd67d9d7aba
+author bzbarsky@mit.edu
+files xpcom/io/nsBinaryStream.cpp

@@ -1,0 +1,3 @@
+changeset 433fc2a17d02969958d4d84329b0dbc76a4290c8
+manifest 4f69b85e7ec510aac905a7863dacaa72c4d25b96
+files security/manager/ssl/tests/mochitest/browser/browser_bug627234_perwindowpb.js

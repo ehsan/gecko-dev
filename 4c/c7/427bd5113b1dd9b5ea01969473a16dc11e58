@@ -1,0 +1,3 @@
+changeset 2730a06e361e150f923f2a15e57061c7fa3971e7
+manifest 7ee232ea320b2edb1714740833b132cad282a2ef
+files services/sync/tests/unit/test_addons_store.js

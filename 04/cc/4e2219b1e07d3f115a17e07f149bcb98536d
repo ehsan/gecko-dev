@@ -1,0 +1,4 @@
+changeset 312699f3738bcd4fbb8552e013d87a9c134bb082
+manifest 440b8307ef41c28ffcdde4bd97538991a556ba20
+extra rebase_source:008b54b52b8e4e40cf3295c759389494f1cbcfd2
+files modules/plugin/base/public/npapi.h

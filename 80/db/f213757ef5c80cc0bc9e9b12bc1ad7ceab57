@@ -1,0 +1,3 @@
+changeset 32f15256799627720c2e1a2d56f6fd4e7482adaf
+manifest fa977b06e30acbb54b46e00b132af6efc7ec54c8
+files dom/mobileconnection/interfaces/nsIMobileConnectionService.idl

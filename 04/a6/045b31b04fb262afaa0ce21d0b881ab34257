@@ -1,0 +1,4 @@
+changeset 3fea082dcadcae76d2ec7405936dc968cd9fdf95
+manifest 00deb2ff4d3d4c21b262d215d82887422829298f
+extra rebase_source:2e71905e951ea9b1b5daa9dc03186c12d4fbb587
+files layout/reftests/border-image/reticule.png

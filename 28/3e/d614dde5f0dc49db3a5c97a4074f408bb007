@@ -1,0 +1,4 @@
+changeset c30dec69815d141b4118ed58487cd72e7d1473da
+manifest bd82610056b740a114caa442d58921723e27cb47
+extra rebase_source:6447c98085459bd7fc6b215279a9d5e1870d46ba
+files js/src/trace-test/tests/basic/testScriptGetter_JSOP_CALLPROP.js

@@ -1,0 +1,4 @@
+changeset f082da59fce208be6b5c23893646254d853f85d8
+manifest 0162a5f7800a8414d1406faba1a3246a2d70c1fa
+author dbaron@dbaron.org
+files layout/style/nsRuleNode.cpp

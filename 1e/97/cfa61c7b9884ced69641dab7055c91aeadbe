@@ -1,0 +1,4 @@
+changeset 45caaf30e1feb0ade08eb50bea386e9f8098dfe5
+manifest 64e37a1cb0ad47f89691ca592cc3d04a04f76282
+extra rebase_source:b5d6292372a57373bd8230862f1808fa6e99ed4e
+files content/base/src/nsDOMEventTargetWrapperCache.cpp

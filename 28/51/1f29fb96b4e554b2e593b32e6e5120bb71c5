@@ -1,0 +1,4 @@
+changeset 8443140d7fcf57e0af143efd3fd19a0270dc6b8c
+manifest 5f4f2cc0152ac761b3ffd59e3663963233546779
+extra rebase_source:316ea1a11d26f1cfaa7a3eabc4b415062fc5fc5d
+files dom/tests/mochitest/fetch/test_fetch_basic_worker.html

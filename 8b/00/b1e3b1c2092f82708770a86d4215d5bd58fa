@@ -1,0 +1,4 @@
+changeset 3defb7eb0b279ee50a0689786bd58b45d45a0371
+manifest 0be0aaaa61a5e751c065eecd3ee16fe5efb7ca0b
+author cbarrett@mozilla.com
+files widget/src/cocoa/nsCocoaWindow.mm

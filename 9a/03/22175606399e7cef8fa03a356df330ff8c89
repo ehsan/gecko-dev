@@ -1,0 +1,3 @@
+changeset 06e770616159f3b0957de0fd73b54e44361506aa
+manifest 6a416fed6ef1ee9047412b4c9d04e8cc3c77b79a
+files dom/src/threads/nsDOMWorkerXHR.cpp

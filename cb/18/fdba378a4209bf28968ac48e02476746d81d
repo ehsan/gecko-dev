@@ -1,0 +1,4 @@
+changeset 144a2adc0915269d01f0e9e499418b2f65150914
+manifest 035663289cf3b4c2dba560c2ae0a35588ebf3beb
+extra rebase_source:b261c4e5cda1971ea6877790d97d056e05361373
+files layout/svg/base/src/nsSVGPatternFrame.cpp

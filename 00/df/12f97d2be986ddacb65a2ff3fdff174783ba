@@ -1,0 +1,4 @@
+changeset 08422402615a82cf68d2ab5435e3e2111737ea6a
+manifest bc7c0f4b0d0befaac6324e3a07e12982ece62846
+extra rebase_source:0a5ac4d8578ea73d1fc0d6a5c6e90651a1a4418d
+files browser/components/tabview/test/browser_tabview_bug625269.js

@@ -1,0 +1,4 @@
+changeset fc363326e0ef338a554f554248240a76ac79022e
+manifest 27f0f3ba424ef641754b4ac5407fcda9e7c1f5be
+extra rebase_source:97144595ffdbaaf0be3327b1af4b8e7c63b9c32d
+files content/events/src/nsDOMUIEvent.cpp

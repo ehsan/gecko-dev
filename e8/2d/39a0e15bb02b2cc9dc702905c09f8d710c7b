@@ -1,0 +1,4 @@
+changeset 4359eae90f244f36699d6b06dd3d996c76bc34e9
+manifest e2a1a2e23a3b8f7468efb8a0c4b1bf03666fcf26
+author smontagu@smontagu.org
+files intl/lwbrk/src/nsUniscribeBreaker.cpp

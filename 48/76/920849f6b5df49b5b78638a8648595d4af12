@@ -1,0 +1,4 @@
+changeset 11ce085ba49f1da2d8dd17c23b51dee70882c047
+manifest 3fb2982f7ecdc54807e20b7bbbe0e18e6241c065
+author jst@mozilla.org
+files caps/src/nsScriptSecurityManager.cpp

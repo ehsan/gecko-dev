@@ -1,0 +1,4 @@
+changeset cc7f25b7ed2eb39d8c6b4cfbbc6388efc4829e3c
+manifest 20c0f1f3b7700c8e8fff0549a380b1c804053868
+extra rebase_source:4a839ccee7d233de918898e88e3615eacd6d3c41
+files js/src/jit-test/tests/self-hosting/define-value-property.js

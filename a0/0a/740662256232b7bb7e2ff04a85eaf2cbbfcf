@@ -1,0 +1,4 @@
+changeset f09f6bf16bf87492ddd8b138b81cf58038c2b7c5
+manifest 43d1fbdcfa656f2f2373b6b4aca71c0d76bb8364
+author thunder@mozilla.com
+files browser/components/places/Makefile.in

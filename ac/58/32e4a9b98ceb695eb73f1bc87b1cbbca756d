@@ -1,0 +1,4 @@
+changeset 840ffcc76aa3935e813a3def527ebae63b543775
+manifest 9a679ce5d6681b62c9a3b2d10ec197c5e096d2de
+extra rebase_source:d6ccec4e6c3f993136a4fda98baf136dd20926c2
+files browser/base/content/tabbrowser.xml

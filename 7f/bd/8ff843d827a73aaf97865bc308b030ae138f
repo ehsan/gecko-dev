@@ -1,0 +1,4 @@
+changeset 800e139e9553235e83563e946f1ea419babd46bd
+manifest b1720a940250a36633fb913259794dba8adfcfd2
+author gijskruitbosch@gmail.com
+files toolkit/components/startup/src/nsAppStartup.cpp

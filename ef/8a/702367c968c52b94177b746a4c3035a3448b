@@ -1,0 +1,3 @@
+changeset 171c124a1402d0cce34a811d0247ca550ebf208d
+manifest cbccf8c560699222ce334c43b27b98d5ebca53c0
+files xpcom/glue/nsCRTGlue.cpp

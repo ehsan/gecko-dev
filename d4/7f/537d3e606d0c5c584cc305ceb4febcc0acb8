@@ -1,0 +1,4 @@
+changeset 43baf17f1f6ad423d797912188f0f8ce2cc8c41a
+manifest d753fc52c73e849e9c92cfa66f101a9bb70bd48c
+extra amend_source:16f2cdec1408a17c071567b98c6072ebd4246eef
+files dom/webidl/ActivityRequestHandler.webidl

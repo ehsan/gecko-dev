@@ -1,0 +1,4 @@
+changeset 687282e81f183e0b6fd5ec630bc62731bc3d5c45
+manifest a8bd52cd3851baf9f0fb50f45d8d442e7fca009d
+extra rebase_source:c285e140e66bbea365d0b8a2ad13fd87828f8ac7
+files dom/bindings/Makefile.in

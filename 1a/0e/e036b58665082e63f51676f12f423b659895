@@ -1,0 +1,4 @@
+changeset bfc87261fa2a87a1963f9aa32acc16ac29bf3607
+manifest 23cb0f16fb5368de537b9359db75c98e02677e4d
+author Fabien Cazenave (kaze@mozilla.com)
+files dom/system/gonk/ril_worker.js

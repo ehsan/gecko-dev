@@ -1,0 +1,4 @@
+changeset 66ddd173c4427a82e2b9b495539d23e5ae2c2d2e
+manifest a1f6978a1a440eba0690d5bb8968a595b36606e1
+extra rebase_source:4ae932c21dfaad4e3f31b8d3ea2231682c860789
+files chrome/src/nsChromeRegistry.cpp

@@ -1,0 +1,4 @@
+changeset ea1d1a255701147589ae04ea1449a51cd5721b76
+manifest 73759221e9b1a5ecdbde402fd7fa85105cec3552
+extra amend_source:c235931bc179daa6547219f4af12a06064469087
+files python/mozboot/mozboot/fedora.py

@@ -1,0 +1,4 @@
+changeset 626c8e1c724517b278cddaf2339f65ef365add5e
+manifest 55472a5cf209f39d081add963be3ffebf86a15b5
+author timeless@mozdev.org
+files xpcom/threads/nsThread.cpp

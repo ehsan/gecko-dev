@@ -1,0 +1,4 @@
+changeset 124699c2f35f917016518960c7353643a847f811
+manifest 4070b61cc5a8df8dba1c4d2b96b37fe323970da3
+extra rebase_source:b93cafa6f0601c9609d362a2312c1abe70fe3346
+files browser/base/content/tabcandy/app/groups.js

@@ -1,0 +1,4 @@
+changeset d5651717051b8896bfd1c90906fda08d287259e6
+manifest 80a4c1d387a9ff95c7c8e85ceb6a83b11e2b243a
+author jst@mozilla.org
+files modules/plugin/base/src/nsPluginDirServiceProvider.cpp

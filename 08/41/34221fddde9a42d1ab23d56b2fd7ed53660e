@@ -1,0 +1,5 @@
+changeset dbc1c0ecfdfa8e3e1b6fd782e0e16da852e0b314
+manifest e100b3f2de852a3e3a536cb0f153963ab7077da8
+author timeless@mozdev.org
+extra rebase_source:ba864e247c06bec72f077a273f2506befe755501
+files xpinstall/src/nsXPInstallManager.cpp

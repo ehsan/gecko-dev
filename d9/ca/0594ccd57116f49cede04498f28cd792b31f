@@ -1,0 +1,4 @@
+changeset 8aa1c834ef5143d6e307af69dd10c4c0abac549f
+manifest 955ec28961039947fbff2f40a825e49bd411cf01
+author joshmoz@gmail.com
+files xpcom/obsolete/nsFileSpecMac.cpp

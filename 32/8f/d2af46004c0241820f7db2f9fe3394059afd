@@ -1,0 +1,4 @@
+changeset bf8d5d78b27e91fe55deb25203c6ed23a1c963f8
+manifest 7b5dca588422b84433ecf8db599309162b79c22e
+extra rebase_source:c7b1d98d7c828e95905080270f5da2f242923eff
+files widget/windows/nsAppShell.h

@@ -1,0 +1,4 @@
+changeset 28a10d6e39e49f9f018101c98720b3e905be456c
+manifest c65cac72fb9ecf4cd34a8aefae79b72c5357416b
+author reed@reedloden.com
+files docshell/shistory/src/nsSHistory.cpp

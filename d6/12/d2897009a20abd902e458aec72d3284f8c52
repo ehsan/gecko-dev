@@ -1,0 +1,4 @@
+changeset 3d458df78609eab5d5c41fcbaaa04f2dda5a2622
+manifest a601d3e96932246ec9cc3eafffe883f6b671f386
+author karlt+@karlt.net
+files layout/mathml/base/src/nsMathMLChar.cpp

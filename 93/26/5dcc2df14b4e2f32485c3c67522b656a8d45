@@ -1,0 +1,3 @@
+changeset 76c3d173ddeb29c998c0f3e9e3c3803c4f21afb9
+manifest 88b337c2fef3a6b2cd87e9cc461bc865e2039b7b
+files xpcom/base/nsIMemoryReporter.idl

@@ -1,0 +1,4 @@
+changeset 0e8483309311fea4fdfb0c122cf35e5fbae341e5
+manifest bd657414f3e23476cb75b49d82de8c73df727a6c
+author reed@reedloden.com
+files toolkit/mozapps/extensions/src/nsExtensionManager.js.in

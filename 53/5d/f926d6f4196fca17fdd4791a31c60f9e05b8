@@ -1,0 +1,4 @@
+changeset b390764cfa3bfd97a90ef71a4e553509ce3070dd
+manifest 6fffe9071e7012ad72ea5bff070738d42380f48f
+extra rebase_source:1722718e4703ba8a1679e9db9df1b085b3e7535a
+files dom/base/nsContentPermissionHelper.cpp

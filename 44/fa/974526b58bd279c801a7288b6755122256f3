@@ -1,0 +1,4 @@
+changeset 30ad537fca91975f5ee45ceec5e3f7e22c7e5212
+manifest 28ad7fe3453247873c40a975186656bb869d0793
+extra rebase_source:75be29ad11113ead1a16ed212e745759ee2fc4d6
+files build/pymake/tests/vpath-directive.mk

@@ -1,0 +1,3 @@
+changeset f39fcb5f016b042615a253f41b3ba66c5e925c05
+manifest 33b4730c246cef83e50ac910a1ad49fac8d3faae
+files build/package/wince/make_wince_cab.py

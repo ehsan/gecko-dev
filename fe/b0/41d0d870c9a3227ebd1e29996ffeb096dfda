@@ -1,0 +1,4 @@
+changeset cfd18201f49be4aa725b832b413dee7afaf6d4cf
+manifest 8ff05f9416d7dd6a3007bc230db42eb82bc8c610
+author timeless@mozdev.org
+files widget/src/qt/nsClipboard.cpp

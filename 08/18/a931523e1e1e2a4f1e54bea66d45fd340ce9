@@ -1,0 +1,4 @@
+changeset ec9a6b8c81d8315648b09b0fbbd5dc3a0a0dd1ff
+manifest 6cb961d02bd55dd95bdf3fc2fe98e872ca3490b6
+extra rebase_source:d1de7a9549e1fe0d047b3882ebca711fc0a47b94
+files mfbt/GuardObjects.h

@@ -1,0 +1,4 @@
+changeset 082d52a2c95f9d49dde9a56c46f97eaa6edba9de
+manifest f37585b960a4269676b3fae305ce300a3372e8a4
+author masayuki@d-toybox.com
+files layout/generic/nsTextFrameThebes.cpp

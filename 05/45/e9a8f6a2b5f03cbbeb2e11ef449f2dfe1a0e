@@ -1,0 +1,4 @@
+changeset 87b0a5610a8d1ba1c999f23292ae5161fb6b5368
+manifest 4f01645fd7b2b35ffe6552e3585459bf2b289c4e
+author bjarne@runitsoft.com
+files build/automation.py.in

@@ -1,0 +1,4 @@
+changeset 5f020afcbfad0dad06957f525c679a466e0eebb3
+manifest 031a86b9642a84e73fc50eafe989d37fbeb47683
+author brendan@mozilla.org
+files js/src/jsopcode.c

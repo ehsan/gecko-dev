@@ -1,0 +1,4 @@
+changeset 0468527974dbf3a313812ab945de42f1a506c5b4
+manifest 01eb08516da4e49a97a30899af1049c57dcbd2b0
+author jonathandicarlo@jonathan-dicarlos-macbook-pro.local
+files services/sync/tests/unit/test_xmpp.js

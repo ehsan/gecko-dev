@@ -1,0 +1,4 @@
+changeset 1e95a27ee3b379f73f7dee6cef2c8335220a76ba
+manifest f9dd4d7484cc7d0a841c59ca0996da4d9ee3df4b
+author bzbarsky@mit.edu
+files editor/libeditor/base/nsEditor.cpp

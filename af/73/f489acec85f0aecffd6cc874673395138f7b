@@ -1,0 +1,4 @@
+changeset 9abd63f5ba10a27be63c130b42bd2a2f861ae191
+manifest 9e34ff196d2b38365af298ee5eb3001491e430f7
+extra rebase_source:0c5b021d2d8bacbfdb3fda6704ce0c6c8ced5d78
+files modules/libpref/src/init/all.js

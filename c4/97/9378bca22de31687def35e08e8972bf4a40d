@@ -1,0 +1,3 @@
+changeset 0a9ee83b1093b8641fb42a2801628b721d1dce2d
+manifest 4a10b72ecbff65e7faf704b6f1b026d1085fea36
+files dom/src/threads/nsDOMWorkerSecurityManager.cpp

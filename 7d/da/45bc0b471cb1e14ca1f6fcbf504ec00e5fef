@@ -1,0 +1,4 @@
+changeset 1c9eb3f07a802e853b16b8f475eca1606aee92f7
+manifest a6a389d9cf1d4ca560c5a58a6c45cd4eb17305b8
+author bzbarsky@mit.edu
+files docshell/test/navigation/NavigationUtils.js

@@ -1,0 +1,3 @@
+changeset 661aa3848628f4d6e174dc953fafd7854d618a38
+manifest d530b692cdc18b74e7788ea9828f0d9fbf8d9103
+files js/src/jit-test/tests/gc/bug-948423.js

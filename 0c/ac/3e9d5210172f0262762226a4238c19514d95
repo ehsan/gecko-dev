@@ -1,0 +1,4 @@
+changeset e9c77bd1e5fee8ec84ae911f806895916e510c87
+manifest 57118e2d85a51fcd444e10e689d045706d3fd791
+extra rebase_source:fb54e52db051584333c9430b0b000ee052e5b2d7
+files dom/bindings/Codegen.py

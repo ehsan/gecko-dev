@@ -1,0 +1,4 @@
+changeset 2207ba1be49f8806db30fce94e96cf047c25c56f
+manifest 2d51fa47c43258c03a496244b1c8b68626fb20ba
+author mozilla@weilbacher.org
+files modules/libpref/src/init/all.js

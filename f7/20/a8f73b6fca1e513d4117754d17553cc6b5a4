@@ -1,0 +1,4 @@
+changeset 772a52a80522a0d8fcd7bef4bca28a6b48b3272a
+manifest ccd08f92c5e5a445db51343403dda50891e7ff50
+author bzbarsky@mit.edu
+files netwerk/protocol/gopher/src/nsGopherChannel.cpp

@@ -1,0 +1,4 @@
+changeset dad8ab8cb1ddcd6a12bb61cd931392113b3e4f91
+manifest 4d2f42e422fb27819bd4d1e07547fe9701f6efa3
+extra rebase_source:876279e2d327c8faf76bba28f94ba40f347a2000
+files js/src/trace-test/tests/basic/testNativeArgsRooting.js

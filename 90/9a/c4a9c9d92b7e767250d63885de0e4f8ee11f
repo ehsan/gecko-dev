@@ -1,0 +1,4 @@
+changeset 941cafc15dfdecddea8e883894cf4fa0433534dc
+manifest 9c7264ecf3dd20eb266523e2c2d28de8c94479b7
+author dolske@mozilla.com
+files browser/components/shell/content/setDesktopBackground.js

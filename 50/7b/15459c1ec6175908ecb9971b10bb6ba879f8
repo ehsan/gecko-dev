@@ -1,0 +1,4 @@
+changeset 5a14cf31b53eee82c59d28e06f272b25e671a7f4
+manifest a371da4ced8dd7c08afcfefe67aac99573b01973
+extra rebase_source:06e499cb88ab25633d27e467e5783ce20194c102
+files toolkit/mozapps/extensions/test/unit/test_bug430120.js

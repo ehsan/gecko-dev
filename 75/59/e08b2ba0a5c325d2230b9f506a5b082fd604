@@ -1,0 +1,4 @@
+changeset 4184b2577c4a32fd52cfdbc7a634d1e065910c08
+manifest 54775f553e39a45de7c2f4fc747e4218052bfa61
+author timeless@mozdev.org
+files content/svg/content/src/nsDOMSVGZoomEvent.cpp

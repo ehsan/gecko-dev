@@ -1,0 +1,4 @@
+changeset 44c5cde4bc93756531ced1f4092c1d3f6521c703
+manifest 0326c35f3309df803221139ac9bb6a18a7c89766
+author cbiesinger@gmx.at
+files xpcom/tests/unit/test_storagestream.js

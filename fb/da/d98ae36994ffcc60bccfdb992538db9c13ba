@@ -1,0 +1,4 @@
+changeset 016ae196991209c5f85464dfb1685becdaf3a940
+manifest 2179eb191b54b26298a48694dc8e4c2d7823d651
+author cbarrett@mozilla.com
+files toolkit/xre/MacApplicationDelegate.mm

@@ -1,0 +1,3 @@
+changeset 240408f52150574775a9cfb7f4f2a4dc1ef3c45d
+manifest ec85c3bf5cfeb7bae86932ee040ebc37d7b9e955
+files xpcom/reflect/xptcall/src/md/win32/xptcinvoke.cpp

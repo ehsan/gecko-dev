@@ -1,0 +1,4 @@
+changeset 1d6f5b4c29ee0d69eeea8037868b1c42739b82b7
+manifest 4bc90bfbe9bf06be005c650d6a7b9912995fc5f4
+author smichaud@pobox.com
+files widget/src/cocoa/nsWindowMap.mm

@@ -1,0 +1,4 @@
+changeset ab47b2b089add6b8ae5288e8465dd720b9b337ab
+manifest aba236ba587a2f16aa9a1c0a6f0cccc106869f68
+author Frederic Plourde<frederic.plourde@polymtl.ca>
+files netwerk/protocol/http/src/nsHttpHandler.cpp

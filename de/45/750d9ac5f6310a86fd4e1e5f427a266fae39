@@ -1,0 +1,4 @@
+changeset 93951478a2795adb0322a907ba436e40b4a02fde
+manifest 3dae7280b444aaa80db24cdaca2ff6b24bd2e2e1
+author reed@reedloden.com
+files extensions/inspector/resources/content/viewers/domNode/domNodeDialog.js

@@ -1,0 +1,4 @@
+changeset ad548e637ac10a4c9a5eaf0d6945cadb5f514d82
+manifest e4fc7bd540e72e3f92f6003c6b8b9f7308bafcd9
+extra rebase_source:07e1410dc9377f2dbfd2af2c04ec70e348decd61
+files testing/mozbase/Makefile.in

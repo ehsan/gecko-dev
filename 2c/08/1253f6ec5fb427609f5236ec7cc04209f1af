@@ -1,0 +1,4 @@
+changeset 1a3dce28581a171e2ceb6b20d51b999a75c012ed
+manifest bea5e1ad0ca661be59c2f25798d3e721e5438835
+author jonas@sicking.cc
+files layout/style/nsCSSRuleProcessor.cpp

@@ -1,0 +1,4 @@
+changeset 3fcb5ce098099bd68e127f02fbba0949225456a9
+manifest 024cbeffa55a9495d4dc96e882625060ccadf4c2
+author dwitte@stanford.edu
+files storage/public/mozStorageHelper.h

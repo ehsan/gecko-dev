@@ -1,0 +1,4 @@
+changeset 1938b5400d3d15f8883e6a516f406e1873a9bf02
+manifest 076c48f651cc4c76ea0d3b46cc1218153b8fe8a2
+author jruderman@hmc.edu
+files js/src/xpconnect/src/xpcwrappednativescope.cpp

@@ -1,0 +1,4 @@
+changeset c3917d4b7a65475f5fb34ec7f80244d37b2aed59
+manifest 7ddd88eb9f53f0cfe8809949e750248efd653672
+author bjarne@runitsoft.com
+files netwerk/cache/nsCacheService.cpp

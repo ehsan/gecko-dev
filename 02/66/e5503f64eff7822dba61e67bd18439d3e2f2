@@ -1,0 +1,4 @@
+changeset 5b646e8a6a70164755055bc81f311466034218a4
+manifest 77435c1c39db46adbc81536ff58d4306a6e917ad
+author dwitte@stanford.edu
+files netwerk/cookie/src/nsCookieService.cpp

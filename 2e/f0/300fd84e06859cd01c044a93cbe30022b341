@@ -1,0 +1,4 @@
+changeset 44c1347182f58ac32ca00017ea2ca75857700255
+manifest f1563942cb5ff45fc82361fe0459343218324fd7
+author smontagu@smontagu.org
+files intl/unicharutil/util/bidicattable.h

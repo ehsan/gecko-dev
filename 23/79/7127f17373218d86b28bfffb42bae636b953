@@ -1,0 +1,4 @@
+changeset 67df2e48f9f153dd8f388843f6d51bacfb1a1407
+manifest 18d041707904f8a6b8455790601dfacba5c23a6f
+author masayuki@d-toybox.com
+files embedding/browser/gtk/src/Makefile.in

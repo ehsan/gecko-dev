@@ -1,0 +1,5 @@
+changeset 018ef41768f61c1dee3883364967fb62a8700635
+manifest 90d7dc24716b849afb997eff279bf7fb189517bd
+author timeless@mozdev.org
+extra rebase_source:ea67589475f27b04f3e038069e62a4581ef001b8
+files js/ipc/ObjectWrapperChild.cpp

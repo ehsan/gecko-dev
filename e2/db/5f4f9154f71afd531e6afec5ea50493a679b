@@ -1,0 +1,4 @@
+changeset c9079c759aec438749358c7cf3e92e0dac376c66
+manifest fee4ff12b9e3429e6e98ad6e70a202c3a5da7156
+author bzbarsky@mit.edu
+files gfx/thebes/src/gfxPlatformGtk.cpp

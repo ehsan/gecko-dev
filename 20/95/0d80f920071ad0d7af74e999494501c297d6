@@ -1,0 +1,4 @@
+changeset 7f960a6f94b8c73e3820736ceaa0390b8d1bdd02
+manifest 9d07f1347aacb7763bd2347ac145d2de7a9ad09d
+author mats.palmgren@bredband.net
+files embedding/browser/gtk/src/gtkmozembed_glue.cpp

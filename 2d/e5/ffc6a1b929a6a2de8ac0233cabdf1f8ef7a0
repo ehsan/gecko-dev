@@ -1,0 +1,4 @@
+changeset 115ee72e7308e0297ef2465741e1b0351b5b5d12
+manifest c246a64bf043dedd74fb9f426938684ec216e5b0
+extra rebase_source:7ae0cb6f62dbe0f45f9bd73605f52ac4b2e66990
+files widget/src/gtk2/nsWindow.cpp

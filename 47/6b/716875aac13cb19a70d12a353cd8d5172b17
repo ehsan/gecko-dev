@@ -1,0 +1,4 @@
+changeset 0600f6c6e35a77e8a5fc9ce618dbdaecb92cb84a
+manifest 16d6fb610b1f7eaf28afddd9561023140cbbf04a
+author timeless@mozdev.org
+files toolkit/components/places/src/nsNavHistory.cpp

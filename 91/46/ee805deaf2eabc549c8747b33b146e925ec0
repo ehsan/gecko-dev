@@ -1,0 +1,4 @@
+changeset 3babbcec5bb53c21beb3f1e866a8285a99b0a8de
+manifest fd5835094c4361ccadd31fcf359d57d67291a1da
+author aaronleventhal@moonset.net
+files content/events/src/nsEventStateManager.cpp

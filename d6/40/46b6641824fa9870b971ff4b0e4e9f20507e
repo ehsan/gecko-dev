@@ -1,0 +1,4 @@
+changeset 0008531f142915d1eb874731c387e26c2f072bf6
+manifest 97a0d395e77aed5ec329d8517deb4362aa41f951
+extra rebase_source:e9fb1abf9eb62aa57ed57a1bd5bf2277bc20d182
+files toolkit/components/downloads/nsDownloadManager.cpp

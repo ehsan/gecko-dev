@@ -1,0 +1,3 @@
+changeset ee695e20ee8b4908f21dcf705904f9afa7df8116
+manifest 0d64ecfd6ff8832945cf271d76568e1177c8d797
+files widget/src/gtk2/nsImageToPixbuf.cpp

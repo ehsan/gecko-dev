@@ -1,0 +1,4 @@
+changeset bd3fed839ff8110e94e6bcc1feabfeb54ed6b197
+manifest 2299ac81dea4413d62e083619fd59b924b0a4b1c
+author benjamin@smedbergs.us
+files js/src/xpconnect/src/Makefile.in

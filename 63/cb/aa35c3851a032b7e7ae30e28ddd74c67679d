@@ -1,0 +1,4 @@
+changeset e1c8ddf7902f6c72f9d1403e94da93721d30d2dc
+manifest c1dfb62f558db76e6f537039d3c718c93252f45f
+author gavin@gavinsharp.com
+files caps/tests/mochitest/test_bug292789.html

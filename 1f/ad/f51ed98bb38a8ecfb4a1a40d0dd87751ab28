@@ -1,0 +1,4 @@
+changeset 0635579a5291a3d19cb0ff3696450674b2435299
+manifest 115ebc7cf1b44c5164ed4f6bfc1d56e1c2d206ff
+author jwalden@mit.edu
+files netwerk/dns/src/effective_tld_names.dat

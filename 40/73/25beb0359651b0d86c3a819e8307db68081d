@@ -1,0 +1,3 @@
+changeset 50a379edc315b4e83463967538fd8a3c7e107d5a
+manifest 9d516a0b19bf902c05a87c9701d5c140cf72c503
+files dom/indexedDB/test/unit/xpcshell-shared.ini

@@ -1,0 +1,4 @@
+changeset 306bd22e0e4b0222d1b5322d9ed4c7ed3e94f9fb
+manifest dda965260fea1c2f1c7bd4a2f6c174d8dc88835c
+author dveditz@cruzio.com
+files intl/uconv/ucvja/nsJapaneseToUnicode.cpp

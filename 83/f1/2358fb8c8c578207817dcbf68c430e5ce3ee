@@ -1,0 +1,4 @@
+changeset 260ae5bafc6488b69b836885675f447286075bef
+manifest 6c5f3b1bdbc1ac44ece90475e8cd9126690e4b34
+extra rebase_source:acffac25b9b2ac32534aaae2fd955515ca7c98ad
+files image/src/ProgressTracker.cpp

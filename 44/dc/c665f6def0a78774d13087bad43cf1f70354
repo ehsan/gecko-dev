@@ -1,0 +1,3 @@
+changeset 4e3c42f192f4cd2b3965e91ec7b970c8e06d9f7f
+manifest fb232d931f0c06db6c3f33c81fdec7437c9f43e6
+files js/src/vm/GlobalObject.cpp

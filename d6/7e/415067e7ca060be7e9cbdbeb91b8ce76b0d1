@@ -1,0 +1,4 @@
+changeset 9524bfcff11000cef12b3dfc4491d01e9c56f36c
+manifest 3e705f8abe364d027482594be004720ab171586d
+extra rebase_source:1f5260a3a579f09d30203d010cceaba0cf22cc2e
+files toolkit/components/osfile/modules/osfile_shared_allthreads.jsm

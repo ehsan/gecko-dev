@@ -1,0 +1,4 @@
+changeset 616e1aa33378de82f499e5bada0569ab06ff6a4d
+manifest 3c3987ba47dc989e6abe1124cca52115bfa09f45
+author dwitte@stanford.edu
+files extensions/cookie/nsPermissionManager.cpp

@@ -1,0 +1,4 @@
+changeset b502cae6cf9b9c3d44a35f026c56eae126e83ac8
+manifest 4d71709d54005cb19e8c32735852bbcdeffacdd0
+extra rebase_source:373c4b2381c71d5b36338ab789cd7696f84bc717
+files browser/base/content/browser-data-submission-info-bar.js

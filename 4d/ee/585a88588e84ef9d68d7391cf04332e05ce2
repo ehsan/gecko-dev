@@ -1,0 +1,4 @@
+changeset d6ed319b29c230414130763e13319d8f9397841a
+manifest 517729e430279553f482d3c91bae6617cb7f9955
+author sayrer@gmail.com
+files browser/components/sessionstore/src/nsSessionStartup.js

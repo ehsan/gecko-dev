@@ -1,0 +1,4 @@
+changeset 143e49ad94822ab330609585a76ab257d1634d93
+manifest 7fa288a93866119b3576431d01ce04269c77d752
+author blassey@mozilla.com
+files gfx/cairo/cairo/src/cairo-win32-surface.c

@@ -1,0 +1,4 @@
+changeset ab685c3e46ebb65d19a55bc4479032ab6993f006
+manifest 6ed74ef7a80927857201ac44dcd9dfb77158ba0b
+extra rebase_source:28e12d0ff4630df57226723260a78c5545aaf7c6
+files modules/libimg/png/Makefile.in

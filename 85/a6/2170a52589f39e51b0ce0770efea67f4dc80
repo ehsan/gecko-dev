@@ -1,0 +1,4 @@
+changeset e8e8a4f9d1dbc7a73855167df30ccabb397d4c9a
+manifest 90158ce841717935ef11797a32f492c6aa086747
+author sspitzer@mozilla.org
+files toolkit/components/places/src/nsNavHistoryAutoComplete.cpp

@@ -1,0 +1,4 @@
+changeset 38f69296b20c922c919d8d932e7c4e82ecc24a18
+manifest c91dda5b458d6933aa4bc92ca77a81ea8ef4fc07
+extra rebase_source:1b689f7c8cdd10565dea30a4cd65f49371f046d3
+files embedding/android/GeckoSurfaceView.java

@@ -1,0 +1,4 @@
+changeset a752f6f0994d7dfeb41a4ab85063422d93a30ee5
+manifest 73b0a3cbddc158a6eeedb7e010b9ca5f8c250a91
+extra rebase_source:acb7fd11e7462ab10141b4b89f55b65eae3dc292
+files browser/base/content/test/social/browser_social_chatwindow.js

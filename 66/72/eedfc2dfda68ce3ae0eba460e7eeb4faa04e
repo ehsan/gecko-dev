@@ -1,0 +1,4 @@
+changeset 8972153efa0ee4bef16c4b19bbd8f8681b1de70e
+manifest 2ed3fe75c48d9075092b6b0d3495f873d5866c15
+extra rebase_source:8ba3cafc36ca8a03f9fcea21b9cea8a4e82773da
+files browser/base/content/aboutDialog.js

@@ -1,0 +1,4 @@
+changeset 688ca6c81137c6972b5a7f172394c7b4d332e93d
+manifest 12aa21bc6392d1fde3f865c0700529f3da772575
+extra rebase_source:df9b94f7718c1737834ca5516ab3b751d3d0ec65
+files modules/plugin/base/src/nsNPAPIPlugin.cpp

@@ -1,0 +1,4 @@
+changeset aa58b544cb2d189a282b89337dc1988464e0eb23
+manifest d6272f656472669d3dd31a189923a44dc502b71e
+extra rebase_source:70f7425ae4e021ef05e6e2f1a0fdf90ebe4f28cd
+files uriloader/exthandler/tests/mochitest/handlerApps.js

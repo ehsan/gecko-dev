@@ -1,0 +1,4 @@
+changeset e6880c03afdf7e8278489d537fec351fcdb31f71
+manifest f795995371577da1d14d4850956a20c6f9b48fc2
+author bzbarsky@mit.edu
+files netwerk/protocol/http/src/nsHttpTransaction.cpp

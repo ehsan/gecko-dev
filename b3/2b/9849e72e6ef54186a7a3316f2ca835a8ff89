@@ -1,0 +1,4 @@
+changeset 6707da9dfa77d231155e8cb0e5f209f562143748
+manifest 9f68e98bd825fec24e4e8c40a02cf3a0f4eb25f7
+author bzbarsky@mit.edu
+files layout/base/nsIPresShell.h

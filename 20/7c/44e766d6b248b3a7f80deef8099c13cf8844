@@ -1,0 +1,4 @@
+changeset 8bd4a8ca58cc111818c7ee5f76dd264a2290da46
+manifest 05fafe7ad3101548541c9de6f69a5227f0f75276
+author dbaron@dbaron.org
+files toolkit/components/history/src/nsGlobalHistory.cpp

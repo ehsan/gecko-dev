@@ -1,0 +1,4 @@
+changeset b92102251aca6011a2c30b1a310f5e79403c3290
+manifest c47a008543ab3e9cf6c6a130c42ab49c219fb26e
+author kaie@kuix.de
+files security/manager/ssl/src/nsIdentityChecking.cpp

@@ -1,0 +1,4 @@
+changeset b7a61f34185e4128b5155cc3eedfcc7cf6a90f65
+manifest 13d0b8c4fa97017bf02e6aa6f1daebc70efbb7b4
+extra rebase_source:455c204936fdf6388fc2d0909e69e6476ad5f71b
+files testing/mozbase/mozinstall/mozinstall/mozinstall.py

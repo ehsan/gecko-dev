@@ -1,0 +1,4 @@
+changeset 5c84b913563312633aa7444156ffe19eaf651ff8
+manifest 782fc3d65e94c04b8e3184743dbdcf3b89ec824c
+author masayuki@d-toybox.com
+files gfx/thebes/src/gfxPangoFonts.cpp

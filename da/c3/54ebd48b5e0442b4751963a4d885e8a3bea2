@@ -1,0 +1,4 @@
+changeset a898fb4991b2d10265fe8dba6f9d324f7d95eccc
+manifest 8e0d2ffe02d1a576204c382e25781c4df9d92b6a
+author bzbarsky@mit.edu
+files content/xbl/src/nsXBLPrototypeBinding.cpp

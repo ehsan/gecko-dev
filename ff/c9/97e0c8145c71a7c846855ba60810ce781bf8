@@ -1,0 +1,4 @@
+changeset a45da8d141fb5e0cf9807e9f9cf366d7605c0537
+manifest 9a9b610327c6dfaab1fb28d1736f09cbc888f73d
+author shaver@mozilla.org
+files js/src/nanojit/NativeThumb.cpp

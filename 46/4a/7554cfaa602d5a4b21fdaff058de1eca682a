@@ -1,0 +1,4 @@
+changeset f8d1f4d9de4c9bb9a10a820c54c554d280fc708a
+manifest 063537e88e3ad2d5ef151939a42780e6b70edf11
+author rhelmer@mozilla.com
+files tools/release/Bootstrap/Step/Tag/Bump.pm

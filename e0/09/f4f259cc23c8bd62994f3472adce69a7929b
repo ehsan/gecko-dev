@@ -1,0 +1,4 @@
+changeset 40e2910e343d1803cf461867c64bfc9f1f42f0e5
+manifest 1358e36e979a718c37109c601f887411836fb6e0
+author mrbkap@gmail.com
+files js/src/jsinterp.c

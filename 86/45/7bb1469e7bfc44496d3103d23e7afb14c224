@@ -1,0 +1,4 @@
+changeset 34e67a2cbe1491e8919824d93e322301d826d832
+manifest c4dc7e0a91f19bb6190509d504f03dd63119deb3
+author dholbert@cs.stanford.edu
+files layout/generic/nsColumnSetFrame.cpp

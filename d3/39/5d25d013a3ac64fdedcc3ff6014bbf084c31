@@ -1,0 +1,4 @@
+changeset bccbd4148ea119c92b2ec5fea22c55c00ea602d4
+manifest fdd7663bfcb5a51ff59283bc9a75b8cc4879871e
+extra rebase_source:002c31bd38438e88444e7578faaa065133f4b5ae
+files content/events/test/bug457672.html

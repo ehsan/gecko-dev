@@ -1,0 +1,4 @@
+changeset 53e7eb3528cc3f9643481a3282b02cea11076e6c
+manifest 33d14751025a48ade7c94c79970c51a0195b525f
+extra rebase_source:2baba41b8a8d5546a67d9e366a23e27841cdffb2
+files toolkit/xre/nsWindowsDllBlocklist.cpp

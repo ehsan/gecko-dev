@@ -1,0 +1,4 @@
+changeset 55ade68ed524639e95f44d23017424347056f7b0
+manifest 40f2ca3819dafbd15ea59dfcd8800e28140ae6d0
+extra rebase_source:a4de66029f47e1f400eed3822132fd45ff98558a
+files js/src/xpconnect/src/XPCSystemOnlyWrapper.cpp

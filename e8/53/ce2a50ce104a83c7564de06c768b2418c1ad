@@ -1,0 +1,4 @@
+changeset 8ac1ee8e90c2d9850ee6c2d5b079b1512602ea10
+manifest 1dbd79bc9f655781592ae5291b95497d62cc6152
+author reed@reedloden.com
+files toolkit/mozapps/update/src/updater/module.ver

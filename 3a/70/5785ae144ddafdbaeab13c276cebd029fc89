@@ -1,0 +1,4 @@
+changeset 7c282726cc0f09d631dbb1576d63a994800d9f6e
+manifest b86a7942a1b7d7bdfaa50893471bceae00487b4d
+author dholbert@cs.stanford.edu
+files widget/src/gtk2/nsDeviceContextSpecG.cpp

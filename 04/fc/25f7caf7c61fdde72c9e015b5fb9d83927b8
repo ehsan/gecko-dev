@@ -1,0 +1,4 @@
+changeset 9fb7f5c29b80739ad7b1ff18ed502c0dfb3f4c8f
+manifest 1bced043d760e9c9f9366a899c2dc9c6aab6fa91
+author dbaron@dbaron.org
+files xpcom/base/nsStackFrameUnix.h

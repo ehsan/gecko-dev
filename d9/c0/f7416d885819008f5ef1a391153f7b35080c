@@ -1,0 +1,4 @@
+changeset 3ee660badeeece92bd6189bdba318002b473016d
+manifest 0fa93bcdc7f466e0703745fc692033a8cfc4d0ff
+author reed@reedloden.com
+files browser/components/sessionstore/nsISessionStore.idl

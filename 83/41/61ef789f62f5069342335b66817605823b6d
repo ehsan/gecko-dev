@@ -1,0 +1,4 @@
+changeset 0f22e886cd6a39efb3a2c8f4b886c905ab8fc709
+manifest acf489f34dff39b4c955cf74a880192526f5294b
+extra rebase_source:e5120f8bd63a7c3298f02874078e3cae37346115
+files toolkit/xre/nsAppRunner.cpp

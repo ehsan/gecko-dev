@@ -1,0 +1,4 @@
+changeset d2da0aa2af5bd6c23014b2a19cba9c6ee207dbf7
+manifest 90033cd05cdb313a381774d1e1b918e52b815be6
+extra rebase_source:e5afee2bf6ba8cc2a1ee344f176a819367bc9d32
+files xpcom/typelib/xpt/public/xpt_struct.h

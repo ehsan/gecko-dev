@@ -1,0 +1,4 @@
+changeset fea2ed527946f5d563669e6eecf4af54d390a24f
+manifest d853dfdb8b0ba862147ac6e1f7e137375d054e3e
+author Robert Strong (robert.bugzilla@gmail.com)
+files toolkit/xre/nsAppRunner.cpp

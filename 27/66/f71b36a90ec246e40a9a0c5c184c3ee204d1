@@ -1,0 +1,4 @@
+changeset 7806b41be735ab6a30a10d252359e018d926aef0
+manifest bbd1eee283f47ea69e40de6a7bc0fbde6c2f86b6
+author sdwilsh@shawnwilsher.com
+files xpfe/components/download-manager/src/nsDownloadManager.cpp

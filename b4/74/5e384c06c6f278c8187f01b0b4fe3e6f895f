@@ -1,0 +1,5 @@
+changeset d379a17cbf8f8c1fe555df32db285ddf677b2005
+manifest 7c91108c63c145793b845ce40bcb8ccc62a26200
+author lordpixel@mac.com
+extra rebase_source:da270898f5250ffeaf0d5f1225bd81bd63d1dafd
+files widget/src/cocoa/nsCursorManager.mm

@@ -1,0 +1,4 @@
+changeset a105a8df0bbe79b3a115d6f546d7583853945553
+manifest 9b6c4643a4b7bb0c0953ad057f0d6ad2f7db8e8a
+author dietrich@mozilla.com
+files toolkit/content/tests/widgets/Makefile.in

@@ -1,0 +1,4 @@
+changeset e37ee68e26517e26f2dffafaaf9875a2785ec1c7
+manifest f121976b91b787d9385483b1e7fbb5c054de9743
+author dbaron@dbaron.org
+files toolkit/mozapps/downloads/src/nsHelperAppDlg.js.in

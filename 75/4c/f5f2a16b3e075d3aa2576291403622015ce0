@@ -1,0 +1,4 @@
+changeset 2c16d4773ff4e7647d818e326eae2334ede3834e
+manifest 32f281521d8d2a590ee2fd9b188fa3a3c5f92c57
+author jwalden@mit.edu
+files gfx/thebes/test/Makefile.in

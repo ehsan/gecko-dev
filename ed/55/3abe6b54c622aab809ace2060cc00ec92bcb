@@ -1,0 +1,4 @@
+changeset be535ab3b309135df7692305ae6436d228b2a43e
+manifest 1f16c07fe5e04b7024e00415410eee072aa28f68
+author masayuki@d-toybox.com
+files content/base/src/nsLineBreaker.cpp

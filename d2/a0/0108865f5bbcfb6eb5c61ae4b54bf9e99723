@@ -1,0 +1,4 @@
+changeset 782078ea0b4247007abf9203a355ae432082bc3a
+manifest e3c308029154e599465efbc195e11239c51f9409
+extra rebase_source:a8ce1f41b6ffc67218418863ed8b71da447eafbe
+files embedding/Makefile.in

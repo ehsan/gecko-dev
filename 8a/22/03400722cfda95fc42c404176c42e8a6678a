@@ -1,0 +1,4 @@
+changeset 0294914a8a4599a7ed30bbc35edf53784c29e9d1
+manifest 12017cce2ef86a7fcea114209d50fe2abaeb3d69
+author timeless@mozdev.org
+files editor/libeditor/html/nsHTMLDataTransfer.cpp

@@ -1,0 +1,4 @@
+changeset 2a73e2211b43a23f85360ea1386524cf73339dfe
+manifest 0a6b07f9f9dd5bae436b5c692e47abe1f79f45c1
+author smontagu@smontagu.org
+files gfx/thebes/src/gfxTextRunWordCache.cpp

@@ -1,0 +1,4 @@
+changeset 6963153352cb63fd2699f737d4eeaacc30f031c0
+manifest 025196952244cfbe65ec87b70cc36d18102aa763
+author Olli.Pettay@helsinki.fi
+files embedding/browser/activex/src/plugin/XPConnect.cpp

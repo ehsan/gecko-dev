@@ -1,0 +1,3 @@
+changeset d2bfbb259f419799ed0cda3a2cffa1740f4d98f2
+manifest f19fa346938240e1c5fe5bf65dacb397e2348d71
+files netwerk/protocol/viewsource/nsViewSourceChannel.cpp

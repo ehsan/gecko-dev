@@ -1,0 +1,3 @@
+changeset 865e7bc208dfde6b92fdfd074995728de78189f7
+manifest 918ca6e103245be5865df631699069ce3584362e
+files dom/network/interfaces/nsITCPSocketInternal.idl

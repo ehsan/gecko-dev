@@ -1,0 +1,4 @@
+changeset 132dd5270c13c1fe21a8dfd6b51341235819bf29
+manifest e3a19b2beef613152b81758747fe2b7b434910db
+author Bug 578018 - Contextmenu is show even if preventDefault has been called [r=mfinkle]
+files mobile/chrome/content/content.js

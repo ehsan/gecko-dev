@@ -1,0 +1,4 @@
+changeset 97649cb59f07cf09821c74098dde797600fd39d7
+manifest 754b7e5c0119a9edbb01fb4fb8ec4b99cd497bd4
+author dbaron@dbaron.org
+files js/src/xpconnect/src/xpcwrappedjs.cpp

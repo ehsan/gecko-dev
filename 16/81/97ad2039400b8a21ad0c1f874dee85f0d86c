@@ -1,0 +1,4 @@
+changeset 45639083fcf900f31091c989c3b4630123c24e4c
+manifest bb987a3962a8c0b17c47854164c28abbb93ad35f
+author benjamin@smedbergs.us
+files toolkit/xre/nsAppRunner.cpp

@@ -1,0 +1,4 @@
+changeset d9d6743ea3f35449b29571fb9bf73f7a4990c7fa
+manifest 87737bee193560d3cdc0a5a24b51de59ce6244cd
+author sspitzer@mozilla.org
+files toolkit/components/places/public/nsINavHistoryService.idl

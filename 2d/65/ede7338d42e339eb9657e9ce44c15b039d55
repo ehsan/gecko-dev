@@ -1,0 +1,4 @@
+changeset 3b174577e0b3e9dcda891556186b85942e06fe06
+manifest 0af2fac52389fc0d439570d8b372f96f822ac9b5
+author bhearsum@mozilla.com
+files tools/release/Bootstrap/Step/PatcherConfig.pm

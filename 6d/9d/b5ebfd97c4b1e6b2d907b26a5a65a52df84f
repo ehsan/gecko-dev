@@ -1,0 +1,3 @@
+changeset 41293c7b7234dde0068321b64491d517aca09026
+manifest eb8a3efc06a1dc4470eb31f07114ab9dcbe19c35
+files mozglue/android/NSSBridge.cpp

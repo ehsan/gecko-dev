@@ -1,0 +1,3 @@
+changeset 90f95327288e933434d6337f3bc095e0e0d1d63a
+manifest 5b20e3d555b55dcf426401b96b2b43ff79cca407
+files toolkit/mozapps/update/tests/chrome/test_0084_error_patchApplyFailure_verify_failed.xul

@@ -1,0 +1,4 @@
+changeset a3fe6eeb1f1f20539499e65b2d323645027f4c6e
+manifest 12fa3334bae7a1d4cbaed23c2eee5717fc6eb4f5
+extra 
+files xpcom/ds/nsICollection.idl

@@ -1,0 +1,4 @@
+changeset 0b47204c864071c23c65a816db38135ab1a897c3
+manifest 15f59bbeb190ff9cd46260c558b3bca3c8acc933
+extra rebase_source:41567e2af4cb114a3eccf47fc473790f3cbc5ca3
+files widget/gonk/OrientationObserver.h

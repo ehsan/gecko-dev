@@ -1,0 +1,4 @@
+changeset 373cf409ac6657506fc2bc1274abb58fcad1dfdc
+manifest 3338cc4fd9c9b9afe31705dbb7009ab5b45a8651
+extra rebase_source:38566ee356e3d0b94cef584284587a72e81d6114
+files dom/plugins/base/nsPluginHost.h

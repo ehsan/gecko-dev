@@ -1,0 +1,4 @@
+changeset 44f9507b17c738e8a24551288fa210f3d500c328
+manifest 1f4b0c63c6ecf7f59efe983f09fd0d48cdcbe584
+author <Robert O'Callahan> roc@ocallahan.org
+files layout/generic/nsObjectFrame.cpp

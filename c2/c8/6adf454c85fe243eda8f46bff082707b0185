@@ -1,0 +1,4 @@
+changeset 9c31ce234172cce45a0aa3d6f765c2b18cc2b882
+manifest 36a7a24f6bd5b657c1138879e2d9efb61bdb3892
+author ted.mielczarek@gmail.com
+files toolkit/crashreporter/client/crashreporter_osx.mm

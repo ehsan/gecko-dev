@@ -1,0 +1,3 @@
+changeset d1f1ad39e10e4f263db7d956cfcd02d917fef70c
+manifest f344958e3dd7d9aae14881b7f755728eedd533ed
+files netwerk/base/src/nsSerializationHelper.cpp

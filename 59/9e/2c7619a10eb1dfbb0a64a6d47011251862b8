@@ -1,0 +1,4 @@
+changeset 3f7ef7c3a71390c40138d3e7c7b89d9c1fe6871f
+manifest d8b315167ce1167f2ab21f9cb0deb1c36601547a
+author vladimir@pobox.com
+files gfx/thebes/src/gfxQuartzSurface.cpp

@@ -1,0 +1,4 @@
+changeset 63e58e4375c54dba5a17578e9984f611a2cd7b99
+manifest d94503f02ee2203860c3f4ae6b5041da022d1d60
+author rhelmer@mozilla.com
+files tools/release/configs/fx-moz19-bootstrap.cfg

@@ -1,0 +1,4 @@
+changeset 67397a48731a501426840ccb2b593b8515b20b8b
+manifest ed08a7bfc5e55ccd3b25a0aa7c47cc7625fc9939
+author reed@reedloden.com
+files xpfe/appshell/src/nsAbout.cpp

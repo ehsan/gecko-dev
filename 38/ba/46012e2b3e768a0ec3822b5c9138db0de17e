@@ -1,0 +1,4 @@
+changeset fd7d86b0800726f2330f1653f49a3468a0258e3a
+manifest 92b0bfeac434d83694844b640a34ccee392a77cf
+extra rebase_source:6816e8f2b0d8edaea7b39e0a0fa4a4c2c288b8a2
+files toolkit/components/passwordmgr/storage-mozStorage.js

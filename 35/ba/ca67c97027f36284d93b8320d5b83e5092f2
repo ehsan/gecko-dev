@@ -1,0 +1,4 @@
+changeset ddf35389f5a42b96ae28d5654ed766b0c13cc5cd
+manifest fe78bc0c721644103b04652f2735fc40dcf240b4
+author timeless@mozdev.org
+files dom/base/nsFocusController.cpp

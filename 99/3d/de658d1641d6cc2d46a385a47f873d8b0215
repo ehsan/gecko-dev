@@ -1,0 +1,4 @@
+changeset a2fd18adb177ea17f721fbefbb47269eb5e1dfb7
+manifest cf488043d55825bab6fda087f64946889eb03e15
+author jruderman@hmc.edu
+files layout/generic/nsObjectFrame.cpp

@@ -1,0 +1,4 @@
+changeset 9cbd4cf8ce646a3f09b709f6710aca902f327921
+manifest e1e0ac2360845c02842d083b65d6f6fd5790d8da
+extra rebase_source:e408216599be91fa3c33e84fa3ef41c0d93b8d7d
+files netwerk/protocol/http/nsHttpPipeline.cpp

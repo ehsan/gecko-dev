@@ -1,0 +1,3 @@
+changeset 75fb668382323a77f8a40ccfeccb72884e262876
+manifest e81cb99c506b1cb134d59da990aa360b6946c696
+files python/mozbuild/mozbuild/base.py

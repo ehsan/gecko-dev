@@ -1,0 +1,4 @@
+changeset 1adb827d545d882ba020619b5e2ae7a59c37b790
+manifest c65823a4535f36e884614e73e0447053abac2ee4
+extra rebase_source:43927b83fd58643d964137e32c6ababbcc208b87
+files widget/nsIGfxInfo.idl

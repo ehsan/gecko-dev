@@ -1,0 +1,4 @@
+changeset 9dfad5af39fb1d2f524ec96fe339ab352dd162dc
+manifest 72bf284aac7ab83feb5a83a06d6cf5b6dd42b4c5
+author rhelmer@mozilla.com
+files tools/release/Bootstrap/Step/TinderConfig.pm

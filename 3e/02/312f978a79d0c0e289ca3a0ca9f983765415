@@ -1,0 +1,4 @@
+changeset 9086a7bef3da574f15ef4d83f76f9331c5dab9cb
+manifest 308d10f9446f13c06a355eac9d798bfddbe4c5b3
+author gavin@gavinsharp.com
+files js/src/jsregexp.c

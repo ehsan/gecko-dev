@@ -1,0 +1,5 @@
+changeset cc14f84709d4ae64e1d09df837dfc7e01cf1936f
+manifest d7c20f95abc89e7cc72b018baa41706934da6199
+author timeless@mozdev.org
+extra rebase_source:3d15042aaedf55731c46072ee0d5655aa61c52d0
+files content/base/src/nsTextNode.cpp

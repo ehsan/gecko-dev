@@ -1,0 +1,4 @@
+changeset 17478c824e1bd355283a5791cb852472ebfc15c3
+manifest 10dbfb378e2ae4d1d614c57577c64d147d3bd2f9
+author timeless@mozdev.org
+files content/svg/content/src/nsSVGFilters.cpp

@@ -1,0 +1,4 @@
+changeset 5098748fed6ae2075924517d47e81b286fc076a9
+manifest 3dc7ad0d2c25ac22ffb9f1a14dab9ce8e4c2a77d
+author gavin@gavinsharp.com
+files dom/tests/mochitest/dom-level1-core/Makefile.in

@@ -1,0 +1,4 @@
+changeset 58a378e88feed84e1cdc34b6f9e18fe4e13d3173
+manifest 9a8aab7bd5be11852d45e8cb47992beb2a7dc81f
+extra rebase_source:e91a8f11604d11d669aca6e19c83629bc3f47f80
+files widget/src/windows/nsWindowGfx.cpp

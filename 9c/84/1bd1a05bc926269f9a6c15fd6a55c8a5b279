@@ -1,0 +1,4 @@
+changeset 7dbcd2bda837b32ca703ad828c85d86e2369b9fa
+manifest c892ede27959782b3461f64f4a277fe0ce54e0b3
+author reed@reedloden.com
+files widget/src/gtk2/nsNativeKeyBindings.cpp

@@ -1,0 +1,3 @@
+changeset 129bd767cbfa82510adcc35947c3f1bb6d2c69cc
+manifest c96b4682c04e6b0212ee16c1ba18ef73b9726040
+files dom/mobileconnection/gonk/nsIGonkMobileConnectionService.idl

@@ -1,0 +1,4 @@
+changeset e844212f8a6769eb3bb826d63ffba5dda110d5e6
+manifest c051b4772f9735478f68ac2a4778175b3788d8de
+author pavlov@pavlov.net
+files widget/src/windows/nsAppShell.cpp

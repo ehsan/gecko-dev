@@ -1,0 +1,4 @@
+changeset 27c4180188af0d9a8e195e05004c3fec4c99a4e2
+manifest b41aad6a5ecefdccad62627b34b69edbdc408740
+extra rebase_source:cf65f59a3ab0b932b57146f2d7613d1b36cf8650
+files mobile/android/base/resources/layout/tabs_tray.xml

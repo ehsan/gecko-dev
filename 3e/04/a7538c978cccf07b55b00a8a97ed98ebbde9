@@ -1,0 +1,4 @@
+changeset 26bcd038f53201a82d84ed6f88de4e079322cd49
+manifest e4244893e663819ae2f8d82089e20a61e2b96df9
+author edward.lee@engineering.uiuc.edu
+files browser/components/sessionstore/src/nsSessionStore.js

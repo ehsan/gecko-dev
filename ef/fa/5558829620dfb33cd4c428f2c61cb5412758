@@ -1,0 +1,4 @@
+changeset 9efc12037b011d3ee566702ffe715fae481ca443
+manifest c37002e89b54965824e210696e5f989451fcc4a4
+author jwalden@mit.edu
+files dom/public/idl/base/nsIDOMWindowInternal.idl

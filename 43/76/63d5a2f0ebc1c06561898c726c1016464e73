@@ -1,0 +1,4 @@
+changeset d80aadde093034d85a3c773d40f866fa763450c4
+manifest 4109bbeb584a71359be3b2d8f9b3bef55322fca7
+author asqueella@gmail.com
+files netwerk/base/src/nsURLParsers.cpp

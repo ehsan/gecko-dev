@@ -1,0 +1,4 @@
+changeset 6f6853b0194d350123689a7b5b22e14e1e319e2b
+manifest 961911cadae8b0eebe5b08fc80aa00006dab63d4
+author reed@reedloden.com
+files widget/src/windows/nsWindow.cpp

@@ -1,0 +1,3 @@
+changeset 960330326395bd426fad8b7d1932422a2f4d2f64
+manifest 77346520e145306572b3aa56db9abae4e07bd06d
+files storage/src/mozStorageEvents.cpp

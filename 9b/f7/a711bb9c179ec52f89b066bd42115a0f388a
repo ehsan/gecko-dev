@@ -1,0 +1,4 @@
+changeset 6e53692a840f75df9f82b3c099015d125a75e0a1
+manifest bbcdcf2d5279066e94dfc370811a0f56f0602b57
+extra amend_source:a825f25e18b52f46a2ddd50383aa2783f431d7df
+files toolkit/components/telemetry/TelemetryStopwatch.jsm

@@ -1,0 +1,4 @@
+changeset c07884ede6fdc0126537de1f6454b6635e6949ae
+manifest 68f63c64214ff1efe5364bc8b9c254e78740d407
+extra rebase_source:eb71da4a4b83bfd35d94f51618b68272985e32eb
+files js/src/xpconnect/tests/mochitest/test_wrappers.html

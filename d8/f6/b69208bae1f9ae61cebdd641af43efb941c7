@@ -1,0 +1,4 @@
+changeset 06a1582f7d5f04cbdff8565001574ef73261c65a
+manifest 905f9eac6feafb1f1026edd3246920a341e129d6
+extra rebase_source:1010a9157a46a16a28f1befa610716e00da3532a
+files browser/components/loop/MozLoopService.jsm

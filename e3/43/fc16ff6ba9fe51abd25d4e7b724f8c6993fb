@@ -1,0 +1,4 @@
+changeset a2eed5158f996042231913da3a978ac3df8c2f5a
+manifest 3546df9b563e6cc5cd986ac911bae0ba546d662d
+author dbaron@dbaron.org
+files tools/rb/fix-macosx-stack.pl

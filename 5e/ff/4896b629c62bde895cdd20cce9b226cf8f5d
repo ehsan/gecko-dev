@@ -1,0 +1,4 @@
+changeset ed4255ba87daabcfdc0e90dc64d6c415f49c7df3
+manifest 19cf90dae197018b8e7347fb8a780e26db6b0fe3
+author reed@reedloden.com
+files layout/svg/base/src/nsSVGOuterSVGFrame.cpp

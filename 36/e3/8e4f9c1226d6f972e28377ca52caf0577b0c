@@ -1,0 +1,4 @@
+changeset 3a6a11c480c211028600b86a5fff0c7e2d0dd8a2
+manifest 46b51137c67263a890f1ec2e601f7e96c56045ee
+author dcamp@mozilla.com
+files docshell/base/nsDocShell.cpp

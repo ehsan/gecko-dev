@@ -1,0 +1,4 @@
+changeset b1c2305de4735f772506f6f0a23c4b37b7499e90
+manifest 3d080e50a30269d2fe4bc3607d04af1cd269b5d5
+extra rebase_source:437d3acc69b0940cf388039a318eda7d9d27e082
+files xpcom/string/nsTSubstring.cpp

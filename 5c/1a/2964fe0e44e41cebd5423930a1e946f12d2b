@@ -1,0 +1,4 @@
+changeset 1cf09b1bd088205eb0c446e9597d98b2fbec9b24
+manifest ef5c0746697420b6d620e65a2b3487c7e93cca13
+author jst@mozilla.org
+files content/base/src/nsHTMLContentSerializer.cpp

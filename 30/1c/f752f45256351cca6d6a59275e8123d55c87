@@ -1,0 +1,4 @@
+changeset 4e1999a4b7dbb34699732477d55b594aba27f750
+manifest 5f1fab82673b80d2f867e071981e1c46018ed1b0
+author jwatt@jwatt.org
+files layout/reftests/svg/foreignObject-move-repaint-01.svg

@@ -1,0 +1,4 @@
+changeset 7c7f9d25fe3871d7ab0e45d7ec7caa8a59835597
+manifest 543a925acc09aacdebd0652755fc61d8bcf8eb80
+extra rebase_source:7a7505b90f156381e5be563dab5c783f45860456
+files testing/mozbase/mozlog/mozlog/structured/formatters/tbplformatter.py

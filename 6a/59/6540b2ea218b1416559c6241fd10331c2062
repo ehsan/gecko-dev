@@ -1,0 +1,4 @@
+changeset 46705efbc0b4b19ff6b3f633aa61d3e9f64e6ded
+manifest c43f848d6e2cd6cfb196372b861fbbaa9ad2082a
+author stuart.morgan@alumni.case.edu
+files rdf/chrome/src/nsChromeRegistry.cpp

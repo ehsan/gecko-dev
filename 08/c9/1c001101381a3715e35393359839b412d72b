@@ -1,0 +1,4 @@
+changeset 284c22ed4b17acbe25602124a359b69aebf8f90b
+manifest 7ceeeac7b652e7e64badcb4dc839f0ea45c14ae7
+author timeless@mozdev.org
+files js/src/jsobj.cpp

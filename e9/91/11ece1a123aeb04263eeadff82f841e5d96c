@@ -1,0 +1,3 @@
+changeset ddb8d3efc243a075fc5bb064127f0164125c3aa0
+manifest b8129da0fa196c862d7f43bde064c90bdad62b11
+files xpcom/base/nsAutoPtr.h

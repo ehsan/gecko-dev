@@ -1,0 +1,4 @@
+changeset b19e4d6fda3210e84cd57768227f82623d2c8a93
+manifest 709b58453c36a4ed716aefad16b760fdca05a64b
+extra rebase_source:57ef36ef6d818e7e2c953d520e50d0a27110d211
+files browser/devtools/main.js

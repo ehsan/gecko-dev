@@ -1,0 +1,3 @@
+changeset 7e1e62c5b0ff7ef6dd2a5fa878f5f8f7a2cae267
+manifest afcc78fd3addbf6e322c2cd37471863547849e60
+files dom/mobilemessage/tests/test_smsservice_createsmsmessage.js

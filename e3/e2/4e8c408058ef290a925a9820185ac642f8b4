@@ -1,0 +1,4 @@
+changeset 704e0a2a1a90b0f631dcb17ab51a5f0b40a6b300
+manifest c184e0bb7dd7a4d5df2e15ddfcb4aca8fd4865d2
+extra rebase_source:0cbe7d9788e551ea1412cb014f92cd5b7b038093
+files mobile/android/chrome/content/Readability.js

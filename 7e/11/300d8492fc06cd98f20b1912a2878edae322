@@ -1,0 +1,4 @@
+changeset 4d3d3003e47f0df604fa33f4cce82a64d2759f35
+manifest be846908066e568a2115e962cdc08d82c85475dd
+author dcamp@mozilla.com
+files toolkit/crashreporter/nsExceptionHandler.cpp

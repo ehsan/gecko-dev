@@ -1,0 +1,3 @@
+changeset 68f7019ffed5035ab96b042341d2e024056a47ac
+manifest 918db9e7fa176e81b118cc91a714613e5ee8974e
+files js/src/jsapi-tests/testClassGetter.cpp

@@ -1,0 +1,4 @@
+changeset e724bbe58c3e6b49201bcc3626720b192d9fd5ed
+manifest dd36c0d4bc5548596f4a4e335368bc096476dcfe
+author vladimir@pobox.com
+files gfx/thebes/src/gfxContext.cpp

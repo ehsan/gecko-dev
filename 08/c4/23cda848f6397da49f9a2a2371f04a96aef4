@@ -1,0 +1,4 @@
+changeset 3dd493b778f05257899023a19012ecc0d1a02e8d
+manifest d40bf839228085b74e410f37afe2d67ed42bdcf0
+author tglek@mozilla.com
+files extensions/pref/autoconfig/src/nsReadConfig.cpp

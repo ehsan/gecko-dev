@@ -1,0 +1,4 @@
+changeset 5248aae1967f4ab62779523b40468c1c7cc4568e
+manifest 89abbcb1acfea819991b66331f792ec808426680
+author rflint@ryanflint.com
+files toolkit/mozapps/extensions/public/nsIExtensionManager.idl

@@ -1,0 +1,4 @@
+changeset 5e1ba80ae89a4d645f1ca01dc40f36c47c97f59a
+manifest ecfd91a65461ed00643361e455a767b986463c4d
+author roc+@cs.cmu.edu
+files layout/base/nsDocumentViewer.cpp

@@ -1,0 +1,4 @@
+changeset b24f8f2413ec0973f328a7af9454a4687e146f26
+manifest 5a112d2aab761b0178f224aa0e84357dd6f227c3
+extra rebase_source:c4650aabcff018a6b53f4e669a405f14cacb3aed
+files mozglue/android/APKOpen.cpp

@@ -1,0 +1,4 @@
+changeset a99df726118abbcf804cd89e3972bb774098da0f
+manifest 841935593cf36581c6d5ebfd461b311cdb4ef7cc
+author cbarrett@mozilla.com
+files content/base/public/nsContentUtils.h

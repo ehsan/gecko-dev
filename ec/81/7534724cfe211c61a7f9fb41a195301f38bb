@@ -1,0 +1,4 @@
+changeset ecd87ebf867bae4006ba94afbbdf21c22c30b52c
+manifest 7e7155394604b964f1e3dc1f3b21043b3766e871
+author jst@mozilla.org
+files parser/htmlparser/src/CNavDTD.cpp

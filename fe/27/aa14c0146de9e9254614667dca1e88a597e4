@@ -1,0 +1,4 @@
+changeset 38a8f988ddf78d3c19ea79d909910f09406185b2
+manifest 4ccf1fb7e145078a5ec7db633e2a0b136d13f208
+author Armen Zambrano Gasparnian <armenzg@mozilla.com
+files tools/update-packaging/generatesnippet.py

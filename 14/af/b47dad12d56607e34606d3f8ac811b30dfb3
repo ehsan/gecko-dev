@@ -1,0 +1,4 @@
+changeset 34e2ee09cbc8a707f3890da4f0fffbe2793e662f
+manifest cd72e93063668e3414d39ae2a9bb01ad7a1577b1
+author timeless@mozdev.org
+files modules/libpr0n/src/imgLoader.cpp

@@ -1,0 +1,4 @@
+changeset 1a6ad2ab22abd4f0c2273eaf5f5943053ee5220c
+manifest ff396387614ec4d8dc7343b7ff68ff3c998906a3
+author reed@reedloden.com
+files layout/style/nsCSSParser.cpp

@@ -1,0 +1,5 @@
+changeset bebf253e16c53c303f6a867a39a00437345eab8f
+manifest fc25b7b886ec98cb52056a964c4925a0d91f780b
+author Tyler Downer
+extra rebase_source:d5e19bf758b445a62c6cf54d6645e75f070b95c1
+files browser/locales/en-US/chrome/browser/browser.dtd

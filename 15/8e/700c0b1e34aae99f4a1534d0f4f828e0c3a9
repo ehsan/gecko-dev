@@ -1,0 +1,3 @@
+changeset 41efbfe49d6681067455f7645f8b337b7033857d
+manifest 2b09cc8ad4c0ed947cba1c33eedeedfd1f53bb8e
+files dom/tests/mochitest/bugs/test_sizetocontent_clamp.html

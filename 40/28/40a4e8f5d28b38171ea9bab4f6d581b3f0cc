@@ -1,0 +1,4 @@
+changeset 2443b0b6bcfeded347a536b9f612d809cad8d04a
+manifest 03d95c29012fe5a10b7658653dc7b4af6160549c
+author kaie@kuix.de
+files security/manager/ssl/src/nsNSSCallbacks.cpp

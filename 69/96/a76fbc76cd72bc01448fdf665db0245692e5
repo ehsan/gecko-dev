@@ -1,0 +1,3 @@
+changeset 3a10c46057955b7000a0ad917094d7fb668bb3db
+manifest eada59bee5a43b1e6551e69bcafb2c9c2a1cb2af
+files uriloader/exthandler/tests/mochitest/test_unsafeBidiChars.xhtml

@@ -1,0 +1,4 @@
+changeset 5dcd50ddc98b9f51ef6d16e97f1b834f375cffda
+manifest 8faef8047b03bd85040c974cfcd3abeb704d75c4
+author bzbarsky@mit.edu
+files content/base/src/nsPlainTextSerializer.cpp

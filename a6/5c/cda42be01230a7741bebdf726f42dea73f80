@@ -1,0 +1,4 @@
+changeset 60a446a359c3cf975ff768838107f8c793a467b2
+manifest 322a68eb4cc534abc273dc33c9b3a656db4e38f0
+author bclary@bclary.com
+files js/tests/js1_8/genexps/regress-380237-03.js

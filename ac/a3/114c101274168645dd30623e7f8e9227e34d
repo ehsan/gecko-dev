@@ -1,0 +1,3 @@
+changeset 3fe5d0e54655b8f2e11acf8301faab76130419b3
+manifest 9f369dddb825890617bf27ea60253114eb8976f9
+files js/src/jit-test/tests/asm.js/testBug1099216.js

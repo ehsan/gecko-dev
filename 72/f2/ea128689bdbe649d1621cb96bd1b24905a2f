@@ -1,0 +1,4 @@
+changeset 164fc337248ec98346633b6b781525b652245020
+manifest 3dbb84ffbdeffa1ca42bd8fcf01a4c780041883e
+extra rebase_source:77a317d7aa5e01aa5b2b744d147a1ef2c076cc5c
+files browser/branding/official/pref/firefox-branding.js

@@ -1,0 +1,4 @@
+changeset 09dca34ee3908c4d063d20fa17d87d8804c91a8b
+manifest b52856a0e803a83d0426649ab45a4dbf6fbc0e7b
+author bzbarsky@mit.edu
+files uriloader/base/nsURILoader.cpp

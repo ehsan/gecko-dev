@@ -1,0 +1,4 @@
+changeset a602e50a74655984e7bbd21d0a32b4ae48cbf9fb
+manifest df42383ffcb17692cec380d0fdd6a169d47e9066
+author cbiesinger@gmx.at
+files netwerk/test/unit/test_resumable_channel.js

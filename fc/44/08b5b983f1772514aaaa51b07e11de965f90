@@ -1,0 +1,4 @@
+changeset 5e26632e3eb7690f865fc15f7dd2c7175dc49c37
+manifest cae701d7349ebc8a8116ef33479d276bccebd4dc
+extra rebase_source:e9b58da59d930307afc68844b16519f584c3cf04
+files browser/components/customizableui/content/panelUI.xml

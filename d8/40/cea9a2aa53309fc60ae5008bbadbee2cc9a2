@@ -1,0 +1,4 @@
+changeset 437e6393cd822a644ba6cd645bcbb43ba0712e35
+manifest 3c54aca64c9f1adfd27d5e433416886075009822
+author ginn.chen@sun.com
+files extensions/spellcheck/hunspell/src/hashmgr.hxx

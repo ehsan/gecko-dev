@@ -1,0 +1,4 @@
+changeset d8cd7cf712439ce724c8459715674bce9c9e3772
+manifest f325fc25af54bafa6edc5066464c3e55f4a38b76
+author sspitzer@mozilla.org
+files browser/components/nsBrowserGlue.js

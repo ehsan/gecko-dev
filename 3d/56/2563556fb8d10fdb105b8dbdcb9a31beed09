@@ -1,0 +1,4 @@
+changeset 2b353a88f2b9f3927b53ea5283d1747ce395ea49
+manifest 59ccf4f8a0152ace36a3d16b3ad9e10bea221ad4
+extra rebase_source:b52b7080f857e351e71f169f09a42dfd61b43a43
+files python/mozboot/mozboot/osx.py

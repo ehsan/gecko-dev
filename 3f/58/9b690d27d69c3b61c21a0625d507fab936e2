@@ -1,0 +1,4 @@
+changeset a9bb1ed6d2b278f558385ee836ca0b1bee404bd9
+manifest ae16a87f0987e8e5a33b796ae9ce9101f7fe1c95
+author kherron@fmailbox.com
+files xpcom/glue/nsStringAPI.h

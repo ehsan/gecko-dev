@@ -1,0 +1,4 @@
+changeset 1e1178bcb5d9ed9bcc7d9b7a8222152394cdae8f
+manifest 35467a73b91281a490201a43bb9a515892f9bef2
+author bzbarsky@mit.edu
+files content/xul/document/src/nsXULContentSink.cpp

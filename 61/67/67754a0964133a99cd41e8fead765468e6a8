@@ -1,0 +1,4 @@
+changeset ad25e056d8124c397a9f8d12fc6d6d6d142e690a
+manifest 1938f7b71d3476c9d9e0a40940ba265e3ad85fa5
+extra rebase_source:e14bfbcac8522233c51b9f3cd55f367e5d968c0b
+files dom/permission/tests/mochitest-bt.ini

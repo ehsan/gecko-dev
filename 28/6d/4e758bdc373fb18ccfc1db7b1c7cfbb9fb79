@@ -1,0 +1,4 @@
+changeset 0edb69e995b7fd2705b9331e0545044c48bfd81a
+manifest 8c210dc08501d5fd3b3086180b14dd6a77c9c091
+author dolske@mozilla.com
+files security/manager/pki/resources/content/resetpassword.js

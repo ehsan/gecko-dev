@@ -1,0 +1,4 @@
+changeset 3fa4dd0551610348de13ba5fd203bf6da68c5ce0
+manifest 7d59af963e4df74cc3ceaadd2a4ae597c2fe7b8c
+author dolske@mozilla.com
+files modules/libpr0n/decoders/bmp/nsICODecoder.cpp

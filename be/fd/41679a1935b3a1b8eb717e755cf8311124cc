@@ -1,0 +1,4 @@
+changeset 5ab82e6a9bc40c2baf2b933e1c72f89b35f3579b
+manifest 1954c81c2a5efefeca5c4c5e16d66c192119b33e
+extra rebase_source:9c5cd5066b3730871e06465a84f9a27a6adc6204
+files memory/mozjemalloc/jemalloc.c

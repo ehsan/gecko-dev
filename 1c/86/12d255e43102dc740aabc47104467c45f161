@@ -1,0 +1,4 @@
+changeset 43dde3302607fd6c796f39b72b5dff00dc9c6a22
+manifest 6bf0b01160a02239cd9fe43f1d48b152fdfaf438
+author Matt Brubeck<mbrubeck@mozilla.com>
+files mobile/chrome/content/extensions.js

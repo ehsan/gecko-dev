@@ -1,0 +1,4 @@
+changeset 76e5019b7ff405e3181fbbb3edd1990f7f339c61
+manifest fce99b28622fdda7532a5932352455555782eace
+extra rebase_source:c0977ba2150e1369b8397c45839058f542510ffd
+files js/src/xpconnect/src/xpccallcontext.cpp

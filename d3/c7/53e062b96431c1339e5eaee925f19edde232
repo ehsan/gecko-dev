@@ -1,0 +1,4 @@
+changeset 67a7fc208b7a33e1a09a54e1a6c0c1b18c6c2bde
+manifest cad67c78c6f0dc9ff82588d44828540875e1c0e8
+extra rebase_source:8b311aa9058e41fa594598a933b2b820e7b6f2bd
+files toolkit/components/exthelper/extApplication.js

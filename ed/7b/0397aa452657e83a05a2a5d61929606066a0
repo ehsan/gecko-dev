@@ -1,0 +1,4 @@
+changeset 17f61dd1261fec27de356da9e3fa995aadabf8b9
+manifest 3b410c2475cc6b9a7fe104e7a93352cd495f47e6
+extra convert_revision:f71bf755846459dccf10e7c28aaa5cd2b652b077
+files js/src/nanojit/Native.h

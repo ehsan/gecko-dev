@@ -1,0 +1,4 @@
+changeset da486137e64b71af1297919e38dc9e91530fd5af
+manifest 7e10e4fc9e29e06da77cb47ba2b7b11ec8006ea7
+author sfraser@netscape.com
+files intl/unicharutil/util/nsBidiUtils.cpp

@@ -1,0 +1,3 @@
+changeset 2ac52594bdb7e4b3f6b8787ab0bb827e8aba38b7
+manifest 846f50e11f0a6856e3def7f3025fdc0b2737d8a6
+files browser/components/places/tests/unit/test_clearHistory_shutdown.js

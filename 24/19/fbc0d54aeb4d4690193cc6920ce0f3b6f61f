@@ -1,0 +1,4 @@
+changeset 3dc220c1618e1a2c7d5a45f7dba52bddaf5e6bed
+manifest b9a67a71fb2d7e2f8936cad2badc19e7dc7e3c10
+author romashin
+files widget/src/qt/nsWindow.cpp

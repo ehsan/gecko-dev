@@ -1,0 +1,3 @@
+changeset 99b306c697917a5214b372431a1017a98d9fc745
+manifest 8eb4d0a6f7b0912507de453c48ca648d7632db7f
+files netwerk/protocol/http/HttpBaseChannel.cpp

@@ -1,0 +1,4 @@
+changeset 4835cb7c98cc2d5a5b5a3723671d9dd096914a2e
+manifest e4e09f43d3eda67937e4a3640557309e2ec4f832
+author dtownsend@mozilla.com
+files toolkit/mozapps/plugins/tests/browser_bug435788.js

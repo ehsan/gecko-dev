@@ -1,0 +1,4 @@
+changeset 324d93c55cc5c43aa74056c9e89a5ebc60916105
+manifest 2c51ff8bd16da5d10a6dc360a57e49148b3171c6
+extra rebase_source:e4f82bf3102a69b5bc51108ca604060bbd1f4a67
+files js/src/vm/GlobalObject.cpp

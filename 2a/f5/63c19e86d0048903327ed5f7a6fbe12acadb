@@ -1,0 +1,3 @@
+changeset 960037a367586a8db7281908bc73e100801c362c
+manifest 62c0b77ca7be04b3ba033f4d40887a311705a18e
+files testing/marionette/client/marionette/emulator.py

@@ -1,0 +1,4 @@
+changeset 6c8ac5d6d05450a050300c278aa171d087bb0b1a
+manifest 97d4b6d5834c9d7c7faf0ab01a2b25364ad7ec1b
+author jonathandicarlo@localhost
+files services/sync/modules/service.js

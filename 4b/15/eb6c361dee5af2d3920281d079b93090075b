@@ -1,0 +1,4 @@
+changeset 380444ff2108ff59d804af1da371b8089d575a3f
+manifest 78228dc18b2171ea9b819efbe82d70880bb4e660
+extra rebase_source:43400960ee00d3d66a8c5c5c3e46024fadd3cb55
+files layout/base/nsImageLoader.cpp

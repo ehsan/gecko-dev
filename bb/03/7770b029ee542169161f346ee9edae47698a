@@ -1,0 +1,4 @@
+changeset 032320654a330885510646755ed4c9a2729a3615
+manifest 15150def94aa812b0a365f55d9f1529ed18ea741
+author Martijn Wargers <martijn.martijn@gmail.com> / Doug Turner <doug.turner@gmail.com>
+files dom/src/base/nsGlobalWindow.cpp

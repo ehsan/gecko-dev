@@ -1,0 +1,5 @@
+changeset 1a989993c992618fe16f0339c37554ee68142075
+manifest 1b101cca22f675fdb80a2e0dc16584471ec3fee0
+author cviecco@mozilla.com
+extra rebase_source:42bef348ffad84d9c49181c896dd0a1446a86e68
+files security/manager/ssl/src/SSLServerCertVerification.cpp

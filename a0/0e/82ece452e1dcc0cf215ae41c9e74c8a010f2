@@ -1,0 +1,4 @@
+changeset 6f06821072ef9dadaac2803ee47567d489119a82
+manifest 3814374d56268b171be8678039d5ac82fc85e9ec
+extra rebase_source:af6134a6d4f194a0e890e6e179bfd8dc09285615
+files toolkit/mozapps/extensions/content/extensions.js

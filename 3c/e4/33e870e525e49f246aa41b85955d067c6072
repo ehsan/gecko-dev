@@ -1,0 +1,4 @@
+changeset 44833e4bc206b4fc610aa4dde146f1a6c54afbb6
+manifest 3e2319ff6f29039c4de92e9429f85f63240dd6b7
+extra rebase_source:533f6189d1e4cf52692ed3433cf5ee117ab21d5e
+files js/jsd/moz.build

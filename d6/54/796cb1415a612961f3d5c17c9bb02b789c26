@@ -1,0 +1,5 @@
+changeset e5ce46fd72037b04f98a0988e75886858fcf65c2
+manifest 8154d2ce805afe55ad532dde06ea383969ad8635
+author timeless@mozdev.org
+extra rebase_source:ce14e3eb2ea17a5350cbb85af355b89c5d002fce
+files js/src/xpconnect/src/xpcwrappednativeinfo.cpp

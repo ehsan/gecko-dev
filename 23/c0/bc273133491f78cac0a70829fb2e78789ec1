@@ -1,0 +1,4 @@
+changeset 3a90093a622c6243c18436e37f8e157073e73efa
+manifest e55f314c895d4dccd1a18d48f1b93950f682edbc
+author bent.mozilla@gmail.com
+files browser/components/preferences/permissions.js

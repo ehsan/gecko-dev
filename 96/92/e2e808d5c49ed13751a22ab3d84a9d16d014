@@ -1,0 +1,4 @@
+changeset 6fb1f4a17dcc7d70460dd88df96ca731138be3b7
+manifest 3585f0a15a64665e4ccd96df4e1e0e87781294a5
+author bzbarsky@mit.edu
+files xpcom/io/nsStreamUtils.cpp

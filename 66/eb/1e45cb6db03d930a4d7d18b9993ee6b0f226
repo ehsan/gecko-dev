@@ -1,0 +1,4 @@
+changeset 63b3bb2a4963346837a5f73ac9900d46ee451bd4
+manifest b4488b156edd81320ebef4a8ceabcf1cc9df6711
+extra rebase_source:85eced2a7545f5a64da666e8a8ba5d7d7e68c497
+files testing/tools/screenshot/win32-screenshot.cpp

@@ -1,0 +1,4 @@
+changeset 16cd08c4447ce95d51dc6813410f031119c75f74
+manifest e4b3c1e67ed7533310dd46f31269602de4217bab
+extra rebase_source:196e5fee3215a32e7a13e1507fdc81ead89e72da
+files rdf/base/src/rdfutil.h

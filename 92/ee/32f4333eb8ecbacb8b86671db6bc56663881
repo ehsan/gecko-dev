@@ -1,0 +1,4 @@
+changeset c0a859335b41b7b9a4c4e3cb506f2d8c1dba640d
+manifest 351c544f08e944072a6c2b7cd2062af3006147fb
+extra rebase_source:5924ce540737491b5ad1baef3dda1c8256b4675b
+files testing/mochitest/static/xul.template.txt

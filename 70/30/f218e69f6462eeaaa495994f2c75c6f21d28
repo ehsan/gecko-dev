@@ -1,0 +1,3 @@
+changeset 6d655c662b5fa53be7acef783a436b15ccbd8628
+manifest 866920583534dadd15427808e2dadcc2605ef972
+files browser/components/sessionstore/src/SessionSaver.jsm

@@ -1,0 +1,4 @@
+changeset 575d313e1d6eb92beabcc5cf8f6063ce82edd834
+manifest 2868bbabc0171f886bc51367c2d58bbb582dd235
+author Olli.Pettay@helsinki.fi
+files editor/libeditor/base/nsEditor.cpp

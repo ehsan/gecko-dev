@@ -1,0 +1,3 @@
+changeset 455414f3e52ca552c4c477c44bca117daa800897
+manifest 56cb3ca6cb1f2a5e0fdac4352a4e2ae8f1133f9e
+files xpcom/glue/nsCycleCollectionTraversalCallback.h

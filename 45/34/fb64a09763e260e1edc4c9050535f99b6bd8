@@ -1,0 +1,4 @@
+changeset 8ba73a8038a90ec3f31d64231de80cd30563e081
+manifest a6b0db8ba4ee423a01925394d1d47e71b0cce576
+extra rebase_source:1bd79ec0948a3f90d623f56c67e812875594921e
+files toolkit/components/prompts/test/bug619644_inner.html

@@ -1,0 +1,4 @@
+changeset f4e235b3346d3b1e21e08851cc8209398fd2e828
+manifest 0f60795516f87cd8ffa3dc2c750ea327a4a52486
+author bugzilla@standard8.plus.com
+files toolkit/mozapps/extensions/public/nsIExtensionManager.idl

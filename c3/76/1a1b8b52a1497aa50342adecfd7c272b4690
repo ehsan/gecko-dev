@@ -1,0 +1,4 @@
+changeset f50eebac66cdcda256d7e6a38c5fc79b1b2e95f7
+manifest f3135f2583a457bb0e6ce85ec258b4bd6ee1e181
+author ted.mielczarek@gmail.com
+files toolkit/crashreporter/tools/win32/dump_syms.exe

@@ -1,0 +1,4 @@
+changeset a43136a05b2a60955e55620bf51b33163321a26a
+manifest 9040cafd3131c771e0c1830035e7173037c978c9
+author longsonr@gmail.com
+files layout/svg/base/src/nsSVGForeignObjectFrame.cpp

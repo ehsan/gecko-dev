@@ -1,0 +1,4 @@
+changeset 3ecabf94c2fe897a65b60f359c1d1f3992e5f1bc
+manifest 82bdf9d29dfce30892a1ff404045e099fe3e0743
+author mozilla@weilbacher.org
+files db/sqlite3/src/sqlite3.c

@@ -1,0 +1,4 @@
+changeset 79d0e9e782a0edaf04b7b4b30944db687d79a982
+manifest 313a7b07f1cb50e3c034f8d64b4fdf85d3349210
+extra rebase_source:261c3e5a407009cc0a72f27c4a645d9360e9b289
+files content/xul/templates/src/nsXULTreeBuilder.cpp

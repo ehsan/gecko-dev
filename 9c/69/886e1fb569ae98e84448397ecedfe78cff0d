@@ -1,0 +1,4 @@
+changeset b73de501ea5ee5a7f9838cb33d20c8976aca8683
+manifest 6f481b80a40aad442481a47695bdbdfbbe2849d1
+extra rebase_source:4c6d856abbe49913b74da4d9640d47a9870c2210
+files widget/gtk2/nsDragService.cpp

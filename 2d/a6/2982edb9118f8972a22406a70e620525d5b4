@@ -1,0 +1,4 @@
+changeset ee177d68df5267ac30a7494baa2774adbe822c6d
+manifest c57c7fe28efb940c71a1479b9e6cc901658b50fe
+author mrbkap@gmail.com
+files js/src/xpconnect/src/xpcconvert.cpp

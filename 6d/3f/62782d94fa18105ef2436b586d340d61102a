@@ -1,0 +1,4 @@
+changeset f80a7ebc68c129d6130c780edf3a09d57abcbbfc
+manifest 1185a2da74165036e67bb523d1986fcc0da46284
+author timeless@mozdev.org
+files widget/src/xpwidgets/nsBaseAppShell.cpp

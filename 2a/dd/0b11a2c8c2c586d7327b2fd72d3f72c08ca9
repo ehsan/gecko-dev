@@ -1,0 +1,4 @@
+changeset 4959e4692993ebb0d5645da8d47337de9f8f32d7
+manifest 1104cdad5b807b575ddc44e0570dd037fac6e84f
+extra rebase_source:a7d08a2cbf6d7046b694c06ad4ac54bb9dd93d7c
+files js/src/jsapi-tests/testGCFinalizeCallback.cpp

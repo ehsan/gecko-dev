@@ -1,0 +1,4 @@
+changeset 0f6b28938141103f3c26a10bf31d6762370ff669
+manifest dcd18c6f879f1b6390912e25b986897eb3ab4f7e
+author sayrer@gmail.com
+files netwerk/base/src/nsBaseChannel.cpp

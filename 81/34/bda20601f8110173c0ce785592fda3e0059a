@@ -1,0 +1,4 @@
+changeset d0720a751174aae4706c88ad3706c03e8873c7e8
+manifest 19ec93c6d573378d7e9f0558226fb9a6ed23f83f
+author roc+@cs.cmu.edu
+files widget/src/cocoa/nsMenuX.mm

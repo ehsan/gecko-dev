@@ -1,0 +1,4 @@
+changeset ec488b273bb2f16f03145cf537f312a91150fde7
+manifest 9a979e419d3a3d4810cc3b24b2ca72c7eaa92325
+author gavin@gavinsharp.com
+files widget/src/gtk2/gtk2drawing.c

@@ -1,0 +1,4 @@
+changeset 9083ef23526aa87e70a3e6d07f7936f005dd7692
+manifest 8f73848c99f1c0cb11d56aae3ac0985b970a789a
+extra rebase_source:6a83556a8baaa24546eeb28d35ad63f4ffd275bd
+files gfx/src/nsCoord.h

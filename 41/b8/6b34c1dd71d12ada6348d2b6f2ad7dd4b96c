@@ -1,0 +1,4 @@
+changeset c700f05afe0b8d75e5e3a9317031069bf016d594
+manifest f5beed66f822f36ccf70cd6ee2db8344a9fa0af8
+author jruderman@hmc.edu
+files content/svg/content/src/nsSVGPathElement.cpp

@@ -1,0 +1,5 @@
+changeset d71926e38f2c62dc725309f167d82f94da163c18
+manifest a2a68a106489eb83017fcfbb5b2f2c0942fedc7c
+author julian.reschke@gmx.de
+extra rebase_source:c4158e1795522f37aa47b946b1b7e2ee2d758a71
+files netwerk/protocol/http/nsHttpAtomList.h

@@ -1,0 +1,4 @@
+changeset 984026798238b2a6de2452982d8f30a02e04c951
+manifest 4daad926fabc7d132e2034d1cb054bb2f565c45e
+extra rebase_source:4c3b1411afd7cc4cd1aa82b7efe93fdb1b9ed238
+files toolkit/components/alerts/resources/content/alert.js

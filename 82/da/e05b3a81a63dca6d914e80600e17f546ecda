@@ -1,0 +1,4 @@
+changeset 20a6cc189fddb01c1a7d94bb34c1e8c80e0f5a81
+manifest 292c6f84384841cb3928fe413a59290c8d06204e
+extra rebase_source:dec8b20839abdfccb9429d949b2e20709495ad9d
+files browser/components/downloads/content/indicator.js

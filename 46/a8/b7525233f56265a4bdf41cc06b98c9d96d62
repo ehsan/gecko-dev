@@ -1,0 +1,4 @@
+changeset 0e50faf8bb981289cb7243cbda2521b79d4b9005
+manifest c2c9bf2e3eef82c1d5c3398be1b5de747279d13b
+author neil@parkwaycc.co.uk
+files toolkit/components/downloads/public/nsIDownload.idl

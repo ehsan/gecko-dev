@@ -1,0 +1,4 @@
+changeset 33a5cff3838f322ee132b33a5868a09c698c0511
+manifest dbceba0f33a9109746ac87e4e0236e5882ce3400
+author johnath@mozilla.com
+files browser/locales/en-US/chrome/browser/safebrowsing/blockedSite.properties

@@ -1,0 +1,4 @@
+changeset 41151460e06b6ac8cdc1466515e9b128b82bf81d
+manifest 7fc5c6caa136e6decf0589a6e77aa9b2d020a2c7
+author mozilla@weilbacher.org
+files xpcom/stub/Makefile.in

@@ -1,0 +1,4 @@
+changeset 60d6c5549706957a9443e8b7aa384627f9e7f1b2
+manifest af274f67c8c7e08097a139413cc91ffe77a47b29
+extra rebase_source:8656f0cb4e7bd0a43829e05569081cfd5944e025
+files image/src/imgFrame.h

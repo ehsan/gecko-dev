@@ -1,0 +1,4 @@
+changeset 2b991250f5c9f4dd86ae6a82c335ea0730b172b3
+manifest fb2a5061a00b8c1de0465341f21ac8b374da5bd9
+author timeless@mozdev.org
+files security/manager/ssl/public/nsIBadCertListener.idl

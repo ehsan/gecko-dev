@@ -1,0 +1,4 @@
+changeset 7b2b19c142c2823484075adc0e70ca3bc8540bdf
+manifest ef5ca67609a3990a24800d2ddef5ef3793aec1ac
+author timeless@mozdev.org
+files nsprpub/pr/src/linking/prlink.c

@@ -1,0 +1,4 @@
+changeset 1b475db72be2468aae9b40e25c0aa26ffec7e4d6
+manifest 080b96f39702061e24b2625de9f82e4ca8e1d9bb
+extra rebase_source:e7e2257ff4f98d449bfc30595ea4f41678b41017
+files browser/base/content/urlbarBindings.xml

@@ -1,0 +1,3 @@
+changeset fadb38356e0f08f777670e24456b60dec362d108
+manifest 84faead6ce2217c975c405b11590c2fc61da11be
+files xpcom/reflect/xptcall/src/md/win32/xptcinvoke_asm_x86_64.asm

@@ -1,0 +1,4 @@
+changeset ed8fc360e5f5fa48d95b3af17a86ba0a5e69ef54
+manifest 3d51da6f8a7596fea5ee8e87a65e9364fc7b84a1
+author darin@meer.net
+files toolkit/components/places/public/nsIBrowserHistory.idl

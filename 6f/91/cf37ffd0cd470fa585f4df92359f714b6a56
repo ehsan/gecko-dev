@@ -1,0 +1,4 @@
+changeset 5957d2edd2497696f2eb5fda552abe4ad328664c
+manifest 7dfe3fd14e5352fce468f60f6a337b6e3be0d12b
+author hewitt@netscape.com
+files toolkit/components/places/public/nsIBrowserHistory.idl

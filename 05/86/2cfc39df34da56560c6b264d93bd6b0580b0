@@ -1,0 +1,4 @@
+changeset 93e7e61caa214a00fac4f6cfafec570f8551b8f2
+manifest 9fd9dcd366057642992342d73ab4e66a18ba6280
+extra rebase_source:b0aa501e5049fa538add6d581f089c08106195fb
+files content/xbl/src/nsBindingManager.cpp

@@ -1,0 +1,4 @@
+changeset d244ee18a018ee1aa2a3f1062b779b2ec3d8b402
+manifest b086d0debc8adda9e4accb656f254a3d5efa3e77
+author gavin@gavinsharp.com
+files storage/test/unit/test_storage_combined_sharing.js

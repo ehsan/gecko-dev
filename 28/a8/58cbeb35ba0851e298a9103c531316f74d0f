@@ -1,0 +1,4 @@
+changeset 77a55fdcc9291735905f4dd17bb506badd4daeb2
+manifest 244efd3b36e1f483edcdeb1a4dccbcf811f638b0
+author mats.palmgren@bredband.net
+files layout/base/nsDocumentViewer.cpp

@@ -1,0 +1,4 @@
+changeset 0466918f93b1abf11a19ecf0977c20ce05932787
+manifest 8b3348d42cab15acbdabcbb55dca5295241631b8
+author mozilla.mano@sent.com
+files toolkit/components/places/src/nsNavHistoryAutoComplete.cpp

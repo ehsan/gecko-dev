@@ -1,0 +1,4 @@
+changeset 63e1a2df087bd69bb1aa375ad73fb5c3deefa051
+manifest 4627d840f661906c107029510b6235cad2ae4748
+extra rebase_source:3142d17d9c28beb1a2034a555b2ffe4a95e71f9c
+files gfx/thebes/src/gfxTextRunWordCache.cpp

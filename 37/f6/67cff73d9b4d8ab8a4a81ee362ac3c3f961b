@@ -1,0 +1,4 @@
+changeset dd103ec4c44ba305cc5a08350e1352a7afcdb8ce
+manifest 35908529571126b4c88cc2892c299a3df5c63f90
+extra rebase_source:499c3f65e890bc1e327b40936cc2e781e0193251
+files widget/gtkxtbin/gtk2xtbin.c

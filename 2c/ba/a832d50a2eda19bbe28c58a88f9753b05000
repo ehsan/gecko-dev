@@ -1,0 +1,4 @@
+changeset c400d75da84591915408d84a8b7d2bf95e5e81ac
+manifest 2c950118617ee99c85ca4a19256e002c80634854
+author reed@reedloden.com
+files layout/generic/nsTextFrameThebes.cpp

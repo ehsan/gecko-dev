@@ -1,0 +1,4 @@
+changeset 01b07ba378d8b9721c9fdde305198a71fb9af5ca
+manifest e46b2bdbb191858d1a0599bfad4fd47e4d75c7c7
+author dcamp@mozilla.com
+files tools/codesighs/codesighs.c

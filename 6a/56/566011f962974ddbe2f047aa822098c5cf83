@@ -1,0 +1,4 @@
+changeset 5a55d1b954fe3151562c8391caa7166b75845676
+manifest 2a6afc6bbda8d7c0ed6e2a46250d94efec5f2488
+extra rebase_source:6bb73bc7f0ae03342bd729d0d610c84de283e519
+files dom/encoding/moz.build

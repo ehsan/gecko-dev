@@ -1,0 +1,4 @@
+changeset 738e585ce7501dc5d504876b1874c9243b27dd54
+manifest 86818b663d1589c6c3001a8155e72166c5ebfc77
+author cbiesinger@gmx.at
+files toolkit/components/places/src/nsFaviconService.cpp

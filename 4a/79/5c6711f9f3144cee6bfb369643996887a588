@@ -1,0 +1,3 @@
+changeset ac70913833fdc463785ee26bafd3087498d00975
+manifest 74c901cacb8b2b627bab582f4b8ffe0e56bf39d4
+files build/pymake/tests/default-goal-set-first.mk

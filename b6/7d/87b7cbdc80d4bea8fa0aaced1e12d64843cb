@@ -1,0 +1,5 @@
+changeset 8cfa767f666cec411c63b1025cc552e8487efa56
+manifest 8c5c3f4d95eb64b994ba9d65536e58670b88ad63
+author timeless@mozdev.org
+extra rebase_source:3af34444fa919cc8f38bc6d0e13432ee9f798080
+files extensions/spellcheck/hunspell/src/hunspell.cpp

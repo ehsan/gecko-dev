@@ -1,0 +1,4 @@
+changeset cd2c67fa2f10851d751801a8b5a83753231c7c4e
+manifest ad9de85fcf528d6c9a4aa732d22e01853c1f2b09
+extra rebase_source:a7d25f417045a2c382124c29b017f176d9ecf0f5
+files layout/tools/reftest/b2g_desktop.py

@@ -1,0 +1,3 @@
+changeset c986e78050bfdec4690757207b7777f33559af6e
+manifest efe6f7ce6c97991844867d57c08ad0fd0e768875
+files js/src/xpconnect/loader/mozJSComponentLoader.cpp

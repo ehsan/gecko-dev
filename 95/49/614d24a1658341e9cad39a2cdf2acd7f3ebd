@@ -1,0 +1,4 @@
+changeset b5e923950e3c54f506393595102023833353eb73
+manifest d3e8fa7e6371000591f382b8a18e80b8fa973203
+author ted.mielczarek@gmail.com
+files editor/libeditor/html/nsHTMLDataTransfer.cpp

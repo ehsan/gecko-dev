@@ -1,0 +1,4 @@
+changeset 08bb0641356ab3bc54eb19582f8d3de34584f2eb
+manifest 302ae60442d7406978e57e11e2e6ba0df3e35184
+author reed@reedloden.com
+files netwerk/protocol/http/src/nsHttpHandler.cpp

@@ -1,0 +1,4 @@
+changeset 2d98a939bd001dab525c685f90b71ecd3d46bdbb
+manifest a1bdf43286f4a7ffc1dfcbcc1e4413ae0df9857c
+author dholbert@cs.stanford.edu
+files widget/src/gtk2/nsNativeThemeGTK.cpp

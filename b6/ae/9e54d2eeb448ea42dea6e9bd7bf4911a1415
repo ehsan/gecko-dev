@@ -1,0 +1,4 @@
+changeset 72cff3ab791ef88c6ccdd8ba36b1a33cb0c72978
+manifest a2f88adca789c6d4ad7e459b10a9a55c55336348
+extra rebase_source:f6b928972c8fe6b5dbc4c1cd9c6120a5208546a6
+files browser/components/sessionstore/src/nsSessionStartup.js

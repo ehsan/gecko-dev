@@ -1,0 +1,4 @@
+changeset a52e34d1bb4e9b6cdd28383b1d3c53c904158a1d
+manifest f56a8c42c44f64a90dd768df5b094c708b676aaf
+author timeless@mozdev.org
+files js/src/xpconnect/src/xpcjsruntime.cpp

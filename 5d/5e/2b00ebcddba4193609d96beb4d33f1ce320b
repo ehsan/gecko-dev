@@ -1,0 +1,4 @@
+changeset 5c03643c3180ad7bda0e2bb525ee88f6085de022
+manifest b0f0afbcc9c63cf14229bb1c56ae01473fb1a0d3
+extra rebase_source:aad06aa3b0a803abb678000f559b4a9d4736813c
+files xpcom/string/nsTPromiseFlatString.h

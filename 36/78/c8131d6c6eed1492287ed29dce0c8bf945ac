@@ -1,0 +1,3 @@
+changeset e256e72a2174b01f1f430ae5b44878643b0a25f7
+manifest 973a383105bd20a5ee06ed81c60d5954f94c82ed
+files browser/devtools/inspector/test/browser_inspector_bug_952294_tooltips_dimensions.js

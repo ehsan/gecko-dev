@@ -1,0 +1,4 @@
+changeset b2024a1516a5e9e7e9da9109b0175e541b8f43b0
+manifest 03965f50b42a8d75d0ec9d7dd50d145b784228ad
+author dbaron@dbaron.org
+files widget/src/gtk2/nsWindow.cpp

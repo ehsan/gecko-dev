@@ -1,0 +1,4 @@
+changeset 37c6b40e9dcb0207209cef70affafbbbe2dc57d5
+manifest 452c95c8247b2d1edbd0e13dbed7611e6321f753
+extra rebase_source:3e27fb16750f0df9bda5d83138bebf5932adc3fd
+files dom/apps/AppsServiceChild.jsm

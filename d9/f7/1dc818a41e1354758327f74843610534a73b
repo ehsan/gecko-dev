@@ -1,0 +1,4 @@
+changeset 19bd36676edf28795d52f876cb7612fa2735f213
+manifest 077a74454e296f76a989d0d55513c19c283a1ed0
+extra rebase_source:0f4ddc9b0f14673ac63e76b1fe1f2ec4650d5e2e
+files content/xul/content/src/nsXULElement.cpp

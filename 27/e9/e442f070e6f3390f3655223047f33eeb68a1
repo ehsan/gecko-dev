@@ -1,0 +1,4 @@
+changeset 2f40809ff23b4b47b7c0552d0e56905851ad2e55
+manifest ef41a70c6c06e8608891c603fcfe23b9726d7553
+author bzbarsky@mit.edu
+files dom/src/base/nsJSEnvironment.cpp

@@ -1,0 +1,4 @@
+changeset 4163c87edcf817182102f801da80d65fe0ddc3b8
+manifest 860be6db4e03c5c26e387a5e6eec8ed3d5450414
+author bclary@bclary.com
+files testing/sisyphus/bin/set-build-env.sh

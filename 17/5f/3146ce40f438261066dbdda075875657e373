@@ -1,0 +1,4 @@
+changeset d571f60b80fddbc8026a9368960b8e3ba86cc5fb
+manifest 2f6dbe53af015cc31cf7757bf2f93f9e4ba2be02
+extra rebase_source:ff31b47bcfd2cc6c733903a885e08ce7add358dd
+files image/src/ClippedImage.cpp

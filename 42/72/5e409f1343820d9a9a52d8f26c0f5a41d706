@@ -1,0 +1,4 @@
+changeset 27159186d38c0d8ac270ac716f4c8207e7531e2b
+manifest 710106c1277bdc319603c380f07482bd0d6ec3c2
+author reed@reedloden.com
+files xpcom/stub/Makefile.in

@@ -1,0 +1,4 @@
+changeset 99695a425dcfa4bd9ce3b6f5815633297f266a1e
+manifest b27f77b892dc4ed76f9650d88bb1c4e0737808c1
+author benjamin@smedbergs.us
+files toolkit/crashreporter/test/Makefile.in

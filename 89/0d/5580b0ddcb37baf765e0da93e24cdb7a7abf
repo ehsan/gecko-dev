@@ -1,0 +1,4 @@
+changeset b4867e279d3c2e6dfd2262d9137b1e17cf650f3b
+manifest a64bc5c3914b873da97ccce7851971c2f5e29664
+extra rebase_source:4fe433d134bb2762c269248963ac5ce53025faab
+files netwerk/dns/moz.build

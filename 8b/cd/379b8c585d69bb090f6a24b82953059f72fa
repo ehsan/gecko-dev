@@ -1,0 +1,4 @@
+changeset 04f576b81e1a94f874eb4b1d1989506ef41d826d
+manifest fbf7ba761b1ff1ac2c99ee044f92e9003ace8e7f
+extra rebase_source:13deb300ee2aa3d5518549d4f296b276a0da4e42
+files js/src/shell/jsworkers.cpp

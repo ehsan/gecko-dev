@@ -1,0 +1,4 @@
+changeset 44af93a6f51fcefe9da708a6996225667753952b
+manifest 5dd9ddd5799bce045d1bb312d8ac3f9139929c9a
+author nrthomas@gmail.com
+files tools/release/configs/tb-moz19-bootstrap.cfg

@@ -1,0 +1,4 @@
+changeset f064bcba96c3ca8fe3fb40db663a3a7599fe7427
+manifest 536490145e1032953d698c19387dd67956d6b948
+extra rebase_source:f1097aa56ca3c53270ba236df804ea677aaf0df8
+files modules/libpr0n/encoders/jpeg/nsJPEGEncoder.cpp

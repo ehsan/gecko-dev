@@ -1,0 +1,4 @@
+changeset daee0fd992393c9c5537b77dff65825352561bd9
+manifest 6f0cda22bd9efb7a67cd252a76fedf3e554eeb75
+author reed@reedloden.com
+files modules/plugin/base/src/nsPluginDirServiceProvider.cpp

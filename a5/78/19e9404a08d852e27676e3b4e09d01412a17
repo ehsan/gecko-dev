@@ -1,0 +1,4 @@
+changeset dc97671a75cc30154358ce0300e21b5536169df6
+manifest b049718806703ed44b116e36b0f75f7c0e210f04
+author dmose@mozilla.org
+files embedding/components/ui/helperAppDlg/nsHelperAppDlg.js

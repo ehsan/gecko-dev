@@ -1,0 +1,4 @@
+changeset f99813402937da6daabda6edd817dbc6989dc7a8
+manifest 1972fdeb52a25638a94e3369f1f37b3b5521f3ff
+author brendan@mozilla.org
+files js/src/jsgc.c

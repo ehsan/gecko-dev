@@ -1,0 +1,4 @@
+changeset 5e9a88203a77b2c6ec011ae3beb63c28cc42642e
+manifest 96fc260a8a8e99121d8f5cc89bca5a61941e0838
+author vladimir@pobox.com
+files gfx/cairo/cairo/src/cairo-win32-surface.c

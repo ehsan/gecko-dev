@@ -1,0 +1,3 @@
+changeset c2bf4e7b6b17fc6511996ccd96ba0751871123d9
+manifest fabc672a07fc40dea31a3e506f015cdbd162e7f0
+files services/sync/tests/unit/test_service_verifyLogin.js

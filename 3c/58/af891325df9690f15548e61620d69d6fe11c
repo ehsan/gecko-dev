@@ -1,0 +1,4 @@
+changeset 56ffe04c5db8cd583df113849c4ae8f4885bea02
+manifest 7dd8121b6466cd4c8ed73bee72584062e90ef9fa
+author enndeakin@sympatico.ca
+files testing/mochitest/tests/SimpleTest/EventUtils.js

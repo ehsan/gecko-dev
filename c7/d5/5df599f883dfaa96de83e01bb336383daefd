@@ -1,0 +1,4 @@
+changeset efbc7c741357f0228cd2b1be913284474bf29333
+manifest 8dfdcc3be6a43adaad699ad126548d8bf35996c9
+extra rebase_source:485f16ff27e111f6d99d29cacd18eeafa3913dc5
+files browser/devtools/styleeditor/StyleEditor.jsm

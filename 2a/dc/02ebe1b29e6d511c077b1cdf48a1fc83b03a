@@ -1,0 +1,3 @@
+changeset 52f5b60aa1d6a254e47f28aaf361326378b2e9e3
+manifest 73b79fee84b2df3c59bbfcd223616aa5471f80e7
+files testing/marionette/client/marionette/tests/unit/test_window_switching.py

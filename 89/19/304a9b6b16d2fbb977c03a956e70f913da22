@@ -1,0 +1,4 @@
+changeset e5a3d851dcf33c62bf138a397016abb536ed6af4
+manifest 3e49db598d48fea12f2718dd6dec8e33d801e2d1
+author cbeard@h-135.office.mozilla.org
+files services/sync/nsBookmarksSyncService.js

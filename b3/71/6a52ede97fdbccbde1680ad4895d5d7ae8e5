@@ -1,0 +1,4 @@
+changeset 559588a5c74d74776e5918f55d99d89dd41b3d2f
+manifest d86fdcb1e99d187bc2d99ee9deeed64f0f68dcad
+author dtownsend@oxymoronical.com
+files toolkit/xre/nsAppRunner.cpp

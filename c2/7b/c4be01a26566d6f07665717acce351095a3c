@@ -1,0 +1,4 @@
+changeset 880d6811d7cb0c13de55bcd5636a703c9d3f7ad1
+manifest d2e89c8817e11dadfe6ae3fa4b3d1c5765f14a0d
+extra rebase_source:1c8013fc9f9b974a7a471f8ab9b2e7b902602905
+files content/canvas/src/nsCanvasRenderingContext2DAzure.cpp

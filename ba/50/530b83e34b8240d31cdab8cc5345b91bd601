@@ -1,0 +1,4 @@
+changeset 438b544f6c65c7cbcb3cafb961dff3839a8f0141
+manifest 121f6b76b09f6feb27c1adc56d15eeea4d199783
+author gwagner@mozilla.com
+files js/src/jsnum.cpp

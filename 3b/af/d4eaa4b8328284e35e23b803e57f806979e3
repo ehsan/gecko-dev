@@ -1,0 +1,4 @@
+changeset caa95b3423169165143ff29bfc00079737a13302
+manifest db3effe4a4c349e385f2b347b221504db2f3737e
+extra rebase_source:35a2ba8d87a1710916242d0d0eb75d1d1ab145e4
+files browser/components/customizableui/test/browser.ini

@@ -1,0 +1,4 @@
+changeset c3717d6c937b6baad8a960b6e7869d4c09c2368f
+manifest 6650e1e62aef045cafeacfb7d6bf0fd7a75112e7
+author mats.palmgren@bredband.net
+files browser/components/migration/src/nsOperaProfileMigrator.cpp

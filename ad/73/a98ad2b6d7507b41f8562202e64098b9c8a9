@@ -1,0 +1,4 @@
+changeset 5e500fc5537eeb6d5e9940ef43524e44b7552743
+manifest 76b8dce00a156419938a101804c83bce830c5ab1
+author Chenxia Liu <liuche@mozilla.com
+files mobile/android/sync/manifests/SyncAndroidManifest_activities.xml.in

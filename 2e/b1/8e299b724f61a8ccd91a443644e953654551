@@ -1,0 +1,4 @@
+changeset de6fc723c05bad36a6e7455afcfc0ff7961e78f7
+manifest 3eb77f09a9b11f41a03a846de61109ab385521ce
+author Paul OShannessy
+files toolkit/components/passwordmgr/src/storage-Legacy.js

@@ -1,0 +1,3 @@
+changeset 3044afa610b2bf2da2893a4fbedb86161ee36ee9
+manifest d3d7e9fcce2857dc857820c99cbfe934194eba21
+files hal/HalWakeLock.cpp

@@ -1,0 +1,4 @@
+changeset 7b6ed799924c24035caabe216988fb9586ba3871
+manifest 06c87ad532e9e28dfa4d1e71acc212eb7f1047cb
+author tor@cs.brown.edu
+files layout/svg/base/src/nsSVGOuterSVGFrame.cpp

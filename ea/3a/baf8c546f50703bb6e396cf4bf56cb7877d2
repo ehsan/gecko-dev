@@ -1,0 +1,4 @@
+changeset 88db8ccdd0de641731b8c007745b7f1d89b16ff8
+manifest 52021e2fa0ae89e1af2dc1b36918de1d2cb05a0c
+extra branch:GECKO20b8_20101214_RELBRANCH
+files embedding/android/AndroidManifest.xml.in

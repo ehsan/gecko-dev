@@ -1,0 +1,4 @@
+changeset cac9a2d3d6d8fbbd5318793befe6c9cd2c8b19cc
+manifest edf7b2c039c4388840bf0e2e96ae34e8350fd2d1
+author dvander@traceknight.local
+files js/src/nanojit/avmplus.h

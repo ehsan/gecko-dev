@@ -1,0 +1,4 @@
+changeset 9faa3a9168f34e42bd85437f3abeaa42af7cc94f
+manifest a2245c27a4070a1133f295106a9d6b42b64818cb
+extra rebase_source:55d97b53e72d29cfada4e656d55a72bc0f700e05
+files toolkit/mozapps/installer/make-eme.mk

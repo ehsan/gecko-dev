@@ -1,0 +1,3 @@
+changeset 00ff5cfe0b0a862449908a6adf3aa10e70b80d7f
+manifest a6e5dd18ce90f9442e625f7627ff5b9ac52e0186
+files gfx/cairo/cairo/src/cairo-d2d-surface.cpp

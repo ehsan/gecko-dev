@@ -1,0 +1,4 @@
+changeset a2ffc921fd2e552b008040c500d5d6452329886f
+manifest f567de0757e08295a5d8835b45d2794ecae7c94f
+author edward.lee@engineering.uiuc.edu
+files toolkit/mozapps/downloads/tests/browser/Makefile.in

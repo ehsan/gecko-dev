@@ -1,0 +1,4 @@
+changeset e9f4e10b380e20b3055a302d0bbf3ac0bfc73de7
+manifest 22eb0d2a0153863f4327285bc210bdb1188d4bcc
+author sspitzer@mozilla.org
+files toolkit/components/places/tests/bookmarks/test_bookmarks.js

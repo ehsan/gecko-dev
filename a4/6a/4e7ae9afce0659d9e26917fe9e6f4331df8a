@@ -1,0 +1,4 @@
+changeset a3e8e70658582db720743e5d059b55105e31888c
+manifest e004fec9ce6f41379dc3df6f7b418afb5ec562dd
+author timeless@mozdev.org
+files netwerk/streamconv/converters/nsHTTPCompressConv.cpp

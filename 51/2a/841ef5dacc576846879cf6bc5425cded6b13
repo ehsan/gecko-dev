@@ -1,0 +1,4 @@
+changeset da9b58fbeea453d51a42c21e691686d6dcc7092f
+manifest 29d9e851d2d08e493049a7445898f41e8faa2e0a
+author masayuki@d-toybox.com
+files content/base/src/nsDocumentEncoder.cpp

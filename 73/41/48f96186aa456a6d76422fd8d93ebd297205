@@ -1,0 +1,4 @@
+changeset 48e090c9811883fe787064804ccfa080677f1d44
+manifest 3c913fbe7c7339f708591c28e03fc376878b3f2d
+extra rebase_source:ff4f6363e52c4dbda82d81bfbbbef43e5311e772
+files widget/src/gtk2/nsFilePicker.cpp

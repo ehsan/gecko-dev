@@ -1,0 +1,4 @@
+changeset 154d2510e44d87c976fc5306d6773c8c5f51cc62
+manifest 8fb09507fce9efaec869b5316c85b76929068c8b
+extra rebase_source:c795efc05054b5e2f13912eff737b26bea04d625
+files widget/windows/JumpListBuilder.h

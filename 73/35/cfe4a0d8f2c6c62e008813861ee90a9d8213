@@ -1,0 +1,4 @@
+changeset 125be03bd296799f0301ccde8eb2cdd3ff7a0597
+manifest 65c9b92c11bfa44aa69217c3a82fd86fc23b926e
+author timeless@mozdev.org
+files xpcom/glue/nsGREGlue.cpp

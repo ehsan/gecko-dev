@@ -1,0 +1,4 @@
+changeset 15b13a7c66a55238b7ca02f6e5e35e044896bd79
+manifest ecd4d2ce7616bf168c5fb2be2c52d3e977cf5671
+author stefanh@inbox.com
+files xpfe/appshell/src/nsAppShellService.cpp

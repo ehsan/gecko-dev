@@ -1,0 +1,4 @@
+changeset fcca6b3b2aba95a6062be741f4a378c4678807de
+manifest 747e488257b38e44f6fce31bb907cf31d3399db0
+author jonas@sicking.cc
+files content/base/src/nsXMLHttpRequest.cpp

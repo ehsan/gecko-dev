@@ -1,0 +1,4 @@
+changeset 357a60386b52860f2d96a8903d4e13bd7bb25b7b
+manifest 3638ba62ed608b36a0b0cdda08f7d8ae2fcc72ac
+extra rebase_source:48be31fe3eab889e6f7930f44b96140ba076c389
+files image/decoders/nsPNGDecoder.cpp

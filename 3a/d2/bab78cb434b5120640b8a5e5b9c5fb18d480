@@ -1,0 +1,4 @@
+changeset 463822bab8aa4c777c1e489c9d6c01516db36c14
+manifest 1b6da287cd96fac7ddd10077fd3fa4370cbe4d76
+author dougt@meer.net
+files toolkit/components/downloads/src/nsDownloadManager.cpp

@@ -1,0 +1,4 @@
+changeset 9453199dfe89ce28072c4eedaf0764de2fc5a47c
+manifest aece3d6bef9bfc4ee018a1dfb093e0d1e7e469d8
+author gijskruitbosch@gmail.com
+files accessible/tests/mochitest/Makefile.in

@@ -1,0 +1,4 @@
+changeset 6aaea92945c9ca8960fa379a8370664ad68da550
+manifest f153d02c8fbb24add66bb42b0384aa6b5489679d
+extra branch:GECKO20b5pre_20100820_RELBRANCH
+files widget/src/android/nsWindow.cpp

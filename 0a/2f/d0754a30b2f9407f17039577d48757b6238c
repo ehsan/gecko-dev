@@ -1,0 +1,3 @@
+changeset 9afafcdf9be5821b2cb5c6620452a2b7447ba084
+manifest bc9147b4a7ff7ae296335114e3fb845923bebddb
+files toolkit/components/telemetry/tests/unit/test_TelemetryPing.js

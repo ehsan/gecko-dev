@@ -1,0 +1,4 @@
+changeset 6b959d245eaf100bc47859e15583dd1a164baddb
+manifest 09d21190378ae1e975c48bf01012713e224784a1
+extra rebase_source:0d86c3cff1f3775c0994a9f2f71762f77641ca18
+files gfx/2d/moz.build

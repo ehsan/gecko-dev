@@ -1,0 +1,3 @@
+changeset fb9f3b754d03191cd5d0db8ecc48df0ba1317b37
+manifest 841c7c776e53a992620b981533913a4c152d90a7
+files media/webrtc/trunk/webrtc/modules/audio_device/audio_device_impl.cc

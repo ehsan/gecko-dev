@@ -1,0 +1,4 @@
+changeset 765da436c5b5e801085aaabb50d9c4ce3cab6b85
+manifest 2c91bc39c9e8d7201edc9d6c6462438967264f4c
+extra rebase_source:acb2409d7ac7e0a61525b59e4e9958df2c787c57
+files toolkit/content/widgets/notification.xml

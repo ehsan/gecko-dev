@@ -1,0 +1,3 @@
+changeset fbf882d57a13e0c04d3cf472c04e69b09bcf0479
+manifest 49464c6bbbe173278531e29b2647212e2f461ea0
+files xpcom/base/nsIException.idl

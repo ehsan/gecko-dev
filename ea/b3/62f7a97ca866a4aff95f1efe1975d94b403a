@@ -1,0 +1,3 @@
+changeset 0f74e9a5ea15d65a6d830dfe71bc0e2eac0ec284
+manifest e8989de27d08cacf493fd7dc34341ede99defaae
+files image/decoders/nsBMPDecoder.cpp

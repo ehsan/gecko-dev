@@ -1,0 +1,4 @@
+changeset fabc3a2f238ae278306584ba7c8c66de5b069a33
+manifest 017ec68cb3a1d9b6ff93d9028269de31f2e66171
+author timeless@mozdev.org
+files netwerk/base/src/nsSimpleStreamListener.cpp

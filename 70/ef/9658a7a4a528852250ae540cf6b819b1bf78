@@ -1,0 +1,4 @@
+changeset 70fa4fc3bc19096907d4870c96dc5a2541e3e4d0
+manifest d5364a31c2a37ab87e44b818d9428dc9da2a4c4c
+author flamingice@sourmilk.net
+files widget/src/gtk2/nsWindow.cpp

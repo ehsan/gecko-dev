@@ -1,0 +1,4 @@
+changeset 6b09edde1450a1aae390679732faa199fc3092f0
+manifest 03b98900e51728c0e04982b0817ec5a0faa7ac9b
+author timeless@mozdev.org
+files layout/xul/base/src/nsResizerFrame.cpp

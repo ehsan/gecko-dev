@@ -1,0 +1,4 @@
+changeset b41f0e31ad739697240edea638aa26d8676ceb01
+manifest dd7e56f604e611def083a6d3bded87a17aaecaad
+extra rebase_source:608a5680e1e7bcd9ab87b732b0366512abbc1529
+files layout/generic/test/test_movement_by_characters.html

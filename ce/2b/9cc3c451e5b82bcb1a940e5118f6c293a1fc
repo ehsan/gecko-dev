@@ -1,0 +1,4 @@
+changeset b1f950010fd3ad7da8f7eabfa40cfed3848e500c
+manifest dcf174acddff4ef63370c72097015ea55111b19b
+author benjamin@smedbergs.us
+files toolkit/mozapps/installer/packager.mk

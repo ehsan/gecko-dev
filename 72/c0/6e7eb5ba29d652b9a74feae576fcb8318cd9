@@ -1,0 +1,4 @@
+changeset 01e5e4697b36bc746c8a8c820370ba6448708a9b
+manifest 187be43a43087cbf2cfa97e5a6d49fa96b9c7086
+extra rebase_source:baffbf457b4eb9a1874ddfdda7dce1763a713a30
+files extensions/spellcheck/src/mozPersonalDictionary.cpp

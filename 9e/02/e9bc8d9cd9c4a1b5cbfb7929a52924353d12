@@ -1,0 +1,4 @@
+changeset 9b00e586ae704cdcb9c73578b0d225d415a27497
+manifest 2ef0a2518b35cbc68e38b5fef2636a9fc51684bf
+author Olli.Pettay@helsinki.fi
+files layout/xul/base/src/nsListBoxBodyFrame.cpp

@@ -1,0 +1,3 @@
+changeset dc86c80d01c05309daada4b95283dbf748fa35cb
+manifest 74ee4dad9b3451b1d87b47d4c60e3e944159d1ef
+files python/mozbuild/mozbuild/frontend/data.py

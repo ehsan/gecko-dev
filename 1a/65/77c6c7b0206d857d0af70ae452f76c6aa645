@@ -1,0 +1,4 @@
+changeset c262b7cdfd2ffaef4f20b694d7e94d49e09b061d
+manifest 49f86e215fac9bf8d2b6bf6210c4265c38f86e5c
+extra rebase_source:ca173f8830e5d87a6132d04f0df72aec6458f96e
+files layout/mathml/nsMathMLmfencedFrame.cpp

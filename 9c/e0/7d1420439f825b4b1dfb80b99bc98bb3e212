@@ -1,0 +1,4 @@
+changeset 3c108dceb5bd1d5c753a658f8d2857ba11e848a1
+manifest f9e2d0f36eb55dc634f7e28adac1921114c5c4fb
+author Matt Woodrow <matt.woodrow+bugzilla@gmail.com> and Karl Tomlinson <karlt+@karlt.net>
+files dom/plugins/PluginInstanceChild.cpp

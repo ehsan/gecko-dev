@@ -1,0 +1,4 @@
+changeset 461195e5344701acd13357dcca95e6cc722077ac
+manifest c873c6365952e4e91a2995b6d660d4b53b436a4b
+author sspitzer@mozilla.org
+files toolkit/components/autocomplete/tests/unit/test_autocomplete_multiple.js

@@ -1,0 +1,4 @@
+changeset da588b5fd26eb8d67f9c2b94f58b55c0d5f42342
+manifest fc22c68a7399035a93b2ce95afec04930dac6ea9
+author sspitzer@mozilla.org
+files rdf/base/src/nsRDFXMLDataSource.cpp

@@ -1,0 +1,4 @@
+changeset 3644e83de39cdb7ee8ecdc55dfbcf2362056a105
+manifest 0e3adea6ce7bb32197116b80ef99b56b0ae4fe80
+author dcamp@mozilla.com
+files extensions/cookie/nsPermissionManager.cpp

@@ -1,0 +1,3 @@
+changeset 8f84c33993c17930817a45643f6462f626b380c2
+manifest 66f53d5ab117f7586a5244c3b9f3406dc64c791b
+files netwerk/base/public/nsIChannel.idl

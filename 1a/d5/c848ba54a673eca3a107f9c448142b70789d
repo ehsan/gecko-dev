@@ -1,0 +1,4 @@
+changeset ccfafae7330f690dc9223b2b5b0ad2e6d5d90c4c
+manifest d1ac86ae23a47d59cd38b7d19c9322e07f04f15b
+extra amend_source:8054a3a25f0adf4caea5b70f2b75a94665a6e59d
+files dom/media/webrtc/MediaEngineGonkVideoSource.cpp

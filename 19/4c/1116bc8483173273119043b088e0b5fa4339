@@ -1,0 +1,3 @@
+changeset 5e08304cbc99b06d7a479ae6e553619fc188c383
+manifest 27e96dae92b2accdd1035e755b27850059b47f8a
+files security/manager/ssl/src/nsClientAuthRemember.cpp

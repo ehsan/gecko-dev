@@ -1,0 +1,4 @@
+changeset 584af5971ccfba566872e3302f82fedcd21a8c0e
+manifest a081c204caf96b7a113945d6832c1ca3688e2f1e
+extra rebase_source:232d3e154a7c2d5fc0cc31cde68cf58657c9cea4
+files js/src/xpconnect/tests/TestXPC.cpp

@@ -1,0 +1,4 @@
+changeset 853fa8ebae316d9fddbc91c24a2ccc79d6a78ebf
+manifest 449424934065d435a5c3bd8743858302c862db19
+author joshmoz@gmail.com
+files widget/src/mac/nsAppShell.cpp

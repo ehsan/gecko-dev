@@ -1,0 +1,3 @@
+changeset a769d64aa4322da743676c8ff78d582da6a130f3
+manifest 69d6aa9b0ab9581bec10f17d11ca1ff268046fe0
+files js/src/jit-test/tests/gc/incremental-compacting.js

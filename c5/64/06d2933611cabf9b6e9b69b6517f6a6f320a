@@ -1,0 +1,3 @@
+changeset c964a0be6c594e97884f37269dfd48d1aa9a4223
+manifest 880eeeeebd06cc390c95c5ccad053d9c7332d9fb
+files media/webrtc/trunk/webrtc/modules/video_coding/main/source/media_optimization.cc

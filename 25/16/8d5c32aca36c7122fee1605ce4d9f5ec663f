@@ -1,0 +1,4 @@
+changeset e291fb1065ab151bc061ba1e02c0acd4c47bb326
+manifest ed50a2fbf15911fb7d5186f38e11eb580e44895b
+author Olli.Pettay@helsinki.fi
+files layout/base/nsPresShell.cpp

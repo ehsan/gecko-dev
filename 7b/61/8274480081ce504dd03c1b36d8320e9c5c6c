@@ -1,0 +1,3 @@
+changeset 0cbf2c1ca0e90485001bf9855c5560d70c0e3310
+manifest 49505dde05c5209033ed2642450cfe8a363a8daf
+files netwerk/protocol/http/nsIHttpHeaderVisitor.idl

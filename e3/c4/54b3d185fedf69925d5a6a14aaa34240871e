@@ -1,0 +1,4 @@
+changeset 658f13cbe1b9857e3c31ee13f1449f826e5963d2
+manifest fc3f565d289aafedfae9d02a057985bc2e3f0e6c
+author mattwillis@gmail.com
+files browser/components/feeds/src/FeedWriter.js

@@ -1,0 +1,4 @@
+changeset 02477fc1c931751223e387cc301aa070bcf241fa
+manifest 09d95ccec8df346cb7b332b890ef3a3e36579181
+author igor@mir2.org
+files js/src/jsopcode.c

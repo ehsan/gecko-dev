@@ -1,0 +1,4 @@
+changeset e08af1e9382962b3f32534b142390fb2187862fc
+manifest 6d7b2cb862a612278da51584ccbbca2558f4a195
+author rhelmer@mozilla.com
+files tools/release/Bootstrap/Step/PatcherConfig.pm

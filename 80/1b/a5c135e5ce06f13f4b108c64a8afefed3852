@@ -1,0 +1,4 @@
+changeset a57f75ad12f1aa13142b3e9d923c435438af8c14
+manifest cb0b0b7b5fe248a9a31edeece76bddde8df41a65
+extra rebase_source:081ed01f235beef9c4fa2ebf11f39e79aef014d8
+files mobile/android/base/locales/en-US/sync_strings.dtd

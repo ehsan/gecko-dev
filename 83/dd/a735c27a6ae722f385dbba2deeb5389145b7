@@ -1,0 +1,3 @@
+changeset b26fcf15a91c827918fa46dda592d3e1a1346ceb
+manifest a5bcc509ddb1ca5ecd69ac80a67595ede2d9eac9
+files js/src/methodjit/TrampolineSUNWX86.s

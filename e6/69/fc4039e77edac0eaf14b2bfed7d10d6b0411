@@ -1,0 +1,4 @@
+changeset adc928281f9f3c99aed3933cd2cae05aff4cc404
+manifest 871c61b1e65c489a208f00a93a5cabc8da551357
+author mkaply@us.ibm.com
+files toolkit/library/nsStaticXULComponents.cpp

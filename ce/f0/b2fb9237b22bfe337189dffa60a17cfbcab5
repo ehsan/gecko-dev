@@ -1,0 +1,3 @@
+changeset cef723d9aa314ffc52f27cd9d5595878cfe740d6
+manifest ec54d8ed67624abf766ba69cd466153777015858
+files dom/tests/mochitest/localstorage/test_localStorageEnablePref.html

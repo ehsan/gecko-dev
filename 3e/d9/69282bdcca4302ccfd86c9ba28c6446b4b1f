@@ -1,0 +1,3 @@
+changeset 187c64254f7b727a67c766eda9ded1a7497da188
+manifest 1644cd6ba1e4db01e831dcdf0e7e7e7d911310ed
+files js/src/jsapi-tests/testJitMoveEmitterCycles-mips.cpp

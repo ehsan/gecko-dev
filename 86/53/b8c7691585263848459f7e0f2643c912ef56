@@ -1,0 +1,4 @@
+changeset f5e20ebb43bf803e78c9bb0ac318533f54457604
+manifest ee95e58b3b9f542e4db6b58d7f66b3ddd9902a2f
+extra rebase_source:cb8b3ea626c9e7a7150d29d3ab1e40df2adb028c
+files browser/devtools/webconsole/test/browser.ini

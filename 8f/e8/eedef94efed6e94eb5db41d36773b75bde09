@@ -1,0 +1,5 @@
+changeset b3142fc39e4506f956d716c0faf1ec1925f22948
+manifest f823bfe02a1f924d03aaadd88f1ce670b4935356
+author timeless@mozdev.org
+extra rebase_source:7db05ad444219ffd5dbb64a86ac7470aa8095ace
+files js/jsd/jsd_stak.c

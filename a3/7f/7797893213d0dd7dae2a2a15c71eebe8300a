@@ -1,0 +1,4 @@
+changeset b79d5726ac06cef1508ac652e8bc58475cfb0840
+manifest 20f49d47f4729eae2e16cda923a8baafac906303
+extra rebase_source:9a08df51a56ae531956c0158fcae18c12ee77539
+files js/src/vm/GlobalObject.h

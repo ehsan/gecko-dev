@@ -1,0 +1,4 @@
+changeset d02490c3c2181b3b32cfebac629813fd98d8f0d7
+manifest 7ea3983a50f13206699c3e4764d385abda78ffa2
+extra rebase_source:c789d681825d8a4b22d7b3161ec476a5f85d73b2
+files gfx/thebes/gfxXlibSurface.cpp

@@ -1,0 +1,4 @@
+changeset 86ac8e0b0e14b9bd5c9f3cb768e1753164782e3e
+manifest 95576151695ce1452a0c78e35497b032b4ddb57e
+author timeless@mozdev.org
+files layout/tables/nsTableRowFrame.cpp

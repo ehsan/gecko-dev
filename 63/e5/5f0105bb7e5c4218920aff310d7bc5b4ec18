@@ -1,0 +1,3 @@
+changeset 71378a872c995d9407c7103ae76c278c792c24a3
+manifest ca2c7dca29a816c62b1d8763dc4cc82c6a50082b
+files xpcom/glue/tests/gtest/TestStrings.cpp

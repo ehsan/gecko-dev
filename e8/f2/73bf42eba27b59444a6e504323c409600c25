@@ -1,0 +1,4 @@
+changeset 0a1bd12c478b47023ad6ac520932a5d0a3ad0163
+manifest af74513c7edeea82a7d83fec1566686eb5c6da0c
+author surkov.alexander@gmail.com
+files accessible/src/base/nsAccessibleEventData.cpp

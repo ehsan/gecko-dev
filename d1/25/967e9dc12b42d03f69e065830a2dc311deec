@@ -1,0 +1,4 @@
+changeset afa33a4e60b12d36d82694bc14e1ae4086c57bd6
+manifest 8f02a6a73ce3550fa5a9ec15e4ec6470b663bff9
+author timeless@mozdev.org
+files netwerk/system/win32/nsNotifyAddrListener.cpp

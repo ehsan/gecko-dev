@@ -1,0 +1,4 @@
+changeset 1f764bcd4e5d851aae66d3d8c7ffcf3c33634afa
+manifest 86fa3809e83425dbf51adafc482616468d2a0e7d
+extra rebase_source:9bf2cc014d97f245ae063f65ab4aa6743c3194f2
+files image/src/ImageFactory.cpp

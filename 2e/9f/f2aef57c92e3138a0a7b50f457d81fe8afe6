@@ -1,0 +1,4 @@
+changeset 48dc2117bf819b7593966522bc40a5e3b6ab5748
+manifest faf6a9cf323fba9fd29e91668328014cb31d15f4
+author gavin@gavinsharp.com
+files widget/src/cocoa/nsChildView.mm

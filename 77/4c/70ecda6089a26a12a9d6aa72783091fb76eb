@@ -1,0 +1,3 @@
+changeset e9418e7f4ab5d21ac4a7f703fff3840ffaff40a6
+manifest 04dfc9f6e41d9961c5ccb4314363170ac63cf07e
+files services/sync/tests/unit/test_bookmark_store.js

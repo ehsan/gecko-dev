@@ -1,0 +1,3 @@
+changeset 16c139bbe0ca043b8f073ac9d51d346e5ed26d5a
+manifest 8c9e14f6ff5d67c35e2b4e01fb3f80f993de3bfe
+files toolkit/components/console/hudservice/tests/browser/browser_webconsole_js_input_expansion.js

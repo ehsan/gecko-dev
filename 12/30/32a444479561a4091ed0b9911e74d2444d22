@@ -1,0 +1,4 @@
+changeset 68e92b91778382cff966d73fac263d1f7ca0e44c
+manifest 871891a4dd18535ede116ff0c34c6d632971a87b
+extra rebase_source:ced5000659dd30a0f350a8ca786f0c68214c6d11
+files toolkit/xre/nsNativeAppSupportUnix.cpp

@@ -1,0 +1,4 @@
+changeset 57e0aaffc860c670a6f676e6e152ffc7d4efd83a
+manifest 393a86c9b03e333f9de31e250963845811230ac6
+extra rebase_source:63ec32369dcdae83638a3be5635e25ebc757b1cd
+files layout/tables/nsTableFrame.cpp

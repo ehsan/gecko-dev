@@ -1,0 +1,4 @@
+changeset 64d9b6cc50de76844a2a2a3a5763463af0b5f3d8
+manifest 2ab621d6dbf8827644055bb0a6f50ac4b93d27f0
+author bzbarsky@mit.edu
+files browser/base/content/tabbrowser.xml

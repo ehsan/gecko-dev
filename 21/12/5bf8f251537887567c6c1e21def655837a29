@@ -1,0 +1,4 @@
+changeset ae6208575ed4e07608107fc99fab4096605e4588
+manifest 2febf4f2045c8281da9408217f00f538eb5f4ac8
+author sdwilsh@shawnwilsher.com
+files db/sqlite3/src/sqlite.def

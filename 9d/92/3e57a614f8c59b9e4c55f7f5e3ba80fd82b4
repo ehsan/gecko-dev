@@ -1,0 +1,4 @@
+changeset a178a9b85806eaceb660caad46c8e42a8a142933
+manifest 1dc4d407fa5aa50123ae908bf1775701bc4271a8
+author tglek@mozilla.com
+files memory/jemalloc/jemalloc.c

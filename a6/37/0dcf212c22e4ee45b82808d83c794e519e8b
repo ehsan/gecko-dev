@@ -1,0 +1,4 @@
+changeset 44e1da5d7da1a57ae8b2f0e69a23e981d59ce1c3
+manifest 398745183a59a0a7ef93f138e4b58ed9aad9c10e
+author wr@rosenauer.org
+files toolkit/components/passwordmgr/base/nsPasswordManager.cpp

@@ -1,0 +1,4 @@
+changeset e6c3899e9dd2776332dcfa5f961d5dbe23bfad60
+manifest 81d2792864dea8d259b30da73545913ba6c067a1
+author dbaron@dbaron.org
+files dom/src/base/nsGlobalWindow.cpp

@@ -1,0 +1,4 @@
+changeset 019d1125980e075403f189f50f558033e116bca3
+manifest c8ffb725339c5125dca600179985ce8c1172f406
+author timeless@mozdev.org
+files modules/plugin/base/public/nptypes.h

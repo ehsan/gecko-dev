@@ -1,0 +1,4 @@
+changeset 2eff3ec1f6e74fb03d8a88ecd3535b9a11b072d8
+manifest 38891e05400b63d7623109f84480ce8455e38012
+author mozilla.mano@sent.com
+files browser/components/places/content/editBookmarkOverlay.js

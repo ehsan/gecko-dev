@@ -1,0 +1,4 @@
+changeset bbdfac4aa44487ee11f9e666febef10d440edc1d
+manifest 5567298a1322e2c0a3ec215b6437de692977f29e
+extra rebase_source:d7015035cc349a3e2c51187aa1d76d8375134cbf
+files media/libvorbis/moz.build

@@ -1,0 +1,4 @@
+changeset f201baf7bf047e4180a09b6106f2a8846ae572ee
+manifest 584b0cd851bc41b3f1a2d4326c9d30f9e4175f3e
+author bcrowder@mozilla.com
+files js/src/xpconnect/shell/xpcshell.cpp

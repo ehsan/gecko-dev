@@ -1,0 +1,4 @@
+changeset 83b4c4d9fd37bd246f4447f238a7cafeb01149ad
+manifest 3865aa4d539d3804d683289867b3b81b7f1896ee
+author mozilla.mano@sent.com
+files toolkit/components/places/tests/unit/test_placeURIs.js

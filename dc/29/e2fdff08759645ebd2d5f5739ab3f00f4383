@@ -1,0 +1,4 @@
+changeset 3c4e021ed4502e8f9646db7b0f66815e3a7c6fad
+manifest b6e685fd8c38d72a1d55c050fabb68829963904e
+author dbaron@dbaron.org
+files tools/trace-malloc/lib/nsDebugHelpWin32.cpp

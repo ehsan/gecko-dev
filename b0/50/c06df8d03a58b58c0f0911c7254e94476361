@@ -1,0 +1,5 @@
+changeset caad36ecabef251e55efe863dfcf13467381d737
+manifest 35b54b2b7223edd6d278f0d46600c054c94bb586
+author timeless@mozdev.org
+extra rebase_source:56cb882be1612a7975f1d845e7a8b96e2ab0d060
+files xpcom/ds/nsPersistentProperties.cpp

@@ -1,0 +1,4 @@
+changeset c05d5ba43182b34abda034c1f81c48eda639c1dc
+manifest ad9e81625138b4b3c15832d726c15ff4f3b6edd9
+extra rebase_source:f90083159468d4430eeb76787e6f34fd35dfd444
+files js/src/xpconnect/src/xpcpublic.h

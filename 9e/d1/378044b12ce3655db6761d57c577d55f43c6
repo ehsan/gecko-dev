@@ -1,0 +1,4 @@
+changeset 3cbab1bd4b14c5e7fb45a992449f716bd13a12b0
+manifest 3109c87e9f919cd3adb679459d139599a994e9a6
+extra rebase_source:466d49a2ea9bd98d3ffb9a3417aaf29688f81171
+files toolkit/content/customizeToolbar.js

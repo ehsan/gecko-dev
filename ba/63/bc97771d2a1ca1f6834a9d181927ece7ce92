@@ -1,0 +1,4 @@
+changeset 2ea272180c040ec84d6478e2cdba53ac1dc3124b
+manifest 5cac14c91706a62c95a82575450ad56d52361c9d
+author reed@reedloden.com
+files xpcom/ds/nsMathUtils.h

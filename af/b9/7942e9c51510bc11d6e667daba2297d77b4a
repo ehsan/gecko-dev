@@ -1,0 +1,4 @@
+changeset e8c9ab50740cbd29888e3cd15eb276278d01bb61
+manifest 9b8ff0e2bbe59dfefce6bd03cc445ac466dfeefc
+author dolske@mozilla.com
+files xpcom/glue/nsGenericFactory.cpp

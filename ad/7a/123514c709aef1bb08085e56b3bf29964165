@@ -1,0 +1,4 @@
+changeset 07cc6b9b15961cd08e49a40b543dfd34533d147d
+manifest d6abe709f085bb3b71551439abd74fe6b526f6e2
+author timeless@mozdev.org
+files intl/unicharutil/tests/UnicharSelfTest.cpp

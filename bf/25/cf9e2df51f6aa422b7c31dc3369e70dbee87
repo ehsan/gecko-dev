@@ -1,0 +1,5 @@
+changeset 439fe191d5c529d18dc9003e986b4a7d38240e74
+manifest f816f8fdcfd2b1d2074c91a281db54b980d31ced
+author timeless@mozdev.org
+extra rebase_source:79958d664a02ad215198770a0c979b21ba3fca24
+files modules/plugin/test/testplugin/nptest.cpp

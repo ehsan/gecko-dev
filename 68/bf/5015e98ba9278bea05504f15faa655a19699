@@ -1,0 +1,4 @@
+changeset 999905af7783cc1f3fe3c5374ff0264b43099da3
+manifest 8db7ff1ccf699d8c1fe5a0771bf56dc11a2dba70
+author timeless@mozdev.org
+files security/manager/ssl/src/nsNSSComponent.cpp

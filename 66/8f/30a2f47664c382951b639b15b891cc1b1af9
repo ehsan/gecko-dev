@@ -1,0 +1,3 @@
+changeset d05517de4fe3d3f6f3552878b27ae33a5a3ce3b0
+manifest f54538a2cb76ff5a399fb2a42692d1557220c8cb
+files netwerk/base/public/nsILoadContextInfo.idl

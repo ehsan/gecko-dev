@@ -1,0 +1,4 @@
+changeset c6d11daac3fb21dfb990f1be2195cc9d41f7f9ae
+manifest 1e29b3bf6269e57eaadc4aa8ab95275dfbb7f0eb
+extra rebase_source:6deaf902d279121e2f542c41d5fe497c7de31c81
+files mobile/android/locales/en-US/chrome/aboutPrivateBrowsing.dtd

@@ -1,0 +1,4 @@
+changeset 31d52247bd1e19a985f7643e5db20c81c44eaea4
+manifest f5d58eebab325cd2269639a6b55c38f16f150643
+author bugzilla@standard8.plus.com
+files intl/unicharutil/public/nsITextTransform.h

@@ -1,0 +1,4 @@
+changeset eb4b33d91cc56933297463c883ded2c89a3fd0fb
+manifest b9f5a0d5154ebebf7dc5ca3ad6e10e1c2ef8f461
+extra rebase_source:557fe01c658f7644fe8ecd35e96a5e8e285be718
+files gfx/thebes/Makefile.in

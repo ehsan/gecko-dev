@@ -1,0 +1,3 @@
+changeset e9a5f51a13bb4b52e89fc75a14e79dad499bfaf9
+manifest d12f0cfd9cc7b1426cc25169105f3d1e424bccb5
+files python/mozbuild/mozbuild/backend/configenvironment.py

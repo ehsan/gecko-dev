@@ -1,0 +1,4 @@
+changeset 361a3b08a49a41be3014ed72c1960dfbff2fdd4b
+manifest c58ad7aae25e44ca99853a81fd0ed698a22b0ff3
+extra rebase_source:925a1318a3eae47276518be53f4af952431715cf
+files xpcom/reflect/xptcall/src/md/win32/xptcstubs_x86_64_gnu.cpp

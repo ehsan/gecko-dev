@@ -1,0 +1,4 @@
+changeset c17c9910cc2edbbd0a637ea7257f60515e7f7088
+manifest d4d557c63c91bb27a4b3031df8c33e001ae885f5
+extra rebase_source:92bf47631beed8dd0c3f5b29b1cfb0b30e502364
+files xpcom/glue/nsThreadUtils.h

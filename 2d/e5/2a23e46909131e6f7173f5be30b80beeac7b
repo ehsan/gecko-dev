@@ -1,0 +1,4 @@
+changeset 2759110cb57a2d005e216364df6d9503b2bc9aec
+manifest f115bd71ed0f8f2a5c52bc750c5b1b4b63ea9cfc
+author jst@mozilla.org
+files modules/plugin/base/src/nsJSNPRuntime.cpp

@@ -1,0 +1,4 @@
+changeset a1d9535e7d20e05eb4bd684b1b8517135eb902db
+manifest 75d3785a0a63a4e6a4030befa7d4d3633f930ff8
+author mats.palmgren@bredband.net
+files content/xul/document/src/nsXULDocument.cpp

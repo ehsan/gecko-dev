@@ -1,0 +1,4 @@
+changeset b7ce6e90ca32009c239bf9fdc4c524d1d4d98459
+manifest ab6f481fc3b71b08dcd1b5adff523f491b262d1a
+author reed@reedloden.com
+files toolkit/components/places/src/nsNavHistoryResult.cpp

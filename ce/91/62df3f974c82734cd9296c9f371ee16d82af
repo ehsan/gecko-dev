@@ -1,0 +1,3 @@
+changeset 87d32ea05ca23e5711258e539ac7390705356005
+manifest 703387d5ddc5117d94965a3bad8b2075cb5759f6
+files toolkit/components/passwordmgr/public/nsILoginManagerStorage.idl

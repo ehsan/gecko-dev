@@ -1,0 +1,5 @@
+changeset d99c793ce63d3ec7a7b7bbf59157b3ce364bfaf5
+manifest 079de1f9a8a5732021a8f2b5606b0dc22ac0456d
+author timeless@mozdev.org
+extra rebase_source:aabbbc498940102ac639604702d41b23353e2038
+files layout/generic/nsCanvasFrame.h

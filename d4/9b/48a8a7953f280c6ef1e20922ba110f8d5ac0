@@ -1,0 +1,3 @@
+changeset 73f32f0b92961026fef566b4a09b3e7beb1376c6
+manifest afc15188a99aaa5980ae3e5ce5db6e1fe6621cd0
+files media/webrtc/trunk/webrtc/modules/desktop_capture/mouse_cursor_monitor_x11.cc

@@ -1,0 +1,4 @@
+changeset 0d5a8466f3542ed351da7c31dd9fa2b06afa6333
+manifest b2d344d40a80b1092f99700a7987c6c317701b81
+author gavin@gavinsharp.com
+files accessible/src/base/nsDocAccessible.cpp

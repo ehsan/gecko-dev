@@ -1,0 +1,4 @@
+changeset a4e3af300e6371fc3d0cfce480b0643c4da078fe
+manifest 2a89ed34ac26bce284566efa7f59c90f622b1729
+author timeless@mozdev.org
+files js/src/jsregexp.cpp

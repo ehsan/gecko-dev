@@ -1,0 +1,4 @@
+changeset f7e71fef7de93358b888f6a47d154eba2d8ace2a
+manifest a3153646e211ffb8775f6c6fef2cc76d32f428a3
+extra rebase_source:cb4c644f30773cd63dfa8c71c8b5dab0bfb02614
+files netwerk/base/src/nsFileStreams.cpp

@@ -1,0 +1,4 @@
+changeset 8ee2180d8d1dab6bde0f0f3157dde56c142906f2
+manifest 7634e272c713373b4cd4d53c7a86a8084eb74e27
+author zhoubcfan@163.com
+files xpcom/reflect/xptcall/md/win32/moz.build

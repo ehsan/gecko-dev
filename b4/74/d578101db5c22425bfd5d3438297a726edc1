@@ -1,0 +1,4 @@
+changeset 6b432e240032d90e9d74d537ac79d0728c736177
+manifest 2401440dbd4e5e4e3d49a5a7d39070963296a767
+author mats.palmgren@bredband.net
+files modules/plugin/base/src/nsPluginNativeWindowWin.cpp

@@ -1,0 +1,4 @@
+changeset 5c7b86a4c7f7d9568c0358fa245b347aee09a7d8
+manifest bb4f07a3741e6f046a4c55b7542f59ce6847d1d2
+extra rebase_source:4bba3149f835785fb1e28709b96dc41060cc8461
+files widget/src/cocoa/nsChildView.mm

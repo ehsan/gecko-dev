@@ -1,0 +1,4 @@
+changeset 6f0fe41369524f0a813ee5ca63834ea81bd0dd5b
+manifest a39e8c62fcfaecc7e14154070348afcb18c8fac1
+extra rebase_source:f7e16ccaae5892f3b25ed1b0da6e0f3159dadd25
+files js/xpconnect/src/XPCJSRuntime.cpp

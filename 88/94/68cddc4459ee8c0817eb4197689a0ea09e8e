@@ -1,0 +1,4 @@
+changeset eaa1c9822d8a9d95c55fb4ac9d8160aa32219386
+manifest 0fb67ad0a36d1891de67d1386194fc424a1d690a
+extra rebase_source:b72f0311607b5d4ae0fa28939a53728566b4bfd9
+files layout/svg/base/src/nsSVGIntegrationUtils.cpp

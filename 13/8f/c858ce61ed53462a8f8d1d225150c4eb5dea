@@ -1,0 +1,3 @@
+changeset e81c56e836877daa4bbd1540c48ae08cf32144d8
+manifest 8f45af25c0c5c6d928c12d9753426663a9b94934
+files browser/devtools/webconsole/test/browser_webconsole_bug_653531_highlighter_console_helper.js

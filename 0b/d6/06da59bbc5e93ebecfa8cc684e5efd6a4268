@@ -1,0 +1,4 @@
+changeset 1c5663c8a5f952d94a3b24c671ebe60bad24e03d
+manifest 0217c01978d971ecca330d0be316047f7346b18e
+extra rebase_source:e273a4616d6c5a33ffe3efdc7e348e648b4315a9
+files extensions/widgetutils/Makefile.in

@@ -1,0 +1,4 @@
+changeset d68e06ecb5c6361d7eecd727632e6989dee9a734
+manifest 4d0c97ef0a86d9ca05c7068f15a5287e98099c91
+extra rebase_source:93237cb46d90ef61228150be0c4a24ddf9f46ea2
+files caps/tests/mochitest/chrome.ini

@@ -1,0 +1,4 @@
+changeset 3e17b9c2cd5aaba5aef6571a10f2e75eb0daac02
+manifest 510db006e05cf83c09b8ffddca86c493065c7389
+extra amend_source:0db0a5596417dd41ebf339a21ff460bfafadf2ab
+files browser/devtools/commandline/test/Makefile.in

@@ -1,0 +1,4 @@
+changeset 34f371b1024bb9392a29a31280ebf6db534bea38
+manifest c292b62fe4abf7013ad40138c597e38260eb4248
+extra rebase_source:0f9a5d43164efb6940d17e406f41691cb3d26435
+files mfbt/Atomics.h

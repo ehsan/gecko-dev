@@ -1,0 +1,4 @@
+changeset 2fadb0501628fa2749657fae58e74f2ec4d30e20
+manifest f49d9b563c1794fe4988bafdb755a709886192ed
+author sayrer@gmail.com
+files xpcom/ds/nsIWritablePropertyBag2.idl

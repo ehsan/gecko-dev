@@ -1,0 +1,4 @@
+changeset 2e62de9c2d0402f4d90b1a838966c43267768b3b
+manifest ab34bc92c0690ef04d54f1c4e6835744e753949a
+author timeless@mozdev.org
+files docshell/base/nsWebShell.h

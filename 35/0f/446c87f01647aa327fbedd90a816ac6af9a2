@@ -1,0 +1,4 @@
+changeset 05fd25b6979ef8019400cd2fd8f0385e713d8e76
+manifest a159ddbac1ca1e69c42078d19399f365c55f4bdd
+extra rebase_source:ae490f18cd2a78c2d7afecf9ee32f11c38ab3cda
+files js/src/jsscriptinlines.h

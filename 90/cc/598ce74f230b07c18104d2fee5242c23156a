@@ -1,0 +1,4 @@
+changeset ee27c8f9d7dc15b24f89a99c646d4b017eae6791
+manifest dce9afa9db0712b5427f7641a9f9fdbf635ab335
+author asqueella@gmail.com
+files modules/libjar/test/unit/test_bug278262.js

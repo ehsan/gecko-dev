@@ -1,0 +1,4 @@
+changeset 8de3cfcf97d7b73658d8ac099b074ca66bf20c1b
+manifest 4efa860300c6fff2af7a76b236c4c5e50ded64fb
+author mrbkap@gmail.com
+files netwerk/base/src/nsProxyAutoConfig.js

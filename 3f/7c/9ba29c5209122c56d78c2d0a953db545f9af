@@ -1,0 +1,4 @@
+changeset 658f5f43d8fa786c203fccdcc4cfdb8d332b8b68
+manifest 2a80eba25c2236372deeb00cf76bd939e111a64b
+author mark.finkle@gmail.com
+files tools/release/configs/xr-moz19-staging-bootstrap.cfg

@@ -1,0 +1,4 @@
+changeset da8e5fea2d95c63082406f71f430c6f5041b5e0a
+manifest 2fd0c2e2765bc82e0ebac03dd893c805c1993ca5
+author sayrer@gmail.com
+files toolkit/crashreporter/nsExceptionHandler.cpp

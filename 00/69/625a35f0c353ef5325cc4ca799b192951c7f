@@ -1,0 +1,4 @@
+changeset 826ebd925a60db6095154052870ae127b200ffd3
+manifest 475592857d78e06a2c6c250b604ff3be0012bfd9
+author aaronleventhal@moonset.net
+files accessible/src/base/nsAccessibilityService.cpp

@@ -1,0 +1,4 @@
+changeset 98c455c298d5557f65177a383186617921fda9ce
+manifest 03c011cc5cb6ddd75bd157fdb6f47bb5c4fd9728
+author bjarne@runitsoft.com
+files security/manager/ssl/src/nsSSLThread.cpp

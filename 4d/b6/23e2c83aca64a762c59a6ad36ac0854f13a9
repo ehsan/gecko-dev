@@ -1,0 +1,4 @@
+changeset 154066a5e66f96763e51862de96ce4081c8abb45
+manifest c02fa7403ca036c03ff24e603fc854d5f50ecda5
+author dwitte@stanford.edu
+files netwerk/dns/public/nsIEffectiveTLDService.idl

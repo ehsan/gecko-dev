@@ -1,0 +1,4 @@
+changeset 33ff09852b0ae50c13be7ba2a465cc00a99f78a9
+manifest b2ef934ddf0aa3b9525c682cbcf0770b6c736baa
+extra rebase_source:f3a3fe2d64a045dacf70461611d9a0b72a38a210
+files js/xpconnect/loader/XPCOMUtils.jsm

@@ -1,0 +1,4 @@
+changeset bb97a488ff37a67437659a3a5350edd0d583936e
+manifest f9cb5250f17476564beabc9a4003c1a3b79feb3c
+author rcampbell@mozilla.com
+files dom/tests/mochitest/ajax/mochikit/Makefile.in

@@ -1,0 +1,4 @@
+changeset a768721b6085663f178094b00dee368a65f3c35d
+manifest a811462d9a5b047fe25ab203c8e5f37f27d01dc7
+extra rebase_source:874584d4f67570dcfd2fd120a89688cbd29b4330
+files content/svg/content/src/SVGPathSegUtils.h

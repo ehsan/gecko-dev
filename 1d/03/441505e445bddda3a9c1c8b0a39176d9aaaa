@@ -1,0 +1,5 @@
+changeset aaffcacef6240eab5541f5a3dd2efc9aedce0629
+manifest e64952d9b801a551809dffefd4a9d88e5349ac2d
+author mfinkle@mozilla.com
+extra branch:mobile
+files mobile/chrome/content/deckbrowser.xml

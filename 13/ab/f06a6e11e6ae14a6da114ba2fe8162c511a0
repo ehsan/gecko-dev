@@ -1,0 +1,3 @@
+changeset 534573211b633c0781ee20c6d3b73f77a9badf11
+manifest 3cee9685a44ada1b972231e664ce10bc966688d8
+files security/manager/boot/public/nsISSLStatusProvider.idl

@@ -1,0 +1,4 @@
+changeset 2870bf8d10405e5dcb5ca1e0f1340827b4904258
+manifest f865f1e6257f27ed427a3e49e64fc216bf03948a
+author leon.sha@sun.com
+files widget/src/gtk2/nsPrintSettingsGTK.cpp

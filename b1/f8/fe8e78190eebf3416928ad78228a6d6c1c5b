@@ -1,0 +1,5 @@
+changeset bed748189cd056a1cdc0be0fe13d31df0178dcdb
+manifest 3620da955846208527920d82e84fb39b02b8c293
+author timeless@mozdev.org
+extra rebase_source:b13f176270bd3419c253b8745c00a9251f36ab76
+files js/src/jsobj.cpp

@@ -1,0 +1,4 @@
+changeset 5ba15a7de156c581b34fbefd0d72f0d2e138e9db
+manifest 5f11cd371c3f0a48bd18feb643e33adc76978f5b
+author ben@bengoodger.com
+files toolkit/components/places/public/nsIBrowserHistory.idl

@@ -1,0 +1,4 @@
+changeset 8eebe35aae634198ce92014e1d4dc8dff5ff228b
+manifest b3e7a2ce976794f92f3d0e25d58ce151a94912c3
+extra rebase_source:e5873bfe4c6273512cc4892a270eca63c5ddd4cd
+files browser/base/content/test/social/browser_social_toolbar.js

@@ -1,0 +1,4 @@
+changeset 862474a812c70e93c022e1986beabb17f65fe181
+manifest f4f193b3f2a0ef85cc9018e59a96f25434dc94e4
+extra rebase_source:47ce8ef1396b03ea6bdf3a1a0eed8e3bd6b5634c
+files js/src/jsstr.cpp

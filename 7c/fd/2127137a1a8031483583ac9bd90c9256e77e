@@ -1,0 +1,3 @@
+changeset 3afd39495f53fb6d016d7b42cd8463b53847589d
+manifest fd680ae416dcca3a5deca058ef9b50f29364ffe3
+files xpcom/glue/nsCycleCollectionNoteChild.h

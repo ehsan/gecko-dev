@@ -1,0 +1,4 @@
+changeset 5dd887fd9d3e93ab2d0900a99964a3dc4252dd87
+manifest 027841e3cd62f4e249876fc5ea50cf80cec326a3
+extra rebase_source:fc71ecbfaf65c9a2a368f0ba478d9ea22c7c76ac
+files dom/tests/mochitest/geolocation/geolocation_common.js

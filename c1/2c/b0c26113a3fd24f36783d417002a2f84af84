@@ -1,0 +1,4 @@
+changeset 268a3047da58a0e6db8b777eb39238b876c4ae67
+manifest 823a2cdd37af6290dc6d3dee18134ebaafc98256
+author vladimir@pobox.com
+files gfx/cairo/cairo/src/cairo-quartz-surface.c

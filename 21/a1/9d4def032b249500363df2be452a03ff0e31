@@ -1,0 +1,4 @@
+changeset d95c26cee54b220f00a9c5d24aae593524c2302a
+manifest c7c4e7b6e09fe8e7d8ba6a8008654575d19cef9d
+author sspitzer@mozilla.org
+files toolkit/components/autocomplete/src/nsAutoCompleteController.cpp

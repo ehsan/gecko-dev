@@ -1,0 +1,4 @@
+changeset 80cbfdba5584e8e1e0bf32726ae342e86094d217
+manifest e512bf78b3f440d21aeb220b0d2c642686547b23
+author dietrich@mozilla.com
+files browser/components/places/src/nsPlacesTransactionsService.js

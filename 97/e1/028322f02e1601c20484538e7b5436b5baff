@@ -1,0 +1,4 @@
+changeset ee8225c2ae3c932907b0d7c3208be8dce6bf3576
+manifest d4d14a3edfc29178ec919a81c2f655f0cf0acf30
+extra rebase_source:1c9a36008412a3bb910010873d9edcdfcdbb4719
+files browser/installer/removed-files.in

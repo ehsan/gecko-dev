@@ -1,0 +1,4 @@
+changeset d941ad65a09ed6300940f175892a7845f518ad0e
+manifest ac3f18749c5fc207f7fc4248f7af5dc70511122b
+extra rebase_source:a235fab66edcbf656212a3010af970989b4fc286
+files b2g/chrome/content/settings.js

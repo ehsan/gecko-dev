@@ -1,0 +1,3 @@
+changeset 57225ef2a7b79315b817eb356d290f6e9948b659
+manifest 83e1e6c66f0229c00f1399e896b518348e98da10
+files python/mozbuild/mozbuild/util.py

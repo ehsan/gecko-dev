@@ -1,0 +1,4 @@
+changeset 0aeeaa0e82d6e3ba4b962ed246c3f65c971eb819
+manifest d9706090102627dab2309a2bab4e4213b3cc6ef7
+author mrbkap@gmail.com
+files parser/htmlparser/src/nsElementTable.cpp

@@ -1,0 +1,3 @@
+changeset beacc621ec68f057d3bad9592c6408ff73751475
+manifest f776d0f876612700a2d7f72433f44190a368e046
+files media/webrtc/signaling/src/sipcc/core/sdp/sdp_os_defs.h

@@ -1,0 +1,4 @@
+changeset 4be6c333853a7d0d724bf1a87a4c5de16e1f9bd7
+manifest 91b17da4de50fd6f92aa29ee5ebad7715a22e7c3
+extra 
+files js/src/jit/shared/CodeGenerator-shared.cpp

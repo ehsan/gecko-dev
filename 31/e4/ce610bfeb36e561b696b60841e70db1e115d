@@ -1,0 +1,4 @@
+changeset 4cd6efa6f12343e4f94e2e3ea75c2c9a2a0b7f11
+manifest 3bb540cb8d111acc2ff1dc8dccc45157a5d89589
+extra rebase_source:b02e4359f0004510ef68fb37bea950286dbbb924
+files modules/libjar/nsZipArchive.cpp

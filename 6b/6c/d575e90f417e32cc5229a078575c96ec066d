@@ -1,0 +1,3 @@
+changeset c86dd4f23da5e68f6cfafe1ddb3485ec5cce6296
+manifest 3a2c25a3fabe032a381062e52ead430c93470f4c
+files browser/devtools/webconsole/test/browser_webconsole_bug_602572_log_bodies_checkbox.js

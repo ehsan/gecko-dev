@@ -1,0 +1,4 @@
+changeset 25bc575cdaca91621e142911ba75f216c320c596
+manifest e93504d2433dbae2973cb32095ebf64f9754949f
+author bent.mozilla@gmail.com
+files content/base/src/nsXMLHttpRequest.cpp

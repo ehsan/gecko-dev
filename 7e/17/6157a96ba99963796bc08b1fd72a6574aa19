@@ -1,0 +1,4 @@
+changeset 8646d77bceea54585204c16c1cd2ec20f967e32c
+manifest e699da4feb8cdcd292421a92bf399065123254b3
+author reed@reedloden.com
+files widget/src/gtk2/nsNativeThemeGTK.cpp

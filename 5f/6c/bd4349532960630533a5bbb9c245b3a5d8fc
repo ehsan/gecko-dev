@@ -1,0 +1,4 @@
+changeset 70c09b56be842a2e36fd333c72e23a335781cd9d
+manifest d2623c3f069495ded3a6e4c8de05fc46a77c2666
+author mats.palmgren@bredband.net
+files embedding/components/windowwatcher/src/nsWindowWatcher.cpp

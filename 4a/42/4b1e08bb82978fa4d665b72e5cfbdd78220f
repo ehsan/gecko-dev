@@ -1,0 +1,3 @@
+changeset 546ac81a104ac49c96e3d875981817bb2dcd19ab
+manifest 536bed0f2d03fe432c16f9a121e80857cc3b3fb5
+files media/webrtc/trunk/webrtc/modules/desktop_capture/desktop_device_info_null.cc

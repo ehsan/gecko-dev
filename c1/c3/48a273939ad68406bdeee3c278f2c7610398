@@ -1,0 +1,3 @@
+changeset c99622269fe183d6c80c6dce4f056eb93d402284
+manifest 2e910f643bdd7dab6f311c2709eb2f09aa83ee33
+files services/crypto/platform/WINNT_x86-msvc/components/WeaveCrypto.dll

@@ -1,0 +1,4 @@
+changeset 14bdc103e1265633ec8e0608feae1c8fbb1329cb
+manifest f2c968ad07dfc2ce8bcafd0f0dd44805df8b76bf
+author timeless@mozdev.org
+files content/base/src/nsXMLHttpRequest.cpp

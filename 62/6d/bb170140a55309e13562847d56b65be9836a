@@ -1,0 +1,4 @@
+changeset c46c82c709e3116e143c663b23c1bfb8868c1991
+manifest 981c4cfc98d0d4e06e44fad3ff444aef72143399
+author karlt+@karlt.net
+files widget/src/gtk2/nsWindow.cpp

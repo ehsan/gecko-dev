@@ -1,0 +1,5 @@
+changeset 82230aeccceec6b955eedb970a303f63d5adacd7
+manifest 35a29bb7033689913581c79f532701601408f6d1
+author Ms2ger@gmail.com
+extra rebase_source:8f189550903221ce00d0a6ea5c51e3eeb1a6f8c0
+files dom/interfaces/canvas/nsIDOMCanvasRenderingContext2D.idl

@@ -1,0 +1,4 @@
+changeset e4fa5290783705132f963239924e84a80866bdf7
+manifest 9f6010f9aebeb934223ce477d35ca0f827fe8f4b
+author ginn.chen@sun.com
+files gfx/cairo/cairo/src/cairo-malloc-private.h

@@ -1,0 +1,3 @@
+changeset 35fca04046338dd43273add82a3ead5ba60c0d7f
+manifest dc0bb6e4aca1daea09f8eff0c0eec98119e3dff2
+files dom/network/tests/marionette/test_mobile_iccinfo.js

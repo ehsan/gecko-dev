@@ -1,0 +1,4 @@
+changeset 5e41bb64857be7e0f79dca19af29d1907338cd60
+manifest 5dd6548d01a3e78ca46be7c080855b764c856365
+author peaho@peaho-laptop-linux
+files widget/src/qt/nsNativeThemeQt.cpp

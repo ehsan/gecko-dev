@@ -1,0 +1,4 @@
+changeset 6adab9c10fb1d7cdebb40fb5f03ffff375fddcf3
+manifest 70d9a2f16f1f07a2a6e41d2e66d8337124d56b58
+author vladimir@pobox.com
+files gfx/cairo/cairo/src/cairo-ft-font.c

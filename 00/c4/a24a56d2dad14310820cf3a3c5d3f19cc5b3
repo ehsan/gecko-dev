@@ -1,0 +1,3 @@
+changeset b9d66dffe46c06b7338c105ba825779b30194190
+manifest 9db0b7745f49925de2484775b6f4e4082d20ed1a
+files toolkit/mozapps/extensions/test/xpcshell/test_bug559800.js

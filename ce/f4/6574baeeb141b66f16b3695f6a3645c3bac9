@@ -1,0 +1,4 @@
+changeset 1f599577eca274c69b7d54b172e174233364329e
+manifest aa7ace903763e04fb73c1bdfd721d1ca2bf933d0
+author shaver@mozilla.org
+files js/src/jsstr.cpp

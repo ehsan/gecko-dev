@@ -1,0 +1,4 @@
+changeset 1e6e5607105dcca8a2de7e7f68a74f9402015b3c
+manifest 96394b6b00e3ad97d5f884e3a838e39fc71836e5
+extra rebase_source:d06316fb9ee3e4d79ecfc332a1658bf5ff0aee8f
+files js/src/vm/ObjectImpl.h

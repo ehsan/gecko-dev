@@ -1,0 +1,4 @@
+changeset f83f4d173b8ef9827f806ea05077001fbabcc5f6
+manifest aa74008948341cd2f3b8f65134c9101c2a57c5de
+author jst@mozilla.org
+files content/xul/document/src/nsXULDocument.cpp

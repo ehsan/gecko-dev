@@ -1,0 +1,4 @@
+changeset 54e8f6d1410a7e395272fd0ced12ed793dec8bc1
+manifest 606c154f415bf21a12a1f7588d6e80c0eec52103
+extra rebase_source:44c91142f9806589b012e750111d9703104f08b6
+files browser/devtools/debugger/test/browser.ini

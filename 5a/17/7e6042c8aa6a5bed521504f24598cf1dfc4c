@@ -1,0 +1,4 @@
+changeset c6997ebde17a85a582c6789a187ccaa9de51fa9b
+manifest 9905c21c8a73238a10856726643138e31125dbe9
+author db48x@yahoo.com
+files toolkit/components/downloads/public/nsIDownload.idl

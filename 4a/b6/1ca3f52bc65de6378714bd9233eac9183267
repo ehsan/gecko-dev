@@ -1,0 +1,4 @@
+changeset 94c91e56fc3bf2267f3c8be0b4c1cd7a29bab5a5
+manifest 4c57a134e9740818cb293504387748555c6ffcd1
+extra rebase_source:0f88c4405a43fc855d3485832b73c878d44c74a8
+files browser/components/loop/standalone/content/index.html

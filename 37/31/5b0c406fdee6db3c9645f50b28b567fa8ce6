@@ -1,0 +1,4 @@
+changeset d1e96c7256ad68b8db3e833bd750217f8b369d8d
+manifest a67503e707a5d39f1ef92efde4af2347646c03a3
+author dwitte@stanford.edu
+files netwerk/cookie/public/nsICookieManager2.idl

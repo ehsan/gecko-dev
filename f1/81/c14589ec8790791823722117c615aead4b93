@@ -1,0 +1,4 @@
+changeset e284ed16663d5b761d98dbc4cda935751bc6dcc0
+manifest 67c101041f568b4c1c58378bc609a3232959afd3
+author timeless@mozdev.org
+files editor/composer/src/nsEditingSession.cpp

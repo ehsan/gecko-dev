@@ -1,0 +1,4 @@
+changeset 427ee19c623393b9ead40e389230236e6ebb3962
+manifest 3fffc6a1890669ecacded4de39af6e14597c90b2
+author timeless@mozdev.org
+files layout/inspector/src/inDOMView.cpp

@@ -1,0 +1,4 @@
+changeset 908e961dc57239ddc5e955e04d11f4c60656471b
+manifest 436313234e6261eb160a8a909c28fa8393fa4607
+author jruderman@hmc.edu
+files dom/src/base/nsGlobalWindow.cpp

@@ -1,0 +1,4 @@
+changeset 4bf805f7f07a9ce37f0b46178f4f4c8f70370d8b
+manifest 700749d964e90eb79bd368ae5491744fdce1ec66
+extra rebase_source:1289e8c8e4ac0bfe5d3131f8ef7c271916782f8b
+files toolkit/components/viewconfig/content/config.js

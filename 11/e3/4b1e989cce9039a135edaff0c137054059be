@@ -1,0 +1,3 @@
+changeset 32eb5ee5d5e48a93db8dc4d0fa5b23c0efe56096
+manifest 42d80cefc2cd7feac8bfecba63b9a0228018b28f
+files xpcom/string/public/nsPrintfCString.h

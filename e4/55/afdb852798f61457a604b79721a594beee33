@@ -1,0 +1,4 @@
+changeset 981030c48c4151d47af4497dc5af2fea24f0a809
+manifest 15ec0bad171c9a83841f0b6ed6c455de851628b5
+extra rebase_source:676013a9567ae59c1dba863a7975467f3cf4d847
+files js/src/xpconnect/src/XPCChromeObjectWrapper.cpp

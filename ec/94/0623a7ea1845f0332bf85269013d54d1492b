@@ -1,0 +1,3 @@
+changeset 5b8a157a6ed57864d9e7090506d90d0e763c8e85
+manifest bf3623204740a685782756de9a25ab901369686d
+files media/webrtc/trunk/webrtc/modules/audio_device/android/audio_manager_jni.cc

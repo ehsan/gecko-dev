@@ -1,0 +1,4 @@
+changeset 331c7af202a33c134740f38480ef7499e50bca61
+manifest ff32523daa6ac8e2d69111a4b5ffe17ff7814da2
+author dtownsend@oxymoronical.com
+files browser/components/sessionstore/src/nsSessionStore.js

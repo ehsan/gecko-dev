@@ -1,0 +1,4 @@
+changeset bc2437113bdef5b4fa44c257dca0ae4d4f07accf
+manifest 381c2e6913569c80dde1944370c289ce91141b0a
+author florian@queze.net
+files toolkit/mozapps/downloads/src/nsHelperAppDlg.js.in

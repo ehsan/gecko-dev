@@ -1,0 +1,4 @@
+changeset 320d51f4061289db5b29731aa7d90ea1e6d8f4e1
+manifest 72224ecc5412658c403bfaaa5b950d6d7768690a
+author bent.mozilla@gmail.com
+files embedding/components/appstartup/src/nsAppStartupNotifier.cpp

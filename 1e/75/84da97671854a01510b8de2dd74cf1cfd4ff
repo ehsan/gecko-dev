@@ -1,0 +1,4 @@
+changeset 60dcd30de3fbf12c4791e856f89941cf4cb226d0
+manifest 9e03f12decb7772440421e6ed6a8bb4bac95f04c
+author Boris Zbarsky
+files dom/base/nsDOMClassInfo.cpp

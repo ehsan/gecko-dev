@@ -1,0 +1,4 @@
+changeset f9215cf63f052d2b4c61101d8f62108a5e2e0421
+manifest 702628f8caebea1abbc6fa53fe84b5e8134a7c3b
+author bent.mozilla@gmail.com
+files content/xul/templates/src/nsXULContentBuilder.cpp

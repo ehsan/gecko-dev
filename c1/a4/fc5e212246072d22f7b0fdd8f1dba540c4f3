@@ -1,0 +1,4 @@
+changeset 19fd0f380b34d2c5ec9680efdce0b4259da7d8f3
+manifest 61b78c2f53774b513dc005e4ee4340a8832c23c7
+author tor@cs.brown.edu
+files layout/svg/base/src/nsSVGFilterFrame.cpp

@@ -1,0 +1,4 @@
+changeset 2d6f87325e9a7221cd7dca8a79cbd7cb79061fed
+manifest 90a1835606da95b0f8f98ce229fc0d98a61e522e
+extra rebase_source:e2208a02660bd5255933840fe3c051cc4110b6b6
+files modules/plugin/test/mochitest/test_painting.html

@@ -1,0 +1,4 @@
+changeset 2308ce99493cd08869c214ac556ffdf595ade9b0
+manifest 1765ef02fe3d74747fcec2efb27f81c87f31efce
+extra rebase_source:637cea3f6c93a333bfe9000f0837663fd0905853
+files js/src/jscompartmentinlines.h

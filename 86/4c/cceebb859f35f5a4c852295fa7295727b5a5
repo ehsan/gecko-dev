@@ -1,0 +1,4 @@
+changeset 26eb63d925de2a39e85ca32942ac5414d25d21a0
+manifest cda823dd34323cbc7efd7c811a32243bb8072c08
+author jonas@sicking.cc
+files browser/components/places/src/nsPlacesImportExportService.cpp

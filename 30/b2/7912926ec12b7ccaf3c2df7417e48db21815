@@ -1,0 +1,4 @@
+changeset 1d95992cb2e0ee9d340b1ef01f8ba7281fe84475
+manifest ade13fcac354600ab3060ee1eee4330a8e4771ef
+author cbiesinger@gmx.at
+files uriloader/exthandler/nsExternalHelperAppService.cpp

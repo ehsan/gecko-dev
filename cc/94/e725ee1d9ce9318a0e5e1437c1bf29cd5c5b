@@ -1,0 +1,4 @@
+changeset febbbd0f49587d26f07cc439f2dfa19d1b2818f7
+manifest e23b701d8a82f6b2bac5b910ade6322af32e4ebd
+extra rebase_source:99d28f94537a2e8af8c20dc318cab66c0f7fcc99
+files mobile/android/base/sync/setup/SyncAuthenticatorService.java

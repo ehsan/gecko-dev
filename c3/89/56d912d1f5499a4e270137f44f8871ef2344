@@ -1,0 +1,4 @@
+changeset dc7837cca3541a39047d16f159cad7505affa16d
+manifest 0f86330f7112ea6f7a814c7b8796cac1da88a894
+author mats.palmgren@bredband.net
+files content/xul/content/src/nsXULPopupListener.cpp

@@ -1,0 +1,3 @@
+changeset 82a5a9a0e12bc46a018d9ec6b42331b7059fcf80
+manifest 0a606c99d45954942e787e7490d8d4b6e292f865
+files security/manager/ssl/tests/mochitest/stricttransportsecurity/test_sts_privatebrowsing.html

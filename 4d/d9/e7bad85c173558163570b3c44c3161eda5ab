@@ -1,0 +1,4 @@
+changeset 7642eb917f7f148126beaeed39cd19f42355e2fe
+manifest aa0c5712978a4ac983cf7f04f0ac802642fda6f5
+author Olli.Pettay@helsinki.fi
+files layout/xul/base/src/tree/src/nsTreeBodyFrame.cpp

@@ -1,0 +1,3 @@
+changeset 3e28cd6f2ab86d4e92119e52420e24a8b28b54de
+manifest f8fc5f97a83958b1e850e8fc6f2230a2b8ac0ad5
+files media/webrtc/trunk/webrtc/modules/audio_device/mac/audio_device_mac.cc

@@ -1,0 +1,4 @@
+changeset 227c29b3c0eed6434284a12b44e9ea5611774177
+manifest 7d95ca5c1d6801a9b264eb7c133e82cd2e497842
+extra rebase_source:d1332eb18312255368a985b64d62d76e1fc00a50
+files toolkit/components/social/SocialService.jsm

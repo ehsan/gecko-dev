@@ -1,0 +1,4 @@
+changeset 560d5b15485c2bc0cadbccc7d7b2b3f017e78ef2
+manifest a2941dfc1fa2debe405ef256a309006c09dc7b89
+author dietrich@mozilla.com
+files layout/generic/nsTextFrameThebes.cpp

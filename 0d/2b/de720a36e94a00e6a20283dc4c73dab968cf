@@ -1,0 +1,4 @@
+changeset 8b71a52d7730a894949a2f7d371483cc7cb90bed
+manifest 4a585752ebc1f1430ff4e7afca2d0ee8ad9f85be
+extra rebase_source:952fa806d6598c00412bd9b27cf3af65e78e9452
+files netwerk/protocol/http/nsHttpChannel.cpp

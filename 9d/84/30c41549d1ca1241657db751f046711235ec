@@ -1,0 +1,4 @@
+changeset 3c650181f6b5c0eebf1150067cb6cbbb2b4c7ab9
+manifest 66e14fd0d5382c8c8b866e61ec23265af7bbc8a4
+author brendan@mozilla.org
+files js/src/jsapi.c

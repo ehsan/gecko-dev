@@ -1,0 +1,3 @@
+changeset 283a375456d0ab6d47154531b9658c3cec610e45
+manifest 1c01abf873b474f61829c37a777178b5ccf37ddb
+files dom/tests/mochitest/geolocation/test_lastPosition.html

@@ -1,0 +1,4 @@
+changeset 84c0f187733508d7c22869c7af4b58d94ba45826
+manifest 417bc353c0ce22bd51572ae52f63baf2e0aeff0d
+extra rebase_source:d1db2617e65f918421c2cb70d7f0c40e47129725
+files services/sync/modules/resource.js

@@ -1,0 +1,4 @@
+changeset f396bd3d1a5495264071f5efc657bf98beba93d9
+manifest 5fd310007a68dd927c7adf078a20a70a560fa97f
+author Olli.Pettay@helsinki.fi
+files content/base/src/nsPlainTextSerializer.cpp

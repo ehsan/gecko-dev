@@ -1,0 +1,3 @@
+changeset 9112c3abc3eaf65a6e6770ad3063dd081a535fab
+manifest e4ef2d3fac604490c549dbee5a3f44bd13f9f828
+files dom/plugins/test/mochitest/test_idle_hang.xul

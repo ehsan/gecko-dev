@@ -1,0 +1,4 @@
+changeset f9d66f4d17bfb3c4bc6eb94f0711ebfcebb89b23
+manifest e1ab3e863b7d7e967ca0898e1813306b13c89d3f
+extra branch:GECKO20b11_2011020209_RELBRANCH
+files js/src/xpconnect/tests/mochitest/Makefile.in

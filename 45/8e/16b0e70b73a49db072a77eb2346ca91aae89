@@ -1,0 +1,4 @@
+changeset 651d421156390ce7fd6412d368fdc2887b562331
+manifest 0d72880f8b08237ae1f937dd3ac81356c114c5bf
+author thunder@mozilla.com
+files toolkit/components/places/src/nsNavHistory.h

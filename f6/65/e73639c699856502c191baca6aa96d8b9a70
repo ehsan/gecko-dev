@@ -1,0 +1,4 @@
+changeset 94f718c2ec7fcb94f7f512dd6c38f0b2d921f338
+manifest 231bfb9efe0de05573879e10886819a1c0cb8fef
+author edward.lee@engineering.uiuc.edu
+files uriloader/exthandler/nsExternalHelperAppService.cpp

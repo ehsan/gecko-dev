@@ -1,0 +1,4 @@
+changeset b974b6dca6ce6c97bab6903ac827ff839295a7a2
+manifest e4fa97d1e00d2551cab546c1b0db906d1f8094e1
+extra rebase_source:5db24ca46d2204efc961ab3b21c7a2ea48dc669c
+files parser/htmlparser/src/nsScanner.cpp

@@ -1,0 +1,4 @@
+changeset fe28224ef7193714374c6f7c7c514500b6a66691
+manifest c8be0202cbdb00e99a480c3b951c9d0ac9e6f1ae
+extra rebase_source:d1330ba1c1e0df482e317e10eb0b6c91b68f4478
+files dom/contacts/ContactManager.js

@@ -1,0 +1,4 @@
+changeset ed499003e5771bcfbac8f8698e1d8f2f0ea1794f
+manifest 7313a7ff44f4c9b8628a5e5d2161cc2c5ee2cf0a
+extra rebase_source:7abf6b362d7bee0a91e9e16ce97214d4b7f4c843
+files toolkit/mozapps/downloads/Makefile.in

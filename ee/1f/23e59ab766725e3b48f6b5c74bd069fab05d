@@ -1,0 +1,4 @@
+changeset ee742d729f617f4535ed9ab04a95c020aaa4b9cc
+manifest 8c9986361b8ff6bc7b1464c360ff77666753005a
+author gavin@gavinsharp.com
+files browser/base/content/test/browser_bug423833.js

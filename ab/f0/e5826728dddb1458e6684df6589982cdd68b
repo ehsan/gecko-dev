@@ -1,0 +1,4 @@
+changeset 91851c94fb73f0624357af573f2917e008e106e0
+manifest c499f8c690768ab2505f7b9d9f4d6f618712d5af
+extra rebase_source:f5a3c56972247e76dd9700665df915a10d994356
+files xpcom/reflect/xptinfo/src/xptiInterfaceInfoManager.cpp

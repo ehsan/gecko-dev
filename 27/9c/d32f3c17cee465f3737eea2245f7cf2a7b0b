@@ -1,0 +1,4 @@
+changeset 91a3c2948a44ccc5fecdaa2eb4b0ada5a0195d34
+manifest d5a523966b52c2fbb298de16662182fe738b71e1
+extra rebase_source:590de588ec2554e1e17c432008c694a099ca738b
+files browser/locales/en-US/chrome/browser/browser.properties

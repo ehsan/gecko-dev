@@ -1,0 +1,3 @@
+changeset 95a1b1128c232592a4636992b8e5fb844451f3fc
+manifest bf8e3cfa6bdc6bf6d4c82c8b69719f06849c7c85
+files media/webrtc/signaling/src/sipcc/core/ccapp/ccapi_snapshot.c

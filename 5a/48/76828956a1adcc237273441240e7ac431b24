@@ -1,0 +1,4 @@
+changeset 89935b1a9d25c37e96b7bcea59d35b28e2ff3aef
+manifest 7088cc2f725fab0e30118f2728849018695a2dcd
+author joshmoz@gmail.com
+files widget/src/cocoa/nsClipboard.mm

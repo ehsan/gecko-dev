@@ -1,0 +1,4 @@
+changeset 15d99c7eb660a3c12d25c9eafbcb4dae3a323416
+manifest e0bbe5c1279dc73b0aee3579f7776de88cb7cc53
+extra rebase_source:528f17303eaf11fe92f430c79b21a410aac50251
+files python/mozbuild/mozbuild/test/test_mozconfig.py

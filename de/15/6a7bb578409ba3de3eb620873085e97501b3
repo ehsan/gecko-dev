@@ -1,0 +1,4 @@
+changeset e2c977148d7ab6d6f14432f0890cc856e256f280
+manifest 049a07dd6ce334967b0520c39fdf13616327cc18
+extra rebase_source:49c2175af92b79a08982d7dfbc7b7af266b27f7a
+files mfbt/Vector.h

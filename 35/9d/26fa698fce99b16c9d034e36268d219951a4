@@ -1,0 +1,4 @@
+changeset caf34979d2833e2e32ccebca09598209bce0ac5e
+manifest 0a2ee866700b8cc4af1f3bdde7a0660d04bc23c9
+author timeless@mozdev.org
+files toolkit/components/autocomplete/src/nsAutoCompleteController.cpp

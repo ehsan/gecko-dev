@@ -1,0 +1,4 @@
+changeset 0e626c4d026bc9124b7dcb48bdb246e37b42c454
+manifest 325674319aa2148836bc36d562f65d0981207394
+author jst@mozilla.org
+files content/xml/document/src/nsXMLDocument.cpp

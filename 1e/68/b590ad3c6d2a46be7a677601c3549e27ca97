@@ -1,0 +1,4 @@
+changeset 9909729baa50cbbda62156ad1cd099bd367c3041
+manifest f3d6011a78712d26c588e60dd34cf0d9cc932496
+author martijn.martijn@gmail.com
+files browser/components/microsummaries/public/nsIMicrosummaryServiceNonPlaces.idl

@@ -1,0 +1,4 @@
+changeset 8a0d45be4c3db552b578637756ee359e675c8e48
+manifest 3348b701ee1248f5eb70b2f0ea7d1f99180beefe
+author dolske@mozilla.com
+files uriloader/exthandler/unix/nsMIMEInfoUnix.cpp

@@ -1,0 +1,3 @@
+changeset 7cb0e7444c5507051fa1ff9b55b43483939fba85
+manifest 95eac2bd0a7b8b5128da5ff820b2e01454d7fdd9
+files media/webrtc/signaling/src/sipcc/core/sipstack/ccsip_subsmanager.c

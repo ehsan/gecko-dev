@@ -1,0 +1,3 @@
+changeset b03921a2620685dd2b865c91892f6114676e2a77
+manifest 04308535fb6298a80d604a7b290a2bbc6bd1009c
+files db/sqlite3/src/moz.build

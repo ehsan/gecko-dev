@@ -1,0 +1,4 @@
+changeset dd46a766c14430e1009ec33f809d02a43e30ff01
+manifest c36a3f83d4b91d240c130590555bb8e43c592886
+extra rebase_source:9e178060c58f3810edefe42db48585d750772d34
+files js/src/configure.in

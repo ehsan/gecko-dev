@@ -1,0 +1,4 @@
+changeset 19a99a03581bd89e1b5dcc950b2045a6d35b1812
+manifest 4929e428b90629c074e2af09d5c6a3795c413a46
+author bzbarsky@mit.edu
+files layout/generic/nsSpaceManager.cpp

@@ -1,0 +1,4 @@
+changeset c52ecd4e30a401a42fc0e352f69651d0784acf3e
+manifest b8d4634cd460fb17af9d63c233fc15785d173762
+author rflint@ryanflint.com
+files browser/components/feeds/src/FeedWriter.js

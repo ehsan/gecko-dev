@@ -1,0 +1,4 @@
+changeset 10faada5da34939f780e287b46baa800eda02db3
+manifest fcd825e289291bd53abaef6af7996e4025a43bf9
+extra rebase_source:07c51a7d15aaa6c5d1f8447961d511aa6136092c
+files b2g/confvars.sh

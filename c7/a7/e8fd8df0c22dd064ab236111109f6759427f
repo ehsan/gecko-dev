@@ -1,0 +1,3 @@
+changeset b0734bca62e4dca30e6b93433a1fac8bcb43c1bb
+manifest a6b898eceb7c7432d1540a33703cb51a9bc03ef6
+files testing/marionette/client/marionette/tests/unit/test_window_handles.py

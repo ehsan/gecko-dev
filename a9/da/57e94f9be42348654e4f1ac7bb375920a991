@@ -1,0 +1,4 @@
+changeset c8f266a9de2679628dace00807d990931903d795
+manifest 55df27018ab59415b440eff3bb92dc437467d368
+extra amend_source:03cce38442166dbac7bd88d744d7c5a42a144ce3
+files dom/webidl/External.webidl

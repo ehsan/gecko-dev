@@ -1,0 +1,4 @@
+changeset 94cc70e64a90cb285e586080435699b7db940cdf
+manifest 0d65ff43a925b0d685edd92a2bbe198ca5b3fa60
+extra rebase_source:6301cee87494e1d64ed42a32247e62a2f984a3f0
+files dom/base/test/test_window_define_symbol.html

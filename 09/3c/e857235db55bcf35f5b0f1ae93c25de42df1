@@ -1,0 +1,4 @@
+changeset 1dca8301543333171f119840d47450208af46853
+manifest 9bdbde8af1fe000bb6ea89264d2f861ee5ac4706
+extra rebase_source:6ee3172be5286d045d0d07020ac5cd9e14d477cf
+files toolkit/identity/tests/chrome/test_sandbox.xul

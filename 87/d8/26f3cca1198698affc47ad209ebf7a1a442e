@@ -1,0 +1,3 @@
+changeset 4e91deae75dce5aa08e0040c0b1f899df2db65d1
+manifest 74db5ff89501b9505ea53c207b29c8c39c801045
+files xpcom/build/dlldeps.cpp

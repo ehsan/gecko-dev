@@ -1,0 +1,3 @@
+changeset 9145bbf29f05df54135a52e932a04bc556be059a
+manifest 7c046d63e8e69b189c8f3022f1f0832cb248f38b
+files browser/components/sessionstore/test/browser_cookies.js

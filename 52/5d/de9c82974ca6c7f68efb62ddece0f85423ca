@@ -1,0 +1,4 @@
+changeset 523bebe29990cd3e3f610e60d15e10fdd7d2ad0c
+manifest 2b19cc38fbc084cbab9f213fd3b74b9a63c28d7f
+extra rebase_source:4d5177cc4add69983c207a6320198e8af159b7ea
+files browser/config/tooltool-manifests/macosx32/releng.manifest

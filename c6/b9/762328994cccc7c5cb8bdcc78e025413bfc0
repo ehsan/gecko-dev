@@ -1,0 +1,4 @@
+changeset 3e0b14ae1c2eaadeab22c7f2f79582f95b1d90e4
+manifest 3c9c6a10148fa2bee6f67fea7baf24eef414f2cf
+author cbiesinger@gmx.at
+files xpcom/io/nsEscape.cpp

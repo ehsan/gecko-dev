@@ -1,0 +1,4 @@
+changeset d070b230ed886611c6ad192344f371da665b56a8
+manifest 8608c23ebb7ca8ff4a362ca29fe8b3d3fba558e0
+author tero.turtiainen
+files widget/src/qt/nsClipboard.cpp

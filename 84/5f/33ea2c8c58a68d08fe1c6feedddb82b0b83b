@@ -1,0 +1,4 @@
+changeset 53917612cd36f27f3e0b4c44bbb6cc50d28599f9
+manifest 4c38dec446e6773641a3c6bc3f9b14ffc17b3ca4
+author cbeard@Macintosh.local
+files services/sync/services-sync.js

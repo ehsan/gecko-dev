@@ -1,0 +1,4 @@
+changeset 3ecd6bd50462d605701c1ba6eadb1a4f1d14a886
+manifest 60f0ad39bd1a5256fb2da7cfe4483ad00ec7faa1
+author smontagu@smontagu.org
+files layout/generic/nsTextFrameThebes.cpp

@@ -1,0 +1,3 @@
+changeset 030728d0d1d797576264a3c204db9254e7ee0328
+manifest 5a1dbb90ba8d08f30ebad25e886b9e0ce88fca7c
+files js/xpconnect/src/XPCStack.cpp

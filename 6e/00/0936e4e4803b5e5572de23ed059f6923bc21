@@ -1,0 +1,4 @@
+changeset 2ee6655b6da14dc23eed51bb26f680a1b310dcd2
+manifest b9805983529e4c92da4fe1ba16344d2482d9a2e1
+extra rebase_source:edeb0ca8eb7435c3ba50a9e6603e16637b06ca9f
+files xpcom/reflect/xptinfo/src/xptiWorkingSet.cpp

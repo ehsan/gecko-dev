@@ -1,0 +1,4 @@
+changeset 299fba140253148d0b59a26a3ab31b2e59144db4
+manifest 7be0a7102581d5bf7ab388feb06d85e9f5e89334
+author reed@reedloden.com
+files chrome/src/nsChromeRegistry.cpp

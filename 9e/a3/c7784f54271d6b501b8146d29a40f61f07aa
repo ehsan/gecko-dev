@@ -1,0 +1,4 @@
+changeset 799c4ed772e64895c4184265fb01440962f28bdb
+manifest cd3681fc78e9945f1fd6ad06fa63ff56839ec1b8
+author darin@meer.net
+files intl/unicharutil/util/nsBidiUtils.cpp

@@ -1,0 +1,4 @@
+changeset 5b928f75b9c9c52e513943b6762c54dfbadfa2a6
+manifest 6c1be6057dd5fa2901958148c03315c2ba704ee9
+author reed@reedloden.com
+files browser/components/search/nsSearchSuggestions.js

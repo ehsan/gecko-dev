@@ -1,0 +1,4 @@
+changeset 3c6af9c9a2ad44337a2a6b874dc1d8bf6f8ad9bc
+manifest cfe7b0ec11ceacc20f954dd7d5156f093cf294ce
+author dbaron@dbaron.org
+files browser/app/Makefile.in

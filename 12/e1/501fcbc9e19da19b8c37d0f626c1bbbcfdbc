@@ -1,0 +1,3 @@
+changeset 3cdbbe54fab96ce165738dbe963984aa4feb3809
+manifest 6248ae338ec19fc72c2c39f72ee57892bbe97295
+files dom/tests/mochitest/geolocation/test_clearWatch.html

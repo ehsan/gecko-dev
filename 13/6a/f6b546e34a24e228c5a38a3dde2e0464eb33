@@ -1,0 +1,4 @@
+changeset 709bc82902e928c2fe336f9d4491fbeb9108eb2f
+manifest 0cfac71f586e8bf60f9b92cd9361b998eb647a24
+author Olli.Pettay@helsinki.fi
+files layout/generic/nsFrame.cpp

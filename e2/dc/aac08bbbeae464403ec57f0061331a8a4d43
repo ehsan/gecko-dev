@@ -1,0 +1,4 @@
+changeset 7bdefbba3e0f0c7a50a111ac2f47ee4616883738
+manifest a8e4cebac2ff4e099f3ec12e365a3c4dc33c2447
+author timeless@mozdev.org
+files layout/xul/base/src/nsBoxFrame.cpp

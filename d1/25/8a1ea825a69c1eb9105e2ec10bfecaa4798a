@@ -1,0 +1,4 @@
+changeset af4e8409ebbe23fc7c006c4233df85065125ab13
+manifest af5e8f5ebfc478ba42c0a6ee3cd3a793334546a4
+author jruderman@hmc.edu
+files js/src/xpconnect/src/XPCWrapper.cpp

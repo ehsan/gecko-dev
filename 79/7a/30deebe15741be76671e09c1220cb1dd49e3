@@ -1,0 +1,3 @@
+changeset 2e003bb70f9c149063990b67a44969c000ef23e3
+manifest fc109120ba7374709abfc65623fa80349933829c
+files config/msvc-stl-wrapper.template.h

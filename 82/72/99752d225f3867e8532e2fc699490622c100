@@ -1,0 +1,4 @@
+changeset 79c79b3bf4c3040ebc1ab6b56ec7eb764ca549a0
+manifest 3dd2c1994705b75d5a2f6c9445db84fb6e195b14
+author mozilla@weilbacher.org
+files browser/components/preferences/applications.js

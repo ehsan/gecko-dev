@@ -1,0 +1,4 @@
+changeset 76373cd1407d400608c71532a4de7a53b056039b
+manifest a9d1806e4784c49b938e9dcf232a6de80a1b9e23
+author roc+@cs.cmu.edu
+files gfx/thebes/src/gfxPangoFonts.cpp

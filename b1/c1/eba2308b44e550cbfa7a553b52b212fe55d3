@@ -1,0 +1,4 @@
+changeset 3c006664d2e406e94bbeea7c90c2856da03b2523
+manifest 948e6740aff004ec9ece18571724405854e43b2b
+author rob_strong@exchangecode.com
+files toolkit/mozapps/installer/windows/nsis/makensis.mk

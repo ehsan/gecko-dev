@@ -1,0 +1,4 @@
+changeset b2881708d6f4b199f528081a160073b74f12a0ef
+manifest e6c11b6f83e8a3a1de153c30ddb471d5ccc64240
+author gerv@gerv.net
+files modules/libpref/src/init/all.js

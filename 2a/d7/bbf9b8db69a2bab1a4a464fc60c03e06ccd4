@@ -1,0 +1,4 @@
+changeset 643c706bc2ef8457159c33c9b787c273e7768191
+manifest 18b35c0cb07e111b914faede9802d440efe7bf49
+extra rebase_source:62e05782ea17339bc2fe316f7a94b1f4aa41c26e
+files browser/themes/shared/customizableui/panelUIOverlay.inc.css

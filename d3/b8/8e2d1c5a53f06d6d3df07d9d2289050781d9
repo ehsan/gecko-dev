@@ -1,0 +1,4 @@
+changeset 461384440ce3858dcdfa62cc555133d125f9d648
+manifest 435999b0a4deec8285b6fe56989df64da1f97afa
+extra rebase_source:b72b37267e5f26f2ab1e52d90673745124c760ae
+files js/src/jsproto.tbl

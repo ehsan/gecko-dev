@@ -1,0 +1,4 @@
+changeset a730d0337646f09f6ac22390bf945929de5670c5
+manifest 30be93942bb6bc745c4484f438c04150958213d4
+author mak77@bonardo.net
+files browser/components/nsBrowserGlue.js

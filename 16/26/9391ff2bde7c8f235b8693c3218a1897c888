@@ -1,0 +1,4 @@
+changeset 075c5df715a92634a722b081d72e94455c504343
+manifest 90abe415be8b7a31925309c1d9f1b7743bf11437
+author reed@reedloden.com
+files toolkit/crashreporter/tools/upload_symbols.sh

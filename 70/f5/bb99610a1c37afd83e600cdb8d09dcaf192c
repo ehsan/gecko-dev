@@ -1,0 +1,4 @@
+changeset cb25e3dccd346dee8d2b1cef5e0a1b63e09850bb
+manifest c20402d33709d5582966cac1d63df797d7efb7a7
+author dbaron@dbaron.org
+files layout/reftests/pixel-rounding/reftest.list

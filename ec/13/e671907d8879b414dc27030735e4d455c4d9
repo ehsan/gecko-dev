@@ -1,0 +1,4 @@
+changeset 8f0f39e1a6dcb92d5fffb46e922fb14c62b4021b
+manifest 725d467e79a097d0f3344e623cc9abcc33b66a5b
+author timeless@mozdev.org
+files netwerk/streamconv/converters/nsDirIndexParser.cpp

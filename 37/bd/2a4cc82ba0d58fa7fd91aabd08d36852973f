@@ -1,0 +1,3 @@
+changeset e5c7ac63a01754a39648b2abb0f13c0a1af77f25
+manifest b03b16f99e6d91350b2f9666b140121f63697e01
+files testing/mozbase/mozrunner/mozrunner/devices/base.py

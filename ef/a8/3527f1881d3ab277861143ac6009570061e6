@@ -1,0 +1,4 @@
+changeset f3902f3ff3c80953585ba21f5cbc45997e0fca29
+manifest afa763517a2f5bb9a7162c4a96f5c29864d682d6
+author reed@reedloden.com
+files intl/uconv/native/nsNativeUConvService.cpp

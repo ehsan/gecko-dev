@@ -1,0 +1,4 @@
+changeset c30b587ed067737cc1dabdcc70a9d59528e4023d
+manifest 405e8bd816dfe382e34a59ef63f018711a442375
+extra rebase_source:9e97d0f2bbe09c654407295d40b8936abbb88cb3
+files toolkit/mozapps/extensions/XPIProvider.jsm

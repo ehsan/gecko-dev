@@ -1,0 +1,4 @@
+changeset d009a6123bb8ac4f39c656df6724992cfdc77f03
+manifest ad18edc6e8b0878e273c30bb47b9174169d540ec
+extra rebase_source:af21d93bd8c4cc049322c371cc6e0517c4875bbf
+files toolkit/content/tests/chrome/test_bug624329.xul

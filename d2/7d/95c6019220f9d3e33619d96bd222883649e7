@@ -1,0 +1,4 @@
+changeset bbb6069438191c9f7346f7586c052f4f4c06d0b5
+manifest 9cd5ede359a4b12a4fd09a93216cfca33aaca93a
+author dietrich@mozilla.com
+files toolkit/components/places/tests/bookmarks/test_393498.js

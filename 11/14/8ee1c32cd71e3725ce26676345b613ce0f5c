@@ -1,0 +1,4 @@
+changeset 3fec0ab05766a87e4710aa05ddd1dd6537e9fa17
+manifest 79ee7c68b94781175582a268f7b8a532c94b6d78
+author rhelmer@mozilla.com
+files testing/release/common/check_updates.sh

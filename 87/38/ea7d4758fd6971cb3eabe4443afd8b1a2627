@@ -1,0 +1,4 @@
+changeset a9034a65b5291f6dc7b31be626d7a6a84bb19a45
+manifest 566b5e00a5fab392638ddc352b30595cad3a217e
+extra rebase_source:49e62fd5dda1e28268218cffca4ea1ce7af1b6ea
+files gfx/layers/d3d11/CompositorD3D11.cpp

@@ -1,0 +1,4 @@
+changeset 05ec3367572e466a420c99b9889e4e428d6ab4f5
+manifest 36124b5c8afb07863e86d671edada8c8ea4ad6ba
+author philringnalda@gmail.com
+files toolkit/crashreporter/client/macbuild/Contents/Resources/English.lproj/InfoPlist.strings.in

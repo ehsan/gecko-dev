@@ -1,0 +1,4 @@
+changeset 38a348b8deb7f3863a5f79d61d3b25ce2fbdb674
+manifest fea17e7124c7595a881a3c832c72338f35cf00c9
+author jonas@sicking.cc
+files js/src/xpconnect/src/xpcvariant.cpp

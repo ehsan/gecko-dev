@@ -1,0 +1,4 @@
+changeset d28a3f30b3275abb328781aaae0f70e7099cf83d
+manifest ab0a998cc986d3f42b2fbeb5063d253f428bc0a3
+author mats.palmgren@bredband.net
+files accessible/src/base/nsAccessible.cpp

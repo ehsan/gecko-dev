@@ -1,0 +1,4 @@
+changeset d03bbf388b4c3d4f91a496e8cb574fcbded70c91
+manifest 6e7ca45cf97d0a3eeba171c0909fff31ca5a1a83
+author timeless@mozdev.org
+files extensions/spellcheck/src/mozSpellChecker.cpp

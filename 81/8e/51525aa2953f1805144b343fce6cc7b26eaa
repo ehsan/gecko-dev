@@ -1,0 +1,4 @@
+changeset 784dd8bb1ce38e1afbe75ad51db97a91a32c164d
+manifest 946b8f7b57df3c7e5af1fb0620711ed3bb6f4b20
+extra rebase_source:7b9a7f8a6ec479caacbbf5ac36b89a0464efe897
+files js/src/jsapi.cpp

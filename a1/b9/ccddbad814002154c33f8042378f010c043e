@@ -1,0 +1,3 @@
+changeset 307d7abbf1c01e522a1cea8b6ba66421f2c2fcb3
+manifest c9897eae942510aa164fc33f365389dc09edeef9
+files dom/mobilemessage/tests/marionette/test_strict_7bit_encoding.js

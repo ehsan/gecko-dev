@@ -1,0 +1,4 @@
+changeset deeb2d276a85ae51e65cdb04dde20dea3ffb4914
+manifest 8fa54dfd71db4c022b33cc8dad606518ff8fe557
+extra rebase_source:b5eec318b7c50fe95e6f0599c0031c9e16edec17
+files dom/security/nsCSPService.cpp

@@ -1,0 +1,4 @@
+changeset 9b3bd1c5542770fb88697255596a9b699f55a87d
+manifest de6397eff6a025f2f1128ae3dfcb50aa110e91f7
+author mark.finkle@gmail.com
+files browser/fuel/test/browser_ApplicationPrefs.js

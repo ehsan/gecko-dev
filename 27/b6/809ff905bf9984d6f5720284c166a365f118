@@ -1,0 +1,5 @@
+changeset 54829d9e173c631c2395e99f53985dda9750a164
+manifest 7c0716bf19a22b5f49c446fe67ca1f9515feee35
+author timeless@mozdev.org
+extra rebase_source:c36c3b746a71264120dee154797d76d6aad628ec
+files intl/uconv/src/nsTextToSubURI.cpp

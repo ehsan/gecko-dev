@@ -1,0 +1,4 @@
+changeset e0f11fe1ef0d8bdd5697abdcdf6c0b159c6e501d
+manifest 840a05a3a1b5a5059d757bb101c053c8217f047c
+author edward.lee@engineering.uiuc.edu
+files toolkit/mozapps/downloads/src/nsHelperAppDlg.js.in

@@ -1,0 +1,4 @@
+changeset bb4ac5d86ed958166dea6061a5fe908f8c830f3c
+manifest 2c7bd162b93f03a2f9671e56e82e9c05f33a1d0e
+extra rebase_source:02cebe968612f155f86a817aa4b2a53fcf3ff43f
+files browser/themes/osx/browser.css

@@ -1,0 +1,4 @@
+changeset 1e970084e7c052beae6f10c52c24183ec8afce8e
+manifest feae08035b38f7056ed9672c0d9aa421b00394d4
+extra 
+files dom/tests/mochitest/general/test_picture_mutations.html

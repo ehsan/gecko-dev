@@ -1,0 +1,4 @@
+changeset 1d804ca74785c252056d9be77cb5877a398f1ed9
+manifest 95bcf71e308da8445d85dfc6f7fae9e09a750890
+extra rebase_source:ec950066172939bac899dd6588b1feaeb73ba84a
+files build/docs/python.rst

@@ -1,0 +1,3 @@
+changeset adb1ef78dd21c36f215e80ab1423b68ec62a7522
+manifest 5baea86c6d4465d8880430e869bbf1c84fbf5ff9
+files browser/components/sessionstore/nsISessionStore.idl

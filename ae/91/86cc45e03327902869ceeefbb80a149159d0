@@ -1,0 +1,4 @@
+changeset b803994c9f4a2233a30afde11a2183cb997a439d
+manifest 7c5acb3c78acfb889f241027fce1bce07b556a4d
+author ginn.chen@sun.com
+files memory/jemalloc/jemalloc.c

@@ -1,0 +1,4 @@
+changeset bf7800f2ad7e4796311df3b78fc985dde6748a94
+manifest 8b4c787796716e57613957b5a0ccac4590ec0459
+extra rebase_source:610b624d398665bc1ca9b47c35bd129d601c232b
+files gfx/cairo/cairo/src/cairo-win32-surface.c

@@ -1,0 +1,4 @@
+changeset 1061661a111908aaaa9857952b507a0b2c7f3433
+manifest b72d9f8f9712bb1f27397dc7152b3f567ce5569e
+extra rebase_source:396b859dc30dc91bce27c6b576a1814f5d65d7e5
+files browser/components/search/content/search.xml

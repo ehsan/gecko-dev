@@ -1,0 +1,4 @@
+changeset 8eb6f69652a6eb3069104bb0648b498d73ee6cf1
+manifest 13a6c6d939e058638623b0425ee1bbf39aaff637
+author ted.mielczarek@gmail.com
+files browser/components/sessionstore/src/nsSessionStore.js

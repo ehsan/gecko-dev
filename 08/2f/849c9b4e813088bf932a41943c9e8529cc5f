@@ -1,0 +1,4 @@
+changeset 429c6dae85b2aa01f52130263006d312e2451f64
+manifest e6b5f503cb8cfb64134280a3d61eaff4292abda7
+author surkov.alexander@gmail.com
+files accessible/src/xul/nsXULMenuAccessible.cpp

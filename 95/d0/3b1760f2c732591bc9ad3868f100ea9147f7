@@ -1,0 +1,4 @@
+changeset 5e5cada77a40222cd718d867874fc1617f93fbea
+manifest d24f006d7e475824cae6063ec7a4572e6ca873f4
+author reed@reedloden.com
+files toolkit/components/downloads/src/nsDownloadManagerUI.js

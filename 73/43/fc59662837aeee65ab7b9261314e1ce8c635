@@ -1,0 +1,4 @@
+changeset 55885049b4073d70ae78e55931725fb92aa55901
+manifest 089926fb4876c36eead48244d689252c3728ddb6
+author brendan@mozilla.org
+files js/src/jsiter.c

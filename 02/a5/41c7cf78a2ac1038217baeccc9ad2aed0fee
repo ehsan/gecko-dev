@@ -1,0 +1,3 @@
+changeset ef1052bc74931ae09f5043871ed114d86d8bb238
+manifest 9c059d6a6174858a800b1415783a0c3e45ba05ab
+files dom/workers/test/serviceworkers/test_serviceworker_interfaces.js

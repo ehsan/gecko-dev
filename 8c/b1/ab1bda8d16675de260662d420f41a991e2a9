@@ -1,0 +1,4 @@
+changeset 9b24c1d887def6b45ca33271e20e5422b95562ca
+manifest 95a7646ca8856b69797c58418e430779371484fd
+author asqueella@gmail.com
+files browser/components/sessionstore/src/nsSessionStore.js

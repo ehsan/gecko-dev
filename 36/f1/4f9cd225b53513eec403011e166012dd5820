@@ -1,0 +1,4 @@
+changeset df9528ef03a9df3b5c7ccc10c640912614e17597
+manifest a4d1157448cd3ca11217d3b751046b9eba67dbd8
+author timeless@mozdev.org
+files security/manager/ssl/src/nsStreamCipher.cpp

@@ -1,0 +1,4 @@
+changeset 4b0963034ad4785928b16cf81a0b8a7068997814
+manifest 9ee18966f9d9ebe60b331e1597f1bd9817b274b6
+author dbaron@dbaron.org
+files js/src/xpconnect/loader/mozJSComponentLoader.cpp

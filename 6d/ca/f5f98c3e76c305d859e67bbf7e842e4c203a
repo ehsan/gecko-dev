@@ -1,0 +1,4 @@
+changeset f2b1615fddb74dd9d814487477240b8b797e22cf
+manifest 16f334dda43b68c2df54207ce898cf1a5248896e
+author dbaron@dbaron.org
+files js/src/xpconnect/src/xpcwrappednativescope.cpp

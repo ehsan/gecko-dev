@@ -1,0 +1,4 @@
+changeset 12fa36df484d89b2b1a1a2f8f0c1da57269fb4de
+manifest 47acad8cbb40b0cd6ac0daeda6865bfc3edf1068
+author jst@mozilla.org
+files xpcom/tests/TestStringAPI.cpp

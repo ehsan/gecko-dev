@@ -1,0 +1,4 @@
+changeset fdc7c7e86cbf58a64a8eb2a7a0290c90e05d0abc
+manifest 1cd8cacaf029ade4feede18f6d0d405fc69e128e
+author karlt+@karlt.net
+files layout/mathml/base/src/nsMathMLmfracFrame.cpp

@@ -1,0 +1,4 @@
+changeset 32dbaf8222136b462caa345740cc2f5a9a1530af
+manifest 960bd2ea3740c75cd32078f9b4bc0e56e71ec4f7
+extra rebase_source:07fa26673188c4d5fb5450ec2344a794e4d67aad
+files widget/cocoa/nsNativeThemeCocoa.mm

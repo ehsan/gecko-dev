@@ -1,0 +1,3 @@
+changeset 3224dabf012e1de8aa52bdd76dd94f84c60d10c4
+manifest 6ab3b0443aa437f9aebb2ab1de07c7d111b2b17a
+files extensions/spellcheck/hunspell/src/suggestmgr.cpp

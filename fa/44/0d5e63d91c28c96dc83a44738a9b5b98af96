@@ -1,0 +1,4 @@
+changeset 06c82830254b262699ae9008e3292bc2c2bacbbf
+manifest 4068494c77f39db788477e4ca4467d98724d441f
+author kaie@kuix.de
+files security/manager/ssl/public/nsICMSMessageErrors.idl

@@ -1,0 +1,3 @@
+changeset f36b93c70d054c848c29273b048df41b16c32c7a
+manifest 2caeae1bc2e3c5dae80fe32f74c6e58f7f7f000a
+files xpcom/base/nsCycleCollector.cpp

@@ -1,0 +1,4 @@
+changeset 0e3fa8e77e656886d7fe47240554303ee8539b9f
+manifest cd811b67e60690988776d0ad977e4eab6aa6da8a
+author peterv@propagandism.org
+files js/src/xpconnect/src/xpcwrappedjs.cpp

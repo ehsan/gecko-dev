@@ -1,0 +1,4 @@
+changeset 078d1a3834b6b646c5663ecfedd46a98e7dcdc4a
+manifest ab6796b6a72f1000749fe2d0a8349c01e8d15500
+extra rebase_source:584eacdc6035d34abeb6eed4ed622cbb80f6e85c
+files browser/components/customizableui/src/DragPositionManager.jsm

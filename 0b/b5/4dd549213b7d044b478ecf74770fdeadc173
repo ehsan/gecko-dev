@@ -1,0 +1,4 @@
+changeset cfcb66556c7bf2972c0dd1e7281138af3c77bbfb
+manifest d6fc35fdc0e088b7b481b4186edd5597b2d48367
+author kaie@kuix.de
+files security/manager/ssl/src/nsNSSCertHelper.cpp

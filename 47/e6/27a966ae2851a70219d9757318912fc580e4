@@ -1,0 +1,4 @@
+changeset 7b8b7b1bfa886d4190cad926f73c05174210add7
+manifest a2472830898c3bdd7b8cacd0732d7d6da362ff62
+author gavin@gavinsharp.com
+files widget/src/gtk2/nsDragService.cpp

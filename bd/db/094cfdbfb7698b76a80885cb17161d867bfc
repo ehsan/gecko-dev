@@ -1,0 +1,4 @@
+changeset 837f98d9d85da7e8abbfaa30b43216d7fb7129b7
+manifest 23d3f33d2734e0209d14b26f7eb623bab2ddef07
+author mrbkap@gmail.com
+files js/src/xpconnect/src/xpcwrappednativejsops.cpp

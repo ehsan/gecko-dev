@@ -1,0 +1,3 @@
+changeset fcfa9ee3c75fde89db32c09fe0400247e001678f
+manifest 19a473763e7ed787ec7fd510eff4b72e9aabc069
+files netwerk/streamconv/src/nsAppleFileDecoder.cpp

@@ -1,0 +1,4 @@
+changeset 67661dd965761efe0badd4a67c7d98b4baa82646
+manifest b2913709ebf7c4bb0046ac76dc94acef04ff95b5
+extra rebase_source:dcc8013bb0542a69edb43c86fddc3f4075b4e7d5
+files layout/generic/nsImageMap.cpp

@@ -1,0 +1,4 @@
+changeset 869006b6b0f08563c70294776a3d786a63a6b04f
+manifest b540c96b0b139d5f4298351091e74f359837b38c
+author jwalden@mit.edu
+files widget/src/cocoa/nsAppShell.mm

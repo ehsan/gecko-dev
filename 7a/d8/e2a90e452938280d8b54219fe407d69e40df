@@ -1,0 +1,4 @@
+changeset b2b97bbd06dd95e1d2eeff65b56aade675a5c962
+manifest 99272a56d6cd998e7d1385502c2b9af0069dfa39
+author mozilla@weilbacher.org
+files xpcom/io/nsLocalFileOS2.cpp

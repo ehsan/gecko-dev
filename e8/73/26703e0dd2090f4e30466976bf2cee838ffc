@@ -1,0 +1,4 @@
+changeset c0d395663e89fd79e7d68e1f521152dfb0dad43d
+manifest 8f4040d84b787d129554fcc2aa08f849b17ee7ce
+author masayuki@d-toybox.com
+files gfx/thebes/src/gfxWindowsFonts.cpp

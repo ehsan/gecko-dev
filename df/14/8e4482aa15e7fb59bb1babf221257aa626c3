@@ -1,0 +1,4 @@
+changeset 34f464e9a22c8bb7c5227f9d72ac1813dc852df5
+manifest fd521cabbeacc82554e25b06e2b3274820b74ffd
+extra rebase_source:bef21925492ded3580021e3546b6117bb8a6639e
+files js/xpconnect/public/nsAutoJSValHolder.h

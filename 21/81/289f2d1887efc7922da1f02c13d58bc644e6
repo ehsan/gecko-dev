@@ -1,0 +1,4 @@
+changeset e75a780dfd06786b59cc1ce0c9f722d68f5f0a4f
+manifest 39b0ff07969376c5dbb5cba0a44fad73d0a87611
+extra rebase_source:4a06a8b23706cba1c0d1614fbf0ee3ea773bea1c
+files editor/txtsvc/src/nsTextServicesDocument.cpp

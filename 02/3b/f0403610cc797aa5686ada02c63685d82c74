@@ -1,0 +1,5 @@
+changeset 39e1137fe8753a5d7076971d565bbf9484522a06
+manifest e4d9211718265c6ad0ff8cdfc9c5578892412d22
+author timeless@mozdev.org
+extra rebase_source:65aaf4e7c50880e467fec4397bf9a514eee5dd38
+files js/src/jsapi.cpp

@@ -1,0 +1,4 @@
+changeset 675f7569c3d3f27c4b7b09c17ba3ccdb5e8c371d
+manifest 22deaa01315d8b4e1991f28662fa0e3e170fd10a
+author pavlov@pavlov.net
+files js/src/xpconnect/src/xpcprivate.h

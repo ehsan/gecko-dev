@@ -1,0 +1,4 @@
+changeset a7bda428ef837cdd6d1531ae2e60890f1c333e88
+manifest d187b2d56b658d83494585340483af88ac094a1e
+author benjamin@smedbergs.us
+files embedding/browser/activex/src/plugin/npwin.cpp

@@ -1,0 +1,4 @@
+changeset 4d31c3fa7870b719c983eefd615dc6411fcbea54
+manifest ba003c95d30a44fc364673b72aceb3ec49334de2
+author jonas@sicking.cc
+files content/base/src/nsCrossSiteListenerProxy.cpp

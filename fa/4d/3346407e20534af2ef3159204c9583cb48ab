@@ -1,0 +1,3 @@
+changeset 0ed3e74f6fd48988b0b33d8bcb9693e10b267031
+manifest b4e021a4d674455a32fc6c72febbdc60c30672cb
+files xpcom/glue/nsTHashtable.h

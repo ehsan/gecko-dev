@@ -1,0 +1,4 @@
+changeset 19520cf8a8ff617616afd378df75adff67d25f4f
+manifest 4f111af9b267560549fd20f24ade12b6d9b30a1e
+author blizzard@mozilla.com
+files embedding/browser/gtk/tests/TestGtkEmbed.cpp

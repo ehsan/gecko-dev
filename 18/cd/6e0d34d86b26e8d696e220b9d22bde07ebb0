@@ -1,0 +1,4 @@
+changeset 1d550f0cf16ce0fe0b0c6ca0902590118d9273d5
+manifest dc71c438c78a6d0d8045ef67f51285132254d1bc
+author timeless@mozdev.org
+files modules/plugin/base/src/nsJSNPRuntime.cpp

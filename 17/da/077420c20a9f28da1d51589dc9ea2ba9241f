@@ -1,0 +1,4 @@
+changeset a1e4acdbcdceff2f684e1d59d807f4d63c951824
+manifest 3e8f90f7b178f9a6ebb2344d7a24f96954150e24
+author allan@beaufour.dk
+files toolkit/components/feeds/public/nsIFeedResult.idl

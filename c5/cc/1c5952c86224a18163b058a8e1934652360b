@@ -1,0 +1,4 @@
+changeset 2982575cecaeb7382d23e9218d9c4129adafe889
+manifest 75f847410bf2cbebb8bf2be403371f942008cc88
+author ajschult@verizon.net
+files extensions/spellcheck/myspell/src/myspell.cpp

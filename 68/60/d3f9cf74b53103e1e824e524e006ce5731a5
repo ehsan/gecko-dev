@@ -1,0 +1,4 @@
+changeset bd1c82656fa19c541e986f91cb00f44b0e4ca1ba
+manifest af1b6c294fec9d48a29860e9ad71b0a8725cebbc
+author dholbert@cs.stanford.edu
+files layout/generic/nsSpaceManager.cpp

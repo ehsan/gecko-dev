@@ -1,0 +1,4 @@
+changeset 53ca657ec47820cdd78d17970d661f9aa1ba6013
+manifest 7aa34c16a321b22be9c5d40bd0f40b866447ca1b
+author ted.mielczarek@gmail.com
+files toolkit/crashreporter/tools/symbolstore.py

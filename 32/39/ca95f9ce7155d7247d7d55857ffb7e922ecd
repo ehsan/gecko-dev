@@ -1,0 +1,4 @@
+changeset e9305d7c4b09c3ed185d4e084d0c6a9386ae080f
+manifest 213b5f91cc7fb4982d3fdcb2dead77c5e07f0b80
+author timeless@mozdev.org
+files js/src/build/unix/print-failed-commands.sh

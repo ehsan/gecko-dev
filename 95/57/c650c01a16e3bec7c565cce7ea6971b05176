@@ -1,0 +1,4 @@
+changeset 850deeb4af421bc3dcd48647911baad918b834dc
+manifest 96ec3507c9b5c5de7ebddf5ff30fab418f13c83a
+author alfred.peng@sun.com
+files modules/plugin/base/src/nsPluginNativeWindowGtk2.cpp

@@ -1,0 +1,4 @@
+changeset db8257416bff4cbf78f91a4f1ee1b82072eafadb
+manifest e53c6b64700840361b43434523f7c9bf211f491a
+extra amend_source:241fc7e6eafd615ed4f45b0463700ac0eb060327
+files netwerk/cache2/CacheEntry.h

@@ -1,0 +1,4 @@
+changeset 9acd9f5d0a3416a2167a31bc1538dfe99ad853c7
+manifest a30a865c12ddae7a65af4a464af1fb4d0a04e2d9
+author rcampbell@mozilla.com
+files testing/performance/talos/PerfConfigurator.py

@@ -1,0 +1,4 @@
+changeset 49a02e7bd1a28d41179f80248ee467e46d941503
+manifest c95525e7f1827947a94bc1caacb55dd41f117da3
+author dwitte@stanford.edu
+files netwerk/base/public/nsNetError.h

@@ -1,0 +1,4 @@
+changeset ab89c7f6cff0e5bcc51df1a60906f7f72b082068
+manifest f623dba12273b28deef172563eb63f14db893e89
+author dmose@mozilla.org
+files toolkit/components/downloads/src/nsDownloadManager.cpp

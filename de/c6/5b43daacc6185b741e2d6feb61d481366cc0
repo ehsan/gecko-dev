@@ -1,0 +1,4 @@
+changeset 17a1071773a026c2aa1c29e91d4ba745e15b33ae
+manifest 077e10e275eae0b5cca0bbb9e9f007ec00d35f8b
+extra branch:GECKO20b7pre_20100929_RELBRANCH
+files ipc/glue/ScopedXREEmbed.cpp

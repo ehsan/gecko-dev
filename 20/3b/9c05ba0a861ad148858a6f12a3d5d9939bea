@@ -1,0 +1,3 @@
+changeset 82e6dc758859f0a89cf1f69034e9f209c0d5ac38
+manifest 28c903691aee46a35063bfe91d6d07a878ee5b87
+files xpcom/tests/TestSettingsAPI.cpp

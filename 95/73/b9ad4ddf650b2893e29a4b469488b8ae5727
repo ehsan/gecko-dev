@@ -1,0 +1,4 @@
+changeset cf73d133708180800c3056a3d9692d425d45398a
+manifest 47c9a0960d20752ee5bf42f95f3085ef59dfa79b
+author vladimir@pobox.com
+files gfx/cairo/cairo/src/cairo-xlib-private.h

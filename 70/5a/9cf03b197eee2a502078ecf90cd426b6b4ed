@@ -1,0 +1,5 @@
+changeset 44dbc4c1feeb12ae68ab0436e48c176a92baf2a5
+manifest 5a0fde5cf551f3eaf4ae3e86207cfacf951f1dce
+author bjarne@runitsoft.com
+extra rebase_source:d95b0280646c62c88354432c5920befeaf0424a4
+files xpcom/io/nsInputStreamTee.cpp

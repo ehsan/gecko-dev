@@ -1,0 +1,4 @@
+changeset 34292d5f7e6931691f8e2b06a4cdcfedc1f75a8d
+manifest 4691fd863854769b57f2aab2a7dff0206229e413
+author reed@reedloden.com
+files modules/plugin/samples/default/unix/nullplugin.c

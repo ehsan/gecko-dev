@@ -1,0 +1,4 @@
+changeset adcc7a17b262f8133fc7d52c9a8ccb7ca89105aa
+manifest da6e5451b06af784d998db987418f32969724f83
+author benjamin@smedbergs.us
+files toolkit/xre/nsAppData.cpp

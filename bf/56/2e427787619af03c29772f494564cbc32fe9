@@ -1,0 +1,4 @@
+changeset c34660d87368c8775cabe23c86347bf55ba4e57f
+manifest fb3c2f0b764f1583c05278d1b54eff49f86d499a
+extra rebase_source:4d0066f4fb8279c8dd78fee364bbb63828404df6
+files netwerk/protocol/http/nsHttpHandler.cpp

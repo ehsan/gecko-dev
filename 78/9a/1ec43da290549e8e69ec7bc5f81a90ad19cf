@@ -1,0 +1,4 @@
+changeset 62d165ac2586d084d15976cd14f0679a86277451
+manifest 760a210013f263c4e24da8d3f07dca518436edca
+author dtownsend@oxymoronical.com
+files browser/components/nsBrowserGlue.js

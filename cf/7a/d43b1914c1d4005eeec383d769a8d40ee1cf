@@ -1,0 +1,4 @@
+changeset 145432552ec0a1061cf06cee859e0a61acaa088f
+manifest 8cfac03037110416858b4fca7672f9e4e72ba78d
+extra rebase_source:abb1bf935e9f13eaa92bd6d584cf4e6dafdf2a36
+files toolkit/devtools/server/actors/highlighter.js

@@ -1,0 +1,4 @@
+changeset 69b8fca63d72c803df2fa9cf6c97fed51d0ad3e0
+manifest 3a001ba3e0041faefe4d1123877bab5bee3be7da
+author bent.mozilla@gmail.com
+files netwerk/base/src/nsURIChecker.cpp

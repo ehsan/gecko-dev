@@ -1,0 +1,4 @@
+changeset 274e6481a080c66d6ef05f49074e352d5aec0607
+manifest 17e7afcf5d85016bec15326f07ae481cb8382f85
+author reed@reedloden.com
+files browser/components/feeds/src/WebContentConverter.js

@@ -1,0 +1,4 @@
+changeset e6016b64da828d6256942b0690ce8e81ae120226
+manifest a076d827fdd78900acd98438c87c4de0a970ce00
+author reed@reedloden.com
+files browser/components/microsummaries/src/nsMicrosummaryService.js

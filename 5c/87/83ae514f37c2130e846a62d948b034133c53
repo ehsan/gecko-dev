@@ -1,0 +1,4 @@
+changeset 41d818413a67030a12ad9d725a9d149da4148b0d
+manifest 905cbf00308203be176c80762d1344c51a347553
+author gavin@gavinsharp.com
+files browser/components/nsBrowserContentHandler.js

@@ -1,0 +1,4 @@
+changeset 35b25c6eb51bd74b054dc26d01f12d00af36e286
+manifest e56662634514033011de805cf6f149e06b42a579
+author cltbld@production-master02.build.mozilla.org
+files mobile/confvars.sh

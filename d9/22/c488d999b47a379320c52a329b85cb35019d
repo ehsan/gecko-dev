@@ -1,0 +1,4 @@
+changeset f56ea7260da6eb383c5dac65a2d3a08ca284d05b
+manifest 739f24044460e22b03e71d19273b4b2c8dfbee8b
+author sspitzer@mozilla.org
+files toolkit/mozapps/update/src/updater/archivereader.cpp

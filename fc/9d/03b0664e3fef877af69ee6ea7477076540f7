@@ -1,0 +1,3 @@
+changeset f719a7e559f0377eaca7ed8f3358002e0faffb68
+manifest fe5a4fb4b54ec43532c1fa4f33f3c2f6563f788c
+files dom/src/threads/nsDOMWorkerScriptLoader.cpp

@@ -1,0 +1,4 @@
+changeset 7382e74530ec28b125ea6d9a76828ca06fa06b99
+manifest 4315d94a222d6ca15628fa1455dbd0b814ff362e
+extra rebase_source:6e0962a1fc3629d682beb4c36537ee0b11c9d810
+files testing/mochitest/tests/SimpleTest/specialpowersAPI.js

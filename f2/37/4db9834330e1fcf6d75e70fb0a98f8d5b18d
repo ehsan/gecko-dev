@@ -1,0 +1,4 @@
+changeset 480852219d5034ae4f53e75522022fde8ec55c4e
+manifest 3781fb245d773d870bc1cd93584a784b3d52e17d
+extra rebase_source:208b4cb5e652ed7f854586d676e0d055c065b330
+files js/src/jsatom.cpp

@@ -1,0 +1,4 @@
+changeset 27e81aa25025037973a39210c5d87d04484c9173
+manifest 63fa46c4d1b603295a371f3a900cc321b76a8493
+extra rebase_source:747f5ffab5cb20bbd29f5382d214c30ee1ad87e5
+files modules/libpr0n/decoders/nsPNGDecoder.cpp

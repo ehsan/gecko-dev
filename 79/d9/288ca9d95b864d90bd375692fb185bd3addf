@@ -1,0 +1,5 @@
+changeset 77605790b96e3a076e8ad37bf398ff20ef1948ba
+manifest 6a544bed7f099af00a7a99832bff2285070c5496
+author timeless@mozdev.org
+extra rebase_source:794d20216ef70e2599f484c871217d557f874be2
+files content/canvas/src/nsCanvasRenderingContext2D.cpp

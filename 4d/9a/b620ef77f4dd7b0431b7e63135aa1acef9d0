@@ -1,0 +1,4 @@
+changeset 5f6f60d1e20dc84d45fbf2b7f81cecc139e5bbda
+manifest 892fd76abbeecfb162ca4c8a29157ec16a8c2e20
+author jonas@sicking.cc
+files layout/build/nsLayoutStatics.cpp

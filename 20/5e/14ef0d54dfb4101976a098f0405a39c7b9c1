@@ -1,0 +1,4 @@
+changeset 63fc478518f7512c273cf3c623d5cc65a3558f96
+manifest c6dc1e0e8c2f02bbe370a32ab7ea5e77fed22adb
+author sayrer@gmail.com
+files js/src/xpconnect/src/xpcwrappednativescope.cpp

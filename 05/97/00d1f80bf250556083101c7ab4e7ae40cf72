@@ -1,0 +1,4 @@
+changeset 73ea902639a7d347afa8bb13c0fb9e1b2682bbdc
+manifest 0d3cb6685217d2a256e57f257b5e3f23a1077f01
+extra rebase_source:a9374eb75bf3296935641eb34628d14acc0c463e
+files browser/themes/shared/incontentprefs/preferences.inc.css

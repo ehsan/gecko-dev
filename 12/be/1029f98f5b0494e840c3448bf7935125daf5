@@ -1,0 +1,3 @@
+changeset 2c482e333da8c5e95a22429f79dd0ede637b219b
+manifest ccd689fb340e29a1d1f9f7c165add68001dd6eb5
+files js/src/jit-test/tests/parallelarray/element-4.js

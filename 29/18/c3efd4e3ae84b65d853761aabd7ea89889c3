@@ -1,0 +1,4 @@
+changeset eec2c311cf607ab034aa35ab1336ad0fc0cf38fd
+manifest 924f42c91b275341aa64fc40c6b81cefbf54fe94
+author kaie@kuix.de
+files security/manager/ssl/src/nsNSSCertificateDB.cpp

@@ -1,0 +1,4 @@
+changeset c11f32e403db04365475b6b46e141aed8f3744b6
+manifest fdeff7ad4652f8bbee8f5b14b54866ab58cc600c
+author Frederic Plourde<frederic.plourde@polymtl.ca>
+files modules/libpref/src/nsPrefBranch.cpp

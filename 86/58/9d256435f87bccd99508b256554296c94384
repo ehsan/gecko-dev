@@ -1,0 +1,4 @@
+changeset 0a40cb0d4a24512b661120bb7904c4d0b80134fa
+manifest 7ac7674d013bb54ec3cf85e877f6a1ce89730cf7
+author mats.palmgren@bredband.net
+files layout/generic/nsTextFrameThebes.cpp

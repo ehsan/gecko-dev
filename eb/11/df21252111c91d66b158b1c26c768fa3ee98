@@ -1,0 +1,4 @@
+changeset 3cb1b09603b1fda58a00047f1ad12641ac4ff332
+manifest 3c6cd538b15b206784dfb172c783dc6d0ef57742
+author bzbarsky@mit.edu
+files content/canvas/test/Makefile.in

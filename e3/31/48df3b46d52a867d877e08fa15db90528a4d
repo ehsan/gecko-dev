@@ -1,0 +1,4 @@
+changeset 1143f10e6fb270181854b11f5b4959ff7e88311d
+manifest 0a2a3d4f012c9a6d258fe741c7fc4aa169348476
+author gavin@gavinsharp.com
+files browser/components/nsBrowserGlue.js

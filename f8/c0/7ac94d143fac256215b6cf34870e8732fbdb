@@ -1,0 +1,4 @@
+changeset 4c94544e2c09d658270c1b7c657504c83a331173
+manifest c4969da4bb46bb5a63a09bf286da7bd62812c98a
+extra rebase_source:1b7f27076438d90024bf0ca7f9698a50efce1507
+files accessible/src/windows/sdn/sdnTextAccessible.cpp

@@ -1,0 +1,4 @@
+changeset 17341167b2387ee78a3694d9931a477c5a35e28e
+manifest 22cc160125e52344ce9f64cfdd0acbce87297d2f
+author vladimir@pobox.com
+files gfx/cairo/cairo/src/cairo-fixed-private.h

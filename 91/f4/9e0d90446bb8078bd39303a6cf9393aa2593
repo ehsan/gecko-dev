@@ -1,0 +1,4 @@
+changeset 0316e4600ac9e248006e359c9cbf60e5751026f8
+manifest ca42fec479156bfb4f51887685ad595318a8f8f6
+author bryner@netscape.com
+files toolkit/components/places/public/nsIBrowserHistory.idl

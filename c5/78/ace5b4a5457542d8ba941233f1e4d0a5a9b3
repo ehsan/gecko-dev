@@ -1,0 +1,3 @@
+changeset bd6620d81f76b34ba07f8353d155e065071916ed
+manifest fb0506d083d5709bb5e059f720e2c80ad2b1c398
+files js/src/jit/shared/Lowering-shared-inl.h

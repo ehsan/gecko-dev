@@ -1,0 +1,3 @@
+changeset 504a5ef251873811ed66eea47fd9de48851956da
+manifest 34c8cb5d73eac3a8f87977e87f4b0d601e425510
+files media/webrtc/trunk/webrtc/modules/video_capture/android/device_info_android.cc

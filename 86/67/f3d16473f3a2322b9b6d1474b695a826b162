@@ -1,0 +1,4 @@
+changeset 6a9b35e26b2124b7c405751463a5240048098432
+manifest 0c6e98291712e300fcaa0534ec73c98e5594d56a
+author Olli.Pettay@helsinki.fi
+files editor/libeditor/html/nsHTMLEditRules.cpp

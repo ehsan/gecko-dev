@@ -1,0 +1,4 @@
+changeset e56b2bad2016ac7fb658e63dc4a84dfd2cdfde49
+manifest 52dbe392809e075ca577e5650c20844579b674c4
+author jst@mozilla.org
+files browser/confvars.sh

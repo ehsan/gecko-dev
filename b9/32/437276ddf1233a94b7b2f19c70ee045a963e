@@ -1,0 +1,4 @@
+changeset d6d2dc5cf8155855f2ffbdc59f887c3653c882aa
+manifest 6e486b55aa9a9d320d2babb0e6c780bf907855a8
+extra rebase_source:5574cd1dea25d3121fe50be5ef8407030b7a1897
+files mobile/android/base/TabsPanel.java

@@ -1,0 +1,4 @@
+changeset a2d2549d8fca1995f010f8173fbb031eba3377bb
+manifest 8a257f38bb8287a0ed8d978446b48a51d0fbd9d8
+author bclary@bclary.com
+files js/tests/e4x/Expressions/regress-366123.js

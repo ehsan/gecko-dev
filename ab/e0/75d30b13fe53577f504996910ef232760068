@@ -1,0 +1,4 @@
+changeset 793048f70143fb5e0168a307e99c6d15ed27d708
+manifest 8271b5287d0b2463d223b19f2468f72468fa5008
+author igor@mir2.org
+files js/tests/js1_5/extensions/regress-325269.js

@@ -1,0 +1,4 @@
+changeset 0d88c084c93ecc1aefc110fc38372c104bc59412
+manifest 3d875825b50e40feff9895dfa9a04d7b2df18456
+extra rebase_source:fa9b1bc125ea0dab8f86d82568c7422da27d556a
+files mobile/android/base/ContactService.java

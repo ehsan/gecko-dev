@@ -1,0 +1,4 @@
+changeset b093fa9a8ca3c28d3da61044442c98aec685c127
+manifest 0e8b67f59a164f5e27440b3d92c91dc61eb099a1
+author mats.palmgren@bredband.net
+files accessible/src/atk/nsXULTreeAccessibleWrap.cpp

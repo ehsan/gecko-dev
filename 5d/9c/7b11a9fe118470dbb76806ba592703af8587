@@ -1,0 +1,3 @@
+changeset 22201dfdb1f3676560c108df6b4ce2faac4f939f
+manifest 68c44c5384a4008cdf23fb7c157cede47b5e64e8
+files xpcom/threads/nsIThreadPool.idl

@@ -1,0 +1,4 @@
+changeset 0eee0c1d69a853e1ba5e33df9dcdfa9ce942db6f
+manifest a01ab8ff724ffd3902effc71f750c6dfa48a7819
+extra rebase_source:e42e940235456e6edd4dc6d4cfc0f45c1cf71f97
+files xpcom/ds/nsHashtable.cpp

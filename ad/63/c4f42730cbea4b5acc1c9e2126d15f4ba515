@@ -1,0 +1,3 @@
+changeset 0715dd3bbfb88bbf4b1e33287fbe8e6bef50757b
+manifest 2303b32538a0ebf243ef1e1521bb7f4ff6cd1ed1
+files netwerk/protocol/websocket/nsWebSocketHandler.cpp

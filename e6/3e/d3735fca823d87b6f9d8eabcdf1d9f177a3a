@@ -1,0 +1,4 @@
+changeset 11c8a421c07c237ae2d65ebb255ee1025aa995c6
+manifest b203f714b0a848845afbba0196ea517d494ae29f
+author reed@reedloden.com
+files content/svg/content/src/nsSVGPathElement.cpp

@@ -1,0 +1,3 @@
+changeset 41b84b87c816403e1b74963d8094cff0406c989e
+manifest 68989866a30dea58fd0542f95a3c6d16dbe27f05
+files browser/components/sessionstore/test/browser/browser_595601-restore_hidden.js

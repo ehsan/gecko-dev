@@ -1,0 +1,4 @@
+changeset f2ef488d9f202905d92a0766d7cb6cd3a43d8b79
+manifest f663e7c024f1653a3d3fbe15b32d83c0435c5dcf
+author johnath@mozilla.com
+files modules/libpr0n/decoders/jpeg/nsJPEGDecoder.cpp

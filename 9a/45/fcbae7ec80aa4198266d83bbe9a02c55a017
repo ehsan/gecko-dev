@@ -1,0 +1,4 @@
+changeset d304d30bdab071deef29a4fd28c9e8a003dab7d3
+manifest 19b05e5a4c79add32322236a7355a45f9437f92b
+author anodelman@mozilla.com
+files testing/performance/talos/sample.config

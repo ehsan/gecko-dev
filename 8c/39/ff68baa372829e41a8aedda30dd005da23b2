@@ -1,0 +1,4 @@
+changeset b7fe098daba00356afbda15c448353663de026a1
+manifest 291a5cec4a91ebc5b2c26930822d50b4f3509108
+author mrbkap@gmail.com
+files dom/src/base/nsJSUtils.cpp

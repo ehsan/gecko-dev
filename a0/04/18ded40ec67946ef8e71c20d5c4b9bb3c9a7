@@ -1,0 +1,4 @@
+changeset 332fa08016f81abeceb85cd1265099e891e16b6c
+manifest dfc9fc7fbd9abd930201245aff9a21fd694298f6
+extra amend_source:a06b60a8bd378e359d12c54babcf0ac29bb71417
+files dom/tests/mochitest/gamepad/mochitest.ini

@@ -1,0 +1,4 @@
+changeset d2cd9f583b0a1cf646860572fc50024e4bf51337
+manifest 2c2925eda714e807053cda4d4730b8ded2ebee28
+extra rebase_source:0acde450204ba6cc42e0150fd391406d9145e897
+files modules/libpr0n/decoders/nsGIFDecoder2.cpp

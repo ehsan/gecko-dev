@@ -1,0 +1,4 @@
+changeset 711ff458ec3fd3e4ddaaedaa55d7917043f5d9f9
+manifest 5a59434e5421c446d8a54b20c733691f58d66526
+author stuart.morgan@alumni.case.edu
+files content/base/src/nsHTMLContentSerializer.cpp

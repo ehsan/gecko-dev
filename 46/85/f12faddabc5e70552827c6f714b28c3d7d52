@@ -1,0 +1,4 @@
+changeset 36089a888097768ff8d854153ab906f869822bea
+manifest 28926ae1e429594b0701088656efd172576ded6e
+extra rebase_source:cba480742dc8a2fe356b6b65c10ea1e0b6023730
+files content/xul/content/src/nsXULElement.h

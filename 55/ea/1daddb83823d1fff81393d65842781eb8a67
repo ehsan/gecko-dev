@@ -1,0 +1,4 @@
+changeset 78d5cf8a1ac62b46c48e763baad3414eabaed5eb
+manifest be668a71406aa9e7d54571b8669145d964abfe8f
+extra rebase_source:9d9e5ede1195b7e879a8ca539c9af432c5f2b5d9
+files js/src/tests/ecma_5/extensions/destructuring-for-inof-__proto__.js

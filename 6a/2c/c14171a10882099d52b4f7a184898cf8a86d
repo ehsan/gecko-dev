@@ -1,0 +1,3 @@
+changeset 75dfc9560fd7c6aefcd2fa8cb3158cf9ebc8090e
+manifest 14e5d9b172a6a7e526f2051d4abdec9184a85cd9
+files browser/devtools/webconsole/test/browser_webconsole_bug_764572_output_open_url.js

@@ -1,0 +1,4 @@
+changeset 09c25b7e92c11d03ba2568560a848d83a78c0856
+manifest e1a0c3ef713eca2b029ab5fd304815a614164510
+extra rebase_source:1e5a9b55e2c455b08454e8bd17afe4412f42a042
+files toolkit/components/viewsource/content/viewSource.js

@@ -1,0 +1,4 @@
+changeset ef0dce9ad78403f31a5ba292c1bf7774f23401bc
+manifest 885833e65022ee4444ca791b25c9474f6769f9fd
+extra rebase_source:8bf39fb6ef58994bbc65441daedad564f8d78d9c
+files xulrunner/installer/libxul-embedding.pc.in

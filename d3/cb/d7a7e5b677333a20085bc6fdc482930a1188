@@ -1,0 +1,4 @@
+changeset b1e90a100c8e3dce8fe0bd5c1709cdf2dd8cacf0
+manifest b80fc64ad2c8d9d2bee31558049d76664f6bab86
+extra rebase_source:678a6b55376f7cd82c6025dc27f30907b6acf97d
+files toolkit/components/microformats/tests/test_Microformats_hCard.html

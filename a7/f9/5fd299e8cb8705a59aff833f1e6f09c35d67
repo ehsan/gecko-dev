@@ -1,0 +1,4 @@
+changeset 3c1edd5f969d12541c5ae32a9af90f7d95e7a86d
+manifest 86f518dcd03067f5f1502387e7156e8dc2c14580
+extra rebase_source:d27bf81bb50528c49ad1036e19fcef6040ae4575
+files dom/workers/XMLHttpRequest.cpp

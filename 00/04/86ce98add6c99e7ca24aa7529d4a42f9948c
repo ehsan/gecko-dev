@@ -1,0 +1,4 @@
+changeset b2763d2fcb0b05b2b6b9f87c0132177a1ef5d2e4
+manifest 4232693821903502d5473df5410f7a96edfbb5ff
+author brendan@mozilla.org
+files js/src/jsinterp.c

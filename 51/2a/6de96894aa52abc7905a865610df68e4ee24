@@ -1,0 +1,5 @@
+changeset 7dac283e20289b6615a067b1f08ac6c65af89c1f
+manifest 5afe4de8c4dd29265855b32b322fe36bac73a7bb
+author timeless@mozdev.org
+extra rebase_source:9757c76d63c9d0ec7dcaec496c30cc30987d07e4
+files toolkit/components/places/src/nsLivemarkService.js

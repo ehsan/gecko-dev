@@ -1,0 +1,4 @@
+changeset 84cffcb0f3da0ed6cd7578f2ae03ede75db8d4ef
+manifest 20259a0d8ac3b8f49eb1ec442c04bedcfb142fe5
+extra rebase_source:e8d17c0cf1d35f450e62a8b6a35340855395ef72
+files layout/generic/nsTextFrameThebes.cpp

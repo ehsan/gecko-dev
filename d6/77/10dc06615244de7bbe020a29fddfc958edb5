@@ -1,0 +1,4 @@
+changeset 9d8b7aef7d6f435089a25729745c26eab49dbb7b
+manifest 96790e62906c62d9397670ab35dbdbd69e7c3bac
+author jwalden@mit.edu
+files security/manager/Makefile.in

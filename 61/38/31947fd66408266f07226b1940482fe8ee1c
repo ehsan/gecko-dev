@@ -1,0 +1,4 @@
+changeset 0e11415b11b2674cb3e4aafb707dae874bb1a334
+manifest 9839c483a8cf1da7618f0bcb94e1adccbd309d74
+author mrbkap@gmail.com
+files js/src/xpconnect/shell/xpcshell.cpp

@@ -1,0 +1,4 @@
+changeset c43187545daac7e59ed8160623e91a98a446fe8a
+manifest a425aea43730ee3f16c8bfd283a0143160e483de
+extra amend_source:5437fb0008e51c3fa2746c614cf28464c635cfe5
+files js/src/ctypes/Library.cpp

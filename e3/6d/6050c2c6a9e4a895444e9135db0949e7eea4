@@ -1,0 +1,4 @@
+changeset ca9083cab8ef9424d862fe8fe02d86b6bb0a8eee
+manifest 1f593bb658484bb1421aed944dce7bdc6dd5f5ad
+extra rebase_source:eb3d88245c96eb6e4029afa2e0987d510ed174e9
+files js/src/xpconnect/tests/chrome/test_wrappers.xul

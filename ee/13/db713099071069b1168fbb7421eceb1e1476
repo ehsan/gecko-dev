@@ -1,0 +1,4 @@
+changeset 939fa12c068a6debe0aeec8fc87ba5016bee791b
+manifest be44b8ba1a711bf943cfeb58de1296f942233dd6
+author aaronleventhal@moonset.net
+files accessible/src/base/nsAccessibleEventData.cpp

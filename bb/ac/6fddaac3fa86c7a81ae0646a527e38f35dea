@@ -1,0 +1,4 @@
+changeset f518eb4285bfa7c93f3feb0904e32acd510fd481
+manifest cc4d6a8f137e5e67125104a3431ddbbc37401c82
+author timeless@mozdev.org
+files browser/components/shell/src/nsGNOMEShellService.cpp

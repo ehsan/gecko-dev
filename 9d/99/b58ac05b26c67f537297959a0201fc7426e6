@@ -1,0 +1,4 @@
+changeset aec66d7a7ae0c0ed1210b83b22e7328119e12b29
+manifest 9f270d879e574b4015ed5b842f43ec0521054f1a
+extra rebase_source:0466346b707ffb25247c269a5f66d37ea6aa58e0
+files intl/chardet/src/moz.build

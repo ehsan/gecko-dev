@@ -1,0 +1,4 @@
+changeset b395bc2b9ba9aa3654a0a4a31ac12aedd0ca813b
+manifest 83440ee7d92bc29229a7111abce6dec9dbbcdc4e
+author Josh Aas
+files layout/base/nsCSSRenderingBorders.cpp

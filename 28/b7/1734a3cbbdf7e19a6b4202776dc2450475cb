@@ -1,0 +1,4 @@
+changeset 8e2904652f6b1c60031b69bba96f9c972b83c9d6
+manifest b37d8727a3aed98b2be6277827222da8472863e2
+author cbiesinger@gmx.at
+files netwerk/cache/src/nsCacheService.cpp

@@ -1,0 +1,4 @@
+changeset 4edfa5a589eff4d4ea45acec75ec34cc0b7b52a4
+manifest 89c79b2422850c3ffeb67764c8963a285fbf3dba
+extra rebase_source:ac59852b1bf458d181ab8223bc3255ebc0052620
+files gfx/src/nsSize.h

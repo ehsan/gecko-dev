@@ -1,0 +1,3 @@
+changeset 01ccb9eab0f9cd3867127b3ac05d2f22353e1d5e
+manifest bd3abdd0a96c3dc1ef643e661a9e30482f2ee590
+files netwerk/protocol/http/nsHttpConnection.h

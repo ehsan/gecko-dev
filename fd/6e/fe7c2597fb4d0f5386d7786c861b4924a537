@@ -1,0 +1,4 @@
+changeset c8c48b3078ea9046229961452113beead1000750
+manifest 616a75cbf69ca10a007df78bb13f78a49cc9c256
+author law@netscape.com
+files xpfe/components/download-manager/public/nsIProgressDialog.idl

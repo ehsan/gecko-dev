@@ -1,0 +1,4 @@
+changeset 8206aeef0a844a52e317c8b6c9a243cca97dcaa5
+manifest 992e77b9c92066dc1598bffc8385df39d48d433b
+extra rebase_source:4d7c0bed8afe7c6edd5b39ca4f971667df35c139
+files other-licenses/bsdiff/moz.build

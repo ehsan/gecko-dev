@@ -1,0 +1,4 @@
+changeset 69efb778d93ed79e9c327c662381f915fcd096f8
+manifest 8704927178787b626a9ceecac593e3e9ce078250
+author shaver@mozilla.org
+files js/src/trace-test.js

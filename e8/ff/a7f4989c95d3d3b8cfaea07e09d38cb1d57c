@@ -1,0 +1,3 @@
+changeset c7bba86f5e02f46a1c46aa891bce3efebbebaf56
+manifest 58870adc06832f5c3238d4211bfc0f45f89910e9
+files xpcom/reflect/xptcall/src/md/unix/xptcstubs_x86_64_linux.cpp

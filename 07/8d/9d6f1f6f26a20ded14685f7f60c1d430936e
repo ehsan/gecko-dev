@@ -1,0 +1,4 @@
+changeset 04fc2a77dcad19d38f4d793a736a09c4e0013674
+manifest 065089b4f15c1c9f000bb9b14c72e565839dc6bf
+extra amend_source:7828dc29ea1deda914808bf316949f390ee77990
+files js/src/config/rules.mk

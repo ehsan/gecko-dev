@@ -1,0 +1,4 @@
+changeset d948d19639ab1f1611763817d9029d71caef969d
+manifest fced1cac8d67cf0ab4843b6f1590e61496f9f2d6
+extra rebase_source:7195e099735f11d417c117c5344993223f3dafab
+files mobile/android/confvars.sh

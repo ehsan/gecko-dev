@@ -1,0 +1,4 @@
+changeset ae98c81124f5c66199d1ad0a0b82f84f3388b5f6
+manifest 1668e9b740c6637a1a42956ed5b562f5becebcaa
+author jruderman@hmc.edu
+files editor/libeditor/html/nsHTMLEditRules.cpp

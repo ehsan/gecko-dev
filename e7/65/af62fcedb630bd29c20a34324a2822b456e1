@@ -1,0 +1,4 @@
+changeset a8113fbfd2f43eafa55fc9d3fcf96f2a7c9dc410
+manifest b7e78b3a38704590c631d0855488d08715fb09cf
+extra rebase_source:ce5c1c378ba1d99d427071dd3715e53bf7f50847
+files netwerk/protocol/about/nsAboutBloat.cpp

@@ -1,0 +1,4 @@
+changeset 43cb2f20a76ee9172677ba92c29448fc46d14998
+manifest f58976f8a97e9a2aa0e7ee9e8ee430b5bc1e6a30
+author pavlov@pavlov.net
+files modules/libpr0n/decoders/png/nsPNGDecoder.cpp

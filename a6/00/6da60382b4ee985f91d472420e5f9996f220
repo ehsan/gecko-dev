@@ -1,0 +1,4 @@
+changeset f81366874b1ceb05e485b299de143403b89930bd
+manifest 9ec447610d9e15458e7db509ed4f4ce370f0fe62
+author timeless@mozdev.org
+files gfx/src/nsRegion.cpp

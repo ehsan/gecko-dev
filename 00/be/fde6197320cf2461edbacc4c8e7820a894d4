@@ -1,0 +1,4 @@
+changeset ab54c21733736ba3adf5e7cca51e151a008ec448
+manifest dbd49d17ca248917e868f97813d7c6e158e5fdaf
+extra rebase_source:f2945dbb9820b944dbedfaea43c3fad7926cd966
+files widget/src/cocoa/nsAccelerometerX.mm

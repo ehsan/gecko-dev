@@ -1,0 +1,4 @@
+changeset 9ff59eea66b99083dffafae1c01e86b0c643977d
+manifest d5c3bac370764ac293050b9960db7c20e1772507
+author shaver@mozilla.org
+files js/src/jsemit.cpp

@@ -1,0 +1,4 @@
+changeset 5701f888686628e488855235c884182f0f14c24b
+manifest 64aac50a0429edbf2ffccae02a47a603c555394b
+author rflint@ryanflint.com
+files toolkit/mozapps/downloads/tests/browser/Makefile.in

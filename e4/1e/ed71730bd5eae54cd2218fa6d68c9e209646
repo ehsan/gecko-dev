@@ -1,0 +1,3 @@
+changeset 32064546c8fe7d06a5cf9ababbed2226a9f11ce3
+manifest 45ee8347bec5ff1b0ccca3c19a60a0b800c6bf19
+files gfx/skia/patches/0017-Bug-740194-SkMemory-mozalloc.patch

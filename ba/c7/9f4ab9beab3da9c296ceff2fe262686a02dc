@@ -1,0 +1,3 @@
+changeset 96b40c951d15e6b7046555e5ed1634e7ff2486b6
+manifest cc0dd793df2bc96afe98285e33436c3e98383aa0
+files js/src/methodjit/FrameEntry.h

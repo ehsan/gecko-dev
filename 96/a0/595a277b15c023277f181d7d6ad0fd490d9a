@@ -1,0 +1,4 @@
+changeset 411419a5b5075e66575cab1aefa4b54bc96ca072
+manifest c9524339ca933d6181ef55630b12a693da80b810
+author benjamin@smedbergs.us
+files toolkit/crashreporter/nsExceptionHandler.cpp

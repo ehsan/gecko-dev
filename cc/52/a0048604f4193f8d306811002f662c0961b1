@@ -1,0 +1,4 @@
+changeset fb82ff60eb91135fa9190266bb17bd968f2a36b8
+manifest fceecb9b3c6cb0f30848afea6cd679ac6513bda7
+author smontagu@smontagu.org
+files intl/uconv/native/nsNativeUConvService.cpp

@@ -1,0 +1,3 @@
+changeset caec531a513b17ad54c8c131cbcc4e6fea4bf064
+manifest 01823a968d6662649d68abc5c0469d4ada617ea1
+files js/src/jit/shared/Lowering-x86-shared.cpp

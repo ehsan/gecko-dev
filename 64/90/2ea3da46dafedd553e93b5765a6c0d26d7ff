@@ -1,0 +1,4 @@
+changeset 1a9ec95ea5206e78f199ebf60f4a28a63aa86f0e
+manifest b5894aff97f9586abfd33956600d9a4a4cbf3faa
+extra rebase_source:5a8d3e9f905ac1f9ab2a3dd1b8de8138f8f94bb5
+files xpinstall/src/nsXPITriggerInfo.cpp

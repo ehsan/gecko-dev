@@ -1,0 +1,4 @@
+changeset d8396a35d70aee853cf615d4eabf28659efa6ecd
+manifest 53e0894c260da99d5194b513d56cb6f686fe44c8
+extra rebase_source:a10f47ec13bb91204d0124e49093d7644420773b
+files browser/base/content/tabview/groupitems.js

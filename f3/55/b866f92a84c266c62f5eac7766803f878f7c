@@ -1,0 +1,4 @@
+changeset 0a95764bbef66153fa275b68291fe4db51526fae
+manifest 2574b41ca4d05bd7cdbf8f5801b6a8010c2d1598
+extra rebase_source:a57c1b1a510c9663a49b954fd69d9fbe02953296
+files gfx/layers/opengl/TextureClientOGL.cpp

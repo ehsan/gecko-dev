@@ -1,0 +1,4 @@
+changeset 297ac8d9b5aa1af28fe3ba83d275f8345cbac7c0
+manifest 3bdfabc884f639adbb276756283dab2d0ffe36a0
+author dtownsend@oxymoronical.com
+files toolkit/mozapps/extensions/src/nsExtensionManager.js.in

@@ -1,0 +1,4 @@
+changeset bdb346f493b121e51f13ebfaf4680c605c5824a8
+manifest af036550fc6916ddd84f9c47925e85c812954952
+author longsonr@gmail.com
+files layout/xul/base/src/nsStackLayout.cpp

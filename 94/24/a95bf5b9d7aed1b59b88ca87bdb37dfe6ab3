@@ -1,0 +1,4 @@
+changeset d5c5d4cb5fa6257179699e470f023a4d335d8eb5
+manifest 0c7379d3a42368ff47665266447c0684fceafd93
+extra rebase_source:93f508349faea2e1d22ab91060f7a8d97a58b301
+files browser/base/content/test/social/browser_chat_tearoff.js

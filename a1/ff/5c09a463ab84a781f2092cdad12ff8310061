@@ -1,0 +1,4 @@
+changeset b4f2c723731d0d1925822e1738fe167a17d84824
+manifest 8f3ce710c2261a73df70584ee55fd7b32c17be09
+author mattm@chromium.org
+files security/manager/ssl/src/nsPKCS12Blob.cpp

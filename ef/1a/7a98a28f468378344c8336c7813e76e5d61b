@@ -1,0 +1,4 @@
+changeset 6afc3b99dbd461cdfa15d78e5505ab899a900f6f
+manifest 3ddf33db25e78f30efa4afc885d4f63863aeb24d
+author bclary@bclary.com
+files js/tests/e4x/XMLList/regress-373072.js

@@ -1,0 +1,4 @@
+changeset 4a01d26c11ae44a7d88a9ce486f57ef18ae8c36f
+manifest b4be19a32f855c821d0bef65c1d44319bd69122a
+extra rebase_source:36445f348b0909f9c9cecdc3a12f3a8ef187f6b7
+files security/manager/ssl/tests/mochitest/mixedcontent/test_bug383369.html

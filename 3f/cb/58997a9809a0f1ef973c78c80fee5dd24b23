@@ -1,0 +1,4 @@
+changeset e563340d2f71e38fd86c45109d5bd99940e5bbd8
+manifest ffaabbe3ec97189f474f6dd8ff50d7a4be864049
+author m_kato@ga2.so-net.ne.jp
+files layout/generic/nsObjectFrame.cpp

@@ -1,0 +1,4 @@
+changeset c569fee7b0044e77dd19a4c39c7f015d2fdf0f02
+manifest eec8b9fb5f33cfd9b0b9907ffd4abfeecd1b9d4c
+extra rebase_source:f12f16210f3043a9ca09395ca94fd3a166148049
+files content/html/content/src/nsHTMLCanvasElement.cpp

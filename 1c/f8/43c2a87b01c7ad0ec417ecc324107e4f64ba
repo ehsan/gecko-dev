@@ -1,0 +1,4 @@
+changeset 78de2c2bdad5d3c3d87da866f89733a944afd322
+manifest 504f51916d4f3e31e76e8f3f7fe00a78f789d3be
+author timeless@mozdev.org
+files gfx/src/nsScriptableRegion.cpp

@@ -1,0 +1,4 @@
+changeset ebbc966ba9b8cc1b3198fa8cff4bf0af8109ba4b
+manifest fb9c2b1c16e8842c6b8f8fd4944641e617b24028
+extra rebase_source:99992b13b2d3c200f6945aa1187c00a27603e6b2
+files js/src/vm/ObjectImpl.cpp

@@ -1,0 +1,3 @@
+changeset 0f648585f4d9006918a0b9303e54f33709f306a0
+manifest 7414193e3a1f82338eed23c7f5a2d1cb1856dfa8
+files netwerk/wifi/src/nsWifiScannerSolaris.cpp

@@ -1,0 +1,4 @@
+changeset 09d89b560c4f02642402690ba8df9d3c9439a63b
+manifest 26a8aaa6ea97c2d6e442760e8413ac9b2330c990
+author timeless@mozdev.org
+files uriloader/exthandler/nsIExternalProtocolService.idl

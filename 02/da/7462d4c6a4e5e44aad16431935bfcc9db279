@@ -1,0 +1,4 @@
+changeset e800ddbeba1ac246664cbee2d35e9df1890a0c1c
+manifest 73c27530822896b1f64a7e419c810443804cee67
+extra rebase_source:7851f45d986d0045f30c56a2993e1b33de8fe573
+files js/src/tests/ecma_5/JSON/parse-array-gc.js

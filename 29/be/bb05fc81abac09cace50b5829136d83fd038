@@ -1,0 +1,4 @@
+changeset 7e2f89d988603b9da95de16c8210038f8ec56da8
+manifest 9dca8dd298535362172dcc1c45df994b29c251dc
+extra rebase_source:6dfa90bc1906a36b7d40ccf4c5ccddea44b180de
+files docshell/base/nsWebNavigationInfo.cpp

@@ -1,0 +1,4 @@
+changeset aacac6efbbd46d34a06fa68b5ad0de138031b466
+manifest 44ea748f77c8856f0ca36d7dda78ec20eb033287
+extra rebase_source:d5b592fb36072514c4e08bc09a84d30a6e889e34
+files widget/src/gtk2/nsClipboard.cpp

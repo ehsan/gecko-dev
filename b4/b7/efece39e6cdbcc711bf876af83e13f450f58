@@ -1,0 +1,3 @@
+changeset e4fa648c30c76e1beab0c3c3db3807aa84754ff0
+manifest f27f97f63eaa5d909cc27077ed523f477b62f232
+files toolkit/modules/tests/xpcshell/test_sqlite.js

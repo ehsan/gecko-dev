@@ -1,0 +1,3 @@
+changeset cd94a4d8be6fe28af1c84f4ef232303bf0c6c377
+manifest 1d68539659b5ea32c6967b90715eee4838475e04
+files netwerk/test/unit/test_speculative_connect.js

@@ -1,0 +1,4 @@
+changeset 06bbad4d68a6ec0f75468a146b9cb9bacd0fb812
+manifest e5f0eac1fb758a6575c9ab2ede4db390604455ee
+author dtownsend@oxymoronical.com
+files netwerk/protocol/http/src/nsHttpHandler.cpp

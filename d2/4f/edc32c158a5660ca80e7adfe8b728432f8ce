@@ -1,0 +1,4 @@
+changeset d9ee00bef8502fc478e50c710dce471efbcfd0d0
+manifest 7ddd4ebb1d666ee71640c38f1f39b3d51a6ec243
+author reed@reedloden.com
+files intl/chardet/public/nsIStringCharsetDetector.h

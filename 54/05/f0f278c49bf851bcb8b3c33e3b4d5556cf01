@@ -1,0 +1,4 @@
+changeset b2836db54aa373e4643fbef96c5b1d41b722cf7e
+manifest 9fdfbc14a38e9cfd89cd0275bbf5b81cb00cda76
+author nrthomas@gmail.com
+files tools/release/configs/tb-moz18-bootstrap.cfg

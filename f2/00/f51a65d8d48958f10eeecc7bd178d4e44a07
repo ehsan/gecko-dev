@@ -1,0 +1,4 @@
+changeset 0d48fce3ffa2f898d803937cf89276631af72770
+manifest 278f2ca0d826e9a084cbc705c6409270df0caa88
+extra rebase_source:b20ee71b1ca0db2d63c3c6a0b9aab2acb10ed40f
+files browser/config/mozconfigs/hazards

@@ -1,0 +1,4 @@
+changeset 1eb2f264da0e542d0887a26148189403f5a597d4
+manifest e3c95260834df2e9f04dbf4d5f0106d9ec45b57c
+author varga@netscape.com
+files toolkit/components/places/public/nsIBrowserHistory.idl

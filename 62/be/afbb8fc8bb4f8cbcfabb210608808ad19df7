@@ -1,0 +1,4 @@
+changeset 4088162771808f24ac8cd5b91895fc022f29ca51
+manifest 3147e3d26823b1a8d98649c9aca3f4a47ae6035b
+extra rebase_source:867ce45fa9da2063a36d88966d0fa1b207311e6e
+files editor/libeditor/html/nsHTMLEditRules.cpp

@@ -1,0 +1,4 @@
+changeset 297870f728ec63304352eb42728b8de6d1863816
+manifest edc4e3a598ab981f18a2cc1b3ab2e4db1b551a83
+author joshmoz@gmail.com
+files widget/src/cocoa/nsNativeThemeCocoa.mm

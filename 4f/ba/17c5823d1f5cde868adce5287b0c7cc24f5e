@@ -1,0 +1,3 @@
+changeset 18e81fe5abac6810c744012e1236b41a5b83dbbd
+manifest e4cbb34df3af9f558b907bf3cc28faa0d3c79c58
+files js/src/jit-test/tests/debug/Object-apply-04.js

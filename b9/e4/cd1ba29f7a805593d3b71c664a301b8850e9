@@ -1,0 +1,4 @@
+changeset af474c40fbdb47ae35f219b79c7780ecf3376858
+manifest 08f93c5e5259abf7eddb6c39b4d616c27e2d64e3
+author martijn.martijn@gmail.com
+files dom/src/base/nsGlobalWindow.cpp

@@ -1,0 +1,3 @@
+changeset 8a3065aa8100a9bd217eb797b373b9ea4e639577
+manifest 99245d27ae16c1f688d51ad044f54ff0d17493f0
+files browser/components/sessionstore/test/browser_upgrade_backup.js

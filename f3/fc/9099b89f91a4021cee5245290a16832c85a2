@@ -1,0 +1,5 @@
+changeset 6de44038f10bbdbde707976502c120a14a97107a
+manifest 1b3c70b284c2281b142e43ce8db68dcae4aa23e8
+author peterv@propagandism.org
+extra rebase_source:337d82f08d17641dd4306c55743a076f53a4a22f
+files layout/xul/base/src/nsBoxObject.cpp

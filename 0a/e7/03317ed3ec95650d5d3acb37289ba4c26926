@@ -1,0 +1,4 @@
+changeset 006e7aca5662de0f07c4033d2dcfcbfef5a125bc
+manifest a84b83ea6381328ff8acd80aa52404f78128939f
+author johnath@mozilla.com
+files browser/components/safebrowsing/content/sb-loader.js

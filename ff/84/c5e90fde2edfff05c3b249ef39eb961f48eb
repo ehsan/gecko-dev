@@ -1,0 +1,4 @@
+changeset b10cfef22917ba00a872a1c5b0f55d095c3e434e
+manifest e2acc0705b6ecdd899ded59b2f8a2ca267deef3e
+author bhearsum@mozilla.com
+files tools/release/Bootstrap/Util.pm

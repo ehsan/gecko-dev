@@ -1,0 +1,4 @@
+changeset f5519360aab25fca9ee50925d9091a2aa19922fc
+manifest 953a7e10ec3f1c430a666a104b850c1fee8bfed7
+author nboyd@atg.com
+files js/tests/js1_7/geniter/regress-366941.js

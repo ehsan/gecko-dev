@@ -1,0 +1,3 @@
+changeset 6b23b52e68d654a42a6da120a15bffcf96eea051
+manifest 212ee429ba66fc49c1b7f294d2d7e316af6c0b6a
+files xpcom/glue/standalone/nsGlueLinkingDlopen.cpp

@@ -1,0 +1,4 @@
+changeset 87ea1865b479dcc63629919b0ec95d2a30f8be8f
+manifest abc2ef11deb2d7ba9ebd6cfc173b2a422e7447e5
+author vladimir@pobox.com
+files widget/src/cocoa/nsNativeThemeCocoa.mm

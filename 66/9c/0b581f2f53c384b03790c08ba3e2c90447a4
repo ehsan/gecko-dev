@@ -1,0 +1,4 @@
+changeset 8fae5a109fe23c94621dca623741aa94525f711c
+manifest b0fe3b1529ca397b8df9f9be24e8843c9f4beaa9
+extra rebase_source:07e3cdabe5392796683bd91c67ccefb83f44c392
+files xpcom/stub/Makefile.in

@@ -1,0 +1,4 @@
+changeset 6dac076d25f7e0054ba7af419a11f43f411daccd
+manifest 49b644e6c4886795db66d61e72d2c03efb303c54
+extra rebase_source:7bccc66831f56cede353ec33275449b7bf2560b1
+files security/manager/ssl/tests/unit/test_cert_trust.js

@@ -1,0 +1,4 @@
+changeset 56d35c24e22d8c284aa2bc79f3a63d7bd8e1921e
+manifest 663a6d355668ae280be3348380798f3bac5bd15b
+author masayuki@d-toybox.com
+files layout/xul/base/src/nsMenuDismissalListener.cpp

@@ -1,0 +1,4 @@
+changeset 1c5b194ad03c6b7ce3b8d9b2890241128f1849e7
+manifest 456c9c6d8cb2a70e13de9b828d3244ca8c28a41f
+author igor@mir2.org
+files caps/src/nsScriptSecurityManager.cpp

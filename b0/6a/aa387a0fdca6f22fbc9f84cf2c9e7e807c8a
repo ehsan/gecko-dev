@@ -1,0 +1,3 @@
+changeset 1cce6e7706032c53f2ed2dfd764ff37e05d6ef1b
+manifest c18bb91a9821aebdba8b335fb025aa4ec40e23c4
+files dom/mobilemessage/interfaces/nsIRilMobileMessageDatabaseService.idl

@@ -1,0 +1,4 @@
+changeset e594e12c93a57322c8e85582b74d38d2d885a765
+manifest 4ff283ebc0957144838d1ea84b3bf23ae67091a9
+author jruderman@hmc.edu
+files xpcom/string/src/nsReadableUtils.cpp

@@ -1,0 +1,4 @@
+changeset 6d3f1e3ccf5cf8d6256bab68a7de4c6205b925b5
+manifest f3c5c98929c9330b0853201562905108c82f8868
+extra rebase_source:e41763a11413d1cb66c2e4914a582f35cd9b60f0
+files dom/camera/GonkCameraControl.cpp

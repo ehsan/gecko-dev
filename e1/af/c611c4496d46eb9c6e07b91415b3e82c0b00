@@ -1,0 +1,4 @@
+changeset c369cffc9e6ac50ebd7c6d256b7784603b927f95
+manifest 776241e8c1e1f2a5e4d59d851aaf2fdc5a6c3609
+author mozilla.mano@sent.com
+files widget/src/cocoa/nsNativeThemeCocoa.mm

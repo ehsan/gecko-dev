@@ -1,0 +1,4 @@
+changeset cc2833ffc0c5c9517018157913a34eb4931f4031
+manifest ba1c25c72bbe3055bad25baab7050a3b09be37d3
+extra rebase_source:a951328c65ba80d2eee20829c58600babfd8b32e
+files browser/themes/shared/customizableui/customizeMode.inc.css

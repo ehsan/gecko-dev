@@ -1,0 +1,4 @@
+changeset 9af1c8cd1be61112060afc3f5034d67e6fd2e2c6
+manifest 0cfbd4c0380a6653096f8c14450ae030715d90f0
+extra convert_revision:2a6f54d0e9aafc1b3973d01cb7bf78815d53f9ec
+files js/src/nanojit/NativeMIPS.h

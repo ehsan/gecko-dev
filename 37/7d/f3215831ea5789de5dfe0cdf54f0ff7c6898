@@ -1,0 +1,4 @@
+changeset c53344e1200f4a681cd3aa87da008aadcf5bb5e4
+manifest 5087549d74e36d23916497fce9af3422d6dd6c55
+author reed@reedloden.com
+files gfx/src/thebes/nsThebesDeviceContext.cpp

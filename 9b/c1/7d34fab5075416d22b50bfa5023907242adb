@@ -1,0 +1,4 @@
+changeset 5a5ff788df9b7d2135c1e6d6e1f13c4695575e0e
+manifest fc93f54d43c92ee85a876ca00b35ceec5b14647a
+extra rebase_source:7327481bec62faa7d106bab8685b30b317658fb6
+files browser/metro/base/content/browser-ui.js

@@ -1,0 +1,4 @@
+changeset 0f067f201fc01484e5c989c59b0839742b76f614
+manifest c0bf1eadeb12c322e962f00f7799f580947c95aa
+author bent.mozilla@gmail.com
+files js/src/xpconnect/src/xpcwrappednative.cpp

@@ -1,0 +1,4 @@
+changeset 981bf3757cfffe5ccbc8c7daf253b42469e0c579
+manifest dd3f8e16e0fbd25b8f1aeba7052cc8a4b717ae4c
+author sayrer@gmail.com
+files js/src/xpconnect/src/xpcvariant.cpp

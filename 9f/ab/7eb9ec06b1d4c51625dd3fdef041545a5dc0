@@ -1,0 +1,4 @@
+changeset df76fbd4b076d69757e18185f433e6f25c7b8ea3
+manifest 5fbb5a588016a55da7d93cc5bc71016ef520dfa9
+author timeless@mozdev.org
+files xpcom/io/nsStreamUtils.cpp

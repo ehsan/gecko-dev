@@ -1,0 +1,4 @@
+changeset 9161f839cf13db3134d8cde7236d7c47592db89b
+manifest 71aca78c8959d9400698c9d238d941553d3df3de
+author timeless@mozdev.org
+files modules/libpref/public/nsIPrefBranch.idl

@@ -1,0 +1,4 @@
+changeset 6f28a60c1c71f5f938155bdebb97b9527d50c594
+manifest dee01e503d89f2e361af728f70392b2425f23538
+extra rebase_source:ab0e1f824d7efd2bb6b35d69a299b9ae7c79c1a4
+files toolkit/components/console/hudservice/HUDService.jsm

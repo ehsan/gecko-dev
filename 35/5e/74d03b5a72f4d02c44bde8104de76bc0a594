@@ -1,0 +1,4 @@
+changeset 2b8f2a439cd0cf9ffb05e1c9408b678382b7a594
+manifest ee21e5d88f980144e84e3470ab991cbe6821c1ca
+author dtownsend@oxymoronical.com
+files uriloader/exthandler/nsExternalHelperAppService.cpp

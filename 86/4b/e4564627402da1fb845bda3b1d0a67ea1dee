@@ -1,0 +1,4 @@
+changeset 6b61e24b217e7cc56fd7b12bf9e6203848ab552f
+manifest dab429750cc539496fc5aae48ed36b0599c3fd7b
+author benjamin@smedbergs.us
+files xpcom/stub/Makefile.in

@@ -1,0 +1,3 @@
+changeset 79211bb59624727f46a0d7febfe25b0b89c2c109
+manifest 7693ea4814132d6e908c25fa822c5eb5d7c3152c
+files browser/components/loop/test/xpcshell/test_loopapi_hawk_request.js

@@ -1,0 +1,3 @@
+changeset 56cc0792239137b08f2e6aa456dc232ae768aac0
+manifest 36f23e3d607484d765e1265392c58d677ece1759
+files media/webrtc/signaling/src/peerconnection/PeerConnectionImpl.cpp

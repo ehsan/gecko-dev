@@ -1,0 +1,4 @@
+changeset c1bb1e7c1b8c93548c271c9bf945f03b3bd7fb8e
+manifest e42c391956be434d7f4e9ba3424115e6be48eb42
+author gavin@gavinsharp.com
+files browser/components/migration/src/nsIEProfileMigrator.cpp

@@ -1,0 +1,4 @@
+changeset ebba64b59fe002d1b9ec8ce909c27f6c1e561f09
+manifest 76a97ec37da3372387a35c36584ea055d1b38d0f
+author bmlk@gmx.de
+files dom/tests/mochitest/Makefile.in

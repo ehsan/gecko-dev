@@ -1,0 +1,4 @@
+changeset bb281da676e2c33caaa0bc9d5e06c11ad64a20cd
+manifest e2f2595ded79404b6eb5af257af5c4aefbce0104
+extra rebase_source:c3d2776c68f3ea207d93d9e7575b51976f298c31
+files js/xpconnect/src/Makefile.in

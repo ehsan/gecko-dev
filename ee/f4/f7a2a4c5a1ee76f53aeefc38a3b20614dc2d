@@ -1,0 +1,3 @@
+changeset c9c57de74376d8aa9a5b3e3fc0cdb10806f61ce2
+manifest b361653a6164a6564d1d6a0608ed1021fcfedb4f
+files browser/base/content/test/general/browser_windowopen_reflows.js

@@ -1,0 +1,4 @@
+changeset c9f768c7806fd55e15234870a9187a3f48c0ee88
+manifest 1896728840d519a1c14e6abf8c5aac2cd3eaa168
+author hwaara@gmail.com
+files widget/src/cocoa/nsCocoaWindow.mm

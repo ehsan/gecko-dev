@@ -1,0 +1,4 @@
+changeset 6bf307dcad3bcaf7899379c3ed666fc62207015b
+manifest 3b44e9df38b3b96ac346ac968146c8a6c2c0b79f
+author rflint@ryanflint.com
+files toolkit/mozapps/downloads/tests/browser/browser_basic_functionality.js

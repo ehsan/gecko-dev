@@ -1,0 +1,4 @@
+changeset 3be651e9ac2aa795d03c66f5434bf430aca06871
+manifest 795dacc3411150c7203d46028beeb2bc82114794
+extra rebase_source:14099190f01219771382ab75e52d21cc888bddf0
+files toolkit/mozapps/extensions/test/xpinstall/browser_bug638292.js

@@ -1,0 +1,4 @@
+changeset 6a05c245907e93d58c57751332471dd4fdca43a9
+manifest 4afdc0ec724382a8701f1a1757b4b9b5837f50e5
+extra rebase_source:b092f9f09589a067b6d4370bf54768875e48fddd
+files extensions/spellcheck/hunspell/src/hunspell.cpp

@@ -1,0 +1,4 @@
+changeset ec184d1877cfc9138f81e028225f370693aefc92
+manifest 0a07cb8520c5403e3e8c877638eb13b0c755de59
+extra rebase_source:79ae8ff0f2ad0b4d5ce07895efdcc316e0264fc4
+files widget/xpwidgets/nsBaseAppShell.cpp

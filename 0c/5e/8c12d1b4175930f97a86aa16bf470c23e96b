@@ -1,0 +1,4 @@
+changeset d16196054cb05a25fef1e510f67c64a9e9d5f108
+manifest a90726c2fa6fffa0236834b40ebbab6b051abff6
+author bhearsum@mozilla.com
+files testing/release/l10n/verify_l10n.sh

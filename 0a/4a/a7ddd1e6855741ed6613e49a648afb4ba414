@@ -1,0 +1,3 @@
+changeset 7903012822eb4c1b074f0260084190134376c898
+manifest 51017e5e1ee24c096ed2f22aff03c48b0715071e
+files js/src/jit/shared/CodeGenerator-x86-shared.cpp

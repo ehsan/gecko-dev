@@ -1,0 +1,4 @@
+changeset fb3d803ef884bc0ba6c108f05eab9f2a572db716
+manifest 74465018feb2a3d3f4dd3ed3aeab6108e6feac28
+author reed@reedloden.com
+files content/xul/templates/src/nsXULTemplateQueryProcessorStorage.cpp

@@ -1,0 +1,4 @@
+changeset 751667cbec414eff84d30d95cc33f834fbf5c644
+manifest 71786a3237050dce079c8ad79d8bae25b9b33c1e
+author dolske@mozilla.com
+files embedding/components/windowwatcher/src/nsPrompt.cpp

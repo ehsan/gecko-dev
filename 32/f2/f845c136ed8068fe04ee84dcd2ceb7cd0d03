@@ -1,0 +1,4 @@
+changeset 247524e19d0ca99343b75b78d7ff695f85db3ddc
+manifest 81c92effd31f2fd1280326292d0d6123aa672680
+author wes@page.ca
+files js/src/jsregexp.cpp

@@ -1,0 +1,4 @@
+changeset 6bd943c2c7bb5b3e909f40aff468d90260d8fde8
+manifest 2f8973ebc0434013bf7c4ad73d3302d649418c23
+author timeless@mozdev.org
+files browser/components/shell/src/nsWindowsShellService.cpp

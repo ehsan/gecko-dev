@@ -1,0 +1,3 @@
+changeset 17d89cee3b1f7afbfd68a37fe8955ff5d595e4e0
+manifest 7c0d3873433866cf1c751c19902582e2cd41367e
+files toolkit/components/console/hudservice/tests/browser/browser_webconsole_bug_588342_document_focus.js

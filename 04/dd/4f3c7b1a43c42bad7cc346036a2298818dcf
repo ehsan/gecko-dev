@@ -1,0 +1,4 @@
+changeset b5289b9a1f8ab11a75ee5c217671faea8ee80a98
+manifest 1c18db879b478ad13b5d06fc33c9dc5d1eb94e52
+extra rebase_source:06d12e96de4397dc3f7dfba5efd4088251defc38
+files js/src/vm/HelperThreads.cpp

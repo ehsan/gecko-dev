@@ -1,0 +1,4 @@
+changeset 4f454177c8f9dc9dab5b3255ec50349ae2d04d68
+manifest cd924b8cf5343208e77d9e4377585ce300c798b7
+author surkov.alexander@gmail.com
+files widget/src/cocoa/nsMenuBarX.mm

@@ -1,0 +1,3 @@
+changeset f7f7e8683a87a49c049b204619eb1ab872d84ceb
+manifest ece8cb0b46651a76471a36c322cca884d9cc16f5
+files testing/mozbase/mozlog/mozlog/structured/structuredlog.py

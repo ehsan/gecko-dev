@@ -1,0 +1,4 @@
+changeset 9ce61ca40d2d4bb2b6866037b384b47ee19733f3
+manifest 96ed90e4a4f0253841b4c960e1fbc0e86a81c98b
+author dbaron@dbaron.org
+files xpfe/bootstrap/nsSigHandlers.cpp

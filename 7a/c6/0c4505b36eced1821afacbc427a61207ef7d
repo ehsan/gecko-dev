@@ -1,0 +1,4 @@
+changeset c83c06a2b77f90cb971f1d28fd02a30705956dd6
+manifest e61809d268f07a060b9b3b2f5eaf8633e7ed7308
+author kaie@kuix.de
+files security/manager/ssl/src/nsCertOverrideService.cpp

@@ -1,0 +1,4 @@
+changeset 87ac1dd8a5f67645580d1541f1cebbb2534185e9
+manifest ec33705f1ce055178a849ea38b11bf8b6d53248c
+author edward.lee@engineering.uiuc.edu
+files embedding/components/webbrowserpersist/src/nsWebBrowserPersist.cpp

@@ -1,0 +1,4 @@
+changeset 34d0394ad69da798c608fbfdb933bfcdffd97208
+manifest 3fbf5ed057259c93c2c07db63bb89a128e24270e
+extra rebase_source:47dd3ab1e24967e323b60a46adffca207015c0f4
+files browser/themes/shared/tabs.inc.css

@@ -1,0 +1,4 @@
+changeset b28ee5281f086ae7fb5c896e7ada745d16eb0b8d
+manifest 219fbf61f23619353a9b5175e7de1c9d0fe19ad9
+author pavlov@pavlov.net
+files gfx/thebes/src/gfxFontconfigUtils.cpp

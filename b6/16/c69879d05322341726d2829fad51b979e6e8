@@ -1,0 +1,4 @@
+changeset cf5a75603f1334893e0faf452f969990de14d211
+manifest 4325bd1890a16a38728b86310aae6d763efd80bc
+author Masatoshi Kimura
+files gfx/thebes/src/gfxFontUtils.cpp

@@ -1,0 +1,3 @@
+changeset aabc31b1b29e17290a8c0ebb982e9adfe9b1c8c7
+manifest 4f51dd7a2c8b421d3f474256664d64c8626e5f2e
+files js/src/methodjit/FastOps.cpp

@@ -1,0 +1,4 @@
+changeset c6c7aa17862f8ab9379ba25069620fb9b5f2888b
+manifest 4380ad71344402d16e1471700dee81d823b88a50
+author maciej.a.kaminski@gmail.com
+files widget/gtk/nsFilePicker.cpp

@@ -1,0 +1,4 @@
+changeset 822527b6f13b7e99104c9702b9ce1e7a004fce30
+manifest 7d3dd17d04171b2c102ccb83884dd332b8c5fd2d
+extra rebase_source:7cc34c1653d50080fe5dc2da695203a7972e2530
+files js/xpconnect/wrappers/XrayWrapper.cpp

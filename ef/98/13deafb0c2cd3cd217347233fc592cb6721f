@@ -1,0 +1,3 @@
+changeset 6a106e8890b23091e9750500b00363ddcee7e2bb
+manifest d2cf2c295218c4b8203ae592c77d62e35dc6214a
+files browser/components/sessionstore/test/browser_crashedTabs.js

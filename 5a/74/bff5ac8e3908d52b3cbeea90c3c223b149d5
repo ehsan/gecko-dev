@@ -1,0 +1,4 @@
+changeset 31581ae56a599775a3959139e9e028677e153b93
+manifest bf46b5e5ccd8c85035b8178168210578420d7d8c
+author mrbkap@gmail.com
+files caps/src/nsScriptSecurityManager.cpp

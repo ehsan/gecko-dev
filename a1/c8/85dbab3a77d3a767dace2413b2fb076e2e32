@@ -1,0 +1,4 @@
+changeset 432a8750016a7e86eb577ece6369fd2003cc0e16
+manifest 683c6c21367ad68768eefd7c44c15f77f99ad9d2
+extra rebase_source:40747853f0974e48437307d819c9d180313d2006
+files browser/components/nsBrowserGlue.js

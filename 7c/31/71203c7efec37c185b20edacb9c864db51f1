@@ -1,0 +1,3 @@
+changeset 5eb2472d835d834df4a3965a96a898494e56cf9e
+manifest 30d524882bcb8878462be3057f05d7ae25e11c2c
+files dom/indexedDB/test/webapp_clearBrowserData.js

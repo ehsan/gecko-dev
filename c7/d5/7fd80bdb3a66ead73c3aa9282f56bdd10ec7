@@ -1,0 +1,4 @@
+changeset 25e69c8352d83b85229c8eb8ecc6ed5b598191af
+manifest 0b6d2ae576b1a5a19646d00fe933fcb82dd6db4e
+author reed@reedloden.com
+files xpcom/glue/nsCycleCollectionParticipant.h

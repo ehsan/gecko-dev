@@ -1,0 +1,3 @@
+changeset bf759fde3847030e10651818e2e4ffdcc09d6359
+manifest 4cf3a4444cf83a5070f131383035032e69b0c4db
+files toolkit/components/telemetry/tests/unit/xpcshell.ini

@@ -1,0 +1,4 @@
+changeset 899fc2b473360145010082a4cb44d9d45406a5c9
+manifest 3afae428fae9200f52db3bfdf9c11d6aae54717f
+extra rebase_source:49c9832bc0cbecf229bcd8deeb8d4b78297b039f
+files dom/interfaces/base/nsIDOMWindow.idl.orig

@@ -1,0 +1,4 @@
+changeset d827810f413219365ea339469249229bea77d0b8
+manifest 84d1b8ef867d1597716f29cda88b43a68fbb1edb
+extra rebase_source:dc9ffd9026b5060d9606140ccfcc77de1ff972aa
+files browser/metro/base/content/bindings/urlbar.xml

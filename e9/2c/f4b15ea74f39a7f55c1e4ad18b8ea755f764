@@ -1,0 +1,4 @@
+changeset d93cd1518beae6728823c3d815e46978c56b45a8
+manifest 52f4f03c24e1ad4027b6fb462c44465702bf450b
+author Evan.Yan@Sun.COM
+files accessible/src/atk/nsXULTreeAccessibleWrap.cpp

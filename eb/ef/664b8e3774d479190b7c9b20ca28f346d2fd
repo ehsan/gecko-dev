@@ -1,0 +1,4 @@
+changeset 3e30602dd75ace07cdd2885e0fcbfaddbccb9226
+manifest d27226e37c382478d7d84c320aec36bf9e1bfe40
+author mats.palmgren@bredband.net
+files dom/src/base/nsScreen.cpp

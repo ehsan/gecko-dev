@@ -1,0 +1,4 @@
+changeset 32f0c9e09c1e5ff19f65296021f991bc3bcf7abd
+manifest 94c832ba985f7c8465bce4efb4e0d1250c355d44
+author masayuki@d-toybox.com
+files layout/forms/nsTextControlFrame.cpp

@@ -1,0 +1,4 @@
+changeset 470e4e3f689c7317f0f175957e4b0792b87ac684
+manifest 12c3e170491b228e8e84a13ac5143937725dae85
+author mozilla.mano@sent.com
+files browser/components/places/content/treeView.js

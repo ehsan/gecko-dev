@@ -1,0 +1,3 @@
+changeset c0a7a30a8a3055c29892b479dadb6435eb30393b
+manifest 92c2a1af9f411ae3b9d2ccd289e5fd45300e153d
+files media/libsydneyaudio/bug525401_drain_deadlock.patch

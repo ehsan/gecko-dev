@@ -1,0 +1,4 @@
+changeset 80651ffb06d6475dd3d16b72534b86521da917ff
+manifest 10abc5d6e73105c0fd2bdb285268848bff50cef2
+author jwalden@mit.edu
+files js/src/jsbool.c

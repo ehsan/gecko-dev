@@ -1,0 +1,4 @@
+changeset 159979edb2f55e8a0245e2d6b998c18e169081ad
+manifest eb2d118e94a8153b9b1c3d1884c29e982b2e428f
+author dietrich@mozilla.com
+files browser/components/places/content/utils.js

@@ -1,0 +1,4 @@
+changeset f212da74389af8fa11930b0b6d51e5eb32e61010
+manifest 323c10ad0a192d4c6cace6da830ab980b4897017
+author dcamp@mozilla.com
+files xpcom/glue/nsProxyRelease.h

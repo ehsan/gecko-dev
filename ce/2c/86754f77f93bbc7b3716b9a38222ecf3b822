@@ -1,0 +1,3 @@
+changeset bba94df69c13b33ad84cf2f43ac0565f26b9579a
+manifest aaf7a1ceda0900275c300d539cb1fa86cb5e7e41
+files js/src/vm/ProxyObject.cpp

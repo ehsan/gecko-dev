@@ -1,0 +1,4 @@
+changeset 0e3e4275119519096133d0967bf703a769b93952
+manifest 9de1d5ac998d229ded7c3c922e23ed76b6998711
+extra rebase_source:662ef6f39966956be5588d9bd7508dbe59a2c537
+files mfbt/WeakPtr.h

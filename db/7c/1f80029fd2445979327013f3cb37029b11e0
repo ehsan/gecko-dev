@@ -1,0 +1,4 @@
+changeset 07acbb0dc47a9733c7eeb37dba035971f5df179b
+manifest d87183c75d68d4bb3c122151706d8015670371ed
+author flamingice@sourmilk.net
+files browser/components/sessionstore/src/nsSessionStore.js

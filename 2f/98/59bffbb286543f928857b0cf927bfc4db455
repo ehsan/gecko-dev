@@ -1,0 +1,4 @@
+changeset 3029d3574f2e259806dc35fbf3ea3155e553bc0d
+manifest e93a7097d22ef456dae5cb138b3e28ec4f51278f
+extra rebase_source:2f75449efde0b54e37e45d425054a23d5ad312b8
+files browser/metro/base/content/browser.xul

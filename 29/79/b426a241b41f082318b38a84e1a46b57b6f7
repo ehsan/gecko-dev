@@ -1,0 +1,4 @@
+changeset 9436033c441e301983f19990a5dfbbf901230c3e
+manifest c2c63bb73761b4f5429fd5ad5bba98e034dd78a5
+author rob_strong@exchangecode.com
+files browser/installer/windows/nsis/uninstaller.nsi

@@ -1,0 +1,4 @@
+changeset b0738a6a17faa0112d92c3dc8406e03d078dd445
+manifest 7869c2755099aeb6c6fd2e4c4f5c8b20ad7e73d3
+author Marco Bonardo [:mak77]
+files browser/base/content/test/Makefile.in

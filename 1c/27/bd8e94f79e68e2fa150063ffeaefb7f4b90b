@@ -1,0 +1,4 @@
+changeset 81bec89d093b0533b355a2a8ffa60c1fc97c021a
+manifest 148f2cd37e7262dce935e01808d4a1ccce4bc8f6
+extra rebase_source:74e300e96b50b470dbc89cdbbcfb9dbc7b75e629
+files xpcom/base/CycleCollectedJSRuntime.cpp

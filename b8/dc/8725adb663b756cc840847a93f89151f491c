@@ -1,0 +1,4 @@
+changeset abf4de72d93eee2b35a8022d9a8263e123d1fd48
+manifest 070d0f8438b8fa19bd15243cde7fa110a8bfae7d
+author mats.palmgren@bredband.net
+files xpcom/reflect/xptcall/public/xptcall.h

@@ -1,0 +1,4 @@
+changeset 510f000eb23ce5a7e6c1de6bcea1e96373d1b1b0
+manifest 36277b431aeda93f651ce9877e686c25d407b754
+author rob_strong@exchangecode.com
+files toolkit/mozapps/extensions/src/nsExtensionManager.js.in

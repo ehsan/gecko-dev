@@ -1,0 +1,3 @@
+changeset 14c50f120fe9efc5772c336434ef915100b70c43
+manifest 539a9d2950859d9f24d79ff5f5b5758fbc5a5f20
+files media/webrtc/signaling/src/softphonewrapper/CC_SIPCCService.cpp

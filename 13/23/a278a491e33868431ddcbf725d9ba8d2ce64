@@ -1,0 +1,4 @@
+changeset 7ed3b1c14e926682d424f33d67340dbe6ab70222
+manifest cf6af27d49525a9b1c922e896a22135b51516891
+extra rebase_source:0f9e38450b8feb3f282e2ee73aa9482cde59f7f9
+files chrome/src/nsChromeProtocolHandler.cpp

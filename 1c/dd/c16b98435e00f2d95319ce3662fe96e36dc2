@@ -1,0 +1,4 @@
+changeset e8d5de0a3e33f0d8a51a15d679bf8ecb2e690623
+manifest 06b31df955dc27478b157c49651377e9d9ecfee1
+author jruderman@hmc.edu
+files content/base/src/nsContentIterator.cpp

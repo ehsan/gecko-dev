@@ -1,0 +1,4 @@
+changeset 89e4e5c1581957b38d50ba323562a22b33f31287
+manifest 98ddae9a039262d015910c1874de78c1db85846c
+extra rebase_source:af259396ff4496b97d53edf39fa8f28c7edf9978
+files browser/devtools/markupview/markup-view.js

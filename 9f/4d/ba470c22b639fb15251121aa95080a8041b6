@@ -1,0 +1,4 @@
+changeset 4eaf2d1b2115ce9c2bc70a6da58142c8940ceb97
+manifest 6dd2e6980f659d5b37b926ddf5f68f8080204478
+author Olli.Pettay@helsinki.fi
+files widget/src/xpwidgets/nsBaseDragService.cpp

@@ -1,0 +1,4 @@
+changeset cf37b0966a68f2486fcc0c3c71d41b8556e23e58
+manifest c896b9e63ef6f370aace606bb0a6a1fe00b84dd1
+extra rebase_source:ff593ecc2082dea276f7fe09734394dce595a20c
+files js/src/jsproxy.cpp

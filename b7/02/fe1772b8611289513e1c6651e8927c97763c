@@ -1,0 +1,4 @@
+changeset a131fbbe92348f70608af6a96cb105b545ab8320
+manifest 089b0521740966a9395674f31f97b0ce7853c8b8
+author jruderman@hmc.edu
+files content/xul/content/src/nsXULElement.cpp

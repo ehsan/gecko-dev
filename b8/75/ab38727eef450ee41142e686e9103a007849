@@ -1,0 +1,4 @@
+changeset f9ca5998c9de1609a219814bbdae5f5d61e0c8c2
+manifest e0e8db084bee03ad467ab95a5e5844fc2934803d
+extra rebase_source:bb5f65755cc1f1792a977184678bbf1b01781fa2
+files widget/src/gtk2/gtk2drawing.c

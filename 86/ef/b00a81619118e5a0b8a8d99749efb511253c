@@ -1,0 +1,4 @@
+changeset 169bc036ce30a92b329e38bbfb9a3f27166b2050
+manifest b0824f290b9f4d597bbe2d7de42166512feb0ddb
+extra rebase_source:2e1fb9896bcbf12bc6d2772c02a1cc9557efe6eb
+files modules/plugin/base/src/nsJSNPRuntime.cpp

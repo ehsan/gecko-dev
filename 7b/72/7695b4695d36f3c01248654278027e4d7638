@@ -1,0 +1,4 @@
+changeset 4e12a34e539814af442e22d5699ea077a8e4f80d
+manifest 19db74dac83274df66de7ed6c848ebed014fe635
+extra rebase_source:a674a41c5cf22d5697f734354635e3a2d371ec5e
+files browser/themes/pinstripe/browser/tabview/tabview.css

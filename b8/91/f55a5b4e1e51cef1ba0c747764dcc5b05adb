@@ -1,0 +1,4 @@
+changeset e1d5f1d45c402f66b1f93c6442c30852f94a7f79
+manifest c025b4abbdd0e3d85c71d6bf6f8de721fe09bb28
+author mcsmurf@mcsmurf.de
+files browser/components/shell/src/nsSetDefaultBrowser.js

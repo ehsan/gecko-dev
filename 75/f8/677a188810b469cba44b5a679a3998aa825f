@@ -1,0 +1,4 @@
+changeset d992d6a392259e395c35ba84798ca2d776fc39e4
+manifest 41d7e2b9cacd6c7917fb8fdd20850f69efa59b5a
+author pavlov@pavlov.net
+files gfx/thebes/src/gfxWindowsFonts.cpp

@@ -1,0 +1,4 @@
+changeset 6f8b6e5b16e9284992346a3954599ad6411acaf9
+manifest e254b5aac405196aea814b88967a55c14de0fc91
+author bugzilla@standard8.demon.co.uk
+files xpinstall/wizard/windows/palmsync/Makefile.in

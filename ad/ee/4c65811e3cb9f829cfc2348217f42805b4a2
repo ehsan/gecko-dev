@@ -1,0 +1,4 @@
+changeset 347a8f2e6df77e7dd2d2e92d1bec36afba429891
+manifest 97c5e1d470207c29c858c9ef687475dd778440fd
+extra rebase_source:1d6bdc60c6a6769a0518ac195807f71c699c8e06
+files mobile/android/components/SessionStore.idl

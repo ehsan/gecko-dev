@@ -1,0 +1,4 @@
+changeset 9890b011509b20a5f671026b97043ee03c1b5c46
+manifest 7742e2a6f63fb61f5d62a55f6b73b53d7189333f
+author peterv@propagandism.org
+files browser/components/feeds/src/FeedWriter.js

@@ -1,0 +1,3 @@
+changeset fba2eb0c80ab5106ca2e23a814efa24476010537
+manifest 2202e1d801f5dca74eaddf16598ac6b841fa3770
+files browser/components/sessionstore/test/browser_595601-restore_hidden.js

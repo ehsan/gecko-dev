@@ -1,0 +1,4 @@
+changeset a994ba59bfa2a61a68f4d8af4cfd74438abf034c
+manifest 75dc34f5b7bdc23e652ad80cb7a21c7559b777e0
+author gavin@gavinsharp.com
+files toolkit/components/places/src/nsNavBookmarks.cpp

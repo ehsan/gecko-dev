@@ -1,0 +1,4 @@
+changeset f88e7ba8db3224fceefe7e9d3d68a2cb92920ced
+manifest 8c79c5f8cea2a5ac040b5dfc95e880cc6924b6b0
+author reed@reedloden.com
+files js/src/xpconnect/loader/JSON.jsm

@@ -1,0 +1,4 @@
+changeset 986fcf4d38829f46d846c833326537d24e690dfd
+manifest cb749d224ee7102395de9ebf7c5afe2ba5f03ec0
+author tglek@mozilla.com
+files content/base/src/nsPlainTextSerializer.cpp

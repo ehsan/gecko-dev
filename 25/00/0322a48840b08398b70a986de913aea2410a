@@ -1,0 +1,4 @@
+changeset bbf2ca59e0a39d6ed6e032310e610fe36a039f8c
+manifest c31adabfdf20aa7c7a9db498b892eab4f889d9a8
+extra convert_revision:ddf045b983f32d3f9a2cfc666ecbe825efe9b182
+files js/src/nanojit/avmplus.h

@@ -1,0 +1,4 @@
+changeset e79b2b60d39488dfc295fc56345d35c0e7b328d3
+manifest da99bf2e8914b53bd4566389e3859c33be5443e7
+author Olli.Pettay@gmail.com
+files xpfe/appshell/src/nsXULWindow.cpp

@@ -1,0 +1,4 @@
+changeset 402dd8e1c9fcb312907b7460afe812fc586e0d01
+manifest 5b86a7516a41c9e4a59c40908ca0054e010bcdab
+author rhelmer@mozilla.com
+files tools/release/Bootstrap/Step/Tag.pm

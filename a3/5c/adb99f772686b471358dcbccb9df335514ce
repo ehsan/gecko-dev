@@ -1,0 +1,4 @@
+changeset fb70ea388fd8c2fc7c6a18d4d1222b40613d82d2
+manifest f447251177a6a0d977726695011c577941b6c229
+author thunder@h-132.office.mozilla.org
+files services/sync/modules/async.js

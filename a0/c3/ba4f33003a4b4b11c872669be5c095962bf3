@@ -1,0 +1,4 @@
+changeset 81672e5fce70b6198ae881ac3d4f2ccc5e6d8c5b
+manifest 72db4aa8b403bedb356c0809955cb37861df7851
+extra rebase_source:b22861e81887e3f578ef0fbb7bbf63bdc1148973
+files mobile/android/base/resources/layout/tabs_panel.xml.in

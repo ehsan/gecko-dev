@@ -1,0 +1,4 @@
+changeset 883f25c133fc19452a45dddca2b19db665aa38fd
+manifest e8b92ee57e1c86f793b112dea1377c29d59635bb
+author dmose@mozilla.org
+files uriloader/exthandler/nsExternalHelperAppService.cpp

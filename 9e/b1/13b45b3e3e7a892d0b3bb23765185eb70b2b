@@ -1,0 +1,3 @@
+changeset 4b694a8b31099a1d64bbd4aa9e41a5792377de68
+manifest 084c74207e5b5e56a14f5f27955b549605458ecf
+files toolkit/mozapps/update/test/unit/test_0202_app_launch_apply_update_dirlocked.js

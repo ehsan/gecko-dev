@@ -1,0 +1,4 @@
+changeset 205e81133b5f62d21dcd46e1aee9efe577d95d12
+manifest 94e9c3ef5ce4e5893287f24e93b752c321f6e9f7
+author timeless@mozdev.org
+files caps/idl/nsIScriptSecurityManager.idl

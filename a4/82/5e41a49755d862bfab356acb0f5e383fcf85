@@ -1,0 +1,3 @@
+changeset 384d6c7ec6d5794171fab393bb17d6f53b7ae96b
+manifest 011618bfa4e3323dfd82760ca31fac2c7f0d1382
+files js/src/xpconnect/tests/unit/test_bug565230.js

@@ -1,0 +1,4 @@
+changeset 3ce5e837e32d0f47e98b6b7c916d3c73413114a8
+manifest 9e57781717eec0852d7af0455fa8c9ffc31f481d
+author gavin@gavinsharp.com
+files netwerk/protocol/about/src/nsAboutCacheEntry.cpp

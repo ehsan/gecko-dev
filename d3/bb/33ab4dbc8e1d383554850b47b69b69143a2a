@@ -1,0 +1,4 @@
+changeset 1fcbd7d306a40e2af0dabf9d2bb389d02c21043c
+manifest 23ff3f3146bcc51b999649fd69fe3b5c9a99178b
+author roc+@cs.cmu.edu
+files widget/src/xpwidgets/nsBaseDragService.cpp

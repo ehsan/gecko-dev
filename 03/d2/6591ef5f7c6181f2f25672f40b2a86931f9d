@@ -1,0 +1,4 @@
+changeset a8a2d3844948fb59f0990da2476d4102910bb568
+manifest 8b9715ff12c84c9a6e0764f14e7bb93ce5eabb01
+author sdwilsh@shawnwilsher.com
+files uriloader/exthandler/nsExternalProtocolHandler.cpp

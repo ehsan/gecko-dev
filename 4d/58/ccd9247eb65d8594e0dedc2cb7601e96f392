@@ -1,0 +1,3 @@
+changeset 856cbee226d244a6b1fe86b5d33de462a19b203b
+manifest 45681ca207e518a6ef0e37090172a8cceff48fdc
+files dom/interfaces/base/nsIContentPermissionPrompt.idl

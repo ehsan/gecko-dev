@@ -1,0 +1,4 @@
+changeset 3a8475b801a4f68b7b8d27a3981aed885b80614f
+manifest 43313ce47f54879a9ddbb0f3e2c1eca0ef077433
+extra rebase_source:c9cb0ea2264713facc0d7c27e16342eb13d9751a
+files media/libsydneyaudio/src/sydney_audio_gonk.cpp

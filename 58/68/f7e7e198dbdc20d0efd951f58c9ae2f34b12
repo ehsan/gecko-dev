@@ -1,0 +1,4 @@
+changeset e81a7ff740bdbdfda1e0599a442d24fed38d54a9
+manifest 81b03a1de036a373c20b305be074e088eb25d260
+author Zbigniew Braniecki (zbraniecki@mozilla.com)
+files js/src/jsparse.cpp

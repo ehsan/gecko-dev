@@ -1,0 +1,4 @@
+changeset f1254b0f2fd8ef16c563adbd74522eece080a3a4
+manifest ea147a08292a366fd75bc913a2aeecce7acf3dcc
+extra amend_source:46094402a2713e6ecf09399776334a7553340903
+files build/gyp.mozbuild

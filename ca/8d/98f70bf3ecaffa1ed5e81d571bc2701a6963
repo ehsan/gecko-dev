@@ -1,0 +1,3 @@
+changeset 142532172c8c7caaf9b6638830ef9b8dfbd42390
+manifest 90c2852b2c6dca0a259e25d3841f556f4680c954
+files toolkit/mozapps/downloads/tests/unit/test_DownloadLastDirWithCPS.js

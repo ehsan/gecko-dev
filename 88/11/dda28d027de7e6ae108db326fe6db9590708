@@ -1,0 +1,4 @@
+changeset 9ec39c794e63f190be0e7c218c8c9d7723bc9a9b
+manifest 658bad8a052a1658574fb69121303e3a6ea6ea33
+extra rebase_source:bc087eb4c541411d5adc696b267295d4d172614e
+files js/src/xpconnect/src/qsgen.py

@@ -1,0 +1,5 @@
+changeset 897c31ade10018f04ab1f5c8013ca8aa1bf9efef
+manifest b0706547c01612c095c39322b80795270ebd529f
+author timeless@mozdev.org
+extra rebase_source:fb8c42a04580f12e5d1ca89dd67861f8a2941bc8
+files content/canvas/src/WebGLContextGL.cpp

@@ -1,0 +1,4 @@
+changeset d90652534ac87794ecb4ead6682c77d43f6ab2eb
+manifest f256249e5df38d231ced8a79ab585add87e3f8f8
+author ccooper@deadsquid.com
+files tools/release/Bootstrap/Step/Stage.pm

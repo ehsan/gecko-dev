@@ -1,0 +1,4 @@
+changeset 18fcca045f2ed2dea809499c011dbe8a7d7fa2eb
+manifest 3a0968fa26296aa25960d8f3d490967b06b94ece
+author vladimir@pobox.com
+files xpcom/base/nsMemoryReporterManager.cpp

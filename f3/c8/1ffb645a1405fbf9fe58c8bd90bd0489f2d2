@@ -1,0 +1,4 @@
+changeset 085dd5743e8722cc451ad2861f934878459521ee
+manifest ec686d6dcc896109b6fc02f6f3832c829fb0574d
+author rhelmer@mozilla.com
+files tools/release/configs/fx-moz19-staging-bootstrap.cfg

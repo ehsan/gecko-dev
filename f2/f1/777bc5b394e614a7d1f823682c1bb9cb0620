@@ -1,0 +1,4 @@
+changeset baf0c10d31395e3dcde114ea0a58303c4072177e
+manifest 8bd948d50507d8cb11ee83dcbf02afb81a68dca9
+author Olli.Pettay@helsinki.fi
+files content/base/src/nsGenericElement.cpp

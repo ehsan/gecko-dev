@@ -1,0 +1,4 @@
+changeset b40c752f1d59403f401bb809553cdbc376c77c86
+manifest 280fa64150f731be4c96fea1406eba90c671908f
+extra rebase_source:99f3369b5956d9567051037e2befef7ea1391aab
+files dom/tests/mochitest/pointerlock/test_pointerlock-api.html

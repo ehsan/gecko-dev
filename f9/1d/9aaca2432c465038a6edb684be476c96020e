@@ -1,0 +1,4 @@
+changeset 348653903677255dee311c521b851102a2260c73
+manifest 843bee4dc99c21dc4623f0515b760782e42b6d92
+extra rebase_source:768fe9d869c1aff743fbc69b5f537668eedf3298
+files mobile/android/base/gfx/CheckerboardImage.java

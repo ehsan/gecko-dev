@@ -1,0 +1,4 @@
+changeset 6f676b618380fae9de7641ce1c0af84f5eaa45d8
+manifest 0e6981b984a2fed0ad21b87d8bbaf9750b69e302
+extra rebase_source:79f5dc473d9e9812041a76853237aaead86f0e69
+files widget/src/gtk2/nsPrintDialogGTK.cpp

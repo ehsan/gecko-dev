@@ -1,0 +1,4 @@
+changeset 6a381fc27af802686d0a2a89119fc6402a8b39cb
+manifest ab994dfa938a260569acb1a6d6387e629e84296f
+extra rebase_source:09c130d67cb052068e7d8612805bb6c03645de57
+files testing/config/mozharness/android_arm_config.py

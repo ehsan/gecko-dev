@@ -1,0 +1,4 @@
+changeset 2ac8ec49bd20a83cf5689317ff8d727fe88c34ff
+manifest 4db441c0d3f99c5f9cc5507a03344bc573c92f7b
+author shaver@mozilla.org
+files js/src/config/WINNT6.0.mk

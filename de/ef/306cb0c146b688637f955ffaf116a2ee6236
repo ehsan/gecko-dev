@@ -1,0 +1,4 @@
+changeset 7429ef0422221dd1a17c9fd387e4346907f13212
+manifest 23597e0364eeef351a9f067b8caf49de9ef680b5
+author jwalden@mit.edu
+files js/src/jsnum.c

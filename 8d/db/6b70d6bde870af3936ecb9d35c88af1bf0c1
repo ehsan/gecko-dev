@@ -1,0 +1,4 @@
+changeset c018e8495d32efa117e4a8e390aa963eb9aa475a
+manifest ec4ce1339618a8c99586a6e202b1d5d04c121ca4
+author timeless@mozdev.org
+files toolkit/mozapps/extensions/amIInstallTrigger.idl

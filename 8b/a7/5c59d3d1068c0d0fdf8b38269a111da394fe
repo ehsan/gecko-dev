@@ -1,0 +1,4 @@
+changeset 36610aacfae1c7080d6ee4d13094b28e827b3200
+manifest d01fbc6a190a845013e57b05a9fcf09bb314c543
+author philringnalda@gmail.com
+files toolkit/components/places/tests/chrome/Makefile.in

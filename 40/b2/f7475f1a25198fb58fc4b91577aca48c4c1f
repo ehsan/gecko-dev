@@ -1,0 +1,4 @@
+changeset dbd7271872f71694d3dc31996b29c8c1275f1940
+manifest 7e5bb2e5be7d0b94cd95b19871a41b16c21e873a
+extra rebase_source:d9658b67bae73031b2a8212764a33bff8f0e3bb7
+files mozglue/build/BionicGlue.cpp

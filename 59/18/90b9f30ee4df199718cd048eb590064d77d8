@@ -1,0 +1,4 @@
+changeset aa18109c3a5c8a0f315b605989aa9418866ed7cd
+manifest 31fb6773da72ce2e7eceac6cf0e61d8637eb6644
+author timeless@mozdev.org
+files layout/style/nsComputedDOMStyle.cpp

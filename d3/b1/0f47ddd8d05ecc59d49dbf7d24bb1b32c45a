@@ -1,0 +1,4 @@
+changeset 6d93b1ffb2ce1d4f8c2e93c91b1b86d1d62cdf58
+manifest 64d941432d46f597365e655e4e18610ba225a3de
+extra rebase_source:cc0b2c5cde247d890b3522a08d3269a23d063710
+files js/src/frontend/ParseNode.cpp

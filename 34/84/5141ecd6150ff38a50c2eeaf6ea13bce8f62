@@ -1,0 +1,3 @@
+changeset 2e74de9aee3ac752e3697da4417f6178a00c4706
+manifest e0a714a860822aa1fe137bf3080ce48518a88f54
+files js/src/ctypes/libffi/src/powerpc/asm.h

@@ -1,0 +1,3 @@
+changeset 65bbddd22ef087f1ddd9749dbe940edd493f9bfe
+manifest 768925394bcdcefba5c930d0a765c65902e19d1d
+files js/src/tests/ecma_5/JSON/parse-array-gc.js

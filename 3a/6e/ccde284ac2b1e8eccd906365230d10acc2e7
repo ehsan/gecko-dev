@@ -1,0 +1,4 @@
+changeset 64e43155343284dcb81d15cbebaf941eb740dc66
+manifest 47787597f1ee88dedcb288bb7b416429eef33fef
+author dbaron@dbaron.org
+files rdf/datasource/src/nsLocalStore.cpp

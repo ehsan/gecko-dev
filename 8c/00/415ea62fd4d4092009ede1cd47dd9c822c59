@@ -1,0 +1,3 @@
+changeset ee221e1e179f2e321eb715fbc8259a37841daaf7
+manifest ea1fc81bc5cf92a05b895df5dfb5b94adc0263fe
+files ipc/glue/MessageChannel.cpp

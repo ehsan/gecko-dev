@@ -1,0 +1,4 @@
+changeset 2fe43cd24345fe2a54089cc478b3b5210c8d5bd7
+manifest 5e79bde5b4a0a0ea45fcc9da1fd1405d495725b4
+extra branch:GECKO20b7pre_20101006_RELBRANCH
+files gfx/layers/opengl/ImageLayerOGL.cpp

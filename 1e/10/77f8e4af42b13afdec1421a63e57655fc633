@@ -1,0 +1,4 @@
+changeset 0aabf3333b5bc2eddac5740d4dd74c2b36892770
+manifest ec9f71e439524969a5ecb88f52c5e53ccb6d6e0d
+author gavin@gavinsharp.com
+files browser/components/search/nsSearchSuggestions.js

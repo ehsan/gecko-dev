@@ -1,0 +1,4 @@
+changeset df280dd46a5fce27792391c452329daa86b9dbec
+manifest 9f164470da350ce4255178cdef6a52c91cbe11b0
+extra branch:GECKO20b1_20100628_RELBRANCH
+files browser/installer/package-manifest.in

@@ -1,0 +1,4 @@
+changeset 1ee3a01043073b8868b1eca5a4e64a9920146f4b
+manifest 937d9ab11629c45da1f671216ff76a6881c08022
+author ted.mielczarek@gmail.com
+files toolkit/crashreporter/tools/upload_symbols.sh

@@ -1,0 +1,3 @@
+changeset 5cbb5ccceff08852d6dfda412293ab8ddc710a5e
+manifest dc2e4f7cc5b5a911d8cd72cef3b1adc8a77c95bf
+files toolkit/components/search/tests/xpcshell/test_migratedb.js

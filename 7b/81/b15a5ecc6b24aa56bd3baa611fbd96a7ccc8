@@ -1,0 +1,4 @@
+changeset 302700e9ce9f0f9241e7a2cba8b7b73a13e22058
+manifest bc1bd5c5d3a336a2a4ab90589c6c7e834bb46955
+author jonas@sicking.cc
+files toolkit/components/feeds/src/nsScriptableUnescapeHTML.cpp

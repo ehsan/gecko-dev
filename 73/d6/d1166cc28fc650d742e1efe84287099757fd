@@ -1,0 +1,3 @@
+changeset 80229aca54f9d27e6cf37963f93bcd5b54162f13
+manifest d52360d510f06723044865c6862f7d3f2de163ec
+files toolkit/mozapps/extensions/test/xpcshell/test_db_sanity.js

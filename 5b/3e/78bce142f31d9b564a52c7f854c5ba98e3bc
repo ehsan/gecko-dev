@@ -1,0 +1,4 @@
+changeset f3f8ffe30e2b5b8f2bc7ab0d03ef3d66e8ae9b44
+manifest 311a63a1b62a20b5dceb208d188657c378000f41
+extra rebase_source:e9531a6c13298f3f542560d7d7357950ceffcd2e
+files mobile/android/installer/package-manifest.in

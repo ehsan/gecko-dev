@@ -1,0 +1,3 @@
+changeset 879c18630cd352d2c5728f80803b6c205836e448
+manifest 6f2db1f1ce83465641fd8ec1bbdcc6cc36c40fb2
+files js/xpconnect/src/XPCWrappedJSClass.cpp

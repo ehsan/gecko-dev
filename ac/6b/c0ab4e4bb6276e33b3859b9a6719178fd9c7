@@ -1,0 +1,4 @@
+changeset 71c13ab40153dddf0dc98a65d3f5daebb195c1b3
+manifest d06b738480b0161a34e7925a42725b8ab3de52d0
+author jwalden@mit.edu
+files dom/tests/mochitest/dom-level0/test_crossdomainprops.html

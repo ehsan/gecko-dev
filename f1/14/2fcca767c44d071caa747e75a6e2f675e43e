@@ -1,0 +1,4 @@
+changeset baac67ac926485ab4761baa268430ee40ad4537d
+manifest c05f68e934e3cd70cf720f4f39dcd1ba33a3573f
+author mconnor@steelgryphon.com
+files widget/public/nsIWidget.h

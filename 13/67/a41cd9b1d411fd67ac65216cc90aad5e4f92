@@ -1,0 +1,4 @@
+changeset aba6af3a5ad1656722290a22a17eea45d39a6c7e
+manifest dbdd9382f9205cae5b468b2a1ddbef68c6f80e2e
+author Sergey Reymerov<sergeyreym@gmail.com>
+files content/xslt/src/xpath/txResultRecycler.cpp

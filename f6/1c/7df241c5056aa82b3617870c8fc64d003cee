@@ -1,0 +1,5 @@
+changeset 5fcca6b353eeff755918ccb78e8597cceaba1949
+manifest b06e94f0b6ef655510dfd83baf2b5f59ff9796c3
+author timeless@mozdev.org
+extra rebase_source:074dd62520f0cc0525ef68175ec8981435ed557a
+files modules/libimg/png/mozpngconf.h

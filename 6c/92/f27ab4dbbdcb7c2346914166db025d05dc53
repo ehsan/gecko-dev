@@ -1,0 +1,4 @@
+changeset 80d1845ed11b2acee0cb645c97bf07efed193dab
+manifest 53b49e99b3c35d31f7ddc136254e2e8867c634e3
+author rflint@ryanflint.com
+files browser/components/microsummaries/src/nsMicrosummaryService.js

@@ -1,0 +1,4 @@
+changeset 097bc790064c8935f9ddb5a8d0cefdb5dad54905
+manifest 8d1ea07ec2f80397aa6189258be365803eb86d40
+author cbiesinger@web.de
+files intl/unicharutil/util/nsBidiUtils.cpp

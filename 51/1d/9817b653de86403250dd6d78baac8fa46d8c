@@ -1,0 +1,4 @@
+changeset 162930dd4e3177a3cbbdce5ba078441032a1b161
+manifest b3a09ac8f72bdbd2b0b42510e4e50e39a5d90d29
+author bent.mozilla@gmail.com
+files dom/src/base/nsGlobalWindow.cpp

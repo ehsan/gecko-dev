@@ -1,0 +1,4 @@
+changeset 88db24de216c20912a08065fa2475c196315f87f
+manifest 6bedb2fb92e6284e64993c913ccdf6eae2c4c9b1
+extra rebase_source:3dfbfad2f28ee12f88c1f9bf0988e0699849a662
+files xpcom/base/nsConsoleService.cpp

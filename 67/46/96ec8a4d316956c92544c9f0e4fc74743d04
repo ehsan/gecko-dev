@@ -1,0 +1,3 @@
+changeset 5764a8b05e4b76186cc64584176d20de2a72d255
+manifest ca82ba47673cc3eb443ecbe332d58cca6fb514bd
+files toolkit/components/places/tests/unit/test_doSetAndLoadFaviconForPage_failures.js

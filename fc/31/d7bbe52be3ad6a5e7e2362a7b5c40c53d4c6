@@ -1,0 +1,4 @@
+changeset e28d889b9e4c7ad4563b655cc92f134d915707d5
+manifest d3b786fd04dae928f747778e6b7d88edbb2df013
+author kaie@kuix.de
+files embedding/browser/gtk/src/EmbedCertificates.cpp

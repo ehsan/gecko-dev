@@ -1,0 +1,4 @@
+changeset addfd3f45442d819856044b8b434cbc2bf776cb0
+manifest 1c012fbb4527c7ae4bcc34349703906f415b0302
+author roc+@cs.cmu.edu
+files dom/public/idl/sidebar/nsISidebar.idl

@@ -1,0 +1,4 @@
+changeset 4c79455dc9d806875816bcd9f15cf0ca80fc5170
+manifest acd7e839e67efcb24b18b8d3d9b2d5eba8133970
+author gavin@gavinsharp.com
+files uriloader/exthandler/nsExternalHelperAppService.cpp

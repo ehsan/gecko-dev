@@ -1,0 +1,3 @@
+changeset 2622ca1152639280d92382152ef9b79240053de3
+manifest fb62abf7100ecfe691e54585da160ec6457ba63d
+files parser/htmlparser/public/nsIExtendedExpatSink.idl

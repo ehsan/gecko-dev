@@ -1,0 +1,4 @@
+changeset 33f8dcf6e758cbea7a2f987d3d8228f58d9ba231
+manifest a36fe95bbea09be2afa712b9fa1eb30dd032719f
+author graydon@mozilla.com
+files js/src/xpconnect/src/xpcwrappednativescope.cpp

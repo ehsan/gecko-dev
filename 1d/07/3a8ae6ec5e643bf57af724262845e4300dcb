@@ -1,0 +1,3 @@
+changeset 66a9982a4bc9ca3284a1bc0cf139a0eee386bac6
+manifest f8465938f927feb8a88505c1f99f62ac9c3129fa
+files services/aitc/tests/unit/test_aitc_manager.js

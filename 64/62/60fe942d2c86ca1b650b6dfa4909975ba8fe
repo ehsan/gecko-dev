@@ -1,0 +1,5 @@
+changeset 6a23ab36ed3b5337ec697a555887c76472be5dc2
+manifest 86b6ca16a9b5d008354873c54dfc8224e0d36517
+author timeless@mozdev.org
+extra rebase_source:64e41e13787b9a9c3cfb4faf987c6f6902293407
+files js/src/jsstr.cpp

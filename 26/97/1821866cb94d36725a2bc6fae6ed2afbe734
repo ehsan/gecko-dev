@@ -1,0 +1,4 @@
+changeset 98f511e69594375236f511433b870e9b6532bc58
+manifest 4695ce313db403debfe18d8f969091369d1017d6
+extra rebase_source:f91639b86549cd47e995b76bd7a5859a60458afc
+files widget/src/xpwidgets/nsClipboardPrivacyHandler.cpp

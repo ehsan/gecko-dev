@@ -1,0 +1,4 @@
+changeset 40bfaf37b5dbed0dc3968ae0955ef3ef24d7a478
+manifest 7e666f8840b4ef323aec2d6fda28b2e96c0cf4c6
+author karlt+@karlt.net
+files widget/src/cocoa/nsChildView.mm

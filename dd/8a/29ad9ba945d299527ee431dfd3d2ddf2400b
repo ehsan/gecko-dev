@@ -1,0 +1,4 @@
+changeset f87bdcf77208ba9fcbfff4f7e9fa0de6beaa7934
+manifest 36ca817b81ff8a4f58bf4871ae7c9b51e5f005e5
+extra rebase_source:edd16786269bae2a6b049e6a8709a055c6501dd8
+files mobile/chrome/content/bindings.xml

@@ -1,0 +1,4 @@
+changeset d0508985a3bea67386cb6db1551331817b400a32
+manifest 6d726a248dd27f7ae220bb97a0bc18096e935471
+author gavin@gavinsharp.com
+files browser/app/nsBrowserApp.cpp

@@ -1,0 +1,4 @@
+changeset 6447c15170c67abcea4a2bd4e730b5fd3c5aa1e6
+manifest 4bc0bf6f2898a7eeccdfb419beb7ac4efe2a6b85
+author timeless@mozdev.org
+files docshell/base/nsDocShell.cpp

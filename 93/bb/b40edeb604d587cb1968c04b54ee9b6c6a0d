@@ -1,0 +1,3 @@
+changeset 3940df6f9356f5681b7ebf99b31f65577f2567bf
+manifest 2c551fbaa0dc0c235d61cbeb2a26bd34526bf7be
+files netwerk/base/public/nsIIPCSerializable.idl

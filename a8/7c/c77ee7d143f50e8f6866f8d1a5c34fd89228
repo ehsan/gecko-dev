@@ -1,0 +1,4 @@
+changeset c8d43645a578b3e2d933328ed3088cbd4d98d371
+manifest 5e0f09f90d400b72428b7d023ca6d37d9e1a1c7b
+author timeless@mozdev.org
+files security/manager/ssl/src/nsNSSModule.cpp

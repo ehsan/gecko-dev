@@ -1,0 +1,4 @@
+changeset 39376c5eb93fadb33d4540693b6536ec89b39169
+manifest 00a7c6e828cd8130afe13f506a45d182aff8fce1
+author dholbert@cs.stanford.edu
+files layout/generic/nsGfxScrollFrame.cpp

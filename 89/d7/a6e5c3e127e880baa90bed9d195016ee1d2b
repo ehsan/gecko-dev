@@ -1,0 +1,4 @@
+changeset 2c34afb4d53a6af40a85055c4cdd111944cd652e
+manifest da69ee844e483987dfc741def6bc44e2eef2ed05
+author bzbarsky@mit.edu
+files layout/style/nsStyleSet.cpp

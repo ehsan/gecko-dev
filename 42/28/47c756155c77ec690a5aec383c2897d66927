@@ -1,0 +1,4 @@
+changeset 24972b0b3f87fac0aaefac6270288fd0ba62916a
+manifest 257b5761c22df025f7a25b6346268e8904ba1c99
+author sdwilsh@shawnwilsher.com
+files browser/components/sessionstore/src/nsSessionStore.js

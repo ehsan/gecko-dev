@@ -1,0 +1,3 @@
+changeset dbea778383afa9c372793780096e56ca83d6d83f
+manifest edc0004e5ae42dc4ed5c2a0e1aa8501b10bb33c7
+files netwerk/wifi/src/nsWifiScannerWin.cpp

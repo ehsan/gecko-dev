@@ -1,0 +1,4 @@
+changeset 1fab16a30ed5471248a9a72884ff9512be7dc56c
+manifest 80d40bd1539d4d5e719dedc8ab3404d8cb0517a7
+extra 
+files xpfe/appshell/src/nsWebShellWindow.cpp

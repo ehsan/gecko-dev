@@ -1,0 +1,4 @@
+changeset 09783dfe75086baeea28d55fee54400fa147a388
+manifest 763d397a48f778450a95d4f452ba49f78a017ffa
+extra rebase_source:4780201d1f2801b3d52ca1eabe7dc999cda100ba
+files toolkit/components/passwordmgr/public/nsILoginManager.idl

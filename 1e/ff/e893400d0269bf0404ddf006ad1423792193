@@ -1,0 +1,3 @@
+changeset 659d4f681e39f093dc4b172847a6fba13b286487
+manifest d93b218ebe344fb86ca2accfbe8795f3229beab4
+files toolkit/mozapps/extensions/test/xpcshell/test_install.js

@@ -1,0 +1,4 @@
+changeset 25bb523ccca31a983579174bed009e2871bff2f6
+manifest 74717fdfc03ae069f97b8ee22410acac764357e2
+author cbiesinger@gmail.com
+files netwerk/base/src/nsSocketTransport2.cpp

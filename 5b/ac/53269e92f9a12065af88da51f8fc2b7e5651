@@ -1,0 +1,4 @@
+changeset 02386462e514397805e2e3a0e1b8a1c9cfb0db48
+manifest 083a3167a5710b62f7b092c90cd96025b3b53bab
+author jag@tty.nl
+files netwerk/protocol/viewsource/src/nsViewSourceChannel.cpp

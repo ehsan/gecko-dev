@@ -1,0 +1,4 @@
+changeset c4561b783f25078caeaf46f6c160b63f28003489
+manifest 75766478ba75d4b1f76097e40e91c4da3d8a61c5
+author mozilla.mano@sent.com
+files browser/components/places/content/controller.js

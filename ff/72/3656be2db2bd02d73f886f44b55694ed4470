@@ -1,0 +1,3 @@
+changeset ec97a4036c9a17af1bf53d705d803ccc17662fd9
+manifest d7ceb7bf71aa281db26f07650b3d5a5e2dcf4159
+files extensions/cookie/nsCookiePromptService.cpp

@@ -1,0 +1,4 @@
+changeset db0163a56b905f03def05bd3bb43a03d052a0ba9
+manifest 2b9ab4411b7315f890c6e5f952ee4728c603dda8
+author gavin@gavinsharp.com
+files modules/libpref/src/init/all.js

@@ -1,0 +1,4 @@
+changeset c9f8e59a7e0db764407fed215b88d9c933bfb911
+manifest 0a0d8f1a6e732382719f03aec3a93c5b5692c6b3
+extra rebase_source:e27967cf955ca12fc884598507bf16d4d31bdf0b
+files testing/mozbase/moztest/setup.py

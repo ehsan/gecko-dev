@@ -1,0 +1,4 @@
+changeset f2d2962cc060c6b523d2adac2061b67624ad1c76
+manifest e2f0d2f4d9c4fd0a398a2f0afda5beb47865efbf
+extra rebase_source:48f548c3da3cdf4e9c18b8e3604e6887ca64f612
+files browser/devtools/styleinspector/test/browser.ini

@@ -1,0 +1,4 @@
+changeset a871b845d417c4b0bbdf27f3f07acdf9b0f76e88
+manifest bfe9f074ebab9cb2f5c44c21c0861313f518894d
+extra convert_revision:04f1b105cccd234217c8e2c1119a423cd6185e83
+files js/src/nanojit/njconfig.cpp

@@ -1,0 +1,4 @@
+changeset 5e6c2f77f6d23e4af8f2a37bd32aa2989bdc56d5
+manifest 562d88cbe5a7e15e4d39f9352af32a63cf360ff9
+author timeless@mozdev.org
+files editor/libeditor/html/nsHTMLCSSUtils.cpp

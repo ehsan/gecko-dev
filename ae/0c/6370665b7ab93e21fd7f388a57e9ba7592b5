@@ -1,0 +1,4 @@
+changeset 884df85571f05747fd12d84d4da28a372d687a6a
+manifest 8f4d63db236f50bdb7305824f2ec7ea517cb25d4
+author reed@reedloden.com
+files js/src/jsstr.c

@@ -1,0 +1,4 @@
+changeset ed2bd8fe4193ba4336a283cbd47cc1c15a21b1b8
+manifest 5087dbda1cbb784728d2ce34a4f1dc1bfad3f82e
+extra rebase_source:b2145a00d88acd9d17092b9398d2b97468cdeeb8
+files testing/mochitest/tests/MochiKit-1.4.2/tests/Makefile.in

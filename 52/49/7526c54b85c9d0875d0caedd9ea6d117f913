@@ -1,0 +1,4 @@
+changeset ae3b801f163257b333a8d3cc7eb9f84d8955f10b
+manifest 696f0117370780c4d353bc0d5062b6b5a2b491b3
+author dietrich@mozilla.com
+files toolkit/components/places/tests/chrome/test_371798.xul

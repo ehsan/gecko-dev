@@ -1,0 +1,4 @@
+changeset 019584bd7006c19cada5043ca38eaa5bd6ad6127
+manifest 64e2df2fb5967e95ea11ca7a3c5a0ed02cb39070
+author jst@mozilla.org
+files js/src/xpconnect/src/xpccallcontext.cpp

@@ -1,0 +1,4 @@
+changeset bf72e85eceffbc5dab95186a5aca73bdb732ba6e
+manifest 6ddcfadb235d56b0101f61aa89fea1d68256ed71
+author Leon Sha<leon.sha@sun.com>
+files js/src/nanojit/NativeSparc.cpp

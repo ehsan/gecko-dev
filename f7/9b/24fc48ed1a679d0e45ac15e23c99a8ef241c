@@ -1,0 +1,4 @@
+changeset ffb3d22c1f10d6ad8848b313484d0b80f49cd902
+manifest a123d9c908e0cd3466bd1f4ef3de2fcc2cc46502
+extra rebase_source:211137dbd9efda4b6c568bf7c4b61380c839db8f
+files content/base/src/nsWebSocket.cpp

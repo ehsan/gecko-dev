@@ -1,0 +1,4 @@
+changeset 4436e4f53e55ac5aa412e91c0309882ed15d5f89
+manifest d6ce6deed82e959da421c9c1eb1709aae4e48659
+extra rebase_source:91f2d6a62becc0baf15b88aed002e0e10e8b7630
+files mobile/android/chrome/content/aboutAddons.js

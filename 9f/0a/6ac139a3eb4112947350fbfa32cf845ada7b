@@ -1,0 +1,3 @@
+changeset 00bdf64c5c170777e98516c6c1f268ab6e916134
+manifest 06209e48323a05ab1573cf62daafbf6d74fd31dd
+files browser/devtools/shared/test/browser_promise_basic.js

@@ -1,0 +1,4 @@
+changeset 80cc7010959265f8476459ef116a9187e81a0213
+manifest 70d8493cfc7a4e93ed6e1d881a175c76a54eee87
+author brendan@mozilla.org
+files js/src/jsatom.c

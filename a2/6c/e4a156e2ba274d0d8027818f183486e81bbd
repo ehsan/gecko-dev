@@ -1,0 +1,4 @@
+changeset de4b86b6c74d7cde304194ec680dcad4f4bb1376
+manifest d80eebe1f5f2509d448e9817b7e84fc3a4b0dcbb
+author timeless@mozdev.org
+files toolkit/mozapps/extensions/nsBlocklistService.js

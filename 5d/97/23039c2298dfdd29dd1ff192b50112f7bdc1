@@ -1,0 +1,4 @@
+changeset c60b948891b472c59a54af8c90d51fa42a268ffc
+manifest 01a580d24190fa7149bbd7f7a8ef9a1873130216
+author peterv@propagandism.org
+files js/src/xpconnect/src/xpcwrappednativeinfo.cpp

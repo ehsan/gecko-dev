@@ -1,0 +1,3 @@
+changeset b0561d529f9587dd26c9174150e031a41eed433f
+manifest 0e5f81d24bec00ce1474feebe97f722ce7bb4575
+files js/src/jit/AsmJSModule.cpp

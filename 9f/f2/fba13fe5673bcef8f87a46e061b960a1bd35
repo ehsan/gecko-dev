@@ -1,0 +1,4 @@
+changeset b9fe223ee553032a8eb31cf10efc481d52212234
+manifest 44403a2d8d99afee9f9fb7671841535e366db851
+author rhelmer@mozilla.com
+files tools/release/configs/xr-moz19-staging-bootstrap.cfg

@@ -1,0 +1,4 @@
+changeset 2d4894e77370988a06da467544d0d2c41ea69c11
+manifest 2419f0b125c56cf0b23a5890e461cedb8fa5d428
+extra rebase_source:364616efdf06d9fc26017e56f17885f1489c1720
+files gfx/thebes/gfxDrawable.cpp

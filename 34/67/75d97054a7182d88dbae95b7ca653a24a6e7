@@ -1,0 +1,3 @@
+changeset ba29ab9bf63bd1d259e24440c94807c8fadab40f
+manifest 7c81fdae40e27796397365847abcc474c4d5bb3f
+files js/src/tests/js1_5/GC/regress-348532.js

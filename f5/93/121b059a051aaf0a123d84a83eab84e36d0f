@@ -1,0 +1,4 @@
+changeset f343f4d070d3d8e7adb4d2ef9ae6bb229f340539
+manifest e29ed068df73a6ff78e8d412eefc17d92adab0b8
+author vladimir@pobox.com
+files widget/src/windows/nsNativeThemeWin.cpp

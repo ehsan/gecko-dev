@@ -1,0 +1,3 @@
+changeset c8d33e4cb418d42901e136140ef56c94c8b409d3
+manifest 99e005e4e20b5b7037048ffb851450f08038f9bf
+files js/src/methodjit/FastArithmetic.cpp

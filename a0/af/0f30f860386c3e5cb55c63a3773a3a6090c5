@@ -1,0 +1,4 @@
+changeset 9fff05a1c0f3c92c61ab73bd93ca202a4fe172d0
+manifest 09ca28a0540faf66d6dbf44261fb926ae5ac4a7d
+extra rebase_source:a55d98b9ce2cc6a9c2559d9589984faf8063c301
+files media/libcubeb/src/cubeb_opensl.c

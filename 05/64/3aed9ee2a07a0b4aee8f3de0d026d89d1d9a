@@ -1,0 +1,4 @@
+changeset 7427249724077c3c3a9d59751406bbf9b211b2ea
+manifest 885c15847214455f34b88c6b6393d2e1f5490cba
+author timeless@mozdev.org
+files security/manager/ssl/src/nsNSSIOLayer.cpp

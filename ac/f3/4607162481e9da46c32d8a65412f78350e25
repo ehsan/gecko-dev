@@ -1,0 +1,4 @@
+changeset b58b537b36b3317c8ecacdb8ae9d7e8eb2977189
+manifest 4aa169e011213bb2fa42929ee1f2640a926efae9
+extra rebase_source:08551a5131bd1a7f9b5cd5310aee1a10867c742f
+files toolkit/components/aboutmemory/content/aboutMemory.js

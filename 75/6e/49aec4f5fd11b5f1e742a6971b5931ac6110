@@ -1,0 +1,3 @@
+changeset 2d3988fd04b8c0e655b1cddb0708cbe1f9ccc015
+manifest 3a37ad5898fbc5a91be2faa971913e75b1e868ba
+files gfx/cairo/libpixman/src/pixman-wce-arm-simd.asm

@@ -1,0 +1,4 @@
+changeset b1e3458df0d5e9a69fc528e0c04501760f675d10
+manifest 62b7340f89e463d6dbc16b1b154f5984178d02c2
+author mrbkap@gmail.com
+files js/src/xpconnect/src/XPCCrossOriginWrapper.cpp

@@ -1,0 +1,3 @@
+changeset a25339db426146a8849d697c5b38a1c869d0b3d6
+manifest 81fc5589546e5ed107d93e152dc03ed89aee6c45
+files parser/html/java/translator/src/nu/validator/htmlparser/generator/GenerateNamedCharactersCpp.java

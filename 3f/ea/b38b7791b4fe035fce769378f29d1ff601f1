@@ -1,0 +1,3 @@
+changeset 1178eda0a5535417206cd62c16b1e6dc2986f057
+manifest 6a41092e53efdf4868b04cc222a3a514206cf8b9
+files toolkit/components/telemetry/tests/unit/test_ThreadHangStats.js

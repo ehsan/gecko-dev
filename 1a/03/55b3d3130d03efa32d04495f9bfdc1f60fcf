@@ -1,0 +1,4 @@
+changeset 85ad1f46d746b5967a7c7dc36a683eb81d58cf49
+manifest 8efb36fbeecdf4d94c1039b7290151228750d28e
+author reed@reedloden.com
+files modules/libpr0n/decoders/png/nsPNGDecoder.cpp

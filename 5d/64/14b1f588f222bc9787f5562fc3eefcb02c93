@@ -1,0 +1,4 @@
+changeset dcfb1ac1935ceaa2caf1cba02aa2f4251aa90c61
+manifest 816982c5b56dd694063d13c0959439ba6317c46d
+extra rebase_source:3839667d874d5fedeb518a9b53a3809cf34bae30
+files browser/base/content/popup-notifications.inc

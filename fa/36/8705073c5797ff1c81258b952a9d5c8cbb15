@@ -1,0 +1,4 @@
+changeset aad7f060dadb283e0c5b80d8942c9803f040057e
+manifest 5671a603579e7a29bfc1b661c2c60c2b8d28abe8
+extra rebase_source:286e9df9b9154c5f968b6eacfcb5f176371abb46
+files mobile/android/base/JavaAddonManager.java

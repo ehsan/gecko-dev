@@ -1,0 +1,3 @@
+changeset 9ad384bc560c2c0211f307931201aec1cee6785b
+manifest 71dca8e0f137d98d2002ed88867fce1e1f1a3176
+files netwerk/base/public/nsIUploadChannel2.idl

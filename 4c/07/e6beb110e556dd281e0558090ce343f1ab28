@@ -1,0 +1,4 @@
+changeset b712d912bf75e9d3ddcd31d041ef1c4003d2f89f
+manifest 27a7a9c5c2c7a5369995e0b30296edf35d531bb3
+extra rebase_source:ccb2ce8b02c859b364fe4c71e3b9b3525b67ee99
+files content/base/test/file_CrossSiteXHR_inner.jar

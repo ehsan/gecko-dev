@@ -1,0 +1,4 @@
+changeset e6ac5fe03919172863556aaf9f698d15924f4d87
+manifest c2867832cf478f010e93e4745864e22b8fb5ba97
+author nrthomas@gmail.com
+files toolkit/crashreporter/tools/upload_symbols.sh

@@ -1,0 +1,4 @@
+changeset 565505d6b3a700f1eb53b267c589b5c847df18db
+manifest cb334c6f7ea31ae20896614d75c5ddb6e2d22b47
+author gavin@gavinsharp.com
+files toolkit/components/url-classifier/src/nsUrlClassifierStreamUpdater.cpp

@@ -1,0 +1,3 @@
+changeset 00bf153a66e46342ca97d0ec7dc03c8b84bf905c
+manifest 3fe1a130f67f227850b0b9cbf513614a32f384fd
+files browser/devtools/scratchpad/test/browser_scratchpad_bug650345_find_ui.js

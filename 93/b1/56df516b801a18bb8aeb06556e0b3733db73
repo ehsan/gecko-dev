@@ -1,0 +1,3 @@
+changeset 5b68a429b6956677128ae3135ee9bc96f5cc5b34
+manifest c13c502ce6356fd2679f6707283fef4ebd8431b2
+files xpcom/tests/windows/TestWinFileAttribs.cpp

@@ -1,0 +1,3 @@
+changeset 583e9f08aeeb95bfac8861ae875a30aaf8841a1b
+manifest 50f58007d46ac343b9cda14a71f8e6fd27c67da2
+files python/mozbuild/dumbmake/dumbmake.py

@@ -1,0 +1,4 @@
+changeset 440c8b75f1ce3f39697f347379874231be666bdc
+manifest 4518b402de0640f6680179c6cc5e138fe0f61387
+extra rebase_source:a63199371f5f5e5bc9271d68224a8dc39aa08754
+files js/src/jit-test/tests/basic/testProxyPrototypes.js

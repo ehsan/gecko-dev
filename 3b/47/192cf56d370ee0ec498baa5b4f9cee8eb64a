@@ -1,0 +1,4 @@
+changeset 9948b8e644ae81b9b776c7daaf8764ce1024e8a8
+manifest cc6712140de6357f80bc001b068bb5b30ccd87cb
+extra rebase_source:a27dd77b14763cfc72a9cee61123ee63a3aed94b
+files js/src/xpconnect/shell/xpcshell.cpp

@@ -1,0 +1,4 @@
+changeset 3025c272f4b82566102dd5b893e70933f7f092e5
+manifest 2d0aebc19ac84298ff112cc7c4c998ac6ec4b1de
+author rflint@ryanflint.com
+files browser/components/sessionstore/src/nsSessionStore.js

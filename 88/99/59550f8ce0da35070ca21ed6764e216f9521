@@ -1,0 +1,4 @@
+changeset 201784b33fc94a3a55139cc7dc8684e66aee803c
+manifest dde2fd4f8c4879e935f5d7a0a83fa7d8581fc6d8
+extra rebase_source:4143907d8226ec76eaabbdffe14ef004a270566c
+files accessible/src/base/nsAccessible.cpp

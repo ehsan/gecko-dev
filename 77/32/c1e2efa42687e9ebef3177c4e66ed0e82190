@@ -1,0 +1,4 @@
+changeset 0a180ae920a27b895a395986a78a70c5ddae6413
+manifest 24921dfaa89b6d4eee8c192073918eeee2b716f7
+author reed@reedloden.com
+files layout/xul/base/src/nsXULPopupManager.cpp

@@ -1,0 +1,4 @@
+changeset 26a3f14c6a058f723c737f646b3e0766b7ba5c6c
+manifest bc421893944982ebbc89dd028bbbfcf68b036c6a
+author scott@scott-macgregor.org
+files xpcom/tests/Makefile.in

@@ -1,0 +1,4 @@
+changeset 816235bd53e056fcc93b52f6b387f5da34641ca2
+manifest c34a364dfbe30e3404b9c224c353aace9b6e8577
+author mozilla.mano@sent.com
+files toolkit/components/console/content/consoleBindings.xml

@@ -1,0 +1,4 @@
+changeset 2fbb4b93bce197cc81dc3d02c8289392cc47ba76
+manifest 95a4a2eceaf092b86c4f0a9234ae6395ad1f8713
+extra rebase_source:cc2958a501ce7c8a23decfc79c51840133a29d4b
+files browser/components/customizableui/test/browser_968447_bookmarks_toolbar_items_in_panel.js

@@ -1,0 +1,4 @@
+changeset 07344cd64503a3b2b556e9bf8268f10031a03eeb
+manifest c1ce5c0d7aee95e1ad9a5d4da9dc961b11811127
+author reed@reedloden.com
+files netwerk/streamconv/converters/nsHTTPCompressConv.cpp

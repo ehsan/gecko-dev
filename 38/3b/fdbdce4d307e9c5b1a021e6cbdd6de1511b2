@@ -1,0 +1,4 @@
+changeset ef4cb1950e3e76c483044c07892eefb54e400a75
+manifest 992ff377bc1892c19b039da0ddfa39f5deb451ed
+author mozilla@weilbacher.org
+files toolkit/mozapps/installer/packager.mk

@@ -1,0 +1,3 @@
+changeset d6c83328d74190ed1076fb8d1f0f0fbcb26ca7c5
+manifest 26cc91e64f1e7fc01cc0e4404519975a89cef2f0
+files browser/devtools/highlighter/test/browser_inspector_bug_672902_keyboard_shortcuts.js

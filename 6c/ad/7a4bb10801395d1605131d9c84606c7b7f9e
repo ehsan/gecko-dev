@@ -1,0 +1,4 @@
+changeset 5fe67085874685f80d5822a08930bc94ea0d7a1f
+manifest e240d1e9a8cd047f7832af5e7676bc375fee4ad1
+author reed@reedloden.com
+files toolkit/components/places/src/nsFaviconService.cpp

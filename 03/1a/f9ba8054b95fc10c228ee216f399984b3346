@@ -1,0 +1,4 @@
+changeset 5a1a8284e73c30cd81eeba4634dcba1a1100912a
+manifest 11b45eb5a80cae62125bb61cd53570258890af99
+author dcamp@mozilla.com
+files toolkit/components/url-classifier/public/nsIUrlClassifierDBService.idl

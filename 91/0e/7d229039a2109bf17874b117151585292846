@@ -1,0 +1,4 @@
+changeset de135b80cb24bd90ac0cf5cf28e41b063158b03b
+manifest f5c91284bac69eaefd8783d903611b2542397824
+author bzbarsky@mit.edu
+files content/base/src/nsXMLHttpRequest.cpp

@@ -1,0 +1,4 @@
+changeset 1687e0165bed711d4d2f61795f33d5969b444af5
+manifest cc0afc3366d4dcc8ff9699cbeb622c256974539a
+author reed@reedloden.com
+files toolkit/xre/nsAppRunner.cpp

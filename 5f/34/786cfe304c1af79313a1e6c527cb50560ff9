@@ -1,0 +1,4 @@
+changeset 98642924e18457d553b27ad96bad113d9ee836cb
+manifest 8149eaa66a914909bc45d0d761085800045877cf
+author gavin@gavinsharp.com
+files toolkit/components/autocomplete/src/nsAutoCompleteController.cpp

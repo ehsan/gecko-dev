@@ -1,0 +1,4 @@
+changeset 16fa07244846706193b1d4b2273f6473e3d52b7e
+manifest df83c82aaa11e32055ce20da000bd51e6cfa0fec
+author jag@tty.nl
+files content/xul/document/src/nsXULContentSink.cpp

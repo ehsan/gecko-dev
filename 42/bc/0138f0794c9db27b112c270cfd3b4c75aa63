@@ -1,0 +1,4 @@
+changeset 33dfbb13ab63ddf5a9677b731fd0c1abff498185
+manifest 54b072a31d40947d16f13e5b05e2598c10beaefe
+extra rebase_source:a9fba2e21b2f9ecb267367a9006883d2bbd313e4
+files netwerk/dns/nsHostResolver.cpp

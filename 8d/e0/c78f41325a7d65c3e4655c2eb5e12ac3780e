@@ -1,0 +1,4 @@
+changeset 0904d630aaec3b9eb1214ea3c53bd6774ebd6a0d
+manifest f9de1913f3feeb11394af90975d8b0f224a5cba2
+author timeless@mozdev.org
+files xpcom/ds/nsIRecyclingAllocator.idl

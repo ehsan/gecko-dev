@@ -1,0 +1,3 @@
+changeset 36fb56f9582fcb6dd45fdc38c0a490ff977de035
+manifest cfeb00417037b564b52ec9cf29867a4ddef47d5c
+files xpcom/string/nsUTF8Utils.h

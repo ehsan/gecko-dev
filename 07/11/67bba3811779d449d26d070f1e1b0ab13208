@@ -1,0 +1,4 @@
+changeset 8277103ff8896f880bda995fb70bb3196378a3de
+manifest 2788fe941f8bdc2eeca923053e27bb468441bcba
+author sdwilsh@shawnwilsher.com
+files toolkit/components/downloads/test/browser/Makefile.in

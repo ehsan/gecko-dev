@@ -1,0 +1,4 @@
+changeset 1a8045c456b00df777839d59333ca115cdc3534e
+manifest 812596507a8f782a227b01fdfec945213991944e
+author nrthomas@gmail.com
+files tools/release/configs/tb-moz18-staging-bootstrap.cfg

@@ -1,0 +1,4 @@
+changeset 7fed37fb1a3fedbac3f666dd9da79dbb52b2ea1f
+manifest 5163260ba37719946f28659204bb7201321d1b0b
+author bent.mozilla@gmail.com
+files toolkit/crashreporter/nsExceptionHandler.cpp

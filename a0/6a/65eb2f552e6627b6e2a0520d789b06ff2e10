@@ -1,0 +1,3 @@
+changeset 232b3e116bbd69bed88328e228e9e27e1b0d6cd4
+manifest 28b864dc74abfb1192fc4b9e33df31cd46171229
+files xpcom/glue/nsAutoLock.cpp

@@ -1,0 +1,4 @@
+changeset 07a8287b4cc93afb61c7808be04c405ef2502c26
+manifest edda0b141db0bfed78013fdd5a801dcbd0454903
+extra rebase_source:993b9fb0c0a19b98f1ee7231e693b9a81936a40c
+files content/base/src/nsXMLContentSerializer.cpp

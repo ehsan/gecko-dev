@@ -1,0 +1,4 @@
+changeset bbbc9c83cdf762de7e970675f2209eeb5579314f
+manifest a459121941699cf7fc207840dbcc1e9a39eb9340
+extra rebase_source:24b47eb12240260bec01c571e41114f9270a9715
+files widget/tests/test_bug517396.xul

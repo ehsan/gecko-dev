@@ -1,0 +1,3 @@
+changeset 65c8a88b98db2b203bfc6867873f76ece41fc846
+manifest 1208b9da6fdf5cd7e91dba50f665065ec18bda24
+files browser/components/privatebrowsing/test/browser/browser_privatebrowsing_sslsite_transition.js

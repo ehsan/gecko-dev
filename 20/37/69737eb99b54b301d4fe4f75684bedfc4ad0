@@ -1,0 +1,4 @@
+changeset 0d142e2fb248eb9f36b6291b8355715109ba96a5
+manifest 5f3d1dfff0d8f659847fd4a03e1ad209367157f1
+author crowder@fiverocks.com
+files js/src/xpconnect/src/XPCWrapper.cpp

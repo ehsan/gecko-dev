@@ -1,0 +1,4 @@
+changeset d7a600e2cbc0a6256a44456a9c915c3718b622b8
+manifest 8d6ac8122ce366649cd1bdb12b8b14f9c9d86504
+author reed@reedloden.com
+files modules/lcms/src/cmsio1.c

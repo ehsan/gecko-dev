@@ -1,0 +1,4 @@
+changeset eb870a41e5cb91328694e18285202fc1b6c7d028
+manifest 521606c3d637d26faf7f547f8a603ce213c5ffb1
+author timeless@mozdev.org
+files caps/src/nsScriptSecurityManager.cpp

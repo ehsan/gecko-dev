@@ -1,0 +1,4 @@
+changeset cd145eda3114cdad2800746321ba6f29021fc4cf
+manifest 54030b97a5c02848dcaa764b3c777f195a844783
+author reed@reedloden.com
+files js/src/jslock.c

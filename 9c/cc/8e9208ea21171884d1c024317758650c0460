@@ -1,0 +1,4 @@
+changeset 3c68f42b4682e87df86c30bdad984f53f6d7b926
+manifest 87642a1fd6571426730b91f55557034a255b5c38
+extra rebase_source:8055f0cd4e1c51f2a8372adaf96e4fce701cc960
+files widget/src/qt/nsWindow.cpp

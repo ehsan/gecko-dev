@@ -1,0 +1,4 @@
+changeset 7f6e92f59174dbe3adabe080308ad613744c7bca
+manifest 6ccd1c41b86ede48607fbd758feea8216bd43d16
+author Ms2ger@gmail.com
+files extensions/universalchardet/tests/CharsetDetectionTests.js

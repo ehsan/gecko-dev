@@ -1,0 +1,4 @@
+changeset 61c02f7464d51fd7b19241a4e37b8ac218ca0116
+manifest 22b63ce17d7ce56705864a1efa3f42bac9cfa9a7
+author bclary@bclary.com
+files js/tests/js1_5/extensions/regress-424683-01.js

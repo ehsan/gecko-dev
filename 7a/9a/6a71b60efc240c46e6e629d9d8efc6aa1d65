@@ -1,0 +1,3 @@
+changeset c72d0bbb5571b2b8225808e53c4aa96be5f95758
+manifest 90f729ae350400163334e5721cf18ab092dbd0dd
+files js/xpconnect/wrappers/ChromeObjectWrapper.cpp

@@ -1,0 +1,4 @@
+changeset c3cd72dbdf5ed6344530c06487e46deaca924a37
+manifest b92dd102d911b71163a40b192d643142bb1fc290
+author Olli.Pettay@helsinki.fi
+files content/xul/document/src/nsXULDocument.cpp

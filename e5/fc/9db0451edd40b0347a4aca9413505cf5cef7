@@ -1,0 +1,4 @@
+changeset f1820278311e813be0753cbb6099ac34ffec8d22
+manifest 2abd0e29959cbdc0e0b96b41547b84d3009e1cc1
+author julian.reschke@gmx.de
+files content/xslt/src/xslt/txMozillaStylesheetCompiler.cpp

@@ -1,0 +1,4 @@
+changeset a7225e640244fce3b8940b2d1b10883ca195db34
+manifest 21701c934206fb0936873014cdfda72809cd626a
+author dholbert@cs.stanford.edu
+files layout/tables/BasicTableLayoutStrategy.cpp

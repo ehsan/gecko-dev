@@ -1,0 +1,4 @@
+changeset 50b92fcc8c562e84d609b9cd1eb32cac972ef7c8
+manifest e6b2f2656e97e3c483b228e4261c708052a727f8
+author masayuki@d-toybox.com
+files widget/src/cocoa/nsChildView.mm

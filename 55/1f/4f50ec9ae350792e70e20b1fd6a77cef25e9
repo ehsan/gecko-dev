@@ -1,0 +1,4 @@
+changeset eb5f379dfcf3b06c8dbcc1469ac069e393ce65cc
+manifest 4e1586fabac2bcc7d27a85357ba065564dd4cfa5
+author surkov.alexander@gmail.com
+files layout/tables/nsTableOuterFrame.cpp

@@ -1,0 +1,3 @@
+changeset bc627f4c6daa981a61c77885b14cfa0b819827be
+manifest c351dc03bdca11fe16a7f4beab6a1036dc8dd96d
+files xpcom/glue/nsINIParser.cpp

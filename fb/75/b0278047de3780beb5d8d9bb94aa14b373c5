@@ -1,0 +1,4 @@
+changeset d2a7652d726a6b005958d50abb84faeb68881637
+manifest ce9dedff8de96585da4f33dc0d5497dc29a8ab06
+author timeless@mozdev.org
+files toolkit/components/downloads/src/nsDownloadManager.h

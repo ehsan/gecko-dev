@@ -1,0 +1,3 @@
+changeset ed0b31dfcf995b5509b57709a4074ef57cd3ab52
+manifest d5c5a1c0dda184c907509181d274cedb3891351a
+files services/sync/tests/unit/test_resource_async.js

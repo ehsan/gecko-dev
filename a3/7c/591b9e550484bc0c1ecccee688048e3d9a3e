@@ -1,0 +1,4 @@
+changeset c2678b9f6eac72bc59fbcfae8aa66ae36c84290e
+manifest 1e30d6d38536a7d46984d568d3c672244f7d63f4
+author bzbarsky@mit.edu
+files layout/reftests/bugs/379316-1-ref.html

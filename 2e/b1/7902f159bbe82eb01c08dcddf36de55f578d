@@ -1,0 +1,3 @@
+changeset b88706b9f724752d295351be683d345205380e27
+manifest 1a89558ae2a8a949c7717c906fa742d2ea65e383
+files browser/components/sessionstore/src/DocumentUtils.jsm

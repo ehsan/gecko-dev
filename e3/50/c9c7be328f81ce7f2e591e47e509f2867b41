@@ -1,0 +1,4 @@
+changeset 7b78623ef015b314c55d751d7b2e10c1151ba09d
+manifest a1ab3250b0836407efd71465fd15fd27452db33e
+author vladimir@pobox.com
+files gfx/cairo/cairo/src/cairo-paginated-surface.c

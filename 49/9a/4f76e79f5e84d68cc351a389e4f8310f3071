@@ -1,0 +1,4 @@
+changeset 219fb1490583bb96ace9b55457f089ccd274b778
+manifest 0196acf57cfb4c1026d73ae7fee85391e7eea2e1
+author rhelmer@mozilla.com
+files tools/release/configs/xr-moz19-bootstrap.cfg

@@ -1,0 +1,4 @@
+changeset 44339389531357151876590b11ab3c65e14255ac
+manifest 1416ec568d40e61a6dbbbacf24db92f7ea37ea3a
+author jst@mozilla.org
+files content/events/src/nsDOMBeforeUnloadEvent.cpp

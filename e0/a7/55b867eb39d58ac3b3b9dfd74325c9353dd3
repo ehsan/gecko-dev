@@ -1,0 +1,4 @@
+changeset 2d9b3b2180b42beee595c52cdd97ce6cd9a7d1dc
+manifest cf7995586a3bbd5e20b680ac73a5c5c5353c1d92
+author blakeross@telocity.com
+files xpfe/components/download-manager/public/nsIProgressDialog.idl

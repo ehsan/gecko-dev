@@ -1,0 +1,4 @@
+changeset dae205b2ef5dc5ccf34e6efcd74760f02c7d6ec1
+manifest e94bc3dfe6901feca637be931e8bbf40d4c37a17
+author ajschult@verizon.net
+files widget/src/xremoteclient/XRemoteClient.cpp

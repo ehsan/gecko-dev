@@ -1,0 +1,4 @@
+changeset fae09a0ebadabd9d1b12fb96a35202df544e00ed
+manifest 964277514b5aad37d27c0d9923ebd8395ece85b3
+author mats.palmgren@bredband.net
+files gfx/thebes/src/gfxWindowsFonts.cpp

@@ -1,0 +1,4 @@
+changeset 3874a469cf09eec52542b8ddd64b3869b3811863
+manifest 0514fe46d01aafcdcd1c4dd6c9bc858bc70aff9f
+author timeless@mozdev.org
+files xpcom/base/nsCycleCollector.cpp

@@ -1,0 +1,5 @@
+changeset e741896a62ae01e23f682e9cafad80c98faf7926
+manifest e0261b97095207890811f6ce64630d888482505c
+author timeless@mozdev.org
+extra rebase_source:c9116eca854b56984cbebdf347658a8caa93a274
+files modules/plugin/base/src/nsPluginHost.cpp

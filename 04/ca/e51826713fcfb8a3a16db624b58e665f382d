@@ -1,0 +1,4 @@
+changeset 6a0f77679ec15c314b30e4ddc78c02e9a906ab84
+manifest c56818cd86cd5ecdfcbb6f3cd4b64fdfb8713ad9
+extra rebase_source:ba5db5468f9e9c9f823f352757eb06d198618003
+files browser/base/content/tabcandy/app/tabitems.js

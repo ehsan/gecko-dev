@@ -1,0 +1,3 @@
+changeset 199deec966d33e98bd1f0c7c21337793f677ecb8
+manifest 80ab4b109378a3052d3de46570c130ce864ed80e
+files services/sync/tests/unit/test_addons_engine.js

@@ -1,0 +1,4 @@
+changeset 07133c9069622b488682b9ee5e83c8c8580003ef
+manifest 393ba131af720ea424a1455617baba93a88a3730
+extra rebase_source:ec735055da570c4336b4f72562ca8702c4c1d5ed
+files widget/src/qt/mozqwidget.cpp

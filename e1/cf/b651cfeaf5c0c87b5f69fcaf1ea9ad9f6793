@@ -1,0 +1,4 @@
+changeset 23df70b899d522988ee87a9c5fdd4cf602d813b7
+manifest 621a2158e9d40e4f9c53c474fc26ff0c6a0b1ba0
+author tor@cs.brown.edu
+files layout/svg/base/src/nsSVGUtils.cpp

@@ -1,0 +1,4 @@
+changeset 6ae7eb2d0480c1fa46c6e7c70fd0bd7f50e74b12
+manifest 294874f437a66ff423a8d1d456c26ba4c988cc2b
+author reed@reedloden.com
+files browser/components/places/content/utils.js

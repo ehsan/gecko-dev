@@ -1,0 +1,3 @@
+changeset 5c865feae9f53350f713e0307194bd111363984a
+manifest 52cd9c10f9261164aa74326d93af76c368ecf8a5
+files browser/components/sessionstore/test/browser_revive_windows.js

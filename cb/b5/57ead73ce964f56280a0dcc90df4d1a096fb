@@ -1,0 +1,4 @@
+changeset 523647a0ccd86cd01b90214bef92a24e6ba40d3d
+manifest 5c77c9e3ca68bc8e4d7474571f6c034bd6f0cfa9
+author cbarrett@mozilla.com
+files layout/tables/nsTableFrame.cpp

@@ -1,0 +1,4 @@
+changeset 1b3f17ffa656540baebc5cac1e5df43e0303d587
+manifest b54593d96b4e18341a33b9272726b70a1029cd79
+extra rebase_source:753343ca11d3ce8b6801a5be8831621887fbe70b
+files widget/src/cocoa/nsAppShell.mm

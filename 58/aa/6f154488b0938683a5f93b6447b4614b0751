@@ -1,0 +1,3 @@
+changeset 47dd67ed93a4e22dea0acfbdf74e4350b9180799
+manifest dd315e7e6dd0e04134275df676cb9c8d3718dc2d
+files netwerk/cookie/public/nsICookie2.idl

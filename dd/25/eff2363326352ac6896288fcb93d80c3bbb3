@@ -1,0 +1,4 @@
+changeset 2167c39163ede161d845826b0a62f677b11b9473
+manifest 59f0490362b69831a89182ec225694921a96733b
+author cbiesinger@gmx.at
+files embedding/components/windowwatcher/src/nsPromptService.cpp

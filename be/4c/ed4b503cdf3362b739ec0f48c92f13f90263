@@ -1,0 +1,3 @@
+changeset 3cbf4e7037e52c2ed9c8953b6fa5cb0ea1d6b29e
+manifest 4cd833c6abd7375f4f1d5b5be6081e0d359e6931
+files js/src/jit-test/tests/ion/gc-during-bailout.js

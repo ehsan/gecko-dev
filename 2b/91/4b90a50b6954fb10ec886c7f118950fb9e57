@@ -1,0 +1,4 @@
+changeset 798086e4e963e310b45e8dfa7329db6f8e7ab4cb
+manifest 03a8336155a2693491bdd0f91d6343307c3f380c
+extra 
+files editor/libeditor/nsTextEditRules.cpp

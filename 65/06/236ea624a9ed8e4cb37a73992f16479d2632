@@ -1,0 +1,4 @@
+changeset 5e80edf4c2dd22745d6cb895b2f3fa36741e16dc
+manifest 33395e31d9648f62204d3140fd9d075b53f77ab9
+extra rebase_source:ef4e762c3e63cbcc09247f861c4d7c030b389b10
+files js/src/jsinferinlines.h

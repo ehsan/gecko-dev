@@ -1,0 +1,4 @@
+changeset 3c39a16ea2397548f2292c6a956e00bc390939bd
+manifest 1d656791a8ef6a2d2ab5659b83b962f30e65d47b
+author jst@mozilla.org
+files modules/plugin/base/src/ns4xPlugin.cpp

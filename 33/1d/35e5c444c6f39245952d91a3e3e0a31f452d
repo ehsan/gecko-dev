@@ -1,0 +1,4 @@
+changeset b45d126adc15c08fcda5c2e9b5cc19c418153d87
+manifest f97f00885cb028ebadd98ed05661961cf6297f8f
+extra rebase_source:f4608fdc5cc362ed4cff7f37e1f428c203ab0cfe
+files browser/base/content/browser-places.js

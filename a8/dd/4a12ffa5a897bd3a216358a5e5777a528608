@@ -1,0 +1,4 @@
+changeset fc36b522b1f9f85049950b98f57fe14e4106e8a0
+manifest 6801d0cdfbac1ae1f147ac05fcf57f553e4e35fc
+author bent.mozilla@gmail.com
+files js/src/xpconnect/src/XPCWrapper.cpp

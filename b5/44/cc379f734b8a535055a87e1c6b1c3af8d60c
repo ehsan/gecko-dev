@@ -1,0 +1,4 @@
+changeset 989c174d9196aff63bddbff5446112bc33c44fec
+manifest 76b2c616ced2056044e1ddd15aabf7e7c851e6fd
+author dolske@mozilla.com
+files toolkit/xre/nsXREDirProvider.cpp

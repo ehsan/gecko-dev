@@ -1,0 +1,4 @@
+changeset 5a97d9d89ac39655b22ed6bf8b2e4f256ba61461
+manifest 594ead95bfb041167aa99e8fc3e9b2c7bd68c468
+extra rebase_source:e826ee9482bb9dfc1cf1b984141058220882b73a
+files uriloader/exthandler/nsHandlerService.js

@@ -1,0 +1,3 @@
+changeset 4542793088dc3c939a85f41d93515b7be75f6afb
+manifest fad6c8226fb8e191a851610fbf10bd1d753d3fc9
+files netwerk/dns/src/nsHostResolver.cpp

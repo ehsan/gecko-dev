@@ -1,0 +1,4 @@
+changeset b926850e34034dc089190fd82bbe9620ec144416
+manifest 37db141022b77428942620aa63aadaac8dd95fe6
+author timeless@mozdev.org
+files js/src/jsopcode.cpp

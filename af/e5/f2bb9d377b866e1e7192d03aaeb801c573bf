@@ -1,0 +1,4 @@
+changeset b0a5062215d8eac292f767cd475d17dad3068783
+manifest 4363045b4f1e0a21f8dc829340783afd68adbcbe
+author bmlk@gmx.de
+files layout/tables/nsTableRowGroupFrame.cpp

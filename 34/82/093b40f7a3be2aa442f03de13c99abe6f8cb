@@ -1,0 +1,3 @@
+changeset a4cb4a7c7595e6255a944b2a19c54226f34e701f
+manifest fdbcd0e55beaab22d0d17254d9e5f783490c07a3
+files xpcom/reflect/xptcall/src/md/unix/moz.build

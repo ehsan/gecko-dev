@@ -1,0 +1,4 @@
+changeset c087c8c261d8c38f427c65194e5a161230ff541c
+manifest e0ecdd4c0a9b4b76fe31c38eea537b0958f4c273
+author peterv@propagandism.org
+files dom/src/events/nsJSEventListener.cpp

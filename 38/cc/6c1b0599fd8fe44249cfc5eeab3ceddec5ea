@@ -1,0 +1,4 @@
+changeset 8b9ef69e9cfd1b932f749130a2b942eb3ee64c5a
+manifest 5640e3bee8dffe8d0cd7cf489e77c77c5daf307e
+extra rebase_source:54549a96e59772af1223d69e854d34d28e6d369c
+files gfx/thebes/gfxPlatform.cpp

@@ -1,0 +1,4 @@
+changeset 982e8ca82b1889e46672b3fd79ee045dcaf63d30
+manifest 836d231205e05d569ab25b1ea71b84319fc8b90e
+author timeless@mozdev.org
+files gfx/thebes/gfxFont.cpp

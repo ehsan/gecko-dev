@@ -1,0 +1,3 @@
+changeset 1e6ed5eab5e186fe50ff8b7d93e08746327fb5fe
+manifest b19dafaa7c5260258f2239052fb6d08028f64465
+files xpcom/glue/BlockingResourceBase.cpp

@@ -1,0 +1,4 @@
+changeset 13370fb7a65a569ac207fa15f77d61bf5b19b060
+manifest 4278544e789fa8daa222f2cc1c70aca268452bf7
+author timeless@mozdev.org
+files parser/expat/lib/moz_extensions.c

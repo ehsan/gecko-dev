@@ -1,0 +1,4 @@
+changeset 8c5e82bc3241bb2ab210909c28a3843127362ae3
+manifest 20b73e65399d3f086add530a43576bdb874f4f37
+extra rebase_source:327fdc90831d288e88924095a00a36bd1ce7edf2
+files js/src/make-source-package.sh

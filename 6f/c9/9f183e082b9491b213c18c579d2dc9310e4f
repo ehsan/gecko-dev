@@ -1,0 +1,4 @@
+changeset 7e42e1974f443e1aa824e15681e836ad91dda968
+manifest 4b8e8f7f224f9d87206a9d5c52045735ce023734
+author mats.palmgren@bredband.net
+files layout/xul/base/src/nsBoxFrame.cpp

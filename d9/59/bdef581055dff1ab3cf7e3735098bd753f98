@@ -1,0 +1,4 @@
+changeset 9e18221b0102b4cf3a45ef86b268815b721dde30
+manifest 5db3e4df59c044ff738be43f6ed9325252c49964
+author leo@bastilia.ru
+files netwerk/dns/effective_tld_names.dat

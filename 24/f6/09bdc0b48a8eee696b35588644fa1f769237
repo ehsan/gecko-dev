@@ -1,0 +1,4 @@
+changeset 830a6dd88d1b674df795b76243fae7ade722571f
+manifest 79d4ac984191761331e2a70a5e9606a844ebd96e
+extra rebase_source:683cc6d9b6482647b7a3227d5d77785ef53944e2
+files browser/themes/shared/browser.inc

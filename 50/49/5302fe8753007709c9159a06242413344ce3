@@ -1,0 +1,4 @@
+changeset ea4ce326a291f9f0b40b3d78fc3b7ed4193cfd53
+manifest 6e02aeed4691c994056087357e7a4cf77d333595
+author Olli.Pettay@helsinki.fi
+files editor/composer/src/nsEditingSession.cpp

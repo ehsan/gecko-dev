@@ -1,0 +1,4 @@
+changeset e6b035789ee74c5f4c634d39d015340fbf5b0a34
+manifest 60567bac4cbb7a7c7a7115b6dfcb5b9b7fa70cad
+extra rebase_source:06c713242b8416839fe4e4a74188f49d014d92bf
+files toolkit/components/prompts/src/nsPrompter.js

@@ -1,0 +1,3 @@
+changeset ec82b6f20c8f67c81986d395b4339d74dfb01ac4
+manifest a07dc3e993edc9d808d6fcf9edeb4732c84e9a4e
+files js/src/tests/ecma_5/Boolean/no-boolean-toJSON.js

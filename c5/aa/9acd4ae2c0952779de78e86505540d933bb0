@@ -1,0 +1,4 @@
+changeset dd302708f38df4027e40607dea20692b49b046ee
+manifest 9cd67ce1a8c3d2e242f2493b5c9a03bb778e2dd1
+author sdwilsh@shawnwilsher.com
+files uriloader/exthandler/unix/nsOSHelperAppService.h

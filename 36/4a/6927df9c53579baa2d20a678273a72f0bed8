@@ -1,0 +1,3 @@
+changeset 0a03d24b11e89c1fb834aa3b2883eaf40082af42
+manifest fc662022e65375e590a0c2c255ea3dcce9e62060
+files media/webrtc/trunk/webrtc/modules/video_capture/android/java/src/org/webrtc/videoengine/VideoCaptureAndroid.java

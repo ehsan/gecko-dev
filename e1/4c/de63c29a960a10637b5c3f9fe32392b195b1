@@ -1,0 +1,3 @@
+changeset 36814bee62770f77330d8bf7c5e674bc8170cfc0
+manifest ae31bd199beb2ef3aee7e1d452ee0cde87e80957
+files js/src/jit/x64/MacroAssembler-x64.h

@@ -1,0 +1,4 @@
+changeset b826d7ba5c45f653c247bec5e28452be24503476
+manifest 45ccc01663bfe5e3dde75d839f0752ebfbe84838
+extra rebase_source:c7aef7f8bc075cef8a13908160ee6cb8abd8ecb9
+files browser/themes/winstripe/browser/browser.css

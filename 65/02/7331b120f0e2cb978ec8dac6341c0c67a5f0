@@ -1,0 +1,4 @@
+changeset 96ce4672e2a97807417bc57e621c928a1873ab09
+manifest 0bfd5715e6971032bb180f8d3372dad9155c6e33
+author timeless@mozdev.org
+files toolkit/mozapps/handling/src/nsContentDispatchChooser.js

@@ -1,0 +1,3 @@
+changeset 2ea15bd93a1b8f99fc561aa3360f03b8decc8ea2
+manifest c967b7f877829deabcffc0f83eb834ce917a2a07
+files dom/system/gonk/tests/test_ril_worker_icc.js

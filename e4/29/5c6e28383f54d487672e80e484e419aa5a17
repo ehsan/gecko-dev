@@ -1,0 +1,4 @@
+changeset 1028a620d6072545ed7b44a5c259f8da5b65a317
+manifest ce47f3584fb88ebbec7612c49fe0abccfe423618
+extra rebase_source:1ada67e2c44058871d6a2b6ca5ccae1cf9b582f5
+files mobile/android/base/AndroidManifest.xml.in

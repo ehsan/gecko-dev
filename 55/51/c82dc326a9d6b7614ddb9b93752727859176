@@ -1,0 +1,4 @@
+changeset 28e6cfc08efc4c6159fa61c5ae03f10ca420d60e
+manifest a1ab80ffd299606c0c6585ec72d94433f3fd81d8
+extra rebase_source:89a3a35491ab8f97578cb12cdc2fbdb816daa6d0
+files toolkit/components/aboutmemory/tests/test_memoryReporters.xul

@@ -1,0 +1,5 @@
+changeset 1d6d08074c4113640deb1538ce6f35d9fef61839
+manifest c7e1e60e515a1c86f10ecf364cb5c58bbe8b6077
+author Chris Coulson <chrisccoulson@ubuntu.com> and jhorak@redhat.com
+extra rebase_source:0c573c2b50b6766367ecf37d9688ce192ee223e1
+files browser/components/shell/src/nsGNOMEShellService.cpp

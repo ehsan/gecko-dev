@@ -1,0 +1,4 @@
+changeset 1c04d97d0f74288f9c160534b13ef077a45388f5
+manifest 2612e7877f32a59c97066ccae47f98540eb55be9
+extra rebase_source:054283ae7cd75772a8303358e553f5d8b78ec680
+files testing/mozbase/generate_diff.py

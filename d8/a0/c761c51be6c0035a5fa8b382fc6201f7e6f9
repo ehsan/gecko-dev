@@ -1,0 +1,4 @@
+changeset 97f2e9782e1c405eac78b5b28300e2b93eaed832
+manifest 70d82118e1a562bf81edd6cc871a6e8a30944211
+extra rebase_source:dfa4223c3b226d3d46150051a7b9c22a88c4c432
+files browser/locales/en-US/searchplugins/yahoo.xml

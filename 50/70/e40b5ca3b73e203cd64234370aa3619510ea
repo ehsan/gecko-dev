@@ -1,0 +1,4 @@
+changeset 9a97b3ff5d752abeeb47a2c00cc6265a23c18b8d
+manifest 663b0023fb503dd144043dd762e38e086c41b810
+author dietrich@mozilla.com
+files browser/components/migration/src/nsSafariProfileMigrator.cpp

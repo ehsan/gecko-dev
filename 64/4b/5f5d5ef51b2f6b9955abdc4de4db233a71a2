@@ -1,0 +1,4 @@
+changeset 8336abc140d386465babf8311ad4c00cbc709666
+manifest c41ccfa4d1c268c333bdcb08f3710ae124e1dd76
+author dbaron@dbaron.org
+files js/src/jsapi.c

@@ -1,0 +1,4 @@
+changeset e38f36dbaf2796698f8bc2c5e85694f4755876b4
+manifest 6bf5a7bb0280e25dea6f8eca7b3001ba6938d390
+extra rebase_source:1ae22e8abd799137e661f34b0c8346006a511617
+files js/src/nanojit/Assembler.h

@@ -1,0 +1,4 @@
+changeset 961e152b8b7bb57082da89fe20e07b8f0e1a48e8
+manifest 6924fe641e80bf20e4b3ad8758fd1627948e3f7f
+extra rebase_source:9681fd61ea2fbaf376390ce85b8cb3c3d040c098
+files content/base/src/nsContentIterator.cpp

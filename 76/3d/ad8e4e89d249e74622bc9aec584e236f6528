@@ -1,0 +1,4 @@
+changeset 8591ea1e8b29517206153f6e882f037a7989f914
+manifest a0bb6b2af5e430c14d039d20ccc00498376e41ec
+author thunder@mozilla.com
+files browser/components/places/src/nsPlacesImportExportService.cpp

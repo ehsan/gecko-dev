@@ -1,0 +1,4 @@
+changeset 160958945112db6cc785fb184e0331ccda44b48b
+manifest 5c5f96a8b586f764bbb9e567a1131ea7ca4572d4
+author nrthomas@gmail.com
+files tools/release/configs/tb-moz180-bootstrap.cfg

@@ -1,0 +1,4 @@
+changeset 41b90556c8d63580212e9ff511e864a6121ddafc
+manifest 806cb25aeec002e35144ad0c291b92d35cc5a4aa
+extra rebase_source:3e3d2906bea7bba3a721bd2e6c929b3debae1b36
+files dom/base/nsJSEnvironment.cpp

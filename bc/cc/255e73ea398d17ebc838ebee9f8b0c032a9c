@@ -1,0 +1,4 @@
+changeset afd06e5833adec499e730b17b978e1cb2b775340
+manifest f09d90f296fdd5c912cba12e75c4ba7b5def1fda
+author bclary@bclary.com
+files js/tests/js1_5/decompilation/regress-376564.js

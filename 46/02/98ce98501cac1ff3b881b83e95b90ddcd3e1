@@ -1,0 +1,3 @@
+changeset ad90865125a22a0613618ad7e671b12ba066feb4
+manifest 3a2fe5bca3c2a61b32c10552390416f20fcb88db
+files browser/components/places/tests/unit/test_browserGlue_prefs.js

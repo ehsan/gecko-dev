@@ -1,0 +1,3 @@
+changeset 118a9a77fa61dc180eb912ee2293a8b08175dfc2
+manifest d40f1a9e86179bc373c9c1e45538aa446e3c02b5
+files storage/src/mozStorageConnection.h

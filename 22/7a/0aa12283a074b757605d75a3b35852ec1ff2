@@ -1,0 +1,4 @@
+changeset 54eccfb7706208037d423d7a0d757665f173e122
+manifest bcbd76df87238a570f18c00b7f8326416a3e4726
+author jst@mozilla.org
+files dom/src/base/nsJSEnvironment.cpp

@@ -1,0 +1,3 @@
+changeset 6986bf97d8b4e1762160c05d0be96b74a24a79a2
+manifest 0c045f6fa13d65a59502963e0052dcfb0e156c6a
+files js/src/xpconnect/src/xpcwrappednativescope.cpp

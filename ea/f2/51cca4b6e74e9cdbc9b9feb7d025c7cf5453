@@ -1,0 +1,4 @@
+changeset 575e080e3b20543206e2664cbadc2e8d26a77c27
+manifest 01c6ed4803bf3a35395a36ef7c0b9b4c5c6899ba
+author dbaron@dbaron.org
+files tools/trace-malloc/tmreader.c

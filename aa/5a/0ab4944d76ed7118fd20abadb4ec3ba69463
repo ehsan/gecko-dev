@@ -1,0 +1,4 @@
+changeset d58d4affa7cdda598379ce011dbd4f8538112588
+manifest ef9a41c70fa7175b6ea7a87f423a96e49f15f0d1
+author mozilla@weilbacher.org
+files modules/libjar/zipwriter/src/Makefile.in

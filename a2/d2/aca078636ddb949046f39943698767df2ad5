@@ -1,0 +1,4 @@
+changeset 567436402744daf88356598a3a6a9eca3ab47926
+manifest 4111b7e51a82d619c0f4f7a9c6d3d5370da2e300
+author bent.mozilla@gmail.com
+files toolkit/crashreporter/client/crashreporter_win.cpp
