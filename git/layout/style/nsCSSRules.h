@@ -262,12 +262,6 @@ class NS_FINAL_CLASS nsCSSFontFaceRule : public nsCSSRule,
                                          public nsIDOMCSSFontFaceRule
 {
 public:
-  nsCSSFontFaceRule() {}
-
-  nsCSSFontFaceRule(const nsCSSFontFaceRule& aCopy)
-    // copy everything except our reference count
-    : nsCSSRule(aCopy), mDecl(aCopy.mDecl) {}
-
   NS_DECL_ISUPPORTS
 
   // nsIStyleRule methods

@@ -313,8 +313,12 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
   }
 #endif
 
-  if (!mFrame->HasOverflowAreas()) {
-    mMetrics.SetOverflowAreasToDesiredBounds();
+  if (!mFrame->HasOverflowRect()) {
+    // Provide overflow area for child that doesn't have any
+    mMetrics.mOverflowArea.x = 0;
+    mMetrics.mOverflowArea.y = 0;
+    mMetrics.mOverflowArea.width = mMetrics.width;
+    mMetrics.mOverflowArea.height = mMetrics.height;
   }
 
   if (!NS_INLINE_IS_BREAK_BEFORE(aFrameReflowStatus) ||
@@ -353,7 +357,7 @@ nsBlockReflowContext::PlaceBlock(const nsHTMLReflowState& aReflowState,
                                  nsLineBox*               aLine,
                                  nsCollapsingMargin&      aBottomMarginResult,
                                  nsRect&                  aInFlowBounds,
-                                 nsOverflowAreas&         aOverflowAreas,
+                                 nsRect&                  aCombinedRect,
                                  nsReflowStatus           aReflowStatus)
 {
   // Compute collapsed bottom margin value.
@@ -437,8 +441,8 @@ nsBlockReflowContext::PlaceBlock(const nsHTMLReflowState& aReflowState,
   
   // Now place the frame and complete the reflow process
   nsContainerFrame::FinishReflowChild(mFrame, mPresContext, &aReflowState, mMetrics, x, y, 0);
-
-  aOverflowAreas = mMetrics.mOverflowAreas + nsPoint(x, y);
+  
+  aCombinedRect = mMetrics.mOverflowArea + nsPoint(x, y);
 
   return PR_TRUE;
 }

@@ -63,7 +63,7 @@ public:
   nsresult  InitializeGlobalPrinters();
 
   PRBool    PrintersAreAllocated()       { return mGlobalPrinterList != nsnull; }
-  PRUint32  GetNumPrinters()             { return mGlobalNumPrinters; }
+  PRInt32   GetNumPrinters()             { return mGlobalNumPrinters; }
   nsString* GetStringAt(PRInt32 aInx)    { return &mGlobalPrinterList->ElementAt(aInx); }
 
 protected:
@@ -71,14 +71,14 @@ protected:
 
   static GlobalPrinters mGlobalPrinters;
   static nsTArray<nsString>* mGlobalPrinterList;
-  static PRUint32 mGlobalNumPrinters;
+  static int            mGlobalNumPrinters;
 
 };
 //---------------
 // static members
 GlobalPrinters GlobalPrinters::mGlobalPrinters;
 nsTArray<nsString>* GlobalPrinters::mGlobalPrinterList = nsnull;
-PRUint32 GlobalPrinters::mGlobalNumPrinters = 0;
+int            GlobalPrinters::mGlobalNumPrinters = 0;
 
 nsDeviceContextSpecBeOS::nsDeviceContextSpecBeOS()
 {
@@ -151,14 +151,14 @@ NS_IMETHODIMP nsPrinterEnumeratorBeOS::GetPrinterNameList(nsIStringEnumerator **
     return rv;
   }
 
-  PRUint32 numPrinters = GlobalPrinters::GetInstance()->GetNumPrinters();
+  PRInt32 numPrinters = GlobalPrinters::GetInstance()->GetNumPrinters();
   nsTArray<nsString> *printers = new nsTArray<nsString>(numPrinters);
   if (!printers) {
     GlobalPrinters::GetInstance()->FreeGlobalPrinters();
     return NS_ERROR_OUT_OF_MEMORY;
   }
   
-  PRUint32 count = 0;
+  int count = 0;
   while( count < numPrinters )
   {
     printers->AppendElement(*GlobalPrinters::GetInstance()->GetStringAt(count++));
