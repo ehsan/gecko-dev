@@ -79,8 +79,13 @@ GetCommonUnit(nsStyleUnit aFirstUnit,
   // XXXdholbert Naive implementation for now: simply require that the input
   // units match.
   if (aFirstUnit != aSecondUnit) {
-    // NOTE: Some unit-pairings will need special handling,
-    // e.g. percent vs coord (bug 520234)
+    // XXXdholbert Fail on mismatches for now.
+    // Eventually we'll need to be able to resolve conflicts here, e.g. for
+    // rgb() colors vs. named colors.  Some conflicts can't be resolved,
+    // e.g. percent vs coord, which we'll hopefully handle using CSS calc()
+    // once that's implemented.
+    NS_WARNING("start unit & end unit don't match -- need to resolve this "
+               "and pick which one we want to use");
     return eStyleUnit_Null;
   }
   return aFirstUnit;
@@ -150,6 +155,7 @@ nsStyleAnimation::Add(nsStyleCoord& aDest, const nsStyleCoord& aValueToAdd,
       break;
     }
     case eStyleUnit_Null:
+      NS_WARNING("Unable to find a common unit for given values");
       success = PR_FALSE;
       break;
     default:
@@ -220,6 +226,7 @@ nsStyleAnimation::ComputeDistance(const nsStyleCoord& aStartValue,
       break;
     }
     case eStyleUnit_Null:
+      NS_WARNING("Unable to find a common unit for given values");
       success = PR_FALSE;
       break;
     default:
@@ -297,6 +304,7 @@ nsStyleAnimation::Interpolate(const nsStyleCoord& aStartValue,
       break;
     }
     case eStyleUnit_Null:
+      NS_WARNING("Unable to find a common unit for given values");
       success = PR_FALSE;
       break;
     default:
@@ -408,9 +416,6 @@ nsStyleAnimation::UncomputeValue(nsCSSProperty aProperty,
 
   nsCSSValue value;
   switch (aComputedValue.GetUnit()) {
-    case eStyleUnit_None:
-      value.SetNoneValue();
-      break;
     case eStyleUnit_Coord: {
       float pxVal = aPresContext->AppUnitsToFloatCSSPixels(
                                     aComputedValue.GetCoordValue());
@@ -486,13 +491,13 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
     case eStyleAnimType_PaintServer: {
       const nsStyleSVGPaint &paint = *static_cast<const nsStyleSVGPaint*>(
         StyleDataAtOffset(styleStruct, ssOffset));
-      // FIXME: At some point in the future, we should animate gradients.
+      // We *could* animate 'none' by treating it as rgba(0, 0, 0, 0),
+      // but since SVG doesn't have (or really get along with) rgba()
+      // colors, I think we're not supposed to.
+      // FIXME: However, at some point in the future, we should animate
+      // gradients.
       if (paint.mType == eStyleSVGPaintType_Color) {
         aComputedValue.SetColorValue(paint.mPaint.mColor);
-        return PR_TRUE;
-      }
-      if (paint.mType == eStyleSVGPaintType_None) {
-        aComputedValue.SetNoneValue();
         return PR_TRUE;
       }
       return PR_FALSE;
@@ -563,14 +568,8 @@ nsStyleAnimation::StoreComputedValue(nsCSSProperty aProperty,
     case eStyleAnimType_PaintServer: {
       nsStyleSVGPaint &paint = *static_cast<nsStyleSVGPaint*>(
         StyleDataAtOffset(aStyleStruct, ssOffset));
-      if (aComputedValue.GetUnit() == eStyleUnit_Color) {
-        paint.SetType(eStyleSVGPaintType_Color);
-        paint.mPaint.mColor = aComputedValue.GetColorValue();
-      } else {
-        NS_ASSERTION(aComputedValue.GetUnit() == eStyleUnit_None,
-                     "unexpected unit");
-        paint.SetType(eStyleSVGPaintType_None);
-      }
+      paint.mType = eStyleSVGPaintType_Color;
+      paint.mPaint.mColor = aComputedValue.GetColorValue();
       return PR_TRUE;
     }
     case eStyleAnimType_None:

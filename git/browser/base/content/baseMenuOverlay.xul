@@ -110,8 +110,8 @@
 #endif
         <menuseparator id="aboutSeparator"/>
         <menuitem id="aboutName"
-                  accesskey="&aboutProduct.accesskey;"
-                  label="&aboutProduct.label;"
+                  accesskey="&aboutCmd.accesskey;"
+                  label="&aboutCmd.label;"
                   oncommand="openAboutDialog();"/>
       </menupopup>
     </menu>

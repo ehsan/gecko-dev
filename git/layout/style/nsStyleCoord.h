@@ -80,7 +80,6 @@ public:
   nsStyleCoord(nscoord aValue);
   nsStyleCoord(PRInt32 aValue, nsStyleUnit aUnit);
   nsStyleCoord(float aValue, nsStyleUnit aUnit);
-  nsStyleCoord(nscolor aValue);
   inline nsStyleCoord(const nsStyleCoord& aCopy);
   inline nsStyleCoord(const nsStyleUnion& aValue, nsStyleUnit aUnit);
 

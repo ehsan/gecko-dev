@@ -1809,7 +1809,7 @@ nsXULPopupManager::GetPreviousMenuItem(nsIFrame* aParent,
 
   nsIFrame* currFrame = nsnull;
   if (aStart)
-    currFrame = aStart->GetPrevSibling();
+    currFrame = frames.GetPrevSiblingFor(aStart);
   else
     currFrame = frames.LastChild();
 
@@ -1819,7 +1819,7 @@ nsXULPopupManager::GetPreviousMenuItem(nsIFrame* aParent,
       return (currFrame->GetType() == nsGkAtoms::menuFrame) ?
              static_cast<nsMenuFrame *>(currFrame) : nsnull;
     }
-    currFrame = currFrame->GetPrevSibling();
+    currFrame = frames.GetPrevSiblingFor(currFrame);
   }
 
   currFrame = frames.LastChild();
@@ -1832,7 +1832,7 @@ nsXULPopupManager::GetPreviousMenuItem(nsIFrame* aParent,
              static_cast<nsMenuFrame *>(currFrame) : nsnull;
     }
 
-    currFrame = currFrame->GetPrevSibling();
+    currFrame = frames.GetPrevSiblingFor(currFrame);
   }
 
   // No luck. Just return our start value.

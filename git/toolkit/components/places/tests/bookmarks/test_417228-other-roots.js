@@ -179,7 +179,7 @@ function run_test() {
   });
 
   try {
-    PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
+    PlacesUtils.backupBookmarksToFile(jsonFile);
   } catch(ex) { do_throw("couldn't export to file: " + ex); }
 
   tests.forEach(function(aTest) {

@@ -2345,7 +2345,6 @@ nsStyleText::nsStyleText(void)
   mWordSpacing = 0;
 
   mTextShadow = nsnull;
-  mTabSize = NS_STYLE_TABSIZE_INITIAL;
 }
 
 nsStyleText::nsStyleText(const nsStyleText& aSource)
@@ -2357,8 +2356,7 @@ nsStyleText::nsStyleText(const nsStyleText& aSource)
     mLineHeight(aSource.mLineHeight),
     mTextIndent(aSource.mTextIndent),
     mWordSpacing(aSource.mWordSpacing),
-    mTextShadow(aSource.mTextShadow),
-    mTabSize(aSource.mTabSize)
+    mTextShadow(aSource.mTextShadow)
 {
   MOZ_COUNT_CTOR(nsStyleText);
 }
@@ -2382,8 +2380,7 @@ nsChangeHint nsStyleText::CalcDifference(const nsStyleText& aOther) const
       (mLetterSpacing != aOther.mLetterSpacing) ||
       (mLineHeight != aOther.mLineHeight) ||
       (mTextIndent != aOther.mTextIndent) ||
-      (mWordSpacing != aOther.mWordSpacing) ||
-      (mTabSize != aOther.mTabSize))
+      (mWordSpacing != aOther.mWordSpacing))
     return NS_STYLE_HINT_REFLOW;
 
   return CalcShadowDifference(mTextShadow, aOther.mTextShadow);

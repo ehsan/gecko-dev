@@ -239,7 +239,7 @@ function run_test() {
 
   // export json to file
   try {
-    PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
+    PlacesUtils.backupBookmarksToFile(jsonFile);
   } catch(ex) { do_throw("couldn't export to file: " + ex); }
 
   // clean

@@ -917,8 +917,8 @@ nsDocumentEncoder::EncodeToString(nsAString& aOutputString)
     }
   }
   
-  PRBool rewriteEncodingDeclaration = !(mSelection || mRange || mNode) && !(mFlags & OutputDontRewriteEncodingDeclaration);
-  mSerializer->Init(mFlags, mWrapColumn, mCharset.get(), mIsCopying, rewriteEncodingDeclaration);
+  PRBool isWholeDocument = !(mSelection || mRange || mNode);
+  mSerializer->Init(mFlags, mWrapColumn, mCharset.get(), mIsCopying, isWholeDocument);
 
   if (mSelection) {
     nsCOMPtr<nsIDOMRange> range;

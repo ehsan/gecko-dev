@@ -52,16 +52,13 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/distribution.js");
 
 const PREF_EM_NEW_ADDONS_LIST = "extensions.newAddons";
-const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
-const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
 
-// We try to backup bookmarks at idle times, to avoid doing that at shutdown.
-// Number of idle seconds before trying to backup bookmarks.  15 minutes.
-const BOOKMARKS_BACKUP_IDLE_TIME = 15 * 60;
-// Minimum interval in milliseconds between backups.
-const BOOKMARKS_BACKUP_INTERVAL = 86400 * 1000;
-// Maximum number of backups to create.  Old ones will be purged.
-const BOOKMARKS_BACKUP_MAX_BACKUPS = 10;
+// Check to see if bookmarks need backing up once per
+// day on 1 hour idle.
+const BOOKMARKS_ARCHIVE_IDLE_TIME = 60 * 60;
+
+// Backup bookmarks once every 24 hours.
+const BOOKMARKS_ARCHIVE_INTERVAL = 86400 * 1000;
 
 // Factory object
 const BrowserGlueServiceFactory = {
@@ -79,25 +76,29 @@ const BrowserGlueServiceFactory = {
 
 function BrowserGlue() {
 
-  XPCOMUtils.defineLazyServiceGetter(this, "_prefs",
-                                     "@mozilla.org/preferences-service;1",
-                                     "nsIPrefBranch");
+  this.__defineGetter__("_prefs", function() {
+    delete this._prefs;
+    return this._prefs = Cc["@mozilla.org/preferences-service;1"].
+                         getService(Ci.nsIPrefBranch);
+  });
 
-  XPCOMUtils.defineLazyServiceGetter(this, "_bundleService",
-                                     "@mozilla.org/intl/stringbundle;1",
-                                     "nsIStringBundleService");
+  this.__defineGetter__("_bundleService", function() {
+    delete this._bundleService;
+    return this._bundleService = Cc["@mozilla.org/intl/stringbundle;1"].
+                                 getService(Ci.nsIStringBundleService);
+  });
 
-  XPCOMUtils.defineLazyServiceGetter(this, "_idleService",
-                                     "@mozilla.org/widget/idleservice;1",
-                                     "nsIIdleService");
+  this.__defineGetter__("_idleService", function() {
+    delete this._idleService;
+    return this._idleService = Cc["@mozilla.org/widget/idleservice;1"].
+                           getService(Ci.nsIIdleService);
+  });
 
-  XPCOMUtils.defineLazyServiceGetter(this, "_observerService",
-                                     "@mozilla.org/observer-service;1",
-                                     "nsIObserverService");
-
-  XPCOMUtils.defineLazyGetter(this, "_distributionCustomizer", function() {
-                                return new DistributionCustomizer();
-                              });
+  this.__defineGetter__("_observerService", function() {
+    delete this._observerService;
+    return this._observerService = Cc['@mozilla.org/observer-service;1'].
+                                   getService(Ci.nsIObserverService);
+  });
 
   this._init();
 }
@@ -111,10 +112,6 @@ function BrowserGlue() {
 BrowserGlue.prototype = {
   
   _saveSession: false,
-  _isIdleObserver: false,
-  _isPlacesInitObserver: false,
-  _isPlacesLockedObserver: false,
-  _isPlacesDatabaseLocked: false,
 
   _setPrefToSaveSession: function()
   {
@@ -180,31 +177,20 @@ BrowserGlue.prototype = {
       case "places-init-complete":
         this._initPlaces();
         this._observerService.removeObserver(this, "places-init-complete");
-        this._isPlacesInitObserver = false;
         // no longer needed, since history was initialized completely.
         this._observerService.removeObserver(this, "places-database-locked");
-        this._isPlacesLockedObserver = false;
-
-        // Now apply distribution customized bookmarks.
-        // This should always run after Places initialization.
-        this._distributionCustomizer.applyBookmarks();
         break;
       case "places-database-locked":
         this._isPlacesDatabaseLocked = true;
         // stop observing, so further attempts to load history service
         // do not show the prompt.
         this._observerService.removeObserver(this, "places-database-locked");
-        this._isPlacesLockedObserver = false;
         break;
       case "idle":
-        if (this._idleService.idleTime > BOOKMARKS_BACKUP_IDLE_TIME * 1000)
-          this._backupBookmarks();
-        break;
-      case "distribution-customization-complete":
-        this._observerService
-            .removeObserver(this, "distribution-customization-complete");
-        // Customization has finished, we don't need the customizer anymore.
-        delete this._distributionCustomizer;
+        if (this._idleService.idleTime > BOOKMARKS_ARCHIVE_IDLE_TIME * 1000) {
+          // Back up bookmarks.
+          this._archiveBookmarks();
+        }
         break;
     }
   }, 
@@ -227,10 +213,7 @@ BrowserGlue.prototype = {
 #endif
     osvr.addObserver(this, "session-save", false);
     osvr.addObserver(this, "places-init-complete", false);
-    this._isPlacesInitObserver = true;
     osvr.addObserver(this, "places-database-locked", false);
-    this._isPlacesLockedObserver = true;
-    osvr.addObserver(this, "distribution-customization-complete", false);
   },
 
   // cleanup (called on application shutdown)
@@ -244,25 +227,20 @@ BrowserGlue.prototype = {
     osvr.removeObserver(this, "sessionstore-windows-restored");
     osvr.removeObserver(this, "browser:purge-session-history");
     osvr.removeObserver(this, "quit-application-requested");
-    osvr.removeObserver(this, "quit-application-granted");
 #ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
     osvr.removeObserver(this, "browser-lastwindow-close-requested");
     osvr.removeObserver(this, "browser-lastwindow-close-granted");
 #endif
+    osvr.removeObserver(this, "quit-application-granted");
     osvr.removeObserver(this, "session-save");
-    if (this._isIdleObserver)
-      this._idleService.removeIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
-    if (this._isPlacesInitObserver)
-      osvr.removeObserver(this, "places-init-complete");
-    if (this._isPlacesLockedObserver)
-      osvr.removeObserver(this, "places-database-locked");
   },
 
   _onAppDefaults: function()
   {
     // apply distribution customizations (prefs)
     // other customizations are applied in _onProfileStartup()
-    this._distributionCustomizer.applyPrefDefaults();
+    var distro = new DistributionCustomizer();
+    distro.applyPrefDefaults();
   },
 
   // profile startup handler (contains profile initialization routines)
@@ -281,7 +259,8 @@ BrowserGlue.prototype = {
 
     // apply distribution customizations
     // prefs are applied in _onAppDefaults()
-    this._distributionCustomizer.applyCustomizations();
+    var distro = new DistributionCustomizer();
+    distro.applyCustomizations();
 
     // handle any UI migration
     this._migrateUI();
@@ -309,8 +288,7 @@ BrowserGlue.prototype = {
   _onProfileShutdown: function() 
   {
     this._shutdownPlaces();
-    this._idleService.removeIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
-    this._isIdleObserver = false;
+    this._idleService.removeIdleObserver(this, BOOKMARKS_ARCHIVE_IDLE_TIME);
     this.Sanitizer.onShutdown();
   },
 
@@ -349,11 +327,6 @@ BrowserGlue.prototype = {
     if (this._isPlacesDatabaseLocked) {
       this._showPlacesLockedNotificationBox();
     }
-
-    // If there are plugins installed that are outdated, and the user hasn't
-    // been warned about them yet, open the plugins update page.
-    if (this._prefs.getBoolPref(PREF_PLUGINS_NOTIFYUSER))
-      this._showPluginUpdatePage();
   },
 
   _onQuitRequest: function(aCancelQuit, aQuitType)
@@ -546,18 +519,6 @@ BrowserGlue.prototype = {
     var box = notifyBox.appendNotification(notifyRightsText, "about-rights", null, notifyBox.PRIORITY_INFO_LOW, buttons);
     box.persistence = 3; // arbitrary number, just so bar sticks around for a bit
   },
-  
-  _showPluginUpdatePage : function () {
-    this._prefs.setBoolPref(PREF_PLUGINS_NOTIFYUSER, false);
-
-    var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].
-                    getService(Ci.nsIURLFormatter);
-    var updateUrl = formatter.formatURLPref(PREF_PLUGINS_UPDATEURL);
-
-    var win = this.getMostRecentBrowserWindow();
-    var browser = win.gBrowser;
-    browser.selectedTab = browser.addTab(updateUrl);
-  },
 
   // returns the (cached) Sanitizer constructor
   get Sanitizer() 
@@ -631,8 +592,8 @@ BrowserGlue.prototype = {
       restoreDefaultBookmarks =
         this._prefs.getBoolPref("browser.bookmarks.restore_default_bookmarks");
       if (restoreDefaultBookmarks) {
-        // Ensure that we already have a bookmarks backup for today.
-        this._backupBookmarks();
+        // Ensure that we already have a bookmarks backup for today
+        this._archiveBookmarks();
         importBookmarks = true;
       }
     } catch(ex) {}
@@ -642,8 +603,8 @@ BrowserGlue.prototype = {
     if (importBookmarks && !restoreDefaultBookmarks && !importBookmarksHTML) {
       // get latest JSON backup
       Cu.import("resource://gre/modules/utils.js");
-      var bookmarksBackupFile = PlacesUtils.backups.getMostRecent("json");
-      if (bookmarksBackupFile) {
+      var bookmarksBackupFile = PlacesUtils.getMostRecentBackup();
+      if (bookmarksBackupFile && bookmarksBackupFile.leafName.match("\.json$")) {
         // restore from JSON backup
         PlacesUtils.restoreBookmarksFromJSONFile(bookmarksBackupFile);
         importBookmarks = false;
@@ -722,29 +683,29 @@ BrowserGlue.prototype = {
 
     // Initialize bookmark archiving on idle.
     // Once a day, either on idle or shutdown, bookmarks are backed up.
-    if (!this._isIdleObserver) {
-      this._idleService.addIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
-      this._isIdleObserver = true;
-    }
+    this._idleService.addIdleObserver(this, BOOKMARKS_ARCHIVE_IDLE_TIME);
   },
 
   /**
    * Places shut-down tasks
-   * - back up bookmarks if needed.
-   * - export bookmarks as HTML, if so configured.
+   * - back up and archive bookmarks
+   * - export bookmarks as HTML, if so configured
    *
    * Note: quit-application-granted notification is received twice
    *       so replace this method with a no-op when first called.
    */
   _shutdownPlaces: function bg__shutdownPlaces() {
-    this._backupBookmarks();
+    // Backup and archive Places bookmarks.
+    this._archiveBookmarks();
 
     // Backup bookmarks to bookmarks.html to support apps that depend
     // on the legacy format.
     var autoExportHTML = false;
     try {
       autoExportHTML = this._prefs.getBoolPref("browser.bookmarks.autoExportHTML");
-    } catch(ex) { /* Don't export */ }
+    } catch(ex) {
+      Components.utils.reportError(ex);
+    }
 
     if (autoExportHTML) {
       Cc["@mozilla.org/browser/places/import-export-service;1"].
@@ -754,24 +715,23 @@ BrowserGlue.prototype = {
   },
 
   /**
-   * Backup bookmarks if needed.
+   * Back up and archive bookmarks
    */
-  _backupBookmarks: function nsBrowserGlue__backupBookmarks() {
+  _archiveBookmarks: function nsBrowserGlue__archiveBookmarks() {
     Cu.import("resource://gre/modules/utils.js");
 
-    let lastBackupFile = PlacesUtils.backups.getMostRecent();
+    var lastBackup = PlacesUtils.getMostRecentBackup();
 
-    // Backup bookmarks if there are no backups or the maximum interval between
-    // backups elapsed.
-    if (!lastBackupFile ||
-        new Date() - PlacesUtils.backups.getDateForFile(lastBackupFile) > BOOKMARKS_BACKUP_INTERVAL) {
-      let maxBackups = BOOKMARKS_BACKUP_MAX_BACKUPS;
+    // Backup bookmarks if there aren't any backups or 
+    // they haven't been backed up in the last 24 hrs.
+    if (!lastBackup ||
+        Date.now() - lastBackup.lastModifiedTime > BOOKMARKS_ARCHIVE_INTERVAL) {
+      var maxBackups = 5;
       try {
         maxBackups = this._prefs.getIntPref("browser.bookmarks.max_backups");
-      }
-      catch(ex) { /* Use default. */ }
+      } catch(ex) {}
 
-      PlacesUtils.backups.create(maxBackups); // Don't force creation.
+      PlacesUtils.archiveBookmarksFile(maxBackups, false /* don't force */);
     }
   },
 

@@ -834,11 +834,6 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(do_GetAtom("images-in-menus"));
   }
 
-  lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ImagesInButtons, metricResult);
-  if (metricResult) {
-    sSystemMetrics->AppendElement(do_GetAtom("images-in-buttons"));
-  }
-
   rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsDefaultTheme, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(do_GetAtom("windows-default-theme"));
@@ -864,11 +859,6 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(do_GetAtom("touch-enabled"));
   }
  
-  rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MaemoClassic, metricResult);
-  if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(do_GetAtom("maemo-classic"));
-  }
-
   return PR_TRUE;
 }
 
@@ -966,7 +956,7 @@ RuleProcessorData::RuleProcessorData(nsPresContext* aPresContext,
     // NOTE: optimization: cannot be an XLink if no attributes (since it needs an 
     if(!mIsLink &&
        mHasAttributes && 
-       !(mIsHTMLContent || aContent->IsXUL()) && 
+       !(mIsHTMLContent || aContent->IsNodeOfType(nsINode::eXUL)) && 
        nsStyleUtil::IsLink(aContent, linkHandler, &mLinkState)) {
       mIsLink = PR_TRUE;
     } 
@@ -1022,7 +1012,7 @@ const nsString* RuleProcessorData::GetLang()
         // XHTML1 section C.7).
         PRBool hasAttr = content->GetAttr(kNameSpaceID_XML, nsGkAtoms::lang,
                                           *mLanguage);
-        if (!hasAttr && content->IsHTML()) {
+        if (!hasAttr && content->IsNodeOfType(nsINode::eHTML)) {
           hasAttr = content->GetAttr(kNameSpaceID_None, nsGkAtoms::lang,
                                      *mLanguage);
         }
@@ -1177,7 +1167,7 @@ IsSignificantChild(nsIContent* aChild, PRBool aTextIsSignificant,
 // whose namespace and name match those of aAttrSelector.  This function
 // performs comparisons on the value only, based on aAttrSelector->mFunction.
 static PRBool AttrMatchesValue(const nsAttrSelector* aAttrSelector,
-                               const nsString& aValue, PRBool isHTML)
+                               const nsString& aValue)
 {
   NS_PRECONDITION(aAttrSelector, "Must have an attribute selector");
 
@@ -1193,11 +1183,9 @@ static PRBool AttrMatchesValue(const nsAttrSelector* aAttrSelector,
 
   const nsDefaultStringComparator defaultComparator;
   const nsCaseInsensitiveStringComparator ciComparator;
-  const nsStringComparator& comparator =
-      (aAttrSelector->mCaseSensitive || !isHTML)
+  const nsStringComparator& comparator = aAttrSelector->mCaseSensitive
                 ? static_cast<const nsStringComparator&>(defaultComparator)
                 : static_cast<const nsStringComparator&>(ciComparator);
-
   switch (aAttrSelector->mFunction) {
     case NS_ATTR_FUNC_EQUALS: 
       return aValue.Equals(aAttrSelector->mValue, comparator);
@@ -1246,13 +1234,18 @@ static PRBool SelectorMatches(RuleProcessorData &data,
        data.mNameSpaceID != aSelector->mNameSpace))
     return PR_FALSE;
 
-  const PRBool isHTML =
-    data.mIsHTMLContent && data.mContent->GetOwnerDoc()->IsHTML();
-
-  if (aSelector->mLowercaseTag && 
-      (isHTML ? aSelector->mLowercaseTag : aSelector->mCasedTag) !=
-        data.mContentTag) {
-    return PR_FALSE;
+  if (aSelector->mLowercaseTag) {
+    //If we tested that this is an HTML node in a text/html document and
+    //had some tweaks in RuleHash, we could remove case-sensitivity from
+    //style sheets.
+    if (data.mIsHTMLContent) {
+      if (data.mContentTag != aSelector->mLowercaseTag)
+        return PR_FALSE;
+    }
+    else {
+      if (data.mContentTag != aSelector->mCasedTag)
+        return PR_FALSE;
+    }
   }
 
   PRBool result = PR_TRUE;
@@ -1441,7 +1434,7 @@ static PRBool SelectorMatches(RuleProcessorData &data,
       if (element) {
         do {
           child = element->GetChildAt(++index);
-          if (child && child->IsHTML() &&
+          if (child && child->IsNodeOfType(nsINode::eHTML) &&
               child->Tag() == nsGkAtoms::param &&
               child->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
                                  NS_LITERAL_STRING("pluginurl"), eIgnoreCase)) {
@@ -1636,36 +1629,6 @@ static PRBool SelectorMatches(RuleProcessorData &data,
         result = PR_FALSE;
       }
     }
-    else if (nsCSSPseudoClasses::mozLWTheme == pseudoClass->mAtom) {
-      nsIDocument* doc = data.mContent ? data.mContent->GetOwnerDoc() : nsnull;
-
-      if (doc) {
-        result = doc->GetDocumentLWTheme() > nsIDocument::Doc_Theme_None;
-      }
-      else {
-        result = PR_FALSE;
-      }
-    }
-    else if (nsCSSPseudoClasses::mozLWThemeBrightText == pseudoClass->mAtom) {
-      nsIDocument* doc = data.mContent ? data.mContent->GetOwnerDoc() : nsnull;
-
-      if (doc) {
-        result = doc->GetDocumentLWTheme() == nsIDocument::Doc_Theme_Bright;
-      }
-      else {
-        result = PR_FALSE;
-      }
-    }
-    else if (nsCSSPseudoClasses::mozLWThemeDarkText == pseudoClass->mAtom) {
-      nsIDocument* doc = data.mContent ? data.mContent->GetOwnerDoc() : nsnull;
-
-      if (doc) {
-        result = doc->GetDocumentLWTheme() == nsIDocument::Doc_Theme_Dark;
-      }
-      else {
-        result = PR_FALSE;
-      }
-    }
 #ifdef MOZ_MATHML
     else if (nsCSSPseudoClasses::mozMathIncrementScriptLevel == pseudoClass->mAtom) {
       stateToCheck = NS_EVENT_STATE_INCREMENT_SCRIPT_LEVEL;
@@ -1716,11 +1679,8 @@ static PRBool SelectorMatches(RuleProcessorData &data,
                    "aAttribute is set!");
       result = PR_TRUE;
       nsAttrSelector* attr = aSelector->mAttrList;
-      nsIAtom* matchAttribute;
-
       do {
-        matchAttribute = isHTML ? attr->mLowercaseAttr : attr->mCasedAttr;
-        if (matchAttribute == aAttribute) {
+        if (attr->mAttr == aAttribute) {
           // XXX we should really have a namespace, not just an attr
           // name, in HasAttributeDependentStyle!
           result = PR_TRUE;
@@ -1741,7 +1701,7 @@ static PRBool SelectorMatches(RuleProcessorData &data,
             const nsAttrName* attrName =
               data.mContent->GetAttrNameAt(i);
             NS_ASSERTION(attrName, "GetAttrCount lied or GetAttrNameAt failed");
-            if (attrName->LocalName() != matchAttribute) {
+            if (attrName->LocalName() != attr->mAttr) {
               continue;
             }
             if (attr->mFunction == NS_ATTR_FUNC_SET) {
@@ -1754,7 +1714,7 @@ static PRBool SelectorMatches(RuleProcessorData &data,
                 data.mContent->GetAttr(attrName->NamespaceID(),
                                        attrName->LocalName(), value);
               NS_ASSERTION(hasAttr, "GetAttrNameAt lied");
-              result = AttrMatchesValue(attr, value, isHTML);
+              result = AttrMatchesValue(attr, value);
             }
 
             // At this point |result| has been set by us
@@ -1770,11 +1730,10 @@ static PRBool SelectorMatches(RuleProcessorData &data,
         else if (attr->mFunction == NS_ATTR_FUNC_EQUALS) {
           result =
             data.mContent->
-              AttrValueIs(attr->mNameSpace, matchAttribute, attr->mValue,
-                          (!isHTML || attr->mCaseSensitive) ? eCaseMatters
-                                                            : eIgnoreCase);
+              AttrValueIs(attr->mNameSpace, attr->mAttr, attr->mValue,
+                          attr->mCaseSensitive ? eCaseMatters : eIgnoreCase);
         }
-        else if (!data.mContent->HasAttr(attr->mNameSpace, matchAttribute)) {
+        else if (!data.mContent->HasAttr(attr->mNameSpace, attr->mAttr)) {
           result = PR_FALSE;
         }
         else if (attr->mFunction != NS_ATTR_FUNC_SET) {
@@ -1782,9 +1741,9 @@ static PRBool SelectorMatches(RuleProcessorData &data,
 #ifdef DEBUG
           PRBool hasAttr =
 #endif
-              data.mContent->GetAttr(attr->mNameSpace, matchAttribute, value);
+              data.mContent->GetAttr(attr->mNameSpace, attr->mAttr, value);
           NS_ASSERTION(hasAttr, "HasAttr lied");
-          result = AttrMatchesValue(attr, value, isHTML);
+          result = AttrMatchesValue(attr, value);
         }
         
         attr = attr->mNext;
@@ -2186,10 +2145,8 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
   // XXXbz now that :link and :visited are also states, do we need a
   // similar optimization in HasStateDependentStyle?
 
-  // check for the localedir, lwtheme and lwthemetextcolor attribute on root XUL elements
-  if ((aData->mAttribute == nsGkAtoms::localedir ||
-       aData->mAttribute == nsGkAtoms::lwtheme ||
-       aData->mAttribute == nsGkAtoms::lwthemetextcolor) &&
+  // check for the localedir attribute on root XUL elements
+  if (aData->mAttribute == nsGkAtoms::localedir &&
       aData->mNameSpaceID == kNameSpaceID_XUL &&
       aData->mContent == aData->mContent->GetOwnerDoc()->GetRootContent())
   {
@@ -2369,8 +2326,7 @@ AddRule(RuleValue* aRuleInfo, void* aCascade)
       // Build mAttributeSelectors.
       for (nsAttrSelector *attr = negation->mAttrList; attr;
            attr = attr->mNext) {
-        nsTArray<nsCSSSelector*> *array =
-          cascade->AttributeListFor(attr->mCasedAttr);
+        nsTArray<nsCSSSelector*> *array = cascade->AttributeListFor(attr->mAttr);
         if (!array)
           return PR_FALSE;
         array->AppendElement(selector);

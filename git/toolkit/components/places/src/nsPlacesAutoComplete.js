@@ -322,10 +322,6 @@ function nsPlacesAutoComplete()
       "LEFT JOIN moz_places_temp h_t ON h_t.id = i.place_id " +
       "LEFT JOIN moz_favicons f ON f.id = IFNULL(h_t.favicon_id, h.favicon_id) "+
       "WHERE IFNULL(h_t.url, h.url) NOTNULL " +
-      "AND AUTOCOMPLETE_MATCH(:searchString, 0 /* url */, " +
-                             "IFNULL(bookmark, 1 /* title */), tags, " +
-                             "6 /* visit_count */, 7 /* typed */, parent, " +
-                             ":matchBehavior, :searchBehavior) " +
       "ORDER BY rank DESC, IFNULL(h_t.frecency, h.frecency) DESC"
     );
   });
@@ -356,9 +352,6 @@ function nsPlacesAutoComplete()
   //// Initialization
 
   // load preferences
-  this._prefs = Cc["@mozilla.org/preferences-service;1"].
-                getService(Ci.nsIPrefService).
-                getBranch(kBrowserUrlbarBranch);
   this._loadPrefs(true);
 
   // register observers
@@ -488,11 +481,8 @@ nsPlacesAutoComplete.prototype = {
     if (this._matchBehavior == MATCH_BOUNDARY_ANYWHERE &&
         this._result.matchCount < this._maxRichResults && !this._secondPass) {
       this._secondPass = true;
-      let queries = [
-        this._getBoundAdaptiveQuery(MATCH_ANYWHERE),
-        this._getBoundSearchQuery(MATCH_ANYWHERE, this._searchTokens),
-      ];
-      this._executeQueries(queries);
+      let query = this._getBoundSearchQuery(MATCH_ANYWHERE, this._searchTokens);
+      this._executeQueries([query]);
       return;
     }
 
@@ -508,8 +498,11 @@ nsPlacesAutoComplete.prototype = {
       this._os.removeObserver(this, kQuitApplication);
 
       // Remove our preference observer.
-      this._prefs.removeObserver("", this);
-      delete this._prefs;
+      let prefs = Cc["@mozilla.org/preferences-service;1"].
+                  getService(Ci.nsIPrefService).
+                  getBranch(kBrowserUrlbarBranch).
+                  QueryInterface(Ci.nsIPrefBranch2);
+      prefs.removeObserver("", this);
 
       // Finalize the statements that we have used.
       let stmts = [
@@ -650,7 +643,9 @@ nsPlacesAutoComplete.prototype = {
    */
   _loadPrefs: function PAC_loadPrefs(aRegisterObserver)
   {
-    let self = this;
+    let prefs = Cc["@mozilla.org/preferences-service;1"].
+                getService(Ci.nsIPrefService).
+                getBranch(kBrowserUrlbarBranch);
     function safeGetter(aName, aDefault) {
       let types = {
         boolean: "Bool",
@@ -663,7 +658,7 @@ nsPlacesAutoComplete.prototype = {
 
       // If the pref isn't set, we want to use the default.
       try {
-        return self._prefs["get" + type + "Pref"](aName);
+        return prefs["get" + type + "Pref"](aName);
       }
       catch (e) {
         return aDefault;
@@ -694,7 +689,7 @@ nsPlacesAutoComplete.prototype = {
 
     // register observer
     if (aRegisterObserver) {
-      let pb = this._prefs.QueryInterface(Ci.nsIPrefBranch2);
+      let pb = prefs.QueryInterface(Ci.nsIPrefBranch2);
       pb.addObserver("", this, false);
     }
   },
@@ -834,19 +829,13 @@ nsPlacesAutoComplete.prototype = {
    *
    * @return the bound adaptive query.
    */
-  _getBoundAdaptiveQuery: function PAC_getBoundAdaptiveQuery(aMatchBehavior)
+  _getBoundAdaptiveQuery: function PAC_getBoundAdaptiveQuery()
   {
-    // If we were not given a match behavior, use the stored match behavior.
-    if (arguments.length == 0)
-      aMatchBehavior = this._matchBehavior;
-
     let query = this._adaptiveQuery;
     let (params = query.params) {
       params.parent = this._bs.tagsFolder;
       params.search_string = this._currentSearchString;
       params.query_type = kQueryTypeFiltered;
-      params.matchBehavior = aMatchBehavior;
-      params.searchBehavior = this._behavior;
     }
 
     return query;
@@ -911,8 +900,7 @@ nsPlacesAutoComplete.prototype = {
     // the result does not fall into any of those, it just gets the favicon.
     if (!style) {
       // It is possible that we already have a style set (from a keyword
-      // search or because of the user's preferences), so only set it if we
-      // haven't already done so.
+      // search), so only set it if we haven't already done so.
       if (showTags)
         style = "tag";
       else if (entryParentId)

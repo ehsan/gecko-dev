@@ -111,6 +111,8 @@ mOwner(owner)
   if (NS_FAILED(rv))
     return;
 	
+  mOutputStream->Close();
+  
   // construct the URL we'll use later in calls to GetURL()
   NS_GetURLSpecFromFile(mTempFile, mFileURL);
   
@@ -136,7 +138,8 @@ NS_IMETHODIMP
 nsPluginStreamToFile::Write(const char* aBuf, PRUint32 aCount,
                             PRUint32 *aWriteCount)
 {
-  mOutputStream->Write(aBuf, aCount, aWriteCount);
+  PRUint32 actualCount;
+  mOutputStream->Write(aBuf, aCount, &actualCount);
   mOutputStream->Flush();
   mOwner->GetURL(mFileURL.get(), mTarget, nsnull, 0, nsnull, 0);
   
@@ -169,7 +172,6 @@ nsPluginStreamToFile::IsNonBlocking(PRBool *aNonBlocking)
 NS_IMETHODIMP
 nsPluginStreamToFile::Close(void)
 {
-  mOutputStream->Close();
   mOwner->GetURL(mFileURL.get(), mTarget, nsnull, 0, nsnull, 0);
   return NS_OK;
 }

@@ -414,9 +414,8 @@ nsContextMenu.prototype = {
     this.showItem("context-media-pause", onMedia && !this.target.paused && !this.target.ended);
     this.showItem("context-media-mute",   onMedia && !this.target.muted);
     this.showItem("context-media-unmute", onMedia && this.target.muted);
-    this.showItem("context-media-showcontrols", onMedia && !this.target.controls);
-    this.showItem("context-media-hidecontrols", onMedia && this.target.controls);
-    this.showItem("context-video-fullscreen", this.onVideo);
+    this.showItem("context-media-showcontrols", onMedia && !this.target.controls)
+    this.showItem("context-media-hidecontrols", onMedia && this.target.controls)
     // Disable them when there isn't a valid media source loaded.
     if (onMedia) {
       var hasError = (this.target.error != null);
@@ -426,8 +425,6 @@ nsContextMenu.prototype = {
       this.setItemAttr("context-media-unmute", "disabled", hasError);
       this.setItemAttr("context-media-showcontrols", "disabled", hasError);
       this.setItemAttr("context-media-hidecontrols", "disabled", hasError);
-      if (this.onVideo)
-        this.setItemAttr("context-video-fullscreen",  "disabled", hasError);
     }
     this.showItem("context-media-sep-commands",  onMedia);
   },
@@ -804,13 +801,6 @@ nsContextMenu.prototype = {
 
     var doc = this.target.ownerDocument;
     openUILink(viewURL, e, null, null, null, null, doc.documentURIObject );
-  },
-
-  fullScreenVideo: function () {
-    this.target.pause();
-
-    openDialog("chrome://browser/content/fullscreen-video.xhtml",
-               "", "chrome,dialog=no", this.target);
   },
 
   // Change current window to the URL of the background image.
@@ -1380,11 +1370,17 @@ nsContextMenu.prototype = {
     if (itemId == -1) {
       var title = doc.title;
       var description = PlacesUIUtils.getDescriptionFromDocument(doc);
-      PlacesUIUtils.showMinimalAddBookmarkUI(uri, title, description);
+
+      var descAnno = { name: DESCRIPTION_ANNO, value: description };
+      var txn = PlacesUIUtils.ptm.createItem(uri, 
+                                           PlacesUtils.bookmarksMenuFolderId,
+                                           -1, title, null, [descAnno]);
+      PlacesUIUtils.ptm.doTransaction(txn);
+      itemId = PlacesUtils.getMostRecentBookmarkForURI(uri);
+      StarUI.beginBatch();
     }
-    else
-      PlacesUIUtils.showItemProperties(itemId,
-                                       PlacesUtils.bookmarks.TYPE_BOOKMARK);
+
+    window.top.StarUI.showEditBookmarkPopup(itemId, this.browser, "overlap");
   },
 
   savePageAs: function CM_savePageAs() {

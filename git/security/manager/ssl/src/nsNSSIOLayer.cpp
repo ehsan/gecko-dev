@@ -86,7 +86,6 @@
 #include "nsProxyRelease.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIProgrammingLanguage.h"
-#include "nsIArray.h"
 
 #include "ssl.h"
 #include "secerr.h"
@@ -923,18 +922,8 @@ AppendErrorTextUntrusted(PRErrorCode errTrust,
   if (!errorID) {
     switch (errTrust) {
       case SEC_ERROR_UNKNOWN_ISSUER:
-      {
-        nsCOMPtr<nsIArray> chain;
-        ix509->GetChain(getter_AddRefs(chain));
-        PRUint32 length = 0;
-        if (chain && NS_FAILED(chain->GetLength(&length)))
-          length = 0;
-        if (length == 1)
-          errorID = "certErrorTrust_MissingChain";
-        else
-          errorID = "certErrorTrust_UnknownIssuer";
+        errorID = "certErrorTrust_UnknownIssuer";
         break;
-      }
       case SEC_ERROR_INADEQUATE_KEY_USAGE:
         // Should get an individual string in the future
         // For now, use the same as CaInvalid
@@ -1144,7 +1133,6 @@ AppendErrorTextMismatch(const nsString &host,
 static void
 GetDateBoundary(nsIX509Cert* ix509,
                 nsString &formattedDate,
-                nsString &nowDate,
                 PRBool &trueExpired_falseNotYetValid)
 {
   trueExpired_falseNotYetValid = PR_TRUE;
@@ -1166,24 +1154,22 @@ GetDateBoundary(nsIX509Cert* ix509,
   if (NS_FAILED(rv))
     return;
 
-  PRTime now = PR_Now();
-  if (LL_CMP(now, >, notAfter)) {
+  if (LL_CMP(PR_Now(), >, notAfter)) {
     timeToUse = notAfter;
   } else {
     timeToUse = notBefore;
     trueExpired_falseNotYetValid = PR_FALSE;
   }
 
-  nsCOMPtr<nsIDateTimeFormat> dateTimeFormat(do_CreateInstance(NS_DATETIMEFORMAT_CONTRACTID, &rv));
+  nsIDateTimeFormat* aDateTimeFormat;
+  rv = CallCreateInstance(NS_DATETIMEFORMAT_CONTRACTID, &aDateTimeFormat);
   if (NS_FAILED(rv))
     return;
 
-  dateTimeFormat->FormatPRTime(nsnull, kDateFormatShort, 
-                               kTimeFormatNoSeconds, timeToUse, 
-                               formattedDate);
-  dateTimeFormat->FormatPRTime(nsnull, kDateFormatShort,
-                               kTimeFormatNoSeconds, now,
-                               nowDate);
+  aDateTimeFormat->FormatPRTime(nsnull, kDateFormatShort, 
+                                kTimeFormatNoSeconds, timeToUse, 
+                                formattedDate);
+  NS_IF_RELEASE(aDateTimeFormat);
 }
 
 static void
@@ -1191,23 +1177,19 @@ AppendErrorTextTime(nsIX509Cert* ix509,
                     nsINSSComponent *component,
                     nsString &returnedMessage)
 {
-  nsAutoString formattedDate, nowDate;
+  nsAutoString formattedDate;
   PRBool trueExpired_falseNotYetValid;
-  GetDateBoundary(ix509, formattedDate, nowDate, trueExpired_falseNotYetValid);
+  GetDateBoundary(ix509, formattedDate, trueExpired_falseNotYetValid);
 
-  const PRUnichar *params[2];
+  const PRUnichar *params[1];
   params[0] = formattedDate.get(); // might be empty, if helper function had a problem 
-  params[1] = nowDate.get();
 
   const char *key = trueExpired_falseNotYetValid ? 
-                    "certErrorExpiredNow" : "certErrorNotYetValidNow";
+                    "certErrorExpired" : "certErrorNotYetValid";
   nsresult rv;
   nsString formattedString;
-  rv = component->PIPBundleFormatStringFromName(
-           key,
-           params, 
-           NS_ARRAY_LENGTH(params),
-           formattedString);
+  rv = component->PIPBundleFormatStringFromName(key, params, 
+                                                1, formattedString);
   if (NS_SUCCEEDED(rv))
   {
     returnedMessage.Append(formattedString);

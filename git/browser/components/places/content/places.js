@@ -423,36 +423,54 @@ var PlacesOrganizer = {
    * Populates the restore menu with the dates of the backups available.
    */
   populateRestoreMenu: function PO_populateRestoreMenu() {
-    let restorePopup = document.getElementById("fileRestorePopup");
+    var restorePopup = document.getElementById("fileRestorePopup");
 
-    let dateSvc = Cc["@mozilla.org/intl/scriptabledateformat;1"].
+    var dateSvc = Cc["@mozilla.org/intl/scriptabledateformat;1"].
                   getService(Ci.nsIScriptableDateFormat);
 
-    // Remove existing menu items.  Last item is the restoreFromFile item.
+    // remove existing menu items
+    // last item is the restoreFromFile item
     while (restorePopup.childNodes.length > 1)
       restorePopup.removeChild(restorePopup.firstChild);
 
-    let backupFiles = PlacesUtils.backups.entries;
-    if (backupFiles.length == 0)
+    // get list of files
+    var localizedFilename = PlacesUtils.getString("bookmarksArchiveFilename");
+    var localizedFilenamePrefix = localizedFilename.substr(0, localizedFilename.indexOf("-"));
+    var fileList = [];
+    var files = this.bookmarksBackupDir.directoryEntries;
+    while (files.hasMoreElements()) {
+      var f = files.getNext().QueryInterface(Ci.nsIFile);
+      var rx = new RegExp("^(bookmarks|" + localizedFilenamePrefix +
+                          ")-([0-9]{4}-[0-9]{2}-[0-9]{2})\.json$");
+      if (!f.isHidden() && f.leafName.match(rx)) {
+        var date = f.leafName.match(rx)[2].replace(/-/g, "/");
+        var dateObj = new Date(date);
+        fileList.push({date: dateObj, filename: f.leafName});
+      }
+    }
+
+    fileList.sort(function PO_fileList_compare(a, b) {
+      return b.date - a.date;
+    });
+
+    if (fileList.length == 0)
       return;
 
-    // Populate menu with backups.
-    for (let i = 0; i < backupFiles.length; i++) {
-      let backupDate = PlacesUtils.backups.getDateForFile(backupFiles[i]);
-      let m = restorePopup.insertBefore(document.createElement("menuitem"),
-                                        document.getElementById("restoreFromFile"));
+    // populate menu
+    for (var i = 0; i < fileList.length; i++) {
+      var m = restorePopup.insertBefore
+        (document.createElement("menuitem"),
+         document.getElementById("restoreFromFile"));
       m.setAttribute("label",
                      dateSvc.FormatDate("",
                                         Ci.nsIScriptableDateFormat.dateFormatLong,
-                                        backupDate.getFullYear(),
-                                        backupDate.getMonth() + 1,
-                                        backupDate.getDate()));
-      m.setAttribute("value", backupFiles[i].leafName);
+                                        fileList[i].date.getFullYear(),
+                                        fileList[i].date.getMonth() + 1,
+                                        fileList[i].date.getDate()));
+      m.setAttribute("value", fileList[i].filename);
       m.setAttribute("oncommand",
                      "PlacesOrganizer.onRestoreMenuItemClick(this);");
     }
-
-    // Add the restoreFromFile item.
     restorePopup.insertBefore(document.createElement("menuseparator"),
                               document.getElementById("restoreFromFile"));
   },
@@ -461,14 +479,14 @@ var PlacesOrganizer = {
    * Called when a menuitem is selected from the restore menu.
    */
   onRestoreMenuItemClick: function PO_onRestoreMenuItemClick(aMenuItem) {
-    let backupName = aMenuItem.getAttribute("value");
-    let backupFiles = PlacesUtils.backups.entries;
-    for (let i = 0; i < backupFiles.length; i++) {
-      if (backupFiles[i].leafName == backupName) {
-        this.restoreBookmarksFromFile(backupFiles[i]);
-        break;
-      }
-    }
+    var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+                 getService(Ci.nsIProperties);
+    var bookmarksFile = dirSvc.get("ProfD", Ci.nsIFile);
+    bookmarksFile.append("bookmarkbackups");
+    bookmarksFile.append(aMenuItem.getAttribute("value"));
+    if (!bookmarksFile.exists())
+      return;
+    this.restoreBookmarksFromFile(bookmarksFile);
   },
 
   /**
@@ -544,10 +562,30 @@ var PlacesOrganizer = {
     var backupsDir = dirSvc.get("Desk", Ci.nsILocalFile);
     fp.displayDirectory = backupsDir;
 
-    fp.defaultString = PlacesUtils.backups.getFilenameForDate();
+    fp.defaultString = PlacesUtils.getBackupFilename();
 
-    if (fp.show() != Ci.nsIFilePicker.returnCancel)
-      PlacesUtils.backups.saveBookmarksToJSONFile(fp.file);
+    if (fp.show() != Ci.nsIFilePicker.returnCancel) {
+      PlacesUtils.backupBookmarksToFile(fp.file);
+
+      // copy new backup to /backups dir (bug 424389)
+      var latestBackup = PlacesUtils.getMostRecentBackup();
+      if (!latestBackup || latestBackup != fp.file) {
+        latestBackup.remove(false);
+        var name = PlacesUtils.getBackupFilename();
+        fp.file.copyTo(this.bookmarksBackupDir, name);
+      }
+    }
+  },
+
+  get bookmarksBackupDir() {
+    delete this.bookmarksBackupDir;
+    var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+                 getService(Ci.nsIProperties);
+    var bookmarksBackupDir = dirSvc.get("ProfD", Ci.nsIFile);
+    bookmarksBackupDir.append("bookmarkbackups");
+    if (!bookmarksBackupDir.exists())
+      bookmarksBackupDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0700);
+    return this.bookmarksBackupDir = bookmarksBackupDir;
   },
 
   _paneDisabled: false,

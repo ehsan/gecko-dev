@@ -117,7 +117,7 @@ public:
     mNode = nsnull;
   }
 
-  nsINode* GetParentObject()
+  nsISupports* GetParentObject()
   {
     return mNode;
   }
@@ -670,7 +670,6 @@ public:
   static nsresult doQuerySelectorAll(nsINode* aRoot,
                                      const nsAString& aSelector,
                                      nsIDOMNodeList **aReturn);
-  static PRBool doMatchesSelector(nsIContent* aNode, const nsAString& aSelector);
 
   /**
    * Default event prehandling for content objects. Handles event retargeting.

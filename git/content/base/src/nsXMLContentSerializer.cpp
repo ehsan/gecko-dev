@@ -107,7 +107,7 @@ NS_IMPL_ISUPPORTS1(nsXMLContentSerializer, nsIContentSerializer)
 NS_IMETHODIMP 
 nsXMLContentSerializer::Init(PRUint32 aFlags, PRUint32 aWrapColumn,
                              const char* aCharSet, PRBool aIsCopying,
-                             PRBool aRewriteEncodingDeclaration)
+                             PRBool aIsWholeDocument)
 {
   mCharset = aCharSet;
   mFlags = aFlags;
@@ -772,7 +772,7 @@ nsXMLContentSerializer::IsJavaScript(nsIContent * aContent, nsIAtom* aAttrNameAt
                                      PRInt32 aAttrNamespaceID, const nsAString& aValueString)
 {
   PRInt32 namespaceID = aContent->GetNameSpaceID();
-  PRBool isHtml = aContent->IsHTML();
+  PRBool isHtml = aContent->IsNodeOfType(nsINode::eHTML);
 
   if (aAttrNamespaceID == kNameSpaceID_None &&
       (isHtml ||

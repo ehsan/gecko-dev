@@ -327,7 +327,6 @@ private: // data
 
   // Do we have the frames in decoded form?
   PRBool                     mDecoded;
-  PRBool                     mHasBeenDecoded;
 
   friend class imgDecodeWorker;
 

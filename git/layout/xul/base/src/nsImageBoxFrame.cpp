@@ -324,16 +324,16 @@ public:
 
   // Doesn't handle HitTest because nsLeafBoxFrame already creates an
   // event receiver for us
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("XULImage")
 };
 
 void nsDisplayXULImage::Paint(nsDisplayListBuilder* aBuilder,
-                              nsIRenderingContext* aCtx)
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   static_cast<nsImageBoxFrame*>(mFrame)->
-    PaintImage(*aCtx, mVisibleRect, aBuilder->ToReferenceFrame(mFrame),
+    PaintImage(*aCtx, aDirtyRect, aBuilder->ToReferenceFrame(mFrame),
                aBuilder->ShouldSyncDecodeImages()
                  ? (PRUint32) imgIContainer::FLAG_SYNC_DECODE
                  : (PRUint32) imgIContainer::FLAG_NONE);

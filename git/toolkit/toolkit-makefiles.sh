@@ -653,6 +653,7 @@ MAKEFILES_embedding="
   embedding/components/ui/Makefile
   embedding/components/ui/helperAppDlg/Makefile
   embedding/components/ui/progressDlg/Makefile
+  embedding/config/Makefile
   embedding/tests/Makefile
   embedding/tests/winEmbed/Makefile
 "

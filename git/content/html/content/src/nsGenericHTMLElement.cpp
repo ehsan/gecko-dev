@@ -435,8 +435,8 @@ nsGenericHTMLElement::SetClassName(const nsAString& aClassName)
 static PRBool
 IsBody(nsIContent *aContent)
 {
-  return aContent->NodeInfo()->Equals(nsGkAtoms::body) &&
-         aContent->IsHTML();
+  return (aContent->NodeInfo()->Equals(nsGkAtoms::body) &&
+          aContent->IsNodeOfType(nsINode::eHTML));
 }
 
 static PRBool IS_TABLE_CELL(nsIAtom* frameType) {
@@ -751,13 +751,14 @@ nsGenericHTMLElement::GetSpellcheck(PRBool* aSpellcheck)
   *aSpellcheck = PR_FALSE;              // Default answer is to not spellcheck
 
   // Has the state has been explicitly set?
-  nsIContent* node;
-  for (node = this; node; node = node->GetParent()) {
-    if (node->IsHTML()) {
+  nsINode* node;
+  for (node = this; node; node = node->GetNodeParent()) {
+    if (node->IsNodeOfType(nsINode::eHTML)) {
       static nsIContent::AttrValuesArray strings[] =
         {&nsGkAtoms::_true, &nsGkAtoms::_false, nsnull};
-      switch (node->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::spellcheck,
-                                    strings, eCaseMatters)) {
+      switch (static_cast<nsIContent*>(node)->
+              FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::spellcheck,
+                              strings, eCaseMatters)) {
         case 0:                         // spellcheck = "true"
           *aSpellcheck = PR_TRUE;
           // Fall through
@@ -904,7 +905,7 @@ nsGenericHTMLElement::FindForm(nsIForm* aCurrentForm)
   while (content != bindingParent && content) {
     // If the current ancestor is a form, return it as our form
     if (content->Tag() == nsGkAtoms::form &&
-        content->IsHTML()) {
+        content->IsNodeOfType(nsINode::eHTML)) {
 #ifdef DEBUG
       if (!nsContentUtils::IsInSameAnonymousTree(this, content)) {
         // It's possible that we started unbinding at |content| or
@@ -957,7 +958,7 @@ static PRBool
 IsArea(nsIContent *aContent)
 {
   return (aContent->Tag() == nsGkAtoms::area &&
-          aContent->IsHTML());
+          aContent->IsNodeOfType(nsINode::eHTML));
 }
 
 PRBool
@@ -1199,7 +1200,7 @@ nsGenericHTMLElement::GetBaseTarget(nsAString& aBaseTarget) const
 PRBool
 nsGenericHTMLElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eELEMENT));
+  return !(aFlags & ~(eCONTENT | eELEMENT | eHTML));
 }
 
 //----------------------------------------------------------------------
@@ -2268,8 +2269,14 @@ nsGenericHTMLFormElement::nsGenericHTMLFormElement(nsINodeInfo *aNodeInfo)
 
 nsGenericHTMLFormElement::~nsGenericHTMLFormElement()
 {
-  // Check that this element doesn't know anything about its form at this point.
-  NS_ASSERTION(!mForm, "How did we get here?");
+  // Check that this element is not still the default content
+  // of its parent form.
+  NS_ASSERTION(!mForm || mForm->GetDefaultSubmitElement() != this,
+               "Content being destroyed is the default content");
+
+  // Clean up.  Set the form to nsnull so it knows we went away.
+  // Do not notify as the content is being destroyed.
+  ClearForm(PR_TRUE, PR_FALSE);
 }
 
 NS_IMPL_QUERY_INTERFACE_INHERITED1(nsGenericHTMLFormElement,
@@ -2279,7 +2286,7 @@ NS_IMPL_QUERY_INTERFACE_INHERITED1(nsGenericHTMLFormElement,
 PRBool
 nsGenericHTMLFormElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eELEMENT | eHTML_FORM_CONTROL));
+  return !(aFlags & ~(eCONTENT | eELEMENT | eHTML | eHTML_FORM_CONTROL));
 }
 
 void

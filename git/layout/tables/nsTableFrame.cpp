@@ -1195,17 +1195,17 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("TableBorderBackground")
 };
 
 void
 nsDisplayTableBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                      nsIRenderingContext* aCtx)
+    nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   static_cast<nsTableFrame*>(mFrame)->
-    PaintTableBorderBackground(*aCtx, mVisibleRect,
+    PaintTableBorderBackground(*aCtx, aDirtyRect,
                                aBuilder->ToReferenceFrame(mFrame),
                                aBuilder->GetBackgroundPaintFlags());
 }
@@ -1953,6 +1953,7 @@ nsTableFrame::PushChildren(const FrameArray& aFrames,
   // extract the frames from the array into a sibling list
   nsFrameList frames;
   PRUint32 childX;
+  nsIFrame* prevSiblingHint = aFrames.SafeElementAt(aPushFrom - 1);
   for (childX = aPushFrom; childX < aFrames.Length(); ++childX) {
     nsIFrame* f = aFrames[childX];
     // Don't push repeatable frames, do push non-rowgroup frames.
@@ -1962,7 +1963,7 @@ nsTableFrame::PushChildren(const FrameArray& aFrames,
     nsTableRowGroupFrame* rgFrame = GetRowGroupFrame(f);
     NS_ASSERTION(rgFrame, "Unexpected non-row-group frame");
     if (!rgFrame || !rgFrame->IsRepeatable()) {
-      mFrames.RemoveFrame(f);
+      mFrames.RemoveFrame(f, prevSiblingHint);
       frames.AppendFrame(nsnull, f);
     }
   }
@@ -1974,7 +1975,7 @@ nsTableFrame::PushChildren(const FrameArray& aFrames,
     nsIFrame* firstBodyFrame = nextInFlow->GetFirstBodyRowGroupFrame();
     nsIFrame* prevSibling = nsnull;
     if (firstBodyFrame) {
-      prevSibling = firstBodyFrame->GetPrevSibling();
+      prevSibling = nextInFlow->mFrames.GetPrevSiblingFor(firstBodyFrame);
     }
     // When pushing and pulling frames we need to check for whether any
     // views need to be reparented.

@@ -290,9 +290,7 @@ fish_sound_comment_next_byname (FishSound * fsound,
 int
 fish_sound_comment_add (FishSound * fsound, FishSoundComment * comment)
 {
-#if FS_ENCODE
   FishSoundComment * new_comment;
-#endif
 
   if (fsound == NULL) return FISH_SOUND_ERR_BAD;
 
@@ -319,9 +317,7 @@ int
 fish_sound_comment_add_byname (FishSound * fsound, const char * name,
 			       const char * value)
 {
-#if FS_ENCODE
   FishSoundComment * comment;
-#endif
 
   if (fsound == NULL) return FISH_SOUND_ERR_BAD;
 
@@ -350,9 +346,7 @@ fish_sound_comment_add_byname (FishSound * fsound, const char * name,
 int
 fish_sound_comment_remove (FishSound * fsound, FishSoundComment * comment)
 {
-#if FS_ENCODE
   FishSoundComment * v_comment;
-#endif
 
   if (fsound == NULL) return FISH_SOUND_ERR_BAD;
 
@@ -378,11 +372,8 @@ fish_sound_comment_remove (FishSound * fsound, FishSoundComment * comment)
 int
 fish_sound_comment_remove_byname (FishSound * fsound, char * name)
 {
-#if FS_ENCODE
   FishSoundComment * comment;
-  int i;
-#endif
-  int ret = 0;
+  int i, ret = 0;
 
   if (fsound == NULL) return FISH_SOUND_ERR_BAD;
 

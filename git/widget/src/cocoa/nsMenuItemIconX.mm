@@ -348,11 +348,9 @@ nsMenuItemIconX::OnStopFrame(imgIRequest*    aRequest,
     return NS_ERROR_FAILURE;
 
   nsRefPtr<gfxImageSurface> image;
-  nsresult rv = imageContainer->CopyFrame(imgIContainer::FRAME_CURRENT,
-                                          imgIContainer::FLAG_NONE,
-                                          getter_AddRefs(image));
-  if (NS_FAILED(rv) || !image)
-    return NS_ERROR_FAILURE;
+  imageContainer->CopyFrame(imgIContainer::FRAME_CURRENT,
+                            imgIContainer::FLAG_NONE,
+                            getter_AddRefs(image));
 
   PRInt32 height = image->Height();
   PRInt32 stride = image->Stride();

@@ -542,7 +542,7 @@ function downloadExists(aID)
     "WHERE id = :id"
   );
   stmt.params.id = aID;
-  let rows = stmt.executeStep();
+  let rows = stmt.step();
   stmt.finalize();
   return !!rows;
 }

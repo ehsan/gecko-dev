@@ -186,10 +186,6 @@ public:
 
     virtual void ResetDocumentDirection() { mDocDirection = Direction_Uninitialized; }
 
-    virtual int GetDocumentLWTheme();
-
-    virtual void ResetDocumentLWTheme() { mDocLWTheme = Doc_Theme_Uninitialized; }
-
     static PRBool
     MatchAttribute(nsIContent* aContent,
                    PRInt32 aNameSpaceID,
@@ -345,12 +341,6 @@ protected:
     };
 
     DocumentDirection               mDocDirection;
-
-    /**
-     * document lightweight theme for use with :-moz-lwtheme, :-moz-lwtheme-brighttext
-     * and :-moz-lwtheme-darktext
-     */
-    DocumentTheme                         mDocLWTheme;
 
     /**
      * Context stack, which maintains the state of the Builder and allows

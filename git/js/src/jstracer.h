@@ -47,6 +47,7 @@
 #include "jstypes.h"
 #include "jsbuiltins.h"
 #include "jscntxt.h"
+#include "jsdhash.h"
 #include "jsinterp.h"
 #include "jslock.h"
 #include "jsnum.h"
@@ -837,9 +838,17 @@ class TraceRecorder {
     JS_REQUIRES_STACK JSRecordingStatus unary(nanojit::LOpcode op);
     JS_REQUIRES_STACK JSRecordingStatus binary(nanojit::LOpcode op);
 
-    JS_REQUIRES_STACK void guardShape(nanojit::LIns* obj_ins, JSObject* obj,
-                                      uint32 shape, const char* guardName,
-                                      nanojit::LIns* map_ins, VMSideExit* exit);
+    JS_REQUIRES_STACK JSRecordingStatus guardShape(nanojit::LIns* obj_ins, JSObject* obj,
+                                                   uint32 shape, const char* name,
+                                                   nanojit::LIns* map_ins, VMSideExit* exit);
+
+    JSDHashTable guardedShapeTable;
+
+#ifdef DEBUG
+    void dumpGuardedShapes(const char* prefix);
+#endif
+
+    void forgetGuardedShapes();
 
     inline nanojit::LIns* map(nanojit::LIns *obj_ins);
     JS_REQUIRES_STACK bool map_is_native(JSObjectMap* map, nanojit::LIns* map_ins,
@@ -1047,26 +1056,20 @@ public:
     JS_REQUIRES_STACK JSRecordingStatus record_DefLocalFunSetSlot(uint32 slot, JSObject* obj);
     JS_REQUIRES_STACK JSRecordingStatus record_NativeCallComplete();
 
-    TreeInfo* getTreeInfo() { return treeInfo; }
+    void forgetGuardedShapesForObject(JSObject* obj);
 
 #ifdef DEBUG
-    JS_REQUIRES_STACK void tprint(const char *format, int count, nanojit::LIns *insa[]);
-    JS_REQUIRES_STACK void tprint(const char *format);
-    JS_REQUIRES_STACK void tprint(const char *format, nanojit::LIns *ins);
-    JS_REQUIRES_STACK void tprint(const char *format, nanojit::LIns *ins1,
-                                  nanojit::LIns *ins2);
-    JS_REQUIRES_STACK void tprint(const char *format, nanojit::LIns *ins1,
-                                  nanojit::LIns *ins2, nanojit::LIns *ins3);
-    JS_REQUIRES_STACK void tprint(const char *format, nanojit::LIns *ins1,
-                                  nanojit::LIns *ins2, nanojit::LIns *ins3,
-                                  nanojit::LIns *ins4);
-    JS_REQUIRES_STACK void tprint(const char *format, nanojit::LIns *ins1,
-                                  nanojit::LIns *ins2, nanojit::LIns *ins3,
-                                  nanojit::LIns *ins4, nanojit::LIns *ins5);
-    JS_REQUIRES_STACK void tprint(const char *format, nanojit::LIns *ins1,
-                                  nanojit::LIns *ins2, nanojit::LIns *ins3,
-                                  nanojit::LIns *ins4, nanojit::LIns *ins5,
-                                  nanojit::LIns *ins6);
+    void tprint(const char *format, int count, nanojit::LIns *insa[]);
+    void tprint(const char *format);
+    void tprint(const char *format, nanojit::LIns *ins);
+    void tprint(const char *format, nanojit::LIns *ins1, nanojit::LIns *ins2);
+    void tprint(const char *format, nanojit::LIns *ins1, nanojit::LIns *ins2, nanojit::LIns *ins3);
+    void tprint(const char *format, nanojit::LIns *ins1, nanojit::LIns *ins2, nanojit::LIns *ins3,
+                nanojit::LIns *ins4);
+    void tprint(const char *format, nanojit::LIns *ins1, nanojit::LIns *ins2, nanojit::LIns *ins3,
+                nanojit::LIns *ins4, nanojit::LIns *ins5);
+    void tprint(const char *format, nanojit::LIns *ins1, nanojit::LIns *ins2, nanojit::LIns *ins3,
+                nanojit::LIns *ins4, nanojit::LIns *ins5, nanojit::LIns *ins6);
 #endif
 
 #define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format)               \

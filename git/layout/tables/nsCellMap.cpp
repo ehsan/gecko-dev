@@ -289,9 +289,7 @@ nsTableCellMap::Synchronize(nsTableFrame* aTableFrame)
     if (map) {
       if (!maps.AppendElement(map)) {
         delete map;
-        map = nsnull;
         NS_WARNING("Could not AppendElement");
-        break;
       }
     }
   }

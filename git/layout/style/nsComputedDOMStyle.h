@@ -76,7 +76,7 @@ public:
 
   static void Shutdown();
 
-  virtual nsINode *GetParentObject()
+  virtual nsISupports *GetParentObject()
   {
     return mContent;
   }
@@ -287,7 +287,6 @@ private:
   nsresult GetWordSpacing(nsIDOMCSSValue** aValue);
   nsresult GetWhiteSpace(nsIDOMCSSValue** aValue);
   nsresult GetWordWrap(nsIDOMCSSValue** aValue);
-  nsresult GetMozTabSize(nsIDOMCSSValue** aValue);
 
   /* Visibility properties */
   nsresult GetOpacity(nsIDOMCSSValue** aValue);

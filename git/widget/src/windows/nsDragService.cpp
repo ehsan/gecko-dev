@@ -440,8 +440,6 @@ nsDragService::GetNumDropItems(PRUint32 * aNumItems)
         ::GlobalUnlock(stm.hGlobal);
         ::ReleaseStgMedium(&stm);
       }
-      else
-        *aNumItems = 1;
     }
     else
       *aNumItems = 1;

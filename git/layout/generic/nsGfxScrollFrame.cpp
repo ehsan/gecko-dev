@@ -79,7 +79,6 @@
 #endif
 #include "nsDisplayList.h"
 #include "nsBidiUtils.h"
-#include "nsFrameManager.h"
 
 //----------------------------------------------------------------------
 
@@ -1816,15 +1815,8 @@ nsGfxScrollFrameInner::ViewPositionDidChange(nsIScrollableView* aScrollable,
   nsPoint childOffset = mScrolledFrame->GetView()->GetOffsetTo(mOuter->GetView());
   mScrolledFrame->SetPosition(childOffset);
 
-  nsRootPresContext* rootPresContext = mOuter->PresContext()->RootPresContext();
-  // Only update plugin geometry if we're scrolling in the root widget.
-  // In particular if we're scrolling inside a popup widget, we don't
-  // want to update plugins since they don't belong to this widget (we
-  // don't display windowed plugins in popups).
-  if (mOuter->GetWindow() ==
-      rootPresContext->FrameManager()->GetRootFrame()->GetWindow()) {
-    rootPresContext->GetPluginGeometryUpdates(mOuter, aConfigurations);
-  }
+  mOuter->PresContext()->RootPresContext()->
+    GetPluginGeometryUpdates(mOuter, aConfigurations);
 }
 
 /**
@@ -2555,7 +2547,7 @@ static void AdjustScrollbarRect(nsIView* aView, nsPresContext* aPresContext,
              aPresContext->DevPixelsToAppUnits(widgetRect.width),
              aPresContext->DevPixelsToAppUnits(widgetRect.height));
 
-  if (!resizerRect.Contains(aRect.BottomRight() - nsPoint(1, 1)))
+  if (!aRect.Intersects(resizerRect))
     return;
 
   if (aVertical)

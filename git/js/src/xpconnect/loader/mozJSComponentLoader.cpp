@@ -1186,7 +1186,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponent,
 #ifdef XPCONNECT_STANDALONE
     localFile->GetNativePath(nativePath);
 #else
-    NS_GetURLSpecFromActualFile(aComponent, nativePath);
+    NS_GetURLSpecFromFile(aComponent, nativePath);
 #endif
 
     // Before compiling the script, first check to see if we have it in

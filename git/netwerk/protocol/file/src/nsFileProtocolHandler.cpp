@@ -335,21 +335,6 @@ nsFileProtocolHandler::GetURLSpecFromFile(nsIFile *file, nsACString &result)
 }
 
 NS_IMETHODIMP
-nsFileProtocolHandler::GetURLSpecFromActualFile(nsIFile *file, 
-                                                nsACString &result)
-{
-    NS_ENSURE_ARG_POINTER(file);
-    return net_GetURLSpecFromActualFile(file, result);
-}
-
-NS_IMETHODIMP
-nsFileProtocolHandler::GetURLSpecFromDir(nsIFile *file, nsACString &result)
-{
-    NS_ENSURE_ARG_POINTER(file);
-    return net_GetURLSpecFromDir(file, result);
-}
-
-NS_IMETHODIMP
 nsFileProtocolHandler::GetFileFromURLSpec(const nsACString &spec, nsIFile **result)
 {
     return net_GetFileFromURLSpec(spec, result);

@@ -83,8 +83,6 @@
 #include "nsGfxCIID.h"
 #include "nsIObserverService.h"
 
-#include "nsIdleService.h"
-
 #ifdef ACCESSIBILITY
 #include "nsIAccessibilityService.h"
 #include "nsIAccessibleRole.h"
@@ -266,14 +264,6 @@ static PRBool gdk_keyboard_get_modmap_masks(Display*  aDisplay,
 static nsresult    initialize_prefs        (void);
 
 PRUint32        gLastInputEventTime = 0;
-
-static void UpdateLastInputEventTime() {
-  gLastInputEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
-  nsCOMPtr<nsIIdleService> idleService = do_GetService("@mozilla.org/widget/idleservice;1");
-  nsIdleService* is = static_cast<nsIdleService*>(idleService.get());
-  if (is)
-    is->IdleTimeWasModified();
-}
 
 // this is the last window that had a drag event happen on it.
 nsWindow *nsWindow::mLastDragMotionWindow = NULL;
@@ -1787,6 +1777,12 @@ nsWindow::GetNativeData(PRUint32 aDataType)
 }
 
 NS_IMETHODIMP
+nsWindow::SetBorderStyle(nsBorderStyle aBorderStyle)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
 nsWindow::SetTitle(const nsAString& aTitle)
 {
     if (!mShell)
@@ -1869,6 +1865,17 @@ NS_IMETHODIMP
 nsWindow::EnableDragDrop(PRBool aEnable)
 {
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsWindow::PreCreateWidget(nsWidgetInitData *aWidgetInitData)
+{
+    if (nsnull != aWidgetInitData) {
+        mWindowType = aWidgetInitData->mWindowType;
+        mBorderStyle = aWidgetInitData->mBorderStyle;
+        return NS_OK;
+    }
+    return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -3754,8 +3761,7 @@ nsWindow::Create(nsIWidget        *aParent,
 
     // save our bounds
     mBounds = aRect;
-    if (mWindowType != eWindowType_child &&
-        mWindowType != eWindowType_plugin) {
+    if (mWindowType != eWindowType_child) {
         // The window manager might place us. Indicate that if we're
         // shown, we want to go through
         // nsWindow::NativeResize(x,y,w,h) to maybe set our own
@@ -3912,7 +3918,6 @@ nsWindow::Create(nsIWidget        *aParent,
         }
     }
         break;
-    case eWindowType_plugin:
     case eWindowType_child: {
         if (parentMozContainer) {
             mGdkWindow = CreateGdkWindow(parentGdkWindow, parentMozContainer);
@@ -5446,7 +5451,7 @@ GetFirstNSWindowForGDKWindow(GdkWindow *aGdkWindow)
 gboolean
 motion_notify_event_cb(GtkWidget *widget, GdkEventMotion *event)
 {
-    UpdateLastInputEventTime();
+    gLastInputEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
 
     nsWindow *window = GetFirstNSWindowForGDKWindow(event->window);
     if (!window)
@@ -5464,7 +5469,7 @@ motion_notify_event_cb(GtkWidget *widget, GdkEventMotion *event)
 gboolean
 button_press_event_cb(GtkWidget *widget, GdkEventButton *event)
 {
-    UpdateLastInputEventTime();
+    gLastInputEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
 
     nsWindow *window = GetFirstNSWindowForGDKWindow(event->window);
     if (!window)
@@ -5479,7 +5484,7 @@ button_press_event_cb(GtkWidget *widget, GdkEventButton *event)
 gboolean
 button_release_event_cb(GtkWidget *widget, GdkEventButton *event)
 {
-    UpdateLastInputEventTime();
+    gLastInputEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
 
     nsWindow *window = GetFirstNSWindowForGDKWindow(event->window);
     if (!window)
@@ -5617,7 +5622,7 @@ key_press_event_cb(GtkWidget *widget, GdkEventKey *event)
 {
     LOG(("key_press_event_cb\n"));
 
-    UpdateLastInputEventTime();
+    gLastInputEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
 
     // find the window with focus and dispatch this event to that widget
     nsWindow *window = get_window_for_gtk_widget(widget);
@@ -5660,7 +5665,7 @@ key_release_event_cb(GtkWidget *widget, GdkEventKey *event)
 {
     LOG(("key_release_event_cb\n"));
 
-    UpdateLastInputEventTime();
+    gLastInputEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
 
     // find the window with focus and dispatch this event to that widget
     nsWindow *window = get_window_for_gtk_widget(widget);

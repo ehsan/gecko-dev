@@ -65,7 +65,7 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
-  PRUint8 GetSpacerType();
+  PRUint8 GetType();
 
 protected:
   SpacerFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
@@ -126,7 +126,7 @@ SpacerFrame::Reflow(nsPresContext*          aPresContext,
   if (percentBase.height == NS_UNCONSTRAINEDSIZE)
     percentBase.height = 0;
 
-  if (GetSpacerType() == TYPE_LINE)
+  if (GetType() == TYPE_LINE)
     aStatus = NS_INLINE_LINE_BREAK_AFTER(NS_FRAME_COMPLETE);
 
   GetDesiredSize(aMetrics, percentBase);
@@ -150,7 +150,7 @@ SpacerFrame::GetDesiredSize(nsHTMLReflowMetrics& aMetrics, nsSize aPercentBase)
 
   const nsStylePosition* position = GetStylePosition();
 
-  PRUint8 type = GetSpacerType();
+  PRUint8 type = GetType();
   switch (type) {
   case TYPE_WORD:
     break;
@@ -194,7 +194,7 @@ SpacerFrame::GetDesiredSize(nsHTMLReflowMetrics& aMetrics, nsSize aPercentBase)
 }
 
 PRUint8
-SpacerFrame::GetSpacerType()
+SpacerFrame::GetType()
 {
   PRUint8 type = TYPE_WORD;
   static nsIContent::AttrValuesArray strings[] =

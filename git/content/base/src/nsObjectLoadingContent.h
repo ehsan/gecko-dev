@@ -64,7 +64,6 @@ enum PluginSupportState {
   ePluginDisabled,     // The plugin has been explicitly disabled by the
                        // user.
   ePluginBlocklisted,  // The plugin is blocklisted and disabled
-  ePluginOutdated,     // The plugin is considered outdated, but not disabled
   ePluginOtherState    // Something else (e.g. not a plugin at all as far
                        // as we can tell).
 };
@@ -415,10 +414,10 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * Whether we are about to call instantiate on our frame. If we aren't,
      * SetFrame needs to asynchronously call Instantiate.
      */
-    PRPackedBool                mInstantiating : 1;
+    PRBool                      mInstantiating : 1;
     // Blocking status from content policy
-    PRPackedBool                mUserDisabled  : 1;
-    PRPackedBool                mSuppressed    : 1;
+    PRBool                      mUserDisabled  : 1;
+    PRBool                      mSuppressed    : 1;
     // A specific state that caused us to fallback
     PluginSupportState          mPluginState;
 
