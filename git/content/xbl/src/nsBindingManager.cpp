@@ -81,15 +81,14 @@
 #include "nsBindingManager.h"
 
 #include "nsThreadUtils.h"
-#include "dombindings.h"
 
 // ==================================================================
 // = nsAnonymousContentList 
 // ==================================================================
 
 #define NS_ANONYMOUS_CONTENT_LIST_IID \
-  { 0xbfb5d8e7, 0xf718, 0x4a46, \
-    { 0xb2, 0x2b, 0x22, 0x4a, 0x44, 0x4c, 0xb9, 0x77 } }
+  { 0xa29df1f8, 0xaeca, 0x4356, \
+    { 0xa8, 0xc2, 0xa7, 0x24, 0xa2, 0x11, 0x73, 0xac } }
 
 class nsAnonymousContentList : public nsINodeList
 {
@@ -98,11 +97,12 @@ public:
   virtual ~nsAnonymousContentList();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsAnonymousContentList)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsAnonymousContentList, nsINodeList)
   // nsIDOMNodeList interface
   NS_DECL_NSIDOMNODELIST
 
   // nsINodeList interface
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
   virtual PRInt32 IndexOf(nsIContent* aContent);
   virtual nsINode *GetParentObject()
   {
@@ -113,14 +113,6 @@ public:
 
   nsXBLInsertionPoint* GetInsertionPointAt(PRInt32 i) { return static_cast<nsXBLInsertionPoint*>(mElements->ElementAt(i)); }
   void RemoveInsertionPointAt(PRInt32 i) { mElements->RemoveElementAt(i); }
-
-  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                               bool *triedToWrap)
-  {
-    return mozilla::dom::binding::NodeList::create(cx, scope, this,
-                                                   triedToWrap);
-  }
-
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ANONYMOUS_CONTENT_LIST_IID)
 private:
   nsCOMPtr<nsIContent> mContent;
@@ -139,7 +131,6 @@ nsAnonymousContentList::nsAnonymousContentList(nsIContent *aContent,
 
   // We don't reference count our Anonymous reference (to avoid circular
   // references). We'll be told when the Anonymous goes away.
-  SetIsProxy();
 }
 
 nsAnonymousContentList::~nsAnonymousContentList()
@@ -154,7 +145,6 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsAnonymousContentList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsAnonymousContentList)
 
 NS_INTERFACE_TABLE_HEAD(nsAnonymousContentList)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_NODELIST_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsAnonymousContentList)
     NS_INTERFACE_TABLE_ENTRY(nsAnonymousContentList, nsINodeList)
     NS_INTERFACE_TABLE_ENTRY(nsAnonymousContentList, nsIDOMNodeList)
@@ -168,7 +158,6 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsAnonymousContentList)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContent)
   tmp->mElements->Clear();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsAnonymousContentList)
@@ -180,11 +169,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsAnonymousContentList)
                                                       nsXBLInsertionPoint);
     }
   }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsAnonymousContentList)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMETHODIMP
 nsAnonymousContentList::GetLength(PRUint32* aLength)

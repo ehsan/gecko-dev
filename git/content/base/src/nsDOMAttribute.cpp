@@ -60,7 +60,6 @@
 #include "mozAutoDocUpdate.h"
 #include "nsMutationEvent.h"
 #include "nsPLDOMEvent.h"
-#include "nsWrapperCacheInlines.h"
 
 using namespace mozilla::dom;
 

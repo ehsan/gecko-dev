@@ -63,7 +63,7 @@
 #include "nsTArray.h"
 #include "nsUnicharUtils.h"
 #include "nsINameSpaceManager.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsWhitespaceTokenizer.h"
 #include "nsTreeContentView.h"
 

@@ -37,7 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsXPathNamespace.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 
 NS_IMPL_ADDREF(nsXPathNamespace)
 NS_IMPL_RELEASE(nsXPathNamespace)

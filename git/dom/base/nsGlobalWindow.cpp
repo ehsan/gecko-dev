@@ -167,6 +167,7 @@
 #include "nsIWindowWatcher.h"
 #include "nsPIWindowWatcher.h"
 #include "nsIContentViewer.h"
+#include "nsDOMClassInfo.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsIScriptError.h"
 #include "nsIConsoleService.h"
@@ -247,7 +248,6 @@
 
 #include "mozilla/Telemetry.h"
 #include "nsLocation.h"
-#include "nsWrapperCacheInlines.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDOMLeakPRLog;

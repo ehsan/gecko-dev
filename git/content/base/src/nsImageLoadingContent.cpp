@@ -75,6 +75,7 @@
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
 #include "nsEventDispatcher.h"
+#include "nsDOMClassInfo.h"
 #include "nsSVGEffects.h"
 
 #include "mozAutoDocUpdate.h"

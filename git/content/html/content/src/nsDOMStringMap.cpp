@@ -39,7 +39,7 @@
 
 #include "nsDOMStringMap.h"
 
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsGenericHTMLElement.h"
 #include "nsContentUtils.h"
 

@@ -169,6 +169,7 @@
 // HTMLOptionsCollection includes
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMHTMLOptionsCollection.h"
+#include "nsIDOMNSHTMLOptionCollectn.h"
 
 // ContentList includes
 #include "nsContentList.h"
@@ -501,9 +502,6 @@
 #include "nsDOMTouchEvent.h"
 #include "nsIDOMCustomEvent.h"
 
-#include "nsWrapperCacheInlines.h"
-#include "dombindings.h"
-
 using namespace mozilla;
 using namespace mozilla::dom;
 
@@ -603,7 +601,6 @@ DOMCI_DATA(DOMConstructor, void)
     0,                                                                        \
     PR_FALSE,                                                                 \
     PR_FALSE,                                                                 \
-    NULL,                                                                     \
     NS_DEFINE_CLASSINFO_DATA_DEBUG(_class)                                    \
   },
 
@@ -620,7 +617,6 @@ DOMCI_DATA(DOMConstructor, void)
     0,                                                                        \
     PR_TRUE,                                                                  \
     PR_FALSE,                                                                 \
-    NULL,                                                                     \
     NS_DEFINE_CLASSINFO_DATA_DEBUG(_class)                                    \
   },
 
@@ -1463,7 +1459,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(AnimationEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(ContentFrameMessageManager, nsEventTargetSH,
+  NS_DEFINE_CLASSINFO_DATA(ContentFrameMessageManager, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(FormData, nsDOMGenericSH,
@@ -2499,6 +2495,7 @@ nsDOMClassInfo::Init()
     // Order is significant.  nsIDOMHTMLOptionsCollection.length shadows
     // nsIDOMHTMLCollection.length, which is readonly.
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLOptionsCollection)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLOptionCollection)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLCollection)
   DOM_CLASSINFO_MAP_END
 
@@ -4181,8 +4178,6 @@ nsDOMClassInfo::Init()
 
   sDisableGlobalScopePollutionSupport =
     Preferences::GetBool("browser.dom.global_scope_pollution.disabled");
-
-  mozilla::dom::binding::Register(sClassInfoData);
 
   sIsInitialized = PR_TRUE;
 
@@ -6163,17 +6158,6 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
     if (name_struct->mDOMClassInfoID == eDOMClassInfo_EventSource_id) {
       if (!nsEventSource::PrefEnabled()) {
         return NS_OK;
-      }
-    }
-
-    // Lookup new DOM bindings.
-    if (name_struct->mType == nsGlobalNameStruct::eTypeClassConstructor) {
-      mozilla::dom::binding::DefineInterface define =
-        sClassInfoData[name_struct->mDOMClassInfoID].mDefineDOMInterface;
-      if (define && mozilla::dom::binding::DefineConstructor(cx, obj, define, &rv)) {
-        *did_resolve = NS_SUCCEEDED(rv);
-
-        return rv;
       }
     }
 
@@ -8424,20 +8408,14 @@ nsHTMLDocumentSH::GetDocumentAllNodeList(JSContext *cx, JSObject *obj,
 
   if (!JSVAL_IS_PRIMITIVE(collection)) {
     // We already have a node list in our reserved slot, use it.
-    JSObject *obj = JSVAL_TO_OBJECT(collection);
-    if (mozilla::dom::binding::HTMLCollection::objIsWrapper(obj)) {
-      nsIHTMLCollection *native =
-        mozilla::dom::binding::HTMLCollection::getNative(obj);
-      NS_ADDREF(*nodeList = static_cast<nsContentList*>(native));
+
+    nsISupports *native =
+      sXPConnect->GetNativeOfWrapper(cx, JSVAL_TO_OBJECT(collection));
+    if (native) {
+      NS_ADDREF(*nodeList = nsContentList::FromSupports(native));
     }
     else {
-      nsISupports *native = sXPConnect->GetNativeOfWrapper(cx, obj);
-      if (native) {
-        NS_ADDREF(*nodeList = nsContentList::FromSupports(native));
-      }
-      else {
-        rv = NS_ERROR_FAILURE;
-      }
+      rv = NS_ERROR_FAILURE;
     }
   } else {
     // No node list for this document.all yet, create one...
@@ -9208,7 +9186,7 @@ nsHTMLSelectElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
 // static
 nsresult
 nsHTMLSelectElementSH::SetOption(JSContext *cx, jsval *vp, PRUint32 aIndex,
-                                 nsIDOMHTMLOptionsCollection *aOptCollection)
+                                 nsIDOMNSHTMLOptionCollection *aOptCollection)
 {
   JSAutoRequest ar(cx);
 
@@ -9246,7 +9224,10 @@ nsHTMLSelectElementSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
     nsCOMPtr<nsIDOMHTMLOptionsCollection> options;
     select->GetOptions(getter_AddRefs(options));
 
-    nsresult rv = SetOption(cx, vp, n, options);
+    nsCOMPtr<nsIDOMNSHTMLOptionCollection> oc(do_QueryInterface(options));
+    NS_ENSURE_TRUE(oc, NS_ERROR_UNEXPECTED);
+
+    nsresult rv = SetOption(cx, vp, n, oc);
     return NS_FAILED(rv) ? rv : NS_SUCCESS_I_DID_SOMETHING;
   }
 
@@ -9649,7 +9630,7 @@ nsHTMLOptionsCollectionSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
     return NS_OK;
   }
 
-  nsCOMPtr<nsIDOMHTMLOptionsCollection> oc =
+  nsCOMPtr<nsIDOMNSHTMLOptionCollection> oc =
     do_QueryWrappedNative(wrapper, obj);
   NS_ENSURE_TRUE(oc, NS_ERROR_UNEXPECTED);
 

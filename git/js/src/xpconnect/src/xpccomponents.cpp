@@ -3103,10 +3103,10 @@ sandbox_convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
 
 static JSClass SandboxClass = {
     "Sandbox",
-    XPCONNECT_GLOBAL_FLAGS,
+    JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_GLOBAL_FLAGS,
     JS_PropertyStub,   JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     sandbox_enumerate, sandbox_resolve, sandbox_convert,  sandbox_finalize,
-    NULL, NULL, NULL, NULL, NULL, NULL, TraceXPCGlobal
+    JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
 static JSFunctionSpec SandboxFunctions[] = {

@@ -38,7 +38,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsCRTGlue.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsDOMError.h"
 #include "nsDOMException.h"
 #include "nsIDOMDOMException.h"

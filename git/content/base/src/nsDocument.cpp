@@ -205,7 +205,6 @@
 #include "mozilla/Preferences.h"
 
 #include "imgILoader.h"
-#include "nsWrapperCacheInlines.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
