@@ -502,7 +502,7 @@ class TreeMetadataEmitter(LoggingMixin):
 
                 process_support_files(test)
 
-            if not filtered:
+            if not m.tests:
                 # If there are no tests, look for support-files under DEFAULT.
                 process_support_files(defaults)
 

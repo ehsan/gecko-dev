@@ -29,6 +29,10 @@
 #include "mozilla/TimeStamp.h"
 #include "nsMargin.h"
 
+#ifdef CAIRO_HAS_D2D_SURFACE
+#include "gfxD2DSurface.h"
+#endif
+
 #include "nsWinGesture.h"
 
 #include "WindowHook.h"
@@ -287,8 +291,6 @@ public:
 
   virtual void GetPreferredCompositorBackends(nsTArray<mozilla::layers::LayersBackend>& aHints);
 
-  virtual bool ShouldUseOffMainThreadCompositing();
-
 protected:
 
   virtual void WindowUsesOMTC() MOZ_OVERRIDE;
@@ -545,6 +547,10 @@ protected:
   HDC                   mCompositeDC; // only set during StartRemoteDrawing
 
   nsIntRect             mLastPaintBounds;
+
+#ifdef CAIRO_HAS_D2D_SURFACE
+  nsRefPtr<gfxD2DSurface>    mD2DWindowSurface; // Surface for this window.
+#endif
 
   // Transparency
 #ifdef MOZ_XUL

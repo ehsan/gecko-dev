@@ -1415,32 +1415,38 @@ XPCJSRuntime::SizeOfIncludingThis(MallocSizeOf mallocSizeOf)
     return n;
 }
 
-nsString*
-XPCJSRuntime::NewShortLivedString()
+XPCReadableJSStringWrapper *
+XPCJSRuntime::NewStringWrapper(const char16_t *str, uint32_t len)
 {
     for (uint32_t i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i) {
-        if (mScratchStrings[i].empty()) {
-            mScratchStrings[i].construct();
-            return mScratchStrings[i].addr();
+        StringWrapperEntry& ent = mScratchStrings[i];
+
+        if (!ent.mInUse) {
+            ent.mInUse = true;
+
+            // Construct the string using placement new.
+
+            return new (ent.mString.addr()) XPCReadableJSStringWrapper(str, len);
         }
     }
 
     // All our internal string wrappers are used, allocate a new string.
-    return new nsString();
+
+    return new XPCReadableJSStringWrapper(str, len);
 }
 
 void
-XPCJSRuntime::DeleteShortLivedString(nsString *string)
+XPCJSRuntime::DeleteString(nsAString *string)
 {
-    if (string == &EmptyString() || string == &NullString())
-        return;
-
     for (uint32_t i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i) {
-        if (!mScratchStrings[i].empty() &&
-            mScratchStrings[i].addr() == string) {
+        StringWrapperEntry& ent = mScratchStrings[i];
+        if (string == ent.mString.addr()) {
             // One of our internal strings is no longer in use, mark
-            // it as such and free its data.
-            mScratchStrings[i].destroy();
+            // it as such and destroy the string.
+
+            ent.mInUse = false;
+            ent.mString.addr()->~XPCReadableJSStringWrapper();
+
             return;
         }
     }
@@ -1560,7 +1566,7 @@ XPCJSRuntime::~XPCJSRuntime()
 
 #ifdef DEBUG
     for (uint32_t i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i) {
-        MOZ_ASSERT(mScratchStrings[i].empty(), "Short lived string still in use");
+        MOZ_ASSERT(!mScratchStrings[i].mInUse, "Uh, string wrapper still in use!");
     }
 #endif
 }

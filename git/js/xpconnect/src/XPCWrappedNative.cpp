@@ -377,13 +377,6 @@ XPCWrappedNative::GetNewOrUsed(xpcObjectHelper& helper,
 
         if (parent != plannedParent) {
             XPCWrappedNativeScope* betterScope = GetObjectScope(parent);
-            if (MOZ_UNLIKELY(!betterScope)) {
-                printf("Uh oh, hit an object without a scope! Crashing shortly.\n");
-                printf("Object class: %s\n", js::GetObjectClass(parent)->name);
-                printf("Global class: %s\n", js::GetObjectClass(js::GetGlobalForObjectCrossCompartment(parent))->name);
-                printf("IsMainThread: %u\n", (uint32_t) NS_IsMainThread());
-                MOZ_CRASH();
-            }
             if (betterScope != Scope)
                 return GetNewOrUsed(helper, betterScope, Interface, resultWrapper);
 
@@ -2318,15 +2311,11 @@ CallMethodHelper::CleanupParam(nsXPTCMiniVariant& param, nsXPTType& type)
             break;
         case nsXPTType::T_ASTRING:
         case nsXPTType::T_DOMSTRING:
-            nsXPConnect::GetRuntimeInstance()->DeleteShortLivedString((nsString*)param.val.p);
+            nsXPConnect::GetRuntimeInstance()->DeleteString((nsAString*)param.val.p);
             break;
         case nsXPTType::T_UTF8STRING:
         case nsXPTType::T_CSTRING:
-            {
-                nsCString* rs = (nsCString*)param.val.p;
-                if (rs != &EmptyCString() && rs != &NullCString())
-                    delete rs;
-            }
+            delete (nsCString*) param.val.p;
             break;
         default:
             MOZ_ASSERT(!type.IsArithmetic(), "Cleanup requested on unexpected type.");
@@ -2374,10 +2363,10 @@ CallMethodHelper::HandleDipperParam(nsXPTCVariant* dp,
                type_tag == nsXPTType::T_CSTRING,
                "Unexpected dipper type!");
 
-    // ASTRING and DOMSTRING are very similar, and both use nsString.
+    // ASTRING and DOMSTRING are very similar, and both use nsAutoString.
     // UTF8_STRING and CSTRING are also quite similar, and both use nsCString.
     if (type_tag == nsXPTType::T_ASTRING || type_tag == nsXPTType::T_DOMSTRING)
-        dp->val.p = nsXPConnect::GetRuntimeInstance()->NewShortLivedString();
+        dp->val.p = new nsAutoString();
     else
         dp->val.p = new nsCString();
 

@@ -2093,7 +2093,6 @@ void
 js::SetMarkStackLimit(JSRuntime *rt, size_t limit)
 {
     JS_ASSERT(!rt->isHeapBusy());
-    AutoStopVerifyingBarriers pauseVerification(rt, false);
     rt->gcMarker.setMaxCapacity(limit);
 }
 

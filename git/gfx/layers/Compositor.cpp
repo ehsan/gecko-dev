@@ -26,15 +26,6 @@ Compositor::GetBackend()
 }
 
 /* static */ void
-Compositor::SetBackend(LayersBackend backend)
-{
-  if (sBackend != LayersBackend::LAYERS_NONE && sBackend != backend) {
-    MOZ_CRASH("Trying to use more than one OMTC compositor.");
-  }
-  sBackend = backend;
-}
-
-/* static */ void
 Compositor::AssertOnCompositorThread()
 {
   MOZ_ASSERT(CompositorParent::CompositorLoop() ==

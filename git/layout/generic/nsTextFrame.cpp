@@ -2890,7 +2890,7 @@ public:
   const gfxSkipCharsIterator& GetEndHint() { return mTempIterator; }
 
 protected:
-  void SetupJustificationSpacing(bool aPostReflow);
+  void SetupJustificationSpacing();
 
   void InitFontGroupAndFontMetrics() {
     float inflation = (mWhichTextRun == nsTextFrame::eInflated)
@@ -3274,7 +3274,7 @@ PropertyProvider::InitializeForDisplay(bool aTrimAfter)
     mFrame->GetTrimmedOffsets(mFrag, aTrimAfter);
   mStart.SetOriginalOffset(trimmed.mStart);
   mLength = trimmed.mLength;
-  SetupJustificationSpacing(true);
+  SetupJustificationSpacing();
 }
 
 void
@@ -3284,7 +3284,7 @@ PropertyProvider::InitializeForMeasure()
     mFrame->GetTrimmedOffsets(mFrag, true, false);
   mStart.SetOriginalOffset(trimmed.mStart);
   mLength = trimmed.mLength;
-  SetupJustificationSpacing(false);
+  SetupJustificationSpacing();
 }
 
 
@@ -3326,7 +3326,7 @@ PropertyProvider::FindJustificationRange(gfxSkipCharsIterator* aStart,
 }
 
 void
-PropertyProvider::SetupJustificationSpacing(bool aPostReflow)
+PropertyProvider::SetupJustificationSpacing()
 {
   NS_PRECONDITION(mLength != INT32_MAX, "Can't call this with undefined length");
 
@@ -3338,7 +3338,7 @@ PropertyProvider::SetupJustificationSpacing(bool aPostReflow)
   // called with false for aTrimAfter, we still shouldn't be assigning
   // justification space to any trailing whitespace.
   nsTextFrame::TrimmedOffsets trimmed =
-    mFrame->GetTrimmedOffsets(mFrag, true, aPostReflow);
+    mFrame->GetTrimmedOffsets(mFrag, true);
   end.AdvanceOriginal(trimmed.mLength);
   gfxSkipCharsIterator realEnd(end);
   FindJustificationRange(&start, &end);

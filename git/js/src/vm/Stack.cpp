@@ -549,12 +549,6 @@ ScriptFrameIter::settleOnActivation()
             data_.state_ = JIT;
             return;
         }
-
-        // ForkJoin activations don't contain iterable frames, so skip them.
-        if (activation->isForkJoin()) {
-            ++data_.activations_;
-            continue;
-        }
 #endif
 
         JS_ASSERT(activation->isInterpreter());

@@ -27,9 +27,7 @@ CONFIGURE_SUBST_FILES += [
     'js.pc',
 ]
 
-if CONFIG['JS_STANDALONE']:
-    DEFINES['IMPL_MFBT'] = True
-else:
+if not CONFIG['JS_STANDALONE']:
     CONFIGURE_SUBST_FILES += [
         '../../config/autoconf-js.mk',
         '../../config/emptyvars-js.mk',
@@ -169,7 +167,6 @@ UNIFIED_SOURCES += [
     'vm/Monitor.cpp',
     'vm/ObjectImpl.cpp',
     'vm/OldDebugAPI.cpp',
-    'vm/PIC.cpp',
     'vm/Probes.cpp',
     'vm/PropertyKey.cpp',
     'vm/ProxyObject.cpp',
