@@ -7,8 +7,7 @@
 module.metadata = {
   "stability": "stable",
   "engines": {
-    "Firefox": "*",
-    "SeaMonkey": "*"
+    "Firefox": "*"
   }
 };
 
@@ -23,7 +22,8 @@ const { Ci, Cc } = require("chrome"),
     { getTabs, getTabContentWindow, getTabForContentWindow,
       getAllTabContentWindows } = require('./tabs/utils'),
     winUtils = require("./window/utils"),
-    events = require("./system/events");
+    events = require("./system/events"),
+    { iteratorSymbol, forInIterator } = require("./util/iteration");
 
 // The selection types
 const HTML = 0x01,
@@ -116,12 +116,9 @@ function* forOfIterator() {
 }
 
 const selectionIteratorOptions = {
-  __iterator__: function() {
-      for (let item of this)
-          yield item;
-  }
+  __iterator__: forInIterator
 }
-selectionIteratorOptions[Symbol.iterator] = forOfIterator;
+selectionIteratorOptions[iteratorSymbol] = forOfIterator;
 const selectionIterator = obscure(selectionIteratorOptions);
 
 /**

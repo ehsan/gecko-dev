@@ -71,7 +71,6 @@
 #include "nsAuthInformationHolder.h"
 #include "nsICancelable.h"
 #include "gfxPrefs.h"
-#include "nsILoginManagerPrompter.h"
 #include <algorithm>
 
 using namespace mozilla::dom;
@@ -1881,18 +1880,8 @@ TabParent::GetAuthPrompt(uint32_t aPromptReason, const nsIID& iid,
 
   // Get an auth prompter for our window so that the parenting
   // of the dialogs works as it should when using tabs.
-  nsCOMPtr<nsISupports> prompt;
-  rv = wwatch->GetPrompt(window, iid, getter_AddRefs(prompt));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsILoginManagerPrompter> prompter = do_QueryInterface(prompt);
-  if (prompter) {
-    nsCOMPtr<nsIDOMElement> browser = do_QueryInterface(mFrameElement);
-    prompter->SetE10sData(browser, nullptr);
-  }
-
-  *aResult = prompt.forget().take();
-  return NS_OK;
+  return wwatch->GetPrompt(window, iid,
+                           reinterpret_cast<void**>(aResult));
 }
 
 PColorPickerParent*

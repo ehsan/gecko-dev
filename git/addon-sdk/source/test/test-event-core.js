@@ -1,6 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 'use strict';
 
 const { on, once, off, emit, count } = require('sdk/event/core');
@@ -198,7 +199,7 @@ exports['test unhandled errors'] = function(assert) {
   let exceptions = [];
   let { loader, messages } = LoaderWithHookedConsole(module);
 
-  let { emit } = loader.require('sdk/event/core');
+  let { emit, on } = loader.require('sdk/event/core');
   let target = {};
   let boom = Error('Boom!');
 
@@ -209,24 +210,6 @@ exports['test unhandled errors'] = function(assert) {
             'unhandled exception is logged');
 };
 
-exports['test piped errors'] = function(assert) {
-  let exceptions = [];
-  let { loader, messages } = LoaderWithHookedConsole(module);
-
-  let { emit } = loader.require('sdk/event/core');
-  let { pipe } = loader.require('sdk/event/utils');
-  let target = {};
-  let second = {};
-
-  pipe(target, second);
-  emit(target, 'error', 'piped!');
-
-  assert.equal(messages.length, 1, 'error logged only once, ' +
-               'considered "handled" on `target` by the catch-all pipe');
-  assert.equal(messages[0].type, 'exception', 'The console message is exception');
-  assert.ok(~String(messages[0].msg).indexOf('piped!'),
-            'unhandled (piped) exception is logged on `second` target');
-};
 
 exports['test count'] = function(assert) {
   let target = {};
@@ -259,4 +242,4 @@ exports['test listen to all events'] = function(assert) {
     'wildcard listener called for unbound event name');
 };
 
-require('sdk/test').run(exports);
+require('test').run(exports);

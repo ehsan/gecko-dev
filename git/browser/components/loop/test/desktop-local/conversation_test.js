@@ -44,10 +44,6 @@ describe("loop.conversation", function() {
       calls: {
         clearCallInProgress: sinon.stub()
       },
-      LOOP_SESSION_TYPE: {
-        GUEST: 1,
-        FXA: 2
-      },
       startAlerting: sinon.stub(),
       stopAlerting: sinon.stub(),
       ensureRegistered: sinon.stub(),
@@ -130,14 +126,14 @@ describe("loop.conversation", function() {
 
   describe("AppControllerView", function() {
     var conversationStore, conversation, client, ccView, oldTitle, dispatcher;
-    var conversationAppStore, roomStore;
+    var conversationAppStore, localRoomStore;
 
     function mountTestComponent() {
       return TestUtils.renderIntoDocument(
         loop.conversation.AppControllerView({
           client: client,
           conversation: conversation,
-          roomStore: roomStore,
+          localRoomStore: localRoomStore,
           sdk: {},
           conversationStore: conversationStore,
           conversationAppStore: conversationAppStore
@@ -165,7 +161,7 @@ describe("loop.conversation", function() {
         dispatcher: dispatcher,
         sdkDriver: {}
       });
-      roomStore = new loop.store.RoomStore({
+      localRoomStore = new loop.store.LocalRoomStore({
         mozLoop: navigator.mozLoop,
         dispatcher: dispatcher
       });
@@ -543,8 +539,6 @@ describe("loop.conversation", function() {
       });
 
       describe("#blocked", function() {
-        var mozLoop;
-
         beforeEach(function() {
           icView = mountTestComponent();
 
@@ -553,13 +547,6 @@ describe("loop.conversation", function() {
             close: sinon.stub()
           };
           sandbox.stub(window, "close");
-
-          mozLoop = {
-            LOOP_SESSION_TYPE: {
-              GUEST: 1,
-              FXA: 2
-            }
-          };
         });
 
         it("should call mozLoop.stopAlerting", function() {
@@ -570,24 +557,21 @@ describe("loop.conversation", function() {
 
         it("should call delete call", function() {
           sandbox.stub(conversation, "get").withArgs("callToken")
-                                           .returns("fakeToken")
-                                           .withArgs("sessionType")
-                                           .returns(mozLoop.LOOP_SESSION_TYPE.FXA);
-
+                                           .returns("fakeToken");
           var deleteCallUrl = sandbox.stub(loop.Client.prototype,
                                            "deleteCallUrl");
           icView.declineAndBlock();
 
           sinon.assert.calledOnce(deleteCallUrl);
-          sinon.assert.calledWithExactly(deleteCallUrl,
-            "fakeToken", mozLoop.LOOP_SESSION_TYPE.FXA, sinon.match.func);
+          sinon.assert.calledWithExactly(deleteCallUrl, "fakeToken",
+                                                        sinon.match.func);
         });
 
         it("should get callToken from conversation model", function() {
           sandbox.stub(conversation, "get");
           icView.declineAndBlock();
 
-          sinon.assert.called(conversation.get);
+          sinon.assert.calledTwice(conversation.get);
           sinon.assert.calledWithExactly(conversation.get, "callToken");
           sinon.assert.calledWithExactly(conversation.get, "windowId");
         });
@@ -598,7 +582,7 @@ describe("loop.conversation", function() {
           var fakeError = {
             error: true
           };
-          sandbox.stub(loop.Client.prototype, "deleteCallUrl", function(_, __, cb) {
+          sandbox.stub(loop.Client.prototype, "deleteCallUrl", function(_, cb) {
             cb(fakeError);
           });
           icView.declineAndBlock();

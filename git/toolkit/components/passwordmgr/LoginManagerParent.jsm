@@ -216,7 +216,7 @@ var LoginManagerParent = {
                                 target.ownerDocument.defaultView :
                                 target.contentWindow);
             if (target.isRemoteBrowser)
-                prompterSvc.setE10sData(target, opener);
+                prompterSvc.setE10sData({ browser: target, opener: opener });
             return prompterSvc;
         }
 

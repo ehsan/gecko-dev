@@ -1,13 +1,17 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 "use strict";
 
 module.metadata =  {
   "stability": "experimental"
 };
 
-const { Ci } = require("chrome");
+const { Cc, Ci } = require("chrome");
+
+const io = Cc['@mozilla.org/network/io-service;1'].
+            getService(Ci.nsIIOService);
 
 const SHEET_TYPE = {
   "agent": "AGENT_SHEET",
@@ -32,12 +36,12 @@ function loadSheet(window, url, type) {
 
   type = SHEET_TYPE[type];
 
-  if (url instanceof Ci.nsIURI)
-    url = url.spec;
+  if (!(url instanceof Ci.nsIURI))
+    url = io.newURI(url, null, null);
 
   let winUtils = getDOMWindowUtils(window);
   try {
-    winUtils.loadSheetUsingURIString(url, winUtils[type]);
+    winUtils.loadSheet(url, winUtils[type]);
   }
   catch (e) {};
 };
@@ -53,13 +57,13 @@ function removeSheet(window, url, type) {
 
   type = SHEET_TYPE[type];
 
-  if (url instanceof Ci.nsIURI)
-    url = url.spec;
+  if (!(url instanceof Ci.nsIURI))
+    url = io.newURI(url, null, null);
 
   let winUtils = getDOMWindowUtils(window);
 
   try {
-    winUtils.removeSheetUsingURIString(url, winUtils[type]);
+    winUtils.removeSheet(url, winUtils[type]);
   }
   catch (e) {};
 };

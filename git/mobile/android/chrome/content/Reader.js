@@ -4,12 +4,9 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-XPCOMUtils.defineLazyModuleGetter(this, "CommonUtils",
-                                  "resource://services-common/utils.js");
-
 let Reader = {
-  // Version of the cache schema.
-  CACHE_VERSION: 1,
+  // Version of the cache database schema
+  DB_VERSION: 1,
 
   DEBUG: 0,
 
@@ -25,7 +22,7 @@ let Reader = {
     // Listen for future pref changes.
     Services.prefs.addObserver("reader.parse-on-load.", this, false);
 
-    return this.isEnabledForParseOnLoad = this._getStateForParseOnLoad();
+    return this.isEnabledForParseOnLoad = this.getStateForParseOnLoad();
   },
 
   pageAction: {
@@ -37,7 +34,7 @@ let Reader = {
     },
 
     readerModeActiveCallback: function(tabID) {
-      Reader._addTabToReadingList(tabID).catch(e => Cu.reportError("Error adding tab to reading list: " + e));
+      Reader._addTabToReadingList(tabID);
       UITelemetry.addEvent("save.1", "pageaction", null, "reader");
     },
   },
@@ -79,38 +76,46 @@ let Reader = {
   observe: function(aMessage, aTopic, aData) {
     switch(aTopic) {
       case "Reader:Removed": {
-        let uri = Services.io.newURI(aData, null, null);
-        this.removeArticleFromCache(uri).catch(e => Cu.reportError("Error removing article from cache: " + e));
+        this.removeArticleFromCache(aData);
         break;
       }
 
       case "nsPref:changed": {
         if (aData.startsWith("reader.parse-on-load.")) {
-          this.isEnabledForParseOnLoad = this._getStateForParseOnLoad();
+          this.isEnabledForParseOnLoad = this.getStateForParseOnLoad();
         }
         break;
       }
     }
   },
 
-  _addTabToReadingList: Task.async(function* (tabID) {
+  _addTabToReadingList: function(tabID) {
     let tab = BrowserApp.getTabForId(tabID);
-    if (!tab) {
-      throw new Error("Can't add tab to reading list because no tab found for ID: " + tabID);
-    }
+    let currentURI = tab.browser.currentURI;
+    let urlWithoutRef = currentURI.specIgnoringRef;
 
-    let uri = tab.browser.currentURI;
-    let urlWithoutRef = uri.specIgnoringRef;
+    this.getArticleFromCache(urlWithoutRef, (article) => {
+      // If the article is already in the cache, just use that.
+      if (article) {
+        this.addArticleToReadingList(article);
+        return;
+      }
 
-    let article = yield this.getArticle(urlWithoutRef, tabID);
-    if (!article) {
-      // If there was a problem getting the article, just store the
-      // URL and title from the tab.
-      article = { url: urlWithoutRef, title: tab.browser.contentDocument.title };
-    }
-
-    this.addArticleToReadingList(article);
-  }),
+      // Otherwise, get the article data from the tab.
+      this.getArticleForTab(tabID, urlWithoutRef, (article) => {
+        if (article) {
+          this.addArticleToReadingList(article);
+        } else {
+          // If there was a problem getting the article, just store the
+          // URL and title from the tab.
+          this.addArticleToReadingList({
+            url: urlWithoutRef,
+            title: tab.browser.contentDocument.title,
+          });
+        }
+      });
+    });
+  },
 
   addArticleToReadingList: function(article) {
     if (!article || !article.url) {
@@ -126,10 +131,10 @@ let Reader = {
       excerpt: article.excerpt || "",
     });
 
-    this.storeArticleInCache(article).catch(e => Cu.reportError("Error storing article in cache: " + e));
+    this.storeArticleInCache(article);
   },
 
-  _getStateForParseOnLoad: function () {
+  getStateForParseOnLoad: function Reader_getStateForParseOnLoad() {
     let isEnabled = Services.prefs.getBoolPref("reader.parse-on-load.enabled");
     let isForceEnabled = Services.prefs.getBoolPref("reader.parse-on-load.force-enabled");
     // For low-memory devices, don't allow reader mode since it takes up a lot of memory.
@@ -137,117 +142,189 @@ let Reader = {
     return isForceEnabled || (isEnabled && !BrowserApp.isOnLowMemoryPlatform);
   },
 
-  /**
-   * Gets an article for a given URL. This method will download and parse a document
-   * if it does not find the article in the tab data or the cache.
-   *
-   * @param url The article URL.
-   * @param tabId (optional) The id of the tab where we can look for a saved article.
-   * @return {Promise}
-   * @resolves JS object representing the article, or null if no article is found.
-   */
-  getArticle: Task.async(function* (url, tabId) {
-    // First, look for an article object stored on the tab.
+  parseDocumentFromURL: function Reader_parseDocumentFromURL(url, callback) {
+    // If there's an on-going request for the same URL, simply append one
+    // more callback to it to be called when the request is done.
+    if (url in this._requests) {
+      let request = this._requests[url];
+      request.callbacks.push(callback);
+      return;
+    }
+
+    let request = { url: url, callbacks: [callback] };
+    this._requests[url] = request;
+
+    try {
+      this.log("parseDocumentFromURL: " + url);
+
+      // First, try to find a cached parsed article in the DB
+      this.getArticleFromCache(url, function(article) {
+        if (article) {
+          this.log("Page found in cache, return article immediately");
+          this._runCallbacksAndFinish(request, article);
+          return;
+        }
+
+        if (!this._requests) {
+          this.log("Reader has been destroyed, abort");
+          return;
+        }
+
+        // Article hasn't been found in the cache DB, we need to
+        // download the page and parse the article out of it.
+        this._downloadAndParseDocument(url, request);
+      }.bind(this));
+    } catch (e) {
+      this.log("Error parsing document from URL: " + e);
+      this._runCallbacksAndFinish(request, null);
+    }
+  },
+
+  getArticleForTab: function Reader_getArticleForTab(tabId, url, callback) {
     let tab = BrowserApp.getTabForId(tabId);
     if (tab) {
       let article = tab.savedArticle;
       if (article && article.url == url) {
         this.log("Saved article found in tab");
-        return article;
+        callback(article);
+        return;
       }
     }
 
-    // Next, try to find a parsed article in the cache.
-    let uri = Services.io.newURI(url, null, null);
-    let article = yield this.getArticleFromCache(uri);
-    if (article) {
-      this.log("Saved article found in cache");
-      return article;
-    }
+    this.parseDocumentFromURL(url, callback);
+  },
 
-    // Article hasn't been found in the cache, we need to
-    // download the page and parse the article out of it.
-    return yield this._downloadAndParseDocument(url);
-  }),
-
-  /**
-   * Gets an article from a loaded tab's document. This method will parse the document
-   * if it does not find the article in the tab data or the cache.
-   *
-   * @param tab The loaded tab.
-   * @return {Promise}
-   * @resolves JS object representing the article, or null if no article is found.
-   */
-  parseDocumentFromTab: Task.async(function* (tab) {
-    let uri = tab.browser.currentURI;
-    if (!this._shouldCheckUri(uri)) {
-      this.log("Reader mode disabled for URI");
-      return null;
-    }
-
-    // First, try to find a parsed article in the cache.
-    let article = yield this.getArticleFromCache(uri);
-    if (article) {
-      this.log("Page found in cache, return article immediately");
-      return article;
-    }
-
-    let doc = tab.browser.contentWindow.document;
-    return yield this._readerParse(uri, doc);
-  }),
-
-  /**
-   * Retrieves an article from the cache given an article URI.
-   *
-   * @param uri The article URI.
-   * @return {Promise}
-   * @resolves JS object representing the article, or null if no article is found.
-   * @rejects OS.File.Error
-   */
-  getArticleFromCache: Task.async(function* (uri) {
-    let path = this._toHashedPath(uri.specIgnoringRef);
+  parseDocumentFromTab: function(tabId, callback) {
     try {
-      let array = yield OS.File.read(path);
-      return JSON.parse(new TextDecoder().decode(array));
-    } catch (e if e instanceof OS.File.Error && e.becauseNoSuchFile) {
-      return null;
+      this.log("parseDocumentFromTab: " + tabId);
+
+      let tab = BrowserApp.getTabForId(tabId);
+      let url = tab.browser.contentWindow.location.href;
+      let uri = Services.io.newURI(url, null, null);
+
+      if (!this._shouldCheckUri(uri)) {
+        callback(null);
+        return;
+      }
+
+      // First, try to find a cached parsed article in the DB
+      this.getArticleFromCache(url, function(article) {
+        if (article) {
+          this.log("Page found in cache, return article immediately");
+          callback(article);
+          return;
+        }
+
+        let doc = tab.browser.contentWindow.document;
+        this._readerParse(uri, doc, function (article) {
+          if (!article) {
+            this.log("Failed to parse page");
+            callback(null);
+            return;
+          }
+
+          callback(article);
+        }.bind(this));
+      }.bind(this));
+    } catch (e) {
+      this.log("Error parsing document from tab: " + e);
+      callback(null);
     }
-  }),
+  },
 
-  /**
-   * Stores an article in the cache.
-   *
-   * @param article JS object representing article.
-   * @return {Promise}
-   * @resolves When the article is stored.
-   * @rejects OS.File.Error
-   */
-  storeArticleInCache: Task.async(function* (article) {
-    let array = new TextEncoder().encode(JSON.stringify(article));
-    let path = this._toHashedPath(article.url);
-    yield this._ensureCacheDir();
-    yield OS.File.writeAtomic(path, array, { tmpPath: path + ".tmp" });
-  }),
+  getArticleFromCache: function Reader_getArticleFromCache(url, callback) {
+    this._getCacheDB(function(cacheDB) {
+      if (!cacheDB) {
+        callback(false);
+        return;
+      }
 
-  /**
-   * Removes an article from the cache given an article URI.
-   *
-   * @param uri The article URI.
-   * @return {Promise}
-   * @resolves When the article is removed.
-   * @rejects OS.File.Error
-   */
-  removeArticleFromCache: Task.async(function* (uri) {
-    let path = this._toHashedPath(uri.specIgnoringRef);
-    yield OS.File.remove(path);
-  }),
+      let transaction = cacheDB.transaction(cacheDB.objectStoreNames);
+      let articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
+
+      let request = articles.get(url);
+
+      request.onerror = function(event) {
+        this.log("Error getting article from the cache DB: " + url);
+        callback(null);
+      }.bind(this);
+
+      request.onsuccess = function(event) {
+        this.log("Got article from the cache DB: " + event.target.result);
+        callback(event.target.result);
+      }.bind(this);
+    }.bind(this));
+  },
+
+  storeArticleInCache: function Reader_storeArticleInCache(article) {
+    this._getCacheDB(function(cacheDB) {
+      if (!cacheDB) {
+        return;
+      }
+
+      let transaction = cacheDB.transaction(cacheDB.objectStoreNames, "readwrite");
+      let articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
+
+      let request = articles.add(article);
+
+      request.onerror = function(event) {
+        this.log("Error storing article in the cache DB: " + article.url);
+      }.bind(this);
+
+      request.onsuccess = function(event) {
+        this.log("Stored article in the cache DB: " + article.url);
+      }.bind(this);
+    }.bind(this));
+  },
+
+  removeArticleFromCache: function Reader_removeArticleFromCache(url) {
+    this._getCacheDB(function(cacheDB) {
+      if (!cacheDB) {
+        return;
+      }
+
+      let transaction = cacheDB.transaction(cacheDB.objectStoreNames, "readwrite");
+      let articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
+
+      let request = articles.delete(url);
+
+      request.onerror = function(event) {
+        this.log("Error removing article from the cache DB: " + url);
+      }.bind(this);
+
+      request.onsuccess = function(event) {
+        this.log("Removed article from the cache DB: " + url);
+      }.bind(this);
+    }.bind(this));
+  },
+
+  uninit: function Reader_uninit() {
+    Services.prefs.removeObserver("reader.parse-on-load.", this);
+
+    Services.obs.removeObserver(this, "Reader:Removed");
+
+    let requests = this._requests;
+    for (let url in requests) {
+      let request = requests[url];
+      if (request.browser) {
+        let browser = request.browser;
+        browser.parentNode.removeChild(browser);
+      }
+    }
+    delete this._requests;
+
+    if (this._cacheDB) {
+      this._cacheDB.close();
+      delete this._cacheDB;
+    }
+  },
 
   log: function(msg) {
     if (this.DEBUG)
       dump("Reader: " + msg);
   },
 
-  _shouldCheckUri: function (uri) {
+  _shouldCheckUri: function Reader_shouldCheckUri(uri) {
     if ((uri.prePath + "/") === uri.spec) {
       this.log("Not parsing home page: " + uri.spec);
       return false;
@@ -261,151 +338,171 @@ let Reader = {
     return true;
   },
 
-  _readerParse: function (uri, doc) {
-    return new Promise((resolve, reject) => {
-      let numTags = doc.getElementsByTagName("*").length;
-      if (numTags > this.MAX_ELEMS_TO_PARSE) {
-        reject("Aborting parse for " + uri.spec + "; " + numTags + " elements found");
-        return;
-      }
+  _readerParse: function Reader_readerParse(uri, doc, callback) {
+    let numTags = doc.getElementsByTagName("*").length;
+    if (numTags > this.MAX_ELEMS_TO_PARSE) {
+      this.log("Aborting parse for " + uri.spec + "; " + numTags + " elements found");
+      callback(null);
+      return;
+    }
 
-      let worker = new ChromeWorker("readerWorker.js");
-      worker.onmessage = function (evt) {
-        let article = evt.data;
+    let worker = new ChromeWorker("readerWorker.js");
+    worker.onmessage = function (evt) {
+      let article = evt.data;
 
-        if (!article) {
-          reject("Worker did not return an article");
-          return;
-        }
-
-        // Append URL to the article data. specIgnoringRef will ignore any hash
-        // in the URL.
+      // Append URL to the article data. specIgnoringRef will ignore any hash
+      // in the URL.
+      if (article) {
         article.url = uri.specIgnoringRef;
         let flags = Ci.nsIDocumentEncoder.OutputSelectionOnly | Ci.nsIDocumentEncoder.OutputAbsoluteLinks;
         article.title = Cc["@mozilla.org/parserutils;1"].getService(Ci.nsIParserUtils)
                                                         .convertToPlainText(article.title, flags, 0);
-        resolve(article);
-      };
-
-      try {
-        worker.postMessage({
-          uri: {
-            spec: uri.spec,
-            host: uri.host,
-            prePath: uri.prePath,
-            scheme: uri.scheme,
-            pathBase: Services.io.newURI(".", null, uri).spec
-          },
-          doc: new XMLSerializer().serializeToString(doc)
-        });
-      } catch (e) {
-        reject("Reader: could not build Readability arguments: " + e);
       }
-    });
-  },
 
-  _downloadDocument: function (url) {
-    return new Promise((resolve, reject) => {
-      // We want to parse those arbitrary pages safely, outside the privileged
-      // context of chrome. We create a hidden browser element to fetch the
-      // loaded page's document object then discard the browser element.
-      let browser = document.createElement("browser");
-      browser.setAttribute("type", "content");
-      browser.setAttribute("collapsed", "true");
-      browser.setAttribute("disablehistory", "true");
-
-      document.documentElement.appendChild(browser);
-      browser.stop();
-
-      browser.webNavigation.allowAuth = false;
-      browser.webNavigation.allowImages = false;
-      browser.webNavigation.allowJavascript = false;
-      browser.webNavigation.allowMetaRedirects = true;
-      browser.webNavigation.allowPlugins = false;
-
-      browser.addEventListener("DOMContentLoaded", event => {
-        let doc = event.originalTarget;
-
-        // ignore on frames and other documents
-        if (doc != browser.contentDocument) {
-          return;
-        }
-
-        this.log("Done loading: " + doc);
-        if (doc.location.href == "about:blank") {
-          reject("about:blank loaded; aborting");
-
-          // Request has finished with error, remove browser element
-          browser.parentNode.removeChild(browser);
-          return;
-        }
-
-        resolve({ browser, doc });
-      });
-
-      browser.loadURIWithFlags(url, Ci.nsIWebNavigation.LOAD_FLAGS_NONE,
-                               null, null, null);
-    });
-  },
-
-  _downloadAndParseDocument: Task.async(function* (url) {
-    this.log("Needs to fetch page, creating request: " + url);
-    let { browser, doc } = yield this._downloadDocument(url);
-    this.log("Finished loading page: " + doc);
+      callback(article);
+    };
 
     try {
-      this.log("Parsing response with Readability");
-      let uri = Services.io.newURI(url, null, null);
-      let article = yield this._readerParse(uri, doc);
-      this.log("Document parsed successfully");
-      return article;
-    } finally {
-      browser.parentNode.removeChild(browser);
+      worker.postMessage({
+        uri: {
+          spec: uri.spec,
+          host: uri.host,
+          prePath: uri.prePath,
+          scheme: uri.scheme,
+          pathBase: Services.io.newURI(".", null, uri).spec
+        },
+        doc: new XMLSerializer().serializeToString(doc)
+      });
+    } catch (e) {
+      dump("Reader: could not build Readability arguments: " + e);
+      callback(null);
     }
-  }),
-
-  get _cryptoHash() {
-    delete this._cryptoHash;
-    return this._cryptoHash = Cc["@mozilla.org/security/hash;1"].createInstance(Ci.nsICryptoHash);
   },
 
-  get _unicodeConverter() {
-    delete this._unicodeConverter;
-    this._unicodeConverter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-                              .createInstance(Ci.nsIScriptableUnicodeConverter);
-    this._unicodeConverter.charset = "utf8";
-    return this._unicodeConverter;
-  },
+  _runCallbacksAndFinish: function Reader_runCallbacksAndFinish(request, result) {
+    delete this._requests[request.url];
 
-  /**
-   * Calculate the hashed path for a stripped article URL.
-   *
-   * @param url The article URL. This should have referrers removed.
-   * @return The file path to the cached article.
-   */
-  _toHashedPath: function (url) {
-    let value = this._unicodeConverter.convertToByteArray(url);
-    this._cryptoHash.init(this._cryptoHash.MD5);
-    this._cryptoHash.update(value, value.length);
-
-    let hash = CommonUtils.encodeBase32(this._cryptoHash.finish(false));
-    let fileName = hash.substring(0, hash.indexOf("=")) + ".json";
-    return OS.Path.join(OS.Constants.Path.profileDir, "readercache", fileName);
-  },
-
-  /**
-   * Ensures the cache directory exists.
-   *
-   * @return Promise
-   * @resolves When the cache directory exists.
-   * @rejects OS.File.Error
-   */
-  _ensureCacheDir: function () {
-    let dir = OS.Path.join(OS.Constants.Path.profileDir, "readercache");
-    return OS.File.exists(dir).then(exists => {
-      if (!exists) {
-        return OS.File.makeDir(dir);
-      }
+    request.callbacks.forEach(function(callback) {
+      callback(result);
     });
+  },
+
+  _downloadDocument: function Reader_downloadDocument(url, callback) {
+    // We want to parse those arbitrary pages safely, outside the privileged
+    // context of chrome. We create a hidden browser element to fetch the
+    // loaded page's document object then discard the browser element.
+
+    let browser = document.createElement("browser");
+    browser.setAttribute("type", "content");
+    browser.setAttribute("collapsed", "true");
+    browser.setAttribute("disablehistory", "true");
+
+    document.documentElement.appendChild(browser);
+    browser.stop();
+
+    browser.webNavigation.allowAuth = false;
+    browser.webNavigation.allowImages = false;
+    browser.webNavigation.allowJavascript = false;
+    browser.webNavigation.allowMetaRedirects = true;
+    browser.webNavigation.allowPlugins = false;
+
+    browser.addEventListener("DOMContentLoaded", function (event) {
+      let doc = event.originalTarget;
+
+      // ignore on frames and other documents
+      if (doc != browser.contentDocument)
+        return;
+
+      this.log("Done loading: " + doc);
+      if (doc.location.href == "about:blank") {
+        callback(null);
+
+        // Request has finished with error, remove browser element
+        browser.parentNode.removeChild(browser);
+        return;
+      }
+
+      callback(doc);
+    }.bind(this));
+
+    browser.loadURIWithFlags(url, Ci.nsIWebNavigation.LOAD_FLAGS_NONE,
+                             null, null, null);
+
+    return browser;
+  },
+
+  _downloadAndParseDocument: function Reader_downloadAndParseDocument(url, request) {
+    try {
+      this.log("Needs to fetch page, creating request: " + url);
+
+      request.browser = this._downloadDocument(url, function(doc) {
+        this.log("Finished loading page: " + doc);
+
+        if (!doc) {
+          this.log("Error loading page");
+          this._runCallbacksAndFinish(request, null);
+          return;
+        }
+
+        this.log("Parsing response with Readability");
+
+        let uri = Services.io.newURI(url, null, null);
+        this._readerParse(uri, doc, function (article) {
+          // Delete reference to the browser element as we've finished parsing.
+          let browser = request.browser;
+          if (browser) {
+            browser.parentNode.removeChild(browser);
+            delete request.browser;
+          }
+
+          if (!article) {
+            this.log("Failed to parse page");
+            this._runCallbacksAndFinish(request, null);
+            return;
+          }
+
+          this.log("Parsing has been successful");
+
+          this._runCallbacksAndFinish(request, article);
+        }.bind(this));
+      }.bind(this));
+    } catch (e) {
+      this.log("Error downloading and parsing document: " + e);
+      this._runCallbacksAndFinish(request, null);
+    }
+  },
+
+  _getCacheDB: function Reader_getCacheDB(callback) {
+    if (this._cacheDB) {
+      callback(this._cacheDB);
+      return;
+    }
+
+    let request = window.indexedDB.open("about:reader", this.DB_VERSION);
+
+    request.onerror = function(event) {
+      this.log("Error connecting to the cache DB");
+      this._cacheDB = null;
+      callback(null);
+    }.bind(this);
+
+    request.onsuccess = function(event) {
+      this.log("Successfully connected to the cache DB");
+      this._cacheDB = event.target.result;
+      callback(this._cacheDB);
+    }.bind(this);
+
+    request.onupgradeneeded = function(event) {
+      this.log("Database schema upgrade from " +
+           event.oldVersion + " to " + event.newVersion);
+
+      let cacheDB = event.target.result;
+
+      // Create the articles object store
+      this.log("Creating articles object store");
+      cacheDB.createObjectStore("articles", { keyPath: "url" });
+
+      this.log("Database upgrade done: " + this.DB_VERSION);
+    }.bind(this);
   }
 };
