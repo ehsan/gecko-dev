@@ -34,9 +34,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Hal.h"
-#include "mozilla/HalSensor.h"
-
 #include "nsDeviceMotion.h"
 
 #include "nsAutoPtr.h"
@@ -50,8 +47,8 @@
 #include "nsIServiceManager.h"
 #include "nsIPrefService.h"
 
-using namespace mozilla;
-using namespace hal;
+using mozilla::TimeStamp;
+using mozilla::TimeDuration;
 
 // also see sDefaultSensorHint in mobile/android/base/GeckoAppShell.java
 #define DEFAULT_SENSOR_POLL 100
@@ -119,14 +116,12 @@ NS_IMETHODIMP nsDeviceMotionData::GetZ(double *aZ)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(nsDeviceMotion, nsIDeviceMotion)
+NS_IMPL_ISUPPORTS2(nsDeviceMotion, nsIDeviceMotion, nsIDeviceMotionUpdate)
 
 nsDeviceMotion::nsDeviceMotion()
 : mStarted(false),
   mEnabled(true)
 {
-  mLastDOMMotionEventTime = TimeStamp::Now();
-
   nsCOMPtr<nsIPrefBranch> prefSrv = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefSrv) {
     bool bvalue;
@@ -139,9 +134,6 @@ nsDeviceMotion::nsDeviceMotion()
 
 nsDeviceMotion::~nsDeviceMotion()
 {
-  if (mStarted)
-    Shutdown();
-
   if (mTimeoutTimer)
     mTimeoutTimer->Cancel();
 }
@@ -227,17 +219,11 @@ NS_IMETHODIMP nsDeviceMotion::RemoveWindowListener(nsIDOMWindow *aWindow)
   return NS_OK;
 }
 
-void 
-nsDeviceMotion::Notify(const mozilla::hal::SensorData& aSensorData)
+NS_IMETHODIMP
+nsDeviceMotion::DeviceMotionChanged(PRUint32 type, double x, double y, double z)
 {
   if (!mEnabled)
-    return;
-
-  PRUint32 type = aSensorData.sensor();
-
-  double x = aSensorData.values()[0];
-  double y = aSensorData.values()[1];
-  double z = aSensorData.values()[2];
+    return NS_ERROR_NOT_INITIALIZED;
 
   nsCOMArray<nsIDeviceMotionListener> listeners = mListeners;
   for (PRUint32 i = listeners.Count(); i > 0 ; ) {
@@ -269,12 +255,71 @@ nsDeviceMotion::Notify(const mozilla::hal::SensorData& aSensorData)
       nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(windowListeners[i]);
       if (type == nsIDeviceMotionData::TYPE_ACCELERATION || 
         type == nsIDeviceMotionData::TYPE_LINEAR_ACCELERATION || 
-	type == nsIDeviceMotionData::TYPE_GYROSCOPE)
+        type == nsIDeviceMotionData::TYPE_GYROSCOPE )
         FireDOMMotionEvent(domdoc, target, type, x, y, z);
       else if (type == nsIDeviceMotionData::TYPE_ORIENTATION)
         FireDOMOrientationEvent(domdoc, target, x, y, z);
     }
   }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDeviceMotion::NeedsCalibration()
+{
+  if (!mEnabled)
+    return NS_ERROR_NOT_INITIALIZED;
+
+  nsCOMArray<nsIDeviceMotionListener> listeners = mListeners;
+  for (PRUint32 i = listeners.Count(); i > 0 ; ) {
+    --i;
+    listeners[i]->NeedsCalibration();
+  }
+
+  nsCOMArray<nsIDOMWindow> windowListeners;
+  for (PRUint32 i = 0; i < mWindowListeners.Length(); i++) {
+    windowListeners.AppendObject(mWindowListeners[i]);
+  }
+
+  for (PRUint32 i = windowListeners.Count(); i > 0 ; ) {
+    --i;
+
+    // check to see if this window is in the background.  if
+    // it is, don't send any device motion to it.
+    nsCOMPtr<nsPIDOMWindow> pwindow = do_QueryInterface(windowListeners[i]);
+    if (!pwindow ||
+        !pwindow->GetOuterWindow() ||
+        pwindow->GetOuterWindow()->IsBackground())
+      continue;
+
+    nsCOMPtr<nsIDOMDocument> domdoc;
+    windowListeners[i]->GetDocument(getter_AddRefs(domdoc));
+
+    if (domdoc) {
+	nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(windowListeners[i]);
+        FireNeedsCalibration(domdoc, target);
+    }
+  }
+
+  return NS_OK;
+}
+
+void
+nsDeviceMotion::FireNeedsCalibration(nsIDOMDocument *domdoc,
+				    nsIDOMEventTarget *target)
+{
+  nsCOMPtr<nsIDOMEvent> event;
+  domdoc->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
+  if (!event)
+    return;
+
+  event->InitEvent(NS_LITERAL_STRING("compassneedscalibration"), true, false);
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
+  if (privateEvent)
+    privateEvent->SetTrusted(true);
+  
+  bool defaultActionEnabled = true;
+  target->DispatchEvent(event, &defaultActionEnabled);
 }
 
 void
@@ -364,23 +409,6 @@ nsDeviceMotion::FireDOMMotionEvent(nsIDOMDocument *domdoc,
   mLastAccelerationIncluduingGravity = nsnull;
   mLastAcceleration = nsnull;
   mLastDOMMotionEventTime = TimeStamp::Now();
-}
 
-void nsDeviceMotion::Startup()
-{
-  // Bug 734855 - we probably can make this finer grain
-  // based on the DOM APIs that are being invoked.
-  RegisterSensorObserver(SENSOR_ACCELERATION, this);
-  RegisterSensorObserver(SENSOR_ORIENTATION, this);
-  RegisterSensorObserver(SENSOR_LINEAR_ACCELERATION, this);
-  RegisterSensorObserver(SENSOR_GYROSCOPE, this);
-}
-
-void nsDeviceMotion::Shutdown()
-{
-  UnregisterSensorObserver(SENSOR_ACCELERATION, this);
-  UnregisterSensorObserver(SENSOR_ORIENTATION, this);
-  UnregisterSensorObserver(SENSOR_LINEAR_ACCELERATION, this);
-  UnregisterSensorObserver(SENSOR_GYROSCOPE, this);
 }
 

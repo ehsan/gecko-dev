@@ -59,18 +59,10 @@ class nsMenuBarX;
     MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
 
 enum {
-    NSWindowAnimationBehaviorDefault = 0,
-    NSWindowAnimationBehaviorNone = 2,
-    NSWindowAnimationBehaviorDocumentWindow = 3,
-    NSWindowAnimationBehaviorUtilityWindow = 4,
-    NSWindowAnimationBehaviorAlertPanel = 5,
-    NSWindowCollectionBehaviorFullScreenPrimary = 128, // 1 << 7
+    NSWindowCollectionBehaviorFullScreenPrimary = 1 << 7,
 };
 
-typedef NSInteger NSWindowAnimationBehavior;
-
-@interface NSWindow (LionWindowFeatures)
-- (void)setAnimationBehavior:(NSWindowAnimationBehavior)newAnimationBehavior;
+@interface NSWindow (NewInMacOS107)
 - (void)toggleFullScreen:(id)sender;
 @end
 
@@ -219,6 +211,21 @@ typedef struct _nsCocoaWindowList {
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect;
 - (void)setDrawsContentsIntoWindowFrame:(BOOL)aState;
 @end
+
+#if !defined(MAC_OS_X_VERSION_10_7) || (MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7)
+enum {
+  NSWindowAnimationBehaviorDefault = 0,
+  NSWindowAnimationBehaviorNone = 2,
+  NSWindowAnimationBehaviorDocumentWindow = 3,
+  NSWindowAnimationBehaviorUtilityWindow = 4,
+  NSWindowAnimationBehaviorAlertPanel = 5
+};
+typedef NSInteger NSWindowAnimationBehavior;
+
+@interface NSWindow (LionWindowFeatures)
+- (void)setAnimationBehavior:(NSWindowAnimationBehavior)newAnimationBehavior;
+@end
+#endif
 
 class nsCocoaWindow : public nsBaseWidget, public nsPIWidgetCocoa
 {

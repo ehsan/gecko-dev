@@ -99,10 +99,6 @@ public:
     static nsresult  IsStorageEnabledForPolicy(nsCacheStoragePolicy  storagePolicy,
                                                bool *              result);
 
-    static nsresult  DoomEntry(nsCacheSession   *session,
-                               const nsACString &key,
-                               nsICacheListener *listener);
-
     /**
      * Methods called by nsCacheEntryDescriptor
      */
@@ -202,7 +198,6 @@ private:
     friend class nsSetSmartSizeEvent;
     friend class nsBlockOnCacheThreadEvent;
     friend class nsSetDiskSmartSizeCallback;
-    friend class nsDoomEvent;
 
     /**
      * Internal Methods

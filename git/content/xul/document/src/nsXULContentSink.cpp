@@ -62,6 +62,7 @@
 #include "nsHTMLStyleSheet.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
+#include "nsIParser.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptRuntime.h"
 #include "nsIScriptGlobalObject.h"

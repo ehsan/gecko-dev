@@ -74,7 +74,6 @@
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
 #include "nsParserConstants.h"
-#include "nsCharsetSource.h"
 
 using namespace mozilla;
 

@@ -629,6 +629,14 @@ public:
   }
 
   /**
+   * Get this document's attribute stylesheet.  May return null if
+   * there isn't one.
+   */
+  virtual nsHTMLStyleSheet* GetAttributeStyleSheet() const {
+    return mAttrStyleSheet;
+  }
+
+  /**
    * Get this document's inline style sheet.  May return null if there
    * isn't one
    */
@@ -1188,10 +1196,11 @@ protected:
 
   PRUint8 mXMLDeclarationBits;
 
-  nsInterfaceHashtable<nsPtrHashKey<nsIContent>, nsPIBoxObject> *mBoxObjectTable;
+  nsInterfaceHashtable<nsVoidPtrHashKey, nsPIBoxObject> *mBoxObjectTable;
 
   // The channel that got passed to StartDocumentLoad(), if any
   nsCOMPtr<nsIChannel> mChannel;
+  nsRefPtr<nsHTMLStyleSheet> mAttrStyleSheet;
   nsRefPtr<nsHTMLCSSStyleSheet> mStyleAttrStyleSheet;
   nsRefPtr<nsXMLEventsManager> mXMLEventsManager;
 

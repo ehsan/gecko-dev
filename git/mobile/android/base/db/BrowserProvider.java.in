@@ -917,24 +917,19 @@ public class BrowserProvider extends ContentProvider {
 
         final SQLiteDatabase db = getWritableDatabase(uri);
         Uri result = null;
-        try {
-            if (Build.VERSION.SDK_INT >= 11) {
-                trace("Beginning insert transaction: " + uri);
-                db.beginTransaction();
-                try {
-                    result = insertInTransaction(uri, values);
-                    db.setTransactionSuccessful();
-                    trace("Successful insert transaction: " + uri);
-                } finally {
-                    db.endTransaction();
-                }
-            } else {
+
+        if (Build.VERSION.SDK_INT >= 11) {
+            trace("Beginning insert transaction: " + uri);
+            db.beginTransaction();
+            try {
                 result = insertInTransaction(uri, values);
+                db.setTransactionSuccessful();
+                trace("Successful insert transaction: " + uri);
+            } finally {
+                db.endTransaction();
             }
-        } catch (SQLException sqle) {
-            Log.e(LOGTAG, "exception in DB operation", sqle);
-        } catch (UnsupportedOperationException uoe) {
-            Log.e(LOGTAG, "don't know how to perform that insert", uoe);
+        } else {
+            result = insertInTransaction(uri, values);
         }
 
         if (result != null)

@@ -277,10 +277,8 @@ XULDescriptionIterator::Next()
 // IDRefsIterator
 ////////////////////////////////////////////////////////////////////////////////
 
-IDRefsIterator::
-  IDRefsIterator(nsDocAccessible* aDoc, nsIContent* aContent,
-                 nsIAtom* aIDRefsAttr) :
-  mCurrIdx(0), mContent(aContent), mDoc(aDoc)
+IDRefsIterator::IDRefsIterator(nsIContent* aContent, nsIAtom* aIDRefsAttr) :
+  mCurrIdx(0), mContent(aContent)
 {
   if (mContent->IsInDoc())
     mContent->GetAttr(kNameSpaceID_None, aIDRefsAttr, mIDs);
@@ -370,7 +368,7 @@ nsAccessible*
 IDRefsIterator::Next()
 {
   nsIContent* nextElm = NextElem();
-  return nextElm ? mDoc->GetAccessible(nextElm) : nsnull;
+  return nextElm ? GetAccService()->GetAccessible(nextElm, nsnull) : nsnull;
 }
 
 nsAccessible*

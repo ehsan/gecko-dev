@@ -336,15 +336,6 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eARIACheckableBool
   },
   {
-    "note",
-    roles::NOTE,
-    kUseMapRole,
-    eNoValue,
-    eNoAction,
-    eNoLiveAttr,
-    kNoReqStates
-  },
-  {
     "option",
     roles::OPTION,
     kUseMapRole,

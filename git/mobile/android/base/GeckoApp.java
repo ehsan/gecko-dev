@@ -453,10 +453,10 @@ abstract public class GeckoApp
 
         forward.setEnabled(tab.canDoForward());
 
-        // Disable share menuitem for about:, chrome:, file:, and resource: URIs
+        // Disable share menuitem for about:, chrome: and file: URIs
         String scheme = Uri.parse(tab.getURL()).getScheme();
         share.setEnabled(!(scheme.equals("about") || scheme.equals("chrome") ||
-                           scheme.equals("file") || scheme.equals("resource")));
+                           scheme.equals("file")));
 
         // Disable save as PDF for about:home and xul pages
         saveAsPDF.setEnabled(!(tab.getURL().equals("about:home") ||
@@ -1743,15 +1743,9 @@ abstract public class GeckoApp
              * run experience, perhaps?
              */
             mLayerController = new LayerController(this);
-            View v = mLayerController.getView();
-
             mPlaceholderLayerClient = new PlaceholderLayerClient(mLayerController, mLastViewport);
-            if (!mPlaceholderLayerClient.loadScreenshot()) {
-                // Instead of flickering the checkerboard, show a white screen until Gecko paints
-                v.setBackgroundColor(Color.WHITE);
-            }
 
-            mGeckoLayout.addView(v, 0);
+            mGeckoLayout.addView(mLayerController.getView(), 0);
         }
 
         mPluginContainer = (AbsoluteLayout) findViewById(R.id.plugin_container);
@@ -2791,15 +2785,19 @@ abstract public class GeckoApp
         GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Add", args.toString()));
     }
 
-    /* This method is referenced by Robocop via reflection. */
     public GeckoLayerClient getLayerClient() { return mLayerClient; }
     public LayerController getLayerController() { return mLayerController; }
 
     // accelerometer
-    public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+    public void onAccuracyChanged(Sensor sensor, int accuracy)
+    {
+        Log.w(LOGTAG, "onAccuracyChanged "+accuracy);
+        GeckoAppShell.sendEventToGecko(GeckoEvent.createSensorAccuracyEvent(accuracy));
+    }
 
     public void onSensorChanged(SensorEvent event)
     {
+        Log.w(LOGTAG, "onSensorChanged "+event);
         GeckoAppShell.sendEventToGecko(GeckoEvent.createSensorEvent(event));
     }
 
@@ -2807,6 +2805,7 @@ abstract public class GeckoApp
     public void onLocationChanged(Location location)
     {
         Log.w(LOGTAG, "onLocationChanged "+location);
+
         GeckoAppShell.sendEventToGecko(GeckoEvent.createLocationEvent(location));
     }
 

@@ -101,7 +101,6 @@
 #include "jsscopeinlines.h"
 #include "jsscriptinlines.h"
 
-#include "vm/ObjectImpl-inl.h"
 #include "vm/RegExpObject-inl.h"
 #include "vm/RegExpStatics-inl.h"
 #include "vm/Stack-inl.h"

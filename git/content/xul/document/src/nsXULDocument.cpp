@@ -111,7 +111,6 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
 #include "nsIParser.h"
-#include "nsCharsetSource.h"
 #include "nsIParserService.h"
 #include "nsCSSStyleSheet.h"
 #include "mozilla/css/Loader.h"

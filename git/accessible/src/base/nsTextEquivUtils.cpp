@@ -94,7 +94,7 @@ nsTextEquivUtils::GetTextEquivFromIDRefs(nsAccessible *aAccessible,
     return NS_OK;
 
   nsIContent* refContent = nsnull;
-  IDRefsIterator iter(aAccessible->Document(), content, aIDRefsAttr);
+  IDRefsIterator iter(content, aIDRefsAttr);
   while ((refContent = iter.NextElem())) {
     if (!aTextEquiv.IsEmpty())
       aTextEquiv += ' ';

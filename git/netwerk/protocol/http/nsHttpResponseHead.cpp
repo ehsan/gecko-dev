@@ -355,7 +355,6 @@ nsHttpResponseHead::MustValidate()
     case 302:
     case 304:
     case 307:
-    case 308:
         break;
         // Uncacheable redirects
     case 303:

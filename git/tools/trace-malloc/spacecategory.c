@@ -52,6 +52,9 @@
 #include <ctype.h>
 #include <string.h>
 
+/*
+** Ugh, MSVC6's qsort is too slow...
+*/
 #include "nsQuickSort.h"
 
 #if defined(HAVE_BOUTELL_GD)

@@ -97,7 +97,7 @@
 #include "nsIDocShell.h"
 #include "nsIBaseWindow.h"
 #include "nsILayoutHistoryState.h"
-#include "nsCharsetSource.h"
+#include "nsIParser.h"
 #include "nsGUIEvent.h"
 #include "nsHTMLReflowState.h"
 #include "nsIDOMHTMLAnchorElement.h"

@@ -1467,8 +1467,14 @@ nsDocAccessible::RecreateAccessible(nsIContent* aContent)
   // coalescence with normal hide and show events. Note, in this case they
   // should be coalesced with normal show/hide events.
 
-  ContentRemoved(aContent->GetParent(), aContent);
-  ContentInserted(aContent->GetParent(), aContent, aContent->GetNextSibling());
+  // Check if the node is in accessible document.
+  nsAccessible* container = GetContainerAccessible(aContent);
+  if (container) {
+    // Remove and reinsert.
+    UpdateTree(container, aContent, false);
+    container->UpdateChildren();
+    UpdateTree(container, aContent, true);
+  }
 }
 
 void
@@ -1617,7 +1623,7 @@ nsDocAccessible::AddDependentIDsFor(nsAccessible* aRelProvider,
         continue;
     }
 
-    IDRefsIterator iter(this, aRelProvider->GetContent(), relAttr);
+    IDRefsIterator iter(aRelProvider->GetContent(), relAttr);
     while (true) {
       const nsDependentSubstring id = iter.NextID();
       if (id.IsEmpty())
@@ -1668,7 +1674,7 @@ nsDocAccessible::RemoveDependentIDsFor(nsAccessible* aRelProvider,
     if (aRelAttr && aRelAttr != *kRelationAttrs[idx])
       continue;
 
-    IDRefsIterator iter(this, aRelProvider->GetContent(), relAttr);
+    IDRefsIterator iter(aRelProvider->GetContent(), relAttr);
     while (true) {
       const nsDependentSubstring id = iter.NextID();
       if (id.IsEmpty())
@@ -1711,7 +1717,8 @@ nsDocAccessible::UpdateAccessibleOnAttrChange(dom::Element* aElement,
     // Recreate the accessible when role is changed because we might require a
     // different accessible class for the new role or the accessible may expose
     // a different sets of interfaces (COM restriction).
-    RecreateAccessible(aElement);
+    HandleNotification<nsDocAccessible, nsIContent>
+      (this, &nsDocAccessible::RecreateAccessible, aElement);
 
     return true;
   }
@@ -1722,9 +1729,11 @@ nsDocAccessible::UpdateAccessibleOnAttrChange(dom::Element* aElement,
     // kill use to recreate the accessible even if the attribute was used in
     // the wrong namespace or an element that doesn't support it.
 
-    // Make sure the accessible is recreated asynchronously to allow the content
-    // to handle the attribute change.
-    RecreateAccessible(aElement);
+    // Recreate accessible asynchronously to allow the content to handle
+    // the attribute change.
+    mNotificationController->ScheduleNotification<nsDocAccessible, nsIContent>
+      (this, &nsDocAccessible::RecreateAccessible, aElement);
+
     return true;
   }
 
@@ -1733,7 +1742,8 @@ nsDocAccessible::UpdateAccessibleOnAttrChange(dom::Element* aElement,
     // This affects whether the accessible supports SelectAccessible.
     // COM says we cannot change what interfaces are supported on-the-fly,
     // so invalidate this object. A new one will be created on demand.
-    RecreateAccessible(aElement);
+    HandleNotification<nsDocAccessible, nsIContent>
+      (this, &nsDocAccessible::RecreateAccessible, aElement);
 
     return true;
   }

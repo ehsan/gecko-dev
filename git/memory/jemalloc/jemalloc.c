@@ -1419,8 +1419,13 @@ static
 #endif
 bool		malloc_init_hard(void);
 
+#ifdef MOZ_MEMORY_ANDROID
+void	_malloc_prefork(void);
+void	_malloc_postfork(void);
+#else
 static void	_malloc_prefork(void);
 static void	_malloc_postfork(void);
+#endif
 
 #ifdef MOZ_MEMORY_DARWIN
 /*
@@ -5918,8 +5923,10 @@ MALLOC_OUT:
 #endif
 	}
 
-#if !defined(MOZ_MEMORY_WINDOWS)
+#if (!defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_DARWIN) && !defined(MOZ_MEMORY_ANDROID))
 	/* Prevent potential deadlock on malloc locks after fork. */
+	/* XXX on Android there is no pthread_atfork, so we specifically
+	   call _malloc_prefork and _malloc_postfork in process_util_linux.cc */
 	pthread_atfork(_malloc_prefork, _malloc_postfork, _malloc_postfork);
 #endif
 
@@ -6204,6 +6211,17 @@ malloc_shutdown()
  * names it is given with __wrap_.
  */
 #define wrap(a) __wrap_ ## a
+
+/* Extra wrappers for NSPR alloc functions */
+void *
+__wrap_PR_Malloc(size_t size) __attribute__((alias("__wrap_malloc")));
+void *
+__wrap_PR_Calloc(size_t num, size_t size) __attribute__((alias("__wrap_calloc")));
+void *
+__wrap_PR_Realloc(void *ptr, size_t size) __attribute__((alias("__wrap_realloc")));
+void
+__wrap_PR_Free(void *ptr) __attribute__((alias("__wrap_free")));
+
 #else
 #define wrap(a) je_ ## a
 #endif
@@ -6842,7 +6860,11 @@ _msize(const void *ptr)
  * is threaded here.
  */
 
+#ifdef MOZ_MEMORY_ANDROID
+void
+#else
 static void
+#endif
 _malloc_prefork(void)
 {
 	unsigned i;
@@ -6860,7 +6882,11 @@ _malloc_prefork(void)
 	malloc_mutex_lock(&huge_mtx);
 }
 
+#ifdef MOZ_MEMORY_ANDROID
+void
+#else
 static void
+#endif
 _malloc_postfork(void)
 {
 	unsigned i;

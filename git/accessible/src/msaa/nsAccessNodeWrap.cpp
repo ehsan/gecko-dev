@@ -636,7 +636,7 @@ GetHRESULT(nsresult aResult)
   }
 }
 
-nsRefPtrHashtable<nsPtrHashKey<void>, nsDocAccessible> nsAccessNodeWrap::sHWNDCache;
+nsRefPtrHashtable<nsVoidPtrHashKey, nsDocAccessible> nsAccessNodeWrap::sHWNDCache;
 
 LRESULT CALLBACK
 nsAccessNodeWrap::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)

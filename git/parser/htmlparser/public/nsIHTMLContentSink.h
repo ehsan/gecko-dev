@@ -38,9 +38,6 @@
 #define nsIHTMLContentSink_h___
 
 /**
- * This interface is OBSOLETE and in the process of being REMOVED.
- * Do NOT implement!
- *
  * This file declares the concrete HTMLContentSink class.
  * This class is used during the parsing process as the
  * primary interface between the parser and the content
@@ -91,10 +88,6 @@
 
 #define MAX_REFLOW_DEPTH  200
 
-/**
- * This interface is OBSOLETE and in the process of being REMOVED.
- * Do NOT implement!
- */
 class nsIHTMLContentSink : public nsIContentSink 
 {
 public:
