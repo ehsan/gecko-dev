@@ -8,7 +8,7 @@ function test() {
   var tab1 = addTab(TAB1_URL, function() {
     gBrowser.selectedTab = tab1;
 
-    ok(!DebuggerUI.getDebugger(),
+    ok(!DebuggerUI.getDebugger(gBrowser.selectedTab),
       "Shouldn't have a debugger pane for this tab yet.");
 
     let pane = DebuggerUI.toggleDebugger();
@@ -16,7 +16,7 @@ function test() {
 
     ok(pane, "toggleDebugger() should return a pane.");
 
-    is(DebuggerUI.getDebugger(), pane,
+    is(DebuggerUI.getDebugger(gBrowser.selectedTab), pane,
       "getDebugger() should return the same pane as toggleDebugger().");
 
     ok(DebuggerUI.preferences.height,

@@ -282,7 +282,7 @@ function test_moz_hosts()
 {
   // This will throw if the column does not exist
   let stmt = DBConn().createStatement(
-    "SELECT host, frecency, typed, prefix "
+    "SELECT host, frecency, typed "
   + "FROM moz_hosts "
   );
   stmt.finalize();

@@ -48,7 +48,6 @@ let DebuggerController = {
     this._isInitialized = true;
     window.removeEventListener("DOMContentLoaded", this._startupDebugger, true);
 
-    DebuggerView.initializePanes();
     DebuggerView.initializeEditor();
     DebuggerView.StackFrames.initialize();
     DebuggerView.Properties.initialize();
@@ -70,7 +69,6 @@ let DebuggerController = {
     this._isDestroyed = true;
     window.removeEventListener("unload", this._shutdownDebugger, true);
 
-    DebuggerView.destroyPanes();
     DebuggerView.destroyEditor();
     DebuggerView.Scripts.destroy();
     DebuggerView.StackFrames.destroy();
@@ -661,6 +659,15 @@ StackFrames.prototype = {
 
     let objClient = this.activeThread.pauseGrip(aObject);
     objClient.getPrototypeAndProperties(function SF_onProtoAndProps(aResponse) {
+      // Add __proto__.
+      if (aResponse.prototype.type !== "null") {
+        let properties = { "__proto__ ": { value: aResponse.prototype } };
+        aVar.addProperties(properties);
+
+        // Expansion handlers must be set after the properties are added.
+        this._addExpander(aVar["__proto__ "], aResponse.prototype);
+      }
+
       // Sort all of the properties before adding them, for better UX.
       let properties = {};
       for each (let prop in Object.keys(aResponse.ownProperties).sort()) {
@@ -673,14 +680,6 @@ StackFrames.prototype = {
         this._addExpander(aVar[prop], aResponse.ownProperties[prop].value);
       }
 
-      // Add __proto__.
-      if (aResponse.prototype.type !== "null") {
-        let properties = { "__proto__ ": { value: aResponse.prototype } };
-        aVar.addProperties(properties);
-
-        // Expansion handlers must be set after the properties are added.
-        this._addExpander(aVar["__proto__ "], aResponse.prototype);
-      }
       aVar.fetched = true;
     }.bind(this));
   },
@@ -867,17 +866,14 @@ SourceScripts.prototype = {
   },
 
   /**
-   * Trims the id selector or query part of a url string, if necessary.
+   * Trims the query part of a url string, if necessary.
    *
    * @param string aUrl
    *        The script url.
    * @return string
    */
   _trimUrlQuery: function SS__trimUrlQuery(aUrl) {
-    let q = aUrl.indexOf('#');
-    if (q === -1) q = aUrl.indexOf('?');
-    if (q === -1) q = aUrl.indexOf('&');
-
+    let q = aUrl.indexOf('?');
     if (q > -1) {
       return aUrl.slice(0, q);
     }
@@ -1419,46 +1415,6 @@ XPCOMUtils.defineLazyGetter(L10N, "stringBundle", function() {
  * Shortcuts for accessing various debugger preferences.
  */
 let Prefs = {
-
-  /**
-   * Gets the preferred stackframes pane width.
-   * @return number
-   */
-  get stackframesWidth() {
-    if (this._sfrmWidth === undefined) {
-      this._sfrmWidth = Services.prefs.getIntPref("devtools.debugger.ui.stackframes-width");
-    }
-    return this._sfrmWidth;
-  },
-
-  /**
-   * Sets the preferred stackframes pane width.
-   * @return number
-   */
-  set stackframesWidth(value) {
-    Services.prefs.setIntPref("devtools.debugger.ui.stackframes-width", value);
-    this._sfrmWidth = value;
-  },
-
-  /**
-   * Gets the preferred variables pane width.
-   * @return number
-   */
-  get variablesWidth() {
-    if (this._varsWidth === undefined) {
-      this._varsWidth = Services.prefs.getIntPref("devtools.debugger.ui.variables-width");
-    }
-    return this._varsWidth;
-  },
-
-  /**
-   * Sets the preferred variables pane width.
-   * @return number
-   */
-  set variablesWidth(value) {
-    Services.prefs.setIntPref("devtools.debugger.ui.variables-width", value);
-    this._varsWidth = value;
-  },
 
   /**
    * Gets a flag specifying if the the debugger should automatically connect to

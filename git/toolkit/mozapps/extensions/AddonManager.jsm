@@ -535,8 +535,10 @@ var AddonManagerInternal = {
       }
     }
 
-    this.callProviders("startup", appChanged, oldAppVersion,
-                       oldPlatformVersion);
+    this.providers.forEach(function(provider) {
+      callProvider(provider, "startup", null, appChanged, oldAppVersion,
+                   oldPlatformVersion);
+    });
 
     // If this is a new profile just pretend that there were no changes
     if (appChanged === undefined) {
@@ -579,12 +581,11 @@ var AddonManagerInternal = {
             providers: [aProvider]
           };
 
-          let typeListeners = this.typeListeners.slice(0);
-          for (let listener of typeListeners) {
+          this.typeListeners.forEach(function(aListener) {
             safeCall(function() {
-              listener.onTypeAdded(aType);
+              aListener.onTypeAdded(aType);
             });
-          }
+          });
         }
         else {
           this.types[aType.id].providers.push(aProvider);
@@ -622,44 +623,17 @@ var AddonManagerInternal = {
         let oldType = this.types[type].type;
         delete this.types[type];
 
-        let typeListeners = this.typeListeners.slice(0);
-        for (let listener of typeListeners) {
+        this.typeListeners.forEach(function(aListener) {
           safeCall(function() {
-            listener.onTypeRemoved(oldType);
+            aListener.onTypeRemoved(oldType);
           });
-        }
+        });
       }
     }
 
     // If we're unregistering after startup call this provider's shutdown.
     if (gStarted)
       callProvider(aProvider, "shutdown");
-  },
-
-  /**
-   * Calls a method on all registered providers if it exists and consumes any
-   * thrown exception. Return values are ignored. Any parameters after the
-   * method parameter are passed to the provider's method.
-   *
-   * @param  aMethod
-   *         The method name to call
-   * @see    callProvider
-   */
-  callProviders: function AMI_callProviders(aMethod, ...aArgs) {
-    if (!aMethod || typeof aMethod != "string")
-      throw Components.Exception("aMethod must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    let providers = this.providers.slice(0);
-    for (let provider of providers) {
-      try {
-        if (aMethod in provider)
-          provider[aMethod].apply(provider, aArgs);
-      }
-      catch (e) {
-        ERROR("Exception calling provider " + aMethod, e);
-      }
-    }
   },
 
   /**
@@ -674,7 +648,9 @@ var AddonManagerInternal = {
     Services.prefs.removeObserver(PREF_EM_AUTOUPDATE_DEFAULT, this);
     Services.prefs.removeObserver(PREF_EM_HOTFIX_ID, this);
 
-    this.callProviders("shutdown");
+    this.providers.forEach(function(provider) {
+      callProvider(provider, "shutdown");
+    });
 
     this.managerListeners.splice(0, this.managerListeners.length);
     this.installListeners.splice(0, this.installListeners.length);
@@ -1079,13 +1055,12 @@ var AddonManagerInternal = {
    *         The method on the listeners to call
    */
   callManagerListeners: function AMI_callManagerListeners(aMethod) {
-    if (!aMethod || typeof aMethod != "string")
+     if (!aMethod || typeof aMethod != "string")
       throw Components.Exception("aMethod must be a non-empty string",
                                  Cr.NS_ERROR_INVALID_ARG);
 
     var args = Array.slice(arguments, 1);
-    let managerListeners = this.managerListeners.slice(0);
-    for (let listener of managerListeners) {
+    this.managerListeners.forEach(function(listener) {
       try {
         if (aMethod in listener)
           listener[aMethod].apply(listener, args);
@@ -1093,7 +1068,7 @@ var AddonManagerInternal = {
       catch (e) {
         WARN("AddonManagerListener threw exception when calling " + aMethod, e);
       }
-    }
+    });
   },
 
   /**
@@ -1107,7 +1082,7 @@ var AddonManagerInternal = {
    * @return false if any of the listeners returned false, true otherwise
    */
   callInstallListeners: function AMI_callInstallListeners(aMethod, aExtraListeners) {
-    if (!aMethod || typeof aMethod != "string")
+     if (!aMethod || typeof aMethod != "string")
       throw Components.Exception("aMethod must be a non-empty string",
                                  Cr.NS_ERROR_INVALID_ARG);
 
@@ -1116,14 +1091,12 @@ var AddonManagerInternal = {
                                  Cr.NS_ERROR_INVALID_ARG);
 
     let result = true;
-    let listeners;
+    let listeners = this.installListeners;
     if (aExtraListeners)
-      listeners = aExtraListeners.concat(this.installListeners);
-    else
-      listeners = this.installListeners.slice(0);
+      listeners = aExtraListeners.concat(listeners);
     let args = Array.slice(arguments, 2);
 
-    for (let listener of listeners) {
+    listeners.forEach(function(listener) {
       try {
         if (aMethod in listener) {
           if (listener[aMethod].apply(listener, args) === false)
@@ -1133,7 +1106,7 @@ var AddonManagerInternal = {
       catch (e) {
         WARN("InstallListener threw exception when calling " + aMethod, e);
       }
-    }
+    });
     return result;
   },
 
@@ -1145,13 +1118,12 @@ var AddonManagerInternal = {
    *         The method on the listeners to call
    */
   callAddonListeners: function AMI_callAddonListeners(aMethod) {
-    if (!aMethod || typeof aMethod != "string")
+     if (!aMethod || typeof aMethod != "string")
       throw Components.Exception("aMethod must be a non-empty string",
                                  Cr.NS_ERROR_INVALID_ARG);
 
     var args = Array.slice(arguments, 1);
-    let addonListeners = this.addonListeners.slice(0);
-    for (let listener of addonListeners) {
+    this.addonListeners.forEach(function(listener) {
       try {
         if (aMethod in listener)
           listener[aMethod].apply(listener, args);
@@ -1159,7 +1131,7 @@ var AddonManagerInternal = {
       catch (e) {
         WARN("AddonListener threw exception when calling " + aMethod, e);
       }
-    }
+    });
   },
 
   /**
@@ -1184,7 +1156,9 @@ var AddonManagerInternal = {
       throw Components.Exception("aType must be a non-empty string",
                                  Cr.NS_ERROR_INVALID_ARG);
 
-    this.callProviders("addonChanged", aID, aType, aPendingRestart);
+    this.providers.forEach(function(provider) {
+      callProvider(provider, "addonChanged", null, aID, aType, aPendingRestart);
+    });
   },
 
   /**
@@ -1193,7 +1167,9 @@ var AddonManagerInternal = {
    * update.
    */
   updateAddonAppDisabledStates: function AMI_updateAddonAppDisabledStates() {
-    this.callProviders("updateAddonAppDisabledStates");
+    this.providers.forEach(function(provider) {
+      callProvider(provider, "updateAddonAppDisabledStates");
+    });
   },
   
   /**
@@ -1277,8 +1253,7 @@ var AddonManagerInternal = {
       throw Components.Exception("aLoadGroup must be a nsILoadGroup or null",
                                  Cr.NS_ERROR_INVALID_ARG);
 
-    let providers = this.providers.slice(0);
-    for (let provider of providers) {
+    for (let provider of this.providers) {
       if (callProvider(provider, "supportsMimetype", false, aMimetype)) {
         callProvider(provider, "getInstallForURL", null,
                      aUrl, aHash, aName, aIconURL, aVersion, aLoadGroup,
@@ -1390,8 +1365,7 @@ var AddonManagerInternal = {
       throw Components.Exception("aMimetype must be a non-empty string",
                                  Cr.NS_ERROR_INVALID_ARG);
 
-    let providers = this.providers.slice(0);
-    for (let provider of providers) {
+    for (let provider of this.providers) {
       if (callProvider(provider, "supportsMimetype", false, aMimetype) &&
           callProvider(provider, "isInstallEnabled"))
         return true;
@@ -1418,8 +1392,7 @@ var AddonManagerInternal = {
       throw Components.Exception("aURI must be a nsIURI or null",
                                  Cr.NS_ERROR_INVALID_ARG);
 
-    let providers = this.providers.slice(0);
-    for (let provider of providers) {
+    for (let provider of this.providers) {
       if (callProvider(provider, "supportsMimetype", false, aMimetype) &&
           callProvider(provider, "isInstallAllowed", null, aURI))
         return true;

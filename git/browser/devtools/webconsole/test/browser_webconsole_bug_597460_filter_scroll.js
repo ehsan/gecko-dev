@@ -10,15 +10,20 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-network.html";
 
-function consoleOpened(aHud) {
-  hud = aHud;
+function tabLoad(aEvent) {
+  browser.removeEventListener(aEvent.type, arguments.callee, true);
+
+  openConsole();
+
+  let hudId = HUDService.getHudIdByWindow(content);
+  hud = HUDService.hudReferences[hudId];
 
   for (let i = 0; i < 200; i++) {
-    content.console.log("test message " + i);
+    hud.console.log("test message " + i);
   }
 
-  HUDService.setFilterState(hud.hudId, "network", false);
-  HUDService.setFilterState(hud.hudId, "networkinfo", false);
+  HUDService.setFilterState(hudId, "network", false);
+  HUDService.setFilterState(hudId, "networkinfo", false);
 
   hud.filterBox.value = "test message";
   HUDService.updateFilterText(hud.filterBox);
@@ -31,7 +36,7 @@ function consoleOpened(aHud) {
 }
 
 function tabReload(aEvent) {
-  browser.removeEventListener(aEvent.type, tabReload, true);
+  browser.removeEventListener(aEvent.type, arguments.callee, true);
 
   let msgNode = hud.outputNode.querySelector(".webconsole-msg-network");
   ok(msgNode, "found network message");
@@ -57,9 +62,6 @@ function tabReload(aEvent) {
 
 function test() {
   addTab(TEST_URI);
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, consoleOpened);
-  }, true);
+  browser.addEventListener("load", tabLoad, true);
 }
 

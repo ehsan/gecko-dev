@@ -37,7 +37,7 @@ function test() {
 
         gDebugger.DebuggerController.activeThread.addOneTimeListener("resumed", function() {
           Services.tm.currentThread.dispatch({ run: function() {
-            closeDebuggerAndFinish(true);
+            closeDebuggerAndFinish(gTab, true);
           }}, 0);
         });
 

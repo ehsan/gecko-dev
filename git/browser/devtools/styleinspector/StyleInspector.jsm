@@ -134,7 +134,9 @@ RuleViewTool.prototype = {
   },
 
   onChange: function RVT_onChange(aEvent, aFrom) {
-    if (aFrom == "ruleview") {
+    // We're not that good yet at refreshing, only
+    // refresh when we really need to.
+    if (aFrom != "pseudoclass") {
       return;
     }
 

@@ -9,15 +9,17 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/te
 
 function test() {
   addTab(TEST_URI);
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, testGroups);
-  }, true);
+  browser.addEventListener("DOMContentLoaded", testGroups, false);
 }
 
-function testGroups(HUD) {
+function testGroups() {
+  browser.removeEventListener("DOMContentLoaded", testGroups, false);
+
+  openConsole();
+
+  let HUD = HUDService.getHudByWindow(content);
   let jsterm = HUD.jsterm;
-  let outputNode = HUD.outputNode;
+  let outputNode = jsterm.outputNode;
 
   // We test for one group by testing for zero "new" groups. The
   // "webconsole-new-group" class creates a divider. Thus one group is
@@ -43,6 +45,9 @@ function testGroups(HUD) {
   jsterm.execute("2");
   is(outputNode.querySelectorAll(".webconsole-new-group").length, 1,
      "one group divider exists after the third console message");
+
+  jsterm.clearOutput();
+  jsterm.history.splice(0, jsterm.history.length);   // workaround for bug 592552
 
   finishTest();
 }

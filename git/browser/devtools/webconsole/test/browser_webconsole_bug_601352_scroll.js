@@ -17,13 +17,13 @@ function consoleOpened(HUD) {
   }
 
   for (let i = 0; i < 50; i++) {
-    content.console.log("test message " + i);
+    HUD.console.log("test message " + i);
   }
 
-  content.console.log(longMessage);
+  HUD.console.log(longMessage);
 
   for (let i = 0; i < 50; i++) {
-    content.console.log("test message " + i);
+    HUD.console.log("test message " + i);
   }
 
   HUD.jsterm.execute("1+1");

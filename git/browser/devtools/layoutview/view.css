@@ -15,9 +15,9 @@ body {
 
 #header {
   -moz-box-sizing: border-box;
-  font: 12px/16px monospace;
+  font: 12px/14px monospace;
   width: 100%;
-  padding: 6px 9px;
+  padding: 3px 4px;
   display: -moz-box;
 }
 
@@ -42,7 +42,7 @@ body[dir=rtl] > #header > #element-size {
 }
 
 #main {
-  margin: 0 10px 10px 10px;
+  margin: 10px;
   -moz-box-sizing: border-box;
   width: -moz-calc(100% - 2 * 10px);
   position: absolute;
@@ -173,8 +173,8 @@ body[dir=rtl] > #header > #element-size {
   pointer-events: none;
 }
 
-body.dim > #main > p,
-body.dim > #main > .tooltip {
+body.dim > #main,
+body.dim > #header > #element-size {
   visibility: hidden;
 }
 

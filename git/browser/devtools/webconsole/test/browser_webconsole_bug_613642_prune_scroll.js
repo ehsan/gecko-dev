@@ -24,7 +24,7 @@ function testGen() {
   let boxObject = outputNode.scrollBoxObject;
 
   for (let i = 0; i < 150; i++) {
-    content.console.log("test message " + i);
+    hud.console.log("test message " + i);
   }
 
   waitForSuccess({
@@ -57,7 +57,7 @@ function testGen() {
   oldScrollTop = scrollBoxElement.scrollTop;
 
   // add a message
-  content.console.log("hello world");
+  hud.console.log("hello world");
 
   waitForSuccess({
     name: "console.log message #151 displayed",
