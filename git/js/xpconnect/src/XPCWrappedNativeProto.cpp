@@ -8,7 +8,6 @@
 
 #include "xpcprivate.h"
 #include "nsCxPusher.h"
-#include "pratom.h"
 
 using namespace mozilla;
 

@@ -11,7 +11,6 @@
 #define jsreflect_h
 
 #include <stdlib.h>
-
 #include "jspubtd.h"
 
 namespace js {

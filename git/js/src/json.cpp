@@ -9,7 +9,6 @@
 #include "mozilla/FloatingPoint.h"
 
 #include <string.h>
-
 #include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"

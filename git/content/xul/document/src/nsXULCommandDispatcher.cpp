@@ -33,7 +33,6 @@
 #include "nsError.h"
 #include "nsEventDispatcher.h"
 #include "nsDOMClassInfoID.h"
-#include "mozilla/dom/Element.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gLog;
@@ -204,8 +203,7 @@ nsXULCommandDispatcher::SetFocusedWindow(nsIDOMWindow* aWindow)
   // end up focusing whatever is currently focused inside the frame. Since
   // setting the command dispatcher's focused window doesn't raise the window,
   // setting it to a top-level window doesn't need to do anything.
-  nsCOMPtr<nsIDOMElement> frameElement =
-    do_QueryInterface(window->GetFrameElementInternal());
+  nsCOMPtr<nsIDOMElement> frameElement = window->GetFrameElementInternal();
   if (frameElement)
     return fm->SetFocus(frameElement, 0);
 

@@ -35,6 +35,7 @@ DISABLED_SDK_HEADERS     = \
 		ErrorListCDefines.h \
 		nsISupportsBase.h \
 		nscore.h \
+		nsAtomicRefcnt.h \
 		nsCycleCollector.h \
 		nsObjCExceptions.h \
 

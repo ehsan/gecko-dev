@@ -553,11 +553,11 @@ CreateInterfacePrototypeObject(JSContext* cx, JS::Handle<JSObject*> global,
 void
 CreateInterfaceObjects(JSContext* cx, JS::Handle<JSObject*> global,
                        JS::Handle<JSObject*> protoProto,
-                       JSClass* protoClass, JS::Heap<JSObject*>* protoCache,
+                       JSClass* protoClass, JSObject** protoCache,
                        JS::Handle<JSObject*> constructorProto,
                        JSClass* constructorClass, const JSNativeHolder* constructor,
                        unsigned ctorNargs, const NamedConstructor* namedConstructors,
-                       JS::Heap<JSObject*>* constructorCache, const DOMClass* domClass,
+                       JSObject** constructorCache, const DOMClass* domClass,
                        const NativeProperties* properties,
                        const NativeProperties* chromeOnlyProperties,
                        const char* name)
@@ -990,7 +990,7 @@ ResolvePrototypeOrConstructor(JSContext* cx, JS::Handle<JSObject*> wrapper,
   JS::Rooted<JSObject*> global(cx, js::GetGlobalForObjectCrossCompartment(obj));
   {
     JSAutoCompartment ac(cx, global);
-    JS::Heap<JSObject*>* protoAndIfaceArray = GetProtoAndIfaceArray(global);
+    JSObject** protoAndIfaceArray = GetProtoAndIfaceArray(global);
     JSObject* protoOrIface = protoAndIfaceArray[protoAndIfaceArrayIndex];
     if (!protoOrIface) {
       return false;

@@ -367,25 +367,6 @@ struct BaselineStackBuilder
     }
 };
 
-static inline bool
-IsInlinableFallback(ICFallbackStub *icEntry)
-{
-    return icEntry->isCall_Fallback() || icEntry->isGetProp_Fallback() ||
-           icEntry->isSetProp_Fallback();
-}
-
-static inline void*
-GetStubReturnAddress(JSContext *cx, jsbytecode *pc)
-{
-    if (IsGetterPC(pc))
-        return cx->compartment()->ionCompartment()->baselineGetPropReturnAddr();
-    if (IsSetterPC(pc))
-        return cx->compartment()->ionCompartment()->baselineSetPropReturnAddr();
-    // This should be a call op of some kind, now.
-    JS_ASSERT(js_CodeSpec[JSOp(*pc)].format & JOF_INVOKE);
-    return cx->compartment()->ionCompartment()->baselineCallReturnAddr();
-}
-
 // For every inline frame, we write out the following data:
 //
 //                      |      ...      |
@@ -645,20 +626,18 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
     JSOp op = JSOp(*pc);
     bool resumeAfter = iter.resumeAfter();
 
-    // Fixup inlined JSOP_FUNCALL, JSOP_FUNAPPLY, and accessors on the caller side.
+    // Fixup inlined JSOP_FUNCALL and JSOP_FUNAPPLY on the caller side.
     // On the caller side this must represent like the function wasn't inlined.
     uint32_t pushedSlots = 0;
-    AutoValueVector savedCallerArgs(cx);
-    bool needToSaveArgs = op == JSOP_FUNAPPLY || IsGetterPC(pc) || IsSetterPC(pc);
-    if (iter.moreFrames() && (op == JSOP_FUNCALL || needToSaveArgs))
+    AutoValueVector funapplyargs(cx);
+    if (iter.moreFrames() &&
+        (op == JSOP_FUNCALL || op == JSOP_FUNAPPLY))
     {
         uint32_t inlined_args = 0;
         if (op == JSOP_FUNCALL)
             inlined_args = 2 + GET_ARGC(pc) - 1;
-        else if (op == JSOP_FUNAPPLY)
-            inlined_args = 2 + blFrame->numActualArgs();
         else
-            inlined_args = 2 + IsSetterPC(pc);
+            inlined_args = 2 + blFrame->numActualArgs();
 
         JS_ASSERT(exprStackSlots >= inlined_args);
         pushedSlots = exprStackSlots - inlined_args;
@@ -683,11 +662,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
                 return false;
         }
 
-        if (needToSaveArgs) {
-            // When an accessor is inlined, the whole thing is a lie. There
-            // should never have been a call there. Fix the caller's stack to
-            // forget it ever happened.
-
+        if (op == JSOP_FUNAPPLY) {
             // When funapply gets inlined we take all arguments out of the
             // arguments array. So the stack state is incorrect. To restore
             // correctly it must look like js_fun_apply was actually called.
@@ -695,36 +670,22 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
             // to |js_fun_apply, target, this, argObject|.
             // Since the information is never read, we can just push undefined
             // for all values.
-            if (op == JSOP_FUNAPPLY) {
-                IonSpew(IonSpew_BaselineBailouts, "      pushing 4x undefined to fixup funapply");
-                if (!builder.writeValue(UndefinedValue(), "StackValue"))
-                    return false;
-                if (!builder.writeValue(UndefinedValue(), "StackValue"))
-                    return false;
-                if (!builder.writeValue(UndefinedValue(), "StackValue"))
-                    return false;
-                if (!builder.writeValue(UndefinedValue(), "StackValue"))
-                    return false;
-            }
+            IonSpew(IonSpew_BaselineBailouts, "      pushing 4x undefined to fixup funapply");
+            if (!builder.writeValue(UndefinedValue(), "StackValue"))
+                return false;
+            if (!builder.writeValue(UndefinedValue(), "StackValue"))
+                return false;
+            if (!builder.writeValue(UndefinedValue(), "StackValue"))
+                return false;
+            if (!builder.writeValue(UndefinedValue(), "StackValue"))
+                return false;
+
             // Save the actual arguments. They are needed on the callee side
             // as the arguments. Else we can't recover them.
-            if (!savedCallerArgs.resize(inlined_args))
+            if (!funapplyargs.resize(inlined_args))
                 return false;
             for (uint32_t i = 0; i < inlined_args; i++)
-                savedCallerArgs[i] = iter.read();
-
-            if (IsSetterPC(pc)) {
-                // We would love to just save all the arguments and leave them
-                // in the stub frame pushed below, but we will lose the inital
-                // argument which the function was called with, which we must
-                // return to the caller, even if the setter internally modifies
-                // its arguments. Stash the initial argument on the stack, to be
-                // later retrieved by the SetProp_Fallback stub.
-                Value initialArg = savedCallerArgs[inlined_args - 1];
-                IonSpew(IonSpew_BaselineBailouts, "     pushing setter's initial argument");
-                if (!builder.writeValue(initialArg, "StackValue"))
-                    return false;
-            }
+                funapplyargs[i] = iter.read();
             pushedSlots = exprStackSlots;
         }
     }
@@ -781,16 +742,6 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
             // include the this. When inlining that is not included.
             // So the exprStackSlots will be one less.
             JS_ASSERT(expectedDepth - exprStackSlots <= 1);
-        } else if (iter.moreFrames() && (IsGetterPC(pc) || IsSetterPC(pc))) {
-            // Accessors coming out of ion are inlined via a complete
-            // lie perpetrated by the compiler internally. Ion just rearranges
-            // the stack, and pretends that it looked like a call all along.
-            // This means that the depth is actually one *more* than expected
-            // by the interpreter, as there is now a JSFunction, |this| and [arg],
-            // rather than the expected |this| and [arg]
-            // Note that none of that was pushed, but it's still reflected
-            // in exprStackSlots.
-            JS_ASSERT(exprStackSlots - expectedDepth == 1);
         } else {
             // For fun.apply({}, arguments) the reconstructStackDepth will
             // have stackdepth 4, but it could be that we inlined the
@@ -962,9 +913,9 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
         return false;
 
     // Calculate and write out return address.
-    // The icEntry in question MUST have an inlinable fallback stub.
+    // The icEntry in question MUST have a ICCall_Fallback as its fallback stub.
     ICEntry &icEntry = baselineScript->icEntryFromPCOffset(pcOff);
-    JS_ASSERT(IsInlinableFallback(icEntry.firstStub()->getChainFallback()));
+    JS_ASSERT(icEntry.firstStub()->getChainFallback()->isCall_Fallback());
     if (!builder.writePtr(baselineScript->returnAddressForIC(icEntry), "ReturnAddr"))
         return false;
 
@@ -996,7 +947,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
     size_t startOfBaselineStubFrame = builder.framePushed();
 
     // Write stub pointer.
-    JS_ASSERT(IsInlinableFallback(icEntry.fallbackStub()));
+    JS_ASSERT(icEntry.fallbackStub()->isCall_Fallback());
     if (!builder.writePtr(icEntry.fallbackStub(), "StubPtr"))
         return false;
 
@@ -1007,25 +958,21 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
 
     // Write out actual arguments (and thisv), copied from unpacked stack of BaselineJS frame.
     // Arguments are reversed on the BaselineJS frame's stack values.
-    JS_ASSERT(isCall || IsGetterPC(pc) || IsSetterPC(pc));
-    unsigned actualArgc;
-    if (needToSaveArgs) {
-        // For FUNAPPLY or an accessor, the arguments are not on the stack anymore,
+    JS_ASSERT(isCall);
+    unsigned actualArgc = GET_ARGC(pc);
+    if (op == JSOP_FUNAPPLY) {
+        // For FUNAPPLY the arguments are not on the stack anymore,
         // but they are copied in a vector and are written here.
-        if (op == JSOP_FUNAPPLY)
-            actualArgc = blFrame->numActualArgs();
-        else
-            actualArgc = IsSetterPC(pc);
+        actualArgc = blFrame->numActualArgs();
 
         JS_ASSERT(actualArgc + 2 <= exprStackSlots);
-        JS_ASSERT(savedCallerArgs.length() == actualArgc + 2);
+        JS_ASSERT(funapplyargs.length() == actualArgc + 2);
         for (unsigned i = 0; i < actualArgc + 1; i++) {
-            size_t arg = savedCallerArgs.length() - (i + 1);
-            if (!builder.writeValue(savedCallerArgs[arg], "ArgVal"))
+            size_t arg = funapplyargs.length() - (i + 1);
+            if (!builder.writeValue(funapplyargs[arg], "ArgVal"))
                 return false;
         }
     } else {
-        actualArgc = GET_ARGC(pc);
         if (op == JSOP_FUNCALL) {
             JS_ASSERT(actualArgc > 0);
             actualArgc--;
@@ -1054,10 +1001,10 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
 
     // Push callee token (must be a JS Function)
     Value callee;
-    if (needToSaveArgs) {
-        // The arguments of FUNAPPLY or inlined accessors are not writen to the stack.
+    if (op == JSOP_FUNAPPLY) {
+        // The arguments of FUNAPPLY are not writen to the stack.
         // So get the callee from the specially saved vector.
-        callee = savedCallerArgs[0];
+        callee = funapplyargs[0];
     } else {
         uint32_t calleeStackSlot = exprStackSlots - uint32_t(actualArgc + 2);
         size_t calleeOffset = (builder.framePushed() - endOfBaselineJSFrameStack)
@@ -1077,7 +1024,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
         return false;
 
     // Push return address into ICCall_Scripted stub, immediately after the call.
-    void *baselineCallReturnAddr = GetStubReturnAddress(cx, pc);
+    void *baselineCallReturnAddr = cx->compartment()->ionCompartment()->baselineCallReturnAddr();
     JS_ASSERT(baselineCallReturnAddr);
     if (!builder.writePtr(baselineCallReturnAddr, "ReturnAddr"))
         return false;

@@ -6,16 +6,15 @@
 
 #include "gc/Statistics.h"
 
-#include "mozilla/PodOperations.h"
-
-#include <stdarg.h>
 #include <stdio.h>
+#include <stdarg.h>
+
+#include "mozilla/PodOperations.h"
 
 #include "jscrashreport.h"
 #include "jsprf.h"
 #include "jsutil.h"
 #include "prmjtime.h"
-
 #include "gc/Memory.h"
 #include "vm/Runtime.h"
 

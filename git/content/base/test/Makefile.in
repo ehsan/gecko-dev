@@ -11,6 +11,14 @@ relativesrcdir  = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+CPP_UNIT_TESTS = \
+                 TestNativeXMLHttpRequest.cpp \
+                 TestGetURL.cpp \
+                 TestPlainTextSerializer.cpp \
+                 $(NULL)
+
+# Split files arbitrarily in three groups to not run into too-long command lines
+# which break on Windows (see bug 563151 and bug 831989)
 MOCHITEST_FILES_A = \
 		responseIdentical.sjs \
 		test_bug5141.html \
@@ -241,7 +249,6 @@ MOCHITEST_FILES_A = \
 		test_bug820909.html \
 		test_bug704063.html \
 		test_bug894874.html \
-		test_bug895974.html \
 		$(NULL)
 
 MOCHITEST_FILES_B = \

@@ -137,7 +137,7 @@ NeckoParent::CreateChannelLoadContext(PBrowserParent* aBrowser,
 {
   uint32_t appId = NECKO_UNKNOWN_APP_ID;
   bool inBrowser = false;
-  dom::Element* topFrameElement = nullptr;
+  nsIDOMElement* topFrameElement = nullptr;
   const char* error = GetValidatedAppInfo(aSerialized, aBrowser, &appId, &inBrowser);
   if (error) {
     return error;

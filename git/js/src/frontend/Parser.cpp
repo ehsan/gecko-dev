@@ -19,21 +19,20 @@
 
 #include "frontend/Parser.h"
 
+#include "jstypes.h"
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
+#include "jsversion.h"
 #include "jsfun.h"
 #include "jsobj.h"
 #include "jsopcode.h"
 #include "jsscript.h"
-#include "jstypes.h"
-#include "jsversion.h"
 
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/FoldConstants.h"
 #include "frontend/ParseMaps.h"
 #include "frontend/TokenStream.h"
-#include "vm/NumericConversions.h"
 #include "vm/RegExpStatics.h"
 #include "vm/Shape.h"
 
@@ -44,6 +43,8 @@
 
 #include "frontend/ParseMaps-inl.h"
 #include "frontend/ParseNode-inl.h"
+
+#include "vm/NumericConversions.h"
 
 using namespace js;
 using namespace js::gc;

@@ -563,7 +563,6 @@ CycleCollectedJSRuntime::MaybeTraceGlobals(JSTracer* aTracer) const
     }
 
     if (JSObject* global = js::GetDefaultGlobalForContext(acx)) {
-      JS::AssertGCThingMustBeTenured(global);
       JS_CallObjectTracer(aTracer, &global, "Global Object");
     }
   }

@@ -9,14 +9,13 @@
 #ifndef jsinferinlines_h
 #define jsinferinlines_h
 
-#include "jsinfer.h"
-
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/PodOperations.h"
 
-#include "jsanalyze.h"
 #include "jsarray.h"
+#include "jsanalyze.h"
 #include "jscompartment.h"
+#include "jsinfer.h"
 #include "jsprf.h"
 #include "jsproxy.h"
 

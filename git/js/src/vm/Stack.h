@@ -12,7 +12,6 @@
 #include "jsautooplen.h"
 #include "jsfun.h"
 #include "jsscript.h"
-
 #include "ion/IonFrameIterator.h"
 
 struct JSContext;
@@ -1520,7 +1519,7 @@ class ScriptFrameIter
     ArgumentsObject &argsObj() const;
 
     // Ensure that thisv is correct, see ComputeThis.
-    bool        computeThis() const;
+    bool        computeThis(JSContext *cx) const;
     Value       thisv() const;
 
     Value       returnValue() const;

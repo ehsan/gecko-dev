@@ -183,7 +183,6 @@ abstract public class GeckoApp
     private String mCurrentResponse = "";
     public static boolean sIsUsingCustomProfile = false;
 
-    private ContactService mContactService;
     private PromptService mPromptService;
     private TextSelection mTextSelection;
 
@@ -1566,8 +1565,6 @@ abstract public class GeckoApp
           SmsManager.getInstance().start();
         }
 
-        mContactService = new ContactService(GeckoAppShell.getEventDispatcher(), this);
-
         mPromptService = new PromptService(this);
 
         mTextSelection = new TextSelection((TextSelectionHandle) findViewById(R.id.start_handle),
@@ -2110,8 +2107,6 @@ abstract public class GeckoApp
             mDoorHangerPopup.destroy();
         if (mFormAssistPopup != null)
             mFormAssistPopup.destroy();
-        if (mContactService != null)
-            mContactService.destroy();
         if (mPromptService != null)
             mPromptService.destroy();
         if (mTextSelection != null)

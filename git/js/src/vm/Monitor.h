@@ -7,8 +7,6 @@
 #ifndef vm_Monitor_h
 #define vm_Monitor_h
 
-#include <stddef.h>
-
 #include "jslock.h"
 
 namespace js {

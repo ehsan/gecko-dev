@@ -9,9 +9,8 @@
 /*
  * JS function definitions.
  */
-
-#include "jsobj.h"
 #include "jsprvtd.h"
+#include "jsobj.h"
 #include "jsscript.h"
 
 #include "gc/Barrier.h"
@@ -409,10 +408,6 @@ DefineFunction(JSContext *cx, HandleObject obj, HandleId id, JSNative native,
                unsigned nargs, unsigned flags,
                gc::AllocKind allocKind = JSFunction::FinalizeKind,
                NewObjectKind newKind = GenericObject);
-
-extern JSBool
-fun_resolve(JSContext *cx, js::HandleObject obj, js::HandleId id,
-            unsigned flags, js::MutableHandleObject objp);
 
 // ES6 9.2.5 IsConstructor
 bool IsConstructor(const Value &v);

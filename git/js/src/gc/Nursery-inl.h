@@ -10,9 +10,8 @@
 
 #ifdef JSGC_GENERATIONAL
 
-#include "gc/Nursery.h"
-
 #include "gc/Heap.h"
+#include "gc/Nursery.h"
 
 namespace js {
 namespace gc {

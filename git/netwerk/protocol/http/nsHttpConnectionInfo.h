@@ -36,14 +36,14 @@ public:
 
     nsrefcnt AddRef()
     {
-        nsrefcnt n = ++mRef;
+        nsrefcnt n = NS_AtomicIncrementRefcnt(mRef);
         NS_LOG_ADDREF(this, n, "nsHttpConnectionInfo", sizeof(*this));
         return n;
     }
 
     nsrefcnt Release()
     {
-        nsrefcnt n = --mRef;
+        nsrefcnt n = NS_AtomicDecrementRefcnt(mRef);
         NS_LOG_RELEASE(this, n, "nsHttpConnectionInfo");
         if (n == 0)
             delete this;
@@ -97,7 +97,7 @@ public:
     bool UsingProxy();
 
 private:
-    mozilla::ThreadSafeAutoRefCnt mRef;
+    nsrefcnt               mRef;
     nsCString              mHashKey;
     nsCString              mHost;
     int32_t                mPort;

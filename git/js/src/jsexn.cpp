@@ -7,22 +7,21 @@
 /*
  * JS standard exception implementation.
  */
-
 #include "jsexn.h"
+
+#include <string.h>
 
 #include "mozilla/PodOperations.h"
 #include "mozilla/Util.h"
 
-#include <string.h>
-
+#include "jstypes.h"
+#include "jsutil.h"
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsscript.h"
-#include "jstypes.h"
-#include "jsutil.h"
 #include "jswrapper.h"
 
 #include "gc/Marking.h"

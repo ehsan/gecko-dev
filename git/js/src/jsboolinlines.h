@@ -7,8 +7,6 @@
 #ifndef jsboolinlines_h
 #define jsboolinlines_h
 
-#include "jsbool.h"
-
 #include "mozilla/Assertions.h"
 #include "mozilla/Likely.h"
 

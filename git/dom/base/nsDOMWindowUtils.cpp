@@ -2505,9 +2505,15 @@ nsDOMWindowUtils::RenderDocument(const nsRect& aRect,
     nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
     NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
+    // Get DOM Document
+    nsresult rv;
+    nsCOMPtr<nsIDOMDocument> ddoc;
+    rv = window->GetDocument(getter_AddRefs(ddoc));
+    NS_ENSURE_SUCCESS(rv, rv);
+
     // Get Document
-    nsCOMPtr<nsIDocument> doc = window->GetDoc();
-    NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(ddoc, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // Get Primary Shell
     nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
@@ -3211,15 +3217,23 @@ nsDOMWindowUtils::LoadSheet(nsIURI *aSheetURI, uint32_t aSheetType)
                 aSheetType == USER_SHEET ||
                 aSheetType == AUTHOR_SHEET);
 
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
+  nsCOMPtr<nsIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_TRUE(window, NS_ERROR_INVALID_ARG);
+  
+  nsCOMPtr<nsIDOMDocument> ddoc;
+  nsresult rv = window->GetDocument(getter_AddRefs(ddoc));
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(ddoc, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIDocument> doc = window->GetDoc();
-  NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(ddoc);
+  NS_ENSURE_TRUE(doc, NS_ERROR_INVALID_ARG);
 
   nsIDocument::additionalSheetType type = convertSheetType(aSheetType);
 
-  return doc->LoadAdditionalStyleSheet(type, aSheetURI);
+  rv = doc->LoadAdditionalStyleSheet(type, aSheetURI);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -3234,11 +3248,16 @@ nsDOMWindowUtils::RemoveSheet(nsIURI *aSheetURI, uint32_t aSheetType)
                 aSheetType == USER_SHEET ||
                 aSheetType == AUTHOR_SHEET);
 
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
+  nsCOMPtr<nsIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_TRUE(window, NS_ERROR_INVALID_ARG);
 
-  nsCOMPtr<nsIDocument> doc = window->GetDoc();
-  NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIDOMDocument> ddoc;
+  nsresult rv = window->GetDocument(getter_AddRefs(ddoc));
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(ddoc, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(ddoc);
+  NS_ENSURE_TRUE(doc, NS_ERROR_INVALID_ARG);
 
   nsIDocument::additionalSheetType type = convertSheetType(aSheetType);
 
@@ -3328,7 +3347,7 @@ nsDOMWindowUtils::SetPaintFlashing(bool aPaintFlashing)
 {
   nsPresContext* presContext = GetPresContext();
   if (presContext) {
-    presContext->SetPaintFlashing(aPaintFlashing);
+    presContext->RefreshDriver()->SetPaintFlashing(aPaintFlashing);
     // Clear paint flashing colors
     nsIPresShell* presShell = GetPresShell();
     if (!aPaintFlashing && presShell) {
@@ -3347,7 +3366,7 @@ nsDOMWindowUtils::GetPaintFlashing(bool* aRetVal)
   *aRetVal = false;
   nsPresContext* presContext = GetPresContext();
   if (presContext) {
-    *aRetVal = presContext->GetPaintFlashing();
+    *aRetVal = presContext->RefreshDriver()->GetPaintFlashing();
   }
   return NS_OK;
 }

@@ -74,6 +74,12 @@ public:
                              JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
   // nsIContent
+  virtual already_AddRefed<nsINodeInfo>
+    GetExistingAttrNameFromQName(const nsAString& aStr) const MOZ_OVERRIDE
+  {
+    return nullptr;
+  }
+
   nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {

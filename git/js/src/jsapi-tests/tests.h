@@ -9,18 +9,20 @@
 
 #include "mozilla/Util.h"
 
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "jsalloc.h"
 #include "jsapi.h"
 #include "jscntxt.h"
-#include "jsgc.h"
 #include "jsprvtd.h"
+#include "jsalloc.h"
+
+// For js::gc::AutoSuppressGC
+#include "jsgc.h"
 
 #include "js/Vector.h"
+
+#include <errno.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 /* Note: Aborts on OOM. */
 class JSAPITestString {

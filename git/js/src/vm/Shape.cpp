@@ -6,8 +6,6 @@
 
 /* JS symbol tables. */
 
-#include "vm/Shape-inl.h"
-
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/PodOperations.h"
@@ -18,10 +16,12 @@
 #include "jsobj.h"
 
 #include "js/HashTable.h"
+#include "vm/Shape.h"
 
 #include "jscntxtinlines.h"
 #include "jsobjinlines.h"
 
+#include "vm/Shape-inl.h"
 #include "vm/Runtime-inl.h"
 
 using namespace js;

@@ -16,8 +16,7 @@ function run_test() {
     }
 
     // Ensure the MAR we will create doesn't already exist.
-    let outMAR = tempDir.clone();
-    outMAR.append("out.mar");
+    let outMAR = do_get_file("out.mar", true);
     if (checkNoMAR) {
       do_check_false(outMAR.exists());
     }
@@ -58,15 +57,14 @@ function run_test() {
     // at the location the new one will be created at.
     test_overwrite_already_exists: function() {
       let differentFile = do_get_file("data/1_byte_mar.mar");
-      let outMARDir = tempDir.clone();
+      let outMARDir = do_get_file(".");
       differentFile.copyTo(outMARDir, "out.mar");
       return run_one_test(refMARPrefix + "binary_data_mar.mar", 
                           ["binary_data_file"], false);
     },
     // Between each test make sure the out MAR does not exist.
     cleanup_per_test: function() {
-      let outMAR = tempDir.clone();
-      outMAR.append("out.mar");
+      let outMAR = do_get_file("out.mar", true);
       if (outMAR.exists()) {
         outMAR.remove(false);
       }

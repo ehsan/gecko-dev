@@ -13,9 +13,9 @@
 #include "jscompartment.h"
 #include "jsgc.h"
 #include "jsobj.h"
-#include "jswatchpoint.h"
-#include "jsweakmap.h"
 #include "jswrapper.h"
+#include "jsweakmap.h"
+#include "jswatchpoint.h"
 #include "prmjtime.h"
 
 #include "builtin/TestingFunctions.h"
@@ -1121,18 +1121,8 @@ js::IsInRequest(JSContext *cx)
 
 #ifdef JSGC_GENERATIONAL
 JS_FRIEND_API(void)
-JS_StoreObjectPostBarrierCallback(JSContext* cx,
-                                  void (*callback)(JSTracer *trc, void *key, void *data),
-                                  JSObject *key, void *data)
+JS_StorePostBarrierCallback(JSContext* cx, void (*callback)(JSTracer *trc, void *key), void *key)
 {
-    cx->runtime()->gcStoreBuffer.putCallback(callback, key, data);
-}
-
-extern JS_FRIEND_API(void)
-JS_StoreStringPostBarrierCallback(JSContext* cx,
-                                  void (*callback)(JSTracer *trc, void *key, void *data),
-                                  JSString *key, void *data)
-{
-    cx->runtime()->gcStoreBuffer.putCallback(callback, key, data);
+    cx->runtime()->gcStoreBuffer.putCallback(callback, key);
 }
 #endif /* JSGC_GENERATIONAL */

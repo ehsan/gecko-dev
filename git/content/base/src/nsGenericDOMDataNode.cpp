@@ -572,6 +572,12 @@ nsGenericDOMDataNode::GetIDAttributeName() const
   return nullptr;
 }
 
+already_AddRefed<nsINodeInfo>
+nsGenericDOMDataNode::GetExistingAttrNameFromQName(const nsAString& aStr) const
+{
+  return nullptr;
+}
+
 nsresult
 nsGenericDOMDataNode::SetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
                               nsIAtom* aPrefix, const nsAString& aValue,

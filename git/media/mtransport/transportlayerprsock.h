@@ -86,7 +86,7 @@ class TransportLayerPrsock : public TransportLayer {
       virtual uint64_t ByteCountReceived() { return 0; }
 
       // nsISupports methods
-      NS_DECL_THREADSAFE_ISUPPORTS
+      NS_DECL_ISUPPORTS
 
       private:
       TransportLayerPrsock *prsock_;

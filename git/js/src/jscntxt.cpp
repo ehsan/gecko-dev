@@ -8,21 +8,25 @@
  * JS execution context.
  */
 
-#include "jscntxtinlines.h"
-
-#include "mozilla/DebugOnly.h"
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/Util.h"
+#include "jscntxt.h"
 
 #include <locale.h>
 #include <stdarg.h>
 #include <string.h>
+
+#include "mozilla/DebugOnly.h"
+
 #ifdef ANDROID
 # include <android/log.h>
 # include <fstream>
 # include <string>
 #endif  // ANDROID
 
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
+
+#include "jstypes.h"
+#include "jsprf.h"
 #include "jsatom.h"
 #include "jscompartment.h"
 #include "jsdbgapi.h"
@@ -33,22 +37,21 @@
 #include "jsmath.h"
 #include "jsobj.h"
 #include "jsopcode.h"
-#include "jsprf.h"
 #include "jspubtd.h"
 #include "jsscript.h"
 #include "jsstr.h"
-#include "jstypes.h"
 #include "jsworkers.h"
-
-#include "gc/Marking.h"
 #ifdef JS_ION
 #include "ion/Ion.h"
 #endif
+
+#include "gc/Marking.h"
 #include "js/CharacterEncoding.h"
 #include "js/MemoryMetrics.h"
 #include "vm/Shape.h"
 #include "yarr/BumpPointerAllocator.h"
 
+#include "jscntxtinlines.h"
 #include "jsobjinlines.h"
 
 #include "vm/Stack-inl.h"

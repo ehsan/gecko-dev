@@ -13,7 +13,6 @@
 #include "mozilla/TimeStamp.h"
 #include "ImageTypes.h"
 #include "nsTArray.h"
-#include "pratom.h"
 
 #ifdef XP_WIN
 struct ID3D10Texture2D;

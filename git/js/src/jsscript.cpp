@@ -8,13 +8,15 @@
  * JS script operations.
  */
 
-#include "jsscriptinlines.h"
+#include "jsscript.h"
+
+#include <string.h>
 
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 
-#include <string.h>
-
+#include "jstypes.h"
+#include "jsutil.h"
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
@@ -22,13 +24,11 @@
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsopcode.h"
-#include "jstypes.h"
-#include "jsutil.h"
 
-#include "frontend/BytecodeEmitter.h"
 #include "gc/Marking.h"
-#include "ion/BaselineJIT.h"
+#include "frontend/BytecodeEmitter.h"
 #include "ion/IonCode.h"
+#include "ion/BaselineJIT.h"
 #include "vm/Debugger.h"
 #include "vm/Interpreter.h"
 #include "vm/Shape.h"
@@ -36,9 +36,10 @@
 
 #include "jsfuninlines.h"
 #include "jsinferinlines.h"
+#include "jsscriptinlines.h"
 
-#include "vm/Runtime-inl.h"
 #include "vm/ScopeObject-inl.h"
+#include "vm/Runtime-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace js;

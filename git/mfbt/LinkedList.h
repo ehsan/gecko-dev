@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -53,8 +52,8 @@
  *
  */
 
-#ifndef mozilla_LinkedList_h
-#define mozilla_LinkedList_h
+#ifndef mozilla_LinkedList_h_
+#define mozilla_LinkedList_h_
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
@@ -424,6 +423,5 @@ class LinkedList
 
 } /* namespace mozilla */
 
-#endif /* __cplusplus */
-
-#endif /* mozilla_LinkedList_h */
+#endif /* ifdef __cplusplus */
+#endif /* ifdef mozilla_LinkedList_h_ */

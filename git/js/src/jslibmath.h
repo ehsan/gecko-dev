@@ -10,7 +10,6 @@
 #include "mozilla/FloatingPoint.h"
 
 #include <math.h>
-
 #include "jsnum.h"
 
 /*

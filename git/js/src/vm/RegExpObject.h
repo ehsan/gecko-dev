@@ -11,7 +11,6 @@
 #include "mozilla/MemoryReporting.h"
 
 #include <stddef.h>
-
 #include "jscntxt.h"
 #include "jsobj.h"
 #include "jsproxy.h"

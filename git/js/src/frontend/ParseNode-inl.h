@@ -8,7 +8,6 @@
 #define frontend_ParseNode_inl_h
 
 #include "frontend/ParseNode.h"
-
 #include "frontend/SharedContext.h"
 
 namespace js {

@@ -12,8 +12,8 @@
 
 #include "mozilla/PodOperations.h"
 
-#include <stdarg.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 
 #include "jsapi.h"

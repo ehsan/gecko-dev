@@ -27,7 +27,7 @@
 
 class nsLocale : public nsILocale {
 	friend class nsLocaleService;
-	NS_DECL_THREADSAFE_ISUPPORTS
+	NS_DECL_ISUPPORTS
 
 public:
 	nsLocale(void);

@@ -8,7 +8,6 @@
 /* This must occur *after* layers/PLayerTransaction.h to avoid typedefs conflicts. */
 #include "mozilla/Util.h"
 
-#include "pratom.h"
 #include "prmem.h"
 #include "prenv.h"
 #include "prclist.h"

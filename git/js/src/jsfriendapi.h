@@ -10,8 +10,8 @@
 #include "mozilla/MemoryReporting.h"
 
 #include "jsclass.h"
-#include "jsprvtd.h"
 #include "jspubtd.h"
+#include "jsprvtd.h"
 
 #include "js/CallArgs.h"
 
@@ -1794,24 +1794,10 @@ js_ReportIsNotFunction(JSContext *cx, const JS::Value& v);
 
 #ifdef JSGC_GENERATIONAL
 extern JS_FRIEND_API(void)
-JS_StoreObjectPostBarrierCallback(JSContext* cx,
-                                  void (*callback)(JSTracer *trc, void *key, void *data),
-                                  JSObject *key, void *data);
-
-extern JS_FRIEND_API(void)
-JS_StoreStringPostBarrierCallback(JSContext* cx,
-                                  void (*callback)(JSTracer *trc, void *key, void *data),
-                                  JSString *key, void *data);
+JS_StorePostBarrierCallback(JSContext* cx, void (*callback)(JSTracer *trc, void *key), void *key);
 #else
 inline void
-JS_StoreObjectPostBarrierCallback(JSContext* cx,
-                                  void (*callback)(JSTracer *trc, void *key, void *data),
-                                  JSObject *key, void *data) {}
-
-inline void
-JS_StoreStringPostBarrierCallback(JSContext* cx,
-                                  void (*callback)(JSTracer *trc, void *key, void *data),
-                                  JSString *key, void *data) {}
+JS_StorePostBarrierCallback(JSContext* cx, void (*callback)(JSTracer *trc, void *key), void *key) {}
 #endif /* JSGC_GENERATIONAL */
 
 #endif /* jsfriendapi_h */

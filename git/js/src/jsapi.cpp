@@ -20,6 +20,9 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "jstypes.h"
+#include "jsutil.h"
+#include "jsprf.h"
 #include "jsarray.h"
 #include "jsatom.h"
 #include "jsbool.h"
@@ -35,44 +38,31 @@
 #include "jsmath.h"
 #include "jsnativestack.h"
 #include "jsnum.h"
-#include "jsobj.h"
 #include "json.h"
-#include "jsprf.h"
+#include "jsobj.h"
 #include "jsproxy.h"
 #include "jsscript.h"
 #include "jsstr.h"
-#include "jstypes.h"
-#include "jsutil.h"
+#include "prmjtime.h"
 #include "jsweakmap.h"
+#include "jswrapper.h"
 #ifdef JS_THREADSAFE
 #include "jsworkers.h"
 #endif
-#include "jswrapper.h"
-#include "prmjtime.h"
 
-#if ENABLE_YARR_JIT
-#include "assembler/jit/ExecutableAllocator.h"
-#endif
 #include "builtin/Eval.h"
 #include "builtin/Intl.h"
 #include "builtin/MapObject.h"
-#include "builtin/ParallelArray.h"
 #include "builtin/RegExp.h"
+#include "builtin/ParallelArray.h"
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/FullParseHandler.h"  // for JS_BufferIsCompileableUnit
 #include "frontend/Parser.h" // for JS_BufferIsCompileableUnit
 #include "gc/Marking.h"
 #include "gc/Memory.h"
 #include "ion/AsmJS.h"
-#ifdef JS_ION
-#include "ion/Ion.h"
-#endif
 #include "ion/PcScriptCache.h"
 #include "js/CharacterEncoding.h"
-#if ENABLE_INTL_API
-#include "unicode/uclean.h"
-#include "unicode/utypes.h"
-#endif
 #include "vm/DateObject.h"
 #include "vm/Debugger.h"
 #include "vm/ErrorObject.h"
@@ -96,6 +86,14 @@
 #include "vm/RegExpStatics-inl.h"
 #include "vm/Shape-inl.h"
 #include "vm/String-inl.h"
+
+#if ENABLE_YARR_JIT
+#include "assembler/jit/ExecutableAllocator.h"
+#endif
+
+#ifdef JS_ION
+#include "ion/Ion.h"
+#endif
 
 using namespace js;
 using namespace js::gc;
@@ -1175,18 +1173,6 @@ JS_DestroyRuntime(JSRuntime *rt)
 {
     js_free(rt->defaultLocale);
     js_delete(rt);
-}
-
-JS_PUBLIC_API(bool)
-JS_SetICUMemoryFunctions(JS_ICUAllocFn allocFn, JS_ICUReallocFn reallocFn, JS_ICUFreeFn freeFn)
-{
-#if ENABLE_INTL_API
-    UErrorCode status = U_ZERO_ERROR;
-    u_setMemoryFunctions(/* context = */ NULL, allocFn, reallocFn, freeFn, &status);
-    return U_SUCCESS(status);
-#else
-    return true;
-#endif
 }
 
 JS_PUBLIC_API(void)
@@ -2376,16 +2362,17 @@ JS_CallObjectTracer(JSTracer *trc, JSObject **objp, const char *name)
 }
 
 JS_PUBLIC_API(void)
-JS_CallTenuredObjectTracer(JSTracer *trc, JS::TenuredHeap<JSObject *> *objp, const char *name)
+JS_CallMaskedObjectTracer(JSTracer *trc, uintptr_t *objp, uintptr_t flagMask, const char *name)
 {
-    JSObject *obj = objp->getPtr();
+    uintptr_t flags = *objp & flagMask;
+    JSObject *obj = reinterpret_cast<JSObject *>(*objp & ~flagMask);
     if (!obj)
         return;
 
     JS_SET_TRACING_LOCATION(trc, (void*)objp);
     MarkObjectUnbarriered(trc, &obj, name);
 
-    objp->setPtr(obj);
+    *objp = uintptr_t(obj) | flags;
 }
 
 JS_PUBLIC_API(void)
@@ -5813,15 +5800,18 @@ JS_CallFunctionValue(JSContext *cx, JSObject *objArg, jsval fval, unsigned argc,
 }
 
 JS_PUBLIC_API(bool)
-JS::Call(JSContext *cx, jsval thisv, jsval fval, unsigned argc, jsval *argv,
-         MutableHandleValue rval)
+JS::Call(JSContext *cx, jsval thisv, jsval fval, unsigned argc, jsval *argv, jsval *rval)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, thisv, fval, JSValueArray(argv, argc));
     AutoLastFrameCheck lfc(cx);
 
-    return Invoke(cx, thisv, fval, argc, argv, rval);
+    RootedValue rv(cx);
+    if (!Invoke(cx, thisv, fval, argc, argv, &rv))
+        return false;
+    *rval = rv;
+    return true;
 }
 
 JS_PUBLIC_API(JSObject *)

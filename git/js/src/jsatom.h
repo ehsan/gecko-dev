@@ -10,7 +10,6 @@
 #include "mozilla/HashFunctions.h"
 
 #include <stddef.h>
-
 #include "jsalloc.h"
 #include "jsapi.h"
 #include "jsprvtd.h"
