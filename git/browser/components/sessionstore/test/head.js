@@ -197,21 +197,21 @@ function waitForTabState(aTab, aState, aCallback) {
  * Wait for a content -> chrome message.
  */
 function promiseContentMessage(browser, name) {
+  let deferred = Promise.defer();
   let mm = browser.messageManager;
 
-  return new Promise(resolve => {
-    function removeListener() {
-      mm.removeMessageListener(name, listener);
-    }
+  function removeListener() {
+    mm.removeMessageListener(name, listener);
+  }
 
-    function listener(msg) {
-      removeListener();
-      resolve(msg.data);
-    }
+  function listener(msg) {
+    removeListener();
+    deferred.resolve(msg.data);
+  }
 
-    mm.addMessageListener(name, listener);
-    registerCleanupFunction(removeListener);
-  });
+  mm.addMessageListener(name, listener);
+  registerCleanupFunction(removeListener);
+  return deferred.promise;
 }
 
 function waitForTopic(aTopic, aTimeout, aCallback) {
@@ -259,15 +259,14 @@ function waitForSaveState(aCallback) {
   return waitForTopic("sessionstore-state-write-complete", timeout, aCallback);
 }
 function promiseSaveState() {
-  return new Promise(resolve => {
-    waitForSaveState(isSuccessful => {
-      if (!isSuccessful) {
-        throw new Error("timeout");
-      }
-
-      resolve();
-    });
-  });
+  let deferred = Promise.defer();
+  waitForSaveState(isSuccessful => {
+    if (isSuccessful) {
+      deferred.resolve();
+    } else {
+      deferred.reject(new Error("timeout"));
+    }});
+  return deferred.promise;
 }
 function forceSaveState() {
   return SessionSaver.run();
@@ -306,9 +305,9 @@ function whenBrowserLoaded(aBrowser, aCallback = next, ignoreSubFrames = true, e
   });
 }
 function promiseBrowserLoaded(aBrowser, ignoreSubFrames = true) {
-  return new Promise(resolve => {
-    whenBrowserLoaded(aBrowser, resolve, ignoreSubFrames);
-  });
+  let deferred = Promise.defer();
+  whenBrowserLoaded(aBrowser, deferred.resolve, ignoreSubFrames);
+  return deferred.promise;
 }
 function whenBrowserUnloaded(aBrowser, aContainer, aCallback = next) {
   aBrowser.addEventListener("unload", function onUnload() {
@@ -317,9 +316,9 @@ function whenBrowserUnloaded(aBrowser, aContainer, aCallback = next) {
   }, true);
 }
 function promiseBrowserUnloaded(aBrowser, aContainer) {
-  return new Promise(resolve => {
-    whenBrowserUnloaded(aBrowser, aContainer, resolve);
-  });
+  let deferred = Promise.defer();
+  whenBrowserUnloaded(aBrowser, aContainer, deferred.resolve);
+  return deferred.promise;
 }
 
 function whenWindowLoaded(aWindow, aCallback = next) {
@@ -331,7 +330,9 @@ function whenWindowLoaded(aWindow, aCallback = next) {
   }, false);
 }
 function promiseWindowLoaded(aWindow) {
-  return new Promise(resolve => whenWindowLoaded(aWindow, resolve));
+  let deferred = Promise.defer();
+  whenWindowLoaded(aWindow, deferred.resolve);
+  return deferred.promise;
 }
 
 function whenTabRestored(aTab, aCallback = next) {
@@ -469,7 +470,9 @@ function whenNewWindowLoaded(aOptions, aCallback) {
   return win;
 }
 function promiseNewWindowLoaded(aOptions) {
-  return new Promise(resolve => whenNewWindowLoaded(aOptions, resolve));
+  let deferred = Promise.defer();
+  whenNewWindowLoaded(aOptions, deferred.resolve);
+  return deferred.promise;
 }
 
 /**
@@ -477,17 +480,17 @@ function promiseNewWindowLoaded(aOptions) {
  * a window and wait until we received the "domwindowclosed" notification for it.
  */
 function promiseWindowClosed(win) {
-  let promise = new Promise(resolve => {
-    Services.obs.addObserver(function obs(subject, topic) {
-      if (subject == win) {
-        Services.obs.removeObserver(obs, topic);
-        resolve();
-      }
-    }, "domwindowclosed", false);
-  });
+  let deferred = Promise.defer();
+
+  Services.obs.addObserver(function obs(subject, topic) {
+    if (subject == win) {
+      Services.obs.removeObserver(obs, topic);
+      deferred.resolve();
+    }
+  }, "domwindowclosed", false);
 
   win.close();
-  return promise;
+  return deferred.promise;
 }
 
 function runInContent(browser, func, arg, callback = null) {
@@ -514,7 +517,7 @@ function whenDelayedStartupFinished(aWindow, aCallback) {
   }, "browser-delayed-startup-finished", false);
 }
 function promiseDelayedStartupFinished(aWindow) {
-  return new Promise(resolve => whenDelayedStartupFinished(aWindow, resolve));
+  return new Promise((resolve) => whenDelayedStartupFinished(aWindow, resolve));
 }
 
 /**
@@ -568,12 +571,14 @@ function next() {
 }
 
 function promiseTabRestored(tab) {
-  return new Promise(resolve => {
-    tab.addEventListener("SSTabRestored", function onRestored() {
-      tab.removeEventListener("SSTabRestored", onRestored);
-      resolve();
-    });
+  let deferred = Promise.defer();
+
+  tab.addEventListener("SSTabRestored", function onRestored() {
+    tab.removeEventListener("SSTabRestored", onRestored);
+    deferred.resolve();
   });
+
+  return deferred.promise;
 }
 
 function sendMessage(browser, name, data = {}) {

@@ -20,14 +20,6 @@ var gDevUrl = "http://dev.url";
 function handleRequest(request, response) {
   var query = getQuery(request);
 
-  if ("nextApp" in query) {
-    setState("nextApp", query.nextApp);
-    response.write("OK");
-    return;
-  }
-
-  var nextApp = getState("nextApp");
-
   response.setHeader("Access-Control-Allow-Origin", "*", false);
 
   var version = ("version" in query) ? query.version : "1";
@@ -37,7 +29,7 @@ function handleRequest(request, response) {
   if (version != prevVersion) {
     setState("version", version);
   }
-  var packageName = (nextApp.length ? nextApp : app) + "_app_" + version + ".zip";
+  var packageName = app + "_app_" + version + ".zip";
   setState("packageName", packageName);
   var packagePath = "/" + gBasePath + "signed/" + packageName;
   setState("packagePath", packagePath);
@@ -45,14 +37,12 @@ function handleRequest(request, response) {
 
   var etag = getEtag(request, version);
 
-  if (!nextApp.length && etagMatches(request, etag)) {
+  if (etagMatches(request, etag)) {
     dump("Etags Match. Sending 304\n");
     response.setStatusLine(request.httpVersion, "304", "Not modified");
     return;
   }
   response.setHeader("Etag", etag, false);
-
-  setState("nextApp", "");
 
   // Serve the mini-manifest corresponding to the requested app version.
   var template = gBasePath + gMiniManifestTemplate;

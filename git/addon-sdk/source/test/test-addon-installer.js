@@ -175,4 +175,4 @@ exports['test Enable failure'] = function (assert, done) {
   ).then(done, assert.fail);
 };
 
-require("sdk/test").run(exports);
+require("test").run(exports);

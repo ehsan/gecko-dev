@@ -37,12 +37,11 @@ import android.util.Log;
 public class GeckoNetworkManager extends BroadcastReceiver implements NativeEventListener {
     private static final String LOGTAG = "GeckoNetworkManager";
 
-    static private GeckoNetworkManager sInstance = new GeckoNetworkManager();
+    static private final GeckoNetworkManager sInstance = new GeckoNetworkManager();
 
     public static void destroy() {
         if (sInstance != null) {
             sInstance.onDestroy();
-            sInstance = null;
         }
     }
 

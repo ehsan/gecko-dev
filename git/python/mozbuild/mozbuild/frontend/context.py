@@ -821,10 +821,6 @@ VARIABLES = {
         These are commonly named crashtests.list.
         """, None),
 
-    'ANDROID_INSTRUMENTATION_MANIFESTS': (StrictOrderingOnAppendList, list,
-        """List of manifest files defining Android instrumentation tests.
-        """, None),
-
     'METRO_CHROME_MANIFESTS': (StrictOrderingOnAppendList, list,
         """List of manifest files defining metro browser chrome tests.
         """, None),

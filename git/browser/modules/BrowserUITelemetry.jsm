@@ -103,10 +103,6 @@ XPCOMUtils.defineLazyGetter(this, "PALETTE_ITEMS", function() {
     result.push("characterencoding-button");
   }
 
-  if (Services.prefs.getBoolPref("privacy.panicButton.enabled")) {
-    result.push("panic-button");
-  }
-
   return result;
 });
 

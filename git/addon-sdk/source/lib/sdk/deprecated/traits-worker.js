@@ -87,6 +87,15 @@ const WorkerSandbox = EventEmitter.compose({
   },
 
   /**
+   * Tells if content script has at least one listener registered for one event,
+   * through `self.on('xxx', ...)`.
+   * /!\ Shouldn't be used. Implemented to avoid breaking context-menu API.
+   */
+  hasListenerFor: function hasListenerFor(name) {
+    return this._hasListenerFor(name);
+  },
+
+  /**
    * Method called by the worker sandbox when it needs to send a message
    */
   _onContentEvent: function onContentEvent(args) {
@@ -214,7 +223,8 @@ const WorkerSandbox = EventEmitter.compose({
     };
     let onEvent = this._onContentEvent.bind(this);
     let result = Cu.waiveXrays(ContentWorker).inject(content, chromeAPI, onEvent, options);
-    this._emitToContent = result;
+    this._emitToContent = result.emitToContent;
+    this._hasListenerFor = result.hasListenerFor;
 
     // Handle messages send by this script:
     let self = this;

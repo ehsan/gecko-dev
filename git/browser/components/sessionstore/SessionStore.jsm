@@ -11,6 +11,10 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
+const STATE_STOPPED = 0;
+const STATE_RUNNING = 1;
+const STATE_QUITTING = -1;
+
 const TAB_STATE_NEEDS_RESTORE = 1;
 const TAB_STATE_RESTORING = 2;
 
@@ -27,7 +31,8 @@ const MAX_CONCURRENT_TAB_RESTORES = 3;
 // global notifications observed
 const OBSERVING = [
   "browser-window-before-show", "domwindowclosed",
-  "quit-application-requested", "browser-lastwindow-close-granted",
+  "quit-application-requested", "quit-application-granted",
+  "browser-lastwindow-close-granted",
   "quit-application", "browser:purge-session-history",
   "browser:purge-domain-data",
   "gather-telemetry",
@@ -107,8 +112,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "GlobalState",
   "resource:///modules/sessionstore/GlobalState.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivacyFilter",
   "resource:///modules/sessionstore/PrivacyFilter.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "RunState",
-  "resource:///modules/sessionstore/RunState.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ScratchpadManager",
   "resource:///modules/devtools/scratchpad-manager.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SessionSaver",
@@ -285,6 +288,9 @@ let SessionStoreInternal = {
     Ci.nsISupportsWeakReference
   ]),
 
+  // set default load state
+  _loadState: STATE_STOPPED,
+
   _globalState: new GlobalState(),
 
   // During the initial restore and setBrowserState calls tracks the number of
@@ -331,16 +337,7 @@ let SessionStoreInternal = {
   _deferredInitialState: null,
 
   // A promise resolved once initialization is complete
-  _deferredInitialized: (function () {
-    let deferred = {};
-
-    deferred.promise = new Promise((resolve, reject) => {
-      deferred.resolve = resolve;
-      deferred.reject = reject;
-    });
-
-    return deferred;
-  })(),
+  _deferredInitialized: Promise.defer(),
 
   // Whether session has been initialized
   _sessionInitialized: false,
@@ -466,7 +463,7 @@ let SessionStoreInternal = {
 
     // at this point, we've as good as resumed the session, so we can
     // clear the resume_session_once flag, if it's set
-    if (!RunState.isQuitting &&
+    if (this._loadState != STATE_QUITTING &&
         this._prefBranch.getBoolPref("sessionstore.resume_session_once"))
       this._prefBranch.setBoolPref("sessionstore.resume_session_once", false);
 
@@ -524,6 +521,9 @@ let SessionStoreInternal = {
         break;
       case "quit-application-requested":
         this.onQuitApplicationRequested();
+        break;
+      case "quit-application-granted":
+        this.onQuitApplicationGranted();
         break;
       case "browser-lastwindow-close-granted":
         this.onLastWindowCloseGranted();
@@ -730,7 +730,7 @@ let SessionStoreInternal = {
       return;
 
     // ignore windows opened while shutting down
-    if (RunState.isQuitting)
+    if (this._loadState == STATE_QUITTING)
       return;
 
     // Assign the window a unique identifier we can use to reference
@@ -755,8 +755,8 @@ let SessionStoreInternal = {
       this._windows[aWindow.__SSi].isPopup = true;
 
     // perform additional initialization when the first window is loading
-    if (RunState.isStopped) {
-      RunState.setRunning();
+    if (this._loadState == STATE_STOPPED) {
+      this._loadState = STATE_RUNNING;
       SessionSaver.updateLastSaveTime();
 
       // restore a crashed session resp. resume the last session if requested
@@ -911,20 +911,20 @@ let SessionStoreInternal = {
     // re-used by all subsequent windows. The promise will be used to tell
     // when we're ready for initialization.
     if (!this._promiseReadyForInitialization) {
+      let deferred = Promise.defer();
+
       // Wait for the given window's delayed startup to be finished.
-      let promise = new Promise(resolve => {
-        Services.obs.addObserver(function obs(subject, topic) {
-          if (aWindow == subject) {
-            Services.obs.removeObserver(obs, topic);
-            resolve();
-          }
-        }, "browser-delayed-startup-finished", false);
-      });
+      Services.obs.addObserver(function obs(subject, topic) {
+        if (aWindow == subject) {
+          Services.obs.removeObserver(obs, topic);
+          deferred.resolve();
+        }
+      }, "browser-delayed-startup-finished", false);
 
       // We are ready for initialization as soon as the session file has been
       // read from disk and the initial window's delayed startup has finished.
       this._promiseReadyForInitialization =
-        Promise.all([promise, gSessionStartup.onceInitialized]);
+        Promise.all([deferred.promise, gSessionStartup.onceInitialized]);
     }
 
     // We can't call this.onLoad since initialization
@@ -999,7 +999,7 @@ let SessionStoreInternal = {
     let winData = this._windows[aWindow.__SSi];
 
     // Collect window data only when *not* closed during shutdown.
-    if (RunState.isRunning) {
+    if (this._loadState == STATE_RUNNING) {
       // Flush all data queued in the content script before the window is gone.
       TabState.flushWindow(aWindow);
 
@@ -1092,6 +1092,14 @@ let SessionStoreInternal = {
   },
 
   /**
+   * On quit application granted
+   */
+  onQuitApplicationGranted: function ssi_onQuitApplicationGranted() {
+    // freeze the data at what we've got (ignoring closing windows)
+    this._loadState = STATE_QUITTING;
+  },
+
+  /**
    * On last browser window close
    */
   onLastWindowCloseGranted: function ssi_onLastWindowCloseGranted() {
@@ -1124,6 +1132,7 @@ let SessionStoreInternal = {
       LastSession.clear();
     }
 
+    this._loadState = STATE_QUITTING; // just to be sure
     this._uninit();
   },
 
@@ -1135,7 +1144,7 @@ let SessionStoreInternal = {
     // If the browser is shutting down, simply return after clearing the
     // session data on disk as this notification fires after the
     // quit-application notification so the browser is about to exit.
-    if (RunState.isQuitting)
+    if (this._loadState == STATE_QUITTING)
       return;
     LastSession.clear();
     let openWindows = {};
@@ -1161,7 +1170,7 @@ let SessionStoreInternal = {
     var win = this._getMostRecentBrowserWindow();
     if (win) {
       win.setTimeout(() => SessionSaver.run(), 0);
-    } else if (RunState.isRunning) {
+    } else if (this._loadState == STATE_RUNNING) {
       SessionSaver.run();
     }
 
@@ -1219,7 +1228,7 @@ let SessionStoreInternal = {
       }
     }
 
-    if (RunState.isRunning) {
+    if (this._loadState == STATE_RUNNING) {
       SessionSaver.run();
     }
 
@@ -1350,7 +1359,7 @@ let SessionStoreInternal = {
    *        Window reference
    */
   onTabSelect: function ssi_onTabSelect(aWindow) {
-    if (RunState.isRunning) {
+    if (this._loadState == STATE_RUNNING) {
       this._windows[aWindow.__SSi].selected = aWindow.gBrowser.tabContainer.selectedIndex;
 
       let tab = aWindow.gBrowser.selectedTab;
@@ -2015,7 +2024,7 @@ let SessionStoreInternal = {
     var activeWindow = this._getMostRecentBrowserWindow();
 
     TelemetryStopwatch.start("FX_SESSION_RESTORE_COLLECT_ALL_WINDOWS_DATA_MS");
-    if (RunState.isRunning) {
+    if (this._loadState == STATE_RUNNING) {
       // update the data for all windows with activities since the last save operation
       this._forEachBrowserWindow(function(aWindow) {
         if (!this._isWindowLoaded(aWindow)) // window data is still in _statesToRestore
@@ -2072,7 +2081,7 @@ let SessionStoreInternal = {
     //XXXzpao We should do this for _restoreLastWindow == true, but that has
     //        its own check for popups. c.f. bug 597619
     if (nonPopupCount == 0 && lastClosedWindowsCopy.length > 0 &&
-        RunState.isQuitting) {
+        this._loadState == STATE_QUITTING) {
       // prepend the last non-popup browser window, so that if the user loads more tabs
       // at startup we don't accidentally add them to a popup window
       do {
@@ -2137,7 +2146,7 @@ let SessionStoreInternal = {
     if (!this._isWindowLoaded(aWindow))
       return this._statesToRestore[aWindow.__SS_restoreID];
 
-    if (RunState.isRunning) {
+    if (this._loadState == STATE_RUNNING) {
       this._collectWindowData(aWindow);
     }
 
@@ -2619,7 +2628,7 @@ let SessionStoreInternal = {
    */
   restoreNextTab: function ssi_restoreNextTab() {
     // If we call in here while quitting, we don't actually want to do anything
-    if (RunState.isQuitting)
+    if (this._loadState == STATE_QUITTING)
       return;
 
     // Don't exceed the maximum number of concurrent tab restores.

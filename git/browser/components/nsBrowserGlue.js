@@ -23,7 +23,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "ContentClick",
                                   "resource:///modules/ContentClick.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "DirectoryLinksProvider",
-                                  "resource:///modules/DirectoryLinksProvider.jsm");
+                                  "resource://gre/modules/DirectoryLinksProvider.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
@@ -2163,11 +2163,7 @@ let DefaultBrowserCheck = {
       claimAllTypes = (parseFloat(version) < 6.2);
     } catch (ex) { }
 #endif
-    try {
-      ShellService.setDefaultBrowser(claimAllTypes, false);
-    } catch (ex) {
-      Cu.reportError(ex);
-    }
+    ShellService.setDefaultBrowser(claimAllTypes, false);
     this.closePrompt();
   },
 

@@ -1807,7 +1807,7 @@ public class GeckoAppShell
         }
 
         final File f = new File(aFile);
-        if (AppConstants.ANDROID_DOWNLOADS_INTEGRATION) {
+        if (AppConstants.Versions.feature12Plus) {
             final DownloadManager dm = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
             dm.addCompletedDownload(f.getName(),
                                     f.getName(),

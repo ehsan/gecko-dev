@@ -137,7 +137,6 @@ Buffer.concat = function(list, length) {
 // that typically can be used in combination with `DataView` while preserving
 // access by index. Since in SDK each module has it's own set of bult-ins it
 // ok to patch ours to make it nodejs Buffer compatible.
-const Uint8ArraySet = Uint8Array.prototype.set
 Buffer.prototype = Uint8Array.prototype;
 Object.defineProperties(Buffer.prototype, {
   parent: {
@@ -205,7 +204,7 @@ Object.defineProperties(Buffer.prototype, {
           end = start + remainingTarget;
       }
 
-      Uint8ArraySet.call(target, this.subarray(start, end), offset);
+      Uint8Array.set(target, this.subarray(start, end), offset);
       return end - start;
     }
   },
@@ -268,7 +267,7 @@ Object.defineProperties(Buffer.prototype, {
       if (buffer.length !== length)
         buffer = buffer.subarray(0, length);
 
-      Uint8ArraySet.call(this, buffer, offset);
+      Uint8Array.set(this, buffer, offset);
       return result;
     }
   },

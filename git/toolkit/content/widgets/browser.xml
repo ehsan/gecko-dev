@@ -386,9 +386,8 @@
 
       <field name="_permanentKey">({})</field>
 
-      <property name="permanentKey"
-                onget="return this._permanentKey;"
-                onset="this._permanentKey = val;"/>
+      <property name="permanentKey" readonly="true"
+                onget="return this._permanentKey;"/>
 
       <field name="_lastSearchString">null</field>
       <field name="_lastSearchHighlight">false</field>
