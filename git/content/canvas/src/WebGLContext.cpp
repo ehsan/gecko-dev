@@ -744,6 +744,7 @@ DOMCI_DATA(WebGLRenderingContext, WebGLContext)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLContext)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWebGLRenderingContext)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMWebGLRenderingContext_MOZILLA_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMWebGLRenderingContext)
@@ -893,5 +894,43 @@ NS_IMETHODIMP
 WebGLActiveInfo::GetName(nsAString & aName)
 {
     aName = mName;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+WebGLContext::GetSupportedExtensions(nsIVariant **retval)
+{
+    nsCOMPtr<nsIWritableVariant> wrval = do_CreateInstance("@mozilla.org/variant;1");
+    NS_ENSURE_TRUE(wrval, NS_ERROR_FAILURE);
+
+    nsTArray<const char *> extList;
+
+    /* no extensions to add to extList */
+
+    nsresult rv;
+    if (extList.Length() > 0) {
+        rv = wrval->SetAsArray(nsIDataType::VTYPE_CHAR_STR, nsnull,
+                               extList.Length(), &extList[0]);
+    } else {
+        rv = wrval->SetAsEmptyArray();
+    }
+    if (NS_FAILED(rv))
+        return rv;
+
+    *retval = wrval.forget().get();
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+WebGLContext::IsContextLost(WebGLboolean *retval)
+{
+    *retval = PR_FALSE;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+WebGLContext::GetExtension(const nsAString& aName, nsISupports **retval)
+{
+    *retval = nsnull;
     return NS_OK;
 }
