@@ -1,0 +1,4 @@
+changeset 846c0604dccfec4d8a8377361e4788dd5a53818e
+manifest 993a84e9dd1c0c9db611f2184c60903a0e359e72
+extra rebase_source:266cfc67fdfbed559619a07dabc8a8d14fafa232
+files python/mach/mach/commands/commandinfo.py
