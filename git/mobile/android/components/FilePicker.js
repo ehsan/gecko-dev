@@ -146,10 +146,8 @@ FilePicker.prototype = {
         return null;
     }
 
-    let win = this._domWin;
-    if (win) {
-      let utils = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      return utils.wrapDOMFile(f);
+    if (this._domWin) {
+      return new this._domWin.File(f);
     }
 
     return new File(f);
@@ -214,6 +212,7 @@ FilePicker.prototype = {
   _sendMessage: function() {
     let msg = {
       type: "FilePicker:Show",
+      guid: this.guid,
       guid: this.guid,
       title: this._title,
     };

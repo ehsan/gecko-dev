@@ -338,12 +338,9 @@ public class LoadFaviconTask {
         // Attempt to decode the favicon URL as a data URL. We don't bother storing such URIs in
         // the database: the cost of decoding them here probably doesn't exceed the cost of mucking
         // about with the DB.
-        final boolean isEmpty = TextUtils.isEmpty(faviconURL);
-        if (!isEmpty) {
-            LoadFaviconResult uriBitmaps = FaviconDecoder.decodeDataURI(faviconURL);
-            if (uriBitmaps != null) {
-                return pushToCacheAndGetResult(uriBitmaps);
-            }
+        LoadFaviconResult uriBitmaps = FaviconDecoder.decodeDataURI(faviconURL);
+        if (uriBitmaps != null) {
+            return pushToCacheAndGetResult(uriBitmaps);
         }
 
         String storedFaviconUrl;
@@ -351,7 +348,7 @@ public class LoadFaviconTask {
 
         // Handle the case of malformed favicon URL.
         // If favicon is empty, fall back to the stored one.
-        if (isEmpty) {
+        if (TextUtils.isEmpty(faviconURL)) {
             // Try to get the favicon URL from the memory cache.
             storedFaviconUrl = Favicons.getFaviconURLForPageURLFromCache(pageUrl);
 
