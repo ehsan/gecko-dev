@@ -56,9 +56,9 @@ namespace nanojit
                 continue;
             NanoAssertMsg(!isFree(r), "Coding error; register is both free and active! " );
 
-            s += VMPI_strlen(s);
+            s += strlen(s);
             const char* rname = ins->isQuad() ? fpn(r) : gpn(r);
-            VMPI_sprintf(s, " %s(%s)", rname, names->formatRef(ins));
+            sprintf(s, " %s(%s)", rname, names->formatRef(ins));
         }
     }
     #endif /* NJ_VERBOSE */

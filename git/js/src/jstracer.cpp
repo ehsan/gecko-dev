@@ -77,7 +77,6 @@
 #include "jsxml.h"
 
 #include "jsatominlines.h"
-#include "jspropcacheinlines.h"
 #include "jsscriptinlines.h"
 
 #include "jsautooplen.h"        // generated headers last
@@ -2404,8 +2403,6 @@ oom:
 void
 JSTraceMonitor::flush()
 {
-    AUDIT(cacheFlushed);
-
     // recover profiling data from expiring Fragments
     verbose_only(
         for (size_t i = 0; i < FRAGMENT_TABLE_SIZE; ++i) {
@@ -7046,8 +7043,8 @@ js_FinishJIT(JSTraceMonitor *tm)
                           jitstats.noCompatInnerTrees, jitstats.blacklisted);
         debug_only_printf(LC_TMStats,
                           "monitor: triggered(%llu), exits(%llu), type mismatch(%llu), "
-                          "global mismatch(%llu), flushed(%llu)\n", jitstats.traceTriggered, jitstats.sideExitIntoInterpreter,
-                          jitstats.typeMapMismatchAtEntry, jitstats.globalShapeMismatchAtEntry, jitstats.cacheFlushed);
+                          "global mismatch(%llu)\n", jitstats.traceTriggered, jitstats.sideExitIntoInterpreter,
+                          jitstats.typeMapMismatchAtEntry, jitstats.globalShapeMismatchAtEntry);
     }
 #endif
     JS_ASSERT(tm->reservedDoublePool);
@@ -8524,8 +8521,8 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
                     obj2->dropProperty(cx, prop);
                     ABORT_TRACE("property found on non-native object");
                 }
-                entry = JS_PROPERTY_CACHE(cx).fill(cx, aobj, 0, protoIndex, obj2,
-                                                   (JSScopeProperty*) prop, false);
+                entry = js_FillPropertyCache(cx, aobj, 0, protoIndex, obj2,
+                                             (JSScopeProperty*) prop, false);
                 JS_ASSERT(entry);
                 if (entry == JS_NO_PROP_CACHE_FILL)
                     entry = NULL;
@@ -12704,32 +12701,11 @@ TraceRecorder::record_JSOP_ARGSUB()
 JS_REQUIRES_STACK JSRecordingStatus
 TraceRecorder::record_JSOP_ARGCNT()
 {
-    if (cx->fp->fun->flags & JSFUN_HEAVYWEIGHT)
-        ABORT_TRACE("can't trace heavyweight JSOP_ARGCNT");
-
-    // argc is fixed on trace, so ideally we would simply generate LIR for
-    // constant argc. But the user can mutate arguments.length in the
-    // interpreter, so we have to check for that in the trace entry frame.
-    // We also have to check that arguments.length has not been mutated
-    // at record time, because if so we will generate incorrect constant
-    // LIR, which will assert in alu().
-    if (cx->fp->argsobj && js_IsOverriddenArgsLength(JSVAL_TO_OBJECT(cx->fp->argsobj)))
-        ABORT_TRACE("can't trace JSOP_ARGCNT if arguments.length has been modified");
-    LIns *a_ins = get(&cx->fp->argsobj);
-    if (callDepth == 0) {
-        LIns *br = lir->insBranch(LIR_jt, lir->ins_peq0(a_ins), NULL);
-
-        // The following implements js_IsOverriddenArgsLength on trace.
-        // The '2' bit is set if length was overridden.
-        LIns *len_ins = stobj_get_fslot(a_ins, JSSLOT_ARGS_LENGTH);
-        LIns *ovr_ins = lir->ins2(LIR_piand, len_ins, INS_CONSTWORD(2));
-
-        guard(true, lir->ins_peq0(ovr_ins), snapshot(BRANCH_EXIT));
-        LIns *label = lir->ins0(LIR_label);
-        br->setTarget(label);
+    if (!(cx->fp->fun->flags & JSFUN_HEAVYWEIGHT)) {
+        stack(0, lir->insImmf(cx->fp->argc));
+        return JSRS_CONTINUE;
     }
-    stack(0, lir->insImmf(cx->fp->argc));
-    return JSRS_CONTINUE;
+    ABORT_TRACE("can't trace heavyweight JSOP_ARGCNT");
 }
 
 JS_REQUIRES_STACK JSRecordingStatus
