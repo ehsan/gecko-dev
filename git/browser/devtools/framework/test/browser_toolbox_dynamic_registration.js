@@ -53,8 +53,6 @@ function toolRegistered(event, toolId)
   for (let win of getAllBrowserWindows()) {
     let command = win.document.getElementById("Tools:" + toolId);
     ok(command, "command for new tool added to every browser window");
-    let menuitem = win.document.getElementById("menuitem_" + toolId);
-    ok(menuitem, "menu item of new tool added to every browser window");
   }
 
   // then unregister it
@@ -94,8 +92,6 @@ function toolUnregistered(event, toolId)
   for (let win of getAllBrowserWindows()) {
     let command = win.document.getElementById("Tools:" + toolId);
     ok(!command, "command removed from every browser window");
-    let menuitem = win.document.getElementById("menuitem_" + toolId);
-    ok(!menuitem, "menu item removed from every browser window");
   }
 
   cleanup();

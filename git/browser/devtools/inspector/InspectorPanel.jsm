@@ -39,6 +39,9 @@ this.InspectorPanel = function InspectorPanel(iframeWindow, toolbox) {
   this.panelWin = iframeWindow;
   this.panelWin.inspector = this;
 
+  this.tabTarget = (this.target.tab != null);
+  this.winTarget = (this.target.window != null);
+
   EventEmitter.decorate(this);
 }
 
@@ -70,7 +73,7 @@ InspectorPanel.prototype = {
 
     this.breadcrumbs = new HTMLBreadcrumbs(this);
 
-    if (this.target.isLocalTab) {
+    if (this.tabTarget) {
       this.browser = this.target.tab.linkedBrowser;
       this.scheduleLayoutChange = this.scheduleLayoutChange.bind(this);
       this.browser.addEventListener("resize", this.scheduleLayoutChange, true);
@@ -87,33 +90,6 @@ InspectorPanel.prototype = {
       }.bind(this);
       this.highlighter.on("locked", this.updateInspectorButton);
       this.highlighter.on("unlocked", this.updateInspectorButton);
-
-      // Show a warning when the debugger is paused.
-      // We show the warning only when the inspector
-      // is selected.
-      this.updateDebuggerPausedWarning = function() {
-        let notificationBox = this._toolbox.getNotificationBox();
-        let notification = notificationBox.getNotificationWithValue("inspector-script-paused");
-        if (!notification && this._toolbox.currentToolId == "inspector" &&
-            this.target.isThreadPaused) {
-          let message = this.strings.GetStringFromName("debuggerPausedWarning.message");
-          notificationBox.appendNotification(message,
-            "inspector-script-paused", "", notificationBox.PRIORITY_WARNING_HIGH);
-        }
-
-        if (notification && this._toolbox.currentToolId != "inspector") {
-          notificationBox.removeNotification(notification);
-        }
-
-        if (notification && !this.target.isThreadPaused) {
-          notificationBox.removeNotification(notification);
-        }
-
-      }.bind(this);
-      this.target.on("thread-paused", this.updateDebuggerPausedWarning);
-      this.target.on("thread-resumed", this.updateDebuggerPausedWarning);
-      this._toolbox.on("select", this.updateDebuggerPausedWarning);
-      this.updateDebuggerPausedWarning();
     }
 
     this._initMarkup();
@@ -123,10 +99,11 @@ InspectorPanel.prototype = {
       this.isReady = true;
 
       // All the components are initialized. Let's select a node.
-      if (this.target.isLocalTab) {
+      if (this.tabTarget) {
         let root = this.browser.contentDocument.documentElement;
         this._selection.setNode(root);
-      } else if (this.target.window) {
+      }
+      if (this.winTarget) {
         let root = this.target.window.document.documentElement;
         this._selection.setNode(root);
       }
@@ -339,6 +316,8 @@ InspectorPanel.prototype = {
 
     this.cancelLayoutChange();
 
+    this._toolbox = null;
+
     if (this.browser) {
       this.browser.removeEventListener("resize", this.scheduleLayoutChange, true);
       this.browser = null;
@@ -352,12 +331,6 @@ InspectorPanel.prototype = {
       this.highlighter.off("unlocked", this.updateInspectorButton);
       this.highlighter.destroy();
     }
-
-    this.target.off("thread-paused", this.updateDebuggerPausedWarning);
-    this.target.off("thread-resumed", this.updateDebuggerPausedWarning);
-    this._toolbox.off("select", this.updateDebuggerPausedWarning);
-
-    this._toolbox = null;
 
     this.sidebar.off("select", this._setDefaultSidebar);
     this.sidebar.destroy();
@@ -456,7 +429,12 @@ InspectorPanel.prototype = {
 
     this._markupBox.removeAttribute("hidden");
 
-    let controllerWindow = this._toolbox.doc.defaultView;
+    let controllerWindow;
+    if (this.tabTarget) {
+      controllerWindow = this.target.tab.ownerDocument.defaultView;
+    } else if (this.winTarget) {
+      controllerWindow = this.target.window;
+    }
     this.markup = new MarkupView(this, this._markupFrame, controllerWindow);
 
     this.emit("markuploaded");
