@@ -39,18 +39,10 @@ public:
   }
 
 private:
-  class ScopeChecker : public MatchFinder::MatchCallback {
+  class StackClassChecker : public MatchFinder::MatchCallback {
   public:
-    enum Scope {
-      eLocal,
-      eGlobal
-    };
-    ScopeChecker(Scope scope_) :
-      scope(scope_) {}
     virtual void run(const MatchFinder::MatchResult &Result);
     void noteInferred(QualType T, DiagnosticsEngine &Diag);
-  private:
-    Scope scope;
   };
 
   class NonHeapClassChecker : public MatchFinder::MatchCallback {
@@ -64,16 +56,9 @@ private:
     virtual void run(const MatchFinder::MatchResult &Result);
   };
 
-  class TrivialCtorDtorChecker : public MatchFinder::MatchCallback {
-  public:
-    virtual void run(const MatchFinder::MatchResult &Result);
-  };
-
-  ScopeChecker stackClassChecker;
-  ScopeChecker globalClassChecker;
+  StackClassChecker stackClassChecker;
   NonHeapClassChecker nonheapClassChecker;
   ArithmeticArgChecker arithmeticArgChecker;
-  TrivialCtorDtorChecker trivialCtorDtorChecker;
   MatchFinder astMatcher;
 };
 
@@ -251,8 +236,7 @@ public:
 enum ClassAllocationNature {
   RegularClass = 0,
   NonHeapClass = 1,
-  StackClass = 2,
-  GlobalClass = 3
+  StackClass = 2
 };
 
 /// A cached data of whether classes are stack classes, non-heap classes, or
@@ -271,9 +255,6 @@ ClassAllocationNature getClassAttrs(CXXRecordDecl *D) {
   // Base class: anyone with this annotation is obviously a stack class
   if (MozChecker::hasCustomAnnotation(D, "moz_stack_class"))
     return StackClass;
-  // Base class: anyone with this annotation is obviously a global class
-  if (MozChecker::hasCustomAnnotation(D, "moz_global_class"))
-    return GlobalClass;
 
   // See if we cached the result.
   DenseMap<const CXXRecordDecl *,
@@ -302,10 +283,6 @@ ClassAllocationNature getClassAttrs(CXXRecordDecl *D) {
       inferredAllocCauses[D] = std::make_pair(
         base->getType()->getAsCXXRecordDecl(), StackClass);
       return StackClass;
-    } else if (super == GlobalClass) {
-      inferredAllocCauses[D] = std::make_pair(
-        base->getType()->getAsCXXRecordDecl(), GlobalClass);
-      return GlobalClass;
     } else if (super == NonHeapClass) {
       inferredAllocCauses[D] = std::make_pair(
         base->getType()->getAsCXXRecordDecl(), NonHeapClass);
@@ -320,9 +297,6 @@ ClassAllocationNature getClassAttrs(CXXRecordDecl *D) {
     if (fieldType == StackClass) {
       inferredAllocCauses[D] = std::make_pair(*field, StackClass);
       return StackClass;
-    } else if (fieldType == GlobalClass) {
-      inferredAllocCauses[D] = std::make_pair(*field, GlobalClass);
-      return GlobalClass;
     } else if (fieldType == NonHeapClass) {
       inferredAllocCauses[D] = std::make_pair(*field, NonHeapClass);
       type = NonHeapClass;
@@ -350,12 +324,6 @@ AST_MATCHER(QualType, stackClassAggregate) {
   return getClassAttrs(Node) == StackClass;
 }
 
-/// This matcher will match any class with the global class assertion or an
-/// array of such classes.
-AST_MATCHER(QualType, globalClassAggregate) {
-  return getClassAttrs(Node) == GlobalClass;
-}
-
 /// This matcher will match any class with the stack class assertion or an
 /// array of such classes.
 AST_MATCHER(QualType, nonheapClassAggregate) {
@@ -372,12 +340,6 @@ AST_MATCHER(FunctionDecl, heapAllocator) {
 /// arithmetic expressions in its arguments.
 AST_MATCHER(Decl, noArithmeticExprInArgs) {
   return MozChecker::hasCustomAnnotation(&Node, "moz_no_arith_expr_in_arg");
-}
-
-/// This matcher will match any C++ class that is marked as having a trivial
-/// constructor and destructor.
-AST_MATCHER(CXXRecordDecl, hasTrivialCtorDtor) {
-  return MozChecker::hasCustomAnnotation(&Node, "moz_trivial_ctor_dtor");
 }
 
 /// This matcher will match all arithmetic binary operators.
@@ -431,10 +393,7 @@ bool isPlacementNew(const CXXNewExpr *expr) {
   return true;
 }
 
-DiagnosticsMatcher::DiagnosticsMatcher()
-  : stackClassChecker(ScopeChecker::eLocal),
-    globalClassChecker(ScopeChecker::eGlobal)
-{
+DiagnosticsMatcher::DiagnosticsMatcher() {
   // Stack class assertion: non-local variables of a stack class are forbidden
   // (non-localness checked in the callback)
   astMatcher.addMatcher(varDecl(hasType(stackClassAggregate())).bind("node"),
@@ -443,32 +402,20 @@ DiagnosticsMatcher::DiagnosticsMatcher()
   astMatcher.addMatcher(newExpr(hasType(pointerType(
       pointee(stackClassAggregate())
     ))).bind("node"), &stackClassChecker);
-  // Global class assertion: non-global variables of a global class are forbidden
-  // (globalness checked in the callback)
-  astMatcher.addMatcher(varDecl(hasType(globalClassAggregate())).bind("node"),
-    &globalClassChecker);
-  // Global class assertion: new global class is forbidden
-  astMatcher.addMatcher(newExpr(hasType(pointerType(
-      pointee(globalClassAggregate())
-    ))).bind("node"), &globalClassChecker);
   // Non-heap class assertion: new non-heap class is forbidden (unless placement
   // new)
   astMatcher.addMatcher(newExpr(hasType(pointerType(
       pointee(nonheapClassAggregate())
     ))).bind("node"), &nonheapClassChecker);
 
-  // Any heap allocation function that returns a non-heap or a stack class or
-  // a global class is definitely doing something wrong
+  // Any heap allocation function that returns a non-heap or a stack class is
+  // definitely doing something wrong
   astMatcher.addMatcher(callExpr(callee(functionDecl(allOf(heapAllocator(),
       returns(pointerType(pointee(nonheapClassAggregate()))))))).bind("node"),
     &nonheapClassChecker);
   astMatcher.addMatcher(callExpr(callee(functionDecl(allOf(heapAllocator(),
       returns(pointerType(pointee(stackClassAggregate()))))))).bind("node"),
     &stackClassChecker);
-
-  astMatcher.addMatcher(callExpr(callee(functionDecl(allOf(heapAllocator(),
-      returns(pointerType(pointee(globalClassAggregate()))))))).bind("node"),
-    &globalClassChecker);
 
   astMatcher.addMatcher(callExpr(allOf(hasDeclaration(noArithmeticExprInArgs()),
           anyOf(
@@ -496,81 +443,60 @@ DiagnosticsMatcher::DiagnosticsMatcher()
           )
       )).bind("call"),
     &arithmeticArgChecker);
-
-  astMatcher.addMatcher(recordDecl(hasTrivialCtorDtor()).bind("node"),
-    &trivialCtorDtorChecker);
 }
 
-void DiagnosticsMatcher::ScopeChecker::run(
+void DiagnosticsMatcher::StackClassChecker::run(
     const MatchFinder::MatchResult &Result) {
   DiagnosticsEngine &Diag = Result.Context->getDiagnostics();
   unsigned stackID = Diag.getDiagnosticIDs()->getCustomDiagID(
     DiagnosticIDs::Error, "variable of type %0 only valid on the stack");
-  unsigned globalID = Diag.getDiagnosticIDs()->getCustomDiagID(
-    DiagnosticIDs::Error, "variable of type %0 only valid as global");
-  unsigned errorID = (scope == eGlobal) ? globalID : stackID;
   if (const VarDecl *d = Result.Nodes.getNodeAs<VarDecl>("node")) {
-    if (scope == eLocal) {
-      // Ignore the match if it's a local variable.
-      if (d->hasLocalStorage())
-        return;
-    } else if (scope == eGlobal) {
-      // Ignore the match if it's a global variable or a static member of a
-      // class.  The latter is technically not in the global scope, but for the
-      // use case of classes that intend to avoid introducing static
-      // initializers that is fine.
-      if (d->hasGlobalStorage() && !d->isStaticLocal())
-        return;
-    }
+    // Ignore the match if it's a local variable.
+    if (d->hasLocalStorage())
+      return;
 
-    Diag.Report(d->getLocation(), errorID) << d->getType();
+    Diag.Report(d->getLocation(), stackID) << d->getType();
     noteInferred(d->getType(), Diag);
   } else if (const CXXNewExpr *expr =
       Result.Nodes.getNodeAs<CXXNewExpr>("node")) {
     // If it's placement new, then this match doesn't count.
-    if (scope == eLocal && isPlacementNew(expr))
+    if (isPlacementNew(expr))
       return;
-    Diag.Report(expr->getStartLoc(), errorID) << expr->getAllocatedType();
+    Diag.Report(expr->getStartLoc(), stackID) << expr->getAllocatedType();
     noteInferred(expr->getAllocatedType(), Diag);
   } else if (const CallExpr *expr =
       Result.Nodes.getNodeAs<CallExpr>("node")) {
     QualType badType = expr->getCallReturnType()->getPointeeType();
-    Diag.Report(expr->getLocStart(), errorID) << badType;
+    Diag.Report(expr->getLocStart(), stackID) << badType;
     noteInferred(badType, Diag);
   }
 }
 
-void DiagnosticsMatcher::ScopeChecker::noteInferred(QualType T,
+void DiagnosticsMatcher::StackClassChecker::noteInferred(QualType T,
     DiagnosticsEngine &Diag) {
   unsigned inheritsID = Diag.getDiagnosticIDs()->getCustomDiagID(
     DiagnosticIDs::Note,
-    "%0 is a %2 class because it inherits from a %2 class %1");
+    "%0 is a stack class because it inherits from a stack class %1");
   unsigned memberID = Diag.getDiagnosticIDs()->getCustomDiagID(
     DiagnosticIDs::Note,
-    "%0 is a %3 class because member %1 is a %3 class %2");
-  const char* attribute = (scope == eGlobal) ?
-    "moz_global_class" : "moz_stack_class";
-  const char* type = (scope == eGlobal) ?
-    "global" : "stack";
+    "%0 is a stack class because member %1 is a stack class %2");
 
-  // Find the CXXRecordDecl that is the local/global class of interest
+  // Find the CXXRecordDecl that is the stack class of interest
   while (const ArrayType *arrTy = T->getAsArrayTypeUnsafe())
     T = arrTy->getElementType();
   CXXRecordDecl *clazz = T->getAsCXXRecordDecl();
 
   // Direct result, we're done.
-  if (MozChecker::hasCustomAnnotation(clazz, attribute))
+  if (MozChecker::hasCustomAnnotation(clazz, "moz_stack_class"))
     return;
 
   const Decl *cause = inferredAllocCauses[clazz].first;
   if (const CXXRecordDecl *CRD = dyn_cast<CXXRecordDecl>(cause)) {
-    Diag.Report(clazz->getLocation(), inheritsID) <<
-      T << CRD->getDeclName() << type;
+    Diag.Report(clazz->getLocation(), inheritsID) << T << CRD->getDeclName();
   } else if (const FieldDecl *FD = dyn_cast<FieldDecl>(cause)) {
-    Diag.Report(FD->getLocation(), memberID) <<
-      T << FD << FD->getType() << type;
+    Diag.Report(FD->getLocation(), memberID) << T << FD << FD->getType();
   }
-
+  
   // Recursively follow this back.
   noteInferred(cast<ValueDecl>(cause)->getType(), Diag);
 }
@@ -633,19 +559,6 @@ void DiagnosticsMatcher::ArithmeticArgChecker::run(
   } else if (const CXXConstructExpr *ctr = Result.Nodes.getNodeAs<CXXConstructExpr>("call")) {
     Diag.Report(expr->getLocStart(), errorID) << ctr->getConstructor();
   }
-}
-
-void DiagnosticsMatcher::TrivialCtorDtorChecker::run(
-    const MatchFinder::MatchResult &Result) {
-  DiagnosticsEngine &Diag = Result.Context->getDiagnostics();
-  unsigned errorID = Diag.getDiagnosticIDs()->getCustomDiagID(
-      DiagnosticIDs::Error, "class %0 must have trivial constructors and destructors");
-  const CXXRecordDecl *node = Result.Nodes.getNodeAs<CXXRecordDecl>("node");
-
-  bool badCtor = !node->hasTrivialDefaultConstructor();
-  bool badDtor = !node->hasTrivialDestructor();
-  if (badCtor || badDtor)
-    Diag.Report(node->getLocStart(), errorID) << node;
 }
 
 class MozCheckAction : public PluginASTAction {

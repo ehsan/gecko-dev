@@ -152,7 +152,7 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "URLSearchParams",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-   { name: "WebSocket", pref: "dom.workers.websocket.enabled" },
+    "WebSocket",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Worker",
 // IMPORTANT: Do not change this list without review from a DOM peer!

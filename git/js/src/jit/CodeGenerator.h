@@ -312,6 +312,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitOutOfLineIsCallable(OutOfLineIsCallable *ool);
     void visitIsObject(LIsObject *lir);
     void visitIsObjectAndBranch(LIsObjectAndBranch *lir);
+    void visitHaveSameClass(LHaveSameClass *lir);
     void visitHasClass(LHasClass *lir);
     void visitAsmJSParameter(LAsmJSParameter *lir);
     void visitAsmJSReturn(LAsmJSReturn *ret);

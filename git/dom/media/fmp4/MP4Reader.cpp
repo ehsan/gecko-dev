@@ -672,15 +672,9 @@ MP4Reader::ResetDecode()
 {
   MOZ_ASSERT(GetTaskQueue()->IsCurrentThreadIn());
   Flush(kVideo);
-  {
-    MonitorAutoLock mon(mIndexMonitor);
-    mDemuxer->SeekVideo(0);
-  }
+  mDemuxer->SeekVideo(0);
   Flush(kAudio);
-  {
-    MonitorAutoLock mon(mIndexMonitor);
-    mDemuxer->SeekAudio(0);
-  }
+  mDemuxer->SeekAudio(0);
   return MediaDecoderReader::ResetDecode();
 }
 

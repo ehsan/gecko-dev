@@ -8,7 +8,6 @@
 #define mozilla_StaticPtr_h
 
 #include "mozilla/Assertions.h"
-#include "mozilla/Attributes.h"
 #include "mozilla/NullPtr.h"
 
 namespace mozilla {
@@ -26,16 +25,17 @@ namespace mozilla {
  * upon destruction.
  *
  * Since the compiler guarantees that all global variables are initialized to
- * 0, these trivial constructors are safe.  Since we rely on this, the clang
- * plugin, run as part of our "static analysis" builds, makes it a compile-time
- * error to use Static{Auto,Ref}Ptr as anything except a global variable.
+ * 0, these trivial constructors are safe, so long as you use
+ * Static{Auto,Ref}Ptr as a global variable.  If you use Static{Auto,Ref}Ptr as
+ * a stack variable or as a class instance variable, you will get what you
+ * deserve.
  *
  * Static{Auto,Ref}Ptr have a limited interface as compared to ns{Auto,Ref}Ptr;
  * this is intentional, since their range of acceptable uses is smaller.
  */
 
 template<class T>
-class MOZ_ONLY_USED_TO_AVOID_STATIC_CONSTRUCTORS StaticAutoPtr
+class StaticAutoPtr
 {
 public:
   // In debug builds, check that mRawPtr is initialized for us as we expect
@@ -87,7 +87,7 @@ private:
 };
 
 template<class T>
-class MOZ_ONLY_USED_TO_AVOID_STATIC_CONSTRUCTORS StaticRefPtr
+class StaticRefPtr
 {
 public:
   // In debug builds, check that mRawPtr is initialized for us as we expect

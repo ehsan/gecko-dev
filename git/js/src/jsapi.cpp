@@ -729,6 +729,13 @@ JS_EndRequest(JSContext *cx)
     StopRequest(cx);
 }
 
+JS_PUBLIC_API(bool)
+JS_IsInRequest(JSRuntime *rt)
+{
+    MOZ_ASSERT(CurrentThreadCanAccessRuntime(rt));
+    return rt->requestDepth != 0;
+}
+
 JS_PUBLIC_API(void)
 JS_SetContextCallback(JSRuntime *rt, JSContextCallback cxCallback, void *data)
 {

@@ -17,7 +17,7 @@ public:
   virtual ~WMFDecoderModule();
 
   // Initializes the module, loads required dynamic libraries, etc.
-  virtual nsresult Startup() MOZ_OVERRIDE;
+  nsresult Startup();
 
   // Called when the decoders have shutdown.
   virtual nsresult Shutdown() MOZ_OVERRIDE;
