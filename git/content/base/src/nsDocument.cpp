@@ -5670,13 +5670,6 @@ nsDocument::GetParentNode(nsIDOMNode** aParentNode)
 }
 
 NS_IMETHODIMP
-nsDocument::GetParentElement(nsIDOMElement** aParentElement)
-{
-  *aParentElement = nsnull;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDocument::GetChildNodes(nsIDOMNodeList** aChildNodes)
 {
   return nsINode::GetChildNodes(aChildNodes);
