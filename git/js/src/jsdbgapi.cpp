@@ -497,14 +497,7 @@ JS_GetFrameScript(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(jsbytecode *)
 JS_GetFramePC(JSContext *cx, JSStackFrame *fp)
 {
-    /*
-     * This API is used to compute the line number for jsd and XPConnect
-     * exception handling backtraces. Once the stack gets really deep, the
-     * overall cost can become quadratic. This can hang the browser (eventually
-     * terminated by a slow-script dialog) when content causes infinite
-     * recursion and a backtrace.
-     */
-    return Valueify(fp)->pcQuadratic(cx->stack, 100);
+    return Valueify(fp)->pcQuadratic(cx->stack);
 }
 
 JS_PUBLIC_API(void *)

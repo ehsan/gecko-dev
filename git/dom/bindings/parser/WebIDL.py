@@ -155,9 +155,6 @@ class IDLObject(object):
     def isDictionary(self):
         return False;
 
-    def isUnion(self):
-        return False
-
     def getUserData(self, key, default):
         return self.userData.get(key, default)
 
@@ -802,8 +799,7 @@ class IDLType(IDLObject):
         'interface',
         'dictionary',
         'enum',
-        'callback',
-        'union'
+        'callback'
         )
 
     def __init__(self, location, name):
@@ -812,7 +808,7 @@ class IDLType(IDLObject):
         self.builtin = False
 
     def __eq__(self, other):
-        return other and self.builtin == other.builtin and self.name == other.name
+        return other and self.name == other.name and self.builtin == other.builtin
 
     def __ne__(self, other):
         return not self == other
@@ -1012,9 +1008,6 @@ class IDLNullableType(IDLType):
     def isEnum(self):
         return self.inner.isEnum()
 
-    def isUnion(self):
-        return self.inner.isUnion()
-
     def tag(self):
         return self.inner.tag()
 
@@ -1027,10 +1020,6 @@ class IDLNullableType(IDLType):
 
     def complete(self, scope):
         self.inner = self.inner.complete(scope)
-        if self.inner.isUnion() and self.inner.hasNullableType:
-            raise WebIDLError("The inner type of a nullable type must not be a "
-                              "union type that itself has a nullable type as a "
-                              "member type", self.location)
         self.name = self.inner.name
         return self
 
@@ -1038,7 +1027,7 @@ class IDLNullableType(IDLType):
         return self.inner.unroll()
 
     def isDistinguishableFrom(self, other):
-        if other.nullable() or (other.isUnion() and other.hasNullableType):
+        if other.nullable():
             # Can't tell which type null should become
             return False
         return self.inner.isDistinguishableFrom(other)
@@ -1107,93 +1096,6 @@ class IDLSequenceType(IDLType):
         return (other.isPrimitive() or other.isString() or other.isEnum() or
                 other.isDictionary() or other.isDate() or
                 other.isNonCallbackInterface())
-
-class IDLUnionType(IDLType):
-    def __init__(self, location, memberTypes):
-        IDLType.__init__(self, location, "")
-        self.memberTypes = memberTypes
-        self.hasNullableType = False
-        self.flatMemberTypes = None
-        self.builtin = False
-
-    def __eq__(self, other):
-        return isinstance(other, IDLUnionType) and self.memberTypes == other.memberTypes
-
-    def isVoid(self):
-        return False
-
-    def isUnion(self):
-        return True
-
-    def tag(self):
-        return IDLType.Tags.union
-
-    def resolveType(self, parentScope):
-        assert isinstance(parentScope, IDLScope)
-        for t in self.memberTypes:
-            t.resolveType(parentScope)
-
-    def isComplete(self):
-        return self.flatMemberTypes is not None
-
-    def complete(self, scope):
-        def typeName(type):
-            if isinstance(type, IDLNullableType):
-                return typeName(type.inner) + "OrNull"
-            if isinstance(type, IDLWrapperType):
-                return typeName(type._identifier.object())
-            if isinstance(type, IDLObjectWithIdentifier):
-                return typeName(type.identifier)
-            if isinstance(type, IDLType) and (type.isArray() or type.isSequence()):
-                return str(type)
-            return type.name
-
-        for (i, type) in enumerate(self.memberTypes):
-            if not type.isComplete():
-                self.memberTypes[i] = type.complete(scope)
-
-        self.name = "Or".join(typeName(type) for type in self.memberTypes)
-        self.flatMemberTypes = list(self.memberTypes)
-        i = 0
-        while i < len(self.flatMemberTypes):
-            if self.flatMemberTypes[i].nullable():
-                if self.hasNullableType:
-                    raise WebIDLError("Can't have more than one nullable types in a union",
-                                      nullableType.location,
-                                      extraLocation=self.flatMemberTypes[i].location)
-                self.hasNullableType = True
-                nullableType = self.flatMemberTypes[i]
-                self.flatMemberTypes[i] = self.flatMemberTypes[i].inner
-                continue
-            if self.flatMemberTypes[i].isUnion():
-                self.flatMemberTypes[i:i + 1] = self.flatMemberTypes[i].memberTypes
-                continue
-            i += 1
-
-        for (i, t) in enumerate(self.flatMemberTypes[:-1]):
-            for u in self.flatMemberTypes[i + 1:]:
-                if not t.isDistinguishableFrom(u):
-                    raise WebIDLError("Flat member types of a union should be "
-                                      "distinguishable, " + str(t) + " is not "
-                                      "distinguishable from " + str(u),
-                                      t.location, extraLocation=u.location)
-
-        return self
-
-    def isDistinguishableFrom(self, other):
-        if self.hasNullableType and other.nullable():
-            # Can't tell which type null should become
-            return False
-        if other.isUnion():
-            otherTypes = other.unroll().memberTypes
-        else:
-            otherTypes = [other]
-        # For every type in otherTypes, check that it's distinguishable from
-        # every type in our types
-        for u in otherTypes:
-            if any(not t.isDistinguishableFrom(u) for t in self.memberTypes):
-                return False
-        return True
 
 class IDLArrayType(IDLType):
     def __init__(self, location, parameterType):
@@ -1738,7 +1640,7 @@ class IDLNullValue(IDLObject):
         self.value = None
 
     def coerceToType(self, type, location):
-        if not isinstance(type, IDLNullableType) and not (type.isUnion() and type.hasNullableType):
+        if not isinstance(type, IDLNullableType):
             raise WebIDLError("Cannot coerce null value to type %s." % type,
                               location)
 
@@ -1831,28 +1733,10 @@ class IDLAttribute(IDLInterfaceMember):
 
             assert not isinstance(t, IDLUnresolvedType)
             assert not isinstance(t.name, IDLUnresolvedIdentifier)
+            if t.isDictionary():
+                raise WebIDLError("An attribute cannot be of a dictionary type",
+                                  self.location)
             self.type = t
-
-        if self.type.isDictionary():
-            raise WebIDLError("An attribute cannot be of a dictionary type",
-                              self.location)
-        if self.type.isSequence():
-            raise WebIDLError("An attribute cannot be of a sequence type",
-                              self.location)
-        if self.type.isUnion():
-            for f in self.type.flatMemberTypes:
-                if f.isDictionary():
-                    raise WebIDLError("An attribute cannot be of a union "
-                                      "type if one of its member types (or "
-                                      "one of its member types's member "
-                                      "types, and so on) is a dictionary "
-                                      "type", self.location)
-                if f.isSequence():
-                    raise WebIDLError("An attribute cannot be of a union "
-                                      "type if one of its member types (or "
-                                      "one of its member types's member "
-                                      "types, and so on) is a sequence "
-                                      "type", self.location)
 
     def validate(self):
         pass
@@ -2008,7 +1892,7 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
             assert self._arguments[0][0].type == BuiltinTypes[IDLBuiltinType.Types.domstring] or \
                    self._arguments[0][0].type == BuiltinTypes[IDLBuiltinType.Types.unsigned_long]
             assert not self._arguments[0][0].optional and not self._arguments[0][0].variadic
-            assert not self._getter or not self._returnType[0].isVoid()
+            assert not self._returnType[0].isVoid()
 
         if self._setter or self._creator:
             assert len(self._arguments[0]) == 2
@@ -2016,6 +1900,7 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
                    self._arguments[0][0].type == BuiltinTypes[IDLBuiltinType.Types.unsigned_long]
             assert not self._arguments[0][0].optional and not self._arguments[0][0].variadic
             assert not self._arguments[0][1].optional and not self._arguments[0][1].variadic
+            assert self._arguments[0][1].type == self._returnType[0]
 
         if self._stringifier:
             assert len(self._arguments[0]) == 0
@@ -2357,8 +2242,7 @@ class Tokenizer(object):
         "=": "EQUALS",
         "<": "LT",
         ">": "GT",
-        "ArrayBuffer": "ARRAYBUFFER",
-        "or": "OR"
+        "ArrayBuffer": "ARRAYBUFFER"
         }
 
     tokens.extend(keywords.values())
@@ -2689,6 +2573,13 @@ class Parser(Tokenizer):
         """
         p[0] = False
 
+    def p_AttributeOrOperationStringifier(self, p):
+        """
+            AttributeOrOperation : STRINGIFIER StringifierAttributeOrOperation
+        """
+        assert False # Not implemented
+        pass
+
     def p_AttributeOrOperation(self, p):
         """
             AttributeOrOperation : Attribute
@@ -2696,9 +2587,17 @@ class Parser(Tokenizer):
         """
         p[0] = p[1]
 
+    def p_StringifierAttributeOrOperation(self, p):
+        """
+            StringifierAttributeOrOperation : Attribute
+                                            | OperationRest
+                                            | SEMICOLON
+        """
+        pass
+
     def p_Attribute(self, p):
         """
-            Attribute : Inherit ReadOnly ATTRIBUTE Type IDENTIFIER SEMICOLON
+            Attribute : Inherit ReadOnly ATTRIBUTE AttributeType IDENTIFIER SEMICOLON
         """
         location = self.getLocation(p, 3)
         inherit = p[1]
@@ -2752,7 +2651,6 @@ class Parser(Tokenizer):
         creator = True if IDLMethod.Special.Creator in p[1] else False
         deleter = True if IDLMethod.Special.Deleter in p[1] else False
         legacycaller = True if IDLMethod.Special.LegacyCaller in p[1] else False
-        stringifier = True if IDLMethod.Special.Stringifier in p[1] else False
 
         if getter or deleter:
             if setter or creator:
@@ -2784,9 +2682,9 @@ class Parser(Tokenizer):
                                   ("getter" if getter else "deleter",
                                    "optional" if arguments[0].optional else "variadic"),
                                    arguments[0].location)
-        if getter:
             if returnType.isVoid():
-                raise WebIDLError("getter cannot have void return type",
+                raise WebIDLError("%s cannot have void return type" %
+                                  ("getter" if getter else "deleter"),
                                   self.getLocation(p, 2))
         if setter or creator:
             if len(arguments) != 2:
@@ -2812,13 +2710,13 @@ class Parser(Tokenizer):
                                   ("setter" if setter else "creator",
                                    "optional" if arguments[1].optional else "variadic"),
                                    arguments[1].location)
-
-        if stringifier:
-            if len(arguments) != 0:
-                raise WebIDLError("stringifier has wrong number of arguments",
+            if returnType.isVoid():
+                raise WebIDLError("%s cannot have void return type" %
+                                  ("setter" if setter else "creator"),
                                   self.getLocation(p, 2))
-            if not returnType.isString():
-                raise WebIDLError("stringifier must have string return type",
+            if not arguments[1].type == returnType:
+                raise WebIDLError("%s return type and second argument type must match" %
+                                  ("setter" if setter else "creator"),
                                   self.getLocation(p, 2))
 
         inOptionalArguments = False
@@ -2837,27 +2735,27 @@ class Parser(Tokenizer):
             variadicArgument = argument if argument.variadic else None
 
         # identifier might be None.  This is only permitted for special methods.
+        # NB: Stringifiers are handled elsewhere.
         if not identifier:
             if not getter and not setter and not creator and \
-               not deleter and not legacycaller and not stringifier:
+               not deleter and not legacycaller:
                 raise WebIDLError("Identifier required for non-special methods",
                                   self.getLocation(p, 2))
 
             location = BuiltinLocation("<auto-generated-identifier>")
-            identifier = IDLUnresolvedIdentifier(location, "__%s%s%s%s%s%s%s" %
+            identifier = IDLUnresolvedIdentifier(location, "__%s%s%s%s%s%s" %
                 ("named" if specialType == IDLMethod.NamedOrIndexed.Named else \
                  "indexed" if specialType == IDLMethod.NamedOrIndexed.Indexed else "",
                  "getter" if getter else "",
                  "setter" if setter else "",
                  "deleter" if deleter else "",
                  "creator" if creator else "",
-                 "legacycaller" if legacycaller else "",
-                 "stringifier" if stringifier else ""), allowDoubleUnderscore=True)
+                 "legacycaller" if legacycaller else ""), allowDoubleUnderscore=True)
 
         method = IDLMethod(self.getLocation(p, 2), identifier, returnType, arguments,
                            static=static, getter=getter, setter=setter, creator=creator,
                            deleter=deleter, specialType=specialType,
-                           legacycaller=legacycaller, stringifier=stringifier)
+                           legacycaller=legacycaller, stringifier=False)
         p[0] = method
 
     def p_QualifiersStatic(self, p):
@@ -2914,12 +2812,6 @@ class Parser(Tokenizer):
             Special : LEGACYCALLER
         """
         p[0] = IDLMethod.Special.LegacyCaller
-
-    def p_SpecialStringifier(self, p):
-        """
-            Special : STRINGIFIER
-        """
-        p[0] = IDLMethod.Special.Stringifier
 
     def p_OperationRest(self, p):
         """
@@ -3023,7 +2915,7 @@ class Parser(Tokenizer):
 
     def p_ExceptionField(self, p):
         """
-            ExceptionField : Type IDENTIFIER SEMICOLON
+            ExceptionField : AttributeType IDENTIFIER SEMICOLON
         """
         pass
 
@@ -3127,89 +3019,21 @@ class Parser(Tokenizer):
         """
         pass
 
-    def p_TypeSingleType(self, p):
+    def p_TypeAttributeType(self, p):
         """
-            Type : SingleType
-        """
-        p[0] = p[1]
-
-    def p_TypeUnionType(self, p):
-        """
-            Type : UnionType TypeSuffix
-        """
-        p[0] = self.handleModifiers(p[1], p[2])
-
-    def p_SingleTypeNonAnyType(self, p):
-        """
-            SingleType : NonAnyType
+            Type : AttributeType
         """
         p[0] = p[1]
 
-    def p_SingleTypeAnyType(self, p):
+    def p_TypeSequenceType(self, p):
         """
-            SingleType : ANY TypeSuffixStartingWithArray
-        """
-        p[0] = self.handleModifiers(BuiltinTypes[IDLBuiltinType.Types.any], p[2])
-
-    def p_UnionType(self, p):
-        """
-            UnionType : LPAREN UnionMemberType OR UnionMemberType UnionMemberTypes RPAREN
-        """
-        types = [p[2], p[4]]
-        types.extend(p[5])
-        p[0] = IDLUnionType(self.getLocation(p, 1), types)
-
-    def p_UnionMemberTypeNonAnyType(self, p):
-        """
-            UnionMemberType : NonAnyType
+            Type : SequenceType
         """
         p[0] = p[1]
 
-    def p_UnionMemberTypeArrayOfAny(self, p):
+    def p_SequenceType(self, p):
         """
-            UnionMemberTypeArrayOfAny : ANY LBRACKET RBRACKET
-        """
-        p[0] = IDLArrayType(self.getLocation(p, 2),
-                            BuiltinTypes[IDLBuiltinType.Types.any])
-
-    def p_UnionMemberType(self, p):
-        """
-            UnionMemberType : UnionType TypeSuffix
-                            | UnionMemberTypeArrayOfAny TypeSuffix
-        """
-        p[0] = self.handleModifiers(p[1], p[2])
-
-    def p_UnionMemberTypes(self, p):
-        """
-            UnionMemberTypes : OR UnionMemberType UnionMemberTypes
-        """
-        p[0] = [p[2]]
-        p[0].extend(p[3])
-
-    def p_UnionMemberTypesEmpty(self, p):
-        """
-            UnionMemberTypes : 
-        """
-        p[0] = []
-
-    def p_NonAnyType(self, p):
-        """
-            NonAnyType : PrimitiveOrStringType TypeSuffix
-                       | ARRAYBUFFER TypeSuffix
-                       | OBJECT TypeSuffix
-        """
-        if p[1] == "object":
-            type = BuiltinTypes[IDLBuiltinType.Types.object]
-        elif p[1] == "ArrayBuffer":
-            type = BuiltinTypes[IDLBuiltinType.Types.ArrayBuffer]
-        else:
-            type = BuiltinTypes[p[1]]
-
-        p[0] = self.handleModifiers(type, p[2])
-
-    def p_NonAnyTypeSequenceType(self, p):
-        """
-            NonAnyType : SEQUENCE LT Type GT Null
+            SequenceType : SEQUENCE LT Type GT Null
         """
         innerType = p[3]
         type = IDLSequenceType(self.getLocation(p, 1), innerType)
@@ -3217,9 +3041,36 @@ class Parser(Tokenizer):
             type = IDLNullableType(self.getLocation(p, 5), type)
         p[0] = type
 
-    def p_NonAnyTypeScopedName(self, p):
+    def p_AttributeTypePrimitive(self, p):
         """
-            NonAnyType : ScopedName TypeSuffix
+            AttributeType : PrimitiveOrStringType TypeSuffix
+                          | ARRAYBUFFER TypeSuffix
+                          | OBJECT TypeSuffix
+                          | ANY TypeSuffixStartingWithArray
+        """
+        if p[1] == "object":
+            type = BuiltinTypes[IDLBuiltinType.Types.object]
+        elif p[1] == "any":
+            type = BuiltinTypes[IDLBuiltinType.Types.any]
+        elif p[1] == "ArrayBuffer":
+            type = BuiltinTypes[IDLBuiltinType.Types.ArrayBuffer]
+        else:
+            type = BuiltinTypes[p[1]]
+
+        for (modifier, modifierLocation) in p[2]:
+            assert modifier == IDLMethod.TypeSuffixModifier.QMark or \
+                   modifier == IDLMethod.TypeSuffixModifier.Brackets
+
+            if modifier == IDLMethod.TypeSuffixModifier.QMark:
+                type = IDLNullableType(modifierLocation, type)
+            elif modifier == IDLMethod.TypeSuffixModifier.Brackets:
+                type = IDLArrayType(modifierLocation, type)
+
+        p[0] = type
+
+    def p_AttributeTypeScopedName(self, p):
+        """
+            AttributeType : ScopedName TypeSuffix
         """
         assert isinstance(p[1], IDLUnresolvedIdentifier)
 
@@ -3232,17 +3083,34 @@ class Parser(Tokenizer):
                     type = obj
                 else:
                     type = IDLWrapperType(self.getLocation(p, 1), p[1])
-                p[0] = self.handleModifiers(type, p[2])
+                for (modifier, modifierLocation) in p[2]:
+                    assert modifier == IDLMethod.TypeSuffixModifier.QMark or \
+                           modifier == IDLMethod.TypeSuffixModifier.Brackets
+
+                    if modifier == IDLMethod.TypeSuffixModifier.QMark:
+                        type = IDLNullableType(modifierLocation, type)
+                    elif modifier == IDLMethod.TypeSuffixModifier.Brackets:
+                        type = IDLArrayType(modifierLocation, type)
+                p[0] = type
                 return
         except:
             pass
 
         type = IDLUnresolvedType(self.getLocation(p, 1), p[1])
-        p[0] = self.handleModifiers(type, p[2])
 
-    def p_NonAnyTypeDate(self, p):
+        for (modifier, modifierLocation) in p[2]:
+            assert modifier == IDLMethod.TypeSuffixModifier.QMark or \
+                   modifier == IDLMethod.TypeSuffixModifier.Brackets
+
+            if modifier == IDLMethod.TypeSuffixModifier.QMark:
+                type = IDLNullableType(modifierLocation, type)
+            elif modifier == IDLMethod.TypeSuffixModifier.Brackets:
+                type = IDLArrayType(modifierLocation, type)
+        p[0] = type
+
+    def p_AttributeTypeDate(self, p):
         """
-            NonAnyType : DATE TypeSuffix
+            AttributeType : DATE TypeSuffix
         """
         assert False
         pass
@@ -3484,19 +3352,6 @@ class Parser(Tokenizer):
 
             typedef = IDLTypedefType(BuiltinLocation("<builtin type>"), builtin, name)
             typedef.resolve(scope)
-
-    @ staticmethod
-    def handleModifiers(type, modifiers):
-        for (modifier, modifierLocation) in modifiers:
-            assert modifier == IDLMethod.TypeSuffixModifier.QMark or \
-                   modifier == IDLMethod.TypeSuffixModifier.Brackets
-
-            if modifier == IDLMethod.TypeSuffixModifier.QMark:
-                type = IDLNullableType(modifierLocation, type)
-            elif modifier == IDLMethod.TypeSuffixModifier.Brackets:
-                type = IDLArrayType(modifierLocation, type)
-
-        return type
 
     def parse(self, t, filename=None):
         self.lexer.input(t)

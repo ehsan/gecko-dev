@@ -706,24 +706,26 @@ class StackFrame
     }
 
     /*
-     * Get the frame's current bytecode, assuming 'this' is in 'stack'. Beware,
-     * as the name implies, pcQuadratic can lead to quadratic behavior in loops
-     * such as:
+     * Get the frame's current bytecode, assuming |this| is in |cx|. next is
+     * frame whose prev == this, NULL if not known or if this == cx->fp().
+     * If the frame is inside an inline call made within the pc, the pc will
+     * be that of the outermost call and the state of any inlined frame(s) is
+     * returned through pinlined.
+     *
+     * Beware, as the name implies, pcQuadratic can lead to quadratic behavior
+     * in loops such as:
      *
      *   for ( ...; fp; fp = fp->prev())
      *     ... fp->pcQuadratic(cx->stack);
      *
-     * This can be avoided in three ways:
-     *  - use ScriptFrameIter, it has O(1) iteration
-     *  - if you know the next frame (i.e., next s.t. next->prev == fp
-     *  - pcQuadratic will only iterate maxDepth frames (before giving up and
-     *    returning fp->script->code), making it O(1), but incorrect.
+     * Using next can avoid this, but in most cases prefer ScriptFrameIter;
+     * it is amortized O(1).
      */
 
-    jsbytecode *pcQuadratic(const ContextStack &stack, size_t maxDepth = SIZE_MAX);
+    jsbytecode *pcQuadratic(const ContextStack &stack, StackFrame *next = NULL,
+                            InlinedSite **pinlined = NULL);
 
-    /* Return the previous frame's pc. Unlike pcQuadratic, this is O(1). */
-    jsbytecode *prevpc(InlinedSite **pinlined = NULL) {
+    jsbytecode *prevpc(InlinedSite **pinlined) {
         if (flags_ & HAS_PREVPC) {
             if (pinlined)
                 *pinlined = prevInline_;
@@ -1372,7 +1374,7 @@ class StackSegment
     bool contains(const FrameRegs *regs) const;
     bool contains(const CallArgsList *call) const;
 
-    StackFrame *computeNextFrame(const StackFrame *fp, size_t maxDepth) const;
+    StackFrame *computeNextFrame(const StackFrame *fp) const;
 
     Value *end() const;
 

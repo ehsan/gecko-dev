@@ -71,7 +71,7 @@ DeleteTextTxn::DoTransaction()
   // get the text that we're about to delete
   nsresult res = mCharData->SubstringData(mOffset, mNumCharsToDelete,
                                           mDeletedText);
-  MOZ_ASSERT(NS_SUCCEEDED(res));
+  NS_ASSERTION(NS_SUCCEEDED(res), "could not get text to delete.");
   res = mCharData->DeleteData(mOffset, mNumCharsToDelete);
   NS_ENSURE_SUCCESS(res, res);
 

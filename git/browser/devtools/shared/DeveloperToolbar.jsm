@@ -14,14 +14,13 @@ const WEBCONSOLE_CONTENT_SCRIPT_URL =
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "console",
-                                  "resource:///modules/devtools/Console.jsm");
+XPCOMUtils.defineLazyGetter(this, "gcli", function() {
+  let obj = {};
+  Components.utils.import("resource:///modules/devtools/gcli.jsm", obj);
+  Components.utils.import("resource:///modules/devtools/GcliCommands.jsm", {});
+  return obj.gcli;
+});
 
-XPCOMUtils.defineLazyModuleGetter(this, "gcli",
-                                  "resource:///modules/devtools/gcli.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "GcliCommands",
-                                  "resource:///modules/devtools/GcliCommands.jsm");
 
 /**
  * A component to manage the global developer toolbar, which contains a GCLI
@@ -44,13 +43,6 @@ function DeveloperToolbar(aChromeWindow, aToolbarElement)
   this._webConsoleButton = this._doc
                            .getElementById("developer-toolbar-webconsole");
   this._webConsoleButtonLabel = this._webConsoleButton.label;
-
-  try {
-    GcliCommands.refreshAutoCommands(aChromeWindow);
-  }
-  catch (ex) {
-    console.error(ex);
-  }
 }
 
 /**

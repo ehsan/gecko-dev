@@ -198,28 +198,26 @@ StackFrame::prevpcSlow(InlinedSite **pinlined)
 }
 
 jsbytecode *
-StackFrame::pcQuadratic(const ContextStack &stack, size_t maxDepth)
+StackFrame::pcQuadratic(const ContextStack &stack, StackFrame *next, InlinedSite **pinlined)
 {
+    JS_ASSERT_IF(next, next->prev() == this);
+
     StackSegment &seg = stack.space().containingSegment(this);
     FrameRegs &regs = seg.regs();
 
     /*
      * This isn't just an optimization; seg->computeNextFrame(fp) is only
-     * defined if fp != seg->regs->fp.
+     * defined if fp != seg->currentFrame.
      */
-    if (regs.fp() == this)
+    if (regs.fp() == this) {
+        if (pinlined)
+            *pinlined = regs.inlined();
         return regs.pc;
+    }
 
-    /*
-     * To compute fp's pc, we need the next frame (where next->prev == fp).
-     * This requires a linear search which we allow the caller to limit (in
-     * cases where we do not have a hard requirement to find the correct pc).
-     */
-    if (StackFrame *next = seg.computeNextFrame(this, maxDepth))
-        return next->prevpc();
-
-    /* If we hit the limit, just return the beginning of the script. */
-    return regs.fp()->script()->code;
+    if (!next)
+        next = seg.computeNextFrame(this);
+    return next->prevpc(pinlined);
 }
 
 bool
@@ -430,18 +428,15 @@ StackSegment::contains(const CallArgsList *call) const
 }
 
 StackFrame *
-StackSegment::computeNextFrame(const StackFrame *f, size_t maxDepth) const
+StackSegment::computeNextFrame(const StackFrame *f) const
 {
     JS_ASSERT(contains(f) && f != fp());
 
     StackFrame *next = fp();
-    for (size_t i = 0; i <= maxDepth; ++i) {
-        if (next->prev() == f)
-            return next;
-        next = next->prev();
-    }
-
-    return NULL;
+    StackFrame *prev;
+    while ((prev = next->prev()) != f)
+        next = prev;
+    return next;
 }
 
 Value *

@@ -278,17 +278,15 @@ nsSVGTextFrame::GetCanvasTM()
 static void
 MarkDirtyBitsOnDescendants(nsIFrame *aFrame)
 {
-  // Do not skip marking of aFrame or any of its descendants if they have
-  // the NS_FRAME_IS_DIRTY set, because some of their descendants may not
-  // have it set, and we need all descendants to be dirty.
-  if (aFrame->GetStateBits() & (NS_FRAME_FIRST_REFLOW)) {
-    // Nothing to do if our outer-<svg> hasn't yet had its initial reflow.
+  if (aFrame->GetStateBits() & (NS_FRAME_IS_DIRTY | NS_FRAME_FIRST_REFLOW)) {
+    // Nothing to do if we're already dirty, or if the outer-<svg>
+    // hasn't yet had its initial reflow.
     return;
   }
   nsIFrame* kid = aFrame->GetFirstPrincipalChild();
   while (kid) {
     nsISVGChildFrame* svgkid = do_QueryFrame(kid);
-    if (svgkid) {
+    if (svgkid && !(kid->GetStateBits() & NS_FRAME_IS_DIRTY)) {
       MarkDirtyBitsOnDescendants(kid);
       kid->AddStateBits(NS_FRAME_IS_DIRTY);
     }

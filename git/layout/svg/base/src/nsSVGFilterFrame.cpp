@@ -15,7 +15,6 @@
 #include "nsSVGFilterElement.h"
 #include "nsSVGFilterInstance.h"
 #include "nsSVGFilterPaintCallback.h"
-#include "nsSVGIntegrationUtils.h"
 #include "nsSVGUtils.h"
 
 nsIFrame*
@@ -26,10 +25,6 @@ NS_NewSVGFilterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGFilterFrame)
 
-/**
- * Returns the entire filter size if aDeviceRect is null, or if
- * the result is too large to be stored in an nsIntRect.
- */
 static nsIntRect
 MapDeviceRectToFilterSpace(const gfxMatrix& aMatrix,
                            const gfxIntSize& aFilterSize,
@@ -404,10 +399,6 @@ nsSVGFilterFrame::PaintFilteredFrame(nsRenderingContext *aContext,
   return rv;
 }
 
-/**
- * Returns NS_ERROR_FAILURE if the result is too large to be stored
- * in an nsIntRect.
- */
 static nsresult
 TransformFilterSpaceToDeviceSpace(nsSVGFilterInstance *aInstance,
                                   nsIntRect *aRect)
@@ -427,21 +418,8 @@ nsIntRect
 nsSVGFilterFrame::GetPostFilterDirtyArea(nsIFrame *aFilteredFrame,
                                          const nsIntRect& aPreFilterDirtyRect)
 {
-  bool overrideCTM = false;
-  gfxMatrix ctm;
-
-  if (aFilteredFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT) {
-    // In the case of this method we want to input a rect that is relative to
-    // aFilteredFrame and get back a rect that is relative to aFilteredFrame.
-    // To do that we need to provide an override canvanTM to prevent the filter
-    // code from calling GetCanvasTM and using that TM as normal.
-    overrideCTM = true;
-    ctm = nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(aFilteredFrame);
-  }
-
   nsAutoFilterInstance instance(aFilteredFrame, this, nsnull, nsnull,
-                                &aPreFilterDirtyRect, nsnull,
-                                overrideCTM ? &ctm : nsnull);
+                                &aPreFilterDirtyRect, nsnull);
   if (!instance.get())
     return nsIntRect();
 
@@ -495,7 +473,11 @@ nsSVGFilterFrame::GetPostFilterBounds(nsIFrame *aFilteredFrame,
     // rect relative to aTarget itself. For that we need to prevent the filter
     // code using GetCanvasTM().
     overrideCTM = true;
-    ctm = nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(aFilteredFrame);
+    PRInt32 appUnitsPerDevPixel =
+      aFilteredFrame->PresContext()->AppUnitsPerDevPixel();
+    float devPxPerCSSPx =
+      1 / nsPresContext::AppUnitsToFloatCSSPixels(appUnitsPerDevPixel);
+    ctm.Scale(devPxPerCSSPx, devPxPerCSSPx);
   }
 
   nsAutoFilterInstance instance(aFilteredFrame, this, nsnull, nsnull,
