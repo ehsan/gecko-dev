@@ -6,7 +6,7 @@
 
 DIRS += ['interfaces']
 
-XPCSHELL_TESTS_MANIFESTS += ['tests/xpcshell/xpcshell.ini']
+TEST_DIRS += ['tests']
 
 EXTRA_JS_MODULES += [
     'MobileIdentityClient.jsm',

@@ -160,7 +160,7 @@ GetBackendName(mozilla::gfx::BackendType aBackend)
 }
 
 class gfxPlatform {
-    friend class SRGBOverrideObserver;
+    friend SRGBOverrideObserver;
 
 public:
     typedef mozilla::gfx::Color Color;

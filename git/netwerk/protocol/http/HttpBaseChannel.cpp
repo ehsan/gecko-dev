@@ -1908,9 +1908,13 @@ HttpBaseChannel::GetEntityID(nsACString& aEntityID)
 }
 
 nsIPrincipal *
-HttpBaseChannel::GetURIPrincipal()
+HttpBaseChannel::GetPrincipal(bool requireAppId)
 {
   if (mPrincipal) {
+      if (requireAppId && mPrincipal->GetUnknownAppId()) {
+        LOG(("HttpBaseChannel::GetPrincipal: No app id [this=%p]", this));
+        return nullptr;
+      }
       return mPrincipal;
   }
 
@@ -1918,15 +1922,21 @@ HttpBaseChannel::GetURIPrincipal()
       nsContentUtils::GetSecurityManager();
 
   if (!securityManager) {
-      LOG(("HttpBaseChannel::GetURIPrincipal: No security manager [this=%p]",
+      LOG(("HttpBaseChannel::GetPrincipal: No security manager [this=%p]",
            this));
       return nullptr;
   }
 
-  securityManager->GetChannelURIPrincipal(this, getter_AddRefs(mPrincipal));
+  securityManager->GetChannelResultPrincipal(this, getter_AddRefs(mPrincipal));
   if (!mPrincipal) {
-      LOG(("HttpBaseChannel::GetURIPrincipal: No channel principal [this=%p]",
+      LOG(("HttpBaseChannel::GetPrincipal: No channel principal [this=%p]",
            this));
+      return nullptr;
+  }
+
+  // principals with unknown app ids do not work with the permission manager
+  if (requireAppId && mPrincipal->GetUnknownAppId()) {
+      LOG(("HttpBaseChannel::GetPrincipal: No app id [this=%p]", this));
       return nullptr;
   }
 
@@ -2001,19 +2011,16 @@ HttpBaseChannel::ReleaseListeners()
 void
 HttpBaseChannel::DoNotifyListener()
 {
-  if (mListener) {
-    mListener->OnStartRequest(this, mListenerContext);
-  }
-
   // Make sure mIsPending is set to false. At this moment we are done from
   // the point of view of our consumer and we have to report our self
   // as not-pending.
-  mIsPending = false;
-
   if (mListener) {
+    mListener->OnStartRequest(this, mListenerContext);
+    mIsPending = false;
     mListener->OnStopRequest(this, mListenerContext, mStatus);
+  } else {
+    mIsPending = false;
   }
-
   // We have to make sure to drop the references to listeners and callbacks
   // no longer  needed
   ReleaseListeners();
@@ -2234,7 +2241,7 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
     // Add our own principal to the redirect information on the new channel. If
     // the redirect is vetoed, then newChannel->AsyncOpen won't be called.
     // However, the new channel's redirect chain will still be complete.
-    nsCOMPtr<nsIPrincipal> principal = GetURIPrincipal();
+    nsCOMPtr<nsIPrincipal> principal = GetPrincipal(false);
     httpInternal->AddRedirect(principal);
   }
 

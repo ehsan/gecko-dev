@@ -430,7 +430,6 @@ WinUtils::DwmSetWindowAttributeProc WinUtils::dwmSetWindowAttributePtr = nullptr
 WinUtils::DwmInvalidateIconicBitmapsProc WinUtils::dwmInvalidateIconicBitmapsPtr = nullptr;
 WinUtils::DwmDefWindowProcProc WinUtils::dwmDwmDefWindowProcPtr = nullptr;
 WinUtils::DwmGetCompositionTimingInfoProc WinUtils::dwmGetCompositionTimingInfoPtr = nullptr;
-WinUtils::DwmFlushProc WinUtils::dwmFlushProcPtr = nullptr;
 
 /* static */
 void
@@ -454,7 +453,6 @@ WinUtils::Initialize()
       dwmInvalidateIconicBitmapsPtr = (DwmInvalidateIconicBitmapsProc)::GetProcAddress(sDwmDll, "DwmInvalidateIconicBitmaps");
       dwmDwmDefWindowProcPtr = (DwmDefWindowProcProc)::GetProcAddress(sDwmDll, "DwmDefWindowProc");
       dwmGetCompositionTimingInfoPtr = (DwmGetCompositionTimingInfoProc)::GetProcAddress(sDwmDll, "DwmGetCompositionTimingInfo");
-      dwmFlushProcPtr = (DwmFlushProc)::GetProcAddress(sDwmDll, "DwmFlush");
     }
   }
 }
@@ -755,7 +753,7 @@ GetNSWindowPropName()
 {
   static wchar_t sPropName[40] = L"";
   if (!*sPropName) {
-    _snwprintf(sPropName, 39, L"MozillansIWidgetPtr%u",
+    _snwprintf(sPropName, 39, L"MozillansIWidgetPtr%p",
                ::GetCurrentProcessId());
     sPropName[39] = '\0';
   }

@@ -70,9 +70,9 @@ abstract class AboutHomeTest extends PixelTest {
 
     // Returns true if the bookmark is displayed in the bookmarks tab, false otherwise - does not check in folders
     protected void isBookmarkDisplayed(final String url) {
-        boolean isCorrect = waitForCondition(new Condition() {
+        boolean isCorrect = waitForTest(new BooleanTest() {
             @Override
-            public boolean isSatisfied() {
+            public boolean test() {
                 View bookmark = getDisplayedBookmark(url);
                 return bookmark != null;
             }

@@ -1170,15 +1170,17 @@ NewObjectGCKind(const js::Class *clasp)
 }
 
 static inline JSObject *
-NewObject(ExclusiveContext *cx, HandleObjectGroup group, HandleObject parent, gc::AllocKind kind,
+NewObject(ExclusiveContext *cx, ObjectGroup *groupArg, JSObject *parent, gc::AllocKind kind,
           NewObjectKind newKind)
 {
-    const Class *clasp = group->clasp();
+    const Class *clasp = groupArg->clasp();
 
     MOZ_ASSERT(clasp != &ArrayObject::class_);
     MOZ_ASSERT_IF(clasp == &JSFunction::class_,
                   kind == JSFunction::FinalizeKind || kind == JSFunction::ExtendedFinalizeKind);
     MOZ_ASSERT_IF(parent, &parent->global() == cx->global());
+
+    RootedObjectGroup group(cx, groupArg);
 
     JSObject *metadata = nullptr;
     if (!NewObjectMetadata(cx, &metadata))
@@ -1227,9 +1229,9 @@ NewObjectCache::fillProto(EntryIndex entry, const Class *clasp, js::TaggedProto 
 }
 
 JSObject *
-js::NewObjectWithGivenTaggedProto(ExclusiveContext *cxArg, const Class *clasp,
-                                  Handle<TaggedProto> proto, HandleObject parentArg,
-                                  gc::AllocKind allocKind, NewObjectKind newKind)
+js::NewObjectWithGivenProto(ExclusiveContext *cxArg, const js::Class *clasp,
+                            js::TaggedProto protoArg, HandleObject parentArg,
+                            gc::AllocKind allocKind, NewObjectKind newKind)
 {
     if (CanBeFinalizedInBackground(allocKind, clasp))
         allocKind = GetBackgroundAllocKind(allocKind);
@@ -1239,20 +1241,22 @@ js::NewObjectWithGivenTaggedProto(ExclusiveContext *cxArg, const Class *clasp,
     if (JSContext *cx = cxArg->maybeJSContext()) {
         JSRuntime *rt = cx->runtime();
         NewObjectCache &cache = rt->newObjectCache;
-        if (proto.isObject() &&
+        if (protoArg.isObject() &&
             newKind == GenericObject &&
             clasp->isNative() &&
             !cx->compartment()->hasObjectMetadataCallback() &&
-            (!parentArg || parentArg == proto.toObject()->getParent()) &&
-            !proto.toObject()->is<GlobalObject>())
+            (!parentArg || parentArg == protoArg.toObject()->getParent()) &&
+            !protoArg.toObject()->is<GlobalObject>())
         {
-            if (cache.lookupProto(clasp, proto.toObject(), allocKind, &entry)) {
+            if (cache.lookupProto(clasp, protoArg.toObject(), allocKind, &entry)) {
                 JSObject *obj = cache.newObjectFromHit<NoGC>(cx, entry, GetInitialHeap(newKind, clasp));
                 if (obj) {
                     return obj;
                 } else {
+                    Rooted<TaggedProto> proto(cxArg, protoArg);
                     obj = cache.newObjectFromHit<CanGC>(cx, entry, GetInitialHeap(newKind, clasp));
                     MOZ_ASSERT(!obj);
+                    protoArg = proto;
                 }
             } else {
                 gcNumber = rt->gc.gcNumber();
@@ -1260,7 +1264,10 @@ js::NewObjectWithGivenTaggedProto(ExclusiveContext *cxArg, const Class *clasp,
         }
     }
 
-    RootedObjectGroup group(cxArg, ObjectGroup::defaultNewGroup(cxArg, clasp, proto, nullptr));
+    Rooted<TaggedProto> proto(cxArg, protoArg);
+    RootedObject parent(cxArg, parentArg);
+
+    ObjectGroup *group = ObjectGroup::defaultNewGroup(cxArg, clasp, proto, nullptr);
     if (!group)
         return nullptr;
 
@@ -1268,7 +1275,6 @@ js::NewObjectWithGivenTaggedProto(ExclusiveContext *cxArg, const Class *clasp,
      * Default parent to the parent of the prototype, which was set from
      * the parent of the prototype's constructor.
      */
-    RootedObject parent(cxArg, parentArg);
     if (!parent && proto.isObject())
         parent = proto.toObject()->getParent();
 
@@ -1299,13 +1305,13 @@ ClassProtoKeyOrAnonymousOrNull(const js::Class *clasp)
 }
 
 static inline bool
-NativeGetPureInline(NativeObject *pobj, Shape *shape, Value *vp)
+NativeGetPureInline(NativeObject *pobj, Shape *shape, MutableHandleValue vp)
 {
     if (shape->hasSlot()) {
-        *vp = pobj->getSlot(shape->slot());
-        MOZ_ASSERT(!vp->isMagic());
+        vp.set(pobj->getSlot(shape->slot()));
+        MOZ_ASSERT(!vp.isMagic());
     } else {
-        vp->setUndefined();
+        vp.setUndefined();
     }
 
     /* Fail if we have a custom getter. */
@@ -1344,7 +1350,7 @@ FindClassPrototype(ExclusiveContext *cx, MutableHandleObject protop, const Class
                 return false;
         } else {
             Shape *shape = nctor->lookup(cx, cx->names().prototype);
-            if (!shape || !NativeGetPureInline(nctor, shape, v.address()))
+            if (!shape || !NativeGetPureInline(nctor, shape, &v))
                 return false;
         }
         if (v.isObject())
@@ -1383,13 +1389,13 @@ FindProto(ExclusiveContext *cx, const js::Class *clasp, MutableHandleObject prot
 
 
 JSObject *
-js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg, const Class *clasp,
-                                  HandleObject protoArg, HandleObject maybeParent,
-                                  gc::AllocKind allocKind, NewObjectKind newKind)
+js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg, const Class *clasp, JSObject *protoArg,
+                                  HandleObject maybeParent, gc::AllocKind allocKind,
+                                  NewObjectKind newKind)
 {
     if (protoArg) {
-        return NewObjectWithGivenTaggedProto(cxArg, clasp, AsTaggedProto(protoArg), maybeParent,
-                                             allocKind, newKind);
+        return NewObjectWithGivenProto(cxArg, clasp, TaggedProto(protoArg), maybeParent, allocKind,
+                                       newKind);
     }
 
     if (CanBeFinalizedInBackground(allocKind, clasp))
@@ -1424,8 +1430,10 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg, const Class *clasp,
                 if (obj) {
                     return obj;
                 } else {
+                    RootedObject proto(cxArg, protoArg);
                     obj = cache.newObjectFromHit<CanGC>(cx, entry, GetInitialHeap(newKind, clasp));
                     MOZ_ASSERT(!obj);
+                    protoArg = proto;
                 }
             } else {
                 gcNumber = rt->gc.gcNumber();
@@ -1434,11 +1442,12 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg, const Class *clasp,
     }
 
     RootedObject proto(cxArg, protoArg);
+
     if (!FindProto(cxArg, clasp, &proto))
         return nullptr;
 
     Rooted<TaggedProto> taggedProto(cxArg, TaggedProto(proto));
-    RootedObjectGroup group(cxArg, ObjectGroup::defaultNewGroup(cxArg, clasp, taggedProto));
+    ObjectGroup *group = ObjectGroup::defaultNewGroup(cxArg, clasp, taggedProto);
     if (!group)
         return nullptr;
 
@@ -1462,7 +1471,7 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg, const Class *clasp,
  * avoid losing creation site information for objects made by scripted 'new'.
  */
 JSObject *
-js::NewObjectWithGroupCommon(JSContext *cx, HandleObjectGroup group, HandleObject parent,
+js::NewObjectWithGroupCommon(JSContext *cx, HandleObjectGroup group, JSObject *parent,
                              gc::AllocKind allocKind, NewObjectKind newKind)
 {
     MOZ_ASSERT(parent);
@@ -1478,7 +1487,6 @@ js::NewObjectWithGroupCommon(JSContext *cx, HandleObjectGroup group, HandleObjec
         parent == group->proto().toObject()->getParent() &&
         newKind == GenericObject &&
         group->clasp()->isNative() &&
-        (!group->newScript() || group->newScript()->analyzed()) &&
         !cx->compartment()->hasObjectMetadataCallback())
     {
         if (cache.lookupGroup(group, allocKind, &entry)) {
@@ -1487,7 +1495,7 @@ js::NewObjectWithGroupCommon(JSContext *cx, HandleObjectGroup group, HandleObjec
                 return obj;
             } else {
                 obj = cache.newObjectFromHit<CanGC>(cx, entry, GetInitialHeap(newKind, group->clasp()));
-                MOZ_ASSERT(!obj);
+                parent = group->proto().toObject()->getParent();
             }
         }
     }
@@ -1532,14 +1540,14 @@ js::CreateThis(JSContext *cx, const Class *newclasp, HandleObject callee)
     if (!GetProperty(cx, callee, callee, cx->names().prototype, &protov))
         return nullptr;
 
-    RootedObject proto(cx, protov.isObjectOrNull() ? protov.toObjectOrNull() : nullptr);
+    JSObject *proto = protov.isObjectOrNull() ? protov.toObjectOrNull() : nullptr;
     RootedObject parent(cx, callee->getParent());
     gc::AllocKind kind = NewObjectGCKind(newclasp);
     return NewObjectWithClassProto(cx, newclasp, proto, parent, kind);
 }
 
 static inline JSObject *
-CreateThisForFunctionWithGroup(JSContext *cx, HandleObjectGroup group, HandleObject parent,
+CreateThisForFunctionWithGroup(JSContext *cx, HandleObjectGroup group, JSObject *parent,
                                NewObjectKind newKind)
 {
     if (group->maybeUnboxedLayout() && newKind != SingletonObject)
@@ -1587,18 +1595,11 @@ CreateThisForFunctionWithGroup(JSContext *cx, HandleObjectGroup group, HandleObj
     }
 
     gc::AllocKind allocKind = NewObjectGCKind(&PlainObject::class_);
-
-    if (newKind == SingletonObject) {
-        Rooted<TaggedProto> protoRoot(cx, group->proto());
-        RootedObject parentRoot(cx, parent);
-        return NewObjectWithGivenTaggedProto(cx, &PlainObject::class_, protoRoot, parentRoot,
-                                             allocKind, newKind);
-    }
     return NewObjectWithGroup<PlainObject>(cx, group, parent, allocKind, newKind);
 }
 
 JSObject *
-js::CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, HandleObject proto,
+js::CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, JSObject *proto,
                                    NewObjectKind newKind /* = GenericObject */)
 {
     RootedObject res(cx);
@@ -1622,8 +1623,7 @@ js::CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, HandleObj
             }
         }
 
-        RootedObject parent(cx, callee->getParent());
-        res = CreateThisForFunctionWithGroup(cx, group, parent, newKind);
+        res = CreateThisForFunctionWithGroup(cx, group, callee->getParent(), newKind);
     } else {
         RootedObject parent(cx, callee->getParent());
         gc::AllocKind allocKind = NewObjectGCKind(&PlainObject::class_);
@@ -1646,9 +1646,11 @@ js::CreateThisForFunction(JSContext *cx, HandleObject callee, NewObjectKind newK
     RootedValue protov(cx);
     if (!GetProperty(cx, callee, callee, cx->names().prototype, &protov))
         return nullptr;
-    RootedObject proto(cx);
+    JSObject *proto;
     if (protov.isObject())
         proto = &protov.toObject();
+    else
+        proto = nullptr;
     JSObject *obj = CreateThisForFunctionWithProto(cx, callee, proto, newKind);
 
     if (obj && newKind == SingletonObject) {
@@ -1675,7 +1677,9 @@ JSObject::nonNativeSetProperty(JSContext *cx, HandleObject obj, HandleObject rec
         if (wpmap && !wpmap->triggerWatchpoint(cx, obj, id, vp))
             return false;
     }
-    return obj->getOps()->setProperty(cx, obj, receiver, id, vp, strict);
+    if (obj->is<ProxyObject>())
+        return Proxy::set(cx, obj, receiver, id, strict, vp);
+    return obj->getOps()->setProperty(cx, obj, id, vp, strict);
 }
 
 /* static */ bool
@@ -1776,7 +1780,7 @@ js::CloneObject(JSContext *cx, HandleObject obj, Handle<js::TaggedProto> proto, 
 
     RootedObject clone(cx);
     if (obj->isNative()) {
-        clone = NewObjectWithGivenTaggedProto(cx, obj->getClass(), proto, parent);
+        clone = NewObjectWithGivenProto(cx, obj->getClass(), proto, parent);
         if (!clone)
             return nullptr;
 
@@ -1819,7 +1823,7 @@ js::DeepCloneObjectLiteral(JSContext *cx, HandleNativeObject obj, NewObjectKind 
     RootedNativeObject deepObj(cx);
 
     if (obj->is<ArrayObject>()) {
-        clone = NewDenseUnallocatedArray(cx, obj->as<ArrayObject>().length(), NullPtr(), newKind);
+        clone = NewDenseUnallocatedArray(cx, obj->as<ArrayObject>().length(), nullptr, newKind);
     } else {
         // Object literals are tenured by default as holded by the JSScript.
         MOZ_ASSERT(obj->isTenured());
@@ -1827,10 +1831,10 @@ js::DeepCloneObjectLiteral(JSContext *cx, HandleNativeObject obj, NewObjectKind 
         RootedObjectGroup group(cx, obj->getGroup(cx));
         if (!group)
             return nullptr;
-        RootedObject proto(cx, group->proto().toObject());
         RootedObject parent(cx, obj->getParent());
-        clone = NewNativeObjectWithGivenProto(cx, &PlainObject::class_, proto, parent, kind,
-                                              newKind);
+        clone = NewNativeObjectWithGivenProto(cx, &PlainObject::class_,
+                                              TaggedProto(group->proto().toObject()),
+                                              parent, kind, newKind);
     }
 
     // Allocate the same number of slots.
@@ -1920,7 +1924,7 @@ js::XDRObjectLiteral(XDRState<mode> *xdr, MutableHandleNativeObject obj)
             return false;
 
         if (mode == XDR_DECODE)
-            obj.set(NewDenseUnallocatedArray(cx, length, NullPtr(), js::MaybeSingletonObject));
+            obj.set(NewDenseUnallocatedArray(cx, length, NULL, js::MaybeSingletonObject));
 
     } else {
         // Code the alloc kind of the object.
@@ -2135,7 +2139,7 @@ js::CloneObjectLiteral(JSContext *cx, HandleObject parent, HandleObject srcObj)
         AllocKind kind = GetBackgroundAllocKind(GuessObjectGCKind(srcObj->as<PlainObject>().numFixedSlots()));
         MOZ_ASSERT_IF(srcObj->isTenured(), kind == srcObj->asTenured().getAllocKind());
 
-        RootedObject proto(cx, cx->global()->getOrCreateObjectPrototype(cx));
+        JSObject *proto = cx->global()->getOrCreateObjectPrototype(cx);
         if (!proto)
             return nullptr;
         RootedObjectGroup group(cx, ObjectGroup::defaultNewGroup(cx, &PlainObject::class_,
@@ -2143,17 +2147,8 @@ js::CloneObjectLiteral(JSContext *cx, HandleObject parent, HandleObject srcObj)
         if (!group)
             return nullptr;
 
-        RootedPlainObject res(cx, NewObjectWithGroup<PlainObject>(cx, group, parent, kind,
-                                                                  MaybeSingletonObject));
-        if (!res)
-            return nullptr;
-
-        RootedShape newShape(cx, ReshapeForParentAndAllocKind(cx, srcObj->lastProperty(),
-                                                              TaggedProto(proto), parent, kind));
-        if (!newShape || !NativeObject::setLastProperty(cx, res, newShape))
-            return nullptr;
-
-        return res;
+        RootedShape shape(cx, srcObj->lastProperty());
+        return NewReshapedObject(cx, group, parent, kind, shape);
     }
 
     RootedArrayObject srcArray(cx, &srcObj->as<ArrayObject>());
@@ -2161,8 +2156,7 @@ js::CloneObjectLiteral(JSContext *cx, HandleObject parent, HandleObject srcObj)
     MOZ_ASSERT(srcArray->getElementsHeader()->ownerObject() == srcObj);
 
     size_t length = srcArray->as<ArrayObject>().length();
-    RootedArrayObject res(cx, NewDenseFullyAllocatedArray(cx, length, NullPtr(),
-                                                          MaybeSingletonObject));
+    RootedArrayObject res(cx, NewDenseFullyAllocatedArray(cx, length, nullptr, MaybeSingletonObject));
     if (!res)
         return nullptr;
 
@@ -3006,16 +3000,6 @@ js::LookupPropertyPure(ExclusiveContext *cx, JSObject *obj, jsid id, JSObject **
     *objp = nullptr;
     *propp = nullptr;
     return true;
-}
-
-bool
-js::GetPropertyPure(ExclusiveContext *cx, JSObject *obj, jsid id, Value *vp)
-{
-    JSObject *pobj;
-    Shape *shape;
-    if (!LookupPropertyPure(cx, obj, id, &pobj, &shape))
-        return false;
-    return pobj->isNative() && NativeGetPureInline(&pobj->as<NativeObject>(), shape, vp);
 }
 
 bool

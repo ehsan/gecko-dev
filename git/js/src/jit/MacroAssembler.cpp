@@ -1213,6 +1213,8 @@ MacroAssembler::initGCThing(Register obj, Register slots, JSObject *templateObj,
                      Address(obj, NativeObject::offsetOfElements()));
         } else if (ntemplate->is<ArrayObject>()) {
             Register temp = slots;
+            MOZ_ASSERT(!ntemplate->getDenseInitializedLength());
+
             int elementsOffset = NativeObject::offsetOfFixedElements();
 
             computeEffectiveAddress(Address(obj, elementsOffset), temp);

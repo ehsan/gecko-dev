@@ -477,13 +477,6 @@ with_DefineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue va
 }
 
 static bool
-with_HasProperty(JSContext *cx, HandleObject obj, HandleId id, bool *foundp)
-{
-    RootedObject actual(cx, &obj->as<DynamicWithObject>().object());
-    return HasProperty(cx, actual, id, foundp);
-}
-
-static bool
 with_GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
                  MutableHandleValue vp)
 {
@@ -492,14 +485,11 @@ with_GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleI
 }
 
 static bool
-with_SetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
+with_SetProperty(JSContext *cx, HandleObject obj, HandleId id,
                  MutableHandleValue vp, bool strict)
 {
     RootedObject actual(cx, &obj->as<DynamicWithObject>().object());
-    RootedObject actualReceiver(cx, receiver);
-    if (receiver == obj)
-        actualReceiver = actual;
-    return SetProperty(cx, actual, actualReceiver, id, vp, strict);
+    return SetProperty(cx, actual, actual, id, vp, strict);
 }
 
 static bool
@@ -551,7 +541,6 @@ const Class DynamicWithObject::class_ = {
     {
         with_LookupProperty,
         with_DefineProperty,
-        with_HasProperty,
         with_GetProperty,
         with_SetProperty,
         with_GetOwnPropertyDescriptor,
@@ -923,13 +912,6 @@ uninitialized_LookupProperty(JSContext *cx, HandleObject obj, HandleId id,
 }
 
 static bool
-uninitialized_HasProperty(JSContext *cx, HandleObject obj, HandleId id, bool *foundp)
-{
-    ReportUninitializedLexicalId(cx, id);
-    return false;
-}
-
-static bool
 uninitialized_GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
                           MutableHandleValue vp)
 {
@@ -938,7 +920,7 @@ uninitialized_GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver
 }
 
 static bool
-uninitialized_SetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
+uninitialized_SetProperty(JSContext *cx, HandleObject obj, HandleId id,
                           MutableHandleValue vp, bool strict)
 {
     ReportUninitializedLexicalId(cx, id);
@@ -981,7 +963,6 @@ const Class UninitializedLexicalObject::class_ = {
     {
         uninitialized_LookupProperty,
         nullptr,             /* defineProperty */
-        uninitialized_HasProperty,
         uninitialized_GetProperty,
         uninitialized_SetProperty,
         uninitialized_GetOwnPropertyDescriptor,

@@ -6,7 +6,6 @@
 #include "mozilla/dom/Exceptions.h"
 
 #include "js/GCAPI.h"
-#include "js/TypeDecls.h"
 #include "jsapi.h"
 #include "jsprf.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
@@ -300,8 +299,6 @@ public:
   NS_IMETHOD GetCaller(nsIStackFrame** aCaller) MOZ_OVERRIDE;
   NS_IMETHOD GetFormattedStack(nsAString& aStack) MOZ_OVERRIDE;
   virtual bool CallerSubsumes(JSContext* aCx) MOZ_OVERRIDE;
-  NS_IMETHOD GetSanitized(JSContext* aCx,
-                          nsIStackFrame** aSanitized) MOZ_OVERRIDE;
 
 protected:
   virtual bool IsJSFrame() const MOZ_OVERRIDE {
@@ -393,22 +390,15 @@ NS_IMETHODIMP JSStackFrame::GetFilename(nsAString& aFilename)
     JS::Rooted<JSObject*> stack(cx, mStack);
     JS::ExposeObjectToActiveJS(mStack);
     JSAutoCompartment ac(cx, stack);
-
     JS::Rooted<JS::Value> filenameVal(cx);
-    if (!JS_GetProperty(cx, stack, "source", &filenameVal)) {
+    if (!JS_GetProperty(cx, stack, "source", &filenameVal) ||
+        !filenameVal.isString()) {
       return NS_ERROR_UNEXPECTED;
     }
-
-    if (filenameVal.isNull()) {
-      filenameVal = JS_GetEmptyStringValue(cx);
-    }
-    MOZ_ASSERT(filenameVal.isString());
-
     nsAutoJSString str;
     if (!str.init(cx, filenameVal.toString())) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
-
     mFilename = str;
     mFilenameInitialized = true;
   }
@@ -481,15 +471,11 @@ JSStackFrame::GetLineno(int32_t* aLineNo)
     JS::ExposeObjectToActiveJS(mStack);
     JSAutoCompartment ac(cx, stack);
     JS::Rooted<JS::Value> lineVal(cx);
-    if (!JS_GetProperty(cx, stack, "line", &lineVal)) {
+    if (!JS_GetProperty(cx, stack, "line", &lineVal) ||
+        !lineVal.isNumber()) {
       return NS_ERROR_UNEXPECTED;
     }
-    if (lineVal.isNumber()) {
-      mLineno = lineVal.toNumber();
-    } else {
-      MOZ_ASSERT(lineVal.isNull());
-      mLineno = 0;
-    }
+    mLineno = lineVal.toNumber();
     mLinenoInitialized = true;
   }
 
@@ -514,15 +500,11 @@ JSStackFrame::GetColNo(int32_t* aColNo)
     JS::ExposeObjectToActiveJS(mStack);
     JSAutoCompartment ac(cx, stack);
     JS::Rooted<JS::Value> colVal(cx);
-    if (!JS_GetProperty(cx, stack, "column", &colVal)) {
+    if (!JS_GetProperty(cx, stack, "column", &colVal) ||
+        !colVal.isNumber()) {
       return NS_ERROR_UNEXPECTED;
     }
-    if (colVal.isNumber()) {
-      mColNo = colVal.toNumber();
-    } else {
-      MOZ_ASSERT(colVal.isNull());
-      mColNo = 0;
-    }
+    mColNo = colVal.toNumber();
     mColNoInitialized = true;
   }
 
@@ -539,35 +521,6 @@ NS_IMETHODIMP StackFrame::GetColumnNumber(int32_t* aColumnNumber)
 NS_IMETHODIMP StackFrame::GetSourceLine(nsACString& aSourceLine)
 {
   aSourceLine.Truncate();
-  return NS_OK;
-}
-
-/* [noscript] readonly attribute nsIStackFrame sanitized */
-NS_IMETHODIMP StackFrame::GetSanitized(JSContext*, nsIStackFrame** aSanitized)
-{
-  NS_ADDREF(*aSanitized = this);
-  return NS_OK;
-}
-
-/* [noscript] readonly attribute nsIStackFrame sanitized */
-NS_IMETHODIMP JSStackFrame::GetSanitized(JSContext* aCx, nsIStackFrame** aSanitized)
-{
-  // NB: Do _not_ enter the compartment of the SavedFrame object here, because
-  // we are checking against the caller's compartment's principals in
-  // GetFirstSubsumedSavedFrame.
-
-  JS::RootedObject savedFrame(aCx, mStack);
-  JS::ExposeObjectToActiveJS(mStack);
-
-  savedFrame = js::GetFirstSubsumedSavedFrame(aCx, savedFrame);
-  nsCOMPtr<nsIStackFrame> stackFrame;
-  if (savedFrame) {
-    stackFrame = new JSStackFrame(savedFrame);
-  } else {
-    stackFrame = new StackFrame();
-  }
-
-  stackFrame.forget(aSanitized);
   return NS_OK;
 }
 

@@ -2736,8 +2736,9 @@ private:
   void SetupContext();
 
   bool IsClipPathChild() const {
-    return nsLayoutUtils::GetClosestFrameOfType
-             (mFrame->GetParent(), nsGkAtoms::svgTextFrame)->GetStateBits() &
+    // parent is the CSS text frame, grand parent must be
+    // an SVG frame of some kind
+    return mFrame->GetParent()->GetParent()->GetStateBits() &
              NS_STATE_SVG_CLIPPATH_CHILD;
   }
 

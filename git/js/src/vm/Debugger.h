@@ -253,8 +253,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     };
     typedef mozilla::LinkedList<AllocationSite> AllocationSiteList;
 
-    bool allowUnobservedAsmJS;
-
     bool trackingAllocationSites;
     double allocationSamplingProbability;
     AllocationSiteList allocationsLog;
@@ -405,8 +403,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static bool setOnPromiseSettled(JSContext *cx, unsigned argc, Value *vp);
     static bool getUncaughtExceptionHook(JSContext *cx, unsigned argc, Value *vp);
     static bool setUncaughtExceptionHook(JSContext *cx, unsigned argc, Value *vp);
-    static bool getAllowUnobservedAsmJS(JSContext *cx, unsigned argc, Value *vp);
-    static bool setAllowUnobservedAsmJS(JSContext *cx, unsigned argc, Value *vp);
     static bool getMemory(JSContext *cx, unsigned argc, Value *vp);
     static bool addDebuggee(JSContext *cx, unsigned argc, Value *vp);
     static bool addAllGlobalsAsDebuggees(JSContext *cx, unsigned argc, Value *vp);
@@ -444,22 +440,15 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     // Public for DebuggerScript_setBreakpoint.
     static bool ensureExecutionObservabilityOfScript(JSContext *cx, JSScript *script);
 
-    // Whether the Debugger instance needs to observe all non-AOT JS
-    // execution of its debugees.
-    IsObserving observesAllExecution() const;
-
-    // Whether the Debugger instance needs to observe AOT-compiled asm.js
-    // execution of its debuggees.
-    IsObserving observesAsmJS() const;
-
   private:
     static bool ensureExecutionObservabilityOfFrame(JSContext *cx, AbstractFramePtr frame);
     static bool ensureExecutionObservabilityOfCompartment(JSContext *cx, JSCompartment *comp);
 
     static bool hookObservesAllExecution(Hook which);
-
-    bool updateObservesAllExecutionOnDebuggees(JSContext *cx, IsObserving observing);
-    void updateObservesAsmJSOnDebuggees(IsObserving observing);
+    bool anyOtherDebuggerObservingAllExecution(GlobalObject *global) const;
+    bool hasAnyLiveHooksThatObserveAllExecution() const;
+    bool hasAnyHooksThatObserveAllExecution() const;
+    bool setObservesAllExecution(JSContext *cx, IsObserving observing);
 
     JSObject *getHook(Hook hook) const;
     bool hasAnyLiveHooks() const;

@@ -10,8 +10,6 @@ import android.widget.ListView;
 
 import org.mozilla.gecko.home.HomePager;
 
-import com.jayway.android.robotium.solo.Condition;
-
 public class testHistory extends AboutHomeTest {
     private View mFirstChild;
 
@@ -37,9 +35,9 @@ public class testHistory extends AboutHomeTest {
         // Click on the history item and wait for the page to load
         // wait for the history list to be populated
         mFirstChild = null;
-        boolean success = waitForCondition(new Condition() {
+        boolean success = waitForTest(new BooleanTest() {
             @Override
-            public boolean isSatisfied() {
+            public boolean test() {
                 mFirstChild = hList.getChildAt(1);
                 if (mFirstChild == null) {
                     return false;

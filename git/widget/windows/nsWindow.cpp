@@ -5818,7 +5818,7 @@ nsWindow::SynthesizeNativeKeyEvent(int32_t aNativeKeyboardLayout,
 }
 
 nsresult
-nsWindow::SynthesizeNativeMouseEvent(LayoutDeviceIntPoint aPoint,
+nsWindow::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
                                      uint32_t aNativeMessage,
                                      uint32_t aModifierFlags)
 {
@@ -5835,7 +5835,7 @@ nsWindow::SynthesizeNativeMouseEvent(LayoutDeviceIntPoint aPoint,
 }
 
 nsresult
-nsWindow::SynthesizeNativeMouseScrollEvent(LayoutDeviceIntPoint aPoint,
+nsWindow::SynthesizeNativeMouseScrollEvent(nsIntPoint aPoint,
                                            uint32_t aNativeMessage,
                                            double aDeltaX,
                                            double aDeltaY,
@@ -6715,7 +6715,7 @@ nsWindow::GetIMEUpdatePreference()
 #ifdef DEBUG
 #define NS_LOG_WMGETOBJECT(aWnd, aHwnd, aAcc)                                  \
   if (a11y::logging::IsEnabled(a11y::logging::ePlatforms)) {                   \
-    printf("Get the window:\n  {\n     HWND: %p, parent HWND: %p, wndobj: %p,\n",\
+    printf("Get the window:\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p,\n",\
            aHwnd, ::GetParent(aHwnd), aWnd);                                   \
     printf("     acc: %p", aAcc);                                              \
     if (aAcc) {                                                                \

@@ -44,7 +44,6 @@ public:
   virtual ~GStreamerReader();
 
   virtual nsresult Init(MediaDecoderReader* aCloneDonor) MOZ_OVERRIDE;
-  virtual nsRefPtr<ShutdownPromise> Shutdown() MOZ_OVERRIDE;
   virtual nsresult ResetDecode() MOZ_OVERRIDE;
   virtual bool DecodeAudioData() MOZ_OVERRIDE;
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,

@@ -38,9 +38,8 @@ typedef android::MediaCodecProxy MediaCodecProxy;
 typedef mozilla::layers::TextureClient TextureClient;
 
 public:
-  GonkVideoDecoderManager(MediaTaskQueue* aTaskQueue,
-                          mozilla::layers::ImageContainer* aImageContainer,
-		                      const mp4_demuxer::VideoDecoderConfig& aConfig);
+  GonkVideoDecoderManager(mozilla::layers::ImageContainer* aImageContainer,
+		          const mp4_demuxer::VideoDecoderConfig& aConfig);
 
   ~GonkVideoDecoderManager();
 
@@ -58,7 +57,7 @@ public:
   static void RecycleCallback(TextureClient* aClient, void* aClosure);
 
 protected:
-  virtual bool PerformFormatSpecificProcess(mp4_demuxer::MP4Sample* aSample) MOZ_OVERRIDE;
+  virtual void PerformFormatSpecificProcess(mp4_demuxer::MP4Sample* aSample) MOZ_OVERRIDE;
 
   virtual android::status_t SendSampleToOMX(mp4_demuxer::MP4Sample* aSample) MOZ_OVERRIDE;
 
@@ -137,7 +136,6 @@ private:
 
   void QueueFrameTimeIn(int64_t aPTS, int64_t aDuration);
   nsresult QueueFrameTimeOut(int64_t aPTS, int64_t& aDuration);
-  void ClearQueueFrameTime();
 
   uint32_t mVideoWidth;
   uint32_t mVideoHeight;
@@ -164,6 +162,7 @@ private:
   // Ideally, it is a FIFO. Input() adds the entry to the end element and
   // CreateVideoData() takes the first entry. However, there are exceptions
   // due to MediaCodec error or seeking.
+  // It is protected by mMonitor.
   nsTArray<FrameTimeInfo> mFrameTimeInfo;
 
   // color converter

@@ -5923,8 +5923,7 @@ class ICCall_Fallback : public ICMonitoredFallbackStub
 {
     friend class ICStubSpace;
   public:
-    static const unsigned CONSTRUCTING_FLAG = 0x1;
-    static const unsigned UNOPTIMIZABLE_CALL_FLAG = 0x2;
+    static const unsigned CONSTRUCTING_FLAG = 0x0001;
 
     static const uint32_t MAX_OPTIMIZED_STUBS = 16;
     static const uint32_t MAX_SCRIPTED_STUBS = 7;
@@ -5950,13 +5949,6 @@ class ICCall_Fallback : public ICMonitoredFallbackStub
 
     bool isConstructing() const {
         return extra_ & CONSTRUCTING_FLAG;
-    }
-
-    void noteUnoptimizableCall() {
-        extra_ |= UNOPTIMIZABLE_CALL_FLAG;
-    }
-    bool hadUnoptimizableCall() const {
-        return extra_ & UNOPTIMIZABLE_CALL_FLAG;
     }
 
     unsigned scriptedStubCount() const {
@@ -6013,38 +6005,38 @@ class ICCall_Scripted : public ICMonitoredStub
     static const uint32_t MAX_ARGS_SPREAD_LENGTH = 16;
 
   protected:
-    HeapPtrFunction callee_;
+    HeapPtrScript calleeScript_;
     HeapPtrObject templateObject_;
     uint32_t pcOffset_;
 
     ICCall_Scripted(JitCode *stubCode, ICStub *firstMonitorStub,
-                    HandleFunction callee, HandleObject templateObject,
+                    HandleScript calleeScript, HandleObject templateObject,
                     uint32_t pcOffset);
 
   public:
     static inline ICCall_Scripted *New(
             ICStubSpace *space, JitCode *code, ICStub *firstMonitorStub,
-            HandleFunction callee, HandleObject templateObject,
+            HandleScript calleeScript, HandleObject templateObject,
             uint32_t pcOffset)
     {
         if (!code)
             return nullptr;
         return space->allocate<ICCall_Scripted>(code, firstMonitorStub,
-                                                callee, templateObject, pcOffset);
+                                                calleeScript, templateObject, pcOffset);
     }
 
     static ICCall_Scripted *Clone(JSContext *cx, ICStubSpace *space, ICStub *firstMonitorStub,
                                   ICCall_Scripted &other);
 
-    HeapPtrFunction &callee() {
-        return callee_;
+    HeapPtrScript &calleeScript() {
+        return calleeScript_;
     }
     HeapPtrObject &templateObject() {
         return templateObject_;
     }
 
-    static size_t offsetOfCallee() {
-        return offsetof(ICCall_Scripted, callee_);
+    static size_t offsetOfCalleeScript() {
+        return offsetof(ICCall_Scripted, calleeScript_);
     }
     static size_t offsetOfPCOffset() {
         return offsetof(ICCall_Scripted, pcOffset_);
@@ -6086,7 +6078,7 @@ class ICCallScriptedCompiler : public ICCallStubCompiler {
     ICStub *firstMonitorStub_;
     bool isConstructing_;
     bool isSpread_;
-    RootedFunction callee_;
+    RootedScript calleeScript_;
     RootedObject templateObject_;
     uint32_t pcOffset_;
     bool generateStubCode(MacroAssembler &masm);
@@ -6098,13 +6090,13 @@ class ICCallScriptedCompiler : public ICCallStubCompiler {
 
   public:
     ICCallScriptedCompiler(JSContext *cx, ICStub *firstMonitorStub,
-                           HandleFunction callee, HandleObject templateObject,
+                           HandleScript calleeScript, HandleObject templateObject,
                            bool isConstructing, bool isSpread, uint32_t pcOffset)
       : ICCallStubCompiler(cx, ICStub::Call_Scripted),
         firstMonitorStub_(firstMonitorStub),
         isConstructing_(isConstructing),
         isSpread_(isSpread),
-        callee_(cx, callee),
+        calleeScript_(cx, calleeScript),
         templateObject_(cx, templateObject),
         pcOffset_(pcOffset)
     { }
@@ -6115,15 +6107,15 @@ class ICCallScriptedCompiler : public ICCallStubCompiler {
         firstMonitorStub_(firstMonitorStub),
         isConstructing_(isConstructing),
         isSpread_(isSpread),
-        callee_(cx, nullptr),
+        calleeScript_(cx, nullptr),
         templateObject_(cx, nullptr),
         pcOffset_(pcOffset)
     { }
 
     ICStub *getStub(ICStubSpace *space) {
-        if (callee_) {
+        if (calleeScript_) {
             return ICCall_Scripted::New(space, getStubCode(), firstMonitorStub_,
-                                        callee_, templateObject_,
+                                        calleeScript_, templateObject_,
                                         pcOffset_);
         }
         return ICCall_AnyScripted::New(space, getStubCode(), firstMonitorStub_, pcOffset_);

@@ -12,7 +12,6 @@
 #include "mozilla/Preferences.h"
 #include "nsIAddonInterposition.h"
 #include "AddonWrapper.h"
-#include "js/Class.h"
 
 using namespace mozilla;
 using namespace JS;
@@ -650,7 +649,7 @@ XPC_WN_NoHelper_Resolve(JSContext *cx, HandleObject obj, HandleId id, bool *reso
 const XPCWrappedNativeJSClass XPC_WN_NoHelper_JSClass = {
   { // base
     "XPCWrappedNative_NoHelper",    // name;
-    WRAPPER_FLAGS |
+    WRAPPER_SLOTS |
     JSCLASS_PRIVATE_IS_NSISUPPORTS, // flags
 
     /* Mandatory non-null function pointer members. */
@@ -684,7 +683,6 @@ const XPCWrappedNativeJSClass XPC_WN_NoHelper_JSClass = {
     {
         nullptr, // lookupProperty
         nullptr, // defineProperty
-        nullptr, // hasProperty
         nullptr, // getProperty
         nullptr, // setProperty
         nullptr, // getOwnPropertyDescriptor
@@ -762,6 +760,16 @@ XPC_WN_Helper_AddProperty(JSContext *cx, HandleObject obj, HandleId id,
     POST_HELPER_STUB
 }
 
+static bool
+XPC_WN_Helper_DelProperty(JSContext *cx, HandleObject obj, HandleId id,
+                          bool *succeeded)
+{
+    *succeeded = true;
+    PRE_HELPER_STUB
+    DelProperty(wrapper, cx, obj, id, &retval);
+    POST_HELPER_STUB
+}
+
 bool
 XPC_WN_Helper_GetProperty(JSContext *cx, HandleObject obj, HandleId id,
                           MutableHandleValue vp)
@@ -777,6 +785,14 @@ XPC_WN_Helper_SetProperty(JSContext *cx, HandleObject obj, HandleId id, bool str
 {
     PRE_HELPER_STUB
     SetProperty(wrapper, cx, obj, id, vp.address(), &retval);
+    POST_HELPER_STUB
+}
+
+static bool
+XPC_WN_Helper_Convert(JSContext *cx, HandleObject obj, JSType type, MutableHandleValue vp)
+{
+    PRE_HELPER_STUB
+    Convert(wrapper, cx, obj, type, vp.address(), &retval);
     POST_HELPER_STUB
 }
 
@@ -992,7 +1008,7 @@ XPCNativeScriptableShared::PopulateJSClass()
 {
     MOZ_ASSERT(mJSClass.base.name, "bad state!");
 
-    mJSClass.base.flags = WRAPPER_FLAGS |
+    mJSClass.base.flags = WRAPPER_SLOTS |
                           JSCLASS_PRIVATE_IS_NSISUPPORTS;
 
     if (mFlags.IsGlobalObject())
@@ -1010,7 +1026,9 @@ XPCNativeScriptableShared::PopulateJSClass()
     mJSClass.base.addProperty = addProperty;
 
     JSDeletePropertyOp delProperty;
-    if (mFlags.UseJSStubForDelProperty())
+    if (mFlags.WantDelProperty())
+        delProperty = XPC_WN_Helper_DelProperty;
+    else if (mFlags.UseJSStubForDelProperty())
         delProperty = nullptr;
     else if (mFlags.AllowPropModsDuringResolve())
         delProperty = XPC_WN_MaybeResolvingDeletePropertyStub;
@@ -1048,7 +1066,10 @@ XPCNativeScriptableShared::PopulateJSClass()
     // We have to figure out resolve strategy at call time
     mJSClass.base.resolve = XPC_WN_Helper_Resolve;
 
-    mJSClass.base.convert = XPC_WN_Shared_Convert;
+    if (mFlags.WantConvert())
+        mJSClass.base.convert = XPC_WN_Helper_Convert;
+    else
+        mJSClass.base.convert = XPC_WN_Shared_Convert;
 
     if (mFlags.WantFinalize())
         mJSClass.base.finalize = XPC_WN_Helper_Finalize;
@@ -1283,7 +1304,7 @@ XPC_WN_ModsAllowed_Proto_Resolve(JSContext *cx, HandleObject obj, HandleId id, b
 
 const js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass = {
     "XPC_WN_ModsAllowed_WithCall_Proto_JSClass", // name;
-    WRAPPER_FLAGS, // flags;
+    WRAPPER_SLOTS, // flags;
 
     /* Function pointer members. */
     nullptr,                        // addProperty;
@@ -1308,7 +1329,7 @@ const js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass = {
 
 const js::Class XPC_WN_ModsAllowed_NoCall_Proto_JSClass = {
     "XPC_WN_ModsAllowed_NoCall_Proto_JSClass", // name;
-    WRAPPER_FLAGS,                  // flags;
+    WRAPPER_SLOTS,                  // flags;
 
     /* Function pointer members. */
     nullptr,                        // addProperty;
@@ -1393,7 +1414,7 @@ XPC_WN_NoMods_Proto_Resolve(JSContext *cx, HandleObject obj, HandleId id, bool *
 
 const js::Class XPC_WN_NoMods_WithCall_Proto_JSClass = {
     "XPC_WN_NoMods_WithCall_Proto_JSClass",    // name;
-    WRAPPER_FLAGS,                             // flags;
+    WRAPPER_SLOTS,                             // flags;
 
     /* Mandatory non-null function pointer members. */
     XPC_WN_OnlyIWrite_Proto_AddPropertyStub,   // addProperty;
@@ -1418,7 +1439,7 @@ const js::Class XPC_WN_NoMods_WithCall_Proto_JSClass = {
 
 const js::Class XPC_WN_NoMods_NoCall_Proto_JSClass = {
     "XPC_WN_NoMods_NoCall_Proto_JSClass",      // name;
-    WRAPPER_FLAGS,                             // flags;
+    WRAPPER_SLOTS,                             // flags;
 
     /* Mandatory non-null function pointer members. */
     XPC_WN_OnlyIWrite_Proto_AddPropertyStub,   // addProperty;
@@ -1506,16 +1527,10 @@ XPC_WN_TearOff_ObjectMoved(JSObject *obj, const JSObject *old)
     p->JSObjectMoved(obj, old);
 }
 
-// Make sure WRAPPER_FLAGS has no reserved slots, so our XPC_WN_TEAROFF_RESERVED_SLOTS value is OK.
-
-static_assert(((WRAPPER_FLAGS >> JSCLASS_RESERVED_SLOTS_SHIFT) &
-               JSCLASS_RESERVED_SLOTS_MASK) == 0,
-              "WRAPPER_FLAGS should not include any reserved slots");
-
 const js::Class XPC_WN_Tearoff_JSClass = {
     "WrappedNative_TearOff",                   // name;
-    WRAPPER_FLAGS |
-    JSCLASS_HAS_RESERVED_SLOTS(XPC_WN_TEAROFF_RESERVED_SLOTS), // flags;
+    WRAPPER_SLOTS,                             // flags;
+
     XPC_WN_OnlyIWrite_AddPropertyStub,         // addProperty;
     XPC_WN_CantDeletePropertyStub,             // delProperty;
     nullptr,                                   // getProperty;

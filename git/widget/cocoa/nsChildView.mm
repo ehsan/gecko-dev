@@ -1125,7 +1125,7 @@ nsresult nsChildView::SynthesizeNativeKeyEvent(int32_t aNativeKeyboardLayout,
                                                      aUnmodifiedCharacters);
 }
 
-nsresult nsChildView::SynthesizeNativeMouseEvent(LayoutDeviceIntPoint aPoint,
+nsresult nsChildView::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
                                                  uint32_t aNativeMessage,
                                                  uint32_t aModifierFlags)
 {

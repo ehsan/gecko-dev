@@ -763,42 +763,20 @@ CreateLazyScriptsForCompartment(JSContext *cx)
 }
 
 bool
-JSCompartment::ensureDelazifyScriptsForDebugger(JSContext *cx)
+JSCompartment::ensureDelazifyScriptsForDebugMode(JSContext *cx)
 {
     MOZ_ASSERT(cx->compartment() == this);
-    if (needsDelazificationForDebugger() && !CreateLazyScriptsForCompartment(cx))
+    if ((debugModeBits & DebugNeedDelazification) && !CreateLazyScriptsForCompartment(cx))
         return false;
-    debugModeBits &= ~DebuggerNeedsDelazification;
+    debugModeBits &= ~DebugNeedDelazification;
     return true;
-}
-
-void
-JSCompartment::updateDebuggerObservesFlag(unsigned flag)
-{
-    MOZ_ASSERT(isDebuggee());
-    MOZ_ASSERT(flag == DebuggerObservesAllExecution ||
-               flag == DebuggerObservesAsmJS);
-
-    const GlobalObject::DebuggerVector *v = maybeGlobal()->getDebuggers();
-    for (Debugger * const *p = v->begin(); p != v->end(); p++) {
-        Debugger *dbg = *p;
-        if (flag == DebuggerObservesAllExecution
-            ? dbg->observesAllExecution()
-            : dbg->observesAsmJS())
-        {
-            debugModeBits |= flag;
-            return;
-        }
-    }
-
-    debugModeBits &= ~flag;
 }
 
 void
 JSCompartment::unsetIsDebuggee()
 {
     if (isDebuggee()) {
-        debugModeBits &= ~DebuggerObservesMask;
+        debugModeBits &= ~DebugExecutionMask;
         DebugScopes::onCompartmentUnsetIsDebuggee(this);
     }
 }

@@ -86,7 +86,6 @@ MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder)
 MediaDecoderReader::~MediaDecoderReader()
 {
   MOZ_ASSERT(mShutdown);
-  MOZ_ASSERT(!mDecoder);
   ResetDecode();
   MOZ_COUNT_DTOR(MediaDecoderReader);
 }
@@ -317,8 +316,6 @@ MediaDecoderReader::Shutdown()
     // asynchronously).
     p = ShutdownPromise::CreateAndResolve(true, __func__);
   }
-
-  mDecoder = nullptr;
 
   return p;
 }

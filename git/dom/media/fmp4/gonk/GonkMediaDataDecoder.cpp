@@ -24,15 +24,16 @@ using namespace android;
 
 namespace mozilla {
 
-GonkDecoderManager::GonkDecoderManager(MediaTaskQueue* aTaskQueue)
-  : mTaskQueue(aTaskQueue)
+GonkDecoderManager::GonkDecoderManager()
+  : mMonitor("GonkDecoderManager")
+  , mInputEOS(false)
 {
 }
 
 nsresult
 GonkDecoderManager::Input(mp4_demuxer::MP4Sample* aSample)
 {
-  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
+  ReentrantMonitorAutoEnter mon(mMonitor);
 
   // To maintain the order of the MP4Sample, it needs to send the queued samples
   // to OMX first. And then the current input aSample.
@@ -49,11 +50,17 @@ GonkDecoderManager::Input(mp4_demuxer::MP4Sample* aSample)
     mQueueSample.RemoveElementAt(0);
   }
 
+  // Already reaching EOS, do not add any sample to queue.
+  if (mInputEOS) {
+    return NS_OK;
+  }
+
   // When EOS, aSample will be null and sends this empty MP4Sample to nofity
   // OMX it reachs EOS.
   nsAutoPtr<mp4_demuxer::MP4Sample> sample;
   if (!aSample) {
     sample = new mp4_demuxer::MP4Sample();
+    mInputEOS = true;
   }
 
   // If rv is OK, that means mQueueSample is empty, now try to queue current input
@@ -63,9 +70,7 @@ GonkDecoderManager::Input(mp4_demuxer::MP4Sample* aSample)
     mp4_demuxer::MP4Sample* tmp;
     if (aSample) {
       tmp = aSample;
-      if (!PerformFormatSpecificProcess(aSample)) {
-        return NS_ERROR_FAILURE;
-      }
+      PerformFormatSpecificProcess(aSample);
     } else {
       tmp = sample;
     }
@@ -78,10 +83,7 @@ GonkDecoderManager::Input(mp4_demuxer::MP4Sample* aSample)
   // Current valid sample can't be sent into OMX, adding the clone one into queue
   // for next round.
   if (!sample) {
-      sample = aSample->Clone();
-      if (!sample) {
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
+      sample = new mp4_demuxer::MP4Sample(*aSample);
   }
   mQueueSample.AppendElement(sample);
 
@@ -97,22 +99,8 @@ GonkDecoderManager::Input(mp4_demuxer::MP4Sample* aSample)
 nsresult
 GonkDecoderManager::Flush()
 {
-  class ClearQueueRunnable : public nsRunnable
-  {
-  public:
-    explicit ClearQueueRunnable(GonkDecoderManager* aManager)
-      : mManager(aManager) {}
-
-    NS_IMETHOD Run()
-    {
-      mManager->ClearQueuedSample();
-      return NS_OK;
-    }
-
-    GonkDecoderManager* mManager;
-  };
-
-  mTaskQueue->SyncDispatch(new ClearQueueRunnable(this));
+  ReentrantMonitorAutoEnter mon(mMonitor);
+  mQueueSample.Clear();
   return NS_OK;
 }
 

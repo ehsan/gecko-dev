@@ -243,9 +243,9 @@ public class testShareLink extends AboutHomeTest {
 
     private AbsListView getDisplayedShareList() {
         mViewGroup = null;
-        boolean success = waitForCondition(new Condition() {
+        boolean success = waitForTest(new BooleanTest() {
             @Override
-            public boolean isSatisfied() {
+            public boolean test() {
                 ArrayList<View> views = mSolo.getCurrentViews();
                 for (View view : views) {
                     // List may be displayed in different view formats.

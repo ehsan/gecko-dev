@@ -17,7 +17,6 @@ namespace js {
 class PropertyName;
 class NativeObject;
 class ArrayObject;
-class GlobalObject;
 class PlainObject;
 class ScriptSourceObject;
 class Shape;
@@ -46,7 +45,6 @@ typedef JS::Rooted<JSAtom*>            RootedAtom;
 typedef JS::Rooted<JSLinearString*>    RootedLinearString;
 typedef JS::Rooted<PropertyName*>      RootedPropertyName;
 typedef JS::Rooted<ArrayObject*>       RootedArrayObject;
-typedef JS::Rooted<GlobalObject*>      RootedGlobalObject;
 typedef JS::Rooted<PlainObject*>       RootedPlainObject;
 typedef JS::Rooted<ScriptSourceObject*> RootedScriptSource;
 

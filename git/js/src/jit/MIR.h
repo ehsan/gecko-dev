@@ -616,18 +616,14 @@ class MDefinition : public MNode
 
     bool mightBeType(MIRType type) const {
         MOZ_ASSERT(type != MIRType_Value);
-        MOZ_ASSERT(type != MIRType_ObjectOrNull);
 
         if (type == this->type())
             return true;
 
-        if (this->type() == MIRType_ObjectOrNull)
-            return type == MIRType_Object || type == MIRType_Null;
+        if (MIRType_Value != this->type())
+            return false;
 
-        if (this->type() == MIRType_Value)
-            return !resultTypeSet() || resultTypeSet()->mightBeMIRType(type);
-
-        return false;
+        return !resultTypeSet() || resultTypeSet()->mightBeMIRType(type);
     }
 
     bool mightBeMagicType() const;
@@ -9909,13 +9905,15 @@ class MGuardObjectGroup
 
 // Guard on an object's identity, inclusively or exclusively.
 class MGuardObjectIdentity
-  : public MBinaryInstruction,
+  : public MUnaryInstruction,
     public SingleObjectPolicy::Data
 {
+    AlwaysTenuredObject singleObject_;
     bool bailOnEquality_;
 
-    MGuardObjectIdentity(MDefinition *obj, MDefinition *expected, bool bailOnEquality)
-      : MBinaryInstruction(obj, expected),
+    MGuardObjectIdentity(MDefinition *obj, JSObject *singleObject, bool bailOnEquality)
+      : MUnaryInstruction(obj),
+        singleObject_(singleObject),
         bailOnEquality_(bailOnEquality)
     {
         setGuard();
@@ -9926,22 +9924,24 @@ class MGuardObjectIdentity
   public:
     INSTRUCTION_HEADER(GuardObjectIdentity)
 
-    static MGuardObjectIdentity *New(TempAllocator &alloc, MDefinition *obj, MDefinition *expected,
+    static MGuardObjectIdentity *New(TempAllocator &alloc, MDefinition *obj, JSObject *singleObject,
                                      bool bailOnEquality) {
-        return new(alloc) MGuardObjectIdentity(obj, expected, bailOnEquality);
+        return new(alloc) MGuardObjectIdentity(obj, singleObject, bailOnEquality);
     }
 
     MDefinition *obj() const {
         return getOperand(0);
     }
-    MDefinition *expected() const {
-        return getOperand(1);
+    JSObject *singleObject() const {
+        return singleObject_;
     }
     bool bailOnEquality() const {
         return bailOnEquality_;
     }
     bool congruentTo(const MDefinition *ins) const MOZ_OVERRIDE {
         if (!ins->isGuardObjectIdentity())
+            return false;
+        if (singleObject() != ins->toGuardObjectIdentity()->singleObject())
             return false;
         if (bailOnEquality() != ins->toGuardObjectIdentity()->bailOnEquality())
             return false;

@@ -29,7 +29,7 @@ GeneratorObject::create(JSContext *cx, AbstractFramePtr frame)
         // the prototype for the instance.  Bug 906600.
         if (!GetProperty(cx, fun, fun, cx->names().prototype, &pval))
             return nullptr;
-        RootedObject proto(cx, pval.isObject() ? &pval.toObject() : nullptr);
+        JSObject *proto = pval.isObject() ? &pval.toObject() : nullptr;
         if (!proto) {
             proto = GlobalObject::getOrCreateStarGeneratorObjectPrototype(cx, global);
             if (!proto)
@@ -38,7 +38,7 @@ GeneratorObject::create(JSContext *cx, AbstractFramePtr frame)
         obj = NewNativeObjectWithGivenProto(cx, &StarGeneratorObject::class_, proto, global);
     } else {
         MOZ_ASSERT(frame.script()->isLegacyGenerator());
-        RootedObject proto(cx, GlobalObject::getOrCreateLegacyGeneratorObjectPrototype(cx, global));
+        JSObject *proto = GlobalObject::getOrCreateLegacyGeneratorObjectPrototype(cx, global);
         if (!proto)
             return nullptr;
         obj = NewNativeObjectWithGivenProto(cx, &LegacyGeneratorObject::class_, proto, global);
@@ -268,7 +268,7 @@ static const JSFunctionSpec legacy_generator_methods[] = {
 static JSObject*
 NewSingletonObjectWithObjectPrototype(JSContext *cx, Handle<GlobalObject *> global)
 {
-    RootedObject proto(cx, global->getOrCreateObjectPrototype(cx));
+    JSObject *proto = global->getOrCreateObjectPrototype(cx);
     if (!proto)
         return nullptr;
     return NewObjectWithGivenProto<PlainObject>(cx, proto, global, SingletonObject);
@@ -277,7 +277,7 @@ NewSingletonObjectWithObjectPrototype(JSContext *cx, Handle<GlobalObject *> glob
 static JSObject*
 NewSingletonObjectWithFunctionPrototype(JSContext *cx, Handle<GlobalObject *> global)
 {
-    RootedObject proto(cx, global->getOrCreateFunctionPrototype(cx));
+    JSObject *proto = global->getOrCreateFunctionPrototype(cx);
     if (!proto)
         return nullptr;
     return NewObjectWithGivenProto<PlainObject>(cx, proto, global, SingletonObject);
@@ -309,11 +309,10 @@ GlobalObject::initGeneratorClasses(JSContext *cx, Handle<GlobalObject *> global)
         RootedValue function(cx, global->getConstructor(JSProto_Function));
         if (!function.toObjectOrNull())
             return false;
-        RootedObject proto(cx, &function.toObject());
         RootedAtom name(cx, cx->names().GeneratorFunction);
         RootedObject genFunction(cx, NewFunctionWithProto(cx, NullPtr(), Generator, 1,
                                                           JSFunction::NATIVE_CTOR, global, name,
-                                                          proto));
+                                                          &function.toObject()));
         if (!genFunction)
             return false;
         if (!LinkConstructorAndPrototype(cx, genFunction, genFunctionProto))

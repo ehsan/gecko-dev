@@ -400,7 +400,9 @@ WrapperAnswer::RecvCallOrConstruct(const ObjectId &objId,
     for (size_t i = 0; i < argv.Length(); i++) {
         if (argv[i].type() == JSParam::Tvoid_t) {
             // This is an outparam.
-            RootedObject obj(cx, xpc::NewOutObject(cx));
+            JSCompartment *compartment = js::GetContextCompartment(cx);
+            RootedObject global(cx, JS_GetGlobalForCompartmentOrNull(cx, compartment));
+            RootedObject obj(cx, xpc::NewOutObject(cx, global));
             if (!obj)
                 return fail(cx, rs);
             if (!outobjects.append(ObjectValue(*obj)))

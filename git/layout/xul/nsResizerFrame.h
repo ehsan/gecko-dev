@@ -66,7 +66,7 @@ protected:
   static void RestoreOriginalSize(nsIContent* aContent);
 
 protected:
-  LayoutDeviceIntRect mMouseDownRect;
+  nsIntRect mMouseDownRect;
   LayoutDeviceIntPoint mMouseDownPoint;
 }; // class nsResizerFrame
 

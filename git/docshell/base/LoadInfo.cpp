@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* vim: set sw=2 ts=8 et tw=80 : */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -93,12 +93,12 @@ LoadInfo::TriggeringPrincipal()
 }
 
 NS_IMETHODIMP
-LoadInfo::GetLoadingDocument(nsIDOMDocument** aResult)
+LoadInfo::GetLoadingDocument(nsIDOMDocument** outLoadingDocument)
 {
   nsCOMPtr<nsINode> node = do_QueryReferent(mLoadingContext);
   if (node) {
     nsCOMPtr<nsIDOMDocument> context = do_QueryInterface(node->OwnerDoc());
-    context.forget(aResult);
+    context.forget(outLoadingDocument);
   }
   return NS_OK;
 }
@@ -111,17 +111,16 @@ LoadInfo::LoadingNode()
 }
 
 NS_IMETHODIMP
-LoadInfo::GetSecurityFlags(nsSecurityFlags* aResult)
+LoadInfo::GetSecurityFlags(nsSecurityFlags* outSecurityFlags)
 {
-  *aResult = mSecurityFlags;
+  *outSecurityFlags = mSecurityFlags;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 LoadInfo::GetForceInheritPrincipal(bool* aInheritPrincipal)
 {
-  *aInheritPrincipal =
-    (mSecurityFlags & nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL);
+  *aInheritPrincipal = (mSecurityFlags & nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL);
   return NS_OK;
 }
 
@@ -133,9 +132,9 @@ LoadInfo::GetLoadingSandboxed(bool* aLoadingSandboxed)
 }
 
 NS_IMETHODIMP
-LoadInfo::GetContentPolicyType(nsContentPolicyType* aResult)
+LoadInfo::GetContentPolicyType(nsContentPolicyType* outContentPolicyType)
 {
-  *aResult = mContentPolicyType;
+  *outContentPolicyType = mContentPolicyType;
   return NS_OK;
 }
 
@@ -154,9 +153,9 @@ LoadInfo::BaseURI()
 }
 
 NS_IMETHODIMP
-LoadInfo::GetInnerWindowID(uint32_t* aResult)
+LoadInfo::GetInnerWindowID(uint32_t* outInnerWindowID)
 {
-  *aResult = mInnerWindowID;
+  *outInnerWindowID = mInnerWindowID;
   return NS_OK;
 }
 
