@@ -25,7 +25,6 @@
  */
 
 class JSFreeOp;
-struct JSFunctionSpec;
 
 namespace js {
 
@@ -417,23 +416,6 @@ struct ClassSizeMeasurement
     JS_CLASS_MEMBERS;
 };
 
-// Callback for the creation of constructor and prototype objects.
-typedef JSObject *(*ClassObjectCreationOp)(JSContext *cx, JSProtoKey key);
-
-// Callback for custom post-processing after class initialization via ClassSpec.
-typedef bool (*FinishClassInitOp)(JSContext *cx, JS::HandleObject ctor,
-                                  JS::HandleObject proto);
-
-struct ClassSpec
-{
-    ClassObjectCreationOp createConstructor;
-    ClassObjectCreationOp createPrototype;
-    const JSFunctionSpec *constructorFunctions;
-    const JSFunctionSpec *prototypeFunctions;
-    FinishClassInitOp finishInit;
-    bool defined() const { return !!createConstructor; }
-};
-
 struct ClassExtension
 {
     JSObjectOp          outerObject;
@@ -460,7 +442,6 @@ struct ClassExtension
     JSWeakmapKeyDelegateOp weakmapKeyDelegateOp;
 };
 
-#define JS_NULL_CLASS_SPEC  {nullptr,nullptr,nullptr,nullptr,nullptr}
 #define JS_NULL_CLASS_EXT   {nullptr,nullptr,nullptr,false,nullptr}
 
 struct ObjectOps
@@ -611,11 +592,9 @@ namespace js {
 struct Class
 {
     JS_CLASS_MEMBERS;
-    ClassSpec          spec;
     ClassExtension      ext;
     ObjectOps           ops;
     uint8_t             pad[sizeof(JSClass) - sizeof(ClassSizeMeasurement) -
-                            sizeof(ClassSpec) -
                             sizeof(ClassExtension) - sizeof(ObjectOps)];
 
     /* Class is not native and its map is not a scope. */

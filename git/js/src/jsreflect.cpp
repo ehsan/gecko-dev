@@ -3271,15 +3271,17 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
     if (!serialize.init(builder))
         return false;
 
-    JSFlatString *flat = src->ensureFlat(cx);
-    if (!flat)
+    JSStableString *stable = src->ensureStable(cx);
+    if (!stable)
         return false;
 
+    const StableCharPtr chars = stable->chars();
+    size_t length = stable->length();
     CompileOptions options(cx);
     options.setFileAndLine(filename, lineno);
     options.setCanLazilyParse(false);
-    Parser<FullParseHandler> parser(cx, &cx->tempLifoAlloc(), options, flat->chars(),
-                                    flat->length(), /* foldConstants = */ false, nullptr, nullptr);
+    Parser<FullParseHandler> parser(cx, &cx->tempLifoAlloc(), options, chars.get(), length,
+                                    /* foldConstants = */ false, nullptr, nullptr);
 
     serialize.setParser(&parser);
 

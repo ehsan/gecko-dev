@@ -401,10 +401,10 @@ struct StmtInfoBase {
     bool isForLetBlock:1;
 
     RootedAtom      label;          /* name of LABEL */
-    Rooted<NestedScopeObject *> staticScope; /* scope object */
+    Rooted<StaticBlockObject *> blockObj; /* block scope object */
 
     StmtInfoBase(ExclusiveContext *cx)
-        : isBlockScope(false), isForLetBlock(false), label(cx), staticScope(cx)
+        : isBlockScope(false), isForLetBlock(false), label(cx), blockObj(cx)
     {}
 
     bool maybeScope() const {
@@ -413,12 +413,6 @@ struct StmtInfoBase {
 
     bool linksScope() const {
         return (STMT_WITH <= type && type <= STMT_CATCH) || isBlockScope;
-    }
-
-    StaticBlockObject& staticBlock() const {
-        JS_ASSERT(isBlockScope);
-        JS_ASSERT(staticScope);
-        return staticScope->as<StaticBlockObject>();
     }
 
     bool isLoop() const {
@@ -439,7 +433,7 @@ PushStatement(ContextT *ct, typename ContextT::StmtInfo *stmt, StmtType type)
     stmt->isBlockScope = false;
     stmt->isForLetBlock = false;
     stmt->label = nullptr;
-    stmt->staticScope = nullptr;
+    stmt->blockObj = nullptr;
     stmt->down = ct->topStmt;
     ct->topStmt = stmt;
     if (stmt->linksScope()) {
@@ -452,13 +446,13 @@ PushStatement(ContextT *ct, typename ContextT::StmtInfo *stmt, StmtType type)
 
 template <class ContextT>
 void
-FinishPushBlockScope(ContextT *ct, typename ContextT::StmtInfo *stmt, NestedScopeObject &staticScope)
+FinishPushBlockScope(ContextT *ct, typename ContextT::StmtInfo *stmt, StaticBlockObject &blockObj)
 {
     stmt->isBlockScope = true;
     stmt->downScope = ct->topScopeStmt;
     ct->topScopeStmt = stmt;
-    ct->staticScope = &staticScope;
-    stmt->staticScope = &staticScope;
+    ct->blockChain = &blockObj;
+    stmt->blockObj = &blockObj;
 }
 
 // Pop pc->topStmt. If the top StmtInfoPC struct is not stack-allocated, it
@@ -473,7 +467,7 @@ FinishPopStatement(ContextT *ct)
     if (stmt->linksScope()) {
         ct->topScopeStmt = stmt->downScope;
         if (stmt->isBlockScope)
-            ct->staticScope = stmt->staticBlock().enclosingBlock();
+            ct->blockChain = stmt->blockObj->enclosingBlock();
     }
 }
 

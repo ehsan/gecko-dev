@@ -27,8 +27,7 @@ enum OCSPResponseType
   ORTSrverr,           // the response indicates there was a server error
   ORTTryLater,         // the responder replied with "try again later"
   ORTNeedsSig,         // the response needs a signature
-  ORTUnauthorized,     // the responder is not authorized for this certificate
-  ORTBadSignature      // the response has a signature that does not verify
+  ORTUnauthorized      // the responder is not authorized for this certificate
 };
 
 struct OCSPHost

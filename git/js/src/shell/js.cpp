@@ -127,7 +127,6 @@ static bool enableAsmJS = true;
 static bool printTiming = false;
 static const char *jsCacheDir = nullptr;
 static const char *jsCacheAsmJSPath = nullptr;
-static bool jsCachingEnabled = true;
 mozilla::Atomic<int32_t> jsCacheOpened(false);
 
 static bool
@@ -4000,16 +3999,7 @@ static bool
 IsCachingEnabled(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setBoolean(jsCachingEnabled && jsCacheAsmJSPath != nullptr);
-    return true;
-}
-
-static bool
-SetCachingEnabled(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    jsCachingEnabled = ToBoolean(args.get(0));
-    args.rval().setUndefined();
+    args.rval().setBoolean(jsCacheAsmJSPath != nullptr);
     return true;
 }
 
@@ -4324,11 +4314,7 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
 
     JS_FN_HELP("isCachingEnabled", IsCachingEnabled, 0, 0,
 "isCachingEnabled()",
-"  Return whether JS caching is enabled."),
-
-    JS_FN_HELP("setCachingEnabled", SetCachingEnabled, 1, 0,
-"setCachingEnabled(b)",
-"  Enable or disable JS caching."),
+"  Return whether --js-cache was set."),
 
     JS_FS_HELP_END
 };
@@ -5087,7 +5073,7 @@ ShellOpenAsmJSCacheEntryForRead(HandleObject global, const jschar *begin, const 
                                 size_t *serializedSizeOut, const uint8_t **memoryOut,
                                 intptr_t *handleOut)
 {
-    if (!jsCachingEnabled || !jsCacheAsmJSPath)
+    if (!jsCacheAsmJSPath)
         return false;
 
     ScopedFileDesc fd(open(jsCacheAsmJSPath, O_RDWR), ScopedFileDesc::READ_LOCK);
@@ -5159,7 +5145,7 @@ static bool
 ShellOpenAsmJSCacheEntryForWrite(HandleObject global, const jschar *begin, const jschar *end,
                                  size_t serializedSize, uint8_t **memoryOut, intptr_t *handleOut)
 {
-    if (!jsCachingEnabled || !jsCacheAsmJSPath)
+    if (!jsCacheAsmJSPath)
         return false;
 
     // Create the cache directory if it doesn't already exist.
