@@ -9,10 +9,6 @@
 #include "AudioConduit.h"
 #include "video_engine/include/vie_errors.h"
 
-#ifdef MOZ_WIDGET_ANDROID
-#include "AndroidJNIWrapper.h"
-#endif
-
 namespace mozilla {
 
 static const char* logTag ="WebrtcVideoSessionConduit";
@@ -101,24 +97,6 @@ MediaConduitErrorCode WebrtcVideoConduit::Init()
 {
 
   CSFLogDebug(logTag,  "%s ", __FUNCTION__);
-
-#ifdef MOZ_WIDGET_ANDROID
-  jobject context = jsjni_GetGlobalContextRef();
-
-  // get the JVM
-  JavaVM *jvm = jsjni_GetVM();
-
-  JNIEnv* env;
-  if (jvm->GetEnv((void**)&env, JNI_VERSION_1_4) != JNI_OK) {
-      CSFLogError(logTag,  "%s: could not get Java environment", __FUNCTION__);
-      return kMediaConduitSessionNotInited;
-  }
-  jvm->AttachCurrentThread(&env, NULL);
-
-  webrtc::VideoEngine::SetAndroidObjects(jvm, (void*)context);
-
-  env->DeleteGlobalRef(context);
-#endif
 
   if( !(mVideoEngine = webrtc::VideoEngine::Create()) )
   {
@@ -543,18 +521,11 @@ WebrtcVideoConduit::SendVideoFrame(unsigned char* video_frame,
     return kMediaConduitMalformedArgument;
   }
 
-  webrtc::RawVideoType type;
-  switch (video_type) {
-    case kVideoI420:
-      type = webrtc::kVideoI420;
-      break;
-    case kVideoNV21:
-      type = webrtc::kVideoNV21;
-      break;
-    default:
-      CSFLogError(logTag,  "%s VideoType Invalid. Only 1420 and NV21 Supported",__FUNCTION__);
-      MOZ_ASSERT(PR_FALSE);
-      return kMediaConduitMalformedArgument;
+  if(video_type != kVideoI420)
+  {
+    CSFLogError(logTag,  "%s VideoType Invalid. Only 1420 Supported",__FUNCTION__);
+    MOZ_ASSERT(PR_FALSE);
+    return kMediaConduitMalformedArgument;
   }
   //Transmission should be enabled before we insert any frames.
   if(!mEngineTransmitting)
@@ -567,7 +538,7 @@ WebrtcVideoConduit::SendVideoFrame(unsigned char* video_frame,
   if(mPtrExtCapture->IncomingFrame(video_frame,
                                    video_frame_length,
                                    width, height,
-                                   type,
+                                   webrtc::kVideoI420,
                                    (unsigned long long)capture_time) == -1)
   {
     CSFLogError(logTag,  "%s IncomingFrame Failed %d ", __FUNCTION__,

@@ -1254,7 +1254,7 @@ CanvasRenderingContext2D::GetMozCurrentTransformInverse(JSContext* cx,
 
 void
 CanvasRenderingContext2D::SetStyleFromJSValue(JSContext* cx,
-                                              JS::Handle<JS::Value> value,
+                                              JS::Value& value,
                                               Style whichStyle)
 {
   if (value.isString()) {
@@ -1269,10 +1269,9 @@ CanvasRenderingContext2D::SetStyleFromJSValue(JSContext* cx,
     nsCOMPtr<nsISupports> holder;
 
     CanvasGradient* gradient;
-    JS::Rooted<JS::Value> rootedVal(cx, value);
     nsresult rv = xpc_qsUnwrapArg<CanvasGradient>(cx, value, &gradient,
                                                   static_cast<nsISupports**>(getter_AddRefs(holder)),
-                                                  rootedVal.address());
+                                                  &value);
     if (NS_SUCCEEDED(rv)) {
       SetStyleFromGradient(gradient, whichStyle);
       return;
@@ -1281,7 +1280,7 @@ CanvasRenderingContext2D::SetStyleFromJSValue(JSContext* cx,
     CanvasPattern* pattern;
     rv = xpc_qsUnwrapArg<CanvasPattern>(cx, value, &pattern,
                                         static_cast<nsISupports**>(getter_AddRefs(holder)),
-                                        rootedVal.address());
+                                        &value);
     if (NS_SUCCEEDED(rv)) {
       SetStyleFromPattern(pattern, whichStyle);
       return;
@@ -1456,7 +1455,6 @@ CanvasRenderingContext2D::CreatePattern(const HTMLImageOrCanvasOrVideoElement& e
 
   // Ignore nullptr cairo surfaces! See bug 666312.
   if (!res.mSurface->CairoSurface() || res.mSurface->CairoStatus()) {
-    error.Throw(NS_ERROR_NOT_AVAILABLE);
     return nullptr;
   }
 
@@ -2812,7 +2810,9 @@ CanvasRenderingContext2D::SetMozDash(JSContext* cx,
 JS::Value
 CanvasRenderingContext2D::GetMozDash(JSContext* cx, ErrorResult& error)
 {
-  return DashArrayToJSVal(CurrentState().dash, cx, error);
+  JS::Value mozDash;
+  error = DashArrayToJSVal(CurrentState().dash, cx, &mozDash);
+  return mozDash;
 }
 
 void
@@ -3423,7 +3423,7 @@ CanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
     }
   }
 
-  JS::Rooted<JSObject*> darray(aCx, JS_NewUint8ClampedArray(aCx, len.value()));
+  JSObject* darray = JS_NewUint8ClampedArray(aCx, len.value());
   if (!darray) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

@@ -66,7 +66,7 @@ nsJSEventListener::~nsJSEventListener()
 
 /* virtual */
 void
-nsJSEventListener::UpdateScopeObject(JS::Handle<JSObject*> aScopeObject)
+nsJSEventListener::UpdateScopeObject(JSObject* aScopeObject)
 {
   if (mScopeObject && !aScopeObject) {
     mScopeObject = nullptr;

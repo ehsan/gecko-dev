@@ -972,6 +972,8 @@ struct NormalizeNewlinesCharTraits {
     OutputIterator mIterator;
 };
 
+#ifdef HAVE_CPP_PARTIAL_SPECIALIZATION
+
 template <class CharT>
 struct NormalizeNewlinesCharTraits<CharT*> {
   public:
@@ -986,6 +988,40 @@ struct NormalizeNewlinesCharTraits<CharT*> {
   private:
     CharT* mCharPtr;
 };
+
+#else
+
+template <>
+struct NormalizeNewlinesCharTraits<char*> {
+  public:
+    typedef char value_type;
+
+  public:
+    NormalizeNewlinesCharTraits(char* aCharPtr) : mCharPtr(aCharPtr) { }
+    void writechar(char aChar) {
+      *mCharPtr++ = aChar;
+    }
+
+  private:
+    char* mCharPtr;
+};
+
+template <>
+struct NormalizeNewlinesCharTraits<PRUnichar*> {
+  public:
+    typedef PRUnichar value_type;
+
+  public:
+    NormalizeNewlinesCharTraits(PRUnichar* aCharPtr) : mCharPtr(aCharPtr) { }
+    void writechar(PRUnichar aChar) {
+      *mCharPtr++ = aChar;
+    }
+
+  private:
+    PRUnichar* mCharPtr;
+};
+
+#endif
 
 template <class OutputIterator>
 class CopyNormalizeNewlines
@@ -5839,9 +5875,8 @@ nsContentUtils::DispatchXULCommand(nsIContent* aTarget,
 
 // static
 nsresult
-nsContentUtils::WrapNative(JSContext *cx, JS::Handle<JSObject*> scope,
-                           nsISupports *native, nsWrapperCache *cache,
-                           const nsIID* aIID, JS::Value *vp,
+nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
+                           nsWrapperCache *cache, const nsIID* aIID, JS::Value *vp,
                            nsIXPConnectJSObjectHolder **aHolder,
                            bool aAllowWrapping)
 {
@@ -5930,7 +5965,7 @@ nsContentUtils::CreateBlobBuffer(JSContext* aCx,
   } else {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-  JS::Rooted<JSObject*> scope(aCx, JS_GetGlobalForScopeChain(aCx));
+  JSObject* scope = JS_GetGlobalForScopeChain(aCx);
   return nsContentUtils::WrapNative(aCx, scope, blob, &aBlob, nullptr, true);
 }
 
@@ -6381,11 +6416,11 @@ nsContentUtils::IsPatternMatching(nsAString& aValue, nsAString& aPattern,
     return true;
   }
 
-  JS::Rooted<JS::Value> rval(cx, JS::NullValue());
+  JS::Value rval = JS::NullValue();
   size_t idx = 0;
   if (!JS_ExecuteRegExpNoStatics(cx, re,
                                  static_cast<jschar*>(aValue.BeginWriting()),
-                                 aValue.Length(), &idx, true, rval.address())) {
+                                 aValue.Length(), &idx, true, &rval)) {
     JS_ClearPendingException(cx);
     return true;
   }

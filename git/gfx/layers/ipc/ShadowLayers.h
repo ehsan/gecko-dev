@@ -274,13 +274,6 @@ public:
                              SurfaceDescriptor* aDescriptor) MOZ_OVERRIDE;
 
   /**
-   * Same as above, but performs an asynchronous layer transaction
-   */
-  virtual void UpdateTextureNoSwap(CompositableClient* aCompositable,
-                                   TextureIdentifier aTextureId,
-                                   SurfaceDescriptor* aDescriptor) MOZ_OVERRIDE;
-
-  /**
    * Communicate to the compositor that aRegion in the texture identified by aLayer
    * and aIdentifier has been updated to aThebesBuffer.
    */
@@ -432,7 +425,6 @@ private:
   Transaction* mTxn;
 
   bool mIsFirstPaint;
-  bool mDrawColoredBorders;
 };
 
 class CompositableClient;

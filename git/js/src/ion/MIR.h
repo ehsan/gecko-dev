@@ -5373,10 +5373,10 @@ class MGetPropertyPolymorphic
 {
     struct Entry {
         // The shape to guard against.
-        Shape *objShape;
+        RawShape objShape;
 
         // The property to laod.
-        Shape *shape;
+        RawShape shape;
     };
 
     Vector<Entry, 4, IonAllocPolicy> shapes_;
@@ -5412,7 +5412,7 @@ class MGetPropertyPolymorphic
     TypePolicy *typePolicy() {
         return this;
     }
-    bool addShape(Shape *objShape, Shape *shape) {
+    bool addShape(RawShape objShape, RawShape shape) {
         Entry entry;
         entry.objShape = objShape;
         entry.shape = shape;
@@ -5421,10 +5421,10 @@ class MGetPropertyPolymorphic
     size_t numShapes() const {
         return shapes_.length();
     }
-    Shape *objShape(size_t i) const {
+    RawShape objShape(size_t i) const {
         return shapes_[i].objShape;
     }
-    Shape *shape(size_t i) const {
+    RawShape shape(size_t i) const {
         return shapes_[i].shape;
     }
     MDefinition *obj() const {
@@ -5445,10 +5445,10 @@ class MSetPropertyPolymorphic
 {
     struct Entry {
         // The shape to guard against.
-        Shape *objShape;
+        RawShape objShape;
 
         // The property to laod.
-        Shape *shape;
+        RawShape shape;
     };
 
     Vector<Entry, 4, IonAllocPolicy> shapes_;
@@ -5470,7 +5470,7 @@ class MSetPropertyPolymorphic
     TypePolicy *typePolicy() {
         return this;
     }
-    bool addShape(Shape *objShape, Shape *shape) {
+    bool addShape(RawShape objShape, RawShape shape) {
         Entry entry;
         entry.objShape = objShape;
         entry.shape = shape;
@@ -5479,10 +5479,10 @@ class MSetPropertyPolymorphic
     size_t numShapes() const {
         return shapes_.length();
     }
-    Shape *objShape(size_t i) const {
+    RawShape objShape(size_t i) const {
         return shapes_[i].objShape;
     }
-    Shape *shape(size_t i) const {
+    RawShape shape(size_t i) const {
         return shapes_[i].shape;
     }
     MDefinition *obj() const {
@@ -5849,7 +5849,7 @@ class MBindNameCache
     CompilerRootScript script_;
     jsbytecode *pc_;
 
-    MBindNameCache(MDefinition *scopeChain, PropertyName *name, JSScript *script, jsbytecode *pc)
+    MBindNameCache(MDefinition *scopeChain, PropertyName *name, RawScript script, jsbytecode *pc)
       : MUnaryInstruction(scopeChain), name_(name), script_(script), pc_(pc)
     {
         setResultType(MIRType_Object);
@@ -5858,7 +5858,7 @@ class MBindNameCache
   public:
     INSTRUCTION_HEADER(BindNameCache)
 
-    static MBindNameCache *New(MDefinition *scopeChain, PropertyName *name, JSScript *script,
+    static MBindNameCache *New(MDefinition *scopeChain, PropertyName *name, RawScript script,
                                jsbytecode *pc) {
         return new MBindNameCache(scopeChain, name, script, pc);
     }
@@ -5872,7 +5872,7 @@ class MBindNameCache
     PropertyName *name() const {
         return name_;
     }
-    JSScript *script() const {
+    RawScript script() const {
         return script_;
     }
     jsbytecode *pc() const {
@@ -5911,7 +5911,7 @@ class MGuardShape
     MDefinition *obj() const {
         return getOperand(0);
     }
-    const Shape *shape() const {
+    const RawShape shape() const {
         return shape_;
     }
     BailoutKind bailoutKind() const {
@@ -6916,7 +6916,7 @@ class MInstanceOf
     CompilerRootObject protoObj_;
 
   public:
-    MInstanceOf(MDefinition *obj, JSObject *proto)
+    MInstanceOf(MDefinition *obj, RawObject proto)
       : MUnaryInstruction(obj),
         protoObj_(proto)
     {
@@ -6929,7 +6929,7 @@ class MInstanceOf
         return this;
     }
 
-    JSObject *prototypeObject() {
+    RawObject prototypeObject() {
         return protoObj_;
     }
 };
@@ -7124,7 +7124,7 @@ class MTypeBarrier
 // Like MTypeBarrier, guard that the value is in the given type set. This is
 // used before property writes to ensure the value being written is represented
 // in the property types for the object.
-class MMonitorTypes : public MUnaryInstruction, public BoxInputsPolicy
+class MMonitorTypes : public MUnaryInstruction
 {
     const types::StackTypeSet *typeSet_;
 
@@ -7142,11 +7142,6 @@ class MMonitorTypes : public MUnaryInstruction, public BoxInputsPolicy
     static MMonitorTypes *New(MDefinition *def, const types::StackTypeSet *types) {
         return new MMonitorTypes(def, types);
     }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-
     MDefinition *input() const {
         return getOperand(0);
     }
@@ -7334,7 +7329,7 @@ class MFunctionBoundary : public MNullaryInstruction
     Type type_;
     unsigned inlineLevel_;
 
-    MFunctionBoundary(JSScript *script, Type type, unsigned inlineLevel)
+    MFunctionBoundary(RawScript script, Type type, unsigned inlineLevel)
       : script_(script), type_(type), inlineLevel_(inlineLevel)
     {
         JS_ASSERT_IF(type != Inline_Exit, script != NULL);
@@ -7345,12 +7340,12 @@ class MFunctionBoundary : public MNullaryInstruction
   public:
     INSTRUCTION_HEADER(FunctionBoundary)
 
-    static MFunctionBoundary *New(JSScript *script, Type type,
+    static MFunctionBoundary *New(RawScript script, Type type,
                                   unsigned inlineLevel = 0) {
         return new MFunctionBoundary(script, type, inlineLevel);
     }
 
-    JSScript *script() {
+    RawScript script() {
         return script_;
     }
 

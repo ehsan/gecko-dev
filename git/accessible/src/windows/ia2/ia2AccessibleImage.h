@@ -10,9 +10,6 @@
 
 #include "AccessibleImage.h"
 
-namespace mozilla {
-namespace a11y {
-
 class ia2AccessibleImage : public IAccessibleImage
 {
 public:
@@ -34,7 +31,5 @@ public:
       /* [retval][out] */ long *width);
 };
 
-} // namespace a11y
-} // namespace mozilla
-
 #endif
+

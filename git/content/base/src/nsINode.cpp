@@ -95,6 +95,7 @@
 #include "nsXBLInsertionPoint.h"
 #include "nsXBLPrototypeBinding.h"
 #include "prprf.h"
+#include "xpcprivate.h" // XBLScopesEnabled
 #include "xpcpublic.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsCSSParser.h"
@@ -721,11 +722,12 @@ nsINode::GetUserData(JSContext* aCx, const nsAString& aKey, ErrorResult& aError)
 
 //static
 bool
-nsINode::IsChromeOrXBL(JSContext* aCx, JSObject* /* unused */)
+nsINode::ShouldExposeUserData(JSContext* aCx, JSObject* /* unused */)
 {
   JSCompartment* compartment = js::GetContextCompartment(aCx);
   return xpc::AccessCheck::isChrome(compartment) ||
-         xpc::IsXBLScope(compartment);
+         xpc::IsXBLScope(compartment) ||
+         !XPCJSRuntime::Get()->XBLScopesEnabled();
 }
 
 uint16_t

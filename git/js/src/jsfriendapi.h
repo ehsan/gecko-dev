@@ -380,13 +380,13 @@ extern JS_FRIEND_DATA(js::Class) ObjectProxyClass;
 extern JS_FRIEND_DATA(js::Class) ObjectClass;
 
 inline js::Class *
-GetObjectClass(JSObject *obj)
+GetObjectClass(RawObject obj)
 {
     return reinterpret_cast<const shadow::Object*>(obj)->type->clasp;
 }
 
 inline JSClass *
-GetObjectJSClass(JSObject *obj)
+GetObjectJSClass(RawObject obj)
 {
     return js::Jsvalify(GetObjectClass(obj));
 }
@@ -402,10 +402,10 @@ IsOuterObject(JSObject *obj) {
 }
 
 JS_FRIEND_API(bool)
-IsScopeObject(JSObject *obj);
+IsScopeObject(RawObject obj);
 
 inline JSObject *
-GetObjectParent(JSObject *obj)
+GetObjectParent(RawObject obj)
 {
     JS_ASSERT(!IsScopeObject(obj));
     return reinterpret_cast<shadow::Object*>(obj)->shape->base->parent;
@@ -418,13 +418,13 @@ GetObjectCompartment(JSObject *obj)
 }
 
 JS_FRIEND_API(JSObject *)
-GetObjectParentMaybeScope(JSObject *obj);
+GetObjectParentMaybeScope(RawObject obj);
 
 JS_FRIEND_API(JSObject *)
-GetGlobalForObjectCrossCompartment(JSObject *obj);
+GetGlobalForObjectCrossCompartment(RawObject obj);
 
 JS_FRIEND_API(void)
-NotifyAnimationActivity(JSObject *obj);
+NotifyAnimationActivity(RawObject obj);
 
 JS_FRIEND_API(bool)
 IsOriginalScriptFunction(JSFunction *fun);
@@ -460,28 +460,28 @@ InitClassWithReserved(JSContext *cx, JSObject *obj, JSObject *parent_proto,
                       const JSPropertySpec *static_ps, const JSFunctionSpec *static_fs);
 
 JS_FRIEND_API(const Value &)
-GetFunctionNativeReserved(JSObject *fun, size_t which);
+GetFunctionNativeReserved(RawObject fun, size_t which);
 
 JS_FRIEND_API(void)
-SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val);
+SetFunctionNativeReserved(RawObject fun, size_t which, const Value &val);
 
 inline bool
-GetObjectProto(JSContext *cx, JS::Handle<JSObject*> obj, JS::MutableHandle<JSObject*> proto)
+GetObjectProto(JSContext *cx, JSObject *obj, JSObject **proto)
 {
     js::Class *clasp = GetObjectClass(obj);
     if (clasp == &js::ObjectProxyClass ||
         clasp == &js::OuterWindowProxyClass ||
         clasp == &js::FunctionProxyClass)
     {
-        return JS_GetPrototype(cx, obj, proto.address());
+        return JS_GetPrototype(cx, obj, proto);
     }
 
-    proto.set(reinterpret_cast<const shadow::Object*>(obj.get())->type->proto);
+    *proto = reinterpret_cast<const shadow::Object*>(obj)->type->proto;
     return true;
 }
 
 inline void *
-GetObjectPrivate(JSObject *obj)
+GetObjectPrivate(RawObject obj)
 {
     const shadow::Object *nobj = reinterpret_cast<const shadow::Object*>(obj);
     void **addr = reinterpret_cast<void**>(&nobj->fixedSlots()[nobj->numFixedSlots()]);
@@ -493,17 +493,17 @@ GetObjectPrivate(JSObject *obj)
  * within the maximum capacity for the object's fixed slots).
  */
 inline const Value &
-GetReservedSlot(JSObject *obj, size_t slot)
+GetReservedSlot(RawObject obj, size_t slot)
 {
     JS_ASSERT(slot < JSCLASS_RESERVED_SLOTS(GetObjectClass(obj)));
     return reinterpret_cast<const shadow::Object *>(obj)->slotRef(slot);
 }
 
 JS_FRIEND_API(void)
-SetReservedSlotWithBarrier(JSObject *obj, size_t slot, const Value &value);
+SetReservedSlotWithBarrier(RawObject obj, size_t slot, const Value &value);
 
 inline void
-SetReservedSlot(JSObject *obj, size_t slot, const Value &value)
+SetReservedSlot(RawObject obj, size_t slot, const Value &value)
 {
     JS_ASSERT(slot < JSCLASS_RESERVED_SLOTS(GetObjectClass(obj)));
     shadow::Object *sobj = reinterpret_cast<shadow::Object *>(obj);
@@ -520,10 +520,10 @@ SetReservedSlot(JSObject *obj, size_t slot, const Value &value)
 }
 
 JS_FRIEND_API(uint32_t)
-GetObjectSlotSpan(JSObject *obj);
+GetObjectSlotSpan(RawObject obj);
 
 inline const Value &
-GetObjectSlot(JSObject *obj, size_t slot)
+GetObjectSlot(RawObject obj, size_t slot)
 {
     JS_ASSERT(slot < GetObjectSlotSpan(obj));
     return reinterpret_cast<const shadow::Object *>(obj)->slotRef(slot);
@@ -542,19 +542,19 @@ AtomToLinearString(JSAtom *atom)
 }
 
 static inline js::PropertyOp
-CastAsJSPropertyOp(JSObject *object)
+CastAsJSPropertyOp(RawObject object)
 {
     return JS_DATA_TO_FUNC_PTR(js::PropertyOp, object);
 }
 
 static inline js::StrictPropertyOp
-CastAsJSStrictPropertyOp(JSObject *object)
+CastAsJSStrictPropertyOp(RawObject object)
 {
     return JS_DATA_TO_FUNC_PTR(js::StrictPropertyOp, object);
 }
 
 JS_FRIEND_API(bool)
-GetPropertyNames(JSContext *cx, JSObject *obj, unsigned flags, js::AutoIdVector *props);
+GetPropertyNames(JSContext *cx, RawObject obj, unsigned flags, js::AutoIdVector *props);
 
 JS_FRIEND_API(bool)
 AppendUnique(JSContext *cx, AutoIdVector &base, AutoIdVector &others);
@@ -569,7 +569,7 @@ JS_FRIEND_API(void)
 SetPreserveWrapperCallback(JSRuntime *rt, PreserveWrapperCallback callback);
 
 JS_FRIEND_API(bool)
-IsObjectInContextCompartment(JSObject *obj, const JSContext *cx);
+IsObjectInContextCompartment(RawObject obj, const JSContext *cx);
 
 /*
  * NB: these flag bits are encoded into the bytecode stream in the immediate
@@ -720,7 +720,7 @@ JS_FRIEND_API(void)
 EnableRuntimeProfilingStack(JSRuntime *rt, bool enabled);
 
 JS_FRIEND_API(jsbytecode*)
-ProfilingGetPC(JSRuntime *rt, JSScript *script, void *ip);
+ProfilingGetPC(JSRuntime *rt, RawScript script, void *ip);
 
 #ifdef JS_THREADSAFE
 JS_FRIEND_API(void *)
@@ -855,46 +855,11 @@ NukeCrossCompartmentWrappers(JSContext* cx,
                              NukeReferencesToWindow nukeReferencesToWindow);
 
 /* Specify information about ListBase proxies in the DOM, for use by ICs. */
-
-/*
- * The ListBaseShadowsCheck function will be called to check if the property for
- * id should be gotten from the prototype, or if there is an own property that
- * shadows it.
- * If DoesntShadow is returned then the slot at listBaseExpandoSlot should
- * either be undefined or point to an expando object that would contain the own
- * property.
- * If DoesntShadowUnique is returned then the slot at listBaseExpandoSlot should
- * contain a private pointer to a ExpandoAndGeneration, which contains a
- * JS::Value that should either be undefined or point to an expando object, and
- * a uint32 value. If that value changes then the IC for getting a property will
- * be invalidated.
- */
-
-struct ExpandoAndGeneration {
-  ExpandoAndGeneration()
-    : expando(UndefinedValue()),
-      generation(0)
-  {}
-
-  Value expando;
-  uint32_t generation;
-};
-
-typedef enum ListBaseShadowsResult {
-  ShadowCheckFailed,
-  Shadows,
-  DoesntShadow,
-  DoesntShadowUnique
-} ListBaseShadowsResult;
-typedef ListBaseShadowsResult
-(* ListBaseShadowsCheck)(JSContext* cx, JSHandleObject object, JSHandleId id);
 JS_FRIEND_API(void)
-SetListBaseInformation(void *listBaseHandlerFamily, uint32_t listBaseExpandoSlot,
-                       ListBaseShadowsCheck listBaseShadowsCheck);
+SetListBaseInformation(void *listBaseHandlerFamily, uint32_t listBaseExpandoSlot);
 
 void *GetListBaseHandlerFamily();
 uint32_t GetListBaseExpandoSlot();
-ListBaseShadowsCheck GetListBaseShadowsCheck();
 
 } /* namespace js */
 
@@ -1021,9 +986,10 @@ extern JS_FRIEND_API(JSObject *)
 JS_NewFloat64ArrayFromArray(JSContext *cx, JSObject *array);
 
 /*
- * Create a new typed array using the given ArrayBuffer for storage.  The
- * length value is optional; if -1 is passed, enough elements to use up the
- * remainder of the byte array is used as the default value.
+ * Create a new typed array using the given ArrayBuffer for storage. byteOffset
+ * must not exceed (signed) INT32_MAX. The length value is optional; if -1 is
+ * passed, enough elements to use up the remainder of the byte array is used as
+ * the default value.
  */
 
 extern JS_FRIEND_API(JSObject *)

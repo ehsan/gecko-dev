@@ -1008,7 +1008,7 @@ nsDocumentEncoder::EncodeToString(nsAString& aOutputString)
   nsString output;
   static const size_t bufferSize = 2048;
   if (!mCachedBuffer) {
-    mCachedBuffer = nsStringBuffer::Alloc(bufferSize).get();
+    mCachedBuffer = nsStringBuffer::Alloc(bufferSize);
   }
   NS_ASSERTION(!mCachedBuffer->IsReadonly(),
                "DocumentEncoder shouldn't keep reference to non-readonly buffer!");

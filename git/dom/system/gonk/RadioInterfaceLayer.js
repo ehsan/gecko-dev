@@ -99,7 +99,6 @@ const RIL_IPC_MOBILECONNECTION_MSG_NAMES = [
   "RIL:IccOpenChannel",
   "RIL:IccExchangeAPDU",
   "RIL:IccCloseChannel",
-  "RIL:ReadIccContacts",
   "RIL:UpdateIccContact",
   "RIL:RegisterMobileConnectionMsg",
   "RIL:RegisterIccMsg",
@@ -513,10 +512,6 @@ RadioInterfaceLayer.prototype = {
         this.saveRequestTarget(msg);
         this.iccExchangeAPDU(msg.json);
         break;
-      case "RIL:ReadIccContacts":
-        this.saveRequestTarget(msg);
-        this.readIccContacts(msg.json);
-        break;
       case "RIL:UpdateIccContact":
         this.saveRequestTarget(msg);
         this.updateIccContact(msg.json);
@@ -679,7 +674,16 @@ RadioInterfaceLayer.prototype = {
         this.handleIccCardLockResult(message);
         break;
       case "icccontacts":
-        this.handleReadIccContacts(message);
+        if (!this._contactsCallbacks) {
+          return;
+        }
+        let callback = this._contactsCallbacks[message.requestId];
+        if (callback) {
+          delete this._contactsCallbacks[message.requestId];
+          callback.receiveContactsList(message.errorMsg,
+                                       message.contactType,
+                                       message.contacts);
+        }
         break;
       case "icccontactupdate":
         this.handleUpdateIccContact(message);
@@ -1370,11 +1374,6 @@ RadioInterfaceLayer.prototype = {
         options.calls[i].callIndex == this._activeCall.callIndex : false;
     }
     this._sendRequestResults("RIL:EnumerateCalls", options);
-  },
-
-  handleReadIccContacts: function handleReadIccContacts(message) {
-    debug("handleReadIccContacts: " + JSON.stringify(message));
-    this._sendRequestResults("RIL:ReadIccContacts", message);
   },
 
   handleUpdateIccContact: function handleUpdateIccContact(message) {
@@ -2882,9 +2881,16 @@ RadioInterfaceLayer.prototype = {
     this.worker.postMessage(message);
   },
 
-  readIccContacts: function readIccContacts(message) {
-    message.rilMessageType = "readICCContacts";
-    this.worker.postMessage(message);
+  _contactsCallbacks: null,
+  getICCContacts: function getICCContacts(contactType, callback) {
+    if (!this._contactsCallbacks) {
+      this._contactsCallbacks = {};
+    }
+    let requestId = Math.floor(Math.random() * 1000);
+    this._contactsCallbacks[requestId] = callback;
+    this.worker.postMessage({rilMessageType: "getICCContacts",
+                             contactType: contactType,
+                             requestId: requestId});
   },
 
   updateIccContact: function updateIccContact(message) {

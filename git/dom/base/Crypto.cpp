@@ -50,7 +50,7 @@ Crypto::GetRandomValues(const JS::Value& aData, JSContext *cx,
     return NS_ERROR_DOM_NOT_OBJECT_ERR;
   }
 
-  JS::Rooted<JSObject*> view(cx, &aData.toObject());
+  JSObject* view = &aData.toObject();
 
   // Make sure this object is an ArrayBufferView
   if (!JS_IsTypedArrayObject(view)) {

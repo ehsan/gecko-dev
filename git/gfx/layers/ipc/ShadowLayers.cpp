@@ -165,7 +165,6 @@ CompositableForwarder::IdentifyTextureHost(const TextureFactoryIdentifier& aIden
 ShadowLayerForwarder::ShadowLayerForwarder()
  : mShadowManager(NULL)
  , mIsFirstPaint(false)
- , mDrawColoredBorders(false)
 {
   mTxn = new Transaction();
 }
@@ -318,23 +317,6 @@ ShadowLayerForwarder::UpdateTexture(CompositableClient* aCompositable,
 }
 
 void
-ShadowLayerForwarder::UpdateTextureNoSwap(CompositableClient* aCompositable,
-                                          TextureIdentifier aTextureId,
-                                          SurfaceDescriptor* aDescriptor)
-{
-  if (aDescriptor->type() != SurfaceDescriptor::T__None &&
-      aDescriptor->type() != SurfaceDescriptor::Tnull_t) {
-    MOZ_ASSERT(aCompositable);
-    MOZ_ASSERT(aCompositable->GetIPDLActor());
-    mTxn->AddNoSwapPaint(OpPaintTexture(nullptr, aCompositable->GetIPDLActor(), 1,
-                                        SurfaceDescriptor(*aDescriptor)));
-    *aDescriptor = SurfaceDescriptor();
-  } else {
-    NS_WARNING("Trying to send a null SurfaceDescriptor.");
-  }
-}
-
-void
 ShadowLayerForwarder::UpdateTextureRegion(CompositableClient* aCompositable,
                                           const ThebesBufferData& aThebesBufferData,
                                           const nsIntRegion& aUpdatedRegion)
@@ -360,11 +342,6 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
   RenderTraceScope rendertrace("Foward Transaction", "000091");
   NS_ABORT_IF_FALSE(HasShadowManager(), "no manager to forward to");
   NS_ABORT_IF_FALSE(!mTxn->Finished(), "forgot BeginTransaction?");
-
-  if (mDrawColoredBorders != gfxPlatform::DrawLayerBorders()) {
-    mDrawColoredBorders = gfxPlatform::DrawLayerBorders();
-    mTxn->AddEdit(OpSetColoredBorders(mDrawColoredBorders));
-  }
 
   AutoTxnEnd _(mTxn);
 

@@ -340,19 +340,10 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
             nsCOMPtr<nsISearchSubmission> submission;
             // We allow default search plugins to specify alternate
             // parameters that are specific to keyword searches.
-            NS_NAMED_LITERAL_STRING(mozKeywordSearch, "application/x-moz-keywordsearch");
-            bool supportsResponseType = false;
-            defaultEngine->SupportsResponseType(mozKeywordSearch, &supportsResponseType);
-            if (supportsResponseType)
-              defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
-                                           mozKeywordSearch,
-                                           NS_LITERAL_STRING("keyword"),
-                                           getter_AddRefs(submission));
-            else
-              defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
-                                           EmptyString(),
-                                           NS_LITERAL_STRING("keyword"),
-                                           getter_AddRefs(submission));
+            defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
+                                         EmptyString(),
+                                         NS_LITERAL_STRING("keyword"),
+                                         getter_AddRefs(submission));
             if (submission) {
                 // The submission depends on POST data (i.e. the search engine's
                 // "method" is POST), we can't use this engine for keyword

@@ -67,7 +67,6 @@
         }],
         ['OS=="android"', {
           'include_dirs': [
-            '$(topsrcdir)/widget/android',
             'android',
           ],
         }], # OS==android

@@ -12,7 +12,6 @@
 #define jsutil_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/Compiler.h"
 #include "mozilla/GuardObjects.h"
 
 #include "js/Utility.h"
@@ -371,9 +370,7 @@ typedef size_t jsbitmap;
         { expr; }                                                             \
         _Pragma("clang diagnostic pop")                                       \
     JS_END_MACRO
-#elif MOZ_IS_GCC
-
-#if MOZ_GCC_VERSION_AT_LEAST(4, 6, 0)
+#elif (__GNUC__ >= 5) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
 # define JS_SILENCE_UNUSED_VALUE_IN_EXPR(expr)                                \
     JS_BEGIN_MACRO                                                            \
         _Pragma("GCC diagnostic push")                                        \
@@ -381,10 +378,7 @@ typedef size_t jsbitmap;
         expr;                                                                 \
         _Pragma("GCC diagnostic pop")                                         \
     JS_END_MACRO
-#endif
-#endif
-
-#if !defined(JS_SILENCE_UNUSED_VALUE_IN_EXPR)
+#else
 # define JS_SILENCE_UNUSED_VALUE_IN_EXPR(expr)                                \
     JS_BEGIN_MACRO                                                            \
         expr;                                                                 \

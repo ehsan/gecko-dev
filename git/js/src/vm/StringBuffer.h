@@ -14,6 +14,9 @@
 
 #include "js/Vector.h"
 
+ForwardDeclareJS(Atom);
+ForwardDeclareJS(FlatString);
+
 namespace js {
 
 /*
@@ -86,10 +89,10 @@ class StringBuffer
      * Creates a string from the characters in this buffer, then (regardless
      * whether string creation succeeded or failed) empties the buffer.
      */
-    JSFlatString *finishString();
+    js::RawFlatString finishString();
 
     /* Identical to finishString() except that an atom is created. */
-    JSAtom *finishAtom();
+    js::RawAtom finishAtom();
 
     /*
      * Creates a raw string from the characters in this buffer.  The string is

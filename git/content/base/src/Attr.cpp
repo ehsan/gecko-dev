@@ -29,6 +29,8 @@
 #include "nsAsyncDOMEvent.h"
 #include "nsWrapperCacheInlines.h"
 
+DOMCI_NODE_DATA(Attr, mozilla::dom::Attr)
+
 namespace mozilla {
 namespace dom {
 
@@ -76,6 +78,7 @@ NS_INTERFACE_TABLE_HEAD(Attr)
                                  new nsNodeSupportsWeakRefTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
                                  new nsNode3Tearoff(this))
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Attr)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(Attr)

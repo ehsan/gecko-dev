@@ -62,7 +62,7 @@ JS_GetAnonymousString(JSRuntime *rt)
 }
 
 JS_FRIEND_API(JSObject *)
-JS_FindCompilationScope(JSContext *cx, JSObject *objArg)
+JS_FindCompilationScope(JSContext *cx, RawObject objArg)
 {
     RootedObject obj(cx, objArg);
 
@@ -83,7 +83,7 @@ JS_FindCompilationScope(JSContext *cx, JSObject *objArg)
 }
 
 JS_FRIEND_API(JSFunction *)
-JS_GetObjectFunction(JSObject *obj)
+JS_GetObjectFunction(RawObject obj)
 {
     if (obj->isFunction())
         return obj->toFunction();
@@ -253,7 +253,7 @@ JS_WrapAutoIdVector(JSContext *cx, js::AutoIdVector &props)
 JS_FRIEND_API(void)
 JS_TraceShapeCycleCollectorChildren(JSTracer *trc, void *shape)
 {
-    MarkCycleCollectorChildren(trc, static_cast<Shape *>(shape));
+    MarkCycleCollectorChildren(trc, static_cast<RawShape>(shape));
 }
 
 static bool
@@ -347,37 +347,37 @@ js::IsAtomsCompartment(JSCompartment *comp)
 }
 
 JS_FRIEND_API(bool)
-js::IsScopeObject(JSObject *obj)
+js::IsScopeObject(RawObject obj)
 {
     return obj->isScope();
 }
 
 JS_FRIEND_API(JSObject *)
-js::GetObjectParentMaybeScope(JSObject *obj)
+js::GetObjectParentMaybeScope(RawObject obj)
 {
     return obj->enclosingScope();
 }
 
 JS_FRIEND_API(JSObject *)
-js::GetGlobalForObjectCrossCompartment(JSObject *obj)
+js::GetGlobalForObjectCrossCompartment(RawObject obj)
 {
     return &obj->global();
 }
 
 JS_FRIEND_API(void)
-js::NotifyAnimationActivity(JSObject *obj)
+js::NotifyAnimationActivity(RawObject obj)
 {
     obj->compartment()->lastAnimationTime = PRMJ_Now();
 }
 
 JS_FRIEND_API(uint32_t)
-js::GetObjectSlotSpan(JSObject *obj)
+js::GetObjectSlotSpan(RawObject obj)
 {
     return obj->slotSpan();
 }
 
 JS_FRIEND_API(bool)
-js::IsObjectInContextCompartment(JSObject *obj, const JSContext *cx)
+js::IsObjectInContextCompartment(RawObject obj, const JSContext *cx)
 {
     return obj->compartment() == cx->compartment;
 }
@@ -476,21 +476,21 @@ js::InitClassWithReserved(JSContext *cx, JSObject *objArg, JSObject *parent_prot
 }
 
 JS_FRIEND_API(const Value &)
-js::GetFunctionNativeReserved(JSObject *fun, size_t which)
+js::GetFunctionNativeReserved(RawObject fun, size_t which)
 {
     JS_ASSERT(fun->toFunction()->isNative());
     return fun->toFunction()->getExtendedSlot(which);
 }
 
 JS_FRIEND_API(void)
-js::SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val)
+js::SetFunctionNativeReserved(RawObject fun, size_t which, const Value &val)
 {
     JS_ASSERT(fun->toFunction()->isNative());
     fun->toFunction()->setExtendedSlot(which, val);
 }
 
 JS_FRIEND_API(void)
-js::SetReservedSlotWithBarrier(JSObject *obj, size_t slot, const js::Value &value)
+js::SetReservedSlotWithBarrier(RawObject obj, size_t slot, const js::Value &value)
 {
     obj->setSlot(slot, value);
 }
@@ -1004,15 +1004,12 @@ js::GetDOMCallbacks(JSRuntime *rt)
 
 static void *gListBaseHandlerFamily = NULL;
 static uint32_t gListBaseExpandoSlot = 0;
-static ListBaseShadowsCheck gListBaseShadowsCheck;
 
 JS_FRIEND_API(void)
-js::SetListBaseInformation(void *listBaseHandlerFamily, uint32_t listBaseExpandoSlot,
-                           ListBaseShadowsCheck listBaseShadowsCheck)
+js::SetListBaseInformation(void *listBaseHandlerFamily, uint32_t listBaseExpandoSlot)
 {
     gListBaseHandlerFamily = listBaseHandlerFamily;
     gListBaseExpandoSlot = listBaseExpandoSlot;
-    gListBaseShadowsCheck = listBaseShadowsCheck;
 }
 
 void *
@@ -1025,12 +1022,6 @@ uint32_t
 js::GetListBaseExpandoSlot()
 {
     return gListBaseExpandoSlot;
-}
-
-ListBaseShadowsCheck
-js::GetListBaseShadowsCheck()
-{
-    return gListBaseShadowsCheck;
 }
 
 JS_FRIEND_API(void)

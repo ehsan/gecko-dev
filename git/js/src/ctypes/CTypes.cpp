@@ -4334,6 +4334,9 @@ ArrayType::ConstructData(JSContext* cx,
       return JS_FALSE;
   }
 
+  // Root the CType object, in case we created one above.
+  js::AutoObjectRooter root(cx, obj);
+
   JSObject* result = CData::Create(cx, obj, NullPtr(), NULL, true);
   if (!result)
     return JS_FALSE;
@@ -4617,6 +4620,7 @@ ExtractStructField(JSContext* cx, jsval val, JSObject** typeObj)
   RootedObject iter(cx, JS_NewPropertyIterator(cx, obj));
   if (!iter)
     return NULL;
+  js::AutoObjectRooter iterroot(cx, iter);
 
   RootedId nameid(cx);
   if (!JS_NextProperty(cx, iter, nameid.address()))
@@ -4644,7 +4648,8 @@ ExtractStructField(JSContext* cx, jsval val, JSObject** typeObj)
   if (!JS_GetPropertyById(cx, obj, nameid, propVal.address()))
     return NULL;
 
-  if (propVal.isPrimitive() || !CType::IsCType(&propVal.toObject())) {
+  if (propVal.isPrimitive() ||
+      !CType::IsCType(propVal.toObjectOrNull())) {
     JS_ReportError(cx, "struct field descriptors require a valid name and type");
     return NULL;
   }
@@ -4652,7 +4657,7 @@ ExtractStructField(JSContext* cx, jsval val, JSObject** typeObj)
   // Undefined size or zero size struct members are illegal.
   // (Zero-size arrays are legal as struct members in C++, but libffi will
   // choke on a zero-size struct, so we disallow them.)
-  *typeObj = &propVal.toObject();
+  *typeObj = propVal.toObjectOrNull();
   size_t size;
   if (!CType::GetSafeSize(*typeObj, &size) || size == 0) {
     JS_ReportError(cx, "struct field types must have defined and nonzero size");
@@ -5615,6 +5620,7 @@ FunctionType::CreateInternal(JSContext* cx,
                         NULL, JSVAL_VOID, JSVAL_VOID, NULL);
   if (!typeObj)
     return NULL;
+  js::AutoObjectRooter root(cx, typeObj);
 
   // Stash the FunctionInfo in a reserved slot.
   JS_SetReservedSlot(typeObj, SLOT_FNINFO, PRIVATE_TO_JSVAL(fninfo.forget()));
@@ -5648,9 +5654,10 @@ FunctionType::ConstructData(JSContext* cx,
     return JS_FALSE;
   }
 
-  RootedObject closureObj(cx, CClosure::Create(cx, typeObj, fnObj, thisObj, errVal, data));
+  JSObject* closureObj = CClosure::Create(cx, typeObj, fnObj, thisObj, errVal, data);
   if (!closureObj)
     return JS_FALSE;
+  js::AutoObjectRooter root(cx, closureObj);
 
   // Set the closure object as the referent of the new CData object.
   JS_SetReservedSlot(dataObj, SLOT_REFERENT, OBJECT_TO_JSVAL(closureObj));
@@ -6149,6 +6156,9 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
     }
     memset(result, 0, rvSize);
   }
+
+  // Get a death grip on 'closureObj'.
+  js::AutoObjectRooter root(cx, cinfo->closureObj);
 
   // Set up an array for converted arguments.
   Array<jsval, 16> argv;

@@ -88,7 +88,7 @@ CameraControlImpl::Set(JSContext* aCx, uint32_t aKey, const JS::Value& aValue, u
 
   uint32_t length = 0;
 
-  JS::Rooted<JSObject*> regions(aCx, &aValue.toObject());
+  JSObject* regions = &aValue.toObject();
   if (!JS_GetArrayLength(aCx, regions, &length)) {
     return NS_ERROR_FAILURE;
   }
@@ -102,9 +102,9 @@ CameraControlImpl::Set(JSContext* aCx, uint32_t aKey, const JS::Value& aValue, u
   regionArray.SetCapacity(length);
 
   for (uint32_t i = 0; i < length; ++i) {
-    JS::Rooted<JS::Value> v(aCx);
+    JS::Value v;
 
-    if (!JS_GetElement(aCx, regions, i, v.address())) {
+    if (!JS_GetElement(aCx, regions, i, &v)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -119,7 +119,7 @@ CameraControlImpl::Set(JSContext* aCx, uint32_t aKey, const JS::Value& aValue, u
     r->right = 1000;
     r->weight = 1000;
 
-    nsresult rv = r->Init(aCx, v.address());
+    nsresult rv = r->Init(aCx, &v);
     NS_ENSURE_SUCCESS(rv, rv);
 
     DOM_CAMERA_LOGI("region %d: top=%d, left=%d, bottom=%d, right=%d, weight=%d\n",
@@ -142,7 +142,7 @@ CameraControlImpl::Get(JSContext* aCx, uint32_t aKey, JS::Value* aValue)
 
   GetParameter(aKey, regionArray);
 
-  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, 0, nullptr));
+  JSObject* array = JS_NewArrayObject(aCx, 0, nullptr);
   if (!array) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -152,7 +152,7 @@ CameraControlImpl::Get(JSContext* aCx, uint32_t aKey, JS::Value* aValue)
 
   for (uint32_t i = 0; i < length; ++i) {
     CameraRegion* r = &regionArray[i];
-    JS::Rooted<JS::Value> v(aCx);
+    JS::Value v;
 
     JSObject* o = JS_NewObject(aCx, nullptr, nullptr, nullptr);
     if (!o) {
@@ -161,32 +161,32 @@ CameraControlImpl::Get(JSContext* aCx, uint32_t aKey, JS::Value* aValue)
 
     DOM_CAMERA_LOGI("top=%d\n", r->top);
     v = INT_TO_JSVAL(r->top);
-    if (!JS_SetProperty(aCx, o, "top", v.address())) {
+    if (!JS_SetProperty(aCx, o, "top", &v)) {
       return NS_ERROR_FAILURE;
     }
     DOM_CAMERA_LOGI("left=%d\n", r->left);
     v = INT_TO_JSVAL(r->left);
-    if (!JS_SetProperty(aCx, o, "left", v.address())) {
+    if (!JS_SetProperty(aCx, o, "left", &v)) {
       return NS_ERROR_FAILURE;
     }
     DOM_CAMERA_LOGI("bottom=%d\n", r->bottom);
     v = INT_TO_JSVAL(r->bottom);
-    if (!JS_SetProperty(aCx, o, "bottom", v.address())) {
+    if (!JS_SetProperty(aCx, o, "bottom", &v)) {
       return NS_ERROR_FAILURE;
     }
     DOM_CAMERA_LOGI("right=%d\n", r->right);
     v = INT_TO_JSVAL(r->right);
-    if (!JS_SetProperty(aCx, o, "right", v.address())) {
+    if (!JS_SetProperty(aCx, o, "right", &v)) {
       return NS_ERROR_FAILURE;
     }
     DOM_CAMERA_LOGI("weight=%d\n", r->weight);
     v = INT_TO_JSVAL(r->weight);
-    if (!JS_SetProperty(aCx, o, "weight", v.address())) {
+    if (!JS_SetProperty(aCx, o, "weight", &v)) {
       return NS_ERROR_FAILURE;
     }
 
     v = OBJECT_TO_JSVAL(o);
-    if (!JS_SetElement(aCx, array, i, v.address())) {
+    if (!JS_SetElement(aCx, array, i, &v)) {
       return NS_ERROR_FAILURE;
     }
   }

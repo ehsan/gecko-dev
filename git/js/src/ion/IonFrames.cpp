@@ -59,7 +59,7 @@ bool
 IonFrameIterator::checkInvalidation(IonScript **ionScriptOut) const
 {
     uint8_t *returnAddr = returnAddressToFp();
-    JSScript *script = this->script();
+    RawScript script = this->script();
     // N.B. the current IonScript is not the same as the frame's
     // IonScript if the frame has since been invalidated.
     bool invalidated;
@@ -174,13 +174,13 @@ IonFrameIterator::isEntryJSFrame() const
     return true;
 }
 
-JSScript *
+RawScript
 IonFrameIterator::script() const
 {
     JS_ASSERT(isScripted());
     if (isBaselineJS())
         return baselineFrame()->script();
-    JSScript *script = ScriptFromCalleeToken(calleeToken());
+    RawScript script = ScriptFromCalleeToken(calleeToken());
     JS_ASSERT(script);
     return script;
 }
@@ -189,7 +189,7 @@ void
 IonFrameIterator::baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) const
 {
     JS_ASSERT(isBaselineJS());
-    JSScript *script = this->script();
+    RawScript script = this->script();
     if (scriptRes)
         *scriptRes = script;
     uint8_t *retAddr = returnAddressToFp();
@@ -474,7 +474,7 @@ HandleException(ResumeFromException *rfe)
                 // When profiling, each frame popped needs a notification that
                 // the function has exited, so invoke the probe that a function
                 // is exiting.
-                JSScript *script = frames.script();
+                RawScript script = frames.script();
                 Probes::exitScript(cx, script, script->function(), NULL);
                 if (!frames.more())
                     break;
@@ -494,13 +494,9 @@ HandleException(ResumeFromException *rfe)
                 return;
 
             // Unwind profiler pseudo-stack
-            JSScript *script = iter.script();
-            Probes::exitScript(cx, script, script->function(), iter.baselineFrame());
-            // After this point, any pushed SPS frame would have been popped if it needed
-            // to be.  Unset the flag here so that if we call DebugEpilogue below,
-            // it doesn't try to pop the SPS frame again.
-            iter.baselineFrame()->unsetPushedSPSFrame();
- 
+            RawScript script = iter.script();
+            Probes::exitScript(cx, script, script->function(), NULL);
+
             if (cx->compartment->debugMode() && !calledDebugEpilogue) {
                 // If DebugEpilogue returns |true|, we have to perform a forced
                 // return, e.g. return frame->returnValue() to the caller.
@@ -637,7 +633,7 @@ MarkCalleeToken(JSTracer *trc, CalleeToken token)
       }
       case CalleeToken_Script:
       {
-        JSScript *script = CalleeTokenToScript(token);
+        RawScript script = CalleeTokenToScript(token);
         MarkScriptRoot(trc, &script, "ion-entry");
         JS_ASSERT(script == CalleeTokenToScript(token));
         break;

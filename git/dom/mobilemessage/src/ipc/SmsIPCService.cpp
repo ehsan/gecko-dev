@@ -182,16 +182,16 @@ GetSendMmsMessageRequestFromParams(const JS::Value& aParam,
   if (!params.receivers.isObject()) {
     return false;
   }
-  JS::Rooted<JSObject*> receiversObj(cx, &params.receivers.toObject());
-  if (!JS_GetArrayLength(cx, receiversObj, &len)) {
+  JSObject &receiversObj = params.receivers.toObject();
+  if (!JS_GetArrayLength(cx, &receiversObj, &len)) {
     return false;
   }
 
   request.receivers().SetCapacity(len);
 
   for (uint32_t i = 0; i < len; i++) {
-    JS::Rooted<JS::Value> val(cx);
-    if (!JS_GetElement(cx, receiversObj, i, val.address())) {
+    JS::Value val;
+    if (!JS_GetElement(cx, &receiversObj, i, &val)) {
       return false;
     }
 
@@ -213,20 +213,20 @@ GetSendMmsMessageRequestFromParams(const JS::Value& aParam,
   if (!params.attachments.isObject()) {
     return false;
   }
-  JS::Rooted<JSObject*> attachmentsObj(cx, &params.attachments.toObject());
-  if (!JS_GetArrayLength(cx, attachmentsObj, &len)) {
+  JSObject &attachmentsObj = params.attachments.toObject();
+  if (!JS_GetArrayLength(cx, &attachmentsObj, &len)) {
     return false;
   }
   request.attachments().SetCapacity(len);
 
   for (uint32_t i = 0; i < len; i++) {
-    JS::Rooted<JS::Value> val(cx);
-    if (!JS_GetElement(cx, attachmentsObj, i, val.address())) {
+    JS::Value val;
+    if (!JS_GetElement(cx, &attachmentsObj, i, &val)) {
       return false;
     }
 
     mozilla::idl::MmsAttachment attachment;
-    rv = attachment.Init(cx, val.address());
+    rv = attachment.Init(cx, &val);
     NS_ENSURE_SUCCESS(rv, false);
 
     MmsAttachmentData mmsAttachment;

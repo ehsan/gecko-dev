@@ -9,7 +9,6 @@ this.EXPORTED_SYMBOLS = [
   "AddonsProvider",
   "AppInfoProvider",
   "CrashesProvider",
-  "HealthReportProvider",
   "Metrics",
   "PlacesProvider",
   "ProfileMetadataProvider",

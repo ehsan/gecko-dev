@@ -151,7 +151,7 @@ IonBuilder::getSingleCallTarget(types::StackTypeSet *calleeTypes)
     if (!calleeTypes)
         return NULL;
 
-    JSObject *obj = calleeTypes->getSingleton();
+    RawObject obj = calleeTypes->getSingleton();
     if (!obj || !obj->isFunction())
         return NULL;
 
@@ -905,18 +905,14 @@ IonBuilder::maybeAddOsrTypeBarriers()
     static const size_t OSR_PHI_POSITION = 1;
     JS_ASSERT(preheader->getPredecessor(OSR_PHI_POSITION) == osrBlock);
 
-    MPhiIterator headerPhi = header->phisBegin();
-    while (headerPhi != header->phisEnd() && headerPhi->slot() < info().startArgSlot())
-        headerPhi++;
-
-    for (uint32_t i = info().startArgSlot(); i < osrBlock->stackDepth(); i++, headerPhi++) {
+    for (uint32_t i = info().startArgSlot(); i < osrBlock->stackDepth(); i++) {
         MInstruction *def = osrBlock->getSlot(i)->toOsrValue();
 
-        JS_ASSERT(headerPhi->slot() == i);
+        MDefinition *headerValue = header->getSlot(i);
         MPhi *preheaderPhi = preheader->getSlot(i)->toPhi();
 
-        MIRType type = headerPhi->type();
-        types::StackTypeSet *typeSet = headerPhi->resultTypeSet();
+        MIRType type = headerValue->type();
+        types::StackTypeSet *typeSet = headerValue->resultTypeSet();
 
         if (!addOsrValueTypeBarrier(i, &def, type, typeSet))
             return false;
@@ -4193,13 +4189,11 @@ MInstruction *
 IonBuilder::createDeclEnvObject(MDefinition *callee, MDefinition *scope)
 {
     // Create a template CallObject that we'll use to generate inline object
-    // creation. Even though this template will get discarded at the end of
-    // compilation, it is used by the background compilation thread and thus
-    // cannot use the Nursery.
+    // creation.
 
     RootedScript script(cx, script_);
     RootedFunction fun(cx, info().fun());
-    RootedObject templateObj(cx, DeclEnvObject::createTemplateObject(cx, fun, gc::TenuredHeap));
+    RootedObject templateObj(cx, DeclEnvObject::createTemplateObject(cx, fun));
     if (!templateObj)
         return NULL;
 
@@ -4229,12 +4223,10 @@ MInstruction *
 IonBuilder::createCallObject(MDefinition *callee, MDefinition *scope)
 {
     // Create a template CallObject that we'll use to generate inline object
-    // creation. Even though this template will get discarded at the end of
-    // compilation, it is used by the background compilation thread and thus
-    // cannot use the Nursery.
+    // creation.
 
     RootedScript scriptRoot(cx, script());
-    RootedObject templateObj(cx, CallObject::createTemplateObject(cx, scriptRoot, gc::TenuredHeap));
+    RootedObject templateObj(cx, CallObject::createTemplateObject(cx, scriptRoot));
     if (!templateObj)
         return NULL;
 
@@ -4329,9 +4321,6 @@ IonBuilder::createThisScriptedSingleton(HandleFunction target, MDefinition *call
     // Get the singleton prototype (if exists)
     RootedObject proto(cx, getSingletonPrototype(target));
     if (!proto)
-        return NULL;
-
-    if (!target->nonLazyScript()->types)
         return NULL;
 
     // Generate an inline path to create a new |this| object with
@@ -5597,9 +5586,6 @@ TestSingletonPropertyTypes(JSContext *cx, MDefinition *obj, JSObject *singleton,
     if (types && types->unknownObject())
         return true;
 
-    if (id != types::IdToTypeId(id))
-        return true;
-
     RootedObject objectSingleton(cx, types ? types->getSingleton() : NULL);
     if (objectSingleton)
         return TestSingletonProperty(cx, objectSingleton, singleton, id, isKnownConstant);
@@ -6439,28 +6425,30 @@ IonBuilder::jsop_getelem_string()
 bool
 IonBuilder::jsop_setelem()
 {
-    MDefinition *value = current->pop();
-    MDefinition *index = current->pop();
-    MDefinition *object = current->pop();
+    MDefinition *value = current->peek(-1);
+    MDefinition *index = current->peek(-2);
+    MDefinition *object = current->peek(-3);
 
     int arrayType = TypedArray::TYPE_MAX;
     if (ElementAccessIsTypedArray(object, index, &arrayType))
-        return jsop_setelem_typed(arrayType, object, index, value);
+        return jsop_setelem_typed(arrayType);
 
     if (!PropertyWriteNeedsTypeBarrier(cx, current, &object, NULL, &value)) {
         if (ElementAccessIsDenseNative(object, index)) {
             types::StackTypeSet::DoubleConversion conversion =
                 object->resultTypeSet()->convertDoubleElements(cx);
             if (conversion != types::StackTypeSet::AmbiguousDoubleConversion)
-                return jsop_setelem_dense(conversion, object, index, value);
+                return jsop_setelem_dense(conversion);
         }
     }
 
     if (object->type() == MIRType_Magic)
-        return jsop_arguments_setelem(object, index, value);
+        return jsop_arguments_setelem();
 
     if (script()->argumentsHasVarBinding() && object->mightBeType(MIRType_Magic))
         return abort("Type is not definitely lazy arguments.");
+
+    current->popn(3);
 
     MInstruction *ins = MCallSetElement::New(object, index, value);
     current->add(ins);
@@ -6470,9 +6458,12 @@ IonBuilder::jsop_setelem()
 }
 
 bool
-IonBuilder::jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion,
-                               MDefinition *obj, MDefinition *id, MDefinition *value)
+IonBuilder::jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion)
 {
+    MDefinition *value = current->pop();
+    MDefinition *id = current->pop();
+    MDefinition *obj = current->pop();
+
     MIRType elementType = DenseNativeElementType(cx, obj);
     bool packed = ElementAccessIsPacked(cx, obj);
 
@@ -6541,11 +6532,14 @@ IonBuilder::jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion,
 }
 
 bool
-IonBuilder::jsop_setelem_typed_static(MDefinition *obj, MDefinition *id, MDefinition *value,
-                                      bool *psucceeded)
+IonBuilder::jsop_setelem_typed_static(bool *psucceeded)
 {
     if (!LIRGenerator::allowStaticTypedArrayAccesses())
         return true;
+
+    MDefinition *value = current->peek(-1);
+    MDefinition *id = current->peek(-2);
+    MDefinition *obj = current->peek(-3);
 
     if (ElementAccessHasExtraIndexedProperty(cx, obj))
         return true;
@@ -6574,6 +6568,7 @@ IonBuilder::jsop_setelem_typed_static(MDefinition *obj, MDefinition *id, MDefini
 
     MInstruction *store = MStoreTypedArrayElementStatic::New(typedArray, ptr, toWrite);
     current->add(store);
+    current->popn(3);
     current->push(value);
 
     *psucceeded = true;
@@ -6581,14 +6576,17 @@ IonBuilder::jsop_setelem_typed_static(MDefinition *obj, MDefinition *id, MDefini
 }
 
 bool
-IonBuilder::jsop_setelem_typed(int arrayType,
-                               MDefinition *obj, MDefinition *id, MDefinition *value)
+IonBuilder::jsop_setelem_typed(int arrayType)
 {
     bool staticAccess = false;
-    if (!jsop_setelem_typed_static(obj, id, value, &staticAccess))
+    if (!jsop_setelem_typed_static(&staticAccess))
         return false;
     if (staticAccess)
         return true;
+
+    MDefinition *value = current->pop();
+    MDefinition *id = current->pop();
+    MDefinition *obj = current->pop();
 
     SetElemICInspector icInspect(inspector->setElemICInspector(pc));
     bool expectOOB = icInspect.sawOOBTypedArrayWrite();
@@ -6753,7 +6751,7 @@ IonBuilder::jsop_arguments_getelem()
 }
 
 bool
-IonBuilder::jsop_arguments_setelem(MDefinition *object, MDefinition *index, MDefinition *value)
+IonBuilder::jsop_arguments_setelem()
 {
     return abort("NYI arguments[]=");
 }
@@ -6768,7 +6766,7 @@ GetDefiniteSlot(JSContext *cx, types::StackTypeSet *types, JSAtom *atom)
     if (!type || type->unknownProperties())
         return NULL;
 
-    jsid id = AtomToId(atom);
+    RawId id = AtomToId(atom);
     if (id != types::IdToTypeId(id))
         return NULL;
 
@@ -6961,7 +6959,7 @@ IonBuilder::TestCommonPropFunc(JSContext *cx, types::StackTypeSet *types, Handle
         if (obj != foundProto) {
             // Walk the prototype chain. Everyone has to have the property, since we
             // just checked, so propSet cannot be NULL.
-            jsid typeId = types::IdToTypeId(id);
+            RawId typeId = types::IdToTypeId(id);
             while (true) {
                 types::HeapTypeSet *propSet = curType->getProperty(cx, typeId, false);
                 // This assert is now assured, since we have faulted them in
@@ -7102,7 +7100,7 @@ IonBuilder::invalidatedIdempotentCache()
 }
 
 bool
-IonBuilder::loadSlot(MDefinition *obj, Shape *shape, MIRType rvalType,
+IonBuilder::loadSlot(MDefinition *obj, RawShape shape, MIRType rvalType,
                      bool barrier, types::StackTypeSet *types)
 {
     JS_ASSERT(shape->hasDefaultGetter());
@@ -7129,7 +7127,7 @@ IonBuilder::loadSlot(MDefinition *obj, Shape *shape, MIRType rvalType,
 }
 
 bool
-IonBuilder::storeSlot(MDefinition *obj, Shape *shape, MDefinition *value, bool needsBarrier)
+IonBuilder::storeSlot(MDefinition *obj, RawShape shape, MDefinition *value, bool needsBarrier)
 {
     JS_ASSERT(shape->hasDefaultSetter());
     JS_ASSERT(shape->writable());
@@ -7370,7 +7368,7 @@ IonBuilder::getPropTryInlineAccess(bool *emitted, HandlePropertyName name, Handl
         return true;
 
     Vector<Shape *> shapes(cx);
-    if (Shape *objShape = mjit::GetPICSingleShape(cx, script(), pc, info().constructing())) {
+    if (RawShape objShape = mjit::GetPICSingleShape(cx, script(), pc, info().constructing())) {
         if (!shapes.append(objShape))
             return false;
     } else {
@@ -7391,10 +7389,10 @@ IonBuilder::getPropTryInlineAccess(bool *emitted, HandlePropertyName name, Handl
         // instructions.
         spew("Inlining monomorphic GETPROP");
 
-        Shape *objShape = shapes[0];
+        RawShape objShape = shapes[0];
         obj = addShapeGuard(obj, objShape, Bailout_CachedShapeGuard);
 
-        Shape *shape = objShape->search(cx, id);
+        RawShape shape = objShape->search(cx, id);
         JS_ASSERT(shape);
 
         if (!loadSlot(obj, shape, rvalType, barrier, types))
@@ -7408,8 +7406,8 @@ IonBuilder::getPropTryInlineAccess(bool *emitted, HandlePropertyName name, Handl
         current->push(load);
 
         for (size_t i = 0; i < shapes.length(); i++) {
-            Shape *objShape = shapes[i];
-            Shape *shape =  objShape->search(cx, id);
+            RawShape objShape = shapes[i];
+            RawShape shape =  objShape->search(cx, id);
             JS_ASSERT(shape);
             if (!load->addShape(objShape, shape))
                 return false;
@@ -7570,7 +7568,7 @@ IonBuilder::jsop_setprop(HandlePropertyName name)
     }
 
     Vector<Shape *> shapes(cx);
-    if (Shape *objShape = mjit::GetPICSingleShape(cx, script(), pc, info().constructing())) {
+    if (RawShape objShape = mjit::GetPICSingleShape(cx, script(), pc, info().constructing())) {
         if (!shapes.append(objShape))
             return false;
     } else {
@@ -7586,10 +7584,10 @@ IonBuilder::jsop_setprop(HandlePropertyName name)
             // long as the shape is not in dictionary mode. We cannot be sure
             // that the shape is still a lastProperty, and calling Shape::search
             // on dictionary mode shapes that aren't lastProperty is invalid.
-            Shape *objShape = shapes[0];
+            RawShape objShape = shapes[0];
             obj = addShapeGuard(obj, objShape, Bailout_CachedShapeGuard);
 
-            Shape *shape = objShape->search(cx, NameToId(name));
+            RawShape shape = objShape->search(cx, NameToId(name));
             JS_ASSERT(shape);
 
             bool needsBarrier = objTypes->propertyNeedsBarrier(cx, id);
@@ -7603,8 +7601,8 @@ IonBuilder::jsop_setprop(HandlePropertyName name)
             current->push(value);
 
             for (size_t i = 0; i < shapes.length(); i++) {
-                Shape *objShape = shapes[i];
-                Shape *shape =  objShape->search(cx, id);
+                RawShape objShape = shapes[i];
+                RawShape shape =  objShape->search(cx, id);
                 JS_ASSERT(shape);
                 if (!ins->addShape(objShape, shape))
                     return false;
@@ -7967,7 +7965,7 @@ IonBuilder::jsop_instanceof()
     // exact function and prototype object being tested for, use a typed path.
     do {
         types::StackTypeSet *rhsTypes = rhs->resultTypeSet();
-        JSObject *rhsObject = rhsTypes ? rhsTypes->getSingleton() : NULL;
+        RawObject rhsObject = rhsTypes ? rhsTypes->getSingleton() : NULL;
         if (!rhsObject || !rhsObject->isFunction() || rhsObject->isBoundFunction())
             break;
 
@@ -7977,7 +7975,7 @@ IonBuilder::jsop_instanceof()
 
         types::HeapTypeSet *protoTypes =
             rhsType->getProperty(cx, NameToId(cx->names().classPrototype), false);
-        JSObject *protoObject = protoTypes ? protoTypes->getSingleton(cx) : NULL;
+        RawObject protoObject = protoTypes ? protoTypes->getSingleton(cx) : NULL;
         if (!protoObject)
             break;
 
@@ -8019,7 +8017,7 @@ IonBuilder::addBoundsCheck(MDefinition *index, MDefinition *length)
 }
 
 MInstruction *
-IonBuilder::addShapeGuard(MDefinition *obj, Shape *const shape, BailoutKind bailoutKind)
+IonBuilder::addShapeGuard(MDefinition *obj, const RawShape shape, BailoutKind bailoutKind)
 {
     MGuardShape *guard = MGuardShape::New(obj, shape, bailoutKind);
     current->add(guard);

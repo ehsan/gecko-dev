@@ -889,6 +889,10 @@ public:
     static void CTypesActivityCallback(JSContext *cx,
                                        js::CTypesActivityType type);
 
+    bool XBLScopesEnabled() {
+        return gXBLScopesEnabled;
+    }
+
     size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
     AutoMarkingPtr**  GetAutoRootsAdr() {return &mAutoRoots;}
@@ -905,6 +909,8 @@ private:
     static void WatchdogMain(void *arg);
 
     void ReleaseIncrementally(nsTArray<nsISupports *> &array);
+
+    static bool gXBLScopesEnabled;
 
     static const char* mStrings[IDX_TOTAL_COUNT];
     jsid mStrIDs[IDX_TOTAL_COUNT];

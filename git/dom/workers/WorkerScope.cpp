@@ -860,10 +860,10 @@ private:
       return false;
     }
 
-    JS::Rooted<JS::Value> message(aCx);
-    JS::Rooted<JS::Value> transferable(aCx, JSVAL_VOID);
+    jsval message;
+    jsval transferable = JSVAL_VOID;
     if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v/v",
-                             message.address(), transferable.address())) {
+                             &message, &transferable)) {
       return false;
     }
 
@@ -965,9 +965,9 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   WorkerPrivate* worker = GetWorkerPrivateFromContext(aCx);
   JS_ASSERT(worker);
 
-  JS::Rooted<JSObject*> global(aCx,
+  JSObject* global =
     JS_NewGlobalObject(aCx, DedicatedWorkerGlobalScope::Class(),
-                       GetWorkerPrincipal()));
+                       GetWorkerPrincipal());
   if (!global) {
     return NULL;
   }

@@ -29,7 +29,11 @@ public:
     }
     AudioNode::DestroyMediaStream();
   }
-  virtual uint16_t NumberOfInputs() const MOZ_FINAL MOZ_OVERRIDE
+  virtual bool SupportsMediaStreams() const MOZ_OVERRIDE
+  {
+    return true;
+  }
+  virtual uint32_t NumberOfInputs() const MOZ_FINAL MOZ_OVERRIDE
   {
     return 0;
   }
@@ -37,6 +41,15 @@ public:
   {
     return this;
   }
+
+  void UnregisterPannerNode() {
+    mPannerNode = nullptr;
+  }
+
+  void RegisterPannerNode(PannerNode* aPannerNode) {
+    mPannerNode = aPannerNode;
+  }
+
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(AudioBufferSourceNode, AudioNode)
 
@@ -139,6 +152,7 @@ private:
   double mDuration;
   nsRefPtr<AudioBuffer> mBuffer;
   nsRefPtr<AudioParam> mPlaybackRate;
+  PannerNode* mPannerNode;
   SelfReference<AudioBufferSourceNode> mPlayingRef; // a reference to self while playing
   bool mLoop;
   bool mStartCalled;

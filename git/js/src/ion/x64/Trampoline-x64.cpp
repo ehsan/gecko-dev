@@ -282,10 +282,9 @@ IonRuntime::generateInvalidator(JSContext *cx)
     masm.addq(Imm32(sizeof(uintptr_t)), rsp);
 
     // Push registers such that we can access them from [base + code].
-    for (uint32_t i = Registers::Total; i > 0; ) {
-        i--;
-        masm.Push(Register::FromCode(i));
-    }
+    masm.reserveStack(Registers::Total * sizeof(void *));
+    for (uint32_t i = 0; i < Registers::Total; i++)
+        masm.movq(Register::FromCode(i), Operand(rsp, i * sizeof(void *)));
 
     // Push xmm registers, such that we can access them from [base + code].
     masm.reserveStack(FloatRegisters::Total * sizeof(double));
@@ -416,10 +415,9 @@ static void
 GenerateBailoutThunk(JSContext *cx, MacroAssembler &masm, uint32_t frameClass)
 {
     // Push registers such that we can access them from [base + code].
-    for (uint32_t i = Registers::Total; i > 0; ) {
-        i--;
-        masm.Push(Register::FromCode(i));
-    }
+    masm.reserveStack(Registers::Total * sizeof(void *));
+    for (uint32_t i = 0; i < Registers::Total; i++)
+        masm.movq(Register::FromCode(i), Operand(rsp, i * sizeof(void *)));
 
     // Push xmm registers, such that we can access them from [base + code].
     masm.reserveStack(FloatRegisters::Total * sizeof(double));

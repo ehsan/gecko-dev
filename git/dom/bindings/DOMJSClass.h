@@ -58,13 +58,11 @@ namespace mozilla {
 namespace dom {
 
 typedef bool
-(* ResolveOwnProperty)(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                       JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
+(* ResolveOwnProperty)(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
                        JSPropertyDescriptor* desc, unsigned flags);
 
 typedef bool
-(* EnumerateOwnProperties)(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                           JS::Handle<JSObject*> obj,
+(* EnumerateOwnProperties)(JSContext* cx, JSObject* wrapper, JSObject* obj,
                            JS::AutoIdVector& props);
 
 struct ConstantSpec
@@ -159,14 +157,7 @@ enum DOMObjectType {
 };
 
 typedef JSObject* (*ParentGetter)(JSContext* aCx, JS::Handle<JSObject*> aObj);
-/**
- * Returns a handle to the relevent WebIDL prototype object for the given global
- * (which may be a handle to null on out of memory).  Once allocated, the
- * prototype object is guaranteed to exist as long as the global does, since the
- * global traces its array of WebIDL prototypes and constructors.
- */
-typedef JS::Handle<JSObject*> (*ProtoGetter)(JSContext* aCx,
-                                             JS::Handle<JSObject*> aGlobal);
+typedef JSObject* (*ProtoGetter)(JSContext* aCx, JSObject* aGlobal);
 
 struct DOMClass
 {

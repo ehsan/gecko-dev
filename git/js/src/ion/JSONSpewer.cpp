@@ -176,7 +176,7 @@ JSONSpewer::init(const char *path)
 }
 
 void
-JSONSpewer::beginFunction(JSScript *script)
+JSONSpewer::beginFunction(RawScript script)
 {
     if (inFunction_)
         endFunction();

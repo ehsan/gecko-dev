@@ -1036,7 +1036,7 @@ IsLowerableFunCallOrApply(jsbytecode *pc)
 #endif
 }
 
-Shape *
+RawShape
 GetPICSingleShape(JSContext *cx, JSScript *script, jsbytecode *pc, bool constructing);
 
 static inline void

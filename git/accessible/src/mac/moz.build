@@ -8,6 +8,7 @@ MODULE = 'accessibility'
 
 EXPORTS += [
     'mozAccessibleProtocol.h',
+    'nsAccessNodeWrap.h',
 ]
 
 EXPORTS.mozilla.a11y += [

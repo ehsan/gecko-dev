@@ -11,8 +11,8 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
         'nsIProfiler.idl',
     ]
     EXPORTS += [
-        'GeckoProfilerFunc.h',
         'GeckoProfilerImpl.h',
+        'GeckoProfilerFunc.h',
         'PseudoStack.h',
         'shared-libraries.h',
     ]

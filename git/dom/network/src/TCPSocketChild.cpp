@@ -26,7 +26,7 @@ DeserializeArrayBuffer(JSObject* aObj,
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, aObj);
 
-  JS::Rooted<JSObject*> obj(cx, JS_NewArrayBuffer(cx, aBuffer.Length()));
+  JSObject* obj = JS_NewArrayBuffer(cx, aBuffer.Length());
   if (!obj)
     return false;
   uint8_t* data = JS_GetArrayBufferData(obj);
@@ -127,9 +127,10 @@ TCPSocketChild::RecvCallback(const nsString& aType,
   if (aData.type() == CallbackData::Tvoid_t) {
     rv = mSocket->CallListenerVoid(aType);
 
-  } else if (aData.type() == CallbackData::TTCPError) {
-    const TCPError& err(aData.get_TCPError());
-    rv = mSocket->CallListenerError(aType, err.name());
+  } else if (aData.type() == CallbackData::TJSError) {
+    const JSError& err(aData.get_JSError());
+    rv = mSocket->CallListenerError(aType, err.message(), err.filename(),
+                                   err.lineNumber(), err.columnNumber());
 
   } else if (aData.type() == CallbackData::TSendableData) {
     const SendableData& data = aData.get_SendableData();
@@ -190,7 +191,7 @@ TCPSocketChild::Send(const JS::Value& aData,
 
   } else {
     NS_ENSURE_TRUE(aData.isObject(), NS_ERROR_FAILURE);
-    JS::Rooted<JSObject*> obj(aCx, &aData.toObject());
+    JSObject* obj = &aData.toObject();
     NS_ENSURE_TRUE(JS_IsArrayBufferObject(obj), NS_ERROR_FAILURE);
     uint32_t buflen = JS_GetArrayBufferByteLength(obj);
     aByteOffset = std::min(buflen, aByteOffset);

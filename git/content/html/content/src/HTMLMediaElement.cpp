@@ -1599,7 +1599,7 @@ HTMLMediaElement::MozGetMetadata(JSContext* cx, ErrorResult& aRv)
     return nullptr;
   }
 
-  JS::Rooted<JSObject*> tags(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+  JSObject* tags = JS_NewObject(cx, nullptr, nullptr, nullptr);
   if (!tags) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -2088,47 +2088,21 @@ NS_IMETHODIMP HTMLMediaElement::Play()
   return rv.ErrorCode();
 }
 
-HTMLMediaElement::WakeLockBoolWrapper&
-HTMLMediaElement::WakeLockBoolWrapper::operator=(bool val) {
-  if (mValue == val) {
+HTMLMediaElement::WakeLockBoolWrapper& HTMLMediaElement::WakeLockBoolWrapper::operator=(bool val) {
+  if (mValue == val)
     return *this;
-  }
-
-  mValue = val;
-  UpdateWakeLock();
-  return *this;
-}
-
-void
-HTMLMediaElement::WakeLockBoolWrapper::SetCanPlay(bool aCanPlay)
-{
-  mCanPlay = aCanPlay;
-  UpdateWakeLock();
-}
-
-void
-HTMLMediaElement::WakeLockBoolWrapper::UpdateWakeLock()
-{
-  if (!mOuter) {
-    return;
-
-  }
-  bool playing = (!mValue && mCanPlay);
-
-  if (playing) {
+  if (!mWakeLock && !val && mOuter) {
     nsCOMPtr<nsIPowerManagerService> pmService =
       do_GetService(POWERMANAGERSERVICE_CONTRACTID);
-    NS_ENSURE_TRUE_VOID(pmService);
+    NS_ENSURE_TRUE(pmService, *this);
 
-    if (!mWakeLock) {
-      pmService->NewWakeLock(NS_LITERAL_STRING("cpu"),
-                             mOuter->OwnerDoc()->GetWindow(),
-                             getter_AddRefs(mWakeLock));
-    }
-  } else if (mWakeLock) {
-    // Wakelock 'unlocks' itself in its destructor.
+    pmService->NewWakeLock(NS_LITERAL_STRING("Playing_media"), mOuter->OwnerDoc()->GetWindow(), getter_AddRefs(mWakeLock));
+  } else if (mWakeLock && val) {
+    mWakeLock->Unlock();
     mWakeLock = nullptr;
   }
+  mValue = val;
+  return *this;
 }
 
 bool HTMLMediaElement::ParseAttribute(int32_t aNamespaceID,
@@ -2389,7 +2363,7 @@ nsresult HTMLMediaElement::InitializeDecoderAsClone(MediaDecoder* aOriginal)
     decoder->SetMediaSeekable(aOriginal->IsMediaSeekable());
   }
 
-  nsRefPtr<MediaResource> resource = originalResource->CloneData(decoder);
+  MediaResource* resource = originalResource->CloneData(decoder);
   if (!resource) {
     LOG(PR_LOG_DEBUG, ("%p Failed to cloned stream for decoder %p", this, decoder.get()));
     return NS_ERROR_FAILURE;
@@ -2421,7 +2395,7 @@ nsresult HTMLMediaElement::InitializeDecoderForChannel(nsIChannel* aChannel,
 
   LOG(PR_LOG_DEBUG, ("%p Created decoder %p for type %s", this, decoder.get(), mimeType.get()));
 
-  nsRefPtr<MediaResource> resource = MediaResource::Create(decoder, aChannel);
+  MediaResource* resource = MediaResource::Create(decoder, aChannel);
   if (!resource)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -3252,10 +3226,16 @@ void HTMLMediaElement::SuspendOrResumeElement(bool aPauseElement, bool aSuspendE
 void HTMLMediaElement::NotifyOwnerDocumentActivityChanged()
 {
   nsIDocument* ownerDoc = OwnerDoc();
-  // SetVisibilityState will update mChannelSuspended via the CanPlayChanged callback.
-  if (UseAudioChannelService() && mPlayingThroughTheAudioChannel &&
-      mAudioChannelAgent) {
-    mAudioChannelAgent->SetVisibilityState(!ownerDoc->Hidden());
+  if (UseAudioChannelService()) {
+    nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(OwnerDoc());
+    if (domDoc) {
+      bool hidden = false;
+      domDoc->GetHidden(&hidden);
+      // SetVisibilityState will update mChannelSuspended via the CanPlayChanged callback.
+      if (mPlayingThroughTheAudioChannel && mAudioChannelAgent) {
+        mAudioChannelAgent->SetVisibilityState(!hidden);
+      }
+    }
   }
   bool suspendEvents = !ownerDoc->IsActive() || !ownerDoc->IsVisible();
   bool pauseElement = suspendEvents || mChannelSuspended;
@@ -3723,13 +3703,18 @@ void HTMLMediaElement::UpdateAudioChannelPlayingState()
       }
       // Use a weak ref so the audio channel agent can't leak |this|.
       mAudioChannelAgent->InitWithWeakCallback(mAudioChannelType, this);
-      mAudioChannelAgent->SetVisibilityState(!OwnerDoc()->Hidden());
+
+      nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(OwnerDoc());
+      if (domDoc) {
+        bool hidden = false;
+        domDoc->GetHidden(&hidden);
+        mAudioChannelAgent->SetVisibilityState(!hidden);
+      }
     }
 
     if (mPlayingThroughTheAudioChannel) {
       bool canPlay;
       mAudioChannelAgent->StartPlaying(&canPlay);
-      mPaused.SetCanPlay(canPlay);
     } else {
       mAudioChannelAgent->StopPlaying();
       mAudioChannelAgent = nullptr;
@@ -3743,7 +3728,6 @@ NS_IMETHODIMP HTMLMediaElement::CanPlayChanged(bool canPlay)
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
 
   UpdateChannelMuteState(canPlay);
-  mPaused.SetCanPlay(canPlay);
   return NS_OK;
 }
 

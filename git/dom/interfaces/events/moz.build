@@ -25,9 +25,6 @@ XPIDL_SOURCES += [
     'nsIDOMEvent.idl',
     'nsIDOMEventListener.idl',
     'nsIDOMEventTarget.idl',
-    'nsIDOMGamepadAxisMoveEvent.idl',
-    'nsIDOMGamepadButtonEvent.idl',
-    'nsIDOMGamepadEvent.idl',
     'nsIDOMHashChangeEvent.idl',
     'nsIDOMKeyEvent.idl',
     'nsIDOMMessageEvent.idl',
@@ -53,6 +50,9 @@ XPIDL_SOURCES += [
     'nsIDOMUIEvent.idl',
     'nsIDOMUserProximityEvent.idl',
     'nsIDOMWheelEvent.idl',
+    'nsIDOMGamepadButtonEvent.idl',
+    'nsIDOMGamepadAxisMoveEvent.idl',
+    'nsIDOMGamepadEvent.idl',
 ]
 
 XPIDL_MODULE = 'dom_events'

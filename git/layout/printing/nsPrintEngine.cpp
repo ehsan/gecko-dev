@@ -2223,11 +2223,11 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
   rv = mDocViewerPrint->CreateStyleSet(aPO->mDocument, &styleSet);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  aPO->mPresShell = aPO->mDocument->CreateShell(aPO->mPresContext,
-                                                aPO->mViewManager, styleSet);
-  if (!aPO->mPresShell) {
+  rv = aPO->mDocument->CreateShell(aPO->mPresContext, aPO->mViewManager,
+                                   styleSet, getter_AddRefs(aPO->mPresShell));
+  if (NS_FAILED(rv)) {
     delete styleSet;
-    return NS_ERROR_FAILURE;
+    return rv;
   }
 
   styleSet->EndUpdate();

@@ -614,15 +614,14 @@ protected:
 
   // False return value means we threw an exception.  True return value
   // but false "found" means we didn't have a subframe at that index.
-  bool GetSubframeWindow(JSContext *cx, JS::Handle<JSObject*> proxy,
-                         JS::Handle<jsid> id,
+  bool GetSubframeWindow(JSContext *cx, JSObject *proxy, jsid id,
                          JS::Value *vp, bool &found);
 
   // Returns a non-null window only if id is an index and we have a
   // window at that index.
   already_AddRefed<nsIDOMWindow> GetSubframeWindow(JSContext *cx,
-                                                   JS::Handle<JSObject*> proxy,
-                                                   JS::Handle<jsid> id);
+                                                   JSObject *proxy,
+                                                   jsid id);
 
   bool AppendIndexedPropertyNames(JSContext *cx, JSObject *proxy,
                                   JS::AutoIdVector &props);
@@ -870,9 +869,8 @@ nsOuterWindowProxy::iterate(JSContext *cx, JS::Handle<JSObject*> proxy,
 }
 
 bool
-nsOuterWindowProxy::GetSubframeWindow(JSContext *cx,
-                                      JS::Handle<JSObject*> proxy,
-                                      JS::Handle<jsid> id, JS::Value* vp,
+nsOuterWindowProxy::GetSubframeWindow(JSContext *cx, JSObject *proxy,
+                                      jsid id, JS::Value* vp,
                                       bool& found)
 {
   nsCOMPtr<nsIDOMWindow> frame = GetSubframeWindow(cx, proxy, id);
@@ -897,9 +895,7 @@ nsOuterWindowProxy::GetSubframeWindow(JSContext *cx,
 }
 
 already_AddRefed<nsIDOMWindow>
-nsOuterWindowProxy::GetSubframeWindow(JSContext *cx,
-                                      JS::Handle<JSObject*> proxy,
-                                      JS::Handle<jsid> id)
+nsOuterWindowProxy::GetSubframeWindow(JSContext *cx, JSObject *proxy, jsid id)
 {
   int32_t index = GetArrayIndexFromId(cx, id);
   if (!IsArrayIndex(index)) {
@@ -953,10 +949,10 @@ nsChromeOuterWindowProxy
 nsChromeOuterWindowProxy::singleton;
 
 static JSObject*
-NewOuterWindowProxy(JSContext *cx, JS::Handle<JSObject*> parent, bool isChrome)
+NewOuterWindowProxy(JSContext *cx, JSObject *parent, bool isChrome)
 {
   JSAutoCompartment ac(cx, parent);
-  JS::Rooted<JSObject*> proto(cx);
+  JSObject *proto;
   if (!js::GetObjectProto(cx, parent, &proto))
     return nullptr;
 
@@ -2020,8 +2016,8 @@ nsGlobalWindow::CreateOuterObject(nsGlobalWindow* aNewInner)
 {
   AutoPushJSContext cx(mContext->GetNativeContext());
 
-  JS::Rooted<JSObject*> global(cx, aNewInner->FastGetGlobalJSObject());
-  JSObject* outer = NewOuterWindowProxy(cx, global, IsChromeWindow());
+  JSObject* outer = NewOuterWindowProxy(cx, aNewInner->FastGetGlobalJSObject(),
+                                        IsChromeWindow());
   if (!outer) {
     return NS_ERROR_FAILURE;
   }
@@ -2040,8 +2036,8 @@ nsGlobalWindow::SetOuterObject(JSContext* aCx, JSObject* aOuterObject)
 
   // Set up the prototype for the outer object.
   JSObject* inner = JS_GetParent(aOuterObject);
-  JS::Rooted<JSObject*> proto(aCx);
-  if (!JS_GetPrototype(aCx, inner, proto.address())) {
+  JSObject* proto;
+  if (!JS_GetPrototype(aCx, inner, &proto)) {
     return NS_ERROR_FAILURE;
   }
   JS_SetPrototype(aCx, aOuterObject, proto);
@@ -2094,7 +2090,9 @@ CreateNativeGlobalForInner(JSContext* aCx,
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
 
   // Determine if we need the Components object.
-  bool componentsInContent = !Preferences::GetBool("dom.omit_components_in_content", true);
+  bool componentsInContent =
+    !Preferences::GetBool("dom.omit_components_in_content", true) ||
+    !Preferences::GetBool("dom.xbl_scopes", true);
   bool needComponents = componentsInContent ||
                         nsContentUtils::IsSystemPrincipal(aPrincipal) ||
                         TreatAsRemoteXUL(aPrincipal);
@@ -2244,9 +2242,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     newInnerWindow = currentInner;
 
     if (aDocument != oldDoc) {
-      JS::Rooted<JSObject*> obj(cx, currentInner->mJSObject);
-      xpc_UnmarkGrayObject(obj);
-      if (!nsWindowSH::InvalidateGlobalScopePolluter(cx, obj)) {
+      xpc_UnmarkGrayObject(currentInner->mJSObject);
+      if (!nsWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject)) {
         return NS_ERROR_FAILURE;
       }
     }
@@ -2359,9 +2356,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       mJSObject = mContext->GetNativeGlobal();
       SetWrapper(mJSObject);
     } else {
-      JS::Rooted<JSObject*> global(cx,
-        xpc_UnmarkGrayObject(newInnerWindow->mJSObject));
-      JSObject* outerObject = NewOuterWindowProxy(cx, global, thisChrome);
+      JSObject *outerObject = NewOuterWindowProxy(cx, xpc_UnmarkGrayObject(newInnerWindow->mJSObject),
+                                                  thisChrome);
       if (!outerObject) {
         NS_ERROR("out of memory");
         return NS_ERROR_FAILURE;
@@ -2473,8 +2469,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   // alive etc.
 
   if ((!reUseInnerWindow || aDocument != oldDoc) && !aState) {
-    JS::Rooted<JSObject*> obj(cx, newInnerWindow->mJSObject);
-    nsWindowSH::InstallGlobalScopePolluter(cx, obj);
+    nsWindowSH::InstallGlobalScopePolluter(cx, newInnerWindow->mJSObject);
   }
 
   aDocument->SetScriptGlobalObject(newInnerWindow);
@@ -3343,8 +3338,11 @@ nsPerformance*
 nsPIDOMWindow::GetPerformance()
 {
   MOZ_ASSERT(IsInnerWindow());
-  CreatePerformanceObjectIfNeeded();
-  return mPerformance;
+  if (HasPerformanceSupport()) {
+    CreatePerformanceObjectIfNeeded();
+    return mPerformance;
+  }
+  return nullptr;
 }
 
 void
@@ -3518,8 +3516,7 @@ nsGlobalWindow::GetContent(nsIDOMWindow** aContent)
   *aContent = nullptr;
 
   // First check for a named frame named "content"
-  nsCOMPtr<nsIDOMWindow> domWindow =
-    GetChildWindow(NS_LITERAL_STRING("content"));
+  nsCOMPtr<nsIDOMWindow> domWindow = GetChildWindow(nsDOMClassInfo::sContent_id);
   if (domWindow) {
     domWindow.forget(aContent);
     return NS_OK;
@@ -4801,13 +4798,15 @@ nsGlobalWindow::GetLength(uint32_t* aLength)
 }
 
 already_AddRefed<nsIDOMWindow>
-nsGlobalWindow::GetChildWindow(const nsAString& aName)
+nsGlobalWindow::GetChildWindow(jsid aName)
 {
+  const jschar *chars = JS_GetInternedStringChars(JSID_TO_STRING(aName));
+
   nsCOMPtr<nsIDocShellTreeNode> dsn(do_QueryInterface(GetDocShell()));
   NS_ENSURE_TRUE(dsn, nullptr);
 
   nsCOMPtr<nsIDocShellTreeItem> child;
-  dsn->FindChildWithName(PromiseFlatString(aName).get(),
+  dsn->FindChildWithName(reinterpret_cast<const PRUnichar*>(chars),
                          false, true, nullptr, nullptr,
                          getter_AddRefs(child));
 
@@ -6466,8 +6465,8 @@ JSObject* nsGlobalWindow::CallerGlobal()
   // retrieve the global corresponding to the innermost scripted frame. Then,
   // we verify that its principal is subsumed by the subject principal. If it
   // isn't, something is screwy, and we want to clamp to the cx global.
-  JS::Rooted<JSObject*> scriptedGlobal(cx, JS_GetScriptedGlobal(cx));
-  JS::Rooted<JSObject*> cxGlobal(cx, JS_GetGlobalForScopeChain(cx));
+  JSObject *scriptedGlobal = JS_GetScriptedGlobal(cx);
+  JSObject *cxGlobal = JS_GetGlobalForScopeChain(cx);
   if (!xpc::AccessCheck::subsumes(cxGlobal, scriptedGlobal)) {
     NS_WARNING("Something nasty is happening! Applying countermeasures...");
     return cxGlobal;
@@ -6481,7 +6480,7 @@ nsGlobalWindow::CallerInnerWindow()
 {
   JSContext *cx = nsContentUtils::GetCurrentJSContext();
   NS_ENSURE_TRUE(cx, nullptr);
-  JS::Rooted<JSObject*> scope(cx, CallerGlobal());
+  JSObject *scope = CallerGlobal();
 
   // When Jetpack runs content scripts inside a sandbox, it uses
   // sandboxPrototype to make them appear as though they're running in the
@@ -6491,8 +6490,8 @@ nsGlobalWindow::CallerInnerWindow()
   // now we need to do some special handling to support it.
   {
     JSAutoCompartment ac(cx, scope);
-    JS::Rooted<JSObject*> scopeProto(cx);
-    bool ok = JS_GetPrototype(cx, scope, scopeProto.address());
+    JSObject *scopeProto;
+    bool ok = JS_GetPrototype(cx, scope, &scopeProto);
     NS_ENSURE_TRUE(ok, nullptr);
     if (scopeProto && xpc::IsSandboxPrototypeProxy(scopeProto) &&
         (scopeProto = js::CheckedUnwrap(scopeProto, /* stopAtOuter = */ false)))
@@ -6592,12 +6591,12 @@ PostMessageReadStructuredClone(JSContext* cx,
 
     nsISupports* supports;
     if (JS_ReadBytes(reader, &supports, sizeof(supports))) {
-      JS::Rooted<JSObject*> global(cx, JS_GetGlobalForScopeChain(cx));
+      JSObject* global = JS_GetGlobalForScopeChain(cx);
       if (global) {
-        JS::Rooted<JS::Value> val(cx);
+        JS::Value val;
         nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
         if (NS_SUCCEEDED(nsContentUtils::WrapNative(cx, global, supports,
-                                                    val.address(),
+                                                    &val,
                                                     getter_AddRefs(wrapper)))) {
           return JSVAL_TO_OBJECT(val);
         }
@@ -6732,16 +6731,14 @@ PostMessageEvent::Run()
   }
 
   // Deserialize the structured clone data
-  JS::Rooted<JS::Value> messageData(cx);
+  JS::Value messageData;
   {
     JSAutoRequest ar(cx);
     StructuredCloneInfo scInfo;
     scInfo.event = this;
 
-    if (!buffer.read(cx, messageData.address(), &kPostMessageCallbacks,
-                     &scInfo)) {
+    if (!buffer.read(cx, &messageData, &kPostMessageCallbacks, &scInfo))
       return NS_ERROR_DOM_DATA_CLONE_ERR;
-    }
   }
 
   // Create the event
@@ -7366,13 +7363,13 @@ public:
                                   static_cast<nsGlobalWindow*>(window->GetCurrentInnerWindow());
       NS_ENSURE_TRUE(currentInner, NS_OK);
 
-      JSContext* cx = nsContentUtils::GetSafeJSContext();
-
-      JS::Rooted<JSObject*> obj(cx, currentInner->FastGetGlobalJSObject());
+      JSObject* obj = currentInner->FastGetGlobalJSObject();
       // We only want to nuke wrappers for the chrome->content case
       if (obj && !js::IsSystemCompartment(js::GetObjectCompartment(obj))) {
+        JSContext* cx = nsContentUtils::GetSafeJSContext();
+
         JSAutoRequest ar(cx);
-        js::NukeCrossCompartmentWrappers(cx,
+        js::NukeCrossCompartmentWrappers(cx, 
                                          js::ChromeCompartmentsOnly(),
                                          js::SingleCompartment(js::GetObjectCompartment(obj)),
                                          window->IsInnerWindow() ? js::DontNukeWindowReferences :
@@ -11218,6 +11215,13 @@ bool
 nsGlobalWindow::HasIndexedDBSupport()
 {
   return Preferences::GetBool("indexedDB.feature.enabled", true);
+}
+
+// static
+bool
+nsPIDOMWindow::HasPerformanceSupport()
+{
+  return Preferences::GetBool("dom.enable_performance", false);
 }
 
 static size_t

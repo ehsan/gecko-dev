@@ -178,7 +178,6 @@ public:
    * GetIdElement(true) if non-null.
    */
   void SetImageElement(Element* aElement);
-  bool HasIdElementExposedAsHTMLDocumentProperty();
 
   bool HasContentChangeCallback() { return mChangeCallbacks != nullptr; }
   void AddContentChangeCallback(nsIDocument::IDTargetObserver aCallback,
@@ -591,12 +590,13 @@ public:
 
   /**
    * Create a new presentation shell that will use aContext for
-   * its presentation context (presentation contexts <b>must not</b> be
-   * shared among multiple presentation shells).
+   * its presentation context (presentation context's <b>must not</b> be
+   * shared among multiple presentation shell's).
    */
-  virtual already_AddRefed<nsIPresShell> CreateShell(nsPresContext* aContext,
-                                                     nsViewManager* aViewManager,
-                                                     nsStyleSet* aStyleSet) MOZ_OVERRIDE;
+  virtual nsresult CreateShell(nsPresContext* aContext,
+                               nsViewManager* aViewManager,
+                               nsStyleSet* aStyleSet,
+                               nsIPresShell** aInstancePtrResult);
   virtual void DeleteShell();
 
   virtual nsresult GetAllowPlugins(bool* aAllowPlugins);
@@ -1140,14 +1140,11 @@ public:
   virtual void SetTitle(const nsAString& aTitle, mozilla::ErrorResult& rv);
 
   static void XPCOMShutdown();
-
-  js::ExpandoAndGeneration mExpandoAndGeneration;
-
 protected:
-  already_AddRefed<nsIPresShell> doCreateShell(nsPresContext* aContext,
-                                               nsViewManager* aViewManager,
-                                               nsStyleSet* aStyleSet,
-                                               nsCompatibility aCompatMode);
+  nsresult doCreateShell(nsPresContext* aContext,
+                         nsViewManager* aViewManager, nsStyleSet* aStyleSet,
+                         nsCompatibility aCompatMode,
+                         nsIPresShell** aInstancePtrResult);
 
   void RemoveDocStyleSheetsFromStyleSets();
   void RemoveStyleSheetsFromStyleSets(nsCOMArray<nsIStyleSheet>& aSheets, 

@@ -189,7 +189,7 @@ typedef JSBool
 typedef JSObject *
 (* ObjectOp)(JSContext *cx, HandleObject obj);
 typedef void
-(* FinalizeOp)(FreeOp *fop, JSObject *obj);
+(* FinalizeOp)(FreeOp *fop, RawObject obj);
 
 #define JS_CLASS_MEMBERS                                                      \
     const char          *name;                                                \
@@ -311,9 +311,6 @@ struct Class
     bool emulatesUndefined() const {
         return flags & JSCLASS_EMULATES_UNDEFINED;
     }
-
-    /* Defined in jsfuninlines.h */
-    inline bool isCallable() const;
 
     static size_t offsetOfFlags() { return offsetof(Class, flags); }
 };

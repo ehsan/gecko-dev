@@ -48,14 +48,14 @@ Wrapper::Renew(JSContext *cx, JSObject *existing, JSObject *obj, Wrapper *handle
 }
 
 Wrapper *
-Wrapper::wrapperHandler(JSObject *wrapper)
+Wrapper::wrapperHandler(RawObject wrapper)
 {
     JS_ASSERT(wrapper->isWrapper());
     return static_cast<Wrapper*>(GetProxyHandler(wrapper));
 }
 
 JSObject *
-Wrapper::wrappedObject(JSObject *wrapper)
+Wrapper::wrappedObject(RawObject wrapper)
 {
     JS_ASSERT(wrapper->isWrapper());
     return GetProxyTargetObject(wrapper);
@@ -76,7 +76,7 @@ js::UncheckedUnwrap(JSObject *wrapped, bool stopAtOuter, unsigned *flagsp)
 }
 
 JS_FRIEND_API(JSObject *)
-js::CheckedUnwrap(JSObject *obj, bool stopAtOuter)
+js::CheckedUnwrap(RawObject obj, bool stopAtOuter)
 {
     while (true) {
         JSObject *wrapper = obj;
@@ -87,7 +87,7 @@ js::CheckedUnwrap(JSObject *obj, bool stopAtOuter)
 }
 
 JS_FRIEND_API(JSObject *)
-js::UnwrapOneChecked(JSObject *obj, bool stopAtOuter)
+js::UnwrapOneChecked(RawObject obj, bool stopAtOuter)
 {
     if (!obj->isWrapper() ||
         JS_UNLIKELY(!!obj->getClass()->ext.innerObject && stopAtOuter))
@@ -100,7 +100,7 @@ js::UnwrapOneChecked(JSObject *obj, bool stopAtOuter)
 }
 
 bool
-js::IsCrossCompartmentWrapper(JSObject *wrapper)
+js::IsCrossCompartmentWrapper(RawObject wrapper)
 {
     return wrapper->isWrapper() &&
            !!(Wrapper::wrapperHandler(wrapper)->flags() & Wrapper::CROSS_COMPARTMENT);
@@ -833,7 +833,7 @@ js::NewDeadProxyObject(JSContext *cx, JSObject *parent)
 }
 
 bool
-js::IsDeadProxyObject(JSObject *obj)
+js::IsDeadProxyObject(RawObject obj)
 {
     return IsProxy(obj) && GetProxyHandler(obj) == &DeadObjectProxy::singleton;
 }

@@ -36,7 +36,7 @@ private:
   /**
    * Internal Send() method used to send one message.
    */
-  nsresult Send(JSContext* aCx, JSObject* aGlobal, JS::Handle<JSString*> aNumber,
+  nsresult Send(JSContext* aCx, JSObject* aGlobal, JSString* aNumber,
                 const nsAString& aMessage, JS::Value* aRequest);
 
   /**

@@ -47,7 +47,7 @@ interface HTMLInputElement : HTMLElement {
            attribute unsigned long height;
   [Pure]
            attribute boolean indeterminate;
-  [Pure, SetterThrows, Pref="dom.forms.inputmode"]
+  [Pure, SetterThrows]
            attribute DOMString inputMode;
   [Pure]
   readonly attribute HTMLElement? list;
@@ -81,8 +81,9 @@ interface HTMLInputElement : HTMLElement {
            attribute DOMString defaultValue;
   [Pure, TreatNullAs=EmptyString, SetterThrows]
            attribute DOMString value;
+           // Bug 742206 - any to Date?
   [Throws]
-           attribute Date? valueAsDate;
+           attribute any valueAsDate;
   [Pure, SetterThrows]
            attribute unrestricted double valueAsNumber;
            attribute unsigned long width;

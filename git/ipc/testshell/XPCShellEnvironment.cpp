@@ -278,9 +278,9 @@ Load(JSContext *cx,
      unsigned argc,
      JS::Value *vp)
 {
-    JS::Rooted<JS::Value> result(cx);
+    JS::Value result;
 
-    JS::Rooted<JSObject*> obj(cx, JS_THIS_OBJECT(cx, vp));
+    JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return JS_FALSE;
 
@@ -309,7 +309,7 @@ Load(JSContext *cx,
             return JS_FALSE;
 
         if (!Environment(cx)->ShouldCompileOnly() &&
-            !JS_ExecuteScript(cx, obj, script, result.address())) {
+            !JS_ExecuteScript(cx, obj, script, &result)) {
             return JS_FALSE;
         }
     }
@@ -523,7 +523,7 @@ typedef enum JSShellErrNum
 
 static void
 ProcessFile(JSContext *cx,
-            JS::Handle<JSObject*> obj,
+            JSObject *obj,
             const char *filename,
             FILE *file,
             JSBool forceTTY)
@@ -533,7 +533,7 @@ ProcessFile(JSContext *cx,
     pusher.Push(env->GetContext());
 
     JSScript *script;
-    JS::Rooted<JS::Value> result(cx);
+    JS::Value result;
     int lineno, startline;
     JSBool ok, hitEOF;
     char *bufp, buffer[4096];
@@ -571,9 +571,10 @@ ProcessFile(JSContext *cx,
         options.setUTF8(true)
                .setFileAndLine(filename, 1)
                .setPrincipals(env->GetPrincipal());
-        JSScript* script = JS::Compile(cx, obj, options, file);
+        JS::RootedObject rootedObj(cx, obj);
+        JSScript* script = JS::Compile(cx, rootedObj, options, file);
         if (script && !env->ShouldCompileOnly())
-            (void)JS_ExecuteScript(cx, obj, script, result.address());
+            (void)JS_ExecuteScript(cx, obj, script, &result);
 
         return;
     }
@@ -613,7 +614,7 @@ ProcessFile(JSContext *cx,
             JSErrorReporter older;
 
             if (!env->ShouldCompileOnly()) {
-                ok = JS_ExecuteScript(cx, obj, script, result.address());
+                ok = JS_ExecuteScript(cx, obj, script, &result);
                 if (ok && result != JSVAL_VOID) {
                     /* Suppress error reports from JS_ValueToString(). */
                     older = JS_SetErrorReporter(cx, NULL);
@@ -1026,8 +1027,8 @@ XPCShellEnvironment::Init()
         return false;
     }
 
-    JS::Rooted<JSObject*> globalObj(cx);
-    rv = holder->GetJSObject(globalObj.address());
+    JSObject *globalObj;
+    rv = holder->GetJSObject(&globalObj);
     if (NS_FAILED(rv)) {
         NS_ERROR("Failed to get global JSObject!");
         return false;
@@ -1071,7 +1072,7 @@ XPCShellEnvironment::EvaluateString(const nsString& aString,
 
   JS_ClearPendingException(mCx);
 
-  JS::Rooted<JSObject*> global(mCx, GetGlobalObject());
+  JSObject* global = GetGlobalObject();
   JSAutoCompartment ac(mCx, global);
 
   JSScript* script =
@@ -1087,8 +1088,8 @@ XPCShellEnvironment::EvaluateString(const nsString& aString,
           aResult->Truncate();
       }
 
-      JS::Rooted<JS::Value> result(mCx);
-      JSBool ok = JS_ExecuteScript(mCx, global, script, result.address());
+      JS::Value result;
+      JSBool ok = JS_ExecuteScript(mCx, global, script, &result);
       if (ok && result != JSVAL_VOID) {
           JSErrorReporter old = JS_SetErrorReporter(mCx, NULL);
           JSString* str = JS_ValueToString(mCx, result);

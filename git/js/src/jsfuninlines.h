@@ -28,7 +28,7 @@ JSFunction::initAtom(JSAtom *atom)
 }
 
 inline void
-JSFunction::setGuessedAtom(JSAtom *atom)
+JSFunction::setGuessedAtom(js::RawAtom atom)
 {
     JS_ASSERT(atom_ == NULL);
     JS_ASSERT(atom != NULL);
@@ -229,12 +229,6 @@ JSFunction::getBoundFunctionTarget() const
 
     /* Bound functions abuse |parent| to store their target function. */
     return getParent();
-}
-
-inline bool
-js::Class::isCallable() const
-{
-    return this == &js::FunctionClass || call;
 }
 
 #endif /* jsfuninlines_h___ */

@@ -63,7 +63,7 @@ StaticScopeIter::hasDynamicScopeObject() const
            : obj->toFunction()->isHeavyweight();
 }
 
-Shape *
+RawShape
 StaticScopeIter::scopeShape() const
 {
     JS_ASSERT(hasDynamicScopeObject());
@@ -88,7 +88,7 @@ StaticScopeIter::block() const
     return obj->asStaticBlock();
 }
 
-JSScript *
+RawScript
 StaticScopeIter::funScript() const
 {
     JS_ASSERT(type() == FUNCTION);
@@ -97,7 +97,7 @@ StaticScopeIter::funScript() const
 
 /*****************************************************************************/
 
-Shape *
+RawShape
 js::ScopeCoordinateToStaticScopeShape(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
     JS_ASSERT(pc >= script->code && pc < script->code + script->length);
@@ -164,7 +164,7 @@ CallObject::create(JSContext *cx, HandleShape shape, HandleTypeObject type, Heap
  * callee) or used as a template for jit compilation.
  */
 CallObject *
-CallObject::createTemplateObject(JSContext *cx, HandleScript script, gc::InitialHeap heap)
+CallObject::createTemplateObject(JSContext *cx, HandleScript script)
 {
     RootedShape shape(cx, script->bindings.callObjShape());
     JS_ASSERT(shape->getObjectClass() == &CallClass);
@@ -177,7 +177,7 @@ CallObject::createTemplateObject(JSContext *cx, HandleScript script, gc::Initial
     JS_ASSERT(CanBeFinalizedInBackground(kind, &CallClass));
     kind = gc::GetBackgroundAllocKind(kind);
 
-    JSObject *obj = JSObject::create(cx, kind, heap, shape, type);
+    JSObject *obj = JSObject::create(cx, kind, gc::TenuredHeap, shape, type);
     if (!obj)
         return NULL;
 
@@ -193,7 +193,7 @@ CallObject::createTemplateObject(JSContext *cx, HandleScript script, gc::Initial
 CallObject *
 CallObject::create(JSContext *cx, HandleScript script, HandleObject enclosing, HandleFunction callee)
 {
-    CallObject *callobj = CallObject::createTemplateObject(cx, script, gc::DefaultHeap);
+    CallObject *callobj = CallObject::createTemplateObject(cx, script);
     if (!callobj)
         return NULL;
 
@@ -286,7 +286,7 @@ Class js::DeclEnvClass = {
  * scope and callee) or used as a template for jit compilation.
  */
 DeclEnvObject *
-DeclEnvObject::createTemplateObject(JSContext *cx, HandleFunction fun, gc::InitialHeap heap)
+DeclEnvObject::createTemplateObject(JSContext *cx, HandleFunction fun)
 {
     RootedTypeObject type(cx, cx->compartment->getNewType(cx, &DeclEnvClass, NULL));
     if (!type)
@@ -299,7 +299,7 @@ DeclEnvObject::createTemplateObject(JSContext *cx, HandleFunction fun, gc::Initi
     if (!emptyDeclEnvShape)
         return NULL;
 
-    RootedObject obj(cx, JSObject::create(cx, FINALIZE_KIND, heap, emptyDeclEnvShape, type));
+    RootedObject obj(cx, JSObject::create(cx, FINALIZE_KIND, gc::DefaultHeap, emptyDeclEnvShape, type));
     if (!obj)
         return NULL;
 
@@ -320,7 +320,7 @@ DeclEnvObject::createTemplateObject(JSContext *cx, HandleFunction fun, gc::Initi
 DeclEnvObject *
 DeclEnvObject::create(JSContext *cx, HandleObject enclosing, HandleFunction callee)
 {
-    RootedObject obj(cx, createTemplateObject(cx, callee, gc::DefaultHeap));
+    RootedObject obj(cx, createTemplateObject(cx, callee));
     if (!obj)
         return NULL;
 
@@ -348,7 +348,7 @@ WithObject::create(JSContext *cx, HandleObject proto, HandleObject enclosing, ui
     obj->asScope().setEnclosingScope(enclosing);
     obj->setReservedSlot(DEPTH_SLOT, PrivateUint32Value(depth));
 
-    JSObject *thisp = JSObject::thisObject(cx, proto);
+    RawObject thisp = JSObject::thisObject(cx, proto);
     if (!thisp)
         return NULL;
 
@@ -682,7 +682,7 @@ StaticBlockObject::create(JSContext *cx)
     return &obj->asStaticBlock();
 }
 
-/* static */ Shape *
+/* static */ RawShape
 StaticBlockObject::addVar(JSContext *cx, Handle<StaticBlockObject*> block, HandleId id,
                           int index, bool *redeclared)
 {
@@ -1223,7 +1223,7 @@ class DebugScopeProxy : public BaseProxyHandler
         /* Handle unaliased let and catch bindings at block scope. */
         if (scope->isClonedBlock()) {
             Rooted<ClonedBlockObject *> block(cx, &scope->asClonedBlock());
-            Shape *shape = block->lastProperty()->search(cx, id);
+            RawShape shape = block->lastProperty()->search(cx, id);
             if (!shape)
                 return false;
 
@@ -1232,7 +1232,7 @@ class DebugScopeProxy : public BaseProxyHandler
                 return false;
 
             if (maybeframe) {
-                JSScript *script = maybeframe.script();
+                RawScript script = maybeframe.script();
                 unsigned local = block->slotToLocalIndex(script->bindings, shape->slot());
                 if (action == GET)
                     vp.set(maybeframe.unaliasedLocal(local));
@@ -1538,7 +1538,7 @@ DebugScopeObject::isForDeclarative() const
 }
 
 bool
-js_IsDebugScopeSlow(JSObject *obj)
+js_IsDebugScopeSlow(RawObject obj)
 {
     return obj->getClass() == &ObjectProxyClass &&
            GetProxyHandler(obj) == &DebugScopeProxy::singleton;

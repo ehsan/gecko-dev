@@ -23,8 +23,6 @@ this.EXPORTED_SYMBOLS = [
   "XPATH"
 ];
 
-const DOCUMENT_POSITION_DISCONNECTED = 1;
-
 let uuidGen = Components.classes["@mozilla.org/uuid-generator;1"]
              .getService(Components.interfaces.nsIUUIDGenerator);
 
@@ -44,6 +42,7 @@ function ElementException(msg, num, stack) {
 }
 
 this.ElementManager = function ElementManager(notSupported) {
+  this.searchTimeout = 0;
   this.seenItems = {};
   this.timer = Components.classes["@mozilla.org/timer;1"].createInstance(Components.interfaces.nsITimer);
   this.elementStrategies = [CLASS_NAME, SELECTOR, ID, NAME, LINK_TEXT, PARTIAL_LINK_TEXT, TAG, XPATH];
@@ -57,6 +56,7 @@ ElementManager.prototype = {
    * Reset values
    */
   reset: function EM_clear() {
+    this.searchTimeout = 0;
     this.seenItems = {};
   },
 
@@ -115,11 +115,7 @@ ElementManager.prototype = {
       delete this.seenItems[id];
     }
     // use XPCNativeWrapper to compare elements; see bug 834266
-    let wrappedWin = XPCNativeWrapper(win);
-    if (!el ||
-        !(XPCNativeWrapper(el).ownerDocument == wrappedWin.document) ||
-        (XPCNativeWrapper(el).compareDocumentPosition(wrappedWin.document.documentElement) &
-         DOCUMENT_POSITION_DISCONNECTED)) {
+    if (!el || !(XPCNativeWrapper(el).ownerDocument == XPCNativeWrapper(win).document)) {
       throw new ElementException("Stale element reference", 10, null);
     }
     return el;
@@ -272,15 +268,13 @@ ElementManager.prototype = {
    * @return nsIDOMElement or list of nsIDOMElements
    *        Returns the element(s) by calling the on_success function.
    */
-  find: function EM_find(win, values, searchTimeout, on_success, on_error, all, command_id) {
+  find: function EM_find(win, values, on_success, on_error, all, command_id) {
     let startTime = values.time ? values.time : new Date().getTime();
-    let startNode = (values.element != undefined) ?
-                    this.getKnownElement(values.element, win) : win.document;
+    let startNode = (values.element != undefined) ? this.getKnownElement(values.element, win) : win.document;
     if (this.elementStrategies.indexOf(values.using) < 0) {
       throw new ElementException("No such strategy.", 17, null);
     }
-    let found = all ? this.findElements(values.using, values.value, win.document, startNode) :
-                      this.findElement(values.using, values.value, win.document, startNode);
+    let found = all ? this.findElements(values.using, values.value, win.document, startNode) : this.findElement(values.using, values.value, win.document, startNode);
     if (found) {
       let type = Object.prototype.toString.call(found);
       if ((type == '[object Array]') || (type == '[object HTMLCollection]') || (type == '[object NodeList]')) {
@@ -296,12 +290,11 @@ ElementManager.prototype = {
       }
       return;
     } else {
-      if (!searchTimeout || new Date().getTime() - startTime > searchTimeout) {
+      if (this.searchTimeout == 0 || new Date().getTime() - startTime > this.searchTimeout) {
         on_error("Unable to locate element: " + values.value, 7, null, command_id);
       } else {
         values.time = startTime;
         this.timer.initWithCallback(this.find.bind(this, win, values,
-                                                   searchTimeout,
                                                    on_success, on_error, all,
                                                    command_id),
                                     100,
@@ -468,5 +461,18 @@ ElementManager.prototype = {
         throw new ElementException("No such strategy", 500, null);
     }
     return elements;
+  },
+
+  /**
+   * Sets the timeout for searching for elements with find element
+   * 
+   * @param number value
+   *        Timeout value in milliseconds
+   */
+  setSearchTimeout: function EM_setSearchTimeout(value) {
+    this.searchTimeout = parseInt(value);
+    if(isNaN(this.searchTimeout)){
+      throw new ElementException("Not a Number", 500, null);
+    }
   },
 }

@@ -11,7 +11,7 @@
 BEGIN_WORKERS_NAMESPACE
 
 bool
-DefineChromeWorkerFunctions(JSContext* aCx, JS::Handle<JSObject*> aGlobal);
+DefineChromeWorkerFunctions(JSContext* aCx, JSObject* aGlobal);
 
 END_WORKERS_NAMESPACE
 

@@ -1758,34 +1758,28 @@ class nsTransitionEvent : public nsEvent
 {
 public:
   nsTransitionEvent(bool isTrusted, uint32_t msg,
-                    const nsAString& propertyNameArg, float elapsedTimeArg,
-                    const nsAString& pseudoElementArg)
+                    const nsString &propertyNameArg, float elapsedTimeArg)
     : nsEvent(isTrusted, msg, NS_TRANSITION_EVENT),
-      propertyName(propertyNameArg), elapsedTime(elapsedTimeArg),
-      pseudoElement(pseudoElementArg)
+      propertyName(propertyNameArg), elapsedTime(elapsedTimeArg)
   {
   }
 
   nsString propertyName;
   float elapsedTime;
-  nsString pseudoElement;
 };
 
 class nsAnimationEvent : public nsEvent
 {
 public:
   nsAnimationEvent(bool isTrusted, uint32_t msg,
-                   const nsAString &animationNameArg, float elapsedTimeArg,
-                   const nsAString &pseudoElementArg)
+                   const nsString &animationNameArg, float elapsedTimeArg)
     : nsEvent(isTrusted, msg, NS_ANIMATION_EVENT),
-      animationName(animationNameArg), elapsedTime(elapsedTimeArg),
-      pseudoElement(pseudoElementArg)
+      animationName(animationNameArg), elapsedTime(elapsedTimeArg)
   {
   }
 
   nsString animationName;
   float elapsedTime;
-  nsString pseudoElement;
 };
 
 /**

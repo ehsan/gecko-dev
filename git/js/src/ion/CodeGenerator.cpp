@@ -939,7 +939,7 @@ CodeGenerator::emitGetPropertyPolymorphic(LInstruction *ins, Register obj, Regis
         Label next;
         masm.branchPtr(Assembler::NotEqual, scratch, ImmGCPtr(mir->objShape(i)), &next);
 
-        Shape *shape = mir->shape(i);
+        RawShape shape = mir->shape(i);
         if (shape->slot() < shape->numFixedSlots()) {
             // Fixed slot.
             masm.loadTypedOrValue(Address(obj, JSObject::getFixedSlotOffset(shape->slot())),
@@ -996,7 +996,7 @@ CodeGenerator::emitSetPropertyPolymorphic(LInstruction *ins, Register obj, Regis
         Label next;
         masm.branchPtr(Assembler::NotEqual, scratch, ImmGCPtr(mir->objShape(i)), &next);
 
-        Shape *shape = mir->shape(i);
+        RawShape shape = mir->shape(i);
         if (shape->slot() < shape->numFixedSlots()) {
             // Fixed slot.
             Address addr(obj, JSObject::getFixedSlotOffset(shape->slot()));
@@ -1531,7 +1531,7 @@ CodeGenerator::visitCallKnown(LCallKnown *call)
     Register calleereg = ToRegister(call->getFunction());
     Register objreg    = ToRegister(call->getTempObject());
     uint32_t unusedStack = StackOffsetOfPassedArg(call->argslot());
-    JSFunction *target = call->getSingleTarget();
+    RawFunction target = call->getSingleTarget();
     ExecutionMode executionMode = gen->info().executionMode();
     Label end, uncompiled;
 
@@ -1545,7 +1545,7 @@ CodeGenerator::visitCallKnown(LCallKnown *call)
     // If the function is known to be uncompilable, just emit the call to
     // Invoke in sequential mode, else mark as cannot compile.
     JS_ASSERT(call->mir()->hasRootedScript());
-    JSScript *targetScript = target->nonLazyScript();
+    RawScript targetScript = target->nonLazyScript();
     if (GetIonScript(targetScript, executionMode) == ION_DISABLED_SCRIPT) {
         if (executionMode == ParallelExecution)
             return false;
@@ -1751,7 +1751,7 @@ CodeGenerator::visitApplyArgsGeneric(LApplyArgsGeneric *apply)
     // If the function is known to be uncompilable, only emit the call to InvokeFunction.
     ExecutionMode executionMode = gen->info().executionMode();
     if (apply->hasSingleTarget()) {
-        JSFunction *target = apply->getSingleTarget();
+        RawFunction target = apply->getSingleTarget();
         if (!CanIonCompile(target, executionMode)) {
             if (!emitCallInvokeFunction(apply, copyreg))
                 return false;
@@ -2220,7 +2220,7 @@ CodeGenerator::maybeCreateScriptCounts()
     IonScriptCounts *counts = NULL;
 
     CompileInfo *outerInfo = &gen->info();
-    JSScript *script = outerInfo->script();
+    RawScript script = outerInfo->script();
 
     if (cx->runtime->profilingScripts) {
         if (script && !script->hasScriptCounts && !script->initScriptCounts(cx))
@@ -2636,7 +2636,7 @@ CodeGenerator::visitOutOfLineNewObject(OutOfLineNewObject *ool)
     return true;
 }
 
-typedef js::DeclEnvObject *(*NewDeclEnvObjectFn)(JSContext *, HandleFunction, gc::InitialHeap);
+typedef js::DeclEnvObject *(*NewDeclEnvObjectFn)(JSContext *, HandleFunction);
 static const VMFunction NewDeclEnvObjectInfo =
     FunctionInfo<NewDeclEnvObjectFn>(DeclEnvObject::createTemplateObject);
 
@@ -2649,7 +2649,7 @@ CodeGenerator::visitNewDeclEnvObject(LNewDeclEnvObject *lir)
 
     // If we have a template object, we can inline call object creation.
     OutOfLineCode *ool = oolCallVM(NewDeclEnvObjectInfo, lir,
-                                   (ArgList(), ImmGCPtr(info.fun()), Imm32(gc::DefaultHeap)),
+                                   (ArgList(), ImmGCPtr(info.fun())),
                                    StoreRegisterTo(obj));
     if (!ool)
         return false;
@@ -4929,7 +4929,7 @@ CodeGenerator::link()
     // We encode safepoints after the OSI-point offsets have been determined.
     encodeSafepoints();
 
-    JSScript *script = gen->info().script();
+    RawScript script = gen->info().script();
     ExecutionMode executionMode = gen->info().executionMode();
     JS_ASSERT(!HasIonScript(script, executionMode));
 
@@ -6084,7 +6084,7 @@ typedef bool (*IsDelegateObjectFn)(JSContext *, HandleObject, HandleObject, JSBo
 static const VMFunction IsDelegateObjectInfo = FunctionInfo<IsDelegateObjectFn>(IsDelegateObject);
 
 bool
-CodeGenerator::emitInstanceOf(LInstruction *ins, JSObject *prototypeObject)
+CodeGenerator::emitInstanceOf(LInstruction *ins, RawObject prototypeObject)
 {
     // This path implements fun_hasInstance when the function's prototype is
     // known to be prototypeObject.

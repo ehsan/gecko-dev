@@ -39,13 +39,9 @@ ClearAttrCache(const nsAString& aKey, MiscContainer*& aValue, void*)
 
 } // anonymous namespace
 
-nsHTMLCSSStyleSheet::nsHTMLCSSStyleSheet(nsIURI* aURL, nsIDocument* aDocument)
-  : mURL(aURL)
-  , mDocument(aDocument) // not refcounted!
+nsHTMLCSSStyleSheet::nsHTMLCSSStyleSheet()
+  : mDocument(nullptr)
 {
-  MOZ_ASSERT(aURL);
-  MOZ_ASSERT(aDocument);
-  mCachedStyleAttrs.Init();
 }
 
 nsHTMLCSSStyleSheet::~nsHTMLCSSStyleSheet()
@@ -105,6 +101,22 @@ nsHTMLCSSStyleSheet::RulesMatching(XULTreeRuleProcessorData* aData)
 {
 }
 #endif
+
+nsresult
+nsHTMLCSSStyleSheet::Init(nsIURI* aURL, nsIDocument* aDocument)
+{
+  NS_PRECONDITION(aURL && aDocument, "null ptr");
+  if (! aURL || ! aDocument)
+    return NS_ERROR_NULL_POINTER;
+
+  if (mURL || mDocument)
+    return NS_ERROR_ALREADY_INITIALIZED;
+
+  mDocument = aDocument; // not refcounted!
+  mURL = aURL;
+  mCachedStyleAttrs.Init();
+  return NS_OK;
+}
 
 // Test if style is dependent on content state
 /* virtual */ nsRestyleHint

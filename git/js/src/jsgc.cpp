@@ -3358,7 +3358,7 @@ GetNextZoneGroup(JSRuntime *rt)
  */
 
 static bool
-IsGrayListObject(JSObject *obj)
+IsGrayListObject(RawObject obj)
 {
     JS_ASSERT(obj);
     return IsCrossCompartmentWrapper(obj) && !IsDeadProxyObject(obj);
@@ -3367,7 +3367,7 @@ IsGrayListObject(JSObject *obj)
 const unsigned JSSLOT_GC_GRAY_LINK = JSSLOT_PROXY_EXTRA + 1;
 
 static unsigned
-GrayLinkSlot(JSObject *obj)
+GrayLinkSlot(RawObject obj)
 {
     JS_ASSERT(IsGrayListObject(obj));
     return JSSLOT_GC_GRAY_LINK;
@@ -3375,24 +3375,24 @@ GrayLinkSlot(JSObject *obj)
 
 #ifdef DEBUG
 static void
-AssertNotOnGrayList(JSObject *obj)
+AssertNotOnGrayList(RawObject obj)
 {
     JS_ASSERT_IF(IsGrayListObject(obj), obj->getReservedSlot(GrayLinkSlot(obj)).isUndefined());
 }
 #endif
 
 static JSObject *
-CrossCompartmentPointerReferent(JSObject *obj)
+CrossCompartmentPointerReferent(RawObject obj)
 {
     JS_ASSERT(IsGrayListObject(obj));
     return &GetProxyPrivate(obj).toObject();
 }
 
-static JSObject *
-NextIncomingCrossCompartmentPointer(JSObject *prev, bool unlink)
+static RawObject
+NextIncomingCrossCompartmentPointer(RawObject prev, bool unlink)
 {
     unsigned slot = GrayLinkSlot(prev);
-    JSObject *next = prev->getReservedSlot(slot).toObjectOrNull();
+    RawObject next = prev->getReservedSlot(slot).toObjectOrNull();
     JS_ASSERT_IF(next, IsGrayListObject(next));
 
     if (unlink)
@@ -3402,7 +3402,7 @@ NextIncomingCrossCompartmentPointer(JSObject *prev, bool unlink)
 }
 
 void
-js::DelayCrossCompartmentGrayMarking(JSObject *src)
+js::DelayCrossCompartmentGrayMarking(RawObject src)
 {
     JS_ASSERT(IsGrayListObject(src));
 
@@ -3423,7 +3423,7 @@ js::DelayCrossCompartmentGrayMarking(JSObject *src)
      * Assert that the object is in our list, also walking the list to check its
      * integrity.
      */
-    JSObject *obj = comp->gcIncomingGrayPointers;
+    RawObject obj = comp->gcIncomingGrayPointers;
     bool found = false;
     while (obj) {
         if (obj == src)
@@ -3453,7 +3453,7 @@ MarkIncomingCrossCompartmentPointers(JSRuntime *rt, const uint32_t color)
         JS_ASSERT_IF(color == BLACK, c->zone()->isGCMarkingBlack());
         JS_ASSERT_IF(c->gcIncomingGrayPointers, IsGrayListObject(c->gcIncomingGrayPointers));
 
-        for (JSObject *src = c->gcIncomingGrayPointers;
+        for (RawObject src = c->gcIncomingGrayPointers;
              src;
              src = NextIncomingCrossCompartmentPointer(src, unlinkList))
         {
@@ -3480,7 +3480,7 @@ MarkIncomingCrossCompartmentPointers(JSRuntime *rt, const uint32_t color)
 }
 
 static bool
-RemoveFromGrayList(JSObject *wrapper)
+RemoveFromGrayList(RawObject wrapper)
 {
     if (!IsGrayListObject(wrapper))
         return false;
@@ -3489,11 +3489,11 @@ RemoveFromGrayList(JSObject *wrapper)
     if (wrapper->getReservedSlot(slot).isUndefined())
         return false;  /* Not on our list. */
 
-    JSObject *tail = wrapper->getReservedSlot(slot).toObjectOrNull();
+    RawObject tail = wrapper->getReservedSlot(slot).toObjectOrNull();
     wrapper->setReservedSlot(slot, UndefinedValue());
 
     JSCompartment *comp = CrossCompartmentPointerReferent(wrapper)->compartment();
-    JSObject *obj = comp->gcIncomingGrayPointers;
+    RawObject obj = comp->gcIncomingGrayPointers;
     if (obj == wrapper) {
         comp->gcIncomingGrayPointers = tail;
         return true;
@@ -3501,7 +3501,7 @@ RemoveFromGrayList(JSObject *wrapper)
 
     while (obj) {
         unsigned slot = GrayLinkSlot(obj);
-        JSObject *next = obj->getReservedSlot(slot).toObjectOrNull();
+        RawObject next = obj->getReservedSlot(slot).toObjectOrNull();
         if (next == wrapper) {
             obj->setCrossCompartmentSlot(slot, ObjectOrNullValue(tail));
             return true;
@@ -3516,14 +3516,14 @@ RemoveFromGrayList(JSObject *wrapper)
 static void
 ResetGrayList(JSCompartment *comp)
 {
-    JSObject *src = comp->gcIncomingGrayPointers;
+    RawObject src = comp->gcIncomingGrayPointers;
     while (src)
         src = NextIncomingCrossCompartmentPointer(src, true);
     comp->gcIncomingGrayPointers = NULL;
 }
 
 void
-js::NotifyGCNukeWrapper(JSObject *obj)
+js::NotifyGCNukeWrapper(RawObject obj)
 {
     /*
      * References to target of wrapper are being removed, we no longer have to
@@ -3538,7 +3538,7 @@ enum {
 };
 
 unsigned
-js::NotifyGCPreSwap(JSObject *a, JSObject *b)
+js::NotifyGCPreSwap(RawObject a, RawObject b)
 {
     /*
      * Two objects in the same compartment are about to have had their contents
@@ -3550,7 +3550,7 @@ js::NotifyGCPreSwap(JSObject *a, JSObject *b)
 }
 
 void
-js::NotifyGCPostSwap(JSObject *a, JSObject *b, unsigned removedFlags)
+js::NotifyGCPostSwap(RawObject a, RawObject b, unsigned removedFlags)
 {
     /*
      * Two objects in the same compartment have had their contents swapped.  If
@@ -4945,7 +4945,7 @@ js::StopPCCountProfiling(JSContext *cx)
 
     for (ZonesIter zone(rt); !zone.done(); zone.next()) {
         for (CellIter i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
-            JSScript *script = i.get<JSScript>();
+            RawScript script = i.get<JSScript>();
             if (script->hasScriptCounts && script->types) {
                 ScriptAndCounts sac;
                 sac.script = script;

@@ -8,19 +8,12 @@
 #ifndef nsWinUtils_h_
 #define nsWinUtils_h_
 
-#include <windows.h>
-
+#include "Accessible2.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsCOMPtr.h"
-#include "nsRefPtrHashtable.h"
 
 class nsIArray;
 class nsIContent;
-
-namespace mozilla {
-namespace a11y {
-
-class DocAccessible;
 
 const LPCWSTR kClassNameRoot = L"MozillaUIWindowClass";
 const LPCWSTR kClassNameTabContent = L"MozillaContentWindowClass";
@@ -73,15 +66,7 @@ public:
    * Helper to hide window.
    */
   static void HideNativeWindow(HWND aWnd);
-
-  /**
-   * Cache for HWNDs of windows created for document accessibles in windows
-   * emulation mode.
-   */
-  static nsRefPtrHashtable<nsPtrHashKey<void>, DocAccessible> sHWNDCache;
 };
 
-} // namespace a11y
-} // namespace mozilla
-
 #endif
+

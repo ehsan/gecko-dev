@@ -530,8 +530,6 @@ public:
 
     uint32_t GetOrientationSyncMillis() const;
 
-    static bool DrawLayerBorders();
-
 protected:
     gfxPlatform();
     virtual ~gfxPlatform();

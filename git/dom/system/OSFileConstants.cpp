@@ -604,8 +604,8 @@ static dom::ConstantSpec gWinProperties[] =
 JSObject *GetOrCreateObjectProperty(JSContext *cx, JSObject *aObject,
                                     const char *aProperty)
 {
-  JS::Rooted<JS::Value> val(cx);
-  if (!JS_GetProperty(cx, aObject, aProperty, val.address())) {
+  JS::Value val;
+  if (!JS_GetProperty(cx, aObject, aProperty, &val)) {
     return NULL;
   }
   if (!val.isUndefined()) {
@@ -657,18 +657,18 @@ bool DefineOSFileConstants(JSContext *cx, JSObject *global)
     return false;
   }
 
-  JS::Rooted<JSObject*> objOS(cx);
+  JSObject *objOS;
   if (!(objOS = GetOrCreateObjectProperty(cx, global, "OS"))) {
     return false;
   }
-  JS::Rooted<JSObject*> objConstants(cx);
+  JSObject *objConstants;
   if (!(objConstants = GetOrCreateObjectProperty(cx, objOS, "Constants"))) {
     return false;
   }
 
   // Build OS.Constants.libc
 
-  JS::Rooted<JSObject*> objLibc(cx);
+  JSObject *objLibc;
   if (!(objLibc = GetOrCreateObjectProperty(cx, objConstants, "libc"))) {
     return false;
   }
@@ -679,7 +679,7 @@ bool DefineOSFileConstants(JSContext *cx, JSObject *global)
 #if defined(XP_WIN)
   // Build OS.Constants.Win
 
-  JS::Rooted<JSObject*> objWin(cx);
+  JSObject *objWin;
   if (!(objWin = GetOrCreateObjectProperty(cx, objConstants, "Win"))) {
     return false;
   }
@@ -690,7 +690,7 @@ bool DefineOSFileConstants(JSContext *cx, JSObject *global)
 
   // Build OS.Constants.Sys
 
-  JS::Rooted<JSObject*> objSys(cx);
+  JSObject *objSys;
   if (!(objSys = GetOrCreateObjectProperty(cx, objConstants, "Sys"))) {
     return false;
   }
@@ -721,7 +721,7 @@ bool DefineOSFileConstants(JSContext *cx, JSObject *global)
 
   // Build OS.Constants.Path
 
-  JS::Rooted<JSObject*> objPath(cx);
+  JSObject *objPath;
   if (!(objPath = GetOrCreateObjectProperty(cx, objConstants, "Path"))) {
     return false;
   }

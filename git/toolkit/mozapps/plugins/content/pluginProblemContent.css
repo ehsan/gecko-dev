@@ -102,7 +102,7 @@ html|applet:not([height]), html|applet[height=""] {
   display: block;
 }
 
-.installStatus[installable] .msgInstallPlugin {
+.installStatus[status="ready"] .msgInstallPlugin {
   display: block;
 }
 

@@ -388,8 +388,6 @@ MenuPopup.prototype = {
       self._panel.removeEventListener("transitionend", arguments.callee);
       self._panel.removeAttribute("hiding");
       self._panel.hidden = true;
-      self._popup.style.maxWidth = "none";
-      self._popup.style.maxHeight = "none";
 
       let event = document.createEvent("Events");
       event.initEvent("popuphidden", true, false);
@@ -434,37 +432,29 @@ MenuPopup.prototype = {
     if (aPositionOptions.centerHorizontally)
       aX -= halfWidth;
 
-    // Always leave some padding.
-    if (aX < kPositionPadding) {
-      aX = kPositionPadding;
+    if (aX < 0) {
+      aX = 0;
     } else if (aX + width + kPositionPadding > screenWidth){
-      // Don't let the popup overflow to the right.
-      aX = Math.max(screenWidth - width - kPositionPadding, kPositionPadding);
+      aX = screenWidth - width - kPositionPadding;
     }
 
-    if (aY < kPositionPadding  && aPositionOptions.moveBelowToFit) {
+    if (aY < 0 && aPositionOptions.moveBelowToFit) {
       // show context menu below when it doesn't fit.
       aY = aPositionOptions.yPos;
-    }
-
-    if (aY < kPositionPadding) {
-      aY = kPositionPadding;
-    } else if (aY + height + kPositionPadding > screenHeight){
-      aY = Math.max(screenHeight - height - kPositionPadding, kPositionPadding);
+    } else if (aY < 0) {
+      aY = 0;
     }
 
     this._panel.left = aX;
     this._panel.top = aY;
 
-    if (!aPositionOptions.maxHeight) {
-      // Make sure it fits in the window.
-      let popupHeight = Math.min(aY + height + kPositionPadding, screenHeight - aY - kPositionPadding);
-      this._popup.style.maxHeight = popupHeight + "px";
-    }
-
     if (!aPositionOptions.maxWidth) {
-      let popupWidth = Math.min(aX + width + kPositionPadding, screenWidth - aX - kPositionPadding);
-      this._popup.style.maxWidth = popupWidth + "px";
+      let excessY = (aY + height + kPositionPadding - screenHeight);
+      this._popup.style.maxHeight = (excessY > 0) ? (height - excessY) + "px" : "none";
+    }
+    if (!aPositionOptions.maxHeight) {
+      let excessX = (aX + width + kPositionPadding - screenWidth);
+      this._popup.style.maxWidth = (excessX > 0) ? (width - excessX) + "px" : "none";
     }
   },
 

@@ -141,7 +141,7 @@ SmsManager::GetSegmentInfoForText(const nsAString& aText,
 }
 
 nsresult
-SmsManager::Send(JSContext* aCx, JSObject* aGlobal, JS::Handle<JSString*> aNumber,
+SmsManager::Send(JSContext* aCx, JSObject* aGlobal, JSString* aNumber,
                  const nsAString& aMessage, JS::Value* aRequest)
 {
   nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
@@ -157,8 +157,7 @@ SmsManager::Send(JSContext* aCx, JSObject* aGlobal, JS::Handle<JSString*> aNumbe
   nsresult rv = smsService->Send(number, aMessage, msgCallback);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  JS::Rooted<JSObject*> global(aCx, aGlobal);
-  rv = nsContentUtils::WrapNative(aCx, global,
+  rv = nsContentUtils::WrapNative(aCx, aGlobal,
                                   static_cast<nsIDOMDOMRequest*>(request.get()),
                                   aRequest);
   if (NS_FAILED(rv)) {
@@ -183,15 +182,14 @@ SmsManager::Send(const JS::Value& aNumber, const nsAString& aMessage, JS::Value*
     return NS_ERROR_INVALID_ARG;
   }
 
-  JS::Rooted<JSObject*> global(cx, sc->GetNativeGlobal());
+  JSObject* global = sc->GetNativeGlobal();
   NS_ASSERTION(global, "Failed to get global object!");
 
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, global);
 
   if (aNumber.isString()) {
-    JS::Rooted<JSString*> number(cx, aNumber.toString());
-    return Send(cx, global, number, aMessage, aReturn);
+    return Send(cx, global, aNumber.toString(), aMessage, aReturn);
   }
 
   // Must be an object then.
@@ -199,9 +197,9 @@ SmsManager::Send(const JS::Value& aNumber, const nsAString& aMessage, JS::Value*
     return NS_ERROR_FAILURE;
   }
 
-  JS::Rooted<JSObject*> numbers(cx, &aNumber.toObject());
+  JSObject& numbers = aNumber.toObject();
   uint32_t size;
-  if (!JS_GetArrayLength(cx, numbers, &size)) {
+  if (!JS_GetArrayLength(cx, &numbers, &size)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -212,8 +210,8 @@ SmsManager::Send(const JS::Value& aNumber, const nsAString& aMessage, JS::Value*
 
   JS::RootedString str(cx);
   for (uint32_t i = 0; i < size; ++i) {
-    JS::Rooted<JS::Value> number(cx);
-    if (!JS_GetElement(cx, numbers, i, number.address())) {
+    JS::Value number;
+    if (!JS_GetElement(cx, &numbers, i, &number)) {
       return NS_ERROR_INVALID_ARG;
     }
 
