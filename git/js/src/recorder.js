@@ -38,27 +38,31 @@
  * ***** END LICENSE BLOCK ***** */
  
 ({
-    start: function(pc) {
+    start: function(pc, sp) {
+        this.error = false;
+        this.anchorPC = pc;
+        this.anchorSP = this.SP = sp;
+        this.code = [];
+        this.map = {};
         print("Recording at @" + pc);
-        return true;
     },
     stop: function(pc) {
         print("Recording ended at @" + pc);
     },
     /* track the data flow through locals */
     track: function(from, to) {
-        print("Mapped value @" + from + " to @" + to);
-        return true;
+        this.map[to] = this.map[from];
+    },
+    /* emit an IR instruction */
+    emit: function(x, to) {
+        this.map[to] = this.code.push(x);
     },
     /* register a change in the stack pointer */
     setSP: function(sp) {
-        print("SP = @" + sp);
-        return true;
+        this.SP = sp;
     },
     /* create a constant and assign it to v */
     constant: function(v, c) {
-        print("constant " + c + " -> @" + v); 
-        return true;
-    }   
+        this.emit({ op: "constant", value: c });
+    }	
 });
-

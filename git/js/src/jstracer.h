@@ -55,19 +55,22 @@
 struct JSTraceMonitor {
     int         freq;
     JSObject*   recorder;
-    bool        error;
 };
 
 #define TRACE_TRIGGER_MASK 0x3f
 
-jsval
+void 
 js_CallRecorder(JSContext* cx, const char* name, uintN argc, jsval* argv);
 
-jsval
+void 
 js_CallRecorder(JSContext* cx, const char* name, jsval a);
 
-jsval
+void 
 js_CallRecorder(JSContext* cx, const char* name, jsval a, jsval b);
+
+
+bool 
+js_GetRecorderError(JSContext* cx);
 
 /*
  * The recorder needs to keep track of native machine addresses, including
